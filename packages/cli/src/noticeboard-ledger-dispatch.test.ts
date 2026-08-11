@@ -148,8 +148,10 @@ test("noticeboard claims through the dispatch renders the queue-order read view"
   ]);
   const env = await run(["noticeboard", "claims", "story-x"], depsWith(ledger));
   assert.equal(env.ok, true, env.body);
-  assert.match(env.body, /\[work\]\s+holder-wt/);
-  assert.match(env.body, /\[waiting\]\s+waiter-wt/);
+  // [grade/role] (ADR-0346 D3) — both rows are pre-split, so each role is derived from the row's
+  // own legacy `intent` word ("real" ⇒ proving; absent ⇒ supplementing).
+  assert.match(env.body, /\[work\/proving\]\s+holder-wt/);
+  assert.match(env.body, /\[waiting\/supplementing\]\s+waiter-wt/);
 });
 
 test("without a ledger store the verbs degrade to the db guidance, never a crash", async () => {
@@ -179,6 +181,6 @@ test("noticeboard mine through the dispatch takes NO unit id and reads this sess
     { sessionId: "wt-dispatch", opts: { includeStale: true } },
   ]);
   assert.match(env.body, /Claims held by this session \(wt-dispatch/);
-  assert.match(env.body, /- story-x {2}\[work\]/);
+  assert.match(env.body, /- story-x {2}\[work\/proving\]/);
   assert.doesNotMatch(env.body, /someone-else/, "mine is keyed on THIS session, not the unit");
 });

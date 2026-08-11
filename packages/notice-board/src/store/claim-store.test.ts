@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { claimGrade, CLAIM_STALE_RECLAIM_MS } from "../claim.js";
+import { claimGrade, claimRole, CLAIM_STALE_RECLAIM_MS, type ClaimDocT } from "../claim.js";
 import { PgClaimStore } from "./claim-store.js";
 
 /**
@@ -27,6 +27,8 @@ interface ClaimRow {
   grade?: string;
   branch: string;
   intent: string;
+  /** The typed role column (ADR-0346 D3) — NULL on every pre-split row, hence `| null`. */
+  role?: string | null;
   claimed_at: string;
   heartbeat_at: string;
 }
@@ -42,7 +44,12 @@ interface AppendedEvent {
   sessionId: string;
 }
 
-/** The work-path writes carry values [unit, session, branch, intent] (grade is a SQL literal). */
+/** A bound role parameter as the DB would echo it back: the enum string, or NULL. */
+function roleFromValue(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+/** The work-path writes carry values [unit, session, branch, intent, role] (grade is a literal). */
 function rowFromWriteValues(values: unknown[], heartbeatAt: string = NOW_ISO): ClaimRow {
   return {
     unit_id: String(values[0]),
@@ -50,12 +57,13 @@ function rowFromWriteValues(values: unknown[], heartbeatAt: string = NOW_ISO): C
     grade: "work",
     branch: String(values[2]),
     intent: String(values[3]),
+    role: roleFromValue(values[4]),
     claimed_at: NOW_ISO,
     heartbeat_at: heartbeatAt,
   };
 }
 
-/** The shared take upsert carries values [unit, session, grade, branch, intent]. */
+/** The shared take upsert carries values [unit, session, grade, branch, intent, role]. */
 function rowFromSharedTakeValues(values: unknown[]): ClaimRow {
   return {
     unit_id: String(values[0]),
@@ -63,12 +71,13 @@ function rowFromSharedTakeValues(values: unknown[]): ClaimRow {
     grade: String(values[2]),
     branch: String(values[3]),
     intent: String(values[4]),
+    role: roleFromValue(values[5]),
     claimed_at: NOW_ISO,
     heartbeat_at: NOW_ISO,
   };
 }
 
-/** The waiting (queue-join) upsert carries values [unit, session, branch, intent]. */
+/** The waiting (queue-join) upsert carries values [unit, session, branch, intent, role]. */
 function rowFromWaitingValues(values: unknown[]): ClaimRow {
   return {
     unit_id: String(values[0]),
@@ -76,6 +85,7 @@ function rowFromWaitingValues(values: unknown[]): ClaimRow {
     grade: "waiting",
     branch: String(values[2]),
     intent: String(values[3]),
+    role: roleFromValue(values[4]),
     claimed_at: NOW_ISO,
     heartbeat_at: NOW_ISO,
   };
@@ -290,6 +300,55 @@ test("claim (fresh): unclaimed unit → acquired, INSERT + 'claimed' event, COMM
   ]);
   assert.ok(commits(client) && !rollsBack(client));
   assert.ok(client.released, "client released");
+});
+
+// ── the typed role column (ADR-0346 D3) ──────────────────────────────────────
+
+test("claim: the request's typed ROLE is bound to the insert and survives the read back", async () => {
+  const client = new FakeClaimClient();
+  const res = await storeWith(client).claim(
+    { ...REQ_B, intent: "driving the intent/role split", role: "supplementing" },
+    { now: NOW },
+  );
+  assert.equal(res.acquired, true);
+  if (res.acquired) {
+    assert.equal(res.claim.role, "supplementing");
+    assert.equal(res.claim.intent, "driving the intent/role split", "prose is stored as prose");
+  }
+  const insert = client.calls.find(
+    (c) => c.text.includes("INSERT INTO events.node_claim") && c.text.includes("WHERE grade = 'work'"),
+  );
+  assert.ok(insert, "the fresh work insert ran");
+  assert.ok(insert.text.includes("role"), "the role column is written, not silently dropped");
+  assert.equal(insert.values[4], "supplementing", "bound positionally after intent");
+});
+
+test("claim: NO role on the request binds SQL NULL — never '' (the enum has no empty member)", async () => {
+  const client = new FakeClaimClient();
+  const res = await storeWith(client).claim(REQ_B, { now: NOW });
+  assert.equal(res.acquired, true);
+  if (res.acquired) {
+    // Absent on the doc, so `claimRole` derives it from the row's own intent — the pull-based
+    // migration (ADR-0346 D3). An invented default here would freeze the derivation in two places.
+    assert.equal(res.claim.role, undefined);
+    assert.equal(claimRole(res.claim), "proving", "REQ_B's intent is the legacy word 'real'");
+  }
+  const insert = client.calls.find(
+    (c) => c.text.includes("INSERT INTO events.node_claim") && c.text.includes("WHERE grade = 'work'"),
+  );
+  assert.equal(insert?.values[4], null, "NULL, not the empty string that would fail-close the read");
+});
+
+test("take (shared): the typed role rides through the upsert too", async () => {
+  const client = new FakeClaimClient();
+  const res = await storeWith(client).take(
+    { ...REQ_B, grade: "exploring", intent: "reading the store half", role: "authoring" },
+    { now: NOW },
+  );
+  assert.equal(res.acquired, true);
+  if (res.acquired) assert.equal(res.claim.role, "authoring");
+  const upsert = client.calls.find((c) => c.text.includes("ON CONFLICT (unit_id, session_id) DO UPDATE"));
+  assert.ok(upsert?.text.includes("role = EXCLUDED.role"), "a re-take refreshes the role like the prose");
 });
 
 test("claim (REFUSED — the red→green): a different session's live claim → acquired:false, holder named, 'conflict-refused' event, NO write to node_claim", async () => {
@@ -1100,6 +1159,23 @@ test("listAllClaims: no unit, session OR heartbeat filter — the board must SEE
 test("listAllClaims: a corrupt grade still fails closed (an unfiltered read is not a lenient one)", async () => {
   const bad = new FakeReadPool();
   bad.rows = [{ ...READ_ROW_WORK, grade: "sneaky" }];
+  await assert.rejects(new PgClaimStore(bad as never).listAllClaims(), /invalid/i);
+});
+
+test("listAllClaims: a NULL role reads back as an ABSENT one — the pre-split row, not an error", async () => {
+  // The majority of the ledger looks like this until the rows are rewritten (ADR-0346 D3): NULL in
+  // the column, the role still inside `intent`. It must parse, and it must NOT gain an invented
+  // role here — the derivation belongs to `claimRole`, in one place.
+  const pool = new FakeReadPool();
+  pool.rows = [{ ...READ_ROW_WORK, role: null }];
+  const docs = await new PgClaimStore(pool as never).listAllClaims();
+  assert.equal(docs[0]?.role, undefined);
+  assert.equal(claimRole(docs[0] as ClaimDocT), "supplementing", "'building' is not a legacy word");
+});
+
+test("listAllClaims: a corrupt ROLE fails closed too — a wisp is never painted from a value nothing knows", async () => {
+  const bad = new FakeReadPool();
+  bad.rows = [{ ...READ_ROW_WORK, role: "orchestrating" }];
   await assert.rejects(new PgClaimStore(bad as never).listAllClaims(), /invalid/i);
 });
 

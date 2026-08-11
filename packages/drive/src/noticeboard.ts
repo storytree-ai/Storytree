@@ -20,6 +20,7 @@ import type {
 } from "@storytree/notice-board";
 import {
   CLAIM_STALE_RECLAIM_MS,
+  claimRole,
   groupClaimsBySession,
   isReclaimable,
   workClaimRequest,
@@ -184,27 +185,47 @@ export function formatAgeMs(elapsedMs: number): string {
 }
 
 /**
- * Name a blocking holder AND state whether it is ALIVE (ADR-0346 D1 companion work). ONE copy,
- * shared with the ledger verbs in `noticeboard-claims.ts`, for the reason
- * {@link IDENTITY_REFUSAL_BODY} is one copy: a refusal rendered two ways drifts into teaching two
- * different rules.
+ * Render a claim's free prose for a human, or `(none)` when it carries none (ADR-0346 D3). ONE
+ * copy, shared with the board lines in `noticeboard-claims.ts` — an empty pair of quotes reads as
+ * "the holder said nothing", which is true, and as "the field is broken", which is not.
+ */
+export function describeIntent(intent: string): string {
+  return intent.trim().length > 0 ? `"${intent.trim()}"` : "(none)";
+}
+
+/**
+ * Name a blocking holder: WHO, what ROLE, in what WORDS, for how LONG, and whether it is ALIVE
+ * (ADR-0346 D1 + D3). ONE copy, shared with the ledger verbs in `noticeboard-claims.ts`, for the
+ * reason {@link IDENTITY_REFUSAL_BODY} is one copy: a refusal rendered two ways drifts into
+ * teaching two different rules.
  *
  * "HELD by X (branch …, intent …)" left the only actionable question unanswered — queue behind a
  * live builder, or take over a ghost. A refusal from `claim()`/`upgrade()` names a LIVE holder in
- * practice (the store reclaims a stale one in the same transaction rather than refusing), so this
- * is computed rather than asserted: the message cannot outlive that guarantee.
+ * practice (the store reclaims a stale one in the same transaction rather than refusing), so
+ * liveness is computed rather than asserted: the message cannot outlive that guarantee.
+ *
+ * D3 added the other two halves. `role` is the typed word (`claimRole` derives it for a pre-split
+ * row, so this line is honest over both eras), and `intent` is now genuinely the holder's own
+ * prose — which for 15 of the 16 refusals measured in the 12 days to 2026-08-11 was the literal
+ * string "orchestrate", telling the blocked session nothing. `held` is the claim's own age,
+ * distinct from the heartbeat age: a claim taken 6 h ago and beating 2 min ago is a long job in
+ * progress, not a ghost, and the two numbers are the only way to tell that from the outside.
  */
 export function describeHolder(holder: ClaimDocT, now: Date): string {
   const beat = Math.max(0, now.getTime() - new Date(holder.heartbeatAt).getTime());
+  const held = Math.max(0, now.getTime() - new Date(holder.claimedAt).getTime());
   const liveness = isReclaimable(holder, now)
     ? `STALE — no heartbeat for ${formatAgeMs(beat)}, reclaimable`
     : `LIVE — heartbeat ${formatAgeMs(beat)} ago`;
-  return `${holder.sessionId} (branch ${holder.branch}, intent "${holder.intent}", ${liveness})`;
+  return (
+    `${holder.sessionId} (branch ${holder.branch}, role ${claimRole(holder)}, ` +
+    `intent ${describeIntent(holder.intent)}, held ${formatAgeMs(held)}, ${liveness})`
+  );
 }
 
-/** One board line — unit id, [grade], age, the STALE marker when it is one, intent prose. */
+/** One board line — unit id, [grade], role, age, the STALE marker when it is one, intent prose. */
 function renderBoardClaim(claim: SessionClaimGroup["claims"][number]): string {
-  const base = `  - ${claim.unitId}  [${claim.grade}]  ${formatAgeMs(claim.ageMs)}`;
+  const base = `  - ${claim.unitId}  [${claim.grade}/${claim.role}]  ${formatAgeMs(claim.ageMs)}`;
   // The word "stale", in the word "stale" — neither surface used it before ADR-0346 D1, so a
   // 554-hour ghost and a live holder rendered identically wherever they rendered at all.
   const mark = claim.stale ? `  STALE ${formatAgeMs(claim.heartbeatAgeMs)} — reclaimable` : "";
@@ -394,6 +415,14 @@ export async function noticeboardCommand(
             sessionId: deps.identity.sessionId,
             branch: deps.identity.branch,
             kind: "orchestrate",
+            // THE PROSE THIS VERB ALREADY VALIDATED, WRITTEN THROUGH (ADR-0346 D3). It used to stop
+            // at the envelope body: the row got the literal string "orchestrate" and the session's
+            // own description of its work was discarded at the store boundary. That is why the
+            // column read "orchestrate" 708 times in 1285 hold spans, and why 15 of the 16 refusals
+            // in the 12 days to 2026-08-11 could tell a blocked session nothing about the holder.
+            // The typed half the map reads is now `role`, stamped from `kind` — the two no longer
+            // compete for one column.
+            intent: workingOn.trim(),
           }),
         );
         if (res.acquired) acquired.push(nodeId);

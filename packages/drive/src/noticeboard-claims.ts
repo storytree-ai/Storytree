@@ -18,6 +18,7 @@ import type { ClaimDocT, ClaimRequest, ClaimResult } from "@storytree/notice-boa
 import {
   CLAIM_STALE_RECLAIM_MS,
   claimGrade,
+  claimRole,
   classifyClaims,
   exploringClaimRequest,
   liveClaims,
@@ -35,7 +36,7 @@ import type { Envelope } from "./envelope.js";
 import type { SessionIdentity } from "./noticeboard.js";
 // ONE liveness describer, shared with `declare`'s HELD line — the same reason IDENTITY_REFUSAL_BODY
 // is one copy: a refusal rendered two ways drifts into teaching two different rules.
-import { describeHolder, formatAgeMs, IDENTITY_REFUSAL_BODY } from "./noticeboard.js";
+import { describeHolder, describeIntent, formatAgeMs, IDENTITY_REFUSAL_BODY } from "./noticeboard.js";
 
 // ---------------------------------------------------------------------------
 // Exported interfaces
@@ -127,9 +128,14 @@ function needsIdentity(): Envelope {
  */
 function renderBoardLines(rows: ClaimDocT[], now: Date): string[] {
   return classifyClaims(rows, now).map(({ claim: c, stale, heartbeatAgeMs }) => {
-    const intent = c.intent.trim().length > 0 ? `"${c.intent}"` : "(none)";
     const mark = stale ? `  STALE ${formatAgeMs(heartbeatAgeMs)} — reclaimable` : "";
-    return `  - [${claimGrade(c)}]  ${c.sessionId}  ${formatAge(c.claimedAt, now)}  branch=${c.branch}  intent ${intent}${mark}`;
+    // Role AND prose, both (ADR-0346 D3): the typed word says what KIND of work is under way, the
+    // prose says what the holder is actually doing. One column served both until D3, and the
+    // highest-volume writer filled it with a constant.
+    return (
+      `  - [${claimGrade(c)}/${claimRole(c)}]  ${c.sessionId}  ${formatAge(c.claimedAt, now)}  ` +
+      `branch=${c.branch}  intent ${describeIntent(c.intent)}${mark}`
+    );
   });
 }
 
@@ -240,9 +246,11 @@ export async function claimLedgerCommand(
     const lines = [
       `Claims held by this session (${sessionId}, branch ${branch}):`,
       ...marked.map(({ claim: c, stale, heartbeatAgeMs }) => {
-        const intent = c.intent.trim().length > 0 ? `"${c.intent}"` : "(none)";
         const mark = stale ? `  STALE ${formatAgeMs(heartbeatAgeMs)} — reclaimable` : "";
-        return `  - ${c.unitId}  [${claimGrade(c)}]  ${formatAge(c.claimedAt, now)}  intent ${intent}${mark}`;
+        return (
+          `  - ${c.unitId}  [${claimGrade(c)}/${claimRole(c)}]  ${formatAge(c.claimedAt, now)}  ` +
+          `intent ${describeIntent(c.intent)}${mark}`
+        );
       }),
       "",
       `${rows.length} row${rows.length === 1 ? "" : "s"}: ${rows.length - staleCount} live, ${staleCount} stale.`,

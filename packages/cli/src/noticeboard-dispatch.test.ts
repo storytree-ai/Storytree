@@ -104,12 +104,36 @@ test("declare through the dispatch parses --working-on/--node and takes the work
   );
   assert.equal(env.ok, true, env.body);
   assert.deepEqual(
-    claims.claimed.map((r) => ({ unitId: r.unitId, sessionId: r.sessionId, branch: r.branch, intent: r.intent, grade: r.grade })),
+    claims.claimed.map((r) => ({
+      unitId: r.unitId,
+      sessionId: r.sessionId,
+      branch: r.branch,
+      intent: r.intent,
+      role: r.role,
+      grade: r.grade,
+    })),
     [
       // workClaimRequest stamps grade: "work" — the declare glue takes the exclusive work claim
-      // on the graded ledger (ADR-0200 D2), semantics unchanged from ADR-0142.
-      { unitId: "noticeboard-cli", sessionId: "alpha-2", branch: "claude/x", intent: "orchestrate", grade: "work" },
-      { unitId: "tree-view", sessionId: "alpha-2", branch: "claude/x", intent: "orchestrate", grade: "work" },
+      // on the graded ledger (ADR-0200 D2), semantics unchanged from ADR-0142 — and since
+      // ADR-0346 D3 it also carries the parsed --working-on PROSE through to the store, with the
+      // enum the map reads in its own `role` field. The dispatch is what proves the flag actually
+      // reaches the write: this asserted `intent: "orchestrate"` while the parsed prose was dropped.
+      {
+        unitId: "noticeboard-cli",
+        sessionId: "alpha-2",
+        branch: "claude/x",
+        intent: "wiring the dispatch",
+        role: "supplementing",
+        grade: "work",
+      },
+      {
+        unitId: "tree-view",
+        sessionId: "alpha-2",
+        branch: "claude/x",
+        intent: "wiring the dispatch",
+        role: "supplementing",
+        grade: "work",
+      },
     ],
   );
   assert.match(env.body, /wisp is lit/);

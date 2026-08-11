@@ -1,6 +1,7 @@
 import {
   ClaimDoc,
   ClaimGrade,
+  ClaimRole,
   isReclaimable,
   CLAIM_STALE_RECLAIM_MS,
   type ClaimDeparture,
@@ -89,6 +90,10 @@ interface ClaimRow {
   grade?: string;
   branch: string;
   intent: string;
+  /** The typed role (ADR-0346 D3). NULL on every row written before the split, and on any row a
+   * caller took without naming one — {@link rowToDoc} leaves the doc field absent, and `claimRole`
+   * derives it from `intent`. Optional at the type level for the pre-split fixtures too. */
+  role?: string | null;
   claimed_at: Date | string;
   heartbeat_at: Date | string;
 }
@@ -109,6 +114,10 @@ function rowToDoc(row: ClaimRow): ClaimDocT {
   // An ABSENT grade IS the work claim (ADR-0200 D2 back-compat — read via claimGrade()); a present
   // one is validated fail-closed (a corrupt grade column must never masquerade as a valid doc).
   if (row.grade !== undefined) doc.grade = ClaimGrade.parse(row.grade);
+  // An ABSENT/NULL role is the PRE-SPLIT row (ADR-0346 D3): the field stays off the doc entirely so
+  // `claimRole()` derives it from `intent`, rather than being invented here where the derivation
+  // would then live in two places. A present one is validated fail-closed, like grade.
+  if (row.role !== undefined && row.role !== null) doc.role = ClaimRole.parse(row.role);
   return doc;
 }
 
@@ -150,7 +159,7 @@ function rowToDelta(row: DeltaRow): OverlapDelta {
 }
 
 const CLAIM_COLUMNS =
-  "unit_id, session_id, grade, branch, intent, claimed_at, heartbeat_at";
+  "unit_id, session_id, grade, branch, intent, role, claimed_at, heartbeat_at";
 
 /** Options for the acquire paths — both injectable so the live test can drive reclaim. */
 export interface ClaimOptions {
@@ -207,9 +216,13 @@ export class PgClaimStore {
       branch: req.branch,
       intent: req.intent ?? "",
       grade: "work",
+      ...(req.role !== undefined ? { role: req.role } : {}),
       claimedAt: now.toISOString(),
       heartbeatAt: now.toISOString(),
     });
+    // NULL, not "": the column's absent state means "derive from intent" (ADR-0346 D3), and an
+    // empty string is not a member of the role enum — it would fail-close rowToDoc on the next read.
+    const role = candidate.role ?? null;
 
     const client = await this.#pool.connect();
     try {
@@ -258,11 +271,11 @@ export class PgClaimStore {
         // INSERT. 0 returned rows = we lost that race → restore our folded shared row (the wisp
         // must not vanish as collateral of a refused take), re-read the winner, and refuse.
         const ins = await client.query(
-          `INSERT INTO events.node_claim (unit_id, session_id, grade, branch, intent, claimed_at, heartbeat_at)
-           VALUES ($1, $2, 'work', $3, $4, now(), now())
+          `INSERT INTO events.node_claim (unit_id, session_id, grade, branch, intent, role, claimed_at, heartbeat_at)
+           VALUES ($1, $2, 'work', $3, $4, $5, now(), now())
            ON CONFLICT (unit_id) WHERE grade = 'work' DO NOTHING
            RETURNING ${CLAIM_COLUMNS}`,
-          [candidate.unitId, candidate.sessionId, candidate.branch, candidate.intent],
+          [candidate.unitId, candidate.sessionId, candidate.branch, candidate.intent, role],
         );
         acquiredRow = (ins.rows as ClaimRow[])[0];
         if (acquiredRow === undefined) {
@@ -285,10 +298,11 @@ export class PgClaimStore {
         eventType = reclaimed ? "reclaimed" : "claimed";
         const upd = await client.query(
           `UPDATE events.node_claim
-             SET session_id = $2, branch = $3, intent = $4, claimed_at = now(), heartbeat_at = now()
+             SET session_id = $2, branch = $3, intent = $4, role = $5,
+                 claimed_at = now(), heartbeat_at = now()
            WHERE unit_id = $1 AND grade = 'work'
            RETURNING ${CLAIM_COLUMNS}`,
-          [candidate.unitId, candidate.sessionId, candidate.branch, candidate.intent],
+          [candidate.unitId, candidate.sessionId, candidate.branch, candidate.intent, role],
         );
         acquiredRow = (upd.rows as ClaimRow[])[0];
       }
@@ -333,6 +347,7 @@ export class PgClaimStore {
       branch: req.branch,
       intent: req.intent ?? "",
       grade,
+      ...(req.role !== undefined ? { role: req.role } : {}),
       claimedAt: now.toISOString(),
       heartbeatAt: now.toISOString(),
     });
@@ -341,18 +356,26 @@ export class PgClaimStore {
     try {
       await client.query("BEGIN");
       const ins = await client.query(
-        `INSERT INTO events.node_claim (unit_id, session_id, grade, branch, intent, claimed_at, heartbeat_at)
-         VALUES ($1, $2, $3, $4, $5, now(), now())
+        `INSERT INTO events.node_claim (unit_id, session_id, grade, branch, intent, role, claimed_at, heartbeat_at)
+         VALUES ($1, $2, $3, $4, $5, $6, now(), now())
          ON CONFLICT (unit_id, session_id) DO UPDATE
            SET grade = CASE WHEN events.node_claim.grade = 'work'
                             THEN events.node_claim.grade ELSE EXCLUDED.grade END,
                branch = EXCLUDED.branch,
                intent = EXCLUDED.intent,
+               role = EXCLUDED.role,
                claimed_at = CASE WHEN events.node_claim.grade IN (EXCLUDED.grade, 'work')
                                  THEN events.node_claim.claimed_at ELSE now() END,
                heartbeat_at = now()
          RETURNING ${CLAIM_COLUMNS}`,
-        [candidate.unitId, candidate.sessionId, grade, candidate.branch, candidate.intent],
+        [
+          candidate.unitId,
+          candidate.sessionId,
+          grade,
+          candidate.branch,
+          candidate.intent,
+          candidate.role ?? null,
+        ],
       );
       const claim = rowToDoc((ins.rows as ClaimRow[])[0] as ClaimRow);
       await this.#appendEvent(client, candidate.unitId, "claimed", candidate.sessionId, claim);
@@ -399,6 +422,11 @@ export class PgClaimStore {
       const own = (ownRes.rows as ClaimRow[])[0];
       const branch = opts.branch ?? own?.branch;
       const intent = opts.intent ?? own?.intent ?? "";
+      // The role is INHERITED and never invented (ADR-0346 D3): an upgrade changes a claim's grade,
+      // not what its holder is doing. Null when the prior row had none — the pre-split row keeps
+      // deriving its role from `intent`, and an upgrade must not silently freeze that derivation
+      // into a typed value the session never declared.
+      const role = own?.role ?? null;
       if (branch === undefined || branch.trim().length === 0) {
         // Fail-closed: no prior row to inherit attribution from and none supplied.
         throw new Error(
@@ -434,7 +462,7 @@ export class PgClaimStore {
         !isReclaimable({ heartbeatAt: toIso(existing.heartbeat_at) }, now, staleMs)
       ) {
         const heldBy = rowToDoc(existing);
-        const waiting = await this.#upsertWaiting(client, unitId, sessionId, branch, intent);
+        const waiting = await this.#upsertWaiting(client, unitId, sessionId, branch, intent, role);
         await this.#appendEvent(client, unitId, "queued", sessionId, waiting);
         await client.query("COMMIT");
         return { acquired: false, queued: true, waiting, heldBy };
@@ -460,11 +488,11 @@ export class PgClaimStore {
         );
       }
       const ins = await client.query(
-        `INSERT INTO events.node_claim (unit_id, session_id, grade, branch, intent, claimed_at, heartbeat_at)
-         VALUES ($1, $2, 'work', $3, $4, now(), now())
+        `INSERT INTO events.node_claim (unit_id, session_id, grade, branch, intent, role, claimed_at, heartbeat_at)
+         VALUES ($1, $2, 'work', $3, $4, $5, now(), now())
          ON CONFLICT (unit_id) WHERE grade = 'work' DO NOTHING
          RETURNING ${CLAIM_COLUMNS}`,
-        [unitId, sessionId, branch, intent],
+        [unitId, sessionId, branch, intent, role],
       );
       const acquiredRow = (ins.rows as ClaimRow[])[0];
       if (acquiredRow === undefined) {
@@ -475,7 +503,7 @@ export class PgClaimStore {
           [unitId],
         );
         const heldBy = rowToDoc((winner.rows as ClaimRow[])[0] as ClaimRow);
-        const waiting = await this.#upsertWaiting(client, unitId, sessionId, branch, intent);
+        const waiting = await this.#upsertWaiting(client, unitId, sessionId, branch, intent, role);
         await this.#appendEvent(client, unitId, "queued", sessionId, waiting);
         await client.query("COMMIT");
         return { acquired: false, queued: true, waiting, heldBy };
@@ -1049,19 +1077,21 @@ export class PgClaimStore {
     sessionId: string,
     branch: string,
     intent: string,
+    role: string | null,
   ): Promise<ClaimDocT> {
     const res = await client.query(
-      `INSERT INTO events.node_claim (unit_id, session_id, grade, branch, intent, claimed_at, heartbeat_at)
-       VALUES ($1, $2, 'waiting', $3, $4, now(), now())
+      `INSERT INTO events.node_claim (unit_id, session_id, grade, branch, intent, role, claimed_at, heartbeat_at)
+       VALUES ($1, $2, 'waiting', $3, $4, $5, now(), now())
        ON CONFLICT (unit_id, session_id) DO UPDATE
          SET grade = 'waiting',
              branch = EXCLUDED.branch,
              intent = EXCLUDED.intent,
+             role = EXCLUDED.role,
              claimed_at = CASE WHEN events.node_claim.grade = 'waiting'
                                THEN events.node_claim.claimed_at ELSE now() END,
              heartbeat_at = now()
        RETURNING ${CLAIM_COLUMNS}`,
-      [unitId, sessionId, branch, intent],
+      [unitId, sessionId, branch, intent, role],
     );
     return rowToDoc((res.rows as ClaimRow[])[0] as ClaimRow);
   }
@@ -1069,14 +1099,15 @@ export class PgClaimStore {
   /** Restore a folded shared row verbatim (the refused-take path — the wisp must survive). */
   async #restoreRow(client: ClaimClient, row: ClaimRow): Promise<void> {
     await client.query(
-      `INSERT INTO events.node_claim (unit_id, session_id, grade, branch, intent, claimed_at, heartbeat_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      `INSERT INTO events.node_claim (unit_id, session_id, grade, branch, intent, role, claimed_at, heartbeat_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
       [
         row.unit_id,
         row.session_id,
         row.grade ?? "work",
         row.branch,
         row.intent,
+        row.role ?? null,
         toIso(row.claimed_at),
         toIso(row.heartbeat_at),
       ],

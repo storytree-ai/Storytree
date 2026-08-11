@@ -13,14 +13,22 @@
 import type { SubagentColourState } from '../types';
 
 /**
- * Map a claim `intent` to its subagent colour-state, mirroring `subagentColourState` in
+ * Map a claim's activity word to its subagent colour-state, mirroring `subagentColourState` in
  * `@storytree/drive`:
  *   - `"edit"`        (and the role word `"authoring"`)      → `authoring`   (story-author file edits)
  *   - `"real"`        (and the role word `"proving"`)        → `proving`     (red→green leaf / real build)
  *   - `"orchestrate"` (and the role word `"supplementing"`)  → `supplementing` (non-leaf glue)
  *
- * Any OTHER value (an intent the spine adds later, or a malformed row) falls through to
- * `supplementing` — never a throw, never "green". Pure: a string in, a colour-state out.
+ * ADR-0346 D3 split the source field in two: a typed `role` (exactly the three role words above)
+ * and a free-prose `intent` nothing parses. The TYPED half is what this is meant to read — and the
+ * three role words are already accepted, so it reads a role correctly today. The map still passes
+ * `intent` at the call site (`TreeView.tsx`), which is deliberately out of increment 2's scope; a
+ * post-split prose row lands on the fall-through below, which is the SAME `supplementing` those
+ * rows rendered as when the field held the constant `"orchestrate"`, so the colour does not move.
+ * Repointing the call site at `claimRole(claim)` is the follow-on that retires the ramp.
+ *
+ * Any OTHER value (a prose intent, or a malformed row) falls through to `supplementing` — never a
+ * throw, never "green". Pure: a string in, a colour-state out.
  */
 export function claimColourState(intent: string): SubagentColourState {
   switch (intent) {

@@ -39,6 +39,22 @@ test("schema.sql: guarded in-place migration upgrades a pre-graded node_claim (A
   );
 });
 
+test("schema.sql: node_claim carries the ADR-0346 D3 typed role column, NULLABLE and unbackfilled", async () => {
+  const sql = await readFile(SCHEMA_SQL_PATH, "utf8");
+  // Fresh installs declare it — bare TEXT, so it is nullable by omission.
+  assert.match(sql, /^\s*role\s+TEXT,\s*$/m);
+  // The in-place migration for an existing table. NO `NOT NULL`, and NO `DEFAULT` — unlike the
+  // grade ALTER above, whose backfill to 'work' was correct because every pre-grade row genuinely
+  // WAS a work claim. A pre-split row's role lives inside its own `intent` string, so NULL means
+  // "derive it" (claimRole) and the migration stays additive and pull-based.
+  assert.match(sql, /ALTER TABLE events\.node_claim\s+ADD COLUMN IF NOT EXISTS role TEXT;/);
+  assert.doesNotMatch(
+    sql,
+    /ADD COLUMN IF NOT EXISTS role TEXT NOT NULL/,
+    "a NOT NULL role would need a backfill, and there is no single right answer to backfill it to",
+  );
+});
+
 test("schema.sql: events.claim_event is untouched by the grade migration (free-TEXT type)", async () => {
   const sql = await readFile(SCHEMA_SQL_PATH, "utf8");
   // The audit log's `type` stays free TEXT — new grade-transition event types need no DDL.

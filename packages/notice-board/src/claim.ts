@@ -13,8 +13,14 @@ import { z } from "zod";
  *
  * Granularity is the unit id (story / capability / contract): a claim is keyed on `unitId`, so two
  * sessions building DIFFERENT units never contend (the existing per-id-row property), and two
- * building the SAME unit do — the hole this closes. `intent` is free prose (like presence's
- * `workingOn`): "real" / "live-smoke" / "edit" — informational, never load-bearing for the refusal.
+ * building the SAME unit do — the hole this closes.
+ *
+ * A claim says WHAT its holder is doing through two fields, not one (ADR-0346 D3): a typed
+ * {@link ClaimRole} the map switch-cases for the wisp colour, and a free-prose `intent` a blocked
+ * human reads. They were ONE column until then, serving two incompatible readers — and the
+ * highest-volume writer fed it a constant, so across all 1285 hold spans in the log `intent` read
+ * the literal string `"orchestrate"` 708 times (55%) and carried real prose only ~24% of the time.
+ * Nothing parses `intent` any more; nothing renders `role` as prose.
  */
 
 // ---------------------------------------------------------------------------
@@ -57,6 +63,24 @@ export const ClaimGrade = z.enum(["exploring", "waiting", "work"]);
 export type ClaimGradeT = z.infer<typeof ClaimGrade>;
 
 /**
+ * The claim ROLES (ADR-0346 D3) — the typed half of the old one-column `intent`: WHAT KIND of work
+ * the holder is doing, from the fixed vocabulary the map already switch-cases for the wisp colour.
+ *
+ * These three tokens are deliberately the SAME words as `SubagentRole` in `@storytree/drive` and
+ * `SubagentColourState` in the studio (ADR-0138 §5), which are a documented mirror pair. This
+ * package is the bottom of that stack and may not import either, so the words are restated here
+ * rather than shared — but they are one vocabulary, and a fourth token added here without adding it
+ * there falls through to `supplementing` on the map rather than throwing.
+ *
+ * The honesty wall holds: a role is never `green`/`bloom` (ADR-0045). A claim says a session is
+ * WORKING a unit; only a signed verdict says the work is proven.
+ */
+export const ClaimRole = z.enum(["authoring", "proving", "supplementing"]);
+
+/** The inferred TypeScript type of a claim role. */
+export type ClaimRoleT = z.infer<typeof ClaimRole>;
+
+/**
  * The validated claim doc — the current holder of a unit's build-claim.
  *
  * Strict mode: unknown fields are rejected, not stripped (the same "derived, never stored"
@@ -71,13 +95,24 @@ export const ClaimDoc = z
     sessionId: nonBlankString,
     /** The git branch the holder is building on — for the refusal message + audit. */
     branch: nonBlankString,
-    /** Free prose: why the claim is held ("real" / "live-smoke" / "edit"). Not load-bearing.
-     * For an `exploring` claim this is the "what I'm thinking" prose — ADR-0200 D2 puts the intent
-     * prose ON the claim row (presence's `workingOn` folds in here as presence retires). */
+    /** FREE PROSE describing what the holder is actually doing — nothing parses it (ADR-0346 D3).
+     * For an `exploring` claim it is the "what I'm thinking" prose ADR-0200 D2 put on the row
+     * (presence's `workingOn` folded in here as presence retired); for a `work` claim taken by
+     * `noticeboard declare` it is that verb's `--working-on` text, which the verb VALIDATED and then
+     * DISCARDED until D3. Read it as prose; read {@link claimRole} for the typed half. */
     intent: z.string().default(""),
     /** The claim grade (ADR-0200 D2). Defaults to `work` so every pre-grade doc — and every
      * existing producer — parses unchanged as the exclusive work claim (no schema-version bump). */
     grade: ClaimGrade.default("work"),
+    /**
+     * The typed role (ADR-0346 D3). OPTIONAL, with NO zod default, on purpose: the migration is
+     * additive and pull-based, and a static default cannot express the rule the pre-split rows
+     * need — their role lives INSIDE their `intent` string ("edit" ⇒ authoring, "real" ⇒ proving,
+     * everything else ⇒ supplementing). {@link claimRole} applies that derivation, so an old row
+     * keeps rendering exactly as it does today and no backfill is required. Never read `doc.role`
+     * raw — the absent case is the majority case until the rows are rewritten.
+     */
+    role: ClaimRole.optional(),
     /** When the claim was first taken (ISO 8601). */
     claimedAt: z.string(),
     /** Last liveness bump (ISO 8601); reclaim is measured against this. */
@@ -102,6 +137,44 @@ export function claimGrade(doc: Pick<ClaimDocT, "grade">): ClaimGradeT {
   return doc.grade ?? "work";
 }
 
+/**
+ * PURE: the role a PRE-SPLIT row carries inside its `intent` string (ADR-0346 D3's back-compat
+ * derivation). Exactly today's switch — the one `subagentColourState` (drive) and `claimColourState`
+ * (studio) apply to `intent` for the wisp colour — so a row written before the split renders
+ * identically after it. An unrecognised string is `supplementing`, never a throw: the same
+ * fall-through those two already take, for the same reason (a claim must always render, and always
+ * render NON-green).
+ *
+ * This is the migration RAMP, not a reader: call {@link claimRole}, which applies it only where a
+ * row has no typed role of its own. It is exported anyway, and tested by name, because it is the
+ * whole back-compat contract — the majority of the ledger reads through it — and a rule reached only
+ * through its wrapper is a rule whose own proof nobody can point at (`check:verification-decay`'s
+ * `unproven-seam-default` located exactly that when it was private).
+ */
+export function roleFromLegacyIntent(intent: string): ClaimRoleT {
+  switch (intent) {
+    case "authoring":
+    case "edit":
+      return "authoring";
+    case "proving":
+    case "real":
+      return "proving";
+    default:
+      return "supplementing";
+  }
+}
+
+/**
+ * PURE: a doc's effective role (ADR-0346 D3) — the typed one when the row has it, otherwise derived
+ * from the legacy `intent` string. The exact shape of the {@link claimGrade} precedent, and for the
+ * same reason: the absent case is not an error, it is the majority of the ledger until the rows are
+ * rewritten. Ask this, never `doc.role ?? …` at a call site — a raw sprinkle is how a default that
+ * has to change in one place ends up living in six.
+ */
+export function claimRole(doc: Pick<ClaimDocT, "role" | "intent">): ClaimRoleT {
+  return doc.role ?? roleFromLegacyIntent(doc.intent);
+}
+
 /** What a caller supplies to take a claim — the store stamps `claimedAt` / `heartbeatAt`. */
 export interface ClaimRequest {
   unitId: string;
@@ -111,6 +184,9 @@ export interface ClaimRequest {
   intent?: string;
   /** The claim grade (ADR-0200 D2); defaults to `work`, so every existing producer is unchanged. */
   grade?: ClaimGradeT;
+  /** The typed role (ADR-0346 D3); omitted leaves the row role-less, and {@link claimRole} then
+   * derives it from `intent` — the same answer a pre-split row gets. */
+  role?: ClaimRoleT;
 }
 
 /**
@@ -252,27 +328,47 @@ export function bumpHeartbeat(claim: ClaimDocT, now: Date): ClaimDocT {
  */
 export type WorkClaimKind = "edit" | "orchestrate";
 
+/**
+ * PURE: the {@link ClaimRoleT} a work kind means (ADR-0346 D3). The kind vocabulary is the OUTER
+ * loop's ("am I editing, or am I orchestrating?"); the role vocabulary is the MAP's. This is the one
+ * place they are joined, so the two can be extended independently.
+ */
+export function roleForWorkKind(kind: WorkClaimKind): ClaimRoleT {
+  return kind === "edit" ? "authoring" : "supplementing";
+}
+
 /** What {@link workClaimRequest} needs to build a work-time {@link ClaimRequest}. */
 export interface WorkClaimArgs {
   unitId: string;
   sessionId: string;
   branch: string;
-  /** The work kind, stamped as the claim's `intent`. */
+  /** The work kind — the claim's typed `role`, via {@link roleForWorkKind}. */
   kind: WorkClaimKind;
+  /**
+   * FREE PROSE describing what this session is actually doing; "" when omitted (ADR-0346 D3).
+   *
+   * The kind used to be stamped here INSTEAD, which is the defect D3 repairs: `noticeboard declare`
+   * validated a non-blank `--working-on` and then threw it away behind a constant, so 15 of the 16
+   * refusals in the 12 days to 2026-08-11 named a holder whose intent was the literal string
+   * "orchestrate" — and ADR-0270 D3's remedy ("a refusal prints the claim board, so disjointness is
+   * read from the ledger") rested on exactly that field.
+   */
+  intent?: string;
 }
 
 /**
- * PURE: build the work-time {@link ClaimRequest} for a unit, stamping `intent` from the work `kind`
- * (ADR-0138 §3 — generalising the claim beyond the build-only trigger). Builtins-only; the store
- * stamps `claimedAt` / `heartbeatAt` when the request is taken.
+ * PURE: build the work-time {@link ClaimRequest} for a unit, stamping the typed `role` from the work
+ * `kind` (ADR-0138 §3 / ADR-0346 D3) and carrying the caller's prose through as `intent`.
+ * Builtins-only; the store stamps `claimedAt` / `heartbeatAt` when the request is taken.
  */
 export function workClaimRequest(args: WorkClaimArgs): ClaimRequest {
   return {
     unitId: args.unitId,
     sessionId: args.sessionId,
     branch: args.branch,
-    intent: args.kind,
+    intent: args.intent ?? "",
     grade: "work",
+    role: roleForWorkKind(args.kind),
   };
 }
 
@@ -289,6 +385,9 @@ export interface ExploringClaimArgs {
   branch: string;
   /** The "what I'm thinking" free prose — ADR-0200 D2 carries it ON the claim row. */
   intent: string;
+  /** The typed role (ADR-0346 D3); omitted leaves it derived from `intent` by {@link claimRole} —
+   * `supplementing` for ordinary prose, which is exactly what an exploring wisp renders as today. */
+  role?: ClaimRoleT;
 }
 
 /**
@@ -297,13 +396,15 @@ export interface ExploringClaimArgs {
  * this is what they're thinking" (ADR-0200 D2, the hovering wisp).
  */
 export function exploringClaimRequest(args: ExploringClaimArgs): ClaimRequest {
-  return {
+  const req: ClaimRequest = {
     unitId: args.unitId,
     sessionId: args.sessionId,
     branch: args.branch,
     intent: args.intent,
     grade: "exploring",
   };
+  if (args.role !== undefined) req.role = args.role;
+  return req;
 }
 
 /** What {@link waitingClaimRequest} needs to build a waiting {@link ClaimRequest}. */
@@ -313,6 +414,8 @@ export interface WaitingClaimArgs {
   branch: string;
   /** Free prose (what the waiter will do once promoted); defaults to "" when omitted. */
   intent?: string;
+  /** The typed role the waiter will hold once promoted (ADR-0346 D3); omitted leaves it derived. */
+  role?: ClaimRoleT;
 }
 
 /**
@@ -328,6 +431,7 @@ export function waitingClaimRequest(args: WaitingClaimArgs): ClaimRequest {
     grade: "waiting",
   };
   if (args.intent !== undefined) req.intent = args.intent;
+  if (args.role !== undefined) req.role = args.role;
   return req;
 }
 
@@ -368,6 +472,10 @@ export function oldestLiveWaiter(
 export interface SessionClaimEntry {
   unitId: string;
   grade: ClaimGradeT;
+  /** The typed role (ADR-0346 D3), decided ONCE here via {@link claimRole} — so a view never has to
+   * know that a pre-split row keeps its role inside `intent`. */
+  role: ClaimRoleT;
+  /** The holder's free prose. A view renders this to a human and parses none of it. */
   intent: string;
   /** Elapsed ms since `claimedAt` at the caller-supplied `now` (clamped to >= 0). */
   ageMs: number;
@@ -537,6 +645,7 @@ export function groupClaimsBySession(
       .map((doc) => ({
         unitId: doc.unitId,
         grade: claimGrade(doc),
+        role: claimRole(doc),
         intent: doc.intent,
         ageMs: Math.max(0, now.getTime() - new Date(doc.claimedAt).getTime()),
         claimedAt: doc.claimedAt,

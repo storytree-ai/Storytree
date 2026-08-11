@@ -326,7 +326,7 @@ test("board: with a ledger the claim ledger renders grouped by session — the O
 
   assert.match(env.body, /Claim ledger \(ADR-0200\):/);
   assert.match(env.body, /## wt-claimer  branch=claude\/claimer/);
-  assert.match(env.body, /- story-x {2}\[exploring\] {2}3m {2}what I'm thinking/);
+  assert.match(env.body, /- story-x {2}\[exploring\/supplementing\] {2}3m {2}what I'm thinking/);
   assert.doesNotMatch(env.body, /Presence/, "presence is retired — the ledger is the whole board");
 
   // next points at the claim verbs (ADR-0200).
@@ -366,7 +366,7 @@ test("board (THE MEASURED DEFECT, 2026-08-11): a stale-only ledger no longer ass
   assert.match(env.body, /No LIVE claims on the ledger — but it is not empty/);
   assert.match(env.body, /STALE — 1 row across 1 session/);
   assert.match(env.body, /## procedural-arch  branch=claude\/procedural-arch  \[STALE\]/);
-  assert.match(env.body, /- forest-world  \[exploring\] {2}554h {2}STALE 4h — reclaimable {2}procedural architecture/);
+  assert.match(env.body, /- forest-world  \[exploring\/supplementing\] {2}554h {2}STALE 4h — reclaimable {2}procedural architecture/);
 });
 
 test("board: a live session's own stale row rides through MARKED, in its own section", async () => {
@@ -393,8 +393,8 @@ test("board: a live session's own stale row rides through MARKED, in its own sec
 
   assert.match(env.body, /## wt-live  branch=claude\/live$/m, "one live row keeps the session out of the STALE section");
   assert.doesNotMatch(env.body, /STALE — /, "no dark-session section: this session is live");
-  assert.match(env.body, /- noticeboard-cli  \[work\] {2}10m {2}building/);
-  assert.match(env.body, /- abandoned-unit  \[exploring\] {2}20m {2}STALE 4h — reclaimable {2}left behind/);
+  assert.match(env.body, /- noticeboard-cli  \[work\/supplementing\] {2}10m {2}building/);
+  assert.match(env.body, /- abandoned-unit  \[exploring\/supplementing\] {2}20m {2}STALE 4h — reclaimable {2}left behind/);
 });
 
 // ---------------------------------------------------------------------------
@@ -407,9 +407,11 @@ test("renderLedgerBoard: fixed groups render sessions in order with branch, grad
     grade: SessionClaimGroup["claims"][number]["grade"],
     intent: string,
     ageMinutes: number,
+    role: SessionClaimGroup["claims"][number]["role"] = "supplementing",
   ): SessionClaimGroup["claims"][number] => ({
     unitId,
     grade,
+    role,
     intent,
     ageMs: ageMinutes * 60_000,
     claimedAt: new Date(NOW.getTime() - ageMinutes * 60_000).toISOString(),
@@ -421,7 +423,10 @@ test("renderLedgerBoard: fixed groups render sessions in order with branch, grad
       sessionId: "wt-old",
       branch: "claude/old-branch",
       stale: false,
-      claims: [entry("story-x", "work", "building x", 5), entry("story-y", "exploring", "poking around y", 90)],
+      claims: [
+        entry("story-x", "work", "building x", 5, "proving"),
+        entry("story-y", "exploring", "poking around y", 90),
+      ],
     },
     {
       sessionId: "wt-new",
@@ -437,11 +442,12 @@ test("renderLedgerBoard: fixed groups render sessions in order with branch, grad
       "Claim ledger (ADR-0200):",
       "",
       "## wt-old  branch=claude/old-branch",
-      "  - story-x  [work]  5m  building x",
-      "  - story-y  [exploring]  1h  poking around y",
+      // grade/ROLE (ADR-0346 D3): the typed word rides beside the grade, the prose after the age.
+      "  - story-x  [work/proving]  5m  building x",
+      "  - story-y  [exploring/supplementing]  1h  poking around y",
       "",
       "## wt-new  branch=claude/new-branch",
-      "  - story-z  [waiting]  2m",
+      "  - story-z  [waiting/supplementing]  2m",
     ].join("\n"),
   );
 });
@@ -456,6 +462,7 @@ test("renderLedgerBoard: dark sessions render LAST, counted, and named as reclai
   const stale = (unitId: string, hbHours: number): SessionClaimGroup["claims"][number] => ({
     unitId,
     grade: "work",
+    role: "supplementing",
     intent: "",
     ageMs: 300 * 3_600_000,
     claimedAt: new Date(NOW.getTime() - 300 * 3_600_000).toISOString(),
@@ -471,6 +478,7 @@ test("renderLedgerBoard: dark sessions render LAST, counted, and named as reclai
         {
           unitId: "story-live",
           grade: "work",
+          role: "supplementing",
           intent: "building",
           ageMs: 60_000,
           claimedAt: NOW.toISOString(),
@@ -495,7 +503,7 @@ test("renderLedgerBoard: dark sessions render LAST, counted, and named as reclai
   assert.match(body, /STALE — 3 rows across 2 sessions with no heartbeat for over 2h\./);
   assert.match(body, /a stale\n?work row blocks nobody/);
   assert.match(body, /## wt-dead-a  branch=claude\/dead-a  \[STALE\]/);
-  assert.match(body, /- story-r  \[work\] {2}300h {2}STALE 570h — reclaimable/);
+  assert.match(body, /- story-r  \[work\/supplementing\] {2}300h {2}STALE 570h — reclaimable/);
 });
 
 // ---------------------------------------------------------------------------
@@ -544,7 +552,7 @@ test("declare: no --node → ok:false ceremony guidance (the claim IS the declar
 // declare — the claim-taking anchor ceremony (ADR-0142)
 // ---------------------------------------------------------------------------
 
-test("declare --node takes the work-time claim on each declared node (orchestrate intent, identity attribution)", async () => {
+test("declare --node takes the work-time claim on each declared node (supplementing role, identity attribution)", async () => {
   const claims = makeFakeClaims();
   const deps: NoticeboardDeps = { identity: CLAIM_IDENTITY, now: nowFn, claims };
   const env = await noticeboardCommand(
@@ -554,10 +562,32 @@ test("declare --node takes the work-time claim on each declared node (orchestrat
   );
   assert.equal(env.ok, true, env.body);
   assert.deepEqual(
-    claims.claimed.map((r) => ({ unitId: r.unitId, sessionId: r.sessionId, branch: r.branch, intent: r.intent })),
+    claims.claimed.map((r) => ({
+      unitId: r.unitId,
+      sessionId: r.sessionId,
+      branch: r.branch,
+      intent: r.intent,
+      role: r.role,
+    })),
     [
-      { unitId: "story-a", sessionId: "wt-claim", branch: "claude/claim-branch", intent: "orchestrate" },
-      { unitId: "story-b", sessionId: "wt-claim", branch: "claude/claim-branch", intent: "orchestrate" },
+      // THE RED→GREEN (ADR-0346 D3): the session's OWN WORDS reach the store, and the enum the map
+      // reads lives in its own field. This deepEqual asserted `intent: "orchestrate"` twice until
+      // the split — the constant that made the column 55% one string and left 15 of 16 refusals
+      // unable to say what the holder was doing.
+      {
+        unitId: "story-a",
+        sessionId: "wt-claim",
+        branch: "claude/claim-branch",
+        intent: "landing ADR-0142",
+        role: "supplementing",
+      },
+      {
+        unitId: "story-b",
+        sessionId: "wt-claim",
+        branch: "claude/claim-branch",
+        intent: "landing ADR-0142",
+        role: "supplementing",
+      },
     ],
   );
   assert.match(env.body, /story-a: claimed/);
@@ -606,6 +636,37 @@ test("declare: EVERY node held → ok:false, the headline says it anchored nothi
   // …and it now states the holder's LIVENESS (ADR-0346 D1 companion work). "Coordinate or pick
   // other work" is unanswerable without knowing whether the holder is alive or a ghost.
   assert.match(env.body, /LIVE — heartbeat 0m ago/);
+  // …plus its ROLE, its PROSE and how long it has HELD the row (ADR-0346 D3). OTHER_HOLDER is a
+  // pre-split row, so its role is derived from the legacy intent word — the line is honest across
+  // both eras without a second describer.
+  assert.match(env.body, /role supplementing/);
+  assert.match(env.body, /intent "orchestrate"/);
+  assert.match(env.body, /held 0m/);
+});
+
+test("declare: the --working-on prose reaches the STORE trimmed, never just the envelope (ADR-0346 D3)", async () => {
+  const claims = makeFakeClaims();
+  const deps: NoticeboardDeps = { identity: CLAIM_IDENTITY, now: nowFn, claims };
+  const prose = "splitting claim intent into a typed role and prose";
+  const env = await noticeboardCommand(
+    "declare",
+    { workingOn: `   ${prose}  `, nodes: ["story-a"] },
+    deps,
+  );
+  assert.equal(env.ok, true, env.body);
+  // The verb ALREADY validated this string and printed it here. The bug was that it stopped here:
+  // `workingOn` appeared nowhere in the write path, so the row got a constant instead.
+  assert.match(env.body, /workingOn: {2}splitting claim intent into a typed role and prose/);
+  assert.equal(claims.claimed[0]?.intent, prose, "and the SAME text, trimmed, is what was written");
+  assert.equal(claims.claimed[0]?.role, "supplementing");
+});
+
+test("declare: a holder with NO prose reads as (none), never as an empty pair of quotes", async () => {
+  const claims = makeFakeClaims({ refuseWith: { ...OTHER_HOLDER, intent: "" } });
+  const deps: NoticeboardDeps = { identity: CLAIM_IDENTITY, now: nowFn, claims };
+  const env = await noticeboardCommand("declare", { workingOn: "x", nodes: ["story-a"] }, deps);
+  assert.match(env.body, /intent \(none\)/, "silence is stated as silence");
+  assert.doesNotMatch(env.body, /intent ""/, 'an empty "" reads as a broken field, not as silence');
 });
 
 test("declare: a HELD node whose holder is a GHOST says STALE, not merely 'held'", async () => {
