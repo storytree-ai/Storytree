@@ -1,16 +1,15 @@
-// The traversal replay MOUNT (`traversal-panel-arc`, increment `traversal-panel-session-picker`).
+// The traversal replay MOUNT (`traversal-panel-arc`) — the picker's seam, now FILLED.
 //
-// WHAT THIS IS NOT, stated first because it is the thing a reader will assume: this is not the
-// picture. `traversal-panel-spine-render` is the increment that draws the signed visual grammar —
-// the compact vertical spine, folded idle, read-strength edges and the one playhead occupancy bar —
-// and it is parked and unbuilt. This increment builds the PICKER and the SEAM it mounts into, and
-// stops there deliberately rather than sketching a placeholder picture the owner never signed.
+// `traversal-panel-session-picker` built this as a named hole: it fetched the replay, rendered the
+// payload's own honesty, and said in as many words which increment would draw the picture. This is that
+// increment (`traversal-panel-spine-render`), so the placeholder is gone and `TraversalSpine` sits in
+// its place — the compact vertical spine, explicitly folded idle, read-strength edges, the search glyph,
+// the one playhead occupancy bar and the transport.
 //
-// So what a selected session renders TODAY is the replay's own HONESTY — the part of the payload
-// that is already true and already useful, and that the picture will sit above rather than replace:
-// how much was read, whether the trace was partial, and what may be said about occupancy. That is a
-// real answer to "is there anything here to look at, and is it whole", which is exactly the question
-// an operator asks before spending attention on a replay.
+// THE HONESTY FACTS STAYED, below the picture rather than instead of it, and that was the point of
+// putting them there first: how much was read, whether the trace was PARTIAL, and what may be said
+// about occupancy are what an operator checks before trusting a replay they are looking at. A picture
+// that replaced them would be a prettier surface making a weaker claim.
 //
 // Two absences are rendered as absences and never smoothed:
 //   - `partial` (ADR-0241 D5): a trace with unusable lines must never present as complete.
@@ -25,6 +24,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import type { TraversalReplayPayload } from '../types';
+import { TraversalSpine } from './TraversalSpine';
 
 type ReplayState =
   | { readonly status: 'reading' }
@@ -75,12 +75,10 @@ export function TraversalReplay({ sessionId }: { sessionId: string }): React.JSX
   const { replay } = state;
   return (
     <div className="traversal-replay" data-testid="traversal-replay" data-replay-state="read">
-      {/* The seam the spine increment fills. It is a NAMED hole rather than a blank one, so an
-          operator meeting it knows the picture is unbuilt rather than broken or empty. */}
-      <p className="small traversal-replay-pending" data-testid="traversal-spine-pending">
-        The traversal picture is not drawn yet — <code>traversal-panel-spine-render</code> is the
-        increment that renders it. What this trace already reports:
-      </p>
+      {/* The picture. It goes FIRST because the design's second acceptance clause is that the
+          traversal — not the bar, not a metric, not a line of prose — dominates the first glance. */}
+      <TraversalSpine replay={replay} />
+
       <ul className="traversal-replay-facts small">
         <li>
           <strong>{replay.events.length}</strong> replayed event{replay.events.length === 1 ? '' : 's'}
