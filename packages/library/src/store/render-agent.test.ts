@@ -17,6 +17,7 @@ import {
   agentAliases,
   resolveAgentAlias,
   essentialsGateViolations,
+  dedicatedSurfaceAgentGateViolations,
   estimateTokens,
   ESSENTIALS_TOKEN_BUDGET,
   DEDICATED_SURFACE_AGENTS,
@@ -750,6 +751,89 @@ test("essentials gate: a non-agent / missing id fails closed", async () => {
   const violations = await essentialsGateViolations(store, "test-principle", "ok"); // a principle, not an agent
   assert.equal(violations.length, 1);
   assert.ok(violations.some((v) => /not an agent artifact/.test(v)));
+});
+
+// ── dedicatedSurfaceAgentGateViolations (session-orchestrator-context-integrity-arc) ──────────────
+// DEDICATED_SURFACE_AGENTS own a different projection surface (CLAUDE.md/AGENTS.md, the SDK-leaf
+// prompt) than a `.claude/agents/*.md` file, so `delegatableAgentIds()` correctly excludes them from
+// the per-harness file render loop `check:agents` walks. That same exclusion used to ALSO exclude
+// them from the wiring-integrity gate every other agent is held to — this is the regression guard
+// that closes it: exercising the essentials render (never `renderAgentFile`, since no harness file
+// should exist for these ids) against exactly the three dedicated-surface ids.
+
+/** A store seeded with all three DEDICATED_SURFACE_AGENTS, wired cleanly. */
+async function seededDedicated(): Promise<InMemoryStore> {
+  const store = await seeded();
+  for (const id of DEDICATED_SURFACE_AGENTS) {
+    await store.upsertDoc({
+      id,
+      kind: "agent",
+      doc: {
+        kind: "agent",
+        title: id,
+        description: "a dedicated-surface role",
+        oneLine: "o",
+        role: "r",
+        outcome: "o",
+        context: ["asset:test-principle"],
+        tools: "t",
+        workflow: "session_start: orient. then stop.",
+        stepRefs: [{ step: "session_start", refs: ["asset:test-principle"] }],
+        references: [],
+      },
+    });
+  }
+  return store;
+}
+
+test("dedicatedSurfaceAgentGateViolations: a cleanly-wired dedicated-surface agent passes", async () => {
+  const store = await seededDedicated();
+  assert.deepEqual(await dedicatedSurfaceAgentGateViolations(store), []);
+});
+
+test("dedicatedSurfaceAgentGateViolations: it never adds these ids to delegatableAgentIds (no harness file)", async () => {
+  const store = await seededDedicated();
+  const ids = await delegatableAgentIds(store);
+  for (const id of DEDICATED_SURFACE_AGENTS) assert.ok(!ids.includes(id), `${id} must not get a harness file`);
+});
+
+test("dedicatedSurfaceAgentGateViolations: an unattached context ref on session-orchestrator REDS — the exact bug this closes", async () => {
+  const store = await seededDedicated();
+  // Reintroduce the measured defect: a context ref with no stepRefs door.
+  await store.upsertDoc({
+    id: "session-orchestrator",
+    kind: "agent",
+    doc: {
+      kind: "agent",
+      title: "session-orchestrator",
+      description: "a dedicated-surface role",
+      oneLine: "o",
+      role: "r",
+      outcome: "o",
+      context: ["asset:test-principle"], // unchanged...
+      tools: "t",
+      workflow: "session_start: orient. then stop.",
+      stepRefs: [{ step: "session_start", refs: [] }], // ...but no longer attached to any step
+      references: [],
+    },
+  });
+  const violations = await dedicatedSurfaceAgentGateViolations(store);
+  assert.ok(
+    violations.some((v) => /session-orchestrator/.test(v) && /context ref asset:test-principle is attached to no workflow step/.test(v)),
+  );
+  // Before this fix, `delegatableAgentIds()`-driven `check:agents` never looked at session-orchestrator
+  // at all, so this exact drift shape passed silently — the regression guard is that it no longer does.
+  const ids = await delegatableAgentIds(store);
+  assert.ok(!ids.includes("session-orchestrator"), "still no harness file — only the gate coverage changed");
+});
+
+test("dedicatedSurfaceAgentGateViolations: a missing dedicated-surface agent is a violation, never a silent skip", async () => {
+  const store = await seeded(); // none of the three dedicated-surface ids exist here
+  const violations = await dedicatedSurfaceAgentGateViolations(store);
+  assert.equal(violations.length, DEDICATED_SURFACE_AGENTS.size);
+  for (const id of DEDICATED_SURFACE_AGENTS) {
+    assert.ok(violations.some((v) => v.startsWith(`${id}:`)), `${id}'s absence must be reported, not skipped`);
+  }
 });
 
 // ── the fail-closed read (projection-ownership-arc, condition 1) ──────────────────────────────────

@@ -56,6 +56,7 @@ export {
   agentDescriptionFrontmatter,
   resolveAgentAlias,
   essentialsGateViolations,
+  dedicatedSurfaceAgentGateViolations,
   estimateTokens,
   ESSENTIALS_TOKEN_BUDGET,
   DEDICATED_SURFACE_AGENTS,
