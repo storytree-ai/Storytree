@@ -20,6 +20,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import { HttpError, sendJson } from './httpUtil';
+import { listTraversalSessionsIncremental } from './traversalIndexMemo';
 
 // Type-only, so both are fully erased under `verbatimModuleSyntax` and never reach the vite
 // config-load graph — the runtime values are pulled by the lazy loaders below for exactly the reason
@@ -40,6 +41,47 @@ type CaptureModule = typeof import('@storytree/context-traversal-capture');
 let captureModulePromise: Promise<CaptureModule> | null = null;
 function loadTraversalSink(): Promise<CaptureModule> {
   return (captureModulePromise ??= import('@storytree/context-traversal-capture'));
+}
+
+/**
+ * The picker's index, re-reading only the traces whose (mtime, size) moved since the last request
+ * (`traversalIndexMemo.ts`, which carries the measurements and the freshness argument).
+ *
+ * It DERIVES NOTHING the sink would not: the per-file summary below is `listTraversalSessions`'s own
+ * body — same tolerant read, same omission of a session that replays to zero usable events, same
+ * `lastObservedAt` off the chronologically last event — and a parity test deep-compares the two over
+ * the same directory, so the panel and `storytree traversal list` still cannot disagree.
+ */
+async function readTraversalIndex(dir: string): Promise<TraversalSessionSummary[]> {
+  const { readTraversalSession } = await loadTraversalSink();
+  return listTraversalSessionsIncremental(dir, (sessionDir, sessionId) => {
+    const { replay } = readTraversalSession({ dir: sessionDir, sessionId });
+    if (replay.events.length === 0) return null;
+    const lastEvent = replay.events[replay.events.length - 1];
+    return { sessionId, eventCount: replay.events.length, lastObservedAt: lastEvent?.at };
+  });
+}
+
+/**
+ * Pull the two lazily-imported traversal modules and build the index ONCE, off the request path.
+ *
+ * The cold number is the one that hurts most and the one no cache can reach: 6.3 s measured for the
+ * first `/api/traversal/sessions` against a fresh dev server, almost all of it the lazy
+ * `@storytree/context-traversal-capture` import itself. Unprimed, that cost lands on the FIRST page
+ * load — which is exactly the load an owner meets when the panel is staged for attestation. Priming
+ * moves it to server start, where nobody is holding an abort signal.
+ *
+ * Fire-and-forget and failure-tolerant by design: a machine with no trace dir resolves to an empty
+ * list, and any fault here must degrade to "the first request pays what it used to", never to a dev
+ * server that will not start.
+ */
+export async function primeTraversalIndex(): Promise<void> {
+  try {
+    const { resolveTraversalDir } = await loadTraversalSink();
+    await readTraversalIndex(resolveTraversalDir());
+  } catch {
+    // Priming is an optimisation, never a precondition.
+  }
 }
 
 /** `GET /api/traversal/sessions` — the index the panel's session picker reads. */
@@ -99,11 +141,11 @@ export async function handleTraversal(
     throw new HttpError(405, 'method not allowed — the traversal replay is read-only (a trace is an observation record)');
   }
 
-  const { resolveTraversalDir, listTraversalSessions } = await loadTraversalSink();
+  const { resolveTraversalDir } = await loadTraversalSink();
   const dir = resolveTraversalDir();
 
   if (url.pathname === '/api/traversal/sessions') {
-    const summaries: TraversalSessionSummary[] = listTraversalSessions({ dir });
+    const summaries: TraversalSessionSummary[] = await readTraversalIndex(dir);
     const wire: TraversalSessionsWire = {
       dir,
       sessions: summaries.map((session) => ({
