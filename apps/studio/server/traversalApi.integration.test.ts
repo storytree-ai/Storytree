@@ -19,7 +19,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { appendTraversalEvents } from '@storytree/context-traversal-capture';
+import { appendTraversalEvents, computeDecisionPoints } from '@storytree/context-traversal-capture';
 import { replayTraversalSessionAllAdapters } from '@storytree/context-traversal-spawn';
 
 import { handleTraversal } from './traversalApi';
@@ -140,9 +140,12 @@ describe('GET /api/traversal?session=<id>', () => {
     const body = (await res.json()) as Record<string, unknown>;
 
     // The WIRE is the composition's output — proves the wiring, and pins that the route serves the
-    // STRUCTURED replay rather than the rendered text `storytree traversal show` prints.
+    // STRUCTURED replay rather than the rendered text `storytree traversal show` prints. Plus the ONE
+    // thing the route composes on top: `computeDecisionPoints` over the same events, so the panel's
+    // offer fans and `storytree traversal show` read the identical join rather than two copies of it.
+    const view = replayTraversalSessionAllAdapters(SESSION, { dir: traceDir });
     const expected = JSON.parse(
-      JSON.stringify(replayTraversalSessionAllAdapters(SESSION, { dir: traceDir })),
+      JSON.stringify({ ...view, decisionPoints: computeDecisionPoints(view.events) }),
     ) as unknown;
     expect(body).toEqual(expected);
 

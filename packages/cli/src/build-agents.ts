@@ -21,7 +21,7 @@ import { fileURLToPath } from "node:url";
 import { REPO_ROOT_ENV, resolveRepoRoot } from "@storytree/library";
 
 import { openCorpusStore } from "@storytree/drive";
-import { snapshotReads } from "@storytree/storage-protocol";
+import { snapshotReads, type Store } from "@storytree/storage-protocol";
 
 import {
   delegatableAgentIds,
@@ -85,6 +85,30 @@ const targets = [
 /** LF-space view so the drift compare ignores a Windows (CRLF) checkout — the claude-region.ts fix. */
 const toLf = (s: string): string => s.replace(/\r\n/g, "\n");
 
+export interface EssentialsGateTarget {
+  label: string;
+  extension: string;
+  files: ReadonlyMap<string, string>;
+}
+
+/** Run the essentials prompt gate over every harness's native rendered filename. */
+export async function essentialsGateFailures(
+  store: Store,
+  ids: readonly string[],
+  renderedTargets: readonly EssentialsGateTarget[],
+): Promise<string[]> {
+  const gateFailures: string[] = [];
+  for (const target of renderedTargets) {
+    for (const id of ids) {
+      const content = target.files.get(`${id}.${target.extension}`);
+      if (content === undefined) continue; // a missing render is the drift check's business
+      const failures = await essentialsGateViolations(store, id, content);
+      gateFailures.push(...failures.map((failure) => `${target.label}: ${failure}`));
+    }
+  }
+  return gateFailures;
+}
+
 function fail(message: string): never {
   console.error(`build:agents — ${message}`);
   process.exit(1);
@@ -111,6 +135,7 @@ async function main(): Promise<void> {
   const renderedTargets: Array<{
     label: string;
     dir: string;
+    extension: string;
     files: Map<string, string>;
     orphans: string[];
   }> = [];
@@ -139,6 +164,7 @@ async function main(): Promise<void> {
     renderedTargets.push({
       label: target.label,
       dir: target.dir,
+      extension: target.extension,
       files,
       orphans: existing.filter((f) => !files.has(f)),
     });
@@ -168,15 +194,7 @@ async function main(): Promise<void> {
 
     // The essentials size/structure + step→refs integrity gate (ADR-0156 §5 / ADR-0161 decision 5):
     // the fence that keeps the thinned prompts from silently re-bloating back toward full-inline.
-    const gateFailures: string[] = [];
-    for (const target of renderedTargets) {
-      for (const id of ids) {
-        const content = target.files.get(`${id}.md`);
-        if (content === undefined) continue; // a missing render is the drift check's business, above
-        const failures = await essentialsGateViolations(store, id, content);
-        gateFailures.push(...failures.map((failure) => `${target.label}: ${failure}`));
-      }
-    }
+    const gateFailures = await essentialsGateFailures(store, ids, renderedTargets);
     // The DEDICATED_SURFACE_AGENTS (session-orchestrator, red-builder, green-builder) own a
     // different projection surface (CLAUDE.md/AGENTS.md, the SDK-leaf prompt) instead of a
     // `.claude/agents/*.md` file, so `delegatableAgentIds()` correctly excludes them from `ids` and
@@ -221,7 +239,12 @@ async function main(): Promise<void> {
   );
 }
 
-main().catch((err: unknown) => {
-  console.error(err);
-  process.exit(1);
-});
+const directlyInvoked =
+  process.argv[1] !== undefined &&
+  path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
+if (directlyInvoked) {
+  main().catch((err: unknown) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

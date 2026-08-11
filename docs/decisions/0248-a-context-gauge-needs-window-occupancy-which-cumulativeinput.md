@@ -194,8 +194,18 @@ seam widened to reach its activation — that remains the honest difference betw
   transcript adapter that supplies its quantity LANDED 2026-07-27 (story
   `context-traversal-transcript`, D1 above), and the canonical reference artifacts were regenerated
   against the revision on the same day, so the bar — the fill, the playhead, the red over-threshold
-  portion — now exists as an owner-approved REFERENCE drawn from that trace. No product surface
-  renders it: the implementation is still unbuilt and is a later increment.
+  portion — now exists as an owner-approved REFERENCE drawn from that trace. *(Corrected in place
+  2026-08-12 under ADR-0139: "no product surface renders it" is overtaken. Arc `traversal-panel-arc`,
+  increment `traversal-panel-spine-render`, mounted a product surface — the studio's `TraversalSpine`,
+  plotting `apps/studio/src/lib/traversalOccupancy.ts`'s series — that draws exactly the quantity this
+  decision names, `residentInputTokens`: it refuses `cumulativeInputTokens`, holds rather than
+  interpolates between observations, and never sums a child window into the parent's. It is honest
+  about the gap this ADR always expected — the series is populated only once a session's trace is
+  ingested via `storytree traversal ingest <sessionId>`, so an un-ingested session's bar renders the
+  absence rather than a false reading. Still open, on the SAME arc as later increments: subagent-lane
+  model badges (`traversal-panel-lanes-and-depth`) and the owner's side-by-side attestation against the
+  canonical HTML mock (`traversal-panel-attestation`) — so this decision is implemented but not yet
+  attested.)*
 - `addedInputTokens` is to leave the vocabulary (not yet done — see the D3 bullet below, which now
   names the increment that owns it). That is a narrowing of an ADR-0235 clause-4 field and is
   recorded here rather than by amending 0235, because 0235 says a request *may* record tokens added —
@@ -252,6 +262,9 @@ seam widened to reach its activation — that remains the honest difference betw
 - ADR-0243 — how a live-spend-only adapter earns an activation leg (neither A nor D inherits it; see
   Decision).
 - ADR-0203 — the per-slice usage stream, where the billing axes already live.
+- `asset:traversal-panel-arc` — the arc that mounted the product surface plotting this decision's
+  quantity (increment `traversal-panel-spine-render`); its later increments carry lane model badges
+  and the owner attestation this ADR's implementation still awaits.
 - [Context traversal visual contract](../design/context-traversal/README.md) — the owner-approved
   composition; its reference trace is the receding-series evidence, and its 2026-07-27 revision is
   what deletes `addedInputTokens`.

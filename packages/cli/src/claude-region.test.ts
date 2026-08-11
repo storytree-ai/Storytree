@@ -93,6 +93,10 @@ test("Codex root guidance is a deterministic whole-file projection of the same d
   const rendered = renderCodexGuidance(AGENT, "role\n\nworkflow");
   assert.match(rendered, /GENERATED from the Library `agent` tier/);
   assert.match(rendered, /canonical Library `session-orchestrator` agent/);
+  assert.match(
+    rendered,
+    /When this guidance says `storytree …`, invoke it as `pnpm storytree …` from the repository root/,
+  );
   assert.match(rendered, /role\n\nworkflow/);
   assert.equal(rendered.endsWith("\n"), true);
 });

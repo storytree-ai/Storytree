@@ -54,7 +54,26 @@ function claim(over: Partial<ClaimActivity> & { sessionId: string }): ClaimActiv
 function replay(over: Partial<TraversalReplayPayload> = {}): TraversalReplayPayload {
   return {
     sessionId: 'elegant-rosalind',
-    events: [{ kind: 'artifact_visit' }, { kind: 'model_context' }],
+    // Two real events off the mirrored union (widened from a two-field envelope by
+    // `traversal-panel-spine-render`, which plots them). These tests still read only the COUNT.
+    events: [
+      {
+        kind: 'full_payload_read',
+        eventId: 'event:1',
+        sessionId: 'elegant-rosalind',
+        at: '2026-08-11T09:00:00.000Z',
+        visitId: 'visit:1',
+        nodeId: 'arc',
+      },
+      {
+        kind: 'model_context',
+        eventId: 'occupancy:1',
+        sessionId: 'elegant-rosalind',
+        at: '2026-08-11T09:00:05.000Z',
+        cumulativeInputTokens: 120_000,
+        addedInputTokens: 120_000,
+      },
+    ],
     relationships: [],
     coverage: [],
     coverageCaveats: [],
@@ -66,6 +85,7 @@ function replay(over: Partial<TraversalReplayPayload> = {}): TraversalReplayPayl
       declared: false,
       note: 'no occupancy series: 1 model_context observation(s) recorded, none carrying residentInputTokens.',
     },
+    decisionPoints: { points: [], orphanFollows: [] },
     ...over,
   };
 }
@@ -164,15 +184,24 @@ describe('SessionTraversalSection — selecting a session mounts its replay', ()
     expect(screen.getByTestId('traversal-replay').getAttribute('data-replay-state')).toBe('read');
   });
 
-  it('names the unbuilt spine rather than presenting an empty picture as the replay', async () => {
-    // `traversal-panel-spine-render` is parked. A NAMED hole tells an operator the picture is
-    // unbuilt; a blank one would read as "this session traversed nothing".
+  it('mounts the PICTURE into the seam, above the honesty facts rather than instead of them', async () => {
+    // This assertion inverted when `traversal-panel-spine-render` landed. It used to require the
+    // NAMED hole (an operator meeting a blank picture would read it as "this session traversed
+    // nothing"); the hole is now filled, and what it pins instead is that filling it did not cost the
+    // payload's own honesty — the design's second acceptance clause puts the traversal first, and the
+    // facts an operator checks before trusting a replay stay underneath it.
     apiMock.traversalSessions.mockResolvedValue(traced);
     render(<SessionTraversalSection storyId="studio" claims={[claim({ sessionId: 'elegant-rosalind' })]} />);
     await flush();
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'elegant-rosalind' } });
     await flush();
-    expect(screen.getByTestId('traversal-spine-pending').textContent).toContain('traversal-panel-spine-render');
+
+    expect(screen.queryByTestId('traversal-spine-pending')).toBeNull();
+    expect(screen.getByTestId('traversal-spine')).not.toBeNull();
+    expect(screen.getByTestId('traversal-occupancy-note')).not.toBeNull();
+    // The picture precedes the facts in document order — first glance, not a footnote.
+    const replayNode = screen.getByTestId('traversal-replay');
+    expect(replayNode.firstElementChild?.getAttribute('data-testid')).toBe('traversal-spine');
   });
 
   it('renders the occupancy declaration VERBATIM — absence is unobserved, never zero', async () => {
