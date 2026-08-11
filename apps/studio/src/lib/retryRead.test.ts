@@ -8,7 +8,7 @@
 // that is the attempt describing the world they are looking at.
 
 import { describe, it, expect } from 'vitest';
-import { retryRead } from './retryRead';
+import { retryRead, realSleep } from './retryRead';
 
 /** Records what was waited for without spending it — the retry is proved, not timed. */
 function recordingSleep(): { sleep: (ms: number) => Promise<void>; waited: number[] } {
@@ -88,6 +88,38 @@ describe('retryRead', () => {
         { attempts: 3, backoffMs: () => 1, sleep },
       ),
     ).rejects.toThrow('Failed to fetch');
+  });
+
+  // Everything above injects a stand-in for the wait, which makes it evidence about the STAND-IN.
+  // These two drive the DEFAULT — the timer the shipped picker actually runs — because a seam whose
+  // production implementation no test reaches gets greener the more thoroughly it is faked
+  // (ADR-0278). The delays are tiny on purpose: this proves the real path is wired and elapses, not
+  // how long a browser's setTimeout takes.
+  describe('the default wait — the path that runs when nothing is injected', () => {
+    it('realSleep resolves only after the requested delay has actually elapsed', async () => {
+      const before = Date.now();
+      await realSleep(20);
+      expect(Date.now() - before).toBeGreaterThanOrEqual(15);
+    });
+
+    it('retryRead recovers through realSleep when no sleep is injected', async () => {
+      let calls = 0;
+      const before = Date.now();
+
+      const value = await retryRead(
+        () => {
+          calls += 1;
+          if (calls < 3) return Promise.reject(new Error('signal timed out'));
+          return Promise.resolve('index');
+        },
+        { attempts: 3, backoffMs: () => 15 },
+      );
+
+      expect(value).toBe('index');
+      expect(calls).toBe(3);
+      // Two real backoffs happened between the three attempts — the wait was not skipped.
+      expect(Date.now() - before).toBeGreaterThanOrEqual(20);
+    });
   });
 
   it('attempts: 1 disables retrying without changing the call shape', async () => {

@@ -23,7 +23,14 @@ export interface RetryReadOptions {
   readonly sleep?: (ms: number) => Promise<void>;
 }
 
-const realSleep = (ms: number): Promise<void> =>
+/**
+ * The default wait — the one the shipped picker actually runs when nothing is injected.
+ *
+ * Exported so a test can drive THIS and not only its stand-in: a retry proved exclusively against a
+ * fake sleep is evidence about the fake, and the timer the browser runs would be reached by nothing
+ * (`check:verification-decay`'s `unproven-seam-default`, ADR-0278).
+ */
+export const realSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
