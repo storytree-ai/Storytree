@@ -9,20 +9,31 @@
 //   • the edge INTO a visit carries that visit's read strength — solid for `full_payload_read`, grey
 //     dotted for `front_matter_read`. The discriminator is the event `kind` itself and nothing else.
 //
-// WHAT IS DELIBERATELY NOT DRAWN, counted rather than silently dropped so the panel can say what it is
-// holding back and no reader mistakes an absence here for an absence in the trace:
-//   • `spawn_handoff` / `result_return` — the linked parent/child lanes, and the per-lane model badge
-//     that PR #1272 gave them a field for. That is `traversal-panel-lanes-and-depth`.
-//   • `candidate_set` / `followed_edge` — the offer fans, which under ADR-0312 may only be drawn with
-//     their raw `M of N` observability denominator. Same next increment.
-//   • `parentVisitId` depth indentation. Same next increment. Until then the traversal renders as a
-//     SINGLE COLUMN, which the design explicitly requires where parent links are not being resolved —
-//     an inferred tree is the one thing the honesty clause forbids.
+// WIDENED BY `traversal-panel-lanes-and-depth`, which is what the previous increment named as the one
+// that would draw the rest. Three things it counted as deferred are now DRAWN, each in its own module
+// so its honesty rule is provable on its own:
+//   • `spawn_handoff` / `result_return` — the linked parent/child lanes and the per-lane model badge
+//     PR #1272 gave them a field for (`traversalLanes.ts`);
+//   • `parentVisitId` depth indentation, which still renders a SINGLE COLUMN wherever parent links are
+//     absent, because an inferred tree is the one thing the honesty clause forbids (`traversalDepth.ts`);
+//   • `candidate_set` / `followed_edge` — the offer fans, carrying ADR-0312 D6's raw `M of N`
+//     observability denominator and never a percentage (`traversalOffers.ts`).
+//
+// WHAT IS STILL DELIBERATELY NOT DRAWN:
 //   • revisit loop-backs, at any point, by decision (revision clause 4): the animation carries
 //     branching, and the link stays answerable by query.
+//
+// THE AXIS NOW COVERS EVERYTHING DRAWN. It used to be built from the plotted marks alone, which was
+// exact while the marks were the whole picture; a lane or a fan whose instant fell outside that span
+// would CLAMP to the first or last row and sit there looking like an observation at that time. So the
+// scale is built from every instant the picture places — marks, lane ends, and offer points — while the
+// marks themselves remain exactly what they were.
 
 import type { TraversalEventEnvelope, TraversalReplayPayload } from '../types';
+import { computeTraversalDepth, drawnDepth, type TraversalDepthModel } from './traversalDepth';
+import { buildTraversalLanes, laneInstants, type TraversalLaneModel } from './traversalLanes';
 import { buildOccupancySeries, type OccupancySeries } from './traversalOccupancy';
+import { buildTraversalOffers, offerInstants, type TraversalOfferModel } from './traversalOffers';
 import {
   buildTraversalTimeScale,
   TRAVERSAL_TIME_DEFAULTS,
@@ -40,6 +51,11 @@ export interface TraversalMark {
   readonly strength: ReadStrength;
   /** Its y on the axis, resolved once at build time so the render and the transport cannot disagree. */
   readonly y: number;
+  /**
+   * How far this visit is INDENTED, in depth steps rather than in pixels: `0` for the spine column.
+   * Non-zero only where `parentVisitId` resolved onto a visit this same trace recorded.
+   */
+  readonly depth: number;
   /** What an operator hovers to see. Identity only — a node id or a search operation, never content. */
   readonly label: string;
 }
@@ -48,18 +64,13 @@ export interface TraversalEdge {
   readonly id: string;
   readonly fromY: number;
   readonly toY: number;
+  /** The source and target indentation, so a descent and a return are drawn as the moves they were. */
+  readonly fromDepth: number;
+  readonly toDepth: number;
   /** The TARGET's read strength: an edge's weight is what the step it led to actually pulled. */
   readonly strength: ReadStrength;
   /** The instant the edge completes, so the playhead reveals it exactly when the target appears. */
   readonly atMs: number;
-}
-
-/** Events the spine holds but does not draw, each named by what draws it instead. */
-export interface DeferredCounts {
-  /** `spawn_handoff` + `result_return` — the lanes. */
-  readonly laneEdges: number;
-  /** `candidate_set` + `followed_edge` — the offer fans. */
-  readonly offers: number;
 }
 
 export interface TraversalSpineModel {
@@ -67,7 +78,9 @@ export interface TraversalSpineModel {
   readonly edges: readonly TraversalEdge[];
   readonly scale: TraversalTimeScale;
   readonly occupancy: OccupancySeries;
-  readonly deferred: DeferredCounts;
+  readonly lanes: TraversalLaneModel;
+  readonly depth: TraversalDepthModel;
+  readonly offers: TraversalOfferModel;
   /**
    * Plottable events whose `at` could not be read as an instant. Counted, never placed: a mark at a
    * guessed time is a claim about ordering the trace did not make.
@@ -81,16 +94,10 @@ export function buildTraversalSpine(
 ): TraversalSpineModel {
   const dated: { event: TraversalEventEnvelope; atMs: number; strength: ReadStrength }[] = [];
   let undatable = 0;
-  let laneEdges = 0;
-  let offers = 0;
 
   for (const event of replay.events) {
     const strength = strengthOf(event);
-    if (strength === null) {
-      if (event.kind === 'spawn_handoff' || event.kind === 'result_return') laneEdges += 1;
-      else if (event.kind === 'candidate_set' || event.kind === 'followed_edge') offers += 1;
-      continue;
-    }
+    if (strength === null) continue;
     const atMs = Date.parse(event.at);
     if (Number.isNaN(atMs)) {
       undatable += 1;
@@ -103,16 +110,22 @@ export function buildTraversalSpine(
   // recorded them in, which is the only ordering evidence there is at that resolution.
   dated.sort((a, b) => a.atMs - b.atMs);
 
+  // The axis spans EVERY instant the picture places, not only the marks — see the header. The density
+  // weighting counts them too, which is right: a burst of subagent spawns is activity, and a run that
+  // holds one is not the same as an idle span.
   const scale = buildTraversalTimeScale(
-    dated.map((item) => item.atMs),
+    [...dated.map((item) => item.atMs), ...laneInstants(replay.events), ...offerInstants(replay.events)],
     config,
   );
+
+  const depth = computeTraversalDepth(replay.events);
 
   const marks: TraversalMark[] = dated.map((item, index) => ({
     id: identityOf(item.event, index),
     atMs: item.atMs,
     strength: item.strength,
     y: yAt(scale, item.atMs),
+    depth: visitDepth(depth, item.event),
     label: labelOf(item.event),
   }));
 
@@ -120,7 +133,15 @@ export function buildTraversalSpine(
   for (let index = 1; index < marks.length; index += 1) {
     const from = marks[index - 1] as TraversalMark;
     const to = marks[index] as TraversalMark;
-    edges.push({ id: `${from.id}->${to.id}`, fromY: from.y, toY: to.y, strength: to.strength, atMs: to.atMs });
+    edges.push({
+      id: `${from.id}->${to.id}`,
+      fromY: from.y,
+      toY: to.y,
+      fromDepth: from.depth,
+      toDepth: to.depth,
+      strength: to.strength,
+      atMs: to.atMs,
+    });
   }
 
   return {
@@ -128,9 +149,17 @@ export function buildTraversalSpine(
     edges,
     scale,
     occupancy: buildOccupancySeries(replay.events, replay.sessionId),
-    deferred: { laneEdges, offers },
+    lanes: buildTraversalLanes(replay.events, scale),
+    depth,
+    offers: buildTraversalOffers(replay.events, replay.decisionPoints, scale),
     undatable,
   };
+}
+
+/** A search has no visit identity and therefore no parent link — it sits on the spine, at depth 0. */
+function visitDepth(depth: TraversalDepthModel, event: TraversalEventEnvelope): number {
+  if (event.kind !== 'front_matter_read' && event.kind !== 'full_payload_read') return 0;
+  return drawnDepth(depth, event.visitId);
 }
 
 /** `null` for an event this increment does not plot as a mark. */

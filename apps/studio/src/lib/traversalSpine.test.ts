@@ -6,7 +6,11 @@
 // shown a picture that quietly omits a third of the trace.
 
 import { describe, it, expect } from 'vitest';
-import type { TraversalEventEnvelope, TraversalReplayPayload } from '../types';
+import type {
+  TraversalDecisionPointReport,
+  TraversalEventEnvelope,
+  TraversalReplayPayload,
+} from '../types';
 import { buildTraversalSpine } from './traversalSpine';
 
 const SESSION = 'kind-hamilton-e938be';
@@ -40,7 +44,10 @@ function search(offsetMs: number): TraversalEventEnvelope {
   };
 }
 
-function replay(events: TraversalEventEnvelope[]): TraversalReplayPayload {
+function replay(
+  events: TraversalEventEnvelope[],
+  decisionPoints: TraversalDecisionPointReport = { points: [], orphanFollows: [] },
+): TraversalReplayPayload {
   return {
     sessionId: SESSION,
     events,
@@ -50,6 +57,7 @@ function replay(events: TraversalEventEnvelope[]): TraversalReplayPayload {
     skipped: 0,
     partial: false,
     occupancy: { modelContextCount: 0, observationCount: 0, declared: false, note: 'no occupancy observed' },
+    decisionPoints,
   };
 }
 
@@ -83,48 +91,96 @@ describe('read strength comes from the event kind, and rides the edge INTO the v
   });
 });
 
-describe('what this increment does not draw is counted, not dropped', () => {
-  it('counts lane edges and offers under the increment that draws them', () => {
+describe('the spine now composes lanes, depth and offers rather than counting them as deferred', () => {
+  it('folds a handoff/return pair into a lane, and reads its model off the recorded field', () => {
+    const model = buildTraversalSpine(
+      replay(
+        [
+          visit('full_payload_read', 0, 'arc'),
+          {
+            kind: 'spawn_handoff',
+            eventId: 'event:spawn',
+            sessionId: SESSION,
+            at: at(10_000),
+            edgeId: 'edge:1',
+            parentSessionId: SESSION,
+            childSessionId: 'child-agent',
+            agentType: 'Explore',
+            model: 'claude-opus-5',
+            runtime: 'sdk-leaf',
+          },
+          {
+            kind: 'result_return',
+            eventId: 'event:return',
+            sessionId: SESSION,
+            at: at(20_000),
+            edgeId: 'edge:1',
+            parentSessionId: SESSION,
+            childSessionId: 'child-agent',
+            ok: true,
+          },
+          {
+            kind: 'candidate_set',
+            eventId: 'event:candidates',
+            sessionId: SESSION,
+            at: at(30_000),
+            candidateSetId: 'cs:1',
+            surfaceId: 'library-artifact',
+            candidateNodeIds: ['a', 'doc:decisions/0001-z.md'],
+          },
+        ],
+        {
+          points: [
+            {
+              candidateSetId: 'cs:1',
+              surfaceId: 'library-artifact',
+              candidates: [
+                { nodeId: 'a', outcome: { status: 'not-followed' } },
+                {
+                  nodeId: 'doc:decisions/0001-z.md',
+                  outcome: { status: 'unobservable', reason: 'scheme prefix' },
+                },
+              ],
+              unresolved: [],
+            },
+          ],
+          orphanFollows: [],
+        },
+      ),
+    );
+
+    // A lane event is still not a MARK — the traversal's steps are visits and searches.
+    expect(model.marks).toHaveLength(1);
+    expect(model.lanes.lanes).toHaveLength(1);
+    expect(model.lanes.lanes[0]?.model).toBe('claude-opus-5');
+    expect(model.lanes.lanes[0]?.endMs).not.toBeNull();
+    expect(model.offers.offers).toHaveLength(1);
+    expect(model.offers.offers[0]?.denominator).toBe('offered 2, observable 1 of 2');
+  });
+
+  it('builds the axis over everything it draws, so a lane past the last mark is not clamped onto it', () => {
+    // The handoff happens a full minute AFTER the last visit. Built from the marks alone, its row
+    // would land exactly on the final mark and read as an observation at that time.
     const model = buildTraversalSpine(
       replay([
         visit('full_payload_read', 0, 'arc'),
+        visit('full_payload_read', 30_000, 'plan'),
         {
           kind: 'spawn_handoff',
           eventId: 'event:spawn',
           sessionId: SESSION,
-          at: at(10_000),
-          edgeId: 'edge:1',
+          at: at(90_000),
+          edgeId: 'edge:late',
           parentSessionId: SESSION,
-          childSessionId: 'child-agent',
-          agentType: 'Explore',
-          model: 'claude-opus-5',
-          runtime: 'sdk-leaf',
-        },
-        {
-          kind: 'result_return',
-          eventId: 'event:return',
-          sessionId: SESSION,
-          at: at(20_000),
-          edgeId: 'edge:1',
-          parentSessionId: SESSION,
-          childSessionId: 'child-agent',
-          ok: true,
-        },
-        {
-          kind: 'candidate_set',
-          eventId: 'event:candidates',
-          sessionId: SESSION,
-          at: at(30_000),
-          candidateSetId: 'cs:1',
-          surfaceId: 'library-artifact',
-          candidateNodeIds: ['a', 'b'],
+          childSessionId: 'child',
+          agentType: 'general-purpose',
         },
       ]),
     );
 
-    expect(model.marks).toHaveLength(1);
-    expect(model.deferred.laneEdges).toBe(2);
-    expect(model.deferred.offers).toBe(1);
+    const lastMark = model.marks[model.marks.length - 1];
+    expect(lastMark).toBeDefined();
+    expect(model.lanes.lanes[0]!.y0).toBeGreaterThan(lastMark!.y);
   });
 
   it('counts an undatable event rather than placing it at a guessed instant', () => {

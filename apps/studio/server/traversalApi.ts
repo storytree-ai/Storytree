@@ -12,10 +12,13 @@
 // shipping traces anywhere shared is explicitly out of scope for the arc.
 //
 // It DERIVES NOTHING (the handleArcs / handleFloorHealth posture): every value on the wire comes from
-// `replayTraversalSessionAllAdapters` / `listTraversalSessions` — the SAME composition
-// `storytree traversal show` renders — so the panel and the CLI can never disagree about what a trace
-// contains, or about which adapters' coverage that content sits under. This file adds routing, the
-// method check, the session-id containment guard, and the honest empty answer.
+// the sink's own readers — `replayTraversalSessionAllAdapters` for the replay, and, for the index,
+// `readTraversalSession` per file under `listTraversalSessions`'s own rules (traversalIndexMemo.ts,
+// which re-reads only the traces whose mtime+size moved, and is held to DEEP EQUALITY with
+// `listTraversalSessions` by test). That is the SAME composition `storytree traversal show` renders, so
+// the panel and the CLI can never disagree about what a trace contains, or about which adapters'
+// coverage that content sits under. This file adds routing, the method check, the session-id
+// containment guard, and the honest empty answer.
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
@@ -29,7 +32,7 @@ import { listTraversalSessionsIncremental } from './traversalIndexMemo';
 // resolve (only the .ts files exist). `pnpm gate` does not run `vite build`, so a static import here
 // would break the dev server with only CI Build to catch it.
 import type { TraversalReplayView } from '@storytree/context-traversal-spawn';
-import type { TraversalSessionSummary } from '@storytree/context-traversal-capture';
+import type { DecisionPointReport, TraversalSessionSummary } from '@storytree/context-traversal-capture';
 
 type SpawnModule = typeof import('@storytree/context-traversal-spawn');
 let spawnModulePromise: Promise<SpawnModule> | null = null;
@@ -126,7 +129,23 @@ const SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
  * A partial trace must never present as complete (ADR-0241 D5), which is why `skipped`/`partial` ride
  * the same payload rather than being an optional extra a consumer might not fetch.
  */
-export type TraversalReplayWire = TraversalReplayView;
+export interface TraversalReplayWire extends TraversalReplayView {
+  /**
+   * The offer/follow join for this trace, and it rides the SAME payload for the same reason `skipped`
+   * does: an offer fan drawn without its denominator over-reports how often a session stayed inside
+   * the asset graph (ADR-0312 D6), so the thing that makes the fan honest is not an optional extra
+   * fetch a consumer might skip.
+   *
+   * COMPUTED HERE RATHER THAN IN THE BROWSER, and that is the point: `isFollowableOfferId` and the
+   * candidate/edge join are one tested classifier in `context-traversal-capture`
+   * (`decision-point-playback.ts`) that `storytree traversal show` already renders from. It lives in a
+   * node-only package the studio's bundle may not take, so the choice was to mirror the rule client-
+   * side or to run the real one here. A second copy of "which offers could ever be followed" is
+   * exactly how the panel and the CLI would come to disagree about a trace — so the route composes it,
+   * the same way it composes the replay itself, and DERIVES nothing of its own.
+   */
+  readonly decisionPoints: DecisionPointReport;
+}
 
 /**
  * Dispatch one `/api/traversal*` request. Read-only by decision, not omission: a trace is an
@@ -141,7 +160,10 @@ export async function handleTraversal(
     throw new HttpError(405, 'method not allowed — the traversal replay is read-only (a trace is an observation record)');
   }
 
-  const { resolveTraversalDir } = await loadTraversalSink();
+  // `listTraversalSessions` is no longer pulled here: the picker's index goes through
+  // `readTraversalIndex` above, which calls the sink per CHANGED file instead of replaying the whole
+  // directory per request. `computeDecisionPoints` (PR #1284) is untouched by that.
+  const { resolveTraversalDir, computeDecisionPoints } = await loadTraversalSink();
   const dir = resolveTraversalDir();
 
   if (url.pathname === '/api/traversal/sessions') {
@@ -180,6 +202,6 @@ export async function handleTraversal(
     throw new HttpError(404, `no readable trace for session "${sessionId}" under ${dir}`);
   }
 
-  const wire: TraversalReplayWire = view;
+  const wire: TraversalReplayWire = { ...view, decisionPoints: computeDecisionPoints(view.events) };
   sendJson(res, 200, wire);
 }

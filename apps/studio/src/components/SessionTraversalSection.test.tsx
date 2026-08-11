@@ -85,6 +85,7 @@ function replay(over: Partial<TraversalReplayPayload> = {}): TraversalReplayPayl
       declared: false,
       note: 'no occupancy series: 1 model_context observation(s) recorded, none carrying residentInputTokens.',
     },
+    decisionPoints: { points: [], orphanFollows: [] },
     ...over,
   };
 }

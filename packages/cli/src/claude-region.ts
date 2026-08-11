@@ -37,6 +37,12 @@ export function renderCodexGuidance(agent: string, digest: string): string {
     `This is Codex's root projection of the canonical Library \`${agent}\` agent.`,
     "Edit the Library artifact, then regenerate; this file is not an independent guidance source.",
     "",
+    // Keep the canonical digest byte-for-byte shared with Claude (ADR-0291 D2). Codex does not get
+    // CLAUDE.md's hand-authored repository tour, so its generated wrapper must supply the one local
+    // invocation fact needed to execute the digest's harness-neutral `storytree …` commands.
+    "When this guidance says `storytree …`, invoke it as `pnpm storytree …` from the repository root;",
+    "this repository does not install a standalone `storytree` executable on PATH.",
+    "",
     digest.trim(),
     "",
   ].join("\n");
