@@ -20,6 +20,7 @@ import { createInviteMailer, type InviteMailer } from './inviteMailer';
 // server and the desktop local backend may import; ADR-0100 forbids importing apps/studio/server).
 import { BuildRegistry, routedBuildRunner, adoptRunnerFromAdoptStory } from '@storytree/drive/build-worker';
 import { installDevServerResilience } from './devServerResilience';
+import { primeTraversalIndex } from './traversalApi';
 
 // Re-exported for the existing integration tests (the route table's real home).
 export { handleHealth, handleActivity, handleClaims, type HealthDeps } from './apiRouter';
@@ -64,6 +65,14 @@ export function storytreeDataApi(options: StorytreeDataApiOptions = {}): Plugin 
       // crashing the whole Vite process mid-run (the "Adopt kills localhost" bug). Dev-only, install-once
       // across restarts — see devServerResilience.ts. Wired before the worker so it covers it from start.
       installDevServerResilience(server.config.logger);
+
+      // Pull the traversal replay's lazy imports and build the picker's trace index NOW, while the
+      // operator is still opening the browser. Measured cold, that first request costs 6.3 s (almost
+      // all of it the lazy `@storytree/context-traversal-capture` import) and the client guards it
+      // with a 10 s abort — so unprimed, the panel's very first read races its own timeout on the
+      // page load that matters most. Fire-and-forget: `primeTraversalIndex` swallows its own faults,
+      // and the route works exactly as before if this never completes.
+      void primeTraversalIndex();
 
       // Capture the startup HEAD here, not in configResolved: configureServer is dev-only
       // (no stray git spawn during `vite build`) and runs at server start, before any pull

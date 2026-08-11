@@ -1,5 +1,6 @@
 // Typed client for the dev-server /api/* endpoints (see server/devApi.ts).
 
+import { retryRead } from './lib/retryRead';
 import type {
   ActivityPayload,
   ArcsPayload,
@@ -288,8 +289,20 @@ export const api = {
   // UNLIKE the advisory `claims`/`activity` pair, these THROW on failure rather than answering a
   // `null` field: the routes have no down-store to be quiet about, so a failure here is the studio
   // server not answering — which the picker must show as "could not read", never as "no traces".
+  //
+  // The index read RETRIES, and that is the picker's real repair (increment
+  // `traversal-panel-index-read`). The route is now answered from an incremental index keyed on each
+  // trace's mtime+size (server/traversalIndexMemo.ts), so the 10 s budget below is generous rather
+  // than tight — it is left where it was on purpose, because raising it was never the fix. What
+  // changes is that losing the race once is no longer terminal: the picker read once per mount with
+  // no second chance, so one aborted request disabled every claimed session for the life of the
+  // mount. Three attempts with a short backoff; the block honestly shows "reading…" throughout and
+  // only reaches `failed` when every attempt lost. Safe to repeat — a pure GET that writes nothing.
   traversalSessions: (): Promise<TraversalSessionsPayload> =>
-    http('/api/traversal/sessions', { signal: AbortSignal.timeout(10_000) }),
+    retryRead(
+      () => http<TraversalSessionsPayload>('/api/traversal/sessions', { signal: AbortSignal.timeout(10_000) }),
+      { attempts: 3, backoffMs: (attempt) => attempt * 500 },
+    ),
   // 404s for a session id with no readable trace on this machine — which the picker prevents by
   // offering only sessions the index named, and the mount still reports honestly if it happens.
   traversal: (sessionId: string): Promise<TraversalReplayPayload> =>
