@@ -118,7 +118,12 @@ prerequisite for this decision rather than a later nicety.
 This **amends ADR-0270 D1**, which gave two cases — capability grain by default, story grain for
 cross-capability work or a session that does not yet know its unit. It adds a third for work that
 has no capability at all. It does not weaken the first two: capability grain remains the default and
-story grain remains legitimate where D1 says it is.
+story grain remains legitimate where D1 says it is. *(Corrected in place 2026-08-11 per ADR-0139:
+ADR-0346 D2 has since retired the story-grain `work` claim, so ADR-0270 D1's second case is GONE and
+only two remain — the capability you are writing, several when you write several, or the increment
+id. **This decision is unaffected in substance and becomes MORE load-bearing, not less:** the
+increment-id claim is now the only answer for work with no capability to name, where before the
+story grain could absorb it.)*
 
 The increment id always exists by the time anyone drives it — an increment is authored at `proposal`
 or `ready` before it is taken — so there is always a truthful unit to name. No substrate change is

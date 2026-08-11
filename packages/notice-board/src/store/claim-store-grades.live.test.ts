@@ -250,3 +250,87 @@ test(
     }
   },
 );
+
+test(
+  "claim-queue-on-refusal: a REFUSED work take joins the waiting line in the same transaction (ADR-0346 D1), audits BOTH conflict-refused and queued, and is promoted on release",
+  { skip: !DB },
+  async () => {
+    const { pool, connector } = await createTestPool();
+    try {
+      await applySchema(pool);
+      await pool.query("TRUNCATE events.node_claim");
+      await pool.query("TRUNCATE events.claim_event");
+
+      const store = new PgClaimStore(pool);
+      const unit = "binding-unit";
+
+      const holder = await store.claim({
+        unitId: unit,
+        sessionId: "sess-holder",
+        branch: "claude/holder",
+        intent: "writing the fence",
+      });
+      assert.equal(holder.acquired, true);
+
+      // The DEFAULT is unchanged: a refused work take dead-ends, and writes no waiting row. This is
+      // what `acquireChainClaims` depends on — it rolls back on the first refusal, and a silent
+      // queue would leave rows for members it abandoned in the same breath.
+      const deadEnd = await store.claim({
+        unitId: unit,
+        sessionId: "sess-build",
+        branch: "claude/build",
+        intent: "story:real",
+      });
+      assert.equal(deadEnd.acquired, false, "default refusal");
+      assert.equal("queued" in deadEnd, false, "…and it is NOT the queued arm");
+      assert.deepEqual(
+        (await store.claimsFor(unit)).map((c) => `${c.sessionId}/${claimGrade(c)}`),
+        ["sess-holder/work"],
+        "a dead-end refusal leaves the ledger exactly as it found it",
+      );
+
+      // queueOnRefusal: the SESSION ceremony's take. Same refusal, plus the queue.
+      const bound = await store.claim(
+        { unitId: unit, sessionId: "sess-blocked", branch: "claude/blocked", intent: "same capability" },
+        { queueOnRefusal: true },
+      );
+      assert.equal(bound.acquired, false, "the work slot is still held — the fence binds");
+      assert.equal("queued" in bound, true, "…and the blocked session is IN the line");
+      if ("queued" in bound) {
+        assert.equal(bound.heldBy.sessionId, "sess-holder");
+        assert.equal(claimGrade(bound.waiting), "waiting");
+        assert.equal(bound.waiting.intent, "same capability", "the waiter carries its own prose");
+      }
+      assert.deepEqual(
+        (await store.claimsFor(unit)).map((c) => `${c.sessionId}/${claimGrade(c)}`).sort(),
+        ["sess-blocked/waiting", "sess-holder/work"],
+        "exactly ONE row for the queued session",
+      );
+
+      // BOTH events, never one or the other: the refusal is what `--refusals` audits, and `queued`
+      // is what the session got instead. A fence whose refusals stopped being recorded the moment
+      // it started binding would be unmeasurable exactly when it began to matter.
+      const events = await pool.query(
+        "SELECT type, session_id FROM events.claim_event WHERE unit_id = $1 ORDER BY seq",
+        [unit],
+      );
+      assert.deepEqual(
+        (events.rows as { type: string; session_id: string }[]).map((r) => `${r.type}/${r.session_id}`),
+        [
+          "claimed/sess-holder",
+          "conflict-refused/sess-build",
+          "conflict-refused/sess-blocked",
+          "queued/sess-blocked",
+        ],
+      );
+
+      // The promotion ADR-0346 D1 leans on is the one ADR-0200 D2 already built — the queued
+      // session gets the slot when the holder lets go, with nothing further to run.
+      assert.equal(await store.release(unit, "sess-holder"), true);
+      const promoted = await store.current(unit);
+      assert.equal(promoted?.sessionId, "sess-blocked", "the oldest live waiter took the freed slot");
+    } finally {
+      await closePool(pool, connector);
+    }
+  },
+);

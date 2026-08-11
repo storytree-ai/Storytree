@@ -40,6 +40,8 @@ function doc(over: Partial<ClaimDocT> & Pick<ClaimDocT, "unitId" | "sessionId">)
 
 interface FakeLedger extends ClaimLedgerStoreLike {
   takes: ClaimRequest[];
+  /** The OPTS of every take, alongside `takes` — so the ADR-0346 D1 queue-on-refusal is provable. */
+  takeOpts: Array<{ queueOnRefusal?: boolean } | undefined>;
   upgrades: Array<{ unitId: string; sessionId: string; opts?: { branch?: string; intent?: string } }>;
   downgrades: Array<{ unitId: string; sessionId: string; grade: string }>;
   releases: Array<{ unitId: string; sessionId: string }>;
@@ -58,14 +60,16 @@ interface FakeLedger extends ClaimLedgerStoreLike {
 function makeFakeLedger(over: Partial<FakeLedger> = {}): FakeLedger {
   const self: FakeLedger = {
     takes: [],
+    takeOpts: [],
     upgrades: [],
     downgrades: [],
     releases: [],
     boolResult: true,
     rows: [],
     bySession: [],
-    async take(req: ClaimRequest): Promise<ClaimResult> {
+    async take(req: ClaimRequest, opts?: { queueOnRefusal?: boolean }): Promise<ClaimResult> {
       self.takes.push(req);
+      self.takeOpts.push(opts);
       if (self.nextResult !== undefined) return self.nextResult;
       return {
         acquired: true,
@@ -321,9 +325,49 @@ test("claim --grade work refused: prints the unit's full claim board and the cap
   // legacy `intent` word. That is the whole point of the derivation: an old row still reads.
   assert.match(env.body, /\[work\/supplementing\]\s+other-wt\s+10m\s+branch=claude\/other\s+intent "orchestrate"/);
   assert.match(env.body, /\[waiting\/supplementing\]\s+waiter-wt/);
-  assert.match(env.body, /capability you are (actually )?writing/);
-  assert.match(env.body, /ADR-0270/);
-  assert.match(env.body, /not an owner question/i);
+  assert.match(env.body, /never an owner question/i);
+  // A store that refuses WITHOUT queueing has left this session out of the line, and the message
+  // has to say so — that is the one thing this arm must not share with the queued render.
+  assert.match(env.body, /You are NOT in the line/);
+  assert.ok(env.next?.some((n) => n.includes("--grade waiting")));
+});
+
+test("claim --grade work asks the store to QUEUE on refusal, never a caller-side follow-up take (ADR-0346 D1)", async () => {
+  const ledger = makeFakeLedger();
+  await claimLedgerCommand("claim", "story-x", { grade: "work" }, deps(ledger));
+  assert.deepEqual(ledger.takeOpts, [{ queueOnRefusal: true }]);
+  // ONE take. A refusal followed by a separate waiting take has a window in which the holder can
+  // release, which under a binding fence leaves the session queued behind nobody, forever.
+  assert.equal(ledger.takes.length, 1);
+});
+
+test("claim --grade work QUEUED: ok:FALSE, and the session is told it is fenced out (ADR-0346 D1/D4)", async () => {
+  const holder = doc({ unitId: "story-x", sessionId: "holder-wt", grade: "work", intent: "growing it" });
+  const ledger = makeFakeLedger({
+    nextResult: {
+      acquired: false,
+      queued: true,
+      waiting: doc({ unitId: "story-x", sessionId: "wt-ledger", grade: "waiting" }),
+      heldBy: holder,
+    },
+    rows: [holder, doc({ unitId: "story-x", sessionId: "wt-ledger", grade: "waiting" })],
+  });
+  const env = await claimLedgerCommand("claim", "story-x", { grade: "work" }, deps(ledger));
+  // THE line of ADR-0346 D1 at this seam. It used to exit ZERO — "waiting in line behind X" reads
+  // as permission to carry on, which is why the queue fired 3 times in 12 days while 16 refusals
+  // were handed out and the sessions kept building.
+  assert.equal(env.ok, false, env.body);
+  assert.match(env.body, /QUEUED behind holder-wt/);
+  assert.match(env.body, /position 1 of 1 in the LIVE line/);
+  assert.match(env.body, /`waiting` BINDS \(ADR-0346 D1\): STOP working "story-x"/);
+  // The holder is described by the ONE shared describer — who, role, prose, age, liveness.
+  assert.match(env.body, /holder-wt \(branch claude\/other, role supplementing, intent "growing it", held 0m, LIVE/);
+  // D4's fork, and only D4's fork: no "proceed on your own judgment" survives anywhere.
+  assert.match(env.body, /work another capability you already hold/);
+  assert.match(env.body, /release\s+your claims, and END the session/);
+  assert.doesNotMatch(env.body, /proceed/i);
+  assert.match(env.body, /never an owner question/i);
+  assert.ok(env.next?.some((n) => n === "storytree noticeboard mine --pg"));
 });
 
 test("claim: an unknown grade is refused before any store call", async () => {
@@ -349,7 +393,7 @@ test("upgrade: maps to upgrade(unit, session) with the identity branch (fail-clo
   assert.match(env.body, /wisp is lit/);
 });
 
-test("upgrade queued: reported as waiting in line behind the holder, with the queue position", async () => {
+test("upgrade queued: ok:FALSE — QUEUED behind the holder, with the queue position (ADR-0346 D1)", async () => {
   const ledger = makeFakeLedger({
     nextResult: {
       acquired: false,
@@ -363,9 +407,10 @@ test("upgrade queued: reported as waiting in line behind the holder, with the qu
     ],
   });
   const env = await claimLedgerCommand("upgrade", "story-x", {}, deps(ledger));
-  assert.equal(env.ok, true, env.body);
-  assert.match(env.body, /waiting in line behind holder-wt/);
+  assert.equal(env.ok, false, "the session asked for the work slot and did not get it (ADR-0346 D1)");
+  assert.match(env.body, /QUEUED behind holder-wt/);
   assert.match(env.body, /position 1 of 1/);
+  assert.match(env.body, /`waiting` BINDS/);
 });
 
 // ---------------------------------------------------------------------------
@@ -622,7 +667,13 @@ test("mine: offline and identity-less refusals match every other write-ish verb"
  * the answer, not about how the answer is gathered (that is `claim-universe.test.ts`).
  */
 const KNOWS_STORY_X: NonNullable<ClaimLedgerDeps["universe"]> = async () => ({
-  targets: [{ id: "story-x", kind: "story" }],
+  targets: [
+    { id: "story-x", kind: "story" },
+    // The grain a session is supposed to claim at (ADR-0270 D1 / ADR-0346 D2) …
+    { id: "cap-x", kind: "capability" },
+    // … and the one story shape whose id still names real work: the UAT node `story build` drives.
+    { id: "driven-x", kind: "story", uatWitness: "machine" },
+  ],
   nonClaimable: [{ id: "session-orchestrator", kind: "agent" }],
   complete: true,
   unreadSources: [],
@@ -661,12 +712,77 @@ test("claim: a resolvable id passes through and the success line NAMES THE KIND"
   const ledger = makeFakeLedger();
   const env = await claimLedgerCommand(
     "claim",
-    "story-x",
+    "cap-x",
     { grade: "work" },
     depsWithUniverse(ledger),
   );
   assert.equal(env.ok, true, env.body);
-  assert.match(env.body, /Work claim acquired on "story-x" \[story\] — the wisp is lit/);
+  assert.match(env.body, /Work claim acquired on "cap-x" \[capability\] — the wisp is lit/);
+  assert.equal(ledger.takes.length, 1);
+});
+
+// ---------------------------------------------------------------------------
+// The story-grain fence (ADR-0346 D2)
+// ---------------------------------------------------------------------------
+
+test("claim --grade work on a STORY is refused — the grain retired (ADR-0346 D2), and no row is written", async () => {
+  const ledger = makeFakeLedger();
+  const env = await claimLedgerCommand(
+    "claim",
+    "story-x",
+    { grade: "work" },
+    depsWithUniverse(ledger),
+  );
+  assert.equal(env.ok, false, env.body);
+  assert.match(env.body, /is a STORY, and a story is no longer a work claim/);
+  assert.deepEqual(ledger.takes, [], "the retired grain never reaches the store");
+});
+
+test("the story TIER stays claimable where it names real work — a uat_witness: machine UAT node", async () => {
+  // `story build` claims `story.id` for exactly this shape, alongside the story's members. The
+  // fence reads the TREE to tell it from a fence-story; it never pattern-matches the id.
+  const ledger = makeFakeLedger();
+  const env = await claimLedgerCommand(
+    "claim",
+    "driven-x",
+    { grade: "work" },
+    depsWithUniverse(ledger),
+  );
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /Work claim acquired on "driven-x" \[story\]/);
+});
+
+test("the SHARED grades on a story are untouched by D2 — exploring is the hovering wisp", async () => {
+  const ledger = makeFakeLedger();
+  const exploring = await claimLedgerCommand(
+    "claim",
+    "story-x",
+    { grade: "exploring", intent: "reading across the story" },
+    depsWithUniverse(ledger),
+  );
+  assert.equal(exploring.ok, true, exploring.body);
+  const waiting = await claimLedgerCommand(
+    "claim",
+    "story-x",
+    { grade: "waiting" },
+    depsWithUniverse(ledger),
+  );
+  assert.equal(waiting.ok, true, waiting.body);
+  assert.equal(ledger.takes.length, 2, "both shared takes reached the store");
+});
+
+test("upgrade on a STORY is fenced too — it ENDS in a work row", async () => {
+  const ledger = makeFakeLedger();
+  const env = await claimLedgerCommand("upgrade", "story-x", {}, depsWithUniverse(ledger));
+  assert.equal(env.ok, false, env.body);
+  assert.match(env.body, /is a STORY, and a story is no longer a work claim/);
+  assert.deepEqual(ledger.upgrades, [], "leaving it open would leave the grain reachable");
+});
+
+test("with NO universe the story fence stands DOWN — it fails open with the check that feeds it", async () => {
+  const ledger = makeFakeLedger();
+  const env = await claimLedgerCommand("claim", "story-x", { grade: "work" }, deps(ledger));
+  assert.equal(env.ok, true, env.body);
   assert.equal(ledger.takes.length, 1);
 });
 

@@ -8,6 +8,14 @@
  * 554-hour ghost as though it were a live holder, a queue position counted dead waiters, and a
  * reclaimable work row read as a fence. Under a binding `waiting` those are not cosmetic.
  *
+ * AND `waiting` NOW BINDS (ADR-0346 D1). A refused work take joins the line in the store's own
+ * transaction and comes back `ok: FALSE` — the queue used to be a courtesy the caller could exit
+ * zero from and build straight through, which is why it fired three times in twelve days while
+ * sixteen refusals were handed out. `bindingFork` is the one statement of what a fenced-out session
+ * does instead (D4), and it replaces ADR-0270 D2's "proceeds on its own judgment". The exclusive
+ * grade is also fenced by GRAIN: a story id is refused (D2, `fenceStoryWorkClaim`), because the
+ * ledger knows no containment and claiming the parent story would otherwise be the way around D1.
+ *
  * The sibling of
  * `noticeboard.ts` (declare/done stay byte-compatible there); every handler returns an `Envelope` —
  * testable without a terminal. DO NOT import from any organism's `/store` subpath — the
@@ -25,7 +33,7 @@ import {
   waitingClaimRequest,
 } from "@storytree/notice-board";
 
-import { quoteClaimId } from "./claim-namespace.js";
+import { fenceStoryWorkClaim, quoteClaimId } from "./claim-namespace.js";
 import {
   guardClaimNamespace,
   kindSuffix,
@@ -49,7 +57,13 @@ import { describeHolder, describeIntent, formatAgeMs, IDENTITY_REFUSAL_BODY } fr
  * any-grade release, and the queue-order read. Satisfied by `PgClaimStore`; null when offline.
  */
 export interface ClaimLedgerStoreLike {
-  take(req: ClaimRequest): Promise<ClaimResult>;
+  /**
+   * `opts.queueOnRefusal` (ADR-0346 D1) makes a refused WORK take join the waiting line in the same
+   * transaction, so the blocked session is fenced out AND in the queue — one round trip, with no
+   * window in which a release could slip between the refusal and the enqueue and leave a session
+   * waiting behind nobody.
+   */
+  take(req: ClaimRequest, opts?: { queueOnRefusal?: boolean }): Promise<ClaimResult>;
   upgrade(
     unitId: string,
     sessionId: string,
@@ -178,7 +192,55 @@ async function queuePosition(
   return { position: idx + 1, length: waiting.length };
 }
 
-/** Render the queued arm — "waiting in line behind <holder>" with the queue position. */
+/**
+ * The fork a fenced-out session chooses between (ADR-0346 D4). ONE copy, shared by every arm that
+ * refuses a work claim, for the reason {@link describeHolder} is one copy: a rule stated two ways
+ * drifts into two rules.
+ *
+ * It replaces ADR-0270 D2's *"proceeds or re-plans on its own judgment"*, which was the affordance
+ * that made the previous fence get routed around: a refusal a session may build straight through is
+ * a refusal that coordinates nothing. What ADR-0270 D2 got RIGHT survives verbatim in the last
+ * line — a claim conflict is still never an owner question.
+ *
+ * The second branch is the ADR-0303 posture applied to contention, and the reason it is not
+ * "wait here": a session held open across a block loses its prompt-cache window, so resuming it
+ * later pays full price for the whole context — while a dormant holder is the one claim contention
+ * the ledger cannot resolve, because it will neither work nor release.
+ */
+function bindingFork(unitId: string): string[] {
+  return [
+    `\`waiting\` BINDS (ADR-0346 D1): STOP working "${unitId}". Promotion is automatic — the store`,
+    "hands the slot to the oldest LIVE waiter the moment the holder releases (ADR-0200 D2), so",
+    "there is nothing to poll and nothing to re-run.",
+    "",
+    "Do NOT idle waiting for it. Two branches, and only two (ADR-0346 D4):",
+    "  - work another capability you already hold — sessions commonly hold 8-13 units at once, so",
+    "    this is usually available; or",
+    "  - write what you were attempting, what is done and what remains onto the owning arc, release",
+    "    your claims, and END the session. Escalating is a landing, never a pause (ADR-0303).",
+    "A claim conflict is still never an owner question (ADR-0270 D2's surviving clause).",
+  ];
+}
+
+/** The `next:` lines a fenced-out session needs — its own holdings, the board, and the two exits. */
+function bindingNext(cmdId: string): string[] {
+  return [
+    "storytree noticeboard mine --pg",
+    `storytree noticeboard claims ${cmdId} --pg`,
+    "storytree arc increment add <arc-id> --outcome <text|@file> --pg",
+    "storytree noticeboard done --pg",
+  ];
+}
+
+/**
+ * Render the queued arm — the blocked session IS in the line, and is fenced out of the unit.
+ *
+ * `ok: FALSE`, and that is the whole of ADR-0346 D1 at this seam: the session asked for the work
+ * claim and did not get it. It used to return `ok: true` ("waiting in line behind X"), which exits
+ * zero and reads as permission to carry on — the queue existed, and fired about once every four
+ * days, while the sessions it queued kept building. A refusal that stops the caller is one the
+ * caller's own exit code reports.
+ */
 async function renderQueued(
   store: ClaimLedgerStoreLike,
   unitId: string,
@@ -191,15 +253,14 @@ async function renderQueued(
   const where =
     pos !== null ? ` (position ${pos.position} of ${pos.length} in the LIVE line)` : "";
   return {
-    ok: true,
-    body:
-      `Work slot on "${unitId}" is HELD by ${describeHolder(heldBy, now)} — ` +
-      `waiting in line behind ${heldBy.sessionId}${where}. ` +
-      "On release the store promotes the oldest live waiter (ADR-0200 D2).",
-    next: [
-      `storytree noticeboard claims ${cmdId} --pg`,
-      `storytree noticeboard release ${cmdId} --pg`,
-    ],
+    ok: false,
+    body: [
+      `Work slot on "${unitId}" is HELD by ${describeHolder(heldBy, now)} —`,
+      `you are QUEUED behind ${heldBy.sessionId}${where}.`,
+      "",
+      ...bindingFork(unitId),
+    ].join("\n"),
+    next: bindingNext(cmdId),
   };
 }
 
@@ -352,6 +413,19 @@ export async function claimLedgerCommand(
     });
     if (!named.ok) return named.refusal;
 
+    // THE STORY-GRAIN FENCE (ADR-0346 D2), for the WORK grade only — the shared grades are
+    // untouched. It sits after the namespace fence and before the take, because a story id is a
+    // REAL id: the remedy is not to fix the name but to claim at the grain you are writing at.
+    if (grade === "work") {
+      const fenced = fenceStoryWorkClaim({
+        id: unitId,
+        kind: named.kind,
+        uatWitness: named.uatWitness,
+        verb: "storytree noticeboard claim <unit-id> --grade work --pg",
+      });
+      if (!fenced.ok) return { ok: false, body: fenced.body, next: fenced.next };
+    }
+
     const intent = opts.intent;
     let req: ClaimRequest;
     if (grade === "exploring") {
@@ -380,9 +454,17 @@ export async function claimLedgerCommand(
       req = { unitId, sessionId, branch, grade: "work", ...(intent !== undefined ? { intent } : {}) };
     }
 
-    const result = await store.take(req);
+    // queueOnRefusal for the WORK grade (ADR-0346 D1): a refused work take does not dead-end, it
+    // joins the line — atomically, so a release cannot slip between the two and leave this session
+    // queued behind nobody. The shared grades pass it too and are unaffected: only the exclusive
+    // slot can be refused.
+    const result = await store.take(req, { queueOnRefusal: true });
     if ("queued" in result) return renderQueued(store, unitId, sessionId, result.heldBy, deps.now());
     if (!result.acquired) {
+      // DEFENSIVE: with queueOnRefusal set, `PgClaimStore` always answers the queued arm above. A
+      // store that refuses WITHOUT queueing has left this session out of the line, so the message
+      // must say so and name the take that joins it — the one difference from the queued render.
+      //
       // The refusal site carries the whole board (ADR-0270 D3.2): disjointness is read from the
       // ledger here, never established by hand-inspecting the holder's unpushed branch. Every row
       // on that board now states its own liveness, which is the line ADR-0346 D1 depends on: a
@@ -399,15 +481,14 @@ export async function claimLedgerCommand(
           ...board,
           ...staleSummary(rows, now),
           "",
-          "Disjoint from the holder? Narrow your claim to the capability you are actually writing",
-          "(ADR-0270 D1) and proceed, or queue behind them with a waiting claim (ADR-0200 D2).",
-          "Resolve it from this board on your own judgment — a claim conflict is not an owner question",
-          "(ADR-0270 D2).",
+          "You are NOT in the line — the store refused without queueing. Take the waiting claim to",
+          "join it (the first `next:` line below).",
+          "",
+          ...bindingFork(unitId),
         ].join("\n"),
         next: [
-          `storytree noticeboard claim <capability-id> --grade work --pg`,
           `storytree noticeboard claim ${cmdId} --grade waiting --pg`,
-          `storytree noticeboard claims ${cmdId} --pg`,
+          ...bindingNext(cmdId),
         ],
       };
     }
@@ -452,13 +533,16 @@ export async function claimLedgerCommand(
       const waiting = rows.filter((c) => claimGrade(c) === "waiting");
       const idx = waiting.findIndex((c) => c.sessionId === sessionId);
       const where = idx !== -1 ? ` (position ${idx + 1} of ${waiting.length} in the LIVE line)` : "";
+      // ok: TRUE here, unlike the queued arm above, and the difference is what was ASKED: this
+      // session asked to wait and is waiting. What it means is identical, so it is said identically.
       return {
         ok: true,
-        body: `Waiting claim taken on "${unitId}"${kindSuffix(named.kind, named.owner)} — queued for the work slot${where}.`,
-        next: [
-          `storytree noticeboard claims ${cmdId} --pg`,
-          `storytree noticeboard upgrade ${cmdId} --pg`,
-        ],
+        body: [
+          `Waiting claim taken on "${unitId}"${kindSuffix(named.kind, named.owner)} — queued for the work slot${where}.`,
+          "",
+          ...bindingFork(unitId),
+        ].join("\n"),
+        next: bindingNext(cmdId),
       };
     }
     return {
@@ -488,6 +572,17 @@ export async function claimLedgerCommand(
       verb: "storytree noticeboard upgrade <unit-id> --pg",
     });
     if (!named.ok) return named.refusal;
+    // Fenced by ADR-0346 D2 for the same reason it is fenced above: this verb ENDS in a work row,
+    // so leaving it open would leave the retired grain reachable by a second command.
+    const fencedUpgrade = fenceStoryWorkClaim({
+      id: unitId,
+      kind: named.kind,
+      uatWitness: named.uatWitness,
+      verb: "storytree noticeboard upgrade <unit-id> --pg",
+    });
+    if (!fencedUpgrade.ok) {
+      return { ok: false, body: fencedUpgrade.body, next: fencedUpgrade.next };
+    }
     // Branch always supplied from identity: the store fail-closes when the session holds no prior
     // row and no branch was given — the CLI never invents attribution, it derives it (ADR-0033).
     const result = await store.upgrade(unitId, sessionId, { branch });
@@ -495,8 +590,12 @@ export async function claimLedgerCommand(
     if (!result.acquired) {
       return {
         ok: false,
-        body: `Upgrade on "${unitId}" REFUSED — work slot HELD by ${describeHolder(result.heldBy, deps.now())}.`,
-        next: [`storytree noticeboard claims ${cmdId} --pg`],
+        body: [
+          `Upgrade on "${unitId}" REFUSED — work slot HELD by ${describeHolder(result.heldBy, deps.now())}.`,
+          "",
+          ...bindingFork(unitId),
+        ].join("\n"),
+        next: [`storytree noticeboard claim ${cmdId} --grade waiting --pg`, ...bindingNext(cmdId)],
       };
     }
     const reclaimedNote = result.reclaimed ? " (a stale holder was reclaimed)" : "";

@@ -201,6 +201,8 @@ test("deriveIdentity: returns null for a .claude/worktrees prefix without a subd
 
 interface FakeClaims extends SessionClaimStoreLike {
   claimed: ClaimRequest[];
+  /** The OPTS of every claim — so the ADR-0346 D1 queue-on-refusal is provable at this seam. */
+  claimOpts: Array<{ queueOnRefusal?: boolean } | undefined>;
   releasedSessions: string[];
   /** When set, claim() refuses with this holder — every request, or only {@link refuseUnits}. */
   refuseWith?: ClaimDocT;
@@ -216,17 +218,37 @@ interface FakeClaims extends SessionClaimStoreLike {
 function makeFakeClaims(over: Partial<FakeClaims> = {}): FakeClaims {
   const self: FakeClaims = {
     claimed: [],
+    claimOpts: [],
     releasedSessions: [],
     releaseCount: 0,
-    async claim(req: ClaimRequest): Promise<ClaimResult> {
+    async claim(req: ClaimRequest, opts?: { queueOnRefusal?: boolean }): Promise<ClaimResult> {
       if (self.throwing === true || self.throwUnits?.includes(req.unitId) === true) {
         throw new Error("claim store unavailable");
       }
       self.claimed.push(req);
+      self.claimOpts.push(opts);
       if (
         self.refuseWith !== undefined &&
         (self.refuseUnits === undefined || self.refuseUnits.includes(req.unitId))
       ) {
+        // Mirrors `PgClaimStore` under ADR-0346 D1: a refused work take with queueOnRefusal comes
+        // back as the QUEUED arm, in the store's own transaction — never a bare dead end.
+        if (opts?.queueOnRefusal === true) {
+          return {
+            acquired: false,
+            queued: true,
+            waiting: {
+              unitId: req.unitId,
+              sessionId: req.sessionId,
+              branch: req.branch,
+              intent: req.intent ?? "",
+              grade: "waiting",
+              claimedAt: NOW.toISOString(),
+              heartbeatAt: NOW.toISOString(),
+            },
+            heldBy: self.refuseWith,
+          };
+        }
         return { acquired: false, heldBy: self.refuseWith };
       }
       return {
@@ -696,7 +718,7 @@ test("declare: the refusal never asserts the SESSION is unclaimed — it knows o
   assert.match(env.body, /If this session holds no other live claim/, "the ceremony shortfall is conditional");
 });
 
-test("declare: a total refusal explains the ceremony requirement and ADR-0270 D2 remedies", async () => {
+test("declare: a total refusal explains the ceremony requirement and the ADR-0346 D4 fork", async () => {
   const claims = makeFakeClaims({ refuseWith: OTHER_HOLDER });
   const deps: NoticeboardDeps = { identity: CLAIM_IDENTITY, now: nowFn, claims };
   const env = await noticeboardCommand("declare", { workingOn: "x", nodes: ["story-a"] }, deps);
@@ -707,17 +729,21 @@ test("declare: a total refusal explains the ceremony requirement and ADR-0270 D2
     "names the explicit ceremony requirement",
   );
   assert.match(env.body, /explicit live noticeboard claim/, "names the required claim state");
-  assert.match(env.body, /ADR-0270 D2/, "resolving the conflict is the session's own call");
-  assert.match(env.body, /not an owner question/);
-  // The remedy the measured sessions eventually reached for, offered up front.
+  // The held node is a FENCE now, not a hint — and the session is already in its line, so there is
+  // nothing to poll and nothing to re-run. ADR-0270 D2's "proceed on your own judgment" is gone;
+  // its surviving clause is not.
+  assert.deepEqual(claims.claimOpts, [{ queueOnRefusal: true }]);
+  assert.match(env.body, /story-a: HELD by other-session .* you are QUEUED behind them; this node is fenced/);
+  assert.match(env.body, /The held node is FENCED, and you are in its line/);
+  assert.match(env.body, /work another capability you already hold, or write what you were attempting/);
+  assert.match(env.body, /never an owner question/);
+  assert.doesNotMatch(env.body, /coordinate or pick other work/);
+  // `next` points at the two D4 branches — what you hold, and where the residue goes.
   assert.ok(
-    env.next?.some((n) => n.includes("claim story-a") && n.includes("--grade waiting")),
-    `next should offer the waiting claim; got ${JSON.stringify(env.next)}`,
+    env.next?.some((n) => n.startsWith("storytree noticeboard mine --pg")),
+    `next should offer the session's own holdings; got ${JSON.stringify(env.next)}`,
   );
-  assert.ok(
-    env.next?.some((n) => n.includes("--node <capability-id>")),
-    "next should offer narrowing to the capability actually being written (ADR-0270 D1)",
-  );
+  assert.ok(env.next?.some((n) => n.includes("arc increment add")));
 });
 
 test("declare: PARTIAL — some claimed, some held → ok:true, but the headline names the shortfall", async () => {
@@ -735,7 +761,10 @@ test("declare: PARTIAL — some claimed, some held → ok:true, but the headline
   assert.match(env.body, /story-a: HELD by other-session/);
   assert.match(env.body, /story-b: claimed — the wisp is lit/);
   assert.match(env.body, /Withheld: story-a/);
-  assert.match(env.body, /ADR-0270 D2/);
+  // ok:true and FENCED are not in tension: the session holds a live claim (so the ceremony
+  // requirement is met and refusing would be a lie in the other direction), and it may not write
+  // the withheld node. Before ADR-0346 D1 the withheld node was a hint; now it is a wall.
+  assert.match(env.body, /under ADR-0346 D1 that is a FENCE, not a hint: do not write it/);
 });
 
 test("declare: a THROWING claim store never crashes the declare — FAILED, wisp not lit, ok:false", async () => {
@@ -768,7 +797,7 @@ test("declare: held AND failed together → ok:false with BOTH explanations, nei
   assert.match(env.body, /Declare took NO claim/);
   assert.match(env.body, /story-a: HELD by other-session/);
   assert.match(env.body, /story-b: claim write FAILED/);
-  assert.match(env.body, /not an owner question/, "the held node's remedy");
+  assert.match(env.body, /never an owner question/, "the held node's remedy");
   assert.match(env.body, /store problem, not a conflict/, "the failed node's remedy");
 });
 
@@ -857,6 +886,9 @@ const KNOWS_AB: NonNullable<NoticeboardDeps["universe"]> = async () => ({
   targets: [
     { id: "story-a", kind: "story" },
     { id: "story-b", kind: "story" },
+    // The grain a declare is supposed to use post-ADR-0346 D2. The two stories stay in the universe
+    // because they are still real objects a near-miss must be able to suggest.
+    { id: "cap-a", kind: "capability" },
   ],
   nonClaimable: [],
   complete: true,
@@ -890,15 +922,15 @@ test("declare: one bad id never costs the GOOD ones their claims (fail-soft, per
   };
   const env = await noticeboardCommand(
     "declare",
-    { workingOn: "x", nodes: ["story-a", "stories/story-b", "story-zz"] },
+    { workingOn: "x", nodes: ["cap-a", "stories/story-b", "story-zz"] },
     deps,
   );
   assert.equal(env.ok, true, "the session DOES hold a live claim, so the ceremony is satisfied");
   assert.match(env.body, /PARTIAL: claimed 1 of 3 nodes/);
-  assert.match(env.body, /story-a \[story\]: claimed — the wisp is lit/);
+  assert.match(env.body, /cap-a \[capability\]: claimed — the wisp is lit/);
   assert.deepEqual(
     claims.claimed.map((c) => c.unitId),
-    ["story-a"],
+    ["cap-a"],
   );
   // The pasted PATH is caught as a path, not as a coincidence.
   assert.match(env.body, /stories\/story-b: NOT CLAIMED.*did you mean story-b \[story\]/);
@@ -906,6 +938,54 @@ test("declare: one bad id never costs the GOOD ones their claims (fail-soft, per
   // The unresolved block renders in the PARTIAL arm too: "PARTIAL" alone would read as
   // "a sibling holds it", which is a different situation with a different remedy.
   assert.match(env.body, /2 declared ids name nothing in the work graph/);
+});
+
+test("declare --node <story> is REFUSED — the story grain retired (ADR-0346 D2)", async () => {
+  const claims = makeFakeClaims();
+  const deps: NoticeboardDeps = { identity: CLAIM_IDENTITY, now: nowFn, claims, universe: KNOWS_AB };
+  const env = await noticeboardCommand("declare", { workingOn: "x", nodes: ["story-a"] }, deps);
+  assert.equal(env.ok, false, env.body);
+  assert.match(env.body, /story-a: NOT CLAIMED — a STORY is no longer a work claim \(ADR-0346 D2\)/);
+  assert.deepEqual(claims.claimed, [], "the retired grain never reaches the store");
+  // A fence is neither a conflict nor a typo, and saying so is the point: nobody holds this id, and
+  // no amount of waiting or re-running reaches the remedy. It is a different GRAIN.
+  assert.match(env.body, /1 declared id is a STORY: story-a/);
+  assert.match(env.body, /Nobody is holding these ids: the grain went, not the node/);
+  assert.match(env.body, /uat_witness: machine.* story's UAT node/s);
+  assert.ok(
+    env.next?.some((n) => n.startsWith("storytree tree story-a")),
+    `next should point at the story's own capabilities; got ${JSON.stringify(env.next)}`,
+  );
+});
+
+test("declare: a story with uat_witness: machine still claims — its id names the UAT node", async () => {
+  const claims = makeFakeClaims();
+  const universe: NonNullable<NoticeboardDeps["universe"]> = async () => ({
+    targets: [{ id: "driven", kind: "story", uatWitness: "machine" }],
+    nonClaimable: [],
+    complete: true,
+    unreadSources: [],
+  });
+  const deps: NoticeboardDeps = { identity: CLAIM_IDENTITY, now: nowFn, claims, universe };
+  const env = await noticeboardCommand("declare", { workingOn: "x", nodes: ["driven"] }, deps);
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /driven \[story\]: claimed — the wisp is lit/);
+});
+
+test("declare: the story fence is per-node and FAIL-SOFT — a fenced id never costs a sibling its claim", async () => {
+  const claims = makeFakeClaims();
+  const deps: NoticeboardDeps = { identity: CLAIM_IDENTITY, now: nowFn, claims, universe: KNOWS_AB };
+  const env = await noticeboardCommand(
+    "declare",
+    { workingOn: "x", nodes: ["story-a", "cap-a"] },
+    deps,
+  );
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /PARTIAL: claimed 1 of 2 nodes/);
+  assert.deepEqual(
+    claims.claimed.map((c) => c.unitId),
+    ["cap-a"],
+  );
 });
 
 test("declare: with NO universe every id passes, exactly as before ADR-0310", async () => {
