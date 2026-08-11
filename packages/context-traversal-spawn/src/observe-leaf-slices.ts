@@ -34,6 +34,18 @@ export interface LeafSliceRun {
   costUsd?: number;
   usage?: LeafSliceUsage;
   byModel?: Record<string, LeafSliceUsage & { costUsd?: number; contextWindow?: number }>;
+  /**
+   * The runtime this slice ran on, as the run itself declares it (`SdkRunInfo.source` /
+   * `CodexRunInfo.source`). Structural like the rest of this interface — the agent organism is
+   * never imported here.
+   *
+   * OPTIONAL and never defaulted. `sliceUsageDocs()` (`packages/drive/src/usage.ts`) falls back to
+   * `"sdk-leaf"` when it is missing, which is right for an accounting row that must balance; it is
+   * wrong here, where absent means UNOBSERVED and a renderer is expected to say so. The two
+   * instruments therefore agree wherever the field is present and this one stays silent where it is
+   * not, rather than both inventing the same answer.
+   */
+  source?: "sdk-leaf" | "codex-leaf" | "owned-loop";
 }
 
 export interface ObserveLeafSlicesArgs {
@@ -114,6 +126,10 @@ export function observeLeafSlices(args: ObserveLeafSlicesArgs): ContextTraversal
     const childSessionId = childSessionIdFor(parentSessionId, runId, unitId, run.phase);
     const edgeId = nextId();
 
+    // The lane's model/runtime ride the HANDOFF, where the lane's identity is established. Both are
+    // omitted rather than defaulted when the slice does not declare them: `modelIdFor` already
+    // refuses an ambiguous `byModel`, and a run carrying no `source` is unobserved, not sdk-leaf.
+    const laneModel = modelIdFor(run.byModel);
     events.push({
       kind: "spawn_handoff",
       eventId: nextId(),
@@ -123,6 +139,8 @@ export function observeLeafSlices(args: ObserveLeafSlicesArgs): ContextTraversal
       parentSessionId,
       childSessionId,
       agentType: agentTypeFor(run.phase),
+      ...(laneModel !== undefined ? { model: laneModel } : {}),
+      ...(run.source !== undefined ? { runtime: run.source } : {}),
     });
 
     if (run.usage !== undefined) {
@@ -174,6 +192,7 @@ const SUPPORTED_FEATURES = [
   "field:model_tokens",
   "field:child_context_window",
   "field:context_window_capacity",
+  "field:agent_model_identity",
 ] as const;
 
 const supportedSet = new Set<string>(SUPPORTED_FEATURES);

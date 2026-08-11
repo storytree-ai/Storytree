@@ -406,6 +406,7 @@ test("coverage-is-exhaustive-over-the-closed-feature-enum: BUILD_SPAWN_BOUNDARY_
       "event:model_context",
       "event:result_return",
       "event:spawn_handoff",
+      "field:agent_model_identity",
       "field:child_context_window",
       "field:context_window_capacity",
       "field:model_tokens",
@@ -481,4 +482,123 @@ test("child-session-id-is-a-legal-filename-segment: child session id is legal as
       assert.equal(illegalPathSegmentChars.test(result.childSessionId), false);
     }
   }
+});
+
+// ---------------------------------------------------------------------------
+// The lane names the model and runtime it ran on — carried, never inferred
+// ---------------------------------------------------------------------------
+
+/** One slice's accounting, with only the fields these tests vary supplied per case. */
+function sliceWith(overrides: Partial<LeafSliceRun>): LeafSliceRun {
+  return {
+    phase: "AUTHOR_TEST",
+    subtype: "success",
+    turns: 2,
+    costUsd: 0.05,
+    usage: { inputTokens: 100, cacheCreationInputTokens: 0, cacheReadInputTokens: 0, outputTokens: 10 },
+    ...overrides,
+  };
+}
+
+function onlySpawnHandoff(runs: readonly LeafSliceRun[]) {
+  const { nextId, now } = harness();
+  const events = observeLeafSlices({
+    parentSessionId: PARENT_SESSION_ID,
+    runId: RUN_ID,
+    unitId: UNIT_ID,
+    runs,
+    now,
+    nextId,
+  });
+  const spawn = events.find((event) => event.kind === "spawn_handoff");
+  assert.ok(spawn !== undefined && spawn.kind === "spawn_handoff");
+  return spawn;
+}
+
+test("handoff-names-the-lane-model-and-runtime: a slice declaring one byModel key and its own source sends both out on the spawn handoff", () => {
+  const spawn = onlySpawnHandoff([
+    sliceWith({
+      source: "codex-leaf",
+      byModel: {
+        "gpt-5.6-terra": {
+          inputTokens: 100,
+          cacheCreationInputTokens: 0,
+          cacheReadInputTokens: 0,
+          outputTokens: 10,
+        },
+      },
+    }),
+  ]);
+
+  assert.equal(spawn.model, "gpt-5.6-terra");
+  assert.equal(spawn.runtime, "codex-leaf");
+  // The lane's identity is established at the handoff and is deliberately NOT restated on the
+  // return — two sources of truth for one fact with no observer able to adjudicate them.
+  assert.equal("model" in spawn && spawn.kind === "spawn_handoff", true);
+});
+
+test("ambiguous-model-is-absent-not-guessed: a slice whose byModel declares two keys sends no model, while its runtime still travels", () => {
+  const axes = { inputTokens: 50, cacheCreationInputTokens: 0, cacheReadInputTokens: 0, outputTokens: 5 };
+  const spawn = onlySpawnHandoff([
+    sliceWith({
+      source: "sdk-leaf",
+      byModel: { "claude-sonnet-5": axes, "claude-opus-5": axes },
+    }),
+  ]);
+
+  // Two keys is ambiguous — which one produced this lane? — so the field is omitted entirely
+  // rather than resolved to the first, the largest, or a default.
+  assert.equal(spawn.model, undefined);
+  assert.equal("model" in spawn, false);
+  // Ambiguity in one field never suppresses another that IS unambiguous.
+  assert.equal(spawn.runtime, "sdk-leaf");
+});
+
+test("undeclared-runtime-is-absent-not-defaulted: a slice carrying no source sends no runtime, even though the accounting path defaults the same value to sdk-leaf", () => {
+  const spawn = onlySpawnHandoff([
+    sliceWith({
+      byModel: {
+        "claude-sonnet-5": {
+          inputTokens: 100,
+          cacheCreationInputTokens: 0,
+          cacheReadInputTokens: 0,
+          outputTokens: 10,
+        },
+      },
+    }),
+  ]);
+
+  // `sliceUsageDocs()` defaults a missing source to "sdk-leaf" because an accounting row must
+  // balance. This vocabulary's rule is the opposite: absent means UNOBSERVED, so a renderer can
+  // print "not recorded" instead of asserting a runtime nobody witnessed.
+  assert.equal(spawn.runtime, undefined);
+  assert.equal("runtime" in spawn, false);
+  assert.equal(spawn.model, "claude-sonnet-5");
+});
+
+test("a-lane-with-neither-field-still-emits: a slice with no byModel and no source produces a valid, honestly unattributed handoff", () => {
+  const spawn = onlySpawnHandoff([sliceWith({})]);
+
+  assert.equal(spawn.model, undefined);
+  assert.equal(spawn.runtime, undefined);
+  // Unattributed is not malformed — the event still parses, so an old trace keeps replaying.
+  assert.doesNotThrow(() => ContextTraversalEvent.parse(spawn));
+  assert.equal(spawn.agentType, "red-builder");
+});
+
+test("recorded-lanes-without-the-new-fields-still-parse: the fields are optional, which is what keeps already-written traces readable", () => {
+  const recorded = {
+    kind: "spawn_handoff",
+    eventId: "e1",
+    sessionId: PARENT_SESSION_ID,
+    at: "2026-07-28T22:04:52.442Z",
+    edgeId: "edge-1",
+    parentSessionId: PARENT_SESSION_ID,
+    childSessionId: `${PARENT_SESSION_ID}__build__r__u__AUTHOR_TEST`,
+    agentType: "red-builder",
+  };
+
+  // The schema is `.strict()` and the sink drops an unparseable event SILENTLY, so a required
+  // field here would have discarded every previously recorded lane invisibly.
+  assert.doesNotThrow(() => ContextTraversalEvent.parse(recorded));
 });
