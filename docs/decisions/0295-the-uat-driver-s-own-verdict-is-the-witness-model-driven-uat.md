@@ -17,6 +17,17 @@ direction was explicitly reversible … Reviving the tier means a new ADR."* Thi
 narrows rather than overturns: ADR-0247's binary witness split and its decisions 2–6 stand, and
 ADR-0209's rubric-judge machinery is **not** revived — see decision 2.
 
+**PARTLY NARROWED — read this before decision 5 (corrected in place 2026-08-11, ADR-0139).** Amended
+by [ADR-0348](0348-human-uat-witness-narrows-to-taste-live-spend-and-outward-fa.md): decision 5's
+carve-out narrows to genuine taste alone. Its live-spend and outward-facing clauses are withdrawn — a
+leg whose success requires subscription-funded spend, or opens a PR / merges to `main` / grants an
+in-app privilege, is `machine`, not `human` — because both clauses were never consistent with the
+standing principle `asset:human-witness-is-a-judgment-gap-not-cost`. Decision 5's "roughly six
+criteria" estimate was also measured wrong: a leg-by-leg read of every story-tier `human` criterion on
+`origin/main` @ `984fd554` found 31, of which 17 are genuine taste (the rest were legacy-inertia,
+live-spend, or outward-facing, and are reclassified `machine` once ADR-0348 D5's executor exists).
+Decisions 1–4 and 6 are untouched and stay accepted as written.
+
 ## Context
 
 ADR-0247 retired ADR-0209's `model` witness kind after a 26-story leg-by-leg sweep produced zero model
@@ -88,12 +99,16 @@ makes a suspicious green auditable rather than merely re-testable. This is recom
 cheap — the Playwright path already produces it via `trace: 'retain-on-failure'` — but it is **not** a
 condition of a valid verdict. Decision 3 is the chosen detection mechanism.
 
-**5. `human` narrows to genuine taste, and taste is not a story-UAT criterion.**
+**5. `human` narrows to genuine taste, and taste is not a story-UAT criterion.** *(Narrowed further by
+[ADR-0348](0348-human-uat-witness-narrows-to-taste-live-spend-and-outward-fa.md) — see the Status
+callout above; a live-spend decision and an outward-facing commitment are no longer reasons for a
+`human` witness.)*
 
 Per ADR-0294 decision 3, an appearance verdict lives at the capability as `operator-attested`. What
-remains for the owner at story level is what neither a compiler nor a driver can settle and which is
-not merely a look: a live-spend decision, an outward-facing commitment, an owner value call. On the
-current corpus that is roughly six criteria, each needing individual adjudication rather than a rule.
+remains for the owner at story level is what neither a compiler nor a driver can settle: an aesthetic,
+felt, or owner value call that is genuine taste, not merely expensive, live, or outward-facing. On the
+current corpus that is 17 criteria (ADR-0348's leg-by-leg count), each needing individual adjudication
+rather than a rule.
 
 **6. The revisit condition is named, so the bet is falsifiable.** This decision should be reopened when
 either holds: (a) the system acquires users outside the owner's inner circle, which removes the blast
