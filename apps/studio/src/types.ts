@@ -947,6 +947,90 @@ export interface ClaimsPayload {
   sessions: SessionClaimGroup[] | null;
 }
 
+// ---------- the context-traversal replay (GET /api/traversal*, `traversal-panel-arc`) ----------
+//
+// WIRE MIRRORS, declared locally for the same reason the arc surface's are (see the block below):
+// the producing types live in `@storytree/context-traversal-spawn` / `-capture`, whose barrels reach
+// `node:fs` to resolve and read the trace dir. `apps/studio/server` may import them; a browser bundle
+// may not. So the client rides the wire with plain types and re-cites the producer, rather than
+// pulling a node-only package into the studio's graph. The server's own `TraversalSessionsWire` /
+// `TraversalReplayWire` (`apps/studio/server/traversalApi.ts`) are the shapes these mirror.
+//
+// LOCAL ONLY, and by decision rather than omission (the arc's owner call of 2026-08-10): traces are
+// per-machine JSONL under `~/.storytree/traces`, so the hosted studio answers an honest empty index
+// and the picker must render that as "no trace on THIS machine", never as "this session did nothing".
+
+/** One session with a readable local trace — an entry in {@link TraversalSessionsPayload}. */
+export interface TraversalSessionEntry {
+  sessionId: string;
+  eventCount: number;
+  /** `null` when no event in the trace carried a usable timestamp — never a fabricated "now". */
+  lastObservedAt: string | null;
+}
+
+/**
+ * GET /api/traversal/sessions — which sessions have a readable trace ON THIS MACHINE.
+ *
+ * `dir` is on the wire because "no sessions" and "no traces under the directory I was pointed at"
+ * are different facts, and a picker that renders the first without the second gives an operator
+ * nothing to check (`STORYTREE_TRAVERSAL_DIR` moves it). An empty list is a normal state, never an
+ * error: a machine that has captured nothing yet answers exactly this.
+ */
+export interface TraversalSessionsPayload {
+  dir: string;
+  sessions: TraversalSessionEntry[];
+}
+
+/**
+ * One replayed event, mirrored at the DELIBERATELY MINIMAL width this increment renders — the
+ * picker + mount seam reads a count and nothing else off these.
+ *
+ * It is narrow on purpose rather than by neglect: `traversal-panel-spine-render` is the increment
+ * that draws the picture, and it is the one that should widen this to the full
+ * `ContextTraversalEvent` union it actually plots. Mirroring the whole union HERE would be a shape
+ * nothing in this increment reads, aged against a producer nothing in this increment consumes.
+ */
+export interface TraversalEventEnvelope {
+  kind: string;
+  at?: string;
+}
+
+/** What may honestly be said about the occupancy series — mirrors the spawn package's `TraversalOccupancy`. */
+export interface TraversalOccupancyDeclaration {
+  /** How many `model_context` events were observed at all. */
+  modelContextCount: number;
+  /** How many of them carried `residentInputTokens` — the plottable series' true length. */
+  observationCount: number;
+  /**
+   * Does any coverage declaration on this replay name `field:resident_input_tokens` as supported?
+   *
+   * This reads FALSE even on a trace that really carries the field, and that is honest rather than a
+   * bug to smooth over: the producing host-transcript adapter's coverage is genuinely not part of the
+   * replay composition yet. A reader renders both facts; it never hard-codes either one true.
+   */
+  declared: boolean;
+  /** One line a reader can render VERBATIM: what was observed, and why absence is absence. */
+  note: string;
+}
+
+/**
+ * GET /api/traversal?session=&lt;id&gt; — one session's structured replay, carrying its own honesty:
+ * the installed adapters' `skipped`/`partial` reading (a partial trace must never present as
+ * complete) and the occupancy DECLARATION (absence is unobserved, never zero).
+ */
+export interface TraversalReplayPayload {
+  sessionId: string;
+  events: TraversalEventEnvelope[];
+  relationships: unknown[];
+  coverage: unknown[];
+  coverageCaveats: unknown[];
+  /** Lines the tolerant reader could not use — corrupt, truncated, or duplicate-identity. */
+  skipped: number;
+  /** `skipped > 0`: this replay is honestly PARTIAL and must never render as complete. */
+  partial: boolean;
+  occupancy: TraversalOccupancyDeclaration;
+}
+
 // ---------- the arc surface (GET /api/arcs, ADR-0267 / ADR-0314) ----------
 //
 // THESE ARE WIRE MIRRORS, NOT A SECOND JOIN. The authoritative shapes are `ArcRollup` &co in

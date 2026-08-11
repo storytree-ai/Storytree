@@ -22,6 +22,8 @@ import type {
   StoreHealth,
   SuggestionRecord,
   TopicKind,
+  TraversalReplayPayload,
+  TraversalSessionsPayload,
   TreePayload,
   UatVerdictResult,
   UserRole,
@@ -277,6 +279,21 @@ export const api = {
   // page load saying "no reading" when the honest answer was "still reading".
   floorHealth: (): Promise<FloorHealthPayload> =>
     http('/api/floor-health', { signal: AbortSignal.timeout(30_000) }),
+  // The context-traversal replay's two READ routes (`traversal-panel-arc`, server/traversalApi.ts).
+  // Both read this machine's LOCAL trace dir, so they are cheap and never touch the store — and
+  // neither is polled: the panel's picker reads the index once when a story with claims is selected,
+  // and the mount reads one replay per selection. A trace is an observation record that only grows
+  // by capture, so re-reading it on a cadence would buy an operator nothing.
+  //
+  // UNLIKE the advisory `claims`/`activity` pair, these THROW on failure rather than answering a
+  // `null` field: the routes have no down-store to be quiet about, so a failure here is the studio
+  // server not answering — which the picker must show as "could not read", never as "no traces".
+  traversalSessions: (): Promise<TraversalSessionsPayload> =>
+    http('/api/traversal/sessions', { signal: AbortSignal.timeout(10_000) }),
+  // 404s for a session id with no readable trace on this machine — which the picker prevents by
+  // offering only sessions the index named, and the mount still reports honestly if it happens.
+  traversal: (sessionId: string): Promise<TraversalReplayPayload> =>
+    http(`/api/traversal?session=${q(sessionId)}`, { signal: AbortSignal.timeout(30_000) }),
   // UI-driven build (ADR-0090 Phase 1 "the local loop"). build() posts a build INTENT (a safe
   // write — never a verdict); buildStatus() polls the run's coarse transcript + status. The frontend
   // imports NO build code (ADR-0004) — its only path to a build is these two endpoints.
