@@ -2,7 +2,7 @@
 status: accepted
 decided: 2026-08-11
 arc: uat-journey-surgery-arc
-amends: [295]
+amends: [294, 295]
 ---
 # ADR-0348: Human UAT witness narrows to taste — live-spend and outward-facing legs default to machine
 
@@ -14,6 +14,12 @@ alignment IS the ratification (ADR-0110); no second end-of-flow ask.
 **Amends [ADR-0295](0295-the-uat-driver-s-own-verdict-is-the-witness-model-driven-uat.md)**, whose
 D5 it narrows. ADR-0295's D1–D4 and D6 stand unchanged and stay accepted; its central move — the model
 that drove a journey may witness it — is not weakened here but relied upon.
+
+**Also amends [ADR-0294](0294-story-uat-is-a-journey-not-a-spec-criteria-that-duplicate-lo.md)**,
+whose D3 obliged every appearance leg to be RELOCATED to the capability as `operator-attested`. D6
+below replaces that obligation for these legs with deletion. ADR-0294's D1/D2/D4/D5 stand unchanged,
+and D3 still governs where an appearance verdict lives *when one is worth carrying* — it is the
+"every one of them must be relocated" reading that is withdrawn.
 
 ## Context
 
@@ -46,10 +52,14 @@ capability-tier `operator-attested` under ADR-0070, correctly homed and out of s
 
 | bucket | count | disposition |
 | --- | --- | --- |
-| **TASTE** — no compiler and no driver, even in principle | 17 | stays `human` |
+| **EXPERIENCE** — a look/feel property of a surface | 16 | **deleted** (D6) |
+| **VALUE CALL** — an expert judgment with no compiler, not a look | 1 | stays `human` |
 | **LEGACY-INERTIA** — mechanically checkable today, `human` only by history | 8 | → `machine` |
 | **LIVE-SPEND** — success requires a subscription-funded run | 4 | → `machine` |
 | **OUTWARD-FACING** — success is an externally-visible commitment | 2 | → `machine` |
+
+*(The first two rows were a single 17-leg "taste" bucket in this ADR's first draft, all of it staying
+`human`. The owner split it on 2026-08-11 on reading the list — see D6.)*
 
 The eight legacy-inertia legs are `agent` leg 1, `desktop` leg 3 (an OS-keychain round-trip),
 `library-review` legs 1/2/4/7/8 — whose own story text already calls their human tag *"a HARNESS
@@ -135,12 +145,44 @@ non-zero on failure, plus a cheap `*.check.ts` bound as the leg's `(proof-gate:)
 so `observeAndSign` and the whole signing path are reused **unchanged**. No new witness kind, no
 verdict a model signs for itself, and no revival of ADR-0209's rubric judge (ADR-0295 D2 holds).
 
-**D6. The 17 taste legs are not flipped, and their placement is a separate question.** The owner's
-observation that taste *"is more a durable feedback I provide"* than a UAT criterion points at
-ADR-0294 D3, which already homes appearance verdicts at the capability as `operator-attested`.
-Relocating them is the ADR-0294 increment that has never run (chip `task_99f7e0a9`), not this
-decision's business; D6 records only that the two questions are distinct and that no taste leg is
-reclassified here.
+**D6. A user EXPERIENCE property is not a user ACCEPTANCE criterion. The 16 appearance legs are
+DELETED, not relocated and not kept as human legs.**
+
+The owner's ruling, on reading the taste list: *"a lot of these should be removed, they are user
+experience tests not user acceptance tests. Feed back on this stuff will come from me as i use the
+system, this stuff doesnt have to exist in a gate atm."*
+
+The distinction this draws is sharper than "does it have a compiler?", and it cuts BEFORE that
+question rather than after it. Acceptance asks *did this journey achieve the goal it was built for*.
+Experience asks *is it any good* — whether a surface reads well, feels coherent, lands the intended
+mood. The second is a real and important signal, but it is **continuous owner feedback gathered
+through use**, not a discrete pass/fail obligation a story must clear to be green. Blocking a story's
+crown on it prices a standing conversation as a gate, and the gate then waits on a verdict nobody
+was ever going to sit down and render.
+
+So the earlier framing — *these have no compiler, therefore they are `human`* — asked the right
+question of the wrong set. A no-compiler property still has to be an **acceptance** claim before its
+witness matters at all. Sixteen of the seventeen are not.
+
+**Deleted (16):** `desktop` 9, 11 · `embedded-terminal` 7 · `studio-build` 11 ·
+`terminal-repo-picker` 8 · `terminal-tabs` 1, 5 · `website-experience` 3, 5, 7, 9, 11 ·
+`wisp-as-story-claim` 4, 6, 8, 11.
+
+**Retained (1):** `feedback-graduation` leg 4 (*Synthesis*) is **not** an experience test and stays
+`human`. Its success condition is whether cited evidence actually earns the guidance it is routed to —
+an expert value call about sufficiency and durability, with no surface and no look involved. It is
+what a genuine no-compiler acceptance criterion looks like once the experience legs are gone.
+
+**Scope — story tier only.** This does not touch ADR-0070 stage 2's capability-tier
+`operator-attested` nodes, which are a different mechanism with a different purpose. Whether the
+owner's "doesn't have to exist in a gate" extends to those is a real question and is deliberately
+left open here rather than answered by implication; it is named in Consequences as the next fork.
+
+**Where the four `wisp-as-story-claim` legs go is already settled by construction** — its capability
+`stories/wisp-as-story-claim/appearance-uat.md` carries legs a/b/c/d that self-label as
+`_(story leg 4/6/8/11 …)_` and restate them near-verbatim, so for that story D6 completes ADR-0294 D3
+rather than diverging from it, and the owner's 2026-07-17 attestation record survives in the
+capability's own preamble, which is the complete copy.
 
 **D7. `agent` leg 1's two `operator` rows are superseded by this decision, not preserved.** The
 owner's ruling that prior signed rows are not a reason to keep a leg human is exactly the third of the
@@ -153,11 +195,14 @@ which concerns a genuine TASTE leg and stays open and owner-owned.
 
 **Good.**
 
-- The witness glyph tells the truth again: `human` means a person's taste is genuinely required, and
-  the standing attestation queue falls from 31 story-tier legs to 17, then toward ~0 once ADR-0294 D3's
-  relocation runs.
-- One rule, not three. A future author asks the single question the principle already asks — *does this
-  have a compiler or a driver?* — instead of also weighing cost and reversibility.
+- The witness glyph tells the truth again: `human` means a person's judgment is genuinely required,
+  and the standing story-tier attestation queue falls from **31 legs to 1** — 16 deleted as
+  experience, 14 reclassified `machine`. That is the number the owner was actually being asked to
+  work through, and it was never going to be worked through at 31.
+- **Two questions, asked in order, instead of one asked of everything.** *Is this an acceptance claim
+  at all?* comes first (D6) and removes the experience legs entirely; only what survives it reaches
+  *does it have a compiler or a driver?* (D1). The old single question let an experience property
+  through simply because it correctly had no compiler.
 - ADR-0295 D1 stops being decided-but-unbuilt. The gap was invisible because nothing reds when a
   decision has no executor; naming it converts it into an increment.
 - The signing architecture is untouched. Every honesty wall — the spine observes, `healthy` is never
@@ -183,6 +228,23 @@ which concerns a genuine TASTE leg and stays open and owner-owned.
   invariant it stood for rather than re-pinning the new vector.
 - **`asset:human-witness-is-a-judgment-gap-not-cost` needs no edit** — it already says this. What
   needed correcting was the ADR that had drifted from it, which is the shape ADR-0139 exists to catch.
+- **D6 deletes the only written record of what several surfaces are SUPPOSED to feel like.** The
+  criteria being removed are not merely unproven — some are the only place a design intent is stated
+  at all (`website-experience`'s five legs are the clearest case: "the overwhelm is FELT", "the exhale
+  is FELT"). Deleting the criterion deletes the *claim*, not just the obligation to verify it. Where
+  that intent is worth keeping, it belongs in the story's prose or the capability's, and the deleting
+  author should move it there rather than let it go with the leg. This is a real loss being accepted
+  for a real gain, not a free removal.
+- **"Feedback comes from me as I use it" is an undated, unowned channel.** Unlike a criterion, it has
+  no queue, no record that it was ever rendered, and no way to tell a surface nobody has looked at
+  from one that was looked at and approved. That is exactly the trade the owner is making — a gate
+  that blocks on a verdict nobody renders is worse than an honest absence — but the absence should not
+  later be misread as approval.
+- **The capability-tier question is left open, and someone will hit it.** ADR-0070 stage 2's
+  `operator-attested` nodes are the same kind of judgment sitting one rung down, and D6's reasoning
+  visibly reaches toward them without being applied. A session finding an appearance verdict blocking
+  a capability's green should treat that as the open fork it is and put it to the owner, not extend D6
+  by analogy.
 
 ## References
 
