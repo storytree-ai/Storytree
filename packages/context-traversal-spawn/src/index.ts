@@ -20,4 +20,5 @@ export { captureBuildSpawn } from "./build-capture.js";
 export type { CaptureBuildSpawnArgs } from "./build-capture.js";
 
 // capability `multi-adapter-replay`
-export { showTraversalSessionAllAdapters } from "./replay-adapters.js";
+export { replayTraversalSessionAllAdapters, showTraversalSessionAllAdapters } from "./replay-adapters.js";
+export type { TraversalOccupancy, TraversalReplayView } from "./replay-adapters.js";

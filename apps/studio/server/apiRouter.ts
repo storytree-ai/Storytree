@@ -80,6 +80,10 @@ import { handleWriteBroker, type WriteBrokerBackend } from './writeBroker';
 // storeDoorApi.ts. Config-load-safe: it type-imports the store seam and pulls the wire contract's
 // route table, which is a plain object literal with no zod/`node:` runtime graph behind it.
 import { handleStoreDoor, STORE_DOOR_BASE_PATH } from './storeDoorApi';
+// The context-traversal replay read route (`traversal-panel-arc`). Config-load-safe the same way
+// writeBroker.ts is: it type-imports the two traversal packages (fully erased) and pulls their runtime
+// values lazily inside the handler, so their `node:`/zod graph never enters vite's config-load path.
+import { handleTraversal } from './traversalApi';
 import { handleSuggestionDecision, type SuggestionDecisionBackend } from './suggestionApi';
 import { handleSuggestionCreate, type SuggestionCreateBackend } from './suggestionCreateApi';
 // The shared block model (ADR-0140): the SAME deterministic split/splice the Review-mode client
@@ -2296,6 +2300,12 @@ export async function handleApiRequest(
       await handleFloorHealth(req, res, ctx);
     } else if (url.pathname === '/api/claims') {
       await handleClaims(req, res, ctx.backend);
+    } else if (url.pathname === '/api/traversal' || url.pathname === '/api/traversal/sessions') {
+      // `traversal-panel-arc`: one session's replayed context traversal, read from this machine's
+      // LOCAL JSONL trace dir (ADR-0241). Member-readable by the gate's GET rule and read-only by
+      // decision. Local by the owner's 2026-08-10 call — the hosted container holds no operator
+      // traces, so hosted answers an honest empty list rather than inventing one. See traversalApi.ts.
+      await handleTraversal(req, res, url);
     } else if (url.pathname === '/api/build') {
       // UI-driven build (ADR-0090 Phase 1): dispatch an intent / read a run's status. The worker
       // seam is wired by the dev front only; absent (hosted, Phase 1) → 404.

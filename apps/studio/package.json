@@ -17,6 +17,8 @@
   "dependencies": {
     "@dagrejs/dagre": "^1.1.4",
     "@storytree/app-surface": "workspace:*",
+    "@storytree/context-traversal-capture": "workspace:*",
+    "@storytree/context-traversal-spawn": "workspace:*",
     "@storytree/drive": "workspace:*",
     "@storytree/forest-world": "workspace:*",
     "@storytree/library": "workspace:*",
