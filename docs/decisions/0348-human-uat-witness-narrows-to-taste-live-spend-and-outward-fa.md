@@ -99,10 +99,18 @@ merely plausible), `chat-subagent-spawn` 6 (was that the right route for this de
 the only place that open modeling call is queued). None has a surface; none is a look. They are what a
 genuine no-compiler acceptance criterion looks like once the experience legs are gone.
 
-### The finding that reorders the work: ADR-0295 D1 is decided but unbuilt
+### The finding that reordered the work: ADR-0295 D1 was decided but unbuilt
+
+> **BUILT — 2026-08-12.** The gap this section found is closed: the executor is
+> `packages/drive/src/uat-drive.ts` (the pure core), `uat-drive.run.ts` (the deliberate out-of-band
+> run) and `uat-drive-witness.check.ts` (the cheap `observe` command a flipped leg binds), exactly
+> the two-file shape D5 mandates. The trace below is the state on `984fd554` that PRODUCED D5 and is
+> kept as the reasoning; read it as history, not as current state. What has NOT happened yet is any
+> leg flip — D5's ordering still binds the sibling increment, and the executor's own first live drive
+> is deliberately out-of-band (ADR-0010 §5), like gate-7's cold-start probe.
 
 ADR-0295 D1 states that a model driving a journey headlessly or through a browser *"is such a run, and
-its reported outcome is admissible as the verdict."* **No executor exists for that sentence.** Traced
+its reported outcome is admissible as the verdict."* **No executor existed for that sentence.** Traced
 on `984fd554`:
 
 - The only two paths that write a verdict for a UAT criterion are `uatAttest`
@@ -171,6 +179,19 @@ two-file house pattern — a deliberate out-of-band `*.run.ts` that drives the j
 non-zero on failure, plus a cheap `*.check.ts` bound as the leg's `(proof-gate:)` `observe` gate —
 so `observeAndSign` and the whole signing path are reused **unchanged**. No new witness kind, no
 verdict a model signs for itself, and no revival of ADR-0209's rubric judge (ADR-0295 D2 holds).
+
+> **The build landed 2026-08-12** (`packages/drive/src/uat-drive*.ts`), so D5's first clause is now
+> the only live one: the flip is the work that remains. Two mechanics the flip increment inherits
+> rather than invents. **(a) The binding is self-describing** — a leg is model-driven exactly when the
+> observe gate it names runs `uat-drive-witness.check.ts`, so no registry says which legs a model
+> drives and which a suite does, and the two cannot disagree. **(b) The ordering is executable, not
+> merely a rule** — naming a criterion id explicitly drives it whatever its current witness and
+> binding, so a leg is driven FIRST and flipped-and-bound in one later change. Flipping first would
+> leave the story holding an unbound machine leg, which refuses signing for every sibling.
+>
+> One property is worth carrying forward because it is what keeps the record honest over time: a
+> drive record is bound to the criterion's content-bound `revision-id`, so re-authoring a journey
+> invalidates every prior drive rather than carrying its green onto a claim nobody tested.
 
 **D6. A user EXPERIENCE property is not a user ACCEPTANCE criterion. The 16 appearance legs are
 DELETED, not relocated and not kept as human legs.**
@@ -241,7 +262,8 @@ which concerns a genuine TASTE leg and stays open and owner-owned.
   *does it have a compiler or a driver?* (D1). The old single question let an experience property
   through simply because it correctly had no compiler.
 - ADR-0295 D1 stops being decided-but-unbuilt. The gap was invisible because nothing reds when a
-  decision has no executor; naming it converts it into an increment.
+  decision has no executor; naming it converted it into an increment, and the increment landed
+  2026-08-12.
 - The signing architecture is untouched. Every honesty wall — the spine observes, `healthy` is never
   authorable, no model signs its own verdict — survives, because the driver's report reaches the spine
   as an exit code exactly as `dogfood-probe.run.ts`'s already does.

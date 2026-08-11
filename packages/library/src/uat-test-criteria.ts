@@ -198,11 +198,33 @@ export function canonicalUatCriterionContent(item: string): string {
     .trim();
 }
 
-/** Parse current UAT criteria. Missing/positional identity is refused. */
-export function parseUatTestCriteria(storyId: string, body: string): UatTestCriterion[] {
+/**
+ * One parsed criterion PLUS the raw prose item it was parsed from — the journey text itself
+ * (ADR-0294: a criterion is a step in a narratable journey). {@link UatTestCriterion} keeps only the
+ * bold-lead `title`, which is a label rather than a walkthrough, so a consumer that must EXECUTE the
+ * journey — the model-driven UAT driver (ADR-0295 D1 / ADR-0348 D5) — needs the item verbatim.
+ *
+ * `source` is the item exactly as authored, identity annotations and list number included; the
+ * driver hands it to the model unedited so the claim being tested stays human-authored (ADR-0295's
+ * own stated mitigation for a driver that would otherwise author and judge its own assertions).
+ */
+export interface UatTestCriterionSource {
+  readonly criterion: UatTestCriterion;
+  readonly source: string;
+}
+
+/**
+ * Parse current UAT criteria, keeping each one's raw prose item beside it. The single parse path —
+ * {@link parseUatTestCriteria} is this with the sources dropped — so a consumer reading the journey
+ * text can never fork from the reader that decides identity, witness and binding.
+ */
+export function parseUatTestCriterionSources(
+  storyId: string,
+  body: string,
+): UatTestCriterionSource[] {
   const parsed = storyUatSection(body);
   if (parsed === null) return [];
-  const criteria = splitItems(parsed.section).map((item) => {
+  const sources = splitItems(parsed.section).map((item) => {
     const criterionId = itemCriterionId(item);
     const revisionId = itemRevisionId(item);
     const expectedRevisionId = bindCriterionRevision(canonicalUatCriterionContent(item));
@@ -214,7 +236,7 @@ export function parseUatTestCriteria(storyId: string, body: string): UatTestCrit
     const previousRevisionId = itemPreviousRevisionId(item);
     const lineage = itemLineage(item);
     const proofGateId = itemProofGateId(item, criterionId);
-    return UatTestCriterion.parse({
+    const criterion = UatTestCriterion.parse({
       criterionId,
       revisionId,
       ...(previousRevisionId !== undefined ? { previousRevisionId } : {}),
@@ -224,14 +246,20 @@ export function parseUatTestCriteria(storyId: string, body: string): UatTestCrit
       wouldBe: parsed.wouldBe,
       ...(proofGateId !== undefined ? { proofGateId } : {}),
     });
+    return { criterion, source: item };
   });
 
   const seen = new Set<string>();
-  for (const criterion of criteria) {
+  for (const { criterion } of sources) {
     if (seen.has(criterion.criterionId)) {
       throw new Error(`${storyId}: duplicate criterion-id ${criterion.criterionId}`);
     }
     seen.add(criterion.criterionId);
   }
-  return criteria;
+  return sources;
+}
+
+/** Parse current UAT criteria. Missing/positional identity is refused. */
+export function parseUatTestCriteria(storyId: string, body: string): UatTestCriterion[] {
+  return parseUatTestCriterionSources(storyId, body).map((s) => s.criterion);
 }
