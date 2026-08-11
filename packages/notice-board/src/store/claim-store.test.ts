@@ -269,7 +269,7 @@ function issuedPromotionPick(client: FakeClaimClient): boolean {
 test("constructs from a pool-like object with the full graded-claim surface", () => {
   const store = storeWith(new FakeClaimClient());
   assert.ok(store instanceof PgClaimStore);
-  for (const m of ["claim", "take", "upgrade", "downgrade", "release", "current", "claimsFor", "listLiveClaims", "claimsBySession", "history"] as const) {
+  for (const m of ["claim", "take", "upgrade", "downgrade", "release", "current", "claimsFor", "listLiveClaims", "listAllClaims", "claimsBySession", "history"] as const) {
     assert.equal(typeof store[m], "function", `${m} present`);
   }
 });
@@ -1062,6 +1062,45 @@ test("claimsBySession: empty rows → empty list (a claim-less session is a plai
   const pool = new FakeReadPool();
   const docs = await new PgClaimStore(pool as never).claimsBySession("nobody");
   assert.deepEqual(docs, []);
+});
+
+test("claimsBySession({includeStale}): the heartbeat predicate is DROPPED — a session sees its own ghosts", async () => {
+  const pool = new FakeReadPool();
+  pool.rows = [READ_ROW_WORK];
+  const docs = await new PgClaimStore(pool as never).claimsBySession("sess-A", { includeStale: true });
+
+  const call = pool.calls[0];
+  assert.ok(call, "one query issued");
+  assert.match(call.text, /WHERE session_id = \$1/, "still keyed on the session");
+  // `heartbeat_at` is in the SELECT list either way — it is the PREDICATE that must be gone.
+  assert.doesNotMatch(call.text, /heartbeat_at >/, "no liveness filter — `noticeboard mine` must show stale rows");
+  assert.doesNotMatch(call.text, /AND/, "session_id is the only condition left");
+  assert.deepEqual(call.values, ["sess-A"], "no stale-window parameter to bind");
+  assert.equal(docs.length, 1);
+});
+
+test("listAllClaims: no unit, session OR heartbeat filter — the board must SEE what it has to mark", async () => {
+  const pool = new FakeReadPool();
+  pool.rows = [READ_ROW_WORK, READ_ROW_EXPLORING];
+  const docs = await new PgClaimStore(pool as never).listAllClaims();
+
+  const call = pool.calls[0];
+  assert.ok(call, "one query issued");
+  assert.match(call.text, /FROM events\.node_claim/);
+  assert.doesNotMatch(call.text, /WHERE/, "unfiltered — a stale row is rendered marked, never dropped");
+  assert.doesNotMatch(call.text, /heartbeat_at >/, "liveness is the pure fold's job here, not SQL's");
+  assert.match(call.text, /ORDER BY claimed_at/);
+  assert.deepEqual(call.values, []);
+
+  assert.equal(docs.length, 2);
+  assert.equal(docs[0]?.grade, "work");
+  assert.equal(docs[1]?.grade, "exploring");
+});
+
+test("listAllClaims: a corrupt grade still fails closed (an unfiltered read is not a lenient one)", async () => {
+  const bad = new FakeReadPool();
+  bad.rows = [{ ...READ_ROW_WORK, grade: "sneaky" }];
+  await assert.rejects(new PgClaimStore(bad as never).listAllClaims(), /invalid/i);
 });
 
 // ── recentDepartures (ADR-0200 D7): the wisp-out departure read ───────────────

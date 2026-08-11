@@ -63,7 +63,7 @@ function fakeKnowledgeStore(): {
 function fakeLedger(): ClaimLedgerReadLike {
   const nowIso = new Date().toISOString();
   return {
-    async listLiveClaims() {
+    async listAllClaims() {
       return [
         {
           unitId: "headless-orchestrator",
@@ -127,11 +127,13 @@ test("orientation runner: [noticeboard] renders the claim-ledger board over the 
   assert.match(env.body, /headless-orchestrator/, "claims name their units");
 });
 
-test("orientation runner: [noticeboard] with no ledger degrades to the empty offline render", async () => {
+test("orientation runner: [noticeboard] with no ledger degrades to the UNREAD offline render", async () => {
   const runner = makeRunner({ ledger: null });
   const env = await runner(["noticeboard"], { store: null, writable: false });
-  assert.equal(env.ok, true, "no ledger → the empty no-live-claims render, never a throw");
-  assert.match(env.body, /No live claims on the ledger\./);
+  assert.equal(env.ok, true, "no ledger → the offline render, never a throw");
+  // Unknown, not empty: an offline board that reports "no claims" asserts something about a store
+  // this process never read (ADR-0346 D1 companion work).
+  assert.match(env.body, /UNREAD — offline/);
 });
 
 // ---------------------------------------------------------------------------

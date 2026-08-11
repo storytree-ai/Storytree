@@ -1,13 +1,28 @@
 /**
  * The graded claim-ledger verbs of the `storytree noticeboard` family (ADR-0200 D2 — the
- * noticeboard IS the claim ledger): claim / upgrade / downgrade / release / claims. The sibling of
+ * noticeboard IS the claim ledger): claim / upgrade / downgrade / release / claims / mine.
+ *
+ * Every read here consults ONE staleness predicate — `isReclaimable`, via `classifyClaims` /
+ * `liveClaims` — and every render SAYS the word "stale" when a row is one (ADR-0346 D1 companion
+ * work). Before that, `claimsFor` applied no predicate at all: the per-unit view showed a
+ * 554-hour ghost as though it were a live holder, a queue position counted dead waiters, and a
+ * reclaimable work row read as a fence. Under a binding `waiting` those are not cosmetic.
+ *
+ * The sibling of
  * `noticeboard.ts` (declare/done stay byte-compatible there); every handler returns an `Envelope` —
  * testable without a terminal. DO NOT import from any organism's `/store` subpath — the
  * {@link ClaimLedgerStoreLike} seam keeps this module offline-testable (the CLI injects
  * `PgClaimStore` when --pg; null offline).
  */
 import type { ClaimDocT, ClaimRequest, ClaimResult } from "@storytree/notice-board";
-import { claimGrade, exploringClaimRequest, waitingClaimRequest } from "@storytree/notice-board";
+import {
+  CLAIM_STALE_RECLAIM_MS,
+  claimGrade,
+  classifyClaims,
+  exploringClaimRequest,
+  liveClaims,
+  waitingClaimRequest,
+} from "@storytree/notice-board";
 
 import { quoteClaimId } from "./claim-namespace.js";
 import {
@@ -18,7 +33,9 @@ import {
 } from "./claim-universe.js";
 import type { Envelope } from "./envelope.js";
 import type { SessionIdentity } from "./noticeboard.js";
-import { IDENTITY_REFUSAL_BODY } from "./noticeboard.js";
+// ONE liveness describer, shared with `declare`'s HELD line — the same reason IDENTITY_REFUSAL_BODY
+// is one copy: a refusal rendered two ways drifts into teaching two different rules.
+import { describeHolder, formatAgeMs, IDENTITY_REFUSAL_BODY } from "./noticeboard.js";
 
 // ---------------------------------------------------------------------------
 // Exported interfaces
@@ -40,6 +57,12 @@ export interface ClaimLedgerStoreLike {
   downgrade(unitId: string, sessionId: string, grade: "exploring" | "waiting"): Promise<boolean>;
   release(unitId: string, sessionId: string): Promise<boolean>;
   claimsFor(unitId: string): Promise<ClaimDocT[]>;
+  /**
+   * THIS session's rows — the `mine` self-view. `includeStale` is passed so a session sees its OWN
+   * ghosts: a stale row of yours is still in `events.node_claim` and is still what another
+   * session's per-unit read shows.
+   */
+  claimsBySession(sessionId: string, opts?: { includeStale?: boolean }): Promise<ClaimDocT[]>;
 }
 
 export interface ClaimLedgerDeps {
@@ -58,7 +81,7 @@ export interface ClaimLedgerDeps {
 }
 
 /** The ledger verbs this module dispatches (the CLI routes these before declare/done). */
-export const CLAIM_LEDGER_VERBS = ["claim", "upgrade", "downgrade", "release", "claims"] as const;
+export const CLAIM_LEDGER_VERBS = ["claim", "upgrade", "downgrade", "release", "claims", "mine"] as const;
 export type ClaimLedgerVerb = (typeof CLAIM_LEDGER_VERBS)[number];
 
 export function isClaimLedgerVerb(sub: string | undefined): sub is ClaimLedgerVerb {
@@ -76,12 +99,9 @@ export interface ClaimLedgerOpts {
 // Internal helpers
 // ---------------------------------------------------------------------------
 
+/** Age of a claim from `claimedAt` — the elapsed formatter is `noticeboard.ts`'s, shared not copied. */
 function formatAge(claimedAt: string, now: Date): string {
-  const elapsed = now.getTime() - new Date(claimedAt).getTime();
-  const minutes = Math.floor(elapsed / 60_000);
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  return `${hours}h`;
+  return formatAgeMs(now.getTime() - new Date(claimedAt).getTime());
 }
 
 /** Refusal envelope for a missing live store — mirrors declare/done's --pg pattern. */
@@ -98,16 +118,31 @@ function needsIdentity(): Envelope {
   return { ok: false, body: IDENTITY_REFUSAL_BODY };
 }
 
-function describeHolder(holder: ClaimDocT): string {
-  return `${holder.sessionId} (branch ${holder.branch}, intent "${holder.intent}")`;
+/**
+ * One board line per claim row — the `claims` verb's rendering, shared with the refusal arm.
+ *
+ * This read applied NO staleness predicate at all until ADR-0346 D1's companion work, which is the
+ * other half of the measured 2026-08-11 defect: where the board silently dropped a ghost, this
+ * silently showed one, unmarked and indistinguishable from a live holder.
+ */
+function renderBoardLines(rows: ClaimDocT[], now: Date): string[] {
+  return classifyClaims(rows, now).map(({ claim: c, stale, heartbeatAgeMs }) => {
+    const intent = c.intent.trim().length > 0 ? `"${c.intent}"` : "(none)";
+    const mark = stale ? `  STALE ${formatAgeMs(heartbeatAgeMs)} — reclaimable` : "";
+    return `  - [${claimGrade(c)}]  ${c.sessionId}  ${formatAge(c.claimedAt, now)}  branch=${c.branch}  intent ${intent}${mark}`;
+  });
 }
 
-/** One board line per claim row — the `claims` verb's rendering, shared with the refusal arm. */
-function renderBoardLines(rows: ClaimDocT[], now: Date): string[] {
-  return rows.map((c) => {
-    const intent = c.intent.trim().length > 0 ? `"${c.intent}"` : "(none)";
-    return `  - [${claimGrade(c)}]  ${c.sessionId}  ${formatAge(c.claimedAt, now)}  branch=${c.branch}  intent ${intent}`;
-  });
+/** The one-line staleness summary under a board, or nothing when every row is live. */
+function staleSummary(rows: ClaimDocT[], now: Date): string[] {
+  const staleCount = rows.length - liveClaims(rows, now).length;
+  if (staleCount === 0) return [];
+  return [
+    "",
+    `${staleCount} of ${rows.length} row${rows.length === 1 ? "" : "s"} above ${staleCount === 1 ? "is" : "are"} STALE ` +
+      `(no heartbeat for over ${formatAgeMs(CLAIM_STALE_RECLAIM_MS)}) — reclaimable, and blocking nobody:`,
+    "a stale work row is taken over by the next claimer in the same transaction (ADR-0200 D2).",
+  ];
 }
 
 /**
@@ -116,13 +151,20 @@ function renderBoardLines(rows: ClaimDocT[], now: Date): string[] {
  * the session has no waiting row (e.g. the read raced a promotion) — and null when NO work claim
  * is held on the unit at all: with no holder there IS no line, and rendering "position 1 of 1"
  * against nothing was the measured fiction ADR-0270 D3.1 retires.
+ *
+ * STALE rows are excluded first (ADR-0346 D1 companion work). `claimsFor` applies no heartbeat
+ * predicate, so this counted DEAD waiters into the line ahead of you and treated a reclaimable
+ * work row as a holder — while `oldestLiveWaiter` skips exactly those rows when the store actually
+ * promotes, and `claim()` reclaims exactly that row on the next take. Two of the eleven stale rows
+ * measured on 2026-08-11 were `waiting`, and three were `work`.
  */
 async function queuePosition(
   store: ClaimLedgerStoreLike,
   unitId: string,
   sessionId: string,
+  now: Date,
 ): Promise<{ position: number; length: number } | null> {
-  const rows = await store.claimsFor(unitId);
+  const rows = liveClaims(await store.claimsFor(unitId), now);
   if (!rows.some((c) => claimGrade(c) === "work")) return null;
   const waiting = rows.filter((c) => claimGrade(c) === "waiting");
   const idx = waiting.findIndex((c) => c.sessionId === sessionId);
@@ -136,15 +178,16 @@ async function renderQueued(
   unitId: string,
   sessionId: string,
   heldBy: ClaimDocT,
+  now: Date,
 ): Promise<Envelope> {
-  const pos = await queuePosition(store, unitId, sessionId);
+  const pos = await queuePosition(store, unitId, sessionId, now);
   const cmdId = quoteClaimId(unitId);
   const where =
-    pos !== null ? ` (position ${pos.position} of ${pos.length} in the line)` : "";
+    pos !== null ? ` (position ${pos.position} of ${pos.length} in the LIVE line)` : "";
   return {
     ok: true,
     body:
-      `Work slot on "${unitId}" is HELD by ${describeHolder(heldBy)} — ` +
+      `Work slot on "${unitId}" is HELD by ${describeHolder(heldBy, now)} — ` +
       `waiting in line behind ${heldBy.sessionId}${where}. ` +
       "On release the store promotes the oldest live waiter (ADR-0200 D2).",
     next: [
@@ -164,6 +207,63 @@ export async function claimLedgerCommand(
   opts: ClaimLedgerOpts,
   deps: ClaimLedgerDeps,
 ): Promise<Envelope> {
+  // -------------------------------------------------------------------------
+  // mine — THIS session's holdings, no unit id (ADR-0346 D1 companion work)
+  //
+  // Routed ahead of the unit-id guard because it is the one read keyed on the SESSION rather than
+  // on a unit. There was no self-view at all: `claims` demands a unit id, so a session verifying
+  // its own claims were released had to enumerate units from memory — which is precisely how the
+  // 2026-08-11 contradiction was found, at a closing leg, by hand.
+  // -------------------------------------------------------------------------
+  if (verb === "mine") {
+    if (deps.claims === null) return needsPg("mine");
+    if (deps.identity === null) return needsIdentity();
+    const now = deps.now();
+    const { sessionId, branch } = deps.identity;
+    // includeStale: a session must see its OWN ghosts — they are what other sessions collide with.
+    const rows = await deps.claims.claimsBySession(sessionId, { includeStale: true });
+    if (rows.length === 0) {
+      return {
+        ok: true,
+        body:
+          `This session (${sessionId}, branch ${branch}) holds NO claims on the ledger — ` +
+          "live or stale. An unclaimed session is invisible on the map and is not ready for the " +
+          "merge ceremony (ADR-0200 D3).",
+        next: [
+          'storytree noticeboard claim <unit-id> --grade exploring --intent "<why>" --pg',
+          "storytree noticeboard declare --working-on <prose> --node <unit-id> --pg",
+        ],
+      };
+    }
+    const marked = classifyClaims(rows, now);
+    const staleCount = marked.filter((m) => m.stale).length;
+    const lines = [
+      `Claims held by this session (${sessionId}, branch ${branch}):`,
+      ...marked.map(({ claim: c, stale, heartbeatAgeMs }) => {
+        const intent = c.intent.trim().length > 0 ? `"${c.intent}"` : "(none)";
+        const mark = stale ? `  STALE ${formatAgeMs(heartbeatAgeMs)} — reclaimable` : "";
+        return `  - ${c.unitId}  [${claimGrade(c)}]  ${formatAge(c.claimedAt, now)}  intent ${intent}${mark}`;
+      }),
+      "",
+      `${rows.length} row${rows.length === 1 ? "" : "s"}: ${rows.length - staleCount} live, ${staleCount} stale.`,
+    ];
+    if (staleCount > 0) {
+      lines.push(
+        "A stale row of yours still sits in the ledger and still renders on " +
+          "`noticeboard claims <unit> --pg` — release it rather than leaving it to age out.",
+      );
+    }
+    return {
+      ok: true,
+      body: lines.join("\n"),
+      next: [
+        "storytree noticeboard done --pg",
+        `storytree noticeboard release ${quoteClaimId(marked[0]?.claim.unitId ?? "<unit-id>")} --pg`,
+        "storytree noticeboard --pg",
+      ],
+    };
+  }
+
   if (unitId === undefined || unitId.trim().length === 0) {
     return {
       ok: false,
@@ -176,6 +276,7 @@ export async function claimLedgerCommand(
         "  storytree noticeboard downgrade <unit-id> --grade exploring|waiting --pg",
         "  storytree noticeboard release <unit-id> --pg      drop this session's claim (any grade)",
         "  storytree noticeboard claims <unit-id> --pg       the unit's rows, queue order",
+        "  storytree noticeboard mine --pg                   what THIS session holds (no unit id)",
       ].join("\n"),
       next: ["storytree noticeboard --pg"],
     };
@@ -201,9 +302,11 @@ export async function claimLedgerCommand(
         ],
       };
     }
+    const now = deps.now();
     const lines = [
       `Claims on "${unitId}" (queue order, ADR-0200 D2):`,
-      ...renderBoardLines(rows, deps.now()),
+      ...renderBoardLines(rows, now),
+      ...staleSummary(rows, now),
     ];
     return {
       ok: true,
@@ -270,19 +373,23 @@ export async function claimLedgerCommand(
     }
 
     const result = await store.take(req);
-    if ("queued" in result) return renderQueued(store, unitId, sessionId, result.heldBy);
+    if ("queued" in result) return renderQueued(store, unitId, sessionId, result.heldBy, deps.now());
     if (!result.acquired) {
       // The refusal site carries the whole board (ADR-0270 D3.2): disjointness is read from the
-      // ledger here, never established by hand-inspecting the holder's unpushed branch.
+      // ledger here, never established by hand-inspecting the holder's unpushed branch. Every row
+      // on that board now states its own liveness, which is the line ADR-0346 D1 depends on: a
+      // fence you cannot see through is a fence you route around.
+      const now = deps.now();
       const rows = await store.claimsFor(unitId);
-      const board = rows.length > 0 ? renderBoardLines(rows, deps.now()) : ["  (no rows — the read raced a release)"];
+      const board = rows.length > 0 ? renderBoardLines(rows, now) : ["  (no rows — the read raced a release)"];
       return {
         ok: false,
         body: [
-          `Work claim on "${unitId}" REFUSED — HELD by ${describeHolder(result.heldBy)}.`,
+          `Work claim on "${unitId}" REFUSED — HELD by ${describeHolder(result.heldBy, now)}.`,
           "",
           "The unit's claim board (queue order, ADR-0200 D2):",
           ...board,
+          ...staleSummary(rows, now),
           "",
           "Disjoint from the holder? Narrow your claim to the capability you are actually writing",
           "(ADR-0270 D1) and proceed, or queue behind them with a waiting claim (ADR-0200 D2).",
@@ -313,7 +420,10 @@ export async function claimLedgerCommand(
       };
     }
     if (grade === "waiting") {
-      const rows = await store.claimsFor(unitId);
+      // LIVE rows only, on the same predicate the store promotes by: a stale work row is not a
+      // holder (the next take reclaims it), and a stale waiter is not ahead of you in any line.
+      const now = deps.now();
+      const rows = liveClaims(await store.claimsFor(unitId), now);
       const holderHeld = rows.some((c) => claimGrade(c) === "work");
       if (!holderHeld) {
         // No holder ⇒ no line. The old rendering ("position 1 of 1") was the fiction ADR-0270
@@ -321,10 +431,10 @@ export async function claimLedgerCommand(
         return {
           ok: true,
           body:
-            `Waiting claim taken on "${unitId}" — but NO work claim is held here: nothing blocks ` +
-            "you (ADR-0270 D3.1). If you are building this unit, take the work slot (upgrade); if " +
-            "you meant a narrower surface, claim the capability you are actually writing instead " +
-            "(ADR-0270 D1).",
+            `Waiting claim taken on "${unitId}" — but NO LIVE work claim is held here: nothing ` +
+            "blocks you (ADR-0270 D3.1). If you are building this unit, take the work slot " +
+            "(upgrade — it reclaims a stale holder in the same transaction); if you meant a " +
+            "narrower surface, claim the capability you are actually writing instead (ADR-0270 D1).",
           next: [
             `storytree noticeboard upgrade ${cmdId} --pg`,
             `storytree noticeboard claims ${cmdId} --pg`,
@@ -333,7 +443,7 @@ export async function claimLedgerCommand(
       }
       const waiting = rows.filter((c) => claimGrade(c) === "waiting");
       const idx = waiting.findIndex((c) => c.sessionId === sessionId);
-      const where = idx !== -1 ? ` (position ${idx + 1} of ${waiting.length} in the line)` : "";
+      const where = idx !== -1 ? ` (position ${idx + 1} of ${waiting.length} in the LIVE line)` : "";
       return {
         ok: true,
         body: `Waiting claim taken on "${unitId}"${kindSuffix(named.kind, named.owner)} — queued for the work slot${where}.`,
@@ -373,11 +483,11 @@ export async function claimLedgerCommand(
     // Branch always supplied from identity: the store fail-closes when the session holds no prior
     // row and no branch was given — the CLI never invents attribution, it derives it (ADR-0033).
     const result = await store.upgrade(unitId, sessionId, { branch });
-    if ("queued" in result) return renderQueued(store, unitId, sessionId, result.heldBy);
+    if ("queued" in result) return renderQueued(store, unitId, sessionId, result.heldBy, deps.now());
     if (!result.acquired) {
       return {
         ok: false,
-        body: `Upgrade on "${unitId}" REFUSED — work slot HELD by ${describeHolder(result.heldBy)}.`,
+        body: `Upgrade on "${unitId}" REFUSED — work slot HELD by ${describeHolder(result.heldBy, deps.now())}.`,
         next: [`storytree noticeboard claims ${cmdId} --pg`],
       };
     }

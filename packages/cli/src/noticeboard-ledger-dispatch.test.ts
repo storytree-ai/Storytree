@@ -33,6 +33,8 @@ interface FakeLedger extends ClaimLedgerStoreLike {
   downgrades: Array<{ unitId: string; sessionId: string; grade: string }>;
   releases: Array<{ unitId: string; sessionId: string }>;
   rows: ClaimDocT[];
+  /** Every claimsBySession() call — the `mine` self-view's read (ADR-0346 D1 companion work). */
+  bySession: Array<{ sessionId: string; opts?: { includeStale?: boolean } }>;
 }
 
 function fakeLedger(rows: ClaimDocT[] = []): FakeLedger {
@@ -41,6 +43,7 @@ function fakeLedger(rows: ClaimDocT[] = []): FakeLedger {
     upgrades: [],
     downgrades: [],
     releases: [],
+    bySession: [],
     rows,
     async take(req): Promise<ClaimResult> {
       self.takes.push(req);
@@ -74,6 +77,10 @@ function fakeLedger(rows: ClaimDocT[] = []): FakeLedger {
     },
     async claimsFor(): Promise<ClaimDocT[]> {
       return self.rows;
+    },
+    async claimsBySession(sessionId, opts): Promise<ClaimDocT[]> {
+      self.bySession.push({ sessionId, ...(opts !== undefined ? { opts } : {}) });
+      return self.rows.filter((r) => r.sessionId === sessionId);
     },
   };
   return self;
@@ -154,7 +161,24 @@ test("without a ledger store the verbs degrade to the db guidance, never a crash
 test("noticeboard --help names the ledger verbs alongside declare/done", async () => {
   const env = await run(["noticeboard", "--help"], depsWith(null));
   assert.equal(env.ok, true);
-  for (const verb of ["claim", "upgrade", "downgrade", "release", "claims", "declare", "done"]) {
+  for (const verb of ["claim", "upgrade", "downgrade", "release", "claims", "mine", "declare", "done"]) {
     assert.match(env.body, new RegExp(`noticeboard ${verb}`), verb);
   }
+});
+
+test("noticeboard mine through the dispatch takes NO unit id and reads this session's rows", async () => {
+  // The self-view ADR-0346 D1's companion work adds: `claims` demands a unit id, so verifying your
+  // own claims are released meant enumerating units from memory at the closing leg.
+  const ledger = fakeLedger([
+    claimDoc({ unitId: "story-x", sessionId: "wt-dispatch", grade: "work", intent: "real" }),
+    claimDoc({ unitId: "story-x", sessionId: "someone-else", grade: "waiting" }),
+  ]);
+  const env = await run(["noticeboard", "mine"], depsWith(ledger));
+  assert.equal(env.ok, true, env.body);
+  assert.deepEqual(ledger.bySession, [
+    { sessionId: "wt-dispatch", opts: { includeStale: true } },
+  ]);
+  assert.match(env.body, /Claims held by this session \(wt-dispatch/);
+  assert.match(env.body, /- story-x {2}\[work\]/);
+  assert.doesNotMatch(env.body, /someone-else/, "mine is keyed on THIS session, not the unit");
 });
