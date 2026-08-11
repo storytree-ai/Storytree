@@ -9,10 +9,13 @@ import { InMemoryStore } from "@storytree/storage-protocol";
 import {
   arcIsClosed,
   arcRefOf,
+  deriveArcLifecycle,
   deriveArcRollup,
   loadArcRollup,
   loadArcRollups,
+  reconcileArcLifecycles,
   storyArcStamps,
+  type ArcRollup,
   type ArcRollupDeps,
 } from "./arc-rollup.js";
 
@@ -548,4 +551,117 @@ test("a malformed cites field never throws the join — it reads as no citations
   });
   assert.equal(rollup.increments[0]?.cites, undefined);
   assert.deepEqual(rollup.citedStories, []);
+});
+
+// ---------------------------------------------------------------------------
+// ADR-0335's rule as a SWEEP — the reconciler half the trigger never had.
+// ---------------------------------------------------------------------------
+
+/** A rollup carrying only what the lifecycle rule reads: an id, a stored flag, and statuses. */
+function lifecycleRollup(
+  id: string,
+  lifecycle: "active" | "closed",
+  statuses: string[],
+): ArcRollup {
+  return {
+    id,
+    title: `title of ${id}`,
+    description: "",
+    lifecycle,
+    intent: "",
+    endState: "",
+    increments: statuses.map((status, n) => ({
+      id: `${id}-inc-${n}`,
+      title: `${id} inc ${n}`,
+      objective: "",
+      status,
+    })) as ArcRollup["increments"],
+    adrs: [],
+    stories: [],
+    citedStories: [],
+    questions: [],
+    waiting: false,
+  };
+}
+
+test("deriveArcLifecycle: closed once every increment has landed, active while any is forward-looking", () => {
+  assert.equal(deriveArcLifecycle([{ status: "closed" }, { status: "closed" }]), "closed");
+  assert.equal(deriveArcLifecycle([{ status: "closed" }, { status: "proposal" }]), "active");
+  assert.equal(deriveArcLifecycle([{ status: "ready" }]), "active");
+  assert.equal(deriveArcLifecycle([{ status: "active" }]), "active");
+});
+
+test("deriveArcLifecycle: an unrecognised status counts as forward-looking, so an unreadable row never closes an arc", () => {
+  assert.equal(deriveArcLifecycle([{ status: "closed" }, { status: "who-knows" }]), "active");
+});
+
+test("deriveArcLifecycle: an EMPTY log derives nothing — never `closed` (ADR-0335 D1's birth window)", () => {
+  // The case that would otherwise close an arc on the day it was chartered: `arc new` writes the
+  // arc doc before its bundled first increment, so zero increments means "not started yet", not
+  // "drained". A `closed` here would be the sweep inventing a landing history.
+  assert.equal(deriveArcLifecycle([]), null);
+});
+
+test("reconcileArcLifecycles: reports a drained-but-active arc as `close`, with its counts", () => {
+  const found = reconcileArcLifecycles([lifecycleRollup("drained", "active", ["closed", "closed"])]);
+  assert.equal(found.agreed, 0);
+  assert.deepEqual(found.noSignal, []);
+  assert.equal(found.drift.length, 1);
+  assert.deepEqual(
+    { ...found.drift[0]! },
+    {
+      id: "drained",
+      title: "title of drained",
+      stored: "active",
+      derived: "closed",
+      action: "close",
+      open: 0,
+      landed: 2,
+    },
+  );
+});
+
+test("reconcileArcLifecycles: is SYMMETRIC — open work on a closed arc reports as `reopen`", () => {
+  // ADR-0335 D2's auto-reopen read as a sweep. A reconciler that only ever closed would be a
+  // different rule wearing the same name.
+  const found = reconcileArcLifecycles([lifecycleRollup("revived", "closed", ["closed", "proposal"])]);
+  assert.equal(found.drift.length, 1);
+  assert.equal(found.drift[0]?.action, "reopen");
+  assert.equal(found.drift[0]?.derived, "active");
+  assert.equal(found.drift[0]?.open, 1);
+  assert.equal(found.drift[0]?.landed, 1);
+});
+
+test("reconcileArcLifecycles: an arc already in agreement is COUNTED, never reported as drift", () => {
+  // A clean sweep must be distinguishable from a sweep that enumerated nothing — the blind-loader
+  // failure mode ADR-0256/#970 measured, where zero findings read as a healthy repo.
+  const found = reconcileArcLifecycles([
+    lifecycleRollup("fine-active", "active", ["proposal"]),
+    lifecycleRollup("fine-closed", "closed", ["closed"]),
+  ]);
+  assert.deepEqual(found.drift, []);
+  assert.equal(found.agreed, 2);
+});
+
+test("reconcileArcLifecycles: a zero-increment arc is held OUT of drift and named separately", () => {
+  const found = reconcileArcLifecycles([lifecycleRollup("just-chartered", "active", [])]);
+  assert.deepEqual(found.drift, []);
+  assert.equal(found.agreed, 0);
+  assert.deepEqual(found.noSignal, [
+    { id: "just-chartered", title: "title of just-chartered", stored: "active" },
+  ]);
+});
+
+test("reconcileArcLifecycles: sorts nothing and drops nothing — every arc lands in exactly one bucket", () => {
+  const rollups = [
+    lifecycleRollup("a", "active", ["closed"]),
+    lifecycleRollup("b", "active", ["proposal"]),
+    lifecycleRollup("c", "closed", ["ready"]),
+    lifecycleRollup("d", "closed", ["closed"]),
+    lifecycleRollup("e", "active", []),
+  ];
+  const found = reconcileArcLifecycles(rollups);
+  assert.equal(found.drift.length + found.noSignal.length + found.agreed, rollups.length);
+  assert.deepEqual(found.drift.map((d) => d.id), ["a", "c"]);
+  assert.deepEqual(found.noSignal.map((n) => n.id), ["e"]);
 });

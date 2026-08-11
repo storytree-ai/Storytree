@@ -61,6 +61,7 @@ import {
   arcEdit,
   arcIncrementAdd,
   arcClose,
+  arcReconcile,
   arcReopen,
   arcIncrementClose,
   arcIncrementNew,
@@ -2171,6 +2172,9 @@ export const CLI_OPTIONS = {
   // sibling's body into its commit.
   id: { type: "string", multiple: true },
   write: { type: "boolean", default: false },
+  // `storytree arc reconcile --write --only <close|reopen>` — narrow WHICH drift direction is
+  // applied. The report always carries both; this only scopes the write.
+  only: { type: "string" },
   step: { type: "string" },
   "agent-type": { type: "string" },
   evidence: { type: "string" },
@@ -2869,6 +2873,27 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     // The derived initiative view (ADR-0183 D3): plans by `arcRef` query, ADRs/stories by their
     // frontmatter `arc:` stamps on disk — the upward view is never authored on the arc.
     if (help) return arcHelp();
+
+    // `arc reconcile` needs BOTH halves of the deps — it READS every rollup (the view) and, under
+    // --write, flips `lifecycle` on the ones that drifted (the write). It is dispatched ahead of the
+    // write block because it takes no id and none of that block's prose flags.
+    if (sub === "reconcile") {
+      return arcReconcile(
+        {
+          store: deps.store,
+          decisionsDir: deps.adrDecisionsDir ?? path.join(repoRoot(), "docs", "decisions"),
+          storiesDir: deps.storiesDir ?? path.join(repoRoot(), "stories"),
+          pg: values.pg === true,
+          writable: deps.writable === true,
+          ...(deps.actor !== undefined ? { actor: deps.actor } : {}),
+          now: new Date().toISOString(),
+        },
+        {
+          write: values.write === true,
+          ...(values.only !== undefined ? { only: values.only } : {}),
+        },
+      );
+    }
 
     // The WRITE verbs (arc new / arc edit / arc increment add / arc close) go through the validated
     // write path — a first-class replacement for the raw store one-shot (the ADR-0168 arc-edit
