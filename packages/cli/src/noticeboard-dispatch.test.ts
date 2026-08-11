@@ -59,7 +59,10 @@ function fakeLedgerRead(rows: ClaimDocT[]) {
     downgrade: async () => true,
     release: async () => true,
     claimsFor: async () => [],
-    listLiveClaims: async () => rows,
+    claimsBySession: async () => [],
+    // The board's read is the UNFILTERED one (ADR-0346 D1 companion work): staleness is decided
+    // once, in the pure fold, so the board can MARK a ghost instead of dropping it.
+    listAllClaims: async () => rows,
   };
 }
 
@@ -77,13 +80,16 @@ test("the noticeboard area routes to the claim-ledger board with the injected le
   assert.match(env.body, /tree-view/);
 });
 
-test("without a ledger the board degrades to the empty offline render, never a crash", async () => {
+test("without a ledger the board degrades to the UNREAD offline render, never a crash", async () => {
   const env = await run(["noticeboard"], {
     store: new InMemoryStore(),
     presence: { identity: null },
   });
   assert.equal(env.ok, true, env.body);
-  assert.match(env.body, /No live claims on the ledger\./);
+  // Unknown is not empty (ADR-0346 D1 companion work): a board that never read the store must not
+  // report what the store holds.
+  assert.match(env.body, /UNREAD — offline/);
+  assert.doesNotMatch(env.body, /No claims on the ledger/);
   assert.doesNotMatch(env.body, /Active sessions/, "the presence board is retired (ADR-0200 D7)");
 });
 

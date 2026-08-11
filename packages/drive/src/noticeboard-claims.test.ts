@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import { CLAIM_STALE_RECLAIM_MS } from "@storytree/notice-board";
 import type { ClaimDocT, ClaimRequest, ClaimResult } from "@storytree/notice-board";
 
 import {
@@ -48,6 +49,10 @@ interface FakeLedger extends ClaimLedgerStoreLike {
   boolResult: boolean;
   /** What claimsFor() returns. */
   rows: ClaimDocT[];
+  /** What claimsBySession() returns — the `mine` self-view (defaults to `rows`). */
+  ownRows?: ClaimDocT[];
+  /** Every claimsBySession() call, so a test can prove `mine` asks to see its own stale rows. */
+  bySession: Array<{ sessionId: string; opts?: { includeStale?: boolean } }>;
 }
 
 function makeFakeLedger(over: Partial<FakeLedger> = {}): FakeLedger {
@@ -58,6 +63,7 @@ function makeFakeLedger(over: Partial<FakeLedger> = {}): FakeLedger {
     releases: [],
     boolResult: true,
     rows: [],
+    bySession: [],
     async take(req: ClaimRequest): Promise<ClaimResult> {
       self.takes.push(req);
       if (self.nextResult !== undefined) return self.nextResult;
@@ -93,6 +99,10 @@ function makeFakeLedger(over: Partial<FakeLedger> = {}): FakeLedger {
     async claimsFor(): Promise<ClaimDocT[]> {
       return self.rows;
     },
+    async claimsBySession(sessionId, opts): Promise<ClaimDocT[]> {
+      self.bySession.push({ sessionId, ...(opts !== undefined ? { opts } : {}) });
+      return self.ownRows ?? self.rows;
+    },
     ...over,
   };
   return self;
@@ -106,8 +116,8 @@ function deps(claims: ClaimLedgerStoreLike | null, identity: SessionIdentity | n
 // Refusals shared by every verb
 // ---------------------------------------------------------------------------
 
-test("isClaimLedgerVerb: recognises the five verbs and nothing else", () => {
-  for (const v of ["claim", "upgrade", "downgrade", "release", "claims"]) {
+test("isClaimLedgerVerb: recognises the six verbs and nothing else", () => {
+  for (const v of ["claim", "upgrade", "downgrade", "release", "claims", "mine"]) {
     assert.equal(isClaimLedgerVerb(v), true, v);
   }
   assert.equal(isClaimLedgerVerb("declare"), false);
@@ -211,9 +221,46 @@ test("claim --grade waiting with NO work holder: no queue position is rendered �
   const env = await claimLedgerCommand("claim", "story-x", { grade: "waiting" }, deps(ledger));
   assert.equal(env.ok, true, env.body);
   assert.doesNotMatch(env.body, /position \d+ of \d+/);
-  assert.match(env.body, /NO work claim/);
+  assert.match(env.body, /NO LIVE work claim/);
   assert.match(env.body, /nothing blocks you/i);
   assert.match(env.body, /ADR-0270/);
+});
+
+// ── The stale predicate reaches the queue arithmetic (ADR-0346 D1 companion work) ─────────────
+
+/** A heartbeat old enough to be reclaimable at NOW. */
+const STALE_BEAT = new Date(NOW.getTime() - CLAIM_STALE_RECLAIM_MS * 2).toISOString();
+
+test("claim --grade waiting: a STALE waiter is not ahead of you — the line counts LIVE rows only", async () => {
+  const ledger = makeFakeLedger({
+    rows: [
+      doc({ unitId: "story-x", sessionId: "holder", grade: "work" }),
+      // A dead waiter. `oldestLiveWaiter` skips it when the store actually promotes, so counting it
+      // into the line told the session it was third when it was in fact second.
+      doc({ unitId: "story-x", sessionId: "dead-waiter", grade: "waiting", heartbeatAt: STALE_BEAT }),
+      doc({ unitId: "story-x", sessionId: "live-waiter", grade: "waiting" }),
+      doc({ unitId: "story-x", sessionId: "wt-ledger", grade: "waiting", branch: "claude/ledger" }),
+    ],
+  });
+  const env = await claimLedgerCommand("claim", "story-x", { grade: "waiting" }, deps(ledger));
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /position 2 of 2 in the LIVE line/, "the dead waiter counts for nothing");
+});
+
+test("claim --grade waiting: a STALE work row is not a holder — nothing blocks you", async () => {
+  const ledger = makeFakeLedger({
+    rows: [
+      // `claim()` would reclaim this row on the next take, so treating it as a fence was a fiction
+      // — and under ADR-0346 D1 it is the fiction that blocks a live session behind a dead one.
+      doc({ unitId: "story-x", sessionId: "ghost-holder", grade: "work", heartbeatAt: STALE_BEAT }),
+      doc({ unitId: "story-x", sessionId: "wt-ledger", grade: "waiting", branch: "claude/ledger" }),
+    ],
+  });
+  const env = await claimLedgerCommand("claim", "story-x", { grade: "waiting" }, deps(ledger));
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /NO LIVE work claim is held here/);
+  assert.match(env.body, /reclaims a stale holder/);
+  assert.doesNotMatch(env.body, /position \d+ of \d+/);
 });
 
 test("claim --grade work acquired: the wisp is lit; reclaim is named", async () => {
@@ -412,6 +459,124 @@ test("claims: an empty unit reads as no claims, with the claim command as next",
   assert.equal(env.ok, true, env.body);
   assert.match(env.body, /No claims on "story-x"/);
   assert.ok(env.next?.some((n) => n.includes("noticeboard claim story-x")));
+});
+
+test("claims (THE MEASURED DEFECT, 2026-08-11): a stale row renders MARKED, not as a live holder", async () => {
+  // `noticeboard claims forest-world --pg` printed exactly this row — `[exploring] procedural-arch
+  // 554h` — with nothing to say it had been silent for 23 days, while the board dropped it entirely.
+  const ledger = makeFakeLedger({
+    rows: [
+      doc({
+        unitId: "forest-world",
+        sessionId: "procedural-arch",
+        branch: "claude/procedural-arch",
+        grade: "exploring",
+        intent: "procedural architecture",
+        claimedAt: new Date(NOW.getTime() - 554 * 3_600_000).toISOString(),
+        heartbeatAt: STALE_BEAT,
+      }),
+    ],
+  });
+  const env = await claimLedgerCommand("claims", "forest-world", {}, deps(ledger));
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /\[exploring\]\s+procedural-arch\s+554h.*STALE 4h — reclaimable/);
+  assert.match(env.body, /1 of 1 row above is STALE/);
+  assert.match(env.body, /blocking nobody/);
+});
+
+test("claims: a mixed board counts the stale rows and leaves the live ones unmarked", async () => {
+  const ledger = makeFakeLedger({
+    rows: [
+      doc({ unitId: "story-x", sessionId: "live-wt", grade: "work", intent: "real" }),
+      doc({ unitId: "story-x", sessionId: "ghost-a", grade: "waiting", heartbeatAt: STALE_BEAT }),
+      doc({ unitId: "story-x", sessionId: "ghost-b", grade: "waiting", heartbeatAt: STALE_BEAT }),
+    ],
+  });
+  const env = await claimLedgerCommand("claims", "story-x", {}, deps(ledger));
+  const lines = env.body.split("\n");
+  assert.doesNotMatch(lines[1] ?? "", /STALE/, "the live holder carries no marker");
+  assert.match(lines[2] ?? "", /STALE/);
+  assert.match(env.body, /2 of 3 rows above are STALE/);
+});
+
+test("refusal: the holder's LIVENESS is stated, not left for the session to guess", async () => {
+  // The line ADR-0346 D1 depends on. "Held by X" leaves the only actionable question — queue behind
+  // a live builder, or take over a dead one — unanswered by the message that raises it.
+  const ledger = makeFakeLedger({
+    nextResult: {
+      acquired: false,
+      heldBy: doc({
+        unitId: "story-x",
+        sessionId: "other-wt",
+        grade: "work",
+        intent: "real",
+        heartbeatAt: new Date(NOW.getTime() - 5 * 60_000).toISOString(),
+      }),
+    },
+  });
+  const env = await claimLedgerCommand("claim", "story-x", { grade: "work" }, deps(ledger));
+  assert.equal(env.ok, false);
+  assert.match(env.body, /HELD by other-wt \(branch .*, intent "real", LIVE — heartbeat 5m ago\)/);
+});
+
+// ---------------------------------------------------------------------------
+// mine — this session's holdings, no unit id (ADR-0346 D1 companion work)
+// ---------------------------------------------------------------------------
+
+test("mine: needs no unit id — it reads THIS session's rows, asking for the stale ones too", async () => {
+  const ledger = makeFakeLedger({
+    ownRows: [
+      doc({ unitId: "noticeboard-cli", sessionId: "wt-ledger", grade: "work", intent: "building" }),
+      doc({
+        unitId: "drive-machinery",
+        sessionId: "wt-ledger",
+        grade: "exploring",
+        intent: "left behind",
+        heartbeatAt: STALE_BEAT,
+      }),
+    ],
+  });
+  const env = await claimLedgerCommand("mine", undefined, {}, deps(ledger));
+  assert.equal(env.ok, true, env.body);
+  assert.deepEqual(
+    ledger.bySession,
+    [{ sessionId: "wt-ledger", opts: { includeStale: true } }],
+    "a session must see its OWN ghosts — they are what other sessions collide with",
+  );
+  assert.match(env.body, /Claims held by this session \(wt-ledger, branch claude\/ledger\)/);
+  assert.match(env.body, /- noticeboard-cli {2}\[work\] {2}0m {2}intent "building"$/m);
+  assert.match(env.body, /- drive-machinery {2}\[exploring\].*STALE 4h — reclaimable/);
+  assert.match(env.body, /2 rows: 1 live, 1 stale\./);
+  assert.match(env.body, /release it rather than leaving it to age out/);
+});
+
+test("mine: a session holding nothing gets a plain no — the merge-ceremony check, not an error", async () => {
+  const ledger = makeFakeLedger({ ownRows: [] });
+  const env = await claimLedgerCommand("mine", undefined, {}, deps(ledger));
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /holds NO claims on the ledger — live or stale/);
+  assert.match(env.body, /ADR-0200 D3/);
+  assert.ok(env.next?.some((n) => n.includes("noticeboard declare")));
+});
+
+test("mine: all-live holdings say so without the release nudge", async () => {
+  const ledger = makeFakeLedger({
+    ownRows: [doc({ unitId: "noticeboard-cli", sessionId: "wt-ledger", grade: "work" })],
+  });
+  const env = await claimLedgerCommand("mine", undefined, {}, deps(ledger));
+  assert.match(env.body, /1 row: 1 live, 0 stale\./);
+  assert.doesNotMatch(env.body, /STALE/);
+  assert.doesNotMatch(env.body, /age out/);
+});
+
+test("mine: offline and identity-less refusals match every other write-ish verb", async () => {
+  const offline = await claimLedgerCommand("mine", undefined, {}, deps(null));
+  assert.equal(offline.ok, false);
+  assert.match(offline.body, /requires the live store \(--pg\)/);
+
+  const anon = await claimLedgerCommand("mine", undefined, {}, deps(makeFakeLedger(), null));
+  assert.equal(anon.ok, false);
+  assert.match(anon.body, /worktree|identity/i);
 });
 
 // ---------------------------------------------------------------------------

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import { CLAIM_STALE_RECLAIM_MS } from "@storytree/notice-board";
 import type {
   ClaimDocT,
   ClaimRequest,
@@ -265,7 +266,7 @@ function makeClaimDoc(overrides: Partial<ClaimDocT> & Pick<ClaimDocT, "unitId" |
 function makeFakeLedger(claims: ClaimDocT[]): ClaimLedgerReadLike & { calls: number } {
   const self = {
     calls: 0,
-    async listLiveClaims(): Promise<ClaimDocT[]> {
+    async listAllClaims(): Promise<ClaimDocT[]> {
       self.calls += 1;
       return claims;
     },
@@ -273,24 +274,30 @@ function makeFakeLedger(claims: ClaimDocT[]): ClaimLedgerReadLike & { calls: num
   return self;
 }
 
+/** A heartbeat old enough to be reclaimable at NOW — the ghost the board must SAY is a ghost. */
+const STALE_BEAT = new Date(NOW.getTime() - CLAIM_STALE_RECLAIM_MS * 2).toISOString();
+
 const CLAIM_IDENTITY: SessionIdentity = { sessionId: "wt-claim", branch: "claude/claim-branch" };
 
 // ---------------------------------------------------------------------------
 // Board (undefined sub) — the ledger IS the board (ADR-0200 D7)
 // ---------------------------------------------------------------------------
 
-test("board: no ledger (offline) → the empty no-live-claims render, ok:true, NEVER a presence read", async () => {
+test("board: no ledger (offline) → UNREAD, never an assertion of absence, ok:true, NEVER a presence read", async () => {
   const deps: NoticeboardDeps = { identity: null, now: nowFn };
   const env = await noticeboardCommand(undefined, { nodes: [] }, deps);
   assert.equal(env.ok, true, env.body);
   assert.match(env.body, /Claim ledger \(ADR-0200\):/);
-  assert.match(env.body, /No live claims on the ledger\./);
-  assert.match(env.body, /offline — pass --pg/);
+  // Unknown is not empty. An offline board that says "no claims" asserts something about a store
+  // it never read — the same shape as the stale-row defect this increment removes.
+  assert.match(env.body, /UNREAD — offline/);
+  assert.doesNotMatch(env.body, /No claims on the ledger/, "offline never claims the ledger is empty");
+  assert.match(env.body, /pass --pg/);
   assert.doesNotMatch(env.body, /Active sessions/, "the legacy presence board is retired");
   assert.doesNotMatch(env.body, /Presence/, "no presence section survives (ADR-0200 D7)");
 });
 
-test("board: ledger null behaves exactly like ledger absent (the offline empty render)", async () => {
+test("board: ledger null behaves exactly like ledger absent (the offline UNREAD render)", async () => {
   const absent = await noticeboardCommand(undefined, { nodes: [] }, { identity: null, now: nowFn });
   const nulled = await noticeboardCommand(
     undefined,
@@ -329,12 +336,65 @@ test("board: with a ledger the claim ledger renders grouped by session — the O
   );
 });
 
-test("board: with a ledger but no live claims the no-live-claims line renders", async () => {
+test("board: with a ledger holding NO rows at all, the empty line says exactly that", async () => {
   const deps: NoticeboardDeps = { identity: null, now: nowFn, ledger: makeFakeLedger([]) };
   const env = await noticeboardCommand(undefined, { nodes: [] }, deps);
   assert.equal(env.ok, true, env.body);
-  assert.match(env.body, /No live claims on the ledger\./);
-  assert.doesNotMatch(env.body, /offline/, "a live empty ledger is not the offline hint");
+  assert.match(env.body, /No claims on the ledger — no rows at all, live or stale\./);
+  assert.doesNotMatch(env.body, /offline/, "a read empty ledger is not the offline hint");
+});
+
+test("board (THE MEASURED DEFECT, 2026-08-11): a stale-only ledger no longer asserts 'no live claims'", async () => {
+  // The exact shape measured against the live store: `noticeboard --pg` printed "No live claims on
+  // the ledger." while `noticeboard claims forest-world --pg` printed this very row, unmarked and
+  // looking alive. Under ADR-0346 D1's binding fence that ghost fences a live session out.
+  const ledger = makeFakeLedger([
+    makeClaimDoc({
+      unitId: "forest-world",
+      sessionId: "procedural-arch",
+      branch: "claude/procedural-arch",
+      grade: "exploring",
+      intent: "procedural architecture",
+      claimedAt: new Date(NOW.getTime() - 554 * 3_600_000).toISOString(),
+      heartbeatAt: STALE_BEAT,
+    }),
+  ]);
+  const env = await noticeboardCommand(undefined, { nodes: [] }, { identity: null, now: nowFn, ledger });
+
+  assert.equal(env.ok, true, env.body);
+  assert.doesNotMatch(env.body, /No claims on the ledger/, "the ledger is NOT empty — saying so was the defect");
+  assert.match(env.body, /No LIVE claims on the ledger — but it is not empty/);
+  assert.match(env.body, /STALE — 1 row across 1 session/);
+  assert.match(env.body, /## procedural-arch  branch=claude\/procedural-arch  \[STALE\]/);
+  assert.match(env.body, /- forest-world  \[exploring\] {2}554h {2}STALE 4h — reclaimable {2}procedural architecture/);
+});
+
+test("board: a live session's own stale row rides through MARKED, in its own section", async () => {
+  const ledger = makeFakeLedger([
+    makeClaimDoc({
+      unitId: "noticeboard-cli",
+      sessionId: "wt-live",
+      branch: "claude/live",
+      grade: "work",
+      intent: "building",
+      claimedAt: new Date(NOW.getTime() - 10 * 60_000).toISOString(),
+    }),
+    makeClaimDoc({
+      unitId: "abandoned-unit",
+      sessionId: "wt-live",
+      branch: "claude/live",
+      grade: "exploring",
+      intent: "left behind",
+      claimedAt: new Date(NOW.getTime() - 20 * 60_000).toISOString(),
+      heartbeatAt: STALE_BEAT,
+    }),
+  ]);
+  const env = await noticeboardCommand(undefined, { nodes: [] }, { identity: null, now: nowFn, ledger });
+
+  assert.match(env.body, /## wt-live  branch=claude\/live$/m, "one live row keeps the session out of the STALE section");
+  assert.doesNotMatch(env.body, /STALE — /, "no dark-session section: this session is live");
+  assert.match(env.body, /- noticeboard-cli  \[work\] {2}10m {2}building/);
+  assert.match(env.body, /- abandoned-unit  \[exploring\] {2}20m {2}STALE 4h — reclaimable {2}left behind/);
 });
 
 // ---------------------------------------------------------------------------
@@ -342,39 +402,32 @@ test("board: with a ledger but no live claims the no-live-claims line renders", 
 // ---------------------------------------------------------------------------
 
 test("renderLedgerBoard: fixed groups render sessions in order with branch, graded claims, ages, intent", () => {
+  const entry = (
+    unitId: string,
+    grade: SessionClaimGroup["claims"][number]["grade"],
+    intent: string,
+    ageMinutes: number,
+  ): SessionClaimGroup["claims"][number] => ({
+    unitId,
+    grade,
+    intent,
+    ageMs: ageMinutes * 60_000,
+    claimedAt: new Date(NOW.getTime() - ageMinutes * 60_000).toISOString(),
+    stale: false,
+    heartbeatAgeMs: 0,
+  });
   const groups: SessionClaimGroup[] = [
     {
       sessionId: "wt-old",
       branch: "claude/old-branch",
-      claims: [
-        {
-          unitId: "story-x",
-          grade: "work",
-          intent: "building x",
-          ageMs: 5 * 60_000,
-          claimedAt: new Date(NOW.getTime() - 5 * 60_000).toISOString(),
-        },
-        {
-          unitId: "story-y",
-          grade: "exploring",
-          intent: "poking around y",
-          ageMs: 90 * 60_000,
-          claimedAt: new Date(NOW.getTime() - 90 * 60_000).toISOString(),
-        },
-      ],
+      stale: false,
+      claims: [entry("story-x", "work", "building x", 5), entry("story-y", "exploring", "poking around y", 90)],
     },
     {
       sessionId: "wt-new",
       branch: "claude/new-branch",
-      claims: [
-        {
-          unitId: "story-z",
-          grade: "waiting",
-          intent: "",
-          ageMs: 2 * 60_000,
-          claimedAt: new Date(NOW.getTime() - 2 * 60_000).toISOString(),
-        },
-      ],
+      stale: false,
+      claims: [entry("story-z", "waiting", "", 2)],
     },
   ];
   const body = renderLedgerBoard(groups);
@@ -393,10 +446,56 @@ test("renderLedgerBoard: fixed groups render sessions in order with branch, grad
   );
 });
 
-test("renderLedgerBoard: an empty ledger renders the clear no-live-claims line", () => {
+test("renderLedgerBoard: an empty ledger says the ledger is empty — 'live' is not smuggled in", () => {
   const body = renderLedgerBoard([]);
   assert.match(body, /Claim ledger \(ADR-0200\):/);
-  assert.match(body, /No live claims on the ledger\./);
+  assert.match(body, /No claims on the ledger — no rows at all, live or stale\./);
+});
+
+test("renderLedgerBoard: dark sessions render LAST, counted, and named as reclaimable", () => {
+  const stale = (unitId: string, hbHours: number): SessionClaimGroup["claims"][number] => ({
+    unitId,
+    grade: "work",
+    intent: "",
+    ageMs: 300 * 3_600_000,
+    claimedAt: new Date(NOW.getTime() - 300 * 3_600_000).toISOString(),
+    stale: true,
+    heartbeatAgeMs: hbHours * 3_600_000,
+  });
+  const body = renderLedgerBoard([
+    {
+      sessionId: "wt-live",
+      branch: "claude/live",
+      stale: false,
+      claims: [
+        {
+          unitId: "story-live",
+          grade: "work",
+          intent: "building",
+          ageMs: 60_000,
+          claimedAt: NOW.toISOString(),
+          stale: false,
+          heartbeatAgeMs: 0,
+        },
+      ],
+    },
+    { sessionId: "wt-dead-a", branch: "claude/dead-a", stale: true, claims: [stale("story-p", 234)] },
+    {
+      sessionId: "wt-dead-b",
+      branch: "claude/dead-b",
+      stale: true,
+      claims: [stale("story-q", 401), stale("story-r", 570)],
+    },
+  ]);
+  const lines = body.split("\n");
+  assert.ok(
+    lines.indexOf("## wt-live  branch=claude/live") < lines.findIndex((l) => l.startsWith("STALE — ")),
+    "live sessions render before the stale section",
+  );
+  assert.match(body, /STALE — 3 rows across 2 sessions with no heartbeat for over 2h\./);
+  assert.match(body, /a stale\n?work row blocks nobody/);
+  assert.match(body, /## wt-dead-a  branch=claude\/dead-a  \[STALE\]/);
+  assert.match(body, /- story-r  \[work\] {2}300h {2}STALE 570h — reclaimable/);
 });
 
 // ---------------------------------------------------------------------------
@@ -504,6 +603,22 @@ test("declare: EVERY node held → ok:false, the headline says it anchored nothi
   // The per-node board survives untouched: it is what the session judges from (ADR-0270 D2).
   assert.match(env.body, /HELD by other-session/);
   assert.match(env.body, /claude\/other/);
+  // …and it now states the holder's LIVENESS (ADR-0346 D1 companion work). "Coordinate or pick
+  // other work" is unanswerable without knowing whether the holder is alive or a ghost.
+  assert.match(env.body, /LIVE — heartbeat 0m ago/);
+});
+
+test("declare: a HELD node whose holder is a GHOST says STALE, not merely 'held'", async () => {
+  const ghost: ClaimDocT = {
+    ...OTHER_HOLDER,
+    heartbeatAt: new Date(NOW.getTime() - CLAIM_STALE_RECLAIM_MS * 2).toISOString(),
+  };
+  const claims = makeFakeClaims({ refuseWith: ghost });
+  const deps: NoticeboardDeps = { identity: CLAIM_IDENTITY, now: nowFn, claims };
+  const env = await noticeboardCommand("declare", { workingOn: "x", nodes: ["story-a"] }, deps);
+  // The live store reclaims a stale holder rather than refusing, so this shape should not reach a
+  // session — the render is computed, not asserted, so the message cannot outlive that guarantee.
+  assert.match(env.body, /HELD by other-session .*STALE — no heartbeat for 4h, reclaimable/);
 });
 
 test("declare: the refusal never asserts the SESSION is unclaimed — it knows only what it took", async () => {

@@ -160,6 +160,15 @@ export interface ClaimOptions {
   staleReclaimMs?: number;
 }
 
+/**
+ * Options for {@link PgClaimStore.claimsBySession} — the liveness window, plus the opt-in that
+ * drops it entirely for the `noticeboard mine` self-view (ADR-0346 D1 companion work).
+ */
+export interface SessionClaimQuery extends ClaimOptions {
+  /** Include STALE rows too — a session must be able to see its own ghosts. Default false. */
+  includeStale?: boolean;
+}
+
 /** The SHARED grades — everything but the exclusive work mutex (ADR-0200 D2). */
 export type SharedClaimGrade = Exclude<ClaimGradeT, "work">;
 
@@ -610,12 +619,49 @@ export class PgClaimStore {
   }
 
   /**
-   * THIS session's live claim rows, any grade — the cheap keyed "does this session hold a live
-   * claim" read `check:declared` gates the merge ceremony on (ADR-0200 D3: an unclaimed session
-   * cannot land). Same liveness filter as {@link listLiveClaims}; ascending `claimed_at` (ties on
+   * EVERY claim row across ALL units, ALL grades, STALE ONES INCLUDED — the honest twin of
+   * {@link listLiveClaims}, and what the CLI board reads (ADR-0346 D1 companion work).
+   *
+   * A view cannot MARK what it was never handed. `listLiveClaims` filters staleness away in SQL, so
+   * the board could only ever render the live set — which is how it came to print "No live claims
+   * on the ledger." while `noticeboard claims forest-world` printed an unmarked 554-hour row from
+   * the same table (measured 2026-08-11). Liveness is still decided by exactly one predicate; this
+   * read simply stops deciding it store-side and lets the pure `classifyClaims`/`groupClaimsBySession`
+   * fold say `stale` out loud.
+   *
+   * NOT a replacement for {@link listLiveClaims}: the studio dock and the desktop session dock want
+   * the live set and keep reading that. Same ordering (ascending `claimed_at`, ties on session then
    * unit). Read-only (no transaction).
    */
-  async claimsBySession(sessionId: string, opts: ClaimOptions = {}): Promise<ClaimDocT[]> {
+  async listAllClaims(): Promise<ClaimDocT[]> {
+    const res = await this.#pool.query(
+      `SELECT ${CLAIM_COLUMNS} FROM events.node_claim
+        ORDER BY claimed_at, session_id, unit_id`,
+    );
+    return (res.rows as ClaimRow[]).map(rowToDoc);
+  }
+
+  /**
+   * THIS session's claim rows, any grade — the cheap keyed "does this session hold a live claim"
+   * read `check:declared` gates the merge ceremony on (ADR-0200 D3: an unclaimed session cannot
+   * land). Same liveness filter as {@link listLiveClaims}; ascending `claimed_at` (ties on unit).
+   * Read-only (no transaction).
+   *
+   * `includeStale` drops the heartbeat predicate — the `noticeboard mine` self-view, which must
+   * show a session its OWN ghosts: a stale row of yours is still a row in `events.node_claim`, and
+   * it is still what another session's per-unit read sees. Every other caller (`check:declared`,
+   * `branch next`, the ambient glance) asks the live question and is unchanged by default.
+   */
+  async claimsBySession(sessionId: string, opts: SessionClaimQuery = {}): Promise<ClaimDocT[]> {
+    if (opts.includeStale === true) {
+      const res = await this.#pool.query(
+        `SELECT ${CLAIM_COLUMNS} FROM events.node_claim
+          WHERE session_id = $1
+          ORDER BY claimed_at, unit_id`,
+        [sessionId],
+      );
+      return (res.rows as ClaimRow[]).map(rowToDoc);
+    }
     const staleMs = opts.staleReclaimMs ?? CLAIM_STALE_RECLAIM_MS;
     const res = await this.#pool.query(
       `SELECT ${CLAIM_COLUMNS} FROM events.node_claim
