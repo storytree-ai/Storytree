@@ -7,6 +7,7 @@ import {
   boundedEditDistance,
   claimNamespaceOneLine,
   claimNamespaceRefusalBody,
+  fenceStoryWorkClaim,
   normalisePastedPath,
   quoteClaimId,
   resolveClaimId,
@@ -360,4 +361,65 @@ test("the two pasted PATHS are recognised as paths, not as coincidental typos", 
     if (r.verdict !== "unknown") continue;
     assert.equal(r.suggestions[0]?.reason, "path", `${p.id} ranks its path hit first`);
   }
+});
+
+// ---------------------------------------------------------------------------
+// The story-grain fence (ADR-0346 D2)
+// ---------------------------------------------------------------------------
+
+const VERB = "storytree noticeboard claim <unit-id> --grade work --pg";
+
+test("fenceStoryWorkClaim REFUSES a story that names no driven unit", () => {
+  const f = fenceStoryWorkClaim({ id: "library", kind: "story", uatWitness: null, verb: VERB });
+  assert.equal(f.ok, false);
+  if (f.ok) return;
+  assert.match(f.body, /is a STORY, and a story is no longer a work claim/);
+  assert.match(f.body, /ADR-0346 D2/);
+  // The three remedies the ADR names, each reachable from the message itself.
+  assert.match(f.body, /Claim the CAPABILITY you are writing/);
+  assert.match(f.body, /claim the INCREMENT you are driving \(ADR-0308 D5\)/);
+  assert.match(f.body, /--grade exploring` on this story is untouched/);
+  // WHY, not just what: the containment hole is the reason the grain went rather than being kept
+  // as a coarse fallback, and a session that does not read that reason re-invents the bypass.
+  assert.match(f.body, /knows no containment/);
+  assert.ok(
+    f.next.some((n) => n.startsWith("storytree tree library")),
+    "the remedy line points at the story's own members",
+  );
+});
+
+test("fenceStoryWorkClaim ADMITS a `uat_witness: machine` story — that id names the UAT node", () => {
+  // `story build` claims `story.id` in exactly this case, alongside the story's members. If the
+  // fence refused it, the CLI would refuse a claim the build path takes — two rules over one id.
+  assert.deepEqual(
+    fenceStoryWorkClaim({ id: "driven", kind: "story", uatWitness: "machine", verb: VERB }),
+    { ok: true },
+  );
+});
+
+test("fenceStoryWorkClaim fails CLOSED toward the fence on any other witness value", () => {
+  // ADR-0040's default is fail-closed toward the human witness, which here means fail-closed toward
+  // the fence: only the literal `machine` leaves the story id naming a unit the gate drives.
+  for (const witness of ["human", "Machine", "machine ", "", "operator", null]) {
+    const f = fenceStoryWorkClaim({ id: "library", kind: "story", uatWitness: witness, verb: VERB });
+    assert.equal(f.ok, false, `uat_witness ${JSON.stringify(witness)} must not admit a work claim`);
+  }
+});
+
+test("fenceStoryWorkClaim touches no other kind, and stands DOWN on an unknown one", () => {
+  for (const kind of ["capability", "contract", "arc", "increment", "subtree"] as const) {
+    assert.deepEqual(
+      fenceStoryWorkClaim({ id: "x", kind, uatWitness: null, verb: VERB }),
+      { ok: true },
+      `${kind} is unaffected by D2`,
+    );
+  }
+  // kind === null is the namespace check standing down (an unreadable universe). It fails OPEN with
+  // the check that feeds it: a false refusal blocks real work, where the leak this closes is one a
+  // session can see on the board.
+  assert.deepEqual(
+    fenceStoryWorkClaim({ id: "library", kind: null, uatWitness: null, verb: VERB }),
+    { ok: true },
+    "an unread universe never refuses",
+  );
 });

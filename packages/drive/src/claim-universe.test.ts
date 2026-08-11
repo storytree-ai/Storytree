@@ -42,8 +42,8 @@ function makeTree(files: Record<string, string>): string {
   return root;
 }
 
-function node(id: string, tier: string): string {
-  return `---\nid: "${id}"\ntier: ${tier}\ntitle: "t"\n---\n\n# ${id}\n`;
+function node(id: string, tier: string, extra = ""): string {
+  return `---\nid: "${id}"\ntier: ${tier}\ntitle: "t"\n${extra}---\n\n# ${id}\n`;
 }
 
 const TREE = {
@@ -51,6 +51,9 @@ const TREE = {
   "studio/studio-panel.md": node("studio-panel", "capability"),
   "cli/story.md": node("cli", "story"),
   "cli/packages-forward-refusal.md": node("packages-forward-refusal", "contract"),
+  // A story whose UAT node the gate DRIVES (ADR-0040) — the one shape whose story id still names
+  // real work, so the D2 fence has both branches in the fixture rather than only the refusing one.
+  "driven/story.md": node("driven", "story", "uat_witness: machine\n"),
   // Prose docs with no frontmatter live under stories/ too — they are not nodes and must not
   // register as unread sources, or the fence would never fire in the real repo.
   "cli/interface-notes.md": "# just prose, no frontmatter\n",
@@ -92,6 +95,32 @@ test("parseNodeFrontmatter reads id + tier, and ignores everything that is not a
   assert.equal(parseNodeFrontmatter("---\ntier: arc\nid: a\n---\n"), null, "arcs are not on disk");
 });
 
+test("parseNodeFrontmatter carries uat_witness for a STORY only, and never invents one", () => {
+  // The ADR-0346 D2 fence reads this off the tree. Absent is legal and extremely common (it IS the
+  // fail-closed `human` default, ADR-0040), so an absent witness must never make a node unreadable
+  // — that would refuse every claim under a story rather than only its work-grade claim.
+  assert.deepEqual(parseNodeFrontmatter(node("s", "story", "uat_witness: machine\n")), {
+    id: "s",
+    kind: "story",
+    uatWitness: "machine",
+  });
+  assert.deepEqual(parseNodeFrontmatter(node("s", "story", 'uat_witness: "human"\n')), {
+    id: "s",
+    kind: "story",
+    uatWitness: "human",
+  });
+  assert.deepEqual(
+    parseNodeFrontmatter(node("s", "story")),
+    { id: "s", kind: "story" },
+    "no witness declared ⇒ no field, not a defaulted one",
+  );
+  assert.deepEqual(
+    parseNodeFrontmatter(node("c", "capability", "uat_witness: machine\n")),
+    { id: "c", kind: "capability" },
+    "only a STORY declares a UAT witness — a capability carrying the key is not a driven unit",
+  );
+});
+
 test("a file declaring a node tier with NO id is UNREADABLE, not merely skipped", () => {
   // The distinction is load-bearing: skipping it would silently drop a real node from the universe
   // and refuse a legitimate claim on it. Being unreadable stands the whole check down instead.
@@ -124,6 +153,10 @@ test("readTreeTargets finds every node and reads no source as unread", (t) => {
     [...res.targets].sort((a, b) => a.id.localeCompare(b.id)),
     [
       { id: "cli", kind: "story" },
+      // `uat_witness` rides along for a story that declares one, and ONLY then — an absent witness
+      // stays absent rather than being defaulted here, so the ADR-0040 defaulting seam stays the
+      // one place that rule is written.
+      { id: "driven", kind: "story", uatWitness: "machine" },
       { id: "packages-forward-refusal", kind: "contract" },
       { id: "studio", kind: "story" },
       { id: "studio-panel", kind: "capability" },
@@ -204,8 +237,8 @@ test("all THREE sources read ⇒ one COMPLETE universe", async (t) => {
   });
   assert.equal(u.complete, true);
   assert.deepEqual(u.unreadSources, []);
-  // 4 tree nodes + 1 arc + 2 declared subtrees. The `$comment` key is prose, not a declaration.
-  assert.equal(u.targets.length, 7);
+  // 5 tree nodes + 1 arc + 2 declared subtrees. The `$comment` key is prose, not a declaration.
+  assert.equal(u.targets.length, 8);
   assert.equal(u.nonClaimable.length, 1);
   assert.deepEqual(
     u.targets.filter((t) => t.kind === "subtree"),
@@ -329,18 +362,35 @@ test("guard: a resolvable id passes and carries its kind", async (t) => {
     ok: true,
     kind: "story",
     owner: null,
+    uatWitness: null,
   });
   assert.deepEqual(
     await guardClaimNamespace({ id: "first-class-edges-arc", universe, verb: "v" }),
-    { ok: true, kind: "arc", owner: null },
+    { ok: true, kind: "arc", owner: null, uatWitness: null },
   );
+});
+
+test("guard: a story's uat_witness rides through to the D2 fence (ADR-0346)", async (t) => {
+  const universe = completeLoader(t);
+  // The ONE fact that tells a story id naming a driven UAT node from a story id naming a fence.
+  // It reaches the fence off the TREE, never from the shape of the string.
+  assert.deepEqual(await guardClaimNamespace({ id: "driven", universe, verb: "v" }), {
+    ok: true,
+    kind: "story",
+    owner: null,
+    uatWitness: "machine",
+  });
+  const undeclared = await guardClaimNamespace({ id: "studio", universe, verb: "v" });
+  assert.equal(undeclared.ok && undeclared.uatWitness, null, "absent stays absent — never `human`");
+  const capability = await guardClaimNamespace({ id: "studio-panel", universe, verb: "v" });
+  assert.equal(capability.ok && capability.uatWitness, null, "a capability declares no witness");
 });
 
 test("guard: a DECLARED SUBTREE resolves by its manifest key, carrying the owner (ADR-0317 D3)", async (t) => {
   const universe = completeLoader(t);
   assert.deepEqual(
     await guardClaimNamespace({ id: "packages/cli/src/gate*.ts", universe, verb: "v" }),
-    { ok: true, kind: "subtree", owner: "gate-ci-parity" },
+    { ok: true, kind: "subtree", owner: "gate-ci-parity", uatWitness: null },
     "the declaration KEY is the id, verbatim — globs and all",
   );
 });
@@ -389,6 +439,7 @@ test("guard: NO loader ⇒ unchecked — the pre-ADR-0310 behaviour, byte for by
       ok: true,
       kind: null,
       owner: null,
+      uatWitness: null,
     });
   }
 });
@@ -399,6 +450,7 @@ test("guard: a THROWING loader is unchecked — the namespace check never fails 
     ok: true,
     kind: null,
     owner: null,
+    uatWitness: null,
   });
 });
 
@@ -410,6 +462,7 @@ test("guard: an INCOMPLETE universe is unchecked", async (t) => {
     ok: true,
     kind: null,
     owner: null,
+    uatWitness: null,
   });
 });
 
