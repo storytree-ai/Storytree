@@ -742,7 +742,7 @@ test("arc increment add refuses offline, without --outcome, and on a wrong kind"
 // session can answer it, next to the arc's own stored end state.
 // ---------------------------------------------------------------------------
 
-test("arc increment add echoes the arc's end state and offers `arc close` as a next (D4)", async () => {
+test("arc increment add echoes the arc's end state and offers the DRAIN as a next (D4)", async () => {
   const store = await seededStore();
   const res = await arcIncrementAdd(writeDeps(store), "map-arc", { outcome: "increment 5 landed", pr: "#900" });
   assert.equal(res.ok, true);
@@ -750,14 +750,14 @@ test("arc increment add echoes the arc's end state and offers `arc close` as a n
   // The end state is echoed back from the STORED doc — the judgment is made from data, not memory.
   assert.match(res.body, /this arc's end state: Owner sees pathways\./);
 
-  const closeNext = (res.next ?? []).find((n) => n.startsWith("storytree arc close"));
-  assert.ok(closeNext, "the close verb is offered at the point of use");
-  assert.match(closeNext, /storytree arc close map-arc --outcome "…" --pg/);
   // ADR-0335: lifecycle is recomputed after this write, and map-arc's other seeded increment
-  // (map-arc-plan-1, status `ready`) is still open, so the arc does not auto-close — the offer is
-  // now for the FORCED override (close despite other open work), not "if this landing met the end
-  // state" (the old, purely-advisory framing).
-  assert.match(closeNext, /\(to force-close despite other open work\)/);
+  // (map-arc-plan-1, status `ready`) is still open, so the arc does not auto-close. The offer used
+  // to be `arc close` as a FORCED override; ADR-0347 refuses that, so the hint is now the path that
+  // actually works — draw the open work down, and the last closure closes the arc itself.
+  const drainNext = (res.next ?? []).find((n) => n.startsWith("storytree arc increment close"));
+  assert.ok(drainNext, "the drain is offered at the point of use");
+  assert.match(drainNext, /the last one closes the arc/);
+  assert.ok(!(res.next ?? []).some((n) => n.startsWith("storytree arc close")), "no dead-end close offer");
 });
 
 test("arc increment add on an ALREADY-closed arc offers no close hint", async () => {
@@ -823,15 +823,86 @@ test("ADR-0335: recording a LANDING on a closed arc does NOT reopen it — the r
   assert.equal(arc["lifecycle"], "closed");
 });
 
-test("ADR-0335: arc close still FORCES closure even with open increments remaining", async () => {
-  // The explicit override stays stronger than the mechanical rule (ADR-0335 decision point 3).
+// ---------------------------------------------------------------------------
+// ADR-0347 — `arc close` REFUSES over open increments, reversing ADR-0335 D3's force-close.
+//
+// The measurement behind the reversal: `arc reconcile` found TEN arcs stored `closed` while holding
+// 42 forward-looking increments, and two of those were the real thing — parked 2026-08-08, their
+// arcs closed 2026-08-09, still wanted when someone finally read them, and invisible for three days
+// because a closed arc appears on no worklist. The closing act removed the surface the work was
+// recorded on. There is deliberately NO override (D2): abandoning an arc with its work is spelled by
+// closing each increment with its OWN reason, which the refusal prints ready to paste.
+// ---------------------------------------------------------------------------
+
+test("ADR-0347: arc close REFUSES over open increments and names every one of them", async () => {
   const store = new InMemoryStore();
   const deps = writeDeps(store);
   await arcNew(deps, "forced-arc", { title: "Forced", intent: "i", endState: "e", ...FIRST_INC });
+  await arcIncrementNew(deps, "forced-arc", { id: "still-wanted", title: "Still wanted", ...FIRST_INC });
+
   const close = await arcClose(deps, "forced-arc", { outcome: "abandoned early, on purpose" });
-  assert.equal(close.ok, true);
+  assert.equal(close.ok, false);
+  assert.match(close.body, /still holds 2 open increments/);
+  // Named, not merely counted — the operator has to be able to act on them without a second read.
+  assert.match(close.body, /forced-arc-inc-01/);
+  assert.match(close.body, /still-wanted/);
+  // And the drain is printed ready to paste (D2: no override, because this record is the better one).
+  assert.match(close.body, /storytree arc increment close still-wanted --note/);
+
+  // THE REFUSAL IS TOTAL — neither half of `arc close`'s two writes landed. The terminal increment
+  // goes FIRST in the success path, so a partial refusal would leave a spare closing row behind.
   const arc = (await store.getDoc("forced-arc"))?.doc as Record<string, unknown>;
-  assert.equal(arc["lifecycle"], "closed");
+  assert.equal(arc["lifecycle"], "active");
+  const terminal = (await store.queryDocs({ kind: "increment" })).filter((d) => d.id.startsWith("forced-arc-inc-"));
+  assert.equal(terminal.length, 1, "only the bundled first increment — no terminal row was written");
+});
+
+test("ADR-0347 D5: an ANCHORED open increment still counts, and is annotated rather than filtered", async () => {
+  // `anchor` presence marks a PLANNED row (ADR-0334 D1). 40 of the 42 stranded rows were pre-fold
+  // plan scratch, which is why the refusal could not have shipped a week ago — but filtering them
+  // out would be a second predicate by the back door (D4). They count; they are just recognisable.
+  const store = await seededStore();
+  const close = await arcClose(writeDeps(store), "map-arc", { outcome: "delivered" });
+  assert.equal(close.ok, false);
+  assert.match(close.body, /still holds 1 open increment\b/, "singular when there is one");
+  assert.match(close.body, /map-arc-plan-1.*\[ready.*planned\]/);
+  // The sibling on ANOTHER arc never leaks in — the refusal reads this arc's children only.
+  assert.doesNotMatch(close.body, /other-plan/);
+});
+
+test("ADR-0347: draining the increments is the closing act — the last one closes the arc itself", async () => {
+  // The sanctioned path end-to-end, and the consequence worth knowing: `arc close` is not needed at
+  // the end of it. Closing the last open increment auto-closes the arc through ADR-0335 D2's rule,
+  // which is why the refusal says so rather than promising `arc close` will work afterwards.
+  const store = new InMemoryStore();
+  const deps = writeDeps(store);
+  await arcNew(deps, "drain-arc", { title: "Drain", intent: "i", endState: "e", ...FIRST_INC });
+  await arcIncrementNew(deps, "drain-arc", { id: "drain-two", title: "Second", ...FIRST_INC });
+
+  const first = await arcIncrementClose(deps, "drain-two", { note: "folded into the sibling" });
+  assert.equal(first.ok, true);
+  assert.doesNotMatch(first.body, /auto-closed/, "a sibling is still open");
+  // Still refused with one left — the rule is about ANY open work, not about how much.
+  assert.equal((await arcClose(deps, "drain-arc", { outcome: "x" })).ok, false);
+
+  const last = await arcIncrementClose(deps, "drain-arc-inc-01", { note: "decided against" });
+  assert.equal(last.ok, true);
+  assert.match(last.body, /arc drain-arc auto-closed — no open increments remain/);
+  assert.equal(((await store.getDoc("drain-arc"))?.doc as Record<string, unknown>)["lifecycle"], "closed");
+});
+
+test("ADR-0347 D3: the MECHANICAL recompute never refuses — it has no operator to talk to", async () => {
+  // Only the operator-facing verb refuses. `recomputeArcLifecycle`'s whole job is to follow the log,
+  // and a refusal there would break ADR-0335 D2's auto-reopen, which this decision aligns itself with.
+  const store = new InMemoryStore();
+  const deps = writeDeps(store);
+  await arcNew(deps, "mech-arc", { title: "Mechanical", intent: "i", endState: "e", ...FIRST_INC });
+  await arcIncrementClose(deps, "mech-arc-inc-01", { pr: "#1" });
+  assert.equal(((await store.getDoc("mech-arc"))?.doc as Record<string, unknown>)["lifecycle"], "closed");
+
+  const park = await arcIncrementNew(deps, "mech-arc", { id: "mech-two", title: "More", ...FIRST_INC });
+  assert.equal(park.ok, true, "parking work on a closed arc still reopens it mechanically");
+  assert.equal(((await store.getDoc("mech-arc"))?.doc as Record<string, unknown>)["lifecycle"], "active");
 });
 
 // ---------------------------------------------------------------------------
@@ -840,8 +911,23 @@ test("ADR-0335: arc close still FORCES closure even with open increments remaini
 // an open arc with a spare increment, never a closed arc with no prose behind it.
 // ---------------------------------------------------------------------------
 
+/**
+ * `map-arc` with its one open increment already closed — the state `arc close` is legitimately
+ * reachable in since ADR-0347. That set is narrow now and deliberately so: an arc reopened by
+ * `arc reopen` with nothing parked, an arc in ADR-0335 D1's birth window, or (as here) an arc whose
+ * stored `lifecycle` has drifted from a drained log. An arc that drains through the verbs closes
+ * itself, so the row is patched directly rather than through `arc increment close`, which would
+ * auto-close the arc and leave nothing for these tests to assert about.
+ */
+async function withDrainedMapArc(store: InMemoryStore): Promise<InMemoryStore> {
+  const stored = await store.getDoc("map-arc-plan-1");
+  const doc = { ...(stored?.doc as Record<string, unknown>), status: "closed", outcome: { date: "2026-07-15", pr: "#900" } };
+  await store.upsertDoc({ id: "map-arc-plan-1", kind: "increment", doc });
+  return store;
+}
+
 test("arc close records the terminal increment AND flips lifecycle, increment first", async () => {
-  const store = await seededStore();
+  const store = await withDrainedMapArc(await seededStore());
   const res = await arcClose(writeDeps(store), "map-arc", {
     pr: "#1012",
     outcome: "the owner sees pathways on the map — the end state is met",
@@ -864,7 +950,7 @@ test("arc close records the terminal increment AND flips lifecycle, increment fi
 });
 
 test("arc close defaults the date to today and works without a PR", async () => {
-  const store = await seededStore();
+  const store = await withDrainedMapArc(await seededStore());
   const res = await arcClose(writeDeps(store), "map-arc", { outcome: "delivered, attested by the owner" });
   assert.equal(res.ok, true);
   assert.equal(((await store.getDoc("map-arc"))?.doc as { lifecycle?: string }).lifecycle, "closed");
@@ -1008,7 +1094,9 @@ test("arc reopen refuses offline, on a missing id, on a wrong kind, and on an al
 });
 
 test("close → reopen → close round-trips, and every transition leaves its own durable increment", async () => {
-  const store = await seededStore();
+  // Drained first: since ADR-0347 `arc close` refuses over `map-arc-plan-1`, so the round-trip needs
+  // an arc whose work is already drawn down — which is the only state the verb is reachable in now.
+  const store = await withDrainedMapArc(await seededStore());
   const arcId = "map-arc";
 
   await arcClose(writeDeps(store), arcId, { outcome: "the end state is met" });
@@ -1024,7 +1112,7 @@ test("close → reopen → close round-trips, and every transition leaves its ow
   // shows it was closed, reopened and closed again rather than presenting the last state as the only
   // one there ever was. A reader of the log can see the reversal happened.
   // Scoped to the rows the TRANSITIONS minted (`<arc>-inc-NN`) — the seeded `map-arc-plan-1` is this
-  // arc's pre-existing work and would otherwise be counted as a fourth.
+  // arc's pre-existing (now drained) work and would otherwise be counted as a fourth.
   const bodies = (await store.queryDocs({ kind: "increment" }))
     .filter((d) => (d.doc as { arcRef?: string }).arcRef === `asset:${arcId}` && d.id.startsWith(`${arcId}-inc-`))
     .map((d) => (d.doc as { body?: string }).body ?? "");
@@ -1033,7 +1121,8 @@ test("close → reopen → close round-trips, and every transition leaves its ow
 });
 
 test("a closed arc leaves the default worklist end-to-end (D2 write → D3 filter)", async () => {
-  const store = await seededStore();
+  // Drained first — ADR-0347 refuses the close otherwise; see `withDrainedMapArc`.
+  const store = await withDrainedMapArc(await seededStore());
   const fx = diskFixture();
   try {
     const before = await arcCommand("list", undefined, depsFor(store, fx));

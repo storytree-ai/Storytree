@@ -2,6 +2,7 @@ import type { Store, StoredDoc } from "@storytree/storage-protocol";
 import { explainDocValidationError, parseCiteRef, upcastAndValidate } from "@storytree/library";
 import {
   arcIsClosed,
+  arcRefOf,
   deriveArcLifecycle,
   isForwardLooking,
   loadArcRollup,
@@ -808,6 +809,51 @@ async function refuseTakenId(deps: ArcWriteDeps, id: string): Promise<Envelope |
 }
 
 /**
+ * One of an arc's increment rows — the little that both the lifecycle recompute and ADR-0347's
+ * refusal need: enough `status` to apply `isForwardLooking`, and enough identity to NAME the row.
+ *
+ * Read defensively (the schema validates on WRITE; a projection never throws on a malformed row),
+ * and deliberately NOT the full `ArcRollupIncrement`: that shape needs the whole rollup's inputs —
+ * a decisions dir, a stories scan, a work-hierarchy index — none of which a write verb has or should
+ * acquire in order to answer "what is still open here".
+ */
+interface ArcIncrementRow {
+  id: string;
+  status: string;
+  /** When it was parked, as an ISO date (`""` when the row carries none, e.g. a born-closed landing). */
+  parked: string;
+  /**
+   * `anchor` presence — the mechanical marker of a PLANNED row (ADR-0334 D1, affirming ADR-0333 D1:
+   * an increment is anchored exactly when it was planned). ADR-0347 D5 uses it to ANNOTATE, never to
+   * filter: 40 of the 42 rows stranded on closed arcs were pre-fold plan scratch, and dropping them
+   * from the count would be a second forward-looking predicate by the back door (D4).
+   */
+  anchored: boolean;
+}
+
+/**
+ * Every increment citing this arc, id-sorted. ONE query shape shared by {@link recomputeArcLifecycle}
+ * and {@link arcClose}'s refusal, resolving the containment edge through `arcRefOf` — the same
+ * resolver `arc-rollup.ts` uses — so no third reading of `arcRef` exists to drift.
+ */
+async function incrementRowsOf(deps: ArcWriteDeps, arcId: string): Promise<ArcIncrementRow[]> {
+  const siblings = await deps.store.queryDocs({ kind: "increment" });
+  return siblings
+    .filter((d) => arcRefOf(d) === arcId)
+    .map((d): ArcIncrementRow => {
+      const doc = typeof d.doc === "object" && d.doc !== null ? (d.doc as Record<string, unknown>) : {};
+      const anchor = doc["anchor"];
+      return {
+        id: d.id,
+        status: typeof doc["status"] === "string" ? (doc["status"] as string) : "",
+        parked: typeof doc["parked"] === "string" ? (doc["parked"] as string).slice(0, 10) : "",
+        anchored: typeof anchor === "object" && anchor !== null,
+      };
+    })
+    .sort((a, b) => a.id.localeCompare(b.id));
+}
+
+/**
  * Recompute an arc's `lifecycle` from its OWN increments' `status` (ADR-0335) — called after every
  * increment write (`arc increment add|new|close`) so lifecycle is a live projection of the log
  * rather than a flag a session must remember to flip.
@@ -827,14 +873,14 @@ async function refuseTakenId(deps: ArcWriteDeps, id: string): Promise<Envelope |
  * Never touches an arc closed EXPLICITLY via `arc close --outcome` differently from one this function
  * closed itself — both read `lifecycle: closed` the same way, and both reopen the same way: park new
  * forward-looking work on them.
+ *
+ * IT NEVER REFUSES (ADR-0347 D3), unlike {@link arcClose}: only the operator-facing verb refuses,
+ * because only it has an operator to talk to. This one's whole job is to follow the log — a refusal
+ * here would break ADR-0335 D2's auto-reopen, which that decision aligns itself with rather than
+ * against.
  */
 async function recomputeArcLifecycle(deps: ArcWriteDeps, arcId: string): Promise<string | null> {
-  const citation = `${ASSET_REF_PREFIX}${arcId}`;
-  const siblings = await deps.store.queryDocs({ kind: "increment" });
-  const mine = siblings
-    .map((d) => (typeof d.doc === "object" && d.doc !== null ? (d.doc as Record<string, unknown>) : {}))
-    .filter((doc) => doc["arcRef"] === citation)
-    .map((doc) => ({ status: typeof doc["status"] === "string" ? doc["status"] : "" }));
+  const mine = await incrementRowsOf(deps, arcId);
 
   // The SAME predicate `arc reconcile` sweeps with (`deriveArcLifecycle`, @storytree/drive) — the
   // trigger and the sweep must never be able to answer differently about one arc.
@@ -967,10 +1013,11 @@ export async function arcIncrementAdd(
   // The closure reminder lives HERE, in the output of the command the situation forces you to run,
   // not in any agent prompt (ADR-0239 D4 — the ADR-0023 pull model applied to a ceremony step). The
   // session that just recorded a landing reads the closure question at the exact moment it can answer
-  // it, against the arc's OWN stored end state. It never asserts the end state was met; the "(if …)"
-  // is load-bearing, since that call is irreducibly the session's. This offer is now for the FORCED,
-  // explicit override only (`arc close` even while other increments stay open) — the ordinary "this
-  // was the last landing" case is handled by the auto-close above and needs no prompt.
+  // it, against the arc's OWN stored end state. It never asserts the end state was met; that call is
+  // irreducibly the session's. The ordinary "this was the last landing" case is handled by the
+  // auto-close above and needs no prompt at all, so what is left to offer is the case where the end
+  // state IS met but siblings are still open — and since ADR-0347 the answer there is no longer
+  // `arc close` (which now refuses) but drawing the open work down, the last of which closes the arc.
   const endState = typeof found.doc["endState"] === "string" ? found.doc["endState"] : "";
   const stillOpen = lifecycleNote === null && found.doc["lifecycle"] !== "closed";
   const closureHint = stillOpen && endState !== "" ? `\n\nthis arc's end state: ${endState}` : "";
@@ -986,7 +1033,9 @@ export async function arcIncrementAdd(
       `storytree arc show ${arcId} --pg`,
       `storytree library artifact ${result.saved.id} --pg`,
       ...(stillOpen
-        ? [`storytree arc close ${arcId} --outcome "…" --pg  (to force-close despite other open work)`]
+        ? [
+            `storytree arc increment close <id> --note "…" --pg  (end state met? draw the open work down — the last one closes the arc, ADR-0347)`,
+          ]
         : []),
     ],
   };
@@ -1394,12 +1443,23 @@ export async function arcIncrementClose(
  *     `--reason`. It exists for the case the mechanical rule cannot express: correcting a closure
  *     that was WRONG, when there is no new work to park and the reason is the whole point.
  *
- * `arcReopen` is the exact mirror of this verb, including its stability characteristics. `arc close`
- * force-closes even with open increments remaining, so the next increment write's recompute can undo
- * it; that is already accepted (ADR-0335 D3), and the same is true in the opening direction. An
- * explicit override states an intent at a moment in time; the derived rule keeps the bit honest
- * afterwards. What both overrides share, and what ADR-0239 D2 contributed, is that neither moves the
- * bit without prose behind it.
+ * **IT REFUSES OVER OPEN INCREMENTS (ADR-0347 D1), reversing ADR-0335 D3's force-close.** A closed
+ * arc appears on no worklist, so work parked on one stops being found: `arc reconcile` turned up ten
+ * arcs closed over 42 forward-looking increments, two of which were still-wanted remedies that had
+ * been invisible for three days. There is deliberately no override (D2) — abandoning an arc together
+ * with its work is spelled by closing each increment with its own reason, which is a better record
+ * than one blanket sentence, and which the refusal prints ready to paste.
+ *
+ * That narrows this verb's ordinary path sharply, and the narrowing is the point rather than a side
+ * effect: an arc whose work drains no longer needs it, because closing the last open increment
+ * auto-closes the arc through ADR-0335 D2's rule. What is left here is the set the mechanical rule
+ * cannot reach — an arc reopened by {@link arcReopen} with nothing parked, an arc in ADR-0335 D1's
+ * birth window with no increments yet, an arc whose stored lifecycle has drifted. Both verbs exist
+ * for what the derived rule cannot express, but they are NOT symmetric about overriding it:
+ * `arcReopen` still forces its direction (ADR-0337 D4), because an arc reopened without parked work
+ * is a judgement the log cannot hold; this one no longer does, because an arc closed over parked work
+ * is a judgement the log holds and contradicts. What both still share, and what ADR-0239 D2
+ * contributed, is that neither moves the bit without prose behind it.
  */
 export async function arcClose(
   deps: ArcWriteDeps,
@@ -1440,6 +1500,42 @@ export async function arcClose(
         `  storytree arc reopen ${id} --reason "<why the end state does not hold>" --pg  — the closure was WRONG (ADR-0337).`,
       ].join("\n"),
       next: [`storytree arc show ${id} --pg`, `storytree arc reopen ${id} --reason "…" --pg`],
+    };
+  }
+
+  // ADR-0347 D1: the arc still holds forward-looking work — REFUSE, and NAME it. `isForwardLooking`
+  // is the same predicate the write-time recompute above and `arc reconcile` share (D4); a refusal
+  // that computed "still open" its own way would be a third answer to one question.
+  const open = (await incrementRowsOf(deps, id)).filter((r) => isForwardLooking(r.status));
+  if (open.length > 0) {
+    const width = Math.max(...open.map((r) => r.id.length));
+    const listed = open.map((r) => {
+      const marks = [r.status === "" ? "?" : r.status];
+      if (r.parked !== "") marks.push(`parked ${r.parked}`);
+      // D5: an anchored row COUNTS and is merely recognisable — so an operator can see a scratch
+      // plan row for what it is and close it in one command, rather than the refusal hiding it.
+      if (r.anchored) marks.push("planned");
+      return `  ${r.id.padEnd(width)}  [${marks.join(", ")}]`;
+    });
+    return {
+      ok: false,
+      body: [
+        `REFUSED — arc ${id} still holds ${open.length} open increment${open.length === 1 ? "" : "s"} (ADR-0347).`,
+        "A closed arc appears on no worklist, so work parked on one stops being found. That is not hypothetical:",
+        "two still-wanted remedies sat unfindable for three days before this refusal existed.",
+        "",
+        ...listed,
+        "",
+        "Close or re-home each one first. There is deliberately NO override (ADR-0347 D2) — a closure carries",
+        "its OWN reason on the row a later reader will actually open, which is a better record than one blanket",
+        "sentence covering all of them:",
+        ...open.map((r) => `  storytree arc increment close ${r.id} --note "<why>" --pg`),
+        "",
+        `The LAST of those closes this arc for you (ADR-0335), so you may not need \`arc close\` at all. To put a`,
+        "terminal statement of the end state on the log as well, append it afterwards:",
+        `  storytree arc increment add ${id} --outcome "…" --pg`,
+      ].join("\n"),
+      next: [`storytree arc show ${id} --pg`],
     };
   }
 
@@ -1814,9 +1910,13 @@ export function arcHelp(): Envelope {
       "        This is what lets a wrong or duplicate entry close honestly instead of reading as landed.",
       "",
       "  storytree arc close <id> --outcome <text|@file> [--pr <ref>] [--date <YYYY-MM-DD>] --pg",
-      "        The terminal increment AND lifecycle: closed (ADR-0239 D2) — an EXPLICIT, FORCED close",
-      "        that works even with other increments still open. --outcome is required — an arc never",
-      "        closes without prose stating the end-state condition it met, and a bare `library artifact",
+      "        The terminal increment AND lifecycle: closed (ADR-0239 D2). It REFUSES while any",
+      "        increment is still open (ADR-0347), naming each one — a closed arc appears on no",
+      "        worklist, so work parked on one stops being found. There is no override: close or",
+      "        re-home each increment first (`increment close <id> --note`), which records why on the",
+      "        row itself. The last of those auto-closes the arc for you, so this verb is mostly for",
+      "        what the mechanical rule cannot reach. --outcome is required — an arc never closes",
+      "        without prose stating the end-state condition it met, and a bare `library artifact",
       "        edit --set lifecycle=closed` is refused. Since the fold this is TWO rows, written",
       "        increment-first: an interrupted close leaves an open arc with an extra increment, never a",
       "        closed arc with no prose behind it.",
@@ -1832,9 +1932,11 @@ export function arcHelp(): Envelope {
       "above) recomputes `lifecycle` from the increment log itself — closed when no increment is",
       "`proposal`/`ready`/`active`, active otherwise. So an arc auto-closes the moment its last open",
       "increment closes, and auto-reopens the moment new forward-looking work is parked on it",
-      "(`increment new`). `close` and `reopen` are the EXPLICIT overrides on top of that rule: each",
-      "states an intent, in prose, at a moment in time — and each can later be overtaken by the rule,",
-      "which is accepted in both directions (ADR-0335 D3, ADR-0337 D4).",
+      "(`increment new`). `close` and `reopen` sit ON TOP of that rule rather than against it: each",
+      "states an intent, in prose, at a moment in time, and each can later be overtaken by the rule.",
+      "They are NOT symmetric about overriding it. `reopen` still forces its direction (ADR-0337 D4);",
+      "`close` no longer does — ADR-0347 reversed ADR-0335 D3, so a close that would contradict the",
+      "rule is refused rather than won. Draining the work IS the closing act.",
       "",
       "  storytree arc reconcile [--write] [--only close|reopen] --pg",
       "        The SWEEP behind that rule. The recompute above is a write-time TRIGGER, so an arc",

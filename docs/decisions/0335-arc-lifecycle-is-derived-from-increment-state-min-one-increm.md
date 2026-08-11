@@ -101,6 +101,18 @@ overtaken by the recompute, so an explicit override whose effect the derived rul
 already this design's accepted property — `arc reopen` is that same bargain in the other direction,
 not a new one.)*
 
+*(**AMENDED 2026-08-11 by [ADR-0347](0347-arc-close-refuses-over-open-increments-draining-the-work-is.md),
+which REVERSES the force-close above.** `arc close` now REFUSES while any increment is still open,
+naming them, and there is deliberately no override. This decision point is kept as written because
+the reversal is a genuine re-decision rather than an overtaken sentence (ADR-0139) — but read it as
+history, not as behaviour. What moved it was the sweep this ADR shipped without: `arc reconcile`
+found TEN arcs closed over 42 forward-looking increments, two of them still-wanted remedies that had
+been invisible for three days, because a closed arc appears on no worklist. D2's rule above is the
+half that stands, and D3's carve-out was in latent contradiction with it all along — a contradiction
+no write-time trigger could ever surface, since it only ever looks at one arc at a time. Draining the
+work is the closing act now; the last closure auto-closes the arc through D2, so this verb is left
+for what the mechanical rule cannot reach.)*
+
 **4. `check:agents`/no new gate rung.** This is existing-increment-write behaviour, not a new
 invariant a session must remember — nothing to check for compliance, only to test for correctness.
 

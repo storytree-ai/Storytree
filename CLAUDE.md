@@ -379,8 +379,13 @@ kind owes a seed export any more.
   suffix) unless you pass one; `--description` overrides the one-liner derived from the intent. Then
   `arc edit <id> [--intent] [--end-state] --pg` patches the narrative, `arc increment add <id>
   --outcome <text|@file> [--pr <ref>] [--date <YYYY-MM-DD>] --pg` APPENDS one landing to the increment
-  log (ADR-0183 D1 — the merge-ceremony residue), and `arc close` writes the terminal one AND forces
-  the lifecycle flip explicitly. **Lifecycle is otherwise MECHANICAL, not curated (ADR-0335):** every
+  log (ADR-0183 D1 — the merge-ceremony residue), and `arc close` writes the terminal one AND flips
+  the lifecycle — but **`arc close` REFUSES while any increment is still open (ADR-0347), and there is
+  no override.** It names them; close or re-home each first (`arc increment close <id> --note "<why>"
+  --pg`), which records the reason on the row a later reader will open. A closed arc appears on no
+  worklist, so work parked on one stops being found. Expect to reach for `arc close` rarely now: the
+  LAST of those closures auto-closes the arc for you, leaving the verb for what the mechanical rule
+  cannot reach. **Lifecycle is otherwise MECHANICAL, not curated (ADR-0335):** every
   increment write recomputes it from the increment log itself — an arc auto-closes the moment its last
   open increment closes, and auto-reopens the moment new forward-looking work is parked on it
   (`arc increment new`), so a fully-drained arc never lingers reading as "active" waiting for someone
