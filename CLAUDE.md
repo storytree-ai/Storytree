@@ -140,7 +140,7 @@ kind owes a seed export any more.
   forgetting one. `pnpm gate` still runs `check:guidance` / `check:agents`, which compare the
   generated views against the LIVE store and fail if you edited an agent without regenerating.
 - **THE GENERATED VIEWS STAY COMMITTED, AND THAT IS NOT A CONTRADICTION (ADR-0302 D5 / ADR-0307
-  D2/D4).** `CLAUDE.md`, `AGENTS.md`, the four harness agent directories, and
+  D2/D4).** `CLAUDE.md`, `AGENTS.md`, the five harness agent directories, and
   `packages/cli/definitions.generated.json` remain files on disk, because the harness reads them at
   session start *before any tool can run* and therefore before any database is reachable. The line
   is drawn by ROLE, not by taste: **a generator may hold a store connection; anything on the

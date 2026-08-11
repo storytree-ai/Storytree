@@ -1293,7 +1293,9 @@ function noticeboardHelp(): Envelope {
     body: [
       "storytree noticeboard — the claim ledger (ADR-0200; presence is retired — the ledger is the",
       "one coordination + observability surface). identity is derived from the enclosing",
-      ".claude/worktrees/<name> checkout — never typed.",
+      "git-registered linked worktree, whatever its parent path (for example",
+      "`.claude/worktrees/<name>` or `.codex/worktrees/<n>/storytree`) — never typed. The primary",
+      "checkout is deliberately excluded because it has no isolated session identity.",
       "",
       "  storytree noticeboard --pg                                        the board (live claims, by session)",
       "  storytree noticeboard declare --working-on <prose> --node <id>... --pg   take the work claim on each node",

@@ -160,13 +160,16 @@ test("declare without a claims store degrades to the db guidance, never a crash"
   assert.ok(env.next?.includes("pnpm db:up"));
 });
 
-test("noticeboard --help is an ok envelope and the top help names the area", async () => {
+test("noticeboard --help teaches the registered linked-worktree identity contract", async () => {
   const helpEnv = await run(["noticeboard", "--help"], {
     store: new InMemoryStore(),
     presence: { identity: null },
   });
   assert.equal(helpEnv.ok, true);
-  assert.match(helpEnv.body, /derived from the enclosing/);
+  assert.match(helpEnv.body, /git-registered linked worktree/i);
+  assert.match(helpEnv.body, /\.codex\/worktrees/);
+  assert.match(helpEnv.body, /primary\s+checkout/i);
+  assert.doesNotMatch(helpEnv.body, /identity is derived from the enclosing\s+\.claude\/worktrees\/\<name\> checkout/i);
   assert.match(helpEnv.body, /claim ledger/);
 
   const top = await run([], { store: new InMemoryStore() });
