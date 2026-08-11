@@ -38,7 +38,11 @@ export function sliceUsageDocs(ids: UsageRunIds, runs: readonly LiveRunInfo[]): 
       unitId: ids.unitId,
       runId: ids.runId,
       phase: run.phase,
-      source: "source" in run ? run.source : "sdk-leaf",
+      // Both run shapes now DECLARE their runtime, so this reads the field instead of defaulting
+      // whatever lacked it. `SdkRunInfo.source` was added for exactly this reason — the old
+      // `"source" in run ? … : "sdk-leaf"` fallback could not tell an SDK run from one that simply
+      // forgot to say, and the context-traversal spawn adapter needs that difference to stay visible.
+      source: run.source,
       usage: run.usage,
       turns: run.turns,
       ...("costUsd" in run ? { costUsd: run.costUsd } : {}),

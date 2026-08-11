@@ -168,6 +168,59 @@ export function isReclaimable(
   return now.getTime() - new Date(claim.heartbeatAt).getTime() >= staleMs;
 }
 
+/**
+ * One claim row with its liveness DECIDED — the shape every claim surface renders from
+ * (ADR-0346 D1 companion work, `capability-claim-binds-arc` increment 1).
+ *
+ * Exists because the surfaces disagreed about which rows were live and none of them said so.
+ * `listLiveClaims` filtered in SQL, `groupClaimsBySession` filtered AGAIN in the fold, and
+ * `claimsFor` filtered not at all — so on 2026-08-11 the board printed "No live claims on the
+ * ledger" in the same minutes that `noticeboard claims forest-world` printed a live-LOOKING
+ * `[exploring]` row whose heartbeat was 554 hours old. Three surfaces, three answers, one store.
+ */
+export interface ClaimLiveness {
+  claim: ClaimDocT;
+  /** True when {@link isReclaimable} says so — the ONE predicate, never a second threshold. */
+  stale: boolean;
+  /** Elapsed ms since `heartbeatAt` (clamped to >= 0) — what staleness is actually measured on. */
+  heartbeatAgeMs: number;
+}
+
+/**
+ * PURE: decide each claim's liveness with {@link isReclaimable}, preserving input order. The
+ * marking counterpart of a filter: nothing is dropped, so a caller that wants only the live rows
+ * says so IN ITS OWN CODE ({@link liveClaims}) rather than inheriting a silent drop from a fold.
+ * No clock reads — the caller supplies `now`.
+ */
+export function classifyClaims(
+  claims: readonly ClaimDocT[],
+  now: Date,
+  staleMs: number = CLAIM_STALE_RECLAIM_MS,
+): ClaimLiveness[] {
+  return claims.map((claim) => ({
+    claim,
+    stale: isReclaimable(claim, now, staleMs),
+    heartbeatAgeMs: Math.max(0, now.getTime() - new Date(claim.heartbeatAt).getTime()),
+  }));
+}
+
+/**
+ * PURE: the LIVE subset of `claims` — the same {@link isReclaimable} predicate the store enforces
+ * in SQL and {@link oldestLiveWaiter} already applies to promotion.
+ *
+ * Named rather than inlined because "is anyone actually holding this?" is a question three call
+ * sites answer, and two of them used to answer it by counting rows: a queue position that counted
+ * DEAD waiters, and a "the work slot is held" check that a stale work row satisfied — while
+ * `claim()` would have reclaimed that very row on the next take. Ask this, never `rows.filter`.
+ */
+export function liveClaims(
+  claims: readonly ClaimDocT[],
+  now: Date,
+  staleMs: number = CLAIM_STALE_RECLAIM_MS,
+): ClaimDocT[] {
+  return claims.filter((c) => !isReclaimable(c, now, staleMs));
+}
+
 // ---------------------------------------------------------------------------
 // Pure heartbeat bump (ADR-0138 §4) — the cheap mid-flight liveness refresh
 // the header above named as a follow-on, made load-bearing by the wisp-claim:
@@ -320,13 +373,24 @@ export interface SessionClaimEntry {
   ageMs: number;
   /** When the claim was taken (ISO 8601) — kept so a view can render absolute times too. */
   claimedAt: string;
+  /** {@link isReclaimable} at `now` — the row is a ghost, and a view must SAY so (ADR-0346 D1). */
+  stale: boolean;
+  /** Elapsed ms since `heartbeatAt` (clamped to >= 0) — what {@link stale} is measured on. */
+  heartbeatAgeMs: number;
 }
 
-/** One session's live claims — the board/dock rendering unit (ADR-0200 D7). */
+/** One session's claims — the board/dock rendering unit (ADR-0200 D7). */
 export interface SessionClaimGroup {
   sessionId: string;
   branch: string;
   claims: SessionClaimEntry[];
+  /**
+   * Every claim in this group is stale — the session is DARK: it holds rows that still sit in
+   * `events.node_claim`, still show up on `noticeboard claims <unit>`, and are reclaimable by
+   * anyone. A group is never EMPTY, so this is the honest replacement for the group that used to
+   * vanish (ADR-0346 D1: under a binding fence a vanished ghost is a session blocked by the dead).
+   */
+  stale: boolean;
 }
 
 /** Within a session, the strongest signal renders first: work > waiting > exploring. */
@@ -334,8 +398,16 @@ const GRADE_RANK: Record<ClaimGradeT, number> = { work: 0, waiting: 1, exploring
 
 /**
  * PURE: fold claim docs into session groups for a ledger view (ADR-0200 D7). Stale claims are
- * DROPPED (the same {@link isReclaimable} heartbeat predicate — a dead session's claims are not a
- * view's business); the rest group by `sessionId` (branch taken from the session's oldest claim).
+ * MARKED, never dropped (the same {@link isReclaimable} heartbeat predicate every other surface
+ * consults); they group by `sessionId` like any other (branch taken from the session's oldest
+ * claim), and a session whose every row is stale comes back with `stale: true`.
+ *
+ * It used to DROP them, which is how the board came to assert "No live claims on the ledger."
+ * while the per-unit view showed an unmarked 554-hour row on the same store (ADR-0346's measured
+ * honesty defect). Dropping was defensible while a claim only advised; ADR-0346 D1 makes `waiting`
+ * BIND, and a fence that hides its own ghosts blocks live sessions behind dead ones. A view that
+ * genuinely wants live rows only filters on `entry.stale` in its own code — visibly.
+ *
  * Deterministic ordering: groups by their oldest `claimedAt` ascending (longest-running session
  * first), ties on `sessionId`; within a group by grade rank (work > waiting > exploring), then
  * `claimedAt`, then `unitId`. No clock reads — the caller supplies `now`.
@@ -436,7 +508,6 @@ export function groupClaimsBySession(
 ): SessionClaimGroup[] {
   const bySession = new Map<string, { branch: string; oldestMs: number; docs: ClaimDocT[] }>();
   for (const doc of claims) {
-    if (isReclaimable(doc, now, staleMs)) continue; // stale — dropped, never rendered
     const claimedMs = new Date(doc.claimedAt).getTime();
     const group = bySession.get(doc.sessionId);
     if (group === undefined) {
@@ -454,10 +525,8 @@ export function groupClaimsBySession(
     ([aId, a], [bId, b]) => a.oldestMs - b.oldestMs || (aId < bId ? -1 : aId > bId ? 1 : 0),
   );
 
-  return groups.map(([sessionId, group]) => ({
-    sessionId,
-    branch: group.branch,
-    claims: group.docs
+  return groups.map(([sessionId, group]) => {
+    const entries = group.docs
       .slice()
       .sort(
         (a, b) =>
@@ -471,8 +540,16 @@ export function groupClaimsBySession(
         intent: doc.intent,
         ageMs: Math.max(0, now.getTime() - new Date(doc.claimedAt).getTime()),
         claimedAt: doc.claimedAt,
-      })),
-  }));
+        stale: isReclaimable(doc, now, staleMs),
+        heartbeatAgeMs: Math.max(0, now.getTime() - new Date(doc.heartbeatAt).getTime()),
+      }));
+    return {
+      sessionId,
+      branch: group.branch,
+      claims: entries,
+      stale: entries.every((e) => e.stale),
+    };
+  });
 }
 
 // ---------------------------------------------------------------------------

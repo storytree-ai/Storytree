@@ -80,6 +80,9 @@ function fakeAudit(
       self.liveReads.push(unitId);
       return live.filter((doc) => doc.unitId === unitId);
     },
+    async claimsBySession(): Promise<ClaimDocT[]> {
+      throw new Error("history must never reach the mine self-view");
+    },
   };
   return self;
 }
@@ -228,6 +231,9 @@ test("a ledger fake WITHOUT the audit half degrades to the same refusal, not a c
       return false;
     },
     async claimsFor(): Promise<ClaimDocT[]> {
+      return [];
+    },
+    async claimsBySession(): Promise<ClaimDocT[]> {
       return [];
     },
   };

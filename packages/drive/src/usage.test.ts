@@ -16,9 +16,10 @@ import { appendSliceUsage, sliceUsageDocs } from "./usage.js";
 const USAGE = { inputTokens: 10, cacheCreationInputTokens: 20, cacheReadInputTokens: 30, outputTokens: 40 };
 
 const RUNS: SdkRunInfo[] = [
-  { phase: "AUTHOR_TEST", subtype: "success", turns: 5, costUsd: 0.1, usage: USAGE },
+  { phase: "AUTHOR_TEST", source: "sdk-leaf", subtype: "success", turns: 5, costUsd: 0.1, usage: USAGE },
   {
     phase: "IMPLEMENT",
+    source: "sdk-leaf",
     subtype: "success",
     turns: 9,
     costUsd: 0.3,
@@ -53,7 +54,7 @@ test("sliceUsageDocs maps each slice with a breakdown to a valid UsageEventDoc",
 
 test("a slice without a token breakdown is skipped — capture is additive, nothing is invented", () => {
   const docs = sliceUsageDocs({ unitId: "u1", runId: "r" }, [
-    { phase: "AUTHOR_TEST", subtype: "success", turns: 1, costUsd: 0 },
+    { phase: "AUTHOR_TEST", source: "sdk-leaf", subtype: "success", turns: 1, costUsd: 0 },
     RUNS[1]!,
   ]);
   assert.equal(docs.length, 1);

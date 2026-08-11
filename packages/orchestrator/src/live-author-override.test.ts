@@ -54,6 +54,7 @@ function cannedLiveAuthor(): ClaudeAgentAuthor {
   });
   author.runs.push({
     phase: "AUTHOR_TEST",
+    source: "sdk-leaf",
     subtype: "success",
     turns: 1,
     costUsd: 0.0123,

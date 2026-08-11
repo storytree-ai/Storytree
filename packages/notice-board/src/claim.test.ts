@@ -270,7 +270,7 @@ test("workClaimRequest: the built request round-trips through ClaimDoc.parse onc
 
 // ── groupClaimsBySession (ADR-0200 D7): the pure by-session ledger fold ───────
 
-import { groupClaimsBySession } from "./claim.js";
+import { classifyClaims, groupClaimsBySession, liveClaims } from "./claim.js";
 
 test("groupClaimsBySession: groups by session, strongest grade first within a group", () => {
   const now = new Date("2026-07-16T12:00:00.000Z");
@@ -292,18 +292,69 @@ test("groupClaimsBySession: groups by session, strongest grade first within a gr
   assert.equal(groups[1]?.claims[0]?.grade, "waiting");
 });
 
-test("groupClaimsBySession: stale claims are dropped; a fully-stale session has no group", () => {
+test("groupClaimsBySession: stale claims are MARKED, never dropped; a fully-stale session is a stale group", () => {
   const now = new Date("2026-07-16T12:00:00.000Z");
   const staleBeat = new Date(now.getTime() - CLAIM_STALE_RECLAIM_MS * 2).toISOString();
   const claims: ClaimDocT[] = [
-    sample({ unitId: "story-a", sessionId: "dead", grade: "work", heartbeatAt: staleBeat }),
+    sample({ unitId: "story-a", sessionId: "dead", grade: "work", heartbeatAt: staleBeat, claimedAt: "2026-07-16T09:00:00.000Z" }),
     sample({ unitId: "story-b", sessionId: "live", grade: "exploring", heartbeatAt: now.toISOString(), claimedAt: "2026-07-16T11:00:00.000Z" }),
     sample({ unitId: "story-c", sessionId: "live", grade: "work", heartbeatAt: staleBeat, claimedAt: "2026-07-16T10:00:00.000Z" }),
   ];
   const groups = groupClaimsBySession(claims, now);
-  assert.equal(groups.length, 1, "the dead session never renders");
-  assert.equal(groups[0]?.sessionId, "live");
-  assert.deepEqual(groups[0]?.claims.map((c) => c.unitId), ["story-b"], "the live session's stale row is dropped too");
+  // The dead session RENDERS — this is the defect ADR-0346 D1 makes load-bearing: a dropped ghost
+  // is a row the per-unit view still shows, and under a binding fence it blocks a live session.
+  assert.equal(groups.length, 2);
+  const dead = groups.find((g) => g.sessionId === "dead");
+  assert.equal(dead?.stale, true, "a session whose every row is stale is a DARK group, not an absent one");
+  assert.equal(dead?.claims[0]?.stale, true);
+
+  const live = groups.find((g) => g.sessionId === "live");
+  assert.equal(live?.stale, false, "one live row is enough to keep the session live");
+  assert.deepEqual(
+    live?.claims.map((c) => [c.unitId, c.stale]),
+    [["story-c", true], ["story-b", false]],
+    "the live session's stale row rides through marked (work outranks exploring in the fold's order)",
+  );
+  assert.equal(live?.claims.find((c) => c.unitId === "story-c")?.heartbeatAgeMs, CLAIM_STALE_RECLAIM_MS * 2);
+});
+
+// ── classifyClaims / liveClaims: the ONE stale predicate every surface consults ───────────────
+
+test("classifyClaims: marks each row via isReclaimable, preserving input order and dropping nothing", () => {
+  const now = new Date("2026-07-16T12:00:00.000Z");
+  const staleBeat = new Date(now.getTime() - CLAIM_STALE_RECLAIM_MS - 60_000).toISOString();
+  const rows = [
+    sample({ unitId: "ghost", heartbeatAt: staleBeat }),
+    sample({ unitId: "fresh", heartbeatAt: now.toISOString() }),
+  ];
+  const marked = classifyClaims(rows, now);
+  assert.deepEqual(marked.map((m) => [m.claim.unitId, m.stale]), [["ghost", true], ["fresh", false]]);
+  assert.equal(marked[0]?.heartbeatAgeMs, CLAIM_STALE_RECLAIM_MS + 60_000);
+  assert.equal(marked[1]?.heartbeatAgeMs, 0);
+});
+
+test("classifyClaims: a future heartbeat (clock skew) clamps to 0 and is never stale", () => {
+  const now = new Date("2026-07-16T12:00:00.000Z");
+  const marked = classifyClaims([sample({ heartbeatAt: "2026-07-16T12:00:05.000Z" })], now);
+  assert.equal(marked[0]?.heartbeatAgeMs, 0);
+  assert.equal(marked[0]?.stale, false);
+});
+
+test("liveClaims: the live subset only, on the SAME threshold the store enforces in SQL", () => {
+  const now = new Date("2026-07-16T12:00:00.000Z");
+  const staleBeat = new Date(now.getTime() - CLAIM_STALE_RECLAIM_MS).toISOString();
+  const rows = [
+    sample({ unitId: "ghost-work", grade: "work", heartbeatAt: staleBeat }),
+    sample({ unitId: "live-work", grade: "work", heartbeatAt: now.toISOString() }),
+  ];
+  assert.deepEqual(liveClaims(rows, now).map((c) => c.unitId), ["live-work"]);
+  // Exactly AT the threshold is stale — isReclaimable is `>=`, and the store's SQL agrees.
+  assert.equal(liveClaims(rows, now).length, 1);
+  // An injected threshold moves both together; there is no second constant to drift.
+  assert.deepEqual(liveClaims(rows, now, CLAIM_STALE_RECLAIM_MS * 4).map((c) => c.unitId), [
+    "ghost-work",
+    "live-work",
+  ]);
 });
 
 test("groupClaimsBySession: ageMs measures claimedAt→now, clamped to zero; claimedAt is carried", () => {

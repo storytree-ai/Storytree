@@ -18,7 +18,12 @@ import type {
   ClaimResult,
   SessionClaimGroup,
 } from "@storytree/notice-board";
-import { groupClaimsBySession, workClaimRequest } from "@storytree/notice-board";
+import {
+  CLAIM_STALE_RECLAIM_MS,
+  groupClaimsBySession,
+  isReclaimable,
+  workClaimRequest,
+} from "@storytree/notice-board";
 
 import { claimNamespaceOneLine } from "./claim-namespace.js";
 import { guardClaimNamespace, kindSuffix, type ClaimUniverseLoader } from "./claim-universe.js";
@@ -46,11 +51,17 @@ export interface SessionClaimStoreLike {
 
 /**
  * The board's READ slice of the claim ledger (ADR-0200 D7 — the noticeboard IS the claim ledger):
- * every live claim row, all units, all grades, stale-filtered store-side. Duck-typed (never a
- * /store import — this module stays offline-testable); satisfied by `PgClaimStore`.
+ * EVERY claim row, all units, all grades, stale ones INCLUDED. Duck-typed (never a /store import —
+ * this module stays offline-testable); satisfied by `PgClaimStore`.
+ *
+ * It read `listLiveClaims` (stale-filtered in SQL) until ADR-0346 D1's companion work. The board
+ * cannot mark what the store never hands it, and a silently-dropped row is exactly how the board
+ * printed "No live claims on the ledger." over a table holding an unmarked 554-hour row that
+ * `noticeboard claims` was showing at the same moment. Staleness is now decided ONCE, in the pure
+ * `groupClaimsBySession` fold, and SAID OUT LOUD by {@link renderLedgerBoard}.
  */
 export interface ClaimLedgerReadLike {
-  listLiveClaims(): Promise<ClaimDocT[]>;
+  listAllClaims(): Promise<ClaimDocT[]>;
 }
 
 // (A write-authority RECEIPT seam lived here — `declare` stamped one, `done` revoked it — so the
@@ -165,29 +176,80 @@ export function deriveIdentity(
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-function formatAgeMs(elapsedMs: number): string {
-  const minutes = Math.floor(elapsedMs / 60_000);
+export function formatAgeMs(elapsedMs: number): string {
+  const minutes = Math.floor(Math.max(0, elapsedMs) / 60_000);
   if (minutes < 60) return `${minutes}m`;
   const hours = Math.floor(minutes / 60);
   return `${hours}h`;
 }
 
 /**
+ * Name a blocking holder AND state whether it is ALIVE (ADR-0346 D1 companion work). ONE copy,
+ * shared with the ledger verbs in `noticeboard-claims.ts`, for the reason
+ * {@link IDENTITY_REFUSAL_BODY} is one copy: a refusal rendered two ways drifts into teaching two
+ * different rules.
+ *
+ * "HELD by X (branch …, intent …)" left the only actionable question unanswered — queue behind a
+ * live builder, or take over a ghost. A refusal from `claim()`/`upgrade()` names a LIVE holder in
+ * practice (the store reclaims a stale one in the same transaction rather than refusing), so this
+ * is computed rather than asserted: the message cannot outlive that guarantee.
+ */
+export function describeHolder(holder: ClaimDocT, now: Date): string {
+  const beat = Math.max(0, now.getTime() - new Date(holder.heartbeatAt).getTime());
+  const liveness = isReclaimable(holder, now)
+    ? `STALE — no heartbeat for ${formatAgeMs(beat)}, reclaimable`
+    : `LIVE — heartbeat ${formatAgeMs(beat)} ago`;
+  return `${holder.sessionId} (branch ${holder.branch}, intent "${holder.intent}", ${liveness})`;
+}
+
+/** One board line — unit id, [grade], age, the STALE marker when it is one, intent prose. */
+function renderBoardClaim(claim: SessionClaimGroup["claims"][number]): string {
+  const base = `  - ${claim.unitId}  [${claim.grade}]  ${formatAgeMs(claim.ageMs)}`;
+  // The word "stale", in the word "stale" — neither surface used it before ADR-0346 D1, so a
+  // 554-hour ghost and a live holder rendered identically wherever they rendered at all.
+  const mark = claim.stale ? `  STALE ${formatAgeMs(claim.heartbeatAgeMs)} — reclaimable` : "";
+  return claim.intent.length > 0 ? `${base}${mark}  ${claim.intent}` : `${base}${mark}`;
+}
+
+/**
  * PURE: render the claim ledger as the board (ADR-0200 D7) — one section per session (the
  * {@link groupClaimsBySession} fold decides grouping/order; this only formats), one line per
- * claim: unit id, [grade], age (mm/hh style), intent prose.
+ * claim: unit id, [grade], age (mm/hh style), staleness, intent prose.
+ *
+ * DARK sessions (every row stale) render in their own trailing section rather than vanishing
+ * (ADR-0346 D1 companion work). Vanishing was defensible while a claim only advised; once `waiting`
+ * BINDS, a row the board hides is a row that can fence a live session out of a capability — and
+ * three of the eleven stale rows measured on 2026-08-11 were `work` rows. Every row in the table
+ * appears here; the board's own claim about the ledger is now checkable against the ledger.
  */
 export function renderLedgerBoard(groups: SessionClaimGroup[]): string {
   const lines: string[] = ["Claim ledger (ADR-0200):"];
   if (groups.length === 0) {
-    lines.push("", "No live claims on the ledger.");
+    lines.push("", "No claims on the ledger — no rows at all, live or stale.");
     return lines.join("\n");
   }
-  for (const group of groups) {
+  const live = groups.filter((g) => !g.stale);
+  const dark = groups.filter((g) => g.stale);
+
+  if (live.length === 0) {
+    lines.push("", "No LIVE claims on the ledger — but it is not empty; see the stale rows below.");
+  }
+  for (const group of live) {
     lines.push(`\n## ${group.sessionId}  branch=${group.branch}`);
-    for (const claim of group.claims) {
-      const base = `  - ${claim.unitId}  [${claim.grade}]  ${formatAgeMs(claim.ageMs)}`;
-      lines.push(claim.intent.length > 0 ? `${base}  ${claim.intent}` : base);
+    for (const claim of group.claims) lines.push(renderBoardClaim(claim));
+  }
+
+  if (dark.length > 0) {
+    const rows = dark.reduce((n, g) => n + g.claims.length, 0);
+    lines.push(
+      "",
+      `STALE — ${rows} row${rows === 1 ? "" : "s"} across ${dark.length} session${dark.length === 1 ? "" : "s"} with no heartbeat for over ${formatAgeMs(CLAIM_STALE_RECLAIM_MS)}.`,
+      "These rows are still in the ledger: `noticeboard claims <unit> --pg` shows them, and a stale",
+      "work row blocks nobody — the next claimer reclaims it in the same transaction (ADR-0200 D2).",
+    );
+    for (const group of dark) {
+      lines.push(`\n## ${group.sessionId}  branch=${group.branch}  [STALE]`);
+      for (const claim of group.claims) lines.push(renderBoardClaim(claim));
     }
   }
   return lines.join("\n");
@@ -233,13 +295,17 @@ export async function noticeboardCommand(
     const ledger = deps.ledger ?? null;
     const bodyLines: string[] = [];
     if (ledger === null) {
+      // NOT `renderLedgerBoard([])`: an empty render says "no claims on the ledger", which is an
+      // assertion about a store this process never read. Unknown and empty are different answers,
+      // and conflating them is the same defect ADR-0346 D1's companion work exists to remove.
       bodyLines.push(
-        renderLedgerBoard([]),
+        "Claim ledger (ADR-0200):",
         "",
-        "(offline — pass --pg with the DB up to read the live ledger)",
+        "UNREAD — offline, so this says nothing about what the ledger holds.",
+        "(pass --pg with the DB up: pnpm db:up)",
       );
     } else {
-      const claims = await ledger.listLiveClaims();
+      const claims = await ledger.listAllClaims();
       bodyLines.push(renderLedgerBoard(groupClaimsBySession(claims, deps.now())));
     }
     return {
@@ -342,7 +408,9 @@ export async function noticeboardCommand(
         claimLines.push(
           res.acquired
             ? `    ${nodeId}${kindSuffix(named.kind, named.owner)}: claimed — the wisp is lit`
-            : `    ${nodeId}: HELD by ${res.heldBy.sessionId} (branch ${res.heldBy.branch}, intent "${res.heldBy.intent}") — coordinate or pick other work`,
+            // The holder's LIVENESS rides along (ADR-0346 D1 companion work): "coordinate or pick
+            // other work" is unanswerable without knowing whether the holder is alive.
+            : `    ${nodeId}: HELD by ${describeHolder(res.heldBy, deps.now())} — coordinate or pick other work`,
         );
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);

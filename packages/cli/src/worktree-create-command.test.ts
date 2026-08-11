@@ -51,6 +51,7 @@ interface FakeLedger extends WorktreeCreateLedgerLike {
   // create ceremony never calls these; they throw so a stray call is loud, not silent.
   upgrade(unitId: string, sessionId: string, opts?: { branch?: string; intent?: string }): Promise<ClaimResult>;
   downgrade(unitId: string, sessionId: string, grade: "exploring" | "waiting"): Promise<boolean>;
+  claimsBySession(sessionId: string, opts?: { includeStale?: boolean }): Promise<ClaimDocT[]>;
 }
 
 /** A ledger whose take/claimsFor behaviour is scriptable per unit; every call is recorded. */
@@ -88,6 +89,9 @@ function fakeLedger(opts?: {
     },
     async downgrade() {
       throw new Error("worktree create must never call ledger.downgrade");
+    },
+    async claimsBySession() {
+      throw new Error("worktree create must never call ledger.claimsBySession");
     },
   };
 }

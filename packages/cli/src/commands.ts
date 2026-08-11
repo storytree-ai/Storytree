@@ -1305,6 +1305,10 @@ function noticeboardHelp(): Envelope {
       "  storytree noticeboard downgrade <unit-id> --grade exploring|waiting --pg",
       "  storytree noticeboard release <unit-id> --pg                      drop this session's claim (any grade)",
       "  storytree noticeboard claims <unit-id> --pg                       the unit's rows, queue order",
+      "  storytree noticeboard mine --pg                                   what THIS session holds — no unit id needed",
+      "",
+      "every claim read marks a STALE row as stale (no heartbeat for 2h — reclaimable by anyone,",
+      "and blocking nobody). `mine` shows your own stale rows too: they still sit in the ledger.",
       "",
       "the AUDIT LOG (ADR-0310 D1) — every verb above reads STATE; `history` reads TRANSITIONS.",
       "a refusal leaves no state behind, so only this can tell 'refused and about to queue' from",
@@ -1320,6 +1324,7 @@ function noticeboardHelp(): Envelope {
     next: [
       "pnpm db:up",
       "storytree noticeboard --pg",
+      "storytree noticeboard mine --pg",
       "storytree noticeboard history --pg",
     ],
   };
@@ -1450,6 +1455,11 @@ export interface RunDeps {
     readonly ledger?:
       | (ClaimLedgerStoreLike &
           Partial<ClaimLedgerReadLike> &
+          // The LIVE-set read, kept alongside `ClaimLedgerReadLike`'s unfiltered `listAllClaims`
+          // (ADR-0346 D1 companion work) because they answer different questions: the board must
+          // see stale rows to MARK them, while `worktree prune --pg` asks "is a session live here"
+          // and a ghost's row must not protect a dead worktree from the reaper.
+          Partial<{ listLiveClaims(): Promise<ClaimDocT[]> }> &
           Partial<{ claimsBySession(sessionId: string): Promise<ClaimDocT[]> }> &
           // The AUDIT-log read half (`noticeboard history`, ADR-0310 D1) — `PgClaimStore` carries
           // it; a fake without it degrades that one verb to its offline refusal, exactly as the
@@ -2537,7 +2547,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     // rides `presence.ledger`; capture the method so the narrowing survives the closure (a fake
     // ledger without the read half degrades the board to the empty offline render).
     const ledgerStore = deps.presence?.ledger ?? null;
-    const listLiveClaims = ledgerStore?.listLiveClaims;
+    const listAllClaims = ledgerStore?.listAllClaims;
     return noticeboardCommand(
       sub,
       {
@@ -2550,10 +2560,12 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         // Claim-at-declare (ADR-0142): the anchored node's work-time claim IS the declare now
         // (presence retired, ADR-0200 D7).
         claims: deps.presence?.claims ?? null,
-        // The claim-ledger board render (ADR-0200 D7): the ledger IS the board.
+        // The claim-ledger board render (ADR-0200 D7): the ledger IS the board. The read is the
+        // UNFILTERED one (ADR-0346 D1 companion work) — the board renders a stale row marked
+        // rather than dropping it and then asserting the ledger is empty.
         ledger:
-          listLiveClaims !== undefined
-            ? { listLiveClaims: () => listLiveClaims.call(ledgerStore) }
+          listAllClaims !== undefined
+            ? { listAllClaims: () => listAllClaims.call(ledgerStore) }
             : null,
         // The claim namespace (ADR-0310 D2) — `declare --node` is a claim-taking path.
         universe: deps.claimUniverse ?? null,

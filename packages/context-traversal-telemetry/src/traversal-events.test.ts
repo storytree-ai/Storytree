@@ -754,3 +754,107 @@ test("published-surface-smoke: SearchEvent, CandidateSetEvent, FollowedEdgeEvent
   assert.equal(isContextVisitEvent(candidateSet), false);
   assert.equal(isContextVisitEvent(followedEdge), false);
 });
+
+// ---------------------------------------------------------------------------
+// A spawned lane names the model and runtime it ran on — or honestly names neither
+// ---------------------------------------------------------------------------
+
+const LANE_BASE = {
+  kind: "spawn_handoff" as const,
+  eventId: "event:lane-1",
+  sessionId: "session-parent",
+  at: AT,
+  edgeId: "edge-lane-1",
+  parentSessionId: "session-parent",
+  childSessionId: "session-child",
+  agentType: "red-builder",
+};
+
+test("spawn-edge-schemas-link-independent-sessions: a spawned lane carries its model and runtime — the handoff admits both fields, and the runtime vocabulary is the closed sdk-leaf/codex-leaf/owned-loop set that events.usage_event.source already uses", () => {
+  const parsed = SpawnHandoffEvent.parse({
+    ...LANE_BASE,
+    model: "gpt-5.6-terra",
+    runtime: "codex-leaf",
+  });
+
+  assert.equal(parsed.model, "gpt-5.6-terra");
+  assert.equal(parsed.runtime, "codex-leaf");
+
+  // The vocabulary is CLOSED and kept identical to `UsageSource` on purpose, so a lane can be
+  // joined to its accounting row without a translation table. A plausible-looking runtime name
+  // that is not in that set is refused rather than carried.
+  for (const runtime of ["claude", "codex", "anthropic", "sdk", ""]) {
+    assert.equal(
+      SpawnHandoffEvent.safeParse({ ...LANE_BASE, runtime }).success,
+      false,
+      `runtime ${JSON.stringify(runtime)} must be refused — it is not the usage_event.source vocabulary`,
+    );
+  }
+  for (const runtime of ["sdk-leaf", "codex-leaf", "owned-loop"]) {
+    assert.equal(SpawnHandoffEvent.safeParse({ ...LANE_BASE, runtime }).success, true);
+  }
+});
+
+test("spawn-edge-schemas-link-independent-sessions: an unattributed lane stays absent, not defaulted — both fields are optional and a handoff carrying neither parses with the keys genuinely missing", () => {
+  const parsed = SpawnHandoffEvent.parse({ ...LANE_BASE });
+
+  // Absent means UNOBSERVED. A fabricated empty string or a defaulted "sdk-leaf" would let a
+  // renderer assert a runtime nobody witnessed, which is the failure this vocabulary exists to
+  // prevent (ADR-0235 clause 4).
+  assert.equal(Object.hasOwn(parsed, "model"), false);
+  assert.equal(Object.hasOwn(parsed, "runtime"), false);
+  assert.equal(parsed.model, undefined);
+  assert.equal(parsed.runtime, undefined);
+
+  // A blank model is not an honest absence — identity is non-blank by construction.
+  assert.equal(SpawnHandoffEvent.safeParse({ ...LANE_BASE, model: "   " }).success, false);
+});
+
+test("spawn-edge-schemas-link-independent-sessions: the return does not restate the lane identity — result_return admits neither field, so one fact never has two sources of truth", () => {
+  const returnBase = {
+    kind: "result_return" as const,
+    eventId: "event:lane-return-1",
+    sessionId: "session-parent",
+    at: AT,
+    edgeId: "edge-lane-1",
+    parentSessionId: "session-parent",
+    childSessionId: "session-child",
+    ok: true,
+  };
+
+  assert.equal(ResultReturnEvent.safeParse(returnBase).success, true);
+  // `.strict()` is what enforces this: the lane is established at the handoff, and a return that
+  // could disagree with it would leave no observer able to say which one was right.
+  assert.equal(ResultReturnEvent.safeParse({ ...returnBase, model: "claude-opus-5" }).success, false);
+  assert.equal(ResultReturnEvent.safeParse({ ...returnBase, runtime: "sdk-leaf" }).success, false);
+});
+
+test("adapter-coverage-names-omissions: model identity is its own coverage feature — an adapter can declare whether it observes a lane's model at all, and the closed domain still partitions exactly once", () => {
+  assert.ok(CoverageFeature.options.includes("field:agent_model_identity"));
+
+  const observes = ContextTraversalCoverage.parse({
+    adapterId: "test/observes-model-identity",
+    supported: ["field:agent_model_identity"],
+    omitted: CoverageFeature.options.filter((feature) => feature !== "field:agent_model_identity"),
+  });
+  assert.ok(observes.supported.includes("field:agent_model_identity"));
+
+  // The point of the feature is that an adapter which cannot see it says so, rather than leaving a
+  // reader to assume every unattributed lane was simply never spawned on a named model.
+  const blind = ContextTraversalCoverage.parse({
+    adapterId: "test/blind-to-model-identity",
+    supported: [],
+    omitted: [...CoverageFeature.options],
+  });
+  assert.ok(blind.omitted.includes("field:agent_model_identity"));
+
+  // Naming it on neither list is refused — the domain must stay exhaustively partitioned.
+  assert.equal(
+    ContextTraversalCoverage.safeParse({
+      adapterId: "test/forgot-the-new-feature",
+      supported: [],
+      omitted: CoverageFeature.options.filter((feature) => feature !== "field:agent_model_identity"),
+    }).success,
+    false,
+  );
+});

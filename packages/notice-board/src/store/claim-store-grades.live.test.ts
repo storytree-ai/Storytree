@@ -216,6 +216,35 @@ test(
       );
       assert.deepEqual(await store.claimsBySession("sess-C"), [], "a fully-stale session reads empty");
       assert.deepEqual(await store.claimsBySession("nobody"), [], "an unknown session reads empty");
+
+      // ── The UNFILTERED reads (ADR-0346 D1 companion work) ───────────────────────────────────
+      //
+      // The measured 2026-08-11 defect in SQL: `listLiveClaims` hides the stale row, `claimsFor`
+      // shows it, and nothing said which. The board cannot MARK a row the store never hands it,
+      // so it read the filtered set and then asserted the ledger was empty. These two reads are
+      // what let staleness be decided ONCE, in the pure fold, and said out loud in the render.
+      // Real Postgres is what attests it: the predicate is `heartbeat_at > now() - interval`
+      // against the SERVER's clock, which no fake pool can prove.
+      const everything = await store.listAllClaims();
+      assert.equal(everything.length, 4, "listAllClaims hides nothing — the stale row is IN the ledger");
+      assert.ok(
+        everything.some((c) => c.sessionId === "sess-C"),
+        "the very row listLiveClaims dropped comes back, for the render to mark",
+      );
+      assert.deepEqual(
+        await store.claimsFor("read-unit-1"),
+        (await store.listAllClaims()).filter((c) => c.unitId === "read-unit-1"),
+        "the per-unit and unbounded unfiltered reads agree — one ledger, one answer",
+      );
+
+      const ownGhosts = await store.claimsBySession("sess-C", { includeStale: true });
+      assert.equal(ownGhosts.length, 1, "`noticeboard mine` shows a session its OWN ghost");
+      assert.equal(ownGhosts[0]?.sessionId, "sess-C");
+      assert.deepEqual(
+        await store.claimsBySession("sess-B", { includeStale: true }),
+        await store.claimsBySession("sess-B"),
+        "includeStale changes nothing for a session holding no stale rows",
+      );
     } finally {
       await closePool(pool, connector);
     }

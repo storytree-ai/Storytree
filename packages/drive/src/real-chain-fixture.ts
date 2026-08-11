@@ -208,6 +208,7 @@ export function cannedLiveAuthor(runs: SdkRunInfo[]): ClaudeAgentAuthor {
 export function cannedRun(overrides: Partial<SdkRunInfo> = {}): SdkRunInfo {
   return {
     phase: "AUTHOR_TEST",
+    source: "sdk-leaf",
     subtype: "success",
     turns: 3,
     costUsd: 0.25,
