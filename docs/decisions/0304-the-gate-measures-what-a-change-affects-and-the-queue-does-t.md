@@ -41,10 +41,11 @@ Two facts about our own setup shaped this decision.
 everything. The idea is implemented where it saves the least and absent where sessions actually get
 blocked, which is also why the reds that hurt most were local-only.
 
-**There is no merge queue.** GitHub offers one natively and `.github/workflows/` configures no
-`merge_group` trigger. So ordering is paid by hand: 2026-08-03 saw 34 landings against **40**
-`git merge origin/main` re-syncs, each one a session stopping mid-flight to do by hand what a queue
-does automatically.
+**There is no merge queue** (as measured on 2026-08-04, when this was decided). GitHub offers one
+natively and `.github/workflows/` configured no `merge_group` trigger. So ordering is paid by hand:
+2026-08-03 saw 34 landings against **40** `git merge origin/main` re-syncs, each one a session
+stopping mid-flight to do by hand what a queue does automatically. (`ci.yml` has since gained the
+`merge_group` trigger, but the queue is still not switched on — see the status note under D3.)
 
 How large monorepos actually solve this is instructive, and the owner asked. Four things carry the
 weight at Google scale, and none is "put the code in a database": almost no long-lived branches;
@@ -69,6 +70,23 @@ would be worse than the current asymmetry, because a local pass would stop predi
 each against the projected post-merge trunk and merges in order. Sessions stop hand-rebasing to chase
 a moving `main`.
 
+**D3 is DECIDED but NOT IN FORCE — do not read the paragraph above as a description of how PRs land
+today (status 2026-08-12).** `.github/workflows/ci.yml` now carries the `merge_group` trigger and
+guards every post-merge step for both sides of the flip, but the queue itself is **not enabled in the
+repo settings**, and turning it on is **refused on a measured defect** rather than merely deferred.
+ADR-0345 found that `packages/notice-board/src/store/ingest-merge.ts` — ADR-0138 §4 / ADR-0200's
+*guaranteed* machine clear of a merged branch's claims, the thing that makes ADR-0142's "a branch dies
+on merge" true rather than aspirational — is invoked in exactly one place: the `pull_request`-only
+`automerge` job, gated on `merged == 'true'`. Under a queue `gh pr merge` *queues* instead of merging,
+so that gate is false for every PR and the queue's own later merge runs no job that releases claims.
+Every merged branch would keep its claims forever, and it would fail **silently**: the release is
+fail-soft by design, so nothing reds — the symptom would surface as a map filling with dead wisps and
+ADR-0270/ADR-0346 refusals against sessions that ended days ago. The prerequisite is the increment
+`merge-queue-release-claims-then-flip`: a merge-queue-reachable, idempotent claim-release path first,
+then the settings flip, then a speculative build count at least the expected lane width — queue
+entries run `verify` at full `-r` scope, so a non-speculating queue re-serialises and is **slower**
+than today. Until that lands, ordering is still paid by hand.
+
 **D4 — the merge ceremony is unchanged in shape.** A session still runs the gate, opens a **non-draft**
 PR, and never merges by hand (ADR-0022, ADR-0271). The queue is *where CI's merge happens*, not a new
 step a session performs. This ADR amends ADR-0022's mechanism, not its rule.
@@ -77,9 +95,9 @@ step a session performs. This ADR amends ADR-0022's mechanism, not its rule.
 
 **Good.** The gate a session actually runs gets shorter, which the owner named as a present pain, and
 CI wall-clock falls with it. The dominant cause of an unrelated red — shared machinery moving —
-stops reaching sessions that do not depend on it. The queue absorbs the ordering that 40 hand-run
-re-syncs paid for in a single day, and it does so without capping concurrency, which was the
-explicitly rejected alternative.
+stops reaching sessions that do not depend on it. The queue *will* absorb the ordering that 40
+hand-run re-syncs paid for in a single day, and do so without capping concurrency, which was the
+explicitly rejected alternative — but read that in the future tense while D3 is not in force.
 
 **Bad, and accepted.** The affected-graph computation becomes safety-critical: an under-computed
 graph lets a genuine break through, and the failure is silent. That risk is why D2 insists on one
@@ -87,6 +105,15 @@ shared implementation rather than a second local approximation. The merge queue 
 and serialises landings — ordered, not blocked, but a burst of ten PRs no longer merges in parallel;
 given the measured cost of *unordered* landing this is the intended trade. A queue also makes
 `main`-breaking changes fail at queue time rather than merge time, which is better but unfamiliar.
+
+**What the delay to D3 costs, measured rather than assumed (ADR-0345, 2026-08-11).** Less than this
+ADR expected. Concurrent landing turned out to be *already routine* without any queue — 19 overlapping
+PR windows in 45, with four PRs opened inside 74 seconds all merging in one 9-minute window — so the
+landing tail is roughly flat in N, and the wall-clock win D3 was also expected to deliver is being had
+without it. What a queue buys that concurrent landing cannot is **safety, not speed**: two PRs each
+green against a base that then moved can still land a broken `main` between them, which today is
+caught by ADR-0195 §5's post-merge full run about nine minutes later rather than prevented. That is
+the residual value of D3, and it is why the decision stands rather than being withdrawn.
 
 **Interaction worth stating.** `check:*` rungs are not covered by D1 — several read machine-shared
 live state and have no package graph to scope against. Whether they survive at all is
@@ -100,5 +127,7 @@ not silently delete a policy check.
 - ADR-0302 — the data half of the same substrate problem.
 - ADR-0271 — the merge ceremony D4 leaves unchanged.
 - ADR-0300 — staleness instrumentation; every remedy there still printed `git merge origin/main`, which is what D3 removes.
+- ADR-0345 — measured the landing tail, found the claim-release defect that blocks D3's flip, and showed concurrent landing already delivers D3's wall-clock half.
+- `merge-queue-release-claims-then-flip` — the increment carrying D3's prerequisite and the flip itself.
 - `package.json` — `gate` and `ci:affected`; the asymmetry D1/D2 close.
 - `gate-machinery-audit-arc` — owns the question of which `check:*` rungs survive.
