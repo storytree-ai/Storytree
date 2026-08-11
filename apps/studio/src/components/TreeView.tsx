@@ -105,6 +105,7 @@ import { LibraryDrawer } from './LibraryDrawer.js';
 import { ArcSurface } from './ArcSurface.js';
 import { useArcRollups } from '../lib/arcRollups.js';
 import { floorHealthBand, useFloorHealth } from '../lib/floorHealth.js';
+import { FloorHealthLamp } from './FloorHealthLamp.js';
 import { readDrawerLens, DEFAULT_DRAWER_LENS, type DrawerLens } from '../lib/drawerLens.js';
 import { LibraryFinder } from './LibraryFinder.js';
 import { LibraryFocusGraph } from './LibraryFocusGraph.js';
@@ -1617,7 +1618,6 @@ export function TreeView({
   // retirement): "who's doing what, grouped by session". Opened from a story panel's claim rows;
   // fetched only while open (not the world's always-on poll cadence).
   const [sessionDock, setSessionDock] = useState(false);
-  const claimGroups = useSessionClaimGroups(sessionDock);
   const [loadError, setLoadError] = useState('');
   // Selection lives in the URL (#/tree/<storyId>) so a focused territory is
   // deep-linkable; the route's `focus` IS the selected story — but only when
@@ -1778,10 +1778,21 @@ export function TreeView({
   // only while that lens is open, on the shared slow cadence: no new always-on cost class.
   const arcRollups = useArcRollups(drawerLens === 'arcs');
 
-  // The factory-floor health reading behind D7's strip (ADR-0316's instrument over
-  // `GET /api/floor-health`). Same lens scoping, its OWN much slower cadence — the read scans the
-  // whole friction tier and event log for a figure that moves on a daily grain (lib/floorHealth.ts).
-  const floorHealth = useFloorHealth(drawerLens === 'arcs');
+  // The live claim ledger (`GET /api/claims`, ADR-0200 D7) — the session dock's data, now ALSO read
+  // by the arc surface to light `claimed` (ADR-0351 D2). Declared HERE, below `drawerLens`, rather
+  // than beside `sessionDock`'s state: `search` is bound at the `useState` above, so reading it any
+  // earlier is a temporal dead zone that throws on every render (it took the whole TreeView suite
+  // down once — the tests are the reason this comment exists). The hook's drawer-scoping discipline
+  // is unchanged; this widens WHICH open surface counts, never to "always on".
+  const claimGroups = useSessionClaimGroups(sessionDock || drawerLens === 'arcs');
+
+  // The factory-floor health reading (ADR-0316's instrument over `GET /api/floor-health`), now
+  // behind the MAP LAMP rather than the arc drawer's band (ADR-0349). Scoped to `active` — the map
+  // being on-route — because that is exactly when the lamp is visible; a parked forest polls
+  // nothing, the same rule the rest of this view already follows. Its OWN much slower cadence, raised
+  // to 30 min with the move: the read scans the whole friction tier and event log for a figure that
+  // moves on a daily grain, so the wider window is paid for by a longer one (lib/floorHealth.ts).
+  const floorHealth = useFloorHealth(active);
 
   // The island ground is always the Townscaper mesh (ADR-0233 — the `?substrate=` gear control is
   // retired). Live tuning (`jitter`/`iters`/`relax`/`wheatScatter`) is still read from the URL so the
@@ -3396,6 +3407,12 @@ export function TreeView({
               ▶ replay arrival · {demoArrivalId}
             </button>
           )}
+          {/* The factory-floor lamp (ADR-0349, amending ADR-0314 D7). It sat inside the arcs lens,
+              which renders only under `?overlay=arcs` — so a reading whose whole point was to reach
+              the owner "without the owner going looking" was itself behind a drawer. Out here it is
+              visible whenever the map is, and the map is the floor it reports on. Bottom-right,
+              immediately left of the gear, so the two read as one instrument cluster. */}
+          <FloorHealthLamp signal={floorHealthBand(floorHealth)} />
           {/* The world-tuning gear (bottom-right): sliders/toggles/selects bound to
               the URL dials. Closed by default ⇒ no params written ⇒ today's world is
               byte-identical. */}
@@ -3419,12 +3436,7 @@ export function TreeView({
                glue — the surface itself is proven in isolation (ArcSurface.test.tsx); this mount
                hands it the polled rollups and the world's clock and nothing else. */
             arcsSlot={
-              <ArcSurface
-                arcs={arcRollups}
-                now={now}
-                floorHealth={floorHealthBand(floorHealth)}
-                onOpen={setOpenSelection}
-              />
+              <ArcSurface arcs={arcRollups} now={now} claims={claimGroups} onOpen={setOpenSelection} />
             }
             bodySlot={
               <div className="library-lens-panes">

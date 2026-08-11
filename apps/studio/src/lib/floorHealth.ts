@@ -21,7 +21,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import type { FloorHealthReading } from '../types';
-import type { FloorHealthBand } from '../components/FloorHealthStrip';
+import type { FloorHealthBand } from '../components/FloorHealthLamp';
 
 /** The read did not answer — no such route on this backend, or the request failed outright. */
 export const FLOOR_HEALTH_UNREACHABLE = 'unreachable';
@@ -37,14 +37,22 @@ export type FloorHealthState =
   | undefined;
 
 /**
- * Its OWN cadence, ten times slower than the shared `SLOW_POLL_MS`, and that is a cost decision
- * rather than a preference. Every read of this route scans the whole friction tier and the whole
- * library event log — the `Store` seam filters events by id only — to produce a figure that moves on
- * a DAILY grain: a route lands, or a filing is reinforced. Re-scanning the corpus every 30s for a
- * number that cannot have changed would buy nothing and cost the shared store real work per open
- * client. Five minutes keeps a long-open drawer honest without that.
+ * Its OWN cadence, and that is a cost decision rather than a preference. Every read of this route
+ * scans the whole friction tier and the whole library event log — the `Store` seam filters events by
+ * id only — to produce a figure that moves on a DAILY grain: a route lands, or a filing is
+ * reinforced. Re-scanning the corpus for a number that cannot have changed would buy nothing and
+ * cost the shared store real work per open client.
+ *
+ * THIRTY MINUTES, RAISED FROM FIVE WHEN THE READING MOVED TO THE MAP (ADR-0349). The old five was
+ * sized for a narrow window — the reading was fetched only while the arcs lens was open, one of
+ * three drawer states and not the default. The lamp is visible whenever the map is, so the same
+ * five-minute cadence would have multiplied whole-corpus scans against the shared store by roughly
+ * the ratio of those two windows. Raising it is honest rather than merely convenient: on a
+ * daily-grain figure a thirty-minute worst-case latency costs the owner nothing, and the wider
+ * window then costs the store LESS per hour than the narrow one did. A cheaper reading that is
+ * always visible beats a fresher one nobody opens the drawer to see.
  */
-export const FLOOR_POLL_MS = 5 * 60_000;
+export const FLOOR_POLL_MS = 30 * 60_000;
 
 /**
  * A FAILED read comes back on the ordinary slow cadence, not the five-minute one, and the reason is

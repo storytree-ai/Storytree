@@ -5769,6 +5769,21 @@ button.legend-tile:hover {
   background: var(--lp-panel);
   color: var(--lp-ink);
 }
+/* the surface's own name. The `Arcs | Library` toggle sits in the drawer's handle bar BELOW the
+   body, so without this the topmost text in the lens was the floor-health band's label and read as
+   the title of the whole surface. */
+.arc-surface-header {
+  flex: 0 0 auto;
+  padding: 8px 16px 6px;
+  border-bottom: 1px solid var(--lp-border);
+}
+.arc-surface-title {
+  margin: 0;
+  font-size: 0.95em;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--lp-ink);
+}
 .arc-surface-panes {
   flex: 1 1 auto;
   min-height: 0;
@@ -5859,7 +5874,16 @@ button.legend-tile:hover {
   background: var(--lp-clay);
   color: #fffdf4;
 }
-.arc-state-running {
+/* ADR-0351 D2: the ONE lane state backed by the live claim ledger rather than by dates. Filled
+   rather than tinted, because it is the only one asserting something is happening RIGHT NOW. */
+.arc-state-claimed {
+  background: var(--lp-moss);
+  color: #fffdf4;
+}
+/* ADR-0351 D1: `running` RENAMED to `moving`. It measures recency over the increment log and never
+   touched the claim ledger, so `running` implied a live session it could not see — and at current
+   landing velocity it lit every lane, discriminating nothing. Same tint; honest word. */
+.arc-state-moving {
   background: color-mix(in srgb, var(--lp-sprout) 22%, transparent);
   color: var(--lp-moss);
 }
@@ -5985,78 +6009,196 @@ button.legend-tile:hover {
    by ADR-0316's instrument over GET /api/floor-health. Loud is the state that must not be missable;
    `declined` is deliberately NOT styled as calm, because a band that looks quiet when it has no
    figure is reporting a healthy floor on the strength of not having looked (ADR-0316 D2). */
-.floor-health-strip {
-  flex: 0 0 auto;
+/* ── THE FACTORY-FLOOR LAMP (ADR-0349, amending ADR-0314 D7's placement) ────────────────────────
+   An andon lamp docked over the map, bottom-right and immediately left of the world gear, so the
+   two read as one instrument cluster. It replaces the wide band that used to sit inside the arcs
+   lens — a reading meant to reach the owner "without the owner going looking" cannot live behind a
+   drawer.
+
+   ⚠ TOKENS: this lives OUTSIDE `.library-drawer`, so the `--lp-*` paper palette the old band used is
+   out of scope here. Everything below is on the global `:root` set (--surface/--border/--text/
+   --muted/--warn/--warn-weak/--shadow), which is why this is a rewrite rather than a rename. */
+.floor-lamp-dock {
+  position: absolute;
+  right: 58px; /* clears the 38px gear + its 12px inset */
+  /* LIFTED ABOVE THE TERMINAL DOCK, exactly as `.world-gear-dock` is. Without the `--chat-dock-h`
+     term the lamp sits UNDER the bottom dock, which is not merely a visual overlap: the dock's
+     subtree intercepts pointer events, so the disclosure becomes unclickable. Caught in headless
+     Chrome, where the click retried until it timed out against
+     `<div class="terminal-dock-unavailable">`. */
+  bottom: calc(12px + var(--chat-dock-h, 0px));
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  pointer-events: none; /* the map beneath is pan/drag heavy — only the lamp itself takes events */
+}
+.floor-lamp {
+  pointer-events: auto;
+}
+.floor-lamp-face {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 11px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.floor-lamp-text {
   display: flex;
   align-items: baseline;
-  flex-wrap: wrap;
-  gap: 10px;
-  padding: 5px 16px;
-  border-bottom: 1px solid var(--lp-border);
-  background: var(--lp-bar);
-  font-size: 0.82em;
+  gap: 6px;
+  min-width: 0;
 }
-.floor-health-label {
+.floor-lamp-label {
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  font-size: 0.86em;
-  color: var(--lp-ink-soft);
+  font-size: 10px;
+  color: var(--muted);
 }
-.floor-health-loud {
-  background: color-mix(in srgb, var(--lp-clay) 16%, var(--lp-bar));
-  border-bottom-color: var(--lp-clay);
+.floor-lamp-state {
+  color: var(--text);
 }
-.floor-health-loud .floor-health-label {
-  color: var(--lp-clay);
+/* the glyph: one instrument in five conditions, so the housing never changes and only the bulb does */
+.floor-lamp-shade {
+  fill: currentColor;
+  opacity: 0.5;
 }
-.floor-health-bottlenecks {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 14px;
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.floor-lamp-bulb {
+  fill: color-mix(in srgb, var(--muted) 35%, transparent);
+  stroke: currentColor;
+  stroke-width: 1.1;
 }
-/* the declined band: readable as "we don't know", distinct from both quiet and loud */
-.floor-health-declined {
-  background: repeating-linear-gradient(
-    135deg,
-    var(--lp-bar),
-    var(--lp-bar) 7px,
-    color-mix(in srgb, var(--lp-ink-soft) 8%, var(--lp-bar)) 7px,
-    color-mix(in srgb, var(--lp-ink-soft) 8%, var(--lp-bar)) 14px
-  );
+.floor-lamp-rays {
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  opacity: 0; /* dark unless the lamp is lit */
 }
-.floor-health-declined .floor-health-label {
-  color: var(--lp-ink-soft);
-  font-style: italic;
+/* the pip row DRAWS the threshold (LOUD_AT_RECURRENCES): one pip per required recurrence, filled as
+   the loudest cause climbs. A quiet floor showing one filled pip of two says "something recurred
+   once and that is below the bar" without a sentence — the withheld figure stays visible. */
+.floor-lamp-pips {
+  display: inline-flex;
+  gap: 3px;
 }
-.floor-health-cause {
+.floor-lamp-pip {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+}
+.floor-lamp-pip.on {
+  background: currentColor;
+  border-color: currentColor;
+}
+/* LOUD — the one state that must not be missable. Warm fill, lit bulb, rays out. */
+.floor-lamp-loud .floor-lamp-face {
+  color: var(--warn);
+  background: var(--warn-weak);
+  border-color: var(--warn);
+}
+.floor-lamp-loud .floor-lamp-state {
+  color: var(--warn);
   font-weight: 600;
 }
-a.floor-health-cause {
+.floor-lamp-loud .floor-lamp-bulb {
+  fill: var(--warn);
+  stroke: var(--warn);
+}
+.floor-lamp-loud .floor-lamp-rays {
+  opacity: 1;
+}
+/* DECLINED — hatched and unlit. Deliberately NOT calm: a lamp that looks quiet when it has no figure
+   is reporting a healthy floor on the strength of not having looked (ADR-0316 D2). The desktop
+   mirror exists to keep this distinguishable from `quiet`, so the two must never converge. */
+.floor-lamp-declined .floor-lamp-face {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--surface),
+    var(--surface) 5px,
+    color-mix(in srgb, var(--muted) 14%, var(--surface)) 5px,
+    color-mix(in srgb, var(--muted) 14%, var(--surface)) 10px
+  );
+  border-style: dashed;
+}
+.floor-lamp-declined .floor-lamp-state {
+  font-style: italic;
+  color: var(--muted);
+}
+/* READING / UNWIRED — dim, and saying so. Neither is a reading. */
+.floor-lamp-reading .floor-lamp-face,
+.floor-lamp-unwired .floor-lamp-face {
+  color: var(--muted);
+  opacity: 0.8;
+}
+.floor-lamp-unwired .floor-lamp-face {
+  border-style: dotted;
+  cursor: default;
+}
+/* the detail panel — opens UPWARD off the lamp. The band this replaces had to ellipsise the ~450-word
+   collapsing rule onto one line to avoid pushing the lanes down; here it has room to be read whole,
+   which is what ADR-0316 D3 actually asks for. */
+.floor-lamp-detail {
+  order: -1; /* above the lamp in the column */
+  pointer-events: auto;
+  width: min(340px, 60vw);
+  max-height: 46vh;
+  overflow-y: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  font-size: 12px;
+  color: var(--text);
+}
+.floor-lamp-detail p {
+  margin: 0 0 6px;
+}
+.floor-lamp-causes {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.floor-lamp-cause {
+  font-weight: 600;
   color: inherit;
   text-decoration: underline;
   text-decoration-style: dotted;
   text-underline-offset: 2px;
 }
-a.floor-health-cause:hover {
+.floor-lamp-cause:hover {
   text-decoration-style: solid;
 }
-.floor-health-recurrences {
-  margin-left: 5px;
-  color: var(--lp-clay);
+.floor-lamp-recurrences {
+  display: block;
+  color: var(--warn);
 }
-/* the stated collapsing rule (ADR-0316 D3) is carried IN FULL in the DOM and the accessible name,
-   but it runs ~450 words of qualification — rendered raw it made this persistent band 100px tall and
-   pushed the lanes down whenever the floor is loud. One line, ellipsised, full text on hover. */
-.floor-health-provenance {
-  flex: 1 1 260px;
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.floor-lamp-cause-row[data-below] .floor-lamp-recurrences {
+  color: var(--muted);
+}
+.floor-lamp-declined-note,
+.floor-lamp-none,
+.floor-lamp-window {
+  color: var(--muted);
+}
+.floor-lamp-rule {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
 }
 
 /* ── the Open document overlay (ADR-0187 dec 2, inc 8): a separate full-detail artifact view

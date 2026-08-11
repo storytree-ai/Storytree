@@ -12,7 +12,12 @@
 // Pure: no React, no fetch, no clock of its own. `now` is always injected, so every judgement below
 // is reproducible in a test rather than dependent on when it ran.
 
-import type { ArcRollup, ArcRollupIncrement, ArcRollupQuestion } from '../types';
+import type {
+  ArcRollup,
+  ArcRollupIncrement,
+  ArcRollupQuestion,
+  SessionClaimGroup,
+} from '../types';
 
 // ---------- D2: bars are units, not time ----------
 
@@ -80,14 +85,26 @@ export function laneCounts(rollup: ArcRollup): LaneCounts {
 // ---------- D4: the states, and the one this surface refuses to invent ----------
 
 /**
- * The states the surface KNOWS (ADR-0267 D7, defined by ADR-0314 D4; `closed` added by ADR-0335).
- * All five are named here because the vocabulary is decided; only four are ever COMPUTED — see
- * {@link arcState}.
+ * The states the surface KNOWS (ADR-0267 D7, defined by ADR-0314 D4; `closed` added by ADR-0335;
+ * `running` RENAMED to `moving` and `claimed` added by ADR-0351). All six are named here because the
+ * vocabulary is decided; only five are ever COMPUTED — see {@link arcState}.
  *
  * - `waiting`  — an authored open question is sitting on this arc. Answerable right now, from the
  *                briefing panel, without a re-onboarding round trip.
+ * - `claimed`  — a LIVE session provably holds a claim that resolves to this arc. The only state on
+ *                this surface backed by the claim ledger rather than by dates, and it is asserted
+ *                POSITIVELY ONLY — see {@link arcClaimants} for why its absence proves nothing.
  * - `blocked`  — the arc cannot proceed and there is NOTHING for the owner to answer.
- * - `running`  — moving.
+ * - `moving`   — something landed or was parked here inside {@link QUIET_AFTER_DAYS}.
+ *
+ *                ⚠ THIS WAS CALLED `running`, AND THE RENAME IS THE WHOLE POINT (ADR-0351 D1).
+ *                `running` reads as "a session is running on this", which this predicate has never
+ *                measured and cannot: it is pure recency over the increment log, with no connection
+ *                to the claim ledger at all. At 2026-08-12 landing velocity that made it degenerate
+ *                as well as misleading — every one of the nine visible lanes rendered `RUNNING`,
+ *                so the state discriminated nothing while implying something false. `moving` says
+ *                what it measures, and pairs with `quiet` in the momentum vocabulary ADR-0314 D1
+ *                already chose for this surface.
  * - `quiet`    — moving slowly, nobody stuck (ADR-0314 D4's re-definition, load-bearing now that
  *                B3 "gone quiet" was rejected as a `blocked` predicate).
  * - `closed`   — `lifecycle: closed` (ADR-0335: mechanical, derived from the increment log — never
@@ -95,10 +112,74 @@ export function laneCounts(rollup: ArcRollup): LaneCounts {
  *                is still active and may resume any time on its own; a closed one reopens only when
  *                new forward-looking work is parked on it.
  */
-export type ArcSurfaceState = 'waiting' | 'blocked' | 'running' | 'quiet' | 'closed';
+export type ArcSurfaceState = 'waiting' | 'claimed' | 'blocked' | 'moving' | 'quiet' | 'closed';
 
 /** The states {@link arcState} may actually return. `blocked` is NOT among them — by decision. */
 export type DerivableArcState = Exclude<ArcSurfaceState, 'blocked'>;
+
+/**
+ * The live claims that provably resolve to this arc — the claim-ledger join behind `claimed`.
+ *
+ * ── THIS IS A POSITIVE-ONLY ASSERTION, AND THE ASYMMETRY IS THE DESIGN ────────────────────────
+ *
+ * A match means a session IS on this arc. A non-match means NOTHING — not "nobody is working on
+ * it". The surface must therefore never render an "unclaimed" state, and `arcState` falls through
+ * to the recency states instead, which claim less.
+ *
+ * That is forced by measured coverage rather than caution. The typed edge from an increment to a
+ * claimable unit (`cites`) is populated on 5 of 613 live increments for the `capability:` scheme
+ * (0.8%), and an arc cannot be a `cites` target at all — `CiteRef` admits only
+ * `story:` / `capability:` / `asset:`. Claims taken directly on an arc id do happen but are ~5% of
+ * hold spans. So a claim-DERIVED replacement for the recency states would report "nothing claimed"
+ * on nearly every arc even while a session sat on one: a confident false negative, which is strictly
+ * worse than a vague-but-honest recency reading. Additive and positive-only is the version the data
+ * actually supports.
+ *
+ * THREE PATHS, UNIONED, because sessions declare at three different grains and all three are real:
+ *   1. the claim is ON the arc id itself (`noticeboard declare --node <arc-id>`, the cross-capability
+ *      case ADR-0270 D1 allows);
+ *   2. the claim is on one of this arc's own increment ids (which is how `<arc-id>-inc-NN` claims
+ *      match — as MEMBERS of the rollup, never as a string prefix);
+ *   3. the claim is on a unit an increment CITES (`story:`/`capability:`/`asset:` — the scheme is
+ *      stripped, since claims are taken on bare unit ids).
+ *
+ * EVERY PATH IS AN EXACT MATCH AGAINST A MEMBER OF THIS ARC, and a `startsWith(<arc-id>-)` rule was
+ * tried and REMOVED. It looked like it bought the `<arc-id>-inc-NN` case for free, but that case is
+ * already path 2 (those sub-ids ARE the increments), so all the prefix actually added was false
+ * positives: any arc whose id is a prefix of another unit's id would silently absorb that unit's
+ * claims, and a session would be reported onto an arc it had never touched. A positive-only signal
+ * cannot afford a false positive — it is the only thing the signal asserts.
+ *
+ * `groups === null` (no live store, or nothing has answered) yields `[]`, which is the same
+ * not-proven answer as a genuine no-match — deliberately, because the two are equally unable to
+ * support a negative claim.
+ */
+export function arcClaimants(
+  rollup: ArcRollup,
+  groups: readonly SessionClaimGroup[] | null,
+): Array<{ sessionId: string; branch: string; unitId: string }> {
+  if (groups === null || groups.length === 0) return [];
+
+  const units = new Set<string>([rollup.id]);
+  for (const inc of rollup.increments) {
+    units.add(inc.id);
+    for (const ref of inc.cites ?? []) {
+      // `story:foo` / `capability:foo` / `asset:foo` → `foo`; a bare id passes through unchanged.
+      const colon = ref.indexOf(':');
+      units.add(colon === -1 ? ref : ref.slice(colon + 1));
+    }
+  }
+
+  const hits: Array<{ sessionId: string; branch: string; unitId: string }> = [];
+  for (const group of groups) {
+    for (const claim of group.claims) {
+      if (units.has(claim.unitId)) {
+        hits.push({ sessionId: group.sessionId, branch: group.branch, unitId: claim.unitId });
+      }
+    }
+  }
+  return hits;
+}
 
 /**
  * `blocked` IS NOT DERIVABLE FROM STORED STATE TODAY, AND THIS SURFACE REFUSES TO FAKE IT.
@@ -172,12 +253,21 @@ export function lastActivityAt(rollup: ArcRollup): number | null {
  * Never returns `blocked` — see {@link BLOCKED_IS_DERIVABLE}. The return type says so, so a future
  * session cannot add it here without deliberately widening the signature.
  */
-export function arcState(rollup: ArcRollup, now: Date): DerivableArcState {
+export function arcState(
+  rollup: ArcRollup,
+  now: Date,
+  claims: readonly SessionClaimGroup[] | null = null,
+): DerivableArcState {
   if (rollup.lifecycle === 'closed') return 'closed';
   if (rollup.questions.length > 0) return 'waiting';
+  // `claimed` outranks the recency states because it is the only one of the three backed by
+  // something other than a date — but it NEVER outranks `waiting`, which is the one state the owner
+  // can act on, and it never produces a negative: no match falls through, it does not assert
+  // "unclaimed" (see arcClaimants).
+  if (arcClaimants(rollup, claims).length > 0) return 'claimed';
   const last = lastActivityAt(rollup);
   if (last === null) return 'quiet';
-  return now.getTime() - last <= QUIET_AFTER_DAYS * DAY_MS ? 'running' : 'quiet';
+  return now.getTime() - last <= QUIET_AFTER_DAYS * DAY_MS ? 'moving' : 'quiet';
 }
 
 // ---------- the lane list ----------
@@ -190,13 +280,16 @@ export interface ArcLane {
   state: DerivableArcState;
   /** The most recent landing/parking, epoch ms — `null` when the arc has no dated increment. */
   lastActivity: number | null;
+  /** Live sessions provably holding this arc — empty is NOT proof of absence (see arcClaimants). */
+  claimants: Array<{ sessionId: string; branch: string; unitId: string }>;
 }
 
 const STATE_RANK: Readonly<Record<DerivableArcState, number>> = {
   waiting: 0,
-  running: 1,
-  quiet: 2,
-  closed: 3,
+  claimed: 1,
+  moving: 2,
+  quiet: 3,
+  closed: 4,
 };
 
 /**
@@ -222,7 +315,12 @@ export type ArcLaneScope = 'active' | 'closed' | 'all';
  * Waiting-first is the D3 posture expressed as an ordering: the panel is "where the owner acts", so
  * the arcs that have something for them to act on sit at the top of the list they scan.
  */
-export function arcLanes(arcs: readonly ArcRollup[], now: Date, scope: ArcLaneScope = 'active'): ArcLane[] {
+export function arcLanes(
+  arcs: readonly ArcRollup[],
+  now: Date,
+  scope: ArcLaneScope = 'active',
+  claims: readonly SessionClaimGroup[] | null = null,
+): ArcLane[] {
   return arcs
     .filter((arc) => {
       if (scope === 'all') return true;
@@ -232,8 +330,9 @@ export function arcLanes(arcs: readonly ArcRollup[], now: Date, scope: ArcLaneSc
       arc,
       bars: laneBars(arc),
       counts: laneCounts(arc),
-      state: arcState(arc, now),
+      state: arcState(arc, now, claims),
       lastActivity: lastActivityAt(arc),
+      claimants: arcClaimants(arc, claims),
     }))
     .sort((a, b) => {
       const rank = STATE_RANK[a.state] - STATE_RANK[b.state];
