@@ -199,8 +199,19 @@ observable it is asserting.
 > conservative over-tagging by a weaker pass, not seven irreducible judgment gaps:
 > `human-witness-is-a-judgment-gap-not-cost` reserves the human rung for a success condition with **no
 > compiler**, and a success that is machine-observable but merely live, expensive, or NOT-YET-HARNESSED
-> is `machine`. Re-adjudicating leg by leg resolves this story to **eight `machine` legs and three
-> `human` legs** (eleven, up from eight — the splits below GROW the count).
+> is `machine`. Re-adjudicating leg by leg resolved this story to eight `machine` legs and three
+> `human` legs (eleven, up from eight — the splits below GROW the count).
+>
+> **NARROWED 2026-08-11 (ADR-0348 D6): the one EXPERIENCE leg is DELETED, so the story now carries
+> eight `machine` legs and two `human` legs (ten).** The deleted leg — *"the build affordance and the
+> live transcript read right"* (old leg 11) — asked whether this surface is any GOOD, not whether the
+> operator's journey achieved its goal. That is continuous owner feedback gathered through use, not a
+> discrete pass/fail obligation the story must clear to be green. Its design intent is NOT discarded:
+> it is carried in "The build surface's design intent" below. Ordinals are BURNED, not renumbered —
+> position 11 is simply absent, so every surviving leg keeps the number it has always had and no signed
+> verdict or `(proof-gate:)` binding is silently re-pointed. The two surviving human legs are genuine
+> ACCEPTANCE claims about what the operator's own action DID: leg 9 (a genuinely subscription-billed
+> run) and leg 10 (an outward-facing landing on trunk).
 >
 > **ONE irreducible thread ran through nearly every leg, fused onto provable mechanics: a real `--live`
 > build is subscription-billed, so an agent must never burn the spend unattended.** That makes the
@@ -220,12 +231,14 @@ observable it is asserting.
 > each byte- or node-level observables with no judgment in them. Leg 1 is LIVE-GATED (it needs a
 > reachable store) — expense, not irreducibility.
 >
-> **The appearance leg is now explicit.** The studio button/transcript **appearance** — does the panel
-> read well, does the live transcript feel alive — was previously asserted only in this note and carried
-> inside no leg, so it could be smuggled into a mechanics leg. It is now leg **11**. ADR-0070's
-> two-stage proof stands unchanged: the agent builds the look behind the existing studio surface,
-> surfaces it, and STOPS; the owner's nod is the visual verdict. ADR-0209 keeps look, feel and lived
-> experience on the human rung, never machine-asserted nor model-judged.
+> **The appearance leg was made explicit in 2026-07-25, then deleted in 2026-08-11.** The studio
+> button/transcript **appearance** was previously asserted only in this note and carried inside no leg,
+> so it could be smuggled into a mechanics leg; the 2026-07-25 pass gave it leg **11** so it stood
+> alone. ADR-0348 D6 then deleted it: naming an experience property as its own leg was the right move
+> for honesty and the wrong move for a GATE, because it made the story's crown wait on a verdict nobody
+> was going to sit down and render. The rule it leaves behind is unchanged and still binding — a
+> mechanics leg may never smuggle in an appearance claim; the difference is that the appearance claim
+> now has no leg to live in and is design intent instead.
 >
 > **The harnesses expected to judge the machine legs.** `apps/studio`'s vitest suite
 > (`pnpm --filter studio test`) is the home for legs 2–6 and 8: `environment: 'node'` with the component
@@ -244,7 +257,7 @@ observable it is asserting.
 > against the known implementation gap. The owner signs nothing as a result of this re-adjudication. The
 > story-level `uat_witness` is absent → human (the ADR-0040 fail-closed signpost), so the machine-driven
 > whole-story UAT node stays WITHHELD; the crown derives from the per-leg roll-up plus the operator's
-> three remaining attestations. Legs 1, 4, 6, 7 and 8 carry seed-canonical `uat-criterion` detail
+> two remaining attestations. Legs 1, 4, 6, 7 and 8 carry seed-canonical `uat-criterion` detail
 > artifacts (ADR-0209 §5, under the owner's 2026-07-25 narrower bar: a detail ONLY where the one-line
 > title is too thin to judge against, never one per leg) because their stub/fake boundaries, their
 > live-gating, and the must-currently-fail wall cannot survive compression to a sentence.
@@ -253,6 +266,19 @@ observable it is asserting.
 selects a buildable node in the studio world, clicks **Build** in the island side panel, watches a
 coarse live transcript stream the phase trail, and sees the run finish at a real signed verdict —
 the node's hue updating in the world — entirely on their own machine.
+
+### The build surface's design intent (carried here, deliberately NOT a UAT leg — ADR-0348 D6)
+
+The appearance intent that stood as leg 11 until 2026-08-11 is recorded here so it is not lost with
+its leg. **The Build control should sit well in the island side panel; the "building…" state and the
+growing coarse transcript should feel ALIVE rather than stalled; the teal in-flight wisp should read
+as in-flight on the map; and the finished verdict should read clearly.** Legs 2, 3, 4 and 6 already
+machine-pin that the elements exist, that the state flips, that the lines accumulate and that the hue
+changes — none of them can say whether the result reads well, and none of them may pretend to. Under
+ADR-0348 D6 that reading is not an acceptance criterion: it is continuous feedback the owner gives by
+USING the studio, and the honest consequence is that nothing here records whether anyone has looked.
+Where it becomes worth carrying a verdict again, ADR-0070 stage 2 at the capability tier is where it
+belongs — not a story-tier gate.
 
 ### ADR-0294 disposition (2026-08-08): all eleven criteria KEPT, none deleted
 
@@ -273,9 +299,14 @@ it is bound correctly rather than duplicately: `studio-build#gate-1` observes
 story-tier walk **“runs an operator-dispatched build from intent to a terminal verdict over the
 wire”** — an integration journey, not a capability unit test. Legs 9 and 10 are live human legs (the
 subscription-billed run, the outward-facing approve-to-land) belonging to chip `task_47c74cb0`, and
-leg 11 is a D3 appearance verdict belonging to chip `task_99f7e0a9`.
+leg 11 was a D3 appearance verdict belonging to chip `task_99f7e0a9`. *(That D3 relocation never
+happened and is now moot: ADR-0348 D6 replaced D3's relocate-every-appearance-leg obligation with
+deletion for this leg. ADR-0294 D3 still governs where an appearance verdict lives WHEN one is worth
+carrying — it is the "every one of them must be relocated" reading that is withdrawn.)*
 
-Nothing here is renumbered and no reliability gate is touched.
+Nothing here was renumbered by that pass and no reliability gate has ever been touched. The 2026-08-11
+ADR-0348 D6 deletion likewise burns ordinal 11 rather than renumbering, and leaves `studio-build#gate-1`
+exactly where it is.
 
 1. **The studio is running against the live store, so the worker can persist a verdict.** _(criterion-id: uatc_84e580bdf4115de90e35b68e)_ _(revision-id: uatr1:282cf28df059352b)_
    _(witness: machine)(detail: studio-build#uat-1)_ Start the studio with the live store up: `pnpm db:up`, then
@@ -287,19 +318,19 @@ Nothing here is renumbered and no reliability gate is touched.
    **No spec discharges this at HEAD:** `healthApi.integration.test.ts` asserts the payload SHAPE over a
    fully injected `HealthDeps` whose `db: 'ok'` is a literal the test supplied, so it structurally cannot
    witness reachability.
-2. **The island panel composes the node's surface and gates the Build control on buildability.** _(criterion-id: uatc_4cc7aac36abad3cdf3033b46)_ _(revision-id: uatr1:bdebee604bbca47c)_
+2. **The island panel composes the node's surface and gates the Build control on buildability.** _(criterion-id: uatc_4cc7aac36abad3cdf3033b46)_ _(revision-id: uatr1:54ff1a49e5ceb3c8)_ _(previous-revision-id: uatr1:bdebee604bbca47c)_
    _(witness: machine)_ Open `#/tree`, click a buildable node (e.g. a `drive-machinery` node) to open the
    island side panel. **Success —** the `<aside className="tree-detail">` panel renders the node's status
    badge, UAT verdict line, and capability sub-DAG, AND a **Build** control is present — present ONLY for
    a buildable node: a non-buildable node shows no button, or a disabled one, WITH the reason. Observed
    as the composed panel's DOM under jsdom. *(Machine, not human: which elements a panel renders for a
    given payload is a DOM query, and the buildability gate is a pure branch on a wire flag. Whether the
-   panel READS well is leg 11's claim, not this one's.)* **Partly covered at HEAD:**
+   panel READS well is no leg's claim since ADR-0348 D6 — design intent above, never this one's.)* **Partly covered at HEAD:**
    `BuildSection.test.tsx:56-83` already pins the Build control's presence and its
    absence-with-a-reason, and `treeBuildable.test.ts` pins the `buildable`/`goGreen` flags the panel
    branches on — but NO test renders the composite `aside.tree-detail`, so the badge + verdict line +
    sub-DAG half is undischarged.
-3. **The Build click dispatches an accepted intent and the world marks the node in flight.** _(criterion-id: uatc_6ee9d656d0101a623bab3e57)_ _(revision-id: uatr1:4f426a6e0846a017)_
+3. **The Build click dispatches an accepted intent and the world marks the node in flight.** _(criterion-id: uatc_6ee9d656d0101a623bab3e57)_ _(revision-id: uatr1:b37a2a2b477666a1)_ _(previous-revision-id: uatr1:4f426a6e0846a017)_
    _(witness: machine)_ Click **Build**. **Success —** the client POSTs `/api/build { unitId }`, the
    server answers `202` with a `runId`, the panel flips into a "building…" state showing the transcript
    region, and the node's in-flight `building` work-event surfaces through the existing `/api/activity`
@@ -307,7 +338,7 @@ Nothing here is renumbered and no reliability gate is touched.
    the worker started WITHOUT the frontend importing any build code (ADR-0004 / ADR-0090 d.2, observable
    as a module-graph assertion: nothing under `apps/studio/src` reaches `packages/agent` or the gate).
    *(Machine, not human: an HTTP status, a `runId`, a rendered state, an activity row and an import graph
-   are all decidable. The wisp's HUE reading as "in flight" is leg 11's.)* **Partly covered at HEAD:**
+   are all decidable. The wisp's HUE reading as "in flight" is design intent above, carried by no leg since ADR-0348 D6.)* **Partly covered at HEAD:**
    `buildApi.integration.test.ts:83-86` pins the `202` + `runId` over the real wire and
    `BuildSection.test.tsx:69-83` pins the click → single POST → "building…" flip — but nothing couples an
    accepted intent to a lit wisp: `inFlightBuilds.test.ts` folds rows only (its own header defers the
@@ -330,14 +361,14 @@ Nothing here is renumbered and no reliability gate is touched.
    build is already running") — the single-build-at-a-time guard holds; the running build is unaffected.
    *(Unchanged by the 2026-07-25 re-adjudication — already machine, and still the one leg bound to the
    observe gate below.)*
-6. **The run reaches a terminal envelope and the world repaints in place, with no manual reload.** _(criterion-id: uatc_db68af6799a98ffdcfa7e9d5)_ _(revision-id: uatr1:6be3060c4dedc110)_
+6. **The run reaches a terminal envelope and the world repaints in place, with no manual reload.** _(criterion-id: uatc_db68af6799a98ffdcfa7e9d5)_ _(revision-id: uatr1:60706e2d853964bc)_ _(previous-revision-id: uatr1:6be3060c4dedc110)_
    _(witness: machine)(detail: studio-build#uat-6)_ Let the build finish. **Success —** `GET /api/build?runId=…` reports a TERMINAL
    status carrying the final build envelope (verdict line, signer, cost, phase trail); the panel shows
    that verdict; and the node's hue in the world updates to reflect the freshly signed `events.verdict`
    through the existing `/api/tree` `latestVerdicts` path — WITHOUT a manual reload, i.e. the terminal
    poll itself triggers the re-pull. *(Machine, not human: a terminal status, the envelope's fields, and
    "the tree was re-fetched and the hue changed with no navigation" are all observable. The billed run
-   behind it is leg 9; whether the finished panel LOOKS right is leg 11.)* **Partly covered at HEAD:**
+   behind it is leg 9; whether the finished panel LOOKS right is design intent above, carried by no leg since ADR-0348 D6.)* **Partly covered at HEAD:**
    the terminal status + envelope are pinned at `buildApi.integration.test.ts:112-113`,
    `buildRegistry.test.ts:90-122` and `BuildSection.test.tsx:124-125` (verdict + signer) — but `cost` and
    the `phase trail` line sit in fixtures and are asserted NOWHERE, and the repaint is entirely
@@ -377,7 +408,7 @@ Nothing here is renumbered and no reliability gate is touched.
    billed run". Every MECHANIC observable during such a run is machine-witnessed above, provable against
    an offline scripted `PhaseAuthor` run of the same shape per ADR-0010 §5 — this leg is the spend and
    the genuineness, nothing else.)*
-10. **The STORY route's approve-to-land opens a non-draft PR that CI auto-merges to trunk.** _(criterion-id: uatc_891f34bd18df9ce452617b82)_ _(revision-id: uatr1:ee0c0d1ba6ce7e80)_
+10. **The STORY route's approve-to-land opens a non-draft PR that CI auto-merges to trunk.** _(criterion-id: uatc_891f34bd18df9ce452617b82)_ _(revision-id: uatr1:cb9c0cf57e608abf)_ _(previous-revision-id: uatr1:ee0c0d1ba6ce7e80)_
     _(witness: human)_ Select a real-buildable STORY (no capability drilled) and click **Build**: the
     worker routes to `story build <id> --real`, which authors each capability for real and, on a GREEN
     chain, opens a **non-draft PR that CI auto-merges to trunk** (ADR-0022; `claude/real/*` promotion
@@ -388,21 +419,13 @@ Nothing here is renumbered and no reliability gate is touched.
     click itself on the human rung, and no agent may self-authorize a landing. The ROUTING half — that a
     story id resolves to `storyBuild` with `openPr: true` and a node id never does — is already machine,
     pinned at `buildWorker.test.ts:113-159`.)*
-11. **The build affordance and the live transcript read right.** _(witness: human)_ The Build control _(criterion-id: uatc_72ffbf1a7b0b8c71e61e53c4)_ _(revision-id: uatr1:b5b14c3763c02cf0)_
-    sits well in the island side panel, the "building…" state and the growing coarse transcript feel
-    ALIVE rather than stalled, the teal in-flight wisp reads as in-flight on the map, and the finished
-    verdict reads clearly. **Success —** the owner's stage-2 visual verdict (ADR-0070).
-    *(operator-attested and irreducible — "reads well" and "feels alive" have no compiler; ADR-0209 keeps
-    look, feel and lived experience on the human rung, never machine-asserted nor model-judged. Legs 2,
-    3, 4 and 6 already machine-pin that the elements exist, that the state flips, that the lines
-    accumulate and that the hue changes — this leg carries only the judgment those observables cannot.)*
-
 End state — the operator triggers a real node build from the studio UI and watches it run live to a signed
 verdict on their own machine: the live-store precondition, the composed panel and its buildability gate,
 the accepted intent and in-flight mark, the polled transcript's accumulation, the concurrent-build
 refusal, the terminal envelope and in-place repaint, the verdict's spine provenance, and the node route's
-no-land walls all machine-witnessed — and only the subscription-billed run itself, the outward-facing
-approve-to-land on trunk, and the panel's look attested by the operator.
+no-land walls all machine-witnessed — and only the subscription-billed run itself and the outward-facing
+approve-to-land on trunk attested by the operator. Whether the panel LOOKS right is no longer an
+acceptance obligation (ADR-0348 D6); that intent is recorded above and answered by the owner in use.
 
 ## Reliability Gates
 
@@ -439,9 +462,11 @@ formally machine-witnessed; the 2026-07-25 ADR-0209 §8 re-adjudication declared
 reclassified legs are not green, they are newly eligible to BE proven. Code is still missing for the
 accepted node `--live`, non-persisting, no-branch route: current routing uses `--real`, persists the
 verdict, and parks a branch, so UAT leg 8 (now `machine`) must currently fail — a code obligation, not
-a re-tag. The three operator obligations also remain pending: the subscription-billed live run (leg 9),
-the outward-facing approve-to-land on trunk (leg 10), and the APPEARANCE attestation per ADR-0070
-(leg 11). `healthy` is earned through the prove-it-gate, never edited here.
+a re-tag. TWO operator obligations remain pending: the subscription-billed live run (leg 9) and the
+outward-facing approve-to-land on trunk (leg 10). The third — the APPEARANCE attestation per ADR-0070
+that stood at leg 11 — is no longer an obligation at all: ADR-0348 D6 deleted it as an experience
+rather than an acceptance claim on 2026-08-11, and its intent is recorded under "The build surface's
+design intent" above. `healthy` is earned through the prove-it-gate, never edited here.
 
 ## Open modeling calls (for the owner)
 

@@ -46,31 +46,58 @@ resolves the contradiction in the principle's favour, which is also the owner's 
 
 ### What the corpus actually holds
 
-A leg-by-leg read of every story-tier `_(witness: human)_` criterion on `origin/main` @ `984fd554`
-(31 legs across 10 stories; five further `website-experience` files carry human legs that are already
-capability-tier `operator-attested` under ADR-0070, correctly homed and out of scope here):
+A leg-by-leg read of every story-tier `human` criterion on `origin/main` @ `984fd554` — **42 legs
+across 17 stories**, counted with the real parser (`parseUatTestCriteria`) rather than by grep:
 
 | bucket | count | disposition |
 | --- | --- | --- |
-| **EXPERIENCE** — a look/feel property of a surface | 16 | **deleted** (D6) |
-| **VALUE CALL** — an expert judgment with no compiler, not a look | 1 | stays `human` |
+| **EXPERIENCE** — a look/feel property of a surface | 21 | **deleted** (D6) |
+| **VALUE CALL** — an expert judgment with no compiler, not a look | 4 | stays `human` |
 | **LEGACY-INERTIA** — mechanically checkable today, `human` only by history | 8 | → `machine` |
-| **LIVE-SPEND** — success requires a subscription-funded run | 4 | → `machine` |
+| **LIVE-SPEND** — success requires a subscription-funded run | 7 | → `machine` |
 | **OUTWARD-FACING** — success is an externally-visible commitment | 2 | → `machine` |
 
-*(The first two rows were a single 17-leg "taste" bucket in this ADR's first draft, all of it staying
+*(The first two rows were a single "taste" bucket in this ADR's first draft, all of it staying
 `human`. The owner split it on 2026-08-11 on reading the list — see D6.)*
+
+**A counting correction, recorded because the method matters more than the number.** This ADR's
+first draft said 31 legs across 10 stories. That was a **grep artifact and it was wrong**: the sweep
+matched the literal `_(witness: human)_`, while a leg that also carries a detail pointer writes the
+tag fused as `_(witness: human)(detail: <story>#uat-<n>)_`, which that pattern cannot see. Eleven
+legs across eight stories — `app-guide`, `app-surface`, `chat-drive-bridge` ×2, `chat-subagent-spawn`
+×2, `headless-orchestrator`, `map-terminal-build` ×2, `spawn-visibility`, `uat-attestation` — were
+invisible to the count and went unclassified. Re-counted with `parseUatTestCriteria`, the same
+instrument the corpus itself uses, the population is 42. **A witness census must be taken with the
+parser, never with a regex over the tag** — the tag has more than one written form, and the parser is
+the only reader that knows them all.
 
 The eight legacy-inertia legs are `agent` leg 1, `desktop` leg 3 (an OS-keychain round-trip),
 `library-review` legs 1/2/4/7/8 — whose own story text already calls their human tag *"a HARNESS
 statement rather than a judgment gap"* — and `terminal-repo-picker` leg 7, where only the word
 "usable" was ever taste and the dialog-opens-and-returns-a-path claim is mechanical.
 
-The four live-spend legs are `desktop` 7, `embedded-terminal` 5, `studio-build` 9, `terminal-tabs` 4.
-The two outward-facing legs are `desktop` 8 (the owner grants a brokered write path) and
-`studio-build` 10 (a PR auto-merges to `main`) — both of which the factory's own merge ceremony
-performs routinely and unattended every day, which is the clearest evidence that neither needs a
-person standing over it to be *witnessed*.
+The seven live-spend legs are `desktop` 7, `embedded-terminal` 5, `studio-build` 9, `terminal-tabs` 4,
+`chat-drive-bridge` 5, `chat-subagent-spawn` 5, and `map-terminal-build` 7. The two outward-facing
+legs are `desktop` 8 (the owner grants a brokered write path) and `studio-build` 10 (a PR auto-merges
+to `main`) — both of which the factory's own merge ceremony performs routinely and unattended every
+day, which is the clearest evidence that neither needs a person standing over it to be *witnessed*.
+(`chat-drive-bridge` 5 is both live-spend and outward-facing; it is counted once, under live-spend.)
+
+**Several of these legs pre-authorise their own reclassification, which is the strongest evidence
+that D2 and D3 are corrections rather than reversals.** `chat-subagent-spawn` 5 states it is human
+*"on the SPEND basis, and on that basis alone… **Nothing here is a judgment call**"*;
+`chat-drive-bridge` 5 gives two bases and says of them *"**neither of them a judgment gap**"*;
+`map-terminal-build` 7 says its basis *"is honest but NARROW, and it is stated so it can be retired
+honestly: it dissolves the moment the spend and the PR do."* Their authors were labelling against
+ADR-0295 D5 while recording, in the same breath, that the label was not about judgment. D2 and D3
+retire a basis those authors had already flagged as retirable.
+
+The four value calls that stay `human` are `feedback-graduation` 4 (does this evidence earn this
+guidance), `headless-orchestrator` 4 (is the proposal *grounded* in what the agent actually read, or
+merely plausible), `chat-subagent-spawn` 6 (was that the right route for this defect), and
+`map-terminal-build` 6 (is this the invocation form the owner wants — a pending owner decision, and
+the only place that open modeling call is queued). None has a surface; none is a look. They are what a
+genuine no-compiler acceptance criterion looks like once the experience legs are gone.
 
 ### The finding that reorders the work: ADR-0295 D1 is decided but unbuilt
 
@@ -164,14 +191,24 @@ So the earlier framing — *these have no compiler, therefore they are `human`* 
 question of the wrong set. A no-compiler property still has to be an **acceptance** claim before its
 witness matters at all. Sixteen of the seventeen are not.
 
-**Deleted (16):** `desktop` 9, 11 · `embedded-terminal` 7 · `studio-build` 11 ·
+**Deleted (21):** `desktop` 9, 11 · `embedded-terminal` 7 · `studio-build` 11 ·
 `terminal-repo-picker` 8 · `terminal-tabs` 1, 5 · `website-experience` 3, 5, 7, 9, 11 ·
-`wisp-as-story-claim` 4, 6, 8, 11.
+`wisp-as-story-claim` 4, 6, 8, 11 · `app-guide` 4 · `app-surface` 11 · `chat-drive-bridge` 6 ·
+`spawn-visibility` 5 · `uat-attestation` 7.
 
-**Retained (1):** `feedback-graduation` leg 4 (*Synthesis*) is **not** an experience test and stays
-`human`. Its success condition is whether cited evidence actually earns the guidance it is routed to —
-an expert value call about sufficiency and durability, with no surface and no look involved. It is
-what a genuine no-compiler acceptance criterion looks like once the experience legs are gone.
+**D6 retires the reservation on `app-guide` 4 and `app-surface` 11, and discharges chip
+`task_99f7e0a9`'s claim on them.** Both legs carry a written note reserving them to the ADR-0294 D3
+relocation increment — app-surface's reads *"Deleting or relocating it here would pre-empt that
+adjudication."* D6 **is** that adjudication, made by the owner: the disposition changed from
+relocate-to-a-capability to delete, so the reservation is moot rather than overridden. It is named
+here, and in each story's prose, rather than silently dropped — if the owner disagrees, this is the
+one line to reverse.
+
+**`uat-attestation` 7 is the sharpest intent loss in the pass and is called out for it.** Its claim
+is an anti-false-confidence wall — *a vouch must never read as a gate-proven pass*. Its sibling leg 6
+proves the two marks are structurally different, which is **not** the same claim as a reader reading
+them as different rigor. That intent is carried into the story's prose; it is the reason the story
+exists and must not go with the leg.
 
 **Scope — story tier only.** This does not touch ADR-0070 stage 2's capability-tier
 `operator-attested` nodes, which are a different mechanism with a different purpose. Whether the
@@ -196,9 +233,9 @@ which concerns a genuine TASTE leg and stays open and owner-owned.
 **Good.**
 
 - The witness glyph tells the truth again: `human` means a person's judgment is genuinely required,
-  and the standing story-tier attestation queue falls from **31 legs to 1** — 16 deleted as
-  experience, 14 reclassified `machine`. That is the number the owner was actually being asked to
-  work through, and it was never going to be worked through at 31.
+  and the standing story-tier attestation queue falls from **42 legs to 4** — 21 deleted as
+  experience, 17 reclassified `machine`. That is the number the owner was actually being asked to
+  work through, and it was never going to be worked through at 42.
 - **Two questions, asked in order, instead of one asked of everything.** *Is this an acceptance claim
   at all?* comes first (D6) and removes the experience legs entirely; only what survives it reaches
   *does it have a compiler or a driver?* (D1). The old single question let an experience property
@@ -220,9 +257,15 @@ which concerns a genuine TASTE leg and stays open and owner-owned.
   driver's own escalation, which is a judgment call and therefore fallible. A driver that is
   overconfident will spend or commit without asking. This is accepted knowingly; the falsifier is a
   UAT drive that takes an action the owner would have refused.
-- **Fourteen legs will sit `machine` and unbound between the flip and the build** if the ordering in
+- **Seventeen legs will sit `machine` and unbound between the flip and the build** if the ordering in
   D5 is not honoured. Whoever executes must flip a leg only in the same change that gives it a
-  binding, or the story's adopt pass silently signs nothing.
+  binding, or the story's adopt pass silently signs nothing. `chat-drive-bridge` and
+  `chat-subagent-spawn` are the sharpest cases: both carry machine siblings that sign cleanly today
+  and would stop.
+- **The population was miscounted once already, by a plausible method.** A regex over the witness tag
+  missed a quarter of the corpus because the tag has two written forms. Any later re-measurement —
+  including whoever checks whether this ADR's numbers still hold — must use `parseUatTestCriteria`,
+  not a grep. The failure was silent and looked like a complete answer.
 - **`packages/cli/src/agent-witness-resolution.test.ts` pins the `agent` story's exact witness vector**
   and will red on that flip. Per `asset:edit-story-uat-criteria` step 6, replace the pin with the
   invariant it stood for rather than re-pinning the new vector.

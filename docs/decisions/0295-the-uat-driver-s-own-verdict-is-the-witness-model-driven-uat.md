@@ -24,8 +24,11 @@ leg whose success requires subscription-funded spend, or opens a PR / merges to 
 in-app privilege, is `machine`, not `human` — because both clauses were never consistent with the
 standing principle `asset:human-witness-is-a-judgment-gap-not-cost`. Decision 5's "roughly six
 criteria" estimate was also measured wrong: a leg-by-leg read of every story-tier `human` criterion on
-`origin/main` @ `984fd554` found 31, of which 17 are genuine taste (the rest were legacy-inertia,
-live-spend, or outward-facing, and are reclassified `machine` once ADR-0348 D5's executor exists).
+`origin/main` @ `984fd554` found **42** (counted with `parseUatTestCriteria`; a grep over the witness
+tag undercounts, because a leg carrying a detail pointer fuses the tag as
+`_(witness: human)(detail: …)_`). Of those, 21 are user-EXPERIENCE properties that ADR-0348 D6
+deletes outright as not being acceptance criteria at all, 17 are reclassified `machine` once
+ADR-0348 D5's executor exists, and **4** are genuine owner value calls that remain.
 Decisions 1–4 and 6 are untouched and stay accepted as written.
 
 ## Context
@@ -104,11 +107,12 @@ condition of a valid verdict. Decision 3 is the chosen detection mechanism.
 callout above; a live-spend decision and an outward-facing commitment are no longer reasons for a
 `human` witness.)*
 
-Per ADR-0294 decision 3, an appearance verdict lives at the capability as `operator-attested`. What
-remains for the owner at story level is what neither a compiler nor a driver can settle: an aesthetic,
-felt, or owner value call that is genuine taste, not merely expensive, live, or outward-facing. On the
-current corpus that is 17 criteria (ADR-0348's leg-by-leg count), each needing individual adjudication
-rather than a rule.
+What remains for the owner at story level is what neither a compiler nor a driver can settle: an
+owner value call, not merely something expensive, live, or outward-facing. On the current corpus that
+is **4** criteria (ADR-0348's leg-by-leg count), each needing individual adjudication rather than a
+rule. An appearance verdict is not among them: ADR-0348 D6 found that a look/feel property is not an
+acceptance claim in the first place and deleted the 21 that were sitting at story level, rather than
+relocating them to a capability as ADR-0294 D3 had directed.
 
 **6. The revisit condition is named, so the bet is falsifiable.** This decision should be reopened when
 either holds: (a) the system acquires users outside the owner's inner circle, which removes the blast
