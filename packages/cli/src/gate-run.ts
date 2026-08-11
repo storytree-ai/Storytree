@@ -58,6 +58,7 @@ import {
   runGate,
   tallyGate,
 } from "./gate-runner.js";
+import { credentialFreeTestEnvironment, isStandardTestLeg } from "./gate-test-environment.js";
 
 // This file sits at packages/cli/src/ — three levels up is the repo root.
 const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
@@ -131,6 +132,7 @@ function executeStep(step: GateStep): GateExecution {
     cwd: repoRoot,
     stdio: "inherit",
     shell: true,
+    env: credentialFreeTestEnvironment(step.command, process.env),
   });
   if (res.error !== undefined) {
     return { exitCode: null, note: `could not start: ${res.error.message}` };
@@ -245,6 +247,9 @@ function main(): void {
     shouldStop: () => interrupted,
     onStepStart: (step, index) => {
       console.log(`\n${TAG} ─── [${index + 1}/${total}] ${step.command} ───`);
+      if (isStandardTestLeg(step.command)) {
+        console.log(`${TAG} credential-free test mode — an implicit live Library open is refused.`);
+      }
     },
     onStepDone: (result, index) => {
       const suffix = result.note !== undefined ? ` — ${result.note}` : "";

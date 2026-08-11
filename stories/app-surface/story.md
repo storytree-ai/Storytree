@@ -7,7 +7,8 @@ status: proposed
 proof_mode: UAT
 # Machine legs prove the shared model/view, Studio adoption, semantic replay, app-native land,
 # registered organic assets, route isolation, reduced motion and hosted-browser evidence. Whether
-# the corrected composition looks alive and coherent remains an owner-held LOOK judgment.
+# the corrected composition looks alive and coherent remains an owner-held LOOK judgment — design intent
+# since ADR-0348 D6 (2026-08-11) deleted its UAT leg as experience rather than acceptance, never a leg.
 arc: chapter2-pixellab-organic-growth-arc
 capabilities: [app-surface-world-view, studio-app-surface-adapter, semantic-growth-replay-view, semantic-growth-studio-demo, svg-island-growth-track, pixellab-organic-growth-tracks, organic-growth-app-witness]
 # The framework-bearing package sits immediately above @storytree/forest-world and imports it.
@@ -92,9 +93,12 @@ chrome extraction is folded into this correction.
   consumer and public product component. The host supplies representative read-only inputs; it owns
   no renderer, semantic cursor, animation clock or asset resolver. Clean and near-miss routes remain
   ordinary.
-- **Keep LOOK owner-held.** Executable proof covers semantics, geometry, registration, route
-  isolation, reduced motion, runtime absence and browser budgets. Only the owner judges whether the
-  SVG/raster composition looks planted, coherent and alive.
+- **Keep LOOK owner-held — but no longer as a gate (ADR-0348 D6, 2026-08-11).** Executable proof covers
+  semantics, geometry, registration, route isolation, reduced motion, runtime absence and browser
+  budgets. Only the owner judges whether the SVG/raster composition looks planted, coherent and alive,
+  and an agent never renders that verdict. What changed is that the judgment is no longer a UAT leg
+  blocking the crown: it is design intent (see "The planted-scene LOOK") the owner answers by looking
+  at the deployed witness, not a discrete pass/fail obligation the story must clear to be green.
 
 ## Capabilities
 
@@ -153,8 +157,9 @@ and `organic-pose-to-pose-{track,assets}.test.ts`). The proof is real; only the 
 drifted. That drift is left for its owner rather than fixed here.
 
 **The surviving numbers are deliberately NOT closed up.** `1`–`9` are burned: never reused, never
-backfilled. The seven reliability gates are likewise untouched, including the six whose only claiming
-leg is now gone — `reliabilityGateId` mints `<story>#gate-<n>` from POSITION, so removing one would
+backfilled — and `11` joined them on 2026-08-11 when ADR-0348 D6 deleted the LOOK leg, leaving leg 10
+as this story's only criterion. The seven reliability gates are likewise untouched, including the six
+whose only claiming leg is now gone — `reliabilityGateId` mints `<story>#gate-<n>` from POSITION, so removing one would
 silently re-point already-signed verdicts and the surviving legs' bindings onto different gates
 (`asset:edit-story-uat-criteria`). Each retired gate is now unclaimed by any criterion and stays in
 place for that reason alone.
@@ -171,20 +176,29 @@ place for that reason alone.
 | 8. **Small-plant tracks are local, registered, product-driven** | `uatc_deda5e5db5d7520161632855` | **Delete as duplicate.** [`pixellab-organic-growth-tracks`](pixellab-organic-growth-tracks.md), `packages/app-surface/src/organic-pose-to-pose-track.test.ts` + `organic-pose-to-pose-assets.test.ts` (recorded `testFile` path likewise stale): **“registers separate transparent local hero-tree and bounded plant tracks with costs”** (provenance, transparency, bounded families), **“requires registered anchors normalized only by recorded author-time offsets”** (sockets, normalization), **“makes Next, Back, and Replay select equivalent cue, progress, and frames”** (equal cue/progress, Back/Replay settle identically), **“rejects remote/runtime vendor, credential, client, and asset-clock fields”** (no runtime PixelLab dependency). |
 | 9. **The corrected real-consumer route is exact** | `uatc_0af87458e18a9d4495d21191` | **Delete as duplicate.** [`organic-growth-app-witness`](organic-growth-app-witness.md), `apps/studio/src/components/TreeViewShell.test.tsx`: **“only the exact organic-pose-to-pose gate grows local registered poses over the retained real SVG island, with stable Back/Replay sockets”** and **“only the exact organic-island-accretion gate reuses the canonical 50-cell pose fixture … without changing any existing behaviour”** assert the exact-query-only mount over the real composition path with native land plus organic tracks; **“only the exact `r3-lab` value mounts the lab; clean, unknown and near-miss routes fall through byte-identically and no sibling gate moves”** asserts the clean/near-miss retention. |
 | 10. **Hosted witness within its browser budget** | `uatc_2693bf5955c1b6add7a8162c` | **Keep.** No lower-tier node opens a DEPLOYED build in a real browser and measures request/decode/frame-pacing against a recorded budget; every suite above runs offline under jsdom or node against source. Structurally unwitnessable by the capability tier, so it stays deliberately UNBOUND and fails closed (ADR-0097 §2 — minting a gate with no persisted artifact to witness would be the rubber stamp). |
-| 11. **The composition earns the owner-held LOOK verdict** | `uatc_ea05f4b2c024e6500cd143fd` | **Keep, untouched — not this increment's to move.** This is an ADR-0294 D3 appearance verdict, owned by the D3 increment (chip `task_99f7e0a9`), which relocates such legs to the capability whose look it is. Deleting or relocating it here would pre-empt that adjudication. |
+| 11. **The composition earns the owner-held LOOK verdict** | `uatc_ea05f4b2c024e6500cd143fd` | ~~**Keep, untouched — not this increment's to move.** This is an ADR-0294 D3 appearance verdict, owned by the D3 increment (chip `task_99f7e0a9`), which relocates such legs to the capability whose look it is. Deleting or relocating it here would pre-empt that adjudication.~~ **DELETED 2026-08-11 by ADR-0348 D6 — the reservation is RETIRED, and that chip's claim on this leg is discharged.** The reservation was right at the time: the adjudication had not happened, so deleting or relocating would have pre-empted it. **ADR-0348 D6 IS that adjudication.** It went the other way — the owner ruled that a user EXPERIENCE property is not a user ACCEPTANCE criterion at all, so the disposition changed from relocate-to-capability to DELETE, and chip `task_99f7e0a9` has nothing left to move here. ADR-0294 D3 still governs where an appearance verdict lives WHEN one is worth carrying; it is the "every one of them must be relocated" reading that is withdrawn. The design intent is carried in "The planted-scene LOOK" below. |
+
+### The planted-scene LOOK — design intent, deliberately NOT a UAT leg (ADR-0348 D6)
+
+The appearance intent that stood as leg 11 until 2026-08-11 is recorded here so it is not lost with its
+leg. **Standing up the clean forest deep-link plus the exact organic-growth witness and walking
+forward, Back and Replay through native island formation, rooted tree/canopy growth, ground plants and
+the retained scene at desktop and mobile sizes — sampling reduced motion — the established SVG camera
+and the PixelLab organic layers should read as ONE planted, coherent, ALIVE product scene.** Not two
+rendering systems sharing a viewport.
+
+Machine leg 10 pins that the hosted witness is REACHABLE inside its recorded browser budget — requests,
+decode cost, frame pacing, the retained scene surviving navigation, no vendor request. That is
+emphatically not the same claim: a composition can hit every budget and still read as assembled rather
+than planted. Under ADR-0348 D6 the reading is not an acceptance criterion — it is continuous owner
+feedback gathered by looking at the deployed witness — and the honest cost is that nothing now records
+whether anyone has looked. An agent never renders this verdict, exactly as before.
 
 10. **The hosted witness is viewable within its recorded browser budget.** _(witness: machine)_ _(criterion-id: uatc_2693bf5955c1b6add7a8162c)_ _(revision-id: uatr1:77472a1815d7dfeb)_
     Open the deployed real-app witness at representative desktop and mobile viewports; capture
     request, decode, frame-pacing and commit evidence. **Success —** the whole planted composition
     and controls remain reachable, compressed/decode costs stay inside the declared budget, the
     retained final scene survives navigation, and no vendor request occurs.
-11. **The corrected composition earns the owner-held LOOK verdict.** _(criterion-id: uatc_ea05f4b2c024e6500cd143fd)_ _(revision-id: uatr1:247230155a22de8a)_
-    _(witness: human)(detail: app-surface#uat-11)_ Stand up and verify the clean forest deep-link plus
-    exact organic-growth witness. Walk forward, Back and Replay through native island formation,
-    rooted tree/canopy growth, ground plants and the retained scene at desktop/mobile sizes; sample
-    reduced motion. **Success —** the owner judges the established SVG camera and PixelLab organic
-    layers to read as one planted, coherent, alive product scene. An agent never signs this leg, and
-    the story remains unaccepted until the verdict is actually supplied.
 
 ## Reliability Gates
 
@@ -210,8 +224,9 @@ place for that reason alone.
    _(covers: organic-growth-app-witness)_
    `pnpm --filter studio test`.
 
-The machine gates do not confer the owner-held LOOK verdict. `healthy` remains derived from signed
-evidence; authored status stays `proposed`.
+The machine gates do not confer the owner-held LOOK judgment, and since ADR-0348 D6 no UAT leg carries
+it either — it is design intent above rather than a crown obligation. `healthy` remains derived from
+signed evidence; authored status stays `proposed`.
 
 ## Ready successors
 

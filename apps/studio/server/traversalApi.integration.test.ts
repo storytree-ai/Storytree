@@ -19,10 +19,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { appendTraversalEvents } from '@storytree/context-traversal-capture';
+import { appendTraversalEvents, computeDecisionPoints } from '@storytree/context-traversal-capture';
 import { replayTraversalSessionAllAdapters } from '@storytree/context-traversal-spawn';
 
-import { handleTraversal } from './traversalApi';
+import { handleTraversal, primeTraversalIndex } from './traversalApi';
 import { HttpError } from './httpUtil';
 
 const SESSION = 'session-under-test';
@@ -140,9 +140,12 @@ describe('GET /api/traversal?session=<id>', () => {
     const body = (await res.json()) as Record<string, unknown>;
 
     // The WIRE is the composition's output — proves the wiring, and pins that the route serves the
-    // STRUCTURED replay rather than the rendered text `storytree traversal show` prints.
+    // STRUCTURED replay rather than the rendered text `storytree traversal show` prints. Plus the ONE
+    // thing the route composes on top: `computeDecisionPoints` over the same events, so the panel's
+    // offer fans and `storytree traversal show` read the identical join rather than two copies of it.
+    const view = replayTraversalSessionAllAdapters(SESSION, { dir: traceDir });
     const expected = JSON.parse(
-      JSON.stringify(replayTraversalSessionAllAdapters(SESSION, { dir: traceDir })),
+      JSON.stringify({ ...view, decisionPoints: computeDecisionPoints(view.events) }),
     ) as unknown;
     expect(body).toEqual(expected);
 
@@ -356,5 +359,87 @@ describe('GET /api/traversal/sessions', () => {
     const res = await fetch(`${base}/api/traversal/sessions`);
     expect(res.status).toBe(200);
     expect((await res.json()) as { sessions: unknown[] }).toEqual({ dir: absent, sessions: [] });
+  });
+
+  // The route answers from an incremental index keyed on each trace's mtime+size (increment
+  // `traversal-panel-index-read`, traversalIndexMemo.ts — where the memo's own semantics are proved
+  // directly). THIS asserts the property END TO END over real HTTP, because it is the one a cache
+  // can silently break and the one an operator would meet: the panel is open while their own live
+  // session keeps appending, and a second request must see what the first could not.
+  it('reflects a trace appended to AFTER an earlier request already answered', async () => {
+    writeFixture(traceDir, SESSION);
+
+    const first = (await (await fetch(`${base}/api/traversal/sessions`)).json()) as {
+      sessions: { sessionId: string; eventCount: number; lastObservedAt: string | null }[];
+    };
+    expect(first.sessions).toHaveLength(1);
+    expect(first.sessions[0]?.eventCount).toBe(5);
+    expect(first.sessions[0]?.lastObservedAt).toBe('2026-08-11T10:00:04.000Z');
+
+    // A live session appends one more visit through the sink — how a trace genuinely grows.
+    expect(
+      appendTraversalEvents(
+        [
+          {
+            kind: 'front_matter_read',
+            eventId: 'event:visit-appended',
+            sessionId: SESSION,
+            visitId: 'visit-appended',
+            nodeId: 'node-c',
+            surfaceId: 'tree',
+            at: '2026-08-11T18:00:00.000Z',
+          },
+        ],
+        { dir: traceDir, sessionId: SESSION },
+      ),
+    ).toBe(true);
+
+    const second = (await (await fetch(`${base}/api/traversal/sessions`)).json()) as {
+      sessions: { sessionId: string; eventCount: number; lastObservedAt: string | null }[];
+    };
+    expect(second.sessions[0]?.eventCount).toBe(6);
+    expect(second.sessions[0]?.lastObservedAt).toBe('2026-08-11T18:00:00.000Z');
+  });
+
+  // Priming pulls the lazy imports and builds the index at dev-server start, off the request path
+  // (devApi.ts). It is an OPTIMISATION, so the two things worth pinning are that it cannot break the
+  // server and that it cannot poison the answer — a warm index that disagreed with a cold one would
+  // be strictly worse than the 6.3 s it removes.
+  it('primes without throwing on a trace dir that does not exist', async () => {
+    process.env['STORYTREE_TRAVERSAL_DIR'] = path.join(traceDir, 'nested', 'never-created');
+    await expect(primeTraversalIndex()).resolves.toBeUndefined();
+  });
+
+  it('serves the same answer primed as unprimed, and still sees a later append', async () => {
+    writeFixture(traceDir, SESSION);
+    await primeTraversalIndex();
+
+    const primed = (await (await fetch(`${base}/api/traversal/sessions`)).json()) as {
+      dir: string;
+      sessions: { sessionId: string; eventCount: number }[];
+    };
+    expect(primed.dir).toBe(traceDir);
+    expect(primed.sessions).toEqual([{ sessionId: SESSION, eventCount: 5, lastObservedAt: '2026-08-11T10:00:04.000Z' }]);
+
+    // A warm index must not outrank the filesystem.
+    writeFixture(traceDir, 'session-after-priming');
+    const after = (await (await fetch(`${base}/api/traversal/sessions`)).json()) as {
+      sessions: { sessionId: string }[];
+    };
+    expect(after.sessions.map((s) => s.sessionId).sort()).toEqual(['session-after-priming', SESSION]);
+  });
+
+  it('sees a trace file that did not exist when an earlier request answered', async () => {
+    const empty = (await (await fetch(`${base}/api/traversal/sessions`)).json()) as {
+      sessions: unknown[];
+    };
+    expect(empty.sessions).toEqual([]);
+
+    writeFixture(traceDir, 'session-arrived-later');
+
+    const after = (await (await fetch(`${base}/api/traversal/sessions`)).json()) as {
+      sessions: { sessionId: string }[];
+    };
+    expect(after.sessions.map((s) => s.sessionId)).toEqual(['session-arrived-later']);
   });
 });

@@ -172,6 +172,17 @@ deleted).
   panel, an in-app grant — no `gcloud`, no Cloud SQL IAM grant). Local COMPUTE is unchanged (the spine runs
   the gate and signs locally, ADR-0091); only the write is brokered. The live broker write + the `builder`
   grant are the **operator-attested** legs (UAT 5/6).
+- **Design intent for the felt surface — carried here, deliberately NOT a UAT leg (ADR-0348 D6).** Two
+  experience intents used to be story UAT legs (the old legs 9 and 11) and were DELETED on 2026-08-11:
+  a user EXPERIENCE property is not a user ACCEPTANCE criterion, and the owner's feedback on it comes
+  from USING the app, not from a gate. The intents themselves stand and are recorded here so they are
+  not lost with their legs. **(a) It should feel like ONE app, chat included** — launch, sign-in, the
+  live loop, the consumed `app-guide` chat panel (ADR-0175) and the approval-to-land gate should read
+  as one coherent native application rather than as a shell with parts bolted into it. **(b) The
+  splash and the refuse+retry window should read clearly** — a launch that refuses a precondition
+  (ADR-0176 §5) should land the member on a window they can read and retry from, not a dead end. Leg 1
+  machine-pins that the compiled studio actually renders and leg 10 machine-pins that the refusal
+  happened and what it said; neither is the felt claim, and the felt claim now has no gate.
 - **Minimal packaging for v1 (ADR-0109's "minimal first").** The trusted member runs a dev-mode desktop
   build with the toolchain present (Node / pnpm / git). Code-signing, notarization, and auto-update stay
   deferred (revisited when the circle widens past hands-on devs).
@@ -286,8 +297,9 @@ The **chat surface** the member talks to has THREE layers, split across two stor
 - the renderer chat **PANEL** (the thin client that POSTs the intake and renders the SSE stream) is a
   **`studio` frontend component** (consumed compiled, ADR-0090 d.4 / ADR-0108 d.1), **not a capability
   here** (see "Renderer chat panel placement" + the Cross-story boundary section); its *appearance* is
-  part of this story's operator-attested UAT (leg 9 below — renumbered from leg 7 by the 2026-07-25
-  ADR-0209 §8 witness re-adjudication).
+  no longer carried by any UAT leg at all — the old operator-attested appearance leg was DELETED by
+  ADR-0348 D6 (a user EXPERIENCE property is not a user ACCEPTANCE criterion), and the intent it
+  stated now lives in "Design floor" above as owner feedback gathered through use.
 
 ## Within-story dependency graph
 
@@ -361,9 +373,10 @@ agent/SDK seam, the library schema, the studio frontend, or the app-guide-owned 
   studio's compiled dist (ADR-0090 d.4); it is studio's delivered outcome the desktop's UAT needs. The
   renderer chat panel that POSTs `/api/chat` and renders the SSE stream is a `studio` frontend component
   (`apps/studio/src`) — its provable geometry/behaviour is a `studio`-story contract (frontend-builder
-  two-stage, ADR-0070), consumed here compiled; its *appearance inside the native shell* is THIS story's
-  operator-attested UAT leg 9. The desktop does NOT import studio's SERVER source (the surface boundary,
-  above).
+  two-stage, ADR-0070), consumed here compiled; its *appearance inside the native shell* is carried by
+  NO UAT leg since ADR-0348 D6 deleted this story's two experience legs — it is design intent recorded
+  in "Design floor", answered by the owner using the app. The desktop does NOT import studio's SERVER
+  source (the surface boundary, above).
 - **`drive-machinery`** — the **build/orchestrate drivers + spec discovery**. The local backend
   composes `@storytree/drive` (`nodeBuild`/`storyBuild`/`adoptStory`/`orchestrate` + `loadLocalSecrets`,
   the same lazy-import shape `devApi.ts` uses) and `@storytree/orchestrator` (`findNodeSpecFile`/
@@ -416,17 +429,30 @@ never speculative breadth).
 > human` — the largest human pool in the corpus. That was conservative over-tagging, not eight
 > irreducible judgment gaps: `human-witness-is-a-judgment-gap-not-cost` reserves the human rung for a
 > success condition that has **no compiler**, and a success that is machine-observable but merely
-> live, expensive, or NOT-YET-HARNESSED is `machine`. Re-adjudicating leg by leg resolves this story to
-> **six `machine` legs and five `human` legs** (eleven, up from eight — see the splits below).
+> live, expensive, or NOT-YET-HARNESSED is `machine`. Re-adjudicating leg by leg resolved this story to
+> six `machine` legs and five `human` legs (eleven, up from eight — see the splits below).
+>
+> **NARROWED AGAIN 2026-08-11 (ADR-0348 D6): the two EXPERIENCE legs are DELETED, so the story now
+> carries six `machine` legs and three `human` legs (nine).** The deleted pair — *"it feels like one
+> app, chat included"* (old leg 9) and *"the splash → refuse+retry window reads right"* (old leg 11) —
+> asked whether this surface is any GOOD, not whether the journey achieved its goal. That is continuous
+> owner feedback gathered through use, not a discrete pass/fail obligation the story must clear to be
+> green, so blocking the crown on it priced a standing conversation as a gate. Their design intent is
+> NOT discarded: it is carried in "Design floor" above (a). Ordinals are BURNED, not renumbered —
+> positions 9 and 11 are simply absent, so every surviving leg keeps the number it has always had and
+> no signed verdict or `(proof-gate:)` binding is silently re-pointed. The three surviving human legs
+> (3, 7, 8) are genuine no-compiler ACCEPTANCE claims: a real OS-keychain round-trip, a
+> subscription-billed real build, and the owner's own in-app privilege grant.
 >
 > **Five criteria FUSED an irreducible operator claim onto a provable one; each was SPLIT rather than
-> laundered** (the honest source of the drainage — the leg count GROWS):
+> laundered** (the honest source of the drainage — the leg count GROWS). Two of those human halves have
+> since been deleted as experience:
 >
 > | old leg | machine half | human half |
 > | --- | --- | --- |
 > | 2 (credentials) | 2 — the panel/bridge surface holds no read-back and the renderer stores nothing | 3 — the REAL OS-keychain round-trip surviving a restart |
 > | 6 (brokered forest) | 6 — the fail-closed probe + its guidance | 8 — the owner's in-app `builder` grant opening the write path |
-> | 8 (launch refusal) | 10 — git-first refusal, the never-wake fence, the DB-reason passthrough | 11 — the splash → refuse+retry window's appearance |
+> | 8 (launch refusal) | 10 — git-first refusal, the never-wake fence, the DB-reason passthrough | ~~11 — the splash → refuse+retry window's appearance~~ (deleted, ADR-0348 D6) |
 >
 > Legs **1, 4, 5** moved wholesale `human` → `machine`: nothing in "the compiled studio renders", "the
 > route returns a real envelope, not the 503 stub", or "the credential reached the backend in-process and
@@ -447,7 +473,7 @@ never speculative breadth).
 > discharges legs 4, 5 or 10 today, and the owner signs nothing as a result of this re-adjudication. The
 > story-level `uat_witness` stays absent → human (the ADR-0040 fail-closed signpost), so the
 > machine-driven whole-story UAT node stays WITHHELD; the crown derives from the per-leg roll-up plus the
-> operator's five remaining attestations. Legs 2, 4, 5 and 10 carry seed-canonical `uat-criterion` detail
+> operator's three remaining attestations. Legs 2, 4, 5 and 10 carry seed-canonical `uat-criterion` detail
 > artifacts (ADR-0209 §5, under the owner's 2026-07-25 narrower bar: a detail ONLY where the one-line
 > title is too thin to judge against, never one per leg) because their observables and their
 > stub/fake boundaries cannot survive compression to a sentence.
@@ -457,7 +483,7 @@ the OS keychain), drives a real build through the local backend, and watches it 
 that blooms in the shared forest — the renderer never holding the credential or importing the agent, the
 credential never leaving the machine.
 
-1. **Launch — the native shell renders the COMPILED studio, no Vite, no source.** _(witness: machine)_ _(criterion-id: uatc_9e9d308422ea6863a6bcee98)_ _(revision-id: uatr1:b0f743aed28f0eb6)_
+1. **Launch — the native shell renders the COMPILED studio, no Vite, no source.** _(witness: machine)_ _(criterion-id: uatc_9e9d308422ea6863a6bcee98)_ _(revision-id: uatr1:4694ad452c83f892)_ _(previous-revision-id: uatr1:b0f743aed28f0eb6)_
    The packaged app opens; the Electron main serves the compiled studio dist over `127.0.0.1` and
    navigates the window there off its launch page, and the renderer mounts the real studio SPA.
    **Success —** in the `_electron` harness the window reaches an `http://127.0.0.1:<port>` origin with
@@ -465,7 +491,8 @@ credential never leaving the machine.
    the built hashed `/assets/*.js` bundle — NO `/@vite/client`, no dev-server module graph, no
    `/src/**` request (ADR-0090 d.4's carries-no-source guard, observably). *(Machine, not human: "the
    studio renders" is a DOM/URL/network observable, and the existing harness already drives exactly this
-   launch — the appearance verdict is leg 9's, not this leg's.)*
+   launch. Whether the result LOOKS like one coherent app is no longer a leg at all — ADR-0348 D6
+   deleted that experience criterion; the intent lives in "Design floor".)*
 2. **The credentials surface is one-way — nothing reads back, the renderer stores nothing.** _(criterion-id: uatc_47241898f5714f414284c9f0)_ _(revision-id: uatr1:0d70140121ce0e78)_
    _(witness: machine)(detail: desktop#uat-2)_ In the running Electron app the member's credential surface exposes no recovery
    path: `window.desktopAuth` offers `status`/`store`/`signOut` and NO getter, `status(kind)` resolves a
@@ -526,12 +553,7 @@ credential never leaving the machine.
    *(operator-attested and irreducible — the grant is a privileged action only the owner can take, and
    it is exercised against the live hosted studio; no agent may self-grant it,
    `agent-never-self-exempts`.)*
-9. **It feels like one app, chat included.** _(witness: human)_ Launch, sign-in, the live loop, the chat _(criterion-id: uatc_68916cbdc50b5505b99be121)_ _(revision-id: uatr1:496c48a6c39fa0c6)_
-   panel (the consumed app-guide chat surface, absorbed from headless-orchestrator's Phase 2, ADR-0175), and the approval-to-land gate read as one
-   coherent native application. **Success —** the owner's two-stage visual verdict (ADR-0070 / ADR-0113
-   §9): the appearance is witnessed, not machine-asserted. *(operator-attested and irreducible — "reads
-   as one coherent app" has no compiler; ADR-0209 keeps look, feel and lived coherence on the human rung.)*
-10. **Launch refuses cleanly when a precondition is unmet — no half-wired shell (ADR-0176).** _(criterion-id: uatc_ed15427cfebc9e03b298775e)_ _(revision-id: uatr1:3506081c43f4188c)_
+10. **Launch refuses cleanly when a precondition is unmet — no half-wired shell (ADR-0176).** _(criterion-id: uatc_ed15427cfebc9e03b298775e)_ _(revision-id: uatr1:bda598cbcb4d97cd)_ _(previous-revision-id: uatr1:3506081c43f4188c)_
     _(witness: machine)(detail: desktop#uat-10)_ Before the sidecar wires any backend, the launch-precondition gate runs: with no
     git checkout it refuses IMMEDIATELY naming the unmet precondition and NEVER wakes the DB; with a
     checkout it reuses `ensureLiveDb` to probe and bounded-auto-wake the live store, proceeding to the ONE
@@ -543,23 +565,19 @@ credential never leaving the machine.
     doubles; this leg adds that the real Electron launch honours them — including the never-wake fence,
     observable as the absence of any store-wake call on the no-git path.) *(Machine, not human: "it
     refused, naming this precondition, without waking the DB" is a decidable observable; the window's
-    APPEARANCE while doing so is leg 11.)* *(This is the defect-driven regression case ADR-0176 was
+    APPEARANCE while doing so is carried by no leg — ADR-0348 D6 deleted that experience criterion and
+    "Design floor" (b) records the intent.)* *(This is the defect-driven regression case ADR-0176 was
     root-caused from — the Story UAT grows by appending a permanent case per real failure, never
     speculative breadth.)*
-11. **The splash → refuse+retry window reads right.** _(witness: human)_ The Electron splash and the _(criterion-id: uatc_d9cb12a4d1e69998baa5dad3)_ _(revision-id: uatr1:dce2d1280f373483)_
-    refuse+retry window the failed launch lands on read clearly and let the member retry.
-    **Success —** the owner's stage-2 visual verdict (ADR-0070 / ADR-0176 §5). *(operator-attested and
-    irreducible — the refusal's LOOK has no compiler; leg 10 already machine-pins that the refusal
-    happened and what it said.)*
-
 End state — a trusted member ran the whole storytree loop on their own machine through a native app,
 their credential held in the OS keychain and never leaving the machine, their builds signed locally from
 real exit codes and BROKERED to the shared forest (POSTed to the studio's members-gated write-broker under
 their in-app `builder` role, no DB identity on their machine; ADR-0117), the renderer never crossing the
 agent boundary — the launch, the one-way credential surface, the live backend, the in-process credential
 hand-off, the fail-closed broker probe and the clean launch refusal all machine-witnessed, and only the
-real keychain round-trip, the billed build, the owner's `builder` grant, the one-app feel and the refusal
-window's look attested by the operator.
+real keychain round-trip, the billed build and the owner's `builder` grant attested by the operator. How
+the result LOOKS and FEELS is no longer an acceptance obligation here (ADR-0348 D6) — that intent is
+recorded in "Design floor" and answered by the owner using the app.
 
 ## Reliability Gates
 
@@ -627,9 +645,10 @@ signed verdict toward that roll-up; it is not the crown.
 
 ## Proof
 
-The story is proven when the eleven legs above pass under their **re-adjudicated** witnesses (2026-07-25,
-ADR-0209 §8): six machine legs (1, 2, 4, 5, 6, 10) green under a signed verdict, and five legs (3, 7, 8,
-9, 11) operator-attested. Leg 6 is discharged by
+The story is proven when the nine legs above pass under their **re-adjudicated** witnesses (2026-07-25,
+ADR-0209 §8; narrowed 2026-08-11 by ADR-0348 D6, which deleted the two EXPERIENCE legs that stood at
+positions 9 and 11 — the ordinals are burned, not reused): six machine legs (1, 2, 4, 5, 6, 10) green
+under a signed verdict, and three legs (3, 7, 8) operator-attested. Leg 6 is discharged by
 [`shared-forest-connection`](shared-forest-connection.md)'s own signed verdict over its injected seam;
 legs 1 and 2 by the EXISTING offline `_electron` harness; legs 4, 5 and 10 by a live-gated `_electron`
 spec that does **not** yet exist (open modeling call 3). The deterministic credential-broker,
@@ -743,9 +762,11 @@ operator-attested GLUE in item 1 below and in `chat-sse-mount.md`; THIS open ite
      `studio`-story contract proven by `node:test`'s studio analog — vitest jsdom, the `BuildSection`
      precedent (frontend-builder two-stage, ADR-0070); it imports NO agent/drive/model code and parses
      SSE `data:` frames as plain JSON against a locally-declared type (so it adds no cross-story edge —
-     see chat-panel.md "No new cross-story edge"). Its *appearance inside the native shell* is THIS
-     story's already-declared operator-attested UAT leg 9 (the look is witnessed, never a machine visual
-     verdict — the panel author signs no visual verdict). The panel is owned by `studio` — deliberately
+     see chat-panel.md "No new cross-story edge"). Its *appearance inside the native shell* was carried
+     by this story's operator-attested UAT leg 9 until ADR-0348 D6 DELETED that leg as an experience
+     rather than an acceptance claim; the look is now design intent ("Design floor" (a)), answered by
+     the owner using the app, and is still never a machine visual verdict — the panel author signs no
+     visual verdict either way. The panel is owned by `studio` — deliberately
      NOT a desktop capability (slow growth: the desktop's net-new is the mount; the panel rides studio's
      frontend discipline).
    - The **sidecar wiring** that chains `createChatSseMount` as a third dispatcher in
@@ -755,13 +776,17 @@ operator-attested GLUE in item 1 below and in `chat-sse-mount.md`; THIS open ite
      provable cap (`chat-sse-mount`, green); `electron/` is the operator-attested binding the
      CI-provable core is deliberately electron-free of ("THE CI-PROVABLE CORE IS ELECTRON-FREE",
      chat-sse-mount.md). There is no isolatable red→green seam in chaining a third already-proven
-     dispatcher into the Electron main — it is witnessed under UAT leg 9, not asserted in CI. The
+     dispatcher into the Electron main — it is witnessed by the owner in use, not asserted in CI.
+     *(Until 2026-08-11 that witness was UAT leg 9; ADR-0348 D6 deleted the leg, so this glue is
+     operator-attested in the ADR-0158 sense — un-asserted connective code — with no story UAT leg
+     recording the sign-off. Whether glue that named a now-deleted experience leg as its only witness
+     needs a different vehicle is a real question this deletion surfaces and does not answer.)* The
      **mount-deps extension** (forwarding `startChatStream`'s live `runner`/`model`/etc. so the live chat
      actually ORIENTS) is **also operator-attested glue, not an offline-provable contract** — the
      `OrientationRunner` is reachable ONLY via a real SDK tool-dispatch, which a scripted `queryFn` never
      triggers, so a forwarded sentinel runner has no offline observable (full reasoning in chat-sse-mount.md
-     "The deferred mount-deps extension is GLUE"). The orchestrator executes both operator-attested under
-     leg 9.
+     "The deferred mount-deps extension is GLUE"). The orchestrator executes both as operator-attested
+     glue.
 2. **The desktop serves the studio's BOOT read set; verbatim full route-table sharing stays deferred
    (decided, ADR-0119 §2).** The desktop mounts the studio's BOOT read routes
    (`me`/`health`/`docs`/`tree`/`assets`/`comments`) — composed from the organism drivers and a read-only

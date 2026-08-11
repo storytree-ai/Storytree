@@ -15,6 +15,13 @@ desktop proof writes. ADR-0117's brokered target becomes current for verdicts, U
 attestations, and presence; the desktop's direct production-DB write path is retired as each
 brokered caller lands.
 
+**PARTLY NARROWED — read this before the Consequences line about drive-machinery's three legs
+(corrected in place, ADR-0139).** Amended by
+[ADR-0184](0184-machine-witness-drive-machinery-s-three-live-uat-legs.md): drive-machinery's three
+live Story UAT legs (3 "The REAL build", 4 "Land it", 7 "Dogfood") do **not** remain human — they
+were converted to `machine`, each bound to its own command-bearing gate. Decisions 1–4 above and
+decision 5's proof-binding rule are untouched and stay accepted as written.
+
 ## Context
 
 The desktop renders the shared studio UAT table but deliberately identifies its local caller as a
@@ -65,8 +72,10 @@ operator-attested leg.
 
 The strict parser → exact resolver → bound-command adoption chain now refuses the former
 first-observe-gate fallback. Existing machine legs carry explicit bindings. Drive-machinery's three
-live, currently-human legs remain human because no standing machine command proves their full
-success conditions; an annotation alone cannot manufacture that evidence.
+live UAT legs were converted to `machine` by
+[ADR-0184](0184-machine-witness-drive-machinery-s-three-live-uat-legs.md), each bound to the exact
+command-bearing gate that witnesses it — decision 5's proof-binding rule still applies: an
+annotation alone cannot manufacture that evidence.
 
 ## References
 

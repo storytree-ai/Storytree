@@ -1015,7 +1015,11 @@ export interface TraversalVisitEvent extends TraversalEventBase {
   visitId: string;
   nodeId: string;
   surfaceId?: string;
-  /** Depth. Carried but NOT drawn here — indentation is `traversal-panel-lanes-and-depth`. */
+  /**
+   * Depth, and the ONLY evidence any indentation may be drawn from (`traversal-panel-lanes-and-depth`).
+   * A value naming a visit this trace does not contain resolves to no depth at all — see
+   * `lib/traversalDepth.ts`, which counts those rather than inferring a parent for them.
+   */
   parentVisitId?: string;
   priorVisitId?: string;
   followedEdgeId?: string;
@@ -1044,7 +1048,11 @@ export interface TraversalModelContextEvent extends TraversalEventBase {
   contextWindowCapacity?: number;
 }
 
-/** An offer that was printed. Carried but NOT drawn here — fans are `traversal-panel-lanes-and-depth`. */
+/**
+ * An offer that was printed — the instant a fan is drawn AT. What each of its candidates came to is
+ * NOT re-derived here: see {@link TraversalDecisionPointReport}, which arrives on the same payload
+ * already joined by the server's copy of the one classifier.
+ */
 export interface TraversalCandidateSetEvent extends TraversalEventBase {
   kind: 'candidate_set';
   candidateSetId: string;
@@ -1052,7 +1060,10 @@ export interface TraversalCandidateSetEvent extends TraversalEventBase {
   candidateNodeIds: string[];
 }
 
-/** An offer that was followed. Carried but NOT drawn here — same increment as the fans. */
+/**
+ * An offer that was followed. Mirrored for completeness; the fan reads the joined report rather than
+ * this event, because joining it here would be the second classifier the report exists to prevent.
+ */
 export interface TraversalFollowedEdgeEvent extends TraversalEventBase {
   kind: 'followed_edge';
   edgeId: string;
@@ -1067,7 +1078,7 @@ interface TraversalSpawnEdgeBase extends TraversalEventBase {
   childSessionId: string;
 }
 
-/** A subagent lane's birth. Carried but NOT drawn here — lanes are `traversal-panel-lanes-and-depth`. */
+/** A subagent lane's birth — the top of the lane band, paired to its return by `edgeId`. */
 export interface TraversalSpawnHandoffEvent extends TraversalSpawnEdgeBase {
   kind: 'spawn_handoff';
   agentType: string;
@@ -1077,7 +1088,7 @@ export interface TraversalSpawnHandoffEvent extends TraversalSpawnEdgeBase {
   payloadTokenCount?: number;
 }
 
-/** A subagent lane's return. Carried but NOT drawn here — same increment as the lanes. */
+/** A subagent lane's return — the bottom of the band. A lane with none is drawn OPEN, never closed. */
 export interface TraversalResultReturnEvent extends TraversalSpawnEdgeBase {
   kind: 'result_return';
   ok: boolean;
@@ -1111,6 +1122,44 @@ export interface TraversalOccupancyDeclaration {
   note: string;
 }
 
+// ---- the offer/follow join, mirrored (`traversal-panel-lanes-and-depth`) ----
+//
+// ARRIVES ALREADY JOINED, and this is the arc surface's own rule applied here (see the block below):
+// what the studio must never do is re-derive a join it can be handed. The authority is
+// `computeDecisionPoints` in `packages/context-traversal-capture/src/decision-point-playback.ts` — the
+// SAME function `storytree traversal show` renders from, carrying ADR-0260 D3's deterministic join
+// (`candidateSetId` names the offer, `toVisitId` the answering visit; node-id equality is NEVER a join)
+// and ADR-0260 D4's three distinguishable honest gaps.
+//
+// Re-implementing `isFollowableOfferId` in the browser would be the second classifier that lets the
+// panel and the CLI disagree about the same trace, which is precisely what ADR-0312 D6's denominator
+// exists to make impossible.
+
+/** What a recorded offer came to. `unobservable` is NEVER a declined branch (ADR-0312). */
+export type TraversalCandidateOutcome =
+  | { status: 'followed'; toVisitId: string; edgeId: string }
+  | { status: 'not-followed' }
+  | { status: 'unobservable'; reason: string }
+  | { status: 'ambiguous'; reason: string; edgeIds: string[] };
+
+export interface TraversalDecisionCandidate {
+  nodeId: string;
+  outcome: TraversalCandidateOutcome;
+}
+
+export interface TraversalDecisionPoint {
+  candidateSetId: string;
+  surfaceId: string;
+  /** RECORDED ORDER. ADR-0318 D3: the set is authoritative on WHICH ids were offered, never on order. */
+  candidates: TraversalDecisionCandidate[];
+  unresolved: unknown[];
+}
+
+export interface TraversalDecisionPointReport {
+  points: TraversalDecisionPoint[];
+  orphanFollows: unknown[];
+}
+
 /**
  * GET /api/traversal?session=&lt;id&gt; — one session's structured replay, carrying its own honesty:
  * the installed adapters' `skipped`/`partial` reading (a partial trace must never present as
@@ -1127,6 +1176,8 @@ export interface TraversalReplayPayload {
   /** `skipped > 0`: this replay is honestly PARTIAL and must never render as complete. */
   partial: boolean;
   occupancy: TraversalOccupancyDeclaration;
+  /** The offer/follow join — the only thing an offer fan may be drawn from. */
+  decisionPoints: TraversalDecisionPointReport;
 }
 
 // ---------- the arc surface (GET /api/arcs, ADR-0267 / ADR-0314) ----------

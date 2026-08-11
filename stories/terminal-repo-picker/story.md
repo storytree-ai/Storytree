@@ -6,9 +6,11 @@ outcome: "The desktop user SELECTS a repo (e.g. their storytree checkout) throug
 status: proposed
 proof_mode: UAT
 # uat_witness ABSENT → human (ADR-0040 fail-closed signpost): the machine-driven whole-story UAT node
-# stays WITHHELD because TWO legs are irreducibly operator-attested — the NATIVE OS directory dialog
-# actually opening and being usable (the one call the Electron e2e stubs), and the picker's / gate's LOOK
-# (ADR-0070 stage 2; ADR-0209 keeps look and feel on the human rung). RE-ADJUDICATED 2026-07-25 under the
+# stays WITHHELD because ONE leg is irreducibly operator-attested — the NATIVE OS directory dialog
+# actually opening and being usable (the one call the Electron e2e stubs). The picker's / gate's LOOK was
+# a second human leg until ADR-0348 D6 (2026-08-11) DELETED it: a user EXPERIENCE property is not a user
+# ACCEPTANCE criterion, and the intent is carried under "Operator-attested glue".
+# RE-ADJUDICATED 2026-07-25 under the
 # ADR-0209 §8 corpus-wide witness migration: the cwd thread, the fail-closed gate, the relaunch
 # persistence and the standalone degradation were all reclassified from `human` to `machine` — they are
 # deterministic and spine-observable through the EXISTING `_electron` Playwright harness
@@ -156,6 +158,15 @@ deliberately avoid (repo-selection is Electron-free and fs-free by construction;
 the bridge). They are witnessed under the Story UAT's operator-attested legs (ADR-0070), exactly as
 `embedded-terminal` models its real-pty adapter and its `desktopTerminal` preload bridge:
 
+**Design intent for the LOOK — carried here, deliberately NOT a UAT leg (ADR-0348 D6, 2026-08-11).**
+The appearance intent that stood as story UAT leg 8 was DELETED: a user EXPERIENCE property is not a
+user ACCEPTANCE criterion, and the owner's feedback on it comes from USING the app, not from a gate.
+The intent stands and is recorded here — **the repo picker should read and sit well beside the
+terminal dock, and the gate's "Select a repository to start the terminal" message should read right in
+its place.** Where a bullet below says the LOOK is witnessed under UAT leg 8, read that as: the look is
+this design intent, answered by the owner in use, and still never a machine visual verdict. The
+BEHAVIOUR those bullets describe is untouched and stays machine-witnessed at legs 2, 4 and 6.
+
 - **The real adapters + the pty-cwd thread in the Electron main** (`apps/desktop/electron/main.ts`): the
   concrete `DirProbe` (a `node:fs` implementation of `exists` / `isDirectory` / `isGitRepo`) and
   `SelectionStore` (a JSON file under `app.getPath("userData")`) wired into a `repo-selection` instance;
@@ -177,11 +188,11 @@ the bridge). They are witnessed under the Story UAT's operator-attested legs (AD
   terminal dock in the `.world-frame` (where `<TerminalDock/>` sits today, TreeView.tsx ~L2168) — a glue
   mount of an already-proven component, exactly the dock-slot-swap precedent. It mounts OUTSIDE the
   byte-locked `TerminalDock`; the exact placement (a control above the dock, a dock header button, …) is
-  a layout call surfaced under "Open modeling calls", witnessed under UAT leg 8 (the look), not asserted
-  in CI.
+  a layout call surfaced under "Open modeling calls", answered by the look intent above (formerly UAT
+  leg 8, deleted by ADR-0348 D6), not asserted in CI.
 - **New `.repo-picker*` CSS in `apps/studio/src/index.css`**: the picker's appearance, in a NEW namespace
-  that never touches `.terminal-dock*` (the sibling chip's surface). The look is the operator-attested UAT
-  leg 8 (ADR-0070), never a machine visual verdict.
+  that never touches `.terminal-dock*` (the sibling chip's surface). The look is the design intent above
+  (formerly operator-attested UAT leg 8, deleted by ADR-0348 D6), never a machine visual verdict.
 - **The `<TerminalRepoGate/>` swap in `apps/studio/src/components/TreeView.tsx` + the fail-closed
   `ready`/`onChanged` bridge glue.** The gate ([`terminal-repo-gate`](terminal-repo-gate.md)) REPLACES the
   bare `<TerminalDock/>` mount near the terminal dock (the map frame) with `<TerminalRepoGate/>` — a glue
@@ -194,7 +205,7 @@ the bridge). They are witnessed under the Story UAT's operator-attested legs (AD
   persisted) — so `ready` returns a cwd ONLY for a VALID selection (the fail-closed contract) and
   `onChanged` fires the new cwd on a change. Plus the NEW `.terminal-gate*` CSS (the gate message's
   appearance, a namespace that never touches `.terminal-dock*` / `.repo-picker*`). The exact placement +
-  the look is operator-attested (UAT leg 8). The real fail-closed behaviour is NOT operator-attested —
+  the look is the design intent above (formerly UAT leg 8). The real fail-closed behaviour is NOT operator-attested —
   the 2026-07-25 ADR-0209 §8 re-adjudication made it machine (UAT leg 4), observable end-to-end through
   the Electron e2e harness over the real bridge and a real pty.
 
@@ -268,8 +279,17 @@ speculative breadth).
 > ADR-0209 §8 corpus-wide migration — this story is the first non-pilot story migrated. Three classified
 > kinds are available: `machine` (deterministic, spine-observed proof), `model` (rubric-bound semantic
 > judgment by an eligible read-only judge), `human` (irreducible operator judgment). This story resolves
-> to **six `machine` legs and two `human` legs; no leg is model-judged** — nothing here turns on semantic
+> to six `machine` legs and two `human` legs; no leg is model-judged — nothing here turns on semantic
 > judgment of prose or artifacts, so the model rung genuinely does not apply.
+>
+> **NARROWED 2026-08-11 (ADR-0348 D6): the one EXPERIENCE leg is DELETED, so the story now carries six
+> `machine` legs and ONE `human` leg (seven).** The deleted leg — *"the picker and the gate read
+> right"* (old leg 8) — asked whether this surface is any GOOD, not whether the journey achieved its
+> goal, and blocking the crown on it priced a standing owner conversation as a gate. Its design intent
+> is carried under "Operator-attested glue" above. Ordinals are BURNED, not renumbered — position 8 is
+> simply absent, so every surviving leg keeps the number it has always had and no signed verdict or
+> `(proof-gate:)` binding is silently re-pointed. The one surviving human leg (7) is a genuine
+> ACCEPTANCE claim: an OS-level modal that sits outside every harness the proof spine owns.
 >
 > The wiring legs (1, 2, 6) are covered by the three capabilities' signed `--real` verdicts (the
 > validate/persist/resolve lifecycle over fake ports; the picker reflect/pick/cancel/degrade and the
@@ -285,12 +305,13 @@ speculative breadth).
 > (`human-witness-is-a-judgment-gap-not-cost` — a machine-observable success that is merely unharnessed
 > is never labelled `human`).
 >
-> Exactly **two** legs stay `human` because their success condition has no compiler: the **native OS
+> Exactly **ONE** leg stays `human` because its success condition has no compiler: the **native OS
 > directory dialog** actually opening and being usable — the one call the harness stubs, an OS-level
-> modal outside every harness the proof spine owns, and "usable" is an owner judgment — and the picker's
-> / gate's **look** (ADR-0070 stage 2; ADR-0209 keeps look, feel and lived experience on the human rung,
-> never model-judged). The story-level `uat_witness` is absent → human (the ADR-0040 fail-closed
-> signpost), so the machine-driven whole-story UAT node stays WITHHELD.
+> modal outside every harness the proof spine owns, and "usable" is an owner judgment. *(The picker's /
+> gate's **look** was a second human leg until ADR-0348 D6 deleted it — it had no compiler either, but
+> it was never an ACCEPTANCE claim, which is the question that now comes first.)* The story-level
+> `uat_witness` is absent → human (the ADR-0040 fail-closed signpost), so the machine-driven whole-story
+> UAT node stays WITHHELD.
 >
 > **Nothing here is green.** Per ADR-0209 §6 a substantive criterion change invalidates the old green, so
 > every leg below is UNSTAMPED and earns green only under its newly-declared witness. Legs 3, 4 and 5
@@ -340,23 +361,19 @@ surviving a relaunch, the studio-standalone build degrading honestly, and the pi
    directly, never calling the bridge, never hanging, never crashing. **Success —**
    [`repo-picker-panel`](repo-picker-panel.md)'s and [`terminal-repo-gate`](terminal-repo-gate.md)'s
    signed absent-bridge verdicts.
-7. **The native OS directory dialog opens and is usable.** _(witness: human)_ The member clicks "Choose _(criterion-id: uatc_7a3b2d98cf30074c51c67eac)_ _(revision-id: uatr1:59c0b960aae358a1)_
+7. **The native OS directory dialog opens and is usable.** _(witness: human)_ The member clicks "Choose _(criterion-id: uatc_7a3b2d98cf30074c51c67eac)_ _(revision-id: uatr1:ecfe9b180bebff79)_ _(previous-revision-id: uatr1:59c0b960aae358a1)_
    repo…" and a REAL native OS directory chooser appears, titled for this purpose, and returns their
    chosen checkout. **Success —** the owner's attestation that the one call legs 3–5 stub behaves in the
    real OS. *(operator-attested and irreducible — an OS-level modal sits outside every harness the proof
    spine owns, and "usable" is an owner judgment, not an observable.)*
-8. **The picker and the gate read right.** _(witness: human)_ The repo picker reads and sits well beside _(criterion-id: uatc_61d6aa93f4a17ddfb756654a)_ _(revision-id: uatr1:dd2640efeaddf992)_
-   the terminal dock, and the gate's "Select a repository to start the terminal" message reads right in
-   its place. **Success —** the owner's stage-2 visual verdict (ADR-0070). *(operator-attested and
-   irreducible — look and feel have no compiler and are never machine-asserted nor model-judged,
-   ADR-0209.)*
-
 End state — the desktop user picks a repo and the embedded terminal opens there (and refuses to run until
 they do), the selection lifecycle / the renderer picker / the fail-closed gate signed under their suites,
 the opens-in-the-picked-repo / fail-closed / survives-relaunch / standalone-degradation legs signed under
-the Electron e2e harness, and only the native-dialog and look legs operator-attested — the interactive
+the Electron e2e harness, and only the native-dialog leg operator-attested — the interactive
 terminal opening where the user chose, while the prove-it-gate leaf, the signed terminal sources, and the
-observability seams are untouched.
+observability seams are untouched. Whether the picker and the gate READ right is no longer an acceptance
+obligation (ADR-0348 D6); that intent is recorded under "Operator-attested glue" and answered by the
+owner using the app.
 
 ## Proof
 
@@ -370,8 +387,8 @@ proof-wired (each carries a `proof:` block with a `real:` arm — a NET-NEW red�
 module/component tested first against an injected fake/mock) so the spine can drive their offline suites
 red→green under its own gate; the story's machine-driven UAT node is WITHHELD (its `uat_witness` is absent
 → human, ADR-0040), so driving those capabilities to signed verdicts is what makes this layer buildable,
-and the crown additionally awaits the machine e2e legs' verdicts and the operator's attestations (legs 7,
-8) — including, per the `embedded-terminal` build-atop edge, that the terminal itself works.
+and the crown additionally awaits the machine e2e legs' verdicts and the operator's one attestation
+(leg 7) — including, per the `embedded-terminal` build-atop edge, that the terminal itself works.
 
 **The e2e legs are a build obligation, not a claim of existing coverage.** Legs 3, 4 and 5 declare the
 witness kind that is RIGHT for them (ADR-0209 §1); the specs that discharge them are NOT yet written.
@@ -407,7 +424,8 @@ not decided here:
    reading.
 3. **The `<RepoPicker/>` placement (a layout call, operator-attested glue).** Whether the picker sits as a
    control above the terminal dock, a button in a (new, non-`.terminal-dock`) header strip, or elsewhere
-   in `.world-frame` is a layout/glue choice witnessed under UAT leg 8 — NOT a machine capability (there
+   in `.world-frame` is a layout/glue choice answered by the look design intent under "Operator-attested
+   glue" (formerly UAT leg 8, deleted by ADR-0348 D6) — NOT a machine capability (there
    is no isolatable red→green in where an already-proven control mounts). The wall to hold: it mounts
    OUTSIDE `TerminalDock` and uses `.repo-picker*` CSS, never `.terminal-dock*`.
 4. **The `node-build.test.ts` snapshot companion edit (REQUIRED, outside `stories/**`).** Authoring these
