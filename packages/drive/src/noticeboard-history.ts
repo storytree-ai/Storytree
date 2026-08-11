@@ -22,8 +22,12 @@ import {
   CLAIM_REFUSED_TYPE,
   foldHoldings,
   foldRefusals,
+  resolveHoldingLiveness,
   summarizeClaimHistory,
+  unverifiedHoldingUnits,
   type ClaimHolding,
+  type ClaimHoldingsFold,
+  type LiveClaimKey,
 } from "@storytree/notice-board";
 
 import type { Envelope } from "./envelope.js";
@@ -32,15 +36,36 @@ import type { Envelope } from "./envelope.js";
 // Seams + options
 // ---------------------------------------------------------------------------
 
-/** The history slice of the claim store this verb drives. Satisfied by `PgClaimStore`. */
+/**
+ * The history slice of the claim store this verb drives. Satisfied by `PgClaimStore`.
+ *
+ * `claimsFor` is OPTIONAL on purpose, and the option is not a shrug. It is the live-row read that
+ * lets `--holdings` say `cleared` rather than leaving a span `unverified`, and a store that cannot
+ * offer it degrades to the honest floor instead of to a guess — the same way every other read half
+ * on the ledger seam degrades. What must never depend on it is CORRECTNESS: with or without it, no
+ * span is rendered as a live hold on the strength of a missing `released` row.
+ */
 export interface ClaimHistoryStoreLike {
   auditHistory(query: ClaimAuditQuery): Promise<ClaimAuditRow[]>;
+  /**
+   * OPTIONAL: every live `events.node_claim` row on one unit (`PgClaimStore.claimsFor`). Only the
+   * identity is read here, so the full `ClaimDocT` satisfies it structurally.
+   */
+  claimsFor?(unitId: string): Promise<readonly LiveClaimKey[]>;
 }
 
 export interface ClaimHistoryDeps {
   /** The audit-log store (--pg); null offline — the verb then refuses with the db:up guidance. */
   history: ClaimHistoryStoreLike | null;
   now: () => Date;
+  /**
+   * How many units the live-row cross-check may read (default {@link DEFAULT_CROSSCHECK_UNIT_CAP}).
+   * The cross-check is one query PER UNIT carrying an unclosed span, and a whole-log read can carry
+   * a couple of hundred; the cap bounds that. Units past it stay `unverified` and the render says
+   * how many were actually read — a bounded read that reported itself as complete would be the
+   * same overstatement this whole increment removes.
+   */
+  crossCheckUnitCap?: number;
 }
 
 /** The verb's flags, as the CLI hands them over (strings straight off argv — parsed here). */
@@ -72,6 +97,13 @@ export const DEFAULT_HISTORY_DAYS = 30;
  * A truncated read is always ANNOUNCED in the header — never silently narrowed.
  */
 export const DEFAULT_HISTORY_LIMIT = 2_000;
+
+/**
+ * The default ceiling on the live-row cross-check: one `claimsFor` query per unit carrying an
+ * unclosed span. Roughly 205 spans over the log's first 40 days sat in that shape, so this covers a
+ * whole-log read today with room to grow, and the render always states how many units were read.
+ */
+export const DEFAULT_CROSSCHECK_UNIT_CAP = 250;
 
 const MS_PER_DAY = 24 * 60 * 60 * 1_000;
 
@@ -154,13 +186,93 @@ function docIntent(doc: unknown): string | undefined {
   return typeof intent === "string" ? intent : undefined;
 }
 
+/**
+ * How a span's end is WORDED. Only `held` — which required a live `events.node_claim` row to be
+ * observed — is allowed to say "still held". The two unclosed states say what was actually read
+ * and nothing more, which is the whole point of the increment: an instrument must not assert a live
+ * holder it has not checked.
+ */
+function renderClose(h: ClaimHolding): string {
+  switch (h.close) {
+    case "closed":
+      return `→ ${h.closedBy}`;
+    case "held":
+      return "still held — live row confirmed";
+    case "cleared":
+      return "cleared — no closing transition recorded";
+    default:
+      return "no closing transition recorded";
+  }
+}
+
 function renderHoldingLine(h: ClaimHolding): string {
-  const closed = h.stillHeld ? "still held" : `→ ${h.closedBy}`;
+  // `≤` on the two unclosed states: the clearing paths that write nothing also leave no clue WHEN
+  // they ran, so the elapsed time is an upper bound on the hold, never its measured length.
+  const bounded = h.close === "cleared" || h.close === "unverified";
+  const duration = `${bounded ? "≤ " : ""}${formatDuration(h.durationMs)}`;
   return (
     `  - ${h.unitId}  [${h.grade}]  ${h.sessionId}  ` +
-    `${formatStamp(h.openedAt)} ${h.openedBy} → ${formatDuration(h.durationMs)} (${closed})` +
+    `${formatStamp(h.openedAt)} ${h.openedBy} → ${duration} (${renderClose(h)})` +
     quoteIntent(h.intent)
   );
+}
+
+/**
+ * The note that rides any render carrying an unclosed span — it states the mechanism, so the reader
+ * is not left to infer one, and points at the instrument that CAN answer.
+ */
+function unclosedNote(fold: ClaimHoldingsFold): string | null {
+  const unverified = fold.holdings.filter((h) => h.close === "unverified").length;
+  const cleared = fold.holdings.filter((h) => h.close === "cleared").length;
+  const total = unverified + cleared;
+  if (total === 0) return null;
+  const split = [
+    unverified > 0 ? `${unverified} unchecked` : null,
+    cleared > 0 ? `${cleared} cleared` : null,
+  ].filter((s): s is string => s !== null);
+  return (
+    `⚠ ${total} span${total === 1 ? "" : "s"} (${split.join(", ")}) carr${total === 1 ? "ies" : "y"} NO ` +
+    "closing transition, which is NOT evidence of a live hold: the branch-merge machine-clear, " +
+    "stale expiry and a direct row delete all clear events.node_claim without writing one (~205 " +
+    "such spans over the log's first 40 days)." +
+    (unverified > 0
+      ? " The `unchecked` spans were NOT compared against the live rows — ask the ledger before " +
+        "treating any of them as held: storytree noticeboard claims <unit> --pg."
+      : " The `cleared` spans WERE compared against the live rows and hold nothing.")
+  );
+}
+
+/**
+ * Settle the fold's `unverified` spans against the LIVE rows, when the store offers the read. One
+ * `claimsFor` per unit that actually carries an unclosed span — a closed span is ground truth and
+ * costs nothing here — capped, with the covered units handed to the pure resolver so a unit that
+ * was never read stays `unverified` rather than being declared cleared by omission.
+ *
+ * Returns the resolved fold and how many units were read (0 = no cross-check happened at all).
+ */
+async function crossCheckLiveness(
+  store: ClaimHistoryStoreLike,
+  fold: ClaimHoldingsFold,
+  cap: number,
+): Promise<{ fold: ClaimHoldingsFold; unitsRead: number }> {
+  const claimsFor = store.claimsFor;
+  if (claimsFor === undefined) return { fold, unitsRead: 0 };
+  const units = unverifiedHoldingUnits(fold).slice(0, Math.max(0, cap));
+  if (units.length === 0) return { fold, unitsRead: 0 };
+  const holders: LiveClaimKey[] = [];
+  for (const unitId of units) {
+    for (const row of await claimsFor.call(store, unitId)) {
+      holders.push({ unitId: row.unitId, sessionId: row.sessionId });
+    }
+  }
+  return { fold: resolveHoldingLiveness(fold, { holders, units }), unitsRead: units.length };
+}
+
+/** The one-line receipt for a cross-check that ran — what was read, so the render never overstates. */
+function crossCheckNote(unitsRead: number): string[] {
+  return unitsRead === 0
+    ? []
+    : [`  live-row cross-check: ${unitsRead} unit${unitsRead === 1 ? "" : "s"} read against events.node_claim`];
 }
 
 /** The header every render carries: what was actually read, so no answer overstates its window. */
@@ -203,7 +315,9 @@ const EMPTY_NEXT = [
 /**
  * Render the audit log. Four views over ONE read, chosen by what was asked:
  *  - `--refusals`  the refused attempts + who blocked each — invisible to any state read.
- *  - `--holdings`  hold spans with durations — "who held what and for how long".
+ *  - `--holdings`  hold spans with durations — "who held what and for how long". A span with no
+ *                  closing transition is cross-checked against the live rows when the store offers
+ *                  that read, and otherwise reported as unchecked — never as a live hold.
  *  - `<unit-id>`   that unit's transition timeline, with its hold spans as a tail.
  *  - (bare)        the whole-window summary: totals, the type breakdown, the hot spots.
  */
@@ -256,6 +370,7 @@ export async function claimHistoryCommand(
   }
 
   const now = deps.now();
+  const cap = deps.crossCheckUnitCap ?? DEFAULT_CROSSCHECK_UNIT_CAP;
 
   // -------------------------------------------------------------------------
   // --refusals — the view a state read cannot produce at all
@@ -288,13 +403,17 @@ export async function claimHistoryCommand(
   // --holdings — who held what, and for how long
   // -------------------------------------------------------------------------
   if (opts.holdings === true) {
-    const fold = foldHoldings(rows, now);
+    const checked = await crossCheckLiveness(deps.history, foldHoldings(rows, now), cap);
+    const fold = checked.fold;
     const lines = [
       ...header,
+      ...crossCheckNote(checked.unitsRead),
       "",
       `Hold spans (${fold.holdings.length}), newest first — unit [grade] session  opened → duration:`,
       ...fold.holdings.map(renderHoldingLine),
     ];
+    const unclosed = unclosedNote(fold);
+    if (unclosed !== null) lines.push("", unclosed);
     if (fold.unmatchedCloses > 0) lines.push("", unmatchedNote(fold.unmatchedCloses));
     return { ok: true, body: lines.join("\n"), next: EMPTY_NEXT };
   }
@@ -308,10 +427,18 @@ export async function claimHistoryCommand(
       const intent = quoteIntent(docIntent(row.doc));
       lines.push(`  - ${formatStamp(row.at)}  #${row.seq}  ${row.type}  ${row.sessionId}${intent}`);
     }
-    const fold = foldHoldings(rows, now);
+    const checked = await crossCheckLiveness(deps.history, foldHoldings(rows, now), cap);
+    const fold = checked.fold;
     if (fold.holdings.length > 0) {
-      lines.push("", "Hold spans:", ...fold.holdings.map(renderHoldingLine));
+      lines.push(
+        "",
+        "Hold spans:",
+        ...fold.holdings.map(renderHoldingLine),
+        ...crossCheckNote(checked.unitsRead),
+      );
     }
+    const unclosed = unclosedNote(fold);
+    if (unclosed !== null) lines.push("", unclosed);
     if (fold.unmatchedCloses > 0) lines.push("", unmatchedNote(fold.unmatchedCloses));
     return {
       ok: true,

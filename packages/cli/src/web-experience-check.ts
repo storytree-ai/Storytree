@@ -1,12 +1,21 @@
-// ⚠ UNWIRED — `check:web-experience` was RETIRED from the gate by ADR-0311 D2 (2026-08-05), and NOTHING
-// invokes this file: it appears in no root `package.json` script, no `GATE_PLAN` step
-// (`gate-order.ts`), and no CI job. Its own unit tests still run under `pnpm -r test`, so they
-// stay GREEN while this enforces NOTHING — a passing test here is not evidence that the rule
-// below is enforced anywhere.
+// ⚠ UNWIRED — `check:web-experience` was RETIRED from the gate by ADR-0311 D2 (2026-08-05), and no
+// root `package.json` script, `GATE_PLAN` step, or CI job invokes THIS FILE'S OWN `main()` /
+// marker-contract judges. Its own unit tests still run under `pnpm -r test`, so they stay GREEN
+// while the WHOLE-JUDGE rung below (markers + closure) enforces NOTHING — a passing test here is not
+// evidence that rule is enforced anywhere.
 //
 // KEPT DELIBERATELY, not forgotten (ADR-0311 D5 — the implementations stay so re-wiring is
-// cheap). Re-adding it needs fresh production-catch evidence AND an ADR, never just the wiring.
-// Tombstone: `RETIRED_CHECKS` in `gate-order.ts`, pinned by `gate-order.test.ts`.
+// cheap). Re-adding the WHOLE rung needs fresh production-catch evidence AND an ADR, never just the
+// wiring. Tombstone: `RETIRED_CHECKS` in `gate-order.ts`, pinned by `gate-order.test.ts`.
+//
+// ONE THIRD OF IT WAS RE-WIRED, NARROWER, AS A NEW RUNG (ADR-0336, 2026-08-09):
+// `check-web-experience-closure.ts` imports `findExperienceEntries` / `walkStaticClosure` /
+// `isWebGlSpecifier` / `withExtensionFallback` from THIS file to back the live
+// `check:web-experience-closure` gate step — the closure-walk property only, never the marker
+// contract, and never through this file's own retired `main()`. That import does not un-retire
+// `check:web-experience` itself: the name stays in `RETIRED_CHECKS`, and the marker judges
+// (`findExperienceMarkers`, the marker half of `checkExperienceEntry`/`checkExperienceSite`) remain
+// unwired and unguarded, per ADR-0336 D2.
 //
 // The description below is retained as written; read it as what this check DID, not as current
 // gate policy.

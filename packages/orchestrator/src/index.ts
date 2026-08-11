@@ -150,8 +150,13 @@ export {
 // what a declared `real.proofCommand` IS, and whether the ADR-0211 assert-oracle can measure it. The
 // arc's standing instruction is that ONE classifier serves every finding over this population — never
 // a second one, or they can disagree about the same command.
-export type { ProofRoute, ProofRouteBasis } from "./proof/proof-route.js";
-export { classifyProofRoute, namesTestFile, withOracleGuard } from "./proof/proof-route.js";
+export type { ProofRoute, ProofRouteBasis, ClassifyProofRouteOpts } from "./proof/proof-route.js";
+export {
+  classifyProofRoute,
+  namesTestFile,
+  withOracleGuard,
+  withOracleGuardEnv,
+} from "./proof/proof-route.js";
 export type { SignerInputs, SignerResult } from "./proof/signer.js";
 export { resolveSigner } from "./proof/signer.js";
 export { resolveSignerFromEnv } from "./proof/signer-env.js";

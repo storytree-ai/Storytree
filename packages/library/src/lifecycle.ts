@@ -76,9 +76,10 @@ export function lifecycleOf(kind: string, doc: LifecycleDoc): Lifecycle {
       // ADR-0239 D1 — the stored closure flag, read through THIS projection and no other (D4 of
       // ADR-0196: a second ad-hoc status surface is the failure that ADR exists to end). Before the
       // field existed this branch was a hardcoded `"active"`, honouring ADR-0196 D2's deferral of the
-      // write; now that `arc close` writes the transition, `closed` is finally witnessable. An arc
-      // with no stored field is still in flight, so absent degrades to `active` — the projection
-      // never invents an `archived` it cannot read.
+      // write; now that `arc close` writes the transition, `closed` is finally witnessable — and
+      // since ADR-0337 `arc reopen` writes the way back, so the projection reads a bit that can move
+      // both ways rather than a one-way latch. An arc with no stored field is still in flight, so
+      // absent degrades to `active` — the projection never invents an `archived` it cannot read.
       return doc.lifecycle === "closed" ? "archived" : "active";
 
     default:

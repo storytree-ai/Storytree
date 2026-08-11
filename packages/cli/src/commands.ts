@@ -1,3 +1,23 @@
+/**
+ * The CLI command register — `cli#unified-command-dispatch`, ONE capability (ADR-0343).
+ *
+ * This file is large and is touched by nearly every verb the factory gains. That is a composition
+ * root doing its job, not a defect in it, and **it is not to be decomposed** — see ADR-0343 D1.
+ * The question has been raised and settled three times (ADR-0340 named it, ADR-0341 ranked it,
+ * ADR-0342 measured it, ADR-0343 fenced it); please do not re-open it.
+ *
+ * The distinction that matters (ADR-0343 D2): **one unit may live in many files; many files do not
+ * make many units.** Splitting code out across files is free and already normal here — this module
+ * already imports 39 per-command modules. What is refused is giving those pieces separate dispatch,
+ * separate argument parsing, or separate ownership in the work hierarchy. Nine stories reach their
+ * verb through this one register, and one owner per path is ADR-0192's landlord rule.
+ *
+ * What IS permitted, and arguably owed (ADR-0343 D4): the inline library/artifact command bodies
+ * below still hold domain logic, which this capability's own spec forbids — "the shim holds no
+ * domain logic; every verb forwards into the organism that owns it". Moving them into the owning
+ * organism is spec conformance. Do it for that reason; it buys no measurable lane width
+ * (ADR-0342 D2/D3).
+ */
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import os from "node:os";
@@ -41,6 +61,7 @@ import {
   arcEdit,
   arcIncrementAdd,
   arcClose,
+  arcReopen,
   arcIncrementClose,
   arcIncrementNew,
   arcScopeOf,
@@ -746,8 +767,9 @@ const UNSETTABLE_FIELDS: ReadonlySet<string> = new Set(["kind", "schemaVersion",
  * increment add` is for (ADR-0183 D1); see the guard in the `--set` loop below.
  *
  * One field is refused BY POLICY rather than by shape: an arc's `lifecycle` (ADR-0239 D2). It is a
- * valid field the schema would accept, but closure must be written from the prose that justifies it,
- * so it belongs to `storytree arc close` alone. See the guard in the `--set` loop below.
+ * valid field the schema would accept, but each transition must be written from the prose that
+ * justifies it, so it belongs to `storytree arc close` and `storytree arc reopen` (ADR-0337) — the
+ * two verbs that write that prose — and to no generic edit. See the guard in the `--set` loop below.
  */
 export async function editArtifact(
   deps: RunDeps,
@@ -841,23 +863,30 @@ export async function editArtifact(
         };
       }
       // ADR-0239 D2 — an arc's `lifecycle` is NOT a free flip. The schema would happily take it (it
-      // is a real field, so the unknown-field guard above lets it through), but closure is a
-      // projection of prose that supports it: `arc close` appends the terminal increment stating the
-      // end-state condition met AND sets the flag in the same atomic write. A bare `--set` here
-      // would record the state with no evidence behind it — the exact move ADR-0084/0086 forbid for
-      // an ADR status, refused for the same reason.
+      // is a real field, so the unknown-field guard above lets it through), but the state is a
+      // projection of prose that supports it: each direction has a verb that records the prose AND
+      // sets the flag. A bare `--set` here would record the state with no evidence behind it — the
+      // exact move ADR-0084/0086 forbid for an ADR status, refused for the same reason.
+      //
+      // BOTH directions are now reachable (ADR-0337). This refusal used to name only `arc close` and
+      // then say re-opening was OWNER-only — which was a dead end, since no owner path existed
+      // either, and a reader who needed `active` was left with a rule and no verb. It names both.
       if (kindStr === "arc" && field === "lifecycle") {
         return {
           ok: false,
           body: [
-            "an arc's lifecycle is not a free flip — closure is written FROM EVIDENCE, in one verb:",
-            `  storytree arc close ${id} --outcome "<the end-state condition this landing met>" --pg`,
-            "which records the terminal increment and sets lifecycle: closed together (ADR-0239 D2 —",
-            "increment first since ADR-0305 D1 made it its own row, so an interrupted close never leaves",
-            "a closed arc with no prose behind it).",
-            "Re-opening a closed arc (closed → active) is OWNER-only, mirroring ADR-0084's human-only un-deciding.",
+            "an arc's lifecycle is not a free flip — each direction is written FROM EVIDENCE, in one verb:",
+            `  storytree arc close  ${id} --outcome "<the end-state condition this landing met>" --pg`,
+            `  storytree arc reopen ${id} --reason  "<why that end state does not hold after all>" --pg`,
+            "each records its increment and sets the flag together (ADR-0239 D2 / ADR-0337 — increment",
+            "first since ADR-0305 D1 made it its own row, so an interrupted write never leaves a flipped",
+            "arc with no prose behind it).",
           ].join("\n"),
-          next: [`storytree arc show ${id} --pg`, `storytree arc close ${id} --outcome "…" --pg`],
+          next: [
+            `storytree arc show ${id} --pg`,
+            `storytree arc close ${id} --outcome "…" --pg`,
+            `storytree arc reopen ${id} --reason "…" --pg`,
+          ],
         };
       }
       // The `increments` policy guard stood here — an explicit refusal of a wholesale `--set` over
@@ -2452,6 +2481,12 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     if (isClaimHistoryVerb(sub)) {
       const auditStore = deps.presence?.ledger ?? null;
       const auditHistory = auditStore?.auditHistory;
+      // The LIVE-ROW cross-check. Without it the hold-span fold can only ever reach
+      // `unverified`, so the `cleared` rendering — the half that makes the ~205 spans with
+      // no closing transition legible rather than merely un-asserted — would be built,
+      // tested, and dormant in production. A dormant mechanism is indistinguishable from a
+      // working one from the outside, which is the exact class this arc exists to fence.
+      const claimsFor = auditStore?.claimsFor;
       return claimHistoryCommand(
         third,
         {
@@ -2465,7 +2500,12 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         {
           history:
             auditHistory !== undefined
-              ? { auditHistory: (query) => auditHistory.call(auditStore, query) }
+              ? {
+                  auditHistory: (query) => auditHistory.call(auditStore, query),
+                  ...(claimsFor !== undefined
+                    ? { claimsFor: (unitId: string) => claimsFor.call(auditStore, unitId) }
+                    : {}),
+                }
               : null,
           now: () => new Date(),
         },
@@ -2823,7 +2863,14 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     // friction) and, for `new`, for hand-authoring the doc JSON (`no-arc-new-scaffolder-verb`). Long
     // prose (--intent/--end-state/--outcome/--description) accepts `@path` to read from a file so
     // shell quoting never mangles multi-line values into a literal `\n`.
-    if (sub === "new" || sub === "edit" || sub === "increment" || sub === "close" || sub === "proposal") {
+    if (
+      sub === "new" ||
+      sub === "edit" ||
+      sub === "increment" ||
+      sub === "close" ||
+      sub === "reopen" ||
+      sub === "proposal"
+    ) {
       const writeDeps: ArcWriteDeps = {
         store: deps.store,
         writable: deps.writable === true,
@@ -2904,6 +2951,10 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
           ...(resolved.intent !== undefined ? { intent: resolved.intent } : {}),
           ...(resolved.endState !== undefined ? { endState: resolved.endState } : {}),
           ...(resolved.description !== undefined ? { description: resolved.description } : {}),
+          // The bundled first increment (ADR-0335) — the same two flags `arc increment new` reads,
+          // already `@path`-expanded by the boundary above.
+          ...(resolved.objective !== undefined ? { objective: resolved.objective } : {}),
+          ...(resolved.body !== undefined ? { body: resolved.body } : {}),
         });
       }
       if (sub === "edit") {
@@ -2919,6 +2970,17 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
           ...(values.date !== undefined ? { date: values.date } : {}),
           ...(values.pr !== undefined ? { pr: values.pr } : {}),
           ...(resolved.outcome !== undefined ? { outcome: resolved.outcome } : {}),
+        });
+      }
+      // The OPENING write (ADR-0337) — `close`'s mirror, and the missing half of the lifecycle that
+      // ADR-0239 D2 reserved for the owner without ever giving them a way to reach it. `--reason` is
+      // already a PROSE_FLAG, so it arrives `@path`-expanded from the boundary above like every
+      // other long-prose flag; there is no new flag to declare.
+      if (sub === "reopen") {
+        return arcReopen(writeDeps, third, {
+          ...(values.date !== undefined ? { date: values.date } : {}),
+          ...(values.pr !== undefined ? { pr: values.pr } : {}),
+          ...(values.reason !== undefined ? { reason: values.reason } : {}),
         });
       }
       // `arc increment add <arc-id>` (canonical) or the shorthand `arc increment <arc-id>`.

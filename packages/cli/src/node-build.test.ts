@@ -6,6 +6,7 @@ import * as path from "node:path";
 
 import { InMemoryStore } from "@storytree/storage-protocol";
 import { loadFixtureCorpus } from "@storytree/library/fixture";
+import { realBuildableNodeIds } from "@storytree/orchestrator";
 import type { RealProofConfig } from "@storytree/orchestrator";
 
 import { run } from "./commands.js";
@@ -15,6 +16,7 @@ import {
   nodeBuild,
   nodeHelp,
   renderLeafPhasePrompts,
+  repoRoot,
   resolveAddDepsGroup,
   resolveDbProofEnv,
   resolveVerdictStore,
@@ -219,424 +221,72 @@ test("node build without an id, and bare `node`, are help/guidance", async () =>
   assert.match(bare.body, /node build <id> --dry-run/);
   assert.match(bare.body, /library-cli/);
   assert.match(bare.body, /--real/);
-  // and cloud-sql-admin-rest; the binding-staleness slices (ADR-0016; proof: blocks in
-  // stories/binding-staleness/*.md): boundhash-on-verdict, change-event-store, change-store-pg (the
-  // ADR-0064 §1 DB-backed PgChangeStore proof), drift-reads-store, gate-emits-change, source-drift;
-  // the first three `agent`-story capabilities (stories/agent/*.md): leaf-tool-surface,
-  // model-runtime-seam, owned-turn-loop; and the three thick-client `desktop`-story capabilities
-  // (stories/desktop/*.md, ADR-0113 — each a NET-NEW `real:` arm): local-backend-boot, local-credential-wiring,
-  // shared-forest-connection (the last RE-HOMED by ADR-0117 — same proof file, now a broker client), plus
-  // two more desktop `real:` caps beyond that original ADR-0113 trio: boot-read-routes (ADR-0119, the boot
-  // read set) and chat-sse-mount (ADR-0108 Phase 2 — the consumed startChatStream mounted at POST /api/chat
-  // and streamed as SSE);
-  // plus the launch-precondition gate desktop-launch-preconditions (stories/desktop/desktop-launch-preconditions.md
-  // — ADR-0176, a NET-NEW `real:` arm: the sidecar proves a reachable DB + a git checkout before wiring
-  // any backend, retiring the degraded read shell; the Electron main() wiring + splash/refuse window are
-  // operator-attested glue, not a machine leg);
-  // the two ADR-0117 broker units: builder-role (stories/studio-members/builder-role.md — an
-  // EDITS-EXISTING `real:` arm adding the third role to users.ts) and write-broker
-  // (stories/studio-cloud/write-broker.md — a NET-NEW `real:` arm: the members-gated write endpoint);
-  // and the `cli` story's `organism-boundary-tooling` capability's three contracts, each an
-  // editsExisting `real:` arm over packages/cli/src/boundaries.ts:
-  // declared-edge-drift-report (stories/cli/declared-edge-drift-report.md — the ADR-0115 declared-edge
-  // drift report), hosted-story-landlord-rule (stories/cli/hosted-story-landlord-rule.md — the
-  // ADR-0192 BLOCKING landlord rule: a story whose unit sources live in another story's building must
-  // be a declared neighbour either way) and packages-forward-refusal
-  // (stories/cli/packages-forward-refusal.md — ADR-0192 decision 2, the second BLOCKING rule: a hosted
-  // story absent from the frozen `hostedStories` grandfather register is refused REGARDLESS of declared
-  // edges, and a stale register entry is itself a violation).
-  // Plus the `studio` story's chat-panel capability (stories/studio/chat-panel.md — a NET-NEW `real:` arm:
-  // the renderer chat panel, the first studio frontend cap proof-wired for the vitest two-stage, ADR-0070;
-  // its real arm declares a vitest `proofCommand` since the studio suite is vitest, not node:test).
-  // And the `studio` story's coalesced-camera-pan capability (stories/studio/coalesced-camera-pan.md):
-  // the BROWNFIELD studio vitest `real:` arm over TreeView.tsx's frame-coalesced drag camera controller.
-  // Its camera-rasterisation-probe sibling is the query-gated production Chromium diagnostic over
-  // the real 40-island Act 2 regrow and both SVG-camera / HTML-compositor transform paths.
-  // Its act2-regrow-camera-zoom-out child is the shipped cursor projection plus the final-product
-  // arm of that same production protocol.
-  // Its ADR-0240 sibling map-route-retention (stories/studio/map-route-retention.md) is another
-  // BROWNFIELD studio vitest `real:` arm: App-level composition keeps a visited TreeView alive across
-  // hash routes while safely parking it outside the active route's paint and input tree.
-  // Most of the library
-  // story's 7 capabilities are NO LONGER here:
-  // ADR-0094 (supersedes_in_part 92 d.1 & d.5) removed their brownfield `real:` arms — the library is
-  // `mapped`, so its green path is Adopt (`## Reliability Gates`, ADR-0085), not a fail-closed `--real`
-  // Build. They keep their spec-borne dry-run/live `command`+`scope`, so they stay in "buildable nodes"
-  // (single-node `--live`) but drop out of "REAL-buildable nodes". The EXCEPTIONS are the two build-tests
-  // gate targets: `seed-corpus-scripts` (ADR-0098 U5 — an R2 `refactorForTests` arm the story's
-  // `library#gate-4` `(build:)`s) and `event-sourced-store-seam` (ADR-0098 — an R1 `editsExisting` arm,
-  // `db: true`, the story's `library#gate-5` `(build:)` over the `createPool` fail-closed contract). Both
-  // are real-buildable again ONLY to be driven via their gate, not a blanket story Build — the gate's
-  // verdict signs FOR the gate id and greens no capability, so the other five caps stay arm-less and the
-  // story is not real-buildable.
-  // The four `chat-drive-bridge`-story capabilities (accept-to-land-affordance, chat-build-dispatch,
-  // proposal-id-threading, proposed-unit-signal) were RETIRED by ADR-0155 (2026-07-04): the chat
-  // propose_unit / accept-to-Build handshake was removed (PR #587) — the session-orchestrator drives via
-  // its spawn (ADR-0137) + landing (ADR-0152) tools instead of proposing a unit for a human to accept.
-  // Their `real:` arms were dropped, so they are no longer REAL-buildable (the whole story retired).
-  // The four `headless-orchestrator`-story capabilities (headless-session-runner,
-  // orchestrator-composition, orientation-tool-surface, chat-session-stream) are NO LONGER here:
-  // RETIRED with the headless-orchestrator story (ADR-0175 companion reconcile, owner-directed
-  // 2026-07-17) — the dormant chat substrate is absorbed into `app-guide`. Their `real:` arms were
-  // dropped, so they are no longer REAL-buildable (the story specs stay, retired in place, as history).
-  // And the desktop-build-mount story's `worker-relocation` + `desktop-build-route` capabilities
-  // (stories/desktop-build-mount/*.md — ADR-0133, the desktop becomes a build surface by relocating the
-  // build worker to a shared package and mounting it on the desktop sidecar), each a `real:` arm. Its
-  // third original cap, `desktop-accept-dispatch`, was RETIRED by ADR-0155 with the accept handshake (its
-  // /api/chat/accept route was removed) — so it is no longer REAL-buildable; the story keeps its other
-  // caps. (routed-node-real-dispatch, the post-landing increment, is listed separately below.)
-  // And the four PROVABLE `wisp-as-story-claim`-story capabilities (stories/wisp-as-story-claim/*.md —
-  // ADR-0138, the forest wisp becomes a forced, CI-cleared story-CLAIM): claim-store-work-time (A — an
-  // editsExisting db-backed `real:` arm over PgClaimStore's releaseClaimsByBranch), render-claim-as-wisp
-  // (B — a NET-NEW pure fold of node_claim rows into map activity), colour-by-subagent (C — a NET-NEW pure
-  // subagent→colour mapping) and take-claim-at-spawn (E — a NET-NEW pure spawn-claim seam). The story's
-  // other two caps are operator-attested (no `real:` arm, witnessed not built): ci-clear-on-merge (D, glue)
-  // and appearance-uat (F, the §5-honesty-wall human UAT).
-  // And the eight PROVABLE `library-review`-story capabilities (stories/library-review/*.md — ADR-0140,
-  // the word-processor Review mode for library open-questions): the five backend LEAF arms
-  // block-position-comment-anchor (the block-anchor comment model + the normalizeCommentAnchor write
-  // boundary), suggestion-edit-store, accept-reject-suggestion-api, member-suggest-write-policy,
-  // review-refresh-feed; and the three LOOK caps with vitest two-stage `real:` arms (ADR-0070):
-  // review-mode-toggle, inline-comment-thread, collapsed-suggestion-view. The ninth cap,
-  // remove-text-selection-anchoring, is GLUE (no `real:` arm) so it is absent here.
-  // The five `chat-subagent-spawn`-story capabilities (story-author-spawn, builder-spawn-dispatch,
-  // claim-gated-spawn, spawn-tool-surface, spawn-deps-composition) are NO LONGER here: RETIRED by
-  // ADR-0174 + ADR-0175 (owner-directed 2026-07-17) — the chat's agent-side spawn authority is moot
-  // now that the embedded terminal running real Claude Code is the interactive seat (spawn/landing do
-  // not go to app-guide). Their `real:` arms were dropped, so they are no longer REAL-buildable (the
-  // story specs stay, retired in place, as history).
-  // And the four parent-side LEAF caps of the `website-experience` story
-  // (stories/website-experience/*.md — ADR-0134 the two-act vibe-coding experience, over the
-  // ADR-0123 R3F mapper): r3f-world-spike (NET-NEW — the pure world→3D descriptor mapping; the
-  // package scaffold is orchestrator glue BEFORE its leaf runs), web-experience-sync (an
-  // editsExisting arm generalising packages/cli/src/web-engine-sync.ts to a second synced package),
-  // act2-beat-director (NET-NEW — the pure visitor-paced five-beat director) and
-  // experience-rollout-guardrails (NET-NEW — the check:web-experience pure judge). The story's
-  // other four caps are operator-attested web-repo work (no `real:` arm — the storm, the
-  // inflection, the Act 2 walkthrough, the info-page triage), so they are absent here.
-  // And the desktop-build-mount story's post-landing increment routed-node-real-dispatch
-  // (stories/desktop-build-mount/routed-node-real-dispatch.md — ADR-0144, an editsExisting `real:` arm
-  // over packages/drive/src/build-worker.ts: the routed NODE dispatch drives `node build --real` with
-  // persist semantics instead of the synthetic `--live` smoke).
-  // The four `spawn-visibility`-story capabilities (chat-spawn-trace-events, claim-wisp-cold-start,
-  // chat-panel-spawn-render, live-story-island-refresh) are NO LONGER here: RETIRED by ADR-0174 +
-  // ADR-0175 (owner-directed 2026-07-17) — the chat spawn this made visible is retired with
-  // chat-subagent-spawn (interactive orchestrator chat retired for an embedded terminal running real
-  // Claude Code). Their `real:` arms were dropped, so they are no longer REAL-buildable (the story
-  // specs stay, retired in place, as history).
-  // And the four `app-guide`-story capabilities (stories/app-guide/*.md — formerly `terminal-chat`,
-  // re-aimed under ADR-0175; ADR-0137 Phase-3 UAT feedback, ADR-0070 two-stage: the chat-panel UX
-  // substrate for the concierge): the three thin-client caps multi-turn-transcript (the persistent
-  // scrollback), auto-grow-input (the growing input) and transcript-reset (clear + abort), each an
-  // editsExisting vitest `real:` arm over ChatPanel.tsx / api.ts; and the OPTIONAL/STRETCH
-  // backend-chat-reset-route (a desktop node:test arm over the sidecar reset route — buildable but
-  // HELD, so it lands separately). The continuous-conversation feel is the story's operator-attested
-  // UAT legs, not a capability.
-  // (The `scoped-glue-actuator`-story capabilities glue-worker-spawn / spawn-glue-tool /
-  // glue-deps-composition are NO LONGER here: ADR-0175 retired the desktop chat's spawn_glue_worker
-  // actuator as redundant — the embedded terminal (ADR-0174) makes glue edits natively — so their
-  // story specs + `real:` arms were removed; only the glue-worker *agent definition* optionally
-  // survives as a fenced subagent, which carries no `real:` arm.)
-  // And the two `embedded-terminal`-story capabilities (stories/embedded-terminal/*.md — ADR-0174,
-  // the desktop app embeds a REAL local terminal, xterm.js over node-pty, replacing the chat as the
-  // interactive build surface — distinct from `app-guide`, the dormant chat panel re-aimed as the
-  // help/setup concierge): pty-session-manager (NET-NEW node:test over an injected fake PtyPort — the
-  // Electron-main pty lifecycle, no native module at test time) and terminal-dock-panel (NET-NEW
-  // vitest jsdom over a mocked xterm + a mocked desktopTerminal bridge — the renderer xterm dock,
-  // ADR-0070 geometry-machine-proven; the terminal LOOK + the real-pty run are operator-attested UAT
-  // legs). The real node-pty adapter + preload bridge + the TreeView dock-slot swap are operator-
-  // attested glue (no `real:` arm), not capabilities.
-  // And credential-broker (stories/desktop/credential-broker.md — ADR-0179): the desktop-only
-  // Credentials panel vitest `real:` arm over CredentialsPanel.tsx (geometry/behaviour); the real
-  // OS-keychain Cursor-key leg is operator-attested, not machine-asserted.
-  // And library-adr-wire-signals (stories/library-tech-tree-overlay/library-adr-wire-signals.md —
-  // ADR-0187 increment 6, MACHINE-ONLY / no look leg): the NET-NEW studio vitest `real:` arm over
-  // apps/studio/server/adrWireSignals.ts (the pure, tolerant flat-scan parseAdrWireSignals surfacing
-  // each ADR's load_bearing boolean + its deduped supersedes/supersedes_in_part/amends lineage-edge
-  // NUMBERS); the number→doc-id resolution + the listDocs DocMeta fold + the types.ts optional
-  // loadBearing/references fields are supplement glue after PASS, not this cap's `real:` scope.
-  // And library-dive-body (stories/library-tech-tree-overlay/library-dive-body.md —
-  // ADR-0185 increment 4, ADR-0070 two-stage): the NET-NEW studio vitest `real:` arm over
-  // LibraryDiveBody.tsx + diveBody.ts (the pure planDive router + a thin component reusing
-  // AssetView/DocView to render the dived artifact's full body; DocView owns the on-demand
-  // docContent fetch); the forest-cozy reading pane + the TreeView diveSlot mounting are the
-  // story's operator-attested UAT leg.
-  // And library-drawer-shell (stories/library-tech-tree-overlay/library-drawer-shell.md —
-  // ADR-0185 increment 1, ADR-0070 two-stage): the NET-NEW studio vitest `real:` arm over
-  // LibraryDrawer.tsx (the ?overlay=library peek↔dive↔closed state machine); the forest-cozy
-  // look + the TreeView mounting are the story's operator-attested UAT leg.
-  // And library-finder (stories/library-tech-tree-overlay/library-finder.md — ADR-0185 increment 2,
-  // ADR-0070 two-stage): the NET-NEW studio vitest `real:` arm over LibraryFinder.tsx + librarySearch.ts
-  // (the search-only finder over the loaded corpus, kind sub-line via kindLabel); the forest-cozy
-  // look + the peek-slot mounting are the story's operator-attested UAT leg.
-  // And library-dag-canvas (stories/library-tech-tree-overlay/library-dag-canvas.md —
-  // ADR-0188 increment 10 dec 5, ADR-0070 two-stage): the BROWNFIELD studio vitest `real:` rework of
-  // LibraryFocusGraph.tsx + focusGraph.ts into a true layered reference DAG (references[] both-ways
-  // adjacency to FULL transitive depth, dagre LR ranks, DRAWN SVG edges between rank-adjacent nodes,
-  // per-branch ⊕ expanders replacing the retired depth stepper, ← Back leading the breadcrumb with no
-  // canvas header, a machine-asserted fit-to-view viewBox containing every node); the seed-packet look
-  // + the two-pane mounting are the story's operator-attested UAT leg (shared inc-9+10 sitting). It
-  // RETIRES library-focus-subgraph (same source files, new capability/test/prefix).
-  // And library-overview (stories/library-tech-tree-overlay/library-overview.md —
-  // ADR-0185 increment 5, ADR-0070 two-stage): the NET-NEW studio vitest `real:` arm over
-  // LibraryOverview.tsx + overviewConstellation.ts (the empty-state whole-corpus dot field under
-  // the FAR/MID/CLOSE LOD ladder, importance = reference-graph degree, the overview owning its own
-  // search input for search-glow); the forest-cozy dot-field look + the TreeView empty-state peek
-  // mounting are the story's operator-attested UAT leg.
-  // And library-open-overlay (stories/library-tech-tree-overlay/library-open-overlay.md — ADR-0187
-  // increment 8 dec 2, ADR-0070 two-stage): the NET-NEW studio vitest `real:` arm over
-  // LibraryOpenOverlay.tsx (a separate full-detail document overlay OVER the map that REUSES the
-  // byte-locked LibraryDiveBody router; null selection renders nothing; a dismiss control fires
-  // onDismiss); the "like opening a Word doc" look + the TreeView mounting are the operator-attested leg.
-  // And library-open-trigger (stories/library-tech-tree-overlay/library-open-trigger.md — ADR-0187
-  // increment 8 dec 2, ADR-0070 two-stage): the NET-NEW studio vitest `real:` arm (LibraryOpenTrigger.test.tsx)
-  // over ADDITIVE onOpen/onDoubleClick edits to LibraryOverview.tsx + LibraryFocusGraph.tsx (a node
-  // double-click lifts the finder-parity SearchResult via onOpen; single-click onSelect/onFocus unchanged).
-  // And library-permanent-lens (stories/library-tech-tree-overlay/library-permanent-lens.md — ADR-0187
-  // increment 8 dec 1/2, ADR-0070 two-stage): the BROWNFIELD studio vitest `real:` re-author of
-  // LibraryDrawer.tsx into a PERMANENT LENS (retiring the closed→peek→dive machine + the × close button;
-  // the flag gates presence; the map stays live; a bodySlot renders content; a bottom selection-preview
-  // section fires Open); the forest-cozy lens look + the TreeView mounting are the operator-attested leg.
-  // And library-typed-edges (stories/library-tech-tree-overlay/library-typed-edges.md —
-  // ADR-0187 increment 7, MACHINE-ONLY / no look leg): the editsExisting @storytree/library node:test
-  // `real:` arm over render-doc.ts — surfacing a structured doc's typed navigation edges (an agent's
-  // stepRefs, a process's branchEdges, a plan's arcRef) onto the RenderedAsset wire, spread-when-present
-  // on the structured branch only; the toGuidanceAsset carry-through + the types.ts optional
-  // stepRefs/branchEdges/arcRef fields are supplement glue after PASS, not this cap's `real:` scope.
-  // And the three library-tech-tree-overlay inc-9 panel-remold capabilities (ADR-0188, ADR-0070
-  // two-stage): library-category-shelf (BROWNFIELD studio vitest over LibraryFinder.tsx + the NET-NEW
-  // pure libraryShelf.ts — the idle category shelf with corpus-derived counts, the removable scope
-  // chip, scoped browse-then-filter; the signed lf-* query path stays byte-green),
-  // library-selection-card (NET-NEW studio vitest over LibrarySelectionCard.tsx + the pure
-  // selectionDetail.ts — the pinned side-panel card: corpus-resolved description, ADR status +
-  // read-only loadBearing badge, Open fires onOpen, stale-selection tolerance), and
-  // library-top-drawer (BROWNFIELD studio vitest re-author of LibraryDrawer.tsx — ADR-0191
-  // REPLACING library-lens-minimise: the lens state is URL-derived, ?overlay=library = expanded,
-  // absent = a default-visible collapsed top drawer handle firing onToggle; the component-local
-  // Minimise/Restore machine retired). The TreeView onToggle rewire + the full-width/top-third
-  // look are the story's operator-attested UAT leg (shared inc-9+10 sitting).
-  // And the two map-terminal-build-story capabilities (stories/map-terminal-build/*.md — ADR-0174
-  // map-spawn re-point: on the desktop a forest-map Build click SEEDS a `pnpm storytree … build <id>
-  // --real --store pg` command into the embedded terminal instead of dispatching in-app): compose-build-
-  // command (NET-NEW studio vitest — the pure command string) and map-build-seeds-terminal (editsExisting
-  // studio vitest jsdom — the BuildSection desktop seed-not-dispatch branch). The dock's own seed handling
-  // (accept + pre-fill) was originally terminal-dock-seed here but ADR-0186 re-decided it — a seed opens a
-  // FRESH tab — so terminal-tabs' seed-opens-new-tab superseded it. The TreeView seed wiring is the story's
-  // operator-attested glue (no `real:` arm), not a capability.
-  // And the three `terminal-repo-picker`-story capabilities (stories/terminal-repo-picker/*.md — ADR-0174
-  // follow-on: the embedded terminal opens in a repo the user PICKS, and FAIL-CLOSES until one is):
-  // repo-selection (NET-NEW node:test over injected DirProbe + SelectionStore ports — the
-  // validate/persist/read/resolve-cwd lifecycle, no real node:fs at test time), repo-picker-panel (NET-NEW
-  // vitest jsdom over a mocked desktopRepo bridge — the renderer picker, ADR-0070 geometry-machine-proven;
-  // its explicit vitest `proofCommand` since the studio suite is vitest, not node:test) and
-  // terminal-repo-gate (NET-NEW vitest jsdom over a mocked desktopRepo `ready`/`onChanged` bridge + a
-  // mocked TerminalDock — the fail-closed WRAPPER that renders the embedded terminal ONLY when a valid repo
-  // is ready and reopens it on a repo change, ADR-0070). The real node:fs/userData adapters + the native
-  // dialog + the `desktopRepo` preload bridge (with its `ready`/`onChanged` gate slice + the fail-closed
-  // `repo:ready`/`terminal:spawn` in main) + the TreeView mount (`<TerminalRepoGate/>` wrapping the dock) +
-  // threading resolveCwd into the EXISTING terminal spawn are operator-attested glue (no `real:` arm); the
-  // native-dialog / opens-in-the-picked-repo / survives-relaunch / gate-holds / look legs are the story's
-  // operator-attested UAT.
-  // And the two terminal-tabs-story capabilities (stories/terminal-tabs/*.md — ADR-0186: the embedded
-  // terminal becomes multi-session with a tab strip so a map Build seed opens a FRESH tab, never the
-  // active Claude Code session): multi-session-tabs (editsExisting studio vitest jsdom — the dock holds N
-  // pty sessions with a switch/new/close tab strip; the tdp-* behaviours re-proven per-tab) and
-  // seed-opens-new-tab (editsExisting studio vitest jsdom — a seed opens a fresh tab + pre-fills there,
-  // SUPERSEDING map-terminal-build's terminal-dock-seed write-to-active behaviour). The tab-strip look is
-  // the story's operator-attested UAT leg.
-  // And the two library-tech-tree-overlay inc-13 unified-lifecycle capabilities (ADR-0196):
-  // library-lifecycle-wire (editsExisting @storytree/library node:test — the NET-NEW pure browser-safe
-  // lifecycleOf projection mapping every stored per-kind vocabulary onto open|active|archived, + the
-  // render-doc.ts plan-`status` wire crossing, the typed-edges spread-when-present idiom; MACHINE-ONLY,
-  // no look leg) and library-lifecycle-shelf (BROWNFIELD studio vitest over LibraryFinder.tsx +
-  // libraryShelf.ts + the additive types.ts status mirror — the Active|All lifecycle toggle defaulting
-  // Active, live open+active counts with muted totals, the Decisions group-only count fix, per-kind
-  // scoped state chips; the signed lf-*/lcs- paths stay byte-green; toggle/chip look operator-attested).
-  // And the library-tech-tree-overlay inc-11 arc-closing capability (ADR-0185 dec 6):
-  // library-retire-standalone-page (editsExisting studio vitest, PURE-LIB over route.ts only — retire the
-  // {name:'library'} Route variant, redirect /library paths to the tree route, re-point libraryHref() to the
-  // ?overlay=library#/tree lens href; the caller sweep + Library.tsx deletion are the orchestrator's
-  // supplement glue after PASS, not part of the `real:` arm; no look leg — the lens look was signed 2026-07-15).
-  // And the studio-cloud story's deploy-health-signal capability
-  // (stories/studio-cloud/deploy-health-signal.md — ADR-0194: a red hosted-studio deploy must be loud):
-  // a NET-NEW dependency-free node:test `real:` arm over packages/cli/src/deploy-health.ts — the pure
-  // classifier turning the newest-first deploy-studio CD run list into an ok/red/unknown gate-tail
-  // verdict (red streak length / red-since / newest red URL / last green, LOUD WARN format). The
-  // gh-shelling wrapper (check-deploy-health.ts) + the root package.json gate-tail wiring are
-  // un-asserted session glue (ADR-0158), not part of the `real:` arm.
-  // And the `studio` story's hud-chrome capability (stories/studio/hud-chrome.md — ADR-0204 as
-  // amended by ADR-0205's one-pathway re-tense, under studio-hud-chrome-arc, ADR-0070 two-stage):
-  // the BROWNFIELD studio vitest `real:` arm over App.tsx + lib/route.ts + Hud.tsx (the forest as
-  // the landing route with Home/Overview retired, the topbar removed, and ONE floating control —
-  // the verified-identity initials avatar whose menu is account-only: identity line + Members
-  // (admin-gated) / Credentials (desktop-gated) / IAP Sign out; no brand chip, no navigation
-  // entries — the map's library drawer is the one pathway); the HUD look is the story's
-  // operator-attested UAT leg (ADR-0070 stage 2). Its arc sibling verified-attribution
-  // (stories/studio/verified-attribution.md — ADR-0204 D4, increment 2): the BROWNFIELD studio
-  // vitest `real:` arm finishing the operator-field retirement — comment attribution derives from
-  // the verified /api/me identity (server-stamped on the scoped path), lib/operator.ts +
-  // useOperator + the storytree.operator localStorage key deleted (type-proven by the typecheck wall).
-  // And the `library` story's graduation-park-lease capability
-  // (stories/library/graduation-park-lease.md — ADR-0202: the parked-memory lease compute): a NET-NEW
-  // pure browser-safe @storytree/library node:test `real:` arm over
-  // packages/library/src/graduation/park.ts (ParkRecord/ParkLedger zod, the content hash, the lease
-  // date math, the new|changed|expired|parked classifier, the live-only worklist counts) + the barrel
-  // re-export. The ledger file I/O, the `graduate park` CLI subcommand, and the
-  // check-graduation-worklist.ts rewire are after-PASS supplement glue (ADR-0158), not the `real:` arm.
-  // And the model-uat-promotion arc's uat-detail-studio story (ADR-0209 D7): BROWNFIELD studio vitest
-  // `real:` arms over UatTestCriteriaSection (one-liner display + Library detail open via assetHref;
-  // observe gate-1 covers both leaves; hostedStories register + studio depends_on uat-criterion-detail).
-  // And the linked-session-context arc's increment-2 story context-traversal-capture
-  // (stories/context-traversal-capture/** — ADR-0235 activation under ADR-0241's local-JSONL
-  // persistence decision): the terminal CLI's one dispatch boundary starts emitting for real. Its
-  // four NET-NEW node:test `real:` arms all live in the story's own package
-  // packages/context-traversal-capture (ADR-0192 D2 — a new story's code lives in its own workspace
-  // package, so nothing is added to the hostedStories register): traversal-trace-sink (the durable
-  // append/read/list seam over sink.ts), terminal-boundary-observations (the pure argv→observation
-  // read allowlist over observe-cli.ts), traversal-session-query (the replay renderers over
-  // query-render.ts), and terminal-capture-activation (the composition over terminal-capture.ts,
-  // proven by the story UAT that SPAWNS the real CLI). The packages/cli-side activation lines
-  // (main.ts / cli-areas.ts / commands.ts / traversal.ts / package.json) are un-asserted connective
-  // glue (ADR-0158) in a foreign building and are claimed by no `real:` arm.
-  // And the same arc's increment-3 story context-traversal-spawn (stories/context-traversal-spawn/**):
-  // the BUILD spawn boundary starts emitting linked parent/child lanes, so `spawn_handoff` /
-  // `model_context` / `result_return` gain their first producer. Its three NET-NEW node:test `real:`
-  // arms all live in the story's own package packages/context-traversal-spawn (ADR-0192 D2 again —
-  // nothing added to the hostedStories register): leaf-slice-spawn-observations (the pure slice
-  // accounting → lane triple over observe-leaf-slices.ts), build-spawn-capture (the parent/child
-  // per-session append over build-capture.ts) and multi-adapter-replay (the coverage-union render over
-  // replay-adapters.ts). The story itself carries NO story-level `real:` arm — it greens through its
-  // observe gate — so only the three capability ids appear here. The drive/cli-side activation lines
-  // (node-build.ts / story-build.ts / package.json / traversal.ts) are glue (ADR-0158) in a foreign
-  // building, claimed by no `real:` arm.
-  // And the same arc's increment-6 capability revisit-link-metadata, added to the EXISTING story
-  // context-traversal-capture: a repeat read of a canonical node names the earlier visit it repeats,
-  // giving `field:prior_visit_id` its first producer. Its `real:` arm lives in that story's own
-  // package (packages/context-traversal-capture/src/revisit-links.ts + .test.ts) over a pure
-  // in-memory linker, so nothing is added to the hostedStories register. The composition change in
-  // terminal-capture.ts that wires it is un-asserted connective glue (ADR-0158) claimed by no
-  // `real:` arm.
-  // And the app-surface semantic-growth increment: semantic-growth-replay-view and
-  // semantic-growth-studio-demo both retain their story-authored `real:` arms after reconciliation
-  // with main, so the help inventory must continue to advertise both proven nodes.
-  // And the same arc's increment-8 story context-traversal-transcript
-  // (stories/context-traversal-transcript/** — ADR-0248 D1): the HOST TRANSCRIPT surface becomes the
-  // orchestrator's own window-occupancy series, giving the arc's playhead bar the one quantity that
-  // can FALL. Its three NET-NEW node:test `real:` arms all live in the story's own package
-  // packages/context-traversal-transcript (ADR-0192 D2 again — nothing added to the hostedStories
-  // register): transcript-occupancy-extraction (per-request resident totals over
-  // transcript-occupancy.ts), transcript-session-correlation (host transcript → storytree session by
-  // recorded worktree cwd, over correlate-transcripts.ts) and transcript-occupancy-ingest (the
-  // idempotent append of validated model_context events over ingest-occupancy.ts). The story itself
-  // carries NO story-level `real:` arm — it greens through its observe gate — so only the three
-  // capability ids appear here. The packages/cli-side ingest lines (traversal.ts / commands.ts /
-  // package.json) and the two additive optional fields the vocabulary gained in
-  // packages/context-traversal-telemetry are glue (ADR-0158) in a foreign building, claimed by no
-  // `real:` arm.
-  // agent-ref-descent (stories/context-traversal-capture/agent-ref-descent.md — ADR-0235 clause 2):
-  // `field:parent_visit_id`'s FIRST producer anywhere in the repo. `storytree agents <name>` renders
-  // its floor refs' one-line assertions by resolving each EXPLICIT id in one process, so each resolved
-  // ref becomes a front_matter_read child naming the agent visit as its parent — a within-process
-  // containment fact, not a correlation, so ADR-0235 clause 3's banned inputs (ordering, adjacency,
-  // timestamps) stay untouched. A NET-NEW node:test `real:` arm over a NET-NEW file pair in the story's
-  // own package (packages/context-traversal-capture/src/descend-agent-refs.{ts,test.ts}) — deliberately
-  // a new capability rather than an extension, because the story's five existing capabilities all hold
-  // signed verdicts and a failed --real permanently under-claims one. The capture composition, the CLI
-  // resolve glue, the live render path and the index export are glue (ADR-0158), claimed by no `real:`
-  // arm. followed_edge stays unbuilt: ADR-0235 clause 3 already decided it negatively.
-  // artifact-offer-candidate-sets (stories/context-traversal-capture/artifact-offer-candidate-sets.md
-  // — ADR-0260 D1/D2, and the first node this story contributes to arc `context-decision-tree-arc`):
-  // `event:candidate_set`'s FIRST producer anywhere in the repo. `storytree library artifact <id>`
-  // already computes and prints its Sources block, so the OFFER needs no new derivation — only
-  // recording, at RENDER time and independently of what the session does next (D2). That timing is the
-  // load-bearing half: the branches NOT taken exist in the telemetry only because the offer was
-  // recorded when it was made, and a lazy emitter would rebuild the containment tree ADR-0260 replaces.
-  // A NET-NEW node:test `real:` arm over a NET-NEW file pair in the story's own package
-  // (packages/context-traversal-capture/src/offer-candidate-sets.{ts,test.ts}) — again a new capability
-  // rather than an extension of the six holding signed verdicts, since a failed --real permanently
-  // under-claims one. The capture composition, the CLI resolve glue, the caveat render and the index
-  // export are glue (ADR-0158), claimed by no `real:` arm. followed_edge STILL has no producer: it is
-  // ADR-0260 D3's own increment (the offer id travels in argv), and `FollowedEdgeEvent.candidateSetId`
-  // being required is exactly why this node had to land first.
-  // offer-follow-edges (stories/context-traversal-capture/offer-follow-edges.md — ADR-0260 D3/D4):
-  // `event:followed_edge`'s FIRST producer anywhere in the repo, and the one that closes the loop the
-  // sibling above opened. The offer's identity rides in ARGV — a printed follow-up command names the
-  // candidate set it came from, and the answering read stamps that edge on its own visit — so the join
-  // is an exact id off a command line, never a correlation. The REFUSAL is enforced by shape: the
-  // emitter is handed the invocation's own batch plus an argv-parsed offer and no trace reader at all,
-  // so resolving "the most recent candidate set containing this node" (candidate C wearing candidate
-  // B's clothes, fenced by ADR-0235 clause 3 and ADR-0260 D3) is structurally impossible rather than
-  // merely untested. A NET-NEW node:test `real:` arm over a NET-NEW file pair in the story's own
-  // package (packages/context-traversal-capture/src/follow-offer-edges.{ts,test.ts}) — again a new
-  // capability rather than an extension of the seven holding signed verdicts, since a failed --real
-  // permanently under-claims one. The capture composition, the CLI plumbing that pre-mints the render
-  // visit id, the `viewArtifact` follow-up render, the live render path and the index export are glue
-  // (ADR-0158), claimed by no `real:` arm.
-  // offer-observability-share (stories/context-traversal-capture/offer-observability-share.md — ADR-0312):
-  // the DENOMINATOR the three above never stated. A set offering 12 refs of which 8 are `doc:` renders
-  // "followed 1" beside 12 entries, and 1-of-12 is the wrong reading — 1-of-4 is the supported one. This
-  // node renders `offered N, observable M of N` per set plus the total line that names the misreading.
-  // ADR-0312 REFUSES the alternative (give `doc:` refs a CLI read shape): `isFollowableOfferId` gates the
-  // `unobservable` bucket, so making one followable turns every unanswered `doc:` offer into a
-  // `not-followed` DECLINED branch for agents who keep reading the file — the over-report leg 9 pins
-  // against. The unobservable REASON is derived by running `observeCliInvocation` over the argv a follow
-  // would use and comparing the observed surface against the one `emitFollowedEdge` stamps, never a
-  // restated prefix table — a fourth hand-written copy of the followable rule is the drift this arc has
-  // paid for three times. A NET-NEW node:test `real:` arm over a NET-NEW file pair in the story's own
-  // package (packages/context-traversal-capture/src/offer-observability-share.{ts,test.ts}) — a new
-  // capability rather than an extension of the nine holding signed verdicts, since a failed --real
-  // permanently under-claims one. Emits nothing, so no coverage constant moves; the query-render append
-  // and the index export are glue (ADR-0158), claimed by no `real:` arm.
-  assert.match(bare.body, /REAL-buildable nodes: .*camera-rasterisation-probe/);
-  assert.match(bare.body, /REAL-buildable nodes: .*act2-regrow-camera-zoom-out/);
-  assert.match(bare.body, /REAL-buildable nodes: .*arc-explicit-id-fidelity/);
-  assert.match(bare.body, /REAL-buildable nodes: .*hydrated-store-dialing-root/);
-  // offer-set-render-agreement (stories/context-traversal-capture/offer-set-render-agreement.md —
-  // ADR-0260 D1/D4, ADR-0312): the four nodes above all verify against RECORDED offers — the
-  // traversal's own account of what it was shown — which is circular with respect to this arc's end
-  // state, which asks for offers known INDEPENDENTLY of the traversal that consumed them. This node
-  // asks the prior question: does the recorded `candidate_set` match what the artifact REALLY offers?
-  // The oracle is the CLI's own printed Sources block, parsed out of a REAL spawned process's stdout
-  // (the offer is DEFINED as that block, ADR-0260 D1) — never `doc.references`, which would re-run
-  // the telemetry's own derivation, and never `offerIdOf`, which would rebuild the circularity one
-  // layer down. Measured 2026-08-06 over 357 referencing artifacts and confirmed end-to-end on a real
-  // spawned read: MEMBERSHIP agrees everywhere, zero divergences; ORDER diverges on 177 of 280
-  // multi-ref artifacts, because `resolveArtifactOffers` records authored order while the block prints
-  // regrouped by `SOURCE_GROUP_ORDER`. The order divergence is PINNED, not repaired: nothing joins on
-  // offer position (every `candidateNodeIds` consumer is set-, count-, or display-based) and ADR-0235
-  // clause 3 independently bans ordering as evidence, so no verdict moves — making the two agree is an
-  // owner decision with its own ADR, and asserting it follows ADR-0312 D5's `list` precedent that a
-  // silent divergence is how the next drift starts. A NET-NEW node:test `real:` arm over a NET-NEW
-  // file pair in the story's own package
-  // (packages/context-traversal-capture/src/offer-set-render-agreement.{ts,test.ts}) — a new
-  // capability rather than an extension of the ten holding signed verdicts, since a failed --real
-  // permanently under-claims one. Emits nothing and edits no existing file, so no coverage constant
-  // moves and no sibling capability's anchor drifts.
-  assert.match(bare.body, /REAL-buildable nodes: .*offer-observability-share/);
-  assert.match(bare.body, /REAL-buildable nodes: .*offer-set-render-agreement/);
-  const catalogWithoutFocusedNodes = bare.body
-    .replace(
-      /(REAL-buildable nodes:[^\n]*act2-regrow-camera-frame-delivery), act2-regrow-camera-zoom-out/,
-      '$1',
-    )
-    .replace(
-      /(REAL-buildable nodes:[^\n]*builder-role), camera-rasterisation-probe/,
-      '$1',
-    )
-    .replace(
-      /(REAL-buildable nodes:[^\n]*app-surface-world-view), arc-explicit-id-fidelity/,
-      "$1",
-    )
-    .replace(/(REAL-buildable nodes:[^\n]*offer-observability-share), offer-set-render-agreement/, '$1')
-    .replace(/(REAL-buildable nodes:[^\n]*offer-follow-edges), offer-observability-share/, '$1');
-  assert.match(
-    catalogWithoutFocusedNodes,
-    /REAL-buildable nodes: +accept-reject-suggestion-api, act2-beat-director, act2-regrow-camera-frame-delivery, agent-ref-descent, ambient-integration, app-surface-world-view, artifact-offer-candidate-sets, auto-grow-input, backend-chat-reset-route, block-position-comment-anchor, boot-read-routes, boundhash-on-verdict, brokered-local-uat-signing, build-spawn-capture, builder-role, change-event-store, change-store-pg, chat-panel, chat-sse-mount, claim-store-work-time, cloud-sql-admin-rest, coalesced-camera-pan, collapsed-suggestion-view, colour-by-subagent, compose-build-command, compositor-pan-transform, context-traversal-capture, context-traversal-telemetry, credential-broker, criterion-detail-hash-anchor, criterion-detail-pointer, decision-point-playback, declared-edge-drift-report, deploy-health-signal, desktop-build-route, desktop-launch-preconditions, dogfood-probe-mrfuze9m, drift-reads-store, event-sourced-store-seam, experience-rollout-guardrails, gate-emits-change, graduation-park-lease, hosted-story-landlord-rule, hud-chrome, hydrated-store-dialing-root, independent-judge-seam, inline-comment-thread, judge-result-shape, leaf-slice-spawn-observations, leaf-slices-observer-activation, leaf-tool-surface, library-adr-wire-signals, library-category-shelf, library-dag-acyclic-core, library-dag-canvas, library-dive-body, library-drawer-shell, library-finder, library-lifecycle-shelf, library-lifecycle-wire, library-open-overlay, library-open-trigger, library-overview, library-permanent-lens, library-process-flow, library-retire-standalone-page, library-selection-card, library-top-drawer, library-typed-edges, live-author-accounting-override, local-backend-boot, local-credential-wiring, map-boot-independence, map-build-seeds-terminal, map-payload-cache, map-route-retention, map-server-memo, member-suggest-write-policy, model-eligibility-registry, model-escalation-ladder, model-judged-uat, model-runtime-seam, model-tier-classification, model-uat-pilot, model-uat-witness, multi-adapter-replay, multi-session-tabs, multi-turn-transcript, node-resolve-report, noticeboard-cli, offer-follow-edges, organic-growth-app-witness, orientation-runner-telemetry, owned-turn-loop, packages-forward-refusal, pilot-criteria-classified, pilot-detail-seed, pilot-migration-harness, pixellab-organic-growth-tracks, pty-session-manager, r3f-world-spike, render-claim-as-wisp, repo-picker-panel, repo-selection, review-mode-toggle, review-refresh-feed, revisit-link-metadata, routed-node-real-dispatch, seed-corpus-scripts, seed-opens-new-tab, semantic-growth-replay-view, semantic-growth-studio-demo, shared-forest-connection, source-drift, spine-judge-validation, story-author-detail-authority, studio-app-surface-adapter, suggestion-edit-store, svg-island-growth-track, take-claim-at-spawn, terminal-boundary-observations, terminal-capture-activation, terminal-dock-panel, terminal-repo-gate, three-kind-witness, transcript-occupancy-extraction, transcript-occupancy-ingest, transcript-reset, transcript-session-correlation, traversal-event-vocabulary, traversal-session-query, traversal-trace-sink, tree-view, uat-bound-command-adoption, uat-criterion-detail, uat-criterion-library-surface, uat-detail-kind, uat-detail-studio, uat-machine-gate-resolution, uat-machine-proof-binding, uat-row-one-liner, uat-row-opens-detail, verdict-glyphs, verdict-line, verified-attribution, web-experience-sync, witnessable-verdict, worker-relocation, write-broker/,
-  );
 
   const noId = await run(["node", "build", "--dry-run"], deps);
   assert.equal(noId.ok, false);
   assert.match(noId.body, /needs an id/);
+});
+
+/**
+ * The REAL-buildable ids the story specs on disk DECLARE — read with a deliberately small parse of
+ * the frontmatter rather than through `buildableNodeIds`, so the assertion below compares two
+ * INDEPENDENT readings of the same fact instead of restating the code under test.
+ */
+async function specDeclaredRealIds(storiesDir: string): Promise<string[]> {
+  const ids: string[] = [];
+  for (const story of await fs.readdir(storiesDir, { withFileTypes: true })) {
+    if (!story.isDirectory()) continue;
+    const dir = path.join(storiesDir, story.name);
+    for (const file of await fs.readdir(dir)) {
+      if (!file.endsWith(".md")) continue;
+      const text = await fs.readFile(path.join(dir, file), "utf8");
+      const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text)?.[1];
+      if (frontmatter === undefined) continue;
+      const id = /^id:\s*"?([^"\n]+?)"?\s*$/m.exec(frontmatter)?.[1];
+      let inProof = false;
+      let real = false;
+      for (const line of frontmatter.split(/\r?\n/)) {
+        if (/^proof:\s*$/.test(line)) {
+          inProof = true;
+        } else if (inProof && /^\S/.test(line)) {
+          inProof = false;
+        } else if (inProof && /^ {2}real:\s*$/.test(line)) {
+          real = true;
+        }
+      }
+      if (real && id !== undefined) ids.push(id);
+    }
+  }
+  return ids.sort();
+}
+
+test("the REAL-buildable catalogue is DERIVED from the specs — this file keeps no list to append to", async () => {
+  // This assertion used to be one hardcoded, alphabetically-sorted string naming every real node,
+  // and ADR-0340 measured what that cost: `node-build.test.ts` is the factory's top lane-serialising
+  // registry, and 127 of the 157 commits that ever touched this file edited that catalogue. Two
+  // sessions authoring two DIFFERENT nodes collided here even when nothing else they touched met.
+  //
+  // The list was redundant all along: authoring a node's spec IS its registration (ADR-0057
+  // keystone A), so the story files already carry the fact. It is derived from them now. Keep it
+  // that way — adding a node must never mean editing this file, or the registry grows back.
+  const bare = await run(["node"], deps);
+  assert.equal(bare.ok, true);
+  const rendered = /REAL-buildable nodes: +([^\n]+)/.exec(bare.body);
+  assert.ok(rendered, "the listing must name its REAL-buildable nodes");
+  const listed = rendered[1]!.split(",").map((s) => s.trim()).filter(Boolean);
+
+  assert.deepEqual(listed, [...listed].sort(), "the catalogue renders alphabetically");
+  assert.equal(new Set(listed).size, listed.length, "the catalogue holds no duplicate");
+  // a floor, so a derivation that collapsed to nothing on BOTH sides cannot pass by agreeing on it
+  assert.ok(listed.length > 100, `expected the whole factory's real nodes, got ${listed.length}`);
+
+  // the two independent readings: what the specs on disk declare, plus the small in-code registry
+  const declared = await specDeclaredRealIds(path.join(repoRoot(), "stories"));
+  assert.deepEqual(
+    listed,
+    [...new Set([...declared, ...realBuildableNodeIds()])].sort(),
+    "every spec declaring `proof.real` must be discoverable, and nothing else may appear",
+  );
 });
 
 test("renderLeafPhasePrompts assembles the live leaf's per-phase prompts from the Library (ADR-0051 §4)", async () => {

@@ -19,6 +19,16 @@
 // it (else it is an orphan). "Which commands do we need?" is still a judgement the gate does not
 // adjudicate; the orphan list is the process-tier backfill worklist.
 //
+// A THIRD AXIS (c) READS THE FOUR PRESCRIPTIVE FIELDS, not just `surfaces`. (a) resolves at AREA
+// granularity, so a deleted VERB under a surviving area was invisible: PR #1148 deleted three Library
+// verbs while `library-edit-ceremony` and `retire-realized-proposal` went on prescribing them in their
+// prose, and every rung stayed green — twice. (c) reads `statement` / `steps` / `verification` /
+// `failureModes` for fully-qualified `storytree …` invocations and resolves them against a register
+// derived from the CLI's own sources. Its recognition rule, and the four things it deliberately does
+// NOT match (other tools, bare `pnpm <script>`, a BARE token naming a command, un-backticked prose),
+// are stated in full in `surface-coverage-gate.ts`. It rides (a)'s zero ceiling rather than opening a
+// third one — same breach, same repair, same honest baseline.
+//
 // It reads the LIVE store's `process` tier + `package.json` (ADR-0302 D1 — it read the committed
 // seed until that decision, which meant it judged a mirror that an authored process only reached
 // after an export ceremony; those ceremonies are deleted). It still runs identically local AND in
@@ -108,6 +118,7 @@ async function sweep(store: Store): Promise<void> {
       loadSurfaceCoverageInputs({
         store,
         packageJsonPath: path.join(repoRoot, "package.json"),
+        cliSrcDir: path.join(repoRoot, "packages", "cli", "src"),
       }),
   });
   for (const line of lines) (warn ? console.warn : console.log)(line);
@@ -117,9 +128,18 @@ async function sweep(store: Store): Promise<void> {
   // The process tier is USABLE only when the corpus actually yielded processes. A corpus with none
   // reclassifies every orphan-checked entrypoint as an orphan (measured on this checkout: 1 → 11),
   // which would turn a substrate failure into a bijection breach.
+  //
+  // AXIS (c) RIDES THE `unresolved` AXIS RATHER THAN OPENING A THIRD CEILING, because it is the same
+  // breach wearing a different field name: a published artifact points an operator at a command that
+  // does not exist. It is repaired the same way (edit one prose span), and its honest baseline is the
+  // same zero — so it inherits U=0 and the same `processTierUsable` suppression instead of arriving
+  // with a ceiling nobody measured.
   const drain = evaluateSurfaceCoverageDrain(
     {
-      unresolved: report.unresolved.map((u) => `${u.processId} → "${u.ref}"`),
+      unresolved: [
+        ...report.unresolved.map((u) => `${u.processId} → "${u.ref}"`),
+        ...report.danglingCommands.map((d) => `${d.processId}.${d.field} prescribes "${d.ref}" (unknown: ${d.token})`),
+      ],
       orphans: report.orphans,
     },
     { processTierUsable: report.processCount > 0 },
@@ -143,7 +163,11 @@ async function sweep(store: Store): Promise<void> {
     `${TAG}   Landing is blocked until the ADR-0154 bijection is restored. For an UNRESOLVED surface,`,
   );
   console.error(
-    `${TAG}   fix the process's \`surfaces\` ref (or add the entrypoint it names). For an ORPHAN,`,
+    `${TAG}   fix the process's \`surfaces\` ref (or add the entrypoint it names). For a PRESCRIBED`,
+  );
+  console.error(
+    `${TAG}   command the CLI no longer mounts, edit that field's prose to the verb that replaced it —` +
+      ` an operator follows the sentence literally. For an ORPHAN,`,
   );
   console.error(
     `${TAG}   author the \`process\` deriving from its ADR straight into the live store with`,

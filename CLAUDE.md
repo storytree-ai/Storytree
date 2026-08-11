@@ -370,15 +370,25 @@ kind owes a seed export any more.
   message (naming the bad field + the editable ones), not the opaque `.strict()` union dump.
 - **Writing an arc? Use the first-class verbs — never hand-authored doc JSON or a `PgLibraryStore`
   one-shot** (the old fragile paths). The whole lifecycle has a verb, creation included:
-  `pnpm storytree arc new [<id>] --title "..." --intent <text|@file> --end-state <text|@file> --pg`
-  SCAFFOLDS one (the `adr new` precedent) — supply those three fields and nothing else; the CLI stamps
-  `kind`/`id`/`description`/`lifecycle`/timestamps, so **don't read `KIND_SPECS` to hand-write the doc
-  JSON and don't file it through `library artifact new --file`**. The id derives from the title (with
-  the house `-arc` suffix) unless you pass one; `--description` overrides the one-liner derived from the
-  intent. Then `arc edit <id> [--intent] [--end-state] --pg` patches the narrative, `arc increment add
-  <id> --outcome <text|@file> [--pr <ref>] [--date <YYYY-MM-DD>] --pg` APPENDS one landing to the
-  increment log (ADR-0183 D1 — the merge-ceremony residue), and `arc close` writes the terminal one.
-  All go through the validated write path; long prose comes from `@path` so newlines survive.
+  `pnpm storytree arc new [<id>] --title "..." --intent <text|@file> --end-state <text|@file>
+  --objective <text|@file> --body <text|@file> --pg` SCAFFOLDS one (the `adr new` precedent) AND its
+  first increment (ADR-0335 — an arc is never born with zero: `--objective`/`--body` are the same two
+  fields `arc increment new` asks for, bundled here); the CLI stamps `kind`/`id`/`description`/
+  `lifecycle`/timestamps, so **don't read `KIND_SPECS` to hand-write the doc JSON and don't file it
+  through `library artifact new --file`**. The id derives from the title (with the house `-arc`
+  suffix) unless you pass one; `--description` overrides the one-liner derived from the intent. Then
+  `arc edit <id> [--intent] [--end-state] --pg` patches the narrative, `arc increment add <id>
+  --outcome <text|@file> [--pr <ref>] [--date <YYYY-MM-DD>] --pg` APPENDS one landing to the increment
+  log (ADR-0183 D1 — the merge-ceremony residue), and `arc close` writes the terminal one AND forces
+  the lifecycle flip explicitly. **Lifecycle is otherwise MECHANICAL, not curated (ADR-0335):** every
+  increment write recomputes it from the increment log itself — an arc auto-closes the moment its last
+  open increment closes, and auto-reopens the moment new forward-looking work is parked on it
+  (`arc increment new`), so a fully-drained arc never lingers reading as "active" waiting for someone
+  to remember `arc close`. **`arc reopen <id> --reason <text|@file> --pg` is `close`'s explicit mirror
+  (ADR-0337)** — any caller may run it, and it is for the case the mechanical rule cannot express: a
+  closure that was WRONG, where there is no new work to park and the REASON is the point. If you
+  simply have more work, park it and the arc reopens itself. All writes go through the validated
+  write path; long prose comes from `@path` so newlines survive.
 - **Hosted studio (ADR-0042):** the members deployment — Cloud Run `storytree-studio`
   (australia-southeast1) behind **direct IAP** (no LB, no domain), serving
   `apps/studio/server/serve.ts`: members read + comment (author stamped from the IAP identity,
@@ -493,7 +503,7 @@ Never self-exempt from the gate or the ceremony.
 **Escalation.** Owner-level calls (design forks worth an ADR, irreversible or outward-facing actions, anything the corpus doesn't settle) and any blocked landing (a red gate it can't resolve, a write that won't persist) are surfaced to the human outer loop with the reason — never decided unilaterally or worked around. **Surfacing AUTHORS the question, it does not merely ask it (ADR-0314 D5).** An escalation the session is ENDING on leaves behind an `open-question` artifact stamped with the owning arc — `storytree question new --arc <arc-id> --title "…" --stakes <text|@file> --statement <text|@file> --context <text|@file> --options <text|@file> --pg` — written so the owner can answer it COLD: stakes first, every term and ADR number glossed, both sides of each trade-off named, any recommendation explicitly non-binding (the retired `oq-diff-view-altitude` is the shape). Chat alone is not sufficient because chat reaches no surface: the arc surface derives what is waiting on the owner by querying that stamp, and measured 2026-08-05 the tier held ZERO questions while all 20 active arcs reported `waiting: false`. It does NOT bind an inline approval the session is standing by to act on within the same turn — that closes with the turn, and the test is whether the answer is what a LATER session needs. Like the retro it is discipline, not a gate rung (ADR-0168 D1). **Surfacing is itself a LANDING, never a wait (ADR-0303).** When the owner gate arrives MID-unit — before this work is green — the session lands what can already land green, writes everything that cannot onto the owning arc as the residue (what was attempted, what is done, what is not, what the owner was asked, and what the next session needs in order to resume), releases its claims, and ENDS. It never sits on an unmerged branch holding a live claim while it waits: a claim means a session is writing, and a session waiting on a human is not writing (D4) — a dormant holder is the one claim contention the ledger cannot resolve on its own. This weakens nothing about the gate (D2): what cannot pass goes on the arc, never to `main`. Resumption is a fresh worktree cut from a freshly-fetched `origin/main`, re-synced by whoever picks the work up (D3). Mechanics: `asset:merge-ceremony` step 10. A claim conflict is NOT owner-level (ADR-0270 D2): the refusal prints the unit's claim board — narrow to the capability you are writing or take the waiting grade, and proceed on your own judgment; escalate only genuine same-surface overlap. A next unit that forks to a different workstream/surface, needs several more continuations than ADR-0275 D2 allows, arrives on degraded context, or needs an owner LOOK/decision/attestation is a hard end for THIS session (the POST-merge sibling of the mid-unit rule above; both never wait) — it does not continue onto that unit, and it never waits on the owner. But whether that unit is QUEUED AT ALL is your judgment (ADR-0288): chip it if it clears the worth-a-session bar, otherwise say plainly in the debrief that you considered it and judged it not worth one. A hard end says this session must not carry the work; it never said the work must exist. After landing — inert (the terminal case) or, per ADR-0275, still driving a fresh worktree in-thread or via a freshly cut session — the session stays never mute (ADR-0271 D3): questions, analysis, and read-only exploration are always answered — never refused, never fought; a request for new WORK once this session HAS gone inert is chipped into a fresh session, visibly and named by its chip title — neither refused nor silently done in place.
 
 **Stands on** — assembled from these library artifacts; `storytree agents session-orchestrator` renders their one-line assertions + a `storytree library artifact <id>` pull command each (bodies stay pull-based, ADR-0156):
-- **Ceremonies & context:** merge-ceremony, prove-and-promote-ceremony, library-edit-ceremony, attempt-privileged-actions-approve-inline, stage-the-attestation-experience, pull-based-context-architecture, orchestrate-route-supplement, arc, plan
+- **Ceremonies & context:** merge-ceremony, prove-and-promote-ceremony, library-edit-ceremony, attempt-privileged-actions-approve-inline, stage-the-attestation-experience, pull-based-context-architecture, orchestrate-route-supplement, parallel-build-lane-fan-out, arc, plan
 - **Rules:** slow-growth-minimum-to-green, edit-first-curation, owner-fork-bar, route-structural-forks-to-story-author, claim-the-owning-story, reference-dont-restate, delegate-exploration-to-digest-subagents, mechanical-waiting-never-pays-context-rent, observability-first, verify-edit-write-persisted-or-escalate, audit-the-signed-verdict, human-witness-is-a-judgment-gap-not-cost, plain-language-first, meter-fail-closed-caps-in-real-cost
 - **Refuse:** never-bypass-the-gate, agent-never-self-exempts, approval-gated-trunk, human-owns-the-outer-loop, live-store-is-the-edit-surface
 

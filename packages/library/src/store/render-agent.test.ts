@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { InMemoryStore } from "@storytree/storage-protocol";
+import { InMemoryStore, snapshotReads, type Store } from "@storytree/storage-protocol";
 
 import {
   renderAgentPrompt,
@@ -934,4 +934,108 @@ test("fail-closed read: an unknown agent still reports the name the caller typed
   if (res.ok) return;
   assert.match(res.reason, /no agent "no-such-agent"/);
   assert.doesNotMatch(res.reason, /SCHEMA SKEW/);
+});
+
+// ---------------------------------------------------------------------------
+// Read amplification (the landing-tail measurement, ADR-0345).
+//
+// The five harness renderers read IDENTICAL source documents and differ only in output format, and
+// the essentials gate then re-reads each agent's cited artifacts a third time. Measured against the
+// live corpus that was 1,035 `getDoc` calls for 87 distinct documents — an 11.9x amplification that
+// cost ~3.2 min of every PR's CI, because a US runner reaches the store at ~167 ms per round trip.
+//
+// These tests pin BOTH halves of the finding: that the renderers really do re-ask (so the fix is not
+// solving an imaginary problem), and that one snapshot collapses it to the distinct-document count.
+// ---------------------------------------------------------------------------
+
+/** Count the reads reaching a store, whatever wraps it. */
+function countingStore(inner: InMemoryStore): { store: InMemoryStore; reads: () => number } {
+  let reads = 0;
+  const original = { getDoc: inner.getDoc.bind(inner), queryDocs: inner.queryDocs.bind(inner) };
+  inner.getDoc = async (id) => {
+    reads += 1;
+    return original.getDoc(id);
+  };
+  inner.queryDocs = async (filter) => {
+    reads += 1;
+    return original.queryDocs(filter);
+  };
+  return { store: inner, reads: () => reads };
+}
+
+/** The real `build:agents --check` shape: every harness render, then the essentials gate. */
+async function renderEveryHarness(store: Store): Promise<void> {
+  const renderers = [
+    renderAgentFile,
+    renderCursorAgentFile,
+    renderCodexAgentFile,
+    renderGeminiAgentFile,
+    renderOpencodeAgentFile,
+  ];
+  const ids = await delegatableAgentIds(store);
+  const rendered: Array<Map<string, string>> = [];
+  for (const render of renderers) {
+    const files = new Map<string, string>();
+    for (const id of ids) {
+      const res = await render(store, id);
+      if (res.ok) files.set(id, res.content);
+    }
+    rendered.push(files);
+  }
+  for (const files of rendered) {
+    for (const [id, content] of files) await essentialsGateViolations(store, id, content);
+  }
+}
+
+test("the harness render loop re-asks for the same documents many times over", async () => {
+  // The premise of the fix. If this ever stops being true the snapshot below is dead weight and the
+  // NEXT test's ceiling would pass trivially — so assert the amplification exists before fixing it.
+  const { store, reads } = countingStore(await seeded());
+  const distinct = (await store.queryDocs()).length;
+  const before = reads();
+
+  await renderEveryHarness(store);
+
+  const amplification = (reads() - before) / distinct;
+  assert.ok(
+    amplification > 3,
+    `expected the un-snapshotted loop to re-read heavily (measured ${amplification.toFixed(1)}x ` +
+      `over ${distinct} documents); if this dropped, re-derive the fix rather than relaxing the bound`,
+  );
+});
+
+test("one snapshot collapses the render loop to the distinct-document count", async () => {
+  const { store, reads } = countingStore(await seeded());
+  const distinct = (await store.queryDocs()).length;
+  const before = reads();
+
+  await renderEveryHarness(snapshotReads(store));
+
+  const forwarded = reads() - before;
+  assert.ok(
+    forwarded <= distinct + 2,
+    `a snapshotted pass must cost at most one round trip per distinct document (plus its kind ` +
+      `queries) — got ${forwarded} for ${distinct} documents`,
+  );
+});
+
+test("a snapshotted render is byte-identical to an un-snapshotted one", async () => {
+  // The saving is worthless if it changes what is generated. `check:agents` compares rendered output
+  // against committed files, so any drift here would red the gate on every harness at once.
+  const direct = await seeded();
+  const snapped = snapshotReads(await seeded());
+
+  for (const id of await delegatableAgentIds(direct)) {
+    for (const render of [
+      renderAgentFile,
+      renderCursorAgentFile,
+      renderCodexAgentFile,
+      renderGeminiAgentFile,
+      renderOpencodeAgentFile,
+    ]) {
+      const a = await render(direct, id);
+      const b = await render(snapped, id);
+      assert.deepEqual(b, a, `${id} rendered differently through a snapshot`);
+    }
+  }
 });

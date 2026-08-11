@@ -995,6 +995,11 @@ export const Friction = buildKindSchema("friction").extend({
 // two. `arcClose` orders them increment-then-flip, so an interrupted close leaves an increment
 // without its closure (recoverable, and visibly unclosed) rather than a closure without the prose
 // that justifies it (a lie the ADR wrote that invariant to prevent).
+//
+// `lifecycle` moves in BOTH directions and neither is a bare `--set`: `arcReopen` (ADR-0337) is the
+// mirror, ordered the same way for the same reason. ADR-0239 D2 had reserved `closed → active` for
+// the owner, but shipped no verb, flag or owner path — so the transition was reachable by nobody,
+// and an arc could be left reading `closed` while its own accepted ADR said otherwise.
 export const Arc = buildKindSchema("arc").extend({
   lifecycle: ArcLifecycle.default("active"),
 });

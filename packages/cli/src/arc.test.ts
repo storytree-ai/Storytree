@@ -8,6 +8,7 @@ import { InMemoryStore } from "@storytree/storage-protocol";
 
 import {
   arcClose,
+  arcReopen,
   arcCommand,
   arcDescriptionFrom,
   arcEdit,
@@ -374,18 +375,25 @@ function writeDeps(store: InMemoryStore, pg = true, writable = true): ArcWriteDe
 // removes that: the author supplies title + intent + end state, and NOTHING mechanical.
 // ---------------------------------------------------------------------------
 
-test("arc new scaffolds a valid arc from three fields — the CLI stamps everything mechanical", async () => {
+// The bundled first increment (ADR-0335) — the same two flags `arc increment new` reads.
+const FIRST_INC = {
+  objective: "Land the first slice.",
+  body: "What the first increment of this arc actually does, in full.",
+};
+
+test("arc new scaffolds a valid arc from five fields — the CLI stamps everything mechanical", async () => {
   const store = new InMemoryStore();
   const res = await arcNew(writeDeps(store), undefined, {
     title: "End at merge",
     intent: "Sessions end where their PR merges. The closing leg runs in order.",
     endState: "No landed session is left parked-open.",
+    ...FIRST_INC,
   });
   assert.equal(res.ok, true);
-  assert.match(res.body, /created arc end-at-merge-arc {2}\[active, 0 increments\]/);
+  assert.match(res.body, /created arc end-at-merge-arc {2}\[active, 1 increment\]/);
 
   const got = (await store.getDoc("end-at-merge-arc"))?.doc as Record<string, unknown>;
-  // The three authored fields, verbatim.
+  // The three authored narrative fields, verbatim.
   assert.equal(got["title"], "End at merge");
   assert.equal(got["intent"], "Sessions end where their PR merges. The closing leg runs in order.");
   assert.equal(got["endState"], "No landed session is left parked-open.");
@@ -400,9 +408,15 @@ test("arc new scaffolds a valid arc from three fields — the CLI stamps everyth
   assert.equal(got["createdAt"], NOW);
   assert.equal(got["updatedAt"], NOW);
   assert.equal(typeof got["schemaVersion"], "number", "the upcaster pins the row version");
-  // Born with an EMPTY landing log (ADR-0183 D1): the first entry arrives at the first landing,
-  // through `arc increment add`, never authored ahead of one.
+  // The arc doc itself still carries no `increments` array (ADR-0305 D1 fold) — the bundled first
+  // increment is its OWN row, minted through the same path `arc increment new` uses.
   assert.equal(got["increments"], undefined);
+  const inc = (await store.getDoc("end-at-merge-arc-inc-01"))?.doc as Record<string, unknown>;
+  assert.equal(inc["status"], "proposal");
+  assert.equal(inc["arcRef"], "asset:end-at-merge-arc");
+  assert.equal(inc["objective"], FIRST_INC.objective);
+  assert.equal(inc["body"], FIRST_INC.body);
+  assert.equal(inc["title"], "Land the first slice.");
 });
 
 test("a scaffolded arc is immediately readable by the arc VIEW path (writer + reader agree)", async () => {
@@ -415,17 +429,19 @@ test("a scaffolded arc is immediately readable by the arc VIEW path (writer + re
       title: "Arc orientation surface",
       intent: "Arcs take the map's top drawer.",
       endState: "The owner reads initiative state without spelunking.",
+      ...FIRST_INC,
     });
     const show = await arcCommand("show", "arc-orientation-surface-arc", depsFor(store, fx));
     assert.equal(show.ok, true);
     assert.match(show.body, /# Arc orientation surface {4}\[arc\]/);
     assert.match(show.body, /lifecycle: active \(in flight\)/);
     assert.match(show.body, /\*\*The intent\.\*\* Arcs take the map's top drawer\./);
+    // The bundled first increment is PARKED, not landed — nothing has landed yet.
     assert.match(show.body, /\(no landings yet\)/);
 
     const list = await arcCommand("list", undefined, depsFor(store, fx));
     assert.equal(list.ok, true);
-    assert.match(list.body, /arc-orientation-surface-arc {2}0 landed, no landings yet/);
+    assert.match(list.body, /arc-orientation-surface-arc {2}0 landed, 1 open, no landings yet/);
   } finally {
     rmSync(fx.root, { recursive: true, force: true });
   }
@@ -439,10 +455,12 @@ test("arc new takes an explicit positional id, normalising it — the convention
     title: "Something else entirely",
     intent: "i",
     endState: "e",
+    ...FIRST_INC,
   });
   assert.equal(res.ok, true);
   assert.match(res.body, /created arc session-isolation\b/);
   assert.ok(await store.getDoc("session-isolation"));
+  assert.ok(await store.getDoc("session-isolation-inc-01"));
   // The derived-id note is suppressed when the author supplied one.
   assert.doesNotMatch(res.body, /id derived from the title/);
 });
@@ -451,23 +469,25 @@ test("arc new names EVERY missing required field in one refusal", async () => {
   const store = new InMemoryStore();
   const bare = await arcNew(writeDeps(store), undefined, {});
   assert.equal(bare.ok, false);
-  assert.match(bare.body, /arc new needs 3 more fields/);
+  assert.match(bare.body, /arc new needs 5 more fields/);
   assert.match(bare.body, /--title/);
   assert.match(bare.body, /--intent/);
   assert.match(bare.body, /--end-state/);
+  assert.match(bare.body, /--objective/);
+  assert.match(bare.body, /--body/);
   // Nothing was written on the way to the refusal.
   assert.equal((await store.queryDocs({ kind: "arc" })).length, 0);
 
   // One field short → singular, and only the missing one is named.
-  const partial = await arcNew(writeDeps(store), undefined, { title: "T", intent: "i" });
+  const partial = await arcNew(writeDeps(store), undefined, { title: "T", intent: "i", endState: "e", ...FIRST_INC, body: undefined });
   assert.equal(partial.ok, false);
   assert.match(partial.body, /arc new needs one more field/);
-  assert.match(partial.body, /--end-state/);
+  assert.match(partial.body, /--body/);
   assert.doesNotMatch(partial.body, /--title/);
 
   // Whitespace-only is EMPTY: `Markdown` is `.min(1)`, which a lone newline would satisfy while
   // meaning nothing — so the trim happens before the required check, not after.
-  const blank = await arcNew(writeDeps(store), undefined, { title: "T", intent: "  ", endState: "\n" });
+  const blank = await arcNew(writeDeps(store), undefined, { title: "T", intent: "  ", endState: "\n", ...FIRST_INC });
   assert.equal(blank.ok, false);
   assert.match(blank.body, /--intent/);
   assert.match(blank.body, /--end-state/);
@@ -487,7 +507,7 @@ test("arc new refuses offline — arcs are live-canonical", async () => {
 
 test("arc new refuses an id that already exists — a scaffold never overwrites a live initiative", async () => {
   const store = await seededStore();
-  const existing = await arcNew(writeDeps(store), "map-arc", { title: "T", intent: "i", endState: "e" });
+  const existing = await arcNew(writeDeps(store), "map-arc", { title: "T", intent: "i", endState: "e", ...FIRST_INC });
   assert.equal(existing.ok, false);
   assert.match(existing.body, /arc map-arc already exists — edit it, don't recreate it/);
   assert.match((existing.next ?? []).join("\n"), /storytree arc edit map-arc/);
@@ -498,7 +518,7 @@ test("arc new refuses an id that already exists — a scaffold never overwrites 
   assert.equal((await store.queryDocs({ kind: "increment" })).length, 2);
 
   // Ids are shared across kinds, so a plan/definition holding the id is a distinct, honest refusal.
-  const wrongKind = await arcNew(writeDeps(store), "map-arc-plan-1", { title: "T", intent: "i", endState: "e" });
+  const wrongKind = await arcNew(writeDeps(store), "map-arc-plan-1", { title: "T", intent: "i", endState: "e", ...FIRST_INC });
   assert.equal(wrongKind.ok, false);
   assert.match(wrongKind.body, /already a increment, not an arc/);
 
@@ -507,6 +527,7 @@ test("arc new refuses an id that already exists — a scaffold never overwrites 
     title: "Map arc",
     intent: "i",
     endState: "e",
+    ...FIRST_INC,
   });
   assert.equal(derivedClash.ok, false);
   assert.match(derivedClash.body, /that id was DERIVED from the title "Map arc"/);
@@ -520,6 +541,7 @@ test("arc new: --description overrides the derived one-liner; long prose keeps i
     endState: "end line one\nend line two",
     // A @path-read description arrives with newlines; the card line is a ONE-liner, so it collapses.
     description: "  A hand-written\n  card line.\n",
+    ...FIRST_INC,
   });
   assert.equal(res.ok, true);
   const got = (await store.getDoc("directional-dag-arc"))?.doc as Record<string, unknown>;
@@ -532,7 +554,7 @@ test("arc new: --description overrides the derived one-liner; long prose keeps i
 
 test("arc new refuses a title that yields no slug, rather than writing an id-less doc", async () => {
   const store = new InMemoryStore();
-  const res = await arcNew(writeDeps(store), undefined, { title: "!!! ???", intent: "i", endState: "e" });
+  const res = await arcNew(writeDeps(store), undefined, { title: "!!! ???", intent: "i", endState: "e", ...FIRST_INC });
   assert.equal(res.ok, false);
   assert.match(res.body, /could not derive an arc id from the title "!!! \?\?\?"/);
   assert.equal((await store.queryDocs({ kind: "arc" })).length, 0);
@@ -730,8 +752,11 @@ test("arc increment add echoes the arc's end state and offers `arc close` as a n
   const closeNext = (res.next ?? []).find((n) => n.startsWith("storytree arc close"));
   assert.ok(closeNext, "the close verb is offered at the point of use");
   assert.match(closeNext, /storytree arc close map-arc --outcome "…" --pg/);
-  // The conditional is load-bearing: nothing here asserts the end state WAS met.
-  assert.match(closeNext, /\(if this landing met the end state\)/);
+  // ADR-0335: lifecycle is recomputed after this write, and map-arc's other seeded increment
+  // (map-arc-plan-1, status `ready`) is still open, so the arc does not auto-close — the offer is
+  // now for the FORCED override (close despite other open work), not "if this landing met the end
+  // state" (the old, purely-advisory framing).
+  assert.match(closeNext, /\(to force-close despite other open work\)/);
 });
 
 test("arc increment add on an ALREADY-closed arc offers no close hint", async () => {
@@ -740,6 +765,72 @@ test("arc increment add on an ALREADY-closed arc offers no close hint", async ()
   assert.equal(res.ok, true, "appending to a closed arc still works — closure is not a write lock");
   assert.doesNotMatch(res.body, /this arc's end state/);
   assert.ok(!(res.next ?? []).some((n) => n.startsWith("storytree arc close")), "no close hint on a closed arc");
+});
+
+// ---------------------------------------------------------------------------
+// ADR-0335 — lifecycle recomputed from the increment log itself: closed when nothing is
+// forward-looking, active otherwise. Auto-close and auto-reopen are the SAME rule, not two.
+// ---------------------------------------------------------------------------
+
+test("ADR-0335: closing an arc's LAST open increment auto-closes the arc", async () => {
+  const store = new InMemoryStore();
+  const deps = writeDeps(store);
+  await arcNew(deps, "solo-arc", { title: "Solo", intent: "i", endState: "e", ...FIRST_INC });
+  // The bundled first increment is the ONLY one on this arc — closing it leaves nothing open.
+  const close = await arcIncrementClose(deps, "solo-arc-inc-01", { pr: "#1" });
+  assert.equal(close.ok, true);
+  assert.match(close.body, /arc solo-arc auto-closed — no open increments remain/);
+
+  const arc = (await store.getDoc("solo-arc"))?.doc as Record<string, unknown>;
+  assert.equal(arc["lifecycle"], "closed");
+});
+
+test("ADR-0335: closing an increment with a SIBLING still open does NOT auto-close", async () => {
+  const store = new InMemoryStore();
+  const deps = writeDeps(store);
+  await arcNew(deps, "two-lane-arc", { title: "Two lane", intent: "i", endState: "e", ...FIRST_INC });
+  await arcIncrementNew(deps, "two-lane-arc", { id: "two-lane-arc-inc-02", title: "t2", ...FIRST_INC });
+  const close = await arcIncrementClose(deps, "two-lane-arc-inc-01", { pr: "#1" });
+  assert.equal(close.ok, true);
+  assert.doesNotMatch(close.body, /auto-closed/);
+
+  const arc = (await store.getDoc("two-lane-arc"))?.doc as Record<string, unknown>;
+  assert.equal(arc["lifecycle"], "active");
+});
+
+test("ADR-0335: parking new forward-looking work AUTO-REOPENS a closed arc", async () => {
+  const store = new InMemoryStore();
+  const deps = writeDeps(store);
+  await arcNew(deps, "reopen-arc", { title: "Reopen me", intent: "i", endState: "e", ...FIRST_INC });
+  await arcIncrementClose(deps, "reopen-arc-inc-01", { pr: "#1" });
+  assert.equal(((await store.getDoc("reopen-arc"))?.doc as Record<string, unknown>)["lifecycle"], "closed");
+
+  const park = await arcIncrementNew(deps, "reopen-arc", { id: "reopen-arc-inc-02", title: "more work", ...FIRST_INC });
+  assert.equal(park.ok, true);
+  assert.match(park.body, /arc reopen-arc reopened — open work is back on it/);
+
+  const arc = (await store.getDoc("reopen-arc"))?.doc as Record<string, unknown>;
+  assert.equal(arc["lifecycle"], "active");
+});
+
+test("ADR-0335: recording a LANDING on a closed arc does NOT reopen it — the row is born closed", async () => {
+  // `arc increment add` always mints a CLOSED increment (a past landing), so it is never itself the
+  // forward-looking row that would flip an arc back open — the recompute correctly leaves it closed.
+  const store = await withClosedArc(await seededStore());
+  await arcIncrementAdd(writeDeps(store), "done-arc", { outcome: "a late footnote" });
+  const arc = (await store.getDoc("done-arc"))?.doc as Record<string, unknown>;
+  assert.equal(arc["lifecycle"], "closed");
+});
+
+test("ADR-0335: arc close still FORCES closure even with open increments remaining", async () => {
+  // The explicit override stays stronger than the mechanical rule (ADR-0335 decision point 3).
+  const store = new InMemoryStore();
+  const deps = writeDeps(store);
+  await arcNew(deps, "forced-arc", { title: "Forced", intent: "i", endState: "e", ...FIRST_INC });
+  const close = await arcClose(deps, "forced-arc", { outcome: "abandoned early, on purpose" });
+  assert.equal(close.ok, true);
+  const arc = (await store.getDoc("forced-arc"))?.doc as Record<string, unknown>;
+  assert.equal(arc["lifecycle"], "closed");
 });
 
 // ---------------------------------------------------------------------------
@@ -814,7 +905,130 @@ test("arc close refuses offline, on a missing id, on a wrong kind, and on an alr
   const again = await arcClose(writeDeps(store), "done-arc", { outcome: "x" });
   assert.equal(again.ok, false);
   assert.match(again.body, /already closed/);
-  assert.match(again.body, /Re-opening a closed arc is OWNER-only/);
+  // This used to send the reader to "re-opening is OWNER-only" — a rule with no verb behind it, so
+  // the dead end WAS the refusal's advice. It now names BOTH routes and what picks between them:
+  // more work to do → park it and the arc reopens mechanically (ADR-0335); the closure was wrong →
+  // the explicit verb, which carries the reason (ADR-0337).
+  assert.match(again.body, /storytree arc increment new done-arc/);
+  assert.match(again.body, /storytree arc reopen done-arc --reason/);
+});
+
+// ---------------------------------------------------------------------------
+// `arc reopen` (ADR-0337) — the opening half of the lifecycle. ADR-0239 D2 reserved `closed →
+// active` for the owner and shipped no mechanism for it: `arc close` refuses on an already-closed
+// arc, `library artifact edit --set lifecycle` is refused unconditionally for an arc, and no flag or
+// env var existed anywhere. So the transition was not owner-only, it was NOBODY-only — proved for
+// real when ADR-0334 reopened `parallel-session-dispatch-arc` in the decision log and the arc doc
+// could not follow. The owner's call was to build the verb ungated: an agent may reopen an arc.
+// What these tests pin is the discipline that DID survive — a lifecycle bit moves only with prose
+// behind it, in either direction, increment-first.
+// ---------------------------------------------------------------------------
+
+test("arc reopen records the increment, flips to active, and returns the arc to the worklist", async () => {
+  const store = await withClosedArc(await seededStore());
+  const fx = diskFixture();
+  try {
+    // Precondition: closed, and out of the default list.
+    const before = await arcCommand("list", undefined, depsFor(store, fx));
+    assert.doesNotMatch(before.body, /done-arc/);
+
+    const res = await arcReopen(writeDeps(store), "done-arc", {
+      reason: "ADR-0334 superseded the closure — the end state does not hold.",
+      pr: "#1253",
+      date: "2026-08-09",
+    });
+    assert.equal(res.ok, true);
+    assert.match(res.body, /re-opened arc done-arc/);
+    assert.match(res.body, /#1253/);
+
+    // The FLIP — and this is the ADR-0335 INTERACTION, which is why the ordering is load-bearing.
+    // `done-arc` has no forward-looking increment, and the row `arcReopen` writes is born CLOSED, so
+    // the `recomputeArcLifecycle` that runs inside the increment write computes `closed`. The
+    // explicit flip is applied AFTER it and therefore wins. Reorder the two and this verb becomes a
+    // silent no-op on exactly the arcs it exists for.
+    assert.equal(((await store.getDoc("done-arc"))?.doc as { lifecycle?: string }).lifecycle, "active");
+
+    // The PROSE behind it: its own increment row, marked so the log says which entry moved the bit
+    // (an unmarked one would read as one more landing — the one thing it is not).
+    const rows = (await store.queryDocs({ kind: "increment" })).filter(
+      (d) => (d.doc as { arcRef?: string }).arcRef === "asset:done-arc",
+    );
+    assert.equal(rows.length, 1);
+    const entry = rows[0]?.doc as { body?: string; title?: string; status?: string };
+    assert.match(entry.title ?? "", /^REOPENED/);
+    assert.match(entry.body ?? "", /ADR-0334 superseded the closure/);
+    assert.equal(entry.status, "closed", "the log entry is a record, not work to be done");
+
+    // And it is back in the default worklist — the whole point of the bit.
+    const after = await arcCommand("list", undefined, depsFor(store, fx));
+    assert.match(after.body, /done-arc/);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("arc reopen refuses without --reason, and writes NOTHING on that refusal", async () => {
+  const store = await withClosedArc(await seededStore());
+  const res = await arcReopen(writeDeps(store), "done-arc", { pr: "#1253" });
+  assert.equal(res.ok, false);
+  assert.match(res.body, /needs --reason/);
+  assert.match(res.body, /a projection of the prose that supports it/);
+  // Neither half landed — the refusal is total, exactly as `arc close`'s missing-outcome refusal is.
+  assert.equal(((await store.getDoc("done-arc"))?.doc as { lifecycle?: string }).lifecycle, "closed");
+  assert.equal(
+    (await store.queryDocs({ kind: "increment" })).filter(
+      (d) => (d.doc as { arcRef?: string }).arcRef === "asset:done-arc",
+    ).length,
+    0,
+  );
+});
+
+test("arc reopen refuses offline, on a missing id, on a wrong kind, and on an already-active arc", async () => {
+  const store = await withClosedArc(await seededStore());
+
+  const offline = await arcReopen(writeDeps(store, false, false), "done-arc", { reason: "x" });
+  assert.equal(offline.ok, false);
+  assert.match(offline.body, /writes to the shared store/);
+
+  const missing = await arcReopen(writeDeps(store), "nope", { reason: "x" });
+  assert.equal(missing.ok, false);
+  assert.match(missing.body, /no arc "nope"/);
+
+  const wrongKind = await arcReopen(writeDeps(store), "map-arc-plan-1", { reason: "x" });
+  assert.equal(wrongKind.ok, false);
+  assert.match(wrongKind.body, /is a increment, not an arc/);
+
+  // The mirror of `arc close`'s already-closed refusal: an OPEN arc has nothing to re-open, and the
+  // refusal names the verb that DOES fit the situation rather than leaving the reader guessing.
+  const alreadyOpen = await arcReopen(writeDeps(store), "map-arc", { reason: "x" });
+  assert.equal(alreadyOpen.ok, false);
+  assert.match(alreadyOpen.body, /already active/);
+  assert.match(alreadyOpen.body, /storytree arc increment add map-arc --outcome/);
+});
+
+test("close → reopen → close round-trips, and every transition leaves its own durable increment", async () => {
+  const store = await seededStore();
+  const arcId = "map-arc";
+
+  await arcClose(writeDeps(store), arcId, { outcome: "the end state is met" });
+  assert.equal(((await store.getDoc(arcId))?.doc as { lifecycle?: string }).lifecycle, "closed");
+
+  await arcReopen(writeDeps(store), arcId, { reason: "it was not met after all" });
+  assert.equal(((await store.getDoc(arcId))?.doc as { lifecycle?: string }).lifecycle, "active");
+
+  await arcClose(writeDeps(store), arcId, { outcome: "met, this time for real" });
+  assert.equal(((await store.getDoc(arcId))?.doc as { lifecycle?: string }).lifecycle, "closed");
+
+  // THREE rows, not one mutated in place: increments are durable (ADR-0305 D3), so the arc's history
+  // shows it was closed, reopened and closed again rather than presenting the last state as the only
+  // one there ever was. A reader of the log can see the reversal happened.
+  // Scoped to the rows the TRANSITIONS minted (`<arc>-inc-NN`) — the seeded `map-arc-plan-1` is this
+  // arc's pre-existing work and would otherwise be counted as a fourth.
+  const bodies = (await store.queryDocs({ kind: "increment" }))
+    .filter((d) => (d.doc as { arcRef?: string }).arcRef === `asset:${arcId}` && d.id.startsWith(`${arcId}-inc-`))
+    .map((d) => (d.doc as { body?: string }).body ?? "");
+  assert.equal(bodies.length, 3);
+  assert.equal(bodies.filter((b) => b.startsWith("REOPENED")).length, 1);
 });
 
 test("a closed arc leaves the default worklist end-to-end (D2 write → D3 filter)", async () => {
@@ -845,6 +1059,10 @@ test("arc help advertises the three increment verbs and refuses the retired prop
   assert.match(help.body, /arc increment close/);
   // The correction path is advertised where a reader looks for a verb that does not exist.
   assert.match(help.body, /storytree library artifact edit <increment-id> --pg/);
+  // Both lifecycle directions are advertised (ADR-0337) — help that lists only `close` is what let
+  // "re-opening is OWNER-only" read as a policy rather than as a missing verb.
+  assert.match(help.body, /storytree arc close <id> --outcome/);
+  assert.match(help.body, /storytree arc reopen <id> --reason/);
 });
 
 test("an EMPTY arc list offers the scaffolder, not the hand-authoring path it replaced", async () => {

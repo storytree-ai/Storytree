@@ -150,6 +150,12 @@ export interface GatePlanStep extends GateStep {
  *   ADR-0040; without it public copy cites missing or superseded decisions.
  * - check:web-engine — FACTORY BOOKKEEPING. Commit 59b6504d / PR650 caught parent/web gitlink drift;
  *   without it the public site runs a stale forest engine.
+ * - check:web-experience-closure — PROOF INTEGRITY (ADR-0336, added 2026-08-09). Re-wires only the
+ *   static-import-closure third of the retired check:web-experience (ADR-0311 D2); the two
+ *   runtime-marker assertions stay retired. Preventive rather than catch-evidenced — it SKIPs
+ *   (bootstrap allowance) until the story's Act 1 entry ships — but is a cheap, deterministic,
+ *   offline machine expression of the ADR-0216 D2/D4 no-WebGL-in-Act-1 constraint that no other rung
+ *   watches for.
  * - pnpm -r typecheck — PROOF INTEGRITY. CI run 27761462602, fix 34f320dc, PR224 caught a moved,
  *   nonexistent export after other gates and build were green; without it a stale loader ships.
  * - pnpm -r test — PROOF INTEGRITY. CI run 30976384824, fix 327151fb, PR1151 caught
@@ -192,6 +198,13 @@ export const GATE_PLAN: readonly GatePlanStep[] = [
     subject: "own-work",
     cost: "seconds",
     why: "reds when this diff moves packages/forest-world without re-syncing the vendored copy",
+  },
+  {
+    command: "pnpm check:web-experience-closure",
+    check: "check:web-experience-closure",
+    subject: "own-work",
+    cost: "seconds",
+    why: "reds when Act 1's static import closure in this diff's web/ pin reaches three or @react-three/* (ADR-0336)",
   },
   // ── B. own-work, minutes ───────────────────────────────────────────────────
   {
@@ -274,6 +287,10 @@ export const NON_GATE_CHECK_SCRIPTS: ReadonlyMap<string, string> = new Map([
 export const SKIP_CAPABLE_CHECKS: ReadonlyMap<string, string> = new Map([
   [
     "check:web-grounding",
+    "the `web/` submodule is absent locally (it is cloned in CI, where an absent web/ is a hard failure instead)",
+  ],
+  [
+    "check:web-experience-closure",
     "the `web/` submodule is absent locally (it is cloned in CI, where an absent web/ is a hard failure instead)",
   ],
 ]);
@@ -491,7 +508,7 @@ export const RETIRED_TEST_COMPANIONS: ReadonlyMap<string, RetiredCompanion> = ne
     {
       of: "check-surface-coverage.ts",
       role: "repo-coupled",
-      cost: "nothing — it joins a FIXTURE process tier to the real root `package.json`, so removing a script it names (`pnpm db:up`, `pnpm --filter desktop start`) reds it, but every assertion is about the retired loader's own classification rather than about the repo",
+      cost: "little, but no longer nothing — most of it joins a FIXTURE process tier to the real root `package.json`, so removing a script it names (`pnpm db:up`, `pnpm --filter desktop start`) reds it. Since the prescriptive-command axis landed, one test also derives the MOUNTED COMMAND REGISTER from the real `packages/cli/src` and asserts both directions over it: that today's verbs resolve, and that the three Library verbs PR #1148 deleted do not. That is the non-vacuity control for the derivation — delete it and the axis can silently stop recognising anything while its fixture tests stay green",
     },
   ],
   [
@@ -696,6 +713,7 @@ export const PRE_EXPENSIVE_CHECKS: ReadonlySet<string> = new Set([
   "check:mirror-conformance",
   "check:web-grounding",
   "check:web-engine",
+  "check:web-experience-closure",
 ]);
 
 /**

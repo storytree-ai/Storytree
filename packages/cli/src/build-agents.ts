@@ -21,6 +21,7 @@ import { fileURLToPath } from "node:url";
 import { REPO_ROOT_ENV, resolveRepoRoot } from "@storytree/library";
 
 import { openCorpusStore } from "@storytree/drive";
+import { snapshotReads } from "@storytree/storage-protocol";
 
 import {
   delegatableAgentIds,
@@ -95,7 +96,14 @@ async function main(): Promise<void> {
   // here is `fail()`, which exits the process (taking the pool with it), and an unexpected throw
   // lands in main()'s catch and exits the same way.
   const corpus = await openCorpusStore("build:agents");
-  const store = corpus.store;
+  // ONE SNAPSHOT for the whole pass (ADR-0345). The five harness renderers read identical source
+  // documents and the essentials gate re-reads them a third time, so un-snapshotted this loop issued
+  // 1,035 `getDoc` calls for 87 distinct documents. That is ~free on a dev box beside the database
+  // and ~3.2 min of every PR in CI, where the runner is ~167 ms from australia-southeast1. It also
+  // makes the check read ONE INSTANT, so a sibling's live artifact edit can no longer land mid-run
+  // and be reported as drift against a corpus that never existed. Read-only by construction: the
+  // snapshot refuses writes, and this whole path only reads.
+  const store = snapshotReads(corpus.store);
   const ids = await delegatableAgentIds(store);
 
   const renderedTargets: Array<{
@@ -176,7 +184,8 @@ async function main(): Promise<void> {
     await corpus.close();
     console.log(
       `check:agents — ${renderedTargets.map((target) => target.label).join(" + ")} in sync + ` +
-        `essentials gate clean (${ids.length} agents × ${renderedTargets.length} harnesses).`,
+        `essentials gate clean (${ids.length} agents × ${renderedTargets.length} harnesses; ` +
+        `${store.stats.forwarded} store reads, ${store.stats.served} served from the snapshot).`,
     );
     return;
   }

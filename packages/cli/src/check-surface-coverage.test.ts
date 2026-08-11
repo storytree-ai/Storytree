@@ -14,6 +14,13 @@ import {
   enumerateEntrypoints,
   isInternalScript,
   loadSurfaceCoverageInputs,
+  parsePrescribedCommands,
+  storytreeInvocationTokens,
+  stripSourceComments,
+  deriveCommandRegister,
+  readCliSources,
+  resolveCommandPath,
+  PRESCRIPTIVE_PROCESS_FIELDS,
   type Entrypoint,
   type ProcessSurfaces,
 } from "./surface-coverage-gate.js";
@@ -152,8 +159,186 @@ test("enumerateEntrypoints: CLI areas are resolution-only; operator scripts + pe
 });
 
 // ---------------------------------------------------------------------------
+// (c) prescriptive fields → prescribed commands
+//
+// The gap PR #1148 drove through: `surfaces` was the ONLY field checked, and it resolves at AREA
+// granularity, so a deleted VERB under a surviving area was invisible to every rung.
+// ---------------------------------------------------------------------------
+
+/**
+ * A register standing in for the real CLI: `library` mounts `artifact` (which takes an `<id>`
+ * argument) and `tree focus`; `agents` takes a `<name>`. Nothing mounts `export-corpus` /
+ * `sync-corpus` / `sync-agents` — PR #1148 deleted them.
+ */
+const REGISTER = deriveCommandRegister([
+  '["storytree library artifact <id>", "storytree library artifact list <category>",',
+  '  "storytree library artifact edit <id> --set <f>=<v> --pg", "storytree library tree focus <id>",',
+  '  "storytree agents <name>", "storytree noticeboard done --pg", "storytree adr new --title <t>"]',
+]);
+
+test("parsePrescribedCommands: the recognition rule reads storytree invocations through every forwarder form", () => {
+  const prose =
+    "Run `storytree library artifact new --file d.json --pg`, or `pnpm storytree library tree focus <id>`. " +
+    "The bare-bytes read is `pnpm --silent storytree library artifact <id> --raw <field> --pg`; inline JSON " +
+    "needs `npx tsx packages/cli/src/main.ts library artifact edit <id> --json '<doc>'`. Env-prefixed: " +
+    "`STORYTREE_DB_USER=<iam-email> storytree adr new --title \"x\"`.";
+  assert.deepEqual(
+    parsePrescribedCommands("steps", prose).map((c) => c.ref),
+    [
+      "storytree library artifact new",
+      "storytree library tree focus",
+      "storytree library artifact",
+      "storytree library artifact edit",
+      "storytree adr new",
+    ],
+  );
+});
+
+test("parsePrescribedCommands: what the rule deliberately does NOT read as a prescribed command", () => {
+  // (1) OTHER TOOLS — their inventories are not ours to know.
+  assert.deepEqual(parsePrescribedCommands("steps", "`git fetch origin`, `gh pr create`, `gcloud sql instances list`, `docker ps`, `node build.mjs`"), []);
+  // (2) BARE `pnpm <script>` — `pnpm install`/`add`/`-r test` are builtins, not scripts; axis (a)
+  //     already covers a script the author DECLARED an entrypoint in `surfaces`.
+  assert.deepEqual(parsePrescribedCommands("steps", "`pnpm db:up`, `pnpm gate`, `pnpm -r test`, `pnpm --filter studio dev`, `pnpm install`"), []);
+  // (3) THE DECISIVE ONE — a BARE token naming a command is prose ABOUT it, never a prescription
+  //     OF it. Today's live corpus names all three deleted ceremonies in exactly this shape, in
+  //     sentences saying they are gone; reading those as prescriptions would red the gate on prose.
+  assert.deepEqual(
+    parsePrescribedCommands("steps", "`sync-agents`, `sync-corpus`, `export-corpus` and `check:corpus-content` are DELETED, not renamed."),
+    [],
+  );
+  // (4) A span naming no command path at all.
+  assert.deepEqual(parsePrescribedCommands("steps", "a bare `storytree` and a `storytree --help` name nothing"), []);
+  // (5) Nothing outside a backtick span is read at all.
+  assert.deepEqual(parsePrescribedCommands("steps", "run storytree library export-corpus --pg to export"), []);
+});
+
+test("storytreeInvocationTokens: only a storytree invocation survives forwarder stripping", () => {
+  assert.deepEqual(storytreeInvocationTokens("pnpm storytree adr list"), ["storytree", "adr", "list"]);
+  assert.deepEqual(storytreeInvocationTokens("npx tsx packages/cli/src/main.ts adr list"), ["storytree", "adr", "list"]);
+  assert.deepEqual(storytreeInvocationTokens("node packages/cli/launch.mjs adr list"), ["storytree", "adr", "list"]);
+  assert.equal(storytreeInvocationTokens("pnpm db:up"), undefined);
+  assert.equal(storytreeInvocationTokens("git rebase origin/main"), undefined);
+});
+
+test("resolveCommandPath: conservative at every fork — a wildcard, a silent node, and an unknown area", () => {
+  // An advertised `<id>`/`<name>` ABSORBS the token and everything after it, so an artifact id or an
+  // agent name in argument position is never mistaken for an unmounted verb.
+  assert.deepEqual(resolveCommandPath(REGISTER, ["library", "artifact", "edit-first-curation"]), { ok: true });
+  assert.deepEqual(resolveCommandPath(REGISTER, ["agents", "session-orchestrator"]), { ok: true });
+  // A register node that advertises nothing deeper accepts the rest rather than guessing.
+  assert.deepEqual(resolveCommandPath(REGISTER, ["noticeboard", "done", "anything", "else"]), { ok: true });
+  // A REAL area the sources never spell out is not checked below the area at all.
+  assert.deepEqual(resolveCommandPath(REGISTER, ["worktree", "drain"]), { ok: true });
+  // An area that is not a CLI area at all cannot resolve.
+  assert.deepEqual(resolveCommandPath(REGISTER, ["bild", "node"]), { ok: false, token: "bild" });
+  // Siblings advertised at this exact position, and this token is not among them → reported.
+  assert.deepEqual(resolveCommandPath(REGISTER, ["library", "export-corpus"]), { ok: false, token: "export-corpus" });
+});
+
+test("stripSourceComments: a command the code merely REMEMBERS is not re-mounted", () => {
+  // Not tidiness — the derivation rests on it. All three verbs PR #1148 deleted still appear in
+  // `commands.ts` today, in comments explaining that they are gone.
+  // The three shapes `commands.ts` actually carries them in: a multi-line JSDoc block, a `//` line,
+  // and a trailing `//` after code — beside one real string literal that DOES mount a command.
+  const source = [
+    "/**",
+    " * `storytree library export-corpus --id <id>` — the INVERSE of the migrate-only import.",
+    " * `storytree library sync-agents --pg` — reconcile the live agent tier to the seed.",
+    " */",
+    "// `storytree library sync-corpus --pg` existed only to keep a committed mirror in step.",
+    'const usage = "storytree library artifact <id>"; // `storytree library graduate` went too',
+  ].join("\n");
+  const register = deriveCommandRegister([source]);
+  const library = register.children.get("library");
+  assert.deepEqual([...(library?.children.keys() ?? [])], ["artifact"], "only the string literal mounts");
+  assert.deepEqual(resolveCommandPath(register, ["library", "export-corpus"]), { ok: false, token: "export-corpus" });
+});
+
+test("REGRESSION (PR #1148): a process prescribing a DELETED CLI verb is now a finding — `surfaces` alone missed it", () => {
+  // The two demonstrated cases, in the shape they had when the gate stayed green over them: a VALID
+  // `surfaces` (so axes (a) and (b) are satisfied) plus prose that still prescribes a verb the CLI no
+  // longer mounts. `library` survived as an area, which is the whole reason area-granularity resolution
+  // saw nothing wrong.
+  const processes: ProcessSurfaces[] = [
+    {
+      id: "library-edit-ceremony",
+      refs: ["storytree library"],
+      prescribed: parsePrescribedCommands(
+        "steps",
+        "Until ADR-0302 D1 a durable-tier edit also owed a seed edit or a `pnpm storytree library export-corpus --pg --write`.",
+      ),
+    },
+    {
+      id: "retire-realized-proposal",
+      refs: ["storytree library"],
+      prescribed: parsePrescribedCommands(
+        "failureModes",
+        "the migrate-only `storytree library sync-corpus --pg` would otherwise RESURRECT the retired artifact from the seed.",
+      ),
+    },
+  ];
+  const entrypoints: Entrypoint[] = [{ id: "storytree library", namespace: "cli", orphanChecked: false }];
+
+  // THE CONTROL — and the reason this test is a red→green rather than a restatement. Without the
+  // register the sweep is exactly what it computed before this axis existed, and it is CLEAN: both
+  // artifacts pass while prescribing a command that does not exist.
+  const before = classifySurfaceCoverage({ processes, entrypoints });
+  assert.equal(before.clean, true, "the pre-extension sweep passed both — that is the gap being closed");
+  assert.deepEqual(before.danglingCommands, []);
+
+  // WITH the register, both are named — by process, by FIELD, and by the token that failed.
+  const after = classifySurfaceCoverage({ processes, entrypoints, register: REGISTER });
+  assert.equal(after.clean, false);
+  assert.deepEqual(
+    after.danglingCommands.map((d) => [d.processId, d.field, d.ref, d.token]),
+    [
+      ["library-edit-ceremony", "steps", "storytree library export-corpus", "export-corpus"],
+      ["retire-realized-proposal", "failureModes", "storytree library sync-corpus", "sync-corpus"],
+    ],
+  );
+
+  const { warn, lines } = formatSurfaceCoverage(after);
+  assert.equal(warn, true);
+  const body = lines.join("\n");
+  assert.match(body, /2 PRESCRIBED command\(s\) the CLI no longer mounts/);
+  assert.match(body, /library-edit-ceremony\.steps → "storytree library export-corpus"/);
+  assert.match(body, /retire-realized-proposal\.failureModes → "storytree library sync-corpus"/);
+});
+
+test("the four prescriptive fields are the scanned set, and `surfaces` is not among them", () => {
+  // `surfaces` is axis (a)'s field and stays there; this axis exists because the OTHER four were
+  // never read at all.
+  assert.deepEqual([...PRESCRIPTIVE_PROCESS_FIELDS], ["statement", "steps", "verification", "failureModes"]);
+});
+
+// ---------------------------------------------------------------------------
 // end-to-end over the REAL repo (durable structural invariants)
 // ---------------------------------------------------------------------------
+
+test("the register derived from the REAL CLI sources mounts today's verbs and not the three PR #1148 deleted", () => {
+  // The repo-coupled non-vacuity control: the fixtures above prove the classifier can speak, this
+  // proves the DERIVATION reflects the real CLI. It also pins the `.test.ts` exclusion in
+  // `readCliSources` — this very file names all three deleted verbs, and must not re-mount them.
+  const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
+  const register = deriveCommandRegister(readCliSources(path.join(repoRoot, "packages", "cli", "src")));
+
+  for (const mounted of [
+    ["library", "artifact", "edit"],
+    ["library", "tree", "focus"],
+    ["adr", "new"],
+    ["arc", "increment", "add"],
+  ]) {
+    assert.deepEqual(resolveCommandPath(register, mounted), { ok: true }, `storytree ${mounted.join(" ")} should resolve`);
+  }
+  for (const deleted of ["export-corpus", "sync-corpus", "sync-agents"]) {
+    assert.deepEqual(
+      resolveCommandPath(register, ["library", deleted]),
+      { ok: false, token: deleted },
+      `storytree library ${deleted} was deleted by PR #1148 and must not resolve`,
+    );
+  }
+});
 
 test("end-to-end: the loader reads a store's process tier + the real package.json into a well-formed, classifiable input", async () => {
   // HALF hermetic, deliberately. The ENTRYPOINT half is still the REAL repo (`package.json` on

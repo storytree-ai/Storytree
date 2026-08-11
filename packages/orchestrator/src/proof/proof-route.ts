@@ -45,8 +45,35 @@
  * `refactorForTests` arm is STRUCTURALLY suite-scoped — its schema refine REQUIRES a `proofCommand`
  * because the whole package suite IS its regression wall — so a blanket refusal of the unaccounted
  * route would make every R2 node unbuildable. "No oracle possible" is a disclosure, never a refusal.
+ *
+ * THE PACKAGE-SCRIPT SUITE IS ACCOUNTABLE TOO, when it is provably a node:test suite
+ * (`custom-proof-command-red-accounting`'s residual fork, closed here). Every declared package-script
+ * command in this corpus is `pnpm --filter <pkg> test` — a `--import` splice into ITS args never
+ * reaches the underlying `node` process pnpm spawns for the target package's OWN `scripts.test`, so
+ * that population stayed exit-code-only even after `custom-node-test-own-file` started wiring the
+ * guard onto declared commands generally. Measured 2026-08-09: EVERY declared package-script command
+ * in the corpus is bare `pnpm --filter <pkg> test` (no direct `node --test <glob>` invocation exists
+ * today), and of those, five target packages (`studio`, `@storytree/app-surface`) whose OWN
+ * `scripts.test` is `vitest run` — a package this classifier would otherwise wrongly assume is
+ * node:test-shaped merely because pnpm hides the real runner inside the target's manifest. So this
+ * route READS the target package's `package.json` (the one piece of information the token stream
+ * cannot carry) and only wires the guard when that read PROVES the inner script is a bare node:test
+ * invocation; an unresolvable target, an unreadable manifest, or a resolved-but-foreign inner runner
+ * all fall through to the existing generic "suite-scoped" disclosure UNCHANGED — never a guess.
+ * Wiring is via `NODE_OPTIONS` (env), not an arg splice: pnpm does not forward extra node flags to
+ * the script it runs, but it does inherit and forward the parent's environment, and `--import` via
+ * `NODE_OPTIONS` is respected by every node process pnpm spawns, including the node:test workers it
+ * forks per file (verified empirically, Node 24.15, 2026-08-09).
+ *
+ * THE SAME MULTI-PROCESS PROBLEM THIS ENTRY EXISTS TO CLOSE also applies once wired: a package suite
+ * still isolates each test file in its own child process, so the report file this route's guard
+ * writes must be per-process and aggregated — see {@link import("./oracle-accounting.js")}'s
+ * `readAssertionCount` / `resetOracleReport`, which sum every process's report rather than trusting
+ * one shared file the last-exiting process would otherwise clobber with its own (parent) count of
+ * zero.
  */
 
+import { readFileSync, readdirSync } from "node:fs";
 import * as path from "node:path";
 
 import type { RealProofConfig } from "../proof-config.js";
@@ -57,6 +84,20 @@ export type ProofRouteBasis =
   | "default-node-test"
   /** A declared `node --test` over exactly this node's own `testFile` — the guard applies verbatim. */
   | "custom-node-test-own-file"
+  /**
+   * A declared `node --test` over MORE than this node's own `testFile` (a glob, several files, or no
+   * explicit file) — a WHOLE-SUITE node:test invocation, run DIRECTLY (never through a package
+   * manager). The guard applies via the same args splice as `custom-node-test-own-file`; what makes
+   * it accountable at all is the per-process report aggregation in `oracle-accounting.ts`.
+   */
+  | "direct-node-test-suite"
+  /**
+   * A declared `pnpm --filter <pkg> test` whose TARGET package's own `scripts.test` is provably a
+   * bare node:test invocation (read from that package's `package.json`) — the whole-package suite is
+   * this node's regression wall (ADR-0098 R2), and the guard is wired via `NODE_OPTIONS` since an arg
+   * splice on the pnpm invocation never reaches the node process it spawns.
+   */
+  | "package-script-node-test-suite"
   /** A declared command that observes MORE than this node's test file (a package script, a glob, >1 file). */
   | "suite-scoped"
   /** A declared command whose runner does not assert through `node:assert` (vitest, jest, mocha, …). */
@@ -74,11 +115,17 @@ export type ProofRouteBasis =
 export type ProofRoute =
   | {
       accounting: "oracle";
-      basis: "default-node-test" | "custom-node-test-own-file";
+      basis:
+        | "default-node-test"
+        | "custom-node-test-own-file"
+        | "direct-node-test-suite"
+        | "package-script-node-test-suite";
       /**
        * Where `--import <guardUrl>` must be spliced into the DECLARED `proofCommand.args` (before the
        * platform shim). `null` on the default route, whose command the resolver builds itself with the
-       * guard already in place.
+       * guard already in place, AND on `package-script-node-test-suite`, which is wired via
+       * `NODE_OPTIONS` instead (an arg splice on the pnpm invocation never reaches the spawned node
+       * process) — the resolver distinguishes the two by `basis`, not by this field alone.
        */
       guardArgIndex: number | null;
     }
@@ -129,6 +176,89 @@ function isGlob(spec: string): boolean {
   return /[*?[\]{}]/.test(spec);
 }
 
+/**
+ * The `--filter <target>` value out of a `pnpm` token stream — the workspace package name pnpm's
+ * invocation names (`--filter <name>` or `--filter=<name>`). Undefined when no filter is present, in
+ * which case {@link readWorkspaceTestScript} is never called (there is nothing to look up).
+ */
+function extractPnpmFilterTarget(tokens: readonly string[]): string | undefined {
+  for (let i = 0; i < tokens.length; i += 1) {
+    const token = tokens[i];
+    if (token === undefined) continue;
+    if (token === "--filter") return tokens[i + 1];
+    if (token.startsWith("--filter=")) return token.slice("--filter=".length);
+  }
+  return undefined;
+}
+
+/** The workspace roots this repo's `pnpm-workspace.yaml` declares (`packages/*`, `apps/*`). */
+const WORKSPACE_ROOTS = ["packages", "apps"];
+
+/**
+ * Resolve a workspace package NAME (a pnpm `--filter` target, e.g. `@storytree/library` or `studio`)
+ * to its declared `scripts.test` string, by scanning `<workspaceRoot>/{packages,apps}/*\/package.json`
+ * for a matching `name` field — the one piece of ground truth a `pnpm --filter <pkg> test` token
+ * stream cannot itself carry (pnpm hides the real runner inside the target's own manifest).
+ *
+ * Undefined/empty `workspaceRoot`, an unresolvable name, an unreadable/malformed manifest, or a
+ * manifest with no `test` script all collapse to `undefined` — every "cannot verify this" case, so
+ * the caller degrades to the existing conservative disclosure rather than guessing. Never throws.
+ * Empty string is treated the same as undefined DELIBERATELY: `resolveReport`
+ * (`@storytree/drive`'s free, read-only `node resolve` preview) calls `realProofCommand` with `""` —
+ * no real worktree exists at that point — and that call site's own contract is "pure, no I/O"; reading
+ * `path.join("", "packages")` would resolve relative to `process.cwd()` instead, a cwd-dependent
+ * accident this guards against rather than relying on.
+ */
+function readWorkspaceTestScript(
+  workspaceRoot: string | undefined,
+  pkgName: string | undefined,
+): { script: string; pkgDir: string } | undefined {
+  if (workspaceRoot === undefined || workspaceRoot === "" || pkgName === undefined) return undefined;
+  for (const root of WORKSPACE_ROOTS) {
+    let entries: string[];
+    try {
+      entries = readdirSync(path.join(workspaceRoot, root));
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      let manifest: unknown;
+      try {
+        manifest = JSON.parse(readFileSync(path.join(workspaceRoot, root, entry, "package.json"), "utf8"));
+      } catch {
+        continue;
+      }
+      if (typeof manifest !== "object" || manifest === null) continue;
+      const name = (manifest as { name?: unknown }).name;
+      if (name !== pkgName) continue;
+      const script = (manifest as { scripts?: Record<string, unknown> }).scripts?.test;
+      return typeof script === "string" ? { script, pkgDir: `${root}/${entry}` } : undefined;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Classify a package's OWN `scripts.test` string (as opposed to the outer `classifyProofRoute`,
+ * which classifies the pnpm invocation that runs it). Reuses the same runner vocabulary — a foreign
+ * runner named anywhere in the script wins (a script can invoke `node` merely to shim its own
+ * runner), else a bare node:test invocation is recognised by the `node` + `--test` pair. Anything
+ * else is "unknown": deliberately not a "node-test" guess, since guessing wrong here is exactly the
+ * false-red hazard this whole lookup exists to avoid.
+ */
+function classifyInnerScript(script: string): "node-test" | "foreign" | "unknown" {
+  const tokens = script.trim().split(/\s+/).map((t) => t.replace(/^["']|["']$/g, ""));
+  if (tokens.some((t) => FOREIGN_RUNNERS.has(executableName(t)))) return "foreign";
+  if (tokens.some(isNodeExecutable) && tokens.includes("--test")) return "node-test";
+  return "unknown";
+}
+
+/** Does the node's repo-relative `testFile` actually live under the resolved package's directory? */
+function testFileUnderPackage(testFile: string, pkgDir: string): boolean {
+  const t = normalisePath(testFile);
+  return t === pkgDir || t.startsWith(`${pkgDir}/`);
+}
+
 /** Normalise a declared path for comparison: forward slashes, no leading `./`. */
 function normalisePath(p: string): string {
   return p.split(path.win32.sep).join("/").replace(/^\.\//, "");
@@ -176,12 +306,28 @@ function explicitTestPaths(tokens: readonly string[], startIndex: number): strin
 }
 
 /**
- * Classify a node's REAL proof route. Pure and total — every declared command lands in exactly one
- * posture, and each one carries its OWN reason. That is the conflation this closes: "custom, therefore
- * unaccounted" was a single undifferentiated opt-out covering a shape the guard measures perfectly, two
- * shapes it provably cannot, and one that cannot observe the authored test at all.
+ * The workspace lookup {@link classifyProofRoute} needs to see INSIDE a `pnpm --filter <pkg> test`
+ * invocation — resolve `workspaceRoot`. Passed by the resolver, which already holds a real git
+ * worktree checkout (a full clone of repo HEAD, including every `package.json`, present before any
+ * authoring turn runs) — never the leaf's write scope.
  */
-export function classifyProofRoute(real: RealProofConfig): ProofRoute {
+export interface ClassifyProofRouteOpts {
+  workspaceRoot?: string;
+}
+
+/**
+ * Classify a node's REAL proof route. Total — every declared command lands in exactly one posture,
+ * and each one carries its OWN reason. That is the conflation this closes: "custom, therefore
+ * unaccounted" was a single undifferentiated opt-out covering a shape the guard measures perfectly, two
+ * shapes it provably cannot, and one that cannot observe the authored test at all. Pure but for the ONE
+ * optional read `opts.workspaceRoot` enables (the target package's `package.json`, needed only to
+ * resolve a `pnpm --filter <pkg> test` route) — omitting it degrades that one route to its prior,
+ * conservative "suite-scoped, unaccounted" posture rather than guessing.
+ */
+export function classifyProofRoute(
+  real: RealProofConfig,
+  opts: ClassifyProofRouteOpts = {},
+): ProofRoute {
   const declared = real.proofCommand;
   if (declared === undefined) {
     return { accounting: "oracle", basis: "default-node-test", guardArgIndex: null };
@@ -222,23 +368,37 @@ export function classifyProofRoute(real: RealProofConfig): ProofRoute {
       return { accounting: "oracle", basis: "custom-node-test-own-file", guardArgIndex: nodeIndex };
     }
     if (tokens.includes("--test")) {
-      return {
-        accounting: "none",
-        basis: "suite-scoped",
-        disclosure:
-          `no oracle is POSSIBLE on this route: the proof runs node:test over ${
-            paths.length === 0 ? "no explicit file" : `${paths.length} path spec(s)`
-          }, so node:test isolates each file in a child process and the RUNNER PARENT overwrites the ` +
-          `assertion report LAST with its own count of zero (measured, Node 24). A count read back ` +
-          `from a multi-file run says nothing about this node's test, so the route stays ` +
-          `exit-code-only.`,
-      };
+      // `custom-proof-command-red-accounting` residual: a WHOLE-SUITE node:test run isolates each
+      // file in its own child process, so the naive single shared report file is overwritten LAST by
+      // the runner PARENT's own count of zero (measured, Node 24) — that was the reason this route
+      // stayed unaccounted. It no longer is: `oracle-accounting.ts`'s report is now PER-PROCESS and
+      // aggregated, so a direct `node --test <glob>` invocation is wired exactly like
+      // `custom-node-test-own-file` (the guard reaches the real process either way; only the
+      // package-manager route below needs the env-based detour).
+      return { accounting: "oracle", basis: "direct-node-test-suite", guardArgIndex: nodeIndex };
     }
     // A node command that is neither the test runner nor pointed at one identifiable file: the spine
     // cannot say what it observes, so it cannot say whose red it reports. Fall through to the refusal.
   }
 
   if (PACKAGE_MANAGERS.has(executableName(declared.file))) {
+    // `custom-proof-command-red-accounting` residual: can this package-manager invocation be PROVEN
+    // to run a node:test suite under the hood? The token stream alone cannot say — it names `pnpm`
+    // and a `--filter` target, never the target's OWN `scripts.test`. Reading that manifest is the
+    // one piece of ground truth that distinguishes a node:test package (accountable, once its report
+    // is aggregated per-process) from a package whose `test` script is itself a foreign runner
+    // (`studio`, `@storytree/app-surface` both run `vitest run` — wiring the guard onto THOSE would
+    // false-red every green, since vitest does not exercise `node:assert` the way this guard counts).
+    // An unresolvable target or an unreadable manifest is NOT a foreign-runner finding — it falls
+    // through to the same conservative disclosure this route has always carried.
+    const resolved = readWorkspaceTestScript(opts.workspaceRoot, extractPnpmFilterTarget(tokens));
+    if (
+      resolved !== undefined &&
+      classifyInnerScript(resolved.script) === "node-test" &&
+      testFileUnderPackage(real.testFile, resolved.pkgDir)
+    ) {
+      return { accounting: "oracle", basis: "package-script-node-test-suite", guardArgIndex: null };
+    }
     return {
       accounting: "none",
       basis: "suite-scoped",
@@ -298,4 +458,18 @@ export function withOracleGuard(
   guardUrl: string,
 ): string[] {
   return [...args.slice(0, guardArgIndex), "--import", guardUrl, ...args.slice(guardArgIndex)];
+}
+
+/**
+ * The `package-script-node-test-suite` counterpart to {@link withOracleGuard}: compose a
+ * `NODE_OPTIONS` value that preloads the guard, for wiring where an ARG splice cannot reach the node
+ * process (a `pnpm --filter <pkg> test` invocation never forwards extra node flags to the script it
+ * runs, but it does inherit and forward `NODE_OPTIONS`, and every node process pnpm spawns for that
+ * script — including the node:test workers it forks per file — reads it, Node 20.6+). Preserves any
+ * value already present (there is none today — `real.proofCommand`'s schema accepts no `env` — kept
+ * robust against a future caller that merges one in first) rather than overwriting it.
+ */
+export function withOracleGuardEnv(existing: string | undefined, guardUrl: string): string {
+  const importFlag = `--import ${guardUrl}`;
+  return existing === undefined || existing.trim() === "" ? importFlag : `${existing} ${importFlag}`;
 }

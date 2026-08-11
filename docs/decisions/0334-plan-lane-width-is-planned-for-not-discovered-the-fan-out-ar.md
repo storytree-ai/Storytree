@@ -91,14 +91,25 @@ so that step 3:
       priced at the fresh-session rate is now a stated error, per D2;
   (c) continues to name where lanes CONTEND, which ADR-0333 D6 showed is the real limit: the builds
       may be independent while the LANDINGS serialise on shared consolidation surfaces
-      (`packages/cli/src/node-build.test.ts`, the story `capabilities:` append,
+      (~~`packages/cli/src/node-build.test.ts`~~, the story `capabilities:` append,
       `packages/cli/src/main.ts`). Sequencing landings while fanning builds stays the correct shape.
+      **Corrected in place, 2026-08-10 (ADR-0139):** `node-build.test.ts` is struck through because
+      it no longer belongs on this list — [ADR-0341](0341-the-registry-door-is-a-quarter-as-wide-as-it-looked-and-only.md)
+      D4 de-registried its hardcoded append point (the REAL-buildable catalogue now derives from
+      `stories/**`, so there is no list left for two sessions to collide on); the other two surfaces
+      are unaffected.
 
 **D5 — THE EVIDENCE IS TAKEN FORWARD, NOT BACKWARD, AND 58 STALE PLANS ARE NOT RE-AUTHORED.**
 ADR-0333 was right that re-authoring its population under a width-seeking brief would be exactly the
 hypothetical-decomposition optimism the work forbade, and that the cost would invert the saving. So
 the amended brief in D4 is the intervention, and the **next plans authored under it are the
-evidence**. Nothing is built beyond the guidance change until that evidence exists.
+evidence**. Nothing is built beyond the guidance change until that evidence exists. **Corrected in
+place, 2026-08-10 (ADR-0139):** that is no longer the only evidence path.
+[ADR-0340](0340-lane-width-is-real-and-gated-on-shared-registries-not-on-t.md) found a second,
+retrospective one — landed git file sets, authored by no brief and available over the whole history
+rather than an opt-in tenth of it — and read width directly from it without waiting on new plans. The
+parked increment reading plans authored under this D4 brief is not made redundant by that reading; it
+remains the only forward test of the intervention itself (ADR-0340 D5).
 
 **D6 — THE ARC REOPENS, and ADR-0333's re-open condition is REPLACED, not merely met.** Its condition
 ("three or more arcs each holding two or more independent open increments at once, or a run of plans
@@ -107,7 +118,12 @@ opt-in primitive, and it would have kept the arc closed while two-fifths of plan
 arc's falsifier is now: **plans authored under the D4 brief show no more independent lanes than plans
 authored before it** — i.e. the intervention does not move the distribution. That is a test of the
 intervention rather than of the old regime, which is what D1 established the previous number could
-not be.
+not be. **Corrected in place, 2026-08-10 (ADR-0139):** this falsifier is amended.
+[ADR-0340](0340-lane-width-is-real-and-gated-on-shared-registries-not-on-t.md) D5 found a
+declared-width-only test confounded — a width-seeking brief can raise a plan's stated lane count
+whether or not anything can actually be dispatched, because shared registries can re-serialise the
+landings regardless of what the plan declares. The falsifier now requires BOTH halves: declared width
+rising **and** the resulting landings being file-disjoint on the same instrument ADR-0340 D1 built.
 
 ## Consequences
 
@@ -163,6 +179,10 @@ sibling-worktree hazard is not on the near path.
 
 ## References
 
+- ADR-0340 — amends this ADR: D5's "the next plans are the evidence" is corrected in place above to
+  name a second, retrospective evidence path (landed git file sets); D6's falsifier is corrected in
+  place above to point at ADR-0340 D5's amendment, which requires delivered width alongside declared
+  width.
 - ADR-0333 — superseded here: the 58-plan measurement, whose numbers stand and whose closure does not.
 - ADR-0332 — the arc's charter and its economics: the bar (D1), onboarding (D2), break-even (D3),
   the straggler tax (D4) — all untouched by this ADR. Amended here (Consequences): its D5 and

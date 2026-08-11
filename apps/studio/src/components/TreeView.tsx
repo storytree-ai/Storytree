@@ -3418,7 +3418,12 @@ export function TreeView({
                glue — the surface itself is proven in isolation (ArcSurface.test.tsx); this mount
                hands it the polled rollups and the world's clock and nothing else. */
             arcsSlot={
-              <ArcSurface arcs={arcRollups} now={now} floorHealth={floorHealthBand(floorHealth)} />
+              <ArcSurface
+                arcs={arcRollups}
+                now={now}
+                floorHealth={floorHealthBand(floorHealth)}
+                onOpen={setOpenSelection}
+              />
             }
             bodySlot={
               <div className="library-lens-panes">

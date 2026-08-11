@@ -135,11 +135,14 @@ case where it costs nothing.
 measured the overlap of delegates actually spawned — curators, story-authors, explorers. In this
 window **0 of 105 delegates were builder types; no delegate has ever run a `--real` build.** A
 delegation mix containing 300–3200s builds would overlap far more than one containing 14-turn
-explorers, so the subagent-build cell is untried rather than refused. It STAYS untried: the next
-increment measured plan-lane width (ADR-0333) and, on a population later found unrepresentative,
-closed the arc; [ADR-0334](0334-plan-lane-width-is-planned-for-not-discovered-the-fan-out-ar.md)
+explorers, so the subagent-build cell is untried rather than refused. It stayed untried through
+2026-08-09: the next increment measured plan-lane width (ADR-0333) and, on a population later found
+unrepresentative, closed the arc; [ADR-0334](0334-plan-lane-width-is-planned-for-not-discovered-the-fan-out-ar.md)
 reopened it the same day (corrected in place, 2026-08-09, ADR-0139), still before any build delegate
-ran either way. Read that as unmeasured, never as measured-and-refused.
+ran either way. **Corrected in place, 2026-08-10 (ADR-0139):** the cell was tried the next day —
+[ADR-0344](0344-live-fan-out-clears-the-bar-on-both-axes-and-the-binding-con.md) ran a live three-lane
+subagent build and found it clears D1's bar on both tokens (3.1% premium) and wall clock (2.57×
+observed). Read the cell as measured, not untried.
 
 Per ADR-0139 this ADR carries `amends: [331]`: ADR-0331's own decision (D1's read-only-sweep refusal,
 D2's carve-out for `parallel-red-green-arc`) stands unchanged and untouched — nothing here corrects
@@ -156,12 +159,20 @@ so it is never re-read at cache-read rates on later turns. The **sign** of that 
 session cost is genuinely unknown, and D3's break-even should not be read as a claim that three
 delegates cost $0.84 more than doing the work in-thread.
 
-The safety fence WOULD have been the live risk, not the economics — and it stays unbuilt: N concurrent
-writers has still never become a real condition, because nothing is built on the reopened arc either.
+The safety fence WOULD have been the live risk, not the economics — and it stays unbuilt.
+**Corrected in place, 2026-08-10 (ADR-0139):** N concurrent writers did become a real condition —
+[ADR-0344](0344-live-fan-out-clears-the-bar-on-both-axes-and-the-binding-con.md) ran three concurrent
+subagent lanes on 2026-08-10 and reported no cross-tree contamination, which ADR-0344 D5 names as
+weaker evidence than it looks: the lanes were briefed not to cross and the wall did not stop them.
+That run is evidence briefed lanes obey a declared fence; it is not evidence the claim-blind hazard is
+absent, so whether to build the claim-aware fence stays open.
 **Corrected in place, 2026-08-09 (ADR-0139):** ADR-0333's closure did not survive —
 [ADR-0334](0334-plan-lane-width-is-planned-for-not-discovered-the-fan-out-ar.md) superseded it the same
 day and reopened the arc, gating any build behind evidence that its D4 planning-brief change actually
-produces wider plans. The ADR-0255/0284 wall is a static deny
+produces wider plans. **Further corrected in place, 2026-08-10 (ADR-0139):** that gate is amended by
+[ADR-0340](0340-lane-width-is-real-and-gated-on-shared-registries-not-on-t.md) D5 to require delivered
+(landed, file-disjoint) width alongside declared width — see the fuller correction below. The
+ADR-0255/0284 wall is a static deny
 block over the primary checkout and is **claim-blind**: a write into a SIBLING worktree is refused by
 nothing, de-scoped on zero evidenced instances. N concurrent writers is precisely the condition that
 makes that hazard live, and the owner's "previous attempts have overloaded the system" is a second,
@@ -176,10 +187,23 @@ unrepresentative and REPLACED the whole re-open condition rather than resolving 
 is now whether plans authored under ADR-0334 D4's width-seeking brief show more independent lanes than
 plans authored before it. The backlog half of this D5 condition (three or more arcs holding two or more
 independent open increments at once, or a fresh median W1 of two or more) no longer governs reopening;
-ADR-0334 is the current test.
+ADR-0334 is the current test. **Further corrected in place, 2026-08-10 (ADR-0139):**
+[ADR-0340](0340-lane-width-is-real-and-gated-on-shared-registries-not-on-t.md) D5 amended that
+falsifier again — a declared-width-only test is confounded, because a width-seeking brief can raise a
+plan's stated lane count whether or not the resulting landings can actually be dispatched independently
+(shared registries can re-serialise them regardless of what the plan says). The falsifier now requires
+BOTH declared width rising AND the resulting landings being file-disjoint on ADR-0340 D1's instrument.
+ADR-0340 is the current test.
 
 ## References
 
+- ADR-0344 — the live three-lane subagent trial this ADR's Consequences anticipated as untried; amends
+  this ADR. Corrected in place above (twice): the subagent-build cell is no longer untried, and N
+  concurrent writers did become a real condition, though the claim-aware fence question D5 there
+  raises stays open. D1–D5 of this ADR stand unchanged and are applied, not corrected.
+- ADR-0340 — amends ADR-0334, not this ADR directly; reached here only through this ADR's own prose,
+  which is corrected in place above (twice) to retire the declared-width-only falsifier language
+  inherited from ADR-0334 and point at ADR-0340's requirement of delivered width as well.
 - ADR-0333 — the second width reading (all 58 anchored plans, median ONE lane); amends this ADR (D5's
   "unmeasured" prose, corrected in place). Its closure of the arc was itself superseded the same day —
   see ADR-0334 below.

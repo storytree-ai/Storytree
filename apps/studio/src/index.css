@@ -5560,6 +5560,29 @@ button.legend-tile:hover {
 .arc-lanes-note {
   padding: 14px 16px;
 }
+/* ADR-0335: which arcs draw (active / closed / all) — the studio's equivalent of the CLI's
+   `arc list --all|--closed`, so a fully-drained arc is one flag away, not filed and forgotten. */
+.arc-lanes-scope {
+  display: flex;
+  gap: 4px;
+  padding: 8px 14px 6px;
+  border-bottom: 1px solid var(--lp-border);
+}
+.arc-lanes-scope-btn {
+  border: 1px solid var(--lp-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--lp-ink-soft);
+  font: inherit;
+  font-size: 0.78em;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+.arc-lanes-scope-btn.on {
+  background: var(--lp-bar);
+  border-color: var(--lp-moss);
+  color: var(--lp-ink);
+}
 /* one lane per arc: a button so the panel is reachable by keyboard, laid out as name + track. */
 .arc-lane {
   display: grid;
@@ -5619,6 +5642,13 @@ button.legend-tile:hover {
 }
 .arc-state-quiet {
   background: color-mix(in srgb, var(--lp-border) 45%, transparent);
+  color: var(--lp-ink-soft);
+}
+/* ADR-0335: `lifecycle: closed`, mechanically derived — distinct from `quiet` (still active, may
+   resume on its own) by being visibly duller: a closed arc reopens only when new work is parked. */
+.arc-state-closed {
+  background: transparent;
+  border: 1px solid var(--lp-border);
   color: var(--lp-ink-soft);
 }
 /* the track: unit bars, not time. Position carries no date meaning (D2), so the bars simply flow. */

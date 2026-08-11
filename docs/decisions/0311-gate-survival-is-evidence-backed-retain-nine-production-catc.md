@@ -73,6 +73,14 @@ The first four are cheap branch-local checks, the two recursive proof legs follo
 checks that can observe shared live state run last. The run-every-step reporting and affected-only
 rewriting decided by ADR-0304 remain unchanged.
 
+*(Corrected in place 2026-08-09 per ADR-0139; D1's audit conclusion is unchanged — these nine are
+still the exact set that survived the audit, in this order, and none is weakened. What no longer
+follows is reading "exactly nine" as today's total rung count: ADR-0336 amends this ADR to add a
+tenth, `check:web-experience-closure`, of different provenance — not a readmission of any of the
+sixteen D2 retired, but a narrow, freshly-justified new rung scoped to one property of the retired
+`check:web-experience`. D1's list is the closed set this audit certified; it is no longer the
+complete list of what the gate runs.)*
+
 **D2 — the tombstone is complete: sixteen original rungs are retired.** ADR-0302 already removed
 `check:agents-sync`, `check:corpus-sync` and `check:corpus-content`. This decision additionally
 removes `check:manifest`, `check:process-graph`, `check:test-timing`, `check:web-experience`,
