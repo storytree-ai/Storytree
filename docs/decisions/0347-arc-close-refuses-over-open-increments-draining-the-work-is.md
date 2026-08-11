@@ -80,7 +80,10 @@ auto-reopen that ADR-0335 D2 depends on and that this decision is aligning itsel
 `deriveArcLifecycle` / `isForwardLooking` are the one place the forward-looking rule lives, shared by
 the write-time trigger and `arc reconcile` (PR #1276). A refusal computing "still open" its own way
 would be a third answer to the same question, and the divergence would show up as a verb that
-refuses to close an arc the reconciler thinks is already closed.
+refuses to close an arc the reconciler thinks is already closed. Reuse also inherits the predicate's
+FAIL-CLOSED property for free: `isForwardLooking` ranks a status it does not recognise with the
+open half, so a row this code cannot read refuses the close rather than being closed over. A bespoke
+`status === "proposal" || …` check would have quietly done the opposite.
 
 **D5. An anchored row is ANNOTATED, not filtered.** A forward-looking increment carrying an `anchor`
 still counts toward the refusal, and is marked `[planned]` in the listing. Filtering anchored rows

@@ -891,6 +891,30 @@ test("ADR-0347: draining the increments is the closing act — the last one clos
   assert.equal(((await store.getDoc("drain-arc"))?.doc as Record<string, unknown>)["lifecycle"], "closed");
 });
 
+test("ADR-0347 D4: an UNRECOGNISED status refuses too — the shared predicate fails closed", async () => {
+  // `isForwardLooking` ranks a status it does not understand with the forward-looking half, on the
+  // grounds that a row this code cannot read should stay VISIBLE rather than sink into history.
+  // Reusing the predicate (D4) rather than writing a second one is what carries that property here:
+  // a bespoke `status === "proposal" || …` check would have closed the arc over an unreadable row.
+  const store = new InMemoryStore();
+  await store.upsertDoc({
+    id: "odd-arc",
+    kind: "arc",
+    doc: { kind: "arc", id: "odd-arc", title: "Odd", description: "d", intent: "i", endState: "e", references: [], createdAt: "2026-08-01", updatedAt: "2026-08-01" },
+  });
+  await store.upsertDoc({
+    id: "odd-row",
+    kind: "increment",
+    doc: { kind: "increment", id: "odd-row", title: "t", description: "d", objective: "o", body: "b", arcRef: "asset:odd-arc", status: "mid-flight", references: [], createdAt: "2026-08-01", updatedAt: "2026-08-01" },
+  });
+
+  const close = await arcClose(writeDeps(store), "odd-arc", { outcome: "done" });
+  assert.equal(close.ok, false);
+  assert.match(close.body, /still holds 1 open increment\b/);
+  assert.match(close.body, /odd-row {2}\[mid-flight\]/);
+  assert.equal(((await store.getDoc("odd-arc"))?.doc as Record<string, unknown>)["lifecycle"], undefined);
+});
+
 test("ADR-0347 D3: the MECHANICAL recompute never refuses — it has no operator to talk to", async () => {
   // Only the operator-facing verb refuses. `recomputeArcLifecycle`'s whole job is to follow the log,
   // and a refusal there would break ADR-0335 D2's auto-reopen, which this decision aligns itself with.
