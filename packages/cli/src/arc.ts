@@ -2,10 +2,13 @@ import type { Store, StoredDoc } from "@storytree/storage-protocol";
 import { explainDocValidationError, parseCiteRef, upcastAndValidate } from "@storytree/library";
 import {
   arcIsClosed,
+  deriveArcLifecycle,
   isForwardLooking,
   loadArcRollup,
   loadArcRollups,
+  reconcileArcLifecycles,
   storyArcStamps,
+  type ArcLifecycleDrift,
   type ArcRollup,
 } from "@storytree/drive";
 
@@ -828,18 +831,22 @@ async function refuseTakenId(deps: ArcWriteDeps, id: string): Promise<Envelope |
 async function recomputeArcLifecycle(deps: ArcWriteDeps, arcId: string): Promise<string | null> {
   const citation = `${ASSET_REF_PREFIX}${arcId}`;
   const siblings = await deps.store.queryDocs({ kind: "increment" });
-  const hasOpen = siblings.some((d) => {
-    const doc = typeof d.doc === "object" && d.doc !== null ? (d.doc as Record<string, unknown>) : {};
-    if (doc["arcRef"] !== citation) return false;
-    const status = typeof doc["status"] === "string" ? doc["status"] : "";
-    return isForwardLooking(status);
-  });
+  const mine = siblings
+    .map((d) => (typeof d.doc === "object" && d.doc !== null ? (d.doc as Record<string, unknown>) : {}))
+    .filter((doc) => doc["arcRef"] === citation)
+    .map((doc) => ({ status: typeof doc["status"] === "string" ? doc["status"] : "" }));
+
+  // The SAME predicate `arc reconcile` sweeps with (`deriveArcLifecycle`, @storytree/drive) — the
+  // trigger and the sweep must never be able to answer differently about one arc.
+  const desired = deriveArcLifecycle(mine);
+  // `null` = an empty log, which derives nothing (ADR-0335 D1's birth window). Unreachable from
+  // here: every caller writes its increment before recomputing, so `mine` always holds at least one.
+  if (desired === null) return null;
 
   const stored = await deps.store.getDoc(arcId);
   if (!stored || stored.kind !== "arc") return null;
   const doc = { ...(stored.doc as Record<string, unknown>) };
   const current = doc["lifecycle"] === "closed" ? "closed" : "active";
-  const desired = hasOpen ? "active" : "closed";
   if (current === desired) return null;
 
   doc["lifecycle"] = desired;
@@ -1596,6 +1603,164 @@ export async function arcReopen(
   };
 }
 
+/** One line per drifted arc — shared by the dry run and the applied run so they cannot disagree. */
+function driftLine(d: ArcLifecycleDrift, width: number): string {
+  const counts = `${d.landed} landed, ${d.open} open`;
+  return `  ${d.id.padEnd(width)}  ${d.stored} → ${d.derived}  (${counts})`;
+}
+
+/**
+ * `storytree arc reconcile [--write] --pg` — bring every arc's stored `lifecycle` back into
+ * agreement with its own increment log, and REPORT what disagreed.
+ *
+ * ADR-0335 made lifecycle a projection of the increment log, but shipped it as a write-time TRIGGER
+ * with no reconciler: `recomputeArcLifecycle` fires only from inside `arc increment add|new|close`.
+ * An arc nobody writes an increment on is therefore never re-evaluated, and the rule had never once
+ * run on any arc whose last increment write predated the trigger reaching main. Measured against the
+ * live store on 2026-08-11: 14 of 25 `active` arcs held zero forward-looking increments, and nine of
+ * them rendered `running` on the map's arcs lens — the state ADR-0267 D7 promises is trustworthy.
+ *
+ * READ-ONLY BY DEFAULT, AND THAT IS THE POINT OF THE SPLIT. The bare verb is the invariant's READER:
+ * `lifecycle === derived(increments)` had no reader at all before this, so the next drift was
+ * unobservable by construction rather than merely unnoticed. `--write` is the reconciler. A bulk
+ * flip of shared, live, multi-session state is not something a command should do because you typed
+ * its name.
+ *
+ * IT DOES NOT WRITE INCREMENTS, AND MUST NOT. `arc close --outcome` and `arc reopen --reason` each
+ * record a terminal/reopening increment because they are ASSERTIONS a human is making — that the end
+ * state was met, or that a closure was wrong. This verb asserts nothing of its own: it is the
+ * mechanical rule catching up, exactly the write `recomputeArcLifecycle` would have made at the time,
+ * which is a bare `lifecycle` flip and no prose. Minting an increment here would put words in the
+ * mouth of a rule that has none, and would inflate every reconciled arc's log with a row describing
+ * bookkeeping rather than work.
+ */
+export async function arcReconcile(
+  deps: ArcViewDeps & ArcWriteDeps,
+  opts: { write?: boolean | undefined; only?: string | undefined },
+): Promise<Envelope> {
+  const apply = opts.write === true;
+  if (apply && !deps.writable) return arcNotWritable("reconcile");
+
+  const only = opts.only?.trim();
+  if (only !== undefined && only !== "" && only !== "close" && only !== "reopen") {
+    return {
+      ok: false,
+      body: `--only takes "close" or "reopen" (got "${only}"). Omit it to apply both directions.`,
+      next: ["storytree arc reconcile --pg"],
+    };
+  }
+
+  const rollups = await loadArcRollups(deps);
+  const { drift, noSignal, agreed } = reconcileArcLifecycles(rollups);
+
+  // A sweep that enumerated NOTHING must never read like a healthy store — the blind-loader failure
+  // ADR-0256/#970 measured, where zero findings and a repo with nothing to find were indistinguishable.
+  if (rollups.length === 0) {
+    return {
+      ok: false,
+      body: deps.pg
+        ? "no arcs were read at all — refusing to report agreement over an empty set."
+        : "no arcs here: arcs are LIVE-canonical, so the offline fixture holds none. Re-run with --pg.",
+      next: ["storytree arc list --pg"],
+    };
+  }
+
+  const lines: string[] = [];
+  const width = Math.max(1, ...drift.map((d) => d.id.length));
+  if (drift.length === 0) {
+    lines.push(`every arc agrees with its own increment log — ${agreed} of ${rollups.length} checked.`);
+  } else {
+    const toClose = drift.filter((d) => d.action === "close");
+    const toReopen = drift.filter((d) => d.action === "reopen");
+    lines.push(
+      `${drift.length} of ${rollups.length} arc(s) have drifted from their own increment log ` +
+        `(${agreed} already agree).`,
+    );
+    if (toClose.length > 0) {
+      lines.push("", `DRAINED — every increment landed, still reading active (${toClose.length}):`);
+      lines.push(...toClose.map((d) => driftLine(d, width)));
+    }
+    if (toReopen.length > 0) {
+      lines.push("", `OPEN WORK ON A CLOSED ARC (${toReopen.length}):`);
+      lines.push(...toReopen.map((d) => driftLine(d, width)));
+    }
+  }
+
+  // Named, never silently skipped: a zero-increment arc derives nothing, and saying so is the
+  // difference between "checked and had no signal" and "not checked".
+  if (noSignal.length > 0) {
+    lines.push(
+      "",
+      `NO SIGNAL — zero increments, so nothing to derive (${noSignal.length}); left untouched:`,
+      ...noSignal.map((n) => `  ${n.id}  (reads ${n.stored})`),
+      "an arc is born with a bundled first increment (ADR-0335 D1) and the arc doc is written first,",
+      "so this is either a charter in flight or an interrupted `arc new` — `arc increment new` recovers it.",
+    );
+  }
+
+  if (!apply) {
+    return {
+      ok: true,
+      body: [...lines, "", "read-only. Re-run with --write to apply."].join("\n"),
+      next: drift.length > 0 ? ["storytree arc reconcile --write --pg"] : ["storytree arc list --pg"],
+    };
+  }
+
+  // The report is always the WHOLE truth; `--only` narrows what is APPLIED. The asymmetry lives in
+  // the operator's choice, never in the rule: a sweep that silently reported one direction would be
+  // a different rule wearing the same name, and the drift it hid would look like agreement.
+  const selected = only === undefined || only === "" ? drift : drift.filter((d) => d.action === only);
+  const held = drift.length - selected.length;
+
+  const applied: string[] = [];
+  const failed: string[] = [];
+  for (const d of selected) {
+    const stored = await deps.store.getDoc(d.id);
+    if (!stored || stored.kind !== "arc") {
+      failed.push(`  ${d.id} — vanished between the read and the write; re-run to pick it up`);
+      continue;
+    }
+    const doc = { ...(stored.doc as Record<string, unknown>) };
+    doc["lifecycle"] = d.derived;
+    doc["updatedAt"] = deps.now;
+    let valid: unknown;
+    try {
+      valid = upcastAndValidate(doc);
+    } catch (e) {
+      // One arc's invalid doc must never abort the sweep — it is reported and the rest proceed
+      // (ADR-0095: no silent caps, so the failure is named rather than swallowed).
+      failed.push(`  ${d.id} — the flip would make it invalid: ${(e as Error).message}`);
+      continue;
+    }
+    await deps.store.upsertDoc({
+      id: d.id,
+      kind: "arc",
+      doc: valid,
+      actor: deps.actor ?? defaultCliActor(),
+    });
+    applied.push(`  ${d.id} → ${d.derived}`);
+  }
+
+  return {
+    ok: failed.length === 0,
+    body: [
+      ...lines,
+      "",
+      `APPLIED — ${applied.length} arc(s) reconciled${only !== undefined && only !== "" ? ` (--only ${only})` : ""}:`,
+      ...applied,
+      ...(failed.length > 0 ? ["", `REFUSED (${failed.length}) — fix by hand:`, ...failed] : []),
+      // A narrowed run must SAY what it left behind, or a green-looking apply reads as a full one.
+      ...(held > 0
+        ? ["", `HELD BACK — ${held} drifted arc(s) the --only filter did not apply; they are still listed above.`]
+        : []),
+      "",
+      "A closed arc reopens the moment forward-looking work is parked on it (`arc increment new`),",
+      "or explicitly via `arc reopen <id> --reason <text|@file> --pg` (ADR-0337).",
+    ].join("\n"),
+    next: ["storytree arc list --pg", "storytree arc reconcile --pg"],
+  };
+}
+
 export function arcHelp(): Envelope {
   return {
     ok: true,
@@ -1670,6 +1835,19 @@ export function arcHelp(): Envelope {
       "(`increment new`). `close` and `reopen` are the EXPLICIT overrides on top of that rule: each",
       "states an intent, in prose, at a moment in time — and each can later be overtaken by the rule,",
       "which is accepted in both directions (ADR-0335 D3, ADR-0337 D4).",
+      "",
+      "  storytree arc reconcile [--write] [--only close|reopen] --pg",
+      "        The SWEEP behind that rule. The recompute above is a write-time TRIGGER, so an arc",
+      "        nobody writes an increment on is never re-evaluated and its `lifecycle` can sit stale",
+      "        indefinitely — which is how 14 of 25 active arcs came to hold zero open increments while",
+      "        the map's arcs lens rendered them `running`. Bare, it READS the invariant and reports",
+      "        every disagreement; --write applies them. It flips `lifecycle` only — it writes no",
+      "        increment, because the mechanical rule asserts nothing that needs prose behind it.",
+      "        An arc with ZERO increments is left alone: an empty log derives nothing, and closing",
+      "        one would close an initiative on the day it was chartered. --only narrows WHICH",
+      "        direction is applied (the report always carries both, and a narrowed run says what it",
+      "        held back) — the reopen half reverses explicit `arc close` calls, so it is worth",
+      "        applying deliberately rather than as a side effect of typing --write.",
       "",
       "Every containment edge lives on the CHILD (increment.arcRef; ADR/story frontmatter `arc:` stamps",
       "via `storytree adr new --arc <id>`), so this view is derived-from-source and can never drift.",

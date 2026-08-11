@@ -8,6 +8,7 @@ import { InMemoryStore } from "@storytree/storage-protocol";
 
 import {
   arcClose,
+  arcReconcile,
   arcReopen,
   arcCommand,
   arcDescriptionFrom,
@@ -1554,6 +1555,224 @@ test("D4: arc show renders the stamped and cited story paths as two LABELLED lis
     // appear only under the cited heading.
     const stamped = stories.slice(0, stories.indexOf("cited by an increment"));
     assert.doesNotMatch(stamped, /elsewhere/);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// `arc reconcile` — the SWEEP ADR-0335 never shipped beside its write-time trigger.
+//
+// The trigger only ever fires from inside an increment write, so an arc nobody writes an increment
+// on is never re-evaluated. Measured live 2026-08-11: 14 of 25 `active` arcs held zero forward-
+// looking increments and nine rendered `running` on the map. These tests pin the reader/writer split
+// and the two things the sweep must NOT do — write increments, or touch an arc with an empty log.
+// ---------------------------------------------------------------------------
+
+/** Seed one arc plus an increment per status. No increments => an empty log. */
+async function seedArc(
+  store: InMemoryStore,
+  id: string,
+  lifecycle: "active" | "closed",
+  statuses: string[],
+): Promise<void> {
+  await store.upsertDoc({
+    id,
+    kind: "arc",
+    doc: {
+      kind: "arc",
+      id,
+      title: `Title of ${id}`,
+      description: "d",
+      intent: "i",
+      endState: "e",
+      lifecycle,
+      references: [],
+      createdAt: "2026-07-01",
+      updatedAt: "2026-07-01",
+    },
+  });
+  for (const [n, status] of statuses.entries()) {
+    await store.upsertDoc({
+      id: `${id}-inc-0${n}`,
+      kind: "increment",
+      doc: {
+        kind: "increment",
+        id: `${id}-inc-0${n}`,
+        title: `${id} inc ${n}`,
+        description: "d",
+        objective: "o",
+        body: "b",
+        arcRef: `asset:${id}`,
+        status,
+        ...(status === "closed" ? { outcome: { date: "2026-07-15" } } : { parked: "2026-07-05" }),
+        references: [],
+        createdAt: "2026-07-01",
+        updatedAt: "2026-07-01",
+      },
+    });
+  }
+}
+
+function reconcileDeps(
+  store: InMemoryStore,
+  fx: { decisionsDir: string; storiesDir: string },
+  writable = true,
+): ArcViewDeps & ArcWriteDeps {
+  return { store, decisionsDir: fx.decisionsDir, storiesDir: fx.storiesDir, pg: true, writable, actor: "test", now: NOW };
+}
+
+/** How many increments the store holds — the sweep must never change this number. */
+async function incrementCount(store: InMemoryStore): Promise<number> {
+  return (await store.queryDocs({ kind: "increment" })).length;
+}
+
+test("arc reconcile: the BARE verb is read-only — it reports drift and changes nothing", async () => {
+  const fx = diskFixture();
+  try {
+    const store = new InMemoryStore();
+    await seedArc(store, "drained-arc", "active", ["closed", "closed"]);
+    const before = await incrementCount(store);
+
+    const out = await arcReconcile(reconcileDeps(store, fx), {});
+
+    assert.equal(out.ok, true);
+    assert.match(out.body, /drained-arc/);
+    assert.match(out.body, /active → closed/);
+    assert.match(out.body, /read-only\. Re-run with --write to apply\./);
+    // The store is untouched: the flag is the whole gate on a bulk write to shared live state.
+    const arc = await store.getDoc("drained-arc");
+    assert.equal((arc?.doc as Record<string, unknown>)["lifecycle"], "active");
+    assert.equal(await incrementCount(store), before);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("arc reconcile --write: flips lifecycle and writes NO increment", async () => {
+  const fx = diskFixture();
+  try {
+    const store = new InMemoryStore();
+    await seedArc(store, "drained-arc", "active", ["closed", "closed"]);
+    const before = await incrementCount(store);
+
+    const out = await arcReconcile(reconcileDeps(store, fx), { write: true });
+
+    assert.equal(out.ok, true);
+    assert.match(out.body, /APPLIED — 1 arc\(s\) reconciled/);
+    const arc = await store.getDoc("drained-arc");
+    assert.equal((arc?.doc as Record<string, unknown>)["lifecycle"], "closed");
+    // `arc close` records a terminal increment because a HUMAN is asserting the end state was met.
+    // The mechanical rule asserts nothing, so it owes no prose and must mint no row.
+    assert.equal(await incrementCount(store), before);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("arc reconcile --write: SYMMETRIC — open work on a closed arc reopens it", async () => {
+  const fx = diskFixture();
+  try {
+    const store = new InMemoryStore();
+    await seedArc(store, "revived-arc", "closed", ["closed", "proposal"]);
+    const out = await arcReconcile(reconcileDeps(store, fx), { write: true });
+    assert.match(out.body, /OPEN WORK ON A CLOSED ARC/);
+    const arc = await store.getDoc("revived-arc");
+    assert.equal((arc?.doc as Record<string, unknown>)["lifecycle"], "active");
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("arc reconcile: an arc with ZERO increments is named and LEFT ALONE, never closed", async () => {
+  const fx = diskFixture();
+  try {
+    const store = new InMemoryStore();
+    await seedArc(store, "just-chartered-arc", "active", []);
+    const out = await arcReconcile(reconcileDeps(store, fx), { write: true });
+
+    assert.match(out.body, /NO SIGNAL — zero increments/);
+    assert.match(out.body, /just-chartered-arc/);
+    assert.match(out.body, /APPLIED — 0 arc\(s\) reconciled/);
+    // `arc new` writes the arc doc BEFORE its bundled increment, so this window is real: closing
+    // here would close an initiative on the day it was chartered.
+    const arc = await store.getDoc("just-chartered-arc");
+    assert.equal((arc?.doc as Record<string, unknown>)["lifecycle"], "active");
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("arc reconcile: an arc already in agreement is counted, not touched", async () => {
+  const fx = diskFixture();
+  try {
+    const store = new InMemoryStore();
+    await seedArc(store, "fine-arc", "active", ["proposal"]);
+    const out = await arcReconcile(reconcileDeps(store, fx), {});
+    assert.match(out.body, /every arc agrees with its own increment log — 1 of 1 checked\./);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("arc reconcile: an EMPTY read refuses rather than reporting agreement over nothing", async () => {
+  const fx = diskFixture();
+  try {
+    // A sweep that enumerated nothing must never be indistinguishable from a healthy store — the
+    // blind-loader failure ADR-0256/#970 measured, where a blinded instrument made the repo look cleaner.
+    const out = await arcReconcile(reconcileDeps(new InMemoryStore(), fx), {});
+    assert.equal(out.ok, false);
+    assert.match(out.body, /refusing to report agreement over an empty set|arcs are LIVE-canonical/);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("arc reconcile --only close: applies one direction and SAYS what it held back", async () => {
+  const fx = diskFixture();
+  try {
+    const store = new InMemoryStore();
+    await seedArc(store, "drained-arc", "active", ["closed"]);
+    await seedArc(store, "revived-arc", "closed", ["proposal"]);
+
+    const out = await arcReconcile(reconcileDeps(store, fx), { write: true, only: "close" });
+
+    assert.match(out.body, /APPLIED — 1 arc\(s\) reconciled \(--only close\)/);
+    // A narrowed apply that stayed silent about the rest would read exactly like a full one.
+    assert.match(out.body, /HELD BACK — 1 drifted arc\(s\)/);
+    assert.equal((await store.getDoc("drained-arc"))?.doc && ((await store.getDoc("drained-arc"))!.doc as Record<string, unknown>)["lifecycle"], "closed");
+    assert.equal(((await store.getDoc("revived-arc"))!.doc as Record<string, unknown>)["lifecycle"], "closed");
+    // The report still names BOTH directions — narrowing the write never narrows the truth.
+    assert.match(out.body, /OPEN WORK ON A CLOSED ARC/);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("arc reconcile: an unrecognised --only is refused, not silently treated as 'both'", async () => {
+  const fx = diskFixture();
+  try {
+    const store = new InMemoryStore();
+    await seedArc(store, "drained-arc", "active", ["closed"]);
+    const out = await arcReconcile(reconcileDeps(store, fx), { write: true, only: "everything" });
+    assert.equal(out.ok, false);
+    assert.match(out.body, /--only takes "close" or "reopen"/);
+    assert.equal(((await store.getDoc("drained-arc"))!.doc as Record<string, unknown>)["lifecycle"], "active");
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("arc reconcile --write refuses offline — the flip is a live-store write", async () => {
+  const fx = diskFixture();
+  try {
+    const store = new InMemoryStore();
+    await seedArc(store, "drained-arc", "active", ["closed"]);
+    const out = await arcReconcile(reconcileDeps(store, fx, false), { write: true });
+    assert.equal(out.ok, false);
+    assert.match(out.body, /writes to the shared store — run with --pg/);
+    const arc = await store.getDoc("drained-arc");
+    assert.equal((arc?.doc as Record<string, unknown>)["lifecycle"], "active");
   } finally {
     rmSync(fx.root, { recursive: true, force: true });
   }

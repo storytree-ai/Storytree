@@ -123,6 +123,8 @@ export const LITERAL_FLAGS: ReadonlySet<string> = new Set([
   "pr",
   "threshold",
   "status",
+  // `arc reconcile --only close|reopen` — a closed enum, never prose.
+  "only",
   "bound",
   "superseded-by",
   "memory-dir",

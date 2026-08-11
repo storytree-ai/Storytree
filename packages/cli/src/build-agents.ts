@@ -31,6 +31,8 @@ import {
   renderGeminiAgentFile,
   renderOpencodeAgentFile,
   essentialsGateViolations,
+  dedicatedSurfaceAgentGateViolations,
+  DEDICATED_SURFACE_AGENTS,
 } from "@storytree/library/store";
 
 /**
@@ -175,6 +177,16 @@ async function main(): Promise<void> {
         gateFailures.push(...failures.map((failure) => `${target.label}: ${failure}`));
       }
     }
+    // The DEDICATED_SURFACE_AGENTS (session-orchestrator, red-builder, green-builder) own a
+    // different projection surface (CLAUDE.md/AGENTS.md, the SDK-leaf prompt) instead of a
+    // `.claude/agents/*.md` file, so `delegatableAgentIds()` correctly excludes them from `ids` and
+    // the per-harness render loop above. But that same exclusion used to also exclude them from THIS
+    // wiring-integrity gate — nothing in `pnpm gate` ever exercised their own context/stepRefs wiring
+    // (session-orchestrator-context-integrity-arc). This closes that hole WITHOUT adding them to
+    // `ids` or the file render loop: `dedicatedSurfaceAgentGateViolations` renders each via the
+    // essentials path only (never `renderAgentFile`) and runs the same `essentialsGateViolations`
+    // checks against that content.
+    gateFailures.push(...(await dedicatedSurfaceAgentGateViolations(store)));
     if (gateFailures.length > 0) {
       fail(
         "essentials gate FAILED (ADR-0156 §5 / ADR-0161) — a rendered agent broke a size/structure/" +
@@ -184,7 +196,8 @@ async function main(): Promise<void> {
     await corpus.close();
     console.log(
       `check:agents — ${renderedTargets.map((target) => target.label).join(" + ")} in sync + ` +
-        `essentials gate clean (${ids.length} agents × ${renderedTargets.length} harnesses; ` +
+        `essentials gate clean (${ids.length} agents × ${renderedTargets.length} harnesses + ` +
+        `${DEDICATED_SURFACE_AGENTS.size} dedicated-surface agents; ` +
         `${store.stats.forwarded} store reads, ${store.stats.served} served from the snapshot).`,
     );
     return;

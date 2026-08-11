@@ -19,7 +19,7 @@ import { CoverageFeature } from "@storytree/context-traversal-telemetry";
 import type { CoverageFeature as CoverageFeatureValue } from "@storytree/context-traversal-telemetry";
 
 import { BUILD_SPAWN_BOUNDARY_COVERAGE } from "./observe-leaf-slices.js";
-import { showTraversalSessionAllAdapters } from "./replay-adapters.js";
+import { replayTraversalSessionAllAdapters, showTraversalSessionAllAdapters } from "./replay-adapters.js";
 
 function makeTempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "context-traversal-spawn-replay-"));
@@ -302,6 +302,52 @@ test("a-corrupt-line-renders-a-partial-notice-without-throwing: a DUPLICATE-IDEN
     assert.equal(result.body.split("[front-matter] visit=visit-1").length - 1, 1);
     assert.ok(result.body.includes("[spawn-handoff] edge=edge-1"));
     assert.ok(result.body.includes("[result-return] edge=edge-1"));
+  } finally {
+    removeTempDir(dir);
+  }
+});
+
+test("the structured view and the rendered body declare the SAME installed-adapter coverage", () => {
+  // The one invariant a second consumer could break: `replayTraversalSessionAllAdapters` (the studio
+  // panel's read) and `showTraversalSessionAllAdapters` (the CLI's render) must be told the same thing
+  // about what these adapters can observe. This file's header records that each composition layer moved
+  // the terminal declaration OUTWARD and that only walking the real binary caught a render that had
+  // dropped back to an inner one — a defect whose whole shape is "two places disagree". A structured
+  // view deriving its own coverage would reopen exactly that, in a surface no CLI walk ever reaches.
+  const dir = makeTempDir();
+  const sessionId = "session-structured-coverage";
+  try {
+    writeMixedFixture(dir, sessionId);
+
+    const view = replayTraversalSessionAllAdapters(sessionId, { dir });
+    const rendered = showTraversalSessionAllAdapters(sessionId, { dir });
+
+    assert.deepEqual(
+      view.coverage.map((declaration) => declaration.adapterId),
+      [FOLLOW_OFFER_EDGE_COVERAGE.adapterId, BUILD_SPAWN_BOUNDARY_COVERAGE.adapterId],
+    );
+    for (const declaration of view.coverage) {
+      const line = `coverage: adapter=${declaration.adapterId} supported=[${declaration.supported.join(", ")}] omitted=[${declaration.omitted.join(", ")}]`;
+      assert.ok(
+        rendered.body.includes(line),
+        `the structured view's ${declaration.adapterId} declaration must be the SAME one the render prints`,
+      );
+    }
+
+    // The structure, not the text: the events the panel plots, and the honesty it must render beside
+    // them. `sessions` is deliberately absent — a single-session replay's one lane would restate
+    // `events` verbatim and double the payload.
+    assert.equal(view.sessionId, sessionId);
+    assert.equal(view.events.length, 4);
+    assert.equal(view.skipped, 0);
+    assert.equal(view.partial, false);
+    assert.ok(view.coverageCaveats.length > 0, "the declared gaps ride with the structured view too");
+
+    // Occupancy: observed NOWHERE in this fixture, and reported as unobserved rather than as zero.
+    assert.equal(view.occupancy.modelContextCount, 1);
+    assert.equal(view.occupancy.observationCount, 0);
+    assert.equal(view.occupancy.declared, false);
+    assert.ok(view.occupancy.note.includes("no occupancy series"));
   } finally {
     removeTempDir(dir);
   }

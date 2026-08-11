@@ -22,7 +22,15 @@ capabilities: [dev-server-persistence-backbone, seed-library-corpus, read-corpus
 # `storytree arc show` derive one join. That makes `storage-protocol` a declared edge here. It is a
 # TYPE-only import today (the runtime value is the pg store the backend already builds), but
 # check:boundaries reads the code graph, not the emit, and a type edge is still a real coupling.
-depends_on: [library, drive-machinery, notice-board, forest-world, studio-members, proof-protocol, uat-criterion-detail, art-factory, app-surface, storage-protocol]
+# `traversal-panel-arc` (increment `traversal-panel-read-route`): the studio serves one session's
+# replayed context traversal at GET /api/traversal, read from this machine's LOCAL JSONL trace dir.
+# BOTH traversal edges are real and neither is a re-export of the other: the STRUCTURED replay (with
+# its installed-adapter coverage composition) comes from `context-traversal-spawn`, while the trace
+# dir resolution and the session INDEX come from the sink in `context-traversal-capture` — the same
+# two packages `packages/cli/src/traversal.ts` imports for the same two jobs. The runtime values are
+# pulled lazily inside the handler (the vite config-load trap), but check:boundaries reads the code
+# graph rather than the emit, so both are declared here.
+depends_on: [library, drive-machinery, notice-board, forest-world, studio-members, proof-protocol, uat-criterion-detail, art-factory, app-surface, storage-protocol, context-traversal-spawn, context-traversal-capture]
 # Deciding ADRs (ADR-0037 §2): UI-drives-agents (8), the story world (36, recalibrated by 38),
 # the app brought into the boundary scan as a consuming surface (100), the drive-package
 # extraction that re-pointed the build/secrets seam off cli onto @storytree/drive (112), the

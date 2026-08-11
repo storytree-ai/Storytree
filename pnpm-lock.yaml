@@ -68,6 +68,12 @@ importers:
       '@storytree/app-surface':
         specifier: workspace:*
         version: link:../../packages/app-surface
+      '@storytree/context-traversal-capture':
+        specifier: workspace:*
+        version: link:../../packages/context-traversal-capture
+      '@storytree/context-traversal-spawn':
+        specifier: workspace:*
+        version: link:../../packages/context-traversal-spawn
       '@storytree/drive':
         specifier: workspace:*
         version: link:../../packages/drive

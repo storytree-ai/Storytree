@@ -218,6 +218,117 @@ export function isForwardLooking(status: string): boolean {
 }
 
 /**
+ * PURE: the `lifecycle` ADR-0335's rule derives for an arc from its OWN increment log — or `null`
+ * when the log carries no signal to derive one from.
+ *
+ * THIS IS THE ONE PLACE THE RULE LIVES. `recomputeArcLifecycle` (the write-time trigger in
+ * `packages/cli/src/arc.ts`) and {@link reconcileArcLifecycles} (the sweep) both call it, so the
+ * trigger and the reconciler cannot answer differently for the same arc. A reconciler carrying its
+ * own copy of the predicate would be a second truth about the same field, and the drift it reported
+ * would be indistinguishable from its own divergence.
+ *
+ * `null` ON AN EMPTY LOG IS THE LOAD-BEARING CASE, AND IT IS NOT THE SAME AS "DRAINED". ADR-0335 D1
+ * requires an arc to be born with a bundled first increment, but writes the arc doc BEFORE it (so
+ * that an interruption leaves a recoverable arc rather than an orphan increment). That ordering
+ * opens a real window in which an arc legitimately has zero increments, and it was observed live on
+ * 2026-08-11: `traversal-panel-arc` held a lone `created` event and no increment, then carried six
+ * about an hour later — one session part-way through chartering it. Deriving `closed` there would
+ * assert a landing history the arc does not have and close an initiative on the day it was
+ * chartered. "The question was not asked" is a third answer, and the caller must handle it.
+ *
+ * The trigger never reaches that branch — `arc increment add|new|close` each write their increment
+ * before recomputing, so at least one always exists — so returning `null` changes no write-time
+ * behaviour. Only a sweep over every arc can see an empty log.
+ */
+export function deriveArcLifecycle(
+  increments: readonly { readonly status: string }[],
+): "active" | "closed" | null {
+  if (increments.length === 0) return null;
+  return increments.some((i) => isForwardLooking(i.status)) ? "active" : "closed";
+}
+
+/** One arc whose stored `lifecycle` disagrees with the lifecycle its own increment log derives. */
+export interface ArcLifecycleDrift {
+  id: string;
+  title: string;
+  /** What the arc doc says today. */
+  stored: "active" | "closed";
+  /** What ADR-0335's rule derives from the increment log. */
+  derived: "active" | "closed";
+  /** `close` when a drained arc still reads active; `reopen` when open work sits on a closed arc. */
+  action: "close" | "reopen";
+  open: number;
+  landed: number;
+}
+
+/** An arc whose increment log derives nothing — see {@link deriveArcLifecycle}'s `null` branch. */
+export interface ArcLifecycleNoSignal {
+  id: string;
+  title: string;
+  stored: "active" | "closed";
+}
+
+/** What one reconciliation sweep found. `agreed` is counted so a clean run is never a silent one. */
+export interface ArcLifecycleReconciliation {
+  drift: ArcLifecycleDrift[];
+  noSignal: ArcLifecycleNoSignal[];
+  agreed: number;
+}
+
+/**
+ * PURE: every arc whose stored `lifecycle` has drifted from what its increment log derives.
+ *
+ * WHY A SWEEP EXISTS AT ALL. ADR-0335 shipped its rule as a write-time TRIGGER with no reconciler,
+ * so an arc is only ever re-evaluated when somebody happens to write an increment on it. Measured
+ * against the live store on 2026-08-11, that left 14 of 25 `active` arcs holding zero forward-looking
+ * increments — twelve of them because their last increment write predates the trigger reaching main
+ * (2026-08-09, PR #1254), so the rule had never once run on them. On the map's arcs lens those arcs
+ * render `running`, which is exactly the promise ADR-0267 D7 makes and this drift breaks.
+ *
+ * IT IS SYMMETRIC, AND THAT IS DELIBERATE. Reopening a closed arc that has open work is the same
+ * rule read the other way, and it is the behaviour the trigger already has (ADR-0335 D2's auto-reopen
+ * — parking forward-looking work on a closed arc reopens it). A sweep that only ever closed would be
+ * a different rule wearing the same name.
+ *
+ * WHAT IT DOES NOT KNOW: an arc reopened by `arc reopen` (ADR-0337) with nothing parked is reported
+ * as drift and will be closed, because the mechanical rule genuinely cannot express "open because a
+ * human said so". That is not an oversight in this function — it is the trade ADR-0337 already names
+ * and `session-staleness-arc-inc-03` states in its own text ("the arc will re-close on the next
+ * increment write unless work is parked"). The reopen increment stays in the log either way
+ * (increments are durable, ADR-0305 D3), so the record of the judgement survives the flip, and
+ * parking the work reopens the arc.
+ */
+export function reconcileArcLifecycles(
+  rollups: readonly ArcRollup[],
+): ArcLifecycleReconciliation {
+  const drift: ArcLifecycleDrift[] = [];
+  const noSignal: ArcLifecycleNoSignal[] = [];
+  let agreed = 0;
+  for (const arc of rollups) {
+    const derived = deriveArcLifecycle(arc.increments);
+    if (derived === null) {
+      noSignal.push({ id: arc.id, title: arc.title, stored: arc.lifecycle });
+      continue;
+    }
+    if (derived === arc.lifecycle) {
+      agreed += 1;
+      continue;
+    }
+    const open = arc.increments.filter((i) => isForwardLooking(i.status)).length;
+    drift.push({
+      id: arc.id,
+      title: arc.title,
+      stored: arc.lifecycle,
+      derived,
+      action: derived === "closed" ? "close" : "reopen",
+      open,
+      landed: arc.increments.length - open,
+    });
+  }
+  return { drift, noSignal, agreed };
+}
+
+/**
  * PURE: the arc's one ordered increment list — status rank first, then OLDEST FIRST within a rank.
  *
  * Oldest-first is deliberate on both halves and means different things on each. Among forward-looking
