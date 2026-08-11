@@ -84,14 +84,26 @@ The exported surface is therefore part of the contract, not a free choice. Expor
   optional `windowId`, `cumulativeInputTokens`, `addedInputTokens`, optional
   `residentInputTokens`, optional positive `contextWindowCapacity`);
   `SpawnHandoffEvent` and `ResultReturnEvent` (`edgeId`, `parentSessionId`, `childSessionId`, plus
-  `agentType`/`payloadTokenCount` and `resultTokenCount`/`ok` respectively).
+  `agentType`/optional `model`/optional `runtime`/optional `payloadTokenCount` and
+  `resultTokenCount`/`ok` respectively). The lane's `model` and `runtime` sit on the HANDOFF and
+  deliberately NOT on the return: a lane's identity is established when it is spawned, and restating
+  it on the return would give one fact two sources of truth with no observer able to say which is
+  right. The return is `.strict()`, so it REFUSES them rather than ignoring them.
+- `AgentRuntime` — a zod enum `["sdk-leaf", "codex-leaf", "owned-loop"]` (plus a type of the same
+  name), the closed vocabulary of `SpawnHandoffEvent.runtime`. It is a deliberate DUPLICATE of
+  `UsageSource` in `@storytree/proof-protocol`, never an import: this package is a root the whole
+  traversal graph rests on and takes no dependency to borrow three string literals — the same call
+  `proof-protocol` itself already makes for `Tier`/`Status`. The values are kept identical ON PURPOSE
+  so a reader can join a traversal lane to its `events.usage_event` row without a translation table;
+  changing one without the other silently breaks that join.
 - `CoverageFeature` — a zod enum whose options are the closed feature domain, covering the runtime
   surfaces (`surface:create_orientation_runner`, `surface:direct_cli`, `surface:claude_sdk`,
   `surface:codex`, `surface:owned_loop`, `surface:spawned_agent`, `surface:agents`,
   `surface:noticeboard`, `surface:host_transcript`), one `event:<kind>` per event kind, and the
   fields `field:surface_id`, `field:parent_visit_id`, `field:prior_visit_id`, `field:model_tokens`,
   `field:resident_input_tokens`, `field:window_id`, `field:context_window_capacity`,
-  `field:candidate_follow_causality`, `field:child_context_window`.
+  `field:candidate_follow_causality`, `field:child_context_window`,
+  `field:agent_model_identity`.
 - `ContextTraversalCoverage` — a strict `{ adapterId, supported, omitted }` schema over that enum,
   plus a type of the same name.
 - `ContextVisitEvent` / `ContextModelEvent` types, and the `isContextVisitEvent` narrowing guard.
@@ -122,6 +134,38 @@ verdict was deliberately NOT re-run for the edit: a `--real` rebuild of an alrea
 permanently under-claiming it, and the edit adds no behaviour this capability's own contracts
 describe. What asserts the new fields is the extending story's own suite, which round-trips them
 through `ContextTraversalEvent` onto bytes on disk.
+
+**Vocabulary extended 2026-08-11 by story `context-traversal-spawn` (arc `traversal-panel-arc`),
+additively.** `SpawnHandoffEvent` gained optional `model` (WHICH model the child lane ran on — an
+identity string, never a display label) and optional `runtime` (WHICH leaf runtime ran it, typed by
+the new `AgentRuntime` enum); `CoverageFeature` gained `field:agent_model_identity`, so an adapter
+declares whether it can attribute a lane at all rather than leaving a reader to assume. A new
+exported `AgentRuntime` enum joins the published surface (see the bullet above for why it is a
+deliberate duplicate of `proof-protocol`'s `UsageSource` rather than an import).
+
+**Absent means UNOBSERVED here and is never defaulted.** That DIVERGES on purpose from
+`sliceUsageDocs()` (`packages/drive/src/usage.ts`), which defaults a missing source to `sdk-leaf`
+because an accounting row must balance; this vocabulary refuses to, so a renderer can print "not
+recorded" rather than assert a runtime nobody witnessed. The two instruments agree wherever the field
+is present and this one stays silent where it is not, instead of both inventing the same answer.
+Optional is also what keeps the 111 `spawn_handoff` events ALREADY on disk parseable: these schemas
+are `.strict()` and the sink DROPS an unparseable event silently, so a required field here would have
+discarded every recorded lane invisibly. `ResultReturnEvent` deliberately did NOT gain the pair — the
+lane's identity is established at the handoff, and `.strict()` makes the return REFUSE them, so one
+fact can never acquire two sources of truth.
+
+Every one of the six contracts below still holds unchanged, for exactly the reason the 2026-07-27
+note gives: the two added event fields are OPTIONAL, so every fixture the existing contracts parse
+still parses and every absence they assert is still an absence; and contract 5's exhaustiveness is
+asserted over `CoverageFeature.options` rather than a hand-listed subset, so every adapter — all of
+which derive `omitted` from that same enum — absorbs `field:agent_model_identity` with no source
+change. The new cases BIND to existing contracts rather than adding any: the handoff/return schema
+cases are contract 4 (`spawn-edge-schemas-link-independent-sessions` already owns what the spawn-edge
+schemas require, expose, and refuse), and the coverage-partition case is contract 5
+(`adapter-coverage-names-omissions`). No contract is amended, restated, or added by this extension.
+As in the previous extension, this capability's signed verdict was deliberately NOT re-run: a
+`--real` rebuild of an already-green unit risks permanently under-claiming it, and what asserts the
+new fields end-to-end is the extending story's own suite.
 
 ## Contracts
 

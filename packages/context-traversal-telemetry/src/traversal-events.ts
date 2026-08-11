@@ -194,11 +194,39 @@ function spawnEdgeIsValid(value: { sessionId: string; parentSessionId: string; c
   return value.parentSessionId !== value.childSessionId && value.sessionId === value.parentSessionId;
 }
 
+/**
+ * WHICH leaf runtime a spawned child ran on. A deliberate DUPLICATE of `UsageSource`
+ * (`@storytree/proof-protocol`), not an import: this package is a root the whole traversal graph
+ * rests on and takes no dependency to borrow three string literals — the same call `proof-protocol`
+ * already makes for `Tier`/`Status`. The values are kept identical ON PURPOSE so a later reader can
+ * join a traversal lane to its `events.usage_event` row without a translation table; changing one
+ * without the other silently breaks that join.
+ */
+export const AgentRuntime = z.enum(["sdk-leaf", "codex-leaf", "owned-loop"]);
+export type AgentRuntime = z.infer<typeof AgentRuntime>;
+
 export const SpawnHandoffEvent = z
   .object({
     kind: z.literal("spawn_handoff"),
     ...spawnEdgeBase,
     agentType: identity,
+    /**
+     * The model the child ran on, and the runtime that ran it — carried, never inferred.
+     *
+     * These sit on the HANDOFF and deliberately not on the matching {@link ResultReturnEvent}: the
+     * lane's identity is established when it is spawned, and restating it on the return would
+     * create two sources of truth for one fact with no observer able to say which is right.
+     *
+     * BOTH are optional, and absent means UNOBSERVED — never a default, never a model-id → runtime
+     * lookup, and never a guess from a sibling event (ADR-0235 clause 4). A boundary that saw two
+     * models for one slice must leave `model` absent rather than pick one, exactly as
+     * `contextWindowCapacityFor` already refuses an ambiguous capacity. Optional is also what keeps
+     * the 111 `spawn_handoff` events already recorded without these fields parseable: this schema is
+     * `.strict()` and the sink DROPS an unparseable event silently, so a required field here would
+     * discard every existing lane invisibly.
+     */
+    model: identity.optional(),
+    runtime: AgentRuntime.optional(),
     payloadTokenCount: nonNegativeInt.optional(),
   })
   .strict()
@@ -270,6 +298,14 @@ export const CoverageFeature = z.enum([
   "field:context_window_capacity",
   "field:candidate_follow_causality",
   "field:child_context_window",
+  /**
+   * Whether this adapter names the MODEL and RUNTIME a spawned lane ran on. Its own feature because
+   * the answer differs by boundary and a reader must not assume: the build spawn boundary sees a
+   * slice's `byModel` split and its run's declared source, while a boundary that only knows an
+   * agent TYPE sees neither. An adapter omitting it is saying its lanes are honestly unattributed,
+   * which is what lets a renderer print "not recorded" instead of inventing a default.
+   */
+  "field:agent_model_identity",
 ]);
 export type CoverageFeature = z.infer<typeof CoverageFeature>;
 

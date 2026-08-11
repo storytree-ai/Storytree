@@ -73,6 +73,17 @@ export interface SdkWriteViolation {
 /** Per-slice run accounting read off the SDK result message. */
 export interface SdkRunInfo {
   phase: AuthoringPhase;
+  /**
+   * WHICH leaf runtime produced this run — the same discriminator `CodexRunInfo` already carries,
+   * so a consumer reads one field rather than defaulting whatever lacks it.
+   *
+   * Stated here rather than inferred downstream: `sliceUsageDocs()` (`packages/drive/src/usage.ts`)
+   * had to fall back to `"source" in run ? run.source : "sdk-leaf"` precisely because this
+   * interface predated the Codex leaf and never declared its own provenance. That fallback is now
+   * dead weight rather than a guess, and a second consumer — the context-traversal spawn adapter,
+   * whose vocabulary forbids guessing — can read the runtime honestly instead of defaulting it.
+   */
+  source: "sdk-leaf";
   subtype: string;
   turns: number;
   costUsd: number;
@@ -599,6 +610,7 @@ export class ClaudeAgentAuthor implements PhaseAuthor {
     }
     this.runs.push({
       phase,
+      source: "sdk-leaf",
       subtype: result.subtype,
       turns: result.num_turns,
       costUsd: result.total_cost_usd,

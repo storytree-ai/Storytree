@@ -224,6 +224,19 @@ seam widened to reach its activation — that remains the honest difference betw
   in `packages/context-traversal-transcript/src/ingest-occupancy.ts` and in that story's "Explicitly
   outside this increment". **Read a re-green or a fresh emission of `addedInputTokens` as D3 PENDING,
   not as D3 contradicted.**
+- **The reason D3 cannot be a bare key removal, recorded 2026-08-11.** `ModelContextEvent` is
+  `.strict()` and `addedInputTokens` is REQUIRED on it, so every `model_context` event already
+  written to a local trace carries the key. Deleting it from the schema makes every one of those
+  existing events fail `safeParse`, and the sink that reads them back (`appendTraversalEvents` /
+  the replay path in `@storytree/context-traversal-capture`) drops an unparseable event silently —
+  no file, no error, no count. That would silently destroy the `residentInputTokens` occupancy
+  series the arc's playhead bar plots (D1), not merely the field being removed. The deletion
+  increment (candidate A, still deferred) must therefore either make the field optional first and
+  drop it only once no live trace on disk requires it, or otherwise migrate/tolerate the old shape
+  on read — never flip it straight from required to absent. The same `.strict()`-plus-silent-drop
+  hazard is why `SpawnHandoffEvent`'s new `model`/`runtime` fields (arc `traversal-panel-arc`,
+  2026-08-11) were added OPTIONAL rather than required: the vocabulary now treats this as a standing
+  pattern, not a one-off judgment call.
 - Anyone reading "capacity now flows" as "the gauge can be built" would have built a gauge reading
   613%. D2's documentation requirement is what closes that trap, and it is now closed at the place a
   reader is most likely to arrive: the field's own doc comment in the vocabulary schema. The trap

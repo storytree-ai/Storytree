@@ -20,6 +20,14 @@ outcome: "A build authoring slice's run accounting observes as an explicit spawn
 # `field:context_window_capacity` from omitted to supported, and contracts 12-13 are new. The ban on
 # lookup tables, defaults, maps and estimates is UNCHANGED — only its justification is corrected.
 # The line stays `building`: no signed verdict covers the amended contract list.
+# AMENDED AGAIN (2026-08-11, arc `traversal-panel-arc`): a spawned lane can now NAME the model and
+# runtime it ran on. `LeafSliceRun` gains a structural `source?`, the `spawn_handoff` gains `model`
+# and `runtime` (both omitted when undeclared — absent means UNOBSERVED, deliberately diverging from
+# `sliceUsageDocs()`'s balancing default), and `BUILD_SPAWN_BOUNDARY_COVERAGE` gains
+# `field:agent_model_identity`. Contracts 14-18 are new; contract 10's supported list is restated to
+# match. No existing contract's claim changes. The stale "contract 8 is the unimplemented one" note
+# is corrected in place — that emission landed, and its `byModel`-canary consequence is now history
+# with a standing rule. The line stays `building`: no signed verdict covers the amended list.
 status: building
 proof_mode: integration-test
 depends_on: []
@@ -57,7 +65,9 @@ injected one, no `@storytree/drive`, no `@storytree/agent`.
 **Input is structurally declared HERE, not imported.** Declare a local `LeafSliceRun` shape —
 `phase`, `subtype`, `turns`, optional `costUsd`, optional
 `usage: { inputTokens, cacheCreationInputTokens, cacheReadInputTokens, outputTokens }`, optional
-`byModel` whose value shape carries an optional `contextWindow?: number` — matching what the SDK
+`byModel` whose value shape carries an optional `contextWindow?: number`, and optional
+`source?: "sdk-leaf" | "codex-leaf" | "owned-loop"` (the runtime the run itself declares —
+`SdkRunInfo.source` / `CodexRunInfo.source`) — matching what the SDK
 leaf already collects per authoring slice. Importing
 `@storytree/agent` would drag the agent organism into a package the studio-adjacent telemetry tier
 must stay free of; reading the accounting structurally is exactly what `sliceUsageDocs()` in
@@ -68,7 +78,8 @@ no DB, and no API key.
 chronological `ContextTraversalEvent[]`. For each slice it emits, in order:
 
 1. `spawn_handoff` on the PARENT session (`sessionId === parentSessionId`), carrying an explicit
-   `edgeId`, `parentSessionId`, `childSessionId`, and `agentType`.
+   `edgeId`, `parentSessionId`, `childSessionId`, and `agentType` — plus the lane's `model` and
+   `runtime` when, and only when, the slice declared them (see the attribution rule below).
 2. `model_context` on the CHILD session — one aggregate observation of that child's own independent
    window — but only when the slice reported `usage`.
 3. `result_return` on the PARENT session, carrying the same `edgeId` and child id, with
@@ -91,14 +102,14 @@ supported platform (`-`, `_`, `__`) — provided the id stays derived from decla
 alone, so determinism and explicit-id-only linkage are untouched. Contract 11 asserts this on the id
 the observer RETURNS; it is a permanent regression case for a real defect, not speculative breadth.
 
-**The existing colon-template assertions are EXPECTED TO CHANGE — they are not fixed points.** The
-current test file hard-codes the literal composition in three places (around lines 74, 166, and 211,
-e.g. ``assert.equal(secondSpawn.childSessionId, `${PARENT_SESSION_ID}:build:${RUN_ID}:${UNIT_ID}:IMPLEMENT`)``).
-Those assertions pin a SPELLING that amended contract 2 explicitly removes from the contract: what is
-promised is composition from the declared components (parent, runId, unitId, phase) plus byte-identical
-determinism, NOT a particular separator. When the separator changes to satisfy contract 11, those
-three assertions must be updated to the new spelling. Preserving them as-is is not compatible with
-greening this capability — an implementer who treats them as untouchable will deadlock.
+**The separator is now `__`, and the literal-template assertions were NOT fixed points.** The test
+file had hard-coded the colon composition in three places
+(e.g. ``assert.equal(secondSpawn.childSessionId, `${PARENT_SESSION_ID}:build:${RUN_ID}:${UNIT_ID}:IMPLEMENT`)``);
+those assertions pinned a SPELLING that amended contract 2 explicitly removed from the contract, and
+they were updated to the `__` spelling when contract 11 landed. What is promised remains composition
+from the declared components (parent, runId, unitId, phase) plus byte-identical determinism, NOT a
+particular separator — so a test asserting the literal template is describing today's spelling, never
+constraining tomorrow's. An implementer who treats such an assertion as untouchable deadlocks.
 
 **What is NOT observed is asserted, not merely omitted.** `payloadTokenCount` is always absent: the
 size of the prompt handed to the child is not visible at this boundary, and a contract pins that so
@@ -134,38 +145,65 @@ statement about what was observed, not a rounding or a placeholder.
 **Coverage is exhaustive by construction.** Export `BUILD_SPAWN_BOUNDARY_COVERAGE` — a
 `ContextTraversalCoverage` whose `supported` names exactly what this adapter emits
 (`surface:spawned_agent`, `surface:claude_sdk`, `event:spawn_handoff`, `event:model_context`,
-`event:result_return`, `field:model_tokens`, `field:child_context_window`, and —
-since the pass-through above — `field:context_window_capacity`) and whose `omitted` is every
+`event:result_return`, `field:model_tokens`, `field:child_context_window`, —
+since the pass-through above — `field:context_window_capacity`, and — since the lane attribution
+below — `field:agent_model_identity`) and whose `omitted` is every
 remaining member of the closed `CoverageFeature` domain, explicitly including
 `field:candidate_follow_causality`. Derive the omissions from `CoverageFeature.options` so a future
 vocabulary addition cannot leave a silent gap.
 
-**`field:context_window_capacity` MOVES from omitted to supported, and the existing assertion
-INVERTS.** Coverage declares what the adapter CAN observe, not what any one trace happens to
-contain, so `supported` is the honest declaration the moment the pass-through lands — even though
-many individual slices will still carry no capacity. The test file currently hard-asserts that this
-feature is in `omitted`; that assertion is FLIPPED, not merely added to. An implementer who treats
-it as a fixed point will leave a self-contradicting suite and deadlock, exactly as the literal
-colon-template assertions did in the previous amendment. The exhaustiveness assertions derived from
-the enum are untouched and stay as they are — they are what keep the move honest, because the
-feature cannot simply vanish from the declaration.
+**`field:context_window_capacity` MOVED from omitted to supported (increment 4), and the assertion
+INVERTED with it** — it is now declared and asserted as supported, not omitted. The rule that forced
+the move is the durable part: coverage declares what the adapter CAN observe, not what any one trace
+happens to contain, so `supported` became the honest declaration the moment the pass-through landed,
+even though many individual slices still carry no capacity. A hard-coded side is never a fixed point
+when the adapter's ability changes — treating one as untouchable leaves a self-contradicting suite
+and deadlocks, exactly as the literal colon-template assertions did in the previous amendment. The
+exhaustiveness assertions derived from the enum are untouched throughout — they are what keep any
+such move honest, because a feature cannot simply vanish from the declaration.
 
-**Contract 8 is the unimplemented one — it is the RED this increment must observe.** The observer
-does NOT emit `modelId` today: `observe-leaf-slices.ts` contains zero occurrences of the field, and
-has since this capability was first authored — contract 8 shipped under a signed PASS twice without
-ever being built. The other twelve contracts are ALREADY satisfied by the current source and need
-only their tests BOUND to contract ids by name. Contract 8 is the only behavioural change in this
-increment, so renaming the existing tests is NOT sufficient work: it leaves the suite green and
-fails CONFIRM_RED.
+**Contract 8's `modelId` emission has LANDED** (it was the RED of the increment that observed it —
+`observe-leaf-slices.ts` had carried zero occurrences of the field since this capability was first
+authored, and contract 8 had shipped under a signed PASS twice without ever being built). The
+observer now emits it: `modelIdFor()` returns the sole `byModel` key when there is exactly one and
+`undefined` otherwise, and the child's `model_context` carries it only in the former case.
 
-**Contract 8's `modelId` emission is what will make a `byModel` KEY a declared, EMITTED field.** Once
-it lands, a slice declaring exactly one `byModel` key sends that key OUT as `modelId` — so a `byModel`
-key becomes runtime-declared metadata on the wire, not an opaque free-text input. That has a
-consequence next door: `build-spawn-capture`'s canary contract 5 currently threads its canary through
-a `byModel` key, which stays green only while contract 8 is unimplemented here. Implementing contract
-8 faithfully turns that fixture red, and the FIXTURE is what moves — see the matching note in
-`build-spawn-capture.md`. Nothing about contract 8's own claim changes; recording it here is so a
-later session does not rediscover the collision the hard way and mistake it for a contract conflict.
+**A `byModel` KEY is therefore declared, EMITTED metadata on the wire, not an opaque free-text
+input** — with a standing consequence next door. `build-spawn-capture`'s contract 5 threads a
+distinctive canary through every input that only LOOKS free-text and asserts it never reaches the
+written bytes; it passed while contract 8 was unimplemented because the key went nowhere. That
+fixture has since MOVED its canary off `byModel` and onto `subtype`, which is genuinely never
+emitted. The rule this leaves behind is permanent: a `byModel` key is now observable output, so
+nothing that must not reach disk may ride it. Recording it here is so a later session does not
+rediscover the collision the hard way and mistake it for a contract conflict.
+
+**The lane NAMES the model and runtime it ran on, and both ride the HANDOFF.** A spawned lane is
+useless to a reader who cannot tell what ran it, so the `spawn_handoff` carries `model` (the sole
+`byModel` key — the same `modelIdFor()` rule contract 8 already established, reused rather than
+re-derived) and `runtime` (the slice's declared `source`, passed through verbatim into the
+vocabulary's closed `AgentRuntime` set). They sit on the handoff and deliberately NOT on the
+`result_return`: the lane's identity is established when it is SPAWNED, and restating it on the
+return would give one fact two sources of truth with no observer able to say which is right. The
+return schema is `.strict()`, so it REFUSES both keys — the wrong emission is a parse failure, not a
+silently redundant field.
+
+**Absent means UNOBSERVED, and this observer DIVERGES from the accounting path on purpose.** Each
+field is omitted — the key wholly missing, not `null`, not an empty string — whenever the slice does
+not declare it: `model` when `byModel` names several keys or none, `runtime` when the run carries no
+`source`. `sliceUsageDocs()` (`packages/drive/src/usage.ts`) does the opposite for the same value,
+defaulting a missing source to `sdk-leaf`, and that is RIGHT there — an accounting row must balance,
+so it must name a source. It is WRONG here. This vocabulary exists so a renderer can print "not
+recorded" rather than assert a runtime nobody witnessed, and a defaulted `sdk-leaf` would be
+indistinguishable from an observed one. The two instruments agree wherever the field is present and
+this one stays silent where it is not, instead of both inventing the same answer. That divergence is
+deliberate and must not be "fixed" into agreement — the same shape as `contextWindowCapacityFor`'s
+refusal to guess an ambiguous capacity.
+
+**Optional is also what keeps ALREADY-RECORDED lanes readable.** 111 `spawn_handoff` events are on
+disk without these fields; the vocabulary is `.strict()` and the sink DROPS an unparseable event
+silently (`catch { return false }`, the same swallow contract 11 was written for), so making either
+field required would have discarded every existing lane invisibly — no file, no error, no way to
+tell. Contract 18 is the permanent regression case for that.
 
 **Fences.** Metadata only (ADR-0235 clause 6): never a prompt, a context body, a tool result, hidden
 reasoning, a credential, a spawn payload, or returned result content — token counts only. No
@@ -226,9 +264,10 @@ Files: `packages/context-traversal-spawn/src/observe-leaf-slices.ts` and
      there are several or none, and `agentType` is the rendered Library agent the leaf actually runs
      as for that phase (`red-builder` for the test-authoring phase, `green-builder` for the
      implementing phase) — a runtime-grounded stable type, never an invented label.
-   - **falsifiability —** against the CURRENT source, which emits no `modelId` at all, a correct test
-     for this contract MUST FAIL. A first run that comes back green is proof the test is not reading
-     the observer's output — it is the diagnosis, not the result.
+   - **falsifiability —** this contract's test was authored against a source that emitted no
+     `modelId` at all, and it correctly went RED there before the emission landed. A first run that
+     comes back green against a source lacking the emission is proof the test is not reading the
+     observer's output — it is the diagnosis, not the result.
    - **the subject is the observer's OUTPUT.** The asserted value is the `modelId` field read OFF the
      `model_context` event that `observeLeafSlices` RETURNED — never a string the test composed, and
      never the sole-key rule re-derived inside the test file. A test that does either would pass
@@ -252,8 +291,14 @@ Files: `packages/context-traversal-spawn/src/observe-leaf-slices.ts` and
     - **asserts —** `BUILD_SPAWN_BOUNDARY_COVERAGE` parses through `ContextTraversalCoverage`, names
       every member of the closed `CoverageFeature` domain exactly once as either supported or
       omitted, lists the three emitted event kinds plus the spawned-agent and SDK surfaces AND
-      `field:context_window_capacity` as supported, and explicitly omits
-      `field:candidate_follow_causality`.
+      `field:context_window_capacity` AND `field:agent_model_identity` as supported, and explicitly
+      omits `field:candidate_follow_causality`.
+    - **AMENDED AGAIN (2026-08-11) —** `field:agent_model_identity` joins `supported`. It is a
+      feature the closed domain gained in this same increment, so it did not MOVE sides: it entered
+      the declaration already supported, because this adapter genuinely observes both halves of it —
+      the model from the slice's `byModel` split, the runtime from the run's declared `source`. The
+      exhaustiveness requirement is untouched and stays derived from `CoverageFeature.options`, which
+      is what forced the new feature to be declared at all rather than silently widening the claim.
     - **AMENDED (increment 4) —** `field:context_window_capacity` moves from `omitted` to
       `supported`. The existing assertion that it is omitted INVERTS; it is not merely added to.
       Coverage declares what the adapter CAN observe, not what a given trace contains, so
@@ -278,10 +323,10 @@ Files: `packages/context-traversal-spawn/src/observe-leaf-slices.ts` and
     - **the fixtures' INPUT `parentSessionId` values are themselves filename-safe.** That is what
       makes any illegal character in the output attributable to the observer's own composition, which
       is the property under test: filename-safe parent in, filename-safe child out.
-    - **falsifiability check —** against the current source, which composes
-      `` `${parentSessionId}:build:${runId}:${unitId}:${phase}` ``, a correct test for this contract
-      MUST FAIL. A first run that comes back green is proof the test is not reading the observer's
-      output, not proof the code is safe.
+    - **falsifiability check —** this contract's test was authored against a source composing
+      `` `${parentSessionId}:build:${runId}:${unitId}:${phase}` `` and correctly went RED there; the
+      source now composes with `__`. A run that comes back green against a colon-composing source is
+      proof the test is not reading the observer's output, not proof the code is safe.
     - Permanent regression case for a MEASURED defect — a `:`-separated child id made
       `appendTraversalEvents` return `false` and write nothing on Windows, silently, because the sink
       swallows the failure — and it is what makes story UAT leg 2 satisfiable at all.
@@ -325,13 +370,69 @@ Files: `packages/context-traversal-spawn/src/observe-leaf-slices.ts` and
     - **why `0` is excluded —** the vocabulary is `count.positive()`, so a `0` carried forward would
       fail the event's own parse and lose the whole lane. It must become ABSENT at composition time,
       which is what makes case (c) a behaviour contract rather than a schema restatement.
+14. **`handoff-names-the-lane-model-and-runtime`**
+    - **asserts —** CALL `observeLeafSlices(...)` over a slice declaring exactly ONE `byModel` key
+      and its own `source`, then read `model` and `runtime` OFF the returned `spawn_handoff` — the
+      values the observer itself produced — and assert `model` is strictly equal to that sole key and
+      `runtime` strictly equal to that declared source. The event parses clean through increment 1's
+      `SpawnHandoffEvent`, so an out-of-vocabulary runtime is caught by the vocabulary rather than by
+      the test's own string comparison.
+    - **the subject is the observer's OUTPUT, never a value the test composed.** A test that
+      re-derives the sole-key rule inside the test file, or asserts against the literal it fed in
+      without reading it back off a returned event, would pass against any implementation — including
+      one that emits neither field. This is the same tautology contract 8 and contract 12 each pay
+      for once; do not pay for it a third time.
+    - **the PRESENT side carries the whole positive claim.** Every absent-side case in contracts
+      15–17 is satisfied VACUOUSLY by an observer that emits neither field — which is exactly what
+      this observer did before this increment — so a suite asserting only absence proves nothing
+      about this pair.
+15. **`ambiguous-model-is-absent-not-guessed`**
+    - **asserts —** a slice whose `byModel` declares TWO OR MORE keys emits a `spawn_handoff` with no
+      `model` key at all — not `null`, not an empty string, not the first key — while its `runtime`
+      still travels normally, so the absence is attributable to the ambiguity rather than to the
+      observer having emitted nothing.
+    - **falsifiability —** an implementation that picks the first key, joins the keys, or falls back
+      to a label must FAIL. `model` follows the `byModel` KEY COUNT (contract 8's rule, reused), NOT
+      the count of distinct declared windows that contract 12 governs — an implementation that
+      conflates the two passes one and fails the other.
+16. **`undeclared-runtime-is-absent-not-defaulted`**
+    - **asserts —** a slice carrying NO `source` emits a `spawn_handoff` with no `runtime` key at all,
+      even though `sliceUsageDocs()` defaults the identical missing value to `sdk-leaf` for its
+      accounting rows. Absent means UNOBSERVED at this boundary and is never defaulted, never looked
+      up from a model id, and never borrowed from a sibling slice that did declare one.
+    - **falsifiability —** the fixture set must contain a slice that declares `source` alongside one
+      that does not, so an implementation that defaults, or that carries the neighbour's value
+      forward, goes RED rather than coinciding with the honest answer. Asserted as key ABSENCE, so a
+      `null` or `""` placeholder fails too.
+    - **this is a deliberate DIVERGENCE, not a defect to reconcile.** A future session that "fixes"
+      this to match `sliceUsageDocs()` destroys the distinction between a witnessed `sdk-leaf` and an
+      assumed one, which is the entire value of the field; this contract is what makes that change
+      RED.
+17. **`a-lane-with-neither-field-still-emits`**
+    - **asserts —** a slice with NO `byModel` and NO `source` still emits its full `spawn_handoff` /
+      `result_return` pair, linked by the same `edgeId`, parsing clean through
+      `ContextTraversalEvent`, and carrying neither `model` nor `runtime` — an honestly unattributed
+      lane, not a dropped one.
+    - **falsifiability —** without this, an implementation that skipped or refused a handoff it could
+      not attribute would satisfy contracts 15 and 16 by emitting nothing. Attribution is metadata
+      ABOUT a lane; its absence must never cost the lane itself.
+18. **`recorded-lanes-without-the-new-fields-still-parse`**
+    - **asserts —** a `spawn_handoff` shaped exactly as it was written BEFORE these fields existed —
+      no `model`, no `runtime` — parses clean through increment 1's `SpawnHandoffEvent` today. The
+      fields are optional, and this is the assertion that keeps them so.
+    - **permanent regression case for a MEASURED exposure**, not speculative breadth: 111
+      `spawn_handoff` events are already on disk without these fields, the vocabulary is `.strict()`,
+      and the sink swallows a failed parse (`catch { return false }`) exactly as it swallowed the
+      colon-id write failure contract 11 exists for. Making either field required would therefore
+      discard every recorded lane INVISIBLY — no file, no error, no signal. An implementation that
+      tightens either field to required must go RED here rather than quietly emptying the archive.
 
 ## Integration evidence
 
 `packages/context-traversal-spawn/src/observe-leaf-slices.test.ts` drives the observer over fixture
 slice runs shaped exactly like the SDK leaf's per-slice accounting — with usage, without usage, with
 one model, with several, with a declared context window, without one, with two DIFFERENT declared
-windows, and with a non-positive one — using an injected clock and id source so ordering is
+windows, with a non-positive one, with a declared `source`, and with none — using an injected clock and id source so ordering is
 asserted, never raced. Every emitted event is round-tripped through increment 1's
 `ContextTraversalEvent` (and every `model_context` through `ModelContextEvent`), and the absence
 contracts (payload count, never-inferred capacity) are asserted across the whole emitted set, not on
@@ -343,6 +444,16 @@ key name and both sides agree by construction — so the positive contract pins 
 distinctive input value read back OFF the observer's output) while contract 13 carries the falsifying
 weight: undeclared, ambiguous, and non-positive inputs must each produce a wholly absent key. Neither
 contract may be satisfied by a value the test composed for itself.
+
+The lane-attribution contracts (14–18) are weighted the same way and for the same reason. The
+present-side case carries the whole positive claim — both values read back OFF a returned
+`spawn_handoff` — because every absent-side case is satisfied vacuously by an observer that emits
+neither field, which is exactly what the code did before this increment. The three absence cases then
+carry the falsifying weight: an ambiguous `byModel`, an undeclared `source`, and a slice declaring
+neither must each produce a wholly missing key on a lane that is still emitted intact. Contract 18 is
+different in kind — it asserts nothing about the observer at all, only that the vocabulary still
+accepts a handoff written before these fields existed, which is what stops a later tightening from
+silently discarding the 111 lanes already on disk.
 
 The filename-safety contract is a character-class check over ids READ OFF the observer's returned
 events — not a filesystem write — so it holds identically on every platform's CI runner rather than
