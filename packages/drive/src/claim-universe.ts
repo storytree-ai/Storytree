@@ -84,17 +84,32 @@ const LIVE_CLAIMABLE = new Set<string>(
  * a couple of `interface-*.md` prose docs, and they are not claim targets. The one shape that is
  * NOT null and NOT a target is a file declaring a node tier with no readable id: that is a node
  * this failed to read, and the caller escalates it to an unread source.
+ *
+ * `uat_witness` rides along for a STORY (ADR-0346 D2, via {@link ClaimTarget.uatWitness}) and is
+ * NEVER escalated when missing: absent is a legal, extremely common frontmatter — it is the
+ * fail-closed `human` default (ADR-0040) — so an unreadable value would be a story that cannot be
+ * claimed at all rather than one that cannot be claimed at work grade.
  */
 export function parseNodeFrontmatter(
   text: string,
-): { readonly id: string; readonly kind: ClaimKind } | { readonly unreadable: true } | null {
+):
+  | { readonly id: string; readonly kind: ClaimKind; readonly uatWitness?: string }
+  | { readonly unreadable: true }
+  | null {
   const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text)?.[1];
   if (fm === undefined) return null;
   const tier = /^tier:\s*["']?([^"'\n\r]+?)["']?\s*$/m.exec(fm)?.[1];
   if (tier === undefined || !TREE_TIERS.has(tier)) return null;
   const id = /^id:\s*["']?([^"'\n\r]+?)["']?\s*$/m.exec(fm)?.[1];
   if (id === undefined || id.trim().length === 0) return { unreadable: true };
-  return { id: id.trim(), kind: tier as ClaimKind };
+  const witness = /^uat_witness:\s*["']?([^"'\n\r]+?)["']?\s*$/m.exec(fm)?.[1]?.trim();
+  return {
+    id: id.trim(),
+    kind: tier as ClaimKind,
+    ...(tier === "story" && witness !== undefined && witness.length > 0
+      ? { uatWitness: witness }
+      : {}),
+  };
 }
 
 /** What one source contributed, and what it failed to contribute. */
@@ -261,6 +276,13 @@ export type NamespaceGuard =
       readonly kind: ClaimKind | null;
       /** {@link ClaimTarget.owner} — a subtree's declared owner, else null. */
       readonly owner: string | null;
+      /**
+       * {@link ClaimTarget.uatWitness} — a story's declared `uat_witness`, else null (which covers
+       * both "declares none" and "the check did not run"). {@link fenceStoryWorkClaim} is the ONE
+       * reader; it treats every non-`machine` value the same way, so the two cases need not be
+       * told apart here.
+       */
+      readonly uatWitness: string | null;
     }
   | {
       readonly ok: false;
@@ -271,7 +293,7 @@ export type NamespaceGuard =
     };
 
 /** Proceed unchecked — the shape returned wherever the namespace could not have its say. */
-const UNCHECKED: NamespaceGuard = { ok: true, kind: null, owner: null };
+const UNCHECKED: NamespaceGuard = { ok: true, kind: null, owner: null, uatWitness: null };
 
 /**
  * Judge one id before a claim is written. The ONE place the four claim-taking paths — `noticeboard
@@ -304,6 +326,7 @@ export async function guardClaimNamespace(input: {
       ok: true,
       kind: resolution.target.kind,
       owner: resolution.target.owner ?? null,
+      uatWitness: resolution.target.uatWitness ?? null,
     };
   }
   if (resolution.verdict === "unverified") return UNCHECKED;

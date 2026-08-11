@@ -18,11 +18,16 @@ as observability on the forest — or at least the core machinery powering these
 sessions are **forced to claim at start** (*"it can always release the claims if needed … this might
 push us to better worktree hygiene"*); the exploring state renders as a wisp that *"hovers over the
 story without moving … we capture intent"*; work claims *"push all other sessions to wait in line"*
-[overtaken 2026-07-30, ADR-0270, then again 2026-08-05 by ADR-0311: the session ceremony requires a
-live claim, but `check:declared` is no longer a root/CI gate rung — a
-`waiting` claim queues for the work slot's promotion but never blocks a session from building, and
-the session ceremony's grain is now the capability being written, story grain remaining for
-cross-capability work];
+[TRUE AGAIN as of 2026-08-11, ADR-0346 D1, built `capability-claim-binds-arc` increment 3: a session
+refused the `work` claim takes the `waiting` claim, STOPS working that unit, and is promoted when the
+holder releases. This clause was corrected here on 2026-07-30 (ADR-0270 D3 item 3) to match a
+mechanism that did not block; that correction is now itself overtaken, so this is a RE-correction to
+what the owner said rather than a revert of ADR-0270. Two qualifications the owner's words do not
+themselves carry: the line fences ONE unit at **capability** grain, so sibling capabilities never
+contend (ADR-0270 D1, which stands and is the premise ADR-0346 builds on); and a story id is no
+longer a work claim at all (ADR-0346 D2), so "all other sessions" never means a whole story's worth
+of them. Unchanged by any of this: `check:declared` is no longer a root/CI gate rung (ADR-0311,
+2026-08-05) — the session ceremony requires a live claim, but no gate rung checks it];
 no scheduled notifications (*"a single, someone else is looking at this, and then never reports that
 again"*); sessions start on main and **create their worktree through the storytree CLI**; worktree
 names carry the story/arc slug; and the **retirement sweep is the arc's last increment, after UAT
@@ -105,8 +110,11 @@ at start — which requires the claim to grow a non-exclusive grade, or explorat
    *[This heading read "per-(story, session)" until 2026-07-30; the `(unit_id, session_id)` PK beside
    it was always the precise statement. Under
    [ADR-0270](0270-the-claim-ledger-records-a-fiction-same-story-serialisation.md) D1 the unit a
-   session claims is normally the **capability** it is writing — story grain stays legitimate for
-   cross-capability work — so every "per story" gloss in this decision reads "per claimed unit".]*
+   session claims is normally the **capability** it is writing, so every "per story" gloss in this
+   decision reads "per claimed unit". Since 2026-08-11 that is no longer merely "normally": ADR-0346
+   D2 retires the story-grain `work` claim outright — cross-capability work claims EACH capability
+   it writes, and work with no capability to name claims the increment id (ADR-0308 D5). The shared
+   `exploring` / `waiting` grades on a story are untouched.]*
    - **exploring** — shared (any number of sessions per story), taken at session start, carries the
      intent prose. Renders as a **hovering** wisp (stationary at the story): "someone is reading /
      planning here, and this is what they're thinking." *[The "stationary" half is REVERSED on

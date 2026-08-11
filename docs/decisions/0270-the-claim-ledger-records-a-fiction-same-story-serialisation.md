@@ -104,11 +104,22 @@ all already accept any unit id; this is a ceremony change, not substrate.
 substrate change, and that is the load-bearing claim here. The list read "the ledger, the gate
 (`check:declared` is grade- and tier-blind and needs no change), and the map". ADR-0311 D2 retired
 `check:declared` from root/CI policy, so there is no gate in the list to be grain-blind; the ledger and
-map carry the property on their own.)* **Story grain remains
-legitimate** for cross-capability work and for sessions that do not yet know their unit — and a
+map carry the property on their own.)* ~~**Story grain remains
+legitimate** for cross-capability work and for sessions that do not yet know their unit~~ — and a
 story-grain claim then means what ADR-0138 said it means: same-story siblings queue or negotiate.
 The migration is pull-based (ADR-0192 style): sessions adopt capability grain at their next declare;
 no register rewrite, no big-bang.
+
+*(**Amended 2026-08-11 — [ADR-0346](0346-the-capability-claim-becomes-a-real-fence-waiting-binds-stor.md)
+D2**, built `capability-claim-binds-arc` increment 3. The struck clause is WITHDRAWN: a `work` claim
+is no longer taken on a story id at all. Cross-capability work claims **each capability** it writes
+(the ledger has never capped units per session, ADR-0200 D2); work with no capability to name claims
+the **increment id** (ADR-0308 D5, below). The rest of D1 stands and is the premise ADR-0346 builds
+on. Why the fallback could not simply be left as a coarser option: the ledger keys claims by string
+and knows no containment, so once D1 there made `waiting` BIND, claiming the parent story would have
+been the obvious way around the fence. The story TIER stays claimable where it names real work — a
+`uat_witness: machine` story's UAT node, which `story build` already claims alongside its members —
+and the shared `exploring`/`waiting` grades on a story are untouched.)*
 
 (**Amended 2026-08-04 — [ADR-0308](0308-increments-form-a-dag-and-carry-their-own-claim-set-depends.md)
 D5:** a THIRD case joins the two above, for work that has no capability to name at all — greenfield
@@ -136,9 +147,11 @@ a **story-wide** fence that would have idled the factory, and D1 above then move
 capability grain, so the rejection expired with the grain it was decided under. What this clause got
 right STANDS and is restated by ADR-0346 D1: **a claim conflict is still never an owner question.**
 ADR-0346 D4 supplies what a blocked session does instead — work another claimed capability, or write
-its residue onto the owning arc, release its claims and end. Note the mechanism has not changed yet:
-ADR-0346 is the decision, and `waiting` binds only when `capability-claim-binds-arc` increment 3
-lands.)*
+its residue onto the owning arc, release its claims and end. **ADR-0346 D2 also retires the
+story-grain `work` claim named below as this decision's mitigation** — the ledger knows no
+containment, so under a binding fence claiming the parent story would have been the way around it;
+the capability, or the increment id when there is no capability to name (ADR-0308 D5), is now the
+only session grain. Built `capability-claim-binds-arc` increment 3, 2026-08-11.)*
 
 **Options weighed and not taken.**
 
@@ -148,8 +161,10 @@ at today's concurrency (6–7 sessions), and the measured window shows the seria
 being routed around at zero conflict cost — the record was wrong, not the parallelism.
 
 **(b) Capability grain** — **taken** (D1). Cost accepted knowingly: the declaring session must know
-its unit up front (mitigated: story grain stays legal, and a session can narrow later by releasing
-the story claim and claiming the capability), and cross-capability edits keep the story-grain answer.
+its unit up front. *(The mitigation recorded here — "story grain stays legal", and cross-capability
+edits keeping the story-grain answer — was withdrawn 2026-08-11 by ADR-0346 D2; see the note on D1.
+The cost is now paid rather than mitigated: a session names its capabilities, or the increment it is
+driving. ADR-0346's own Consequences record accepting that.)*
 
 **(c) An honest "building, disjoint from holder" grade** — not taken as a grade: it would turn the
 claim from a mutual-exclusion device into a disclosure device and weaken what a claim means
@@ -165,7 +180,11 @@ under every option and was the majority of the measured cost):
 2. A refusal prints the holder and the unit's full claim board (grade, session, age, branch, intent),
    so disjointness is machine-readable at the refusal site.
 3. ADR-0200's "wait in line" Status prose is corrected in place to match the mechanism (ADR-0139:
-   removing overtaken prose is an in-place correction, not a supersede).
+   removing overtaken prose is an in-place correction, not a supersede). *(That correction was itself
+   overtaken on 2026-08-11: ADR-0346 D1 made the mechanism block, so ADR-0200's original claim became
+   true again and its Status prose was re-corrected in place to say so. Items 1 and 2 stand — the
+   queue no longer lies, and the refusal still prints the board, which is what a binding fence has to
+   be readable through.)*
 
 Items 1 and 2 are the narrow `tool` work in `packages/drive/src/noticeboard-claims.ts` (under the
 `notice-board` story's `noticeboard-cli` capability, whose proof scope covers the file); item 3 is
