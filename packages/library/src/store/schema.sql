@@ -218,12 +218,20 @@ CREATE TABLE IF NOT EXISTS events.adr_number (
 -- the unit id, so different units never contend (the existing per-id property). Staleness reclaims
 -- a crashed holder at every grade (ADR-0033's "staleness replaces release discipline"); grade
 -- transitions (explore→work upgrade, downgrade, release, promote) are audited in events.claim_event.
+-- `intent` and `role` are the TWO halves of what a claim says it is doing (ADR-0346 D3): `role` is
+-- the typed enum the map switch-cases for the wisp colour (authoring / proving / supplementing),
+-- `intent` is free prose a blocked human reads. `role` is NULLABLE with NO default — deliberately
+-- unlike `grade` below, whose backfill to 'work' was correct because every pre-grade row genuinely
+-- WAS a work claim. There is no such single right answer for role: a pre-split row's role lives
+-- inside its own `intent` string, so NULL means "derive it" (claimRole() in packages/notice-board)
+-- and the migration stays additive and pull-based — no backfill, no big-bang.
 CREATE TABLE IF NOT EXISTS events.node_claim (
   unit_id      TEXT NOT NULL,
   session_id   TEXT NOT NULL,
   grade        TEXT NOT NULL DEFAULT 'work',
   branch       TEXT NOT NULL,
   intent       TEXT NOT NULL DEFAULT '',
+  role         TEXT,
   claimed_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
   heartbeat_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (unit_id, session_id)
@@ -236,6 +244,13 @@ CREATE TABLE IF NOT EXISTS events.node_claim (
 -- yesterday's exclusive build/work claims, so 'work' is the correct grade backfill.
 ALTER TABLE events.node_claim
   ADD COLUMN IF NOT EXISTS grade TEXT NOT NULL DEFAULT 'work';
+
+-- MIGRATION (ADR-0346 D3): the typed role, added beside the prose `intent` it was extracted from.
+-- NULLABLE and UNBACKFILLED on purpose — see the CREATE above. Every existing row keeps reading as
+-- it does today because `claimRole()` derives the role from the row's own `intent`; rows acquire a
+-- typed role as they are rewritten, one take at a time.
+ALTER TABLE events.node_claim
+  ADD COLUMN IF NOT EXISTS role TEXT;
 
 -- Swap the old single-column PK (unit_id) for the composite (unit_id, session_id), guarded on the
 -- catalog: the block acts only when the CURRENT pk column set is exactly (unit_id), so a re-run —

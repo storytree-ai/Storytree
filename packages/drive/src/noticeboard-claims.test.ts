@@ -317,8 +317,10 @@ test("claim --grade work refused: prints the unit's full claim board and the cap
   });
   const env = await claimLedgerCommand("claim", "story-x", { grade: "work" }, deps(ledger));
   assert.equal(env.ok, false);
-  assert.match(env.body, /\[work\]\s+other-wt\s+10m\s+branch=claude\/other\s+intent "orchestrate"/);
-  assert.match(env.body, /\[waiting\]\s+waiter-wt/);
+  // grade/ROLE (ADR-0346 D3) — this holder is a PRE-SPLIT row, so its role is derived from the
+  // legacy `intent` word. That is the whole point of the derivation: an old row still reads.
+  assert.match(env.body, /\[work\/supplementing\]\s+other-wt\s+10m\s+branch=claude\/other\s+intent "orchestrate"/);
+  assert.match(env.body, /\[waiting\/supplementing\]\s+waiter-wt/);
   assert.match(env.body, /capability you are (actually )?writing/);
   assert.match(env.body, /ADR-0270/);
   assert.match(env.body, /not an owner question/i);
@@ -447,10 +449,10 @@ test("claims: renders every row in queue order with grade, session, age, and int
   assert.equal(env.ok, true, env.body);
   const [header, first, second, third] = env.body.split("\n");
   assert.match(header ?? "", /Claims on "story-x" \(queue order/);
-  assert.match(first ?? "", /\[work\]\s+holder-wt\s+3h\s+branch=claude\/other\s+intent "real"/);
-  assert.match(second ?? "", /\[waiting\]\s+waiter-wt\s+10m/);
+  assert.match(first ?? "", /\[work\/proving\]\s+holder-wt\s+3h\s+branch=claude\/other\s+intent "real"/);
+  assert.match(second ?? "", /\[waiting\/supplementing\]\s+waiter-wt\s+10m/);
   assert.match(second ?? "", /intent \(none\)/);
-  assert.match(third ?? "", /\[work\]\s+legacy-wt/);
+  assert.match(third ?? "", /\[work\/supplementing\]\s+legacy-wt/);
 });
 
 test("claims: an empty unit reads as no claims, with the claim command as next", async () => {
@@ -479,7 +481,7 @@ test("claims (THE MEASURED DEFECT, 2026-08-11): a stale row renders MARKED, not 
   });
   const env = await claimLedgerCommand("claims", "forest-world", {}, deps(ledger));
   assert.equal(env.ok, true, env.body);
-  assert.match(env.body, /\[exploring\]\s+procedural-arch\s+554h.*STALE 4h — reclaimable/);
+  assert.match(env.body, /\[exploring\/supplementing\]\s+procedural-arch\s+554h.*STALE 4h — reclaimable/);
   assert.match(env.body, /1 of 1 row above is STALE/);
   assert.match(env.body, /blocking nobody/);
 });
@@ -516,7 +518,38 @@ test("refusal: the holder's LIVENESS is stated, not left for the session to gues
   });
   const env = await claimLedgerCommand("claim", "story-x", { grade: "work" }, deps(ledger));
   assert.equal(env.ok, false);
-  assert.match(env.body, /HELD by other-wt \(branch .*, intent "real", LIVE — heartbeat 5m ago\)/);
+  // WHO / ROLE / PROSE / HELD-FOR / LIVENESS — the four things ADR-0346 D3 says a refusal owes a
+  // blocked session, in one line, from the ONE shared describer.
+  assert.match(
+    env.body,
+    /HELD by other-wt \(branch .*, role proving, intent "real", held 0m, LIVE — heartbeat 5m ago\)/,
+  );
+});
+
+test("refusal: the holder's ROLE and PROSE are both named — the actionable half (ADR-0346 D3)", async () => {
+  // A POST-SPLIT holder: a typed role AND its own words. Before D3 this line could only say
+  // `intent "orchestrate"`, which is what 15 of the 16 refusals measured to 2026-08-11 said.
+  const ledger = makeFakeLedger({
+    nextResult: {
+      acquired: false,
+      heldBy: doc({
+        unitId: "story-x",
+        sessionId: "other-wt",
+        grade: "work",
+        role: "authoring",
+        intent: "rewriting the UAT criteria for the traversal panel",
+        claimedAt: new Date(NOW.getTime() - 2 * 60 * 60_000).toISOString(),
+        heartbeatAt: new Date(NOW.getTime() - 60_000).toISOString(),
+      }),
+    },
+  });
+  const env = await claimLedgerCommand("claim", "story-x", { grade: "work" }, deps(ledger));
+  assert.equal(env.ok, false);
+  assert.match(env.body, /role authoring/);
+  assert.match(env.body, /intent "rewriting the UAT criteria for the traversal panel"/);
+  assert.match(env.body, /held 2h/, "the claim's own age, distinct from the heartbeat age");
+  assert.match(env.body, /LIVE — heartbeat 1m ago/);
+  assert.doesNotMatch(env.body, /intent "orchestrate"/);
 });
 
 // ---------------------------------------------------------------------------
@@ -544,8 +577,8 @@ test("mine: needs no unit id — it reads THIS session's rows, asking for the st
     "a session must see its OWN ghosts — they are what other sessions collide with",
   );
   assert.match(env.body, /Claims held by this session \(wt-ledger, branch claude\/ledger\)/);
-  assert.match(env.body, /- noticeboard-cli {2}\[work\] {2}0m {2}intent "building"$/m);
-  assert.match(env.body, /- drive-machinery {2}\[exploring\].*STALE 4h — reclaimable/);
+  assert.match(env.body, /- noticeboard-cli {2}\[work\/supplementing\] {2}0m {2}intent "building"$/m);
+  assert.match(env.body, /- drive-machinery {2}\[exploring\/supplementing\].*STALE 4h — reclaimable/);
   assert.match(env.body, /2 rows: 1 live, 1 stale\./);
   assert.match(env.body, /release it rather than leaving it to age out/);
 });

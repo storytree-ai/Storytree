@@ -10,7 +10,12 @@
 //
 // This module is pure (no store, no clock) and builtins-only (offline-safe).
 
-/** The three ADR-0138 §5 subagent roles. */
+/**
+ * The three ADR-0138 §5 subagent roles — the SAME vocabulary as `ClaimRole` in
+ * `@storytree/notice-board`, which ADR-0346 D3 made the claim ledger's own typed column. That
+ * package is below this one and restates the words rather than importing them; the two are one
+ * vocabulary and must be extended together.
+ */
 export type SubagentRole = "authoring" | "proving" | "supplementing";
 
 /**
@@ -18,6 +23,11 @@ export type SubagentRole = "authoring" | "proving" | "supplementing";
  * - "edit"        → story-author file edits        (authoring)
  * - "real"        → red→green leaf / real build     (proving)
  * - "orchestrate" → non-leaf glue / supplementing   (supplementing)
+ *
+ * LEGACY as of ADR-0346 D3: these are the words a claim's `intent` column held while it doubled as
+ * an enum. The typed half is now `role`, and `intent` is free prose — so a claim row reaches this
+ * mapping through `claimRole`, never through its raw prose. The union stays because the WRITTEN
+ * rows carrying these words are still in the ledger and still read through this mapping.
  */
 export type ClaimIntent = "edit" | "real" | "orchestrate";
 

@@ -4,7 +4,11 @@ import assert from "node:assert/strict";
 import {
   ClaimDoc,
   ClaimGrade,
+  ClaimRole,
   claimGrade,
+  claimRole,
+  roleFromLegacyIntent,
+  roleForWorkKind,
   CLAIM_STALE_RECLAIM_MS,
   isReclaimable,
   bumpHeartbeat,
@@ -105,7 +109,7 @@ test("bumpHeartbeat: changes ONLY heartbeatAt (every other field preserved), and
 
 // ── workClaimRequest (A3, ADR-0138 §3): the pure work-time request builder ────
 
-test("workClaimRequest: stamps intent from the work kind, preserving attribution", () => {
+test("workClaimRequest: stamps ROLE from the work kind, preserving attribution", () => {
   const base = {
     unitId: "wisp-as-story-claim",
     sessionId: "clever-cannon-1ff4cb",
@@ -114,13 +118,103 @@ test("workClaimRequest: stamps intent from the work kind, preserving attribution
   const edit = workClaimRequest({ ...base, kind: "edit" });
   const orchestrate = workClaimRequest({ ...base, kind: "orchestrate" });
 
-  assert.equal(edit.intent, "edit");
-  assert.equal(orchestrate.intent, "orchestrate");
+  // The kind lands in the TYPED field now (ADR-0346 D3). It used to be stamped over `intent`,
+  // which is what made the column 55% the literal string "orchestrate".
+  assert.equal(edit.role, "authoring");
+  assert.equal(orchestrate.role, "supplementing");
   for (const req of [edit, orchestrate]) {
     assert.equal(req.unitId, base.unitId);
     assert.equal(req.sessionId, base.sessionId);
     assert.equal(req.branch, base.branch);
   }
+});
+
+test("workClaimRequest: carries the caller's PROSE through as intent, never the kind (ADR-0346 D3)", () => {
+  const req = workClaimRequest({
+    unitId: "noticeboard-cli",
+    sessionId: "clever-cannon-1ff4cb",
+    branch: "claude/clever-cannon-1ff4cb",
+    kind: "orchestrate",
+    intent: "splitting the claim intent into a typed role and prose",
+  });
+  assert.equal(req.intent, "splitting the claim intent into a typed role and prose");
+  assert.equal(req.role, "supplementing", "the kind still decides the typed role");
+  // The regression this closes: the prose must not be overwritten by the kind word.
+  assert.notEqual(req.intent, "orchestrate");
+});
+
+test("workClaimRequest: prose omitted leaves intent EMPTY — never the kind word as a stand-in", () => {
+  const req = workClaimRequest({
+    unitId: "noticeboard-cli",
+    sessionId: "clever-cannon-1ff4cb",
+    branch: "claude/clever-cannon-1ff4cb",
+    kind: "orchestrate",
+  });
+  assert.equal(req.intent, "", "no prose supplied is an EMPTY prose field, not a constant");
+  assert.equal(req.role, "supplementing");
+});
+
+test("roleForWorkKind: the one join between the outer loop's kinds and the map's roles", () => {
+  assert.equal(roleForWorkKind("edit"), "authoring");
+  assert.equal(roleForWorkKind("orchestrate"), "supplementing");
+});
+
+// ── the intent/role split (ADR-0346 D3) ──────────────────────────────────────
+
+test("ClaimRole: accepts exactly the three roles, refuses anything else", () => {
+  for (const role of ["authoring", "proving", "supplementing"]) {
+    assert.equal(ClaimRole.parse(role), role);
+  }
+  // Never the proof colours — the honesty wall (ADR-0045): a claim is work, not a verdict.
+  assert.throws(() => ClaimRole.parse("green"));
+  assert.throws(() => ClaimRole.parse("bloom"));
+  assert.throws(() => ClaimRole.parse("orchestrate"), "the KIND vocabulary is not the role one");
+  assert.throws(() => ClaimRole.parse(""));
+});
+
+test("ClaimDoc: role is OPTIONAL — every pre-split doc parses unchanged (back-compat)", () => {
+  // `sample()` carries NO role field — exactly the shape every row written before D3 has.
+  const parsed = ClaimDoc.parse(sample());
+  assert.equal(parsed.role, undefined, "absent stays absent — no invented default on the doc");
+  assert.equal(ClaimDoc.parse({ ...sample(), role: "proving" }).role, "proving");
+  assert.throws(() => ClaimDoc.parse({ ...sample(), role: "orchestrating" }));
+});
+
+test("roleFromLegacyIntent: the migration ramp itself — every legacy word, and the fall-through", () => {
+  // Tested BY NAME rather than only through `claimRole`, because this switch is the whole
+  // back-compat contract: until the rows are rewritten it is what the majority of the ledger reads
+  // through, and it must agree byte-for-byte with the switch the map applies to `intent` today.
+  assert.equal(roleFromLegacyIntent("edit"), "authoring");
+  assert.equal(roleFromLegacyIntent("authoring"), "authoring");
+  assert.equal(roleFromLegacyIntent("real"), "proving");
+  assert.equal(roleFromLegacyIntent("proving"), "proving");
+  assert.equal(roleFromLegacyIntent("orchestrate"), "supplementing");
+  assert.equal(roleFromLegacyIntent("supplementing"), "supplementing");
+  // Anything else — including every post-split prose row — is honest glue, never a throw.
+  assert.equal(roleFromLegacyIntent("story:real"), "supplementing", "the 21% variant is NOT 'real'");
+  assert.equal(roleFromLegacyIntent(""), "supplementing");
+  assert.equal(roleFromLegacyIntent("Edit"), "supplementing", "the match is exact, never folded");
+});
+
+test("claimRole: a typed role wins; an absent one is DERIVED from the legacy intent string", () => {
+  // Typed: read as written, whatever the prose says.
+  assert.equal(claimRole({ role: "proving", intent: "anything at all" }), "proving");
+  // Absent: exactly today's switch — the one the map applies to `intent` for the wisp colour.
+  assert.equal(claimRole({ intent: "edit" }), "authoring");
+  assert.equal(claimRole({ intent: "authoring" }), "authoring");
+  assert.equal(claimRole({ intent: "real" }), "proving");
+  assert.equal(claimRole({ intent: "proving" }), "proving");
+  assert.equal(claimRole({ intent: "orchestrate" }), "supplementing");
+  assert.equal(claimRole({ intent: "supplementing" }), "supplementing");
+});
+
+test("claimRole: an unrecognised intent falls through to supplementing, never a throw", () => {
+  // The prose rows the split produces land here, and so does anything malformed. A claim must
+  // always render, and always render NON-green (ADR-0045) — the same fall-through the map takes.
+  assert.equal(claimRole({ intent: "splitting the claim intent into a typed role" }), "supplementing");
+  assert.equal(claimRole({ intent: "" }), "supplementing");
+  // …and the pre-split sample, whose intent IS one of the recognised words, still reads as itself.
+  assert.equal(claimRole(ClaimDoc.parse(sample())), "proving", "sample()'s intent is 'real'");
 });
 
 // ── claim grades (ADR-0200 D2): exploring / waiting / work on the one ledger ──
@@ -175,6 +269,10 @@ test("exploringClaimRequest: stamps grade 'exploring' and carries the intent pro
   assert.equal(req.grade, "exploring");
   assert.equal(req.intent, "reading the store half before deciding the queue shape");
   assert.equal(req.unitId, "noticeboard-claim-ledger");
+  // No role supplied: the row stays role-less and `claimRole` derives `supplementing` from the
+  // prose — exactly what an exploring wisp already renders as (ADR-0346 D3's pull-based migration).
+  assert.equal(req.role, undefined);
+  assert.equal(claimRole({ intent: req.intent ?? "" }), "supplementing");
   // Round-trips: once the store stamps timestamps, the request is a legitimate graded ClaimDoc.
   const stampedAt = "2026-07-16T00:00:00.000Z";
   const doc = ClaimDoc.parse({ ...req, claimedAt: stampedAt, heartbeatAt: stampedAt });
@@ -190,8 +288,11 @@ test("waitingClaimRequest: stamps grade 'waiting'; intent optional, defaults omi
   };
   const bare = waitingClaimRequest(base);
   assert.equal(bare.grade, "waiting");
+  assert.equal(bare.role, undefined, "no role supplied leaves the row role-less, to be derived");
   const withIntent = waitingClaimRequest({ ...base, intent: "queued for the store increment" });
   assert.equal(withIntent.intent, "queued for the store increment");
+  const withRole = waitingClaimRequest({ ...base, role: "proving" });
+  assert.equal(withRole.role, "proving", "a supplied role rides through (ADR-0346 D3)");
   // Round-trips through ClaimDoc.parse once the store stamps timestamps.
   const stampedAt = "2026-07-16T00:00:00.000Z";
   const doc = ClaimDoc.parse({ ...bare, claimedAt: stampedAt, heartbeatAt: stampedAt });
@@ -260,11 +361,13 @@ test("workClaimRequest: the built request round-trips through ClaimDoc.parse onc
     sessionId: "clever-cannon-1ff4cb",
     branch: "claude/clever-cannon-1ff4cb",
     kind: "orchestrate",
+    intent: "holding the capability while I drive the split",
   });
   // The store stamps claimedAt/heartbeatAt; the stamped request must be a legitimate ClaimDoc.
   const stampedAt = "2026-06-29T00:00:00.000Z";
   const doc = ClaimDoc.parse({ ...req, claimedAt: stampedAt, heartbeatAt: stampedAt });
-  assert.equal(doc.intent, "orchestrate");
+  assert.equal(doc.intent, "holding the capability while I drive the split");
+  assert.equal(doc.role, "supplementing", "the typed role survives the round-trip too");
   assert.equal(doc.unitId, "wisp-as-story-claim");
 });
 
@@ -290,6 +393,22 @@ test("groupClaimsBySession: groups by session, strongest grade first within a gr
   assert.deepEqual(groups[0]?.claims.map((c) => c.grade), ["work", "exploring"]);
   assert.equal(groups[1]?.sessionId, "s2");
   assert.equal(groups[1]?.claims[0]?.grade, "waiting");
+});
+
+test("groupClaimsBySession: decides each entry's ROLE once — typed when written, derived when not", () => {
+  const now = new Date("2026-07-16T12:00:00.000Z");
+  const fresh = now.toISOString();
+  const claims: ClaimDocT[] = [
+    // Post-split: a typed role beside genuinely free prose.
+    sample({ unitId: "story-a", sessionId: "s1", branch: "claude/s1", grade: "work", role: "supplementing", intent: "wiring the dock's stale marker", claimedAt: "2026-07-16T11:00:00.000Z", heartbeatAt: fresh }),
+    // Pre-split: no role at all, its role still inside the intent word — the majority of the ledger.
+    sample({ unitId: "story-b", sessionId: "s2", branch: "claude/s2", grade: "work", intent: "real", claimedAt: "2026-07-16T11:30:00.000Z", heartbeatAt: fresh }),
+  ];
+  const groups = groupClaimsBySession(claims, now);
+  assert.equal(groups[0]?.claims[0]?.role, "supplementing");
+  assert.equal(groups[0]?.claims[0]?.intent, "wiring the dock's stale marker", "prose rides through unparsed");
+  assert.equal(groups[1]?.claims[0]?.role, "proving", "the pre-split row's role is DERIVED, not absent");
+  assert.equal(groups[1]?.claims[0]?.intent, "real");
 });
 
 test("groupClaimsBySession: stale claims are MARKED, never dropped; a fully-stale session is a stale group", () => {
