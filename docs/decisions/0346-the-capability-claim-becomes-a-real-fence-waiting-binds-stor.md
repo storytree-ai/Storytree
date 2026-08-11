@@ -111,6 +111,15 @@ ADR-0270 D2's *"proceeds on its own judgment"* is withdrawn: proceeding past a r
 the affordance the tool offers, and the orchestrator guidance changes with it. What ADR-0270 D2 got
 right and this preserves: **a claim conflict is still never an owner question.**
 
+*(The guidance half — this clause and D4 below — is DISCHARGED 2026-08-12 by
+`capability-claim-binds-arc` increment 4. The `session-orchestrator` artifact and
+`asset:merge-ceremony` were edited in the live store and the committed projections regenerated, so
+`CLAUDE.md`, `AGENTS.md` and the four harness agent directories now carry the withdrawal rather than
+ADR-0270 D2's workaround; D2's surviving clause is stated twice, deliberately, so a rewrite cannot
+quietly turn a refusal back into an escalation. Increment 3 (#1279) had landed the MECHANISM a day
+earlier and deliberately left the generated region alone, which is why the two are separate
+increments rather than one.)*
+
 **D2 — Story-grain session claims retire.** The session ceremony claims the **capability** it is
 writing; a session writing several claims several. A session with no capability to name claims the
 **increment id it is driving** (ADR-0308 D5, unchanged). A `work` claim is no longer taken on a story
