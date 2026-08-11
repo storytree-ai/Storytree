@@ -22,9 +22,14 @@
  *   D4 — `waiting` and `blocked` stay separate: answerable versus stuck. `blocked` is NOT lit here,
  *        because neither of its two sources is derivable yet — the refusal, and why substituting one
  *        of the mock round's rejected predicates is forbidden, lives in `BLOCKED_IS_DERIVABLE`.
- *   D7 — a persistent factory-floor health strip sits ABOVE the lanes ({@link FloorHealthStrip}),
- *        fed by `GET /api/floor-health` (ADR-0316's instrument, wired 2026-08-08). The strip owns the
- *        loud/quiet threshold; this component only passes the band through.
+ *   D7 — the factory-floor health reading NO LONGER LIVES HERE (ADR-0349 amends D7's placement, and
+ *        D7's requirement is unchanged and better served). It was a persistent band above the lanes,
+ *        which put a reading whose whole point was to reach the owner "without the owner going
+ *        looking" inside a lens that renders only under `?overlay=arcs`. It is now
+ *        `FloorHealthLamp`, mounted on the map by `TreeView` — visible whenever the floor it reports
+ *        on is. Do not re-mount it here: the surface deliberately carries no floor-health prop, and
+ *        the band's `factory floor` label reading as this surface's TITLE is the second defect that
+ *        move fixed (see the heading below).
  *   D9 — READ-ONLY. No comment affordance, no answering in place, no write path (ADR-0267 D6). The
  *        click-through is a read; the briefing itself is authored by the escalating session
  *        (`storytree question new`, ADR-0314 D5, landed #1186), never by the owner through here.
@@ -45,9 +50,8 @@ import {
   type ArcLane,
   type ArcLaneScope,
 } from '../lib/arcSurface';
-import type { ArcRollupIncrement } from '../types';
+import type { ArcRollupIncrement, SessionClaimGroup } from '../types';
 import { ARCS_UNREACHABLE, type ArcRollupsState } from '../lib/arcRollups';
-import { FloorHealthStrip, type FloorHealthBand } from './FloorHealthStrip';
 import type { SearchResult } from '../lib/librarySearch';
 
 export interface ArcSurfaceProps {
@@ -56,11 +60,15 @@ export interface ArcSurfaceProps {
   /** Injected so every recency judgement is reproducible in a test. */
   now: Date;
   /**
-   * What the floor-health band is reading (ADR-0314 D7, instrument ADR-0316) — already mapped from
-   * the wire by `lib/floorHealth.ts`'s `floorHealthBand`, so this component joins nothing. Absent
-   * means no reading is wired into this mount, which the band renders as such rather than as calm.
+   * Live claims grouped by session (`GET /api/claims`), used ONLY to light `claimed` — the one lane
+   * state on this surface backed by the claim ledger rather than by dates (ADR-0351 D2).
+   *
+   * POSITIVE-ONLY, and the asymmetry is load-bearing: a match proves a session is on this arc, a
+   * non-match proves nothing, so absent/`null` claims simply fall through to the recency states. The
+   * surface never renders "unclaimed". Coverage is genuinely partial — see `arcClaimants` for the
+   * measured reason — which is exactly why this ADDS a state instead of replacing them.
    */
-  floorHealth?: FloorHealthBand | null;
+  claims?: readonly SessionClaimGroup[] | null;
   /**
    * Open an artifact in the map's `LibraryOpenOverlay` instead of navigating away (the same callback
    * `LibraryFocusGraph`/`LibrarySelectionCard` are handed, ADR-0335's UI fix). Every deep-link on this
@@ -72,11 +80,11 @@ export interface ArcSurfaceProps {
   onOpen?: (selection: SearchResult) => void;
 }
 
-export function ArcSurface({ arcs, now, floorHealth, onOpen }: ArcSurfaceProps): React.JSX.Element {
+export function ArcSurface({ arcs, now, claims = null, onOpen }: ArcSurfaceProps): React.JSX.Element {
   // ADR-0335: closed arcs are drawn one flag away, not only "one click away in the Library" — the
   // studio surface had no equivalent of the CLI's `arc list --all|--closed` until this scope toggle.
   const [scope, setScope] = useState<ArcLaneScope>('active');
-  const lanes = Array.isArray(arcs) ? arcLanes(arcs, now, scope) : [];
+  const lanes = Array.isArray(arcs) ? arcLanes(arcs, now, scope, claims) : [];
   const [picked, setPicked] = useState<string | null>(null);
   // The pick is only honoured while it still names a live lane: the list re-polls, and an arc that
   // closed under the owner (or fell out of the current scope) must not leave the panel pinned to a
@@ -89,8 +97,15 @@ export function ArcSurface({ arcs, now, floorHealth, onOpen }: ArcSurfaceProps):
 
   return (
     <div className="arc-surface" data-testid="arc-surface">
-      {/* D7: persistent, above the lanes — it must reach the owner without them going looking. */}
-      <FloorHealthStrip signal={floorHealth ?? null} />
+      {/* THE SURFACE NAMES ITSELF. Without this the first text in the drawer was the floor-health
+          band's own `factory floor` label, which then read as the whole lens's title — the band
+          answers a NARROWER question than the surface does (is the floor healthy, versus where is
+          every initiative up to), so borrowing its label mis-titled the surface and over-claimed the
+          band. The drawer's `Arcs | Library` toggle does not fill this slot: it lives in the handle
+          bar BELOW the body (LibraryDrawer.tsx), so nothing above the lanes said what this is. */}
+      <header className="arc-surface-header">
+        <h3 className="arc-surface-title">Arc Surface</h3>
+      </header>
       <div className="arc-surface-panes">
         <div className="arc-lanes" data-testid="arc-lanes" aria-label="arcs">
           {/* ADR-0335: which arcs draw. Always rendered (even mid-load) so the control itself never
@@ -160,7 +175,10 @@ function ArcLaneRow({
   selected: boolean;
   onSelect: () => void;
 }): React.JSX.Element {
-  const { arc, bars, counts, state } = lane;
+  const { arc, bars, counts, state, claimants } = lane;
+  // Named sessions, deduped — one session claiming three of an arc's units is one session on it, not
+  // three. Shown as the chip's tooltip so `claimed` says WHO without widening the lane (ADR-0351 D2).
+  const sessions = [...new Set(claimants.map((c) => c.sessionId))];
   return (
     <button
       type="button"
@@ -171,7 +189,14 @@ function ArcLaneRow({
       onClick={onSelect}
     >
       <span className="arc-lane-name">
-        <span className={`arc-state-chip arc-state-${state}`}>{state}</span>
+        <span
+          className={`arc-state-chip arc-state-${state}`}
+          {...(sessions.length > 0
+            ? { title: `held by ${sessions.join(', ')} — ${claimants.map((c) => c.unitId).join(', ')}` }
+            : {})}
+        >
+          {state}
+        </span>
         {/* Real arc titles run past the column, so the ellipsis needs a hover fallback — the panel
             shows the full title, but a reader scanning the list should not have to click to read one. */}
         <span className="arc-lane-title" title={arc.title || arc.id}>

@@ -257,7 +257,7 @@ events are served VERBATIM by each probe's own store rather than recorded throug
 two processes — but it also means this row, like the `/api/activity` row, cannot see a defect
 UPSTREAM of the reads (a mirror whose own store wiring returned the wrong rows), only one in how each
 surface wraps them. One thing it explicitly does NOT assert, and that is not a gap: the loud/quiet
-threshold (`LOUD_AT_RECURRENCES` in `apps/studio/src/components/FloorHealthStrip.tsx`). That is
+threshold (`LOUD_AT_RECURRENCES` in `apps/studio/src/components/FloorHealthLamp.tsx`). That is
 frontend, one compiled bundle served by both surfaces, so it has no drift class and no place in a
 server-payload comparison.
 

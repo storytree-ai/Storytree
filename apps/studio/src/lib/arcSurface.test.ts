@@ -13,6 +13,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   arcBriefing,
+  arcClaimants,
   arcLanes,
   arcState,
   briefingLead,
@@ -24,9 +25,29 @@ import {
   QUIET_AFTER_DAYS,
   type ArcSurfaceState,
 } from './arcSurface';
-import type { ArcRollup, ArcRollupIncrement, ArcRollupQuestion } from '../types';
+import type {
+  ArcRollup,
+  ArcRollupIncrement,
+  ArcRollupQuestion,
+  SessionClaimGroup,
+} from '../types';
 
 const NOW = new Date('2026-08-06T00:00:00Z');
+
+/** One session holding `unitIds` on the live ledger — the shape `GET /api/claims` folds to. */
+function claimGroup(sessionId: string, ...unitIds: string[]): SessionClaimGroup {
+  return {
+    sessionId,
+    branch: `claude/${sessionId}`,
+    claims: unitIds.map((unitId) => ({
+      unitId,
+      grade: 'work' as const,
+      intent: 'orchestrate',
+      ageMs: 1000,
+      claimedAt: '2026-08-06T00:00:00Z',
+    })),
+  };
+}
 
 function increment(over: Partial<ArcRollupIncrement> & { id: string }): ArcRollupIncrement {
   return { title: `title of ${over.id}`, objective: '', status: 'proposal', ...over };
@@ -159,13 +180,87 @@ describe('arcState — waiting / running / quiet, and NEVER blocked (ADR-0314 D4
     expect(arcState(rollup, NOW)).toBe('waiting');
   });
 
-  it('recent activity reads `running`, older than the window reads `quiet`', () => {
+  it('recent activity reads `moving`, older than the window reads `quiet`', () => {
     const recent = arc({ id: 'a', increments: [landed('c1', '2026-08-04')] });
-    expect(arcState(recent, NOW)).toBe('running');
+    expect(arcState(recent, NOW)).toBe('moving');
 
     const stale = arc({ id: 'b', increments: [landed('c1', '2026-07-01')] });
     expect(arcState(stale, NOW)).toBe('quiet');
     expect(QUIET_AFTER_DAYS).toBe(7);
+  });
+
+  it('a live claim on the arc id lights `claimed`, outranking recency', () => {
+    const rollup = arc({ id: 'held-arc', increments: [landed('c1', '2026-08-04')] });
+    expect(arcState(rollup, NOW, [claimGroup('s1', 'held-arc')])).toBe('claimed');
+    // and without the ledger the very same arc reads `moving` — the state is ADDITIVE
+    expect(arcState(rollup, NOW)).toBe('moving');
+  });
+
+  it('`waiting` outranks `claimed`: the owner-actionable state is never hidden by a busy session', () => {
+    const rollup = arc({ id: 'a', questions: [question('q')], increments: [landed('c1', '2026-08-04')] });
+    expect(arcState(rollup, NOW, [claimGroup('s1', 'a')])).toBe('waiting');
+  });
+
+  it('a claim that matches NOTHING falls through — absence is never evidence of absence', () => {
+    // The join covers a measured minority of increments (5 of 613 carry a `capability:` cite), so a
+    // non-match cannot support "nobody is working on this". It falls through to recency instead.
+    const rollup = arc({ id: 'a', increments: [landed('c1', '2026-08-04')] });
+    expect(arcState(rollup, NOW, [claimGroup('s1', 'a-totally-different-unit')])).toBe('moving');
+    expect(arcState(rollup, NOW, null)).toBe('moving');
+    expect(arcState(rollup, NOW, [])).toBe('moving');
+  });
+});
+
+describe('arcClaimants — three real join paths, unioned, asserted positively only', () => {
+  it('matches a claim taken directly on the arc id', () => {
+    const rollup = arc({ id: 'my-arc' });
+    expect(arcClaimants(rollup, [claimGroup('s1', 'my-arc')])).toEqual([
+      { sessionId: 's1', branch: 'claude/s1', unitId: 'my-arc' },
+    ]);
+  });
+
+  it('matches a claim on one of the arc’s own increment ids', () => {
+    const rollup = arc({ id: 'my-arc', increments: [parked('some-increment', '2026-08-01')] });
+    expect(arcClaimants(rollup, [claimGroup('s1', 'some-increment')]).map((c) => c.unitId)).toEqual([
+      'some-increment',
+    ]);
+  });
+
+  it('matches `<arc-id>-inc-NN` as a MEMBER of the rollup, not as a string prefix', () => {
+    const rollup = arc({ id: 'my-arc', increments: [parked('my-arc-inc-04', '2026-08-01')] });
+    expect(arcClaimants(rollup, [claimGroup('s1', 'my-arc-inc-04')]).map((c) => c.unitId)).toEqual([
+      'my-arc-inc-04',
+    ]);
+  });
+
+  it('matches a unit an increment CITES, with the ref scheme stripped', () => {
+    // Claims are taken on BARE unit ids, while `cites` carries `story:` / `capability:` / `asset:`
+    // (ADR-0306 D2) — so the scheme has to come off before comparing, or this path never fires.
+    const rollup = arc({
+      id: 'my-arc',
+      increments: [{ ...parked('i1', '2026-08-01'), cites: ['capability:arc-orientation-lens', 'story:studio'] }],
+    });
+    expect(arcClaimants(rollup, [claimGroup('s1', 'arc-orientation-lens')]).map((c) => c.unitId)).toEqual([
+      'arc-orientation-lens',
+    ]);
+    expect(arcClaimants(rollup, [claimGroup('s2', 'studio')]).map((c) => c.unitId)).toEqual(['studio']);
+  });
+
+  it('returns [] for a null ledger and for a genuine no-match — the SAME not-proven answer', () => {
+    const rollup = arc({ id: 'my-arc' });
+    expect(arcClaimants(rollup, null)).toEqual([]);
+    expect(arcClaimants(rollup, [])).toEqual([]);
+    expect(arcClaimants(rollup, [claimGroup('s1', 'unrelated')])).toEqual([]);
+  });
+
+  it('never matches on a shared id PREFIX — a false positive is the one thing this cannot afford', () => {
+    // A `startsWith(<arc-id>-)` rule was tried and removed: it bought nothing path 2 did not already
+    // cover, and it silently absorbed any unit whose id merely began with the arc's, reporting a
+    // session onto an arc it had never touched. `claimed` asserts only the positive, so a false
+    // positive corrupts the only thing it says.
+    const rollup = arc({ id: 'a' });
+    expect(arcClaimants(rollup, [claimGroup('s1', 'a-totally-different-unit')])).toEqual([]);
+    expect(arcClaimants(arc({ id: 'my-arc' }), [claimGroup('s1', 'my-arc-two-inc-01')])).toEqual([]);
   });
 
   it('an arc that never landed anything is `quiet`, NOT blocked (B2 is rejected by name)', () => {
@@ -179,7 +274,7 @@ describe('arcState — waiting / running / quiet, and NEVER blocked (ADR-0314 D4
       adrs: [{ number: 316, status: 'proposed', title: 'undecided' }],
       increments: [landed('c1', '2026-08-05')],
     });
-    expect(arcState(rollup, NOW)).toBe('running');
+    expect(arcState(rollup, NOW)).toBe('moving');
   });
 
   it('gone-quiet reads `quiet` and never `blocked` (B3 is rejected by name)', () => {
@@ -236,7 +331,7 @@ describe('arcLanes — active arcs only, waiting first (ADR-0239 D3 / ADR-0314 D
     const lanes = arcLanes([arc({ id: 'a', increments: [landed('c', '2026-08-05'), parked('p', '2026-08-01')] })], NOW);
     expect(lanes[0]?.bars.map((b) => b.tone)).toEqual(['landed', 'queued']);
     expect(lanes[0]?.counts).toEqual({ landed: 1, queued: 1 });
-    expect(lanes[0]?.state).toBe('running');
+    expect(lanes[0]?.state).toBe('moving');
   });
 
   it('orders deterministically when two lanes share a state and an activity moment', () => {

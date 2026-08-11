@@ -250,7 +250,7 @@ export const MIRRORS: readonly MirrorTarget[] = [
     // never measured — the precise failure ADR-0316's band exists to avoid.
     //
     // ONE THING IT DELIBERATELY DOES NOT ASSERT: the loud/quiet THRESHOLD. That is
-    // `LOUD_AT_RECURRENCES` in apps/studio/src/components/FloorHealthStrip.tsx — frontend, one
+    // `LOUD_AT_RECURRENCES` in apps/studio/src/components/FloorHealthLamp.tsx — frontend, one
     // compiled bundle, served by both surfaces, so it has no drift class and no place in a
     // server-payload comparison. ADR-0316 D4 keeps the wire to measuring; a server that decided
     // loudness would be the defect, not a field to compare.

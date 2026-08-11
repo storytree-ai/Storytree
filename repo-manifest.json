@@ -320,7 +320,7 @@
       "apps/studio/src/components/LibraryDrawer.tsx": "library-permanent-lens",
       "apps/studio/src/lib/drawerLens.ts": "library-permanent-lens",
       "apps/studio/src/components/ArcSurface.tsx": "arc-orientation-lens",
-      "apps/studio/src/components/FloorHealthStrip.tsx": "arc-orientation-lens",
+      "apps/studio/src/components/FloorHealthLamp.tsx": "arc-orientation-lens",
       "apps/studio/src/lib/arcRollups.ts": "arc-orientation-lens",
       "apps/studio/src/lib/arcSurface.ts": "arc-orientation-lens",
       "apps/studio/src/components/LibraryFinder.tsx": "library-finder",

@@ -10,7 +10,8 @@
 //        Library artifact holding the question (`#/asset/<id>`), not merely to a summary.
 //   D4 — `blocked` is named and left unlit, with the reason visible: absence must not read as
 //        "nothing is blocked".
-//   D7 — the floor-health strip is present, above the lanes.
+//   D7 — the floor-health reading is NOT here (ADR-0349 moved it to the map lamp); this surface
+//        neither renders it nor accepts it, and the fence against re-mounting is asserted.
 //   D9 — READ-ONLY: no comment box, no answer field, no write affordance of any kind.
 //
 // Plus the honest-absence contract, which is FOUR facts and not two. `arcs: null` (no document
@@ -28,7 +29,12 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, within } from '@testing-library/react';
 import { ArcSurface } from './ArcSurface';
 import { ARCS_UNREACHABLE } from '../lib/arcRollups';
-import type { ArcRollup, ArcRollupIncrement, ArcRollupQuestion } from '../types';
+import type {
+  ArcRollup,
+  ArcRollupIncrement,
+  ArcRollupQuestion,
+  SessionClaimGroup,
+} from '../types';
 
 afterEach(cleanup);
 
@@ -76,6 +82,25 @@ const ORIENTATION_ARC = arc({
     landed('arc-orientation-surface-arc-inc-01', '2026-07-29'),
     landed('escalation-authors-an-open-question-briefing', '2026-08-06'),
   ],
+});
+
+describe('ArcSurface — the surface names itself', () => {
+  it('renders its own heading, so the floor-health label is not the topmost text', () => {
+    // The band answers a NARROWER question than the surface (is the floor healthy, versus where is
+    // every initiative up to). With no heading of its own, the band's `factory floor` label was the
+    // first text in the drawer and read as the whole lens's title.
+    render(<ArcSurface arcs={[ORIENTATION_ARC]} now={NOW} />);
+    expect(screen.getByRole('heading', { name: 'Arc Surface' })).not.toBeNull();
+  });
+
+  it('puts the heading first, above the lanes', () => {
+    render(<ArcSurface arcs={[ORIENTATION_ARC]} now={NOW} />);
+    const surface = screen.getByTestId('arc-surface');
+    const heading = screen.getByRole('heading', { name: 'Arc Surface' });
+    const lanes = screen.getByTestId('arc-lanes');
+    expect(heading.compareDocumentPosition(lanes) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(surface.contains(heading)).toBe(true);
+  });
 });
 
 describe('ArcSurface — momentum lanes, no date axis (ADR-0314 D1)', () => {
@@ -190,7 +215,7 @@ describe('ArcSurface — `blocked` is named and left UNLIT (ADR-0314 D4)', () =>
       />,
     );
     expect(screen.getByTestId('arc-lane:w').getAttribute('data-arc-state')).toBe('waiting');
-    expect(screen.getByTestId('arc-lane:r').getAttribute('data-arc-state')).toBe('running');
+    expect(screen.getByTestId('arc-lane:r').getAttribute('data-arc-state')).toBe('moving');
     expect(screen.getByTestId('arc-lane:q').getAttribute('data-arc-state')).toBe('quiet');
     // B2 "never started" is rejected by name as a blocked predicate — it measures the symptom.
     expect(screen.getByTestId('arc-lane:never-started').getAttribute('data-arc-state')).toBe('quiet');
@@ -205,38 +230,100 @@ describe('ArcSurface — `blocked` is named and left UNLIT (ADR-0314 D4)', () =>
   });
 });
 
-describe('ArcSurface — the floor-health strip sits above the lanes (ADR-0314 D7)', () => {
-  it('renders the strip, and it precedes the lanes in the document', () => {
-    render(<ArcSurface arcs={[ORIENTATION_ARC]} now={NOW} />);
-    const strip = screen.getByTestId('floor-health-strip');
-    const lanes = screen.getByTestId('arc-lanes');
-    // Persistent placement is the point: it must reach the owner without them going looking.
-    expect(strip.compareDocumentPosition(lanes) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(strip.getAttribute('data-health-state')).toBe('unwired');
+describe('ArcSurface — `claimed` is the only ledger-backed state, and it never asserts a negative (ADR-0351)', () => {
+  const group = (sessionId: string, ...unitIds: string[]): SessionClaimGroup => ({
+    sessionId,
+    branch: `claude/${sessionId}`,
+    claims: unitIds.map((unitId) => ({
+      unitId,
+      grade: 'work' as const,
+      intent: 'orchestrate',
+      ageMs: 1000,
+      claimedAt: '2026-08-06T00:00:00Z',
+    })),
   });
 
-  it('passes the band straight through — this component thresholds nothing', () => {
-    // The loud/quiet call belongs to the strip (`LOUD_AT_RECURRENCES`), which is where its reasoning
-    // is written down. A surface that quietly re-decided it would put the one undecided call in a
-    // second place, and the two would drift.
-    const { rerender } = render(
+  it('lights `claimed` when a live session holds the arc, and outranks the recency states', () => {
+    render(
       <ArcSurface
-        arcs={[ORIENTATION_ARC]}
+        arcs={[arc({ id: 'held-arc', increments: [landed('c', '2026-08-05')] })]}
         now={NOW}
-        floorHealth={{
-          bottlenecks: [{ id: 'a-cause', cause: 'a cause that keeps coming back', recurrences: 9 }],
-          window: 'all history → now',
-          collapsingRule: 'collapsed by authored join edges',
-        }}
+        claims={[group('s1', 'held-arc')]}
       />,
     );
-    expect(screen.getByTestId('floor-health-strip').getAttribute('data-health-state')).toBe('loud');
+    // Without the claim this arc would read `moving` (it landed yesterday) — the ledger wins.
+    expect(screen.getByTestId('arc-lane:held-arc').getAttribute('data-arc-state')).toBe('claimed');
+  });
 
-    // …and a DECLINED reading is never smoothed into a calm one on the way through.
-    rerender(
-      <ArcSurface arcs={[ORIENTATION_ARC]} now={NOW} floorHealth={{ declined: 'the read did not answer' }} />,
+  it('NO claim falls through to the recency states and never renders an "unclaimed" state', () => {
+    // The asymmetry is the design: a match proves a session is on the arc; a non-match proves
+    // nothing, because the join covers a measured minority of increments. A surface that rendered
+    // "unclaimed" would be asserting a confident false negative on nearly every arc.
+    render(
+      <ArcSurface
+        arcs={[arc({ id: 'a', increments: [landed('c', '2026-08-05')] })]}
+        now={NOW}
+        claims={[group('s1', 'some-other-unit')]}
+      />,
     );
-    expect(screen.getByTestId('floor-health-strip').getAttribute('data-health-state')).toBe('declined');
+    const surface = screen.getByTestId('arc-surface');
+    expect(screen.getByTestId('arc-lane:a').getAttribute('data-arc-state')).toBe('moving');
+    expect(surface.querySelectorAll('[data-arc-state="unclaimed"]')).toHaveLength(0);
+    expect((surface.textContent ?? '').toLowerCase()).not.toContain('unclaimed');
+  });
+
+  it('`waiting` still outranks `claimed` — the owner-actionable state stays on top', () => {
+    render(
+      <ArcSurface
+        arcs={[arc({ id: 'both', questions: [question('q')], increments: [landed('c', '2026-08-05')] })]}
+        now={NOW}
+        claims={[group('s1', 'both')]}
+      />,
+    );
+    expect(screen.getByTestId('arc-lane:both').getAttribute('data-arc-state')).toBe('waiting');
+  });
+
+  it('a null ledger (no live store) is the same not-proven answer as no match', () => {
+    render(
+      <ArcSurface arcs={[arc({ id: 'a', increments: [landed('c', '2026-08-05')] })]} now={NOW} claims={null} />,
+    );
+    expect(screen.getByTestId('arc-lane:a').getAttribute('data-arc-state')).toBe('moving');
+  });
+
+  it('names WHO holds it on the chip, deduped by session', () => {
+    render(
+      <ArcSurface
+        arcs={[arc({ id: 'held', increments: [landed('c', '2026-08-05')] })]}
+        now={NOW}
+        claims={[group('s1', 'held', 'c')]}
+      />,
+    );
+    const chip = screen.getByTestId('arc-lane:held').querySelector('.arc-state-chip');
+    // one session on two of its units is ONE session on the arc, not two
+    expect(chip?.getAttribute('title')).toContain('held by s1');
+    expect((chip?.getAttribute('title')?.match(/s1/g) ?? []).length).toBe(1);
+  });
+});
+
+describe('ArcSurface — the floor-health reading is NOT here any more (ADR-0349 amends ADR-0314 D7)', () => {
+  it('renders no floor-health band — the reading moved to the map lamp', () => {
+    // D7's REQUIREMENT is unchanged and better served; only its placement moved. The band lived
+    // inside this lens, which renders solely under `?overlay=arcs` — so a reading whose whole point
+    // was to reach the owner "without the owner going looking" was itself behind a drawer.
+    // `FloorHealthLamp`, mounted on the map by TreeView, is visible whenever the floor it reports on
+    // is. This assertion is the fence against a later session helpfully re-mounting it here.
+    render(<ArcSurface arcs={[ORIENTATION_ARC]} now={NOW} />);
+    const surface = screen.getByTestId('arc-surface');
+    expect(screen.queryByTestId('floor-health-strip')).toBeNull();
+    expect(screen.queryByTestId('floor-lamp')).toBeNull();
+    expect(surface.textContent ?? '').not.toMatch(/factory floor/i);
+  });
+
+  it('takes no floor-health prop at all — the fence is structural, not a convention', () => {
+    // A surface that still ACCEPTED the band would invite the re-mount the test above forbids, and
+    // would put the one undecided call (the loud/quiet threshold) within reach of a second place.
+    const props = Object.keys({ arcs: undefined, now: NOW, onOpen: undefined });
+    expect(props).not.toContain('floorHealth');
   });
 });
 

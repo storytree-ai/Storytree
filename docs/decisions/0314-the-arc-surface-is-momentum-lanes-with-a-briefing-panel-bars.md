@@ -263,15 +263,22 @@ track by memory between sessions.
   standing counter-argument to D5 shipping as discipline rather than as a gate rung.
 - `packages/drive/src/arc-rollup.ts` — the one join both surfaces render from (increment 1).
 - `apps/studio/src/components/ArcSurface.tsx` + `apps/studio/src/lib/arcSurface.ts` — the shipped
-  surface (D1/D2/D3/D4/D9); `apps/studio/src/components/FloorHealthStrip.tsx` is D7's frame, and its
-  figure is now WIRED (corrected in place per ADR-0139; the decision is unchanged, only its build
-  state). `wire-the-floor-health-figure`, `arc-orientation-surface-arc`'s last open entry, landed
-  2026-08-08: `packages/drive/src/factory-health-read.ts` composes the one store read, `GET
-  /api/floor-health` serves it, and the strip renders four states an owner can reach — pending,
-  declined, quiet, loud — off a settled loud/quiet threshold (`LOUD_AT_RECURRENCES = 2`), plus
-  `unwired` for a mount that wires no reading at all. A DECLINE never renders as quiet: reporting a
-  healthy floor on the strength of not having looked is ADR-0316 D2's refusal carried to the band. D7's "goes loud when a shared
-  bottleneck recurs" names no number; the threshold is a call the strip had to make to render at all,
+  surface (D1/D2/D3/D4/D9). **D7's readout NO LONGER LIVES ON THIS SURFACE — see
+  [ADR-0349](0349-the-floor-health-readout-is-a-small-always-visible-lamp-on-t.md), which amends D7's
+  PLACEMENT and leaves its requirement intact** (corrected in place per ADR-0139; what changed is
+  where the reading is drawn, not what it must report). It is now
+  `apps/studio/src/components/FloorHealthLamp.tsx`, an andon lamp mounted on the map by `TreeView`,
+  because a band that only rendered under `?overlay=arcs` could not satisfy D7's own "without the
+  owner going looking", and because its `factory floor` label was the arc surface's topmost text and
+  read as that surface's title. Its
+  figure was WIRED before the move. `wire-the-floor-health-figure`, `arc-orientation-surface-arc`'s
+  last open entry, landed 2026-08-08: `packages/drive/src/factory-health-read.ts` composes the one
+  store read, `GET /api/floor-health` serves it, and the readout renders four states an owner can
+  reach — pending, declined, quiet, loud — off a settled loud/quiet threshold
+  (`LOUD_AT_RECURRENCES = 2`), plus `unwired` for a mount that wires no reading at all. A DECLINE
+  never renders as quiet: reporting a healthy floor on the strength of not having looked is
+  ADR-0316 D2's refusal carried to the readout. D7's "goes loud when a shared
+  bottleneck recurs" names no number; the threshold is a call the readout had to make to render at all,
   made from the measured live board on 2026-08-08 (the loudest cause then carried one post-route
   recurrence) and left retunable in one place.
 - `packages/cli/src/question.ts` — the `storytree question new` verb that realizes D5, and

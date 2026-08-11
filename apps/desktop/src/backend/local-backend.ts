@@ -408,7 +408,7 @@ export function createLocalBackend(
         //
         // IT SETS NO THRESHOLD, deliberately — ADR-0316 D4 keeps the instrument to MEASURING, so what
         // crosses this wire is the figure and its provenance; the band that reads it decides loud from
-        // quiet (`LOUD_AT_RECURRENCES` in apps/studio/src/components/FloorHealthStrip.tsx). A mirror
+        // quiet (`LOUD_AT_RECURRENCES` in apps/studio/src/components/FloorHealthLamp.tsx). A mirror
         // that decided loudness would put the one undecided call somewhere no reader can see it, and
         // would make the two surfaces disagree about the same floor.
         //

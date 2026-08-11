@@ -1717,7 +1717,7 @@ export async function handleArcs(
  *
  * IT SETS NO THRESHOLD, deliberately. ADR-0316 D4 keeps the instrument to MEASURING, so what crosses
  * this wire is the figure and its provenance; the band that reads it decides loud from quiet
- * (`LOUD_AT_RECURRENCES` in apps/studio/src/components/FloorHealthStrip.tsx). A server that decided
+ * (`LOUD_AT_RECURRENCES` in apps/studio/src/components/FloorHealthLamp.tsx). A server that decided
  * loudness would put the one undecided call in the one place a reader cannot see it.
  *
  * `reading: null` is the offline json backend, which holds no friction tier to read — the same
