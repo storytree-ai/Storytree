@@ -13,10 +13,11 @@ import { HttpError } from './httpUtil';
 import { groupClaimsBySession, type ClaimDocT } from '@storytree/notice-board';
 
 // Timestamps are RELATIVE to the real clock, never literals: the endpoint stamps its own
-// `new Date()` (not injectable) and `groupClaimsBySession` DROPS any claim whose heartbeat is
-// older than CLAIM_STALE_RECLAIM_MS against that clock — hard-coded heartbeats made this suite a
-// time bomb that went red repo-wide the moment the wall clock passed heartbeat + threshold
-// (2026-07-16T13:59Z, failing every CI run on every branch).
+// `new Date()` (not injectable) and `groupClaimsBySession` MARKS any claim whose heartbeat is older
+// than CLAIM_STALE_RECLAIM_MS against that clock (it DROPPED them until ADR-0346 D1's companion
+// work) — hard-coded heartbeats made this suite a time bomb that went red repo-wide the moment the
+// wall clock passed heartbeat + threshold (2026-07-16T13:59Z, failing every CI run on every
+// branch). Relative timestamps still matter for the same reason: they keep `stale` stably false.
 const now = new Date();
 const minutesAgo = (m: number): string => new Date(now.getTime() - m * 60_000).toISOString();
 
@@ -74,13 +75,16 @@ describe('/api/claims', () => {
     const body = (await res.json()) as unknown;
     // The endpoint's own fold must land the SAME shape the pure groupClaimsBySession produces —
     // proves the wiring, not a re-test of the fold's own (already-covered) grouping logic. `now`
-    // only affects `ageMs`, which the endpoint stamps at request time (not injectable), so compare
-    // everything except ageMs.
+    // affects the two ELAPSED fields — `ageMs` and `heartbeatAgeMs` — which the endpoint stamps at
+    // request time (not injectable), so compare everything except those. `stale` is NOT stripped:
+    // it is a decision, not an elapsed count, and these heartbeats (1–2 min) sit far enough inside
+    // CLAIM_STALE_RECLAIM_MS that it is stably false at both clocks — so the wire still has to
+    // carry the liveness verdict for this test to pass.
     const expected = groupClaimsBySession([workClaim, exploringClaim], now);
     const stripAge = (payload: unknown): unknown =>
       JSON.parse(
         JSON.stringify(payload),
-        (key, value) => (key === 'ageMs' ? 0 : value),
+        (key, value) => (key === 'ageMs' || key === 'heartbeatAgeMs' ? 0 : value),
       );
     expect(stripAge(body)).toEqual(stripAge({ sessions: expected }));
     const sessions = (body as { sessions: { sessionId: string }[] }).sessions;
