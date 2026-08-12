@@ -84,7 +84,7 @@ test("isReclaimable: an explicit staleMs overrides the default", () => {
 
 // ── bumpHeartbeat (A2, ADR-0138 §4): the pure mid-flight liveness refresh ─────
 
-test("bumpHeartbeat: resets heartbeatAt to `now`, so a stale claim is no longer reclaimable", () => {
+test("heartbeat-bump-shape-resets-without-reacquire: bumpHeartbeat resets heartbeatAt to `now`, so a stale claim is no longer reclaimable", () => {
   const now = new Date("2026-06-27T12:00:00.000Z");
   // A claim whose heartbeat is two thresholds old → stale (the precondition the contract names).
   const stale = sample({ heartbeatAt: new Date(now.getTime() - CLAIM_STALE_RECLAIM_MS * 2).toISOString() });
@@ -95,7 +95,7 @@ test("bumpHeartbeat: resets heartbeatAt to `now`, so a stale claim is no longer 
   assert.equal(isReclaimable(bumped, now), false, "the bumped claim is no longer reclaimable");
 });
 
-test("bumpHeartbeat: changes ONLY heartbeatAt (every other field preserved), and never mutates the input", () => {
+test("heartbeat-bump-shape-resets-without-reacquire: bumpHeartbeat changes ONLY heartbeatAt (every other field preserved), and never mutates the input", () => {
   const now = new Date("2026-06-27T12:00:00.000Z");
   const claim = sample({ heartbeatAt: "2026-06-27T00:00:00.000Z" });
   const bumped = bumpHeartbeat(claim, now);
@@ -109,7 +109,7 @@ test("bumpHeartbeat: changes ONLY heartbeatAt (every other field preserved), and
 
 // ── workClaimRequest (A3, ADR-0138 §3): the pure work-time request builder ────
 
-test("workClaimRequest: stamps ROLE from the work kind, preserving attribution", () => {
+test("work-claim-request-carries-work-intent: workClaimRequest stamps ROLE from the work kind, preserving attribution", () => {
   const base = {
     unitId: "wisp-as-story-claim",
     sessionId: "clever-cannon-1ff4cb",
@@ -129,7 +129,7 @@ test("workClaimRequest: stamps ROLE from the work kind, preserving attribution",
   }
 });
 
-test("workClaimRequest: carries the caller's PROSE through as intent, never the kind (ADR-0346 D3)", () => {
+test("work-claim-request-carries-work-intent: workClaimRequest carries the caller's PROSE through as intent, never the kind (ADR-0346 D3)", () => {
   const req = workClaimRequest({
     unitId: "noticeboard-cli",
     sessionId: "clever-cannon-1ff4cb",
@@ -143,7 +143,7 @@ test("workClaimRequest: carries the caller's PROSE through as intent, never the 
   assert.notEqual(req.intent, "orchestrate");
 });
 
-test("workClaimRequest: prose omitted leaves intent EMPTY — never the kind word as a stand-in", () => {
+test("work-claim-request-carries-work-intent: workClaimRequest prose omitted leaves intent EMPTY — never the kind word as a stand-in", () => {
   const req = workClaimRequest({
     unitId: "noticeboard-cli",
     sessionId: "clever-cannon-1ff4cb",

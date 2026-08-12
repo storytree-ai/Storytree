@@ -91,7 +91,85 @@ const HONEST_FRAMING_DRY =
   "node's actual proofs — the model is scripted and the red→green is synthetic in a temp workspace.\n" +
   "The node's authored status is untouched; the verdict landed in an in-memory store and is gone.";
 
-function honestFramingLive(persisted: boolean, runtime: LiveRuntime): string {
+/**
+ * A built-in synthetic unit whose IMPLEMENT phase deliberately spans two exact files. It exists
+ * only to exercise the Codex replica-promotion boundary end-to-end; it is not part of the authored
+ * story tree and can never be driven with `--real`.
+ */
+export const CODEX_MULTIFILE_RUNTIME_SEAM_ID = "codex-multifile-runtime-seam";
+const MULTIFILE_TEST_REL = "codex-multifile.test.cjs";
+const MULTIFILE_SUM_REL = "sum.cjs";
+const MULTIFILE_FORMAT_REL = "format.cjs";
+const MULTIFILE_BASE_SUM = `function add(a, b) { return a - b; }
+module.exports = { add };
+`;
+const MULTIFILE_BASE_FORMAT = `function label(value) { return String(value); }
+module.exports = { label };
+`;
+const MULTIFILE_TEST_SOURCE = `const test = require("node:test");
+const assert = require("node:assert/strict");
+const { add } = require("./sum.cjs");
+const { label } = require("./format.cjs");
+test("both exact implementation targets make the fixture green", () => {
+  assert.equal(add(2, 3), 5, "the sum implementation must be authored");
+  assert.equal(label(add(2, 3)), "total=5", "the formatter must be authored");
+});
+`;
+const MULTIFILE_GREEN_SUM = `function add(a, b) { return a + b; }
+module.exports = { add };
+`;
+const MULTIFILE_GREEN_FORMAT = `function label(value) { return \`total=\${String(value)}\`; }
+module.exports = { label };
+`;
+
+export function codexMultifileRuntimeSeamSpec(): NodeSpec {
+  const proofCommand = { file: process.execPath, args: ["--test", MULTIFILE_TEST_REL] };
+  const scope = {
+    testGlobs: [MULTIFILE_TEST_REL],
+    sourceGlobs: [MULTIFILE_SUM_REL, MULTIFILE_FORMAT_REL],
+  };
+  return {
+    id: CODEX_MULTIFILE_RUNTIME_SEAM_ID,
+    tier: "contract",
+    title: "Codex exact multi-file promotion smoke",
+    outcome:
+      "Codex authors one failing test, then changes both exact implementation targets before the spine can observe green.",
+    status: "proposed",
+    proofMode: "contract-test",
+    uatWitness: undefined,
+    story: undefined,
+    dependsOn: [],
+    consumedBy: [],
+    artifactEdges: [],
+    capabilities: [],
+    decisions: [],
+    buildConfig: {
+      command: proofCommand,
+      scope,
+      real: {
+        testFile: MULTIFILE_TEST_REL,
+        sourceFile: MULTIFILE_SUM_REL,
+        scope,
+        proofCommand,
+        editsExisting: true,
+      },
+    },
+    guidance:
+      `The test must import add from ${MULTIFILE_SUM_REL} and label from ` +
+      `${MULTIFILE_FORMAT_REL}. IMPLEMENT must edit BOTH exact files: add returns the numeric sum; ` +
+      `label returns "total=<value>". Do not put both behaviours in one file.`,
+    uatTestCriteria: [],
+    reliabilityGates: [],
+    contracts: [],
+    file: `<built-in:${CODEX_MULTIFILE_RUNTIME_SEAM_ID}>`,
+  };
+}
+
+function isCodexMultifileRuntimeSeam(unitId: string): boolean {
+  return unitId === CODEX_MULTIFILE_RUNTIME_SEAM_ID;
+}
+
+function honestFramingLive(persisted: boolean, runtime: LiveRuntime, unitId: string): string {
   const leaf =
     runtime === "codex"
       ? "the Codex CLI with saved ChatGPT subscription authentication"
@@ -99,8 +177,10 @@ function honestFramingLive(persisted: boolean, runtime: LiveRuntime): string {
   return (
     `honest framing: a live smoke proves the LIVE LOOP through the gate — ${leaf}\n` +
     "(ADR-0030/0232) genuinely authored the test and impl under phase-enforced write\n" +
-    "scope, and the spine observed the genuine red→green those writes caused. The TASK is still the\n" +
-    "synthetic add(2,3) pair in a temp workspace — the node's REAL proof command was not run (Phase F).\n" +
+    "scope, and the spine observed the genuine red→green those writes caused. The TASK is still " +
+    (isCodexMultifileRuntimeSeam(unitId)
+      ? "the synthetic exact two-implementation-file fixture in a temp workspace.\n"
+      : "the synthetic add(2,3) pair in a temp workspace — the node's REAL proof command was not run (Phase F).\n") +
     `The node's authored status is untouched; ${verdictFate(persisted)}.`
   );
 }
@@ -587,6 +667,24 @@ export type DriveNodeResult =
   | { resolved: true; result: ProveResult; liveAuthor?: LiveAuthor }
   | { resolved: false; reason: string; registered: string[] };
 
+function scriptedMultifileAuthor(workspace: string): PhaseAuthor {
+  return {
+    async author(phase) {
+      // Offline `--dry-run` authors the same shape as the live Codex leaf without subscription spend.
+      // The real live arm below still uses CodexPhaseAuthor and its replica promotion manifests.
+      if (phase === "AUTHOR_TEST") {
+        await fs.writeFile(path.join(workspace, MULTIFILE_TEST_REL), MULTIFILE_TEST_SOURCE, "utf8");
+      } else {
+        await Promise.all([
+          fs.writeFile(path.join(workspace, MULTIFILE_SUM_REL), MULTIFILE_GREEN_SUM, "utf8"),
+          fs.writeFile(path.join(workspace, MULTIFILE_FORMAT_REL), MULTIFILE_GREEN_FORMAT, "utf8"),
+        ]);
+      }
+      return { ok: true };
+    },
+  };
+}
+
 /**
  * Drive ONE node through the gate in a fresh temp workspace: append the `building` lifecycle
  * mark, resolve the spec into a ProveSpec (dry-run: scripted owned loop; live-smoke: the SDK
@@ -596,6 +694,13 @@ export type DriveNodeResult =
 export async function driveNode(spec: NodeSpec, args: DriveNodeArgs): Promise<DriveNodeResult> {
   const workspace = await fs.mkdtemp(path.join(os.tmpdir(), "storytree-node-build-"));
   try {
+    const multifileSmoke = isCodexMultifileRuntimeSeam(spec.id);
+    if (multifileSmoke) {
+      await Promise.all([
+        fs.writeFile(path.join(workspace, MULTIFILE_SUM_REL), MULTIFILE_BASE_SUM, "utf8"),
+        fs.writeFile(path.join(workspace, MULTIFILE_FORMAT_REL), MULTIFILE_BASE_FORMAT, "utf8"),
+      ]);
+    }
     await args.store.appendEvent(
       workEvent(
         { unitId: spec.id, event: "building", runId: args.runId, tier: spec.tier },
@@ -608,8 +713,29 @@ export async function driveNode(spec: NodeSpec, args: DriveNodeArgs): Promise<Dr
       ...(args.budgetUsd !== undefined ? { maxBudgetUsd: args.budgetUsd } : {}),
       ...(args.maxTurns !== undefined ? { maxTurns: args.maxTurns } : {}),
     };
-    const resolveOptions: ResolveOptions =
-      args.mode === "live-smoke"
+    const resolveOptions: ResolveOptions = multifileSmoke
+      ? {
+          // This is intentionally the REAL resolver over a disposable temp workspace: unlike the
+          // ordinary add(2,3) live smoke, IMPLEMENT therefore carries the fixture's two literal
+          // source paths into Codex's exact promotion manifest. The synthetic tree seam prevents a
+          // smoke from committing or promoting anything beyond this temp directory.
+          mode: "real",
+          workspace,
+          store: args.store,
+          runId: args.runId,
+          signerInputs: { flag: args.signer },
+          treeState: async () => ({
+            commitSha: `${args.mode}-synthetic-multifile-tree`,
+            clean: true,
+          }),
+          ...(args.mode === "dry-run" ? { authorOverride: scriptedMultifileAuthor(workspace) } : {}),
+          ...(args.mode === "live-smoke" && args.runtime !== undefined
+            ? { runtime: args.runtime }
+            : {}),
+          ...(args.phasePrompts !== undefined ? { phasePrompts: args.phasePrompts } : {}),
+          ...sdkOpts,
+        }
+      : args.mode === "live-smoke"
         ? {
             mode: "live-smoke",
             workspace,
@@ -1125,6 +1251,27 @@ export async function nodeBuild(
       next: [`storytree node build ${unitId} ${real ? "--real" : "--live"} --runtime codex`],
     };
   }
+  if (isCodexMultifileRuntimeSeam(unitId) && real) {
+    return {
+      ok: false,
+      body:
+        `"${CODEX_MULTIFILE_RUNTIME_SEAM_ID}" is a disposable synthetic smoke and cannot run ` +
+        "with --real (which may commit and promote repository work).",
+      next: [
+        `storytree node build ${CODEX_MULTIFILE_RUNTIME_SEAM_ID} --dry-run`,
+        `storytree node build ${CODEX_MULTIFILE_RUNTIME_SEAM_ID} --live --runtime codex`,
+      ],
+    };
+  }
+  if (isCodexMultifileRuntimeSeam(unitId) && live && runtime !== "codex") {
+    return {
+      ok: false,
+      body:
+        `"${CODEX_MULTIFILE_RUNTIME_SEAM_ID}" specifically proves Codex exact multi-file ` +
+        "replica promotion; select --runtime codex.",
+      next: [`storytree node build ${CODEX_MULTIFILE_RUNTIME_SEAM_ID} --live --runtime codex`],
+    };
+  }
 
   // Fail-closed before any work: a verdict must be attributable (flag → env → git email).
   const signer = resolveSignerFromEnv(
@@ -1143,23 +1290,30 @@ export async function nodeBuild(
   // silently ignored by another (the bug this increment fixed in story-build).
   const rootDir = opts.repoRoot ?? repoRoot();
   const storiesDir = opts.storiesDir ?? path.join(rootDir, "stories");
-  const specFile = findNodeSpecFile(storiesDir, unitId);
-  if (specFile === null) {
-    return {
-      ok: false,
-      body: `no node spec "${unitId}" under ${storiesDir} (looked for <story>/${unitId}.md and ${unitId}/story.md).`,
-      next: registeredNodeIds().map((id) => `storytree node build ${id} --dry-run`),
-    };
-  }
   let spec: NodeSpec;
-  try {
-    spec = loadNodeSpec(specFile);
-  } catch (e) {
-    return {
-      ok: false,
-      body: `node spec ${specFile} failed to load:\n${(e as Error).message}`,
-      next: ["storytree node build <id> --dry-run"],
-    };
+  let specLabel: string;
+  if (isCodexMultifileRuntimeSeam(unitId)) {
+    spec = codexMultifileRuntimeSeamSpec();
+    specLabel = spec.file;
+  } else {
+    const specFile = findNodeSpecFile(storiesDir, unitId);
+    if (specFile === null) {
+      return {
+        ok: false,
+        body: `no node spec "${unitId}" under ${storiesDir} (looked for <story>/${unitId}.md and ${unitId}/story.md).`,
+        next: registeredNodeIds().map((id) => `storytree node build ${id} --dry-run`),
+      };
+    }
+    try {
+      spec = loadNodeSpec(specFile);
+      specLabel = rel(specFile, rootDir);
+    } catch (e) {
+      return {
+        ok: false,
+        body: `node spec ${specFile} failed to load:\n${(e as Error).message}`,
+        next: ["storytree node build <id> --dry-run"],
+      };
+    }
   }
 
   // ADR-0080: `--emit-wisp` is the dry-run wisp SMOKE — it short-circuits the scripted gate walk and
@@ -1406,7 +1560,7 @@ export async function nodeBuild(
       if (!drive.resolved) {
         return {
           ok: false,
-          body: `${drive.reason}\n(spec loaded fine: ${rel(specFile, rootDir)})`,
+          body: `${drive.reason}\n(spec loaded fine: ${specLabel})`,
           next: drive.registered.map((id) => `storytree node build ${id} --dry-run`),
         };
       }
@@ -1426,7 +1580,7 @@ export async function nodeBuild(
     const header = [
       `node build ${spec.id} — ${mode.toUpperCase()}`,
       "",
-      `spec:        ${rel(specFile, rootDir)}`,
+      `spec:        ${specLabel}`,
       `proof mode:  ${spec.proofMode} → ${mapProofMode(spec.proofMode)}`,
       `run:         ${runId}`,
       `signer:      ${signer.signer}`,
@@ -1477,7 +1631,7 @@ export async function nodeBuild(
     const framing = real
       ? honestFramingReal(persisted, promotion, regression, typecheck, runtime)
       : live
-      ? honestFramingLive(persisted, runtime)
+      ? honestFramingLive(persisted, runtime, spec.id)
         : HONEST_FRAMING_DRY;
 
     if (!result.ok) {
@@ -1514,8 +1668,14 @@ export async function nodeBuild(
               `gh pr create --head ${promotion.branch} --title "real: ${spec.id} proven via the gate"   (merge NON-SQUASH — the verdict's commit must stay an ancestor)`,
             ]
           : []),
-        `storytree node build <id> ${modeFlag}   (any registered node)`,
-        `storytree library artifact ${spec.id}   (if it has a Library artifact)`,
+        ...(isCodexMultifileRuntimeSeam(spec.id)
+          ? [
+              `storytree node build ${CODEX_MULTIFILE_RUNTIME_SEAM_ID} --live --runtime codex --actor <email>   (subscription-backed exact two-file promotion smoke)`,
+            ]
+          : [
+              `storytree node build <id> ${modeFlag}   (any registered node)`,
+              `storytree library artifact ${spec.id}   (if it has a Library artifact)`,
+            ]),
       ],
     };
   } finally {
@@ -1703,6 +1863,8 @@ export function nodeHelp(storiesDir: string = defaultStoriesDir()): Envelope {
       "      the synthetic red→green pair through the gate under hook-enforced write scope.",
       "      Claude needs Claude Code auth; Codex requires saved ChatGPT-managed Codex auth and",
       "      defaults to gpt-5.6-terra. --budget is an optional Claude-only per-slice cap.",
+      `      Codex multi-file promotion smoke: node build ${CODEX_MULTIFILE_RUNTIME_SEAM_ID}`,
+      "      --live --runtime codex --actor <email> (built-in disposable fixture; never --real).",
       "",
       "  storytree node build <id> --real [--runtime claude|codex] [--model <id>] [--budget <usd>] [--max-turns <n>] [--actor <email>]",
       "      Phase F — the REAL build: a fresh git worktree of this repo, the leaf authors the",

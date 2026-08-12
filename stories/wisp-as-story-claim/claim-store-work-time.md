@@ -3,7 +3,7 @@ id: "claim-store-work-time"
 tier: capability
 story: wisp-as-story-claim
 title: "Claim-store work-time extensions — release-by-branch, trace heartbeat bump, work-time intent"
-outcome: "The per-unit write-claim generalises from build-time to work-time: a bulk release-by-branch (the CI clear), a cheap trace-driven heartbeat bump (so a live session never ages out), and a work-time claim-acquisition path carrying an `edit`/`orchestrate` intent."
+outcome: "The per-unit write-claim generalises from build-time to work-time: a bulk release-by-branch (the CI clear), a cheap trace-driven heartbeat bump (so a live session never ages out), and a work-time claim-acquisition path for the `edit`/`orchestrate` work kinds — each stamping the claim's typed `role` while the caller's own prose rides as `intent` (ADR-0346 D3)."
 status: proposed
 proof_mode: integration-test
 depends_on: []
@@ -28,6 +28,14 @@ proof:
   scope:
     testGlobs: ["packages/notice-board/src/**/*.test.ts"]
     sourceGlobs: ["packages/notice-board/src/**/*.ts"]
+  # ADR-0353 — the READ-ONLY coverage surface: where THIS capability's contract tests actually live.
+  # The `real:` arm below is the DB-backed A1 leg (`releaseClaimsByBranch`, live-gated against the
+  # disposable `storytree_test` DB). Contracts A2/A3 are PURE and the spec routes them to the offline
+  # package suite `claim.test.ts` — outside the arm's write fence by design, since a db-backed leaf
+  # has no business writing the pure suite.
+  coverage:
+    testGlobs:
+      - "packages/notice-board/src/claim.test.ts"
   real:
     testFile: "packages/notice-board/src/store/claim-store-release-by-branch.live.test.ts"
     sourceFile: "packages/notice-board/src/store/claim-store.ts"
@@ -62,7 +70,9 @@ proof:
 - **A1 `releaseClaimsByBranch(branch)`** on `PgClaimStore` — the bulk-release CI calls on merge (capability D).
 - **A2** a cheap **trace-driven heartbeat bump** — reset `heartbeatAt` from a liveness signal without the
   full re-acquire/refuse path, so a live session's claim never ages out (ADR-0138 §4).
-- **A3** a **work-time claim-acquisition** path carrying an `intent` of the work kind (`"edit"` / `"orchestrate"`).
+- **A3** a **work-time claim-acquisition** path for the work kinds `"edit"` / `"orchestrate"` — each
+  stamping the claim's typed `role`, and carrying the caller's own prose as `intent` (ADR-0346 D3; the
+  kind used to be stamped over `intent` itself, which is the defect D3 repairs).
 
 **Depends on —** (root — no within-story upstream).
 
@@ -115,9 +125,12 @@ own trace signals (`onMessage` / `onPhase`, ADR-0138 §4) call so a live session
 prose with `"edit"` foreseen (the module header comment and the `intent` field's own doc comment on
 `ClaimDoc`, both in `packages/notice-board/src/claim.ts` — cited by symbol, never by line, since line
 citations rot). The provable piece is a pure helper that builds
-the work-time `ClaimRequest` with the correct intent — e.g. `workClaimRequest({ unitId, sessionId, branch,
-kind })` mapping `kind: "edit" | "orchestrate"` to the `intent` string — generalising beyond the current
-build-only trigger (`"real"` / `"live-smoke"`). Pure, offline, builtins-only; no store touch.
+the work-time `ClaimRequest` — e.g. `workClaimRequest({ unitId, sessionId, branch, kind, intent })`,
+mapping `kind: "edit" | "orchestrate"` onto the TYPED `role` (`authoring` / `supplementing`) and passing
+the caller's `intent` prose through untouched — generalising beyond the current build-only trigger
+(`"real"` / `"live-smoke"`). Pure, offline, builtins-only; no store touch. **ADR-0346 D3 is why the kind
+lands on `role` and not on `intent`:** stamping it over `intent` is what made that column 55% the literal
+string `"orchestrate"`.
 
 Do NOT touch `package.json` / `pnpm-lock.yaml`, the `events` schema, the connector, or anything outside
 your write scope — they are prerequisites. If a prerequisite is missing, STOP and say so.
@@ -158,13 +171,29 @@ contract A1 (the load-bearing db method); A2/A3 are pure and covered by the offl
      that `isReclaimable(bumped, now)` now reports `false`, and it changes ONLY `heartbeatAt` (all other
      fields equal). Pure — no store, no clock read (caller passes `now`).
    - **covers —** `packages/notice-board/src/claim.ts`
-   - **would-be test —** authored in `packages/notice-board/src/claim.test.ts` (offline package suite); the
-     store-side write of the bump rides A1's db-backed posture.
+   - **proven by —** `packages/notice-board/src/claim.test.ts` (offline package suite) — one test for the
+     reset-and-no-longer-reclaimable half, one for the changes-only-`heartbeatAt` half. Reached via the
+     ADR-0353 `coverage.testGlobs` surface, since the `real:` arm's write fence is the db-backed A1 leg.
+     The store-side write of the bump rides A1's db-backed posture.
 3. **`work-claim-request-carries-work-intent`** — the pure work-time `ClaimRequest` builder stamps the
-   correct `intent` for the work kind, generalising beyond the build-only trigger.
-   - **asserts —** the builder maps `kind: "edit"` → `intent: "edit"` and `kind: "orchestrate"` →
-     `intent: "orchestrate"` on the returned `ClaimRequest` (preserving `unitId` / `sessionId` / `branch`),
-     and the result validates as a legitimate claim request the store accepts (round-trips through
-     `ClaimDoc.parse` once the store stamps timestamps). Pure, builtins-only.
+   typed `role` from the work kind and carries the CALLER'S prose through as `intent`, generalising
+   beyond the build-only trigger.
+   - **asserts —** the builder maps `kind: "edit"` → `role: "authoring"` and `kind: "orchestrate"` →
+     `role: "supplementing"` on the returned `ClaimRequest`, preserving `unitId` / `sessionId` / `branch`;
+     the caller's own `intent` prose passes through UNCHANGED and is never overwritten by the kind word;
+     and an omitted prose leaves `intent` EMPTY (`""`) rather than substituting the kind as a stand-in.
+     Pure, builtins-only.
    - **covers —** `packages/notice-board/src/claim.ts`
-   - **would-be test —** authored in `packages/notice-board/src/claim.test.ts` (offline package suite).
+   - **note —** the contract ID is historical, and is left UNCHANGED deliberately. It was authored when
+     the work kind WAS the `intent` (`kind: "edit"` → `intent: "edit"`), so "carries work intent" named
+     exactly the mapping **ADR-0346 D3 then reversed**: the kind moved onto the typed `role` and `intent`
+     became the caller's prose, because stamping the kind there is what made the column 55% the literal
+     string `"orchestrate"` — hollowing out ADR-0270 D3's remedy, which rests on a refusal printing a
+     holder's readable intent. The behaviour under **asserts —** is the current one; the id stays because
+     ids are the stable handle proof binds to, and renaming one to match a re-decision is how a signed
+     verdict gets re-pointed (the house precedent is `loadcorpus-upserts-counts` in
+     `../library/seed-corpus-scripts.md`).
+   - **proven by —** `packages/notice-board/src/claim.test.ts` (offline package suite) — three tests, one
+     per half: the role stamp with attribution preserved, the caller's prose passing through, and the
+     omitted-prose empty case. Reached via the ADR-0353 `coverage.testGlobs` surface, since the `real:`
+     arm's write fence is the db-backed A1 leg.

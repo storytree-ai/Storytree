@@ -47,6 +47,8 @@ export type {
   CodexRunner,
   CodexWriteViolation,
   CodexRunInfo,
+  CodexPromotionManifest,
+  CodexPromotionFaults,
   CodexPhaseAuthorArgs,
 } from "./codex-author.js";
 export {

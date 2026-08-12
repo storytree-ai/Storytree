@@ -184,6 +184,83 @@ test("the declared coverage surface is read, so a BORROWED real: arm no longer h
   );
 });
 
+test("the ADR-0353 sweep: every capability whose contract tests live outside its write fence is read (2026-08-12)", () => {
+  // ADR-0353 shipped the mechanism plus the ONE capability that forced it, and left the other 112
+  // uncovered contracts unswept for the SAME fault. This pins the sweep's result. Each entry below is a
+  // capability whose `real:` arm is the WRITE fence for one isolated unit and therefore was never a
+  // statement about where its contract tests live — the exact conflation ADR-0353 split apart.
+  //
+  // The REMAINDER is asserted, never a covered count, for the reason the ADR-0353 case gives: a count
+  // still reads as "repaired" if a later widening swept in something no offline test may credit, where a
+  // remainder reds. Each remainder below is a contract that is uncovered for a REASON, and the reason is
+  // recorded beside it — this list is the record that they were examined and left, not overlooked.
+  const repaired: { unitId: string; surface: string; remainder: string[] }[] = [
+    {
+      // The arm authors the NET-NEW studio Credentials panel (contracts 5–9); the main-process broker
+      // half is proven in apps/desktop. `typed-ipc-never-discloses` stays uncovered because the spec
+      // proves it by the package TYPECHECK and claims no dedicated test — no glob can credit that.
+      unitId: "credential-broker",
+      surface: "apps/desktop/src/credential/broker.test.ts",
+      remainder: ["typed-ipc-never-discloses"],
+    },
+    {
+      // The wiring leg audits the REAL `.claude/settings.json` and the REAL drive barrel, so it cannot
+      // live inside the drive package's own registered unit. The two that remain are genuinely unwritten:
+      // no test drives the statusline command's output/debounce, or the wrapper scripts' fail-silent legs.
+      unitId: "ambient-integration",
+      surface: "packages/cli/src/ambient-wiring.test.ts",
+      remainder: ["session-hooks-fail-silent", "statusline-glance"],
+    },
+    {
+      // The writer runtime-imports `@storytree/orchestrator`, so it is not the isolated `--real` unit.
+      unitId: "colour-by-subagent",
+      surface: "packages/drive/src/phase-activity.test.ts",
+      remainder: [],
+    },
+    {
+      // The live read path is glue, not an isolatable red→green.
+      unitId: "render-claim-as-wisp",
+      surface: "apps/studio/server/activityApi.integration.test.ts",
+      remainder: [],
+    },
+    {
+      // The arm is the db-backed A1 leg; the pure contracts live in the offline package suite. The
+      // remainder was `["work-claim-request-carries-work-intent"]` until 2026-08-13: the surface READ
+      // that contract's three substantive tests, but ADR-0346 D3 had reversed the mapping the contract
+      // asserted (the kind lands on `role` now, and `intent` carries the caller's prose), so crediting
+      // it would have stamped `covered` beside an assertion the code deliberately no longer satisfies.
+      // The story-author edit that note called for has landed — the `asserts —` clause states the post-D3
+      // behaviour and the three tests carry the id — so the remainder is EMPTY, and an entry reappearing
+      // here means the spec drifted back or a test name lost the id.
+      unitId: "claim-store-work-time",
+      surface: "packages/notice-board/src/claim.test.ts",
+      remainder: [],
+    },
+  ];
+
+  const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
+  const report = classifyGateCoverage(
+    loadRealBuildCoverageUnits(path.join(repoRoot, "stories"), repoRoot),
+  );
+
+  for (const { unitId, surface, remainder } of repaired) {
+    const unit = report.scanned.find((u) => u.unitId === unitId);
+    assert.ok(unit, `${unitId} should be scanned (real-build surface + contracts)`);
+    // The surface ADDS, never replaces: the arm's own test file must still be read.
+    assert.ok(
+      unit.testFiles.includes(surface),
+      `${unitId} must read its declared coverage surface ${surface} — without it the contracts below go dark again`,
+    );
+    assert.deepEqual(
+      unit.uncovered,
+      remainder,
+      `${unitId}'s uncovered remainder moved. Each entry is uncovered for a stated reason (see the ` +
+        "comments above); a SHORTER list means something was credited that no offline test may credit, " +
+        "and a LONGER one means a binding or a test name regressed.",
+    );
+  }
+});
+
 // ---------------------------------------------------------------------------
 // The drain-ceiling projection (the axis split — `coverage-drain.ts` evaluates it)
 // ---------------------------------------------------------------------------

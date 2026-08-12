@@ -1,10 +1,17 @@
 ---
-status: proposed
+status: superseded
 arc: arc-and-open-question-truth-maintenance-arc
 ---
 # ADR-0338: Arc and open-question truth-maintenance: reactive trigger extension plus an explored staleness fork
 
 ## Status
+
+superseded (2026-08-12) by [ADR-0358](0358-arc-and-open-question-truth-maintenance-owner-picks-1b-2d-2e.md)
+— the owner picked Axis 1 → 1B, Axis 2 → 2D + 2E + 2B (7-day lease) directly in conversation. This ADR
+stays on disk as the full explored option space and the evidence (the 2026-08-09 2-of-4 freshness
+audit) the pick was drawn from; read ADR-0358 for the decision.
+
+---
 
 proposed (2026-08-10) — explored per owner direction, on an explicit explore-only instruction
 ("EXPLORE ONLY — do not implement code, do not born-accept any ADR, do not close this out as

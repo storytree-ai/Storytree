@@ -560,6 +560,15 @@ export function findOptionsFormSkips(source: string, filePath: string): Map<stri
  * and it prints `claim-store-work-time: 2/3 uncovered`, naming the OTHER two. That contract reads
  * COVERED, and the proof it is covered by did not execute.
  *
+ * ⚠ THE `2/3` IS THE MEASUREMENT AS TAKEN, and its two SIBLINGS have since been credited — the sweep
+ * now reports this capability fully covered (ADR-0353's coverage surface reached contract 2 on
+ * 2026-08-12, and contract 3 on 2026-08-13 once its `asserts —` clause was rewritten to the post-
+ * ADR-0346-D3 behaviour). Read the fraction as of its date; do NOT re-derive it from
+ * `pnpm check:coverage`, which ADR-0311 D2 retired. WHAT IS UNCHANGED IS THE FINDING, and it is the
+ * only part this paragraph is evidence for: `release-claims-by-branch-clears-the-branch` is STILL
+ * credited by a `{ skip: !DB }` test that does not execute offline. The capability reading 3/3 covered
+ * rather than 1/3 makes the invisibility worse, not better.
+ *
  * ONE FINDING PER FILE, listing the tests. The ceiling counts REPAIRS, and the repair is the file's
  * live-gating IDIOM, not each test: `claim-store-grades.live.test.ts` has four such tests and one fix
  * between them. (`store.test.ts` already shows the visible idiom — `if (LIVE) { suite() } else {

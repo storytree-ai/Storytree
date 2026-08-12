@@ -95,6 +95,7 @@ const HELP_NEXT = [
   "storytree write-authority rules",
   "storytree write-authority install",
   "storytree write-authority install --write",
+  "storytree write-authority codex --pg",
 ];
 
 function help(): Envelope {
@@ -106,12 +107,14 @@ function help(): Envelope {
       "  rules              print the generated permissions.deny block for this checkout",
       "  install            DRY RUN: show what would change in ~/.claude/settings.json",
       "  install --write    install/refresh the deny block",
+      "  codex --pg        DRY RUN: generate the current Codex containment bundle",
       "",
       "The block is DERIVED from repo-manifest.json, so re-run `install --write` whenever a",
       "top-level entry is added or removed — never hand-edit it.",
       "",
       "The wall is STATIC ONLY (ADR-0284). Shell writes and Codex are uncontained; `install --write`",
-      "also strips any PreToolUse registration left by an earlier version.",
+      "also strips any PreToolUse registration left by an earlier version. ADR-0355's separate",
+      "Codex generator never installs its administrator-owned requirements/profile/hooks.",
     ].join("\n"),
     next: HELP_NEXT,
   };

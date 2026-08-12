@@ -49,9 +49,20 @@ import type { Envelope } from "./envelope.js";
  * gives: a question the owner must re-onboard to understand "has not moved the problem", so what
  * BREAKS if this stays unsettled is the first thing they read.
  *
+ * What goes INSIDE those fields carries one further discipline this verb does not enforce and could
+ * not: `asset:a-measured-claim-carries-its-method` (ADR-0358's Option 2E). Any live numeric or
+ * measured claim written into `stakes` / `statement` / `context` names the METHOD that produced it —
+ * the instrument, the sample, the moment ("self-measured, n=1" vs. "counted via `storytree
+ * session-cost`, n=43") — never the bare figure. It is discipline rather than a fence because no
+ * checker can read a prose field and tell a live measurement from a constant; the cost of skipping it
+ * lands on the re-verifier, who is told what to re-run only if the author wrote it down. That is the
+ * `verifiedAt` lease's routing input: an annotation naming no instrument is what escalates an expiry
+ * from a sonnet read of a cited source to a live re-query.
+ *
  *   storytree question new [<id>] --arc <arc-id> --title "…" --stakes <text|@file>
  *     --statement <text|@file> --context <text|@file> --options <text|@file>
- *     [--diagram <text|@file>] [--recommendation <text|@file>] [--description <text|@file>] --pg
+ *     [--analogy <text|@file>] [--diagram <text|@file>] [--recommendation <text|@file>]
+ *     [--description <text|@file>] --pg
  *
  * Reading stays where it already is (`library artifact list open-question --pg`), and answering is
  * out of scope by decision, not omission: ADR-0267 D6 / ADR-0314 D9 keep this round READ-ONLY, so the
@@ -66,6 +77,41 @@ const QUESTION_ID_CAP = 60;
 
 /** The cap on a DERIVED one-line description before it is cut at a word boundary. */
 const DERIVED_DESCRIPTION_CAP = 160;
+
+/**
+ * The default lease length (days) an open-question's `verifiedAt` stamp is trusted for before
+ * `question check`/the librarian-curator sweep treats it as lease-expired (ADR-0358 Option 2B,
+ * adapted from ADR-0202's park-lease). Deliberately far shorter than agent-memory's 60-day default
+ * (`DEFAULT_LEASE_DAYS`, `packages/library/src/graduation/park.ts`) — the ADR-0358 incident moved a
+ * live count within 3 days, and 7 is the owner-picked starting point closer to that observed decay.
+ */
+export const DEFAULT_QUESTION_LEASE_DAYS = 7;
+
+/** Whole-day age of `fromIso` relative to `currentIso`; `null` if either is absent/unparseable. */
+function daysSince(fromIso: string | undefined, currentIso: string): number | null {
+  if (fromIso === undefined) return null;
+  const from = Date.parse(fromIso);
+  const now = Date.parse(currentIso);
+  if (Number.isNaN(from) || Number.isNaN(now)) return null;
+  const days = Math.floor((now - from) / 86_400_000);
+  return days < 0 ? 0 : days;
+}
+
+/**
+ * PURE: the on-read staleness line ADR-0358 Option 2D renders — "verified N days ago", an overdue
+ * variant once the lease has expired, or "UNVERIFIED" when the question predates ADR-0358 and carries
+ * no `verifiedAt` at all. Shared by `arc show`'s open-questions block and `question check` so the two
+ * surfaces never drift apart on wording.
+ */
+export function questionStalenessLine(q: { verifiedAt?: string; leaseDays?: number }, nowIso: string): string {
+  const age = daysSince(q.verifiedAt, nowIso);
+  if (age === null) return "UNVERIFIED — authored before ADR-0358, or verifiedAt is unparseable";
+  const lease = q.leaseDays ?? DEFAULT_QUESTION_LEASE_DAYS;
+  const overdue = age - lease;
+  return overdue > 0
+    ? `verified ${age} day${age === 1 ? "" : "s"} ago — LEASE EXPIRED ${overdue} day${overdue === 1 ? "" : "s"} ago (lease ${lease}d)`
+    : `verified ${age} day${age === 1 ? "" : "s"} ago (lease ${lease}d, ${lease - age} day${lease - age === 1 ? "" : "s"} left)`;
+}
 
 export interface QuestionWriteDeps {
   /** The doc store — the live store under --pg (questions are live-canonical). */
@@ -88,9 +134,12 @@ export interface QuestionNewOpts {
   statement?: string | undefined;
   context?: string | undefined;
   options?: string | undefined;
+  analogy?: string | undefined;
   diagram?: string | undefined;
   recommendation?: string | undefined;
   description?: string | undefined;
+  /** ADR-0358 Option 2B — overrides {@link DEFAULT_QUESTION_LEASE_DAYS} when set; parsed as a positive integer. */
+  leaseDays?: string | undefined;
 }
 
 /**
@@ -259,8 +308,24 @@ export async function questionNew(
     };
   }
 
+  // ADR-0358 Option 2B — a positive integer or refuse; empty/absent defaults to DEFAULT_QUESTION_LEASE_DAYS.
+  const leaseDaysRaw = opts.leaseDays?.trim() ?? "";
+  let leaseDays = DEFAULT_QUESTION_LEASE_DAYS;
+  if (leaseDaysRaw !== "") {
+    const parsed = Number.parseInt(leaseDaysRaw, 10);
+    if (!Number.isInteger(parsed) || parsed <= 0 || String(parsed) !== leaseDaysRaw) {
+      return {
+        ok: false,
+        body: `--lease-days must be a positive whole number of days; got "${leaseDaysRaw}".`,
+        next: [USAGE],
+      };
+    }
+    leaseDays = parsed;
+  }
+
   const derivedDescription = opts.description === undefined;
   const description = derivedDescription ? questionDescriptionFrom(statement) : oneLine(opts.description ?? "");
+  const analogy = opts.analogy?.trim() ?? "";
   const diagram = opts.diagram?.trim() ?? "";
   const recommendation = opts.recommendation?.trim() ?? "";
   const doc: Record<string, unknown> = {
@@ -272,12 +337,18 @@ export async function questionNew(
     statement,
     context,
     options,
+    ...(analogy !== "" ? { analogy } : {}),
     ...(diagram !== "" ? { diagram } : {}),
     ...(recommendation !== "" ? { recommendation } : {}),
     arcRef: `asset:${arc}`,
     references: [],
     createdAt: deps.now,
     updatedAt: deps.now,
+    // ADR-0358 Option 2B — first authoring counts as first verification; leaseDays always stamped
+    // explicitly (never left to the schema default) so `question check`/2D's render never has to
+    // guess which default a given row was authored under.
+    verifiedAt: deps.now,
+    leaseDays,
   };
 
   let valid: unknown;
@@ -329,6 +400,48 @@ export async function questionNew(
   };
 }
 
+/**
+ * `storytree question check <id>` — ADR-0358 Option 2B's mechanical LOCATE half: reads `verifiedAt`/
+ * `leaseDays` off one open-question and reports fresh vs. lease-expired, mirroring `increment check`'s
+ * shape. Read-only — it never writes. Re-verifying (re-leasing, correcting in place, or retiring) goes
+ * through the existing generic surfaces (`library artifact edit --set verifiedAt=<iso> --pg` /
+ * `library artifact retire --pg`) exactly as ADR-0358's Context notes: the write mechanism already
+ * exists, the entire gap was "who looks, and when."
+ */
+export async function questionCheck(deps: QuestionWriteDeps, id: string | undefined): Promise<Envelope> {
+  const questionId = id?.trim().replace(/^asset:/, "") ?? "";
+  if (questionId === "") {
+    return { ok: false, body: "storytree question check <id> --pg — which question?", next: ["storytree library artifact list open-question --pg"] };
+  }
+  const doc = await deps.store.getDoc(questionId);
+  if (!doc || doc.kind !== "open-question") {
+    return {
+      ok: false,
+      body: doc
+        ? `"${questionId}" is a ${doc.kind}, not an open-question.`
+        : `no open-question "${questionId}"${deps.pg ? "" : " in the OFFLINE seed — questions are live-canonical; try --pg"}.`,
+      next: ["storytree library artifact list open-question --pg"],
+    };
+  }
+  const q = doc.doc as { verifiedAt?: string; leaseDays?: number };
+  const line = questionStalenessLine(q, deps.now);
+  const expired = q.verifiedAt !== undefined && line.includes("LEASE EXPIRED");
+  return {
+    ok: true,
+    body: [`${questionId} — ${line}`, "", expired ? "Re-verify, then re-lease, correct-in-place, or retire:" : "No action needed."]
+      .filter((s) => s !== "")
+      .join("\n"),
+    next: expired
+      ? [
+          `storytree library artifact ${questionId} --pg   (read the claim, re-check it)`,
+          `storytree library artifact edit ${questionId} --set verifiedAt=<iso-now> --pg   (re-lease, unchanged)`,
+          `storytree library artifact edit ${questionId} --set <field>=<value> --pg   (correct in place, drifted)`,
+          `storytree library artifact retire ${questionId} --reason "<why>" --pg   (moot / answered)`,
+        ]
+      : [`storytree library artifact ${questionId} --pg`],
+  };
+}
+
 /** The `storytree question` guidance page (ADR-0023 envelope). */
 export function questionHelp(): Envelope {
   return {
@@ -337,7 +450,12 @@ export function questionHelp(): Envelope {
       "storytree question — put a decision in front of the owner (ADR-0314 D5).",
       "",
       "  " + USAGE,
-      "         optional: [--diagram <text|@file>] [--recommendation <text|@file>] [--description <text|@file>]",
+      "         optional: [--analogy <text|@file>] [--diagram <text|@file>]",
+      "                   [--recommendation <text|@file>] [--description <text|@file>]",
+      `         [--lease-days <n>]   how long the claim is trusted before it needs re-verifying (default ${DEFAULT_QUESTION_LEASE_DAYS})`,
+      "",
+      "  storytree question check <id> --pg   — ADR-0358: is this question's claim still fresh, or",
+      "         has its lease expired? Read-only; re-verify via `library artifact edit --set` / `retire`.",
       "",
       "An orchestrator that escalates MUST author one of these: escalating in chat alone is not",
       "sufficient, because the arc surface derives what is WAITING ON THE OWNER by querying these",
@@ -345,7 +463,14 @@ export function questionHelp(): Envelope {
       "",
       "The bar is COLD-ANSWERABLE: stakes first (what breaks if this stays unsettled), then the",
       "question, the context with every term glossed, the options with both sides of each trade-off,",
-      "and — optionally — a diagram and an explicitly non-binding recommendation.",
+      "and an explicitly non-binding recommendation.",
+      "",
+      "EXPECT TO WRITE AN --analogy AND A --diagram, not to skip them (ADR-0359 D5). They are",
+      "schema-OPTIONAL because a narrow value choice needs neither — not because they are exotic.",
+      "Anything structural owes both: an --analogy maps the unfamiliar onto something the reader",
+      "already runs (this house thinks in organisational terms — agents are employees, the",
+      "orchestrator is a manager) and says where the mapping breaks; a --diagram is a ```mermaid",
+      "fence, which the studio renders as an SVG (ADR-0096).",
       "",
       "--arc is REQUIRED even though the schema leaves arcRef optional: an unhomed question is an",
       "invisible one. Answering stays out of band this round (ADR-0314 D9) — the owner answers by",
@@ -367,9 +492,10 @@ export async function questionCommand(
 ): Promise<Envelope> {
   if (sub === undefined || sub === "help") return questionHelp();
   if (sub === "new") return questionNew(deps, third, opts);
+  if (sub === "check") return questionCheck(deps, third);
   return {
     ok: false,
-    body: `unknown question command "${sub}". The authoring verb is \`new\`; reading is \`storytree library artifact list open-question --pg\`.`,
+    body: `unknown question command "${sub}". Verbs: \`new\`, \`check <id>\`; reading is \`storytree library artifact list open-question --pg\`.`,
     next: [USAGE, "storytree library artifact list open-question --pg"],
   };
 }

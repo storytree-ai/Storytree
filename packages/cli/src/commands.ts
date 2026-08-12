@@ -92,6 +92,7 @@ import type { DrainLedgerIo } from "./worktree-drain.js";
 // `worktree create` — the claim-gated workspace ceremony (ADR-0200 D3).
 import { createWorktree, type WorktreeCreateIo } from "./worktree-create.js";
 import { writeAuthorityCommand } from "./write-authority-install.js";
+import { codexSessionContainmentCommand } from "./codex-session-containment.js";
 import {
   desktopHelp,
   desktopInstallShortcut,
@@ -2219,7 +2220,8 @@ export const CLI_OPTIONS = {
   reason: { type: "string" },
   "superseded-by": { type: "string" },
   "memory-dir": { type: "string" },
-  // `storytree library graduate park` — the lease override in days (ADR-0202; default 60).
+  // `storytree library graduate park` — the lease override in days (ADR-0202; default 60). Reused by
+  // `storytree question new --lease-days` (ADR-0358 Option 2B; default 7) — same shape, same flag name.
   "lease-days": { type: "string" },
   review: { type: "boolean", default: false },
   readings: { type: "string" },
@@ -2267,6 +2269,7 @@ export const CLI_OPTIONS = {
   statement: { type: "string" },
   context: { type: "string" },
   options: { type: "string" },
+  analogy: { type: "string" },
   diagram: { type: "string" },
   recommendation: { type: "string" },
   scope: { type: "string" },
@@ -2392,6 +2395,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     statement?: string;
     context?: string;
     options?: string;
+    analogy?: string;
     diagram?: string;
     recommendation?: string;
     scope?: string;
@@ -2771,6 +2775,13 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
   }
 
   if (area === "write-authority") {
+    if (sub === "codex") {
+      // ADR-0355: generation is repository-owned; installation remains administrator-owned.
+      return codexSessionContainmentCommand(
+        { write: values.write === true, help },
+        { ledger: deps.presence?.ledger ?? null, now: () => new Date() },
+      );
+    }
     // ADR-0257 D1/D6, narrowed to the static block by ADR-0284 — install/inspect the wall. The deny
     // block is DERIVED from repo-manifest.json, so it needs a caller that can regenerate it;
     // installing by hand is how the wall and the repo surface drift apart. Offline, no store.
@@ -3139,9 +3150,11 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       ...(values.statement !== undefined ? { statement: values.statement } : {}),
       ...(values.context !== undefined ? { context: values.context } : {}),
       ...(values.options !== undefined ? { options: values.options } : {}),
+      ...(values.analogy !== undefined ? { analogy: values.analogy } : {}),
       ...(values.diagram !== undefined ? { diagram: values.diagram } : {}),
       ...(values.recommendation !== undefined ? { recommendation: values.recommendation } : {}),
       ...(values.description !== undefined ? { description: values.description } : {}),
+      ...(values["lease-days"] !== undefined ? { leaseDays: values["lease-days"] } : {}),
     });
   }
 

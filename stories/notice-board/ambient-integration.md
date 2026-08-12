@@ -18,6 +18,15 @@ proof:
   scope:
     testGlobs: ["packages/drive/src/**/*.test.ts"]
     sourceGlobs: ["packages/drive/src/**/*.ts"]
+  # ADR-0353 — the READ-ONLY coverage surface: where THIS capability's contract tests actually live.
+  # Contract 1's own `proven by` already SAID the wiring leg sits in `packages/cli/src/ambient-wiring.test.ts`
+  # and is "outside the registered proof" — this declares that, instead of leaving it as prose the
+  # sweep could not act on. The wiring leg audits the REAL `.claude/settings.json` and the real drive
+  # barrel, which is why it cannot live in the drive package's own registered unit; the split keeps
+  # `real.scope` (what a drive may WRITE) apart from where a reader may LOOK.
+  coverage:
+    testGlobs:
+      - "packages/cli/src/ambient-wiring.test.ts"
   real:
     testFile: "packages/drive/src/ambient-presence.test.ts"
     sourceFile: "packages/drive/src/ambient-presence.ts"
@@ -136,9 +145,13 @@ events.
      `BuildPresenceInfo` are absent from `@storytree/drive` — and `node build`/`story build` accept
      no presence deps; a build run makes ZERO session-presence writes, so the launching session's
      own declaration survives its own builds.
-   - **proven by —** would-be `packages/drive/src/ambient-presence.test.ts` (module-surface leg),
-     with the wiring leg in `packages/cli/src/ambient-wiring.test.ts` (outside the registered
-     proof, like the old spine-wiring note)
+   - **proven by —** `packages/cli/src/ambient-wiring.test.ts`, which asserts the drive barrel exports
+     no `withPresence` and that a `node build` drives to green with a worktree identity and no presence
+     surface. It audits the REAL barrel and the REAL `.claude/settings.json`, so it cannot live inside
+     the drive package's own registered unit — it is reached via the ADR-0353 `coverage.testGlobs`
+     surface in the frontmatter, which is what "outside the registered proof" used to mean before there
+     was a way to declare it. (`BuildPresenceInfo` is a type, erased at runtime, so the absence
+     assertion is on `withPresence`; the package typecheck carries the type half.)
 2. **`session-hooks-fail-silent`** — the SessionStart/SessionEnd wrappers cannot hurt a session
    - **asserts —** (offline legs) the declare/done wrapper scripts exit 0 on DB-down and bad
      input, complete within their timeout bound, and emit nothing when the DB is down; the

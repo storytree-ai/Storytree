@@ -224,9 +224,76 @@ export interface CoverageDrainConfig {
  * evidence for why this ceiling exists; it is no longer the same measurement as this number. A future
  * capability declaring a coverage surface will drop this count again, and that is a drain — the
  * remedy stays ADR-0252 D3's, never a raise.
+ *
+ * TIGHTENED AGAIN 112 → 104 on 2026-08-12 — the ADR-0353 SWEEP, and this one is a DRAIN inside a FIXED
+ * aperture, not a second enlargement. ADR-0353 shipped the mechanism plus the single capability that
+ * forced it, and left the remaining 112 unswept for the same fault. Sweeping them found the fault in
+ * FIVE more capabilities, all the same shape: the `real:` arm is the WRITE fence for one isolated unit,
+ * so it was never a statement about where that capability's contract tests live.
+ *
+ *   credential-broker      +3  the arm authors the studio Credentials PANEL (contracts 5–9); the
+ *                             main-process broker half (1, 3, 4) is proven in `apps/desktop`
+ *   ambient-integration    +2  the wiring leg audits the REAL settings.json + drive barrel, so it
+ *                             cannot sit in the drive package's own registered unit
+ *   colour-by-subagent     +1  the writer's integration leg — it runtime-imports `@storytree/orchestrator`
+ *                             and so is not the isolated `--real` unit
+ *   render-claim-as-wisp   +1  the live read path is glue, not an isolatable red→green
+ *   claim-store-work-time  +1  the arm is the db-backed leg; the pure contracts live in the offline suite
+ *
+ * FOUR of the eight needed NO test edit at all — a vouching test already named the contract and the
+ * sweep simply never read that file. The other four were the ADR-0353 naming half: a real, passing,
+ * offline test that did not carry its contract id. Nothing was authored and nothing was widened; every
+ * credited contract cites a test that existed and passed before this commit, which is why the direction
+ * is monotone DOWN and no backlog was absorbed.
+ *
+ * WHAT THE SWEEP DELIBERATELY DID NOT CREDIT, because a drain that credits these is a fake one:
+ *   - `credential-broker/typed-ipc-never-discloses` — the spec proves it by the package TYPECHECK and
+ *     claims no dedicated test. No glob can credit a typecheck.
+ *   - `take-claim-at-spawn/orchestrator-acquires-before-spawn` — recorded NOT LIVE: no implementation at
+ *     HEAD, its host capabilities retired (ADR-0175). Its own spec says it stays on this list
+ *     permanently. It is expected, not a gap.
+ *   - `claim-store-work-time/work-claim-request-carries-work-intent` — SINCE DISCHARGED; see the
+ *     104 → 103 note below. It was left on this list because the surface READ its three substantive
+ *     tests while ADR-0346 D3 had reversed the mapping the contract asserted, so crediting it would have
+ *     stamped `covered` beside an assertion the code deliberately no longer satisfied. The remedy was the
+ *     story-author edit it named, not a coverage repair — and that edit has now landed.
+ *   - `seed-corpus-scripts` — the OTHER known borrowed arm (`library#gate-4`). Swept and left: both its
+ *     contracts are honestly would-be. No test asserts `loadFixtureCorpus`'s own returned counts, and
+ *     `applySchema`'s execution against a pool is Pg-specific and unrun (the offline `store.test.ts`
+ *     asserts the DDL SHAPE, which is a different claim). A borrowed arm does not imply a binding fault.
+ *
+ * So the residue is now, as far as a static sweep can tell, a genuine AUTHORING backlog: of the 104, the
+ * large majority sit on capabilities whose registered surface IS where their tests would live and simply
+ * has no test naming them. A repo-wide scan for a vouching test naming any uncovered contract id
+ * anywhere outside its capability's surface returns ZERO remaining hits — the binding-fault class is
+ * drained, and what is left is tests to write (or contracts to split/retire), which is what this ceiling
+ * has always been counting.
+ *
+ * TIGHTENED AGAIN 104 → 103 on 2026-08-13 — the ONE deferred entry from the sweep above, discharged the
+ * way its own note said it had to be. `claim-store-work-time/work-claim-request-carries-work-intent` sat
+ * in the not-credited list for a reason that was never a coverage fault: the ADR-0353 surface already
+ * READ the three substantive `workClaimRequest` tests in `packages/notice-board/src/claim.test.ts`, but
+ * the contract's `asserts —` clause still stated the mapping ADR-0346 D3 had REVERSED (the work kind onto
+ * `intent`, which is what made that column 55% the literal string `"orchestrate"`; it lands on the typed
+ * `role` now, and `intent` carries the caller's prose). Naming the id onto passing tests would have
+ * stamped `covered` beside an assertion the code deliberately no longer satisfies.
+ *
+ * The remedy was the story-author edit that note named, and it is what landed: the contract now asserts
+ * the post-D3 behaviour — `kind: "edit"` → `role: "authoring"`, `kind: "orchestrate"` →
+ * `role: "supplementing"`, the caller's prose through unchanged, an omitted prose leaving `intent`
+ * EMPTY — and the three tests that already proved exactly that carry the contract id. The contract ID is
+ * UNCHANGED (ids are the handle proof binds to; a rename re-points signed verdicts), with a `note —` on
+ * the spec recording why it reads oddly against its own behaviour.
+ *
+ * MEASURED, not assumed (ADR-0269 4(f)), over the same aperture as the 112 → 104 sweep — 310 spec files,
+ * 125 scanned capabilities: `uncovered` 104 → 103, `unbound` unchanged at 1, and
+ * `claim-store-work-time` now contributes ZERO uncovered contracts. A DRAIN inside a fixed aperture: no
+ * glob was widened and no test was authored, so the sweep reads exactly the files it read before. The
+ * one contract credited cites three tests that existed and passed at the previous baseline; what changed
+ * is that the spec now states what they prove.
  */
 export const DEFAULT_COVERAGE_DRAIN_CONFIG: CoverageDrainConfig = {
-  uncoveredCeiling: 112,
+  uncoveredCeiling: 103,
   unboundCeiling: 1,
 };
 

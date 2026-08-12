@@ -7,10 +7,11 @@
  * - metered credential environment variables are removed from both child processes;
  * - the CLI runs in a disposable replica, never the real workspace, with network disabled;
  * - a vetted PreToolUse hook refuses shell, MCP, agents, unknown local tools, and out-of-scope
- *   replica writes before action. The spine alone promotes one exact replica file to the target.
+ *   replica writes before action. The spine alone promotes an explicit observed target set.
  */
 
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import * as fs from "node:fs/promises";
 import { createRequire } from "node:module";
 import * as os from "node:os";
@@ -62,16 +63,27 @@ export interface CodexRunInfo {
   changedPaths?: string[];
 }
 
+/** Exact spine-authored packing list for one phase; neither field accepts globs. */
+export interface CodexPromotionManifest {
+  allowedTargets: string[];
+  requiredTargets: string[];
+}
+
+/** Deterministic failure seam for rollback tests; production resolution never supplies it. */
+export interface CodexPromotionFaults {
+  afterApply?: (relPath: string, appliedCount: number) => void | Promise<void>;
+  beforeRestore?: (relPath: string) => void | Promise<void>;
+}
+
 export interface CodexPhaseAuthorArgs {
   cwd: string;
   /** Hook-level phase globs, mirroring the spine's PathWriteScope. */
   writeGlobs: { AUTHOR_TEST: string[]; IMPLEMENT: string[] };
-  /**
-   * Exact workspace-relative files the spine may promote a staged result to per phase. Production
-   * callers supply these from the real proof's testFile/sourceFile. Codex itself receives no
-   * workspace write access.
-   */
-  permissionPaths?: { AUTHOR_TEST: string[]; IMPLEMENT: string[] };
+  /** Exact finite packing lists authored by the spine before either phase starts. */
+  promotionManifests?: {
+    AUTHOR_TEST: CodexPromotionManifest;
+    IMPLEMENT: CodexPromotionManifest;
+  };
   isWriteAllowed: (phase: AuthoringPhase, relPath: string) => boolean;
   model?: string;
   /**
@@ -81,6 +93,8 @@ export interface CodexPhaseAuthorArgs {
   phasePrompts?: { AUTHOR_TEST: string; IMPLEMENT: string };
   runner?: CodexRunner;
   env?: NodeJS.ProcessEnv;
+  /** @internal Test-only fault seam, accepted only together with an injected runner. */
+  promotionFaults?: CodexPromotionFaults;
 }
 
 interface ParsedCodexStream {
@@ -149,6 +163,90 @@ function validPhaseGlobs(globs: string[]): boolean {
       !glob.startsWith("../") &&
       !glob.includes("/../"),
   );
+}
+
+const GLOB_MAGIC = /[*?[\]{}()!+@]/;
+const WINDOWS_DEVICE_COMPONENT = /^(?:con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\.|$)/i;
+
+function normalizeExactTarget(value: unknown): string | undefined {
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    /[<>:"|\\\x00-\x1f\x7f]/.test(value) ||
+    GLOB_MAGIC.test(value) ||
+    path.posix.isAbsolute(value) ||
+    path.win32.isAbsolute(value)
+  ) {
+    return undefined;
+  }
+  const normalized = path.posix.normalize(value);
+  const components = value.split("/");
+  if (
+    normalized !== value ||
+    normalized === "." ||
+    normalized === ".." ||
+    normalized.startsWith("../") ||
+    components.some(
+      (component) =>
+        component.endsWith(".") ||
+        component.endsWith(" ") ||
+        WINDOWS_DEVICE_COMPONENT.test(component),
+    )
+  ) {
+    return undefined;
+  }
+  return normalized;
+}
+
+function targetKey(relPath: string): string {
+  return relPath;
+}
+
+function snapshotState(
+  snapshot: Map<string, ReplicaPathState>,
+  relPath: string,
+): ReplicaPathState | undefined {
+  return snapshot.get(relPath);
+}
+
+function validatePromotionManifest(manifest: CodexPromotionManifest | undefined):
+  | { ok: true; allowed: Map<string, string>; required: Map<string, string> }
+  | { ok: false } {
+  if (
+    manifest === undefined ||
+    !Array.isArray(manifest.allowedTargets) ||
+    !Array.isArray(manifest.requiredTargets) ||
+    manifest.allowedTargets.length === 0 ||
+    manifest.requiredTargets.length === 0
+  ) {
+    return { ok: false };
+  }
+  const collect = (values: string[]): Map<string, string> | undefined => {
+    const result = new Map<string, string>();
+    const caseFolded = new Set<string>();
+    for (const value of values) {
+      const normalized = normalizeExactTarget(value);
+      if (normalized === undefined) return undefined;
+      const key = targetKey(normalized);
+      const folded = normalized.toLowerCase();
+      // Authorization remains exact-case. Case folding is used only to reject an ambiguous packing
+      // list that aliases on ordinary Windows volumes but diverges in a case-sensitive NTFS dir.
+      if (result.has(key) || caseFolded.has(folded)) return undefined;
+      result.set(key, normalized);
+      caseFolded.add(folded);
+    }
+    return result;
+  };
+  const allowed = collect(manifest.allowedTargets);
+  const required = collect(manifest.requiredTargets);
+  if (
+    allowed === undefined ||
+    required === undefined ||
+    [...required.keys()].some((key) => !allowed.has(key))
+  ) {
+    return { ok: false };
+  }
+  return { ok: true, allowed, required };
 }
 
 function hookConfig(hookPath: string): string {
@@ -354,7 +452,7 @@ export const runPinnedCodexCli: CodexRunner = async (command) => {
   });
 };
 
-function genericPhasePrompt(phase: AuthoringPhase): string {
+export function genericPhasePrompt(phase: AuthoringPhase): string {
   return (
     `You are Storytree's ${phase} phase leaf. Author only the requested phase deliverable inside ` +
     "the supplied write scope. Do not run tests or claim a verdict; the deterministic spine " +
@@ -393,6 +491,7 @@ function readViolationLines(text: string, phase: AuthoringPhase): CodexWriteViol
 }
 
 const REPLICA_EXCLUDED_PARTS = new Set([".git", ".codex", ".claude", "node_modules"]);
+const HOOK_REPORT_REL = ".storytree-codex-hook-report.jsonl";
 
 function includeInReplica(root: string, candidate: string): boolean {
   const rel = path.relative(root, candidate);
@@ -430,20 +529,313 @@ async function initializeDisposableGit(cwd: string): Promise<void> {
   });
 }
 
-async function prepareDisposableReplica(source: string, injected: boolean): Promise<string> {
+interface ReplicaPathState {
+  kind: "file" | "symlink" | "other";
+  digest: string;
+  mode: number;
+}
+
+interface ReplicaChange {
+  relPath: string;
+  before?: ReplicaPathState;
+  after?: ReplicaPathState;
+}
+
+interface DisposableReplica {
+  dir: string;
+  /** False only for legacy injected-runner tests whose synthetic cwd does not exist. */
+  seeded: boolean;
+}
+
+function digest(value: Buffer | string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+async function snapshotReplica(root: string): Promise<Map<string, ReplicaPathState>> {
+  const snapshot = new Map<string, ReplicaPathState>();
+  const walk = async (dir: string): Promise<void> => {
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    entries.sort((a, b) => a.name.localeCompare(b.name));
+    for (const entry of entries) {
+      const absolute = path.join(dir, entry.name);
+      const relPath = path.relative(root, absolute).replaceAll("\\", "/");
+      if (relPath === ".git" || relPath.startsWith(".git/")) {
+        continue;
+      }
+      if (entry.isDirectory()) {
+        await walk(absolute);
+        continue;
+      }
+      const stat = await fs.lstat(absolute);
+      if (entry.isFile()) {
+        snapshot.set(relPath, {
+          kind: "file",
+          digest: digest(await fs.readFile(absolute)),
+          mode: stat.mode & 0o777,
+        });
+      } else if (entry.isSymbolicLink()) {
+        snapshot.set(relPath, {
+          kind: "symlink",
+          digest: digest(await fs.readlink(absolute)),
+          mode: stat.mode & 0o777,
+        });
+      } else {
+        snapshot.set(relPath, {
+          kind: "other",
+          digest: `${stat.size}:${stat.mtimeMs}`,
+          mode: stat.mode & 0o777,
+        });
+      }
+    }
+  };
+  await walk(root);
+  return snapshot;
+}
+
+function observedReplicaChanges(
+  before: Map<string, ReplicaPathState>,
+  after: Map<string, ReplicaPathState>,
+): ReplicaChange[] {
+  const paths = [...new Set([...before.keys(), ...after.keys()])].sort();
+  const changes: ReplicaChange[] = [];
+  for (const relPath of paths) {
+    const beforeState = before.get(relPath);
+    const afterState = after.get(relPath);
+    if (
+      beforeState?.kind === afterState?.kind &&
+      beforeState?.digest === afterState?.digest &&
+      beforeState?.mode === afterState?.mode
+    ) {
+      continue;
+    }
+    changes.push({
+      relPath,
+      ...(beforeState === undefined ? {} : { before: beforeState }),
+      ...(afterState === undefined ? {} : { after: afterState }),
+    });
+  }
+  return changes;
+}
+
+async function prepareDisposableReplica(
+  source: string,
+  injected: boolean,
+): Promise<DisposableReplica> {
   const replica = await fs.mkdtemp(path.join(os.tmpdir(), "storytree-codex-workspace-"));
   try {
-    if (!injected) {
+    const sourceExists = await fs.stat(source).then(
+      (stat) => stat.isDirectory(),
+      () => false,
+    );
+    if (sourceExists) {
       await fs.cp(source, replica, {
         recursive: true,
         filter: (candidate) => includeInReplica(source, candidate),
       });
+    } else if (!injected) {
+      throw new Error(`workspace does not exist: ${source}`);
+    }
+    if (!injected) {
       await initializeDisposableGit(replica);
     }
-    return replica;
+    return { dir: replica, seeded: sourceExists };
   } catch (error) {
     await fs.rm(replica, { recursive: true, force: true }).catch(() => undefined);
     throw error;
+  }
+}
+
+interface RealFileBackup {
+  exists: boolean;
+  content?: Buffer;
+  mode?: number;
+}
+
+interface StagedReplicaChange {
+  relPath: string;
+  content?: Buffer;
+  mode?: number;
+}
+
+function insideRoot(root: string, candidate: string): boolean {
+  const rel = path.relative(root, candidate);
+  return rel !== ".." && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel);
+}
+
+async function assertNoSymlinkParents(root: string, target: string): Promise<void> {
+  const rel = path.relative(root, path.dirname(target));
+  if (rel === "") return;
+  let cursor = root;
+  for (const part of rel.split(path.sep)) {
+    cursor = path.join(cursor, part);
+    let stat;
+    try {
+      stat = await fs.lstat(cursor);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+      throw error;
+    }
+    if (!stat.isDirectory() || stat.isSymbolicLink()) {
+      throw new Error(`target parent is not a real workspace directory: ${cursor}`);
+    }
+  }
+}
+
+async function readRealBackup(target: string): Promise<RealFileBackup> {
+  let stat;
+  try {
+    stat = await fs.lstat(target);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { exists: false };
+    throw error;
+  }
+  if (!stat.isFile()) {
+    throw new Error(`real target is not a regular file: ${target}`);
+  }
+  if (stat.nlink !== 1) {
+    throw new Error(`real target has ${stat.nlink} hard links and cannot be promoted safely: ${target}`);
+  }
+  return {
+    exists: true,
+    content: await fs.readFile(target),
+    mode: stat.mode & 0o777,
+  };
+}
+
+function backupMatchesReplicaBefore(
+  backup: RealFileBackup,
+  before: ReplicaPathState | undefined,
+): boolean {
+  if (before === undefined) return !backup.exists;
+  return (
+    before.kind === "file" &&
+    backup.exists &&
+    backup.content !== undefined &&
+    digest(backup.content) === before.digest &&
+    backup.mode === before.mode
+  );
+}
+
+async function restoreRealTargets(
+  realRoot: string,
+  backups: Map<string, RealFileBackup>,
+  faults?: CodexPromotionFaults,
+): Promise<string[]> {
+  const failures: string[] = [];
+  for (const [relPath, backup] of [...backups.entries()].reverse()) {
+    try {
+      await faults?.beforeRestore?.(relPath);
+      const target = path.resolve(realRoot, relPath);
+      if (!backup.exists) {
+        await fs.rm(target, { force: true });
+        continue;
+      }
+      await fs.mkdir(path.dirname(target), { recursive: true });
+      await fs.writeFile(target, backup.content!);
+      await fs.chmod(target, backup.mode!);
+    } catch (error) {
+      failures.push(`${relPath}: ${(error as Error).message}`);
+    }
+  }
+  return failures;
+}
+
+/**
+ * Stage every admitted replica result before touching the real workspace, then apply only that
+ * observed subset. A preflight or verification failure leaves (or restores) every real target.
+ */
+async function promoteReplicaChanges(args: {
+  replicaRoot: string;
+  realRoot: string;
+  changes: ReplicaChange[];
+  faults?: CodexPromotionFaults;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const staged: StagedReplicaChange[] = [];
+  const backups = new Map<string, RealFileBackup>();
+  try {
+    for (const change of args.changes) {
+      const replicaTarget = path.resolve(args.replicaRoot, change.relPath);
+      const realTarget = path.resolve(args.realRoot, change.relPath);
+      if (!insideRoot(args.replicaRoot, replicaTarget) || !insideRoot(args.realRoot, realTarget)) {
+        throw new Error(`target escapes its workspace: ${change.relPath}`);
+      }
+      await assertNoSymlinkParents(args.replicaRoot, replicaTarget);
+      await assertNoSymlinkParents(args.realRoot, realTarget);
+      if (change.before !== undefined && change.before.kind !== "file") {
+        throw new Error(`replica target was not a regular file before the run: ${change.relPath}`);
+      }
+      const backup = await readRealBackup(realTarget);
+      if (!backupMatchesReplicaBefore(backup, change.before)) {
+        throw new Error(`real target changed while Codex authored its replica: ${change.relPath}`);
+      }
+      backups.set(change.relPath, backup);
+      if (change.after === undefined) {
+        staged.push({ relPath: change.relPath });
+        continue;
+      }
+      if (change.after.kind !== "file") {
+        throw new Error(`replica target is not a regular file: ${change.relPath}`);
+      }
+      const content = await fs.readFile(replicaTarget);
+      if (digest(content) !== change.after.digest) {
+        throw new Error(`replica target changed while promotion was staged: ${change.relPath}`);
+      }
+      staged.push({ relPath: change.relPath, content, mode: change.after.mode });
+    }
+  } catch (error) {
+    return { ok: false, error: (error as Error).message };
+  }
+
+  try {
+    let appliedCount = 0;
+    for (const change of staged) {
+      const target = path.resolve(args.realRoot, change.relPath);
+      const current = await readRealBackup(target);
+      const expected = backups.get(change.relPath)!;
+      if (
+        current.exists !== expected.exists ||
+        (current.exists &&
+          (current.content === undefined ||
+            expected.content === undefined ||
+            digest(current.content) !== digest(expected.content) ||
+            current.mode !== expected.mode))
+      ) {
+        throw new Error(`real target changed before promotion applied: ${change.relPath}`);
+      }
+      if (change.content === undefined) {
+        await fs.rm(target, { force: true });
+      } else {
+        await fs.mkdir(path.dirname(target), { recursive: true });
+        await fs.writeFile(target, change.content);
+        await fs.chmod(target, change.mode!);
+      }
+      appliedCount += 1;
+      await args.faults?.afterApply?.(change.relPath, appliedCount);
+    }
+    for (const change of staged) {
+      const target = path.resolve(args.realRoot, change.relPath);
+      const actual = await readRealBackup(target);
+      if (change.content === undefined) {
+        if (actual.exists) throw new Error(`deleted target still exists: ${change.relPath}`);
+      } else if (
+        !actual.exists ||
+        actual.content === undefined ||
+        (digest(actual.content) !== digest(change.content) || actual.mode !== change.mode)
+      ) {
+        throw new Error(`promoted target does not match the replica: ${change.relPath}`);
+      }
+    }
+    return { ok: true };
+  } catch (error) {
+    const restoreFailures = await restoreRealTargets(args.realRoot, backups, args.faults);
+    return {
+      ok: false,
+      error:
+        (error as Error).message +
+        (restoreFailures.length === 0
+          ? "; all staged targets were restored"
+          : `; rollback incomplete after attempting every target: ${restoreFailures.join("; ")}`),
+    };
   }
 }
 
@@ -465,6 +857,9 @@ export class CodexPhaseAuthor implements PhaseAuthor {
   }
 
   async author(phase: AuthoringPhase, prompt: string): Promise<AuthorResult> {
+    if (this.#args.promotionFaults !== undefined && !this.#injectedRunner) {
+      return { ok: false, error: "Codex promotion fault injection requires an injected runner" };
+    }
     if (
       !this.#injectedRunner &&
       (this.#args.phasePrompts === undefined ||
@@ -482,20 +877,16 @@ export class CodexPhaseAuthor implements PhaseAuthor {
     if (!Array.isArray(phaseGlobs) || !validPhaseGlobs(phaseGlobs)) {
       return { ok: false, error: `Codex ${phase} write globs are malformed` };
     }
-    const permissionPaths = this.#args.permissionPaths?.[phase];
-    if (!this.#injectedRunner && permissionPaths === undefined) {
+    const declaredManifest = this.#args.promotionManifests?.[phase];
+    if (!this.#injectedRunner && declaredManifest === undefined) {
       return {
         ok: false,
-        error: `Codex live author requires exact injected ${phase} permission paths`,
+        error: `Codex live author requires an exact ${phase} promotion manifest`,
       };
     }
-    if (
-      permissionPaths !== undefined &&
-      (permissionPaths.length !== 1 ||
-        !validPhaseGlobs(permissionPaths) ||
-        permissionPaths.some((entry) => entry.includes("*") || entry.includes("?")))
-    ) {
-      return { ok: false, error: `Codex ${phase} permission paths are malformed` };
+    const manifest = validatePromotionManifest(declaredManifest);
+    if (declaredManifest !== undefined && !manifest.ok) {
+      return { ok: false, error: `Codex ${phase} promotion manifest is malformed` };
     }
 
     const childEnv = scrubMeteredCodexAuth(this.#args.env ?? process.env);
@@ -517,17 +908,33 @@ export class CodexPhaseAuthor implements PhaseAuthor {
       };
     }
 
-    let replicaDir: string | undefined;
+    let replica: DisposableReplica | undefined;
+    let beforeSnapshot: Map<string, ReplicaPathState> | undefined;
     try {
-      replicaDir = await prepareDisposableReplica(this.#args.cwd, this.#injectedRunner);
+      replica = await prepareDisposableReplica(this.#args.cwd, this.#injectedRunner);
     } catch (error) {
-      if (replicaDir !== undefined) {
-        await fs.rm(replicaDir, { recursive: true, force: true }).catch(() => undefined);
+      if (replica !== undefined) {
+        await fs.rm(replica.dir, { recursive: true, force: true }).catch(() => undefined);
       }
       return { ok: false, error: `Codex phase setup failed: ${(error as Error).message}` };
     }
-    const reportPath = path.join(replicaDir, ".storytree-codex-hook-report.jsonl");
-    const targetRel = permissionPaths?.[0] ?? phaseGlobs[0]!;
+    const replicaDir = replica.dir;
+    const reportPath = path.join(replicaDir, HOOK_REPORT_REL);
+    try {
+      // Plant the spine-owned report before the baseline. An unchanged empty report disappears
+      // from the observed delta; a model or hook write to it is visible and therefore refuses.
+      await fs.writeFile(reportPath, "");
+      if (replica.seeded) beforeSnapshot = await snapshotReplica(replicaDir);
+    } catch (error) {
+      await fs.rm(replicaDir, { recursive: true, force: true }).catch(() => undefined);
+      return { ok: false, error: `Codex phase setup failed: ${(error as Error).message}` };
+    }
+    const allowedPromptTargets = manifest.ok
+      ? [...manifest.allowed.values()]
+      : [phaseGlobs[0]!];
+    const requiredPromptTargets = manifest.ok
+      ? [...manifest.required.values()]
+      : [phaseGlobs[0]!];
     const hookPath = fileURLToPath(new URL("./codex-scope-hook.mjs", import.meta.url));
     const policy = Buffer.from(
       JSON.stringify({
@@ -538,14 +945,18 @@ export class CodexPhaseAuthor implements PhaseAuthor {
       "utf8",
     ).toString("base64url");
     const model = this.#args.model ?? DEFAULT_CODEX_MODEL;
-    const agentBody =
-      this.#args.phasePrompts?.[phase] ?? genericPhasePrompt(phase);
+    const agentBody = this.#args.phasePrompts?.[phase] ?? genericPhasePrompt(phase);
+    const renderTargets = (targets: string[]): string =>
+      targets.map((target) => `- \`${target}\``).join("\n");
     const fullPrompt =
       `${agentBody.trim()}\n\n## Phase brief\n${prompt.trim()}\n\n` +
       "The spine will run all registered proof commands after you stop; their verdict is not yours.\n\n" +
-      `You are working in a disposable replica, not the real build workspace. Write the complete ` +
-      `replacement at \`${targetRel}\` in this replica. The spine will validate that exact file and ` +
-      "promote only it to the real phase target after you stop; every other replica change is discarded.";
+      "You are working in a disposable replica, not the real build workspace. The spine's exact " +
+      `allowed target set for this phase is:\n${renderTargets(allowedPromptTargets)}\n\n` +
+      `Required outputs:\n${renderTargets(requiredPromptTargets)}\n\n` +
+      "After you stop, the spine will observe the complete replica diff and promote only the " +
+      "observed allowed subset. One unlisted change refuses the whole phase; your final response " +
+      "and file-change report are not promotion evidence.";
 
     let execution: CodexCommandResult;
     try {
@@ -569,32 +980,65 @@ export class CodexPhaseAuthor implements PhaseAuthor {
     }
 
     try {
+      const violationStart = this.violations.length;
       const report = await fs.readFile(reportPath, "utf8").catch(() => "");
       this.violations.push(...readViolationLines(report, phase));
       const parsed = parseCodexJsonl(execution.stdout);
-      let targetReported = false;
-      for (const changedPath of parsed.changedPaths) {
-        const absolute = path.resolve(replicaDir, changedPath);
-        const rel = path.relative(replicaDir, absolute).replaceAll("\\", "/");
-        const inside = rel !== ".." && !rel.startsWith("../") && !path.isAbsolute(rel);
-        const allowed = inside && this.#args.isWriteAllowed(phase, rel);
-        if (rel === targetRel) targetReported = true;
-        if (!allowed || (!this.#injectedRunner && rel !== targetRel)) {
+      let afterSnapshot: Map<string, ReplicaPathState> | undefined;
+      let changes: ReplicaChange[] = [];
+      let observedPaths: string[];
+      if (replica.seeded) {
+        try {
+          afterSnapshot = await snapshotReplica(replicaDir);
+        } catch (error) {
+          return { ok: false, error: `Codex replica observation failed: ${(error as Error).message}` };
+        }
+        changes = observedReplicaChanges(beforeSnapshot!, afterSnapshot);
+        observedPaths = changes.map((change) => change.relPath);
+      } else {
+        // A runner-injected test may use a deliberately synthetic cwd. Keep that process seam useful,
+        // but never confuse its reported paths with the filesystem evidence required in production.
+        observedPaths = [];
+        for (const reportedPath of parsed.changedPaths) {
+          const absolute = path.resolve(replicaDir, reportedPath);
+          if (!insideRoot(replicaDir, absolute)) {
+            this.violations.push({
+              phase,
+              tool: "file_change",
+              path: reportedPath,
+              reason: `Codex reported a path outside its disposable replica: ${reportedPath}`,
+            });
+            continue;
+          }
+          observedPaths.push(path.relative(replicaDir, absolute).replaceAll("\\", "/"));
+        }
+        observedPaths = [...new Set(observedPaths)].sort();
+      }
+
+      const refusedPaths: string[] = [];
+      for (const observedPath of observedPaths) {
+        const listed = manifest.ok && manifest.allowed.has(targetKey(observedPath));
+        const phaseAllowed = this.#args.isWriteAllowed(phase, observedPath);
+        if ((manifest.ok && !listed) || !phaseAllowed) {
+          refusedPaths.push(observedPath);
           this.violations.push({
             phase,
             tool: "file_change",
-            path: changedPath,
-            reason: `Codex reported a replica write refused by the injected ${phase} target`,
+            path: observedPath,
+            reason:
+              `observed replica path '${observedPath}' is ` +
+              (!listed ? "not in the spine-authored promotion manifest" : `refused by the ${phase} predicate`),
           });
         }
       }
+      const phaseViolations = this.violations.slice(violationStart);
       const run: CodexRunInfo = {
         source: "codex-leaf",
         phase,
         subtype:
           execution.code === 0 &&
           parsed.completed &&
-          this.violations.every((violation) => violation.phase !== phase)
+          phaseViolations.length === 0
             ? "success"
             : "error",
         turns: 1,
@@ -605,69 +1049,65 @@ export class CodexPhaseAuthor implements PhaseAuthor {
           : { reasoningOutputTokens: parsed.reasoningOutputTokens }),
         ...(parsed.reasoning.length === 0 ? {} : { reasoning: parsed.reasoning }),
         ...(parsed.messages.length === 0 ? {} : { messages: parsed.messages }),
-        changedPaths: parsed.changedPaths,
+        changedPaths: observedPaths,
       };
       this.runs.push(run);
+      const failRun = (error: string): AuthorResult => {
+        run.subtype = "error";
+        return { ok: false, error };
+      };
 
-      if (this.violations.some((violation) => violation.phase === phase)) {
-        return {
-          ok: false,
-          error: `Codex phase scope was violated: ${
-            this.violations.find((violation) => violation.phase === phase)?.reason ?? "write refused"
-          }`,
-        };
+      if (phaseViolations.length > 0) {
+        return failRun(
+          refusedPaths.length > 0
+            ? `Codex phase promotion refused in full; observed unlisted or out-of-scope paths: ${refusedPaths.join(", ")}`
+            : `Codex phase scope was violated: ${phaseViolations[0]?.reason ?? "write refused"}`,
+        );
       }
       if (execution.code !== 0) {
         const detail = execution.stderr.trim() || parsed.error || `exit ${execution.code ?? "none"}`;
-        return { ok: false, error: `Codex exec failed: ${detail}` };
+        return failRun(`Codex exec failed: ${detail}`);
       }
       if (!parsed.completed) {
-        return { ok: false, error: parsed.error ?? "Codex exec produced no completed turn" };
+        return failRun(parsed.error ?? "Codex exec produced no completed turn");
       }
-      if (this.#injectedRunner) {
-        if (parsed.changedPaths.length === 0) {
-          run.subtype = "error";
-          return { ok: false, error: "Codex completed without reporting a file change" };
+      if (!replica.seeded) {
+        if (observedPaths.length === 0) {
+          return failRun("Codex completed without reporting a file change in the synthetic runner seam");
+        }
+        if (
+          manifest.ok &&
+          !observedPaths.some((observedPath) => manifest.required.has(targetKey(observedPath)))
+        ) {
+          return failRun("Codex completed without an observed required target change");
         }
         return { ok: true };
       }
-      if (!targetReported) {
-        run.subtype = "error";
-        const detail = parsed.messages.at(-1)?.trim();
-        return {
-          ok: false,
-          error:
-            `Codex completed without reporting the exact target change '${targetRel}'` +
-            (detail === undefined || detail.length === 0 ? "" : `: ${detail}`),
-        };
+      if (!manifest.ok) {
+        return failRun(`Codex ${phase} promotion requires an exact finite manifest`);
       }
-      let authored: Buffer;
-      try {
-        authored = await fs.readFile(path.resolve(replicaDir, targetRel));
-      } catch {
-        run.subtype = "error";
-        const detail = parsed.messages.at(-1)?.trim();
-        return {
-          ok: false,
-          error:
-            "Codex completed without producing its exact replica target" +
-            (detail === undefined || detail.length === 0 ? "" : `: ${detail}`),
-        };
+      const missingRequired = [...manifest.required.values()].filter(
+        (requiredPath) =>
+          afterSnapshot === undefined || snapshotState(afterSnapshot, requiredPath)?.kind !== "file",
+      );
+      if (missingRequired.length > 0) {
+        return failRun(
+          `Codex required target is missing or not a regular file after the run: ${missingRequired.join(", ")}`,
+        );
       }
-      if (!this.#args.isWriteAllowed(phase, targetRel)) {
-        run.subtype = "error";
-        return {
-          ok: false,
-          error: `Codex staged target was refused by the injected ${phase} predicate`,
-        };
+      if (!observedPaths.some((observedPath) => manifest.required.has(targetKey(observedPath)))) {
+        return failRun("Codex completed without an observed required target change");
       }
-      try {
-        const target = path.resolve(this.#args.cwd, targetRel);
-        await fs.mkdir(path.dirname(target), { recursive: true });
-        await fs.writeFile(target, authored);
-      } catch (error) {
-        run.subtype = "error";
-        return { ok: false, error: `Codex replica promotion failed: ${(error as Error).message}` };
+      const promoted = await promoteReplicaChanges({
+        replicaRoot: replicaDir,
+        realRoot: this.#args.cwd,
+        changes,
+        ...(this.#args.promotionFaults === undefined
+          ? {}
+          : { faults: this.#args.promotionFaults }),
+      });
+      if (!promoted.ok) {
+        return failRun(`Codex replica promotion failed: ${promoted.error}`);
       }
       return { ok: true };
     } finally {

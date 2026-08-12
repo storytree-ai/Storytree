@@ -6139,6 +6139,16 @@ button.legend-tile:hover {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+/* The same fold, applied to a WAITING question's stakes (ADR-0359). Shorter than the intent's seven
+   lines on purpose: several questions can share this block, and the stakes is a hook into the
+   artifact rather than the briefing itself — the whole briefing is one click away on the title. */
+.arc-briefing-clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 .arc-question-list,
 .arc-increment-list {
   list-style: none;
@@ -6169,6 +6179,58 @@ button.legend-tile:hover {
 }
 .arc-increment-title {
   color: var(--lp-ink);
+}
+/* ── ADR-0359: the panel is a review queue ─────────────────────────────────────────────────────
+   D2's second waiting group. Proposals sit UNDER the questions and read as a distinct, quieter
+   band — a question is answerable right now, a proposal is a read-then-direct. */
+.arc-briefing-subhead {
+  margin: 10px 0 4px;
+  font-size: 0.68em;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lp-ink-soft);
+}
+.arc-proposal-list .arc-increment {
+  border-left: 3px solid var(--lp-ink-soft);
+  background: var(--lp-panel);
+  border-radius: 0 4px 4px 0;
+  margin-bottom: 5px;
+  padding: 5px 9px;
+}
+/* The explicit review action: the row's title was always a link, but nothing SAID a queued
+   increment could be opened. Reads as an action without becoming a button — it is a deep link, and
+   the panel stays read-only (ADR-0314 D9). */
+.arc-increment-review {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 0.92em;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--lp-clay);
+}
+/* D1's fold. `DetailDisclosure` is shared with the story detail panel, which lives on the global
+   token set; inside the drawer the paper palette is what is in scope, so the summary is re-tinted
+   here rather than the component being forked. The summary carries a DATE, so the shared
+   uppercase-label treatment is dropped — `2026-08-05 #1186` is worse in caps. */
+.arc-landed-disclosure {
+  border-top: none;
+}
+.arc-landed-disclosure > .tree-detail-section-summary {
+  min-height: 0;
+  padding: 3px 4px 3px 18px;
+  color: var(--lp-ink-soft);
+  font-size: 0.85em;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.arc-landed-disclosure > .tree-detail-section-summary:hover {
+  color: var(--lp-ink);
+  background: transparent;
+}
+.arc-landed-disclosure > .tree-detail-section-body {
+  padding: 2px 0 0;
 }
 .arc-briefing-blocked-note {
   margin-top: 8px;
