@@ -179,6 +179,66 @@ old green onto a new claim — which is why the five revisions below were recomp
 The note under the ADR-0294 disposition table deferring this re-adjudication to chip `task_47c74cb0`
 is **discharged here**, by the increment ADR-0348 created for it.
 
+### ⚠ WHAT THE FIRST DRIVE FOUND — this story's journey does NOT run end to end (2026-08-12)
+
+**The flip is what made this visible, and the reds below are TRUE. Do not "fix" them by re-authoring
+the criteria to match what shipped** — that is precisely the move ADR-0294 exists to prevent, and the
+criteria are the older, owner-approved claim.
+
+Driving the five legs for real against the running studio (live Cloud SQL, real Chromium under
+Playwright, and for leg 4 a real member identity resolved `role=member` against the live
+`studio-members` directory) returned **1 pass and 4 fails**. Every failure has the SAME single root
+cause, and it is larger than "three criteria went stale":
+
+> **`AssetView.tsx` mounts only `ReviewToggle` + `ReviewEditor`, and `ReviewEditor` never reads the
+> comment or suggestion store at all.** It contains no call to `api.createSuggestion`,
+> `api.decideSuggestion` or `api.reviewFeed`, no poll, no interval. It renders only CriticMarkup
+> literally embedded in the document's own markdown source. Every component that talks to this story's
+> backend — `InlineCommentThread.tsx`, `SuggestionView.tsx`, `ReviewBlocks.tsx` — is imported by
+> nothing but its own `*.test.tsx`.
+
+So the collaboration layer this story exists to build **has no live surface.** Leg by leg:
+
+- **Leg 1 passes.** View → Review enters the split-pane editor; the commenting + suggesting
+  affordances appear; View was read-only. (The toggle reads "View | Edit" rather than "View | Review"
+  — an owner-directed relabel under ADR-0146, not a defect; the underlying mode value is unchanged.)
+- **Leg 2 fails.** What renders is an inline CriticMarkup chip (a `💬` glyph + text) between two block
+  elements — no author, no timestamp, no reply affordance, no thread container. The criterion asks for
+  a thread *like a code-review thread*. The "not a side panel" half DOES hold. Note what leg 8 later
+  established: that chip is markup typed into the document source, **not a stored comment** — so this
+  leg was never reaching the comment store either.
+- **Leg 4 fails.** The mounted editor offers only Save and Cancel — **no "submit as suggestion"
+  control exists anywhere in the live app.** Save on a structured artifact yields only a *"Kept
+  locally … per-change accept/reject persistence is the follow-on"* banner: nothing is written, no
+  `open` proposal is created, and there is therefore no proposed-result-by-default rendering and no
+  collapsed "show change" toggle to observe, because nothing was ever proposed.
+- **Leg 7 fails.** `POST /api/suggestions/decision` is real and reachable at the HTTP layer, but a full
+  button-text enumeration and full-page text search found **no "Accept" control anywhere** in Review
+  mode, and no request to `/api/review/feed` or `/api/suggestions` fired at any point. Leg 7's
+  precondition — an open suggestion — is unreachable through the shipped surface.
+- **Leg 8 fails outright, not merely slowly.** A second comment posted out of band via a real
+  `POST /api/comments` was correctly returned by `GET /api/review/feed` (cap 5's backend proof holds),
+  but the open surface never changed after 35 s — past the documented 30 s window — **and the comment
+  still did not render after a full manual reload.** The poll (`api.getReviewFeed` + `setInterval` on
+  `PRESENCE_POLL_MS`) exists only inside the unmounted components.
+
+**The consequence, stated plainly: this story's OUTCOME sentence is not achievable in the shipped
+app.** "A member … drops an inline comment at a block position, and proposes a collapsed suggestion
+the owner accepts" cannot be walked — no part of it round-trips through the store. The backend is real
+and proven at the DATA layer: `block-position-comment-anchor`, `suggestion-edit-store`,
+`accept-reject-suggestion-api`, `member-suggest-write-policy` and `review-refresh-feed` each hold a
+genuine signed `--real` verdict, recorded in `## Proof` below. **Nine capabilities signed green at the
+capability rung while the story-rung journey did not exist end to end, and no gate anywhere said so.**
+That is exactly what ADR-0294 says story UAT is FOR: *a flower on the map means a journey ran end to
+end — a claim no grass blade makes.*
+
+**This is a measurement, not a re-decision.** Open modeling call 4 below already knew the caps-7/8
+components were superseded — but it treated that as dead CODE to retire, and never noticed it had also
+made three acceptance CLAIMS unreachable. Nothing here settles whether the remedy is to wire the
+suggestion flow into `ReviewEditor` (which its own follow-on note implies was always the intent) or to
+re-adjudicate what ADR-0146 meant to promise. That fork is owner/story-author work and is raised as an
+open question against `uat-journey-surgery-arc` rather than answered here.
+
 ### ADR-0294 disposition of the nine original criteria
 
 **Four of nine deleted (2026-08-08) — every `witness: machine` leg, all as D2 duplicates.** The five
