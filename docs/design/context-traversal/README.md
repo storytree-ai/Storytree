@@ -26,12 +26,26 @@ does cross 500k should show the red on the bar and drop the legend example.
 
 This is **not a dashboard**.
 
+> **PLACEMENT SUPERSEDED 2026-08-12 by [ADR-0354](../../decisions/0354-the-context-traversal-replay-lives-in-a-bottom-panel-tab-bes.md)
+> — owner-directed.** Steps 1–3 below, and acceptance clause 1, no longer describe where the replay
+> lives: it moves to a **tab in the bottom panel beside the terminal** (which stays), and the session
+> list becomes this machine's **whole local trace index, newest first**, with the claim-join withdrawn.
+> Measured cause: 339 local traces, exactly one reachable through the claim-gated panel. The width
+> premise goes with it — the picture RE-FLOWS to the bottom panel, so `PANEL_MIN=360` is no longer the
+> constraint that shapes the grammar.
+>
+> **This file remains normative for the GRAMMAR, and is no longer authoritative for LAYOUT.** Everything
+> under "Visual grammar" below still binds exactly as signed — one playhead bar, red only past 500k with
+> no marker, plain marks, solid/dotted read edges, the search glyph, branching by animation, explicit-only
+> forks with a raw `M of N`. A new composition reference at width is OWED and the owner LOOKs at it before
+> build (ADR-0354 D4); until it exists, `session-traversal-playback.html` is the grammar reference only.
+
 The traversal opens from the existing forest:
 
-1. The owner selects a story-node island.
-2. The story's narrow right-hand details panel shows a dropdown of active sessions that claimed it.
-3. Selecting a session renders the traversal playback in that panel.
-4. A footprint can be selected or double-clicked to drill into detail; the overview remains primarily pictorial.
+1. The owner selects a story-node island. *(superseded — ADR-0354 D1)*
+2. The story's narrow right-hand details panel shows a dropdown of active sessions that claimed it. *(superseded — ADR-0354 D1/D2)*
+3. Selecting a session renders the traversal playback in that panel. *(superseded — ADR-0354 D1)*
+4. A footprint can be selected or double-clicked to drill into detail; the overview remains primarily pictorial. *(stands)*
 
 The chronological traversal is the dominant picture. It is an **animation that is played and replayed** —
 that is the primary way the shape is read, not a static diagram that happens to move.
@@ -107,7 +121,12 @@ field.
 
 A visual implementation is conformant only when:
 
-- it is reached through story island → claimed session → narrow details panel;
+- ~~it is reached through story island → claimed session → narrow details panel~~ — **SUPERSEDED by
+  [ADR-0354](../../decisions/0354-the-context-traversal-replay-lives-in-a-bottom-panel-tab-bes.md) D1/D2.**
+  Replace with: it is reached through a **tab in the bottom panel beside the terminal**, whose session
+  list is this machine's whole local trace index newest-first — no claim, no story selection, and
+  nothing caught in flight; a session with no readable local trace is still offered-and-explained
+  rather than dropped, and a machine that captured none still answers an honest empty list;
 - the traversal, not the bar or any metric, dominates the first glance;
 - the bar reads occupancy at the playhead and turns red only for the portion past 500k, with no marker;
 - no per-node gauge and no drawn revisit loop-back appears;
