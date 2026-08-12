@@ -28,7 +28,8 @@ criteria" estimate was also measured wrong: a leg-by-leg read of every story-tie
 tag undercounts, because a leg carrying a detail pointer fuses the tag as
 `_(witness: human)(detail: …)_`). Of those, 21 are user-EXPERIENCE properties that ADR-0348 D6
 deletes outright as not being acceptance criteria at all, 17 are reclassified `machine` once
-ADR-0348 D5's executor exists, and **4** are genuine owner value calls that remain.
+ADR-0348 D5's executor exists — **it landed 2026-08-12**, so that condition is met and the flip is
+the work that remains — and **4** are genuine owner value calls that remain.
 Decisions 1–4 and 6 are untouched and stay accepted as written.
 
 ## Context
@@ -77,6 +78,15 @@ Where a criterion is a journey through a real surface, the honest witness is a r
 journey. A model driving headlessly or through a browser is such a run, and its reported outcome is
 admissible as the verdict. The `machine` witness kind covers this: a model driver reaching an outcome
 is a machine witness in the same way the Playwright suite is.
+
+*(**Executor, landed 2026-08-12** — this decision was accepted-but-unbuilt for nine days, which
+ADR-0348's Context found and D5 ordered. It is now `packages/drive/src/uat-drive.ts` + `.run.ts` +
+`uat-drive-witness.check.ts`, the gate-7 two-file pattern. Read "its reported outcome is admissible
+as the verdict" precisely against what was built: the driver's report is persisted as an ARTIFACT in
+`events.uat_drive` and is never itself a verdict row. The verdict is still minted by `observeAndSign`
+over an exit code the SPINE watched — the witness check's — so decision 2's "no rubric judge, no new
+witness kind" and the standing wall that no model signs its own proof both hold with the signing path
+unchanged.)*
 
 **2. This revives no ADR-0209 machinery.** There is no `model` witness *kind*, no `advanced`/`frontier`
 capability tier, no eligibility registry, no independent read-only judge separate from the run, and no
@@ -166,3 +176,6 @@ is a prediction; they are the conditions under which the evidence would have cha
   unchanged by this decision.
 - `asset:human-witness-is-a-judgment-gap-not-cost` — the labelling rule, now narrowed by decision 5.
 - `apps/studio/playwright.config.ts` — the existing driver, including `trace: 'retain-on-failure'`.
+- `packages/drive/src/uat-drive.ts` / `uat-drive.run.ts` / `uat-drive-witness.check.ts` — D1's
+  executor, landed 2026-08-12 to the shape ADR-0348 D5 mandates. Its per-step log is decision 4's
+  "available, not required" retention taken at its cheapest.

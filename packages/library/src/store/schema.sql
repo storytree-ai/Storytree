@@ -167,6 +167,30 @@ CREATE TABLE IF NOT EXISTS events.attestation (
   at         TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Model-driven UAT DRIVE records (ADR-0295 D1 / ADR-0348 D5): one append-only row per deliberate,
+-- out-of-band run in which a model DROVE a story's UAT journey end to end (uat-drive.run.ts). This is
+-- the persisted ARTIFACT the cheap standing witness (uat-drive-witness.check.ts) observes — it is
+-- emphatically NOT a verdict and must never be read as one: no model signs its own proof (ADR-0295
+-- D2). The verdict is still minted by observeAndSign over an exit code the SPINE watched, exactly as
+-- for every other observe gate, which is why this stream lives here and not in events.verdict.
+-- Deliberately its own table for the same reason events.verdict is (a drive report co-mingled with
+-- signed proof is the conflation the whole design exists to avoid). `revision_id` is load-bearing:
+-- it binds the record to the EXACT criterion content that was driven (ADR-0253), so re-authoring the
+-- journey prose invalidates every prior drive rather than silently carrying its green forward. A
+-- `fail` row is recorded too — a journey that did not complete is evidence, not an absence.
+CREATE TABLE IF NOT EXISTS events.uat_drive (
+  seq          BIGSERIAL PRIMARY KEY,
+  story_id     TEXT NOT NULL,
+  criterion_id TEXT NOT NULL,
+  revision_id  TEXT NOT NULL,
+  outcome      TEXT NOT NULL,         -- pass|fail
+  commit_sha   TEXT NOT NULL,
+  run_id       TEXT NOT NULL,
+  driver       TEXT NOT NULL,         -- the runtime that drove the journey (e.g. claude-code)
+  doc          JSONB NOT NULL,        -- the full UatDriveRecord (per-step log + summary inside)
+  at           TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- Binding-staleness change log (ADR-0016 §2, the `change` event the ADR adds to the vocabulary):
 -- one append-only row per described/undescribed change to a proof unit's bound code, the Postgres
 -- home for the `ChangeStore` seam (@storytree/core). The full signed-shape ADR-0016 `ChangeEvent`
@@ -317,6 +341,7 @@ CREATE INDEX IF NOT EXISTS verdict_unit_idx ON events.verdict (unit_id);
 CREATE INDEX IF NOT EXISTS usage_event_unit_idx ON events.usage_event (unit_id);
 CREATE INDEX IF NOT EXISTS user_event_id_idx ON events.user_event (id);
 CREATE INDEX IF NOT EXISTS attestation_test_idx ON events.attestation (test_id);
+CREATE INDEX IF NOT EXISTS uat_drive_criterion_idx ON events.uat_drive (criterion_id);
 CREATE INDEX IF NOT EXISTS change_event_unit_idx ON events.change_event (unit_id);
 
 -- RETIREMENT (ADR-0200 D7): the self-reported session-presence tables (ADR-0033's
