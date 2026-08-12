@@ -94,6 +94,9 @@ class FixtureStore {
   async upsertDoc(): Promise<never> {
     throw new Error("floor-health-mirror-probe: the route is report-only — it must not upsertDoc");
   }
+  async patchDoc(): Promise<never> {
+    throw new Error("floor-health-mirror-probe: the route is report-only — it must not patchDoc");
+  }
   async getDoc(): Promise<never> {
     throw new Error("floor-health-mirror-probe: the route must not getDoc");
   }

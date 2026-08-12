@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { storeParitySuite } from "@storytree/storage-protocol/parity";
+import { localStoreParitySuite, storeParitySuite } from "@storytree/storage-protocol/parity";
 import type { Store } from "@storytree/storage-protocol";
 import { validateLibraryDoc } from "../library-doc.js";
 import { FIXTURE_CORPUS_UNITS } from "../fixture/index.js";
@@ -66,6 +66,32 @@ test("validateLibraryDoc rejects garbage", () => {
   assert.throws(() => validateLibraryDoc({ kind: "not-a-kind", id: "x" }));
 });
 
+// ---- Offline: the projection row's kind, as the doc declares it (ADR-0352) -------------------
+
+/*
+ * `patchDoc` keeps the row's kind unless the merged doc says otherwise, and `kindOfDoc` is the rule
+ * that reads it. Driven directly rather than through a fake: it is the real implementation the
+ * production write path calls, and its three branches are the whole of its behaviour.
+ */
+test("kindOfDoc: reads `kind` for a structured doc and `category` for a rendered asset", async () => {
+  const { kindOfDoc } = await import("./pg-store.js");
+  assert.equal(kindOfDoc({ kind: "principle", id: "p" }), "principle");
+  assert.equal(kindOfDoc({ category: "template", id: "t" }), "template");
+  // `kind` wins when a doc somehow carries both — the structured field is the declared one.
+  assert.equal(kindOfDoc({ kind: "arc", category: "template", id: "a" }), "arc");
+});
+
+test("kindOfDoc: a doc declaring neither yields undefined, so a patch KEEPS the row's kind", async () => {
+  const { kindOfDoc } = await import("./pg-store.js");
+  assert.equal(kindOfDoc({ id: "no-kind" }), undefined);
+  // Non-objects can never declare a kind, and must not throw on the write path.
+  assert.equal(kindOfDoc(null), undefined);
+  assert.equal(kindOfDoc("a string"), undefined);
+  assert.equal(kindOfDoc(42), undefined);
+  // A non-string kind is not a kind — falling through is what keeps the row's existing one.
+  assert.equal(kindOfDoc({ kind: 7 }), undefined);
+});
+
 // ---- Offline: modules import without throwing ----------------------------------------------
 
 test("connection + store modules import without throwing", async () => {
@@ -105,6 +131,9 @@ async function makePgStore(): Promise<Store> {
 
 if (LIVE) {
   storeParitySuite("PgLibraryStore", makePgStore);
+  // Plus the in-process-only contracts: `patchDoc`'s validate() hook is a closure, so it is held
+  // here (and against InMemoryStore) but never against HttpStore (ADR-0352).
+  localStoreParitySuite("PgLibraryStore", makePgStore);
 } else {
   test("PgLibraryStore parity suite (skipped: set STORYTREE_DB_LIVE=1 to run)", { skip: true }, () => {
     // The live DB is stopped by default; the in-memory parity suite in @storytree/core proves the

@@ -1,6 +1,6 @@
 import type { Pool, PoolClient } from "pg";
-import type { DeleteDocOpts, Store, StoredDoc, StoreEvent } from "@storytree/storage-protocol";
-import { retiredEventDoc } from "@storytree/storage-protocol";
+import type { DeleteDocOpts, PatchDocInput, Store, StoredDoc, StoreEvent } from "@storytree/storage-protocol";
+import { mergeFields, retiredEventDoc } from "@storytree/storage-protocol";
 import { upcastAndValidate } from "../library-doc.js";
 
 /**
@@ -18,6 +18,19 @@ import { upcastAndValidate } from "../library-doc.js";
  */
 
 const DEFAULT_ACTOR = "system";
+
+/**
+ * The projection row's `kind` as the doc itself declares it: structured kinds carry `kind`, a
+ * rendered LibraryAsset carries `category`. `undefined` when the doc declares neither, in which case
+ * a patch keeps the kind the row already had — a field-scoped write is not a re-kinding.
+ */
+export function kindOfDoc(doc: unknown): string | undefined {
+  if (typeof doc !== "object" || doc === null) return undefined;
+  const r = doc as Record<string, unknown>;
+  if (typeof r["kind"] === "string") return r["kind"];
+  if (typeof r["category"] === "string") return r["category"];
+  return undefined;
+}
 
 /** Row shape of the `events.library_artifact` projection. */
 interface ArtifactRow {
@@ -117,6 +130,73 @@ export class PgLibraryStore implements Store {
       const row = projected.rows[0];
       if (!row) throw new Error("upsertDoc: projection row missing after upsert");
       return toStoredDoc(row);
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Field-scoped write (ADR-0352) — the fix for the measured lost update.
+   *
+   * `upsertDoc` persists a doc its caller read some time earlier, so every change landed in between
+   * is silently reverted; measured on `session-orchestrator`, that reverted 7,058 characters of a
+   * sibling session's guidance, and both writers reported success. Here the read happens INSIDE the
+   * transaction under `FOR UPDATE`, so a concurrent patcher blocks on the row lock and then merges
+   * onto the result of the write it waited for — never onto a stale snapshot.
+   *
+   * The write boundary is unchanged: the merged doc goes through {@link upcastAndValidate} exactly
+   * as `upsertDoc`'s does, and the UPCAST OUTPUT is what is persisted. A caller-supplied `validate`
+   * runs first (the CLI passes its own so it can render a friendly refusal), but it cannot REPLACE
+   * the boundary — a patch that skipped migrate-on-write would be a hole in it.
+   */
+  async patchDoc(input: PatchDocInput): Promise<StoredDoc | null> {
+    const actor = input.actor ?? DEFAULT_ACTOR;
+    const client: PoolClient = await this.#pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      // FOR UPDATE is the whole mechanism: it serializes concurrent patchers of THIS row. A second
+      // session's patch waits here and then reads what the first one committed.
+      const current = await client.query<ArtifactRow>(
+        "SELECT id, kind, doc, created_at, updated_at FROM events.library_artifact WHERE id = $1 FOR UPDATE",
+        [input.id],
+      );
+      const row = current.rows[0];
+      if (!row) {
+        // A patch never creates (parity: absent id -> null). Nothing was written, so this is a
+        // clean end to the transaction rather than an error.
+        await client.query("COMMIT");
+        return null;
+      }
+
+      const merged = mergeFields(row.doc, input.fields, input.id);
+      const validated = input.validate ? input.validate(merged) : merged;
+      const doc = upcastAndValidate(validated);
+      const docJson = JSON.stringify(doc);
+      const kind = input.kind ?? kindOfDoc(doc) ?? row.kind;
+
+      await client.query(
+        `INSERT INTO events.library_event (id, kind, type, doc, actor)
+         VALUES ($1, $2, 'updated', $3::jsonb, $4)`,
+        [input.id, kind, docJson, actor],
+      );
+
+      const projected = await client.query<ArtifactRow>(
+        `UPDATE events.library_artifact
+            SET kind = $2, doc = $3::jsonb, updated_at = now()
+          WHERE id = $1
+        RETURNING id, kind, doc, created_at, updated_at`,
+        [input.id, kind, docJson],
+      );
+
+      await client.query("COMMIT");
+
+      const saved = projected.rows[0];
+      if (!saved) throw new Error("patchDoc: projection row missing after update");
+      return toStoredDoc(saved);
     } catch (err) {
       await client.query("ROLLBACK");
       throw err;

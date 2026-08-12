@@ -58,12 +58,13 @@ export class StoreWireError extends Error {
   }
 }
 
-/** The six seam methods, as route names. */
+/** The seven seam methods, as route names. */
 export type StoreRouteName =
   | "getDoc"
   | "queryDocs"
   | "readEvents"
   | "upsertDoc"
+  | "patchDoc"
   | "deleteDoc"
   | "appendEvent";
 
@@ -79,6 +80,7 @@ export const STORE_ROUTES: { readonly [K in StoreRouteName]: StoreRoute } = {
   queryDocs: { method: "GET", path: "/query-docs" },
   readEvents: { method: "GET", path: "/read-events" },
   upsertDoc: { method: "POST", path: "/upsert-doc" },
+  patchDoc: { method: "POST", path: "/patch-doc" },
   deleteDoc: { method: "POST", path: "/delete-doc" },
   appendEvent: { method: "POST", path: "/append-event" },
 };
@@ -92,6 +94,18 @@ export interface UpsertDocRequest {
   kind: string;
   doc: unknown;
   actor?: string;
+}
+
+/**
+ * A field-scoped write (ADR-0352). Carries `fields`, NOT a whole doc — the merge happens at the
+ * far end, against current state. The seam's `validate` hook is deliberately absent: it is a
+ * closure and cannot be serialized, so `HttpStore.patchDoc` refuses one rather than dropping it.
+ */
+export interface PatchDocRequest {
+  id: string;
+  fields: Record<string, unknown>;
+  actor?: string;
+  kind?: string;
 }
 
 /** {@link DeleteDocOpts} plus the id it applies to (the seam passes the id as a separate argument). */
@@ -122,6 +136,10 @@ export interface ReadEventsResponse {
 }
 export interface UpsertDocResponse {
   doc: StoredDoc;
+}
+/** `null` when the id does not exist — a patch never creates (ADR-0352). */
+export interface PatchDocResponse {
+  doc: StoredDoc | null;
 }
 export interface DeleteDocResponse {
   deleted: boolean;
@@ -253,6 +271,14 @@ export function decodeUpsertDocResponse(value: unknown): UpsertDocResponse {
   return { doc: decodeStoredDoc(r["doc"], "UpsertDocResponse.doc") };
 }
 
+export function decodePatchDocResponse(value: unknown): PatchDocResponse {
+  const r = asRecord(value, "PatchDocResponse");
+  const doc = r["doc"];
+  // A patch of an absent id answers `null`, exactly as getDoc does — not a 404 (ADR-0352).
+  if (doc === null || doc === undefined) return { doc: null };
+  return { doc: decodeStoredDoc(doc, "PatchDocResponse.doc") };
+}
+
 export function decodeDeleteDocResponse(value: unknown): DeleteDocResponse {
   const r = asRecord(value, "DeleteDocResponse");
   return { deleted: asBoolean(r["deleted"], "DeleteDocResponse.deleted") };
@@ -285,6 +311,16 @@ export function decodeUpsertDocRequest(value: unknown): UpsertDocRequest {
     kind: asString(r["kind"], "UpsertDocRequest.kind"),
     doc: r["doc"],
     ...optional("actor", asOptionalString(r["actor"], "UpsertDocRequest.actor")),
+  };
+}
+
+export function decodePatchDocRequest(value: unknown): PatchDocRequest {
+  const r = asRecord(value, "PatchDocRequest");
+  return {
+    id: asString(r["id"], "PatchDocRequest.id"),
+    fields: asRecord(r["fields"], "PatchDocRequest.fields"),
+    ...optional("actor", asOptionalString(r["actor"], "PatchDocRequest.actor")),
+    ...optional("kind", asOptionalString(r["kind"], "PatchDocRequest.kind")),
   };
 }
 

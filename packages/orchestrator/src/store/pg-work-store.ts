@@ -289,6 +289,9 @@ export class PgWorkStore implements Store {
   async upsertDoc(): Promise<StoredDoc> {
     throw new Error(docSurfaceError("upsertDoc"));
   }
+  async patchDoc(): Promise<StoredDoc | null> {
+    throw new Error(docSurfaceError("patchDoc"));
+  }
   async getDoc(): Promise<StoredDoc | null> {
     throw new Error(docSurfaceError("getDoc"));
   }

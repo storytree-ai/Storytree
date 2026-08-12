@@ -177,6 +177,7 @@ async function buildStore(usePg: boolean): Promise<{
 function lazyStore(open: () => Promise<Store>): Store {
   return {
     upsertDoc: async (input) => (await open()).upsertDoc(input),
+    patchDoc: async (input) => (await open()).patchDoc(input),
     getDoc: async (id) => (await open()).getDoc(id),
     queryDocs: async (filter) => (await open()).queryDocs(filter),
     deleteDoc: async (id, opts) => (await open()).deleteDoc(id, opts),

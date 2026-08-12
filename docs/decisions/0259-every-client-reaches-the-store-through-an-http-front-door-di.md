@@ -42,8 +42,10 @@ shortest path when the CLI ran on one machine under the owner's own credentials,
 session appears to have "no database access" — the environment is fine with HTTPS; the *client* only
 speaks `pg` ([ADR-0258](0258-the-inner-loop-is-separable-from-the-store-remote-sessions-l.md)).
 
-**The seam this rests on already exists.** `packages/storage-protocol` defines `Store` as six methods
-(`upsertDoc` / `getDoc` / `queryDocs` / `deleteDoc` / `appendEvent` / `readEvents`), deliberately narrow,
+**The seam this rests on already exists.** `packages/storage-protocol` defines `Store` as seven methods
+(`upsertDoc` / `patchDoc` / `getDoc` / `queryDocs` / `deleteDoc` / `appendEvent` / `readEvents`; `patchDoc`
+was added by [ADR-0352](0352-a-set-edit-writes-only-the-fields-it-names.md) and is routed and gated
+exactly like the other writes), deliberately narrow,
 with a shared parity suite any backend must pass to prove behavioural equivalence. An HTTP-speaking
 implementation is the extension point that seam was designed for — the second backend, not a rewrite —
 and the parity suite is what keeps it honest.

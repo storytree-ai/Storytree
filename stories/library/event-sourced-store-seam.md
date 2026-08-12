@@ -111,6 +111,34 @@ The `events` schema shape is also proven OFFLINE: `packages/library/src/store/st
 
 The SAME parity suite is registered against a REAL `PgLibraryStore` (`packages/library/src/store/store.test.ts:101` via `makePgStore` `store.test.ts:86-99`) but only under `STORYTREE_DB_LIVE=1`; by default it is a visible skip placeholder (`store.test.ts:103-106`) — so the Postgres transactional half + the keyless connection are would-be (`proposed`) and the in-memory half + the schema shape are `mapped`. `connection.ts` / `pg-store.ts` / `load-corpus.ts` also pass a real offline import-smoke test (`store.test.ts:65-77`) asserting `createPool`/`closePool` exist and the ADR-0015 instance + database constants — the keyless IAM/no-password wiring itself is exercised only behind the live gate.
 
+**The field-scoped write (ADR-0352).** `upsertDoc` replaces the doc its caller read some time
+earlier, so every change landed in between is silently reverted — measured on `session-orchestrator`,
+that reverted 7,058 characters of a sibling session's guidance while both writers reported success.
+`patchDoc` is the seam's answer and the FIRST verb added to it since ADR-0017: `fields` are merged
+onto CURRENT state inside the write itself, so a key a patch does not name survives a concurrent edit
+to it. `PgLibraryStore.patchDoc` reads under `SELECT … FOR UPDATE` inside the transaction, so a
+second patcher blocks on the row lock and merges onto what it waited for. The write boundary is
+unchanged: the merged doc goes through `upcastAndValidate` exactly as `upsertDoc`'s does. A patch
+never creates — an absent id answers `null`, matching `getDoc`'s null-not-throw posture.
+
+The `validate` hook is a CLOSURE, so it cannot cross an HTTP wire: `HttpStore.patchDoc` refuses one
+loudly rather than dropping it (a dropped validator would let a remote patch skip migrate-on-write).
+That is why the parity contracts split — `storeParitySuite` carries what all three backends can meet,
+and `localStoreParitySuite` carries the `validate` contracts only an in-process store can.
+
+**Why `patchDoc` adds NO numbered contract below, though it is genuinely tested (ADR-0352).** Its
+behaviour is proven by real, passing parity tests — three contracts in `storeParitySuite` (run against
+`InMemoryStore` AND against `HttpStore` over a real socket) plus two in `localStoreParitySuite`. But
+`check:coverage` scans only this capability's registered `real.testFile`, which is
+`connection.test.ts` — the ADR-0098 gate-5 R1 arm over the keyless connection, not the seam's
+contract surface. That is why all nine contracts below already sit in the drain backlog despite five
+of them citing REAL passing tests. Declaring two more would have pushed the corpus-wide backlog from
+119 to 121 and RED the ceiling (ADR-0252 D3: drain, never raise) — for two contracts that are
+actually proven, which would be an accounting artifact rather than a real regression. Naming them in
+`connection.test.ts` to satisfy the scanner would be a fake drain. The real remedy is repairing the
+binding, and that means repointing a signed `real:` arm — out of scope for ADR-0352 and its own unit
+of work.
+
 ## Contracts (9)
 
 The test-proven leaf behaviours — each **one isolated leaf behaviour** under one automated test (no stubs: these are collaborator-free `InMemoryStore`/parity/schema tests, matching this capability's integration-test proof mode, ADR-0010 §2). Where a REAL passing test exists, a `proven by` line cites it; otherwise the contract is a would-be test. Contracts 7–9 carry the substrate competence re-homed from the dissolved `stories/store` (ADR-0077): the live Pg write, the keyless connection (`keyless-store-connection`), and the shared `events` schema (`shared-events-schema`).

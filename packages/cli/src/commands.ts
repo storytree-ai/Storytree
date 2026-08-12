@@ -796,6 +796,10 @@ export async function editArtifact(
 
   let nextDoc: unknown;
   let summary: string;
+  // Non-null ONLY on the `--set` path: the fields this edit actually names, for the field-scoped
+  // write below (ADR-0352). `--json`/`--file` leaves it null and takes the whole-doc replace.
+  let patch: Record<string, unknown> | null = null;
+  const patchFields: Record<string, unknown> = {};
   if (opts.json !== undefined || opts.file !== undefined) {
     let raw = opts.json;
     if (raw === undefined && opts.file !== undefined) {
@@ -934,6 +938,10 @@ export async function editArtifact(
         const wanted = value.trim();
         if (wanted === "") {
           delete base[field];
+          // The one branch that skips the patch-record at the foot of this loop, so it records its
+          // own: `undefined` is how a field-scoped write says DELETE THIS KEY (ADR-0352,
+          // `mergeFields`). Without this the clear would land as a no-op patch.
+          patchFields[field] = undefined;
           changed.push(`${field} (cleared)`);
           continue;
         }
@@ -989,9 +997,46 @@ export async function editArtifact(
         base[field] = value;
       }
       changed.push(field);
+      patchFields[field] = base[field];
     }
     nextDoc = base;
+    patch = patchFields;
     summary = `set ${changed.join(", ")}`;
+  }
+
+  // A `--set` edit is FIELD-SCOPED (ADR-0352): write only the fields named, merged against current
+  // state inside the store's own write. The whole-doc path below reverts anything a sibling session
+  // landed between our read at the top of this function and the write here — measured, not
+  // theoretical: it silently reverted 7,058 characters of `session-orchestrator`'s workflow while
+  // both writers reported success. `--json`/`--file` keeps the whole-doc path on purpose, because a
+  // wholesale replace genuinely IS a replace.
+  if (patch !== null) {
+    let saved: Awaited<ReturnType<typeof deps.store.patchDoc>>;
+    try {
+      saved = await deps.store.patchDoc({
+        id,
+        fields: patch,
+        actor: deps.actor ?? defaultCliActor(),
+        // Migrate-on-write (design §3) still runs, but now on the MERGED doc, inside the write —
+        // validating our stale copy out here would prove nothing about what actually lands.
+        validate: (merged) => upcastAndValidate(merged),
+      });
+    } catch (e) {
+      return {
+        ok: false,
+        body: `edit would make "${id}" invalid:\n${explainDocValidationError(nextDoc, e)}`,
+        next: [`storytree library artifact ${id}`],
+      };
+    }
+    if (!saved) {
+      // getDoc saw it at the top of this function; a null here means a concurrent retire won.
+      return { ok: false, body: `"${id}" was retired while this edit was being prepared.`, next: ["storytree library"] };
+    }
+    return {
+      ok: true,
+      body: `updated ${saved.id} (${summary}).`,
+      next: [`storytree library artifact ${saved.id}`, `storytree library tree focus ${saved.id}`],
+    };
   }
 
   let valid: unknown;
