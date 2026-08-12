@@ -180,6 +180,13 @@ export interface LibraryBackend {
   inFlightClaims?(): Promise<ClaimActivity[] | null>;
 
   /**
+   * Start building whatever this backend needs before the first request asks for it (ADR-0354).
+   * OPTIONAL and advisory like the reads above: the JSON backend has nothing to prime and omits it,
+   * a narrow mock may too, and every route behaves identically if it is never called or fails.
+   */
+  primePool?(): Promise<void>;
+
+  /**
    * Recent claim DEPARTURES (ADR-0200 D7 — wisp-out legibility, unparking the
    * friction-released-build-wisp-reads-as-lost-claim item): the `released` rows written to
    * `events.claim_event` inside the departure window (`PgClaimStore.recentDepartures`), folded by
@@ -578,6 +585,51 @@ function loadStoreModule(): Promise<StoreModule> {
   })) as Promise<StoreModule>);
 }
 
+/** One shared build, with the two escape hatches a POOL needs that a module import does not. */
+export interface SharedBuild<T> {
+  /** Join the in-flight build, or start it. Concurrent callers get the SAME promise. */
+  get(): Promise<T>;
+  /** Drop the memo so the next `get()` rebuilds — what `close()` needs to not memoize a dead pool. */
+  forget(): void;
+}
+
+/**
+ * Share ONE in-flight build across concurrent callers.
+ *
+ * `loadStoreModule` above already has this shape (`storeModulePromise ??= …`) because an ES import
+ * is naturally once-only. The POOL had per-field null checks instead, which look equivalent and are
+ * not: the fields are assigned only AFTER `createPool()` resolves, so every caller arriving during
+ * the ~11 s Cloud SQL connector handshake saw them still null and started a handshake of its own. A
+ * studio page load fires ~8 `/api/*` reads at once, so a cold load opened a herd of connectors that
+ * contended with each other, and the 4 s advisory probes (`inFlightClaims` and siblings) lost to
+ * that contention rather than to any real fault — surfacing as `{"db":"unreachable"}` and
+ * `claims: null` against a database that was answering `SELECT 1` in ~250 ms (ADR-0354).
+ *
+ * Two differences from the module memo, both load-bearing and both red-green in `sharedBuild.test.ts`:
+ * a REJECTED build is forgotten, so one slow cold start is not fatal for the life of the process;
+ * and `forget()` is explicit, so tearing the pool down cannot leave the dead handle memoized.
+ */
+export function sharedBuild<T>(build: () => Promise<T>): SharedBuild<T> {
+  let pending: Promise<T> | null = null;
+  return {
+    get(): Promise<T> {
+      if (pending === null) {
+        const started: Promise<T> = build().catch((err: unknown) => {
+          // Only clear the memo if it is still OURS — a `forget()` during the build has already
+          // moved on, and clearing a newer build's promise would restart it for no reason.
+          if (pending === started) pending = null;
+          throw err;
+        });
+        pending = started;
+      }
+      return pending;
+    },
+    forget(): void {
+      pending = null;
+    },
+  };
+}
+
 // @storytree/studio-members is raw-TS (its `.js` specifiers hit vite's config-load trap) — so the
 // users last-admin guard compute (mergeUser / wouldOrphanAdmins*) is loaded lazily, on first use.
 type StudioMembersModule = typeof import('@storytree/studio-members');
@@ -677,6 +729,39 @@ export class PgBackend implements LibraryBackend {
   #attestations: PgAttestationStore | null = null;
   #work: PgWorkStore | null = null;
 
+  /**
+   * The pool + stores, built ONCE however many callers ask at once.
+   *
+   * The per-field null checks this replaced were not a guard: the fields are assigned only after
+   * `createPool()` resolves, so concurrent callers all saw null and all started their own connector
+   * handshake (ADR-0354 — see `sharedBuild`). The fields remain, because `inFlightClaims` and its
+   * siblings read `this.#handle` directly after awaiting; `sharedBuild` owns WHEN the build runs,
+   * the fields own what it produced.
+   */
+  #stores = sharedBuild(async () => {
+    const store = await loadStoreModule();
+    const handle = await store.createPool();
+    this.#store = store;
+    this.#handle = handle;
+    this.#library = new store.PgLibraryStore(handle.pool);
+    this.#comments = new store.PgCommentStore(handle.pool);
+    this.#suggestions = new store.PgSuggestionStore(handle.pool);
+    this.#users = new store.PgUserStore(handle.pool);
+    this.#attestations = new store.PgAttestationStore(handle.pool);
+    // The work-hierarchy event store (events.verdict): the studio's `signUatVerdict` appends a
+    // signed operator-attested verdict through it, the SAME store the CLI `uat attest` writes to.
+    this.#work = new store.PgWorkStore(handle.pool);
+    return {
+      store,
+      library: this.#library,
+      comments: this.#comments,
+      suggestions: this.#suggestions,
+      users: this.#users,
+      attestations: this.#attestations,
+      work: this.#work,
+    };
+  });
+
   /** Build the pool + stores on first use (the JSON default must never touch pg). */
   async #ready(): Promise<{
     store: StoreModule;
@@ -687,37 +772,25 @@ export class PgBackend implements LibraryBackend {
     attestations: PgAttestationStore;
     work: PgWorkStore;
   }> {
-    if (
-      this.#store === null ||
-      this.#library === null ||
-      this.#comments === null ||
-      this.#suggestions === null ||
-      this.#users === null ||
-      this.#attestations === null ||
-      this.#work === null
-    ) {
-      const store = await loadStoreModule();
-      const handle = await store.createPool();
-      this.#store = store;
-      this.#handle = handle;
-      this.#library = new store.PgLibraryStore(handle.pool);
-      this.#comments = new store.PgCommentStore(handle.pool);
-      this.#suggestions = new store.PgSuggestionStore(handle.pool);
-      this.#users = new store.PgUserStore(handle.pool);
-      this.#attestations = new store.PgAttestationStore(handle.pool);
-      // The work-hierarchy event store (events.verdict): the studio's `signUatVerdict` appends a
-      // signed operator-attested verdict through it, the SAME store the CLI `uat attest` writes to.
-      this.#work = new store.PgWorkStore(handle.pool);
+    return this.#stores.get();
+  }
+
+  /**
+   * Start the pool build NOW, before the first request needs it — the sibling of
+   * `primeTraversalIndex()` and for the same reason one layer down. Unprimed, the very first page
+   * load pays the ~11 s connector handshake inside requests that are racing 4 s advisory timeouts,
+   * so the claim wisps and the context-traversal picker are simply absent on the load that matters
+   * most (ADR-0354). Fire-and-forget: a failure is swallowed here and forgotten by `sharedBuild`,
+   * so the first real request retries exactly as it does today.
+   */
+  async primePool(): Promise<void> {
+    try {
+      await this.#ready();
+    } catch {
+      // Deliberately silent: priming is an optimisation, and every caller still reports its own
+      // failure honestly. Logging a startup stack for a DB that is merely still waking would train
+      // operators to ignore it.
     }
-    return {
-      store: this.#store,
-      library: this.#library,
-      comments: this.#comments,
-      suggestions: this.#suggestions,
-      users: this.#users,
-      attestations: this.#attestations,
-      work: this.#work,
-    };
   }
 
   /**
@@ -1187,11 +1260,16 @@ export class PgBackend implements LibraryBackend {
   }
 
   async close(): Promise<void> {
+    // Drop the memo FIRST and unconditionally. A build still in flight when the dev server shuts
+    // down would otherwise be handed to the next reader as a live pool that `closePool` is about
+    // to tear down — and the null-field reset below cannot see an unresolved build at all.
+    this.#stores.forget();
     if (this.#handle && this.#store) {
       await this.#store.closePool(this.#handle.pool, this.#handle.connector);
       this.#handle = null;
       this.#library = null;
       this.#comments = null;
+      this.#suggestions = null;
       this.#users = null;
       this.#attestations = null;
       this.#work = null;
