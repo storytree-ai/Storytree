@@ -74,6 +74,14 @@ export function storytreeDataApi(options: StorytreeDataApiOptions = {}): Plugin 
       // and the route works exactly as before if this never completes.
       void primeTraversalIndex();
 
+      // The SAME move one layer down (ADR-0354). The pg pool is built lazily on first use, and that
+      // build is a ~11 s Cloud SQL connector handshake — paid, unprimed, inside the first page
+      // load's requests, several of which race hard 4 s advisory timeouts. The visible cost was not
+      // slowness but ABSENCE: `/api/activity` answered `claims: null`, so the map drew no claim
+      // wisps and the context-traversal picker rendered nothing at all, against a database that was
+      // answering `SELECT 1` in ~250 ms. Fire-and-forget, and a no-op for the JSON backend.
+      void backend.primePool?.();
+
       // Capture the startup HEAD here, not in configResolved: configureServer is dev-only
       // (no stray git spawn during `vite build`) and runs at server start, before any pull
       // could move the checkout under us.
