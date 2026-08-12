@@ -107,12 +107,36 @@ genuine no-compiler acceptance criterion looks like once the experience legs are
 > the two-file shape D5 mandates. The trace below is the state on `984fd554` that PRODUCED D5 and is
 > kept as the reasoning; read it as history, not as current state.
 >
-> **FLIPPING BEGAN 2026-08-12 — 6 of the 17 are done.** This paragraph previously said *"what has NOT
-> happened yet is any leg flip"*; corrected in place per ADR-0139. `agent` leg 1 (D7's own leg, bound
-> to an appended `agent#gate-2`) and all five `library-review` legs (bound to a new `#gate-1`…`#gate-5`
-> section) are flipped, bound and driven. The remaining eleven are parked as
-> `uat-flip-remaining-eleven-nontaste-legs`. The executor's live drives stay deliberately out-of-band
-> (ADR-0010 §5), like gate-7's cold-start probe.
+> **FLIPPING BEGAN 2026-08-12 — 8 of the 17 are done, and the last NINE are BLOCKED on a question this
+> ADR did not anticipate.** This paragraph previously said *"what has NOT happened yet is any leg
+> flip"*, and then *"6 of the 17"*; corrected in place per ADR-0139 as each slice landed. Done:
+> `agent` leg 1 (D7's own leg, bound to an appended `agent#gate-2`), all five `library-review` legs
+> (bound to a new `#gate-1`…`#gate-5` section), and `studio-build` legs 9 and 10 (D2 and D3
+> respectively, bound to an appended `#gate-2`/`#gate-3`). The executor's live drives stay deliberately
+> out-of-band (ADR-0010 §5), like gate-7's cold-start probe.
+>
+> **The nine that remain are parked as `uat-flip-nine-electron-legs`, and they are NOT merely
+> unstarted.** Every one is behind the packaged Electron desktop app, and at least one — the
+> `terminal-repo-picker` leg naming a REAL native OS directory dialog — cannot satisfy D1 in either
+> direction: it may not stay `human` (D1 is unconditional, and "the dialog opens and returns a path"
+> is not a judgment call), and flipping it mints a gate that can never go green, because
+> `dialog.showOpenDialog` is an Electron MAIN-process native modal that a renderer-driving harness
+> cannot click — which is exactly why the `_electron` suite STUBS that call. **This ADR did not
+> foresee a third category: mechanical, but outside every harness the proof spine can own.** The fork
+> is `oq-adr-0348-d1-vs-a-surface-no-harness-owns-what-happens-to`, and the other eight legs are
+> deliberately left unprobed until it is answered, since the rule may dispose of some for free.
+> *(A counting correction inherited by that increment: the flip work recorded SEVEN Electron-bound
+> legs. It is NINE — `chat-drive-bridge` 5 and `chat-subagent-spawn` 5 also open "In the desktop app".)*
+>
+> **What driving the flipped legs has actually produced is a MEASUREMENT, twice over, and that is the
+> real yield of D1.** Flipping `library-review`'s five legs found that its story-rung journey does not
+> run end to end at all, while nine capabilities held signed `--real` verdicts. Flipping `studio-build`
+> leg 9 found the same shape: the studio UI's Build path can only reach `{ real: true, verdictStore:
+> 'pg' }`, never `{ live: true }`, so the `--live` synthetic walk that leg claims is unreachable by
+> construction (ADR-0144's pivot; fork raised as
+> `oq-did-adr-0144-s-node-route-pivot-retire-the-live-from-the`). Both reds are TRUE and are left red.
+> Neither gap was visible while the legs sat `human` in an attestation queue nobody worked — which is
+> the strongest evidence for D1 that this decision has produced.
 
 ADR-0295 D1 states that a model driving a journey headlessly or through a browser *"is such a run, and
 its reported outcome is admissible as the verdict."* **No executor existed for that sentence.** Traced
