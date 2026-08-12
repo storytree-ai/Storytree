@@ -117,14 +117,17 @@ genuine no-compiler acceptance criterion looks like once the experience legs are
 >
 > **The nine that remain are parked as `uat-flip-nine-electron-legs`, and they are NOT merely
 > unstarted.** Every one is behind the packaged Electron desktop app, and at least one — the
-> `terminal-repo-picker` leg naming a REAL native OS directory dialog — cannot satisfy D1 in either
-> direction: it may not stay `human` (D1 is unconditional, and "the dialog opens and returns a path"
-> is not a judgment call), and flipping it mints a gate that can never go green, because
-> `dialog.showOpenDialog` is an Electron MAIN-process native modal that a renderer-driving harness
-> cannot click — which is exactly why the `_electron` suite STUBS that call. **This ADR did not
-> foresee a third category: mechanical, but outside every harness the proof spine can own.** The fork
-> is `oq-adr-0348-d1-vs-a-surface-no-harness-owns-what-happens-to`, and the other eight legs are
-> deliberately left unprobed until it is answered, since the rule may dispose of some for free.
+> `terminal-repo-picker` leg naming a REAL native OS directory dialog — could not satisfy D1 as this
+> ADR first wrote it, in either direction: staying `human` disobeyed D1, and flipping it mints a gate
+> that can never go green, because `dialog.showOpenDialog` is an Electron MAIN-process native modal
+> that a renderer-driving harness cannot click — which is exactly why the `_electron` suite STUBS that
+> call. **This ADR did not foresee a third category: mechanical, but outside every harness the proof
+> spine can own.** That fork — `oq-adr-0348-d1-vs-a-surface-no-harness-owns-what-happens-to` — was
+> ANSWERED by the owner on 2026-08-12 and is recorded as **ADR-0357**, which AMENDS D1: a leg may stay
+> `human` when its success condition is mechanical but sits outside every harness the spine owns,
+> PROVIDED the leg states that basis and what would retire it (ADR-0357 D4 extends that obligation to
+> every `human` leg, not only these). The increment is unblocked and re-scoped to source-reading
+> triage rather than nine paid drives.
 > *(A counting correction inherited by that increment: the flip work recorded SEVEN Electron-bound
 > legs. It is NINE — `chat-drive-bridge` 5 and `chat-subagent-spawn` 5 also open "In the desktop app".)*
 >
@@ -184,6 +187,12 @@ success condition is a genuine judgment gap that neither a compiler nor a model 
 an aesthetic, felt, or owner value call. This restores
 `asset:human-witness-is-a-judgment-gap-not-cost` as the single test, and removes the two exceptions
 ADR-0295 D5 added to it.
+
+> **Amended 2026-08-12 by [ADR-0357](0357-human-uat-witness-also-covers-surfaces-no-harness-owns-every.md) D1 — corrected in place (ADR-0139).** "Taste alone" no longer holds without
+> qualification: a leg may also carry `witness: human` on a second basis — its success condition is
+> mechanical but sits outside every harness the proof spine owns — PROVIDED it states that basis and
+> what would retire it (ADR-0357 D2), and that statement is readable where the owner meets the leg
+> (ADR-0357 D3). D2 below (live-spend) and D3 below (outward-facing) stand unamended.
 
 **D2. Live spend is not a reason for a human witness.** A leg whose journey costs subscription-funded
 spend is `machine`. The spend is a routine factory action, not a judgment; the principle already said

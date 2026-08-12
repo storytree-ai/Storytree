@@ -27,10 +27,19 @@ criteria" estimate was also measured wrong: a leg-by-leg read of every story-tie
 `origin/main` @ `984fd554` found **42** (counted with `parseUatTestCriteria`; a grep over the witness
 tag undercounts, because a leg carrying a detail pointer fuses the tag as
 `_(witness: human)(detail: …)_`). Of those, 21 are user-EXPERIENCE properties that ADR-0348 D6
-deletes outright as not being acceptance criteria at all, 17 are reclassified `machine` once
+deletes outright as not being acceptance criteria at all, 17 were slated to reclassify `machine` once
 ADR-0348 D5's executor exists — **it landed 2026-08-12**, so that condition is met and the flip is
 the work that remains — and **4** are genuine owner value calls that remain.
 Decisions 1–4 and 6 are untouched and stay accepted as written.
+
+**FURTHER NARROWED 2026-08-12 by [ADR-0357](0357-human-uat-witness-also-covers-surfaces-no-harness-owns-every.md), corrected in place (ADR-0139).** "Genuine taste alone," above, no longer holds without
+qualification either: driving the flip surfaced a leg (`terminal-repo-picker` 7) that can neither stay
+`human` under ADR-0348 D1 as written nor honestly flip to `machine`, because its success condition is
+mechanical but sits outside every harness the proof spine owns. ADR-0357 D1 amends ADR-0348 D1 to admit
+that second basis, provided the leg states it and what would retire it (D2/D3). So the "17 reclassified
+`machine`" figure above is itself provisional: some of that population may stay `human` under the new
+basis rather than flip, per ADR-0357's Consequences. This does not touch decision 5's core holding here
+(taste is not a story-UAT criterion) or decisions 1–4/6.
 
 ## Context
 
