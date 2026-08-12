@@ -22,6 +22,14 @@ proof:
   scope:
     testGlobs: ["apps/studio/server/**/*.test.ts"]
     sourceGlobs: ["apps/studio/server/**/*.ts"]
+  # ADR-0353 — the READ-ONLY coverage surface: where THIS capability's contract tests actually live.
+  # The `real:` arm below is the isolated fold (`claimsToActivity`, contracts 1–2). Contract 3 is the
+  # live READ path — the spec routes it to the `activityApi` integration test because the SQL is not
+  # an isolatable red→green, and that test exists, names the contract, and runs offline (no live-DB
+  # gate). It sat unread only because the sweep looked at the write fence.
+  coverage:
+    testGlobs:
+      - "apps/studio/server/activityApi.integration.test.ts"
   real:
     testFile: "apps/studio/server/inFlightActivity.test.ts"
     sourceFile: "apps/studio/server/inFlightActivity.ts"
@@ -124,6 +132,11 @@ The test-proven leaf behaviours — each one isolated automated test (ADR-0002).
      `SELECT … FROM events.node_claim` (the `DISTINCT ON (unit_id)` style) and pass the rows through
      `claimsToActivity` so a claimed story surfaces on the map.
    - **covers —** `apps/studio/server/libraryBackend.ts`; `apps/desktop/electron/backend-entry.ts`
-   - **would-be test (glue / supplement) —** the live SQL is operator/integration-observed (the `activityApi`
-     integration test + the operator-attested deep-link), NOT an isolatable red→green; built by the
-     orchestrator's supplement subagent, not the leaf.
+   - **proven by —** `apps/studio/server/activityApi.integration.test.ts`, which names this contract and
+     drives the real `/api/activity` route: injected `node_claim` rows reach the wire folded by
+     `claimsToActivity`, each carrying the claim discriminator and never a green/bloom one. It is not an
+     isolatable red→green (glue / supplement, not a leaf unit), which is why it lives outside the `real:`
+     arm's write fence and is reached via the ADR-0353 `coverage.testGlobs` surface instead.
+   - **honest remainder —** that test asserts the STUDIO half. The desktop mirror
+     (`apps/desktop/electron/backend-entry.ts`) is covered by no assertion here; the contract reads
+     covered on the studio read path, and the mirror stays operator-observed.

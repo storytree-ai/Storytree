@@ -224,9 +224,52 @@ export interface CoverageDrainConfig {
  * evidence for why this ceiling exists; it is no longer the same measurement as this number. A future
  * capability declaring a coverage surface will drop this count again, and that is a drain — the
  * remedy stays ADR-0252 D3's, never a raise.
+ *
+ * TIGHTENED AGAIN 112 → 104 on 2026-08-12 — the ADR-0353 SWEEP, and this one is a DRAIN inside a FIXED
+ * aperture, not a second enlargement. ADR-0353 shipped the mechanism plus the single capability that
+ * forced it, and left the remaining 112 unswept for the same fault. Sweeping them found the fault in
+ * FIVE more capabilities, all the same shape: the `real:` arm is the WRITE fence for one isolated unit,
+ * so it was never a statement about where that capability's contract tests live.
+ *
+ *   credential-broker      +3  the arm authors the studio Credentials PANEL (contracts 5–9); the
+ *                             main-process broker half (1, 3, 4) is proven in `apps/desktop`
+ *   ambient-integration    +2  the wiring leg audits the REAL settings.json + drive barrel, so it
+ *                             cannot sit in the drive package's own registered unit
+ *   colour-by-subagent     +1  the writer's integration leg — it runtime-imports `@storytree/orchestrator`
+ *                             and so is not the isolated `--real` unit
+ *   render-claim-as-wisp   +1  the live read path is glue, not an isolatable red→green
+ *   claim-store-work-time  +1  the arm is the db-backed leg; the pure contracts live in the offline suite
+ *
+ * FOUR of the eight needed NO test edit at all — a vouching test already named the contract and the
+ * sweep simply never read that file. The other four were the ADR-0353 naming half: a real, passing,
+ * offline test that did not carry its contract id. Nothing was authored and nothing was widened; every
+ * credited contract cites a test that existed and passed before this commit, which is why the direction
+ * is monotone DOWN and no backlog was absorbed.
+ *
+ * WHAT THE SWEEP DELIBERATELY DID NOT CREDIT, because a drain that credits these is a fake one:
+ *   - `credential-broker/typed-ipc-never-discloses` — the spec proves it by the package TYPECHECK and
+ *     claims no dedicated test. No glob can credit a typecheck.
+ *   - `take-claim-at-spawn/orchestrator-acquires-before-spawn` — recorded NOT LIVE: no implementation at
+ *     HEAD, its host capabilities retired (ADR-0175). Its own spec says it stays on this list
+ *     permanently. It is expected, not a gap.
+ *   - `claim-store-work-time/work-claim-request-carries-work-intent` — the surface now READS its three
+ *     substantive tests, but ADR-0346 D3 reversed the mapping the contract asserts (kind → `role`, prose
+ *     → `intent`). Crediting it would stamp `covered` beside an assertion the code deliberately no
+ *     longer satisfies. Rewriting that assertion is a story-author edit, not a coverage repair.
+ *   - `seed-corpus-scripts` — the OTHER known borrowed arm (`library#gate-4`). Swept and left: both its
+ *     contracts are honestly would-be. No test asserts `loadFixtureCorpus`'s own returned counts, and
+ *     `applySchema`'s execution against a pool is Pg-specific and unrun (the offline `store.test.ts`
+ *     asserts the DDL SHAPE, which is a different claim). A borrowed arm does not imply a binding fault.
+ *
+ * So the residue is now, as far as a static sweep can tell, a genuine AUTHORING backlog: of the 104, the
+ * large majority sit on capabilities whose registered surface IS where their tests would live and simply
+ * has no test naming them. A repo-wide scan for a vouching test naming any uncovered contract id
+ * anywhere outside its capability's surface returns ZERO remaining hits — the binding-fault class is
+ * drained, and what is left is tests to write (or contracts to split/retire), which is what this ceiling
+ * has always been counting.
  */
 export const DEFAULT_COVERAGE_DRAIN_CONFIG: CoverageDrainConfig = {
-  uncoveredCeiling: 112,
+  uncoveredCeiling: 104,
   unboundCeiling: 1,
 };
 
