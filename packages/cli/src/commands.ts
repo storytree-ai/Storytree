@@ -2219,7 +2219,8 @@ export const CLI_OPTIONS = {
   reason: { type: "string" },
   "superseded-by": { type: "string" },
   "memory-dir": { type: "string" },
-  // `storytree library graduate park` — the lease override in days (ADR-0202; default 60).
+  // `storytree library graduate park` — the lease override in days (ADR-0202; default 60). Reused by
+  // `storytree question new --lease-days` (ADR-0358 Option 2B; default 7) — same shape, same flag name.
   "lease-days": { type: "string" },
   review: { type: "boolean", default: false },
   readings: { type: "string" },
@@ -3145,6 +3146,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       ...(values.diagram !== undefined ? { diagram: values.diagram } : {}),
       ...(values.recommendation !== undefined ? { recommendation: values.recommendation } : {}),
       ...(values.description !== undefined ? { description: values.description } : {}),
+      ...(values["lease-days"] !== undefined ? { leaseDays: values["lease-days"] } : {}),
     });
   }
 

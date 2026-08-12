@@ -20,6 +20,9 @@ import { ASSET_REF_PREFIX } from "./asset-citation.js";
 import { defaultCliActor } from "./cli-actor.js";
 import { kebabSlug } from "./adr.js";
 import type { Envelope } from "./envelope.js";
+// ADR-0358 Option 2D — the shared staleness-line renderer, so `arc show` and `question check` never
+// say the same thing two different ways.
+import { questionStalenessLine } from "./question.js";
 
 // The arc → children JOIN is not here: it lives in `@storytree/drive`'s `arc-rollup.ts`, which the
 // studio server shares (ADR-0267's Consequences: the derived join must stop being CLI-only). This
@@ -51,6 +54,11 @@ export interface ArcViewDeps {
   storiesDir: string;
   /** True when the live store is attached (--pg) — used only for honest offline hints. */
   pg: boolean;
+  /**
+   * ISO timestamp `arc show` renders open-question staleness against (ADR-0358 Option 2D). Injectable
+   * for tests; defaults to the real clock at call time when omitted.
+   */
+  now?: string;
 }
 
 /** Read a string field off an untyped stored doc body ("" when absent). */
@@ -173,14 +181,20 @@ async function arcShow(deps: ArcViewDeps, id: string | undefined): Promise<Envel
   const rollup = await loadArcRollup(deps, id);
   /* c8 ignore next */
   if (rollup === null) return { ok: false, body: `no arc "${id}".`, next: ["storytree arc list --pg"] };
-  return { ok: true, body: renderArcRollup(rollup, deps.pg).join("\n"), next: arcShowNext(rollup, deps.pg) };
+  return {
+    ok: true,
+    body: renderArcRollup(rollup, deps.pg, deps.now ?? new Date().toISOString()).join("\n"),
+    next: arcShowNext(rollup, deps.pg),
+  };
 }
 
 /**
- * PURE: an {@link ArcRollup} as the `arc show` body. Split out of {@link arcShow} so the rendering
- * is testable without a store, and so the join above it stays I/O-only.
+ * An {@link ArcRollup} as the `arc show` body. Split out of {@link arcShow} so the rendering is
+ * testable without a store, and so the join above it stays I/O-only. `nowIso` is injected (not
+ * `Date.now()`) so the render stays deterministic under test — the one clock read lives at the
+ * `arcShow` call site above.
  */
-export function renderArcRollup(rollup: ArcRollup, pg: boolean): string[] {
+export function renderArcRollup(rollup: ArcRollup, pg: boolean, nowIso: string): string[] {
   // `arc show` renders ANY arc regardless of lifecycle (ADR-0239 D3 — only the LIST filters) and
   // states which it is, so a closed initiative is readable without being mistaken for live work.
   const closed = rollup.lifecycle === "closed";
@@ -285,6 +299,9 @@ export function renderArcRollup(rollup: ArcRollup, pg: boolean): string[] {
     // The stakes line is why the question rides here at all (ADR-0267: questions are "part of the
     // payload", so the reader can answer without a re-onboarding round-trip).
     if (q.stakes) lines.push(`      why it matters: ${q.stakes}`);
+    // ADR-0358 Option 2D — advisory, zero-agent-cost: a session about to rely on this claim sees its
+    // age before it does, without a `question check` round-trip.
+    lines.push(`      ${questionStalenessLine(q, nowIso)}`);
   }
 
   lines.push("", `## ADRs  (derived: frontmatter arc: ${rollup.id})`);

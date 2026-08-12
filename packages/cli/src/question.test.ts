@@ -8,11 +8,14 @@ import { InMemoryStore } from "@storytree/storage-protocol";
 
 import { arcCommand, type ArcViewDeps } from "./arc.js";
 import {
+  DEFAULT_QUESTION_LEASE_DAYS,
+  questionCheck,
   questionCommand,
   questionDescriptionFrom,
   questionHelp,
   questionIdFromTitle,
   questionNew,
+  questionStalenessLine,
   type QuestionWriteDeps,
 } from "./question.js";
 
@@ -151,6 +154,9 @@ test("question new writes a valid open-question with the arcRef pointer and deri
   assert.ok(!("diagram" in doc), "no empty diagram");
   assert.ok(!("analogy" in doc), "no empty analogy");
   assert.ok(!("recommendation" in doc), "no empty recommendation");
+  // ADR-0358 Option 2B — first authoring counts as first verification; leaseDays defaults to 7.
+  assert.equal(doc.verifiedAt, "2026-08-06T00:00:00.000Z");
+  assert.equal(doc.leaseDays, DEFAULT_QUESTION_LEASE_DAYS);
   // The envelope tells the session what it just earned and what it still owes (ADR-0303).
   assert.match(res.body, /now reads as WAITING/);
   assert.match(res.body, /Escalating is a LANDING, not a wait/);
@@ -240,7 +246,7 @@ test("a question authored here is what arc show then reports as WAITING", async 
   mkdirSync(storiesDir);
   try {
     const store = await storeWithArc();
-    const viewDeps: ArcViewDeps = { store, decisionsDir, storiesDir, pg: true };
+    const viewDeps: ArcViewDeps = { store, decisionsDir, storiesDir, pg: true, now: "2026-08-06T00:00:00.000Z" };
 
     const before = await arcCommand("show", ARC_ID, viewDeps);
     assert.match(before.body, /\(none — this arc is not waiting on the owner\)/);
@@ -255,6 +261,9 @@ test("a question authored here is what arc show then reports as WAITING", async 
     // The stakes ride along into the arc view — a question is part of the PAYLOAD (ADR-0267), so the
     // owner reads why it matters without opening the artifact.
     assert.match(after.body, /why it matters: The briefing panel renders empty/);
+    // ADR-0358 Option 2D — the question was just authored at writeDeps' `now`, so it renders as
+    // freshly verified (0 days old), not UNVERIFIED.
+    assert.match(after.body, /verified 0 days ago \(lease 7d, 7 days left\)/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -276,4 +285,91 @@ test("questionCommand routes new, defaults to help, and refuses an unknown verb"
   // Reading and answering are elsewhere BY DECISION — the refusal says where, so it does not read
   // as a gap someone should fill here.
   assert.match(unknown.body, /library artifact list open-question --pg/);
+});
+
+// ---------------------------------------------------------------------------
+// ADR-0358 Option 2B/2D — the park-lease fields and the staleness render/check.
+// ---------------------------------------------------------------------------
+
+test("question new --lease-days overrides the default", async () => {
+  const store = await storeWithArc();
+  const res = await questionNew(writeDeps(store), undefined, { arc: ARC_ID, ...BRIEFING, leaseDays: "14" });
+  assert.equal(res.ok, true, res.body);
+  const doc = docOf((await store.getDoc("oq-does-escalation-bind-every-ask"))!);
+  assert.equal(doc.leaseDays, 14);
+});
+
+test("question new refuses a non-positive or non-integer --lease-days rather than silently defaulting", async () => {
+  const store = await storeWithArc();
+  for (const bad of ["0", "-3", "abc", "3.5"]) {
+    const res = await questionNew(writeDeps(store), undefined, { arc: ARC_ID, ...BRIEFING, leaseDays: bad });
+    assert.equal(res.ok, false, `"${bad}" should refuse`);
+    assert.match(res.body, /--lease-days must be a positive whole number of days/);
+  }
+});
+
+test("questionStalenessLine: fresh, expired, and unverified", () => {
+  const now = "2026-08-13T00:00:00.000Z";
+  assert.match(
+    questionStalenessLine({ verifiedAt: "2026-08-13T00:00:00.000Z", leaseDays: 7 }, now),
+    /verified 0 days ago \(lease 7d, 7 days left\)/,
+  );
+  // Exactly at the lease boundary is still fresh (overdue is strictly > 0), the same "no negative
+  // countdown" edge ADR-0202's leaseExpiresOn treats as still-parked.
+  assert.match(
+    questionStalenessLine({ verifiedAt: "2026-08-06T00:00:00.000Z", leaseDays: 7 }, now),
+    /verified 7 days ago \(lease 7d, 0 days left\)/,
+  );
+  assert.match(
+    questionStalenessLine({ verifiedAt: "2026-08-01T00:00:00.000Z", leaseDays: 7 }, now),
+    /verified 12 days ago — LEASE EXPIRED 5 days ago \(lease 7d\)/,
+  );
+  assert.match(questionStalenessLine({}, now), /^UNVERIFIED/);
+});
+
+test("question check: fresh, lease-expired, unverified, and unknown reports", async () => {
+  const store = await storeWithArc();
+  await questionNew(writeDeps(store), "oq-fresh", { arc: ARC_ID, ...BRIEFING });
+  await questionNew(writeDeps(store, true), "oq-stale", { arc: ARC_ID, ...BRIEFING, leaseDays: "1" });
+
+  // "fresh" checked the same instant it was authored (writeDeps' fixed now) — 0 days old, lease intact.
+  const fresh = await questionCheck(writeDeps(store), "oq-fresh");
+  assert.equal(fresh.ok, true);
+  assert.match(fresh.body, /verified 0 days ago/);
+  assert.match(fresh.body, /No action needed/);
+
+  // "stale" checked from 10 days later — its 1-day lease is long expired.
+  const stale = await questionCheck({ ...writeDeps(store), now: "2026-08-16T00:00:00.000Z" }, "oq-stale");
+  assert.equal(stale.ok, true);
+  assert.match(stale.body, /LEASE EXPIRED/);
+  assert.match(stale.body, /Re-verify, then re-lease, correct-in-place, or retire/);
+  assert.ok(stale.next?.some((n) => /library artifact edit oq-stale --set verifiedAt=<iso-now> --pg/.test(n)));
+  assert.ok(stale.next?.some((n) => /library artifact retire oq-stale --reason/.test(n)));
+
+  // A question authored before ADR-0358 (no verifiedAt/leaseDays at all) reports UNVERIFIED, not a crash.
+  await store.upsertDoc({
+    id: "oq-pre-0358",
+    kind: "open-question",
+    doc: { kind: "open-question", id: "oq-pre-0358", ...BRIEFING, description: "d", arcRef: `asset:${ARC_ID}`, references: [], createdAt: "2026-01-01", updatedAt: "2026-01-01" },
+  });
+  const legacy = await questionCheck(writeDeps(store), "oq-pre-0358");
+  assert.equal(legacy.ok, true);
+  assert.match(legacy.body, /UNVERIFIED/);
+  assert.match(legacy.body, /No action needed/);
+
+  const missing = await questionCheck(writeDeps(store), "oq-does-not-exist");
+  assert.equal(missing.ok, false);
+  assert.match(missing.body, /no open-question "oq-does-not-exist"/);
+
+  const wrongKind = await questionCheck(writeDeps(store), ARC_ID);
+  assert.equal(wrongKind.ok, false);
+  assert.match(wrongKind.body, /is a arc, not an open-question/);
+});
+
+test("questionCommand routes check", async () => {
+  const store = await storeWithArc();
+  await questionNew(writeDeps(store), "oq-routed-check", { arc: ARC_ID, ...BRIEFING });
+  const res = await questionCommand("check", "oq-routed-check", writeDeps(store), {});
+  assert.equal(res.ok, true, res.body);
+  assert.match(res.body, /oq-routed-check — verified 0 days ago/);
 });
