@@ -51,7 +51,8 @@ import type { Envelope } from "./envelope.js";
  *
  *   storytree question new [<id>] --arc <arc-id> --title "…" --stakes <text|@file>
  *     --statement <text|@file> --context <text|@file> --options <text|@file>
- *     [--diagram <text|@file>] [--recommendation <text|@file>] [--description <text|@file>] --pg
+ *     [--analogy <text|@file>] [--diagram <text|@file>] [--recommendation <text|@file>]
+ *     [--description <text|@file>] --pg
  *
  * Reading stays where it already is (`library artifact list open-question --pg`), and answering is
  * out of scope by decision, not omission: ADR-0267 D6 / ADR-0314 D9 keep this round READ-ONLY, so the
@@ -88,6 +89,7 @@ export interface QuestionNewOpts {
   statement?: string | undefined;
   context?: string | undefined;
   options?: string | undefined;
+  analogy?: string | undefined;
   diagram?: string | undefined;
   recommendation?: string | undefined;
   description?: string | undefined;
@@ -261,6 +263,7 @@ export async function questionNew(
 
   const derivedDescription = opts.description === undefined;
   const description = derivedDescription ? questionDescriptionFrom(statement) : oneLine(opts.description ?? "");
+  const analogy = opts.analogy?.trim() ?? "";
   const diagram = opts.diagram?.trim() ?? "";
   const recommendation = opts.recommendation?.trim() ?? "";
   const doc: Record<string, unknown> = {
@@ -272,6 +275,7 @@ export async function questionNew(
     statement,
     context,
     options,
+    ...(analogy !== "" ? { analogy } : {}),
     ...(diagram !== "" ? { diagram } : {}),
     ...(recommendation !== "" ? { recommendation } : {}),
     arcRef: `asset:${arc}`,
@@ -337,7 +341,8 @@ export function questionHelp(): Envelope {
       "storytree question — put a decision in front of the owner (ADR-0314 D5).",
       "",
       "  " + USAGE,
-      "         optional: [--diagram <text|@file>] [--recommendation <text|@file>] [--description <text|@file>]",
+      "         optional: [--analogy <text|@file>] [--diagram <text|@file>]",
+      "                   [--recommendation <text|@file>] [--description <text|@file>]",
       "",
       "An orchestrator that escalates MUST author one of these: escalating in chat alone is not",
       "sufficient, because the arc surface derives what is WAITING ON THE OWNER by querying these",
@@ -345,7 +350,14 @@ export function questionHelp(): Envelope {
       "",
       "The bar is COLD-ANSWERABLE: stakes first (what breaks if this stays unsettled), then the",
       "question, the context with every term glossed, the options with both sides of each trade-off,",
-      "and — optionally — a diagram and an explicitly non-binding recommendation.",
+      "and an explicitly non-binding recommendation.",
+      "",
+      "EXPECT TO WRITE AN --analogy AND A --diagram, not to skip them (ADR-0359 D5). They are",
+      "schema-OPTIONAL because a narrow value choice needs neither — not because they are exotic.",
+      "Anything structural owes both: an --analogy maps the unfamiliar onto something the reader",
+      "already runs (this house thinks in organisational terms — agents are employees, the",
+      "orchestrator is a manager) and says where the mapping breaks; a --diagram is a ```mermaid",
+      "fence, which the studio renders as an SVG (ADR-0096).",
       "",
       "--arc is REQUIRED even though the schema leaves arcRef optional: an unhomed question is an",
       "invisible one. Answering stays out of band this round (ADR-0314 D9) — the owner answers by",

@@ -46,8 +46,8 @@ function increment(over: Partial<ArcRollupIncrement> & { id: string }): ArcRollu
 function landed(id: string, date: string): ArcRollupIncrement {
   return increment({ id, status: 'closed', outcome: { date, pr: '#1186' } });
 }
-function parked(id: string, at: string): ArcRollupIncrement {
-  return increment({ id, status: 'proposal', parked: at });
+function parked(id: string, at: string, status = 'proposal'): ArcRollupIncrement {
+  return increment({ id, status, parked: at });
 }
 function question(id: string): ArcRollupQuestion {
   return { id, title: `Question ${id}`, description: `description ${id}`, stakes: `stakes of ${id}` };
@@ -184,7 +184,12 @@ describe('ArcSurface — the briefing panel is where the owner acts (ADR-0314 D3
   });
 
   it('answers what it is about / where it is up to / what comes next, and opens the arc itself', () => {
-    render(<ArcSurface arcs={[WAITING_ARC]} now={NOW} />);
+    render(
+      <ArcSurface
+        arcs={[arc({ ...WAITING_ARC, increments: [landed('done-1', '2026-08-01'), parked('next-1', '2026-08-05', 'ready')] })]}
+        now={NOW}
+      />,
+    );
     const panel = screen.getByTestId('arc-briefing');
     expect(panel.textContent).toContain('intent of waiting-arc');
     expect(within(panel).getByLabelText('what comes next').textContent).toContain('title of next-1');
@@ -198,6 +203,162 @@ describe('ArcSurface — the briefing panel is where the owner acts (ADR-0314 D3
     render(<ArcSurface arcs={[WAITING_ARC, arc({ id: 'other-arc', increments: [landed('c', '2026-08-05')] })]} now={NOW} />);
     fireEvent.click(screen.getByTestId('arc-lane:other-arc'));
     expect(within(screen.getByTestId('arc-briefing')).getByText('The other-arc')).not.toBeNull();
+  });
+});
+
+describe('ArcSurface — a queued increment is explicitly REVIEWABLE (ADR-0359, inc-01)', () => {
+  const MIXED = arc({
+    id: 'mixed-arc',
+    increments: [
+      increment({ id: 'prop-1', status: 'proposal', parked: '2026-08-05' }),
+      increment({ id: 'ready-1', status: 'ready', parked: '2026-08-04' }),
+      landed('done-1', '2026-08-01'),
+    ],
+  });
+
+  it('gives every forward-looking increment a named review action, with a real href', () => {
+    // The defect: a queued increment rendered as a bare title link, so nothing on the surface said
+    // it could be opened and read — the owner could see that an arc had queued work and could not
+    // reliably reach the proposal itself.
+    render(<ArcSurface arcs={[MIXED]} now={NOW} />);
+    const panel = screen.getByTestId('arc-briefing');
+    const review = within(panel).getByTestId('arc-increment-review:prop-1');
+    expect(review.getAttribute('href')).toBe('#/asset/prop-1');
+    expect(review.textContent).toContain('Review proposal');
+    // A real anchor, so it is keyboard-reachable, copyable and middle-clickable without any
+    // handler of ours — the affordance is native, not simulated.
+    expect(review.tagName).toBe('A');
+    expect(review.getAttribute('tabindex')).toBeNull();
+  });
+
+  it('a ready/active increment is reviewable too, but is not called a proposal', () => {
+    render(<ArcSurface arcs={[MIXED]} now={NOW} />);
+    const review = screen.getByTestId('arc-increment-review:ready-1');
+    expect(review.getAttribute('href')).toBe('#/asset/ready-1');
+    expect(review.textContent).toContain('Review');
+    expect(review.textContent).not.toContain('proposal');
+  });
+
+  it('LANDED increments stay visibly distinct and inherit no proposal label', () => {
+    render(<ArcSurface arcs={[MIXED]} now={NOW} />);
+    expect(screen.queryByTestId('arc-increment-review:done-1')).toBeNull();
+    const row = screen.getByTestId('arc-increment:done-1');
+    expect(row.getAttribute('data-increment-status')).toBe('closed');
+    expect(row.textContent).not.toMatch(/proposal/i);
+  });
+
+  it('a plain click on the review action opens the overlay in place, like a question does', () => {
+    const opened: Array<{ id: string; category: string }> = [];
+    render(
+      <ArcSurface arcs={[MIXED]} now={NOW} onOpen={(s) => opened.push({ id: s.id, category: s.category })} />,
+    );
+    fireEvent.click(screen.getByTestId('arc-increment-review:prop-1'));
+    expect(opened).toEqual([{ id: 'prop-1', category: 'increment' }]);
+  });
+});
+
+describe('ArcSurface — proposals surface where the owner scans (ADR-0359 D2/D3)', () => {
+  const PROPOSALS_ARC = arc({
+    id: 'proposals-arc',
+    increments: [
+      increment({ id: 'prop-1', status: 'proposal', parked: '2026-08-05' }),
+      increment({ id: 'ready-1', status: 'ready', parked: '2026-08-04' }),
+      landed('done-1', '2026-08-01'),
+    ],
+  });
+
+  it('lists proposals inside "Waiting on you", as their own labelled group', () => {
+    render(<ArcSurface arcs={[PROPOSALS_ARC]} now={NOW} />);
+    const waiting = within(screen.getByTestId('arc-briefing')).getByLabelText('waiting on you');
+    const group = within(waiting).getByTestId('arc-briefing-proposals');
+    expect(group.textContent).toContain('title of prop-1');
+    expect(within(group).getByTestId('arc-increment-review:prop-1')).not.toBeNull();
+  });
+
+  it('keeps ready/active work out of it — decided work is not asking for a review (D3)', () => {
+    render(<ArcSurface arcs={[PROPOSALS_ARC]} now={NOW} />);
+    const group = screen.getByTestId('arc-briefing-proposals');
+    expect(group.textContent).not.toContain('title of ready-1');
+    // …and nothing is lost: it is still under "what comes next".
+    const next = within(screen.getByTestId('arc-briefing')).getByLabelText('what comes next');
+    expect(next.textContent).toContain('title of ready-1');
+  });
+
+  it('does not claim "nothing is waiting" while proposals sit there', () => {
+    render(<ArcSurface arcs={[PROPOSALS_ARC]} now={NOW} />);
+    expect(screen.queryByTestId('arc-briefing-nothing-waiting')).toBeNull();
+  });
+
+  it('questions still come first — they are answerable now, a proposal is a read', () => {
+    render(
+      <ArcSurface
+        arcs={[arc({ id: 'both', questions: [question('oq-1')], increments: [parked('prop-1', '2026-08-05')] })]}
+        now={NOW}
+      />,
+    );
+    const waiting = within(screen.getByTestId('arc-briefing')).getByLabelText('waiting on you');
+    const questions = within(waiting).getByTestId('arc-briefing-questions');
+    const proposals = within(waiting).getByTestId('arc-briefing-proposals');
+    expect(
+      questions.compareDocumentPosition(proposals) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it('THE FENCE (D4): the LANE chip is unmoved — a proposal never reads as `waiting`', () => {
+    // ADR-0351 D1 removed a state that lit on every lane and so discriminated nothing; all 13
+    // active arcs carried open increments on 2026-08-12. The panel shows proposals, the lane does
+    // not. Read ADR-0359 D4 before "fixing" this apparent inconsistency.
+    render(<ArcSurface arcs={[PROPOSALS_ARC]} now={NOW} />);
+    expect(screen.getByTestId('arc-lane:proposals-arc').getAttribute('data-arc-state')).toBe('moving');
+  });
+});
+
+describe('ArcSurface — the landed log collapses to one line (ADR-0359 D1)', () => {
+  const LONG_ARC = arc({
+    id: 'long-arc',
+    increments: [
+      ...Array.from({ length: 12 }, (_, i) => landed(`done-${i}`, '2026-07-01')),
+      landed('done-last', '2026-08-05'),
+    ],
+  });
+
+  it('renders a summary line instead of the whole log, and stays CLOSED by default', () => {
+    // The defect: one <li> per closed increment, which was 57 rows on `verification-integrity-arc`
+    // against the live store on 2026-08-12 — at the bottom of a scroll past whatever the owner
+    // came for.
+    render(<ArcSurface arcs={[LONG_ARC]} now={NOW} />);
+    const section = within(screen.getByTestId('arc-briefing')).getByLabelText('where it is up to');
+    const details = section.querySelector('details');
+    expect(details).not.toBeNull();
+    expect((details as HTMLDetailsElement).open).toBe(false);
+    expect(section.querySelector('summary')?.textContent).toBe('13 landed · last 2026-08-05 #1186');
+    // Every row is INSIDE the collapsed disclosure — nothing escapes the fold.
+    for (const row of section.querySelectorAll('.arc-increment')) {
+      expect((details as HTMLDetailsElement).contains(row)).toBe(true);
+    }
+  });
+
+  it('opening it restores the full list, unchanged — the log is folded, not deleted', () => {
+    render(<ArcSurface arcs={[LONG_ARC]} now={NOW} />);
+    const section = within(screen.getByTestId('arc-briefing')).getByLabelText('where it is up to');
+    const details = section.querySelector('details') as HTMLDetailsElement;
+    details.open = true;
+    fireEvent(details, new Event('toggle'));
+    expect(details.open).toBe(true);
+    expect(section.querySelectorAll('.arc-increment')).toHaveLength(13);
+    expect(section.textContent).toContain('title of done-last');
+  });
+
+  it('the two blocks the owner reads stay always-open — neither is behind a disclosure', () => {
+    render(
+      <ArcSurface
+        arcs={[arc({ id: 'a', questions: [question('oq-1')], increments: [landed('c', '2026-08-05')] })]}
+        now={NOW}
+      />,
+    );
+    const panel = screen.getByTestId('arc-briefing');
+    expect(within(panel).getByLabelText('waiting on you').querySelector('details')).toBeNull();
+    expect(within(panel).getByLabelText('what this arc is about').querySelector('details')).toBeNull();
   });
 });
 

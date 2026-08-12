@@ -2267,6 +2267,7 @@ export const CLI_OPTIONS = {
   statement: { type: "string" },
   context: { type: "string" },
   options: { type: "string" },
+  analogy: { type: "string" },
   diagram: { type: "string" },
   recommendation: { type: "string" },
   scope: { type: "string" },
@@ -2392,6 +2393,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     statement?: string;
     context?: string;
     options?: string;
+    analogy?: string;
     diagram?: string;
     recommendation?: string;
     scope?: string;
@@ -3139,6 +3141,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       ...(values.statement !== undefined ? { statement: values.statement } : {}),
       ...(values.context !== undefined ? { context: values.context } : {}),
       ...(values.options !== undefined ? { options: values.options } : {}),
+      ...(values.analogy !== undefined ? { analogy: values.analogy } : {}),
       ...(values.diagram !== undefined ? { diagram: values.diagram } : {}),
       ...(values.recommendation !== undefined ? { recommendation: values.recommendation } : {}),
       ...(values.description !== undefined ? { description: values.description } : {}),

@@ -41,12 +41,16 @@
 
 import { useState } from 'react';
 import { assetHref } from '../lib/route';
+import { DetailDisclosure } from './DetailDisclosure';
 import {
   arcBriefing,
   arcLanes,
   briefingLead,
   defaultLaneId,
+  landedSummary,
   BLOCKED_UNAVAILABLE_NOTE,
+  LANDED_STATUS,
+  PROPOSAL_STATUS,
   type ArcLane,
   type ArcLaneScope,
 } from '../lib/arcSurface';
@@ -280,20 +284,25 @@ function ArcBriefingPanel({
         </a>
       </header>
 
-      {/* WAITING FIRST — the half that makes this a place to act rather than another index. */}
+      {/* WAITING FIRST — the half that makes this a place to act rather than another index.
+          TWO GROUPS since ADR-0359 D2: authored questions (answerable right now) and parked
+          PROPOSALS (a read, then a direction). They are labelled separately rather than merged,
+          because the owner does different things with them and the second is not answerable in
+          the sense the first is. Questions lead. */}
       <section className="arc-briefing-waiting" aria-label="waiting on you">
         <h5>Waiting on you</h5>
-        {briefing.waiting.length === 0 ? (
+        {briefing.waiting.length === 0 && briefing.proposals.length === 0 ? (
           <p className="muted small" data-testid="arc-briefing-nothing-waiting">
             Nothing is waiting on you here.
           </p>
-        ) : (
-          <ul className="arc-question-list">
+        ) : null}
+        {briefing.waiting.length > 0 && (
+          <ul className="arc-question-list" data-testid="arc-briefing-questions">
             {briefing.waiting.map((q) => (
               <li key={q.id} className="arc-question" data-testid={`arc-question:${q.id}`}>
                 {/* Stakes lead — what breaks while this stays unsettled (ADR-0314 D5's briefing
                     shape). The link reaches the artifact carrying the rest: the options, the
-                    diagrams, the non-binding recommendation. */}
+                    analogy, the diagrams, the non-binding recommendation. */}
                 <a
                   className="arc-question-title"
                   href={assetHref(q.id)}
@@ -306,6 +315,16 @@ function ArcBriefingPanel({
               </li>
             ))}
           </ul>
+        )}
+        {briefing.proposals.length > 0 && (
+          <>
+            <h6 className="arc-briefing-subhead">Proposals to review</h6>
+            <ul className="arc-increment-list arc-proposal-list" data-testid="arc-briefing-proposals">
+              {briefing.proposals.map((inc) => (
+                <IncrementRow key={inc.id} increment={inc} onOpen={onOpen} />
+              ))}
+            </ul>
+          </>
         )}
       </section>
 
@@ -321,10 +340,18 @@ function ArcBriefingPanel({
         <p className="arc-briefing-intent">{briefingLead(arc.intent || arc.description)}</p>
       </section>
 
+      {/* WHAT COMES NEXT is now DECIDED work only — `ready` and `active`. Proposals moved up into
+          "Waiting on you" (ADR-0359 D3) rather than being listed twice. When everything queued is a
+          proposal this block is empty, and it must not say "nothing queued" — there IS queued work,
+          it is sitting above asking for a look. */}
       <section className="arc-briefing-next" aria-label="what comes next">
         <h5>What comes next</h5>
         {briefing.next.length === 0 ? (
-          <p className="muted small">Nothing queued.</p>
+          <p className="muted small">
+            {briefing.proposals.length > 0
+              ? 'Nothing dispatched — everything queued is waiting on your review above.'
+              : 'Nothing queued.'}
+          </p>
         ) : (
           <ul className="arc-increment-list">
             {briefing.next.map((inc) => (
@@ -334,23 +361,44 @@ function ArcBriefingPanel({
         )}
       </section>
 
+      {/* WHERE IT IS UP TO — FOLDED, NOT DELETED (ADR-0359 D1). This block rendered one row per
+          closed increment, which is 57 rows on `verification-integrity-arc` and put the two blocks
+          the owner actually reads at the top of a long scroll. It is the least perishable of the
+          four and was drawn at the same volume as the most perishable. So: a one-line summary, and
+          the full list one click away behind a closed-by-default disclosure. Deleting it outright
+          would make ADR-0267's "where is it up to" unanswerable from the surface that exists to
+          answer it, which is why this is a fold. `DetailDisclosure` is REUSED rather than
+          re-implemented — it already owns the open-state-lives-with-the-disclosure behaviour. */}
       <section className="arc-briefing-landed" aria-label="where it is up to">
         <h5>Where it is up to</h5>
         {briefing.landed.length === 0 ? (
           <p className="muted small">Nothing has landed yet.</p>
         ) : (
-          <ul className="arc-increment-list">
-            {briefing.landed.map((inc) => (
-              <IncrementRow key={inc.id} increment={inc} onOpen={onOpen} />
-            ))}
-          </ul>
+          <DetailDisclosure label={landedSummary(lane.arc)} className="arc-landed-disclosure">
+            <ul className="arc-increment-list">
+              {briefing.landed.map((inc) => (
+                <IncrementRow key={inc.id} increment={inc} onOpen={onOpen} />
+              ))}
+            </ul>
+          </DetailDisclosure>
         )}
       </section>
     </aside>
   );
 }
 
-/** One increment row — the same rendering on both halves, so a reader compares like with like. */
+/**
+ * One increment row — the same rendering everywhere it appears, so a reader compares like with like.
+ *
+ * A FORWARD-LOOKING ROW CARRIES AN EXPLICIT REVIEW ACTION (ADR-0359). The title has always been a
+ * link, but nothing on the surface SAID a queued increment could be opened and read: the owner could
+ * see that an arc had queued work and could not reliably reach the proposal itself. The action is a
+ * plain `<a href>`, so it is keyboard-reachable, copyable and middle-clickable with no handler of
+ * ours — a plain left-click is intercepted into the same in-place overlay a question opens.
+ *
+ * A LANDED ROW GETS NO ACTION, and its label never says "proposal": there is nothing to review on
+ * something that has already landed, and inheriting the word would misdescribe it.
+ */
 function IncrementRow({
   increment,
   onOpen,
@@ -360,17 +408,23 @@ function IncrementRow({
 }): React.JSX.Element {
   const landedOn = increment.outcome?.date;
   const pr = increment.outcome?.pr;
+  const queued = increment.status !== LANDED_STATUS;
+  const selection: SearchResult = {
+    id: increment.id,
+    title: increment.title || increment.id,
+    category: 'increment',
+    source: 'asset',
+  };
   return (
-    <li className="arc-increment" data-increment-status={increment.status}>
+    <li
+      className="arc-increment"
+      data-increment-status={increment.status}
+      data-testid={`arc-increment:${increment.id}`}
+    >
       <a
         className="arc-increment-title"
         href={assetHref(increment.id)}
-        onClick={openOnClick(onOpen, {
-          id: increment.id,
-          title: increment.title || increment.id,
-          category: 'increment',
-          source: 'asset',
-        })}
+        onClick={openOnClick(onOpen, selection)}
       >
         {increment.title || increment.id}
       </a>
@@ -381,6 +435,16 @@ function IncrementRow({
         {pr ? ` · ${pr}` : ''}
         {increment.parked ? ` · parked ${increment.parked.slice(0, 10)}` : ''}
       </span>
+      {queued && (
+        <a
+          className="arc-increment-review"
+          data-testid={`arc-increment-review:${increment.id}`}
+          href={assetHref(increment.id)}
+          onClick={openOnClick(onOpen, selection)}
+        >
+          {increment.status === PROPOSAL_STATUS ? 'Review proposal ↗' : 'Review ↗'}
+        </a>
+      )}
     </li>
   );
 }
