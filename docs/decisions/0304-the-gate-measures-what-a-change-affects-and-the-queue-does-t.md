@@ -71,21 +71,29 @@ each against the projected post-merge trunk and merges in order. Sessions stop h
 a moving `main`.
 
 **D3 is DECIDED but NOT IN FORCE — do not read the paragraph above as a description of how PRs land
-today (status 2026-08-12).** `.github/workflows/ci.yml` now carries the `merge_group` trigger and
-guards every post-merge step for both sides of the flip, but the queue itself is **not enabled in the
-repo settings**, and turning it on is **refused on a measured defect** rather than merely deferred.
-ADR-0345 found that `packages/notice-board/src/store/ingest-merge.ts` — ADR-0138 §4 / ADR-0200's
-*guaranteed* machine clear of a merged branch's claims, the thing that makes ADR-0142's "a branch dies
-on merge" true rather than aspirational — is invoked in exactly one place: the `pull_request`-only
-`automerge` job, gated on `merged == 'true'`. Under a queue `gh pr merge` *queues* instead of merging,
-so that gate is false for every PR and the queue's own later merge runs no job that releases claims.
-Every merged branch would keep its claims forever, and it would fail **silently**: the release is
-fail-soft by design, so nothing reds — the symptom would surface as a map filling with dead wisps and
-ADR-0270/ADR-0346 refusals against sessions that ended days ago. The prerequisite is the increment
-`merge-queue-release-claims-then-flip`: a merge-queue-reachable, idempotent claim-release path first,
-then the settings flip, then a speculative build count at least the expected lane width — queue
-entries run `verify` at full `-r` scope, so a non-speculating queue re-serialises and is **slower**
-than today. Until that lands, ordering is still paid by hand.
+today (status 2026-08-12).** `.github/workflows/ci.yml` carries the `merge_group` trigger and guards
+every post-merge step for both sides of the flip, and the **blocking defect ADR-0345 D4 found is now
+fixed**; what remains is the repo-settings flip itself, which is owner-side and cannot be proved
+locally.
+
+**The defect, and what closed it.** `packages/notice-board/src/store/ingest-merge.ts` — ADR-0138 §4 /
+ADR-0200's *guaranteed* machine clear of a merged branch's claims, the thing that makes ADR-0142's
+"a branch dies on merge" true rather than aspirational — used to be invoked in exactly one place: the
+`pull_request`-only `automerge` job, gated on `merged == 'true'`. Under a queue `gh pr merge` *queues*
+instead of merging, so that gate is false for every PR and the queue's own later merge would run no
+job that releases claims. Every merged branch would have kept its claims forever, and it would have
+failed **silently**: the release is fail-soft by design, so nothing reds — the symptom would surface
+as a map filling with dead wisps and ADR-0270/ADR-0346 refusals against sessions that ended days ago.
+The writer now has a second, queue-reachable caller — `.github/workflows/claim-release.yml`, keyed on
+the merge that ACTUALLY landed on `main` — and the idempotence the two callers depend on is proven
+against a real Postgres store rather than assumed. It also closed a gap that predated any queue: a PR
+merged by hand in the GitHub UI runs no `automerge` job and had never released its claims.
+
+**What is still owed before the queue is on**, in order, and none of it is code: the settings flip (a
+ruleset on `main` requiring the merge queue, `verify` as a required status check,
+`delete_branch_on_merge` enabled), and a speculative build count at least the expected lane width —
+queue entries run `verify` at full `-r` scope, so a non-speculating queue re-serialises and is
+**slower** than today. Until that flip, ordering is still paid by hand.
 
 **D4 — the merge ceremony is unchanged in shape.** A session still runs the gate, opens a **non-draft**
 PR, and never merges by hand (ADR-0022, ADR-0271). The queue is *where CI's merge happens*, not a new

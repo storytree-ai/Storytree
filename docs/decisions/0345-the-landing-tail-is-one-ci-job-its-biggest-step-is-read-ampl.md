@@ -118,12 +118,24 @@ and the flip is three settings — and, correcting what the session told the own
 option, the session's own token carries `admin`, so it COULD have made the change rather than handing
 it back.
 
-**It is refused anyway, on a defect found while preparing it.** `ingest-merge.ts` — ADR-0138 §4 /
-ADR-0200's *guaranteed* machine-clear of a merged branch's claims — runs in exactly ONE place in the
+**It was refused anyway, on a defect found while preparing it.** `ingest-merge.ts` — ADR-0138 §4 /
+ADR-0200's *guaranteed* machine-clear of a merged branch's claims — ran in exactly ONE place in the
 repository: inside the `automerge` job, which is `pull_request`-only AND gated on `merged == 'true'`.
 Under a merge queue `gh pr merge` **queues** rather than merges, so that expression is false for every
 PR, and the queue's own later merge runs no job that releases claims. The `push`-to-`main` run of
-`ci.yml` does not help: its `automerge` job is gated to `pull_request`.
+`ci.yml` did not help: its `automerge` job is gated to `pull_request`.
+
+**That defect is now FIXED (2026-08-12) and the flip is unblocked, though not yet taken.** The writer
+has a second, queue-reachable caller — `.github/workflows/claim-release.yml`, keyed on the merge that
+ACTUALLY landed on `main` (a `push` to main, plus the PR-side `pull_request: closed` view of the same
+merge, resolved by `scripts/merged-head-refs.sh`). Both callers can fire for one merge and that is
+safe: the idempotence is proven against a real Postgres store, including that a second release does
+not disturb the waiter the first one promoted. Neither trigger fires for today's GITHUB_TOKEN merge
+(GitHub anti-recursion), so the automerge job's own step remains the one that runs until the queue is
+on. The standalone caller is deliberately LOUD where the automerge step is fail-soft — it gates
+nothing, so a swallowed failure there would rebuild this very failure class. It also closed a gap
+that predated the queue entirely: a PR merged by hand in the GitHub UI runs no `automerge` job and
+had never released its claims.
 
 The result would be that **every merged branch keeps its claims forever** — the ledger's one
 guaranteed clear, gone, silently, with the map showing live wisps for dead branches and future
@@ -132,10 +144,15 @@ the deploy dispatch and the full-suite backstop, and even flag "verify that on t
 studio-affecting merge rather than assuming it" — but they do not reach the claim release, which has
 no equivalent fallback.
 
-So the flip is **blocked on a prerequisite, not declined**: a claim-release path that runs on the
+So the flip was **blocked on a prerequisite, not declined**: a claim-release path that runs on the
 queue's merge (a `merge_group`-aware job, or a `push`-to-`main` job keyed on the merged head ref).
-That is small, but it cannot be proved locally — a merge queue cannot be exercised without enabling
-it — which makes it an owner-visible operational change and a poor fit for the same PR as D2/D3.
+That prerequisite has since landed (above). The FLIP itself still cannot be proved locally — a merge
+queue cannot be exercised without enabling it — which is why it remains an owner-visible operational
+change and was deliberately kept out of the release path's own PR. The honest pre-flip verification
+is therefore of the JOB, not the trigger: `workflow_dispatch` the release workflow against a branch
+holding claims, then take one ordinary merge by hand in the GitHub UI (a real non-GITHUB_TOKEN merge,
+so the real triggers fire), and only then flip — checking the FIRST queue merge's run rather than
+assuming it.
 
 Two further preconditions, recorded so the next attempt does not rediscover them:
 - **Speculative building must be on** (`max_entries_to_build` ≥ the lanes in flight). Queue entries
