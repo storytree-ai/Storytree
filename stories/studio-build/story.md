@@ -184,13 +184,74 @@ The integrated **acceptance walkthrough** that proves the whole `studio-build` o
 path**. It is minimal-first (one coherent operator journey: trigger → watch → verdict), defect-
 driven thereafter (each real failure earns a permanent regression case, never speculative breadth).
 The journey is proven against a REAL `--live` build — the SDK leaf genuinely authoring, the spine
-genuinely signing — and that genuineness is leg 9's own claim, the one an agent may never manufacture.
-The consumed cross-story seams are exercised real throughout. What the 2026-07-25 re-adjudication makes
+genuinely signing — and that genuineness is leg 9's own claim. *(That sentence used to end "the one an
+agent may never manufacture". ADR-0348 D2 withdrew the premise: the spend is a routine factory action,
+not a judgment gap, and leg 9 is `machine` and model-driven since 2026-08-12. What an agent may never
+do is FAKE the observable — which is a different rule, and it still holds. Corrected in place per
+ADR-0139.)* The consumed cross-story seams are exercised real throughout. What the 2026-07-25 re-adjudication makes
 explicit (and what the earlier blanket "mocks are forbidden" obscured): the MECHANICS legs are
 observable against any run of the right SHAPE, so a machine leg may inject the RUNNER — an offline
 scripted `PhaseAuthor`, already blessed for this story by ADR-0010 §5 — rather than bill a live SDK run
 on every gate pass. Nothing downstream of that one seam may be faked, and no machine leg may fake the
 observable it is asserting.
+
+### ⚠ WHAT THE FIRST DRIVES OF LEGS 9 AND 10 FOUND (2026-08-12) — two reds, NOT the same kind
+
+Both legs flipped to `machine` under ADR-0348 D2/D3 and both gates are RED. **They are red for
+completely different reasons, and conflating them would be the expensive mistake here.**
+
+**Leg 9 — a TRUE product red. Do not "fix" it by re-authoring the criterion.** The drive walked it for
+real (18.8 min: live store up, `pnpm --filter studio dev` up, real Chromium) and then traced the exact
+code a studio-UI node Build click executes:
+
+> `devApi.ts` wires `BuildContext.runner = routedBuildRunner(...)`, and `routedBuildRunner`
+> (`packages/drive/src/build-worker.ts`) unconditionally calls `nodeBuild(unitId, { real: true,
+> dryRun: false, verdictStore: 'pg' })` for ANY node id. **There is no code path from the studio UI to
+> `{ live: true }`.** And `packages/drive/src/node-build.ts` produces the synthetic `add(2,3)` pair
+> only on the `--live` path, while `--store pg` is explicitly REFUSED for a synthetic walk
+> (ADR-0099-B). So `real:true + verdictStore:'pg'` — what the UI always sends — and the synthetic
+> `add(2,3)` pair this criterion names are **mutually exclusive by construction.**
+
+The journey leg 9 authorises is therefore structurally unreachable from the studio UI, whichever node
+is picked. This is the SAME ADR-0144 divergence the story already documents for sibling leg 8 under
+"Known implementation gap" — it had simply never been written down for leg 9. The driver correctly
+declined to burn an unrelated capability's uncancelable `--real` build as a diagnostic, since no such
+run could satisfy the criterion, and reported `fail` rather than a partial pass.
+
+**The red stays red.** Re-authoring the criterion to match what shipped is precisely the move ADR-0294
+exists to prevent, and the criterion is the older owner-approved claim. Whether the remedy is to give
+the UI a `--live` route or to re-adjudicate what leg 9 should promise is owner / story-author work.
+
+**Leg 10 — NOT a product verdict. It has never been successfully driven, and the cause is the
+harness.** Three drives, no readable report:
+
+| # | ceiling | wall clock | outcome |
+| --- | --- | --- | --- |
+| 1 | 30 min | 30.0 min (cut off) | no report → MISS |
+| 2 | 60 min | 11.3 min (ended early) | no report → MISS |
+| 3 | 45 min | refused before spending | dirty tree — drive 2's orphaned poller was still writing |
+
+Drive 2 is the one that explains it. Its driver wrote a real Playwright harness that navigates to a
+story panel, clicks **Build**, and then **polls for up to 40 minutes** waiting for a terminal build
+state. Its own session ended after 11.3 minutes — while that poll was still running. The orphan later
+reached terminal and wrote `uat-leg10-terminal.png` into the tree, which is both the evidence the walk
+was progressing AND what refused drive 3. The screenshot shows the real forest map, the
+`context-traversal-telemetry` panel, and three live `work · story:real` claims: **the build genuinely
+started.** No report was ever emitted because nobody was left to emit one.
+
+So leg 10's journey is longer than one drive session's turn budget, and the drive harness has no way
+to hand a long observation back to a later session. That is a HARNESS gap, not evidence about
+approve-to-land. **Do not read this gate's red as a finding about the product, and do not re-author the
+criterion on the strength of it.** Two supporting conditions were also measured and are worth knowing
+before the next attempt: ports 5173–5178/5190/5199 were all held by OTHER worktrees' studios (drive 2
+pointed itself at `localhost:5180`, a JSON-backed sibling studio, not a live-store one from this
+checkout), and `SELECT 1` was answering in ~17 s.
+
+**A hypothesis this measurement KILLED, recorded so it is not re-run:** drive 1's timeout looked like
+the ceiling being too small for a `story build --real`, and the ceiling was made overridable
+(`STORYTREE_UAT_DRIVE_TIMEOUT_MIN`) on that basis. Drive 2 then finished in 11.3 min at a 60-min
+ceiling. **The ceiling was never the cause.** The override is still worth having — a fixed ceiling
+should not be able to manufacture a red that reads like a product finding — but it does not fix this.
 
 > **Per-leg witness (ADR-0209 §1 / ADR-0106 / ADR-0070).** **RE-ADJUDICATED 2026-07-25** under the
 > ADR-0209 §8 corpus-wide witness migration (the third story migrated, after `terminal-repo-picker`
@@ -398,33 +459,39 @@ exactly where it is.
    that `--real`, persisting, parked-branch shape — the OPPOSITE of the accepted wall. No test observes
    git at all; the `park` claim there is only that a transcript LINE mentions parking. Making this leg
    pass is a CODE obligation, not a re-tag.
-9. **A real subscription-billed `--live` run drives the loop to a genuinely signed verdict.** _(criterion-id: uatc_4e688a6e4149741b5dd0a736)_ _(revision-id: uatr1:cdaa053d02444e1e)_
-   _(witness: human)_ The operator triggers ONE real build from the studio UI and lets it run: a real
+9. **A real subscription-billed `--live` run drives the loop to a genuinely signed verdict.** _(criterion-id: uatc_4e688a6e4149741b5dd0a736)_ _(revision-id: uatr1:5418a7aa38bfbe79)_ _(previous-revision-id: uatr1:cdaa053d02444e1e)_
+   _(witness: machine)_ _(proof-gate: studio-build#gate-2)_ The driver triggers ONE real build from the studio UI and lets it run: a real
    Claude Agent SDK leaf genuinely authors the synthetic `add(2,3)` pair, the real prove-it-gate observes
-   a genuine RED then GREEN from real exit codes, and the spine SIGNS. **Success —** the owner's
-   attestation that the run they watched was real and billed, and that the verdict legs 6 and 7 inspect
-   came from it. *(operator-attested and irreducible — a `--live` build is subscription-billed REAL
-   SPEND; an agent may never burn it unattended, and no harness can manufacture "this was a genuinely
-   billed run". Every MECHANIC observable during such a run is machine-witnessed above, provable against
-   an offline scripted `PhaseAuthor` run of the same shape per ADR-0010 §5 — this leg is the spend and
-   the genuineness, nothing else.)*
-10. **The STORY route's approve-to-land opens a non-draft PR that CI auto-merges to trunk.** _(criterion-id: uatc_891f34bd18df9ce452617b82)_ _(revision-id: uatr1:cb9c0cf57e608abf)_ _(previous-revision-id: uatr1:ee0c0d1ba6ce7e80)_
-    _(witness: human)_ Select a real-buildable STORY (no capability drilled) and click **Build**: the
+   a genuine RED then GREEN from real exit codes, and the spine SIGNS. **Success —** a `pass` drive
+   record whose walk reports the run reached a spine-signed verdict, and that the verdict legs 6 and 7
+   inspect came from it. *(`machine` since 2026-08-12 under ADR-0348 D2. It was `human` on a SPEND
+   basis — "a `--live` build is subscription-billed REAL SPEND; an agent may never burn it unattended"
+   — and D2 retires exactly that basis: the spend is a routine factory action, not a judgment gap
+   (`asset:human-witness-is-a-judgment-gap-not-cost`). Nothing here ever turned on taste. ADR-0010 §5
+   still keeps the spend off every gate pass: the drive is deliberately out-of-band and the gate below
+   only WITNESSES its persisted record. Every MECHANIC observable during such a run is machine-witnessed
+   above; this leg is the genuineness of a live run, nothing else.)*
+10. **The STORY route's approve-to-land opens a non-draft PR that CI auto-merges to trunk.** _(criterion-id: uatc_891f34bd18df9ce452617b82)_ _(revision-id: uatr1:321ad0444900b10d)_ _(previous-revision-id: uatr1:cb9c0cf57e608abf)_
+    _(witness: machine)_ _(proof-gate: studio-build#gate-3)_ Select a real-buildable STORY (no capability drilled) and click **Build**: the
     worker routes to `story build <id> --real`, which authors each capability for real and, on a GREEN
     chain, opens a **non-draft PR that CI auto-merges to trunk** (ADR-0022; `claude/real/*` promotion
     branches merge non-squash per ADR-0031). Clicking Build IS the approval to land (ADR-0090 Phase 2).
-    **Success —** the owner's attestation that their click landed the change on trunk.
-    *(operator-attested and irreducible — this is an OUTWARD-FACING action against the real repository:
-    it opens a PR that merges to `main`. `human-owns-the-outer-loop` and `approval-gated-trunk` put the
-    click itself on the human rung, and no agent may self-authorize a landing. The ROUTING half — that a
-    story id resolves to `storyBuild` with `openPr: true` and a node id never does — is already machine,
-    pinned at `buildWorker.test.ts:113-159`.)*
+    **Success —** a `pass` drive record whose walk reports the click landed the change on trunk.
+    *(`machine` since 2026-08-12 under ADR-0348 D3. It was `human` because this is an OUTWARD-FACING
+    action against the real repository — it opens a PR that merges to `main` — and D3 retires that
+    basis: the merge ceremony performs exactly this unattended every day, so it is a routine factory
+    action rather than a judgment gap. ADR-0348 D4 governs the driver inside the walk: it proceeds on
+    its own judgment through the outward-facing step and raises an `open-question` only when IT is
+    unsure. `human-owns-the-outer-loop` and `approval-gated-trunk` are untouched everywhere else. The
+    ROUTING half — that a story id resolves to `storyBuild` with `openPr: true` and a node id never
+    does — remains machine, pinned at `buildWorker.test.ts:113-159`.)*
 End state — the operator triggers a real node build from the studio UI and watches it run live to a signed
 verdict on their own machine: the live-store precondition, the composed panel and its buildability gate,
 the accepted intent and in-flight mark, the polled transcript's accumulation, the concurrent-build
 refusal, the terminal envelope and in-place repaint, the verdict's spine provenance, and the node route's
-no-land walls all machine-witnessed — and only the subscription-billed run itself and the outward-facing
-approve-to-land on trunk attested by the operator. Whether the panel LOOKS right is no longer an
+no-land walls all machine-witnessed — and the subscription-billed run itself and the outward-facing
+approve-to-land on trunk MODEL-DRIVEN and machine-witnessed too since 2026-08-12 (ADR-0348 D2/D3),
+leaving this story with NO operator-attested leg at all. Whether the panel LOOKS right is no longer an
 acceptance obligation (ADR-0348 D6); that intent is recorded above and answered by the owner in use.
 
 ## Reliability Gates
@@ -437,9 +504,40 @@ acceptance obligation (ADR-0348 D6); that intent is recorded above and answered 
    parked-branch shape. What this gate does NOT claim, after the 2026-07-25 ADR-0209 §8
    re-adjudication: the seven OTHER `machine` legs (1, 2, 3, 4, 6, 7, 8) are declared, not observed
    here — legs 1 and 7 are live-gated and need a spec this offline suite cannot host, legs 2, 3, 4 and 6
-   are only partly reached by the existing deterministic tests, and leg 8 must currently fail — and the
-   three `human` legs (9 the subscription-billed run, 10 the outward-facing approve-to-land, 11 the
-   operator's appearance judgement) are never machine-witnessable at all.
+   are only partly reached by the existing deterministic tests, and leg 8 must currently fail. It also
+   does not claim legs 9 and 10, which carry their own gates below. *(This clause previously ended by
+   naming "the three `human` legs (9 …, 10 …, 11 …)" as "never machine-witnessable at all". All three
+   statements are now false and are corrected in place per ADR-0139: leg 11 was DELETED by ADR-0348 D6,
+   and legs 9 and 10 are `machine` under D2/D3 — the model-driven UAT executor is the harness whose
+   absence that sentence was really describing.)*
+
+**Gates 2 and 3 are NEW (2026-08-12, ADR-0348 D2/D3/D5) and were APPENDED — gate 1 kept its ordinal.**
+Gate ids are positional (`asset:edit-story-uat-criteria` step 2), so inserting or renumbering would
+silently re-point already-signed verdicts and surviving `(proof-gate:)` bindings. Neither carries a
+`(covers:)`: they prove a JOURNEY, not a capability, and adding them to a `(covers:)` list would let an
+observe-and-sign `adopt` pass green a capability that never went red (ADR-0085 / ADR-0097).
+
+**Neither gate drives anything, and neither spends.** The drive is deliberately out-of-band —
+`pnpm --filter @storytree/drive exec node --import tsx src/uat-drive.run.ts studio-build <criterion-id>`
+spawns a fresh subscription-funded session that walks the authored journey against the real running
+studio and appends a record to `events.uat_drive`. ADR-0010 §5 keeps that off every gate path, exactly
+as `dogfood-probe.run.ts` is. The gate is the cheap standing WITNESS of that persisted artifact, and the
+spine still mints the verdict over the exit code IT watched, so ADR-0295 D2's *no model signs its own
+verdict* holds with the signing path unchanged. A leg is model-driven exactly when the observe gate it
+names runs `uat-drive-witness.check.ts` — the binding is self-describing, so nothing needs a second
+registry (`packages/drive/src/uat-drive.ts`, `isModelDrivenGate`).
+
+A gate here goes red — honestly, not spuriously — when no `pass` record exists for the criterion's
+CURRENT `revision-id`, when the drive's commit is not in HEAD's ancestry, or when the newest record is
+older than 90 days (the ADR-0016 ageing floor).
+
+2. **UAT leg 9 — "a real subscription-billed `--live` run reaches a genuinely signed verdict" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts studio-build uatc_4e688a6e4149741b5dd0a736`.
+   Witnesses that a model brought the studio up, triggered ONE real `--live` build from the UI, and
+   observed the real leaf author the synthetic pair, the prove-it-gate observe a genuine RED then GREEN
+   from real exit codes, and the spine sign.
+3. **UAT leg 10 — "the STORY route's approve-to-land opens a non-draft auto-merging PR" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts studio-build uatc_891f34bd18df9ce452617b82`.
+   Witnesses that a model selected a real-buildable STORY, clicked Build, and observed the worker route
+   to `story build <id> --real` and open a NON-DRAFT PR for CI to auto-merge to trunk.
 
 ## Proof
 

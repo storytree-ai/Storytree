@@ -36,6 +36,9 @@
  * ids explicitly to drive a leg that is not bound yet — which is how ADR-0348 D5's ordering is
  * honoured: drive first, then flip the witness and bind the gate in one change.
  * (DB up + subscription auth in ~/.storytree/secrets.json; a laptop/full clone, not a 443-only remote.)
+ *
+ * `STORYTREE_UAT_DRIVE_TIMEOUT_MIN=<minutes>` raises the per-criterion wall-clock ceiling from its
+ * 30-min default, for a journey that CONTAINS a long operation (see {@link DRIVE_TIMEOUT_MIN}).
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -56,11 +59,51 @@ import {
   type DriveTarget,
 } from "./uat-drive.js";
 
-/** Wall-clock ceiling for ONE criterion's drive (bring up a surface, walk it, report). */
-const DRIVE_TIMEOUT_MS = 30 * 60_000;
+/**
+ * Wall-clock ceiling for ONE criterion's drive (bring up a surface, walk it, report), in minutes.
+ *
+ * 30 was calibrated on the first slice's journeys, which measured 4–14 min. It is NOT enough for
+ * every journey, and the failure is expensive and silent-looking: a criterion whose walk CONTAINS a
+ * long operation — `studio-build` leg 10's walk is a real `story build --real` that authors every
+ * capability and opens a PR, which routinely exceeds 30 min on its own — is cut off mid-run, emits
+ * no report block, and is recorded as a MISS. A MISS is correctly not a pass, but it is also not a
+ * finding about the product: the gate goes red for a HARNESS reason, which is exactly the outcome
+ * ADR-0348's flip increment says to keep distinct from a real red.
+ *
+ * So the ceiling is an env override rather than a constant. It stays a CEILING — a drive that needs
+ * one is telling you its journey is long, not that the limit is wrong to have.
+ */
+const DRIVE_TIMEOUT_MIN = readTimeoutMinutes();
+const DRIVE_TIMEOUT_MS = DRIVE_TIMEOUT_MIN * 60_000;
+
+/** `STORYTREE_UAT_DRIVE_TIMEOUT_MIN`, when it is a positive finite number; else the 30-min default. */
+function readTimeoutMinutes(): number {
+  const raw = process.env["STORYTREE_UAT_DRIVE_TIMEOUT_MIN"];
+  if (raw === undefined || raw.trim().length === 0) return 30;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    console.error(
+      `[uat-drive] ignoring STORYTREE_UAT_DRIVE_TIMEOUT_MIN="${raw}" — not a positive number; using the 30-min default.`,
+    );
+    return 30;
+  }
+  return parsed;
+}
 
 /** Provenance stamped on the record — which runtime drove it. Never authority; the spine still signs. */
 const DRIVER = "claude-code";
+
+/** How much of an unreadable run's final text to echo for diagnosis. Never persisted, never evidence. */
+const UNREADABLE_TAIL_CHARS = 4000;
+
+/** The last {@link UNREADABLE_TAIL_CHARS} of `text`, indented so it cannot be mistaken for run output. */
+function indentTail(text: string): string {
+  const tail = text.length > UNREADABLE_TAIL_CHARS ? text.slice(-UNREADABLE_TAIL_CHARS) : text;
+  return tail
+    .split("\n")
+    .map((line) => `  | ${line}`)
+    .join("\n");
+}
 
 function git(args: string[], cwd: string): string {
   return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
@@ -158,7 +201,7 @@ async function main(): Promise<number> {
   const runId = `uat-drive:${storyId}:${commitSha.slice(0, 10)}:${process.pid}`;
   log(
     `driving ${selection.targets.length} criterion(s) of "${storyId}" @ ${commitSha.slice(0, 10)} — ` +
-      "each is a fresh subscription-funded session (ADR-0010 §5, out-of-band).",
+      `each is a fresh subscription-funded session (ADR-0010 §5, out-of-band), ceiling ${DRIVE_TIMEOUT_MIN} min.`,
   );
 
   const handle = await createPool();
@@ -219,16 +262,29 @@ async function driveOne(target: DriveTarget, prompt: string, ctx: DriveContext):
   });
   const mins = ((Date.now() - t0) / 60_000).toFixed(1);
   if (res.error !== undefined && (res.error as NodeJS.ErrnoException).code === "ETIMEDOUT") {
-    log(`  hit the ${DRIVE_TIMEOUT_MS / 60_000}-min ceiling (${mins}m) — reading whatever it reported…`);
+    log(
+      `  hit the ${DRIVE_TIMEOUT_MIN}-min ceiling (${mins}m) — reading whatever it reported…\n` +
+        "  NOTE: a run cut off here usually emits no report, which records as a MISS. A MISS is not a\n" +
+        "  pass, but it is also NOT a finding about the product — re-run with\n" +
+        "  STORYTREE_UAT_DRIVE_TIMEOUT_MIN=<minutes> before reading its red as a real one.",
+    );
   } else {
     log(`  the drive session finished after ${mins}m (exit ${res.status}).`);
   }
 
-  const parsed = parseDriveReport(finalText(res.stdout ?? ""));
+  const text = finalText(res.stdout ?? "");
+  const parsed = parseDriveReport(text);
   if (!parsed.ok) {
-    // A run whose report cannot be read did NOT pass, and nothing is persisted — an unreadable run
-    // must leave no trace a later witness could mistake for evidence.
+    // A run whose report cannot be read did NOT pass, and nothing is PERSISTED — an unreadable run
+    // must leave no trace a later witness could mistake for evidence. But "persists nothing" was
+    // over-read as "says nothing": the model's whole account of the run was discarded too, so a MISS
+    // arrived as one line with no way to tell a driver that hit a wall from one that ended a turn
+    // early, and diagnosing it cost a second paid drive. The tail below is DIAGNOSTIC OUTPUT, not
+    // evidence — it reaches stderr and never `events.uat_drive`, so the witness gate cannot see it.
     console.error(`  x ${target.criterionId}: ${parsed.reason}`);
+    console.error(`  --- the driver's last ${UNREADABLE_TAIL_CHARS} chars (diagnostic only; nothing was persisted) ---`);
+    console.error(text.length > 0 ? indentTail(text) : "  (the driver produced no output at all)");
+    console.error("  --- end of unreadable output ---");
     return `${target.criterionId} — ${parsed.reason}`;
   }
   const report = parsed.report;
