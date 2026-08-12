@@ -252,10 +252,11 @@ export interface CoverageDrainConfig {
  *   - `take-claim-at-spawn/orchestrator-acquires-before-spawn` — recorded NOT LIVE: no implementation at
  *     HEAD, its host capabilities retired (ADR-0175). Its own spec says it stays on this list
  *     permanently. It is expected, not a gap.
- *   - `claim-store-work-time/work-claim-request-carries-work-intent` — the surface now READS its three
- *     substantive tests, but ADR-0346 D3 reversed the mapping the contract asserts (kind → `role`, prose
- *     → `intent`). Crediting it would stamp `covered` beside an assertion the code deliberately no
- *     longer satisfies. Rewriting that assertion is a story-author edit, not a coverage repair.
+ *   - `claim-store-work-time/work-claim-request-carries-work-intent` — SINCE DISCHARGED; see the
+ *     104 → 103 note below. It was left on this list because the surface READ its three substantive
+ *     tests while ADR-0346 D3 had reversed the mapping the contract asserted, so crediting it would have
+ *     stamped `covered` beside an assertion the code deliberately no longer satisfied. The remedy was the
+ *     story-author edit it named, not a coverage repair — and that edit has now landed.
  *   - `seed-corpus-scripts` — the OTHER known borrowed arm (`library#gate-4`). Swept and left: both its
  *     contracts are honestly would-be. No test asserts `loadFixtureCorpus`'s own returned counts, and
  *     `applySchema`'s execution against a pool is Pg-specific and unrun (the offline `store.test.ts`
@@ -267,9 +268,32 @@ export interface CoverageDrainConfig {
  * anywhere outside its capability's surface returns ZERO remaining hits — the binding-fault class is
  * drained, and what is left is tests to write (or contracts to split/retire), which is what this ceiling
  * has always been counting.
+ *
+ * TIGHTENED AGAIN 104 → 103 on 2026-08-13 — the ONE deferred entry from the sweep above, discharged the
+ * way its own note said it had to be. `claim-store-work-time/work-claim-request-carries-work-intent` sat
+ * in the not-credited list for a reason that was never a coverage fault: the ADR-0353 surface already
+ * READ the three substantive `workClaimRequest` tests in `packages/notice-board/src/claim.test.ts`, but
+ * the contract's `asserts —` clause still stated the mapping ADR-0346 D3 had REVERSED (the work kind onto
+ * `intent`, which is what made that column 55% the literal string `"orchestrate"`; it lands on the typed
+ * `role` now, and `intent` carries the caller's prose). Naming the id onto passing tests would have
+ * stamped `covered` beside an assertion the code deliberately no longer satisfies.
+ *
+ * The remedy was the story-author edit that note named, and it is what landed: the contract now asserts
+ * the post-D3 behaviour — `kind: "edit"` → `role: "authoring"`, `kind: "orchestrate"` →
+ * `role: "supplementing"`, the caller's prose through unchanged, an omitted prose leaving `intent`
+ * EMPTY — and the three tests that already proved exactly that carry the contract id. The contract ID is
+ * UNCHANGED (ids are the handle proof binds to; a rename re-points signed verdicts), with a `note —` on
+ * the spec recording why it reads oddly against its own behaviour.
+ *
+ * MEASURED, not assumed (ADR-0269 4(f)), over the same aperture as the 112 → 104 sweep — 310 spec files,
+ * 125 scanned capabilities: `uncovered` 104 → 103, `unbound` unchanged at 1, and
+ * `claim-store-work-time` now contributes ZERO uncovered contracts. A DRAIN inside a fixed aperture: no
+ * glob was widened and no test was authored, so the sweep reads exactly the files it read before. The
+ * one contract credited cites three tests that existed and passed at the previous baseline; what changed
+ * is that the spec now states what they prove.
  */
 export const DEFAULT_COVERAGE_DRAIN_CONFIG: CoverageDrainConfig = {
-  uncoveredCeiling: 104,
+  uncoveredCeiling: 103,
   unboundCeiling: 1,
 };
 
