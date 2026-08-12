@@ -84,7 +84,7 @@ test("isReclaimable: an explicit staleMs overrides the default", () => {
 
 // ── bumpHeartbeat (A2, ADR-0138 §4): the pure mid-flight liveness refresh ─────
 
-test("bumpHeartbeat: resets heartbeatAt to `now`, so a stale claim is no longer reclaimable", () => {
+test("heartbeat-bump-shape-resets-without-reacquire: bumpHeartbeat resets heartbeatAt to `now`, so a stale claim is no longer reclaimable", () => {
   const now = new Date("2026-06-27T12:00:00.000Z");
   // A claim whose heartbeat is two thresholds old → stale (the precondition the contract names).
   const stale = sample({ heartbeatAt: new Date(now.getTime() - CLAIM_STALE_RECLAIM_MS * 2).toISOString() });
@@ -95,7 +95,7 @@ test("bumpHeartbeat: resets heartbeatAt to `now`, so a stale claim is no longer 
   assert.equal(isReclaimable(bumped, now), false, "the bumped claim is no longer reclaimable");
 });
 
-test("bumpHeartbeat: changes ONLY heartbeatAt (every other field preserved), and never mutates the input", () => {
+test("heartbeat-bump-shape-resets-without-reacquire: bumpHeartbeat changes ONLY heartbeatAt (every other field preserved), and never mutates the input", () => {
   const now = new Date("2026-06-27T12:00:00.000Z");
   const claim = sample({ heartbeatAt: "2026-06-27T00:00:00.000Z" });
   const bumped = bumpHeartbeat(claim, now);

@@ -61,7 +61,7 @@ const API_KEY_VAR = CREDENTIAL_ENV_VAR["api-key"];
 // Pins the CORE outcome (the wiring leg): a keychain-held oauth token reaches the ambient env
 // the SDK leaf reads, for the duration of the build, and is scrubbed back out afterwards — no
 // long-lived raw token parked in the sidecar's env.
-test("credentialed-build-runner: keychain oauth token is injected into the ambient env for the build, then restored", async () => {
+test("operation-env-lifetime: credentialed-build-runner: keychain oauth token is injected into the ambient env for the build, then restored", async () => {
   const keychain = new InMemoryKeychain();
   const broker = new CredentialBroker(keychain);
   await broker.store("oauth", "kc-oauth-token-abc");
@@ -88,7 +88,7 @@ test("credentialed-build-runner: keychain oauth token is injected into the ambie
 
 // Pins the PRECEDENCE anchor (the secrets.ts posture): an env var the operator EXPLICITLY set
 // is never overridden by the keychain — the base runner runs under the explicit value.
-test("credentialed-build-runner: an explicitly-set env credential wins over the keychain", async () => {
+test("operation-env-lifetime: credentialed-build-runner: an explicitly-set env credential wins over the keychain", async () => {
   const keychain = new InMemoryKeychain();
   const broker = new CredentialBroker(keychain);
   await broker.store("oauth", "kc-token-must-not-win");
@@ -134,7 +134,7 @@ test("credentialed-build-runner: api-key kind is injected under ANTHROPIC_API_KE
 
 // Pins the kind PREFERENCE: when both kinds are held, the subscription oauth token is the one
 // brokered (the desktop's primary path, ADR-0109 §5) — never both at once.
-test("credentialed-build-runner: oauth is preferred when both kinds are held", async () => {
+test("runtime-credential-partition: credentialed-build-runner: oauth is preferred when both kinds are held", async () => {
   const keychain = new InMemoryKeychain();
   const broker = new CredentialBroker(keychain);
   await broker.store("oauth", "kc-oauth");
@@ -156,7 +156,7 @@ test("credentialed-build-runner: oauth is preferred when both kinds are held", a
 
 // Pins the SECRETS-FILE tier: keychain empty but the env already carries a (file-hydrated)
 // token → the build runs under it untouched. The keychain tier only fills, never blanks.
-test("credentialed-build-runner: falls through to a file-hydrated env token when the keychain is empty", async () => {
+test("operation-env-lifetime: credentialed-build-runner: falls through to a file-hydrated env token when the keychain is empty", async () => {
   const keychain = new InMemoryKeychain();
   const broker = new CredentialBroker(keychain); // nothing stored
 
@@ -177,7 +177,7 @@ test("credentialed-build-runner: falls through to a file-hydrated env token when
 // Pins the FAIL-CLOSED guard (cb-fails-closed-when-unsigned): no env, no keychain, no file →
 // the bridge's typed rejection surfaces and the base runner is NEVER invoked — an honest
 // not-signed-in failure, never an empty token silently accepted.
-test("credentialed-build-runner: rejects with the bridge's typed error when no credential exists anywhere", async () => {
+test("runtime-credential-partition: credentialed-build-runner: rejects with the bridge's typed error when no credential exists anywhere", async () => {
   const keychain = new InMemoryKeychain();
   const broker = new CredentialBroker(keychain); // nothing stored
 
@@ -199,7 +199,7 @@ test("credentialed-build-runner: rejects with the bridge's typed error when no c
   assert.equal(calls.length, 0, "the base runner must never run without a credential");
 });
 
-test("credentialed-build-runner: a stray CURSOR_API_KEY env does not count as Claude auth", async () => {
+test("runtime-credential-partition: credentialed-build-runner: a stray CURSOR_API_KEY env does not count as Claude auth", async () => {
   const broker = new CredentialBroker(new InMemoryKeychain());
   const env: Record<string, string | undefined> = {
     CURSOR_API_KEY: "cursor-env-test-value",

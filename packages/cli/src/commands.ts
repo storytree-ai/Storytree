@@ -2219,7 +2219,8 @@ export const CLI_OPTIONS = {
   reason: { type: "string" },
   "superseded-by": { type: "string" },
   "memory-dir": { type: "string" },
-  // `storytree library graduate park` — the lease override in days (ADR-0202; default 60).
+  // `storytree library graduate park` — the lease override in days (ADR-0202; default 60). Reused by
+  // `storytree question new --lease-days` (ADR-0358 Option 2B; default 7) — same shape, same flag name.
   "lease-days": { type: "string" },
   review: { type: "boolean", default: false },
   readings: { type: "string" },
@@ -2267,6 +2268,7 @@ export const CLI_OPTIONS = {
   statement: { type: "string" },
   context: { type: "string" },
   options: { type: "string" },
+  analogy: { type: "string" },
   diagram: { type: "string" },
   recommendation: { type: "string" },
   scope: { type: "string" },
@@ -2392,6 +2394,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     statement?: string;
     context?: string;
     options?: string;
+    analogy?: string;
     diagram?: string;
     recommendation?: string;
     scope?: string;
@@ -3139,9 +3142,11 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       ...(values.statement !== undefined ? { statement: values.statement } : {}),
       ...(values.context !== undefined ? { context: values.context } : {}),
       ...(values.options !== undefined ? { options: values.options } : {}),
+      ...(values.analogy !== undefined ? { analogy: values.analogy } : {}),
       ...(values.diagram !== undefined ? { diagram: values.diagram } : {}),
       ...(values.recommendation !== undefined ? { recommendation: values.recommendation } : {}),
       ...(values.description !== undefined ? { description: values.description } : {}),
+      ...(values["lease-days"] !== undefined ? { leaseDays: values["lease-days"] } : {}),
     });
   }
 

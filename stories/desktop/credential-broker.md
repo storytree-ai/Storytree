@@ -25,6 +25,19 @@ proof:
   scope:
     testGlobs: ["apps/studio/src/**/*.test.tsx", "apps/studio/src/**/*.test.ts"]
     sourceGlobs: ["apps/studio/src/**/*.ts", "apps/studio/src/**/*.tsx"]
+  # ADR-0353 — the READ-ONLY coverage surface: where THIS capability's contract tests actually live.
+  # The `real:` arm below authors the NET-NEW renderer Credentials panel, so it is scoped to ONE
+  # studio component — that is contracts 5–9 only. Contracts 1, 3 and 4 are the MAIN-PROCESS broker
+  # half, which the frontmatter above already states was "already green in apps/desktop": the broker,
+  # the per-operation bridge, and the credentialed runner. Those tests exist, run offline, and pass;
+  # the sweep simply never read them, because a studio-scoped WRITE fence is not a statement about
+  # where a desktop capability's proof lives. Contract 2 is deliberately absent from this list — the
+  # spec proves it by the package TYPECHECK and claims no dedicated test, so no glob can credit it.
+  coverage:
+    testGlobs:
+      - "apps/desktop/src/credential/broker.test.ts"
+      - "apps/desktop/src/backend/credential-bridge.test.ts"
+      - "apps/desktop/src/backend/credentialed-build-runner.test.ts"
   real:
     testFile: "apps/studio/src/components/CredentialsPanel.test.tsx"
     sourceFile: "apps/studio/src/components/CredentialsPanel.tsx"

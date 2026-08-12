@@ -293,6 +293,14 @@ export const KIND_SPECS: Readonly<Record<KnowledgeKind, readonly KindFieldSpec[]
         "_Why it is open now — the forces and constraints, and what is blocked until it lands. Gloss every internal term, code identifier, and ADR number on first use._",
     },
     {
+      field: "analogy",
+      lead: false,
+      heading: "Analogy",
+      required: false,
+      placeholder:
+        "_The unfamiliar thing mapped onto a familiar one — this house reasons about the factory in ORGANISATIONAL terms (agents are employees, the orchestrator is a manager, an arc is an initiative), so reach for that register first. Say what maps to what AND where the analogy breaks, since an analogy whose limits are unstated is the one that misleads. Omit only when the subject is already ordinary._",
+    },
+    {
       field: "diagram",
       lead: false,
       heading: "Diagram",
@@ -921,6 +929,17 @@ export const Process = buildKindSchema("process").extend({
 // `.extend()` preserves `.strict()` and the `kind` literal, so the discriminated union is unaffected.
 export const OpenQuestion = buildKindSchema("open-question").extend({
   arcRef: AssetRef.optional(),
+  // Truth-maintenance park-lease (ADR-0358, Option 2B adapted from ADR-0202): `verifiedAt` is the ISO
+  // timestamp of the question's most recent verification (stamped at authoring time — first authoring
+  // counts as first verification — and re-stamped whenever `question check` or a librarian-curator
+  // re-verification confirms the claim still holds); `leaseDays` is how long that verification is
+  // trusted before `question check`/the librarian sweep treats it as lease-expired (default 7, per
+  // ADR-0358's Context — the observed drift moved a live count within 3 days). Both OPTIONAL: every
+  // question authored before ADR-0358 has neither field and renders as `UNVERIFIED` (ADR-0358 Option
+  // 2D), so there is NO `CURRENT_SCHEMA_VERSION` bump and zero migration — the same zero-migration
+  // shape as `arcRef` above and `Agent.model` below.
+  verifiedAt: z.string().optional(),
+  leaseDays: z.number().int().positive().optional(),
 });
 // The `agent` kind carries one structured field OUTSIDE its KIND_SPECS body table: `stepRefs`, the
 // workflow-step → refs association (ADR-0156 §4 / ADR-0161). It is metadata, not a rendered body

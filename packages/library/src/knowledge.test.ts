@@ -660,6 +660,44 @@ test("open-question kind (ADR-0267 D4): an OPTIONAL arcRef nests the question in
   );
 });
 
+test("open-question template (ADR-0359 D5): an OPTIONAL analogy sits beside the optional diagram", () => {
+  // The briefing shape ADR-0314 D5 fixed already had a picture slot — `diagram`, whose placeholder
+  // names a mermaid fence that the studio renders to SVG (ADR-0096). It had no ANALOGY slot, and an
+  // analogy is how this owner reads an unfamiliar decision: a familiar system mapped onto the
+  // unfamiliar one. Both are OPTIONAL, because a narrow value/policy choice needs neither and a
+  // mandatory analogy would be padded rather than thought about.
+  const spec = KIND_SPECS["open-question"];
+  const analogy = spec.find((s) => s.field === "analogy");
+  assert.ok(analogy, "the open-question template carries an analogy field");
+  assert.equal(analogy?.required, false, "optional-but-prompted, never mandatory");
+  assert.equal(analogy?.lead, false, "stakes still lead — what BREAKS is read first (ADR-0267)");
+
+  // Placed after `context` and before `options`: the analogy explains the world the question lives
+  // in, so it belongs with the context rather than among the candidate answers.
+  const order = spec.map((s) => s.field);
+  assert.ok(
+    order.indexOf("analogy") > order.indexOf("context"),
+    "the analogy follows the context it makes concrete",
+  );
+  assert.ok(
+    order.indexOf("analogy") < order.indexOf("options"),
+    "…and precedes the options, which are read THROUGH it",
+  );
+
+  // ADDITIVE AND OPTIONAL, so this is a zero-migration change: a question authored before the field
+  // still validates and renders unchanged (the `arcRef` precedent, re-verified rather than assumed).
+  const without = validateLibraryDoc(minimalDoc("open-question")) as { analogy?: string };
+  assert.equal(without.analogy, undefined, "an existing question needs no analogy");
+  assert.equal(CURRENT_SCHEMA_VERSION, 6, "an optional body field bumps nothing");
+
+  // And it round-trips through the body renderer + parser, like every other KIND_SPECS field.
+  const withAnalogy = validateLibraryDoc({
+    ...minimalDoc("open-question"),
+    analogy: "Like a manager reading a proposal before staffing it.",
+  }) as { analogy?: string };
+  assert.equal(withAnalogy.analogy, "Like a manager reading a proposal before staffing it.");
+});
+
 test("ADR-0267 D4 is a ZERO-migration change: every registered migration no-ops on an arcRef", () => {
   // ADR-0267's Consequences ask for exactly this re-verification rather than taking the
   // stepRefs/increments precedent on faith. The pin must NOT have moved, and an already-current
