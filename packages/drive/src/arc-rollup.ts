@@ -116,6 +116,14 @@ export interface ArcRollupQuestion {
    * problem". Empty string when the doc omits it.
    */
   stakes: string;
+  /**
+   * ADR-0358 Option 2B/2D — the question's park-lease fields, carried through untouched (`undefined`
+   * when the doc predates ADR-0358). The CLI renderer computes the age/freshness line at render time
+   * (`questionStalenessLine`, `packages/cli/src/question.ts`) rather than here — this module stays
+   * clockless, the same purity discipline as `graduation.ts`.
+   */
+  verifiedAt?: string;
+  leaseDays?: number;
 }
 
 /**
@@ -176,6 +184,18 @@ export interface ArcRollup {
 function str(doc: Record<string, unknown>, key: string): string {
   const v = doc[key];
   return typeof v === "string" ? v : "";
+}
+
+/** Read an OPTIONAL string field off an untyped stored doc body — `undefined`, never "", when absent. */
+function strOpt(doc: Record<string, unknown>, key: string): string | undefined {
+  const v = doc[key];
+  return typeof v === "string" ? v : undefined;
+}
+
+/** Read an OPTIONAL number field off an untyped stored doc body — `undefined` when absent/non-numeric. */
+function numOpt(doc: Record<string, unknown>, key: string): number | undefined {
+  const v = doc[key];
+  return typeof v === "number" ? v : undefined;
 }
 
 /** The body of a stored doc as an untyped bag (never throws on a malformed row). */
@@ -482,11 +502,15 @@ export function deriveArcRollup(input: ArcRollupInput): ArcRollup {
     .filter((q) => arcRefOf(q) === id)
     .map((q) => {
       const qd = bagOf(q);
+      const verifiedAt = strOpt(qd, "verifiedAt");
+      const leaseDays = numOpt(qd, "leaseDays");
       return {
         id: q.id,
         title: str(qd, "title"),
         description: str(qd, "description"),
         stakes: str(qd, "stakes"),
+        ...(verifiedAt !== undefined ? { verifiedAt } : {}),
+        ...(leaseDays !== undefined ? { leaseDays } : {}),
       };
     })
     .sort((a, b) => a.id.localeCompare(b.id));

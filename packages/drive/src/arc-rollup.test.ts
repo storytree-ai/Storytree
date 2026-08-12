@@ -400,21 +400,43 @@ test("deriveArcRollup is PURE — the same inputs join identically with no store
   const question = {
     id: "q1",
     kind: "open-question",
-    doc: { kind: "open-question", id: "q1", title: "Q", description: "d", stakes: "s", arcRef: "asset:a1" },
+    doc: {
+      kind: "open-question",
+      id: "q1",
+      title: "Q",
+      description: "d",
+      stakes: "s",
+      arcRef: "asset:a1",
+      // ADR-0358 Option 2B/2D — carried through untouched onto the rollup, undefined when absent.
+      verifiedAt: "2026-08-06T00:00:00.000Z",
+      leaseDays: 14,
+    },
+    createdAt: "",
+    updatedAt: "",
+  };
+  const unleased = {
+    id: "q2",
+    kind: "open-question",
+    doc: { kind: "open-question", id: "q2", title: "Q2", description: "d", stakes: "s", arcRef: "asset:a1" },
     createdAt: "",
     updatedAt: "",
   };
   const rollup = deriveArcRollup({
     arc: arc as never,
     incrementDocs: [],
-    questionDocs: [question as never],
+    questionDocs: [question as never, unleased as never],
     adrs: [
       { number: 1, file: "0001-x.md", status: "accepted", supersedes: [], amends: [], loadBearing: false, arc: "a1", title: "T" },
       { number: 2, file: "0002-y.md", status: "proposed", supersedes: [], amends: [], loadBearing: false, title: "U" },
     ],
     storyStamps: [{ story: "s1", arc: "a1" }, { story: "s2", arc: "elsewhere" }],
   });
-  assert.deepEqual(rollup.questions.map((q) => q.id), ["q1"]);
+  assert.deepEqual(rollup.questions.map((q) => q.id), ["q1", "q2"]);
+  assert.equal(rollup.questions[0]?.verifiedAt, "2026-08-06T00:00:00.000Z");
+  assert.equal(rollup.questions[0]?.leaseDays, 14);
+  // A question authored before ADR-0358 carries neither field — undefined, not a crash or a "" default.
+  assert.equal(rollup.questions[1]?.verifiedAt, undefined);
+  assert.equal(rollup.questions[1]?.leaseDays, undefined);
   assert.deepEqual(rollup.adrs.map((a) => a.number), [1]);
   assert.deepEqual(rollup.stories, ["s1"]);
   assert.equal(rollup.waiting, true);
