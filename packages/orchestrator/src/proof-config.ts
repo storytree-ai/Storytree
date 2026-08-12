@@ -27,6 +27,50 @@ export interface NodeBuildConfig {
   scope: PathWriteScopeConfig;
   /** REAL-mode proof config (Phase F). Absent = the node is dry-run/live-smoke buildable only. */
   real?: RealProofConfig;
+  /**
+   * Where this capability's CONTRACT tests actually live — a READ-ONLY observation surface for
+   * `check:coverage`, carrying no write authority whatsoever (ADR-0353).
+   *
+   * Why it must be its own field, rather than widening `real.scope.testGlobs`. The coverage sweep
+   * reads `real.testFile` ∪ `real.scope.testGlobs`, and BOTH of those are the phase machine's
+   * write-scope fence (`phase-machine.ts` `isTest`). On a capability whose `real:` arm is a
+   * BORROWED build-tests gate — `event-sourced-store-seam`, whose arm exists only for
+   * `library#gate-5`'s R1 red over `connection.ts` (ADR-0098) — the arm's test file is deliberately
+   * NOT the seam's contract surface. Widening the arm to make coverage see the parity tests would
+   * hand that gate's leaf write authority over another package's tests, to fix a REPORTING fault.
+   * So the surfaces are split by what they authorize: `real.scope` says what a drive may WRITE,
+   * `coverage` says where a reader may LOOK.
+   *
+   * Absent = unchanged behaviour (the sweep reads the `real:` arm alone), so no existing spec moves.
+   */
+  coverage?: CoverageSurfaceConfig;
+}
+
+/**
+ * The read-only contract-test surface ({@link NodeBuildConfig.coverage}, ADR-0353).
+ *
+ * TEST GLOBS ONLY, deliberately — there is no `sourceGlobs` counterpart and adding one would be a
+ * mistake. The ADR-0192/ADR-0074 hosted-story landlord rule derives a story's claimed territory from
+ * its units' `real.sourceFile` plus their LITERAL `real.scope.sourceGlobs`; a source-shaped coverage
+ * field would silently enlarge that territory and red `check:boundaries` for a capability that
+ * merely wants its own tests read. Naming only TEST paths keeps this field invisible to the landlord
+ * rule by construction, which is what lets a seam whose contracts are proven in a sibling package
+ * declare them without re-homing anything.
+ */
+export interface CoverageSurfaceConfig {
+  /**
+   * Repo-relative paths (or globs) the coverage sweep additionally reads for vouching test names.
+   * A literal path is read as-is, so a shared suite module that is not itself a `*.test.ts` file
+   * (`store-parity.ts`) can be named directly.
+   *
+   * Each entry is held to the SAME {@link scopeGlobBoundIssue} bound as a write scope — one
+   * concrete package/app, no `..`, no repo-wide wildcard. That bound is not inherited thoughtlessly
+   * from the write-scope schema: an unbounded repo-wide test glob here would let a capability credit
+   * its contracts against any test anywhere in the repo, which is a fake-drain vector on exactly the
+   * check that exists to stop under-declaration. The bound is per-GLOB, not per-array, so a
+   * capability whose contracts genuinely span two packages may name both.
+   */
+  testGlobs: string[];
 }
 
 /**
@@ -420,12 +464,43 @@ const RealProofConfigSchema = z
     path: ["refactorForTests"],
   });
 
+/**
+ * The read-only coverage surface (ADR-0353) — {@link CoverageSurfaceConfig}.
+ *
+ * `.strict()` and `.min(1)` like every other block here: a mistyped `testGlob` key must be a loud
+ * malformed config, never a tolerated extra that silently observes nothing. Each glob carries the
+ * ADR-0087 single-package bound — see {@link CoverageSurfaceConfig} for why a read-only surface
+ * still needs it (an unbounded glob is a fake-drain vector, not merely untidy).
+ */
+const CoverageSurfaceConfigSchema = z
+  .object({
+    testGlobs: z.array(z.string().min(1)).min(1),
+  })
+  .strict()
+  .superRefine((surface, ctx) => {
+    if (!Array.isArray(surface.testGlobs)) return;
+    surface.testGlobs.forEach((glob, index) => {
+      if (typeof glob !== "string") return;
+      const issue = scopeGlobBoundIssue(glob);
+      if (issue !== null) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["testGlobs", index],
+          message:
+            `over-broad coverage glob — ${issue} (ADR-0353: a coverage surface reads one concrete ` +
+            "package/app per glob; a repo-wide glob would credit a contract against any test in the repo).",
+        });
+      }
+    });
+  });
+
 /** The spec-borne `proof:` block schema — mirrors {@link NodeBuildConfig} 1:1. */
 export const NodeBuildConfigSchema = z
   .object({
     command: ShellCommandSchema,
     scope: PathWriteScopeConfigSchema,
     real: RealProofConfigSchema.optional(),
+    coverage: CoverageSurfaceConfigSchema.optional(),
   })
   .strict();
 
@@ -486,5 +561,11 @@ export function parseNodeBuildConfig(raw: unknown): NodeBuildConfig {
     command: buildShellCommand(parsed.command),
     scope: buildScope(parsed.scope),
     ...(parsed.real !== undefined ? { real: buildReal(parsed.real) } : {}),
+    // ADR-0353: same absent-not-undefined idiom as every optional above — a node declaring no
+    // coverage surface keeps the key OFF the config, so its registry-vs-spec parity deepEqual holds
+    // byte-for-byte and the drift-lock is undisturbed.
+    ...(parsed.coverage !== undefined
+      ? { coverage: { testGlobs: [...parsed.coverage.testGlobs] } }
+      : {}),
   };
 }

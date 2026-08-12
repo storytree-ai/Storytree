@@ -1784,9 +1784,18 @@ function loadCoverageUnit(storiesDir: string, root: string, unitId: string): Cov
     const absolute = path.join(root, glob);
     return glob.includes("*") ? walkTestFiles(path.join(root, globBaseDir(glob))) : [absolute];
   });
+  // ADR-0353: union in the READ-ONLY coverage surface, exactly as the gate sweep does. Both readers
+  // MUST resolve the same surface — a per-capability report that disagreed with the sweep would be
+  // the checker contradicting itself on the one question it exists to answer.
+  const coverageFiles = (spec.buildConfig?.coverage?.testGlobs ?? []).flatMap((glob) =>
+    glob.includes("*")
+      ? walkTestFiles(path.join(root, globBaseDir(glob)))
+      : [path.join(root, glob)],
+  );
   const absFiles = [
     ...(real?.testFile !== undefined ? [path.join(root, real.testFile)] : []),
     ...scopedFiles,
+    ...coverageFiles,
   ].filter((candidate, index, files) => files.indexOf(candidate) === index);
   const existing = absFiles.filter((f) => existsSync(f));
   const testNames: string[] = [];

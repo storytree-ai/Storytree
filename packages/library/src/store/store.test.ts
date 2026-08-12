@@ -17,7 +17,7 @@ const LIVE = process.env["STORYTREE_DB_LIVE"] === "1";
 
 // ---- Offline: schema.sql shape -------------------------------------------------------------
 
-test("schema.sql declares the events schema and all six tables", async () => {
+test("schema-shape-stable: schema.sql declares the events schema and all six tables", async () => {
   const sql = await readFile(SCHEMA_SQL_PATH, "utf8");
   assert.match(sql, /CREATE SCHEMA IF NOT EXISTS events/);
   assert.match(sql, /events\.library_event/);

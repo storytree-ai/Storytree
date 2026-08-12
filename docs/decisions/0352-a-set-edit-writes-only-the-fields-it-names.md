@@ -113,14 +113,17 @@ suite, and ~12 read-modify-write call sites. **Revisit on evidence of a same-fie
   Context are the way to ask.
 - Both open friction items —`concurrent-library-artifact-edits-clobber-with-no-detection` and
   `regen-mid-edit-truncates-guidance-silently` — are ONE item and are discharged by this decision.
-- **`patchDoc` ships with real parity tests but NO declared contract on `event-sourced-store-seam`,
-  and that is deliberate.** `check:coverage` scans only a capability's registered `real.testFile`
-  (`connection.test.ts` here, the ADR-0098 gate-5 arm), never `store-parity.ts` where these tests
-  live — which is why all nine existing contracts already sit in the drain backlog despite five
-  citing REAL passing tests. Declaring two more would have taken the corpus backlog from 119 to 121
-  and RED the ceiling, for behaviour that IS proven; naming them in `connection.test.ts` to satisfy
-  the scanner would be a fake drain. The capability's spec records this in place. The real remedy is
-  repointing that binding, which touches a signed `real:` arm and belongs to its own unit.
+- **`patchDoc` shipped with real parity tests but NO declared contract on `event-sourced-store-seam`,
+  as a deliberate stopgap — SINCE RESOLVED by ADR-0353.** `check:coverage` scanned only a
+  capability's registered `real.testFile` (`connection.test.ts` here, the ADR-0098 gate-5 arm), never
+  `store-parity.ts` where these tests live — which is why all nine existing contracts sat in the
+  drain backlog despite five citing REAL passing tests. Declaring two more would have taken the
+  corpus backlog from 119 to 121 and RED the ceiling, for behaviour that IS proven; naming them in
+  `connection.test.ts` to satisfy the scanner would have been a fake drain. ADR-0353 repaired the
+  binding — a capability may now declare a read-only `proof.coverage.testGlobs` surface saying where
+  its contract tests actually live, WITHOUT touching the borrowed `real:` arm that is also the phase
+  machine's write fence — and the two contracts (`patch-writes-only-named-fields`,
+  `patch-honours-the-write-boundary`) are now declared and covered.
 
 ## References
 
