@@ -13,6 +13,7 @@ import {
   UAT_DRIVE_AUTONOMY_CLAUSE,
   UAT_DRIVE_HONESTY_CLAUSE,
   UAT_DRIVE_REPORT_FENCE,
+  UAT_DRIVE_TOOLING_CLAUSE,
   UAT_DRIVE_WITNESS_ENTRY,
   UatDriveRecord,
   type DriveGate,
@@ -135,29 +136,67 @@ test("uatDriveTaskPrompt: forbids editing source to make the journey pass", () =
   assert.match(uatDriveTaskPrompt(SPEC), /Do not edit repository source to make the journey pass/i);
 });
 
-test("auditDrivePrompt: the REAL prompt keeps all three integrity properties", () => {
+// The tooling clause is guarded against the three failures the first seven live drives actually
+// produced (2026-08-12) — an invented 40-min poll harness that outlived its own session, a driver
+// that attached to a SIBLING worktree's studio instead of starting its own, and artifacts written
+// into the working tree, which then refused the next drive. Each is asserted as the property it
+// buys, not as a quoted blob, so rewording the guidance is free but dropping it is not.
+
+test("uatDriveTaskPrompt: names the INSTALLED Playwright setup rather than 'browser control'", () => {
+  const prompt = uatDriveTaskPrompt(SPEC);
+  assert.ok(prompt.includes(UAT_DRIVE_TOOLING_CLAUSE));
+  assert.match(prompt, /@playwright\/test/);
+  assert.match(prompt, /apps\/studio\/playwright\.config\.ts/);
+  assert.match(prompt, /retain-on-failure/, "ADR-0295 D4's cheap retention must be pointed at");
+  assert.doesNotMatch(
+    prompt,
+    /use whatever this repository actually offers/i,
+    "the vague phrasing this clause replaced — a driver that reads it hand-rolls a harness",
+  );
+});
+
+test("uatDriveTaskPrompt: forbids an unbounded wait, an inherited server, and artifacts in the tree", () => {
+  const prompt = uatDriveTaskPrompt(SPEC);
+  assert.match(prompt, /BOUND every wait/);
+  assert.match(prompt, /recorded\s+as a MISS/, "the driver must know an overrun yields no report at all");
+  assert.match(prompt, /do NOT attach to whatever is already listening/);
+  assert.match(prompt, /OUTSIDE the repository, or under an\s+already-ignored path/);
+});
+
+test("auditDrivePrompt: the REAL prompt keeps all four guarded properties", () => {
   const audit = auditDrivePrompt(uatDriveTaskPrompt(SPEC), JOURNEY);
   assert.equal(audit.ok, true, `drive prompt lost: ${audit.missing.join(", ")}`);
   assert.deepEqual(audit.missing, []);
 });
 
+/** A prompt carrying every guarded property EXCEPT the ones a case deliberately omits. */
+function promptWithout(...omit: readonly string[]): string {
+  return [JOURNEY, UAT_DRIVE_HONESTY_CLAUSE, "```" + UAT_DRIVE_REPORT_FENCE, UAT_DRIVE_TOOLING_CLAUSE]
+    .filter((part) => !omit.includes(part))
+    .join("\n");
+}
+
 test("auditDrivePrompt: a prompt that PARAPHRASES the journey fails the audit (the teeth)", () => {
-  const paraphrased = [
-    "Click the flower and check the panel opens.",
-    UAT_DRIVE_HONESTY_CLAUSE,
-    "```" + UAT_DRIVE_REPORT_FENCE,
-  ].join("\n");
+  const paraphrased = promptWithout(JOURNEY).replace(
+    /^/,
+    "Click the flower and check the panel opens.\n",
+  );
   const audit = auditDrivePrompt(paraphrased, JOURNEY);
   assert.equal(audit.ok, false);
   assert.deepEqual(audit.missing, ["the authored journey prose, verbatim"]);
 });
 
-test("auditDrivePrompt: dropping the honesty clause or the report fence each fails", () => {
-  const noHonesty = [JOURNEY, "```" + UAT_DRIVE_REPORT_FENCE].join("\n");
-  assert.deepEqual(auditDrivePrompt(noHonesty, JOURNEY).missing, ["the honesty clause"]);
-
-  const noFence = [JOURNEY, UAT_DRIVE_HONESTY_CLAUSE].join("\n");
-  assert.deepEqual(auditDrivePrompt(noFence, JOURNEY).missing, ["the report contract fence"]);
+test("auditDrivePrompt: dropping the honesty clause, the fence, or the tooling clause each fails", () => {
+  assert.deepEqual(auditDrivePrompt(promptWithout(UAT_DRIVE_HONESTY_CLAUSE), JOURNEY).missing, [
+    "the honesty clause",
+  ]);
+  assert.deepEqual(
+    auditDrivePrompt(promptWithout("```" + UAT_DRIVE_REPORT_FENCE), JOURNEY).missing,
+    ["the report contract fence"],
+  );
+  assert.deepEqual(auditDrivePrompt(promptWithout(UAT_DRIVE_TOOLING_CLAUSE), JOURNEY).missing, [
+    "the tooling clause",
+  ]);
 });
 
 // ── the report contract ──────────────────────────────────────────────────────
