@@ -812,8 +812,14 @@ export interface DrainStatusOptions {
  *
  * This is strand 3's answer to "a run that reaps nothing is observable". It reads the ledger every
  * executing run appends to, classifies the series, and prints today's population census beside it.
- * It REMOVES NOTHING and needs no DB, so it is safe to run anywhere and cheap enough to wire into a
- * gate later (the natural follow-up; not wired here to stay off a concurrently-restructured chain).
+ * It REMOVES NOTHING and needs no DB, so it is safe to run anywhere on demand.
+ *
+ * A `pnpm gate` rung wiring this in was proposed and REFUSED on measured evidence
+ * (`drain-check-needs-a-gate-rung`, closed 2026-08-08): replayed against all 47 recorded runs, the
+ * check never once failed, and it fails ADR-0311 D5's production-catch bar — machine-local
+ * `.claude/worktrees/` state is the category D2 retired by name. Do not re-derive that proposal; the
+ * automatic voice this check needed instead is `worktree-prune-entry.ts`'s SessionStart `--announce`
+ * call (`drain-announce-is-muted-at-the-launcher`), which reads this same series without a gate.
  *
  * It returns `ok: false` — exit 1 — when the drain is STALLED, which is what makes it a check rather
  * than a report. `warn` states (unproven, stopped, outpaced) exit 0 and say so, mirroring the house

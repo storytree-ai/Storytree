@@ -293,6 +293,14 @@ export const KIND_SPECS: Readonly<Record<KnowledgeKind, readonly KindFieldSpec[]
         "_Why it is open now — the forces and constraints, and what is blocked until it lands. Gloss every internal term, code identifier, and ADR number on first use._",
     },
     {
+      field: "analogy",
+      lead: false,
+      heading: "Analogy",
+      required: false,
+      placeholder:
+        "_The unfamiliar thing mapped onto a familiar one — this house reasons about the factory in ORGANISATIONAL terms (agents are employees, the orchestrator is a manager, an arc is an initiative), so reach for that register first. Say what maps to what AND where the analogy breaks, since an analogy whose limits are unstated is the one that misleads. Omit only when the subject is already ordinary._",
+    },
+    {
       field: "diagram",
       lead: false,
       heading: "Diagram",

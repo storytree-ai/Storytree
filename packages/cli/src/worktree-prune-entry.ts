@@ -1,7 +1,8 @@
 #!/usr/bin/env -S tsx
-import { openSync, closeSync, statSync } from "node:fs";
+import { openSync, closeSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 
 import {
   pruneWorktrees,
@@ -15,6 +16,7 @@ import {
   drainLedgerPath,
   readDrainHistory,
   shouldAnnounceDrain,
+  type DrainVerdict,
 } from "./worktree-drain.js";
 
 /**
@@ -34,16 +36,24 @@ import {
  *
  * HARD CONTRACT (mirrors ambient-presence-entry.ts / provision-worktree.mjs): ALWAYS exit 0, bounded,
  * and silent on every FAILURE path — a prune hiccup must never surface into or slow the session. The
- * launcher (`scripts/worktree-prune-hook.sh`) runs this DETACHED so even a slow removal never blocks
- * session start; this entry adds a throttle so frequent/parallel sessions don't re-scan needlessly.
+ * launcher (`scripts/worktree-prune-hook.sh`) runs the PRUNE half DETACHED so even a slow removal
+ * never blocks session start; this entry adds a throttle so frequent/parallel sessions don't re-scan
+ * needlessly.
  *
- * SILENT-ON-FAILURE, NOT SILENT-ON-NOTHING-DRAINED (worktree-reaper-integrity-arc, strand 3). This
- * entry used to be quiet in BOTH cases, which made a reaper that had drained nothing for weeks
- * indistinguishable from a healthy one — the blindness that let the poisoned idle clock rot while
- * `.claude/worktrees/` grew to ~93 GB. Every executing run now appends its counts to the drain ledger
- * (`worktree-drain.ts`), including the zeroes, and this entry speaks up when the recorded series says
- * the drain is stalled, stopped, or losing ground. The silent-on-FAILURE half is untouched: the outer
- * catch still swallows every crash and the exit is still unconditionally 0.
+ * TWO ENTRY POINTS, ONE FILE (worktree-reaper-integrity-arc, `drain-announce-is-muted-at-the-launcher`):
+ *
+ *   - `--announce` runs {@link runAnnounce}: ONE ledger read, no git-heavy scan, no removals. It runs
+ *     SYNCHRONOUSLY in the launcher's foreground, where its stdout is still attached, and is the
+ *     agent's only voice for "the drain has stalled/stopped/outpaced" (see {@link announceContext}).
+ *   - no argument runs {@link runPrune}: the existing reap-and-record behaviour, launched DETACHED so a
+ *     slow Windows removal never blocks session start. Its own stdout/stderr are still discarded by the
+ *     launcher, unchanged from before this split — a prune result was never the thing this file's
+ *     provenance entry asked to fix, and a detached write racing an exited parent is unreliable anyway
+ *     (see the entry's "why the obvious fix is not obviously enough" section).
+ *
+ * Calling `runAnnounce` BEFORE `runPrune` (the launcher's order) means the health verdict it reports
+ * reflects the series through the PREVIOUS run, not this one — correct for a multi-day signal, and it
+ * means the fast half never waits on the slow half's removals.
  */
 
 /** Reap at most this many per run — the one-time bulk backlog is cleared by the manual CLI, not here. */
@@ -51,7 +61,46 @@ const HOOK_CAP = 8;
 /** Throttle: skip the scan entirely if a run stamped the lock within this window (any session). */
 const THROTTLE_MS = 30 * 60 * 1000;
 
-function main(): void {
+/**
+ * The `SessionStart` `additionalContext` payload for an unhealthy drain — the one hook output channel
+ * the agent actually reads (stdout on exit 0; stderr is invisible to it, per
+ * `provision-worktree.mjs`'s `unprovisionedContext` / `worktree-health.mjs`'s equivalent). `null` when
+ * the verdict is not one {@link shouldAnnounceDrain} says is worth breaking silence for — a healthy or
+ * still-unproven ledger stays quiet, by design.
+ *
+ * Pure/string-returning so the gating and the message text are unit tested without spawning a process.
+ */
+export function announceContext(health: DrainVerdict): string | null {
+  if (!shouldAnnounceDrain(health.status)) return null;
+  const text = `[worktree drain] ${health.level.toUpperCase()} ${health.headline} — run \`storytree worktree drain\` for the census.`;
+  return JSON.stringify({
+    hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: text },
+  });
+}
+
+/**
+ * The fast, synchronous half: read the drain ledger as it stands (before this run's prune, if any,
+ * appends to it) and print the agent-visible heads-up when the series says the drain is unhealthy.
+ * One file read, no git spawn beyond `resolveContext`'s single `rev-parse`, no fs walk, no network —
+ * safe to run in the launcher's foreground on every session start.
+ */
+export function runAnnounce(): void {
+  try {
+    const ctx = resolveContext(defaultWorktreeIo);
+    const health = classifyDrainHealth(
+      readDrainHistory(defaultDrainLedgerIo, drainLedgerPath(ctx.worktreesDir)),
+      { now: Date.now(), thresholdMs: DEFAULT_THRESHOLD_MS },
+    );
+    const out = announceContext(health);
+    if (out !== null) process.stdout.write(out + "\n");
+  } catch {
+    // Never surface — the session proceeds regardless.
+  }
+  process.exit(0);
+}
+
+/** The slow, detached half: throttle, reap, and record — unchanged in substance from before the split. */
+export function runPrune(): void {
   try {
     const ctx = resolveContext(defaultWorktreeIo);
     const lock = path.join(ctx.worktreesDir, ".prune.lock");
@@ -80,31 +129,12 @@ function main(): void {
       thresholdMs: DEFAULT_THRESHOLD_MS,
       liveSessions: new Set(), // offline: the mtime idle heuristic stands in for the notice board
     });
-    // Say something when it actually reaped…
+    // Say something when it actually reaped. The launcher runs this half detached and discards both
+    // streams, same as before this split — this line is unread today, and fixing that is out of scope
+    // (the provenance entry is specifically about the drain HEALTH verdict, which `runAnnounce` now
+    // carries through a channel the agent actually reads).
     if (/Reaped [1-9]/.test(env.body)) {
       process.stderr.write((env.body.split("\n")[0] ?? "").concat("\n"));
-    }
-
-    // …AND when the drain itself is unhealthy (worktree-reaper-integrity-arc strand 3).
-    //
-    // The hook is silent-on-success and silent-on-nothing-to-do BY CONTRACT, which is precisely how a
-    // reaper that had drained nothing for weeks stayed indistinguishable from a healthy one while
-    // `.claude/worktrees/` grew to ~93 GB. Silence must no longer be the signal for "nothing drained":
-    // the run above just appended its counts to the ledger, so read the series back and speak up when
-    // it says the drain has stalled, stopped, or is losing ground. The silent-on-FAILURE half of the
-    // contract is untouched — the outer catch still swallows every crash, and this whole block is one
-    // ledger read with no git, no fs walk, and no network.
-    const health = classifyDrainHealth(
-      readDrainHistory(defaultDrainLedgerIo, drainLedgerPath(ctx.worktreesDir)),
-      { now: Date.now(), thresholdMs: DEFAULT_THRESHOLD_MS },
-    );
-    // Which states are worth breaking silence for is a decision with a rationale, so it lives in
-    // `shouldAnnounceDrain` where it is documented and tested — not as a condition inlined in an
-    // untestable entry script.
-    if (shouldAnnounceDrain(health.status)) {
-      process.stderr.write(
-        `[worktree prune] ${health.level.toUpperCase()} ${health.headline} — run \`storytree worktree drain\` for the census.\n`,
-      );
     }
   } catch {
     // Never surface — the session proceeds regardless.
@@ -112,4 +142,25 @@ function main(): void {
   process.exit(0);
 }
 
-main();
+/**
+ * True only when THIS file is the process entry (invoked directly by tsx), never when it is
+ * `import`ed — mirrors `provision-worktree.mjs` / `worktree-health.mjs`'s guard. Without it, a test
+ * importing {@link announceContext} to check the message shape would trigger the `process.exit(0)`
+ * at the bottom of {@link runAnnounce} / {@link runPrune} and kill the test runner.
+ */
+function isEntry(): boolean {
+  if (!process.argv[1]) return false;
+  try {
+    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+if (isEntry()) {
+  if (process.argv[2] === "--announce") {
+    runAnnounce();
+  } else {
+    runPrune();
+  }
+}

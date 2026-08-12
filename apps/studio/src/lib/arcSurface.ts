@@ -24,6 +24,16 @@ import type {
 /** The one increment status that counts as LANDED (ADR-0305 D2 / ADR-0314 D2). */
 export const LANDED_STATUS = 'closed';
 
+/**
+ * The one increment status that is WAITING ON THE OWNER (ADR-0359 D2/D3).
+ *
+ * ADR-0305 D2's lifecycle is `proposal → ready → active → closed`, and the line D3 draws through it
+ * is decided versus undecided work: a `proposal` is a unit whose shape is still open to the owner's
+ * review, where `ready` and `active` are already dispatched. Only this one is promoted into the
+ * briefing's waiting half; the other two stay under "what comes next", exactly where they were.
+ */
+export const PROPOSAL_STATUS = 'proposal';
+
 /** A bar's tone — the whole of ADR-0314 D2's model. Green for landed, grey for not yet. */
 export type LaneBarTone = 'landed' | 'queued';
 
@@ -371,10 +381,69 @@ export interface ArcBriefing {
   arc: ArcRollup;
   /** Open questions on this arc — empty when nothing waits on the owner. */
   waiting: ArcRollupQuestion[];
-  /** Not-yet-landed increments, longest-waiting first (the rollup's own order). */
+  /**
+   * Parked PROPOSALS — the second thing waiting on the owner (ADR-0359 D2), rendered beside
+   * `waiting` rather than merged into it.
+   *
+   * A SIBLING FIELD, DELIBERATELY. `waiting` keeps meaning "authored open questions" so no existing
+   * reader of it silently changes what it is looking at — most importantly {@link arcState}, which
+   * derives the LANE chip from `rollup.questions` and must keep doing so (D4: all 13 active arcs
+   * carried open increments on 2026-08-12, so a proposal-lit `waiting` would light every lane and
+   * discriminate nothing — the degeneracy ADR-0351 D1 had just removed).
+   *
+   * DISJOINT from {@link next}, not a subset of it. Rendering a proposal in both blocks was tried
+   * and removed: the panel is being de-noised, and the same row twice on one screen is noise of
+   * exactly the kind this change exists to cut. So a proposal MOVES here; `next` is what remains.
+   */
+  proposals: ArcRollupIncrement[];
+  /**
+   * What is queued but NOT waiting on the owner — `ready` and `active`, longest-waiting first
+   * (the rollup's own order). Proposals moved to {@link proposals} (ADR-0359 D3): this block is
+   * decided work in flight, and the distinction is the whole point of splitting them.
+   */
   next: ArcRollupIncrement[];
   /** Landed increments, NEWEST first — "where it is up to" reads backwards from now. */
   landed: ArcRollupIncrement[];
+}
+
+/**
+ * The landed log as ONE LINE (ADR-0359 D1) — `13 landed · last 2026-08-05 #1186`.
+ *
+ * The panel used to render one row per closed increment, which is 57 rows on
+ * `verification-integrity-arc` against the live store on 2026-08-12, at the bottom of a scroll the
+ * owner has to travel past whatever they came for. The list is not deleted — it moves behind a
+ * closed-by-default disclosure and this is what the summary says instead.
+ *
+ * THE COUNT IS A COUNT AND NEVER A RATIO. ADR-0314 D2's denominator fence reaches here for the same
+ * reason it reaches `laneCounts`: an arc's `endState` is prose, so "13 of N" has no N and "13
+ * landed" is the whole honest claim.
+ *
+ * The "most recent" landing is the MAX over parsed dates, not the last element — the rollup's order
+ * is drive's status-rank sort, and reading position as recency is exactly the mistake ADR-0314 D2
+ * forbids on the bars. What it does not know it OMITS: a landing with no date prints the count
+ * alone, and one with no PR prints the date alone, rather than rendering an empty separator.
+ */
+export function landedSummary(rollup: ArcRollup): string {
+  const landed = rollup.increments.filter((i) => i.status === LANDED_STATUS);
+  if (landed.length === 0) return 'Nothing has landed yet';
+
+  let newest: ArcRollupIncrement | null = null;
+  let newestAt = -Infinity;
+  for (const inc of landed) {
+    const date = inc.outcome?.date;
+    if (date === undefined || date === '') continue;
+    const at = Date.parse(date);
+    if (Number.isNaN(at) || at < newestAt) continue;
+    newest = inc;
+    newestAt = at;
+  }
+
+  const parts = [`${landed.length} landed`];
+  if (newest?.outcome?.date) {
+    const pr = newest.outcome.pr;
+    parts.push(`last ${newest.outcome.date}${pr ? ` ${pr}` : ''}`);
+  }
+  return parts.join(' · ');
 }
 
 /**
@@ -406,7 +475,10 @@ export function arcBriefing(rollup: ArcRollup): ArcBriefing {
   return {
     arc: rollup,
     waiting: rollup.questions,
-    next: rollup.increments.filter((i) => i.status !== LANDED_STATUS),
+    proposals: rollup.increments.filter((i) => i.status === PROPOSAL_STATUS),
+    next: rollup.increments.filter(
+      (i) => i.status !== LANDED_STATUS && i.status !== PROPOSAL_STATUS,
+    ),
     landed,
   };
 }
