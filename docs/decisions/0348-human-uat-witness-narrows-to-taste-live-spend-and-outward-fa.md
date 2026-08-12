@@ -188,6 +188,12 @@ an aesthetic, felt, or owner value call. This restores
 `asset:human-witness-is-a-judgment-gap-not-cost` as the single test, and removes the two exceptions
 ADR-0295 D5 added to it.
 
+> **Amended 2026-08-12 by [ADR-0357](0357-human-uat-witness-also-covers-surfaces-no-harness-owns-every.md) D1 — corrected in place (ADR-0139).** "Taste alone" no longer holds without
+> qualification: a leg may also carry `witness: human` on a second basis — its success condition is
+> mechanical but sits outside every harness the proof spine owns — PROVIDED it states that basis and
+> what would retire it (ADR-0357 D2), and that statement is readable where the owner meets the leg
+> (ADR-0357 D3). D2 below (live-spend) and D3 below (outward-facing) stand unamended.
+
 **D2. Live spend is not a reason for a human witness.** A leg whose journey costs subscription-funded
 spend is `machine`. The spend is a routine factory action, not a judgment; the principle already said
 so and D5 should not have re-admitted it.
