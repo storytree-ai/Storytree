@@ -93,6 +93,18 @@ function readTimeoutMinutes(): number {
 /** Provenance stamped on the record — which runtime drove it. Never authority; the spine still signs. */
 const DRIVER = "claude-code";
 
+/** How much of an unreadable run's final text to echo for diagnosis. Never persisted, never evidence. */
+const UNREADABLE_TAIL_CHARS = 4000;
+
+/** The last {@link UNREADABLE_TAIL_CHARS} of `text`, indented so it cannot be mistaken for run output. */
+function indentTail(text: string): string {
+  const tail = text.length > UNREADABLE_TAIL_CHARS ? text.slice(-UNREADABLE_TAIL_CHARS) : text;
+  return tail
+    .split("\n")
+    .map((line) => `  | ${line}`)
+    .join("\n");
+}
+
 function git(args: string[], cwd: string): string {
   return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
 }
@@ -260,11 +272,19 @@ async function driveOne(target: DriveTarget, prompt: string, ctx: DriveContext):
     log(`  the drive session finished after ${mins}m (exit ${res.status}).`);
   }
 
-  const parsed = parseDriveReport(finalText(res.stdout ?? ""));
+  const text = finalText(res.stdout ?? "");
+  const parsed = parseDriveReport(text);
   if (!parsed.ok) {
-    // A run whose report cannot be read did NOT pass, and nothing is persisted — an unreadable run
-    // must leave no trace a later witness could mistake for evidence.
+    // A run whose report cannot be read did NOT pass, and nothing is PERSISTED — an unreadable run
+    // must leave no trace a later witness could mistake for evidence. But "persists nothing" was
+    // over-read as "says nothing": the model's whole account of the run was discarded too, so a MISS
+    // arrived as one line with no way to tell a driver that hit a wall from one that ended a turn
+    // early, and diagnosing it cost a second paid drive. The tail below is DIAGNOSTIC OUTPUT, not
+    // evidence — it reaches stderr and never `events.uat_drive`, so the witness gate cannot see it.
     console.error(`  x ${target.criterionId}: ${parsed.reason}`);
+    console.error(`  --- the driver's last ${UNREADABLE_TAIL_CHARS} chars (diagnostic only; nothing was persisted) ---`);
+    console.error(text.length > 0 ? indentTail(text) : "  (the driver produced no output at all)");
+    console.error("  --- end of unreadable output ---");
     return `${target.criterionId} — ${parsed.reason}`;
   }
   const report = parsed.report;
