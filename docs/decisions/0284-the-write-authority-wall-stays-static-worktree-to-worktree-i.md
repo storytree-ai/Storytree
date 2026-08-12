@@ -118,17 +118,21 @@ mechanism satisfying an agent-inescapability requirement.
 
 **D6. Codex containment is the only live thread, and it is an owner scope-and-spend decision.**
 ADR-0257 D2/D3/D7 — managed `requirements.toml` plus an administrator-defined filesystem permission
-profile — remain the only unbuilt work that addresses the observed incidents, and it is the one place
-a managed hook has real teeth because it pairs with an OS-level profile that also contains the shell.
-It is not scheduled by this ADR; it is named as the honest remaining gap.
+profile — remain the work that addresses the observed incidents, and it is the one place a managed
+hook has real teeth because it pairs with an OS-level profile that also contains the shell. **Amended
+2026-08-12 by [ADR-0355](0355-interactive-codex-writes-only-in-its-current-claimed-worktre.md):** the
+owner funded the strict current-claimed-worktree scope and the repository now generates and dry-runs
+the managed policy bundle. Administrator-owned machine installation and live three-write attestation
+remain the honest gap.
 
 **D7. ADR-0257 D9's two-surface concurrent-load proof bar is retired along with what it was proving.**
 With no semantic layer to prove, the bar has no subject. The static block's conformance test against
 the installed user-level file stands as the proof that remains.
 
-**D8. The residual gap is stated plainly rather than implied covered.** After this ADR: **shell writes
-are uncontained, and Codex is uncontained.** Both were true before it and are unchanged by it. What
-changes is that they are no longer buried under a layer that implies otherwise.
+**D8. The residual gap is stated plainly rather than implied covered.** As amended by ADR-0355,
+repository code now generates Codex containment, but interactive Codex remains operationally
+uncontained until the administrator-owned profile is installed and the live smoke attests it. The
+gap is no longer design or repository generation; it is privileged deployment and evidence.
 
 ## Consequences
 
@@ -140,10 +144,9 @@ need no reaping, because nothing refuses them any more. Sessions keep their scra
 remaining statement of risk is small, true, and priceable.
 
 **Bad, and accepted.** A session can still write into a sibling's worktree with a file tool; nothing
-refuses it. We are betting on zero observed instances continuing to be zero, and the bet is revisited
-by evidence, not by argument. The deleted code was competently built and its removal discards real
-work — the canonicalisation and containment logic in particular would have been the right shared core
-for a Codex adapter, and a future Codex effort will recover it from git rather than import it.
+refuses it on the Claude static wall. We are betting on zero observed Claude instances continuing to
+be zero, and the bet is revisited by evidence, not by argument. ADR-0355 makes the opposite choice for
+interactive Codex: its generated profile admits only the current claimed worktree once installed.
 
 **Known holes in what remains — the list is now FULLY DISCHARGED.** Three were named on acceptance as
 follow-ups against the layer that stays, not as reasons to keep the layer that goes. All three closed

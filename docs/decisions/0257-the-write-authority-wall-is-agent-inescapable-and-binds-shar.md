@@ -236,8 +236,9 @@ cannot be forged by the writer, expires, and is read-only to the writer profile.
    git branch not moving, which makes it a guardrail and not a mechanism that can satisfy this
    clause's own inescapability requirement. On Claude the composition is now the static
    `permissions.deny` block ALONE. Codex, where the hook pairs with an OS-level managed profile that
-   also binds the shell, is the one surface where D2/D3's composition still reads correctly — and it
-   is unbuilt.)*
+   also binds the shell, is the one surface where D2/D3's composition still reads correctly. The
+   repository generator and dry-run policy are built under ADR-0355; administrator-owned installation
+   and the three-write live attestation remain outstanding.)*
 
 2. **Codex requires a managed permission profile and managed hooks together.** The Codex adapter is
    delivered from the system/enterprise managed layer, not only from repository `.codex` config:
@@ -260,6 +261,11 @@ cannot be forged by the writer, expires, and is read-only to the writer profile.
    must not weaken the profile to “all Storytree checkouts are writable” and call the hook a
    substitute for containment.
 
+   *(Amended 2026-08-12 by [ADR-0355](0355-interactive-codex-writes-only-in-its-current-claimed-worktre.md):
+   the selected scope is exactly the current repository-minted claimed worktree. Repository code now
+   generates and dry-runs the managed requirements, hook bundle, and launch evidence; the privileged
+   machine installation remains deliberately operator-owned.)*
+
 3. **The Codex policy resolves actual targets and fails closed.** Before a documented local tool is
    allowed, the managed hook:
 
@@ -280,8 +286,8 @@ cannot be forged by the writer, expires, and is read-only to the writer profile.
 
    *(Stands as a Codex clause (ADR-0284 D6) with one dead dependency, annotated 2026-08-02: the
    fourth bullet's "or a valid offline receipt under D5" has no referent — D5 is retired and nothing
-   mints a receipt. A Codex adapter built against this clause verifies the live claim, and needs its
-   own answer for ledger loss during the ADR-0114 sleep window; it does not inherit one from here.)*
+   mints a receipt. ADR-0355 resolves the adapter to live-claim verification and fail-closed launch;
+   ledger loss does not widen authority.)*
 
 4. **The lobby has an exact actuator, not a generic shell allowlist.** The source prohibition
    continues to cover tracked, untracked and ignored files. The trusted mint actuator alone may
@@ -394,8 +400,10 @@ cannot be forged by the writer, expires, and is read-only to the writer profile.
 
 **Bad / accepted**
 
-- No Codex managed Storytree profile or interactive claim hook is installed today. Until they are
-  built and behaviourally proved, a full-access Codex Local task remains outside the writer profile.
+- The Codex managed Storytree profile and interactive claim-hook bundle are generated and dry-run by
+  repository code (ADR-0355), but are not yet installed machine-wide or behaviourally attested on the
+  supported operator boundary. Until that privileged leg proves lobby-refused/current-admitted/
+  sibling-refused, a full-access Codex Local task remains outside the writer profile.
 - Codex permission profiles are currently beta and require Codex 0.138.0 or later for managed
   profile allowlists. The managed fleet version becomes an explicit prerequisite.
 - Static filesystem profiles and Git's shared common directory do not naturally express one live
@@ -480,6 +488,8 @@ cannot be forged by the writer, expires, and is read-only to the writer profile.
 - `packages/agent/src/sdk-author.ts` — the analogous Claude SDK phase boundary.
 - `packages/cli/src/worktree-create.ts` — the claim-first mint. *(It stamped a receipt from
   increment 2 until ADR-0284 D4 removed it; it mints identity and takes the claim, nothing more.)*
+- `packages/cli/src/codex-session-containment.ts` — ADR-0355's generated managed-policy and dry-run
+  containment bundle; installation remains administrator-owned.
 - `packages/drive/src/noticeboard.ts` — `deriveIdentity()`, which the boundary validates against.
 - `packages/drive/src/write-authority-rules.ts` — the generator for the static deny block, which is
   the whole of this ADR that runs. *(The hook, the receipt module and the decision core

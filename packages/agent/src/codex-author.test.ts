@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import * as fs from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -7,8 +10,10 @@ import {
   buildCodexExecArgs,
   CodexPhaseAuthor,
   DEFAULT_CODEX_MODEL,
+  genericPhasePrompt,
   isChatGptManagedLogin,
   parseCodexJsonl,
+  runPinnedCodexCli,
   scrubMeteredCodexAuth,
 } from "./codex-author.js";
 import type {
@@ -26,9 +31,15 @@ const WRITE_GLOBS = {
     "packages/widget/src/helper.ts",
   ],
 };
-const PERMISSION_PATHS = {
-  AUTHOR_TEST: ["packages/widget/src/widget.test.ts"],
-  IMPLEMENT: ["packages/widget/src/widget.ts", "packages/widget/src/helper.ts"],
+const PROMOTION_MANIFESTS = {
+  AUTHOR_TEST: {
+    allowedTargets: ["packages/widget/src/widget.test.ts"],
+    requiredTargets: ["packages/widget/src/widget.test.ts"],
+  },
+  IMPLEMENT: {
+    allowedTargets: ["packages/widget/src/widget.ts", "packages/widget/src/helper.ts"],
+    requiredTargets: ["packages/widget/src/widget.ts"],
+  },
 };
 
 function jsonl(...events: unknown[]): string {
@@ -64,6 +75,48 @@ function successJsonl(): string {
     },
   );
 }
+
+function completedJsonl(reportedPaths: string[] = []): string {
+  return jsonl(
+    { type: "thread.started", thread_id: "thread_1" },
+    { type: "turn.started" },
+    ...(
+      reportedPaths.length === 0
+        ? []
+        : [{
+            type: "item.completed",
+            item: {
+              id: "change_1",
+              type: "file_change",
+              changes: reportedPaths.map((reportedPath) => ({
+                path: reportedPath,
+                kind: "update",
+              })),
+              status: "completed",
+            },
+          }]
+    ),
+    {
+      type: "turn.completed",
+      usage: { input_tokens: 1, output_tokens: 1 },
+    },
+  );
+}
+
+test("the production generic phase prompt preserves spine-owned proof authority", () => {
+  assert.match(genericPhasePrompt("AUTHOR_TEST"), /Do not run tests or claim a verdict/);
+  assert.match(genericPhasePrompt("IMPLEMENT"), /IMPLEMENT phase leaf/);
+});
+
+test("the production pinned Codex runner reaches the repository-pinned executable", async () => {
+  const result = await runPinnedCodexCli({
+    args: ["--version"],
+    cwd: process.cwd(),
+    env: { ...process.env },
+  });
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /^codex-cli \d+\.\d+\.\d+/);
+});
 
 function captureRunner(results: CodexCommandResult[]): {
   runner: CodexRunner;
@@ -155,7 +208,7 @@ test("exec selects Terra, one ephemeral JSON turn, and the replica-only OS sandb
   const author = new CodexPhaseAuthor({
     cwd: CWD,
     writeGlobs: WRITE_GLOBS,
-    permissionPaths: PERMISSION_PATHS,
+    promotionManifests: PROMOTION_MANIFESTS,
     isWriteAllowed: (_phase, rel) => rel === "packages/widget/src/widget.test.ts",
     runner: cap.runner,
     env: {
@@ -209,7 +262,7 @@ test("custom model remains explicit and injected rendered phase prompt leads the
   const author = new CodexPhaseAuthor({
     cwd: CWD,
     writeGlobs: WRITE_GLOBS,
-    permissionPaths: PERMISSION_PATHS,
+    promotionManifests: PROMOTION_MANIFESTS,
     isWriteAllowed: () => true,
     model: "gpt-5.6-terra-test",
     phasePrompts: {
@@ -229,7 +282,7 @@ test("real CLI path refuses a missing rendered phase prompt before auth or model
   const author = new CodexPhaseAuthor({
     cwd: CWD,
     writeGlobs: WRITE_GLOBS,
-    permissionPaths: PERMISSION_PATHS,
+    promotionManifests: PROMOTION_MANIFESTS,
     isWriteAllowed: () => true,
   });
   const result = await author.author("IMPLEMENT", "Implement it.");
@@ -250,7 +303,7 @@ test("real CLI path also refuses an empty rendered phase prompt", async () => {
   assert.match(result.ok ? "" : result.error, /requires an injected rendered IMPLEMENT phase prompt/);
 });
 
-test("real CLI path requires exact OS permission paths in addition to hook globs", async () => {
+test("real CLI path requires an exact promotion manifest in addition to hook globs", async () => {
   const author = new CodexPhaseAuthor({
     cwd: CWD,
     writeGlobs: WRITE_GLOBS,
@@ -259,7 +312,301 @@ test("real CLI path requires exact OS permission paths in addition to hook globs
   });
   const result = await author.author("AUTHOR_TEST", "Write it.");
   assert.equal(result.ok, false);
-  assert.match(result.ok ? "" : result.error, /requires exact injected AUTHOR_TEST permission paths/);
+  assert.match(result.ok ? "" : result.error, /requires an exact AUTHOR_TEST promotion manifest/);
+});
+
+test("promotion manifests reject wildcards, normalized duplicates, and required paths outside the allowed set", async () => {
+  const malformed = [
+    {
+      allowedTargets: ["packages/widget/src/*.ts"],
+      requiredTargets: ["packages/widget/src/widget.ts"],
+    },
+    {
+      allowedTargets: ["packages/widget/src/widget.ts", "packages/widget/src/./widget.ts"],
+      requiredTargets: ["packages/widget/src/widget.ts"],
+    },
+    {
+      allowedTargets: ["packages/widget/src/helper.ts"],
+      requiredTargets: ["packages/widget/src/widget.ts"],
+    },
+    {
+      allowedTargets: ["packages/widget/src/Widget.ts", "packages/widget/src/widget.ts"],
+      requiredTargets: ["packages/widget/src/widget.ts"],
+    },
+    {
+      allowedTargets: ["packages/widget/src/widget.ts."],
+      requiredTargets: ["packages/widget/src/widget.ts."],
+    },
+    {
+      allowedTargets: ["packages/widget/src/helper.ts "],
+      requiredTargets: ["packages/widget/src/helper.ts "],
+    },
+    {
+      allowedTargets: ["packages/widget/src/COM1.log"],
+      requiredTargets: ["packages/widget/src/COM1.log"],
+    },
+  ];
+  for (const manifest of malformed) {
+    const cap = captureRunner([]);
+    const author = new CodexPhaseAuthor({
+      cwd: CWD,
+      writeGlobs: WRITE_GLOBS,
+      promotionManifests: {
+        AUTHOR_TEST: PROMOTION_MANIFESTS.AUTHOR_TEST,
+        IMPLEMENT: manifest,
+      },
+      isWriteAllowed: () => true,
+      phasePrompts: { AUTHOR_TEST: "red", IMPLEMENT: "green" },
+      runner: cap.runner,
+    });
+    const result = await author.author("IMPLEMENT", "Implement it.");
+    assert.equal(result.ok, false);
+    assert.match(result.ok ? "" : result.error, /promotion manifest is malformed/);
+    assert.equal(cap.commands.length, 0, "invalid manifests must refuse before auth");
+  }
+});
+
+async function withReplicaWorkspace(
+  run: (root: string) => Promise<void>,
+): Promise<void> {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "codex-author-test-"));
+  try {
+    const sourceDir = path.join(root, "packages", "widget", "src");
+    await fs.mkdir(sourceDir, { recursive: true });
+    await fs.writeFile(path.join(sourceDir, "widget.ts"), "widget before\n");
+    await fs.writeFile(path.join(sourceDir, "helper.ts"), "helper before\n");
+    await run(root);
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+}
+
+function mutatingRunner(
+  mutate: (replica: string) => Promise<void>,
+  reportedPaths: string[] = [],
+): CodexRunner {
+  return async (command) => {
+    if (command.args[0] === "login") return chatGpt();
+    await mutate(command.cwd);
+    return completed(completedJsonl(reportedPaths));
+  };
+}
+
+test("filesystem-observed allowed changes promote as one multi-file phase even when Codex reports none", async () => {
+  await withReplicaWorkspace(async (root) => {
+    const author = new CodexPhaseAuthor({
+      cwd: root,
+      writeGlobs: WRITE_GLOBS,
+      promotionManifests: PROMOTION_MANIFESTS,
+      isWriteAllowed: () => true,
+      runner: mutatingRunner(async (replica) => {
+        await fs.writeFile(path.join(replica, "packages/widget/src/widget.ts"), "widget after\n");
+        await fs.writeFile(path.join(replica, "packages/widget/src/helper.ts"), "helper after\n");
+      }),
+    });
+
+    assert.deepEqual(await author.author("IMPLEMENT", "Implement both files."), { ok: true });
+    assert.equal(await fs.readFile(path.join(root, "packages/widget/src/widget.ts"), "utf8"), "widget after\n");
+    assert.equal(await fs.readFile(path.join(root, "packages/widget/src/helper.ts"), "utf8"), "helper after\n");
+    assert.deepEqual(author.runs[0]?.changedPaths, [
+      "packages/widget/src/helper.ts",
+      "packages/widget/src/widget.ts",
+    ]);
+  });
+});
+
+test("observed allowed additions and deletions promote while an unchanged declared target is untouched", async () => {
+  await withReplicaWorkspace(async (root) => {
+    const untouched = path.join(root, "packages/widget/src/untouched.ts");
+    await fs.writeFile(untouched, "untouched\n");
+    await fs.utimes(untouched, new Date(946684800000), new Date(946684800000));
+    const before = await fs.stat(untouched);
+    const author = new CodexPhaseAuthor({
+      cwd: root,
+      writeGlobs: WRITE_GLOBS,
+      promotionManifests: {
+        AUTHOR_TEST: PROMOTION_MANIFESTS.AUTHOR_TEST,
+        IMPLEMENT: {
+          allowedTargets: [
+            "packages/widget/src/widget.ts",
+            "packages/widget/src/helper.ts",
+            "packages/widget/src/new.ts",
+            "packages/widget/src/untouched.ts",
+          ],
+          requiredTargets: ["packages/widget/src/widget.ts"],
+        },
+      },
+      isWriteAllowed: () => true,
+      runner: mutatingRunner(async (replica) => {
+        await fs.writeFile(path.join(replica, "packages/widget/src/widget.ts"), "widget after\n");
+        await fs.rm(path.join(replica, "packages/widget/src/helper.ts"));
+        await fs.writeFile(path.join(replica, "packages/widget/src/new.ts"), "new\n");
+      }),
+    });
+
+    assert.deepEqual(await author.author("IMPLEMENT", "Apply the bounded rename-shaped edit."), { ok: true });
+    assert.equal(await fs.readFile(path.join(root, "packages/widget/src/new.ts"), "utf8"), "new\n");
+    await assert.rejects(fs.readFile(path.join(root, "packages/widget/src/helper.ts")));
+    assert.deepEqual(author.runs[0]?.changedPaths, [
+      "packages/widget/src/helper.ts",
+      "packages/widget/src/new.ts",
+      "packages/widget/src/widget.ts",
+    ]);
+    const after = await fs.stat(untouched);
+    assert.equal(after.mtimeMs, before.mtimeMs);
+  });
+});
+
+test("one observed unlisted path refuses the whole phase before any allowed file is copied", async () => {
+  await withReplicaWorkspace(async (root) => {
+    const author = new CodexPhaseAuthor({
+      cwd: root,
+      writeGlobs: WRITE_GLOBS,
+      promotionManifests: PROMOTION_MANIFESTS,
+      isWriteAllowed: () => true,
+      runner: mutatingRunner(
+        async (replica) => {
+          await fs.writeFile(path.join(replica, "packages/widget/src/widget.ts"), "widget after\n");
+          await fs.writeFile(path.join(replica, "packages/widget/src/unlisted.ts"), "escape\n");
+        },
+        ["packages/widget/src/widget.ts"],
+      ),
+    });
+
+    const result = await author.author("IMPLEMENT", "Attempt both files.");
+    assert.equal(result.ok, false);
+    assert.match(result.ok ? "" : result.error, /unlisted\.ts/);
+    assert.equal(await fs.readFile(path.join(root, "packages/widget/src/widget.ts"), "utf8"), "widget before\n");
+    await assert.rejects(fs.readFile(path.join(root, "packages/widget/src/unlisted.ts")));
+  });
+});
+
+test("case-distinct observed paths never inherit permission from a differently-cased manifest entry", async (t) => {
+  await withReplicaWorkspace(async (root) => {
+    const probe = path.join(root, "packages/widget/src/Widget.ts");
+    await fs.writeFile(probe, "case probe\n");
+    const lowerContent = await fs.readFile(path.join(root, "packages/widget/src/widget.ts"), "utf8");
+    if (lowerContent === "case probe\n") {
+      t.skip("filesystem is case-insensitive; manifest collision refusal covers this platform");
+      return;
+    }
+    await fs.rm(probe);
+    const author = new CodexPhaseAuthor({
+      cwd: root,
+      writeGlobs: WRITE_GLOBS,
+      promotionManifests: PROMOTION_MANIFESTS,
+      isWriteAllowed: () => true,
+      runner: mutatingRunner(async (replica) => {
+        await fs.writeFile(path.join(replica, "packages/widget/src/widget.ts"), "widget after\n");
+        await fs.writeFile(path.join(replica, "packages/widget/src/Widget.ts"), "case escape\n");
+      }),
+    });
+
+    const result = await author.author("IMPLEMENT", "Attempt a case-distinct extra path.");
+    assert.equal(result.ok, false);
+    assert.match(result.ok ? "" : result.error, /Widget\.ts/);
+    assert.equal(await fs.readFile(path.join(root, "packages/widget/src/widget.ts"), "utf8"), "widget before\n");
+    await assert.rejects(fs.readFile(probe));
+  });
+});
+
+test("a multiply-linked real target is refused before promotion can mutate its undeclared sibling", async () => {
+  await withReplicaWorkspace(async (root) => {
+    const target = path.join(root, "packages/widget/src/widget.ts");
+    const sibling = path.join(root, "packages/widget/src/undeclared-sibling.ts");
+    await fs.link(target, sibling);
+    const author = new CodexPhaseAuthor({
+      cwd: root,
+      writeGlobs: WRITE_GLOBS,
+      promotionManifests: PROMOTION_MANIFESTS,
+      isWriteAllowed: () => true,
+      runner: mutatingRunner(async (replica) => {
+        await fs.writeFile(path.join(replica, "packages/widget/src/widget.ts"), "widget after\n");
+      }),
+    });
+
+    const result = await author.author("IMPLEMENT", "Change the linked target.");
+    assert.equal(result.ok, false);
+    assert.match(result.ok ? "" : result.error, /hard links/);
+    assert.equal(await fs.readFile(target, "utf8"), "widget before\n");
+    assert.equal(await fs.readFile(sibling, "utf8"), "widget before\n");
+  });
+});
+
+test("partial apply attempts every rollback target and reports all restore failures honestly", async () => {
+  await withReplicaWorkspace(async (root) => {
+    const restoreAttempts: string[] = [];
+    const author = new CodexPhaseAuthor({
+      cwd: root,
+      writeGlobs: WRITE_GLOBS,
+      promotionManifests: PROMOTION_MANIFESTS,
+      isWriteAllowed: () => true,
+      runner: mutatingRunner(async (replica) => {
+        await fs.writeFile(path.join(replica, "packages/widget/src/widget.ts"), "widget after\n");
+        await fs.writeFile(path.join(replica, "packages/widget/src/helper.ts"), "helper after\n");
+      }),
+      promotionFaults: {
+        afterApply: (_relPath, appliedCount) => {
+          if (appliedCount === 1) throw new Error("injected apply failure");
+        },
+        beforeRestore: (relPath) => {
+          restoreAttempts.push(relPath);
+          throw new Error(`injected restore failure for ${relPath}`);
+        },
+      },
+    });
+
+    const result = await author.author("IMPLEMENT", "Exercise atomic rollback.");
+    assert.equal(result.ok, false);
+    assert.match(result.ok ? "" : result.error, /injected apply failure/);
+    assert.match(result.ok ? "" : result.error, /rollback incomplete after attempting every target/);
+    assert.match(result.ok ? "" : result.error, /helper\.ts: injected restore failure/);
+    assert.match(result.ok ? "" : result.error, /widget\.ts: injected restore failure/);
+    assert.deepEqual(restoreAttempts, [
+      "packages/widget/src/widget.ts",
+      "packages/widget/src/helper.ts",
+    ]);
+    assert.equal(await fs.readFile(path.join(root, "packages/widget/src/helper.ts"), "utf8"), "helper after\n");
+    assert.equal(await fs.readFile(path.join(root, "packages/widget/src/widget.ts"), "utf8"), "widget before\n");
+  });
+});
+
+test("a missing required output refuses the whole phase and preserves the real workspace", async () => {
+  await withReplicaWorkspace(async (root) => {
+    const author = new CodexPhaseAuthor({
+      cwd: root,
+      writeGlobs: WRITE_GLOBS,
+      promotionManifests: PROMOTION_MANIFESTS,
+      isWriteAllowed: () => true,
+      runner: mutatingRunner(async (replica) => {
+        await fs.rm(path.join(replica, "packages/widget/src/widget.ts"));
+        await fs.writeFile(path.join(replica, "packages/widget/src/helper.ts"), "helper after\n");
+      }),
+    });
+
+    const result = await author.author("IMPLEMENT", "Delete the required target.");
+    assert.equal(result.ok, false);
+    assert.match(result.ok ? "" : result.error, /required target.*missing.*widget\.ts/i);
+    assert.equal(await fs.readFile(path.join(root, "packages/widget/src/widget.ts"), "utf8"), "widget before\n");
+    assert.equal(await fs.readFile(path.join(root, "packages/widget/src/helper.ts"), "utf8"), "helper before\n");
+  });
+});
+
+test("reported changes without an observed replica diff are not promotion evidence", async () => {
+  await withReplicaWorkspace(async (root) => {
+    const author = new CodexPhaseAuthor({
+      cwd: root,
+      writeGlobs: WRITE_GLOBS,
+      promotionManifests: PROMOTION_MANIFESTS,
+      isWriteAllowed: () => true,
+      runner: mutatingRunner(async () => undefined, ["packages/widget/src/widget.ts"]),
+    });
+
+    const result = await author.author("IMPLEMENT", "Claim a change without making one.");
+    assert.equal(result.ok, false);
+    assert.match(result.ok ? "" : result.error, /without an observed required target change/);
+    assert.equal(await fs.readFile(path.join(root, "packages/widget/src/widget.ts"), "utf8"), "widget before\n");
+  });
 });
 
 test("command builder disables network, web, MCP, and agents inside the replica sandbox", () => {
@@ -410,7 +757,7 @@ test("successful JSONL maps usage and reasoning without a price field", async ()
   const author = new CodexPhaseAuthor({
     cwd: CWD,
     writeGlobs: WRITE_GLOBS,
-    permissionPaths: PERMISSION_PATHS,
+    promotionManifests: PROMOTION_MANIFESTS,
     isWriteAllowed: () => true,
     runner: cap.runner,
   });
@@ -486,13 +833,13 @@ test("injected predicate catches an unexpected reported write as defense in dept
   const author = new CodexPhaseAuthor({
     cwd: CWD,
     writeGlobs: WRITE_GLOBS,
-    permissionPaths: PERMISSION_PATHS,
+    promotionManifests: PROMOTION_MANIFESTS,
     isWriteAllowed: () => false,
     runner: cap.runner,
   });
   const result = await author.author("AUTHOR_TEST", "Write it.");
   assert.equal(result.ok, false);
-  assert.match(result.ok ? "" : result.error, /scope was violated/);
+  assert.match(result.ok ? "" : result.error, /promotion refused in full/);
   assert.equal(author.violations[0]?.tool, "file_change");
   assert.equal(author.runs[0]?.subtype, "error");
 });

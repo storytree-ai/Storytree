@@ -23,6 +23,10 @@ pivot remain unchanged.
 no-USD-ceiling default extends to Codex subscription runs, but Codex never treats API/list-price
 estimates as spend and refuses the Claude-specific `--budget` control.
 
+**Amended 2026-08-12 by [ADR-0356](0356-codex-promotes-only-an-explicit-finite-phase-target-set.md).**
+The disposable-replica and spine-only promotion boundary stands, while the promoted unit is now an
+explicit finite set of exact phase targets rather than exactly one file.
+
 ## Context
 
 Production live/real builds are hard-wired to `ClaudeAgentAuthor` on the Claude Agent SDK.
@@ -43,7 +47,8 @@ Model-visible instructions or a post-run diff cannot be the write boundary. Admi
 requires a fail-closed authentication preflight and two independent write walls: the Codex process
 runs only against a disposable replica in the OS workspace sandbox, never the real build workspace,
 and a vetted `PreToolUse` policy denies shell and checks every replica patch/write target against
-the current phase. Only the spine can promote one exact replica file into the real workspace.
+the current phase. Only the spine can promote the observed allowed subset of its explicit finite
+phase manifest into the real workspace (ADR-0356).
 
 ## Decision
 
@@ -66,10 +71,11 @@ the current phase. Only the spine can promote one exact replica file into the re
    `workspace-write` OS sandbox. The real workspace is outside the Codex process boundary. A vetted
    `PreToolUse` hook independently denies shell/unified exec, subagents, MCP tools, and unknown local
    tools; `apply_patch`/write calls in the replica proceed only when every normalized path passes the
-   current phase predicate. After the turn, the spine requires a reported change at the one exact
-   test/source target, rechecks the phase predicate, copies only that file into the real workspace,
-   and discards the replica. A hook-bypass write can therefore damage only a disposable copy and can
-   never land by itself.
+   current phase predicate. After the turn, the spine observes the replica's complete changed-path
+   set, requires the manifest's required phase target changes, refuses the whole phase if any path
+   is undeclared, rechecks the phase predicate, and copies only the observed allowed subset into the
+   real workspace before discarding the replica (ADR-0356). A hook-bypass write can therefore damage
+   only a disposable copy and can never land by itself.
 
 5. **Keep proof and feedback out of the leaf's authority.** Codex receives the same rendered
    red-builder/green-builder roles, but no shell-based proof tool. The spine still runs the
@@ -94,7 +100,7 @@ the current phase. Only the spine can promote one exact replica file into the re
 - API-key billing is excluded structurally: no accepted auth preflight, no inherited key variables,
   and no fallback branch.
 - Codex shell and patch capabilities cannot write the real build workspace; only the spine's exact,
-  phase-checked replica promotion can land a file.
+  finite, phase-checked replica promotion can land the observed allowed files.
 
 **Cost / watch.**
 
@@ -117,6 +123,7 @@ the current phase. Only the spine can promote one exact replica file into the re
 - [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)
 - [ADR-0178](0178-render-delegatable-library-agents-to-native-cursor-subagent.md)
 - [ADR-0198](0198-retire-the-cursor-leaf-claude-agent-sdk-is-the-only-live-pro.md)
+- [ADR-0356](0356-codex-promotes-only-an-explicit-finite-phase-target-set.md)
 - `packages/agent/src/phase-author.ts`
 - `packages/agent/src/codex-author.ts`
 - `packages/orchestrator/src/resolve-prove-spec.ts`

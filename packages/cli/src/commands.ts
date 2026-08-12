@@ -92,6 +92,7 @@ import type { DrainLedgerIo } from "./worktree-drain.js";
 // `worktree create` — the claim-gated workspace ceremony (ADR-0200 D3).
 import { createWorktree, type WorktreeCreateIo } from "./worktree-create.js";
 import { writeAuthorityCommand } from "./write-authority-install.js";
+import { codexSessionContainmentCommand } from "./codex-session-containment.js";
 import {
   desktopHelp,
   desktopInstallShortcut,
@@ -2774,6 +2775,13 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
   }
 
   if (area === "write-authority") {
+    if (sub === "codex") {
+      // ADR-0355: generation is repository-owned; installation remains administrator-owned.
+      return codexSessionContainmentCommand(
+        { write: values.write === true, help },
+        { ledger: deps.presence?.ledger ?? null, now: () => new Date() },
+      );
+    }
     // ADR-0257 D1/D6, narrowed to the static block by ADR-0284 — install/inspect the wall. The deny
     // block is DERIVED from repo-manifest.json, so it needs a caller that can regenerate it;
     // installing by hand is how the wall and the repo surface drift apart. Offline, no store.
