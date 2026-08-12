@@ -215,13 +215,18 @@ re-runs it.
   asserts, `vouches: true` — so a test that DOES NOT RUN is, to this check, a test that runs and
   asserts. The wrong outcome is live in this repo: `stories/wisp-as-story-claim/claim-store-work-time.md`
   declares `release-claims-by-branch-clears-the-branch`, whose only test carries `{ skip: !DB }` in
-  `packages/notice-board/src/store/claim-store-release-by-branch.live.test.ts`; run offline and the
-  check prints `claim-store-work-time: 2/3 uncovered`, naming the OTHER two — that contract reads
-  COVERED, proven by a test that did not execute. **Re-tensed 2026-08-06:** this originally read *run
-  `pnpm check:coverage` offline (the default for the whole gate and for CI)*, and ADR-0311 D2 retired
-  that rung, so the sentence was handing a reader a command that no longer exists. The live
-  reproduction is `pnpm storytree coverage claim-store-work-time`, re-run at this seat on 2026-08-06:
-  same `2/3`, same two names, the skipped test still reading COVERED. The blind spot is the
+  `packages/notice-board/src/store/claim-store-release-by-branch.live.test.ts`; run offline and that
+  contract reads COVERED, proven by a test that did not execute. **Re-tensed 2026-08-06:** this
+  originally read *run `pnpm check:coverage` offline (the default for the whole gate and for CI)*, and
+  ADR-0311 D2 retired that rung, so the sentence was handing a reader a command that no longer exists.
+  The live reproduction is `pnpm storytree coverage claim-store-work-time`. **Figure corrected in place
+  2026-08-13 (ADR-0139):** this carried *the check prints `claim-store-work-time: 2/3 uncovered`,
+  naming the OTHER two* and *re-run at this seat on 2026-08-06: same `2/3`, same two names* — true when
+  measured, overtaken since. PR #1309 credited the third contract, so the same command re-run at this
+  seat now prints **contracts: 3 (3 covered, 0 uncovered)**. The FINDING is untouched and reads more
+  sharply for it: the capability shows FULLY covered offline while
+  `release-claims-by-branch-clears-the-branch`'s only test still does not execute, so there is no
+  longer an uncovered remainder to hint that anything is missing. The blind spot is the
   classifier's, not the rung's, so retiring the rung did not touch it. Located across 7 test files by the `vacuous-proof` instrument of `pnpm
   check:verification-decay` (ADR-0252 D1), which is where the current count lives.
   **The skip itself is usually CORRECT** — these are mostly live-DB proofs that cannot run without a
