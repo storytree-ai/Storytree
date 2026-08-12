@@ -725,6 +725,71 @@ function tomlMultilineBasicString(s: string): string {
   return `"""\n${s.replace(/\\/g, "\\\\").replace(/"""/g, '\\"""')}\n"""`;
 }
 
+/**
+ * Adapt the shared agent prose at the LAST harness boundary, where the runtime is finally known.
+ *
+ * The Library's `tools` field predates the multi-harness projections and some live agents still use
+ * Claude Code's display names (`Read / Grep / Glob`, `Write / Edit`, `Bash`) as prose shorthand.
+ * Those are not Codex tool identifiers and must not become a fictional Codex allow-list. Preserve the
+ * authority boundary while translating only those known harness labels to capability language.
+ *
+ * The same legacy prose can point at Claude's private memory directory. Codex has its own generated
+ * memory state, but Storytree's current graduation commands do not consume that format. The path is
+ * therefore removed rather than silently redirected, and a resident runtime note makes the one
+ * unavailable leg explicit. Other harness renders continue to receive the source prose byte-for-byte.
+ */
+function codexNativePrompt(prompt: string): string {
+  const carriesHarnessMemory = /agent-memory|~\/\.claude\/projects/i.test(prompt);
+  const adapted = prompt
+    .replace(/`Glob`\s*\/\s*`Grep`/g, "`filesystem search`")
+    .replace(/`Grep`\s*\/\s*`Glob`/g, "`filesystem search`")
+    .replace(
+      /Read\s*\/\s*(?:Grep\s*\/\s*Glob|Glob\s*\/\s*Grep)\s*\/\s*Edit\s*\/\s*Write/g,
+      "filesystem read, search, and edit access",
+    )
+    .replace(/Read\s*\/\s*Grep\s*\/\s*Glob/g, "read-only filesystem and search access")
+    .replace(/Read\s*\/\s*Glob\s*\/\s*Grep/g, "read-only filesystem and search access")
+    .replace(/Write\s*\/\s*Edit/g, "file-editing access")
+    .replace(/`(?:Glob|Grep)`/g, "`filesystem search`")
+    .replace(/`Read`/g, "`filesystem read`")
+    .replace(/\bEdit on\b/g, "file-editing access to")
+    .replace(/\bTask\/spawn\b/g, "delegation/spawn")
+    .replace(/\bAgent tool\b/g, "delegation tool")
+    .replace(/\bPreToolUse\b/g, "pre-tool")
+    .replace(/\bBash\b/g, "shell access")
+    .replace(
+      /`~\/\.claude\/projects\/<[^>]+>\/memory\/?`/g,
+      "the harness-specific memory source (unavailable in Codex)",
+    );
+  const runtime = [
+    "## Codex runtime",
+    "",
+    "Use the Codex-native tools exposed by the spawning session. Tool and sandbox availability " +
+      "inherit from that session; the capability wording above is guidance, not TOML configuration.",
+  ];
+  if (carriesHarnessMemory) {
+    runtime.push(
+      "",
+      "Codex local memories are separate generated state, not input to Storytree's current " +
+        "graduation commands. Skip only the agent-memory leg unless the caller supplies a compatible " +
+        "memory directory; keep the role's other work in force.",
+    );
+  }
+  return `${adapted.trimEnd()}\n\n${runtime.join("\n")}`;
+}
+
+/**
+ * Codex deliberately INHERITS model + reasoning selection. A Library tier is still rendered as a
+ * comment so the omission of `model` cannot be mistaken for a forgotten pin: `sonnet`/`opus` are
+ * Claude-only tier labels and no ADR maps them to an OpenAI model. Comments are inert config, unlike
+ * an invented metadata key that Codex could reject as unknown.
+ */
+function codexModelPolicy(stored: StoredDoc | null): string {
+  const raw = stored ? (stored.doc as Record<string, unknown>)["model"] : undefined;
+  const tier = raw === "sonnet" || raw === "opus" ? `${raw}, Claude-only` : "unset";
+  return `# Storytree model policy: inherit; no Codex model is pinned (Library model tier: ${tier}).`;
+}
+
 export type RenderAgentFileResult =
   | { ok: true; name: string; content: string; missingRefs: string[] }
   | { ok: false; reason: string; available: string[] };
@@ -892,9 +957,11 @@ export async function renderOpencodeAgentFile(
 
 /**
  * Render the committed `.codex/agents/<id>.toml` view of a Library agent. Codex custom agents
- * require a name, description, and developer instructions; model selection deliberately inherits
- * from the spawning session because the Library's Claude-oriented sonnet/opus tiers are not Codex
- * model identifiers.
+ * require a name, description, and developer instructions. Model + reasoning selection deliberately
+ * inherit from the spawning session because the Library's Claude-oriented sonnet/opus tiers are not
+ * Codex model identifiers; the deterministic policy comment makes that omission explicit per role.
+ * The developer prompt also translates legacy Claude tool labels to capability prose and refuses to
+ * redirect Claude agent-memory mechanics onto Codex's incompatible generated memory state.
  */
 export async function renderCodexAgentFile(
   store: Store,
@@ -913,7 +980,10 @@ export async function renderCodexAgentFile(
     content: [
       `name = ${tomlBasicString(agent.name)}`,
       `description = ${tomlBasicString(agentDescriptionFrontmatter(stored, agent.description))}`,
-      `developer_instructions = ${tomlMultilineBasicString(`${GENERATED_AGENT_MARKER}\n\n${agent.prompt}`)}`,
+      codexModelPolicy(stored),
+      `developer_instructions = ${tomlMultilineBasicString(
+        `${GENERATED_AGENT_MARKER}\n\n${codexNativePrompt(agent.prompt)}`,
+      )}`,
       "",
     ].join("\n"),
     missingRefs: agent.missingRefs,

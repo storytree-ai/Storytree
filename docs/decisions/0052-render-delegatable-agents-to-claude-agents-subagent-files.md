@@ -75,6 +75,14 @@ delegated to by the corresponding harness. That is the gap this decision closes,
    surfaces now render the ESSENTIALS view, not the full inline. The "generated surfaces of the same
    renderer" decision — the load-bearing point here — is untouched.)*
 
+   "The same essentials" means the same Library-authored role, authority boundary, refs and
+   delegatable selection — not byte-identical harness vocabulary. A native wrapper MAY translate
+   known foreign tool labels or an unavailable harness-private path into capability prose, and MAY
+   add inert policy commentary, at the final render boundary. Codex does both: it never turns
+   Claude-only `Read` / `Bash` labels into fictional Codex tool configuration, never redirects
+   Claude's private agent-memory path, and states model inheritance in a TOML comment without
+   emitting a `model` key. The other harness renders still receive the shared essentials unchanged.
+
 2. **Only the DELEGATABLE agents render here.** The three with a dedicated runtime surface are
    excluded: `session-orchestrator` (→ dedicated root projections, ADR-0051 §3 / ADR-0291) and `red-builder` / `green-builder`
    (→ the SDK leaf, §4). Every other Library agent selected by `delegatableAgentIds` becomes a
@@ -82,7 +90,7 @@ delegated to by the corresponding harness. That is the gap this decision closes,
    current roster.
 
 3. **Generated and drift-gated like the root guidance.** `pnpm build:agents` regenerates every directory from
-   the SEED corpus (offline, CI-safe); `pnpm check:agents` fails on stale / missing / orphaned files
+   the LIVE Library store (ADR-0307 D1/D2); `pnpm check:agents` fails on stale / missing / orphaned files
    in any target and joins `pnpm gate` + a CI step, mirroring `check:guidance`. Every directory is
    fully generated (write prunes orphans). A dangling agent ref fails the build closed. The repository
    manifest allow-lists both generated roots.
@@ -110,8 +118,8 @@ delegated to by the corresponding harness. That is the gap this decision closes,
   (the Library `agent` tier) feeds root CLAUDE.md / AGENTS.md, the SDK leaf, `.claude/agents`, `.cursor/agents`, and
   `.codex/agents`, and `.gemini/agents`, and `.opencode/agent`; none are hand-maintained.
 - Cost / sharp edges: multiple generated surfaces must stay green (`check:agents` in the gate + CI).
-  The files render from the SEED, so live `--pg` agent edits don't show until a DB→seed export runs (the
-  gap CLAUDE.md already names). No generated directory may be hand-edited (the marker + drift
+  The files render from the LIVE store, so generation and its drift gate need a reachable database;
+  a live `--pg` agent edit must be followed by regeneration. No generated directory may be hand-edited (the marker + drift
   gate enforce this). These harness-native surfaces sit alongside ADR-0030's harness-agnostic pull
   model — a deliberate, additive convenience, not a reversal.
 

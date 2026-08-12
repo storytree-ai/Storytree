@@ -15,8 +15,11 @@ the ratification (ADR-0110); no second end-of-flow ask.
 **Amends ADR-0178 §3** — that decision fixed every generated Cursor subagent at `model: inherit` and
 explicitly deferred per-agent execution policy "until the Library schema can express it structurally."
 This ADR is that structural expression for the model dimension only: the Library `agent` artifact now
-carries an optional `model` tier, and BOTH harness surfaces (`.claude/agents`, `.cursor/agents`) render
-it. `readonly` / `is_background` remain deferred exactly as ADR-0178 left them.
+carries an optional `model` tier, and BOTH model-emitting harness surfaces (`.claude/agents`,
+`.cursor/agents`) render it. Codex, Gemini and OpenCode were admitted later and deliberately inherit
+their spawning session's model: they emit no `model` key because no accepted mapping turns the
+Claude-only `sonnet` / `opus` tiers into those runtimes' model identifiers. `readonly` /
+`is_background` remain deferred exactly as ADR-0178 left them.
 
 ## Context
 
@@ -65,21 +68,24 @@ subagent tier.
 
 1. **The `agent` artifact carries an optional `model` tier** — the enum `inherit | sonnet | opus`
    (`AgentModel`, `knowledge.ts`). A TIER, not a raw model id, so it survives model-version bumps and
-   maps onto both harness `model:` frontmatter contracts. It is structured schema metadata on the
+   maps onto both model-emitting harness `model:` frontmatter contracts. It is structured schema metadata on the
    `Agent` `.extend()` — like `stepRefs`, it never renders into the markdown body. OPTIONAL, so every
    existing agent doc still validates with no `CURRENT_SCHEMA_VERSION` bump and no migration.
 
-2. **Absent tier renders `model: inherit`** — the ADR-0178 default is preserved exactly. The change is
-   additive: an untiered agent behaves as before (the spawning session's model).
+2. **Absent tier resolves to inheritance.** Claude and Cursor render `model: inherit`; harnesses whose
+   native project-agent surface emits no model key inherit by omission. The change is additive: an
+   untiered agent behaves as before (the spawning session's model).
 
-3. **Both harness renderers emit the resolved tier.** `renderAgentFile` (Claude) now emits a `model:`
+3. **Both model-emitting harness renderers emit the resolved tier.** `renderAgentFile` (Claude) now emits a `model:`
    line where it previously emitted none; `renderCursorAgentFile` (Cursor) emits the artifact's tier
    in place of its former hard-coded `inherit`. One resolved string serves both surfaces
-   (`agentModelFrontmatter`, `render-agent.ts`).
+   (`agentModelFrontmatter`, `render-agent.ts`). Codex records the Library tier only as inert foreign
+   metadata in a comment and emits no model pin; Gemini and OpenCode likewise emit no `model` key.
 
-4. **The initial tier assignment** pins the four mechanical agents above to `sonnet` and the four
-   judgment agents to `opus`, authored in the seed (`knowledge.json`, agent-tier seed-canonical per
-   ADR-0055) and reconciled live via `sync-agents --pg`.
+4. **The initial tier assignment** pinned the four mechanical agents above to `sonnet` and the four
+   judgment agents to `opus`. That assignment was originally authored in the seed; ADR-0307 later
+   superseded ADR-0055 and made the agent tier live-canonical. Current assignments are edited only in
+   the live Library with `artifact edit --pg`, then regenerated into committed harness projections.
 
 5. **Dedicated-surface roles are untouched.** `session-orchestrator`, `red-builder`, and
    `green-builder` are excluded from `delegatableAgentIds` and render no harness frontmatter, so they
@@ -94,7 +100,7 @@ subagent tier.
   point of delegation, not left to whatever model the parent session happens to run.
 - Mechanical subagents no longer inherit an Opus session's high usage weight — subscription-quota
   headroom and latency both improve where the work doesn't need Opus.
-- One Library edit still drives both harness surfaces; the change rides the existing generated-view
+- One live Library edit still drives every harness projection; the change rides the existing generated-view
   gate (`check:agents`) with no new machinery.
 
 **Bad / watch.**
@@ -110,7 +116,8 @@ subagent tier.
 
 - ADR-0178 — render delegatable Library agents to native Cursor subagent files (amended here).
 - ADR-0052 — generated Claude subagent files.
-- ADR-0055 — the agent tier is seed-canonical; `sync-agents` reconciles.
+- ADR-0055 — superseded historical source for the original seed-canonical assignment.
+- ADR-0307 — the current live-canonical agent-tier authorship direction.
 - ADR-0030 — the live runtime is subscription-funded (the cost framing above).
 - ADR-0110 — design-time alignment is ratification.
 - `packages/library/src/knowledge.ts` — `AgentModel`, the `Agent.model` field.

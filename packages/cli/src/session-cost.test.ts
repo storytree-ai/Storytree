@@ -22,6 +22,7 @@ import {
   classifyCommand,
   collectSessionCost,
   contextTokens,
+  discoverCodexSessions,
   guidanceSurfacePaths,
   isPollingTurn,
   mainCheckoutRoot,
@@ -29,6 +30,7 @@ import {
   parseTranscript,
   pollingRuns,
   priceAxes,
+  readAgentType,
   readTranscript,
   renderSessionCost,
   resolveTier,
@@ -297,6 +299,84 @@ test("an unpriced model is surfaced with its tokens rather than silently zeroed"
   // Its tokens are still in the population; only its cost is absent, and the report says so.
   assert.ok(report.axes.cacheRead >= 1_000);
   assert.match(renderSessionCost(report), /UNPRICED MODELS/);
+});
+
+// ---------------------------------------------------------------------------
+// Codex rollout support
+// ---------------------------------------------------------------------------
+
+const CODEX_ROOT = path.join(FIXTURE_ROOT, "codex");
+
+test("reads the production agent-role sidecar formats without an injected fake", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "st-agent-role-"));
+  const codexMeta = path.join(dir, "codex.jsonl");
+  const claudeMeta = path.join(dir, "claude.json");
+  try {
+    writeFileSync(
+      codexMeta,
+      `${JSON.stringify({ type: "session_meta", payload: { agent_role: "planner" } })}\n`,
+      "utf8",
+    );
+    writeFileSync(claudeMeta, JSON.stringify({ agentType: "explorer" }), "utf8");
+
+    assert.equal(readAgentType(codexMeta), "planner");
+    assert.equal(readAgentType(claudeMeta), "explorer");
+    assert.equal(readAgentType(path.join(dir, "absent.json")), "(unknown)");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("parses Codex last-token usage without double-counting cached input or reasoning", () => {
+  const read = readTranscript(path.join(CODEX_ROOT, "2026", "08", "10", "rollout-parent.jsonl"));
+  assert.equal(read.sessionId, "codex-parent");
+  assert.equal(read.turns.length, 2);
+  assert.deepEqual(read.turns.map((turn) => turn.axes), [
+    { input: 400, cacheRead: 600, cacheWrite5m: 0, cacheWrite1h: 0, output: 100 },
+    { input: 500, cacheRead: 1500, cacheWrite5m: 0, cacheWrite1h: 0, output: 200 },
+  ]);
+  assert.equal(read.turns.reduce((sum, turn) => sum + (turn.reasoningOutputTokens ?? 0), 0), 120);
+  assert.equal(read.runtime?.durationMs, 20 * 60_000);
+  assert.equal(read.active, false);
+  assert.equal(read.turns[0]?.toolNames[0], "Agent");
+});
+
+test("an unmatched Codex task_started marks a rollout active without trusting Windows mtime", () => {
+  const read = parseTranscript([
+    JSON.stringify({ timestamp: "2026-08-10T10:00:00.000Z", type: "session_meta", payload: { id: "live", cwd: "C:\\code\\codex-fixture" } }),
+    JSON.stringify({ timestamp: "2026-08-10T10:00:01.000Z", type: "event_msg", payload: { type: "task_started", turn_id: "still-running", started_at: 1786336801 } }),
+  ].join("\n"));
+  assert.equal(read.active, true);
+});
+
+test("discovers recursively stored Codex rollouts and groups delegates by parent_thread_id", () => {
+  const sessions = discoverCodexSessions(CODEX_ROOT, "C--code-codex-fixture");
+  assert.equal(sessions.length, 1);
+  assert.equal(sessions[0]?.sessionId, "codex-parent");
+  assert.deepEqual(sessions[0]?.subagentFiles.map((sub) => sub.agentType).sort(), ["explorer", "planner"]);
+});
+
+test("measures Codex fan-out from explicit task runtime and refuses to invent GPT prices", () => {
+  const report = collectSessionCost({
+    root: CODEX_ROOT,
+    projectPrefix: "C--code-codex-fixture",
+    limit: 10,
+    minTurns: 2,
+    activeWithinMinutes: 10,
+    nowMs: NOW_MS,
+  });
+  assert.equal(report.sessions.length, 1);
+  assert.equal(report.sessions[0]?.wallMs, 20 * 60_000);
+  assert.equal(report.subagentSpawns, 2);
+  assert.equal(report.overlap.serialMs, 15 * 60_000);
+  assert.equal(report.overlap.unionMs, 10 * 60_000);
+  assert.equal(report.overlap.maxConcurrency, 2);
+  assert.equal(report.reasoningOutputTokens, 150, "reasoning is reported but remains inside output");
+  assert.equal(report.axes.output, 410, "output includes reasoning exactly once");
+  assert.equal(report.totalCost, 0, "unknown Codex rates are never guessed");
+  assert.deepEqual(report.unpriced.map((row) => row.model).sort(), ["gpt-5.6-sol", "gpt-5.6-terra"]);
+  assert.match(renderSessionCost(report), /PRICED SUBTOTAL ONLY; no rate is guessed/);
+  assert.match(renderSessionCost(report), /reasoning output: 150 token/);
 });
 
 // ---------------------------------------------------------------------------
