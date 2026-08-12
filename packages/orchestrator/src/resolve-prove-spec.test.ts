@@ -33,6 +33,7 @@ import {
   liveSmokePrompts,
   realPrompts,
   scriptedWriterModel,
+  codexPromotionManifest,
 } from "./resolve-prove-spec.js";
 import { classifyProofRoute } from "./proof/proof-route.js";
 import { proveUnit, gitTreeState } from "./prove-it-gate.js";
@@ -653,6 +654,24 @@ test("live runtime selection preserves Claude by default and admits Codex only e
   assert.ok(codex.liveAuthor instanceof CodexPhaseAuthor);
   assert.equal(codex.liveAuthor.runtime, "codex");
   assert.deepEqual(codex.liveAuthor.feedbackToolNames, []);
+});
+
+test("Codex promotion manifests widen only to additional literal phase-scope targets", () => {
+  assert.deepEqual(
+    codexPromotionManifest("packages/widget/src/widget.ts", [
+      "packages/widget/src/widget.ts",
+      "packages/widget/src/helper.ts",
+      "packages/widget/src/**/*.ts",
+      "packages/widget/src/helper.ts",
+    ]),
+    {
+      allowedTargets: [
+        "packages/widget/src/widget.ts",
+        "packages/widget/src/helper.ts",
+      ],
+      requiredTargets: ["packages/widget/src/widget.ts"],
+    },
+  );
 });
 
 test("Codex runtime refuses invented USD budget enforcement before authoring", () => {

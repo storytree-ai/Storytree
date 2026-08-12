@@ -10,7 +10,8 @@
  *  - the Claude Agent SDK ({@link ClaudeAgentAuthor} in ./sdk-author.js): the compatibility-default
  *    live runtime (ADR-0030), subscription-funded, write-scope enforced via PreToolUse hooks;
  *  - local Codex ({@link CodexPhaseAuthor} in ./codex-author.js): the opt-in ChatGPT-subscription
- *    live runtime (ADR-0232), authoring in a disposable replica that the spine promotes exactly.
+ *    live runtime (ADR-0232/0356), authoring in a disposable replica whose observed, explicitly
+ *    manifested changes only the spine can promote.
  */
 
 /** The two phases a leaf authors in (ADR-0020 §1). All other phases are spine-only — no leaf runs. */

@@ -9,6 +9,7 @@ import {
   ScriptedModel,
 } from "@storytree/agent";
 import type {
+  CodexPromotionManifest,
   FeedbackCommand,
   LiveRuntime,
   ModelResponse,
@@ -76,6 +77,28 @@ import type { CommitScope } from "./build-worktree.js";
 /** Workspace-relative paths the dry-run's scripted model writes (mirrors prove-it-gate.e2e.test.ts). */
 export const DRY_RUN_TEST_REL = "unit.test.cjs";
 export const DRY_RUN_IMPL_REL = "impl.cjs";
+
+const CODEX_GLOB_MAGIC = /[*?[\]{}()!+@]/;
+
+/**
+ * Turn the spine's phase declaration into a finite Codex packing list. The named proof target is
+ * required; any additional literal scope entries are optional exact targets. Pattern-shaped scope
+ * remains a hook wall only and never becomes promotion authority.
+ */
+export function codexPromotionManifest(
+  requiredTarget: string,
+  phaseScope: string[],
+): CodexPromotionManifest {
+  return {
+    allowedTargets: [
+      ...new Set([
+        requiredTarget,
+        ...phaseScope.filter((candidate) => !CODEX_GLOB_MAGIC.test(candidate)),
+      ]),
+    ],
+    requiredTargets: [requiredTarget],
+  };
+}
 
 /** The synthetic test: red while ./impl.cjs is absent, green once it exports add(2,3) === 5. */
 const DRY_RUN_TEST_SOURCE = `const assert = require("node:assert/strict");
@@ -393,9 +416,9 @@ export function resolveProveSpec(
           AUTHOR_TEST: ["*.test.cjs"],
           IMPLEMENT: [DRY_RUN_IMPL_REL],
         },
-        permissionPaths: {
-          AUTHOR_TEST: [DRY_RUN_TEST_REL],
-          IMPLEMENT: [DRY_RUN_IMPL_REL],
+        promotionManifests: {
+          AUTHOR_TEST: codexPromotionManifest(DRY_RUN_TEST_REL, [DRY_RUN_TEST_REL]),
+          IMPLEMENT: codexPromotionManifest(DRY_RUN_IMPL_REL, [DRY_RUN_IMPL_REL]),
         },
         isWriteAllowed: (phase, relPath) => scope.isWriteAllowed(phase, relPath),
         ...(opts.phasePrompts !== undefined ? { phasePrompts: opts.phasePrompts } : {}),
@@ -625,9 +648,9 @@ function resolveReal(
           AUTHOR_TEST: real.scope.testGlobs,
           IMPLEMENT: real.scope.sourceGlobs,
         },
-        permissionPaths: {
-          AUTHOR_TEST: [real.testFile],
-          IMPLEMENT: [real.sourceFile],
+        promotionManifests: {
+          AUTHOR_TEST: codexPromotionManifest(real.testFile, real.scope.testGlobs),
+          IMPLEMENT: codexPromotionManifest(real.sourceFile, real.scope.sourceGlobs),
         },
         isWriteAllowed: (phase, relPath) => scope.isWriteAllowed(phase, relPath),
         ...(opts.phasePrompts !== undefined ? { phasePrompts: opts.phasePrompts } : {}),
