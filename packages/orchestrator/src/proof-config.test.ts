@@ -85,6 +85,85 @@ test("a block carrying only command+scope (no real arm) parses — dry-run/live-
   assert.equal("real" in cfg, false);
 });
 
+// ── the read-only coverage surface (ADR-0353) ────────────────────────────────────────────────────
+
+const WITH_COVERAGE = {
+  command: { file: "pnpm", args: ["--filter", "@storytree/library", "test"] },
+  scope: {
+    testGlobs: ["packages/library/src/**/*.test.ts"],
+    sourceGlobs: ["packages/library/src/**/*.ts"],
+  },
+  coverage: {
+    testGlobs: [
+      "packages/storage-protocol/src/store-parity.ts",
+      "packages/library/src/store/store.test.ts",
+    ],
+  },
+};
+
+test("coverage: a surface spanning TWO packages parses — the bound is per-GLOB, not per-array", () => {
+  // The whole point of the field: a capability whose contracts are proven in a sibling package can say
+  // so. Each glob names one concrete package; the ARRAY is allowed to span them.
+  const cfg = parseNodeBuildConfig(WITH_COVERAGE);
+  assert.deepEqual(cfg.coverage?.testGlobs, [
+    "packages/storage-protocol/src/store-parity.ts",
+    "packages/library/src/store/store.test.ts",
+  ]);
+});
+
+test("coverage: absent stays ABSENT, not explicit-undefined — the registry parity drift-lock holds", () => {
+  const cfg = parseNodeBuildConfig({
+    command: { file: "pnpm", args: ["--filter", "@storytree/orchestrator", "test"] },
+    scope: {
+      testGlobs: ["packages/orchestrator/src/**/*.test.ts"],
+      sourceGlobs: ["packages/orchestrator/src/**/*.ts"],
+    },
+  });
+  assert.equal(cfg.coverage, undefined);
+  assert.equal("coverage" in cfg, false);
+});
+
+test("coverage: a repo-wide glob is REFUSED — an unbounded surface is a fake-drain vector", () => {
+  // Without this bound a capability could credit its contracts against any test anywhere in the repo,
+  // on the very check that exists to catch under-declaration. The surface is read-only, but "read-only"
+  // is not "harmless": what it authorizes is a CLAIM about proof.
+  assert.throws(
+    () => parseNodeBuildConfig({ ...WITH_COVERAGE, coverage: { testGlobs: ["**/*.test.ts"] } }),
+    /over-broad coverage glob/,
+  );
+  assert.throws(
+    () => parseNodeBuildConfig({ ...WITH_COVERAGE, coverage: { testGlobs: ["packages/*/src/x.test.ts"] } }),
+    /over-broad coverage glob/,
+  );
+  assert.throws(
+    () => parseNodeBuildConfig({ ...WITH_COVERAGE, coverage: { testGlobs: ["../outside/x.test.ts"] } }),
+    /over-broad coverage glob/,
+  );
+});
+
+test("coverage: the block is .strict and non-empty — a typo'd key never silently observes nothing", () => {
+  assert.throws(() =>
+    parseNodeBuildConfig({ ...WITH_COVERAGE, coverage: { testGlob: ["packages/library/src/a.test.ts"] } }),
+  );
+  assert.throws(() => parseNodeBuildConfig({ ...WITH_COVERAGE, coverage: { testGlobs: [] } }));
+});
+
+test("coverage: declaring a surface does NOT add a sourceGlobs counterpart — the landlord rule stays blind to it", () => {
+  // ADR-0192/ADR-0074 derive a story's claimed territory from `real.sourceFile` + literal
+  // `real.scope.sourceGlobs`. A source-shaped coverage field would enlarge that territory and red
+  // `check:boundaries` for a capability that only wants its own tests read, so the field has no such
+  // key and the schema refuses one.
+  assert.throws(() =>
+    parseNodeBuildConfig({
+      ...WITH_COVERAGE,
+      coverage: {
+        testGlobs: ["packages/library/src/store/store.test.ts"],
+        sourceGlobs: ["packages/storage-protocol/src/store.ts"],
+      },
+    }),
+  );
+});
+
 // ── malformed = LOUD (contract 1) ────────────────────────────────────────────────────────────────
 
 test("malformed: a missing scope half is loud", () => {

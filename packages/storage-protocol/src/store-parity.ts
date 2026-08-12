@@ -61,7 +61,7 @@ export function storeParitySuite(
   name: string,
   makeStore: () => Store | Promise<Store>,
 ): void {
-  test(`${name} parity: upsertDoc replaces on same id and bumps updatedAt`, async () => {
+  test(`${name} parity: upsert-replaces-and-bumps — upsertDoc replaces on same id and bumps updatedAt`, async () => {
     const store = await makeStore();
     const first = await store.upsertDoc({
       id: "u1",
@@ -86,7 +86,7 @@ export function storeParitySuite(
     assert.equal(all.length, 1, "same id replaces, does not duplicate");
   });
 
-  test(`${name} parity: patchDoc writes ONLY the named fields, so a sibling's edit survives (ADR-0352)`, async () => {
+  test(`${name} parity: patch-writes-only-named-fields — patchDoc writes ONLY the named fields, so a sibling's edit survives (ADR-0352)`, async () => {
     const store = await makeStore();
     await store.upsertDoc({ id: "p1", kind: "template", doc: parityFixtureDoc("p1", "original") });
 
@@ -125,7 +125,7 @@ export function storeParitySuite(
     assert.equal(await store.getDoc("ghost"), null, "patch never creates");
   });
 
-  test(`${name} parity: appendEvent preserves insertion order with increasing seq`, async () => {
+  test(`${name} parity: append-event-monotonic-seq — appendEvent preserves insertion order with increasing seq`, async () => {
     const store = await makeStore();
     await store.appendEvent({ id: "a", kind: "k", type: "created", doc: {} });
     await store.appendEvent({ id: "b", kind: "k", type: "created", doc: {} });
@@ -143,13 +143,13 @@ export function storeParitySuite(
     }
   });
 
-  test(`${name} parity: getDoc(absent) returns null (not throw)`, async () => {
+  test(`${name} parity: getdoc-absent-null — getDoc(absent) returns null (not throw)`, async () => {
     const store = await makeStore();
     const got = await store.getDoc("does-not-exist");
     assert.equal(got, null);
   });
 
-  test(`${name} parity: queryDocs on empty store returns [] (not throw)`, async () => {
+  test(`${name} parity: querydocs-empty-array — queryDocs on empty store returns [] (not throw)`, async () => {
     const store = await makeStore();
     const docs = await store.queryDocs();
     assert.deepEqual(docs, []);
@@ -157,7 +157,7 @@ export function storeParitySuite(
     assert.deepEqual(filtered, []);
   });
 
-  test(`${name} parity: deleteDoc is idempotent (true then false)`, async () => {
+  test(`${name} parity: deletedoc-idempotent — deleteDoc is idempotent (true then false)`, async () => {
     const store = await makeStore();
     await store.upsertDoc({ id: "d1", kind: "template", doc: parityFixtureDoc("d1", "to delete") });
     assert.equal(await store.deleteDoc("d1"), true, "first delete reports true");
@@ -258,7 +258,7 @@ export function changeStoreParitySuite(
  * uniform across all three backends instead of carrying a contract one of them can never meet.
  */
 export function localStoreParitySuite(name: string, makeStore: () => Store | Promise<Store>): void {
-  test(`${name} local parity: patchDoc persists what validate() returns (the upcast boundary)`, async () => {
+  test(`${name} local parity: patch-honours-the-write-boundary — patchDoc persists what validate() returns (the upcast boundary)`, async () => {
     const store = await makeStore();
     await store.upsertDoc({ id: "v1", kind: "template", doc: parityFixtureDoc("v1", "original") });
     // What the validator RETURNS is what lands, mirroring upsertDoc's persist-the-upcast-output
@@ -273,7 +273,7 @@ export function localStoreParitySuite(name: string, makeStore: () => Store | Pro
     assert.equal(reread.body, "upcast", "and it is what the projection holds");
   });
 
-  test(`${name} local parity: a throwing validate() refuses the write and leaves the doc untouched`, async () => {
+  test(`${name} local parity: patch-honours-the-write-boundary — a throwing validate() refuses the write and leaves the doc untouched`, async () => {
     const store = await makeStore();
     await store.upsertDoc({ id: "v2", kind: "template", doc: parityFixtureDoc("v2", "keep me") });
     await assert.rejects(

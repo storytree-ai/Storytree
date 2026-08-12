@@ -13,7 +13,7 @@ storeParitySuite("InMemoryStore", () => new InMemoryStore());
 // so `HttpStore` is held to the shared suite but not to these (ADR-0352).
 localStoreParitySuite("InMemoryStore", () => new InMemoryStore());
 
-test("InMemoryStore: upsertDoc appends an event AND updates the projection", async () => {
+test("InMemoryStore: upsert-event-and-projection-atomic — upsertDoc appends an event AND updates the projection", async () => {
   const store = new InMemoryStore();
   await store.upsertDoc({ id: "x", kind: "note", doc: { v: 1 }, actor: "alice" });
   await store.upsertDoc({ id: "x", kind: "note", doc: { v: 2 }, actor: "bob" });

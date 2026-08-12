@@ -92,13 +92,20 @@ test("coverage drain: the axes are NEVER summed — the measured concurrent case
   // another MOVES a test file without updating the spec that binds it. The summed contract total holds
   // at 121 and the capability count FALLS 41 -> 40, so a ceiling on either summed projection sees
   // nothing — while a proof surface has disappeared.
+  // PINNED to the ceiling in force on the day this was measured (U=119), NOT to the shipped constant.
+  // The shipped ceiling has since tightened to 112 (ADR-0353 repaired a binding fault, crediting seven
+  // contracts to tests that already passed), and re-reading this historical pair through today's
+  // tighter ceiling would red `before` and destroy the very contrast the case exists to show. What is
+  // under test here is the SUM-BLINDNESS property, which is a fact about the shape of the two axes and
+  // is independent of where either ceiling happens to sit.
+  const AT_MEASUREMENT = { uncoveredCeiling: 119, unboundCeiling: 1 };
   const before = { uncovered: contracts(119), unbound: caps(1) };
   const after = { uncovered: contracts(117), unbound: caps(2) };
   assert.equal(before.uncovered.length + before.unbound.length * 2, 121, "the summed projection is unchanged...");
   assert.equal(after.uncovered.length + after.unbound.length * 2, 121, "...at exactly 121");
 
-  assert.equal(evaluateCoverageDrain(before, CTX).level, "warn");
-  const v = evaluateCoverageDrain(after, CTX);
+  assert.equal(evaluateCoverageDrain(before, CTX, AT_MEASUREMENT).level, "warn");
+  const v = evaluateCoverageDrain(after, CTX, AT_MEASUREMENT);
   assert.equal(v.level, "red", "the split pair catches what the sum cannot");
   assert.equal(v.uncoveredCount, 117, "and it caught it while the authoring backlog IMPROVED");
 });

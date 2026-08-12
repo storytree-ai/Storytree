@@ -39,6 +39,21 @@ proof:
   scope:
     testGlobs: ["packages/library/src/**/*.test.ts"]
     sourceGlobs: ["packages/library/src/**/*.ts"]
+  # ADR-0353 — the READ-ONLY coverage surface: where THIS capability's contract tests actually live.
+  # It carries no write authority and is read only by `check:coverage`. It exists because the `real:`
+  # arm below is BORROWED by `library#gate-5` for an R1 red over `connection.ts` (ADR-0098), so the
+  # arm's `testFile` is deliberately NOT this seam's contract surface — the parity suite is. Widening
+  # `real.scope.testGlobs` to make coverage see these files would hand that gate's leaf write
+  # authority over another package's tests to fix a REPORTING fault, so the two surfaces stay split:
+  # `real.scope` says what a drive may WRITE, `coverage` says where a reader may LOOK.
+  # `store-parity.ts` is named as a LITERAL path on purpose — it is the shared suite module, not a
+  # `*.test.ts` file, so a wildcard walk would never reach it.
+  coverage:
+    testGlobs:
+      - "packages/storage-protocol/src/store-parity.ts"
+      - "packages/storage-protocol/src/store.test.ts"
+      - "packages/storage-protocol/src/http-store.test.ts"
+      - "packages/library/src/store/store.test.ts"
   real:
     testFile: "packages/library/src/store/connection.test.ts"
     sourceFile: "packages/library/src/store/connection.ts"
@@ -126,20 +141,29 @@ loudly rather than dropping it (a dropped validator would let a remote patch ski
 That is why the parity contracts split — `storeParitySuite` carries what all three backends can meet,
 and `localStoreParitySuite` carries the `validate` contracts only an in-process store can.
 
-**Why `patchDoc` adds NO numbered contract below, though it is genuinely tested (ADR-0352).** Its
-behaviour is proven by real, passing parity tests — three contracts in `storeParitySuite` (run against
-`InMemoryStore` AND against `HttpStore` over a real socket) plus two in `localStoreParitySuite`. But
-`check:coverage` scans only this capability's registered `real.testFile`, which is
-`connection.test.ts` — the ADR-0098 gate-5 R1 arm over the keyless connection, not the seam's
-contract surface. That is why all nine contracts below already sit in the drain backlog despite five
-of them citing REAL passing tests. Declaring two more would have pushed the corpus-wide backlog from
-119 to 121 and RED the ceiling (ADR-0252 D3: drain, never raise) — for two contracts that are
-actually proven, which would be an accounting artifact rather than a real regression. Naming them in
-`connection.test.ts` to satisfy the scanner would be a fake drain. The real remedy is repairing the
-binding, and that means repointing a signed `real:` arm — out of scope for ADR-0352 and its own unit
-of work.
+**`patchDoc`'s contracts are DECLARED (contracts 10–11), and the binding that blocked them is
+REPAIRED (ADR-0353).** ADR-0352 shipped `patchDoc`'s parity tests but withheld its two contracts,
+because `check:coverage` read only this capability's registered `real.testFile` —
+`connection.test.ts`, the ADR-0098 gate-5 R1 arm over the keyless connection, which is not this
+seam's contract surface. All nine contracts therefore sat in the drain backlog despite five citing
+REAL passing tests, and declaring two more would have taken the corpus backlog 119 → 121 and RED the
+ceiling (ADR-0252 D3: drain, never raise) for behaviour that IS proven.
 
-## Contracts (9)
+The repair was NOT to re-point the `real:` arm. That arm is borrowed by `library#gate-5`, and its
+`scope.testGlobs` is the phase machine's WRITE fence — widening it so a reader could see the parity
+tests would have handed that gate's leaf write authority over another package's tests to fix a
+REPORTING fault. Instead the surfaces are split by what they authorize (ADR-0353): the `coverage:`
+block in the frontmatter above declares where the contract tests LIVE, carries no write authority,
+and is read only by the coverage check. The second half of the fault was that not one of those tests
+NAMED its contract id, so the file binding alone would have credited nothing; the parity suite and
+both `store.test.ts` files now carry their ids in their test names.
+
+Seven of the nine existing contracts are now credited where their tests actually live. The two that
+remain uncovered — `pg-upsert-transactional-event-projection` and `pg-createpool-iam-no-password` —
+are the honest would-be pair: they are proven only behind the default-skipped live-DB gate, exactly
+as `## Proof` says, and they are earned by story gate 5, not by this repair.
+
+## Contracts (11)
 
 The test-proven leaf behaviours — each **one isolated leaf behaviour** under one automated test (no stubs: these are collaborator-free `InMemoryStore`/parity/schema tests, matching this capability's integration-test proof mode, ADR-0010 §2). Where a REAL passing test exists, a `proven by` line cites it; otherwise the contract is a would-be test. Contracts 7–9 carry the substrate competence re-homed from the dissolved `stories/store` (ADR-0077): the live Pg write, the keyless connection (`keyless-store-connection`), and the shared `events` schema (`shared-events-schema`).
 
@@ -179,3 +203,11 @@ The test-proven leaf behaviours — each **one isolated leaf behaviour** under o
    - **asserts —** `schema.sql` declares `CREATE SCHEMA events` and the per-organism history/projection tables (`library_event`/`library_artifact`/`comment*`/`work_event`/`verdict`/`adr_number`), constrains the event `type` to `created`/`updated`/`deleted`, and declares NO foreign keys / cross-table `REFERENCES` (relationships are in-doc ID pointers, ADR-0017).
    - **covers —** `packages/library/src/store/schema.sql:1-25`
    - **proven by —** `packages/library/src/store/store.test.ts:20-39` (REAL, passing offline)
+10. **`patch-writes-only-named-fields`** *(ADR-0352)* — a patch writes ONLY the fields it names, so a concurrent sibling's edit to a field it does not name survives
+    - **asserts —** After two patches on the same id naming DIFFERENT fields (one `body`, one `title`), both landed values are present and an untouched third field is unchanged — the lost-update `upsertDoc` would have silently reverted.
+    - **covers —** `packages/storage-protocol/src/store.ts` (`patchDoc`)
+    - **proven by —** `packages/storage-protocol/src/store-parity.ts:89-104` — the shared parity contract, run against `InMemoryStore` (`packages/storage-protocol/src/store.test.ts`) AND against `HttpStore` over a real socket (`packages/storage-protocol/src/http-store.test.ts`) (REAL, passing)
+11. **`patch-honours-the-write-boundary`** *(ADR-0352)* — a patch's MERGED doc crosses the same `upcastAndValidate` write boundary `upsertDoc`'s does, and a refusing validator refuses the write
+    - **asserts —** `patchDoc` persists what `validate()` RETURNS (the upcast output, not the raw merge), and a throwing `validate()` refuses the write leaving the stored doc untouched — so a patch can never skip migrate-on-write.
+    - **covers —** `packages/storage-protocol/src/store.ts` (`patchDoc`'s validate hook)
+    - **proven by —** `packages/storage-protocol/src/store-parity.ts:260-294` (`localStoreParitySuite`, both tests — the `validate` hook is a CLOSURE and cannot cross an HTTP wire, so these are the contracts only an in-process store can meet; `HttpStore.patchDoc` refuses a validator loudly rather than dropping it) (REAL, passing)

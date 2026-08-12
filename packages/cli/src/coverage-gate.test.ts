@@ -151,6 +151,39 @@ test("end-to-end over the REAL corpus: the disk loader filters to real-build cap
   ]);
 });
 
+test("the declared coverage surface is read, so a BORROWED real: arm no longer hides a capability's contract tests (ADR-0353)", () => {
+  // The fault this pins, in its live instance. `event-sourced-store-seam`'s `real:` arm is borrowed by
+  // `library#gate-5` for an R1 red over `connection.ts` (ADR-0098), so the arm's testFile is NOT the
+  // seam's contract surface — the parity suite in `packages/storage-protocol` is. Before ADR-0353 the
+  // sweep read the arm alone and reported 9/9 uncovered while five contracts cited real passing tests.
+  const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
+  const report = classifyGateCoverage(
+    loadRealBuildCoverageUnits(path.join(repoRoot, "stories"), repoRoot),
+  );
+  const seam = report.scanned.find((u) => u.unitId === "event-sourced-store-seam");
+  assert.ok(seam, "event-sourced-store-seam should be scanned (real-build surface + contracts)");
+
+  // The surface is the UNION: the borrowed arm's own file AND the declared coverage globs.
+  assert.ok(
+    seam.testFiles.includes("packages/library/src/store/connection.test.ts"),
+    "the borrowed real: arm's test file is still scanned — the coverage surface ADDS, never replaces",
+  );
+  assert.ok(
+    seam.testFiles.includes("packages/storage-protocol/src/store-parity.ts"),
+    "the shared parity module is reachable as a LITERAL path (it is not a *.test.ts file, so no wildcard walk finds it)",
+  );
+
+  // The seven credited are exactly the contracts with real passing tests; the two that remain are the
+  // honest would-be pair, proven only behind the default-skipped live-DB gate. Asserting the REMAINDER
+  // rather than a count is what keeps this from silently reading as "repaired" if the surface widened
+  // far enough to credit the live-gated pair, which no offline test may do.
+  assert.deepEqual(
+    seam.uncovered,
+    ["pg-upsert-transactional-event-projection", "pg-createpool-iam-no-password"],
+    "only the live-DB-gated contracts stay uncovered — the repair credits proof, it never manufactures it",
+  );
+});
+
 // ---------------------------------------------------------------------------
 // The drain-ceiling projection (the axis split — `coverage-drain.ts` evaluates it)
 // ---------------------------------------------------------------------------

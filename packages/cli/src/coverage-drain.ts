@@ -171,8 +171,14 @@ export interface CoverageDrainConfig {
  * vouching test is `skip: !DB` in `claim-store-release-by-branch.live.test.ts`. The other six located
  * files bind no capability's `real.testFile` or name no declared contract, so they move nothing (the
  * `vacuous-proof` instrument states this over-report itself). So: the classifier fix re-baselines this
- * axis to 120 IN THE SAME COMMIT, with that reason. It is also the second reason the accumulating axis
+ * axis IN THE SAME COMMIT, with that reason. It is also the second reason the accumulating axis
  * counts contracts — the capability count is blind to this growth, measured at +0.
+ *
+ * ⚠ THE `119 → 120` ABOVE IS THE MEASUREMENT AS TAKEN, NOT A LIVE TARGET. The ceiling has since been
+ * tightened to 112 through a WIDER aperture (ADR-0353, below), so when that classifier fix lands the
+ * move to re-record is `+1 FROM WHATEVER THE THEN-CURRENT BASELINE IS` — 113 on today's, not 120. The
+ * reasoning, the single named contract, and the `unbound: +0` finding all still hold; only the
+ * arithmetic was overtaken. Re-measure before re-baselining rather than trusting either number.
  *
  * Any OTHER upward move is the named gaming failure mode on `process:verification-decay-detection`.
  * Raising it to admit work being landed is exactly what this instrument exists to catch.
@@ -192,8 +198,35 @@ export interface CoverageDrainConfig {
  * place of it. Softening the check beneath its ceiling is the named gaming failure mode on
  * `process:verification-decay-detection`.
  */
+/**
+ * TIGHTENED 119 → 112 on 2026-08-12 (ADR-0353), and the APERTURE MOVED WITH IT — read the two facts
+ * together or the number is misleading.
+ *
+ * ADR-0353 repaired a BINDING fault, not an authoring backlog: the sweep credited a contract only
+ * against its capability's `real.testFile` ∪ `real.scope.testGlobs`, both of which are the phase
+ * machine's WRITE fence. A capability whose `real:` arm is BORROWED by a build-tests gate therefore
+ * had its contract tests read from the wrong file entirely — `event-sourced-store-seam`'s nine
+ * contracts all sat in this backlog while five of them cited real, passing parity tests in
+ * `packages/storage-protocol`. Specs may now declare a read-only `proof.coverage.testGlobs` surface
+ * (no write authority, per-glob single-package bound), and the sweep unions it in.
+ *
+ * So this is an aperture ENLARGEMENT — the sweep reads strictly more files than it did — and
+ * ADR-0269 4(b) wants such a move MEASURED rather than asserted. Measured, over the same 310 spec
+ * files / 125 scanned capabilities: `uncovered` 119 → 112, `unbound` unchanged at 1. Every one of
+ * the seven is `event-sourced-store-seam`, credited to a test that already existed and already
+ * passed; no other capability declares a coverage surface yet, so nothing else moved. The
+ * enlargement is the OPPOSITE direction from ADR-0269's worked example (which raised 119 → 120):
+ * teaching this sweep to look where the tests are can only ever REVEAL coverage, never manufacture a
+ * gap, so the resulting ceiling is strictly tighter and no backlog was absorbed.
+ *
+ * ONE CONSEQUENCE, STATED SO IT IS NOT REDISCOVERED AS DRIFT: 112 is NOT comparable to the historical
+ * series above (66 → 121), which was measured through the narrower aperture. The series is still the
+ * evidence for why this ceiling exists; it is no longer the same measurement as this number. A future
+ * capability declaring a coverage surface will drop this count again, and that is a drain — the
+ * remedy stays ADR-0252 D3's, never a raise.
+ */
 export const DEFAULT_COVERAGE_DRAIN_CONFIG: CoverageDrainConfig = {
-  uncoveredCeiling: 119,
+  uncoveredCeiling: 112,
   unboundCeiling: 1,
 };
 

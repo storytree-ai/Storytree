@@ -238,7 +238,9 @@ function walkTestFiles(absDir: string): string[] {
 /**
  * Load every capability under `storiesDir` carrying a registered real-build test surface
  * (`proof.real.testFile`) AND ≥1 declared `## Contracts`. The proof surface unions that exact signed
- * `real.testFile` with the real arm's declared test globs, deduplicated. A spec that throws (malformed)
+ * `real.testFile` with the real arm's declared test globs AND the read-only `proof.coverage.testGlobs`
+ * surface (ADR-0353 — where the contract tests actually live, which on a BORROWED build-tests arm is
+ * NOT the arm's own test file), deduplicated. A spec that throws (malformed)
  * or carries no real block / no contracts is skipped — this is the FILTER that keeps unbuilt
  * `proposed` capabilities out of the sweep. A missing/unreadable test file contributes no names
  * (fail-closed → every contract reads uncovered — a legitimate WARN: a registered real surface with
@@ -272,11 +274,18 @@ export function sweepRealBuildCoverage(
     const testFile = real.testFile;
     const abs = path.join(repoRoot, testFile);
     const testFilePresent = existsSync(abs);
-    const scopedFiles = real.scope.testGlobs.flatMap((glob) => {
-      const absolute = path.join(repoRoot, glob);
-      return glob.includes("*") ? walkTestFiles(path.join(repoRoot, globBaseDir(glob))) : [absolute];
-    });
-    const absFiles = [abs, ...scopedFiles].filter(
+    const resolveGlob = (glob: string): string[] =>
+      glob.includes("*")
+        ? walkTestFiles(path.join(repoRoot, globBaseDir(glob)))
+        : [path.join(repoRoot, glob)];
+    const scopedFiles = real.scope.testGlobs.flatMap(resolveGlob);
+    // ADR-0353: the declared READ-ONLY coverage surface — where this capability's contract tests
+    // actually live, which on a BORROWED `real:` arm is a different place from what that arm may
+    // write. Resolved exactly like a scope glob (a literal path is taken as-is, so a shared suite
+    // module that is not itself a `*.test.ts` file can be named), then unioned in. Absent = the
+    // pre-ADR-0353 behaviour, so no existing spec changes.
+    const coverageFiles = (spec.buildConfig?.coverage?.testGlobs ?? []).flatMap(resolveGlob);
+    const absFiles = [abs, ...scopedFiles, ...coverageFiles].filter(
       (candidate, index, files) => files.indexOf(candidate) === index,
     );
     const testNames: string[] = [];
