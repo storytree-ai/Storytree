@@ -116,6 +116,13 @@ export const NODE_BUILD_REGISTRY: Readonly<Record<string, NodeBuildConfig>> = {
   "ambient-integration": {
     command: pnpmTest("@storytree/drive"),
     scope: pkgScope("drive"),
+    // ADR-0353's read-only coverage surface, mirrored here because this is one of the five specs the
+    // contract-4 parity oracle holds BYTE-IDENTICAL to its registry twin. It carries no write
+    // authority and no build behaviour — `resolveBuildConfig` prefers the spec anyway — so the only
+    // thing it changes is that the drift-lock keeps passing, which is the point: a migrated spec and
+    // its twin drift the moment either side gains a field the other lacks, and the lock cannot tell a
+    // harmless reporting field from a real divergence (nor should it have to).
+    coverage: { testGlobs: ["packages/cli/src/ambient-wiring.test.ts"] },
     real: {
       testFile: "packages/drive/src/ambient-presence.test.ts",
       sourceFile: "packages/drive/src/ambient-presence.ts",

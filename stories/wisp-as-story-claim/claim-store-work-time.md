@@ -28,6 +28,14 @@ proof:
   scope:
     testGlobs: ["packages/notice-board/src/**/*.test.ts"]
     sourceGlobs: ["packages/notice-board/src/**/*.ts"]
+  # ADR-0353 — the READ-ONLY coverage surface: where THIS capability's contract tests actually live.
+  # The `real:` arm below is the DB-backed A1 leg (`releaseClaimsByBranch`, live-gated against the
+  # disposable `storytree_test` DB). Contracts A2/A3 are PURE and the spec routes them to the offline
+  # package suite `claim.test.ts` — outside the arm's write fence by design, since a db-backed leaf
+  # has no business writing the pure suite.
+  coverage:
+    testGlobs:
+      - "packages/notice-board/src/claim.test.ts"
   real:
     testFile: "packages/notice-board/src/store/claim-store-release-by-branch.live.test.ts"
     sourceFile: "packages/notice-board/src/store/claim-store.ts"
@@ -158,8 +166,10 @@ contract A1 (the load-bearing db method); A2/A3 are pure and covered by the offl
      that `isReclaimable(bumped, now)` now reports `false`, and it changes ONLY `heartbeatAt` (all other
      fields equal). Pure — no store, no clock read (caller passes `now`).
    - **covers —** `packages/notice-board/src/claim.ts`
-   - **would-be test —** authored in `packages/notice-board/src/claim.test.ts` (offline package suite); the
-     store-side write of the bump rides A1's db-backed posture.
+   - **proven by —** `packages/notice-board/src/claim.test.ts` (offline package suite) — one test for the
+     reset-and-no-longer-reclaimable half, one for the changes-only-`heartbeatAt` half. Reached via the
+     ADR-0353 `coverage.testGlobs` surface, since the `real:` arm's write fence is the db-backed A1 leg.
+     The store-side write of the bump rides A1's db-backed posture.
 3. **`work-claim-request-carries-work-intent`** — the pure work-time `ClaimRequest` builder stamps the
    correct `intent` for the work kind, generalising beyond the build-only trigger.
    - **asserts —** the builder maps `kind: "edit"` → `intent: "edit"` and `kind: "orchestrate"` →
@@ -167,4 +177,13 @@ contract A1 (the load-bearing db method); A2/A3 are pure and covered by the offl
      and the result validates as a legitimate claim request the store accepts (round-trips through
      `ClaimDoc.parse` once the store stamps timestamps). Pure, builtins-only.
    - **covers —** `packages/notice-board/src/claim.ts`
-   - **would-be test —** authored in `packages/notice-board/src/claim.test.ts` (offline package suite).
+   - **DELIBERATELY LEFT UNCOVERED (2026-08-12) — the assertion above is overtaken, and crediting it
+     would credit the wrong claim.** `packages/notice-board/src/claim.test.ts` carries three substantive
+     `workClaimRequest` tests, and the ADR-0353 coverage surface declared above now READS them — so the
+     binding is no longer what holds this contract back. What holds it back is that **ADR-0346 D3 reversed
+     the mapping this contract asserts**: the work kind no longer lands on `intent` (that is what made the
+     column 55% the literal string `"orchestrate"`); it lands on the typed `role`, and `intent` now carries
+     the caller's PROSE. Naming this contract id onto those tests would stamp `covered` beside an
+     `asserts —` clause the code deliberately no longer satisfies — a reader would take
+     `kind: "edit"` → `intent: "edit"` as proven. Rewriting the assertion is a hierarchy edit, not a
+     coverage repair, so it is left for `story-author`; until then this stays an honest uncovered entry.

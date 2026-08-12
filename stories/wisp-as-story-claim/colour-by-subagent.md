@@ -22,6 +22,16 @@ proof:
   scope:
     testGlobs: ["packages/drive/src/**/*.test.ts"]
     sourceGlobs: ["packages/drive/src/**/*.ts"]
+  # ADR-0353 — the READ-ONLY coverage surface: where THIS capability's contract tests actually live.
+  # The `real:` arm below is the ISOLATED unit (the pure `subagentColourState` mapping, contract 1);
+  # contract 2 is the writer's integration leg, which the spec itself routes to the `@storytree/drive`
+  # package suite because `phaseActivityWriter` runtime-imports `@storytree/orchestrator` and so is
+  # not the isolated `--real` unit. That test was authored and passes — it was simply outside what
+  # the sweep read. Widening `real.scope.testGlobs` to reach it would hand the leaf write authority
+  # over another file to fix a REPORTING fault, so the surfaces stay split.
+  coverage:
+    testGlobs:
+      - "packages/drive/src/phase-activity.test.ts"
   real:
     testFile: "packages/drive/src/subagent-colour.test.ts"
     sourceFile: "packages/drive/src/subagent-colour.ts"
@@ -104,5 +114,9 @@ The test-proven leaf behaviours — each one isolated automated test (ADR-0002).
      `building` work-event whose doc carries the `subagentColourState` token for that role (alongside the
      gate phase), so `inFlightBuilds()` reads the role colour.
    - **covers —** `packages/drive/src/phase-activity.ts`
-   - **would-be test (integration) —** authored in the `@storytree/drive` package suite (the writer
-     runtime-imports `@storytree/orchestrator`, so it is not the isolated `--real` unit); the pure mapping is.
+   - **proven by —** `packages/drive/src/phase-activity.test.ts`, in the `@storytree/drive` package suite
+     (the writer runtime-imports `@storytree/orchestrator`, so it is not the isolated `--real` unit; the
+     pure mapping is). It was authored, named for this contract and passing all along — the sweep just
+     never read it, because the `real:` arm's scope is the WRITE fence for the isolated unit, not a
+     statement about where this capability's contract tests live. Reached via the ADR-0353
+     `coverage.testGlobs` surface in the frontmatter.

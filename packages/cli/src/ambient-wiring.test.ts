@@ -86,7 +86,7 @@ test("the ambient wrappers ARE wired through the worktree-safe launcher: the Ses
 // a build run never writes session presence (ADR-0199)
 // ---------------------------------------------------------------------------
 
-test("the drive exports no build presence wrapper — a build run never writes session presence (ADR-0199)", async () => {
+test("builds-never-write-session-presence: the drive exports no build presence wrapper (ADR-0199)", async () => {
   // The clobber bug (owner interrupts 2026-07-15/16): `withPresence` declared the BUILD under the
   // LAUNCHING session's worktree identity and retired that session's row in its finally. The fix is
   // structural: builds write work-events + the write-claim, never `events.session`. Lock the wrapper

@@ -147,7 +147,7 @@ test("credential-bridge: no renderer-reachable path returns the raw token", asyn
 
 // Pins the GUARD: when no credential is held, the bridge rejects with a typed error and
 // the driver is never called. The renderer receives an error status, not an empty token.
-test("credential-bridge: build rejects with a typed error when no credential is held", async () => {
+test("runtime-credential-partition: credential-bridge: build rejects with a typed error when no credential is held", async () => {
   const keychain = new InMemoryKeychain();
   const broker = new CredentialBroker(keychain);
   // No token stored — keychain is empty.
@@ -178,7 +178,7 @@ test("credential-bridge: build rejects with a typed error when no credential is 
   );
 });
 
-test("credential-bridge: api-key is scoped to ANTHROPIC_API_KEY for the driver call", async () => {
+test("operation-env-lifetime: credential-bridge: api-key is scoped to ANTHROPIC_API_KEY for the driver call", async () => {
   const broker = new CredentialBroker(new InMemoryKeychain());
   await broker.store("api-key", "api-test-value");
   const env: Record<string, string | undefined> = {};
@@ -201,7 +201,7 @@ test("credential-bridge: api-key is scoped to ANTHROPIC_API_KEY for the driver c
   assert.equal(env.ANTHROPIC_API_KEY, undefined);
 });
 
-test("credential-bridge: restores the target env after a thrown driver", async () => {
+test("operation-env-lifetime: credential-bridge: restores the target env after a thrown driver", async () => {
   const broker = new CredentialBroker(new InMemoryKeychain());
   await broker.store("api-key", "api-test-value");
   const env: Record<string, string | undefined> = {
