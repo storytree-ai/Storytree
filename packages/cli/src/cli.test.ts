@@ -4,7 +4,14 @@ import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { InMemoryStore, type DeleteDocOpts, type Store, type StoredDoc, type StoreEvent } from "@storytree/storage-protocol";
+import {
+  InMemoryStore,
+  type DeleteDocOpts,
+  type PatchDocInput,
+  type Store,
+  type StoredDoc,
+  type StoreEvent,
+} from "@storytree/storage-protocol";
 import { loadFixtureCorpus } from "@storytree/library/fixture";
 
 import { run } from "./commands.js";
@@ -391,6 +398,59 @@ test("artifact edit --set patches a field and re-persists", async () => {
   assert.match(env.body, /updated edit-first-curation \(set description\)/);
   const got = await store.getDoc("edit-first-curation");
   assert.equal((got?.doc as { description?: string }).description, "patched by test");
+});
+
+/*
+ * ADR-0352 — the measured lost update, at the surface that caused it.
+ *
+ * Two sessions edit ONE artifact, each naming a DIFFERENT field. The clobber needs the reads to
+ * interleave, which is why this test opens session B's read BEFORE session A writes: under the old
+ * whole-doc path B's `upsertDoc` carried B's stale copy of A's field and reverted it, and BOTH
+ * commands printed `updated …`. On `session-orchestrator` that silently reverted 7,058 characters.
+ */
+test("ADR-0352: two sessions editing DIFFERENT fields do not clobber each other", async () => {
+  const store = await seeded();
+
+  // Session B reads first and holds a stale snapshot for the rest of the test.
+  const bRead = await store.getDoc("edit-first-curation");
+  assert.ok(bRead, "precondition: the artifact exists");
+  const original = (bRead.doc as { title?: string }).title;
+
+  // Session A lands an edit to `description`.
+  const a = await run(
+    ["library", "artifact", "edit", "edit-first-curation", "--set", "description=A's description"],
+    { store, writable: true },
+  );
+  assert.equal(a.ok, true);
+
+  // Session B now edits `title` — it never mentions `description`, so A's edit must survive.
+  const b = await run(
+    ["library", "artifact", "edit", "edit-first-curation", "--set", "title=B's title"],
+    { store, writable: true },
+  );
+  assert.equal(b.ok, true);
+
+  const after = (await store.getDoc("edit-first-curation"))?.doc as {
+    description?: string;
+    title?: string;
+  };
+  assert.equal(after.description, "A's description", "A's field survived B's later edit");
+  assert.equal(after.title, "B's title", "B's own edit landed");
+  assert.notEqual(after.title, original, "precondition: B actually changed something");
+});
+
+test("ADR-0352: --json still replaces the whole doc (a replace IS a replace)", async () => {
+  const store = await seeded();
+  const before = await store.getDoc("edit-first-curation");
+  const replaced = { ...(before?.doc as Record<string, unknown>), description: "wholesale" };
+  const env = await run(
+    ["library", "artifact", "edit", "edit-first-curation", "--json", JSON.stringify(replaced)],
+    { store, writable: true },
+  );
+  assert.equal(env.ok, true);
+  assert.match(env.body, /replaced whole doc/);
+  const after = (await store.getDoc("edit-first-curation"))?.doc as { description?: string };
+  assert.equal(after.description, "wholesale");
 });
 
 // ---------------------------------------------------------------------------
@@ -838,6 +898,9 @@ class GetDocCountingStore implements Store {
   }
   upsertDoc(input: { id: string; kind: string; doc: unknown; actor?: string }): Promise<StoredDoc> {
     return this.#inner.upsertDoc(input);
+  }
+  patchDoc(input: PatchDocInput): Promise<StoredDoc | null> {
+    return this.#inner.patchDoc(input);
   }
   queryDocs(filter?: { kind?: string }): Promise<StoredDoc[]> {
     return this.#inner.queryDocs(filter);

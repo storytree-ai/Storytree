@@ -1,9 +1,10 @@
-import type { DeleteDocOpts, Store, StoredDoc, StoreEvent } from "./store.js";
+import type { DeleteDocOpts, PatchDocInput, Store, StoredDoc, StoreEvent } from "./store.js";
 import {
   STORE_ROUTES,
   decodeAppendEventResponse,
   decodeDeleteDocResponse,
   decodeGetDocResponse,
+  decodePatchDocResponse,
   decodeQueryDocsResponse,
   decodeReadEventsResponse,
   decodeUpsertDocResponse,
@@ -118,6 +119,31 @@ export class HttpStore implements Store {
   }): Promise<StoredDoc> {
     const body = await this.#post(STORE_ROUTES.upsertDoc, input);
     return decodeUpsertDocResponse(body).doc;
+  }
+
+  /**
+   * Field-scoped write (ADR-0352). The merge happens at the FAR end against current state, which is
+   * the whole point — sending a merged doc from here would just reintroduce the lost update over a
+   * longer wire.
+   *
+   * A `validate` callback is REFUSED rather than dropped: it is a closure, so it cannot be
+   * serialized, and silently ignoring it would let a remote patch skip the migrate-on-write boundary
+   * that `upsertDoc` enforces. Loud beats silently-unvalidated.
+   */
+  async patchDoc(input: PatchDocInput): Promise<StoredDoc | null> {
+    if (input.validate !== undefined) {
+      throw new Error(
+        "HttpStore.patchDoc: a validate() callback cannot cross the wire — patch through a local store, " +
+          "or have the door's own handler apply the write-boundary validation.",
+      );
+    }
+    const body = await this.#post(STORE_ROUTES.patchDoc, {
+      id: input.id,
+      fields: input.fields,
+      ...(input.actor !== undefined ? { actor: input.actor } : {}),
+      ...(input.kind !== undefined ? { kind: input.kind } : {}),
+    });
+    return decodePatchDocResponse(body).doc;
   }
 
   async getDoc(id: string): Promise<StoredDoc | null> {

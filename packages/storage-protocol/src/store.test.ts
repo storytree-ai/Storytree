@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { InMemoryStore } from "./store.js";
-import { storeParitySuite } from "./store-parity.js";
+import { localStoreParitySuite, storeParitySuite } from "./store-parity.js";
 
 // The `validateLibraryDoc` write-boundary tests moved WITH the schema to
 // `@storytree/library` (ADR-0068 step 4): see `packages/library/src/library-doc.test.ts`.
@@ -9,6 +9,9 @@ import { storeParitySuite } from "./store-parity.js";
 
 // Run the reusable behavioural-parity suite against the in-memory implementation.
 storeParitySuite("InMemoryStore", () => new InMemoryStore());
+// Plus the contracts only an in-process store can meet — `patchDoc`'s validate() hook is a closure,
+// so `HttpStore` is held to the shared suite but not to these (ADR-0352).
+localStoreParitySuite("InMemoryStore", () => new InMemoryStore());
 
 test("InMemoryStore: upsertDoc appends an event AND updates the projection", async () => {
   const store = new InMemoryStore();

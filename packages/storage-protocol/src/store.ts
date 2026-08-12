@@ -57,6 +57,28 @@ export interface DeleteDocOpts {
  * never throws. Relationships between docs are expressed as ID references inside the doc bodies,
  * never as foreign keys at this layer.
  */
+/**
+ * A field-scoped write (ADR-0352). `fields` are merged onto whatever the store CURRENTLY holds,
+ * inside the write itself — so a key this patch does not name survives a concurrent session's edit
+ * to it. That is the whole point: `upsertDoc` replaces the doc a caller read some time ago, which
+ * silently reverts every change landed in between (the measured lost update, ADR-0352 Context).
+ *
+ * `validate` runs on the MERGED doc, still inside the write, and what it RETURNS is persisted —
+ * mirroring `upsertDoc`'s upcast-then-persist boundary, so a patch cannot skip migrate-on-write.
+ * Throwing from it refuses the whole write. It must be PURE and FAST: a real backend holds a row
+ * lock across the call, so anything slow there serializes every other writer of that doc.
+ *
+ * `kind` defaults to the kind the row already carries — a patch that does not say otherwise is not
+ * a re-kinding.
+ */
+export interface PatchDocInput {
+  id: string;
+  fields: Readonly<Record<string, unknown>>;
+  actor?: string;
+  kind?: string;
+  validate?: (mergedDoc: unknown) => unknown;
+}
+
 export interface Store {
   upsertDoc(input: {
     id: string;
@@ -64,6 +86,8 @@ export interface Store {
     doc: unknown;
     actor?: string;
   }): Promise<StoredDoc>;
+  /** Field-scoped write; `null` when the id does not exist (never creates). See {@link PatchDocInput}. */
+  patchDoc(input: PatchDocInput): Promise<StoredDoc | null>;
   getDoc(id: string): Promise<StoredDoc | null>;
   queryDocs(filter?: { kind?: string }): Promise<StoredDoc[]>;
   deleteDoc(id: string, opts?: DeleteDocOpts): Promise<boolean>;
@@ -109,6 +133,34 @@ export function retiredEventDoc(doc: unknown, opts?: DeleteDocOpts): unknown {
 }
 
 /**
+ * The ONE merge rule behind {@link Store.patchDoc}, shared by every impl so the in-memory reference
+ * and a real backend cannot drift into two different definitions of "patch" (the parity suite holds
+ * them to it). A shallow top-level merge: a named key REPLACES, an unnamed key is untouched. It is
+ * deliberately NOT a deep merge — the fields this writes are whole prose blocks and whole arrays,
+ * and a deep merge would silently half-apply an array edit.
+ *
+ * `undefined` as a value DELETES the key, which is how a patch expresses "unset this" without a
+ * second verb (`null` is a real JSON value and is written through as one).
+ */
+export function mergeFields(
+  doc: unknown,
+  fields: Readonly<Record<string, unknown>>,
+  id: string,
+): Record<string, unknown> {
+  if (typeof doc !== "object" || doc === null || Array.isArray(doc)) {
+    throw new Error(
+      `patchDoc("${id}"): the stored doc is not a JSON object, so there are no fields to patch — use upsertDoc to replace it.`,
+    );
+  }
+  const merged: Record<string, unknown> = { ...(doc as Record<string, unknown>) };
+  for (const [key, value] of Object.entries(fields)) {
+    if (value === undefined) delete merged[key];
+    else merged[key] = value;
+  }
+  return merged;
+}
+
+/**
  * In-memory {@link Store}: a Map for the current-state projection and an array for the event
  * history. `appendEvent` assigns a monotonic `seq`; `upsertDoc` appends the event and updates
  * the projection together, in-process (no await between the two -> atomic for this impl).
@@ -141,6 +193,31 @@ export class InMemoryStore implements Store, ChangeStore {
       type: existing ? "updated" : "created",
       doc: input.doc,
       actor,
+    });
+    this.#docs.set(input.id, stored);
+    return stored;
+  }
+
+  /**
+   * Field-scoped write (ADR-0352). Single-threaded here, so read-merge-write is already atomic:
+   * nothing can interleave between the `#docs.get` and the `#docs.set` below. The contract this
+   * upholds is the one a real backend needs a row lock for — merge onto CURRENT state, not onto
+   * whatever the caller read earlier.
+   */
+  async patchDoc(input: PatchDocInput): Promise<StoredDoc | null> {
+    const existing = this.#docs.get(input.id);
+    if (!existing) return null;
+    const merged = mergeFields(existing.doc, input.fields, input.id);
+    const doc = input.validate ? input.validate(merged) : merged;
+    const kind = input.kind ?? existing.kind;
+    const now = new Date().toISOString();
+    const stored: StoredDoc = { id: input.id, kind, doc, createdAt: existing.createdAt, updatedAt: now };
+    this.#appendEventSync({
+      id: input.id,
+      kind,
+      type: "updated",
+      doc,
+      actor: input.actor ?? DEFAULT_ACTOR,
     });
     this.#docs.set(input.id, stored);
     return stored;

@@ -117,6 +117,9 @@ export function snapshotReads(store: Store): SnapshotStore {
     upsertDoc(): Promise<StoredDoc> {
       return Promise.reject(new Error(WRITE_REFUSAL));
     },
+    patchDoc(): Promise<StoredDoc | null> {
+      return Promise.reject(new Error(WRITE_REFUSAL));
+    },
     deleteDoc(_id: string, _opts?: DeleteDocOpts): Promise<boolean> {
       return Promise.reject(new Error(WRITE_REFUSAL));
     },

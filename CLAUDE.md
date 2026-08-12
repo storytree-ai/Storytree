@@ -128,8 +128,13 @@ kind owes a seed export any more.
 - **ITERATE ON ARTIFACTS (multiple parallel sessions OK):** use the CLI against the live DB —
   `pnpm storytree library artifact edit <id> --set <field>=<value> --pg` and
   `pnpm storytree library artifact new --file <doc.json> --pg` (writes are refused without `--pg`;
-  bring the DB up first with `pnpm db:up`). Different artifacts never contend; **same** artifact
-  across sessions is not yet coordinated (ADR-0009 claims are DBOS-deferred).
+  bring the DB up first with `pnpm db:up`). Different artifacts never contend. On the **same**
+  artifact, a `--set` edit is now FIELD-SCOPED (ADR-0352): it writes only the fields it names, merged
+  onto current state inside the store's own write, so two sessions editing DIFFERENT fields no longer
+  clobber each other — which is what used to happen silently, with both commands printing success.
+  Two limits remain: `--json`/`--file` still replaces the WHOLE doc (a replace is a replace), and two
+  sessions editing the SAME field are still last-write-wins with no detector — reconcile forward from
+  the sibling's text, never re-apply your own (ADR-0009 claims are DBOS-deferred).
   *(Invocation note: `pnpm storytree …` forwards every flag EXCEPT `--json` — pnpm reserves that —
   so pass a doc via `--file`, or use inline `--json` only via `npx tsx packages/cli/src/main.ts …`.)*
 - **AGENT TIER = live-canonical, like every other tier (ADR-0307 D1, superseding ADR-0055).** The

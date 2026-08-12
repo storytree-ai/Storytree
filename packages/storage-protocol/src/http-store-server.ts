@@ -4,6 +4,7 @@ import {
   StoreWireError,
   decodeAppendEventRequest,
   decodeDeleteDocRequest,
+  decodePatchDocRequest,
   decodeUpsertDocRequest,
   type StoreRouteName,
 } from "./store-wire.js";
@@ -147,6 +148,14 @@ async function dispatch(
     case "upsertDoc": {
       const input = decodeUpsertDocRequest(body);
       return { status: 200, body: { doc: await store.upsertDoc(input) } };
+    }
+
+    case "patchDoc": {
+      // The merge happens HERE, against current state, inside the backing store's own write
+      // (ADR-0352). No `validate` crosses the wire, so the backing store applies whatever
+      // write-boundary validation it owns.
+      const input = decodePatchDocRequest(body);
+      return { status: 200, body: { doc: await store.patchDoc(input) } };
     }
 
     case "deleteDoc": {

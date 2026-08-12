@@ -86,6 +86,45 @@ export function storeParitySuite(
     assert.equal(all.length, 1, "same id replaces, does not duplicate");
   });
 
+  test(`${name} parity: patchDoc writes ONLY the named fields, so a sibling's edit survives (ADR-0352)`, async () => {
+    const store = await makeStore();
+    await store.upsertDoc({ id: "p1", kind: "template", doc: parityFixtureDoc("p1", "original") });
+
+    // The lost-update shape, in the order it actually happens: two sessions each read the doc,
+    // THEN each writes. Session A rewrites `body`; session B retitles. Neither names the other's
+    // field. Under `upsertDoc` B's write carries B's STALE `body` and silently reverts A.
+    await store.patchDoc({ id: "p1", fields: { body: "A's rewrite" } });
+    await store.patchDoc({ id: "p1", fields: { title: "B's title" } });
+
+    const current = await store.getDoc("p1");
+    const doc = current?.doc as { body: string; title: string; description: string };
+    assert.equal(doc.body, "A's rewrite", "the field A patched survived B's later patch");
+    assert.equal(doc.title, "B's title", "the field B patched was written");
+    assert.equal(doc.description, "a parity-suite fixture", "an untouched field is left alone");
+  });
+
+  test(`${name} parity: patchDoc merges onto CURRENT state, not onto what the caller read`, async () => {
+    const store = await makeStore();
+    await store.upsertDoc({ id: "p2", kind: "template", doc: parityFixtureDoc("p2", "original") });
+
+    // A caller that read early holds a stale doc. Its patch must still land on top of the write
+    // that happened in between — this is the assertion a real backend needs a row lock to keep.
+    const staleRead = await store.getDoc("p2");
+    assert.ok(staleRead, "precondition: the doc exists");
+    await store.upsertDoc({ id: "p2", kind: "template", doc: parityFixtureDoc("p2", "landed in between") });
+    await store.patchDoc({ id: "p2", fields: { title: "patched late" } });
+
+    const doc = (await store.getDoc("p2"))?.doc as { body: string; title: string };
+    assert.equal(doc.body, "landed in between", "the in-between write was NOT reverted by the late patch");
+    assert.equal(doc.title, "patched late");
+  });
+
+  test(`${name} parity: patchDoc on an absent id returns null and creates nothing`, async () => {
+    const store = await makeStore();
+    assert.equal(await store.patchDoc({ id: "ghost", fields: { title: "x" } }), null);
+    assert.equal(await store.getDoc("ghost"), null, "patch never creates");
+  });
+
   test(`${name} parity: appendEvent preserves insertion order with increasing seq`, async () => {
     const store = await makeStore();
     await store.appendEvent({ id: "a", kind: "k", type: "created", doc: {} });
@@ -206,5 +245,50 @@ export function changeStoreParitySuite(
     await store.appendChangeEvent(c2);
     await store.appendChangeEvent(c3);
     assert.deepEqual(await store.readChangeEvents({ unitId: "u" }), [c1, c2, c3]);
+  });
+}
+
+/**
+ * The parity contracts an IN-PROCESS store can be held to but a REMOTE one cannot: `patchDoc`'s
+ * `validate` hook is a closure, and a closure does not cross an HTTP wire (`HttpStore.patchDoc`
+ * refuses one loudly rather than dropping it, which would let a patch skip migrate-on-write).
+ *
+ * Run this ALONGSIDE `storeParitySuite` for every local backend — `InMemoryStore` and, behind the
+ * live-DB gate, `PgLibraryStore`. Keeping it separate is what lets the shared suite stay honestly
+ * uniform across all three backends instead of carrying a contract one of them can never meet.
+ */
+export function localStoreParitySuite(name: string, makeStore: () => Store | Promise<Store>): void {
+  test(`${name} local parity: patchDoc persists what validate() returns (the upcast boundary)`, async () => {
+    const store = await makeStore();
+    await store.upsertDoc({ id: "v1", kind: "template", doc: parityFixtureDoc("v1", "original") });
+    // What the validator RETURNS is what lands, mirroring upsertDoc's persist-the-upcast-output
+    // boundary — so a field-scoped write cannot slip past migrate-on-write (ADR-0352).
+    const saved = await store.patchDoc({
+      id: "v1",
+      fields: { body: "raw" },
+      validate: (merged) => ({ ...(merged as Record<string, unknown>), body: "upcast" }),
+    });
+    assert.equal((saved?.doc as { body: string }).body, "upcast", "validate()'s RETURN is persisted");
+    const reread = (await store.getDoc("v1"))?.doc as { body: string };
+    assert.equal(reread.body, "upcast", "and it is what the projection holds");
+  });
+
+  test(`${name} local parity: a throwing validate() refuses the write and leaves the doc untouched`, async () => {
+    const store = await makeStore();
+    await store.upsertDoc({ id: "v2", kind: "template", doc: parityFixtureDoc("v2", "keep me") });
+    await assert.rejects(
+      () =>
+        store.patchDoc({
+          id: "v2",
+          fields: { body: "invalid" },
+          validate: () => {
+            throw new Error("schema says no");
+          },
+        }),
+      /schema says no/,
+      "the validator's refusal propagates",
+    );
+    const after = (await store.getDoc("v2"))?.doc as { body: string };
+    assert.equal(after.body, "keep me", "a refused patch wrote nothing");
   });
 }

@@ -71,6 +71,27 @@ class FixtureStore {
     this.#docs.set(input.id, entry);
     return entry;
   }
+  /** Field-scoped write (ADR-0352) — shallow merge, enough for a fixture; the probe only reads. */
+  async patchDoc(input: {
+    id: string;
+    fields: Readonly<Record<string, unknown>>;
+    actor?: string;
+    kind?: string;
+    validate?: (mergedDoc: unknown) => unknown;
+  }) {
+    const existing = this.#docs.get(input.id);
+    if (!existing) return null;
+    const merged = { ...(existing.doc as Record<string, unknown>), ...input.fields };
+    const doc = input.validate ? input.validate(merged) : merged;
+    const entry = {
+      ...existing,
+      kind: input.kind ?? existing.kind,
+      doc,
+      updatedAt: new Date().toISOString(),
+    };
+    this.#docs.set(input.id, entry);
+    return entry;
+  }
   async getDoc(id: string) {
     return this.#docs.get(id) ?? null;
   }
