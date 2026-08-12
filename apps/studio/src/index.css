@@ -6139,6 +6139,16 @@ button.legend-tile:hover {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+/* The same fold, applied to a WAITING question's stakes (ADR-0359). Shorter than the intent's seven
+   lines on purpose: several questions can share this block, and the stakes is a hook into the
+   artifact rather than the briefing itself — the whole briefing is one click away on the title. */
+.arc-briefing-clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 .arc-question-list,
 .arc-increment-list {
   list-style: none;

@@ -313,6 +313,54 @@ describe('ArcSurface — proposals surface where the owner scans (ADR-0359 D2/D3
   });
 });
 
+describe('ArcSurface — a question BRIEFS, it does not flood (ADR-0359)', () => {
+  // Found by looking at the shipped panel against the live store: on `uat-journey-surgery-arc` the
+  // waiting block rendered ~1500 characters of RAW markdown — literal ** and backticks, bullet
+  // markers mid-line — which filled the drawer and pushed "What it is about" off the panel. The arc's
+  // own `intent` was already stripped and clamped for precisely this reason; a question's `stakes` is
+  // authored to the same cold-answerable bar (ADR-0314 D5) and had neither treatment.
+  const LOUD = arc({
+    id: 'loud-arc',
+    questions: [
+      {
+        id: 'oq-loud',
+        title: 'Which door?',
+        stakes: '**`studio-build` sits permanently red** at the story rung.\n\n- **The map lies** in the direction `ADR-0294` set out to stop.',
+        description: 'A `one-liner` with **markers** too.',
+      },
+    ],
+    increments: [landed('c', '2026-08-05')],
+  });
+
+  it('strips the markers rather than showing them, and keeps every word', () => {
+    render(<ArcSurface arcs={[LOUD]} now={NOW} />);
+    const stakes = screen.getByTestId('arc-question:oq-loud').querySelector('.arc-question-stakes');
+    const text = stakes?.textContent ?? '';
+    expect(text).not.toContain('**');
+    expect(text).not.toContain('`');
+    expect(text).toContain('studio-build sits permanently red');
+    expect(text).toContain('The map lies');
+  });
+
+  it('clamps it, so one loud question cannot push the rest of the briefing off the panel', () => {
+    render(<ArcSurface arcs={[LOUD]} now={NOW} />);
+    const stakes = screen.getByTestId('arc-question:oq-loud').querySelector('.arc-question-stakes');
+    // The clamp is CSS; what is asserted here is that the class carrying it is applied — the height
+    // itself is the operator-attested LOOK leg, not a jsdom fact.
+    expect(stakes?.className).toContain('arc-briefing-clamp');
+    // …and the sections below it are still in the document, which is the point of clamping.
+    const panel = screen.getByTestId('arc-briefing');
+    expect(within(panel).getByLabelText('what this arc is about')).not.toBeNull();
+    expect(within(panel).getByLabelText('where it is up to')).not.toBeNull();
+  });
+
+  it('the one-line description is stripped too — it sits in the same block', () => {
+    render(<ArcSurface arcs={[LOUD]} now={NOW} />);
+    const row = screen.getByTestId('arc-question:oq-loud');
+    expect(row.textContent).toContain('A one-liner with markers too.');
+  });
+});
+
 describe('ArcSurface — the landed log collapses to one line (ADR-0359 D1)', () => {
   const LONG_ARC = arc({
     id: 'long-arc',

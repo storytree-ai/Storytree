@@ -310,8 +310,17 @@ function ArcBriefingPanel({
                 >
                   {q.title || q.id}
                 </a>
-                {q.stakes && <p className="arc-question-stakes">{q.stakes}</p>}
-                {q.description && <p className="muted small">{q.description}</p>}
+                {/* STRIPPED AND CLAMPED, for the reason `.arc-briefing-intent` already is: these
+                    are markdown in the store, the panel renders TEXT, and a `stakes` authored to
+                    ADR-0314 D5's cold-answerable bar runs to hundreds of words. Unclamped, one loud
+                    question filled the drawer and pushed "What it is about" off the panel — the raw
+                    `**` and backticks showing through as literal characters on the way. The full
+                    prose is one click away through the link above (D3's click-through), which is
+                    what makes the clamp a fold rather than a loss. */}
+                {q.stakes && (
+                  <p className="arc-question-stakes arc-briefing-clamp">{briefingLead(q.stakes)}</p>
+                )}
+                {q.description && <p className="muted small">{briefingLead(q.description)}</p>}
               </li>
             ))}
           </ul>
