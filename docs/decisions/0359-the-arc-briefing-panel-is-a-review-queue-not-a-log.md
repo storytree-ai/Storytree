@@ -16,6 +16,12 @@ equal blocks: two lead, two fold. It also widens D5's authored-briefing shape by
 overturns nothing: `blocked` stays unlit (D4), the panel stays read-only (D9), and the lane states
 are untouched.
 
+Read D2 below as a NARROWING of D3 rather than a widening of it. D3 already scoped the panel to
+"what is waiting on the owner — open questions **and anything else halted on their decision**"; a
+parked proposal is that second clause, and the implementation simply never carried it. Nothing in
+ADR-0314's body is falsified by this ADR, which is why the edge is `amends` and no prose there is
+corrected in place (ADR-0139).
+
 ## Context
 
 ADR-0314 D3 gave the arc surface a briefing panel and named the three questions a returning owner
