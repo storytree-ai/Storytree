@@ -16,6 +16,10 @@ regenerated against that revision on 2026-07-27 and now conform.
   successor, at the bottom panel's width. **Produced 2026-08-13; awaiting the owner's LOOK**, which
   ADR-0354 D4 requires before the wide layout is built. Until that LOOK it is a proposal, not a
   reference: nothing may be built against it, and nothing in it overrides the grammar below.
+- [Static bottom-panel image](bottom-panel-traversal-composition.png) — review fallback for the
+  above, captured at 1360px with the default trace played to the end. The HTML is authoritative when
+  the two differ; the image shows one trace in one state and cannot carry the animation, the four
+  other bundled traces, or the dock-height behaviour.
 
 The narrow HTML reference is authoritative on grammar when the two differ. The image captures the
 full-trace state at a narrow story-details-panel width.
