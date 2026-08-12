@@ -225,13 +225,16 @@ test("the ADR-0353 sweep: every capability whose contract tests live outside its
     },
     {
       // The arm is the db-backed A1 leg; the pure contracts live in the offline package suite. The
-      // surface now READS `work-claim-request-carries-work-intent`'s three substantive tests — it stays
-      // uncovered on PURPOSE, because ADR-0346 D3 reversed the mapping that contract asserts (the kind
-      // lands on `role` now, and `intent` carries the caller's prose). Crediting it would stamp
-      // `covered` beside an assertion the code deliberately no longer satisfies.
+      // remainder was `["work-claim-request-carries-work-intent"]` until 2026-08-13: the surface READ
+      // that contract's three substantive tests, but ADR-0346 D3 had reversed the mapping the contract
+      // asserted (the kind lands on `role` now, and `intent` carries the caller's prose), so crediting
+      // it would have stamped `covered` beside an assertion the code deliberately no longer satisfies.
+      // The story-author edit that note called for has landed — the `asserts —` clause states the post-D3
+      // behaviour and the three tests carry the id — so the remainder is EMPTY, and an entry reappearing
+      // here means the spec drifted back or a test name lost the id.
       unitId: "claim-store-work-time",
       surface: "packages/notice-board/src/claim.test.ts",
-      remainder: ["work-claim-request-carries-work-intent"],
+      remainder: [],
     },
   ];
 

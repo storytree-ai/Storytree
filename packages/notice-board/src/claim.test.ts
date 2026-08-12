@@ -109,7 +109,7 @@ test("heartbeat-bump-shape-resets-without-reacquire: bumpHeartbeat changes ONLY 
 
 // ── workClaimRequest (A3, ADR-0138 §3): the pure work-time request builder ────
 
-test("workClaimRequest: stamps ROLE from the work kind, preserving attribution", () => {
+test("work-claim-request-carries-work-intent: workClaimRequest stamps ROLE from the work kind, preserving attribution", () => {
   const base = {
     unitId: "wisp-as-story-claim",
     sessionId: "clever-cannon-1ff4cb",
@@ -129,7 +129,7 @@ test("workClaimRequest: stamps ROLE from the work kind, preserving attribution",
   }
 });
 
-test("workClaimRequest: carries the caller's PROSE through as intent, never the kind (ADR-0346 D3)", () => {
+test("work-claim-request-carries-work-intent: workClaimRequest carries the caller's PROSE through as intent, never the kind (ADR-0346 D3)", () => {
   const req = workClaimRequest({
     unitId: "noticeboard-cli",
     sessionId: "clever-cannon-1ff4cb",
@@ -143,7 +143,7 @@ test("workClaimRequest: carries the caller's PROSE through as intent, never the 
   assert.notEqual(req.intent, "orchestrate");
 });
 
-test("workClaimRequest: prose omitted leaves intent EMPTY — never the kind word as a stand-in", () => {
+test("work-claim-request-carries-work-intent: workClaimRequest prose omitted leaves intent EMPTY — never the kind word as a stand-in", () => {
   const req = workClaimRequest({
     unitId: "noticeboard-cli",
     sessionId: "clever-cannon-1ff4cb",
