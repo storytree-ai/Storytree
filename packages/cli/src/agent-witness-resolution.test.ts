@@ -13,19 +13,26 @@ import { runAdopt, type AdoptDeps, type AdoptStory } from "@storytree/drive";
  * flow end to end on the real story: the classifier (unit 1) and the adopt pass (unit 2) drive it as
  * designed.
  *
- * UPDATED 2026-08-03 for ADR-0294. The story used to carry six legs (five `machine` + one `human`) and
- * this file pinned that exact vector. Five of those six were properties of modules, each bound to
- * `agent#gate-1` — the same command that greens their own capability — so ADR-0294 D2 deleted them
- * (their proving node is named per criterion in `stories/uat-legacy-dispositions.json`). ADR-0294 D1
- * quotes this story's former leg 1, *"the seam is runtime-agnostic"*, as its worked example of the
- * shape that does not belong in a UAT section. What survives is the single journey leg — the live
- * subscription-funded runtime invocation, still `witness: human`, its disposition an explicit open
- * OWNER call that this pass deliberately did not decide.
+ * **These cases pin INVARIANTS, never the story's current witness vector — and that is deliberate,
+ * twice learned.** This file pinned the exact vector twice and it red twice on a pass that was doing
+ * exactly what it was supposed to: ADR-0294's deletion took the story from six legs to one, and
+ * ADR-0348 D1/D7 then flipped the survivor from `human` to `machine`. Re-pinning the new vector each
+ * time only re-arms the identical break for the next increment, which is what
+ * `asset:edit-story-uat-criteria` step 6 forbids: *re-express the assertion as the property it was
+ * protecting*. The properties below hold whatever this story's population and witnesses become — a
+ * later pass that adds a leg, deletes one, or re-adjudicates one should NOT have to touch this file.
  *
- * The ADR-0106 property under test is unchanged and is what these cases still assert: a witness is
- * RESOLVED per leg and never defaulted onto the human, a `machine` leg resolves through the exact gate
- * it names, and an adopt pass signs the machine legs while leaving a `human` leg for the operator. Only
- * the pinned fixture moved.
+ * The ADR-0106 properties actually under test:
+ *  - a witness is RESOLVED per leg and never defaulted onto the human (`either` is forbidden);
+ *  - a `machine` leg resolves through the EXACT gate it names — never the first observe gate found,
+ *    never by ordering, never by `(covers:)` inference (ADR-0106 d.3);
+ *  - an adopt pass observe-signs gate-1 plus every machine leg, and leaves any human leg for the
+ *    operator — a `human` leg NEVER earns a verdict.
+ *
+ * ADR-0348 D7 context for the current shape: the story's one surviving leg is now `machine`, bound to
+ * `agent#gate-2`, whose observe command witnesses a model-driven UAT drive record. Its two 2026-06-26
+ * `operator`-signed rows are SUPERSEDED by that flip, deliberately and on the owner's ruling. None of
+ * that is asserted here — it is the story's to state, not this fixture's to pin.
  */
 
 const REPO_ROOT = path.resolve(fileURLToPath(import.meta.url), "..", "..", "..", "..");
@@ -39,32 +46,39 @@ function agentSpec() {
 
 test("ADR-0106 instance: every agent UAT leg names its witness explicitly (no `either` default)", () => {
   const spec = agentSpec();
-  // Post-ADR-0294 the story declares ONE leg — the live-runtime journey, `human`. The invariant this
-  // case exists for is not the count but the absence of `either`: ADR-0106 forbids a leg resting on the
-  // fail-closed default, so every leg must carry an explicit witness whatever the population is.
+  // The invariant is the ABSENCE of `either`, not the population: ADR-0106 forbids a leg resting on
+  // the fail-closed default, so every leg must carry an explicit witness whatever the vector is.
   assert.ok(spec.uatTestCriteria.length > 0, "the agent story still declares a UAT journey");
   assert.deepEqual(
     spec.uatTestCriteria.filter((l) => l.witness === "either"),
     [],
     "no agent UAT leg may rest on the `either` default",
   );
-  assert.deepEqual(spec.uatTestCriteria.map((l) => l.witness), ["human"]);
 });
 
-test("ADR-0106 instance: each machine leg resolves to observe via agent#gate-1; the human leg stays human", () => {
+test("ADR-0106 instance: each machine leg resolves through the EXACT gate it names; a human leg stays human", () => {
   const spec = agentSpec();
   for (const leg of spec.uatTestCriteria) {
     const resolution = resolveWitness(leg, spec.reliabilityGates);
     if (leg.witness === "human") {
       assert.deepEqual(resolution, { witness: "human" });
-    } else {
-      assert.deepEqual(resolution, {
-        witness: "machine",
-        coverage: "observe",
-        observedBy: "agent#gate-1",
-        proofCommand: "pnpm --filter @storytree/agent test",
-      });
+      continue;
     }
+    // The property, expressed against the leg's OWN declared binding rather than a hardcoded gate id:
+    // resolution routes to the gate the leg NAMES, carrying that gate's OWN declared command. A
+    // resolver that fell back to the first observe gate, or to ordering, would fail this the moment
+    // the story declares more than one observe gate — which it now does.
+    const named = spec.reliabilityGates.find((g) => g.id === leg.proofGateId);
+    assert.ok(
+      named !== undefined,
+      `machine leg ${leg.criterionId} must name a declared reliability gate (named "${leg.proofGateId}")`,
+    );
+    assert.deepEqual(resolution, {
+      witness: "machine",
+      coverage: "observe",
+      observedBy: named.id,
+      proofCommand: named.proofCommand,
+    });
   }
 });
 
@@ -85,7 +99,10 @@ test("ADR-0106 instance: adopting `agent` observe-signs gate-1 + every machine l
     } as unknown as AdoptDeps["store"],
     loadStory: () => story,
     gitState: () => ({ commitSha: "abc1234", clean: true }),
-    observe: async () => ({ code: 0 }), // the agent suite is green at HEAD
+    // Every observe gate is green at HEAD — including the UAT-drive witness, whose real command needs
+    // the live store and a full clone. Stubbing the observation is the point: this case is about the
+    // adopt pass's ROUTING, not about any gate's real outcome.
+    observe: async () => ({ code: 0 }),
     resolveApprover: () => ({ ok: true, signer: "hua.mick@gmail.com" }),
     flipStatusToProposed: () => ({ ok: true, changed: true, content: "..." }),
     now: () => new Date("2026-06-25T00:00:00.000Z"),
@@ -96,19 +113,27 @@ test("ADR-0106 instance: adopting `agent` observe-signs gate-1 + every machine l
   const machineCriterionIds = spec.uatTestCriteria
     .filter((criterion) => criterion.witness === "machine")
     .map((criterion) => criterion.criterionId);
-  // gate-1 + every machine leg earns an `adopted` verdict; a `human` leg NEVER does.
+  // Every declared gate + every machine leg earns an `adopted` verdict; a `human` leg NEVER does.
+  // Derived from the story rather than listed, so appending a gate does not red this case.
   assert.deepEqual(
     appended.map((e) => e.doc.unitId).sort(),
-    ["agent#gate-1", ...machineCriterionIds].sort(),
+    [...spec.reliabilityGates.map((g) => g.id), ...machineCriterionIds].sort(),
   );
   const machineCount = machineCriterionIds.length;
-  const humanCount = spec.uatTestCriteria.filter((c) => c.witness === "human").length;
+  const humanCriteria = spec.uatTestCriteria.filter((c) => c.witness === "human");
   assert.match(
     env.body,
     new RegExp(
-      `${machineCount}/${machineCount} machine observe-signed · ${humanCount} await your witness · 0 deferred`,
+      `${machineCount}/${machineCount} machine observe-signed · ${humanCriteria.length} await your witness · 0 deferred`,
     ),
   );
-  const humanCriterion = spec.uatTestCriteria.find((criterion) => criterion.witness === "human")!;
-  assert.match(env.body, new RegExp(`${humanCriterion.criterionId} \\(human\\) — awaits your "I saw it work"`));
+  // Conditional by construction: the story currently declares ZERO human legs (ADR-0348 D7), and an
+  // unconditional `find(...)!` here would throw rather than report. The claim is "each human leg, if
+  // any, is left for the operator" — which is exactly as true of an empty set.
+  for (const humanCriterion of humanCriteria) {
+    assert.match(
+      env.body,
+      new RegExp(`${humanCriterion.criterionId} \\(human\\) — awaits your "I saw it work"`),
+    );
+  }
 });
