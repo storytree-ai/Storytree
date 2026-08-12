@@ -105,9 +105,14 @@ genuine no-compiler acceptance criterion looks like once the experience legs are
 > `packages/drive/src/uat-drive.ts` (the pure core), `uat-drive.run.ts` (the deliberate out-of-band
 > run) and `uat-drive-witness.check.ts` (the cheap `observe` command a flipped leg binds), exactly
 > the two-file shape D5 mandates. The trace below is the state on `984fd554` that PRODUCED D5 and is
-> kept as the reasoning; read it as history, not as current state. What has NOT happened yet is any
-> leg flip — D5's ordering still binds the sibling increment, and the executor's own first live drive
-> is deliberately out-of-band (ADR-0010 §5), like gate-7's cold-start probe.
+> kept as the reasoning; read it as history, not as current state.
+>
+> **FLIPPING BEGAN 2026-08-12 — 6 of the 17 are done.** This paragraph previously said *"what has NOT
+> happened yet is any leg flip"*; corrected in place per ADR-0139. `agent` leg 1 (D7's own leg, bound
+> to an appended `agent#gate-2`) and all five `library-review` legs (bound to a new `#gate-1`…`#gate-5`
+> section) are flipped, bound and driven. The remaining eleven are parked as
+> `uat-flip-remaining-eleven-nontaste-legs`. The executor's live drives stay deliberately out-of-band
+> (ADR-0010 §5), like gate-7's cold-start probe.
 
 ADR-0295 D1 states that a model driving a journey headlessly or through a browser *"is such a run, and
 its reported outcome is admissible as the verdict."* **No executor existed for that sentence.** Traced
@@ -180,8 +185,8 @@ non-zero on failure, plus a cheap `*.check.ts` bound as the leg's `(proof-gate:)
 so `observeAndSign` and the whole signing path are reused **unchanged**. No new witness kind, no
 verdict a model signs for itself, and no revival of ADR-0209's rubric judge (ADR-0295 D2 holds).
 
-> **The build landed 2026-08-12** (`packages/drive/src/uat-drive*.ts`), so D5's first clause is now
-> the only live one: the flip is the work that remains. Two mechanics the flip increment inherits
+> **The build landed 2026-08-12** (`packages/drive/src/uat-drive*.ts`), and flipping began the same
+> day: 6 of 17 legs are flipped, bound and driven, 11 remain. Two mechanics the flip increment inherits
 > rather than invents. **(a) The binding is self-describing** — a leg is model-driven exactly when the
 > observe gate it names runs `uat-drive-witness.check.ts`, so no registry says which legs a model
 > drives and which a suite does, and the two cannot disagree. **(b) The ordering is executable, not

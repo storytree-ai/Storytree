@@ -5,13 +5,15 @@ title: "Review mode — a word-processor collaboration layer for library documen
 outcome: "A member opens a library open-question in Review mode, drops an inline comment at a block position, and proposes a collapsed suggestion the owner accepts — comments and suggestions placed in the document flow (never a side panel), and the old text-selection anchoring is gone."
 status: proposed
 proof_mode: UAT
-# Frontend legs (the Review toggle, the inline thread, the collapsed-suggestion controls) are
-# operator-attested per ADR-0070 — a UI an agent cannot drive is a human-witness UAT action, not a
-# machine visual verdict (uat-proves-the-goal-not-the-surface). The backend journey (open-question
-# read, block-anchored comment persisted, suggestion proposed → accepted, state transitions, the
-# member-suggest write policy, the live-refresh feed) is machine-witnessed. So the story is mixed-
-# witness and carries NO blanket `uat_witness: machine` override — each UAT leg below marks its own
-# witness (ADR-0040 fail-closed default for the un-drivable surfaces).
+# ADR-0348 D1 (2026-08-12): every surviving story-UAT leg is `witness: machine`, model-driven. This
+# comment previously read that the frontend legs (the Review toggle, the inline thread, the
+# collapsed-suggestion controls) were human-witness "because a UI an agent cannot drive is a
+# human-witness UAT action" — that was a HARNESS statement, not a judgment gap
+# (asset:human-witness-is-a-judgment-gap-not-cost), and the harness now exists (ADR-0295 D1's
+# executor, packages/drive/src/uat-drive*.ts). Appearance verdicts remain a separate mechanism at the
+# capability rung (ADR-0070 stage 2), untouched here. The story still carries NO blanket
+# `uat_witness: machine` override — each UAT leg below marks its own witness and names its own
+# `(proof-gate:)`, which is what makes the binding self-describing rather than registry-driven.
 capabilities: [block-position-comment-anchor, suggestion-edit-store, accept-reject-suggestion-api, member-suggest-write-policy, review-refresh-feed, review-mode-toggle, inline-comment-thread, collapsed-suggestion-view, remove-text-selection-anchoring]
 # Consumer-side outbound edges (code-evidenced):
 #  - library: the comment + suggestion stores live in `@storytree/library/store` (pg-comment-store.ts
@@ -151,18 +153,102 @@ The integrated **acceptance walkthrough** that proves the whole `library-review`
 against the **real running studio** + its real `library` / `studio-members` collaborators. It is
 minimal-first (one coherent member→owner journey: open an open-question in Review, comment at a block,
 suggest an edit, the owner accepts) — `uat-proves-the-goal-not-the-surface`: this proves the GOAL, not
-every surface; the list grows only when a real defect earns a permanent case. Each leg marks its
-witness — the backend legs are machine-exercised (`_(witness: machine)_`); the UI legs an agent cannot
-drive are human-witness actions (`_(witness: human)_`, ADR-0070 / ADR-0040), recorded not skipped.
+every surface; the list grows only when a real defect earns a permanent case. **Every surviving leg is
+now `_(witness: machine)_`, each bound to its own model-driven observe gate below (ADR-0348 D1/D5).**
+The story carries no `human` leg at all: a UI an agent could not drive was a HARNESS statement, not a
+judgment gap, and the harness now exists.
+
+### ADR-0348 D1 — the five human legs are `machine`, model-driven (2026-08-12)
+
+**All five surviving legs flipped `human → machine` in the same change that bound each to a
+`(proof-gate:)`, exactly as ADR-0348 D5 orders it.** This story was the cleanest case in the whole
+17-leg population and it named its own disposition below in advance: its legs were tagged `human`
+because *"an agent cannot drive the UI"*, which
+`asset:human-witness-is-a-judgment-gap-not-cost` classes as a HARNESS statement rather than a judgment
+gap. ADR-0348 D1 narrows `human` to taste alone, and the harness that was missing — the model-driven
+UAT executor of ADR-0295 D1 — landed 2026-08-12 in `packages/drive/src/uat-drive*.ts`. Nothing about
+these five journeys changed; only the claim about who can walk them.
+
+Each leg binds `library-review#gate-1` … `#gate-5` under `## Reliability Gates` below (a NEW section —
+this story declared none before, so no gate ordinal was renumbered). The gate does not drive: it
+witnesses a persisted `events.uat_drive` record produced out-of-band by
+`uat-drive.run.ts`, at the criterion's current content-bound `revision-id` and at a commit in `main`'s
+ancestry. Re-authoring any of these journeys therefore invalidates its drive rather than carrying an
+old green onto a new claim — which is why the five revisions below were recomputed in this same change.
+
+The note under the ADR-0294 disposition table deferring this re-adjudication to chip `task_47c74cb0`
+is **discharged here**, by the increment ADR-0348 created for it.
+
+### ⚠ WHAT THE FIRST DRIVE FOUND — this story's journey does NOT run end to end (2026-08-12)
+
+**The flip is what made this visible, and the reds below are TRUE. Do not "fix" them by re-authoring
+the criteria to match what shipped** — that is precisely the move ADR-0294 exists to prevent, and the
+criteria are the older, owner-approved claim.
+
+Driving the five legs for real against the running studio (live Cloud SQL, real Chromium under
+Playwright, and for leg 4 a real member identity resolved `role=member` against the live
+`studio-members` directory) returned **1 pass and 4 fails**. Every failure has the SAME single root
+cause, and it is larger than "three criteria went stale":
+
+> **`AssetView.tsx` mounts only `ReviewToggle` + `ReviewEditor`, and `ReviewEditor` never reads the
+> comment or suggestion store at all.** It contains no call to `api.createSuggestion`,
+> `api.decideSuggestion` or `api.reviewFeed`, no poll, no interval. It renders only CriticMarkup
+> literally embedded in the document's own markdown source. Every component that talks to this story's
+> backend — `InlineCommentThread.tsx`, `SuggestionView.tsx`, `ReviewBlocks.tsx` — is imported by
+> nothing but its own `*.test.tsx`.
+
+So the collaboration layer this story exists to build **has no live surface.** Leg by leg:
+
+- **Leg 1 passes.** View → Review enters the split-pane editor; the commenting + suggesting
+  affordances appear; View was read-only. (The toggle reads "View | Edit" rather than "View | Review"
+  — an owner-directed relabel under ADR-0146, not a defect; the underlying mode value is unchanged.)
+- **Leg 2 fails.** What renders is an inline CriticMarkup chip (a `💬` glyph + text) between two block
+  elements — no author, no timestamp, no reply affordance, no thread container. The criterion asks for
+  a thread *like a code-review thread*. The "not a side panel" half DOES hold. Note what leg 8 later
+  established: that chip is markup typed into the document source, **not a stored comment** — so this
+  leg was never reaching the comment store either.
+- **Leg 4 fails.** The mounted editor offers only Save and Cancel — **no "submit as suggestion"
+  control exists anywhere in the live app.** Save on a structured artifact yields only a *"Kept
+  locally … per-change accept/reject persistence is the follow-on"* banner: nothing is written, no
+  `open` proposal is created, and there is therefore no proposed-result-by-default rendering and no
+  collapsed "show change" toggle to observe, because nothing was ever proposed.
+- **Leg 7 fails.** `POST /api/suggestions/decision` is real and reachable at the HTTP layer, but a full
+  button-text enumeration and full-page text search found **no "Accept" control anywhere** in Review
+  mode, and no request to `/api/review/feed` or `/api/suggestions` fired at any point. Leg 7's
+  precondition — an open suggestion — is unreachable through the shipped surface.
+- **Leg 8 fails outright, not merely slowly.** A second comment posted out of band via a real
+  `POST /api/comments` was correctly returned by `GET /api/review/feed` (cap 5's backend proof holds),
+  but the open surface never changed after 35 s — past the documented 30 s window — **and the comment
+  still did not render after a full manual reload.** The poll (`api.getReviewFeed` + `setInterval` on
+  `PRESENCE_POLL_MS`) exists only inside the unmounted components.
+
+**The consequence, stated plainly: this story's OUTCOME sentence is not achievable in the shipped
+app.** "A member … drops an inline comment at a block position, and proposes a collapsed suggestion
+the owner accepts" cannot be walked — no part of it round-trips through the store. The backend is real
+and proven at the DATA layer: `block-position-comment-anchor`, `suggestion-edit-store`,
+`accept-reject-suggestion-api`, `member-suggest-write-policy` and `review-refresh-feed` each hold a
+genuine signed `--real` verdict, recorded in `## Proof` below. **Nine capabilities signed green at the
+capability rung while the story-rung journey did not exist end to end, and no gate anywhere said so.**
+That is exactly what ADR-0294 says story UAT is FOR: *a flower on the map means a journey ran end to
+end — a claim no grass blade makes.*
+
+**This is a measurement, not a re-decision.** Open modeling call 4 below already knew the caps-7/8
+components were superseded — but it treated that as dead CODE to retire, and never noticed it had also
+made three acceptance CLAIMS unreachable. Nothing here settles whether the remedy is to wire the
+suggestion flow into `ReviewEditor` (which its own follow-on note implies was always the intent) or to
+re-adjudicate what ADR-0146 meant to promise. That fork is owner/story-author work and is raised as an
+open question against `uat-journey-surgery-arc` rather than answered here.
 
 ### ADR-0294 disposition of the nine original criteria
 
 **Four of nine deleted (2026-08-08) — every `witness: machine` leg, all as D2 duplicates.** The five
-survivors are the `witness: human` legs, and they are kept for a scoping reason rather than a proof
-one: this story's human legs are tagged human because "an agent cannot drive the UI", which
+survivors were the `witness: human` legs, kept for a scoping reason rather than a proof one: this
+story's human legs were tagged human because "an agent cannot drive the UI", which
 `human-witness-is-a-judgment-gap-not-cost` classes as a HARNESS statement rather than a judgment gap.
-Re-adjudicating them is ADR-0209 §8 witness work and belongs to the increment that owns the live human
-legs (chip `task_47c74cb0`), not here. ADR-0294 D2 deletes duplicates; it does not re-tag witnesses.
+Re-adjudicating them was ADR-0209 §8 witness work belonging to a later increment, not to that pass;
+ADR-0294 D2 deletes duplicates, it does not re-tag witnesses. **That re-adjudication has now happened
+— see the ADR-0348 note above; all five are `machine`.** The `Keep. witness: human` verdicts in the
+table below are the 2026-08-08 disposition as it stood and are left unedited as that pass's record.
 
 The four deleted legs map one-to-one onto capabilities that each signed a REAL PASS through
 `node build --real --store pg` (the runs are recorded in this story's `## Proof` section), which is
@@ -187,20 +273,20 @@ artifacts are retired in the store (ADR-0307 D5 — the tier is live-canonical, 
 | 8. **Live refresh, no reload** | `uatc_ee3daee25bc4403dc413100a` | **Keep.** Same basis. |
 | 9. **The old text-selection commenting is gone** | `uatc_d5785439b3378b3c34aef9d1` | **Delete on D1 first, D2 second.** A grep for absent symbols is not a step in a narratable journey — nobody walks it — and this leg's own success condition literally named `pnpm --filter studio test` + `pnpm --filter studio typecheck`, i.e. the package suite, as the thing that discharges it. Its claim was verified true before deletion (2026-08-08): `apps/studio/src/lib/annotate.ts`, `apps/studio/src/lib/useAnnotations.tsx` and `apps/studio/src/components/CommentPanel.tsx` are all absent, and no `text` kind survives on the comment anchor — the only remaining `kind: 'text'` in the tree is a CriticMarkup SEGMENT type in `apps/studio/src/lib/criticmarkup.ts`, an unrelated shape. Nothing unproven is dropped. |
 
-1. **Open an open-question in Review.** _(witness: human)(detail: library-review#uat-1)_ Open a library open-question in the studio _(criterion-id: uatc_50675817f38dafb3d307de22)_ _(revision-id: uatr1:c45ed3b712f91d3a)_
+1. **Open an open-question in Review.** _(witness: machine)(detail: library-review#uat-1)_ _(proof-gate: library-review#gate-1)_ Open a library open-question in the studio _(criterion-id: uatc_50675817f38dafb3d307de22)_ _(revision-id: uatr1:387958f502e9fa79)_ _(previous-revision-id: uatr1:c45ed3b712f91d3a)_
    and flip the View → Review toggle. **Success —** the surface enters Review mode; the commenting +
    suggesting affordances appear, View was read-only.
-2. **Comment at a block position.** _(witness: human)(detail: library-review#uat-2)_ In Review mode, drop an inline comment above a _(criterion-id: uatc_76b48b635e2a58dabf134d05)_ _(revision-id: uatr1:f162af5d3872ecda)_
+2. **Comment at a block position.** _(witness: machine)(detail: library-review#uat-2)_ _(proof-gate: library-review#gate-2)_ In Review mode, drop an inline comment above a _(criterion-id: uatc_76b48b635e2a58dabf134d05)_ _(revision-id: uatr1:7ec7f2f018bcb2d8)_ _(previous-revision-id: uatr1:f162af5d3872ecda)_
    specific block (not a side panel; not a text selection). **Success —** the comment thread renders
    IN the document flow above that block, like a code-review thread.
-4. **Propose a suggestion.** _(witness: human)(detail: library-review#uat-4)_ As a member, edit a block's prose in Review mode and _(criterion-id: uatc_579e8c23c11391ebd2396159)_ _(revision-id: uatr1:4cabbf0e6953dd9f)_
+4. **Propose a suggestion.** _(witness: machine)(detail: library-review#uat-4)_ _(proof-gate: library-review#gate-3)_ As a member, edit a block's prose in Review mode and _(criterion-id: uatc_579e8c23c11391ebd2396159)_ _(revision-id: uatr1:e61dda1e2684f208)_ _(previous-revision-id: uatr1:4cabbf0e6953dd9f)_
    submit it as a suggestion. **Success —** a suggestion record is created `open` (a proposal, not a
    direct overwrite); the surface shows the PROPOSED RESULT by default with the original collapsed
    behind a "show change" toggle — no strikethrough.
-7. **The owner accepts.** _(witness: human)(detail: library-review#uat-7)_ As the owner/admin, click Accept. **Success —** _(criterion-id: uatc_2c1854c481f8d507d1b88ebd)_ _(revision-id: uatr1:aee83238ae66332a)_
+7. **The owner accepts.** _(witness: machine)(detail: library-review#uat-7)_ _(proof-gate: library-review#gate-4)_ As the owner/admin, click Accept. **Success —** _(criterion-id: uatc_2c1854c481f8d507d1b88ebd)_ _(revision-id: uatr1:6a5213adb2e9f346)_ _(previous-revision-id: uatr1:aee83238ae66332a)_
    the suggestion flips `open → accepted`, the edit is applied to the document through the admin
    asset-write path, and re-deciding the now-closed suggestion is refused.
-8. **Live refresh, no reload.** _(witness: human)(detail: library-review#uat-8)_ With the open-question open, a second comment / _(criterion-id: uatc_ee3daee25bc4403dc413100a)_ _(revision-id: uatr1:bdfcd2940eee27cc)_
+8. **Live refresh, no reload.** _(witness: machine)(detail: library-review#uat-8)_ _(proof-gate: library-review#gate-5)_ With the open-question open, a second comment / _(criterion-id: uatc_ee3daee25bc4403dc413100a)_ _(revision-id: uatr1:03e7a20acab3e7bb)_ _(previous-revision-id: uatr1:bdfcd2940eee27cc)_
    suggestion is posted (another session / a scripted POST). **Success —** it appears on the Review
    surface within the poll window WITHOUT a manual reload (the 30 s visibility-gated refresh feed).
 ## Proof
@@ -236,6 +322,56 @@ Authored `status` fields stay `proposed` for the LEAF/LOOK caps (`healthy` is ea
 never authored — ADR-0020); cap 9 (GLUE, no gate arm) is flipped to `accepted` per ADR-0084, its bar
 (suite green + text-anchor path gone) being met on the branch. The story's appearance is owner-attested
 (ADR-0070); the owner approved the editor look in-session 2026-07-03.
+
+## Reliability Gates
+
+**A NEW section (2026-08-12, ADR-0348 D1/D5). This story declared no reliability gates before, so
+gates 1–5 are minted fresh and NO existing gate ordinal was renumbered** — the one move
+`asset:edit-story-uat-criteria` step 2 forbids outright, because gate ids are positional and
+renumbering silently re-points already-signed verdicts and surviving `(proof-gate:)` bindings.
+
+These five gates exist **solely to prove the five UAT legs above**, one gate per leg, in the shape
+`drive-machinery` gates 4–7 established: a command-bearing `observe` gate carrying no `(covers:)`,
+because it proves a journey rather than a capability. Adding any of them to a `(covers:)` list would
+let an observe-and-sign `adopt` pass green a capability that never went red (ADR-0085 / ADR-0097) —
+this story's nine capabilities keep earning their own `--real` verdicts, recorded in `## Proof` above.
+
+**Every gate below runs the same witness check, and that is the whole point.** A `machine` leg is
+MODEL-DRIVEN exactly when the observe gate it names runs `uat-drive-witness.check.ts` — the binding is
+self-describing, so nothing needs a second registry saying which legs a model drives and which a suite
+does, and the two can never disagree (`packages/drive/src/uat-drive.ts`, `isModelDrivenGate`).
+
+**None of these gates drives anything, and none of them spends.** The drive is deliberately
+out-of-band: `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive.run.ts library-review
+<criterion-id>` spawns a fresh subscription-funded session that walks the authored journey against the
+real running studio and appends a record to `events.uat_drive` — ADR-0010 §5 keeps that off every gate
+path, exactly as `dogfood-probe.run.ts` is. The gate is the cheap standing WITNESS of that persisted
+artifact, and the spine still mints the verdict over the exit code IT watched, so ADR-0295 D2's *no
+model signs its own verdict* holds with the signing path unchanged.
+
+A gate here goes red — honestly, not spuriously — when no `pass` record exists for the criterion's
+CURRENT `revision-id`, when the drive's commit is not in HEAD's ancestry, or when the newest record is
+older than 90 days (the ADR-0016 ageing floor). Re-authoring one of these journeys is therefore a
+deliberate re-drive, not a silent carry-forward of a green nobody re-earned.
+
+1. **UAT leg 1 — "Open an open-question in Review" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts library-review uatc_50675817f38dafb3d307de22`.
+   Witnesses that a model brought the studio up, opened a real library open-question and flipped
+   View → Review against the running surface, observing that the commenting + suggesting affordances
+   appeared and that View was read-only.
+2. **UAT leg 2 — "Comment at a block position" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts library-review uatc_76b48b635e2a58dabf134d05`.
+   Witnesses that a model dropped an inline comment above a specific block in Review mode and observed
+   the thread render IN the document flow — not in a side panel, not anchored to a text selection.
+3. **UAT leg 4 — "Propose a suggestion" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts library-review uatc_579e8c23c11391ebd2396159`.
+   Witnesses that a model, acting as a member, edited a block's prose and submitted it as a
+   suggestion, observing an `open` proposal (not a direct overwrite) rendered as the PROPOSED RESULT
+   with the original collapsed behind "show change".
+4. **UAT leg 7 — "The owner accepts" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts library-review uatc_2c1854c481f8d507d1b88ebd`.
+   Witnesses that a model, acting as owner/admin, accepted the suggestion and observed the
+   `open → accepted` flip, the edit applied through the admin asset-write path, and re-deciding the
+   now-closed suggestion refused.
+5. **UAT leg 8 — "Live refresh, no reload" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts library-review uatc_ee3daee25bc4403dc413100a`.
+   Witnesses that a model posted a second comment / suggestion out of band and observed it appear on
+   the open Review surface within the poll window with no manual reload.
 
 ## Open modeling calls (for the owner)
 

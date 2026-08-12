@@ -296,22 +296,34 @@ greens on it — the deletion removed a second signature at the story rung, not 
 >   was Claude-only; the ADR-0232 Codex leaf widened it on 2026-07-24. Same claim, widened — not the
 >   `embedded-terminal#uat-5` renumbering failure (PR #916).
 >
-> **The remedy remains the owner's, and no agent may pick it.** On the merits the leg would move to
-> `machine`: every clause of its success condition compiles, both leaves are subscription-funded rather
-> than metered, and under `human-witness-is-a-judgment-gap-not-cost` a harness/cost statement is not a
-> judgment gap — a reading [ADR-0295](../../docs/decisions/0295-the-uat-driver-s-own-verdict-is-the-witness-model-driven-uat.md)
-> D1/D5 strengthens, since a live runtime invocation is a journey a model driver can execute and D5
-> narrows `human` to genuine taste. It is left `human` anyway, because flipping it would retroactively
-> invalidate the two rows above (the studio's sign-time guard refuses an `operator-attested` verdict on
-> a `machine` leg) and that is state only the owner may discard. The three standing options are
-> unchanged and named without preference: (i) leave both rows and let this note carry the correction;
-> (ii) the owner re-signs the leg as itself, under an identified signer with a note naming the runtime
-> and the walk; (iii) it is re-adjudicated to `machine` as a coordinated change that also supersedes the
-> two `operator` rows. This is `wisp-as-story-claim`'s open call — *does an owner attestation carry
-> forward onto a changed leg?* — with a second real instance; that general call stays with that story.
+> **THE OWNER HAS PICKED, AND OPTION (iii) IS TAKEN — [ADR-0348](../../docs/decisions/0348-human-uat-witness-narrows-to-taste-live-spend-and-outward-fa.md)
+> D7 (2026-08-11), executed here 2026-08-12.** This note previously read *"the remedy remains the
+> owner's, and no agent may pick it"*, and listed three standing options without preference. It is
+> corrected in place (ADR-0139) because the call has been made, not because the reasoning changed.
+>
+> The owner's question that opened ADR-0348 was asked OF THIS LEG: *"just because we have prev human
+> uat signed rows is not a reason to keep them human."* His answer — prior signed state is not a
+> reason, and the label should mean what it says — is exactly the third option named above: **the leg
+> is re-adjudicated to `machine` as a coordinated change that also SUPERSEDES the two `operator` rows.**
+> Those rows are superseded deliberately, with the owner's ruling behind it; they are not preserved,
+> and they were never granting green (see the bullet above — the leg held no proof credit either way).
+>
+> The merits were never in dispute and are unchanged: every clause of the success condition compiles,
+> both leaves are subscription-funded rather than metered, and under
+> `human-witness-is-a-judgment-gap-not-cost` a harness/cost statement is not a judgment gap — a reading
+> [ADR-0295](../../docs/decisions/0295-the-uat-driver-s-own-verdict-is-the-witness-model-driven-uat.md)
+> D1/D5 strengthens. What blocked the flip was never the merits; it was that ADR-0295 D1's model-driven
+> executor was **decided but unbuilt**, so a flipped leg would have had nowhere to earn green. That
+> executor landed 2026-08-12 (`packages/drive/src/uat-drive*.ts`, PR #1291), and the leg is flipped in
+> the same change that binds it to `agent#gate-2` — ADR-0348 D5's ordering, honoured.
+>
+> **This does NOT generalise to `wisp-as-story-claim`'s open call 1** — *does an owner attestation carry
+> forward onto a changed leg?* That call concerns a genuine TASTE leg and stays open and owner-owned.
+> What is settled here is narrower: a leg that was never a judgment gap does not stay `human` merely
+> because signed rows exist against it.
 
 
-1. **The selected live runtime authors a real slice.** _(witness: human)_ With Claude as the _(criterion-id: uatc_027e3e8ad2253d327fc15c07)_ _(revision-id: uatr1:b7b5052c7e21a3a2)_ _(previous-revision-id: uatr1:4c500bf040db5eed)_
+1. **The selected live runtime authors a real slice.** _(witness: machine)_ _(proof-gate: agent#gate-2)_ With Claude as the _(criterion-id: uatc_027e3e8ad2253d327fc15c07)_ _(revision-id: uatr1:380a683e4995990d)_ _(previous-revision-id: uatr1:b7b5052c7e21a3a2)_
    compatibility default or Codex selected explicitly via `--runtime codex`, the leaf runs one
    subscription-funded invocation. **Success —** phase scope is enforced before any write lands,
    out-of-scope writes are recorded violations, and no red/green claim or verdict is accepted from
@@ -352,6 +364,26 @@ the moment observation proves insufficient — a real defect slips through, or a
    (`packages/agent`). The genuinely live SDK/CLI subscription invocations stay need-gated (see
    **Honest status** and Story UAT leg 5), never a standing test in this package; they become a
    `build-tests` gate here if one is ever authored.
+2. **UAT leg 1 — the live runtime authored a real slice, driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts agent uatc_027e3e8ad2253d327fc15c07`.
+   **APPENDED 2026-08-12 (ADR-0348 D1/D5/D7). Gate-1 above is untouched and keeps its ordinal** — gate
+   ids are positional, so a gate is only ever APPENDED; inserting one would silently re-point gate-1's
+   already-signed `adopted` verdict and every `(proof-gate:)` binding naming it.
+   This gate is what gave Story UAT leg 1 somewhere to earn green, which is the whole reason the flip
+   waited: ADR-0295 D1 admitted a model driver's report as a verdict from 2026-08-03, but no executor
+   existed for that sentence until 2026-08-12. It witnesses a persisted `events.uat_drive` record — a
+   fresh subscription-funded session that ran `node build <id> --live` for real and watched the leaf
+   author a red test then a green implementation under phase-enforced write scope, with the spine's own
+   out-of-band runs deciding red/green. It carries no `(covers:)`: it proves a JOURNEY, not a
+   capability, and adding it to one would let an observe-and-sign adopt pass green a capability that
+   never went red (ADR-0085 / ADR-0097).
+   **It does not drive and it does not spend.** The drive is deliberately out-of-band — `pnpm --filter
+   @storytree/drive exec node --import tsx src/uat-drive.run.ts agent uatc_027e3e8ad2253d327fc15c07` —
+   which ADR-0010 §5 keeps off every gate path, exactly as `dogfood-probe.run.ts` is. The spine still
+   mints the verdict over the exit code IT watched, so ADR-0295 D2's *no model signs its own verdict*
+   holds with the signing path unchanged.
+   It goes red — honestly — when no `pass` record exists at the criterion's CURRENT content-bound
+   revision, when the driven commit is not in HEAD's ancestry, or when the newest record is older than
+   90 days (the ADR-0016 ageing floor).
 
 Adopting this gate flips the runtime off `mapped` — **this HAS happened** (2026-06-26): the adopt pass
 observed the suite green at a clean HEAD and signed `adopted` verdicts for `agent#gate-1` and the five

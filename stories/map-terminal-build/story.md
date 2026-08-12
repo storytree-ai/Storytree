@@ -313,8 +313,8 @@ before.
    judgment: no success condition here lacks a compiler. Because the machine half is ALREADY covered by
    the contract above, this leg REFERENCES that verdict instead of being split — restating a compiled
    fact as a human success condition would launder it into an unrepeatable signature.)*
-6. **The seeded command is the invocation the owner actually wants.** _(witness: human)(detail: _(criterion-id: uatc_a011b79159dd94012486cb91)_ _(revision-id: uatr1:776452095f26ccde)_
-   map-terminal-build#uat-6)_ Shown the pre-filled command, the owner accepts its FORM — specifically the
+6. **The seeded command is the invocation the owner actually wants.** _(witness: human)(detail: map-terminal-build#uat-6)_ _(criterion-id: uatc_a011b79159dd94012486cb91)_ _(revision-id: uatr1:5d6b5456e5a878fa)_ _(previous-revision-id: uatr1:776452095f26ccde)_
+   Shown the pre-filled command, the owner accepts its FORM — specifically the
    `pnpm ` prefix the composer emits (`pnpm storytree story build <id> --real --store pg`), which
    ADR-0174's own text does not write and which open modeling call 1 explicitly left to the owner.
    **Success —** the owner's substantive acceptance of the invocation form. *(Split out of the old leg 4
@@ -322,8 +322,8 @@ before.
    but whether this is the invocation the owner wants on their shell is an owner value call no code can
    decide. This basis dissolves under neither a new harness nor cheaper spend; it is discharged only when
    the owner settles the prefix.)*
-7. **Pressing Enter runs a real, billed build from the seeded command.** _(witness: human)(detail: _(criterion-id: uatc_00996f29a26216200b5a5c92)_ _(revision-id: uatr1:57583a6171feb4ca)_
-   map-terminal-build#uat-7)_ The owner presses Enter on the pre-filled command in the native shell; a
+7. **Pressing Enter runs a real, billed build from the seeded command.** _(witness: human)(detail: map-terminal-build#uat-7)_ _(criterion-id: uatc_00996f29a26216200b5a5c92)_ _(revision-id: uatr1:4078c6a341e1688e)_ _(previous-revision-id: uatr1:57583a6171feb4ca)_
+   The owner presses Enter on the pre-filled command in the native shell; a
    real build runs as their own Claude Code and — for a story-scope seed — opens the auto-merging PR
    (ADR-0136). **Success —** the owner's verdict that the seeded command launched the build they intended.
    *(Split out of the old leg 4 by this pass. Human on a SPEND + OUTWARD-FACING basis: real metered
