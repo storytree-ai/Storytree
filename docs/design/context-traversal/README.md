@@ -9,11 +9,22 @@ regenerated against that revision on 2026-07-27 and now conform.
 
 ## Canonical references
 
-- [Playable narrow-panel mock](session-traversal-playback.html) — normative composition and interaction reference.
+- [Playable narrow-panel mock](session-traversal-playback.html) — normative for the **grammar**. No
+  longer authoritative for **layout** (ADR-0354 D4); see the banner below.
 - [Static reference image](session-traversal-playback.png) — review fallback and visual-regression anchor.
+- [Playable bottom-panel composition](bottom-panel-traversal-composition.html) — the **layout**
+  successor, at the bottom panel's width. **Produced 2026-08-13; awaiting the owner's LOOK**, which
+  ADR-0354 D4 requires before the wide layout is built. Until that LOOK it is a proposal, not a
+  reference: nothing may be built against it, and nothing in it overrides the grammar below.
 
-The HTML reference is authoritative when the two differ — with no exception outstanding. The image
-captures the full-trace state at a narrow story-details-panel width.
+The narrow HTML reference is authoritative on grammar when the two differ. The image captures the
+full-trace state at a narrow story-details-panel width.
+
+The bottom-panel composition is drawn from three real recorded traces on the authoring machine
+(`elegant-rosalind-2b9a05`, `clever-mestorf-1041a3`, `recursing-neumann-3a74d7`), and every derived
+figure in it is produced by the shipped libraries — `buildTraversalTimeScale`, `computeTraversalDepth`,
+`buildTraversalLanes`, `buildOccupancySeries`, and the server's own `computeDecisionPoints` — so it
+cannot describe a trace differently from the panel that implements it.
 
 **The red is not visible in either artifact, and that is honest rather than missing.** The recorded
 reference trace peaks at 240.9k, so its fill never reaches the 500k threshold and never turns red.
@@ -37,8 +48,17 @@ This is **not a dashboard**.
 > **This file remains normative for the GRAMMAR, and is no longer authoritative for LAYOUT.** Everything
 > under "Visual grammar" below still binds exactly as signed — one playhead bar, red only past 500k with
 > no marker, plain marks, solid/dotted read edges, the search glyph, branching by animation, explicit-only
-> forks with a raw `M of N`. A new composition reference at width is OWED and the owner LOOKs at it before
-> build (ADR-0354 D4); until it exists, `session-traversal-playback.html` is the grammar reference only.
+> forks with a raw `M of N`.
+>
+> The composition reference at width that ADR-0354 D4 requires now EXISTS —
+> [`bottom-panel-traversal-composition.html`](bottom-panel-traversal-composition.html), produced
+> 2026-08-13 — and is **awaiting the owner's LOOK**. It proposes one layout decision worth naming here,
+> because it is the reading of D3 the owner is being asked to confirm: **the time axis rotates**, running
+> left → right, with depth indenting downward and the occupancy bar becoming a vertical track at the
+> right. D3's words are permissions ("lanes may sit side by side, depth may take real horizontal room,
+> and the axis may stretch"), and a plain 90° reading of them would simply move the 360px panel's
+> crowding onto the bottom panel's scarce vertical. Until the LOOK lands, no wide layout may be built —
+> against that proposal or any other.
 
 The traversal opens from the existing forest:
 
