@@ -1,0 +1,161 @@
+name: claim-release
+
+# The MERGE-QUEUE-REACHABLE claim release (ADR-0345 D4 / ADR-0304 D3) — the prerequisite the queue
+# flip is blocked on.
+#
+# THE DEFECT THIS CLOSES. `packages/notice-board/src/store/ingest-merge.ts` is ADR-0138 §4 /
+# ADR-0200's GUARANTEED machine clear of a merged branch's `events.node_claim` rows — what makes
+# "a branch dies on merge" (ADR-0142) true rather than aspirational. Until now it ran in exactly ONE
+# place: `ci.yml`'s `automerge` job, which is `pull_request`-only AND gated on
+# `steps.merge.outputs.merged == 'true'`. Under a merge queue `gh pr merge` ADDS THE PR TO THE QUEUE
+# instead of merging it, so that gate is false for EVERY PR and the queue's own later merge would run
+# no job that releases claims. Every merged branch would keep its claims forever — silently, because
+# the release is fail-soft and the ledger is advisory. The symptom would surface days later as a map
+# full of dead wisps and ADR-0270 refusals against sessions that ended long ago.
+#
+# It also closes a gap that exists TODAY, before any queue: a PR merged BY HAND in the GitHub UI runs
+# no `automerge` job, so its claims have never been released either.
+#
+# WHY THIS IS A SEPARATE WORKFLOW rather than another job in ci.yml: ci.yml's `automerge` job is
+# `pull_request`-scoped by construction (it reads `github.event.pull_request`), and the whole point
+# here is to key off the merge that ACTUALLY landed on `main`, whoever performed it.
+#
+# DOUBLE-FIRING IS EXPECTED AND HARMLESS. A queue merge triggers `push` AND `pull_request: closed`,
+# so both paths below can resolve the same branch. `releaseBranchClaims` is idempotent — the second
+# release deletes nothing, appends no audit event, promotes nobody, and returns 0. That property is
+# PROVEN, not assumed: `ingest-merge.test.ts` (offline) and
+# `claim-store-release-by-branch.live.test.ts` (real DB, including that the second release does not
+# disturb the waiter the first one promoted).
+#
+# NOT TRIGGERED BY TODAY'S DIRECT MERGE, and that is correct: GitHub anti-recursion suppresses events
+# from ci.yml's own GITHUB_TOKEN `gh pr merge`, so neither trigger below fires for it and the
+# automerge job's own release step remains the one that runs. The two paths only ever overlap once
+# the merge is performed by something other than that token — the queue, or a human.
+#
+# HOW TO VERIFY IT BEFORE FLIPPING THE QUEUE (a merge queue cannot be exercised without enabling it,
+# so the trigger itself is unprovable in advance — the JOB is not):
+#   1. `workflow_dispatch` this workflow with a branch that holds claims, and watch the released
+#      count. That proves resolution + keyless auth + the writer + the live store end to end.
+#   2. Merge one ordinary PR BY HAND in the GitHub UI instead of letting automerge take it. That is
+#      a real non-GITHUB_TOKEN merge, so it fires the real `push` and `pull_request` triggers.
+#   3. Only then flip the queue — and check the FIRST queue merge's run here rather than assuming it.
+
+on:
+  # The queue's merge lands as a push to main. Also covers a human UI merge and a batched queue
+  # merge (several PRs in one push — the resolver walks the whole range).
+  push:
+    branches: [main]
+  # The same merge seen from the PR side; needs no commit-range resolution, so it is the cheaper and
+  # more direct of the two. Kept ALONGSIDE the push trigger deliberately: the failure mode being
+  # fixed is silent and permanent, so one redundant no-op release per merge is cheap insurance.
+  pull_request:
+    types: [closed]
+    branches: [main]
+  # The manual escape hatch, and the pre-flip verification lever (step 1 above).
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Head branch whose claims to release (e.g. claude/my-branch)"
+        required: true
+        type: string
+
+# Serialise: two releases interleaving is harmless (idempotent), but a CANCELLED release is a LOST
+# release, so in-progress runs are never cancelled.
+concurrency:
+  group: claim-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: release merged branches' claims
+    # A PR that closed WITHOUT merging releases nothing — its session may still be working.
+    if: github.event_name != 'pull_request' || github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # checkout
+      pull-requests: read # resolve which PRs the pushed range merged
+      id-token: write # mint the WIF OIDC token for keyless GCP auth (ADR-0021)
+    steps:
+      # `main`, explicitly: this job needs the WRITER, not the merged branch's tree, and on a
+      # `pull_request: closed` event the default checkout would take the PR merge ref.
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: main
+
+      # Emits one branch per line, or nothing. Filtered HARD on the PR having genuinely merged into
+      # main — releasing a branch that did NOT merge would erase a LIVE session's claims, which is
+      # strictly worse than the bug being fixed, so the resolver emits nothing when uncertain.
+      - name: Resolve the merged head ref(s)
+        id: refs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.event.after }}
+          PR_MERGED: ${{ github.event.pull_request.merged }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          INPUT_BRANCH: ${{ inputs.branch }}
+        run: |
+          set -uo pipefail
+          refs="$(bash scripts/merged-head-refs.sh)"
+          if [ -z "$refs" ]; then
+            echo "No merged head ref for this event — nothing to release."
+          else
+            echo "Releasing claims for:"; echo "$refs"
+          fi
+          # Heredoc form (the refs are multiline). The empty case writes NO content line at all, so
+          # the output is unambiguously '' — a stray blank line would make every `!= ''` guard below
+          # true and spin up the whole job to release nothing.
+          {
+            echo "branches<<STORYTREE_EOF"
+            [ -n "$refs" ] && echo "$refs"
+            echo "STORYTREE_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      # Everything below is skipped when nothing resolved — the common case for a direct push to
+      # main, and for ci.yml's own merges (which never reach here).
+      - name: Set up pnpm
+        if: steps.refs.outputs.branches != ''
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.0
+
+      - name: Set up Node
+        if: steps.refs.outputs.branches != ''
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        if: steps.refs.outputs.branches != ''
+        run: pnpm install --frozen-lockfile
+
+      # Keyless WIF (ADR-0021) — the SAME pool / provider / service account ci.yml's automerge job
+      # has used on every merged PR since ADR-0033 (infra/ci-presence.tf). No new IAM, no new secret.
+      - name: Authenticate to GCP (keyless WIF — ADR-0021)
+        if: steps.refs.outputs.branches != ''
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: projects/635716509357/locations/global/workloadIdentityPools/github-actions/providers/github
+          service_account: storytree-ci-presence@storytree-498613.iam.gserviceaccount.com
+
+      # DELIBERATELY LOUD — the one place this writer is allowed to be. In ci.yml it is fail-soft
+      # (`continue-on-error`, exit 0 always) because a failed release must never fail a merge that
+      # already landed. This workflow gates NOTHING — no merge, no deploy — so a swallowed failure
+      # here would buy nothing and would rebuild the exact failure class ADR-0345 D4 is fixing: a
+      # release that quietly stops happening, invisible until a stale ADR-0270 refusal months later.
+      # STRICT mode makes that a red run instead. Re-run it (workflow_dispatch, with the branch) to
+      # recover; nothing is lost in the meantime but the wisp's timeliness.
+      - name: Release the merged branches' claims
+        if: steps.refs.outputs.branches != ''
+        env:
+          # The CI service account's Cloud SQL IAM username (the `.iam` short form — Cloud SQL
+          # truncates `.gserviceaccount.com`, mirroring the studio host).
+          STORYTREE_DB_USER: storytree-ci-presence@storytree-498613.iam
+          STORYTREE_MERGED_HEAD_REF: ${{ steps.refs.outputs.branches }}
+          STORYTREE_CLAIM_RELEASE_STRICT: "1"
+        # Package-scoped exec resolves the workspace's pinned tsx (a @storytree/notice-board devDep) —
+        # `npx tsx` from root would download tsx fresh (no root .bin in this pnpm workspace).
+        run: pnpm --filter @storytree/notice-board exec tsx src/store/ingest-merge.ts

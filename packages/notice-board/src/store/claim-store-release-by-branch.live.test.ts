@@ -77,3 +77,75 @@ test(
     }
   },
 );
+
+/**
+ * The IDEMPOTENCE the merge-queue fix rests on (ADR-0345 D4 / ADR-0304 D3), against the real store
+ * rather than a fake. Two callers now release a merged branch — ci.yml's automerge job and
+ * claim-release.yml — and a queue merge can be seen by both. Proves the second release is a clean
+ * no-op AND, the sharper property, that it cannot disturb the waiter the FIRST release promoted:
+ * that session now holds the unit on ITS OWN branch, and a release keyed on the merged branch must
+ * leave it alone. Getting this wrong would silently hand a unit to nobody.
+ */
+test(
+  "release-claims-by-branch-clears-the-branch: a SECOND releaseClaimsByBranch for the same branch is a no-op that leaves the promoted waiter intact",
+  { skip: !DB },
+  async () => {
+    const { pool, connector } = await createTestPool();
+    try {
+      await applySchema(pool);
+      await pool.query("TRUNCATE events.node_claim");
+      await pool.query("TRUNCATE events.claim_event");
+
+      const store = new PgClaimStore(pool);
+      const merged = "claude/merged-branch";
+      const waiting = "claude/still-working";
+
+      // The merged branch holds the unit; a second session is REFUSED and joins the waiting line
+      // in the same transaction (ADR-0346 D1's binding fence, via queueOnRefusal).
+      await store.claim({ unitId: "unit-alpha", sessionId: "sess-A", branch: merged, intent: "real" });
+      const queued = await store.claim(
+        { unitId: "unit-alpha", sessionId: "sess-B", branch: waiting, intent: "real" },
+        { queueOnRefusal: true },
+      );
+      assert.equal(queued.acquired, false, "the second session is refused — the fence binds");
+      assert.ok(
+        "queued" in queued && queued.queued,
+        "and lands in the waiting line rather than dead-ending",
+      );
+
+      const first = await store.releaseClaimsByBranch(merged);
+      assert.equal(first, 1, "the first release clears the merged branch's claim");
+
+      // The store promotes the oldest live waiter in the same transaction.
+      const promoted = await pool.query(
+        "SELECT branch, grade FROM events.node_claim WHERE unit_id = 'unit-alpha'",
+      );
+      assert.equal(promoted.rows.length, 1, "exactly one claim remains on the unit");
+      assert.equal(promoted.rows[0].branch, waiting, "it is the waiter's own branch");
+      assert.equal(promoted.rows[0].grade, "work", "and it was promoted to work");
+
+      // The second caller fires for the same merge.
+      const second = await store.releaseClaimsByBranch(merged);
+      assert.equal(second, 0, "the second release finds nothing — a clean no-op");
+
+      const after = await pool.query(
+        "SELECT branch, grade FROM events.node_claim WHERE unit_id = 'unit-alpha'",
+      );
+      assert.equal(after.rows.length, 1, "the promoted session STILL holds the unit");
+      assert.equal(after.rows[0].branch, waiting, "the double release did not touch it");
+      assert.equal(after.rows[0].grade, "work", "and did not demote it");
+
+      // No phantom audit rows: exactly one release happened, so exactly one 'released' event exists.
+      const releasedEvents = await pool.query(
+        "SELECT type FROM events.claim_event WHERE type = 'released'",
+      );
+      assert.equal(
+        releasedEvents.rows.length,
+        1,
+        "the no-op appended no second 'released' audit event",
+      );
+    } finally {
+      await closePool(pool, connector);
+    }
+  },
+);
