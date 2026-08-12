@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { InMemoryStore } from "@storytree/storage-protocol";
+import { InMemoryStore, type Store } from "@storytree/storage-protocol";
 
 import {
   arcClose,
@@ -1889,4 +1889,185 @@ test("arc reconcile --write refuses offline — the flip is a live-store write",
   } finally {
     rmSync(fx.root, { recursive: true, force: true });
   }
+});
+
+// ---------------------------------------------------------------------------
+// ADR-0352 — every arc-side write is FIELD-SCOPED.
+//
+// ADR-0352 closed the measured lost update at ONE surface, `library artifact edit --set`. Every verb
+// below carried the identical `getDoc` -> mutate -> `upsertDoc(whole doc)` shape, and each therefore
+// reverted whatever a concurrent session landed between its own read and its own write — on fields
+// it never named, with both writers reporting success. On `session-orchestrator` that silently
+// reverted 7,058 characters of guidance.
+//
+// The race is mechanised rather than described: {@link staleReadStore} lands ONE sibling write at a
+// chosen read, and returns the reading verb the snapshot from BEFORE it. Under a whole-doc write the
+// verb carries that stale snapshot back over the sibling; under a patch it names its own fields and
+// the sibling survives. Every test asserts BOTH halves — the sibling's field intact AND the verb's
+// own change landed — because a write that lands nothing would pass the first assertion alone.
+// ---------------------------------------------------------------------------
+
+/**
+ * A store that lands one SIBLING write into `target` at the moment the verb under test reads it, and
+ * hands the verb the doc as it was BEFORE that write.
+ *
+ * `onRead` selects WHICH read of `target` fires it, because several verbs read their arc more than
+ * once and only one of those reads feeds the write under test (`recomputeArcLifecycle` fires from
+ * inside `arc increment add`, after that verb's own `loadArcForWrite`). `fired()` is asserted by
+ * every caller: a mis-tuned `onRead` would otherwise leave the sibling write un-run and the test
+ * passing vacuously.
+ */
+function staleReadStore(
+  inner: InMemoryStore,
+  target: string,
+  sibling: Record<string, unknown>,
+  onRead = 1,
+): Store & { fired(): boolean } {
+  let reads = 0;
+  let fired = false;
+  return {
+    fired: () => fired,
+    getDoc: async (id) => {
+      const before = await inner.getDoc(id);
+      if (id === target && ++reads === onRead) {
+        fired = true;
+        await inner.patchDoc({ id, fields: sibling });
+      }
+      return before;
+    },
+    upsertDoc: (input) => inner.upsertDoc(input),
+    patchDoc: (input) => inner.patchDoc(input),
+    queryDocs: (filter) => inner.queryDocs(filter),
+    deleteDoc: (id, opts) => inner.deleteDoc(id, opts),
+    appendEvent: (e) => inner.appendEvent(e),
+    readEvents: (filter) => inner.readEvents(filter),
+  };
+}
+
+/** {@link writeDeps} over any `Store` — the interleaving wrapper is not an `InMemoryStore`. */
+function staleWriteDeps(store: Store): ArcWriteDeps {
+  return { store, writable: true, actor: "test", now: NOW, pg: true };
+}
+
+/** One field off a stored doc, for the two-sided assertion each test below makes. */
+async function fieldOf(store: InMemoryStore, id: string, field: string): Promise<unknown> {
+  return ((await store.getDoc(id))?.doc as Record<string, unknown>)[field];
+}
+
+test("ADR-0352: arc edit writes intent, and a sibling's concurrent description edit survives", async () => {
+  const inner = await seededStore();
+  const racy = staleReadStore(inner, "map-arc", { description: "the sibling's one-liner" });
+
+  const res = await arcEdit(staleWriteDeps(racy), "map-arc", { intent: "The new intent." });
+
+  assert.equal(res.ok, true);
+  assert.equal(racy.fired(), true, "precondition: the sibling write actually interleaved");
+  assert.equal(await fieldOf(inner, "map-arc", "description"), "the sibling's one-liner");
+  assert.equal(await fieldOf(inner, "map-arc", "intent"), "The new intent.");
+});
+
+test("ADR-0352: arc close flips lifecycle, and a sibling's concurrent intent edit survives", async () => {
+  const inner = new InMemoryStore();
+  // Stored `active` with only closed increments — the state `arc close` is for, and the one shape
+  // ADR-0347's refusal lets through.
+  await seedArc(inner, "drained-arc", "active", ["closed"]);
+  const racy = staleReadStore(inner, "drained-arc", { intent: "the sibling's intent" });
+
+  const res = await arcClose(staleWriteDeps(racy), "drained-arc", { outcome: "The end state is met." });
+
+  assert.equal(res.ok, true, res.body);
+  assert.equal(racy.fired(), true, "precondition: the sibling write actually interleaved");
+  assert.equal(await fieldOf(inner, "drained-arc", "intent"), "the sibling's intent");
+  assert.equal(await fieldOf(inner, "drained-arc", "lifecycle"), "closed");
+});
+
+test("ADR-0352: arc reopen flips lifecycle, and a sibling's concurrent endState edit survives", async () => {
+  const inner = await seededStore();
+  await inner.patchDoc({ id: "map-arc", fields: { lifecycle: "closed" } });
+  const racy = staleReadStore(inner, "map-arc", { endState: "the sibling's end state" });
+
+  const res = await arcReopen(staleWriteDeps(racy), "map-arc", { reason: "The end state does not hold." });
+
+  assert.equal(res.ok, true);
+  assert.equal(racy.fired(), true, "precondition: the sibling write actually interleaved");
+  assert.equal(await fieldOf(inner, "map-arc", "endState"), "the sibling's end state");
+  assert.equal(await fieldOf(inner, "map-arc", "lifecycle"), "active");
+});
+
+test("ADR-0352: arc increment close writes status/outcome, and a sibling's body correction survives", async () => {
+  const inner = await seededStore();
+  const racy = staleReadStore(inner, "map-arc-plan-1", { body: "the sibling's corrected body" });
+
+  const res = await arcIncrementClose(staleWriteDeps(racy), "map-arc-plan-1", { pr: "#1300" });
+
+  assert.equal(res.ok, true);
+  assert.equal(racy.fired(), true, "precondition: the sibling write actually interleaved");
+  assert.equal(await fieldOf(inner, "map-arc-plan-1", "body"), "the sibling's corrected body");
+  assert.equal(await fieldOf(inner, "map-arc-plan-1", "status"), "closed");
+});
+
+test("ADR-0352: the lifecycle auto-reopen writes the flag alone, and a sibling's intent edit survives", async () => {
+  const inner = new InMemoryStore();
+  await seedArc(inner, "drained-arc", "closed", ["closed"]);
+  // Read 1 is `arc increment new`'s own `loadArcForWrite`; read 2 is `recomputeArcLifecycle`'s — the
+  // one whose write is under test. This is the worst of the seven shapes: the recompute fires from
+  // inside EVERY increment write, so its whole-doc write reverted narrative it never meant to touch.
+  const racy = staleReadStore(inner, "drained-arc", { intent: "the sibling's intent" }, 2);
+
+  const res = await arcIncrementNew(staleWriteDeps(racy), "drained-arc", {
+    id: "the-next-slice",
+    title: "The next slice",
+    ...BODY,
+  });
+
+  assert.equal(res.ok, true, res.body);
+  assert.equal(racy.fired(), true, "precondition: the sibling write actually interleaved");
+  assert.match(res.body, /reopened/, "precondition: the recompute actually wrote");
+  assert.equal(await fieldOf(inner, "drained-arc", "intent"), "the sibling's intent");
+  assert.equal(await fieldOf(inner, "drained-arc", "lifecycle"), "active");
+});
+
+test("ADR-0352: arc reconcile --write repairs the flag alone, and a sibling's intent edit survives", async () => {
+  const fx = diskFixture();
+  try {
+    const inner = new InMemoryStore();
+    await seedArc(inner, "drained-arc", "active", ["closed", "closed"]);
+    const racy = staleReadStore(inner, "drained-arc", { intent: "the sibling's intent" });
+
+    const out = await arcReconcile(
+      { ...staleWriteDeps(racy), decisionsDir: fx.decisionsDir, storiesDir: fx.storiesDir },
+      { write: true },
+    );
+
+    assert.equal(out.ok, true);
+    assert.match(out.body, /APPLIED — 1 arc\(s\) reconciled/);
+    assert.equal(racy.fired(), true, "precondition: the sibling write actually interleaved");
+    // A bulk sweep is the widest blast radius here: it walks every drifted arc, so the whole-doc
+    // write undid a sibling's edit on any arc it happened to pass.
+    assert.equal(await fieldOf(inner, "drained-arc", "intent"), "the sibling's intent");
+    assert.equal(await fieldOf(inner, "drained-arc", "lifecycle"), "closed");
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("ADR-0352: dropping a discharged citation writes references alone, sparing the adjudication", async () => {
+  const inner = await seededStore();
+  await seedFriction(inner, "the-friction", ["asset:map-arc"]);
+  await arcIncrementNew(writeDeps(inner), "map-arc", {
+    id: "the-remedy",
+    title: "The remedy",
+    ...BODY,
+    friction: ["the-friction"],
+  });
+  // The friction row belongs to whoever adjudicated it — this verb is only passing through it.
+  const racy = staleReadStore(inner, "the-friction", { routeReason: "the adjudicator's reasoning" });
+
+  const res = await arcIncrementClose(staleWriteDeps(racy), "the-remedy", { pr: "#1300" });
+
+  assert.equal(res.ok, true);
+  assert.match(res.body, /dropped the asset:map-arc citation from the-friction/);
+  assert.equal(racy.fired(), true, "precondition: the sibling write actually interleaved");
+  assert.equal(await fieldOf(inner, "the-friction", "routeReason"), "the adjudicator's reasoning");
+  assert.deepEqual(await fieldOf(inner, "the-friction", "references"), []);
 });

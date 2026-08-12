@@ -127,6 +127,49 @@ test("reframe-open-question patches an OQ; refuses a non-OQ target", async () =>
   assert.equal(refused.refused.length, 1, "reframing a definition is refused — comment+escalate instead");
 });
 
+/*
+ * ADR-0352 — a reframe writes only the keys the action names.
+ *
+ * A curation pass runs alongside a build, so the window between the kind fence's read and the write
+ * is as wide as the build. Under the whole-doc write everything a session landed on the question in
+ * that window was reverted — on fields the reframe never named, with both writers reporting success.
+ *
+ * The race is mechanised: this store lands ONE sibling write at the curator's read and hands the
+ * curator the snapshot from BEFORE it. Both halves are asserted, since a write that landed nothing
+ * would satisfy the sibling half alone.
+ */
+test("ADR-0352: a reframe writes its own keys, and a sibling's concurrent edit survives", async () => {
+  const inner = new InMemoryStore();
+  await inner.upsertDoc({ id: "oq-race", kind: "open-question", doc: oqDoc("oq-race") });
+  let fired = false;
+  const racy: Store = {
+    getDoc: async (id) => {
+      const before = await inner.getDoc(id);
+      if (id === "oq-race" && !fired) {
+        fired = true;
+        await inner.patchDoc({ id, fields: { context: "the sibling's fuller context" } });
+      }
+      return before;
+    },
+    upsertDoc: (input) => inner.upsertDoc(input),
+    patchDoc: (input) => inner.patchDoc(input),
+    queryDocs: (filter) => inner.queryDocs(filter),
+    deleteDoc: (id, opts) => inner.deleteDoc(id, opts),
+    appendEvent: (e) => inner.appendEvent(e),
+    readEvents: (filter) => inner.readEvents(filter),
+  };
+
+  const out = await enactCuration({ store: racy }, [
+    { type: "reframe-open-question", id: "oq-race", set: { statement: "a sharper question?" } },
+  ]);
+
+  assert.equal(out.enacted.length, 1, out.refused.join("; "));
+  assert.equal(fired, true, "precondition: the sibling write actually interleaved");
+  const doc = (await inner.getDoc("oq-race"))?.doc as Record<string, unknown>;
+  assert.equal(doc["context"], "the sibling's fuller context");
+  assert.equal(doc["statement"], "a sharper question?", "and the reframe itself landed");
+});
+
 // --- the retired proposal write (ADR-0298) -------------------------------------------------------
 
 test("the curator can no longer write deferred work at all — the proposal actions are GONE (ADR-0298)", () => {
