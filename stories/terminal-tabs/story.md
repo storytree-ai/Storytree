@@ -196,10 +196,11 @@ affected signed caps" and "Within-story dependency graph" for how the shared sou
   panel's STRUCTURE and wiring are contracted (`mst-chrome-stays-per-dock`, `mst-panel-sits-beside-pane`)
   and re-observed over real ptys at **legs 6–8** — glue-ness is a TIERING call and says nothing about
   which witness is right (`human-witness-is-a-judgment-gap-not-cost`).
-  **Outside the story fence, and NOT fixed here:** `apps/studio/src/index.css`'s terminal-dock comment
-  names *"terminal-tabs story UAT leg 1"* as the appearance attestation for the dock's terminal palette.
-  That leg no longer exists — ordinal 1 is BURNED, not reused, so the reference is dangling rather than
-  silently re-pointed at a different claim, and the comment should be re-pointed at this design intent.
+  **Outside the story fence — FIXED 2026-08-12, in the ADR-0348 flip increment:**
+  `apps/studio/src/index.css`'s terminal-dock comment named *"terminal-tabs story UAT leg 1"* as the
+  appearance attestation for the dock's terminal palette. That leg no longer exists — ordinal 1 is
+  BURNED, not reused, so the reference was dangling rather than silently re-pointed at a different
+  claim. It now names this design intent instead.
   The `.terminal-dock*` CSS for the panel is glue. If the dock's public props change (they need not — the
   `seed` and `headerRight` prop shapes are unchanged), any `TreeView`/dock-mount delta is un-asserted
   connective code — machine-observable end-to-end at legs 6–7, not a capability. The existing TreeView `seed` glue
@@ -504,6 +505,7 @@ Build seed opens a fresh tab; owner-directed, born accepted, no new ADR reserved
    defect. A THIRD is now stale for a different reason: `apps/studio/src/index.css` names
    **"terminal-tabs story UAT leg 1"** as the appearance attestation for the dock's terminal palette, and
    **that leg no longer exists** — ADR-0348 D6 deleted it on 2026-08-11 and burned the ordinal, so the
-   reference dangles rather than pointing at a different claim. Re-point it at the LOOK design intent
-   under "Operator-attested glue". This edit could not make that change itself: it is outside the
-   `stories/**` fence.
+   reference dangled rather than pointing at a different claim. **DISCHARGED 2026-08-12** by the
+   ADR-0348 flip increment, which is not fenced to `stories/**`: the comment now names the LOOK design
+   intent under "Operator-attested glue". The two TerminalDock/TerminalRepoGate docstrings above are
+   still stale and still unfixed.

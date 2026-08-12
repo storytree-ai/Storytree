@@ -2752,8 +2752,12 @@ a.stat:hover {
 /* ── Session panel (ADR-0190 §3 — the VS Code-style session tabs, multi-session-tabs capability).
    VS Code's DESIGN (a tabs list beside the terminal pane, hover-revealed row kill, an accent-marked
    active row) rendered in the dock's own owner-approved warm-dark palette. APPEARANCE IS
-   OPERATOR-ATTESTED (terminal-tabs story UAT leg 1, ADR-0070) — geometry/behaviour is signed by the
-   vitest contracts; these colours sign nothing. */
+   OPERATOR-ATTESTED (ADR-0070) against the LOOK design intent recorded under "Operator-attested glue"
+   in `stories/terminal-tabs/story.md` — geometry/behaviour is signed by the vitest contracts; these
+   colours sign nothing. This comment named "terminal-tabs story UAT leg 1" until 2026-08-12; ADR-0348
+   D6 DELETED that leg (a user EXPERIENCE property is not a user ACCEPTANCE criterion) and BURNED the
+   ordinal rather than renumbering, so the old reference was dangling — never silently re-pointed at a
+   different claim — and the design intent it stood for lives in the story prose named above. */
 .terminal-dock-body-row {
   flex: 1 1 auto;
   min-height: 0;
