@@ -946,6 +946,8 @@ export interface CodexContainmentIo {
   readonly codexVersion: () => string;
   readonly managedDir: () => string;
   readonly managedNodePath: () => string;
+  /** Test/deployment seam for the administrator-owned exact Git executable. */
+  readonly gitCommand?: () => readonly string[];
   /** Present for proof that this repository command never installs ProgramData. */
   readonly writeFile: (target: string, body: string) => void;
 }
@@ -1079,6 +1081,7 @@ export async function codexSessionContainmentCommand(
     codexVersion: version,
     managedDir: io.managedDir(),
     managedNodePath: io.managedNodePath(),
+    ...(io.gitCommand === undefined ? {} : { gitCommand: io.gitCommand() }),
   });
   if (!bundle.ok) return { ok: false, body: `REFUSED — ${bundle.reason}`, next };
   return {

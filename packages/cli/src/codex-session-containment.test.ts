@@ -36,7 +36,11 @@ test("the production containment IO probes this registered checkout and pinned C
   assert.ok(path.isAbsolute(probe.commonDir));
   assert.match(defaultCodexContainmentIo.codexVersion(), /^codex-cli \d+\.\d+\.\d+/);
   assert.equal(defaultCodexContainmentIo.managedNodePath(), process.execPath);
-  assert.ok(path.isAbsolute(defaultCodexContainmentIo.managedDir()));
+  assert.ok(
+    process.platform === "win32"
+      ? path.isAbsolute(defaultCodexContainmentIo.managedDir())
+      : path.win32.isAbsolute(defaultCodexContainmentIo.managedDir()),
+  );
   assert.equal(
     defaultCodexContainmentIo.canonicalize(path.join(probe.topLevel, "not-created-yet", "file.txt")),
     path.join(probe.topLevel, "not-created-yet", "file.txt"),
@@ -45,7 +49,8 @@ test("the production containment IO probes this registered checkout and pinned C
 });
 
 function norm(value: string): string {
-  return path.resolve(value).replaceAll("\\", "/").toLowerCase();
+  const resolved = path.resolve(value).replaceAll("\\", "/");
+  return process.platform === "win32" ? resolved.toLowerCase() : resolved;
 }
 
 function worktreeProbe(overrides: Partial<CodexGitProbe> = {}): CodexGitProbe {
@@ -155,6 +160,7 @@ test("managed bundle selects one exact profile, omits full access, and never mix
     codexVersion: "codex-cli 0.145.0",
     managedDir: path.resolve("C:/ProgramData/OpenAI/Codex/Storytree"),
     managedNodePath: path.resolve("C:/Program Files/nodejs/node.exe"),
+    gitCommand: [process.execPath],
   });
   if (!bundle.ok) assert.fail(bundle.reason);
 
@@ -191,6 +197,7 @@ test("managed bundle selects one exact profile, omits full access, and never mix
     codexVersion: "codex-cli 0.145.0",
     managedDir: path.resolve("C:/ProgramData/OpenAI/Codex/Storytree"),
     managedNodePath: path.resolve("C:/Program Files/nodejs/node.exe"),
+    gitCommand: [process.execPath],
   });
   if (!otherBundle.ok) assert.fail(otherBundle.reason);
   assert.notEqual(bundle.policyPath, otherBundle.policyPath, "concurrent writers never alias policy receipts");
@@ -226,6 +233,7 @@ test("generated live-claim probe is runnable with an admin-deployed locked depen
     codexVersion: "codex-cli 0.145.0",
     managedDir: temp,
     managedNodePath: process.execPath,
+    gitCommand: [process.execPath],
   });
   if (!bundle.ok) assert.fail(bundle.reason);
   writeFileSync(bundle.claimProbeScriptPath, bundle.managedClaimProbeScript);
@@ -262,6 +270,7 @@ test("lobby bundle remains read-only and names only the trusted bootstrap actuat
     codexVersion: "codex-cli 0.145.0",
     managedDir: path.resolve("C:/ProgramData/OpenAI/Codex/Storytree"),
     managedNodePath: path.resolve("C:/Program Files/nodejs/node.exe"),
+    gitCommand: [process.execPath],
   });
   if (!bundle.ok) assert.fail(bundle.reason);
   assert.match(bundle.requirementsToml, /storytree_codex_lobby/);
@@ -557,6 +566,7 @@ test("dry-run command emits a bundle but the repository command never installs P
     codexVersion: () => "codex-cli 0.145.0",
     managedDir: () => path.resolve("C:/ProgramData/OpenAI/Codex/Storytree"),
     managedNodePath: () => path.resolve("C:/Program Files/nodejs/node.exe"),
+    gitCommand: () => [process.execPath],
     writeFile: (target) => writes.push(target),
   };
   const ledger = { claimsBySession: async () => [claim()] };
