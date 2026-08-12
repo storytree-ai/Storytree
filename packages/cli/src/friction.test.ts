@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { InMemoryStore } from "@storytree/storage-protocol";
+import { InMemoryStore, type Store } from "@storytree/storage-protocol";
 import { Friction } from "@storytree/library";
 
 import { cliActorFor } from "./cli-actor.js";
@@ -1041,4 +1041,80 @@ test("an unknown friction subcommand is guidance, not a throw", async () => {
   const env = await run(["friction", "frobnicate"], { store: s });
   assert.equal(env.ok, false);
   assert.match(env.body, /unknown friction command/);
+});
+
+// ---------------------------------------------------------------------------
+// ADR-0352 — `reinforce` and `route` are FIELD-SCOPED.
+//
+// These two verbs share a row and are written by DIFFERENT people: `route` is the adjudicator's
+// seven-question record, `reinforce` is the testimony of whoever hit the friction again. Under the
+// whole-doc write each carried a stale copy of the other's field, so a reinforcement landing between
+// an adjudication's read and its write was reverted — and vice versa — with both reporting success.
+//
+// The race is mechanised rather than described: {@link raceStore} lands ONE sibling write at the
+// verb's read of the item and hands the verb the snapshot from BEFORE it. Both halves are asserted —
+// the sibling's field intact AND this verb's own change landed — since a write that landed nothing
+// would satisfy the first alone.
+// ---------------------------------------------------------------------------
+
+/** A store that lands one sibling write into `target` at the verb's read, returning the older doc. */
+function raceStore(inner: InMemoryStore, target: string, sibling: Record<string, unknown>): Store & { fired(): boolean } {
+  let fired = false;
+  return {
+    fired: () => fired,
+    getDoc: async (id) => {
+      const before = await inner.getDoc(id);
+      if (id === target && !fired) {
+        fired = true;
+        await inner.patchDoc({ id, fields: sibling });
+      }
+      return before;
+    },
+    upsertDoc: (input) => inner.upsertDoc(input),
+    patchDoc: (input) => inner.patchDoc(input),
+    queryDocs: (filter) => inner.queryDocs(filter),
+    deleteDoc: (id, opts) => inner.deleteDoc(id, opts),
+    appendEvent: (e) => inner.appendEvent(e),
+    readEvents: (filter) => inner.readEvents(filter),
+  };
+}
+
+test("ADR-0352: reinforce appends its testimony, and the adjudicator's concurrent routing survives", async () => {
+  const s = store();
+  const dirs = tempDirs();
+  await fileNew(s, frictionDoc("race-1"), dirs, { writable: true });
+  const racy = raceStore(s, "race-1", {
+    route: "guardrail",
+    routeReason: "the adjudicator's seven-question record, ~2,000 characters of it",
+  });
+
+  const env = await run(
+    ["friction", "reinforce", "race-1", "--evidence", "hit again on PR #1300", "--pg"],
+    { store: racy, writable: true, friction: frictionDeps(dirs) },
+  );
+
+  assert.equal(env.ok, true, env.body);
+  assert.equal(racy.fired(), true, "precondition: the sibling write actually interleaved");
+  const doc = (await s.getDoc("race-1"))?.doc as Record<string, unknown>;
+  assert.equal(doc["routeReason"], "the adjudicator's seven-question record, ~2,000 characters of it");
+  assert.equal((doc["reinforcedBy"] as unknown[]).length, 1, "and the reinforcement itself landed");
+});
+
+test("ADR-0352: route writes its adjudication, and a concurrent reinforcement survives", async () => {
+  const s = store();
+  const dirs = tempDirs();
+  await fileNew(s, frictionDoc("race-2"), dirs, { writable: true });
+  const testimony = [{ branch: "claude/someone-else", date: "2026-07-06", evidence: "hit again on PR #1301" }];
+  const racy = raceStore(s, "race-2", { reinforcedBy: testimony });
+
+  const env = await run(
+    ["friction", "route", "race-2", "--route", "guardrail", "--reason", "It is a standing rule, not a tool gap.", "--pg"],
+    { store: racy, writable: true, actor: cliActorFor(BRANCH), friction: frictionDeps(dirs) },
+  );
+
+  assert.equal(env.ok, true, env.body);
+  assert.equal(racy.fired(), true, "precondition: the sibling write actually interleaved");
+  const doc = (await s.getDoc("race-2"))?.doc as Record<string, unknown>;
+  assert.deepEqual(doc["reinforcedBy"], testimony, "a bystander's recurrence evidence is not the adjudicator's to revert");
+  assert.equal(doc["route"], "guardrail", "and the adjudication itself landed");
 });

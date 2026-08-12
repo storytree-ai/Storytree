@@ -367,7 +367,9 @@ function arcShowNext(rollup: ArcRollup, pg: boolean): string[] {
 // edit`, not a hand-rolled `getDoc → mutate → upsertDoc` bypass. Named flags mean the author never
 // guesses a schema field name, and long/multi-line prose comes from a file (`@path`, resolved by the
 // dispatch layer) so shell quoting never mangles it into literal `\n`. `friction`'s reinforce/route
-// verbs are the precedent: read the doc, mutate one structured slice, re-validate the WHOLE doc, upsert.
+// verbs are the precedent, and both moved with these: a MUTATION names the fields it changes and
+// patches them onto current state inside the store's own write ({@link patchFields}, ADR-0352). Only
+// a CREATION writes a whole doc, because only a creation has a whole doc to write.
 // ---------------------------------------------------------------------------
 
 /** The write context the arc edit verbs need: the live store, the writable flag, an actor + clock. */
@@ -420,6 +422,56 @@ async function loadArcForWrite(
   const doc =
     typeof stored.doc === "object" && stored.doc !== null ? { ...(stored.doc as Record<string, unknown>) } : {};
   return { doc, storedKeys: Object.keys(doc) };
+}
+
+/**
+ * The FIELD-SCOPED write behind every arc-side MUTATION (ADR-0352) — the honest primitive for a verb
+ * that changes two or three named fields of a doc it read moments ago.
+ *
+ * `upsertDoc` writes back the WHOLE doc the caller assembled from its OWN read, so everything a
+ * concurrent session landed between that read and this write is reverted — including fields the verb
+ * never mentions, with both writers reporting success. Measured, not theoretical: it silently reverted
+ * 7,058 characters of `session-orchestrator`'s guidance (ADR-0352 Context). `patchDoc` merges `fields`
+ * onto whatever the store CURRENTLY holds, inside the write itself, so an unnamed key survives.
+ *
+ * `fields` is exactly what lands — including the `updatedAt` stamp, which each caller passes rather
+ * than having it added here, so the local copy a refusal is reported against and the doc that
+ * actually lands can never say different things.
+ *
+ * `validate` runs on the MERGED doc, still inside the write: validating our own stale copy out here
+ * would prove nothing about what lands, and skipping it would skip migrate-on-write.
+ *
+ * CREATION keeps `upsertDoc` (`arc new`, `arc increment add|new` via {@link upsertIncrement}) — a
+ * patch never creates, and answers `retired` for an id that has gone since the read above.
+ */
+async function patchFields(
+  deps: ArcWriteDeps,
+  id: string,
+  kind: string,
+  fields: Readonly<Record<string, unknown>>,
+): Promise<{ saved: StoredDoc } | { invalid: unknown } | { retired: true }> {
+  let saved: StoredDoc | null;
+  try {
+    saved = await deps.store.patchDoc({
+      id,
+      fields,
+      kind,
+      actor: deps.actor ?? defaultCliActor(),
+      validate: (merged) => upcastAndValidate(merged),
+    });
+  } catch (e) {
+    return { invalid: e };
+  }
+  return saved === null ? { retired: true } : { saved };
+}
+
+/** The honest envelope when a patch finds the doc gone — it existed at the read a few lines above. */
+function retiredUnderfoot(kind: string, id: string, what: string): Envelope {
+  return {
+    ok: false,
+    body: `${kind} "${id}" was retired while ${what} — nothing was written.`,
+    next: ["storytree arc list --pg", `storytree library artifact ${id} --pg`],
+  };
 }
 
 /**
@@ -733,26 +785,31 @@ export async function arcEdit(
   const found = await loadArcForWrite(deps, id);
   if ("error" in found) return found.error;
 
-  const base = found.doc;
-  if (opts.intent !== undefined) base["intent"] = opts.intent;
-  if (opts.endState !== undefined) base["endState"] = opts.endState;
-  base["updatedAt"] = deps.now;
+  // FIELD-SCOPED (ADR-0352): this names the narrative field(s) it was given and the stamp, so a
+  // sibling session's concurrent edit to any OTHER field of this arc survives it. `base` is the local
+  // copy of what the write means to say, kept only so a refusal is reported against that doc.
+  const fields: Record<string, unknown> = { updatedAt: deps.now };
+  if (opts.intent !== undefined) fields["intent"] = opts.intent;
+  if (opts.endState !== undefined) fields["endState"] = opts.endState;
+  const base = Object.assign(found.doc, fields);
 
-  let valid: unknown;
-  try {
-    valid = upcastAndValidate(base);
-  } catch (e) {
+  const written = await patchFields(deps, id, "arc", fields);
+  if ("invalid" in written) {
     return {
       ok: false,
-      body: `edit would make "${id}" invalid:\n${explainDocValidationError(base, e, { storedKeys: found.storedKeys })}`,
+      body: `edit would make "${id}" invalid:\n${explainDocValidationError(base, written.invalid, { storedKeys: found.storedKeys })}`,
       next: [`storytree arc show ${id} --pg`],
     };
   }
-  const saved = await deps.store.upsertDoc({ id, kind: "arc", doc: valid, actor: deps.actor ?? defaultCliActor() });
+  if ("retired" in written) return retiredUnderfoot("arc", id, "this edit was being prepared");
   const changed = [opts.intent !== undefined ? "intent" : null, opts.endState !== undefined ? "endState" : null]
     .filter((s): s is string => s !== null)
     .join(", ");
-  return { ok: true, body: `updated arc ${saved.id} (${changed}).`, next: [`storytree arc show ${saved.id} --pg`] };
+  return {
+    ok: true,
+    body: `updated arc ${written.saved.id} (${changed}).`,
+    next: [`storytree arc show ${written.saved.id} --pg`],
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -780,11 +837,17 @@ function firstSentenceOf(text: string, cap: number): string {
 const DERIVED_TITLE_CAP = 80;
 
 /**
- * Validate and upsert one increment doc, reporting a refusal against the doc the caller MEANT.
+ * Validate and CREATE one increment doc, reporting a refusal against the doc the caller MEANT.
  *
- * Shared by all three verbs so the conditional invariants (`assertIncrementInvariants`) are enforced
- * on one path — a verb that assembled its own `upsertDoc` call could write a `proposal` with no
- * `parked` stamp and quietly un-measure it from the delivery ceiling.
+ * Shared by the two verbs that mint a row (`arc increment add|new`) so the conditional invariants
+ * (`assertIncrementInvariants`) are enforced on one path — a verb that assembled its own `upsertDoc`
+ * call could write a `proposal` with no `parked` stamp and quietly un-measure it from the delivery
+ * ceiling.
+ *
+ * `arc increment close` no longer comes through here (ADR-0352): it MUTATES an existing row, so it
+ * patches the three fields it names rather than writing back a whole doc it read moments earlier.
+ * That funnels no less: the invariants live in `upcastAndValidate`, which {@link patchFields} runs on
+ * the MERGED doc inside the write, so both paths meet the same boundary.
  */
 async function upsertIncrement(
   deps: ArcWriteDeps,
@@ -912,15 +975,18 @@ async function recomputeArcLifecycle(deps: ArcWriteDeps, arcId: string): Promise
   const current = doc["lifecycle"] === "closed" ? "closed" : "active";
   if (current === desired) return null;
 
-  doc["lifecycle"] = desired;
-  doc["updatedAt"] = deps.now;
-  let valid: unknown;
-  try {
-    valid = upcastAndValidate(doc);
-  } catch (e) {
-    return `WARNING: arc ${arcId} should have auto-${desired === "closed" ? "closed" : "reopened"} but the flip failed validation: ${(e as Error).message} — fix by hand: storytree arc show ${arcId} --pg`;
+  // FIELD-SCOPED (ADR-0352): a bookkeeping flip writes the flag and the stamp and NOTHING else. The
+  // whole-doc write this replaced was the worst shape of the three here — it fires from inside every
+  // increment write, so a sibling's `arc edit` landing in that window was reverted by a projection
+  // that never meant to touch the narrative at all.
+  const wouldHave = `arc ${arcId} should have auto-${desired === "closed" ? "closed" : "reopened"}`;
+  const written = await patchFields(deps, arcId, "arc", { lifecycle: desired, updatedAt: deps.now });
+  if ("invalid" in written) {
+    return `WARNING: ${wouldHave} but the flip failed validation: ${(written.invalid as Error).message} — fix by hand: storytree arc show ${arcId} --pg`;
   }
-  await deps.store.upsertDoc({ id: arcId, kind: "arc", doc: valid, actor: deps.actor ?? defaultCliActor() });
+  if ("retired" in written) {
+    return `WARNING: ${wouldHave} but the arc was retired before the flip landed — nothing was written.`;
+  }
   return desired === "closed"
     ? `arc ${arcId} auto-closed — no open increments remain (reopens automatically the moment new work is parked, ADR-0335).`
     : `arc ${arcId} reopened — open work is back on it (ADR-0335).`;
@@ -1295,15 +1361,23 @@ async function dropDischargedCitations(
       const refs = Array.isArray(base["references"]) ? (base["references"] as unknown[]) : [];
       const next = refs.filter((r) => !(typeof r === "string" && r.trim() === citation));
       if (next.length === refs.length) continue; // no citation to drop
-      base["references"] = next;
-      base["updatedAt"] = deps.now;
-      const valid = upcastAndValidate(base);
-      await deps.store.upsertDoc({
-        id: frictionId,
-        kind: "friction",
-        doc: valid,
-        actor: deps.actor ?? defaultCliActor(),
+      // FIELD-SCOPED (ADR-0352): `references` and the stamp, nothing else. This verb reaches into
+      // ANOTHER adjudicator's friction row on its way past, so a whole-doc write here would revert
+      // whatever they landed on it — a `routeReason` most of all — for a citation edit. (The
+      // reference LIST itself is still last-write-wins: same-field overlap is what ADR-0352 leaves
+      // open, and it is the one field this write is entitled to be opinionated about.)
+      const written = await patchFields(deps, frictionId, "friction", {
+        references: next,
+        updatedAt: deps.now,
       });
+      if ("invalid" in written) {
+        failed.push({ friction: frictionId, why: (written.invalid as Error).message });
+        continue;
+      }
+      if ("retired" in written) {
+        failed.push({ friction: frictionId, why: "it was retired before the drop landed" });
+        continue;
+      }
       dropped.push(frictionId);
     } catch (e) {
       failed.push({ friction: frictionId, why: e instanceof Error ? e.message : String(e) });
@@ -1401,16 +1475,31 @@ export async function arcIncrementClose(
     };
   }
 
-  doc["status"] = "closed";
-  doc["outcome"] = {
-    date,
-    ...(pr !== undefined && pr !== "" ? { pr } : {}),
-    ...(note !== undefined && note !== "" ? { note } : {}),
+  // FIELD-SCOPED (ADR-0352): a closure names `status`, `outcome` and the stamp. Everything else on
+  // the row — `body`, `objective`, `cites`, a correction a sibling made in place while this ran — is
+  // not this write's to carry back. {@link upsertIncrement} stays the CREATION path; the conditional
+  // invariants it exists to funnel live in `upcastAndValidate` (`assertIncrementInvariants`), which
+  // runs on the MERGED doc inside the write, so a patch is held to exactly the same boundary.
+  const fields: Record<string, unknown> = {
+    status: "closed",
+    outcome: {
+      date,
+      ...(pr !== undefined && pr !== "" ? { pr } : {}),
+      ...(note !== undefined && note !== "" ? { note } : {}),
+    },
+    updatedAt: deps.now,
   };
-  doc["updatedAt"] = deps.now;
+  Object.assign(doc, fields);
 
-  const result = await upsertIncrement(deps, doc, `closing increment "${id}"`, arcRef);
-  if ("ok" in result) return result;
+  const written = await patchFields(deps, id, "increment", fields);
+  if ("invalid" in written) {
+    return {
+      ok: false,
+      body: `closing increment "${id}" would be invalid:\n${explainDocValidationError(doc, written.invalid)}`,
+      next: [`storytree arc show ${arcRef} --pg`],
+    };
+  }
+  if ("retired" in written) return retiredUnderfoot("increment", id, "the closure was being prepared");
 
   // The reverse gear, in the SAME verb (see {@link dropDischargedCitations}) — after the close, so a
   // refused close never strips a citation off a still-parked entry.
@@ -1425,12 +1514,12 @@ export async function arcIncrementClose(
   return {
     ok: true,
     body: [
-      `closed increment ${result.saved.id} on arc ${arcRef} — ${date}${pr !== undefined && pr !== "" ? `  ${pr}` : ""}` +
+      `closed increment ${written.saved.id} on arc ${arcRef} — ${date}${pr !== undefined && pr !== "" ? `  ${pr}` : ""}` +
         (note !== undefined && note !== "" ? `\n${note}` : ""),
       ...citationLines(citations, arcRef),
       ...(lifecycleNote !== null ? [lifecycleNote] : []),
     ].join("\n"),
-    next: [`storytree arc show ${arcRef} --pg`, `storytree library artifact ${result.saved.id} --pg`],
+    next: [`storytree arc show ${arcRef} --pg`, `storytree library artifact ${written.saved.id} --pg`],
   };
 }
 
@@ -1564,33 +1653,33 @@ export async function arcClose(
   });
   if (!terminal.ok) return terminal;
 
-  // 2. Then the flip.
-  base["lifecycle"] = "closed";
-  base["updatedAt"] = deps.now;
-  let valid: unknown;
-  try {
-    valid = upcastAndValidate(base);
-  } catch (e) {
+  // 2. Then the flip — FIELD-SCOPED (ADR-0352): the flag and the stamp. `arcIncrementAdd` above has
+  // already run a recompute against this same arc, so the doc `found` holds is a read from before
+  // that; writing it back whole would revert not only a sibling's edit but this verb's own.
+  const fields: Record<string, unknown> = { lifecycle: "closed", updatedAt: deps.now };
+  Object.assign(base, fields);
+  const written = await patchFields(deps, id, "arc", fields);
+  if ("invalid" in written) {
     return {
       ok: false,
       body:
         `the terminal increment was recorded, but the lifecycle flip would make "${id}" invalid:\n` +
-        `${explainDocValidationError(base, e, { storedKeys: found.storedKeys })}\n` +
+        `${explainDocValidationError(base, written.invalid, { storedKeys: found.storedKeys })}\n` +
         "the arc is still OPEN — fix the doc and re-run `arc close` (it will refuse to duplicate the increment).",
       next: [`storytree arc show ${id} --pg`],
     };
   }
-  const saved = await deps.store.upsertDoc({ id, kind: "arc", doc: valid, actor: deps.actor ?? defaultCliActor() });
+  if ("retired" in written) return retiredUnderfoot("arc", id, "the terminal increment was being recorded");
   const date = opts.date?.trim() !== undefined && opts.date.trim() !== "" ? opts.date.trim() : deps.now.slice(0, 10);
   const pr = opts.pr?.trim();
   return {
     ok: true,
     body: [
-      `closed arc ${saved.id} — ${date}${pr !== undefined && pr !== "" ? `  ${pr}` : ""}  ${outcome}`,
+      `closed arc ${written.saved.id} — ${date}${pr !== undefined && pr !== "" ? `  ${pr}` : ""}  ${outcome}`,
       "(lifecycle: closed; the terminal increment is its own row).",
       "It drops out of `storytree arc list` (--all / --closed still show it) and reads as archived on the library shelves.",
     ].join("\n"),
-    next: [`storytree arc show ${saved.id} --pg`, "storytree arc list --pg"],
+    next: [`storytree arc show ${written.saved.id} --pg`, "storytree arc list --pg"],
   };
 }
 
@@ -1687,32 +1776,33 @@ export async function arcReopen(
   // 2. Then the flip. Written EXPLICITLY rather than by deleting the field: `lifecycleOf` reads
   // absent and "active" identically, so both would render the same — but only a stored value
   // records that the state was decided here rather than never set.
-  base["lifecycle"] = "active";
-  base["updatedAt"] = deps.now;
-  let valid: unknown;
-  try {
-    valid = upcastAndValidate(base);
-  } catch (e) {
+  // FIELD-SCOPED (ADR-0352), for the same reason as `arc close`: the increment write above has
+  // already recomputed this arc, so `base` is a pre-recompute read and writing it back whole would
+  // revert that as well as anything a sibling landed.
+  const fields: Record<string, unknown> = { lifecycle: "active", updatedAt: deps.now };
+  Object.assign(base, fields);
+  const written = await patchFields(deps, id, "arc", fields);
+  if ("invalid" in written) {
     return {
       ok: false,
       body:
         `the reopening increment was recorded, but the lifecycle flip would make "${id}" invalid:\n` +
-        `${explainDocValidationError(base, e, { storedKeys: found.storedKeys })}\n` +
+        `${explainDocValidationError(base, written.invalid, { storedKeys: found.storedKeys })}\n` +
         "the arc is still CLOSED — fix the doc and re-run `arc reopen`.",
       next: [`storytree arc show ${id} --pg`],
     };
   }
-  const saved = await deps.store.upsertDoc({ id, kind: "arc", doc: valid, actor: deps.actor ?? defaultCliActor() });
+  if ("retired" in written) return retiredUnderfoot("arc", id, "the reopening increment was being recorded");
   const date = opts.date?.trim() !== undefined && opts.date.trim() !== "" ? opts.date.trim() : deps.now.slice(0, 10);
   const pr = opts.pr?.trim();
   return {
     ok: true,
     body: [
-      `re-opened arc ${saved.id} — ${date}${pr !== undefined && pr !== "" ? `  ${pr}` : ""}  ${reason}`,
+      `re-opened arc ${written.saved.id} — ${date}${pr !== undefined && pr !== "" ? `  ${pr}` : ""}  ${reason}`,
       `(lifecycle: active; the ${REOPEN_MARKER} increment is its own row and stays in the log — increments are durable, ADR-0305 D3).`,
       "It is back in the default `storytree arc list` worklist.",
     ].join("\n"),
-    next: [`storytree arc show ${saved.id} --pg`, "storytree arc list --pg"],
+    next: [`storytree arc show ${written.saved.id} --pg`, "storytree arc list --pg"],
   };
 }
 
@@ -1833,24 +1923,20 @@ export async function arcReconcile(
       failed.push(`  ${d.id} — vanished between the read and the write; re-run to pick it up`);
       continue;
     }
-    const doc = { ...(stored.doc as Record<string, unknown>) };
-    doc["lifecycle"] = d.derived;
-    doc["updatedAt"] = deps.now;
-    let valid: unknown;
-    try {
-      valid = upcastAndValidate(doc);
-    } catch (e) {
+    // FIELD-SCOPED (ADR-0352): the sweep repairs the flag and nothing else. It walks EVERY drifted
+    // arc in one pass, so a whole-doc write here reverted a sibling's edit to any arc the sweep
+    // happened to touch — a repair that quietly undid unrelated work.
+    const written = await patchFields(deps, d.id, "arc", { lifecycle: d.derived, updatedAt: deps.now });
+    if ("invalid" in written) {
       // One arc's invalid doc must never abort the sweep — it is reported and the rest proceed
       // (ADR-0095: no silent caps, so the failure is named rather than swallowed).
-      failed.push(`  ${d.id} — the flip would make it invalid: ${(e as Error).message}`);
+      failed.push(`  ${d.id} — the flip would make it invalid: ${(written.invalid as Error).message}`);
       continue;
     }
-    await deps.store.upsertDoc({
-      id: d.id,
-      kind: "arc",
-      doc: valid,
-      actor: deps.actor ?? defaultCliActor(),
-    });
+    if ("retired" in written) {
+      failed.push(`  ${d.id} — retired between the read and the write; re-run to pick it up`);
+      continue;
+    }
     applied.push(`  ${d.id} → ${d.derived}`);
   }
 
