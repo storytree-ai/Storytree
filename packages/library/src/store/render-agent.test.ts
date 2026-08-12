@@ -350,19 +350,81 @@ test("a real agent id beats an alias that collides with it (ADR-0325 D4)", async
   );
 });
 
-test("renderCodexAgentFile emits the native custom-agent TOML shape without a foreign model tier", async () => {
+test("renderCodexAgentFile makes model inheritance explicit without pinning an untiered role", async () => {
   const store = await seeded();
   const res = await renderCodexAgentFile(store, "clean-agent");
   assert.equal(res.ok, true);
   if (!res.ok) return;
 
-  assert.match(res.content, /^name = "clean-agent"\ndescription = "a role whose refs all resolve"\n/);
+  assert.match(
+    res.content,
+    /^name = "clean-agent"\ndescription = "a role whose refs all resolve"\n# Storytree model policy: inherit; no Codex model is pinned \(Library model tier: unset\)\.\n/,
+  );
   assert.match(res.content, /developer_instructions = """\n/);
   assert.ok(res.content.includes(GENERATED_AGENT_MARKER));
   assert.match(res.content, /The clean agent does one thing\./);
-  assert.ok(!res.content.includes("model ="), "Codex inherits its spawning session model");
+  assert.doesNotMatch(res.content, /^model(?:_reasoning_effort)?\s*=/m);
   assert.ok(res.content.endsWith("\n"));
   assert.deepEqual(res.missingRefs, []);
+});
+
+test("a Claude model tier stays visible as foreign metadata but never becomes a Codex pin", async () => {
+  const store = await seeded();
+  await seedAliasAgent(store, undefined, "opus");
+  const res = await renderCodexAgentFile(store, "alias-agent");
+  assert.equal(res.ok, true);
+  if (!res.ok) return;
+
+  assert.match(
+    res.content,
+    /^# Storytree model policy: inherit; no Codex model is pinned \(Library model tier: opus, Claude-only\)\.$/m,
+  );
+  assert.doesNotMatch(res.content, /^model(?:_reasoning_effort)?\s*=/m);
+});
+
+test("Codex adapts Claude-only tool vocabulary and memory assumptions without changing other harnesses", async () => {
+  const store = await seeded();
+  await store.upsertDoc({
+    id: "harness-specific-agent",
+    kind: "agent",
+    doc: {
+      kind: "agent",
+      title: "Harness Specific Agent",
+      description: "carries legacy harness vocabulary",
+      oneLine: "The agent keeps its authority boundary across harnesses.",
+      role: "Use the granted surface only; never widen it.",
+      outcome: "The same role runs truthfully in each harness.",
+      context: ["asset:test-principle"],
+      tools:
+        "Read / Grep / Glob plus `Glob` / `Grep`, Write / Edit and Bash; inspect `~/.claude/projects/<project>/memory/` for the agent-memory pass.",
+      workflow: "Read the inputs, then run the agent-memory pass and stop.",
+      references: [],
+    },
+  });
+
+  const codex = await renderCodexAgentFile(store, "harness-specific-agent");
+  const claude = await renderAgentFile(store, "harness-specific-agent");
+  const cursor = await renderCursorAgentFile(store, "harness-specific-agent");
+  const gemini = await renderGeminiAgentFile(store, "harness-specific-agent");
+  const opencode = await renderOpencodeAgentFile(store, "harness-specific-agent");
+  for (const result of [codex, claude, cursor, gemini, opencode]) assert.equal(result.ok, true);
+  if (!codex.ok || !claude.ok || !cursor.ok || !gemini.ok || !opencode.ok) return;
+
+  assert.doesNotMatch(codex.content, /Read \/ Grep \/ Glob|Write \/ Edit|\bBash\b/);
+  assert.doesNotMatch(codex.content, /~\/\.claude\/projects/);
+  assert.match(codex.content, /read-only filesystem and search access/);
+  assert.match(codex.content, /plus `filesystem search`, file-editing access/);
+  assert.doesNotMatch(codex.content, /`filesystem search`\s*\/\s*`filesystem search`/);
+  assert.match(codex.content, /file-editing access and shell access/);
+  assert.match(codex.content, /## Codex runtime/);
+  assert.match(codex.content, /Codex local memories are separate generated state/);
+  assert.match(codex.content, /skip only the agent-memory leg unless the caller supplies a compatible memory directory/i);
+
+  for (const result of [claude, cursor, gemini, opencode]) {
+    assert.match(result.content, /Read \/ Grep \/ Glob plus `Glob` \/ `Grep`, Write \/ Edit and Bash/);
+    assert.match(result.content, /~\/\.claude\/projects\/<project>\/memory\//);
+    assert.doesNotMatch(result.content, /## Codex runtime/);
+  }
 });
 
 test("renderCodexAgentFile escapes a multiline prompt that contains TOML delimiters", async () => {

@@ -62,7 +62,11 @@ generated-view gate.
    - `renderAgentFile` remains the backwards-compatible Claude renderer.
    - `renderCursorAgentFile` emits Cursor-native frontmatter and the same generated marker +
      essentials prompt.
-   - Codex and Gemini render the same essentials through their native TOML/Markdown wrappers;
+   - Codex and Gemini render the same Library-authored essentials through their native TOML/Markdown
+     wrappers. A final harness adapter may translate foreign tool labels or unavailable private paths
+     into honest capability prose without changing the role or authority boundary; Codex currently
+     does this and adds an inert model-inheritance comment, while the other harness bodies remain
+     unchanged.
      OpenCode renders them through its native Markdown wrapper.
    - `pnpm build:agents` writes and orphan-prunes `.claude/agents/*.md`, `.cursor/agents/*.md`,
      `.codex/agents/*.toml`, `.gemini/agents/*.md`, and `.opencode/agent/*.md`.

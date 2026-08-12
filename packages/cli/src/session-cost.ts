@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 import { resolveTranscriptDir } from "@storytree/context-traversal-transcript";
@@ -10,9 +11,9 @@ import type { Envelope } from "./envelope.js";
  * (ADR-0323 D4, `session-cost-arc` increment 2, enacting
  * `process:measure-session-cost-from-transcripts`).
  *
- * WHAT IT IS. It prices a window of past sessions from the harness's own JSONL transcripts under
- * `~/.claude/projects/**`, per assistant turn, from the recorded `message.usage` and
- * `message.model`. ADR-0323 D4 makes that ADR explicitly falsifiable — "the measurement is the
+ * WHAT IT IS. It measures a window of past sessions from the harnesses' own JSONL transcripts
+ * under `~/.claude/projects` and `~/.codex/sessions`, per assistant turn, from their recorded usage
+ * and model fields. ADR-0323 D4 makes that ADR explicitly falsifiable — "the measurement is the
  * check, not this prose" — and the arc's end-state item 5 requires the analysis to be re-runnable
  * over any window. Increment 1 shipped only the METHOD; the analyzers lived in a session scratchpad
  * and are gone, so none of the arc's claims could be falsified by a later session. This is that
@@ -174,6 +175,15 @@ export interface Turn {
   readonly toolNames: readonly string[];
   /** Bash `command` inputs seen on this turn, for phase-marker detection. */
   readonly commands: readonly string[];
+  /** Included in `axes.output`; exposed separately because Codex records the split. */
+  readonly reasoningOutputTokens?: number;
+}
+
+export interface TranscriptRuntime {
+  readonly startMs: number;
+  readonly endMs: number;
+  /** Sum of explicit completed/aborted turn durations, when the harness recorded it. */
+  readonly durationMs: number;
 }
 
 export interface TranscriptRead {
@@ -182,6 +192,14 @@ export interface TranscriptRead {
   readonly skipped: number;
   /** `<synthetic>` lines — harness-generated, zero usage, never a billed request. */
   readonly synthetic: number;
+  /** Codex rollout metadata. Claude transcripts leave these absent. */
+  readonly runtime?: TranscriptRuntime;
+  readonly sessionId?: string;
+  readonly parentSessionId?: string;
+  readonly cwd?: string;
+  readonly agentType?: string;
+  /** Codex has an unmatched `task_started`; stronger evidence than file mtime on Windows. */
+  readonly active?: boolean;
 }
 
 const EMPTY_READ: TranscriptRead = { turns: [], skipped: 0, synthetic: 0 };
@@ -238,6 +256,7 @@ export function readTranscript(filePath: string): TranscriptRead {
 
 /** {@link readTranscript}'s pure half — the same reduction over already-read bytes. */
 export function parseTranscript(raw: string): TranscriptRead {
+  if (/"type"\s*:\s*"session_meta"/.test(raw)) return parseCodexTranscript(raw);
   let skipped = 0;
   let synthetic = 0;
   const order: string[] = [];
@@ -349,6 +368,133 @@ export function parseTranscript(raw: string): TranscriptRead {
     });
   }
   return { turns, skipped, synthetic };
+}
+
+/** Reduce a recursively discovered Codex `~/.codex/sessions` rollout file to the same turn model. */
+function parseCodexTranscript(raw: string): TranscriptRead {
+  let skipped = 0;
+  const turns: Turn[] = [];
+  const models = new Map<string, string>();
+  let currentTurnId = "";
+  let sequence = 0;
+  let pendingToolIds = new Set<string>();
+  let pendingToolNames: string[] = [];
+  let pendingCommands: string[] = [];
+  let sessionId: string | undefined;
+  let parentSessionId: string | undefined;
+  let cwd: string | undefined;
+  let agentType: string | undefined;
+  let firstStart = Number.POSITIVE_INFINITY;
+  let lastEnd = Number.NEGATIVE_INFINITY;
+  let durationMs = 0;
+  const openTurns = new Set<string>();
+
+  for (const line of raw.split(/\r?\n/)) {
+    if (line.trim() === "") continue;
+    let event: unknown;
+    try {
+      event = JSON.parse(line);
+    } catch {
+      skipped++;
+      continue;
+    }
+    if (!isRecord(event)) continue;
+    const payload = isRecord(event["payload"]) ? event["payload"] : undefined;
+    const timestamp = typeof event["timestamp"] === "string" ? event["timestamp"] : "";
+    if (event["type"] === "session_meta" && payload !== undefined) {
+      sessionId = typeof payload["id"] === "string" ? payload["id"] :
+        typeof payload["session_id"] === "string" ? payload["session_id"] : sessionId;
+      parentSessionId = typeof payload["parent_thread_id"] === "string" ? payload["parent_thread_id"] : undefined;
+      cwd = typeof payload["cwd"] === "string" ? payload["cwd"] : undefined;
+      agentType = typeof payload["agent_role"] === "string" ? payload["agent_role"] : undefined;
+      continue;
+    }
+    if (event["type"] === "turn_context" && payload !== undefined) {
+      const turnId = typeof payload["turn_id"] === "string" ? payload["turn_id"] : currentTurnId;
+      if (turnId !== "" && typeof payload["model"] === "string") models.set(turnId, payload["model"]);
+      continue;
+    }
+    if (event["type"] === "event_msg" && payload?.["type"] === "task_started") {
+      currentTurnId = typeof payload["turn_id"] === "string" ? payload["turn_id"] : `turn-${sequence}`;
+      openTurns.add(currentTurnId);
+      const started = nonNegative(payload["started_at"]);
+      const atMs = started > 0 ? started * 1_000 : Date.parse(timestamp);
+      if (Number.isFinite(atMs)) firstStart = Math.min(firstStart, atMs);
+      continue;
+    }
+    if (
+      event["type"] === "event_msg" &&
+      (payload?.["type"] === "task_complete" || payload?.["type"] === "turn_aborted")
+    ) {
+      if (typeof payload["turn_id"] === "string") openTurns.delete(payload["turn_id"]);
+      const completed = nonNegative(payload["completed_at"]);
+      const atMs = completed > 0 ? completed * 1_000 : Date.parse(timestamp);
+      if (Number.isFinite(atMs)) lastEnd = Math.max(lastEnd, atMs);
+      durationMs += nonNegative(payload["duration_ms"]);
+      continue;
+    }
+    if (event["type"] === "response_item" && payload !== undefined) {
+      const kind = payload["type"];
+      if (kind === "custom_tool_call" || kind === "function_call") {
+        const id = typeof payload["call_id"] === "string" ? payload["call_id"] :
+          typeof payload["id"] === "string" ? payload["id"] : undefined;
+        if (id !== undefined && !pendingToolIds.has(id)) {
+          pendingToolIds.add(id);
+          const recorded = typeof payload["name"] === "string" ? payload["name"] : "";
+          const name = recorded === "spawn_agent" ? "Agent" : recorded === "exec" ? "Bash" : recorded;
+          if (name !== "") pendingToolNames.push(name);
+          const input = typeof payload["input"] === "string" ? payload["input"] :
+            typeof payload["arguments"] === "string" ? payload["arguments"] : "";
+          if (name === "Bash") {
+            const command = /["']command["']\s*:\s*["']([^"']+)/.exec(input)?.[1];
+            if (command !== undefined) pendingCommands.push(command.replace(/\\n/g, "\n"));
+          }
+        }
+      }
+      continue;
+    }
+    if (event["type"] !== "event_msg" || payload?.["type"] !== "token_count") continue;
+    const info = isRecord(payload["info"]) ? payload["info"] : undefined;
+    const usage = info !== undefined && isRecord(info["last_token_usage"]) ? info["last_token_usage"] : undefined;
+    if (usage === undefined || timestamp === "") {
+      skipped++;
+      continue;
+    }
+    const totalInput = nonNegative(usage["input_tokens"]);
+    const cached = Math.min(totalInput, nonNegative(usage["cached_input_tokens"]));
+    const cacheWrite = nonNegative(usage["cache_write_input_tokens"]);
+    const output = nonNegative(usage["output_tokens"]);
+    const reasoning = Math.min(output, nonNegative(usage["reasoning_output_tokens"]));
+    const model = models.get(currentTurnId) ?? "(codex model not recorded)";
+    turns.push({
+      requestId: `${currentTurnId || "turn"}:${sequence++}`,
+      at: timestamp,
+      model,
+      tier: resolveTier(model),
+      axes: { input: Math.max(0, totalInput - cached), cacheRead: cached, cacheWrite5m: cacheWrite, cacheWrite1h: 0, output },
+      toolUseIds: [...pendingToolIds],
+      toolNames: pendingToolNames,
+      commands: pendingCommands,
+      reasoningOutputTokens: reasoning,
+    });
+    pendingToolIds = new Set<string>();
+    pendingToolNames = [];
+    pendingCommands = [];
+  }
+  const runtime = Number.isFinite(firstStart) && Number.isFinite(lastEnd)
+    ? { startMs: firstStart, endMs: Math.max(firstStart, lastEnd), durationMs }
+    : undefined;
+  return {
+    turns,
+    skipped,
+    synthetic: 0,
+    ...(runtime !== undefined ? { runtime } : {}),
+    ...(sessionId !== undefined ? { sessionId } : {}),
+    ...(parentSessionId !== undefined ? { parentSessionId } : {}),
+    ...(cwd !== undefined ? { cwd } : {}),
+    ...(agentType !== undefined ? { agentType } : {}),
+    active: openTurns.size > 0,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -827,8 +973,9 @@ export interface SessionFiles {
   readonly project: string;
   readonly sessionId: string;
   readonly mainFile: string;
-  readonly subagentFiles: ReadonlyArray<{ readonly file: string; readonly metaFile: string }>;
+  readonly subagentFiles: ReadonlyArray<{ readonly file: string; readonly metaFile: string; readonly agentType?: string }>;
   readonly mtimeMs: number;
+  readonly active?: boolean;
 }
 
 /**
@@ -888,10 +1035,91 @@ export function discoverSessions(root: string, projectPrefix: string): SessionFi
   return found;
 }
 
+/**
+ * Codex stores every main and delegated thread as a peer rollout below date directories. Parentage,
+ * cwd and role live in each rollout's `session_meta`, so grouping must follow those recorded IDs;
+ * directory proximity has no meaning.
+ */
+export function discoverCodexSessions(root: string, projectPrefix: string): SessionFiles[] {
+  const files: string[] = [];
+  const walk = (dir: string): void => {
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const target = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(target);
+      else if (entry.isFile() && entry.name.endsWith(".jsonl")) files.push(target);
+    }
+  };
+  walk(root);
+
+  const nodes = new Map<string, { file: string; read: TranscriptRead; mtimeMs: number; project: string }>();
+  for (const file of files) {
+    const read = readTranscript(file);
+    if (read.sessionId === undefined || read.cwd === undefined) continue;
+    const project = slugifyRepoPath(mainCheckoutRoot(read.cwd));
+    if (!project.startsWith(projectPrefix)) continue;
+    try {
+      nodes.set(read.sessionId, { file, read, mtimeMs: fs.statSync(file).mtimeMs, project });
+    } catch {
+      // A rollout removed during the read is simply absent from this snapshot.
+    }
+  }
+
+  const rootOf = (id: string): string => {
+    const seen = new Set<string>();
+    let cursor = id;
+    while (!seen.has(cursor)) {
+      seen.add(cursor);
+      const parent = nodes.get(cursor)?.read.parentSessionId;
+      if (parent === undefined || !nodes.has(parent)) return cursor;
+      cursor = parent;
+    }
+    return id;
+  };
+  const children = new Map<string, Array<{ file: string; metaFile: string; agentType?: string }>>();
+  for (const [id, node] of nodes) {
+    const rootId = rootOf(id);
+    if (rootId === id) continue;
+    const group = children.get(rootId) ?? [];
+    group.push({ file: node.file, metaFile: node.file, ...(node.read.agentType !== undefined ? { agentType: node.read.agentType } : {}) });
+    children.set(rootId, group);
+  }
+  return [...nodes.entries()]
+    .filter(([id]) => rootOf(id) === id)
+    .map(([id, node]) => {
+      const active = node.read.active === true || [...nodes.entries()].some(
+        ([childId, child]) => rootOf(childId) === id && child.read.active === true,
+      );
+      return {
+        project: node.project,
+        sessionId: id,
+        mainFile: node.file,
+        subagentFiles: children.get(id) ?? [],
+        mtimeMs: node.mtimeMs,
+        active,
+      };
+    });
+}
+
 /** `agentType` from a subagent's sidecar. Absent/unreadable is reported, never guessed. */
 export function readAgentType(metaFile: string): string {
   try {
-    const parsed: unknown = JSON.parse(fs.readFileSync(metaFile, "utf8"));
+    const raw = fs.readFileSync(metaFile, "utf8");
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      parsed = JSON.parse(raw.split(/\r?\n/).find((line) => line.includes('"session_meta"')) ?? "{}");
+    }
+    if (isRecord(parsed) && parsed["type"] === "session_meta" && isRecord(parsed["payload"])) {
+      const role = parsed["payload"]["agent_role"];
+      if (typeof role === "string" && role !== "") return role;
+    }
     if (isRecord(parsed) && typeof parsed["agentType"] === "string" && parsed["agentType"] !== "") {
       return parsed["agentType"];
     }
@@ -1156,6 +1384,8 @@ export interface SessionCostReport {
   readonly syntheticLines: number;
   /** The whole population's tokens, on all four axes. */
   readonly axes: TokenAxes;
+  /** Codex reasoning output, already included in `axes.output` and never added twice. */
+  readonly reasoningOutputTokens: number;
   /** Cost by axis, in the same shape — the SPLIT is the finding. */
   readonly cost: TokenAxes;
   readonly totalCost: number;
@@ -1197,7 +1427,7 @@ export interface SessionCostReport {
 }
 
 export interface CollectOpts {
-  /** Transcript root. Defaults to `resolveTranscriptDir()` (`STORYTREE_TRANSCRIPT_DIR` or `~/.claude/projects`). */
+  /** Explicit transcript root (tests/embedding). Production scans both Claude and Codex roots. */
   readonly root?: string | undefined;
   readonly projectPrefix: string;
   /** Most-recent N sessions. */
@@ -1240,14 +1470,20 @@ function inWindow(at: string, from: string | undefined, to: string | undefined):
 }
 
 export function collectSessionCost(opts: CollectOpts): SessionCostReport {
-  const root = opts.root ?? resolveTranscriptDir();
-  const all = discoverSessions(root, opts.projectPrefix).sort((a, b) => b.mtimeMs - a.mtimeMs);
+  const root = opts.root ?? `${resolveTranscriptDir()} + ${path.join(os.homedir(), ".codex", "sessions")}`;
+  const all = (opts.root === undefined
+    ? [
+        ...discoverSessions(resolveTranscriptDir(), opts.projectPrefix),
+        ...discoverCodexSessions(path.join(os.homedir(), ".codex", "sessions"), opts.projectPrefix),
+      ]
+    : [...discoverSessions(opts.root, opts.projectPrefix), ...discoverCodexSessions(opts.root, opts.projectPrefix)]
+  ).sort((a, b) => b.mtimeMs - a.mtimeMs);
 
   const activeCutoff = opts.nowMs - opts.activeWithinMinutes * 60_000;
   const active: string[] = [];
   const completed: SessionFiles[] = [];
   for (const session of all) {
-    if (session.mtimeMs >= activeCutoff) active.push(session.sessionId);
+    if (session.active === true || session.mtimeMs >= activeCutoff) active.push(session.sessionId);
     else completed.push(session);
   }
 
@@ -1313,6 +1549,7 @@ export function collectSessionCost(opts: CollectOpts): SessionCostReport {
   let axes = ZERO_AXES;
   let cost = ZERO_AXES;
   let totalCost = 0;
+  let reasoningOutputTokens = 0;
   let mainTurns = 0;
   let subagentTurns = 0;
   let subagentSpawns = 0;
@@ -1378,6 +1615,7 @@ export function collectSessionCost(opts: CollectOpts): SessionCostReport {
   const account = (turn: Turn): number => {
     const turnCost = priceAxes(turn.axes, turn.tier);
     axes = addAxes(axes, turn.axes);
+    reasoningOutputTokens += turn.reasoningOutputTokens ?? 0;
     totalCost += turnCost;
     const tier = turn.tier;
     const price = tier === undefined ? undefined : MODEL_PRICES[tier];
@@ -1484,10 +1722,10 @@ export function collectSessionCost(opts: CollectOpts): SessionCostReport {
       const subOpening = subTurns[0];
       if (subOpening !== undefined) subFirstTurns.push(contextTokens(subOpening.axes));
       shapes.push({ turns: subTurns.length, tier: subTurns[0]?.tier, main: false });
-      const agentType = readAgentType(sub.metaFile);
+      const agentType = sub.agentType ?? readAgentType(sub.metaFile);
       const subLast = subTurns[subTurns.length - 1];
-      const startMs = subOpening === undefined ? Number.NaN : Date.parse(subOpening.at);
-      const endMs = subLast === undefined ? Number.NaN : Date.parse(subLast.at);
+      const startMs = subRead.runtime?.startMs ?? (subOpening === undefined ? Number.NaN : Date.parse(subOpening.at));
+      const endMs = subRead.runtime?.endMs ?? (subLast === undefined ? Number.NaN : Date.parse(subLast.at));
       // An unparseable timestamp is dropped from the OVERLAP figures only — the spawn still counts
       // and its cost is still priced. A guessed interval would be worse than a missing one.
       if (Number.isFinite(startMs) && Number.isFinite(endMs)) {
@@ -1522,8 +1760,8 @@ export function collectSessionCost(opts: CollectOpts): SessionCostReport {
 
     const first = windowed[0]?.at ?? "";
     const last = windowed[windowed.length - 1]?.at ?? "";
-    const firstMs = Date.parse(first);
-    const lastMs = Date.parse(last);
+    const firstMs = read.runtime?.startMs ?? Date.parse(first);
+    const lastMs = read.runtime?.endMs ?? Date.parse(last);
     const wallMs = Number.isFinite(firstMs) && Number.isFinite(lastMs) ? Math.max(0, lastMs - firstMs) : 0;
 
     const overlap = spawnOverlap(intervals);
@@ -1601,6 +1839,7 @@ export function collectSessionCost(opts: CollectOpts): SessionCostReport {
     skippedLines,
     syntheticLines,
     axes,
+    reasoningOutputTokens,
     cost,
     totalCost,
     phases: PHASES.map((phase) => {
@@ -1809,6 +2048,9 @@ export function renderSessionCost(report: SessionCostReport): string {
   }
   lines.push(
     `  ${"TOTAL".padEnd(12)} ${"".padStart(8)} ${usd(report.totalCost).padStart(10)}`,
+    ...(report.reasoningOutputTokens > 0
+      ? [`  reasoning output: ${tokens(report.reasoningOutputTokens)} token(s), INCLUDED in output above (never double-counted)`]
+      : []),
     "",
     `  INPUT-SIDE: ${pct(inputSide, report.totalCost).trim()} of spend. ADR-0323 measured 89% over its own window;`,
     "  a materially different figure here OVERTAKES that prose (ADR-0139, correct in place).",
@@ -1818,7 +2060,7 @@ export function renderSessionCost(report: SessionCostReport): string {
   if (report.unpriced.length > 0) {
     lines.push(
       "  ⚠ UNPRICED MODELS — no rate in `MODEL_PRICES`, so their tokens are counted above but",
-      "    their cost is NOT. The split understates these tiers until a rate is added:",
+      "    their cost is NOT. USD figures are a PRICED SUBTOTAL ONLY; no rate is guessed:",
       ...report.unpriced.map((row) => `      ${row.model.padEnd(24)} ${row.turns} turn(s), ${tokens(row.tokens)} token(s)`),
       "",
     );
@@ -2094,7 +2336,7 @@ export interface SessionCostOpts {
   readonly all?: boolean | undefined;
   readonly cwd: string;
   readonly nowMs: number;
-  /** Injected for tests; production reads `resolveTranscriptDir()`. */
+  /** Injected for tests; production reads both `~/.claude/projects` and `~/.codex/sessions`. */
   readonly root?: string | undefined;
 }
 
@@ -2156,8 +2398,8 @@ export function sessionCostHelp(): Envelope {
       "                         [--started-after <iso>] [--started-before <iso>]",
       "                         [--project <prefix>] [--all]",
       "",
-      "Prices a window of PAST sessions from the harness's own JSONL transcripts, per assistant",
-      "turn, from the recorded `message.usage` and `message.model`. It reports the four-way price",
+      "Measures PAST Claude and Codex sessions from their own JSONL transcripts, per assistant",
+      "turn, from recorded model and usage fields. It reports the four-way price",
       "SPLIT (cache read / cache write / output / input), cost per phase, polling turns split into",
       "LOOPS and isolated status checks, bash calls by purpose, subagent cost per agent type with the",
       "model each ran on and how many sessions spawned it, live-context size, and the measured",
@@ -2180,8 +2422,9 @@ export function sessionCostHelp(): Envelope {
       "                  measures the whole repo's sessions).",
       "  --all           every project directory under the transcript root.",
       "",
-      "READS ONLY, and only this machine: transcripts live under `~/.claude/projects` (override with",
-      "STORYTREE_TRANSCRIPT_DIR), a per-user path OUTSIDE the repo — so a finding is only as wide as",
+      "READS ONLY, and only this machine: transcripts live under `~/.claude/projects` and",
+      "`~/.codex/sessions` (the Claude root can be overridden with STORYTREE_TRANSCRIPT_DIR). Both are OUTSIDE the repo,",
+      "so a finding is only as wide as",
       "the machine it was measured on. Say so when you publish one.",
       "",
       "THE TRAP: summing only `input_tokens` reports ~0% input cost. The real figure — 89% in",

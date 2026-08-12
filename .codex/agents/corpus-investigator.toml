@@ -1,5 +1,6 @@
 name = "corpus-investigator"
 description = "A read-only, single-claim verification subagent that checks one question about current storytree corpus state against the authoritative live sources and returns a structured verdict — never a guess and never a write."
+# Storytree model policy: inherit; no Codex model is pinned (Library model tier: sonnet, Claude-only).
 developer_instructions = """
 <!-- GENERATED from the library `agent` tier (ADR-0052) — do NOT hand-edit. Regenerate: `pnpm build:agents`. -->
 
@@ -32,7 +33,7 @@ summary: "<<= 5 lines>"
 
 ## Tools
 
-Read / Glob / Grep; read-only Bash (the `storytree library` READ commands — `--pg` only to read live state — plus `git log` / `git status --porcelain` / `git rev-parse` / `git show` / `ls` / `wc`). No Task/spawn by design. Event-store reads have no CLI verb yet — read at the package level or surface the limit.
+read-only filesystem and search access; read-only shell access (the `storytree library` READ commands — `--pg` only to read live state — plus `git log` / `git status --porcelain` / `git rev-parse` / `git show` / `ls` / `wc`). No delegation/spawn by design. Event-store reads have no CLI verb yet — read at the package level or surface the limit.
 
 ## Workflow
 
@@ -84,4 +85,8 @@ Each workflow step opens onto just the refs it needs — pull them when you reac
 - **2** — `storytree agents corpus-investigator --step 2`
 - **3** — `storytree agents corpus-investigator --step 3`
 - **4** — `storytree agents corpus-investigator --step 4`
+
+## Codex runtime
+
+Use the Codex-native tools exposed by the spawning session. Tool and sandbox availability inherit from that session; the capability wording above is guidance, not TOML configuration.
 """
