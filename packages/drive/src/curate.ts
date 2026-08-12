@@ -191,7 +191,7 @@ export async function enactCuration(
           break;
         }
         case "reframe-open-question": {
-          const result = await patchDoc(
+          const result = await patchKindFenced(
             deps.store,
             action.id,
             action.set,
@@ -252,8 +252,21 @@ async function createDoc(
   return { ok: true, id };
 }
 
-/** Patch an existing doc, verifying it IS the expected writable kind first (the kind fence). */
-async function patchDoc(
+/**
+ * Patch an existing doc, verifying it IS the expected writable kind first (the kind fence).
+ *
+ * FIELD-SCOPED (ADR-0352): only the keys the curator's action names are written, merged onto whatever
+ * the store CURRENTLY holds inside the write itself. The `getDoc` above is the kind fence and nothing
+ * more — its result is deliberately NOT written back. A curation pass runs alongside a build, so the
+ * window between that read and this write is as wide as the build, and a whole-doc write across it
+ * reverted everything a session landed on the question in the meantime, on fields the reframe never
+ * named, with both writers reporting success (ADR-0352 Context).
+ *
+ * `validate` runs on the MERGED doc, still inside the write, so migrate-on-write is not skipped.
+ * `kind` is named in the patch as well as on the row because the curator's fence has just proved what
+ * it must be, and the old whole-doc write asserted it the same way.
+ */
+async function patchKindFenced(
   store: Store,
   id: string,
   set: Record<string, unknown>,
@@ -268,17 +281,19 @@ async function patchDoc(
       reason: `"${id}" is a ${existing.kind}, not a ${kind} — the curator may not edit it (comment + escalate instead)`,
     };
   }
-  const base: Record<string, unknown> =
-    typeof existing.doc === "object" && existing.doc !== null
-      ? { ...(existing.doc as Record<string, unknown>) }
-      : {};
-  let valid: unknown;
+  let saved: StoredDoc | null;
   try {
-    valid = upcastAndValidate({ ...base, ...set, kind });
+    saved = await store.patchDoc({
+      id,
+      fields: { ...set, kind },
+      kind,
+      actor,
+      validate: (merged) => upcastAndValidate(merged),
+    });
   } catch (e) {
     return { ok: false, reason: `edit would make "${id}" invalid: ${(e as Error).message}` };
   }
-  await store.upsertDoc({ id, kind, doc: valid, actor });
+  if (saved === null) return { ok: false, reason: `"${id}" was retired before the edit landed` };
   return { ok: true, id };
 }
 

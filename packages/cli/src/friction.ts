@@ -587,16 +587,33 @@ export async function reinforceFriction(
   const base = typeof existing.doc === "object" && existing.doc !== null ? { ...(existing.doc as Record<string, unknown>) } : {};
   const priorReinforcements = Array.isArray(base["reinforcedBy"]) ? [...(base["reinforcedBy"] as unknown[])] : [];
   const date = ctx.now.slice(0, 10);
-  base["reinforcedBy"] = [...priorReinforcements, { branch: ctx.branch, date, evidence }];
-  base["updatedAt"] = ctx.now;
+  // FIELD-SCOPED (ADR-0352): a reinforcement names `reinforcedBy` and the stamp. It is a bystander's
+  // write — recurrence is recorded by whoever hit the friction again, not by the adjudicator who owns
+  // the row — so a whole-doc write here reverted their `route` / `routeReason` for a testimony append.
+  const fields: Record<string, unknown> = {
+    reinforcedBy: [...priorReinforcements, { branch: ctx.branch, date, evidence }],
+    updatedAt: ctx.now,
+  };
+  Object.assign(base, fields);
 
-  let valid: Record<string, unknown>;
+  let saved: StoredDoc | null;
   try {
-    valid = upcastAndValidate(base) as Record<string, unknown>;
+    saved = await deps.store.patchDoc({
+      id,
+      fields,
+      kind: "friction",
+      actor: deps.actor ?? defaultCliActor(),
+      validate: (merged) => upcastAndValidate(merged),
+    });
   } catch (e) {
     return { ok: false, body: `reinforcement would make "${id}" invalid:\n${explainDocValidationError(base, e)}`, next: [`storytree library artifact ${id}`] };
   }
-  const saved = await deps.store.upsertDoc({ id, kind: "friction", doc: valid, actor: deps.actor ?? defaultCliActor() });
+  if (saved === null) {
+    return { ok: false, body: `friction item "${id}" was retired while the reinforcement was being prepared — nothing was written.`, next: ["storytree friction list"] };
+  }
+  // The doc as it ACTUALLY LANDED — the merge inside the write, not our stale copy. A route a sibling
+  // adjudicator set while this ran is now in hand, so the tombstone line below reads the real state.
+  const valid = saved.doc as Record<string, unknown>;
   // The tombstone nudge keys on the ROUTE detail, not the (ADR-0196-collapsed) lifecycle: every
   // routed item is lifecycle-archived now, but only `route: nothing` is the re-openable tombstone.
   const tombstoned = routeOf(valid) === "nothing";
@@ -867,10 +884,18 @@ export async function routeFriction(
     }
   }
 
-  base["route"] = route;
-  base["routeReason"] = reason;
-  if (dischargedBy !== undefined) base["dischargedBy"] = dischargedBy;
-  base["updatedAt"] = ctx.now;
+  // FIELD-SCOPED (ADR-0352): the adjudication names its own four fields (five with the citation
+  // appended below) and nothing else. `evidence`, `impact`, `statement` and — most of all —
+  // `reinforcedBy` belong to whoever filed and re-hit the item, and a `friction reinforce` landing
+  // between the read above and this write is exactly the concurrent case the whole-doc path reverted.
+  // `base` is kept in step so a refusal is still explained against the doc this verb meant to write.
+  const fields: Record<string, unknown> = {
+    route,
+    routeReason: reason,
+    ...(dischargedBy !== undefined ? { dischargedBy } : {}),
+    updatedAt: ctx.now,
+  };
+  Object.assign(base, fields);
 
   // ---- the ADR-0298 D2 emission fence: `tool` cites an arc that PARKS this item, or it does not land
   let cited = await citedArcs(base, deps.store);
@@ -916,7 +941,10 @@ export async function routeFriction(
     }
     if (!cited.includes(target.id)) {
       const refs = Array.isArray(base["references"]) ? [...(base["references"] as unknown[])] : [];
-      base["references"] = [...refs, `${ASSET_REF_PREFIX}${target.id}`];
+      // The one conditional field: named only when there is a citation to append, so a routing that
+      // appends nothing does not carry a stale `references` list back over a sibling's edit to it.
+      fields["references"] = [...refs, `${ASSET_REF_PREFIX}${target.id}`];
+      base["references"] = fields["references"];
       cited = [...cited, target.id];
     }
   }
@@ -951,14 +979,22 @@ export async function routeFriction(
     };
   }
 
-  let valid: Record<string, unknown>;
+  let saved: StoredDoc | null;
   try {
-    valid = upcastAndValidate(base) as Record<string, unknown>;
+    // The SAME `actor` the guard compared against — the stamp and the check cannot drift apart.
+    saved = await deps.store.patchDoc({
+      id,
+      fields,
+      kind: "friction",
+      actor,
+      validate: (merged) => upcastAndValidate(merged),
+    });
   } catch (e) {
     return { ok: false, body: `routing would make "${id}" invalid:\n${explainDocValidationError(base, e)}`, next: [`storytree library artifact ${id}`] };
   }
-  // The SAME `actor` the guard compared against — the stamp and the check cannot drift apart.
-  const saved = await deps.store.upsertDoc({ id, kind: "friction", doc: valid, actor });
+  if (saved === null) {
+    return { ok: false, body: `friction item "${id}" was retired while the routing was being prepared — nothing was written.`, next: ["storytree friction list"] };
+  }
   return {
     ok: true,
     body: [
