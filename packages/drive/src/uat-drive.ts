@@ -221,6 +221,55 @@ export const UAT_DRIVE_AUTONOMY_CLAUSE =
   "(`storytree question new --arc <arc-id> --title \"…\" --stakes … --statement … --pg`), and report " +
   "`escalated: true` with its id.";
 
+/**
+ * The TOOLING clause — name the installed automation rather than leaving the driver to invent one.
+ *
+ * Written against three failures measured across the first seven live drives (2026-08-12), not
+ * against a guess. The original prompt said only *"use whatever this repository actually offers …
+ * headless or browser control of a running surface"*, and each of the three is that vagueness
+ * cashing out:
+ *
+ *  1. `studio-build` leg 10's driver hand-rolled a Playwright harness that POLLED UP TO 40 MINUTES.
+ *     Its own session ended at 11.3 min, so no report was ever emitted (a MISS — a harness red, not
+ *     a finding), and the orphan later wrote a PNG into the working tree, whose dirtiness then
+ *     REFUSED the next drive. One invented harness cost three drives and produced nothing.
+ *  2. That same driver attached to `localhost:5180` — a *sibling worktree's* JSON-backed studio,
+ *     not a live-store one from its own checkout — because it discovered a server rather than
+ *     starting one. Ports 5173–5178/5190/5199 were all held by other worktrees.
+ *  3. Artifacts landed in the working tree instead of an ignored path.
+ *
+ * `apps/studio` already carries `@playwright/test` with a config that solves all three by
+ * construction: a `webServer` block that starts its OWN vite on a `--strictPort` port, a 60s default
+ * timeout, and `trace: 'retain-on-failure'` — which is precisely the retention ADR-0295 D4 calls
+ * "available, not required … recommended where it is cheap". It is cheap here because it already
+ * exists.
+ *
+ * This clause does NOT mandate Playwright: plenty of journeys are pure CLI, and a driver that needs
+ * something else may reach for it. What it forbids is the specific shape that failed — an unbounded
+ * wait, an inherited server, and output in the tree.
+ */
+export const UAT_DRIVE_TOOLING_CLAUSE = [
+  "Tooling — use what is installed; do not invent a harness:",
+  "",
+  "  - For a journey through a WEB UI, drive it with Playwright. `@playwright/test` is already a",
+  "    dependency of `apps/studio`, configured at `apps/studio/playwright.config.ts` with a real",
+  "    chromium, and `pnpm --filter studio uat` runs the existing suite in `apps/studio/uat/`. Read",
+  "    that config and that suite before writing anything — reuse its shape. It already sets",
+  "    `trace: 'retain-on-failure'`, which is how a failed drive leaves something auditable instead",
+  "    of a paragraph. (`pnpm exec playwright install chromium` once, if the browser is missing.)",
+  "  - START the surface you are testing; do NOT attach to whatever is already listening. Other",
+  "    worktrees run their own studios on neighbouring ports, and a drive that talks to a sibling's",
+  "    server is measuring somebody else's checkout. Use a `webServer` block with `--strictPort`, or",
+  "    pick a port and verify it is yours (`/api/health` reports the store AND the git HEAD).",
+  "  - BOUND every wait. This run has a hard wall-clock ceiling and is killed at it. A poll longer",
+  "    than the walk itself does not produce a slow pass — it produces NO report, which is recorded",
+  "    as a MISS: a harness failure that tells nobody anything about the product. If a step genuinely",
+  "    needs longer than you have, stop and report `fail` naming the ceiling as the reason.",
+  "  - Write screenshots, traces, logs and scratch files OUTSIDE the repository, or under an",
+  "    already-ignored path. A drive refuses to run against a dirty tree, so anything you leave",
+  "    behind blocks the NEXT drive.",
+].join("\n");
+
 /** Everything the prompt builder needs about the criterion being driven. */
 export interface UatDriveSpec {
   readonly storyId: string;
@@ -259,12 +308,13 @@ export function uatDriveTaskPrompt(spec: UatDriveSpec): string {
     "How to drive it:",
     "",
     "  - Read CLAUDE.md first; it is the authoritative orientation for this repository.",
-    "  - Use whatever this repository actually offers — shell commands, the storytree CLI, headless or",
-    "    browser control of a running surface. Bring up what you need (the dev server, the database).",
+    "  - Bring up what the journey needs — the dev server, the database — and drive the real thing.",
     `  - The annotations in the journey — (witness: …), (proof-gate: …), (criterion-id: …),`,
     "    (revision-id: …) — are bookkeeping for the proof machinery. They are not steps. Ignore them.",
     "  - Do not edit repository source to make the journey pass. You are testing what is here, not",
     "    building what is missing. If the surface is broken, that is a FAIL and it is the finding.",
+    "",
+    UAT_DRIVE_TOOLING_CLAUSE,
     "",
     UAT_DRIVE_AUTONOMY_CLAUSE,
     "",
@@ -301,16 +351,25 @@ export interface DrivePromptAudit {
 }
 
 /**
- * PURE: does `prompt` still carry the three properties a drive prompt is only honest with?
+ * PURE: does `prompt` still carry every property it was built to carry?
  *
  * This is the analogue of gate-7's `auditUncoached`, and it exists for the same reason: the prompt is
  * the whole harness, an authoring property is easy to lose in an edit, and losing it is SILENT — a
- * weakened prompt still runs, still returns a report, and still greens legs. The three:
+ * weakened prompt still runs, still returns a report, and still greens legs.
  *
+ * THREE ARE HONESTY properties — without them a green can be untrue:
  *  1. the authored journey appears VERBATIM (a paraphrase is the driver authoring its own claim,
  *     which is precisely the failure mode ADR-0295's Consequences names);
  *  2. the honesty clause is present (without it a summarised run and a driven run are the same text);
  *  3. the report contract is named, so an absent report is a MISS rather than an implied pass.
+ *
+ * THE FOURTH IS A CAPABILITY property, and the distinction is worth keeping. Losing
+ * {@link UAT_DRIVE_TOOLING_CLAUSE} cannot make a green untrue — it makes a MISS likelier, which is a
+ * red for a harness reason rather than a finding about the product. It is guarded here anyway
+ * because it was learned the expensive way (three drives spent, nothing persisted) and because the
+ * failure looks identical to a slow journey. A reader deciding what a refusal MEANS should read the
+ * class: the first three mean *this drive could lie*; the fourth means *this drive will probably
+ * waste its spend*.
  *
  * The drive suite runs it against the real {@link uatDriveTaskPrompt}, so an edit that drops one
  * reds `pnpm -r test` instead of quietly degrading every later drive.
@@ -320,6 +379,7 @@ export function auditDrivePrompt(prompt: string, journey: string): DrivePromptAu
   if (!prompt.includes(journey.trim())) missing.push("the authored journey prose, verbatim");
   if (!prompt.includes(UAT_DRIVE_HONESTY_CLAUSE)) missing.push("the honesty clause");
   if (!prompt.includes(UAT_DRIVE_REPORT_FENCE)) missing.push("the report contract fence");
+  if (!prompt.includes(UAT_DRIVE_TOOLING_CLAUSE)) missing.push("the tooling clause");
   return { ok: missing.length === 0, missing };
 }
 
