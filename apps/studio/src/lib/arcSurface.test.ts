@@ -20,6 +20,7 @@ import {
   defaultLaneId,
   laneBars,
   laneCounts,
+  landedSummary,
   lastActivityAt,
   BLOCKED_IS_DERIVABLE,
   QUIET_AFTER_DAYS,
@@ -399,7 +400,10 @@ describe('arcBriefing — the panel payload (ADR-0314 D3)', () => {
     });
     const briefing = arcBriefing(rollup);
     expect(briefing.waiting.map((q) => q.id)).toEqual(['q1', 'q2']);
-    expect(briefing.next.map((i) => i.id)).toEqual(['p1']);
+    // `p1` is a PROPOSAL, so since ADR-0359 D3 it briefs under `proposals`, not `next` — `next` is
+    // decided work (`ready`/`active`) only. It MOVES rather than appearing in both.
+    expect(briefing.proposals.map((i) => i.id)).toEqual(['p1']);
+    expect(briefing.next).toEqual([]);
     // "Where it is up to" reads backwards from now.
     expect(briefing.landed.map((i) => i.id)).toEqual(['c2', 'c1']);
   });
@@ -431,5 +435,92 @@ describe('arcBriefing — the panel payload (ADR-0314 D3)', () => {
     expect(briefing.waiting).toEqual([]);
     expect(briefing.arc.intent).toBe('intent of a');
     expect(briefing.arc.endState).toBe('end state of a');
+  });
+});
+
+describe('arcBriefing — parked PROPOSALS are something waiting on the owner (ADR-0359 D2/D3)', () => {
+  it('carries proposals beside the questions, and `waiting` still means questions', () => {
+    // The defect: `waiting` was `rollup.questions` and nothing else, so 9 live proposals across 3
+    // arcs on 2026-08-12 were reachable only from "What comes next", below the fold. `waiting`
+    // KEEPS its meaning — the proposals arrive as a sibling field, so no existing reader of
+    // `waiting` silently changes what it is looking at.
+    const rollup = arc({
+      id: 'a',
+      questions: [question('q1')],
+      increments: [parked('p1', '2026-08-01'), landed('c1', '2026-07-01')],
+    });
+    const briefing = arcBriefing(rollup);
+    expect(briefing.waiting.map((q) => q.id)).toEqual(['q1']);
+    expect(briefing.proposals.map((i) => i.id)).toEqual(['p1']);
+  });
+
+  it('`ready` and `active` are NOT waiting — decided work is not asking for a review (D3)', () => {
+    // ADR-0305 D2's lifecycle is proposal → ready → active → closed. A `proposal` is work whose
+    // shape is still open to the owner; `ready`/`active` are already dispatched. Promoting all
+    // unlanded work would put every arc's whole queue in the block that means "this needs you".
+    const rollup = arc({
+      id: 'a',
+      increments: [
+        increment({ id: 'prop', status: 'proposal' }),
+        increment({ id: 'rdy', status: 'ready' }),
+        increment({ id: 'act', status: 'active' }),
+      ],
+    });
+    const briefing = arcBriefing(rollup);
+    expect(briefing.proposals.map((i) => i.id)).toEqual(['prop']);
+    // …and they stay exactly where they were, so nothing is lost by not promoting them.
+    expect(briefing.next.map((i) => i.id)).toEqual(['rdy', 'act']);
+    // The two halves are DISJOINT — a proposal is never rendered twice on one panel.
+    expect(briefing.next.some((i) => briefing.proposals.includes(i))).toBe(false);
+  });
+
+  it('THE FENCE (D4): a proposal never lights the LANE state', () => {
+    // ADR-0351 D1 removed a state that lit on every visible lane and therefore discriminated
+    // nothing. All 13 active arcs carried open increments on 2026-08-12, so deriving `waiting`
+    // from proposals would recreate that degeneracy exactly. The panel shows them; the lane
+    // does not. If this assertion is ever "fixed", read ADR-0359 D4 first — the divergence is
+    // the design, and the honest widening is a DISTINCT chip, never `waiting`.
+    const proposalsOnly = arc({
+      id: 'a',
+      increments: [parked('p1', '2026-08-05')],
+    });
+    expect(arcBriefing(proposalsOnly).proposals).toHaveLength(1);
+    expect(arcState(proposalsOnly, NOW)).toBe('moving');
+    expect(arcState(proposalsOnly, new Date('2026-09-30T00:00:00Z'))).toBe('quiet');
+  });
+});
+
+describe('landedSummary — the log collapses to one line (ADR-0359 D1)', () => {
+  it('names the count and the most recent landing, so the fold costs no information', () => {
+    // The defect this replaces: the panel rendered one row per closed increment, which was 57 rows
+    // on `verification-integrity-arc` against the live store on 2026-08-12.
+    const rollup = arc({
+      id: 'a',
+      increments: [landed('c1', '2026-07-01', '#900'), landed('c2', '2026-08-12', '#1297')],
+    });
+    expect(landedSummary(rollup)).toBe('2 landed · last 2026-08-12 #1297');
+  });
+
+  it('omits what it does not know rather than inventing it', () => {
+    expect(landedSummary(arc({ id: 'a', increments: [landed('c1', '2026-07-01')] }))).toBe(
+      '1 landed · last 2026-07-01',
+    );
+    expect(
+      landedSummary(arc({ id: 'a', increments: [increment({ id: 'c1', status: 'closed' })] })),
+    ).toBe('1 landed');
+  });
+
+  it('says nothing has landed rather than "0 landed"', () => {
+    expect(landedSummary(arc({ id: 'a', increments: [parked('p1', '2026-08-01')] }))).toBe(
+      'Nothing has landed yet',
+    );
+  });
+
+  it('is a COUNT and never a ratio — the ADR-0314 D2 denominator fence reaches here too', () => {
+    const rollup = arc({
+      id: 'a',
+      increments: [landed('c1', '2026-07-01'), parked('p1', '2026-08-01')],
+    });
+    expect(landedSummary(rollup)).not.toMatch(/%|\bof \d|\d\s*\/\s*\d/);
   });
 });

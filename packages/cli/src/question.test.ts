@@ -10,6 +10,7 @@ import { arcCommand, type ArcViewDeps } from "./arc.js";
 import {
   questionCommand,
   questionDescriptionFrom,
+  questionHelp,
   questionIdFromTitle,
   questionNew,
   type QuestionWriteDeps,
@@ -148,6 +149,7 @@ test("question new writes a valid open-question with the arcRef pointer and deri
   // The two OPTIONAL fields are ABSENT, not stored as empty strings — an empty heading in a briefing
   // reads as "considered and had nothing to say", which is not what "not supplied" means.
   assert.ok(!("diagram" in doc), "no empty diagram");
+  assert.ok(!("analogy" in doc), "no empty analogy");
   assert.ok(!("recommendation" in doc), "no empty recommendation");
   // The envelope tells the session what it just earned and what it still owes (ADR-0303).
   assert.match(res.body, /now reads as WAITING/);
@@ -170,6 +172,38 @@ test("question new carries an explicit id, description, diagram and recommendati
   // An `asset:`-prefixed --arc is accepted and normalised rather than double-prefixed.
   assert.equal(doc.arcRef, `asset:${ARC_ID}`);
   assert.match(res.body, /non-binding until the owner decides/);
+});
+
+test("question new carries an ANALOGY beside the diagram (ADR-0359 D5)", async () => {
+  // The picture path already worked end to end — `diagram` renders as SVG in the studio (ADR-0096).
+  // What the template lacked was the other half of how the owner reads an unfamiliar decision.
+  const store = await storeWithArc();
+  const res = await questionNew(writeDeps(store), "oq-with-an-analogy", {
+    arc: ARC_ID,
+    ...BRIEFING,
+    diagram: "```mermaid\nflowchart TD\n  A-->B\n```",
+    analogy: "A manager reading a proposal before staffing it: the review is the dispatch decision.",
+  });
+  assert.equal(res.ok, true, res.body);
+  const doc = docOf((await store.getDoc("oq-with-an-analogy"))!);
+  assert.match(String(doc.analogy), /manager reading a proposal/);
+  assert.match(String(doc.diagram), /mermaid/);
+});
+
+test("question help names the diagram and the analogy as expected, not exotic (ADR-0359 D5)", () => {
+  // Discoverability IS the change: both fields existed-or-now-exist in the schema, and neither was
+  // prompted anywhere a session actually looks. An optional field nobody is told about is a field
+  // nobody fills in — measured: the three live questions on 2026-08-12 carried no diagram between
+  // them, in a corpus whose renderer has supported them since ADR-0096.
+  const help = questionHelp();
+  assert.match(help.body, /--analogy/, "the flag is documented");
+  assert.match(help.body, /--diagram/);
+  // Named in the BAR paragraph, not only in the flag list — the bar is what an author reads.
+  assert.match(
+    help.body,
+    /analog/i,
+    "the cold-answerable bar mentions the analogy, so it reads as expected rather than exotic",
+  );
 });
 
 test("question new refuses an id that already exists rather than overwriting it", async () => {

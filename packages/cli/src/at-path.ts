@@ -69,6 +69,10 @@ export const PROSE_FLAGS: ReadonlySet<string> = new Set([
   "statement",
   "context",
   "options",
+  // ADR-0359 D5's analogy sits here for the same reason as the rest: it is durable prose on the
+  // authored artifact, and an analogy worth writing names what maps to what AND where it breaks,
+  // which is more than one shell-friendly line.
+  "analogy",
   "diagram",
   "recommendation",
   // The recorded-verdict prose: `library artifact retire`, `library graduate park`, `friction`.
