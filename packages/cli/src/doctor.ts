@@ -243,18 +243,19 @@ export function runDoctor(obs: DoctorObservations): DoctorReport {
     probes.push({
       name: "workspace-linked",
       level: "FAIL",
-      detail: "an install completed here but linked no packages (node_modules has no .bin)",
+      detail: "an install completed here but linked no workspace packages (no packages/* has node_modules)",
       fixHint:
-        "run `pnpm install` in this checkout, then confirm `node_modules/.bin` exists. It may print " +
-        '"Already up to date" — that is about resolution, not linking, so verify .bin rather than ' +
-        "trusting the line. Until then `tsx`, `tsc` and `pnpm gate` fail as `'tsx' is not recognized`, " +
-        "which is NOT the worktree-root resolution trap it resembles.",
+        "run `pnpm install` in this checkout, then confirm a workspace package has its own " +
+        '`node_modules` (e.g. `packages/cli/node_modules`). It may print "Already up to date" — that ' +
+        "is about resolution, not linking, so verify the links rather than trusting the line. Until " +
+        "then `tsx`, `tsc` and `pnpm gate` fail as `'tsx' is not recognized`, which is NOT the " +
+        "worktree-root resolution trap it resembles.",
     });
   } else if (obs.provisioned) {
     probes.push({
       name: "workspace-linked",
       level: "PASS",
-      detail: "the install produced a linked node_modules (.bin present)",
+      detail: "the install linked the workspace packages",
     });
   }
 

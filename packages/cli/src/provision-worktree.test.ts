@@ -11,7 +11,7 @@
 // The installer is injected so the contract is proven WITHOUT spawning a real pnpm (slow, networked,
 // environment-dependent); one spawn of the real entry proves the fast-path wiring end-to-end.
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -47,10 +47,16 @@ function makeTmpRoot(
   if (provisioned) {
     mkdirSync(join(dir, "node_modules"), { recursive: true });
     writeFileSync(join(dir, "node_modules", ".modules.yaml"), "hoistPattern:\n  - '*'\n");
-    // A genuinely provisioned pnpm root ALSO has `node_modules/.bin`. Modelling only `.modules.yaml`
-    // was what hid the unlinked-tree bug from this suite for as long as it existed: every "provisioned"
-    // fixture was, in production terms, a broken tree that the assertions called healthy.
-    if (opts?.linked !== false) mkdirSync(join(dir, "node_modules", ".bin"), { recursive: true });
+  }
+  // A pnpm WORKSPACE links each package's deps into THAT package's own node_modules — the root's
+  // holds only `.modules.yaml` and `.pnpm`, and legitimately has no `.bin` at all. Modelling only
+  // `.modules.yaml` was what hid the unlinked-tree bug from this suite: every "provisioned" fixture
+  // was, in production terms, a tree with nothing linked, and the assertions called it healthy.
+  // The package dir exists in BOTH flavours — absence of packages must never read as breakage.
+  if (provisioned) {
+    mkdirSync(join(dir, "packages", "alpha"), { recursive: true });
+    writeFileSync(join(dir, "packages", "alpha", "package.json"), '{"name":"alpha"}\n');
+    if (opts?.linked !== false) mkdirSync(join(dir, "packages", "alpha", "node_modules"), { recursive: true });
   }
   if (lock?.wanted !== undefined) writeFileSync(join(dir, "pnpm-lock.yaml"), lock.wanted);
   if (lock?.current !== undefined) {
@@ -142,10 +148,37 @@ test("needsRelink: an install that completed but linked NOTHING is flagged", () 
   const unlinked = makeTmpRoot(true, { wanted: LOCK_NEW, current: LOCK_NEW }, { linked: false });
   const healthy = makeTmpRoot(true, { wanted: LOCK_NEW, current: LOCK_NEW });
   try {
-    assert.equal(needsRelink(unlinked), true, ".modules.yaml present but no .bin ⇒ nothing was linked");
+    assert.equal(needsRelink(unlinked), true, "no workspace package has node_modules ⇒ nothing was linked");
     assert.equal(needsRelink(healthy), false, "a linked tree is left alone");
   } finally {
     for (const d of [unlinked, healthy]) rmSync(d, { recursive: true, force: true });
+  }
+});
+
+// REGRESSION, and the reason this predicate does not look at the ROOT `node_modules/.bin`: an
+// earlier draft did, and it FAILED the very worktree it was written in. In a pnpm workspace the
+// root's node_modules holds only `.modules.yaml` and `.pnpm` — no `.bin` — while every binary
+// resolves through `packages/<pkg>/node_modules/.bin` and the whole toolchain works. A root-`.bin`
+// probe would therefore have reported every healthy checkout in this repo as broken.
+test("needsRelink: a healthy workspace with NO root node_modules/.bin is not flagged", () => {
+  const root = makeTmpRoot(true, { wanted: LOCK_NEW, current: LOCK_NEW });
+  try {
+    assert.equal(existsSync(join(root, "node_modules", ".bin")), false, "the fixture has no root .bin, as production does not");
+    assert.equal(needsRelink(root), false, "root .bin presence is evidence of nothing in a workspace");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("needsRelink: a checkout with no workspace packages at all is not flagged (absence is not breakage)", () => {
+  const bare = mkdtempSync(join(tmpdir(), "st-provision-bare-"));
+  try {
+    mkdirSync(join(bare, "node_modules", ".pnpm"), { recursive: true });
+    writeFileSync(join(bare, "node_modules", ".modules.yaml"), "hoistPattern:\n  - '*'\n");
+    writeFileSync(join(bare, "pnpm-lock.yaml"), LOCK_NEW);
+    assert.equal(needsRelink(bare), false, "nothing to be evidence either way ⇒ never reinstall on a guess");
+  } finally {
+    rmSync(bare, { recursive: true, force: true });
   }
 });
 

@@ -35,7 +35,7 @@
 //     `ERR_MODULE_NOT_FOUND`, `tsc is not recognized`). `lockfileAdvanced` closes that: the install is
 //     re-run when the lockfile has moved past the one node_modules was built from. At one or two live
 //     worktrees this was a rare annoyance; at the ~49 registered here it is routine.
-import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -73,22 +73,65 @@ export function needsProvision(root) {
  * could not run a single binary. The session then met `'tsx' is not recognized` — which CLAUDE.md
  * documents as the unrelated worktree-root RESOLUTION trap, so the documented remedy could not help.
  *
- * `node_modules/.bin` is the signal because it is what the symptom is ABOUT: every failure this
- * catches is a binary that will not run. At a storytree workspace root it is never legitimately
- * absent — the root devDependencies alone provide tsx, tsc and vitest — so its absence beside a
- * completed install is positive evidence of a broken link phase rather than a guess.
+ * WHERE THE QUESTION IS ASKED, and why not at the root. The obvious probe — "does
+ * `node_modules/.bin` exist at the workspace root?" — is WRONG here and was caught only by running
+ * it against a healthy worktree, which it failed. In a pnpm WORKSPACE each package's dependencies
+ * (and their binaries) are linked into THAT package's own `node_modules`, so this repo's root
+ * `node_modules` legitimately holds only `.modules.yaml` and `.pnpm` and no `.bin` at all, while
+ * `pnpm exec`, tsx and the gate all work perfectly. Root `.bin` presence is therefore evidence of
+ * nothing. The per-package links are what the broken install actually failed to create, and what
+ * `'tsx' is not recognized` is actually about, so that is where this looks.
+ *
+ * STRICTLY "linked NOTHING", matching the observed failure rather than generalising past it: it
+ * fires only when NO workspace package has a `node_modules` of its own. A partially-linked tree is
+ * not claimed — that is a different condition with different evidence, and asserting it here would
+ * be guessing.
  *
  * SCOPED, so it cannot fire where it has no standing: a worktree with no completed install returns
- * false (that is {@link needsProvision}'s condition, and it already forces the install), and so does
- * a directory that is not a pnpm root at all. Like {@link lockfileAdvanced} it never reinstalls on
- * absence of evidence — and a reinstall CLEARS the condition, so it cannot latch.
+ * false (that is {@link needsProvision}'s condition, and it already forces the install), so does a
+ * directory that is not a pnpm root, and so does one where no workspace package was found at all —
+ * absence of packages is absence of evidence, not evidence of breakage. Like {@link lockfileAdvanced}
+ * it never reinstalls on a guess, and a reinstall CLEARS the condition, so it cannot latch.
  */
 export function needsRelink(root) {
   const modules = join(root, "node_modules");
   // Not provisioned, or not a pnpm root: not this predicate's question to answer.
   if (!existsSync(join(modules, ".modules.yaml"))) return false;
   if (!existsSync(join(root, "pnpm-lock.yaml"))) return false;
-  return !existsSync(join(modules, ".bin"));
+  const { packages, linked } = workspaceLinkage(root);
+  if (packages === 0) return false;
+  return linked === 0;
+}
+
+/** The workspace groups a storytree checkout declares (`packages/*`, `apps/*`). */
+const WORKSPACE_GROUPS = ["packages", "apps"];
+
+/**
+ * Count the workspace packages on disk and how many carry their own `node_modules`. A directory
+ * counts as a package only if it holds a `package.json`, so stray folders never dilute the ratio.
+ * Never throws — an unreadable group is skipped, which keeps the caller's fail-open contract.
+ */
+function workspaceLinkage(root) {
+  let packages = 0;
+  let linked = 0;
+  for (const group of WORKSPACE_GROUPS) {
+    const dir = join(root, group);
+    if (!existsSync(dir)) continue;
+    let entries;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const pkg = join(dir, entry.name);
+      if (!existsSync(join(pkg, "package.json"))) continue;
+      packages++;
+      if (existsSync(join(pkg, "node_modules"))) linked++;
+    }
+  }
+  return { packages, linked };
 }
 
 /**

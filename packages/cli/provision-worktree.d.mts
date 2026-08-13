@@ -41,9 +41,14 @@ export function needsProvision(root: string): boolean;
 
 /**
  * True when an install COMPLETED at `root` but linked nothing — `node_modules/.modules.yaml` is
- * present and `node_modules/.bin` is not. The third condition, and the one both `needsProvision` and
- * `lockfileAdvanced` read as healthy. Returns false on an unprovisioned root (that is
- * `needsProvision`'s question) and on a directory with no `pnpm-lock.yaml`.
+ * present and NO workspace package (`packages/*`, `apps/*`) has a `node_modules` of its own. The
+ * third condition, and the one both `needsProvision` and `lockfileAdvanced` read as healthy.
+ *
+ * Deliberately does NOT test the root `node_modules/.bin`: in a pnpm workspace the root legitimately
+ * has none, so that probe reports every healthy checkout in this repo as broken.
+ *
+ * Returns false on an unprovisioned root (that is `needsProvision`'s question), on a directory with
+ * no `pnpm-lock.yaml`, and on one where no workspace package was found at all.
  */
 export function needsRelink(root: string): boolean;
 

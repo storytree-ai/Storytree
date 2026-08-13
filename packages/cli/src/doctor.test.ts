@@ -267,12 +267,22 @@ test("workspace-linked: passes on a healthy checkout and stays silent on an unpr
   assert.equal(probeNamed(BROKEN, "workspace-linked"), undefined, "unprovisioned is checkout-provisioned's answer");
 });
 
-test("gatherLocalObservations sees an unlinked checkout on real files", () => {
+test("needsRelink on real files: an install with no workspace package linked is seen, a linked one is not", () => {
   const unlinked = makeCheckout(true, { wanted: LOCK_NEW, current: LOCK_NEW });
+  const healthy = makeCheckout(true, { wanted: LOCK_NEW, current: LOCK_NEW });
   try {
-    assert.equal(needsRelink(unlinked), true, "the fixture models the real failure: .modules.yaml, no .bin");
+    // Both carry a workspace package; only `healthy` has that package's node_modules linked. The
+    // ROOT has no `.bin` in either — as it does not in this repo — so a root-`.bin` probe would
+    // have called both of them broken.
+    for (const root of [unlinked, healthy]) {
+      mkdirSync(join(root, "packages", "alpha"), { recursive: true });
+      writeFileSync(join(root, "packages", "alpha", "package.json"), '{"name":"alpha"}\n');
+    }
+    mkdirSync(join(healthy, "packages", "alpha", "node_modules"), { recursive: true });
+    assert.equal(needsRelink(unlinked), true, "nothing linked ⇒ the broken tree is seen");
+    assert.equal(needsRelink(healthy), false, "a linked package ⇒ healthy, despite no root .bin");
   } finally {
-    rmSync(unlinked, { recursive: true, force: true });
+    for (const d of [unlinked, healthy]) rmSync(d, { recursive: true, force: true });
   }
 });
 
