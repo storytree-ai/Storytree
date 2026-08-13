@@ -179,10 +179,38 @@ test("coverage drain: the live corpus sweep is GREEN at the shipped ceiling", ()
   const { units, specFilesWalked } = sweepRealBuildCoverage(path.join(repoRoot, "stories"), repoRoot);
   const { uncovered, unbound, scanned } = projectCoverageGaps(classifyGateCoverage(units));
   const v = evaluateCoverageDrain({ uncovered, unbound }, { specFilesWalked, scanned });
+
+  // BOTH TOTALS, SEPARATELY, WITH THE APERTURE THEY WERE MEASURED OVER
+  // (`gate-checks-name-the-remedy-that-works`, gate-self-report-honesty-arc).
+  //
+  // The ceiling is defined in terms of two numbers, and this — the only surviving enforcement of it
+  // since ADR-0311 D2 retired the `check:coverage` rung — named NEITHER. A session that reds here
+  // learned only which axis breached, so establishing where it stood meant hand-rolling a sweep
+  // script, which has three separate traps that report a FALSE CLEAN (`specFilesWalked=0 scanned=0
+  // uncovered=0` reads exactly like a drained backlog). The verdict has carried `uncoveredCount`,
+  // `unboundCount` and both ceilings all along; not printing them was the whole defect.
+  //
+  // THE APERTURE IS PART OF THE NUMBER, not decoration: `uncovered` is a strict LOWER bound whose
+  // value falls as the substrate degrades (a missing test-file tree routes every capability to
+  // `unbound` instead), so `uncovered=0` means "nothing was scanned" just as readily as "nothing is
+  // uncovered". Stating what was walked is what separates those two.
+  const totals =
+    `uncovered=${v.uncoveredCount}/${v.config.uncoveredCeiling} · ` +
+    `unbound=${v.unboundCount}/${v.config.unboundCeiling} · ` +
+    `measured over ${specFilesWalked} spec file(s) walked, ${scanned} capability(ies) scanned`;
+
   assert.notEqual(
     v.level,
     "red",
-    `the corpus breached its own ceiling: ${v.breaches.join(" | ")}. Drain it (author a test naming ` +
-      "the contract, split/retire it, or repair the binding) — do NOT raise the ceiling (ADR-0252 D3).",
+    `the corpus breached its own ceiling — ${totals}.\n` +
+      // The two axes count DIFFERENT THINGS (contracts vs. capabilities) and move independently:
+      // measured against one checkout, draining two uncovered contracts while a sibling landed a
+      // capability with no test file left the summed contract count at EXACTLY 121 both times while
+      // the capability count FELL. A ceiling read off the sum is therefore satisfiable by work that
+      // drained nothing, which is why the module refuses to publish one.
+      "NEVER SUM THESE — uncovered counts CONTRACTS, unbound counts CAPABILITIES, and the total is " +
+      "unchanged by real movement on either axis.\n" +
+      `breached: ${v.breaches.join(" | ")}. Drain it (author a test naming the contract, ` +
+      "split/retire it, or repair the binding) — do NOT raise the ceiling (ADR-0252 D3).",
   );
 });

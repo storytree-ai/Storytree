@@ -109,6 +109,64 @@ export async function essentialsGateFailures(
   return gateFailures;
 }
 
+/**
+ * Compose `check:agents`' failure message from BOTH findings at once — or `null` when there is
+ * nothing to report.
+ *
+ * WHY BOTH, AND WHY THIS IS A REPORTING FIX RATHER THAN A PREDICATE ONE
+ * (`gate-checks-name-the-remedy-that-works`, gate-self-report-honesty-arc). The check used to fail
+ * on drift the moment it found any, and only reach the essentials gate on a run where drift was
+ * empty. Neither predicate is wrong. What was wrong is that `stale: <file>` is the signature of the
+ * ROUTINE sibling race, whose documented remedy is `pnpm build:agents` + commit — so a session that
+ * hit the combined case followed the recorded guidance, regenerated, and was handed a DIFFERENT red
+ * that no amount of regenerating clears. The check held both facts at the moment it printed the
+ * first: it renders each agent in order to compare it, so the budget breach was already computable.
+ *
+ * The combined case is also the one where naming the owner matters most. The essentials breach comes
+ * from the LIVE STORE, which is shared, so it reds every branch's gate at once and no other session
+ * can clear it by regenerating — the fix belongs to whoever holds the live edit. A session told only
+ * "regenerate and commit" cannot learn that from its own working tree.
+ *
+ * Pure so the composition is testable without a store, a checkout, or a process exit.
+ */
+export function explainAgentCheckFailure(input: {
+  readonly drift: readonly string[];
+  readonly essentialsFailures: readonly string[];
+}): string | null {
+  const { drift, essentialsFailures } = input;
+  const bullets = (lines: readonly string[]): string => `\n  ${lines.join("\n  ")}`;
+
+  if (drift.length > 0 && essentialsFailures.length > 0) {
+    return (
+      "harness agent views are STALE, and REGENERATING WILL NOT CLEAR THIS RUN. The rendered agents " +
+      "also breach the essentials gate (ADR-0156 §5 / ADR-0161), so `pnpm build:agents` replaces " +
+      "this red with a different one.\n\n" +
+      "Whose it is: the breach comes from the LIVE STORE, which every session shares — it reds every " +
+      "branch's gate at once, and committing a regenerated view here cannot clear it. It belongs to " +
+      "whoever holds the live agent edit; the artifact has to come back under budget first " +
+      "(`storytree library artifact edit <agent-id> --pg`), and only then does regenerating help.\n\n" +
+      `essentials breach (${essentialsFailures.length}):${bullets(essentialsFailures)}\n\n` +
+      `stale/missing/orphaned (${drift.length}):${bullets(drift)}`
+    );
+  }
+
+  if (drift.length > 0) {
+    return (
+      "harness agent views are STALE — the library agents changed. Regenerate with " +
+      `\`pnpm build:agents\` and commit:${bullets(drift)}`
+    );
+  }
+
+  if (essentialsFailures.length > 0) {
+    return (
+      "essentials gate FAILED (ADR-0156 §5 / ADR-0161) — a rendered agent broke a size/structure/" +
+      `integrity invariant:${bullets(essentialsFailures)}`
+    );
+  }
+
+  return null;
+}
+
 function fail(message: string): never {
   console.error(`build:agents — ${message}`);
   process.exit(1);
@@ -185,12 +243,11 @@ async function main(): Promise<void> {
       }
       for (const orphan of target.orphans) drift.push(`orphan:  ${target.label}/${orphan}`);
     }
-    if (drift.length > 0) {
-      fail(
-        "harness agent views are STALE — the library agents changed. Regenerate with `pnpm build:agents` " +
-          "and commit:\n  " + drift.join("\n  "),
-      );
-    }
+    // NOTHING FAILS UNTIL BOTH ARE KNOWN. The drift loop above used to `fail()` here, which meant
+    // the essentials gate ran only on a run where drift was empty — and the combined case (a
+    // sibling's live edit that both moved the view AND pushed it past budget) reported only the
+    // routine "regenerate and commit" remedy, which does not work. See explainAgentCheckFailure.
+    // The extra store reads on this path are the price of not printing a remedy that fails.
 
     // The essentials size/structure + step→refs integrity gate (ADR-0156 §5 / ADR-0161 decision 5):
     // the fence that keeps the thinned prompts from silently re-bloating back toward full-inline.
@@ -205,12 +262,9 @@ async function main(): Promise<void> {
     // essentials path only (never `renderAgentFile`) and runs the same `essentialsGateViolations`
     // checks against that content.
     gateFailures.push(...(await dedicatedSurfaceAgentGateViolations(store)));
-    if (gateFailures.length > 0) {
-      fail(
-        "essentials gate FAILED (ADR-0156 §5 / ADR-0161) — a rendered agent broke a size/structure/" +
-          "integrity invariant:\n  " + gateFailures.join("\n  "),
-      );
-    }
+
+    const failure = explainAgentCheckFailure({ drift, essentialsFailures: gateFailures });
+    if (failure !== null) fail(failure);
     await corpus.close();
     console.log(
       `check:agents — ${renderedTargets.map((target) => target.label).join(" + ")} in sync + ` +
