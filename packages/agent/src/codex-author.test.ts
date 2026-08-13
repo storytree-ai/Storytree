@@ -8,11 +8,15 @@ import { fileURLToPath } from "node:url";
 
 import {
   buildCodexExecArgs,
+  CODEX_PHASE_AUTHOR_PROFILE,
   CodexPhaseAuthor,
+  codexProductionReplicaRoot,
   DEFAULT_CODEX_MODEL,
   genericPhasePrompt,
   isChatGptManagedLogin,
+  MANAGED_CODEX_EXECUTABLE_ENV,
   parseCodexJsonl,
+  prepareCodexDisposableReplica,
   runPinnedCodexCli,
   scrubMeteredCodexAuth,
 } from "./codex-author.js";
@@ -118,6 +122,47 @@ test("the production pinned Codex runner reaches the repository-pinned executabl
   assert.match(result.stdout, /^codex-cli \d+\.\d+\.\d+/);
 });
 
+test("the production runner can select one absolute administrator-managed executable", async () => {
+  const result = await runPinnedCodexCli({
+    args: ["--version"],
+    cwd: process.cwd(),
+    env: { ...process.env, [MANAGED_CODEX_EXECUTABLE_ENV]: process.execPath },
+  });
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /^v\d+\./);
+  await assert.rejects(
+    runPinnedCodexCli({
+      args: ["--version"],
+      cwd: process.cwd(),
+      env: { ...process.env, [MANAGED_CODEX_EXECUTABLE_ENV]: "relative/codex" },
+    }),
+    /must name an absolute executable/,
+  );
+});
+
+test("production replica stays in the ignored claimed-worktree subtree without nested Git", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "codex-production-replica-"));
+  try {
+    await fs.mkdir(path.join(root, ".git"));
+    await fs.mkdir(path.join(root, ".gate-logs", "old-run"), { recursive: true });
+    await fs.mkdir(path.join(root, "packages", "widget"), { recursive: true });
+    await fs.writeFile(path.join(root, "packages", "widget", "index.ts"), "export {};\n");
+    await fs.writeFile(path.join(root, ".gate-logs", "old-run", "gate.log"), "old\n");
+
+    const replica = await prepareCodexDisposableReplica(root, false);
+    try {
+      assert.equal(path.dirname(replica.dir), codexProductionReplicaRoot(root));
+      assert.equal(await fs.readFile(path.join(replica.dir, "packages", "widget", "index.ts"), "utf8"), "export {};\n");
+      await assert.rejects(fs.stat(path.join(replica.dir, ".git")));
+      await assert.rejects(fs.stat(path.join(replica.dir, ".gate-logs")));
+    } finally {
+      await fs.rm(replica.dir, { recursive: true, force: true });
+    }
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
 function captureRunner(results: CodexCommandResult[]): {
   runner: CodexRunner;
   commands: CodexCommand[];
@@ -203,7 +248,7 @@ test("API-key and unlogged states fail before codex exec with no fallback", asyn
   }
 });
 
-test("exec selects Terra, one ephemeral JSON turn, and the replica-only OS sandbox", async () => {
+test("exec selects Terra, one ephemeral JSON turn, and the managed phase-author profile", async () => {
   const cap = captureRunner([chatGpt(), completed()]);
   const author = new CodexPhaseAuthor({
     cwd: CWD,
@@ -235,22 +280,20 @@ test("exec selects Terra, one ephemeral JSON turn, and the replica-only OS sandb
     "--ignore-user-config",
     "--ignore-rules",
     "--skip-git-repo-check",
-    "--dangerously-bypass-hook-trust",
   ]) {
     assert.ok(exec.args.includes(required), `missing ${required}`);
   }
-  assert.equal(exec.args[exec.args.indexOf("--sandbox") + 1], "workspace-write");
+  assert.equal(exec.args.includes("--sandbox"), false);
+  assert.equal(exec.args.includes("--dangerously-bypass-hook-trust"), false);
   assert.equal(exec.args.at(-1), "-");
   assert.equal(exec.args[exec.args.indexOf("--model") + 1], DEFAULT_CODEX_MODEL);
   assert.ok(exec.args.includes("--strict-config"));
   assert.ok(exec.args.includes('approval_policy="never"'));
   assert.ok(exec.args.some((arg) => arg === 'web_search="disabled"'));
   assert.ok(exec.args.some((arg) => arg === 'forced_login_method="chatgpt"'));
-  assert.ok(exec.args.includes("sandbox_workspace_write.network_access=false"));
-  if (process.platform === "win32") {
-    assert.ok(exec.args.includes('windows.sandbox="elevated"'));
-  }
-  assert.ok(exec.args.some((arg) => arg.includes("hooks.PreToolUse=")));
+  assert.ok(exec.args.includes(`default_permissions="${CODEX_PHASE_AUTHOR_PROFILE}"`));
+  assert.equal(exec.args.some((arg) => arg.startsWith("sandbox_workspace_write.")), false);
+  assert.equal(exec.args.some((arg) => arg.startsWith("hooks.PreToolUse=")), false);
   assert.match(exec.stdin ?? "", /Write the red test/);
   assert.match(exec.stdin ?? "", /deterministic spine/);
   assert.equal(author.runtime, "codex");
@@ -609,15 +652,17 @@ test("reported changes without an observed replica diff are not promotion eviden
   });
 });
 
-test("command builder disables network, web, MCP, and agents inside the replica sandbox", () => {
+test("command builder selects only the managed phase profile and disables optional surfaces", () => {
   const args = buildCodexExecArgs({
     model: DEFAULT_CODEX_MODEL,
     cwd: CWD,
-    hookPath: `${CWD}${pathSeparator()}scope-hook.mjs`,
   });
-  assert.equal(args[args.indexOf("--sandbox") + 1], "workspace-write");
+  assert.equal(args.includes("--sandbox"), false);
   assert.equal(args.includes("--add-dir"), false);
-  assert.ok(args.includes("sandbox_workspace_write.network_access=false"));
+  assert.ok(args.includes(`default_permissions="${CODEX_PHASE_AUTHOR_PROFILE}"`));
+  assert.equal(args.some((arg) => arg.startsWith("sandbox_workspace_write.")), false);
+  assert.equal(args.some((arg) => arg.startsWith("hooks.")), false);
+  assert.equal(args.includes("--dangerously-bypass-hook-trust"), false);
   assert.ok(args.includes("mcp_servers={}"));
   assert.ok(args.includes("agents.enabled=false"));
   assert.ok(args.includes("features.hooks=true"));
@@ -627,10 +672,6 @@ test("command builder disables network, web, MCP, and agents inside the replica 
   assert.ok(args.includes("features.shell_tool=true"));
   assert.ok(args.includes("features.unified_exec=false"));
 });
-
-function pathSeparator(): string {
-  return process.platform === "win32" ? "\\" : "/";
-}
 
 function hook(
   phase: "AUTHOR_TEST" | "IMPLEMENT",

@@ -95,10 +95,9 @@ pre-tool policy sees it), and D8's behavioural proof bar is still unmet. *(Corre
 rung for the file tools. D5.2 remains the only rung for a **shell**, and the only rung on any machine
 without the wall installed — which is every machine except one.)*
 
-**BUILD STATE — what is actually in force, 2026-08-02.** This ADR is a DECISION about what the lobby
-must be; the sentences above describe that decision and are not claims of installation. Read the
-build state only from here, and from [ADR-0257](0257-the-write-authority-wall-is-agent-inescapable-and-binds-shar.md),
-which owns it:
+**BUILD STATE — measured 2026-08-02; Codex leg corrected 2026-08-13.** This ADR is a DECISION about
+what the lobby must be; the sentences above describe that decision and are not claims of
+installation. Read the build state only from here and from the amending ADRs named inline:
 
 - **IN FORCE, on the developer machine only:** the static `permissions.deny` block of D1, generated
   from `repo-manifest.json` and installed USER-level, which refuses `Write`/`Edit`/`NotebookEdit`
@@ -107,26 +106,30 @@ which owns it:
   harness on ONE machine — nothing broader.**
 - **RETIRED, NOT PENDING (ADR-0284 D2):** the semantic half — the `PreToolUse` adapter that knew
   about claims, branches, detached HEAD and junction escapes. Its code is **deleted**
-  (`write-authority-hook.mjs`, `write-authority.ts`, `write-authority-receipt.ts`). **Nothing
-  evaluates a claim on the write path, and nothing will.** *(This bullet read "INSTALL-ON-DEMAND, and
+  (`write-authority-hook.mjs`, `write-authority.ts`, `write-authority-receipt.ts`). **No Claude-side
+  layer evaluates a claim on the write path, and none will.** *(This bullet read "INSTALL-ON-DEMAND, and
   unregistered as of 2026-08-02 … registered and exercised end-to-end, then unregistered because the
   only checkout carrying the post-flip script was an ephemeral worktree." Corrected in place 2026-08-02
   per ADR-0139, because that phrasing read as one command away from ON — which is precisely the trap
   ADR-0284 D2 deleted the code to close. The host problem was not the reason it was retired; it was
   one symptom of the reason: a boundary sourced from a mutable checkout is a convention, not a wall.)*
-- **NOT BUILT, AND NOW UNSCHEDULED:** any Codex-side enforcement (so D5's harness-neutrality is
-  decided, not achieved), D4's trusted mint actuator, D8's brokered common-directory access, and
-  **shell/`Bash` containment on either surface** — a shell can still write anywhere the process can.
-  ADR-0284 D6 names the Codex adapter as the one live remaining thread and an owner scope-and-spend
-  call; the rest is de-scoped or retired.
+- **CODEX OPERATIONAL 2026-08-13; CLAUDE UNCHANGED:** ADR-0355 delivers the preserved Codex thread
+  with an administrator-owned profile, managed hooks, a live-claim reader, and an exact trusted
+  actuator. The installed profile contains Codex shell and patch routes to one current claimed
+  worktree, and the live smoke attested lobby/sibling refusal plus current-worktree admission. The
+  Claude wall remains the static, claim-blind file-tool block described above; its shell and accepted
+  sibling-worktree gap are unchanged. Shared Git authority is not granted broadly: the trusted
+  actuator owns the exact bootstrap/launch operations.
 - **There is no claim receipt.** *(This bullet read "The claim receipt of D7 exists but is UNSIGNED".
   Retired by ADR-0284 D4 with its only consumer.)*
 
-Two readings this note exists to refuse. It is **not** true that "the primary checkout is a
-mechanically read-only agent lobby" without qualification — that describes the decision, and it holds
-for the file tools of one harness on one machine, not for a shell, not for Codex, and not anywhere
-else. It is equally **not** true that "nothing enforces it" — the static half is real, installed and
-behaviourally verified. *(This paragraph used to close "D8's proof bar is what closes the gap between
+Two readings this note exists to refuse. For Claude, it is **not** true that "the primary checkout is
+a mechanically read-only agent lobby" without qualification: the installed static wall binds that
+harness's file tools, not its shell, and accepts the sibling-worktree gap. For interactive Codex on
+the supported Windows host, ADR-0355 now makes the stronger statement true through the installed
+managed profile and hook composition. It is equally **not** true that "nothing enforces it" — both
+the narrower Claude wall and the stricter Codex wall are real and behaviourally verified on that
+host. *(This paragraph used to close "D8's proof bar is what closes the gap between
 the two, and it is unmet." D8 is retired — ADR-0284 D7 — so nothing is scheduled to close that gap;
 the gap is now the accepted, stated residual risk of ADR-0284 D8, not a work item.)*
 
@@ -372,14 +375,12 @@ projections of one rule.
 
 - The 2026-07-26/27 incident shape is impossible under the writer profile: a Local task can inherit
   the primary checkout and misunderstand its prompt, but the first write is refused before a byte
-  changes. *(**True of the decision, FALSE of what shipped — corrected in place 2026-08-02.** That
-  incident was a **Codex** Desktop task, and no layer of the wall binds Codex; the Codex adapter
-  (ADR-0257 D2/D3/D7) is unbuilt and per ADR-0284 D6 unscheduled. It was also a full-access task with
-  shell, and neither layer binds a shell on any surface. ADR-0284 counted the counterfactual: of 13
-  dated lobby incidents the installed wall would have prevented 5–6 — the file-tool slips, the
-  cheapest class to recover from — and neither of the two most expensive, this one and a sibling
-  branch-rewind by `git checkout`. The bullet is kept because it correctly states the goal; it does
-  not describe today.)*
+  changes. *(Corrected in place 2026-08-13. This was false of the 2026-08-02 build because the
+  incident was a **Codex** Desktop task and only Claude file tools were then contained. ADR-0355 has
+  now made it true for interactive Codex launched through the installed managed profile: shell and
+  patch routes share the one-current-worktree boundary and the lobby refusal was attested live. It
+  remains a contract of that managed launch, not a claim about an unmanaged full-access Codex process
+  or about Claude's shell.)*
 - Coordination and filesystem authority derive from the same ledger. Codex work becomes visible to
   Claude and the forest without introducing a second presence store or vendor-specific wisps.
 - The primary checkout remains a trustworthy, current orientation point for every session. A

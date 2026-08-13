@@ -10,6 +10,15 @@ arc: codex-factory-parity-arc
 
 accepted (2026-08-12) — decided/directed by the owner in conversation on 2026-08-12. Design-time alignment IS the ratification (ADR-0110); no second end-of-flow ask.
 
+**Operational (2026-08-13; corrected in place per ADR-0139).** The repository generator, trusted
+actuator, machine-wide Codex policy, and live-claim reader are installed and attested on the supported
+Windows host. The interactive profile admitted writes beneath exactly the current claimed worktree
+and refused the primary checkout and a sibling worktree. The factory phase-author profile admitted
+writes only beneath its in-worktree replica subtree and refused paths outside it. The lobby profile
+admitted startup/read activity and refused a write tool. Both the single-file `model-runtime-seam`
+and exact two-file `codex-multifile-runtime-seam` completed as subscription-backed signed live builds
+with no scope refusals. The final live leg D5 required is therefore complete.
+
 **Amends** ADR-0257 D2/D3/D7 and ADR-0284 D1/D6/D8. The owner has now chosen and funded the
 Codex-only containment thread those decisions left as a scope-and-spend fork. For interactive Codex,
 ADR-0284's accepted worktree-to-worktree risk no longer applies: Codex receives authority over one
@@ -54,8 +63,8 @@ supported interactive writer must not be able to modify the lobby or another ses
 
 3. **Managed Codex policy supplies the dynamic guard and explanation.** System-managed
    `%ProgramData%\OpenAI\Codex\requirements.toml` sets `allow_managed_hooks_only = true`, pins
-   `[features].hooks = true`, names an absolute `[hooks].windows_managed_dir`, and selects only the
-   Storytree profile. A managed
+   `[features].hooks = true`, names an absolute `[hooks].windows_managed_dir`, and permits only the
+   generated Storytree profiles needed by that session. A managed
    `PreToolUse` hook canonicalises the working directory and every extractable target, verifies the
    current branch and live claim, rejects lobby/sibling/ambiguous write attempts, and explains the
    refusal. A `PermissionRequest` hook records attempted widening. The hook is defense in depth; per
@@ -85,8 +94,16 @@ all name the same session identity.
 launcher/profile generator, Git common-directory handling, and a deployed-Codex hook coverage
 inventory. Worktree switches require a new profile or process handoff. A database outage or stale
 claim refuses a new writer rather than widening it. Repository tests can prove generation and policy
-decisions but cannot self-attest the machine-wide installation; the operator-owned live smoke remains
-the last leg.
+decisions but cannot self-attest the machine-wide installation, so the installed-host proof remains
+an operator-owned attestation whenever the managed payload, Codex version, or Windows sandbox changes.
+
+The native Windows permission profile's `deny_read` does not constrain shell subprocesses. The
+installed actuator therefore also applies explicit deny ACLs for the local Codex sandbox group to
+Codex auth, gcloud credentials, and Storytree secrets before launching a model turn. The live
+attestation confirmed those files, application-default credentials, the claim-reader's cloud token
+path, and outbound OAuth access all fail from the sandbox while the outer operator remains logged in.
+The claim hook reaches the live ledger only through a dedicated keyless impersonated service account
+whose database role can `SELECT` `events.node_claim` and cannot insert, update, or delete it.
 
 ## References
 
@@ -95,6 +112,13 @@ the last leg.
 - ADR-0284 — the owner scope-and-spend fork answered here; Claude's decision remains unchanged.
 - ADR-0110 — the owner's in-conversation direction is ratification.
 - `packages/cli/src/worktree-create.ts` — the claim-before-workspace ceremony the launcher admits.
+- `packages/cli/src/codex-session-containment.ts` — the managed requirements, hooks, session policy,
+  and trusted-actuator generator.
+- `packages/cli/src/codex-live-claim-probe-entry.ts` — the standalone keyless live-claim reader.
+- `packages/cli/src/codex-worktree-create-entry.ts` — the standalone, exact-argument lobby bootstrap
+  over the claim-before-workspace ceremony.
+- `packages/agent/src/codex-author.ts` — the factory phase author selects the managed replica-only
+  profile and keeps its production replica inside the claimed worktree.
 - Codex manual: Permissions, Hooks, Managed configuration, and Windows sandbox (verified
-  2026-08-12 against the current manual; permission-profile managed allowlists require Codex
+  2026-08-13 against the current manual; permission-profile managed allowlists require Codex
   0.138.0+).

@@ -11,6 +11,8 @@
     "./knowledge-render": "./src/knowledge-render.ts",
     "./repo-root": "./src/repo-root.ts",
     "./store": "./src/store/index.ts",
+    "./store/connection": "./src/store/connection.ts",
+    "./store/pg-store": "./src/store/pg-store.ts",
     "./fixture": "./src/fixture/index.ts"
   },
   "scripts": {

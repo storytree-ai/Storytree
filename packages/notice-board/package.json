@@ -6,7 +6,8 @@
   "description": "The notice-board organism (ADR-0068 step 6): the per-unit claim-ledger schema + reclaim predicate (the one session machinery since the presence retirement, ADR-0200 D7), extracted from the dissolving @storytree/core. Root barrel is pure zod, browser-safe; the Postgres claim store lives behind ./store.",
   "exports": {
     ".": "./src/index.ts",
-    "./store": "./src/store/index.ts"
+    "./store": "./src/store/index.ts",
+    "./store/claim-store": "./src/store/claim-store.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

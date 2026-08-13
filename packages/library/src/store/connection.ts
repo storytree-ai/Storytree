@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 
 import { Pool, type PoolConfig } from "pg";
 import { Connector, AuthTypes } from "@google-cloud/cloud-sql-connector";
+import { GoogleAuth, Impersonated } from "google-auth-library";
 
 import { dataPlaneRefusal } from "./data-plane.js";
 import { resolveDatabaseUser } from "./db-credential.js";
@@ -29,6 +30,11 @@ export interface CreatePoolOptions {
   instanceConnectionName?: string;
   user?: string;
   database?: string;
+  /**
+   * Optional keyless connector identity. The local ADC principal must have Token Creator on this
+   * service account; the database `user` remains the matching Cloud SQL IAM database role.
+   */
+  impersonateServiceAccount?: string;
 }
 
 /** A pool paired with the connector that owns its sockets, so both can be torn down together. */
@@ -80,7 +86,25 @@ export async function createPool(
     DEFAULT_INSTANCE_CONNECTION_NAME;
   const database = opts?.database ?? DEFAULT_DATABASE;
 
-  const connector = construction?.createConnector() ?? new Connector();
+  const impersonateServiceAccount =
+    opts?.impersonateServiceAccount?.trim() ||
+    process.env["STORYTREE_DB_IMPERSONATE_SERVICE_ACCOUNT"]?.trim();
+  let connector: Connector;
+  if (construction !== undefined) {
+    connector = construction.createConnector();
+  } else if (impersonateServiceAccount) {
+    const scopes = ["https://www.googleapis.com/auth/cloud-platform"];
+    const sourceClient = await new GoogleAuth({ scopes }).getClient();
+    const auth = new Impersonated({
+      sourceClient,
+      targetPrincipal: impersonateServiceAccount,
+      targetScopes: scopes,
+      lifetime: 3600,
+    });
+    connector = new Connector({ auth });
+  } else {
+    connector = new Connector();
+  }
   const clientOpts = await connector.getOptions({
     instanceConnectionName,
     authType: AuthTypes.IAM,

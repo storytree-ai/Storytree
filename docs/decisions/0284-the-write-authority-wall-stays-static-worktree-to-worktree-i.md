@@ -122,17 +122,20 @@ profile — remain the work that addresses the observed incidents, and it is the
 hook has real teeth because it pairs with an OS-level profile that also contains the shell. **Amended
 2026-08-12 by [ADR-0355](0355-interactive-codex-writes-only-in-its-current-claimed-worktre.md):** the
 owner funded the strict current-claimed-worktree scope and the repository now generates and dry-runs
-the managed policy bundle. Administrator-owned machine installation and live three-write attestation
-remain the honest gap.
+the managed policy bundle. **Corrected in place 2026-08-13:** the administrator-owned installation,
+trusted actuator, live-claim reader, and three-write attestation are now complete on the supported
+Windows host. Re-attestation remains operator-owned when the managed payload, Codex version, or
+Windows sandbox changes.
 
 **D7. ADR-0257 D9's two-surface concurrent-load proof bar is retired along with what it was proving.**
 With no semantic layer to prove, the bar has no subject. The static block's conformance test against
 the installed user-level file stands as the proof that remains.
 
-**D8. The residual gap is stated plainly rather than implied covered.** As amended by ADR-0355,
-repository code now generates Codex containment, but interactive Codex remains operationally
-uncontained until the administrator-owned profile is installed and the live smoke attests it. The
-gap is no longer design or repository generation; it is privileged deployment and evidence.
+**D8. The residual gap is stated plainly rather than implied covered.** ADR-0355 first narrowed the
+gap to privileged deployment and evidence, then closed that delivery leg on 2026-08-13: interactive
+Codex is installed and attested on the supported Windows host. The remaining boundary is lifecycle,
+not unfinished delivery — a changed managed payload, Codex version, or Windows sandbox requires a
+fresh operator-owned attestation before the new combination is called operational.
 
 ## Consequences
 
@@ -146,7 +149,8 @@ remaining statement of risk is small, true, and priceable.
 **Bad, and accepted.** A session can still write into a sibling's worktree with a file tool; nothing
 refuses it on the Claude static wall. We are betting on zero observed Claude instances continuing to
 be zero, and the bet is revisited by evidence, not by argument. ADR-0355 makes the opposite choice for
-interactive Codex: its generated profile admits only the current claimed worktree once installed.
+interactive Codex: its installed profile admits only the current claimed worktree on the supported
+Windows host.
 
 **Known holes in what remains — the list is now FULLY DISCHARGED.** Three were named on acceptance as
 follow-ups against the layer that stays, not as reasons to keep the layer that goes. All three closed
