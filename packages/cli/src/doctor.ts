@@ -57,7 +57,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
-import { lockfileAdvanced, lockfilePair } from "../provision-worktree.mjs";
+import { lockfileAdvanced, lockfilePair, needsRelink } from "../provision-worktree.mjs";
 import type { Envelope } from "./envelope.js";
 import {
   guidanceSurfacePaths,
@@ -109,6 +109,12 @@ export interface DoctorObservations {
   readonly nodeMajor: number | null;
   /** The checkout is provisioned: `node_modules/.modules.yaml` exists (the pnpm-complete marker). */
   readonly provisioned: boolean;
+  /**
+   * An install completed here but LINKED NOTHING (`node_modules` has no `.bin`) — the state both
+   * `provisioned` and `dependencyCurrency` read as healthy, because the install did complete and the
+   * lockfile did not move. False on an unprovisioned checkout, where `provisioned` is the true answer.
+   */
+  readonly unlinked: boolean;
   /** Whether the installed dependencies are the ones the checked-out lockfile asks for. */
   readonly dependencyCurrency: DependencyCurrency;
   /** The read-only remote answers (`git ls-remote`): true reachable, false refused, null undetermined (offline). */
@@ -220,6 +226,37 @@ export function runDoctor(obs: DoctorObservations): DoctorReport {
           fixHint: "re-run the installer's provision step (install.ps1 @step:provision) — `pnpm install` in the checkout.",
         },
   );
+
+  // 3b. workspace-linked — the install did not merely COMPLETE, it produced something runnable.
+  // A THIRD probe rather than a widening of either neighbour, for the reason stated at the top of this
+  // file: a probe asserts exactly what it observed. Probe 3 answers "did an install complete here?" and
+  // probe 4 answers "against which lockfile?" — and an install that completes, matches the lockfile and
+  // links NOTHING answers both of those honestly while leaving a checkout where no binary runs. That
+  // combination was reachable and both probes reported PASS over it, which is the one direction a
+  // diagnostic must not fail in: the session then trusts doctor and hunts the wrong cause.
+  //
+  // FAIL, not WARN (unlike probe 4): stale deps are a refresh, but an unlinked tree cannot run tsx,
+  // tsc or the gate at all — it is broken now, not drifting. The fixHint carries the specific warning
+  // that re-running install may again print "Already up to date", which is about RESOLUTION and not
+  // linking, so a session does not read that line as "nothing was wrong".
+  if (obs.unlinked) {
+    probes.push({
+      name: "workspace-linked",
+      level: "FAIL",
+      detail: "an install completed here but linked no packages (node_modules has no .bin)",
+      fixHint:
+        "run `pnpm install` in this checkout, then confirm `node_modules/.bin` exists. It may print " +
+        '"Already up to date" — that is about resolution, not linking, so verify .bin rather than ' +
+        "trusting the line. Until then `tsx`, `tsc` and `pnpm gate` fail as `'tsx' is not recognized`, " +
+        "which is NOT the worktree-root resolution trap it resembles.",
+    });
+  } else if (obs.provisioned) {
+    probes.push({
+      name: "workspace-linked",
+      level: "PASS",
+      detail: "the install produced a linked node_modules (.bin present)",
+    });
+  }
 
   // 4. dependencies-current — the installed deps are the ones the CHECKED-OUT lockfile asks for.
   // Deliberately a SECOND probe rather than a widening of probe 3: presence and currency are different
@@ -572,6 +609,7 @@ function gatherLocalObservations(checkoutDir: string): Omit<DoctorObservations, 
     gitPresent: commandPresent("git"),
     nodeMajor: nodeMajor(),
     provisioned,
+    unlinked: needsRelink(checkoutDir),
     dependencyCurrency: dependencyCurrency(checkoutDir, provisioned),
     remoteReachable: remoteReachable(checkoutDir),
     claudeCliPresent: commandPresent("claude"),

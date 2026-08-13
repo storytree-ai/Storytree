@@ -20,6 +20,7 @@ import { test } from "node:test";
 
 import {
   needsProvision,
+  needsRelink,
   lockfileAdvanced,
   lockfilePair,
   provisionWorktree,
@@ -37,11 +38,19 @@ const SCRIPT = fileURLToPath(new URL("../provision-worktree.mjs", import.meta.ur
  * Real files on a real disk: `lockfileAdvanced` is deliberately NOT injectable, so the tests drive the
  * same code the hook runs rather than a stub of it.
  */
-function makeTmpRoot(provisioned: boolean, lock?: { wanted?: string; current?: string }): string {
+function makeTmpRoot(
+  provisioned: boolean,
+  lock?: { wanted?: string; current?: string },
+  opts?: { linked?: boolean },
+): string {
   const dir = mkdtempSync(join(tmpdir(), "st-provision-"));
   if (provisioned) {
     mkdirSync(join(dir, "node_modules"), { recursive: true });
     writeFileSync(join(dir, "node_modules", ".modules.yaml"), "hoistPattern:\n  - '*'\n");
+    // A genuinely provisioned pnpm root ALSO has `node_modules/.bin`. Modelling only `.modules.yaml`
+    // was what hid the unlinked-tree bug from this suite for as long as it existed: every "provisioned"
+    // fixture was, in production terms, a broken tree that the assertions called healthy.
+    if (opts?.linked !== false) mkdirSync(join(dir, "node_modules", ".bin"), { recursive: true });
   }
   if (lock?.wanted !== undefined) writeFileSync(join(dir, "pnpm-lock.yaml"), lock.wanted);
   if (lock?.current !== undefined) {
@@ -119,6 +128,74 @@ test("lockfileAdvanced: FAILS OPEN when either lockfile is missing (absence is n
   } finally {
     for (const d of [noCurrent, noWanted, neither]) rmSync(d, { recursive: true, force: true });
   }
+});
+
+// ── the unlinked-tree detector (the third condition) ────────────────────────────────────────────
+// REGRESSION: `pnpm install` in a fresh worktree printed "Lockfile is up to date, resolution step is
+// skipped" / "Already up to date" and exited 0 while leaving node_modules with NO package links and no
+// `.bin` at all. Both existing conditions read healthy — the install COMPLETED (`.modules.yaml` was
+// written) and the lockfile had NOT advanced (pnpm's copy matched) — so the hook no-opped forever and
+// the session met `'tsx' is not recognized`, which CLAUDE.md documents as the unrelated worktree-root
+// RESOLUTION trap. Following that documented remedy cannot help, because the cause is an unlinked tree.
+
+test("needsRelink: an install that completed but linked NOTHING is flagged", () => {
+  const unlinked = makeTmpRoot(true, { wanted: LOCK_NEW, current: LOCK_NEW }, { linked: false });
+  const healthy = makeTmpRoot(true, { wanted: LOCK_NEW, current: LOCK_NEW });
+  try {
+    assert.equal(needsRelink(unlinked), true, ".modules.yaml present but no .bin ⇒ nothing was linked");
+    assert.equal(needsRelink(healthy), false, "a linked tree is left alone");
+  } finally {
+    for (const d of [unlinked, healthy]) rmSync(d, { recursive: true, force: true });
+  }
+});
+
+test("needsRelink: a FRESH worktree is not its business (needsProvision already forces the install)", () => {
+  const fresh = makeTmpRoot(false);
+  try {
+    assert.equal(needsRelink(fresh), false, "no completed install ⇒ this predicate stays silent");
+  } finally {
+    rmSync(fresh, { recursive: true, force: true });
+  }
+});
+
+test("provisionWorktree: an UNLINKED worktree reinstalls though both older conditions read healthy", () => {
+  const root = makeTmpRoot(true, { wanted: LOCK_NEW, current: LOCK_NEW }, { linked: false });
+  try {
+    assert.equal(needsProvision(root), false, "precondition: the install DID complete");
+    assert.equal(lockfileAdvanced(root), false, "precondition: the lockfile did NOT advance");
+    const calls: string[] = [];
+    const logs: string[] = [];
+    const res = provisionWorktree({
+      root,
+      log: (m) => logs.push(m),
+      install: (r) => {
+        calls.push(r);
+        return { ok: true, code: 0 };
+      },
+    });
+    assert.deepEqual(calls, [root], "the unlinked worktree is reinstalled rather than no-opped past");
+    assert.deepEqual(res, { provisioned: true, ok: true, code: 0, reason: "relinked" });
+    assert.match(logs.join("\n"), /UNLINKED/, "the log names the condition it actually hit");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("unprovisionedContext: the UNLINKED wording does not claim the install failed to complete", () => {
+  const root = join("/wt", "cli-ad9712");
+  const ctx: string = JSON.parse(unprovisionedContext(root, "unlinked")).hookSpecificOutput.additionalContext;
+  assert.match(ctx, /linked no packages|no package links/i, "it names the real condition");
+  assert.match(ctx, /tsx' is not recognized|is not recognized/i, "it names the symptom the session will meet");
+  assert.doesNotMatch(
+    ctx,
+    /did not complete/,
+    "the install DID complete and reported success — saying otherwise sends the session to the wrong remedy",
+  );
+});
+
+test("hookStdout: a relink failure emits the UNLINKED context, not the never-provisioned one", () => {
+  const root = join("/wt", "cli-ad9712");
+  assert.equal(hookStdout({ ok: false, reason: "relink-failed" }, root, true), unprovisionedContext(root, "unlinked"));
 });
 
 test("provisionWorktree: a STALE worktree reinstalls instead of no-opping, and says so", () => {
@@ -290,7 +367,7 @@ test("unprovisionedContext: a valid SessionStart additionalContext payload namin
 
 test("unprovisionedContext: the STALE wording names the real cause, not the never-provisioned one", () => {
   const root = "/tmp/some-worktree-root";
-  const ctx: string = JSON.parse(unprovisionedContext(root, true)).hookSpecificOutput.additionalContext;
+  const ctx: string = JSON.parse(unprovisionedContext(root, "stale")).hookSpecificOutput.additionalContext;
   assert.match(ctx, /STALE/, "names the condition outright");
   assert.match(ctx, /older `pnpm-lock\.yaml`/i, "says WHY: installed against an older lockfile");
   assert.match(ctx, /pnpm install/, "still gives the one-step fix");
@@ -318,12 +395,12 @@ test("hookStdout: a refresh-failed result selects the stale wording", () => {
   const root = "/tmp/wt";
   assert.equal(
     hookStdout({ ok: false, reason: "refresh-failed" }, root, true),
-    unprovisionedContext(root, true),
+    unprovisionedContext(root, "stale"),
     "the stale failure carries the stale message",
   );
   assert.equal(
     hookStdout({ ok: false, reason: "install-failed" }, root, true),
-    unprovisionedContext(root, false),
+    unprovisionedContext(root, "fresh"),
     "the fresh failure keeps the never-provisioned message",
   );
 });
