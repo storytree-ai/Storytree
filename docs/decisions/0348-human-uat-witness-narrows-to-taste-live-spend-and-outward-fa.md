@@ -107,26 +107,63 @@ genuine no-compiler acceptance criterion looks like once the experience legs are
 > the two-file shape D5 mandates. The trace below is the state on `984fd554` that PRODUCED D5 and is
 > kept as the reasoning; read it as history, not as current state.
 >
-> **FLIPPING BEGAN 2026-08-12 — 8 of the 17 are done, and the last NINE are BLOCKED on a question this
-> ADR did not anticipate.** This paragraph previously said *"what has NOT happened yet is any leg
-> flip"*, and then *"6 of the 17"*; corrected in place per ADR-0139 as each slice landed. Done:
-> `agent` leg 1 (D7's own leg, bound to an appended `agent#gate-2`), all five `library-review` legs
-> (bound to a new `#gate-1`…`#gate-5` section), and `studio-build` legs 9 and 10 (D2 and D3
-> respectively, bound to an appended `#gate-2`/`#gate-3`). The executor's live drives stay deliberately
-> out-of-band (ADR-0010 §5), like gate-7's cold-start probe.
+> **FLIPPING IS COMPLETE — 12 of the 17 flipped, and the other 5 are RESOLVED rather than pending
+> (2026-08-13).** This paragraph previously said *"what has NOT happened yet is any leg flip"*, then
+> *"6 of the 17"*, then *"8 of the 17 … the last NINE are BLOCKED on a question this ADR did not
+> anticipate"*; corrected in place per ADR-0139 as each slice landed. Flipped: `agent` leg 1 (D7's own
+> leg, bound to an appended `agent#gate-2`), all five `library-review` legs
+> (bound to a new `#gate-1`…`#gate-5` section), `studio-build` legs 9 and 10 (D2 and D3
+> respectively, bound to an appended `#gate-2`/`#gate-3`), and — under ADR-0357's source-reading triage
+> — `desktop` 3, `embedded-terminal` 5, `terminal-tabs` 4 and `map-terminal-build` 7. The executor's
+> live drives stay deliberately out-of-band (ADR-0010 §5), like gate-7's cold-start probe.
 >
-> **The nine that remain are parked as `uat-flip-nine-electron-legs`, and they are NOT merely
-> unstarted.** Every one is behind the packaged Electron desktop app, and at least one — the
-> `terminal-repo-picker` leg naming a REAL native OS directory dialog — cannot satisfy D1 in either
-> direction: it may not stay `human` (D1 is unconditional, and "the dialog opens and returns a path"
-> is not a judgment call), and flipping it mints a gate that can never go green, because
-> `dialog.showOpenDialog` is an Electron MAIN-process native modal that a renderer-driving harness
-> cannot click — which is exactly why the `_electron` suite STUBS that call. **This ADR did not
-> foresee a third category: mechanical, but outside every harness the proof spine can own.** The fork
-> is `oq-adr-0348-d1-vs-a-surface-no-harness-owns-what-happens-to`, and the other eight legs are
-> deliberately left unprobed until it is answered, since the rule may dispose of some for free.
+> **The Electron nine are TRIAGED (2026-08-13, `uat-flip-nine-electron-legs`), and the count of legs
+> that legitimately stay `human` is FIVE, not one.** Reading the source — the method ADR-0357's
+> Consequences mandates in place of nine paid drives — resolved them three ways, and the third way was
+> not one of the two the increment was told to expect:
+> - **FOUR FLIP** to `machine`, each bound in the same change to an appended model-driven
+>   `uat-drive-witness.check.ts` gate. `desktop` 3 was the predicted one and the prediction held:
+>   `electron/main.ts:131` constructs the credential broker over `NapiKeychain` UNCONDITIONALLY, so an
+>   `_electron` launch already writes the real OS keychain and "quits and relaunches" is
+>   `electron.launch()` twice. `embedded-terminal` 5, `terminal-tabs` 4 and `map-terminal-build` 7 all
+>   rested on D2/D3 bases alone and are reachable through the same `_electron` instrument their sibling
+>   legs already use (the main-held serialized screen via `desktopTerminal.snapshot`).
+> - **THREE STAY `human` on ADR-0357 D1's second basis, each now stating it.** `terminal-repo-picker` 7
+>   is the worked case. `desktop` 7 and `desktop` 8 are a SECOND mechanism this ADR did not see, and it
+>   is one line of code: `ensureHostedIdentity` (`apps/desktop/electron/main.ts:180`) blocks the brokered
+>   write on an INTERACTIVE Google sign-in behind IAP, and no identity the factory holds can mint an
+>   IAP-audience OIDC token since ADR-0254 D4 retired `storytree-remote-dev`.
+> - **TWO ARE MOOT, which is neither answer.** `chat-drive-bridge` 5 and `chat-subagent-spawn` 5 sit on
+>   `status: retired` stories whose surfaces were DELETED (the accept-to-Build handshake in PR #587
+>   under ADR-0155; the spawn tool surface on 2026-07-31 under ADR-0175, held gone by
+>   `spawn-surface-retired.test.ts`). Their D2/spend bases are withdrawn, but flipping them would mint a
+>   gate that can never go green because the journey cannot be WALKED — a red that is neither a harness
+>   limit nor a product defect, and therefore exactly the indistinguishable-red failure ADR-0357 exists
+>   to control. They are left tagged as they stand with the mootness recorded on the leg. Whether a
+>   retired story's UAT legs should be DELETED (ordinals burned, as D6 did for experience legs) or kept
+>   verbatim as history is a story-author / librarian disposition call, deliberately not made there.
+>
+> **The paragraph below is the state that PRODUCED the fork, kept as reasoning.** Every one is behind the packaged Electron desktop app, and at least one — the
+> `terminal-repo-picker` leg naming a REAL native OS directory dialog — could not satisfy D1 as this
+> ADR first wrote it, in either direction: staying `human` disobeyed D1, and flipping it mints a gate
+> that can never go green, because `dialog.showOpenDialog` is an Electron MAIN-process native modal
+> that a renderer-driving harness cannot click — which is exactly why the `_electron` suite STUBS that
+> call. **This ADR did not foresee a third category: mechanical, but outside every harness the proof
+> spine can own.** That fork — `oq-adr-0348-d1-vs-a-surface-no-harness-owns-what-happens-to` — was
+> ANSWERED by the owner on 2026-08-12 and is recorded as **ADR-0357**, which AMENDS D1: a leg may stay
+> `human` when its success condition is mechanical but sits outside every harness the spine owns,
+> PROVIDED the leg states that basis and what would retire it (ADR-0357 D4 extends that obligation to
+> every `human` leg, not only these). The increment is unblocked and re-scoped to source-reading
+> triage rather than nine paid drives — and that triage EXECUTED on 2026-08-13, with the outcome
+> recorded above.
 > *(A counting correction inherited by that increment: the flip work recorded SEVEN Electron-bound
 > legs. It is NINE — `chat-drive-bridge` 5 and `chat-subagent-spawn` 5 also open "In the desktop app".)*
+> *(A second correction, from executing it: "the `_electron` suite already relaunches the real app
+> across a restart" — repeated from this ADR into the increment — is NOT true of
+> `session-survival.e2e.mjs`, which launches once and does a renderer `win.reload()` plus a SPA route
+> change. The conclusion survives intact, because a real restart is `electron.launch()` twice and the
+> harness plainly supports it; but the claim as written was a description of a spec that does not do
+> that, and a triage resting on it would have been resting on prose.)*
 >
 > **What driving the flipped legs has actually produced is a MEASUREMENT, twice over, and that is the
 > real yield of D1.** Flipping `library-review`'s five legs found that its story-rung journey does not
@@ -184,6 +221,12 @@ success condition is a genuine judgment gap that neither a compiler nor a model 
 an aesthetic, felt, or owner value call. This restores
 `asset:human-witness-is-a-judgment-gap-not-cost` as the single test, and removes the two exceptions
 ADR-0295 D5 added to it.
+
+> **Amended 2026-08-12 by [ADR-0357](0357-human-uat-witness-also-covers-surfaces-no-harness-owns-every.md) D1 — corrected in place (ADR-0139).** "Taste alone" no longer holds without
+> qualification: a leg may also carry `witness: human` on a second basis — its success condition is
+> mechanical but sits outside every harness the proof spine owns — PROVIDED it states that basis and
+> what would retire it (ADR-0357 D2), and that statement is readable where the owner meets the leg
+> (ADR-0357 D3). D2 below (live-spend) and D3 below (outward-facing) stand unamended.
 
 **D2. Live spend is not a reason for a human witness.** A leg whose journey costs subscription-funded
 spend is `machine`. The spend is a routine factory action, not a judgment; the principle already said

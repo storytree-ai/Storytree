@@ -264,8 +264,15 @@ permanent regression case, never speculative breadth).
 > NOT" above. Ordinals are BURNED, not renumbered — position 7 is simply absent, so every surviving leg
 > keeps the number it has always had and no signed verdict or `(proof-gate:)` binding is silently
 > re-pointed. **This story's ordinals are unusually load-bearing** (see the attestation note below: a
-> signed row already points at `#uat-5`), which is exactly why nothing is renumbered here. The one
-> surviving human leg (5) is a genuine ACCEPTANCE claim about real metered spend, not a look.
+> signed row already points at `#uat-5`), which is exactly why nothing is renumbered here.
+>
+> **RE-TRIAGED 2026-08-13 (ADR-0357): leg 5 FLIPPED to `machine`, so this story now carries SEVEN
+> `machine` legs and NO `human` leg.** The sentence that stood here — *"The one surviving human leg (5)
+> is a genuine ACCEPTANCE claim about real metered spend, not a look"* — is corrected in place per
+> ADR-0139: real metered spend is precisely the basis ADR-0348 D2 withdrew, and ADR-0357 D1's second
+> basis does not reach this leg either, because the `_electron` harness that already reads the pty's
+> main-held screen for legs 1, 4 and 6 reads a `claude` session's screen the same way. Leg 5 is bound
+> to the model-driven gate 1 under "Reliability Gates".
 >
 > The wiring legs (2, 3) are covered by the two capabilities' signed `--real` verdicts (the pty lifecycle
 > over a fake pty; the xterm dock over a mocked xterm + bridge) — those two tags are unchanged.
@@ -389,15 +396,24 @@ the real tool, the observability layer watching it through the existing seams wi
    xterm/mocked bridge capability 3 signs. *(`session-survival.e2e.mjs` already spawns the real pty, types
    `echo survival-probe` and reads it back this way, so the native-module half of this leg is harnessed
    today; only the interactive-program assertion is net-new.)*
-5. **Real Claude Code runs interactively in the embedded terminal.** _(witness: human)_ The member types _(criterion-id: uatc_855b0712c20d7cf71a4cc78a)_ _(revision-id: uatr1:8dc44ae2214f9202)_
+5. **Real Claude Code runs interactively in the embedded terminal.** _(witness: machine)_ _(proof-gate: embedded-terminal#gate-1)_ The member types _(criterion-id: uatc_855b0712c20d7cf71a4cc78a)_ _(revision-id: uatr1:9aa066aeebca3ef6)_ _(previous-revision-id: uatr1:8dc44ae2214f9202)_
    `claude` and drives a real session in-app — its own turn knobs, slash commands, permission modes, plan
    mode, MCP and skills all working (ADR-0174: the terminal's Claude Code has all of it for free).
-   **Success —** the owner's attestation that real Claude Code, not an imitation of it, is the interactive
-   build surface. *(`human` under the owner's explicit honesty wall, and NOT because the harness is
-   missing: this burns REAL metered subscription spend that the proof spine must never spawn unattended,
-   and "all of Claude Code's affordances work" is a judgment about a third-party interactive product
-   rather than about our pty. Leg 4 machine-proves the part with a compiler — that the pty faithfully
-   hosts a real interactive program.)*
+   **Success —** real Claude Code, not an imitation of it, observed running as the interactive build
+   surface. *(FLIPPED `human` → `machine` 2026-08-13 under ADR-0348 D2, by the source-reading triage
+   ADR-0357 mandates. The old note gave two reasons and NEITHER survives. The first was **real metered
+   subscription spend** — withdrawn by ADR-0348 D2, and `asset:human-witness-is-a-judgment-gap-not-cost`
+   names cost as the most seductive false premise; the leaf is subscription-funded against a maxTurns
+   brake, not a paid meter, and the UAT driver is itself such a session. The second was that *"all of
+   Claude Code's affordances work" is a judgment about a third-party interactive product* — but that is
+   a claim about our SURFACE, and every clause of it is observable in the pty: legs 1, 4 and 6 already
+   read the main-held serialized screen through `desktopTerminal.snapshot` in the `_electron` harness,
+   which is the same instrument that reads a `claude` session's TUI. The honest residue is that this is
+   the ONE leg here whose journey needs a real subscription session inside the terminal rather than a
+   plain shell, which is why its gate is model-driven and out-of-band rather than a standing spec.
+   **Read the `#uat-5` attestation note above before reading this leg** — that 2026-07-16 row is a
+   `witness: human` row against the LEGACY POSITIONAL id and already did not vouch for the claim here;
+   this flip changes the claim's witness and decides nothing about the owner's open remedy call.)*
 6. **Scrollback, reflow and keys behave like a real terminal.** _(witness: machine)(detail: embedded-terminal#uat-6)_ Over the REAL xterm _(criterion-id: uatc_43d8956b3d08b704da13ce47)_ _(revision-id: uatr1:4b9fc94f98a35707)_
    and REAL pty in the integrated harness: output beyond the viewport is retained in scrollback (the dock
    constructs xterm at scrollback 5000, aligned with the main-held headless screen model, ADR-0190);
@@ -409,7 +425,7 @@ the real tool, the observability layer watching it through the existing seams wi
    `tdp-toggles-visibility-keeping-terminal-mounted`, `tdp-constructs-with-aligned-scrollback` — but a mock
    cannot exhibit reflow or scrollback retention, so this leg is the real-renderer half, not a
    restatement.)*
-8. **The existing observability seams watch a session started in the terminal — a wisp lights.** _(criterion-id: uatc_bdc148e9f00088bac6269e04)_ _(revision-id: uatr1:fce9af7f0492b084)_ _(previous-revision-id: uatr1:f9547fb6ce34ad2d)_
+8. **The existing observability seams watch a session started in the terminal — a wisp lights.** _(criterion-id: uatc_bdc148e9f00088bac6269e04)_ _(revision-id: uatr1:bc313477c63c7629)_ _(previous-revision-id: uatr1:fce9af7f0492b084)_
    _(witness: machine)(detail: embedded-terminal#uat-8)_ A session started in the embedded terminal takes its claim through the EXISTING
    CLI seam — `storytree noticeboard declare --node embedded-terminal --pg`, run in the terminal's real
    pty (ADR-0142) — and the map paints a wisp for it with NO new observer code, proving the ADR-0174
@@ -430,17 +446,48 @@ the real tool, the observability layer watching it through the existing seams wi
 End state — the desktop app embeds a real local terminal that runs real Claude Code in-app as the
 interactive build surface: the pty lifecycle and the renderer dock signed under their suites, the dock
 mount / the real pty / the terminal mechanics / the wisp seam machine-observed in the integrated harness,
-and exactly ONE leg operator-attested — the paid interactive Claude Code session — the interactive
+and the paid interactive Claude Code session model-driven under gate 1 below — the interactive
 runtime becoming the real tool while the prove-it-gate leaf and the observability seams are untouched.
-Whether the terminal FEELS coherent is no longer an acceptance obligation (ADR-0348 D6); that intent is
-recorded under "What this story is NOT" and answered by the owner using the app.
+*(This sentence read "and exactly ONE leg operator-attested — the paid interactive Claude Code session";
+corrected in place per ADR-0139 when ADR-0348 D2's triage flipped leg 5 on 2026-08-13. This story now
+carries NO human leg.)* Whether the terminal FEELS coherent is no longer an acceptance obligation
+(ADR-0348 D6); that intent is recorded under "What this story is NOT" and answered by the owner using
+the app.
+
+## Reliability Gates
+
+**Gate 1 is the story's FIRST gate (2026-08-13, ADR-0348 D2 / ADR-0357).** Gate ids are positional
+(`asset:edit-story-uat-criteria` step 2), so anything added later APPENDS as gate 2 — never inserted,
+never renumbered, or already-signed verdicts and surviving `(proof-gate:)` bindings are silently
+re-pointed. It carries no `(covers:)`: it proves a JOURNEY, not a capability, and adding it to a
+`(covers:)` list would let an observe-and-sign `adopt` pass green a capability that never went red
+(ADR-0085 / ADR-0097).
+
+**The gate neither drives nor spends.** The drive is deliberately out-of-band —
+`pnpm --filter @storytree/drive exec node --import tsx src/uat-drive.run.ts embedded-terminal <criterion-id>`
+spawns a fresh subscription-funded session that walks the authored journey against the real packaged
+app and appends a record to `events.uat_drive`. ADR-0010 §5 keeps that off every gate path, exactly as
+`dogfood-probe.run.ts` is. The gate is the cheap standing WITNESS of that persisted artifact, and the
+spine still mints the verdict over the exit code IT watched, so ADR-0295 D2's *no model signs its own
+verdict* holds with the signing path unchanged. A leg is model-driven exactly when the observe gate it
+names runs `uat-drive-witness.check.ts` — the binding is self-describing, so nothing needs a second
+registry (`packages/drive/src/uat-drive.ts`, `isModelDrivenGate`). It goes red — honestly, not
+spuriously — when no `pass` record exists for the criterion's CURRENT `revision-id`, when the driven
+commit is not in HEAD's ancestry, or when the newest record is older than 90 days (the ADR-0016 ageing
+floor).
+
+1. **UAT leg 5 — "real Claude Code runs interactively in the embedded terminal" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts embedded-terminal uatc_855b0712c20d7cf71a4cc78a`.
+   Witnesses that a model launched the REAL packaged app, typed `claude` into the embedded terminal's
+   REAL pty, and observed a genuine interactive Claude Code session — its own turn knobs, slash
+   commands, permission modes, plan mode, MCP and skills — through the main-held serialized screen
+   (`desktopTerminal.snapshot`), the same renderer-independent observable legs 1, 4 and 6 read.
 
 ## Proof
 
 The story is proven when that walkthrough passes — the wiring legs (2, 3) green under the two
 capabilities' signed `--real` verdicts (with each cap's contracts green underneath), the integrated legs
 (1, 4, 6, 8) green under spine-observed specs in the Electron `_electron` harness plus one live-gated
-spec, and the one irreducible leg (5) operator-attested. Per ADR-0209 §6 this re-adjudication leaves
+spec, and leg 5 green under the model-driven gate 1 above. Per ADR-0209 §6 this re-adjudication leaves
 every leg UNSTAMPED — nothing below is green, and two machine legs (6, 8) have no spec at HEAD; a
 `machine` tag states which witness is right, never that the proof exists. Per ADR-0020, `healthy` is only ever DERIVED from
 signed verdicts; nothing here is authored healthy. Both capabilities are proof-wired (each carries a
@@ -448,7 +495,8 @@ signed verdicts; nothing here is authored healthy. Both capabilities are proof-w
 injected fake/mock) so the spine can drive their offline suites red→green under its own gate; the story's
 machine-driven UAT node is WITHHELD (its `uat_witness` is absent → human, ADR-0040), so driving those
 capabilities to signed verdicts is what makes the terminal layer buildable, and the crown additionally
-awaits the four integrated machine legs (1, 4, 6, 8) and the operator's one attestation (leg 5).
+awaits the FIVE integrated machine legs (1, 4, 5, 6, 8) — leg 5 through gate 1's model-driven witness
+since the 2026-08-13 ADR-0357 triage, so this story now awaits NO operator attestation.
 
 ## Open modeling calls (for the owner / orchestrator)
 

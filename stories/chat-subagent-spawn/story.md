@@ -415,7 +415,7 @@ landed nothing.
    > from the old wording would have gone RED against correct code (the same failure shape as the
    > ADR-0152 landing-wall claim corrected on leg 7). The leg's id, position, and `machine` witness
    > are unchanged; only the factually wrong description moved.
-5. **Live: the chat brings a story in by spawning the story-author.** _(criterion-id: uatc_65f364261f271dee7271115d)_ _(revision-id: uatr1:ee6835bd189837f0)_
+5. **Live: the chat brings a story in by spawning the story-author.** _(criterion-id: uatc_65f364261f271dee7271115d)_ _(revision-id: uatr1:8bea84cea74f0bd2)_ _(previous-revision-id: uatr1:ee6835bd189837f0)_
    _(witness: human)(detail: chat-subagent-spawn#uat-5)_ In the desktop app, converse until the
    orchestrator decides a story should exist. **Success —** the orchestrator takes the story-claim
    (visible as the story's wisp — authoring colour, witnessed properly in wisp-as-story-claim's
@@ -425,7 +425,22 @@ landed nothing.
    gate pass. Nothing here is a judgment call. The SHAPES this walk touches are each proven by a
    machine leg and are deliberately NOT restated as human conditions: the write fence + typed
    non-verdict result by leg 1, the claim-before-spawn ordering and the holder-naming refusal of a
-   concurrent claimant by leg 3, and "the chat itself wrote no file" by leg 7's absence audit.)*
+   concurrent claimant by leg 3, and "the chat itself wrote no file" by leg 7's absence audit.
+   **TRIAGED 2026-08-13 (ADR-0357) — this leg is MOOT, and that is neither of ADR-0348's two answers.**
+   It is one of the nine the ADR-0357 triage was told to resolve to either `machine`-with-a-gate or
+   `human`-with-a-stated-basis. Reading the source gives a third answer. **The SPEND basis above is
+   withdrawn** by ADR-0348 D2, and this leg's own words — *"on that basis alone… Nothing here is a
+   judgment call"* — pre-authorised that. **But it does not flip**, because the journey cannot be walked:
+   ADR-0174 retired the in-app INTERACTIVE orchestrator chat (the interactive seat is now
+   `embedded-terminal`), and the spawn tool surface itself was DELETED on 2026-07-31 — held gone by
+   `apps/desktop/src/backend/spawn-surface-retired.test.ts` — which is why this story is
+   `status: retired`. Binding a `machine` gate here would mint one that can never go green for a reason
+   that is neither a harness limit nor a product defect, the indistinguishable-red failure ADR-0357
+   exists to control. The tag is left as it stands and this record is the correction: the leg is retired
+   history and is on nobody's attestation queue. Whether a retired story's UAT legs should be DELETED
+   (ordinals burned, as ADR-0348 D6 did for experience legs) or kept verbatim as history is a
+   story-author / librarian disposition call, deliberately not made here — and it reaches leg 6 the same
+   way, whose no-compiler routing judgment is equally unwalkable now.)*
 6. **Live: a bug becomes a contract and is driven through the gate.** _(criterion-id: uatc_10e4514e1271034569a02b50)_ _(revision-id: uatr1:e00526bb66704d7e)_
    _(witness: human)(detail: chat-subagent-spawn#uat-6)_ Raise a real defect in conversation.
    **Success —** the orchestrator makes decision 4's consultative judgment (under-specified story →

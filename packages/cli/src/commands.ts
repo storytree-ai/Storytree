@@ -474,6 +474,12 @@ export async function viewArtifact(store: Store, id: string, offerId?: string): 
     `storytree library tree focus ${a.id}   (its local DAG)`,
     `storytree library artifact edit ${a.id}   (coming soon)`,
   ];
+  // A lifecycle-tier kind offers the verb that ENDS it (see {@link terminalVerbFor}). Appended to the
+  // hand-authored nav rather than replacing it: the drain is one more thing you can do with the row,
+  // not the only one. A `process` node's DERIVED nav (below) legitimately drops it — no lifecycle-tier
+  // kind is a process, so the two branches never contend for the same artifact.
+  const terminal = terminalVerbFor(stored.kind, a.id);
+  if (terminal !== undefined) next.push(terminal);
   if (stored.kind === "process") {
     const node = await renderProcessNode(store, a.id);
     if (node.ok && node.edges.length > 0) {
@@ -504,6 +510,80 @@ export async function viewArtifact(store: Store, id: string, offerId?: string): 
     }
   }
   return { ok: true, body: lines.join("\n"), next };
+}
+
+/**
+ * The verb that ENDS one lifecycle-tier artifact, or `undefined` for a kind that never terminates.
+ *
+ * The Library's LIFECYCLE tier is "transient-by-design, mandatory drain" (knowledge.ts) — so for
+ * these kinds terminating is not an edge case, it is the defining event. The verb that does it
+ * appeared on none of the surfaces a session reads to find a verb. Measured 2026-08-06:
+ * `storytree retire --help` answered `unknown area` over 25 areas, none of them where a question goes
+ * to die; the rendered `oq-claim-unit-any-addressable-object` offered only `tree focus` and an `edit`
+ * marked *(coming soon)*, neither terminal; `library --help` matched neither `retire` nor `delete`.
+ * The verb was found by reading `retire.ts`, and then worked first try.
+ *
+ * THE COST IS NOT THE THREE TOOL CALLS — it is what a session does when it gives up instead. The row
+ * keeps rendering as OPEN on its arc, and under ADR-0314 D5 the arc surface derives what is WAITING
+ * ON THE OWNER by querying exactly that stamp, so an answered-but-undrained question reports a false
+ * wait indefinitely on the surface built to be trusted for that question. The `increment` row is the
+ * same shape and was observed on 2026-08-13: one parked entry held `context-decision-tree-arc`
+ * rendering `active (in flight)` for five days after its terminal increment landed — ADR-0335 derives
+ * arc lifecycle from the increment log, and nothing on the row's own render said how to close it. The
+ * owner asked why a finished arc still looked live; that question IS this miss.
+ *
+ * WHY A TABLE AND NOT A `retire` AREA (the authored out-of-scope). The verb belongs to
+ * `library artifact`; promoting it to a 33rd top-level area would split the artifact surface across
+ * two of them. {@link unknownAreaEnvelope} names where it lives instead, which answers the same
+ * reach without moving it.
+ *
+ * `friction`'s terminal is ADJUDICATION, and offering it here is not an invitation to self-adjudicate
+ * — routing is the graduation-synthesist's seat (ADR-0168 D5). The nav says how the row ends, the
+ * same as it does for the other two; who may end it is the verb's own gate, not this line's.
+ */
+export function terminalVerbFor(kind: string, id: string): string | undefined {
+  switch (kind) {
+    case "open-question":
+      return `storytree library artifact retire ${id} --reason "<why>" --pg   (drain it — the terminal verb)`;
+    case "friction":
+      return `storytree friction route ${id} --route <enum> --reason "<why>" --pg   (adjudicate it — the terminal verb)`;
+    case "increment":
+      return `storytree arc increment close ${id} --note "<why>" --pg   (close it — the terminal verb)`;
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * The verbs a session reaches for as an AREA and will never find as one, mapped to where they live.
+ *
+ * `storytree retire …` answering a bare `unknown area` over 32 areas is a dead end that reads like
+ * absence: none of the 32 is obviously where an artifact goes to die, so the honest conclusion from
+ * that output is "there is no such verb" — which is wrong, and is how a session ends up leaving an
+ * answered question rendering as a false owner-wait (see {@link terminalVerbFor}).
+ *
+ * REGISTERING THEM AS AREAS IS THE REFUSED FIX, not the unimplemented one. The terminal verb belongs
+ * to `library artifact`, and a `retire` area would mean two top-level areas both claiming part of the
+ * artifact surface. Pointing is strictly better than moving: the reach succeeds and the surface stays
+ * whole.
+ */
+const VERB_HOMES: Readonly<Record<string, string>> = {
+  retire: 'storytree library artifact retire <id> --reason "<why>" --pg',
+  delete: 'storytree library artifact retire <id> --reason "<why>" --pg',
+  drain: 'storytree library artifact retire <id> --reason "<why>" --pg',
+};
+
+/** PURE: the guidance for an area that does not exist — with a pointer when it is a misfiled VERB. */
+export function unknownAreaEnvelope(area: string): Envelope {
+  const home = VERB_HOMES[area];
+  return {
+    ok: false,
+    body:
+      home === undefined
+        ? `unknown area "${area}". areas: ${CLI_AREAS.join(", ")}.`
+        : `"${area}" is not an area — it is a VERB, and it lives on \`library artifact\`:\n\n  ${home}\n\nareas: ${CLI_AREAS.join(", ")}.`,
+    next: home === undefined ? ["storytree library", "storytree agents <name>"] : [home, "storytree library artifact --help"],
+  };
 }
 
 /**
@@ -1435,6 +1515,7 @@ async function libraryHelp(store: Store): Promise<Envelope> {
       "  storytree library artifact list <category> list a category",
       "  storytree library artifact new|edit <id>   create / edit (writes need --pg)",
       "  storytree library tree focus <id>          the local DAG of one artifact",
+      "  storytree library artifact retire <id>     retire it (needs --pg) — where a lifecycle-tier row goes to die",
       "  storytree library graduate [--review]      agent-memory → Library worklist (ADR-0095)",
       "  (coming soon: artifact comment)",
     ].join("\n"),
@@ -3500,11 +3581,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
   }
 
   if (area !== "library") {
-    return {
-      ok: false,
-      body: `unknown area "${area}". areas: ${CLI_AREAS.join(", ")}.`,
-      next: ["storytree library", "storytree agents <name>"],
-    };
+    return unknownAreaEnvelope(area);
   }
 
   if (sub === undefined) {
