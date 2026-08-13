@@ -146,10 +146,15 @@ guarantee back on the discipline that failed three times.
 
 **A guard that is wrong once is a tax forever.** D3 and D4 refuse commands, so a false positive costs
 a session real time. D4's false positive is bounded and named in its own message — a deliberate
-trailing deletion, which lands unchanged from a file. D3 has no known false positive: the five
-free-text areas (`orchestrate`, `onboarding`, `doctor`, `dispatch`, `guide`) are exempt, and no other
-verb both reads more than four positionals and accepts a prose flag. If that stops being true the
-exemption list is where it is fixed, not the arity.
+trailing deletion, which lands unchanged from a file.
+
+D3's is bounded MECHANICALLY, not by judgement: **every argument it refuses is one the dispatch was
+already discarding in silence.** The register destructures `[area, sub, third, fourth]` and no verb
+reads a fifth positional by index; the only five that read further (`orchestrate`, `onboarding`,
+`doctor`, `dispatch`, `guide`) take `positionals.slice(1)` as free text and are exempt, and none of
+them accepts a prose flag. So no invocation that worked before this ADR stops working — the refusal
+converts a silent drop into a loud one and can do nothing else. If a verb ever needs a fifth
+positional AND a prose flag, the exemption list is where that is recorded, not the arity.
 
 **This amends ADR-0352** rather than superseding it: field-scoped `--set` removed the LOST-UPDATE
 cause of incident 3 and stands unchanged. What it did not address is a value that is already damaged
