@@ -6,22 +6,26 @@
  * - `codex login status` must report the exact ChatGPT-managed method before a model can run;
  * - metered credential environment variables are removed from both child processes;
  * - the CLI runs in a disposable replica, never the real workspace, with network disabled;
- * - a vetted PreToolUse hook refuses shell, MCP, agents, unknown local tools, and out-of-scope
- *   replica writes before action. The spine alone promotes an explicit observed target set.
+ * - ADR-0355 managed hooks re-probe live claim/worktree authority on every tool call;
+ * - the narrower managed phase-author profile contains writes to an ignored in-worktree replica.
+ *   The spine alone promotes an explicit observed target set.
  */
 
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { createHash } from "node:crypto";
 import * as fs from "node:fs/promises";
 import { createRequire } from "node:module";
 import * as os from "node:os";
 import * as path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import type { AuthoringPhase, AuthorResult, PhaseAuthor } from "./phase-author.js";
 import type { TokenUsage } from "./model-events.js";
 
 export const DEFAULT_CODEX_MODEL = "gpt-5.6-terra";
+/** Managed ADR-0355 profile whose only writable repository subtree is the replica parent. */
+export const CODEX_PHASE_AUTHOR_PROFILE = "storytree_codex_phase_author";
+export const MANAGED_CODEX_EXECUTABLE_ENV = "STORYTREE_CODEX_MANAGED_EXECUTABLE";
 
 const CHATGPT_LOGIN_STATUS = "Logged in using ChatGPT";
 const AUTH_ENV_NAMES = new Set(["openai_api_key", "codex_api_key", "codex_access_token"]);
@@ -137,19 +141,6 @@ export function isChatGptManagedLogin(result: CodexCommandResult): boolean {
   );
 }
 
-function tomlString(value: string): string {
-  return JSON.stringify(value);
-}
-
-function shellCommand(node: string, hook: string, windows: boolean): string {
-  if (windows) {
-    const quote = (value: string): string => `"${value.replaceAll('"', '\\"')}"`;
-    return `${quote(node)} ${quote(hook)}`;
-  }
-  const quote = (value: string): string => `'${value.replaceAll("'", "'\\''")}'`;
-  return `${quote(node)} ${quote(hook)}`;
-}
-
 function validPhaseGlobs(globs: string[]): boolean {
   return globs.every(
     (glob) =>
@@ -249,21 +240,10 @@ function validatePromotionManifest(manifest: CodexPromotionManifest | undefined)
   return { ok: true, allowed, required };
 }
 
-function hookConfig(hookPath: string): string {
-  const posix = shellCommand(process.execPath, hookPath, false);
-  const windows = shellCommand(process.execPath, hookPath, true);
-  return (
-    `[{ matcher = "*", hooks = [{ type = "command", command = ${tomlString(posix)}, ` +
-    `command_windows = ${tomlString(windows)}, timeout = 30, ` +
-    `statusMessage = "Enforcing Storytree phase scope" }] }]`
-  );
-}
-
 /** Pure command construction exported so offline tests pin every security-relevant flag. */
 export function buildCodexExecArgs(args: {
   model: string;
   cwd: string;
-  hookPath: string;
 }): string[] {
   return [
     "exec",
@@ -272,23 +252,15 @@ export function buildCodexExecArgs(args: {
     "--ignore-user-config",
     "--ignore-rules",
     "--skip-git-repo-check",
-    "--dangerously-bypass-hook-trust",
     "--strict-config",
     "--model",
     args.model,
     "--cd",
     args.cwd,
-    "--sandbox",
-    "workspace-write",
     "--config",
     'approval_policy="never"',
     "--config",
-    "sandbox_workspace_write.network_access=false",
-    ...(process.platform === "win32"
-      ? ["--config", 'windows.sandbox="elevated"']
-      : []),
-    "--config",
-    `hooks.PreToolUse=${hookConfig(args.hookPath)}`,
+    `default_permissions="${CODEX_PHASE_AUTHOR_PROFILE}"`,
     "--config",
     'web_search="disabled"',
     "--config",
@@ -308,8 +280,8 @@ export function buildCodexExecArgs(args: {
     "--config",
     "features.multi_agent=false",
     "--config",
-    // The legacy shell tool registration also carries Codex's apply_patch tool. Bash itself is
-    // denied by PreToolUse, and the OS profile independently limits any bypass to exact phase files.
+    // The legacy shell tool registration also carries Codex's apply_patch tool. The managed
+    // phase-author profile contains either route to the ignored replica subtree.
     "features.shell_tool=true",
     "--config",
     "features.unified_exec=false",
@@ -427,14 +399,22 @@ function resolvePinnedCodexEntrypoint(): string {
 
 /** Production runner for the pinned official CLI wrapper. */
 export const runPinnedCodexCli: CodexRunner = async (command) => {
-  const entrypoint = resolvePinnedCodexEntrypoint();
+  const managedExecutable = command.env[MANAGED_CODEX_EXECUTABLE_ENV]?.trim();
+  if (managedExecutable !== undefined && !path.isAbsolute(managedExecutable)) {
+    throw new Error(`${MANAGED_CODEX_EXECUTABLE_ENV} must name an absolute executable`);
+  }
+  const entrypoint = managedExecutable === undefined ? resolvePinnedCodexEntrypoint() : undefined;
   return await new Promise<CodexCommandResult>((resolve, reject) => {
-    const child = spawn(process.execPath, [entrypoint, ...command.args], {
+    const child = spawn(
+      managedExecutable ?? process.execPath,
+      managedExecutable === undefined ? [entrypoint!, ...command.args] : command.args,
+      {
       cwd: command.cwd,
       env: command.env,
       stdio: ["pipe", "pipe", "pipe"],
       windowsHide: true,
-    });
+      },
+    );
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];
     child.once("error", reject);
@@ -460,38 +440,24 @@ export function genericPhasePrompt(phase: AuthoringPhase): string {
   );
 }
 
-function readViolationLines(text: string, phase: AuthoringPhase): CodexWriteViolation[] {
-  const violations: CodexWriteViolation[] = [];
-  for (const line of text.split(/\r?\n/)) {
-    if (line.trim().length === 0) continue;
-    try {
-      const value = JSON.parse(line) as Record<string, unknown>;
-      if (
-        typeof value["tool"] === "string" &&
-        typeof value["path"] === "string" &&
-        typeof value["reason"] === "string"
-      ) {
-        violations.push({
-          phase,
-          tool: value["tool"],
-          path: value["path"],
-          reason: value["reason"],
-        });
-      }
-    } catch {
-      violations.push({
-        phase,
-        tool: "(hook)",
-        path: "(no path)",
-        reason: "scope hook emitted a malformed violation report",
-      });
-    }
-  }
-  return violations;
-}
+const REPLICA_EXCLUDED_PARTS = new Set([
+  ".git",
+  ".codex",
+  ".claude",
+  ".gate-logs",
+  "node_modules",
+]);
 
-const REPLICA_EXCLUDED_PARTS = new Set([".git", ".codex", ".claude", "node_modules"]);
-const HOOK_REPORT_REL = ".storytree-codex-hook-report.jsonl";
+/** Ignored, managed-profile-writable parent for real Codex phase replicas. */
+export function codexProductionReplicaRoot(cwd: string): string {
+  let candidate = path.resolve(cwd);
+  const filesystemRoot = path.parse(candidate).root;
+  while (candidate !== filesystemRoot && !existsSync(path.join(candidate, ".git"))) {
+    candidate = path.dirname(candidate);
+  }
+  const claimedRoot = existsSync(path.join(candidate, ".git")) ? candidate : path.resolve(cwd);
+  return path.join(claimedRoot, ".gate-logs", "codex-replicas");
+}
 
 function includeInReplica(root: string, candidate: string): boolean {
   const rel = path.relative(root, candidate);
@@ -503,30 +469,6 @@ function includeInReplica(root: string, candidate: string): boolean {
         REPLICA_EXCLUDED_PARTS.has(part) ||
         part.startsWith(".storytree-codex-"),
     );
-}
-
-async function initializeDisposableGit(cwd: string): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    const child = spawn("git", ["init", "--quiet"], {
-      cwd,
-      stdio: ["ignore", "ignore", "pipe"],
-      windowsHide: true,
-    });
-    const stderr: Buffer[] = [];
-    child.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
-    child.once("error", reject);
-    child.once("exit", (code) => {
-      if (code === 0) resolve();
-      else {
-        reject(
-          new Error(
-            Buffer.concat(stderr).toString("utf8").trim() ||
-              `git init exited ${code ?? "without a code"}`,
-          ),
-        );
-      }
-    });
-  });
 }
 
 interface ReplicaPathState {
@@ -541,7 +483,7 @@ interface ReplicaChange {
   after?: ReplicaPathState;
 }
 
-interface DisposableReplica {
+export interface DisposableReplica {
   dir: string;
   /** False only for legacy injected-runner tests whose synthetic cwd does not exist. */
   seeded: boolean;
@@ -617,26 +559,35 @@ function observedReplicaChanges(
   return changes;
 }
 
-async function prepareDisposableReplica(
+/** @internal Exported for no-model boundary tests. */
+export async function prepareCodexDisposableReplica(
   source: string,
   injected: boolean,
 ): Promise<DisposableReplica> {
-  const replica = await fs.mkdtemp(path.join(os.tmpdir(), "storytree-codex-workspace-"));
+  const parent = injected ? os.tmpdir() : codexProductionReplicaRoot(source);
+  if (!injected) await fs.mkdir(parent, { recursive: true });
+  const replica = await fs.mkdtemp(
+    path.join(parent, injected ? "storytree-codex-workspace-" : "phase-"),
+  );
   try {
     const sourceExists = await fs.stat(source).then(
       (stat) => stat.isDirectory(),
       () => false,
     );
     if (sourceExists) {
-      await fs.cp(source, replica, {
-        recursive: true,
-        filter: (candidate) => includeInReplica(source, candidate),
-      });
+      // Production replicas live below source, so copy admitted top-level entries individually.
+      // Copying source wholesale would encounter the replica parent and recurse into itself.
+      const entries = await fs.readdir(source, { withFileTypes: true });
+      for (const entry of entries) {
+        const candidate = path.join(source, entry.name);
+        if (!includeInReplica(source, candidate)) continue;
+        await fs.cp(candidate, path.join(replica, entry.name), {
+          recursive: true,
+          filter: (nested) => includeInReplica(source, nested),
+        });
+      }
     } else if (!injected) {
       throw new Error(`workspace does not exist: ${source}`);
-    }
-    if (!injected) {
-      await initializeDisposableGit(replica);
     }
     return { dir: replica, seeded: sourceExists };
   } catch (error) {
@@ -911,7 +862,7 @@ export class CodexPhaseAuthor implements PhaseAuthor {
     let replica: DisposableReplica | undefined;
     let beforeSnapshot: Map<string, ReplicaPathState> | undefined;
     try {
-      replica = await prepareDisposableReplica(this.#args.cwd, this.#injectedRunner);
+      replica = await prepareCodexDisposableReplica(this.#args.cwd, this.#injectedRunner);
     } catch (error) {
       if (replica !== undefined) {
         await fs.rm(replica.dir, { recursive: true, force: true }).catch(() => undefined);
@@ -919,11 +870,7 @@ export class CodexPhaseAuthor implements PhaseAuthor {
       return { ok: false, error: `Codex phase setup failed: ${(error as Error).message}` };
     }
     const replicaDir = replica.dir;
-    const reportPath = path.join(replicaDir, HOOK_REPORT_REL);
     try {
-      // Plant the spine-owned report before the baseline. An unchanged empty report disappears
-      // from the observed delta; a model or hook write to it is visible and therefore refuses.
-      await fs.writeFile(reportPath, "");
       if (replica.seeded) beforeSnapshot = await snapshotReplica(replicaDir);
     } catch (error) {
       await fs.rm(replicaDir, { recursive: true, force: true }).catch(() => undefined);
@@ -935,15 +882,6 @@ export class CodexPhaseAuthor implements PhaseAuthor {
     const requiredPromptTargets = manifest.ok
       ? [...manifest.required.values()]
       : [phaseGlobs[0]!];
-    const hookPath = fileURLToPath(new URL("./codex-scope-hook.mjs", import.meta.url));
-    const policy = Buffer.from(
-      JSON.stringify({
-        phase,
-        cwd: replicaDir,
-        writeGlobs: this.#args.writeGlobs,
-      }),
-      "utf8",
-    ).toString("base64url");
     const model = this.#args.model ?? DEFAULT_CODEX_MODEL;
     const agentBody = this.#args.phasePrompts?.[phase] ?? genericPhasePrompt(phase);
     const renderTargets = (targets: string[]): string =>
@@ -964,14 +902,9 @@ export class CodexPhaseAuthor implements PhaseAuthor {
         args: buildCodexExecArgs({
           model,
           cwd: replicaDir,
-          hookPath,
         }),
         cwd: replicaDir,
-        env: {
-          ...childEnv,
-          STORYTREE_CODEX_HOOK_POLICY: policy,
-          STORYTREE_CODEX_HOOK_REPORT: reportPath,
-        },
+        env: childEnv,
         stdin: fullPrompt,
       });
     } catch (error) {
@@ -981,8 +914,6 @@ export class CodexPhaseAuthor implements PhaseAuthor {
 
     try {
       const violationStart = this.violations.length;
-      const report = await fs.readFile(reportPath, "utf8").catch(() => "");
-      this.violations.push(...readViolationLines(report, phase));
       const parsed = parseCodexJsonl(execution.stdout);
       let afterSnapshot: Map<string, ReplicaPathState> | undefined;
       let changes: ReplicaChange[] = [];

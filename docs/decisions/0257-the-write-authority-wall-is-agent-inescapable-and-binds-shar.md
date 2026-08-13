@@ -140,12 +140,13 @@ open. *(Verified 2026-08-02 against the installed block: 93 rules, none matching
 of heavy concurrent use produced zero evidenced worktree-to-worktree writes, against 13 for the lobby.
 It returns as work if an incident is filed.
 
-**Still absent entirely:** the whole Codex adapter (D2/D3/D7), the lobby's trusted mint actuator (D4),
-brokered common-directory access (D8), and Bash/shell containment on either surface — the last of
-which is structural on this machine, since harness sandboxing does not support native Windows and
-confines only Bash where it does exist. **D9's bar is retired** by ADR-0284 D7 along with the semantic
-layer it was written to prove; the static block's conformance test against the installed file is the
-proof that remains.
+**Current split (corrected in place 2026-08-13 by ADR-0355).** The preserved Codex adapter
+(D2/D3/D7) and exact lobby actuator are installed and attested on the supported Windows host. The
+managed OS profile contains Codex shell and patch routes to one claimed worktree, and the managed
+hook re-reads its live claim. Claude remains on ADR-0284's static, claim-blind file-tool wall: its
+shell and accepted sibling-worktree gap are unchanged. Shared Git authority is not granted broadly;
+the trusted actuator owns the exact bootstrap and launch operations. **D9's bar remains retired** by
+ADR-0284 D7; ADR-0355 D5 and its installed-host smoke are the governing Codex delivery evidence.
 [ADR-0245](0245-cross-session-signalling-addresses-the-shared-primary-checko.md) D5.2's gate-time
 lobby arm is no longer the *only* live enforcement — since increment 3 this ADR's static layer refuses
 lobby writes before mutation — but it still stands as the landing-gate backstop this ADR sits in front
@@ -236,9 +237,10 @@ cannot be forged by the writer, expires, and is read-only to the writer profile.
    git branch not moving, which makes it a guardrail and not a mechanism that can satisfy this
    clause's own inescapability requirement. On Claude the composition is now the static
    `permissions.deny` block ALONE. Codex, where the hook pairs with an OS-level managed profile that
-   also binds the shell, is the one surface where D2/D3's composition still reads correctly. The
-   repository generator and dry-run policy are built under ADR-0355; administrator-owned installation
-   and the three-write live attestation remain outstanding.)*
+   also binds the shell, is the one surface where D2/D3's composition still reads correctly.
+   ADR-0355's repository generator, trusted actuator, administrator-owned installation, and
+   three-write live attestation are complete as of 2026-08-13; re-attestation remains operator-owned
+   when the managed payload, Codex version, or Windows sandbox changes.)*
 
 2. **Codex requires a managed permission profile and managed hooks together.** The Codex adapter is
    delivered from the system/enterprise managed layer, not only from repository `.codex` config:
@@ -359,9 +361,9 @@ cannot be forged by the writer, expires, and is read-only to the writer profile.
 9. **RETIRED 2026-08-02 by [ADR-0284](0284-the-write-authority-wall-stays-static-worktree-to-worktree-i.md) D7
    — the bar has no subject left.** Every item below proves the semantic layer or the receipt, both
    deleted. The proof that remains for the layer that stands is the static block's conformance test
-   against the installed user-level file. Should the Codex adapter (D2/D3/D7) ever be built, this
-   list is a good starting bar for it — but it is a draft to re-derive, not a live requirement, and
-   the receipt items in it are void. Kept unedited for the record.
+   against the installed user-level file. ADR-0355 has since built the distinct Codex adapter, but
+   this retired list did not reactivate: ADR-0355 D5 and the installed-host smoke are its governing
+   proof bar, while the receipt items below remain void. Kept unedited for the record.
 
    ~~**The behavioural proof bar is extended, not replaced by configuration review.**~~ ADR-0255 D8
    stands in full. Codex additionally proves on the real supported Desktop/CLI boundary:
@@ -400,10 +402,11 @@ cannot be forged by the writer, expires, and is read-only to the writer profile.
 
 **Bad / accepted**
 
-- The Codex managed Storytree profile and interactive claim-hook bundle are generated and dry-run by
-  repository code (ADR-0355), but are not yet installed machine-wide or behaviourally attested on the
-  supported operator boundary. Until that privileged leg proves lobby-refused/current-admitted/
-  sibling-refused, a full-access Codex Local task remains outside the writer profile.
+- The Codex managed Storytree profiles, interactive claim hook, live-claim reader, and trusted
+  actuator are installed and behaviourally attested on the supported operator boundary (ADR-0355):
+  lobby and sibling writes refused, the current claimed worktree admitted. That proof is
+  machine/version-specific and must be repeated when the managed payload, Codex version, or Windows
+  sandbox changes; an unmanaged full-access Codex process is not the writer profile.
 - Codex permission profiles are currently beta and require Codex 0.138.0 or later for managed
   profile allowlists. The managed fleet version becomes an explicit prerequisite.
 - Static filesystem profiles and Git's shared common directory do not naturally express one live
@@ -488,8 +491,10 @@ cannot be forged by the writer, expires, and is read-only to the writer profile.
 - `packages/agent/src/sdk-author.ts` — the analogous Claude SDK phase boundary.
 - `packages/cli/src/worktree-create.ts` — the claim-first mint. *(It stamped a receipt from
   increment 2 until ADR-0284 D4 removed it; it mints identity and takes the claim, nothing more.)*
-- `packages/cli/src/codex-session-containment.ts` — ADR-0355's generated managed-policy and dry-run
-  containment bundle; installation remains administrator-owned.
+- `packages/cli/src/codex-session-containment.ts` — ADR-0355's managed-policy, hook, and trusted
+  actuator generator; installation and installed-host attestation remain administrator-owned.
+- `packages/cli/src/codex-live-claim-probe-entry.ts` — the standalone bundle entry that reads claims
+  through the dedicated keyless, read-only identity.
 - `packages/drive/src/noticeboard.ts` — `deriveIdentity()`, which the boundary validates against.
 - `packages/drive/src/write-authority-rules.ts` — the generator for the static deny block, which is
   the whole of this ADR that runs. *(The hook, the receipt module and the decision core

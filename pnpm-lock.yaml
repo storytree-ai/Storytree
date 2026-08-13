@@ -300,6 +300,9 @@ importers:
       '@storytree/storage-protocol':
         specifier: workspace:*
         version: link:../storage-protocol
+      esbuild:
+        specifier: ^0.24.2
+        version: 0.24.2
       yaml:
         specifier: ^2.6.1
         version: 2.9.0

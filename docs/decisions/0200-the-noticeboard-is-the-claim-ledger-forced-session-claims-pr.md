@@ -58,27 +58,25 @@ with matching live claim and branch, with an unavailable ledger refusing new wri
 nudges remain the feedback layer. `check:declared` was demoted to defence in depth here and ADR-0311
 later retired its standalone merge-gate wiring; its source remains an on-demand diagnostic.
 
-*(Build state corrected in place 2026-08-02, the correction above unchanged in substance — the
-paragraph stated a decided state in the present indicative and read as achieved. Measured on that
-date: ADR-0257 increment 3 installed the STATIC half on the developer machine, so a lobby write by
-`Write`/`Edit`/`NotebookEdit` IS refused before mutation there and `check:declared` is genuinely no
-longer the first enforcement point for those tools. The other three clauses are not yet true. "Every
-agent harness" — only Claude; the Codex adapter is unbuilt. "Generic writes require a … matching live
-claim and branch" — that is the claim-aware `PreToolUse` half, which
-[ADR-0284](0284-the-write-authority-wall-stays-static-worktree-to-worktree-i.md) D2 **RETIRED and
-deleted** later the same day, so nothing evaluates a claim on the write path and nothing will. "An
-unavailable ledger refuses writes" — nothing reads the ledger on the write path at all, and ADR-0284
-D4 closes ADR-0257 D5 outright, so that clause is void rather than pending. Add to that: no layer
-binds a **shell**, and the wall is installed on one machine. **Read the build state from ADR-0284,
-which now owns it** — this note earlier pointed at ADR-0257, whose own build-state prose ADR-0284
-overtakes.)*
+*(Build state corrected in place 2026-08-13, the correction above unchanged in substance — the
+paragraph stated a decided state in the present indicative and read as achieved. On 2026-08-02,
+ADR-0257 increment 3 had installed only the STATIC Claude half on the developer machine: a lobby
+write by `Write`/`Edit`/`NotebookEdit` was refused before mutation, but the wall was claim-blind and
+did not bind a shell. [ADR-0284](0284-the-write-authority-wall-stays-static-worktree-to-worktree-i.md)
+D2/D4 permanently retired that semantic layer and its receipt **for Claude**. ADR-0355 now supplies
+the distinct Codex composition those decisions preserved: on the supported Windows host the managed
+filesystem profile binds shell and patch routes to the current worktree, while a managed hook reads
+the live claim and refuses absent, stale, or unavailable authority. The two harnesses therefore have
+different current enforcement: Claude remains static and claim-blind; installed interactive Codex is
+claim-bound and fails closed.)*
 
 *(One consequence worth stating plainly here, because this ADR is where the claim ledger's authority
-is decided: **the claim ledger never became a write-authority input, and per ADR-0284 it will not
-be.** Claims coordinate; they do not gate a filesystem write. The one mechanism that would have made
-Decision 3's ceremony mechanically binding on a generic write is retired. What binds is a static path
-list that knows nothing of claims. ADR-0311 also retires this ADR's former D3 landing-gate backstop;
-the claim requirement remains operating discipline and coordination state.)*
+is decided: **the claim ledger never became a write-authority input for Claude, and per ADR-0284 it
+will not become one there.** Claims coordinate Claude sessions; the static path list knows nothing of
+them. ADR-0355 is the explicit Codex exception: its managed hook re-reads the ledger for every covered
+write and its OS profile contains shell and patch routes while that decision is made. ADR-0311 also
+retires this ADR's former D3 landing-gate backstop; outside the installed Codex composition the claim
+requirement remains operating discipline and coordination state.)*
 
 ## Context
 

@@ -168,6 +168,10 @@ test("managed bundle selects one exact profile, omits full access, and never mix
   assert.match(toml, /default_permissions = "storytree_codex_current"/);
   assert.match(toml, /\[allowed_permission_profiles\]/);
   assert.match(toml, /storytree_codex_current = true/);
+  assert.match(toml, /storytree_codex_phase_author = true/);
+  assert.match(toml, /\.gate-logs\/codex-replicas/);
+  assert.match(toml, /\.storytree/i);
+  assert.match(toml, /gcloud/i);
   assert.doesNotMatch(toml, /danger-full-access/);
   assert.doesNotMatch(toml, /sandbox_mode|allowed_sandbox_modes/);
   assert.match(toml, /allowed_sandbox_implementations = \["elevated"\]/);
@@ -186,6 +190,23 @@ test("managed bundle selects one exact profile, omits full access, and never mix
   assert.match(bundle.operatorReadme, /snapshot that selected[\s\S]*at process start/i);
   assert.match(bundle.operatorReadme, /global requirements/i);
   assert.match(bundle.operatorReadme, /live smoke/i);
+  assert.match(bundle.trustedActuatorScript, /CodexSandboxUsers/);
+  assert.match(bundle.trustedActuatorScript, /icacls\.exe[\s\S]*\/deny/);
+  assert.match(bundle.trustedActuatorScript, /sandbox --include-managed-config -P/);
+  assert.match(bundle.trustedActuatorScriptPath, /storytree-codex-trusted-actuator\.ps1$/i);
+  assert.match(bundle.trustedActuatorScript, /Global\\StorytreeCodexContainmentLifecycle/);
+  assert.match(bundle.trustedActuatorScript, /bootstrap --node <capability> --intent <text>/);
+  assert.match(bundle.trustedActuatorScript, /Get-Item -LiteralPath \$Target -Force/);
+  assert.doesNotMatch(
+    bundle.trustedActuatorScript,
+    /ForEach-Object \{ Canonical-Existing \$_\.Substring\(9\)\.Trim\(\) \}/,
+  );
+  assert.match(bundle.trustedActuatorScript, /\$ErrorActionPreference = 'Continue'/);
+  assert.match(bundle.trustedActuatorScript, /launch --worktree <canonical-path>/);
+  assert.match(bundle.trustedActuatorScript, /\$CodexArguments = @\('-C', \$CanonicalWorktree\)/);
+  assert.match(bundle.trustedActuatorScript, /& \$CodexPayload @CodexArguments/);
+  assert.doesNotMatch(bundle.trustedActuatorScript, /--sandbox|dangerously-bypass|sandbox_mode/);
+  assert.match(bundle.trustedActuatorScript, /Install-Policy \$Config\.lobbyPolicy/);
 
   const otherBundle = buildCodexContainmentBundle({
     authority: {
@@ -204,28 +225,8 @@ test("managed bundle selects one exact profile, omits full access, and never mix
   assert.match(bundle.policyPath.replaceAll("\\", "/"), /\/sessions\/writer-[a-f0-9]{24}\.json$/);
 });
 
-test("generated live-claim probe is runnable with an admin-deployed locked dependency tree", () => {
+test("generated live-claim probe is a self-contained fail-closed production bundle", () => {
   const temp = mkdtempSync(path.join(os.tmpdir(), "storytree-codex-claim-probe-"));
-  const library = path.join(temp, "node_modules", "@storytree", "library");
-  const notice = path.join(temp, "node_modules", "@storytree", "notice-board");
-  mkdirSync(library, { recursive: true });
-  mkdirSync(notice, { recursive: true });
-  writeFileSync(
-    path.join(library, "package.json"),
-    JSON.stringify({ type: "module", exports: { "./store": "./store.mjs" } }),
-  );
-  writeFileSync(
-    path.join(library, "store.mjs"),
-    "export async function createPool(){return {pool:{},connector:{}}} export async function closePool(){}",
-  );
-  writeFileSync(
-    path.join(notice, "package.json"),
-    JSON.stringify({ type: "module", exports: { "./store": "./store.mjs" } }),
-  );
-  writeFileSync(
-    path.join(notice, "store.mjs"),
-    'export class PgClaimStore { async claimsBySession(sessionId){return [{sessionId,grade:"work",branch:"claude/current"}]}}',
-  );
   const authority = authorizeCodexWriter(topology(), [claim()], NOW);
   if (!authority.ok) assert.fail(authority.reason);
   const bundle = buildCodexContainmentBundle({
@@ -237,24 +238,28 @@ test("generated live-claim probe is runnable with an admin-deployed locked depen
   });
   if (!bundle.ok) assert.fail(bundle.reason);
   writeFileSync(bundle.claimProbeScriptPath, bundle.managedClaimProbeScript);
-
-  const valid = spawnSync(process.execPath, [bundle.claimProbeScriptPath], {
-    input: JSON.stringify({
-      protocolVersion: 1,
-      readMode: "live-claims-required",
-      sessionId: "codex-current",
-    }),
-    encoding: "utf8",
-  });
-  assert.equal(valid.status, 0, valid.stderr);
-  assert.equal(JSON.parse(valid.stdout).claims[0].sessionId, "codex-current");
+  assert.ok(bundle.managedClaimProbeScript.length > 100_000, "production dependencies are bundled");
+  assert.doesNotMatch(bundle.managedClaimProbeScript, /from\s+["']@storytree\//);
+  assert.doesNotMatch(bundle.managedClaimProbeScript, /import\(["']@storytree\//);
 
   const invalid = spawnSync(process.execPath, [bundle.claimProbeScriptPath], {
     input: JSON.stringify({ protocolVersion: 1, readMode: "cached", sessionId: "codex-current" }),
     encoding: "utf8",
   });
-  assert.equal(invalid.status, 2);
+  assert.equal(invalid.status, 2, invalid.stderr);
   assert.match(invalid.stderr, /failed closed/i);
+
+  writeFileSync(bundle.worktreeCreateScriptPath, bundle.managedWorktreeCreateScript);
+  assert.ok(
+    bundle.managedWorktreeCreateScript.length > 100_000,
+    "production worktree-creation dependencies are bundled",
+  );
+  assert.doesNotMatch(bundle.managedWorktreeCreateScript, /from\s+["']@storytree\//);
+  const invalidCreate = spawnSync(process.execPath, [bundle.worktreeCreateScriptPath, "--node", "x"], {
+    encoding: "utf8",
+  });
+  assert.equal(invalidCreate.status, 2, invalidCreate.stderr);
+  assert.match(invalidCreate.stderr, /failed closed/i);
 });
 
 test("lobby bundle remains read-only and names only the trusted bootstrap actuator", () => {
@@ -277,8 +282,82 @@ test("lobby bundle remains read-only and names only the trusted bootstrap actuat
   assert.doesNotMatch(bundle.requirementsToml, /"write"/);
   assert.match(bundle.operatorReadme, /worktree create/);
   assert.match(bundle.operatorReadme, /generic shell[\s\S]*not granted/i);
-  assert.match(bundle.operatorReadme, /no bootstrap actuator is included/i);
-  assert.match(bundle.operatorReadme, /transition is unavailable/i);
+  assert.match(bundle.operatorReadme, /fail-closed[\s\S]*hash-pinned worktree-create payload/i);
+
+  const script = path.join(mkdtempSync(path.join(os.tmpdir(), "storytree-codex-actuator-")), "actuator.ps1");
+  writeFileSync(script, bundle.trustedActuatorScript);
+  const invoke = (args: readonly string[]) =>
+    spawnSync(
+      "powershell.exe",
+      ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", script, ...args],
+      { encoding: "utf8" },
+    );
+
+  const malformed = invoke(["bootstrap", "--node", "codex-session-lifecycle"]);
+  assert.equal(malformed.status, 2, malformed.stderr);
+  assert.match(malformed.stderr, /exact grammar is bootstrap/i);
+
+  const extraLaunchFlag = invoke(["launch", "--worktree", ROOT, "--sandbox", "danger-full-access"]);
+  assert.equal(extraLaunchFlag.status, 2, extraLaunchFlag.stderr);
+  assert.match(extraLaunchFlag.stderr, /exact grammar is launch/i);
+
+  const unavailableBootstrap = invoke([
+    "bootstrap",
+    "--node",
+    "codex-session-lifecycle",
+    "--intent",
+    "create one claimed worktree",
+  ]);
+  assert.equal(unavailableBootstrap.status, 2, unavailableBootstrap.stderr);
+  assert.match(unavailableBootstrap.stderr, /hash-pinned|not configured|trusted actuator refused/i);
+});
+
+test("trusted payload configuration is absolute, administrator-owned, and hash-pinned", () => {
+  const authority = authorizeCodexWriter(topology(), [claim()], NOW);
+  if (!authority.ok) assert.fail(authority.reason);
+  const base = {
+    authority,
+    codexVersion: "codex-cli 0.145.0",
+    managedDir: path.resolve("C:/ProgramData/OpenAI/Codex/Storytree"),
+    managedNodePath: path.resolve("C:/Program Files/nodejs/node.exe"),
+    gitCommand: [process.execPath],
+  };
+  const outside = buildCodexContainmentBundle({
+    ...base,
+    codexPayload: { path: path.resolve("C:/code/storytree/codex.js"), sha256: "a".repeat(64) },
+  });
+  assert.equal(outside.ok, false);
+  if (!outside.ok) assert.match(outside.reason, /under managedDir/i);
+
+  const malformedHash = buildCodexContainmentBundle({
+    ...base,
+    codexPayload: {
+      path: path.resolve("C:/ProgramData/OpenAI/Codex/Storytree/payloads/codex.js"),
+      sha256: "latest",
+    },
+  });
+  assert.equal(malformedHash.ok, false);
+  if (!malformedHash.ok) assert.match(malformedHash.reason, /SHA-256 pin/i);
+
+  const bootstrapLobby = resolveCodexSessionTopology(
+    worktreeProbe({ topLevel: ROOT, gitDir: COMMON_DIR, branch: "main" }),
+    { canonicalize: norm },
+  );
+  if (!bootstrapLobby.ok || bootstrapLobby.location !== "lobby") {
+    assert.fail("expected the bootstrap fixture to resolve as a lobby");
+  }
+  const configuredBootstrap = buildCodexContainmentBundle({
+    ...base,
+    authority: bootstrapLobby,
+    worktreeCreatePayload: {
+      path: path.resolve("C:/ProgramData/OpenAI/Codex/Storytree/payloads/node.exe"),
+      sha256: "b".repeat(64),
+    },
+  });
+  if (!configuredBootstrap.ok) assert.fail(configuredBootstrap.reason);
+  assert.match(configuredBootstrap.operatorReadme, /bootstrap stays[\s\S]*enabled/i);
+  assert.match(configuredBootstrap.trustedActuatorScript, /Assert-PinnedCommand/);
+  assert.match(configuredBootstrap.trustedActuatorScript, /--primary/);
 });
 
 test("rendered managed hook re-probes Git and live claims on every write, then maps decisions", () => {

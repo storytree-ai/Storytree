@@ -692,7 +692,12 @@ function scriptedMultifileAuthor(workspace: string): PhaseAuthor {
  * the signer — that is what lets `story build` chain nodes over ONE store/run.
  */
 export async function driveNode(spec: NodeSpec, args: DriveNodeArgs): Promise<DriveNodeResult> {
-  const workspace = await fs.mkdtemp(path.join(os.tmpdir(), "storytree-node-build-"));
+  const workspaceParent =
+    args.mode === "live-smoke" && args.runtime === "codex"
+      ? path.join(repoRoot(), ".gate-logs", "codex-live-smoke-workspaces")
+      : os.tmpdir();
+  await fs.mkdir(workspaceParent, { recursive: true });
+  const workspace = await fs.mkdtemp(path.join(workspaceParent, "storytree-node-build-"));
   try {
     const multifileSmoke = isCodexMultifileRuntimeSeam(spec.id);
     if (multifileSmoke) {

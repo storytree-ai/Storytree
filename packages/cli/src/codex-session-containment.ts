@@ -9,6 +9,7 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, realpathSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 
@@ -16,9 +17,12 @@ import type { ClaimDocT } from "@storytree/notice-board";
 import { claimGrade, liveClaims } from "@storytree/notice-board";
 
 import type { Envelope } from "./envelope.js";
+import { buildManagedCodexLiveClaimProbe } from "./codex-live-claim-probe-bundle.js";
+import { buildManagedCodexWorktreeCreate } from "./codex-worktree-create-bundle.js";
 
 export const MIN_CODEX_PERMISSION_PROFILE_VERSION = "0.138.0";
 export const CODEX_WRITER_PROFILE = "storytree_codex_current";
+export const CODEX_PHASE_AUTHOR_PROFILE = "storytree_codex_phase_author";
 export const CODEX_LOBBY_PROFILE = "storytree_codex_lobby";
 
 export interface CodexGitProbe {
@@ -74,10 +78,14 @@ export interface CodexContainmentBundle {
   readonly policyPath: string;
   readonly hookScriptPath: string;
   readonly claimProbeScriptPath: string;
+  readonly worktreeCreateScriptPath: string;
+  readonly trustedActuatorScriptPath: string;
   readonly requirementsToml: string;
   readonly sessionPolicyJson: string;
   readonly managedHookScript: string;
   readonly managedClaimProbeScript: string;
+  readonly managedWorktreeCreateScript: string;
+  readonly trustedActuatorScript: string;
   readonly operatorReadme: string;
 }
 
@@ -90,47 +98,11 @@ export interface BuildBundleArgs {
   readonly gitCommand?: readonly string[];
   /** Absolute trusted probe which re-reads live claims and returns `{claims:[...]}` on every call. */
   readonly claimProbeCommand?: readonly string[];
+  /** Optional administrator-owned, hash-pinned native Codex executable under the managed directory. */
+  readonly codexPayload?: Readonly<{ path: string; sha256: string }>;
+  /** Optional administrator-owned, hash-pinned managed Node executable for the generated creator. */
+  readonly worktreeCreatePayload?: Readonly<{ path: string; sha256: string }>;
 }
-
-/**
- * Administrator-deployed, read-only live-claim reader used by the managed hook. Device management
- * copies these exact bytes and a locked production dependency tree under the managed directory;
- * credentials remain external and MUST identify a database principal with SELECT-only access to
- * `events.node_claim`. This is executable implementation, not a receipt or a placeholder command.
- */
-export const MANAGED_CODEX_LIVE_CLAIM_PROBE_SCRIPT = String.raw`#!/usr/bin/env node
-import { createPool, closePool } from "@storytree/library/store";
-import { PgClaimStore } from "@storytree/notice-board/store";
-
-function fail(reason) {
-  process.stderr.write("Storytree Codex live-claim probe failed closed: " + reason + "\n");
-  process.exitCode = 2;
-}
-
-async function readStdin() {
-  let text = "";
-  for await (const chunk of process.stdin) text += chunk;
-  return text;
-}
-
-let handle;
-try {
-  const request = JSON.parse(await readStdin());
-  if (!request || request.protocolVersion !== 1 || request.readMode !== "live-claims-required") {
-    throw new Error("unsupported or missing live-read protocol");
-  }
-  if (typeof request.sessionId !== "string" || request.sessionId.trim() === "") {
-    throw new Error("sessionId is required");
-  }
-  handle = await createPool();
-  const claims = await new PgClaimStore(handle.pool).claimsBySession(request.sessionId);
-  process.stdout.write(JSON.stringify({ claims }));
-} catch (error) {
-  fail(error instanceof Error ? error.message : String(error));
-} finally {
-  if (handle) await closePool(handle.pool, handle.connector);
-}
-`;
 
 function comparable(value: string): string {
   const slashed = path.resolve(value).replaceAll("\\", "/").replace(/\/+$/, "");
@@ -295,10 +267,48 @@ function renderHookGroup(
     "",
     `[[hooks.${event}.hooks]]`,
     'type = "command"',
+    `command = ${tomlString(command)}`,
     `command_windows = ${tomlString(command)}`,
     "timeout = 30",
     `statusMessage = ${tomlString(status)}`,
   ];
+}
+
+function credentialRoots(): string[] {
+  const roots = [
+    process.env["APPDATA"] ? path.join(process.env["APPDATA"], "gcloud") : undefined,
+    process.env["APPDATA"]
+      ? path.join(process.env["APPDATA"], "gcloud", "application_default_credentials.json")
+      : undefined,
+    path.join(process.env["USERPROFILE"] ?? os.homedir(), ".config", "gcloud"),
+    process.env["CLOUDSDK_CONFIG"],
+    process.env["GOOGLE_APPLICATION_CREDENTIALS"],
+    path.join(process.env["USERPROFILE"] ?? os.homedir(), ".storytree"),
+    path.join(process.env["USERPROFILE"] ?? os.homedir(), ".storytree", "secrets.json"),
+    path.join(process.env["USERPROFILE"] ?? os.homedir(), ".codex"),
+    path.join(process.env["USERPROFILE"] ?? os.homedir(), ".codex", "auth.json"),
+  ].filter((value): value is string => typeof value === "string" && path.isAbsolute(value));
+  return [...new Map(roots.map((root) => [comparable(root), path.resolve(root)])).values()];
+}
+
+function credentialAclPaths(): string[] {
+  const home = process.env["USERPROFILE"] ?? os.homedir();
+  return [
+    process.env["APPDATA"] ? path.join(process.env["APPDATA"], "gcloud") : undefined,
+    path.join(home, ".config", "gcloud"),
+    process.env["CLOUDSDK_CONFIG"],
+    process.env["GOOGLE_APPLICATION_CREDENTIALS"],
+    path.join(home, ".storytree", "secrets.json"),
+    path.join(home, ".codex", "auth.json"),
+  ].filter((value): value is string => typeof value === "string" && path.isAbsolute(value));
+}
+
+function renderCredentialDenies(profile: string): string[] {
+  return credentialRoots().flatMap((root) => [
+    "",
+    `[permissions.${profile}.filesystem.${tomlString(root)}]`,
+    '"." = "deny"',
+  ]);
 }
 
 function renderManagedRequirements(args: {
@@ -326,6 +336,7 @@ function renderManagedRequirements(args: {
     "",
     "[allowed_permission_profiles]",
     `${profile} = true`,
+    ...(writer ? [`${CODEX_PHASE_AUTHOR_PROFILE} = true`] : []),
     "",
     `[permissions.${profile}]`,
     `description = ${tomlString(
@@ -337,6 +348,7 @@ function renderManagedRequirements(args: {
     "",
     `[permissions.${profile}.filesystem]`,
     '":minimal" = "read"',
+    ...renderCredentialDenies(profile),
   ];
 
   if (args.authority.location === "worktree") {
@@ -344,11 +356,26 @@ function renderManagedRequirements(args: {
       "",
       `[permissions.${profile}.filesystem.${tomlString(args.authority.currentWorktree)}]`,
       '"." = "write"',
-      '"**" = "write"',
       '".git" = "deny"',
       '".codex" = "deny"',
       "",
       `[permissions.${profile}.network]`,
+      "enabled = false",
+      "",
+      `[permissions.${CODEX_PHASE_AUTHOR_PROFILE}]`,
+      `description = ${tomlString(
+        "Storytree factory phase author: write only inside disposable Codex replicas.",
+      )}`,
+      'extends = ":read-only"',
+      "",
+      `[permissions.${CODEX_PHASE_AUTHOR_PROFILE}.filesystem]`,
+      '":minimal" = "read"',
+      ...renderCredentialDenies(CODEX_PHASE_AUTHOR_PROFILE),
+      "",
+      `[permissions.${CODEX_PHASE_AUTHOR_PROFILE}.filesystem.${tomlString(args.authority.currentWorktree)}]`,
+      '".gate-logs/codex-replicas" = "write"',
+      "",
+      `[permissions.${CODEX_PHASE_AUTHOR_PROFILE}.network]`,
       "enabled = false",
     );
   }
@@ -634,6 +661,224 @@ try {
 }
 `;
 
+/**
+ * Administrator-owned lifecycle boundary. The generated copy contains only data derived from the
+ * selected bundle; it never imports or invokes repository code. Device management may install this
+ * script, while the repository command remains a dry-run generator.
+ */
+const MANAGED_CODEX_TRUSTED_ACTUATOR_TEMPLATE = String.raw`#requires -Version 5.1
+[CmdletBinding(PositionalBinding = $false)]
+param([Parameter(ValueFromRemainingArguments = $true)][string[]] $RawArgs)
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
+$Config = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("__CONFIG_BASE64__")) | ConvertFrom-Json
+$Mutex = $null
+$HasMutex = $false
+
+function Fail([string] $Message) { throw "Storytree Codex trusted actuator refused: $Message" }
+function Same-Path([string] $Left, [string] $Right) {
+  return [string]::Equals([IO.Path]::GetFullPath($Left).TrimEnd('\'), [IO.Path]::GetFullPath($Right).TrimEnd('\'), [StringComparison]::OrdinalIgnoreCase)
+}
+function Canonical-Existing([string] $Target) {
+  if (-not [IO.Path]::IsPathRooted($Target)) { Fail "path must be absolute" }
+  return (Get-Item -LiteralPath $Target -Force -ErrorAction Stop).FullName
+}
+function Assert-PinnedPayload([string] $Name, $Payload) {
+  if ($null -eq $Payload -or [string]::IsNullOrWhiteSpace([string]$Payload.path) -or [string]::IsNullOrWhiteSpace([string]$Payload.sha256)) {
+    Fail "$Name is not configured as an administrator-owned hash-pinned payload"
+  }
+  $PayloadPath = Canonical-Existing ([string]$Payload.path)
+  $ManagedRoot = [IO.Path]::GetFullPath([string]$Config.managedDir).TrimEnd('\') + '\'
+  if (-not $PayloadPath.StartsWith($ManagedRoot, [StringComparison]::OrdinalIgnoreCase)) { Fail "$Name is outside the administrator-owned managed directory" }
+  $Observed = (Get-FileHash -LiteralPath $PayloadPath -Algorithm SHA256).Hash.ToLowerInvariant()
+  if ($Observed -ne ([string]$Payload.sha256).ToLowerInvariant()) { Fail "$Name hash does not match the generated pin" }
+  return $PayloadPath
+}
+function Assert-PinnedCommand([string] $Name, $Payload) {
+  $Executable = Assert-PinnedPayload $Name $Payload
+  $Command = @($Executable)
+  foreach ($Fixed in @($Payload.fixedArguments)) {
+    $Command += Assert-PinnedPayload ($Name + ' fixed argument') $Fixed
+  }
+  if ($Command.Count -lt 2) { Fail "$Name carries no hash-pinned fixed entry script" }
+  return $Command
+}
+function Invoke-Exact($Command, [string[]] $Tail, [AllowNull()][string] $InputText) {
+  if ($null -eq $Command -or $Command.Count -lt 1 -or -not [IO.Path]::IsPathRooted([string]$Command[0])) { Fail "managed command is not exact and absolute" }
+  $Executable = [string]$Command[0]
+  $Arguments = @()
+  if ($Command.Count -gt 1) { $Arguments += @($Command | Select-Object -Skip 1) }
+  $Arguments += $Tail
+  $PreviousErrorActionPreference = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try {
+    if ($null -eq $InputText) { $Output = & $Executable @Arguments 2>&1 } else { $Output = $InputText | & $Executable @Arguments 2>&1 }
+    $CommandExit = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $PreviousErrorActionPreference
+  }
+  if ($CommandExit -ne 0) {
+    $Detail = (($Output | ForEach-Object { [string]$_ }) -join [Environment]::NewLine).Trim()
+    if ($Detail.Length -gt 2048) { $Detail = $Detail.Substring($Detail.Length - 2048) }
+    Fail "managed command exited $CommandExit$(if ($Detail) { ': ' + $Detail } else { '' })"
+  }
+  return (($Output | ForEach-Object { [string]$_ }) -join [Environment]::NewLine).Trim()
+}
+function Probe-Git([string] $RequestedWorktree) {
+  $Top = Canonical-Existing (Invoke-Exact $Config.gitCommand @('-C', $RequestedWorktree, 'rev-parse', '--path-format=absolute', '--show-toplevel') $null)
+  if (-not (Same-Path $Top $RequestedWorktree)) { Fail "requested directory is not its independently resolved Git top-level" }
+  $GitDir = Canonical-Existing (Invoke-Exact $Config.gitCommand @('-C', $Top, 'rev-parse', '--path-format=absolute', '--git-dir') $null)
+  $CommonDir = Canonical-Existing (Invoke-Exact $Config.gitCommand @('-C', $Top, 'rev-parse', '--path-format=absolute', '--git-common-dir') $null)
+  $Branch = Invoke-Exact $Config.gitCommand @('-C', $Top, 'rev-parse', '--abbrev-ref', 'HEAD') $null
+  if ([string]::IsNullOrWhiteSpace($Branch) -or $Branch -eq 'HEAD') { Fail "worktree is detached" }
+  $Porcelain = Invoke-Exact $Config.gitCommand @('-C', $Top, 'worktree', 'list', '--porcelain') $null
+  $Registered = @($Porcelain -split [char]10 | Where-Object { $_ -like 'worktree *' } | ForEach-Object { [IO.Path]::GetFullPath($_.Substring(9).Trim()) })
+  if (@($Registered | Where-Object { Same-Path $_ $Top }).Count -ne 1) { Fail "checkout is not exactly one Git-registered worktree" }
+  $Primary = Canonical-Existing (Split-Path -Parent $CommonDir)
+  $Location = if (Same-Path $GitDir $CommonDir) { 'lobby' } else { 'worktree' }
+  if ($Location -eq 'lobby' -and -not (Same-Path $Top $Primary)) { Fail "lobby disagrees with Git common directory" }
+  $SessionId = if ($Top -match '[\\/]\.claude[\\/]worktrees[\\/]([^\\/]+)$') { $Matches[1] } else { Split-Path -Leaf $GitDir }
+  return [pscustomobject]@{ topLevel = $Top; gitDir = $GitDir; commonDir = $CommonDir; primaryCheckout = $Primary; branch = $Branch; location = $Location; sessionId = $SessionId }
+}
+function Assert-ExpectedTopology($Observed, $Expected) {
+  if ($Observed.location -ne $Expected.location) { Fail "Git topology does not match the selected policy" }
+  if (-not (Same-Path $Observed.primaryCheckout $Expected.primaryCheckout)) { Fail "primary checkout changed from generated policy" }
+  if ($Expected.location -eq 'worktree') {
+    if (-not (Same-Path $Observed.topLevel $Expected.currentWorktree)) { Fail "launch worktree differs from generated policy" }
+    if ($Observed.branch -ne $Expected.branch -or $Observed.sessionId -ne $Expected.sessionId) { Fail "session identity or branch changed from generated policy" }
+  }
+}
+function Assert-LiveClaim($Observed) {
+  $Request = @{ protocolVersion = 1; readMode = 'live-claims-required'; sessionId = $Observed.sessionId; observedTopology = $Observed; event = @{ source = 'trusted-launcher' } } | ConvertTo-Json -Depth 8 -Compress
+  $Response = Invoke-Exact $Config.claimProbeCommand @() $Request | ConvertFrom-Json
+  $Held = @($Response.claims | Where-Object { $_.sessionId -eq $Observed.sessionId -and $_.branch -eq $Observed.branch -and ($null -eq $_.grade -or $_.grade -eq 'work') })
+  if ($Held.Count -lt 1) { Fail "no live work claim admits this session/current branch" }
+}
+function Decode([string] $Encoded) { return [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($Encoded)) }
+function Write-Atomic([string] $Target, [string] $Content) {
+  $Parent = Split-Path -Parent $Target
+  [IO.Directory]::CreateDirectory($Parent) | Out-Null
+  $Temp = Join-Path $Parent ('.' + [IO.Path]::GetFileName($Target) + '.' + [guid]::NewGuid().ToString('N') + '.tmp')
+  try {
+    [IO.File]::WriteAllText($Temp, $Content, [Text.UTF8Encoding]::new($false))
+    if ([IO.File]::Exists($Target)) { [IO.File]::Replace($Temp, $Target, $null) } else { [IO.File]::Move($Temp, $Target) }
+  } finally { if ([IO.File]::Exists($Temp)) { [IO.File]::Delete($Temp) } }
+}
+function Install-Policy($Policy) {
+  Write-Atomic ([string]$Config.hookScriptPath) (Decode ([string]$Config.hookScript))
+  Write-Atomic ([string]$Config.claimProbeScriptPath) (Decode ([string]$Config.claimProbeScript))
+  Write-Atomic ([string]$Config.worktreeCreateScriptPath) (Decode ([string]$Config.worktreeCreateScript))
+  Write-Atomic ([string]$Policy.policyPath) (Decode ([string]$Policy.policyJson))
+  # Requirements move last: Codex can never observe a profile before its exact hook/policy exists.
+  Write-Atomic ([string]$Config.requirementsPath) (Decode ([string]$Policy.requirementsToml))
+}
+function Scrub-WriterTokens() {
+  # The managed claim broker uses standard keyless ADC discovery; bearer-token variables are never
+  # inherited by the model process. Filesystem profile denies protect the underlying credential files.
+  foreach ($Name in @('GOOGLE_OAUTH_ACCESS_TOKEN', 'CLOUDSDK_AUTH_ACCESS_TOKEN', 'GCP_ACCESS_TOKEN')) {
+    Remove-Item -LiteralPath ('Env:' + $Name) -ErrorAction SilentlyContinue
+  }
+}
+function Protect-SandboxCredentials() {
+  $Account = New-Object Security.Principal.NTAccount($env:COMPUTERNAME, 'CodexSandboxUsers')
+  try { $Sid = $Account.Translate([Security.Principal.SecurityIdentifier]).Value }
+  catch { Fail "CodexSandboxUsers is unavailable after sandbox setup" }
+  foreach ($Target in @($Config.credentialAclPaths)) {
+    if (-not (Test-Path -LiteralPath ([string]$Target))) { continue }
+    $Item = Get-Item -LiteralPath ([string]$Target) -Force
+    $Rule = if ($Item.PSIsContainer) { '*' + $Sid + ':(OI)(CI)(RX)' } else { '*' + $Sid + ':(R)' }
+    & icacls.exe $Item.FullName /deny $Rule | Out-Null
+    if ($LASTEXITCODE -ne 0) { Fail "could not deny the Codex sandbox account access to a credential path" }
+  }
+}
+
+try {
+  if ($RawArgs.Count -eq 0) { Fail "expected exactly bootstrap or launch" }
+  $Verb = $RawArgs[0]
+  if ($Verb -eq 'bootstrap') {
+    if ($RawArgs.Count -ne 5 -or $RawArgs[1] -ne '--node' -or $RawArgs[3] -ne '--intent') { Fail "exact grammar is bootstrap --node <capability> --intent <text>" }
+    $Node = $RawArgs[2]; $Intent = $RawArgs[4]
+    if ($Node -notmatch '^[a-z0-9][a-z0-9-]{1,127}$') { Fail "--node must be one capability identifier" }
+    if ([string]::IsNullOrWhiteSpace($Intent) -or $Intent.Length -gt 1024 -or $Intent.IndexOf([char]0) -ge 0 -or $Intent.IndexOf([char]10) -ge 0 -or $Intent.IndexOf([char]13) -ge 0) { Fail "--intent must be one non-empty line of at most 1024 characters" }
+  } elseif ($Verb -eq 'launch') {
+    if ($RawArgs.Count -ne 3 -or $RawArgs[1] -ne '--worktree') { Fail "exact grammar is launch --worktree <canonical-path>" }
+  } else { Fail "unknown subcommand '$Verb'" }
+
+  $Mutex = [Threading.Mutex]::new($false, 'Global\StorytreeCodexContainmentLifecycle')
+  $HasMutex = $Mutex.WaitOne()
+  if (-not $HasMutex) { Fail "could not acquire lifecycle mutex" }
+
+  if ($Verb -eq 'bootstrap') {
+    if ($Config.expected.location -ne 'lobby') { Fail "bootstrap is available only from a generated lobby policy" }
+    $Payload = Assert-PinnedCommand 'worktree-create payload' $Config.worktreeCreatePayload
+    $ObservedLobby = Probe-Git ([string]$Config.expected.primaryCheckout)
+    Assert-ExpectedTopology $ObservedLobby $Config.expected
+    $ResultText = Invoke-Exact $Payload @('--node', $Node, '--intent', $Intent, '--primary', $ObservedLobby.topLevel) $null
+    # The ceremony deliberately streams pnpm-install diagnostics to stderr. Invoke-Exact combines
+    # both streams for an honest failure message, so the exact payload's final stdout line is the
+    # machine response and everything before it is operator diagnostics.
+    $ResultLine = @($ResultText -split [char]10 | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })[-1]
+    $Result = $ResultLine | ConvertFrom-Json
+    if ($null -eq $Result.worktree) { Fail "worktree-create payload returned no worktree" }
+    $Created = Probe-Git (Canonical-Existing ([string]$Result.worktree))
+    if ($Created.location -ne 'worktree' -or -not (Same-Path $Created.primaryCheckout $Config.expected.primaryCheckout)) { Fail "created checkout is not a linked worktree of this lobby" }
+    [Console]::Out.WriteLine(($Created | ConvertTo-Json -Compress))
+  } else {
+    $CanonicalWorktree = Canonical-Existing $RawArgs[2]
+    $Observed = Probe-Git $CanonicalWorktree
+    Assert-ExpectedTopology $Observed $Config.expected
+    if ($Observed.location -eq 'worktree') { Assert-LiveClaim $Observed }
+    $CodexPayload = Assert-PinnedPayload 'Codex payload' $Config.codexPayload
+    Install-Policy $Config.activePolicy
+    try {
+      # Materialise/refresh Codex's restricted local account without a model turn, then carve
+      # credential paths out at the Windows ACL layer. Native Windows deny_read alone does not bind
+      # shell subprocesses, so the DACL is the physical read boundary.
+      & $CodexPayload sandbox --include-managed-config -P ([string]$Config.activeProfile) -C $CanonicalWorktree -- $env:ComSpec /d /c exit 0
+      if ($LASTEXITCODE -ne 0) { Fail "Codex sandbox setup attestation failed" }
+      Protect-SandboxCredentials
+      Scrub-WriterTokens
+      # Exact pinned launch surface: payload, -C, canonical worktree. No sandbox/profile/config widening flags.
+      $CodexArguments = @('-C', $CanonicalWorktree)
+      & $CodexPayload @CodexArguments
+      $CodexExit = $LASTEXITCODE
+      if ($CodexExit -ne 0) { Fail "pinned Codex exited $CodexExit" }
+    } finally {
+      Install-Policy $Config.lobbyPolicy
+      if (-not [string]::IsNullOrWhiteSpace([string]$Config.restoreActuatorScript)) {
+        Write-Atomic ([string]$Config.trustedActuatorScriptPath) (Decode ([string]$Config.restoreActuatorScript))
+      }
+    }
+  }
+} catch {
+  [Console]::Error.WriteLine($_.Exception.Message)
+  exit 2
+} finally {
+  if ($HasMutex -and $null -ne $Mutex) { $Mutex.ReleaseMutex() }
+  if ($null -ne $Mutex) { $Mutex.Dispose() }
+}
+`;
+
+function managedPayload(
+  payload: BuildBundleArgs["codexPayload"],
+  managedDir: string,
+  name: string,
+): NonNullable<BuildBundleArgs["codexPayload"]> | null | { readonly ok: false; readonly reason: string } {
+  if (payload === undefined) return null;
+  if (!path.isAbsolute(payload.path) || !insidePath(managedDir, payload.path)) {
+    return { ok: false, reason: `${name} must be an absolute administrator-owned path under managedDir` };
+  }
+  if (!/^[a-f0-9]{64}$/i.test(payload.sha256)) {
+    return { ok: false, reason: `${name} must carry one SHA-256 pin` };
+  }
+  return { path: payload.path, sha256: payload.sha256.toLowerCase() };
+}
+
+function base64(value: string): string {
+  return Buffer.from(value, "utf8").toString("base64");
+}
+
 function exactManagedCommand(
   command: readonly string[] | undefined,
   fallback: readonly string[],
@@ -671,12 +916,26 @@ export function buildCodexContainmentBundle(
   );
   if ("ok" in gitCommand) return gitCommand;
   const claimProbeScriptPath = path.join(args.managedDir, "storytree-codex-live-claim-probe.mjs");
+  const worktreeCreateScriptPath = path.join(
+    args.managedDir,
+    "storytree-codex-worktree-create.mjs",
+  );
   const claimProbeCommand = exactManagedCommand(
     args.claimProbeCommand,
     [args.managedNodePath, claimProbeScriptPath],
     "claimProbeCommand",
   );
   if ("ok" in claimProbeCommand) return claimProbeCommand;
+  const codexPayload = managedPayload(args.codexPayload, args.managedDir, "codexPayload");
+  if (codexPayload !== null && "ok" in codexPayload) return codexPayload;
+  const worktreeCreateExecutable = managedPayload(
+    args.worktreeCreatePayload,
+    args.managedDir,
+    "worktreeCreatePayload",
+  );
+  if (worktreeCreateExecutable !== null && "ok" in worktreeCreateExecutable) {
+    return worktreeCreateExecutable;
+  }
   const policyIdentity = createHash("sha256")
     .update(
       JSON.stringify(
@@ -699,6 +958,10 @@ export function buildCodexContainmentBundle(
     `${args.authority.location === "lobby" ? "lobby" : "writer"}-${policyIdentity}.json`,
   );
   const hookScriptPath = path.join(args.managedDir, "storytree-codex-containment-hook.mjs");
+  const trustedActuatorScriptPath = path.join(
+    args.managedDir,
+    "storytree-codex-trusted-actuator.ps1",
+  );
   const requirementsPath = path.join(path.dirname(args.managedDir), "requirements.toml");
   const policy =
     args.authority.location === "lobby"
@@ -729,17 +992,126 @@ export function buildCodexContainmentBundle(
     policyPath,
     hookScriptPath,
   });
+  const lobbyAuthority: CodexLobbyTopology = {
+    ok: true,
+    location: "lobby",
+    primaryCheckout: args.authority.primaryCheckout,
+    registeredWorktrees: args.authority.registeredWorktrees,
+  };
+  const lobbyIdentity = createHash("sha256")
+    .update(JSON.stringify({ mode: "lobby", primaryCheckout: lobbyAuthority.primaryCheckout }))
+    .digest("hex")
+    .slice(0, 24);
+  const lobbyPolicyPath = path.join(args.managedDir, "sessions", `lobby-${lobbyIdentity}.json`);
+  const lobbyPolicyJson = `${JSON.stringify(
+    {
+      schemaVersion: 1,
+      mode: "lobby",
+      primaryCheckout: lobbyAuthority.primaryCheckout,
+      gitCommand,
+      note: "Evidence only. The administrator-owned hook must independently re-resolve Git.",
+    },
+    null,
+    2,
+  )}\n`;
+  const lobbyRequirementsToml = renderManagedRequirements({
+    authority: lobbyAuthority,
+    managedDir: args.managedDir,
+    managedNodePath: args.managedNodePath,
+    policyPath: lobbyPolicyPath,
+    hookScriptPath,
+  });
+  const expected =
+    args.authority.location === "lobby"
+      ? { location: "lobby", primaryCheckout: args.authority.primaryCheckout }
+      : {
+          location: "worktree",
+          primaryCheckout: args.authority.primaryCheckout,
+          currentWorktree: args.authority.currentWorktree,
+          sessionId: args.authority.sessionId,
+          branch: args.authority.branch,
+        };
+  const managedClaimProbeScript = buildManagedCodexLiveClaimProbe();
+  const managedWorktreeCreateScript = buildManagedCodexWorktreeCreate();
+  const worktreeCreatePayload =
+    worktreeCreateExecutable === null
+      ? null
+      : {
+          ...worktreeCreateExecutable,
+          fixedArguments: [
+            {
+              path: worktreeCreateScriptPath,
+              sha256: createHash("sha256").update(managedWorktreeCreateScript).digest("hex"),
+            },
+          ],
+        };
+  const commonActuatorConfig = {
+    schemaVersion: 1,
+    managedDir: args.managedDir,
+    nodePath: args.managedNodePath,
+    requirementsPath,
+    hookScriptPath,
+    claimProbeScriptPath,
+    worktreeCreateScriptPath,
+    trustedActuatorScriptPath,
+    gitCommand,
+    claimProbeCommand,
+    credentialAclPaths: credentialAclPaths(),
+    codexPayload,
+    worktreeCreatePayload,
+    hookScript: base64(MANAGED_CODEX_HOOK_SCRIPT),
+    claimProbeScript: base64(managedClaimProbeScript),
+    worktreeCreateScript: base64(managedWorktreeCreateScript),
+    lobbyPolicy: {
+      policyPath: lobbyPolicyPath,
+      policyJson: base64(lobbyPolicyJson),
+      requirementsToml: base64(lobbyRequirementsToml),
+    },
+  };
+  const lobbyActuatorConfig = {
+    ...commonActuatorConfig,
+    activeProfile: CODEX_LOBBY_PROFILE,
+    expected: { location: "lobby", primaryCheckout: args.authority.primaryCheckout },
+    activePolicy: commonActuatorConfig.lobbyPolicy,
+    restoreActuatorScript: null,
+  };
+  const lobbyActuatorScript = MANAGED_CODEX_TRUSTED_ACTUATOR_TEMPLATE.replace(
+    "__CONFIG_BASE64__",
+    base64(JSON.stringify(lobbyActuatorConfig)),
+  );
+  const trustedActuatorConfig =
+    args.authority.location === "lobby"
+      ? lobbyActuatorConfig
+      : {
+          ...commonActuatorConfig,
+          activeProfile: CODEX_WRITER_PROFILE,
+          expected,
+          activePolicy: {
+            policyPath,
+            policyJson: base64(`${JSON.stringify(policy, null, 2)}\n`),
+            requirementsToml: base64(requirementsToml),
+          },
+          restoreActuatorScript: base64(lobbyActuatorScript),
+        };
+  const trustedActuatorScript = MANAGED_CODEX_TRUSTED_ACTUATOR_TEMPLATE.replace(
+    "__CONFIG_BASE64__",
+    base64(JSON.stringify(trustedActuatorConfig)),
+  );
   const operatorReadme =
     args.authority.location === "lobby"
       ? [
           "GENERATED, NOT INSTALLED. This is the read-only Codex lobby profile.",
-          "The only repository transition it may expose is the administrator-owned exact actuator for",
-          "`storytree worktree create`. NO bootstrap actuator is included in this bundle, so that",
-          "transition is unavailable until an administrator installs and attests one. Generic shell,",
+          "The bundle includes DATA for an administrator-owned exact actuator for the equivalent of",
+          "`storytree worktree create`; the repository command still installs nothing. Bootstrap stays",
+          worktreeCreatePayload === null
+            ? "fail-closed until device management configures a hash-pinned worktree-create payload."
+            : "enabled by the configured hash-pinned managed Node executable plus the generated pinned entry script.",
+          "Generic shell,",
           "git, package installation, and arbitrary .git access are not granted. Restart or hand off",
           "under a freshly generated writer profile after the actuator completes.",
           "Managed hook scripts are installed separately by device management.",
           "Do not call containment operational until the three-write live smoke passes.",
+          `Trusted actuator artifact: ${trustedActuatorScriptPath}`,
         ].join("\n")
       : [
           "GENERATED, NOT INSTALLED. This profile names exactly one current claimed worktree.",
@@ -747,9 +1119,12 @@ export function buildCodexContainmentBundle(
           "then start Codex through a launcher the writer cannot edit, select, or widen. The managed",
           "hook must independently re-resolve Git and re-read the live claim ledger on each covered",
           "write; the session policy JSON is launch evidence, never a claim receipt. The generated hook",
-          "does that through the generated live-claim probe installed beside it. Device management",
-          "must copy its exact bytes plus locked production dependencies; external credentials must",
-          "name a SELECT-only database principal. Missing dependencies/credentials fail closed.",
+          "does that through the generated standalone live-claim probe installed beside it. Its",
+          "keyless impersonated identity is a SELECT-only database principal; missing source ADC,",
+          "impersonation authority, or transport fails closed.",
+          "Native Windows shell reads do not honor profile deny_read rules. The trusted actuator",
+          "therefore refreshes the Codex sandbox account and places explicit filesystem DACL denies",
+          "over ADC, Storytree secrets, and Codex subscription auth before any model turn.",
           "Concurrency contract: each policy receipt has a content-addressed session path. The trusted",
           "launcher atomically writes the global requirements, spawns Codex, and waits for SessionStart",
           "before another launch may rewrite them. The deployed Codex must snapshot that selected",
@@ -760,6 +1135,8 @@ export function buildCodexContainmentBundle(
           "Before calling this operational, live smoke: lobby write refused; this worktree admitted;",
           "one registered sibling worktree refused. Hook coverage must also be inventoried against the",
           "deployed Codex version because specialised and hosted tools may bypass PreToolUse.",
+          `Trusted actuator artifact: ${trustedActuatorScriptPath}. It serializes the full Codex lifetime`,
+          "and restores the lobby policy on exit; launch refuses until a hash-pinned Codex payload is configured.",
         ].join("\n");
   return {
     ok: true,
@@ -768,10 +1145,14 @@ export function buildCodexContainmentBundle(
     policyPath,
     hookScriptPath,
     claimProbeScriptPath,
+    worktreeCreateScriptPath,
+    trustedActuatorScriptPath,
     requirementsToml,
     sessionPolicyJson: `${JSON.stringify(policy, null, 2)}\n`,
     managedHookScript: MANAGED_CODEX_HOOK_SCRIPT,
-    managedClaimProbeScript: MANAGED_CODEX_LIVE_CLAIM_PROBE_SCRIPT,
+    managedClaimProbeScript,
+    managedWorktreeCreateScript,
+    trustedActuatorScript,
     operatorReadme,
   };
 }
@@ -1092,6 +1473,8 @@ export async function codexSessionContainmentCommand(
       `requirements.toml: ${bundle.requirementsPath}`,
       `managed hook:      ${bundle.hookScriptPath} (installed separately by device management)`,
       `live claim probe:  ${bundle.claimProbeScriptPath} (installed separately by device management)`,
+      `worktree creator:  ${bundle.worktreeCreateScriptPath} (installed separately by device management)`,
+      `trusted actuator:  ${bundle.trustedActuatorScriptPath} (installed separately by device management)`,
       `session policy:    ${bundle.policyPath}`,
       "",
       bundle.operatorReadme,
@@ -1104,6 +1487,10 @@ export async function codexSessionContainmentCommand(
       bundle.managedHookScript.trimEnd(),
       "--- storytree-codex-live-claim-probe.mjs ---",
       bundle.managedClaimProbeScript.trimEnd(),
+      "--- storytree-codex-worktree-create.mjs ---",
+      bundle.managedWorktreeCreateScript.trimEnd(),
+      "--- storytree-codex-trusted-actuator.ps1 ---",
+      bundle.trustedActuatorScript.trimEnd(),
     ].join("\n"),
     next,
   };

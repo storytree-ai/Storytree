@@ -17,6 +17,7 @@ const PRODUCTION_SOURCE_ROOTS = ["apps", "infra", "packages", "scripts"] as cons
 const ENV_KEYS = [
   "STORYTREE_ALLOW_DATA_PLANE",
   "STORYTREE_DB_USER",
+  "STORYTREE_DB_IMPERSONATE_SERVICE_ACCOUNT",
   "STORYTREE_SECRETS_FILE",
   "CLAUDE_CODE_OAUTH_TOKEN",
   "GOOGLE_APPLICATION_CREDENTIALS_JSON",
@@ -71,6 +72,7 @@ function resetCredentialEnvironment(secretsFile: string): void {
   process.env["STORYTREE_ALLOW_DATA_PLANE"] = "1";
   process.env["STORYTREE_SECRETS_FILE"] = secretsFile;
   delete process.env["STORYTREE_DB_USER"];
+  delete process.env["STORYTREE_DB_IMPERSONATE_SERVICE_ACCOUNT"];
   delete process.env["CLAUDE_CODE_OAUTH_TOKEN"];
   delete process.env["UNRELATED_SECRET"];
 }
