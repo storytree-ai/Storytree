@@ -450,8 +450,18 @@ test("the writer launch requires a work grade and gets scratch it is actually gr
 
   // The credential is auth.json, not the whole tree — denying the tree hid the skills the same
   // directory advertises. Both halves now name the same file.
-  assert.match(bundle.requirementsToml, /\.codex\\\\auth\.json/);
-  assert.doesNotMatch(bundle.requirementsToml, /permissions\..*\.filesystem\."[^"]*\.codex"\]/);
+  //
+  // Asserted structurally rather than against a literal path: the TOML embeds `JSON.stringify` of a
+  // real absolute path, so the separator is the HOST's (`\\` on Windows, `/` on the Linux runner).
+  // Every `.codex` filesystem SECTION must name auth.json; the writer profile's in-worktree
+  // `".codex" = "deny"` is a key, not a section, so it is deliberately not caught here.
+  const codexDenySections = bundle.requirementsToml
+    .split("\n")
+    .filter((line) => line.startsWith("[permissions.") && line.includes(".codex"));
+  assert.ok(codexDenySections.length > 0, "expected at least one .codex deny section");
+  for (const section of codexDenySections) {
+    assert.match(section, /auth\.json"\]$/, `must deny the credential, not the tree: ${section}`);
+  }
 });
 
 test("trusted payload configuration is absolute, administrator-owned, and hash-pinned", () => {
