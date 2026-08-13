@@ -518,7 +518,7 @@ ever rebuilt, this paragraph is the brief for what it should feel like.
    the panel renders the dispatched run's progress; there is NO code path by which a free-text "yes"
    parsed from the conversation triggers a build (ADR-0108 d.3); and the thin client imports no
    agent/drive/model (ADR-0004).
-5. **Live: a chat proposal, accepted by a click, drives a real signed build and opens a PR.** _(criterion-id: uatc_329bcfb0db6d738d16bab9da)_ _(revision-id: uatr1:216d98b7ee24b0ed)_ _(previous-revision-id: uatr1:579b6943540715da)_
+5. **Live: a chat proposal, accepted by a click, drives a real signed build and opens a PR.** _(criterion-id: uatc_329bcfb0db6d738d16bab9da)_ _(revision-id: uatr1:045e2af541ec2a08)_ _(previous-revision-id: uatr1:216d98b7ee24b0ed)_
    _(witness: human)(detail: chat-drive-bridge#uat-5)_ In the desktop app, hold a REAL chat conversation
    (a real subscription `query()`), get a proposal carrying a unit id, and CLICK Build to accept it.
    **Success —** the run is genuine on both counts only a human can vouch for: the SDK session was REALLY
@@ -533,7 +533,21 @@ ever rebuilt, this paragraph is the brief for what it should feel like.
    Restating a compiled fact as something the owner signs would launder it into an unrepeatable
    signature. What is left is only what the compiler cannot reach: that the spend and the outward write
    were real. NOTE the spend is understated as authored — since ADR-0144 a chat-accepted NODE id also
-   routes to a persisting `--real` build, so there is no cheap variant of this walk.)*
+   routes to a persisting `--real` build, so there is no cheap variant of this walk.
+   **TRIAGED 2026-08-13 (ADR-0357) — this leg is MOOT, and that is neither of ADR-0348's two answers.**
+   It is one of the nine the ADR-0357 triage was told to resolve to either `machine`-with-a-gate or
+   `human`-with-a-stated-basis. Reading the source gives a third answer that both of those would
+   misreport. **The two bases above are withdrawn** — ADR-0348 D2 retired real metered spend and D3
+   retired the outward-facing action, and the leg's own words (*"neither of them a judgment gap"*) said
+   as much before either decision landed. **But it does not flip either**, because the journey cannot be
+   walked at all: the accept-to-Build handshake this leg walks was REMOVED in PR #587 (ADR-0155), which
+   is why this whole story is `status: retired` and its header already records these live legs as moot.
+   Binding a `machine` gate here would mint one that can never go green for a reason that is neither a
+   harness limit nor a product defect — precisely the indistinguishable-red failure ADR-0357 exists to
+   control. So the tag is left as it stands and the record is the correction: the leg is retired history,
+   like the body around it, and it is on nobody's attestation queue. Whether a retired story's UAT legs
+   should be DELETED (ordinals burned, as ADR-0348 D6 did for experience legs) or kept verbatim as
+   history is a story-author / librarian disposition call, deliberately not made here.)*
 
 End state — a chat conversation drove a real, spine-signed, CI-landing build off one explicit human
 click on a proposal the agent declared a machine-actionable id for, with progress streamed back the

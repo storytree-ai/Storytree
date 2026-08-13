@@ -361,11 +361,24 @@ surviving a relaunch, the studio-standalone build degrading honestly, and the pi
    directly, never calling the bridge, never hanging, never crashing. **Success —**
    [`repo-picker-panel`](repo-picker-panel.md)'s and [`terminal-repo-gate`](terminal-repo-gate.md)'s
    signed absent-bridge verdicts.
-7. **The native OS directory dialog opens and is usable.** _(witness: human)_ The member clicks "Choose _(criterion-id: uatc_7a3b2d98cf30074c51c67eac)_ _(revision-id: uatr1:ecfe9b180bebff79)_ _(previous-revision-id: uatr1:59c0b960aae358a1)_
+7. **The native OS directory dialog opens and is usable.** _(witness: human)_ The member clicks "Choose _(criterion-id: uatc_7a3b2d98cf30074c51c67eac)_ _(revision-id: uatr1:637969e7fff36934)_ _(previous-revision-id: uatr1:ecfe9b180bebff79)_
    repo…" and a REAL native OS directory chooser appears, titled for this purpose, and returns their
    chosen checkout. **Success —** the owner's attestation that the one call legs 3–5 stub behaves in the
-   real OS. *(operator-attested and irreducible — an OS-level modal sits outside every harness the proof
-   spine owns, and "usable" is an owner judgment, not an observable.)*
+   real OS. *(HUMAN on **ADR-0357 D1's second basis** — the success condition is mechanical, but sits
+   outside every harness the proof spine owns. This leg is the worked case ADR-0357 was written from,
+   and its old one-line note is kept nearly verbatim below because it already satisfied D2(a); what it
+   owed, and now carries, is D2(b). **(a) The mechanism, named rather than asserted as difficulty.**
+   "Choose repo…" reaches `dialog.showOpenDialog` in the Electron **MAIN** process
+   (`apps/desktop/electron/main.ts:594`). Playwright drives the **RENDERER**; a main-process native OS
+   modal has no renderer surface to click. That is not a gap in how `apps/desktop/e2e/` happens to be
+   configured — it is what the harness IS, and it is exactly why that suite STUBS this one call to make
+   legs 3–5 deterministic. **(b) What retires it.** OS-level input automation the proof spine owns — a
+   driver that can click the real Windows / macOS / GTK chooser itself, not the app. Acquire that and
+   this leg is `machine` with no other change to its claim. **One wording call is deliberately NOT
+   settled here:** "usable" in the title is an owner judgment rather than an observable, so the leg is
+   fused — a mechanical core plus one taste word. ADR-0357 explicitly left that to a story-author pass
+   rather than settling it by implication, noting that this story already adjudicated leg 7 as a genuine
+   ACCEPTANCE claim when ADR-0348 D6 deleted its sibling look-leg (old leg 8).)*
 End state — the desktop user picks a repo and the embedded terminal opens there (and refuses to run until
 they do), the selection lifecycle / the renderer picker / the fail-closed gate signed under their suites,
 the opens-in-the-picked-repo / fail-closed / survives-relaunch / standalone-degradation legs signed under

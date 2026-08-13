@@ -99,9 +99,47 @@ appearance verdict blocking a capability's green is still an owner question.
 **`uat-flip-nine-electron-legs` is unblocked, and its scope shrinks.** The method that settled leg 7 —
 reading the source — is the method for the rest. Static code triage decides each of the nine: genuinely
 outside every harness → stays `human` with a D2 basis, no drive; actually drivable → flips per ADR-0348
-D1. Only ambiguous legs cost a paid drive. `desktop` 3 is the likeliest genuine flip (the `_electron`
-suite already relaunches across a restart, and the real Windows Credential Manager is on the dev box, so
-that story's "a headless runner has no equivalent" may itself be a stale harness statement).
+D1. Only ambiguous legs cost a paid drive. `desktop` 3 is the likeliest genuine flip (the real Windows
+Credential Manager is on the dev box, so that story's "a headless runner has no equivalent" may itself
+be a stale harness statement).
+
+> **EXECUTED 2026-08-13, and the prediction held — but the triage found a THIRD outcome and a SECOND
+> mechanism.** Recorded here as the state of the decision, not as a re-decision. Of the nine:
+> **four FLIPPED** to `machine` bound to model-driven gates in the same change (`desktop` 3 —
+> `electron/main.ts:131` constructs the credential broker over `NapiKeychain` unconditionally, with no
+> E2E swap, so an `_electron` launch already writes the real OS keychain; plus `embedded-terminal` 5,
+> `terminal-tabs` 4 and `map-terminal-build` 7, which rested on ADR-0348 D2/D3 bases alone).
+> **Three STAY `human` on D1's second basis, each now stating it per D2** — `terminal-repo-picker` 7,
+> and `desktop` 7 and 8 on a mechanism this ADR did not have: `ensureHostedIdentity`
+> (`apps/desktop/electron/main.ts:180`) blocks the brokered write on an INTERACTIVE Google sign-in
+> behind IAP, and no identity the factory holds can mint an IAP-audience OIDC token since ADR-0254 D4
+> retired `storytree-remote-dev`. So the un-harnessable category is not one leg with one cause; it is
+> two causes, and the second one gates a whole surface rather than a single dialog.
+> **TWO are MOOT** — `chat-drive-bridge` 5 and `chat-subagent-spawn` 5 sit on `status: retired` stories
+> whose surfaces were DELETED, so their journeys cannot be walked at all. Neither answer this ADR
+> offers fits: their D2/spend bases are withdrawn, but a `machine` gate there could never go green for a
+> reason that is neither a harness limit nor a product defect — precisely the indistinguishable red D1's
+> second basis exists to prevent minting. They were left tagged as they stand with the mootness recorded
+> on the leg, and the disposition (delete the legs, ordinals burned, or keep them verbatim as history)
+> routed to a story-author / librarian pass. **If this shape recurs, it is a candidate for a D6-style
+> deletion rule for retired stories rather than a third witness basis.**
+>
+> **A claim in this ADR's own Consequences was wrong and is corrected in place (ADR-0139).** It read
+> "the `_electron` suite already relaunches across a restart". `session-survival.e2e.mjs` launches the
+> app ONCE and performs a renderer `win.reload()` plus a SPA route change; it never relaunches the
+> process. The conclusion survives — a real restart is `electron.launch()` twice, which the harness
+> plainly supports — but the sentence described a spec that does not do what it said, and the triage it
+> was pointing at would otherwise have rested on prose rather than on code.
+>
+> **D4's status across the whole surviving population, measured with `parseUatTestCriteria` (never a
+> grep):** the story-tier `human` count is now NINE, down from thirteen. Three carry a full D2 basis
+> authored by this triage. Four are the taste legs, of which `headless-orchestrator` 4,
+> `chat-subagent-spawn` 6 and `map-terminal-build` 6 already state both a basis and what would (or
+> would never) retire it — `map-terminal-build` 6's *"dissolves under neither a new harness nor cheaper
+> spend"* is the model — while **`feedback-graduation` 4 states its no-compiler basis but no explicit
+> retiring sentence, and is the one outstanding D4 gap.** Two are the moot pair above. Closing that one
+> gap belongs with D3's product slice, which is where every human leg's basis has to become structured
+> anyway.
 
 **D3 is a product increment, not corpus work, and it does not exist today.** `UatTestCriterion` is
 `.strict()` with eight fields and no rationale among them

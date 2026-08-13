@@ -255,7 +255,11 @@ thereafter (each real failure earns a permanent regression case, never speculati
 > restating a compiled fact as an unrepeatable signature. What survives as `witness: human` are the two
 > clauses that were fused inside the old leg 4 and have no compiler at all: the owner's acceptance of the
 > INVOCATION FORM (leg 6, a value call) and the owner's verdict on a real, BILLED, PR-opening run (leg 7,
-> spend + outward-facing). The story-level `uat_witness` is absent → human (the ADR-0040 fail-closed
+> spend + outward-facing). **RE-TRIAGED 2026-08-13 (ADR-0357): leg 7 FLIPPED to `machine`.** Only leg 6
+> was ever a no-compiler claim; leg 7's stated basis was spend + outward-facing, both withdrawn by
+> ADR-0348 D2/D3, and the leg's own prose had already recorded that it "dissolves the moment the spend
+> and the PR do". It is now bound to the model-driven gate 1 under "Reliability Gates", leaving ONE
+> human leg on this story. The story-level `uat_witness` is absent → human (the ADR-0040 fail-closed
 > signpost), so the machine-driven whole-story UAT node stays WITHHELD; the crown derives from the per-cap
 > signed verdicts plus the operator's attestations (legs 6, 7). Per ADR-0209 §6 every re-adjudicated leg
 > returns to UNSTAMPED until judged — a `machine` tag here asserts which witness is RIGHT, never that the
@@ -322,15 +326,24 @@ before.
    but whether this is the invocation the owner wants on their shell is an owner value call no code can
    decide. This basis dissolves under neither a new harness nor cheaper spend; it is discharged only when
    the owner settles the prefix.)*
-7. **Pressing Enter runs a real, billed build from the seeded command.** _(witness: human)(detail: map-terminal-build#uat-7)_ _(criterion-id: uatc_00996f29a26216200b5a5c92)_ _(revision-id: uatr1:4078c6a341e1688e)_ _(previous-revision-id: uatr1:57583a6171feb4ca)_
-   The owner presses Enter on the pre-filled command in the native shell; a
-   real build runs as their own Claude Code and — for a story-scope seed — opens the auto-merging PR
-   (ADR-0136). **Success —** the owner's verdict that the seeded command launched the build they intended.
-   *(Split out of the old leg 4 by this pass. Human on a SPEND + OUTWARD-FACING basis: real metered
-   subscription spend and an auto-merging PR that leaves the repo; an agent must never fire it unattended.
-   That basis is honest but NARROW, and it is stated so it can be retired honestly: it dissolves the
-   moment the spend and the PR do — the same walk against a `--dry-run` seed carries no judgment a machine
-   could not make, and would belong on leg 4.)*
+7. **Pressing Enter runs a real, billed build from the seeded command.** _(witness: machine)(detail: map-terminal-build#uat-7)_ _(proof-gate: map-terminal-build#gate-1)_ _(criterion-id: uatc_00996f29a26216200b5a5c92)_ _(revision-id: uatr1:dd5f5524dcb94f70)_ _(previous-revision-id: uatr1:4078c6a341e1688e)_
+   Enter is pressed on the pre-filled command in the native shell, UNMODIFIED; a
+   real build runs as the operator's own Claude Code and — for a story-scope seed — opens the auto-merging PR
+   (ADR-0136). **Success —** the seeded command, run exactly as composed, launches the real build it
+   names and reaches that build's own end state.
+   *(Split out of the old leg 4 by the 2026-07-25 pass; FLIPPED `human` → `machine` 2026-08-13 under
+   ADR-0348 D2/D3, by the source-reading triage ADR-0357 mandates. **This leg pre-authorised its own
+   flip and the sentence is kept:** its basis *"is honest but NARROW, and it is stated so it can be
+   retired honestly: it dissolves the moment the spend and the PR do."* ADR-0348 D2 and D3 dissolved
+   exactly those two — spend is a routine factory action rather than a judgment, and the merge ceremony
+   opens auto-merging PRs unattended every day — so nothing of the old basis remains. What does NOT
+   move here is the value call: whether this is the invocation FORM the owner wants is leg 6, which
+   stays `human` on a genuine no-compiler basis and is the only place that open call is queued. This leg
+   asserts only that the composed command RUNS and launches what it names. ADR-0348 D4 governs the
+   drive: it proceeds through the spend and the PR on its own judgment. **The drive is long** — the walk
+   IS a real build — so `STORYTREE_UAT_DRIVE_TIMEOUT_MIN` must be raised well past its 30-minute default
+   or the run is cut off mid-walk and recorded as a MISS, which is a harness red rather than a finding
+   about the product.)*
 
 End state — on the desktop, a Build click on the forest map composes the right `pnpm storytree … build
 --real --store pg` command and seeds it pre-filled (un-run) into the embedded terminal for the user to run
@@ -340,21 +353,51 @@ seed-opens-new-tab), the integrated real-bridge pre-fill machine-observable in t
 not yet written), and only the invocation form and the billed run left operator-attested (legs 6, 7) — the
 prove-it-gate leaf and the spine untouched, the app composing intent while the real tool runs the build.
 
+## Reliability Gates
+
+**Gate 1 is the story's FIRST gate (2026-08-13, ADR-0348 D2/D3 / ADR-0357).** Gate ids are positional
+(`asset:edit-story-uat-criteria` step 2), so anything added later APPENDS as gate 2 — never inserted,
+never renumbered, or already-signed verdicts and surviving `(proof-gate:)` bindings are silently
+re-pointed. It carries no `(covers:)`: it proves a JOURNEY, not a capability, and adding it to a
+`(covers:)` list would let an observe-and-sign `adopt` pass green a capability that never went red
+(ADR-0085 / ADR-0097).
+
+**The gate neither drives nor spends.** The drive is deliberately out-of-band —
+`pnpm --filter @storytree/drive exec node --import tsx src/uat-drive.run.ts map-terminal-build <criterion-id>`
+spawns a fresh subscription-funded session that walks the authored journey against the real packaged app
+and appends a record to `events.uat_drive`; ADR-0010 §5 keeps that off every gate path. The gate is the
+cheap standing WITNESS of that persisted artifact, and the spine still mints the verdict over the exit
+code IT watched, so ADR-0295 D2's *no model signs its own verdict* holds with the signing path
+unchanged. It goes red — honestly — when no `pass` record exists for the criterion's CURRENT
+`revision-id`, when the driven commit is not in HEAD's ancestry, or when the newest record is older than
+90 days (the ADR-0016 ageing floor).
+
+1. **UAT leg 7 — "pressing Enter runs a real, billed build from the seeded command" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts map-terminal-build uatc_00996f29a26216200b5a5c92`.
+   Witnesses that a model pressed Enter on the pre-filled command UNMODIFIED in the native shell and
+   observed the real build it names run to its own end state — for a story-scope seed, through the
+   auto-merging PR (ADR-0136). It does NOT witness leg 6: whether this is the invocation FORM the owner
+   wants is a value call with no compiler and stays `human`.
+   **The walk IS a real build**, so the driver needs `STORYTREE_UAT_DRIVE_TIMEOUT_MIN` raised well past
+   its 30-minute default; a cut-off run emits no report and is recorded as a MISS.
+
 ## Proof
 
 The story is proven when that walkthrough passes — the mechanics legs (1, 3) green under this story's two
 capabilities' signed `--real` verdicts, leg 2 under `terminal-tabs`' consumed seed-opens-new-tab verdict
 and leg 5 under this story's own `mbt-without-bridge-dispatches-as-today` (with each cap's contracts green
-underneath), leg 4 green under a still-to-be-written Electron `_electron` spec over the real bridge, and
-the two owner-judgment legs (6, 7) operator-attested. Per
+underneath), leg 4 green under a still-to-be-written Electron `_electron` spec over the real bridge,
+leg 7 green under the model-driven gate 1 above, and the ONE owner-judgment leg (6) operator-attested.
+*(This read "and the two owner-judgment legs (6, 7) operator-attested"; corrected in place per ADR-0139
+when ADR-0348 D2/D3's triage flipped leg 7 on 2026-08-13 — leg 7 was never an owner judgment, as its own
+prose said.)* Per
 ADR-0020, `healthy` is only ever DERIVED from signed verdicts; nothing here is authored healthy. Both
 capabilities are proof-wired (each carries a `proof:` block with a `real:` arm — a NET-NEW red→green for the
 composer, edit-existing red→green for the button re-point) so the spine can drive their studio vitest suites
 red→green under its own gate; the
 story's machine-driven UAT node is WITHHELD (its `uat_witness` is absent → human, ADR-0040), so driving
 those capabilities to signed verdicts is what makes the re-point buildable, and the crown additionally
-awaits the operator's attestations (legs 6, 7 — legs 4 and 5 were re-adjudicated to `machine` on
-2026-07-25, ADR-0209 D8).
+awaits the operator's ONE attestation (leg 6 — legs 4 and 5 were re-adjudicated to `machine` on
+2026-07-25, ADR-0209 D8, and leg 7 on 2026-08-13, ADR-0357).
 
 ## Open modeling calls (for the owner / orchestrator)
 
