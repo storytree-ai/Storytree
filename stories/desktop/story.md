@@ -440,9 +440,20 @@ never speculative breadth).
 > green, so blocking the crown on it priced a standing conversation as a gate. Their design intent is
 > NOT discarded: it is carried in "Design floor" above (a). Ordinals are BURNED, not renumbered —
 > positions 9 and 11 are simply absent, so every surviving leg keeps the number it has always had and
-> no signed verdict or `(proof-gate:)` binding is silently re-pointed. The three surviving human legs
-> (3, 7, 8) are genuine no-compiler ACCEPTANCE claims: a real OS-keychain round-trip, a
-> subscription-billed real build, and the owner's own in-app privilege grant.
+> no signed verdict or `(proof-gate:)` binding is silently re-pointed.
+>
+> **RE-TRIAGED 2026-08-13 (ADR-0357), so the story now carries SEVEN `machine` legs and TWO `human`
+> legs.** This paragraph previously ended by calling legs 3, 7 and 8 "genuine no-compiler ACCEPTANCE
+> claims: a real OS-keychain round-trip, a subscription-billed real build, and the owner's own in-app
+> privilege grant" — corrected in place per ADR-0139, because none of those three descriptions survives
+> its own decision. Leg 3's basis was a CI statement, not a harness statement, and it is now `machine`
+> bound to gate 2. "Subscription-billed" (leg 7) and "the owner's own privilege grant" (leg 8) were
+> withdrawn as bases by ADR-0348 D2 and D3 respectively. Both legs nonetheless stay `human`, on the
+> DIFFERENT and newly-available basis ADR-0357 D1 opened — mechanical, but outside every harness the
+> spine owns — and each states that basis and what would retire it in its own prose, as ADR-0357 D2
+> requires. The mechanism is the same for both and it is one line of code:
+> `ensureHostedIdentity` (`apps/desktop/electron/main.ts:180`) blocks on an INTERACTIVE Google sign-in
+> behind IAP, and no identity the factory holds can mint an IAP-audience token (ADR-0254 D4).
 >
 > **Five criteria FUSED an irreducible operator claim onto a provable one; each was SPLIT rather than
 > laundered** (the honest source of the drainage — the leg count GROWS). Two of those human halves have
@@ -503,14 +514,30 @@ credential never leaving the machine.
    two-kind broker independence, typed IPC, operation-bridge lifetime, and the panel's one-way store /
    feature gate — is `credential-broker`'s contracts 1–9; this leg adds the integrated claim that the
    REAL bridge exposes no read-back.
-3. **A credential survives a real restart in the OS keychain, then removes cleanly.** _(witness: human)_ _(criterion-id: uatc_f017c21eae754d091713d18f)_ _(revision-id: uatr1:a8bb3332f308b058)_
+3. **A credential survives a real restart in the OS keychain, then removes cleanly.** _(witness: machine)_ _(proof-gate: desktop#gate-2)_ _(criterion-id: uatc_f017c21eae754d091713d18f)_ _(revision-id: uatr1:02a892cce2db6189)_ _(previous-revision-id: uatr1:a8bb3332f308b058)_
    On a real desktop app the operator stores each kind independently (Claude subscription `oauth`,
    Anthropic `api-key`), REPLACES one, quits and relaunches, confirms the replacement is still held, and
-   removes it through Sign out/Remove leaving no plaintext on disk. **Success —** the owner's
-   attestation of the real OS-keychain round-trip. *(operator-attested and irreducible — the round-trip
-   runs through `@napi-rs/keyring` against the real macOS Keychain / Windows Credential Manager /
-   libsecret, which a headless runner has no equivalent of; `apps/desktop/src/keychain/napi-adapter.ts`
-   records this exemption at the source, and `set` has no offline fallback to observe.)*
+   removes it through Sign out/Remove leaving no plaintext on disk. **Success —** the real OS-keychain
+   round-trip observed end to end across a genuine process restart. *(FLIPPED `human` → `machine`
+   2026-08-13 under ADR-0348 D1, by the source-reading triage ADR-0357 mandates. The old note said the
+   round-trip runs against a real OS keychain "which a headless runner has no equivalent of" — that is a
+   CI statement, not a harness statement, and ADR-0348's census already listed this leg as
+   LEGACY-INERTIA for exactly that reason. The harness this leg is judged by does not run on a headless
+   runner: `apps/desktop/e2e/` launches the REAL packaged app on a real machine whose OS keychain is
+   real. Two facts settle it from code. `electron/main.ts:131` constructs the broker over
+   `NapiKeychain` UNCONDITIONALLY — there is no `STORYTREE_DESKTOP_E2E` swap and no in-memory fallback
+   on that path — so an `_electron` launch already reads and writes the real Windows Credential Manager
+   through `@napi-rs/keyring`; and a "quits and relaunches" is `electron.launch()` twice, where
+   `session-survival.e2e.mjs` calls it once and closes cleanly in its `finally`. *(Stated precisely,
+   because ADR-0357's own Consequences said the `_electron` suite "already relaunches across a restart"
+   and it does not — that spec does a renderer `win.reload()` and a SPA route change within ONE launched
+   process. The conclusion is unaffected: nothing stops a spec launching twice, and the harness's
+   `userData` handling is already written for exactly that kind of cross-launch assertion.)*
+   **A note for whoever drives it, because it is the
+   journey and not a defect:** the walk's own last step REMOVES the stored credentials, and
+   `main.ts:131` takes the default `storytree-desktop` service namespace, so a drive ends with the
+   operator's real desktop credentials cleared and needing re-entry. That is what the authored journey
+   asks for; it is the same end state the operator reaches performing it by hand.)*
 4. **The local backend is live (no 503).** _(witness: machine)(detail: desktop#uat-4)_ With the desktop main process running _(criterion-id: uatc_c41cb0d4c1bf3a45c39312a6)_ _(revision-id: uatr1:057291595a474651)_
    for real — the sidecar spawned, NOT the harness's e2e mode — a `GET /api/*` read route
    (`tree`/`docs`/`activity`) returns a real envelope body. **Success —** the response is the composed
@@ -535,7 +562,7 @@ credential never leaving the machine.
    injected broker-POST seam (a reachable/authorized double and an unreachable/forbidden double drive
    both paths). *(Machine: the fail-closed branch needs no live broker at all — it is exactly what an
    injected seam proves. Only the AUTHORIZED path needs the live grant, and that is leg 8.)*
-7. **A real build reaches a signed verdict locally and blooms in the shared forest VIA THE BROKER.** _(criterion-id: uatc_da3559fd2874e2df93362733)_ _(revision-id: uatr1:6841ee14c731ef06)_
+7. **A real build reaches a signed verdict locally and blooms in the shared forest VIA THE BROKER.** _(criterion-id: uatc_da3559fd2874e2df93362733)_ _(revision-id: uatr1:1903082aec93aac0)_ _(previous-revision-id: uatr1:6841ee14c731ef06)_
    _(witness: human)_ The member triggers a build from the UI; the local backend drives the real `story
    build --real` (or a node `--live` smoke) on their machine — a real checkout + git + pnpm + worktrees —
    the spine observes RED then GREEN from real exit codes and SIGNS LOCALLY, then the local backend **POSTs
@@ -543,16 +570,44 @@ credential never leaving the machine.
    `events.verdict`, and the build blooms in the forest the owner watches. **Success —** a signed verdict
    from a real local build, brokered to the shared forest under the friend's `builder` role (no DB identity
    on his machine), the agent having signed nothing itself and the broker having re-signed nothing
-   (ADR-0091) — and CI later re-proves it independently. *(operator-attested and irreducible — a real
-   `--real`/`--live` build is subscription-billed REAL SPEND and the brokered write lands on the live
-   hosted studio; an agent may never burn the spend or write outward unattended.)*
-8. **The owner's in-app `builder` grant opens the brokered write path.** _(witness: human)_ After the _(criterion-id: uatc_1207e89e3a5adfdc8c21359f)_ _(revision-id: uatr1:7afcb9cc7915a1b3)_
+   (ADR-0091) — and CI later re-proves it independently. *(HUMAN on **ADR-0357 D1's second basis** —
+   the success condition is mechanical, but sits outside every harness the proof spine owns. The old
+   note rested on SPEND and OUTWARD-FACING; ADR-0348 D2/D3 withdrew both and neither is restated here.
+   **(a) The mechanism, named rather than asserted.** The brokered leg is gated on
+   `ensureHostedIdentity` (`apps/desktop/electron/main.ts:180`): before any `/api/write-broker` POST the
+   main process opens a `BrowserWindow` on the hosted studio and POLLS `/api/me` until an INTERACTIVE
+   Google sign-in completes behind IAP, failing after 120 s or when the window is closed. No harness can
+   supply that credential — IAP wants an OIDC token audienced to its own OAuth client, and ADR-0254 D4
+   retired the only non-human identity the factory held (measured 2026-08-04: unauthenticated → `302`
+   to Google sign-in; a `gcloud auth print-identity-token` bearer → `401 Invalid JWT audience`; both
+   stamped `x-goog-iap-generated-response`, i.e. refused at the edge with the app never reached). The
+   one non-interactive path that exists is a session cookie already sitting in the app's `userData`,
+   which a human established by signing in — the human IS the credential. Repointing
+   `STORYTREE_STUDIO_URL` at a local `studio serve` would drive a DIFFERENT broker than the one this leg
+   names ("the forest the owner watches"), so it would witness this leg only by weakening it.
+   **(b) What retires it.** A non-interactive IAP credential the factory can hold; the four costed
+   options and the OIDC-issuer probe that is step one live on `remote-session-access-arc`. The day a
+   harness can mint an IAP-audience token this leg is `machine` and binds a model-driven gate like any
+   other — nothing else in it is a judgment call.)*
+8. **The owner's in-app `builder` grant opens the brokered write path.** _(witness: human)_ After the _(criterion-id: uatc_1207e89e3a5adfdc8c21359f)_ _(revision-id: uatr1:d6b0fa603e751678)_ _(previous-revision-id: uatr1:7afcb9cc7915a1b3)_
    owner marks the member a **builder** in the live Members panel (an in-app grant — no `gcloud`, no
    Cloud SQL IAM grant; ADR-0117 d.2), the member's brokered write path connects against the real hosted
    broker. **Success —** the owner's attestation that the grant they performed authorized the write.
-   *(operator-attested and irreducible — the grant is a privileged action only the owner can take, and
-   it is exercised against the live hosted studio; no agent may self-grant it,
-   `agent-never-self-exempts`.)*
+   *(HUMAN on **ADR-0357 D1's second basis**. ADR-0348 D3 names "grants an in-app privilege" as
+   explicitly NOT a basis for a human witness, so the old note's privileged-action argument is withdrawn
+   and is not restated. **(a) The mechanism** is the one leg 7 names, and here it binds at BOTH ends:
+   the grant is performed in the Members panel of the HOSTED studio (Cloud Run behind direct IAP — no
+   load balancer, no domain) as an ADMIN, and the write path it opens is then exercised through
+   `ensureHostedIdentity` (`apps/desktop/electron/main.ts:180`), an interactive Google sign-in inside an
+   Electron `BrowserWindow`. Neither end is reachable without an OIDC token audienced to IAP's own OAuth
+   client, which no identity the factory holds can mint since ADR-0254 D4 retired `storytree-remote-dev`
+   (measured 2026-08-04: `302` unauthenticated, `401 Invalid JWT audience` with a gcloud identity
+   token). A local `studio serve` under `STORYTREE_STUDIO_DEV_IDENTITY` can host both surfaces — which
+   is precisely why it does not witness this leg: the claim is about the HOSTED grant, and a
+   locally-identified studio proves a different one. **(b) What retires it:** the same IAP-credential
+   fork as leg 7 (`remote-session-access-arc`). The leg is otherwise mechanical — `writeBroker.test.ts`
+   already compiles the `mayBrokerWrite` role predicate over admin/builder/member — so it flips to
+   `machine` the day a harness can authenticate as a member.)*
 10. **Launch refuses cleanly when a precondition is unmet — no half-wired shell (ADR-0176).** _(criterion-id: uatc_ed15427cfebc9e03b298775e)_ _(revision-id: uatr1:bda598cbcb4d97cd)_ _(previous-revision-id: uatr1:3506081c43f4188c)_
     _(witness: machine)(detail: desktop#uat-10)_ Before the sidecar wires any backend, the launch-precondition gate runs: with no
     git checkout it refuses IMMEDIATELY naming the unmet precondition and NEVER wakes the DB; with a
@@ -624,19 +679,41 @@ suites.
    Credentials panel (contracts 5–9: feature-gated, two independent rows, one-way store, blank refusal,
    per-kind sign-out; `apps/studio/src/components/CredentialsPanel.test.tsx`, ADR-0179, vitest jsdom) —
    then signs an `adopted` verdict. `credential-broker` greens via this gate's `(covers:)` (ADR-0097 §5).
-   The real `@napi-rs/keyring` OS-keychain round-trip through the panel is NOT observed here — it is the
-   operator-attested leg (ADR-0070 / ADR-0179 §5, Story UAT leg 3), which an agent can never
-   self-attest.
+   The real `@napi-rs/keyring` OS-keychain round-trip through the panel is NOT observed here — it is
+   Story UAT leg 3, which since 2026-08-13 is `machine` and carries its OWN gate below (gate 2). *(This
+   clause read "it is the operator-attested leg (ADR-0070 / ADR-0179 §5, Story UAT leg 3), which an
+   agent can never self-attest"; corrected in place per ADR-0139 when ADR-0348 D1's triage flipped that
+   leg. What stays true is the SCOPE statement: this gate does not observe the real keychain.)*
 
-Adopting this gate greens ONLY `credential-broker` — its DERIVED crown, via the `(covers:)` above. It
+**Gate 2 is NEW (2026-08-13, ADR-0348 D1 / ADR-0357) and was APPENDED — gate 1 kept its ordinal.** Gate
+ids are positional (`asset:edit-story-uat-criteria` step 2), so inserting or renumbering would silently
+re-point already-signed verdicts and surviving `(proof-gate:)` bindings. It carries no `(covers:)`: it
+proves a JOURNEY, not a capability, and adding it to a `(covers:)` list would let an observe-and-sign
+`adopt` pass green a capability that never went red (ADR-0085 / ADR-0097). It neither drives nor spends
+— the drive is deliberately out-of-band (`uat-drive.run.ts`, ADR-0010 §5) and this gate is the cheap
+standing WITNESS of the record that drive persists, so the spine still mints the verdict over an exit
+code IT watched and ADR-0295 D2 holds unchanged. It goes red — honestly — when no `pass` record exists
+for the criterion's CURRENT `revision-id`, when the driven commit is not in HEAD's ancestry, or when
+the newest record is older than 90 days (the ADR-0016 ageing floor).
+
+2. **UAT leg 3 — "a credential survives a real restart in the OS keychain, then removes cleanly" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts desktop uatc_f017c21eae754d091713d18f`.
+   Witnesses that a model launched the REAL packaged app, stored both credential kinds through the
+   Credentials panel into the real OS keychain (`electron/main.ts:131` constructs the broker over
+   `NapiKeychain` unconditionally — there is no E2E swap), replaced one, QUIT AND RELAUNCHED the app,
+   confirmed the replacement was still held, and removed it leaving no plaintext on disk.
+
+Adopting gate 1 greens ONLY `credential-broker` — its DERIVED crown, via the `(covers:)` above. It
 does NOT green the story and does NOT touch the authored `status:` (which stays `proposed`): the desktop
-crown still awaits its OTHER capabilities and all ELEVEN Story UAT legs, in the two kinds the 2026-07-25
-ADR-0209 §8 re-adjudication resolved them into: **six machine legs** awaiting signed verdicts (the
-compiled-studio launch, the one-way credential surface, the Electron-main backend boot, the in-process
-credential hand-off, the fail-closed broker probe, and the clean launch refusal) and **five
-operator-attested legs** (the real OS-keychain round-trip, the subscription-billed build, the in-app
-`builder` grant, the one-app feel, and the refuse+retry window's look) — the latter five an agent can
-never self-attest. `healthy` stays non-authorable
+crown still awaits its OTHER capabilities and all NINE surviving Story UAT legs, in the two kinds the
+2026-08-13 ADR-0357 triage resolved them into: **seven machine legs** awaiting signed verdicts (the
+compiled-studio launch, the one-way credential surface, the real OS-keychain round-trip, the
+Electron-main backend boot, the in-process credential hand-off, the fail-closed broker probe, and the
+clean launch refusal) and **two human legs** (the subscription-billed brokered build, and the in-app
+`builder` grant) — both of the latter on ADR-0357 D1's second basis, the interactive IAP sign-in
+`ensureHostedIdentity` performs, and neither an agent can authenticate as. *(This paragraph said
+ELEVEN legs, six machine and five operator-attested — the 2026-07-25 counts. ADR-0348 D6 deleted the
+one-app-feel and refuse+retry-window legs, and ADR-0348 D1's triage flipped the keychain round-trip;
+corrected in place per ADR-0139.)* `healthy` stays non-authorable
 ([ADR-0020](../../docs/decisions/0020-red-green-enforcement-on-the-owned-loop.md)) — the authored
 `status:` is never `healthy`; the world's crown DERIVES green from the signed verdict
 ([ADR-0040](../../docs/decisions/0040-verdict-derived-green-and-the-human-witness-signpost.md)), and only
@@ -647,10 +724,12 @@ signed verdict toward that roll-up; it is not the crown.
 
 The story is proven when the nine legs above pass under their **re-adjudicated** witnesses (2026-07-25,
 ADR-0209 §8; narrowed 2026-08-11 by ADR-0348 D6, which deleted the two EXPERIENCE legs that stood at
-positions 9 and 11 — the ordinals are burned, not reused): six machine legs (1, 2, 4, 5, 6, 10) green
-under a signed verdict, and three legs (3, 7, 8) operator-attested. Leg 6 is discharged by
+positions 9 and 11 — the ordinals are burned, not reused; and re-triaged 2026-08-13 under ADR-0357,
+which flipped leg 3): seven machine legs (1, 2, 3, 4, 5, 6, 10) green under a signed verdict, and two
+legs (7, 8) human on ADR-0357 D1's second basis. Leg 6 is discharged by
 [`shared-forest-connection`](shared-forest-connection.md)'s own signed verdict over its injected seam;
-legs 1 and 2 by the EXISTING offline `_electron` harness; legs 4, 5 and 10 by a live-gated `_electron`
+legs 1 and 2 by the EXISTING offline `_electron` harness; leg 3 by the model-driven UAT gate 2 above;
+legs 4, 5 and 10 by a live-gated `_electron`
 spec that does **not** yet exist (open modeling call 3). The deterministic credential-broker,
 local-backend, credential-bridge, forest-readiness, and launch-precondition suites remain supporting
 component evidence — they prove the same logic over doubles, which is why the integrated legs stay
@@ -659,12 +738,13 @@ DERIVED from signed verdicts; nothing here is authored healthy. The three thick-
 proof-wired (each carries a `proof:` block with a `real:` arm — a NET-NEW red→green) so the spine can
 drive their offline suites red→green under its own gate; the story's machine-driven UAT node is WITHHELD
 (its `uat_witness` is absent → human, ADR-0040), so driving those capabilities to signed verdicts is
-what makes the thick-client layer buildable, and the crown additionally awaits the six machine legs'
-verdicts and the operator's five attestations.
+what makes the thick-client layer buildable, and the crown additionally awaits the seven machine legs'
+verdicts and the operator's two attestations.
 
 **The machine legs are a build obligation, not a claim of existing coverage.** Per ADR-0209 §6 this
-re-adjudication returned EVERY leg to UNSTAMPED: the six machine legs declare the witness kind that is
-RIGHT for them, and four of them (1, 4, 5, 10) have no spec discharging them at HEAD. They are newly
+re-adjudication returned EVERY leg to UNSTAMPED: the seven machine legs declare the witness kind that is
+RIGHT for them, and five of them (1, 3, 4, 5, 10) have no spec discharging them at HEAD — leg 3's gate 2
+is BOUND but goes red until the out-of-band drive that produces its record has run. They are newly
 eligible to BE proven, not proven. The specs live in `apps/desktop/e2e/**` — OUTSIDE the story-author's
 `stories/**` fence — so they are flagged under "Open modeling calls" to land with whoever builds them.
 
@@ -688,9 +768,13 @@ harness shapes are needed, and the split matters:
   `http://127.0.0.1:<port>` origin plus a script-tag/network sweep showing only hashed `/assets/*.js` and
   no `/@vite/client`; leg 2 asserts the real `window.desktopAuth` surface (three methods, no getter, a
   boolean `status`) and a clean `localStorage`/`sessionStorage`. Leg 2 must NOT drive a store of a real
-  secret — `NapiKeychain.set` has no offline fallback and a headless runner has no keychain, which is
-  exactly why the round-trip stayed human as leg 3. Reading `status(kind)` IS safe (the adapter's `get`
-  normalises a missing/unavailable entry to `null`).
+  secret — `NapiKeychain.set` has no offline fallback, and THIS spec is the one shape that also runs on
+  a headless CI runner with no keychain at all. Reading `status(kind)` IS safe (the adapter's `get`
+  normalises a missing/unavailable entry to `null`). *(This bullet ended "which is exactly why the
+  round-trip stayed human as leg 3"; corrected in place per ADR-0139 on 2026-08-13, when ADR-0348 D1's
+  triage flipped leg 3 to `machine`. The constraint on leg 2 is unchanged and is about THIS spec's
+  headless-CI shape — leg 3's round-trip is driven on a real machine, out-of-band under gate 2, and
+  never on a CI runner.)*
 - **Legs 4, 5 and 10 need a SECOND, LIVE-GATED spec that launches WITHOUT e2e mode.** `STORYTREE_DESKTOP_E2E=1`
   deliberately never spawns the sidecar and the harness stubs every `/api/*` call
   (`electron/main.ts` L450, `harness.mjs`), so the existing mode structurally cannot observe a real
