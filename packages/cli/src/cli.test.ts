@@ -14,7 +14,8 @@ import {
 } from "@storytree/storage-protocol";
 import { loadFixtureCorpus } from "@storytree/library/fixture";
 
-import { run } from "./commands.js";
+import { CLI_AREAS } from "./cli-areas.js";
+import { run, terminalVerbFor, unknownAreaEnvelope } from "./commands.js";
 import { formatEnvelope } from "./envelope.js";
 
 /**
@@ -222,6 +223,64 @@ test("an unknown area is guided back to library", async () => {
   const env = await run(["wat"], { store: await seeded() });
   assert.equal(env.ok, false);
   assert.match(env.body, /unknown area "wat"/);
+});
+
+/**
+ * The lifecycle tier's terminal verb, on the three surfaces a session actually reads to find one.
+ *
+ * These pin an ABSENCE that was measured, not a preference: on 2026-08-06 the drain verb for an
+ * `open-question` was reachable only by reading `retire.ts`, and the failure mode when a session gives
+ * up is that the row keeps rendering as OPEN on its arc — a false "waiting on the owner" under
+ * ADR-0314 D5, on the surface built to be trusted for exactly that. The `increment` case is the same
+ * shape, observed 2026-08-13 holding a finished arc at `active (in flight)` for five days.
+ */
+test("a lifecycle-tier kind's render offers the verb that ENDS it; a durable kind's does not", async () => {
+  assert.match(terminalVerbFor("open-question", "oq-x") ?? "", /^storytree library artifact retire oq-x /);
+  assert.match(terminalVerbFor("friction", "fr-x") ?? "", /^storytree friction route fr-x /);
+  assert.match(terminalVerbFor("increment", "inc-x") ?? "", /^storytree arc increment close inc-x /);
+  // Each names the flag that carries the REASON — a terminal verb offered without one would be a
+  // pointer to a refusal (`retire` needs --reason, `increment close` needs --note absent a --pr).
+  assert.match(terminalVerbFor("open-question", "oq-x") ?? "", /--reason/);
+  assert.match(terminalVerbFor("increment", "inc-x") ?? "", /--note/);
+
+  // The gate is the KIND, and it has to be: three `deepEqual` assertions above pin the `next:` of a
+  // `definition` exactly, and every durable kind is evergreen — offering it a drain would be a lie
+  // about the tier as well as a red suite.
+  for (const durable of ["definition", "principle", "guardrail", "pattern", "process", "agent", "arc"]) {
+    assert.equal(terminalVerbFor(durable, "x"), undefined, `${durable} never terminates`);
+  }
+});
+
+test("`storytree retire` is answered with where the verb LIVES, not a bare unknown-area dead end", async () => {
+  // The dead end read as ABSENCE: none of the 32 areas is obviously where an artifact goes to die, so
+  // the honest conclusion from the old output was "there is no such verb" — which is false.
+  const env = unknownAreaEnvelope("retire");
+  assert.equal(env.ok, false);
+  assert.match(env.body, /it is a VERB/);
+  assert.match(env.body, /storytree library artifact retire <id> --reason/);
+  assert.ok(
+    env.next?.some((n) => n.startsWith("storytree library artifact retire ")),
+    "the pointer is pasteable, not merely named in prose",
+  );
+  // NOT registered as an area — that is the refused fix, since it would split the artifact surface
+  // across two top-level areas. Pointing succeeds without moving the verb.
+  // The cast is the assertion's whole point surviving the type system: `CLI_AREAS` is a literal
+  // tuple, so a bare `.includes("retire")` is a COMPILE error rather than a false — which proves the
+  // invariant statically but would silently stop testing it the day someone widened the tuple.
+  assert.ok(!(CLI_AREAS as readonly string[]).includes("retire"), "`retire` stays a verb on `library artifact`");
+
+  // An area that is genuinely unknown is untouched.
+  const wat = unknownAreaEnvelope("wat");
+  assert.match(wat.body, /^unknown area "wat"\. areas: /);
+  assert.deepEqual(wat.next, ["storytree library", "storytree agents <name>"]);
+});
+
+test("library --help carries the retire verb (the surface the filed miss actually grepped)", async () => {
+  // The evidence behind this: `library --help | grep -iE "retire|delete"` returned nothing, while
+  // `library artifact --help` carried it one level down. The reader looked at the parent.
+  const env = await run(["library", "--help"], { store: await seeded() });
+  assert.equal(env.ok, true);
+  assert.match(env.body, /storytree library artifact retire <id>/);
 });
 
 test("the adopt area: bare shows help, `adopt plan` needs a story id, and `story adopt-plan` redirects", async () => {

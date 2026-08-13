@@ -65,7 +65,7 @@ proof:
 # Claim-store work-time extensions
 
 **Outcome —** The per-unit write-claim (`events.node_claim`, the ADR-0121 lock) generalises from
-**build-time** to **work-time**, via three deltas — none of which exist yet:
+**build-time** to **work-time**, via three deltas — all three of which have since landed:
 
 - **A1 `releaseClaimsByBranch(branch)`** on `PgClaimStore` — the bulk-release CI calls on merge (capability D).
 - **A2** a cheap **trace-driven heartbeat bump** — reset `heartbeatAt` from a liveness signal without the
@@ -89,11 +89,26 @@ proof:
 > ledger); this capability remains the render story's hosted-seam entry point onto the claim store
 > (ADR-0192 landlord rule). A1's `releaseClaimsByBranch` releases every grade for the branch.
 
-> **Proof status (honest) — `proposed` (none of the three deltas exist yet).** A1/A2 live in the
-> DB-backed `PgClaimStore` (`packages/notice-board/src/store/claim-store.ts`); A3's provable piece is a pure
-> helper in `packages/notice-board/src/claim.ts`. The `--real` arm drives the load-bearing A1 against an
-> isolated `storytree_test`; A2's pure heartbeat shape and A3's intent builder are covered by the offline
-> `@storytree/notice-board` suite (`claim.test.ts` / `claim-store.test.ts`).
+> **Proof status (honest) — BUILT, with all three contracts covered.** Every delta exists at HEAD.
+> A1 `releaseClaimsByBranch` and the store-side heartbeat write `PgClaimStore.bumpHeartbeat` live on
+> the DB-backed store (`packages/notice-board/src/store/claim-store.ts`); A2's pure `bumpHeartbeat`
+> (the shape the store method mirrors) and A3's
+> `workClaimRequest` / `roleForWorkKind` live in `packages/notice-board/src/claim.ts` (cited by symbol,
+> never by line). A1 was spine-built — the `--real` arm authored
+> `claim-store-release-by-branch.live.test.ts` against an isolated `storytree_test` — and A2/A3 are
+> covered by the offline `@storytree/notice-board` suite (`claim.test.ts`), reached via the ADR-0353
+> `coverage.testGlobs` surface. The ADR-0353 sweep credits all three: this capability contributes ZERO
+> uncovered contracts.
+>
+> **The frontmatter `status: proposed` is NOT a builtness claim, and is correct as it stands — do not
+> read it as "unbuilt" and do not reflexively flip it.** `healthy` is DERIVED from signed verdicts and
+> is never authored to `stories/**` frontmatter (ADR-0020/0040 — `build-unit-status.ts` writes that
+> projection from `events.verdict`), so there is no authored status meaning "built and green";
+> `proposed` is the authored baseline the rollup augments. `mapped` is the pre-adoption brownfield
+> state `adopt` consumes on its way to `proposed` (ADR-0097), so flipping there would run backwards
+> and falsely deny this capability's gate-driven proof. The sweep agrees the field is inert here: its
+> filter is the presence of a `proof.real` block, not `status`, so this capability is scanned either
+> way.
 
 ## Guidance
 
