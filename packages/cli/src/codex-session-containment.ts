@@ -13,7 +13,7 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 
-import type { ClaimDocT } from "@storytree/notice-board";
+import type { ClaimDocT, ClaimResult } from "@storytree/notice-board";
 import { claimGrade, liveClaims } from "@storytree/notice-board";
 
 import type { Envelope } from "./envelope.js";
@@ -246,6 +246,96 @@ export function authorizeCodexWriter(
   };
 }
 
+/**
+ * The narrow ledger seam the lobby bootstrap needs — structurally `PgClaimStore.upgrade`, kept as an
+ * interface so the promotion is provable without a database.
+ */
+export interface BootstrapClaimLedger {
+  upgrade(
+    unitId: string,
+    sessionId: string,
+    opts: { branch: string; intent: string },
+  ): Promise<ClaimResult>;
+}
+
+export type WriterPromotionResult =
+  | { readonly ok: true; readonly promoted: readonly string[] }
+  | { readonly ok: false; readonly reason: string };
+
+/**
+ * Promote a freshly minted session's bootstrap claims from `exploring` to `work`.
+ *
+ * `storytree worktree create` takes EXPLORING claims (ADR-0200 D3: the shared "someone is reading
+ * here" row), but {@link authorizeCodexWriter} admits a writer only on a live WORK claim naming this
+ * session and branch. Nothing bridged the two, so a bootstrap that "succeeded" handed back a worktree
+ * whose writer could never be authorised — the ceremony's own refusal, arriving one process too late.
+ * The Claude flow promotes via a separate `noticeboard declare`; the lobby actuator has no second
+ * turn to spend, so the promotion is part of the same fail-closed operation.
+ *
+ * Fail-closed throughout: a throw, a queued arm, a grade that did not land on `work`, or a claim
+ * stamped to a different session/branch all REFUSE. A partially promoted set is reported as a
+ * refusal naming what did land, because a caller that reads it as success would launch a writer the
+ * hook must then refuse per-write.
+ */
+export async function promoteBootstrapClaimsToWork(args: {
+  readonly ledger: BootstrapClaimLedger;
+  readonly nodes: readonly string[];
+  readonly sessionId: string;
+  readonly branch: string;
+  readonly intent: string;
+}): Promise<WriterPromotionResult> {
+  if (args.nodes.length === 0) {
+    return { ok: false, reason: "no claimed node to promote — the bootstrap claimed nothing" };
+  }
+  if (args.sessionId.trim().length === 0 || args.branch.trim().length === 0) {
+    return { ok: false, reason: "promotion needs a non-blank session identity and branch" };
+  }
+
+  const promoted: string[] = [];
+  const refuse = (detail: string): WriterPromotionResult => ({
+    ok: false,
+    reason:
+      `${detail}` +
+      (promoted.length > 0
+        ? ` (already promoted: ${promoted.join(", ")} — release them or re-run the bootstrap)`
+        : ""),
+  });
+
+  for (const unitId of args.nodes) {
+    let result: ClaimResult;
+    try {
+      result = await args.ledger.upgrade(unitId, args.sessionId, {
+        branch: args.branch,
+        intent: args.intent,
+      });
+    } catch (error) {
+      return refuse(
+        `work-claim promotion on "${unitId}" FAILED: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    if (!result.acquired) {
+      return refuse(
+        `work-claim promotion on "${unitId}" REFUSED — held by ${result.heldBy.sessionId} ` +
+          `(branch ${result.heldBy.branch}, intent "${result.heldBy.intent}")`,
+      );
+    }
+    if (claimGrade(result.claim) !== "work") {
+      return refuse(
+        `work-claim promotion on "${unitId}" returned grade ${claimGrade(result.claim)}, not work`,
+      );
+    }
+    if (result.claim.sessionId !== args.sessionId || result.claim.branch !== args.branch) {
+      return refuse(
+        `work-claim promotion on "${unitId}" landed on ${result.claim.sessionId}/${result.claim.branch}, ` +
+          `not the minted ${args.sessionId}/${args.branch}`,
+      );
+    }
+    promoted.push(unitId);
+  }
+
+  return { ok: true, promoted };
+}
+
 function tomlString(value: string): string {
   return JSON.stringify(value);
 }
@@ -285,7 +375,11 @@ function credentialRoots(): string[] {
     process.env["GOOGLE_APPLICATION_CREDENTIALS"],
     path.join(process.env["USERPROFILE"] ?? os.homedir(), ".storytree"),
     path.join(process.env["USERPROFILE"] ?? os.homedir(), ".storytree", "secrets.json"),
-    path.join(process.env["USERPROFILE"] ?? os.homedir(), ".codex"),
+    // The CREDENTIAL is `.codex/auth.json`, not the whole `.codex` tree. Denying the tree also hid
+    // the skills/plugins the same directory advertises, so a contained task could not read the
+    // instructions it was told to follow — a cost with no matching protection, and one the ACL half
+    // (`credentialAclPaths`) never paid: it has always denied `auth.json` alone. The two halves now
+    // agree, and the credential stays unreadable either way.
     path.join(process.env["USERPROFILE"] ?? os.homedir(), ".codex", "auth.json"),
   ].filter((value): value is string => typeof value === "string" && path.isAbsolute(value));
   return [...new Map(roots.map((root) => [comparable(root), path.resolve(root)])).values()];
@@ -752,7 +846,11 @@ function Assert-ExpectedTopology($Observed, $Expected) {
 function Assert-LiveClaim($Observed) {
   $Request = @{ protocolVersion = 1; readMode = 'live-claims-required'; sessionId = $Observed.sessionId; observedTopology = $Observed; event = @{ source = 'trusted-launcher' } } | ConvertTo-Json -Depth 8 -Compress
   $Response = Invoke-Exact $Config.claimProbeCommand @() $Request | ConvertFrom-Json
-  $Held = @($Response.claims | Where-Object { $_.sessionId -eq $Observed.sessionId -and $_.branch -eq $Observed.branch -and ($null -eq $_.grade -or $_.grade -eq 'work') })
+  # The grade is REQUIRED, never optional: a probe response missing the field used to satisfy this
+  # check, which turned ADR-0355 D2's fail-closed live-claim gate into a fail-open on any malformed
+  # or older probe. An exploring row is exactly what the bootstrap leaves behind, so admitting a
+  # gradeless claim admitted the one shape the writer must not start on.
+  $Held = @($Response.claims | Where-Object { $_.sessionId -eq $Observed.sessionId -and $_.branch -eq $Observed.branch -and $_.grade -eq 'work' })
   if ($Held.Count -lt 1) { Fail "no live work claim admits this session/current branch" }
 }
 function Decode([string] $Encoded) { return [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($Encoded)) }
@@ -772,6 +870,17 @@ function Install-Policy($Policy) {
   Write-Atomic ([string]$Policy.policyPath) (Decode ([string]$Policy.policyJson))
   # Requirements move last: Codex can never observe a profile before its exact hook/policy exists.
   Write-Atomic ([string]$Config.requirementsPath) (Decode ([string]$Policy.requirementsToml))
+}
+function Set-WorktreeScratch([string] $Worktree) {
+  # The writer profile grants ":minimal" read plus write under this worktree ONLY, so the inherited
+  # per-user TEMP is not writable by the contained process. tsx and Playwright both create scratch
+  # eagerly (Playwright's "playwright-artifacts-*"), so without a writable TEMP inside the grant the
+  # toolchain fails at launch rather than at any boundary the profile is trying to enforce. Keeping
+  # scratch INSIDE the worktree means it needs no second grant and dies with the worktree.
+  $Scratch = Join-Path $Worktree '.storytree-scratch'
+  [IO.Directory]::CreateDirectory($Scratch) | Out-Null
+  $env:TEMP = $Scratch
+  $env:TMP = $Scratch
 }
 function Scrub-WriterTokens() {
   # The managed claim broker uses standard keyless ADC discovery; bearer-token variables are never
@@ -839,6 +948,7 @@ try {
       if ($LASTEXITCODE -ne 0) { Fail "Codex sandbox setup attestation failed" }
       Protect-SandboxCredentials
       Scrub-WriterTokens
+      Set-WorktreeScratch $CanonicalWorktree
       # Exact pinned launch surface: payload, -C, canonical worktree. No sandbox/profile/config widening flags.
       $CodexArguments = @('-C', $CanonicalWorktree)
       & $CodexPayload @CodexArguments

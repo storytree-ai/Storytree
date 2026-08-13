@@ -10,14 +10,22 @@ arc: codex-factory-parity-arc
 
 accepted (2026-08-12) — decided/directed by the owner in conversation on 2026-08-12. Design-time alignment IS the ratification (ADR-0110); no second end-of-flow ask.
 
-**Operational (2026-08-13; corrected in place per ADR-0139).** The repository generator, trusted
-actuator, machine-wide Codex policy, and live-claim reader are installed and attested on the supported
-Windows host. The interactive profile admitted writes beneath exactly the current claimed worktree
-and refused the primary checkout and a sibling worktree. The factory phase-author profile admitted
-writes only beneath its in-worktree replica subtree and refused paths outside it. The lobby profile
-admitted startup/read activity and refused a write tool. Both the single-file `model-runtime-seam`
-and exact two-file `codex-multifile-runtime-seam` completed as subscription-backed signed live builds
-with no scope refusals. The final live leg D5 required is therefore complete.
+**NOT operational (corrected in place 2026-08-14 per ADR-0139; this line previously read
+"Operational" as of 2026-08-13, and a fresh Codex desktop session that same day falsified it — see
+"## Delivery status" below for the full account).** The repository generator, trusted actuator,
+machine-wide Codex policy, and live-claim reader are installed on the supported Windows host. The
+interactive profile admitted writes beneath exactly the current claimed worktree and refused the
+primary checkout and a sibling worktree. The factory phase-author profile admitted writes only
+beneath its in-worktree replica subtree and refused paths outside it. The lobby profile admitted
+startup/read activity and refused a write tool. Both the single-file `model-runtime-seam` and exact
+two-file `codex-multifile-runtime-seam` completed as subscription-backed signed live builds with no
+scope refusals. **All of that is writer-scope evidence, gathered with a writer already sitting in a
+claimed worktree — it says nothing about how a task GETS there.** The lobby bootstrap D4 specifies
+has never completed once: it hits a credential circularity (the sandbox ACL denying the Codex
+process gcloud ADC / `~/.storytree/secrets.json` is exactly what the bootstrap then needs to take
+the claim). D5's literal bar — three writes under the installed profile — does not catch this,
+because it never asks the writer to arrive from the lobby; that narrowness is itself part of the
+defect, and is treated in "## Delivery status" below.
 
 **Amends** ADR-0257 D2/D3/D7 and ADR-0284 D1/D6/D8. The owner has now chosen and funded the
 Codex-only containment thread those decisions left as a scope-and-spend fork. For interactive Codex,
@@ -76,12 +84,74 @@ supported interactive writer must not be able to modify the lobby or another ses
    installation, or arbitrary `.git` access is not granted in the lobby. After the claim succeeds and
    the worktree is provisioned, the writer restarts or hands off under the worktree-scoped profile.
 
+   **The bootstrap must end holding a WORK claim, not the exploring claim the ceremony takes.**
+   `storytree worktree create` takes `exploring` claims (ADR-0200 D3), while D1's authorisation
+   admits a writer only on a live `work` claim naming that session and branch. An interactive Claude
+   session bridges the two with a separate `noticeboard declare`; the actuator has no second turn in
+   which to spend one, so promotion is part of the SAME fail-closed bootstrap operation — a refused,
+   partial, or wrongly-stamped promotion refuses the bootstrap rather than returning a worktree whose
+   writer can never be authorised.
+
 5. **Lifecycle evidence is part of delivery.** Tests cover lobby classification, canonical current
    worktree resolution, sibling and traversal refusal, stale/absent claim refusal, ambiguous targets,
    managed-policy generation, and a dry-run installer/launcher path. Machine-wide installation is a
    privileged operator action and remains visibly separate from repository generation. The final
    live smoke must show a lobby write refused, a current-worktree write admitted, and a sibling write
    refused under the installed profile before this containment is claimed operational.
+
+## Delivery status — NOT operational (2026-08-14)
+
+**A fresh Codex desktop session on 2026-08-13 falsified the claim that this containment was
+operational.** The decision above is unchanged and still stands; what follows is the honest state of
+its delivery, so that no later reader takes `accepted` for `working`.
+
+Be precise about WHICH leg failed, because the earlier "operational" claim was not simply invented.
+D5's literal bar is three writes — lobby refused, current worktree admitted, sibling refused — and
+the writer-scope evidence behind it (those refusals, plus two subscription-backed signed live builds)
+appears to be genuine; nothing observed here falsifies it. **What was never demonstrated is the
+LIFECYCLE that D4 specifies: a task starting in the lobby and reaching that claimed worktree at
+all.** So the defect is twofold — the operational claim generalised writer-scope evidence into a
+lifecycle it had not tested, and D5's own bar was drawn too narrowly to catch that, because it
+assumes a writer already sitting in a claimed worktree and never asks how it got there. **A future
+smoke must begin in the lobby, not in the worktree.**
+
+The blocking defect is a credential circularity in the bootstrap, confirmed at three levels:
+
+- The actuator's `Protect-SandboxCredentials` applies `icacls /deny` for `<COMPUTERNAME>\
+  CodexSandboxUsers` over gcloud config, `~/.config/gcloud`, `~/.storytree/secrets.json`, and
+  `~/.codex/auth.json`. Observed on the dev host:
+  `C:\Users\mickh\AppData\Roaming\gcloud MicksMSpro\CodexSandboxUsers:(OI)(CI)(DENY)(RX)`.
+- `codex-worktree-create-entry.ts` then needs exactly those paths — `loadLocalSecrets()` for
+  `STORYTREE_DB_USER`, and ambient ADC for the Cloud SQL connector — to take the claim.
+- The actuator carries no identity transition. It is "trusted" in the sense of hash-pinned, exact-
+  grammar, and topology-verified; it still executes with its caller's token, and its caller in the
+  lobby is the sandboxed Codex process. So the bootstrap authenticates as the identity the boundary
+  just denied.
+
+This is a composition fault, not a reason to widen the sandbox. The claim-first ordering is right and
+the OS boundary is right; what is missing is a narrow broker holding operator authentication OUTSIDE
+`CodexSandboxOffline` that exposes only these lifecycle operations — which is host integration this
+repository cannot install or self-attest. Note the two credential paths already disagree about this:
+the live-claim PROBE reaches the store as a dedicated impersonated reader
+(`storytree-codex-claim-reader@…`), while the bootstrap WRITE path reaches for a human's personal
+secret. Whatever broker shape is chosen, the write path should not be the one holding an operator
+credential.
+
+Two further gaps are confirmed and are NOT repository-side either: the actuator's `launch` starts a
+NESTED Codex process (`& $CodexPayload @CodexArguments`) rather than rebinding the current desktop
+task, and `%ProgramData%` ships managed Node but no pnpm/Corepack. Both are recorded on
+`codex-factory-parity-arc`; the same-task rebinding fork is an open question against that arc.
+
+What HAS landed, and is proven by `packages/cli/src/codex-session-containment.test.ts`: the
+exploring→work promotion required by D4 above, the live-claim check failing closed on a gradeless
+claim (it previously admitted one, which is precisely the exploring shape the bootstrap leaves), a
+worktree-local `TEMP`/`TMP` inside the writer's own grant so tsx and Playwright can start, and a
+profile deny narrowed from the whole `~/.codex` tree to `~/.codex/auth.json` — the credential stays
+unreadable while the skills the same directory advertises become readable, which also makes the two
+halves of the deny (profile and ACL) agree.
+
+**Until a live smoke from a genuinely fresh Codex desktop task is recorded, neither this ADR nor the
+arc may describe the lifecycle as operational.**
 
 ## Consequences
 

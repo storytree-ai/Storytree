@@ -58,17 +58,19 @@ with matching live claim and branch, with an unavailable ledger refusing new wri
 nudges remain the feedback layer. `check:declared` was demoted to defence in depth here and ADR-0311
 later retired its standalone merge-gate wiring; its source remains an on-demand diagnostic.
 
-*(Build state corrected in place 2026-08-13, the correction above unchanged in substance — the
-paragraph stated a decided state in the present indicative and read as achieved. On 2026-08-02,
-ADR-0257 increment 3 had installed only the STATIC Claude half on the developer machine: a lobby
-write by `Write`/`Edit`/`NotebookEdit` was refused before mutation, but the wall was claim-blind and
-did not bind a shell. [ADR-0284](0284-the-write-authority-wall-stays-static-worktree-to-worktree-i.md)
-D2/D4 permanently retired that semantic layer and its receipt **for Claude**. ADR-0355 now supplies
-the distinct Codex composition those decisions preserved: on the supported Windows host the managed
+*(Build state corrected in place 2026-08-13, then RE-corrected 2026-08-14 per ADR-0139 — the
+correction above unchanged in substance; the paragraph stated a decided state in the present
+indicative and read as achieved. On 2026-08-02, ADR-0257 increment 3 had installed only the STATIC
+Claude half on the developer machine: a lobby write by `Write`/`Edit`/`NotebookEdit` was refused
+before mutation, but the wall was claim-blind and did not bind a shell. [ADR-0284](0284-the-write-authority-wall-stays-static-worktree-to-worktree-i.md)
+D2/D4 permanently retired that semantic layer and its receipt **for Claude**. ADR-0355 designs the
+distinct Codex composition those decisions preserved — on the supported Windows host the managed
 filesystem profile binds shell and patch routes to the current worktree, while a managed hook reads
-the live claim and refuses absent, stale, or unavailable authority. The two harnesses therefore have
-different current enforcement: Claude remains static and claim-blind; installed interactive Codex is
-claim-bound and fails closed.)*
+the live claim — but that composition is **installed, not yet operational**: a fresh Codex desktop
+session on 2026-08-13 falsified the earlier "claim-bound and fails closed" reading, because the lobby
+bootstrap hits a credential circularity that stops it reaching a claimed worktree at all on a live
+task (ADR-0355 § Delivery status). The two harnesses therefore have different current enforcement:
+Claude remains static and claim-blind; interactive Codex's stronger design is not yet live.)*
 
 *(One consequence worth stating plainly here, because this ADR is where the claim ledger's authority
 is decided: **the claim ledger never became a write-authority input for Claude, and per ADR-0284 it

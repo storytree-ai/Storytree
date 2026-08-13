@@ -95,7 +95,7 @@ pre-tool policy sees it), and D8's behavioural proof bar is still unmet. *(Corre
 rung for the file tools. D5.2 remains the only rung for a **shell**, and the only rung on any machine
 without the wall installed — which is every machine except one.)*
 
-**BUILD STATE — measured 2026-08-02; Codex leg corrected 2026-08-13.** This ADR is a DECISION about
+**BUILD STATE — measured 2026-08-02; Codex leg corrected 2026-08-13, re-corrected 2026-08-14.** This ADR is a DECISION about
 what the lobby must be; the sentences above describe that decision and are not claims of
 installation. Read the build state only from here and from the amending ADRs named inline:
 
@@ -113,25 +113,34 @@ installation. Read the build state only from here and from the amending ADRs nam
   per ADR-0139, because that phrasing read as one command away from ON — which is precisely the trap
   ADR-0284 D2 deleted the code to close. The host problem was not the reason it was retired; it was
   one symptom of the reason: a boundary sourced from a mutable checkout is a convention, not a wall.)*
-- **CODEX OPERATIONAL 2026-08-13; CLAUDE UNCHANGED:** ADR-0355 delivers the preserved Codex thread
-  with an administrator-owned profile, managed hooks, a live-claim reader, and an exact trusted
-  actuator. The installed profile contains Codex shell and patch routes to one current claimed
-  worktree, and the live smoke attested lobby/sibling refusal plus current-worktree admission. The
-  Claude wall remains the static, claim-blind file-tool block described above; its shell and accepted
-  sibling-worktree gap are unchanged. Shared Git authority is not granted broadly: the trusted
-  actuator owns the exact bootstrap/launch operations.
+- **CODEX NOT OPERATIONAL; CLAUDE UNCHANGED (corrected in place 2026-08-14 per ADR-0139 — this
+  bullet previously read "CODEX OPERATIONAL 2026-08-13", which a fresh Codex desktop session that
+  same day falsified; see ADR-0355 § Delivery status).** ADR-0355 delivers the preserved Codex
+  thread with an administrator-owned profile, managed hooks, a live-claim reader, and an exact
+  trusted actuator, and the individual writer-scope profiles were observed to admit/refuse writes as
+  designed. That is not D5's lifecycle smoke: the lobby bootstrap hits a credential circularity (the
+  sandbox ACL that denies the Codex process gcloud ADC / `~/.storytree/secrets.json` is exactly what
+  the bootstrap then needs to take the claim), so no live task can yet reach a claimed worktree
+  through the installed lobby. The Claude wall remains the static, claim-blind file-tool block
+  described above; its shell and accepted sibling-worktree gap are unchanged. Shared Git authority is
+  not granted broadly: the trusted actuator owns the exact bootstrap/launch operations, once the
+  credential fork above is resolved.
 - **There is no claim receipt.** *(This bullet read "The claim receipt of D7 exists but is UNSIGNED".
   Retired by ADR-0284 D4 with its only consumer.)*
 
 Two readings this note exists to refuse. For Claude, it is **not** true that "the primary checkout is
 a mechanically read-only agent lobby" without qualification: the installed static wall binds that
 harness's file tools, not its shell, and accepts the sibling-worktree gap. For interactive Codex on
-the supported Windows host, ADR-0355 now makes the stronger statement true through the installed
-managed profile and hook composition. It is equally **not** true that "nothing enforces it" — both
-the narrower Claude wall and the stricter Codex wall are real and behaviourally verified on that
-host. *(This paragraph used to close "D8's proof bar is what closes the gap between
-the two, and it is unmet." D8 is retired — ADR-0284 D7 — so nothing is scheduled to close that gap;
-the gap is now the accepted, stated residual risk of ADR-0284 D8, not a work item.)*
+the supported Windows host, ADR-0355 designs the stronger statement but does **not yet make it true**
+*(corrected in place 2026-08-14 per ADR-0139 — this paragraph previously read "ADR-0355 now makes the
+stronger statement true … behaviourally verified on that host"; a fresh Codex desktop session on
+2026-08-13 falsified that reading, and ADR-0355 § Delivery status now records why: the lobby bootstrap
+cannot yet reach a claimed worktree due to a credential circularity)*. It is equally **not** true
+that "nothing enforces it" — the individual writer-scope profiles are real and were verified on that
+host; what is unverified is the full lobby-bootstrap-through-write lifecycle. *(This paragraph used
+to close "D8's proof bar is what closes the gap between the two, and it is unmet." D8 is retired —
+ADR-0284 D7 — so nothing is scheduled to close that gap; the gap is now the accepted, stated residual
+risk of ADR-0284 D8, not a work item.)*
 
 ## Context
 
@@ -375,12 +384,13 @@ projections of one rule.
 
 - The 2026-07-26/27 incident shape is impossible under the writer profile: a Local task can inherit
   the primary checkout and misunderstand its prompt, but the first write is refused before a byte
-  changes. *(Corrected in place 2026-08-13. This was false of the 2026-08-02 build because the
-  incident was a **Codex** Desktop task and only Claude file tools were then contained. ADR-0355 has
-  now made it true for interactive Codex launched through the installed managed profile: shell and
-  patch routes share the one-current-worktree boundary and the lobby refusal was attested live. It
-  remains a contract of that managed launch, not a claim about an unmanaged full-access Codex process
-  or about Claude's shell.)*
+  changes. *(Corrected in place 2026-08-13, then RE-corrected 2026-08-14 per ADR-0139. This was false
+  of the 2026-08-02 build because the incident was a **Codex** Desktop task and only Claude file tools
+  were then contained. The 2026-08-13 correction claimed ADR-0355 had made it true for interactive
+  Codex, "attested live"; a fresh Codex desktop session that same day falsified that claim (see
+  ADR-0355 § Delivery status) — the lobby bootstrap cannot yet reach a claimed worktree at all, due to
+  a credential circularity, so the incident shape is NOT yet closed for Codex either. It remains,
+  today, only a design intent of the managed launch once the bootstrap's credential fork is resolved.)*
 - Coordination and filesystem authority derive from the same ledger. Codex work becomes visible to
   Claude and the forest without introducing a second presence store or vendor-specific wisps.
 - The primary checkout remains a trustworthy, current orientation point for every session. A
