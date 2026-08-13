@@ -109,7 +109,15 @@ place, 2026-08-10 (ADR-0139):** that is no longer the only evidence path.
 retrospective one — landed git file sets, authored by no brief and available over the whole history
 rather than an opt-in tenth of it — and read width directly from it without waiting on new plans. The
 parked increment reading plans authored under this D4 brief is not made redundant by that reading; it
-remains the only forward test of the intervention itself (ADR-0340 D5).
+remains the only forward test of the intervention itself (ADR-0340 D5). **Corrected in place,
+2026-08-13: that forward test was read and CANNOT BE ANSWERED**
+([ADR-0362](0362-the-merge-queue-is-declined-on-measurement-and-the-fan-out-a.md) D4). Exactly ONE
+plan has been anchored since this brief landed (n=1, against a before-population of 58); the `## Lanes`
+field the before-number was read off was DELETED by ADR-0305 D4 on 2026-08-04, five days before this
+intervention, so a like-for-like read is impossible by construction; and only 1 of the 91 increments
+created since 2026-08-09 is anchored at all (1.1%), so the brief has almost no population to act on.
+The intervention is unexercised, not falsified. **The retrospective path is now the only one** — read
+width from landed git file sets (ADR-0340 D1), never from declared lanes.
 
 **D6 — THE ARC REOPENS, and ADR-0333's re-open condition is REPLACED, not merely met.** Its condition
 ("three or more arcs each holding two or more independent open increments at once, or a run of plans
@@ -124,6 +132,11 @@ declared-width-only test confounded — a width-seeking brief can raise a plan's
 whether or not anything can actually be dispatched, because shared registries can re-serialise the
 landings regardless of what the plan declares. The falsifier now requires BOTH halves: declared width
 rising **and** the resulting landings being file-disjoint on the same instrument ADR-0340 D1 built.
+**Corrected in place, 2026-08-13: this falsifier is RETIRED as unrunnable, never evaluated**
+([ADR-0362](0362-the-merge-queue-is-declined-on-measurement-and-the-fan-out-a.md) D4 — n=1, and the
+schema field it reads no longer exists). Do not re-park it or attempt to read it: a future test of
+lane width uses ADR-0340's landed-file-set instrument. The arc's live re-entry conditions are
+ADR-0344's (width) and ADR-0362 D3's (an observed stale-base break); this D6 condition carries none.
 
 ## Consequences
 

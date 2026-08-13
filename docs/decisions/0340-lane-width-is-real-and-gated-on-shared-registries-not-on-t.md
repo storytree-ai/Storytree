@@ -121,6 +121,11 @@ falsifier is amended to require both halves — declared width rose **and** the 
 were disjoint on the same instrument used here. The parked increment `measure-lane-width-after-brief`
 therefore stays parked and becomes MORE valuable, not redundant: it is the only forward reading of
 the intervention, and it now has a before-population on both instruments to be read against.
+**Corrected in place, 2026-08-13 (ADR-0139): that forward reading was taken and CANNOT BE ANSWERED**
+([ADR-0362](0362-the-merge-queue-is-declined-on-measurement-and-the-fan-out-a.md) D4 — n=1 against a
+before-population of 58, and the `## Lanes` field this before-number was read off was deleted by
+ADR-0305 D4 five days before the brief landed). The falsifier this paragraph amends is itself retired
+as unrunnable by ADR-0362 D4; do not re-park the increment or attempt to read it again.
 
 **D6 — WHAT IS NOT DECIDED HERE.** Whether the arc's next work is making those nine surfaces
 append-safe, or the forward planner-brief test D5 just sharpened, is a redirect of an arc the owner

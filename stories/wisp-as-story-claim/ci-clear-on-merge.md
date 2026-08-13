@@ -3,7 +3,7 @@ id: "ci-clear-on-merge"
 tier: capability
 story: wisp-as-story-claim
 title: "CI clears the claim on merge — the merge job releases the merged branch's node_claim rows"
-outcome: "CI releases `events.node_claim` rows (every grade) for the merged branch, calling `releaseClaimsByBranch` (capability A1) — the guaranteed machine clear that fixes 'never cleared' (the presence sweep this rode alongside retired with the presence layer, ADR-0200). Two callers since ADR-0345 D4: the automerge job, and the merge-queue-reachable claim-release workflow keyed on the merge that landed."
+outcome: "CI releases `events.node_claim` rows (every grade) for the merged branch, calling `releaseClaimsByBranch` (capability A1) — the guaranteed machine clear that fixes 'never cleared' (the presence sweep this rode alongside retired with the presence layer, ADR-0200). Two callers since ADR-0345 D4: the automerge job, and the standalone claim-release workflow keyed on the merge that landed, which covers hand merges the automerge job never sees (and would cover a merge queue, declined by ADR-0362 D1)."
 status: proposed
 proof_mode: operator-attested
 depends_on: [claim-store-work-time]
@@ -64,16 +64,20 @@ in one transaction). The branch name is available to the merge job; pass it thro
   the cleared state automatically once the rows are gone (capability B's fold emits nothing for an absent
   claim).
 
-> **TWO CALLERS SINCE ADR-0345 D4 / ADR-0304 D3 (the merge-queue prerequisite).** The wiring above —
-> `ci.yml`'s `automerge` job — is `pull_request`-only AND gated on `steps.merge.outputs.merged ==
-> 'true'`. Under a **merge queue** `gh pr merge` QUEUES rather than merges, so that gate is false for
-> every PR and the queue's own later merge would run no job that releases claims: every merged branch
-> would keep its claims forever, silently. So the writer now has a second, queue-reachable caller,
+> **TWO CALLERS SINCE ADR-0345 D4. The second one's live justification is the HAND-MERGE gap, not a
+> merge queue — the queue is DECLINED (ADR-0362 D1, which withdraws ADR-0304 D3).** The wiring above
+> — `ci.yml`'s `automerge` job — is `pull_request`-only AND gated on `steps.merge.outputs.merged ==
+> 'true'`. It therefore misses any merge it did not itself perform. **A PR merged BY HAND in the
+> GitHub UI runs no `automerge` job, so its claims were never released** — a live gap on today's
+> landing path, and the reason the second caller is KEPT rather than removed with the queue
+> (ADR-0362 D2a). So the writer has a second caller,
 > [`.github/workflows/claim-release.yml`](../../.github/workflows/claim-release.yml), keyed on the
 > merge that ACTUALLY landed on `main` (a `push` to main, plus the PR-side `pull_request: closed`
-> view) via [`scripts/merged-head-refs.sh`](../../scripts/merged-head-refs.sh). It also closes a gap
-> that predates any queue: a PR merged BY HAND in the GitHub UI runs no `automerge` job, so its
-> claims were never released either.
+> view) via [`scripts/merged-head-refs.sh`](../../scripts/merged-head-refs.sh). It is also
+> queue-reachable, which is why the queue could ever be reconsidered as a settings change
+> (ADR-0362 D3): under a queue `gh pr merge` QUEUES rather than merges, that gate is false for every
+> PR, and the queue's own later merge would otherwise run no job that releases claims — every merged
+> branch keeping its claims forever, silently.
 >
 > **Both can fire for one merge, and that is safe:** `releaseClaimsByBranch` is idempotent, and the
 > property is PROVEN rather than assumed — offline in `ingest-merge.test.ts`, and against a real
