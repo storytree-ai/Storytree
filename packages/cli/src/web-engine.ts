@@ -19,13 +19,15 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { GATE_SKIP_EXIT_CODE } from "./gate-runner.js";
 import {
   ENGINE_PACKAGES,
   computeSyncPlan,
   detectEngineDrift,
   isEngineSource,
+  judgeEngineCheck,
 } from "./web-engine-sync.js";
-import type { EnginePackage } from "./web-engine-sync.js";
+import type { EngineCheckVerdict, EnginePackage } from "./web-engine-sync.js";
 
 /** Repo root: packages/cli/src/web-engine.ts → four dirs up (the build-claude-md pattern). */
 const repoRoot = path.resolve(fileURLToPath(import.meta.url), "..", "..", "..", "..");
@@ -72,18 +74,29 @@ function listSyncedFiles(pkg: EnginePackage): string[] {
   return readdirSync(dir).filter((n) => isEngineSource(n));
 }
 
+/**
+ * Print one verdict and leave with the code the gate reads it by.
+ *
+ * A `skip` exits {@link GATE_SKIP_EXIT_CODE} rather than 0 — the runner computes each row of its
+ * per-step table from the exit code, so returning 0 here printed PASS over a run that compared
+ * nothing. A pass RETURNS instead of exiting 0, so the ordinary path keeps node's normal stdout
+ * flush.
+ */
+function emit(verdict: EngineCheckVerdict): void {
+  if (verdict.status === "fail") {
+    console.error(verdict.message);
+    process.exit(1);
+  }
+  console.log(verdict.message);
+  if (verdict.status === "skip") process.exit(GATE_SKIP_EXIT_CODE);
+}
+
 function runCheck(): void {
   const inCi = process.env.CI === "true";
 
   // Key on web/src, not web/: an uninitialized submodule leaves an EMPTY web/ stub dir.
   if (!existsSync(path.join(webRoot, "src"))) {
-    if (inCi) {
-      fail("web/ is not checked out in CI — the workflow must clone the pinned storytree-web submodule first.");
-    }
-    console.log(
-      "check:web-engine — SKIP: web/ submodule not checked out " +
-        "(run `git submodule update --init web` to enable this check locally).",
-    );
+    emit(judgeEngineCheck({ kind: "no-web-checkout" }, { inCi }));
     return;
   }
 
@@ -126,10 +139,10 @@ function runCheck(): void {
     checkedDirs.push(pkg.destDir);
   }
 
-  console.log(
+  emit(
     checkedDirs.length > 0
-      ? `check:web-engine — OK: ${checkedFiles} synced file(s) across ${checkedDirs.join(", ")} match their packages.`
-      : "check:web-engine — OK: no synced package dirs present yet (all packages awaiting site adoption).",
+      ? judgeEngineCheck({ kind: "compared", files: checkedFiles, dirs: checkedDirs }, { inCi })
+      : judgeEngineCheck({ kind: "no-adopted-package" }, { inCi }),
   );
 }
 

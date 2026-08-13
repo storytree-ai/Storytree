@@ -131,8 +131,12 @@ function main(): void {
   const result = checkExperienceClosure(files);
 
   if (result.kind === "skip") {
+    // The BOOTSTRAP skip — the same declaration as the absent-checkout branch above, and for the
+    // same reason: this run walked no import closure, so it may not print PASS on the gate's
+    // per-step table. It returned 0 here while the branch 20 lines up exited 3, which made one
+    // instrument report the identical "I compared nothing" state two different ways.
     console.log(`check:web-experience-closure — SKIP: ${result.reason}`);
-    return;
+    process.exit(GATE_SKIP_EXIT_CODE);
   }
 
   if (result.findings.length > 0) {

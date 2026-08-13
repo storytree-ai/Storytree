@@ -18,7 +18,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -46,17 +46,64 @@ const bash = resolveRepoBash();
  * and the "in the worktree's .gate-logs" assertion failed against a path outside the worktree.
  * A test that silently inherits an override of its own subject proves nothing — the same shape as
  * the WSL/PATH defect this file's `bash` resolution now fences.
+ *
+ * A LOG PATH IS MANDATORY HERE, AND THAT IS THE FIX FOR `gate-log-fixture-writes-to-a-temp-dir`.
+ * This helper runs the REAL script, whose default path is `<worktree>/.gate-logs/gate-….log` — so
+ * a call that omitted the override wrote a log AND a `.exit` file into the worktree's REAL
+ * `.gate-logs/`, byte-shaped exactly like a finished gate. Because this suite runs inside
+ * `pnpm -r test`, which is itself GATE_PLAN step 6, an ORDINARY GATE RUN forged the very
+ * completion signal `pnpm gate:bg` documents: a wait-loop keyed on `.gate-logs/*.exit` — the
+ * documented contract — read exit=0 while the real gate was still mid-flight. One session
+ * concluded "GATE DONE exit=0" twice for a gate that had not reached its summary table.
+ *
+ * Requiring the property at the TYPE level (not merely asserting at runtime) is deliberate: a
+ * forgotten override is then a typecheck failure — GATE_PLAN step 5, which runs before the tests —
+ * rather than a silent write into a directory the gate's own completion contract is read from. The
+ * runtime assert below catches the same mistake made through a cast. To exercise the DEFAULT path,
+ * use {@link runScriptCopy}, which relocates the script's own root into a temp dir.
  */
 function runWrapper(
   inner: string,
-  env: Record<string, string> = {},
+  env: Record<string, string> & { GATE_BG_LOG: string },
 ): { status: number; stdout: string } {
+  assert.ok(
+    env.GATE_BG_LOG,
+    "runWrapper must be given a GATE_BG_LOG under a temp dir — the real script's default path is " +
+      "the worktree's .gate-logs/, and a fixture writing there forges a finished-gate signal",
+  );
   const hermetic = { ...process.env };
   delete hermetic["GATE_BG_LOG"];
   const res = spawnSync(bash, [script, "sh", "-c", inner], {
     encoding: "utf8",
     env: { ...hermetic, ...env },
   });
+  assert.equal(res.error, undefined, `spawning bash failed: ${String(res.error)}`);
+  return { status: res.status ?? -1, stdout: `${res.stdout}${res.stderr}` };
+}
+
+/**
+ * Run a VERBATIM COPY of the script from `<dir>/scripts/gate-bg.sh`, with no log override — so the
+ * script takes its DEFAULT path, but resolves it under `dir` instead of under this worktree.
+ *
+ * This works because the script derives its root from its own `BASH_SOURCE`, never from the cwd or
+ * from `git rev-parse` (an unprovisioned worktree husk resolves that UP to the primary checkout,
+ * which is how logs crossed worktrees in the first place). Relocating the file therefore relocates
+ * the whole default-path computation — which is what lets the assertions below exercise the real
+ * derivation while every byte it writes lands in a temp dir.
+ *
+ * It also makes the anchoring property VISIBLE rather than assumed: the copy's logs follow the
+ * copy. A regression to a cwd-derived or repo-derived root would put them somewhere else and red
+ * the default-path test, where a run of the real script in place could not tell the two apart.
+ */
+function runScriptCopy(dir: string, inner: string): { status: number; stdout: string } {
+  const scriptDir = path.join(dir, "scripts");
+  mkdirSync(scriptDir, { recursive: true });
+  const copy = path.join(scriptDir, "gate-bg.sh");
+  writeFileSync(copy, readFileSync(script, "utf8"));
+
+  const hermetic = { ...process.env };
+  delete hermetic["GATE_BG_LOG"];
+  const res = spawnSync(bash, [copy, "sh", "-c", inner], { encoding: "utf8", env: hermetic });
   assert.equal(res.error, undefined, `spawning bash failed: ${String(res.error)}`);
   return { status: res.status ?? -1, stdout: `${res.stdout}${res.stderr}` };
 }
@@ -68,13 +115,17 @@ function rawShellStatus(snippet: string): number {
   return res.status ?? -1;
 }
 
-function withTempLog<T>(fn: (logPath: string) => T): T {
+function withTempDir<T>(fn: (dir: string) => T): T {
   const dir = mkdtempSync(path.join(os.tmpdir(), "st-gate-bg-"));
   try {
-    return fn(path.join(dir, "run.log"));
+    return fn(dir);
   } finally {
     rmSync(dir, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
   }
+}
+
+function withTempLog<T>(fn: (logPath: string) => T): T {
+  return withTempDir((dir) => fn(path.join(dir, "run.log")));
 }
 
 // ---------- the red anchor: every ad-hoc capture shape destroys the status ----------
@@ -144,24 +195,75 @@ test("the log tees both stdout and stderr, and records the verdict", () => {
 // ---------- the log path is session-unique, never a fixed shared path ----------
 
 test("the default log path is worktree-anchored and unique per run", () => {
+  // Exercised through a RELOCATED COPY, never the script in place. Running the real script with no
+  // override is what this test used to do, and it wrote a log + `.exit` into this worktree's real
+  // `.gate-logs/` on every `pnpm -r test` — a finished-gate signal produced by something that was
+  // not a gate. The copy takes the identical default-path branch (the script derives its root from
+  // its own BASH_SOURCE), so the derivation under test is the real one; only the root moves.
   const logLine = /gate:bg log:\s+(\S+)/;
-  const first = runWrapper("exit 0");
-  const second = runWrapper("exit 0");
+  withTempDir((dir) => {
+    const first = runScriptCopy(dir, "exit 0");
+    const second = runScriptCopy(dir, "exit 0");
 
-  const a = logLine.exec(first.stdout)?.[1];
-  const b = logLine.exec(second.stdout)?.[1];
-  assert.ok(a, "the script prints its log path so a session never has to guess it");
-  assert.ok(b);
+    const a = logLine.exec(first.stdout)?.[1];
+    const b = logLine.exec(second.stdout)?.[1];
+    assert.ok(a, "the script prints its log path so a session never has to guess it");
+    assert.ok(b);
 
-  // Git Bash's /tmp is SHARED across worktrees: a sibling's log has already been read as this
-  // session's result. Anchoring to this worktree makes that collision impossible by construction.
-  assert.ok(a.includes(".gate-logs"), `default log is in the worktree's .gate-logs: ${a}`);
-  assert.ok(
-    a.includes(path.basename(repoRoot)),
-    `default log is anchored to THIS worktree (${path.basename(repoRoot)}): ${a}`,
-  );
-  // ...and two runs in the same worktree — even within the same second — never collide either.
-  assert.notEqual(a, b, "each run gets its own log path");
+    // Git Bash's /tmp is SHARED across worktrees: a sibling's log has already been read as this
+    // session's result. Anchoring to the script's own root makes that collision impossible by
+    // construction — and the copy proves it is the SCRIPT's location doing the anchoring, not the
+    // cwd and not the repo, because the copy's logs followed the copy.
+    // Matched on the mkdtemp-unique BASENAME, not on the absolute prefix: bash prints its own path
+    // flavour, so under Git Bash the script reports `/tmp/st-gate-bg-XXXX/…` for a dir node calls
+    // `C:\Users\…\Temp\st-gate-bg-XXXX`. The basename is common to both and is unique per run, so it
+    // is a containment claim rather than a coincidence.
+    const underThisRoot = `${path.basename(dir)}/.gate-logs/`;
+    assert.ok(a.includes(".gate-logs"), `default log is in the root's .gate-logs: ${a}`);
+    assert.ok(
+      a.includes(underThisRoot),
+      `default log is anchored to the script's OWN root (…/${underThisRoot}), not the cwd or the repo: ${a}`,
+    );
+    // ...and two runs under the same root — even within the same second — never collide either.
+    assert.notEqual(a, b, "each run gets its own log path");
+  });
+});
+
+test("a default-path run writes its finished-gate signal under the TEMP root, and nowhere else", () => {
+  // The other half of `gate-log-fixture-writes-to-a-temp-dir`: the test above asserts the derived
+  // path LOOKS right, and this asserts the bytes actually LANDED there — the `.exit` file is the
+  // completion contract a waiting session reads, so "the path string was temp" is not the claim
+  // that matters. Together they say: exercising the default path costs the real `.gate-logs/`
+  // nothing.
+  //
+  // The forgery this closes is specific. `.exit` holds a bare status and the log ends in a verdict
+  // block, so a fixture's artifacts are byte-indistinguishable from a finished gate's; because this
+  // suite runs inside `pnpm -r test` — GATE_PLAN step 6 — an ordinary gate run used to leave two of
+  // them behind, and a wait-loop keyed on `.gate-logs/*.exit` read exit=0 mid-flight.
+  //
+  // The real directory is deliberately NOT asserted on: a concurrent `pnpm gate:bg` writes there
+  // legitimately, so a "nothing appeared" assertion would be both racy and false. Containment is
+  // proven at the source instead.
+  withTempDir((dir) => {
+    const { status, stdout } = runScriptCopy(dir, 'echo "pretend gate output"; exit 0');
+    assert.equal(status, 0);
+
+    const reported = /gate:bg log:\s+(\S+)/.exec(stdout)?.[1];
+    assert.ok(reported, "the script prints its log path");
+
+    // Re-derive the artifacts' location from the TEMP ROOT rather than trusting the reported string,
+    // and read them through it. That is the containment claim stated as an observation: if the run
+    // had written anywhere but under `dir`, these reads would fail. (It also sidesteps bash printing
+    // `/tmp/…` for a path node knows as `C:\Users\…\Temp\…`.)
+    const logPath = path.join(dir, ".gate-logs", path.basename(reported));
+    const exitPath = `${logPath}.exit`;
+
+    // Both artifacts of a *finished* gate exist — so this run really did produce the signal, and
+    // producing it really did cost the worktree nothing. A test that produced no signal would pass
+    // the containment claim vacuously.
+    assert.equal(readFileSync(exitPath, "utf8").trim(), "0", "the .exit file is the real contract");
+    assert.match(readFileSync(logPath, "utf8"), /exit\s+:\s+0 \(PASS\)/);
+  });
 });
 
 // ---------- the regression fence on the one line that makes this work ----------

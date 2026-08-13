@@ -231,3 +231,88 @@ export function detectEngineDrift(
 
   return problems;
 }
+
+// ── the check's own VERDICT — what the run earned the right to say (ADR-0276 increment 4) ────
+//
+// `check:web-engine` has two branches on which it compares NOTHING: the `web/` submodule is not
+// checked out at all, and every synced package dir is still awaiting site adoption. Both used to
+// print a line and return 0, which `gate-run.ts` records as PASS — so on the gate's per-step table
+// a run that read no file was indistinguishable from one that verified every synced file. Its two
+// siblings over the same absent submodule already declare `GATE_SKIP_EXIT_CODE`; this adopts the
+// vocabulary that already existed rather than inventing a second one.
+//
+// The DECISION lives here, in the pure core, for the same reason every other judgement in this
+// module does: the shell's copy of it could only be exercised by arranging a `web/` checkout state
+// on disk, which is precisely the environment the check cannot control. Tests drive this with
+// literals.
+
+/**
+ * What one `--check` run was actually able to COMPARE. The three cases are exhaustive over
+ * {@link ENGINE_PACKAGES}: no checkout to look in, a checkout in which no package has been adopted,
+ * or a real comparison over at least one adopted dir.
+ */
+export type EngineCheckSight =
+  | { readonly kind: "no-web-checkout" }
+  | { readonly kind: "no-adopted-package" }
+  | { readonly kind: "compared"; readonly files: number; readonly dirs: readonly string[] };
+
+/**
+ * The gate-facing status. `skip` is the DECLARED opt-out the runner renders as SKIP and names in
+ * `GATE GREEN, NARROWED`; it is never inferred, and it is never `ok`.
+ */
+export type EngineCheckStatus = "ok" | "skip" | "fail";
+
+export interface EngineCheckVerdict {
+  readonly status: EngineCheckStatus;
+  /** The single line the shell prints — stderr for `fail`, stdout otherwise. */
+  readonly message: string;
+}
+
+/**
+ * Judge what the run saw.
+ *
+ * The CI asymmetry is deliberate and matches check-web-grounding: locally an absent `web/` is an
+ * ordinary state (the submodule is opt-in), while in CI the workflow is REQUIRED to clone the
+ * pinned SHA first, so an absent checkout there means the workflow is broken and must red.
+ *
+ * `no-adopted-package` skips in BOTH environments, because it is not an environment fact at all —
+ * it is the per-package bootstrap allowance (the parent-side machinery lands before the site opts
+ * in), and it stays true in CI until the site adopts a package. It still compared nothing, so it
+ * still may not claim a pass.
+ */
+export function judgeEngineCheck(
+  sight: EngineCheckSight,
+  opts: { readonly inCi: boolean },
+): EngineCheckVerdict {
+  switch (sight.kind) {
+    case "no-web-checkout":
+      return opts.inCi
+        ? {
+            status: "fail",
+            message:
+              "check:web-engine — web/ is not checked out in CI. The workflow must clone the pinned " +
+              "storytree-web submodule before this step.",
+          }
+        : {
+            status: "skip",
+            message:
+              "check:web-engine — SKIP: web/ submodule not checked out " +
+              "(run `git submodule update --init web` to enable this check locally).",
+          };
+    case "no-adopted-package":
+      return {
+        status: "skip",
+        message:
+          "check:web-engine — SKIP: no synced package dir is present in web/ yet, so nothing was " +
+          "compared (the site has adopted none of " +
+          `${ENGINE_PACKAGES.map((p) => p.destDir).join(", ")}).`,
+      };
+    case "compared":
+      return {
+        status: "ok",
+        message:
+          `check:web-engine — OK: ${sight.files} synced file(s) across ${sight.dirs.join(", ")} ` +
+          "match their packages.",
+      };
+  }
+}
