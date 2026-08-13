@@ -2673,6 +2673,25 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     return rawUnsupported(area, sub);
   }
 
+  // `--out` without `--raw` is refused for the SAME reason (ADR-0361 D1): it is the output channel of
+  // the bare-bytes read and means nothing without one. Dropped in silence it would be actively
+  // dangerous — a caller who typed `--out field.txt` and got an empty file back would reasonably read
+  // that as "the field is empty", and writing that back is a deletion that reports success.
+  if (values.out !== undefined && values.raw === undefined && !help) {
+    return {
+      ok: false,
+      body: [
+        "`--out <path>` is where `--raw <field>` puts the bytes, and this command has no `--raw`.",
+        "",
+        "It is refused rather than ignored: an ignored `--out` leaves the file you named untouched or",
+        "empty, and an empty capture written back with `--set <field>=@<path>` is a deletion at exit 0.",
+        "",
+        "  storytree library artifact <id> --raw <field> --out <path> --pg",
+      ].join("\n"),
+      next: [`storytree ${area} --help`],
+    };
+  }
+
   if (area === "node") {
     if (sub === undefined || help) return nodeHelp();
     if (sub === "resolve") {

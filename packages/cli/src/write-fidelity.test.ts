@@ -254,6 +254,20 @@ test("--out writes the field's own bytes and nothing else", async () => {
   }
 });
 
+test("--out without --raw is refused, not dropped — an empty capture written back is a deletion", async () => {
+  const t = tmp();
+  try {
+    const env = await run(
+      ["library", "artifact", "an-agent", "--out", path.join(t.dir, "field.txt")],
+      { store: await withProse("prose") },
+    );
+    assert.equal(env.ok, false);
+    assert.match(env.body, /has no `--raw`/);
+  } finally {
+    t.cleanup();
+  }
+});
+
 test("the documented round trip is byte-exact: --out then --set field=@path leaves the value unchanged", async () => {
   // The increment's own acceptance test. The value carries every shape that made the old redirect
   // path lossy: a leading blank line, an inner double quote, a backtick, and trailing whitespace.
