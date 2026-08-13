@@ -119,6 +119,10 @@ and spend, not a measurement anyone can settle from history, and it is escalated
 Every surface-side move that could be made without owner spend has been made. `measure-lane-width-after-brief`
 stays parked as ADR-0334 D6's forward test of the amended planner brief; ADR-0340 D5's amended
 falsifier is unchanged. Nothing else on this arc is dispatchable until the owner answers.
+**Corrected in place, 2026-08-13 (ADR-0139): `measure-lane-width-after-brief` no longer stays parked —
+it was read on 2026-08-13 and found unanswerable, and ADR-0340 D5's falsifier is retired as
+unrunnable, not merely unchanged** ([ADR-0362](0362-the-merge-queue-is-declined-on-measurement-and-the-fan-out-a.md)
+D4). The live-instrumented-fan-out question named above was separately answered by ADR-0344.
 
 **A negative result is the deliverable, and it cost one session rather than a CLI rewrite.** The
 attribution reading is what made the decline defensible instead of a matter of taste — it is the

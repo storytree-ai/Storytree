@@ -13,14 +13,26 @@ name: CI
 # entry and every queued PR would sit forever, so THIS TRIGGER IS THE PREREQUISITE, and it is inert
 # until the queue is switched on.
 #
-# SWITCHING IT ON IS A REPO SETTING, NOT A FILE, and therefore not this workflow's to do (verified
-# 2026-08-04: `main` carries no ruleset and no branch protection). The owner-side flip is:
+# ⚠ THE QUEUE IS DECLINED AND WILL NOT BE SWITCHED ON (ADR-0362 D1, owner-directed 2026-08-13,
+# withdrawing ADR-0304 D3). Measured: across all 80 dispatched full-suite backstop runs on `main`
+# (ADR-0195 §5, 2026-07-14 → 2026-08-12) `main` landed red ONCE, on `check:agents` — a live-store
+# projection race a queue does not prevent — and on ZERO stale-base semantic breaks, the one hazard a
+# queue is the right instrument for. Against that it costs ~2x runner minutes (speculative building
+# is mandatory, not optional) and serialises landings that already land concurrently (ADR-0345 D3).
+#
+# THIS TRIGGER AND EVERY `merge_group` GUARD BELOW ARE KEPT ON PURPOSE (ADR-0362 D2b) — they cost
+# nothing with no queue, and keeping them means reconsidering the decision is a SETTINGS change
+# rather than a rebuild. DO NOT strip them as dead code. The re-entry condition is narrow
+# (ADR-0362 D3): a stale-base semantic break actually OBSERVED landing on `main`. If that ever
+# fires, the owner-side flip is a repo setting, not a file (verified 2026-08-13: `main` still
+# carries no ruleset and no branch protection):
 #   1. a ruleset / branch-protection rule on `main` with "Require merge queue" enabled,
 #   2. `verify` marked as a required status check on it,
 #   3. repo setting `delete_branch_on_merge` turned on — the queue merges the PR itself, so the
-#      `--delete-branch` flag the automerge job passes no longer does the deleting.
-# Until then nothing below changes: `gh pr merge` merges directly exactly as it does today. The
-# automerge job is written to be correct on BOTH sides of that flip — see its merge step.
+#      `--delete-branch` flag the automerge job passes no longer does the deleting,
+#   4. a speculative build count >= the lanes in flight, WITHOUT which a queue is slower than today.
+# Nothing below changes meanwhile: `gh pr merge` merges directly exactly as it does today, and the
+# automerge job stays correct on BOTH sides of that flip — see its merge step.
 on:
   pull_request:
     branches: [main]

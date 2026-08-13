@@ -149,6 +149,11 @@ models a perfect decomposition, where a real fix captures only the share of the 
 was the registry (81%, here). The forward reading is the parked `measure-lane-width-after-brief`
 increment, and only time supplies it; ADR-0340 D5's amended falsifier is unchanged and that
 increment stays parked.
+**Corrected in place, 2026-08-13 (ADR-0139): time has since supplied it, and the answer is that it
+CANNOT BE ANSWERED** ([ADR-0362](0362-the-merge-queue-is-declined-on-measurement-and-the-fan-out-a.md)
+D4 — n=1, and the schema field the before-number was read off no longer exists). ADR-0340 D5's
+falsifier is retired as unrunnable, not merely unchanged; a future test of lane width uses ADR-0340's
+landed-file-set instrument instead.
 
 ## Consequences
 

@@ -146,15 +146,23 @@ no equivalent fallback.
 
 So the flip was **blocked on a prerequisite, not declined**: a claim-release path that runs on the
 queue's merge (a `merge_group`-aware job, or a `push`-to-`main` job keyed on the merged head ref).
-That prerequisite has since landed (above). The FLIP itself still cannot be proved locally — a merge
-queue cannot be exercised without enabling it — which is why it remains an owner-visible operational
-change and was deliberately kept out of the release path's own PR. The honest pre-flip verification
-is therefore of the JOB, not the trigger: `workflow_dispatch` the release workflow against a branch
-holding claims, then take one ordinary merge by hand in the GitHub UI (a real non-GITHUB_TOKEN merge,
-so the real triggers fire), and only then flip — checking the FIRST queue merge's run rather than
-assuming it.
+That prerequisite has since landed (above).
 
-Two further preconditions, recorded so the next attempt does not rediscover them:
+**Corrected in place, 2026-08-13 — THE FLIP IS NOW DECLINED, and this D4 is the last word on the
+defect rather than on the queue** ([ADR-0362](0362-the-merge-queue-is-declined-on-measurement-and-the-fan-out-a.md)
+D1, owner-directed; ADR-0304 D3 is withdrawn with it). What decided it was measuring the hazard the
+queue existed to prevent: across all 80 dispatched full-suite backstop runs on `main` (ADR-0195 §5,
+2026-07-14 → 2026-08-12) `main` landed red **once**, on `check:agents` — a live-store projection race
+a queue does not prevent — and on **zero** stale-base semantic breaks. D3 above is why that matters:
+the wall-clock half was already being had, so safety was the whole residual case, and it measured to
+nothing against ~2x runner minutes. **The claim-release path is KEPT** (ADR-0362 D2) — it closed a
+gap that predated any queue.
+
+The verification order below was never run, and is kept only as the recipe if ADR-0362 D3's re-entry
+condition ever fires: `workflow_dispatch` the release workflow against a branch holding claims, then
+take one ordinary merge by hand in the GitHub UI (a real non-GITHUB_TOKEN merge, so the real triggers
+fire), and only then flip — checking the FIRST queue merge's run rather than assuming it. Likewise
+the two preconditions below; the first of them is the ~2x cost ADR-0362 D1 weighed:
 - **Speculative building must be on** (`max_entries_to_build` ≥ the lanes in flight). Queue entries
   never narrow — `ci.yml` disables the affected step for `merge_group` on purpose — so a
   non-speculating queue re-serialises N landings at FULL scope and is **worse than today**.
@@ -201,7 +209,9 @@ three lanes whose CI runs do not contend for runner capacity.
   changes is its Consequences' framing of the tail as an irreducible serial fraction (D3 here) plus
   the actionable decomposition its own text called for.
 - ADR-0304 D1/D2 — the affected-scope classifier whose fail-wide behaviour D5 confirms as load-bearing.
-- ADR-0304 D3/D4 — the merge-queue half, whose prerequisite D4 here identifies as unmet.
+- ADR-0304 D3/D4 — the merge-queue half, whose prerequisite D4 here identified as unmet; the
+  prerequisite was met (PR #1292) and D3 is now WITHDRAWN by ADR-0362 D1.
+- ADR-0362 — amends this ADR: declines the flip D4 prepared, on the backstop measurement.
 - ADR-0138 §4 / ADR-0200 — the claim-release guarantee the merge queue would break.
 - ADR-0195 §5 — the post-merge full-suite backstop D3 leans on.
 - ADR-0341 D4 — the de-registry whose "pays out in serial work too" argument D2 repeats.
