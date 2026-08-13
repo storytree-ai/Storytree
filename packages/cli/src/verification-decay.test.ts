@@ -7,6 +7,7 @@ import { attributeDecayFindings } from "./decay-attribution.js";
 import {
   CHARTERED_INSTRUMENTS,
   CONTRACT_BINDING_DRIFT,
+  classifyTarget,
   MIRROR_PAIR_DRIFT,
   UNPROVEN_SEAM_DEFAULT,
   VACUOUS_PROOF,
@@ -35,13 +36,25 @@ import {
   type WorkspaceFacts,
 } from "./verification-decay.js";
 
-/** A workspace with two real packages and an injectable set of existing files. */
-function workspace(existing: readonly string[] = []): WorkspaceFacts {
+/**
+ * A workspace with two real packages, an injectable set of existing files, and an injectable set of
+ * paths that ever existed in history.
+ *
+ * `historical` DEFAULTS TO EMPTY, which is the never-written world — so every pre-existing test in
+ * this file keeps asserting exactly what it asserted before the renamed/never-written split landed,
+ * and any change in their verdicts would be a real regression rather than a fixture artefact.
+ */
+function workspace(
+  existing: readonly string[] = [],
+  historical: readonly string[] = [],
+): WorkspaceFacts {
   const files = new Set(existing);
+  const history = new Set(historical);
   return {
     packageNames: new Set(["@storytree/cli", "@storytree/library"]),
     packageDirs: ["packages/cli", "packages/library", "packages/library-review", "apps/desktop"],
     exists: (rel) => files.has(rel),
+    everExisted: (rel) => history.has(rel),
   };
 }
 
@@ -107,6 +120,94 @@ describe("contract-binding-drift: what it locates", () => {
     assert.match(detail, /a\.test\.ts/);
     assert.match(detail, /a\.ts/);
     assert.match(detail, /@storytree\/core/);
+  });
+});
+
+describe("classifyTarget: a renamed binding is distinguishable from a never-written one", () => {
+  const missingInPackage = "packages/cli/src/moved-away.test.ts";
+
+  it("calls a missing in-package path RENAMED when it has history", () => {
+    assert.equal(
+      classifyTarget(
+        { kind: "path", value: missingInPackage, role: "real.testFile" },
+        workspace([], [missingInPackage]),
+      ),
+      "renamed",
+    );
+  });
+
+  it("calls the SAME path PENDING when it has no history", () => {
+    // The discrimination in one pair: identical workspace, identical path, opposite verdicts —
+    // and the only thing that differs is history. Before this split both answered "not dead".
+    assert.equal(
+      classifyTarget(
+        { kind: "path", value: missingInPackage, role: "real.testFile" },
+        workspace([], []),
+      ),
+      "pending",
+    );
+  });
+
+  it("calls an existing path LIVE, and never consults history to override existence", () => {
+    const facts: WorkspaceFacts = {
+      ...workspace([missingInPackage], []),
+      everExisted: () => {
+        throw new Error("history must not be consulted for a path that exists");
+      },
+    };
+    assert.equal(
+      classifyTarget({ kind: "path", value: missingInPackage, role: "real.testFile" }, facts),
+      "live",
+    );
+  });
+
+  it("still calls a missing path OUTSIDE every package DEAD, history or not", () => {
+    // Containment, not history, is what separates dead from the in-package pair — a path outside
+    // every package has no owning package to be pending work for.
+    for (const history of [[], ["packages/core/src/gone.ts"]]) {
+      assert.equal(
+        classifyTarget(
+          { kind: "path", value: "packages/core/src/gone.ts", role: "real.sourceFile" },
+          workspace([], history),
+        ),
+        "dead",
+      );
+    }
+  });
+});
+
+describe("contract-binding-drift: the renamed suite is reported, and reported as its own repair", () => {
+  const moved = "packages/cli/src/moved-away.test.ts";
+
+  it("flags a renamed binding that the old exemption swallowed", () => {
+    const findings = findContractBindingDrift(
+      [binding("renamed", [{ kind: "path", value: moved, role: "real.testFile" }])],
+      workspace([], [moved]),
+    );
+    assert.equal(findings.length, 1);
+    assert.match(findings[0]?.detail ?? "", /moved-away\.test\.ts/);
+  });
+
+  it("names the RIGHT repair, and the `--real` hazard that makes it urgent", () => {
+    // A reader who cannot tell renamed from never-written does the wrong repair: a `--real` rebuild
+    // AUTHORS the file the stale path names, producing a second suite beside the real one.
+    const detail =
+      findContractBindingDrift(
+        [binding("renamed", [{ kind: "path", value: moved, role: "real.testFile" }])],
+        workspace([], [moved]),
+      )[0]?.detail ?? "";
+    assert.match(detail, /renamed or deleted/);
+    assert.match(detail, /re-point the binding/);
+    assert.match(detail, /second suite/);
+  });
+
+  it("does not report a renamed target with the DEAD phrasing", () => {
+    const detail =
+      findContractBindingDrift(
+        [binding("renamed", [{ kind: "path", value: moved, role: "real.testFile" }])],
+        workspace([], [moved]),
+      )[0]?.detail ?? "";
+    assert.doesNotMatch(detail, /outside every workspace package/);
   });
 });
 

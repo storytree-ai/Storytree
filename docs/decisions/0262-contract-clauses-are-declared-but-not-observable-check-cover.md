@@ -1,5 +1,6 @@
 ---
-status: proposed
+status: accepted
+decided: 2026-08-13
 amends: [122]
 arc: verification-integrity-arc
 ---
@@ -7,10 +8,26 @@ arc: verification-integrity-arc
 
 ## Status
 
-proposed (2026-07-28) — the owner directed the INVESTIGATION, not its outcome: a five-day friction
+accepted (2026-08-13) — ratified by the owner in conversation on 2026-08-13, as it stands. Design-time
+alignment IS the ratification (ADR-0110); no second end-of-flow ask.
+
+Proposed 2026-07-28 — the owner directed the INVESTIGATION, not its outcome: a five-day friction
 report asked whether `check:coverage` should count a contract's clauses rather than its test name, and
 directed that if clause counting needs a schema change, the fork be recorded rather than guessed. It
-does. This records the measured answer and the fork; the resolution is the owner's to ratify.
+does. This records the measured answer and the fork; the resolution was left for the owner to ratify.
+
+**What ratification decides, and what it deliberately does not.** Decisions 1–3 and 5 are now settled:
+the coverage granularity stays NAME-granular on both the gate and the signed verdict, the obligations
+parser stays, and the segmenter stays refused. Decision 4's fork is NOT taken — the three routes to
+clause identity remain available and remain uncommissioned. The multi-clause under-count is therefore
+ACCEPTED KNOWINGLY rather than fixed, and the Consequences below say so in those words.
+
+**Why ratifying mattered more than the sixteen-day delay suggests.** Left `proposed`, this ADR read as
+an open invitation rather than as a recorded refusal, and THREE independent sessions walked into
+decision 4's fork and re-derived the same answer — the third on 2026-08-13, after stamping an increment
+(`contract-coverage-counts-behaviours`) that asked for exactly what decision 4 had already recorded.
+The measurement was filed and correct; nothing pointed at it, because an unsigned refusal does not read
+as a refusal. That cost is the reason this status line exists.
 
 **Amends** [ADR-0122](0122-per-contract-coverage-check-map-each-declared-contract-to-an.md) — the
 `amends: [122]` edge binds only on acceptance. ADR-0122's decision stands entire: a structural gate
@@ -141,12 +158,24 @@ machine-readable for the first time, so whichever route the fork takes reads the
 numbers a later session would otherwise re-derive (932/947 carry an `asserts`; the assertion proxy
 fires on 4 of 375) are pinned in an ADR and, for the first, reproducible from the shipped parser.
 
-**Bad, and recorded rather than glossed.** The leak the friction item names is NOT closed — a
-multi-clause contract still ships at N/N, and this ADR explains why rather than fixing it. That is a
-worse outcome than a fix and a better one than a ratio nobody can trust; the honest state is that
-closing it is gated on the fork in decision 4, which needs an owner. Until then `check:coverage`
-over-claims exactly as much as it did before, and the disclosure in its footer is the only thing
-standing between a reader and "N/N means everything is asserted".
+**Bad, ACCEPTED KNOWINGLY on ratification, and recorded rather than glossed.** The leak the friction
+item names is NOT closed — a multi-clause contract still ships at N/N, and this ADR explains why
+rather than fixing it. That is a worse outcome than a fix and a better one than a ratio nobody can
+trust. On 2026-08-13 the owner ratified this ADR as it stands, which makes that under-count a
+DELIBERATE, DISCLOSED LIMIT rather than a pending repair: `check:coverage` and the signed verdict
+over-claim exactly as much as they did before, and the disclosure in the check's footer ("COVERED = a
+SUBSTANTIVE test NAMES the contract") is the only thing standing between a reader and "N/N means
+everything is asserted". Decision 4's three routes stay available and stay UNCOMMISSIONED; taking one
+is a fresh decision with its own cost, not the discharge of a debt recorded here.
+
+**The concession is real and should not be softened by later readers.** This arc exists to stop a
+proof layer reporting a green it has not earned, and a coverage axis that reads N/N for a contract
+whose other clauses are unproven is an instance of exactly that. Ratifying is a judgement that the
+available fixes cost more than the mis-reading does — a schema change plus a ~2,000-obligation
+retrofit (route a), a story-author discipline change that moves a zero-headroom ceiling by
+construction (route b), or a semantic reviewer priced as its own initiative (route c) — NOT a
+judgement that the axis is honest. Anyone citing this ADR as evidence that contract coverage is sound
+is citing it wrongly.
 
 **A parser lands ahead of its consumer.** `obligations` is parsed and, today, read by nothing but its
 own tests — the shape CLAUDE.md flags on ADR-0259 ("adding the backend migrated nobody"). Declared
