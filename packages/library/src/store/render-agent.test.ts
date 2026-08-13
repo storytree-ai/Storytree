@@ -718,7 +718,11 @@ test("essentials gate: a file over the token budget REDS, naming the budget + th
   assert.ok(estimateTokens(bloated) > ESSENTIALS_TOKEN_BUDGET);
   const violations = await essentialsGateViolations(store, "clean-agent", bloated);
   assert.equal(violations.length, 1);
-  assert.ok(violations.some((v) => /over the 6000-token essentials budget/.test(v)));
+  // Derived from the constant, never a literal: the assertion is "the message NAMES the budget",
+  // and a hardcoded number silently becomes an assertion about one particular budget instead — which
+  // is what reddened this test when ADR-0269's re-baseline moved the ceiling off 6000.
+  const namesBudget = new RegExp(`over the ${ESSENTIALS_TOKEN_BUDGET}-token essentials budget`);
+  assert.ok(violations.some((v) => namesBudget.test(v)));
   assert.ok(violations.some((v) => /clean-agent\.md/.test(v)));
 });
 

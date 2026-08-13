@@ -484,14 +484,28 @@ export async function renderAgentStep(
 //      inc-4 sequencing trap — ADR-0161).
 
 /**
- * The per-file essentials budget (ADR-0156 §5), in tokens. Measured essentials renders sit at
- * ~1.5k–4.1k tokens (chars/4), librarian-curator the outlier at ~4.1k — its own prose kept verbatim
- * (ADR-0156 §1a), not a leaked body. 6000 leaves the largest ~47% headroom for honest prose growth
- * while still tripping on a repoint to the full-inline path (whose ref bodies restored the 3–7k-token
- * spawns this ADR removed). The sharp regression guard is the body-injection check; this is the coarse
- * belt-and-suspenders ceiling.
+ * The per-file essentials budget (ADR-0156 §5), in tokens. The sharp regression guard against a
+ * leaked ref body is the body-injection header check; this is the coarse belt-and-suspenders ceiling,
+ * and what it exists to trip on is a repoint to the full-inline path (whose ref bodies restored the
+ * 3–7k-token spawns that ADR removed).
+ *
+ * RE-BASELINED 2026-08-13 from 6000, owner-directed, on a fresh sweep of the whole population —
+ * ADR-0269's rule applied outside its own instrument family: a ceiling is a number ABOUT A
+ * POPULATION, so when the population moves it is re-measured on the new one with the reason recorded
+ * at the number. 6000 was set against a measured range of ~1.5k–4.1k tokens with librarian-curator
+ * the outlier at ~4.1k, which left the largest ~47% headroom. That population had since grown
+ * without the ceiling being revisited: measured across the ten codex projections the range is now
+ * ~1.6k–5,964 tokens, librarian-curator still the outlier at ~5,964 — 0.6% headroom, so a single
+ * added `rules` entry breached it on a change that inlined nothing and could not have. 9000 restores
+ * the ORIGINAL headroom policy to the current population (≈51% over 5,964) rather than inventing a
+ * looser one, which is the difference between re-baselining and widening a tolerance until a red goes
+ * away (`asset:revalidate-instruments-when-a-decision-widens-a-domain`).
+ *
+ * This does NOT loosen the real obligation. A leaked ref body is caught structurally by the
+ * body-injection header check below, which is unchanged and reads nothing from this number; raising
+ * the coarse ceiling cannot make an inlined body pass.
  */
-export const ESSENTIALS_TOKEN_BUDGET = 6000;
+export const ESSENTIALS_TOKEN_BUDGET = 9000;
 
 /** A cheap, offline token estimate for the budget gate — a chars/4 proxy (no tokenizer in gate/CI). */
 export function estimateTokens(text: string): number {
