@@ -275,10 +275,21 @@ export interface EngineCheckVerdict {
  * ordinary state (the submodule is opt-in), while in CI the workflow is REQUIRED to clone the
  * pinned SHA first, so an absent checkout there means the workflow is broken and must red.
  *
- * `no-adopted-package` skips in BOTH environments, because it is not an environment fact at all —
- * it is the per-package bootstrap allowance (the parent-side machinery lands before the site opts
- * in), and it stays true in CI until the site adopts a package. It still compared nothing, so it
- * still may not claim a pass.
+ * `no-adopted-package` is the per-package bootstrap allowance (the parent-side machinery lands
+ * before the site opts in), so unlike the branch above it is NOT an environment fault and stays
+ * legitimate in CI. It is also the only blind branch that can FIRE in CI, which is why it is the
+ * one place the skip code is withheld there.
+ *
+ * WHY THE SKIP CODE IS LOCAL-ONLY, AND WHY THAT IS NOT A LOOPHOLE. `GATE_SKIP_EXIT_CODE` is a
+ * protocol between a check and `gate-run.ts`, which renders 3 as SKIP and reports it in
+ * `GATE GREEN, NARROWED`. CI does not use that runner — `.github/workflows/ci.yml` invokes these
+ * scripts as ordinary steps, where every non-zero code is a failure. Emitting 3 there would convert
+ * a DECLARED SKIP into a hard red, which is this arc's own defect wearing the opposite sign: a
+ * report meaning something to its reader that its author did not intend. So the message still says
+ * plainly that nothing was compared — the CI log stays honest — while the exit code speaks the
+ * vocabulary its actual runner understands. Teaching CI the skip vocabulary is a workflow change
+ * and its own decision; until then, the honest code here is the one that does not lie to the
+ * runner reading it.
  */
 export function judgeEngineCheck(
   sight: EngineCheckSight,
@@ -299,14 +310,14 @@ export function judgeEngineCheck(
               "check:web-engine — SKIP: web/ submodule not checked out " +
               "(run `git submodule update --init web` to enable this check locally).",
           };
-    case "no-adopted-package":
-      return {
-        status: "skip",
-        message:
-          "check:web-engine — SKIP: no synced package dir is present in web/ yet, so nothing was " +
-          "compared (the site has adopted none of " +
-          `${ENGINE_PACKAGES.map((p) => p.destDir).join(", ")}).`,
-      };
+    case "no-adopted-package": {
+      const what =
+        "no synced package dir is present in web/ yet, so nothing was compared (the site has " +
+        `adopted none of ${ENGINE_PACKAGES.map((p) => p.destDir).join(", ")}).`;
+      return opts.inCi
+        ? { status: "ok", message: `check:web-engine — NOTHING TO COMPARE: ${what}` }
+        : { status: "skip", message: `check:web-engine — SKIP: ${what}` };
+    }
     case "compared":
       return {
         status: "ok",
