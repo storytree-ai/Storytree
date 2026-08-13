@@ -624,6 +624,14 @@ function OfferFan({ offer, visible }: { offer: TraversalOffer; visible: boolean 
  * systematically over-reports how often a session stayed inside the asset graph. The observable count
  * travels with the offered one, and a nearly-zero follow count is the honest reading of a sparse
  * signal (1,356 recorded offers against 3 follows on this machine) rather than a renderer fault.
+ *
+ * IT ALSO NAMES THE PATHWAY, which ADR-0360 D6 requires and the counts alone cannot convey. Every
+ * recorded surface is a `storytree` CLI surface — measured 2026-08-13, all 7,212 events on this
+ * machine carry one of four (`library-artifact`, `agents`, `tree`, `library-dashboard`) — because
+ * `observeCliInvocation` is an allowlist over argv and no hook observes a file read. An agent that
+ * greps to an artifact and opens the file emits nothing at all. So these counts describe ONE pathway,
+ * and a reader who takes them for all of a session's navigation over-reads them exactly as a
+ * percentage would.
  */
 function OfferNote({ model }: { model: ReturnType<typeof buildTraversalSpine> }): React.JSX.Element | null {
   const { offers } = model;
@@ -637,7 +645,8 @@ function OfferNote({ model }: { model: ReturnType<typeof buildTraversalSpine> })
       {offers.unplaced > 0
         ? `; ${offers.unplaced} offer set${offers.unplaced === 1 ? '' : 's'} carried no readable instant and ${offers.unplaced === 1 ? 'is' : 'are'} not placed`
         : ''}
-      .
+      . Offers are recorded only where a storytree read renders them — file reads are not observed —
+      so these counts cover one pathway, not all of this session&rsquo;s navigation.
     </p>
   );
 }

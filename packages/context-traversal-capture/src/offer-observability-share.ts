@@ -180,9 +180,24 @@ function renderPointLine(point: PointObservability): string {
 }
 
 /**
+ * The pathway this whole denominator is scoped to (ADR-0360 D6), stated on the surface rather than
+ * left to a reader's assumption.
+ *
+ * The counts above are honest about WHICH offers could be followed; they say nothing about how much
+ * of a session's navigation ever passes an offer at all, and without this line a reader takes them
+ * for the latter. Measured 2026-08-13: all 7,212 recorded events carry one of four `storytree` CLI
+ * surfaces, because `observeCliInvocation` is an allowlist over argv and no hook observes a file
+ * read — so an agent that greps to an artifact and opens the file contributes nothing to either
+ * side of this ratio. Same class of over-read as a percentage, which is why it sits here.
+ */
+export const PATHWAY_CAVEAT =
+  "pathway — offers are recorded only where a storytree read renders them; file reads observe " +
+  "nothing, so these counts cover one pathway, not all of this session's navigation";
+
+/**
  * Render an `ObservabilityReport` as a plain-text block, or `""` when there are no points — no
  * heading, no blank line, nothing, so a replay with no recorded offer grows no section. No
- * percentage is ever rendered. Never throws.
+ * percentage is ever rendered, and the block closes by naming the pathway it observes. Never throws.
  */
 export function renderOfferObservability(report: ObservabilityReport): string {
   if (report.points.length === 0) return "";
@@ -194,6 +209,7 @@ export function renderOfferObservability(report: ObservabilityReport): string {
     `  trace total — offered ${report.offered}, observable ${report.observable} of ${report.offered}: ` +
       `the followed counts above are over ${report.observable} observable branches, not ${report.offered} offered`,
   );
+  lines.push(`  ${PATHWAY_CAVEAT}`);
 
   return lines.join("\n");
 }
