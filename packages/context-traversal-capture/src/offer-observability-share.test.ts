@@ -40,6 +40,7 @@ import {
   classifyOfferObservability,
   computeOfferObservability,
   followArgvFor,
+  PATHWAY_CAVEAT,
   renderOfferObservability,
 } from "./offer-observability-share.js";
 import type { OfferObservability } from "./offer-observability-share.js";
@@ -124,6 +125,9 @@ test("an-offer-set-states-how-much-of-itself-the-telemetry-could-not-see", () =>
       "a-cli-read-exists-but-no-follow-producer-accepts-its-surface x1",
     "  trace total — offered 4, observable 2 of 4: the followed counts above are over 2 " +
       "observable branches, not 4 offered",
+    // ADR-0360 D6: the denominator names the pathway it observes. Pinned through the exported
+    // constant so a re-wording cannot silently drop the caveat while this stays green.
+    `  ${PATHWAY_CAVEAT}`,
   ].join("\n");
   assert.equal(rendered, expected);
   assert.equal(rendered.includes("%"), false, "no percentage is ever rendered");
@@ -263,6 +267,7 @@ test("a-set-with-nothing-observable-renders-zero-and-never-a-hidden-division", (
       "no-cli-read-shape-observes-a-visit-for-this-offer x2",
     "  trace total — offered 2, observable 0 of 2: the followed counts above are over 0 " +
       "observable branches, not 2 offered",
+    `  ${PATHWAY_CAVEAT}`,
   ].join("\n");
   assert.equal(rendered, expected);
 
