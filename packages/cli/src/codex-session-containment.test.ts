@@ -284,6 +284,10 @@ test("lobby bundle remains read-only and names only the trusted bootstrap actuat
   assert.match(bundle.operatorReadme, /generic shell[\s\S]*not granted/i);
   assert.match(bundle.operatorReadme, /fail-closed[\s\S]*hash-pinned worktree-create payload/i);
 
+  // The remaining assertions execute the generated Windows actuator itself. Its portable
+  // contract is covered above; Linux CI has no powershell.exe process to exercise.
+  if (process.platform !== "win32") return;
+
   const script = path.join(mkdtempSync(path.join(os.tmpdir(), "storytree-codex-actuator-")), "actuator.ps1");
   writeFileSync(script, bundle.trustedActuatorScript);
   const invoke = (args: readonly string[]) =>
