@@ -373,6 +373,18 @@ kind owes a seed export any more.
   Two write-ergonomics: `--set field=@path` reads the value from a FILE (long/multi-line prose
   without shell mangling), and a typo'd `--set` field on a structured kind is REFUSED with a clear
   message (naming the bad field + the editable ones), not the opaque `.strict()` union dump.
+  **Changing part of a LONG prose field? Capture it with `--out`, never with a `>` redirect**
+  (ADR-0361): `library artifact <id> --raw <field> --out field.txt --pg`, edit the file, then
+  `--set <field>=@field.txt --pg`. `--out` is written by the CLI itself, so a wrapper's own output
+  cannot enter it — a `>` redirect under `pnpm storytree …` captures pnpm's two-line run banner as
+  the field's first bytes, and 175 bytes of exactly that once reached CLAUDE.md and AGENTS.md
+  through the live `session-orchestrator` artifact. The WRITE now refuses the three damage shapes
+  rather than storing them at exit 0 — a banner-headed value, a prose-carrying command with
+  positionals no verb reads (the tail of a value a shell cut), and an INLINE `--set` whose value is
+  a proper PREFIX of the stored one. That last is inline-only: the same bytes LAND from `@path`, so
+  a deliberate deletion of a tail is one file write, never an override flag. After the fact,
+  `library artifact history <id> [--field <f>]` reads the append-only log, so it can show a loss
+  that current state alone can never reveal.
 - **Writing an arc? Use the first-class verbs — never hand-authored doc JSON or a `PgLibraryStore`
   one-shot** (the old fragile paths). The whole lifecycle has a verb, creation included:
   `pnpm storytree arc new [<id>] --title "..." --intent <text|@file> --end-state <text|@file>

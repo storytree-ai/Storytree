@@ -102,6 +102,11 @@ export const LITERAL_FLAGS: ReadonlySet<string> = new Set([
   "file",
   "set",
   "raw",
+  // `--raw <field> --out <path>` / `library artifact history --field <f>` (ADR-0361): a path and a
+  // field NAME. Both are already the kind of value `@` would be part of, and neither is ever stored
+  // into an artifact, so neither can corrupt a durable record.
+  "out",
+  "field",
   "decided-date",
   "dwell",
   "model",

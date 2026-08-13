@@ -9,16 +9,28 @@ export interface InstallResult {
   code: number;
 }
 
+/** Which of the three conditions a message or result is about. */
+export type ProvisionCondition = "fresh" | "stale" | "unlinked";
+
 /**
  * The outcome of a provision attempt (a no-op fast path has `provisioned: false`). `installed` /
- * `install-failed` come from the FRESH path, `refreshed` / `refresh-failed` from the STALE one — the
- * distinction drives which condition the agent-visible signal names.
+ * `install-failed` come from the FRESH path, `refreshed` / `refresh-failed` from the STALE one, and
+ * `relinked` / `relink-failed` from the UNLINKED one — the distinction drives which condition the
+ * agent-visible signal names, which is the whole point: all three present identically at the tool
+ * call and only one of the three remedies is the right one.
  */
 export interface ProvisionResult {
   provisioned: boolean;
   ok: boolean;
   code: number;
-  reason: "already-provisioned" | "installed" | "install-failed" | "refreshed" | "refresh-failed";
+  reason:
+    | "already-provisioned"
+    | "installed"
+    | "install-failed"
+    | "refreshed"
+    | "refresh-failed"
+    | "relinked"
+    | "relink-failed";
 }
 
 /** Absolute path of the worktree that physically contains this module (`../../` from packages/cli/). */
@@ -26,6 +38,19 @@ export function thisWorktreeRoot(): string;
 
 /** True when `root` has no completed pnpm install (no `node_modules/.modules.yaml`). */
 export function needsProvision(root: string): boolean;
+
+/**
+ * True when an install COMPLETED at `root` but linked nothing — `node_modules/.modules.yaml` is
+ * present and NO workspace package (`packages/*`, `apps/*`) has a `node_modules` of its own. The
+ * third condition, and the one both `needsProvision` and `lockfileAdvanced` read as healthy.
+ *
+ * Deliberately does NOT test the root `node_modules/.bin`: in a pnpm workspace the root legitimately
+ * has none, so that probe reports every healthy checkout in this repo as broken.
+ *
+ * Returns false on an unprovisioned root (that is `needsProvision`'s question), on a directory with
+ * no `pnpm-lock.yaml`, and on one where no workspace package was found at all.
+ */
+export function needsRelink(root: string): boolean;
 
 /**
  * The two lockfiles `lockfileAdvanced` compares: `wanted` is the tracked `pnpm-lock.yaml`, `current`
@@ -58,13 +83,13 @@ export function provisionWorktree(opts?: {
 /**
  * The `SessionStart` `additionalContext` JSON payload emitted (on stdout, `--hook` mode) when a worktree
  * still has unusable dependencies after all attempts — the agent-visible signal to run `pnpm install`.
- * `stale` selects whether the message names the never-provisioned or the lockfile-advanced condition.
+ * `condition` selects which of the three states the message names.
  */
-export function unprovisionedContext(root: string, stale?: boolean): string;
+export function unprovisionedContext(root: string, condition?: ProvisionCondition): string;
 
 /**
  * STDOUT for the `--hook` entry: the `unprovisionedContext` payload when the install failed, else "".
- * A `reason` of `refresh-failed` selects the stale wording.
+ * A `reason` of `refresh-failed` selects the stale wording, `relink-failed` the unlinked wording.
  */
 export function hookStdout(
   result: { ok: boolean; reason?: string },
