@@ -4,6 +4,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { GATE_SKIP_EXIT_CODE } from "./gate-runner.js";
 import {
   CORE_PACKAGE,
   ENGINE_DIR,
@@ -13,6 +14,7 @@ import {
   computeSyncPlan,
   detectEngineDrift,
   isEngineSource,
+  judgeEngineCheck,
   normalizeEol,
   rewriteImports,
   syncedContent,
@@ -303,4 +305,75 @@ test("wes-drift-covers-both-dirs: modified / missing / stale-leftover files in E
   assert.equal(problems.length, 1);
   assert.equal(problems[0]!.file, "scene.ts");
   assert.match(problems[0]!.reason, /missing/);
+});
+
+// ---------- the verdict: a run that compared nothing may not claim a pass ----------
+//
+// THE RED ANCHOR for `gate-self-report-honesty-arc-inc-01`. Both branches below returned 0 before
+// this, and `gate-run.ts` computes each row of its per-step table from the exit code — so the gate
+// printed PASS for a step that read no file, on every checkout without the `web/` submodule, while
+// its two siblings over the identical state printed SKIP and forced `GATE GREEN, NARROWED`.
+// `judgeEngineCheck` is asserted to return a NON-ok status on each, which is the property; the
+// exit-code mapping it feeds is the shell's, and `gate-order.test.ts` separately holds the root
+// script to an invocation form that does not collapse a 3 into a 1.
+
+test("a missing web/ checkout is a declared SKIP locally, and a hard failure in CI", () => {
+  const local = judgeEngineCheck({ kind: "no-web-checkout" }, { inCi: false });
+  assert.equal(local.status, "skip", "locally the submodule is opt-in — this is not a pass");
+  assert.match(local.message, /SKIP/);
+  assert.match(local.message, /git submodule update --init web/, "it names the remedy");
+
+  const ci = judgeEngineCheck({ kind: "no-web-checkout" }, { inCi: true });
+  assert.equal(ci.status, "fail", "in CI the workflow must clone the pinned SHA first");
+  assert.match(ci.message, /CI/);
+});
+
+test("a checkout in which NO package has been adopted declares a SKIP locally", () => {
+  // The per-package bootstrap allowance is not an environment fault — it stays legitimate in CI —
+  // so unlike the branch above it never becomes a failure.
+  const verdict = judgeEngineCheck({ kind: "no-adopted-package" }, { inCi: false });
+  assert.equal(verdict.status, "skip", "nothing was compared, so it is not a pass");
+  assert.match(verdict.message, /SKIP/);
+  assert.match(verdict.message, /nothing was compared/, "it says what it did not do");
+});
+
+test("the bootstrap state withholds the SKIP CODE in CI, but never the fact", () => {
+  // This is the ONE blind branch reachable in CI (the workflow clones web/ or fails, so the
+  // absent-checkout branch cannot fire there). `.github/workflows/ci.yml` runs this script as a
+  // plain step, where every non-zero code is a failure — so emitting GATE_SKIP_EXIT_CODE would
+  // convert a declared skip into a hard red, this arc's own defect with the sign flipped. What may
+  // NOT be withheld is the statement that nothing was compared.
+  const ci = judgeEngineCheck({ kind: "no-adopted-package" }, { inCi: true });
+  assert.equal(ci.status, "ok", "a legitimate bootstrap state must not red CI");
+  assert.match(ci.message, /NOTHING TO COMPARE/, "the CI log still says it compared nothing");
+  assert.match(ci.message, /nothing was compared/);
+
+  // …and the local run still declares the skip, so the gate's table is unaffected by the carve-out.
+  assert.equal(judgeEngineCheck({ kind: "no-adopted-package" }, { inCi: false }).status, "skip");
+});
+
+test("only a run that actually compared a dir reports OK", () => {
+  const verdict = judgeEngineCheck(
+    { kind: "compared", files: 7, dirs: [CORE_PACKAGE.destDir] },
+    { inCi: false },
+  );
+  assert.equal(verdict.status, "ok");
+  assert.match(verdict.message, /OK: 7 synced file\(s\)/);
+  assert.match(verdict.message, new RegExp(CORE_PACKAGE.destDir.replace(/\//g, "\\/")));
+});
+
+test("no blind branch reports a plain OK to the gate runner — the property the table is read through", () => {
+  // Exhaustive over the two sights that compare nothing, in the environment whose runner reads the
+  // per-step table. A future branch that returns `ok` without comparing has to break this to land.
+  for (const kind of ["no-web-checkout", "no-adopted-package"] as const) {
+    const verdict = judgeEngineCheck({ kind }, { inCi: false });
+    assert.notEqual(verdict.status, "ok", `${kind} compared nothing`);
+  }
+  // In CI the one reachable blind branch keeps a zero exit (see above), so the property that holds
+  // there is the weaker but still load-bearing one: it never claims to have compared anything.
+  const ci = judgeEngineCheck({ kind: "no-adopted-package" }, { inCi: true });
+  assert.doesNotMatch(ci.message, /\bOK:/, "no CI branch prints the pass banner over an empty run");
+
+  // …and the code the shell maps a skip onto is the one the runner reads as SKIP, not as a pass.
+  assert.notEqual(GATE_SKIP_EXIT_CODE, 0);
 });

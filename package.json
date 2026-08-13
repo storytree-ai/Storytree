@@ -26,7 +26,7 @@
     "check:web-grounding": "pnpm -C packages/cli exec node --import tsx src/check-web-grounding.ts",
     "check:web-experience-closure": "pnpm -C packages/cli exec node --import tsx src/check-web-experience-closure.ts",
     "sync:web-engine": "pnpm --filter @storytree/cli exec node --import tsx src/web-engine.ts",
-    "check:web-engine": "pnpm --filter @storytree/cli exec node --import tsx src/web-engine.ts --check",
+    "check:web-engine": "pnpm -C packages/cli exec node --import tsx src/web-engine.ts --check",
     "ci:affected": "pnpm --filter @storytree/cli exec node --import tsx src/ci-affected-main.ts",
     "gate": "pnpm --filter @storytree/cli exec node --import tsx src/gate-run.ts",
     "gate:bg": "node scripts/gate-bg.mjs",

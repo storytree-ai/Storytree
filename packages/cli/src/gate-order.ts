@@ -293,6 +293,10 @@ export const SKIP_CAPABLE_CHECKS: ReadonlyMap<string, string> = new Map([
     "check:web-experience-closure",
     "the `web/` submodule is absent locally (it is cloned in CI, where an absent web/ is a hard failure instead)",
   ],
+  [
+    "check:web-engine",
+    "the `web/` submodule is absent locally (a hard failure in CI, as for its two siblings), or no synced package dir has been adopted by the site yet — in both cases it compares nothing",
+  ],
 ]);
 
 /**

@@ -275,21 +275,29 @@ kind owes a seed export any more.
   long `&&` chain, so the first red aborted it and every later step was left UNRUN and reported as
   *nothing at all* — which cost ~25 min of hand re-runs per hit and once hid a genuine RED behind an
   unrelated flake. It is now a runner over a declared plan
-  (`packages/cli/src/gate-order.ts` → `gate-run.ts`) that executes the **nine** evidence-backed steps
-  retained by ADR-0311 and prints a per-step **PASS / FAIL / SKIP / NOT RUN** table. (The plan carried
+  (`packages/cli/src/gate-order.ts` → `gate-run.ts`) that executes the **ten** declared steps — the
+  nine evidence-backed ones retained by ADR-0311, plus `check:web-experience-closure`, re-wired by
+  ADR-0336 — and prints a per-step **PASS / FAIL / SKIP / NOT RUN** table. (The plan carried
   25 steps before ADR-0302 and ADR-0311 retired sixteen; the plan remains the count's source of truth.)
   **Read the table, not the tail** — and read **both** `NOT RUN` and `SKIP` as
   *unverified*, never as passed. They are the same epistemic class and different causes: `NOT RUN`
   means the runner never asked (only under `--fail-fast`, or when a run was interrupted / a step was
   killed), while `SKIP` means the step RAN and declared it had nothing to check. A step declares a
   skip by exiting the reserved code 3 — an opt-in its own author wrote, never inferred — and today
-  exactly one does: `check:web-grounding`, when the `web/` submodule is not checked out locally
-  (`git submodule update --init web` to actually verify it). A skip does **not** red the gate, but the
+  **three** do, all three declared in `SKIP_CAPABLE_CHECKS`: `check:web-grounding`,
+  `check:web-experience-closure` and `check:web-engine`, when the `web/` submodule is not checked out
+  locally (`git submodule update --init web` to actually verify it) — so a laptop gate normally reads
+  GREEN, NARROWED with those three named, and that is the honest reading, not a defect.
+  `check:web-engine` was the last to adopt the vocabulary; until then it returned 0 on the same state
+  and was recorded as a PASS that had compared nothing. **The skip code is LOCAL**: CI runs these as
+  ordinary steps where any non-zero code is a failure, so the two bootstrap branches that can fire
+  there say `NOTHING TO COMPARE` and exit 0 rather than emitting a 3 the runner would read as red.
+  A skip does **not** red the gate, but the
   summary says **GATE GREEN, NARROWED** and names every skipped step, so green-with-skips can no
   longer read as unqualified green. Any step failing still exits non-zero, so `pnpm gate:bg` and every
   exit-code caller are unchanged. Two consequences worth knowing: a FAILING run now takes the full
   wall clock instead of stopping early, so **background it** (`pnpm gate:bg`, merge-ceremony step 2);
-  and the steps are ordered *own-work first* — four branch-local checks and both `-r` proof legs run
+  and the steps are ordered *own-work first* — five branch-local checks and both `-r` proof legs run
   ahead of the three retained checks that can observe shared live state. `STORYTREE_GATE_FAIL_FAST=1 pnpm gate`
   (or `pnpm gate --fail-fast`) restores the old stop-at-first-red for a fast inner loop.
   **`pnpm -r`'s own halt is FIXED TOO (since 2026-08-08, ADR-0276 increment 4 complete):** both

@@ -131,7 +131,19 @@ function main(): void {
   const result = checkExperienceClosure(files);
 
   if (result.kind === "skip") {
-    console.log(`check:web-experience-closure — SKIP: ${result.reason}`);
+    // The BOOTSTRAP skip — the same declaration as the absent-checkout branch above, and for the
+    // same reason: this run walked no import closure, so it may not print PASS on the gate's
+    // per-step table. It returned 0 here while the branch 20 lines up exited 3, which made one
+    // instrument report the identical "I compared nothing" state two different ways.
+    //
+    // LOCAL ONLY, and deliberately unlike that branch. This is the bootstrap allowance, not an
+    // environment fault, so it stays legitimate in CI — and it is reachable there, where the
+    // absent-checkout branch is not (the workflow clones web/ first, or fails). `GATE_SKIP_EXIT_CODE`
+    // is a protocol with `gate-run.ts`; ci.yml runs this script as a plain step where any non-zero
+    // code is a failure, so emitting 3 there would turn a declared skip into a hard red. The line
+    // below says what it did not do either way; only the code differs, per the runner reading it.
+    console.log(`check:web-experience-closure — ${inCi ? "NOTHING TO CHECK" : "SKIP"}: ${result.reason}`);
+    if (!inCi) process.exit(GATE_SKIP_EXIT_CODE);
     return;
   }
 
