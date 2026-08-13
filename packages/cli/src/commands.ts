@@ -19,7 +19,7 @@
  * (ADR-0342 D2/D3).
  */
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -53,7 +53,7 @@ import { renderStoredDoc, renderProcessNode } from "@storytree/library/store";
 import { execFileSync } from "node:child_process";
 
 import { adrCommand, adrHelp, type AdrAllocatorLike } from "./adr.js";
-import { expandAtPathFlags, formatAtPathRefusal } from "./at-path.js";
+import { expandAtPathFlags, formatAtPathRefusal, PROSE_FLAGS } from "./at-path.js";
 import {
   arcCommand,
   arcHelp,
@@ -165,6 +165,8 @@ import type { SessionClaimStoreLike, SessionIdentity } from "@storytree/drive";
 import type { ClaimDocT } from "@storytree/notice-board";
 import { findDependents } from "./retire.js";
 import { typeMismatchRefusal } from "./set-value.js";
+import { bannerRefusal, strayPositionalRefusal, truncationRefusal } from "./write-fidelity.js";
+import { foldHistory, renderHistory } from "./artifact-history.js";
 import { storyBuild, storyHelp } from "@storytree/drive";
 import { flipFrontmatterStatus, type AdoptStory, type FlipResult } from "@storytree/drive";
 import { treeCommand } from "./tree.js";
@@ -665,7 +667,53 @@ function rawUnsupported(area: string, sub: string | undefined): Envelope {
   };
 }
 
-export async function rawField(store: Store, id: string, field: string): Promise<Envelope> {
+/**
+ * `--out <path>` — the raw read's own output channel (ADR-0361 D1).
+ *
+ * The bare-bytes read exists to be redirected into a file and written back with `--set field=@path`,
+ * which is exactly what `asset:library-edit-ceremony` prescribes for a field too long to pass
+ * inline. The redirect is the hole: STDOUT is a shared channel, and the invocation every guidance
+ * surface documents (`pnpm storytree …`) prints a two-line run banner onto it ahead of the payload.
+ * Measured 2026-08-08 — 175 bytes of pnpm banner entered the live `session-orchestrator` workflow
+ * and `build:guidance` rendered them into CLAUDE.md and AGENTS.md, the root guidance every session
+ * loads before any tool can run.
+ *
+ * So the CLI writes the file ITSELF and prints an ordinary envelope on stdout. Nothing a wrapper
+ * emits can reach a file this process opened — the corruption is not guarded against, it is
+ * structurally unavailable. That is what closes the arc's first end state: the DOCUMENTED round trip
+ * cannot capture anything but the field's own bytes.
+ *
+ * The stdout form still works and is still right for reading a field into a pipe or an eye. What
+ * changed is which one the ceremony spells.
+ */
+async function rawFieldToFile(raw: string, out: string, id: string, field: string): Promise<Envelope> {
+  try {
+    await writeFile(out, raw, "utf8");
+  } catch (e) {
+    return {
+      ok: false,
+      body: `could not write --out ${out}: ${(e as Error).message}`,
+      next: [`storytree library artifact ${id} --raw ${field}   (to stdout instead)`],
+    };
+  }
+  return {
+    ok: true,
+    body: [
+      `wrote ${raw.length.toLocaleString("en-US")} characters of "${id}".${field} to ${out}`,
+      "",
+      "written by the CLI itself, so no wrapper's banner is in it. write it back with:",
+      `  storytree library artifact ${id} --set ${field}=@${out} --pg`,
+    ].join("\n"),
+    next: [`storytree library artifact ${id} --set ${field}=@${out} --pg`],
+  };
+}
+
+export async function rawField(
+  store: Store,
+  id: string,
+  field: string,
+  out?: string,
+): Promise<Envelope> {
   const stored = await store.getDoc(id);
   if (!stored) {
     return {
@@ -689,6 +737,8 @@ export async function rawField(store: Store, id: string, field: string): Promise
     };
   }
   const raw = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+  // `--out <path>`: the CLI writes the bytes, so the payload never crosses stdout at all (D1 above).
+  if (out !== undefined) return rawFieldToFile(raw, out, id, field);
   // `body` carries the same text so a caller that DOES format the envelope still sees the value —
   // degraded (the render strips trailing whitespace), never wrong.
   const env: RawEnvelope = { ok: true, body: raw, raw };
@@ -982,11 +1032,52 @@ export async function editArtifact(
       // second guard for a field the schema no longer declares would be unreachable code that reads
       // like a live rule.
       // `field=@path` reads the value from a file (long/multi-line prose, no shell mangling).
+      const spec = s.slice(i + 1);
+      // WHICH CHANNEL these bytes crossed, which is what the fidelity guards below turn on
+      // (`write-fidelity.ts`, ADR-0361). A file reaches this process whole; an inline value crossed
+      // a shell that may have ended it early. The distinction has to be taken HERE, before the
+      // `@path` read erases it — after resolution the two are the same string.
+      const inline = !spec.startsWith("@");
       let value: string;
       try {
-        value = await resolveAtPathValue(s.slice(i + 1));
+        value = await resolveAtPathValue(spec);
       } catch (e) {
-        return { ok: false, body: `could not read --set ${field}=${s.slice(i + 1)}: ${(e as Error).message}`, next: [] };
+        return { ok: false, body: `could not read --set ${field}=${spec}: ${(e as Error).message}`, next: [] };
+      }
+      // A value carrying a package manager's run banner (ADR-0361 D2) — the residue of the
+      // documented `pnpm storytree … --raw <field> > file.txt` capture. Checked on BOTH channels:
+      // the banner enters through the READ, so it arrives in a file that is otherwise trustworthy,
+      // and a file captured before `--out` existed is exactly the case this has to catch.
+      const banner = bannerRefusal({ what: `the value for "${field}"`, value });
+      if (banner !== null) {
+        return {
+          ok: false,
+          body: banner,
+          next: [
+            `storytree library artifact ${id} --raw ${field} --out ${field}.txt --pg`,
+            `storytree library artifact ${id} --set ${field}=@${field}.txt --pg`,
+          ],
+        };
+      }
+      // A value that is an exact PREFIX of what the store already holds (ADR-0361 D4) — the shape a
+      // value cut in transit leaves behind. INLINE ONLY: a file's bytes arrived whole, so a prefix
+      // from one is a caller who meant it. The remedy is the file channel, never an override flag.
+      const truncated = truncationRefusal({
+        field,
+        submitted: value,
+        stored: base[field],
+        inline,
+      });
+      if (truncated !== null) {
+        return {
+          ok: false,
+          body: truncated,
+          next: [
+            `storytree library artifact ${id} --raw ${field} --out ${field}.txt --pg`,
+            `storytree library artifact ${id} --set ${field}=@${field}.txt --pg`,
+            `storytree library artifact history ${id} --field ${field} --pg`,
+          ],
+        };
       }
       // The value boundary (`set-value.ts`): a structured JSON payload headed at a string-declared
       // field is refused HERE — after `@path` resolution, since the file's contents are what would
@@ -1514,6 +1605,7 @@ async function libraryHelp(store: Store): Promise<Envelope> {
       "  storytree library artifact <id>            view one artifact",
       "  storytree library artifact list <category> list a category",
       "  storytree library artifact new|edit <id>   create / edit (writes need --pg)",
+      "  storytree library artifact history <id>    what each write did to its fields (the append-only log)",
       "  storytree library tree focus <id>          the local DAG of one artifact",
       "  storytree library artifact retire <id>     retire it (needs --pg) — where a lifecycle-tier row goes to die",
       "  storytree library graduate [--review]      agent-memory → Library worklist (ADR-0095)",
@@ -1534,15 +1626,30 @@ function artifactHelp(): Envelope {
       "",
       "  storytree library artifact <id>             print an artifact to stdout",
       "  storytree library artifact <id> --raw <field>   ONE field's exact stored bytes, alone",
+      "  storytree library artifact <id> --raw <field> --out <path>   the same bytes, into a FILE",
       "  storytree library artifact list <category>  list artifacts in a category",
+      "  storytree library artifact history <id> [--field <f>]   what each write did to its fields",
       "  storytree library artifact new --json '<doc>' | --file <p>   create (needs --pg)",
       "  storytree library artifact edit <id> --set <field>=<value>   edit (needs --pg)",
       "  storytree library artifact retire <id> --reason \"...\" [--superseded-by <ref>]   retire (needs --pg)",
       "  (coming soon: comment <id>)",
       "",
       "`--raw <field>` is the ONE read that breaks the envelope convention on purpose: it writes the",
-      "value ALONE to stdout — no heading, no doctrine, no next: — so it pipes to a file and composes",
-      "with `edit --set <field>=@<that file>`. Nothing that expects an envelope can consume it.",
+      "value ALONE to stdout — no heading, no doctrine, no next: — so it composes with",
+      "`edit --set <field>=@<file>`. Nothing that expects an envelope can consume it.",
+      "",
+      "THE LONG-PROSE ROUND TRIP (ADR-0361). Capture with `--out <path>`, not with a `>` redirect:",
+      "",
+      "  storytree library artifact <id> --raw <field> --out field.txt --pg   # edit field.txt, then",
+      "  storytree library artifact <id> --set <field>=@field.txt --pg",
+      "",
+      "`--out` is written by the CLI itself, so a wrapper's own output cannot enter it — `pnpm",
+      "storytree … --raw <field> > field.txt` captures pnpm's two-line run banner as the field's first",
+      "bytes, and 175 bytes of exactly that once reached CLAUDE.md and AGENTS.md through the live",
+      "session-orchestrator artifact. The write side refuses a banner and refuses an INLINE `--set`",
+      "whose value is a prefix of the stored one (a value a shell cut), naming this round trip both",
+      "times. `history <id>` is the after-the-fact instrument: it reads the append-only log, so it can",
+      "show a loss that current state alone can never reveal.",
     ].join("\n"),
     next: ["storytree library", "storytree library artifact list <category>"],
   };
@@ -2243,6 +2350,8 @@ export const CLI_OPTIONS = {
   file: { type: "string" },
   set: { type: "string", multiple: true },
   raw: { type: "string" },
+  out: { type: "string" },
+  field: { type: "string" },
   "decided-date": { type: "string" },
   "dry-run": { type: "boolean", default: false },
   // `storytree guide --fix` — opt in to enacting the D6 repairs (ADR-0207).
@@ -2406,6 +2515,10 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     set?: string[];
     /** `library artifact <id> --raw <field>` — the bare-bytes read (see {@link rawField}). */
     raw?: string;
+    /** `--raw <field> --out <path>` — write the bytes to a file the CLI opens (ADR-0361 D1). */
+    out?: string;
+    /** `library artifact history <id> --field <f>` — narrow the history to one field. */
+    field?: string;
     /** `adr new --decided --decided-date <YYYY-MM-DD>` — override the derived owner-local date. */
     "decided-date"?: string;
     /** `library export-corpus --id <id>` (repeatable) — scope the live→seed export (ADR-0290). */
@@ -2535,6 +2648,22 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     values = expanded.values;
   }
 
+  // The STRAY-POSITIONAL refusal (ADR-0361 D3) — the one deterministic artefact of a shell that
+  // ended a quoted value early. The tail of a cut value does not vanish; it arrives as extra bare
+  // words, and the dispatch below destructures exactly four positionals and drops the rest. Dropping
+  // them is what let a truncated write report success, so a command carrying a durable PROSE value
+  // refuses arguments no verb will read. It sits here, at the parsing boundary, for the same reason
+  // the `@path` expansion above does: one place, before any verb has a chance not to think about it.
+  {
+    const hasProseValue =
+      (values.set !== undefined && values.set.length > 0) ||
+      [...PROSE_FLAGS].some((f) => (values as Record<string, unknown>)[f] !== undefined);
+    const stray = strayPositionalRefusal({ positionals, hasProseValue });
+    if (stray !== null && !help) {
+      return { ok: false, body: stray, next: [`storytree ${positionals[0] ?? "library"} --help`] };
+    }
+  }
+
   const [area, sub, third, fourth] = positionals;
 
   if (area === undefined) return topHelp(deps.store);
@@ -2542,6 +2671,25 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
   // `--raw <field>` is REFUSED where it is not read, never ignored (the silent-drop defect below).
   if (values.raw !== undefined && !help && !rawIsRead(area, sub)) {
     return rawUnsupported(area, sub);
+  }
+
+  // `--out` without `--raw` is refused for the SAME reason (ADR-0361 D1): it is the output channel of
+  // the bare-bytes read and means nothing without one. Dropped in silence it would be actively
+  // dangerous — a caller who typed `--out field.txt` and got an empty file back would reasonably read
+  // that as "the field is empty", and writing that back is a deletion that reports success.
+  if (values.out !== undefined && values.raw === undefined && !help) {
+    return {
+      ok: false,
+      body: [
+        "`--out <path>` is where `--raw <field>` puts the bytes, and this command has no `--raw`.",
+        "",
+        "It is refused rather than ignored: an ignored `--out` leaves the file you named untouched or",
+        "empty, and an empty capture written back with `--set <field>=@<path>` is a deletion at exit 0.",
+        "",
+        "  storytree library artifact <id> --raw <field> --out <path> --pg",
+      ].join("\n"),
+      next: [`storytree ${area} --help`],
+    };
   }
 
   if (area === "node") {
@@ -3193,7 +3341,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
           next: ["storytree arc list --pg", "storytree arc show <arc-id> --raw intent --pg"],
         };
       }
-      return rawField(deps.store, third, values.raw);
+      return rawField(deps.store, third, values.raw, values.out);
     }
 
     return arcCommand(
@@ -3708,9 +3856,34 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         next: ["storytree library artifact <id>"],
       };
     }
-    // The bare-bytes read: ONE field's exact stored value on stdout, so a partial edit to a long
-    // field can round-trip the untouched parts through `--set <field>=@path`.
-    if (values.raw !== undefined) return rawField(deps.store, third, values.raw);
+    // `history <id>` — what each write DID to this artifact's fields, read from the append-only log
+    // rather than from current state (ADR-0361 D6, `artifact-history.ts`). The one instrument that
+    // can answer "did an edit LOSE content" without computing the answer from the damaged row.
+    if (third === "history") {
+      if (fourth === undefined) {
+        return {
+          ok: false,
+          body: "which artifact? storytree library artifact history <id> [--field <field>]",
+          next: ["storytree library artifact list <category>"],
+        };
+      }
+      const events = await deps.store.readEvents({ id: fourth });
+      return {
+        ok: true,
+        body: renderHistory({
+          id: fourth,
+          ...(values.field !== undefined ? { field: values.field } : {}),
+          entries: foldHistory(events, values.field),
+        }),
+        next: [
+          `storytree library artifact ${fourth}`,
+          `storytree library artifact ${fourth} --raw <field> --out field.txt --pg`,
+        ],
+      };
+    }
+    // The bare-bytes read: ONE field's exact stored value on stdout — or, with `--out <path>`, into
+    // a file this process opens, which is the channel the documented round trip uses (ADR-0361 D1).
+    if (values.raw !== undefined) return rawField(deps.store, third, values.raw, values.out);
     return viewArtifact(deps.store, third, deps.offerId);
   }
 
