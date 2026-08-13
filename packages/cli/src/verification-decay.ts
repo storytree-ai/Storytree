@@ -247,6 +247,23 @@ export interface WorkspaceFacts {
    * stays pure and fixture-testable (the `CoverageGateDeps` pattern).
    */
   exists: (repoRelPath: string) => boolean;
+  /**
+   * Did this repo-relative path EVER exist in this branch's history? Injected for the same reason
+   * as {@link exists}, and backed by git at the caller.
+   *
+   * WHY THIS EXISTS AT ALL. A missing path INSIDE a workspace package is exempt below, and that
+   * exemption is correct: a genuine net-new unit legitimately binds a file it is about to create,
+   * and flagging those would red every honest new spec. But the exemption made two DIFFERENT
+   * situations produce one identical reading — a suite that was RENAMED and a suite that was never
+   * written are both "missing, inside a package" — so the renamed case never resolved and sat in
+   * the not-yet-built pile forever. Current-tree facts cannot separate them by construction; only
+   * history can, which is why this is a second probe rather than a cleverer predicate over
+   * {@link exists}.
+   *
+   * ONLY EVER CONSULTED for a path the workspace says is missing, so it costs nothing on the
+   * common path.
+   */
+  everExisted: (repoRelPath: string) => boolean;
 }
 
 export const CONTRACT_BINDING_DRIFT = "contract-binding-drift";
@@ -284,10 +301,37 @@ export function isInsideDir(filePath: string, dir: string): boolean {
  * converted UAT legs of ADR-0184 genuinely edit). Dropping the package test would flag every honest
  * net-new test file. Neither alone is the rule.
  */
-function isDeadTarget(target: BoundTarget, workspace: WorkspaceFacts): boolean {
-  if (target.kind === "package") return !workspace.packageNames.has(target.value);
-  if (workspace.exists(target.value)) return false;
-  return !workspace.packageDirs.some((dir) => isInsideDir(target.value, dir));
+/**
+ * What a binding's target IS, once the workspace and its history have both been asked.
+ *
+ * `pending` is the one verdict that is NOT a finding: a net-new unit binding a file it is about to
+ * create. Keeping it a named verdict rather than a `false` is the point — the bug this classifier
+ * fixes was that `pending` and `renamed` were the same answer.
+ */
+export type TargetVerdict = "live" | "dead" | "renamed" | "pending";
+
+/**
+ * PURE: classify one bound target against the workspace as it is, and — only when the workspace
+ * says the path is missing — against the branch's history.
+ *
+ * THE DISCRIMINATION THIS EXISTS FOR. A missing path inside a workspace package used to return a
+ * flat "not dead", which collapsed two different situations into one reading: a suite that was
+ * RENAMED (its binding now names a path that stopped existing) and a suite that was never written
+ * (a net-new unit naming a path that has not existed yet). Both read as pending work, so the
+ * renamed case never resolved — and on a `--real` rebuild the leaf would AUTHOR the file the stale
+ * path names, producing a second suite beside the real one.
+ *
+ * THE EXEMPTION IS PRESERVED EXACTLY, which is the constraint that shaped this. `pending` still
+ * yields no finding, so a genuine net-new unit is untouched. Nothing here widens what is reported
+ * on the honest path; the history probe only ever SPLITS the population that was already exempt.
+ */
+export function classifyTarget(target: BoundTarget, workspace: WorkspaceFacts): TargetVerdict {
+  if (target.kind === "package") {
+    return workspace.packageNames.has(target.value) ? "live" : "dead";
+  }
+  if (workspace.exists(target.value)) return "live";
+  if (!workspace.packageDirs.some((dir) => isInsideDir(target.value, dir))) return "dead";
+  return workspace.everExisted(target.value) ? "renamed" : "pending";
 }
 
 /**
@@ -302,6 +346,13 @@ function isDeadTarget(target: BoundTarget, workspace: WorkspaceFacts): boolean {
  * THE FALSE-POSITIVE SURFACE, stated rather than implied: a net-new unit that will create a NEW
  * package legitimately binds paths outside every package that exists today, and reads as drift here.
  * That is why this is advisory and not a block.
+ *
+ * TWO REPAIRS, NOT ONE, since the renamed/never-written split landed. A `dead` target names a place
+ * the code was never or is no longer housed — re-bind the node or retire it. A `renamed` target
+ * names a path that HAS history and no longer resolves — the suite moved, so re-point the binding
+ * at where it moved to. They are reported with different phrases because they are different
+ * repairs, and a reader who cannot tell them apart will do the wrong one: re-authoring a suite that
+ * already exists under another name is the ADR-0085 / ADR-0097 proof-theater shape.
  */
 export function findContractBindingDrift(
   bindings: readonly ProofBinding[],
@@ -312,11 +363,14 @@ export function findContractBindingDrift(
     const dead: string[] = [];
     const seen = new Set<string>();
     for (const target of binding.targets) {
-      if (!isDeadTarget(target, workspace)) continue;
+      const verdict = classifyTarget(target, workspace);
+      if (verdict === "live" || verdict === "pending") continue;
       const phrase =
-        target.kind === "package"
-          ? `${target.role} filters \`${target.value}\` (no workspace package provides it, so \`pnpm --filter\` exits 0 without running)`
-          : `${target.role} binds \`${target.value}\` (missing, and outside every workspace package)`;
+        verdict === "renamed"
+          ? `${target.role} binds \`${target.value}\` (missing, but this path HAS history — the suite was renamed or deleted, so re-point the binding; a \`--real\` rebuild would author a second suite here)`
+          : target.kind === "package"
+            ? `${target.role} filters \`${target.value}\` (no workspace package provides it, so \`pnpm --filter\` exits 0 without running)`
+            : `${target.role} binds \`${target.value}\` (missing, and outside every workspace package)`;
       if (seen.has(phrase)) continue;
       seen.add(phrase);
       dead.push(phrase);

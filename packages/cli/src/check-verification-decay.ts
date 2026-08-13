@@ -167,6 +167,24 @@ const CEILINGS = {
    * remedy is still not a silent raise. Say so AT this number with the node named (ADR-0269 4(f)),
    * or narrow the finding; absorbing an unrelated backlog under an unchanged aperture stays the
    * gaming move ADR-0252 D3 fenced.
+   *
+   * APERTURE ENLARGED 2026-08-13, AND THE NUMBER DID NOT MOVE — recorded here because ADR-0269 4(f)
+   * asks for the decomposition AT the number, and a silent widening is exactly what would make a
+   * later `0` unreadable. The renamed/never-written split ({@link classifyTarget}) added a THIRD
+   * reportable shape: a bound path that is missing, sits INSIDE a workspace package, and HAS history
+   * — previously indistinguishable from a net-new unit's not-yet-authored file and therefore exempt.
+   * A genuine enlargement of what the instrument scans is ADR-0269's one sanctioned upward move, so
+   * a rise here would have been legitimate. IT MEASURED ZERO: the first real sweep over the widened
+   * aperture located no renamed binding in the corpus, so the ceiling stays 0 and no upward move was
+   * taken or is owed.
+   *
+   * THE ZERO IS MEASURED, NOT ASSUMED, and the control is re-runnable — which matters because a
+   * subtractive probe that had silently failed would ALSO report zero, and would read as a healthy
+   * repo (the #970 blind-loader finding). Control: `git mv packages/agent/src/edit-file-replace-all
+   * .test.ts packages/agent/src/renamed-probe.test.ts`, then run this check. It located exactly one
+   * signal — `leaf-tool-surface: real.testFile binds ... (missing, but this path HAS history ...)` —
+   * and reported `contract-binding-drift (1/0 OVER CEILING)`. Restore with the inverse `git mv`.
+   * Run that control before trusting a future zero here.
    */
   [CONTRACT_BINDING_DRIFT]: 0,
   /**
@@ -453,7 +471,40 @@ function loadWorkspaceFacts(root: string): WorkspaceFacts {
     packageNames,
     packageDirs,
     exists: (rel) => existsSync(path.join(root, rel)),
+    everExisted: (rel) => pathHasHistory(root, rel),
   };
+}
+
+/**
+ * Has `rel` ever existed in this branch's history? Backed by `git rev-list -n 1 HEAD -- <path>`,
+ * which prints the most recent commit touching that path and NOTHING when the path has no history.
+ *
+ * THROWS RATHER THAN ANSWERING FALSE when git itself cannot be consulted, and that direction is the
+ * whole point (the #970 blind-loader finding, generalised as
+ * `pattern:backstop-trigger-must-be-observable-in-run`). This probe is SUBTRACTIVE: every `renamed`
+ * finding comes from a positive answer, so a probe that failed quietly would return false for every
+ * path, emit zero renamed findings, and make the repo look CLEANER than a working one — a blind
+ * instrument reading as a healthy repo, which is the exact fault class this arc exists to fence. A
+ * throw instead surfaces as the instrument FAILING TO RUN, which reds the gate independently of any
+ * ceiling (ADR-0256) and whose remedy is a PASS rather than a drain.
+ *
+ * An EMPTY answer that git successfully produced is a real FALSE, not a failure — that is the
+ * net-new case the exemption protects. Only a `null` (git could not be run at all) throws.
+ *
+ * Reuses this module's own {@link git} helper rather than adding a second `execFileSync` call site,
+ * and INVERTS its degradation on purpose: `git` returns `null` for every caller that degrades, but
+ * degrading here would silence findings rather than charge them, so `null` is converted to a throw
+ * at exactly this one site.
+ */
+function pathHasHistory(root: string, rel: string): boolean {
+  const out = git(root, ["rev-list", "-n", "1", "HEAD", "--", rel]);
+  if (out === null) {
+    throw new Error(
+      `contract-binding-drift: git could not be consulted for the history of ${rel} — ` +
+        "the renamed/never-written split is unobservable, and answering false would under-report",
+    );
+  }
+  return out.length > 0;
 }
 
 // ---------------------------------------------------------------------------
