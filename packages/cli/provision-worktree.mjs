@@ -35,7 +35,7 @@
 //     `ERR_MODULE_NOT_FOUND`, `tsc is not recognized`). `lockfileAdvanced` closes that: the install is
 //     re-run when the lockfile has moved past the one node_modules was built from. At one or two live
 //     worktrees this was a rare annoyance; at the ~49 registered here it is routine.
-import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -60,6 +60,78 @@ export function thisWorktreeRoot() {
  */
 export function needsProvision(root) {
   return !existsSync(join(root, "node_modules", ".modules.yaml"));
+}
+
+/**
+ * True when an install COMPLETED here but linked NOTHING — the third condition, and the one both
+ * older markers read as healthy.
+ *
+ * Observed failure: `pnpm install` in a fresh worktree printed "Lockfile is up to date, resolution
+ * step is skipped" / "Already up to date" and exited 0, having written `.modules.yaml` and its
+ * `.pnpm/lock.yaml` copy but no package links and no `.bin` at all. {@link needsProvision} therefore
+ * said provisioned, {@link lockfileAdvanced} said current, and the hook no-opped past a worktree that
+ * could not run a single binary. The session then met `'tsx' is not recognized` — which CLAUDE.md
+ * documents as the unrelated worktree-root RESOLUTION trap, so the documented remedy could not help.
+ *
+ * WHERE THE QUESTION IS ASKED, and why not at the root. The obvious probe — "does
+ * `node_modules/.bin` exist at the workspace root?" — is WRONG here and was caught only by running
+ * it against a healthy worktree, which it failed. In a pnpm WORKSPACE each package's dependencies
+ * (and their binaries) are linked into THAT package's own `node_modules`, so this repo's root
+ * `node_modules` legitimately holds only `.modules.yaml` and `.pnpm` and no `.bin` at all, while
+ * `pnpm exec`, tsx and the gate all work perfectly. Root `.bin` presence is therefore evidence of
+ * nothing. The per-package links are what the broken install actually failed to create, and what
+ * `'tsx' is not recognized` is actually about, so that is where this looks.
+ *
+ * STRICTLY "linked NOTHING", matching the observed failure rather than generalising past it: it
+ * fires only when NO workspace package has a `node_modules` of its own. A partially-linked tree is
+ * not claimed — that is a different condition with different evidence, and asserting it here would
+ * be guessing.
+ *
+ * SCOPED, so it cannot fire where it has no standing: a worktree with no completed install returns
+ * false (that is {@link needsProvision}'s condition, and it already forces the install), so does a
+ * directory that is not a pnpm root, and so does one where no workspace package was found at all —
+ * absence of packages is absence of evidence, not evidence of breakage. Like {@link lockfileAdvanced}
+ * it never reinstalls on a guess, and a reinstall CLEARS the condition, so it cannot latch.
+ */
+export function needsRelink(root) {
+  const modules = join(root, "node_modules");
+  // Not provisioned, or not a pnpm root: not this predicate's question to answer.
+  if (!existsSync(join(modules, ".modules.yaml"))) return false;
+  if (!existsSync(join(root, "pnpm-lock.yaml"))) return false;
+  const { packages, linked } = workspaceLinkage(root);
+  if (packages === 0) return false;
+  return linked === 0;
+}
+
+/** The workspace groups a storytree checkout declares (`packages/*`, `apps/*`). */
+const WORKSPACE_GROUPS = ["packages", "apps"];
+
+/**
+ * Count the workspace packages on disk and how many carry their own `node_modules`. A directory
+ * counts as a package only if it holds a `package.json`, so stray folders never dilute the ratio.
+ * Never throws — an unreadable group is skipped, which keeps the caller's fail-open contract.
+ */
+function workspaceLinkage(root) {
+  let packages = 0;
+  let linked = 0;
+  for (const group of WORKSPACE_GROUPS) {
+    const dir = join(root, group);
+    if (!existsSync(dir)) continue;
+    let entries;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const pkg = join(dir, entry.name);
+      if (!existsSync(join(pkg, "package.json"))) continue;
+      packages++;
+      if (existsSync(join(pkg, "node_modules"))) linked++;
+    }
+  }
+  return { packages, linked };
 }
 
 /**
@@ -164,20 +236,32 @@ export function provisionWorktree(opts = {}) {
   // Only ask the staleness question when an install DID complete — on a fresh worktree there is no
   // installed state for the lockfile to have advanced past, and `fresh` already forces the install.
   const stale = !fresh && lockfileAdvanced(target);
-  if (!fresh && !stale) {
+  // And only ask the link question when the install completed and the lockfile is NOT the culprit, so
+  // each condition names a distinct cause rather than two of them racing to describe one reinstall.
+  const unlinked = !fresh && !stale && needsRelink(target);
+  if (!fresh && !stale && !unlinked) {
     return { provisioned: false, ok: true, code: 0, reason: "already-provisioned" };
   }
   const condition = fresh
     ? `fresh worktree at ${target}`
-    : `worktree at ${target} is STALE — pnpm-lock.yaml has advanced past the node_modules built from it`;
+    : stale
+      ? `worktree at ${target} is STALE — pnpm-lock.yaml has advanced past the node_modules built from it`
+      : `worktree at ${target} is UNLINKED — an install completed here but linked no packages (no node_modules/.bin)`;
+  // One name per condition, carried through the log, the result and the agent-visible signal. Keeping
+  // them distinct is the entire point: all three present identically at the tool call (a module that
+  // will not resolve) and have different causes, and the wrong name sends the session to a remedy that
+  // cannot work — which is the failure each of these three frictions actually recorded.
+  const settled = fresh ? "ready" : stale ? "refreshed" : "relinked";
+  const okReason = fresh ? "installed" : stale ? "refreshed" : "relinked";
+  const failReason = fresh ? "install-failed" : stale ? "refresh-failed" : "relink-failed";
   const attempts = Math.max(1, retries + 1);
   let last = { ok: false, code: 1 };
   for (let i = 1; i <= attempts; i++) {
     log(`[provision-worktree] ${condition} — running pnpm install (attempt ${i}/${attempts})…`);
     last = install(target);
     if (last.ok) {
-      log(`[provision-worktree] pnpm install complete — worktree ${fresh ? "ready" : "refreshed"}.`);
-      return { provisioned: true, ok: true, code: 0, reason: fresh ? "installed" : "refreshed" };
+      log(`[provision-worktree] pnpm install complete — worktree ${settled}.`);
+      return { provisioned: true, ok: true, code: 0, reason: okReason };
     }
     if (i < attempts) {
       log(`[provision-worktree] attempt ${i} failed (exit ${last.code}); retrying from the warm store…`);
@@ -187,12 +271,7 @@ export function provisionWorktree(opts = {}) {
     `[provision-worktree] pnpm install FAILED after ${attempts} attempt(s) (exit ${last.code}); ` +
       `signalling the agent to run 'pnpm install' here.`,
   );
-  return {
-    provisioned: true,
-    ok: false,
-    code: last.code || 1,
-    reason: fresh ? "install-failed" : "refresh-failed",
-  };
+  return { provisioned: true, ok: false, code: last.code || 1, reason: failReason };
 }
 
 /**
@@ -208,14 +287,33 @@ export function provisionWorktree(opts = {}) {
  * session never touched. Naming the cause up front is what stops the agent debugging the wrong file.
  *
  * @param {string} root Absolute worktree root, named in the message so the agent runs install in the right place.
- * @param {boolean} [stale] True when node_modules is present but built from an older lockfile.
+ * @param {"fresh"|"stale"|"unlinked"} [condition] Which of the three states this worktree is in.
  */
-export function unprovisionedContext(root, stale = false) {
+export function unprovisionedContext(root, condition = "fresh") {
   const symptoms =
     `(Skipping it surfaces later as a cryptic \`ERR_MODULE_NOT_FOUND\`, a \`TS2307\` on a package this ` +
     `session never touched, or \`tsc is not recognized\` — errors that name the wrong culprit.)`;
-  const text = stale
-    ? `This git worktree's node_modules is STALE: it was installed against an OLDER \`pnpm-lock.yaml\` ` +
+  if (condition === "unlinked") {
+    // Deliberately does NOT say the install "did not complete": it DID, and it reported success. A
+    // session told otherwise re-runs the install it just ran, or goes hunting the resolution trap
+    // CLAUDE.md documents for a bare `tsx` at a worktree root — neither of which is the cause here.
+    return JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: "SessionStart",
+        additionalContext:
+          `This git worktree's \`pnpm install\` REPORTED SUCCESS but linked no packages — ` +
+          `\`node_modules\` has no \`.bin\`, so nothing here can execute. Do not read this as the ` +
+          `worktree-root resolution trap (invoking \`tsx\` bare): the cause is an unlinked tree, and ` +
+          `that remedy cannot fix it. Run \`pnpm install\` in the worktree root (${root}) BEFORE any ` +
+          `\`pnpm storytree …\`, \`tsx\`, \`pnpm gate\`, \`pnpm -r\`, or Studio command; note that it ` +
+          `may again print "Already up to date", which is about RESOLUTION and not linking — confirm ` +
+          `\`node_modules/.bin\` exists afterwards. ${symptoms}`,
+      },
+    });
+  }
+  const text =
+    condition === "stale"
+      ? `This git worktree's node_modules is STALE: it was installed against an OLDER \`pnpm-lock.yaml\` ` +
       `than the one now checked out here — a new workspace package or third-party dependency landed on ` +
       `\`main\` since this worktree was provisioned — and the automatic refresh (the SessionStart ` +
       `provision hook) did not complete. BEFORE any \`pnpm storytree …\`, \`tsx\`, \`pnpm gate\`, ` +
@@ -242,7 +340,9 @@ export function unprovisionedContext(root, stale = false) {
  */
 export function hookStdout(result, root, hookMode) {
   if (!hookMode || result.ok) return "";
-  return unprovisionedContext(root, result.reason === "refresh-failed");
+  const condition =
+    result.reason === "refresh-failed" ? "stale" : result.reason === "relink-failed" ? "unlinked" : "fresh";
+  return unprovisionedContext(root, condition);
 }
 
 /**

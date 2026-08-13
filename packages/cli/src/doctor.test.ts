@@ -17,6 +17,7 @@ import {
   type DoctorObservations,
 } from "./doctor.js";
 import { GUIDANCE_BUDGET_BYTES, measureGuidanceSurface } from "./session-cost.js";
+import { needsRelink } from "../provision-worktree.mjs";
 
 /**
  * The machine floor for `storytree doctor` (ADR-0207 D6). doctor is the keystone the installer
@@ -38,6 +39,7 @@ const HEALTHY: DoctorObservations = {
   gitPresent: true,
   nodeMajor: NODE_MAJOR_FLOOR,
   provisioned: true,
+  unlinked: false,
   dependencyCurrency: "current",
   remoteReachable: true,
   claudeCliPresent: true,
@@ -54,6 +56,7 @@ const BROKEN: DoctorObservations = {
   gitPresent: false,
   nodeMajor: null,
   provisioned: false,
+  unlinked: false,
   dependencyCurrency: "unknown",
   remoteReachable: false,
   claudeCliPresent: false,
@@ -245,6 +248,43 @@ function makeCheckout(provisioned: boolean, lock?: { wanted?: string; current?: 
 
 const LOCK_OLD = "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      zod: 3.23.8\n";
 const LOCK_NEW = `${LOCK_OLD}  packages/new-organism:\n    dependencies:\n      zod: 3.23.8\n`;
+
+// REGRESSION — an install that completes, matches the lockfile and links NOTHING was reachable, and
+// both neighbouring probes reported PASS over it. `pnpm install` printed "Already up to date" and
+// exited 0 while leaving node_modules with no `.bin`, so the checkout could not run tsx, tsc or the
+// gate, and the symptom (`'tsx' is not recognized`) is documented elsewhere as an unrelated trap.
+test("workspace-linked: FAILS on an install that completed but linked nothing, while its neighbours pass", () => {
+  const obs: DoctorObservations = { ...HEALTHY, provisioned: true, unlinked: true, dependencyCurrency: "current" };
+  assert.equal(probeNamed(obs, "checkout-provisioned")?.level, "PASS", "the install DID complete");
+  assert.equal(probeNamed(obs, "dependencies-current")?.level, "PASS", "the lockfile did NOT move");
+  const linked = probeNamed(obs, "workspace-linked");
+  assert.equal(linked?.level, "FAIL", "the one probe that can see the broken tree says so");
+  assert.match(linked?.fixHint ?? "", /Already up to date/, "it warns the remedy may print a reassuring line");
+});
+
+test("workspace-linked: passes on a healthy checkout and stays silent on an unprovisioned one", () => {
+  assert.equal(probeNamed(HEALTHY, "workspace-linked")?.level, "PASS");
+  assert.equal(probeNamed(BROKEN, "workspace-linked"), undefined, "unprovisioned is checkout-provisioned's answer");
+});
+
+test("needsRelink on real files: an install with no workspace package linked is seen, a linked one is not", () => {
+  const unlinked = makeCheckout(true, { wanted: LOCK_NEW, current: LOCK_NEW });
+  const healthy = makeCheckout(true, { wanted: LOCK_NEW, current: LOCK_NEW });
+  try {
+    // Both carry a workspace package; only `healthy` has that package's node_modules linked. The
+    // ROOT has no `.bin` in either — as it does not in this repo — so a root-`.bin` probe would
+    // have called both of them broken.
+    for (const root of [unlinked, healthy]) {
+      mkdirSync(join(root, "packages", "alpha"), { recursive: true });
+      writeFileSync(join(root, "packages", "alpha", "package.json"), '{"name":"alpha"}\n');
+    }
+    mkdirSync(join(healthy, "packages", "alpha", "node_modules"), { recursive: true });
+    assert.equal(needsRelink(unlinked), true, "nothing linked ⇒ the broken tree is seen");
+    assert.equal(needsRelink(healthy), false, "a linked package ⇒ healthy, despite no root .bin");
+  } finally {
+    for (const d of [unlinked, healthy]) rmSync(d, { recursive: true, force: true });
+  }
+});
 
 test("dependencyCurrency: the lockfile advancing under a provisioned checkout reads as stale", () => {
   const root = makeCheckout(true, { wanted: LOCK_NEW, current: LOCK_OLD });
