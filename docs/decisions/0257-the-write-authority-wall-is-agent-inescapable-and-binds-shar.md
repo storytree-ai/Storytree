@@ -140,13 +140,18 @@ open. *(Verified 2026-08-02 against the installed block: 93 rules, none matching
 of heavy concurrent use produced zero evidenced worktree-to-worktree writes, against 13 for the lobby.
 It returns as work if an incident is filed.
 
-**Current split (corrected in place 2026-08-13 by ADR-0355).** The preserved Codex adapter
-(D2/D3/D7) and exact lobby actuator are installed and attested on the supported Windows host. The
-managed OS profile contains Codex shell and patch routes to one claimed worktree, and the managed
-hook re-reads its live claim. Claude remains on ADR-0284's static, claim-blind file-tool wall: its
-shell and accepted sibling-worktree gap are unchanged. Shared Git authority is not granted broadly;
-the trusted actuator owns the exact bootstrap and launch operations. **D9's bar remains retired** by
-ADR-0284 D7; ADR-0355 D5 and its installed-host smoke are the governing Codex delivery evidence.
+**Current split (corrected in place 2026-08-13, then RE-corrected 2026-08-14 per ADR-0139 — see
+ADR-0355 § Delivery status).** The preserved Codex adapter (D2/D3/D7) and exact lobby actuator are
+installed on the supported Windows host, and the managed OS profile's individual writer-scope
+behaviour (contains Codex shell and patch routes to one claimed worktree; the managed hook re-reads
+its live claim) was observed. **That is not the same as "attested":** ADR-0355 D5's live smoke — the
+full lobby-bootstrap-through-write lifecycle — has NOT passed; the lobby bootstrap hits a credential
+circularity that stops it reaching a claimed worktree at all on a live task. Claude remains on
+ADR-0284's static, claim-blind file-tool wall: its shell and accepted sibling-worktree gap are
+unchanged. Shared Git authority is not granted broadly; the trusted actuator owns the exact bootstrap
+and launch operations, once the credential fork is resolved. **D9's bar remains retired** by ADR-0284
+D7; ADR-0355 D5 and its installed-host smoke are the governing Codex delivery evidence, and that
+evidence does not yet exist.
 [ADR-0245](0245-cross-session-signalling-addresses-the-shared-primary-checko.md) D5.2's gate-time
 lobby arm is no longer the *only* live enforcement — since increment 3 this ADR's static layer refuses
 lobby writes before mutation — but it still stands as the landing-gate backstop this ADR sits in front
@@ -238,9 +243,14 @@ cannot be forged by the writer, expires, and is read-only to the writer profile.
    clause's own inescapability requirement. On Claude the composition is now the static
    `permissions.deny` block ALONE. Codex, where the hook pairs with an OS-level managed profile that
    also binds the shell, is the one surface where D2/D3's composition still reads correctly.
-   ADR-0355's repository generator, trusted actuator, administrator-owned installation, and
-   three-write live attestation are complete as of 2026-08-13; re-attestation remains operator-owned
-   when the managed payload, Codex version, or Windows sandbox changes.)*
+   ADR-0355's repository generator, trusted actuator, and administrator-owned installation are
+   complete as of 2026-08-13, and the three-write attestation appears genuine; what is **NOT**
+   complete is the LIFECYCLE (corrected in place 2026-08-14 per ADR-0139 — a fresh Codex desktop
+   session that same day could not reach a claimed worktree from the lobby at all; see ADR-0355 §
+   Delivery status for the credential circularity blocking it). Attesting a writer already inside a
+   worktree does not attest how it got there. Re-attestation remains operator-owned when the managed
+   payload, Codex version, or Windows sandbox changes, and a first lobby-to-write lifecycle
+   attestation is still outstanding.)*
 
 2. **Codex requires a managed permission profile and managed hooks together.** The Codex adapter is
    delivered from the system/enterprise managed layer, not only from repository `.codex` config:
@@ -403,8 +413,13 @@ cannot be forged by the writer, expires, and is read-only to the writer profile.
 **Bad / accepted**
 
 - The Codex managed Storytree profiles, interactive claim hook, live-claim reader, and trusted
-  actuator are installed and behaviourally attested on the supported operator boundary (ADR-0355):
-  lobby and sibling writes refused, the current claimed worktree admitted. That proof is
+  actuator are installed on the supported operator boundary (ADR-0355), and the individual
+  writer-scope profiles were observed to admit/refuse writes as designed — lobby and sibling writes
+  refused, the current claimed worktree admitted. **What is not yet behaviourally attested is the
+  LIFECYCLE** (corrected in place 2026-08-14 per ADR-0139 — this bullet previously read those three
+  writes as settling the matter; a fresh Codex desktop session on 2026-08-13 showed it does not,
+  because the lobby bootstrap cannot yet reach a claimed worktree at all — see ADR-0355 § Delivery
+  status). That proof, once obtained, is
   machine/version-specific and must be repeated when the managed payload, Codex version, or Windows
   sandbox changes; an unmanaged full-access Codex process is not the writer profile.
 - Codex permission profiles are currently beta and require Codex 0.138.0 or later for managed

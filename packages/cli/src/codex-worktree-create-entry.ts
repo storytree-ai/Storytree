@@ -8,6 +8,7 @@ import { closePool, createPool } from "@storytree/library/store/connection";
 import { PgLibraryStore } from "@storytree/library/store/pg-store";
 import { PgClaimStore } from "@storytree/notice-board/store/claim-store";
 
+import { promoteBootstrapClaimsToWork } from "./codex-session-containment.js";
 import { createWorktree, defaultWorktreeCreateIo } from "./worktree-create.js";
 
 interface BootstrapRequest {
@@ -127,6 +128,25 @@ async function main(): Promise<void> {
     );
     if (!envelope.ok) throw new Error(envelope.body);
     const worktree = worktreeFromEnvelope(envelope.body, primary);
+
+    // The ceremony leaves EXPLORING claims (ADR-0200 D3). `authorizeCodexWriter` admits a writer
+    // only on a live WORK claim naming this session and branch, and the actuator has no second turn
+    // in which to run `noticeboard declare` the way an interactive Claude session does — so the
+    // promotion belongs to this one fail-closed operation. Branch and session identity are read back
+    // from the CREATED worktree's own Git topology rather than assumed from the mint, so the claim
+    // is stamped to what the writer's hook will independently observe.
+    const branch = execFileSync("git", ["-C", worktree, "rev-parse", "--abbrev-ref", "HEAD"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    }).trim();
+    const promotion = await promoteBootstrapClaimsToWork({
+      ledger: new PgClaimStore(handle.pool),
+      nodes: [request.node],
+      sessionId: path.basename(worktree),
+      branch,
+      intent: request.intent,
+    });
+    if (!promotion.ok) throw new Error(promotion.reason);
 
     await closePool(handle.pool, handle.connector);
     handle = undefined;

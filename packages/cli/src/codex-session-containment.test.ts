@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import type { ClaimDocT } from "@storytree/notice-board";
+import type { ClaimDocT, ClaimResult } from "@storytree/notice-board";
 
 import {
   authorizeCodexWriter,
@@ -14,7 +14,9 @@ import {
   defaultCodexContainmentIo,
   decideInteractiveCodexToolUse,
   parseCodexVersion,
+  promoteBootstrapClaimsToWork,
   resolveCodexSessionTopology,
+  type BootstrapClaimLedger,
   type CodexContainmentIo,
   type CodexGitProbe,
 } from "./codex-session-containment.js";
@@ -148,6 +150,113 @@ test("writer authority requires a fresh work claim for this session and current 
     assert.equal(result.ok, false, name);
     if (!result.ok) assert.match(result.reason, message, name);
   }
+});
+
+function promotingLedger(
+  answer: (unitId: string) => ClaimResult | Promise<ClaimResult>,
+): { ledger: BootstrapClaimLedger; calls: Array<{ unitId: string; sessionId: string; branch: string }> } {
+  const calls: Array<{ unitId: string; sessionId: string; branch: string }> = [];
+  return {
+    calls,
+    ledger: {
+      async upgrade(unitId, sessionId, opts) {
+        calls.push({ unitId, sessionId, branch: opts.branch });
+        return await answer(unitId);
+      },
+    },
+  };
+}
+
+test("the lobby bootstrap promotes its exploring claims to the work grade the writer needs", async () => {
+  const { ledger, calls } = promotingLedger((unitId) => ({
+    acquired: true,
+    reclaimed: false,
+    claim: claim({ unitId, grade: "work" }),
+  }));
+
+  const result = await promoteBootstrapClaimsToWork({
+    ledger,
+    nodes: ["codex-session-lifecycle"],
+    sessionId: "codex-current",
+    branch: "claude/codex-current",
+    intent: "close the containment gap",
+  });
+
+  assert.deepEqual(result, { ok: true, promoted: ["codex-session-lifecycle"] });
+  assert.deepEqual(calls, [
+    {
+      unitId: "codex-session-lifecycle",
+      sessionId: "codex-current",
+      branch: "claude/codex-current",
+    },
+  ]);
+
+  // The whole point: what the ceremony leaves must now satisfy the writer gate for the same
+  // identity. An exploring claim does not, which is the defect this closes.
+  const promoted = claim({ grade: "work" });
+  assert.equal(authorizeCodexWriter(topology(), [promoted], NOW).ok, true);
+  assert.equal(authorizeCodexWriter(topology(), [claim({ grade: "exploring" })], NOW).ok, false);
+});
+
+test("bootstrap promotion fails closed on a refusal, a wrong grade, or a mismatched identity", async () => {
+  const held = claim({ sessionId: "codex-sibling", branch: "claude/codex-sibling" });
+  const cases: Array<[string, ClaimResult | "throw", RegExp]> = [
+    ["queued behind a holder", { acquired: false, heldBy: held }, /REFUSED — held by codex-sibling/],
+    [
+      "grade did not land on work",
+      { acquired: true, reclaimed: false, claim: claim({ grade: "exploring" }) },
+      /returned grade exploring, not work/,
+    ],
+    [
+      "claim stamped to another branch",
+      { acquired: true, reclaimed: false, claim: claim({ branch: "claude/other" }) },
+      /not the minted codex-current\/claude\/codex-current/,
+    ],
+    ["the ledger threw", "throw", /FAILED: ledger unreachable/],
+  ];
+
+  for (const [name, answer, message] of cases) {
+    const { ledger } = promotingLedger(() => {
+      if (answer === "throw") throw new Error("ledger unreachable");
+      return answer;
+    });
+    const result = await promoteBootstrapClaimsToWork({
+      ledger,
+      nodes: ["codex-session-lifecycle"],
+      sessionId: "codex-current",
+      branch: "claude/codex-current",
+      intent: "close the containment gap",
+    });
+    assert.equal(result.ok, false, name);
+    if (!result.ok) assert.match(result.reason, message, name);
+  }
+
+  // A partial promotion is a refusal that NAMES what already landed — a caller reading it as
+  // success would launch a writer the per-write hook must then refuse.
+  const { ledger: partial } = promotingLedger((unitId) =>
+    unitId === "first"
+      ? { acquired: true, reclaimed: false, claim: claim({ unitId }) }
+      : { acquired: false, heldBy: held },
+  );
+  const mixed = await promoteBootstrapClaimsToWork({
+    ledger: partial,
+    nodes: ["first", "second"],
+    sessionId: "codex-current",
+    branch: "claude/codex-current",
+    intent: "close the containment gap",
+  });
+  assert.equal(mixed.ok, false);
+  if (!mixed.ok) assert.match(mixed.reason, /already promoted: first/);
+
+  const empty = await promoteBootstrapClaimsToWork({
+    ledger: promotingLedger(() => assert.fail("must not reach the ledger")).ledger,
+    nodes: [],
+    sessionId: "codex-current",
+    branch: "claude/codex-current",
+    intent: "close the containment gap",
+  });
+  assert.equal(empty.ok, false);
+  if (!empty.ok) assert.match(empty.reason, /claimed nothing/);
 });
 
 test("managed bundle selects one exact profile, omits full access, and never mixes sandbox_mode", () => {
@@ -314,6 +423,45 @@ test("lobby bundle remains read-only and names only the trusted bootstrap actuat
   ]);
   assert.equal(unavailableBootstrap.status, 2, unavailableBootstrap.stderr);
   assert.match(unavailableBootstrap.stderr, /hash-pinned|not configured|trusted actuator refused/i);
+});
+
+test("the writer launch requires a work grade and gets scratch it is actually granted", () => {
+  const authority = authorizeCodexWriter(topology(), [claim()], NOW);
+  if (!authority.ok) assert.fail(authority.reason);
+  const bundle = buildCodexContainmentBundle({
+    authority,
+    codexVersion: "codex-cli 0.145.0",
+    managedDir: path.resolve("C:/ProgramData/OpenAI/Codex/Storytree"),
+    managedNodePath: path.resolve("C:/Program Files/nodejs/node.exe"),
+    gitCommand: [process.execPath],
+  });
+  if (!bundle.ok) assert.fail(bundle.reason);
+
+  // ADR-0355 D2 requires the live-claim check to fail CLOSED. A gradeless claim used to satisfy it,
+  // which admitted exactly the exploring row the bootstrap leaves behind.
+  assert.match(bundle.trustedActuatorScript, /\$_\.grade -eq 'work'/);
+  assert.doesNotMatch(bundle.trustedActuatorScript, /\$null -eq \$_\.grade/);
+
+  // The profile grants write only under the current worktree, so scratch has to live there or the
+  // toolchain cannot start inside its own grant.
+  assert.match(bundle.trustedActuatorScript, /Set-WorktreeScratch \$CanonicalWorktree/);
+  assert.match(bundle.trustedActuatorScript, /\$env:TEMP = \$Scratch/);
+  assert.match(bundle.trustedActuatorScript, /\$env:TMP = \$Scratch/);
+
+  // The credential is auth.json, not the whole tree — denying the tree hid the skills the same
+  // directory advertises. Both halves now name the same file.
+  //
+  // Asserted structurally rather than against a literal path: the TOML embeds `JSON.stringify` of a
+  // real absolute path, so the separator is the HOST's (`\\` on Windows, `/` on the Linux runner).
+  // Every `.codex` filesystem SECTION must name auth.json; the writer profile's in-worktree
+  // `".codex" = "deny"` is a key, not a section, so it is deliberately not caught here.
+  const codexDenySections = bundle.requirementsToml
+    .split("\n")
+    .filter((line) => line.startsWith("[permissions.") && line.includes(".codex"));
+  assert.ok(codexDenySections.length > 0, "expected at least one .codex deny section");
+  for (const section of codexDenySections) {
+    assert.match(section, /auth\.json"\]$/, `must deny the credential, not the tree: ${section}`);
+  }
 });
 
 test("trusted payload configuration is absolute, administrator-owned, and hash-pinned", () => {

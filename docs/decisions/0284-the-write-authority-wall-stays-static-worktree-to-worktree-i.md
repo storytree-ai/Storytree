@@ -122,20 +122,29 @@ profile — remain the work that addresses the observed incidents, and it is the
 hook has real teeth because it pairs with an OS-level profile that also contains the shell. **Amended
 2026-08-12 by [ADR-0355](0355-interactive-codex-writes-only-in-its-current-claimed-worktre.md):** the
 owner funded the strict current-claimed-worktree scope and the repository now generates and dry-runs
-the managed policy bundle. **Corrected in place 2026-08-13:** the administrator-owned installation,
-trusted actuator, live-claim reader, and three-write attestation are now complete on the supported
-Windows host. Re-attestation remains operator-owned when the managed payload, Codex version, or
-Windows sandbox changes.
+the managed policy bundle. **Corrected in place 2026-08-13, then RE-corrected 2026-08-14 per
+ADR-0139:** the administrator-owned installation, trusted actuator, and live-claim reader are
+installed on the supported Windows host, and the three-write writer-scope attestation appears
+genuine. What the earlier "now complete" claim overstated is the **lifecycle**: a fresh Codex desktop
+session on 2026-08-13 could not reach a claimed worktree from the lobby at all (see ADR-0355 §
+Delivery status — a credential circularity in the bootstrap). Attesting a writer already sitting in a
+worktree does not attest how it got there. Re-attestation remains operator-owned; a first
+lobby-to-write lifecycle attestation is still outstanding.
 
 **D7. ADR-0257 D9's two-surface concurrent-load proof bar is retired along with what it was proving.**
 With no semantic layer to prove, the bar has no subject. The static block's conformance test against
 the installed user-level file stands as the proof that remains.
 
-**D8. The residual gap is stated plainly rather than implied covered.** ADR-0355 first narrowed the
-gap to privileged deployment and evidence, then closed that delivery leg on 2026-08-13: interactive
-Codex is installed and attested on the supported Windows host. The remaining boundary is lifecycle,
-not unfinished delivery — a changed managed payload, Codex version, or Windows sandbox requires a
-fresh operator-owned attestation before the new combination is called operational.
+**D8. The residual gap is stated plainly rather than implied covered.** ADR-0355 narrowed the gap to
+privileged deployment and evidence; the deployment leg landed and the writer-scope evidence leg
+appears genuine, but the **lifecycle** leg has NOT (corrected in place 2026-08-14 per ADR-0139 — this
+clause previously read "then closed that delivery leg on 2026-08-13: interactive Codex is installed
+and attested", which a fresh Codex desktop session that same day falsified). Interactive Codex is
+installed, and a writer already inside a claimed worktree is contained as designed; what is unproven
+is that a task can REACH one — the lobby bootstrap hits a credential circularity (ADR-0355 § Delivery
+status). The remaining boundary is therefore still unfinished delivery, not merely lifecycle churn: a
+first lobby-to-write attestation is outstanding, and a changed managed payload, Codex version, or
+Windows sandbox will require a fresh one after that.
 
 ## Consequences
 
