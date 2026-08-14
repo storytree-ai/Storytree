@@ -1,4 +1,4 @@
-import type { Store, StoredDoc, StoreEvent } from "@storytree/storage-protocol";
+import type { CausedBy, Store, StoredDoc, StoreEvent } from "@storytree/storage-protocol";
 import {
   SIGNING_EVENT_KIND,
   USAGE_EVENT_KIND,
@@ -41,6 +41,46 @@ interface WorkEventRow {
   doc: unknown;
   actor: string;
   at: Date | string;
+  /**
+   * ADR-0350: NULL here means UNRECORDED, never "nothing caused this".
+   *
+   * OPTIONAL because a row may not carry the key at all — a structural client, or a read taken
+   * before the D1 migration ran. Absent and NULL mean the identical thing and {@link readCausedBy}
+   * treats them identically; see the nullish note there for why that is not laxity.
+   */
+  caused_by_stream?: string | null;
+  caused_by_seq?: string | number | null;
+}
+
+/**
+ * Lift a row's two nullable causal columns back into the optional {@link CausedBy}.
+ *
+ * BOTH-OR-NEITHER, and a half-written pair THROWS rather than being silently healed. Under ADR-0350
+ * D2 the only two honest states are "the emitter stamped a whole reference" and "it stamped none";
+ * a row with one column set is neither, and quietly dropping it would turn a real write bug into an
+ * event that merely reads as unrecorded — the exact absent-vs-stale confusion this field exists to
+ * remove. There is no path that writes one column (they are written together in one insert), so
+ * this can only fire on corruption, and it should be loud when it does.
+ */
+function readCausedBy(row: {
+  caused_by_stream?: string | null;
+  caused_by_seq?: string | number | null;
+}): CausedBy | undefined {
+  // NULLISH, not strictly-null: a MISSING key means the same as a NULL column — no cause was
+  // recorded — and conflating them is the only safe reading. Testing `=== null` alone let an absent
+  // key fall past both branches and return `{ stream: undefined, seq: NaN }`, which a D3 reader
+  // renders as `caused by: undefined#NaN`: a fabricated edge, strictly worse than the blank D3
+  // forbids, because it names a cause that does not exist.
+  const stream = row.caused_by_stream ?? null;
+  const seq = row.caused_by_seq ?? null;
+  if (stream === null && seq === null) return undefined;
+  if (stream === null || seq === null) {
+    throw new Error(
+      `PgWorkStore: half-written causal edge (stream=${String(stream)}, seq=${String(seq)}) — ` +
+        `ADR-0350 D2 admits a whole reference or none`,
+    );
+  }
+  return { stream, seq: Number(seq) };
 }
 
 interface VerdictRow {
@@ -84,6 +124,7 @@ export class PgWorkStore implements Store {
     type: "created" | "updated" | "deleted";
     doc: unknown;
     actor?: string;
+    causedBy?: CausedBy;
   }): Promise<StoreEvent> {
     if (e.kind === SIGNING_EVENT_KIND) {
       // Fail-closed: only a full signed Verdict may land in events.verdict. The scalar columns
@@ -120,13 +161,24 @@ export class PgWorkStore implements Store {
     if (e.kind === WORK_EVENT_KIND) {
       const doc = WorkEventDoc.parse(e.doc);
       const actor = e.actor ?? "system";
+      // ADR-0350 D1/D2: the causal edge is written in the SAME insert as the event it qualifies —
+      // there is no second statement that could be skipped, and no later pass that could add it.
+      // Absent stays NULL forever; that is the accepted under-reporting, not a gap to backfill.
       const res = await this.#client.query(
-        `INSERT INTO events.work_event (unit_id, tier, type, doc, actor)
-         VALUES ($1, $2, $3, $4::jsonb, $5)
+        `INSERT INTO events.work_event (unit_id, tier, type, doc, actor, caused_by_stream, caused_by_seq)
+         VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7)
          RETURNING seq, at`,
         // The table's `type` column carries the LIFECYCLE word (proposed|building|retired —
         // schema.sql's vocabulary), not the StoreEvent created/updated/deleted envelope.
-        [doc.unitId, doc.tier ?? "unknown", doc.event, JSON.stringify(doc), actor],
+        [
+          doc.unitId,
+          doc.tier ?? "unknown",
+          doc.event,
+          JSON.stringify(doc),
+          actor,
+          e.causedBy?.stream ?? null,
+          e.causedBy?.seq ?? null,
+        ],
       );
       const row = res.rows[0] as { seq: string | number; at: Date | string } | undefined;
       if (row === undefined) throw new Error("PgWorkStore.appendEvent: no work_event row returned");
@@ -138,6 +190,7 @@ export class PgWorkStore implements Store {
         doc,
         actor,
         at: toIso(row.at),
+        ...(e.causedBy !== undefined ? { causedBy: { ...e.causedBy } } : {}),
       };
     }
 
@@ -190,7 +243,7 @@ export class PgWorkStore implements Store {
 
   async readEvents(filter?: { id?: string }): Promise<StoreEvent[]> {
     const work = await this.#client.query(
-      `SELECT seq, type, doc, actor, at FROM events.work_event ORDER BY seq`,
+      `SELECT seq, type, doc, actor, at, caused_by_stream, caused_by_seq FROM events.work_event ORDER BY seq`,
     );
     const verdicts = await this.#client.query(
       `SELECT seq, unit_id, run_id, signer, doc, at FROM events.verdict ORDER BY seq`,
@@ -216,6 +269,10 @@ export class PgWorkStore implements Store {
           doc: row.doc,
           actor: row.actor,
           at: toIso(row.at),
+          ...(() => {
+            const causedBy = readCausedBy(row);
+            return causedBy !== undefined ? { causedBy } : {};
+          })(),
         },
       });
     }

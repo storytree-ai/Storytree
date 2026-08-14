@@ -184,6 +184,7 @@ import { findDependents } from "./retire.js";
 import { typeMismatchRefusal } from "./set-value.js";
 import { bannerRefusal, strayPositionalRefusal, truncationRefusal } from "./write-fidelity.js";
 import { foldHistory, renderHistory } from "./artifact-history.js";
+import { foldWorkLog, renderWorkLog, type WorkLogReaderLike } from "./work-log.js";
 import { storyBuild, storyHelp } from "@storytree/drive";
 import { flipFrontmatterStatus, type AdoptStory, type FlipResult } from "@storytree/drive";
 import { treeCommand } from "./tree.js";
@@ -1830,6 +1831,14 @@ export interface RunDeps {
    */
   readonly verdicts?: VerdictReaderLike | null;
   /**
+   * The work event log as a ROW-LEVEL read (`storytree node log`, ADR-0350 D3): the same live
+   * PgWorkStore as `verdicts`, here typed to expose the full `StoreEvent` — `actor`, `at` and the
+   * optional `causedBy` — which `VerdictReaderLike` deliberately does not carry (it exists to derive
+   * glyphs, and a glyph needs none of those). Null/absent offline: the work log lives in Postgres,
+   * so `node log` then refuses rather than reporting an empty history as "no builds".
+   */
+  readonly workLog?: WorkLogReaderLike | null;
+  /**
    * The attestation log (ADR-0044 `attestation-signals`): the live store when --pg;
    * null/absent offline — `storytree attest` then refuses (writes/reads both need it).
    */
@@ -2730,11 +2739,48 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       // FREE, read-only: how a node spec resolves (no build, no spend). ADR-0057 A discoverability.
       return nodeResolve(third);
     }
+    if (sub === "log") {
+      // FREE, read-only: this unit's work log, row by row, each row naming the event that caused it
+      // (ADR-0350 D3). The reader half of the causal edge — see ./work-log.ts for why a fold could
+      // not answer this and why "not recorded" is printed in words.
+      if (third === undefined) {
+        return {
+          ok: false,
+          body: "storytree node log <unit-id> — which unit's work log?",
+          next: ["storytree node log <unit-id> --pg"],
+        };
+      }
+      if (deps.workLog === undefined || deps.workLog === null) {
+        // REFUSE rather than render an empty log. events.work_event lives in Postgres, so without
+        // the live store there is nothing to read — and "0 events" would read as "this unit was
+        // never built", which is exactly the absent-vs-unrecorded confusion ADR-0350 exists to end.
+        return {
+          ok: false,
+          body: [
+            `the work log lives in the live store — rerun with --pg.`,
+            "",
+            "Refused rather than answered empty: with no store to read, `0 events` would be",
+            "indistinguishable from a unit that was genuinely never built.",
+          ].join("\n"),
+          next: [`storytree node log ${third} --pg`],
+        };
+      }
+      const events = await deps.workLog.readEvents();
+      return {
+        ok: true,
+        body: renderWorkLog({ unitId: third, entries: foldWorkLog(events, third) }),
+        next: [`storytree node resolve ${third}`, `storytree tree ${third} --pg`],
+      };
+    }
     if (sub !== "build") {
       return {
         ok: false,
-        body: `unknown node command "${sub}". try: storytree node build <id> --dry-run | storytree node resolve <id>`,
-        next: ["storytree node resolve <id>", "storytree node build <id> --dry-run"],
+        body: `unknown node command "${sub}". try: storytree node build <id> --dry-run | storytree node resolve <id> | storytree node log <id> --pg`,
+        next: [
+          "storytree node resolve <id>",
+          "storytree node log <id> --pg",
+          "storytree node build <id> --dry-run",
+        ],
       };
     }
     if (values.store === "memory") return refuseMemoryStore("node", third);
