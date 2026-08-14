@@ -1298,7 +1298,11 @@ export interface ArcRollup {
   id: string;
   title: string;
   description: string;
-  lifecycle: 'active' | 'closed';
+  /**
+   * The stored lifecycle (ADR-0239 D1). `parked` is ADR-0374 D1's third value — open work the owner
+   * has decided not to do for now, distinct from `closed`, whose end state was actually met.
+   */
+  lifecycle: 'active' | 'parked' | 'closed';
   intent: string;
   endState: string;
   /** Every increment citing this arc, forward-looking entries FIRST (drive's status-rank order). */
