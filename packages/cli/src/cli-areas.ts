@@ -25,9 +25,11 @@ export const CLI_AREAS = [
   "build",
   "coverage",
   "ownership",
-  // `storytree own` — this session's inventory of the background work it is still running
-  // (`shared-box-session-ownership-arc` inc 1). Offline, read-only, no store: it must stay readable
-  // by a session whose closing leg is the reason it is being asked.
+  // `storytree own` — this session's inventory of the background work it is still running, and the
+  // verified reclaim of it (`shared-box-session-ownership-arc` inc 1-2). Offline, no store: both the
+  // question and the cleanup are asked at the END of a session, exactly when a session must not
+  // depend on a database being up in order to finish honestly. `stop` writes only to the registry,
+  // and only for rows this session owns.
   "own",
   "node",
   "story",
