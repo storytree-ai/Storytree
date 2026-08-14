@@ -23,6 +23,7 @@
 // operator-attested (ADR-0070), determinism + shape correctness is red-green here.
 
 import { hash, rand01 } from './rng.js';
+import { groundRadiusToScreenHalfHeight } from './camera.js';
 import {
   type Axial,
   type Pt,
@@ -789,7 +790,16 @@ export function buildTree(t: SceneTerritoryInput, unifiedVeg = false): SceneG {
     `M -3.6 0 C -3.2 ${f(0.3 * cy)}, -2.4 ${f(0.65 * cy)}, -2.2 ${f(cy)} ` +
     `L 2.2 ${f(cy)} C 2.4 ${f(0.65 * cy)}, 3.2 ${f(0.3 * cy)}, 3.6 0 Q 0 2.4 -3.6 0 Z`;
 
-  const children: SceneNode[] = [ellipse(2, 2, R * 0.78, R * 0.2, { kind: 'shadow' })];
+  // The story tree's ground contact shadow. Its semi-minor axis is now DERIVED from the declared
+  // land camera (ADR-0367 D1) rather than hand-set: it is a ground circle of radius 0.78R seen
+  // through the same camera the tree sprite is authored at. It was `R * 0.2`, a ratio of 0.256 =>
+  // an implied 14.9° camera — the one real outlier in the land's own shadow census (the other seven
+  // fixed ellipses imply 17.5°–23.6°, mean 19.2°), and the mark sitting directly beneath the hero
+  // tree, i.e. exactly the mismatch the round-3 lab's squash dial was absorbing.
+  const shadowGroundR = R * 0.78;
+  const children: SceneNode[] = [
+    ellipse(2, 2, shadowGroundR, groundRadiusToScreenHalfHeight(shadowGroundR), { kind: 'shadow' }),
+  ];
 
   if (withered) {
     const bareBranches = [

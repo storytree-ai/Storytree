@@ -36,6 +36,7 @@ import type {
 } from './svg-island-accretion.js';
 import type { VegetationRender } from './island-vegetation-growth.js';
 import type { VegetationRenderLayer } from './vegetation-render.js';
+import { organicLayerBox } from './land-camera.js';
 
 export interface OrganicPoseRenderLayer {
   readonly trackId: string;
@@ -526,13 +527,11 @@ function hitsLayerToBack(children: readonly SceneNode[]): readonly SceneNode[] {
 }
 
 function organicPoseImage(layer: OrganicPoseRenderLayer): React.ReactNode {
-  const projection = layer.projection ?? 1;
-  const width = layer.canvas.width * layer.scale;
-  const height = layer.canvas.height * layer.scale * projection;
-  const x = layer.worldAnchor.x - layer.assetAnchor.x * layer.scale;
   // Anchored AT the ground socket (see `OrganicPoseRenderLayer.projection`): the anchor offset is
-  // squashed by the same factor as the box, so the root contact never moves as the dial changes.
-  const y = layer.worldAnchor.y - layer.assetAnchor.y * layer.scale * projection;
+  // squashed by the same factor as the box, so the root contact never moves as the factor changes.
+  // The arithmetic lives in `./land-camera.js` so the land-camera composition suite can assert
+  // against the placement this renderer actually uses rather than against a copy of it.
+  const { x, y, width, height } = organicLayerBox(layer);
   return React.createElement('image', {
     key: `__organic-pose-${layer.trackId}`,
     href: layer.src,

@@ -6,7 +6,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { hash, rand01 } from './rng.js';
@@ -934,9 +934,22 @@ function absenceLockInput(): SceneInput {
 
 const ABSENCE_GOLDEN = fileURLToPath(new URL('./scene-absence-fixture.json', import.meta.url));
 
+/**
+ * Regenerate the lock from the current builder:
+ *   `STORYTREE_REGEN_ABSENCE_LOCK=1 pnpm --filter @storytree/forest-world test`
+ *
+ * The lock is a whole-scene byte compare, so any deliberate geometry change (ADR-0367 D1 gave the
+ * land a camera, which moves every projected y in here) has to rewrite it wholesale. Before this
+ * escape hatch the file claimed to be "generated from HEAD" with no generator in the repo, so the
+ * only way to move it was by hand — which is how a lock stops being evidence.
+ */
 test('parcels-ABSENT scene matches the committed byte-for-byte lock (generated from HEAD)', () => {
+  const built = buildScene(absenceLockInput());
+  if (process.env.STORYTREE_REGEN_ABSENCE_LOCK === '1') {
+    writeFileSync(ABSENCE_GOLDEN, `${JSON.stringify(built, null, 2)}\n`);
+  }
   const golden = JSON.parse(readFileSync(ABSENCE_GOLDEN, 'utf8'));
-  assert.deepEqual(buildScene(absenceLockInput()), golden);
+  assert.deepEqual(built, golden);
 });
 
 // ---------- capability PARCELS (forest-parcels inc 1) ----------
