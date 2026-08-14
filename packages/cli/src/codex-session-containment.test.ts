@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -11,6 +11,7 @@ import {
   authorizeCodexWriter,
   buildCodexContainmentBundle,
   codexSessionContainmentCommand,
+  codexToolchainCommand,
   defaultCodexContainmentIo,
   decideInteractiveCodexToolUse,
   parseCodexVersion,
@@ -27,6 +28,20 @@ const CURRENT = path.join(ROOT, ".claude", "worktrees", "codex-current");
 const SIBLING = path.join(ROOT, ".claude", "worktrees", "codex-sibling");
 const GIT_DIR = path.join(ROOT, ".git", "worktrees", "codex-current");
 const COMMON_DIR = path.join(ROOT, ".git");
+
+/**
+ * Read from the workspace's own `packageManager` rather than written down here. The toolchain payload
+ * only has to agree with ONE thing — the pnpm the lockfile was resolved by — so a literal in this
+ * file would be a second source of truth that could drift from the repository silently.
+ */
+const PINNED_PNPM_VERSION = (() => {
+  const root = JSON.parse(readFileSync(path.resolve("../../package.json"), "utf8")) as {
+    packageManager?: string;
+  };
+  const match = /^pnpm@(\d+\.\d+\.\d+)$/.exec(root.packageManager ?? "");
+  if (!match?.[1]) throw new Error(`root packageManager is not a pinned pnpm: ${root.packageManager}`);
+  return match[1];
+})();
 
 test("the production containment IO probes this registered checkout and pinned Codex", () => {
   const probe = defaultCodexContainmentIo.probeGit();
@@ -292,12 +307,21 @@ test("managed bundle selects one exact profile, omits full access, and never mix
   assert.match(toml, /\[\[hooks\.PermissionRequest\]\]/);
   assert.match(toml, /"\.git" = "deny"/);
   assert.match(toml, /"\.codex" = "deny"/);
+
+  // ADR-0364 D1 INVERTS what this file may name. Under ADR-0355 the profile named exactly one
+  // worktree and the sibling's absence WAS the fence; the standing grant covers the whole worktrees
+  // area, so the sibling is named and permitted here on purpose. That is the accepted cost, and the
+  // isolation it used to carry is now carried by the hook — asserted below in its own test.
   assert.match(toml, new RegExp(norm(CURRENT).split("/").at(-1) ?? "codex-current", "i"));
-  assert.doesNotMatch(toml, new RegExp(norm(SIBLING).split("/").at(-1) ?? "codex-sibling", "i"));
+  assert.match(
+    toml,
+    new RegExp(norm(SIBLING).split("/").at(-1) ?? "codex-sibling", "i"),
+    "the standing grant deliberately covers registered siblings; the hook is what refuses them",
+  );
   assert.match(bundle.operatorReadme, /generated, not installed/i);
   assert.match(bundle.operatorReadme, /SELECT-only database principal/i);
-  assert.match(bundle.operatorReadme, /snapshot that selected[\s\S]*at process start/i);
-  assert.match(bundle.operatorReadme, /global requirements/i);
+  assert.match(bundle.operatorReadme, /only fence/i);
+  assert.match(bundle.operatorReadme, /blast radius is every\nworktree/i);
   assert.match(bundle.operatorReadme, /live smoke/i);
   assert.match(bundle.trustedActuatorScript, /CodexSandboxUsers/);
   assert.match(bundle.trustedActuatorScript, /icacls\.exe[\s\S]*\/deny/);
@@ -311,12 +335,20 @@ test("managed bundle selects one exact profile, omits full access, and never mix
     /ForEach-Object \{ Canonical-Existing \$_\.Substring\(9\)\.Trim\(\) \}/,
   );
   assert.match(bundle.trustedActuatorScript, /\$ErrorActionPreference = 'Continue'/);
-  assert.match(bundle.trustedActuatorScript, /launch --worktree <canonical-path>/);
-  assert.match(bundle.trustedActuatorScript, /\$CodexArguments = @\('-C', \$CanonicalWorktree\)/);
-  assert.match(bundle.trustedActuatorScript, /& \$CodexPayload @CodexArguments/);
   assert.doesNotMatch(bundle.trustedActuatorScript, /--sandbox|dangerously-bypass|sandbox_mode/);
-  assert.match(bundle.trustedActuatorScript, /Install-Policy \$Config\.lobbyPolicy/);
 
+  // ADR-0364 D4: the actuator installs and exits. No `launch` verb, no nested Codex child, and no
+  // revert — the three things that together made write authority a process lifetime.
+  assert.match(bundle.trustedActuatorScript, /exact grammar is install, with no arguments/);
+  assert.doesNotMatch(bundle.trustedActuatorScript, /launch --worktree/);
+  assert.doesNotMatch(bundle.trustedActuatorScript, /\$CodexArguments/);
+  assert.doesNotMatch(bundle.trustedActuatorScript, /Install-Policy \$Config\.lobbyPolicy/);
+  assert.doesNotMatch(bundle.trustedActuatorScript, /restoreActuatorScript/);
+  assert.match(bundle.trustedActuatorScript, /Install-Policy \$Config\.standingPolicy/);
+
+  // One standing policy, so two sessions resolve the SAME receipt. The old assertion was the exact
+  // opposite ("concurrent writers never alias policy receipts") because a per-session path existed
+  // only so the actuator could swap files around a launcher. There is no launcher to swap around.
   const otherBundle = buildCodexContainmentBundle({
     authority: {
       ...authority,
@@ -330,8 +362,17 @@ test("managed bundle selects one exact profile, omits full access, and never mix
     gitCommand: [process.execPath],
   });
   if (!otherBundle.ok) assert.fail(otherBundle.reason);
-  assert.notEqual(bundle.policyPath, otherBundle.policyPath, "concurrent writers never alias policy receipts");
-  assert.match(bundle.policyPath.replaceAll("\\", "/"), /\/sessions\/writer-[a-f0-9]{24}\.json$/);
+  assert.equal(bundle.policyPath, otherBundle.policyPath, "one standing policy serves every session");
+  assert.equal(bundle.requirementsToml, otherBundle.requirementsToml, "and so does one requirements file");
+  assert.match(bundle.policyPath.replaceAll("\\", "/"), /\/sessions\/standing-[a-f0-9]{24}\.json$/);
+
+  // The policy may not carry the narrowing back in through the side door.
+  const receipt = JSON.parse(bundle.sessionPolicyJson) as Record<string, unknown>;
+  assert.equal(receipt["mode"], "standing");
+  assert.equal(norm(String(receipt["worktreesRoot"])), norm(path.join(ROOT, ".claude", "worktrees")));
+  for (const forbidden of ["currentWorktree", "sessionId", "branch", "launchClaimIds"]) {
+    assert.equal(receipt[forbidden], undefined, `standing policy must not pin ${forbidden}`);
+  }
 });
 
 test("generated live-claim probe is a self-contained fail-closed production bundle", () => {
@@ -388,10 +429,28 @@ test("lobby bundle remains read-only and names only the trusted bootstrap actuat
   });
   if (!bundle.ok) assert.fail(bundle.reason);
   assert.match(bundle.requirementsToml, /storytree_codex_lobby/);
-  assert.doesNotMatch(bundle.requirementsToml, /"write"/);
-  assert.match(bundle.operatorReadme, /worktree create/);
-  assert.match(bundle.operatorReadme, /generic shell[\s\S]*not granted/i);
-  assert.match(bundle.operatorReadme, /fail-closed[\s\S]*hash-pinned worktree-create payload/i);
+
+  // ADR-0364 D3 restated as the invariant it actually is. The old assertion was `doesNotMatch(/"write"/)`
+  // on a lobby-only file, which a single standing requirements file can no longer satisfy — one file
+  // now declares the worktrees grant regardless of where it was generated. The property that MATTERS
+  // is unchanged and is stronger stated this way: no write grant reaches outside the worktrees area,
+  // so the lobby's own files stay read-only.
+  const worktreesRoot = norm(path.join(ROOT, ".claude", "worktrees"));
+  let grantedSection: string | null = null;
+  for (const line of bundle.requirementsToml.split("\n")) {
+    const section = /^\[permissions\.[^.]+\.filesystem\.(".*")\]$/.exec(line.trim());
+    if (section?.[1]) grantedSection = norm(JSON.parse(section[1]) as string);
+    else if (/^"\." = "write"$/.test(line.trim())) {
+      assert.ok(
+        grantedSection !== null &&
+          (grantedSection === worktreesRoot || grantedSection.startsWith(`${worktreesRoot}/`)),
+        `write grant escapes the worktrees area: ${grantedSection}`,
+      );
+    }
+  }
+  assert.match(bundle.operatorReadme, /worktree create|mints one claimed worktree/i);
+  assert.match(bundle.operatorReadme, /lobby stays read-only/i);
+  assert.match(bundle.operatorReadme, /fail-closed until device management configures a hash-pinned/i);
 
   // The remaining assertions execute the generated Windows actuator itself. Its portable
   // contract is covered above; Linux CI has no powershell.exe process to exercise.
@@ -410,9 +469,13 @@ test("lobby bundle remains read-only and names only the trusted bootstrap actuat
   assert.equal(malformed.status, 2, malformed.stderr);
   assert.match(malformed.stderr, /exact grammar is bootstrap/i);
 
-  const extraLaunchFlag = invoke(["launch", "--worktree", ROOT, "--sandbox", "danger-full-access"]);
-  assert.equal(extraLaunchFlag.status, 2, extraLaunchFlag.stderr);
-  assert.match(extraLaunchFlag.stderr, /exact grammar is launch/i);
+  const retiredLaunch = invoke(["launch", "--worktree", ROOT]);
+  assert.equal(retiredLaunch.status, 2, retiredLaunch.stderr);
+  assert.match(retiredLaunch.stderr, /unknown subcommand 'launch'/i, "ADR-0364 D4 retires the launch verb");
+
+  const extraInstallFlag = invoke(["install", "--sandbox", "danger-full-access"]);
+  assert.equal(extraInstallFlag.status, 2, extraInstallFlag.stderr);
+  assert.match(extraInstallFlag.stderr, /exact grammar is install/i);
 
   const unavailableBootstrap = invoke([
     "bootstrap",
@@ -425,7 +488,7 @@ test("lobby bundle remains read-only and names only the trusted bootstrap actuat
   assert.match(unavailableBootstrap.stderr, /hash-pinned|not configured|trusted actuator refused/i);
 });
 
-test("the writer launch requires a work grade and gets scratch it is actually granted", () => {
+test("the work grade is required where the fence now lives, and scratch survives the launcher", () => {
   const authority = authorizeCodexWriter(topology(), [claim()], NOW);
   if (!authority.ok) assert.fail(authority.reason);
   const bundle = buildCodexContainmentBundle({
@@ -438,15 +501,19 @@ test("the writer launch requires a work grade and gets scratch it is actually gr
   if (!bundle.ok) assert.fail(bundle.reason);
 
   // ADR-0355 D2 requires the live-claim check to fail CLOSED. A gradeless claim used to satisfy it,
-  // which admitted exactly the exploring row the bootstrap leaves behind.
-  assert.match(bundle.trustedActuatorScript, /\$_\.grade -eq 'work'/);
-  assert.doesNotMatch(bundle.trustedActuatorScript, /\$null -eq \$_\.grade/);
+  // which admitted exactly the exploring row the bootstrap leaves behind. The actuator's copy of that
+  // check went with its launcher (ADR-0364 D4), so the assertion moves to the hook — which is the
+  // only place it now runs, and where the JS side still carried the fail-open the PowerShell had closed.
+  assert.match(bundle.managedHookScript, /claim\.grade === "work"/);
+  assert.doesNotMatch(bundle.managedHookScript, /claim\.grade === undefined/);
+  assert.doesNotMatch(bundle.trustedActuatorScript, /Assert-LiveClaim/);
 
-  // The profile grants write only under the current worktree, so scratch has to live there or the
-  // toolchain cannot start inside its own grant.
-  assert.match(bundle.trustedActuatorScript, /Set-WorktreeScratch \$CanonicalWorktree/);
-  assert.match(bundle.trustedActuatorScript, /\$env:TEMP = \$Scratch/);
-  assert.match(bundle.trustedActuatorScript, /\$env:TMP = \$Scratch/);
+  // The profile grants write only under the worktrees area, so scratch has to live inside a worktree
+  // or the toolchain cannot start inside its own grant. With no launcher to set TEMP for a child,
+  // bootstrap creates the directory and the task points TEMP/TMP at it (recorded in the readme).
+  assert.match(bundle.trustedActuatorScript, /New-WorktreeScratch \$Created\.topLevel/);
+  assert.match(bundle.trustedActuatorScript, /'\.storytree-scratch'/);
+  assert.match(bundle.operatorReadme, /point TEMP and TMP at <its worktree>\/\.storytree-scratch/);
 
   // The credential is auth.json, not the whole tree — denying the tree hid the skills the same
   // directory advertises. Both halves now name the same file.
@@ -507,9 +574,129 @@ test("trusted payload configuration is absolute, administrator-owned, and hash-p
     },
   });
   if (!configuredBootstrap.ok) assert.fail(configuredBootstrap.reason);
-  assert.match(configuredBootstrap.operatorReadme, /bootstrap stays[\s\S]*enabled/i);
+  assert.match(configuredBootstrap.operatorReadme, /bootstrap\s+— mints one claimed worktree[\s\S]*Enabled by the configured hash-pinned/i);
   assert.match(configuredBootstrap.trustedActuatorScript, /Assert-PinnedCommand/);
   assert.match(configuredBootstrap.trustedActuatorScript, /--primary/);
+});
+
+/**
+ * ADR-0364 D7's precondition: a contained task must be able to run the repository toolchain at all.
+ * `%ProgramData%` ships managed Node and the Codex payload and nothing else, so `pnpm gate` and
+ * `pnpm storytree …` are unreachable from a claimed worktree — the profile denies neither, they simply
+ * do not exist there.
+ */
+test("the task toolchain is one hash-pinned file, reported honestly when absent", () => {
+  const authority = authorizeCodexWriter(topology(), [claim()], NOW);
+  if (!authority.ok) assert.fail(authority.reason);
+  const base = {
+    authority,
+    codexVersion: "codex-cli 0.145.0",
+    managedDir: path.resolve("C:/ProgramData/OpenAI/Codex/Storytree"),
+    managedNodePath: path.resolve("C:/Program Files/nodejs/node.exe"),
+    gitCommand: [process.execPath],
+  };
+
+  // The actuator TEMPLATE always carries the pin-checking code, so asserting on its text would prove
+  // nothing about configuration — the embedded config is what varies, so that is what is read.
+  const actuatorConfig = (script: string): Record<string, unknown> => {
+    const encoded = /FromBase64String\("([A-Za-z0-9+/=]+)"\)/.exec(script);
+    if (!encoded?.[1]) assert.fail("actuator script carries no embedded config");
+    return JSON.parse(Buffer.from(encoded[1], "base64").toString("utf8")) as Record<string, unknown>;
+  };
+
+  // Absent: reported as null and named in both operator surfaces. A task left to GUESS its toolchain
+  // is the failure mode this replaces, so silence is not an acceptable rendering of "not configured".
+  const unconfigured = buildCodexContainmentBundle(base);
+  if (!unconfigured.ok) assert.fail(unconfigured.reason);
+  assert.equal(unconfigured.toolchainCommand, null);
+  assert.match(unconfigured.operatorReadme, /NOT CONFIGURED — a contained task cannot run any pnpm/);
+  assert.equal(actuatorConfig(unconfigured.trustedActuatorScript)["toolchainPayload"], null);
+
+  // Held to the SAME administrator-owned, hash-pinned bar as every other payload.
+  const outside = buildCodexContainmentBundle({
+    ...base,
+    toolchainPayload: { path: path.resolve("C:/code/storytree/pnpm.cjs"), sha256: "a".repeat(64) },
+  });
+  assert.equal(outside.ok, false);
+  if (!outside.ok) assert.match(outside.reason, /under managedDir/i);
+
+  const unpinned = buildCodexContainmentBundle({
+    ...base,
+    toolchainPayload: {
+      path: path.resolve("C:/ProgramData/OpenAI/Codex/Storytree/payloads/pnpm.cjs"),
+      sha256: "9.15.0",
+    },
+  });
+  assert.equal(unpinned.ok, false);
+  if (!unpinned.ok) assert.match(unpinned.reason, /SHA-256 pin/i);
+
+  const configured = buildCodexContainmentBundle({
+    ...base,
+    toolchainPayload: {
+      path: path.resolve("C:/ProgramData/OpenAI/Codex/Storytree/payloads/pnpm.cjs"),
+      sha256: "c".repeat(64),
+    },
+  });
+  if (!configured.ok) assert.fail(configured.reason);
+  assert.deepEqual(configured.toolchainCommand, [
+    base.managedNodePath,
+    path.resolve("C:/ProgramData/OpenAI/Codex/Storytree/payloads/pnpm.cjs"),
+  ]);
+  assert.deepEqual(actuatorConfig(configured.trustedActuatorScript)["toolchainPayload"], {
+    path: path.resolve("C:/ProgramData/OpenAI/Codex/Storytree/payloads/pnpm.cjs"),
+    sha256: "c".repeat(64),
+  });
+  // Verified before any work, so a bad hash costs no mint, and carried in the ONE envelope the
+  // lifecycle already hands back — with no launcher there is no environment for a task to inherit.
+  assert.match(
+    configured.trustedActuatorScript,
+    /Assert-PinnedPayload 'toolchain payload'[\s\S]*Invoke-Exact \$Payload/,
+    "the pin is checked BEFORE the mint, so a bad hash costs no worktree",
+  );
+  assert.match(configured.trustedActuatorScript, /toolchainCommand = \$Toolchain/);
+  assert.match(configured.trustedActuatorScript, /scratch = \$Scratch/);
+
+  // Corepack is deliberately not the mechanism: it would need the network this profile disables and a
+  // cache outside the grant. If this ever regresses to a Corepack shim it must be a decision, not a drift.
+  assert.doesNotMatch(configured.operatorReadme, /ships? Corepack\b(?!.*downloader)/);
+  assert.match(configured.operatorReadme, /NOT COREPACK/);
+  assert.match(configured.requirementsToml, /\[permissions\.storytree_codex_current\.network\]\nenabled = false/);
+});
+
+/**
+ * The claim above — that ONE pinned file plus managed Node runs a real workspace command with no
+ * Corepack, no network and no PATH entry — is the whole basis for the payload's shape, so it is
+ * measured rather than asserted. Skipped unless the host actually has both, because a fabricated
+ * stand-in would prove nothing about the real toolchain.
+ */
+test("the pinned single-file pnpm really does run a workspace command under managed Node", (t) => {
+  const managedNode = path.join(
+    process.env["ProgramData"] ?? "C:\\ProgramData",
+    "OpenAI", "Codex", "Storytree", "payloads", "node.exe",
+  );
+  const pnpmDist = path.join(
+    process.env["LOCALAPPDATA"] ?? "",
+    "node", "corepack", "v1", "pnpm", PINNED_PNPM_VERSION, "dist", "pnpm.cjs",
+  );
+  if (process.platform !== "win32" || !existsSync(managedNode) || !existsSync(pnpmDist)) {
+    t.skip(`needs the managed payload Node and a resolved pnpm ${PINNED_PNPM_VERSION} on this host`);
+    return;
+  }
+
+  const command = codexToolchainCommand(managedNode, pnpmDist);
+  assert.deepEqual(command, [managedNode, pnpmDist]);
+
+  const version = spawnSync(command[0] as string, [...command.slice(1), "--version"], {
+    encoding: "utf8",
+    // No PATH at all: the point is that this command needs none.
+    env: { ...process.env, PATH: "", Path: "" },
+  });
+  assert.equal(version.status, 0, version.stderr);
+  assert.equal(
+    version.stdout.trim(),
+    PINNED_PNPM_VERSION,
+    "the pinned toolchain must be the version packageManager names, or it disagrees with the lockfile",
+  );
 });
 
 test("rendered managed hook re-probes Git and live claims on every write, then maps decisions", () => {
@@ -768,6 +955,232 @@ test("interactive hook admits current targets and refuses siblings, traversal, a
   );
   assert.equal(rewound.allow, false);
   if (!rewound.allow) assert.match(rewound.reason, /branch changed/i);
+});
+
+/**
+ * ADR-0364's whole decision in one assertion.
+ *
+ * The profile no longer names one worktree, so the sibling refusal it used to carry has nowhere to
+ * live except here. This drives the RENDERED hook — the artifact that actually runs — rather than the
+ * pure twin, because the defect being guarded against is specifically a hook that narrows on a path
+ * baked into the policy file at install time. Such a hook passes every test written against the twin
+ * and silently widens the fence to every worktree in production.
+ *
+ * Both directions are exercised, because they fail differently: reaching ACROSS into a sibling is a
+ * target check, while WALKING INTO one is an identity check. A hook could get either right alone.
+ */
+test("a session claiming one worktree is refused in a sibling the profile itself permits", () => {
+  const authority = authorizeCodexWriter(topology(), [claim()], NOW);
+  if (!authority.ok) assert.fail(authority.reason);
+
+  const temp = mkdtempSync(path.join(os.tmpdir(), "storytree-codex-sibling-"));
+  const gitScript = path.join(temp, "fake-git.mjs");
+  const claimScript = path.join(temp, "fake-claims.mjs");
+  const hookScript = path.join(temp, "managed-hook.mjs");
+  const policyPath = path.join(temp, "standing.json");
+
+  writeFileSync(
+    gitScript,
+    [
+      'const key = process.argv.slice(2).join(" ");',
+      "const responses = JSON.parse(process.env.FAKE_GIT_RESPONSES);",
+      "if (!(key in responses)) process.exit(9);",
+      "process.stdout.write(responses[key]);",
+    ].join("\n"),
+  );
+  // The ledger answers with the session's REAL live claim every time. Handing the hook a genuine
+  // work claim and watching it refuse anyway is the point: nothing weaker than the claim-to-worktree
+  // binding can be what produces the refusal.
+  writeFileSync(
+    claimScript,
+    [
+      'let input = ""; for await (const chunk of process.stdin) input += chunk;',
+      'if (JSON.parse(input).readMode !== "live-claims-required") process.exit(8);',
+      "process.stdout.write(JSON.stringify({ claims: JSON.parse(process.env.FAKE_CLAIMS) }));",
+    ].join("\n"),
+  );
+
+  const bundle = buildCodexContainmentBundle({
+    authority,
+    codexVersion: "codex-cli 0.145.0",
+    managedDir: temp,
+    managedNodePath: process.execPath,
+    gitCommand: [process.execPath, gitScript],
+    claimProbeCommand: [process.execPath, claimScript],
+  });
+  if (!bundle.ok) assert.fail(bundle.reason);
+  writeFileSync(hookScript, bundle.managedHookScript);
+  writeFileSync(policyPath, bundle.sessionPolicyJson);
+
+  // Precondition, asserted rather than assumed: the OS profile permits BOTH worktrees. If this ever
+  // stops being true the test below still passes while proving nothing about the hook.
+  const grantedRoot = norm(path.join(ROOT, ".claude", "worktrees"));
+  assert.ok(
+    bundle.requirementsToml
+      .split("\n")
+      .some((line) => line.startsWith("[permissions.") && norm(line).includes(grantedRoot)),
+    "the standing profile must grant the area containing both worktrees",
+  );
+
+  const gitFor = (topLevel: string, gitDir: string, branch: string) =>
+    JSON.stringify({
+      "rev-parse --path-format=absolute --show-toplevel": topLevel,
+      "rev-parse --path-format=absolute --git-dir": gitDir,
+      "rev-parse --path-format=absolute --git-common-dir": COMMON_DIR,
+      "rev-parse --abbrev-ref HEAD": branch,
+      "worktree list --porcelain": worktreeProbe().worktreeList,
+    });
+
+  const run = (gitResponses: string, event: unknown) =>
+    spawnSync(process.execPath, [hookScript, "pre-tool-use", policyPath], {
+      input: JSON.stringify(event),
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        FAKE_GIT_RESPONSES: gitResponses,
+        FAKE_CLAIMS: JSON.stringify([claim()]),
+      },
+    });
+
+  const inCurrent = gitFor(CURRENT, GIT_DIR, "claude/codex-current");
+  const inSibling = gitFor(
+    SIBLING,
+    path.join(ROOT, ".git", "worktrees", "codex-sibling"),
+    "claude/codex-sibling",
+  );
+
+  // Control: the claimed worktree is admitted, so a refusal below is the fence and not a broken harness.
+  const admitted = run(inCurrent, {
+    hook_event_name: "PreToolUse",
+    cwd: CURRENT,
+    tool_name: "Write",
+    tool_input: { file_path: path.join(CURRENT, "packages", "cli", "src", "x.ts") },
+  });
+  assert.equal(admitted.status, 0, admitted.stderr);
+  assert.equal(admitted.stdout, "", "the claimed worktree is still admitted");
+
+  // (a) Reaching ACROSS: standing in A, writing into B.
+  const across = run(inCurrent, {
+    hook_event_name: "PreToolUse",
+    cwd: CURRENT,
+    tool_name: "Write",
+    tool_input: { file_path: path.join(SIBLING, "owned-by-someone-else.ts") },
+  });
+  assert.equal(across.status, 0, across.stderr);
+  assert.match(
+    JSON.parse(across.stdout).hookSpecificOutput.permissionDecisionReason,
+    /outside the current claimed worktree/i,
+    "a cross-worktree target is refused even though the profile permits it",
+  );
+
+  // (b) WALKING IN: the same live claim, but the process is now standing in B. Git derives B's
+  // identity, which the claim does not name, so the claim stops admitting anything here.
+  const walkedIn = run(inSibling, {
+    hook_event_name: "PreToolUse",
+    cwd: SIBLING,
+    tool_name: "Write",
+    tool_input: { file_path: path.join(SIBLING, "owned-by-someone-else.ts") },
+  });
+  assert.equal(walkedIn.status, 0, walkedIn.stderr);
+  assert.match(
+    JSON.parse(walkedIn.stdout).hookSpecificOutput.permissionDecisionReason,
+    /no live work claim/i,
+    "walking into a sibling does not carry the claim with it",
+  );
+
+  // And shell, which the hook admits on cwd alone, must not become the way around either direction.
+  const shellInSibling = run(inSibling, {
+    hook_event_name: "PreToolUse",
+    cwd: SIBLING,
+    tool_name: "Bash",
+    tool_input: { command: "echo compromised > owned.ts" },
+  });
+  assert.equal(shellInSibling.status, 0, shellInSibling.stderr);
+  assert.match(
+    JSON.parse(shellInSibling.stdout).hookSpecificOutput.permissionDecisionReason,
+    /no live work claim/i,
+  );
+});
+
+/**
+ * The standing policy no longer carries a `mode`, so the hook reads WHICH decision applies from the
+ * topology it observes (ADR-0364 D1/D3). That swap is easy to get subtly wrong in the safe-looking
+ * direction — one file now serves the lobby too, and a lobby process must still be refused writes
+ * without ever needing a claim to be refused them.
+ */
+test("the standing policy still refuses the lobby, and asks no ledger to do it", () => {
+  const authority = authorizeCodexWriter(topology(), [claim()], NOW);
+  if (!authority.ok) assert.fail(authority.reason);
+
+  const temp = mkdtempSync(path.join(os.tmpdir(), "storytree-codex-lobby-hook-"));
+  const gitScript = path.join(temp, "fake-git.mjs");
+  const claimScript = path.join(temp, "exploding-claims.mjs");
+  const hookScript = path.join(temp, "managed-hook.mjs");
+  const policyPath = path.join(temp, "standing.json");
+
+  writeFileSync(
+    gitScript,
+    [
+      'const key = process.argv.slice(2).join(" ");',
+      "const responses = JSON.parse(process.env.FAKE_GIT_RESPONSES);",
+      "if (!(key in responses)) process.exit(9);",
+      "process.stdout.write(responses[key]);",
+    ].join("\n"),
+  );
+  // A probe that CANNOT succeed. In the lobby the hook must never reach it; if it does, this test
+  // fails closed and says so, rather than passing on a refusal that came from the wrong reason.
+  writeFileSync(claimScript, 'process.stderr.write("the lobby must not consult the ledger"); process.exit(7);');
+
+  const bundle = buildCodexContainmentBundle({
+    authority,
+    codexVersion: "codex-cli 0.145.0",
+    managedDir: temp,
+    managedNodePath: process.execPath,
+    gitCommand: [process.execPath, gitScript],
+    claimProbeCommand: [process.execPath, claimScript],
+  });
+  if (!bundle.ok) assert.fail(bundle.reason);
+  writeFileSync(hookScript, bundle.managedHookScript);
+  writeFileSync(policyPath, bundle.sessionPolicyJson);
+
+  const env = {
+    ...process.env,
+    FAKE_GIT_RESPONSES: JSON.stringify({
+      "rev-parse --path-format=absolute --show-toplevel": ROOT,
+      "rev-parse --path-format=absolute --git-dir": COMMON_DIR,
+      "rev-parse --path-format=absolute --git-common-dir": COMMON_DIR,
+      "rev-parse --abbrev-ref HEAD": "main",
+      "worktree list --porcelain": worktreeProbe().worktreeList,
+    }),
+  };
+  const run = (event: unknown) =>
+    spawnSync(process.execPath, [hookScript, "pre-tool-use", policyPath], {
+      input: JSON.stringify(event),
+      encoding: "utf8",
+      env,
+    });
+
+  const write = run({
+    hook_event_name: "PreToolUse",
+    cwd: ROOT,
+    tool_name: "Write",
+    tool_input: { file_path: path.join(ROOT, "packages", "cli", "src", "x.ts") },
+  });
+  assert.equal(write.status, 0, write.stderr);
+  assert.match(
+    JSON.parse(write.stdout).hookSpecificOutput.permissionDecisionReason,
+    /lobby is read-only/i,
+  );
+  assert.doesNotMatch(write.stderr, /must not consult the ledger/);
+
+  const read = run({
+    hook_event_name: "PreToolUse",
+    cwd: ROOT,
+    tool_name: "Read",
+    tool_input: { file_path: path.join(ROOT, "CLAUDE.md") },
+  });
+  assert.equal(read.status, 0, read.stderr);
+  assert.equal(read.stdout, "", "reading the lobby stays allowed");
 });
 
 test("PermissionRequest never widens the strict profile", () => {

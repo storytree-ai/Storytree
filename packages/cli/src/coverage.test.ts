@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 
 import { InMemoryStore } from "@storytree/storage-protocol";
 
-import { coverageCommand, type CoverageDeps, type CoverageUnit } from "./coverage.js";
+import { coverageCommand, coverageTotalsCommand, type CoverageDeps, type CoverageUnit } from "./coverage.js";
+import { evaluateCoverageDrain } from "./coverage-drain.js";
 import { run } from "./commands.js";
 
 /**
@@ -17,6 +18,11 @@ import { run } from "./commands.js";
 
 function deps(over: Partial<CoverageDeps> = {}): CoverageDeps {
   return { loadUnit: () => null, ...over };
+}
+
+/** One more uncovered contract than the shipped ceiling allows — the breach case, built not guessed. */
+function contractsOver(): string[] {
+  return Array.from({ length: 104 }, (_, i) => `cap-${i}/contract-${i}`);
 }
 
 const FOREST_UNIT: CoverageUnit = {
@@ -142,4 +148,72 @@ test("end-to-end: coverage unions real.testFile with the extra real scope test g
   assert.match(env.body, /scanned 2 test file\(s\)/);
   assert.match(env.body, /worldCamera\.act2Bottom\.node\.ts/);
   assert.match(env.body, /TreeView\.act2Camera\.test\.tsx/);
+});
+
+// ---------------------------------------------------------------------------
+// `storytree coverage --totals` — asking where the backlog stands, on a green run
+// ---------------------------------------------------------------------------
+
+const CTX = { specFilesWalked: 281, scanned: 112 } as const;
+
+/** A sweep stub — the disk walk is the composition root's, so the report is testable without it. */
+function totalsDeps(
+  uncovered: string[],
+  unbound: string[],
+  context: { specFilesWalked: number; scanned: number } = CTX,
+) {
+  return {
+    sweep: () => ({ verdict: evaluateCoverageDrain({ uncovered, unbound }, context), context }),
+  };
+}
+
+test("coverage --totals prints both axes against both ceilings, with the aperture", () => {
+  const env = coverageTotalsCommand(totalsDeps(["a/b", "c/d"], []));
+  assert.equal(env.ok, true);
+  assert.match(env.body, /uncovered=2\/103/);
+  assert.match(env.body, /unbound=0\/1/);
+  assert.match(env.body, /measured over 281 spec file\(s\) walked, 112 capability\(ies\) scanned/);
+  assert.match(env.body, /NEVER SUM THESE/);
+});
+
+test("coverage --totals REPORTS and never gates — a breach still exits ok", () => {
+  // The ceiling is enforced by `coverage-drain.test.ts` inside `pnpm -r test`. A reporting verb that
+  // could fail would be a second, unlegislated gate on the same numbers — and, worse, one no ADR
+  // legislated, which is exactly what ADR-0311 D5 exists to prevent.
+  const env = coverageTotalsCommand(totalsDeps(contractsOver(), []));
+  assert.equal(env.ok, true, "a breached ceiling must still exit 0 — this reports, it does not gate");
+  assert.match(env.body, /level: red/);
+  assert.match(env.body, /uncovered=104\/103/);
+});
+
+test("coverage --totals says so when NOTHING was scanned, rather than printing a false clean", () => {
+  // The trap that motivated the verb: the throwaway sweep script reports `specFilesWalked=0 scanned=0
+  // uncovered=0` when cwd is the package rather than the repo root, which reads exactly like a
+  // drained backlog. Zeros here measure the CHECKOUT, and the report has to say which claim it is.
+  const env = coverageTotalsCommand(totalsDeps([], [], { specFilesWalked: 0, scanned: 0 }));
+  assert.equal(env.ok, true);
+  assert.match(env.body, /NOTHING WAS SCANNED/);
+  assert.match(env.body, /measure the CHECKOUT, not the backlog/);
+});
+
+test("coverage --totals publishes no summed figure", () => {
+  // uncovered counts CONTRACTS, unbound counts CAPABILITIES; a ceiling read off the sum is
+  // satisfiable by work that drained nothing (measured: the sum held at 121 across a real drain).
+  const env = coverageTotalsCommand(totalsDeps(["a/b", "c/d"], ["e"]));
+  assert.doesNotMatch(env.body, /\b3 (gaps|total|items)\b/i);
+  assert.match(env.body, /uncovered=2\/103 · unbound=1\/1/);
+});
+
+test("end-to-end: `coverage --totals` walks the REAL corpus and reports a live population", async () => {
+  // Grounds the whole pipeline through the CLI boundary — argv → CLI_OPTIONS → the composed sweep.
+  // Deliberately asserts the SHAPE and a non-empty population rather than today's exact counts: the
+  // baseline is a fact on disk that legitimately moves as contracts land, and the ceiling assertion in
+  // `coverage-drain.test.ts` is what pins the numbers.
+  const env = await run(["coverage", "--totals"], { store: new InMemoryStore() });
+  assert.equal(env.ok, true);
+  const walked = /measured over (\d+) spec file\(s\) walked, (\d+) capability\(ies\) scanned/.exec(env.body);
+  assert.ok(walked !== null, `no aperture line in:\n${env.body}`);
+  assert.ok(Number(walked[1]) > 0, "the real corpus must walk >0 spec files — 0 would be a false clean");
+  assert.ok(Number(walked[2]) > 0, "the real corpus must scan >0 capabilities");
+  assert.match(env.body, /uncovered=\d+\/103 · unbound=\d+\/1/);
 });

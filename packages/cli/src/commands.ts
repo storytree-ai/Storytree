@@ -118,7 +118,13 @@ import {
 import { factoryHealth, factoryHelp } from "./factory.js";
 import type { CommitRec } from "@storytree/drive";
 import type { AdoptPlanStory } from "./adopt-plan.js";
-import { coverageCommand, type CoverageUnit } from "./coverage.js";
+import { coverageCommand, coverageTotalsCommand, type CoverageUnit } from "./coverage.js";
+import { evaluateCoverageDrain } from "./coverage-drain.js";
+import {
+  classifyGateCoverage,
+  projectCoverageGaps,
+  sweepRealBuildCoverage,
+} from "./coverage-gate.js";
 // ADR-0317 D2 — the subtree-grain ownership map + its disk-walk totality report (report-only).
 import { gatherFromDisk, ownershipCommand, ownershipHelp } from "./ownership.js";
 import { agentsCommand, agentStepCommand, agentsHelp } from "./agents.js";
@@ -1542,7 +1548,7 @@ async function topHelp(store: Store): Promise<Envelope> {
       "  noticeboard      the claim ledger (ADR-0200/0033) — view | declare | done | claim | upgrade | downgrade | release | claims",
       "  branch next      a branch dies on merge (ADR-0142) — succeed a dead branch: fresh cut + re-declare",
       "  worktree         create (the claim-gated workspace ceremony, ADR-0200 D3) | prune (reap dead worktrees, ADR-0142/0033)",
-      "  coverage         does every declared contract have an observed test? the coverage-honesty check (ADR-0020)",
+      "  coverage         does every declared contract have an observed test? the coverage-honesty check (ADR-0020); --totals for the whole corpus",
       "  drift            is a proof's bound code still fresh? the binding-staleness flag (ADR-0016)",
       "  adr              search the decision log (adr list) + allocate numbers (ADR-0050/0086)",
       "  arc              the initiative overlay (ADR-0183) — an arc reveals its increments/stories/ADRs by query",
@@ -1666,13 +1672,21 @@ function coverageHelp(): Envelope {
       '`describe("<id>: …")` convention) is reported UNCOVERED.',
       "",
       "  storytree coverage <capability-id>   classify the capability's contracts (offline, read-only)",
+      "  storytree coverage --totals          the WHOLE corpus against both ceilings (offline, exits 0)",
       "",
       "Exits non-zero when a contract is uncovered (a green would over-claim); a fully-covered unit passes.",
       "A test must RUN and ASSERT to count (ADR-0126): a hollow `assert(true)` (or a skipped test) under",
       "the right name does NOT cover its contract. A substantive-but-irrelevant assertion still reads",
       "covered — judging that is the deeper semantic-reviewer follow-on.",
+      "",
+      "--totals answers a DIFFERENT question: where does the backlog stand right now? It prints both",
+      "axes separately against their ceilings, with the aperture they were measured over, and always",
+      "exits 0 — it REPORTS, it does not gate. The ceiling itself is enforced by `coverage-drain.test.ts`",
+      "inside `pnpm -r test`, which names these numbers only when it REDS; this is how you ask on a",
+      "green run without hand-rolling a sweep script (two of whose traps return a false CLEAN).",
+      "NEVER SUM THE TWO: uncovered counts CONTRACTS, unbound counts CAPABILITIES.",
     ].join("\n"),
-    next: ["storytree tree", "storytree coverage <capability-id>"],
+    next: ["storytree tree", "storytree coverage --totals", "storytree coverage <capability-id>"],
   };
 }
 
@@ -2438,6 +2452,8 @@ export const CLI_OPTIONS = {
   "dry-run": { type: "boolean", default: false },
   // `storytree guide --fix` — opt in to enacting the D6 repairs (ADR-0207).
   fix: { type: "boolean", default: false },
+  // `storytree coverage --totals` — the whole-corpus backlog against both ceilings, on any run.
+  totals: { type: "boolean", default: false },
   live: { type: "boolean", default: false },
   real: { type: "boolean", default: false },
   "emit-wisp": { type: "boolean", default: false },
@@ -3567,6 +3583,20 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     if (help) return coverageHelp();
     const storiesDir = deps.storiesDir ?? path.join(repoRoot(), "stories");
     const root = repoRoot();
+    // `--totals` is the WHOLE-CORPUS question ("where does the backlog stand?"), which the
+    // per-capability form cannot answer and which the ceiling assertion prints only when it reds.
+    // The disk walk is composed HERE and injected, because `coverage-gate.ts` imports `CoverageUnit`
+    // from `coverage.ts` — so the report module reaching back for the sweep would be an import cycle.
+    if (values.totals === true) {
+      return coverageTotalsCommand({
+        sweep: () => {
+          const { units, specFilesWalked } = sweepRealBuildCoverage(storiesDir, root);
+          const { uncovered, unbound, scanned } = projectCoverageGaps(classifyGateCoverage(units));
+          const context = { specFilesWalked, scanned };
+          return { verdict: evaluateCoverageDrain({ uncovered, unbound }, context), context };
+        },
+      });
+    }
     return coverageCommand(sub, {
       loadUnit: (unitId) => loadCoverageUnit(storiesDir, root, unitId),
     });

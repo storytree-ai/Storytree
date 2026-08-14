@@ -128,6 +128,50 @@ test("library-standson-bootstrap-is-acyclic-by-construction: every seeded edge s
   }
 });
 
+test("ADR-0365 D1: uat-criterion sits at tier 6 — it seeds DOWN-tier and never at its tier-6 peer `increment`", () => {
+  // Tier 6 now holds TWO kinds. The same-tier rule is what stops them seeding at each other, so a
+  // reader adding a third kind here can see the invariant that keeps that safe.
+  assert.equal(KNOWLEDGE_TIERS.get("uat-criterion"), 6);
+  assert.equal(KNOWLEDGE_TIERS.get("increment"), 6);
+
+  const plan = projectStandsOnFromCitations([
+    row("a-uat-criterion", "uat-criterion", [
+      "asset:a-principle", // tier 2 — strictly down, seeds
+      "asset:an-increment", // tier 6 — SAME tier, must not seed
+      "asset:a-definition", // outside the DAG entirely (ADR-0363 D1), must not seed
+    ]),
+    row("a-principle", "principle", []),
+    row("an-increment", "increment", []),
+    row("a-definition", "definition", []),
+  ]);
+
+  assert.deepEqual(plan.edges.map((e) => e.id), ["a-uat-criterion"]);
+  assert.deepEqual(plan.edges[0]?.standsOn, ["asset:a-principle"]);
+  assert.equal(
+    plan.skipped.sameTier,
+    1,
+    "the increment citation is counted as the curation tail, not seeded",
+  );
+  assert.equal(plan.skipped.targetOutsideDag, 1, "the definition citation counts as outside the DAG");
+});
+
+test("ADR-0365 D2: an increment's arc containment is NOT a standsOn edge — only its down-tier citations seed", () => {
+  // The ~689-edge question. Containment lives on `arcRef`, which the seed must never read as a
+  // citation: it is a provenance overlay, not a dependency (ADR-0223 dec 4, adjudicated by 0365 D2).
+  const plan = projectStandsOnFromCitations([
+    { id: "an-increment", doc: { kind: "increment", arcRef: "asset:an-arc", references: ["asset:a-process"] } },
+    row("an-arc", "arc", []),
+    row("a-process", "process", []),
+  ]);
+
+  assert.deepEqual(plan.edges.map((e) => e.id), ["an-increment"]);
+  assert.deepEqual(
+    plan.edges[0]?.standsOn,
+    ["asset:a-process"],
+    "the arc it belongs to is absent — containment never becomes a dependency edge",
+  );
+});
+
 test("library-standson-bootstrap-never-overwrites-authored-edges: an artifact already carrying standsOn is skipped whole", () => {
   const plan = projectStandsOnFromCitations([
     // Curated already: it cites a down-tier principle, but a curator has authored a DIFFERENT edge.

@@ -84,7 +84,17 @@ The forces:
    | 3 · process | process | |
    | 4 · roles | agent | |
    | 5 · initiative | arc / epic | overlay |
-   | 6 · ephemeral | plan | stands on its arc |
+   | 6 · work-adjacent | increment (was `plan`), uat-criterion | stand on the knowledge they cite; **NOT on their arc** |
+
+   *(This row originally read "6 · ephemeral | plan | stands on its arc", which CONTRADICTED dec 4's
+   rule that arc containment "is a separate provenance overlay, never this DAG" — a contradiction
+   worth ~689 edges. **ADR-0365 D2 adjudicated it: dec 4 governs and this row is corrected in place**
+   under ADR-0139, because the decision never changed — only a row that was inconsistent with it,
+   written when tier 6 was the ephemeral `plan` (retired for the durable `increment` by ADR-0305 D1)
+   and carried across without re-examination. Containment and dependency are different relations that
+   share a pair of endpoints, which is why one ADR could assert both without the conflict showing.
+   `uat-criterion` was placed here by ADR-0365 D1; a same-tier citation is never projected, so the
+   two kinds cannot seed edges at each other.)*
 
    A new corpus-guard check, `check:library-dag-acyclic`, fails on any cycle in `standsOn` — the
    guarantee citations could never give. It is a **`pnpm gate` rung that reads the LIVE corpus**,

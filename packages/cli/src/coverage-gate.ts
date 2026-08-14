@@ -1,9 +1,16 @@
-// ⚠ UNWIRED — part of retired `check:coverage`, which ADR-0311 D2 removed from the gate on
-// 2026-08-05. This module is the gate logic; its entrypoint `check-coverage.ts` is invoked by
-// nothing, and it is reached only from there and from its own tests — so those tests stay GREEN
-// while it enforces NOTHING. Kept deliberately (ADR-0311 D5), not forgotten; re-wiring needs
-// fresh production-catch evidence AND an ADR, never just the wiring.
+// ⚠ UNWIRED AS A GATE RUNG — part of retired `check:coverage`, which ADR-0311 D2 removed from the
+// gate on 2026-08-05. This module is the gate logic; its entrypoint `check-coverage.ts` is invoked by
+// nothing, so NO GATE STEP enforces what is below. Kept deliberately (ADR-0311 D5), not forgotten;
+// re-wiring it AS A RUNG needs fresh production-catch evidence AND an ADR, never just the wiring.
 // Tombstone: `RETIRED_CHECKS` in `gate-order.ts`, pinned by `gate-order.test.ts`.
+//
+// ⚠ BUT IT IS NOT UNREACHED, and an earlier revision of this banner said it was ("reached only from
+// there and from its own tests"). The SWEEP below has two live readers, neither of them a gate rung —
+// UNWIRED marks what does not GATE, never what is dead:
+//   - `coverage-drain.test.ts`, the only surviving enforcement of the ceiling, inside `pnpm -r test`.
+//   - `storytree coverage --totals` (`commands.ts` composes the walk), which answers "where does the
+//     backlog stand?" on a GREEN run. Read-only, offline, exits 0, gates nothing.
+// Deleting this file therefore breaks a live verb and drops a repo-wide invariant.
 //
 // What follows is retained as written — read it as what this DID, not as current gate policy.
 //
