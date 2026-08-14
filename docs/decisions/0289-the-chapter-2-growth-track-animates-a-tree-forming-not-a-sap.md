@@ -151,6 +151,13 @@ purchase remains an owner action.
   stands on the v9 frames while `framing-fork.png` deliberately remains the v8 rendering. Both v8
   and v9 are canopy-only changes and leave the wood phase this fork turns on untouched, so the
   reading above is unmoved; the earlier renderings and section numbering are recoverable from git.
+  **Corrected in place 2026-08-14 (ADR-0139); the decision is unchanged — and this correction closes
+  the thread.** The fork is no longer undecided. The owner looked at the v9 track on signing the hero
+  tree's ceiling verdict (arc `chapter2-code-generated-organic-art-arc`, increment
+  `attest-code-generated-hero-tree-ceiling`) and kept `fixed`: one camera framed once to mature
+  extent, declining exp-16's constant-apparent-height convention. `framing-fork.png` is now a
+  historical record of a settled fork, not a live view, and nothing owes it a re-render when the
+  track changes.
 
 **Bad, or at least owed.**
 
