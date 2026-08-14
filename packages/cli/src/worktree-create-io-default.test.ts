@@ -5,7 +5,14 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:
 import os from "node:os";
 import path from "node:path";
 
-import { defaultWorktreeCreateIo } from "./worktree-create.js";
+import type { ClaimDocT, ClaimRequest, ClaimResult } from "@storytree/notice-board";
+
+import {
+  createWorktree,
+  defaultWorktreeCreateIo,
+  type WorktreeCreateIo,
+  type WorktreeCreateLedgerLike,
+} from "./worktree-create.js";
 
 /**
  * `defaultWorktreeCreateIo` — the PRODUCTION IO of the claim-gated workspace ceremony (ADR-0200 D3),
@@ -217,6 +224,152 @@ test("defaultWorktreeCreateIo.addWorktree: cuts a REAL registered worktree on a 
         path.join(primary, ".claude", "worktrees", "cut-two"),
       ),
     "a refused add must surface as a throw",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// registeredWorktrees — the resume probe's only view of what git already holds
+// ---------------------------------------------------------------------------
+
+test("defaultWorktreeCreateIo.registeredWorktrees: real `git worktree list --porcelain` yields each cut tree WITH its branch", () => {
+  // Resume adopts a partial ceremony only when a registered worktree sits at the claimed session's
+  // path AND carries the claimed branch. Both halves come from here, so a fake asserting a shape can
+  // never show that real porcelain parses into it — hence a real cut.
+  const target = path.join(primary, ".claude", "worktrees", "registry-probe");
+  defaultWorktreeCreateIo.addWorktree(primary, "claude/registry-probe", target);
+
+  const entries = defaultWorktreeCreateIo.registeredWorktrees(primary);
+  const mine = entries.find((e) => path.resolve(e.path).toLowerCase() === path.resolve(target).toLowerCase());
+  assert.ok(mine, `the cut worktree must appear: ${JSON.stringify(entries)}`);
+  assert.equal(mine.branch, "claude/registry-probe", "the branch is short-form, not refs/heads/…");
+
+  // The primary itself is always the first porcelain entry — the probe is over ALL worktrees, and
+  // the caller (not this member) is what narrows to `.claude/worktrees/<name>`.
+  assert.ok(
+    entries.some((e) => path.resolve(e.path).toLowerCase() === path.resolve(primary).toLowerCase()),
+    "the primary checkout is reported too",
+  );
+});
+
+test("defaultWorktreeCreateIo.registeredWorktrees: outside a repository it answers EMPTY, never throws", () => {
+  // Best-effort by contract: `createWorktree` treats an unreadable registry as "no orphan found" and
+  // mints fresh. A throw here would turn a degraded probe into a refused workspace.
+  const dir = mkdtempSync(path.join(os.tmpdir(), "st-create-norepo-"));
+  try {
+    assert.deepEqual(defaultWorktreeCreateIo.registeredWorktrees(dir), []);
+  } finally {
+    rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// RESUME, end to end against real git
+// ---------------------------------------------------------------------------
+
+/** A minimal accumulating ledger: `claimsFor` replays what `take` was given, as the live one does. */
+function recordingLedger(): WorktreeCreateLedgerLike & { readonly rows: ClaimDocT[] } {
+  const rows: ClaimDocT[] = [];
+  const iso = "2026-08-13T00:00:00.000Z";
+  return {
+    rows,
+    async take(req: ClaimRequest): Promise<ClaimResult> {
+      const claim: ClaimDocT = {
+        unitId: req.unitId,
+        sessionId: req.sessionId,
+        branch: req.branch,
+        intent: req.intent ?? "",
+        grade: req.grade ?? "work",
+        claimedAt: iso,
+        heartbeatAt: iso,
+      };
+      // The real store upserts per (unit, session) — the idempotence resume leans on rather than
+      // adding a second bookkeeping layer. Model it, or a re-take would look like a second claim.
+      const at = rows.findIndex((r) => r.unitId === claim.unitId && r.sessionId === claim.sessionId);
+      if (at === -1) rows.push(claim);
+      else rows[at] = claim;
+      return { acquired: true, claim, reclaimed: false };
+    },
+    async release() {
+      return true;
+    },
+    async claimsFor(unitId: string) {
+      return rows.filter((r) => r.unitId === unitId);
+    },
+  };
+}
+
+test("RESUME against REAL git: a re-run adopts its own cut-but-unprovisioned worktree instead of minting a second one", async () => {
+  // THE SCENARIO, reproduced: run 1 takes the claim and really cuts the worktree, then dies before
+  // provisioning (its `node_modules` are never created). Run 2 is the identical command.
+  //
+  // ONLY REAL GIT CAN PROVE THIS HALF. The adoption match compares the path git reports in
+  // `worktree list --porcelain` against `path.join(<primary>/.claude/worktrees, <sessionId>)` — and on
+  // Windows git prints `C:/…/x` while `path.join` produces `C:\…\x`. A fake registry that hands back
+  // whatever the test built can never fail that comparison, so it cannot prove it either.
+  const installs: string[] = [];
+  const io: WorktreeCreateIo = {
+    ...defaultWorktreeCreateIo,
+    primaryRoot: () => primary,
+    // The one stub: `install` is proven real below, and running pnpm inside this package-less fixture
+    // would prove nothing about resume while costing the file another real install.
+    install: (p) => {
+      installs.push(p);
+      return { ok: true, code: 0 };
+    },
+  };
+  const ledger = recordingLedger();
+  const shared = {
+    ledger,
+    io,
+    stamps: () => [],
+    checkpoint: () => {},
+  };
+  const intent = "resuming a partial ceremony";
+
+  const first = await createWorktree(
+    { nodes: ["resume-unit"], intent },
+    { ...shared, generateSuffix: () => "aaa111" },
+  );
+  assert.equal(first.ok, true, first.body);
+  const cut = path.join(primary, ".claude", "worktrees", "resume-unit-aaa111");
+  assert.equal(existsSync(cut), true, "run 1 really cut a worktree");
+  assert.equal(existsSync(path.join(cut, "node_modules")), false, "…and really never provisioned it");
+  assert.deepEqual(installs, [cut]);
+  assert.deepEqual(ledger.rows.map((r) => r.sessionId), ["resume-unit-aaa111"]);
+
+  // Run 2: the SAME command. Its suffix generator would draw a different name, so an adoption is the
+  // only way the second run can land on the first run's identity.
+  const second = await createWorktree(
+    { nodes: ["resume-unit"], intent },
+    { ...shared, generateSuffix: () => "bbb222" },
+  );
+  assert.equal(second.ok, true, second.body);
+  assert.match(second.body, /RESUMED/, "the envelope says it adopted rather than created");
+  assert.ok(second.body.includes(cut), "…and hands back run 1's path");
+  assert.equal(
+    existsSync(path.join(primary, ".claude", "worktrees", "resume-unit-bbb222")),
+    false,
+    "NO second worktree — that duplication is the whole defect",
+  );
+  assert.deepEqual(installs, [cut, cut], "provisioning is what run 2 resumes");
+  assert.deepEqual(
+    ledger.rows.map((r) => r.sessionId),
+    ["resume-unit-aaa111"],
+    "the claim is re-taken in place, never abandoned and never doubled",
+  );
+
+  // And once it IS provisioned, the same command must stop adopting it — it is now a live workspace.
+  mkdirSync(path.join(cut, "node_modules"), { recursive: true });
+  const third = await createWorktree(
+    { nodes: ["resume-unit"], intent },
+    { ...shared, generateSuffix: () => "ccc333" },
+  );
+  assert.equal(third.ok, true, third.body);
+  assert.doesNotMatch(third.body, /RESUMED/, "a provisioned tree belongs to a session that is using it");
+  assert.equal(
+    existsSync(path.join(primary, ".claude", "worktrees", "resume-unit-ccc333")),
+    true,
+    "so the ceremony mints and cuts its own",
   );
 });
 
