@@ -1,9 +1,9 @@
 // lpf-* contracts (library-process-flow, ADR-0266 / library-typed-edges) — a `process` asset's
 // authored `branchEdges` must join the DOWNSTREAM frontier of the focus DAG as real successor edges,
-// each carrying its authored label and a `kind: 'branch'` tag, never routed through `referencesOf`
-// (which would rank them upstream and invert the flow). At HEAD `buildFocusGraph` reads only
-// `asset.references` — branchEdges are ignored entirely, so every assertion below is a genuine
-// behaviour red, not a type-only change.
+// each carrying its authored label and a `kind: 'branch'` tag, never routed through the ordinary
+// dependency walk (which would rank them upstream and invert the flow). `buildFocusGraph`'s ordinary
+// substrate is the authored `standsOn` edge (ADR-0223, was `asset.references` before 2026-08-14);
+// branchEdges are a SEPARATE typed edge on top of it and are unaffected by that switch.
 
 import { describe, it, expect } from 'vitest';
 import { buildFocusGraph } from './focusGraph';
@@ -93,9 +93,11 @@ describe('lpf — process branchEdges become downstream flow edges', () => {
     const centreAsset = process('software-factory-line-fixture', [
       { ref: 'asset:station-a', label: 'station A' },
     ]);
-    // An ordinary reference edge, upstream of the centre, for contrast.
+    // An ordinary DEPENDENCY edge, upstream of the centre, for contrast. Fixture migrated from
+    // `references` to `standsOn` with ADR-0223's substrate switch — the contrast this contract
+    // draws (a branch edge is kind-tagged, an ordinary edge is not) is unchanged.
     const upstreamRef = principle('upstream-ref');
-    const centreWithRef: GuidanceAsset = { ...centreAsset, references: ['asset:upstream-ref'] };
+    const centreWithRef: GuidanceAsset = { ...centreAsset, standsOn: ['asset:upstream-ref'] };
     const assets = [centreWithRef, stationA, upstreamRef];
 
     const result = buildFocusGraph({ centre: centreOf(centreWithRef), assets, docs: [] });

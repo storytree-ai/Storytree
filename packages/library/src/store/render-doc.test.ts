@@ -604,3 +604,112 @@ test("lte-passthrough-and-degraded-carry-no-typed-edges: the pass-through and de
   assert.notEqual(renderedDegraded.degraded, undefined, "still degrades, never throws");
   assert.equal(renderedDegraded.arcRef, undefined);
 });
+
+/**
+ * ADR-0223's `standsOn` crosses on the PASS-THROUGH branch too — deliberately NOT the same rule as
+ * the three typed NAVIGATION edges above, and the boundary is worth stating because the two look
+ * alike.
+ *
+ * `lte-passthrough-and-degraded-carry-no-typed-edges` exists to stop a STALE LEFTOVER leaking: a
+ * `stepRefs`-shaped property on a body-bearing doc is residue from some prior structured shape, and
+ * this branch cannot tell current data from residue, so it reads only the known AssetDocLike keys.
+ * That contract is untouched here and still holds.
+ *
+ * `standsOn` on a body-bearing doc is not residue. The `increment` kind carries a per-kind content
+ * field literally NAMED `body`, so `hasStringBody` routes EVERY increment down this branch (measured
+ * against the live store 2026-08-14: 693 of 693) — and `increment` is IN the DAG, the successor of
+ * ADR-0223 D3's tier-6 `plan`. Structured-branch-only crossing therefore dropped 106 of the corpus's
+ * 660 authored edges (169 docs raw -> 137 on the wire), a sixth of the graph and precisely the
+ * arc/increment lineage, while the acyclicity gate — which reads raw rows — went on reporting all
+ * 660. Two honest-looking numbers that could never be reconciled by looking at either alone.
+ */
+test("standsOn crosses the pass-through branch — a body-bearing increment keeps its authored dependency edge", () => {
+  const stored: StoredDoc = {
+    id: "some-increment",
+    kind: "increment",
+    doc: {
+      id: "some-increment",
+      kind: "increment",
+      title: "An increment",
+      description: "d",
+      // The collision that puts every increment on this branch: `body` is one of its CONTENT
+      // fields, not a pre-rendered body.
+      body: "the increment's authored body prose",
+      objective: "do the thing",
+      references: [],
+      standsOn: ["asset:some-arc", "doc:decisions/0223-....md"],
+      createdAt: "2026-08-01T00:00:00Z",
+      updatedAt: "2026-08-01T00:00:00Z",
+    },
+    createdAt: "2026-08-01T00:00:00Z",
+    updatedAt: "2026-08-01T00:00:00Z",
+  };
+
+  const rendered = renderStoredDoc(stored);
+
+  assert.deepEqual(
+    rendered.standsOn,
+    ["asset:some-arc", "doc:decisions/0223-....md"],
+    "the authored dependency edge survives the pass-through branch, order preserved",
+  );
+  // The three navigation edges still do NOT cross here — the older contract is unchanged.
+  assert.equal(rendered.stepRefs, undefined);
+  assert.equal(rendered.branchEdges, undefined);
+});
+
+test("standsOn is absent (never []) on a pass-through doc that carries no authored edge", () => {
+  const stored: StoredDoc = {
+    id: "plain-template",
+    kind: "template",
+    doc: {
+      id: "plain-template",
+      category: "template",
+      title: "T",
+      description: "d",
+      body: "b",
+      references: [],
+    },
+    createdAt: "2026-08-01T00:00:00Z",
+    updatedAt: "2026-08-01T00:00:00Z",
+  };
+
+  // Absent, not `[]` — "carries no authored edge" and "authored, and stands on nothing" are
+  // different facts, and ADR-0223 keeps the field `.optional()` precisely to tell them apart.
+  assert.equal(renderStoredDoc(stored).standsOn, undefined);
+});
+
+test("buildLibraryDoc preserves standsOn across a body-bearing write it cannot express", () => {
+  // The studio editor's AssetWriteInput has no `standsOn` field (curation is a CLI concern), and
+  // this branch rebuilds the doc from scratch — so without an explicit carry, one save through the
+  // studio would silently wipe an artifact's authored edges.
+  const existing: StoredDoc = {
+    id: "edited-unit",
+    kind: "pattern",
+    doc: {
+      id: "edited-unit",
+      category: "pattern",
+      title: "old",
+      description: "old",
+      body: "old body",
+      references: [],
+      standsOn: ["asset:bedrock"],
+      createdAt: "2026-07-01T00:00:00Z",
+    },
+    createdAt: "2026-07-01T00:00:00Z",
+    updatedAt: "2026-07-01T00:00:00Z",
+  };
+
+  const doc = buildLibraryDoc(
+    {
+      id: "edited-unit",
+      category: "pattern",
+      title: "new",
+      description: "new",
+      body: "new body",
+      references: [],
+    },
+    existing,
+  );
+
+  assert.deepEqual(doc["standsOn"], ["asset:bedrock"], "the authored edge survives a studio save");
+});

@@ -188,6 +188,22 @@ export interface GuidanceAsset {
    * absent-by-default, so every existing reader is unaffected.
    */
   lifecycle?: string;
+  /**
+   * The authored `standsOn` dependency edge (ADR-0223) — a prefixed pointer list (`asset:<id>` /
+   * `doc:<relpath>`), crossing the wire by the same {@link GuidanceAsset.stepRefs} idiom.
+   *
+   * This is the DAG substrate, and it is deliberately NOT {@link GuidanceAsset.references}: the
+   * citation web is many-to-many and legitimately cyclic (a definition pair like story ↔ capability
+   * is mutually constitutive by meaning), so it can never be topologically oriented. `standsOn` is
+   * authored, acyclic, and gated closed by `check:library-dag-acyclic`. `buildFocusGraph`
+   * (`./lib/focusGraph`) walks THIS; citations survive as the free "see also" affordance.
+   *
+   * Optional / absent-by-default, never an empty array — so a doc with no authored edge and a doc
+   * predating the field read identically, and every existing reader keeps validating with no
+   * migration. Absent by construction for the edge-free kinds (`friction` / `open-question` /
+   * `definition` — ADR-0363 D1 excluded definitions, whose depth buys a reader nothing).
+   */
+  standsOn?: string[];
   createdAt: string;
   updatedAt: string;
 }
