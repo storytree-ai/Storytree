@@ -140,6 +140,17 @@ the `packageOwnership` pattern one level down.** Owner-directed 2026-08-06.
   evidence, so the blocking rung must still earn its place on the report's own numbers before it
   lands.
 
+  *(This bar was CLEARED 2026-08-14 —
+  [ADR-0372](0372-check-ownership-totality-earns-its-blocking-rung-clearing-ad.md) **amends** this
+  ADR. `storytree ownership` itself is untouched and still ships report-only, exactly as decided
+  here; what landed on top is a separate, narrower rung, `check:ownership-totality`, that blocks only
+  on what a branch itself authors (the AUTHORED/INHERITED split ADR-0301 decided for
+  `check:verification-decay`, reused here). The evidence: even after `capability-layer-coverage-arc`
+  drained the map to 555/595 owned, a single increment's own commit born two new files under no
+  declared subtree and a FULL `pnpm gate` went green regardless (PR #1326) — the exact walkable,
+  cost-bearing shape this bullet named as the condition for landing a blocking version. ADR-0372 is
+  `proposed`, not yet ratified by the owner; read it, not this note, for the governing decision.)*
+
 **D3. The claim unit is ANY addressable object in the work graph — settling
 `oq-claim-unit-any-addressable-object` and ADR-0310 D4.** Owner-directed 2026-08-06. Stories,
 capabilities, arcs and declared subtrees are all claimable under one rule, and edges become an
