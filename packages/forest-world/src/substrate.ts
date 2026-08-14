@@ -15,6 +15,7 @@
 // axial keys that territory tinted as wheat.
 
 import { hash, rand01 } from './rng.js';
+import { groundFlattening } from './camera.js';
 import { HEX_R, hexCenter, hexCorners, pixelToHex, axialKey, type Axial, type Pt } from './hex.js';
 
 export type SubstrateMode = 'relaxed-hex' | 'relaxed-quad' | 'mesh';
@@ -84,8 +85,12 @@ function relaxVerts(
     if (!p) continue;
     const ang = rand01(hash(`jx:${orig[i]}`)) * Math.PI * 2;
     const mag = rand01(hash(`jm:${orig[i]}`)) * opts.jitterMag;
+    // The jitter is a GROUND-plane displacement, so its y foreshortens with the lattice it
+    // perturbs (ADR-0367 D1). Left isotropic in SCREEN space it would inject a wobble several
+    // times larger than the projected row pitch and tangle the mesh in y alone. The relaxation
+    // below needs no such term: averaging commutes with the affine projection.
     p.x += Math.cos(ang) * mag;
-    p.y += Math.sin(ang) * mag;
+    p.y += Math.sin(ang) * mag * groundFlattening();
   }
   for (let it = 0; it < opts.iters; it++) {
     const next = verts.map((p) => ({ x: p.x, y: p.y }));

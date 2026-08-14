@@ -36,6 +36,7 @@ import type {
 } from './svg-island-accretion.js';
 import type { VegetationRender } from './island-vegetation-growth.js';
 import type { VegetationRenderLayer } from './vegetation-render.js';
+import { organicLayerBox } from './land-camera.js';
 
 export interface OrganicPoseRenderLayer {
   readonly trackId: string;
@@ -447,10 +448,13 @@ function composeClass(node: SceneNode, ctx: SceneCtx): string {
       // on the cells inside (also `st-<status>`). Same-named base class + `st-<status>` (frozen vocab).
       return `parcel st-${status}`;
     case 'parcel-flora':
-      // one placed flora item: its theme (meadow/woodland/heath → `theme-<t>`) + the cap's status. The
-      // colour itself stays CSS-side (a parallel lane owns the parcel colour block) — the mapper only
-      // names the class the theme selects.
-      return `parcel-flora theme-${node.theme ?? 'meadow'} st-${status}`;
+      // one placed flora item: its theme (meadow/woodland/heath → `theme-<t>`) + the cap's status +
+      // `is-filtered` when the legend has hidden that status — `withFilter` composes the same suffix
+      // `flora` gets, so a legend-filtered capability's land stops reading as unfiltered on the shipped
+      // map (shipped-map-render-path-drops-three-delivered-behaviours defect 2). The colour itself
+      // stays CSS-side (a parallel lane owns the parcel colour block) — the mapper only names the class
+      // the theme + filter select.
+      return withFilter(`parcel-flora theme-${node.theme ?? 'meadow'}`, node.status, ctx);
     case 'parcel-blade':
     case 'parcel-shrub':
     case 'parcel-stem':
@@ -493,7 +497,13 @@ function handlersFor(
         onClick: () => ctx.onSelectStory(id),
       };
     }
-    case 'flora': {
+    case 'flora':
+    // The shipped map's per-capability ground group (forest-parcels inc 1): carries the SAME capId a
+    // `flora` node would, so it gets the SAME capability-select route
+    // (shipped-map-render-path-drops-three-delivered-behaviours defect 3 — `parcel` retires `flora` on
+    // a parcels island, but only `flora` wired `onSelectCap`, leaving the shipped map's only
+    // capability-select route attached to a drawable it no longer draws).
+    case 'parcel': {
       const capId = node.id;
       if (!capId || !storyId) return {};
       return {
@@ -527,13 +537,11 @@ function hitsLayerToBack(children: readonly SceneNode[]): readonly SceneNode[] {
 }
 
 function organicPoseImage(layer: OrganicPoseRenderLayer): React.ReactNode {
-  const projection = layer.projection ?? 1;
-  const width = layer.canvas.width * layer.scale;
-  const height = layer.canvas.height * layer.scale * projection;
-  const x = layer.worldAnchor.x - layer.assetAnchor.x * layer.scale;
   // Anchored AT the ground socket (see `OrganicPoseRenderLayer.projection`): the anchor offset is
-  // squashed by the same factor as the box, so the root contact never moves as the dial changes.
-  const y = layer.worldAnchor.y - layer.assetAnchor.y * layer.scale * projection;
+  // squashed by the same factor as the box, so the root contact never moves as the factor changes.
+  // The arithmetic lives in `./land-camera.js` so the land-camera composition suite can assert
+  // against the placement this renderer actually uses rather than against a copy of it.
+  const { x, y, width, height } = organicLayerBox(layer);
   return React.createElement('image', {
     key: `__organic-pose-${layer.trackId}`,
     href: layer.src,
@@ -858,18 +866,34 @@ function accretionCellFor(node: SceneNode, ctx: SceneCtx): SvgIslandAccretionCel
 // unchanged, so a sheet covering only SOME kinds still works everywhere else.
 
 /**
- * A sprite replaces its whole wrapper's ARTWORK, never the semantic descendants the scene composed
- * onto that wrapper for reasons the sprite sheet knows nothing about — today, the signed-proof bloom
- * (`bloom-anchor` > `bloom-crown`/`bloom-plant`, composed to `.world-bloom` by {@link composeClass})
+ * The semantic descendants a sprite swap must NOT discard — a wrapper's ARTWORK, never the semantic
+ * descendants the scene composed onto it for reasons the sprite sheet knows nothing about. `bloom-anchor`
+ * is the transient signed-PASS bloom (`bloom-anchor` > `bloom-crown`/`bloom-plant`, composed to
+ * `.world-bloom` by {@link composeClass}); `sign-blank`/`sign-pass`/`sign-fail` is the PERSISTENT
+ * human-witness signpost (`buildSignpost`) — the one with real verification weight, since it is the only
+ * one of the two that distinguishes an unwitnessed island from a witnessed one at rest. Both
  * `buildTree`/`buildPlant` splice in as a direct sibling child alongside the trunk/crown geometry a
- * sprite swap discards. Collect those preserved descendants (a shallow per-`g` walk, stopping at the
- * first `bloom-anchor` found along each branch — a bloom never nests a second bloom) so the caller can
- * render them ALONGSIDE the sprite `<image>` instead of silently dropping them.
+ * sprite swap discards (shipped-map-render-path-drops-three-delivered-behaviours defect 1 — a human-
+ * witnessed proof and an unwitnessed one looked identical on the shipped map, because only
+ * `bloom-anchor` was preserved).
+ */
+const PRESERVED_SPRITE_DESCENDANT_KINDS: ReadonlySet<string> = new Set([
+  'bloom-anchor',
+  'sign-blank',
+  'sign-pass',
+  'sign-fail',
+]);
+
+/**
+ * Collect the preserved descendants a sprite swap must not drop (a shallow per-`g` walk, stopping at
+ * the first preserved kind found along each branch — none of {@link PRESERVED_SPRITE_DESCENDANT_KINDS}
+ * ever nests another) so the caller can render them ALONGSIDE the sprite `<image>` instead of silently
+ * dropping them.
  */
 function collectPreservedDescendants(node: SceneNode, out: SceneNode[]): void {
   if (node.el !== 'g') return;
   for (const child of node.children) {
-    if (child.kind === 'bloom-anchor') {
+    if (child.kind !== undefined && PRESERVED_SPRITE_DESCENDANT_KINDS.has(child.kind)) {
       out.push(child);
     } else {
       collectPreservedDescendants(child, out);
@@ -1286,7 +1310,12 @@ function renderNode(
     );
   }
   if (node.el === 'g') {
-    const childStory = node.kind === 'territory' ? node.id : storyId;
+    // `ground` carries the island's own id (`buildGround`) the SAME way `territory` does, but sits in
+    // a SEPARATE top-level layer (`ground-mesh`, never nested under a `territory` group) — so without
+    // this, a `parcel` node (a `ground` child, forest-parcels inc 1) reached `handlersFor` with
+    // `storyId` still `undefined` and its `onSelectCap` handler was a permanent no-op regardless of the
+    // capId it carried (shipped-map-render-path-drops-three-delivered-behaviours defect 3).
+    const childStory = node.kind === 'territory' || node.kind === 'ground' ? node.id : storyId;
     // At the world root, sink the hit layer to the back so its rects catch clicks without covering
     // the island tiles / plants on top (see hitsLayerToBack).
     const children = node.kind === 'world' ? hitsLayerToBack(node.children) : node.children;

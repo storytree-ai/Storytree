@@ -78,7 +78,7 @@ import { CLI_AREAS } from "./cli-areas.js";
 import { dispatchCommand, dispatchHelp } from "./dispatch-command.js";
 // ADR-0290: a live library write records WHICH BRANCH made it, so `check:corpus-content` can charge a
 // seed↔live drift to the session that must reconcile it instead of to whoever gates next.
-import { defaultCliActor } from "./cli-actor.js";
+import { currentGitBranch, defaultCliActor, inFlightBranches } from "./cli-actor.js";
 import { adoptCommand, adoptHelp, type AdoptDispatchDeps } from "./adopt.js";
 import { branchNext, branchHelp } from "./branch.js";
 import {
@@ -2521,6 +2521,10 @@ export const CLI_OPTIONS = {
   // sibling's body into its commit.
   id: { type: "string", multiple: true },
   write: { type: "boolean", default: false },
+  // `storytree write-authority codex --toolchain-payload <abs path>` — the already-staged
+  // `dist/pnpm.cjs` under the managed payloads directory. The command hashes what is actually there
+  // and mints the pin itself, so no operator ever transcribes a 64-character digest by hand.
+  "toolchain-payload": { type: "string" },
   // `storytree arc reconcile --write --only <close|reopen>` — narrow WHICH drift direction is
   // applied. The report always carries both; this only scopes the write.
   only: { type: "string" },
@@ -3027,7 +3031,14 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     if (sub === "codex") {
       // ADR-0355: generation is repository-owned; installation remains administrator-owned.
       return codexSessionContainmentCommand(
-        { write: values.write === true, help },
+        {
+          write: values.write === true,
+          help,
+          // The staged `dist/pnpm.cjs` — the pin is minted from the file, never transcribed.
+          ...(typeof values["toolchain-payload"] === "string"
+            ? { toolchainPayload: values["toolchain-payload"] }
+            : {}),
+        },
         { ledger: deps.presence?.ledger ?? null, now: () => new Date() },
       );
     }
@@ -3883,6 +3894,10 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         snapshot,
         ledgerPath: defaultLedgerPath(memoryDir),
         now,
+        // ADR-0371 — both derived from LOCAL git refs, so the worklist gains its authorship/liveness
+        // split without acquiring a network or database dependency.
+        currentBranch: currentGitBranch(),
+        inFlightBranches: inFlightBranches(now),
       },
     );
   }

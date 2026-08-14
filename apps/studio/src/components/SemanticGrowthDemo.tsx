@@ -38,6 +38,7 @@ import {
   CHAPTER2_ORGANIC_POSE_TO_POSE_REGISTRY,
   CHAPTER2_ROUND3_TREE_CANDIDATES,
   chapter2Round3TreeCandidate,
+  spriteUprightReconciliation,
   neighbourHighlightPlan,
   laneLayout,
   normalizeWorldPresentationModel,
@@ -473,21 +474,26 @@ const PLANT_TRACK_ID = 'chapter2-plant-sample-pose-track-v1';
 const INCUMBENT_HERO_TRACK_ID = 'chapter2-hero-tree-pose-track-v1';
 
 /**
- * The round-3 lab's PROJECTION dial (comparison stand-in, never a solved camera).
+ * The round-3 lab's PROJECTION dial — now a COMPARISON CONTROL ONLY (ADR-0367 D1).
  *
- * Verified 2026-08-01: PixelLab will not produce a low-top-down tree by prompting, and the
- * generation budget is spent, so the camera cannot be fixed by regeneration in this increment.
- * What costs nothing is a deterministic vertical squash of the rendered organic layer, pinned at
- * the ground socket. 0.82 is the owner-facing default because it reads noticeably more planted
- * than 1.00 without turning the tree into a bush; 1.00 is the untouched track and 0.72 is the far
- * end of what still reads as a tree.
+ * It used to be the reconciliation MECHANISM, and its own comment said what that cost: the land was
+ * a pure plan view, the tree was rendered at a 20-degree camera, and 0.82 was an owner-picked
+ * vertical squash standing in for the low top-down view the generator would not produce — "a
+ * comparison stand-in, never a solved camera".
+ *
+ * The land now declares a camera, and it is the same one the tree is authored at, so what makes a
+ * tree look planted is the shared projection rather than this dial. The default is DERIVED from that
+ * shared value ({@link spriteUprightReconciliation}) and is therefore 1 — no squash — for a track
+ * authored at the land's own camera. The four steps stay so the owner can still compare, and a
+ * default that stops being 1 is a live signal that the mounted track needs re-rendering.
  *
  * The dial is STATELESS — the rendered geometry is a pure function of the selected value, so it
  * holds nothing for Replay to clear, and Replay deliberately does NOT snap the owner's chosen
  * comparison setting back to the default mid-comparison.
  */
 const R3_LAB_PROJECTIONS = Object.freeze([1, 0.9, 0.82, 0.72] as const);
-const R3_LAB_DEFAULT_PROJECTION = 0.82;
+const r3LabDefaultProjection = (candidate: Chapter2HeroTreeCandidate): number =>
+  spriteUprightReconciliation(candidate.authoredCameraElevationDeg);
 const R3_LAB_DEFAULT_CANDIDATE: Chapter2HeroTreeCandidateId = 'incumbent';
 
 function heroTreeTrack(candidate: Chapter2HeroTreeCandidate): OrganicPoseTrack {
@@ -557,7 +563,11 @@ export function SemanticGrowthDemo({
   // switching a candidate mid-walk leaves the walk exactly where the owner left it.
   const [candidateId, setCandidateId] =
     useState<Chapter2HeroTreeCandidateId>(R3_LAB_DEFAULT_CANDIDATE);
-  const [projection, setProjection] = useState<number>(R3_LAB_DEFAULT_PROJECTION);
+  // Seeded from the SHARED camera, not from a hand-picked squash: the default is what the mounted
+  // track needs in order to stand on land drawn at the land's declared camera (ADR-0367 D1).
+  const [projection, setProjection] = useState<number>(() =>
+    r3LabDefaultProjection(chapter2Round3TreeCandidate(R3_LAB_DEFAULT_CANDIDATE)),
+  );
   const sourceFrames = poseVariant ? organicPoseFrames() : frames();
   const sockets = poseVariant ? organicPoseSockets() : null;
   const candidate = labVariant ? chapter2Round3TreeCandidate(candidateId) : null;
