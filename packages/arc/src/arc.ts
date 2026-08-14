@@ -1,5 +1,23 @@
 import type { Store, StoredDoc } from "@storytree/storage-protocol";
-import { explainDocValidationError, parseCiteRef, upcastAndValidate } from "@storytree/library";
+// `kebabSlug` is the ADR scaffolder's kebab-caser, reused rather than copied: `arc new` derives an id
+// slug from a title exactly as `adr new` derives a filename slug, and a second implementation would
+// be a drift seam for no gain. It sits in `@storytree/library` (with `ASSET_REF_PREFIX`) because the
+// two callers no longer share a package — `adr.ts` stayed in the CLI when the arc verbs moved here.
+import {
+  ASSET_REF_PREFIX,
+  explainDocValidationError,
+  kebabSlug,
+  parseCiteRef,
+  upcastAndValidate,
+} from "@storytree/library";
+// The write STAMP (`cli@<branch>`) and the ADR-0023 envelope shape, both in `@storytree/drive` — the
+// package this one and the CLI have in common. A verb here must stamp exactly as its CLI siblings do.
+import { defaultCliActor, type Envelope } from "@storytree/drive";
+
+// The arc → children JOIN is its own module in this package, not this one: `arc-rollup.ts` is the
+// shared, surface-agnostic value (ADR-0267's Consequences: the derived join must stop being
+// CLI-only), and this module OWNS the rendering — turning that rollup into an ADR-0023 envelope —
+// and the arc write verbs. Re-exported so `worktree-create.ts` and the suites keep their path.
 import {
   arcIsClosed,
   arcRefOf,
@@ -11,23 +29,11 @@ import {
   storyArcStamps,
   type ArcLifecycleDrift,
   type ArcRollup,
-} from "@storytree/drive";
-
-// The ADR scaffolder's kebab-caser, reused rather than copied: `arc new` derives an id slug from a
-// title exactly as `adr new` derives a filename slug, and a second implementation would be a drift
-// seam for no gain. The dependency runs one way only (`adr.ts` knows nothing of arcs).
-import { ASSET_REF_PREFIX } from "./asset-citation.js";
-import { defaultCliActor } from "./cli-actor.js";
-import { kebabSlug } from "./adr.js";
-import type { Envelope } from "./envelope.js";
+} from "./arc-rollup.js";
 // ADR-0358 Option 2D — the shared staleness-line renderer, so `arc show` and `question check` never
 // say the same thing two different ways.
 import { questionStalenessLine } from "./question.js";
 
-// The arc → children JOIN is not here: it lives in `@storytree/drive`'s `arc-rollup.ts`, which the
-// studio server shares (ADR-0267's Consequences: the derived join must stop being CLI-only). This
-// module OWNS the rendering — turning that rollup into an ADR-0023 envelope — and the arc write
-// verbs. Re-exported so the existing importers (`worktree-create.ts`, the suites) keep their path.
 export { arcIsClosed, storyArcStamps };
 
 /**

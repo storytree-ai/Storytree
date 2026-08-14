@@ -82,6 +82,12 @@ Owner-directed 2026-07-13:
    the decision this ADR records is unchanged, but its own prose undercounted the ways an entry
    leaves.)*
 
+   *(First worked instance, 2026-08-14:
+   [ADR-0369](0369-the-arc-domain-owns-its-own-package-and-the-arrow-runs-arc-t.md) — the arc
+   domain's extraction into `packages/arc`. It is the first case where this rule refused a NEW story
+   regardless of any declared edge and forced the package-first move rather than merely inviting it;
+   see it for what that move costs in practice.)*
+
 3. **Slow migration, never big-bang.** Grandfathered stories migrate one at a time, as next touched
    or as chores: move the story's WHOLE footprint into its own package, factoring shared host
    internals (contexts, shared components) into a shared package or props. The acyclicity gate

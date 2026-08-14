@@ -31,15 +31,18 @@ let noticeBoardModule: Promise<typeof import("@storytree/notice-board")> | null 
 const loadNoticeBoard = (): Promise<typeof import("@storytree/notice-board")> =>
   (noticeBoardModule ??= import("@storytree/notice-board"));
 // The two COMPOSITIONS behind `/api/arcs` and `/api/floor-health` are SHARED code, not
-// re-compositions: `loadArcRollups` (the arc → children join) and `loadFloorHealthReading` (the
-// floor-health instrument's one store-reading half) both live in @storytree/drive — already this
-// app's declared dep — precisely so the CLI, the studio server and this backend read one join and one
-// reading, and cannot disagree about what an arc contains or how the floor is doing (ADR-0267 /
-// ADR-0316). Loaded lazily like the two above — drive pulls `node:`-bearing modules, and nothing on
-// the health/tree path should pay for them.
+// re-compositions: `loadArcRollups` (the arc → children join, in @storytree/arc since the arc domain
+// took its own package) and `loadFloorHealthReading` (the floor-health instrument's one store-reading
+// half, in @storytree/drive) — both declared deps of this app precisely so the CLI, the studio server
+// and this backend read one join and one reading, and cannot disagree about what an arc contains or
+// how the floor is doing (ADR-0267 / ADR-0316). Loaded lazily like the two above — both pull
+// `node:`-bearing modules, and nothing on the health/tree path should pay for them.
 type DriveModule = typeof import("@storytree/drive");
 let driveModule: Promise<DriveModule> | null = null;
 const loadDrive = (): Promise<DriveModule> => (driveModule ??= import("@storytree/drive"));
+type ArcModule = typeof import("@storytree/arc");
+let arcModule: Promise<ArcModule> | null = null;
+const loadArc = (): Promise<ArcModule> => (arcModule ??= import("@storytree/arc"));
 
 /**
  * The library document store BOTH store-backed reads reach through — the arc rollup (`/api/arcs`) and
@@ -53,7 +56,7 @@ const loadDrive = (): Promise<DriveModule> => (driveModule ??= import("@storytre
  * both and the desktop keeps ONE document store rather than two spellings of it. That mirrors the
  * studio, where `handleArcs` and `handleFloorHealth` both read `backend.docStore`.
  */
-type LibraryDocStore = Parameters<DriveModule["loadArcRollups"]>[0]["store"];
+type LibraryDocStore = Parameters<ArcModule["loadArcRollups"]>[0]["store"];
 
 // ---------- minimal HTTP helpers (local copies — not imported from studio) ----------
 
@@ -150,7 +153,7 @@ export interface LocalBackendBackend {
   /**
    * The library DOCUMENT STORE — the SAME `Store` the CLI drives under `--pg`, and the seam behind
    * BOTH store-backed reads: the arc rollup at `GET /api/arcs` (ADR-0267 / ADR-0314, handed straight
-   * to drive's `loadArcRollups`) and the factory-floor reading at `GET /api/floor-health` (ADR-0316,
+   * to `@storytree/arc`'s `loadArcRollups`) and the factory-floor reading at `GET /api/floor-health` (ADR-0316,
    * handed to drive's `loadFloorHealthReading`). One seam, so the desktop, the studio,
    * `storytree arc show` and `storytree factory health` cannot disagree about what an arc contains or
    * how the floor is doing. Optional exactly like {@link sessionClaims}: a narrow stub may omit it,
@@ -343,7 +346,7 @@ export function createLocalBackend(
         // The ARC SURFACE's read (ADR-0267 / ADR-0314): `{ arcs: ArcRollup[] }` for the list, one
         // `ArcRollup` for `/api/arcs/<id>`. Re-composes the studio's handleArcs (apiRouter.ts) — no
         // apps/studio/server import (ADR-0100 / ADR-0176) — but the COMPUTE is genuinely shared:
-        // drive's `loadArcRollup`/`loadArcRollups` is the same join `storytree arc show` renders, so
+        // `@storytree/arc`'s `loadArcRollup`/`loadArcRollups` is the same join `storytree arc show` renders, so
         // nothing is derived here and the three surfaces cannot disagree about an arc's contents.
         //
         // WHY THE DESKTOP NEEDS IT AT ALL: the Electron app loads the COMPILED STUDIO BUNDLE against
@@ -376,7 +379,7 @@ export function createLocalBackend(
           }
           sendJson(res, 200, { arcs: null });
         } else {
-          const { loadArcRollup, loadArcRollups } = await loadDrive();
+          const { loadArcRollup, loadArcRollups } = await loadArc();
           const arcDeps = {
             store,
             decisionsDir: path.join(deps.docsDir, "decisions"),

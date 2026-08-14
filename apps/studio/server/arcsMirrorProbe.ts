@@ -19,7 +19,7 @@
  * instrument measuring it. The dispatcher's own catch is what runs here.
  *
  * WHAT THE FIXTURE'S STORE IS AND IS NOT. The store is INPUT, not the thing under test: the arc →
- * children join is shared code (`loadArcRollups` in @storytree/drive) that BOTH surfaces call, so
+ * children join is shared code (`loadArcRollups` in @storytree/arc) that BOTH surfaces call, so
  * what is being compared is each surface's envelope around one join. This probe seeds an
  * `InMemoryStore`; the desktop probe carries its own minimal store because
  * `@storytree/storage-protocol` is not its declared dep. Only `getDoc`/`queryDocs` are exercised and

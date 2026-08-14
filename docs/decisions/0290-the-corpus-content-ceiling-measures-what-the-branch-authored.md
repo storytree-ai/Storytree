@@ -94,7 +94,9 @@ the committed seed): D1's two-signal attribution, D3's three outcomes, D4's live
 degraded-live carve-out, D6's `export-corpus --id` narrowing, and D7's per-axis fail-closed rule — all
 of them describe a check that no longer exists, and none should be acted on. **STANDING: D2** — live
 library writes stamp the branch into `events.library_event.actor` as `cli@<branch>`
-(`packages/cli/src/cli-actor.ts`). D2 was built to feed the deleted check's live side, but it is a
+(`packages/drive/src/cli-actor.ts`; moved there from `packages/cli` by ADR-0369 D3, re-exported at
+the old `packages/cli/src/cli-actor.ts` path so every existing caller is unchanged). D2 was built to
+feed the deleted check's live side, but it is a
 property of the WRITE PATH rather than of any reader, it is untouched, and
 [ADR-0301](0301-drain-ceilings-charge-by-authorship-verification-decay-and-g.md) generalised
 authorship-charging to the ceilings that survive — so the stamp is now justified by its consumers
@@ -232,7 +234,10 @@ either; only the tense.
 - [ADR-0110](0110-collapse-the-redundant-end-of-flow-adr-ratification.md) — why this is born `accepted`.
 - [ADR-0050](0050-adr-number-allocation.md) — the branch-recording precedent D2 follows.
 - [ADR-0246](0246-forests-for-other-projects-the-adr-0133-deferral-is-lifted-a.md) — the repo-root seam the git reads go through.
-- `packages/cli/src/cli-actor.ts` — the ONLY surviving code reference, and the one D2 stands on. The
+- `packages/drive/src/cli-actor.ts` — the ONLY surviving code reference, and the one D2 stands on.
+  (Moved out of `packages/cli` by ADR-0369 D3, 2026-08-14; `packages/cli/src/cli-actor.ts` is now a
+  re-export shim over it, so every cli call site that imports `./cli-actor.js` is unaffected and this
+  sentence's claim still holds — the implementation has exactly one address, this one.) The
   four this ADR originally also named — `corpus-content-attribution.ts`, `corpus-content-drain.ts`,
   `check-corpus-content.ts`, `packages/library/src/store/export-corpus.ts` (and `seed-revisions.ts`,
   added by the 2026-08-04 correction) — were DELETED by ADR-0302 D4 with the seed and its checks;

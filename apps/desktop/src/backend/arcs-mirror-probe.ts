@@ -11,7 +11,7 @@
  * comparing two JSON payloads, not by either side importing the other.
  *
  * WHAT IS AND IS NOT UNDER TEST HERE. The arc → children JOIN is shared code — `loadArcRollups` in
- * @storytree/drive, which both surfaces call — so the rollup's CONTENT carries no re-composition
+ * @storytree/arc, which both surfaces call — so the rollup's CONTENT carries no re-composition
  * risk. What is hand-copied is the ENVELOPE: the method guard, the two "no document store" answers,
  * the unknown-id answer, the id decode, the `{ arcs }` key. Most of that is expressed as a STATUS,
  * which is why this probe prints the status alongside the body and drives the real

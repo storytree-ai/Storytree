@@ -14,9 +14,15 @@ export * from "./store-door.js";
 export * from "./corpus-store.js";
 export * from "./adr-frontmatter.js";
 export * from "./adr-metas.js";
-// The derived arc → children join (ADR-0183 D3 / ADR-0267 D4): ONE rollup the cli renders and the
-// studio server serves, so the two surfaces can never disagree about what an arc contains.
-export * from "./arc-rollup.js";
+// The derived arc → children join (ADR-0183 D3 / ADR-0267 D4) used to be re-exported here. It moved
+// to `@storytree/arc` with the rest of the arc domain (`arc-tier-extraction-arc`), and the arrow now
+// runs arc → drive: the join reads this package's ADR-frontmatter and work-hierarchy scanners, so
+// drive cannot import it back without a cycle. Every surface that served the rollup — the CLI, the
+// studio server, the desktop backend — imports `@storytree/arc` directly, which is still ONE join.
+// The write STAMP for a local-process library write (`cli@<branch>`) — here rather than in
+// `@storytree/cli` for the `envelope.ts`/`secrets.ts` reason, now that the arc write verbs live in a
+// third package that must stamp identically and cannot import the CLI (ADR-0112's reach-move).
+export * from "./cli-actor.js";
 // The work-hierarchy ref resolver (ADR-0306 D1): `story:`/`capability:` pointers turned into the
 // units they name, against ONE checkout — reported when they dangle, never refused on write.
 export * from "./work-hierarchy.js";

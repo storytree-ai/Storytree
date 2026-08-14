@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@storytree/agent": "workspace:*",
+    "@storytree/arc": "workspace:*",
     "@storytree/context-traversal-capture": "workspace:*",
     "@storytree/context-traversal-spawn": "workspace:*",
     "@storytree/context-traversal-transcript": "workspace:*",
