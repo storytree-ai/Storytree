@@ -41,9 +41,9 @@ export interface TitledAdrMeta extends AdrMeta {
  * {@link loadAdrMetas} plus each ADR's H1 title — the ONE fs scan of `docs/decisions` that every
  * ADR view is built on. Both readers of the decision log delegate here rather than each walking the
  * directory themselves: the cli's `loadAdrListings` (which reshapes it into `{meta, title}` for
- * `adr list`) and `deriveArcRollup`'s ADR leg (`arc-rollup.ts`), which the CLI and the studio server
- * share. A missing/unreadable dir yields an empty list rather than throwing, so an arc view stays
- * derivable on a partial checkout.
+ * `adr list`) and `deriveArcRollup`'s ADR leg (`@storytree/arc`'s `arc-rollup.ts`), which the CLI,
+ * the studio server and the desktop backend share. A missing/unreadable dir yields an empty list
+ * rather than throwing, so an arc view stays derivable on a partial checkout.
  */
 export function loadTitledAdrMetas(decisionsDir: string): {
   adrs: TitledAdrMeta[];

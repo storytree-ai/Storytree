@@ -193,7 +193,7 @@ export const MIRRORS: readonly MirrorTarget[] = [
     //
     // WHAT IS AND IS NOT AT RISK HERE, stated precisely because this pair's drift class is a
     // different SHAPE from the other two. The arc → children JOIN is genuinely shared code:
-    // `loadArcRollup`/`loadArcRollups` live in @storytree/drive and BOTH surfaces call them, so the
+    // `loadArcRollup`/`loadArcRollups` live in @storytree/arc and BOTH surfaces call them, so the
     // rollup's CONTENT carries no re-composition risk (that is `deriveArcRollup`'s own suites' job).
     // What is hand-copied is the ENVELOPE — the method guard, the two "no document store" answers,
     // the unknown-id answer, the id decode, and the `{ arcs }` key itself — and every one of those

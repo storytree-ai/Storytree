@@ -40,8 +40,9 @@ schema war.
 ADR-0183 D3 puts every containment edge on the child and derives the arc's view by query. For plans
 and open questions that query is `store.queryDocs(...)` — the same answer for every session. For
 stories and ADRs it is `storyArcStamps(storiesDir)` and `loadTitledAdrMetas(decisionsDir)` in
-`packages/drive/src/arc-rollup.ts`: a **filesystem scan of whichever working tree the command ran
-in**.
+`packages/arc/src/arc-rollup.ts` (moved out of `packages/drive` by ADR-0369 D2, which still reads
+`loadTitledAdrMetas` from `@storytree/drive` across the new package boundary): a **filesystem scan of
+whichever working tree the command ran in**.
 
 So half an arc's children are branch-dependent. An ADR stamped to an arc on a session's branch is
 in that session's `arc show` and in nobody else's until the PR merges; a story directory that does
@@ -135,5 +136,6 @@ change to how claims work. An increment that needs to express order writes prose
   hierarchy these refs point into.
 - [ADR-0029](0029-agents-as-library-artifact-category.md) — the assembled-context ref rules that
   keep ADRs out of ref lists; unchanged, and the reason `doc:` is not extended here.
-- `packages/drive/src/arc-rollup.ts` — the disk-scanning half of the arc's child query.
+- `packages/arc/src/arc-rollup.ts` (moved out of `packages/drive` by ADR-0369) — the disk-scanning
+  half of the arc's child query.
 - `packages/library/src/knowledge.ts` — `AssetRef` and `commonShape.references`.

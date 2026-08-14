@@ -30,7 +30,16 @@ capabilities: [dev-server-persistence-backbone, seed-library-corpus, read-corpus
 # two packages `packages/cli/src/traversal.ts` imports for the same two jobs. The runtime values are
 # pulled lazily inside the handler (the vite config-load trap), but check:boundaries reads the code
 # graph rather than the emit, so both are declared here.
-depends_on: [library, drive-machinery, notice-board, forest-world, studio-members, proof-protocol, uat-criterion-detail, art-factory, app-surface, storage-protocol, context-traversal-spawn, context-traversal-capture]
+# `arc-tier-extraction-arc` (ADR-0369): the arc → children JOIN this server's `handleArcs` serves is
+# no longer in `@storytree/drive` — ADR-0369 D1 gave the arc domain its own package and D2 fixed the
+# arrow at arc → drive, so `drive`'s barrel dropped the `arc-rollup` re-export and this app now
+# runtime-depends on `@storytree/arc` directly. It is a RE-POINTING of the same code edge onto a
+# narrower package, exactly like the ADR-0112 cli → drive re-point above, not a new coupling: the
+# studio still derives the SAME single join `storytree arc show` renders, which is ADR-0267's whole
+# guarantee, and it still does not import `@storytree/cli`. The module is pulled lazily inside the
+# handler (the vite config-load trap, same as `loadDrive()`), but check:boundaries reads the code
+# graph rather than the emit, so the edge is declared here.
+depends_on: [library, drive-machinery, notice-board, forest-world, studio-members, proof-protocol, uat-criterion-detail, art-factory, app-surface, storage-protocol, context-traversal-spawn, context-traversal-capture, arc]
 # Deciding ADRs (ADR-0037 §2): UI-drives-agents (8), the story world (36, recalibrated by 38),
 # the app brought into the boundary scan as a consuming surface (100), the drive-package
 # extraction that re-pointed the build/secrets seam off cli onto @storytree/drive (112), the

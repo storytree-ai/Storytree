@@ -1,9 +1,6 @@
 import type { Store } from "@storytree/storage-protocol";
-import { upcastAndValidate } from "@storytree/library";
-
-import { defaultCliActor } from "./cli-actor.js";
-import { kebabSlug } from "./adr.js";
-import type { Envelope } from "./envelope.js";
+import { kebabSlug, upcastAndValidate } from "@storytree/library";
+import { defaultCliActor, type Envelope } from "@storytree/drive";
 
 /**
  * `storytree question` — the OPEN-QUESTION authoring surface: the verb an escalating session uses to

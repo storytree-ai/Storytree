@@ -235,7 +235,8 @@ not settle the picture.
   it, and `lifecycleOf`'s `arc` branch reads the stored field instead of the old hardcoded
   `"active"`. D7's "currently running" is therefore answerable now. Verified 2026-08-03 in
   `packages/library/src/knowledge.ts`, `packages/library/src/lifecycle.ts` and
-  `packages/cli/src/arc.ts`, not taken from the ADR's prose.
+  `packages/cli/src/arc.ts` (relocated to `packages/arc/src/arc.ts` by ADR-0369; verification was
+  performed at the pre-move address), not taken from the ADR's prose.
 
   *Why D7 was written the way it was, kept as history because it is the rationale:* when this ADR
   was drafted `arc list --pg` returned 22 arcs with **no live/closed distinction** — a finished arc
@@ -249,7 +250,9 @@ not settle the picture.
 - **The infrastructure gap was real, and BOTH halves are now closed.** This bullet originally named
   two gaps and called them "another session's job". The join half was done first (increment 1, PR
   #1020): the derived arc → children join is no longer CLI-only — `deriveArcRollup` /
-  `loadArcRollup` / `loadArcRollups` live in `packages/drive/src/arc-rollup.ts`, and every surface
+  `loadArcRollup` / `loadArcRollups` live in `packages/arc/src/arc-rollup.ts` (moved out of `drive`
+  by ADR-0369 D2; the guarantee below is unchanged — it moved one building further down, and drive
+  importing it back would be a cycle), and every surface
   that answers `GET /api/arcs` + `/api/arcs/<id>` renders from that ONE value, so none of them can
   drift apart. The UI half followed (`arc-surface-lanes-and-briefing-panel`, PR #1191, under
   ADR-0314): `apps/studio/src` consumes the endpoint, and an arc is a momentum lane with a briefing

@@ -4,14 +4,15 @@ import path from "node:path";
 import type { Store, StoredDoc } from "@storytree/storage-protocol";
 import { STORY_REF_PREFIX } from "@storytree/library";
 
-import { loadTitledAdrMetas, type TitledAdrMeta } from "./adr-metas.js";
-import type { AdrStatus } from "./adr-frontmatter.js";
 import {
   danglingCiteReasons,
+  loadTitledAdrMetas,
   loadWorkHierarchyIndex,
   resolveCites,
+  type AdrStatus,
+  type TitledAdrMeta,
   type WorkUnit,
-} from "./work-hierarchy.js";
+} from "@storytree/drive";
 
 /**
  * The ARC ROLLUP — the derived initiative view (ADR-0183 D3) as DATA rather than as rendered text.
@@ -21,13 +22,16 @@ import {
  * an arc's children are always a QUERY and can never drift from them. This module is the ONE place
  * that query lives.
  *
- * It sits in `drive` rather than in `cli` because BOTH readers must share it and they cannot share
- * cli: the studio server does not depend on `@storytree/cli` (and must not — `drive` is the package
- * the cli, the studio worker and the desktop backend already have in common). ADR-0267's Consequences
- * name the fork this prevents: *"there is no arc view in the studio beyond a flat artifact card, and
- * the derived arc → children join is CLI-only."* `packages/cli/src/arc.ts` renders this rollup into
- * an ADR-0023 envelope; the studio server serves the same value as JSON. Neither joins anything
- * itself — the hard invariant is that `drive` never imports `cli`, so the arrow only points this way.
+ * It sits in `@storytree/arc` because BOTH readers must share it and neither may reach the other's
+ * surface: the studio server does not depend on `@storytree/cli` (and must not). It lived in `drive`
+ * for that reason until `arc-tier-extraction-arc` gave the arc domain its own package — the same
+ * argument, one building further down. ADR-0267's Consequences name the fork it prevents: *"there is
+ * no arc view in the studio beyond a flat artifact card, and the derived arc → children join is
+ * CLI-only."* `arc.ts` next door renders this rollup into an ADR-0023 envelope; the studio server and
+ * the desktop backend serve the same value as JSON. None of them joins anything itself.
+ *
+ * The arrow runs arc → drive and cannot be reversed: the loaders below read drive's ADR-frontmatter
+ * and work-hierarchy scanners, so `drive` importing this back would be a package cycle.
  */
 
 /**
@@ -119,7 +123,7 @@ export interface ArcRollupQuestion {
   /**
    * ADR-0358 Option 2B/2D — the question's park-lease fields, carried through untouched (`undefined`
    * when the doc predates ADR-0358). The CLI renderer computes the age/freshness line at render time
-   * (`questionStalenessLine`, `packages/cli/src/question.ts`) rather than here — this module stays
+   * (`questionStalenessLine`, `packages/arc/src/question.ts`) rather than here — this module stays
    * clockless, the same purity discipline as `graduation.ts`.
    */
   verifiedAt?: string;
@@ -242,7 +246,7 @@ export function isForwardLooking(status: string): boolean {
  * when the log carries no signal to derive one from.
  *
  * THIS IS THE ONE PLACE THE RULE LIVES. `recomputeArcLifecycle` (the write-time trigger in
- * `packages/cli/src/arc.ts`) and {@link reconcileArcLifecycles} (the sweep) both call it, so the
+ * `packages/arc/src/arc.ts`) and {@link reconcileArcLifecycles} (the sweep) both call it, so the
  * trigger and the reconciler cannot answer differently for the same arc. A reconciler carrying its
  * own copy of the predicate would be a second truth about the same field, and the drift it reported
  * would be indistinguishable from its own divergence.

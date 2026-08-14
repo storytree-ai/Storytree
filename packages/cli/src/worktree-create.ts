@@ -31,7 +31,7 @@ import type { ClaimDocT, ClaimRequest, ClaimResult } from "@storytree/notice-boa
 import { claimGrade, exploringClaimRequest } from "@storytree/notice-board";
 import { guardClaimNamespace, type ClaimUniverseLoader } from "@storytree/drive";
 
-import { storyArcStamps } from "./arc.js";
+import { storyArcStamps } from "@storytree/arc";
 import type { Envelope } from "./envelope.js";
 
 /** What one anchor node is allowed to look like in a directory/branch name. */
