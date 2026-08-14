@@ -86,7 +86,9 @@ export interface ArcSurfaceProps {
 
 export function ArcSurface({ arcs, now, claims = null, onOpen }: ArcSurfaceProps): React.JSX.Element {
   // ADR-0335: closed arcs are drawn one flag away, not only "one click away in the Library" — the
-  // studio surface had no equivalent of the CLI's `arc list --all|--closed` until this scope toggle.
+  // studio surface had no equivalent of the CLI's `arc list --closed` until this scope toggle.
+  // ADR-0374 D5 made it THREE scopes, one per lifecycle: `Parked` joined, and `All` was removed as
+  // a view that answered no question of its own (the owner's call).
   const [scope, setScope] = useState<ArcLaneScope>('active');
   const lanes = Array.isArray(arcs) ? arcLanes(arcs, now, scope, claims) : [];
   const [picked, setPicked] = useState<string | null>(null);
@@ -96,8 +98,7 @@ export function ArcSurface({ arcs, now, claims = null, onOpen }: ArcSurfaceProps
   const selectedId =
     picked !== null && lanes.some((l) => l.arc.id === picked) ? picked : defaultLaneId(lanes);
   const selected = lanes.find((l) => l.arc.id === selectedId) ?? null;
-  const emptyLabel =
-    scope === 'active' ? 'No active arcs.' : scope === 'closed' ? 'No closed arcs.' : 'No arcs.';
+  const emptyLabel = `No ${scope} arcs.`;
 
   return (
     <div className="arc-surface" data-testid="arc-surface">
@@ -112,10 +113,16 @@ export function ArcSurface({ arcs, now, claims = null, onOpen }: ArcSurfaceProps
       </header>
       <div className="arc-surface-panes">
         <div className="arc-lanes" data-testid="arc-lanes" aria-label="arcs">
-          {/* ADR-0335: which arcs draw. Always rendered (even mid-load) so the control itself never
-              flickers in and out — only the list beneath it changes. */}
+          {/* ADR-0335 / ADR-0374 D5: which arcs draw. Always rendered (even mid-load) so the control
+              itself never flickers in and out — only the list beneath it changes.
+
+              ONE BUTTON PER LIFECYCLE, and that is the whole set: every arc sits under exactly one
+              of the three, so the toggle is a partition rather than a set of filters. `All` used to
+              sit at the end and was removed — it drew the three groups interleaved into one column,
+              where the only thing distinguishing them was the small state chip, so the reader had to
+              re-derive per lane what the scope buttons already answer. */}
           <div className="arc-lanes-scope" role="group" aria-label="which arcs to show">
-            {(['active', 'closed', 'all'] as const).map((s) => (
+            {(['active', 'parked', 'closed'] as const).map((s) => (
               <button
                 key={s}
                 type="button"
@@ -124,7 +131,7 @@ export function ArcSurface({ arcs, now, claims = null, onOpen }: ArcSurfaceProps
                 data-testid={`arc-lanes-scope:${s}`}
                 onClick={() => setScope(s)}
               >
-                {s === 'active' ? 'Active' : s === 'closed' ? 'Closed' : 'All'}
+                {s === 'active' ? 'Active' : s === 'parked' ? 'Parked' : 'Closed'}
               </button>
             ))}
           </div>

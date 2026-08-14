@@ -8,6 +8,7 @@ import { InMemoryStore, type Store } from "@storytree/storage-protocol";
 
 import {
   arcClose,
+  arcPark,
   arcReconcile,
   arcReopen,
   arcCommand,
@@ -300,13 +301,19 @@ test("arc list is honest when a scope filters everything out", async () => {
     const onlyClosed = await withClosedArc(new InMemoryStore());
     const active = await arcCommand("list", undefined, depsFor(onlyClosed, fx));
     assert.equal(active.ok, true, "an empty worklist is a real answer, not a failure");
-    assert.match(active.body, /none — all 1 arc\(s\) here are closed/);
+    assert.match(active.body, /none — all 1 arc\(s\) here are off the worklist: 1 closed/);
 
     // The mirror case: nothing closed yet, asked for the archive.
     const noneClosed = await seededStore();
     const closed = await arcCommand("list", undefined, depsFor(noneClosed, fx), "closed");
     assert.equal(closed.ok, true);
-    assert.match(closed.body, /none — no arc here has been closed yet/);
+    assert.match(closed.body, /none — no arc here is closed/);
+
+    // …and the third scope answers the same shape rather than falling back to the active list
+    // (ADR-0374 D1: a scope that silently widened would put a shelved arc back on the worklist).
+    const parked = await arcCommand("list", undefined, depsFor(noneClosed, fx), "parked");
+    assert.equal(parked.ok, true);
+    assert.match(parked.body, /none — no arc here is parked/);
   } finally {
     rmSync(fx.root, { recursive: true, force: true });
   }
@@ -1144,6 +1151,158 @@ test("close → reopen → close round-trips, and every transition leaves its ow
   assert.equal(bodies.filter((b) => b.startsWith("REOPENED")).length, 1);
 });
 
+// ---------------------------------------------------------------------------
+// `arc park` (ADR-0374) — the third lifecycle verb, and the one state the mechanical rule is fenced
+// off. The seeded `map-arc` carries an OPEN increment (`map-arc-plan-1`), which is exactly the shape
+// these tests need: it is what `arc close` refuses and what parking exists for.
+// ---------------------------------------------------------------------------
+
+test("arc park shelves an arc that still holds OPEN work — the case `arc close` refuses", async () => {
+  const store = await seededStore();
+  const fx = diskFixture();
+  try {
+    // Precondition: on the worklist, with open work — so this is not a disguised close.
+    const before = await arcCommand("list", undefined, depsFor(store, fx));
+    assert.match(before.body, /map-arc/);
+    const refusedClose = await arcClose(writeDeps(store), "map-arc", { outcome: "…" });
+    assert.equal(refusedClose.ok, false, "ADR-0347 refuses a close over open work — that is the gap");
+    assert.match(refusedClose.body, /still holds 1 open increment/);
+
+    const res = await arcPark(writeDeps(store), "map-arc", {
+      reason: "Descoped — not a priority, only a nice to have.",
+      date: "2026-08-15",
+    });
+    assert.equal(res.ok, true);
+    assert.match(res.body, /parked arc map-arc/);
+    assert.equal(((await store.getDoc("map-arc"))?.doc as { lifecycle?: string }).lifecycle, "parked");
+
+    // The work is SHELVED, not disowned — and the verb says so with a count, because a reader who
+    // cannot see how much is parked cannot judge whether it should be.
+    assert.match(res.body, /1 open increment stays on it/);
+
+    // The prose behind the bit: its own marked increment row, born closed (a record, not work).
+    const rows = (await store.queryDocs({ kind: "increment" })).filter((d) =>
+      d.id.startsWith("map-arc-inc-"),
+    );
+    assert.equal(rows.length, 1);
+    const entry = rows[0]?.doc as { title?: string; body?: string; status?: string };
+    assert.match(entry.title ?? "", /^PARKED/);
+    assert.match(entry.body ?? "", /not a priority/);
+    assert.equal(entry.status, "closed");
+
+    // And it is OFF the default worklist but reachable on its own shelf — the whole point.
+    const after = await arcCommand("list", undefined, depsFor(store, fx));
+    assert.doesNotMatch(after.body, /map-arc {2}/);
+    const parked = await arcCommand("list", undefined, depsFor(store, fx), "parked");
+    assert.match(parked.body, /\[parked\] Map pathways/);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("THE FENCE: a later increment write does NOT un-park the arc (ADR-0374 D2)", async () => {
+  // The defect this exists to prevent. ADR-0335's rule recomputes lifecycle from the increment log
+  // on every increment write, and a parked arc holds open work BY DEFINITION — so without the fence
+  // the next unrelated `increment new` would derive `active` and silently discard the owner's
+  // decision, as a side effect of a command that was not about the arc's lifecycle at all.
+  const store = await seededStore();
+  await arcPark(writeDeps(store), "map-arc", { reason: "descoped for now" });
+  assert.equal(((await store.getDoc("map-arc"))?.doc as { lifecycle?: string }).lifecycle, "parked");
+
+  const added = await arcIncrementNew(writeDeps(store), "map-arc", {
+    id: "later-work",
+    title: "More work parked on a parked arc",
+    objective: "prove the fence holds",
+    body: "the recompute must not touch a parked arc",
+  });
+  assert.equal(added.ok, true, "parking an arc must not stop work being parked ON it");
+  assert.equal(
+    ((await store.getDoc("map-arc"))?.doc as { lifecycle?: string }).lifecycle,
+    "parked",
+    "the mechanical rule must yield to the curated state",
+  );
+  // It is not silent about yielding: the caller is told the arc stayed parked and how to undo it.
+  assert.match(added.body, /stays parked/);
+  assert.match(added.body, /arc reopen map-arc/);
+
+  // Closing every open increment does not un-park it either — a drained parked arc stays parked
+  // rather than auto-CLOSING, because closing would assert an end state nobody claimed was met.
+  for (const row of (await store.queryDocs({ kind: "increment" })).filter(
+    (d) => (d.doc as { arcRef?: string }).arcRef === "asset:map-arc",
+  )) {
+    if ((row.doc as { status?: string }).status !== "closed") {
+      await arcIncrementClose(writeDeps(store), row.id, { note: "drained" });
+    }
+  }
+  assert.equal(((await store.getDoc("map-arc"))?.doc as { lifecycle?: string }).lifecycle, "parked");
+});
+
+test("arc reopen is the way back off the parked shelf, and marks the log UN-PARKED", async () => {
+  const store = await seededStore();
+  await arcPark(writeDeps(store), "map-arc", { reason: "descoped for now" });
+
+  const res = await arcReopen(writeDeps(store), "map-arc", { reason: "the owner wants it after all" });
+  assert.equal(res.ok, true);
+  assert.match(res.body, /un-parked arc map-arc/);
+  assert.match(res.body, /mechanical lifecycle rule governs it again/);
+  assert.equal(((await store.getDoc("map-arc"))?.doc as { lifecycle?: string }).lifecycle, "active");
+
+  // The marker distinguishes it from a REOPENED row: they move the same bit from different shelves,
+  // and a log that called both "REOPENED" would lose which one happened.
+  const titles = (await store.queryDocs({ kind: "increment" }))
+    .filter((d) => d.id.startsWith("map-arc-inc-"))
+    .map((d) => (d.doc as { title?: string }).title ?? "");
+  assert.equal(titles.filter((t) => t.startsWith("PARKED")).length, 1);
+  assert.equal(titles.filter((t) => t.startsWith("UN-PARKED")).length, 1);
+
+  // …and once active again, the mechanical rule is back in charge: draining the work auto-closes it.
+  for (const row of (await store.queryDocs({ kind: "increment" })).filter(
+    (d) => (d.doc as { arcRef?: string }).arcRef === "asset:map-arc",
+  )) {
+    if ((row.doc as { status?: string }).status !== "closed") {
+      await arcIncrementClose(writeDeps(store), row.id, { note: "drained" });
+    }
+  }
+  assert.equal(((await store.getDoc("map-arc"))?.doc as { lifecycle?: string }).lifecycle, "closed");
+});
+
+test("arc park refuses without --reason, on an already-parked arc, and on a CLOSED arc", async () => {
+  const store = await withClosedArc(await seededStore());
+
+  const noReason = await arcPark(writeDeps(store), "map-arc", {});
+  assert.equal(noReason.ok, false);
+  assert.match(noReason.body, /needs --reason/);
+  assert.match(noReason.body, /a projection of the prose that supports it/);
+  // Total refusal: neither the increment nor the flip landed. (The seeded arc stores no `lifecycle`
+  // at all — absent reads as active, ADR-0239 D1's fail-open — so the assertion is that nothing
+  // WROTE `parked`, not that a value appeared.)
+  assert.notEqual(((await store.getDoc("map-arc"))?.doc as { lifecycle?: string }).lifecycle, "parked");
+  assert.equal(
+    (await store.queryDocs({ kind: "increment" })).filter((d) => d.id.startsWith("map-arc-inc-")).length,
+    0,
+  );
+
+  // A CLOSED arc is refused rather than demoted: closed says something STRONGER than parked (the end
+  // state was MET), so parking it would replace a stronger claim with a weaker one.
+  const alreadyClosed = await arcPark(writeDeps(store), "done-arc", { reason: "shelve it" });
+  assert.equal(alreadyClosed.ok, false);
+  assert.match(alreadyClosed.body, /is closed — parking it would be a demotion/);
+  assert.match(alreadyClosed.body, /storytree arc reopen done-arc/);
+
+  await arcPark(writeDeps(store), "map-arc", { reason: "descoped" });
+  const twice = await arcPark(writeDeps(store), "map-arc", { reason: "descoped again" });
+  assert.equal(twice.ok, false);
+  assert.match(twice.body, /already parked/);
+
+  const offline = await arcPark(writeDeps(store, false, false), "map-arc", { reason: "x" });
+  assert.equal(offline.ok, false);
+  assert.match(offline.body, /writes to the shared store/);
+
+  const missing = await arcPark(writeDeps(store), "nope", { reason: "x" });
+  assert.equal(missing.ok, false);
+  assert.match(missing.body, /no arc "nope"/);
+});
+
 test("a closed arc leaves the default worklist end-to-end (D2 write → D3 filter)", async () => {
   // Drained first — ADR-0347 refuses the close otherwise; see `withDrainedMapArc`.
   const store = await withDrainedMapArc(await seededStore());
@@ -1156,7 +1315,7 @@ test("a closed arc leaves the default worklist end-to-end (D2 write → D3 filte
 
     const after = await arcCommand("list", undefined, depsFor(store, fx));
     assert.doesNotMatch(after.body, /map-arc {2}/, "the closed arc leaves the default list");
-    assert.match(after.body, /all 1 arc\(s\) here are closed/);
+    assert.match(after.body, /all 1 arc\(s\) here are off the worklist: 1 closed/);
 
     const all = await arcCommand("list", undefined, depsFor(store, fx), "all");
     assert.match(all.body, /\[closed\] Map pathways/);

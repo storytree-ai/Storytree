@@ -68,6 +68,7 @@ import {
   arcClose,
   arcReconcile,
   arcReopen,
+  arcPark,
   arcIncrementClose,
   arcIncrementNew,
   arcScopeOf,
@@ -2503,10 +2504,11 @@ export const CLI_OPTIONS = {
   // `storytree arc new` / `arc edit` / `arc increment add` / `arc close` — the first-class arc
   // write verbs (long prose via @path).
   "end-state": { type: "string" },
-  // `storytree arc list --all | --closed` — widen past the default active-only worklist
-  // (ADR-0239 D3). `--all` wins when both are passed.
+  // `storytree arc list --all | --closed | --parked` — widen past the default active-only worklist
+  // (ADR-0239 D3, third scope by ADR-0374 D1). `--all` wins, then `--closed`, then `--parked`.
   all: { type: "boolean", default: false },
   closed: { type: "boolean", default: false },
+  parked: { type: "boolean", default: false },
   date: { type: "string" },
   pr: { type: "string" },
   threshold: { type: "string" },
@@ -3242,6 +3244,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       sub === "increment" ||
       sub === "close" ||
       sub === "reopen" ||
+      sub === "park" ||
       sub === "proposal"
     ) {
       const writeDeps: ArcWriteDeps = {
@@ -3356,6 +3359,16 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
           ...(values.reason !== undefined ? { reason: values.reason } : {}),
         });
       }
+      // The SHELVING write (ADR-0374 D3) — the third lifecycle verb, reading the same already-expanded
+      // `--reason` its mirror does. Unlike `close` it does not refuse over open increments: shelving an
+      // initiative is exactly the case where the work stays open and wanted.
+      if (sub === "park") {
+        return arcPark(writeDeps, third, {
+          ...(values.date !== undefined ? { date: values.date } : {}),
+          ...(values.pr !== undefined ? { pr: values.pr } : {}),
+          ...(values.reason !== undefined ? { reason: values.reason } : {}),
+        });
+      }
       // `arc increment add <arc-id>` (canonical) or the shorthand `arc increment <arc-id>`.
       const incArcId = third === "add" ? fourth : third;
       return arcIncrementAdd(writeDeps, incArcId, {
@@ -3392,8 +3405,13 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         storiesDir: deps.storiesDir ?? path.join(repoRoot(), "stories"),
         pg: values.pg === true,
       },
-      // ADR-0239 D3 — the list is a worklist: active-only unless explicitly widened.
-      arcScopeOf({ all: values.all === true, closed: values.closed === true }),
+      // ADR-0239 D3 — the list is a worklist: active-only unless explicitly widened. `--parked`
+      // (ADR-0374 D1) is the third widening: a shelved arc leaves the worklist but stays reachable.
+      arcScopeOf({
+        all: values.all === true,
+        closed: values.closed === true,
+        parked: values.parked === true,
+      }),
     );
   }
 
