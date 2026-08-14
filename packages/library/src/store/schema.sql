@@ -347,9 +347,10 @@ CREATE INDEX IF NOT EXISTS change_event_unit_idx ON events.change_event (unit_id
 -- MIGRATION (ADR-0350 D1): the CAUSAL EDGE — two nullable columns on every append-only stream, so an
 -- event caused by another event can say so AT EMISSION. `caused_by_stream` names the cause's table
 -- and `caused_by_seq` its BIGSERIAL primary key; together they are a qualified reference to the only
--- addressable event identity that exists today. No foreign key, per ADR-0017's rule that
--- relationships are id references — and deliberately no global event id (ADR-0350 candidate B,
--- refused on sequencing: it would need ten-plus streams migrated before a single edge could be drawn).
+-- addressable event identity that exists today. Deliberately NOT a cross-table constraint, per
+-- ADR-0017's rule that relationships are plain id references — and deliberately no global event id
+-- (ADR-0350 candidate B, refused on sequencing: it would need every stream migrated before a single
+-- edge could be drawn).
 --
 -- NULLABLE AND UNBACKFILLED, PERMANENTLY. ADR-0350 D2: the emitter stamps it or it is absent, and
 -- nothing downstream may fill the silence — no backfill pass, no correlation job, no "nearest

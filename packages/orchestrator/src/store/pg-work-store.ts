@@ -41,9 +41,15 @@ interface WorkEventRow {
   doc: unknown;
   actor: string;
   at: Date | string;
-  /** ADR-0350: NULL here means UNRECORDED, never "nothing caused this". */
-  caused_by_stream: string | null;
-  caused_by_seq: string | number | null;
+  /**
+   * ADR-0350: NULL here means UNRECORDED, never "nothing caused this".
+   *
+   * OPTIONAL because a row may not carry the key at all — a structural client, or a read taken
+   * before the D1 migration ran. Absent and NULL mean the identical thing and {@link readCausedBy}
+   * treats them identically; see the nullish note there for why that is not laxity.
+   */
+  caused_by_stream?: string | null;
+  caused_by_seq?: string | number | null;
 }
 
 /**
@@ -57,10 +63,16 @@ interface WorkEventRow {
  * this can only fire on corruption, and it should be loud when it does.
  */
 function readCausedBy(row: {
-  caused_by_stream: string | null;
-  caused_by_seq: string | number | null;
+  caused_by_stream?: string | null;
+  caused_by_seq?: string | number | null;
 }): CausedBy | undefined {
-  const { caused_by_stream: stream, caused_by_seq: seq } = row;
+  // NULLISH, not strictly-null: a MISSING key means the same as a NULL column — no cause was
+  // recorded — and conflating them is the only safe reading. Testing `=== null` alone let an absent
+  // key fall past both branches and return `{ stream: undefined, seq: NaN }`, which a D3 reader
+  // renders as `caused by: undefined#NaN`: a fabricated edge, strictly worse than the blank D3
+  // forbids, because it names a cause that does not exist.
+  const stream = row.caused_by_stream ?? null;
+  const seq = row.caused_by_seq ?? null;
   if (stream === null && seq === null) return undefined;
   if (stream === null || seq === null) {
     throw new Error(
