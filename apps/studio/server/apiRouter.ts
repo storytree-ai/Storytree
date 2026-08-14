@@ -1136,12 +1136,21 @@ function loadNoticeBoard(): Promise<NoticeBoardModule> {
 // @storytree/drive's ROOT barrel re-exports the build drivers, which import @storytree/library — so
 // it hits the SAME vite config-load trap as the two above and is loaded lazily on first use, past
 // config-load. (The `@storytree/drive/build-worker` SUBPATH imported statically at the top of this
-// file is a different, leaf-shaped entry and is safe.) This is the arc rollup's home: the derived
-// arc → children join the CLI's `arc show` renders, shared rather than re-implemented (ADR-0267).
+// file is a different, leaf-shaped entry and is safe.)
 type DriveModule = typeof import('@storytree/drive');
 let driveModulePromise: Promise<DriveModule> | null = null;
 function loadDrive(): Promise<DriveModule> {
   return (driveModulePromise ??= import('@storytree/drive'));
+}
+
+// @storytree/arc — the arc rollup's home since `arc-tier-extraction-arc` gave the arc domain its own
+// package. It re-exports drive, so it hits the same config-load trap and is loaded the same lazy way.
+// This is the derived arc → children join the CLI's `arc show` renders, shared rather than
+// re-implemented (ADR-0267); the package moved, the sharing did not.
+type ArcModule = typeof import('@storytree/arc');
+let arcModulePromise: Promise<ArcModule> | null = null;
+function loadArc(): Promise<ArcModule> {
+  return (arcModulePromise ??= import('@storytree/arc'));
 }
 
 const isWorkStatus = (s: string): s is WorkStatus =>
@@ -1660,7 +1669,7 @@ export async function handleActivity(
  * `GET /api/arcs` → `{ arcs: ArcRollup[] }` · `GET /api/arcs/<id>` → one `ArcRollup`.
  *
  * The studio's arc read (ADR-0267). Every value here comes from `deriveArcRollup` in
- * `@storytree/drive` — the SAME join `storytree arc show` renders — so the map surface and the CLI
+ * `@storytree/arc` — the SAME join `storytree arc show` renders — so the map surface and the CLI
  * can never disagree about what an arc contains. This handler adds routing, the method check, and
  * the honest store-absent answer; it derives nothing of its own.
  *
@@ -1690,7 +1699,7 @@ export async function handleArcs(
     sendJson(res, 200, { arcs: null });
     return;
   }
-  const { loadArcRollup, loadArcRollups } = await loadDrive();
+  const { loadArcRollup, loadArcRollups } = await loadArc();
   const deps = {
     store,
     decisionsDir: path.join(ctx.paths.docsDir, 'decisions'),

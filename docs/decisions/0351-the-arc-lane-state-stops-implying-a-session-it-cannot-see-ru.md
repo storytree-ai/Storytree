@@ -27,8 +27,8 @@ ledger nor the arc surface, so there is no contradiction to reconcile.
 
 `arcState` returned `running` when any increment had landed or been parked within the last seven
 days. It never consulted the claim ledger — there is no claim data anywhere in `ArcRollup`, and
-`packages/drive/src/arc-rollup.ts` joins none. So the word promised something the predicate could not
-see.
+`packages/arc/src/arc-rollup.ts` (moved out of `packages/drive` by ADR-0369) joins none. So the word
+promised something the predicate could not see.
 
 **And at current landing velocity the state had also gone degenerate.** Measured on the live surface
 on 2026-08-12: all nine visible lanes rendered `RUNNING`. A state that every row shares carries no

@@ -132,4 +132,5 @@ about, which is worse than none.
 - [ADR-0096](0096-render-mermaid-diagrams-in-the-studio-markdown-surface.md) — mermaid already renders; D5 adds the
   prompt, not the capability.
 - `apps/studio/src/components/ArcSurface.tsx` · `apps/studio/src/lib/arcSurface.ts` ·
-  `packages/library/src/knowledge.ts` · `packages/cli/src/question.ts`.
+  `packages/library/src/knowledge.ts` · `packages/arc/src/question.ts` (moved out of `packages/cli`
+  by ADR-0369).

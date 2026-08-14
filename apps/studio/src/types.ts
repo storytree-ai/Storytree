@@ -1214,11 +1214,11 @@ export interface TraversalReplayPayload {
 // ---------- the arc surface (GET /api/arcs, ADR-0267 / ADR-0314) ----------
 //
 // THESE ARE WIRE MIRRORS, NOT A SECOND JOIN. The authoritative shapes are `ArcRollup` &co in
-// `packages/drive/src/arc-rollup.ts` — the ONE join `storytree arc show` and `GET /api/arcs` both
+// `packages/arc/src/arc-rollup.ts` — the ONE join `storytree arc show` and `GET /api/arcs` both
 // render from. The frontend cannot import them: `@storytree/drive` is forbidden in apps/studio/src
 // (ADR-0004, fenced by modelPathBoundary.test.ts), because drive is the model-path carrier. So the
 // studio rides the wire with locally-declared plain types, the same move `ChatDoneEvent` &co make
-// for the desktop chat SSE frames. Re-cite the producer at `packages/drive/src/arc-rollup.ts`.
+// for the desktop chat SSE frames. Re-cite the producer at `packages/arc/src/arc-rollup.ts`.
 //
 // What this must NEVER become is a re-derivation. An arc's `increments` and `lifecycle` are
 // `.extend()` metadata that the GuidanceAsset wire's `extractFields` never projects, so rebuilding

@@ -319,7 +319,8 @@ Recorded because a reader of these paragraphs alone would conclude the scan is s
 `tool` route still has no reverse gear, and would either re-open landed work or route around a fence
 that no longer refuses — the exact stale-prose harm ADR-0139 exists to prevent. The modules' own headers
 are the authority on the delivered shape and are not restated here (`asset:reference-dont-restate`):
-`packages/cli/src/retire.ts` and `dropDischargedCitations` in `packages/cli/src/arc.ts`.
+`packages/cli/src/retire.ts` and `dropDischargedCitations` in `packages/arc/src/arc.ts` (moved out of
+`packages/cli` by ADR-0369; `retire.ts` was not part of that move and stays in `cli`).
 
 `proposal-tier-drain-arc` is CLOSED by this ADR. Its end state — "the proposal tier holds no
 undelivered adjudicated remedy" — is reached, though not the way it planned: the tier is gone and its
@@ -380,7 +381,8 @@ remedies sit on the arcs that own them. Its lane map and ranking survive as its 
 - Code: `packages/library/src/knowledge.ts` (`ArcProposal`, `Arc.proposals`, and the removed
   `proposal` kind / `KIND_SPECS` entry / `SEED_SCOPE_KINDS` membership),
   `packages/library/src/lifecycle.ts`, `packages/library/src/templates.ts`,
-  `packages/cli/src/arc.ts` (the `arc proposal add|realize` verbs),
+  `packages/arc/src/arc.ts` (the `arc proposal add|realize` verbs; moved out of `packages/cli` by
+  ADR-0369),
   `packages/cli/src/friction.ts` (`routeFriction`'s rewired `tool` fence),
   `packages/cli/src/arc-proposal-drain.ts` + `check-arc-proposal-drain.ts` (D3's ceiling), and the
   deleted `proposal.ts` / `proposal-drain.ts` / `proposal-citation.ts` / `check-proposal-drain.ts`.

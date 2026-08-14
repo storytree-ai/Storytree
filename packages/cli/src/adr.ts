@@ -63,16 +63,13 @@ export interface AdrCommandOpts {
   status?: string | undefined;
 }
 
-/** PURE: kebab-case slug from a title (a-z0-9, hyphen-separated), capped so filenames stay sane. */
-export function kebabSlug(title: string): string {
-  return title
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60)
-    .replace(/-+$/g, "");
-}
+// PURE: kebab-case slug from a title, capped so filenames stay sane. Defined in `@storytree/library`
+// since `arc-tier-extraction-arc` moved the arc verbs out of this package — `arc new` and
+// `question new` derive their ids with the same function `adr new` derives a filename slug with, and
+// they no longer share a building. Re-exported here so every existing `./adr.js` importer is
+// unchanged.
+import { kebabSlug } from "@storytree/library";
+export { kebabSlug };
 
 /** The highest ADR number on disk (0 if none/unreadable) — the reconciliation floor for the allocator. */
 export function maxAdrNumber(decisionsDir: string): number {
@@ -516,7 +513,7 @@ export function renderAdrList(listings: readonly AdrListing[], filter: AdrListFi
  * Read + parse every `NNNN-*.md` in the decisions dir into a listing; parse failures are collected.
  *
  * A thin RESHAPE over drive's {@link loadTitledAdrMetas} — the one fs scan of `docs/decisions`, which
- * the arc rollup shares (`@storytree/drive`'s `arc-rollup.ts`). This view keeps its nested
+ * the arc rollup shares (`@storytree/arc`'s `arc-rollup.ts`). This view keeps its nested
  * `{meta, title}` shape because {@link renderAdrList} is written against it.
  */
 export function loadAdrListings(decisionsDir: string): {

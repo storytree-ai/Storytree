@@ -8,12 +8,26 @@
 
 export { hash, rand01 } from './rng.js';
 
+// The land's ONE declared camera (ADR-0367 D1) — read by the land's coordinate mapping below and,
+// across the package boundary, by the object sprites that stand on it.
+export {
+  LAND_CAMERA_ELEVATION_DEG,
+  PLAN_VIEW_ELEVATION_DEG,
+  groundFlattening,
+  uprightForeshortening,
+  projectGround,
+  unprojectGround,
+  groundRadiusToScreenHalfHeight,
+  spriteUprightScale,
+} from './camera.js';
+
 export {
   type Pt,
   type Axial,
   HEX_R,
   HEX_W,
   TILE_DEPTH,
+  TILE_DEPTH_WORLD,
   axialKey,
   AXIAL_DIRS,
   hexCenter,
