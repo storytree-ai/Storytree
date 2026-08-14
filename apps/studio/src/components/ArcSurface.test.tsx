@@ -309,7 +309,7 @@ describe('ArcSurface — proposals surface where the owner scans (ADR-0359 D2/D3
     // active arcs carried open increments on 2026-08-12. The panel shows proposals, the lane does
     // not. Read ADR-0359 D4 before "fixing" this apparent inconsistency.
     render(<ArcSurface arcs={[PROPOSALS_ARC]} now={NOW} />);
-    expect(screen.getByTestId('arc-lane:proposals-arc').getAttribute('data-arc-state')).toBe('moving');
+    expect(screen.getByTestId('arc-lane:proposals-arc').getAttribute('data-arc-state')).toBe('quiet');
   });
 });
 
@@ -424,7 +424,7 @@ describe('ArcSurface — `blocked` is named and left UNLIT (ADR-0314 D4)', () =>
       />,
     );
     expect(screen.getByTestId('arc-lane:w').getAttribute('data-arc-state')).toBe('waiting');
-    expect(screen.getByTestId('arc-lane:r').getAttribute('data-arc-state')).toBe('moving');
+    expect(screen.getByTestId('arc-lane:r').getAttribute('data-arc-state')).toBe('quiet');
     expect(screen.getByTestId('arc-lane:q').getAttribute('data-arc-state')).toBe('quiet');
     // B2 "never started" is rejected by name as a blocked predicate — it measures the symptom.
     expect(screen.getByTestId('arc-lane:never-started').getAttribute('data-arc-state')).toBe('quiet');
@@ -460,7 +460,7 @@ describe('ArcSurface — `claimed` is the only ledger-backed state, and it never
         claims={[group('s1', 'held-arc')]}
       />,
     );
-    // Without the claim this arc would read `moving` (it landed yesterday) — the ledger wins.
+    // Without the claim this arc would read `quiet` (ADR-0374 D4) — the ledger is what lifts it.
     expect(screen.getByTestId('arc-lane:held-arc').getAttribute('data-arc-state')).toBe('claimed');
   });
 
@@ -476,7 +476,7 @@ describe('ArcSurface — `claimed` is the only ledger-backed state, and it never
       />,
     );
     const surface = screen.getByTestId('arc-surface');
-    expect(screen.getByTestId('arc-lane:a').getAttribute('data-arc-state')).toBe('moving');
+    expect(screen.getByTestId('arc-lane:a').getAttribute('data-arc-state')).toBe('quiet');
     expect(surface.querySelectorAll('[data-arc-state="unclaimed"]')).toHaveLength(0);
     expect((surface.textContent ?? '').toLowerCase()).not.toContain('unclaimed');
   });
@@ -496,7 +496,7 @@ describe('ArcSurface — `claimed` is the only ledger-backed state, and it never
     render(
       <ArcSurface arcs={[arc({ id: 'a', increments: [landed('c', '2026-08-05')] })]} now={NOW} claims={null} />,
     );
-    expect(screen.getByTestId('arc-lane:a').getAttribute('data-arc-state')).toBe('moving');
+    expect(screen.getByTestId('arc-lane:a').getAttribute('data-arc-state')).toBe('quiet');
   });
 
   it('names WHO holds it on the chip, deduped by session', () => {
@@ -566,16 +566,32 @@ describe('ArcSurface — honest absence: no store ≠ no arcs', () => {
     }
   });
 
-  it('drops closed arcs from the lanes (ADR-0239 D3’s active-only default)', () => {
-    render(<ArcSurface arcs={[arc({ id: 'live-arc' }), arc({ id: 'done-arc', lifecycle: 'closed' })]} now={NOW} />);
+  it('drops closed AND parked arcs from the lanes (ADR-0239 D3’s active-only default)', () => {
+    render(
+      <ArcSurface
+        arcs={[
+          arc({ id: 'live-arc' }),
+          arc({ id: 'done-arc', lifecycle: 'closed' }),
+          arc({ id: 'shelved-arc', lifecycle: 'parked' }),
+        ]}
+        now={NOW}
+      />,
+    );
     expect(screen.getByTestId('arc-lane:live-arc')).not.toBeNull();
     expect(screen.queryByTestId('arc-lane:done-arc')).toBeNull();
+    expect(screen.queryByTestId('arc-lane:shelved-arc')).toBeNull();
   });
 });
 
-describe('ArcSurface — closed arcs are one flag away, not filed and forgotten (ADR-0335)', () => {
+describe('ArcSurface — three scopes, one per lifecycle (ADR-0335, ADR-0374 D5)', () => {
+  const THREE = [
+    arc({ id: 'live-arc' }),
+    arc({ id: 'done-arc', lifecycle: 'closed' }),
+    arc({ id: 'shelved-arc', lifecycle: 'parked', increments: [parked('p', '2026-08-04')] }),
+  ];
+
   it('the Closed toggle reveals what the default Active scope hides', () => {
-    render(<ArcSurface arcs={[arc({ id: 'live-arc' }), arc({ id: 'done-arc', lifecycle: 'closed' })]} now={NOW} />);
+    render(<ArcSurface arcs={THREE} now={NOW} />);
     expect(screen.queryByTestId('arc-lane:done-arc')).toBeNull();
 
     fireEvent.click(screen.getByTestId('arc-lanes-scope:closed'));
@@ -584,15 +600,39 @@ describe('ArcSurface — closed arcs are one flag away, not filed and forgotten 
     expect(screen.getByTestId('arc-lane:done-arc').getAttribute('data-arc-state')).toBe('closed');
   });
 
-  it('the All toggle shows both, and switching back to Active hides the closed one again', () => {
-    render(<ArcSurface arcs={[arc({ id: 'live-arc' }), arc({ id: 'done-arc', lifecycle: 'closed' })]} now={NOW} />);
-    fireEvent.click(screen.getByTestId('arc-lanes-scope:all'));
-    expect(screen.getByTestId('arc-lane:live-arc')).not.toBeNull();
-    expect(screen.getByTestId('arc-lane:done-arc')).not.toBeNull();
+  it('the Parked toggle is its own shelf — parked arcs are neither on the worklist nor lost', () => {
+    render(<ArcSurface arcs={THREE} now={NOW} />);
+    expect(screen.queryByTestId('arc-lane:shelved-arc')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('arc-lanes-scope:parked'));
+    const lane = screen.getByTestId('arc-lane:shelved-arc');
+    expect(lane.getAttribute('data-arc-state')).toBe('parked');
+    // …and ONLY parked arcs: the shelf must not quietly become a second "all".
+    expect(screen.queryByTestId('arc-lane:live-arc')).toBeNull();
+    expect(screen.queryByTestId('arc-lane:done-arc')).toBeNull();
 
     fireEvent.click(screen.getByTestId('arc-lanes-scope:active'));
     expect(screen.getByTestId('arc-lane:live-arc')).not.toBeNull();
-    expect(screen.queryByTestId('arc-lane:done-arc')).toBeNull();
+    expect(screen.queryByTestId('arc-lane:shelved-arc')).toBeNull();
+  });
+
+  it('THERE IS NO `All` SCOPE — the toggle offers exactly the three lifecycles (ADR-0374 D5)', () => {
+    // The owner's call: `All` interleaved three different answers into one column, distinguished
+    // only by a small chip. It is removed, not hidden, and this fences it from creeping back.
+    render(<ArcSurface arcs={THREE} now={NOW} />);
+    expect(screen.queryByTestId('arc-lanes-scope:all')).toBeNull();
+    const group = screen.getByRole('group', { name: 'which arcs to show' });
+    expect(within(group).getAllByRole('button').map((b) => b.textContent)).toEqual([
+      'Active',
+      'Parked',
+      'Closed',
+    ]);
+  });
+
+  it('an empty shelf says WHICH shelf is empty, never a bare "no arcs"', () => {
+    render(<ArcSurface arcs={[arc({ id: 'live-arc' })]} now={NOW} />);
+    fireEvent.click(screen.getByTestId('arc-lanes-scope:parked'));
+    expect(screen.getByTestId('arc-lanes').textContent).toContain('No parked arcs.');
   });
 });
 

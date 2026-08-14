@@ -37,7 +37,8 @@ async function main(): Promise<void> {
 
     console.log(`${TAG} — corpus: ${docs.length} artifacts, ${plan.docsScanned} of them in the DAG.`);
     console.log(
-      `${TAG} — plan: ${plan.edgesPlanned} edges across ${plan.edges.length} artifacts.`,
+      `${TAG} — plan: ${plan.edgesPlanned} NEW edges across ${plan.edges.length} artifacts` +
+        ` (${plan.extended} of them EXTENDED — they already carried authored edges, ADR-0373).`,
     );
     // Print the skips ALWAYS. A thin plan is the expected outcome of a corpus whose citations mostly
     // run sideways, and without these numbers a small yield is indistinguishable from a broken read.
@@ -47,7 +48,9 @@ async function main(): Promise<void> {
         `${s.targetOutsideDag} target outside the DAG, ${s.targetAbsent} target absent from the corpus, ` +
         `${s.malformed} malformed pointer(s).`,
     );
-    console.log(`${TAG} — artifacts skipped because a curator already authored an edge: ${s.alreadyAuthored}.`);
+    console.log(
+      `${TAG} — artifacts already carrying edges with nothing to add (untouched): ${s.alreadyAuthored}.`,
+    );
 
     if (!write) {
       console.log(
@@ -67,7 +70,7 @@ async function main(): Promise<void> {
         const saved = await corpus.store.patchDoc({
           id: edge.id,
           fields: { standsOn: [...edge.standsOn] },
-          actor: `${TAG} (ADR-0223 dec 5)`,
+          actor: `${TAG} (ADR-0223 dec 5, ADR-0373)`,
           validate: (merged) => upcastAndValidate(merged),
         });
         // `null` means the row vanished between the bulk read and this write — a sibling deleted or

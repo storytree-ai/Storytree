@@ -1,0 +1,35 @@
+{
+ "checks": {
+  "failed": []
+ },
+ "measured": {
+  "cameraElevationDeg": 20.0,
+  "cellsA": 102,
+  "distinctShapesA": 6,
+  "cellsB": 214,
+  "distinctShapesB": 214,
+  "finerLatticeA": {
+   "cells": 408,
+   "distinctShapes": 24
+  },
+  "meanCellAreaA": 315.66625967942747,
+  "meanCellAreaB": 150.45774994066184,
+  "renderedInteriorPieces": {
+   "a": 6,
+   "b": 0,
+   "bplus": 0,
+   "bplusplus": 0
+  },
+  "rimPieceSet": 16,
+  "chamferShareOfLandPxA": 0.06995,
+  "wallShareOfLandPxA": 0.33141,
+  "wallShareOfLandPxBpp": 0.31608,
+  "paletteEntries": 86,
+  "landColours": {
+   "a": 59,
+   "b": 44,
+   "bplus": 58,
+   "bplusplus": 60
+  }
+ }
+}

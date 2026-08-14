@@ -89,36 +89,90 @@ export interface BootstrapSkips {
   readonly targetAbsent: number;
   /** Pointer is malformed: a `doc:` that is not a relpath, or a ref no {@link StandsOnRef} accepts. */
   readonly malformed: number;
-  /** Source already carries an authored `standsOn`; the seed never overwrites curator work. */
+  /**
+   * Source already carried an authored `standsOn` AND the pass found nothing to add — so it is
+   * untouched. Since ADR-0373 an artifact that already carries edges is EXTENDED rather than skipped
+   * whole (see {@link StandsOnBootstrapPlan.extended}), so this counts only the genuine no-ops.
+   */
   readonly alreadyAuthored: number;
 }
 
 /** The whole migration, decided. */
 export interface StandsOnBootstrapPlan {
-  /** Only artifacts that GAIN at least one edge. */
+  /**
+   * Only artifacts that GAIN at least one edge. Since ADR-0373 an entry's `standsOn` is the artifact's
+   * FULL intended set — any pre-existing authored edges first, in their authored order, then the new
+   * ones — because the applier patches the whole field. Never a delta.
+   */
   readonly edges: readonly BootstrapEdge[];
   /** In-DAG artifacts considered — the denominator, so a thin plan cannot read as a whole corpus. */
   readonly docsScanned: number;
-  /** Total edges across {@link edges}. */
+  /** Total edges across {@link edges}, counting only the NEWLY added ones (ADR-0373). */
   readonly edgesPlanned: number;
+  /**
+   * Artifacts that already carried authored edges and are being EXTENDED rather than seeded from
+   * empty (ADR-0373). Reported separately because it is the one number that says whether the second
+   * pass reached the artifacts the first pass had already claimed — the agent tier, entirely.
+   */
+  readonly extended: number;
   readonly skipped: BootstrapSkips;
 }
 
-/** Read a doc's `references` defensively: this runs over the LIVE corpus, not a parsed union. */
+/**
+ * The per-kind `refList` citation fields ADR-0373 admits, alongside the envelope `references`.
+ *
+ * WHY THESE AND NOT `references` ALONE. ADR-0223 dec 5 seeded from `references`, which is a SEE-ALSO
+ * citation — "I consulted this". Three of the four fields below are strictly stronger than that: the
+ * `storytree agents <name>` renderer INJECTS the cited unit's text into the agent's system prompt, so
+ * changing the target changes the agent with no edit to the agent. That is a dependency by any
+ * operational test, and the seed was recording the weakest relation in the corpus while ignoring the
+ * strongest. `uat-criterion.refs` is the fourth and is a different case: it IS `references` under a
+ * per-kind name, unseeded only because of where it is filed — which is why ADR-0365 measured
+ * `uat-criterion` at tier 6 seeding exactly zero.
+ *
+ * `agent.antiPatterns` is included deliberately, though it reads as a negative pointer. Its content is
+ * injected exactly like `rules`, so the operational test is identical: change the guardrail and the
+ * agent's prompt changes. The polarity is in the content, not in the direction of the dependency.
+ *
+ * A kind absent from this map contributes only its envelope `references`, unchanged.
+ */
+const CITATION_REFLISTS: ReadonlyMap<string, readonly string[]> = new Map([
+  ["agent", ["context", "rules", "antiPatterns"]],
+  ["uat-criterion", ["refs"]],
+]);
+
+/**
+ * Read a doc's citation pointers defensively: this runs over the LIVE corpus, not a parsed union.
+ *
+ * The envelope `references` first, then the kind's {@link CITATION_REFLISTS} fields in declared
+ * order. Order matters only for reproducibility of the emitted array; duplicates across fields are
+ * collapsed downstream by the caller's `seen` set.
+ */
 function citationsOf(doc: unknown): string[] {
   const payload = doc as { references?: unknown } | null | undefined;
   const raw = Array.isArray(payload?.references) ? payload.references : [];
-  return raw.filter((entry): entry is string => typeof entry === "string");
+  const out = raw.filter((entry): entry is string => typeof entry === "string");
+
+  const bag = doc as Record<string, unknown> | null | undefined;
+  for (const field of CITATION_REFLISTS.get(kindOf(doc)) ?? []) {
+    const value = bag?.[field];
+    if (!Array.isArray(value)) continue;
+    for (const entry of value) if (typeof entry === "string") out.push(entry);
+  }
+  return out;
+}
+
+/** A doc's already-authored `standsOn`, in authored order. */
+function authoredEdgesOf(doc: unknown): string[] {
+  const payload = doc as { standsOn?: unknown } | null | undefined;
+  return Array.isArray(payload?.standsOn)
+    ? payload.standsOn.filter((entry): entry is string => typeof entry === "string")
+    : [];
 }
 
 function kindOf(doc: unknown): string {
   const payload = doc as { kind?: unknown } | null | undefined;
   return typeof payload?.kind === "string" ? payload.kind : "";
-}
-
-function hasAuthoredEdge(doc: unknown): boolean {
-  const payload = doc as { standsOn?: unknown } | null | undefined;
-  return Array.isArray(payload?.standsOn) && payload.standsOn.length > 0;
 }
 
 /**
@@ -135,8 +189,18 @@ function hasAuthoredEdge(doc: unknown): boolean {
  * cannot see. A bare `doc:0241` is the real instance: it satisfies the regex but is not a relpath, so
  * it is caught by the separate relpath rule below.
  *
- * An artifact that ALREADY carries `standsOn` is skipped whole. A seed must never overwrite authored
- * curation, which also makes a re-run safe after curators have started work.
+ * An artifact that already carries `standsOn` is EXTENDED, not skipped whole (ADR-0373). The seed had
+ * to change here or the decision could not land at all: all 13 agents were already seeded from their
+ * envelope `references` by ADR-0223 dec 5's first pass, so a skip-whole rule would have read every new
+ * `rules` / `context` / `antiPatterns` field and written none of them.
+ *
+ * "Never overwrite authored curation" is PRESERVED — the emitted set is the existing edges in their
+ * authored order followed by the new ones, so nothing is ever removed or reordered. What is given up
+ * is "never re-add": an edge a curator DELIBERATELY DELETED comes back if it is also derivable from a
+ * citation field, because a deleted edge and a never-seeded one are indistinguishable in the stored
+ * doc. Accepted knowingly and stated in ADR-0373 — the first pass landed 2026-08-14 and the same-tier
+ * curation tail it handed to curators is untouched, so there is no deletion history to lose yet. If
+ * curation deletions ever become common, the fix is to record them, not to restore the skip.
  */
 export function projectStandsOnFromCitations(docs: readonly CitationSource[]): StandsOnBootstrapPlan {
   const tierById = new Map<string, number | undefined>();
@@ -155,18 +219,17 @@ export function projectStandsOnFromCitations(docs: readonly CitationSource[]): S
   let targetAbsent = 0;
   let malformed = 0;
   let alreadyAuthored = 0;
+  let extended = 0;
 
   for (const row of docs) {
     const sourceTier = KNOWLEDGE_TIERS.get(kindOf(row.doc));
     if (sourceTier === undefined) continue;
     docsScanned += 1;
 
-    if (hasAuthoredEdge(row.doc)) {
-      alreadyAuthored += 1;
-      continue;
-    }
-
-    const seen = new Set<string>();
+    // Pre-load the authored edges into `seen` so they are never duplicated, and carry them at the
+    // head of the emitted set so authored order survives the patch (ADR-0373).
+    const authored = authoredEdgesOf(row.doc);
+    const seen = new Set<string>(authored);
     const standsOn: string[] = [];
 
     for (const entry of citationsOf(row.doc)) {
@@ -213,8 +276,14 @@ export function projectStandsOnFromCitations(docs: readonly CitationSource[]): S
       standsOn.push(pointer);
     }
 
-    if (standsOn.length === 0) continue;
-    edges.push({ id: row.id, standsOn });
+    if (standsOn.length === 0) {
+      // Nothing new. An artifact that already had edges is a genuine no-op; one that had none simply
+      // cites nothing seedable.
+      if (authored.length > 0) alreadyAuthored += 1;
+      continue;
+    }
+    if (authored.length > 0) extended += 1;
+    edges.push({ id: row.id, standsOn: [...authored, ...standsOn] });
     edgesPlanned += standsOn.length;
   }
 
@@ -222,6 +291,7 @@ export function projectStandsOnFromCitations(docs: readonly CitationSource[]): S
     edges,
     docsScanned,
     edgesPlanned,
+    extended,
     skipped: { sameTier, upTier, targetOutsideDag, targetAbsent, malformed, alreadyAuthored },
   };
 }

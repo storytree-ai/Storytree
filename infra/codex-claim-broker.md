@@ -39,12 +39,41 @@ From the primary checkout — the broker fences itself to the repository whose w
 promote, and it takes that from its own working directory:
 
 ```bash
-node --import tsx packages/cli/src/codex-claim-broker-entry.ts
+pnpm -C packages/cli exec node --import tsx src/codex-claim-broker-entry.ts
 ```
 
+**Run it from `packages/cli`, not from the checkout root.** `tsx` resolves only through a workspace
+and the checkout ROOT has none of its own, so a root-level `node --import tsx …` dies with
+`Cannot find package 'tsx' imported from C:\code\storytree\`. The fence is unaffected by the
+subdirectory: `git rev-parse --show-toplevel` from `packages/cli` still answers the primary checkout,
+which is what the broker pins. Run it from a WORKTREE, however, and it pins that worktree and then
+refuses to promote anything — the `repository:` line it prints on startup is how you check.
+
 It prints its port, identity, repository and handshake path to stderr, then serves until `SIGINT` /
-`SIGTERM`. On shutdown it removes the handshake, so a later caller gets an honest "broker not running"
-rather than a connection error against a dead port.
+`SIGTERM`. On graceful shutdown it removes the handshake, so a later caller gets an honest "broker not
+running" rather than a connection error against a dead port. **A hard kill skips that** — the
+handshake outlives the process and names a port nothing is listening on. If the bootstrap reports a
+connection error rather than "not running", delete the handshake and restart.
+
+### Keeping it running
+
+ADR-0368 D1 allows by hand, a logon task, or a service wrapper — never on demand from a Codex session.
+A process started as a child of some other tool session dies with that session, which is a quiet way
+to lose the broker; a logon task is the durable form:
+
+```powershell
+$node = (Get-Command node.exe).Source
+Register-ScheduledTask -TaskName 'Storytree Codex Claim Broker' `
+  -Action (New-ScheduledTaskAction -Execute $node `
+      -Argument '--import tsx src/codex-claim-broker-entry.ts' `
+      -WorkingDirectory 'C:\code\storytree\packages\cli') `
+  -Trigger (New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME") `
+  -Principal (New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" `
+      -LogonType Interactive -RunLevel Limited)
+```
+
+`RunLevel Limited` is deliberate: the broker wants your ordinary token, not an elevated one. It holds
+its authority through impersonation of a narrowly-granted service account, not through privilege.
 
 ## The handshake, and the ACL that is the actual door
 
@@ -111,7 +140,24 @@ Expect the last to list only your account and `CodexSandboxUsers`, with no inher
 
 ## Status
 
-**Not yet proven end to end.** `codex-lobby-to-write-live-smoke` — the twelve criteria on
-`codex-factory-parity-arc`, rewritten before running under ADR-0364 D7 — is what decides whether the
+**Started for the first time on 2026-08-15, and still not proven end to end.**
+
+What is now true: the ADR-0364 boundary is installed on the dev host, the broker has run holding the
+scoped claim-writer identity with a correctly-ACL'd handshake, and the managed hook was driven
+directly and refuses correctly in every direction — lobby, sibling reached-into, sibling walked-into,
+and `.git` metadata — while admitting a write in the session's own claimed worktree.
+
+What is still NOT true: `codex-lobby-to-write-live-smoke` has not run. Its twelve criteria on
+`codex-factory-parity-arc` — rewritten before running under ADR-0364 D7 — are what decide whether the
 lifecycle may be described as operational. A broker that passes its unit tests is not a lifecycle that
 works; this arc was closed once on a bar that had drifted.
+
+⚠ **A blocker was measured, and it is open.** The hook re-reads live claims on every covered tool call
+by spawning the claim probe, which builds a Cloud SQL connector per invocation. Measured back to back:
+**18,976 ms and 48,192 ms**, against the hook's **30 s** budget — so the same legitimate write was
+refused on one run and admitted on the next. It fails closed, so it is not a security hole; it does
+block criterion 6. The fork is an open question on the arc
+(`oq-where-the-resident-claim-authority-lives-and-whether-the`), and the leading candidate is to let
+the hook read through this already-resident process, which holds a warm pool.
+
+Evidence: [`docs/research/codex-lobby-to-write-install-and-fence-2026-08-15.md`](../docs/research/codex-lobby-to-write-install-and-fence-2026-08-15.md)

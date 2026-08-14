@@ -959,14 +959,34 @@ export type IncrementStatus = z.infer<typeof IncrementStatus>;
 /**
  * The stored closure state of an `arc` (ADR-0239 D1): `active` while the initiative is in flight,
  * `closed` once a terminal increment records that the observable `endState` condition was met.
- * TWO values, not the increment tier's four — an arc has no `open` state (ADR-0196 D1's table gives
- * `arc` an `active`/`archived` row only), and D2 of that same ADR already judged the wider enum
- * surface-level over-engineering. Vocabulary follows ADR-0196 D2 verbatim ("a stored `lifecycle`
- * field"), and the mapping onto the universal triad stays in the ONE projection (`lifecycleOf`,
- * ADR-0196 D4). Enum-fenced at the schema so a free-prose state can never be written (the
- * {@link IncrementStatus} precedent).
+ * Vocabulary follows ADR-0196 D2 verbatim ("a stored `lifecycle` field"), and the mapping onto the
+ * universal triad stays in the ONE projection (`lifecycleOf`, ADR-0196 D4). Enum-fenced at the
+ * schema so a free-prose state can never be written (the {@link IncrementStatus} precedent).
+ *
+ * ── `parked` IS THE THIRD VALUE, AND IT IS THE ONLY CURATED ONE (ADR-0374 D1) ──────────────────
+ *
+ * `active` and `closed` are MECHANICAL — ADR-0335 recomputes them from the increment log on every
+ * increment write, so neither is a judgement anybody has to remember to make. `parked` is the state
+ * that rule cannot reach and never will: an arc holding open, forward-looking work that the owner
+ * has DECIDED not to do for now. The mechanical rule reads exactly that shape as `active`, because
+ * from the log alone it is indistinguishable from work in flight.
+ *
+ * The live instance ADR-0374 was written for is `remote-session-access-arc` ("Remote sessions reach
+ * the live store"), descoped by the owner on 2026-08-04 — "not a priority, its only a nice to have"
+ * — while still carrying an open increment. It sat on the arc surface's active worklist for eleven
+ * days looking like work somebody was about to pick up.
+ *
+ * BEING CURATED IS WHAT MAKES IT STICKY, and the stickiness is enforced in `deriveArcLifecycle`
+ * (`@storytree/arc`) rather than here: without it, the very next increment write on a parked arc
+ * would flip it back to `active` and silently discard the owner's decision. That fence is the
+ * decision; this enum is only where the word is admitted.
+ *
+ * NOT the same as `closed`, and the difference is worth the third value rather than reusing the
+ * second: a closed arc's end state was MET, so its open work is gone and `arc close` refuses while
+ * any remains (ADR-0347). A parked arc's end state was NOT met — the work is still there, still
+ * wanted, just not now. Closing it would assert a landing that never happened.
  */
-export const ArcLifecycle = z.enum(["active", "closed"]);
+export const ArcLifecycle = z.enum(["active", "parked", "closed"]);
 export type ArcLifecycle = z.infer<typeof ArcLifecycle>;
 
 /**

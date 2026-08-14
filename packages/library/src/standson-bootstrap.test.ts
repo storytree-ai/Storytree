@@ -172,19 +172,115 @@ test("ADR-0365 D2: an increment's arc containment is NOT a standsOn edge — onl
   );
 });
 
-test("library-standson-bootstrap-never-overwrites-authored-edges: an artifact already carrying standsOn is skipped whole", () => {
+test("library-standson-bootstrap-never-overwrites-authored-edges: an authored edge survives an EXTENDING pass, first and in order", () => {
+  // ADR-0373 replaced skip-whole with extend. The contract this test names is unchanged and is the
+  // one that matters — nothing authored is removed, reordered, or replaced — but the seed now APPENDS
+  // to a curated artifact instead of walking past it. It had to: every agent was already seeded from
+  // its envelope `references` by the first pass, so skip-whole would have read the new refList fields
+  // and written none of them.
   const plan = projectStandsOnFromCitations([
-    // Curated already: it cites a down-tier principle, but a curator has authored a DIFFERENT edge.
-    // The seed must not append to, reorder, or replace that.
     row("curated-agent", "agent", ["asset:a-principle"], { standsOn: ["asset:a-guardrail"] }),
-    // An EMPTY array is not authorship — it records no edge, so this one is still seeded.
+    // An EMPTY array is not authorship — it records no edge, so this one is seeded from empty.
     row("empty-agent", "agent", ["asset:a-principle"], { standsOn: [] }),
     row("a-principle", "principle", []),
     row("a-guardrail", "guardrail", []),
   ]);
 
-  assert.deepEqual(plan.edges, [{ id: "empty-agent", standsOn: ["asset:a-principle"] }]);
+  assert.deepEqual(plan.edges, [
+    // Authored FIRST, in authored order, then the new edge — the applier patches the whole field, so
+    // the emitted array is the artifact's full intended set rather than a delta.
+    { id: "curated-agent", standsOn: ["asset:a-guardrail", "asset:a-principle"] },
+    { id: "empty-agent", standsOn: ["asset:a-principle"] },
+  ]);
+  assert.equal(plan.extended, 1, "one artifact was extended rather than seeded from empty");
+  assert.equal(plan.edgesPlanned, 2, "counts NEW edges only — the authored one is not re-counted");
+  assert.equal(plan.skipped.alreadyAuthored, 0, "nothing was a no-op here");
+});
+
+test("library-standson-bootstrap-never-overwrites-authored-edges: an artifact with nothing to add is a NO-OP, not an extension", () => {
+  const plan = projectStandsOnFromCitations([
+    // Already carries exactly the edge its citation would seed: the pass must emit nothing at all,
+    // or every re-run would rewrite the whole corpus and churn `updatedAt` across it.
+    row("settled-agent", "agent", ["asset:a-principle"], { standsOn: ["asset:a-principle"] }),
+    row("a-principle", "principle", []),
+  ]);
+
+  assert.deepEqual(plan.edges, []);
+  assert.equal(plan.extended, 0);
   assert.equal(plan.skipped.alreadyAuthored, 1);
+});
+
+test("ADR-0373: an agent's injected refList fields seed edges, not just its envelope references", () => {
+  // The decision this test carries: `context` / `rules` / `antiPatterns` are STRONGER than a
+  // see-also citation, because the agent renderer injects the cited unit's text into the system
+  // prompt — change the target and the agent changes with no edit to the agent. The seed was
+  // recording the weakest relation in the corpus and ignoring the strongest.
+  const plan = projectStandsOnFromCitations([
+    row("an-agent", "agent", ["asset:cited-principle"], {
+      context: ["asset:a-process", "asset:a-definition"],
+      rules: ["asset:a-principle", "asset:a-pattern"],
+      antiPatterns: ["asset:a-guardrail"],
+    }),
+    row("cited-principle", "principle", []),
+    row("a-principle", "principle", []),
+    row("a-pattern", "pattern", []),
+    row("a-guardrail", "guardrail", []),
+    row("a-process", "process", []),
+    row("a-definition", "definition", []),
+  ]);
+
+  assert.deepEqual(plan.edges, [
+    {
+      id: "an-agent",
+      standsOn: [
+        "asset:cited-principle", // envelope references first
+        "asset:a-process", // context
+        "asset:a-principle", // rules
+        "asset:a-pattern",
+        "asset:a-guardrail", // antiPatterns — injected exactly like rules, so it seeds too
+      ],
+    },
+  ]);
+  // The definition in `context` is still excluded (ADR-0363 D1): admitting a new SOURCE field never
+  // admits a new TARGET kind.
+  assert.equal(plan.skipped.targetOutsideDag, 1);
+});
+
+test("ADR-0373: a uat-criterion's refs seed — the field ADR-0365 measured at tier 6 seeding zero", () => {
+  // `refs` is `references` under a per-kind name; it went unseeded only because of where it is filed.
+  // All 59 uat-criteria carry an EMPTY envelope `references`, so before this the whole tier seeded 0.
+  const plan = projectStandsOnFromCitations([
+    row("a-criterion", "uat-criterion", [], {
+      refs: ["asset:a-principle", "asset:a-process"],
+    }),
+    row("a-principle", "principle", []),
+    row("a-process", "process", []),
+  ]);
+
+  assert.deepEqual(plan.edges, [
+    { id: "a-criterion", standsOn: ["asset:a-principle", "asset:a-process"] },
+  ]);
+});
+
+test("ADR-0373: a refList field on a kind that does not declare one is ignored", () => {
+  // The map is the allow-list. A `rules`-shaped property on a principle is not a citation field, and
+  // reading it would silently widen the decision to kinds nobody adjudicated.
+  const plan = projectStandsOnFromCitations([
+    row("a-principle", "principle", [], { rules: ["asset:a-techstack"], refs: ["asset:a-techstack"] }),
+    row("a-techstack", "techstack", []),
+  ]);
+
+  assert.deepEqual(plan.edges, []);
+});
+
+test("ADR-0373: a target named in BOTH references and a refList seeds one edge", () => {
+  const plan = projectStandsOnFromCitations([
+    row("an-agent", "agent", ["asset:a-principle"], { rules: ["asset:a-principle"] }),
+    row("a-principle", "principle", []),
+  ]);
+
+  assert.deepEqual(plan.edges, [{ id: "an-agent", standsOn: ["asset:a-principle"] }]);
+  assert.equal(plan.edgesPlanned, 1);
 });
 
 test("library-standson-bootstrap-reports-what-it-skipped: the plan carries its denominators and a reason for every drop", () => {
@@ -214,6 +310,7 @@ test("library-standson-bootstrap-reports-what-it-skipped: the plan carries its d
     malformed: 2,
     alreadyAuthored: 0,
   });
+  assert.equal(plan.extended, 0);
 
   // A malformed pointer is DROPPED, never written: it would land in a validated field as a
   // permanently dangling target that no later reader could distinguish from a real ADR.
