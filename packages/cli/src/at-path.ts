@@ -102,6 +102,10 @@ export const LITERAL_FLAGS: ReadonlySet<string> = new Set([
   "file",
   "set",
   "raw",
+  // `write-authority codex --toolchain-payload <abs path>` (ADR-0368) — the already-staged
+  // dist/pnpm.cjs. A path, hashed to mint a pin; it is never stored into an artifact, and reading
+  // the FILE here would be exactly backwards — the file's CONTENTS are the payload, not the value.
+  "toolchain-payload",
   // `--raw <field> --out <path>` / `library artifact history --field <f>` (ADR-0361): a path and a
   // field NAME. Both are already the kind of value `@` would be part of, and neither is ever stored
   // into an artifact, so neither can corrupt a durable record.
