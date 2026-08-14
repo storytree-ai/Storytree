@@ -244,6 +244,13 @@ export const GATE_PLAN: readonly GatePlanStep[] = [
     cost: "seconds",
     why: "reds every session the moment any instrument breaches on main — the measured case behind the parked entry `verification-decay-charges-by-authorship`",
   },
+  {
+    command: "pnpm check:library-dag-acyclic",
+    check: "check:library-dag-acyclic",
+    subject: "shared-environment",
+    cost: "seconds",
+    why: "a standsOn cycle is authored by a live artifact write, so ANY session's edit can red it — the corpus it judges is shared even when this branch touched none of it (ADR-0223 D3)",
+  },
 ];
 
 /**
@@ -728,6 +735,7 @@ export const SHARED_ENVIRONMENT_CHECKS: ReadonlySet<string> = new Set([
   "check:guidance",
   "check:agents",
   "check:verification-decay",
+  "check:library-dag-acyclic",
 ]);
 
 /** The index of the plan's FIRST minutes-cost leg, or -1 when it runs none. */

@@ -157,7 +157,7 @@ test("the REAL gate plan still runs both expensive legs (the wall the axes are m
   }
 });
 
-test("the REAL gate plan is exactly the nine ADR-0311 survivors plus the ADR-0336 addition, in order", () => {
+test("the REAL gate plan is exactly the nine ADR-0311 survivors plus the ADR-0336 and ADR-0223 additions, in order", () => {
   assert.deepEqual(
     GATE_PLAN.map((step) => step.command),
     [
@@ -171,12 +171,18 @@ test("the REAL gate plan is exactly the nine ADR-0311 survivors plus the ADR-033
       "pnpm check:guidance",
       "pnpm check:agents",
       "pnpm check:verification-decay",
+      "pnpm check:library-dag-acyclic",
     ],
   );
 });
 
-test("the three live/shared checks are pinned LATE", () => {
-  for (const check of ["check:guidance", "check:agents", "check:verification-decay"]) {
+test("the four live/shared checks are pinned LATE", () => {
+  for (const check of [
+    "check:guidance",
+    "check:agents",
+    "check:verification-decay",
+    "check:library-dag-acyclic",
+  ]) {
     assert.ok(SHARED_ENVIRONMENT_CHECKS.has(check));
     assert.ok(!PRE_EXPENSIVE_CHECKS.has(check));
     const at = GATE_PLAN.findIndex((s) => s.check === check);

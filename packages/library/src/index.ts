@@ -49,6 +49,11 @@ export * from "./repo-root.js";
 // (re-exported here AND via the `/knowledge`, `/knowledge-render`, `/sources` subpaths the studio
 // browser imports directly so it never pulls a node:-laden root barrel).
 export * from "./knowledge.js";
+// ADR-0223: the authored `standsOn` dependency DAG — the pure cycle detector (`directional-dag-arc`
+// increment 1) and the corpus-wide acyclicity judge the `check:library-dag-acyclic` rung is a thin
+// store read around. Pure, browser-safe: no zod, no store, no node: — it reads `standsOn` and
+// nothing else, so the citation web is structurally outside the dependency relation.
+export * from "./knowledge-dag.js";
 export {
   CURRENT_SCHEMA_VERSION,
   type Migration,
