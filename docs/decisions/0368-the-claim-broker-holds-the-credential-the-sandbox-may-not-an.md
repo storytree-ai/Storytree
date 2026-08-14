@@ -138,8 +138,10 @@ managed hook re-probes the LIVE claim on every tool call and refuses every write
 layer down. Moving the path into the administrator-owned actuator config would close it at this layer
 too, and is the obvious hardening if the live smoke gives any reason to want it.
 
-**What this does NOT deliver.** No repository code dials the broker yet — that is
-`codex-bootstrap-dials-the-broker`. And nothing here may be described as operational until
+**What this does NOT deliver.** `codex-bootstrap-dials-the-broker` landed in this same change:
+`codex-worktree-create-entry.ts` now dials the broker instead of calling `loadLocalSecrets()` /
+`createPool()` directly, so the bootstrap holds no credential and opens no database connection. What
+remains undelivered is proof of the LIFECYCLE — nothing here may be described as operational until
 `codex-lobby-to-write-live-smoke` runs from a genuinely fresh Codex desktop task against its rewritten
 twelve criteria. This arc was closed once on a bar that had drifted; a broker that passes its unit
 tests is not a lifecycle that works.
