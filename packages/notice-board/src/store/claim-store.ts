@@ -334,9 +334,22 @@ export class PgClaimStore {
       const displacedRow =
         existing !== undefined && existing.session_id === candidate.sessionId ? existing : folded;
       const displaced = displacedRow !== undefined ? rowToDoc(displacedRow) : undefined;
-      await this.#appendEvent(client, candidate.unitId, eventType, candidate.sessionId, claim);
+      const eventSeq = await this.#appendEvent(
+        client,
+        candidate.unitId,
+        eventType,
+        candidate.sessionId,
+        claim,
+      );
       await client.query("COMMIT");
-      return { acquired: true, claim, reclaimed, ...(displaced !== undefined ? { displaced } : {}) };
+      return {
+        acquired: true,
+        claim,
+        reclaimed,
+        ...(displaced !== undefined ? { displaced } : {}),
+        // The take's own audit-row identity, so the caller can name it as a cause (ADR-0350 D1).
+        ...(eventSeq !== undefined ? { eventSeq } : {}),
+      };
     } catch (err) {
       await client.query("ROLLBACK");
       throw err;
@@ -397,9 +410,20 @@ export class PgClaimStore {
         ],
       );
       const claim = rowToDoc((ins.rows as ClaimRow[])[0] as ClaimRow);
-      await this.#appendEvent(client, candidate.unitId, "claimed", candidate.sessionId, claim);
+      const eventSeq = await this.#appendEvent(
+        client,
+        candidate.unitId,
+        "claimed",
+        candidate.sessionId,
+        claim,
+      );
       await client.query("COMMIT");
-      return { acquired: true, claim, reclaimed: false };
+      return {
+        acquired: true,
+        claim,
+        reclaimed: false,
+        ...(eventSeq !== undefined ? { eventSeq } : {}),
+      };
     } catch (err) {
       await client.query("ROLLBACK");
       throw err;
@@ -1165,16 +1189,26 @@ export class PgClaimStore {
     );
   }
 
+  /**
+   * Append one audit row and RETURN ITS SEQ — the row's identity in `events.claim_event`.
+   *
+   * The seq is returned so a caller can name this event as the CAUSE of a later one (ADR-0350 D1).
+   * `undefined` when the client returns no row: a structural client (the offline fakes) may not
+   * honour `RETURNING`, and under ADR-0350 D2 the honest answer there is no identity at all rather
+   * than a fabricated one — a caller with no cause to name stamps none.
+   */
   async #appendEvent(
     client: ClaimClient,
     unitId: string,
     type: string,
     sessionId: string,
     doc: ClaimDocT,
-  ): Promise<void> {
-    await client.query(
-      "INSERT INTO events.claim_event (unit_id, type, session_id, doc) VALUES ($1, $2, $3, $4::jsonb)",
+  ): Promise<number | undefined> {
+    const res = await client.query(
+      "INSERT INTO events.claim_event (unit_id, type, session_id, doc) VALUES ($1, $2, $3, $4::jsonb) RETURNING seq",
       [unitId, type, sessionId, JSON.stringify(doc)],
     );
+    const row = res.rows[0] as { seq?: string | number } | undefined;
+    return row?.seq === undefined ? undefined : Number(row.seq);
   }
 }
