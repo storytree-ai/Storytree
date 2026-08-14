@@ -33,6 +33,9 @@ export interface KnowledgeUnitLike {
   title: string;
   description: string;
   references?: string[];
+  /** The authored `standsOn` dependency edge (ADR-0223) — absent for an edge-free kind or an
+   *  un-curated doc; carried so the offline focus graph walks the same substrate as the live one. */
+  standsOn?: string[];
   provenance?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -61,6 +64,9 @@ export async function deriveOfflineAssets(units: KnowledgeUnitLike[]): Promise<G
     description: doc.description,
     body: renderBody(doc as unknown as Parameters<typeof renderBody>[0]),
     references: doc.references ?? [],
+    // Absent-by-default, never `?? []` — an empty array would claim "authored, and it stands on
+    // nothing", which is a different fact from "carries no authored edge" (ADR-0223's optional rule).
+    ...(doc.standsOn !== undefined ? { standsOn: doc.standsOn } : {}),
     ...(doc.provenance !== undefined ? { provenance: doc.provenance } : {}),
     createdAt: doc.createdAt ?? '',
     updatedAt: doc.updatedAt ?? '',
