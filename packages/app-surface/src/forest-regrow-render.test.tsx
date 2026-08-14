@@ -295,6 +295,43 @@ describe('the forest regrow render layer', () => {
     const clips = container.querySelectorAll('clipPath[id^="svg-island-accretion-"]');
     expect(clips.length).toBe(layer.accretionByStory.size);
   });
+
+  /**
+   * This layer FLATTENS every in-flight island's per-cell reveals into ONE map, so the cell identity
+   * the index is keyed on has to be unique across the whole forest and not merely within an island.
+   * The `d`-string key was globally unique only by accident — two islands never sit at the same
+   * coordinates — so a per-island ordinal would have silently made LEAF's nth cell shadow ROOT's.
+   */
+  it('keeps two islands’ cells apart in the flattened reveal index', () => {
+    const scene = forestScene();
+    const plans = deriveForestRegrowAccretionPlans(scene, ANCHORS);
+    const root = plans.byStory.get(ROOT)!;
+    const leaf = plans.byStory.get(LEAF)!;
+    const rootKeys = root.cells.map((cell) => cell.key);
+    const leafKeys = leaf.cells.map((cell) => cell.key);
+
+    expect(new Set([...rootKeys, ...leafKeys]).size).toBe(rootKeys.length + leafKeys.length);
+    // Both islands mid-accretion at once. The fixture's own schedule never does that (LEAF depends
+    // on ROOT), so the state is built directly — a real forest with two independent roots would.
+    const both = forestRegrowRenderLayer(
+      {
+        progress: 0.3,
+        settled: false,
+        landedStoryIds: new Set<string>(),
+        growing: [
+          { storyId: ROOT, progress: 0.3 },
+          { storyId: LEAF, progress: 0.3 },
+        ],
+        presentStoryIds: new Set([ROOT, LEAF]),
+        absentStoryIds: new Set<string>(),
+        hiddenSegmentIds: new Set(['seg-a', 'seg-b']),
+        drawingSegments: [],
+        arrivalStoryIds: [],
+      },
+      plans,
+    );
+    expect(both.cellRevealById.size).toBe(rootKeys.length + leafKeys.length);
+  });
 });
 
 describe('deriveForestRegrowAccretionPlans', () => {

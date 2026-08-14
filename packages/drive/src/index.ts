@@ -33,6 +33,7 @@ export * from "./build-progress.js";
 // to which session, so a session can inventory its own work on a shared box — and so reclaiming it
 // never needs the start-time heuristic that reaches across sessions.
 export * from "./spawn-registry.js";
+export * from "./spawn-stop.js";
 export * from "./node-build.js";
 // Per-slice token-usage persistence (accounting, never proof): the SdkRunInfo → UsageEventDoc
 // mapping + the advisory append the build paths run after proveUnit.

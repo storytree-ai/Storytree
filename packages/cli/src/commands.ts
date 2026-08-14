@@ -3783,10 +3783,11 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
   }
 
   if (area === "own") {
-    // The session's inventory of the background work it is still running
-    // (`shared-box-session-ownership-arc` inc 1). Offline, read-only, no store — the ADR-0271
-    // closing leg reads it to answer "may I declare myself inert?", and a question asked at the end
-    // of a session must not depend on a database being up.
+    // The session's inventory of the background work it is still running, and the verified reclaim
+    // of it (`shared-box-session-ownership-arc` inc 1-2). Offline, no store — the ADR-0271 closing
+    // leg reads it to answer "may I declare myself inert?", and both that question and the cleanup
+    // it prompts are asked at the end of a session, when a database may not be up. `own stop` is the
+    // only writing shape, and it can only name pids from the invoking session's own inventory.
     if (help) return ownHelp();
     // `--all` is a shared CLI option, so it arrives in `values` rather than in the positionals —
     // re-attached here so `own` reads one argument list and the pure command needs no parser.

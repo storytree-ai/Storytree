@@ -237,6 +237,11 @@ export interface SceneNodeBase {
   status?: SceneStatus;
   /** `data-id` — the unit this node belongs to (focus / hover / delegation). */
   id?: string;
+  /** A land cell's SHAPE-FREE identity (ADR-0367) — see {@link landCellId}. Carried on the
+   *  `cell`/`cell-wheat` paths of a relaxed-substrate island's ground, and on nothing else. NON-VISUAL
+   *  and NOT a `data-*` hook: it exists so the per-cell accretion reveal can be indexed by WHICH cell
+   *  this is instead of by the bytes of its own `d` string. */
+  cellId?: string;
   /** `data-from` — a trail edge's source story. */
   from?: string;
   /** `data-to` — a trail edge's target story. */
@@ -2855,6 +2860,54 @@ function buildCoast(input: SceneInput): SceneG {
   return g(groups, { kind: 'coast-layer' });
 }
 
+/**
+ * A land cell's SHAPE-FREE identity: `<storyId>/cell-<n>`, where `n` is the cell's ordinal in its own
+ * island's ground group at emission time.
+ *
+ * ADR-0367 gives the land a camera and then Blender-rendered art, so the emitted cell geometry is
+ * about to move. The accretion reveal used to be indexed by the cell's literal `d` string — the key
+ * WAS the geometry, down to `polyPath`'s one decimal place — so any change to how a polygon is
+ * printed silently dropped the reveal for every cell that moved: the lookup missed, the cell rendered
+ * un-transformed, and the symptom read as an easing bug. This is the addressing that replaces it.
+ *
+ * Why the ordinal and not something drawn from the geometry: the cell HAS no other durable handle.
+ * `RelaxedCell` carries only `owner` / `poly` / `variant` / `wheat`, and every candidate derived from
+ * the mesh (a vertex-id tuple, a centroid, a hashed polygon) is the shape again by another name. The
+ * ordinal is derived from EMISSION ORDER, which is deterministic from the layout data (`buildScene`
+ * is pure and its determinism is already red-green) and completely independent of where the vertices
+ * land — so it survives a precision change, a projection, and an angled camera. It does NOT survive
+ * the interior being re-latticed into a different number of cells, and nothing could: those are
+ * different cells, not the same cells relocated.
+ *
+ * The story prefix is load-bearing, not decoration: `forestRegrowRenderLayer` flattens every in-flight
+ * island's reveals into ONE map, so a bare per-island ordinal would make one island's nth cell shadow
+ * another's. The `d` string was globally unique only because two islands never sit at the same
+ * coordinates.
+ */
+export function landCellId(storyId: string, index: number): string {
+  return `${storyId}/cell-${index.toString().padStart(3, '0')}`;
+}
+
+/**
+ * Stamp every land cell inside ONE island's ground nodes with its {@link landCellId}, in emission
+ * order. Walked rather than assigned at each `path(...)` call site because the parcels-present ground
+ * nests its cells one level deeper (inside per-capability `parcel` groups) — one walk here keeps a
+ * single per-island counter across both shapes, and keys the cells in exactly the depth-first order
+ * the accretion collector re-walks them in.
+ */
+function stampLandCellIds(nodes: readonly SceneNode[], storyId: string): void {
+  let next = 0;
+  const walk = (node: SceneNode): void => {
+    if (node.el === 'path' && (node.kind === 'cell' || node.kind === 'cell-wheat')) {
+      node.cellId = landCellId(storyId, next);
+      next += 1;
+      return;
+    }
+    if (node.el === 'g') for (const child of node.children) walk(child);
+  };
+  for (const node of nodes) walk(node);
+}
+
 function buildGround(input: SceneInput, surfaces: (ParcelSurface | null)[]): SceneG {
   if (input.relaxedCells) {
     const cells = input.relaxedCells;
@@ -2866,14 +2919,14 @@ function buildGround(input: SceneInput, surfaces: (ParcelSurface | null)[]): Sce
         if (surf) {
           // parcels-present: the per-parcel, per-cell status-tinted ground replaces the plain cells
           // (the per-territory status tint that keyed today's ground moves down to per-cell cap status).
+          stampLandCellIds(surf.ground, t.id);
           return g(surf.ground, { kind: 'ground', status: t.status, id: t.id });
         }
-        return g(
-          owned.map((c) =>
-            path(polyPath(c.poly), c.wheat ? { kind: 'cell-wheat' } : { kind: 'cell', variant: c.variant }),
-          ),
-          { kind: 'ground', status: t.status, id: t.id },
+        const plain = owned.map((c) =>
+          path(polyPath(c.poly), c.wheat ? { kind: 'cell-wheat' } : { kind: 'cell', variant: c.variant }),
         );
+        stampLandCellIds(plain, t.id);
+        return g(plain, { kind: 'ground', status: t.status, id: t.id });
       })
       .filter(isG);
     return g(groups, { kind: 'ground-mesh' });
