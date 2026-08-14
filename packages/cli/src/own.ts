@@ -18,10 +18,16 @@
 // probe, and formats the envelope. Same split as `dispatch` / `dispatch-handle`.
 //
 // WHAT IT DOES NOT SEE, said out loud in the render rather than left to be discovered: only work
-// that REGISTERED itself is here. Today that is the storytree CLI and the gate runner. A harness
-// background shell, a detached editor, a browser someone launched by hand — none of those register,
-// so an empty inventory means "nothing storytree started is still running", never "this box is
-// idle". An inventory that overstated its own coverage would recreate the exact false-clear this
+// that REGISTERED is here. Today that is the storytree CLI, the gate runner, and — since increment 2
+// — the two DETACHED launchers, which are the ones that actually outlive a session: `pnpm studio:up`
+// (`scripts/studio.mjs`) and `storytree desktop launch`. Those two register on their CHILD's behalf,
+// since a detached vite server and an Electron app know nothing about this registry and are precisely
+// the processes still running when their launcher is long gone.
+//
+// A harness background shell, a hand-launched dev server, a browser someone opened — none of those
+// register, so an empty inventory still means "nothing storytree started is still running", never
+// "this box is idle". That distinction is load-bearing and does not weaken as the registrar list
+// grows: an inventory that overstated its own coverage would recreate the exact false clear this
 // command exists to remove.
 
 import {
@@ -114,9 +120,10 @@ export function ownHelp(): Envelope {
       "instead of reporting success. It can only name pids from YOUR inventory; a sibling's pid is",
       "refused and attributed, because a start-time sweep on this box kills a sibling's live run.",
       "",
-      "Only work that REGISTERED itself appears here — the storytree CLI and the gate runner. Harness",
-      "background shells and hand-launched servers do not, so an empty inventory means \"nothing",
-      "storytree started is still running\", never \"this box is idle\".",
+      "Only REGISTERED work appears here — the storytree CLI, the gate runner, and the detached",
+      "launchers `pnpm studio:up` and `storytree desktop launch`. Harness background shells and",
+      "hand-launched servers do not register, so an empty inventory means \"nothing storytree started",
+      "is still running\", never \"this box is idle\".",
     ].join("\n"),
     next: ["storytree own", "storytree own --all"],
   };
@@ -170,8 +177,8 @@ function reportSelf(deps: OwnDeps, sessionId: string): Envelope {
 
   lines.push(
     "",
-    "  Only registered work appears here (the storytree CLI, the gate runner). Harness background",
-    "  shells and hand-launched servers register nothing, so this is not a census of the box.",
+    "  Only registered work appears here (the CLI, the gate runner, `studio:up`, `desktop launch`).",
+    "  Harness background shells and hand-launched servers register nothing — not a census of the box.",
   );
   // Hand back the reclaim already typed out. The inventory's whole purpose is to be acted on, and a
   // caller made to re-read pids off the rows above is a caller who will reach for a process-table

@@ -15,6 +15,7 @@ import { closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, write
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 
+import { registerDetachedSpawn, type DetachedSpawn } from "@storytree/drive";
 import { platformShellCommand, type ShellCommand } from "@storytree/orchestrator";
 
 import type { Envelope } from "./envelope.js";
@@ -44,6 +45,12 @@ export interface DesktopLaunchDeps {
   readonly spawn?: DesktopSpawnFn;
   /** Injected platform (the win32 `pnpm` rewrap seam) — defaults to `process.platform`. */
   readonly platform?: NodeJS.Platform;
+  /**
+   * How the detached child is attributed to this session. Injected so a test never writes a record
+   * for its fake pid into the operator's REAL registry — a row `storytree own` would then report as
+   * leaked work that never existed, which is the inventory lying in the other direction.
+   */
+  readonly register?: (spawn: DetachedSpawn) => string | null;
 }
 
 export function desktopHelp(): Envelope {
@@ -99,11 +106,26 @@ export function desktopLaunch(deps: DesktopLaunchDeps): Envelope {
   closeSync(logFd);
   child.unref();
 
+  // ATTRIBUTE the detached child (`shared-box-session-ownership-arc`). `main.ts` already registers
+  // THIS invocation, but that row dies with the CLI seconds from now — while the Electron app it
+  // just started runs for hours. Registering the child is what keeps it visible to `storytree own`
+  // and stoppable by `storytree own stop`; the alternative is a session that reports itself inert
+  // while holding a GUI process nothing on the box can attribute back to it. Fail-silent, so a
+  // registry that cannot be written never costs the operator their app.
+  const registered = (deps.register ?? registerDetachedSpawn)({
+    pid: child.pid,
+    command: `desktop app (electron) — storytree desktop launch`,
+    cwd: cwd ?? deps.repoRoot,
+  });
+
   return {
     ok: true,
     body: [
       `launched the desktop app, detached (pid ${child.pid ?? "?"}) — building then opening the Electron window.`,
       `log: ${path.relative(deps.repoRoot, logFile)}`,
+      ...(registered === null
+        ? []
+        : ["it is registered with `storytree own` — stop it with `storytree own stop`."]),
       "if apps/studio/dist is missing (a fresh worktree), build it first: pnpm --filter studio build",
     ].join("\n"),
     next: [],

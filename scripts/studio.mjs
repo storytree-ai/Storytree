@@ -31,6 +31,18 @@ import fs from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 
+// The spawn registry (`shared-box-session-ownership-arc`), reached by RELATIVE PATH rather than by
+// package name so this launcher keeps its no-workspace-install promise — `spawn-record.mjs` is plain
+// ESM over node builtins for exactly this caller. Registering here is what makes a detached vite
+// server VISIBLE to `storytree own` and STOPPABLE by `storytree own stop`; without it the session
+// reports a clean inventory while still holding :5173, which is the false clear that arc exists to
+// remove. Fail-silent by construction: every function below absorbs its own failure, so a broken
+// registry can never keep the studio from starting.
+import {
+  registerDetachedSpawn,
+  removeSpawnRecordForPid,
+} from '../packages/drive/src/spawn-record.mjs';
+
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const studioDir = path.join(repoRoot, 'apps', 'studio');
 const pidFile = path.join(studioDir, '.studio.pid');
@@ -294,8 +306,22 @@ async function up() {
   fs.closeSync(logFd);
 
   fs.writeFileSync(pidFile, `${child.pid}\n`);
+
+  // ATTRIBUTE the detached child to this session. The launcher registers on the child's behalf
+  // because the child is the whole point: it is unref'd so it OUTLIVES this process, and vite knows
+  // nothing about the registry. The row is retired by whatever stops it — `down` below, or
+  // `storytree own stop`, which clears a record only on a confirmed death. A vite that dies on its
+  // own leaves the row standing as LEAKED, which is correct: it is the record of work that ended
+  // without saying so, and the only evidence a later session has that it happened.
+  const spawnRecord = registerDetachedSpawn({
+    pid: child.pid,
+    command: `studio dev server (vite) on :${PORT} — pnpm studio:up`,
+    cwd: studioDir,
+  });
+
   console.log(`studio: started pid ${child.pid} → ${url}`);
   console.log(`studio: log → ${logFile}`);
+  if (spawnRecord !== null) console.log('studio: registered with `storytree own` (stop it with `storytree own stop`)');
 
   // Poll briefly so the operator learns immediately whether it actually came up — and whether the
   // thing that came up is the process we just started.
@@ -321,6 +347,10 @@ function down() {
     } catch {
       console.log(`studio: pid ${pid} was not running`);
     }
+    // Retire the registry row for anything we stopped, including a port-reaped orphan whose record
+    // path this process never held. Scoped to THIS checkout's session by construction, so the reap
+    // cannot reach a sibling's row however the pid was discovered.
+    removeSpawnRecordForPid(pid);
   }
   try { fs.unlinkSync(pidFile); } catch {}
   return 0;

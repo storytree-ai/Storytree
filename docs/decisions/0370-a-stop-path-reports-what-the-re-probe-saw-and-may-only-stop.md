@@ -100,11 +100,20 @@ has re-handed reads as live, and stopping it would signal an unrelated process. 
 this — nothing is ever signalled at a pid the probe reports dead — but the window is not closed, and
 closing it needs a start-time or handle check the registry does not record today.
 
-**Coverage is still only what registered itself.** `stop` inherits ADR-0366's limit exactly: a
-detached vite, a headless browser, any tree not started through the CLI is invisible and therefore
-unstoppable here. The arc's `spawned-work-is-attributable-to-its-session` entry is where that is
-closed; until then an empty inventory means "nothing storytree started is still running", never "this
-box is idle".
+**Coverage is still only what registered.** `stop` inherits ADR-0366's limit exactly: a tree that
+registered nothing is invisible here and therefore unstoppable. The arc's
+`spawned-work-is-attributable-to-its-session` entry closed the DETACHED-LAUNCHER half of that — `pnpm
+studio:up` and `storytree desktop launch` now register their child on the same registrar this stop
+ladder already reads, so both are candidates for `own` and `own stop` rather than invisible to them.
+Proved by D1's own standard, the re-probe rather than the signal, for the Electron path only:
+launched, listed by `storytree own`, then `own stop` walked the tree down through `electron.exe`,
+confirmed gone. The studio path shares the identical registrar and is covered by unit tests, but its
+live up/stop leg is UNPROVEN here — a sibling session held :5173 at review time, and clearing it to
+test would have been exactly the cross-session kill D3 forbids — so "registered" for `pnpm studio:up`
+means mechanism-covered, not yet re-probe-confirmed. What remains outside either way is work
+storytree did not start: a harness background shell, a hand-launched server, a headless browser. So
+an empty inventory still means "nothing storytree started is still running", never "this box is
+idle".
 
 **`TaskStop`'s own half remains broken and is not ours.** The harness owns it and it cannot be fixed
 from this repo — measured, not inferred (ADR-0366). What is now true is that storytree's OWN stop
