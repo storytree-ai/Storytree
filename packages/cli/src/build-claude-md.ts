@@ -30,10 +30,20 @@ import { openCorpusStore } from "@storytree/drive";
 import { snapshotReads } from "@storytree/storage-protocol";
 import { renderAgentDigest } from "@storytree/library/store";
 import {
+  regionOf,
   renderCodexGuidance,
   syncClaudeRegion,
   syncGeneratedGuidance,
 } from "./claude-region.js";
+import {
+  GUIDANCE_COMMAND,
+  classifyDrift,
+  openMainRef,
+  renderDriftDiagnosis,
+  sameModuloEol,
+  type DriftDiagnosis,
+  type DriftedProjection,
+} from "./projection-drift-diagnosis.js";
 import {
   DEFINITIONS_PROJECTION_BASENAME,
   buildDefinitionsProjection,
@@ -80,6 +90,25 @@ async function readIfExists(file: string): Promise<string | null> {
   }
 }
 
+/** The two WHICH-SIDE-MOVED questions for a fully-generated guidance file (AGENTS.md, definitions). */
+function generatedProjection(
+  label: string,
+  expected: string,
+  onDisk: string | null,
+  onMain: string | null,
+  atBase: string | null,
+): DriftedProjection {
+  return {
+    label,
+    // The same EOL-and-trailing-newline-tolerant compare the check itself uses, asked of main's copy.
+    mainInSync: onMain === null ? null : syncGeneratedGuidance(onMain, expected).inSync,
+    branchTouched:
+      onDisk === null || atBase === null
+        ? onDisk !== atBase
+        : !sameModuloEol(onDisk, atBase),
+  };
+}
+
 async function main(): Promise<void> {
   const check = process.argv.includes("--check");
 
@@ -108,16 +137,14 @@ async function main(): Promise<void> {
   // write. A naive `next === md` went spuriously STALE on Windows (CRLF checkout) — see the module.
   const region = syncClaudeRegion(rawMd, AGENT, res.agent.digest);
   if (!region.ok) fail(region.error);
-  const codex = syncGeneratedGuidance(
-    await readIfExists(codexPath),
-    renderCodexGuidance(AGENT, res.agent.digest),
-  );
+  const codexExpected = renderCodexGuidance(AGENT, res.agent.digest);
+  const codexRaw = await readIfExists(codexPath);
+  const codex = syncGeneratedGuidance(codexRaw, codexExpected);
   // The hook's definition table (ADR-0307 D4). Same store, same sync/check/write shape as the two
   // prose projections — it is a generated view of the corpus like they are, just data.
-  const definitions = syncGeneratedGuidance(
-    await readIfExists(definitionsPath),
-    renderDefinitionsProjection(buildDefinitionsProjection(definitionDocs)),
-  );
+  const definitionsExpected = renderDefinitionsProjection(buildDefinitionsProjection(definitionDocs));
+  const definitionsRaw = await readIfExists(definitionsPath);
+  const definitions = syncGeneratedGuidance(definitionsRaw, definitionsExpected);
 
   if (region.inSync && codex.inSync && definitions.inSync) {
     console.log(
@@ -126,12 +153,73 @@ async function main(): Promise<void> {
     return;
   }
   if (check) {
-    const drift = [
-      ...(!region.inSync ? ["CLAUDE.md region is stale"] : []),
-      ...(!codex.inSync ? ["AGENTS.md is missing or stale"] : []),
-      ...(!definitions.inSync ? [`${DEFINITIONS_PROJECTION_BASENAME} is missing or stale`] : []),
-    ];
-    fail(`${drift.join("; ")} — regenerate with \`pnpm build:guidance\` and commit the projections.`);
+    // WHICH SIDE MOVED (diagnosis-honesty-arc). These three projections carry the same
+    // shared-source race as the harness agent views: the source is the LIVE store, so a red here is
+    // as often a sibling's landed regeneration this branch has not merged as it is this branch's own
+    // omission — and the remedies are opposite. Each entry knows how to ask its own two questions,
+    // because CLAUDE.md must be compared on its GENERATED REGION alone (the rest of that file is a
+    // hand-authored tour) while the other two are whole-file generated views.
+    const entries: Array<{
+      label: string;
+      rel: string;
+      project: (onMain: string | null, atBase: string | null) => DriftedProjection;
+    }> = [];
+    if (!region.inSync) {
+      const label = "CLAUDE.md region is stale";
+      entries.push({
+        label,
+        rel: "CLAUDE.md",
+        // Both questions are asked of the GENERATED REGION alone. A whole-file compare would read a
+        // branch that edited a paragraph of the hand-authored tour as having moved the projection.
+        project: (onMain, atBase) => {
+          const mainSync = onMain === null ? null : syncClaudeRegion(onMain, AGENT, res.agent.digest);
+          return {
+            label,
+            mainInSync: mainSync === null ? null : mainSync.ok && mainSync.inSync,
+            branchTouched:
+              atBase === null || regionOf(atBase, AGENT) !== regionOf(rawMd, AGENT),
+          };
+        },
+      });
+    }
+    if (!codex.inSync) {
+      const label = "AGENTS.md is missing or stale";
+      entries.push({
+        label,
+        rel: "AGENTS.md",
+        project: (onMain, atBase) => generatedProjection(label, codexExpected, codexRaw, onMain, atBase),
+      });
+    }
+    if (!definitions.inSync) {
+      const label = `${DEFINITIONS_PROJECTION_BASENAME} is missing or stale`;
+      // Repo-relative because this table ships WITH the CLI rather than under `repoRoot` (see
+      // definitionsPath). Under a `STORYTREE_REPO_ROOT` override pointed at another project git
+      // finds no such path there, which lands on `absent-on-main` — the conservative answer.
+      entries.push({
+        label,
+        rel: `packages/cli/${DEFINITIONS_PROJECTION_BASENAME}`,
+        project: (onMain, atBase) =>
+          generatedProjection(label, definitionsExpected, definitionsRaw, onMain, atBase),
+      });
+    }
+    const mainRef = openMainRef(repoRoot);
+    const diagnosis: DriftDiagnosis = mainRef.ok
+      ? {
+          ok: true,
+          mainRef: mainRef.ref,
+          files: entries.map((entry) => ({
+            label: entry.label,
+            side: classifyDrift(entry.project(mainRef.show(entry.rel), mainRef.showBase(entry.rel))),
+          })),
+        }
+      : { ok: false, reason: mainRef.reason };
+    fail(
+      renderDriftDiagnosis(
+        GUIDANCE_COMMAND,
+        entries.map((entry) => entry.label),
+        diagnosis,
+      ),
+    );
   }
   if (!region.inSync) await fs.writeFile(claudePath, region.next, "utf8");
   if (!codex.inSync) await fs.writeFile(codexPath, codex.next, "utf8");

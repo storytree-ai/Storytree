@@ -69,6 +69,24 @@ export function syncGeneratedGuidance(
 }
 
 /**
+ * The generated region's current content, in LF space — or `null` when the markers are absent.
+ *
+ * Exists so two CHECKOUTS of CLAUDE.md can be compared on the generated region ALONE. A whole-file
+ * compare answers a different question: this file is mostly a hand-authored repository tour, so a
+ * branch that edited a paragraph of the tour would read as having moved the generated projection
+ * when it did not (diagnosis-honesty-arc — the diagnosis has to be about the thing that drifted).
+ */
+export function regionOf(rawMd: string, agent: string): string | null {
+  const md = toLf(rawMd);
+  const startIdx = md.indexOf(`<!-- AGENT:${agent} START`);
+  const endIdx = md.indexOf(`<!-- AGENT:${agent} END -->`);
+  if (startIdx === -1 || endIdx === -1 || endIdx < startIdx) return null;
+  const startLineEnd = md.indexOf("\n", startIdx);
+  if (startLineEnd === -1 || startLineEnd > endIdx) return null;
+  return md.slice(startLineEnd + 1, endIdx);
+}
+
+/**
  * Splice the rendered `digest` into the `<!-- AGENT:<agent> START … -->` / `<!-- AGENT:<agent> END -->`
  * region of `rawMd`. The START marker line is preserved verbatim (it carries the rest of the comment).
  * Returns `inSync` (the region already matches, modulo EOL) and the EOL-preserving `next` to write.

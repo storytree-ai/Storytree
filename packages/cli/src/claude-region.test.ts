@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  regionOf,
   renderCodexGuidance,
   syncClaudeRegion,
   syncGeneratedGuidance,
@@ -115,4 +116,40 @@ test("Codex guidance comparison ignores EOL and preserves CRLF on rewrite", () =
   const rewritten = syncGeneratedGuidance("old\r\n", expected);
   assert.equal(rewritten.inSync, false);
   assert.equal(/(^|[^\r])\n/.test(rewritten.next), false);
+});
+
+// ---------- regionOf: comparing two CHECKOUTS on the generated region alone ----------
+//
+// The WHICH-SIDE-MOVED diagnosis (diagnosis-honesty-arc) asks whether THIS BRANCH moved the
+// generated projection. CLAUDE.md is mostly a hand-authored repository tour, so a whole-file compare
+// answers a different question — it would read a tour edit as a projection edit and hand the session
+// the wrong remedy.
+
+test("regionOf returns the generated region only, ignoring the hand-authored tour", () => {
+  const region = regionOf(skeleton("the digest body.", "\n"), AGENT);
+  assert.equal(region, "\nthe digest body.\n\n");
+  assert.doesNotMatch(region ?? "", /## Conventions/);
+  assert.doesNotMatch(region ?? "", /intro prose/);
+});
+
+test("regionOf is EOL-agnostic, so a CRLF checkout compares equal to an LF one", () => {
+  assert.equal(
+    regionOf(skeleton("same body.", "\r\n"), AGENT),
+    regionOf(skeleton("same body.", "\n"), AGENT),
+  );
+});
+
+test("regionOf sees a region edit while ignoring an edit outside the markers", () => {
+  const base = skeleton("original body.", "\n");
+  assert.notEqual(regionOf(skeleton("rewritten body.", "\n"), AGENT), regionOf(base, AGENT));
+  // The same region with the tour rewritten around it must compare EQUAL — that is the whole point.
+  assert.equal(
+    regionOf(base.replace("intro prose.", "rewritten tour."), AGENT),
+    regionOf(base, AGENT),
+  );
+});
+
+test("regionOf returns null when the markers are absent, never a guessed region", () => {
+  assert.equal(regionOf("# storytree\n\nno markers here.\n", AGENT), null);
+  assert.equal(regionOf(skeleton("body.", "\n"), "some-other-agent"), null);
 });
