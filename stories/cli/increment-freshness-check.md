@@ -72,8 +72,15 @@ story otherwise; see the frontmatter note for why no edge runs to
 
 **Staleness is checked, never assumed absent (ADR-0183 D2).** `storytree increment check <id>`
 git-logs the paths the increment names since its `anchor.sha`. Drift past the threshold means
-RE-PLAN, not repair — a drifted increment is re-planned by the `planner`, never patched in place.
-This is the proof tier's anchor / source-drift move applied to intentions.
+RE-PLAN, not repair — a GENUINELY STALE increment is re-planned by the `planner`, never patched in
+place. This is the proof tier's anchor / source-drift move applied to intentions.
+
+**But drift alone does not establish staleness** (`tool-signal-gaps-arc`, contract 7). Drift is
+anchor-vs-HEAD and carries no completion signal, so it cannot tell "never built" from "built, then
+the ground moved elsewhere" — and those have OPPOSITE remedies. Where the increment is already
+`active`/`closed`, or a CLOSED sibling on the same arc names it as delivered, the check says so and
+offers `arc increment close` rather than the planner. The re-plan remedy above is what remains once
+that question is asked and answered — not the unconditional response to a drifted verdict.
 
 **A path is a backtick-quoted token.** The increment template puts each lane's file surface in
 backtick fence hints, so extraction from backticks IS "the paths the increment names" — a token
