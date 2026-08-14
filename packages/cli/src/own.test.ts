@@ -48,6 +48,11 @@ function deps(over: Partial<OwnDeps> = {}): OwnDeps {
     sessionId: () => "mine",
     probe: () => true,
     selfPid: SELF,
+    // Nothing in this suite may signal a real process. The default terminator is inert and the
+    // default sleep returns instantly, so the reclaim path is exercised at full speed and offline.
+    terminate: () => true,
+    sleep: () => {},
+    stopTiming: { gracefulWaitMs: 0, forceWaitMs: 0 },
     ...over,
   };
 }
@@ -181,4 +186,163 @@ test("own clear: never reaches into another session's records", () => {
 
 test("own --help names the closing-leg use, which is the reason the verb exists", () => {
   assert.match(ownHelp().body, /inert/);
+});
+
+// ---------------------------------------------------------------------------
+// `own stop` — the reclaim
+// ---------------------------------------------------------------------------
+
+test("own stop: a process that dies is reported STOPPED, and its record is cleared", () => {
+  const io = memoryIo();
+  seed(io, "mine", 4242);
+  // A process modelled the way a real one behaves: alive until it is signalled, gone afterwards.
+  // The probe must not be a call-counter — the inventory read probes each row before `stop` does.
+  let alive = true;
+  let signalled = 0;
+  const env = ownCommand(
+    ["stop", "4242"],
+    deps({
+      io,
+      probe: () => alive,
+      terminate: () => {
+        signalled += 1;
+        alive = false;
+        return true;
+      },
+    }),
+  );
+  assert.equal(env.ok, true);
+  assert.match(env.body, /pid 4242 +STOPPED \(graceful\)/);
+  assert.equal(signalled, 1);
+  assert.equal(io.files.has(spawnRecordPath(ROOT, "mine", 4242).replaceAll("\\", "/")), false);
+});
+
+test("own stop: a process that SURVIVES is reported honestly and exits non-ok", () => {
+  // The defect this verb exists to fix: `TaskStop` reports success while the detached child keeps
+  // running and keeps its port. A stop that under-delivered must never read as a success.
+  const io = memoryIo();
+  seed(io, "mine", 4242);
+  const env = ownCommand(["stop", "4242"], deps({ io, probe: () => true }));
+  assert.equal(env.ok, false);
+  assert.match(env.body, /STILL RUNNING after a forced stop/);
+  assert.match(env.body, /SURVIVED the stop/);
+  // And the row stays, so the next inventory still shows the work.
+  assert.equal(io.files.has(spawnRecordPath(ROOT, "mine", 4242).replaceAll("\\", "/")), true);
+});
+
+test("own stop: a signal that was DELIVERED does not make the report a success", () => {
+  const io = memoryIo();
+  seed(io, "mine", 4242);
+  const env = ownCommand(
+    ["stop", "4242"],
+    deps({ io, terminate: () => true, probe: () => true }),
+  );
+  assert.equal(env.ok, false);
+});
+
+test("own stop: an unjudgeable probe is UNCONFIRMED — not a stop", () => {
+  const io = memoryIo();
+  seed(io, "mine", 4242);
+  const env = ownCommand(["stop", "4242"], deps({ io, probe: () => "unknown" }));
+  assert.equal(env.ok, false);
+  assert.match(env.body, /UNCONFIRMED/);
+  assert.match(env.body, /treat it as running/);
+});
+
+test("own stop: a SIBLING's pid is refused, attributed, and never signalled", () => {
+  // The safety property of the arc. This is the assertion that a reclaim cannot become the
+  // cross-session kill a start-time sweep performs.
+  const io = memoryIo();
+  seed(io, "mine", 1);
+  seed(io, "theirs", 99);
+  let signalled = 0;
+  const env = ownCommand(
+    ["stop", "99"],
+    deps({
+      io,
+      terminate: () => {
+        signalled += 1;
+        return true;
+      },
+    }),
+  );
+  assert.equal(env.ok, false);
+  assert.equal(signalled, 0);
+  assert.match(env.body, /REFUSED — not this session's work/);
+  assert.match(env.body, /owned by "theirs"/);
+  assert.equal(io.files.has(spawnRecordPath(ROOT, "theirs", 99).replaceAll("\\", "/")), true);
+});
+
+test("own stop: an unregistered pid is refused rather than signalled blind", () => {
+  const io = memoryIo();
+  seed(io, "mine", 1);
+  let signalled = 0;
+  const env = ownCommand(
+    ["stop", "31337"],
+    deps({
+      io,
+      terminate: () => {
+        signalled += 1;
+        return true;
+      },
+    }),
+  );
+  assert.equal(env.ok, false);
+  assert.equal(signalled, 0);
+  assert.match(env.body, /no session registered it/);
+});
+
+test("own stop: with no pid it refuses and points at the inventory", () => {
+  const env = ownCommand(["stop"], deps());
+  assert.equal(env.ok, false);
+  assert.match(env.body, /needs the pid/);
+  assert.match(env.body, /storytree own/);
+});
+
+test("own stop: a non-numeric argument is named, not silently ignored", () => {
+  const io = memoryIo();
+  seed(io, "mine", 4242);
+  const env = ownCommand(["stop", "all"], deps({ io, probe: () => false }));
+  assert.equal(env.ok, false);
+  assert.match(env.body, /not a pid/);
+});
+
+test("own stop: a stale record is reported as already gone, and nothing is signalled at its pid", () => {
+  // A dead pid may have been reused by the OS, so signalling it would hit an unrelated process.
+  const io = memoryIo();
+  seed(io, "mine", 4242);
+  let signalled = 0;
+  const env = ownCommand(
+    ["stop", "4242"],
+    deps({
+      io,
+      probe: () => false,
+      terminate: () => {
+        signalled += 1;
+        return true;
+      },
+    }),
+  );
+  assert.equal(env.ok, true);
+  assert.equal(signalled, 0);
+  assert.match(env.body, /already gone/);
+});
+
+test("own stop: the primary checkout is refused — it owns no rows to reclaim", () => {
+  const env = ownCommand(["stop", "4242"], deps({ sessionId: () => null }));
+  assert.equal(env.ok, false);
+  assert.match(env.body, /needs a session identity/);
+});
+
+test("own: live rows hand back the stop command already typed out", () => {
+  // A caller made to re-read pids off the rows is a caller who reaches for a process-table sweep.
+  const io = memoryIo();
+  seed(io, "mine", 11);
+  seed(io, "mine", 12);
+  const env = ownCommand([], deps({ io }));
+  assert.match(env.body, /Reclaim it: storytree own stop 11 12/);
+});
+
+test("own: an idle session is offered no reclaim line", () => {
+  assert.doesNotMatch(ownCommand([], deps()).body, /Reclaim it/);
 });
