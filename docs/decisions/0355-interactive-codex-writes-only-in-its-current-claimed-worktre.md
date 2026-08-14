@@ -165,12 +165,38 @@ the operator hits the same wall, because on Windows the mechanism does not exist
 sandbox would not help, which is worth knowing before it is proposed as the fix. Only the process
 already holding the app-server channel — the desktop application itself — can issue `turn/start`.
 
-So for the supported Windows host the nested launch IS an external product limitation after all, and
-the contingent owner question the probe increment named returns in sharper form: is a nested task
-acceptable as the shipped experience? That is now authored as
-`oq-is-a-nested-codex-task-acceptable-as-the-shipped-windows` against `codex-factory-parity-arc`, and
-is deliberately not pre-answered here. The pnpm/Corepack gap is unaffected by any of this and remains
-host-side.
+**But that reachability gap is NOT what binds, and recording it as the blocker was an error.** The
+binding constraint is this decision's own delivery shape: `Install-Policy` swaps a MACHINE-WIDE
+policy, and the actuator restores the lobby policy in its `finally`, so the writer profile exists
+only for the actuator's lifetime —
+
+    Install-Policy $Config.activePolicy        # writer profile live, machine-wide
+    try     { & $CodexPayload -C <worktree> }  # the nested child runs INSIDE this window
+    finally { Install-Policy $Config.lobbyPolicy }
+
+The nested child is therefore STRUCTURAL: it is the only thing holding the write window open. Even a
+working same-task rebinding would hand back a task that snaps to read-only the moment the actuator
+returns. So the Windows socket gap is true but incidental — fixing it would not deliver the journey.
+
+The real fork is **how WIDE and how LONG-LIVED Codex's write authority should be**: a per-worktree
+absolute path handed out for a launcher's lifetime (today), or a standing grant over a known
+worktrees area bounded by the live claim the managed hook already re-probes on every tool call. The
+second dissolves the launcher, the nested child and the rebinding question together, and would let
+Codex mint its own worktree through `storytree worktree create` rather than through an
+administrator-owned bundle — that bundle is pinned because it carries DB CREDENTIALS (see the comment
+above `MANAGED_CODEX_HOOK_SCRIPT`), not because minting a worktree is sensitive, so the broker
+increment removes its reason to exist. Enforcement (the managed hook, the profile install) must stay
+pinned regardless; an agent may never edit its own fence.
+
+**That fork is now SETTLED by [ADR-0364](0364-codex-write-authority-is-a-standing-worktrees-grant-narrowed.md),
+which amends this decision** (owner-directed 2026-08-14). The fence above — Codex writes only in its
+current claimed worktree — is UNCHANGED and still binding. What ADR-0364 replaces is how it is
+granted: a standing grant over the worktrees area, narrowed by the live claim the managed hook already
+re-probes per tool call, instead of a per-worktree profile installed for a launcher's lifetime. The
+nested child, the policy window, and the same-task rebinding question all dissolve with it; the
+Windows socket gap recorded above is retained as background, not as a blocker. The pnpm/Corepack gap
+is promoted to a hard precondition there, because `pnpm storytree …` cannot run in a contained task at
+all today.
 
 What HAS landed, and is proven by `packages/cli/src/codex-session-containment.test.ts`: the
 exploring→work promotion required by D4 above, the live-claim check failing closed on a gradeless
