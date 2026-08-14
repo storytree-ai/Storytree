@@ -2,12 +2,12 @@
 id: "library-dag-canvas"
 tier: capability
 story: library-tech-tree-overlay
-title: "The focus canvas is a true layered reference DAG: dagre rankdir-LR ranks over references[] BOTH ways to ONE level upstream + ONE level downstream (the full transitive walk retired, ADR-0193 dec 3), DRAWN SVG edges between rank-adjacent nodes, per-branch ⊕ expanders taming breadth (the global depth stepper retired), NO ← Back / breadcrumb and NO pan/zoom controls — search-first plus click-through re-centre is the whole navigation — and a machine-asserted fit-to-view viewBox containing every laid-out node — the brownfield rework of library-focus-subgraph (source files keep their names)"
-outcome: "The finder's lifted selection centres a @dagrejs/dagre rankdir-LR layered DAG built from the corpus references[] BOTH ways (upstream stands-on left, downstream stood-on-by right) walked ONE level upstream + ONE level downstream only (the full transitive walk retired, ADR-0193 dec 3 reversing ADR-0188 dec 5), with DRAWN SVG edges between rank-adjacent nodes, per-branch breadth tamed by in-place ⊕ expanders (the global depth stepper and +N-more cluster chip retired), NO ← Back button and NO breadcrumb trail and NO pan/zoom controls (search-first plus click-through — clicking a neighbour re-centres to reveal ITS one-level neighbourhood — is the whole navigation), and a bounded fit-to-view viewBox computed from the laid-out node bbox and machine-asserted to contain every node — over the already-loaded corpus with no fetch beyond the wire; its geometry and behaviour machine-witnessed, its seed-packet appearance operator-attested."
+title: "The focus canvas is a true layered dependency DAG: dagre rankdir-LR ranks over the authored standsOn edge BOTH ways to ONE level upstream + ONE level downstream (the full transitive walk retired, ADR-0193 dec 3; the references[] citation substrate retired, ADR-0223), DRAWN SVG edges between rank-adjacent nodes, per-branch ⊕ expanders taming breadth (the global depth stepper retired), NO ← Back / breadcrumb and NO pan/zoom controls — search-first plus click-through re-centre is the whole navigation — and a machine-asserted fit-to-view viewBox containing every laid-out node — the brownfield rework of library-focus-subgraph (source files keep their names)"
+outcome: "The finder's lifted selection centres a @dagrejs/dagre rankdir-LR layered DAG built from the corpus's authored standsOn dependency edge BOTH ways (upstream stands-on left, downstream stood-on-by right — literally the edge and its reverse) walked ONE level upstream + ONE level downstream only (the full transitive walk retired, ADR-0193 dec 3 reversing ADR-0188 dec 5), with DRAWN SVG edges between rank-adjacent nodes, per-branch breadth tamed by in-place ⊕ expanders (the global depth stepper and +N-more cluster chip retired), NO ← Back button and NO breadcrumb trail and NO pan/zoom controls (search-first plus click-through — clicking a neighbour re-centres to reveal ITS one-level neighbourhood — is the whole navigation), and a bounded fit-to-view viewBox computed from the laid-out node bbox and machine-asserted to contain every node — over the already-loaded corpus with no fetch beyond the wire; its geometry and behaviour machine-witnessed, its seed-packet appearance operator-attested. Citations are demoted out of the DAG, not deleted: they keep the artifact view's grouped Sources pane."
 status: proposed
 proof_mode: integration-test
 depends_on: [library-finder]
-decisions: [193, 188, 187, 185, 70, 122, 23]
+decisions: [363, 223, 193, 188, 187, 185, 70, 122, 23]
 # Node-borne proof config (ADR-0057 keystone). BROWNFIELD (editsExisting: true) — this REWORKS the signed
 # inc-3 focus subgraph (apps/studio/src/components/LibraryFocusGraph.tsx + apps/studio/src/lib/focusGraph.ts,
 # green at HEAD with its lfg-* contracts) into a true layered reference DAG (ADR-0188 dec 5, its walk-depth now
@@ -78,10 +78,20 @@ proof:
         - "src/components/LibraryDagCanvas.test.tsx"
 ---
 
-# The focus DAG canvas — a true layered reference DAG over the corpus references
+# The focus DAG canvas — a true layered dependency DAG over the authored `standsOn` edge
+
+**SUBSTRATE (ADR-0223, ADR-0363; the `standson-studio-projection` increment) —** this canvas walked the
+`references[]` CITATION web until 2026-08-14. That web is many-to-many and legitimately cyclic — mutually
+constitutive definition pairs like `story ↔ capability` are not a defect in it — so it could never be
+topologically oriented, and "stands on" / "stood on by" were two readings of one undirected "see also". The DAG
+substrate is now the authored `standsOn` dependency edge, held acyclic by the fail-closed
+`check:library-dag-acyclic` rung. Citations are DEMOTED OUT of the DAG, not deleted: they keep their home in the
+artifact view's grouped "Sources" pane. Definitions carry no `standsOn` at all (ADR-0363 D1 excluded the tier),
+so a definition centre draws no fan — expected, not a gap.
 
 **Outcome —** The finder's lifted selection centres a `@dagrejs/dagre` rankdir-LR layered DAG built from the
-corpus's `references[]` BOTH ways (upstream "stands on" fanned left, downstream "stood on by" fanned right)
+corpus's authored `standsOn` edge BOTH ways (upstream "stands on" fanned left, downstream "stood on by" fanned
+right — literally the edge and its reverse)
 walked ONE level upstream + ONE level downstream only (the full transitive walk RETIRED, ADR-0193 dec 3 reversing
 ADR-0188 dec 5), with DRAWN SVG edges between rank-adjacent nodes, per-branch breadth tamed by in-place ⊕
 expanders (the global depth stepper and `+N more` cluster chip RETIRED), NO ← Back button and NO breadcrumb trail
@@ -284,7 +294,7 @@ The test-proven leaf behaviours — each **one isolated automated test** in the 
 `apps/studio/src/components/LibraryDagCanvas.test.tsx`; the pure-heart contracts import `buildFocusGraph` from
 `../lib/focusGraph`, the component contracts import `LibraryFocusGraph` from `./LibraryFocusGraph`). Per
 ADR-0122 (`storytree coverage`) each contract id is the LEAD of a distinctly-named test, so the coverage check
-reports 12/12 against the ONE `real.testFile`. None of these is an APPEARANCE assertion — the look (the
+reports 14/14 against the ONE `real.testFile`. None of these is an APPEARANCE assertion — the look (the
 seed-packet palette, the drawn vine-stroke edges, the purple selected-chain, the dashed ephemeral stroke, the
 ⊕ affordance) is the story's operator-attested UAT leg (ADR-0188 dec 5/7, ADR-0070). Contracts 1–4 (the
 adjacency, edge list, ranks, neighbour-walk, kind plaque, chain/ephemeral markers, no-fetch) RE-HOME the
@@ -292,22 +302,25 @@ still-true `lfg-*` survivors of the retired focus subgraph — the adjacency now
 dec 3); contracts pinning DRAWN edges, per-node expanders, the fit-to-view viewBox, and the no-Back / no-breadcrumb
 / no-pan-zoom layout are the NET-NEW geometry (dec 5 + ADR-0193 dec 3).
 
-1. **`ldag-adjacency-one-level-each-way`** — adjacency over `references[]` BOTH ways, prefix-stripped, walked ONE level upstream + ONE level downstream only (the full walk retired)
+1. **`ldag-adjacency-one-level-each-way`** — adjacency over the authored `standsOn` edge BOTH ways, prefix-stripped, walked ONE level upstream + ONE level downstream only (the full walk retired)
    - **asserts —** `buildFocusGraph({ centre, assets, docs })` yields UPSTREAM nodes from the centre's OWN
-     `GuidanceAsset.references` ("stands on") at ONE level AND DOWNSTREAM nodes from the reverse index — every
-     asset whose `references` points AT the centre ("stood on by") — at ONE level, with the `asset:`/`doc:` prefix
+     `GuidanceAsset.standsOn` ("stands on") at ONE level AND DOWNSTREAM nodes from the reverse index — every
+     asset whose `standsOn` points AT the centre ("stood on by") — at ONE level, with the `asset:`/`doc:` prefix
      stripped to resolve each ref; walked ONE level each way (ADR-0193 dec 3, reversing the full transitive walk),
-     so over a chain a←b←centre←d←e (each referencing the previous) the graph contains exactly {b, centre, d}: b
+     so over a chain a←b←centre←d←e (each STANDING ON the previous) the graph contains exactly {b, centre, d}: b
      (depth-1 upstream) and d (depth-1 downstream) are present, a and e (depth-2) are ABSENT; and an ADR-CENTRED
-     call yields an EMPTY upstream fan (DocMeta carries no `references`). The reverse index is built over
-     `GuidanceAsset.references` only.
+     call yields an EMPTY upstream fan (DocMeta carries no `standsOn` — and ADRs are tier-0 bedrock that stand on
+     nothing, so that emptiness is the design, ADR-0223 D4). The reverse index is built over
+     `GuidanceAsset.standsOn` only. SUBSTRATE (ADR-0223, standson-studio-projection): this walk ran over
+     `references[]` until 2026-08-14; the citation web is many-to-many and legitimately cyclic, so it could not be
+     topologically oriented and the two sides were two readings of one undirected "see also".
    - **covers —** `apps/studio/src/lib/focusGraph.ts` (the both-ways one-level walk + prefix strip + reverse index)
    - **proven by —** `apps/studio/src/components/LibraryDagCanvas.test.tsx` (net-new, vitest; imports `buildFocusGraph`).
-2. **`ldag-edge-list-over-references`** — the pure heart returns an edge list `{from,to}` for every in-scope reference
-   - **asserts —** `buildFocusGraph` returns an EDGE LIST — one `{ from, to }` per in-scope reference across the
-     walked neighbourhood; over a fixture whose refs form centre→A, A→B, B→C, the returned edges contain all of
-     those pairs (the edge data the component draws from).
-   - **covers —** `apps/studio/src/lib/focusGraph.ts` (the edge-list construction over the walked references)
+2. **`ldag-edge-list-over-standson`** — the pure heart returns an edge list `{from,to}` for every in-scope `standsOn` entry
+   - **asserts —** `buildFocusGraph` returns an EDGE LIST — one `{ from, to }` per in-scope `standsOn` entry across
+     the walked neighbourhood, oriented stood-on → stander; over a fixture whose edges form centre→A, A→B, B→C, the
+     returned edges contain all of those pairs (the edge data the component draws from).
+   - **covers —** `apps/studio/src/lib/focusGraph.ts` (the edge-list construction over the walked `standsOn` edges)
    - **proven by —** `apps/studio/src/components/LibraryDagCanvas.test.tsx`.
 3. **`ldag-layered-ranks-upstream-left-downstream-right`** — dagre rankdir-LR layered ranks; upstream left, downstream right, x monotonic along a chain
    - **asserts —** `buildFocusGraph` runs `@dagrejs/dagre` with `rankdir: 'LR'` and returns laid-out nodes whose
@@ -375,10 +388,33 @@ dec 3); contracts pinning DRAWN edges, per-node expanders, the fit-to-view viewB
     - **covers —** `apps/studio/src/components/LibraryFocusGraph.tsx` (the neighbour-click `onFocus` re-centre lift)
     - **proven by —** `apps/studio/src/components/LibraryDagCanvas.test.tsx`.
 12. **`ldag-no-fetch-beyond-loaded`** — building + rendering never calls fetch/docContent/socket; reads only the loaded corpus
-    - **asserts —** across building and rendering the canvas, only ids/titles/`references` already on the loaded
+    - **asserts —** across building and rendering the canvas, only ids/titles/`standsOn` already on the loaded
       `assets`/`docs` props are read — no `docContent`, no `fetch`, no socket is called (ADR bodies are the
       dive's on-demand job, not the canvas's adjacency).
     - **covers —** `apps/studio/src/lib/focusGraph.ts` + `apps/studio/src/components/LibraryFocusGraph.tsx` (the loaded-corpus-only, no-fetch invariant)
+    - **proven by —** `apps/studio/src/components/LibraryDagCanvas.test.tsx`.
+
+CONTRACTS 13-14 belong CONCEPTUALLY with 1-2 (they pin the same substrate switch) and are APPENDED rather than
+inserted so contracts 3-12 keep their ordinals. They are the net-new proof that ADR-0223's substrate change
+actually took: without them nothing catches a silent regression to the citation walk, which would go on rendering
+a plausible — and cyclic — graph.
+
+13. **`ldag-citations-are-demoted-out-of-the-dag`** — a `references[]` citation contributes NO node and NO edge; a mutual citation pair cannot close a cycle
+    - **asserts —** over a fixture where the centre CITES two artifacts that also cite EACH OTHER (the exact
+      mutually-constitutive definition-pair shape that forced ADR-0223, and which the retired `references[]` walk
+      drew as an unorientable 2-cycle), and separately STANDS ON one bedrock artifact: neither cited artifact
+      appears as a node, the ONLY edge returned is the authored `standsOn` one, and no edge touches either member
+      of the citation pair in either direction. Citations are DEMOTED OUT of the DAG, not deleted — they keep
+      their home in the artifact view's grouped "Sources" pane, which this walk never touched.
+    - **covers —** `apps/studio/src/lib/focusGraph.ts` (the substrate switch — `references` reaches neither the node set nor the edge list)
+    - **proven by —** `apps/studio/src/components/LibraryDagCanvas.test.tsx`.
+14. **`ldag-stood-on-by-is-the-literal-reverse-edge`** — the downstream fan is exactly the reverse `standsOn` edge, and a citer of the centre is not in it
+    - **asserts —** over a fixture with two artifacts that STAND ON the centre and one that merely CITES it, the
+      downstream ("stood on by") fan is exactly the two standers and excludes the citer — so the pane is literally
+      the edge reversed rather than a restatement of the citation web (the ADR-0223 end-state wording). The
+      upstream fan of a centre carrying no authored edge is EMPTY, which is the design and not a gap: `standsOn`
+      is `.optional()` and never defaulted.
+    - **covers —** `apps/studio/src/lib/focusGraph.ts` (the reverse index built over `standsOn`)
     - **proven by —** `apps/studio/src/components/LibraryDagCanvas.test.tsx`.
 
 ## Guidance — the brownfield slice that earns the signed verdict
@@ -391,7 +427,7 @@ true layered reference DAG, test-first, keeping the `lot-*` node-open trigger by
   `LibraryDrawer.test.tsx` shape; NO real `fetch`/`docContent`/socket/DB/Electron). Import `{ buildFocusGraph }`
   from `"../lib/focusGraph"` and `{ LibraryFocusGraph }` from `"./LibraryFocusGraph"` (the source files KEEP
   their names). Name each test for its contract id (`ldag-…`, LEADING the title) so
-  `storytree coverage library-dag-canvas` reports 12/12 (ADR-0122) — the pure-heart contracts live in THIS one
+  `storytree coverage library-dag-canvas` reports 14/14 (ADR-0122) — the pure-heart contracts live in THIS one
   file too, since coverage scans only `real.testFile`.
 - **The RED the spine observes (before IMPLEMENT) —** a FAILING-ASSERTION red (both sources exist — NOT
   module-not-found): at HEAD `buildFocusGraph` still takes a `depth` param and walks FULL transitive depth (over

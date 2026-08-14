@@ -690,6 +690,7 @@ function toGuidanceAsset(rendered: {
   arcRef?: string;
   status?: string;
   lifecycle?: string;
+  standsOn?: string[];
   createdAt: string;
   updatedAt: string;
 }): GuidanceAsset {
@@ -714,6 +715,9 @@ function toGuidanceAsset(rendered: {
     // An arc doc's stored closure flag rides it the same way (ADR-0239 D1) — without this the
     // shelves' `archived` state is unreachable for arcs, which is the rot ADR-0239 exists to end.
     ...(rendered.lifecycle ? { lifecycle: rendered.lifecycle } : {}),
+    // The authored dependency edge (ADR-0223) — the substrate buildFocusGraph walks. Array-shaped,
+    // so the guard is `Array.isArray`, matching stepRefs/branchEdges above.
+    ...(Array.isArray(rendered.standsOn) ? { standsOn: rendered.standsOn } : {}),
     createdAt: rendered.createdAt,
     updatedAt: rendered.updatedAt,
   };

@@ -316,6 +316,14 @@ Rules:
 - **Surface ONLY on the faithfully-parsed structured branch** — the pass-through (body-bearing) and
   degraded (unknown-kind) branches carry NONE of the three and never throw; the extraction rides only the
   final `knowledge` return (`lte-passthrough-and-degraded-carry-no-typed-edges`).
+  - SCOPE NOTE (ADR-0223, added 2026-08-14): this rule governs THESE THREE typed NAVIGATION edges and is
+    unchanged. It does NOT extend to `standsOn`, the authored DEPENDENCY edge, which deliberately DOES
+    cross on the pass-through branch. The reason the rules differ: a `stepRefs`-shaped property on a
+    body-bearing doc is stale residue this branch cannot distinguish from current data, whereas the
+    `increment` kind carries a per-kind content field literally named `body` — so `hasStringBody` routes
+    every increment (693 of 693, measured) down the pass-through branch while `increment` is squarely IN
+    the DAG. Structured-branch-only crossing dropped 106 of 660 authored edges. See
+    `packages/library/src/store/render-doc.test.ts`.
 - **Spread-when-present / absent-by-default (undefined, not `[]`)** — a structured doc without the field,
   and every non-typed-edge structured kind, omit all three; NO migration, NO `CURRENT_SCHEMA_VERSION`
   bump, mirroring the existing `provenance?` / `fields?` and inc-6's `loadBearing?` / `references?`
