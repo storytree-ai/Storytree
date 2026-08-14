@@ -137,10 +137,28 @@ the live-claim PROBE reaches the store as a dedicated impersonated reader
 secret. Whatever broker shape is chosen, the write path should not be the one holding an operator
 credential.
 
-Two further gaps are confirmed and are NOT repository-side either: the actuator's `launch` starts a
-NESTED Codex process (`& $CodexPayload @CodexArguments`) rather than rebinding the current desktop
-task, and `%ProgramData%` ships managed Node but no pnpm/Corepack. Both are recorded on
-`codex-factory-parity-arc`; the same-task rebinding fork is an open question against that arc.
+Two further gaps are confirmed: the actuator's `launch` starts a NESTED Codex process
+(`& $CodexPayload @CodexArguments`) rather than rebinding the current desktop task, and
+`%ProgramData%` ships managed Node but no pnpm/Corepack. Both are recorded on
+`codex-factory-parity-arc`.
+
+**The same-task rebinding fork is no longer an open question — it was probed on 2026-08-14 and the
+product supports it.** `turn/start` accepts a `cwd` override against an existing `threadId`
+("override the working directory for this turn and subsequent turns"), it is in the STABLE app-server
+protocol rather than behind `--experimental`, and it moves `workspace_roots` — and therefore the
+managed profile's write fence — with it. Evidence, including the `thread/read`-reports-the-stale-cwd
+trap that would make a naive check read as a false negative:
+`docs/research/codex-desktop-task-rebinding-probe-2026-08-14.md`.
+
+**Be precise about what that does and does not settle,** since over-generalising an adjacent proof is
+the exact defect this section exists to record. What is proven is that the PRODUCT rebinds a live
+thread. What is NOT yet proven is that the sandboxed actuator can reach the running desktop task's
+app-server control socket in order to issue the call — the actuator executes under
+`CodexSandboxUsers`, and that is the same class of boundary that defeats the bootstrap above. So the
+nested launch is no longer an external product limitation and no longer an open question; it is a
+concrete engineering question about reaching the control socket from inside the sandbox, and it is
+parked on `codex-factory-parity-arc` rather than answered here. The pnpm/Corepack gap is unaffected
+by any of this and remains host-side.
 
 What HAS landed, and is proven by `packages/cli/src/codex-session-containment.test.ts`: the
 exploring→work promotion required by D4 above, the live-claim check failing closed on a gradeless
