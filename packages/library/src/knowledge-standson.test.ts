@@ -69,7 +69,7 @@ test("library-standson-admitted-on-dag-kinds: every kind outside the transient s
   // The `references` web is UNTOUCHED by the admission (ADR-0223 D2): both fields coexist on the
   // same doc, carrying different targets, neither constraining the other.
   const both = Knowledge.parse({
-    ...minimalDoc("definition"),
+    ...minimalDoc("principle"),
     references: ["asset:cites-me", "asset:red-green"],
     standsOn: ["asset:red-green"],
   }) as { references: readonly string[]; standsOn?: readonly string[] };
@@ -77,8 +77,11 @@ test("library-standson-admitted-on-dag-kinds: every kind outside the transient s
   assert.deepEqual(both.standsOn, ["asset:red-green"]);
 });
 
-test("library-standson-admitted-on-dag-kinds: the transient signal kinds stay edge-free, fail-closed", () => {
-  assert.deepEqual([...EDGE_FREE_KINDS].sort(), ["friction", "open-question"]);
+test("library-standson-admitted-on-dag-kinds: the kinds outside the DAG stay edge-free, fail-closed", () => {
+  // `definition` joins the two signal kinds for a DIFFERENT reason (ADR-0363 D1, amending ADR-0223
+  // dec 3's tier 1): it is durable, but the depth it would contribute buys nothing a reader uses,
+  // and it is the corpus's densest mutually-constitutive citation core.
+  assert.deepEqual([...EDGE_FREE_KINDS].sort(), ["definition", "friction", "open-question"]);
 
   for (const kind of KINDS.filter((k) => EDGE_FREE_KINDS.has(k))) {
     assert.equal(

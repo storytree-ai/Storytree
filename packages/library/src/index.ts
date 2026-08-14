@@ -54,6 +54,10 @@ export * from "./knowledge.js";
 // store read around. Pure, browser-safe: no zod, no store, no node: — it reads `standsOn` and
 // nothing else, so the citation web is structurally outside the dependency relation.
 export * from "./knowledge-dag.js";
+// ADR-0223 dec 5's one-time seed, as a pure function: the tier order (dec 3, amended by ADR-0363 D1)
+// and the down-tier citation projection the migration applies. Pure and browser-safe apart from the
+// zod pointer check it borrows from the schema.
+export * from "./standson-bootstrap.js";
 export {
   CURRENT_SCHEMA_VERSION,
   type Migration,

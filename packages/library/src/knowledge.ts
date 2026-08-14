@@ -588,10 +588,25 @@ export const EPHEMERAL_KINDS: ReadonlySet<string> = new Set<KnowledgeKind>(["inc
  * exists — ADR-0298 retired it and ADR-0305 D1 folded the deferred-work tier onto `increment`.
  * `increment` itself is IN the DAG: it is the successor of ADR-0223's tier-6 `plan`, which that ADR
  * placed as standing on its arc.
+ *
+ * `definition` joins the set for a DIFFERENT reason than the signal tier, and ADR-0363 D1 is the
+ * decision (it amends ADR-0223 dec 3, which had placed `definition` in tier 1 beside `techstack`).
+ * Definitions are durable, not transient — they are excluded because the depth they would contribute
+ * buys nothing a reader uses: a separate mechanism already injects definitions into an agent's
+ * context, so nobody consults their position in a dependency ranking. That matters because the
+ * definition tier is the corpus's densest citation core and is mutually constitutive BY MEANING
+ * (`story ↔ capability`, `dag ↔ node`) — orienting those pairs would record an arbitrary curator
+ * choice, and this is the tier where that cost would have been paid for nothing.
+ *
+ * This enforces only the OUTGOING half. A per-doc zod schema cannot see target kinds, so nothing here
+ * stops another artifact naming a definition in its own `standsOn`. That is left legal deliberately:
+ * a kind that carries no outgoing edge is a sink and cannot close a cycle, so a stray inbound edge is
+ * harmless. The bootstrap projection declines to create them (`standson-bootstrap.ts`).
  */
 export const EDGE_FREE_KINDS: ReadonlySet<string> = new Set<KnowledgeKind>([
   "friction",
   "open-question",
+  "definition",
 ]);
 
 /**
