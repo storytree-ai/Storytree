@@ -120,12 +120,18 @@ The forces:
      *stands on* the ADRs and knowledge that inform it; the arc→plans / arc→stories containment is a
      separate provenance overlay, never this DAG. This is the citations-vs-DAG discipline applied one
      level up.
-   - **Friction (and open-questions, proposals) are excluded.** Transient signal is captured,
+   - **Friction (and open-questions) are excluded.** Transient signal is captured,
      adjudicated, then drained/graduated and deleted (ADR-0168 / ADR-0095). It has no durable
      foundational dependency and vanishes on graduation, so it would be pure DAG noise. If ever shown,
-     it is a separate "signal" overlay.
+     it is a separate "signal" overlay. *(Originally named `proposal` as a third excluded kind; retired
+     by ADR-0298 and folded onto `increment` (ADR-0305 D1) — corrected in place per ADR-0139 to match
+     dec 1's already-corrected exclusion list above, which the two lists had drifted out of sync with.)*
 
-5. **The initial `standsOn` values are bootstrapped once from down-tier citations, then curated.** A
+5. **The initial `standsOn` values are bootstrapped once from down-tier citations, then curated.**
+   *(Amended by ADR-0373: the seed reads four per-kind `refList` citation fields as well as
+   `references` — `agent.context` / `rules` / `antiPatterns` and `uat-criterion.refs` — and EXTENDS an
+   artifact that already carries edges instead of skipping it whole. The tier rule below is
+   unchanged.)* A
    one-time migration projects each artifact's existing `references` through the tier order: a citation
    pointing strictly *down-tier* seeds a `standsOn` edge; same-tier and back citations are dropped.
    Because every seeded edge strictly descends the tier order, the seed is **acyclic by construction**.

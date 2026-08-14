@@ -8,9 +8,11 @@ import { InMemoryStore } from "@storytree/storage-protocol";
 
 import {
   arcIsClosed,
+  arcLifecycleOf,
   arcRefOf,
   deriveArcLifecycle,
   deriveArcRollup,
+  isCuratedLifecycle,
   loadArcRollup,
   loadArcRollups,
   reconcileArcLifecycles,
@@ -582,7 +584,7 @@ test("a malformed cites field never throws the join — it reads as no citations
 /** A rollup carrying only what the lifecycle rule reads: an id, a stored flag, and statuses. */
 function lifecycleRollup(
   id: string,
-  lifecycle: "active" | "closed",
+  lifecycle: "active" | "parked" | "closed",
   statuses: string[],
 ): ArcRollup {
   return {
@@ -683,7 +685,55 @@ test("reconcileArcLifecycles: sorts nothing and drops nothing — every arc land
     lifecycleRollup("e", "active", []),
   ];
   const found = reconcileArcLifecycles(rollups);
-  assert.equal(found.drift.length + found.noSignal.length + found.agreed, rollups.length);
+  assert.equal(
+    found.drift.length + found.noSignal.length + found.agreed + found.curated,
+    rollups.length,
+  );
   assert.deepEqual(found.drift.map((d) => d.id), ["a", "c"]);
   assert.deepEqual(found.noSignal.map((n) => n.id), ["e"]);
+});
+
+test("reconcileArcLifecycles: a PARKED arc is skipped and COUNTED, never reported as drift (ADR-0374 D2)", () => {
+  // The failure this prevents is a whole-shelf one, not a per-arc one. A parked arc holds open work
+  // by definition, so the rule derives `active` for EVERY parked arc — an unfenced sweep would
+  // report the entire shelf as drift and un-park all of it on the next `--write`, in one run, with
+  // no prose anywhere saying why the owner's decisions were reversed.
+  const found = reconcileArcLifecycles([
+    lifecycleRollup("shelved", "parked", ["proposal", "closed"]),
+    lifecycleRollup("shelved-drained", "parked", ["closed"]),
+    lifecycleRollup("fine", "active", ["proposal"]),
+  ]);
+  assert.deepEqual(found.drift, [], "a parked arc is never drift, in EITHER direction");
+  assert.deepEqual(found.noSignal, []);
+  // Counted separately from `agreed`, because "we declined to judge this" is a third outcome:
+  // folding it in would report the sweep as having checked something it deliberately did not read.
+  assert.equal(found.curated, 2);
+  assert.equal(found.agreed, 1);
+});
+
+test("isCuratedLifecycle: `parked` only — the mechanical states stay mechanical", () => {
+  // `closed` is a deliberate act too, but its LOG derives `closed`, so rule and judgement agree and
+  // there is nothing to protect. `parked` is the only state where they disagree by design.
+  assert.equal(isCuratedLifecycle("parked"), true);
+  assert.equal(isCuratedLifecycle("active"), false);
+  assert.equal(isCuratedLifecycle("closed"), false);
+  assert.equal(isCuratedLifecycle(""), false);
+  assert.equal(isCuratedLifecycle("who-knows"), false);
+});
+
+test("arcLifecycleOf: reads the three values and FAILS OPEN on anything else", () => {
+  const doc = (lifecycle?: unknown): Parameters<typeof arcLifecycleOf>[0] =>
+    ({ doc: lifecycle === undefined ? {} : { lifecycle } }) as never;
+  assert.equal(arcLifecycleOf(doc("closed")), "closed");
+  assert.equal(arcLifecycleOf(doc("parked")), "parked");
+  assert.equal(arcLifecycleOf(doc("active")), "active");
+  // Fail-open, like its `arcIsClosed` sibling: an arc wrongly SHOWN is noticed and fixed, an arc
+  // wrongly hidden is not noticed at all.
+  for (const odd of [undefined, "", "Parked", "archived", 7, null]) {
+    assert.equal(arcLifecycleOf(doc(odd)), "active", `lifecycle ${String(odd)} must stay in flight`);
+  }
+});
+
+test("arcIsClosed: a PARKED arc is NOT closed — parking asserts no end state (ADR-0374 D1)", () => {
+  assert.equal(arcIsClosed({ doc: { lifecycle: "parked" } } as never), false);
 });

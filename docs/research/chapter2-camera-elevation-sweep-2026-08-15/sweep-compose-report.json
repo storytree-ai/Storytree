@@ -1,0 +1,147 @@
+{
+ "variant": "b++",
+ "matureFrame": 18,
+ "codeState": "15927bf56c77cd23bc4d41a7353a5890450aeabca02013a08051beb52613b007",
+ "panels": [
+  {
+   "tag": "20",
+   "elevationDeg": 20.0,
+   "why": "current \u2014 LAND_CAMERA_ELEVATION_DEG",
+   "groundFlattening": 0.342,
+   "uprightForeshortening": 0.9397,
+   "canvas": [
+    258,
+    233
+   ],
+   "landPx": 17426,
+   "landColours": 60,
+   "meshCells": 214,
+   "wallPlacementsDrawn": 30,
+   "treeCameraDeg": 20.0,
+   "treeCanvasRowsUsed": 128,
+   "treeMature": {
+    "u": 1.0,
+    "N": 36.0,
+    "lobes": 19,
+    "mat": 1.0
+   },
+   "skeleton": {
+    "nodes": 352,
+    "iters": 28,
+    "lobes": 29
+   }
+  },
+  {
+   "tag": "30",
+   "elevationDeg": 30.0,
+   "why": "classic isometric drawing angle",
+   "groundFlattening": 0.5,
+   "uprightForeshortening": 0.866,
+   "canvas": [
+    258,
+    278
+   ],
+   "landPx": 24023,
+   "landColours": 59,
+   "meshCells": 214,
+   "wallPlacementsDrawn": 30,
+   "treeCameraDeg": 30.0,
+   "treeCanvasRowsUsed": 128,
+   "treeMature": {
+    "u": 1.0,
+    "N": 36.0,
+    "lobes": 19,
+    "mat": 1.0
+   },
+   "skeleton": {
+    "nodes": 352,
+    "iters": 28,
+    "lobes": 29
+   }
+  },
+  {
+   "tag": "35p26",
+   "elevationDeg": 35.264,
+   "why": "TRUE isometric \u2014 atan(1/sqrt2)",
+   "groundFlattening": 0.5773,
+   "uprightForeshortening": 0.8165,
+   "canvas": [
+    258,
+    300
+   ],
+   "landPx": 27261,
+   "landColours": 58,
+   "meshCells": 214,
+   "wallPlacementsDrawn": 30,
+   "treeCameraDeg": 35.264,
+   "treeCanvasRowsUsed": 128,
+   "treeMature": {
+    "u": 1.0,
+    "N": 36.0,
+    "lobes": 19,
+    "mat": 1.0
+   },
+   "skeleton": {
+    "nodes": 352,
+    "iters": 28,
+    "lobes": 29
+   }
+  },
+  {
+   "tag": "45",
+   "elevationDeg": 45.0,
+   "why": "ground and upright foreshorten equally",
+   "groundFlattening": 0.7071,
+   "uprightForeshortening": 0.7071,
+   "canvas": [
+    258,
+    336
+   ],
+   "landPx": 32593,
+   "landColours": 58,
+   "meshCells": 214,
+   "wallPlacementsDrawn": 30,
+   "treeCameraDeg": 45.0,
+   "treeCanvasRowsUsed": 128,
+   "treeMature": {
+    "u": 1.0,
+    "N": 36.0,
+    "lobes": 19,
+    "mat": 1.0
+   },
+   "skeleton": {
+    "nodes": 352,
+    "iters": 28,
+    "lobes": 29
+   }
+  },
+  {
+   "tag": "60",
+   "elevationDeg": 60.0,
+   "why": "strongly overhead",
+   "groundFlattening": 0.866,
+   "uprightForeshortening": 0.5,
+   "canvas": [
+    258,
+    380
+   ],
+   "landPx": 38910,
+   "landColours": 59,
+   "meshCells": 214,
+   "wallPlacementsDrawn": 30,
+   "treeCameraDeg": 60.0,
+   "treeCanvasRowsUsed": 128,
+   "treeMature": {
+    "u": 1.0,
+    "N": 36.0,
+    "lobes": 19,
+    "mat": 1.0
+   },
+   "skeleton": {
+    "nodes": 352,
+    "iters": 28,
+    "lobes": 29
+   }
+  }
+ ]
+}

@@ -1,0 +1,195 @@
+{
+ "schema": "storytree/derived-evidence-provenance/1",
+ "artifact": "chamfer-fairness.png",
+ "producer": {
+  "tool": "sweep_chamfer.py",
+  "sha256": "852cd271e76f8c5c792d0aa01dd4a3519d64a01cd6420a75120b4ab34c7281b1"
+ },
+ "command": {
+  "tool": "sweep_chamfer.py",
+  "argv": []
+ },
+ "inputs": [
+  {
+   "label": "chamfer 1.7",
+   "dir": "pieces",
+   "codeState": {
+    "generator": "blender_land.py",
+    "sha256": "920755590a617a54cdb8ff1582885053aa778caed79fade584bf3aaf33204870"
+   },
+   "pieces": [
+    {
+     "file": "tile-0.png",
+     "sha256": "226c077b81508636f0a0aaf6095356acdce070f21932287b84540fcad044eedc"
+    },
+    {
+     "file": "tile-1.png",
+     "sha256": "ea093ab1e6629dce61b077604e07afde5905a92d5b6ab2ebfb3c620b8050e94c"
+    },
+    {
+     "file": "tile-2.png",
+     "sha256": "54c01c1423b5ee91bf165d7fdd2adfad536e28153c7b7b27d2a503a6392edeef"
+    },
+    {
+     "file": "tile-3.png",
+     "sha256": "571a53974a058c778db8e6ce2351c768e02ae91b7c88a5c7d79988f187e2fe9f"
+    },
+    {
+     "file": "tile-4.png",
+     "sha256": "fed42bbcbebb1207a0280c2a57801d66f7de18e25e7bde7858ed9b0b0f50f166"
+    },
+    {
+     "file": "tile-5.png",
+     "sha256": "76c4a6acd3005657c33febb338bb5bc76275af2ce5c1876f005691010edf4690"
+    },
+    {
+     "file": "wall-0.png",
+     "sha256": "25656bc5ba948ff0e50ac28fd13cacc94d06967f30ad77f72da25d0eabe917e9"
+    },
+    {
+     "file": "wall-1.png",
+     "sha256": "efa5e7534515fe8ff62bb2edce6ae15ac0cc58811aa9687d405ec1ca2ca7f3c0"
+    },
+    {
+     "file": "wall-10.png",
+     "sha256": "b5ea4f2d994620c21986c69e1ef0d8394e0beb6a3239a687a28c4713daf8e653"
+    },
+    {
+     "file": "wall-11.png",
+     "sha256": "6220c41eaeb314a1b961c85e5ec4b0242d2f6c5be3a0954bc57cc365b1f510b3"
+    },
+    {
+     "file": "wall-12.png",
+     "sha256": "9905c76cf9db01d31b5816efcd4566ba60e52753a098a1a56315135dc6c17965"
+    },
+    {
+     "file": "wall-13.png",
+     "sha256": "56cfd7d7d6facec2185a25e9cc03996ffeb9235b9c6482323ff5ffee4a60bb20"
+    },
+    {
+     "file": "wall-14.png",
+     "sha256": "d79b2325bd794d562de5fd6c63869542dc9ff0c010fd180949e38a2dab21bef6"
+    },
+    {
+     "file": "wall-15.png",
+     "sha256": "8debeb43ed38634570fc12887b08b7f8e95906026af267aa7f2db328f39f93b7"
+    },
+    {
+     "file": "wall-2.png",
+     "sha256": "579bec82c2dc12bfca3358a0ebad7b8065b7ea99987066b35f4c73f7b43e0cb4"
+    },
+    {
+     "file": "wall-3.png",
+     "sha256": "528a9f785b0688b1e713716b8eb8117393b99292076ed606a3f579c1444c5a3a"
+    },
+    {
+     "file": "wall-4.png",
+     "sha256": "19b9695ccae602c815db81d14361e583b564cf4b00aff08602ff5c794540068d"
+    },
+    {
+     "file": "wall-5.png",
+     "sha256": "6be72aee533627df4012a921ebca6c6bb06f956214b302c0b2bd96aad3ac2a32"
+    },
+    {
+     "file": "wall-6.png",
+     "sha256": "9f5b193940243cb87fb8b364c48856ddcccbc28673f501d2a67875fd9a064261"
+    },
+    {
+     "file": "wall-7.png",
+     "sha256": "bcdbc14f1acd23de49806c40f01f476a8e11508287c324dda64c3e6eec7130fe"
+    },
+    {
+     "file": "wall-8.png",
+     "sha256": "4d85325b105df5faa01d0f358ddb50441a01b62948d5dfbc9fbfbcc7474e5168"
+    },
+    {
+     "file": "wall-9.png",
+     "sha256": "c69379575058656ffa7bae78b5f91ae609e2aed7dc27f10dcef24ee4d602cf42"
+    }
+   ]
+  },
+  {
+   "label": "chamfer 3.4",
+   "dir": "sweep-a",
+   "codeState": {
+    "generator": "blender_land.py",
+    "sha256": "920755590a617a54cdb8ff1582885053aa778caed79fade584bf3aaf33204870"
+   },
+   "pieces": [
+    {
+     "file": "tile-0.png",
+     "sha256": "5f26f443a50186348a7afb8ca7e5d5d42148c5d6131b9f43c0b104d6062dd248"
+    },
+    {
+     "file": "tile-1.png",
+     "sha256": "3cb645e021b34632c61cf14aad1be949cf0e9c63273f2f69fc25d3025006ec53"
+    },
+    {
+     "file": "tile-2.png",
+     "sha256": "6d75af5b0128833abd452a98874d796c4c835603a8224f21ae993b4e944895d0"
+    },
+    {
+     "file": "tile-3.png",
+     "sha256": "4390b5e5fffc30b2e809da5f6813a652546558d1271ce9a6d2a58397128ea73d"
+    },
+    {
+     "file": "tile-4.png",
+     "sha256": "aee9de60aa4c28c64be1ee28d666c106893359499d5fa03a6df44937f724c8bd"
+    },
+    {
+     "file": "tile-5.png",
+     "sha256": "726f159246e4dfb238260c60a770a8dc88a07a23d5c606cc112b785917c747b1"
+    }
+   ]
+  },
+  {
+   "label": "chamfer 5.5",
+   "dir": "sweep-b",
+   "codeState": {
+    "generator": "blender_land.py",
+    "sha256": "920755590a617a54cdb8ff1582885053aa778caed79fade584bf3aaf33204870"
+   },
+   "pieces": [
+    {
+     "file": "tile-0.png",
+     "sha256": "261e0a9fae04ee7adc18eda93fec0ae47487d2e3a7db474a849d228fe61e3554"
+    },
+    {
+     "file": "tile-1.png",
+     "sha256": "12fafe0bf669a1b282c3f285d6893994e39265c765b904abb9c5553cb2bb93ad"
+    },
+    {
+     "file": "tile-2.png",
+     "sha256": "c596ea36b42d30a90a40d609627e223a16803c60a4915cfd5dbd5241298be034"
+    },
+    {
+     "file": "tile-3.png",
+     "sha256": "dcd48f5b1bd4619cf391dadda5473e56ae9acb71d9844daec26a2ec7db8e4ef0"
+    },
+    {
+     "file": "tile-4.png",
+     "sha256": "ee50bef006e692160be635e0076fcd24e2fe62ed34b50783ba6d833d225c7ef0"
+    },
+    {
+     "file": "tile-5.png",
+     "sha256": "b2be1813b6cc2091498b41bd7531fdafb3297306cef7cd30821601d55bdc902f"
+    }
+   ]
+  }
+ ],
+ "codeState": {
+  "generator": "blender_land.py",
+  "sha256": "920755590a617a54cdb8ff1582885053aa778caed79fade584bf3aaf33204870"
+ },
+ "output": {
+  "sha256": "d63e91fe936937dbc779a640e9a73775c5568101e6935d110c111bfdab2f3ae9",
+  "bytes": 53546
+ },
+ "lever": "--chamfer (ground px inset of the flat top face)",
+ "cells": [
+  "(a) rendered top face, chamfer 1.7",
+  "(a) rendered top face, chamfer 5.5 - (a)'s best shot",
+  "(b++) FLAT top face, per-cell elevation"
+ ],
+ "cameraElevationDeg": 20.0
+}

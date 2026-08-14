@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -1496,6 +1504,192 @@ test("--toolchain-payload mints the pin FROM THE FILE, so no digest is transcrib
   );
   assert.equal(relative.ok, false);
   assert.match(relative.body, /must be an absolute path/u);
+});
+
+test("an INSTALLABLE bundle refuses a hook interpreter outside the administrator-owned root", () => {
+  // managedNodePath defaults to process.execPath, so generating from an ordinary shell silently
+  // wrote a user-writable Node into the hook command of a MACHINE-WIDE boundary. Under ADR-0364 the
+  // hook is the only fence left, so whoever can replace its interpreter replaces the fence.
+  const authority = authorizeCodexWriter(topology(), [claim()], NOW);
+  if (!authority.ok) assert.fail(authority.reason);
+  const managed = path.resolve("C:/ProgramData/OpenAI/Codex/Storytree");
+  const base = {
+    authority,
+    codexVersion: "codex-cli 0.145.0",
+    managedDir: managed,
+    gitCommand: [process.execPath],
+  } as const;
+  const outsideNode = path.resolve("C:/Users/someone/AppData/Local/node/node.exe");
+
+  // The DRY RUN stays runnable from any shell — that surface costs nothing and refusing it would
+  // remove an inspection path for no gain.
+  const inspection = buildCodexContainmentBundle({ ...base, managedNodePath: outsideNode });
+  assert.equal(inspection.ok, true, "a dry run must still be generatable from an ordinary shell");
+
+  // Configuring codexPayload is what declares "I mean to install this", and that is where it binds.
+  const installable = buildCodexContainmentBundle({
+    ...base,
+    managedNodePath: outsideNode,
+    codexPayload: { path: path.join(managed, "payloads", "codex.exe"), sha256: "c".repeat(64) },
+  });
+  assert.equal(installable.ok, false);
+  if (installable.ok) assert.fail("expected a refusal");
+  assert.match(installable.reason, /administrator-owned Node under/u);
+  assert.match(installable.reason, /only fence/u);
+
+  const correct = buildCodexContainmentBundle({
+    ...base,
+    managedNodePath: path.join(managed, "payloads", "node.exe"),
+    codexPayload: { path: path.join(managed, "payloads", "codex.exe"), sha256: "c".repeat(64) },
+  });
+  assert.equal(correct.ok, true, "the managed Node is exactly what an installable bundle must use");
+});
+
+test("the rendered actuator's Write-Atomic really OVERWRITES an existing file under 5.1", (t) => {
+  // A pure-text assertion cannot catch this one, which is why it executes. Windows PowerShell 5.1
+  // binds $null to a [string] parameter as the EMPTY STRING, so `[IO.File]::Replace($T,$D,$null)`
+  // threw "The path is not of a legal form." before touching the disk. Only the EXISTING-target
+  // branch reaches Replace, so the first install onto an empty managed directory passed and every
+  // RE-install was impossible — exactly the operation ADR-0364 requires to swap the ADR-0355
+  // per-worktree profile for the standing one. Falsified by reverting to $null: this test fails and
+  // no text-level assertion does.
+  if (process.platform !== "win32") {
+    t.skip("Windows PowerShell 5.1 string-binding behaviour is what is under test");
+    return;
+  }
+  const authority = authorizeCodexWriter(topology(), [claim()], NOW);
+  if (!authority.ok) assert.fail(authority.reason);
+  const bundle = buildCodexContainmentBundle({
+    authority,
+    codexVersion: "codex-cli 0.145.0",
+    managedDir: path.resolve("C:/ProgramData/OpenAI/Codex/Storytree"),
+    managedNodePath: path.resolve("C:/Program Files/nodejs/node.exe"),
+    gitCommand: [process.execPath],
+  });
+  if (!bundle.ok) assert.fail(bundle.reason);
+
+  const writeAtomic = /function Write-Atomic[\s\S]*?\n\}/u.exec(bundle.trustedActuatorScript);
+  if (!writeAtomic) assert.fail("the rendered actuator carries no Write-Atomic function");
+
+  const dir = mkdtempSync(path.join(os.tmpdir(), "storytree-write-atomic-"));
+  try {
+    const target = path.join(dir, "existing.mjs");
+    writeFileSync(target, "ORIGINAL", "utf8");
+    const script = path.join(dir, "probe.ps1");
+    // Same strict-mode preamble the actuator runs under, so a latent binder error cannot pass here
+    // and fail in the real script.
+    writeFileSync(
+      script,
+      [
+        "Set-StrictMode -Version Latest",
+        '$ErrorActionPreference = "Stop"',
+        writeAtomic[0],
+        `Write-Atomic ${JSON.stringify(target)} "REPLACED"`,
+      ].join("\n"),
+      "utf8",
+    );
+    const run = spawnSync(
+      "powershell.exe",
+      ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script],
+      { encoding: "utf8" },
+    );
+    assert.equal(run.status, 0, `Write-Atomic failed over an existing file: ${run.stderr}`);
+    assert.equal(readFileSync(target, "utf8"), "REPLACED");
+    assert.deepEqual(
+      readdirSync(dir).filter((entry) => entry.endsWith(".tmp")),
+      [],
+      "a failed or half-done replace must leave no temp file behind",
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("the command can pin ALL THREE staged payloads, so the bundle it emits is installable", async () => {
+  // The gap this closes: `--toolchain-payload` was the only payload flag, so every bundle the CLI
+  // could generate carried a null codexPayload and a null worktreeCreatePayload. The actuator parses
+  // and installs NOTHING in that state — `install` refuses at `Assert-PinnedPayload 'Codex payload'`
+  // and `bootstrap` at the worktree-create payload — so the repository could describe the boundary
+  // but never emit one an operator could actually install.
+  const managed = path.resolve("C:/ProgramData/OpenAI/Codex/Storytree");
+  const stagedPnpm = path.join(managed, "payloads", "pnpm.cjs");
+  const stagedCodex = path.join(managed, "payloads", "codex-0.145.0.exe");
+  const stagedNode = path.join(managed, "payloads", "node.exe");
+  const hashed: string[] = [];
+  const io: CodexContainmentIo = {
+    probeGit: () => worktreeProbe(),
+    canonicalize: norm,
+    codexVersion: () => "codex-cli 0.145.0",
+    managedDir: () => managed,
+    // The MANAGED Node, because this bundle is meant to be installable — an installable bundle
+    // generated by any other interpreter is refused, which is the neighbouring test's subject.
+    managedNodePath: () => stagedNode,
+    gitCommand: () => [process.execPath],
+    writeFile: () => {
+      throw new Error("never");
+    },
+    sha256File: (target) => {
+      hashed.push(target);
+      return "b".repeat(64);
+    },
+  };
+  const ledger = { claimsBySession: async () => [claim()] };
+  const readConfig = (body: string): Record<string, unknown> => {
+    const encoded = /FromBase64String\("([A-Za-z0-9+/=]+)"\)/.exec(body);
+    if (!encoded?.[1]) assert.fail("generated actuator carries no embedded config");
+    return JSON.parse(Buffer.from(encoded[1], "base64").toString("utf8")) as Record<string, unknown>;
+  };
+
+  // The regression itself: the flags absent leaves both pins null, which is exactly the bundle that
+  // refuses to install.
+  const stranded = await codexSessionContainmentCommand({}, { ledger, now: () => NOW }, io);
+  assert.equal(stranded.ok, true);
+  const strandedConfig = readConfig(stranded.body);
+  assert.equal(strandedConfig["codexPayload"], null);
+  assert.equal(strandedConfig["worktreeCreatePayload"], null);
+
+  const pinned = await codexSessionContainmentCommand(
+    {
+      toolchainPayload: stagedPnpm,
+      codexPayload: stagedCodex,
+      worktreeCreatePayload: stagedNode,
+    },
+    { ledger, now: () => NOW },
+    io,
+  );
+  assert.equal(pinned.ok, true);
+  assert.deepEqual(
+    hashed,
+    [stagedPnpm, stagedCodex, stagedNode],
+    "every pin is hashed from the staged file itself — no digest is transcribed by hand",
+  );
+  const config = readConfig(pinned.body);
+  assert.deepEqual(config["codexPayload"], { path: stagedCodex, sha256: "b".repeat(64) });
+
+  // The worktree-create flag names the managed NODE, and the bundle pins the creator SCRIPT itself as
+  // its fixed argument — so the pin an operator supplies can never silently become a different
+  // command than the one this repository generated.
+  const creator = config["worktreeCreatePayload"] as {
+    path: string;
+    sha256: string;
+    fixedArguments: readonly { path: string; sha256: string }[];
+  };
+  assert.equal(creator.path, stagedNode);
+  assert.equal(creator.fixedArguments.length, 1);
+  assert.equal(
+    creator.fixedArguments[0]?.path,
+    path.join(managed, "storytree-codex-worktree-create.mjs"),
+  );
+  assert.match(creator.fixedArguments[0]?.sha256 ?? "", /^[a-f0-9]{64}$/u);
+
+  for (const [flag, opts] of [
+    ["--codex-payload", { codexPayload: "payloads/codex.exe" }],
+    ["--worktree-create-payload", { worktreeCreatePayload: "payloads/node.exe" }],
+  ] as const) {
+    const relative = await codexSessionContainmentCommand(opts, { ledger, now: () => NOW }, io);
+    assert.equal(relative.ok, false, `${flag} must refuse a relative path`);
+    assert.match(relative.body, new RegExp(`${flag} must be an absolute path`, "u"));
+  }
 });
 
 test("storytree-owned secrets are denied as ONE folder, while the vendor paths stay named", () => {

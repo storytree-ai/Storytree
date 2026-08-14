@@ -57,6 +57,13 @@ apps/studio/data/attestations.json
 # REPLACED the committed, generated apps/studio/data/assets.json, which was retired. Never committed.
 apps/studio/data/assets.runtime.json
 
+# Python bytecode caches. The research spikes' offline compositors import one another as modules
+# (the camera-elevation sweep rebinds the interior fork's `compose.py` rather than copying it), which
+# makes CPython write a __pycache__ beside a committed script. Interpreter-and-platform specific
+# build output, never evidence.
+__pycache__/
+*.py[cod]
+
 # Editor / OS
 .DS_Store
 Thumbs.db

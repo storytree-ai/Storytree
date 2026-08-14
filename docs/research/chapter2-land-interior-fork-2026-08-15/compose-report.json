@@ -1,0 +1,53 @@
+{
+ "canvas": [
+  258,
+  233
+ ],
+ "supersample": 3,
+ "paletteEntries": 86,
+ "levelStepWorld": 3.0,
+ "microStepWorld": 1.6,
+ "cameraElevationDeg": 20.0,
+ "wallPieceSet": {
+  "headings": 16,
+  "indexedBy": "quantised outward ground heading, never cell shape"
+ },
+ "variants": {
+  "a": {
+   "caption": "(a) regularised lattice - 6 rendered pieces, top face is RENDERED",
+   "interior": "piece",
+   "elevation": "cell",
+   "landPx": 17356,
+   "landColours": 59,
+   "cells": 102,
+   "renderedInteriorPieces": 6
+  },
+  "b": {
+   "caption": "(b) shipped mesh, flat - the option as written in ADR-0367",
+   "interior": "flat",
+   "elevation": "none",
+   "landPx": 17267,
+   "landColours": 44,
+   "cells": 214,
+   "renderedInteriorPieces": 0
+  },
+  "bplus": {
+   "caption": "(b+) shipped mesh, flat tops + PARCEL elevation",
+   "interior": "flat",
+   "elevation": "parcel",
+   "landPx": 17368,
+   "landColours": 58,
+   "cells": 214,
+   "renderedInteriorPieces": 0
+  },
+  "bplusplus": {
+   "caption": "(b++) shipped mesh, flat tops + PER-CELL elevation",
+   "interior": "flat",
+   "elevation": "cell",
+   "landPx": 17426,
+   "landColours": 60,
+   "cells": 214,
+   "renderedInteriorPieces": 0
+  }
+ }
+}

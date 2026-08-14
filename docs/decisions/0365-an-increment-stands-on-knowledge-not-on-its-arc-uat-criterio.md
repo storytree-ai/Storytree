@@ -89,9 +89,11 @@ edges in the seeded corpus.
   wider question than this kind: `refs`, `context`, `rules` and `antiPatterns` are all `refList`
   fields, and on an `agent` those carry composition refs whose "stands on" reading is plausible but
   unexamined. Deciding it inside a tier-placement ADR would smuggle a corpus-wide seeding change in
-  under a narrow heading. Parked as its own increment.
+  under a narrow heading. Parked as its own increment. *(Since ANSWERED — **ADR-0373** admits all four
+  fields, so the `uat-criterion` tier no longer seeds zero.)*
 - The authored-edge count therefore stays at 660 after this change. A reader expecting it to move
-  should read the two bullets above rather than suspect a broken seed.
+  should read the two bullets above rather than suspect a broken seed. *(ADR-0373 subsequently moved
+  it to 778.)*
 - ADR-0223 dec 3's tier table is corrected in place under ADR-0139 — the DECISION did not change
   (dec 4 was always the decision), only a row that was inconsistent with it. This ADR records the
   adjudication because the contradiction was load-bearing and a reader of dec 3 alone would have

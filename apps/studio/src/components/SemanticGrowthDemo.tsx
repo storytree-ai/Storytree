@@ -493,7 +493,7 @@ const INCUMBENT_HERO_TRACK_ID = 'chapter2-hero-tree-pose-track-v1';
  */
 const R3_LAB_PROJECTIONS = Object.freeze([1, 0.9, 0.82, 0.72] as const);
 const r3LabDefaultProjection = (candidate: Chapter2HeroTreeCandidate): number =>
-  spriteUprightReconciliation(candidate.authoredCameraElevationDeg);
+  spriteUprightReconciliation(candidate.renderedCameraElevationDeg);
 const R3_LAB_DEFAULT_CANDIDATE: Chapter2HeroTreeCandidateId = 'incumbent';
 
 function heroTreeTrack(candidate: Chapter2HeroTreeCandidate): OrganicPoseTrack {

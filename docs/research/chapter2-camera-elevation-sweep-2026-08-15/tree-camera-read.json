@@ -1,0 +1,66 @@
+{
+ "proxyRule": "bark: R > G + 12; foliage: G >= R; over alpha > 200",
+ "matureFrame": 18,
+ "angles": [
+  {
+   "elevationDeg": 20.0,
+   "bboxHeightPx": 119,
+   "bboxWidthPx": 88,
+   "treePx": 4924,
+   "barkPx": 1354,
+   "foliagePx": 2427,
+   "barkShare": 0.275,
+   "clearStemRowsBelowCanopy": 55,
+   "aspect": 1.352,
+   "recordedCameraDeg": 20.0
+  },
+  {
+   "elevationDeg": 30.0,
+   "bboxHeightPx": 124,
+   "bboxWidthPx": 96,
+   "treePx": 5758,
+   "barkPx": 1400,
+   "foliagePx": 2929,
+   "barkShare": 0.2431,
+   "clearStemRowsBelowCanopy": 51,
+   "aspect": 1.292,
+   "recordedCameraDeg": 30.0
+  },
+  {
+   "elevationDeg": 35.264,
+   "bboxHeightPx": 125,
+   "bboxWidthPx": 103,
+   "treePx": 6418,
+   "barkPx": 1431,
+   "foliagePx": 3351,
+   "barkShare": 0.223,
+   "clearStemRowsBelowCanopy": 48,
+   "aspect": 1.214,
+   "recordedCameraDeg": 35.264
+  },
+  {
+   "elevationDeg": 45.0,
+   "bboxHeightPx": 128,
+   "bboxWidthPx": 117,
+   "treePx": 8296,
+   "barkPx": 1555,
+   "foliagePx": 4546,
+   "barkShare": 0.1874,
+   "clearStemRowsBelowCanopy": 41,
+   "aspect": 1.094,
+   "recordedCameraDeg": 45.0
+  },
+  {
+   "elevationDeg": 60.0,
+   "bboxHeightPx": 114,
+   "bboxWidthPx": 117,
+   "treePx": 8367,
+   "barkPx": 1018,
+   "foliagePx": 5086,
+   "barkShare": 0.1217,
+   "clearStemRowsBelowCanopy": 15,
+   "aspect": 0.974,
+   "recordedCameraDeg": 60.0
+  }
+ ]
+}

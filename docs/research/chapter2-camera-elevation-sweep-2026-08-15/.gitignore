@@ -1,0 +1,25 @@
+# WHAT IS NOT COMMITTED HERE, AND WHY.
+#
+# The full run is ~4 MB, and ~3.6 MB of that is regenerable render INTERMEDIATE — five Blender piece
+# sets, five supersampled raw tree renders, five emitted islands and the run logs. ADR-0367's
+# Consequences already accept that committed PNG weight rises for land art; that is an argument for
+# carrying the delivered EVIDENCE, not five copies of the scaffolding that produced it.
+#
+# What makes the exclusion safe rather than lossy is that every stage is asserted deterministic and
+# the assertions are recorded, so a reader can rebuild any of this and compare:
+#   · `emit_island.ts` re-emits byte-identically at its default (digest 1fa6ce51565e537a)
+#   · every Blender piece re-renders raster-identical (the claim is on the DECODED raster — Blender
+#     stamps the PNG container, so a file hash reports drift that does not exist)
+#   · the 20-degree tree frame is pixel-identical to the delivered `code-blender` frame-18
+# and each delivered picture's `.provenance.json` sidecar carries a hash per input piece plus the
+# agreed code state, so a rebuild can be checked against what actually produced the committed image.
+#
+# COMMITTED: the two sheets, the five 1:1 panels, every provenance sidecar, the reports, the
+# per-angle DELIVERED tree frame + its registration (small, and the direct input to the cost
+# picture), the README and the three scripts.
+# Reproduce the rest with the commands in README.md § Reproduce.
+
+islands/
+logs/
+pieces-*/
+tree-*/raw/
