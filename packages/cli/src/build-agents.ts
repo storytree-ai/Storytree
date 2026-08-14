@@ -24,6 +24,16 @@ import { openCorpusStore } from "@storytree/drive";
 import { snapshotReads, type Store } from "@storytree/storage-protocol";
 
 import {
+  AGENTS_COMMAND,
+  classifyDrift,
+  diagnoseExpected,
+  diagnoseOrphan,
+  openMainRef,
+  renderDriftDiagnosis,
+  type DriftDiagnosis,
+} from "./projection-drift-diagnosis.js";
+
+import {
   delegatableAgentIds,
   renderAgentFile,
   renderCursorAgentFile,
@@ -109,6 +119,46 @@ export async function essentialsGateFailures(
   return gateFailures;
 }
 
+/** One drifted projection plus what the WHICH-SIDE-MOVED question needs. `expected: null` = orphan. */
+export interface DriftedFile {
+  /** The line the check prints, e.g. `stale:   .claude/agents/planner.md`. */
+  label: string;
+  /** Repo-relative path, for `git show origin/main:<path>`. */
+  rel: string;
+  /** The freshly rendered live-store content, or `null` when the file should not exist at all. */
+  expected: string | null;
+  /** This tree's copy, or `null` when it is missing. */
+  onDisk: string | null;
+}
+
+/** Stands in when there is no drift to diagnose — the essentials-only and clean branches. */
+export const NO_DRIFT_DIAGNOSIS: DriftDiagnosis = { ok: false, reason: "no drift to diagnose" };
+
+/**
+ * Ask git which side moved, for every drifted file. One `git show origin/main:<path>` each.
+ *
+ * Fails WIDE, deliberately: an unreadable `origin/main` (unfetched, shallow, detached, or a fresh
+ * clone) yields `{ok:false}` and the caller prints the unconditional remedy with the reason named.
+ * Guessing a side would be this arc's own defect wearing a new coat.
+ */
+export function diagnoseDrift(drifted: readonly DriftedFile[], root: string): DriftDiagnosis {
+  const mainRef = openMainRef(root);
+  if (!mainRef.ok) return { ok: false, reason: mainRef.reason };
+  return {
+    ok: true,
+    mainRef: mainRef.ref,
+    files: drifted.map((entry) => {
+      const onMain = mainRef.show(entry.rel);
+      const atBase = mainRef.showBase(entry.rel);
+      const projection =
+        entry.expected === null
+          ? diagnoseOrphan(entry.label, onMain, atBase)
+          : diagnoseExpected(entry.label, entry.expected, entry.onDisk, onMain, atBase);
+      return { label: entry.label, side: classifyDrift(projection) };
+    }),
+  };
+}
+
 /**
  * Compose `check:agents`' failure message from BOTH findings at once — or `null` when there is
  * nothing to report.
@@ -132,8 +182,15 @@ export async function essentialsGateFailures(
 export function explainAgentCheckFailure(input: {
   readonly drift: readonly string[];
   readonly essentialsFailures: readonly string[];
+  /**
+   * WHICH SIDE MOVED — consumed by the drift-ONLY branch. The combined branch deliberately ignores
+   * it: there the essentials breach dominates, its owner is already named, and regenerating is
+   * already declared insufficient, so a merge-or-regenerate ordering would be advice for a step the
+   * session has not reached yet.
+   */
+  readonly diagnosis: DriftDiagnosis;
 }): string | null {
-  const { drift, essentialsFailures } = input;
+  const { drift, essentialsFailures, diagnosis } = input;
   const bullets = (lines: readonly string[]): string => `\n  ${lines.join("\n  ")}`;
 
   if (drift.length > 0 && essentialsFailures.length > 0) {
@@ -151,10 +208,7 @@ export function explainAgentCheckFailure(input: {
   }
 
   if (drift.length > 0) {
-    return (
-      "harness agent views are STALE — the library agents changed. Regenerate with " +
-      `\`pnpm build:agents\` and commit:${bullets(drift)}`
-    );
+    return `harness agent views are STALE — ${renderDriftDiagnosis(AGENTS_COMMAND, drift, diagnosis)}`;
   }
 
   if (essentialsFailures.length > 0) {
@@ -229,7 +283,10 @@ async function main(): Promise<void> {
   }
 
   if (check) {
-    const drift: string[] = [];
+    // Each drifted file keeps the material the WHICH-SIDE-MOVED diagnosis needs. `expected: null`
+    // marks an ORPHAN, whose two questions invert (see diagnoseOrphan). `target.label` IS the
+    // repo-relative directory, so it doubles as the path `git show origin/main:<path>` wants.
+    const drifted: DriftedFile[] = [];
     for (const target of renderedTargets) {
       for (const [name, content] of target.files) {
         let onDisk: string | null = null;
@@ -238,11 +295,18 @@ async function main(): Promise<void> {
         } catch {
           onDisk = null;
         }
-        if (onDisk === null) drift.push(`missing: ${target.label}/${name}`);
-        else if (toLf(onDisk) !== toLf(content)) drift.push(`stale:   ${target.label}/${name}`);
+        const rel = `${target.label}/${name}`;
+        if (onDisk === null) drifted.push({ label: `missing: ${rel}`, rel, expected: content, onDisk });
+        else if (toLf(onDisk) !== toLf(content)) {
+          drifted.push({ label: `stale:   ${rel}`, rel, expected: content, onDisk });
+        }
       }
-      for (const orphan of target.orphans) drift.push(`orphan:  ${target.label}/${orphan}`);
+      for (const orphan of target.orphans) {
+        const rel = `${target.label}/${orphan}`;
+        drifted.push({ label: `orphan:  ${rel}`, rel, expected: null, onDisk: null });
+      }
     }
+    const drift = drifted.map((entry) => entry.label);
     // NOTHING FAILS UNTIL BOTH ARE KNOWN. The drift loop above used to `fail()` here, which meant
     // the essentials gate ran only on a run where drift was empty — and the combined case (a
     // sibling's live edit that both moved the view AND pushed it past budget) reported only the
@@ -263,7 +327,13 @@ async function main(): Promise<void> {
     // checks against that content.
     gateFailures.push(...(await dedicatedSurfaceAgentGateViolations(store)));
 
-    const failure = explainAgentCheckFailure({ drift, essentialsFailures: gateFailures });
+    // The git reads are deferred to here — on the green path (overwhelmingly the common one) the
+    // diagnosis costs nothing at all, and even on a red it is one `git show` per drifted file.
+    const failure = explainAgentCheckFailure({
+      drift,
+      essentialsFailures: gateFailures,
+      diagnosis: drifted.length > 0 ? diagnoseDrift(drifted, repoRoot) : NO_DRIFT_DIAGNOSIS,
+    });
     if (failure !== null) fail(failure);
     await corpus.close();
     console.log(

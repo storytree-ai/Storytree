@@ -77,6 +77,16 @@ step it does run is blocking, and that `automerge` cannot outrun it — never a 
      native Gemini CLI subagent inherits its parent session's model/tools; this contract makes no
      claim that Antigravity consumes the Gemini CLI surface. Each sync check is a real `verify`
      step, not advisory.
+   - **and each names WHICH SIDE MOVED —** because both check a COMMITTED projection against the
+     SHARED live store, a red here is as often another session's landed regeneration this branch has
+     not merged as it is this branch's own omission, and the two remedies are opposite. Each failure
+     therefore classifies every drifted file against `origin/main` and this branch's merge-base and
+     prints the remedy in the order that does not sweep a sibling's in-flight live-store edit into
+     this commit: *behind main* → merge and re-check FIRST, regenerate only if it still reds;
+     *main equally stale* → merging cannot help, regenerate and commit separately with attribution;
+     *this branch touched it* → regenerate, and no merge is offered because git would decline to
+     apply one over a local edit. An unreadable `origin/main` fails WIDE to the unconditional
+     remedy with the reason named — a side is never guessed (diagnosis-honesty-arc).
 4. **`red-blocks-the-merge`** — a red `verify` stops the pipeline
    - **asserts —** `automerge` declares `needs: verify`, so a non-green `verify` means the merge step
      never runs; there is no path to `main` that skips a green `verify`.

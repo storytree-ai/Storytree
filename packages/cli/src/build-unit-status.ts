@@ -20,6 +20,14 @@ import { createPool, closePool } from "@storytree/library/store";
 import { PgWorkStore } from "@storytree/orchestrator/store";
 
 import { loadLocalSecrets } from "./secrets.js";
+import {
+  STATUS_COMMAND,
+  classifyDrift,
+  diagnoseExpected,
+  openMainRef,
+  renderDriftDiagnosis,
+  type DriftDiagnosis,
+} from "./projection-drift-diagnosis.js";
 
 /** The minimal event slice the derivation reads (StoreEvent / the CLI verdict reader both satisfy it). */
 export interface StatusEvent {
@@ -132,9 +140,37 @@ async function main(): Promise<void> {
         onDisk = "";
       }
       if (toLf(onDisk) !== toLf(generated)) {
+        // WHICH SIDE MOVED (diagnosis-honesty-arc). Same shape as check:agents / check:guidance:
+        // a committed projection scored against a live store other sessions write, where "you did
+        // not regenerate" and "another session already did, and you have not merged it" produce the
+        // same symptom and opposite remedies. Here the live source is the work-event store, so the
+        // mover is usually a sibling's landed BUILD rather than an artifact edit.
+        const rel = "apps/studio/data/unit-status.json";
+        const label = `stale:   ${rel}`;
+        const mainRef = openMainRef(repoRoot);
+        const diagnosis: DriftDiagnosis = mainRef.ok
+          ? {
+              ok: true,
+              mainRef: mainRef.ref,
+              files: [
+                {
+                  label,
+                  side: classifyDrift(
+                    diagnoseExpected(
+                      label,
+                      generated,
+                      onDisk === "" ? null : onDisk,
+                      mainRef.show(rel),
+                      mainRef.showBase(rel),
+                    ),
+                  ),
+                },
+              ],
+            }
+          : { ok: false, reason: mainRef.reason };
         console.error(
           `build:status — unit-status.json is STALE (${rows.length} verdict-borne units in live). ` +
-            "Regenerate with `pnpm build:status` and commit.",
+            renderDriftDiagnosis(STATUS_COMMAND, [label], diagnosis),
         );
         process.exit(1);
       }
