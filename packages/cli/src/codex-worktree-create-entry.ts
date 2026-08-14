@@ -3,11 +3,12 @@ import { realpathSync } from "node:fs";
 import path from "node:path";
 
 import { createClaimUniverseLoader } from "@storytree/drive/claim-universe";
-import { loadLocalSecrets } from "@storytree/drive/secrets";
-import { closePool, createPool } from "@storytree/library/store/connection";
-import { PgLibraryStore } from "@storytree/library/store/pg-store";
-import { PgClaimStore } from "@storytree/notice-board/store/claim-store";
 
+import {
+  brokerHandshakePath,
+  BrokerClaimLedger,
+  readBrokerHandshake,
+} from "./codex-claim-broker-client.js";
 import { promoteBootstrapClaimsToWork } from "./codex-session-containment.js";
 import { createWorktree, defaultWorktreeCreateIo } from "./worktree-create.js";
 
@@ -105,22 +106,39 @@ function worktreeFromEnvelope(body: string, primary: string): string {
 }
 
 async function main(): Promise<void> {
-  let handle: Awaited<ReturnType<typeof createPool>> | undefined;
   try {
     const request = parseRequest(process.argv.slice(2));
     const primary = verifyPrimary(request.primary);
     process.chdir(primary);
 
-    loadLocalSecrets();
-    handle = await createPool();
-    const library = new PgLibraryStore(handle.pool);
+    // This payload holds NO credential and opens NO database connection (ADR-0368 D1/D2). It reads
+    // the operator broker's handshake — whose ACL is the permission to knock at all — and every
+    // ledger operation happens on the far side of that wall, performed by a process the sandbox
+    // could not have started. The credential circularity ADR-0355's delivery status records
+    // (`loadLocalSecrets()` + `createPool()` reaching for paths `Protect-SandboxCredentials` has
+    // just denied this very account) is closed by removing the reach, not by widening the deny.
+    // The shared default location, so broker and bootstrap cannot drift into looking in two places;
+    // `STORYTREE_CODEX_BROKER_HANDSHAKE` overrides it. A missing or unreadable handshake refuses the
+    // bootstrap outright — there is no second route to the ledger any more, and that is the point.
+    const handshakePath = brokerHandshakePath(process.env);
+    // Set once the ceremony has minted it; the broker derives session and branch from this PATH
+    // rather than from anything this process asserts about itself (ADR-0368 D3), which is why it
+    // must be a thunk — at claim-taking time the worktree does not exist yet.
+    let mintedWorktree: string | undefined;
+    const ledger = new BrokerClaimLedger(readBrokerHandshake(handshakePath), () => mintedWorktree);
+
     const envelope = await createWorktree(
       { nodes: [request.node], intent: request.intent },
       {
-        ledger: new PgClaimStore(handle.pool),
+        ledger,
         universe: createClaimUniverseLoader({
           storiesDir: path.join(primary, "stories"),
-          library,
+          // No Library read: the broker exposes the claim ledger and nothing else, and the scoped
+          // claim-writer identity cannot SELECT `library_artifact` by design. `claim-universe.ts`
+          // treats a null store as an INCOMPLETE universe and stands every claim down rather than
+          // refusing one it could not verify — "every read failure withdraws the licence to refuse".
+          // So the typo check simply does not run on this path; it never refuses a legitimate claim.
+          library: null,
           manifestPath: path.join(primary, "repo-manifest.json"),
         }),
         io: { ...defaultWorktreeCreateIo, primaryRoot: () => primary },
@@ -128,6 +146,7 @@ async function main(): Promise<void> {
     );
     if (!envelope.ok) throw new Error(envelope.body);
     const worktree = worktreeFromEnvelope(envelope.body, primary);
+    mintedWorktree = worktree;
 
     // The ceremony leaves EXPLORING claims (ADR-0200 D3). `authorizeCodexWriter` admits a writer
     // only on a live WORK claim naming this session and branch, and the actuator has no second turn
@@ -139,8 +158,12 @@ async function main(): Promise<void> {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
     }).trim();
+    // The session/branch passed here stay the CROSS-CHECK, not the instruction: the broker ignores
+    // them and re-derives both from the worktree's own Git topology, then this function refuses if
+    // what came back disagrees with what it asked for. Two independent derivations of the same
+    // identity have to agree before a writer is authorised.
     const promotion = await promoteBootstrapClaimsToWork({
-      ledger: new PgClaimStore(handle.pool),
+      ledger,
       nodes: [request.node],
       sessionId: path.basename(worktree),
       branch,
@@ -148,17 +171,8 @@ async function main(): Promise<void> {
     });
     if (!promotion.ok) throw new Error(promotion.reason);
 
-    await closePool(handle.pool, handle.connector);
-    handle = undefined;
     process.stdout.write(JSON.stringify({ worktree }));
   } catch (error) {
-    if (handle !== undefined) {
-      try {
-        await closePool(handle.pool, handle.connector);
-      } catch {
-        // The original refusal is the useful one; closing is best-effort on that path.
-      }
-    }
     fail(error instanceof Error ? error.message : String(error));
   }
 }

@@ -9,6 +9,7 @@ import {
   buildScene,
   type SceneInput,
   type SceneNode,
+  type ScenePath,
   type SceneTrailsInput,
 } from '@storytree/forest-world';
 import { CHAPTER2_ORGANIC_POSE_TO_POSE_REGISTRY } from './organic-pose-to-pose-assets.js';
@@ -216,6 +217,83 @@ describe('connected SVG island accretion topology', () => {
     expect(mature.mature).toBe(true);
     expect(mature.cells.every((cell) => cell.scale === 1)).toBe(true);
     expect(mature.coastProgress).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// the reveal INDEX (the ADR-0367 prerequisite)
+// ---------------------------------------------------------------------------
+//
+// The per-cell reveal used to be indexed by the cell's LITERAL emitted `d` string, so the key WAS the
+// geometry, down to `polyPath`'s one decimal place. ADR-0367 moves the land's geometry (a declared
+// camera first, Blender-rendered art after), and under a `d`-keyed index every cell that moved would
+// silently lose its reveal transform: the lookup misses, the cell renders un-transformed, and the
+// symptom reads as an easing bug rather than a broken index — nothing throws and nothing in the gate
+// notices. These tests hold the index to IDENTITY instead: the SAME cell, re-emitted with different
+// path bytes, must still resolve.
+
+/** Every land-cell path node the scene emits for `storyId`, in emission order. */
+function groundCellNodes(node: SceneNode, storyId: string, inGround = false): ScenePath[] {
+  const targetGround =
+    inGround || (node.el === 'g' && node.kind === 'ground' && node.id === storyId);
+  if (targetGround && node.el === 'path' && (node.kind === 'cell' || node.kind === 'cell-wheat')) {
+    return [node];
+  }
+  if (node.el !== 'g') return [];
+  return node.children.flatMap((child) => groundCellNodes(child, storyId, targetGround));
+}
+
+/**
+ * Re-print every land cell's coordinates at a FINER precision — the same polygons, different `d`
+ * bytes. This is the cheapest honest stand-in for "the land's geometry moved": ADR-0367's
+ * Consequences name a change in printed decimal places alongside a new lattice and a rendered tile,
+ * and all three break a byte-keyed index the same way. Nothing about WHICH cell each one is changes.
+ */
+function reprintFiner(node: SceneNode): SceneNode {
+  const finer = (d: string): string => d.replace(/-?\d+(?:\.\d+)?/gu, (n) => Number(n).toFixed(3));
+  if (node.el === 'g') return { ...node, children: node.children.map(reprintFiner) };
+  return node.el === 'path' && (node.kind === 'cell' || node.kind === 'cell-wheat')
+    ? { ...node, d: finer(node.d) }
+    : node;
+}
+
+describe('the SVG island accretion reveal index', () => {
+  it('resolves every re-emitted cell, because the key is the cell identity and not its path bytes', () => {
+    const scene = islandScene();
+    const plan = deriveSvgIslandAccretionPlan(scene, STORY_ID, { x: 15, y: 15 });
+    const forming = svgIslandAccretionAtProgress(plan, 0.37);
+
+    const emitted = groundCellNodes(scene, STORY_ID);
+    const moved = groundCellNodes(reprintFiner(scene), STORY_ID);
+    expect(emitted).toHaveLength(plan.cells.length);
+    expect(moved.map((cell) => cell.d)).not.toEqual(emitted.map((cell) => cell.d));
+
+    moved.forEach((cell, index) => {
+      const id = cell.cellId;
+      expect(id, 'every emitted land cell carries a shape-free identity').toBe(
+        emitted[index]!.cellId,
+      );
+      expect(
+        forming.cellById.get(id!)?.key,
+        `cell ${id} lost its reveal when its geometry was re-emitted`,
+      ).toBe(id);
+    });
+  });
+
+  it('still transforms every accreting cell after the land geometry moves', () => {
+    const scene = islandScene();
+    const plan = deriveSvgIslandAccretionPlan(scene, STORY_ID, { x: 15, y: 15 });
+    const moved = render(
+      <svg viewBox="-12 -8 70 62">
+        <SceneView
+          scene={reprintFiner(scene)}
+          ctx={sceneContext(svgIslandAccretionAtProgress(plan, 0.37))}
+        />
+      </svg>,
+    );
+    expect(moved.container.querySelectorAll('[data-island-accretion-cell]')).toHaveLength(
+      plan.cells.length,
+    );
   });
 });
 

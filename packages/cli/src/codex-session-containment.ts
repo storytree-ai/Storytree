@@ -8,7 +8,7 @@
  */
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -125,6 +125,12 @@ export interface BuildBundleArgs {
    * not Corepack.
    */
   readonly toolchainPayload?: Readonly<{ path: string; sha256: string }>;
+  /**
+   * Best-effort, locally-computed staging plan for the toolchain payload — informational only, used
+   * solely to sharpen `operatorReadme` when `toolchainPayload` is not (yet) configured. Never
+   * participates in validating an actually-configured `toolchainPayload`.
+   */
+  readonly toolchainStaging?: CodexToolchainStagingResult;
 }
 
 /**
@@ -152,6 +158,224 @@ export function codexToolchainCommand(
   toolchainPayloadPath: string,
 ): readonly string[] {
   return [managedNodePath, toolchainPayloadPath];
+}
+
+/**
+ * Repo-side staging helper for the codex-managed-toolchain-payload increment (ADR-0364 D7's
+ * precondition). Closes the gap PR #1334 deliberately left open: `toolchainPayload` flows from a
+ * caller-supplied `{path, sha256}`, but nothing told an operator how to OBTAIN the matching
+ * `dist/pnpm.cjs`, which version it must be, or what its hash is — staging it was a research
+ * exercise. This turns that into a mechanical, verifiable step, without ever writing to ProgramData
+ * itself: same invariant `defaultCodexContainmentIo.writeFile` already enforces for every other
+ * payload in this module.
+ */
+export type CodexPnpmVersionResult = string | { readonly ok: false; readonly reason: string };
+
+/**
+ * The pnpm version the workspace actually pins, read from the root `package.json` `packageManager`
+ * field — never a literal duplicated here, so it cannot drift from the repository silently. Refuses
+ * (rather than guesses) when the field is missing or not a plain `pnpm@X.Y.Z` pin.
+ */
+export function resolvePinnedPnpmVersion(packageJsonText: string): CodexPnpmVersionResult {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(packageJsonText);
+  } catch (error) {
+    return { ok: false, reason: `workspace package.json is not valid JSON: ${String(error)}` };
+  }
+  const field =
+    parsed !== null && typeof parsed === "object"
+      ? (parsed as { packageManager?: unknown }).packageManager
+      : undefined;
+  const match = typeof field === "string" ? /^pnpm@(\d+\.\d+\.\d+)$/.exec(field) : null;
+  if (!match?.[1]) {
+    return {
+      ok: false,
+      reason:
+        `workspace "packageManager" is not a pinned pnpm version (got ${JSON.stringify(field ?? null)}) — ` +
+        "the toolchain payload has nothing to agree with, so guessing a version is refused",
+    };
+  }
+  return match[1];
+}
+
+/**
+ * Well-known locations Corepack itself caches a RESOLVED `pnpm@<version>` distribution. This never
+ * downloads anything — it only looks where Corepack already put the file the first time this
+ * workspace's own `pnpm` command ran on the operator's machine, which is exactly the single-file
+ * `dist/pnpm.cjs` {@link codexToolchainCommand} needs, and exactly where the companion test "the
+ * pinned single-file pnpm really does run a workspace command" already expects to find it on Windows.
+ */
+export function candidateCorepackPnpmDistPaths(
+  env: Readonly<Record<string, string | undefined>>,
+  platform: NodeJS.Platform,
+  version: string,
+): readonly string[] {
+  const roots: string[] = [];
+  if (platform === "win32") {
+    roots.push(
+      path.join(env["LOCALAPPDATA"] ?? path.join(os.homedir(), "AppData", "Local"), "node", "corepack"),
+    );
+  } else if (platform === "darwin") {
+    roots.push(path.join(env["HOME"] ?? os.homedir(), "Library", "Caches", "node", "corepack"));
+  } else {
+    roots.push(
+      path.join(
+        env["XDG_CACHE_HOME"] ?? path.join(env["HOME"] ?? os.homedir(), ".cache"),
+        "node",
+        "corepack",
+      ),
+    );
+  }
+  return roots.map((root) => path.join(root, "v1", "pnpm", version, "dist", "pnpm.cjs"));
+}
+
+export interface CodexToolchainStagingIo {
+  /** Text of the workspace's own root package.json — never a version literal duplicated here. */
+  readonly readWorkspacePackageJson: () => string;
+  readonly exists: (target: string) => boolean;
+  readonly sha256File: (target: string) => string;
+  readonly env: Readonly<Record<string, string | undefined>>;
+  readonly platform: NodeJS.Platform;
+  readonly managedDir: () => string;
+}
+
+export interface CodexToolchainStagingPlan {
+  readonly ok: true;
+  readonly pnpmVersion: string;
+  readonly sourcePath: string;
+  readonly sha256: string;
+  /** Copy destination under the managed payloads directory — administrator-owned, never written here. */
+  readonly stagedPath: string;
+  /** Ready to pass as `toolchainPayload` to {@link buildCodexContainmentBundle} once staged. */
+  readonly pin: { readonly path: string; readonly sha256: string };
+  /** Exact, ordered operator steps: copy, pin, re-verify. */
+  readonly steps: readonly string[];
+}
+
+export type CodexToolchainStagingResult =
+  | CodexToolchainStagingPlan
+  | { readonly ok: false; readonly reason: string };
+
+function quotePowerShellArgument(value: string): string {
+  return `"${value.replaceAll('"', '""')}"`;
+}
+
+/**
+ * Turn "how do I obtain the right dist/pnpm.cjs" from a research exercise into a mechanical,
+ * verifiable step. LOCATES the Corepack-cached distribution matching the workspace's own pinned
+ * version, hashes it, and emits the exact copy/pin/re-verify steps — it never copies or writes
+ * anything itself, so it carries no ProgramData write authority to misuse.
+ *
+ * Fails closed and says why on either open question this increment named: an unpinned/unreadable
+ * `packageManager`, or no cached distribution found for that exact version. It never guesses a
+ * version and never reports the hash of the wrong file.
+ */
+export function planCodexToolchainStaging(io: CodexToolchainStagingIo): CodexToolchainStagingResult {
+  try {
+    const version = resolvePinnedPnpmVersion(io.readWorkspacePackageJson());
+    if (typeof version !== "string") return version;
+
+    const candidates = candidateCorepackPnpmDistPaths(io.env, io.platform, version);
+    if (candidates.length === 0) {
+      return {
+        ok: false,
+        reason:
+          `no known Corepack cache location for platform "${io.platform}" — locate pnpm@${version}'s ` +
+          "dist/pnpm.cjs manually and stage it by hand",
+      };
+    }
+    const found = candidates.find((candidate) => io.exists(candidate));
+    if (!found) {
+      return {
+        ok: false,
+        reason:
+          `could not find a cached pnpm@${version} distribution on this machine — run any workspace ` +
+          "`pnpm` command once (Corepack resolves and caches the pinned version), then re-run this " +
+          `staging step. Checked: ${candidates.join(", ")}`,
+      };
+    }
+
+    const sha256 = io.sha256File(found).toLowerCase();
+    if (!/^[a-f0-9]{64}$/.test(sha256)) {
+      return { ok: false, reason: `computed digest for ${found} is not a well-formed SHA-256 hash` };
+    }
+
+    const stagedPath = path.join(io.managedDir(), "payloads", "pnpm.cjs");
+    const pin = { path: stagedPath, sha256 };
+    const steps = [
+      "Administrator-owned — copy the located file to the managed payloads directory (this command",
+      "never performs the copy itself):",
+      `  Copy-Item -LiteralPath ${quotePowerShellArgument(found)} -Destination ${quotePowerShellArgument(stagedPath)} -Force`,
+      "Pass this EXACT pin as the toolchainPayload the generator hash-verifies:",
+      `  ${JSON.stringify(pin)}`,
+      "Re-verify what landed matches the pin before trusting it:",
+      `  CertUtil -hashfile ${quotePowerShellArgument(stagedPath)} SHA256`,
+      `  (must print ${sha256})`,
+    ];
+    return { ok: true, pnpmVersion: version, sourcePath: found, sha256, stagedPath, pin, steps };
+  } catch (error) {
+    return { ok: false, reason: `could not plan toolchain staging: ${String(error)}` };
+  }
+}
+
+function defaultManagedCodexDir(): string {
+  return path.join(process.env["ProgramData"] ?? "C:\\ProgramData", "OpenAI", "Codex", "Storytree");
+}
+
+function repoRootFromCwd(): string {
+  return (
+    execFileSync("git", ["rev-parse", "--path-format=absolute", "--show-toplevel"], {
+      encoding: "utf8",
+    }) as string
+  ).trim();
+}
+
+/**
+ * Reads the CURRENT checkout's own root `package.json` (via Git top-level, not a hard-coded relative
+ * path) so the staging plan always agrees with whichever branch is actually checked out here — a
+ * literal `../../package.json` would silently assume cwd, and a hard-coded version could drift from
+ * a branch mid-migration.
+ */
+export const defaultCodexToolchainStagingIo: CodexToolchainStagingIo = {
+  readWorkspacePackageJson: () => readFileSync(path.join(repoRootFromCwd(), "package.json"), "utf8"),
+  exists: existsSync,
+  sha256File: (target) => createHash("sha256").update(readFileSync(target)).digest("hex"),
+  env: process.env,
+  platform: process.platform,
+  managedDir: defaultManagedCodexDir,
+};
+
+/** Renders the toolchain block of `operatorReadme`, sharpened with a staging plan when one is available. */
+function renderToolchainReadmeLines(
+  toolchainCommand: readonly string[] | null,
+  staging: CodexToolchainStagingResult | undefined,
+): string[] {
+  if (toolchainCommand !== null) {
+    return [
+      `  ${toolchainCommand.join(" ")} <ordinary pnpm argv>`,
+      "  Invoke it with -C <worktree>, or from the worktree as cwd. The pinned version MUST be the one",
+      "  `packageManager` names: a different pnpm would disagree with the lockfile silently.",
+    ];
+  }
+  const lines = [
+    "  NOT CONFIGURED — a contained task cannot run any pnpm workspace command until device",
+    "  management installs a hash-pinned dist/pnpm.cjs under the managed payloads directory.",
+    "  Until then `pnpm gate` and `pnpm storytree …` are unreachable from a claimed worktree.",
+  ];
+  if (staging === undefined) return lines;
+  if (!staging.ok) {
+    lines.push("", `  STAGING (computed on this machine): ${staging.reason}`);
+    return lines;
+  }
+  lines.push(
+    "",
+    `  STAGING (computed on this machine, nothing written) — pnpm@${staging.pnpmVersion} found at:`,
+    `    ${staging.sourcePath}`,
+    "  Exact operator steps:",
+    ...staging.steps.map((line) => `    ${line}`),
+  );
+  return lines;
 }
 
 function comparable(value: string): string {
@@ -442,7 +666,17 @@ function credentialAclPaths(): string[] {
     path.join(home, ".config", "gcloud"),
     process.env["CLOUDSDK_CONFIG"],
     process.env["GOOGLE_APPLICATION_CREDENTIALS"],
-    path.join(home, ".storytree", "secrets.json"),
+    // ONE HOME for storytree-owned secrets, denied as a UNIT. `Protect-SandboxCredentials` applies
+    // `(OI)(CI)(RX)` to a container and `(R)` to a file, so naming the directory denies everything
+    // dropped into it later — a new secret needs no new grant reasoning, which is the failure mode
+    // per-file denies actually have. The profile half (`credentialRoots`) already denied the whole
+    // directory; this is the ACL half catching up, so the two agree.
+    path.join(home, ".storytree"),
+    // NOT reachable by that folder deny, and deliberately still named one by one: `~/.codex/auth.json`
+    // is written by the Codex CLI at login and gcloud's ADC goes to a fixed path — both would be
+    // recreated in their default locations. `CLOUDSDK_CONFIG` can redirect gcloud, but if it is ever
+    // unset the credential lands back somewhere undenied: a fail-OPEN, the worst property a lock can
+    // have. Folder deny for what we own; named denies for what we do not.
     path.join(home, ".codex", "auth.json"),
   ].filter((value): value is string => typeof value === "string" && path.isAbsolute(value));
 }
@@ -1283,15 +1517,7 @@ export function buildCodexContainmentBundle(
     "`packageManager` by downloading it into a per-user cache — so shipping Corepack ships a downloader",
     "into a profile with `network.enabled = false` and no write access to that cache. pnpm's own",
     "`dist/pnpm.cjs` is self-contained: no network, no cache, no PATH entry, and one hash to pin.",
-    toolchainCommand === null
-      ? "  NOT CONFIGURED — a contained task cannot run any pnpm workspace command until device"
-      : `  ${toolchainCommand.join(" ")} <ordinary pnpm argv>`,
-    toolchainCommand === null
-      ? "  management installs a hash-pinned dist/pnpm.cjs under the managed payloads directory."
-      : "  Invoke it with -C <worktree>, or from the worktree as cwd. The pinned version MUST be the one",
-    toolchainCommand === null
-      ? "  Until then `pnpm gate` and `pnpm storytree …` are unreachable from a claimed worktree."
-      : "  `packageManager` names: a different pnpm would disagree with the lockfile silently.",
+    ...renderToolchainReadmeLines(toolchainCommand, args.toolchainStaging),
     "",
     "Per-worktree \".git\"/\".codex\" denies are emitted for every worktree registered when this file is",
     "generated; a worktree minted later is covered by the hook alone. The shared Git common directory",
@@ -1500,6 +1726,18 @@ export interface CodexContainmentIo {
   readonly gitCommand?: () => readonly string[];
   /** Present for proof that this repository command never installs ProgramData. */
   readonly writeFile: (target: string, body: string) => void;
+  /** Optional seam: best-effort local staging plan for the pnpm toolchain payload (never required). */
+  readonly toolchainStaging?: () => CodexToolchainStagingResult;
+  /**
+   * Hash an ALREADY-STAGED payload so `--toolchain-payload <path>` can mint its own pin.
+   *
+   * The operator names the file; the command hashes what is actually there. That removes a whole
+   * class of fat-finger — a hand-copied 64-character digest that does not match the file it claims
+   * to describe fails at bootstrap as an opaque `Assert-PinnedPayload` refusal, long after the
+   * mistake. Pinning at generation loses nothing: the pin's job is to detect a LATER change, and
+   * `Assert-PinnedPayload` still re-hashes on every bootstrap.
+   */
+  readonly sha256File?: (target: string) => string;
 }
 
 function canonicalizeExistingPrefix(target: string): string {
@@ -1560,11 +1798,13 @@ export const defaultCodexContainmentIo: CodexContainmentIo = {
       }) as string).trim();
     }
   },
-  managedDir: () => path.join(process.env["ProgramData"] ?? "C:\\ProgramData", "OpenAI", "Codex", "Storytree"),
+  managedDir: defaultManagedCodexDir,
   managedNodePath: () => process.execPath,
   writeFile: () => {
     throw new Error("the repository containment command never writes administrator-owned files");
   },
+  toolchainStaging: () => planCodexToolchainStaging(defaultCodexToolchainStagingIo),
+  sha256File: (target) => createHash("sha256").update(readFileSync(target)).digest("hex"),
 };
 
 export interface CodexContainmentLedger {
@@ -1572,7 +1812,18 @@ export interface CodexContainmentLedger {
 }
 
 export async function codexSessionContainmentCommand(
-  opts: { readonly write?: boolean; readonly help?: boolean },
+  opts: {
+    readonly write?: boolean;
+    readonly help?: boolean;
+    /**
+     * `--toolchain-payload <absolute path>` — an ALREADY-STAGED `dist/pnpm.cjs` under the managed
+     * payloads directory. This is the last link in the chain the staging plan starts: the plan says
+     * what to copy and where, and this turns the copy that landed into the pin the actuator carries.
+     * Without it there is no route from an operator's shell into `toolchainPayload` at all, and the
+     * whole landed repo half stays unreachable.
+     */
+    readonly toolchainPayload?: string;
+  },
   deps: { readonly ledger: CodexContainmentLedger | null; readonly now: () => Date },
   io: CodexContainmentIo = defaultCodexContainmentIo,
 ): Promise<Envelope> {
@@ -1586,6 +1837,10 @@ export async function codexSessionContainmentCommand(
         "Run in the lobby for a read-only bootstrap plan, or in a currently claimed worktree with",
         "--pg for the single-worktree writer plan. This command never installs ProgramData; managed",
         "requirements, hooks, and the Windows profile are administrator-owned.",
+        "",
+        "  --toolchain-payload <absolute path>   pin an already-staged dist/pnpm.cjs. The dry run",
+        "      prints the copy step; run it, then re-run with this flag pointing at what landed. The",
+        "      pin is hashed FROM THE FILE, so no digest is ever transcribed by hand.",
       ].join("\n"),
       next,
     };
@@ -1626,12 +1881,50 @@ export async function codexSessionContainmentCommand(
     authority = decided;
   }
 
+  let toolchainStaging: CodexToolchainStagingResult | undefined;
+  try {
+    toolchainStaging = io.toolchainStaging?.();
+  } catch {
+    // Best-effort only — an unstageable payload never blocks the dry run itself, it just falls back
+    // to the generic operatorReadme prose (renderToolchainReadmeLines handles `undefined` the same
+    // way it always has).
+    toolchainStaging = undefined;
+  }
+
+  // `--toolchain-payload` mints the pin from the file itself, so an operator never transcribes a
+  // digest by hand. Refuse loudly rather than degrading: someone who passed the flag is asking for
+  // a bundle that CARRIES the toolchain, and silently emitting one without it would be reported as
+  // success while a contained task still cannot run a single workspace command.
+  let toolchainPayload: { readonly path: string; readonly sha256: string } | undefined;
+  if (opts.toolchainPayload !== undefined) {
+    const hash = io.sha256File;
+    if (hash === undefined) {
+      return { ok: false, body: "REFUSED — this IO cannot hash a staged payload", next };
+    }
+    if (!path.isAbsolute(opts.toolchainPayload)) {
+      return { ok: false, body: "REFUSED — --toolchain-payload must be an absolute path", next };
+    }
+    try {
+      toolchainPayload = { path: opts.toolchainPayload, sha256: hash(opts.toolchainPayload) };
+    } catch (error) {
+      return {
+        ok: false,
+        body:
+          `REFUSED — could not hash --toolchain-payload at ${opts.toolchainPayload}: ${String(error)}. ` +
+          "Copy the staged file into the managed payloads directory first (the dry run prints the exact step).",
+        next,
+      };
+    }
+  }
+
   const bundle = buildCodexContainmentBundle({
     authority,
     codexVersion: version,
     managedDir: io.managedDir(),
     managedNodePath: io.managedNodePath(),
     ...(io.gitCommand === undefined ? {} : { gitCommand: io.gitCommand() }),
+    ...(toolchainStaging === undefined ? {} : { toolchainStaging }),
+    ...(toolchainPayload === undefined ? {} : { toolchainPayload }),
   });
   if (!bundle.ok) return { ok: false, body: `REFUSED — ${bundle.reason}`, next };
   return {
@@ -1648,6 +1941,13 @@ export async function codexSessionContainmentCommand(
       bundle.toolchainCommand === null
         ? "task toolchain:    NOT CONFIGURED — a contained task cannot run pnpm workspace commands"
         : `task toolchain:    ${bundle.toolchainCommand.join(" ")}`,
+      ...(bundle.toolchainCommand === null && toolchainStaging !== undefined
+        ? [
+            toolchainStaging.ok
+              ? `toolchain staging: pnpm@${toolchainStaging.pnpmVersion} located at ${toolchainStaging.sourcePath} — see operator steps below`
+              : `toolchain staging: ${toolchainStaging.reason}`,
+          ]
+        : []),
       "",
       bundle.operatorReadme,
       "",
