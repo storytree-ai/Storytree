@@ -81,14 +81,47 @@ test("a MISSING --kind is refused and LISTS the available kinds", async () => {
   const env = await libraryQuery(await seeded(), { ...base });
   assert.equal(env.ok, false);
   assert.match(env.body, /needs --kind/);
-  assert.match(env.body, /arc, increment/);
+  assert.match(env.body, /\barc\b/);
+  assert.match(env.body, /\bincrement\b/);
 });
 
 test("an UNKNOWN kind is refused with the same list — never answered as an empty result", async () => {
   const env = await libraryQuery(await seeded(), { ...base, kind: "arcs" });
   assert.equal(env.ok, false);
   assert.match(env.body, /unknown kind "arcs"/);
-  assert.match(env.body, /arc, increment/);
+  assert.match(env.body, /\barc\b/);
+});
+
+test("a DECLARED but EMPTY kind answers ZERO — it is not a typo, and must not be refused as one", async () => {
+  // The measured defect (found by the pre-merge librarian pass using this very verb): the offered
+  // kind set was derived from the rows the store HELD, so `open-question` — a real schema kind with
+  // no rows corpus-wide — came back "unknown kind". That tells the caller they mistyped when the
+  // true answer is zero, which is a misdirected signal about stored state: this arc's own fence.
+  const env = await libraryQuery(await seeded(), { ...base, kind: "open-question" });
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /^0 of 0 open-question/);
+  assert.match(
+    env.body,
+    /this zero is the corpus, not the predicate/,
+    "an empty TIER and zero MATCHES are different facts, and only the command knows which it reported",
+  );
+});
+
+test("--count on a declared-but-empty kind is a bare 0, not a refusal", async () => {
+  const env = await libraryQuery(await seeded(), { ...base, kind: "open-question", count: true });
+  assert.equal(env.ok, true);
+  assert.equal(env.body, "0");
+});
+
+test("the empty-tier note appears ONLY when the tier is empty, never on a zero-match predicate", async () => {
+  const env = await libraryQuery(await seeded(), {
+    ...base,
+    kind: "arc",
+    where: ["lifecycle=nonesuch"],
+  });
+  assert.equal(env.ok, true);
+  assert.match(env.body, /^0 of 3 arc/, "zero MATCHES against a populated tier");
+  assert.doesNotMatch(env.body, /this zero is the corpus/);
 });
 
 test("EVERY malformed clause is reported at once, not one re-run at a time", async () => {

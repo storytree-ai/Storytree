@@ -20,6 +20,7 @@
 import type { Store } from "@storytree/storage-protocol";
 import {
   isClauseError,
+  KIND_SPECS,
   matchesAll,
   parseQueryClause,
   readPath,
@@ -51,20 +52,27 @@ export interface QueryOptions {
  * than just naming the flag, so a caller who guessed the wrong kind is one read from the right one.
  */
 export async function libraryQuery(store: Store, opts: QueryOptions): Promise<Envelope> {
-  const kinds = [...new Set((await store.queryDocs()).map((d) => d.kind))].sort();
+  // TWO kind sets, and conflating them is the defect this verb exists to avoid. `populated` is what
+  // the store currently holds; `declared` is what the SCHEMA allows. A kind that is declared but
+  // empty is a legitimate query with the answer ZERO — reporting it as "unknown kind" tells the
+  // caller they typed it wrong, which is a misdirected signal about stored state and this arc's own
+  // fence. Measured on `open-question`: a real kind, zero rows, refused as a typo.
+  const populated = [...new Set((await store.queryDocs()).map((d) => d.kind))].sort();
+  const declared = new Set<string>(Object.keys(KIND_SPECS));
+  const offer = [...new Set([...declared, ...populated])].sort();
 
   if (opts.kind === undefined) {
     return {
       ok: false,
-      body: `library query needs --kind. available kinds: ${kinds.join(", ")}.`,
-      next: [`storytree library query --kind ${kinds[0] ?? "<kind>"} --pg`],
+      body: `library query needs --kind. available kinds: ${offer.join(", ")}.`,
+      next: [`storytree library query --kind ${offer[0] ?? "<kind>"} --pg`],
     };
   }
-  if (!kinds.includes(opts.kind)) {
+  if (!declared.has(opts.kind) && !populated.includes(opts.kind)) {
     return {
       ok: false,
-      body: `unknown kind "${opts.kind}". available kinds: ${kinds.join(", ")}.`,
-      next: [`storytree library query --kind ${kinds[0] ?? "<kind>"} --pg`],
+      body: `unknown kind "${opts.kind}". available kinds: ${offer.join(", ")}.`,
+      next: [`storytree library query --kind ${offer[0] ?? "<kind>"} --pg`],
     };
   }
 
@@ -120,6 +128,14 @@ export async function libraryQuery(store: Store, opts: QueryOptions): Promise<En
     return detail === "" ? `  ${row.id}` : `  ${row.id}   ${detail}`;
   });
 
+  // A declared kind holding NO rows at all: say so, so a zero cannot be misread as a bad query. The
+  // caller's next move differs — an empty TIER is a fact about the corpus, while zero MATCHES is a
+  // fact about the predicate — and only the command knows which it just reported.
+  const emptyTier =
+    all.length === 0
+      ? [``, `  (the ${opts.kind} tier is declared by the schema and currently holds no rows at all —`, `   this zero is the corpus, not the predicate.)`]
+      : [];
+
   const header = `${matched.length} of ${all.length} ${opts.kind}${predicate}`;
   const truncated =
     matched.length > shown.length
@@ -128,7 +144,7 @@ export async function libraryQuery(store: Store, opts: QueryOptions): Promise<En
 
   return {
     ok: true,
-    body: [header, ...rows, ...truncated].join("\n"),
+    body: [header, ...rows, ...emptyTier, ...truncated].join("\n"),
     next: [
       `storytree library artifact <id> --pg`,
       `storytree library query --kind ${opts.kind} --count --pg`,
