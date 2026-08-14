@@ -105,6 +105,7 @@ export {
   type SceneEmptyHex,
   BAKED_STONE_DEF,
   buildScene,
+  landCellId,
   buildTrails,
   buildTree,
   buildPlant,
