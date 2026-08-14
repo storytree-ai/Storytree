@@ -8,6 +8,7 @@ import {
   deliveredBySibling,
   extractIncrementPaths,
   incrementCommand,
+  premiseSignals,
   type IncrementCheckDeps,
 } from "./increment.js";
 
@@ -248,7 +249,7 @@ test("DRIFTED + a closed sibling recording delivery does NOT recommend the plann
   assert.match(env.body, /MAY HAVE NOTHING LEFT TO BUILD/);
   assert.match(env.body, /closed sibling "sib-1" names this increment in its body/);
 
-  const next = env.next.join("\n");
+  const next = (env.next ?? []).join("\n");
   assert.doesNotMatch(next, /agents planner/, "the measured misdirection: re-planning delivered work");
   assert.match(next, /arc increment close p1/, "closing the record is the honest terminal move");
   assert.match(next, /library artifact sib-1/, "and the evidence is one read away");
@@ -266,7 +267,7 @@ test("DRIFTED + status active|closed surfaces the write-lock the drifted branch 
       env.body,
       new RegExp(`status is ${status} — a ${status} increment is never re-executed`),
     );
-    assert.doesNotMatch(env.next.join("\n"), /agents planner/, `status ${status}`);
+    assert.doesNotMatch((env.next ?? []).join("\n"), /agents planner/, `status ${status}`);
   }
 });
 
@@ -281,7 +282,7 @@ test("DRIFTED with NO completion evidence still recommends re-planning, and SAYS
     /no completion evidence found/,
     "an absent signal must say it was CHECKED — a silent absence reads as 'never looked for'",
   );
-  assert.match(env.next.join("\n"), /agents planner/, "ADR-0183 D2 is unchanged for genuinely stale work");
+  assert.match((env.next ?? []).join("\n"), /agents planner/, "ADR-0183 D2 is unchanged for genuinely stale work");
 });
 
 test("the probe never fires on a FRESH increment — it costs a store read only where it can matter", async () => {
@@ -308,4 +309,104 @@ test("a sibling on a DIFFERENT arc is not consulted", async () => {
   const store = await seededWithSibling(closedSibling({ arcRef: "asset:other-arc" }));
   const env = await incrementCommand("check", "p1", {}, depsFor(store, DRIFT));
   assert.match(env.body, /no completion evidence found/);
+});
+
+// ---------------------------------------------------------------------------
+// THE PREMISE CHECK (`tool-signal-gaps-arc`, friction
+// `a-parked-entrys-premise-can-be-overtaken-with-no-freshness-check`)
+//
+// A parked increment prescribes a remedy against the world as it was the day it was parked. The
+// ANCHOR answers "did the ground move" and says nothing about whether the REASONING still holds, so
+// an entry dead on arrival was only discovered by reading source — after the work had been picked
+// up. Measured: two of four parked entries on one arc were dead on arrival, and one's literal
+// instruction would have added a tenth gate rung that ADR-0311 D1 forbids.
+// ---------------------------------------------------------------------------
+
+/** Layer the premise seams onto the standard deps. */
+function withPremise(
+  d: IncrementCheckDeps,
+  premise: {
+    pathExists?: (p: string) => boolean;
+    decisionsSince?: (iso: string) => { number: number; title: string }[];
+  },
+): IncrementCheckDeps {
+  return { ...d, ...premise };
+}
+
+test("premiseSignals reports vanished paths and later decisions, and skips absent seams", () => {
+  const paths = ["packages/a.ts", "packages/gone.ts"];
+  assert.deepEqual(premiseSignals(paths, "2026-07-10", {}), { vanished: [], decisions: [] });
+
+  const signals = premiseSignals(paths, "2026-07-10", {
+    pathExists: (p) => p !== "packages/gone.ts",
+    decisionsSince: () => [{ number: 311, title: "Nine rungs" }],
+  });
+  assert.deepEqual(signals.vanished, ["packages/gone.ts"]);
+  assert.deepEqual(signals.decisions, [{ number: 311, title: "Nine rungs" }]);
+});
+
+test("a GLOB path is never called vanished — it names a set, not a file", () => {
+  const signals = premiseSignals(["stories/app-guide/**"], "2026-07-10", {
+    pathExists: () => false,
+  });
+  assert.deepEqual(signals.vanished, [], "a glob cannot be stat'd; reporting it would be noise");
+});
+
+test("the premise block fires on a FRESH increment — it is ORTHOGONAL to drift", async () => {
+  // The costly case: FRESH by commit count and still dead on arrival. If the premise signal only
+  // rode the drifted branch it would be silent exactly where it is most needed.
+  const store = await seeded();
+  const env = await incrementCommand(
+    "check",
+    "p1",
+    {},
+    withPremise(depsFor(store, {}), {
+      decisionsSince: () => [{ number: 311, title: "Nine rungs, not ten" }],
+    }),
+  );
+  assert.match(env.body, /FRESH/);
+  assert.match(env.body, /PREMISE — what the anchor check cannot see/);
+  assert.match(env.body, /ADR-0311 {2}Nine rungs, not ten/);
+});
+
+test("a vanished named path is reported, WITH the caveat that a move looks the same", async () => {
+  const store = await seeded();
+  const env = await incrementCommand(
+    "check",
+    "p1",
+    {},
+    withPremise(depsFor(store, {}), {
+      pathExists: (p) => p !== "packages/library/src/knowledge.ts",
+    }),
+  );
+  assert.match(env.body, /1 named path\(s\) NO LONGER EXIST/);
+  assert.match(env.body, /packages\/library\/src\/knowledge\.ts/);
+  assert.match(env.body, /a move is as likely as a deletion/, "reported as evidence, not a verdict");
+});
+
+test("the decision list is CAPPED, most recent first, and says how many it withheld", async () => {
+  const many = Array.from({ length: 20 }, (_, i) => ({ number: 300 + i, title: `d${300 + i}` }));
+  const store = await seeded();
+  const env = await incrementCommand(
+    "check",
+    "p1",
+    {},
+    withPremise(depsFor(store, {}), { decisionsSince: () => many }),
+  );
+  assert.match(env.body, /20 decision\(s\) landed since this was anchored/, "the COUNT is unbounded");
+  assert.match(env.body, /ADR-0319/, "the most recent is shown");
+  assert.doesNotMatch(env.body, /ADR-0300\b/, "the oldest is withheld");
+  assert.match(env.body, /… 12 older/);
+  assert.match(env.body, /adr list --current/, "and the rest is one named command away");
+});
+
+test("NO premise signal prints NO premise block — a clean check stays clean", async () => {
+  const store = await seeded();
+  const env = await incrementCommand(
+    "check",
+    "p1",
+    {},
+    withPremise(depsFor(store, {}), { pathExists: () => true, decisionsSince: () => [] }),
+  );
+  assert.doesNotMatch(env.body, /PREMISE/);
 });

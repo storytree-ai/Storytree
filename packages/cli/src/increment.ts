@@ -113,11 +113,55 @@ export function arcIdOf(doc: Record<string, unknown>): string | null {
  */
 export type CountCommitsSince = (sha: string, path: string) => number;
 
-export interface IncrementCheckDeps {
+/**
+ * The PREMISE seams (`tool-signal-gaps-arc`, from friction
+ * `a-parked-entrys-premise-can-be-overtaken-with-no-freshness-check`).
+ *
+ * A parked increment prescribes a remedy against the world as it was the day it was parked. The
+ * anchor check answers "did the ground move" and says NOTHING about whether the REASONING still
+ * holds — so an entry dead on arrival was only discovered by reading source, after the work had
+ * already been picked up. Measured: two of four parked entries on one arc were dead on arrival, and
+ * one's literal instruction would have added a tenth gate rung that ADR-0311 D1 forbids. Building
+ * it as written would have been worse than not building it.
+ *
+ * Both seams are injected so the check stays provable with no filesystem and no decision log, and
+ * both are OPTIONAL: an absent seam degrades to today's behaviour rather than to a wrong answer.
+ */
+/** How many later decisions the premise block names before it summarises the rest. */
+const PREMISE_DECISION_CAP = 8;
+
+export interface IncrementPremiseDeps {
+  /** Does this repo path still exist? Absent = skip the vanished-path signal. */
+  pathExists?: (p: string) => boolean;
+  /** ADRs decided strictly after `isoDate`. Absent = skip the later-decisions signal. */
+  decisionsSince?: (isoDate: string) => { number: number; title: string }[];
+}
+
+export interface IncrementCheckDeps extends IncrementPremiseDeps {
   store: Store;
   countCommits: CountCommitsSince;
   /** True when the live store is attached (--pg) — used only for honest offline hints. */
   pg: boolean;
+}
+
+/**
+ * PURE: the premise signals the ANCHOR cannot carry.
+ *
+ * Deliberately NOT a verdict. Neither signal proves an entry is dead — a vanished path may have
+ * simply moved, and a later decision may be irrelevant — so both are reported as things to CHECK.
+ * That asymmetry is the point: the cost of reading five ADR titles is minutes, and the cost of
+ * building an overtaken instruction is the whole increment.
+ */
+export function premiseSignals(
+  paths: readonly string[],
+  since: string,
+  deps: IncrementPremiseDeps,
+): { vanished: string[]; decisions: { number: number; title: string }[] } {
+  const vanished = deps.pathExists
+    ? paths.filter((p) => !p.includes("*") && !deps.pathExists!(p))
+    : [];
+  const decisions = deps.decisionsSince ? deps.decisionsSince(since) : [];
+  return { vanished, decisions };
 }
 
 /** An increment's anchor/status read defensively off the untyped stored doc. */
@@ -217,6 +261,42 @@ export async function incrementCheck(
       ? `DRIFTED — ${totalCommits} commit(s) touched ${touched.length} of ${rows.length} named path(s) since the anchor.`
       : `FRESH — no named path moved past the threshold since the anchor.`,
   ];
+
+  // THE PREMISE CHECK — reported on BOTH verdicts, because it is orthogonal to drift. An entry can
+  // be perfectly FRESH by commit count and still be dead on arrival, which is precisely the case the
+  // anchor check cannot see and the one that cost the most: the session had already picked the work
+  // up before it found out.
+  const premise = premiseSignals(paths, date, deps);
+  if (premise.vanished.length > 0 || premise.decisions.length > 0) {
+    lines.push(
+      "",
+      "PREMISE — what the anchor check cannot see (these are things to CHECK, not a verdict):",
+    );
+    if (premise.vanished.length > 0) {
+      lines.push(
+        `  · ${premise.vanished.length} named path(s) NO LONGER EXIST — the instruction targets files that are gone:`,
+        ...premise.vanished.map((p) => `      ${p}`),
+        "    (a move is as likely as a deletion; confirm before reading it as dead.)",
+      );
+    }
+    if (premise.decisions.length > 0) {
+      // MOST RECENT FIRST and capped: a later decision is the likelier overtaker, and an uncapped
+      // list is its own kind of unread signal — a month-old entry lists 144 ADRs, which nobody
+      // reads. The COUNT is the load-bearing part (it prices the risk); the titles are the entry
+      // point. `adr list` is one command away for the rest, and it is named here.
+      const recent = [...premise.decisions].reverse();
+      const shown = recent.slice(0, PREMISE_DECISION_CAP);
+      lines.push(
+        `  · ${premise.decisions.length} decision(s) landed since this was anchored — read them before building it as written:`,
+        ...shown.map((d) => `      ADR-${String(d.number).padStart(4, "0")}  ${d.title}`),
+      );
+      if (recent.length > shown.length) {
+        lines.push(
+          `      … ${recent.length - shown.length} older (most recent shown first; \`storytree adr list --current\` for all)`,
+        );
+      }
+    }
+  }
 
   if (drifted && alreadyDone) {
     // The measured defect, inverted. Drift is anchor-vs-HEAD ONLY and says NOTHING about

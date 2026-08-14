@@ -15,7 +15,7 @@ import {
 import { loadFixtureCorpus } from "@storytree/library/fixture";
 
 import { CLI_AREAS } from "./cli-areas.js";
-import { run, terminalVerbFor, unknownAreaEnvelope } from "./commands.js";
+import { anchorFromSetValue, run, terminalVerbFor, unknownAreaEnvelope } from "./commands.js";
 import { formatEnvelope } from "./envelope.js";
 
 /**
@@ -1304,4 +1304,116 @@ test("artifact list still lists a kind the store holds but the knowledge schema 
   assert.equal(env.ok, true, env.body);
   assert.match(env.body, /template {2}\(1\)/);
   assert.match(env.body, /template-thing/);
+});
+
+// ---------------------------------------------------------------------------
+// `--set anchor=<sha>` on an increment (`tool-signal-gaps-arc`, from friction
+// `planner-cannot-anchor-existing-increment`).
+//
+// `anchor` is a structured `{sha, date}` and a `--set` value is always a string, so the documented
+// route refused with `anchor: Expected object, received string` — a message naming the type mismatch
+// and not the remedy. The measured cost: a planner asked to READY an existing proposal could not,
+// discarded a ready plan, and repeated the decomposition planlessly. Normalised exactly like the
+// `arcRef` coercion above.
+// ---------------------------------------------------------------------------
+
+const SHA = "a1b2c3d4e5f6789";
+
+/** An increment with no anchor — the shape a planner is asked to make consumable. */
+async function seededForAnchoring(): Promise<InMemoryStore> {
+  const store = new InMemoryStore();
+  await store.upsertDoc({
+    id: "inc-unanchored",
+    kind: "increment",
+    doc: {
+      kind: "increment",
+      id: "inc-unanchored",
+      title: "An unanchored proposal",
+      description: "d",
+      objective: "Do the thing.",
+      body: "touch `packages/cli/src`.",
+      arcRef: "asset:some-arc",
+      status: "proposal",
+      parked: "2026-08-13",
+      references: [],
+      createdAt: "2026-08-13",
+      updatedAt: "2026-08-13",
+    },
+  });
+  return store;
+}
+
+async function anchorOf(store: InMemoryStore): Promise<{ sha?: string; date?: string } | undefined> {
+  const doc = (await store.getDoc("inc-unanchored"))?.doc as
+    | { anchor?: { sha?: string; date?: string } }
+    | undefined;
+  return doc?.anchor;
+}
+
+test("artifact edit --set anchor accepts a BARE SHA and stamps the date for the caller", async () => {
+  const store = await seededForAnchoring();
+  const env = await run(
+    ["library", "artifact", "edit", "inc-unanchored", "--set", `anchor=${SHA}`],
+    { store, writable: true, now: () => new Date("2026-08-14T09:00:00Z") },
+  );
+  assert.equal(env.ok, true, env.body);
+  assert.deepEqual(await anchorOf(store), { sha: SHA, date: "2026-08-14" });
+});
+
+test("artifact edit --set anchor accepts the whole JSON object, keeping an explicit date", async () => {
+  const store = await seededForAnchoring();
+  const env = await run(
+    [
+      "library",
+      "artifact",
+      "edit",
+      "inc-unanchored",
+      "--set",
+      `anchor={"sha":"${SHA}","date":"2026-07-01"}`,
+    ],
+    { store, writable: true },
+  );
+  assert.equal(env.ok, true, env.body);
+  assert.deepEqual(await anchorOf(store), { sha: SHA, date: "2026-07-01" });
+});
+
+test("a non-SHA anchor is refused with the REMEDY named, not `Expected object, received string`", async () => {
+  const store = await seededForAnchoring();
+  const env = await run(
+    ["library", "artifact", "edit", "inc-unanchored", "--set", "anchor=nonsense"],
+    { store, writable: true },
+  );
+  assert.equal(env.ok, false);
+  assert.match(env.body, /is not a git SHA/);
+  assert.match(env.body, /git rev-parse HEAD/, "the refusal hands over the command that works");
+  assert.doesNotMatch(
+    env.body,
+    /Expected object, received string/,
+    "the measured misdirection: a type error naming neither field nor route",
+  );
+  assert.equal(await anchorOf(store), undefined, "nothing was written");
+});
+
+test("an EMPTY anchor clears the stamp rather than storing a broken one", async () => {
+  const store = await seededForAnchoring();
+  await run(["library", "artifact", "edit", "inc-unanchored", "--set", `anchor=${SHA}`], {
+    store,
+    writable: true,
+  });
+  const env = await run(["library", "artifact", "edit", "inc-unanchored", "--set", "anchor="], {
+    store,
+    writable: true,
+  });
+  assert.equal(env.ok, true, env.body);
+  assert.equal(await anchorOf(store), undefined);
+});
+
+test("anchorFromSetValue is pure: SHA case-folds, a bad JSON object names which half is wrong", () => {
+  const now = new Date("2026-08-14T00:00:00Z");
+  assert.deepEqual(anchorFromSetValue("A1B2C3D", now), { sha: "a1b2c3d", date: "2026-08-14" });
+  assert.deepEqual(anchorFromSetValue(`{"sha":"${SHA}"}`, now), { sha: SHA, date: "2026-08-14" });
+  assert.match(anchorFromSetValue('{"sha":"zz"}', now) as string, /anchor\.sha must be/);
+  assert.match(anchorFromSetValue("{not json", now) as string, /did not parse/);
+  assert.match(anchorFromSetValue('["a"]', now) as string, /is not a git SHA/);
+  assert.match(anchorFromSetValue("abc", now) as string, /is not a git SHA/);
 });
