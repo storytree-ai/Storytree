@@ -45,6 +45,8 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { deregisterSpawn, deriveIdentity, registerSpawn } from "@storytree/drive";
+
 import { discoverWorkspaceProjects, pnpmArgsFor, type AffectedScope } from "./ci-affected.js";
 import {
   GATE_PLAN,
@@ -249,6 +251,37 @@ function executeStep(step: GateStep): GateExecution {
   return { exitCode: res.status };
 }
 
+/**
+ * Register this gate run in the spawn registry (`shared-box-session-ownership-arc` inc 1), and hand
+ * back the de-registration.
+ *
+ * The gate is the LONGEST-lived thing a session starts and the one most often backgrounded, so it is
+ * the single most valuable row in `storytree own` — and the one whose absence hurt most: a session
+ * that has gone inert while a `gate:bg` is still walking the plan holds a working tree that is still
+ * being read. FAIL-SILENT and identity-gated exactly like the CLI's, so CI and the primary checkout
+ * register nothing.
+ */
+function registerGateRun(): () => void {
+  try {
+    const identity = deriveIdentity();
+    if (identity === null) return () => {};
+    const filePath = registerSpawn({
+      sessionId: process.env["STORYTREE_SESSION_ID"]?.trim() || identity.sessionId,
+      branch: identity.branch,
+      pid: process.pid,
+      command: `pnpm gate${process.argv.slice(2).length > 0 ? ` ${process.argv.slice(2).join(" ")}` : ""}`,
+      cwd: process.cwd(),
+      startedAt: new Date().toISOString(),
+    });
+    if (filePath === null) return () => {};
+    return () => {
+      deregisterSpawn(filePath);
+    };
+  } catch {
+    return () => {};
+  }
+}
+
 function main(): void {
   const argv = process.argv.slice(2);
   const failFast =
@@ -441,4 +474,13 @@ function main(): void {
   process.exitCode = gateExitCode(results, partial);
 }
 
-main();
+// Registered around the WHOLE run, including the fail-closed refusals above, so the row appears for
+// as long as this process exists and disappears when it does. A run killed outright (the second
+// Ctrl+C exits without unwinding) leaves its record behind — which is not a defect: that is exactly
+// what a leaked record MEANS, and reporting it is how a session learns its gate was killed.
+const deregisterGateRun = registerGateRun();
+try {
+  main();
+} finally {
+  deregisterGateRun();
+}

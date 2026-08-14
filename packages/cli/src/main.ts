@@ -29,8 +29,10 @@ import { isRawEnvelope, run } from "./commands.js";
 import { formatEnvelope, withDeltaFooter, type Envelope } from "./envelope.js";
 import {
   createClaimUniverseLoader,
+  deregisterSpawn,
   deriveIdentity,
   openCorpusStore,
+  registerSpawn,
   repoRoot,
   resolveStoreDoor,
 } from "@storytree/drive";
@@ -228,13 +230,55 @@ async function attachDeltaFooter(
  * error. It resolves in `main` rather than here because the offer-id plan (ADR-0260 D3) needs the
  * same answer BEFORE the render; it is still exactly ONE derivation per invocation.
  */
-function resolveCaptureSessionId(): string | null {
+function resolveCaptureSessionId(): { sessionId: string; branch: string } | null {
   try {
+    const derived = deriveIdentity();
     const override = process.env["STORYTREE_SESSION_ID"];
-    if (override !== undefined && override.trim().length > 0) return override;
-    return deriveIdentity()?.sessionId ?? null;
+    if (override !== undefined && override.trim().length > 0) {
+      return { sessionId: override, branch: derived?.branch ?? "" };
+    }
+    return derived === null ? null : { sessionId: derived.sessionId, branch: derived.branch };
   } catch {
     return null;
+  }
+}
+
+/**
+ * Register this invocation in the spawn registry, and hand back the de-registration
+ * (`shared-box-session-ownership-arc` inc 1).
+ *
+ * WHY EVERY INVOCATION AND NOT JUST THE LONG ONES. The registry has to be able to answer "what am I
+ * still running?" for the command that HUNG, and which command that will be is not knowable when it
+ * starts. A `library artifact edit --pg` is the cheap one that hangs — measured on this box — and it
+ * is also the one whose late commit silently reverts a field another session already corrected. So
+ * the registration is unconditional and the cost is kept to what it must be: one `mkdir -p` and one
+ * small `writeFileSync` at start, one `unlink` at exit, and NO extra `git` call — the identity is the
+ * one `main` already derived for capture (ADR-0162's startup budget).
+ *
+ * FAIL-SILENT and ADDITIVE, like the delta footer and the traversal capture beside it: a `null`
+ * identity (the primary checkout, CI) registers nothing, and a registry write that throws leaves the
+ * command untouched and simply uninventoried — the state every run was in before this existed.
+ */
+function registerThisInvocation(
+  argv: readonly string[],
+  identity: { sessionId: string; branch: string } | null,
+): () => void {
+  if (identity === null) return () => {};
+  try {
+    const filePath = registerSpawn({
+      sessionId: identity.sessionId,
+      branch: identity.branch,
+      pid: process.pid,
+      command: `storytree ${argv.join(" ")}`,
+      cwd: process.cwd(),
+      startedAt: new Date().toISOString(),
+    });
+    if (filePath === null) return () => {};
+    return () => {
+      deregisterSpawn(filePath);
+    };
+  } catch {
+    return () => {};
   }
 }
 
@@ -307,11 +351,16 @@ export async function main(): Promise<void> {
   // opt-out-clean envelope; D3's envelope clause is the narrower promise that no telemetry FAILURE
   // may alter one. ADR-0241's own Consequences make that split explicitly — don't cite D3 here.)
   const { argv: readArgv } = parseOfferFollow(argv);
-  const captureSessionId = resolveCaptureSessionId();
+  const identity = resolveCaptureSessionId();
+  const captureSessionId = identity?.sessionId ?? null;
   const offer =
     captureSessionId !== null && isTraversalCaptureEnabled()
       ? planOfferIdentity(readArgv, randomUUID)
       : null;
+  // `shared-box-session-ownership-arc` inc 1 — this invocation becomes visible to `storytree own`
+  // for as long as it runs. Registered BEFORE the store is built, because a `--pg` command that
+  // hangs on the connector handshake is precisely the one a session needs to be able to find.
+  const deregister = registerThisInvocation(argv, identity);
   const usePg = argv.includes("--pg");
   const { store, claims, ledger, verdicts, uatStore, attestations, adr, pullDeltas, close } = await buildStore(usePg);
   try {
@@ -358,6 +407,10 @@ export async function main(): Promise<void> {
     await captureInvocation(argv, readArgv, env.ok, store, captureSessionId, offer?.visitId);
   } finally {
     await close();
+    // LAST, and outside every other concern: the record must survive until the command genuinely
+    // stops doing work. `close()` above is the pool teardown that has itself been observed to hang
+    // after a `--pg` write commits — the exact shape a session needs `storytree own` to show it.
+    deregister();
   }
 }
 
