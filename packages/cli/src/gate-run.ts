@@ -29,9 +29,19 @@
 // Every failure mode widens to the full `-r` run, and `--full` / `STORYTREE_GATE_FULL=1` forces it.
 // `--scope` prints the decision and exits, so "what will my gate actually test?" is a question you
 // ask rather than infer from a five-minute run.
+//
+// RE-RUNNING PART OF THE PLAN (`gate-rerun.ts`). `--only <pattern>` runs the steps whose command
+// matches; `--rerun-failed` runs the steps the last WHOLE-plan run recorded FAIL or NOT RUN. Both are
+// about a flaked step costing ~80 minutes to re-prove, and both are fenced so a partial run cannot
+// print a whole-gate green: unselected steps get a NOT RUN row carrying why, the exit code is
+// GATE_PARTIAL_EXIT_CODE at best and never 0, and a partial run does not write the run record. The
+// record itself is the only new state — `.gate-logs/last-run.json`, gitignored and per-worktree, so it
+// can neither be committed nor read across worktrees; a run's own log/`.exit` files stay the
+// completion contract they already were.
 
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -53,11 +63,24 @@ import {
 } from "./gate-scope.js";
 import {
   type GateExecution,
+  type PartialRun,
   gateExitCode,
   renderGateSummary,
   runGate,
   tallyGate,
 } from "./gate-runner.js";
+import {
+  GATE_RUN_RECORD_FILE,
+  type GateRunRecord,
+  compareRerun,
+  encodeGateRunRecord,
+  parseGateRunRecord,
+  parseSelectionRequest,
+  recordFromResults,
+  renderRerunComparison,
+  resolveSelection,
+  treeChangedSince,
+} from "./gate-rerun.js";
 import { credentialFreeTestEnvironment, isStandardTestLeg } from "./gate-test-environment.js";
 
 // This file sits at packages/cli/src/ — three levels up is the repo root.
@@ -80,6 +103,88 @@ function git(args: string[]): { ok: boolean; stdout: string; detail: string } {
     return { ok: false, stdout: "", detail: `git ${args.join(" ")} failed: ${detail}` };
   }
   return { ok: true, stdout: res.stdout, detail: "" };
+}
+
+/** The path the run record lives at — inside the gitignored, per-worktree `.gate-logs/`. */
+const recordPath = path.join(repoRoot, ".gate-logs", GATE_RUN_RECORD_FILE);
+
+/** `git rev-parse HEAD`, or `null` when git could not answer (detached oddities, no repo). */
+function gitHead(): string | null {
+  const res = git(["rev-parse", "HEAD"]);
+  return res.ok ? res.stdout.trim() || null : null;
+}
+
+/**
+ * A digest of the working tree, or `null` when any input could not be read.
+ *
+ * ITS ONLY CONSUMER IS THE FLAKE CLAIM. `gate-rerun.ts` may call a fail→pass a `flake-signature` only
+ * when this digest is byte-identical across the two runs, so the question it has to answer is "could
+ * ANYTHING the gate reads have changed?" — and `null` (cannot tell) must stay distinguishable from
+ * equality, never collapse into it.
+ *
+ * THE APERTURE, STATED (`asset:an-observable-is-evidence-only-for-what-it-observes`). Three inputs:
+ * the porcelain status covers WHICH paths are dirty or untracked, `git diff HEAD` covers the exact
+ * CONTENT of every tracked change, and hashing the untracked files closes the content of the
+ * remainder — the one gap the first two leave, and the one that would matter, since a session editing
+ * a brand-new file would otherwise get an unchanged digest and a false `flake-signature`. GITIGNORED
+ * files are outside all three, deliberately: `.gate-logs/` is itself ignored and is rewritten by every
+ * run, so a digest that saw it could never be equal to itself.
+ */
+function treeDigest(): string | null {
+  const status = git(["status", "--porcelain", "-uall"]);
+  if (!status.ok) return null;
+  const diff = git(["diff", "HEAD"]);
+  if (!diff.ok) return null;
+  const others = git(["ls-files", "--others", "--exclude-standard"]);
+  if (!others.ok) return null;
+
+  let untrackedContent = "";
+  if (others.stdout.trim() !== "") {
+    const hashed = spawnSync("git", ["hash-object", "--stdin-paths"], {
+      cwd: repoRoot,
+      encoding: "utf8",
+      input: others.stdout,
+    });
+    if (hashed.error !== undefined || hashed.status !== 0) return null;
+    untrackedContent = hashed.stdout;
+  }
+
+  return createHash("sha256")
+    .update(status.stdout)
+    .update("\0")
+    .update(diff.stdout)
+    .update("\0")
+    .update(untrackedContent)
+    .digest("hex");
+}
+
+/** The recorded whole-gate run, or `null` when there is none this build understands. */
+function readRunRecord(): GateRunRecord | null {
+  try {
+    return parseGateRunRecord(readFileSync(recordPath, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Record a run so the next `--rerun-failed` knows what failed.
+ *
+ * ONLY EVER CALLED FOR A RUN THAT EXECUTED THE WHOLE PLAN — the caller checks, and the reason is in
+ * `gate-rerun.ts`'s header: a record written by a partial run would carry PASS rows nothing executed,
+ * and the next `--rerun-failed` would decline to re-run them on that basis. The lie would compound
+ * across runs instead of being visible in one.
+ *
+ * A FAILURE TO WRITE IS NOT A GATE FAILURE. The record is a convenience for the NEXT run; the verdict
+ * this run just computed stands either way, so a read-only or full disk warns and does not red.
+ */
+function writeRunRecord(record: GateRunRecord): void {
+  try {
+    mkdirSync(path.dirname(recordPath), { recursive: true });
+    writeFileSync(recordPath, encodeGateRunRecord(record), "utf8");
+  } catch (err) {
+    console.log(`${TAG} note: could not record this run for --rerun-failed: ${(err as Error).message}`);
+  }
 }
 
 /**
@@ -207,6 +312,36 @@ function main(): void {
     return;
   }
 
+  // --- which steps this run executes (the re-run surface) ---------------------------------------
+  // Resolved AFTER the ordering invariant, over the same scoped plan the runner is about to walk: the
+  // selection changes what RUNS, never what is planned or reported, so it must not be able to make a
+  // misordered plan look judgeable.
+  const parsed = parseSelectionRequest(argv);
+  if (!parsed.ok) {
+    console.error(`${TAG} REFUSED — ${parsed.message}`);
+    process.exitCode = 1;
+    return;
+  }
+  const record = parsed.request.mode === "rerun-failed" ? readRunRecord() : null;
+  const selection = resolveSelection({
+    steps,
+    request: parsed.request,
+    record,
+    recordPath: path.relative(repoRoot, recordPath).replaceAll("\\", "/"),
+  });
+  if (!selection.ok) {
+    console.error(`${TAG} REFUSED — ${selection.message}`);
+    process.exitCode = 1;
+    return;
+  }
+  const partial: PartialRun | undefined = selection.partial
+    ? { selected: selection.selected, notice: selection.notice }
+    : undefined;
+
+  // Sampled BEFORE the run, so it describes the tree the steps actually saw.
+  const head = gitHead();
+  const digest = treeDigest();
+
   // --- interruption ------------------------------------------------------------------------------
   // A step inherits stdio and runs synchronously, so on Ctrl+C the OS delivers the signal to the
   // child too and `executeStep` reports it. This flag covers the gap BETWEEN steps.
@@ -232,6 +367,7 @@ function main(): void {
       `Every step runs and is reported PASS / FAIL / SKIP / NOT RUN; the gate is green only if ` +
       `every step passed or declared a skip.`,
   );
+  if (partial !== undefined) console.log(`${TAG} ${selection.notice}`);
   console.log(`${TAG} ${renderScopeNotice(scope)}`);
   if (scope.mode === "affected") {
     console.log(
@@ -244,6 +380,7 @@ function main(): void {
     steps,
     execute: executeStep,
     failFast,
+    unselected: selection.unselected,
     shouldStop: () => interrupted,
     onStepStart: (step, index) => {
       console.log(`\n${TAG} ─── [${index + 1}/${total}] ${step.command} ───`);
@@ -261,16 +398,47 @@ function main(): void {
   // of letting it exit with the verdict it just computed.
   for (const [sig, handler] of handlers) process.off(sig, handler);
 
-  for (const line of renderGateSummary(results)) console.log(line);
+  for (const line of renderGateSummary(results, partial)) console.log(line);
+
+  // What a step that failed once and passes now is allowed to be CALLED — the friction
+  // `full-gate-worker-can-exit-without-test-failure`, where telling an unattributed worker exit from a
+  // real red cost an extra full gate. The claim is only as strong as the tree evidence, which is why
+  // `treeChangedSince` may answer `null` and the renderer then acquits nothing.
+  if (record !== null) {
+    const comparison = compareRerun({
+      record,
+      results,
+      selected: selection.selected,
+      treeChanged: treeChangedSince(record, head, digest),
+    });
+    for (const line of renderRerunComparison(comparison, record)) console.log(line);
+  }
 
   const tally = tallyGate(results);
-  if (tally.notRun > 0 && !failFast && !interrupted) {
+  if (tally.notRun > 0 && !failFast && !interrupted && partial === undefined) {
     console.log(
       `${TAG} note: ${tally.notRun} step(s) did not run. Under the default run-all mode that means ` +
         `the run was interrupted or a step was killed — not that they passed.`,
     );
   }
-  process.exitCode = gateExitCode(results);
+
+  // ONLY A WHOLE-PLAN RUN IS RECORDABLE. An interrupted run is not one either: its `not-run` rows are
+  // genuinely unverified, and recording them is right — `--rerun-failed` re-runs `not-run` alongside
+  // `fail` for exactly that reason — but a run that never walked the whole plan by SELECTION must not
+  // leave a record behind at all (`gate-rerun.ts`, the third fence).
+  if (partial === undefined) {
+    writeRunRecord(
+      recordFromResults({
+        results,
+        finishedAt: new Date().toISOString(),
+        head,
+        treeDigest: digest,
+        scope: renderScopeNotice(scope),
+      }),
+    );
+  }
+
+  process.exitCode = gateExitCode(results, partial);
 }
 
 main();

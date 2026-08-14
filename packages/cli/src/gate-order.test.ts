@@ -291,6 +291,28 @@ test("the root `gate` script invokes the runner, so GATE_PLAN is what actually r
   assert.match(rootScripts()["gate"] ?? "", /gate-run\.ts/);
 });
 
+test("the root `gate` script itself PRESERVES exit codes — it now carries a protocol of its own", () => {
+  // The same hazard as the skip protocol above, one level out. The re-run surface (`gate-rerun.ts`)
+  // makes the gate exit GATE_PARTIAL_EXIT_CODE (4) for "every step I selected passed, and I was not a
+  // whole gate". MEASURED here 2026-08-14, both forms, on this repo:
+  //
+  //     pnpm --filter @storytree/cli exec node -e "process.exit(4)"  -> exit 1   <- COLLAPSES
+  //     pnpm -C packages/cli         exec node -e "process.exit(4)"  -> exit 4
+  //
+  // On the collapsing form a partial run's 4 arrives as 1, i.e. as an ordinary red, and the one
+  // distinction the re-run surface exists to draw — "the flake cleared" vs "it is genuinely red" —
+  // is destroyed silently, in the direction that reads as a failure. Nothing else about the gate
+  // changes: 0 stays 0 and 1 stays 1 through both forms.
+  const script = rootScripts()["gate"] ?? "";
+  assert.ok(script.length > 0, "the root `gate` script is gone");
+  assert.ok(
+    !script.includes(EXIT_CODE_COLLAPSING_INVOCATION),
+    "`gate` reports GATE_PARTIAL_EXIT_CODE for a partial re-run, but is invoked via " +
+      `\`${EXIT_CODE_COLLAPSING_INVOCATION}\`, which collapses it to 1. Use \`pnpm -C packages/cli ` +
+      `exec …\`. Script: ${script}`,
+  );
+});
+
 // ── the tombstone vs. the real source tree (ADR-0311 D2/D5) ──────────────────
 //
 // The three tests above guard a check that EXISTS but never runs. These guard the mirror image: a

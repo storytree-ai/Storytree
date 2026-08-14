@@ -97,6 +97,27 @@ export type GateStepStatus = "pass" | "fail" | "not-run" | "skip";
  */
 export const GATE_SKIP_EXIT_CODE = 3;
 
+/**
+ * The exit code a PARTIAL run uses for "every step I SELECTED passed — and I was not a whole gate"
+ * (the re-run surface, `gate-rerun.ts`).
+ *
+ * WHY A PARTIAL RUN NEEDS ITS OWN CODE. A partial re-run must never exit 0 — that is the design
+ * constraint the whole re-run surface is fenced by, and {@link gateExitCode} enforces it. But without
+ * a second non-zero value the two outcomes a session actually re-runs to tell apart — "the flake
+ * cleared" and "the step is genuinely red" — would both be 1, i.e. indistinguishable. That is this
+ * module's own defect one layer along: a verdict collapsing two states a reader needs separated.
+ *
+ * WHY 4. 0 is a whole-gate pass, 1 is failure, 2 is shell misuse, 3 is {@link GATE_SKIP_EXIT_CODE}.
+ * 4 is the first value no path here already means.
+ *
+ * IT IS NOT A GREEN, AND NOTHING READS IT AS ONE. It is non-zero, so `scripts/gate-bg.mjs`, every
+ * `&&` chain and every caller reading only the exit code still sees "not green" — deliberately.
+ * CI never runs a partial gate, so no CI step can observe it; the trap recorded against the skip
+ * protocol (exit 3 is a contract with `gate-run.ts`, while `.github/workflows/ci.yml` reads ANY
+ * non-zero as a hard red) does not reach here, and must not be re-opened by wiring `--only` into CI.
+ */
+export const GATE_PARTIAL_EXIT_CODE = 4;
+
 /** What one executed step reported. */
 export interface GateExecution {
   /** The process exit code; `null` when the step could not be spawned at all. */
@@ -132,6 +153,18 @@ export interface RunGateInput {
   readonly failFast?: boolean;
   /** Checked before each step; `true` stops the walk and reports the remainder `not-run`. */
   readonly shouldStop?: () => boolean;
+  /**
+   * Steps this run deliberately does NOT execute, keyed command → the reason for its `not-run` row
+   * (the re-run surface, `gate-rerun.ts`). The step still gets a row, still in plan order — the
+   * selection changes what RAN, never what is REPORTED.
+   *
+   * DELIBERATELY NOT A FILTER ON `steps`. Dropping unselected steps from the array would satisfy the
+   * runner just as well and would destroy the two properties this module exists for: every planned
+   * step gets exactly one row, and `gate-run.ts` can re-judge the ordering invariant over the plan it
+   * is actually about to walk. A partial run that quietly shortened the plan would report a complete
+   * table over an incomplete gate — the exact shape of dishonesty being fixed.
+   */
+  readonly unselected?: ReadonlyMap<string, string>;
   readonly onStepStart?: (step: GateStep, index: number, total: number) => void;
   readonly onStepDone?: (result: GateStepResult, index: number, total: number) => void;
   /** Injected clock (default `Date.now`) so durations are reportable without a real timer in tests. */
@@ -151,6 +184,23 @@ export function runGate(input: RunGateInput): GateStepResult[] {
 
   let stopped: string | undefined;
   for (const [index, step] of steps.entries()) {
+    // The selection is checked FIRST and never sets `stopped`: "you did not ask for this one" is both
+    // the truer reason and independent of an interruption, and an unselected step must not make the
+    // walk look interrupted for the steps behind it.
+    const notSelected = input.unselected?.get(step.command);
+    if (notSelected !== undefined) {
+      const result: GateStepResult = {
+        command: step.command,
+        status: "not-run",
+        exitCode: null,
+        durationMs: 0,
+        note: notSelected,
+      };
+      results.push(result);
+      input.onStepDone?.(result, index, total);
+      continue;
+    }
+
     if (stopped === undefined && input.shouldStop?.() === true) stopped = "interrupted";
 
     if (stopped !== undefined) {
@@ -213,6 +263,18 @@ export function tallyGate(results: readonly GateStepResult[]): GateTally {
 }
 
 /**
+ * A run that deliberately executed only PART of the plan — the re-run surface's context, resolved by
+ * `gate-rerun.ts` and passed to the two reporting functions here so neither can accidentally phrase a
+ * partial run as a whole one.
+ */
+export interface PartialRun {
+  /** The commands this run selected for execution. */
+  readonly selected: ReadonlySet<string>;
+  /** One line naming what this run covers and what it does not. */
+  readonly notice: string;
+}
+
+/**
  * The gate's exit code. GREEN ONLY IF EVERY STEP PASSED OR DECLARED A SKIP — a `not-run` step is
  * unverified with nobody having asked, and that is not green. An empty result set is likewise
  * non-zero: a run that proved nothing has not earned a pass.
@@ -223,9 +285,22 @@ export function tallyGate(results: readonly GateStepResult[]): GateTally {
  * declared it. The honesty this buys is in the REPORT ({@link renderGateSummary}), which names every
  * skipped step and says in terms that green with skips is narrower than green: the defect being fixed
  * was that PASS was printed over an opt-out, not that the exit code was 0.
+ *
+ * A PARTIAL RUN CAN NEVER REACH 0, AND THAT IS THE RE-RUN SURFACE'S WHOLE FENCE. Given a
+ * {@link PartialRun} the verdict is judged over the SELECTED steps only — the unselected ones are
+ * `not-run` and prove nothing — and the best available answer is {@link GATE_PARTIAL_EXIT_CODE},
+ * never 0. A partial run that selected nothing, or whose own selected step was killed, is 1: it did
+ * not even earn the partial code.
  */
-export function gateExitCode(results: readonly GateStepResult[]): number {
+export function gateExitCode(results: readonly GateStepResult[], partial?: PartialRun): number {
   if (results.length === 0) return 1;
+  if (partial !== undefined) {
+    const selected = results.filter((r) => partial.selected.has(r.command));
+    if (selected.length === 0) return 1;
+    return selected.every((r) => r.status === "pass" || r.status === "skip")
+      ? GATE_PARTIAL_EXIT_CODE
+      : 1;
+  }
   return results.every((r) => r.status === "pass" || r.status === "skip") ? 0 : 1;
 }
 
@@ -246,7 +321,10 @@ function formatDuration(ms: number): string {
  * The per-step summary table. Every step appears, with its own status — the whole point being that a
  * reader can tell a step that FAILED from a step that NEVER RAN without reconstructing the plan.
  */
-export function renderGateSummary(results: readonly GateStepResult[]): string[] {
+export function renderGateSummary(
+  results: readonly GateStepResult[],
+  partial?: PartialRun,
+): string[] {
   const tally = tallyGate(results);
   const width = Math.max(0, ...results.map((r) => r.command.length));
   const lines = ["", "=== gate summary ===", ""];
@@ -287,6 +365,37 @@ export function renderGateSummary(results: readonly GateStepResult[]): string[] 
       "  green means. Supply their missing inputs to actually verify them:",
     );
     for (const r of results.filter((x) => x.status === "skip")) lines.push(`    ${r.command}`);
+  }
+
+  // A PARTIAL RUN GETS ITS OWN VERDICT VOCABULARY, and the reason is that the honest whole-gate word
+  // for it — RED — would be actively misleading. A session re-running one flaked step and reading
+  // `GATE RED` would conclude something failed, when what happened is that nine steps were never
+  // asked. So the partial verdict states the arithmetic instead of borrowing a word: how many ran, how
+  // many did not, whether the ones that ran passed, and that none of it gates anything.
+  if (partial !== undefined) {
+    const selected = results.filter((r) => partial.selected.has(r.command));
+    const failed = selected.filter((r) => r.status === "fail");
+    const unverified = selected.filter((r) => r.status === "not-run");
+    lines.push(
+      "",
+      `  PARTIAL RUN — NOT A GATE VERDICT. ${selected.length} of ${results.length} planned step(s) ` +
+        `executed; ${results.length - selected.length} were not.`,
+      `  ${partial.notice}`,
+    );
+    if (failed.length > 0) {
+      lines.push(`  ${failed.length} of the executed step(s) FAILED — see FAILED above.`);
+    } else if (unverified.length > 0) {
+      lines.push(
+        `  ${unverified.length} of the executed step(s) produced NO verdict (killed or interrupted).`,
+      );
+    } else {
+      lines.push(
+        `  Every executed step passed or declared a skip. That says nothing about the ` +
+          `${results.length - selected.length} step(s) above that did not run.`,
+      );
+    }
+    lines.push("  Run `pnpm gate` over the whole plan for a verdict that gates.", "");
+    return lines;
   }
 
   const green = gateExitCode(results) === 0;

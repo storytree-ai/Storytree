@@ -29,7 +29,7 @@
     "sync:web-engine": "pnpm --filter @storytree/cli exec node --import tsx src/web-engine.ts",
     "check:web-engine": "pnpm -C packages/cli exec node --import tsx src/web-engine.ts --check",
     "ci:affected": "pnpm --filter @storytree/cli exec node --import tsx src/ci-affected-main.ts",
-    "gate": "pnpm --filter @storytree/cli exec node --import tsx src/gate-run.ts",
+    "gate": "pnpm -C packages/cli exec node --import tsx src/gate-run.ts",
     "gate:bg": "node scripts/gate-bg.mjs",
     "sync": "git fetch origin && git rebase origin/main",
     "db:up": "pnpm --filter @storytree/cli run db -- up",
