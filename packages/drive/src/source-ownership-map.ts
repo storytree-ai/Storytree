@@ -67,22 +67,39 @@ export function readSourceOwnershipMap(manifestPath: string | null): SourceOwner
     return fail("no repo manifest was supplied, so declared subtrees are unknown");
   }
   if (!existsSync(manifestPath)) return fail(`the repo manifest at ${manifestPath} is absent`);
+  return parseSourceOwnershipMap(readFileSync(manifestPath, "utf8"), `the repo manifest`);
+}
 
+/**
+ * The PURE half of {@link readSourceOwnershipMap} — the map read out of manifest TEXT.
+ *
+ * EXTRACTED RATHER THAN CLONED, which is the whole reason it is exported. `check:ownership-totality`
+ * has to ask the same question of the manifest as it stood at `git merge-base origin/main HEAD` — was
+ * this file owned BEFORE this branch? — and that text arrives from `git show`, never from a path. A
+ * second parser at the call site would be a second place that knows the manifest's shape, in a check
+ * whose entire verdict is a comparison between two reads of it: the two could disagree about what is
+ * declared, and the disagreement would present as a phantom ownership change nobody made. Sharing the
+ * parse makes the two reads structurally identical.
+ *
+ * `source` names where the text came from, so a failure says which read broke — "the repo manifest"
+ * and "the merge-base repo manifest" are very different repairs.
+ */
+export function parseSourceOwnershipMap(text: string, source: string): SourceOwnershipMapRead {
   let manifest: Record<string, unknown>;
   try {
-    manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as Record<string, unknown>;
+    manifest = JSON.parse(text) as Record<string, unknown>;
   } catch (err) {
     const why = err instanceof Error ? err.message : String(err);
-    return fail(`the repo manifest is unreadable (${why})`);
+    return fail(`${source} is unreadable (${why})`);
   }
 
   const block = manifest["sourceOwnership"];
   if (block === null || typeof block !== "object") {
-    return fail("the repo manifest declares no `sourceOwnership` block");
+    return fail(`${source} declares no \`sourceOwnership\` block`);
   }
   const raw = (block as Record<string, unknown>)["subtrees"];
   if (raw === null || typeof raw !== "object") {
-    return fail("the repo manifest declares no `sourceOwnership.subtrees` map");
+    return fail(`${source} declares no \`sourceOwnership.subtrees\` map`);
   }
 
   const subtrees: SubtreeOwnershipEntry[] = [];

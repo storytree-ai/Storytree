@@ -113,7 +113,7 @@ the closed half of ADR-0196's own arc row has been unreachable since 2026-07-14.
 
 Both reading surfaces are blind, in opposite directions:
 
-- **CLI**: `arcList` (`packages/cli/src/arc.ts:104-115`) renders id, increment count, last landing
+- **CLI**: `arcList` (`packages/arc/src/arc.ts`, moved from `packages/cli` by ADR-0369) renders id, increment count, last landing
   date/PR, title. No state column, no filter. A closed arc and a live one are the same row. Contrast
   `arc show`, which *does* print plan state (`[consumed]`) — plans have a lifecycle; their owning arc
   does not.
@@ -187,7 +187,7 @@ omission is visible weekly instead of at audit time.
 ### D4 — The reminder lives in the tool output, not in any agent prompt
 
 **No ceremony amendment, and no new prompt text.** `arc increment add` already returns a `next:`
-block (`packages/cli/src/arc.ts:353-356`); it gains two lines at the point of use — the arc's stored
+block (`packages/arc/src/arc.ts`, moved from `packages/cli` by ADR-0369); it gains two lines at the point of use — the arc's stored
 `endState` echoed back, and `next: storytree arc close <id> --outcome "…" --pg  (if this landing met
 the end state)`. The session that just appended an increment reads the closure question at the exact
 moment it can answer it, from data it already asked for.
@@ -284,9 +284,9 @@ honest limit of this proposal is that it makes closure cheap and visible, not au
   compliance gate).
 - Code: `packages/library/src/knowledge.ts` (`KIND_SPECS.arc` ≈ L523, `Arc` ≈ L910),
   `packages/library/src/lifecycle.ts:62-63` (the hardcoded `arc → active`),
-  `packages/cli/src/arc.ts:91-116` (`arcList`, no state column), `packages/cli/src/arc.ts:259-357`
-  (`arcEdit` / `arcIncrementAdd` — the only arc write verbs; `:353-356` is the `next:` block D4
-  extends),
+  `packages/arc/src/arc.ts` (`arcList`, no state column; `arcEdit` / `arcIncrementAdd` — the only
+  arc write verbs, whose `next:` block D4 extends — moved here from `packages/cli` by ADR-0369, so
+  the line ranges this bullet once carried no longer apply),
   `apps/studio/src/components/LibraryFinder.tsx:60` (selector defaults to `open`).
 - `stories/library-tech-tree-overlay/library-lifecycle-wire.md:162-164` (the capability spec that
   recorded the deferral).

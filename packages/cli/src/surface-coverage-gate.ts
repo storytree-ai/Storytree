@@ -376,12 +376,22 @@ export function deriveCommandRegister(sources: readonly string[]): CommandNode {
   return root;
 }
 
-/** Read every non-test `.ts` under the CLI's `src/` — the sources {@link deriveCommandRegister} reads. */
-export function readCliSources(cliSrcDir: string): string[] {
-  return readdirSync(cliSrcDir)
-    .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"))
-    .sort()
-    .map((f) => readFileSync(path.join(cliSrcDir, f), "utf8"));
+/**
+ * Read every non-test `.ts` under each given `src/` — the sources {@link deriveCommandRegister} reads.
+ *
+ * ⚠ VARIADIC BECAUSE THE MOUNTED SURFACE IS NO LONGER ONE PACKAGE. `arc-tier-extraction-arc` moved
+ * `arc.ts` / `increment.ts` / `question.ts` into `@storytree/arc`, so a register derived from
+ * `packages/cli/src` alone stops mounting `storytree arc …` and every process prescribing an arc verb
+ * reads as dangling. The register must be derived from every package that CONTRIBUTES verbs to the
+ * one dispatcher, not from the package the dispatcher happens to live in.
+ */
+export function readCliSources(...srcDirs: string[]): string[] {
+  return srcDirs.flatMap((dir) =>
+    readdirSync(dir)
+      .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"))
+      .sort()
+      .map((f) => readFileSync(path.join(dir, f), "utf8")),
+  );
 }
 
 /**
@@ -624,10 +634,12 @@ export async function loadSurfaceCoverageInputs(opts: {
   store: Store;
   packageJsonPath: string;
   /**
-   * The CLI's own `src/` — the mounted register for axis (c) is derived from it. Omit to load the
-   * two original axes only, which is what a fixture-only caller wants.
+   * Every `src/` that contributes verbs to the one dispatcher — the mounted register for axis (c) is
+   * derived from all of them. Omit (or pass an empty list) to load the two original axes only, which
+   * is what a fixture-only caller wants. Plural since `arc-tier-extraction-arc` split the verb
+   * surface across `@storytree/cli` and `@storytree/arc`.
    */
-  cliSrcDir?: string;
+  cliSrcDirs?: readonly string[];
 }): Promise<{ processes: ProcessSurfaces[]; entrypoints: Entrypoint[]; register?: CommandNode }> {
   const pkg = JSON.parse(readFileSync(opts.packageJsonPath, "utf8")) as { scripts?: Record<string, string> };
   const scriptNames = Object.keys(pkg.scripts ?? {});
@@ -648,6 +660,8 @@ export async function loadSurfaceCoverageInputs(opts: {
   return {
     processes,
     entrypoints,
-    ...(opts.cliSrcDir === undefined ? {} : { register: deriveCommandRegister(readCliSources(opts.cliSrcDir)) }),
+    ...(opts.cliSrcDirs === undefined || opts.cliSrcDirs.length === 0
+      ? {}
+      : { register: deriveCommandRegister(readCliSources(...opts.cliSrcDirs)) }),
   };
 }

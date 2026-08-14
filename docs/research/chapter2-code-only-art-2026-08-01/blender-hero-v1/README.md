@@ -42,6 +42,16 @@ python sheet.py exp16-vs-v8-vs-v9.png "exp16=../../../../packages/app-surface/sr
 `register_track.py` need system Python with numpy + Pillow. `bpy` from PyPI is not a route on this
 machine because there is no wheel for Python 3.14.5.
 
+**Every sheet now lands with its own producer record, and a mixed-code-state sheet is refused.**
+`sheet.py` writes `<name>.png.provenance.json` beside each picture — this exact argv, every cell it
+composed, a content hash per frame and per output — and it REFUSES to draw when two cells declare
+different code states, before it has imported the imaging stack or written a byte. The code state is
+`blender_tree.py`'s own source digest, recorded in `render-meta.json` at render time and propagated
+into the delivered directory's `registration.json` by `pixelise.py`; ask for it directly with
+`python provenance.py check <label>=<dir> …`. A directory that declares nothing is UNDECLARED and is
+never counted, so nothing here polices the pictures already committed and no gate step exists —
+`provenance.py`'s module docstring carries the three observations and the decision behind that shape.
+
 Run structural sweeps under Blender too:
 
 ```text
@@ -177,7 +187,11 @@ used to pick staging B; a decided fork's evidence is a historical record, not a 
 
 `crown-normals-fork.png` is v8 evidence and remains useful because it established that shading
 does not control bark: across mixes 0.00–1.00, bark stayed at 629–631 px. v9 does not retune
-`--crown-normals 0.22`; it changes only the vertical position of low rim lobes.
+`--crown-normals 0.22`; it changes only the vertical position of low rim lobes. It is also the
+picture that motivated the producer records above: four of its five variants were rendered before a
+canopy constant existed and one after, so a sheet whose whole purpose was isolating ONE lever varied
+two, with no error and no visible cue. Composed today, `sheet.py` would refuse it rather than draw
+it. Nothing re-renders it — it stays as the record of what was shown.
 
 ## 6. Honest remaining gaps
 

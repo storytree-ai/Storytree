@@ -41,7 +41,8 @@ ADR-0239 D2 wrote: *"Re-opening (`closed → active`) is **owner-only**, mirrori
 human-only `accepted → proposed` un-deciding."* Nothing was ever built behind that sentence:
 
 - `storytree arc close` refuses when the arc is already closed
-  (`packages/cli/src/arc.ts`, the `lifecycle === "closed"` guard in `arcClose`).
+  (`packages/arc/src/arc.ts`, moved out of `packages/cli` by ADR-0369, the `lifecycle === "closed"`
+  guard in `arcClose`).
 - `storytree library artifact edit <arc-id> --set lifecycle=active --pg` is refused unconditionally
   for the `arc` kind (`packages/cli/src/commands.ts`, the `--set` loop's policy guard).
 - A repo-wide search found no `arc reopen` verb, and neither refusal carried a flag, an env var, or
@@ -190,5 +191,8 @@ what the author typed, which is stated here rather than left to be discovered.
   atomicity and why the reopening entry is permanent.
 - ADR-0084 — the human-only un-deciding D2 mirrored, itself enforced by prose with no verb behind it.
 - ADR-0139 — why the prose corrections above are made in place rather than by superseding.
-- `packages/cli/src/arc.ts` (`arcReopen`), `packages/cli/src/commands.ts` (dispatch + the `--set`
-  refusal), `packages/cli/src/arc.test.ts` / `cli.test.ts` (the contract).
+- `packages/arc/src/arc.ts` (`arcReopen`; moved out of `packages/cli` by ADR-0369),
+  `packages/cli/src/commands.ts` (dispatch + the `--set` refusal — unmoved),
+  `packages/arc/src/arc.test.ts` (moved with `arc.ts`) / `packages/cli/src/cli.test.ts` (the
+  contract — unmoved, per ADR-0369's reasoning that its dispatcher-level regressions belong on the
+  CLI's integration surface).

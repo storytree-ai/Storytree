@@ -1,7 +1,7 @@
 // The arc surface's PURE derivation layer (ADR-0314) — momentum lanes, arc state, and the briefing
 // panel's payload, all computed from ONE already-joined `ArcRollup` and nothing else.
 //
-// WHERE THE JOIN LIVES, AND WHY NONE OF IT IS HERE. `packages/drive/src/arc-rollup.ts` owns the
+// WHERE THE JOIN LIVES, AND WHY NONE OF IT IS HERE. `packages/arc/src/arc-rollup.ts` owns the
 // arc → children join, and both `storytree arc show` and `GET /api/arcs` render from that one
 // value. This module derives PRESENTATION from an already-joined rollup: which bars a lane draws,
 // which state a lane reads, what the briefing panel shows. It never re-derives membership, never
@@ -303,7 +303,7 @@ const STATE_RANK: Readonly<Record<DerivableArcState, number>> = {
 };
 
 /**
- * Which arcs {@link arcLanes} draws — the CLI's `ArcScope` naming (`packages/cli/src/arc.ts`),
+ * Which arcs {@link arcLanes} draws — the CLI's `ArcScope` naming (`packages/arc/src/arc.ts`),
  * reused here as a plain string union rather than an import: the studio must not depend on `cli`.
  * `active` is the default and matches ADR-0239 D3 / ADR-0335's own worklist framing.
  */

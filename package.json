@@ -14,6 +14,7 @@
     "test": "pnpm -r test",
     "storytree": "node packages/cli/launch.mjs",
     "check:boundaries": "pnpm --filter @storytree/cli exec node --import tsx src/check-boundaries.ts",
+    "check:ownership-totality": "pnpm --filter @storytree/cli exec node --import tsx src/check-ownership-totality.ts",
     "check:mirror-conformance": "pnpm --filter @storytree/cli exec node --import tsx src/check-mirror-conformance.ts",
     "build:guidance": "pnpm --filter @storytree/cli exec node --import tsx src/build-claude-md.ts",
     "check:guidance": "pnpm --filter @storytree/cli exec node --import tsx src/build-claude-md.ts --check",

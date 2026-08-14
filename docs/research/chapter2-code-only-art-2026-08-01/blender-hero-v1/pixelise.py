@@ -31,6 +31,8 @@ import sys
 import numpy as np
 from PIL import Image
 
+from provenance import producer_record
+
 SRC = sys.argv[1]
 DST = sys.argv[2]
 TARGET = int(sys.argv[3]) if len(sys.argv) > 3 else 128
@@ -286,6 +288,12 @@ anchors = [f["sourceAnchor"] for f in frames if f["sourceAnchor"][0] is not None
 reg = {
     "track": "blender-hero-v1",
     "provenance": "code-generated (ADR-0280 D1); headless Blender finish (D2a); model-free",
+    # PROPAGATED, not re-derived: the delivered directory is what `sheet.py` composes from, so the
+    # render's own code state has to travel with the frames or a composer has nothing to compare.
+    # Absent when the raw directory predates the field, which is UNDECLARED and never a refusal.
+    "codeState": render_meta.get("code_state"),
+    "producer": producer_record(__file__),
+    "producerArgv": sys.argv[1:],
     "canvas": {"width": TARGET, "height": TARGET, "format": "PNG", "decoded": "RGBA8"},
     "frameCount": len(frames),
     "frameOrder": [f["file"] for f in frames],
