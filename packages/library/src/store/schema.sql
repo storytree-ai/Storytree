@@ -344,6 +344,53 @@ CREATE INDEX IF NOT EXISTS attestation_test_idx ON events.attestation (test_id);
 CREATE INDEX IF NOT EXISTS uat_drive_criterion_idx ON events.uat_drive (criterion_id);
 CREATE INDEX IF NOT EXISTS change_event_unit_idx ON events.change_event (unit_id);
 
+-- MIGRATION (ADR-0350 D1): the CAUSAL EDGE — two nullable columns on every append-only stream, so an
+-- event caused by another event can say so AT EMISSION. `caused_by_stream` names the cause's table
+-- and `caused_by_seq` its BIGSERIAL primary key; together they are a qualified reference to the only
+-- addressable event identity that exists today. Deliberately NOT a cross-table constraint, per
+-- ADR-0017's rule that relationships are plain id references — and deliberately no global event id
+-- (ADR-0350 candidate B, refused on sequencing: it would need every stream migrated before a single
+-- edge could be drawn).
+--
+-- NULLABLE AND UNBACKFILLED, PERMANENTLY. ADR-0350 D2: the emitter stamps it or it is absent, and
+-- nothing downstream may fill the silence — no backfill pass, no correlation job, no "nearest
+-- preceding event in the same run", no join on unit_id plus adjacency. Under-reporting is the
+-- ACCEPTED failure mode here; inference is the banned repair. So NULL means UNRECORDED, and it is
+-- every reader's job (D3) to render that as `caused by: not recorded` rather than as a blank that
+-- would read as "nothing caused this".
+--
+-- ALTER-ONLY, WITH NO MATCHING EDIT TO THE CREATEs ABOVE, AND THAT STILL CONVERGES: applySchema runs
+-- this whole file on every boot, so a fresh install CREATEs each table and then arrives here, ending
+-- at the identical shape an existing database reaches. Every statement is a guarded no-op on re-run.
+--
+-- THE LIST IS THE ELEVEN append-only streams that carry a BIGSERIAL primary key. ADR-0350 D1 says
+-- "ten"; the count was accurate when it was written and the tree has since grown one, so the ADR's
+-- number is stale while its rule is not. Kept as an explicit enumeration rather than a catalog loop
+-- so that a NEW stream does not silently acquire causal columns it has no emitter for — adding one
+-- here should be a decision someone writes down.
+ALTER TABLE events.library_event    ADD COLUMN IF NOT EXISTS caused_by_stream TEXT,
+                                    ADD COLUMN IF NOT EXISTS caused_by_seq    BIGINT;
+ALTER TABLE events.comment_event    ADD COLUMN IF NOT EXISTS caused_by_stream TEXT,
+                                    ADD COLUMN IF NOT EXISTS caused_by_seq    BIGINT;
+ALTER TABLE events.suggestion_event ADD COLUMN IF NOT EXISTS caused_by_stream TEXT,
+                                    ADD COLUMN IF NOT EXISTS caused_by_seq    BIGINT;
+ALTER TABLE events.user_event       ADD COLUMN IF NOT EXISTS caused_by_stream TEXT,
+                                    ADD COLUMN IF NOT EXISTS caused_by_seq    BIGINT;
+ALTER TABLE events.work_event       ADD COLUMN IF NOT EXISTS caused_by_stream TEXT,
+                                    ADD COLUMN IF NOT EXISTS caused_by_seq    BIGINT;
+ALTER TABLE events.verdict          ADD COLUMN IF NOT EXISTS caused_by_stream TEXT,
+                                    ADD COLUMN IF NOT EXISTS caused_by_seq    BIGINT;
+ALTER TABLE events.usage_event      ADD COLUMN IF NOT EXISTS caused_by_stream TEXT,
+                                    ADD COLUMN IF NOT EXISTS caused_by_seq    BIGINT;
+ALTER TABLE events.attestation      ADD COLUMN IF NOT EXISTS caused_by_stream TEXT,
+                                    ADD COLUMN IF NOT EXISTS caused_by_seq    BIGINT;
+ALTER TABLE events.uat_drive        ADD COLUMN IF NOT EXISTS caused_by_stream TEXT,
+                                    ADD COLUMN IF NOT EXISTS caused_by_seq    BIGINT;
+ALTER TABLE events.change_event     ADD COLUMN IF NOT EXISTS caused_by_stream TEXT,
+                                    ADD COLUMN IF NOT EXISTS caused_by_seq    BIGINT;
+ALTER TABLE events.claim_event      ADD COLUMN IF NOT EXISTS caused_by_stream TEXT,
+                                    ADD COLUMN IF NOT EXISTS caused_by_seq    BIGINT;
+
 -- RETIREMENT (ADR-0200 D7): the self-reported session-presence tables (ADR-0033's
 -- events.session_event history + events.session projection) are DROPPED — the claim ledger
 -- (events.node_claim + events.claim_event above) is the one session-coordination machinery now.

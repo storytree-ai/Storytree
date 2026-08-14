@@ -221,6 +221,17 @@ export type ClaimResult =
        * claim. Both can be true at once: reclaiming a stale holder while folding our own shared row.
        */
       displaced?: ClaimDocT;
+      /**
+       * The `events.claim_event` seq of the audit row this take appended — the take's own event
+       * IDENTITY, so a caller that goes on to emit a further event can name THIS one as its cause
+       * (ADR-0350 D1's `(stream, seq)` qualified reference).
+       *
+       * OPTIONAL, and absent is honest rather than lazy: only the Postgres claim store has an
+       * append-only audit log to be positioned in, so every other implementation legitimately has
+       * no identity to offer. A caller that finds it absent stamps NO causal edge (ADR-0350 D2:
+       * absent, never inferred) rather than substituting something adjacent.
+       */
+      eventSeq?: number;
     }
   | { acquired: false; heldBy: ClaimDocT }
   | { acquired: false; queued: true; waiting: ClaimDocT; heldBy: ClaimDocT };

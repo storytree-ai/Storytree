@@ -22,4 +22,4 @@ The event store is the single source of truth; the studio renders it **and** dri
 
 ## Open
 
-Event vocabulary — OTel-GenAI vs bespoke (open-q §8) · wire protocol (open-q §8) · proof/attestation persistence (open-q §1) · channel as a typed event vs dropped (open-q §5).
+Event vocabulary — OTel-GenAI vs bespoke (open-q §8; **the causality clause is settled** — [ADR-0350](0350-an-event-that-caused-another-says-so-causal-edges-on-the-eve.md) amends this ADR and adds a bespoke `causedBy: {stream, seq}` reference rather than adopting an OTel-GenAI shape, so this item narrows to wire format and the GenAI-vocabulary question at large, which stay open) · wire protocol (open-q §8) · proof/attestation persistence (open-q §1) · channel as a typed event vs dropped (open-q §5).
