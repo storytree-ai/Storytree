@@ -221,8 +221,32 @@ layer. That test is load-bearing in a way the others are not: the hook is the on
 it weakens everything. Note also that the JS hook still carried the gradeless-claim fail-open that the
 PowerShell half had already closed; it is closed there too now.
 
-**Until a live smoke from a genuinely fresh Codex desktop task is recorded, neither this ADR nor the
-arc may describe the lifecycle as operational.**
+**The live smoke's criteria were REWRITTEN on 2026-08-14, BEFORE running it, and this paragraph is the
+record ADR-0364 D7 asked for.** D7 required the rewrite to happen first rather than at attestation
+time, because this arc was closed once on a bar that had drifted, and a criterion quietly reinterpreted
+while it is being signed is exactly how that happens again. The twelve criteria on
+`codex-lobby-to-write-live-smoke` keep their numbers — ADR-0355 and the increment both cite them by
+position — and five changed text:
+
+- **5** assumed the task was HANDED OFF into the minted worktree. ADR-0364 D4 leaves no launcher and no
+  nested child, so there is nothing to hand off from: one task mints its worktree and writes in it.
+- **7 would otherwise have passed VACUOUSLY, and that is the correction that matters.** Under this
+  decision's original mechanism the profile named one worktree, so a sibling's ABSENCE from the profile
+  was the refusal. Under the standing grant the profile NAMES the sibling and permits it at the OS
+  layer; the refusal comes from the managed hook's live-claim check alone. A smoke confirming "the
+  profile does not grant the sibling" would now be confirming something false about a fence that is
+  real — so criterion 7 requires the hook's own refusal reason as the evidence, and requires confirming
+  the hook is installed and firing before anything else there reads as a pass.
+- **9** assumed `pnpm` resolves in a contained task. Nothing puts it on that PATH; it now names the
+  pinned managed toolchain explicitly.
+- **10** and **11** were satisfied by the launcher that set `TEMP`/`TMP` for its child and applied
+  credential ACLs per launch. The task sets its own scratch now, and the ACLs are install-time machine
+  state.
+
+The old dependency on same-task rebinding is DISSOLVED rather than satisfied: it existed only to serve
+criterion 5's handoff. **Until a live smoke from a genuinely fresh Codex desktop task is recorded
+against those rewritten criteria, neither this ADR nor the arc may describe the lifecycle as
+operational.**
 
 ## Consequences
 
