@@ -43,6 +43,11 @@ import { guardClaimNamespace, type ClaimUniverseLoader } from "@storytree/drive/
 // which must ship no database client at all (ADR-0368 D2). `arc-rollup.ts` itself is clean, so the
 // subpath is the same code with none of the reach.
 import { storyArcStamps } from "@storytree/drive/arc-rollup";
+// The `git worktree list --porcelain` parser the reaper already owns — composed, never re-written
+// (a second porcelain parser is a second source of truth about what git holds). `worktree.ts` and its
+// one import (`worktree-drain.ts`) are node-builtin-only, so this costs the Codex bootstrap payload
+// no database client — the fence the import notes above police.
+import { parseWorktreeList } from "./worktree.js";
 import type { Envelope } from "./envelope.js";
 
 /** What one anchor node is allowed to look like in a directory/branch name. */
@@ -131,9 +136,15 @@ export function mintWorktreeName(
 // Sessions open on the PRIMARY checkout (the "lobby") and obtain their workspace HERE, in strict
 // order — each step's failure aborts everything after it:
 //
-//   parse → mint (collision re-draws INCLUDED — the identity is FINAL before it is claimed) →
-//   take the exploring claim(s) → fetch + `git worktree add` off origin/main → synchronous
-//   `pnpm install` → the start-payload envelope.
+//   parse → RESUME probe → mint (collision re-draws INCLUDED — the identity is FINAL before it is
+//   claimed) → take the exploring claim(s) → fetch + `git worktree add` off origin/main →
+//   CHECKPOINT → synchronous `pnpm install` → the start-payload envelope.
+//
+// The RESUME probe and the CHECKPOINT are the two halves of "a timed-out create is resumable, not a
+// duplicate" (see the RESUME section below). The probe adopts this caller's own partial ceremony
+// instead of minting beside it; the checkpoint announces what exists BEFORE the slow install, so a
+// caller killed mid-provision still learns the path, branch and claims it is holding. Neither can
+// refuse a workspace: both are best-effort, and a failure in either lands on the pre-resume path.
 //
 // The load-bearing invariant is ADR-0121's claim-before-worktree ordering, generalised to sessions:
 // NO CLAIM, NO WORKSPACE — a take() that fails leaves ZERO worktree IO behind it (earlier takes are
@@ -167,8 +178,21 @@ export interface WorktreeCreateLedgerLike {
 export interface WorktreeCreateIo {
   /** Absolute primary-checkout root (where `.claude/worktrees/` lives). Throws outside a repo. */
   primaryRoot(): string;
-  /** Does the candidate worktree path already exist on disk? A hit forces a suffix re-draw. */
+  /**
+   * Plain `existsSync`. Two callers, deliberately the same seam: a candidate `<worktrees>/<name>` hit
+   * forces a suffix re-draw during minting, and a `<worktree>/node_modules` hit tells the resume probe
+   * that a tree is already PROVISIONED (see {@link findResumableCeremony}).
+   */
   exists(absPath: string): boolean;
+  /**
+   * Every worktree git currently has registered, as `{path, branch}` — `git worktree list --porcelain`
+   * parsed. The resume probe's only view of what already exists.
+   *
+   * BEST-EFFORT BY CONTRACT: answer `[]` rather than throwing when git cannot be read. A degraded
+   * probe means "no orphan found", so the ceremony mints fresh exactly as it did before resume — it
+   * must never turn into a refused workspace.
+   */
+  registeredWorktrees(primaryRoot: string): ReadonlyArray<{ path: string; branch: string | null }>;
   /** `git fetch origin main` — best-effort (a failure is reported, never fatal to the cut). */
   fetchMain(primaryRoot: string): void;
   /** `git worktree add -b <branch> <absPath> refs/remotes/origin/main` — throws on failure. */
@@ -217,6 +241,17 @@ export const defaultWorktreeCreateIo: WorktreeCreateIo = {
   exists(absPath) {
     return existsSync(absPath);
   },
+  registeredWorktrees(primaryRoot) {
+    try {
+      const out = execFileSync("git", ["-C", primaryRoot, "worktree", "list", "--porcelain"], {
+        encoding: "utf8",
+      }) as string;
+      return parseWorktreeList(out).map((e) => ({ path: e.path, branch: e.branch }));
+    } catch {
+      // Documented as best-effort: an unreadable registry means "no orphan found", never a refusal.
+      return [];
+    }
+  },
   fetchMain(primaryRoot) {
     execFileSync("git", ["-C", primaryRoot, "fetch", "origin", "main"], { encoding: "utf8" });
   },
@@ -229,6 +264,105 @@ export const defaultWorktreeCreateIo: WorktreeCreateIo = {
   },
   install: defaultInstall,
 };
+
+// ---------------------------------------------------------------------------
+// RESUME — adopting a partial ceremony instead of duplicating it
+// ---------------------------------------------------------------------------
+//
+// THE FAILURE (friction `worktree-create-timeout-leaves-a-half-provisioned-session`, measured
+// 2026-08-11): the call crosses the caller's foreground timeout AFTER the exploring claim is taken
+// and the worktree is cut, but BEFORE `pnpm install` finishes — a measured 21.2s from a warm store,
+// on top of fetch and add. The caller is left holding a live claim and a cut-but-unusable worktree,
+// with no start payload naming either.
+//
+// WHY A RE-RUN COULD NOT SIMPLY CONVERGE: the basename carries a random suffix, so `exists()` — which
+// exists to force a re-draw on collision — guarantees the retry mints a SECOND worktree beside the
+// orphan rather than recognising it. Nothing links the retry to its own earlier attempt BY NAME.
+//
+// THE LINK THAT DOES EXIST is the surviving claim. Its `sessionId` IS the worktree basename
+// (ADR-0033) and its branch is `claude/<basename>`, so `unit + intent + that identity shape` names
+// the earlier attempt without any new bookkeeping — and the re-take is idempotent per (unit,
+// session), so adoption re-takes rather than tracking what it already took.
+//
+// THE DISCRIMINATOR that keeps adoption off a LIVE session's workspace is the very thing that makes
+// an orphan an orphan: its `node_modules` are ABSENT. A provisioned tree is somebody's working
+// session and is never adopted, however well its claim matches. The `exploring` grade is the second
+// fence — a session that promoted to `work` is writing.
+//
+// WHAT IS DELIBERATELY NOT ADOPTED: a claim with NO registered worktree (the ceremony died before
+// `git worktree add`). Re-using that name would mean `git worktree add -b <branch>` against a branch
+// that may already exist, i.e. a repair rather than a resume. That shape refuses today with the
+// claims named and the release command printed, which is honest; it is not silently abandoned.
+
+/** A basename safe to join into a path — {@link mintWorktreeName}'s own alphabet, re-asserted here. */
+const SAFE_BASENAME = /^[a-z0-9-]+$/;
+
+/** Two absolute paths denote the same location? Forward-slashed, trailing-slash-free, win32-folded. */
+function samePathish(a: string, b: string): boolean {
+  const norm = (p: string): string => {
+    const r = path.resolve(p).replace(/\\/g, "/").replace(/\/+$/, "");
+    return process.platform === "win32" ? r.toLowerCase() : r;
+  };
+  return norm(a) === norm(b);
+}
+
+/** The identity of a partial ceremony this call may adopt instead of minting a new one. */
+export interface ResumableCeremony {
+  /** The orphan's session id — its worktree basename (ADR-0033). */
+  readonly sessionId: string;
+  /** `claude/<sessionId>`. */
+  readonly branch: string;
+  /** `<primary>/.claude/worktrees/<sessionId>`. */
+  readonly worktreePath: string;
+}
+
+/**
+ * PURE adoption policy: which of the anchor unit's live claims (if any) names a partial ceremony of
+ * MINE that should be resumed rather than re-cut. Every input is data, so the whole decision is
+ * proven without git, a ledger, or a filesystem. Returns null — mint fresh — unless ALL hold:
+ *
+ *   - the claim is `exploring` (the grade this ceremony takes; `work` means a session promoted it);
+ *   - its `sessionId` is a mint-shaped basename (so it can never traverse out of the worktrees dir);
+ *   - its branch is exactly `claude/<sessionId>` (the create ceremony's own identity shape);
+ *   - its intent matches this call's intent verbatim (what makes it MY attempt, not a sibling's);
+ *   - git has a worktree registered at `<worktreesDir>/<sessionId>` ON that branch;
+ *   - that worktree is NOT provisioned — a tree with `node_modules` is a live session's workspace.
+ *
+ * On several matches the OLDEST claim wins (ties broken by session id), so the choice is stable
+ * across re-runs rather than dependent on ledger row order.
+ */
+export function findResumableCeremony(args: {
+  readonly claims: readonly ClaimDocT[];
+  readonly intent: string;
+  readonly worktreesDir: string;
+  readonly registered: ReadonlyArray<{ path: string; branch: string | null }>;
+  readonly isProvisioned: (absPath: string) => boolean;
+}): ResumableCeremony | null {
+  const want = args.intent.trim();
+  if (want.length === 0) return null;
+  const candidates = args.claims
+    .filter(
+      (c) =>
+        claimGrade(c) === "exploring" &&
+        SAFE_BASENAME.test(c.sessionId) &&
+        c.branch === BRANCH_PREFIX + c.sessionId &&
+        c.intent.trim() === want,
+    )
+    .slice()
+    .sort((a, b) =>
+      a.claimedAt === b.claimedAt
+        ? a.sessionId.localeCompare(b.sessionId)
+        : a.claimedAt.localeCompare(b.claimedAt),
+    );
+  for (const c of candidates) {
+    const worktreePath = path.join(args.worktreesDir, c.sessionId);
+    const entry = args.registered.find((e) => samePathish(e.path, worktreePath));
+    if (entry === undefined || entry.branch !== c.branch) continue;
+    if (args.isProvisioned(worktreePath)) continue;
+    return { sessionId: c.sessionId, branch: c.branch, worktreePath };
+  }
+  return null;
+}
 
 export interface WorktreeCreateOpts {
   /** The `--node` story ids, in flag order — the FIRST is the anchor the name is minted from. */
@@ -253,6 +387,14 @@ export interface WorktreeCreateDeps {
   readonly generateSuffix?: () => string;
   /** Re-draw cap on a basename collision (the branch.ts pattern); defaults to 5. */
   readonly maxAttempts?: number;
+  /**
+   * The STAGED-PAYLOAD sink: called ONCE, the moment the worktree provably exists and BEFORE the slow
+   * install, with the path / branch / session / claims a killed caller would otherwise never learn.
+   * The envelope is the complete payload and arrives only at the end; this is what survives a caller
+   * whose foreground timeout expires mid-install. Defaults to stderr — stdout belongs to the envelope
+   * alone (the Codex bootstrap entry parses it as JSON). A throw here never fails the ceremony.
+   */
+  readonly checkpoint?: (text: string) => void;
 }
 
 const USAGE = 'storytree worktree create --node <story> [--node <story>…] --intent "<what>" --pg';
@@ -261,14 +403,22 @@ function errMsg(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-/** Release the already-taken claims best-effort — the original error is NEVER masked by a release failure. */
+/**
+ * Release the already-taken claims best-effort — the original error is NEVER masked by a release
+ * failure. `keep` names a unit whose claim must SURVIVE the rollback: on an adopted ceremony the
+ * anchor's claim PRE-DATES this call and is the only durable link to the orphan worktree, so
+ * releasing it would strand a tree nothing can ever identify again — the exact failure resume exists
+ * to remove. Rolling back a claim we did not take is not a rollback, it is a deletion.
+ */
 async function releaseTaken(
   ledger: WorktreeCreateLedgerLike,
   taken: readonly ClaimDocT[],
   sessionId: string,
+  keep: string | null = null,
 ): Promise<string[]> {
   const released: string[] = [];
   for (const c of taken) {
+    if (c.unitId === keep) continue;
     try {
       await ledger.release(c.unitId, sessionId);
       released.push(c.unitId);
@@ -352,25 +502,49 @@ export async function createWorktree(
     };
   }
 
+  const worktreesDir = path.join(primary, ".claude", "worktrees");
+
+  // (b0) RESUME — BEFORE minting, because adopting my own partial ceremony and drawing a fresh
+  // identity are mutually exclusive: `exists()` would otherwise re-draw AROUND the orphan and leave a
+  // second worktree beside it. Wholly best-effort — every probe here is a READ, and any failure means
+  // "no orphan found", which is exactly the pre-resume behaviour.
+  let resumed: ResumableCeremony | null = null;
+  try {
+    resumed = findResumableCeremony({
+      claims: await ledger.claimsFor(nodes[0] as string),
+      intent: opts.intent,
+      worktreesDir,
+      registered: io.registeredWorktrees(primary),
+      isProvisioned: (p) => io.exists(path.join(p, "node_modules")),
+    });
+  } catch {
+    resumed = null;
+  }
+
   // (b) Mint — BEFORE the claims: the identity (basename = session id, branch = claude/<basename>)
   // must be FINAL before it is claimed, so collision re-draws are part of minting, never a re-claim.
-  const stamps = deps.stamps !== undefined ? deps.stamps() : storyArcStamps(path.join(primary, "stories"));
-  const generateSuffix = deps.generateSuffix ?? (() => randomBytes(3).toString("hex"));
+  // An adopted ceremony skips this entirely: its identity was already minted, claimed and cut.
   const maxAttempts = deps.maxAttempts ?? 5;
-  let minted: MintedWorktreeName | null = null;
-  let worktreePath = "";
-  try {
-    for (let attempt = 0; attempt < maxAttempts && minted === null; attempt += 1) {
-      const candidate = mintWorktreeName(nodes, stamps, generateSuffix());
-      const candidatePath = path.join(primary, ".claude", "worktrees", candidate.basename);
-      if (!io.exists(candidatePath)) {
-        minted = candidate;
-        worktreePath = candidatePath;
+  let minted: MintedWorktreeName | null =
+    resumed === null ? null : { basename: resumed.sessionId, branch: resumed.branch };
+  let worktreePath = resumed?.worktreePath ?? "";
+  if (resumed === null) {
+    const stamps =
+      deps.stamps !== undefined ? deps.stamps() : storyArcStamps(path.join(primary, "stories"));
+    const generateSuffix = deps.generateSuffix ?? (() => randomBytes(3).toString("hex"));
+    try {
+      for (let attempt = 0; attempt < maxAttempts && minted === null; attempt += 1) {
+        const candidate = mintWorktreeName(nodes, stamps, generateSuffix());
+        const candidatePath = path.join(worktreesDir, candidate.basename);
+        if (!io.exists(candidatePath)) {
+          minted = candidate;
+          worktreePath = candidatePath;
+        }
       }
+    } catch (err) {
+      // mintWorktreeName refuses by throwing (unsafe anchor, blank suffix) — surface it verbatim.
+      return { ok: false, body: `worktree create refused: ${errMsg(err)}`, next: [USAGE] };
     }
-  } catch (err) {
-    // mintWorktreeName refuses by throwing (unsafe anchor, blank suffix) — surface it verbatim.
-    return { ok: false, body: `worktree create refused: ${errMsg(err)}`, next: [USAGE] };
   }
   if (minted === null) {
     return {
@@ -386,19 +560,29 @@ export async function createWorktree(
   const branch = minted.branch;
 
   // (c) Claims FIRST — before ANY filesystem mutation (the load-bearing ordering, ADR-0121→0200).
+  // On a RESUMED ceremony these are RE-takes: the upsert is idempotent per (unit, session), which is
+  // what lets adoption converge without a second bookkeeping layer. Two consequences for the rollback
+  // below: the anchor's claim pre-dates this call and must survive it, and "no worktree was created"
+  // would be a lie about a tree the previous attempt cut.
+  const keepOnRollback = resumed === null ? null : (nodes[0] as string);
+  const nothingStands =
+    resumed === null
+      ? "No worktree was created."
+      : `The adopted worktree at ${worktreePath} still stands, and its own claim on ` +
+        `"${keepOnRollback ?? ""}" was left in place so a later re-run can still find it.`;
   const taken: ClaimDocT[] = [];
   for (const unitId of nodes) {
     let result: ClaimResult;
     try {
       result = await ledger.take(exploringClaimRequest({ unitId, sessionId, branch, intent: opts.intent }));
     } catch (err) {
-      const released = await releaseTaken(ledger, taken, sessionId);
+      const released = await releaseTaken(ledger, taken, sessionId, keepOnRollback);
       return {
         ok: false,
         body: [
           `exploring claim on "${unitId}" FAILED — no claim, no workspace (ADR-0200 D3): ${errMsg(err)}`,
           released.length > 0 ? `Released the already-taken claim(s): ${released.join(", ")}.` : "",
-          "No worktree was created.",
+          nothingStands,
         ]
           .filter((l) => l.length > 0)
           .join("\n"),
@@ -409,13 +593,13 @@ export async function createWorktree(
       // An exploring take is shared and should always acquire — a refusal here is a store-side
       // surprise; treat it exactly like a failure (release, refuse, zero worktree IO).
       const holder = result.heldBy;
-      const released = await releaseTaken(ledger, taken, sessionId);
+      const released = await releaseTaken(ledger, taken, sessionId, keepOnRollback);
       return {
         ok: false,
         body: [
           `exploring claim on "${unitId}" REFUSED — held by ${holder.sessionId} (branch ${holder.branch}, intent "${holder.intent}").`,
           released.length > 0 ? `Released the already-taken claim(s): ${released.join(", ")}.` : "",
-          "No worktree was created.",
+          nothingStands,
         ]
           .filter((l) => l.length > 0)
           .join("\n"),
@@ -427,25 +611,52 @@ export async function createWorktree(
 
   // (d) Cut the worktree off origin/main. The fetch is best-effort; the add is not — but a failed
   // add never rolls the claims back (they are honest "I intend to work here" rows, releasable).
+  // BOTH are skipped for an adopted ceremony: the tree is already cut and on the right branch, so a
+  // re-add would throw and a re-fetch would be pure latency on the path a timeout already burned.
   let fetchNote: string | null = null;
-  try {
-    io.fetchMain(primary);
-  } catch (err) {
-    fetchNote = `note: git fetch origin main failed (${errMsg(err)}) — the cut used the last-fetched origin/main.`;
+  if (resumed === null) {
+    try {
+      io.fetchMain(primary);
+    } catch (err) {
+      fetchNote = `note: git fetch origin main failed (${errMsg(err)}) — the cut used the last-fetched origin/main.`;
+    }
+    try {
+      io.addWorktree(primary, branch, worktreePath);
+    } catch (err) {
+      return {
+        ok: false,
+        body: [
+          `git worktree add FAILED: ${errMsg(err)}`,
+          `Your exploring claim(s) STAND on: ${nodes.join(", ")} (session ${sessionId}).`,
+          "Retry the create, or release them: storytree noticeboard release <unit> --pg.",
+        ].join("\n"),
+        next: [`storytree noticeboard release ${nodes[0]} --pg`, USAGE],
+      };
+    }
   }
+
+  // (d′) THE STAGED PAYLOAD. Everything irreversible has now happened and only the slow step remains
+  // (a measured 21.2s of `pnpm install` from a warm store), so a caller killed from here on would
+  // otherwise learn NOTHING about the session it just created. Announce it before paying that cost.
+  // stderr, never stdout: the envelope is stdout's alone.
+  const checkpoint =
+    deps.checkpoint ??
+    ((text: string) => {
+      process.stderr.write(text.endsWith("\n") ? text : `${text}\n`);
+    });
   try {
-    io.addWorktree(primary, branch, worktreePath);
-  } catch (err) {
-    return {
-      ok: false,
-      body: [
-        `git worktree add FAILED: ${errMsg(err)}`,
-        `Your exploring claim(s) STAND on: ${nodes.join(", ")} (session ${sessionId}).`,
-        "Retry the create, or release them: storytree noticeboard release <unit> --pg.",
+    checkpoint(
+      [
+        `[worktree create] ${resumed === null ? "CUT" : "RESUMED"} ${worktreePath}`,
+        `[worktree create]   branch ${branch} · session ${sessionId} · claims ${nodes.join(", ")}`,
+        "[worktree create]   installing dependencies — if this call is killed now, re-run the SAME " +
+          "command and it will adopt this worktree rather than mint a second one.",
       ].join("\n"),
-      next: [`storytree noticeboard release ${nodes[0]} --pg`, USAGE],
-    };
+    );
+  } catch {
+    // An announcement, not a step: a closed stderr never costs anyone a workspace.
   }
+
   let installNote: string;
   try {
     const res = io.install(worktreePath);
@@ -484,7 +695,12 @@ export async function createWorktree(
 
   const anchor = nodes[0] as string;
   const body = [
-    `Worktree created — the claim-gated workspace ceremony (ADR-0200 D3).`,
+    resumed === null
+      ? `Worktree created — the claim-gated workspace ceremony (ADR-0200 D3).`
+      : `Worktree RESUMED — a partial ceremony for session "${sessionId}" was adopted rather than ` +
+        `re-cut: its exploring claim stood and its worktree was already cut, but it was never ` +
+        `provisioned (a create that crossed its caller's timeout mid-install). No second worktree ` +
+        `was minted and no claim was abandoned.`,
     "",
     "claims taken:",
     ...taken.map((c) => `  - [${claimGrade(c)}] ${c.unitId}  intent "${c.intent}"`),

@@ -8,6 +8,7 @@ import type { ClaimDocT, ClaimRequest, ClaimResult } from "@storytree/notice-boa
 import { run } from "./commands.js";
 import {
   createWorktree,
+  findResumableCeremony,
   type WorktreeCreateIo,
   type WorktreeCreateLedgerLike,
 } from "./worktree-create.js";
@@ -98,7 +99,11 @@ function fakeLedger(opts?: {
 
 interface FakeIo extends WorktreeCreateIo {
   readonly calls: {
+    /** MINT-collision probes only — the `<worktrees>/<name>` candidates. */
     exists: string[];
+    /** RESUME provision probes — the `<worktree>/node_modules` reads. */
+    provisionProbe: string[];
+    registryReads: number;
     fetch: number;
     add: { branch: string; path: string }[];
     install: string[];
@@ -110,15 +115,41 @@ function fakeIo(opts?: {
   collideFirstN?: number;
   installOk?: boolean;
   addThrows?: boolean;
+  /** What `git worktree list --porcelain` reports (absolute paths + their branch). */
+  registered?: ReadonlyArray<{ path: string; branch: string | null }>;
+  /** Worktree paths whose `node_modules` exist — a PROVISIONED (live-session) tree. */
+  provisioned?: readonly string[];
+  registryThrows?: boolean;
+  /** Records the ordering of side effects, so a checkpoint can be proven to PRECEDE the install. */
+  order?: string[];
 }): FakeIo {
-  const calls: FakeIo["calls"] = { exists: [], fetch: 0, add: [], install: [] };
+  const calls: FakeIo["calls"] = {
+    exists: [],
+    provisionProbe: [],
+    registryReads: 0,
+    fetch: 0,
+    add: [],
+    install: [],
+  };
   const collideFirstN = opts?.collideFirstN ?? 0;
+  const nodeModulesSuffix = `${path.sep}node_modules`;
   return {
     calls,
     primaryRoot: () => PRIMARY,
     exists(absPath) {
+      // The resume probe asks "is this tree provisioned?" through the same fs seam; it must NOT be
+      // counted as a mint collision draw, or the re-draw assertions below would move under it.
+      if (absPath.endsWith(nodeModulesSuffix)) {
+        calls.provisionProbe.push(absPath);
+        return (opts?.provisioned ?? []).some((p) => path.join(p, "node_modules") === absPath);
+      }
       calls.exists.push(absPath);
       return calls.exists.length <= collideFirstN;
+    },
+    registeredWorktrees() {
+      calls.registryReads += 1;
+      if (opts?.registryThrows === true) throw new Error("git worktree list exploded");
+      return opts?.registered ?? [];
     },
     fetchMain() {
       calls.fetch += 1;
@@ -128,6 +159,7 @@ function fakeIo(opts?: {
       calls.add.push({ branch, path: absPath });
     },
     install(absPath) {
+      opts?.order?.push("install");
       calls.install.push(absPath);
       return { ok: opts?.installOk !== false, code: opts?.installOk === false ? 1 : 0 };
     },
@@ -143,6 +175,14 @@ function suffixSequence(): () => string {
 
 const NO_STAMPS = (): { story: string; arc: string }[] => [];
 
+/**
+ * The staged-payload sink, silenced. The DEFAULT sink is stderr, so every test in this file would
+ * otherwise print three announcement lines into the gate log for a payload it is not asserting on.
+ * The default is not left unproven by that: the `run`-dispatch happy path below goes through
+ * `commands.ts`, which injects nothing, and one test drives the real stderr write directly.
+ */
+const QUIET = (): void => {};
+
 // ---------------------------------------------------------------------------
 // (1) ORDERING — no claim, no workspace
 // ---------------------------------------------------------------------------
@@ -156,7 +196,7 @@ test("create: a take() that throws refuses with ZERO worktree IO (no claim, no w
   const io = fakeIo();
   const env = await createWorktree(
     { nodes: ["story-a"], intent: "poking at the seam" },
-    { ledger, io, stamps: NO_STAMPS, generateSuffix: suffixSequence() },
+    { ledger, io, stamps: NO_STAMPS, generateSuffix: suffixSequence(), checkpoint: QUIET },
   );
   assert.equal(env.ok, false);
   assert.match(env.body, /ledger down/);
@@ -175,7 +215,7 @@ test("create: a blank --intent refuses with zero take() calls and zero IO (no cl
   const io = fakeIo();
   const env = await createWorktree(
     { nodes: ["story-a"], intent: "   " },
-    { ledger, io, stamps: NO_STAMPS, generateSuffix: suffixSequence() },
+    { ledger, io, stamps: NO_STAMPS, generateSuffix: suffixSequence(), checkpoint: QUIET },
   );
   assert.equal(env.ok, false);
   assert.match(env.body, /--intent/);
@@ -288,7 +328,7 @@ test("create: an install FAILURE keeps the worktree and claims standing, reporte
   const io = fakeIo({ installOk: false });
   const env = await createWorktree(
     { nodes: ["story-a"], intent: "reading" },
-    { ledger, io, stamps: NO_STAMPS, generateSuffix: suffixSequence() },
+    { ledger, io, stamps: NO_STAMPS, generateSuffix: suffixSequence(), checkpoint: QUIET },
   );
   assert.equal(env.ok, true, "an install failure never tears the ceremony down");
   assert.match(env.body, /pnpm install/);
@@ -321,7 +361,7 @@ test("create: a basename collision re-draws the suffix and succeeds on a later d
   const io = fakeIo({ collideFirstN: 2 });
   const env = await createWorktree(
     { nodes: ["story-a"], intent: "reading" },
-    { ledger, io, stamps: NO_STAMPS, generateSuffix: suffixSequence() },
+    { ledger, io, stamps: NO_STAMPS, generateSuffix: suffixSequence(), checkpoint: QUIET },
   );
   assert.equal(env.ok, true);
   // Three draws probed; the third (cccccc) is free and becomes the identity.
@@ -338,7 +378,7 @@ test("create: 5 collisions refuse with NO claims taken (the identity must be fin
   const io = fakeIo({ collideFirstN: 5 });
   const env = await createWorktree(
     { nodes: ["story-a"], intent: "reading" },
-    { ledger, io, stamps: NO_STAMPS, generateSuffix: suffixSequence() },
+    { ledger, io, stamps: NO_STAMPS, generateSuffix: suffixSequence(), checkpoint: QUIET },
   );
   assert.equal(env.ok, false);
   assert.match(env.body, /collid|draw/i);
@@ -362,7 +402,7 @@ test("create: a LATER take that throws releases the earlier claims, refuses, and
   const io = fakeIo();
   const env = await createWorktree(
     { nodes: ["story-a", "story-b"], intent: "reading" },
-    { ledger, io, stamps: NO_STAMPS, generateSuffix: suffixSequence() },
+    { ledger, io, stamps: NO_STAMPS, generateSuffix: suffixSequence(), checkpoint: QUIET },
   );
   assert.equal(env.ok, false);
   assert.match(env.body, /second take exploded/, "the original error is never masked");
@@ -391,7 +431,7 @@ test("create: baselines the MINTED session's delta cursor after the claims + dig
   const io = fakeIo();
   const env = await createWorktree(
     { nodes: ["story-a"], intent: "reading" },
-    { ledger, io, stamps: NO_STAMPS, generateSuffix: suffixSequence() },
+    { ledger, io, stamps: NO_STAMPS, generateSuffix: suffixSequence(), checkpoint: QUIET },
   );
   assert.equal(env.ok, true);
   assert.deepEqual(ledger.baselines, ["story-a-aaaaaa"], "baselined once, for the minted identity");
@@ -402,7 +442,7 @@ test("create: a THROWING baselineCursor never fails the ceremony (courtesy only)
   const io = fakeIo();
   const env = await createWorktree(
     { nodes: ["story-a"], intent: "reading" },
-    { ledger, io, stamps: NO_STAMPS, generateSuffix: suffixSequence() },
+    { ledger, io, stamps: NO_STAMPS, generateSuffix: suffixSequence(), checkpoint: QUIET },
   );
   assert.equal(env.ok, true, "the workspace stands; the baseline is best-effort");
   assert.equal(ledger.releases.length, 0, "the claims stand too");
@@ -415,7 +455,7 @@ test("create: a ledger WITHOUT baselineCursor (the optional seam absent) still c
   const io = fakeIo();
   const env = await createWorktree(
     { nodes: ["story-a"], intent: "reading" },
-    { ledger: ledger as unknown as WorktreeCreateLedgerLike, io, stamps: NO_STAMPS, generateSuffix: suffixSequence() },
+    { ledger: ledger as unknown as WorktreeCreateLedgerLike, io, stamps: NO_STAMPS, generateSuffix: suffixSequence(), checkpoint: QUIET },
   );
   assert.equal(env.ok, true);
 });
@@ -428,7 +468,7 @@ test("create: a refused take never reaches the baseline (no workspace, no cursor
   const io = fakeIo();
   const env = await createWorktree(
     { nodes: ["story-a"], intent: "reading" },
-    { ledger, io, stamps: NO_STAMPS, generateSuffix: suffixSequence() },
+    { ledger, io, stamps: NO_STAMPS, generateSuffix: suffixSequence(), checkpoint: QUIET },
   );
   assert.equal(env.ok, false);
   assert.deepEqual(ledger.baselines, [], "no claim, no workspace, no baseline");
@@ -454,7 +494,7 @@ test("create: an id naming NOTHING refuses with ZERO claim and ZERO worktree IO"
   const io = fakeIo();
   const env = await createWorktree(
     { nodes: ["story-aa"], intent: "poking at the seam" },
-    { ledger, universe: KNOWS_STORY_A, io, stamps: NO_STAMPS, generateSuffix: suffixSequence() },
+    { ledger, universe: KNOWS_STORY_A, io, stamps: NO_STAMPS, generateSuffix: suffixSequence(), checkpoint: QUIET },
   );
   assert.equal(env.ok, false, env.body);
   assert.match(env.body, /names nothing in the work graph/);
@@ -471,7 +511,7 @@ test("create: EVERY node is checked before any is refused — two typos are repo
   const io = fakeIo();
   const env = await createWorktree(
     { nodes: ["story-aa", "story-a", "stories/story-a"], intent: "x" },
-    { ledger, universe: KNOWS_STORY_A, io, stamps: NO_STAMPS, generateSuffix: suffixSequence() },
+    { ledger, universe: KNOWS_STORY_A, io, stamps: NO_STAMPS, generateSuffix: suffixSequence(), checkpoint: QUIET },
   );
   assert.equal(env.ok, false, env.body);
   assert.match(env.body, /"story-aa"/);
@@ -484,7 +524,7 @@ test("create: a resolvable node proceeds through the whole ceremony untouched", 
   const io = fakeIo();
   const env = await createWorktree(
     { nodes: ["story-a"], intent: "poking at the seam" },
-    { ledger, universe: KNOWS_STORY_A, io, stamps: NO_STAMPS, generateSuffix: suffixSequence() },
+    { ledger, universe: KNOWS_STORY_A, io, stamps: NO_STAMPS, generateSuffix: suffixSequence(), checkpoint: QUIET },
   );
   assert.equal(env.ok, true, env.body);
   assert.equal(ledger.takes.length, 1);
@@ -496,7 +536,7 @@ test("create: with NO universe every id passes, exactly as before ADR-0310", asy
   const io = fakeIo();
   const env = await createWorktree(
     { nodes: ["whoami"], intent: "x" },
-    { ledger, io, stamps: NO_STAMPS, generateSuffix: suffixSequence() },
+    { ledger, io, stamps: NO_STAMPS, generateSuffix: suffixSequence(), checkpoint: QUIET },
   );
   assert.equal(env.ok, true, env.body);
   assert.deepEqual(
@@ -513,4 +553,346 @@ test("create: the missing-intent refusal still precedes the namespace check — 
   );
   assert.equal(env.ok, false);
   assert.match(env.body, /requires --intent/);
+});
+
+// ---------------------------------------------------------------------------
+// RESUME — a partial ceremony is ADOPTED, never duplicated
+// (increment `worktree-create-is-resumable`, friction
+//  `worktree-create-timeout-leaves-a-half-provisioned-session`)
+// ---------------------------------------------------------------------------
+//
+// The failure being fixed: the call crosses the caller's foreground timeout AFTER the claim is taken
+// and the worktree is cut but BEFORE `pnpm install` finishes, so the caller holds a live claim and a
+// cut-but-unusable worktree with no start payload. Because the mint carries a RANDOM suffix, a re-run
+// could not recognise its own orphan by name and minted a SECOND worktree beside it.
+//
+// The durable link is the surviving exploring CLAIM: its sessionId IS the worktree basename
+// (ADR-0033) and its branch is `claude/<basename>`, so unit + intent + that identity shape names the
+// earlier attempt. The discriminator that keeps adoption off a LIVE session's worktree is the very
+// thing that makes the orphan an orphan: its `node_modules` are absent.
+
+const ORPHAN = "story-a-orphan";
+
+/** The claim a timed-out ceremony leaves behind: exploring, create-shaped identity, same intent. */
+function orphanClaim(over?: Partial<ClaimDocT>): ClaimDocT {
+  return {
+    unitId: "story-a",
+    sessionId: ORPHAN,
+    branch: `claude/${ORPHAN}`,
+    intent: "reading",
+    grade: "exploring",
+    claimedAt: ISO,
+    heartbeatAt: ISO,
+    ...over,
+  };
+}
+
+/** The registry row git prints for that orphan's cut-but-unprovisioned worktree. */
+const ORPHAN_REGISTERED = [{ path: wtPath(ORPHAN), branch: `claude/${ORPHAN}` }];
+
+test("resume: an UNPROVISIONED orphan matching unit + intent is adopted — no second cut, no second name", async () => {
+  const ledger = fakeLedger({ claimsForImpl: async (u) => (u === "story-a" ? [orphanClaim()] : []) });
+  const io = fakeIo({ registered: ORPHAN_REGISTERED });
+  const env = await createWorktree(
+    { nodes: ["story-a"], intent: "reading" },
+    { ledger, io, stamps: NO_STAMPS, generateSuffix: suffixSequence(), checkpoint: QUIET },
+  );
+  assert.equal(env.ok, true, env.body);
+
+  // The identity is the ORPHAN's, not a fresh draw — the suffix generator was never consulted.
+  assert.equal(io.calls.exists.length, 0, "adoption precedes minting, so no candidate draw is probed");
+  assert.deepEqual(ledger.takes.map((t) => t.sessionId), [ORPHAN], "the claim is RE-taken (idempotent per unit+session)");
+  assert.equal(ledger.takes[0]?.branch, `claude/${ORPHAN}`);
+
+  // Nothing is re-cut: the tree already exists, so fetch + add are skipped and only install re-runs.
+  assert.equal(io.calls.fetch, 0, "an adopted tree is already cut — no fetch");
+  assert.deepEqual(io.calls.add, [], "a second worktree is exactly what this fixes");
+  assert.deepEqual(io.calls.install, [wtPath(ORPHAN)], "provisioning is the step that is resumed");
+
+  assert.ok(env.body.includes(wtPath(ORPHAN)), "the start payload names the ADOPTED path");
+  assert.match(env.body, /resumed/i, "the envelope says it resumed rather than created");
+  // The codex bootstrap entry parses this exact block out of the body — it must survive a resume.
+  assert.match(env.body, /work from this path:\r?\n {2}\S/);
+});
+
+test("resume: a PROVISIONED worktree is never adopted — that is a live session's workspace", async () => {
+  const ledger = fakeLedger({ claimsForImpl: async (u) => (u === "story-a" ? [orphanClaim()] : []) });
+  const io = fakeIo({ registered: ORPHAN_REGISTERED, provisioned: [wtPath(ORPHAN)] });
+  const env = await createWorktree(
+    { nodes: ["story-a"], intent: "reading" },
+    { ledger, io, stamps: NO_STAMPS, generateSuffix: suffixSequence(), checkpoint: QUIET },
+  );
+  assert.equal(env.ok, true, env.body);
+  assert.deepEqual(io.calls.provisionProbe, [path.join(wtPath(ORPHAN), "node_modules")]);
+  assert.deepEqual(io.calls.add, [
+    { branch: "claude/story-a-aaaaaa", path: wtPath("story-a-aaaaaa") },
+  ], "a fully provisioned tree belongs to someone; the ceremony mints its own");
+  assert.equal(ledger.takes[0]?.sessionId, "story-a-aaaaaa");
+});
+
+test("resume: a claim with a DIFFERENT intent is not mine — the ceremony mints fresh", async () => {
+  const ledger = fakeLedger({
+    claimsForImpl: async () => [orphanClaim({ intent: "something else entirely" })],
+  });
+  const io = fakeIo({ registered: ORPHAN_REGISTERED });
+  const env = await createWorktree(
+    { nodes: ["story-a"], intent: "reading" },
+    { ledger, io, stamps: NO_STAMPS, generateSuffix: suffixSequence(), checkpoint: QUIET },
+  );
+  assert.equal(env.ok, true, env.body);
+  assert.deepEqual(io.calls.add, [
+    { branch: "claude/story-a-aaaaaa", path: wtPath("story-a-aaaaaa") },
+  ]);
+  assert.equal(io.calls.provisionProbe.length, 0, "a non-matching claim is filtered before any fs probe");
+});
+
+test("resume: a WORK-graded claim is never adopted — the grade says a session promoted it and is writing", async () => {
+  const ledger = fakeLedger({ claimsForImpl: async () => [orphanClaim({ grade: "work" })] });
+  const io = fakeIo({ registered: ORPHAN_REGISTERED });
+  const env = await createWorktree(
+    { nodes: ["story-a"], intent: "reading" },
+    { ledger, io, stamps: NO_STAMPS, generateSuffix: suffixSequence(), checkpoint: QUIET },
+  );
+  assert.equal(env.ok, true, env.body);
+  assert.deepEqual(io.calls.add, [
+    { branch: "claude/story-a-aaaaaa", path: wtPath("story-a-aaaaaa") },
+  ]);
+});
+
+test("resume: a claim with NO registered worktree is not resumable here — the cut never happened", async () => {
+  // The deliberately un-taken shape: the ceremony died BEFORE `git worktree add`. There is a stale
+  // claim but no tree, and adopting a name whose branch may or may not exist is a different repair.
+  const ledger = fakeLedger({ claimsForImpl: async () => [orphanClaim()] });
+  const io = fakeIo({ registered: [] });
+  const env = await createWorktree(
+    { nodes: ["story-a"], intent: "reading" },
+    { ledger, io, stamps: NO_STAMPS, generateSuffix: suffixSequence(), checkpoint: QUIET },
+  );
+  assert.equal(env.ok, true, env.body);
+  assert.deepEqual(io.calls.add, [
+    { branch: "claude/story-a-aaaaaa", path: wtPath("story-a-aaaaaa") },
+  ]);
+});
+
+test("resume: a registry read that THROWS never fails the ceremony — it falls back to minting fresh", async () => {
+  const ledger = fakeLedger({ claimsForImpl: async () => [orphanClaim()] });
+  const io = fakeIo({ registryThrows: true });
+  const env = await createWorktree(
+    { nodes: ["story-a"], intent: "reading" },
+    { ledger, io, stamps: NO_STAMPS, generateSuffix: suffixSequence(), checkpoint: QUIET },
+  );
+  assert.equal(env.ok, true, env.body);
+  assert.equal(io.calls.registryReads, 1);
+  assert.deepEqual(io.calls.add, [
+    { branch: "claude/story-a-aaaaaa", path: wtPath("story-a-aaaaaa") },
+  ]);
+});
+
+test("resume: a claimsFor read that THROWS never fails the ceremony", async () => {
+  const ledger = fakeLedger({
+    claimsForImpl: async () => {
+      throw new Error("ledger read exploded");
+    },
+  });
+  const io = fakeIo();
+  const env = await createWorktree(
+    { nodes: ["story-a"], intent: "reading" },
+    { ledger, io, stamps: NO_STAMPS, generateSuffix: suffixSequence(), checkpoint: QUIET },
+  );
+  assert.equal(env.ok, true, env.body);
+  assert.deepEqual(io.calls.add, [
+    { branch: "claude/story-a-aaaaaa", path: wtPath("story-a-aaaaaa") },
+  ]);
+});
+
+test("resume: a rollback NEVER releases the adopted claim — that claim is the orphan's only handle", async () => {
+  // Rolling back what this call took is correct; deleting the claim the PREVIOUS attempt took is not
+  // a rollback, it is the failure resume exists to remove — a cut worktree nothing can identify
+  // again. So a later take failing must leave the anchor's claim (and say so).
+  const ledger = fakeLedger({
+    claimsForImpl: async (u) => (u === "story-a" ? [orphanClaim()] : []),
+    takeImpl: async (req, callIndex) => {
+      if (callIndex === 1) throw new Error("second take exploded");
+      return { acquired: true, claim: claimOf(req), reclaimed: false };
+    },
+  });
+  const io = fakeIo({ registered: ORPHAN_REGISTERED });
+  const env = await createWorktree(
+    { nodes: ["story-a", "story-b"], intent: "reading" },
+    { ledger, io, stamps: NO_STAMPS, generateSuffix: suffixSequence(), checkpoint: QUIET },
+  );
+  assert.equal(env.ok, false);
+  assert.match(env.body, /second take exploded/, "the original error is never masked");
+  assert.deepEqual(ledger.releases, [], "the anchor's PRE-EXISTING claim is not this call's to release");
+  assert.doesNotMatch(env.body, /No worktree was created/, "a tree the previous attempt cut does exist");
+  assert.ok(env.body.includes(wtPath(ORPHAN)), "…and the refusal names it, so the next run can resume");
+});
+
+test("create: a NON-resumed rollback still releases everything it took and says no worktree exists", async () => {
+  // The control for the test above: without an adoption there is nothing pre-existing to protect,
+  // so the original all-or-nothing rollback must be exactly as it was.
+  const ledger = fakeLedger({
+    takeImpl: async (req, callIndex) => {
+      if (callIndex === 1) throw new Error("second take exploded");
+      return { acquired: true, claim: claimOf(req), reclaimed: false };
+    },
+  });
+  const io = fakeIo();
+  const env = await createWorktree(
+    { nodes: ["story-a", "story-b"], intent: "reading" },
+    { ledger, io, stamps: NO_STAMPS, generateSuffix: suffixSequence(), checkpoint: QUIET },
+  );
+  assert.equal(env.ok, false);
+  assert.deepEqual(ledger.releases.map((r) => r.unitId), ["story-a"]);
+  assert.match(env.body, /No worktree was created/);
+});
+
+// ---------------------------------------------------------------------------
+// STAGED PAYLOAD — what exists is announced BEFORE the slow step
+// ---------------------------------------------------------------------------
+
+test("checkpoint: the path, branch and claims are emitted BEFORE install, so a killed caller still knows what it holds", async () => {
+  const order: string[] = [];
+  const ledger = fakeLedger();
+  const io = fakeIo({ order });
+  const lines: string[] = [];
+  const env = await createWorktree(
+    { nodes: ["story-a", "story-b"], intent: "reading" },
+    {
+      ledger,
+      io,
+      stamps: NO_STAMPS,
+      generateSuffix: suffixSequence(),
+      checkpoint: (text) => {
+        order.push("checkpoint");
+        lines.push(text);
+      },
+    },
+  );
+  assert.equal(env.ok, true, env.body);
+  assert.deepEqual(order, ["checkpoint", "install"], "the announcement must precede the slow step");
+  const text = lines.join("\n");
+  assert.ok(text.includes(wtPath("story-a-aaaaaa")), "the checkpoint carries the absolute path");
+  assert.match(text, /claude\/story-a-aaaaaa/, "…and the branch");
+  assert.match(text, /story-a, story-b/, "…and every claim it took");
+});
+
+test("checkpoint: the DEFAULT sink really writes to stderr — stdout stays the envelope's alone", async () => {
+  // `codex-worktree-create-entry.ts` writes JSON to stdout and parses the envelope out of it, so a
+  // checkpoint that leaked onto stdout would corrupt that payload. Only the real default can show
+  // which stream it picked; an injected sink proves nothing about it.
+  const err: string[] = [];
+  const out: string[] = [];
+  const stderrWrite = process.stderr.write;
+  const stdoutWrite = process.stdout.write;
+  const capture = (sink: string[]) =>
+    ((chunk: unknown): boolean => {
+      sink.push(String(chunk));
+      return true;
+    }) as typeof process.stderr.write;
+  process.stderr.write = capture(err);
+  process.stdout.write = capture(out);
+  try {
+    await createWorktree(
+      { nodes: ["story-a"], intent: "reading" },
+      { ledger: fakeLedger(), io: fakeIo(), stamps: NO_STAMPS, generateSuffix: suffixSequence() },
+    );
+  } finally {
+    process.stderr.write = stderrWrite;
+    process.stdout.write = stdoutWrite;
+  }
+  assert.match(err.join(""), /\[worktree create\] CUT .*story-a-aaaaaa/, "the announcement lands on stderr");
+  assert.equal(out.join(""), "", "and never on stdout");
+});
+
+test("checkpoint: a THROWING checkpoint never fails the ceremony (it is an announcement, not a step)", async () => {
+  const ledger = fakeLedger();
+  const io = fakeIo();
+  const env = await createWorktree(
+    { nodes: ["story-a"], intent: "reading" },
+    {
+      ledger,
+      io,
+      stamps: NO_STAMPS,
+      generateSuffix: suffixSequence(),
+      checkpoint: () => {
+        throw new Error("stderr closed");
+      },
+    },
+  );
+  assert.equal(env.ok, true, env.body);
+  assert.deepEqual(io.calls.install, [wtPath("story-a-aaaaaa")]);
+});
+
+// ---------------------------------------------------------------------------
+// findResumableCeremony — the pure adoption policy
+// ---------------------------------------------------------------------------
+
+const NEVER_PROVISIONED = (): boolean => false;
+const WORKTREES_DIR = path.join(PRIMARY, ".claude", "worktrees");
+
+test("findResumableCeremony: a claim whose branch is not `claude/<sessionId>` is not a create-ceremony identity", async () => {
+  const found = findResumableCeremony({
+    claims: [orphanClaim({ branch: "claude/some-other-branch" })],
+    intent: "reading",
+    worktreesDir: WORKTREES_DIR,
+    registered: [{ path: wtPath(ORPHAN), branch: "claude/some-other-branch" }],
+    isProvisioned: NEVER_PROVISIONED,
+  });
+  assert.equal(found, null);
+});
+
+test("findResumableCeremony: a sessionId carrying path separators can never be joined into a path", async () => {
+  const evil = "../../../etc";
+  const found = findResumableCeremony({
+    claims: [orphanClaim({ sessionId: evil, branch: `claude/${evil}` })],
+    intent: "reading",
+    worktreesDir: WORKTREES_DIR,
+    registered: [{ path: path.join(WORKTREES_DIR, evil), branch: `claude/${evil}` }],
+    isProvisioned: NEVER_PROVISIONED,
+  });
+  assert.equal(found, null, "the mint's own alphabet is the fence");
+});
+
+test("findResumableCeremony: a registered path on a DIFFERENT branch is a name collision, not my orphan", async () => {
+  const found = findResumableCeremony({
+    claims: [orphanClaim()],
+    intent: "reading",
+    worktreesDir: WORKTREES_DIR,
+    registered: [{ path: wtPath(ORPHAN), branch: "claude/someone-else" }],
+    isProvisioned: NEVER_PROVISIONED,
+  });
+  assert.equal(found, null);
+});
+
+test("findResumableCeremony: the OLDEST matching orphan wins, deterministically", async () => {
+  const older = orphanClaim({
+    sessionId: "story-a-zzzzzz",
+    branch: "claude/story-a-zzzzzz",
+    claimedAt: "2026-08-01T00:00:00.000Z",
+  });
+  const newer = orphanClaim({ claimedAt: "2026-08-09T00:00:00.000Z" });
+  const registered = [
+    { path: wtPath(ORPHAN), branch: `claude/${ORPHAN}` },
+    { path: wtPath("story-a-zzzzzz"), branch: "claude/story-a-zzzzzz" },
+  ];
+  const args = {
+    intent: "reading",
+    worktreesDir: WORKTREES_DIR,
+    registered,
+    isProvisioned: NEVER_PROVISIONED,
+  };
+  assert.equal(findResumableCeremony({ claims: [newer, older], ...args })?.sessionId, "story-a-zzzzzz");
+  assert.equal(findResumableCeremony({ claims: [older, newer], ...args })?.sessionId, "story-a-zzzzzz");
+});
+
+test("findResumableCeremony: a blank intent never adopts anything", async () => {
+  const found = findResumableCeremony({
+    claims: [orphanClaim({ intent: "   " })],
+    intent: "   ",
+    worktreesDir: WORKTREES_DIR,
+    registered: ORPHAN_REGISTERED,
+    isProvisioned: NEVER_PROVISIONED,
+  });
+  assert.equal(found, null);
 });
