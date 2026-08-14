@@ -25,6 +25,10 @@ export const CLI_AREAS = [
   "build",
   "coverage",
   "ownership",
+  // `storytree own` — this session's inventory of the background work it is still running
+  // (`shared-box-session-ownership-arc` inc 1). Offline, read-only, no store: it must stay readable
+  // by a session whose closing leg is the reason it is being asked.
+  "own",
   "node",
   "story",
   "drift",

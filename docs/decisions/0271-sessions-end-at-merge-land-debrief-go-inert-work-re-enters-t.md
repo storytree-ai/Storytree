@@ -70,6 +70,17 @@ worktree when the session is archived; mid-session `git worktree remove` on the 
 is Windows-hostile and would break D3's read-only exploration); deliver the debrief (D2); then go
 **inert**: no further monitors, polling loops, scheduled wakeups, or new work in this session.
 
+*[Amended by ADR-0366 (2026-08-14): the third clause gains a second half. "Leave the worktree
+committed-clean and reap-ready" becomes "…**and hold no LIVE background work**" — the session runs
+`storytree own` and may not call itself inert while it reports one. The ORDER and every other clause
+are untouched. Why this clause was incomplete as written: every state it names is state the session
+can already SEE — an arc row, a claim row, a git tree — and none of it covers the PROCESSES the
+session started. The harness notifies on a background task's completion or its failure, so a task
+that HANGS emits neither and its silence is indistinguishable from "already handled", which is how a
+session runs this whole leg, reports itself inert, and still holds live work. UNKNOWN counts as LIVE
+(ADR-0366 D4), and the inventory is a FLOOR rather than a census — it sees only work that registered
+itself.]*
+
 *[Amended by ADR-0275 (2026-08-01): the closing leg's ORDER stands unchanged — residue, release
 claims, clean tree, debrief — but "then go **inert**" is retired as the only ending. The leg now
 ends in a **fork**: continue, or go inert. Inert remains the terminal branch and everything this

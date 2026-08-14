@@ -126,6 +126,8 @@ import {
 } from "./coverage-gate.js";
 // ADR-0317 D2 — the subtree-grain ownership map + its disk-walk totality report (report-only).
 import { gatherFromDisk, ownershipCommand, ownershipHelp } from "./ownership.js";
+// `shared-box-session-ownership-arc` inc 1 — the session's own background-work inventory.
+import { ownCommand, ownHelp } from "./own.js";
 import { agentsCommand, agentStepCommand, agentsHelp } from "./agents.js";
 import { attestCommand, attestHelp, type AttestationStoreLike, type AttestDeps } from "./attest.js";
 import { runDrift, driftHelp } from "./drift.js";
@@ -3749,6 +3751,17 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     // handle must stay readable by whoever inherits it, long after the dispatching agent is gone.
     if (help) return dispatchHelp();
     return dispatchCommand(positionals.slice(1));
+  }
+
+  if (area === "own") {
+    // The session's inventory of the background work it is still running
+    // (`shared-box-session-ownership-arc` inc 1). Offline, read-only, no store — the ADR-0271
+    // closing leg reads it to answer "may I declare myself inert?", and a question asked at the end
+    // of a session must not depend on a database being up.
+    if (help) return ownHelp();
+    // `--all` is a shared CLI option, so it arrives in `values` rather than in the positionals —
+    // re-attached here so `own` reads one argument list and the pure command needs no parser.
+    return ownCommand([...positionals.slice(1), ...(values["all"] === true ? ["--all"] : [])]);
   }
 
   if (area === "guide") {
