@@ -48,7 +48,12 @@ def arg(name, default):
 
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ISLAND = json.load(open(os.path.join(HERE, "island.json")))
+# `--island` selects which emitted geometry to render pieces for; it defaults to this
+# directory's own `island.json`, so a bare run is unchanged. An absolute path wins outright
+# (`os.path.join` returns its absolute second argument), which is how the camera-elevation
+# sweep points one unmodified renderer at a per-angle island without copying it.
+ISLAND_PATH = os.path.join(HERE, arg("--island", "island.json"))
+ISLAND = json.load(open(ISLAND_PATH))
 
 OUT = os.path.join(HERE, arg("--out", "pieces"))
 SAMPLES = int(arg("--samples", "48"))

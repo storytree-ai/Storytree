@@ -12,6 +12,7 @@
  * The second reads the placement out of `organicLayerBox` — the function `SceneView` itself renders
  * from — rather than restating the arithmetic, so a drift in the renderer fails here.
  */
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   HEX_R,
@@ -26,8 +27,10 @@ import {
   type Pt,
 } from '@storytree/forest-world';
 import {
+  assertSpriteRenderMatchesLandCamera,
   organicLayerBox,
   organicLayerGroundContact,
+  spriteRenderMatchesLandCamera,
   spriteUprightReconciliation,
   type OrganicLayerPlacement,
 } from './land-camera.js';
@@ -69,26 +72,95 @@ function plantedHeroTree(h: Axial, elevationDeg: number): OrganicLayerPlacement 
     assetAnchor: candidate.groundAnchor,
     worldAnchor: hexCenter(h, elevationDeg),
     scale: (HEX_R * 2) / candidate.canvas.width,
-    projection: spriteUprightReconciliation(candidate.authoredCameraElevationDeg, elevationDeg),
+    projection: spriteUprightReconciliation(candidate.renderedCameraElevationDeg, elevationDeg),
   };
 }
 
 describe('the land and its objects read ONE declared camera', () => {
-  it('the sprite registration declares the land’s own constant, not a copy of it', () => {
+  it('the shipped sprite frames are still rendered at the land’s declared camera', () => {
+    // WHAT THIS REPLACED, AND WHY. This assertion used to read
+    //     expect(codeBlender.authoredCameraElevationDeg).toBe(LAND_CAMERA_ELEVATION_DEG)
+    // while the registration's value WAS `LAND_CAMERA_ELEVATION_DEG` — so it compared the constant
+    // to itself and could not fail for any value of it. Bumping the land's camera moved the
+    // registration with it, the app went on claiming the sprite had been rendered at the new angle,
+    // and the committed PNG frames were still 20 degrees. PR #1344's proof — that the land
+    // projection and the sprite registration derive from the SAME constant — kept passing through
+    // exactly that mismatch, because nothing compared the constant to the PIXELS.
+    //
+    // The registration now records the angle its frames were actually rendered at, as a literal, so
+    // this is a real comparison of two independent facts.
     const codeBlender = chapter2Round3TreeCandidate('code-blender');
-    // Identity, not equality-to-20: the registration is the same binding the land's mapping reads,
-    // so the two cannot be re-declared apart.
-    expect(codeBlender.authoredCameraElevationDeg).toBe(LAND_CAMERA_ELEVATION_DEG);
+    expect(codeBlender.renderedCameraElevationDeg).toBe(20);
+    assertSpriteRenderMatchesLandCamera(
+      codeBlender.heroTreeTrackId,
+      codeBlender.renderedCameraElevationDeg,
+    );
+  });
+
+  it('EVERY track’s shipped frames are current against the land camera', () => {
+    for (const c of CHAPTER2_ROUND3_TREE_CANDIDATES) {
+      expect(
+        () => assertSpriteRenderMatchesLandCamera(c.heroTreeTrackId, c.renderedCameraElevationDeg),
+        `${c.id} ships frames rendered at a camera the land no longer declares`,
+      ).not.toThrow();
+    }
+  });
+
+  it('a stale render is REFUSED — recording 20 deg against a land declared at 35 is not current', () => {
+    // The red half, and the whole point of the field being a record. This is what a constant bump
+    // without a re-render looks like from the app's side, and it must be a failure rather than a
+    // silently wrong picture.
+    expect(spriteRenderMatchesLandCamera(20, 35)).toBe(false);
+    expect(() =>
+      assertSpriteRenderMatchesLandCamera('chapter2-round3-code-blender-hero-tree-track-v1', 20, 35),
+    ).toThrow(/STALE SPRITE RENDER/);
+    // and the refusal has to say what clears it, not merely that something is wrong
+    expect(() => assertSpriteRenderMatchesLandCamera('t', 20, 35)).toThrow(/re-render/i);
+  });
+
+  it('has TEETH: the check compares the RECORDED value, so it cannot pass by self-comparison', () => {
+    // Without this control the suite above could be satisfied by a check that read the land's
+    // constant on both sides — which is precisely the defect being fixed, and which no behavioural
+    // assertion about the CURRENT (agreeing) state can distinguish from a correct one.
+    //
+    // 1. It is genuinely two-argument: the same recorded value is current at one land camera and
+    //    stale at another, and a different recorded value is current at the angle it matches.
+    expect(spriteRenderMatchesLandCamera(20, 20)).toBe(true);
+    expect(spriteRenderMatchesLandCamera(20, 35)).toBe(false);
+    expect(spriteRenderMatchesLandCamera(35, 35)).toBe(true);
+    expect(spriteRenderMatchesLandCamera(35, 20)).toBe(false);
+    // A track with no camera at all has no render to have gone stale.
+    expect(spriteRenderMatchesLandCamera(null, 35)).toBe(true);
+
+    // 2. And the RECORD is a literal in the source, not the constant wearing a new field name. This
+    //    is the control that actually prevents regression: re-introducing
+    //    `renderedCameraElevationDeg: LAND_CAMERA_ELEVATION_DEG` would restore the tautology while
+    //    leaving every assertion above green.
+    const source = readFileSync(
+      new URL('./chapter2-round3-tree-candidates.ts', import.meta.url),
+      'utf8',
+    );
+    expect(
+      /renderedCameraElevationDeg:\s*LAND_CAMERA_ELEVATION_DEG/.test(source),
+      'the registration must RECORD its render angle, never restate the land constant',
+    ).toBe(false);
+    expect(
+      /^\s*import\s*\{[^}]*\bLAND_CAMERA_ELEVATION_DEG\b/m.test(source),
+      'the registration module must not import the land camera constant at all',
+    ).toBe(false);
+    expect(
+      (source.match(/renderedCameraElevationDeg:\s*-?\d+(?:\.\d+)?\s*,/g) ?? []).length,
+    ).toBeGreaterThan(0);
   });
 
   it('every candidate states a camera or states that it has none', () => {
     for (const c of CHAPTER2_ROUND3_TREE_CANDIDATES) {
-      const declared = c.authoredCameraElevationDeg;
+      const declared = c.renderedCameraElevationDeg;
       expect(declared === null || (declared > 0 && declared < PLAN_VIEW_ELEVATION_DEG)).toBe(true);
     }
     // Exactly one track is code-generated at a declared camera today; the rest are 2D plates.
     const withCamera = CHAPTER2_ROUND3_TREE_CANDIDATES.filter(
-      (c) => c.authoredCameraElevationDeg !== null,
+      (c) => c.renderedCameraElevationDeg !== null,
     );
     expect(withCamera.map((c) => c.id)).toEqual(['code-blender']);
   });

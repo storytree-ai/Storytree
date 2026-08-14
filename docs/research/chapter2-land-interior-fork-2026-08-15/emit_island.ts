@@ -102,7 +102,44 @@ const CAP_STATUSES = [
   'proposed',
 ] as const;
 
-const SIN = groundFlattening();
+/**
+ * THE CAMERA THIS ISLAND IS EMITTED FOR. Defaults to `LAND_CAMERA_ELEVATION_DEG`, so a bare
+ * `npx tsx emit_island.ts` is byte-identical to the committed `island.json` (asserted by
+ * `verify.py` check 1) and this file still declares no angle of its own.
+ *
+ * `--elev <deg>` overrides ONLY the camera block written below, and `--out <path>` the
+ * destination. That is a genuine camera sweep and not a geometry sweep, which is the whole
+ * reason the override is drawn here rather than deeper:
+ *
+ *   · The GROUND geometry is unaffected by it, by construction. Cell polygons and the coast
+ *     come from `buildRelaxedCells` / `smoothCoast`, which take no elevation argument at all —
+ *     they work in the screen space of `hexCenter`'s own default — and are then carried back to
+ *     the ground plane with `unprojectGround`. So the emitted ground island is always the one
+ *     the app's own constant produces, and re-projecting it at another angle shows THAT island
+ *     from higher up rather than a differently decomposed one.
+ *   · Which is what a sweep needs: one variable. Threading a sweep angle into the substrate
+ *     would ALSO re-intern its vertices — the mesh's decomposition is a function of the
+ *     projection while `VKEY` rounds screen coordinates (measured on the camera lane as
+ *     50 -> 52 cells), so the pictures would vary camera AND cell count together.
+ *   · The cost of that choice, stated rather than hidden: this sweep does NOT show the
+ *     re-decomposition a REAL camera move would additionally cause. Moving the interning to
+ *     ground space remains a precondition of actually changing the shipped angle, exactly as
+ *     the interior-fork README's first non-discretionary condition already says.
+ */
+const ARGV = process.argv.slice(2);
+const argOf = (name: string, fallback: string): string => {
+  const i = ARGV.indexOf(name);
+  const v = i >= 0 ? ARGV[i + 1] : undefined;
+  return v === undefined ? fallback : v;
+};
+const CAMERA_DEG = Number(argOf('--elev', String(LAND_CAMERA_ELEVATION_DEG)));
+if (!Number.isFinite(CAMERA_DEG) || CAMERA_DEG <= 0 || CAMERA_DEG >= 90) {
+  throw new Error(`--elev must be an angle in (0, 90) degrees above the ground plane, got ${argOf('--elev', '')}`);
+}
+const OUT_PATH = argOf('--out', join(HERE, 'island.json'));
+const IS_SWEEP = CAMERA_DEG !== LAND_CAMERA_ELEVATION_DEG;
+
+const SIN = groundFlattening(CAMERA_DEG);
 const cos = (d: number): number => Math.cos((d * Math.PI) / 180);
 
 /** GROUND-plane hex centre — `hexCenter` with the projection undone. */
@@ -351,10 +388,16 @@ const out = {
   seed: SEED,
   storyId: STORY_ID,
   camera: {
-    elevationDeg: LAND_CAMERA_ELEVATION_DEG,
+    elevationDeg: CAMERA_DEG,
     groundFlattening: SIN,
-    uprightForeshortening: cos(LAND_CAMERA_ELEVATION_DEG),
-    source: 'packages/forest-world/src/camera.ts — LAND_CAMERA_ELEVATION_DEG (ADR-0367 D1, PR #1344)',
+    uprightForeshortening: cos(CAMERA_DEG),
+    source: IS_SWEEP
+      ? `--elev ${CAMERA_DEG} SWEEP OVERRIDE, for ADR-0367 D1's reserved question. The shipped ` +
+        `constant is ${LAND_CAMERA_ELEVATION_DEG} (packages/forest-world/src/camera.ts — ` +
+        `LAND_CAMERA_ELEVATION_DEG, PR #1344) and is NOT changed by this run. Ground geometry ` +
+        `below is decomposed at the constant and re-projected here: a camera sweep, not a ` +
+        `geometry sweep.`
+      : 'packages/forest-world/src/camera.ts — LAND_CAMERA_ELEVATION_DEG (ADR-0367 D1, PR #1344)',
   },
   tileDepthWorld: TILE_DEPTH_WORLD,
   hexR: HEX_R,
@@ -380,9 +423,10 @@ const out = {
   },
 };
 
-writeFileSync(join(HERE, 'island.json'), `${JSON.stringify(out, null, 1)}\n`);
+writeFileSync(OUT_PATH, `${JSON.stringify(out, null, 1)}\n`);
 console.log(
-  `island.json  tiles=${TILES.length}  ` +
+  `${OUT_PATH}  camera=${CAMERA_DEG}deg${IS_SWEEP ? ' (SWEEP OVERRIDE)' : ' (LAND_CAMERA_ELEVATION_DEG)'}  ` +
+    `tiles=${TILES.length}  ` +
     `A: ${cellsA.length} cells / ${classesA.length} distinct shapes  ` +
     `B: ${cellsB.length} cells / ${classesB.length} distinct shapes  ` +
     `coast=${coastLoopGround.length} pts  wallPieces=${wallPlacements.length} at ${WALL_HEADINGS} headings`,

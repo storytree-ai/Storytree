@@ -25,7 +25,11 @@
  * true only of whichever language wrote it; the bound is true of both, so `maxAnchorResidualPx`
  * is the number to read.
  */
-import { LAND_CAMERA_ELEVATION_DEG } from '@storytree/forest-world';
+// NOTE: this module deliberately does NOT import `LAND_CAMERA_ELEVATION_DEG`. A registration
+// records what its committed pixels ARE; it must not be able to restate the land's declared camera,
+// because a record that reads the value it is supposed to be checked against can never disagree
+// with it. The comparison lives in `land-camera.ts` and is asserted in
+// `land-camera-composition.test.ts`. See `renderedCameraElevationDeg` below.
 import {
   CHAPTER2_ORGANIC_POSE_TO_POSE_REGISTRY,
   CHAPTER2_PLANT_SAMPLE_TRACK,
@@ -681,16 +685,26 @@ export interface Chapter2HeroTreeCandidate {
   readonly canvas: { readonly width: number; readonly height: number };
   readonly groundAnchor: OrganicPosePoint;
   /**
-   * The camera elevation, in degrees above the ground plane, this track's frames were AUTHORED at —
-   * or `null` for a hand-authored 2D track that was never rendered through one (ADR-0367 D1).
+   * The camera elevation, in degrees above the ground plane, this track's committed frames were
+   * actually RENDERED at — or `null` for a hand-authored 2D track that was never rendered through a
+   * camera at all (ADR-0367 D1).
    *
-   * A code-generated track states the value it renders at rather than carrying its own literal:
-   * `code-blender` is declared as {@link LAND_CAMERA_ELEVATION_DEG} itself, so the land's camera and
-   * this registration are the SAME value and cannot drift apart. Re-declaring the land's camera
-   * therefore re-declares what this track must be re-rendered at, which is the whole point — the
-   * mismatch it replaces was 20-degree trees standing on plan-view ground.
+   * ⚠ THIS IS A RECORD OF THE PIXELS, AND IT MUST BE A LITERAL. It is deliberately NOT
+   * `LAND_CAMERA_ELEVATION_DEG` — which this module does not import — and writing the constant here
+   * again would re-open the exact hole this field was renamed to close: while the value WAS the
+   * land's binding, the two sides
+   * could not be observed to disagree. Bumping the constant silently moved this registration with
+   * it, so the app claimed the sprite had been rendered at the new angle while the committed PNGs
+   * were still the old one — a lie that every assertion passed, because both sides read one binding
+   * and nothing compared the binding to the pixels.
+   *
+   * Transcribe it from the generator's own metadata (`camera_elevation_deg` in the render's
+   * `render-meta.json`, emitted by `blender_tree.py`), and change it only when the frames beside it
+   * are re-rendered. `spriteRenderMatchesLandCamera` compares it against the land's constant, and
+   * `land-camera-composition.test.ts` asserts that over the real registry — so a constant bump
+   * without a re-render is a RED.
    */
-  readonly authoredCameraElevationDeg: number | null;
+  readonly renderedCameraElevationDeg: number | null;
   readonly budget: Chapter2HeroTreeCandidateBudget;
   readonly anchorRule: Chapter2HeroTreeAnchorRule;
 }
@@ -710,7 +724,7 @@ export const CHAPTER2_ROUND3_TREE_CANDIDATES: readonly Chapter2HeroTreeCandidate
     frameCount: 9,
     canvas: Object.freeze({ width: 192, height: 192 }),
     groundAnchor: Object.freeze({ x: 96, y: 188 }),
-    authoredCameraElevationDeg: null, // hand-authored 2D; never rendered through a camera
+    renderedCameraElevationDeg: null, // hand-authored 2D; never rendered through a camera
     budget: Object.freeze({
       encodedBytes: 168_541,
       decodedRgbaBytes: 1_511_424,
@@ -744,7 +758,7 @@ export const CHAPTER2_ROUND3_TREE_CANDIDATES: readonly Chapter2HeroTreeCandidate
     frameCount: 16,
     canvas: Object.freeze({ width: 192, height: 192 }),
     groundAnchor: Object.freeze({ x: 96, y: 188 }),
-    authoredCameraElevationDeg: null, // generated 2D plates; the track declares no camera
+    renderedCameraElevationDeg: null, // generated 2D plates; the track declares no camera
     budget: Object.freeze({
       encodedBytes: 168_241,
       decodedRgbaBytes: 2_543_616,
@@ -778,7 +792,7 @@ export const CHAPTER2_ROUND3_TREE_CANDIDATES: readonly Chapter2HeroTreeCandidate
     frameCount: 19,
     canvas: Object.freeze({ width: 128, height: 128 }),
     groundAnchor: Object.freeze({ x: 64, y: 122 }),
-    authoredCameraElevationDeg: null, // generated 2D plates; the track declares no camera
+    renderedCameraElevationDeg: null, // generated 2D plates; the track declares no camera
     budget: Object.freeze({
       encodedBytes: 99_430,
       decodedRgbaBytes: 1_429_504,
@@ -812,7 +826,7 @@ export const CHAPTER2_ROUND3_TREE_CANDIDATES: readonly Chapter2HeroTreeCandidate
     frameCount: 9,
     canvas: Object.freeze({ width: 192, height: 192 }),
     groundAnchor: Object.freeze({ x: 96, y: 188 }),
-    authoredCameraElevationDeg: null, // generated 2D plates; the track declares no camera
+    renderedCameraElevationDeg: null, // generated 2D plates; the track declares no camera
     budget: Object.freeze({
       encodedBytes: 63_406,
       decodedRgbaBytes: 1_511_424,
@@ -846,10 +860,16 @@ export const CHAPTER2_ROUND3_TREE_CANDIDATES: readonly Chapter2HeroTreeCandidate
     frameCount: 19,
     canvas: Object.freeze({ width: 128, height: 128 }),
     groundAnchor: Object.freeze({ x: 62, y: 120 }),
-    // THE SHARED VALUE (ADR-0367 D1). Not a copy of 20: the land's own constant, so the ground this
-    // tree stands on and the camera it was rendered at are one fact with one definition. The
-    // generator's `ELEV_DEG = 20.0` is the author-time twin of this binding.
-    authoredCameraElevationDeg: LAND_CAMERA_ELEVATION_DEG,
+    // THE ANGLE THE COMMITTED PIXELS BESIDE THIS ENTRY WERE RENDERED AT — a literal, transcribed
+    // from the generator's own `camera_elevation_deg` metadata (`blender_tree.py`, whose `--elev`
+    // defaults to 20.0). It is deliberately NOT `LAND_CAMERA_ELEVATION_DEG`: see the field's doc
+    // comment. While it WAS the constant, a bump moved this record with it and the app claimed a
+    // re-render that had not happened. The two being EQUAL is now a checked fact
+    // (`spriteRenderMatchesLandCamera`) instead of a tautology, which is what makes ADR-0367 D1's
+    // "there is ONE value and both sides read it" observable rather than merely asserted.
+    //
+    // Change this ONLY together with the frames in `./assets/code-blender/tree/`.
+    renderedCameraElevationDeg: 20,
     budget: Object.freeze({
       encodedBytes: 57_494,
       decodedRgbaBytes: 1_429_504,
