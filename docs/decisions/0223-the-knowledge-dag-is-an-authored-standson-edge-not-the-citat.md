@@ -54,8 +54,19 @@ The forces:
 
 1. **The knowledge DAG substrate is a new, authored `standsOn` edge — distinct from `references`.**
    `X.standsOn = [B, C]` means *X is built on the more-foundational B and C.* It is an authored/curated
-   relationship, optional, defaulting to empty, carried on the schema like `references` (not in the
-   markdown body). The transient signal kinds (`friction`, `open-question`, `proposal`) stay edge-free.
+   relationship, optional, carried on the schema like `references` (not in the markdown body). Its
+   entries are `asset:<id>` Library pointers or `doc:<relpath>` ADR pointers — `doc:` is admitted here,
+   where a `refList` field bans it, because dec 4 makes ADRs the bedrock an artifact stands on, and
+   because this edge is the DAG substrate rather than an agent context door (the ADR-0029 ban's
+   subject). The transient signal kinds stay edge-free: `friction` and `open-question` today, and
+   `proposal` when it existed — that kind was retired by ADR-0298 and folded onto `increment` by
+   ADR-0305 D1, so the exclusion list has two members, not three. `increment` itself is IN the DAG,
+   as the successor of the tier-6 `plan` dec 3 placed as standing on its arc.
+
+   Delivered by the `library-standson-schema-admission` capability. The field is OPTIONAL rather than
+   defaulted to empty: an absent edge stays absent, so every pre-existing document validates and
+   re-serialises unchanged and no migration is owed. A default would have stamped `standsOn: []`
+   across the whole corpus on next write to record the absence of an edge nobody authored.
 
 2. **Citations (`references`) are untouched and stop being the DAG.** `references` remains the free,
    cyclic "see also / composes with" web, cycles allowed, schema unchanged. It is simply **no longer the
@@ -75,8 +86,18 @@ The forces:
    | 5 · initiative | arc / epic | overlay |
    | 6 · ephemeral | plan | stands on its arc |
 
-   A new corpus-guard check (`check:library-dag-acyclic`, sibling to `adr-number-unique`) fails
-   `pnpm -r test` on any cycle in `standsOn` — the guarantee citations could never give.
+   A new corpus-guard check, `check:library-dag-acyclic`, fails on any cycle in `standsOn` — the
+   guarantee citations could never give. It is a **`pnpm gate` rung that reads the LIVE corpus**,
+   pinned after the expensive legs as a `shared-environment` step, and it fails CLOSED on an
+   unreadable corpus rather than declaring a skip.
+
+   *(This decision originally sited the check "sibling to `adr-number-unique`", inside `pnpm -r test`.
+   That address was buildable in July 2026, when `apps/studio/data/knowledge.json` was a committed
+   corpus file a hermetic test could read. ADR-0302 D1 deleted it and ADR-0302 D3 keeps `pnpm -r test`
+   credential-free, so a corpus test would now take the whole leg down on every DB-less checkout;
+   ADR-0307 D4 puts assertions about the REAL corpus on a `check:*` rung, which may hold a connection.
+   `adr-number-unique` stays where it is because ADRs are still FILES. Corrected in place under
+   ADR-0139 — the RULE this decided is unchanged, only where it runs.)*
 
 4. **The three tricky placements are settled:**
    - **ADRs are the bedrock (tier 0).** An artifact may stand on the decision that ratified it; ADRs

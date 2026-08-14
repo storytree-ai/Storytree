@@ -23,6 +23,7 @@
     "build:status": "pnpm --filter @storytree/cli exec node --import tsx src/build-unit-status.ts",
     "check:agents": "pnpm --filter @storytree/cli exec node --import tsx src/build-agents.ts --check",
     "check:verification-decay": "pnpm --filter @storytree/cli exec node --import tsx src/check-verification-decay.ts",
+    "check:library-dag-acyclic": "pnpm --filter @storytree/cli exec node --import tsx src/check-library-dag-acyclic.ts",
     "check:web-grounding": "pnpm -C packages/cli exec node --import tsx src/check-web-grounding.ts",
     "check:web-experience-closure": "pnpm -C packages/cli exec node --import tsx src/check-web-experience-closure.ts",
     "sync:web-engine": "pnpm --filter @storytree/cli exec node --import tsx src/web-engine.ts",
