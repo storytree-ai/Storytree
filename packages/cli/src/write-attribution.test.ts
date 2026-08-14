@@ -19,20 +19,41 @@ import {
 const cliSrc = fileURLToPath(new URL(".", import.meta.url));
 
 /**
- * The files the fence covers: every non-test `.ts` under `packages/cli/src`.
+ * The two source roots the fence covers: `packages/cli/src` and `packages/arc/src`.
+ *
+ * ⚠ THE SECOND ROOT IS THE WHOLE POINT, not tidiness. `arc-tier-extraction-arc` moved three of the
+ * fence's own named write paths — `arc.ts`, `question.ts`, `increment.ts` — into `@storytree/arc`. A
+ * fence that walked only its own directory would have followed them out of scope SILENTLY, keeping a
+ * green test while covering strictly less than it did the day before; the anti-vacuity test below
+ * names `arc.ts` and `question.ts` explicitly and is what turned that into a loud failure. The rule
+ * the roots encode is "every package whose verbs write to the live Library under the `cli@<branch>`
+ * identity", which is now two packages and may become three.
+ *
+ * `packages/drive` stays out for the reason the module header gives: it writes under a deliberate
+ * non-branch identity (`CURATOR_ACTOR`), which is a different judgement, not an omission.
+ */
+const FENCED_ROOTS: readonly { repoPath: string; dir: string }[] = [
+  { repoPath: "packages/cli/src", dir: cliSrc },
+  { repoPath: "packages/arc/src", dir: path.resolve(cliSrc, "..", "..", "arc", "src") },
+];
+
+/**
+ * The files the fence covers: every non-test `.ts` under each {@link FENCED_ROOTS} directory.
  *
  * Test fixtures are excluded BY PATH rather than by pattern — the parked entry's own requirement.
  * `friction.test.ts` deliberately constructs bare-`cli` rows to prove the guard's fail-closed
  * behaviour, and a pattern-shaped exclusion would eventually cover a real write path too.
  */
 function cliSources(): { file: string; source: string }[] {
-  return readdirSync(cliSrc)
-    .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"))
-    .sort()
-    .map((f) => ({
-      file: `packages/cli/src/${f}`,
-      source: readFileSync(path.join(cliSrc, f), "utf8"),
-    }));
+  return FENCED_ROOTS.flatMap(({ repoPath, dir }) =>
+    readdirSync(dir)
+      .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"))
+      .sort()
+      .map((f) => ({
+        file: `${repoPath}/${f}`,
+        source: readFileSync(path.join(dir, f), "utf8"),
+      })),
+  );
 }
 
 // ── the fence itself, over the real tree ─────────────────────────────────────
@@ -59,9 +80,17 @@ test("the scan actually reaches the CLI's write paths — a vacuous green is a f
       "arc / friction / question / artifact write paths, so a number this low means the scan stopped " +
       "matching rather than that the repo stopped writing.",
   );
-  for (const file of ["arc.ts", "commands.ts", "friction.ts", "question.ts"]) {
+  // Named with their packages since `arc-tier-extraction-arc` split them across two: `arc.ts` and
+  // `question.ts` moved to `@storytree/arc` and this list is what made the move visible rather than
+  // letting the fence quietly shrink to whatever stayed behind.
+  for (const file of [
+    "packages/cli/src/commands.ts",
+    "packages/cli/src/friction.ts",
+    "packages/arc/src/arc.ts",
+    "packages/arc/src/question.ts",
+  ]) {
     assert.ok(
-      scan.sites.some((s) => s.file === `packages/cli/src/${file}`),
+      scan.sites.some((s) => s.file === file),
       `no store-write call site found in ${file} — the scan's call pattern has drifted from the source.`,
     );
   }

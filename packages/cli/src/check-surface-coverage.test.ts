@@ -321,7 +321,15 @@ test("the register derived from the REAL CLI sources mounts today's verbs and no
   // proves the DERIVATION reflects the real CLI. It also pins the `.test.ts` exclusion in
   // `readCliSources` — this very file names all three deleted verbs, and must not re-mount them.
   const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
-  const register = deriveCommandRegister(readCliSources(path.join(repoRoot, "packages", "cli", "src")));
+  // BOTH verb-contributing packages, exactly as `check-surface-coverage.ts` composes them: the arc
+  // verbs live in `@storytree/arc` since `arc-tier-extraction-arc`, and `arc increment add` below is
+  // what catches a register derived from only one of them.
+  const register = deriveCommandRegister(
+    readCliSources(
+      path.join(repoRoot, "packages", "cli", "src"),
+      path.join(repoRoot, "packages", "arc", "src"),
+    ),
+  );
 
   for (const mounted of [
     ["library", "artifact", "edit"],

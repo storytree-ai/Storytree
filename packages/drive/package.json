@@ -8,7 +8,9 @@
     ".": "./src/index.ts",
     "./build": "./src/build.ts",
     "./claim-universe": "./src/claim-universe.ts",
-    "./arc-rollup": "./src/arc-rollup.ts",
+    "./adr-frontmatter": "./src/adr-frontmatter.ts",
+    "./adr-metas": "./src/adr-metas.ts",
+    "./work-hierarchy": "./src/work-hierarchy.ts",
     "./build-worker": "./src/build-worker.ts",
     "./secrets": "./src/secrets.ts"
   },

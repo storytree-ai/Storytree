@@ -1,6 +1,6 @@
 import type { Store, StoredDoc } from "@storytree/storage-protocol";
 
-import type { Envelope } from "./envelope.js";
+import type { Envelope } from "@storytree/drive";
 
 /**
  * `storytree increment check <id>` — the MECHANICAL freshness check consumption begins with (ADR-0183
