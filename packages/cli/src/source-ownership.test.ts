@@ -188,6 +188,139 @@ test("the grain tally separates capability-grain owners from coarser story-grain
   assert.deepEqual(report.grain, { capability: 1, story: 1, unresolved: 1 });
 });
 
+// ── the story-grain listing: WHY each entry sits at that grain ───────────────
+//
+// The grain COUNT alone asserts something false. Before this listing existed the report called all
+// 92 live story-grain declarations a "`story-author` worklist" where "no capability exists for that
+// subtree" — while `repo-manifest.json`'s own rules (1) and (4) already SETTLE 20 of them, and the
+// guidance pointed at "every subtree KEY below" when no subtree key was printed anywhere.
+
+/** The three-kind fixture every classification case below is a slice of. */
+function grainFixture() {
+  return judgeSourceOwnership({
+    files: [
+      "packages/agent/src/index.ts",
+      "packages/agent/src/sdk-curator.ts",
+      "packages/proof-protocol/src/a.ts",
+      "packages/proof-protocol/src/b.ts",
+      "packages/cli/src/gate.ts",
+    ],
+    declarations: [
+      decl("packages/agent/src/index.ts", "agent"),
+      decl("packages/agent/src/sdk-curator.ts", "agent"),
+      decl("packages/proof-protocol/src", "proof-protocol"),
+      decl("packages/cli/src/gate.ts", "gate-ci-parity"),
+    ],
+    knownUnitIds: ["agent", "proof-protocol", "gate-ci-parity", "leaf-tool-surface"],
+    storyIds: ["agent", "proof-protocol"],
+    unitsByStory: new Map([
+      ["agent", ["leaf-tool-surface"]], // declares a capability ⇒ a finer owner MAY exist
+      ["proof-protocol", []], // root port: the story IS the one competence
+    ]),
+  });
+}
+
+test("every story-grain declaration is listed BY SUBTREE KEY — the claimable object (ADR-0317 D3)", () => {
+  // The defect this closes: the guidance said "claim the subtree you are writing" while the report
+  // printed owners only, so the one thing a session could bind to was invisible.
+  const keys = grainFixture().storyGrain.map((d) => d.subtree);
+  assert.deepEqual(keys.sort(), [
+    "packages/agent/src/index.ts",
+    "packages/agent/src/sdk-curator.ts",
+    "packages/proof-protocol/src",
+  ]);
+});
+
+test("a capability-grain declaration never appears in the story-grain listing", () => {
+  assert.ok(!grainFixture().storyGrain.some((d) => d.subtree === "packages/cli/src/gate.ts"));
+});
+
+test("a package re-export barrel is DECIDED by manifest rule 4, not residue", () => {
+  const barrel = grainFixture().storyGrain.find((d) => d.subtree.endsWith("/index.ts"));
+  assert.equal(barrel?.reason, "barrel");
+});
+
+test("a story declaring NO units is DECIDED by manifest rule 1 — nothing finer could be named", () => {
+  const port = grainFixture().storyGrain.find((d) => d.owner === "proof-protocol");
+  assert.equal(port?.reason, "no-capability-declared");
+  assert.equal(port?.files, 2);
+});
+
+test("a story that DOES declare capabilities leaves its non-barrel subtrees as RESIDUE", () => {
+  const residue = grainFixture().storyGrain.find((d) => d.subtree.endsWith("sdk-curator.ts"));
+  assert.equal(residue?.reason, "residue");
+});
+
+test("the barrel rule wins over the no-units rule — the more specific settlement", () => {
+  const report = judgeSourceOwnership({
+    files: ["packages/p/src/index.ts"],
+    declarations: [decl("packages/p/src/index.ts", "p")],
+    knownUnitIds: ["p"],
+    storyIds: ["p"],
+    unitsByStory: new Map([["p", []]]),
+  });
+  assert.equal(report.storyGrain[0]?.reason, "barrel");
+});
+
+test("without a story→unit namespace the reason is UNCLASSIFIED, never guessed as residue", () => {
+  // Defaulting to `residue` would inflate the worklist with entries nobody measured — the same
+  // "not checked is not a pass" rule `ownersChecked` already holds for owner resolution.
+  const report = judgeSourceOwnership({
+    files: ["packages/agent/src/sdk-curator.ts"],
+    declarations: [decl("packages/agent/src/sdk-curator.ts", "agent")],
+    knownUnitIds: ["agent"],
+    storyIds: ["agent"],
+  });
+  assert.equal(report.storyGrain[0]?.reason, "unclassified");
+});
+
+test("file counts are PER DECLARATION, not per owner — one owner may hold many subtrees", () => {
+  const report = judgeSourceOwnership({
+    files: ["p/src/one.ts", "p/src/two.ts", "p/other/three.ts"],
+    declarations: [decl("p/src", "s"), decl("p/other", "s")],
+    knownUnitIds: ["s"],
+    storyIds: ["s"],
+    unitsByStory: new Map([["s", ["cap"]]]),
+  });
+  // The OWNER holds 3 files; the two declarations hold 2 and 1.
+  assert.equal(report.owners[0]?.files, 3);
+  assert.deepEqual(
+    report.storyGrain.map((d) => [d.subtree, d.files]),
+    [
+      ["p/src", 2],
+      ["p/other", 1],
+    ],
+  );
+});
+
+test("the rendered listing prints the keys, splits the three remedies, and drops the old false claim", () => {
+  const text = formatSourceOwnershipReport(grainFixture());
+  // The keys are on screen, and the claim command is the one a session can actually run.
+  assert.match(text, /packages\/agent\/src\/sdk-curator\.ts/);
+  assert.match(text, /noticeboard claim '<subtree-key>' --grade work --pg/);
+  // Three different remedies, because draining a DECIDED entry is not progress.
+  assert.match(text, /RESIDUE/);
+  assert.match(text, /DECIDED — a package re-export barrel/);
+  assert.match(text, /DECIDED — the owning story declares no units/);
+  // The blanket assertion that is false for all 20 decided entries must not come back.
+  assert.doesNotMatch(text, /no capability exists for that subtree/);
+  // ADR-0308 D5's fallback — what a session with no capability to name actually does.
+  assert.match(text, /INCREMENT you are driving/);
+});
+
+test("the listing is absent when nothing is at story grain, rather than printing an empty heading", () => {
+  const text = formatSourceOwnershipReport(
+    judgeSourceOwnership({
+      files: ["packages/cli/src/a.ts"],
+      declarations: [decl("packages/cli/src/a.ts", "some-capability")],
+      knownUnitIds: ["some-capability"],
+      storyIds: [],
+      unitsByStory: new Map(),
+    }),
+  );
+  assert.doesNotMatch(text, /STORY-GRAIN DECLARATIONS/);
+});
+
 // ── the trend ────────────────────────────────────────────────────────────────
 
 test("the trend compares against the recorded baseline and reports BOTH movements", () => {
