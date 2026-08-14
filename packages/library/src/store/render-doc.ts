@@ -91,12 +91,29 @@ export interface RenderedAsset {
    * the wire boundary. Without it the studio's focus graph has no dependency edge to walk and can
    * only fall back to the citation web — which is the cyclic thing ADR-0223 exists to stop drawing.
    *
-   * Structured branch only, present only when the stored doc carries it — never an empty array, so
-   * a doc with no authored edge is indistinguishable on the wire from one predating the field
-   * (`standsOn` is `.optional()`, never `.default([])`; ADR-0223's zero-migration rule). Absent for
-   * every EDGE_FREE_KINDS doc (`friction` / `open-question` / `definition`) by construction.
+   * Present only when the stored doc carries it — never an empty array, so a doc with no authored
+   * edge is indistinguishable on the wire from one predating the field (`standsOn` is `.optional()`,
+   * never `.default([])`; ADR-0223's zero-migration rule). Absent for every EDGE_FREE_KINDS doc
+   * (`friction` / `open-question` / `definition`) by construction. Unlike the navigation edges above
+   * this crosses on the PASS-THROUGH branch as well — see the comment at that branch.
    */
   standsOn?: string[];
+  /**
+   * An `increment`'s `cites` (ADR-0306 D2) — the mixed `story:` / `capability:` / `asset:` list
+   * naming the work-hierarchy units it touches and the guidance it stands on. Crosses by the same
+   * `.extend()` schema-metadata idiom as {@link standsOn}.
+   *
+   * It is the ONLY join between the knowledge graph and the work graph, which is what makes it worth
+   * crossing: `standsOn` is enforced over the library corpus and `depends_on` over `stories/**`, and
+   * ADR-0363 D2 keeps those two graphs separately enforced, joining them as a read-only projection at
+   * RENDER time rather than merging them. Without `cites` on the wire there is nothing on the studio
+   * side to project against.
+   *
+   * Structured branch only, absent-by-default. An increment citing nothing is CORRECT rather than
+   * under-specified (ADR-0306 D2 — greenfield work creates the capability, planning and ADR authoring
+   * name none), so no reader may treat an absent `cites` as a defect.
+   */
+  cites?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -135,6 +152,31 @@ function hasStringBody(doc: unknown): doc is AssetDocLike & { body: string } {
 /** True when `category` is one of the structured Knowledge kinds (a KIND_SPECS key). */
 export function isStructuredKind(category: string): category is KnowledgeKind {
   return Object.hasOwn(KIND_SPECS, category);
+}
+
+/**
+ * True when `body` is a per-kind CONTENT field of this kind rather than a pre-rendered body — the
+ * one question {@link hasStringBody} cannot answer on its own, and the reason it must be asked.
+ *
+ * `hasStringBody` uses "carries a string `body`" as a proxy for "is already rendered". The proxy
+ * holds for every kind but one: `increment` declares `body` in KIND_SPECS as the choreography prose
+ * (ADR-0305 D1's fold of the `plan` tier). So every structured increment answered yes and took the
+ * pass-through branch — measured against the live store 2026-08-14, 703 of 703 — returning before
+ * `fields` and before the typed edges. Its `fields` never reached the studio editor, so an increment
+ * could not be edited structurally at all, and its `cites` never crossed, which is what BLOCKED
+ * ADR-0363 D2's depth-from-work join rather than merely leaving it unbuilt: `cites` is the only join
+ * between the knowledge graph and the work graph (ADR-0306 D2).
+ *
+ * Asking KIND_SPECS instead of guessing fixes it at the root and stays correct for any future
+ * body-bearing structured kind, with no second list to keep in step. It deliberately does NOT
+ * generalise to "structured kind wins": a doc of a structured kind carrying a PRE-RENDERED body (a
+ * unit collapsed by an older studio save — `buildLibraryDoc`'s body-bearing branch still produces
+ * one) must keep passing through, or renderBody would run over per-kind fields it does not have and
+ * silently return an EMPTY body, destroying the only copy of its prose. Measured on the same run:
+ * of 716 body-bearing docs, 703 increments and 13 templates, and zero structured non-increment docs.
+ */
+function bodyIsContentField(kind: string): boolean {
+  return isStructuredKind(kind) && KIND_SPECS[kind].some((spec) => spec.field === "body");
 }
 
 /** Common envelope/metadata keys — everything else on a doc is a per-kind content field. */
@@ -216,8 +258,14 @@ function extractFields(doc: Knowledge): Record<string, string> {
 
 export function renderStoredDoc(stored: StoredDoc): RenderedAsset {
   const doc = stored.doc;
+  // The doc's own kind wins over the envelope's, matching the degraded branch below: a body-bearing
+  // asset carries no `kind` at all and falls back to the stored one.
+  const kind =
+    typeof doc === "object" && doc !== null && typeof (doc as { kind?: unknown }).kind === "string"
+      ? ((doc as { kind: string }).kind)
+      : stored.kind;
 
-  if (hasStringBody(doc)) {
+  if (hasStringBody(doc) && !bodyIsContentField(kind)) {
     // Pass-through: the body is authoritative; category is the doc's own, else the stored kind.
     const category = typeof doc.category === "string" ? doc.category : stored.kind;
     return {
@@ -230,12 +278,14 @@ export function renderStoredDoc(stored: StoredDoc): RenderedAsset {
       ...(typeof doc.provenance === "string" && doc.provenance
         ? { provenance: doc.provenance }
         : {}),
-      // The authored dependency edge crosses on the PASS-THROUGH branch too (ADR-0223). It is not
-      // a structured-only concern: an `increment` is a body-bearing doc AND is in the DAG (the
-      // successor of ADR-0223 D3's tier-6 `plan`), so returning early here silently dropped 106 of
-      // the corpus's 660 authored edges — a sixth of the graph, and precisely the arc/increment
-      // lineage. Measured against the live store 2026-08-14: raw 169 docs / 660 edges, but only
-      // 137 / 554 reached the wire, every missing one an `increment`.
+      // The authored dependency edge crosses on the PASS-THROUGH branch too (ADR-0223), unlike the
+      // typed NAVIGATION edges: a `stepRefs`-shaped property here is residue this branch cannot
+      // tell from current data, whereas `buildLibraryDoc` deliberately PRESERVES `standsOn` across
+      // a body-bearing save, so a collapsed unit can legitimately arrive here carrying a live one.
+      // (History, since the original reason is now false: this crossing was added by PR #1330 to
+      // recover 106 of 660 edges that `hasStringBody` was dropping by routing every increment here.
+      // `bodyIsContentField` fixed that at the root — an increment renders structurally now — so
+      // this branch is no longer load-bearing for the DAG. It stays on the merits above.)
       ...(Array.isArray(doc.standsOn) ? { standsOn: asStringArray(doc.standsOn) } : {}),
       createdAt: stored.createdAt,
       updatedAt: stored.updatedAt,
@@ -246,8 +296,7 @@ export function renderStoredDoc(stored: StoredDoc): RenderedAsset {
   // raw-field view + a `degraded` flag instead of throwing the WHOLE listing (the stale-server
   // failure mode). No `fields` either — the editor must not re-shape a doc it can't parse.
   const bag = doc as Record<string, unknown>;
-  const docKind = typeof bag["kind"] === "string" ? bag["kind"] : stored.kind;
-  const reason = degradeReason(bag, docKind);
+  const reason = degradeReason(bag, kind);
   if (reason !== null) {
     return {
       id: asString(bag["id"]) || stored.id,
@@ -275,6 +324,7 @@ export function renderStoredDoc(stored: StoredDoc): RenderedAsset {
     status?: string;
     lifecycle?: string;
     standsOn?: string[];
+    cites?: string[];
   };
   return {
     id: knowledge.id ?? stored.id,
@@ -301,6 +351,11 @@ export function renderStoredDoc(stored: StoredDoc): RenderedAsset {
     // The authored dependency edge (ADR-0223) crosses like the other typed edges: array-shaped, so
     // the guard is `Array.isArray` (matching stepRefs/branchEdges) rather than a truthiness test.
     ...(Array.isArray(typedEdges.standsOn) ? { standsOn: typedEdges.standsOn } : {}),
+    // An increment's `cites` — the work-hierarchy join (ADR-0306 D2), array-shaped like the two
+    // above. Absent-by-default rather than `[]`, because ADR-0306 D2 makes an increment citing
+    // nothing CORRECT rather than under-specified (greenfield work, planning, ADR authoring), so
+    // no reader may treat an absent `cites` as a defect — a distinction `[]` would erase.
+    ...(Array.isArray(typedEdges.cites) ? { cites: typedEdges.cites } : {}),
     createdAt: stored.createdAt,
     updatedAt: stored.updatedAt,
   };
