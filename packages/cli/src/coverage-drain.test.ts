@@ -3,7 +3,12 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { DEFAULT_COVERAGE_DRAIN_CONFIG as CEILING, evaluateCoverageDrain } from "./coverage-drain.js";
+import {
+  COVERAGE_NEVER_SUM_NOTE,
+  DEFAULT_COVERAGE_DRAIN_CONFIG as CEILING,
+  evaluateCoverageDrain,
+  formatCoverageTotals,
+} from "./coverage-drain.js";
 import { classifyGateCoverage, projectCoverageGaps, sweepRealBuildCoverage } from "./coverage-gate.js";
 
 /*
@@ -194,23 +199,32 @@ test("coverage drain: the live corpus sweep is GREEN at the shipped ceiling", ()
   // value falls as the substrate degrades (a missing test-file tree routes every capability to
   // `unbound` instead), so `uncovered=0` means "nothing was scanned" just as readily as "nothing is
   // uncovered". Stating what was walked is what separates those two.
-  const totals =
-    `uncovered=${v.uncoveredCount}/${v.config.uncoveredCeiling} · ` +
-    `unbound=${v.unboundCount}/${v.config.unboundCeiling} · ` +
-    `measured over ${specFilesWalked} spec file(s) walked, ${scanned} capability(ies) scanned`;
+  // The sentence comes from the MODULE, not from a copy here, and so does the never-sum note — they
+  // are the same bytes `storytree coverage --totals` prints (`coverage-totals-verb`). Two readers of
+  // one ceiling that phrased it independently could drift into disagreeing about what the numbers
+  // are, which is the failure mode this whole arc is about, one level down.
+  const totals = formatCoverageTotals(v, { specFilesWalked, scanned });
 
   assert.notEqual(
     v.level,
     "red",
     `the corpus breached its own ceiling — ${totals}.\n` +
-      // The two axes count DIFFERENT THINGS (contracts vs. capabilities) and move independently:
-      // measured against one checkout, draining two uncovered contracts while a sibling landed a
-      // capability with no test file left the summed contract count at EXACTLY 121 both times while
-      // the capability count FELL. A ceiling read off the sum is therefore satisfiable by work that
-      // drained nothing, which is why the module refuses to publish one.
-      "NEVER SUM THESE — uncovered counts CONTRACTS, unbound counts CAPABILITIES, and the total is " +
-      "unchanged by real movement on either axis.\n" +
+      `${COVERAGE_NEVER_SUM_NOTE}\n` +
       `breached: ${v.breaches.join(" | ")}. Drain it (author a test naming the contract, ` +
       "split/retire it, or repair the binding) — do NOT raise the ceiling (ADR-0252 D3).",
   );
+});
+
+test("coverage totals: the printed sentence carries both axes, both ceilings AND the aperture", () => {
+  // The aperture is what separates "nothing is uncovered" from "nothing was scanned" — `uncovered` is
+  // a strict LOWER bound that FALLS as the substrate degrades, so counts without it are unreadable.
+  const line = formatCoverageTotals(
+    evaluateCoverageDrain({ uncovered: ["a/b", "c/d"], unbound: ["e"] }, CTX),
+    CTX,
+  );
+  assert.match(line, /uncovered=2\/103/);
+  assert.match(line, /unbound=1\/1/);
+  assert.match(line, /measured over 281 spec file\(s\) walked, 112 capability\(ies\) scanned/);
+  // No summed figure anywhere: 2 + 1 = 3 must not appear as a total.
+  assert.doesNotMatch(line, /\btotal\b/i);
 });

@@ -21,6 +21,12 @@
 
 import { classifyContractCoverage, type ContractCoverage } from "@storytree/orchestrator";
 
+import {
+  COVERAGE_NEVER_SUM_NOTE,
+  formatCoverageTotals,
+  type CoverageDrainContext,
+  type CoverageDrainVerdict,
+} from "./coverage-drain.js";
 import type { Envelope } from "./envelope.js";
 
 /** A capability's coverage facts: its declared contracts + the test names across its proof surface. */
@@ -150,5 +156,86 @@ export async function coverageCommand(
     ok: report.uncovered.length === 0,
     body: lines.join("\n"),
     next: [`storytree tree`, `storytree coverage ${id}`],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// `storytree coverage --totals` — where the whole backlog stands, on a GREEN run
+// ---------------------------------------------------------------------------
+
+/** What the whole-corpus sweep answered, as the totals report needs it. */
+export interface CoverageTotalsDeps {
+  /**
+   * Run the corpus sweep and evaluate it against the shipped ceilings. INJECTED, and that is what
+   * keeps this file free of `coverage-gate.ts` — which imports {@link CoverageUnit} from here, so a
+   * direct import back would be a cycle. The composition root owns the disk walk; this owns the
+   * report.
+   */
+  sweep: () => { verdict: CoverageDrainVerdict; context: CoverageDrainContext };
+}
+
+/**
+ * `storytree coverage --totals` — print BOTH contract-coverage totals against BOTH ceilings, with the
+ * aperture they were measured over, and exit 0.
+ *
+ * WHY THIS EXISTS, AND WHY IT IS A VERB RATHER THAN A RUNG (owner-directed 2026-08-14, option C,
+ * answering the retired `oq-where-do-the-coverage-ceiling-s-two-totals-surface-on-a-g`). Since
+ * ADR-0311 D2 retired the `check:coverage` rung, the ceiling's only surviving enforcement is
+ * `coverage-drain.test.ts`'s live-corpus sweep — which names both totals, but ONLY when it reds. A
+ * session deciding whether draining is worth its time is on a GREEN run, where the numbers appear
+ * nowhere. What was measured is "a session cannot ASK", not "a breach went unnoticed", and those want
+ * different remedies: a rung answers a question nobody asked, on every run, for everyone. So this
+ * stays a verb, and ADR-0311 D5's fresh-catch-evidence bar for re-wiring a retired rung is not
+ * engaged.
+ *
+ * IT REPLACES THE THROWAWAY, which is the win to confirm. Asking used to mean hand-rolling a sweep
+ * script with three separate traps, TWO of which return a FALSE CLEAN — `tsx` not resolving from a
+ * worktree root; `pnpm --filter … exec` making cwd the PACKAGE so an unqualified root silently
+ * reports `specFilesWalked=0 scanned=0 uncovered=0`, which reads exactly like a drained backlog; and
+ * a `.ts` scratch file being treated as CJS so a top-level await dies looking like a tooling break.
+ * A session that hit the second trap could report the backlog drained when it was not.
+ *
+ * ALWAYS `ok: true`. This REPORTS, it does not judge — unlike {@link coverageCommand}, whose false is
+ * an honesty verdict about one capability. The ceiling is enforced in `pnpm -r test`; a reporting
+ * verb that could fail would be a second, unlegislated gate on the same numbers.
+ */
+export function coverageTotalsCommand(deps: CoverageTotalsDeps): Envelope {
+  const { verdict, context } = deps.sweep();
+  const lines: string[] = [
+    "Contract-coverage totals — the whole corpus, against the shipped ceilings (ADR-0252 D3)",
+    "",
+    `  ${formatCoverageTotals(verdict, context)}`,
+    "",
+    `  ${COVERAGE_NEVER_SUM_NOTE}`,
+  ];
+
+  // The aperture is not decoration: `uncovered` FALLS as the substrate degrades, so a zero has two
+  // very different readings and only the walked/scanned counts separate them. Say so where it bites.
+  if (context.specFilesWalked === 0 || context.scanned === 0) {
+    lines.push(
+      "",
+      "  ⚠ NOTHING WAS SCANNED, so these zeros measure the CHECKOUT, not the backlog. A `stories/`",
+      "    tree that is absent or unreadable produces exactly this, and it reads like a drained",
+      "    corpus. Re-run from a complete checkout before believing any number above.",
+    );
+  } else if (verdict.suppressed !== undefined || verdict.unverified !== undefined) {
+    lines.push(
+      "",
+      `  ⚠ ${verdict.suppressed ?? verdict.unverified}`,
+    );
+  }
+
+  lines.push(
+    "",
+    `  level: ${verdict.level}${verdict.breaches.length > 0 ? ` — ${verdict.breaches.join(" | ")}` : ""}`,
+    "  Read-only and offline. This REPORTS; it gates nothing — the ceiling is enforced by",
+    "  `coverage-drain.test.ts` inside `pnpm -r test`. Draining means authoring a test that NAMES the",
+    "  contract, or splitting/retiring it — never raising the ceiling (ADR-0252 D3).",
+  );
+
+  return {
+    ok: true,
+    body: lines.join("\n"),
+    next: ["storytree coverage <capability-id>", "storytree tree"],
   };
 }
