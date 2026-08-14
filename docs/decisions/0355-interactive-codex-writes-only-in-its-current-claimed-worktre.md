@@ -152,13 +152,25 @@ trap that would make a naive check read as a false negative:
 
 **Be precise about what that does and does not settle,** since over-generalising an adjacent proof is
 the exact defect this section exists to record. What is proven is that the PRODUCT rebinds a live
-thread. What is NOT yet proven is that the sandboxed actuator can reach the running desktop task's
-app-server control socket in order to issue the call — the actuator executes under
-`CodexSandboxUsers`, and that is the same class of boundary that defeats the bootstrap above. So the
-nested launch is no longer an external product limitation and no longer an open question; it is a
-concrete engineering question about reaching the control socket from inside the sandbox, and it is
-parked on `codex-factory-parity-arc` rather than answered here. The pnpm/Corepack gap is unaffected
-by any of this and remains host-side.
+thread. What is NOT available is a way for US to issue the call on this host — established by a
+second probe the same day (`docs/research/codex-actuator-appserver-reachability-2026-08-14.md`):
+
+    codex app-server daemon version   ->  "only supported on Unix platforms"
+    codex remote-control start        ->  "only supported on Unix platforms"
+    codex app-server proxy --sock     ->  documented as a UNIX DOMAIN SOCKET path; none on Windows
+
+**Read the cause correctly, because the obvious guess is wrong.** This is NOT the sandbox, and NOT
+the `CodexSandboxUsers` boundary that defeats the bootstrap above — an UNSANDBOXED process running as
+the operator hits the same wall, because on Windows the mechanism does not exist at all. Widening the
+sandbox would not help, which is worth knowing before it is proposed as the fix. Only the process
+already holding the app-server channel — the desktop application itself — can issue `turn/start`.
+
+So for the supported Windows host the nested launch IS an external product limitation after all, and
+the contingent owner question the probe increment named returns in sharper form: is a nested task
+acceptable as the shipped experience? That is now authored as
+`oq-is-a-nested-codex-task-acceptable-as-the-shipped-windows` against `codex-factory-parity-arc`, and
+is deliberately not pre-answered here. The pnpm/Corepack gap is unaffected by any of this and remains
+host-side.
 
 What HAS landed, and is proven by `packages/cli/src/codex-session-containment.test.ts`: the
 exploring→work promotion required by D4 above, the live-claim check failing closed on a gradeless
