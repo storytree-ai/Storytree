@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -11,6 +11,7 @@ import {
   authorizeCodexWriter,
   buildCodexContainmentBundle,
   codexSessionContainmentCommand,
+  codexToolchainCommand,
   defaultCodexContainmentIo,
   decideInteractiveCodexToolUse,
   parseCodexVersion,
@@ -27,6 +28,20 @@ const CURRENT = path.join(ROOT, ".claude", "worktrees", "codex-current");
 const SIBLING = path.join(ROOT, ".claude", "worktrees", "codex-sibling");
 const GIT_DIR = path.join(ROOT, ".git", "worktrees", "codex-current");
 const COMMON_DIR = path.join(ROOT, ".git");
+
+/**
+ * Read from the workspace's own `packageManager` rather than written down here. The toolchain payload
+ * only has to agree with ONE thing — the pnpm the lockfile was resolved by — so a literal in this
+ * file would be a second source of truth that could drift from the repository silently.
+ */
+const PINNED_PNPM_VERSION = (() => {
+  const root = JSON.parse(readFileSync(path.resolve("../../package.json"), "utf8")) as {
+    packageManager?: string;
+  };
+  const match = /^pnpm@(\d+\.\d+\.\d+)$/.exec(root.packageManager ?? "");
+  if (!match?.[1]) throw new Error(`root packageManager is not a pinned pnpm: ${root.packageManager}`);
+  return match[1];
+})();
 
 test("the production containment IO probes this registered checkout and pinned Codex", () => {
   const probe = defaultCodexContainmentIo.probeGit();
@@ -562,6 +577,126 @@ test("trusted payload configuration is absolute, administrator-owned, and hash-p
   assert.match(configuredBootstrap.operatorReadme, /bootstrap\s+— mints one claimed worktree[\s\S]*Enabled by the configured hash-pinned/i);
   assert.match(configuredBootstrap.trustedActuatorScript, /Assert-PinnedCommand/);
   assert.match(configuredBootstrap.trustedActuatorScript, /--primary/);
+});
+
+/**
+ * ADR-0364 D7's precondition: a contained task must be able to run the repository toolchain at all.
+ * `%ProgramData%` ships managed Node and the Codex payload and nothing else, so `pnpm gate` and
+ * `pnpm storytree …` are unreachable from a claimed worktree — the profile denies neither, they simply
+ * do not exist there.
+ */
+test("the task toolchain is one hash-pinned file, reported honestly when absent", () => {
+  const authority = authorizeCodexWriter(topology(), [claim()], NOW);
+  if (!authority.ok) assert.fail(authority.reason);
+  const base = {
+    authority,
+    codexVersion: "codex-cli 0.145.0",
+    managedDir: path.resolve("C:/ProgramData/OpenAI/Codex/Storytree"),
+    managedNodePath: path.resolve("C:/Program Files/nodejs/node.exe"),
+    gitCommand: [process.execPath],
+  };
+
+  // The actuator TEMPLATE always carries the pin-checking code, so asserting on its text would prove
+  // nothing about configuration — the embedded config is what varies, so that is what is read.
+  const actuatorConfig = (script: string): Record<string, unknown> => {
+    const encoded = /FromBase64String\("([A-Za-z0-9+/=]+)"\)/.exec(script);
+    if (!encoded?.[1]) assert.fail("actuator script carries no embedded config");
+    return JSON.parse(Buffer.from(encoded[1], "base64").toString("utf8")) as Record<string, unknown>;
+  };
+
+  // Absent: reported as null and named in both operator surfaces. A task left to GUESS its toolchain
+  // is the failure mode this replaces, so silence is not an acceptable rendering of "not configured".
+  const unconfigured = buildCodexContainmentBundle(base);
+  if (!unconfigured.ok) assert.fail(unconfigured.reason);
+  assert.equal(unconfigured.toolchainCommand, null);
+  assert.match(unconfigured.operatorReadme, /NOT CONFIGURED — a contained task cannot run any pnpm/);
+  assert.equal(actuatorConfig(unconfigured.trustedActuatorScript)["toolchainPayload"], null);
+
+  // Held to the SAME administrator-owned, hash-pinned bar as every other payload.
+  const outside = buildCodexContainmentBundle({
+    ...base,
+    toolchainPayload: { path: path.resolve("C:/code/storytree/pnpm.cjs"), sha256: "a".repeat(64) },
+  });
+  assert.equal(outside.ok, false);
+  if (!outside.ok) assert.match(outside.reason, /under managedDir/i);
+
+  const unpinned = buildCodexContainmentBundle({
+    ...base,
+    toolchainPayload: {
+      path: path.resolve("C:/ProgramData/OpenAI/Codex/Storytree/payloads/pnpm.cjs"),
+      sha256: "9.15.0",
+    },
+  });
+  assert.equal(unpinned.ok, false);
+  if (!unpinned.ok) assert.match(unpinned.reason, /SHA-256 pin/i);
+
+  const configured = buildCodexContainmentBundle({
+    ...base,
+    toolchainPayload: {
+      path: path.resolve("C:/ProgramData/OpenAI/Codex/Storytree/payloads/pnpm.cjs"),
+      sha256: "c".repeat(64),
+    },
+  });
+  if (!configured.ok) assert.fail(configured.reason);
+  assert.deepEqual(configured.toolchainCommand, [
+    base.managedNodePath,
+    path.resolve("C:/ProgramData/OpenAI/Codex/Storytree/payloads/pnpm.cjs"),
+  ]);
+  assert.deepEqual(actuatorConfig(configured.trustedActuatorScript)["toolchainPayload"], {
+    path: path.resolve("C:/ProgramData/OpenAI/Codex/Storytree/payloads/pnpm.cjs"),
+    sha256: "c".repeat(64),
+  });
+  // Verified before any work, so a bad hash costs no mint, and carried in the ONE envelope the
+  // lifecycle already hands back — with no launcher there is no environment for a task to inherit.
+  assert.match(
+    configured.trustedActuatorScript,
+    /Assert-PinnedPayload 'toolchain payload'[\s\S]*Invoke-Exact \$Payload/,
+    "the pin is checked BEFORE the mint, so a bad hash costs no worktree",
+  );
+  assert.match(configured.trustedActuatorScript, /toolchainCommand = \$Toolchain/);
+  assert.match(configured.trustedActuatorScript, /scratch = \$Scratch/);
+
+  // Corepack is deliberately not the mechanism: it would need the network this profile disables and a
+  // cache outside the grant. If this ever regresses to a Corepack shim it must be a decision, not a drift.
+  assert.doesNotMatch(configured.operatorReadme, /ships? Corepack\b(?!.*downloader)/);
+  assert.match(configured.operatorReadme, /NOT COREPACK/);
+  assert.match(configured.requirementsToml, /\[permissions\.storytree_codex_current\.network\]\nenabled = false/);
+});
+
+/**
+ * The claim above — that ONE pinned file plus managed Node runs a real workspace command with no
+ * Corepack, no network and no PATH entry — is the whole basis for the payload's shape, so it is
+ * measured rather than asserted. Skipped unless the host actually has both, because a fabricated
+ * stand-in would prove nothing about the real toolchain.
+ */
+test("the pinned single-file pnpm really does run a workspace command under managed Node", (t) => {
+  const managedNode = path.join(
+    process.env["ProgramData"] ?? "C:\\ProgramData",
+    "OpenAI", "Codex", "Storytree", "payloads", "node.exe",
+  );
+  const pnpmDist = path.join(
+    process.env["LOCALAPPDATA"] ?? "",
+    "node", "corepack", "v1", "pnpm", PINNED_PNPM_VERSION, "dist", "pnpm.cjs",
+  );
+  if (process.platform !== "win32" || !existsSync(managedNode) || !existsSync(pnpmDist)) {
+    t.skip(`needs the managed payload Node and a resolved pnpm ${PINNED_PNPM_VERSION} on this host`);
+    return;
+  }
+
+  const command = codexToolchainCommand(managedNode, pnpmDist);
+  assert.deepEqual(command, [managedNode, pnpmDist]);
+
+  const version = spawnSync(command[0] as string, [...command.slice(1), "--version"], {
+    encoding: "utf8",
+    // No PATH at all: the point is that this command needs none.
+    env: { ...process.env, PATH: "", Path: "" },
+  });
+  assert.equal(version.status, 0, version.stderr);
+  assert.equal(
+    version.stdout.trim(),
+    PINNED_PNPM_VERSION,
+    "the pinned toolchain must be the version packageManager names, or it disagrees with the lockfile",
+  );
 });
 
 test("rendered managed hook re-probes Git and live claims on every write, then maps decisions", () => {
