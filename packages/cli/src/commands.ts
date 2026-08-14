@@ -54,6 +54,7 @@ import { execFileSync } from "node:child_process";
 
 import { adrCommand, adrHelp, type AdrAllocatorLike } from "./adr.js";
 import { expandAtPathFlags, formatAtPathRefusal, PROSE_FLAGS } from "./at-path.js";
+import { libraryQuery, libraryQueryHelp } from "./library-query.js";
 import {
   arcCommand,
   arcHelp,
@@ -2496,7 +2497,38 @@ export const CLI_OPTIONS = {
   // "did behaviour change after X landed" (ADR-0323 D4's falsifiability).
   "started-after": { type: "string" },
   "started-before": { type: "string" },
+  // `storytree library query --where <field><op><value>` (repeatable, AND-ed) and `--count`
+  // (`tool-signal-gaps-arc`) — the ad-hoc predicate read of the corpus. `--kind`/`--field`/`--limit`
+  // are declared above and reused.
+  where: { type: "string", multiple: true },
+  count: { type: "boolean", default: false },
+  kind: { type: "string" },
 } as const;
+
+/**
+ * The one `parseArgs` call the whole CLI goes through (ADR-0343: one strict parse, before dispatch).
+ * It exists as a named function ONLY so {@link CliValues} can be inferred from its return type —
+ * inlining it back into `run` would take the single source of truth with it.
+ */
+export function parseCliArgs(argv: readonly string[]) {
+  return parseArgs({ args: [...argv], allowPositionals: true, options: CLI_OPTIONS });
+}
+
+/**
+ * The parsed flag values, INFERRED from {@link CLI_OPTIONS} rather than hand-copied beside it.
+ *
+ * This used to be a ~110-line structural annotation inside `run` that mirrored `CLI_OPTIONS` by
+ * hand, so every new flag needed TWO declarations. Omitting the second one did not fail at the
+ * declaration — it failed as a cluster of `TS2339`s naming the DISPATCH lines that read the field,
+ * pointing every reader away from the actual fix (`tool-signal-gaps-arc`, from friction
+ * `cli-flag-needs-two-hand-kept-declarations`; measured: four errors, none at the real site).
+ *
+ * `parseArgs` already infers the shape from the `as const` table, so the table is now the only
+ * place a flag is declared. This mirrors the house pattern the friction item pointed at —
+ * `knownFieldsForKind` / `arrayFieldsForKind` in `@storytree/library`, drift-proof because they are
+ * derived rather than maintained.
+ */
+export type CliValues = ReturnType<typeof parseCliArgs>["values"];
 
 /**
  * Parse `argv` and dispatch. `--help`/`-h` shows the page for the deepest area reached; `--pg` is a
@@ -2506,121 +2538,9 @@ export const CLI_OPTIONS = {
 export async function run(argv: readonly string[], deps: RunDeps): Promise<Envelope> {
   let positionals: string[];
   let help: boolean;
-  let values: {
-    help?: boolean;
-    pg?: boolean;
-    check?: boolean;
-    json?: string;
-    file?: string;
-    set?: string[];
-    /** `library artifact <id> --raw <field>` — the bare-bytes read (see {@link rawField}). */
-    raw?: string;
-    /** `--raw <field> --out <path>` — write the bytes to a file the CLI opens (ADR-0361 D1). */
-    out?: string;
-    /** `library artifact history <id> --field <f>` — narrow the history to one field. */
-    field?: string;
-    /** `adr new --decided --decided-date <YYYY-MM-DD>` — override the derived owner-local date. */
-    "decided-date"?: string;
-    /** `library export-corpus --id <id>` (repeatable) — scope the live→seed export (ADR-0290). */
-    id?: string[];
-    "dry-run"?: boolean;
-    live?: boolean;
-    real?: boolean;
-    "emit-wisp"?: boolean;
-    dwell?: string;
-    model?: string;
-    budget?: string;
-    "max-turns"?: string;
-    actor?: string;
-    store?: string;
-    "working-on"?: string;
-    node?: string[];
-    grade?: string;
-    intent?: string;
-    /** `noticeboard history` — the audit-log read's window / scope / view (ADR-0310 D1). */
-    days?: string;
-    session?: string;
-    type?: string;
-    limit?: string;
-    refusals?: boolean;
-    holdings?: boolean;
-    outcome?: string;
-    witness?: string;
-    signer?: string;
-    "relayed-by"?: string;
-    note?: string;
-    title?: string;
-    description?: string;
-    supersedes?: string;
-    amends?: string;
-    arc?: string;
-    "end-state"?: string;
-    all?: boolean;
-    closed?: boolean;
-    date?: string;
-    pr?: string;
-    threshold?: string;
-    decided?: boolean;
-    current?: boolean;
-    "load-bearing"?: boolean;
-    status?: string;
-    bound?: string;
-    change?: string[];
-    reason?: string;
-    "superseded-by"?: string;
-    "memory-dir"?: string;
-    "lease-days"?: string;
-    review?: boolean;
-    readings?: string;
-    write?: boolean;
-    only?: string;
-    step?: string;
-    "agent-type"?: string;
-    evidence?: string;
-    route?: string;
-    "discharged-by"?: string;
-    "re-route"?: boolean;
-    friction?: string[];
-    cites?: string[];
-    objective?: string;
-    body?: string;
-    /** `question new` — the open-question briefing fields (ADR-0314 D5). */
-    stakes?: string;
-    statement?: string;
-    context?: string;
-    options?: string;
-    analogy?: string;
-    diagram?: string;
-    recommendation?: string;
-    scope?: string;
-    migration?: string;
-    source?: string;
-    force?: boolean;
-    fix?: boolean;
-    yes?: boolean;
-    cap?: string;
-    "include-detached"?: boolean;
-    "threshold-hours"?: string;
-    runtime?: string;
-    "from-offer"?: string;
-    /** `factory health` — the window + the dispatch-rate reference (ADR-0316 D2). */
-    from?: string;
-    to?: string;
-    "landings-per-day"?: string;
-    ref?: string;
-    /** `session-cost` — which transcript project directories to price (ADR-0323 D4). */
-    project?: string;
-    "min-turns"?: string;
-    /** `session-cost` — whole-session segmentation by first turn (ADR-0323 D4). */
-    "started-after"?: string;
-    "started-before"?: string;
-  };
+  let values: CliValues;
   try {
-    const parsed = parseArgs({
-      args: [...argv],
-      allowPositionals: true,
-      options: CLI_OPTIONS,
-    });
+    const parsed = parseCliArgs(argv);
     positionals = parsed.positionals;
     values = parsed.values;
     help = parsed.values.help === true;
@@ -3830,6 +3750,19 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       };
     }
     return treeFocus(deps.store, fourth);
+  }
+
+  // `library query --kind <k> [--where …]` — the ad-hoc predicate read (`tool-signal-gaps-arc`).
+  // A READ, so it needs no `--pg` to be honest: a bare read already dials the live store.
+  if (sub === "query") {
+    if (help) return libraryQueryHelp();
+    return libraryQuery(deps.store, {
+      kind: values.kind ?? third,
+      where: values.where ?? [],
+      field: values.field,
+      count: values.count,
+      limit: values.limit,
+    });
   }
 
   if (sub === "artifact") {
