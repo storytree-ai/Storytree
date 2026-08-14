@@ -3,6 +3,11 @@ import assert from "node:assert/strict";
 
 import type { StoreEvent } from "@storytree/storage-protocol";
 import type { UatTestCriterion } from "@storytree/library";
+import {
+  canonicalUatCriterionContent,
+  criterionRevisionId,
+  parseUatTestCriteria,
+} from "@storytree/library";
 import { SIGNING_EVENT_KIND, Verdict } from "@storytree/proof-protocol";
 
 import { uatCommand, type UatDeps, type GitState } from "./uat.js";
@@ -78,6 +83,11 @@ function baseDeps(over: Partial<UatDeps> = {}): UatDeps {
     identity: { sessionId: "goofy-aryabhata", branch: "claude/x" },
     resolveSigner: (flag) => ({ ok: true, signer: flag ?? "owner@example.com" }),
     now: () => new Date("2026-06-20T12:00:00.000Z"),
+    readStoryBody: () => null,
+    writeStoryBody: () => {
+      throw new Error("writeStoryBody: not wired for this test");
+    },
+    readCorpusStories: () => [],
     ...over,
   };
 }
@@ -316,4 +326,135 @@ test("attest: a signed fail withers a previously-green story to unhealthy", asyn
   );
   assert.equal(r.ok, true);
   assert.match(r.body, /story UAT:  WITHERED/);
+});
+
+// ── uat rerevision ───────────────────────────────────────────────────────────
+
+/** Author one criterion item whose `(revision-id:)` binds its own canonical content. */
+function boundItem(criterionId: string, prose: string): string {
+  const revisionId = criterionRevisionId(canonicalUatCriterionContent(`1. ${prose}`));
+  return `1. ${prose} _(criterion-id: ${criterionId})_ _(revision-id: ${revisionId})_`;
+}
+
+function storyBody(item: string): string {
+  return `## UAT Test Criteria\n\n${item}\n`;
+}
+
+test("rerevision: refuses with no story id", async () => {
+  const r = await uatCommand({ mode: "rerevision", target: undefined }, {}, baseDeps());
+  assert.equal(r.ok, false);
+  assert.match(r.body, /needs a story id/);
+});
+
+test("rerevision: refuses a story with no spec on disk", async () => {
+  const r = await uatCommand({ mode: "rerevision", target: "ghost" }, {}, baseDeps());
+  assert.equal(r.ok, false);
+  assert.match(r.body, /no story spec for "ghost"/);
+});
+
+test("rerevision: a clean story reports no drift and writes nothing", async () => {
+  const body = storyBody(boundItem(C1, "**Clean** _(witness: human)_: bound."));
+  // writeStoryBody throws if called — reaching it would fail this test.
+  const r = await uatCommand(
+    { mode: "rerevision", target: "demo" },
+    { write: true },
+    baseDeps({ readStoryBody: () => body }),
+  );
+  assert.equal(r.ok, true);
+  assert.match(r.body, /all bind their current content/);
+});
+
+test("rerevision: bare REPORTS drift, refuses, and writes nothing", async () => {
+  const original = boundItem(C1, "**Claim** _(witness: human)_: original.");
+  const drifted = storyBody(original.replace("original.", "edited."));
+  const r = await uatCommand(
+    { mode: "rerevision", target: "demo" },
+    {}, // no --write; writeStoryBody would throw
+    baseDeps({ readStoryBody: () => drifted }),
+  );
+  assert.equal(r.ok, false, "a story that does not parse is not an ok state");
+  assert.match(r.body, /1 of 1 criterion revision\(s\) no longer bind/);
+  assert.match(r.body, new RegExp(C1));
+  assert.match(r.body, /Nothing was written/);
+  assert.deepEqual(r.next, ["storytree uat rerevision demo --write"]);
+});
+
+test("rerevision: --write applies the recompute and preserves authored identity", async () => {
+  const original = boundItem(C1, "**Claim** _(witness: human)_: original.");
+  const drifted = storyBody(original.replace("original.", "edited."));
+  const written: string[] = [];
+  const r = await uatCommand(
+    { mode: "rerevision", target: "demo" },
+    { write: true },
+    baseDeps({
+      readStoryBody: () => drifted,
+      writeStoryBody: (_id, b) => {
+        written.push(b);
+      },
+    }),
+  );
+  assert.equal(r.ok, true);
+  assert.equal(written.length, 1);
+  // The written body is what the REAL parser accepts — the point of the verb.
+  const parsed = parseUatTestCriteria("demo", written[0]!);
+  assert.equal(parsed[0]!.criterionId, C1, "identity is authored and immutable — never renumbered");
+  assert.ok(parsed[0]!.previousRevisionId, "the superseded revision is recorded, preserving lineage");
+});
+
+test("rerevision: an unreadable identity is REFUSED, never repaired past", async () => {
+  const r = await uatCommand(
+    { mode: "rerevision", target: "demo" },
+    { write: true },
+    baseDeps({ readStoryBody: () => storyBody("1. **No identity annotations at all.**") }),
+  );
+  assert.equal(r.ok, false);
+  assert.match(r.body, /never invent, re-match or renumber an identity/);
+});
+
+// ── uat census ───────────────────────────────────────────────────────────────
+
+test("census: counts BOTH written forms of the witness tag, and names the reader it used", async () => {
+  const standalone = boundItem(C1, "**Standalone** _(witness: human)_: a.");
+  const fusedProse = "**Fused**: b.";
+  const fusedTags = "_(witness: human)(detail: beta#uat-1)_";
+  const fusedRevision = criterionRevisionId(
+    canonicalUatCriterionContent(`1. ${fusedProse} ${fusedTags}`),
+  );
+  const fused = `1. ${fusedProse} _(criterion-id: ${C2})_ _(revision-id: ${fusedRevision})_ ${fusedTags}`;
+
+  const r = await uatCommand(
+    { mode: "census", target: undefined },
+    {},
+    baseDeps({
+      readCorpusStories: () => [
+        { storyId: "alpha", sourcePath: "stories/alpha/story.md", body: storyBody(standalone) },
+        { storyId: "beta", sourcePath: "stories/beta/story.md", body: storyBody(fused) },
+      ],
+    }),
+  );
+  assert.equal(r.ok, true);
+  assert.match(r.body, /2 criterion\(s\) across 2 story\/stories/);
+  assert.match(r.body, /human\s+2 leg\(s\)\s+across\s+2 story/);
+  assert.match(r.body, /parseUatTestCriteria/, "the census names the reader it counted through");
+});
+
+test("census: an unreadable story REFUSES the whole count rather than under-reporting", async () => {
+  const r = await uatCommand(
+    { mode: "census", target: undefined },
+    {},
+    baseDeps({
+      readCorpusStories: () => [
+        {
+          storyId: "broken",
+          sourcePath: "stories/broken/story.md",
+          body: storyBody(
+            `1. **Stale** _(criterion-id: ${C1})_ _(revision-id: uatr1:0000000000000000)_`,
+          ),
+        },
+      ],
+    }),
+  );
+  assert.equal(r.ok, false);
+  assert.match(r.body, /stories\/broken\/story\.md/);
+  assert.match(r.body, /under-report exactly like a grep/);
 });

@@ -39,7 +39,11 @@ import {
   REPO_ROOT_ENV,
   resolveRepoRoot,
 } from "@storytree/library";
-import type { UatTestCriterion, ReliabilityGate } from "@storytree/library";
+import type {
+  UatTestCriterion,
+  ReliabilityGate,
+  UatWitnessCensusStory,
+} from "@storytree/library";
 import {
   loadNodeSpec,
   findNodeSpecFile,
@@ -2379,11 +2383,17 @@ function sessionIdentity(deps: RunDeps): SessionIdentity | null {
 }
 
 /** The per-test UAT opts threaded from argv — shared by `uat` and `witness list/attest` (one code path). */
-function makeUatOpts(values: { outcome?: string; signer?: string; note?: string }) {
+function makeUatOpts(values: {
+  outcome?: string;
+  signer?: string;
+  note?: string;
+  write?: boolean;
+}) {
   return {
     ...(values.outcome !== undefined ? { outcome: values.outcome } : {}),
     ...(values.signer !== undefined ? { signer: values.signer } : {}),
     ...(values.note !== undefined ? { note: values.note } : {}),
+    ...(values.write !== undefined ? { write: values.write } : {}),
   };
 }
 
@@ -2396,7 +2406,35 @@ function makeUatDeps(deps: RunDeps, identity: SessionIdentity | null, storiesDir
     identity,
     resolveSigner: (flag?: string) => resolveSignerFromEnv(flag !== undefined ? { flag } : undefined),
     now: () => new Date(),
+    readStoryBody: (storyId) => readStorySpecBody(storiesDir, storyId),
+    writeStoryBody: (storyId, body) => {
+      writeFileSync(path.join(storiesDir, storyId, "story.md"), body, "utf8");
+    },
+    readCorpusStories: () => readCorpusStoryDocs(storiesDir),
   };
+}
+
+/** One story's RAW spec markdown, read pre-parse (the revision recompute repairs what will not parse). */
+function readStorySpecBody(storiesDir: string, storyId: string): string | null {
+  const file = path.join(storiesDir, storyId, "story.md");
+  return existsSync(file) ? readFileSync(file, "utf8") : null;
+}
+
+/** Every story document on disk, for the witness census (which parses them through the real parser). */
+function readCorpusStoryDocs(storiesDir: string): UatWitnessCensusStory[] {
+  if (!existsSync(storiesDir)) return [];
+  const docs: UatWitnessCensusStory[] = [];
+  for (const entry of readdirSync(storiesDir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const body = readStorySpecBody(storiesDir, entry.name);
+    if (body === null) continue;
+    docs.push({
+      storyId: entry.name,
+      sourcePath: `stories/${entry.name}/story.md`,
+      body,
+    });
+  }
+  return docs;
 }
 
 /** The attestation-vouch opts threaded from argv — shared by `attest` and `witness vouch`. */
@@ -2448,6 +2486,8 @@ function witnessHelp(): Envelope {
       "  storytree witness attest <story-id> <uatc_id> --pg   sign an exact-revision operator verdict (was `uat attest`)",
       "  storytree witness vouch <story-id> <uatc_id> --pg    record an exact-revision lower-rigor vouch (was `attest`)",
       "  storytree witness vouch list <stored-key> --pg       current or preserved legacy vouch history",
+      "  storytree witness rerevision <story-id> [--write]    recompute content-bound revision ids (ADR-0253)",
+      "  storytree witness census                            the corpus witness distribution, via the real parser",
       "",
       "`witness attest` mints a real `operator-attested` verdict (events.verdict) — it can green a story's",
       "UAT. A `witness vouch` is a signal only (events.attestation), never greens the story (ADR-0044). The",
@@ -3168,6 +3208,10 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       return uatCommand({ mode: "attest", storyId: third, target: fourth }, uatOpts, uatDeps);
     }
     if (sub === "list") return uatCommand({ mode: "list", target: third }, uatOpts, uatDeps);
+    if (sub === "rerevision") {
+      return uatCommand({ mode: "rerevision", target: third }, uatOpts, uatDeps);
+    }
+    if (sub === "census") return uatCommand({ mode: "census", target: undefined }, uatOpts, uatDeps);
     // bare: `storytree uat <story-id>` lists that story's tests.
     return uatCommand({ mode: "list", target: sub }, uatOpts, uatDeps);
   }
@@ -3199,6 +3243,10 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       return uatCommand({ mode: "attest", storyId: third, target: fourth }, uatOpts, uatDeps);
     }
     if (sub === "list") return uatCommand({ mode: "list", target: third }, uatOpts, uatDeps);
+    if (sub === "rerevision") {
+      return uatCommand({ mode: "rerevision", target: third }, uatOpts, uatDeps);
+    }
+    if (sub === "census") return uatCommand({ mode: "census", target: undefined }, uatOpts, uatDeps);
     // bare `witness <story-id>` lists that story's UAT test criteria (mirrors bare `uat <story>`).
     return uatCommand({ mode: "list", target: sub }, uatOpts, uatDeps);
   }

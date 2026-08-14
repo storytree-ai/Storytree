@@ -89,27 +89,54 @@ const PREVIOUS_REVISION_ID_TAG = /\(previous-revision-id:\s*([^)]*)\)/i;
 const LINEAGE_TAG = /\(lineage:\s*(split-from|merged-from|replaces)\s+([^)]*)\)/i;
 const IDENTITY_METADATA_TAG = /_?\((?:criterion-id|revision-id|previous-revision-id|lineage):[^)]*\)_?/gi;
 
-function storyUatSection(body: string): { section: string; wouldBe: boolean } | null {
+/**
+ * One raw criterion item plus the span of the story body it was cut from. The span is what lets a
+ * REWRITING caller ({@link recomputeUatRevisionIds}) splice one item back without re-deriving the
+ * item boundaries — there is exactly one splitter, so a rewrite can never disagree with the parse.
+ */
+interface RawUatItem {
+  readonly text: string;
+  /** Absolute index of the item's first character in the story body. */
+  readonly start: number;
+  /** Absolute index one past the item's last character. */
+  readonly end: number;
+}
+
+function storyUatSection(
+  body: string,
+): { section: string; offset: number; wouldBe: boolean } | null {
   const heading = STORY_UAT_HEADING.exec(body);
   if (heading === null) return null;
   const wouldBe = WOULD_BE_QUALIFIER.test(heading[1] ?? "");
-  const after = body.slice(heading.index + heading[0].length);
+  const from = heading.index + heading[0].length;
+  const after = body.slice(from);
   const next = NEXT_H2.exec(after);
-  return { section: (next === null ? after : after.slice(0, next.index)).trim(), wouldBe };
+  const raw = next === null ? after : after.slice(0, next.index);
+  return { section: raw.trim(), offset: from + (raw.length - raw.trimStart().length), wouldBe };
 }
 
-function splitItems(section: string): string[] {
-  const items: string[] = [];
+function rawUatItem(lines: readonly string[], start: number): RawUatItem {
+  const text = lines.join("\n");
+  return { text, start, end: start + text.length };
+}
+
+/** Cut the section into items, carrying each one's absolute span in the enclosing story body. */
+function splitItems(section: string, offset: number): RawUatItem[] {
+  const items: RawUatItem[] = [];
   let current: string[] | null = null;
+  let start = 0;
+  let cursor = 0;
   for (const line of section.split("\n")) {
     if (NUMBERED_ITEM.test(line)) {
-      if (current !== null) items.push(current.join("\n"));
+      if (current !== null) items.push(rawUatItem(current, offset + start));
       current = [line];
+      start = cursor;
     } else if (current !== null) {
       current.push(line);
     }
+    cursor += line.length + 1; // the "\n" the split consumed
   }
-  if (current !== null) items.push(current.join("\n"));
+  if (current !== null) items.push(rawUatItem(current, offset + start));
   return items;
 }
 
@@ -224,7 +251,7 @@ export function parseUatTestCriterionSources(
 ): UatTestCriterionSource[] {
   const parsed = storyUatSection(body);
   if (parsed === null) return [];
-  const sources = splitItems(parsed.section).map((item) => {
+  const sources = splitItems(parsed.section, parsed.offset).map(({ text: item }) => {
     const criterionId = itemCriterionId(item);
     const revisionId = itemRevisionId(item);
     const expectedRevisionId = bindCriterionRevision(canonicalUatCriterionContent(item));
@@ -262,4 +289,112 @@ export function parseUatTestCriterionSources(
 /** Parse current UAT criteria. Missing/positional identity is refused. */
 export function parseUatTestCriteria(storyId: string, body: string): UatTestCriterion[] {
   return parseUatTestCriterionSources(storyId, body).map((s) => s.criterion);
+}
+
+// ---------------------------------------------------------------------------
+// Revision recompute (ADR-0253)
+// ---------------------------------------------------------------------------
+
+/** One criterion whose authored `(revision-id:)` no longer binds its current canonical content. */
+export interface UatRevisionDrift {
+  readonly criterionId: string;
+  /** The `(revision-id:)` as written — the value being superseded. */
+  readonly authoredRevisionId: string;
+  /** The revision the item's canonical content actually binds to now. */
+  readonly expectedRevisionId: string;
+}
+
+/** The outcome of a revision recompute: what drifted, and the body that would repair it. */
+export interface UatRevisionRecompute {
+  /** Every criterion item inspected, drifted or not. */
+  readonly checked: number;
+  readonly drifted: readonly UatRevisionDrift[];
+  /**
+   * The story body with each drifted `(revision-id:)` advanced and its superseded value recorded
+   * as `(previous-revision-id:)`. Byte-identical to the input when nothing drifted.
+   */
+  readonly body: string;
+}
+
+/** The revision tag WITH its surrounding emphasis, so a rewrite can mirror the authored decoration. */
+const DECORATED_REVISION_ID_TAG = /(_?)\(revision-id:\s*[^)]*\)(_?)/i;
+const ANY_PREVIOUS_REVISION_ID_TAG = /\(previous-revision-id:\s*[^)]*\)/i;
+
+/**
+ * Recompute every criterion's content-bound revision id for one story (ADR-0253).
+ *
+ * The `(witness:)` and `(proof-gate:)` tags sit INSIDE the hashed canonical content, so any flip or
+ * prose edit invalidates the authored `(revision-id:)` and makes {@link parseUatTestCriteria} throw
+ * for the WHOLE story until it is recomputed — a failure that surfaces in some later, unrelated
+ * command rather than at the edit. This is that recompute as a function: it reports drift, and the
+ * body it returns repairs it.
+ *
+ * Identity is never touched. `criterionId` is authored and immutable, and list position carries no
+ * identity (ADR-0253), so nothing here renumbers, re-matches or re-homes a criterion — a drifted
+ * item keeps its id and gains history, which is what keeps already-signed verdicts pointing at the
+ * revision they actually observed.
+ *
+ * Both written forms of an annotation run are handled, standalone (`_(revision-id: x)_`) and fused
+ * (`_(criterion-id: a)(revision-id: x)_`), because both are what the corpus contains.
+ */
+export function recomputeUatRevisionIds(storyId: string, body: string): UatRevisionRecompute {
+  const parsed = storyUatSection(body);
+  if (parsed === null) return { checked: 0, drifted: [], body };
+
+  const items = splitItems(parsed.section, parsed.offset);
+  const drifted: UatRevisionDrift[] = [];
+  const edits: { start: number; end: number; text: string }[] = [];
+
+  for (const item of items) {
+    // Fail-closed: an item whose identity annotations cannot be read is REFUSED, never rewritten
+    // past. Guessing a criterion's identity is exactly what ADR-0253 exists to forbid.
+    const criterionId = located(storyId, () => itemCriterionId(item.text));
+    const authoredRevisionId = located(storyId, () => itemRevisionId(item.text));
+    const expectedRevisionId = bindCriterionRevision(canonicalUatCriterionContent(item.text));
+    if (authoredRevisionId === expectedRevisionId) continue;
+    drifted.push({ criterionId, authoredRevisionId, expectedRevisionId });
+    edits.push({
+      start: item.start,
+      end: item.end,
+      text: advanceRevision(item.text, authoredRevisionId, expectedRevisionId),
+    });
+  }
+
+  // Splice from the END so an applied edit cannot shift the spans still to be applied.
+  let next = body;
+  for (const edit of edits.reverse()) {
+    next = next.slice(0, edit.start) + edit.text + next.slice(edit.end);
+  }
+  return { checked: items.length, drifted, body: next };
+}
+
+function located<T>(storyId: string, read: () => T): T {
+  try {
+    return read();
+  } catch (error) {
+    throw new Error(`${storyId}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+/**
+ * Advance one item's revision tag and record the superseded value.
+ *
+ * The inserted/updated `(previous-revision-id:)` is itself stripped by
+ * {@link canonicalUatCriterionContent}, so writing history does not perturb the hash it records —
+ * which is what makes the recompute idempotent.
+ */
+function advanceRevision(item: string, authored: string, expected: string): string {
+  const hasHistory = ANY_PREVIOUS_REVISION_ID_TAG.test(item);
+  const advanced = item.replace(DECORATED_REVISION_ID_TAG, (_match, lead: string, trail: string) => {
+    const revision = `${lead}(revision-id: ${expected})${trail}`;
+    if (hasHistory) return revision;
+    // A trailing underscore CLOSES an emphasis run, so history goes in its own run beside it;
+    // otherwise the tag sits mid-run and history joins that run directly.
+    return trail === "_"
+      ? `${revision} _(previous-revision-id: ${authored})_`
+      : `${revision}(previous-revision-id: ${authored})`;
+  });
+  return hasHistory
+    ? advanced.replace(ANY_PREVIOUS_REVISION_ID_TAG, () => `(previous-revision-id: ${authored})`)
+    : advanced;
 }
