@@ -127,7 +127,11 @@ The forces:
      by ADR-0298 and folded onto `increment` (ADR-0305 D1) — corrected in place per ADR-0139 to match
      dec 1's already-corrected exclusion list above, which the two lists had drifted out of sync with.)*
 
-5. **The initial `standsOn` values are bootstrapped once from down-tier citations, then curated.** A
+5. **The initial `standsOn` values are bootstrapped once from down-tier citations, then curated.**
+   *(Amended by ADR-0373: the seed reads four per-kind `refList` citation fields as well as
+   `references` — `agent.context` / `rules` / `antiPatterns` and `uat-criterion.refs` — and EXTENDS an
+   artifact that already carries edges instead of skipping it whole. The tier rule below is
+   unchanged.)* A
    one-time migration projects each artifact's existing `references` through the tier order: a citation
    pointing strictly *down-tier* seeds a `standsOn` edge; same-tier and back citations are dropped.
    Because every seeded edge strictly descends the tier order, the seed is **acyclic by construction**.
