@@ -6050,15 +6050,20 @@ button.legend-tile:hover {
   background: var(--lp-moss);
   color: #fffdf4;
 }
-/* ADR-0351 D1: `running` RENAMED to `moving`. It measures recency over the increment log and never
-   touched the claim ledger, so `running` implied a live session it could not see — and at current
-   landing velocity it lit every lane, discriminating nothing. Same tint; honest word. */
-.arc-state-moving {
-  background: color-mix(in srgb, var(--lp-sprout) 22%, transparent);
-  color: var(--lp-moss);
-}
+/* ADR-0374 D4: `moving` is GONE and `quiet` is the fall-through. ADR-0351 D1 renamed `running` to
+   `moving` because it measured recency and never touched the claim ledger; the owner's fuller call
+   is that recency was not the question at all — an arc nothing is claimed on, with nothing waiting
+   on the owner, is quiet whatever landed on it last week. There is no `.arc-state-moving` rule to
+   restore: the predicate is deleted, not re-tuned. */
 .arc-state-quiet {
   background: color-mix(in srgb, var(--lp-border) 45%, transparent);
+  color: var(--lp-ink-soft);
+}
+/* ADR-0374 D1: `lifecycle: parked` — off the worklist by the owner's DECISION, with open work still
+   on it. Tinted rather than outlined, because unlike `closed` it is a live judgement someone made
+   and can un-make (`arc reopen`), not a finished initiative. */
+.arc-state-parked {
+  background: color-mix(in srgb, var(--lp-clay) 18%, transparent);
   color: var(--lp-ink-soft);
 }
 /* ADR-0335: `lifecycle: closed`, mechanically derived — distinct from `quiet` (still active, may

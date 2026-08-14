@@ -16,8 +16,15 @@ but the repo never realized it. Aligned with [ADR-0058](0058-cross-story-depende
 §2 (the farmer is an ordinary organism that many depend on — the emergent-trunk shape — NOT the
 "substrate tier" §2 explicitly rejected) and with [ADR-0030](0030-all-in-on-claude-agent-sdk.md) §1
 (the research object is the story tree; this hardens the boundaries that make the tree mean
-something). The decision is made here; **execution is deferred** to a quiet window and captured as the
-live-library proposal artifact `organism-physical-rebuild`.
+something). The decision is made here; **execution is deferred** to a quiet window and was tracked as
+the live-library `proposal` artifact `organism-physical-rebuild`.
+
+**Correction (2026-08-15, per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):
+the `organism-physical-rebuild` tracking artifact no longer exists — its `proposal` kind was retired
+entirely by [ADR-0298](0298-proposals-fold-into-arcs-the-deferred-work-tier-is-an-arc-en.md), and the
+work it tracked is independently complete (see the References correction below). Nothing decided here
+is re-decided: the rebuild happened exactly as this ADR describes; only the pointer to its
+now-nonexistent tracking artifact is removed.
 
 ## Date
 
@@ -134,7 +141,8 @@ other exemplar. Nothing here adds a schema flag, a new tier, or a journey-princi
 - **A large, sequenced migration.** Dissolving `core` touches every package. It is keystone-first: the
   farmer boundary + verdict-as-versioned-output + extracting proof machinery out of `core`, before the
   per-organism carve-up and the studio/store re-wiring. The ordered plan and readiness preconditions
-  live in the `organism-physical-rebuild` proposal.
+  lived in the `organism-physical-rebuild` proposal (kind retired by ADR-0298; the migration itself is
+  complete — see the References correction below).
 - **Within-organism concurrency still needs coordination.** Cross-organism collisions die structurally,
   but two sessions growing *the same* organism (e.g. the farmer during bootstrap) still contend —
   that is the claims question ([ADR-0009](0009-concurrency-isolation-id-allocation.md), DBOS-deferred)
@@ -177,5 +185,10 @@ other exemplar. Nothing here adds a schema flag, a new tier, or a journey-princi
   the proof compute now lives in `packages/orchestrator/src/proof/` (`signer.ts`, `anchor-compute.ts`,
   etc.), the verdict/anchor shapes in `packages/proof-protocol` (`anchor.ts`), and the knowledge schema
   in `packages/library` (`knowledge.ts`).
-- Library proposal artifact `organism-physical-rebuild` (the deferred execution plan).
 - Design conversation, 2026-06-17 (the farmer reframe; the sun/database/farmer analogies).
+- **Correction (2026-08-15, ADR-0139):** the `organism-physical-rebuild` `proposal` artifact this ADR
+  once pointed to no longer exists — its kind was retired entirely by
+  [ADR-0298](0298-proposals-fold-into-arcs-the-deferred-work-tier-is-an-arc-en.md), which folds
+  deferred, decided-but-unbuilt work into arc entries instead. No replacement pointer is needed: the
+  2026-07-06 correction above already confirms the dissolution this ADR decided is complete, so there
+  is no live remnant of deferred execution to track.

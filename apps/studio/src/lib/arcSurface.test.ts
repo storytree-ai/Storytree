@@ -23,7 +23,6 @@ import {
   landedSummary,
   lastActivityAt,
   BLOCKED_IS_DERIVABLE,
-  QUIET_AFTER_DAYS,
   type ArcSurfaceState,
 } from './arcSurface';
 import type {
@@ -173,28 +172,37 @@ describe('lastActivityAt — landings AND parkings both count as activity', () =
   });
 });
 
-describe('arcState — waiting / running / quiet, and NEVER blocked (ADR-0314 D4)', () => {
+describe('arcState — waiting / claimed / quiet, and NEVER blocked (ADR-0314 D4, ADR-0374 D4)', () => {
   it('an arc with an authored open question is `waiting` — answerable right now', () => {
     const rollup = arc({ id: 'a', questions: [question('q1')], increments: [landed('c1', '2026-01-01')] });
-    // `waiting` wins over recency: a stale arc the owner can unblock by replying is exactly what
-    // this surface exists to surface, so it never hides behind a recency judgement.
+    // `waiting` outranks everything below it: an arc the owner can unblock by replying is exactly
+    // what this surface exists to surface, so it never hides behind a judgement about activity.
     expect(arcState(rollup, NOW)).toBe('waiting');
   });
 
-  it('recent activity reads `moving`, older than the window reads `quiet`', () => {
-    const recent = arc({ id: 'a', increments: [landed('c1', '2026-08-04')] });
-    expect(arcState(recent, NOW)).toBe('moving');
-
-    const stale = arc({ id: 'b', increments: [landed('c1', '2026-07-01')] });
-    expect(arcState(stale, NOW)).toBe('quiet');
-    expect(QUIET_AFTER_DAYS).toBe(7);
+  it('RECENCY NO LONGER LIGHTS A STATE — a just-landed arc reads `quiet` like any other (ADR-0374 D4)', () => {
+    // The fence on the deleted `moving` predicate. Yesterday's landing and last month's now read
+    // IDENTICALLY, which is the decision rather than a rounding: an arc nobody is claiming, with
+    // nothing waiting on the owner, is quiet whatever landed on it last week. A test that allowed
+    // these two to differ would let a recency predicate back in under another name.
+    expect(arcState(arc({ id: 'a', increments: [landed('c1', '2026-08-14')] }), NOW)).toBe('quiet');
+    expect(arcState(arc({ id: 'b', increments: [landed('c1', '2026-07-01')] }), NOW)).toBe('quiet');
+    expect(arcState(arc({ id: 'c', increments: [parked('p1', '2026-08-14T00:00:00Z')] }), NOW)).toBe('quiet');
   });
 
-  it('a live claim on the arc id lights `claimed`, outranking recency', () => {
+  it('the injected clock changes NO state — `now` orders lanes, it never labels one', () => {
+    // `arcState` still takes `now` (published shape, every caller passes it), so the guarantee worth
+    // holding is that moving the clock cannot move a verdict.
+    const rollup = arc({ id: 'a', increments: [landed('c1', '2026-08-14')] });
+    expect(arcState(rollup, new Date('2027-06-01T00:00:00Z'))).toBe('quiet');
+    expect(arcState(rollup, new Date('2026-08-14T00:00:00Z'))).toBe('quiet');
+  });
+
+  it('a live claim on the arc id lights `claimed`, outranking the quiet fall-through', () => {
     const rollup = arc({ id: 'held-arc', increments: [landed('c1', '2026-08-04')] });
     expect(arcState(rollup, NOW, [claimGroup('s1', 'held-arc')])).toBe('claimed');
-    // and without the ledger the very same arc reads `moving` — the state is ADDITIVE
-    expect(arcState(rollup, NOW)).toBe('moving');
+    // and without the ledger the very same arc reads `quiet` — the state is ADDITIVE
+    expect(arcState(rollup, NOW)).toBe('quiet');
   });
 
   it('`waiting` outranks `claimed`: the owner-actionable state is never hidden by a busy session', () => {
@@ -204,11 +212,38 @@ describe('arcState — waiting / running / quiet, and NEVER blocked (ADR-0314 D4
 
   it('a claim that matches NOTHING falls through — absence is never evidence of absence', () => {
     // The join covers a measured minority of increments (5 of 613 carry a `capability:` cite), so a
-    // non-match cannot support "nobody is working on this". It falls through to recency instead.
+    // non-match cannot support "nobody is working on this". It falls through to `quiet` instead,
+    // which claims less: quiet says nothing is PROVEN to be happening, never that nothing is.
     const rollup = arc({ id: 'a', increments: [landed('c1', '2026-08-04')] });
-    expect(arcState(rollup, NOW, [claimGroup('s1', 'a-totally-different-unit')])).toBe('moving');
-    expect(arcState(rollup, NOW, null)).toBe('moving');
-    expect(arcState(rollup, NOW, [])).toBe('moving');
+    expect(arcState(rollup, NOW, [claimGroup('s1', 'a-totally-different-unit')])).toBe('quiet');
+    expect(arcState(rollup, NOW, null)).toBe('quiet');
+    expect(arcState(rollup, NOW, [])).toBe('quiet');
+  });
+
+  it('a parked arc reads `parked`, outranking `waiting` and `claimed` (ADR-0374 D1)', () => {
+    // The two STORED lifecycles win over everything: an arc off the worklist is off it whatever else
+    // is true of it, and `waiting` promises "answerable right now, IN FLIGHT".
+    const rollup = arc({
+      id: 'shelved',
+      lifecycle: 'parked',
+      questions: [question('q')],
+      increments: [parked('p1', '2026-08-04T00:00:00Z')],
+    });
+    expect(arcState(rollup, NOW)).toBe('parked');
+    expect(arcState(rollup, NOW, [claimGroup('s1', 'shelved')])).toBe('parked');
+  });
+
+  it('`parked` survives OPEN increments — that is the shape it exists for', () => {
+    // The whole point: the mechanical rule reads open work as `active` (ADR-0335), and this surface
+    // must not re-derive it. It reads the STORED lifecycle, so a parked arc full of open work stays
+    // parked rather than being quietly promoted back onto the worklist.
+    const rollup = arc({
+      id: 'shelved',
+      lifecycle: 'parked',
+      increments: [parked('p1', '2026-08-04T00:00:00Z'), parked('p2', '2026-08-05T00:00:00Z')],
+    });
+    expect(arcState(rollup, NOW)).toBe('parked');
+    expect(laneCounts(rollup)).toEqual({ landed: 0, queued: 2 });
   });
 });
 
@@ -275,12 +310,13 @@ describe('arcClaimants — three real join paths, unioned, asserted positively o
       adrs: [{ number: 316, status: 'proposed', title: 'undecided' }],
       increments: [landed('c1', '2026-08-05')],
     });
-    expect(arcState(rollup, NOW)).toBe('moving');
+    expect(arcState(rollup, NOW)).toBe('quiet');
   });
 
   it('gone-quiet reads `quiet` and never `blocked` (B3 is rejected by name)', () => {
     // At 2026-08-05 density B3 lit 8 arcs and collapsed `blocked` and `quiet` into near-synonyms.
-    // `quiet` now means what it says: moving slowly, nobody stuck.
+    // Since ADR-0374 D4 `quiet` is the fall-through for everything not stored, waiting or claimed —
+    // which makes B3's predicate not merely rejected but unrepresentable here.
     const rollup = arc({ id: 'a', increments: [landed('c1', '2026-06-01')] });
     expect(arcState(rollup, NOW)).toBe('quiet');
   });
@@ -309,22 +345,27 @@ describe('arcClaimants — three real join paths, unioned, asserted positively o
 });
 
 describe('arcLanes — active arcs only, waiting first (ADR-0239 D3 / ADR-0314 D3)', () => {
-  it('drops closed arcs and orders waiting > running > quiet, most-recent first within a state', () => {
+  it('drops closed and parked arcs, orders waiting > claimed > quiet, most-recent first within a state', () => {
     const lanes = arcLanes(
       [
-        arc({ id: 'quiet-one', increments: [landed('c', '2026-06-01')] }),
+        arc({ id: 'quiet-old', increments: [landed('c', '2026-06-01')] }),
         arc({ id: 'closed-one', lifecycle: 'closed', increments: [landed('c', '2026-08-05')] }),
-        arc({ id: 'running-old', increments: [landed('c', '2026-08-02')] }),
+        arc({ id: 'parked-one', lifecycle: 'parked', increments: [parked('p', '2026-08-05T00:00:00Z')] }),
+        arc({ id: 'claimed-one', increments: [landed('c', '2026-08-02')] }),
         arc({ id: 'waiting-one', questions: [question('q')], increments: [landed('c', '2026-01-01')] }),
-        arc({ id: 'running-new', increments: [landed('c', '2026-08-05')] }),
+        arc({ id: 'quiet-new', increments: [landed('c', '2026-08-05')] }),
       ],
       NOW,
+      'active',
+      [claimGroup('s1', 'claimed-one')],
     );
+    // Every lane below `waiting` is now sorted by STATE then recency — and with `moving` gone the
+    // two quiet lanes are separated by recency alone, which is what `lastActivity` is still for.
     expect(lanes.map((l) => l.arc.id)).toEqual([
       'waiting-one',
-      'running-new',
-      'running-old',
-      'quiet-one',
+      'claimed-one',
+      'quiet-new',
+      'quiet-old',
     ]);
   });
 
@@ -332,7 +373,7 @@ describe('arcLanes — active arcs only, waiting first (ADR-0239 D3 / ADR-0314 D
     const lanes = arcLanes([arc({ id: 'a', increments: [landed('c', '2026-08-05'), parked('p', '2026-08-01')] })], NOW);
     expect(lanes[0]?.bars.map((b) => b.tone)).toEqual(['landed', 'queued']);
     expect(lanes[0]?.counts).toEqual({ landed: 1, queued: 1 });
-    expect(lanes[0]?.state).toBe('moving');
+    expect(lanes[0]?.state).toBe('quiet');
   });
 
   it('orders deterministically when two lanes share a state and an activity moment', () => {
@@ -346,24 +387,41 @@ describe('arcLanes — active arcs only, waiting first (ADR-0239 D3 / ADR-0314 D
     expect(lanes.map((l) => l.arc.id)).toEqual(['alpha', 'zulu']);
   });
 
-  describe('scope (ADR-0335) — closed arcs are one flag away, not hidden', () => {
+  describe('scope (ADR-0335, ADR-0374 D5) — three scopes, one per lifecycle, and no `all`', () => {
     const LIVE = arc({ id: 'live-one', increments: [landed('c', '2026-08-05')] });
     const DONE = arc({ id: 'done-one', lifecycle: 'closed', increments: [landed('c', '2026-07-01')] });
+    const SHELVED = arc({
+      id: 'shelved-one',
+      lifecycle: 'parked',
+      increments: [parked('p', '2026-08-04T00:00:00Z')],
+    });
 
     it('defaults to `active` — unchanged from before the scope param existed', () => {
-      expect(arcLanes([LIVE, DONE], NOW).map((l) => l.arc.id)).toEqual(['live-one']);
-      expect(arcLanes([LIVE, DONE], NOW, 'active').map((l) => l.arc.id)).toEqual(['live-one']);
+      expect(arcLanes([LIVE, DONE, SHELVED], NOW).map((l) => l.arc.id)).toEqual(['live-one']);
+      expect(arcLanes([LIVE, DONE, SHELVED], NOW, 'active').map((l) => l.arc.id)).toEqual(['live-one']);
     });
 
     it('`closed` shows ONLY closed arcs, each reading state `closed`', () => {
-      const lanes = arcLanes([LIVE, DONE], NOW, 'closed');
+      const lanes = arcLanes([LIVE, DONE, SHELVED], NOW, 'closed');
       expect(lanes.map((l) => l.arc.id)).toEqual(['done-one']);
       expect(lanes[0]?.state).toBe('closed');
     });
 
-    it('`all` shows both, closed sorted after every derivable-active state', () => {
-      const lanes = arcLanes([DONE, LIVE], NOW, 'all');
-      expect(lanes.map((l) => l.arc.id)).toEqual(['live-one', 'done-one']);
+    it('`parked` shows ONLY parked arcs, each reading state `parked`', () => {
+      const lanes = arcLanes([LIVE, DONE, SHELVED], NOW, 'parked');
+      expect(lanes.map((l) => l.arc.id)).toEqual(['shelved-one']);
+      expect(lanes[0]?.state).toBe('parked');
+    });
+
+    it('THE THREE SCOPES PARTITION every arc — each appears in exactly one, so nothing is lost', () => {
+      // This is what makes removing `all` safe rather than merely tidy (ADR-0374 D5). If a fourth
+      // lifecycle were ever added without a scope, this would catch it: the counts stop summing.
+      const all = [LIVE, DONE, SHELVED];
+      const drawn = (['active', 'parked', 'closed'] as const).flatMap((s) =>
+        arcLanes(all, NOW, s).map((l) => l.arc.id),
+      );
+      expect(drawn.slice().sort()).toEqual(['done-one', 'live-one', 'shelved-one']);
+      expect(new Set(drawn).size).toBe(all.length);
     });
   });
 });
@@ -485,7 +543,7 @@ describe('arcBriefing — parked PROPOSALS are something waiting on the owner (A
       increments: [parked('p1', '2026-08-05')],
     });
     expect(arcBriefing(proposalsOnly).proposals).toHaveLength(1);
-    expect(arcState(proposalsOnly, NOW)).toBe('moving');
+    expect(arcState(proposalsOnly, NOW)).toBe('quiet');
     expect(arcState(proposalsOnly, new Date('2026-09-30T00:00:00Z'))).toBe('quiet');
   });
 });
