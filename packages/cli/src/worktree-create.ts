@@ -29,9 +29,20 @@ import process from "node:process";
 
 import type { ClaimDocT, ClaimRequest, ClaimResult } from "@storytree/notice-board";
 import { claimGrade, exploringClaimRequest } from "@storytree/notice-board";
-import { guardClaimNamespace, type ClaimUniverseLoader } from "@storytree/drive";
+// The SUBPATH, never the `@storytree/drive` barrel. The barrel re-exports the whole build/orchestrate
+// runtime — `node-build`, `story-build`, `orchestrate`, the DB preflight — so importing the guard
+// through it drags the Cloud SQL connector into anything that bundles this module. That matters here
+// specifically: this file is on the managed Codex bootstrap payload's import graph, and that payload
+// runs as the sandbox account with every credential path denied to it (ADR-0368 D2). Both symbols
+// live in `claim-universe.ts`, which is an exported subpath, so the narrow import costs nothing.
+import { guardClaimNamespace, type ClaimUniverseLoader } from "@storytree/drive/claim-universe";
 
-import { storyArcStamps } from "./arc.js";
+// Direct from `arc-rollup.ts`, not through `./arc.js`'s re-export. `arc.ts` imports the
+// `@storytree/drive` BARREL, which reaches the whole build/orchestrate runtime and with it the
+// Cloud SQL connector — and this module is on the managed Codex bootstrap payload's import graph,
+// which must ship no database client at all (ADR-0368 D2). `arc-rollup.ts` itself is clean, so the
+// subpath is the same code with none of the reach.
+import { storyArcStamps } from "@storytree/drive/arc-rollup";
 import type { Envelope } from "./envelope.js";
 
 /** What one anchor node is allowed to look like in a directory/branch name. */

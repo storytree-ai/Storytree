@@ -10,16 +10,21 @@ import type { ClaimDocT, ClaimResult } from "@storytree/notice-board";
 import {
   authorizeCodexWriter,
   buildCodexContainmentBundle,
+  candidateCorepackPnpmDistPaths,
   codexSessionContainmentCommand,
   codexToolchainCommand,
   defaultCodexContainmentIo,
+  defaultCodexToolchainStagingIo,
   decideInteractiveCodexToolUse,
   parseCodexVersion,
+  planCodexToolchainStaging,
   promoteBootstrapClaimsToWork,
   resolveCodexSessionTopology,
+  resolvePinnedPnpmVersion,
   type BootstrapClaimLedger,
   type CodexContainmentIo,
   type CodexGitProbe,
+  type CodexToolchainStagingIo,
 } from "./codex-session-containment.js";
 
 const NOW = new Date("2026-08-12T06:00:00.000Z");
@@ -30,17 +35,13 @@ const GIT_DIR = path.join(ROOT, ".git", "worktrees", "codex-current");
 const COMMON_DIR = path.join(ROOT, ".git");
 
 /**
- * Read from the workspace's own `packageManager` rather than written down here. The toolchain payload
- * only has to agree with ONE thing — the pnpm the lockfile was resolved by — so a literal in this
- * file would be a second source of truth that could drift from the repository silently.
+ * Read from the workspace's own `packageManager` via the production helper rather than written down
+ * here — a literal would be a second source of truth that could drift from the repository silently.
  */
 const PINNED_PNPM_VERSION = (() => {
-  const root = JSON.parse(readFileSync(path.resolve("../../package.json"), "utf8")) as {
-    packageManager?: string;
-  };
-  const match = /^pnpm@(\d+\.\d+\.\d+)$/.exec(root.packageManager ?? "");
-  if (!match?.[1]) throw new Error(`root packageManager is not a pinned pnpm: ${root.packageManager}`);
-  return match[1];
+  const version = resolvePinnedPnpmVersion(readFileSync(path.resolve("../../package.json"), "utf8"));
+  if (typeof version !== "string") throw new Error(`root packageManager is not a pinned pnpm: ${version.reason}`);
+  return version;
 })();
 
 test("the production containment IO probes this registered checkout and pinned Codex", () => {
@@ -699,6 +700,218 @@ test("the pinned single-file pnpm really does run a workspace command under mana
   );
 });
 
+test("resolvePinnedPnpmVersion reads the exact pnpm the workspace pins, or fails closed", () => {
+  assert.equal(resolvePinnedPnpmVersion(JSON.stringify({ packageManager: "pnpm@9.15.0" })), "9.15.0");
+
+  const missing = resolvePinnedPnpmVersion(JSON.stringify({}));
+  assert.equal(typeof missing, "object");
+  if (typeof missing !== "string") assert.match(missing.reason, /not a pinned pnpm version/);
+
+  const wrongManager = resolvePinnedPnpmVersion(JSON.stringify({ packageManager: "yarn@4.0.0" }));
+  if (typeof wrongManager !== "string") assert.match(wrongManager.reason, /not a pinned pnpm version/);
+
+  const range = resolvePinnedPnpmVersion(JSON.stringify({ packageManager: "pnpm@^9.15.0" }));
+  if (typeof range !== "string") assert.match(range.reason, /not a pinned pnpm version/);
+
+  const malformedJson = resolvePinnedPnpmVersion("{not json");
+  if (typeof malformedJson !== "string") assert.match(malformedJson.reason, /not valid JSON/);
+});
+
+test("candidateCorepackPnpmDistPaths checks the exact Corepack cache layout per platform", () => {
+  const win = candidateCorepackPnpmDistPaths({ LOCALAPPDATA: "C:\\Users\\op\\AppData\\Local" }, "win32", "9.15.0");
+  assert.deepEqual(win, [
+    path.join("C:\\Users\\op\\AppData\\Local", "node", "corepack", "v1", "pnpm", "9.15.0", "dist", "pnpm.cjs"),
+  ]);
+
+  const mac = candidateCorepackPnpmDistPaths({ HOME: "/Users/op" }, "darwin", "9.15.0");
+  assert.deepEqual(mac, [
+    path.join("/Users/op", "Library", "Caches", "node", "corepack", "v1", "pnpm", "9.15.0", "dist", "pnpm.cjs"),
+  ]);
+
+  const linux = candidateCorepackPnpmDistPaths(
+    { XDG_CACHE_HOME: "/home/op/.cache" },
+    "linux",
+    "9.15.0",
+  );
+  assert.deepEqual(linux, [
+    path.join("/home/op/.cache", "node", "corepack", "v1", "pnpm", "9.15.0", "dist", "pnpm.cjs"),
+  ]);
+
+  // No XDG_CACHE_HOME set: falls back to ~/.cache, never silently to nothing.
+  const linuxFallback = candidateCorepackPnpmDistPaths({ HOME: "/home/op" }, "linux", "9.15.0");
+  assert.deepEqual(linuxFallback, [
+    path.join("/home/op", ".cache", "node", "corepack", "v1", "pnpm", "9.15.0", "dist", "pnpm.cjs"),
+  ]);
+});
+
+function stagingIo(overrides: Partial<CodexToolchainStagingIo> = {}): CodexToolchainStagingIo {
+  return {
+    readWorkspacePackageJson: () => JSON.stringify({ packageManager: "pnpm@9.15.0" }),
+    exists: () => false,
+    sha256File: () => "f".repeat(64),
+    env: { LOCALAPPDATA: "C:\\Users\\op\\AppData\\Local" },
+    platform: "win32",
+    managedDir: () => path.resolve("C:/ProgramData/OpenAI/Codex/Storytree"),
+    ...overrides,
+  };
+}
+
+test("planCodexToolchainStaging locates, hashes, and emits the exact operator steps", () => {
+  const source = path.join(
+    "C:\\Users\\op\\AppData\\Local",
+    "node", "corepack", "v1", "pnpm", "9.15.0", "dist", "pnpm.cjs",
+  );
+  const plan = planCodexToolchainStaging(
+    stagingIo({ exists: (target) => target === source, sha256File: () => "A".repeat(64) }),
+  );
+  if (!plan.ok) assert.fail(plan.reason);
+  assert.equal(plan.pnpmVersion, "9.15.0");
+  assert.equal(plan.sourcePath, source);
+  // Hash is normalised to lowercase — the same casing `managedPayload()` requires elsewhere.
+  assert.equal(plan.sha256, "a".repeat(64));
+  assert.equal(plan.stagedPath, path.resolve("C:/ProgramData/OpenAI/Codex/Storytree/payloads/pnpm.cjs"));
+  assert.deepEqual(plan.pin, { path: plan.stagedPath, sha256: "a".repeat(64) });
+  assert.ok(plan.steps.some((line) => line.includes("Copy-Item")));
+  assert.ok(plan.steps.some((line) => line.includes(JSON.stringify(plan.pin))));
+  assert.ok(plan.steps.some((line) => line.includes("CertUtil") && line.includes(plan.stagedPath)));
+});
+
+test("planCodexToolchainStaging fails closed on an unpinned version rather than guessing", () => {
+  const plan = planCodexToolchainStaging(
+    stagingIo({ readWorkspacePackageJson: () => JSON.stringify({ packageManager: "pnpm@catalog:" }) }),
+  );
+  assert.equal(plan.ok, false);
+  if (!plan.ok) assert.match(plan.reason, /not a pinned pnpm version/);
+});
+
+test("planCodexToolchainStaging fails closed and names every checked path when nothing is cached", () => {
+  const plan = planCodexToolchainStaging(stagingIo({ exists: () => false }));
+  assert.equal(plan.ok, false);
+  if (!plan.ok) {
+    assert.match(plan.reason, /could not find a cached pnpm@9\.15\.0 distribution/);
+    assert.match(plan.reason, /dist[/\\]pnpm\.cjs/);
+  }
+});
+
+test("planCodexToolchainStaging fails closed on a malformed computed digest rather than mis-hashing", () => {
+  const plan = planCodexToolchainStaging(stagingIo({ exists: () => true, sha256File: () => "not-a-hash" }));
+  assert.equal(plan.ok, false);
+  if (!plan.ok) assert.match(plan.reason, /not a well-formed SHA-256 hash/);
+});
+
+test("planCodexToolchainStaging never throws — an IO exception is reported, not propagated", () => {
+  const plan = planCodexToolchainStaging(
+    stagingIo({
+      readWorkspacePackageJson: () => {
+        throw new Error("no such file");
+      },
+    }),
+  );
+  assert.equal(plan.ok, false);
+  if (!plan.ok) assert.match(plan.reason, /could not plan toolchain staging/);
+});
+
+/**
+ * The default IO against the REAL workspace: proof that `defaultCodexToolchainStagingIo` actually
+ * finds and hashes what's on disk, not just that the pure planner behaves on fakes. Skipped off
+ * Windows or when this host has never resolved the pinned pnpm through Corepack — a fabricated
+ * stand-in would prove nothing about the real toolchain, same rationale as the test above it.
+ */
+test("the default toolchain staging IO finds and hashes the real cached pnpm on this host", (t) => {
+  const expected = path.join(
+    process.env["LOCALAPPDATA"] ?? "",
+    "node", "corepack", "v1", "pnpm", PINNED_PNPM_VERSION, "dist", "pnpm.cjs",
+  );
+  if (process.platform !== "win32" || !existsSync(expected)) {
+    t.skip(`needs a resolved pnpm ${PINNED_PNPM_VERSION} in the Corepack cache on this host`);
+    return;
+  }
+  const plan = planCodexToolchainStaging(defaultCodexToolchainStagingIo);
+  if (!plan.ok) assert.fail(plan.reason);
+  assert.equal(plan.pnpmVersion, PINNED_PNPM_VERSION);
+  assert.equal(path.resolve(plan.sourcePath), path.resolve(expected));
+  assert.match(plan.sha256, /^[a-f0-9]{64}$/);
+});
+
+test("operatorReadme is sharpened by a staging plan only while toolchainPayload is unconfigured", () => {
+  const authority = authorizeCodexWriter(topology(), [claim()], NOW);
+  if (!authority.ok) assert.fail(authority.reason);
+  const base = {
+    authority,
+    codexVersion: "codex-cli 0.145.0",
+    managedDir: path.resolve("C:/ProgramData/OpenAI/Codex/Storytree"),
+    managedNodePath: path.resolve("C:/Program Files/nodejs/node.exe"),
+    gitCommand: [process.execPath],
+  };
+  const plan = planCodexToolchainStaging(
+    stagingIo({
+      exists: () => true,
+      sha256File: () => "b".repeat(64),
+    }),
+  );
+  if (!plan.ok) assert.fail(plan.reason);
+
+  const unconfigured = buildCodexContainmentBundle({ ...base, toolchainStaging: plan });
+  if (!unconfigured.ok) assert.fail(unconfigured.reason);
+  assert.match(unconfigured.operatorReadme, /STAGING \(computed on this machine, nothing written\)/);
+  assert.match(unconfigured.operatorReadme, /pnpm@9\.15\.0 found at/);
+  assert.ok(unconfigured.operatorReadme.includes(JSON.stringify(plan.pin)));
+
+  // A failed plan is reported honestly too — never silently dropped.
+  const failedPlan = planCodexToolchainStaging(stagingIo({ exists: () => false }));
+  const stillUnconfigured = buildCodexContainmentBundle({ ...base, toolchainStaging: failedPlan });
+  if (!stillUnconfigured.ok) assert.fail(stillUnconfigured.reason);
+  assert.match(stillUnconfigured.operatorReadme, /STAGING \(computed on this machine\): could not find/);
+
+  // Once an operator has actually configured toolchainPayload, the staging hint is moot — the
+  // configured branch renders, never a redundant staging block.
+  const configured = buildCodexContainmentBundle({
+    ...base,
+    toolchainPayload: {
+      path: path.resolve("C:/ProgramData/OpenAI/Codex/Storytree/payloads/pnpm.cjs"),
+      sha256: "c".repeat(64),
+    },
+    toolchainStaging: plan,
+  });
+  if (!configured.ok) assert.fail(configured.reason);
+  assert.doesNotMatch(configured.operatorReadme, /STAGING \(computed/);
+});
+
+test("the dry-run command wires a staging plan through to the printed bundle when the IO supplies one", async () => {
+  const plan = planCodexToolchainStaging(
+    stagingIo({ exists: () => true, sha256File: () => "d".repeat(64) }),
+  );
+  if (!plan.ok) assert.fail(plan.reason);
+  const io: CodexContainmentIo = {
+    probeGit: () => worktreeProbe(),
+    canonicalize: norm,
+    codexVersion: () => "codex-cli 0.145.0",
+    managedDir: () => path.resolve("C:/ProgramData/OpenAI/Codex/Storytree"),
+    managedNodePath: () => path.resolve("C:/Program Files/nodejs/node.exe"),
+    gitCommand: () => [process.execPath],
+    writeFile: () => assert.fail("must never write"),
+    toolchainStaging: () => plan,
+  };
+  const ledger = { claimsBySession: async () => [claim()] };
+
+  const dry = await codexSessionContainmentCommand({ write: false }, { ledger, now: () => NOW }, io);
+  assert.equal(dry.ok, true);
+  assert.match(dry.body, /toolchain staging:\s+pnpm@9\.15\.0 located at/);
+  assert.match(dry.body, /STAGING \(computed on this machine, nothing written\)/);
+
+  // A throwing staging seam degrades to the generic prose rather than failing the whole dry run.
+  const throwing: CodexContainmentIo = {
+    ...io,
+    toolchainStaging: () => {
+      throw new Error("boom");
+    },
+  };
+  const survived = await codexSessionContainmentCommand({ write: false }, { ledger, now: () => NOW }, throwing);
+  assert.equal(survived.ok, true);
+  assert.doesNotMatch(survived.body, /boom/);
+  assert.match(survived.body, /NOT CONFIGURED — a contained task cannot run any pnpm/);
+});
+
 test("rendered managed hook re-probes Git and live claims on every write, then maps decisions", () => {
   const current = topology();
   const authority = authorizeCodexWriter(current, [claim()], NOW);
@@ -1229,4 +1442,93 @@ test("dry-run command emits a bundle but the repository command never installs P
   assert.equal(attempted.ok, false);
   assert.match(attempted.body, /administrator-owned action/i);
   assert.deepEqual(writes, []);
+});
+
+test("--toolchain-payload mints the pin FROM THE FILE, so no digest is transcribed by hand", async () => {
+  const managed = path.resolve("C:/ProgramData/OpenAI/Codex/Storytree");
+  const staged = path.join(managed, "payloads", "pnpm.cjs");
+  const hashed: string[] = [];
+  const io: CodexContainmentIo = {
+    probeGit: () => worktreeProbe(),
+    canonicalize: norm,
+    codexVersion: () => "codex-cli 0.145.0",
+    managedDir: () => managed,
+    managedNodePath: () => path.resolve("C:/Program Files/nodejs/node.exe"),
+    gitCommand: () => [process.execPath],
+    writeFile: () => {
+      throw new Error("never");
+    },
+    sha256File: (target) => {
+      hashed.push(target);
+      return "a".repeat(64);
+    },
+  };
+  const ledger = { claimsBySession: async () => [claim()] };
+
+  const pinned = await codexSessionContainmentCommand(
+    { toolchainPayload: staged },
+    { ledger, now: () => NOW },
+    io,
+  );
+  assert.equal(pinned.ok, true);
+  assert.deepEqual(hashed, [staged], "the pin is hashed from the staged file itself");
+
+  // A path that cannot be hashed REFUSES rather than quietly emitting a bundle with no toolchain —
+  // a caller who passed the flag is asking for a bundle that carries one, and "success" without it
+  // reads as done while a contained task still cannot run a single workspace command.
+  const broken = await codexSessionContainmentCommand(
+    { toolchainPayload: path.join(managed, "payloads", "absent.cjs") },
+    { ledger, now: () => NOW },
+    {
+      ...io,
+      sha256File: () => {
+        throw new Error("ENOENT");
+      },
+    },
+  );
+  assert.equal(broken.ok, false);
+  assert.match(broken.body, /could not hash --toolchain-payload/u);
+
+  const relative = await codexSessionContainmentCommand(
+    { toolchainPayload: "payloads/pnpm.cjs" },
+    { ledger, now: () => NOW },
+    io,
+  );
+  assert.equal(relative.ok, false);
+  assert.match(relative.body, /must be an absolute path/u);
+});
+
+test("storytree-owned secrets are denied as ONE folder, while the vendor paths stay named", () => {
+  const authority = authorizeCodexWriter(topology(), [claim()], NOW);
+  if (!authority.ok) assert.fail(authority.reason);
+  const bundle = buildCodexContainmentBundle({
+    authority,
+    codexVersion: "codex-cli 0.145.0",
+    managedDir: path.resolve("C:/ProgramData/OpenAI/Codex/Storytree"),
+    managedNodePath: path.resolve("C:/Program Files/nodejs/node.exe"),
+  });
+  if (!bundle.ok) assert.fail(bundle.reason);
+  const encoded = /FromBase64String\("([A-Za-z0-9+/=]+)"\)/.exec(bundle.trustedActuatorScript);
+  if (!encoded?.[1]) assert.fail("actuator script carries no embedded config");
+  const acl = (
+    JSON.parse(Buffer.from(encoded[1], "base64").toString("utf8")) as Record<string, unknown>
+  )["credentialAclPaths"] as string[];
+  assert.ok(Array.isArray(acl));
+
+  const storytree = acl.filter((p) => /\.storytree/iu.test(p));
+  assert.equal(storytree.length, 1, `expected one storytree deny, got ${JSON.stringify(storytree)}`);
+  assert.doesNotMatch(
+    storytree[0] as string,
+    /secrets\.json$/iu,
+    "the ACL must deny the storytree FOLDER as a unit — a per-file deny means every new secret " +
+      "needs someone to reason about a new grant, which is the failure mode the folder home removes",
+  );
+
+  // Deliberately NOT folded into that folder: both are recreated in their default locations by their
+  // own vendors, and redirecting gcloud via CLOUDSDK_CONFIG fails OPEN if it is ever unset.
+  assert.ok(
+    acl.some((p) => /[\\/]\.codex[\\/]auth\.json$/iu.test(p)),
+    "the Codex credential stays named as a file, not swallowed by a tree deny",
+  );
+  assert.ok(acl.some((p) => /gcloud/iu.test(p)), "gcloud stays named individually");
 });
