@@ -615,27 +615,27 @@ test("lte-passthrough-and-degraded-carry-no-typed-edges: the pass-through and de
  * this branch cannot tell current data from residue, so it reads only the known AssetDocLike keys.
  * That contract is untouched here and still holds.
  *
- * `standsOn` on a body-bearing doc is not residue. The `increment` kind carries a per-kind content
- * field literally NAMED `body`, so `hasStringBody` routes EVERY increment down this branch (measured
- * against the live store 2026-08-14: 693 of 693) — and `increment` is IN the DAG, the successor of
- * ADR-0223 D3's tier-6 `plan`. Structured-branch-only crossing therefore dropped 106 of the corpus's
- * 660 authored edges (169 docs raw -> 137 on the wire), a sixth of the graph and precisely the
- * arc/increment lineage, while the acyclicity gate — which reads raw rows — went on reporting all
- * 660. Two honest-looking numbers that could never be reconciled by looking at either alone.
+ * `standsOn` on a body-bearing doc is not residue: `buildLibraryDoc` deliberately PRESERVES an
+ * authored edge across a body-bearing studio save (the test below), so a collapsed structured unit
+ * can legitimately arrive here carrying a current one.
+ *
+ * HISTORY, because this crossing's original justification is now false and a reader would otherwise
+ * re-derive it: it was added by PR #1330 because `hasStringBody` routed every `increment` down this
+ * branch — the kind carries a per-kind content field literally named `body` — silently dropping 106
+ * of the corpus's 660 authored edges. `bodyIsContentField` fixed that classification at its root, so
+ * an increment now renders structurally and its edge crosses there. This branch's crossing survives
+ * on its own merits, above, and is no longer load-bearing for the DAG.
  */
-test("standsOn crosses the pass-through branch — a body-bearing increment keeps its authored dependency edge", () => {
+test("standsOn crosses the pass-through branch — a body-bearing doc keeps its authored dependency edge", () => {
   const stored: StoredDoc = {
-    id: "some-increment",
-    kind: "increment",
+    id: "collapsed-pattern",
+    kind: "pattern",
     doc: {
-      id: "some-increment",
-      kind: "increment",
-      title: "An increment",
+      id: "collapsed-pattern",
+      category: "pattern",
+      title: "A collapsed pattern",
       description: "d",
-      // The collision that puts every increment on this branch: `body` is one of its CONTENT
-      // fields, not a pre-rendered body.
-      body: "the increment's authored body prose",
-      objective: "do the thing",
+      body: "a pre-rendered body",
       references: [],
       standsOn: ["asset:some-arc", "doc:decisions/0223-....md"],
       createdAt: "2026-08-01T00:00:00Z",
@@ -647,6 +647,8 @@ test("standsOn crosses the pass-through branch — a body-bearing increment keep
 
   const rendered = renderStoredDoc(stored);
 
+  assert.equal(rendered.body, "a pre-rendered body", "still the pass-through branch");
+  assert.equal(rendered.fields, undefined);
   assert.deepEqual(
     rendered.standsOn,
     ["asset:some-arc", "doc:decisions/0223-....md"],
@@ -712,4 +714,202 @@ test("buildLibraryDoc preserves standsOn across a body-bearing write it cannot e
   );
 
   assert.deepEqual(doc["standsOn"], ["asset:bedrock"], "the authored edge survives a studio save");
+});
+
+/**
+ * THE `increment` MISCLASSIFICATION (ADR-0363 D2's blocker, measured against the live store
+ * 2026-08-14: 703 of 703 increments took the pass-through branch).
+ *
+ * `hasStringBody` asked "does this doc carry a string `body`?" as a proxy for "is it already
+ * rendered?". The proxy holds for every kind but one: `increment` declares `body` as a per-kind
+ * CONTENT field (KIND_SPECS), so a structured increment answered yes and returned early — before
+ * `fields`, before the typed edges. Its `fields` never reached the studio editor, and its `cites`
+ * — the ONLY join between the knowledge graph and the work graph (ADR-0306 D2) — never crossed at
+ * all, which is why the depth-from-work join was blocked rather than merely unbuilt.
+ *
+ * The classifier is now `bodyIsContentField`, which asks the schema instead of guessing: `body` is
+ * a rendered body UNLESS this kind declares it as content. That is why the fixture below is
+ * validated through `upcastAndValidate` — the contract is that a REAL increment renders
+ * structurally, so a fixture that drifted out of the schema would prove nothing.
+ */
+test("an increment renders on the STRUCTURED branch: fields, arcRef, status and cites all cross", () => {
+  const increment = upcastAndValidate({
+    kind: "increment",
+    id: "some-increment",
+    title: "An increment",
+    description: "d",
+    objective: "do the thing",
+    body: "the increment's authored body prose",
+    references: [],
+    arcRef: "asset:some-arc",
+    status: "proposal",
+    parked: "2026-08-01T00:00:00Z",
+    cites: ["story:studio", "capability:library-dag-canvas", "asset:some-guidance"],
+    standsOn: ["asset:some-arc"],
+    createdAt: "2026-08-01T00:00:00Z",
+    updatedAt: "2026-08-01T00:00:00Z",
+  });
+  const stored: StoredDoc = {
+    id: "some-increment",
+    kind: "increment",
+    doc: increment as unknown as Record<string, unknown>,
+    createdAt: "2026-08-01T00:00:00Z",
+    updatedAt: "2026-08-01T00:00:00Z",
+  };
+
+  const rendered = renderStoredDoc(stored);
+
+  // The body is DERIVED from the per-kind fields, not the raw `body` field passed through.
+  assert.equal(
+    rendered.body,
+    "**The objective.** do the thing\n\n## The increment\n\nthe increment's authored body prose",
+  );
+  // `as never`: upcastAndValidate returns the whole LibraryDoc union (the body-bearing asset arm
+  // included), which renderBody's Knowledge parameter does not accept — the file's existing idiom.
+  assert.equal(
+    rendered.body,
+    renderBody(increment as never),
+    "byte-identical to the canonical renderer",
+  );
+  assert.equal(rendered.category, "increment");
+
+  // `fields` is what the studio editor edits — absent on the pass-through branch, so an increment
+  // could not be edited structurally at all before this.
+  assert.deepEqual(rendered.fields, {
+    objective: "do the thing",
+    body: "the increment's authored body prose",
+  });
+
+  assert.equal(rendered.arcRef, "asset:some-arc");
+  assert.equal(rendered.status, "proposal");
+  assert.deepEqual(rendered.standsOn, ["asset:some-arc"]);
+  // The work-hierarchy join (ADR-0306 D2). Order preserved, all three CiteRef schemes.
+  assert.deepEqual(rendered.cites, [
+    "story:studio",
+    "capability:library-dag-canvas",
+    "asset:some-guidance",
+  ]);
+});
+
+test("cites is absent (never []) on a structured doc that cites nothing", () => {
+  // ADR-0306 D2: an increment citing nothing is CORRECT rather than under-specified (greenfield
+  // work, planning, ADR authoring), so no surface may read an absent `cites` as a defect — which
+  // means absent and empty must stay distinguishable on the wire.
+  const increment = upcastAndValidate({
+    kind: "increment",
+    id: "uncited-increment",
+    title: "An increment",
+    description: "d",
+    objective: "do the thing",
+    body: "prose",
+    references: [],
+    arcRef: "asset:some-arc",
+    status: "proposal",
+    parked: "2026-08-01T00:00:00Z",
+    createdAt: "2026-08-01T00:00:00Z",
+    updatedAt: "2026-08-01T00:00:00Z",
+  });
+  const rendered = renderStoredDoc({
+    id: "uncited-increment",
+    kind: "increment",
+    doc: increment as unknown as Record<string, unknown>,
+    createdAt: "2026-08-01T00:00:00Z",
+    updatedAt: "2026-08-01T00:00:00Z",
+  });
+  assert.equal(rendered.cites, undefined);
+
+  // And a kind that has no `cites` at all never grows one.
+  const principle = renderStoredDoc({
+    id: "p",
+    kind: "principle",
+    doc: {
+      kind: "principle",
+      id: "p",
+      title: "P",
+      description: "d",
+      references: [],
+      statement: "s",
+      why: "w",
+      howToApply: "h",
+      createdAt: "2026-07-01T00:00:00Z",
+      updatedAt: "2026-07-01T00:00:00Z",
+    },
+    createdAt: "2026-07-01T00:00:00Z",
+    updatedAt: "2026-07-01T00:00:00Z",
+  });
+  assert.equal(principle.cites, undefined);
+});
+
+test("cites never leaks onto the pass-through or degraded branch", () => {
+  // The same rule as the three navigation edges (lte-passthrough-and-degraded-carry-no-typed-edges):
+  // on a doc this code cannot faithfully parse, a `cites`-shaped property is indistinguishable from
+  // residue, so it stays off the wire.
+  const passThrough = renderStoredDoc({
+    id: "template-with-leftover",
+    kind: "template",
+    doc: {
+      id: "template-with-leftover",
+      category: "template",
+      title: "T",
+      description: "d",
+      body: "b",
+      references: [],
+      cites: ["story:studio"],
+    },
+    createdAt: "2026-07-01T00:00:00Z",
+    updatedAt: "2026-07-01T00:00:00Z",
+  });
+  assert.equal(passThrough.body, "b", "still the pass-through branch");
+  assert.equal(passThrough.cites, undefined);
+
+  const degraded = renderStoredDoc({
+    id: "from-the-future",
+    kind: "from-the-future",
+    doc: {
+      kind: "from-the-future",
+      id: "from-the-future",
+      title: "Navigator",
+      description: "d",
+      references: [],
+      schemaVersion: CURRENT_SCHEMA_VERSION + 1,
+      cites: ["story:studio"],
+      createdAt: "2026-07-01T00:00:00Z",
+      updatedAt: "2026-07-01T00:00:00Z",
+    },
+    createdAt: "2026-07-01T00:00:00Z",
+    updatedAt: "2026-07-01T00:00:00Z",
+  });
+  assert.notEqual(degraded.degraded, undefined, "still degrades, never throws");
+  assert.equal(degraded.cites, undefined);
+});
+
+test("a body-bearing doc of a kind that does NOT declare `body` as content still passes through", () => {
+  // The regression this classifier had to avoid. A structured kind whose stored doc carries a
+  // PRE-RENDERED body (a unit collapsed by an older studio save) must keep passing through: routing
+  // it structurally would call renderBody over per-kind fields it does not have and silently render
+  // an EMPTY body, destroying the only copy of its prose on the wire.
+  //
+  // Measured against the live store 2026-08-14: 716 docs carry a string `body` — 703 increments and
+  // 13 category-bearing templates, and ZERO structured non-increment docs. So this guard protects a
+  // shape the corpus does not currently hold; it is written because `buildLibraryDoc`'s body-bearing
+  // branch can still produce one, and the failure would be silent data loss rather than an error.
+  const rendered = renderStoredDoc({
+    id: "collapsed-guardrail",
+    kind: "guardrail",
+    doc: {
+      id: "collapsed-guardrail",
+      kind: "guardrail",
+      category: "guardrail",
+      title: "A collapsed guardrail",
+      description: "d",
+      body: "## Rule\n\nthe one and only copy of this prose",
+      references: [],
+      createdAt: "2026-07-01T00:00:00Z",
+      updatedAt: "2026-07-01T00:00:00Z",
+    },
+    createdAt: "2026-07-01T00:00:00Z",
+    updatedAt: "2026-07-01T00:00:00Z",
+  });
+  assert.equal(rendered.body, "## Rule\n\nthe one and only copy of this prose");
+  assert.equal(rendered.fields, undefined, "not re-shaped as a structured doc");
 });
