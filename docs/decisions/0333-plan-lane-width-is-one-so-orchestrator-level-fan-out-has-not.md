@@ -50,7 +50,8 @@ that EXIST rather than reason about what a plan could look like.
 fold there is no `plan` kind; a plan is an `increment` doc, and the discriminator is its **`anchor`**
 — optional at birth precisely because "a parked intention has nothing to be anchored to yet — it is
 anchored when it is planned" (`packages/library/src/knowledge.ts`, the field the freshness check in
-`packages/cli/src/increment.ts` runs against). Of **563 increments** in the live store, **58 carry an
+`packages/arc/src/increment.ts` runs against — moved out of `packages/cli` by ADR-0369). Of
+**563 increments** in the live store, **58 carry an
 anchor**: 34 `active`, 18 `closed`, 6 `ready`, spanning **11 arcs** and 2026-07-11 → 2026-08-05. All
 58 were read; none was sampled or skipped.
 
@@ -173,6 +174,7 @@ rather than being left to read as an open worklist item.
 - ADR-0305 D1 — the fold that made a plan an `increment`, so the `anchor` is the plan discriminator.
 - ADR-0183 D2 — the plan tier: git-anchored choreography, freshness-checked at consumption.
 - `packages/library/src/knowledge.ts` — the `Increment` schema; `anchor` optional, stamped at planning.
-- `packages/cli/src/increment.ts` — the freshness check the anchor exists to serve.
+- `packages/arc/src/increment.ts` (moved out of `packages/cli` by ADR-0369) — the freshness check the
+  anchor exists to serve.
 - `parallel-session-dispatch-arc` — the arc, its falsifier, and the increment log carrying both
   width readings.

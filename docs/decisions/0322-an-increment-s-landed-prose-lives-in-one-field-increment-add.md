@@ -188,6 +188,6 @@ ergonomic, and the ergonomic is allowed to ask for more.
   writes these rows.
 - `packages/library/src/knowledge.ts` — `assertIncrementInvariants`.
 - `packages/library/src/migrations.ts` — migration #6.
-- `packages/cli/src/arc.ts` — `arcIncrementAdd`.
+- `packages/arc/src/arc.ts` (moved out of `packages/cli` by ADR-0369) — `arcIncrementAdd`.
 - Source friction: `increment-add-dual-writes-prose-and-only-one-copy-is-editable`; parked increment:
   `increment-outcome-note-is-unreachable-for-correction`.

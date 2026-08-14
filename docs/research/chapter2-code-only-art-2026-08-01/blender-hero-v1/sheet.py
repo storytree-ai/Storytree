@@ -15,14 +15,21 @@ reader hold one in memory while looking at the next.
 A label may not contain `=` and may not begin with `--`, because both are how the
 argument parser tells labels from options. It silently DROPPED such tracks until this
 was written down — a five-track fork sheet came out 652x18 px and empty.
+
+Every sheet is written with a `<name>.png.provenance.json` beside it recording this
+command, the cells it composed and a hash per frame — and a sheet whose cells were
+rendered at DIFFERENT code states is refused rather than drawn. `crown-normals-fork.png`
+was composed from five variant directories, four of them rendered before a canopy
+constant existed, and nothing said so; see `provenance.py` for the whole reasoning and
+for why this is a writer rather than a gate step.
 """
 import os
 import sys
 
-import numpy as np
-from PIL import Image, ImageDraw
-
-from measure import PLATE, PLATE_SHADE
+# Standard library only, so the code-state guard below is reachable before the imaging
+# stack is: a host with no numpy can still observe the refusal, which is what lets the
+# refusal be tested where a render cannot run.
+from provenance import input_records, require_one_code_state, write_sidecar
 
 argv = sys.argv[1:]
 OUT = argv[0]
@@ -39,6 +46,19 @@ TRACKS = [a.split("=", 1) for a in argv[1:] if "=" in a and not a.startswith("--
 ROW = "--row" in argv
 if not TRACKS:
     raise SystemExit("no tracks: a label may not contain '=' or begin with '--'")
+
+# --- the code-state guard, DELIBERATELY ahead of the imaging imports ------------------
+# A fork picture earns its place by isolating one lever, so cells rendered from different
+# code are not a lesser picture but a WRONG one, and the cheapest moment to refuse is
+# before anything has been drawn or written. Cells that declare no code state are the
+# past and are never counted (`provenance.py`).
+INPUTS = input_records(TRACKS, FRAMES)
+CODE_STATE = require_one_code_state(INPUTS)
+
+import numpy as np                                                       # noqa: E402
+from PIL import Image, ImageDraw                                         # noqa: E402
+
+from measure import PLATE, PLATE_SHADE                                   # noqa: E402
 
 CELL = 128 * ZOOM
 PAD, HDR = 6, 18
@@ -74,4 +94,11 @@ for r, (label, d) in enumerate(TRACKS):
         draw.text((x + 3, y + CELL + 1), f"f{f:02d}", fill=(150, 150, 150))
 
 sheet.save(OUT)
+# The record goes down with the picture, in the same run that made it. Observation 1 cost
+# ten minutes back-solving an unrecorded invocation out of an image's pixel dimensions;
+# an artifact produced by this tool cannot arrive without its producer.
+SIDECAR = write_sidecar(OUT, __file__, argv, INPUTS, CODE_STATE,
+                        extra={"layout": "row" if ROW else "column", "zoom": ZOOM,
+                               "frames": FRAMES, "size": list(sheet.size)})
 print("wrote", OUT, sheet.size)
+print("provenance", os.path.basename(SIDECAR))

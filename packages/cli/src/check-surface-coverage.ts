@@ -118,7 +118,13 @@ async function sweep(store: Store): Promise<void> {
       loadSurfaceCoverageInputs({
         store,
         packageJsonPath: path.join(repoRoot, "package.json"),
-        cliSrcDir: path.join(repoRoot, "packages", "cli", "src"),
+        // Both packages that mount verbs on the one dispatcher — `@storytree/arc` carries the arc /
+        // increment / question verbs since `arc-tier-extraction-arc`, and a register derived from
+        // the CLI alone would report every prescribed `storytree arc …` as dangling.
+        cliSrcDirs: [
+          path.join(repoRoot, "packages", "cli", "src"),
+          path.join(repoRoot, "packages", "arc", "src"),
+        ],
       }),
   });
   for (const line of lines) (warn ? console.warn : console.log)(line);
