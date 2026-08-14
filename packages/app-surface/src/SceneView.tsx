@@ -100,8 +100,9 @@ export interface ForestRegrowRenderLayer {
   readonly hiddenSegmentIds: ReadonlySet<string>;
   /** storyId → the coast settlement clip for an island still accreting. */
   readonly accretionByStory: ReadonlyMap<string, SvgIslandAccretionState>;
-  /** cell path `d` → its reveal scale, merged across every accreting island. */
-  readonly cellRevealByPath: ReadonlyMap<string, SvgIslandAccretionCellReveal>;
+  /** cell IDENTITY (`SceneNodeBase.cellId`) → its reveal scale, merged across every accreting
+   *  island. Story-scoped ids, so the merge across islands cannot collide (ADR-0367). */
+  readonly cellRevealById: ReadonlyMap<string, SvgIslandAccretionCellReveal>;
 }
 
 /** The focus-aware context the walk needs — the studio's per-render interactivity
@@ -822,15 +823,25 @@ function accretionCoastFor(node: SceneNode, ctx: SceneCtx): SvgIslandAccretionSt
   return many && !many.mature ? many : null;
 }
 
-/** The per-cell reveal for an accreting land cell, from either accretion source. */
+/**
+ * The per-cell reveal for an accreting land cell, from either accretion source.
+ *
+ * Looked up by the cell's IDENTITY, never by its `d` string (ADR-0367). The byte key made the reveal
+ * a hostage of the emitted geometry: reprint a polygon at a different precision — let alone angle the
+ * land or swap the lattice — and the lookup missed in silence, leaving the cell un-transformed and the
+ * failure looking like an easing bug. A cell with no identity resolves nothing, which is the honest
+ * answer: the scene stamps one on every land cell it emits.
+ */
 function accretionCellFor(node: SceneNode, ctx: SceneCtx): SvgIslandAccretionCellReveal | null {
   if (node.el !== 'path' || (node.kind !== 'cell' && node.kind !== 'cell-wheat')) return null;
+  const cellId = node.cellId;
+  if (cellId === undefined) return null;
   const single = ctx.svgIslandAccretionLayer;
   if (single && !single.mature) {
-    const reveal = single.cellByPath.get(node.d);
+    const reveal = single.cellById.get(cellId);
     if (reveal) return reveal;
   }
-  return ctx.forestRegrowLayer?.cellRevealByPath.get(node.d) ?? null;
+  return ctx.forestRegrowLayer?.cellRevealById.get(cellId) ?? null;
 }
 
 // ---------------------------------------------------------------------------

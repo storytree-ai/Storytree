@@ -88,8 +88,11 @@ every time rather than documented somewhere a reader must already suspect the ga
 
 **D7 — Reclaim is scoped by OWNERSHIP, never by start time.** `own --all` names the owning session of
 every registered process, which is what replaces the start-time heuristic. `own clear` touches only
-the invoking session's own records. Nothing here kills anything: naming a candidate is the whole
-contract, and this ADR grants no licence to stop another session's work.
+the invoking session's own records. None of the verbs in THIS decision kill anything: naming a
+candidate is the whole contract. *(ADR-0370 later adds a verb that does stop processes —
+`own stop` — and inherits this scoping as a structural fence rather than a convention: it can only
+target the invoking session's own rows. The licence D7 withholds, to stop ANOTHER session's work, is
+withheld there too.)*
 
 ## Consequences
 
@@ -101,17 +104,21 @@ row naming its pid, its command and its age.
 
 **The inventory is a FLOOR, not a census, and that gap is real.** Three of this arc's four end-states
 are untouched by this decision: attribution of arbitrary OS processes (a detached vite, a headless
-browser), the stop paths that report success while a detached child keeps its port, and the gate-step
-liveness signal. Work that does not register is invisible here, and a session reading an empty
+browser), the stop paths that report success while a detached child keeps its port *(closed for
+storytree's own stop path by ADR-0370; `TaskStop` remains harness-owned and broken)*, and the
+gate-step liveness signal. Work that does not register is invisible here, and a session reading an empty
 inventory as "the box is clean" would be drawing a conclusion D6 explicitly refuses to support. The
 mitigation is that the limit is printed on every render; the risk accepted is that a reader ignores
 it.
 
 **PID REUSE is a known, unfixed limit.** A leaked record whose pid the OS has since handed to an
 unrelated process reads as `live`. The window is small — records are removed on normal exit, so only
-killed or crashed processes linger — and the failure direction is safe: it over-reports live work,
-which blocks an inert declaration rather than permitting a false one. It would not be safe if
-anything here killed processes, which is one more reason D7 does not.
+killed or crashed processes linger — and for THIS decision's read-only verbs the failure direction is
+safe: it over-reports live work, which blocks an inert declaration rather than permitting a false one.
+*(That safety argument is load-bearing only while nothing acts on the record. ADR-0370's `own stop`
+does act on it, so the same window becomes a way to signal an unrelated process; it narrows the
+window by never signalling a pid the probe reports dead, and records the remainder as an open limit
+rather than inheriting this paragraph's conclusion.)*
 
 **Registration is unconditional across CLI invocations**, including cheap ones. That is deliberate:
 which command will hang is not knowable when it starts, and the measured hang on this box is the

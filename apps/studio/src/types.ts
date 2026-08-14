@@ -204,6 +204,21 @@ export interface GuidanceAsset {
    * `definition` — ADR-0363 D1 excluded definitions, whose depth buys a reader nothing).
    */
   standsOn?: string[];
+  /**
+   * An `increment`'s `cites` (ADR-0306 D2) — the mixed `story:<id>` / `capability:<id>` /
+   * `asset:<id>` list naming the work-hierarchy units it touches and the guidance it stands on.
+   * Crosses the wire by the same idiom as {@link GuidanceAsset.standsOn}.
+   *
+   * This is the ONLY join between the knowledge graph and the work graph, and it is the reason it
+   * belongs on the wire at all: ADR-0363 D2 keeps the two graphs separately enforced — `standsOn`
+   * over the library corpus, `depends_on` over `stories/**` — and computes "depth from the work" as
+   * a READ-ONLY join at render time rather than merging them. A studio-side projection has nothing
+   * to join against without this field.
+   *
+   * Optional / absent-by-default, never an empty array: ADR-0306 D2 makes an increment citing
+   * nothing correct rather than under-specified, so no reader may treat its absence as a defect.
+   */
+  cites?: string[];
   createdAt: string;
   updatedAt: string;
 }

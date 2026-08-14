@@ -59,17 +59,20 @@
               "el": "path",
               "d": "M 0.0 0.0 L 5.0 0.0 L 5.0 5.0 Z",
               "kind": "cell",
-              "variant": 1
+              "variant": 1,
+              "cellId": "library/cell-000"
             },
             {
               "el": "path",
               "d": "M 5.0 0.0 L 10.0 0.0 L 10.0 5.0 Z",
-              "kind": "cell-wheat"
+              "kind": "cell-wheat",
+              "cellId": "library/cell-001"
             },
             {
               "el": "path",
               "d": "M 0.0 5.0 L 5.0 5.0 L 5.0 10.0 Z",
-              "kind": "cell-wheat"
+              "kind": "cell-wheat",
+              "cellId": "library/cell-002"
             }
           ],
           "kind": "ground",
@@ -83,7 +86,8 @@
               "el": "path",
               "d": "M 0.0 0.0 L 5.0 0.0 L 5.0 5.0 Z",
               "kind": "cell",
-              "variant": 0
+              "variant": 0,
+              "cellId": "cli/cell-000"
             }
           ],
           "kind": "ground",

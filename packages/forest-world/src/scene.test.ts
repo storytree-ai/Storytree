@@ -20,6 +20,7 @@ import {
   buildPlant,
   buildConifer,
   buildBloom,
+  landCellId,
   placeGardenHeroes,
   treeKeepOut,
   fittedHeroScale,
@@ -1028,6 +1029,56 @@ test('every parcel cell wears its ASSIGNED cap status — not the per-territory 
     assert.equal(c.status, 'unhealthy');
   }
   // the territory is `proposed`, so neither cap tint could be the island tint bleeding through.
+});
+
+// ---------- the land cell's SHAPE-FREE id (ADR-0367 prerequisite) ----------
+//
+// The accretion reveal used to be indexed by the cell's literal emitted `d` string, so the key WAS the
+// geometry. ADR-0367 moves the land's geometry, and a byte key drops the reveal for every cell that
+// moved — silently, since the lookup just misses. The scene therefore mints the identity, and both
+// ground branches must do it: the plain relaxed-cell ground, and the parcels-present ground whose
+// cells sit one level deeper inside per-capability `parcel` groups.
+
+/** Every land-cell path under `n`, in the depth-first order the scene emits them. */
+function landCells(n: SceneNode): SceneNode[] {
+  const out: SceneNode[] = [];
+  const walk = (m: SceneNode): void => {
+    if (m.el === 'path' && (m.kind === 'cell' || m.kind === 'cell-wheat')) out.push(m);
+    for (const c of children(m)) walk(c);
+  };
+  walk(n);
+  return out;
+}
+
+test('every land cell carries a story-scoped shape-free id — on BOTH ground branches', () => {
+  // (a) parcels-present: the cells are nested inside two `parcel` groups, and the ordinal runs
+  //     across the whole island rather than restarting per parcel.
+  const nested = landCells(mustByKind(parcelScene(parcelsAB(3, 3), CELLS_AB), 'ground-mesh'));
+  assert.equal(nested.length, 8);
+  assert.equal(nested[0]?.cellId, 'library/cell-000', 'the id names the story, then the ordinal');
+  assert.deepEqual(
+    nested.map((c) => c.cellId),
+    nested.map((_c, i) => landCellId('library', i)),
+  );
+
+  // (b) the plain no-parcels ground stamps the same way, one level shallower — and every id in the
+  //     whole scene is distinct, which is what lets `forestRegrowRenderLayer` flatten every in-flight
+  //     island's reveals into ONE map without one island's nth cell shadowing another's.
+  for (const input of [legacyInput(), mkInput()]) {
+    const scene = buildScene(input);
+    const grounds = allByKind(scene, 'ground');
+    assert.ok(grounds.length > 0, 'the fixture must draw relaxed-substrate ground');
+    for (const ground of grounds) {
+      const cells = landCells(ground);
+      assert.ok(cells.length > 0);
+      assert.deepEqual(
+        cells.map((c) => c.cellId),
+        cells.map((_c, i) => landCellId(ground.id!, i)),
+      );
+    }
+    const every = landCells(scene).map((c) => c.cellId);
+    assert.equal(new Set(every).size, every.length, 'cell ids are unique across the whole scene');
+  }
 });
 
 test('flora density IS the test count — a higher-testCount parcel grows strictly more flora (same island, same theme)', () => {
