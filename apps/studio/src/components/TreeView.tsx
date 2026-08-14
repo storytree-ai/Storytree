@@ -124,6 +124,7 @@ import {
   HEX_R,
   HEX_W,
   TILE_DEPTH,
+  groundRadiusToScreenHalfHeight,
   axialKey,
   AXIAL_DIRS,
   hexCenter,
@@ -647,7 +648,15 @@ export function buildWorld(
       });
     }
 
-    const labelY = Math.max(...centers.map((p) => p.y), centroid.y) + HEX_R + TILE_DEPTH + 8;
+    // ADR-0367's named accepted cost: `HEX_R` is a GROUND radius, so a nameplate baseline that adds
+    // it raw sat a cell-radius below the tiles in plan view and ~18 px too low the moment the land
+    // got a camera. The projected half-height is what a cell actually occupies on screen; TILE_DEPTH
+    // is already projected (an upright extrusion, so cos θ) and stays as it is.
+    const labelY =
+      Math.max(...centers.map((p) => p.y), centroid.y) +
+      groundRadiusToScreenHalfHeight(HEX_R) +
+      TILE_DEPTH +
+      8;
     const coast = smoothCoast(boundary, story.id);
 
     // ADR-0102: this island carries the icon of each BUILDING it depends on (promotion is
@@ -765,14 +774,19 @@ export function buildWorld(
   const allCenters = [...drawTiles.map((t) => hexCenter(t.h)), ...empties.map(hexCenter)];
   const minX = Math.min(...allCenters.map((p) => p.x)) - HEX_W / 2 - MARGIN;
   const maxX = Math.max(...allCenters.map((p) => p.x)) + HEX_W / 2 + MARGIN;
+  // Same reconciliation as the nameplate baseline above (ADR-0367's second named cost): the vertical
+  // bounds must use a cell's PROJECTED half-height, or an angled map is cropped at the top and given
+  // a cell-radius of dead space at the bottom. The x bounds keep `HEX_W / 2` — the q axis runs across
+  // the screen and does not foreshorten.
+  const hexHalfHeight = groundRadiusToScreenHalfHeight(HEX_R);
   const minY =
     Math.min(
-      ...allCenters.map((p) => p.y - HEX_R),
+      ...allCenters.map((p) => p.y - hexHalfHeight),
       ...territories.map((t) => t.treeSpot.y - storyTreeReach(t.story.capabilities.length)),
     ) - MARGIN;
   const maxY =
     Math.max(...allCenters.map((p) => p.y), ...territories.map((t) => t.labelY + 34)) +
-    HEX_R +
+    hexHalfHeight +
     TILE_DEPTH +
     MARGIN / 2;
 
