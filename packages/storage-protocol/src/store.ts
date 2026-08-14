@@ -24,6 +24,32 @@ export interface StoredDoc {
   updatedAt: string;
 }
 
+/**
+ * A qualified reference to ANOTHER event that caused this one (ADR-0350 D1).
+ *
+ * `(stream, seq)` is the only addressable event identity that exists today — every one of the
+ * append-only streams already has a `BIGSERIAL` primary key, and `StoreEvent.id` is the DOCUMENT id,
+ * not an event identity. So this builds on what exists rather than minting a competing global event
+ * id (ADR-0350 candidate B, refused on sequencing, not on merit).
+ *
+ * THE EMITTER STAMPS IT OR IT IS ABSENT (D2). There is no backfill, no correlation job, no "nearest
+ * preceding event in the same run", and no join on `unitId` plus adjacency — that is ADR-0235 clause
+ * 3 applied to the event log. **Under-reporting is the accepted failure mode and inference may never
+ * repair it.** Which is why every reader owes D3: render `caused by: <stream>#<seq>` or `caused by:
+ * not recorded`, never a blank, because a blank reads as "nothing caused this" and that is this
+ * arc's signature failure — a stale picture and a healthy one looking identical from outside.
+ *
+ * OBSERVABILITY ONLY (D7). Nothing in the spine may branch on this: no behaviour reacts to it, no
+ * rollup reads it, and no derived status or verdict moves with it — `rollupStatus` ignores it exactly
+ * as it ignores `usage_event`. The moment something branches on it, that is a new decision.
+ */
+export interface CausedBy {
+  /** The event stream the cause lives in, e.g. `claim_event` — a table name, not a doc kind. */
+  stream: string;
+  /** The cause's `BIGSERIAL` primary key within that stream. */
+  seq: number;
+}
+
 /** An append-only event in the history log. `seq` is a monotonic per-store sequence. */
 export interface StoreEvent {
   seq: number;
@@ -33,6 +59,8 @@ export interface StoreEvent {
   doc: unknown;
   actor: string;
   at: string;
+  /** Absent means UNRECORDED, never "nothing caused this" — see {@link CausedBy}. */
+  causedBy?: CausedBy;
 }
 
 /**
@@ -97,6 +125,8 @@ export interface Store {
     type: "created" | "updated" | "deleted";
     doc: unknown;
     actor?: string;
+    /** ADR-0350 D2: stamped by the emitter at append, or absent forever. Never inferred later. */
+    causedBy?: CausedBy;
   }): Promise<StoreEvent>;
   readEvents(filter?: { id?: string }): Promise<StoreEvent[]>;
 }
@@ -253,6 +283,7 @@ export class InMemoryStore implements Store, ChangeStore {
     type: "created" | "updated" | "deleted";
     doc: unknown;
     actor?: string;
+    causedBy?: CausedBy;
   }): Promise<StoreEvent> {
     return this.#appendEventSync(e);
   }
@@ -278,6 +309,7 @@ export class InMemoryStore implements Store, ChangeStore {
     type: "created" | "updated" | "deleted";
     doc: unknown;
     actor?: string;
+    causedBy?: CausedBy;
   }): StoreEvent {
     const event: StoreEvent = {
       seq: ++this.#seq,
@@ -287,6 +319,9 @@ export class InMemoryStore implements Store, ChangeStore {
       doc: e.doc,
       actor: e.actor ?? DEFAULT_ACTOR,
       at: new Date().toISOString(),
+      // Carried only when the emitter stamped it — an absent cause stays absent (ADR-0350 D2),
+      // never widened to a null that a reader could mistake for "nothing caused this".
+      ...(e.causedBy !== undefined ? { causedBy: { ...e.causedBy } } : {}),
     };
     this.#events.push(event);
     return event;
