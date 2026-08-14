@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import type { GateStep } from "./gate-order.js";
 import {
+  GATE_PARTIAL_EXIT_CODE,
   GATE_SKIP_EXIT_CODE,
   type GateExecution,
   type GateStepResult,
@@ -270,4 +271,121 @@ test("an all-green run says so, and lists no FAILED or NOT RUN section", () => {
   assert.match(text, /GATE GREEN — every step ran and passed/);
   assert.doesNotMatch(text, /NOT RUN/);
   assert.doesNotMatch(text, /FAILED:/);
+});
+
+// ── the re-run surface: a partial run may never look like a whole gate ───────
+
+const partialOf = (...commands: string[]) => ({
+  selected: new Set(commands),
+  notice: "--only check:b — re-executing 1 of 3 step(s).",
+});
+
+test("an unselected step is NOT executed, but still gets a row carrying why", () => {
+  const { ran, execute } = scripted({});
+  const results = runGate({
+    steps: steps("check:a", "check:b", "check:c"),
+    execute,
+    unselected: new Map([
+      ["pnpm check:a", "not selected (--only check:b)"],
+      ["pnpm check:c", "not selected (--only check:b)"],
+    ]),
+    now: fakeClock(),
+  });
+
+  assert.deepEqual(ran, ["pnpm check:b"], "only the selected step actually spawned");
+  assert.equal(results.length, 3, "every planned step still gets exactly one row");
+  assert.equal(byCommand(results, "pnpm check:a").status, "not-run");
+  assert.equal(byCommand(results, "pnpm check:a").note, "not selected (--only check:b)");
+  assert.equal(byCommand(results, "pnpm check:b").status, "pass");
+});
+
+test("an unselected step does NOT make the steps behind it look interrupted", () => {
+  // `not-run` from a KILL answers for the whole walk — whatever stopped it is still in force. "You did
+  // not ask for this one" must not borrow that meaning, or a single --only would poison the rest.
+  const { ran, execute } = scripted({});
+  const results = runGate({
+    steps: steps("check:a", "check:b", "check:c"),
+    execute,
+    unselected: new Map([["pnpm check:a", "not selected"]]),
+    now: fakeClock(),
+  });
+
+  assert.deepEqual(ran, ["pnpm check:b", "pnpm check:c"]);
+  assert.equal(byCommand(results, "pnpm check:c").status, "pass");
+});
+
+test("a partial run whose selected steps ALL PASS still cannot exit 0", () => {
+  // The design constraint, as a number. 4 is not a green: every caller reading non-zero as not-green
+  // is unaffected, and a session can still tell 'the flake cleared' from 'it is genuinely red'.
+  const results = runGate({
+    steps: steps("check:a", "check:b", "check:c"),
+    execute: () => ({ exitCode: 0 }),
+    unselected: new Map([
+      ["pnpm check:a", "not selected"],
+      ["pnpm check:c", "not selected"],
+    ]),
+    now: fakeClock(),
+  });
+
+  assert.equal(gateExitCode(results, partialOf("pnpm check:b")), GATE_PARTIAL_EXIT_CODE);
+  assert.notEqual(gateExitCode(results, partialOf("pnpm check:b")), 0);
+  assert.equal(gateExitCode(results), 1, "read as a whole gate it is still not green");
+});
+
+test("a partial run whose selected step FAILED is 1, not the partial code", () => {
+  const { execute } = scripted({ "pnpm check:b": 1 });
+  const results = runGate({
+    steps: steps("check:a", "check:b"),
+    execute,
+    unselected: new Map([["pnpm check:a", "not selected"]]),
+    now: fakeClock(),
+  });
+  assert.equal(gateExitCode(results, partialOf("pnpm check:b")), 1);
+});
+
+test("a partial run that selected nothing, or whose own step was killed, has not earned the partial code", () => {
+  const results = runGate({
+    steps: steps("check:a", "check:b"),
+    execute: () => ({ exitCode: null, unverified: true, note: "killed by SIGKILL" }),
+    unselected: new Map([["pnpm check:a", "not selected"]]),
+    now: fakeClock(),
+  });
+  assert.equal(gateExitCode(results, partialOf("pnpm check:b")), 1, "a killed selected step proves nothing");
+  assert.equal(gateExitCode(results, partialOf("pnpm check:nothing")), 1, "selecting nothing proves nothing");
+});
+
+test("a partial summary states the arithmetic instead of borrowing GATE RED", () => {
+  // A session re-running one flaked step and reading `GATE RED` would conclude something failed, when
+  // what happened is that the other steps were never asked.
+  const results = runGate({
+    steps: steps("check:a", "check:b", "check:c"),
+    execute: () => ({ exitCode: 0 }),
+    unselected: new Map([
+      ["pnpm check:a", "not selected (--only check:b)"],
+      ["pnpm check:c", "not selected (--only check:b)"],
+    ]),
+    now: fakeClock(),
+  });
+
+  const text = renderGateSummary(results, partialOf("pnpm check:b")).join("\n");
+  assert.match(text, /PARTIAL RUN — NOT A GATE VERDICT\. 1 of 3 planned step\(s\) executed; 2 were not\./);
+  assert.match(text, /Every executed step passed or declared a skip/);
+  assert.match(text, /says nothing about the 2 step\(s\)/);
+  assert.match(text, /Run `pnpm gate` over the whole plan/);
+  assert.doesNotMatch(text, /GATE GREEN/);
+  assert.doesNotMatch(text, /GATE RED/);
+});
+
+test("a partial summary whose selected step failed points at FAILED rather than claiming a clean re-run", () => {
+  const { execute } = scripted({ "pnpm check:b": 1 });
+  const results = runGate({
+    steps: steps("check:a", "check:b"),
+    execute,
+    unselected: new Map([["pnpm check:a", "not selected"]]),
+    now: fakeClock(),
+  });
+
+  const text = renderGateSummary(results, partialOf("pnpm check:b")).join("\n");
+  assert.match(text, /1 of the executed step\(s\) FAILED/);
+  assert.doesNotMatch(text, /Every executed step passed/);
 });

@@ -305,6 +305,29 @@ kind owes a seed export any more.
   workspaces' tests *inside* the `pnpm -r test` step — every workspace runs and every verdict is
   reported. It cannot make the gate greener (pnpm still exits non-zero if any workspace failed); it
   costs wall clock on a failing leg, which is one more reason to background it.
+- **A FLAKED STEP NO LONGER COSTS THE WHOLE GATE — re-run just it.** `pnpm gate --only <pattern>`
+  runs the steps whose command matches (case-insensitive substring, repeatable and comma-separated:
+  `--only check:agents`, `--only test,typecheck`); **`pnpm gate --rerun-failed`** runs exactly the
+  steps the last WHOLE-plan run reported FAIL or NOT RUN. Measured cost of the old answer: ~80 min of
+  avoidable wall clock per flaked full-scope run, or hand-running the step and then reasoning unaided
+  about whether the other rows still hold. **A partial run can never print a whole-gate green**, and
+  three separate mechanisms hold that rather than prose: every unselected step keeps its row as
+  **NOT RUN** carrying why it was not selected; the exit code is **4** at best (a reserved
+  "everything I selected passed, and I was not a whole gate" — non-zero, so every caller reading
+  non-zero as not-green is unaffected) and **1** if a selected step failed; and **a partial run
+  writes no run record**, so the next `--rerun-failed` can never decline to re-run a step on the
+  strength of a PASS nothing executed. The summary says `PARTIAL RUN — NOT A GATE VERDICT` with the
+  arithmetic, never `GATE GREEN` or `GATE RED`. **`--rerun-failed` also NAMES what a fail→pass is:**
+  it compares against the record and reports **FLAKE SIGNATURE** only when HEAD and the working tree
+  are provably unchanged between the two runs — otherwise **FIXED?** (the tree moved) or **PASSED ON
+  RERUN** (the tree state could not be established, which acquits nothing). Refusals are loud and
+  fail-closed: a `--only` matching no step, a `--rerun-failed` with no record or nothing to re-run,
+  and a record whose commands today's plan no longer contains (usually the affected scope moved) all
+  refuse rather than run an empty plan. The record is `.gate-logs/last-run.json` — gitignored and
+  per-worktree, so it is neither committable nor readable across worktrees. ⚠ The root `gate` script
+  is `pnpm -C packages/cli exec …` and **must not** go back to `pnpm --filter … exec`, which
+  collapses any non-zero child code to 1 and would silently destroy the 4 (measured; fenced by
+  `gate-order.test.ts`).
 - **The gate's two `-r` legs now test only what your branch AFFECTS (ADR-0304 D1, since 2026-08-04).**
   `pnpm gate` resolves what this branch changes on top of `main` — `merge-base(origin/main, HEAD)`
   vs the working tree, **untracked files included** — and narrows `typecheck`/`test` to the owning
