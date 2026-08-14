@@ -125,7 +125,7 @@ import {
 } from "./friction.js";
 // ADR-0316 — the report-only factory-floor health instrument (`factory-floor-health-arc`).
 import { factoryHealth, factoryHelp } from "./factory.js";
-import type { CommitRec } from "@storytree/drive";
+import type { CommitRec, DetachedSpawn } from "@storytree/drive";
 import type { AdoptPlanStory } from "./adopt-plan.js";
 import { coverageCommand, coverageTotalsCommand, type CoverageUnit } from "./coverage.js";
 import { evaluateCoverageDrain } from "./coverage-drain.js";
@@ -1921,6 +1921,13 @@ export interface RunDeps {
     readonly spawn?: DesktopSpawnFn;
     readonly repoRoot?: string;
     readonly platform?: NodeJS.Platform;
+    /**
+     * How the detached child is attributed to this session (`shared-box-session-ownership-arc`).
+     * Threaded through dispatch and not merely through `desktopLaunch`, because a test that reaches
+     * the launcher THIS way would otherwise use the real registrar and write its fake pid into the
+     * operator's own `storytree own` inventory — measured, not hypothetical.
+     */
+    readonly register?: (spawn: DetachedSpawn) => string | null;
     /** `install-shortcut` seams — an injected .lnk writer + Electron resolver keep it offline-testable. */
     readonly createShortcuts?: CreateShortcutsFn;
     readonly resolveElectron?: ResolveElectronFn;
@@ -3741,6 +3748,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       repoRoot: deps.desktop?.repoRoot ?? repoRoot(),
       ...(deps.desktop?.spawn !== undefined ? { spawn: deps.desktop.spawn } : {}),
       ...(deps.desktop?.platform !== undefined ? { platform: deps.desktop.platform } : {}),
+      ...(deps.desktop?.register !== undefined ? { register: deps.desktop.register } : {}),
     });
   }
 

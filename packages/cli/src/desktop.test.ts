@@ -6,6 +6,8 @@ import path from "node:path";
 
 import { InMemoryStore } from "@storytree/storage-protocol";
 
+import type { DetachedSpawn } from "@storytree/drive";
+
 import {
   desktopHelp,
   desktopInstallShortcut,
@@ -42,6 +44,26 @@ function scratchRepo(): string {
   return dir;
 }
 
+/**
+ * The registrar every test that does not care about registration passes. It must be INJECTED rather
+ * than left to the default: the real one derives THIS worktree's identity and writes a record under
+ * `~/.storytree/spawns`, so an un-injected test would file pid 4242 as live work in the operator's
+ * own inventory and leave it there — `storytree own` reporting a leaked desktop app that never ran.
+ */
+const noRegister = (): string | null => null;
+
+/** Records what the launcher asked to register, so the attribution can be asserted on. */
+function fakeRegister(): { register: (s: DetachedSpawn) => string | null; calls: DetachedSpawn[] } {
+  const calls: DetachedSpawn[] = [];
+  return {
+    register: (s) => {
+      calls.push(s);
+      return "/fake/registry/4242.json";
+    },
+    calls,
+  };
+}
+
 test("desktopHelp: names the launch subcommand and the underlying pnpm launcher", () => {
   const env = desktopHelp();
   assert.equal(env.ok, true);
@@ -61,7 +83,7 @@ test("desktopLaunch: refuses when apps/desktop is absent (not the repo root)", (
   const dir = mkdtempSync(path.join(tmpdir(), "desktop-launch-norepo-"));
   try {
     const { spawn } = fakeSpawn();
-    const env = desktopLaunch({ repoRoot: dir, spawn, platform: "linux" });
+    const env = desktopLaunch({ repoRoot: dir, spawn, platform: "linux", register: noRegister });
     assert.equal(env.ok, false);
     assert.match(env.body, /no apps\/desktop under/);
   } finally {
@@ -73,7 +95,7 @@ test("desktopLaunch: on POSIX, spawns `pnpm --filter desktop start` directly, de
   const dir = scratchRepo();
   try {
     const { spawn, calls } = fakeSpawn();
-    const env = desktopLaunch({ repoRoot: dir, spawn, platform: "linux" });
+    const env = desktopLaunch({ repoRoot: dir, spawn, platform: "linux", register: noRegister });
     assert.equal(env.ok, true);
     assert.equal(calls.length, 1);
     assert.deepEqual(calls[0], {
@@ -92,7 +114,7 @@ test("desktopLaunch: on win32, rewraps through cmd.exe (the house pnpm-on-Window
   const dir = scratchRepo();
   try {
     const { spawn, calls } = fakeSpawn();
-    const env = desktopLaunch({ repoRoot: dir, spawn, platform: "win32" });
+    const env = desktopLaunch({ repoRoot: dir, spawn, platform: "win32", register: noRegister });
     assert.equal(env.ok, true);
     assert.equal(calls.length, 1);
     const call = calls[0];
@@ -110,9 +132,50 @@ test("desktopLaunch: appends a timestamped line to apps/desktop/.desktop.log nam
   const dir = scratchRepo();
   try {
     const { spawn } = fakeSpawn();
-    desktopLaunch({ repoRoot: dir, spawn, platform: "linux" });
+    desktopLaunch({ repoRoot: dir, spawn, platform: "linux", register: noRegister });
     const logged = readFileSync(path.join(dir, "apps", "desktop", ".desktop.log"), "utf8");
     assert.match(logged, /--- desktop launch .+ pnpm --filter desktop start ---/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("desktopLaunch: REGISTERS the detached child, so `storytree own` can see and stop it", () => {
+  // The gap this closes (`shared-box-session-ownership-arc` inc 2): `main.ts` registers the CLI
+  // INVOCATION, whose row dies seconds from now — while the Electron app it started runs for hours.
+  // Without a row of its own, the session can report itself inert while holding a GUI process
+  // nothing on this shared box can attribute back to it.
+  const dir = scratchRepo();
+  try {
+    const { spawn } = fakeSpawn();
+    const { register, calls } = fakeRegister();
+    const env = desktopLaunch({ repoRoot: dir, spawn, platform: "linux", register });
+    assert.equal(env.ok, true);
+    assert.equal(calls.length, 1, "the detached child must be registered exactly once");
+    const registered = calls[0];
+    assert.ok(registered);
+    // The CHILD's pid — not this process's. Registering the launcher would inventory something that
+    // is already gone and miss the thing that is still running.
+    assert.equal(registered.pid, 4242);
+    assert.match(registered.command, /desktop app \(electron\)/);
+    assert.equal(registered.cwd, dir);
+    // Told to the operator, because a row they do not know exists is a row they will not act on.
+    assert.match(env.body, /storytree own stop/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("desktopLaunch: a registry that declines is SILENT — instrumentation never costs the app", () => {
+  const dir = scratchRepo();
+  try {
+    const { spawn } = fakeSpawn();
+    // `null` is what the real registrar returns in the primary checkout, in CI, and on an unwritable
+    // home — every one of which must still launch the app, and must not claim a row it never wrote.
+    const env = desktopLaunch({ repoRoot: dir, spawn, platform: "linux", register: noRegister });
+    assert.equal(env.ok, true);
+    assert.match(env.body, /launched the desktop app, detached/);
+    assert.doesNotMatch(env.body, /storytree own stop/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -420,10 +483,20 @@ test("dispatch: `desktop` help + unknown sub are guidance; `desktop launch` thre
   const dir = scratchRepo();
   try {
     const { spawn, calls } = fakeSpawn();
-    const env = await run(["desktop", "launch"], { store, desktop: { spawn, repoRoot: dir, platform: "linux" } });
+    // `register` is injected HERE too, not just on the direct `desktopLaunch` calls above: dispatch
+    // is a second route to the same launcher, and without the seam threaded through it this test
+    // wrote pid 4242 into the real `~/.storytree/spawns` — a leaked row in the operator's own
+    // inventory, reporting desktop work that never ran.
+    const { register, calls: registered } = fakeRegister();
+    const env = await run(["desktop", "launch"], {
+      store,
+      desktop: { spawn, repoRoot: dir, platform: "linux", register },
+    });
     assert.equal(env.ok, true);
     assert.equal(calls.length, 1);
     assert.equal(calls[0]?.options.cwd, dir);
+    assert.equal(registered.length, 1, "dispatch must thread the registrar, not fall back to the real one");
+    assert.equal(registered[0]?.pid, 4242);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

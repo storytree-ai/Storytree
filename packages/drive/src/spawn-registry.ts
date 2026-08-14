@@ -45,8 +45,36 @@
 // and the render are unit-tested with no processes and no disk.
 
 import * as fs from "node:fs";
-import * as os from "node:os";
 import path from "node:path";
+
+// The FORMAT — where a record lives and what it says — is defined once, in plain ESM, because the
+// registrars that matter most are not all TypeScript: `scripts/studio.mjs` spawns the detached vite
+// server that outlives a session, and it must run before any workspace install (see
+// `spawn-record.mjs`). Re-exported rather than restated here so a drifted copy is impossible; the
+// reference equality is pinned by `spawn-record.test.ts`, because a second copy would fail in the one
+// direction nothing notices — the launcher writing records this reader has stopped looking for.
+//
+// The DETACHED registrar rides along on the same surface: a launcher that registers on its CHILD's
+// behalf is doing registry work, and a caller should never have to know which of the two files a
+// given function came from.
+export {
+  defaultRegistryRoot,
+  deriveSpawnIdentity,
+  formatSpawnRecord,
+  registerDetachedSpawn,
+  removeSpawnRecord,
+  removeSpawnRecordForPid,
+  sanitizeSessionId,
+  spawnRecordPath,
+} from "./spawn-record.mjs";
+export type { DetachedSpawn, RegisterOptions, SpawnIdentity } from "./spawn-record.mjs";
+
+import {
+  defaultRegistryRoot,
+  formatSpawnRecord,
+  sanitizeSessionId,
+  spawnRecordPath,
+} from "./spawn-record.mjs";
 
 // ---------------------------------------------------------------------------
 // The record
@@ -72,35 +100,6 @@ export interface SpawnRecord {
 export interface UnreadableRecord {
   readonly filePath: string;
   readonly reason: string;
-}
-
-/** Default registry root: `~/.storytree/spawns` — beside `secrets.json`, the house per-user dir. */
-export function defaultRegistryRoot(): string {
-  return path.join(os.homedir(), ".storytree", "spawns");
-}
-
-/**
- * Where one process's record lives. The pid is the filename, so a registration is a write to a path
- * no other process names and a de-registration is an unlink of that same path.
- */
-export function spawnRecordPath(root: string, sessionId: string, pid: number): string {
-  return path.join(root, sanitizeSessionId(sessionId), `${String(pid)}.json`);
-}
-
-/**
- * A session id reduced to something safe as a single path component. Identities come from git
- * worktree names (ADR-0033) and from `STORYTREE_SESSION_ID`, which nothing validates — a separator
- * in either would silently write the record into a different session's directory, which is exactly
- * the cross-session reach this whole file exists to prevent.
- */
-export function sanitizeSessionId(sessionId: string): string {
-  const cleaned = sessionId.trim().replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^[.-]+/, "");
-  return cleaned.length > 0 ? cleaned : "unnamed-session";
-}
-
-/** Serialize a record. One line, so a truncated write is visibly truncated rather than plausible. */
-export function formatSpawnRecord(record: SpawnRecord): string {
-  return `${JSON.stringify(record)}\n`;
 }
 
 /**

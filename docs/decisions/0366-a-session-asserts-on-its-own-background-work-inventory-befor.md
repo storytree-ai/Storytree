@@ -79,12 +79,16 @@ not de-registered, which happens exactly when that process was killed or crashed
 evidence a later session has that something died mid-flight, so it is reported as leaked and removed
 only on request.
 
-**D6 — The coverage limit is stated in the render, not left to be discovered.** Only work that
-REGISTERED itself appears: today the storytree CLI and the gate runner. A harness background shell, a
-hand-launched server, a headless browser — none register. So an empty inventory means "nothing
-storytree started is still running", never "this box is idle". An inventory that overstated its own
-coverage would recreate the exact false clear this decision exists to remove, so the limit is printed
-every time rather than documented somewhere a reader must already suspect the gap to go looking.
+**D6 — The coverage limit is stated in the render, not left to be discovered.** Only REGISTERED work
+appears: the storytree CLI, the gate runner, and — since the arc's
+`spawned-work-is-attributable-to-its-session` entry — the two DETACHED launchers, `pnpm studio:up`
+and `storytree desktop launch`, which register on their CHILD's behalf because the child is what
+outlives the session. A harness background shell, a hand-launched server, a headless browser — none
+register. So an empty inventory still means "nothing storytree started is still running", never "this
+box is idle". An inventory that overstated its own coverage would recreate the exact false clear this
+decision exists to remove, so the limit is printed every time rather than documented somewhere a
+reader must already suspect the gap to go looking — and it is re-stated, not dropped, as the
+registrar list grows.
 
 **D7 — Reclaim is scoped by OWNERSHIP, never by start time.** `own --all` names the owning session of
 every registered process, which is what replaces the start-time heuristic. `own clear` touches only
@@ -104,7 +108,11 @@ row naming its pid, its command and its age.
 
 **The inventory is a FLOOR, not a census, and that gap is real.** Three of this arc's four end-states
 are untouched by this decision: attribution of arbitrary OS processes (a detached vite, a headless
-browser), the stop paths that report success while a detached child keeps its port *(closed for
+browser) *(the detached-launcher half is narrowed by the arc's
+`spawned-work-is-attributable-to-its-session` entry — `storytree desktop launch` now registers and
+was proved end to end on this box; `pnpm studio:up` registers through the identical mechanism but its
+live up/stop leg is unproven here; an arbitrary non-storytree process is still untouched either
+way)*, the stop paths that report success while a detached child keeps its port *(closed for
 storytree's own stop path by ADR-0370; `TaskStop` remains harness-owned and broken)*, and the
 gate-step liveness signal. Work that does not register is invisible here, and a session reading an empty
 inventory as "the box is clean" would be drawing a conclusion D6 explicitly refuses to support. The
@@ -136,7 +144,9 @@ gate was killed rather than finished.
 - ADR-0033 D1 (worktree session identity), ADR-0162 (the startup budget registration respects),
   ADR-0328 D3 (the unsettled-is-not-a-verdict discipline D4 follows).
 - Arc: `shared-box-session-ownership-arc` — end-state 1. Its other three end-states are open.
-- Code: `packages/drive/src/spawn-registry.ts` (the registry + `holdsLiveWork`),
-  `packages/cli/src/own.ts` (the verb), registration in `packages/cli/src/main.ts` and
-  `packages/cli/src/gate-run.ts`.
+- Code: `packages/drive/src/spawn-registry.ts` (the registry + `holdsLiveWork`, re-exporting the
+  record format from `packages/drive/src/spawn-record.mjs` — a plain-ESM module so a non-TypeScript
+  caller can share one definition), `packages/cli/src/own.ts` (the verb), registration in
+  `packages/cli/src/main.ts`, `packages/cli/src/gate-run.ts`, `scripts/studio.mjs` (the `pnpm
+  studio:up` detached vite server), and `packages/cli/src/desktop.ts` (`storytree desktop launch`).
 - Library: `merge-ceremony` (closing leg step 9c), `session-orchestrator` (workflow step 6c).
