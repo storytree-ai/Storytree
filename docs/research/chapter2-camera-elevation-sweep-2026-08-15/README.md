@@ -174,13 +174,18 @@ on the camera lane as 50 → 52 cells, with the reveal wave moving `1,4,7,10,11,
 isolates the camera as the single variable and makes the comparison honest; the cost is that the
 pictures do not show that re-decomposition.
 
-**Two preconditions therefore attach to actually landing any new angle, and neither is
-discretionary** — both were already recorded as conditions by the interior-fork spike and ADR-0367's
-own Consequences, and this sweep does not discharge either:
+**ONE non-discretionary precondition attaches to actually landing any new angle, not two.** The
+interior-fork spike named two, and one of them has since landed — checked against the arc's own
+record rather than carried over from that README:
 
-- **Move the substrate's vertex interning to GROUND space before the land's geometry moves.**
-- **Give the accretion reveal a real cell id** instead of indexing by the literal SVG path `d`
-  string, which changes under any elevation term.
+- **(i) OPEN — move the substrate's vertex interning to GROUND space before the land's geometry
+  moves.** `VKEY` in `substrate.ts` still rounds to 0.1 px of the PROJECTED coordinate. This is the
+  open half of the fault class PR #1344 reconciled for the jitter, and it is parked on
+  `chapter2-code-generated-organic-art-arc` in its own right. This sweep does not discharge it.
+- **(ii) ALREADY DONE — do NOT re-drive it.** "Give the accretion reveal a real cell id instead of
+  indexing by the literal SVG path `d` string" landed 2026-08-14: `svg-island-accretion.ts` keys the
+  per-cell reveal on `SceneNodeBase.cellId` (minted by `landCellId` in `@storytree/forest-world`) and
+  fails closed on an unstamped cell rather than minting its own.
 
 Also unchanged and still owed by a landing increment: `TILE_DEPTH`'s layout consumers (the nameplate
 baseline and the scene bounds both add it as a LAYOUT constant), and re-rendering the delivered
