@@ -14,12 +14,29 @@ proof_mode: UAT
 # statement, never a judgment gap (`human-witness-is-a-judgment-gap-not-cost`).
 # `uat_witness` stays ABSENT on purpose: the roll-up is per-leg, and a story-level `machine` would
 # re-open the blanket-adopt path that produced the stranded verdict. The crown derives per-leg.
-capabilities: [unified-command-dispatch, cli-resident-corpus-tools, organism-boundary-tooling, arc-explicit-id-fidelity, guided-setup-repair, verification-decay-instruments, arc-derived-initiative-view, increment-freshness-check]
+# THREE capabilities LEFT this story on 2026-08-14 with their code, when ADR-0369 extracted
+# `packages/arc` and gave the arc domain its own story, `stories/arc`:
+#   - `arc-derived-initiative-view` + `increment-freshness-check` (rows 7/8) — never this hub's
+#     connective competence, but a per-domain journey parked here because ADR-0192 D2 forbade minting
+#     a story hosted in foreign buildings. That is exactly what open modeling call 5 below said, and
+#     what it now records as answered.
+#   - `arc-explicit-id-fidelity` — it went for a HARDER reason, and one that was not
+#     optional. It is the only one of the three with a `real:` arm, and its `proof.real.sourceFile`
+#     is `arc.ts`, which is now `packages/arc/src/arc.ts`. `readUnitSourceFiles` skips a unit with no
+#     `real:` arm, which is why the other two could sit here without tripping anything; this one is
+#     READ, so keeping it would have made `cli` a story hosted in `arc`'s building — refused by the
+#     packages-forward rule REGARDLESS of any declared edge, since `cli` is not in the frozen
+#     `hostedStories.register`. It is also a REFINEMENT of `arcNew`, so `stories/arc` is where it
+#     belongs on the merits and not merely to satisfy a rule.
+capabilities: [unified-command-dispatch, cli-resident-corpus-tools, organism-boundary-tooling, guided-setup-repair, verification-decay-instruments]
 # The CLI is the wiring HUB: it imports every organism to surface it. Those outbound edges
-# (cli → drive-machinery / library / notice-board / store) are declared PROVIDER-SIDE on each spoke
-# (their `consumed_by: [cli]`, ADR-0074 §4) so the hub stays de-noised and each organism owns its
-# "wired into the CLI" edge — hence `depends_on: []` here. Nothing imports the CLI, so `consumed_by`
-# is empty (the invariant the old "nothing may depend on the wiring layer" rule encoded).
+# (cli → drive-machinery / library / notice-board / store / arc) are declared PROVIDER-SIDE on each
+# spoke (their `consumed_by: [cli]`, ADR-0074 §4) so the hub stays de-noised and each organism owns
+# its "wired into the CLI" edge — hence `depends_on: []` here. `@storytree/arc` is the newest such
+# spoke (ADR-0369): `commands.ts` dispatches the arc / increment / question verbs into it, and the
+# edge is declared in `stories/arc`'s `consumed_by`, not here. Nothing imports the CLI, so
+# `consumed_by` is empty (the invariant the old "nothing may depend on the wiring layer" rule
+# encoded).
 depends_on: []
 consumed_by: []
 # ADR-0102 (owner-directed 2026-06-25): the CLI is a SOURCE hub — it depends on nearly every
@@ -83,48 +100,76 @@ authoring primitives (the corpus guard, the ADR frontmatter parser).
   in-memory seed; live writes refuse without `--pg` and a reachable DB (degrade with guidance, never
   a silent no-op).
 
-## Capabilities (8)
+## Capabilities (5)
 
 Lightweight and **expandable** (ADR-0074 §3): the hub's own connective competence, NOT a re-derivation
 of every per-domain command (those belong to the organism that owns the journey). The list grows one
 case per real defect (`uat-proves-the-goal-not-the-surface`).
 
-Rows 5 and 6 were authored 2026-08-08 by `capability-layer-coverage-arc` increment 5 over
-already-implemented, already-tested code. Both are **CLI-resident competences that are neither
-wiring nor authoring** — the third kind `organism-boundary-tooling` already OCCUPIES as a live
-capability in the tree, entered on that same footing and not widening it. Read "occupies", not
-"admitted": open modeling call 1 below NAMES that capability but ends "Confirm this shim-vs-journey
-split", so the call is still OPEN and these two rows neither resolve it nor lean on it being
-resolved. Neither re-derives a
-per-domain command surface, because neither has an owning organism: one diagnoses the DEV'S OWN
-MACHINE, the other judges the repo's verification apparatus, and no story in the tree owns either
-subject.
+`guided-setup-repair` and `verification-decay-instruments` were authored 2026-08-08 by
+`capability-layer-coverage-arc` increment 5 over already-implemented, already-tested code. Both are
+**CLI-resident competences that are neither wiring nor authoring** — the third kind
+`organism-boundary-tooling` already OCCUPIES as a live capability in the tree, entered on that same
+footing and not widening it. Read "occupies", not "admitted": open modeling call 1 below NAMES that
+capability but ends "Confirm this shim-vs-journey split", so the call is still OPEN and these two
+neither resolve it nor lean on it being resolved. Neither re-derives a per-domain command surface,
+because neither has an owning organism: one diagnoses the DEV'S OWN MACHINE, the other judges the
+repo's verification apparatus, and no story in the tree owns either subject.
 
 | # | capability | outcome | status | depends on |
 |---|---|---|---|---|
 | 1 | [`unified-command-dispatch`](unified-command-dispatch.md) | `storytree <verb>` parses args, hydrates credentials, dispatches to the owning organism, and returns a typed `Envelope`/exit code; offline commands run with no DB. | mapped | — |
 | 2 | [`cli-resident-corpus-tools`](cli-resident-corpus-tools.md) | The CLI-resident authoring primitives the gates build on: the `stories/` YAML corpus guard and the ADR frontmatter parser. | mapped | — |
 | 3 | [`organism-boundary-tooling`](organism-boundary-tooling.md) | The pure organism-boundary analyser behind `check:boundaries`: the blocking subgraph judge (ADR-0074) + the non-blocking declared-edge drift report (ADR-0115) that derives a virtual story's real edges from its units' `sourceFile` imports. | mapped | — |
-| 4 | [`arc-explicit-id-fidelity`](arc-explicit-id-fidelity.md) | An agent scaffolding an arc with an explicit id receives a refusal instead of creating an arc under a silently truncated id. | proposed | `unified-command-dispatch` |
-| 5 | [`guided-setup-repair`](guided-setup-repair.md) | A dev's failing setup probe is driven to a re-verified repair, or to a secrets-redacted owner escalation naming why no installer step can fix it. | mapped | — |
-| 6 | [`verification-decay-instruments`](verification-decay-instruments.md) | Every chartered verification instrument reports the decay it locates as a finding charged to the branch that authored it. | mapped | — |
-| 7 | [`arc-derived-initiative-view`](arc-derived-initiative-view.md) | A session arriving cold on a long-running initiative reads its whole current state from the arc alone. | mapped | `unified-command-dispatch` |
-| 8 | [`increment-freshness-check`](increment-freshness-check.md) | A session about to consume a parked increment is told mechanically whether the repo moved under it since the increment was anchored. | mapped | `unified-command-dispatch` |
+| 4 | [`guided-setup-repair`](guided-setup-repair.md) | A dev's failing setup probe is driven to a re-verified repair, or to a secrets-redacted owner escalation naming why no installer step can fix it. | mapped | — |
+| 5 | [`verification-decay-instruments`](verification-decay-instruments.md) | Every chartered verification instrument reports the decay it locates as a finding charged to the branch that authored it. | mapped | — |
 
-Rows 7 and 8 were authored 2026-08-08 by `capability-layer-coverage-arc` increment 6 over
-already-implemented, already-tested code, and they are a DIFFERENT admission from rows 5 and 6 — read
-the difference, because it is the whole modeling problem. Rows 5 and 6 entered on the ground that no
-organism owns a dev's own machine or the repo's verification apparatus. Rows 7 and 8 cover the ARC
-TIER, which is a deep per-domain journey of exactly the kind the shim-vs-journey rule above says
-belongs to an organism story: it has its own kinds in the library schema, its own ADR family
-(0183 / 0267 / 0305 / 0314), a studio lens owned by `studio`
-([`arc-orientation-lens`](../studio/arc-orientation-lens.md)) and a desktop mirror. Its organism story
-is simply UNMODELLED, and ADR-0192 decision 2 (packages-forward) makes minting one a code move plus an
-owner-reviewed diff rather than an ownership declaration. So these two rows keep the organ addressable
-and provable under the story whose suite observes it, and they SHARPEN open modeling call 1 below
-rather than resolving it or leaning on it being resolved. Row 7 is also this story's first capability
-whose `proof.command` names two package suites — see its spec for why each half sees something the
-other cannot.
+*(Renumbered 1–5 on 2026-08-14 when three rows left. Safe, and different from the open modeling calls
+below, whose numbers are cited from OTHER files and are therefore never reused or shifted: nothing
+outside this file cites a capability by row number, and the prose here now names capabilities rather
+than positions, so a future departure cannot silently re-point a sentence.)*
+
+**Three capabilities left this table on 2026-08-14, and where they went is the point
+([ADR-0369](../../docs/decisions/0369-the-arc-domain-owns-its-own-package-and-the-arrow-runs-arc-t.md)).**
+
+`arc-derived-initiative-view` and `increment-freshness-check` were added here on 2026-08-08 by
+`capability-layer-coverage-arc` increment 6, over already-implemented code, and they were always a
+DIFFERENT admission from `guided-setup-repair` / `verification-decay-instruments`. Those two entered
+on the ground that no organism owns a dev's own machine or the repo's verification apparatus. The arc
+pair covered the ARC TIER — a deep per-domain journey of exactly the kind the shim-vs-journey rule
+above says belongs to an organism story, with its own library kinds, its own ADR family
+(0183 / 0267 / 0305 / 0314), a studio lens and a desktop mirror. Its organism story was simply
+UNMODELLED, and ADR-0192 decision 2 (packages-forward) made minting one a code move rather than an
+ownership declaration, so the pair parked the organ here and SHARPENED open modeling call 5 below
+instead of resolving it.
+
+`arc-explicit-id-fidelity` left for a related but sharper reason, and it is worth separating because
+it shows what the parking actually cost. It is a REFINEMENT of `arcNew` — a capability owned by
+`arc-derived-initiative-view` — so on the merits it always belonged wherever that one did. What made
+its departure NON-OPTIONAL rather than merely tidy is that it is the only one of the three carrying a
+`real:` arm. The landlord rule reads `proof.real.sourceFile`, so the other two were invisible to it;
+this one is not. Once `arc.ts` became `packages/arc/src/arc.ts`, keeping the spec here would have made
+`cli` a story hosted inside `arc`'s building — refused outright by the packages-forward rule, whatever
+edges were declared, because `cli` is not in the frozen `hostedStories.register`. Its long-noted
+"arguably wants a `depends_on` on `arc-derived-initiative-view`" is now authored, which only became
+expressible once the two were siblings.
+
+None of this changed what this hub DOES: `commands.ts` still dispatches `arc` / `arc increment` /
+`question` / `increment check`, and the three `arc-explicit-id-refuses-lossy-cap` regressions still
+live in `packages/cli/src/cli.test.ts`, because they drive the real binary end-to-end. What changed is
+that the coupling is now a declared cross-story edge (`stories/arc`'s `consumed_by: [cli]`) instead of
+an ownership claim.
+
+**One detail worth following, because it is easy to misread as a simplification.** This story used to
+own the corpus's only two-suite `proof.command`: `arc-derived-initiative-view` ran
+`--filter @storytree/drive --filter @storytree/cli`, because the join and the verbs were in different
+packages and each half saw something the other could not. That command DID collapse to one filter —
+the extraction removed its reason. But the two-suite NEED did not disappear from the corpus; it MOVED,
+to `arc-explicit-id-fidelity`, whose source is now `packages/arc/src/arc.ts` while its regression stays
+in `packages/cli/src/cli.test.ts`. Before the extraction, one `@storytree/cli` filter ran BOTH that
+regression and `arc.test.ts`; afterwards it runs only the regression, so leaving that unit on one
+filter would have quietly stopped observing most of the file its own IMPLEMENT phase writes. It now
+names both suites. See open modeling call 5 for the closing.
 
 ## Dependency graph (code-derived)
 
@@ -138,8 +183,14 @@ The CLI's real `@storytree/*` runtime imports (ADR-0010 §3) — all **cross-sto
 - `cli → library` — `commands.ts` validates/upcasts library docs on every write.
 - `cli → notice-board` — `noticeboard.ts` classifies presence staleness for the board surface.
 - `cli → store` — `main.ts`'s `buildStore` swaps `PgLibraryStore` in under `--pg`.
+- `cli → arc` — since ADR-0369 the arc / increment / question verbs and the derived arc → children
+  join live in `@storytree/arc` (owned by [`arc`](../arc/story.md)); `commands.ts` imports them
+  directly and `worktree-create.ts` reads `storyArcStamps`. A NEW package dependency, not a
+  re-pointing of an existing one: these verbs used to be this package's own files. The arrow only ever
+  runs this way — `@storytree/arc` imports nothing from `@storytree/cli`, which is what keeps the
+  merged story graph acyclic.
 
-These four outbound edges are declared **provider-side** on each spoke (`consumed_by: [cli]`,
+These five outbound edges are declared **provider-side** on each spoke (`consumed_by: [cli]`,
 ADR-0074 §4), so the hub is de-noised and `depends_on` here is `[]`. Substrate edges (always
 allowed, §5): `cli → base`, `cli → proof-protocol`. The merged declared graph (depends_on ∪
 consumed_by) is **acyclic** (ADR-0058): the CLI is a pure source — nothing imports it.
@@ -293,6 +344,15 @@ entries despite these five verdicts, so the generated offline status view is sta
    already outgrown at four and this increment takes to six. The count was never the call — the
    shim-vs-journey SPLIT is — and re-stamping a number here every time a row lands is the churn
    ADR-0317's "read it live" instruction exists to prevent. The table above is the count.)*
+   *(Reconciled 2026-08-14, ADR-0369: the split's sharpest COUNTER-EXAMPLE has left. The arc trio was
+   a deep per-domain journey sitting on the shim — the case call 5 below raised and has now closed by
+   extracting `packages/arc`. What remains here is the three original lightweight capabilities
+   (`unified-command-dispatch`, `cli-resident-corpus-tools`, `organism-boundary-tooling`) plus
+   `guided-setup-repair` and `verification-decay-instruments`, which entered on the different "no
+   organism owns this subject" ground — a dev's own machine, the repo's verification apparatus — and
+   are unaffected. So the call is NARROWER than it was, not answered: with the journey case gone it
+   asks exactly one thing, whether that second ground is the right one. Nothing about the arc
+   extraction settles that.)*
 2. **The connection-declaration shape (ADR-0074 §4) — settled in this increment.** The CLI's outbound
    edges are declared provider-side on the spokes (`consumed_by: [cli]`) to de-noise the hub; the gate
    covers a code edge when EITHER endpoint declares it. The trade is the UI-sequencing note above
@@ -312,22 +372,37 @@ entries despite these five verdicts, so the generated offline status view is sta
    re-adjudication makes the leg's *tag* honest again, but cannot unsign a row. Options, not chosen
    here: (a) leave it and let a future real harness supersede it; (b) record a superseding `fail`/void
    verdict now. Signing and voiding are both operator-granted — no agent may self-exempt.
-5. **The arc tier has no organism story, and rows 7/8 park it here rather than answer that (raised
-   2026-08-08).** PLACED LAST DELIBERATELY: this list's numbers are cited by number elsewhere in the
-   corpus (e.g. `stories/cli/guided-setup-repair.md:171` cites this list's own "open modeling call 1"
-   verbatim), so a new call is APPENDED and no existing item is ever renumbered.
-   `arc-derived-initiative-view` + `increment-freshness-check` cover a genuine
+5. **~~The arc tier has no organism story~~ — CLOSED 2026-08-14, option (b) taken (raised
+   2026-08-08).** PLACED LAST DELIBERATELY, and KEPT IN PLACE now that it is closed: this list's
+   numbers are cited by number elsewhere in the corpus (e.g. `stories/cli/guided-setup-repair.md:171`
+   cites this list's own "open modeling call 1" verbatim), so a new call is APPENDED and no existing
+   item is ever renumbered — which means a closed one is struck through where it stands rather than
+   deleted, or every later number would shift under its citers.
+
+   **What it asked.** `arc-derived-initiative-view` + `increment-freshness-check` cover a genuine
    per-domain journey — the durable initiative record every session's closing leg writes to. By this
-   story's own shim-vs-journey rule that journey belongs to an organism story, and there is none:
-   the kinds live in `packages/library`'s schema, the join lives in `packages/drive` for reach, the
-   verbs live in `packages/cli`, the lens is a `studio` capability, and a desktop backend mirrors it.
+   story's own shim-vs-journey rule that journey belongs to an organism story, and there was none:
+   the kinds live in `packages/library`'s schema, the join lived in `packages/drive` for reach, the
+   verbs lived in `packages/cli`, the lens is a `studio` capability, and a desktop backend mirrors it.
    ADR-0192 decision 2 forbids minting a new story hosted in those foreign buildings — a new story's
-   code lives in its own workspace package — so the end-state is a `packages/arc` extraction plus an
-   owner-reviewed diff, which is a code move and was NOT taken here. Options, not chosen: (a) leave
-   the organ under this story indefinitely and accept that the shim owns one journey; (b) extract
+   code lives in its own workspace package — so the end-state was a `packages/arc` extraction plus an
+   owner-reviewed diff, which is a code move and was NOT taken then. Three options were named:
+   (a) leave the organ here indefinitely and accept that the shim owns one journey; (b) extract
    `packages/arc` and migrate the organ into its own story, which also gives `studio`'s
    `arc-orientation-lens` a real story to draw an edge to; (c) decide the arc tier is `library`'s,
-   since `arc` / `increment` / `open-question` are all library kinds — which would also re-home
-   `interface-oq-proposal-authoring`, whose text still names only the generic
-   `library artifact new --file` path that `question new` replaced. Owner or a scoped story-author
-   pass should pick.
+   since `arc` / `increment` / `open-question` are all library kinds.
+
+   **How it was answered.** The owner directed **(b)** on 2026-08-09, answering the since-retired open
+   question `oq-where-should-the-arc-tier-live-the-cli-shim-its-own-packa`;
+   [ADR-0369](../../docs/decisions/0369-the-arc-domain-owns-its-own-package-and-the-arrow-runs-arc-t.md)
+   records the decision and `arc-tier-extraction-arc` increment 1 delivered it. `packages/arc` is the
+   building, [`arc`](../arc/story.md) is the story, both capabilities moved with all of their code,
+   and ADR-0192 D2 is satisfied rather than excepted. Option (b)'s stated bonus landed too:
+   [`arc-orientation-lens`](../studio/arc-orientation-lens.md) has a real story to draw its edge to.
+
+   **One thread the closure does NOT settle, deliberately.** Option (c) also observed that
+   `interface-oq-proposal-authoring`'s text still names only the generic `library artifact new --file`
+   path that `question new` replaced. That is a stale-text problem in another story and it is
+   untouched by where the arc tier lives — it needs the same correction whether the verbs sit in
+   `packages/cli` or `packages/arc`. It is recorded here rather than carried forward as if the
+   extraction had handled it.

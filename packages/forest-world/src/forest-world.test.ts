@@ -8,6 +8,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { hash, rand01 } from './rng.js';
+import { PLAN_VIEW_ELEVATION_DEG, groundFlattening } from './camera.js';
 import { HEX_R, hexCenter, pixelToHex, hexDist, hexCorners, axialKey, type Axial } from './hex.js';
 import { crownRadius, estRadius, ringsOf, storyTreeReach } from './sizing.js';
 import { storyEdges, rankStories, descendantCounts } from './ranking.js';
@@ -57,10 +58,17 @@ test('hexDist matches axial cube distance; 6 unit neighbours are distance 1', ()
   for (const n of neigh) assert.equal(hexDist({ q: 0, r: 0 }, n), 1);
 });
 
-test('hexCorners returns 6 points at radius R from the centre', () => {
+test('hexCorners returns 6 points on the camera ground ellipse of radius R', () => {
+  // `R` is a GROUND radius, and since ADR-0367 D1 the land is seen through a declared camera, so
+  // the corners sit on an ellipse of semi-axes (R, R·sin θ) rather than on a circle. The circle was
+  // the plan-view special case, and `PLAN_VIEW_ELEVATION_DEG` still recovers it exactly.
   const corners = hexCorners(10, 20, HEX_R);
   assert.equal(corners.length, 6);
+  const f = groundFlattening();
   for (const c of corners) {
+    assert.ok(Math.abs(Math.hypot((c.x - 10) / HEX_R, (c.y - 20) / (HEX_R * f)) - 1) < 1e-9);
+  }
+  for (const c of hexCorners(10, 20, HEX_R, PLAN_VIEW_ELEVATION_DEG)) {
     assert.ok(Math.abs(Math.hypot(c.x - 10, c.y - 20) - HEX_R) < 1e-9);
   }
 });

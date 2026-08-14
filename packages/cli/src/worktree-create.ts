@@ -37,12 +37,20 @@ import { claimGrade, exploringClaimRequest } from "@storytree/notice-board";
 // live in `claim-universe.ts`, which is an exported subpath, so the narrow import costs nothing.
 import { guardClaimNamespace, type ClaimUniverseLoader } from "@storytree/drive/claim-universe";
 
-// Direct from `arc-rollup.ts`, not through `./arc.js`'s re-export. `arc.ts` imports the
-// `@storytree/drive` BARREL, which reaches the whole build/orchestrate runtime and with it the
+// Direct from `arc-rollup.ts`, not through the package barrel. The barrel reaches `arc.ts`, which
+// reaches the `@storytree/drive` BARREL and with it the whole build/orchestrate runtime including the
 // Cloud SQL connector — and this module is on the managed Codex bootstrap payload's import graph,
 // which must ship no database client at all (ADR-0368 D2). `arc-rollup.ts` itself is clean, so the
 // subpath is the same code with none of the reach.
-import { storyArcStamps } from "@storytree/drive/arc-rollup";
+//
+// The module MOVED packages on 2026-08-14 (`@storytree/drive/arc-rollup` → `@storytree/arc/arc-rollup`,
+// ADR-0369) and the narrow-subpath requirement moved with it UNCHANGED — which is why `arc-rollup.ts`
+// now reaches drive through `@storytree/drive/adr-metas` / `/adr-frontmatter` / `/work-hierarchy`
+// rather than drive's barrel. Taking either side of that merge alone would have broken something:
+// the barrel import re-admits the connector, and the old path no longer exists.
+// `codex-worktree-create-entry.test.ts` bundles the payload and asserts the absence by string, so a
+// regression here is a red rather than a discovery.
+import { storyArcStamps } from "@storytree/arc/arc-rollup";
 import type { Envelope } from "./envelope.js";
 
 /** What one anchor node is allowed to look like in a directory/branch name. */

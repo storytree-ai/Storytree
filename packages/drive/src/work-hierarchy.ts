@@ -21,10 +21,12 @@ import { parseCiteRef, type CiteScheme } from "@storytree/library";
  * So "does not resolve here" is the strongest thing this module ever says, and it says it with the
  * checkout named.
  *
- * It sits in `drive` for the reason {@link import("./arc-rollup.js")} does: both readers need it and
- * neither can share `cli` (the studio server must not depend on `@storytree/cli`). It is the sibling
- * of `storyArcStamps` — the same defensive frontmatter scan of the same tree, answering the other
- * half of ADR-0306 D4's two paths.
+ * It sits in `drive` for the reason the arc rollup used to: both readers need it and neither can
+ * share `cli` (the studio server must not depend on `@storytree/cli`). The rollup itself has since
+ * moved DOWN into `@storytree/arc` (`arc-tier-extraction-arc`) and now reads this module across that
+ * boundary — this one stayed, because resolving a `story:`/`capability:` ref against a checkout is
+ * the work hierarchy's job, not the arc's. It is the sibling of `storyArcStamps` — the same
+ * defensive frontmatter scan of the same tree, answering the other half of ADR-0306 D4's two paths.
  */
 
 /** The three tiers of the work hierarchy (ADR-0002). `contract` never appears in a ref scheme. */

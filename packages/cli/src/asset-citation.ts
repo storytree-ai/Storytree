@@ -24,8 +24,12 @@
 //
 // PURE: no `node:` import, no store, no clock.
 
-/** The `asset:<id>` reference token — the corpus pointer one artifact cites another with. */
-export const ASSET_REF_PREFIX = "asset:";
+// The `asset:<id>` reference token — the corpus pointer one artifact cites another with. Defined in
+// `@storytree/library` beside its two `CiteScheme` siblings since `arc-tier-extraction-arc` gave it a
+// second package of readers (`@storytree/arc` MINTS one, this file RESOLVES one), and two packages
+// agreeing on a token by copying it is exactly the drift this module exists to prevent.
+export { ASSET_REF_PREFIX } from "@storytree/library";
+import { ASSET_REF_PREFIX } from "@storytree/library";
 
 /**
  * PURE: the artifact ids cited by a doc's `references`, in authored order — every `asset:` token,

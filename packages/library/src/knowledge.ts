@@ -697,6 +697,40 @@ export const AssetRef = z.string().regex(/^asset:[A-Za-z0-9_-]+$/, {
 export const STORY_REF_PREFIX = "story:";
 export const CAPABILITY_REF_PREFIX = "capability:";
 
+/**
+ * The `asset:<id>` Library pointer — the third {@link CiteScheme}, and the one `references` uses.
+ *
+ * It sits beside its two siblings rather than in a consumer package because the arc extraction
+ * (`arc-tier-extraction-arc`) gave it a SECOND package of readers: `@storytree/arc` mints an
+ * `asset:` citation when a friction route parks an increment, and `@storytree/cli`'s
+ * `asset-citation.ts` resolves one. Two packages agreeing on a token by copying it is the drift seam
+ * `parseCiteRef` exists to prevent — so the token is defined once, here, and re-exported there.
+ */
+export const ASSET_REF_PREFIX = "asset:";
+
+/**
+ * PURE: kebab-case slug from a title (a-z0-9, hyphen-separated), capped so filenames stay sane.
+ *
+ * The one id-derivation the corpus uses everywhere a human title becomes a machine id: an ADR
+ * filename slug (`adr new`), an arc id (`arc new`), an open-question id (`question new`). It lived in
+ * `@storytree/cli`'s `adr.ts` until `arc-tier-extraction-arc` moved the arc verbs into their own
+ * package and left the two callers in different buildings; a second implementation would be a drift
+ * seam for no gain, so it moved DOWN to the package both already depend on rather than sideways.
+ *
+ * ⚠ The 60-char cap TRUNCATES. That is right for a DERIVED id (there is no author intent to honour)
+ * and wrong for an AUTHORED one — `arc new` / `question new` refuse a too-long explicit id instead of
+ * silently shortening it. Callers that mind the difference say so at their own call site.
+ */
+export function kebabSlug(title: string): string {
+  return title
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60)
+    .replace(/-+$/g, "");
+}
+
 /** The three schemes a {@link CiteRef} admits — the mixed set ADR-0306 D2 puts on an increment. */
 export type CiteScheme = "story" | "capability" | "asset";
 
