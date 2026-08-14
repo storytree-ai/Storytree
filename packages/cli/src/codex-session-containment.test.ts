@@ -1506,6 +1506,10 @@ test("storytree-owned secrets are denied as ONE folder, while the vendor paths s
     codexVersion: "codex-cli 0.145.0",
     managedDir: path.resolve("C:/ProgramData/OpenAI/Codex/Storytree"),
     managedNodePath: path.resolve("C:/Program Files/nodejs/node.exe"),
+    // Explicit, like every neighbouring test: the generator refuses a bundle whose Git executable it
+    // cannot name absolutely, and the ambient `git` that satisfies that on this Windows box does not
+    // on the Linux CI runner. Omitting it passes locally and fails only in CI.
+    gitCommand: [process.execPath],
   });
   if (!bundle.ok) assert.fail(bundle.reason);
   const encoded = /FromBase64String\("([A-Za-z0-9+/=]+)"\)/.exec(bundle.trustedActuatorScript);
