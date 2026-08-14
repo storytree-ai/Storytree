@@ -21,11 +21,12 @@ startup/read activity and refused a write tool. Both the single-file `model-runt
 two-file `codex-multifile-runtime-seam` completed as subscription-backed signed live builds with no
 scope refusals. **All of that is writer-scope evidence, gathered with a writer already sitting in a
 claimed worktree — it says nothing about how a task GETS there.** The lobby bootstrap D4 specifies
-has never completed once: it hits a credential circularity (the sandbox ACL denying the Codex
-process gcloud ADC / `~/.storytree/secrets.json` is exactly what the bootstrap then needs to take
-the claim). D5's literal bar — three writes under the installed profile — does not catch this,
-because it never asks the writer to arrive from the lobby; that narrowness is itself part of the
-defect, and is treated in "## Delivery status" below.
+has never completed a live smoke. It used to hit a credential circularity (the sandbox ACL denying
+the Codex process gcloud ADC / `~/.storytree/secrets.json` is exactly what the bootstrap then needed
+to take the claim); **that circularity is now CLOSED** — see "## Delivery status" below, which records
+both the closure and what remains unproven. D5's literal bar — three writes under the installed
+profile — never asked the writer to arrive from the lobby, so it could not have caught the
+circularity in the first place; that narrowness is also treated below.
 
 **Amends** ADR-0257 D2/D3/D7 and ADR-0284 D1/D6/D8. The owner has now chosen and funded the
 Codex-only containment thread those decisions left as a scope-and-spend fork. For interactive Codex,
@@ -129,13 +130,24 @@ The blocking defect is a credential circularity in the bootstrap, confirmed at t
   just denied.
 
 This is a composition fault, not a reason to widen the sandbox. The claim-first ordering is right and
-the OS boundary is right; what is missing is a narrow broker holding operator authentication OUTSIDE
-`CodexSandboxOffline` that exposes only these lifecycle operations — which is host integration this
-repository cannot install or self-attest. Note the two credential paths already disagree about this:
-the live-claim PROBE reaches the store as a dedicated impersonated reader
-(`storytree-codex-claim-reader@…`), while the bootstrap WRITE path reaches for a human's personal
-secret. Whatever broker shape is chosen, the write path should not be the one holding an operator
-credential.
+the OS boundary is right; what was missing is a narrow broker holding operator authentication OUTSIDE
+`CodexSandboxOffline` that exposes only these lifecycle operations. Note the two credential paths
+disagreed about this: the live-claim PROBE reaches the store as a dedicated impersonated reader
+(`storytree-codex-claim-reader@…`), while the bootstrap WRITE path reached for a human's personal
+secret.
+
+**This gap is now CLOSED.** [ADR-0368](0368-the-claim-broker-holds-the-credential-the-sandbox-may-not-an.md)
+built exactly that broker: a resident process the OPERATOR starts — by hand or by a logon task, never
+by the sandbox — which Codex sends a message to over a loopback channel guarded by a per-launch
+ACL'd handshake, deriving `promote` identity from Git topology rather than believing anything the
+caller asserts. `codex-bootstrap-dials-the-broker` landed the same day: `codex-worktree-create-entry.ts`
+no longer calls `loadLocalSecrets()` or `createPool()` at all, so the bootstrap holds no credential and
+opens no database connection. **What is NOT closed:** the broker's own liveness is now
+operator-visible work that nothing in this repository can install or self-attest (ADR-0368
+Consequences — an agent may never edit its own fence, ADR-0364 D6), and no live smoke has yet run a
+genuinely fresh Codex desktop task through the lobby-to-write lifecycle end to end. The credential
+circularity is repaired; the LIFECYCLE remains unproven, and neither this ADR nor the arc may describe
+it as operational until `codex-lobby-to-write-live-smoke` runs and is recorded.
 
 Two further gaps were confirmed: the actuator's `launch` started a NESTED Codex process
 (`& $CodexPayload @CodexArguments`) rather than rebinding the current desktop task, and

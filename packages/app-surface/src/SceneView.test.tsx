@@ -208,6 +208,17 @@ describe('SceneView — the studio scene mapper', () => {
     expect(root.querySelector('.story-trunk')).toBeNull();
   });
 
+  it('preserves the human-witness signpost across the sprite swap — the shipped map must not erase the seal', () => {
+    // `shipped-map-render-path-drops-three-delivered-behaviours` defect 1: `sign-blank` is a child of
+    // the `tree` wrapper (same as `bloom-anchor`), but `collectPreservedDescendants` preserved only
+    // `bloom-anchor`. On the shipped map the sprite swap silently dropped the signpost, so a
+    // human-witnessed proof and an unwitnessed one looked identical on the map — the one semantic this
+    // arc exists to protect. Renderer choice may change artwork; it must never erase proof semantics.
+    const { root } = renderScene();
+    expect(root.querySelector('.story-tree')?.tagName.toLowerCase()).toBe('image'); // the swap did happen
+    expect(root.querySelector('.story-sign.sign-blank')).toBeTruthy();
+  });
+
   it('the NAMED opt-out still reaches the website + vector render — omission is no longer the route', () => {
     const { root } = renderWebsiteScene();
     expect(root.querySelector('.garden-flora')).toBeTruthy();
@@ -318,11 +329,17 @@ describe('SceneView — the studio scene mapper', () => {
   });
 
   it('the legend status filter reaches the WEBSITE plant ring', () => {
-    // `withFilter` composes `is-filtered` for the `flora` (one-plant-per-cap) kind. NOTE: it does NOT
-    // reach `parcel-flora`, so on the shipped map a filtered capability's land keeps drawing — a gap
-    // this fixture change surfaced, deliberately NOT pinned here in either direction.
+    // `withFilter` composes `is-filtered` for the `flora` (one-plant-per-cap) kind.
     const { root } = renderWebsiteScene();
     expect(root.querySelector('.garden-flora.st-unhealthy.is-filtered')).toBeTruthy();
+  });
+
+  it('the legend status filter also reaches the SHIPPED map parcel-flora, not just the retired plant ring', () => {
+    // `shipped-map-render-path-drops-three-delivered-behaviours` defect 2: `withFilter` composed
+    // `is-filtered` for the `flora` kind only, which the shipped map retires in favour of `parcel-flora`
+    // — so a legend-filtered capability's land kept drawing as though unfiltered.
+    const { root } = renderScene();
+    expect(root.querySelector('.parcel-flora.st-unhealthy.is-filtered')).toBeTruthy();
   });
 
   it('renders the generous per-story hit rect at the BACK — transparent, behind the flora', () => {
@@ -518,13 +535,25 @@ describe('SceneView — the studio scene mapper', () => {
   });
 
   it('selects the capability on a plant click (stopping propagation) — the WEBSITE plant ring', () => {
-    // `handlersFor` wires `onSelectCap` on the `flora` kind ONLY. The shipped map retires that ring
-    // for a parcels island and its `parcel` groups carry no handler, so this route is reachable only
-    // on the absence path — which is why the fixture that exercises it now says so by name.
+    // `handlersFor` wires `onSelectCap` on the `flora` kind — see the SHIPPED map's own `parcel` route
+    // pinned right below, which is the fix for defect 3.
     const onSelectStory = vi.fn();
     const onSelectCap = vi.fn();
     const { root } = renderWebsiteScene({ onSelectStory, onSelectCap });
     fireEvent.click(root.querySelector('.garden-flora')!);
+    expect(onSelectCap).toHaveBeenCalledWith('lib', 'lib#c');
+    expect(onSelectStory).not.toHaveBeenCalled(); // stopPropagation
+  });
+
+  it('selects the capability on a parcel click (stopping propagation) — the SHIPPED map parcel route', () => {
+    // `shipped-map-render-path-drops-three-delivered-behaviours` defect 3: `handlersFor` wired
+    // `onSelectCap` on the `flora` kind ONLY, but the shipped map's `parcel` groups (which carry the
+    // capId) had no handler at all — the mapper's only capability-select route was attached to a
+    // drawable the map no longer draws.
+    const onSelectStory = vi.fn();
+    const onSelectCap = vi.fn();
+    const { root } = renderScene({ onSelectStory, onSelectCap });
+    fireEvent.click(root.querySelector('.parcel.st-unhealthy')!);
     expect(onSelectCap).toHaveBeenCalledWith('lib', 'lib#c');
     expect(onSelectStory).not.toHaveBeenCalled(); // stopPropagation
   });
