@@ -1702,6 +1702,7 @@ async function libraryHelp(store: Store): Promise<Envelope> {
       "  storytree library artifact list <category> list a category",
       "  storytree library artifact new|edit <id>   create / edit (writes need --pg)",
       "  storytree library artifact history <id>    what each write did to its fields (the append-only log)",
+      "  storytree library query --kind <k>         ad-hoc predicate read (--where, --count, --field)",
       "  storytree library tree focus <id>          the local DAG of one artifact",
       "  storytree library artifact retire <id>     retire it (needs --pg) — where a lifecycle-tier row goes to die",
       "  storytree library graduate [--review]      agent-memory → Library worklist (ADR-0095)",
