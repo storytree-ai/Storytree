@@ -84,6 +84,19 @@ export interface RenderedAsset {
    * nothing to read on any browser surface. Structured branch only, present only when stored.
    */
   lifecycle?: string;
+  /**
+   * The authored `standsOn` dependency edge (ADR-0223) — the same `.extend()` schema-metadata
+   * crossing as {@link status} / {@link lifecycle}, and for the same reason: it sits OUTSIDE the
+   * KIND_SPECS body table, so `extractFields` never surfaces it and it would fall on the floor at
+   * the wire boundary. Without it the studio's focus graph has no dependency edge to walk and can
+   * only fall back to the citation web — which is the cyclic thing ADR-0223 exists to stop drawing.
+   *
+   * Structured branch only, present only when the stored doc carries it — never an empty array, so
+   * a doc with no authored edge is indistinguishable on the wire from one predating the field
+   * (`standsOn` is `.optional()`, never `.default([])`; ADR-0223's zero-migration rule). Absent for
+   * every EDGE_FREE_KINDS doc (`friction` / `open-question` / `definition`) by construction.
+   */
+  standsOn?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -97,6 +110,9 @@ interface AssetDocLike {
   body?: unknown;
   references?: unknown;
   provenance?: unknown;
+  /** ADR-0223's authored dependency edge. Declared here — rather than reached by a cast — because
+   *  the `increment` kind is body-bearing AND in the DAG, so this branch genuinely carries it. */
+  standsOn?: unknown;
 }
 
 function asString(value: unknown): string {
@@ -214,6 +230,13 @@ export function renderStoredDoc(stored: StoredDoc): RenderedAsset {
       ...(typeof doc.provenance === "string" && doc.provenance
         ? { provenance: doc.provenance }
         : {}),
+      // The authored dependency edge crosses on the PASS-THROUGH branch too (ADR-0223). It is not
+      // a structured-only concern: an `increment` is a body-bearing doc AND is in the DAG (the
+      // successor of ADR-0223 D3's tier-6 `plan`), so returning early here silently dropped 106 of
+      // the corpus's 660 authored edges — a sixth of the graph, and precisely the arc/increment
+      // lineage. Measured against the live store 2026-08-14: raw 169 docs / 660 edges, but only
+      // 137 / 554 reached the wire, every missing one an `increment`.
+      ...(Array.isArray(doc.standsOn) ? { standsOn: asStringArray(doc.standsOn) } : {}),
       createdAt: stored.createdAt,
       updatedAt: stored.updatedAt,
     };
@@ -251,6 +274,7 @@ export function renderStoredDoc(stored: StoredDoc): RenderedAsset {
     arcRef?: string;
     status?: string;
     lifecycle?: string;
+    standsOn?: string[];
   };
   return {
     id: knowledge.id ?? stored.id,
@@ -274,6 +298,9 @@ export function renderStoredDoc(stored: StoredDoc): RenderedAsset {
     ...(typeof typedEdges.lifecycle === "string" && typedEdges.lifecycle
       ? { lifecycle: typedEdges.lifecycle }
       : {}),
+    // The authored dependency edge (ADR-0223) crosses like the other typed edges: array-shaped, so
+    // the guard is `Array.isArray` (matching stepRefs/branchEdges) rather than a truthiness test.
+    ...(Array.isArray(typedEdges.standsOn) ? { standsOn: typedEdges.standsOn } : {}),
     createdAt: stored.createdAt,
     updatedAt: stored.updatedAt,
   };
@@ -360,5 +387,11 @@ export function buildLibraryDoc(
   };
   if (input.provenance && input.provenance.trim() !== "") doc["provenance"] = input.provenance;
   if (typeof existingDoc["createdAt"] === "string") doc["createdAt"] = existingDoc["createdAt"];
+  // Carry the authored dependency edge across a body-bearing write (ADR-0223). Unlike the
+  // structured branch above — which starts from `{...existingDoc}` and therefore preserves it for
+  // free — this branch builds a FRESH doc, so an edge would be silently dropped. `standsOn` is
+  // never in `AssetWriteInput`: it is curated through the CLI, not the studio editor, so the only
+  // honest thing a write that cannot express it can do is leave it exactly as it found it.
+  if (Array.isArray(existingDoc["standsOn"])) doc["standsOn"] = existingDoc["standsOn"];
   return doc;
 }
