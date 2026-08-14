@@ -56,6 +56,101 @@ export function currentGitBranch(cwd?: string): string | null {
   }
 }
 
+// ---- branch LIVENESS (ADR-0371) ---------------------------------------------------------------
+//
+// "Is the session that wrote this still in flight?" answered from LOCAL GIT REFS ALONE — no network,
+// no database, no credential. This exists because the obvious reading of that question ("ask the
+// notice board whether the branch is live") is what kept the machine-shared graduation queue parked:
+// it would have traded an offline-by-contract check for a DB dependency. It never needed one. A
+// branch that has not merged into `origin/main` belongs to a session still working; once it merges,
+// its knowledge is everyone's and its residue becomes everyone's obligation.
+
+/** One local branch ref: its short name and the ISO `yyyy-mm-dd` of its tip commit. */
+export interface BranchRef {
+  readonly name: string;
+  readonly committedOn: string;
+}
+
+/**
+ * How recently a branch's tip must have moved for its session to count as still in flight.
+ *
+ * BASELINED ON A SWEEP, not chosen — the `DEFAULT_GRADUATION_DRAIN_CONFIG` posture. Measured on the
+ * authoring machine 2026-08-14: 810 local branches, 88 of them unmerged into `origin/main`, but only
+ * **5** touched that day and the next-most-recent was FIVE DAYS older. So the unmerged set is
+ * dominated by ABANDONED branches, and an unbounded "unmerged ⇒ in flight" rule would permanently
+ * excuse memories written from branches abandoned two months ago — under-counting a backlog the
+ * ceiling exists to BOUND. The window sits inside that measured five-day gap rather than on a knife
+ * edge: 1 day and 2 days select the same 5 branches on that data, and 2 is taken for margin so a long
+ * session that commits early and works late is not dropped mid-flight.
+ */
+export const IN_FLIGHT_WINDOW_DAYS = 2;
+
+/**
+ * PURE — the in-flight subset of `unmerged`, bounded to `windowDays` before `currentDate`.
+ *
+ * Split out from {@link inFlightBranches} so the age rule (the part with a judgement in it) is unit
+ * testable without a git repo. Fail-closed: an unparseable or future date is EXCLUDED, so a ref this
+ * cannot date is charged rather than excused.
+ */
+export function selectInFlightBranches(
+  unmerged: readonly BranchRef[],
+  currentDate: string,
+  windowDays: number = IN_FLIGHT_WINDOW_DAYS,
+): ReadonlySet<string> {
+  const now = Date.parse(currentDate);
+  if (Number.isNaN(now)) return new Set();
+  const live = new Set<string>();
+  for (const ref of unmerged) {
+    const at = Date.parse(ref.committedOn);
+    if (Number.isNaN(at)) continue;
+    const ageDays = Math.floor((now - at) / 86_400_000);
+    // A future-dated ref (clock skew) has a negative age; treat it as in flight rather than as an
+    // error, since the alternative — charging a branch that is demonstrably newer than today — would
+    // be the surprising direction.
+    if (ageDays <= windowDays) live.add(ref.name);
+  }
+  return live;
+}
+
+/**
+ * The set of branches whose sessions are still in flight — unmerged into `origin/main` and touched
+ * within {@link IN_FLIGHT_WINDOW_DAYS}. Never throws.
+ *
+ * Returns an EMPTY set whenever git cannot answer (no repo, no `origin/main` ref, a git failure),
+ * which disables the exclusion entirely and charges the whole queue — the pre-ADR-0371 behaviour and
+ * the fail-closed one. A branch that no longer exists locally (deleted on merge, ADR-0142, or written
+ * on another machine) is simply absent from the listing and is therefore charged.
+ */
+export function inFlightBranches(currentDate: string, cwd?: string): ReadonlySet<string> {
+  try {
+    const out = execFileSync(
+      "git",
+      [
+        "for-each-ref",
+        "--no-merged=origin/main",
+        // Date first, single space, then the name: a git ref name can contain neither a space nor a
+        // newline, so splitting on the FIRST space is unambiguous.
+        "--format=%(committerdate:short) %(refname:short)",
+        "refs/heads",
+      ],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], ...(cwd === undefined ? {} : { cwd }) },
+    );
+    const refs: BranchRef[] = [];
+    for (const line of out.split("\n")) {
+      const trimmed = line.trim();
+      if (trimmed.length === 0) continue;
+      const gap = trimmed.indexOf(" ");
+      if (gap <= 0) continue;
+      const committedOn = trimmed.slice(0, gap);
+      const name = trimmed.slice(gap + 1).trim();
+      if (name.length > 0) refs.push({ name, committedOn });
+    }
+    return selectInFlightBranches(refs, currentDate);
+  } catch {
+    return new Set();
+  }
+}
+
 let cached: string | undefined;
 
 /**
