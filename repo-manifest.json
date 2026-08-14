@@ -277,6 +277,7 @@
       "packages/library/src/oq-gating.ts": "library-health-gate",
       "packages/library/src/witness-resolution.ts": "uat-machine-gate-resolution",
       "packages/library/src/uat-test-criteria.ts": "uat-machine-proof-binding",
+      "packages/library/src/uat-witness-census.ts": "uat-test-units",
       "packages/library/src/machine-leg-binding-audit.ts": "machine-leg-binding-audit",
       "packages/library/src/proof-binding-outcome.ts": "proof-binding-outcome-contract",
       "packages/library/src/legacy-uat-disposition.ts": "three-kind-witness",
