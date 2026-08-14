@@ -215,6 +215,82 @@ test("graduate (summary) lists novel candidates and surfaces every suppression",
   });
 });
 
+// ---- ADR-0371: the authorship / liveness split on the WIRED verb ----------------------------
+//
+// This is the half of ADR-0371 that reaches a human. The ceiling itself is proved in
+// `graduation-drain.test.ts`, but the ceiling's own gate step is RETIRED (ADR-0311 D2), so the
+// `storytree library graduate` verb is where the rule actually gets read. Without these two tests a
+// refactor could drop the section from the formatters and every other suite would stay green — the
+// precise failure mode `verification-integrity-arc` exists to catch.
+
+/** A memory carrying an explicit `metadata.branch` stamp (ADR-0301's optional provenance field). */
+function stampedMem(name: string, branch: string | null): string {
+  return [
+    "---",
+    `name: ${name}`,
+    `description: ${name} summary`,
+    "metadata:",
+    "  type: feedback",
+    ...(branch === null ? [] : [`  branch: ${branch}`]),
+    "---",
+    "",
+    `${name} body.`,
+    "",
+  ].join("\n");
+}
+
+function withAuthorshipFixture(
+  run: (memoryDir: string, snapshot: LibrarySnapshot) => void,
+): void {
+  const dir = mkdtempSync(path.join(tmpdir(), "grad-auth-"));
+  try {
+    const memoryDir = path.join(dir, "memory");
+    mkdirSync(memoryDir);
+    writeFileSync(path.join(memoryDir, "mine.md"), stampedMem("mine", "claude/me"));
+    writeFileSync(path.join(memoryDir, "flying.md"), stampedMem("flying", "claude/still-going"));
+    writeFileSync(path.join(memoryDir, "landed.md"), stampedMem("landed", "claude/already-merged"));
+    writeFileSync(path.join(memoryDir, "anon.md"), stampedMem("anon", null));
+    run(memoryDir, buildSnapshot([]));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test("graduate prints the ADR-0371 authorship split, excluding own AND in-flight siblings", () => {
+  withAuthorshipFixture((memoryDir, snapshot) => {
+    const env = graduateCommand(
+      { review: false },
+      {
+        memoryDir,
+        snapshot,
+        ledgerPath: defaultLedgerPath(memoryDir),
+        now: "2026-08-14",
+        currentBranch: "claude/me",
+        // `claude/already-merged` is deliberately ABSENT: a merged (or deleted) branch is charged.
+        inFlightBranches: new Set(["claude/me", "claude/still-going"]),
+      },
+    );
+    assert.equal(env.ok, true);
+    // 4 live: 1 own, 1 in-flight sibling, 1 merged sibling, 1 unstamped → 2 charged.
+    assert.match(env.body, /authorship \(ADR-0371\): 1 yours · 1 other sessions STILL IN FLIGHT · 1 other sessions' merged · 1 unstamped/);
+    assert.match(env.body, /2 of 4 live candidate\(s\) are yours to drain NOW/);
+  });
+});
+
+test("graduate omits the authorship split when the caller supplies no session identity", () => {
+  // Absent is reported as ABSENT, never as a fabricated "0 in flight" — "nobody told me" and
+  // "nobody is in flight" are different claims, and the second would read as a cleared queue.
+  withAuthorshipFixture((memoryDir, snapshot) => {
+    const env = graduateCommand(
+      { review: false },
+      { memoryDir, snapshot, ledgerPath: defaultLedgerPath(memoryDir), now: "2026-08-14" },
+    );
+    assert.equal(env.ok, true);
+    assert.doesNotMatch(env.body, /authorship \(ADR-0371\)/);
+    assert.match(env.body, /LIVE candidates \(4\)/, "the worklist itself is unaffected");
+  });
+});
+
 test("graduate --review expands each candidate with provenance + body", () => {
   withFixture((deps) => {
     const env = graduateCommand({ review: true }, deps);
