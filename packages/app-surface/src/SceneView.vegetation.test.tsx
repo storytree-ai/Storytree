@@ -254,7 +254,7 @@ describe('the vector half: rooted sprouting, and nothing left behind (ADR-0292 D
         hiddenEmptyStoryIds: new Set(['lib']),
         hiddenSegmentIds: new Set(),
         accretionByStory: new Map(),
-        cellRevealByPath: new Map(),
+        cellRevealById: new Map(),
       },
       vegetationLayer: mkLayer(scene, 0.5),
     });

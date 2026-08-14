@@ -147,7 +147,7 @@ export function forestRegrowRenderLayer(
   plans: ForestRegrowAccretionPlans,
 ): ForestRegrowRenderLayer {
   const accretionByStory = new Map<string, ReturnType<typeof svgIslandAccretionAtProgress>>();
-  const cellRevealByPath = new Map<string, SvgIslandAccretionCellReveal>();
+  const cellRevealById = new Map<string, SvgIslandAccretionCellReveal>();
   // ADR-0286: the pale coast waits for the SETTLED island, so it is hidden for everything that has
   // not landed — absent islands and accreting ones alike. Built here rather than in the schedule
   // because it is a render-side reveal rule, not a change to when an island forms.
@@ -158,13 +158,15 @@ export function forestRegrowRenderLayer(
     if (!plan) continue; // an ungrown island: it appears whole, on schedule
     const accretion = svgIslandAccretionAtProgress(plan, growth.progress);
     accretionByStory.set(growth.storyId, accretion);
-    for (const [path, reveal] of accretion.cellByPath) cellRevealByPath.set(path, reveal);
+    // Flattened across every in-flight island — safe because a cell's identity is story-scoped
+    // (`landCellId`), so two islands' nth cells can never collide here.
+    for (const [cellId, reveal] of accretion.cellById) cellRevealById.set(cellId, reveal);
   }
   return {
     hiddenStoryIds: state.absentStoryIds,
     hiddenEmptyStoryIds,
     hiddenSegmentIds: state.hiddenSegmentIds,
     accretionByStory,
-    cellRevealByPath,
+    cellRevealById,
   };
 }
