@@ -137,10 +137,12 @@ the live-claim PROBE reaches the store as a dedicated impersonated reader
 secret. Whatever broker shape is chosen, the write path should not be the one holding an operator
 credential.
 
-Two further gaps are confirmed: the actuator's `launch` starts a NESTED Codex process
+Two further gaps were confirmed: the actuator's `launch` started a NESTED Codex process
 (`& $CodexPayload @CodexArguments`) rather than rebinding the current desktop task, and
 `%ProgramData%` ships managed Node but no pnpm/Corepack. Both are recorded on
-`codex-factory-parity-arc`.
+`codex-factory-parity-arc`. **The first is now CLOSED** — ADR-0364 D4 removed the nested child along
+with the policy window that needed it, and the actuator's `launch` verb is retired in favour of an
+argument-free `install`. The pnpm/Corepack gap remains open and is now a hard precondition there.
 
 **The same-task rebinding fork is no longer an open question — it was probed on 2026-08-14 and the
 product supports it.** `turn/start` accepts a `cwd` override against an existing `threadId`
@@ -166,17 +168,20 @@ sandbox would not help, which is worth knowing before it is proposed as the fix.
 already holding the app-server channel — the desktop application itself — can issue `turn/start`.
 
 **But that reachability gap is NOT what binds, and recording it as the blocker was an error.** The
-binding constraint is this decision's own delivery shape: `Install-Policy` swaps a MACHINE-WIDE
-policy, and the actuator restores the lobby policy in its `finally`, so the writer profile exists
-only for the actuator's lifetime —
+binding constraint was this decision's own delivery shape. The mechanism below is the one ADR-0364
+replaced, and it is retained here because it is what the correction is a correction OF; it is no
+longer what the generator emits. `Install-Policy` swapped a MACHINE-WIDE policy, and the actuator
+restored the lobby policy in its `finally`, so the writer profile existed only for the actuator's
+lifetime —
 
     Install-Policy $Config.activePolicy        # writer profile live, machine-wide
     try     { & $CodexPayload -C <worktree> }  # the nested child runs INSIDE this window
     finally { Install-Policy $Config.lobbyPolicy }
 
-The nested child is therefore STRUCTURAL: it is the only thing holding the write window open. Even a
-working same-task rebinding would hand back a task that snaps to read-only the moment the actuator
-returns. So the Windows socket gap is true but incidental — fixing it would not deliver the journey.
+The nested child was therefore STRUCTURAL: it was the only thing holding the write window open. Even a
+working same-task rebinding would have handed back a task that snapped to read-only the moment the
+actuator returned. So the Windows socket gap is true but incidental — fixing it would not have
+delivered the journey.
 
 The real fork is **how WIDE and how LONG-LIVED Codex's write authority should be**: a per-worktree
 absolute path handed out for a launcher's lifetime (today), or a standing grant over a known
@@ -206,6 +211,16 @@ profile deny narrowed from the whole `~/.codex` tree to `~/.codex/auth.json` —
 unreadable while the skills the same directory advertises become readable, which also makes the two
 halves of the deny (profile and ACL) agree.
 
+**ADR-0364's mechanism has since landed in the same generator and suite**: one standing requirements
+file granting the worktrees area, a policy receipt carrying no worktree/branch/session identity, a
+hook that narrows on the LIVE CLAIM re-derived from the worktree the process is standing in, and an
+actuator whose `launch` verb is gone. The sibling-worktree refusal the per-worktree profile used to
+carry is now an explicit test — a session holding a live claim on one worktree is refused both when it
+reaches ACROSS into a sibling and when it WALKS INTO one, under a profile that permits both at the OS
+layer. That test is load-bearing in a way the others are not: the hook is the only fence, so weakening
+it weakens everything. Note also that the JS hook still carried the gradeless-claim fail-open that the
+PowerShell half had already closed; it is closed there too now.
+
 **Until a live smoke from a genuinely fresh Codex desktop task is recorded, neither this ADR nor the
 arc may describe the lifecycle as operational.**
 
@@ -217,15 +232,19 @@ protected merely by prompt obedience. The claim ceremony, filesystem grant, and 
 all name the same session identity.
 
 **Cost / watch.** Installation requires administrator-owned Windows configuration, a trusted
-launcher/profile generator, Git common-directory handling, and a deployed-Codex hook coverage
-inventory. Worktree switches require a new profile or process handoff. A database outage or stale
-claim refuses a new writer rather than widening it. Repository tests can prove generation and policy
-decisions but cannot self-attest the machine-wide installation, so the installed-host proof remains
-an operator-owned attestation whenever the managed payload, Codex version, or Windows sandbox changes.
+profile generator, Git common-directory handling, and a deployed-Codex hook coverage inventory.
+Under ADR-0364 a worktree switch no longer requires a new profile or a process handoff — the standing
+profile already covers the area and the session's live claim decides — so what to watch there is the
+claim, not the install. A database outage or stale claim refuses a new writer rather than widening it.
+Repository tests can prove generation and policy decisions but cannot self-attest the machine-wide
+installation, so the installed-host proof remains an operator-owned attestation whenever the managed
+payload, Codex version, or Windows sandbox changes.
 
 The native Windows permission profile's `deny_read` does not constrain shell subprocesses. The
 installed actuator therefore also applies explicit deny ACLs for the local Codex sandbox group to
-Codex auth, gcloud credentials, and Storytree secrets before launching a model turn. The live
+Codex auth, gcloud credentials, and Storytree secrets. Those are machine state, so since ADR-0364
+they are applied once at `install` rather than around each session — the actuator no longer starts a
+model turn to apply them before. The live
 attestation confirmed those files, application-default credentials, the claim-reader's cloud token
 path, and outbound OAuth access all fail from the sandbox while the outer operator remains logged in.
 The claim hook reaches the live ledger only through a dedicated keyless impersonated service account
