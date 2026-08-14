@@ -172,7 +172,9 @@ replaced.
 
 **THE ARC'S `lifecycle` BIT COULD NOT BE FLIPPED, AND THAT IS A MECHANISM GAP, NOT A DECISION.**
 D6 reopens the arc; the live doc still reads `closed`. There is no verb: `arc close` refuses when the
-arc is already closed (`packages/cli/src/arc.ts:1303`) and `library artifact edit --set
+arc is already closed (`arcClose` in `packages/arc/src/arc.ts`, moved out of `packages/cli` by
+ADR-0369 — the `:1303` line this bullet cited at the time no longer identifies anything, since the
+extraction and everything landed since renumbered the file) and `library artifact edit --set
 lifecycle=active` is refused unconditionally for an arc (`packages/cli/src/commands.ts:850`), with no
 flag, env var or owner path in either. A repo-wide search finds no `arc reopen` verb at all. So
 ADR-0239 D2's "re-opening is OWNER-only" is aspirational prose — mechanically it is **nobody**-only

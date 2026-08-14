@@ -152,7 +152,8 @@ do, the honest response is to fix whatever is stranding them — not to teach th
   writes the terminal increment AND the flip; `--outcome` required, because state projects prose.
 - [ADR-0183](0183-arcs-contain-plans-the-initiative-overlay-upstream-of-storie.md) D2/D3 — the arc
   overlay, the child-side containment edge, and plans as disposable scratch.
-- `packages/cli/src/arc.ts` (`arcClose`, `recomputeArcLifecycle`) ·
-  `packages/drive/src/arc-rollup.ts` (`isForwardLooking`, `deriveArcLifecycle` — the one predicate).
+- `packages/arc/src/arc.ts` (`arcClose`, `recomputeArcLifecycle`) ·
+  `packages/arc/src/arc-rollup.ts` (`isForwardLooking`, `deriveArcLifecycle` — the one predicate).
+  (Both moved out of `packages/cli` / `packages/drive` respectively by ADR-0369.)
 - The open question this discharges: `oq-ten-arcs-are-closed-but-still-hold-open-work-which-rule-w`
   on `arcs-hold-increments-arc` (retired on the owner's answer).

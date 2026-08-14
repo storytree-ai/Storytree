@@ -73,7 +73,16 @@ capabilities: [credential-broker, electron-shell, local-backend-boot, boot-read-
 #                       they are DECLARED deps in apps/desktop/package.json, so `check:boundaries` requires the
 #                       cross-story edge declared here, exactly like the drive-machinery/studio/library edges
 #                       (ADR-0074 / ADR-0113 §8 — the "declare it, never work around it" pattern below).
-depends_on: [studio, drive-machinery, library, app-guide, studio-cloud, proof-protocol, notice-board]
+#   - arc            — @storytree/arc, the arc → children join `loadArcRollups` re-composes. Until
+#                       2026-08-14 this rode the existing drive edge (the join lived in
+#                       @storytree/drive for reach); ADR-0369 D1/D2 gave the arc domain its own
+#                       package and fixed the arrow at arc → drive, so drive's barrel dropped the
+#                       re-export and this backend imports @storytree/arc directly. A RE-POINTING of
+#                       the same code edge onto a narrower package (the ADR-0112 precedent), not a new
+#                       coupling — and NOT an artifact edge: it is a real declared dep in
+#                       apps/desktop/package.json, pulled through a lazy `loadArc()` memo mirroring
+#                       `loadDrive()` for the vite config-load reason documented at the call site.
+depends_on: [studio, drive-machinery, library, app-guide, studio-cloud, proof-protocol, notice-board, arc]
 # ADR-0166 artifact edges: the deliberate NON-IMPORT seams among the depends_on above (build-artifact /
 # write-target / hosted-seam consumption, narrated per-edge in the comments/body of this spec) — the
 # declared-edge honesty gate accepts these without a code import; remove an entry if the seam ever

@@ -55,6 +55,10 @@ import { execFileSync } from "node:child_process";
 import { adrCommand, adrHelp, loadAdrListings, type AdrAllocatorLike } from "./adr.js";
 import { expandAtPathFlags, formatAtPathRefusal, PROSE_FLAGS } from "./at-path.js";
 import { libraryQuery, libraryQueryHelp } from "./library-query.js";
+// The arc domain owns its own package (`arc-tier-extraction-arc`): the arc / increment / question
+// verbs and the derived arc → children join live in `@storytree/arc`, which this shim dispatches to
+// exactly as it dispatches to `@storytree/drive`'s build verbs. It is a CONSUMER of the domain here,
+// not its landlord.
 import {
   arcCommand,
   arcHelp,
@@ -67,10 +71,14 @@ import {
   arcIncrementClose,
   arcIncrementNew,
   arcScopeOf,
+  questionCommand,
+  questionHelp,
+  incrementCommand,
+  incrementHelp,
   type ArcWriteDeps,
-} from "./arc.js";
-import { questionCommand, questionHelp, type QuestionWriteDeps } from "./question.js";
-import { incrementCommand, incrementHelp, type CountCommitsSince } from "./increment.js";
+  type QuestionWriteDeps,
+  type CountCommitsSince,
+} from "@storytree/arc";
 import { traversalCommand, traversalHelp } from "./traversal.js";
 // `session-cost` — the repeatable session-cost measurement over host transcripts (ADR-0323 D4).
 import { sessionCostCommand, sessionCostHelp } from "./session-cost.js";
@@ -78,7 +86,7 @@ import { CLI_AREAS } from "./cli-areas.js";
 import { dispatchCommand, dispatchHelp } from "./dispatch-command.js";
 // ADR-0290: a live library write records WHICH BRANCH made it, so `check:corpus-content` can charge a
 // seed↔live drift to the session that must reconcile it instead of to whoever gates next.
-import { defaultCliActor } from "./cli-actor.js";
+import { currentGitBranch, defaultCliActor, inFlightBranches } from "./cli-actor.js";
 import { adoptCommand, adoptHelp, type AdoptDispatchDeps } from "./adopt.js";
 import { branchNext, branchHelp } from "./branch.js";
 import {
@@ -3894,6 +3902,10 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         snapshot,
         ledgerPath: defaultLedgerPath(memoryDir),
         now,
+        // ADR-0371 — both derived from LOCAL git refs, so the worklist gains its authorship/liveness
+        // split without acquiring a network or database dependency.
+        currentBranch: currentGitBranch(),
+        inFlightBranches: inFlightBranches(now),
       },
     );
   }

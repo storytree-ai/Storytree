@@ -554,7 +554,7 @@ test("local-backend: /api/claims refuses a non-GET method with 405 (the only err
 
 // ===========================================================================
 // GET /api/arcs — the ARC SURFACE (ADR-0267 / ADR-0314). Re-composes the studio's handleArcs over
-// the SAME shared join (drive's loadArcRollup/loadArcRollups), so the desktop, the studio and
+// the SAME shared join (@storytree/arc's loadArcRollup/loadArcRollups), so the desktop, the studio and
 // `storytree arc show` cannot disagree about what an arc contains.
 //
 // THE GAP THESE CLOSE, measured rather than theorised: the Electron app loads the COMPILED STUDIO
@@ -735,7 +735,7 @@ test("local-backend: GET /api/arcs serves the arc rollups — not a 404 fall-thr
   }
 });
 
-// The payload is DRIVE'S JOIN, with nothing derived locally — asserted against `loadArcRollup`
+// The payload is THE ARC PACKAGE'S JOIN, with nothing derived locally — asserted against `loadArcRollup`
 // itself rather than a hand-shaped literal, so a handler that ever started deriving its own view
 // (or a desktop copy that drifted from the studio's) goes red HERE.
 test("local-backend: GET /api/arcs/<id> serves the SAME rollup drive's join produces", async () => {
@@ -748,7 +748,7 @@ test("local-backend: GET /api/arcs/<id> serves the SAME rollup drive's join prod
       assert.equal(res.status, 200);
       const body = (await res.json()) as Record<string, unknown>;
 
-      const { loadArcRollup } = await import("@storytree/drive");
+      const { loadArcRollup } = await import("@storytree/arc");
       const expected = await loadArcRollup(
         {
           store: store as unknown as Parameters<typeof loadArcRollup>[0]["store"],
