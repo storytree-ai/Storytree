@@ -28,8 +28,9 @@ export interface SvgIslandAccretionPlan {
 }
 
 export interface SvgIslandAccretionCellReveal {
+  /** The cell's shape-free identity — `forest-world`'s `landCellId`, straight off the scene node.
+   *  This is what the index below is keyed on, and what the renderer looks a cell up by. */
   readonly key: string;
-  readonly path: string;
   readonly centroid: SvgIslandAccretionPoint;
   readonly neighbourKeys: readonly string[];
   readonly wave: number;
@@ -52,7 +53,16 @@ export interface SvgIslandAccretionState {
   readonly progress: number;
   readonly mature: boolean;
   readonly cells: readonly SvgIslandAccretionCellReveal[];
-  readonly cellByPath: ReadonlyMap<string, SvgIslandAccretionCellReveal>;
+  /**
+   * The per-cell reveal index, keyed on the cell's IDENTITY (`SceneNodeBase.cellId`, minted by
+   * `forest-world`'s `landCellId`) — never on the cell's emitted `d` string.
+   *
+   * It was keyed on `d` until ADR-0367, which makes the land's geometry move: a byte key silently
+   * dropped the reveal for every cell whose polygon was printed differently, and the miss surfaced as
+   * "some cells stopped animating in" rather than as an error. Keying on identity means a cell keeps
+   * its reveal through a precision change, a projection, or an angled camera.
+   */
+  readonly cellById: ReadonlyMap<string, SvgIslandAccretionCellReveal>;
   readonly coastProgress: number;
   readonly coastReveals: readonly SvgIslandAccretionCoastReveal[];
 }
@@ -221,14 +231,25 @@ function collectIslandGeometry(
       node.el === 'path' &&
       (node.kind === 'cell' || node.kind === 'cell-wheat')
     ) {
+      // The identity is READ off the node, never re-derived here. A collector that minted its own
+      // ordinal would key the plan on something the renderer — which only has the node in hand —
+      // could never ask for, which is the same silent miss this index exists to remove. So an
+      // unstamped cell is fail-closed, not defaulted.
+      const cellId = node.cellId;
+      if (cellId === undefined || cellId === '') {
+        throw new Error(
+          `SVG island accretion found a land cell with no shape-free id in "${storyId}". ` +
+            'The reveal is indexed by cell identity, not by emitted geometry — the scene must stamp ' +
+            '`cellId` on every cell path (see `landCellId` in @storytree/forest-world).',
+        );
+      }
       const points = parsePolygonPath(node.d);
-      const sourceOrder = cells.length;
       cells.push({
-        key: `cell-${sourceOrder.toString().padStart(3, '0')}`,
+        key: cellId,
         path: node.d,
         points,
         centroid: polygonCentroid(points),
-        sourceOrder,
+        sourceOrder: cells.length,
       });
     }
     if (targetCoast && node.el === 'path' && node.kind === 'coast-shore') {
@@ -374,7 +395,6 @@ export function svgIslandAccretionAtProgress(
   const progress = clamp01(inputProgress);
   const cells = plan.cells.map((cell): SvgIslandAccretionCellReveal => ({
     key: cell.key,
-    path: cell.path,
     centroid: cell.centroid,
     neighbourKeys: cell.neighbourKeys,
     wave: cell.wave,
@@ -383,7 +403,7 @@ export function svgIslandAccretionAtProgress(
       (progress - cell.revealStart) / (cell.revealEnd - cell.revealStart),
     ),
   }));
-  const cellByKey = new Map(cells.map((cell) => [cell.key, cell]));
+  const cellById = new Map(cells.map((cell) => [cell.key, cell]));
   const coastProgress = smoothstep((progress - COAST_START) / COAST_REVEAL_DURATION);
   // Coastline settlement is one island-wide geometric handoff. The previous version
   // expanded one clip circle per cell after the land was already complete, making the
@@ -403,9 +423,7 @@ export function svgIslandAccretionAtProgress(
     progress,
     mature: progress === 1,
     cells,
-    cellByPath: new Map(
-      plan.cells.map((cell) => [cell.path, cellByKey.get(cell.key)!]),
-    ),
+    cellById,
     coastProgress,
     coastReveals,
   };
