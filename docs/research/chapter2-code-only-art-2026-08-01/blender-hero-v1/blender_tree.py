@@ -61,7 +61,24 @@ RES = int(arg("--res", "384"))
 SAMPLES = int(arg("--samples", "64"))
 SHADOW_SAMPLES = int(arg("--shadow-samples", "24"))
 SEED = int(arg("--seed", "20260801"))
-ELEV_DEG = 20.0                      # ADR-0280 D1's calibrated projection
+# ADR-0280 D1's calibrated projection. DEFAULTS TO 20.0, which is the angle every delivered
+# frame in this track was rendered at and the angle its signed owner ceiling verdict was given
+# at — a bare run is byte-identical to the shipped frames.
+#
+# It is an OVERRIDE rather than a constant because the tree is generated in 3D, so the camera
+# is a PARAMETER and not a re-authoring: the skeleton, the girth, the crown lobes and the cel
+# bands are all camera-independent, and a different `--elev` is the SAME tree correctly seen
+# from a different height. That is what makes ADR-0367 D1's reserved question ("whether the
+# shared value stays 20 degrees or moves") answerable by rendering rather than by re-tuning.
+#
+# ⚠ IT RE-TIMES THE INTERIOR FRAMES. `retime()` paces the track by silhouette-change arc
+# length off `cheap_silhouette()`, which rasterises through `to_screen()`, which reads `EL` —
+# so which growth state each frame index lands on is a function of this angle. Frames 0 and
+# 18 are the exceptions and they are pinned unconditionally (`picks[0], picks[-1] = 0.0, 1.0`
+# in `retime`), so the seedling and the MATURE frame are the same structural state at every
+# angle while frames 1..17 move. Compare a camera at the mature frame; comparing at an
+# interior index varies growth and camera at once.
+ELEV_DEG = float(arg("--elev", "20.0"))
 CANVAS = 128                         # the delivered pixel canvas
 ANCHOR_ROW = 118.0                   # where the trunk's ground contact lands, in canvas px
 SKIP_RENDER = "--no-render" in argv  # skeleton/retime only, for fast iteration

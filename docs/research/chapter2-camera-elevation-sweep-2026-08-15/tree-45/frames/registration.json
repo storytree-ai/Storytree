@@ -1,0 +1,406 @@
+{
+ "track": "blender-hero-v1",
+ "provenance": "code-generated (ADR-0280 D1); headless Blender finish (D2a); model-free",
+ "codeState": {
+  "generator": "blender_tree.py",
+  "sha256": "76d66a997df734cf61f667310fec0b8e222639ce773d1f9875649d1f850eee80"
+ },
+ "producer": {
+  "tool": "pixelise.py",
+  "sha256": "31d1cfd8e3b80a1d5d77d5428b0c770d500719228a6275399a9f66443c6f0d9f"
+ },
+ "producerArgv": [
+  "C:\\code\\storytree\\.claude\\worktrees\\agent-a01791a6e3b45e48f\\docs\\research\\chapter2-camera-elevation-sweep-2026-08-15\\tree-45\\raw",
+  "C:\\code\\storytree\\.claude\\worktrees\\agent-a01791a6e3b45e48f\\docs\\research\\chapter2-camera-elevation-sweep-2026-08-15\\tree-45\\frames",
+  "128"
+ ],
+ "canvas": {
+  "width": 128,
+  "height": 128,
+  "format": "PNG",
+  "decoded": "RGBA8"
+ },
+ "frameCount": 1,
+ "frameOrder": [
+  "frame-18.png"
+ ],
+ "groundSocketAnchor": {
+  "x": 67.29,
+  "y": 127
+ },
+ "anchorRule": "alpha-weighted x across the bottom three occupied TREE rows; groundY = bottom-most occupied tree row (the contact shadow is excluded from the anchor so it cannot drag the socket down)",
+ "camera_elevation_deg": 45.0,
+ "cameraRule": "orthographic, framed ONCE to the mature extent and byte-identical on every frame; the tree grows inside a fixed frame",
+ "alphaThreshold": 110,
+ "palette": {
+  "source": "exp-16 committed 32-colour track palette",
+  "usable": 31,
+  "method": "nearest in luma-weighted RGB, within the emitted BAND list per family when the render declares one \u2014 so the crown's colour count is the authored band count, not whatever the search reaches",
+  "foliageBands": [
+   [
+    92,
+    90,
+    46
+   ],
+   [
+    101,
+    118,
+    65
+   ],
+   [
+    121,
+    141,
+    83
+   ],
+   [
+    135,
+    148,
+    89
+   ],
+   [
+    173,
+    167,
+    114
+   ]
+  ],
+  "barkBands": [
+   [
+    73,
+    44,
+    28
+   ],
+   [
+    103,
+    62,
+    39
+   ],
+   [
+    125,
+    94,
+    55
+   ],
+   [
+    152,
+    106,
+    60
+   ]
+  ]
+ },
+ "render": {
+  "blender": "5.2.0 LTS",
+  "engine": "CYCLES/CPU",
+  "seed": 20260801,
+  "samples": 72,
+  "shadow_samples": 32,
+  "supersample_res": 384,
+  "ortho_scale": 2.326963,
+  "nodes": 352,
+  "iterations": 28,
+  "lobes": 29
+ },
+ "growth": [
+  {
+   "i": 0,
+   "u": 0.0,
+   "N": 3.87,
+   "live_nodes": 5,
+   "lobes": 0,
+   "trunk_r": 0.01444,
+   "t_root": 0.0486,
+   "t_plant": 0.1473,
+   "canopy_weight": 0.0,
+   "ortho_scale": 2.326963,
+   "target_z": 1.388316,
+   "true_height_frac": 0.1368,
+   "apparent_height_frac": 0.1368
+  },
+  {
+   "i": 1,
+   "u": 0.155963,
+   "N": 7.1996,
+   "live_nodes": 9,
+   "lobes": 0,
+   "trunk_r": 0.01589,
+   "t_root": 0.0739,
+   "t_plant": 0.2735,
+   "canopy_weight": 0.0,
+   "ortho_scale": 2.326963,
+   "target_z": 1.388316,
+   "true_height_frac": 0.2504,
+   "apparent_height_frac": 0.2504
+  },
+  {
+   "i": 2,
+   "u": 0.229358,
+   "N": 9.2001,
+   "live_nodes": 15,
+   "lobes": 0,
+   "trunk_r": 0.02876,
+   "t_root": 0.2399,
+   "t_plant": 0.311,
+   "canopy_weight": 0.0,
+   "ortho_scale": 2.326963,
+   "target_z": 1.388316,
+   "true_height_frac": 0.2841,
+   "apparent_height_frac": 0.2841
+  },
+  {
+   "i": 3,
+   "u": 0.247706,
+   "N": 9.7248,
+   "live_nodes": 15,
+   "lobes": 0,
+   "trunk_r": 0.02876,
+   "t_root": 0.2399,
+   "t_plant": 0.3296,
+   "canopy_weight": 0.0,
+   "ortho_scale": 2.326963,
+   "target_z": 1.388316,
+   "true_height_frac": 0.3008,
+   "apparent_height_frac": 0.3008
+  },
+  {
+   "i": 4,
+   "u": 0.302752,
+   "N": 11.3489,
+   "live_nodes": 26,
+   "lobes": 0,
+   "trunk_r": 0.03579,
+   "t_root": 0.3141,
+   "t_plant": 0.3877,
+   "canopy_weight": 0.0,
+   "ortho_scale": 2.326963,
+   "target_z": 1.388316,
+   "true_height_frac": 0.3531,
+   "apparent_height_frac": 0.3531
+  },
+  {
+   "i": 5,
+   "u": 0.394495,
+   "N": 14.1996,
+   "live_nodes": 46,
+   "lobes": 0,
+   "trunk_r": 0.04436,
+   "t_root": 0.3972,
+   "t_plant": 0.4923,
+   "canopy_weight": 0.0,
+   "ortho_scale": 2.326963,
+   "target_z": 1.388316,
+   "true_height_frac": 0.4472,
+   "apparent_height_frac": 0.4472
+  },
+  {
+   "i": 6,
+   "u": 0.440367,
+   "N": 15.6831,
+   "live_nodes": 58,
+   "lobes": 0,
+   "trunk_r": 0.05044,
+   "t_root": 0.4529,
+   "t_plant": 0.5482,
+   "canopy_weight": 0.0,
+   "ortho_scale": 2.326963,
+   "target_z": 1.388316,
+   "true_height_frac": 0.4975,
+   "apparent_height_frac": 0.4975
+  },
+  {
+   "i": 7,
+   "u": 0.486239,
+   "N": 17.2011,
+   "live_nodes": 94,
+   "lobes": 0,
+   "trunk_r": 0.06237,
+   "t_root": 0.5559,
+   "t_plant": 0.605,
+   "canopy_weight": 0.0154,
+   "ortho_scale": 2.326963,
+   "target_z": 1.388316,
+   "true_height_frac": 0.5487,
+   "apparent_height_frac": 0.5487
+  },
+  {
+   "i": 8,
+   "u": 0.522936,
+   "N": 18.4386,
+   "live_nodes": 123,
+   "lobes": 5,
+   "trunk_r": 0.06959,
+   "t_root": 0.6153,
+   "t_plant": 0.6518,
+   "canopy_weight": 0.9771,
+   "ortho_scale": 2.326963,
+   "target_z": 1.388316,
+   "true_height_frac": 0.5908,
+   "apparent_height_frac": 0.5908
+  },
+  {
+   "i": 9,
+   "u": 0.550459,
+   "N": 19.3794,
+   "live_nodes": 156,
+   "lobes": 7,
+   "trunk_r": 0.07504,
+   "t_root": 0.6588,
+   "t_plant": 0.6876,
+   "canopy_weight": 3.0793,
+   "ortho_scale": 2.326963,
+   "target_z": 1.388316,
+   "true_height_frac": 0.6229,
+   "apparent_height_frac": 0.6229
+  },
+  {
+   "i": 10,
+   "u": 0.577982,
+   "N": 20.3306,
+   "live_nodes": 189,
+   "lobes": 10,
+   "trunk_r": 0.0791,
+   "t_root": 0.6906,
+   "t_plant": 0.7234,
+   "canopy_weight": 6.863,
+   "ortho_scale": 2.326963,
+   "target_z": 1.388316,
+   "true_height_frac": 0.6552,
+   "apparent_height_frac": 0.6552
+  },
+  {
+   "i": 11,
+   "u": 0.59633,
+   "N": 20.9703,
+   "live_nodes": 189,
+   "lobes": 12,
+   "trunk_r": 0.08062,
+   "t_root": 0.7024,
+   "t_plant": 0.7475,
+   "canopy_weight": 11.4388,
+   "ortho_scale": 2.326963,
+   "target_z": 1.388316,
+   "true_height_frac": 0.6769,
+   "apparent_height_frac": 0.6769
+  },
+  {
+   "i": 12,
+   "u": 0.623853,
+   "N": 21.938,
+   "live_nodes": 222,
+   "lobes": 14,
+   "trunk_r": 0.08456,
+   "t_root": 0.7326,
+   "t_plant": 0.7836,
+   "canopy_weight": 18.558,
+   "ortho_scale": 2.326963,
+   "target_z": 1.388316,
+   "true_height_frac": 0.7094,
+   "apparent_height_frac": 0.7094
+  },
+  {
+   "i": 13,
+   "u": 0.642202,
+   "N": 22.5885,
+   "live_nodes": 255,
+   "lobes": 14,
+   "trunk_r": 0.0875,
+   "t_root": 0.755,
+   "t_plant": 0.8083,
+   "canopy_weight": 22.7028,
+   "ortho_scale": 2.326963,
+   "target_z": 1.388316,
+   "true_height_frac": 0.7316,
+   "apparent_height_frac": 0.7316
+  },
+  {
+   "i": 14,
+   "u": 0.66055,
+   "N": 23.243,
+   "live_nodes": 285,
+   "lobes": 17,
+   "trunk_r": 0.0898,
+   "t_root": 0.7722,
+   "t_plant": 0.8329,
+   "canopy_weight": 25.3995,
+   "ortho_scale": 2.326963,
+   "target_z": 1.388316,
+   "true_height_frac": 0.7678,
+   "apparent_height_frac": 0.7678
+  },
+  {
+   "i": 15,
+   "u": 0.669725,
+   "N": 23.5717,
+   "live_nodes": 285,
+   "lobes": 17,
+   "trunk_r": 0.09067,
+   "t_root": 0.7788,
+   "t_plant": 0.8451,
+   "canopy_weight": 30.9625,
+   "ortho_scale": 2.326963,
+   "target_z": 1.388316,
+   "true_height_frac": 0.7916,
+   "apparent_height_frac": 0.7916
+  },
+  {
+   "i": 16,
+   "u": 0.697248,
+   "N": 24.5639,
+   "live_nodes": 313,
+   "lobes": 18,
+   "trunk_r": 0.09393,
+   "t_root": 0.803,
+   "t_plant": 0.8817,
+   "canopy_weight": 40.0779,
+   "ortho_scale": 2.326963,
+   "target_z": 1.388316,
+   "true_height_frac": 0.8265,
+   "apparent_height_frac": 0.8265
+  },
+  {
+   "i": 17,
+   "u": 0.743119,
+   "N": 26.2367,
+   "live_nodes": 349,
+   "lobes": 19,
+   "trunk_r": 0.09886,
+   "t_root": 0.8392,
+   "t_plant": 0.9439,
+   "canopy_weight": 58.7162,
+   "ortho_scale": 2.326963,
+   "target_z": 1.388316,
+   "true_height_frac": 0.8887,
+   "apparent_height_frac": 0.8887
+  },
+  {
+   "i": 18,
+   "u": 1.0,
+   "N": 36.0,
+   "live_nodes": 352,
+   "lobes": 19,
+   "trunk_r": 0.1216,
+   "t_root": 1.0,
+   "t_plant": 1.0,
+   "canopy_weight": 119.0652,
+   "ortho_scale": 2.326963,
+   "target_z": 1.388316,
+   "true_height_frac": 1.0,
+   "apparent_height_frac": 1.0
+  }
+ ],
+ "frames": [
+  {
+   "file": "frame-18.png",
+   "sourceAnchor": [
+    67.29,
+    127
+   ],
+   "bbox": [
+    8,
+    0,
+    124,
+    127
+   ],
+   "alphaPx": 9051,
+   "treePx": 8296,
+   "shadowPx": 755
+  }
+ ]
+}
