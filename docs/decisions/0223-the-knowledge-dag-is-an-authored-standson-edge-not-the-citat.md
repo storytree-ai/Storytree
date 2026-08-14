@@ -79,7 +79,7 @@ The forces:
    | Tier | Kinds | Role |
    |---|---|---|
    | 0 · decisions | ADRs | **bedrock** — stand on nothing (`DocMeta` has no `references`; natural sinks), stood-on by whatever they ratify |
-   | 1 · reference | definition, techstack | |
+   | 1 · reference | ~~definition~~, techstack | `definition` was REMOVED from the DAG by ADR-0363 D1 — read this row through that ADR |
    | 2 · rules | principle, pattern, guardrail | |
    | 3 · process | process | |
    | 4 · roles | agent | |
@@ -137,8 +137,15 @@ The forces:
 - **Cost.** A schema field, a new gate, a bootstrap migration over ~160 artifacts, and a `buildFocusGraph`
   rewrite + studio render change — decomposed into provable increments under `directional-dag-arc`.
 - **Ongoing.** `standsOn` is authored guidance now: new/curated artifacts should declare what they stand
-  on, and the librarian-curator maintains it alongside `references`. Bootstrap gets ~80% for free;
-  same-tier dependencies are the curation tail.
+  on, and the librarian-curator maintains it alongside `references`. Bootstrap gets the majority for
+  free; same-tier dependencies are the curation tail.
+
+  *(This bullet estimated "~80% for free". MEASURED on 2026-08-14 when the bootstrap ran: the
+  projection captured **660 of the 1104 orientable citation edges, 60%**, seeding 169 artifacts. The
+  same-tier tail is **420 edges, 38%** — larger than "the curation tail" implied, and concentrated
+  almost entirely in tier 2, where principles, patterns and guardrails cite each other. Corrected in
+  place under ADR-0139; the decision to bootstrap-then-curate is unchanged, only the estimate of how
+  much it buys.)*
 - **Bad / watch.** A second edge type is a maintenance surface; it can drift from citations (that is the
   point, but it means two things to keep honest). The tier order is a fixed partial order — a future kind
   must be placed in it.
