@@ -1,0 +1,67 @@
+{
+ "generator": "blender_land.py",
+ "code_state": {
+  "generator": "blender_land.py",
+  "sha256": "920755590a617a54cdb8ff1582885053aa778caed79fade584bf3aaf33204870"
+ },
+ "argv": [
+  "--out",
+  "pieces",
+  "--samples",
+  "32"
+ ],
+ "blender": "5.2.0 LTS",
+ "engine": "CYCLES/CPU",
+ "seed": 20260815,
+ "samples": 32,
+ "supersample": 3,
+ "pieceCanvasWorld": 64.0,
+ "pieceCanvasPx": 192,
+ "camera": {
+  "elevationDeg": 20.0,
+  "rule": "orthographic; ortho_scale == the piece canvas in app px, so one world unit is exactly SS pixels and a piece pastes at its placement's projected centre"
+ },
+ "tileDepthWorld": 8.0,
+ "chamfer": {
+  "insetGround": 1.7,
+  "dropWorld": 1.0
+ },
+ "cliffDropWorld": 11.0,
+ "lightDir": [
+  -0.435,
+  -0.429,
+  0.792
+ ],
+ "lightRuleSource": "the hero tree's own key direction, reused so land and object share one light",
+ "bandKeys": {
+  "top": [
+   255,
+   0,
+   0
+  ],
+  "chamfer_lit": [
+   0,
+   255,
+   0
+  ],
+  "chamfer_dark": [
+   0,
+   0,
+   255
+  ],
+  "wall_lit": [
+   255,
+   255,
+   0
+  ],
+  "wall_dark": [
+   0,
+   255,
+   255
+  ]
+ },
+ "tilePieces": 6,
+ "wallPieces": 16,
+ "variantBInteriorPieces": 0,
+ "variantBNote": "variant (b) renders NO interior piece \u2014 the flat per-cell fills stay SVG and keep their status tint. Both variants share the wall pieces above verbatim, so the fork picture varies the interior and nothing else."
+}
