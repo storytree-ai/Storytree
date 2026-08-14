@@ -136,8 +136,11 @@ is already a tree.**
   than tuned blind.
 - **The opening frames get thinner, not just barer.** Under the delivered fixed camera the first
   frames were already small, and a bare twig has far less silhouette than a green tuft. This
-  sharpens the open scale-convention fork (ADR-0289's corrected bullet) rather than settling it, and
-  may make it the more urgent of the two open owner calls.
+  sharpens the scale-convention fork (ADR-0289's corrected bullet) rather than settling it, and was
+  recorded as the more urgent of two open owner calls at the time.
+  **Corrected in place 2026-08-14 (ADR-0139); the decision is unchanged.** The scale-convention fork
+  is now settled: the owner kept `fixed` on the hero tree's ceiling verdict (increment
+  `attest-code-generated-hero-tree-ceiling` on this arc) — see ADR-0289's closing correction.
 - **The mid-stage character work in PR #1103 is partly re-scoped by this.** The third attractor ring
   that gave the whip somewhere to put leaves is MORE load-bearing now, not less — it is what makes
   the wood phase a branching structure rather than a pole. But the measurement that justified it,

@@ -21,6 +21,11 @@ D1 (the app-owned SVG island is the sole land substrate), D3 (the generated asse
 camera; the camera does not move to fit the asset) and its runtime safeguards stand without change.
 D2's reservation of organic growth tracks to PixelLab is widened to any author-time source, code
 first. ADR-0274 is not superseded and its arc is not closed; that track remains live and unselected.
+**D1 is narrowed again by [ADR-0367](0367-chapter-2-s-land-is-rendered-in-blender-too-an-angled-citybu.md)
+(2026-08-14): the sole-land-substrate clause no longer stands "without change" — land ART may now be
+produced by our own Blender script at author time, delivered as an addressable
+per-cell/per-coast-segment set, while the app continues to own the land itself. D3 and every runtime
+safeguard remain unchanged.**
 
 ## Context
 
@@ -183,6 +188,13 @@ Consequently:
 - **Reopening 3D is an owner decision, taken against the ceiling this arc demonstrates**, and it is
   to be argued on scope — is this worth building for a non-core surface — rather than re-litigating
   the look.
+  **Corrected in place 2026-08-14 (ADR-0139); the decision is unchanged.** The owner made that call:
+  author-time 3D was reopened 2026-08-14 on signing the hero tree's ceiling verdict (arc
+  `chapter2-code-generated-organic-art-arc`, increment `attest-code-generated-hero-tree-ceiling`),
+  the stated reason being that Blender's shadows and lighting make a material difference. Its first
+  spend is [ADR-0367](0367-chapter-2-s-land-is-rendered-in-blender-too-an-angled-citybu.md) — Chapter
+  2's land, rendered the same way. Author-time 3D is no longer "untested" or "held open"; runtime 3D
+  stays closed, unchanged, on the same scope grounds.
 
 ### D6 — Unchanged
 
@@ -191,6 +203,13 @@ Next, Back, Replay, reduced-motion settlement, sockets and painter order. The ex
 island, coast and established camera remain the sole land substrate (ADR-0274 D1). Any generated or
 computed asset is appearance only. If a code or 3D direction would change the land substrate, that is
 a fork raised to the owner, not an assumption.
+
+*(Narrowed by [ADR-0367](0367-chapter-2-s-land-is-rendered-in-blender-too-an-angled-citybu.md),
+2026-08-14: the fork this paragraph anticipated was raised and the owner decided it — land ART may
+now be produced by our own Blender script at author time, delivered as an addressable
+per-cell/per-coast-segment set. The app still owns the land substrate itself: which cells are
+claimed, per-cell status tint, the coast derivation, the accretion reveal, hit targets and scene
+bounds. Noted in place per ADR-0139.)*
 
 ## Consequences
 
@@ -228,6 +247,10 @@ a fork raised to the owner, not an assumption.
 - `code-sdf-volume`'s failure is undiagnosed, so the author-time-3D option is being held open on an
   experiment that did not work — mitigated but not removed by D2a, which replaces the hand-rolled
   renderer with a production one.
+  **Corrected in place 2026-08-14 (ADR-0139); the decision is unchanged.** The option is no longer
+  merely being held open: the owner reopened author-time 3D on 2026-08-14 (D5 note above;
+  [ADR-0367](0367-chapter-2-s-land-is-rendered-in-blender-too-an-angled-citybu.md) is its first
+  spend).
 - **D2a adds a ~1 GB author-time tool to an initiative whose live objection is over-engineering.** It
   is free, author-time only and absent from the runtime, build and workspace dependencies, but it is
   still a heavier pipeline than a single-file generator, and it must earn its place against the pixel

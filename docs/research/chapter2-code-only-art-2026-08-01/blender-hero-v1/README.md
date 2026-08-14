@@ -195,8 +195,19 @@ v9 materially improves the one known cost of v8, but it does not erase the remai
    to 100% apparent height. That is ADR-0280 D1 working as authored, not a technical defect, but no
    owner has chosen between the conventions.
 6. The mid-flush bare twig tips identified in v6 remain deliberately untuned.
-7. `on-island.png` is still the v3 live-lab screenshot. The mounted assets are current, but the
-   Browser-pane screenshot route remains unavailable when the pane is not displayed.
+7. `on-island.png` is still the v3 live-lab screenshot. The mounted assets are current. The claim
+   that the screenshot route is unavailable is **withdrawn** — it was true only of the Browser pane.
+   Headless Playwright against `pnpm studio:up` photographs the lab fine (`@playwright/test` is
+   already an `apps/studio` dev dependency and its chromium is cached), and that is how the v9
+   owner LOOK was staged on 2026-08-14. Three settle traps make a naive attempt produce a WRONG
+   picture, all measured: a fixed sleep photographs one candidate mid-flush against a mature other
+   one; settling on the sprite's `href` is no better, because the DOM sits stable at `frame-18` for
+   10s+ while the draw-on reveal is still incomplete; and polling with
+   `screenshot({animations:'disabled'})` PINS the reveal, so a pixel-settle loop reports "settled"
+   on an incomplete raster. The damage always followed the STAGE ORDER rather than the candidate, so
+   give each candidate its own page and an identical generous wait. Verify before believing a sheet:
+   the SHARED, frozen plant track must render identically in every cell — if it does not, the cells
+   are at different growth progress and the comparison is void.
 
 The owner's two other triaged shading techniques—an extra rim-light band and negative-power point
 lights—remain unspent. Neither can change visible bark; the normals fork already measured that

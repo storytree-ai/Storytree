@@ -39,6 +39,13 @@ D2 never carried: an authored per-frame track — from any source — is afforda
 focused tree, and every other tree in the forest renders app-native. This ADR is not superseded and
 its arc is not closed; the hero-tree source remains unselected.
 
+**Amended by [ADR-0367](0367-chapter-2-s-land-is-rendered-in-blender-too-an-angled-citybu.md)
+(2026-08-14), on D1 alone.** D1's clause that the app-owned SVG island is the sole land substrate is
+narrowed: the app still owns the land's shape, per-cell identity, status tint, reveal and hit
+targets, but the land's ART may now be produced by our own Blender script at author time, delivered
+as an addressable per-cell/per-coast-segment set rather than a redrawn parcel. D2, D3 and every
+runtime safeguard are untouched, and this sibling PixelLab track is explicitly unaffected.
+
 ## Context
 
 The PixelLab full-island experiment reached the real shared app and answered an important
@@ -68,8 +75,12 @@ clause wins.
 **Island — SETTLED (recorded lead).** Experiment 6's connected SVG accretion is the island
 treatment. It carries the only explicitly positive island-formation LOOK the arc has recorded — "the
 island growth looks really good" — and it is the fixed composition the round-3 hero-tree lab
-compares candidates over. It is app-owned SVG land, as D1 requires; no generated-land substitute is
-in scope. Whole-composition and clean-route adoption still run through D5.
+compares candidates over. It is app-owned SVG land, as D1 requires; no PixelLab-generated-land
+substitute is in scope. **Narrowed 2026-08-14 by
+[ADR-0367](0367-chapter-2-s-land-is-rendered-in-blender-too-an-angled-citybu.md):** a Blender-rendered
+land ART substitute is now in scope, author-time only and app-composed; this sentence's earlier
+blanket "no generated-land substitute" no longer holds for that source. Whole-composition and
+clean-route adoption still run through D5.
 
 **Small plants and flowers — SETTLED.** The registered cutout/pose technique is retained for ferns,
 flowers, grasses and other small ground details on declared app-owned sockets (ADR-0277 D2 and D5).
@@ -191,6 +202,13 @@ prose in this ADR and in ADR-0277 stands exactly as written.
 ## Decision
 
 ### D1 — The existing SVG island is the sole land substrate
+
+*(Narrowed by [ADR-0367](0367-chapter-2-s-land-is-rendered-in-blender-too-an-angled-citybu.md),
+2026-08-14: the app still owns the land itself — shape, per-cell identity, status tint, reveal, hit
+targets — but the land's ART may now be produced by our own Blender script at author time, delivered
+as an addressable per-cell/per-coast-segment set. The "no generated island … whose frames redraw the
+parcel" line below is narrowed to that scope; it still forbids a PixelLab land substitute. Noted in
+place per ADR-0139.)*
 
 Chapter 2 grows the existing app-owned SVG island, coast and ground geometry through the standard
 shared renderer. Their established isometric camera, world parcel, view box and painter-order role
