@@ -1,0 +1,691 @@
+{
+ "angles": [
+  {
+   "tag": "20",
+   "elevationDeg": 20.0,
+   "why": "current \u2014 LAND_CAMERA_ELEVATION_DEG",
+   "emit": "C:\\code\\storytree\\.claude\\worktrees\\agent-a01791a6e3b45e48f\\docs\\research\\chapter2-camera-elevation-sweep-2026-08-15\\islands\\island-20.json  camera=20deg (LAND_CAMERA_ELEVATION_DEG)  tiles=17  A: 102 cells / 6 distinct shapes  B: 214 cells / 214 distinct shapes  coast=128 pts  wallPieces=82 at 16 headings",
+   "landCodeState": "15927bf56c77cd23bc4d41a7353a5890450aeabca02013a08051beb52613b007",
+   "landCameraDeg": 20.0,
+   "skeleton": {
+    "nodes": 352,
+    "iters": 28,
+    "lobes": 29
+   },
+   "mature": {
+    "u": 1.0,
+    "N": 36.0,
+    "lobes": 19,
+    "mat": 1.0
+   },
+   "retime": [
+    {
+     "u": 0.0,
+     "N": 3.87,
+     "lobes": 0,
+     "mat": 0.06
+    },
+    {
+     "u": 0.1743,
+     "N": 7.68,
+     "lobes": 0,
+     "mat": 0.21
+    },
+    {
+     "u": 0.2569,
+     "N": 9.99,
+     "lobes": 0,
+     "mat": 0.27
+    },
+    {
+     "u": 0.2936,
+     "N": 11.07,
+     "lobes": 0,
+     "mat": 0.32
+    },
+    {
+     "u": 0.3578,
+     "N": 13.04,
+     "lobes": 0,
+     "mat": 0.42
+    },
+    {
+     "u": 0.422,
+     "N": 15.09,
+     "lobes": 0,
+     "mat": 0.54
+    },
+    {
+     "u": 0.4679,
+     "N": 16.59,
+     "lobes": 0,
+     "mat": 0.62
+    },
+    {
+     "u": 0.5046,
+     "N": 17.82,
+     "lobes": 3,
+     "mat": 0.69
+    },
+    {
+     "u": 0.5321,
+     "N": 18.75,
+     "lobes": 6,
+     "mat": 0.74
+    },
+    {
+     "u": 0.5596,
+     "N": 19.7,
+     "lobes": 7,
+     "mat": 0.78
+    },
+    {
+     "u": 0.578,
+     "N": 20.33,
+     "lobes": 10,
+     "mat": 0.81
+    },
+    {
+     "u": 0.6055,
+     "N": 21.29,
+     "lobes": 12,
+     "mat": 0.85
+    },
+    {
+     "u": 0.633,
+     "N": 22.26,
+     "lobes": 15,
+     "mat": 0.89
+    },
+    {
+     "u": 0.6514,
+     "N": 22.92,
+     "lobes": 14,
+     "mat": 0.92
+    },
+    {
+     "u": 0.6697,
+     "N": 23.57,
+     "lobes": 17,
+     "mat": 0.94
+    },
+    {
+     "u": 0.6972,
+     "N": 24.56,
+     "lobes": 18,
+     "mat": 0.96
+    },
+    {
+     "u": 0.7339,
+     "N": 25.9,
+     "lobes": 19,
+     "mat": 0.99
+    },
+    {
+     "u": 0.7615,
+     "N": 26.91,
+     "lobes": 19,
+     "mat": 1.0
+    },
+    {
+     "u": 1.0,
+     "N": 36.0,
+     "lobes": 19,
+     "mat": 1.0
+    }
+   ],
+   "deliveredFrame": "tree-20/frames/frame-18.png"
+  },
+  {
+   "tag": "30",
+   "elevationDeg": 30.0,
+   "why": "classic isometric drawing angle",
+   "emit": "C:\\code\\storytree\\.claude\\worktrees\\agent-a01791a6e3b45e48f\\docs\\research\\chapter2-camera-elevation-sweep-2026-08-15\\islands\\island-30.json  camera=30deg (SWEEP OVERRIDE)  tiles=17  A: 102 cells / 6 distinct shapes  B: 214 cells / 214 distinct shapes  coast=128 pts  wallPieces=82 at 16 headings",
+   "landCodeState": "15927bf56c77cd23bc4d41a7353a5890450aeabca02013a08051beb52613b007",
+   "landCameraDeg": 30.0,
+   "skeleton": {
+    "nodes": 352,
+    "iters": 28,
+    "lobes": 29
+   },
+   "mature": {
+    "u": 1.0,
+    "N": 36.0,
+    "lobes": 19,
+    "mat": 1.0
+   },
+   "retime": [
+    {
+     "u": 0.0,
+     "N": 3.87,
+     "lobes": 0,
+     "mat": 0.06
+    },
+    {
+     "u": 0.1835,
+     "N": 7.93,
+     "lobes": 0,
+     "mat": 0.22
+    },
+    {
+     "u": 0.2294,
+     "N": 9.2,
+     "lobes": 0,
+     "mat": 0.23
+    },
+    {
+     "u": 0.2661,
+     "N": 10.26,
+     "lobes": 0,
+     "mat": 0.28
+    },
+    {
+     "u": 0.3303,
+     "N": 12.19,
+     "lobes": 0,
+     "mat": 0.38
+    },
+    {
+     "u": 0.4037,
+     "N": 14.49,
+     "lobes": 0,
+     "mat": 0.5
+    },
+    {
+     "u": 0.4587,
+     "N": 16.29,
+     "lobes": 0,
+     "mat": 0.61
+    },
+    {
+     "u": 0.4954,
+     "N": 17.51,
+     "lobes": 0,
+     "mat": 0.67
+    },
+    {
+     "u": 0.5229,
+     "N": 18.44,
+     "lobes": 5,
+     "mat": 0.72
+    },
+    {
+     "u": 0.5505,
+     "N": 19.38,
+     "lobes": 7,
+     "mat": 0.77
+    },
+    {
+     "u": 0.578,
+     "N": 20.33,
+     "lobes": 10,
+     "mat": 0.81
+    },
+    {
+     "u": 0.6055,
+     "N": 21.29,
+     "lobes": 12,
+     "mat": 0.85
+    },
+    {
+     "u": 0.6239,
+     "N": 21.94,
+     "lobes": 14,
+     "mat": 0.88
+    },
+    {
+     "u": 0.6422,
+     "N": 22.59,
+     "lobes": 14,
+     "mat": 0.9
+    },
+    {
+     "u": 0.6606,
+     "N": 23.24,
+     "lobes": 17,
+     "mat": 0.93
+    },
+    {
+     "u": 0.6881,
+     "N": 24.23,
+     "lobes": 18,
+     "mat": 0.95
+    },
+    {
+     "u": 0.7156,
+     "N": 25.23,
+     "lobes": 19,
+     "mat": 0.98
+    },
+    {
+     "u": 0.7523,
+     "N": 26.57,
+     "lobes": 19,
+     "mat": 0.99
+    },
+    {
+     "u": 1.0,
+     "N": 36.0,
+     "lobes": 19,
+     "mat": 1.0
+    }
+   ],
+   "deliveredFrame": "tree-30/frames/frame-18.png"
+  },
+  {
+   "tag": "35p26",
+   "elevationDeg": 35.264,
+   "why": "TRUE isometric \u2014 atan(1/sqrt2)",
+   "emit": "C:\\code\\storytree\\.claude\\worktrees\\agent-a01791a6e3b45e48f\\docs\\research\\chapter2-camera-elevation-sweep-2026-08-15\\islands\\island-35p26.json  camera=35.264deg (SWEEP OVERRIDE)  tiles=17  A: 102 cells / 6 distinct shapes  B: 214 cells / 214 distinct shapes  coast=128 pts  wallPieces=82 at 16 headings",
+   "landCodeState": "15927bf56c77cd23bc4d41a7353a5890450aeabca02013a08051beb52613b007",
+   "landCameraDeg": 35.264,
+   "skeleton": {
+    "nodes": 352,
+    "iters": 28,
+    "lobes": 29
+   },
+   "mature": {
+    "u": 1.0,
+    "N": 36.0,
+    "lobes": 19,
+    "mat": 1.0
+   },
+   "retime": [
+    {
+     "u": 0.0,
+     "N": 3.87,
+     "lobes": 0,
+     "mat": 0.06
+    },
+    {
+     "u": 0.1743,
+     "N": 7.68,
+     "lobes": 0,
+     "mat": 0.21
+    },
+    {
+     "u": 0.2294,
+     "N": 9.2,
+     "lobes": 0,
+     "mat": 0.23
+    },
+    {
+     "u": 0.2661,
+     "N": 10.26,
+     "lobes": 0,
+     "mat": 0.28
+    },
+    {
+     "u": 0.3303,
+     "N": 12.19,
+     "lobes": 0,
+     "mat": 0.38
+    },
+    {
+     "u": 0.4128,
+     "N": 14.79,
+     "lobes": 0,
+     "mat": 0.52
+    },
+    {
+     "u": 0.4587,
+     "N": 16.29,
+     "lobes": 0,
+     "mat": 0.61
+    },
+    {
+     "u": 0.5046,
+     "N": 17.82,
+     "lobes": 3,
+     "mat": 0.69
+    },
+    {
+     "u": 0.5321,
+     "N": 18.75,
+     "lobes": 6,
+     "mat": 0.74
+    },
+    {
+     "u": 0.5596,
+     "N": 19.7,
+     "lobes": 7,
+     "mat": 0.78
+    },
+    {
+     "u": 0.578,
+     "N": 20.33,
+     "lobes": 10,
+     "mat": 0.81
+    },
+    {
+     "u": 0.6055,
+     "N": 21.29,
+     "lobes": 12,
+     "mat": 0.85
+    },
+    {
+     "u": 0.6239,
+     "N": 21.94,
+     "lobes": 14,
+     "mat": 0.88
+    },
+    {
+     "u": 0.6422,
+     "N": 22.59,
+     "lobes": 14,
+     "mat": 0.9
+    },
+    {
+     "u": 0.6606,
+     "N": 23.24,
+     "lobes": 17,
+     "mat": 0.93
+    },
+    {
+     "u": 0.6789,
+     "N": 23.9,
+     "lobes": 17,
+     "mat": 0.94
+    },
+    {
+     "u": 0.7064,
+     "N": 24.9,
+     "lobes": 17,
+     "mat": 0.97
+    },
+    {
+     "u": 0.7523,
+     "N": 26.57,
+     "lobes": 19,
+     "mat": 0.99
+    },
+    {
+     "u": 1.0,
+     "N": 36.0,
+     "lobes": 19,
+     "mat": 1.0
+    }
+   ],
+   "deliveredFrame": "tree-35p26/frames/frame-18.png"
+  },
+  {
+   "tag": "45",
+   "elevationDeg": 45.0,
+   "why": "ground and upright foreshorten equally",
+   "emit": "C:\\code\\storytree\\.claude\\worktrees\\agent-a01791a6e3b45e48f\\docs\\research\\chapter2-camera-elevation-sweep-2026-08-15\\islands\\island-45.json  camera=45deg (SWEEP OVERRIDE)  tiles=17  A: 102 cells / 6 distinct shapes  B: 214 cells / 214 distinct shapes  coast=128 pts  wallPieces=82 at 16 headings",
+   "landCodeState": "15927bf56c77cd23bc4d41a7353a5890450aeabca02013a08051beb52613b007",
+   "landCameraDeg": 45.0,
+   "skeleton": {
+    "nodes": 352,
+    "iters": 28,
+    "lobes": 29
+   },
+   "mature": {
+    "u": 1.0,
+    "N": 36.0,
+    "lobes": 19,
+    "mat": 1.0
+   },
+   "retime": [
+    {
+     "u": 0.0,
+     "N": 3.87,
+     "lobes": 0,
+     "mat": 0.06
+    },
+    {
+     "u": 0.156,
+     "N": 7.2,
+     "lobes": 0,
+     "mat": 0.18
+    },
+    {
+     "u": 0.2294,
+     "N": 9.2,
+     "lobes": 0,
+     "mat": 0.23
+    },
+    {
+     "u": 0.2477,
+     "N": 9.72,
+     "lobes": 0,
+     "mat": 0.25
+    },
+    {
+     "u": 0.3028,
+     "N": 11.35,
+     "lobes": 0,
+     "mat": 0.33
+    },
+    {
+     "u": 0.3945,
+     "N": 14.2,
+     "lobes": 0,
+     "mat": 0.49
+    },
+    {
+     "u": 0.4404,
+     "N": 15.68,
+     "lobes": 0,
+     "mat": 0.57
+    },
+    {
+     "u": 0.4862,
+     "N": 17.2,
+     "lobes": 0,
+     "mat": 0.66
+    },
+    {
+     "u": 0.5229,
+     "N": 18.44,
+     "lobes": 5,
+     "mat": 0.72
+    },
+    {
+     "u": 0.5505,
+     "N": 19.38,
+     "lobes": 7,
+     "mat": 0.77
+    },
+    {
+     "u": 0.578,
+     "N": 20.33,
+     "lobes": 10,
+     "mat": 0.81
+    },
+    {
+     "u": 0.5963,
+     "N": 20.97,
+     "lobes": 12,
+     "mat": 0.84
+    },
+    {
+     "u": 0.6239,
+     "N": 21.94,
+     "lobes": 14,
+     "mat": 0.88
+    },
+    {
+     "u": 0.6422,
+     "N": 22.59,
+     "lobes": 14,
+     "mat": 0.9
+    },
+    {
+     "u": 0.6606,
+     "N": 23.24,
+     "lobes": 17,
+     "mat": 0.93
+    },
+    {
+     "u": 0.6697,
+     "N": 23.57,
+     "lobes": 17,
+     "mat": 0.94
+    },
+    {
+     "u": 0.6972,
+     "N": 24.56,
+     "lobes": 18,
+     "mat": 0.96
+    },
+    {
+     "u": 0.7431,
+     "N": 26.24,
+     "lobes": 19,
+     "mat": 0.99
+    },
+    {
+     "u": 1.0,
+     "N": 36.0,
+     "lobes": 19,
+     "mat": 1.0
+    }
+   ],
+   "deliveredFrame": "tree-45/frames/frame-18.png"
+  },
+  {
+   "tag": "60",
+   "elevationDeg": 60.0,
+   "why": "strongly overhead",
+   "emit": "C:\\code\\storytree\\.claude\\worktrees\\agent-a01791a6e3b45e48f\\docs\\research\\chapter2-camera-elevation-sweep-2026-08-15\\islands\\island-60.json  camera=60deg (SWEEP OVERRIDE)  tiles=17  A: 102 cells / 6 distinct shapes  B: 214 cells / 214 distinct shapes  coast=128 pts  wallPieces=82 at 16 headings",
+   "landCodeState": "15927bf56c77cd23bc4d41a7353a5890450aeabca02013a08051beb52613b007",
+   "landCameraDeg": 60.0,
+   "skeleton": {
+    "nodes": 352,
+    "iters": 28,
+    "lobes": 29
+   },
+   "mature": {
+    "u": 1.0,
+    "N": 36.0,
+    "lobes": 19,
+    "mat": 1.0
+   },
+   "retime": [
+    {
+     "u": 0.0,
+     "N": 3.87,
+     "lobes": 0,
+     "mat": 0.06
+    },
+    {
+     "u": 0.1651,
+     "N": 7.44,
+     "lobes": 0,
+     "mat": 0.19
+    },
+    {
+     "u": 0.2294,
+     "N": 9.2,
+     "lobes": 0,
+     "mat": 0.23
+    },
+    {
+     "u": 0.2752,
+     "N": 10.53,
+     "lobes": 0,
+     "mat": 0.29
+    },
+    {
+     "u": 0.3578,
+     "N": 13.04,
+     "lobes": 0,
+     "mat": 0.42
+    },
+    {
+     "u": 0.422,
+     "N": 15.09,
+     "lobes": 0,
+     "mat": 0.54
+    },
+    {
+     "u": 0.4862,
+     "N": 17.2,
+     "lobes": 0,
+     "mat": 0.66
+    },
+    {
+     "u": 0.5138,
+     "N": 18.13,
+     "lobes": 3,
+     "mat": 0.7
+    },
+    {
+     "u": 0.5413,
+     "N": 19.06,
+     "lobes": 6,
+     "mat": 0.75
+    },
+    {
+     "u": 0.5688,
+     "N": 20.01,
+     "lobes": 8,
+     "mat": 0.8
+    },
+    {
+     "u": 0.5872,
+     "N": 20.65,
+     "lobes": 12,
+     "mat": 0.83
+    },
+    {
+     "u": 0.6055,
+     "N": 21.29,
+     "lobes": 12,
+     "mat": 0.85
+    },
+    {
+     "u": 0.633,
+     "N": 22.26,
+     "lobes": 15,
+     "mat": 0.89
+    },
+    {
+     "u": 0.6422,
+     "N": 22.59,
+     "lobes": 14,
+     "mat": 0.9
+    },
+    {
+     "u": 0.6606,
+     "N": 23.24,
+     "lobes": 17,
+     "mat": 0.93
+    },
+    {
+     "u": 0.6789,
+     "N": 23.9,
+     "lobes": 17,
+     "mat": 0.94
+    },
+    {
+     "u": 0.7064,
+     "N": 24.9,
+     "lobes": 17,
+     "mat": 0.97
+    },
+    {
+     "u": 0.7431,
+     "N": 26.24,
+     "lobes": 19,
+     "mat": 0.99
+    },
+    {
+     "u": 1.0,
+     "N": 36.0,
+     "lobes": 19,
+     "mat": 1.0
+    }
+   ],
+   "deliveredFrame": "tree-60/frames/frame-18.png"
+  }
+ ],
+ "matureFrame": 18,
+ "treeRender": {
+  "res": "384",
+  "samples": "72",
+  "shadowSamples": "32"
+ },
+ "landSamples": "32"
+}

@@ -1,0 +1,133 @@
+{
+ "schema": "storytree/derived-evidence-provenance/1",
+ "artifact": "bplusplus.png",
+ "producer": {
+  "tool": "compose.py",
+  "sha256": "a705e8b308a9d5f029c6c2f93a218f8d47ab4b5b969564cf93e13f4ee0864c2b"
+ },
+ "command": {
+  "tool": "compose.py",
+  "argv": []
+ },
+ "inputs": [
+  {
+   "label": "pieces",
+   "dir": "pieces",
+   "codeState": {
+    "generator": "blender_land.py",
+    "sha256": "920755590a617a54cdb8ff1582885053aa778caed79fade584bf3aaf33204870"
+   },
+   "pieces": [
+    {
+     "file": "tile-0.png",
+     "sha256": "226c077b81508636f0a0aaf6095356acdce070f21932287b84540fcad044eedc"
+    },
+    {
+     "file": "tile-1.png",
+     "sha256": "ea093ab1e6629dce61b077604e07afde5905a92d5b6ab2ebfb3c620b8050e94c"
+    },
+    {
+     "file": "tile-2.png",
+     "sha256": "54c01c1423b5ee91bf165d7fdd2adfad536e28153c7b7b27d2a503a6392edeef"
+    },
+    {
+     "file": "tile-3.png",
+     "sha256": "571a53974a058c778db8e6ce2351c768e02ae91b7c88a5c7d79988f187e2fe9f"
+    },
+    {
+     "file": "tile-4.png",
+     "sha256": "fed42bbcbebb1207a0280c2a57801d66f7de18e25e7bde7858ed9b0b0f50f166"
+    },
+    {
+     "file": "tile-5.png",
+     "sha256": "76c4a6acd3005657c33febb338bb5bc76275af2ce5c1876f005691010edf4690"
+    },
+    {
+     "file": "wall-0.png",
+     "sha256": "25656bc5ba948ff0e50ac28fd13cacc94d06967f30ad77f72da25d0eabe917e9"
+    },
+    {
+     "file": "wall-1.png",
+     "sha256": "efa5e7534515fe8ff62bb2edce6ae15ac0cc58811aa9687d405ec1ca2ca7f3c0"
+    },
+    {
+     "file": "wall-10.png",
+     "sha256": "b5ea4f2d994620c21986c69e1ef0d8394e0beb6a3239a687a28c4713daf8e653"
+    },
+    {
+     "file": "wall-11.png",
+     "sha256": "6220c41eaeb314a1b961c85e5ec4b0242d2f6c5be3a0954bc57cc365b1f510b3"
+    },
+    {
+     "file": "wall-12.png",
+     "sha256": "9905c76cf9db01d31b5816efcd4566ba60e52753a098a1a56315135dc6c17965"
+    },
+    {
+     "file": "wall-13.png",
+     "sha256": "56cfd7d7d6facec2185a25e9cc03996ffeb9235b9c6482323ff5ffee4a60bb20"
+    },
+    {
+     "file": "wall-14.png",
+     "sha256": "d79b2325bd794d562de5fd6c63869542dc9ff0c010fd180949e38a2dab21bef6"
+    },
+    {
+     "file": "wall-15.png",
+     "sha256": "8debeb43ed38634570fc12887b08b7f8e95906026af267aa7f2db328f39f93b7"
+    },
+    {
+     "file": "wall-2.png",
+     "sha256": "579bec82c2dc12bfca3358a0ebad7b8065b7ea99987066b35f4c73f7b43e0cb4"
+    },
+    {
+     "file": "wall-3.png",
+     "sha256": "528a9f785b0688b1e713716b8eb8117393b99292076ed606a3f579c1444c5a3a"
+    },
+    {
+     "file": "wall-4.png",
+     "sha256": "19b9695ccae602c815db81d14361e583b564cf4b00aff08602ff5c794540068d"
+    },
+    {
+     "file": "wall-5.png",
+     "sha256": "6be72aee533627df4012a921ebca6c6bb06f956214b302c0b2bd96aad3ac2a32"
+    },
+    {
+     "file": "wall-6.png",
+     "sha256": "9f5b193940243cb87fb8b364c48856ddcccbc28673f501d2a67875fd9a064261"
+    },
+    {
+     "file": "wall-7.png",
+     "sha256": "bcdbc14f1acd23de49806c40f01f476a8e11508287c324dda64c3e6eec7130fe"
+    },
+    {
+     "file": "wall-8.png",
+     "sha256": "4d85325b105df5faa01d0f358ddb50441a01b62948d5dfbc9fbfbcc7474e5168"
+    },
+    {
+     "file": "wall-9.png",
+     "sha256": "c69379575058656ffa7bae78b5f91ae609e2aed7dc27f10dcef24ee4d602cf42"
+    }
+   ]
+  }
+ ],
+ "codeState": {
+  "generator": "blender_land.py",
+  "sha256": "920755590a617a54cdb8ff1582885053aa778caed79fade584bf3aaf33204870"
+ },
+ "output": {
+  "sha256": "98dd30f6f053a6b546d9b009a140cd6186b1df12c6e826fb2e0a8b2ecce86282",
+  "bytes": 13156
+ },
+ "variant": {
+  "caption": "(b++) shipped mesh, flat tops + PER-CELL elevation",
+  "interior": "flat",
+  "elevation": "cell",
+  "landPx": 17426,
+  "landColours": 60,
+  "cells": 214,
+  "renderedInteriorPieces": 0
+ },
+ "cameraElevationDeg": 20.0,
+ "island": {
+  "sha256": "1fa6ce51565e537aee538b59c83b18a91c73060b146fefd38dc2a8bf67c7ed0d"
+ }
+}

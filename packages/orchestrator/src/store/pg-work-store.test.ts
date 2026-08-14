@@ -266,6 +266,148 @@ test("deleteWorkEvent hard-deletes ONLY the building row for (unitId, runId) —
   assert.equal(removed, 1);
 });
 
+// ---- ADR-0350: the causal edge round-trips, or fails loud ------------------------------------
+
+test("ADR-0350 D1: a stamped causal edge is written in the SAME insert as the event it qualifies", async () => {
+  const { client, queries } = fakeClient();
+  const store = new PgWorkStore(client);
+  const event = await store.appendEvent({
+    ...workEvent({ unitId: "u1", event: "building", runId: "run-1", tier: "capability" }, "tester"),
+    causedBy: { stream: "claim_event", seq: 4412 },
+  });
+
+  // ONE statement: no second write to skip, no later pass that could add the edge (D2).
+  assert.equal(queries.length, 1);
+  const q = queries[0]!;
+  assert.match(q.text, /INSERT INTO events\.work_event/);
+  assert.match(q.text, /caused_by_stream, caused_by_seq/);
+  assert.equal(q.values[5], "claim_event");
+  assert.equal(q.values[6], 4412);
+  assert.deepEqual(event.causedBy, { stream: "claim_event", seq: 4412 });
+});
+
+test("ADR-0350 D2: an UNSTAMPED event writes NULLs and returns no causedBy key at all", async () => {
+  const { client, queries } = fakeClient();
+  const store = new PgWorkStore(client);
+  const event = await store.appendEvent(workEvent({ unitId: "u1", event: "building" }, "tester"));
+
+  assert.equal(queries[0]!.values[5], null);
+  assert.equal(queries[0]!.values[6], null);
+  // Absent stays absent — never widened to a null a reader could misread as "nothing caused this".
+  assert.ok(!("causedBy" in event), "an unstamped event carries no causedBy key");
+});
+
+test("ADR-0350: readEvents lifts a stored edge back onto the work event", async () => {
+  const { client } = fakeClient({
+    work: [
+      {
+        seq: 1,
+        type: "building",
+        doc: { unitId: "u1", event: "building", runId: "run-1" },
+        actor: "t",
+        at: "2026-06-10T00:00:00.000Z",
+        caused_by_stream: "claim_event",
+        caused_by_seq: "4412",
+      },
+    ],
+  });
+  const events = await new PgWorkStore(client).readEvents();
+  // BIGINT arrives from pg as a string; it must come back as a number.
+  assert.deepEqual(events[0]!.causedBy, { stream: "claim_event", seq: 4412 });
+});
+
+test("ADR-0350: a row with NULL columns reads as UNRECORDED, carrying no causedBy key", async () => {
+  const { client } = fakeClient({
+    work: [
+      {
+        seq: 1,
+        type: "building",
+        doc: { unitId: "u1", event: "building" },
+        actor: "t",
+        at: "2026-06-10T00:00:00.000Z",
+        caused_by_stream: null,
+        caused_by_seq: null,
+      },
+    ],
+  });
+  const events = await new PgWorkStore(client).readEvents();
+  assert.ok(!("causedBy" in events[0]!), "NULL means unrecorded, not a null-valued edge");
+});
+
+test("ADR-0350: a row MISSING the columns entirely reads as unrecorded — never `undefined#NaN`", async () => {
+  // REGRESSION. Testing the columns with `=== null` alone let an absent KEY fall past both branches
+  // and produce `{ stream: undefined, seq: NaN }`, which a D3 reader renders as a FABRICATED edge —
+  // strictly worse than the blank D3 forbids, because it names a cause that never existed.
+  const { client } = fakeClient({
+    work: [
+      {
+        seq: 1,
+        type: "building",
+        doc: { unitId: "u1", event: "building" },
+        actor: "t",
+        at: "2026-06-10T00:00:00.000Z",
+      },
+    ],
+  });
+  const events = await new PgWorkStore(client).readEvents();
+  assert.ok(!("causedBy" in events[0]!), "a missing column means the same as a NULL one");
+});
+
+test("ADR-0350: a HALF-written pair THROWS rather than being healed into 'unrecorded'", async () => {
+  for (const half of [
+    { caused_by_stream: "claim_event", caused_by_seq: null },
+    { caused_by_stream: null, caused_by_seq: "7" },
+  ]) {
+    const { client } = fakeClient({
+      work: [
+        {
+          seq: 1,
+          type: "building",
+          doc: { unitId: "u1", event: "building" },
+          actor: "t",
+          at: "2026-06-10T00:00:00.000Z",
+          ...half,
+        },
+      ],
+    });
+    await assert.rejects(
+      new PgWorkStore(client).readEvents(),
+      /half-written causal edge/,
+      "silently dropping a half would turn a write bug into an event that merely reads as unrecorded",
+    );
+  }
+});
+
+test("D7: the causal edge moves NO derived status — a stamped build still projects healthy", async () => {
+  const { client } = fakeClient({
+    work: [
+      {
+        seq: 1,
+        type: "building",
+        doc: { unitId: "u1", event: "building", runId: "run-1" },
+        actor: "t",
+        at: "2026-06-10T00:00:00.000Z",
+        caused_by_stream: "claim_event",
+        caused_by_seq: "4412",
+      },
+    ],
+    verdict: [
+      {
+        seq: 1,
+        unit_id: "u1",
+        run_id: "run-1",
+        signer: "tester@example.com",
+        doc: PASS_VERDICT,
+        at: "2026-06-10T00:00:00.000Z",
+      },
+    ],
+  });
+  const events = await new PgWorkStore(client).readEvents();
+  assert.deepEqual(events[0]!.causedBy, { stream: "claim_event", seq: 4412 });
+  // Observability only: the rollup ignores the field exactly as it ignores usage_event.
+  assert.equal(rollupStatus("u1", events), "healthy");
+});
+
 test("the doc surface fails loud — this store is event-only", async () => {
   const store = new PgWorkStore(fakeClient().client);
   await assert.rejects(store.upsertDoc(), /EVENT-ONLY/);

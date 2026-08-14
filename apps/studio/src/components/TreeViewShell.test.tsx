@@ -1498,7 +1498,7 @@ describe('Chapter 2 round-3 comparison lab (`?organicGrowth=r3-lab`)', () => {
       // track authored AT the land camera reconciles to 1.00 too. Pinned against the shared
       // derivation, not against a literal, so re-declaring the camera moves the expectation with it.
       const expectedDefault = spriteUprightReconciliation(
-        chapter2Round3TreeCandidate('incumbent').authoredCameraElevationDeg,
+        chapter2Round3TreeCandidate('incumbent').renderedCameraElevationDeg,
       ).toFixed(2);
       expect(expectedDefault).toBe('1.00');
       const projectionButtons = Array.from(lab.querySelectorAll('[data-r3-lab-projection]'));

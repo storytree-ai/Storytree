@@ -121,6 +121,12 @@ class FakeClaimClient {
   sessionBumpReturns?: ClaimRow[];
   /** When set, any query whose text includes this fragment throws. */
   failOnPattern?: string;
+  /**
+   * The seq the `events.claim_event` INSERT reports back (ADR-0350 D1) — the take's own event
+   * identity, which a caller names as the CAUSE of the work event it goes on to emit. Undefined
+   * models a client that does not honour `RETURNING`, where the honest answer is NO identity.
+   */
+  claimEventSeq?: number;
 
   async query(text: string, values: unknown[] = []): Promise<{ rows: unknown[] }> {
     this.calls.push({ text, values });
@@ -147,7 +153,9 @@ class FakeClaimClient {
         type: String(values[1]),
         sessionId: String(values[2]),
       });
-      return { rows: [] };
+      // ADR-0350 D1: the audit row's own seq, when this client honours `RETURNING seq`. Left
+      // undefined by default so the no-identity path stays the tested default (see below).
+      return { rows: this.claimEventSeq === undefined ? [] : [{ seq: this.claimEventSeq }] };
     }
     const head = text.trimStart().toUpperCase();
     if (head.startsWith("SELECT") && text.includes("events.node_claim")) {
@@ -300,6 +308,34 @@ test("claim (fresh): unclaimed unit → acquired, INSERT + 'claimed' event, COMM
   ]);
   assert.ok(commits(client) && !rollsBack(client));
   assert.ok(client.released, "client released");
+});
+
+// ── ADR-0350 D1: the take reports its own audit-row identity ─────────────────
+
+test("claim: the take returns its claim_event seq — the identity a later event names as its CAUSE", async () => {
+  const client = new FakeClaimClient();
+  client.claimEventSeq = 4412;
+  const res = await storeWith(client).claim(REQ_B, { now: NOW });
+
+  assert.equal(res.acquired, true);
+  if (res.acquired) {
+    // This is what `node-build` stamps onto the `building` work event, making "which claim
+    // authorised this write?" answerable — a join nothing else in the schema can make, since
+    // claim_event carries session_id, work_event carries actor, and neither carries a run_id.
+    assert.equal(res.eventSeq, 4412);
+  }
+});
+
+test("claim: a client that cannot report a seq yields NO identity — never a fabricated one", async () => {
+  // ADR-0350 D2: a caller with no cause to name stamps none. Absent is honest here rather than
+  // lazy — only the Postgres store has an append-only audit log to be positioned in.
+  const client = new FakeClaimClient(); // claimEventSeq undefined → RETURNING yields no row
+  const res = await storeWith(client).claim(REQ_B, { now: NOW });
+
+  assert.equal(res.acquired, true);
+  if (res.acquired) {
+    assert.ok(!("eventSeq" in res), "no identity means the key is absent, not a placeholder number");
+  }
 });
 
 // ── the typed role column (ADR-0346 D3) ──────────────────────────────────────

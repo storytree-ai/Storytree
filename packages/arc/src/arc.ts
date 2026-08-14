@@ -22,6 +22,7 @@ import {
   arcIsClosed,
   arcRefOf,
   deriveArcLifecycle,
+  isCuratedLifecycle,
   isForwardLooking,
   loadArcRollup,
   loadArcRollups,
@@ -79,13 +80,22 @@ function str(stored: StoredDoc, key: string): string {
  * the decision: the list is a worklist, so a finished initiative leaves it and an unclosed one keeps
  * showing up — which is what makes the rot self-correcting (an omission is visible weekly rather
  * than at audit time, the failure that produced ADR-0239).
+ *
+ * `parked` (ADR-0374 D1) is a THIRD scope for the same reason `closed` is a second one: a parked arc
+ * has left the worklist by the owner's decision, so showing it under `active` would defeat the
+ * parking, and hiding it with no scope of its own would lose it. `--all` still shows everything.
  */
-export type ArcScope = "active" | "closed" | "all";
+export type ArcScope = "active" | "parked" | "closed" | "all";
 
-/** Resolve the scope from the two widening flags — `--all` wins over `--closed`. */
-export function arcScopeOf(opts: { all?: boolean | undefined; closed?: boolean | undefined }): ArcScope {
+/** Resolve the scope from the widening flags — `--all` wins, then `--closed`, then `--parked`. */
+export function arcScopeOf(opts: {
+  all?: boolean | undefined;
+  closed?: boolean | undefined;
+  parked?: boolean | undefined;
+}): ArcScope {
   if (opts.all === true) return "all";
   if (opts.closed === true) return "closed";
+  if (opts.parked === true) return "parked";
   return "active";
 }
 
@@ -110,8 +120,11 @@ async function arcList(deps: ArcViewDeps, scope: ArcScope): Promise<Envelope> {
     };
   }
   const closedCount = rollups.filter((a) => a.lifecycle === "closed").length;
-  const shown =
-    scope === "all" ? rollups : rollups.filter((a) => (a.lifecycle === "closed") === (scope === "closed"));
+  const parkedCount = rollups.filter((a) => a.lifecycle === "parked").length;
+  // Each named scope shows EXACTLY its own lifecycle now (ADR-0374 D1). The old two-scope form was a
+  // boolean split — `closed === (scope === "closed")` — which with a third value would have quietly
+  // swept every parked arc back into `active`, i.e. into the worklist parking exists to leave.
+  const shown = scope === "all" ? rollups : rollups.filter((a) => a.lifecycle === scope);
   const width = Math.max(1, ...shown.map((a) => a.id.length));
   const rows = shown.map((a) => {
     const landed = a.increments.filter((i) => !isForwardLooking(i.status));
@@ -124,25 +137,30 @@ async function arcList(deps: ArcViewDeps, scope: ArcScope): Promise<Envelope> {
     // second array this list never read, so an arc with nine parked remedies and no landings printed
     // "0 increment(s), no landings yet" — indistinguishable from an arc nobody had started.
     const openNote = open > 0 ? `, ${open} open` : "";
-    // The state tag rides every closed row so `--all` / `--closed` are never the old blind list;
-    // under the default scope no closed arc is shown, so it never appears there.
-    const tag = a.lifecycle === "closed" ? "[closed] " : "";
+    // The state tag rides every non-active row so `--all` / `--closed` / `--parked` are never the old
+    // blind list; under the default scope only active arcs show, so it never appears there.
+    const tag = a.lifecycle === "active" ? "" : `[${a.lifecycle}] `;
     return `  ${a.id.padEnd(width)}  ${landed.length} landed${openNote}, ${lastNote}  — ${tag}${a.title}`;
   });
 
   const label = scope === "all" ? "arc(s)" : `${scope} arc(s)`;
   const header = `storytree arc — ${shown.length} ${label}`;
-  // The muted footer (D3): the closed arcs are not hidden, they are one flag away.
+  // The muted footer (D3): the arcs off the worklist are not hidden, they are one flag away. Both
+  // counts ride it since ADR-0374 — a shelf nobody is told about is the same as a lost one.
+  const elsewhere = [
+    ...(closedCount > 0 ? [`${closedCount} closed`] : []),
+    ...(parkedCount > 0 ? [`${parkedCount} parked`] : []),
+  ];
   const footer =
-    scope === "active" && closedCount > 0 ? ["", `  (${closedCount} closed — --all)`] : [];
+    scope === "active" && elsewhere.length > 0 ? ["", `  (${elsewhere.join(", ")} — --all)`] : [];
   const body =
     shown.length === 0
       ? [
           header,
           "",
           scope === "active"
-            ? `  (none — all ${closedCount} arc(s) here are closed; --all or --closed to see them)`
-            : "  (none — no arc here has been closed yet)",
+            ? `  (none — all ${rollups.length} arc(s) here are off the worklist: ${elsewhere.join(", ")}; --all, --closed or --parked to see them)`
+            : `  (none — no arc here is ${scope})`,
         ].join("\n")
       : [header, "", ...rows, ...footer].join("\n");
 
@@ -152,7 +170,7 @@ async function arcList(deps: ArcViewDeps, scope: ArcScope): Promise<Envelope> {
     body,
     next: [
       ...shown.slice(0, 3).map((a) => `storytree arc show ${a.id}${pgFlag}`),
-      ...(scope === "active" && closedCount > 0 ? [`storytree arc list --all${pgFlag}`] : []),
+      ...(scope === "active" && elsewhere.length > 0 ? [`storytree arc list --all${pgFlag}`] : []),
     ],
   };
 }
@@ -203,11 +221,18 @@ async function arcShow(deps: ArcViewDeps, id: string | undefined): Promise<Envel
 export function renderArcRollup(rollup: ArcRollup, pg: boolean, nowIso: string): string[] {
   // `arc show` renders ANY arc regardless of lifecycle (ADR-0239 D3 — only the LIST filters) and
   // states which it is, so a closed initiative is readable without being mistaken for live work.
-  const closed = rollup.lifecycle === "closed";
+  // Each line says WHY it is off the worklist, because that is the difference between the two ways
+  // of being off it (ADR-0374 D1): closed MET its end state, parked has not and still wants the work.
+  const lifecycleNote =
+    rollup.lifecycle === "closed"
+      ? "closed — its end state was met; it is out of the default arc list"
+      : rollup.lifecycle === "parked"
+        ? "parked — its open work is decided but deliberately not being done for now; it is out of the default arc list (storytree arc reopen <id> to pick it back up)"
+        : "active (in flight)";
   const lines: string[] = [
     `# ${rollup.title}    [arc]`,
     `id: ${rollup.id}`,
-    `lifecycle: ${closed ? "closed — its end state was met; it is out of the default arc list" : "active (in flight)"}`,
+    `lifecycle: ${lifecycleNote}`,
     "",
   ];
   if (rollup.intent) lines.push(`**The intent.** ${rollup.intent}`, "");
@@ -964,11 +989,17 @@ async function incrementRowsOf(deps: ArcWriteDeps, arcId: string): Promise<ArcIn
  * because only it has an operator to talk to. This one's whole job is to follow the log — a refusal
  * here would break ADR-0335 D2's auto-reopen, which that decision aligns itself with rather than
  * against.
+ *
+ * IT YIELDS ON A CURATED LIFECYCLE (ADR-0374 D2). A `parked` arc holds open work by definition, so
+ * without the guard the very next increment write on one would derive `active` and un-park it —
+ * erasing the owner's decision as a side effect of unrelated bookkeeping, and doing it silently,
+ * since this function is not the thing the session was running. The guard reads the SAME predicate
+ * the sweep does ({@link isCuratedLifecycle}). Un-parking has exactly one path: `arc reopen`.
  */
 async function recomputeArcLifecycle(deps: ArcWriteDeps, arcId: string): Promise<string | null> {
   const mine = await incrementRowsOf(deps, arcId);
 
-  // The SAME predicate `arc reconcile` sweeps with (`deriveArcLifecycle`, @storytree/drive) — the
+  // The SAME predicate `arc reconcile` sweeps with (`deriveArcLifecycle`, @storytree/arc) — the
   // trigger and the sweep must never be able to answer differently about one arc.
   const desired = deriveArcLifecycle(mine);
   // `null` = an empty log, which derives nothing (ADR-0335 D1's birth window). Unreachable from
@@ -978,7 +1009,12 @@ async function recomputeArcLifecycle(deps: ArcWriteDeps, arcId: string): Promise
   const stored = await deps.store.getDoc(arcId);
   if (!stored || stored.kind !== "arc") return null;
   const doc = { ...(stored.doc as Record<string, unknown>) };
-  const current = doc["lifecycle"] === "closed" ? "closed" : "active";
+  const storedLifecycle = doc["lifecycle"];
+  // The curated fence, read BEFORE the mechanical compare — a parked arc is not drift to be fixed.
+  if (typeof storedLifecycle === "string" && isCuratedLifecycle(storedLifecycle)) {
+    return `arc ${arcId} stays parked — the mechanical lifecycle rule does not touch a parked arc (ADR-0374); storytree arc reopen ${arcId} --pg picks it back up.`;
+  }
+  const current = storedLifecycle === "closed" ? "closed" : "active";
   if (current === desired) return null;
 
   // FIELD-SCOPED (ADR-0352): a bookkeeping flip writes the flag and the stamp and NOTHING else. The
@@ -1759,7 +1795,11 @@ export async function arcReopen(
   if ("error" in found) return found.error;
 
   const base = found.doc;
-  if (base["lifecycle"] !== "closed") {
+  // It takes an arc off EITHER shelf (ADR-0374 D3). `parked` needs a way back by construction — the
+  // mechanical rule is fenced off it, so nothing else can ever return it to the worklist — and this
+  // verb already is the way back, requiring exactly the prose a return should carry. A second
+  // `arc unpark` would be the same verb under a second name.
+  if (base["lifecycle"] !== "closed" && base["lifecycle"] !== "parked") {
     return {
       ok: false,
       body: [
@@ -1770,10 +1810,11 @@ export async function arcReopen(
       next: [`storytree arc show ${id} --pg`, `storytree arc increment add ${id} --outcome "…" --pg`],
     };
   }
+  const wasParked = base["lifecycle"] === "parked";
 
   // 1. The increment FIRST — see the header for why this order is the mitigation.
   const entry = await arcIncrementAdd(deps, id, {
-    outcome: `${REOPEN_MARKER} — ${reason}`,
+    outcome: `${wasParked ? UNPARK_MARKER : REOPEN_MARKER} — ${reason}`,
     ...(opts.pr !== undefined ? { pr: opts.pr } : {}),
     ...(opts.date !== undefined ? { date: opts.date } : {}),
   });
@@ -1794,21 +1835,163 @@ export async function arcReopen(
       body:
         `the reopening increment was recorded, but the lifecycle flip would make "${id}" invalid:\n` +
         `${explainDocValidationError(base, written.invalid, { storedKeys: found.storedKeys })}\n` +
-        "the arc is still CLOSED — fix the doc and re-run `arc reopen`.",
+        `the arc is still ${wasParked ? "PARKED" : "CLOSED"} — fix the doc and re-run \`arc reopen\`.`,
       next: [`storytree arc show ${id} --pg`],
     };
   }
   if ("retired" in written) return retiredUnderfoot("arc", id, "the reopening increment was being recorded");
   const date = opts.date?.trim() !== undefined && opts.date.trim() !== "" ? opts.date.trim() : deps.now.slice(0, 10);
   const pr = opts.pr?.trim();
+  const marker = wasParked ? UNPARK_MARKER : REOPEN_MARKER;
   return {
     ok: true,
     body: [
-      `re-opened arc ${written.saved.id} — ${date}${pr !== undefined && pr !== "" ? `  ${pr}` : ""}  ${reason}`,
-      `(lifecycle: active; the ${REOPEN_MARKER} increment is its own row and stays in the log — increments are durable, ADR-0305 D3).`,
+      `${wasParked ? "un-parked" : "re-opened"} arc ${written.saved.id} — ${date}${pr !== undefined && pr !== "" ? `  ${pr}` : ""}  ${reason}`,
+      `(lifecycle: active; the ${marker} increment is its own row and stays in the log — increments are durable, ADR-0305 D3).`,
       "It is back in the default `storytree arc list` worklist.",
+      ...(wasParked
+        ? ["The mechanical lifecycle rule governs it again from here (ADR-0335) — it was fenced off while parked."]
+        : []),
     ].join("\n"),
     next: [`storytree arc show ${written.saved.id} --pg`, "storytree arc list --pg"],
+  };
+}
+
+/**
+ * The marker {@link arcPark} prepends to its increment's prose, and {@link UNPARK_MARKER} its mirror
+ * on the way back — the {@link REOPEN_MARKER} precedent, for the same reason: `arc increment add`
+ * derives the title from the first sentence it is given, so without a marker a parking reads in the
+ * log as one more landing, which is the one thing it is not.
+ */
+const PARK_MARKER = "PARKED";
+const UNPARK_MARKER = "UN-PARKED";
+
+/**
+ * `storytree arc park <id> --reason <text|@file> [--pr <ref>] [--date <YYYY-MM-DD>] --pg` — take an
+ * arc OFF the worklist without claiming its end state was met (ADR-0374 D3).
+ *
+ * ── WHAT IT IS FOR, AND WHY NEITHER EXISTING VERB COVERED IT ────────────────────────────────────
+ *
+ * An arc with open work that the owner has decided not to do had exactly two homes before this, and
+ * both lied. Left `active`, it sits on the worklist looking like work somebody is about to pick up —
+ * which is what `remote-session-access-arc` did for eleven days after being descoped on 2026-08-04
+ * ("not a priority, its only a nice to have"). Forced `closed`, it asserts an end state that was
+ * never met, and {@link arcClose} REFUSES it anyway (ADR-0347 D1, no override) precisely because
+ * closing over open work loses the work.
+ *
+ * SO THIS VERB DELIBERATELY DOES NOT REFUSE OVER OPEN INCREMENTS. That is not a weaker `arc close`;
+ * it is the case `arc close` was hardened against. The work is not being disowned — it stays open,
+ * findable under `arc list --parked`, and the arc says on its own face that it is shelved. What
+ * ADR-0347 protects against is work vanishing UNDER a claim that the initiative finished; nothing
+ * here makes that claim.
+ *
+ * IT SHARES ADR-0239 D2's DISCIPLINE WITH ITS TWO SIBLINGS: the state is a projection of prose that
+ * supports it, so `--reason` is required exactly as `--outcome` is on close and `--reason` is on
+ * reopen, and a bare `library artifact edit --set lifecycle=parked` stays refused at the generic
+ * edit surface. The ORDER is increment-first for the third time and the same reason (ADR-0305 D1 put
+ * the increment in its own row, so no transaction spans the two writes): interrupted, you get an
+ * un-parked arc carrying a parking increment — visibly unfinished, fixed by re-running — rather than
+ * a shelved arc with nothing on it saying why.
+ *
+ * THE WAY BACK IS {@link arcReopen}, not a fourth verb. Parking is the one lifecycle the mechanical
+ * rule is fenced off (ADR-0374 D2), so a parked arc CANNOT drift back on its own — which makes an
+ * explicit return path mandatory rather than optional, and reopen already is one.
+ */
+export async function arcPark(
+  deps: ArcWriteDeps,
+  id: string | undefined,
+  opts: { date?: string | undefined; pr?: string | undefined; reason?: string | undefined },
+): Promise<Envelope> {
+  if (!deps.writable) return arcNotWritable("park");
+  if (id === undefined) {
+    return {
+      ok: false,
+      body: "arc park needs an id: storytree arc park <id> --reason <text|@file> --pg",
+      next: ["storytree arc list --pg"],
+    };
+  }
+  const reason = opts.reason?.trim();
+  if (reason === undefined || reason === "") {
+    return {
+      ok: false,
+      body: [
+        "arc park needs --reason — the increment stating why this arc's open work is not being done for now.",
+        "An arc never goes parked without it, for the same reason it never goes closed without --outcome:",
+        "the state is a projection of the prose that supports it (ADR-0374 D3, carrying ADR-0239 D2's discipline).",
+        "(long prose: --reason @path reads from a file).",
+      ].join("\n"),
+      next: [`storytree arc show ${id} --pg`],
+    };
+  }
+  const found = await loadArcForWrite(deps, id);
+  if ("error" in found) return found.error;
+
+  const base = found.doc;
+  if (base["lifecycle"] === "parked") {
+    return {
+      ok: false,
+      body: [
+        `arc ${id} is already parked — nothing to do (this verb is not an increment append).`,
+        "To pick it back up:",
+        `  storytree arc reopen ${id} --reason "<why it is worth doing now>" --pg`,
+      ].join("\n"),
+      next: [`storytree arc show ${id} --pg`, `storytree arc reopen ${id} --reason "…" --pg`],
+    };
+  }
+  if (base["lifecycle"] === "closed") {
+    return {
+      ok: false,
+      body: [
+        `arc ${id} is closed — parking it would be a demotion, not a shelving.`,
+        "Closed already means off the worklist, and it says something STRONGER than parked: the end state was met.",
+        "If that closure was wrong, reopen it first and then park it:",
+        `  storytree arc reopen ${id} --reason "<why the end state does not hold>" --pg`,
+      ].join("\n"),
+      next: [`storytree arc show ${id} --pg`, `storytree arc reopen ${id} --reason "…" --pg`],
+    };
+  }
+
+  // 1. The increment FIRST — see the header for why this order is the mitigation.
+  const entry = await arcIncrementAdd(deps, id, {
+    outcome: `${PARK_MARKER} — ${reason}`,
+    ...(opts.pr !== undefined ? { pr: opts.pr } : {}),
+    ...(opts.date !== undefined ? { date: opts.date } : {}),
+  });
+  if (!entry.ok) return entry;
+
+  // 2. Then the flip — FIELD-SCOPED (ADR-0352), for the reason both siblings are: the increment
+  // write above already ran a recompute against this arc, so `base` is a pre-recompute read.
+  const fields: Record<string, unknown> = { lifecycle: "parked", updatedAt: deps.now };
+  Object.assign(base, fields);
+  const written = await patchFields(deps, id, "arc", fields);
+  if ("invalid" in written) {
+    return {
+      ok: false,
+      body:
+        `the parking increment was recorded, but the lifecycle flip would make "${id}" invalid:\n` +
+        `${explainDocValidationError(base, written.invalid, { storedKeys: found.storedKeys })}\n` +
+        "the arc is still ACTIVE — fix the doc and re-run `arc park`.",
+      next: [`storytree arc show ${id} --pg`],
+    };
+  }
+  if ("retired" in written) return retiredUnderfoot("arc", id, "the parking increment was being recorded");
+  const date = opts.date?.trim() !== undefined && opts.date.trim() !== "" ? opts.date.trim() : deps.now.slice(0, 10);
+  const pr = opts.pr?.trim();
+  const open = (await incrementRowsOf(deps, id)).filter((r) => isForwardLooking(r.status)).length;
+  return {
+    ok: true,
+    body: [
+      `parked arc ${written.saved.id} — ${date}${pr !== undefined && pr !== "" ? `  ${pr}` : ""}  ${reason}`,
+      `(lifecycle: parked; the ${PARK_MARKER} increment is its own row and stays in the log — increments are durable, ADR-0305 D3).`,
+      // The open count is stated OUT LOUD rather than left implicit: parking does not disown the
+      // work, and a reader who cannot see how much is shelved cannot judge whether it should be.
+      open > 0
+        ? `${open} open increment${open === 1 ? "" : "s"} stay${open === 1 ? "s" : ""} on it, findable with \`storytree arc list --parked\` — parking shelves the arc, it does not close the work.`
+        : "It carries no open increments — if its end state was actually MET, `storytree arc close` says so more precisely.",
+      "It drops out of `storytree arc list` (--all / --parked still show it) and reads as archived on the library shelves.",
+      "The mechanical lifecycle rule will NOT move it back on its own (ADR-0374 D2) — `storytree arc reopen` is the way back.",
+    ].join("\n"),
+    next: [`storytree arc show ${written.saved.id} --pg`, "storytree arc list --parked --pg"],
   };
 }
 
@@ -1860,7 +2043,7 @@ export async function arcReconcile(
   }
 
   const rollups = await loadArcRollups(deps);
-  const { drift, noSignal, agreed } = reconcileArcLifecycles(rollups);
+  const { drift, noSignal, agreed, curated } = reconcileArcLifecycles(rollups);
 
   // A sweep that enumerated NOTHING must never read like a healthy store — the blind-loader failure
   // ADR-0256/#970 measured, where zero findings and a repo with nothing to find were indistinguishable.
@@ -1904,6 +2087,18 @@ export async function arcReconcile(
       ...noSignal.map((n) => `  ${n.id}  (reads ${n.stored})`),
       "an arc is born with a bundled first increment (ADR-0335 D1) and the arc doc is written first,",
       "so this is either a charter in flight or an interrupted `arc new` — `arc increment new` recovers it.",
+    );
+  }
+
+  // Same discipline for the arcs the sweep DECLINED to judge (ADR-0374 D2). Every one of them would
+  // have derived `active` and been "reopened" by --write, so a silent skip here would look identical
+  // to a sweep that had simply not found them.
+  if (curated > 0) {
+    lines.push(
+      "",
+      `PARKED — ${curated} arc(s) the mechanical rule does not govern (ADR-0374); left untouched.`,
+      "A parked arc holds open work BY DECISION, so the rule would derive `active` for every one of",
+      "them. `storytree arc list --parked --pg` reads the shelf; `arc reopen <id>` is the way back.",
     );
   }
 
@@ -1972,8 +2167,8 @@ export function arcHelp(): Envelope {
     body: [
       "storytree arc — the derived initiative view (ADR-0183): an arc reveals its increments / stories / ADRs by query.",
       "",
-      "  storytree arc list [--all|--closed] [--pg]   the ACTIVE arcs (ADR-0239 D3): landed + open counts",
-      "  storytree arc show <id> [--pg]               one arc: lifecycle / intent / end state / work / increment log",
+      "  storytree arc list [--all|--closed|--parked] [--pg]   the ACTIVE arcs (ADR-0239 D3): landed + open counts",
+      "  storytree arc show <id> [--pg]                        one arc: lifecycle / intent / end state / work / increment log",
       "",
       "AN ARC HOLDS INCREMENTS (ADR-0305 D1). What was `increments[]`, `proposals[]` and the `plan`",
       "kind is ONE tier now — an `increment` doc citing its arc, moving through",
@@ -2029,13 +2224,19 @@ export function arcHelp(): Envelope {
       "        edit --set lifecycle=closed` is refused. Since the fold this is TWO rows, written",
       "        increment-first: an interrupted close leaves an open arc with an extra increment, never a",
       "        closed arc with no prose behind it.",
+      "  storytree arc park <id> --reason <text|@file> [--pr <ref>] [--date <YYYY-MM-DD>] --pg",
+      "        SHELVE an arc without claiming its end state was met (ADR-0374). For open work the owner",
+      "        has decided not to do for now: left active it sits on the worklist looking like work",
+      "        somebody is about to pick up, and `close` REFUSES it (rightly — ADR-0347) because closing",
+      "        over open work loses the work. So this verb deliberately does NOT refuse over open",
+      "        increments; they stay open and findable under `arc list --parked`. --reason is required,",
+      "        the same discipline as --outcome on close; increment-first likewise.",
       "  storytree arc reopen <id> --reason <text|@file> [--pr <ref>] [--date <YYYY-MM-DD>] --pg",
-      "        Its MIRROR (ADR-0337): a REOPENED increment AND lifecycle: active, forced the same way.",
-      "        Any caller may run it. Reach for it when a closure was WRONG and the reason is the point —",
-      "        if there is simply more work to do, park it (`increment new`) and the arc reopens itself.",
-      "        --reason is required for the same reason --outcome is; increment-first likewise, so an",
-      "        interrupted reopen leaves the arc CLOSED carrying its increment, never active with",
-      "        nothing saying why.",
+      "        The MIRROR of BOTH (ADR-0337, widened by ADR-0374): a REOPENED / UN-PARKED increment AND",
+      "        lifecycle: active, forced the same way. Any caller may run it. Reach for it when a closure",
+      "        was WRONG and the reason is the point — if there is simply more work to do, park the WORK",
+      "        (`increment new`) and a closed arc reopens itself. A PARKED arc has no such self-service",
+      "        path (see below), so this is the only way back off that shelf.",
       "",
       "LIFECYCLE IS MECHANICAL, NOT JUST THESE VERBS (ADR-0335): every increment write (`add`/`new`/`close`",
       "above) recomputes `lifecycle` from the increment log itself — closed when no increment is",
@@ -2046,6 +2247,11 @@ export function arcHelp(): Envelope {
       "They are NOT symmetric about overriding it. `reopen` still forces its direction (ADR-0337 D4);",
       "`close` no longer does — ADR-0347 reversed ADR-0335 D3, so a close that would contradict the",
       "rule is refused rather than won. Draining the work IS the closing act.",
+      "",
+      "PARKED IS THE ONE STATE THE RULE DOES NOT GOVERN (ADR-0374 D2). A parked arc holds open work by",
+      "definition, so the recompute above would derive `active` for it and un-park it on the next",
+      "unrelated increment write — erasing a decision it never knew about. It is fenced off instead:",
+      "neither the trigger nor `arc reconcile` touches a parked arc, and `arc reopen` is the only exit.",
       "",
       "  storytree arc reconcile [--write] [--only close|reopen] --pg",
       "        The SWEEP behind that rule. The recompute above is a write-time TRIGGER, so an arc",
@@ -2074,7 +2280,7 @@ export function arcHelp(): Envelope {
   };
 }
 
-/** Dispatch the `arc` area: `list [--all|--closed]` | `show <id>` | help. */
+/** Dispatch the `arc` area: `list [--all|--closed|--parked]` | `show <id>` | help. */
 export async function arcCommand(
   sub: string | undefined,
   third: string | undefined,
