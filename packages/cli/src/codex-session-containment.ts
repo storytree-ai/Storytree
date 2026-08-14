@@ -98,6 +98,12 @@ export interface CodexContainmentBundle {
   readonly managedWorktreeCreateScript: string;
   readonly trustedActuatorScript: string;
   readonly operatorReadme: string;
+  /**
+   * The exact `[managedNode, pinnedPnpm]` prefix a contained task runs workspace commands through, or
+   * null when no toolchain payload is configured. Null means a contained task cannot run `pnpm`
+   * at all — report that, never paper over it.
+   */
+  readonly toolchainCommand: readonly string[] | null;
 }
 
 export interface BuildBundleArgs {
@@ -113,6 +119,39 @@ export interface BuildBundleArgs {
   readonly codexPayload?: Readonly<{ path: string; sha256: string }>;
   /** Optional administrator-owned, hash-pinned managed Node executable for the generated creator. */
   readonly worktreeCreatePayload?: Readonly<{ path: string; sha256: string }>;
+  /**
+   * Optional administrator-owned, hash-pinned SINGLE-FILE pnpm distribution (`dist/pnpm.cjs`) which
+   * the managed Node runs directly. See {@link codexToolchainCommand} for why this is one file and
+   * not Corepack.
+   */
+  readonly toolchainPayload?: Readonly<{ path: string; sha256: string }>;
+}
+
+/**
+ * The exact command a contained task uses to reach the repository toolchain: managed Node, then the
+ * pinned single-file pnpm distribution. Everything after it is ordinary pnpm argv.
+ *
+ * **Corepack is deliberately NOT what ships, and the increment that asked for "pnpm/Corepack" was
+ * wrong about the mechanism rather than about the need.** On this host `pnpm` is a Corepack shim that
+ * runs `node <corepack>/dist/pnpm.js`, and Corepack RESOLVES the version in `packageManager` by
+ * downloading it into a per-user cache. A contained task can do neither: the standing writer profile
+ * sets `network.enabled = false`, and the Corepack cache lives outside the granted worktrees area. So
+ * shipping Corepack would ship a downloader that cannot download into a directory it cannot write.
+ *
+ * pnpm's own `dist/pnpm.cjs` is a single self-contained file that needs no network, no cache and no
+ * PATH entry — which also makes it the only shape `Assert-PinnedPayload` can pin in one hash. Proven
+ * on the managed payload Node (`node.exe dist/pnpm.cjs -C <worktree> storytree doctor` completed a
+ * real workspace command, tsx resolution included).
+ *
+ * The version is NOT chosen here: it must be the one `packageManager` names, because the workspace's
+ * lockfile is what it has to agree with. Pinning a different pnpm would be a silent toolchain
+ * divergence that no gate rung would notice.
+ */
+export function codexToolchainCommand(
+  managedNodePath: string,
+  toolchainPayloadPath: string,
+): readonly string[] {
+  return [managedNodePath, toolchainPayloadPath];
 }
 
 function comparable(value: string): string {
@@ -976,6 +1015,15 @@ try {
   if ($Verb -eq 'bootstrap') {
     if ($Config.expected.location -ne 'lobby') { Fail "bootstrap is available only from a generated lobby policy" }
     $Payload = Assert-PinnedCommand 'worktree-create payload' $Config.worktreeCreatePayload
+    # The toolchain pin is verified BEFORE any work, so a bad hash costs no mint. Its ABSENCE is not
+    # fatal: minting needs no pnpm (the creator payload runs as the operator), and a host that has not
+    # installed the toolchain yet should still get a worktree. What must never happen is a task being
+    # left to GUESS, so an unconfigured toolchain is reported as null rather than omitted.
+    $Toolchain = $null
+    if ($null -ne $Config.toolchainPayload) {
+      $ToolchainPath = Assert-PinnedPayload 'toolchain payload' $Config.toolchainPayload
+      $Toolchain = @([string]$Config.nodePath, $ToolchainPath)
+    }
     $ObservedLobby = Probe-Git ([string]$Config.expected.primaryCheckout)
     Assert-ExpectedTopology $ObservedLobby $Config.expected
     $ResultText = Invoke-Exact $Payload @('--node', $Node, '--intent', $Intent, '--primary', $ObservedLobby.topLevel) $null
@@ -988,7 +1036,16 @@ try {
     $Created = Probe-Git (Canonical-Existing ([string]$Result.worktree))
     if ($Created.location -ne 'worktree' -or -not (Same-Path $Created.primaryCheckout $Config.expected.primaryCheckout)) { Fail "created checkout is not a linked worktree of this lobby" }
     $Scratch = New-WorktreeScratch $Created.topLevel
-    [Console]::Out.WriteLine((($Created | Add-Member -NotePropertyName scratch -NotePropertyValue $Scratch -PassThru) | ConvertTo-Json -Compress))
+    # Everything the task needs to actually work, in the one envelope the lifecycle already hands
+    # back: where it may write, where its scratch is (ADR-0364 D4 left setting TEMP/TMP to the task),
+    # and the exact toolchain command. With no launcher there is no environment to inherit, so an
+    # envelope that named only the worktree would hand back a workspace nothing could build.
+    [Console]::Out.WriteLine((@{
+      topLevel = $Created.topLevel; gitDir = $Created.gitDir; commonDir = $Created.commonDir;
+      primaryCheckout = $Created.primaryCheckout; branch = $Created.branch;
+      location = $Created.location; sessionId = $Created.sessionId;
+      scratch = $Scratch; toolchainCommand = $Toolchain
+    } | ConvertTo-Json -Depth 4 -Compress))
   } else {
     # ADR-0364 D1/D4: install the STANDING policy and exit. There is no policy window, no nested
     # Codex child, and nothing to revert in a finally block — write authority is no longer this
@@ -1093,6 +1150,12 @@ export function buildCodexContainmentBundle(
   if (worktreeCreateExecutable !== null && "ok" in worktreeCreateExecutable) {
     return worktreeCreateExecutable;
   }
+  const toolchainExecutable = managedPayload(args.toolchainPayload, args.managedDir, "toolchainPayload");
+  if (toolchainExecutable !== null && "ok" in toolchainExecutable) return toolchainExecutable;
+  const toolchainCommand =
+    toolchainExecutable === null
+      ? null
+      : codexToolchainCommand(args.managedNodePath, toolchainExecutable.path);
   const worktreesRoot = codexWorktreesRoot(args.authority.primaryCheckout);
   // ADR-0364 D1: ONE standing policy, so its identity is derived from the two things a standing
   // install may pin and from nothing session-shaped. Two sessions therefore resolve the SAME path,
@@ -1160,6 +1223,7 @@ export function buildCodexContainmentBundle(
     credentialAclPaths: credentialAclPaths(),
     codexPayload,
     worktreeCreatePayload,
+    toolchainPayload: toolchainExecutable,
     hookScript: base64(MANAGED_CODEX_HOOK_SCRIPT),
     claimProbeScript: base64(managedClaimProbeScript),
     worktreeCreateScript: base64(managedWorktreeCreateScript),
@@ -1214,6 +1278,21 @@ export function buildCodexContainmentBundle(
     "than at any boundary. A contained task must point TEMP and TMP at <its worktree>/.storytree-scratch",
     "(bootstrap creates it) before running the toolchain.",
     "",
+    "THE TOOLCHAIN IS A PINNED SINGLE FILE, NOT COREPACK, and that is a correction rather than a",
+    "shortcut. On this host `pnpm` is a Corepack shim, and Corepack RESOLVES the version named in",
+    "`packageManager` by downloading it into a per-user cache — so shipping Corepack ships a downloader",
+    "into a profile with `network.enabled = false` and no write access to that cache. pnpm's own",
+    "`dist/pnpm.cjs` is self-contained: no network, no cache, no PATH entry, and one hash to pin.",
+    toolchainCommand === null
+      ? "  NOT CONFIGURED — a contained task cannot run any pnpm workspace command until device"
+      : `  ${toolchainCommand.join(" ")} <ordinary pnpm argv>`,
+    toolchainCommand === null
+      ? "  management installs a hash-pinned dist/pnpm.cjs under the managed payloads directory."
+      : "  Invoke it with -C <worktree>, or from the worktree as cwd. The pinned version MUST be the one",
+    toolchainCommand === null
+      ? "  Until then `pnpm gate` and `pnpm storytree …` are unreachable from a claimed worktree."
+      : "  `packageManager` names: a different pnpm would disagree with the lockfile silently.",
+    "",
     "Per-worktree \".git\"/\".codex\" denies are emitted for every worktree registered when this file is",
     "generated; a worktree minted later is covered by the hook alone. The shared Git common directory",
     "stays read-only, so commit, branch, worktree cleanup, and lobby bootstrap still need exact",
@@ -1243,6 +1322,7 @@ export function buildCodexContainmentBundle(
     managedWorktreeCreateScript,
     trustedActuatorScript,
     operatorReadme,
+    toolchainCommand,
   };
 }
 
@@ -1565,6 +1645,9 @@ export async function codexSessionContainmentCommand(
       `worktree creator:  ${bundle.worktreeCreateScriptPath} (installed separately by device management)`,
       `trusted actuator:  ${bundle.trustedActuatorScriptPath} (installed separately by device management)`,
       `session policy:    ${bundle.policyPath}`,
+      bundle.toolchainCommand === null
+        ? "task toolchain:    NOT CONFIGURED — a contained task cannot run pnpm workspace commands"
+        : `task toolchain:    ${bundle.toolchainCommand.join(" ")}`,
       "",
       bundle.operatorReadme,
       "",
