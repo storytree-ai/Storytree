@@ -16,6 +16,8 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
   CHAPTER2_ROUND3_TREE_CANDIDATES,
+  chapter2Round3TreeCandidate,
+  spriteUprightReconciliation,
   type OrganicPoseTrack,
 } from '@storytree/app-surface';
 import { AppDataContext, type AppData } from '../lib/appData';
@@ -489,7 +491,7 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
     }
   });
 
-  it('only the exact organic-island-accretion gate reuses the canonical 50-cell pose fixture as a connected adjacency wave and teaches its four visual terms without changing any existing gate', async () => {
+  it('only the exact organic-island-accretion gate reuses the canonical 52-cell pose fixture as a connected adjacency wave and teaches its four visual terms without changing any existing gate', async () => {
     expect(readOrganicIslandAccretion('')).toBe(false);
     expect(readOrganicIslandAccretion('?organicGrowth=unknown')).toBe(false);
     expect(readOrganicIslandAccretion('?organicGrowth=organic-island-accretion-near-miss')).toBe(false);
@@ -520,9 +522,15 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
         '[data-organic-technique="pose-to-pose"][data-island-technique="connected-accretion"]',
       );
       expect(section).toBeTruthy();
-      expect(section?.getAttribute('data-svg-island-accretion-cells')).toBe('50');
+      expect(section?.getAttribute('data-svg-island-accretion-cells')).toBe('52');
       expect(section?.getAttribute('data-svg-island-accretion-duration-ms')).toBe('1600');
-      expect(section?.getAttribute('data-svg-island-accretion-waves')).toBe('1,4,7,10,11,9,6,2');
+      // 52 cells over 8 connected waves. The counts moved from 50 / `1,4,7,10,11,9,6,2` when
+      // ADR-0367 D1 gave the land a camera: the relaxed mesh interns vertices at 0.1 px in SCREEN
+      // space, so foreshortening the lattice re-decides which vertices coincide and the cell
+      // decomposition shifts with it. The reveal STRUCTURE is unchanged — still one connected
+      // adjacency wave per ring, still monotone-then-tapering — and the shift is caught here loudly
+      // rather than silently, which is what this assertion is for.
+      expect(section?.getAttribute('data-svg-island-accretion-waves')).toBe('1,4,7,8,8,10,11,3');
       const legend = flagged.querySelector('[data-island-accretion-legend="true"]');
       expect(legend).toBeTruthy();
       for (const term of [
@@ -1467,7 +1475,7 @@ describe('Chapter 2 round-3 comparison lab (`?organicGrowth=r3-lab`)', () => {
       // The FIXED half: the Experiment 6 connected accretion island over the pose-to-pose clock.
       expect(section.getAttribute('data-organic-technique')).toBe('pose-to-pose');
       expect(section.getAttribute('data-island-technique')).toBe('connected-accretion');
-      expect(section.getAttribute('data-svg-island-accretion-cells')).toBe('50');
+      expect(section.getAttribute('data-svg-island-accretion-cells')).toBe('52');
       expect(section.getAttribute('data-svg-island-accretion-duration-ms')).toBe('1600');
 
       // The picker names every candidate, with the incumbent pressed by default.
@@ -1484,7 +1492,15 @@ describe('Chapter 2 round-3 comparison lab (`?organicGrowth=r3-lab`)', () => {
         lab.querySelector('[data-r3-lab-candidate-picker]')?.getAttribute('aria-label'),
       ).toBe('Hero tree candidate');
 
-      // The projection dial: the four stepped options, defaulting to 0.82.
+      // The projection dial: the same four stepped options, but the DEFAULT is now derived from the
+      // land's declared camera rather than hand-picked (ADR-0367 D1). The mounted candidate is a
+      // hand-authored 2D track, which declares no camera, so its reconciliation is 1.00 — and a
+      // track authored AT the land camera reconciles to 1.00 too. Pinned against the shared
+      // derivation, not against a literal, so re-declaring the camera moves the expectation with it.
+      const expectedDefault = spriteUprightReconciliation(
+        chapter2Round3TreeCandidate('incumbent').authoredCameraElevationDeg,
+      ).toFixed(2);
+      expect(expectedDefault).toBe('1.00');
       const projectionButtons = Array.from(lab.querySelectorAll('[data-r3-lab-projection]'));
       expect(projectionButtons.map((b) => b.getAttribute('data-r3-lab-projection'))).toEqual([
         '1.00',
@@ -1496,8 +1512,8 @@ describe('Chapter 2 round-3 comparison lab (`?organicGrowth=r3-lab`)', () => {
         projectionButtons
           .filter((b) => b.getAttribute('aria-pressed') === 'true')
           .map((b) => b.getAttribute('data-r3-lab-projection')),
-      ).toEqual(['0.82']);
-      expect(section.getAttribute('data-organic-projection')).toBe('0.82');
+      ).toEqual([expectedDefault]);
+      expect(section.getAttribute('data-organic-projection')).toBe(expectedDefault);
 
       // Labelled HONESTLY — a comparison control, explicitly not a solved camera.
       const legend = lab.querySelector('[data-r3-lab-legend]');

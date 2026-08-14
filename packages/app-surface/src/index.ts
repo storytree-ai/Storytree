@@ -179,3 +179,12 @@ export {
   type Chapter2HeroTreeCandidateBudget,
   type Chapter2HeroTreeCandidateId,
 } from './chapter2-round3-tree-candidates.js';
+
+// The object half of the land's declared camera (ADR-0367 D1).
+export {
+  organicLayerBox,
+  organicLayerGroundContact,
+  spriteUprightReconciliation,
+  type OrganicLayerBox,
+  type OrganicLayerPlacement,
+} from './land-camera.js';
