@@ -55,6 +55,10 @@ import { execFileSync } from "node:child_process";
 import { adrCommand, adrHelp, loadAdrListings, type AdrAllocatorLike } from "./adr.js";
 import { expandAtPathFlags, formatAtPathRefusal, PROSE_FLAGS } from "./at-path.js";
 import { libraryQuery, libraryQueryHelp } from "./library-query.js";
+// The arc domain owns its own package (`arc-tier-extraction-arc`): the arc / increment / question
+// verbs and the derived arc → children join live in `@storytree/arc`, which this shim dispatches to
+// exactly as it dispatches to `@storytree/drive`'s build verbs. It is a CONSUMER of the domain here,
+// not its landlord.
 import {
   arcCommand,
   arcHelp,
@@ -67,10 +71,14 @@ import {
   arcIncrementClose,
   arcIncrementNew,
   arcScopeOf,
+  questionCommand,
+  questionHelp,
+  incrementCommand,
+  incrementHelp,
   type ArcWriteDeps,
-} from "./arc.js";
-import { questionCommand, questionHelp, type QuestionWriteDeps } from "./question.js";
-import { incrementCommand, incrementHelp, type CountCommitsSince } from "./increment.js";
+  type QuestionWriteDeps,
+  type CountCommitsSince,
+} from "@storytree/arc";
 import { traversalCommand, traversalHelp } from "./traversal.js";
 // `session-cost` — the repeatable session-cost measurement over host transcripts (ADR-0323 D4).
 import { sessionCostCommand, sessionCostHelp } from "./session-cost.js";

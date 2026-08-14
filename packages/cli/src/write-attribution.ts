@@ -34,10 +34,15 @@
 // red `pnpm -r test`, and ADR-0304's affected-scope narrowing always runs `packages/cli` when a file
 // this scan covers moves.
 //
-// SCOPE — `packages/cli/src/**`, non-test. `packages/drive` writes under a deliberate non-branch
-// identity (`CURATOR_ACTOR`, the in-build curator) and is out of scope on purpose rather than by
-// omission: widening the fence there is a judgement about whose identity a build-time write carries,
-// not this fence's business.
+// SCOPE — `packages/cli/src/**` AND `packages/arc/src/**`, non-test. It was one root until
+// `arc-tier-extraction-arc` moved the arc / increment / question verbs into `@storytree/arc`: those
+// verbs still write to the live Library under the same `cli@<branch>` identity, so the fence follows
+// the WRITE PATHS, not the package that happened to host them. See `FENCED_ROOTS` in the suite —
+// a fence that stayed put would have gone green while covering strictly less.
+//
+// `packages/drive` writes under a deliberate non-branch identity (`CURATOR_ACTOR`, the in-build
+// curator) and is out of scope on purpose rather than by omission: widening the fence there is a
+// judgement about whose identity a build-time write carries, not this fence's business.
 //
 // Pure: no I/O. The caller supplies the file text.
 

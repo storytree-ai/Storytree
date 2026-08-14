@@ -129,5 +129,6 @@ rather than extending itself.
 - ADR-0252 D3 — never raise a drain ceiling as a remedy (the trap the three dispatched sessions avoided).
 - `packages/library/src/library-doc.ts` — `explainDocValidationError`, D1's implementation.
 - `packages/library/src/library-doc-schema-skew.test.ts` — D1's red-green fence.
-- `packages/cli/src/arc.ts` — `loadArcForWrite` captures `storedKeys`; five write paths pass it.
+- `packages/arc/src/arc.ts` (moved out of `packages/cli` by ADR-0369) — `loadArcForWrite` captures
+  `storedKeys`; five write paths pass it.
 - Friction `a-live-arc-write-outran-its-schema-and-blocked-4-arcs` — the incident as filed.

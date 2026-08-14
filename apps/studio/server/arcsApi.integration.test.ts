@@ -16,7 +16,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { InMemoryStore } from '@storytree/storage-protocol';
-import { loadArcRollup } from '@storytree/drive';
+import { loadArcRollup } from '@storytree/arc';
 
 import { handleArcs, type Paths } from './apiRouter';
 import { HttpError } from './httpUtil';

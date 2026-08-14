@@ -458,10 +458,14 @@ test("node resolve on arc-explicit-id-fidelity shows its focused REAL proof", as
   assert.equal(env.ok, true, env.body);
   assert.match(env.body, /buildable: +yes — source: spec/);
   assert.match(env.body, /REAL-buildable: yes/);
+  // The two halves sit in DIFFERENT packages since ADR-0369 moved the arc domain out of this one:
+  // the source it writes is `@storytree/arc`'s, the regression that observes it stayed here (it
+  // drives the real dispatcher end-to-end, so moving it would have narrowed an integration test into
+  // a unit one). That split is why the proof command names two filters rather than one.
   assert.match(env.body, /test file: +packages\/cli\/src\/cli\.test\.ts/);
-  assert.match(env.body, /source file: +packages\/cli\/src\/arc\.ts/);
+  assert.match(env.body, /source file: +packages\/arc\/src\/arc\.ts/);
   assert.match(env.body, /edits source: +true/);
-  assert.match(env.body, /proof cmd: +pnpm --filter @storytree\/cli test/);
+  assert.match(env.body, /proof cmd: +pnpm --filter @storytree\/arc --filter @storytree\/cli test/);
 });
 
 test("node resolve on a non-buildable node fails closed, naming BOTH routes out", async () => {

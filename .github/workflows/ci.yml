@@ -133,6 +133,22 @@ jobs:
       - name: Organism boundary
         run: pnpm check:boundaries
 
+      # Source-ownership totality (ADR-0317 D2, charged by ADR-0301 — verification-integrity-arc
+      # `ownership-map-holds-totality`). `check:boundaries` above is at PACKAGE grain and correctly
+      # passes while a NEW file inside an owned package falls under no declared `sourceOwnership`
+      # subtree — measured on PR #1326, where a full gate went green with the map already
+      # incomplete. Charged BY AUTHORSHIP: a file this PR adds (or one it un-owns by deleting a
+      # declaration) REDS; a file already unowned on the base tip is reported and never charged, so
+      # a PR is never billed for the standing drain. Deliberately a ROOT step, OUTSIDE the ADR-0195
+      # narrowing below — a new unowned file may land in any package, including one the affected
+      # filter would not select.
+      #
+      # It anchors "before" on HEAD^1 here, exactly as `pnpm ci:affected` does: this is the
+      # pull_request MERGE ref, `fetch-depth: 2` keeps its first parent, and no `origin/main` is
+      # fetched (see `chooseBaseRef`).
+      - name: Source-ownership totality
+        run: pnpm check:ownership-totality
+
       # Cross-surface mirror conformance (verification-integrity-arc inc 2). Surfaces that
       # re-compose another's route — the desktop backend hand-mirrors the studio's /api/docs walk
       # and may never import it (ADR-0176) — must serve the SAME payload. Each surface is run by

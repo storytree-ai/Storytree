@@ -21,7 +21,8 @@ the states the surface must distinguish — running, `waiting`, `blocked` — wh
 `waiting` and saying outright that a session which invents a `blocked` predicate has exceeded the
 decision. Increment 1 (#1020) built the infrastructure: `arcRef` on the `open-question` kind, the
 guarded write path, and the shared join `deriveArcRollup`/`loadArcRollup`/`loadArcRollups` in
-`packages/drive/src/arc-rollup.ts` that both `storytree arc show` and `GET /api/arcs` render from.
+`packages/arc/src/arc-rollup.ts` (moved out of `packages/drive` by ADR-0369) that both
+`storytree arc show` and `GET /api/arcs` render from.
 Increment 2 (#1087) delivered four mock layouts against real data and stopped, putting three
 questions to the owner. Those questions went unanswered for two days; this ADR records the answers.
 
@@ -261,7 +262,8 @@ track by memory between sessions.
 - [ADR-0110](0110-collapse-the-redundant-end-of-flow-adr-ratification.md) — why this ADR is born `accepted`.
 - [ADR-0279](0279-a-corpus-mandated-ceremony-that-only-an-agent-s-discretion-e.md) — `proposed`; the
   standing counter-argument to D5 shipping as discipline rather than as a gate rung.
-- `packages/drive/src/arc-rollup.ts` — the one join both surfaces render from (increment 1).
+- `packages/arc/src/arc-rollup.ts` (moved out of `packages/drive` by ADR-0369) — the one join both
+  surfaces render from (increment 1).
 - `apps/studio/src/components/ArcSurface.tsx` + `apps/studio/src/lib/arcSurface.ts` — the shipped
   surface (D1/D2/D3/D4/D9). **D7's readout NO LONGER LIVES ON THIS SURFACE — see
   [ADR-0349](0349-the-floor-health-readout-is-a-small-always-visible-lamp-on-t.md), which amends D7's
@@ -281,7 +283,8 @@ track by memory between sessions.
   bottleneck recurs" names no number; the threshold is a call the readout had to make to render at all,
   made from the measured live board on 2026-08-08 (the loudest cause then carried one post-route
   recurrence) and left retunable in one place.
-- `packages/cli/src/question.ts` — the `storytree question new` verb that realizes D5, and
+- `packages/arc/src/question.ts` (moved out of `packages/cli` by ADR-0369) — the `storytree question
+  new` verb that realizes D5, and
   `asset:merge-ceremony` step 10(b), where the escalation landing runs it.
 - `docs/research/arc-surface-mocks-2026-08-05/` — the re-rendered options the owner picked from, and
   the measurements quoted in Context.

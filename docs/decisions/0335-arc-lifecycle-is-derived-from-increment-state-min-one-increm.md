@@ -150,4 +150,5 @@ by reopening being cheap.
 - [ADR-0267](0267-arcs-take-the-map-s-primary-top-drawer-slot-the-library-beco.md) /
   [ADR-0314](0314-the-arc-surface-is-momentum-lanes-with-a-briefing-panel-bars.md) — the studio surface
   whose "currently running" / briefing-panel affordances motivated this.
-- `packages/cli/src/arc.ts` — `arcNew`, `arcIncrementAdd`, `arcIncrementNew`, `arcIncrementClose`.
+- `packages/arc/src/arc.ts` (moved out of `packages/cli` by ADR-0369) — `arcNew`, `arcIncrementAdd`,
+  `arcIncrementNew`, `arcIncrementClose`.

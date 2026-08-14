@@ -114,6 +114,12 @@ export interface SourceOwnershipInput {
    * a story-grain entry is legal but coarser than the grain claims are taken at (ADR-0270 D1).
    */
   readonly storyIds?: readonly string[];
+  /**
+   * Story id → the unit ids that story declares. Present ⇒ every story-grain declaration is
+   * CLASSIFIED ({@link StoryGrainDeclaration}); absent ⇒ each is reported `unclassified` rather than
+   * guessed, the same insufficient-data skip {@link knownUnitIds} takes.
+   */
+  readonly unitsByStory?: ReadonlyMap<string, readonly string[]>;
   /** The recorded baseline, when one exists. Absent ⇒ no trend line, stated as such. */
   readonly baseline?: OwnershipBaseline;
 }
@@ -150,6 +156,45 @@ export interface ContestedFile {
   readonly file: string;
   /** Every matching owner, in declaration order. The FIRST is the one credited. */
   readonly owners: readonly string[];
+}
+
+/**
+ * WHY one declaration sits at story grain — the distinction the grain COUNT alone destroys.
+ *
+ * ADR-0346 D2 retired story-grain `work` claims, so every story-grain entry answers "who owns this
+ * file" with a node the claim ledger will not let anyone claim. That much is uniform. What is NOT
+ * uniform, and what a single number asserts falsely, is whether that is a DECISION or a GAP — and
+ * `repo-manifest.json`'s own authoring rules already settle most of them:
+ *
+ *  - `barrel` — the subtree names a package `src/index.ts`. Rule (4) settles this as story grain BY
+ *    NATURE: a bare re-export barrel is the union of every organ the package fronts, so no single
+ *    capability is responsible for it and one that claimed it would be claiming its siblings' code.
+ *    DECIDED, not residue.
+ *  - `no-capability-declared` — the owning story declares no units at all, so there is nothing finer
+ *    to name. Rule (1)'s root-port case (`proof-protocol`, `storage-protocol`): the story IS the one
+ *    competence.
+ *  - `residue` — the owning story DOES declare capabilities, so a finer owner may exist. THIS is the
+ *    `capability-layer-coverage-arc` worklist, and only this.
+ *  - `unclassified` — {@link SourceOwnershipInput.unitsByStory} was not supplied, so the question was
+ *    not asked. Stated rather than defaulted, because defaulting it to `residue` would inflate the
+ *    worklist with entries nobody measured.
+ *
+ * THE `barrel` TEST IS PATH-BASED, AND THAT APERTURE IS STATED RATHER THAN GLOSSED. It recognises the
+ * SHAPE rule (4) describes, not the CONTENT it requires — rule (4) itself says an `index.ts` carrying
+ * real logic is ordinary code and gets rule (1)'s treatment, which no path can tell. So this reports
+ * the map's own DEFAULT ANSWER for a barrel, never a proof that the file only re-exports.
+ */
+export type StoryGrainReason = "barrel" | "no-capability-declared" | "residue" | "unclassified";
+
+/** One story-grain declaration, named by the SUBTREE KEY — which is the claimable object (ADR-0317 D3). */
+export interface StoryGrainDeclaration {
+  /** The subtree, exactly as keyed — this is what `noticeboard claim` takes. */
+  readonly subtree: string;
+  /** The owning story id — legal, but not claimable at `work` grade (ADR-0346 D2). */
+  readonly owner: string;
+  readonly reason: StoryGrainReason;
+  /** How many source files it currently covers — the size of what sits at this grain. */
+  readonly files: number;
 }
 
 /** How much of the map is declared at the claim-relevant grain. */
@@ -197,6 +242,17 @@ export interface SourceOwnershipReport {
   /** Whether owner resolution actually ran. */
   readonly ownersChecked: boolean;
   readonly grain: GrainTally;
+  /**
+   * EVERY story-grain declaration, each named by its subtree KEY and classified by WHY it sits at
+   * that grain — descending by file count, then by subtree.
+   *
+   * The keys are the payload. {@link formatSourceOwnershipReport} used to tell a reader that "every
+   * subtree KEY below is itself claimable … claim the subtree you are writing" while printing no
+   * subtree keys anywhere — the guidance pointed at a list that was not rendered, so the one
+   * claimable object a session could actually bind to was invisible. That is the map answering "who
+   * owns this file" with something unusable, which is the defect, rather than the grain itself.
+   */
+  readonly storyGrain: readonly StoryGrainDeclaration[];
   /** Absent when no baseline was supplied — no trend is stated rather than a zero invented. */
   readonly trend: OwnershipTrend | undefined;
 }
@@ -228,6 +284,9 @@ export function judgeSourceOwnership(input: SourceOwnershipInput): SourceOwnersh
   const known = input.knownUnitIds === undefined ? undefined : new Set(input.knownUnitIds);
 
   const ownerFiles = new Map<string, number>();
+  // Per-DECLARATION credit, alongside the per-OWNER tally: one owner may hold many subtrees, and the
+  // story-grain listing has to say how big EACH is, not how big the owner is.
+  const declarationFiles = new Map<number, number>();
   const matchedDeclarations = new Set<number>();
   const contested: ContestedFile[] = [];
   const unowned: string[] = [];
@@ -241,18 +300,22 @@ export function judgeSourceOwnership(input: SourceOwnershipInput): SourceOwnersh
     // Every match is collected, not just the first: the first WINS, but a second one is an authoring
     // defect worth naming — the failure mode an exact-key map like `packageOwnership` cannot have.
     const hits: string[] = [];
+    let winningIndex: number | undefined;
     declarations.forEach((decl, at) => {
       if (!matchesSubtree(decl.subtree, file)) return;
       matchedDeclarations.add(at);
+      if (winningIndex === undefined) winningIndex = at;
       hits.push(decl.owner);
     });
 
     const winner = hits[0];
-    if (winner === undefined) {
+    if (winner === undefined || winningIndex === undefined) {
       unowned.push(file);
     } else {
       tally.owned += 1;
       ownerFiles.set(winner, (ownerFiles.get(winner) ?? 0) + 1);
+      // Credited to the WINNER only, exactly as the owner tally is — a contested file is counted once.
+      declarationFiles.set(winningIndex, (declarationFiles.get(winningIndex) ?? 0) + 1);
       if (hits.length > 1) contested.push({ file, owners: hits });
     }
     perPackage.set(pkg, tally);
@@ -301,6 +364,17 @@ export function judgeSourceOwnership(input: SourceOwnershipInput): SourceOwnersh
     unresolved: unresolvedGrain,
   };
 
+  const storyGrainDeclarations: StoryGrainDeclaration[] = declarations
+    .map((decl, at) => ({ decl, at }))
+    .filter(({ decl }) => known !== undefined && known.has(decl.owner) && storyIds.has(decl.owner))
+    .map(({ decl, at }) => ({
+      subtree: decl.subtree,
+      owner: decl.owner,
+      reason: classifyStoryGrain(decl, input.unitsByStory),
+      files: declarationFiles.get(at) ?? 0,
+    }))
+    .sort((a, b) => b.files - a.files || a.subtree.localeCompare(b.subtree));
+
   const base = input.baseline;
   const trend: OwnershipTrend | undefined =
     base === undefined
@@ -326,13 +400,100 @@ export function judgeSourceOwnership(input: SourceOwnershipInput): SourceOwnersh
     unresolvedOwners,
     ownersChecked: known !== undefined,
     grain,
+    storyGrain: storyGrainDeclarations,
     trend,
   };
+}
+
+/** A package re-export barrel, by PATH — `.../src/index.ts` (see {@link StoryGrainReason}). */
+const BARREL_SUBTREE = /(^|\/)index\.ts$/;
+
+/**
+ * Why this story-grain declaration is at story grain. See {@link StoryGrainReason} for what each
+ * verdict means and which of `repo-manifest.json`'s authoring rules settles it.
+ *
+ * Ordered barrel-first because rule (4) is the more specific settlement: a story with no capabilities
+ * that also declares a barrel is answered by the barrel rule, which holds regardless of how many
+ * capabilities the story grows later.
+ */
+function classifyStoryGrain(
+  decl: SubtreeDeclaration,
+  unitsByStory: ReadonlyMap<string, readonly string[]> | undefined,
+): StoryGrainReason {
+  if (BARREL_SUBTREE.test(decl.subtree)) return "barrel";
+  if (unitsByStory === undefined) return "unclassified";
+  return (unitsByStory.get(decl.owner) ?? []).length === 0 ? "no-capability-declared" : "residue";
 }
 
 /** A whole percent, with the degenerate empty-repo case reading 0 rather than `NaN`. */
 function pct(part: number, whole: number): string {
   return whole === 0 ? "0.0%" : `${((part / whole) * 100).toFixed(1)}%`;
+}
+
+/** The heading and the remedy for each {@link StoryGrainReason} — the whole point of classifying. */
+const STORY_GRAIN_SECTIONS: readonly {
+  readonly reason: StoryGrainReason;
+  readonly heading: string;
+  readonly remedy: string;
+}[] = [
+  {
+    reason: "residue",
+    heading: "RESIDUE — the owning story DOES declare capabilities, so a finer owner may exist",
+    remedy:
+      "The `capability-layer-coverage-arc` worklist, and ONLY this. Resolving one means authoring a " +
+      "capability that STATES ITS PROOF — re-pointing a declaration ahead of authoring the organ is " +
+      "the opening move that arc forbids (repo-manifest.json rule 4).",
+  },
+  {
+    reason: "barrel",
+    heading: "DECIDED — a package re-export barrel is story grain BY NATURE (manifest rule 4)",
+    remedy:
+      "Not residue and not awaiting a capability: a bare barrel is the union of every organ the " +
+      "package fronts, so one capability claiming it would be claiming its siblings' code. " +
+      "Recognised by PATH, so it states the map's default answer for a barrel, not that the file " +
+      "only re-exports.",
+  },
+  {
+    reason: "no-capability-declared",
+    heading: "DECIDED — the owning story declares no units at all (manifest rule 1)",
+    remedy: "The root-port case: the story IS the one competence, so there is nothing finer to name.",
+  },
+  {
+    reason: "unclassified",
+    heading: "NOT CLASSIFIED — no story→unit namespace was supplied to this run",
+    remedy: "A limit of this run, not a verdict. These are neither decided nor counted as residue.",
+  },
+];
+
+/**
+ * The story-grain listing, split by WHY each entry sits at that grain.
+ *
+ * SPLIT RATHER THAN COUNTED, because the count alone asserts something false. The grain line reports
+ * one number and the old guidance called all of it a "`story-author` worklist" where "no capability
+ * exists for that subtree" — but the manifest's own rules already SETTLE most of these entries as
+ * decided, and for the rest a capability may well exist. One number, three remedies: draining the
+ * decided ones is not progress, and only the `residue` block is anybody's worklist.
+ */
+function formatStoryGrain(entries: readonly StoryGrainDeclaration[]): string[] {
+  const lines: string[] = [
+    `STORY-GRAIN DECLARATIONS (${entries.length}) — the OWNER is not claimable at \`work\` grade`,
+    "  (ADR-0346 D2); the SUBTREE KEY is (ADR-0317 D3). Claim the key, exactly as printed and quoted:",
+    "    storytree noticeboard claim '<subtree-key>' --grade work --pg",
+    "  Writing with no capability to name? Claim the INCREMENT you are driving instead (ADR-0308 D5).",
+  ];
+  for (const section of STORY_GRAIN_SECTIONS) {
+    const members = entries.filter((e) => e.reason === section.reason);
+    if (members.length === 0) continue;
+    const files = members.reduce((sum, m) => sum + m.files, 0);
+    lines.push("", `  ${section.heading} — ${members.length} declaration(s), ${files} file(s):`, `    ${section.remedy}`, "");
+    const width = Math.max(1, ...members.map((m) => m.subtree.length));
+    // EVERY member, uncapped: this list is the claimable-object index, so a truncation would hide
+    // exactly the key a session came to find.
+    for (const m of members) {
+      lines.push(`    ${m.subtree.padEnd(width)}  ${String(m.files).padStart(4)} file(s)  → ${m.owner}`);
+    }
+  }
+  return lines;
 }
 
 export interface FormatOptions {
@@ -434,12 +595,14 @@ export function formatSourceOwnershipReport(
     if (report.grain.story > 0) {
       lines.push(
         "  A story-grain entry satisfies totality but is coarser than claims are taken at",
-        "  (ADR-0270 D1) — no capability exists for that subtree, so the residual is a",
-        "  `story-author` worklist. It is no longer a dead end for a session: every subtree KEY",
-        "  below is itself claimable (ADR-0317 D3), so claim the subtree you are writing —",
-        "    storytree noticeboard claim '<subtree-key>' --grade work --pg",
+        "  (ADR-0270 D1), and ADR-0346 D2 retired story-grain `work` claims — so the OWNER is not",
+        "  claimable. The SUBTREE KEY is (ADR-0317 D3); every one is listed below.",
       );
     }
+  }
+
+  if (report.storyGrain.length > 0) {
+    lines.push("", ...formatStoryGrain(report.storyGrain));
   }
 
   if (report.contested.length > 0) {
