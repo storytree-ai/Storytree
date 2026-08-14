@@ -39,12 +39,19 @@ never rendered) and misplacements (a trailing Back button), two items overturn e
 the whole-corpus overview constellation — ADR-0187 dec 3's centrepiece — was attested **gimmicky**
 ("leave it blank for now"), and the owner asked for **categories** as a browse entry, which
 ADR-0185 dec 2's "search-only, no kind-filter chips" had prohibited. The rest raise the bar the
-increments were building to: the reference DAG must actually draw its edges at full depth (the
+increments were building to: the dependency DAG must actually draw its edges at full depth (the
 shipped focus subgraph is three DIV columns — no SVG edges, an effective 3-level ceiling), the
 panel must not blend into the world, and every element must map to a user flow. The organising
 principle the owner ratified: **one instrument, two panes, zero orphan pixels** — a constant side
 panel (find/scope/selection) over a canvas that does exactly one job (the selected artifact's
-reference DAG).
+dependency DAG).
+
+*(SUBSTRATE, corrected in place under ADR-0139: this decision said "reference DAG" throughout,
+because in May 2026 `references[]` was the only edge the corpus had. ADR-0223 later made the DAG the
+authored `standsOn` dependency edge — the citation web is many-to-many and legitimately cyclic, so it
+could never be topologically oriented — and the studio was moved onto it in PR #1330. The DECISION
+here is unchanged and still current: one instrument, two panes, a canvas that draws a true layered
+DAG with real edges. Only the substrate those edges are read from moved.)*
 
 ## Decision
 
@@ -82,7 +89,7 @@ they inform a choice). The idle canvas is reserved space for a future dashboard 
 open questions / friction) — a candidate, NOT decided.
 
 **5. The focus DAG draws its edges at full depth (sharpens ADR-0185 dec 3's surface).** The
-focused canvas renders a true layered DAG: reference edges drawn (soft vine strokes; the selected
+focused canvas renders a true layered DAG: dependency edges drawn (soft vine strokes; the selected
 transitive chain highlighted — colour stays state, kind stays text, dec 3 stands), rank depth
 **uncapped**, and breadth tamed per-branch with in-place "⊕ n" expanders. The global depth
 stepper retires (a global dial for a local problem). The canvas carries no header text; **← Back

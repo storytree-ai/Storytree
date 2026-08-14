@@ -26,18 +26,25 @@ import { StandsOnRef } from "./knowledge.js";
  * therefore natural sinks — strictly below every kind here and incapable of closing a cycle.
  *
  * A kind ABSENT from this map is outside the DAG: it emits no edge and is never pointed at by a
- * seeded one. Four kinds are absent, for three different reasons, and the distinction is worth
- * keeping straight:
+ * seeded one. THREE kinds are absent, for two reasons:
  *   - `definition` — durable but excluded by ADR-0363 D1: the depth it would contribute buys nothing
  *     a reader uses, and it is the corpus's densest mutually-constitutive citation core.
  *   - `friction`, `open-question` — the transient signal tier (ADR-0223 dec 1/dec 4).
- *   - `uat-criterion` — simply NEVER PLACED. ADR-0223's Consequences flag exactly this ("a future
- *     kind must be placed in [the tier order]") and this kind arrived without it happening. It is
- *     left out rather than guessed at: absence costs an unseeded edge, a wrong tier would seed wrong
- *     dependencies into an authored field. Placing it is an open call for the story/library owner.
  *
- * The first three also sit in `EDGE_FREE_KINDS`, so the schema refuses them the field outright;
- * `uat-criterion` does not, so it may legally carry a hand-authored edge that this seed never writes.
+ * All three also sit in `EDGE_FREE_KINDS`, so the schema refuses them the field outright — absence
+ * here and refusal there now AGREE for every absent kind, which is the state ADR-0365 D1 restored.
+ *
+ * `uat-criterion` was the exception and is no longer: it sat in NO tier (so the seed wrote it
+ * nothing) and NO `EDGE_FREE_KINDS` (so the schema accepted a hand-authored edge on it) — outside
+ * the graph for the seed, inside it for the schema. ADR-0365 D1 resolved that toward INCLUSION on
+ * evidence: a `uat-criterion` genuinely cites knowledge (`desktop#uat-2` stands on the principle
+ * `human-witness-is-a-judgment-gap-not-cost`), so excluding it would discard real dependency
+ * information — unlike `definition`, whose depth buys a reader nothing.
+ *
+ * TIER 6 HOLDS TWO KINDS, and the ordering rule makes that meaningful rather than sloppy: a
+ * same-tier citation is never projected, so `increment` and `uat-criterion` cannot seed edges at
+ * each other. Both are work-adjacent OUTERMOST detail — they stand on tiers 1-5 and nothing stands
+ * on them. ADR-0365's Consequences records the accepted risk that the two have different lifetimes.
  */
 export const KNOWLEDGE_TIERS: ReadonlyMap<string, number> = new Map([
   ["techstack", 1],
@@ -48,6 +55,8 @@ export const KNOWLEDGE_TIERS: ReadonlyMap<string, number> = new Map([
   ["agent", 4],
   ["arc", 5],
   ["increment", 6],
+  // ADR-0365 D1 — a peer of `increment`, not a successor: same tier, so neither seeds into the other.
+  ["uat-criterion", 6],
 ]);
 
 /** The `doc:` scheme reaching tier 0. */
@@ -73,7 +82,8 @@ export interface BootstrapSkips {
   readonly sameTier: number;
   /** Target sits ABOVE the source — a "used by", never a dependency. */
   readonly upTier: number;
-  /** Target is a kind outside the DAG (definition / friction / open-question / uat-criterion). */
+  /** Target is a kind outside the DAG (definition / friction / open-question — `uat-criterion` left
+   *  this set when ADR-0365 D1 placed it at tier 6). */
   readonly targetOutsideDag: number;
   /** Target id is not in the corpus at all — a stale citation. */
   readonly targetAbsent: number;
