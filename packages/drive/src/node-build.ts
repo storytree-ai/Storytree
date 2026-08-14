@@ -661,6 +661,18 @@ export interface DriveNodeArgs {
    * it. Never throws.
    */
   onPhase?: (phase: BuildPhase) => void;
+  /**
+   * The `events.claim_event` seq of the write-claim that authorised this build (ADR-0350 D1).
+   * Stamped onto the `building` work-event as its cause, so a reader of the work log can answer
+   * "which claim authorised this write?" — a question nothing joins today, since `claim_event`
+   * carries `session_id` and `work_event` carries `actor`, with no correlation key between them
+   * and no `runId` on either.
+   *
+   * ABSENT IS THE NORMAL CASE and must stay honest: a dry-run, a live smoke and any non-worktree
+   * build take no claim at all, and a non-Postgres claim store has no audit row to point at. Under
+   * ADR-0350 D2 those emit NO edge rather than a guessed one.
+   */
+  claimEventSeq?: number;
 }
 
 export type DriveNodeResult =
@@ -706,12 +718,16 @@ export async function driveNode(spec: NodeSpec, args: DriveNodeArgs): Promise<Dr
         fs.writeFile(path.join(workspace, MULTIFILE_FORMAT_REL), MULTIFILE_BASE_FORMAT, "utf8"),
       ]);
     }
-    await args.store.appendEvent(
-      workEvent(
+    await args.store.appendEvent({
+      ...workEvent(
         { unitId: spec.id, event: "building", runId: args.runId, tier: spec.tier },
         args.signer,
       ),
-    );
+      // ADR-0350 D1/D2: the claim that authorised this write, named at emission or not at all.
+      ...(args.claimEventSeq !== undefined
+        ? { causedBy: { stream: "claim_event", seq: args.claimEventSeq } }
+        : {}),
+    });
     const sdkOpts = {
       ...(args.runtime !== undefined ? { runtime: args.runtime } : {}),
       ...(args.model !== undefined ? { model: args.model } : {}),
@@ -1449,6 +1465,8 @@ export async function nodeBuild(
   let claimHeld = false;
   /** The session's OWN claim this build's take absorbed, if any — a borrow, not a take. */
   let claimDisplaced: ClaimDocT | undefined;
+  /** The take's `events.claim_event` seq — the cause the `building` mark names (ADR-0350 D1). */
+  let claimEventSeq: number | undefined;
   try {
     // Acquire the claim BEFORE any worktree/spend; a second concurrent builder of the SAME unit is
     // HARD-REFUSED (unlike presence, which swallows failures and proceeds). Null store/identity = no
@@ -1480,6 +1498,7 @@ export async function nodeBuild(
       }
       claimHeld = true;
       claimDisplaced = claimRes.displaced;
+      claimEventSeq = claimRes.eventSeq;
     }
 
     let result: ProveResult;
@@ -1560,6 +1579,7 @@ export async function nodeBuild(
             ...(opts.model !== undefined ? { model: opts.model } : {}),
             ...(opts.budgetUsd !== undefined ? { budgetUsd: opts.budgetUsd } : {}),
             ...(opts.maxTurns !== undefined ? { maxTurns: opts.maxTurns } : {}),
+            ...(claimEventSeq !== undefined ? { claimEventSeq } : {}),
           }),
       );
       if (!drive.resolved) {

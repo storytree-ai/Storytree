@@ -113,6 +113,7 @@
       "packages/cli/src/drift.ts": "drift-reads-store",
       "packages/cli/src/tree.ts": "tree-view",
       "packages/cli/src/tree-verdicts.ts": "verdict-glyphs",
+      "packages/cli/src/work-log*.ts": "work-verdict-event-log",
       "packages/cli/src/tree-attestations.ts": "attestation-surface",
       "packages/cli/src/attest.ts": "attestation-signals",
       "packages/cli/src/uat*.ts": "uat-test-units",

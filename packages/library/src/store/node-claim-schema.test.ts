@@ -59,5 +59,17 @@ test("schema.sql: events.claim_event is untouched by the grade migration (free-T
   const sql = await readFile(SCHEMA_SQL_PATH, "utf8");
   // The audit log's `type` stays free TEXT — new grade-transition event types need no DDL.
   assert.match(sql, /CREATE TABLE IF NOT EXISTS events\.claim_event/);
-  assert.doesNotMatch(sql, /ALTER TABLE events\.claim_event/);
+  // SCOPED TO THE `type` COLUMN, which is what this test is about. It read `doesNotMatch(/ALTER
+  // TABLE events.claim_event/)` — a blunt proxy that banned EVERY future ALTER on the table, and
+  // ADR-0350 D1 legitimately adds two nullable causal columns to every append-only stream, this one
+  // included. Widening the proxy back would re-forbid unrelated additive migrations; narrowing it
+  // to `type` keeps the invariant the comment above actually states.
+  const claimEventAlters = sql.match(/ALTER TABLE events\.claim_event[^;]*;/g) ?? [];
+  for (const alter of claimEventAlters) {
+    assert.doesNotMatch(
+      alter,
+      /\btype\b/,
+      "the audit log's `type` must stay free TEXT — constraining it would mean DDL per new event type",
+    );
+  }
 });
