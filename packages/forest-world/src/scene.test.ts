@@ -6,10 +6,11 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { hash, rand01 } from './rng.js';
+import { unprojectGround } from './camera.js';
 import { crownRadius } from './sizing.js';
 import { routeTrails, trailFillWidth, type TrailIsland } from './routing.js';
 import type { RelaxedCell } from './substrate.js';
@@ -935,9 +936,22 @@ function absenceLockInput(): SceneInput {
 
 const ABSENCE_GOLDEN = fileURLToPath(new URL('./scene-absence-fixture.json', import.meta.url));
 
+/**
+ * Regenerate the lock from the current builder:
+ *   `STORYTREE_REGEN_ABSENCE_LOCK=1 pnpm --filter @storytree/forest-world test`
+ *
+ * The lock is a whole-scene byte compare, so any deliberate geometry change (ADR-0367 D1 gave the
+ * land a camera, which moves every projected y in here) has to rewrite it wholesale. Before this
+ * escape hatch the file claimed to be "generated from HEAD" with no generator in the repo, so the
+ * only way to move it was by hand — which is how a lock stops being evidence.
+ */
 test('parcels-ABSENT scene matches the committed byte-for-byte lock (generated from HEAD)', () => {
+  const built = buildScene(absenceLockInput());
+  if (process.env.STORYTREE_REGEN_ABSENCE_LOCK === '1') {
+    writeFileSync(ABSENCE_GOLDEN, `${JSON.stringify(built, null, 2)}\n`);
+  }
   const golden = JSON.parse(readFileSync(ABSENCE_GOLDEN, 'utf8'));
-  assert.deepEqual(buildScene(absenceLockInput()), golden);
+  assert.deepEqual(built, golden);
 });
 
 // ---------- capability PARCELS (forest-parcels inc 1) ----------
@@ -1239,11 +1253,21 @@ test('the flowers respect the keep-outs, and the human-witness signpost seal is 
   const spots = flowersOf(scene).map(markerSpot);
   assert.ok(spots.every((s) => Number.isFinite(s.x) && Number.isFinite(s.y)));
   // distinct spots, all inside the island's reach, none in the tree well (mkTerritory geometry).
+  //
+  // BOTH REACHES ARE GROUND DISTANCES (ADR-0367 D1). The scatter's radius band and its tree well are
+  // ground quantities, so they are read back on the ground: a flower planted 36 ground units due south
+  // of the trunk stands only 36·sin20° ≈ 12 SCREEN pixels below it, and an isotropic screen `hypot`
+  // here would call that a violation of a keep-out the placement honoured exactly. `scatter-camera.test.ts`
+  // fences the invariant these two bounds are the local case of.
   assert.equal(new Set(spots.map((s) => `${s.x},${s.y}`)).size, spots.length, 'flowers stand apart');
   for (const s of spots) {
     const t = mkTerritory({});
-    assert.ok(Math.hypot(s.x - t.centroid.x, s.y - t.centroid.y) <= t.radius * 0.85 + 1, 'inside the island');
-    assert.ok(Math.hypot(s.x - t.treeSpot.x, s.y - t.treeSpot.y) > 30, 'clear of the tree well');
+    const onGround = (a: { x: number; y: number }, b: { x: number; y: number }): number => {
+      const d = unprojectGround({ x: a.x - b.x, y: a.y - b.y });
+      return Math.hypot(d.x, d.y);
+    };
+    assert.ok(onGround(s, t.centroid) <= t.radius * 0.85 + 1, 'inside the island');
+    assert.ok(onGround(s, t.treeSpot) > 30, 'clear of the tree well');
   }
 });
 

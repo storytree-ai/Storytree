@@ -4,14 +4,22 @@ import path from "node:path";
 import type { Store, StoredDoc } from "@storytree/storage-protocol";
 import { STORY_REF_PREFIX } from "@storytree/library";
 
-import { loadTitledAdrMetas, type TitledAdrMeta } from "./adr-metas.js";
-import type { AdrStatus } from "./adr-frontmatter.js";
+// The SUBPATHS, never the `@storytree/drive` barrel — and this is load-bearing, not style. The barrel
+// re-exports the whole build/orchestrate runtime, which reaches the Cloud SQL connector; this module
+// is on the managed Codex bootstrap payload's import graph (via `worktree-create.ts`'s
+// `storyArcStamps`), and that payload must ship no database client at all (ADR-0368 D2). It held that
+// property as `@storytree/drive/arc-rollup` by importing its neighbours relatively; moving packages
+// (ADR-0369) turned those relative imports into cross-package ones, so the narrow subpaths are what
+// carries the same property across the new boundary. `codex-worktree-create-entry.test.ts` bundles the
+// payload and asserts it by string, so widening any of these to the barrel is a red.
+import { loadTitledAdrMetas, type TitledAdrMeta } from "@storytree/drive/adr-metas";
+import type { AdrStatus } from "@storytree/drive/adr-frontmatter";
 import {
   danglingCiteReasons,
   loadWorkHierarchyIndex,
   resolveCites,
   type WorkUnit,
-} from "./work-hierarchy.js";
+} from "@storytree/drive/work-hierarchy";
 
 /**
  * The ARC ROLLUP — the derived initiative view (ADR-0183 D3) as DATA rather than as rendered text.
@@ -21,13 +29,16 @@ import {
  * an arc's children are always a QUERY and can never drift from them. This module is the ONE place
  * that query lives.
  *
- * It sits in `drive` rather than in `cli` because BOTH readers must share it and they cannot share
- * cli: the studio server does not depend on `@storytree/cli` (and must not — `drive` is the package
- * the cli, the studio worker and the desktop backend already have in common). ADR-0267's Consequences
- * name the fork this prevents: *"there is no arc view in the studio beyond a flat artifact card, and
- * the derived arc → children join is CLI-only."* `packages/cli/src/arc.ts` renders this rollup into
- * an ADR-0023 envelope; the studio server serves the same value as JSON. Neither joins anything
- * itself — the hard invariant is that `drive` never imports `cli`, so the arrow only points this way.
+ * It sits in `@storytree/arc` because BOTH readers must share it and neither may reach the other's
+ * surface: the studio server does not depend on `@storytree/cli` (and must not). It lived in `drive`
+ * for that reason until `arc-tier-extraction-arc` gave the arc domain its own package — the same
+ * argument, one building further down. ADR-0267's Consequences name the fork it prevents: *"there is
+ * no arc view in the studio beyond a flat artifact card, and the derived arc → children join is
+ * CLI-only."* `arc.ts` next door renders this rollup into an ADR-0023 envelope; the studio server and
+ * the desktop backend serve the same value as JSON. None of them joins anything itself.
+ *
+ * The arrow runs arc → drive and cannot be reversed: the loaders below read drive's ADR-frontmatter
+ * and work-hierarchy scanners, so `drive` importing this back would be a package cycle.
  */
 
 /**
@@ -119,7 +130,7 @@ export interface ArcRollupQuestion {
   /**
    * ADR-0358 Option 2B/2D — the question's park-lease fields, carried through untouched (`undefined`
    * when the doc predates ADR-0358). The CLI renderer computes the age/freshness line at render time
-   * (`questionStalenessLine`, `packages/cli/src/question.ts`) rather than here — this module stays
+   * (`questionStalenessLine`, `packages/arc/src/question.ts`) rather than here — this module stays
    * clockless, the same purity discipline as `graduation.ts`.
    */
   verifiedAt?: string;
@@ -139,8 +150,11 @@ export interface ArcRollup {
   id: string;
   title: string;
   description: string;
-  /** ADR-0239 D1's stored closure flag — what makes D7's "currently running" answerable. */
-  lifecycle: "active" | "closed";
+  /**
+   * ADR-0239 D1's stored closure flag — what makes D7's "currently running" answerable.
+   * `parked` is ADR-0374 D1's third value: open work the owner has decided not to do for now.
+   */
+  lifecycle: "active" | "parked" | "closed";
   intent: string;
   endState: string;
   /**
@@ -242,7 +256,7 @@ export function isForwardLooking(status: string): boolean {
  * when the log carries no signal to derive one from.
  *
  * THIS IS THE ONE PLACE THE RULE LIVES. `recomputeArcLifecycle` (the write-time trigger in
- * `packages/cli/src/arc.ts`) and {@link reconcileArcLifecycles} (the sweep) both call it, so the
+ * `packages/arc/src/arc.ts`) and {@link reconcileArcLifecycles} (the sweep) both call it, so the
  * trigger and the reconciler cannot answer differently for the same arc. A reconciler carrying its
  * own copy of the predicate would be a second truth about the same field, and the drift it reported
  * would be indistinguishable from its own divergence.
@@ -267,6 +281,46 @@ export function deriveArcLifecycle(
   return increments.some((i) => isForwardLooking(i.status)) ? "active" : "closed";
 }
 
+/**
+ * True when this arc's stored `lifecycle` is a CURATED one the mechanical rule must not overwrite
+ * (ADR-0374 D2). Today that is exactly `parked`.
+ *
+ * ── WHY THE FENCE EXISTS, AND WHY IT LIVES HERE ────────────────────────────────────────────────
+ *
+ * {@link deriveArcLifecycle} answers one question — what does this arc's INCREMENT LOG say — and it
+ * answers it correctly for a parked arc: open work is present, so the log says `active`. That is
+ * precisely the collision. A parked arc is one whose open work the owner has decided NOT to do, and
+ * the log cannot hold that decision, so left alone the rule would flip `parked` → `active` on the
+ * very next increment write and again on every `arc reconcile` sweep. The owner's call would be
+ * erased by a mechanism that never knew it existed, which is worse than never having the state.
+ *
+ * SO THE RULE YIELDS, RATHER THAN THE STATE BEING DERIVED. This is not a hole in ADR-0335 — that
+ * ADR's point is that nobody should have to REMEMBER to flip a lifecycle, and parking is the one
+ * transition that is a remembered judgement by construction (`arc park`, ADR-0374 D3). Yielding
+ * keeps the mechanical rule total over everything it can actually see.
+ *
+ * IT IS ONE PREDICATE FOR THE SAME REASON `deriveArcLifecycle` IS. Both the write-time trigger
+ * (`recomputeArcLifecycle`) and the sweep ({@link reconcileArcLifecycles}) consult THIS function, so
+ * they cannot disagree about which arcs the rule is allowed to touch. A second copy in the sweep
+ * would report a parked arc as drift while the trigger left it alone, and the disagreement would be
+ * indistinguishable from a genuine drift.
+ *
+ * `closed` is deliberately NOT curated even though `arc close` is a deliberate act: a closed arc's
+ * log genuinely derives `closed` (nothing forward-looking remains), so rule and judgement AGREE and
+ * there is nothing to protect. `parked` is the only state where they disagree by design.
+ */
+export function isCuratedLifecycle(lifecycle: string): lifecycle is CuratedLifecycle {
+  return lifecycle === "parked";
+}
+
+/**
+ * The curated half of {@link ArcRollup.lifecycle} — a TYPE PREDICATE's target, so that guarding on
+ * {@link isCuratedLifecycle} narrows the mechanical half to `"active" | "closed"` for the caller.
+ * That is how {@link ArcLifecycleDrift} keeps its two-value `stored` honestly: a parked arc cannot
+ * reach the drift list, and the compiler is what says so rather than a comment.
+ */
+export type CuratedLifecycle = "parked";
+
 /** One arc whose stored `lifecycle` disagrees with the lifecycle its own increment log derives. */
 export interface ArcLifecycleDrift {
   id: string;
@@ -285,14 +339,21 @@ export interface ArcLifecycleDrift {
 export interface ArcLifecycleNoSignal {
   id: string;
   title: string;
-  stored: "active" | "closed";
+  stored: "active" | "parked" | "closed";
 }
 
-/** What one reconciliation sweep found. `agreed` is counted so a clean run is never a silent one. */
+/**
+ * What one reconciliation sweep found. `agreed` is counted so a clean run is never a silent one, and
+ * `curated` is counted for the same reason (ADR-0374 D2): an arc the sweep DECLINED to judge is a
+ * third outcome, and folding it into `agreed` would report the rule as having checked something it
+ * deliberately did not look at.
+ */
 export interface ArcLifecycleReconciliation {
   drift: ArcLifecycleDrift[];
   noSignal: ArcLifecycleNoSignal[];
   agreed: number;
+  /** Arcs skipped because their stored lifecycle is curated — see {@link isCuratedLifecycle}. */
+  curated: number;
 }
 
 /**
@@ -317,6 +378,11 @@ export interface ArcLifecycleReconciliation {
  * increment write unless work is parked"). The reopen increment stays in the log either way
  * (increments are durable, ADR-0305 D3), so the record of the judgement survives the flip, and
  * parking the work reopens the arc.
+ *
+ * THE ONE THING IT NOW REFUSES TO JUDGE is a CURATED lifecycle ({@link isCuratedLifecycle}, ADR-0374
+ * D2). A parked arc holds open work by definition, so this sweep would derive `active` for every one
+ * of them and "reopen" all of them on the next `--write` — un-parking the owner's whole shelf in a
+ * single run. Skipped and COUNTED, never silently passed over.
  */
 export function reconcileArcLifecycles(
   rollups: readonly ArcRollup[],
@@ -324,7 +390,12 @@ export function reconcileArcLifecycles(
   const drift: ArcLifecycleDrift[] = [];
   const noSignal: ArcLifecycleNoSignal[] = [];
   let agreed = 0;
+  let curated = 0;
   for (const arc of rollups) {
+    if (isCuratedLifecycle(arc.lifecycle)) {
+      curated += 1;
+      continue;
+    }
     const derived = deriveArcLifecycle(arc.increments);
     if (derived === null) {
       noSignal.push({ id: arc.id, title: arc.title, stored: arc.lifecycle });
@@ -345,7 +416,7 @@ export function reconcileArcLifecycles(
       landed: arc.increments.length - open,
     });
   }
-  return { drift, noSignal, agreed };
+  return { drift, noSignal, agreed, curated };
 }
 
 /**
@@ -382,9 +453,30 @@ export function arcRefOf(stored: StoredDoc): string | null {
  * exact `"closed"` the schema enum fences is closure — an absent, empty, or unrecognised value is an
  * arc still IN FLIGHT, so a doc this code doesn't understand stays in the worklist instead of
  * silently vanishing from it (`lifecycleOf`'s fail-open arc branch, applied at the render surface).
+ *
+ * A PARKED ARC IS NOT CLOSED, and every caller of this predicate wants that answer: parking does not
+ * assert the end state was met (ADR-0374 D1). Callers that need the three-way answer read
+ * {@link arcLifecycleOf} instead — this one stays a two-way question so no existing reader silently
+ * changes meaning.
  */
 export function arcIsClosed(stored: StoredDoc): boolean {
   return bagOf(stored)["lifecycle"] === "closed";
+}
+
+/**
+ * PURE: an arc's stored `lifecycle` as one of the three values (ADR-0374 D1), read defensively off
+ * an untyped doc — the widened sibling of {@link arcIsClosed}.
+ *
+ * FAIL-OPEN, exactly as its sibling is: only the two exact non-default enum values are recognised,
+ * and anything absent, empty or unrecognised reads `active`. A doc this code does not understand
+ * stays in the worklist rather than disappearing off it, which is the failure mode that matters —
+ * an arc wrongly shown is noticed and fixed, an arc wrongly hidden is not noticed at all.
+ */
+export function arcLifecycleOf(stored: StoredDoc): "active" | "parked" | "closed" {
+  const value = bagOf(stored)["lifecycle"];
+  if (value === "closed") return "closed";
+  if (value === "parked") return "parked";
+  return "active";
 }
 
 /**
@@ -551,7 +643,7 @@ export function deriveArcRollup(input: ArcRollupInput): ArcRollup {
     id,
     title: str(doc, "title"),
     description: str(doc, "description"),
-    lifecycle: arcIsClosed(arc) ? "closed" : "active",
+    lifecycle: arcLifecycleOf(arc),
     intent: str(doc, "intent"),
     endState: str(doc, "endState"),
     increments,

@@ -81,6 +81,17 @@ sixteen D2 retired, but a narrow, freshly-justified new rung scoped to one prope
 `check:web-experience`. D1's list is the closed set this audit certified; it is no longer the
 complete list of what the gate runs.)*
 
+*(Updated 2026-08-14 —
+[ADR-0372](0372-check-ownership-totality-earns-its-blocking-rung-clearing-ad.md), `proposed`, amends
+this ADR under D5's evidence-plus-ADR requirement to add `check:ownership-totality`: an exact,
+mechanical assertion (a source file either falls under a declared `sourceOwnership` subtree or it
+does not, ADR-0317 D2) with no false-positive surface, charged only against what a branch itself
+authors (the same authorship rule ADR-0301 decided for `check:verification-decay`). Also not a
+readmission of any retired rung — the map it reads did not exist at this audit. D1's nine-rung list
+remains the closed, certified set; the gate's actual current rung count keeps growing beyond it, one
+freshly-justified ADR at a time, exactly as this correction's previous paragraph already
+anticipated.)*
+
 **D2 — the tombstone is complete: sixteen original rungs are retired.** ADR-0302 already removed
 `check:agents-sync`, `check:corpus-sync` and `check:corpus-content`. This decision additionally
 removes `check:manifest`, `check:process-graph`, `check:test-timing`, `check:web-experience`,

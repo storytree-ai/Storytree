@@ -139,6 +139,12 @@ export interface GatePlanStep extends GateStep {
  * - check:boundaries — FACTORY BOOKKEEPING. Commit 8b588085 caught a real dependency cycle, and
  *   04939391 / PR425 caught undeclared imports; without it invisible cycles and cross-story
  *   coupling ship.
+ * - check:ownership-totality — FACTORY BOOKKEEPING (ADR-0317 D2, added 2026-08-14). PR #1326
+ *   introduced two `packages/cli/src/typecheck-aperture*.ts` files under no declared subtree and a
+ *   FULL gate went green with the ownership map already incomplete — `storytree ownership` is
+ *   report-only and `check:boundaries` is package-grain, so nothing sat between the author and the
+ *   decay; without it the map silently stops being total and the arc that owns it hand-repairs on
+ *   every increment.
  * - check:mirror-conformance — PROOF INTEGRITY. Commit 3ef84c96 records a historical studio-only
  *   docs change producing 256+4 divergences; without it desktop and studio behavior diverge.
  * - check:guidance — FACTORY BOOKKEEPING. A clean worktree on 2026-08-05 caught stale
@@ -177,6 +183,13 @@ export const GATE_PLAN: readonly GatePlanStep[] = [
     subject: "own-work",
     cost: "seconds",
     why: "reds on a cross-organism dependency this diff added without a declared story edge",
+  },
+  {
+    command: "pnpm check:ownership-totality",
+    check: "check:ownership-totality",
+    subject: "own-work",
+    cost: "seconds",
+    why: "reds when this diff adds a source file under no declared `sourceOwnership` subtree, or un-owns one that WAS declared; a breach already on the merge base is reported and never charged, so a red here can only be this branch's (ADR-0317 D2 charged by ADR-0301)",
   },
   {
     command: "pnpm check:mirror-conformance",
@@ -721,6 +734,7 @@ export const GATE_VOICE_SCAN_ROOTS: readonly string[] = ["packages/cli/src", "pa
  */
 export const PRE_EXPENSIVE_CHECKS: ReadonlySet<string> = new Set([
   "check:boundaries",
+  "check:ownership-totality",
   "check:mirror-conformance",
   "check:web-grounding",
   "check:web-engine",

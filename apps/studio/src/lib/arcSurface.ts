@@ -1,7 +1,7 @@
 // The arc surface's PURE derivation layer (ADR-0314) — momentum lanes, arc state, and the briefing
 // panel's payload, all computed from ONE already-joined `ArcRollup` and nothing else.
 //
-// WHERE THE JOIN LIVES, AND WHY NONE OF IT IS HERE. `packages/drive/src/arc-rollup.ts` owns the
+// WHERE THE JOIN LIVES, AND WHY NONE OF IT IS HERE. `packages/arc/src/arc-rollup.ts` owns the
 // arc → children join, and both `storytree arc show` and `GET /api/arcs` render from that one
 // value. This module derives PRESENTATION from an already-joined rollup: which bars a lane draws,
 // which state a lane reads, what the briefing panel shows. It never re-derives membership, never
@@ -96,8 +96,8 @@ export function laneCounts(rollup: ArcRollup): LaneCounts {
 
 /**
  * The states the surface KNOWS (ADR-0267 D7, defined by ADR-0314 D4; `closed` added by ADR-0335;
- * `running` RENAMED to `moving` and `claimed` added by ADR-0351). All six are named here because the
- * vocabulary is decided; only five are ever COMPUTED — see {@link arcState}.
+ * `claimed` added by ADR-0351; `moving` RETIRED and `parked` added by ADR-0374). All six are named
+ * here because the vocabulary is decided; only five are ever COMPUTED — see {@link arcState}.
  *
  * - `waiting`  — an authored open question is sitting on this arc. Answerable right now, from the
  *                briefing panel, without a re-onboarding round trip.
@@ -105,24 +105,27 @@ export function laneCounts(rollup: ArcRollup): LaneCounts {
  *                this surface backed by the claim ledger rather than by dates, and it is asserted
  *                POSITIVELY ONLY — see {@link arcClaimants} for why its absence proves nothing.
  * - `blocked`  — the arc cannot proceed and there is NOTHING for the owner to answer.
- * - `moving`   — something landed or was parked here inside {@link QUIET_AFTER_DAYS}.
+ * - `quiet`    — the DEFAULT, and since ADR-0374 D4 the only fall-through: no session is on it and
+ *                nothing on it is waiting on the owner. Nobody stuck, nothing moving right now.
  *
- *                ⚠ THIS WAS CALLED `running`, AND THE RENAME IS THE WHOLE POINT (ADR-0351 D1).
- *                `running` reads as "a session is running on this", which this predicate has never
- *                measured and cannot: it is pure recency over the increment log, with no connection
- *                to the claim ledger at all. At 2026-08-12 landing velocity that made it degenerate
- *                as well as misleading — every one of the nine visible lanes rendered `RUNNING`,
- *                so the state discriminated nothing while implying something false. `moving` says
- *                what it measures, and pairs with `quiet` in the momentum vocabulary ADR-0314 D1
- *                already chose for this surface.
- * - `quiet`    — moving slowly, nobody stuck (ADR-0314 D4's re-definition, load-bearing now that
- *                B3 "gone quiet" was rejected as a `blocked` predicate).
+ *                ⚠ `moving` LIVED HERE AND IS GONE, which is the second half of a correction
+ *                ADR-0351 D1 only half-made. That rename replaced `running` (which falsely implied a
+ *                session) with `moving` (honest about measuring recency) — but the owner's objection
+ *                was never only to the WORD: an arc nothing is claimed on and nothing is waiting on
+ *                is quiet, whatever landed on it last week. Recency answered a question nobody was
+ *                asking, and answered it degenerately: at landing velocity every recent arc read
+ *                `moving`, so the state discriminated nothing, exactly as `running` had. The
+ *                predicate is deleted rather than re-tuned — a longer window would only move the
+ *                degeneracy, since the fault is that recency is not the question.
+ * - `parked`   — `lifecycle: parked` (ADR-0374 D1): open work the owner has DECIDED not to do for
+ *                now. Distinct from `quiet` in the one way that matters to a reader: a quiet arc is
+ *                still on the worklist and may resume at any moment; a parked one is off it by
+ *                decision, and only `arc reopen` brings it back.
  * - `closed`   — `lifecycle: closed` (ADR-0335: mechanical, derived from the increment log — never
- *                a curated flag a session must remember to flip). Distinct from `quiet`: a quiet arc
- *                is still active and may resume any time on its own; a closed one reopens only when
- *                new forward-looking work is parked on it.
+ *                a curated flag a session must remember to flip). Distinct from `parked`: closed
+ *                MET its end state, parked did not and still wants the work.
  */
-export type ArcSurfaceState = 'waiting' | 'claimed' | 'blocked' | 'moving' | 'quiet' | 'closed';
+export type ArcSurfaceState = 'waiting' | 'claimed' | 'blocked' | 'quiet' | 'parked' | 'closed';
 
 /** The states {@link arcState} may actually return. `blocked` is NOT among them — by decision. */
 export type DerivableArcState = Exclude<ArcSurfaceState, 'blocked'>;
@@ -218,15 +221,6 @@ export const BLOCKED_UNAVAILABLE_NOTE =
   'blocked is not lit — its sources (an unavailable claim, an unmet dependency) need ADR-0306/0308, which are not built';
 
 /**
- * How long an arc may go without a landing or a parking before it reads `quiet` rather than
- * `running`. Seven days is the window the mock round measured "gone quiet" over; here it means what
- * it says (moving slowly) instead of standing in for `blocked` (ADR-0314 D4).
- */
-export const QUIET_AFTER_DAYS = 7;
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-/**
  * The most recent moment this arc DID something, as epoch ms — the max over every increment's
  * landing date and parking stamp. `null` when the arc has no dated increment at all (a fresh arc,
  * or one whose rows carry no usable date).
@@ -254,11 +248,28 @@ export function lastActivityAt(rollup: ArcRollup): number | null {
 }
 
 /**
- * One arc's state (ADR-0314 D4, `closed` added by ADR-0335). `closed` wins over everything else —
- * a fully-drained arc reads as closed even if it happens to carry a stray unanswered question, since
- * `waiting` promises "answerable right now, in flight" and a closed arc is not in flight. Short of
- * that, `waiting` wins: an arc the owner can unblock by reading and replying is the one thing this
- * surface exists to surface, so it never hides behind a recency judgement.
+ * One arc's state (ADR-0314 D4; `closed` added by ADR-0335, `parked` and the `quiet` fall-through by
+ * ADR-0374 D4).
+ *
+ * THE ORDER IS THE DECISION, read top to bottom:
+ *
+ *   1. `closed` / `parked` — the two STORED lifecycles win over everything, because an arc that is
+ *      off the worklist is off it whatever else is true of it. A drained arc reads closed even if it
+ *      carries a stray unanswered question: `waiting` promises "answerable right now, in flight",
+ *      and neither of these is in flight.
+ *   2. `waiting` — an arc the owner can unblock by reading and replying is the one thing this
+ *      surface exists to surface, so it outranks everything below and never hides behind a
+ *      judgement about activity.
+ *   3. `claimed` — a session is provably on it. Positive-only: a non-match falls THROUGH and never
+ *      asserts "unclaimed" (see {@link arcClaimants} for the measured reason).
+ *   4. `quiet` — everything else. Not a computed judgement any more but a residual, and stating it
+ *      that way is the point of ADR-0374 D4: an arc nobody is claiming, with nothing waiting on the
+ *      owner, IS quiet. There is nothing further to measure, and the recency test that used to sit
+ *      here (`moving` vs `quiet`) is deleted rather than widened.
+ *
+ * `now` is still taken, and deliberately: it is part of this function's published shape, every
+ * caller injects it, and the lane list still sorts on {@link lastActivityAt}. It is simply no longer
+ * consulted for the STATE — the surface reads the clock to ORDER lanes, never to label one.
  *
  * Never returns `blocked` — see {@link BLOCKED_IS_DERIVABLE}. The return type says so, so a future
  * session cannot add it here without deliberately widening the signature.
@@ -268,16 +279,12 @@ export function arcState(
   now: Date,
   claims: readonly SessionClaimGroup[] | null = null,
 ): DerivableArcState {
+  void now;
   if (rollup.lifecycle === 'closed') return 'closed';
+  if (rollup.lifecycle === 'parked') return 'parked';
   if (rollup.questions.length > 0) return 'waiting';
-  // `claimed` outranks the recency states because it is the only one of the three backed by
-  // something other than a date — but it NEVER outranks `waiting`, which is the one state the owner
-  // can act on, and it never produces a negative: no match falls through, it does not assert
-  // "unclaimed" (see arcClaimants).
   if (arcClaimants(rollup, claims).length > 0) return 'claimed';
-  const last = lastActivityAt(rollup);
-  if (last === null) return 'quiet';
-  return now.getTime() - last <= QUIET_AFTER_DAYS * DAY_MS ? 'moving' : 'quiet';
+  return 'quiet';
 }
 
 // ---------- the lane list ----------
@@ -297,30 +304,45 @@ export interface ArcLane {
 const STATE_RANK: Readonly<Record<DerivableArcState, number>> = {
   waiting: 0,
   claimed: 1,
-  moving: 2,
-  quiet: 3,
+  quiet: 2,
+  parked: 3,
   closed: 4,
 };
 
 /**
- * Which arcs {@link arcLanes} draws — the CLI's `ArcScope` naming (`packages/cli/src/arc.ts`),
- * reused here as a plain string union rather than an import: the studio must not depend on `cli`.
- * `active` is the default and matches ADR-0239 D3 / ADR-0335's own worklist framing.
+ * Which arcs {@link arcLanes} draws — the CLI's `ArcScope` naming (`packages/arc/src/arc.ts`),
+ * reused here as a plain string union rather than an import: the studio must not depend on that
+ * package. `active` is the default and matches ADR-0239 D3 / ADR-0335's own worklist framing.
+ *
+ * ONE SCOPE PER LIFECYCLE, AND NO `all` (ADR-0374 D5 — the owner's call: "this is not a useful
+ * view"). The CLI keeps `--all`, because a terminal reader can grep a long list and scan the
+ * `[closed]` / `[parked]` tags. This surface draws LANES, and `all` drew the union of three
+ * different answers in one column with the tag carried only by a small state chip — the reader who
+ * most needs the split is the one least able to see it there. Every arc is reachable through exactly
+ * one of these three scopes, so nothing is hidden by the removal; what goes is a fourth view that
+ * answered no question of its own.
  */
-export type ArcLaneScope = 'active' | 'closed' | 'all';
+export type ArcLaneScope = 'active' | 'parked' | 'closed';
 
 /**
- * Every arc in `scope` as a lane, waiting arcs first, then running, then quiet, then closed; within
- * a state the most recently active first, ties broken by id so the order is total and a render is
- * stable between polls.
+ * Every arc in `scope` as a lane, waiting arcs first, then claimed, then quiet; within a state the
+ * most recently active first, ties broken by id so the order is total and a render is stable between
+ * polls. (`parked` and `closed` also carry a rank, but each has a scope to itself now, so those two
+ * only ever sort against their own kind.)
  *
  * `scope` defaults to `active` (ADR-0239 D3's worklist framing): the surface answers "where is this
  * initiative up to", and a pile of finished initiatives above the live ones would bury the answer.
- * Closed arcs are NOT hidden, only DEFAULT-excluded — ADR-0335 added the `closed`/`all` scopes after
- * the CLI already had `--closed`/`--all` but the studio surface had no equivalent, so "one click away
- * in the Library" was a promise the map itself did not keep (this doc used to say that; ADR-0335
- * corrected it in place rather than superseding, since the DECISION — active-by-default — never
- * changed, only the surface's ability to widen it).
+ * Neither closed nor parked arcs are HIDDEN, only default-excluded — ADR-0335 added the `closed`
+ * scope after the CLI already had `--closed` but the studio surface had no equivalent, so "one click
+ * away in the Library" was a promise the map itself did not keep (this doc used to say that;
+ * ADR-0335 corrected it in place rather than superseding, since the DECISION — active-by-default —
+ * never changed, only the surface's ability to widen it). ADR-0374 D5 added `parked` beside it and
+ * removed `all`.
+ *
+ * THE FILTER IS AN EXACT LIFECYCLE MATCH, not the old boolean split. `(closed) === (scope ===
+ * 'closed')` had only two answers to give, so a third lifecycle would have fallen into whichever
+ * side it did not name — sweeping every parked arc back onto the active worklist, which is the one
+ * place parking exists to remove it from.
  *
  * Waiting-first is the D3 posture expressed as an ordering: the panel is "where the owner acts", so
  * the arcs that have something for them to act on sit at the top of the list they scan.
@@ -332,10 +354,7 @@ export function arcLanes(
   claims: readonly SessionClaimGroup[] | null = null,
 ): ArcLane[] {
   return arcs
-    .filter((arc) => {
-      if (scope === 'all') return true;
-      return (arc.lifecycle === 'closed') === (scope === 'closed');
-    })
+    .filter((arc) => arc.lifecycle === scope)
     .map((arc) => ({
       arc,
       bars: laneBars(arc),

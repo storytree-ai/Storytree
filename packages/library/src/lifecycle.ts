@@ -80,7 +80,15 @@ export function lifecycleOf(kind: string, doc: LifecycleDoc): Lifecycle {
       // since ADR-0337 `arc reopen` writes the way back, so the projection reads a bit that can move
       // both ways rather than a one-way latch. An arc with no stored field is still in flight, so
       // absent degrades to `active` — the projection never invents an `archived` it cannot read.
-      return doc.lifecycle === "closed" ? "archived" : "active";
+      //
+      // `parked` (ADR-0374 D1) projects to `archived` TOO, and shares the branch deliberately. The
+      // triad answers ONE question — is this on the worklist — and a parked arc is off it by the
+      // owner's decision exactly as a closed one is off it by its end state. The two are not the
+      // same fact and the ARC tier keeps them apart (`closed` met its end state, `parked` did not);
+      // the triad simply is not the surface that distinguishes them, and inventing a fourth value to
+      // carry the difference here is the wide-enum over-engineering ADR-0196 D2 refused. `open` is
+      // the wrong shelf: it means undecided, and parking is a decision.
+      return doc.lifecycle === "closed" || doc.lifecycle === "parked" ? "archived" : "active";
 
     default:
       // Every durable kind (definition/principle/pattern/guardrail/techstack/process/agent/

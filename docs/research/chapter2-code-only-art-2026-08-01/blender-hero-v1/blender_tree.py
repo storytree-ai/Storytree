@@ -30,6 +30,7 @@ Invariants held (ADR-0280 D1, reaffirmed by ADR-0289):
   · The camera is framed ONCE to the mature extent and is byte-identical every frame.
   · CPU Cycles, fixed seed, fixed samples, pinned Blender 5.2.0 LTS.
 """
+import hashlib
 import json
 import math
 import os
@@ -1972,8 +1973,32 @@ print(f"SKELETON nodes={len(NODES)} iters={NMAX_BIRTH} lobes={len(CLUSTERS)} "
       f"span={SPAN:.4f} tz={TZ:.4f} top={_TOP:.3f} halfw={_HALFW:.3f} "
       f"numpy={np.__version__}", flush=True)
 
+def _own_code_state():
+    """THE code state of this render: this file's own source digest.
+
+    Not the flags — a fork sheet varies its flags on purpose. What it must never vary is the code
+    underneath, and that is exactly what `crown-normals-fork.png` did: five variant directories, four
+    rendered before a canopy constant existed and one after, composed into a picture whose whole
+    purpose was to isolate ONE lever. `pixelise.py` propagates this into the delivered directory and
+    `sheet.py` refuses to compose cells whose declarations disagree.
+
+    Hashed inline with `hashlib` rather than through `provenance.py`, because Blender does not
+    reliably put a `--python` script's own directory on `sys.path`; the sibling module documents the
+    contract this must keep.
+    """
+    try:
+        with open(os.path.abspath(__file__), "rb") as fh:
+            return {"generator": os.path.basename(__file__),
+                    "sha256": hashlib.sha256(fh.read()).hexdigest()}
+    except OSError:
+        return None
+
+
 meta = {
     "generator": "blender_tree.py",
+    "code_state": _own_code_state(),
+    # the exact invocation, so a variant directory's own levers never have to be recalled
+    "argv": list(argv),
     "blender": "5.2.0 LTS",
     "engine": "CYCLES/CPU",
     "seed": SEED,

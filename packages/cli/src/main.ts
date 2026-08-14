@@ -40,6 +40,7 @@ import type { OpenCorpusStore } from "@storytree/drive";
 import type { ClaimLedgerStoreLike, SessionClaimStoreLike } from "@storytree/drive";
 import { loadLocalSecrets } from "./secrets.js";
 import type { VerdictReaderLike } from "./tree-verdicts.js";
+import type { WorkLogReaderLike } from "./work-log.js";
 import type { UatVerdictStoreLike } from "./uat.js";
 
 /**
@@ -67,6 +68,8 @@ async function buildStore(usePg: boolean): Promise<{
   claims: SessionClaimStoreLike | null;
   ledger: ClaimLedgerStoreLike | null;
   verdicts: VerdictReaderLike | null;
+  /** The row-level work-event read (`node log`, ADR-0350 D3); null off --pg. */
+  workLog: WorkLogReaderLike | null;
   uatStore: UatVerdictStoreLike | null;
   attestations: AttestationStoreLike | null;
   adr: AdrAllocatorLike | null;
@@ -94,6 +97,9 @@ async function buildStore(usePg: boolean): Promise<{
       // The verdict event log (verdict-glyphs): the tree's glyph column reads events.verdict
       // through the same pool; offline the column is silently absent.
       verdicts: work,
+      // The SAME PgWorkStore under a wider seam: `node log` renders whole rows (actor, at, and the
+      // optional causal edge), which the glyph-shaped VerdictReaderLike does not carry.
+      workLog: work,
       // The per-test UAT write surface (ADR-0082): `uat attest` appends a signed operator-attested
       // verdict to events.verdict through the same work store; offline `uat attest` refuses.
       uatStore: work,
@@ -121,6 +127,7 @@ async function buildStore(usePg: boolean): Promise<{
       claims: null,
       ledger: null,
       verdicts: null,
+      workLog: null,
       uatStore: null,
       attestations: null,
       adr: null,
@@ -159,6 +166,7 @@ async function buildStore(usePg: boolean): Promise<{
     claims: null,
     ledger: null,
     verdicts: null,
+    workLog: null,
     uatStore: null,
     attestations: null,
     adr: null,
@@ -362,7 +370,8 @@ export async function main(): Promise<void> {
   // hangs on the connector handshake is precisely the one a session needs to be able to find.
   const deregister = registerThisInvocation(argv, identity);
   const usePg = argv.includes("--pg");
-  const { store, claims, ledger, verdicts, uatStore, attestations, adr, pullDeltas, close } = await buildStore(usePg);
+  const { store, claims, ledger, verdicts, workLog, uatStore, attestations, adr, pullDeltas, close } =
+    await buildStore(usePg);
   try {
     // Writes only persist against the live --pg store; the offline copy is read-only-by-convention.
     const actor = process.env["STORYTREE_ACTOR"];
@@ -386,6 +395,7 @@ export async function main(): Promise<void> {
           }
         : {}),
       verdicts,
+      workLog,
       uatStore,
       attestations,
       adr,

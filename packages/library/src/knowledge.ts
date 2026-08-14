@@ -697,6 +697,40 @@ export const AssetRef = z.string().regex(/^asset:[A-Za-z0-9_-]+$/, {
 export const STORY_REF_PREFIX = "story:";
 export const CAPABILITY_REF_PREFIX = "capability:";
 
+/**
+ * The `asset:<id>` Library pointer — the third {@link CiteScheme}, and the one `references` uses.
+ *
+ * It sits beside its two siblings rather than in a consumer package because the arc extraction
+ * (`arc-tier-extraction-arc`) gave it a SECOND package of readers: `@storytree/arc` mints an
+ * `asset:` citation when a friction route parks an increment, and `@storytree/cli`'s
+ * `asset-citation.ts` resolves one. Two packages agreeing on a token by copying it is the drift seam
+ * `parseCiteRef` exists to prevent — so the token is defined once, here, and re-exported there.
+ */
+export const ASSET_REF_PREFIX = "asset:";
+
+/**
+ * PURE: kebab-case slug from a title (a-z0-9, hyphen-separated), capped so filenames stay sane.
+ *
+ * The one id-derivation the corpus uses everywhere a human title becomes a machine id: an ADR
+ * filename slug (`adr new`), an arc id (`arc new`), an open-question id (`question new`). It lived in
+ * `@storytree/cli`'s `adr.ts` until `arc-tier-extraction-arc` moved the arc verbs into their own
+ * package and left the two callers in different buildings; a second implementation would be a drift
+ * seam for no gain, so it moved DOWN to the package both already depend on rather than sideways.
+ *
+ * ⚠ The 60-char cap TRUNCATES. That is right for a DERIVED id (there is no author intent to honour)
+ * and wrong for an AUTHORED one — `arc new` / `question new` refuse a too-long explicit id instead of
+ * silently shortening it. Callers that mind the difference say so at their own call site.
+ */
+export function kebabSlug(title: string): string {
+  return title
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60)
+    .replace(/-+$/g, "");
+}
+
 /** The three schemes a {@link CiteRef} admits — the mixed set ADR-0306 D2 puts on an increment. */
 export type CiteScheme = "story" | "capability" | "asset";
 
@@ -925,14 +959,34 @@ export type IncrementStatus = z.infer<typeof IncrementStatus>;
 /**
  * The stored closure state of an `arc` (ADR-0239 D1): `active` while the initiative is in flight,
  * `closed` once a terminal increment records that the observable `endState` condition was met.
- * TWO values, not the increment tier's four — an arc has no `open` state (ADR-0196 D1's table gives
- * `arc` an `active`/`archived` row only), and D2 of that same ADR already judged the wider enum
- * surface-level over-engineering. Vocabulary follows ADR-0196 D2 verbatim ("a stored `lifecycle`
- * field"), and the mapping onto the universal triad stays in the ONE projection (`lifecycleOf`,
- * ADR-0196 D4). Enum-fenced at the schema so a free-prose state can never be written (the
- * {@link IncrementStatus} precedent).
+ * Vocabulary follows ADR-0196 D2 verbatim ("a stored `lifecycle` field"), and the mapping onto the
+ * universal triad stays in the ONE projection (`lifecycleOf`, ADR-0196 D4). Enum-fenced at the
+ * schema so a free-prose state can never be written (the {@link IncrementStatus} precedent).
+ *
+ * ── `parked` IS THE THIRD VALUE, AND IT IS THE ONLY CURATED ONE (ADR-0374 D1) ──────────────────
+ *
+ * `active` and `closed` are MECHANICAL — ADR-0335 recomputes them from the increment log on every
+ * increment write, so neither is a judgement anybody has to remember to make. `parked` is the state
+ * that rule cannot reach and never will: an arc holding open, forward-looking work that the owner
+ * has DECIDED not to do for now. The mechanical rule reads exactly that shape as `active`, because
+ * from the log alone it is indistinguishable from work in flight.
+ *
+ * The live instance ADR-0374 was written for is `remote-session-access-arc` ("Remote sessions reach
+ * the live store"), descoped by the owner on 2026-08-04 — "not a priority, its only a nice to have"
+ * — while still carrying an open increment. It sat on the arc surface's active worklist for eleven
+ * days looking like work somebody was about to pick up.
+ *
+ * BEING CURATED IS WHAT MAKES IT STICKY, and the stickiness is enforced in `deriveArcLifecycle`
+ * (`@storytree/arc`) rather than here: without it, the very next increment write on a parked arc
+ * would flip it back to `active` and silently discard the owner's decision. That fence is the
+ * decision; this enum is only where the word is admitted.
+ *
+ * NOT the same as `closed`, and the difference is worth the third value rather than reusing the
+ * second: a closed arc's end state was MET, so its open work is gone and `arc close` refuses while
+ * any remains (ADR-0347). A parked arc's end state was NOT met — the work is still there, still
+ * wanted, just not now. Closing it would assert a landing that never happened.
  */
-export const ArcLifecycle = z.enum(["active", "closed"]);
+export const ArcLifecycle = z.enum(["active", "parked", "closed"]);
 export type ArcLifecycle = z.infer<typeof ArcLifecycle>;
 
 /**

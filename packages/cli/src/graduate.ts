@@ -41,6 +41,10 @@ import {
 import { openCorpusStore } from "@storytree/drive";
 
 import type { Envelope } from "./envelope.js";
+import {
+  evaluateGraduationDrain,
+  type GraduationCandidate as DrainCandidate,
+} from "./graduation-drain.js";
 
 // ---- pure: the memory-file frontmatter parser -----------------------------------------------
 
@@ -312,6 +316,15 @@ export interface GraduateDeps {
   readonly ledgerPath: string;
   /** The ISO date stamped into each candidate's provenance — injected so the command is deterministic. */
   readonly now: string;
+  /**
+   * This session's branch, and the branches still in flight (ADR-0371) — injected by the dispatcher
+   * from local git so this command stays synchronous and its tests stay hermetic (a test that omits
+   * them simply gets no authorship section, rather than shelling out to git from a temp dir).
+   *
+   * Supplied TOGETHER or not at all: the split is only meaningful when both are known.
+   */
+  readonly currentBranch?: string | null | undefined;
+  readonly inFlightBranches?: ReadonlySet<string> | undefined;
 }
 
 /** `refs` summary for one candidate: the resolved `asset:` ids, or an em dash when none resolved. */
@@ -351,6 +364,12 @@ interface Worklist {
   readonly unparseable: Unparseable[];
   /** an existing-but-invalid ledger file, surfaced (treated as empty on this read path) */
   readonly ledgerProblem?: string;
+  /**
+   * The authorship / liveness split over the LIVE candidates (ADR-0371), or absent when the caller
+   * supplied no session identity to compute it against (a hermetic test). Empty rather than a
+   * fabricated "0 in flight", because "nobody told me" and "nobody is in flight" are different claims.
+   */
+  readonly authorship?: readonly string[];
   readonly titleOf: (id: string) => string;
 }
 
@@ -397,6 +416,58 @@ function header(deps: GraduateDeps, read: MemoryReadResult, snapshot: LibrarySna
     `snapshot: the live Library store  (${snapshot.docs.length} docs)`,
     `stamp:    ${deps.now}`,
   ];
+}
+
+/**
+ * THE AUTHORSHIP / LIVENESS SPLIT over the live worklist (ADR-0371) — the answer to the question a
+ * drainer actually has, printed where the drain actually happens.
+ *
+ * PR #1124 is the reason this is here rather than only in the retired `check:graduation-worklist`
+ * shell: a librarian drained this queue, verified it clear, and watched it go back to 7 live within
+ * ~15 minutes — every one of them written by a SIBLING session that was still running. Asking "are
+ * these even mine to drain?" cost that session a hand investigation and the answer was "no". This
+ * line answers it, and the in-flight column is the one that would have prevented the wasted drain.
+ *
+ * It deliberately reuses {@link evaluateGraduationDrain} rather than re-deriving the split, so the
+ * verb and the (currently retired) gate step can never disagree about who owes what.
+ */
+function authorshipLines(
+  live: readonly LiveCandidate[],
+  memories: readonly MemoryFile[],
+  deps: GraduateDeps,
+): readonly string[] {
+  const { currentBranch, inFlightBranches } = deps;
+  if (currentBranch === undefined || inFlightBranches === undefined) return [];
+  if (live.length === 0) return [];
+
+  const branchOf = new Map(memories.map((m) => [m.name, m.branch] as const));
+  const candidates: DrainCandidate[] = live.map(({ candidate, status }) => {
+    const branch = branchOf.get(candidate.source);
+    return { name: candidate.source, status, ...(branch === undefined ? {} : { branch }) };
+  });
+  // `ledgerUsable` is irrelevant here: this reads only the authorship columns, never `level` or
+  // `breaches`, and this verb has never had an exit code to suppress.
+  const d = evaluateGraduationDrain(candidates, {
+    currentBranch,
+    inFlightBranches,
+    currentDate: deps.now,
+    ledgerUsable: true,
+  });
+
+  const lines = [
+    "",
+    `authorship (ADR-0371): ${d.ownCount} yours · ${d.inFlightCount} other sessions STILL IN FLIGHT · ` +
+      `${d.siblingCount - d.inFlightCount} other sessions' merged · ${d.unattributedCount} unstamped`,
+    `  → ${d.chargedCount} of ${d.liveCount} live candidate(s) are yours to drain NOW. A memory written by a ` +
+      "session that has not merged yet is not yet anyone's obligation; it becomes one when that branch lands.",
+  ];
+  if (d.ownCount + d.siblingCount === 0) {
+    lines.push(
+      "  Nothing here carries a `metadata.branch` stamp, so nothing could be excluded — the stamp only " +
+        "exists going forward (ADR-0301), and an unstamped memory is charged rather than excused.",
+    );
+  }
+  return lines;
 }
 
 /** The always-visible tally so a zero-count section is honest, not silently absent (ADR-0095). */
@@ -457,7 +528,7 @@ function suppressedSections(w: Worklist): string[] {
 }
 
 function formatSummary(deps: GraduateDeps, read: MemoryReadResult, snapshot: LibrarySnapshot, w: Worklist): string {
-  const lines = [...header(deps, read, snapshot), "", tally(w), ""];
+  const lines = [...header(deps, read, snapshot), "", tally(w), ...(w.authorship ?? []), ""];
   lines.push(
     `LIVE candidates (${w.live.length}) — new / changed / lease-expired (ADR-0202); the librarian-curator's worklist (this command does NOT write):`,
   );
@@ -470,7 +541,7 @@ function formatSummary(deps: GraduateDeps, read: MemoryReadResult, snapshot: Lib
 }
 
 function formatReview(deps: GraduateDeps, read: MemoryReadResult, snapshot: LibrarySnapshot, w: Worklist): string {
-  const lines = [...header(deps, read, snapshot), "", tally(w), ""];
+  const lines = [...header(deps, read, snapshot), "", tally(w), ...(w.authorship ?? []), ""];
   lines.push(
     `LIVE candidates (${w.live.length}) — the librarian-curator authors the final fields from these (or parks: \`storytree library graduate park <name> --reason "…"\`):`,
   );
@@ -524,6 +595,7 @@ export function graduateCommand(opts: { review: boolean }, deps: GraduateDeps): 
     userTier: read.memories.filter((m) => classifyMemory(m.type) === null),
     unparseable: read.unparseable,
     ...(problem !== undefined ? { ledgerProblem: problem } : {}),
+    authorship: authorshipLines(fold.live, read.memories, deps),
     titleOf: (id) => titleById.get(id) ?? "(missing target)",
   };
 

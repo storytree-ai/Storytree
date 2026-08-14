@@ -64,6 +64,8 @@ export interface OwnershipFacts {
   readonly declarations: readonly SubtreeDeclaration[];
   readonly knownUnitIds: readonly string[];
   readonly storyIds: readonly string[];
+  /** Story id → the unit ids it declares — classifies each story-grain declaration. */
+  readonly unitsByStory?: ReadonlyMap<string, readonly string[]>;
   readonly baseline?: OwnershipBaseline;
 }
 
@@ -141,11 +143,21 @@ export function gatherDeclarations(repoRoot: string): {
  * "does this declared owner name anything at all", which is what makes a phantom owner visible
  * without asserting the stronger property increment 2 will own.
  */
-export function gatherUnitIds(repoRoot: string): { knownUnitIds: string[]; storyIds: string[] } {
+export function gatherUnitIds(repoRoot: string): {
+  knownUnitIds: string[];
+  storyIds: string[];
+  /**
+   * Story id → the unit ids it declares. What lets the report say WHY a story-grain declaration is
+   * at story grain: a story declaring NO units has nothing finer to name (the root-port case), while
+   * one that declares capabilities may have a finer owner already sitting there.
+   */
+  unitsByStory: Map<string, string[]>;
+} {
   const storiesDir = join(repoRoot, "stories");
   const knownUnitIds = new Set<string>();
   const storyIds: string[] = [];
-  if (!existsSync(storiesDir)) return { knownUnitIds: [], storyIds: [] };
+  const unitsByStory = new Map<string, string[]>();
+  if (!existsSync(storiesDir)) return { knownUnitIds: [], storyIds: [], unitsByStory };
 
   for (const ent of readdirSync(storiesDir, { withFileTypes: true })) {
     if (!ent.isDirectory()) continue;
@@ -153,23 +165,28 @@ export function gatherUnitIds(repoRoot: string): { knownUnitIds: string[]; story
     if (!existsSync(join(storyDir, "story.md"))) continue;
     storyIds.push(ent.name);
     knownUnitIds.add(ent.name);
+    const units: string[] = [];
     for (const unit of readdirSync(storyDir, { withFileTypes: true })) {
       if (!unit.isFile() || !unit.name.endsWith(".md") || unit.name === "story.md") continue;
-      knownUnitIds.add(unit.name.slice(0, -".md".length));
+      const id = unit.name.slice(0, -".md".length);
+      knownUnitIds.add(id);
+      units.push(id);
     }
+    unitsByStory.set(ent.name, units.sort());
   }
-  return { knownUnitIds: [...knownUnitIds].sort(), storyIds: storyIds.sort() };
+  return { knownUnitIds: [...knownUnitIds].sort(), storyIds: storyIds.sort(), unitsByStory };
 }
 
 /** Gather every fact from a real checkout. */
 export function gatherFromDisk(repoRoot: string): OwnershipFacts {
   const { declarations, baseline } = gatherDeclarations(repoRoot);
-  const { knownUnitIds, storyIds } = gatherUnitIds(repoRoot);
+  const { knownUnitIds, storyIds, unitsByStory } = gatherUnitIds(repoRoot);
   return {
     files: gatherSourceFiles(repoRoot),
     declarations,
     knownUnitIds,
     storyIds,
+    unitsByStory,
     ...(baseline !== undefined ? { baseline } : {}),
   };
 }
@@ -213,6 +230,7 @@ export function ownershipCommand(deps: OwnershipDeps, options: FormatOptions & {
     declarations: facts.declarations,
     knownUnitIds: facts.knownUnitIds,
     storyIds: facts.storyIds,
+    ...(facts.unitsByStory !== undefined ? { unitsByStory: facts.unitsByStory } : {}),
     // A baseline measured over the WHOLE tree cannot be compared against one package's slice.
     ...(facts.baseline !== undefined && options.pkg === undefined ? { baseline: facts.baseline } : {}),
   });

@@ -1,12 +1,23 @@
-// ⚠ UNWIRED — part of retired `check:graduation-worklist`, which ADR-0311 D2 removed from the
-// gate on 2026-08-05. This module is the worklist core; its entrypoint
-// `check-graduation-worklist.ts` is invoked by nothing, and it is reached only from there and
-// from its own tests — so those tests stay GREEN while it enforces NOTHING. Kept deliberately
-// (ADR-0311 D5), not forgotten; re-wiring needs fresh production-catch evidence AND an ADR, never
-// just the wiring.
+// ⚠ UNWIRED AS A GATE STEP — and, since ADR-0371, NO LONGER UNREACHED. Both halves are true; read
+// both, because the old banner asserted the second one and it has stopped being correct.
+//
+// GATE STATUS: `check:graduation-worklist` was removed from the gate by ADR-0311 D2 on 2026-08-05
+// and has not returned. Its entrypoint `check-graduation-worklist.ts` is still invoked by nothing:
+// no root `package.json` script, no `GATE_PLAN` step (`gate-order.ts`), no CI job. Nothing here can
+// red anyone's landing. Kept deliberately (ADR-0311 D5); re-wiring needs fresh production-catch
+// evidence AND an ADR, never just the wiring.
 // Tombstone: `RETIRED_CHECKS` in `gate-order.ts`, pinned by `gate-order.test.ts`.
 //
-// What follows is retained as written — read it as what this DID, not as current gate policy.
+// REACHABILITY: since ADR-0371 this pure core is ALSO consumed by `graduate.ts`'s
+// `graduateCommand` — the `storytree library graduate [--review]` verb, which IS wired and is the
+// command a librarian actually runs to drain this queue. So `evaluateGraduationDrain` is live code
+// with a live caller; only its gate-enforcing shell is retired. That distinction is why ADR-0371
+// put the liveness rule here rather than inventing a second one: a fix that landed only in the
+// retired shell would have been a green diff changing no output anyone reads, which is the exact
+// failure ADR-0301 was criticised for.
+//
+// What follows is retained as written — read the ceiling/exit-code language as what this DID as a
+// gate step, not as current gate policy.
 //
 // The graduation-drain ceiling — the PURE, IO-free core of `check:graduation-worklist`.
 //
@@ -60,7 +71,7 @@
 //      going anonymous. The stamp exists only going FORWARD (ADR-0290 D2's posture): agents write these
 //      files with a file tool, no CLI verb stamps them, so on the day this landed every memory on the
 //      machine was unattributed and the charged count was unchanged.
-//   2. THE INPUT IS MACHINE-SHARED, NOT SESSION-LOCAL — **STILL OPEN, AND IT IS THE LOAD-BEARING ONE.**
+//   2. THE INPUT IS MACHINE-SHARED, NOT SESSION-LOCAL — **CLOSED BY ADR-0371** (see below).
 //      The agent-memory dir is per-MACHINE (`~/.claude/projects/<slug>/memory`, ADR-0202) and resolves
 //      through the MAIN checkout, so every concurrent worktree and session on the box reads and writes
 //      ONE queue. Observed while this ceiling was being landed: the queue moved 4 → 5 live (parked
@@ -71,15 +82,27 @@
 //      sessions writing between 20:56 and 21:11. The drain worked, was verified, and evaporated —
 //      through no fault of the drainer and with nothing it could have done differently.
 //
-// **CLOSING (1) DOES NOT FIX (2), AND MUST NOT BE READ AS FIXING IT.** On the #1124 numbers the
-// exclusion would have changed NOTHING: all 7 candidates belonged to SIBLING sessions, which an
-// own-homework exclusion does not suppress BY CONSTRUCTION. ADR-0301 shipped (1) deliberately as an
-// acknowledged partial — it closes a real asymmetry with the sibling friction ceiling, and it is a
-// prerequisite for every candidate fix to (2), because you cannot ask "is that session still in
-// flight" without first knowing whose it is. What it buys on its own is the OTHER half of the same
-// tax: the check now PRINTS the authorship split on every path, so the #1124 drainer's question — are
-// these mine? — is answered in the report instead of by hand. The residual is parked on
-// `verification-integrity-arc` as its own unit, not left as a comment.
+// **CLOSING (1) DID NOT FIX (2), AND WAS NEVER READ AS FIXING IT.** On the #1124 numbers the
+// exclusion changed NOTHING: all 7 candidates belonged to SIBLING sessions, which an own-homework
+// exclusion does not suppress BY CONSTRUCTION. ADR-0301 shipped (1) deliberately as an acknowledged
+// partial — it closes a real asymmetry with the sibling friction ceiling, and it is the PREREQUISITE
+// for the fix to (2), because you cannot ask "is that session still in flight" without first knowing
+// whose it is.
+//
+// **(2) IS NOW CLOSED BY THE IN-FLIGHT EXCLUSION (ADR-0371), AND THE GENERALISATION IS THE POINT.**
+// ADR-0301 excluded what THIS SESSION wrote. ADR-0371 widens the same idea from "mine" to "still
+// being written": a memory whose authoring branch has not yet merged is the work of a session still
+// in flight, and is NOT YET ANYONE'S OBLIGATION — it becomes one the moment that branch lands, when
+// its knowledge becomes everyone's. That is the honest generalisation of `friction-drain.ts`'s
+// `isOwnItem`, which this ceiling was modelled on and which stops at own-vs-not.
+//
+// THE LIVENESS SIGNAL IS DERIVED FROM GIT, SO THE OFFLINE CONTRACT SURVIVES INTACT. The obvious
+// reading — "liveness means asking the notice board whether a branch is live, which needs the DB" —
+// is FALSE, and believing it is what kept this parked. `git branch --no-merged origin/main` is a
+// LOCAL REF READ: no network, no credential, no database. `check:graduation-worklist` was offline by
+// contract ("ALWAYS runs, no creds, no network") and it still is; nothing here trades reachability
+// for correctness. See {@link GraduationDrainContext.inFlightBranches} for the fail-closed rules and
+// `inFlightBranches()` in `cli-actor.ts` for how the set is computed (and why it is AGE-BOUNDED).
 //
 // PURE by construction: no `node:` import, no filesystem, no clock. The caller injects `now` and the
 // ledger's usability, so this is deterministic and unit-testable against a synthetic worklist; the
@@ -165,6 +188,26 @@ export interface GraduationDrainContext {
    * pre-ADR-0301 behaviour and the fail-closed one.
    */
   currentBranch: string | null;
+  /**
+   * Branches whose sessions are STILL IN FLIGHT — unmerged into `origin/main` and recently active
+   * (ADR-0371). A live candidate stamped with one of these is NOT CHARGED: its author has not landed
+   * yet, so its knowledge is not yet everyone's and draining it is not yet anyone's obligation. When
+   * that branch merges it drops out of this set and the memory becomes charged like any other.
+   *
+   * Computed by `inFlightBranches()` in `cli-actor.ts` from LOCAL git refs only — no network, no DB,
+   * so the offline contract is preserved. Pass an EMPTY set to disable the exclusion entirely, which
+   * reproduces the pre-ADR-0371 behaviour exactly.
+   *
+   * FAIL-CLOSED IN BOTH DIRECTIONS, which is what keeps this from becoming a hole:
+   *   - A branch git cannot resolve (deleted on merge per ADR-0142, or written on another machine) is
+   *     ABSENT from this set and therefore CHARGED. Unknown is never excused.
+   *   - The set is AGE-BOUNDED at its source, so an ABANDONED branch ages out and its memories become
+   *     charged. Without that bound this would be a permanent hole: measured on the authoring machine
+   *     2026-08-14, 88 of 810 local branches were unmerged but only 5 had been touched that day — an
+   *     unbounded `--no-merged` would have excused memories from branches abandoned two months ago,
+   *     and under-counting is the wrong way to fail for a ceiling whose job is to BOUND a backlog.
+   */
+  inFlightBranches: ReadonlySet<string>;
   /** Today, ISO `yyyy-mm-dd` — the reference point for lease-overdue age. */
   currentDate: string;
   /**
@@ -199,11 +242,23 @@ export interface GraduationDrainVerdict {
    * commit a stranger's body under your name.
    */
   siblingCount: number;
+  /**
+   * The SUBSET of {@link siblingCount} whose authoring branch is still in flight (ADR-0371) — another
+   * session's memory, written by a session that has not merged yet. NOT CHARGED: not yet anyone's
+   * obligation. Deliberately a subset rather than a fourth disjoint column, so the ADR-0301 identity
+   * `own + sibling + unattributed === liveCount` still reconciles and the printed split stays honest.
+   *
+   * This is the number that would have saved PR #1124: all 7 candidates that re-reddened a verified
+   * drain within ~15 minutes were siblings' AND their sessions were still running, so all 7 land here
+   * and the drain holds.
+   */
+  inFlightCount: number;
   /** Live candidates with no stamp at all. CHARGED — unattributed is not "not yours". */
   unattributedCount: number;
   /**
-   * `liveCount` minus {@link ownCount} — what the ceiling actually compares against N (ADR-0301).
-   * Equals `liveCount` whenever no memory carries a stamp, which is every queue predating ADR-0301.
+   * `liveCount` minus {@link ownCount} minus {@link inFlightCount} — what the ceiling actually
+   * compares against N (ADR-0301, widened by ADR-0371). Equals `liveCount` whenever no memory carries
+   * a stamp, which is every queue predating ADR-0301.
    */
   chargedCount: number;
   /** Silenced under a holding lease. Reported so the suppression is visible, never silent. */
@@ -252,6 +307,7 @@ export function evaluateGraduationDrain(
   let parkedCount = 0;
   let ownCount = 0;
   let siblingCount = 0;
+  let inFlightCount = 0;
   let unattributedCount = 0;
   let oldest: { name: string; days: number } | null = null;
 
@@ -266,9 +322,19 @@ export function evaluateGraduationDrain(
     // only ever shrink by losing information, never grow.
     const isOwn =
       ctx.currentBranch !== null && candidate.branch !== undefined && candidate.branch === ctx.currentBranch;
+    // THE IN-FLIGHT EXCLUSION (ADR-0371), keyed the same fail-closed way: a POSITIVE membership in the
+    // injected set and nothing else. Only a SIBLING can be in flight here — an own candidate is already
+    // excluded above, and counting it twice would break the charged arithmetic below.
+    const isInFlight =
+      !isOwn && candidate.branch !== undefined && ctx.inFlightBranches.has(candidate.branch);
     if (isOwn) ownCount += 1;
     else if (candidate.branch !== undefined) siblingCount += 1;
     else unattributedCount += 1;
+    if (isInFlight) inFlightCount += 1;
+    // What the two axes below agree to ignore. Own and in-flight are excused for the SAME reason —
+    // neither is yet this session's obligation to drain — so they must be excused on BOTH axes or the
+    // exclusion leaks through the age axis (the `gd-own-expired-not-stale` property, generalised).
+    const notYetChargeable = isOwn || isInFlight;
 
     switch (candidate.status) {
       case "new":
@@ -284,7 +350,7 @@ export function evaluateGraduationDrain(
         // for the same reason they are skipped on the count axis: you cannot be overdue to re-review
         // what you wrote this session.
         const days = daysSince(candidate.leaseExpiredOn, ctx.currentDate);
-        if (!isOwn && days !== null && (oldest === null || days > oldest.days)) {
+        if (!notYetChargeable && days !== null && (oldest === null || days > oldest.days)) {
           oldest = { name: candidate.name, days };
         }
         break;
@@ -293,7 +359,7 @@ export function evaluateGraduationDrain(
   }
 
   const liveCount = newCount + changedCount + expiredCount;
-  const chargedCount = liveCount - ownCount;
+  const chargedCount = liveCount - ownCount - inFlightCount;
   const oldestOverdueDays = oldest === null ? null : oldest.days;
   const oldestOverdueName = oldest === null ? null : oldest.name;
 
@@ -305,9 +371,16 @@ export function evaluateGraduationDrain(
   // ceiling — a session that writes memories no longer trips its own gate, and every other candidate
   // is charged exactly as before.
   if (chargedCount > config.liveCeiling) {
+    // Name every exclusion that moved the number, so a reader can always reconcile `charged` against
+    // `live` from the breach line alone rather than trusting the arithmetic silently.
+    const excused: string[] = [];
+    if (ownCount > 0) excused.push(`${ownCount} of ${liveCount} live excluded as this session's own`);
+    if (inFlightCount > 0) {
+      excused.push(`${inFlightCount} excluded as other sessions still in flight`);
+    }
     breaches.push(
       `live candidate backlog ${chargedCount} exceeds the ceiling (N=${config.liveCeiling})` +
-        (ownCount > 0 ? ` (${ownCount} of ${liveCount} live excluded as this session's own)` : ""),
+        (excused.length > 0 ? ` (${excused.join("; ")})` : ""),
     );
   }
 
@@ -339,6 +412,7 @@ export function evaluateGraduationDrain(
     expiredCount,
     ownCount,
     siblingCount,
+    inFlightCount,
     unattributedCount,
     chargedCount,
     parkedCount,

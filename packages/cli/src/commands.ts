@@ -55,6 +55,10 @@ import { execFileSync } from "node:child_process";
 import { adrCommand, adrHelp, loadAdrListings, type AdrAllocatorLike } from "./adr.js";
 import { expandAtPathFlags, formatAtPathRefusal, PROSE_FLAGS } from "./at-path.js";
 import { libraryQuery, libraryQueryHelp } from "./library-query.js";
+// The arc domain owns its own package (`arc-tier-extraction-arc`): the arc / increment / question
+// verbs and the derived arc → children join live in `@storytree/arc`, which this shim dispatches to
+// exactly as it dispatches to `@storytree/drive`'s build verbs. It is a CONSUMER of the domain here,
+// not its landlord.
 import {
   arcCommand,
   arcHelp,
@@ -64,13 +68,18 @@ import {
   arcClose,
   arcReconcile,
   arcReopen,
+  arcPark,
   arcIncrementClose,
   arcIncrementNew,
   arcScopeOf,
+  questionCommand,
+  questionHelp,
+  incrementCommand,
+  incrementHelp,
   type ArcWriteDeps,
-} from "./arc.js";
-import { questionCommand, questionHelp, type QuestionWriteDeps } from "./question.js";
-import { incrementCommand, incrementHelp, type CountCommitsSince } from "./increment.js";
+  type QuestionWriteDeps,
+  type CountCommitsSince,
+} from "@storytree/arc";
 import { traversalCommand, traversalHelp } from "./traversal.js";
 // `session-cost` — the repeatable session-cost measurement over host transcripts (ADR-0323 D4).
 import { sessionCostCommand, sessionCostHelp } from "./session-cost.js";
@@ -78,7 +87,7 @@ import { CLI_AREAS } from "./cli-areas.js";
 import { dispatchCommand, dispatchHelp } from "./dispatch-command.js";
 // ADR-0290: a live library write records WHICH BRANCH made it, so `check:corpus-content` can charge a
 // seed↔live drift to the session that must reconcile it instead of to whoever gates next.
-import { defaultCliActor } from "./cli-actor.js";
+import { currentGitBranch, defaultCliActor, inFlightBranches } from "./cli-actor.js";
 import { adoptCommand, adoptHelp, type AdoptDispatchDeps } from "./adopt.js";
 import { branchNext, branchHelp } from "./branch.js";
 import {
@@ -176,6 +185,7 @@ import { findDependents } from "./retire.js";
 import { typeMismatchRefusal } from "./set-value.js";
 import { bannerRefusal, strayPositionalRefusal, truncationRefusal } from "./write-fidelity.js";
 import { foldHistory, renderHistory } from "./artifact-history.js";
+import { foldWorkLog, renderWorkLog, type WorkLogReaderLike } from "./work-log.js";
 import { storyBuild, storyHelp } from "@storytree/drive";
 import { flipFrontmatterStatus, type AdoptStory, type FlipResult } from "@storytree/drive";
 import { treeCommand } from "./tree.js";
@@ -1822,6 +1832,14 @@ export interface RunDeps {
    */
   readonly verdicts?: VerdictReaderLike | null;
   /**
+   * The work event log as a ROW-LEVEL read (`storytree node log`, ADR-0350 D3): the same live
+   * PgWorkStore as `verdicts`, here typed to expose the full `StoreEvent` — `actor`, `at` and the
+   * optional `causedBy` — which `VerdictReaderLike` deliberately does not carry (it exists to derive
+   * glyphs, and a glyph needs none of those). Null/absent offline: the work log lives in Postgres,
+   * so `node log` then refuses rather than reporting an empty history as "no builds".
+   */
+  readonly workLog?: WorkLogReaderLike | null;
+  /**
    * The attestation log (ADR-0044 `attestation-signals`): the live store when --pg;
    * null/absent offline — `storytree attest` then refuses (writes/reads both need it).
    */
@@ -2495,10 +2513,11 @@ export const CLI_OPTIONS = {
   // `storytree arc new` / `arc edit` / `arc increment add` / `arc close` — the first-class arc
   // write verbs (long prose via @path).
   "end-state": { type: "string" },
-  // `storytree arc list --all | --closed` — widen past the default active-only worklist
-  // (ADR-0239 D3). `--all` wins when both are passed.
+  // `storytree arc list --all | --closed | --parked` — widen past the default active-only worklist
+  // (ADR-0239 D3, third scope by ADR-0374 D1). `--all` wins, then `--closed`, then `--parked`.
   all: { type: "boolean", default: false },
   closed: { type: "boolean", default: false },
+  parked: { type: "boolean", default: false },
   date: { type: "string" },
   pr: { type: "string" },
   threshold: { type: "string" },
@@ -2727,11 +2746,48 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       // FREE, read-only: how a node spec resolves (no build, no spend). ADR-0057 A discoverability.
       return nodeResolve(third);
     }
+    if (sub === "log") {
+      // FREE, read-only: this unit's work log, row by row, each row naming the event that caused it
+      // (ADR-0350 D3). The reader half of the causal edge — see ./work-log.ts for why a fold could
+      // not answer this and why "not recorded" is printed in words.
+      if (third === undefined) {
+        return {
+          ok: false,
+          body: "storytree node log <unit-id> — which unit's work log?",
+          next: ["storytree node log <unit-id> --pg"],
+        };
+      }
+      if (deps.workLog === undefined || deps.workLog === null) {
+        // REFUSE rather than render an empty log. events.work_event lives in Postgres, so without
+        // the live store there is nothing to read — and "0 events" would read as "this unit was
+        // never built", which is exactly the absent-vs-unrecorded confusion ADR-0350 exists to end.
+        return {
+          ok: false,
+          body: [
+            `the work log lives in the live store — rerun with --pg.`,
+            "",
+            "Refused rather than answered empty: with no store to read, `0 events` would be",
+            "indistinguishable from a unit that was genuinely never built.",
+          ].join("\n"),
+          next: [`storytree node log ${third} --pg`],
+        };
+      }
+      const events = await deps.workLog.readEvents();
+      return {
+        ok: true,
+        body: renderWorkLog({ unitId: third, entries: foldWorkLog(events, third) }),
+        next: [`storytree node resolve ${third}`, `storytree tree ${third} --pg`],
+      };
+    }
     if (sub !== "build") {
       return {
         ok: false,
-        body: `unknown node command "${sub}". try: storytree node build <id> --dry-run | storytree node resolve <id>`,
-        next: ["storytree node resolve <id>", "storytree node build <id> --dry-run"],
+        body: `unknown node command "${sub}". try: storytree node build <id> --dry-run | storytree node resolve <id> | storytree node log <id> --pg`,
+        next: [
+          "storytree node resolve <id>",
+          "storytree node log <id> --pg",
+          "storytree node build <id> --dry-run",
+        ],
       };
     }
     if (values.store === "memory") return refuseMemoryStore("node", third);
@@ -3245,6 +3301,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       sub === "increment" ||
       sub === "close" ||
       sub === "reopen" ||
+      sub === "park" ||
       sub === "proposal"
     ) {
       const writeDeps: ArcWriteDeps = {
@@ -3359,6 +3416,16 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
           ...(values.reason !== undefined ? { reason: values.reason } : {}),
         });
       }
+      // The SHELVING write (ADR-0374 D3) — the third lifecycle verb, reading the same already-expanded
+      // `--reason` its mirror does. Unlike `close` it does not refuse over open increments: shelving an
+      // initiative is exactly the case where the work stays open and wanted.
+      if (sub === "park") {
+        return arcPark(writeDeps, third, {
+          ...(values.date !== undefined ? { date: values.date } : {}),
+          ...(values.pr !== undefined ? { pr: values.pr } : {}),
+          ...(values.reason !== undefined ? { reason: values.reason } : {}),
+        });
+      }
       // `arc increment add <arc-id>` (canonical) or the shorthand `arc increment <arc-id>`.
       const incArcId = third === "add" ? fourth : third;
       return arcIncrementAdd(writeDeps, incArcId, {
@@ -3395,8 +3462,13 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         storiesDir: deps.storiesDir ?? path.join(repoRoot(), "stories"),
         pg: values.pg === true,
       },
-      // ADR-0239 D3 — the list is a worklist: active-only unless explicitly widened.
-      arcScopeOf({ all: values.all === true, closed: values.closed === true }),
+      // ADR-0239 D3 — the list is a worklist: active-only unless explicitly widened. `--parked`
+      // (ADR-0374 D1) is the third widening: a shelved arc leaves the worklist but stays reachable.
+      arcScopeOf({
+        all: values.all === true,
+        closed: values.closed === true,
+        parked: values.parked === true,
+      }),
     );
   }
 
@@ -3905,6 +3977,10 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         snapshot,
         ledgerPath: defaultLedgerPath(memoryDir),
         now,
+        // ADR-0371 — both derived from LOCAL git refs, so the worklist gains its authorship/liveness
+        // split without acquiring a network or database dependency.
+        currentBranch: currentGitBranch(),
+        inFlightBranches: inFlightBranches(now),
       },
     );
   }

@@ -24,6 +24,12 @@
 
 import { hash, rand01 } from './rng.js';
 import {
+  LAND_CAMERA_ELEVATION_DEG,
+  groundRadiusToScreenHalfHeight,
+  projectGround,
+  unprojectGround,
+} from './camera.js';
+import {
   type Axial,
   type Pt,
   HEX_R,
@@ -659,6 +665,21 @@ export interface SceneInput {
    *  unchanged). The garden composition (`garden`) is a SEPARATE flag and takes precedence on its
    *  island — the vegetation vocabulary governs the non-garden islands. */
   vegetation?: SceneVegetationInput;
+  /**
+   * The CAMERA the surface projected this scene's ground geometry at, in degrees above the ground
+   * plane (ADR-0367 D1). ABSENT ⇒ {@link LAND_CAMERA_ELEVATION_DEG}, the one the land's own coordinate
+   * mapping uses — so every existing caller is byte-for-byte unchanged and no surface has to learn a
+   * new field.
+   *
+   * It exists because the placements the scene performs — the UAT-flower scatter, the garden heroes,
+   * the stone walk, the accents — measure distances against those projected polygons, and a distance
+   * meaning "how far apart on the ground" cannot be read off the screen without knowing the angle.
+   * Supplying it lets a caller (and the proof) ask what the SAME GROUND island looks like at another
+   * camera; it never re-projects the geometry, which the surface has already done through
+   * `hexCenter`/`hexCorners`. Passing an elevation here that disagrees with the one the coordinates
+   * were built at is the mismatch the whole increment removes, so don't.
+   */
+  cameraElevationDeg?: number;
 }
 
 /** DORMANT: the scene-graph's def id the baked standing-stone once used (ADR-0218). No longer emitted
@@ -794,7 +815,16 @@ export function buildTree(t: SceneTerritoryInput, unifiedVeg = false): SceneG {
     `M -3.6 0 C -3.2 ${f(0.3 * cy)}, -2.4 ${f(0.65 * cy)}, -2.2 ${f(cy)} ` +
     `L 2.2 ${f(cy)} C 2.4 ${f(0.65 * cy)}, 3.2 ${f(0.3 * cy)}, 3.6 0 Q 0 2.4 -3.6 0 Z`;
 
-  const children: SceneNode[] = [ellipse(2, 2, R * 0.78, R * 0.2, { kind: 'shadow' })];
+  // The story tree's ground contact shadow. Its semi-minor axis is now DERIVED from the declared
+  // land camera (ADR-0367 D1) rather than hand-set: it is a ground circle of radius 0.78R seen
+  // through the same camera the tree sprite is authored at. It was `R * 0.2`, a ratio of 0.256 =>
+  // an implied 14.9° camera — the one real outlier in the land's own shadow census (the other seven
+  // fixed ellipses imply 17.5°–23.6°, mean 19.2°), and the mark sitting directly beneath the hero
+  // tree, i.e. exactly the mismatch the round-3 lab's squash dial was absorbing.
+  const shadowGroundR = R * 0.78;
+  const children: SceneNode[] = [
+    ellipse(2, 2, shadowGroundR, groundRadiusToScreenHalfHeight(shadowGroundR), { kind: 'shadow' }),
+  ];
 
   if (withered) {
     const bareBranches = [
@@ -1030,22 +1060,95 @@ function pointInPoly(x: number, y: number, poly: Pt[]): boolean {
   return inside;
 }
 
+// ---------------------------------------------------------------------------
+// PLACING THINGS ON THE GROUND, NOW THAT THE GROUND HAS A CAMERA (ADR-0367 D1)
+// ---------------------------------------------------------------------------
+//
+// Every scatter below asks two questions of a candidate spot: *is it on the island* (a
+// point-in-polygon against `RelaxedCell.poly`) and *is it far enough from the tree / the plate / the
+// spots already taken*. The polygons are GROUND polygons seen through the declared camera, so their
+// vertical extent is only `sin θ` of their ground extent — but the distances were measured
+// ISOTROPICALLY IN SCREEN PIXELS, and the polar samples were offset with a hand-picked `0.7`
+// y-squash that predates the camera entirely.
+//
+// Mixing the two fails in ONE direction, which is worth knowing because the plausible story is the
+// other one: a ground gap is never SMALLER than the screen gap it projects to, so an isotropic screen
+// keep-out never admits a placement the ground would reject — it OVER-enforces. A keep-out that used
+// to consume 15 px of a full-height cell demands ~44 ground units once the cell is 34% as tall. So a
+// bounded rejection sampler starves on a tight or concave island and relocates the mark onto a cell
+// centroid, and a count derived by dividing a length by a spacing — the stone walk — simply loses
+// marks, because the length was measured on screen and the spacing on the ground.
+//
+// THE RULE. A distance that means "how far apart ON THE GROUND" is measured on the ground; an offset
+// that means "this far across the ground" is a ground offset PROJECTED. Both go through the camera
+// module's own verbs so there is exactly one convention and no second constant. What deliberately
+// STAYS in screen space is named where it is used: the nameplate band (`y < labelY - 14`) is screen
+// art, and the painter-order half of the stone occlusion test is a question about who is drawn over
+// whom.
+//
+// The number every one of them has to be independent of is the camera itself: the same island in
+// GROUND space must place the same marks at the same ground spots at any elevation, and only their
+// screen positions may move. That is what `scatter-camera.test.ts` fences.
+
+/**
+ * The distance between two SCREEN points, measured on the GROUND PLANE they both stand on.
+ *
+ * This is the number every "how far apart" keep-out below wants. It equals `Math.hypot` only in plan
+ * view, which is why the isotropic form was correct before the land had a camera and wrong the
+ * moment it got one.
+ */
+function groundGap(a: Pt, b: Pt, elevationDeg: number): number {
+  const d = unprojectGround({ x: a.x - b.x, y: a.y - b.y }, elevationDeg);
+  return Math.hypot(d.x, d.y);
+}
+
+/**
+ * A polar offset of ground-plane radius `r` at ground bearing `ang`, returned in SCREEN units —
+ * what a scatter adds to a projected anchor to land `r` away across the ground.
+ *
+ * It replaces `{ cos·r, sin·r·0.7 }`: the `0.7` was a hand-picked top-down squash inherited from the
+ * wisp orbit, so the sampled ellipse had no relation to the shape the island actually projects to. At
+ * the declared camera the same disc projects at `sin 20° = 0.342`, i.e. the old offsets over-reached
+ * the island's own projected height by roughly a factor of two — which is what pushed candidates into
+ * the water and exhausted the draws.
+ */
+function groundPolarOffset(ang: number, r: number, elevationDeg: number): Pt {
+  return projectGround({ x: Math.cos(ang) * r, y: Math.sin(ang) * r }, elevationDeg);
+}
+
+/** The floor on how close two UAT flowers may stand ON THE GROUND. The historical `> 15`, now named
+ *  and honestly a ground distance — the value is unchanged, only the space it is measured in. */
+const MARKER_GROUND_SPACING = 15;
+
+/** The GROUND radius around the story tree's base no UAT flower may be planted inside (it also covers
+ *  the signpost beside it). The historical `> 36`, unchanged in value. */
+const MARKER_GROUND_TREE_WELL = 36;
+
 /** The island's UAT markers as INDIVIDUAL y-sorted drawables — one tall flower per criterion,
  *  scattered deterministically (owner call 2026-07-18: no path). Each flower is its own painter
  *  entry so it interleaves honestly with the tree + flora by depth. Placement: per-criterion
- *  id-seeded polar samples inside the island (radius 0.30–0.80·R, the wisp-orbit 0.7 y-squash),
- *  re-drawn up to 20 times to clear the tree well (which also covers the signpost beside it), the
- *  nameplate band, other flowers — and, when the island's relaxed substrate cells are provided, to
- *  land ON the island (the keep-IN, owner feedback 2026-07-18: the radius-only scatter drifted
- *  markers into the water on concave hex clusters). Deterministic rejection sampling: same input ⇒
- *  the same spots. Exhausting the draws SNAPS to the nearest free land-cell centroid (never the
- *  water) when cells are known, else keeps the last sample — every criterion ALWAYS renders.
+ *  id-seeded polar samples inside the island (GROUND radius 0.30–0.80·R, projected through the
+ *  declared land camera — see {@link groundPolarOffset}), re-drawn up to 20 times to clear the tree
+ *  well (which also covers the signpost beside it), the nameplate band, other flowers — and, when the
+ *  island's relaxed substrate cells are provided, to land ON the island (the keep-IN, owner feedback
+ *  2026-07-18: the radius-only scatter drifted markers into the water on concave hex clusters).
+ *  Deterministic rejection sampling: same input ⇒ the same spots. Exhausting the draws SNAPS to the
+ *  nearest free land-cell centroid (never the water) when cells are known, else keeps the last
+ *  sample — every criterion ALWAYS renders.
  *  Empty/absent `uatCriteria` ⇒ nothing (the byte-for-byte absence path — the public website
- *  never sends it). */
+ *  never sends it).
+ *
+ *  THE KEEP-OUTS ARE GROUND DISTANCES (ADR-0367 D1). The spacing floor and the tree well both ask
+ *  "how far apart on the ground", so both are measured with {@link groundGap} rather than a raw
+ *  screen `hypot`. Measured isotropically in screen pixels against foreshortened cells they demanded
+ *  ~3x the ground they were tuned for, which starves the 20 draws on a tight or concave island and
+ *  relocates marks onto cell centroids — several onto the SAME one. The nameplate band stays a screen
+ *  test: the plate is screen art. */
 function buildUatMarkers(
   t: SceneTerritoryInput,
   ownerCells: RelaxedCell[] | null,
   small = false,
+  elevationDeg: number = LAND_CAMERA_ELEVATION_DEG,
 ): Array<{ y: number; node: SceneG }> {
   const criteria = t.uatCriteria ?? [];
   if (!criteria.length) return [];
@@ -1053,7 +1156,7 @@ function buildUatMarkers(
   const onLand = (x: number, y: number): boolean =>
     !land || land.some((c) => pointInPoly(x, y, c.poly));
   const clearsSpacing = (placed: Pt[], x: number, y: number): boolean =>
-    placed.every((p) => Math.hypot(x - p.x, y - p.y) > 15);
+    placed.every((p) => groundGap({ x, y }, p, elevationDeg) > MARKER_GROUND_SPACING);
   const placed: Pt[] = [];
   const out: Array<{ y: number; node: SceneG }> = [];
   criteria.forEach((c) => {
@@ -1064,9 +1167,10 @@ function buildUatMarkers(
     for (let attempt = 0; attempt < 20; attempt++) {
       const ang = rand01(k + attempt * 2) * Math.PI * 2;
       const rr = (0.3 + rand01(k + attempt * 2 + 1) * 0.5) * t.radius;
-      x = t.centroid.x + Math.cos(ang) * rr;
-      y = t.centroid.y + Math.sin(ang) * rr * 0.7; // top-down squash, same as the wisp orbit
-      const clearsTree = Math.hypot(x - t.treeSpot.x, y - t.treeSpot.y) > 36;
+      const off = groundPolarOffset(ang, rr, elevationDeg);
+      x = t.centroid.x + off.x;
+      y = t.centroid.y + off.y;
+      const clearsTree = groundGap({ x, y }, t.treeSpot, elevationDeg) > MARKER_GROUND_TREE_WELL;
       const clearsPlate = y < t.labelY - 14;
       if (clearsTree && clearsPlate && clearsSpacing(placed, x, y) && onLand(x, y)) {
         settled = true;
@@ -1076,9 +1180,14 @@ function buildUatMarkers(
     if (!settled && land) {
       // A hard-to-fit (concave) island exhausted its draws: snap to the nearest land-cell
       // centroid that keeps the stone spacing (nearest of all when every cell is crowded).
+      // "Nearest" is nearest ACROSS THE GROUND — a screen-space sort would prefer a cell that is
+      // merely further into the distance over one that is genuinely closer.
       const spots = land
         .map((cell) => cellCentroid(cell.poly))
-        .sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y));
+        .sort(
+          (a, b) =>
+            groundGap(a, { x, y }, elevationDeg) - groundGap(b, { x, y }, elevationDeg),
+        );
       const free = spots.find((p) => clearsSpacing(placed, p.x, p.y)) ?? spots[0]!;
       x = free.x;
       y = free.y;
@@ -2359,19 +2468,27 @@ function gardenHeroUse(
  *  keep-out scales to the tree's actual fitted footprint (via {@link treeKeepOut}), so on a small island —
  *  where the fitted tree fills the island — a building no longer merges into the trunk. The fallback branch
  *  now honours that canopy keep-out too (it used to drop it entirely, which is how the exhausted-draws snap
- *  landed a gazebo on the trunk). Exported for the placement unit test. */
+ *  landed a gazebo on the trunk). Exported for the placement unit test.
+ *
+ *  THE KEEP-OUTS ARE GROUND DISTANCES (ADR-0367 D1), for the same reason the UAT scatter's are: the
+ *  tree well and the hero-to-hero spread both ask "how far apart on the ground", and `t.radius` is a
+ *  ground radius. `footprintOnLand` needs NO camera term — it spans the base HORIZONTALLY (`x ± hw`
+ *  at one y) and the q axis does not foreshorten, so the three probes it casts are already the right
+ *  three points. That is why this site moved its heroes without ever losing one. */
 export function placeGardenHeroes(
   t: SceneTerritoryInput,
   ids: GardenHeroId[],
   halfW: Map<GardenHeroId, number>,
   land: RelaxedCell[] | null,
   treeFitHalfW: number,
+  elevationDeg: number = LAND_CAMERA_ELEVATION_DEG,
 ): Map<GardenHeroId, Pt> {
   const onLand = (x: number, y: number): boolean =>
     !land || land.some((c) => pointInPoly(x, y, c.poly));
   // The WHOLE base footprint on land, not just the base point (grounded-art inc 11 unit 2 — the owner's
   // "buildings dont fully land within the island" fix). The base spans [x−hw, x+hw] at y, so both ends
-  // AND the midpoint must sit on owned land before a spot is accepted.
+  // AND the midpoint must sit on owned land before a spot is accepted. A HORIZONTAL span: the camera
+  // foreshortens the r axis, never the q axis, so this needs no projection term.
   const footprintOnLand = (x: number, y: number, hw: number): boolean =>
     onLand(x, y) && onLand(x - hw, y) && onLand(x + hw, y);
   // The tree keep-outs (grounded-art inc 12). The CANOPY keep-out scales to the fitted tree footprint
@@ -2385,7 +2502,7 @@ export function placeGardenHeroes(
   // that must not be sat inside (a building may still nestle under the canopy EDGE, matching the concept).
   const canopyKeepOut = treeKeepOut(treeFitHalfW);
   const samplerKeepOut = Math.max(t.radius * 0.5, canopyKeepOut);
-  const dTree = (x: number, y: number): number => Math.hypot(x - t.treeSpot.x, y - t.treeSpot.y);
+  const dTree = (x: number, y: number): number => groundGap({ x, y }, t.treeSpot, elevationDeg);
   const clearsCanopy = (x: number, y: number): boolean => dTree(x, y) > canopyKeepOut;
   const clearsTreeSampler = (x: number, y: number): boolean => dTree(x, y) > samplerKeepOut;
   const placed: Pt[] = [];
@@ -2401,10 +2518,11 @@ export function placeGardenHeroes(
     for (let attempt = 0; attempt < 48; attempt++) {
       const ang = rand01(k + attempt * 2) * Math.PI * 2;
       const rr = (0.28 + rand01(k + attempt * 2 + 1) * 0.34) * t.radius;
-      x = t.centroid.x + Math.cos(ang) * rr;
-      y = t.centroid.y + Math.sin(ang) * rr * 0.7; // top-down squash, same as the marker scatter
+      const off = groundPolarOffset(ang, rr, elevationDeg); // a GROUND disc, projected
+      x = t.centroid.x + off.x;
+      y = t.centroid.y + off.y;
       const clearsPlate = y < t.labelY - 18;
-      const clearsOthers = placed.every((p) => Math.hypot(x - p.x, y - p.y) > t.radius * 0.55);
+      const clearsOthers = placed.every((p) => groundGap({ x, y }, p, elevationDeg) > t.radius * 0.55);
       if (clearsTreeSampler(x, y) && clearsPlate && clearsOthers && footprintOnLand(x, y, hw)) {
         settled = true;
         break;
@@ -2417,9 +2535,12 @@ export function placeGardenHeroes(
       // exhausted-draws snap land a building on the trunk (grounded-art inc 12).
       const spots = land
         .map((cell) => cellCentroid(cell.poly))
-        .sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y));
+        .sort(
+          (a, b) =>
+            groundGap(a, { x, y }, elevationDeg) - groundGap(b, { x, y }, elevationDeg),
+        );
       const clearsPlaced = (p: Pt): boolean =>
-        placed.every((q) => Math.hypot(p.x - q.x, p.y - q.y) > t.radius * 0.5);
+        placed.every((q) => groundGap(p, q, elevationDeg) > t.radius * 0.5);
       const free =
         spots.find((p) => clearsCanopy(p.x, p.y) && clearsPlaced(p) && footprintOnLand(p.x, p.y, hw)) ??
         spots.find((p) => clearsCanopy(p.x, p.y) && clearsPlaced(p)) ??
@@ -2437,13 +2558,29 @@ export function placeGardenHeroes(
 /** The island's downward-shore LANDFALL (grounded-art inc 11 unit 2) — where the garden's stone path
  *  docks so it reads continuous with the inter-island trail. The concept's path exits at the island's
  *  bottom (toward the nameplate, the direction trails leave). March DOWN from the centroid and keep the
- *  furthest point still on owned land, so the dock sits on the shore, not in the water. */
-function islandLandfall(t: SceneTerritoryInput, land: RelaxedCell[] | null): Pt {
+ *  furthest point still on owned land, so the dock sits on the shore, not in the water.
+ *
+ *  THE MARCH IS IN GROUND UNITS (ADR-0367 D1), projected per step. Its RESULT never needed
+ *  unprojecting — the projection is monotone in y, so the furthest on-land screen point down a
+ *  vertical ray IS the furthest on-land ground point — but the STEP did: `d · radius` walked SCREEN
+ *  pixels while `t.radius` is a ground radius, so at the declared camera each 0.05 step covered ~3x
+ *  the ground it covers in plan view (17.6 ground units against 6 on a 120-unit island) and the whole
+ *  0.2–1.05 sweep stopped ~3x short of the shore it was written to reach. Stepping on the ground and
+ *  projecting each probe keeps one resolution at every elevation. */
+function islandLandfall(
+  t: SceneTerritoryInput,
+  land: RelaxedCell[] | null,
+  elevationDeg: number = LAND_CAMERA_ELEVATION_DEG,
+): Pt {
   const onLand = (x: number, y: number): boolean =>
     !land || land.some((c) => pointInPoly(x, y, c.poly));
-  let best: Pt = { x: t.centroid.x, y: t.centroid.y + t.radius * 0.2 };
+  const down = (d: number): Pt => ({
+    x: t.centroid.x,
+    y: t.centroid.y + projectGround({ x: 0, y: d * t.radius }, elevationDeg).y,
+  });
+  let best: Pt = down(0.2);
   for (let d = 0.2; d <= 1.05; d += 0.05) {
-    const p: Pt = { x: t.centroid.x, y: t.centroid.y + d * t.radius };
+    const p = down(d);
     if (onLand(p.x, p.y)) best = p;
   }
   return best;
@@ -2461,6 +2598,9 @@ interface StonePathOpts {
   skipNear?: { c: Pt; r: number };
   /** id-namespace so two paths' stones don't collide (`garden-<tag>-<leg>-<i>`). */
   tag: string;
+  /** The camera the waypoints are projected at — the walk is laid on the GROUND and projected through
+   *  it (ADR-0367 D1). Defaults to the declared land camera. */
+  elevationDeg?: number;
 }
 
 /** The deterministic stepping-stone garden PATH (grounded-art inc 11 unit 2, footpath refined inc 12) — a
@@ -2468,26 +2608,42 @@ interface StonePathOpts {
  *  off the ONE shared def. Purely ADDITIVE: `buildTrails` and the segment/casing system are untouched — these
  *  stones are garden art on the island, not trail segments. Seeded jitter gives a natural meander (never
  *  `Math.random`). Each stone is y-sorted so it interleaves in depth. `opts` tunes density / meander per
- *  path and drops any stone buried under the tree crown (the `skipNear` occlusion filter). */
+ *  path and drops any stone buried under the tree crown (the `skipNear` occlusion filter).
+ *
+ *  THE WALK IS LAID ON THE GROUND AND PROJECTED (ADR-0367 D1) — this is the site that was LOSING
+ *  STONES, not merely moving them. `spacing` is a ground distance (a fraction of `t.radius`, floored
+ *  by the stone's own footprint width), but the leg it was divided into was measured in SCREEN pixels;
+ *  a mostly north–south leg projects to ~34% of its ground length at the declared camera, so
+ *  `round(usable / spacing)` returned roughly a third of the stones and the front-door walk thinned
+ *  out to a few slabs. Unprojecting the waypoints, walking in ground units and projecting each stone
+ *  makes the stone COUNT a property of the island rather than of the camera, and lays them at even
+ *  GROUND spacing — which is what reads as a path in perspective. */
 function buildStonePath(
   t: SceneTerritoryInput,
   hero: SceneGardenHero,
   waypoints: Pt[],
   opts: StonePathOpts,
 ): Array<{ y: number; node: SceneNode }> {
+  const elevationDeg = opts.elevationDeg ?? LAND_CAMERA_ELEVATION_DEG;
   const s = fittedHeroScale('stepping-stone', hero, t);
-  const stoneW = s * hero.width; // scaled footprint width
+  const stoneW = s * hero.width; // scaled footprint width (a ground x extent — no camera term)
   const spacingMul = opts.spacingMul ?? 1;
   const wobbleMul = opts.wobbleMul ?? 1;
-  const spacing = Math.max(stoneW * 1.05, t.radius * 0.06) * spacingMul; // stone-centre gap
-  const buried = (x: number, y: number): boolean =>
+  const spacing = Math.max(stoneW * 1.05, t.radius * 0.06) * spacingMul; // stone-centre GROUND gap
+  // The occlusion filter, split by what each half actually asks. The NORTH/SOUTH half is a
+  // painter-order question — is the tree drawn over this stone — and y-sort order is a screen fact, so
+  // it stays a screen comparison. The RADIUS half asks whether the stone sits inside the tree's
+  // fitted footprint, and `skipNear.r` is that footprint's half-width (the same `treeFitHalfW` the
+  // hero keep-out treats as a ground bound), so it is measured on the ground.
+  const buried = (p: Pt): boolean =>
     !!opts.skipNear &&
-    y < opts.skipNear.c.y && // only NORTH of the base is painted over — a southern stone reads in front
-    Math.hypot(x - opts.skipNear.c.x, y - opts.skipNear.c.y) < opts.skipNear.r;
+    p.y < opts.skipNear.c.y &&
+    groundGap(p, opts.skipNear.c, elevationDeg) < opts.skipNear.r;
   const out: Array<{ y: number; node: SceneNode }> = [];
   for (let leg = 0; leg + 1 < waypoints.length; leg++) {
-    const a = waypoints[leg]!;
-    const b = waypoints[leg + 1]!;
+    // Onto the ground plane the waypoints stand on, so every length below is a ground length.
+    const a = unprojectGround(waypoints[leg]!, elevationDeg);
+    const b = unprojectGround(waypoints[leg + 1]!, elevationDeg);
     const dx = b.x - a.x;
     const dy = b.y - a.y;
     const len = Math.hypot(dx, dy);
@@ -2505,10 +2661,15 @@ function buildStonePath(
       const dist = margin + (usable * i) / n;
       const k = hash(`${t.id}:${opts.tag}:${leg}:${i}`);
       const wob = (rand01(k) - 0.5) * spacing * 0.35 * wobbleMul; // seeded meander
-      const x = a.x + ux * dist + px * wob;
-      const y = a.y + uy * dist + py * wob;
-      if (buried(x, y)) continue; // never bury a stone under the tree crown (occlusion)
-      out.push({ y, node: gardenHeroUse('stepping-stone', x, y, s, `garden-${opts.tag}-${leg}-${i}`) });
+      const p = projectGround(
+        { x: a.x + ux * dist + px * wob, y: a.y + uy * dist + py * wob },
+        elevationDeg,
+      );
+      if (buried(p)) continue; // never bury a stone under the tree crown (occlusion)
+      out.push({
+        y: p.y,
+        node: gardenHeroUse('stepping-stone', p.x, p.y, s, `garden-${opts.tag}-${leg}-${i}`),
+      });
     }
   }
   return out;
@@ -2517,25 +2678,57 @@ function buildStonePath(
 /** A midpoint for a stone leg that BOWS around the tree crown instead of crossing it (grounded-art inc 12).
  *  If the straight leg's midpoint already clears the crown it is kept; otherwise it is pushed radially out
  *  from the tree spot to just past the crown, so the light secondary path skirts the tree rather than
- *  vanishing beneath it. Deterministic; a degenerate near-centre midpoint bows perpendicular to the leg. */
-function detourAroundTree(a: Pt, b: Pt, tree: Pt, crownR: number): Pt {
-  const mid: Pt = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-  const dx = mid.x - tree.x;
-  const dy = mid.y - tree.y;
+ *  vanishing beneath it. Deterministic; a degenerate near-centre midpoint bows perpendicular to the leg.
+ *
+ *  Computed on the GROUND PLANE and projected back (ADR-0367 D1): `crownR` is the tree's fitted
+ *  footprint half-width, so "just past the crown" is a ground displacement. Bowed in screen space the
+ *  detour would push the midpoint ~3x too far north-south, which is how a leg meant to skirt the crown
+ *  ends up leaving the island. The MIDPOINT itself needs no correction — an average commutes with the
+ *  affine projection — but it is taken on the ground here anyway so the whole bow reads in one space. */
+function detourAroundTree(
+  a: Pt,
+  b: Pt,
+  tree: Pt,
+  crownR: number,
+  elevationDeg: number = LAND_CAMERA_ELEVATION_DEG,
+): Pt {
+  const ag = unprojectGround(a, elevationDeg);
+  const bg = unprojectGround(b, elevationDeg);
+  const treeG = unprojectGround(tree, elevationDeg);
+  const mid: Pt = { x: (ag.x + bg.x) / 2, y: (ag.y + bg.y) / 2 };
+  const dx = mid.x - treeG.x;
+  const dy = mid.y - treeG.y;
   const d = Math.hypot(dx, dy);
   const want = crownR * 1.3; // clear the crown with a small lawn gap
-  if (d >= want) return mid;
+  if (d >= want) return projectGround(mid, elevationDeg);
   if (d < 1e-3) {
     // midpoint sits on the trunk — bow perpendicular to the leg (deterministic side: +perp).
-    const lx = b.x - a.x, ly = b.y - a.y;
+    const lx = bg.x - ag.x, ly = bg.y - ag.y;
     const ll = Math.hypot(lx, ly) || 1;
-    return { x: tree.x + (-ly / ll) * want, y: tree.y + (lx / ll) * want };
+    return projectGround(
+      { x: treeG.x + (-ly / ll) * want, y: treeG.y + (lx / ll) * want },
+      elevationDeg,
+    );
   }
-  return { x: tree.x + (dx / d) * want, y: tree.y + (dy / d) * want };
+  return projectGround(
+    { x: treeG.x + (dx / d) * want, y: treeG.y + (dy / d) * want },
+    elevationDeg,
+  );
 }
 
 /** Pull a point onto owned land: if it is already on land keep it; otherwise walk it back toward the
- *  island centroid until it lands (a garden accent never sits in the water). */
+ *  island centroid until it lands (a garden accent never sits in the water).
+ *
+ *  DELIBERATELY CAMERA-FREE, and that is a result rather than an oversight (ADR-0367 D1). Every other
+ *  placement here had to learn the camera because it measured an absolute distance; this one walks a
+ *  RELATIVE fraction `tt` of the way from the centroid to the point, and a fraction along a segment
+ *  commutes with the affine ground projection — `project(c + (p−c)·tt) = project(c) + (project(p) −
+ *  project(c))·tt` — so the screen walk visits exactly the projections of the ground points the ground
+ *  walk would have visited, and it lands on the same ground spot at every elevation. Adding an
+ *  unprojection here would change nothing except the arithmetic. What DID need fixing is the point
+ *  handed IN: the callers computed it with a screen-space offset, so `towardLand` was faithfully
+ *  relocating the wrong point. `scatter-camera.test.ts` proves the commuting property rather than
+ *  taking this comment's word for it. */
 function towardLand(p: Pt, centroid: Pt, land: RelaxedCell[] | null): Pt {
   const onLand = (x: number, y: number): boolean => !land || land.some((c) => pointInPoly(x, y, c.poly));
   if (onLand(p.x, p.y)) return p;
@@ -2598,6 +2791,7 @@ function buildGardenArt(
   t: SceneTerritoryInput,
   garden: SceneGardenInput,
   ownerCells: RelaxedCell[] | null,
+  elevationDeg: number = LAND_CAMERA_ELEVATION_DEG,
 ): Array<{ y: number; node: SceneNode }> {
   const land = ownerCells && ownerCells.length ? ownerCells : null;
   const crownR = crownRadius(t.caps);
@@ -2624,7 +2818,7 @@ function buildGardenArt(
   const halfW = new Map<GardenHeroId, number>(
     freeIds.map((id) => [id, (scales.get(id)! * garden.heroes[id].width) / 2]),
   );
-  const spots = placeGardenHeroes(t, freeIds, halfW, land, treeHalfW);
+  const spots = placeGardenHeroes(t, freeIds, halfW, land, treeHalfW, elevationDeg);
   for (const [id, p] of spots) {
     out.push({ y: p.y, node: gardenHeroUse(id, p.x, p.y, scales.get(id)!) });
   }
@@ -2635,19 +2829,19 @@ function buildGardenArt(
   // (a deliberate front-door path that docks at the island's inter-island trail), and a LIGHT secondary
   // trail (cottage → gazebo) laid sparse and bowed AROUND the tree crown (`detourAroundTree`) rather than
   // threading through the tree spot — which is what buried stones under the canopy before.
-  const landfall = islandLandfall(t, land);
+  const landfall = islandLandfall(t, land, elevationDeg);
   const cottage = spots.get('cottage');
   const gazebo = spots.get('gazebo');
   const crown = { c: { x: t.treeSpot.x, y: t.treeSpot.y }, r: treeHalfW };
   const stone = garden.heroes['stepping-stone'];
   if (cottage) {
     // the prominent front-door WALK — tight spacing + a calm meander reads as a laid path, not a scatter.
-    out.push(...buildStonePath(t, stone, [landfall, cottage], { spacingMul: 0.72, wobbleMul: 0.45, skipNear: crown, tag: 'walk' }));
+    out.push(...buildStonePath(t, stone, [landfall, cottage], { spacingMul: 0.72, wobbleMul: 0.45, skipNear: crown, tag: 'walk', elevationDeg }));
   }
   if (cottage && gazebo) {
     // a LIGHT trail on to the gazebo — sparse, skirting the tree crown so no stone hides beneath it.
-    const detour = detourAroundTree(cottage, gazebo, crown.c, treeHalfW);
-    out.push(...buildStonePath(t, stone, [cottage, detour, gazebo], { spacingMul: 1.5, wobbleMul: 0.8, skipNear: crown, tag: 'step' }));
+    const detour = detourAroundTree(cottage, gazebo, crown.c, treeHalfW, elevationDeg);
+    out.push(...buildStonePath(t, stone, [cottage, detour, gazebo], { spacingMul: 1.5, wobbleMul: 0.8, skipNear: crown, tag: 'step', elevationDeg }));
   }
 
   // flat decorative accents + the UAT verdict: a lavender clump beside the cottage, and a couple of grass
@@ -2656,18 +2850,23 @@ function buildGardenArt(
   // promotion, owner look verdict 2026-07-22 — the garden node showed no visible UAT flowers because its
   // massed bud-bed read as a subtle clump; the 1:1 small-flower scatter is the one vocabulary the whole
   // map now speaks). The scatter keeps out of the hero tree well + spaces itself + lands on owned cells.
+  // Both accent offsets are GROUND displacements (`crownR` is a ground radius, `rr` a fraction of the
+  // island's ground radius), so both are projected through the declared camera before `towardLand`
+  // clamps them onto owned land — otherwise the clamp is faithfully relocating the wrong point.
   const cen = t.centroid;
   const accentScale = crownR / 26;
   if (cottage) {
-    const a = towardLand({ x: cottage.x - crownR * 0.85, y: cottage.y + crownR * 0.4 }, cen, land);
+    const beside = projectGround({ x: -crownR * 0.85, y: crownR * 0.4 }, elevationDeg);
+    const a = towardLand({ x: cottage.x + beside.x, y: cottage.y + beside.y }, cen, land);
     out.push({ y: a.y, node: g(lavenderMarks(hash(`${t.id}:lavender`)), { transform: `translate(${f(a.x)} ${f(a.y)}) scale(${f(accentScale)})` }) });
   }
-  out.push(...buildUatMarkers(t, land, true));
+  out.push(...buildUatMarkers(t, land, true, elevationDeg));
   for (let i = 0; i < 3; i++) {
     const k = hash(`${t.id}:grass:${i}`);
     const ang = rand01(k) * Math.PI * 2;
     const rr = (0.4 + rand01(k + 1) * 0.32) * t.radius;
-    const gp = towardLand({ x: cen.x + Math.cos(ang) * rr, y: cen.y + Math.sin(ang) * rr * 0.7 }, cen, land);
+    const off = groundPolarOffset(ang, rr, elevationDeg);
+    const gp = towardLand({ x: cen.x + off.x, y: cen.y + off.y }, cen, land);
     out.push({ y: gp.y, node: g(grassMarks(k), { transform: `translate(${f(gp.x)} ${f(gp.y)}) scale(${f(accentScale)})` }) });
   }
   return out;
@@ -2756,6 +2955,9 @@ export function buildTerritoryFlora(
   ownerCells?: RelaxedCell[] | null,
   garden?: SceneGardenInput | null,
   vegetation?: SceneVegetationInput | null,
+  /** The camera the island's geometry is projected at (ADR-0367 D1) — the placements below measure
+   *  ground distances through it. Defaults to the declared land camera. */
+  elevationDeg: number = LAND_CAMERA_ELEVATION_DEG,
 ): SceneG {
   const drawables: { y: number; node: SceneNode }[] = [];
   // The unified vegetation vocabulary (ADR-0226) governs the NON-garden path only — the garden
@@ -2768,7 +2970,7 @@ export function buildTerritoryFlora(
     // The decorative flora (conifers / capability plants / parcel flora), the procedural central tree,
     // and the 1:1 UAT-flower scatter are ALL suppressed — the heroes replace them; the `autumn-tree`
     // hero stands as the central tree. The nameplate + session wisps/claims still layer on below.
-    drawables.push(...buildGardenArt(t, garden, ownerCells ?? null));
+    drawables.push(...buildGardenArt(t, garden, ownerCells ?? null, elevationDeg));
   } else {
     if (parcelFlora) {
       // parcels-present: the parcel surface flora IS the island's flora (conifers + plant ring retired).
@@ -2803,7 +3005,7 @@ export function buildTerritoryFlora(
     // tree + flora by depth. Under the vocabulary flag they render SMALL (a low meadow flower, not a tall
     // scatter). The island's substrate cells (when known) are the scatter's keep-in. Absent/empty
     // uatCriteria ⇒ nothing (the lock).
-    drawables.push(...buildUatMarkers(t, ownerCells ?? null, unifiedVeg));
+    drawables.push(...buildUatMarkers(t, ownerCells ?? null, unifiedVeg, elevationDeg));
   }
   drawables.sort((a, b) => a.y - b.y);
 
@@ -3103,6 +3305,10 @@ export function buildScene(input: SceneInput): SceneG {
   // island renders byte-for-byte (the absence lock; the public website never sends it).
   const vegetation = input.vegetation ?? null;
   const unifiedVeg = !!vegetation;
+  // The camera the surface projected the ground geometry at (ADR-0367 D1). Absent ⇒ the declared land
+  // camera, which is what every shipped surface uses — so this is a proof/inspection seam, not a
+  // second camera.
+  const elevationDeg = input.cameraElevationDeg ?? LAND_CAMERA_ELEVATION_DEG;
   const surfaces: (ParcelSurface | null)[] = input.territories.map((t, i) => {
     const own = ownerCells[i];
     return own ? buildTerritorySurface(t, own, unifiedVeg) : null;
@@ -3133,6 +3339,7 @@ export function buildScene(input: SceneInput): SceneG {
             ownerCells[i] ?? null,
             garden && garden.islandId === t.id ? garden : null,
             vegetation,
+            elevationDeg,
           ),
         ),
         ...buildCaves(input),
