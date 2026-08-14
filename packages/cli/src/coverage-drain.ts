@@ -1,9 +1,22 @@
-// ⚠ UNWIRED — part of retired `check:coverage`, which ADR-0311 D2 removed from the gate on
-// 2026-08-05. This module is the ceiling core; its entrypoint `check-coverage.ts` is invoked by
-// nothing, and it is reached only from there and from its own tests — so those tests stay GREEN
-// while it enforces NOTHING. Kept deliberately (ADR-0311 D5), not forgotten; re-wiring needs
-// fresh production-catch evidence AND an ADR, never just the wiring.
+// ⚠ UNWIRED AS A GATE RUNG — part of retired `check:coverage`, which ADR-0311 D2 removed from the
+// gate on 2026-08-05. This module is the ceiling core; its entrypoint `check-coverage.ts` is invoked
+// by nothing, so NO GATE STEP enforces what is below. Kept deliberately (ADR-0311 D5), not
+// forgotten; re-wiring it AS A RUNG needs fresh production-catch evidence AND an ADR, never just the
+// wiring.
 // Tombstone: `RETIRED_CHECKS` in `gate-order.ts`, pinned by `gate-order.test.ts`.
+//
+// ⚠ BUT IT IS NOT UNREACHED, and an earlier revision of this banner said it was ("reached only from
+// there and from its own tests"). Two live readers exist, neither of them a gate rung, and the
+// distinction is the whole point of the UNWIRED marker — it marks what does not GATE, never what is
+// dead:
+//   - `coverage-drain.test.ts` sweeps the REAL corpus inside `pnpm -r test` and is the only
+//     surviving enforcement of the ceiling (declared `load-bearing` in `RETIRED_TEST_COMPANIONS`).
+//   - `storytree coverage --totals` (`coverage.ts`) reads {@link formatCoverageTotals} to answer
+//     "where does the backlog stand?" on a GREEN run, which the ceiling assertion cannot: it prints
+//     only when it reds. Read-only, offline, exits 0, and NOT a gate step — so ADR-0311 D5 is not
+//     engaged by it.
+// Deleting this file therefore breaks a live verb and drops a repo-wide invariant. It is not a
+// tidy-up candidate.
 //
 // What follows is retained as written — read it as what this DID, not as current gate policy.
 //
@@ -296,6 +309,52 @@ export const DEFAULT_COVERAGE_DRAIN_CONFIG: CoverageDrainConfig = {
   uncoveredCeiling: 103,
   unboundCeiling: 1,
 };
+
+/**
+ * WHY THE TWO AXES MUST NEVER BE SUMMED — the sentence, held in ONE place because both readers print
+ * it and a divergence between them would be a second, quieter version of the same error.
+ *
+ * `uncovered` counts CONTRACTS and `unbound` counts CAPABILITIES. They move independently: measured
+ * against one checkout, draining two uncovered contracts while a sibling landed a capability with no
+ * test file left the summed contract count at EXACTLY 121 both times while the capability count FELL.
+ * A ceiling read off the sum is therefore satisfiable by work that drained nothing, which is why this
+ * module publishes no total.
+ */
+export const COVERAGE_NEVER_SUM_NOTE =
+  "NEVER SUM THESE — uncovered counts CONTRACTS, unbound counts CAPABILITIES, and the total is " +
+  "unchanged by real movement on either axis.";
+
+/**
+ * BOTH TOTALS, SEPARATELY, WITH THE APERTURE THEY WERE MEASURED OVER.
+ *
+ * The ceiling is defined in terms of two numbers, and until `gate-checks-name-the-remedy-that-works`
+ * the only surviving enforcement of it named NEITHER — a session that red there learned only which
+ * axis breached, so establishing where it stood meant hand-rolling a sweep script whose three
+ * measurement traps report a FALSE CLEAN (`specFilesWalked=0 scanned=0 uncovered=0` reads exactly
+ * like a drained backlog). The verdict has carried both counts and both ceilings all along; not
+ * printing them was the whole defect.
+ *
+ * THE APERTURE IS PART OF THE NUMBER, not decoration. `uncovered` is a strict LOWER bound whose value
+ * FALLS as the substrate degrades — a missing test-file tree routes every capability to `unbound`
+ * instead — so `uncovered=0` means "nothing was scanned" just as readily as "nothing is uncovered".
+ * Stating what was walked is what separates those two, and it is why this function will not render
+ * the counts without the context.
+ *
+ * PURE, and shared by both readers on purpose: `coverage-drain.test.ts`'s ceiling assertion (when it
+ * reds) and `storytree coverage --totals` (on any run) print the SAME sentence from the SAME
+ * computation, so the answer cannot depend on which one you asked.
+ */
+export function formatCoverageTotals(
+  verdict: CoverageDrainVerdict,
+  context: CoverageDrainContext,
+): string {
+  return (
+    `uncovered=${verdict.uncoveredCount}/${verdict.config.uncoveredCeiling} · ` +
+    `unbound=${verdict.unboundCount}/${verdict.config.unboundCeiling} · ` +
+    `measured over ${context.specFilesWalked} spec file(s) walked, ` +
+    `${context.scanned} capability(ies) scanned`
+  );
+}
 
 /**
  * The minimal projection of the sweep the ceiling needs — deliberately decoupled from
