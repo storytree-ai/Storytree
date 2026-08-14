@@ -108,6 +108,11 @@ export const LITERAL_FLAGS: ReadonlySet<string> = new Set([
   "out",
   "field",
   "decided-date",
+  // `library query --kind <k> --where <field><op><value>` (`tool-signal-gaps-arc`) — a kind name and
+  // a predicate EXPRESSION. Neither is ever stored into an artifact, and a `@` inside a `--where`
+  // value is a literal character to match on, not a path to read.
+  "kind",
+  "where",
   "dwell",
   "model",
   "budget",

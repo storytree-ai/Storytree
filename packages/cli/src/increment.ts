@@ -57,17 +57,111 @@ export function extractIncrementPaths(doc: Record<string, unknown>): string[] {
 }
 
 /**
+ * PURE: does a CLOSED sibling increment record `id` as already delivered?
+ *
+ * `tool-signal-gaps-arc` (friction `drifted-increment-may-be-already-delivered`). Drift is
+ * anchor-vs-HEAD and nothing else, so it cannot tell "never built" from "built, then the ground
+ * moved elsewhere" — and the check then printed `next: storytree agents planner`, actively pointing
+ * at the wrong verb. Measured on `explorer-onboarding-plan-1`: 89 commits, 7/7 paths drifted, every
+ * unit landed three weeks earlier via PR #775, and the DELIVERING entry's own outcome prose already
+ * said *"Plan explorer-onboarding-plan-1 consumed"*. Only the terminal `closed` flip was missed.
+ *
+ * That hand-check — "read the arc's increment log and look for an entry naming this one as landed"
+ * — is what this makes mechanical. It is deliberately the SIBLING PROSE and not the capability
+ * `status:` field: a spec's `status:` carries no builtness signal (it is an authoring stage, not a
+ * delivery record), so mining it would trade one misleading signal for another.
+ *
+ * Conservative by construction: a hit is REPORTED as evidence to check, never treated as proof. The
+ * cost of a false positive is a session reading one closed increment before re-planning; the cost of
+ * the false negative this replaces was a whole session re-planning finished work.
+ */
+export function deliveredBySibling(
+  id: string,
+  siblings: readonly StoredDoc[],
+): { by: string; where: string } | null {
+  for (const sib of siblings) {
+    if (sib.id === id) continue;
+    const doc = sib.doc as Record<string, unknown>;
+    if (doc["status"] !== "closed") continue;
+    // The three places a closing leg writes prose: the one-sentence lead, the long body, and the
+    // closure note a non-PR closure is REQUIRED to carry (ADR-0305 D5).
+    const outcome = doc["outcome"] as Record<string, unknown> | undefined;
+    const fields: [string, unknown][] = [
+      ["objective", doc["objective"]],
+      ["body", doc["body"]],
+      ["outcome.note", outcome?.["note"]],
+    ];
+    for (const [where, value] of fields) {
+      if (typeof value === "string" && value.includes(id)) return { by: sib.id, where };
+    }
+  }
+  return null;
+}
+
+/** An increment's arc id, with the `asset:` scheme prefix stripped (`arcRef` stores `asset:<arc-id>`). */
+export function arcIdOf(doc: Record<string, unknown>): string | null {
+  const ref = doc["arcRef"];
+  if (typeof ref !== "string" || ref === "") return null;
+  const at = ref.indexOf(":");
+  return at === -1 ? ref : ref.slice(at + 1);
+}
+
+/**
  * The git seam: commits touching `path` since `sha` (exclusive), i.e. `git rev-list --count
  * <sha>..HEAD -- <path>`. Injected so the check is provable offline; throws when the sha is
  * unresolvable in this checkout.
  */
 export type CountCommitsSince = (sha: string, path: string) => number;
 
-export interface IncrementCheckDeps {
+/**
+ * The PREMISE seams (`tool-signal-gaps-arc`, from friction
+ * `a-parked-entrys-premise-can-be-overtaken-with-no-freshness-check`).
+ *
+ * A parked increment prescribes a remedy against the world as it was the day it was parked. The
+ * anchor check answers "did the ground move" and says NOTHING about whether the REASONING still
+ * holds — so an entry dead on arrival was only discovered by reading source, after the work had
+ * already been picked up. Measured: two of four parked entries on one arc were dead on arrival, and
+ * one's literal instruction would have added a tenth gate rung that ADR-0311 D1 forbids. Building
+ * it as written would have been worse than not building it.
+ *
+ * Both seams are injected so the check stays provable with no filesystem and no decision log, and
+ * both are OPTIONAL: an absent seam degrades to today's behaviour rather than to a wrong answer.
+ */
+/** How many later decisions the premise block names before it summarises the rest. */
+const PREMISE_DECISION_CAP = 8;
+
+export interface IncrementPremiseDeps {
+  /** Does this repo path still exist? Absent = skip the vanished-path signal. */
+  pathExists?: (p: string) => boolean;
+  /** ADRs decided strictly after `isoDate`. Absent = skip the later-decisions signal. */
+  decisionsSince?: (isoDate: string) => { number: number; title: string }[];
+}
+
+export interface IncrementCheckDeps extends IncrementPremiseDeps {
   store: Store;
   countCommits: CountCommitsSince;
   /** True when the live store is attached (--pg) — used only for honest offline hints. */
   pg: boolean;
+}
+
+/**
+ * PURE: the premise signals the ANCHOR cannot carry.
+ *
+ * Deliberately NOT a verdict. Neither signal proves an entry is dead — a vanished path may have
+ * simply moved, and a later decision may be irrelevant — so both are reported as things to CHECK.
+ * That asymmetry is the point: the cost of reading five ADR titles is minutes, and the cost of
+ * building an overtaken instruction is the whole increment.
+ */
+export function premiseSignals(
+  paths: readonly string[],
+  since: string,
+  deps: IncrementPremiseDeps,
+): { vanished: string[]; decisions: { number: number; title: string }[] } {
+  const vanished = deps.pathExists
+    ? paths.filter((p) => !p.includes("*") && !deps.pathExists!(p))
+    : [];
+  const decisions = deps.decisionsSince ? deps.decisionsSince(since) : [];
+  return { vanished, decisions };
 }
 
 /** An increment's anchor/status read defensively off the untyped stored doc. */
@@ -149,6 +243,14 @@ export async function incrementCheck(
   const touched = rows.filter((r) => r.commits > 0);
   const totalCommits = touched.reduce((n, r) => n + r.commits, 0);
   const drifted = totalCommits > threshold;
+
+  // THE COMPLETION PROBE (`tool-signal-gaps-arc`). Drift alone cannot tell "never built" from
+  // "built, then the ground moved", and the two have OPPOSITE remedies — re-plan vs close the
+  // record. So before recommending anything, ask the two questions drift is silent about: is this
+  // increment already spent, and does a closed sibling record it as delivered?
+  const delivered = drifted ? await probeDelivery(deps.store, id, stored) : null;
+  const alreadyDone = spent || delivered !== null;
+
   const width = Math.max(1, ...rows.map((r) => r.path.length));
   const lines = [
     `increment ${id}  [${status}]  anchor ${sha.slice(0, 9)} (${date})   threshold ${threshold} commit(s)`,
@@ -158,19 +260,121 @@ export async function incrementCheck(
     drifted
       ? `DRIFTED — ${totalCommits} commit(s) touched ${touched.length} of ${rows.length} named path(s) since the anchor.`
       : `FRESH — no named path moved past the threshold since the anchor.`,
-    drifted
-      ? "re-plan, not repair (ADR-0183 D2): supersede this increment; re-planning is cheap by construction."
-      : spent
+  ];
+
+  // THE PREMISE CHECK — reported on BOTH verdicts, because it is orthogonal to drift. An entry can
+  // be perfectly FRESH by commit count and still be dead on arrival, which is precisely the case the
+  // anchor check cannot see and the one that cost the most: the session had already picked the work
+  // up before it found out.
+  const premise = premiseSignals(paths, date, deps);
+  if (premise.vanished.length > 0 || premise.decisions.length > 0) {
+    lines.push(
+      "",
+      "PREMISE — what the anchor check cannot see (these are things to CHECK, not a verdict):",
+    );
+    if (premise.vanished.length > 0) {
+      lines.push(
+        `  · ${premise.vanished.length} named path(s) NO LONGER EXIST — the instruction targets files that are gone:`,
+        ...premise.vanished.map((p) => `      ${p}`),
+        "    (a move is as likely as a deletion; confirm before reading it as dead.)",
+      );
+    }
+    if (premise.decisions.length > 0) {
+      // MOST RECENT FIRST and capped: a later decision is the likelier overtaker, and an uncapped
+      // list is its own kind of unread signal — a month-old entry lists 144 ADRs, which nobody
+      // reads. The COUNT is the load-bearing part (it prices the risk); the titles are the entry
+      // point. `adr list` is one command away for the rest, and it is named here.
+      const recent = [...premise.decisions].reverse();
+      const shown = recent.slice(0, PREMISE_DECISION_CAP);
+      lines.push(
+        `  · ${premise.decisions.length} decision(s) landed since this was anchored — read them before building it as written:`,
+        ...shown.map((d) => `      ADR-${String(d.number).padStart(4, "0")}  ${d.title}`),
+      );
+      if (recent.length > shown.length) {
+        lines.push(
+          `      … ${recent.length - shown.length} older (most recent shown first; \`storytree adr list --current\` for all)`,
+        );
+      }
+    }
+  }
+
+  if (drifted && alreadyDone) {
+    // The measured defect, inverted. Drift is anchor-vs-HEAD ONLY and says NOTHING about
+    // completion, so a DRIFTED verdict over already-delivered work used to read as "re-plan this"
+    // — the recommendation that cost a whole session re-planning work landed three weeks earlier.
+    lines.push(
+      "",
+      "⚠️  BUT THIS MAY HAVE NOTHING LEFT TO BUILD — drift is anchor-vs-HEAD only and carries no",
+      "    completion signal. What the drift verdict above cannot see:",
+    );
+    if (spent) {
+      lines.push(
+        `    · status is ${status} — a ${status} increment is never re-executed (ADR-0305 D2's write-lock).`,
+      );
+    }
+    if (delivered) {
+      lines.push(
+        `    · closed sibling "${delivered.by}" names this increment in its ${delivered.where} —`,
+        `      i.e. the increment log already records it as delivered.`,
+      );
+    }
+    lines.push(
+      "",
+      "    VERIFY the objective against the current tree, then CLOSE the record rather than",
+      "    re-planning it. Re-planning delivered work supersedes a plan nobody would ever run.",
+    );
+  } else if (drifted) {
+    lines.push(
+      "re-plan, not repair (ADR-0183 D2): supersede this increment; re-planning is cheap by construction.",
+      "",
+      "(no completion evidence found: status is open and no closed sibling on this arc names it.)",
+    );
+  } else {
+    lines.push(
+      spent
         ? `⚠️  but status is ${status} — a ${status} increment is never re-executed; re-plan.`
         : "consume it: take lanes via the claim machinery, execute, append the arc increment at landing.",
-  ];
+    );
+  }
+
   return {
     ok: true,
     body: lines.join("\n"),
-    next: drifted
-      ? ["storytree agents planner   (author the superseding increment)", `storytree library artifact ${id} --pg`]
-      : [`storytree library artifact ${id} --pg`],
+    next:
+      drifted && alreadyDone
+        ? [
+            // NOT the planner: pointing a session at `agents planner` here is the misdirection this
+            // arc closes. Closing an already-delivered increment is the honest terminal move.
+            `storytree arc increment close ${id} --note "<why>" --pg`,
+            ...(delivered ? [`storytree library artifact ${delivered.by} --pg`] : []),
+            `storytree library artifact ${id} --pg`,
+          ]
+        : drifted
+          ? [
+              "storytree agents planner   (author the superseding increment)",
+              `storytree library artifact ${id} --pg`,
+            ]
+          : [`storytree library artifact ${id} --pg`],
   };
+}
+
+/**
+ * Ask the store whether a closed sibling on the same arc records `id` as delivered.
+ *
+ * Store-shaped so {@link deliveredBySibling} stays pure and provable without one. An increment with
+ * no `arcRef` has no siblings to consult, which is a silent `null` rather than an error: the probe
+ * only ever ADDS evidence to a verdict, so its absence must never change one.
+ */
+async function probeDelivery(
+  store: Store,
+  id: string,
+  stored: StoredDoc,
+): Promise<{ by: string; where: string } | null> {
+  const arcId = arcIdOf(stored.doc as Record<string, unknown>);
+  if (arcId === null) return null;
+  const all = await store.queryDocs({ kind: "increment" });
+  const siblings = all.filter((d) => arcIdOf(d.doc as Record<string, unknown>) === arcId);
+  return deliveredBySibling(id, siblings);
 }
 
 export function incrementHelp(): Envelope {

@@ -56,9 +56,12 @@ story otherwise; see the frontmatter note for why no edge runs to
 > `healthy`).** storytree's own prove-it-gate did not drive this red→green. That is what `mapped`
 > records (ADR-0094), and it is why there is no `real:` arm.
 >
-> **The proof — 7 tests** in `packages/cli/src/increment.test.ts`, driving the real `incrementCommand`
+> **The proof — 22 tests** in `packages/cli/src/increment.test.ts`, driving the real `incrementCommand`
 > over a real `InMemoryStore` with the commit counter injected as a `CountCommitsSince` dep, so the
-> git side is a seam rather than a live `git log`.
+> git side is a seam rather than a live `git log`. (7 until `tool-signal-gaps-arc` added the
+> completion probe and the premise check; their two seams — `pathExists` and `decisionsSince` — are
+> injected for the same reason, so the whole verdict surface stays provable with no filesystem and no
+> decision log.)
 >
 > **THE HONEST LIMIT.** Because the counter is injected, this suite reds when the JUDGE breaks and
 > never when a real checkout drifts. The extraction convention, the threshold arithmetic and every
@@ -69,8 +72,15 @@ story otherwise; see the frontmatter note for why no edge runs to
 
 **Staleness is checked, never assumed absent (ADR-0183 D2).** `storytree increment check <id>`
 git-logs the paths the increment names since its `anchor.sha`. Drift past the threshold means
-RE-PLAN, not repair — a drifted increment is re-planned by the `planner`, never patched in place.
-This is the proof tier's anchor / source-drift move applied to intentions.
+RE-PLAN, not repair — a GENUINELY STALE increment is re-planned by the `planner`, never patched in
+place. This is the proof tier's anchor / source-drift move applied to intentions.
+
+**But drift alone does not establish staleness** (`tool-signal-gaps-arc`, contract 7). Drift is
+anchor-vs-HEAD and carries no completion signal, so it cannot tell "never built" from "built, then
+the ground moved elsewhere" — and those have OPPOSITE remedies. Where the increment is already
+`active`/`closed`, or a CLOSED sibling on the same arc names it as delivered, the check says so and
+offers `arc increment close` rather than the planner. The re-plan remedy above is what remains once
+that question is asked and answered — not the unconditional response to a drifted verdict.
 
 **A path is a backtick-quoted token.** The increment template puts each lane's file surface in
 backtick fence hints, so extraction from backticks IS "the paths the increment names" — a token
@@ -94,7 +104,7 @@ whose body names backtick-quoted paths, with the commit counter injected, and wi
 four verdicts the consuming session acts on: fresh, drifted-past-threshold, vacuous, and spent —
 plus the honest refusals for a missing anchor, an unknown id, a wrong kind and a malformed sha.
 
-## Contracts (6)
+## Contracts (8)
 
 The test-proven leaf behaviours — each **one isolated automated test** with collaborators stubbed
 (ADR-0002). Test titles are cited rather than line ranges, which rot.
@@ -123,3 +133,13 @@ The test-proven leaf behaviours — each **one isolated automated test** with co
    - **asserts —** A missing anchor, an unknown id, a wrong-kind doc and a malformed sha each return `ok:false` with a descriptive envelope rather than throwing or reporting fresh.
    - **covers —** `packages/cli/src/increment.ts` (`incrementCheck`, the refusal branches)
    - **proven by —** `packages/cli/src/increment.test.ts`, *"increment check fails honestly on a missing anchor, an unknown id, a wrong kind, and a bad sha"* (REAL, passing)
+7. **`drifted-but-delivered-is-not-re-planned`** — drift over already-delivered work does not recommend the planner
+   - **asserts —** A DRIFTED increment that is `active`/`closed`, or that a CLOSED sibling on the same arc names in its `objective`/`body`/`outcome.note`, reports that it may have nothing left to build and offers `arc increment close` rather than `storytree agents planner`. Drift with NO completion evidence still recommends re-planning, and says it looked.
+   - **covers —** `packages/cli/src/increment.ts` (`deliveredBySibling`, `arcIdOf`, `probeDelivery`, the `alreadyDone` branch)
+   - **proven by —** `packages/cli/src/increment.test.ts`, *"DRIFTED + a closed sibling recording delivery does NOT recommend the planner"* (REAL, passing)
+   - **why it is its own contract —** drift is anchor-vs-HEAD and carries NO completion signal, so "never built" and "built, then the ground moved" were indistinguishable while having opposite remedies (`tool-signal-gaps-arc`, friction `drifted-increment-may-be-already-delivered`; measured on `explorer-onboarding-plan-1`, which cost a whole session re-planning work landed three weeks earlier).
+8. **`the-premise-is-checked-not-just-the-anchor`** — signals the commit count cannot carry are reported on BOTH verdicts
+   - **asserts —** Named paths that no longer exist and decisions landed since the anchor date are reported under a `PREMISE` heading on a FRESH verdict as well as a DRIFTED one; a glob is never called vanished; the decision list is capped most-recent-first with an uncapped count and `adr list --current` named for the rest; no signal prints no block.
+   - **covers —** `packages/cli/src/increment.ts` (`premiseSignals`, `IncrementPremiseDeps`, the premise render)
+   - **proven by —** `packages/cli/src/increment.test.ts`, *"the premise block fires on a FRESH increment — it is ORTHOGONAL to drift"* (REAL, passing)
+   - **why it is its own contract —** a parked entry prescribes a remedy against the world as it was when parked, and the anchor answers only "did the ground move"; the costly case is FRESH-but-dead-on-arrival, which the drift verdict cannot see at all (friction `a-parked-entrys-premise-can-be-overtaken-with-no-freshness-check`). Both seams are injected and OPTIONAL, so an absent one degrades to the prior behaviour rather than to a wrong answer.

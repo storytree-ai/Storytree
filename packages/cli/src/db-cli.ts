@@ -68,8 +68,37 @@ async function main(): Promise<void> {
       process.exitCode = 1;
       return;
     }
+    case "schema": {
+      // `tool-signal-gaps-arc`, from friction `no-verb-applies-the-schema-ddl-and-nothing-else`.
+      //
+      // An additive-column landing had no first-class way to apply JUST the DDL. `applySchema` is
+      // exported, but every entry point that called it — `load-corpus.ts`, `batch-migrate.ts` —
+      // also performs a data migration nobody wants as a side effect. So each such landing
+      // hand-rolled a one-shot `.ts` inside a workspace package and paid the same connection traps,
+      // ~10 minutes and three failed invocations apiece. Additive columns are the house migration
+      // style (`grade` in ADR-0200 D2, `role` since), so everyone landing one hit this.
+      //
+      // The shape is `db:probe`'s exactly, for the same reason: a hand-rolled one-shot promoted to
+      // a verb once it had been re-derived enough times. Secrets hydration, the `PoolHandle` shape
+      // and `closePool` teardown all sit inside the verb.
+      //
+      // The DDL is idempotent by construction (`CREATE TABLE IF NOT EXISTS` / `ADD COLUMN IF NOT
+      // EXISTS`), so re-running it is safe — which is what makes it honest to expose on its own.
+      // It applies SCHEMA ONLY and touches no row: the residue hazard the friction names is a
+      // migration running when the caller asked for DDL, so this deliberately cannot do that.
+      loadLocalSecrets();
+      const { applySchema, createPool, closePool } = await import("@storytree/library/store");
+      const handle = await createPool();
+      try {
+        await applySchema(handle.pool);
+        console.log("schema applied (DDL only — no data migration ran)");
+      } finally {
+        await closePool(handle.pool, handle.connector);
+      }
+      return;
+    }
     default:
-      console.error("usage: db-cli <up|down|status|probe>");
+      console.error("usage: db-cli <up|down|status|probe|schema>");
       process.exitCode = 2;
   }
 }

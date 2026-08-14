@@ -48,7 +48,7 @@ Real collaborators, no stubs within the organism: `cli.test.ts` (all passing) dr
 
 HONESTY: these run against an `InMemoryStore` — the real cross-store `--pg` write contract (`PgLibraryStore`) is NOT exercised offline; `main`'s `--pg`→writable wiring and several edit/new branches are would-be (`proposed`).
 
-## Contracts (13)
+## Contracts (15)
 
 The test-proven leaf behaviours — each **one isolated automated test** with collaborators stubbed (ADR-0002). Where a REAL passing test exists, a `proven by` line cites it; otherwise the contract is a would-be test.
 
@@ -104,3 +104,12 @@ The test-proven leaf behaviours — each **one isolated automated test** with co
     - **asserts —** With a non-green cheap health result, the dashboard banner reads `Library: F FAIL, W WARN — run storytree library --check`.
     - **covers —** `packages/cli/src/commands.ts:117-121`
     - **would-be test —** only the OK banner is tested (`cli.test.ts:25`); the FAIL/WARN variant has no committed assertion (the stamped seed is always green).
+14. **`query-answers-a-predicate`** — `library query --kind K [--where …]` answers an ad-hoc predicate question of the corpus
+    - **asserts —** `--count` returns the bare number of rows of a kind satisfying the AND-ed `--where` clauses; the row render names the total it was drawn from; `--field` projects a dotted path; `--limit` caps the rows while the count line still reflects the full match set.
+    - **covers —** `packages/cli/src/library-query.ts` (`libraryQuery`), `packages/library/src/query.ts` (the predicate core)
+    - **proven by —** `packages/cli/src/library-query.test.ts` and `packages/library/src/query.test.ts` (REAL, passing)
+15. **`a-bad-query-refuses-rather-than-answering-empty`** — a rejected query never renders as a plausible zero
+    - **asserts —** A missing or unknown `--kind` is refused with the available kinds listed; every malformed `--where` clause is reported at once with the operator grammar; a non-numeric `--limit` is refused rather than silently defaulting. None of these returns `ok:true` with an empty result.
+    - **covers —** `packages/cli/src/library-query.ts` (the refusal branches), `packages/library/src/query.ts` (`parseQueryClause`)
+    - **proven by —** `packages/cli/src/library-query.test.ts`, *"a malformed clause REFUSES rather than returning an empty match — the whole point of the verb"* (REAL, passing)
+    - **why it is its own contract —** an empty result and a rejected query are indistinguishable to a caller, and reading `0` as an answer is the `tool-signal-gaps-arc` defect this verb exists to remove.

@@ -108,6 +108,20 @@ traps, escalation points.
   mechanical freshness check** — git-log the paths the plan names since its anchor; drift past
   threshold means re-plan, not repair. (This promotes the "stale would-be spec — git-log before
   building" trap from a private memory warning to an enforced rule.)
+
+  **(Narrowed in place 2026-08-14 per ADR-0139 — `tool-signal-gaps-arc`, friction
+  `drifted-increment-may-be-already-delivered`; the decision is unchanged, only this clause's
+  absoluteness was overtaken.)** "Drift past threshold means re-plan" was true only for a drift that
+  still has work behind it, and read as unconditional. `git log` counts commits against an
+  increment's named paths since its anchor and cannot tell WHY they moved — including the case where
+  they moved only because the increment was already fully delivered (measured: a whole session spent
+  re-planning work landed three weeks earlier, `explorer-onboarding-plan-1`). `storytree increment
+  check` now runs a completion probe alongside the drift count: an increment already `active`/`closed`,
+  or one a CLOSED sibling on the same arc names as done in its `objective`/`body`/`outcome.note`,
+  reports that it may have nothing left to build and offers `arc increment close` instead of directing
+  the `planner`. Drift with no completion evidence still recommends re-planning, and the check says it
+  looked. **Repair is not thereby reopened as a third option** — a genuinely stale increment is still
+  never patched in place; the probe only narrows which drifted increments are genuinely stale.
 - **Consumed, then retired.** Once consumption starts a plan is never edited — re-planning is cheap
   by construction, so supersede. Consumed plans are prunable; the arc's increment log is what
   endures.
