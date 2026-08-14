@@ -16,7 +16,7 @@ Raised after the owner asked whether [ActiveGraph](https://activegraph.ai/) — 
 
 ## Context
 
-**The substrate is already event-sourced, and that is not the gap.** `packages/library/src/store/schema.sql` opens by declaring ADR-0017's shape — history is an append-only event stream, current state is a projection folded from it — and `upsertDoc` appends-and-projects atomically (`packages/storage-protocol/src/store.ts`). Ten append-only history streams are live: `library_event`, `comment_event`, `suggestion_event`, `user_event`, `work_event`, `verdict`, `usage_event`, `attestation`, `change_event`, `claim_event`.
+**The substrate is already event-sourced, and that is not the gap.** `packages/library/src/store/schema.sql` opens by declaring ADR-0017's shape — history is an append-only event stream, current state is a projection folded from it — and `upsertDoc` appends-and-projects atomically (`packages/storage-protocol/src/store.ts`). Eleven append-only history streams are live: `library_event`, `comment_event`, `suggestion_event`, `user_event`, `work_event`, `verdict`, `usage_event`, `attestation`, `uat_drive`, `change_event`, `claim_event`.
 
 **No event in any of them records what caused it.** `StoreEvent` carries `seq, id, kind, type, doc, actor, at`. Verified 2026-08-12 by grep across `packages/` and `apps/` for `caused_by` / `causedBy` / `causeEventId` / `parentEventId`: **zero occurrences in production code.** The event log knows when something happened and who did it, and never why.
 
@@ -36,7 +36,7 @@ Raised after the owner asked whether [ActiveGraph](https://activegraph.ai/) — 
 
 **An event that was caused by another event says so, at emission, or says nothing — and nothing downstream may fill the silence.**
 
-1. **Causality is recorded as a qualified reference to an existing event, not a new identity.** An event may carry `causedBy: { stream, seq }` — the stream name and the `BIGSERIAL` primary key that every one of the ten streams already has. Two nullable columns per stream (`caused_by_stream`, `caused_by_seq`) and the corresponding optional field on `StoreEvent`. Additive, no backfill, no foreign key (consistent with ADR-0017's rule that relationships are id references, never cross-table keys). Note that `StoreEvent.id` is the **document** id, not an event identity — `(stream, seq)` is the only addressable event identity that exists today, and D1 builds on it rather than minting a competitor.
+1. **Causality is recorded as a qualified reference to an existing event, not a new identity.** An event may carry `causedBy: { stream, seq }` — the stream name and the `BIGSERIAL` primary key that every one of the eleven streams already has. Two nullable columns per stream (`caused_by_stream`, `caused_by_seq`) and the corresponding optional field on `StoreEvent`. Additive, no backfill, no foreign key (consistent with ADR-0017's rule that relationships are id references, never cross-table keys). Note that `StoreEvent.id` is the **document** id, not an event identity — `(stream, seq)` is the only addressable event identity that exists today, and D1 builds on it rather than minting a competitor.
 
 2. **The emitter stamps it, or it is absent. It is never inferred.** No backfill pass, no correlation job, no "nearest preceding event in the same run", no join on `unit_id` plus adjacency. This is ADR-0235 clause 3 and ADR-0260 D4 applied verbatim to the event log rather than restated: **under-reporting is the accepted failure mode, and inference may never repair it.** A future proposal to correlate events into edges must supersede this clause and both of those.
 
@@ -54,7 +54,7 @@ Raised after the owner asked whether [ActiveGraph](https://activegraph.ai/) — 
 
 **Candidate A — do nothing; keep reconstructing lineage from `unit_id` and timestamps.** Free, and it is the status quo. **Refused because it is the banned inference performed by hand.** ADR-0235 clause 3 rules out temporal proximity as evidence of causation; a human joining four tables on adjacency is applying precisely that rule-breaking heuristic, with no record that they did and no way for a later reader to check.
 
-**Candidate B — mint a global event id (ULID/UUID) on every event and point at that.** Cleaner in the abstract, and the shape ActiveGraph uses. **Refused on sequencing, not on merit:** it requires a new column populated across ten streams before a single edge can be drawn, which is a big-bang migration paying its whole cost before delivering any observability. `(stream, seq)` is available today at zero migration cost. If a future need genuinely requires an opaque portable event identity — export, or a store that is not Postgres — B is the natural successor and this clause is where it starts.
+**Candidate B — mint a global event id (ULID/UUID) on every event and point at that.** Cleaner in the abstract, and the shape ActiveGraph uses. **Refused on sequencing, not on merit:** it requires a new column populated across every stream before a single edge can be drawn, which is a big-bang migration paying its whole cost before delivering any observability. `(stream, seq)` is available today at zero migration cost. If a future need genuinely requires an opaque portable event identity — export, or a store that is not Postgres — B is the natural successor and this clause is where it starts.
 
 **Candidate C — a qualified `(stream, seq)` reference. CHOSEN.** Additive, backfill-free, and builds on identity that already exists. Its cost is that an event reference is only meaningful inside one store, which is acceptable while the shared Cloud SQL store is the only source of truth (ADR-0302 D1).
 
@@ -85,6 +85,6 @@ Raised after the owner asked whether [ActiveGraph](https://activegraph.ai/) — 
 - ADR-0320 — measured 5048 offered ids against zero `followed_edge` events; the dormant-producer evidence behind D4.
 - ADR-0020 / ADR-0060 — spine-side red-green and the refusal to persist a scripted pass; why candidate D's replay is incompatible with our proof model.
 - ADR-0005 — the deterministic orchestrator spine that candidate D's behaviour population would replace.
-- `packages/library/src/store/schema.sql` — the ten append-only streams D1 adds two columns to.
+- `packages/library/src/store/schema.sql` — the eleven append-only streams D1 adds two columns to, enumerated explicitly rather than looped from the catalog so a new stream cannot silently acquire causal columns it has no emitter for.
 - `packages/storage-protocol/src/store.ts` — `StoreEvent`, and the `Store` seam that gains the optional field.
 - Arc `verification-integrity-arc` — the initiative this ADR is filed under; its parked `memory-provenance-stamp-has-no-writer` is the second dormant-field instance cited in Context.
