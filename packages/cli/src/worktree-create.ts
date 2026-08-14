@@ -29,9 +29,28 @@ import process from "node:process";
 
 import type { ClaimDocT, ClaimRequest, ClaimResult } from "@storytree/notice-board";
 import { claimGrade, exploringClaimRequest } from "@storytree/notice-board";
-import { guardClaimNamespace, type ClaimUniverseLoader } from "@storytree/drive";
+// The SUBPATH, never the `@storytree/drive` barrel. The barrel re-exports the whole build/orchestrate
+// runtime — `node-build`, `story-build`, `orchestrate`, the DB preflight — so importing the guard
+// through it drags the Cloud SQL connector into anything that bundles this module. That matters here
+// specifically: this file is on the managed Codex bootstrap payload's import graph, and that payload
+// runs as the sandbox account with every credential path denied to it (ADR-0368 D2). Both symbols
+// live in `claim-universe.ts`, which is an exported subpath, so the narrow import costs nothing.
+import { guardClaimNamespace, type ClaimUniverseLoader } from "@storytree/drive/claim-universe";
 
-import { storyArcStamps } from "@storytree/arc";
+// Direct from `arc-rollup.ts`, not through the package barrel. The barrel reaches `arc.ts`, which
+// reaches the `@storytree/drive` BARREL and with it the whole build/orchestrate runtime including the
+// Cloud SQL connector — and this module is on the managed Codex bootstrap payload's import graph,
+// which must ship no database client at all (ADR-0368 D2). `arc-rollup.ts` itself is clean, so the
+// subpath is the same code with none of the reach.
+//
+// The module MOVED packages on 2026-08-14 (`@storytree/drive/arc-rollup` → `@storytree/arc/arc-rollup`,
+// ADR-0369) and the narrow-subpath requirement moved with it UNCHANGED — which is why `arc-rollup.ts`
+// now reaches drive through `@storytree/drive/adr-metas` / `/adr-frontmatter` / `/work-hierarchy`
+// rather than drive's barrel. Taking either side of that merge alone would have broken something:
+// the barrel import re-admits the connector, and the old path no longer exists.
+// `codex-worktree-create-entry.test.ts` bundles the payload and asserts the absence by string, so a
+// regression here is a red rather than a discovery.
+import { storyArcStamps } from "@storytree/arc/arc-rollup";
 import type { Envelope } from "./envelope.js";
 
 /** What one anchor node is allowed to look like in a directory/branch name. */

@@ -4,15 +4,22 @@ import path from "node:path";
 import type { Store, StoredDoc } from "@storytree/storage-protocol";
 import { STORY_REF_PREFIX } from "@storytree/library";
 
+// The SUBPATHS, never the `@storytree/drive` barrel — and this is load-bearing, not style. The barrel
+// re-exports the whole build/orchestrate runtime, which reaches the Cloud SQL connector; this module
+// is on the managed Codex bootstrap payload's import graph (via `worktree-create.ts`'s
+// `storyArcStamps`), and that payload must ship no database client at all (ADR-0368 D2). It held that
+// property as `@storytree/drive/arc-rollup` by importing its neighbours relatively; moving packages
+// (ADR-0369) turned those relative imports into cross-package ones, so the narrow subpaths are what
+// carries the same property across the new boundary. `codex-worktree-create-entry.test.ts` bundles the
+// payload and asserts it by string, so widening any of these to the barrel is a red.
+import { loadTitledAdrMetas, type TitledAdrMeta } from "@storytree/drive/adr-metas";
+import type { AdrStatus } from "@storytree/drive/adr-frontmatter";
 import {
   danglingCiteReasons,
-  loadTitledAdrMetas,
   loadWorkHierarchyIndex,
   resolveCites,
-  type AdrStatus,
-  type TitledAdrMeta,
   type WorkUnit,
-} from "@storytree/drive";
+} from "@storytree/drive/work-hierarchy";
 
 /**
  * The ARC ROLLUP — the derived initiative view (ADR-0183 D3) as DATA rather than as rendered text.
