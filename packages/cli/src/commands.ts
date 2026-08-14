@@ -86,7 +86,7 @@ import { CLI_AREAS } from "./cli-areas.js";
 import { dispatchCommand, dispatchHelp } from "./dispatch-command.js";
 // ADR-0290: a live library write records WHICH BRANCH made it, so `check:corpus-content` can charge a
 // seed↔live drift to the session that must reconcile it instead of to whoever gates next.
-import { defaultCliActor } from "./cli-actor.js";
+import { currentGitBranch, defaultCliActor, inFlightBranches } from "./cli-actor.js";
 import { adoptCommand, adoptHelp, type AdoptDispatchDeps } from "./adopt.js";
 import { branchNext, branchHelp } from "./branch.js";
 import {
@@ -3902,6 +3902,10 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         snapshot,
         ledgerPath: defaultLedgerPath(memoryDir),
         now,
+        // ADR-0371 — both derived from LOCAL git refs, so the worklist gains its authorship/liveness
+        // split without acquiring a network or database dependency.
+        currentBranch: currentGitBranch(),
+        inFlightBranches: inFlightBranches(now),
       },
     );
   }

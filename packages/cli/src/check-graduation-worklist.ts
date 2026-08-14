@@ -60,7 +60,7 @@ import {
   type LibrarySnapshot,
 } from "@storytree/library";
 
-import { currentGitBranch } from "./cli-actor.js";
+import { currentGitBranch, inFlightBranches } from "./cli-actor.js";
 import {
   GRADUATION_NUDGE_TAG as TAG,
   defaultLedgerPath,
@@ -130,6 +130,8 @@ async function main(): Promise<void> {
   });
   const drain = evaluateGraduationDrain(candidates, {
     currentBranch: currentGitBranch(),
+    // ADR-0371 — a LOCAL git ref read, so this check remains offline by contract.
+    inFlightBranches: inFlightBranches(now),
     currentDate: now,
     ledgerUsable: problem === undefined && existsSync(ledgerPath),
   });
@@ -143,7 +145,8 @@ async function main(): Promise<void> {
   if (drain.liveCount > 0) {
     const stamped = drain.ownCount + drain.siblingCount;
     console.warn(
-      `${TAG}   authorship: ${drain.ownCount} yours (not charged), ${drain.siblingCount} other sessions', ` +
+      `${TAG}   authorship: ${drain.ownCount} yours (not charged), ${drain.inFlightCount} other sessions ` +
+        `still in flight (not charged), ${drain.siblingCount - drain.inFlightCount} other sessions' merged, ` +
         `${drain.unattributedCount} unstamped — ${drain.chargedCount} of ${drain.liveCount} charged against N=${drain.config.liveCeiling}.` +
         (stamped === 0
           ? " No memory on this machine carries a `metadata.branch` stamp yet, so nothing is excluded" +
@@ -157,9 +160,11 @@ async function main(): Promise<void> {
     // suppresses. That residual is parked on `verification-integrity-arc`, not silently carried.
     if (drain.siblingCount > 0) {
       console.warn(
-        `${TAG}   (Other sessions' memories ARE charged: the drain is a librarian pass over the whole ` +
-          "queue, which any session may run — unlike an export, it commits nothing under your name. The " +
-          "machine-shared queue's unprotected drain is a known open residual, parked on verification-integrity-arc.)",
+        `${TAG}   (Another session's memory is charged once its BRANCH HAS MERGED — the drain is a ` +
+          "librarian pass over the whole queue, which any session may run; unlike an export it commits " +
+          "nothing under your name. While that branch is still in flight the memory is not yet anyone's " +
+          "obligation and is excluded (ADR-0371), so a verified drain can no longer be undone by a " +
+          "sibling session writing between your drain and your merge.)",
       );
     }
   }

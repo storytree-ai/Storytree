@@ -13,8 +13,12 @@ import {
 // default: with no `metadata.branch` anywhere, `chargedCount === liveCount` and the pre-ADR-0301
 // behaviour must be reproduced exactly. That is deliberate rather than incidental — the stamp only
 // exists going forward, so an unstamped queue is what every real machine had on the day it landed.
+// `inFlightBranches` is EMPTY here on purpose (ADR-0371): an empty set disables the in-flight
+// exclusion entirely, so every pre-existing case below keeps its exact pre-ADR-0371 semantics and
+// still proves what it always proved. The in-flight cases opt in explicitly.
 const CTX: GraduationDrainContext = {
   currentBranch: "claude/some-session",
+  inFlightBranches: new Set(),
   currentDate: "2026-07-27",
   ledgerUsable: true,
 };
@@ -307,6 +311,153 @@ test("gd-substrate-guard-survives: an unusable ledger still SUPPRESSES a charged
   assert.notEqual(v.level, "red");
   assert.ok(v.breaches.length > 0, "the breach is still COMPUTED");
   assert.match(v.suppressed ?? "", /park ledger is absent or unreadable/);
+});
+
+// ---------------------------------------------------------------------------
+// ADR-0371 — the IN-FLIGHT exclusion: "mine" generalised to "still being written"
+// ---------------------------------------------------------------------------
+
+test("gd-inflight-reproduces-pr1124: a verified drain is no longer undone by sibling sessions mid-flight", () => {
+  // THE MEASURED FAILURE THIS INCREMENT EXISTS FOR, as a differential control. In PR #1124 a
+  // librarian drained this queue, VERIFIED `OK — no live agent-memory candidates`, and was RED again
+  // at 7 live within ~15 minutes — all 7 written by SIBLING sessions between 20:56 and 21:11, none
+  // belonging to the drainer, with nothing the drainer could have done differently.
+  //
+  // The two arms differ in ONE input: whether those 7 authoring branches have merged yet.
+  const siblings = ["claude/s1", "claude/s2", "claude/s3", "claude/s4", "claude/s5", "claude/s6", "claude/s7"];
+  const queue: GraduationCandidate[] = siblings.map((branch, i) => ({
+    name: `sibling-memory-${i}`,
+    status: "new",
+    branch,
+  }));
+
+  // ARM A — the #1124 moment: every one of those sessions is still running, nothing has merged.
+  const midFlight = evaluateGraduationDrain(queue, { ...CTX, inFlightBranches: new Set(siblings) });
+  assert.equal(midFlight.liveCount, 7, "the queue is still REPORTED in full — nothing goes quiet");
+  assert.equal(midFlight.inFlightCount, 7);
+  assert.equal(midFlight.chargedCount, 0, "none of it is this session's obligation yet");
+  assert.equal(midFlight.level, "warn", "the verified drain HOLDS — this is what #1124 needed");
+  assert.deepEqual(midFlight.breaches, []);
+
+  // ARM B — the same 7 memories once their branches have landed: their knowledge is now everyone's,
+  // so the backlog is real and the ceiling must fire exactly as it did before.
+  const merged = evaluateGraduationDrain(queue, { ...CTX, inFlightBranches: new Set() });
+  assert.equal(merged.inFlightCount, 0);
+  assert.equal(merged.chargedCount, 7);
+  assert.equal(merged.level, "red", "a MERGED sibling's memory is still charged — this is not an amnesty");
+});
+
+test("gd-inflight-is-a-subset-of-siblings: the ADR-0301 authorship identity still reconciles", () => {
+  // `inFlightCount` is deliberately a SUBSET of `siblingCount`, not a fourth disjoint column, so the
+  // printed split can never stop adding up to `liveCount`.
+  const v = evaluateGraduationDrain(
+    [
+      ...freshFrom(CTX.currentBranch ?? "", 2, "mine"),
+      ...freshFrom("claude/flying", 3, "live"),
+      ...freshFrom("claude/landed", 2, "dead"),
+      ...fresh(1),
+    ],
+    { ...CTX, inFlightBranches: new Set(["claude/flying"]) },
+  );
+  assert.equal(v.ownCount, 2);
+  assert.equal(v.siblingCount, 5, "ALL non-own stamped candidates, in flight or not");
+  assert.equal(v.inFlightCount, 3, "the in-flight subset of those 5");
+  assert.equal(v.unattributedCount, 1);
+  assert.equal(v.ownCount + v.siblingCount + v.unattributedCount, v.liveCount);
+  assert.equal(v.chargedCount, v.liveCount - v.ownCount - v.inFlightCount);
+  assert.equal(v.chargedCount, 3, "2 merged siblings + 1 unstamped");
+});
+
+test("gd-inflight-never-excuses-own-twice: the current session's branch in the set is not double-counted", () => {
+  // The current branch is by definition unmerged, so it WILL be in the in-flight set on any real
+  // machine. Counting it as both own and in-flight would make `chargedCount` go negative.
+  const own = CTX.currentBranch ?? "";
+  const v = evaluateGraduationDrain(freshFrom(own, 5), {
+    ...CTX,
+    inFlightBranches: new Set([own, "claude/other"]),
+  });
+  assert.equal(v.ownCount, 5);
+  assert.equal(v.inFlightCount, 0, "own is excluded as OWN, never additionally as in-flight");
+  assert.equal(v.chargedCount, 0);
+  assert.ok(v.chargedCount >= 0, "the charged arithmetic can never go negative");
+});
+
+test("gd-inflight-unstamped-still-charged: liveness cannot be claimed by going anonymous", () => {
+  // The `friction-drain.ts` direction, preserved: only a POSITIVE branch match excludes. An unstamped
+  // memory has no branch to be in flight, so a queue that drops its stamps gets no amnesty.
+  const v = evaluateGraduationDrain(fresh(N + 1), {
+    ...CTX,
+    inFlightBranches: new Set(["claude/whatever"]),
+  });
+  assert.equal(v.inFlightCount, 0);
+  assert.equal(v.unattributedCount, N + 1);
+  assert.equal(v.chargedCount, N + 1);
+  assert.equal(v.level, "red");
+});
+
+test("gd-inflight-unknown-branch-is-charged: a branch git cannot resolve is never excused", () => {
+  // A branch deleted on merge (ADR-0142) or written on another machine is simply ABSENT from the
+  // in-flight set. Absent must mean CHARGED, or the exclusion would grow by losing information.
+  const v = evaluateGraduationDrain(freshFrom("claude/deleted-on-merge", N + 1), {
+    ...CTX,
+    inFlightBranches: new Set(["claude/some-other-live-one"]),
+  });
+  assert.equal(v.inFlightCount, 0);
+  assert.equal(v.chargedCount, N + 1);
+  assert.equal(v.level, "red");
+});
+
+test("gd-inflight-expired-not-stale: the exclusion holds on the AGE axis too, and does not leak", () => {
+  // The `gd-own-expired-not-stale` property, generalised. If in-flight were excused on the COUNT axis
+  // only, a sibling's long-overdue lease would still red the gate through the AGE axis and the
+  // exclusion would be worthless.
+  const theirs = { ...expiredFor(M + 30, "their-stale"), branch: "claude/flying" };
+  const flying = evaluateGraduationDrain([theirs], { ...CTX, inFlightBranches: new Set(["claude/flying"]) });
+  assert.equal(flying.level, "warn");
+  assert.equal(flying.oldestOverdueDays, null, "an in-flight candidate contributes no age");
+
+  // ...and the moment that branch lands, the same candidate reds on age alone.
+  const landed = evaluateGraduationDrain([theirs], { ...CTX, inFlightBranches: new Set() });
+  assert.equal(landed.level, "red");
+  assert.equal(landed.oldestOverdueName, "their-stale");
+});
+
+test("gd-inflight-substrate-guard-survives: an unusable ledger still SUPPRESSES, exclusion or not", () => {
+  // Constraint carried forward verbatim: the in-flight exclusion must not have quietly become a
+  // second path to enforcement past the substrate guard.
+  const v = evaluateGraduationDrain(freshFrom("claude/landed", N + 1), {
+    ...CTX,
+    inFlightBranches: new Set(["claude/flying"]),
+    ledgerUsable: false,
+  });
+  assert.notEqual(v.level, "red");
+  assert.ok(v.breaches.length > 0, "the breach is still COMPUTED");
+  assert.match(v.suppressed ?? "", /park ledger is absent or unreadable/);
+});
+
+test("gd-inflight-breach-names-both-exclusions: charged is reconcilable from the breach line alone", () => {
+  const v = evaluateGraduationDrain(
+    [
+      ...freshFrom(CTX.currentBranch ?? "", 3, "mine"),
+      ...freshFrom("claude/flying", 2, "live"),
+      ...freshFrom("claude/landed", N + 1, "dead"),
+    ],
+    { ...CTX, inFlightBranches: new Set(["claude/flying"]) },
+  );
+  assert.equal(v.level, "red");
+  assert.match(v.breaches[0] ?? "", /3 of 10 live excluded as this session's own/);
+  assert.match(v.breaches[0] ?? "", /2 excluded as other sessions still in flight/);
+});
+
+test("gd-inflight-empty-set-is-exact-parity: ADR-0371 changes nothing until a set is supplied", () => {
+  // The migration guarantee, mirroring `gd-pre-adr0301-parity`. An empty in-flight set must reproduce
+  // the pre-ADR-0371 verdict exactly for every queue shape.
+  for (const n of [0, 1, N, N + 1, N + 20]) {
+    const stamped = evaluateGraduationDrain(freshFrom("claude/other", n), CTX);
+    assert.equal(stamped.inFlightCount, 0, `n=${n}`);
+    assert.equal(stamped.chargedCount, stamped.liveCount, `n=${n}`);
+    assert.equal(stamped.level, n > N ? "red" : n > 0 ? "warn" : "ok", `n=${n}`);
+  }
 });
 
 test("gd-parked-never-attributed: a parked candidate counts in no authorship column", () => {
