@@ -102,6 +102,7 @@
       "packages/cli/src/set-value.ts": "unified-command-dispatch",
       "packages/cli/src/gate*.ts": "gate-ci-parity",
       "packages/cli/src/ci-affected*.ts": "gate-ci-parity",
+      "packages/cli/src/typecheck-aperture*.ts": "gate-ci-parity",
       "packages/cli/src/adr*.ts": "adr-health-gate",
       "packages/cli/src/*deploy-health*.ts": "deploy-health-signal",
       "packages/cli/src/check-declared.ts": "claim-at-declare",

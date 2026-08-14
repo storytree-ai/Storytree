@@ -209,11 +209,14 @@ for (const row of increments) {
   const m = byArc.get(arc) ?? new Map<string, Unit>();
   byArc.set(arc, m);
   const ex = m.get(key);
+  const date = String(doc.outcome.date);
   if (ex) {
     ex.incs.push(row.id);
-    if (String(doc.outcome.date) < ex.date) ex.date = String(doc.outcome.date);
+    // `Unit.date` is readonly, so collapse to the EARLIEST landing date by replacing the entry
+    // rather than assigning through it — same fields, same `files`/`prs` references.
+    if (date < ex.date) m.set(key, { ...ex, date });
   } else {
-    m.set(key, { arc, incs: [row.id], date: String(doc.outcome.date), prs: ok, files });
+    m.set(key, { arc, incs: [row.id], date, prs: ok, files });
   }
 }
 const arcNames = [...byArc.keys()].sort();

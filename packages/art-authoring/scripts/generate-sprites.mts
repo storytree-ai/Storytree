@@ -19,7 +19,6 @@ import { mkdir, writeFile, readFile, access } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PNG } from 'pngjs';
-// @ts-expect-error jpeg-js ships no types; the runner is not typechecked (outside src/).
 import jpegjs from 'jpeg-js';
 import { geminiNanoBananaBackend } from '../src/backends/gemini-nano-banana.js';
 import { cutoutRgba, type RgbaImage } from '../src/sprite/cutout.js';
