@@ -198,8 +198,11 @@ That is a reason to keep this section, not a reason to keep the identity.
 
 ## 7. The fence, re-measured
 
-Driven by a harness that invokes the **installed** hook exactly as Codex does — `pre-tool-use` plus
-the policy path on argv, one JSON event on stdin as a raw UTF-8 buffer — and times each invocation.
+Driven by `codex-boundary-reinstall-adr0375-2026-08-16/fence-remeasure.mjs`, committed beside this
+document so the next re-measurement does not re-author it. It invokes the **installed** hook exactly
+as Codex does — `pre-tool-use` plus the policy path on argv, one JSON event on stdin as a raw UTF-8
+buffer — and times each invocation. It writes nothing, installs nothing and starts nothing; run it
+with `--repeat 3`, and `--help` lists the overrides.
 Written in Node rather than PowerShell for the reason §3 of the 2026-08-15 document records: PS 5.1
 prepends a UTF-8 BOM to anything piped to a native process and the hook fails closed on the malformed
 JSON, and 5.1 has neither `ProcessStartInfo.ArgumentList` nor `StandardInputEncoding`.
