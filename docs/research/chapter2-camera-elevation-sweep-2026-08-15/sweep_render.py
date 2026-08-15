@@ -62,12 +62,19 @@ NPX = shutil.which("npx") or shutil.which("npx.cmd") or "npx"
 #   30      the classic isometric drawing angle; the shallowest angle that reads as a citybuilder
 #   35.264  TRUE isometric, atan(1/sqrt(2)) — the angle at which the three axes foreshorten equally
 #   45      ground and upright foreshorten identically (both 0.707); the natural midpoint
+#   50      ADDED 2026-08-16 — the owner looked at the five above and asked for a cut BETWEEN the
+#           45 knee and the 60 cliff before committing. It was never rendered, so it is rendered
+#           here rather than interpolated: the tree's cost between 45 and 60 is the steepest
+#           segment in the whole sweep (bark 18.7% -> 12.2%, clear stem 41 -> 15 rows), and a
+#           reader who linearly interpolated that segment would be guessing across exactly the
+#           range where the measured curve bends.
 #   60      strongly overhead: ground 0.866, upright 0.500 — the far end before plan view
 ANGLES = [
     ("20", 20.0, "current — LAND_CAMERA_ELEVATION_DEG"),
     ("30", 30.0, "classic isometric drawing angle"),
     ("35p26", 35.264, "TRUE isometric — atan(1/sqrt2)"),
     ("45", 45.0, "ground and upright foreshorten equally"),
+    ("50", 50.0, "owner's second candidate — between the 45 knee and the 60 cliff"),
     ("60", 60.0, "strongly overhead"),
 ]
 
@@ -78,6 +85,37 @@ LAND_SAMPLES = "32"          # the interior-fork spike's own piece samples
 MATURE_FRAME = 18            # NFRAMES - 1: u = 1.0, pinned by retime()
 
 PLAN_ONLY = "--plan-only" in sys.argv
+LAND_ONLY = "--land-only" in sys.argv
+
+
+def _arg(flag, default=None):
+    return sys.argv[sys.argv.index(flag) + 1] if flag in sys.argv else default
+
+
+# WHICH angles this invocation actually renders. Default: all of them, i.e. exactly the original
+# behaviour. `--angles 50` renders ONE and leaves the other five alone.
+#
+# WHY A SUBSET IS SAFE HERE, WHICH IS NOT OBVIOUS AND IS THE WHOLE POINT. A sweep's validity rests
+# on every panel holding the same tree, and that is asserted by comparing the skeleton and mature
+# state ACROSS angles. Render one angle in isolation and the assertion degenerates into comparing a
+# row to itself — it cannot fail, and a subset run would therefore be strictly weaker evidence
+# while looking identical.
+#
+# So a subset run does NOT assert against what it happened to render. It MERGES its rows into the
+# rows already recorded in `sweep-report.json` and asserts across the union, which means a new
+# angle is checked against the five the committed sheet was built from. That makes adding an angle
+# stronger than the original full run in one specific way: the new row has to agree with values
+# that were written down before it existed and cannot be quietly re-derived to match it.
+SELECTED = _arg("--angles")
+if SELECTED:
+    want = {s.strip() for s in SELECTED.split(",") if s.strip()}
+    todo = [a for a in ANGLES if a[0] in want or f"{a[1]:g}" in want]
+    unknown = want - {a[0] for a in todo} - {f"{a[1]:g}" for a in todo}
+    if unknown:
+        raise SystemExit(f"--angles: no such angle {sorted(unknown)}; "
+                         f"known: {[a[0] for a in ANGLES]}")
+else:
+    todo = list(ANGLES)
 
 
 def run(cmd, cwd, log_name):
@@ -123,7 +161,7 @@ report = {"angles": [], "matureFrame": MATURE_FRAME,
                          "shadowSamples": TREE_SHADOW_SAMPLES},
           "landSamples": LAND_SAMPLES}
 
-for tag, deg, why in ANGLES:
+for tag, deg, why in todo:
     print(f"\n=== {deg} deg ({tag}) — {why} ===", flush=True)
     row = {"tag": tag, "elevationDeg": deg, "why": why}
 
@@ -149,6 +187,16 @@ for tag, deg, why in ANGLES:
 
     # 3. the hero tree at this angle. `--no-render` first for the retime table (cheap, and it must
     #    run UNDER Blender: the system numpy grows a DIFFERENT tree than the bundled one).
+    #
+    # `--land-only` skips this whole leg for an angle whose DELIVERED tree frame is already
+    # committed (the .gitignore keeps `tree-*/frames/` but drops `pieces-*/`, so re-composing an
+    # old panel needs its land rebuilt and its tree not). Re-rendering a committed frame would be
+    # churn at best: Blender stamps the PNG container on every write, so an identical raster still
+    # comes back as a modified file.
+    if LAND_ONLY:
+        report["angles"].append(row)
+        continue
+
     plan = run([BLENDER, "--background", "--python", os.path.join(HERO, "blender_tree.py"), "--",
                 "--no-render", "--elev", str(deg)], HERO, f"tree-plan-{tag}.log")
     row["skeleton"] = skeleton_row(plan)
@@ -171,7 +219,28 @@ for tag, deg, why in ANGLES:
     report["angles"].append(row)
 
 name = "sweep-plan-report.json" if PLAN_ONLY else "sweep-report.json"
-with open(os.path.join(HERE, name), "w") as fh:
+
+# MERGE, never replace. A subset run must not shrink the report to whatever it happened to render:
+# the composer and the cost read both drive off this file, and a 6-angle sweep that silently became
+# a 1-angle sweep would still produce a picture and a table, just of one panel. Rows are keyed by
+# tag and re-ordered by ANGLES so the file's order is the candidate set's order, not run order.
+prior = {}
+prior_path = os.path.join(HERE, name)
+if os.path.exists(prior_path):
+    try:
+        prior = {r["tag"]: r for r in json.load(open(prior_path)).get("angles", [])}
+    except (json.JSONDecodeError, KeyError):
+        prior = {}
+# Field-wise, so a `--land-only` re-render of an angle refreshes its land digests without
+# discarding the skeleton/mature/retime rows the original full run recorded for it.
+merged = dict(prior)
+for r in report["angles"]:
+    merged[r["tag"]] = {**prior.get(r["tag"], {}), **r}
+order = [a[0] for a in ANGLES]
+report["angles"] = sorted(merged.values(), key=lambda r: order.index(r["tag"])
+                          if r["tag"] in order else len(order))
+report["renderedThisRun"] = [t for t, _, _ in todo]
+with open(prior_path, "w") as fh:
     json.dump(report, fh, indent=1)
 
 # ---- the structural assertion: every panel must hold the SAME tree at the same growth stage ----
@@ -180,7 +249,12 @@ skels = {(r["skeleton"]["nodes"], r["skeleton"]["iters"], r["skeleton"]["lobes"]
          for r in report["angles"]}
 print("\n=== structural identity of the mature frame across angles ===", flush=True)
 for r in report["angles"]:
-    print(f"  {r['elevationDeg']:>7} deg  skeleton={r['skeleton']}  mature={r['mature']}")
+    fresh = "  <- rendered this run" if r["tag"] in report["renderedThisRun"] else ""
+    print(f"  {r['elevationDeg']:>7} deg  skeleton={r['skeleton']}  mature={r['mature']}{fresh}")
+if len(report["angles"]) < 2:
+    raise SystemExit(
+        "SWEEP VOID: one angle on record, so 'the same tree at every angle' compares a row to "
+        "itself. Render against an existing sweep-report.json, or render the full set.")
 if len(mats) != 1 or len(skels) != 1:
     raise SystemExit(
         f"SWEEP VOID: the panels do not hold the same tree.\n"

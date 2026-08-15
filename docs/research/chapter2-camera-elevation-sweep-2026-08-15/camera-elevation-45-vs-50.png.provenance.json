@@ -1,0 +1,335 @@
+{
+ "schema": "storytree/derived-evidence-provenance/1",
+ "artifact": "camera-elevation-45-vs-50.png",
+ "producer": {
+  "tool": "compose_sweep.py",
+  "sha256": "7ef3ba24c7278244cfb9e2afbf7ee9009f5793f93bc9985e7513bab67b5d49a3"
+ },
+ "command": {
+  "tool": "compose_sweep.py",
+  "argv": [
+   "--panels",
+   "35p26,45,50",
+   "--out",
+   "camera-elevation-45-vs-50.png",
+   "--subtitle",
+   "THE OWNER'S SECOND LOOK: 45 vs 50, with true isometric (35.26) kept as the lower anchor. same island, same tree (mature, u=1.0), each panel at its OWN camera. higher = more bird's eye."
+  ]
+ },
+ "inputs": [
+  {
+   "label": "pieces-35p26",
+   "dir": "../chapter2-camera-elevation-sweep-2026-08-15/pieces-35p26",
+   "codeState": {
+    "generator": "blender_land.py",
+    "sha256": "15927bf56c77cd23bc4d41a7353a5890450aeabca02013a08051beb52613b007"
+   },
+   "pieces": [
+    {
+     "file": "tile-0.png",
+     "sha256": "7b71b59af9ba126fd16d65837d7ff217571bc7ecce6f7449fa255db3d236c744"
+    },
+    {
+     "file": "tile-1.png",
+     "sha256": "09be4725725d015a229ea5b050e1166646eb6784764dad0e9a0d417571d54ae3"
+    },
+    {
+     "file": "tile-2.png",
+     "sha256": "8555a64d6ef6a51d47f079c139125fa11cef5908c571cb35a3293025cabcf745"
+    },
+    {
+     "file": "tile-3.png",
+     "sha256": "22d010baa0183d97c6155fa93689b0493d21f6cefdfd15340ce64e267e05401f"
+    },
+    {
+     "file": "tile-4.png",
+     "sha256": "13915ecf6c0e38178dc57ade5fb7176125c63a25e1b9107a2b9d7bca934a7df6"
+    },
+    {
+     "file": "tile-5.png",
+     "sha256": "6767bfc7ac5bfd4d15f3060e19550c190142fa30d32e3ca72dbed70c306fbc00"
+    },
+    {
+     "file": "wall-0.png",
+     "sha256": "a9a8c296bf46c0a11ee468c1a7ddde791c48dc7204e5a170eb528adc27254264"
+    },
+    {
+     "file": "wall-1.png",
+     "sha256": "5513052ff078d8a533697c627cb9905cb440be55de911fa7aa852a1a524f5f47"
+    },
+    {
+     "file": "wall-10.png",
+     "sha256": "b4b99537fefeeb69f1bc55e1cea2e73b5a8ba083fcb93d30c7eff8a1df1a35bb"
+    },
+    {
+     "file": "wall-11.png",
+     "sha256": "25c845f6dc85a3a36e59198d34b34188abcb6c2594f4cb5dba084b81f49900c5"
+    },
+    {
+     "file": "wall-12.png",
+     "sha256": "492dda1fce7a84675cdb57bb31ab1b0fb16cc94e0a5878b39d2c768a59bccbef"
+    },
+    {
+     "file": "wall-13.png",
+     "sha256": "73900544ffde10e916fc41ea175c507324d97a6e21ec0168ddabd54060672a08"
+    },
+    {
+     "file": "wall-14.png",
+     "sha256": "bdfa4bed908e356548d46e725107199e0ed878163ab83420f58735c0ea0e20fe"
+    },
+    {
+     "file": "wall-15.png",
+     "sha256": "d17af3c079f31f5045affdea157b738351105acf641a48adbee4870506844922"
+    },
+    {
+     "file": "wall-2.png",
+     "sha256": "bd2ec8b0bb574a60aa902aa881d461bc367c2aec11122587739b5eafe9b1c5df"
+    },
+    {
+     "file": "wall-3.png",
+     "sha256": "88f984d9125e5f230c55dd356fb24f166d54c6de7ba35142fac94da66fb79454"
+    },
+    {
+     "file": "wall-4.png",
+     "sha256": "4c25ad6567a1321e94d33607db5c83e77fedad6ca2155ea4cfac87641bd060a9"
+    },
+    {
+     "file": "wall-5.png",
+     "sha256": "ecb0902fb7ee96b63d772fb53e65d90f2899de01f6f7131ad0aef597af227514"
+    },
+    {
+     "file": "wall-6.png",
+     "sha256": "239c027cb10654d684f412f5ce0c0b4b5b279989b85ac55336d66ff86e7c5d0b"
+    },
+    {
+     "file": "wall-7.png",
+     "sha256": "533512be5926c0539396064cf0f559a65164293e60fca10b0dceb62dddfbb9f5"
+    },
+    {
+     "file": "wall-8.png",
+     "sha256": "95dfefb6a73e16f9fd4517e9626e787a8e1b78bfacd31a3c43e4d324addd9559"
+    },
+    {
+     "file": "wall-9.png",
+     "sha256": "56fcf735b2170b78d59a76fe74c730cd663fc609b70210e9f3d2affc8e2e5b8a"
+    }
+   ]
+  },
+  {
+   "label": "pieces-45",
+   "dir": "../chapter2-camera-elevation-sweep-2026-08-15/pieces-45",
+   "codeState": {
+    "generator": "blender_land.py",
+    "sha256": "15927bf56c77cd23bc4d41a7353a5890450aeabca02013a08051beb52613b007"
+   },
+   "pieces": [
+    {
+     "file": "tile-0.png",
+     "sha256": "def2586481f579fd7074d2358a29ba9410f52d2311da85a4135d996b182c489a"
+    },
+    {
+     "file": "tile-1.png",
+     "sha256": "d6e1dbfb667e020f33f7cc3f998dccb9bf210379ba8d5bcce9eb8695d79f5e83"
+    },
+    {
+     "file": "tile-2.png",
+     "sha256": "f8edf2af2de37a99e4b4c5fdbda0d5ee434917bb923a8ef77daf2413eef882fc"
+    },
+    {
+     "file": "tile-3.png",
+     "sha256": "8736b6204178c2d0e7e740b45daaeedc9052348c526bbbb70abdfcdb08432bd8"
+    },
+    {
+     "file": "tile-4.png",
+     "sha256": "f077595194dcffd1c09f24177d15c36d2aafcfd1ca42217d4638b73bf9af5811"
+    },
+    {
+     "file": "tile-5.png",
+     "sha256": "05288b182f83e19cc160fc783cd69c1d8dc0a2ebe29820bd6b3272f67961ab0b"
+    },
+    {
+     "file": "wall-0.png",
+     "sha256": "f8642db3d9c50f01ef8dccdcca4adbc6895af4774cfc613e49520780122fb874"
+    },
+    {
+     "file": "wall-1.png",
+     "sha256": "2a330f02c81146a9b752a050c483e26d9878e85b12641ae5abeea5073313d1f7"
+    },
+    {
+     "file": "wall-10.png",
+     "sha256": "6ffae41d257ac05df4ff81b18deaa7497830e2881237143450eefc23a71911f0"
+    },
+    {
+     "file": "wall-11.png",
+     "sha256": "dc88050c121fff19ba50757a56cf93f7adbf544aef80044595e6833681887a60"
+    },
+    {
+     "file": "wall-12.png",
+     "sha256": "5be28e91e481a2b66984e012cd190ddeeae65ed138d8f70e34eec76c8a2439cf"
+    },
+    {
+     "file": "wall-13.png",
+     "sha256": "b002c661e5a2c7d8d831ba7180139d3f04dceef4609a1f8333575d2e54c94513"
+    },
+    {
+     "file": "wall-14.png",
+     "sha256": "aee309d8d188053c8ee95f9b5956b5eebd8ff73a1f1e19276e86dfe491a6146c"
+    },
+    {
+     "file": "wall-15.png",
+     "sha256": "43418c44951394bc9804c44e231d70889a555d7d724599d7f921ecda257b6594"
+    },
+    {
+     "file": "wall-2.png",
+     "sha256": "6ee2ddc44e59180286c850caf8a7c7f4b3a9fbc268953bf7007e0eb088d07225"
+    },
+    {
+     "file": "wall-3.png",
+     "sha256": "82df28ea1bf094e2f0dacd021971787183c4d4c0dec597bfbc87a8bb6a7f0e13"
+    },
+    {
+     "file": "wall-4.png",
+     "sha256": "580b8063d399ba5ae6e46b8fc89561428ae4956e6af664301421e1409cd5559b"
+    },
+    {
+     "file": "wall-5.png",
+     "sha256": "a0309e29d1e45fed005c2c90feacf3aea490ad62563c3a06b2d06aaaebb69da0"
+    },
+    {
+     "file": "wall-6.png",
+     "sha256": "c50a4d309074e8aa12b6c57ffbab2ed0cdb41575139e58987a8b8cf1fe94efb1"
+    },
+    {
+     "file": "wall-7.png",
+     "sha256": "35c1de8e0002fa2b25ca8a380b29aa581d4c4ae54db3c2d24fa5b9ca749aba33"
+    },
+    {
+     "file": "wall-8.png",
+     "sha256": "9e33150f5a0d9e481216ea21b9cdaf77d81b5e6e9a35a0930ef11e014a7efb20"
+    },
+    {
+     "file": "wall-9.png",
+     "sha256": "77824f3ac855cbe8d83b3a24ab4b723df0e0bd8c417686c52be400d2c95806bb"
+    }
+   ]
+  },
+  {
+   "label": "pieces-50",
+   "dir": "../chapter2-camera-elevation-sweep-2026-08-15/pieces-50",
+   "codeState": {
+    "generator": "blender_land.py",
+    "sha256": "15927bf56c77cd23bc4d41a7353a5890450aeabca02013a08051beb52613b007"
+   },
+   "pieces": [
+    {
+     "file": "tile-0.png",
+     "sha256": "2384b2c2dc9d20172bbcbd183626e63419c5330cd018f43387927264ebf9958b"
+    },
+    {
+     "file": "tile-1.png",
+     "sha256": "a338479df8ca22b0affa546fb724182fdff0bb4d6fe0f853e8dd87f37831e0ab"
+    },
+    {
+     "file": "tile-2.png",
+     "sha256": "77f583780da2259b4e307ebe7050306d01f0b17d089e1190c1acb0112456457d"
+    },
+    {
+     "file": "tile-3.png",
+     "sha256": "165ebab05eb2a094325f8f792134fdc2a670c41811704eddb9e63719a37c1f01"
+    },
+    {
+     "file": "tile-4.png",
+     "sha256": "f1f68145fd429261f2021ae610dba4e0bac8739f3b441294011d9bd7009b9ce4"
+    },
+    {
+     "file": "tile-5.png",
+     "sha256": "442e6932baba69ec77d6ae43124115883f83bd10c58ec51ebbacd2954b0117cf"
+    },
+    {
+     "file": "wall-0.png",
+     "sha256": "80042aeefee1db5c570f0eb26e7ed0acf62b7b0cd1f851014ebf92912c0985c0"
+    },
+    {
+     "file": "wall-1.png",
+     "sha256": "95a90fc88896c14c6cbd4d61418902ec8ff9f948b4a34f48d502bc3f8fa66ab1"
+    },
+    {
+     "file": "wall-10.png",
+     "sha256": "f858bbdb5a3a2cb591f6abf8133e473b4a9bc7af5f6975e1f7f61d92579bbc6a"
+    },
+    {
+     "file": "wall-11.png",
+     "sha256": "16823a181de3627fc00879176ab145e3e39c955b777af941a903d2fed6866508"
+    },
+    {
+     "file": "wall-12.png",
+     "sha256": "9faa75a6f4d68cbd496e46e7de43df71f881efd6c774d90c775ff9410417fa08"
+    },
+    {
+     "file": "wall-13.png",
+     "sha256": "980a21c67ab04b1dfa7d6e5bb3ffa7817c4e8095977d9ab0b2038dcdc3259fc7"
+    },
+    {
+     "file": "wall-14.png",
+     "sha256": "41dbfcbda06ae71dd4e7510ddb0f75668e716924973f420e5f61fafa47d2dfe5"
+    },
+    {
+     "file": "wall-15.png",
+     "sha256": "77e0de1312c599d5b49b842e23bd9338083030a97c394f5268741a76bf584a7d"
+    },
+    {
+     "file": "wall-2.png",
+     "sha256": "35cd9d9f4c7448aa2105253a96de554742ec7634f330aa1dd3e11a570d5ec7be"
+    },
+    {
+     "file": "wall-3.png",
+     "sha256": "4a13c8a8e386119b31150d423caa40d5a0ca65fb122d12da466083461e8ce744"
+    },
+    {
+     "file": "wall-4.png",
+     "sha256": "c8e03ae8099d5585b26a7f87c8c9c0f34103aac91845a72070c66eadf93bc38d"
+    },
+    {
+     "file": "wall-5.png",
+     "sha256": "348f808b74552691207e8079e900f657f77db7adbb882d0a54bda5d32d552a94"
+    },
+    {
+     "file": "wall-6.png",
+     "sha256": "9a44d35244c1e6940ab7921e7a0a9e87633ce6fe87597fad8d0a9b2aa840fd84"
+    },
+    {
+     "file": "wall-7.png",
+     "sha256": "4a7a0a87ea674c2764b0ad589e00dd05bb3b6c9e9aefddff1766f1895af69dfb"
+    },
+    {
+     "file": "wall-8.png",
+     "sha256": "b7ad9e428d9a0ef168a9ab300a3a4e698a49f0e59770ed536382ee9a42fc3c7a"
+    },
+    {
+     "file": "wall-9.png",
+     "sha256": "1c7350c9da473ff6d30ad1a27982431656828f2d6b6de2be2b98cf4462ca00f7"
+    }
+   ]
+  }
+ ],
+ "codeState": {
+  "generator": "blender_land.py",
+  "sha256": "15927bf56c77cd23bc4d41a7353a5890450aeabca02013a08051beb52613b007"
+ },
+ "output": {
+  "sha256": "4c1bfd4c32c90231dba8f91ea0abc8e641deee55e6e746f7a68f90001a5a9862",
+  "bytes": 97930
+ },
+ "cells": [
+  "35p26",
+  "45",
+  "50"
+ ],
+ "cameraElevationsDeg": [
+  35.264,
+  45.0,
+  50.0
+ ],
+ "variant": "b++",
+ "matureFrame": 18
+}

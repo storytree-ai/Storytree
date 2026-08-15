@@ -13,6 +13,13 @@ This is that measurement, so the pick is made by LOOKING rather than by argument
 **Nothing here is owner-attested, and `LAND_CAMERA_ELEVATION_DEG` is NOT changed by this
 increment.** The recommendation below is explicitly non-binding; the look is the owner's.
 
+> **⚠ THIS PAGE RECORDS THE FIRST LOOK (5 angles, 2026-08-15). A SECOND LOOK FOLLOWED.**
+> On 2026-08-16 the owner picked **45°** from the sheet below, then asked to see **50°** — which was
+> never in the candidate set — before committing. It has since been rendered by the same method.
+> **The pick is not settled and the constant is still 20.** Read
+> [§ The second look — 50°](#the-second-look--50-added-2026-08-16) before treating anything here as
+> final, and note that this page's own recommendation of 35.26° was **declined** by the owner.
+
 ## THE PICTURE
 
 | file | what it is |
@@ -212,3 +219,113 @@ The three parameterisations this increment added are all additive and default to
 `blender_tree.py --elev` (default 20.0), `blender_land.py --island` (default its own `island.json`),
 and `emit_island.ts --elev/--out` (defaults the constant and `island.json`). None of them changes a
 committed artifact when run bare, which is asserted above rather than claimed.
+
+---
+
+## The second look — 50° (added 2026-08-16)
+
+**Date:** 2026-08-16 · same Blender, same method, same `b++` island, same mature tree ·
+**Cost:** $0 · **Vendor calls:** 0
+
+**What happened.** The owner looked at the five-panel sheet above and picked **45°**, declining this
+page's non-binding recommendation of 35.26°. Before committing, they asked to see **50°** — which was
+never rendered, because it was not in the original candidate set. Interpolating it would have been
+guessing across exactly the range where the measured curve bends, so it was rendered.
+
+| file | what it is |
+|---|---|
+| **`camera-elevation-45-vs-50.png`** | **THE SECOND PICK.** 35.26° / 45° / 50°, same island, same mature tree, each at its own camera. 35.26° is kept only as a lower anchor for scale. |
+| **`tree-camera-read.png`** | **THE COST**, now SIX angles — regenerated to include 50° so the table below is one scale, not two. |
+| `panel-50.png` | the new panel at 1:1 |
+
+### The full measured set, 50° folded in
+
+| angle | land px | vs 20° | bbox h | aspect (h/w) | bark share | clear stem rows |
+|---:|---:|---:|---:|---:|---:|---:|
+| 20° | 17 426 | — | 119 | 1.352 | 27.5% | 55 |
+| 30° | 24 023 | +38% | 124 | 1.292 | 24.3% | 51 |
+| 35.26° | 27 261 | +56% | 125 | 1.214 | 22.3% | 48 |
+| **45°** | **32 593** | **+87%** | **128** | **1.094** | **18.7%** | **41** |
+| **50°** | **34 970** | **+101%** | **127** | **1.085** | **16.6%** | **33** |
+| 60° | 38 910 | +123% | 114 | 0.974 | 12.2% | 15 |
+
+**45° → 50° in isolation:** the land gains **+7.3%** (32 593 → 34 970 px). The tree loses **8 clear
+stem rows** (41 → 33, a fifth of what it had) and **2.1 points of bark share** (18.7% → 16.6%). Its
+**aspect barely moves** — 1.094 → 1.085, still comfortably taller than wide.
+
+### The one thing the first look could not see, and it is about the SHAPE of the curve
+
+The original sweep read 45° as "the knee" from a 45 → 60 segment with no midpoint in it. With 50°
+measured, that segment resolves into two very different halves, and the two sides move in OPPOSITE
+directions:
+
+| segment | land gained per degree | aspect lost per degree |
+|---|---:|---:|
+| 35.26° → 45° | 548 px | 0.0123 |
+| **45° → 50°** | **475 px** | **0.0018** |
+| 50° → 60° | 394 px | 0.0111 |
+
+**The land's marginal return is falling monotonically** — every extra degree buys less than the one
+before it, so the land side has no cliff, just diminishing returns. **The tree's aspect cost is not
+monotonic at all:** it is nearly FLAT across 45 → 50 and then runs about **six times faster** from
+50 → 60. Bark share and clear stem, by contrast, fall at a near-constant ~0.4 points and ~1.7 rows
+per degree straight through, with no bend at either end.
+
+So the collapse that made 60° fail — the sprite going wider than it is tall, root flare dominating
+the woody read — has **not begun at 50°**. What 50° does spend is stem: a fifth of the visible trunk
+below the canopy, on top of the quarter already given up between 20° and 45°. At 50° the tree keeps
+60% of its original bark share and 60% of its original clear stem.
+
+### What this section deliberately does NOT do
+
+**It makes no recommendation, and it does not re-open 35.26°.** The owner declined that angle by
+looking, and the measurement above is not an argument to revisit it — it is retained in the picture
+as a scale anchor only. Whether the extra 7.3% of land is worth eight rows of trunk is a look, not a
+number, and this page has no standing to make it.
+
+`LAND_CAMERA_ELEVATION_DEG` is **still 20**. Nothing has been landed.
+
+### The controls, and how this cut is held to the first one
+
+The 50° cut is comparable to the five above rather than merely adjacent to them, and each claim is
+made rather than asserted:
+
+- **The same tree.** 50°'s skeleton came out `{nodes: 352, iters: 28, lobes: 29}` and its mature
+  state `{u: 1.0, N: 36.0, lobes: 19}` — agreeing with the five values recorded **before 50°
+  existed**. `sweep_render.py` now MERGES a subset run into `sweep-report.json` and asserts across
+  the union, so a new angle is checked against the committed set and cannot be quietly re-derived to
+  match itself. A one-angle run that would compare a row to itself is refused as `SWEEP VOID`.
+- **The same renderer.** All three composed piece directories declare `blender_land.py` at
+  `15927bf56c77` — the identical digest the first look recorded.
+- **Determinism, checked rather than assumed.** Re-rendering 35.26° and 45° from scratch for this
+  sheet reproduced `panel-35p26.png` and `panel-45.png` **byte-identically** (git sees no change to
+  either file), and every measured field — land px, colours, mesh cells, wall placements, canvas —
+  matched the committed `sweep-compose-report.json` exactly.
+- **The refusal FIRES.** `verify_refusal.py` composes the real `pieces-45` against a tampered copy of
+  `pieces-50` declaring a different digest, and asserts the composer exits with
+  `REFUSED: cells were not rendered at the same code state`. A guard only ever observed passing is
+  indistinguishable from one that cannot fail; this one fails on demand.
+- **The retime shift at 50°, measured like the rest.** Against 20°, the largest move of any frame is
+  **Δu = 0.0367** with 13 of the 19 frames moving at all — between 35.26°'s 0.0275 and 45°'s 0.0550,
+  and NOT monotonic in the angle. Frames 0 and 18 are pinned at `u = 0.0` and `u = 1.0` at every
+  angle, which is what makes a mature-frame comparison a comparison of one tree rather than of two.
+
+  This matters beyond the sweep: it is the **whole** reason the panels above are evidence. Because
+  the camera feeds `to_screen()`, which feeds `cheap_silhouette()`, which paces `retime()`, a
+  different angle genuinely lands each frame INDEX on a different growth state — so a mid-growth
+  frame compared across angles would be two trees, not one. The comparison is safe here only
+  because `retime()` ends `picks[0], picks[-1] = 0.0, 1.0` unconditionally.
+
+### Reproduce the second look
+
+```text
+python sweep_render.py --angles 50                     # the new angle only (~4 min)
+python sweep_render.py --angles 35p26,45 --land-only   # rebuild the gitignored land pieces
+python compose_sweep.py --panels 35p26,45,50 --out camera-elevation-45-vs-50.png
+python tree_camera_read.py                             # all six angles
+python verify_refusal.py                               # make the one-code-state guard fire
+```
+
+`--angles` and `--land-only` are additive and default to the original whole-set behaviour;
+`--land-only` exists because `tree-*/frames/` is committed while `pieces-*/` is gitignored, so
+re-composing an old panel needs its land rebuilt and its tree left alone.

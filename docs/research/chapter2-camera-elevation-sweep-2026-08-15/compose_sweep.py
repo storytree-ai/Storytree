@@ -61,6 +61,36 @@ import provenance  # noqa: E402
 
 SWEEP = json.load(open(os.path.join(HERE, "sweep-report.json")))
 MATURE = SWEEP["matureFrame"]
+
+
+def _arg(flag, default=None):
+    return sys.argv[sys.argv.index(flag) + 1] if flag in sys.argv else default
+
+
+# WHICH panels this sheet holds, and where it is written. Default: every angle on record, into
+# `camera-elevation-sweep.png` — the original behaviour exactly.
+#
+# `--panels` exists because the owner's second look is a NARROWER question than the first. The
+# five-panel sheet answered "how does elevation trade land against tree across the whole range";
+# having seen it, the owner is choosing between two neighbours. Five panels at three zoom is a
+# sheet you scan; two or three neighbours at the same zoom is one you can actually compare, and
+# the difference between 45 and 50 is small enough that the scanning version would hide it.
+#
+# The subset is a FRAMING choice and not an evidentiary one: every panel is still composed by the
+# same rebound compositor from the same island at its own camera, and the one-code-state refusal
+# below is scoped to exactly the panels drawn, so it still has to pass for the sheet to exist.
+PANELS = _arg("--panels")
+if PANELS:
+    want = {s.strip() for s in PANELS.split(",") if s.strip()}
+    ROWS = [r for r in SWEEP["angles"] if r["tag"] in want or f"{r['elevationDeg']:g}" in want]
+    missing = want - {r["tag"] for r in ROWS} - {f"{r['elevationDeg']:g}" for r in ROWS}
+    if missing:
+        raise SystemExit(f"--panels: no such angle on record {sorted(missing)}")
+else:
+    ROWS = list(SWEEP["angles"])
+
+OUT_NAME = _arg("--out", "camera-elevation-sweep.png")
+SUBTITLE = _arg("--subtitle")
 # b++ — the interior fork's settled option: shipped relaxed mesh, flat per-cell fills, per-cell
 # elevation. `interior='flat'` keeps the status tint in SVG-equivalent fills; `elev='cell'` is the
 # per-cell elevation that gives the rim pieces something to wall.
@@ -138,11 +168,11 @@ def plant_tree(img, tag, height):
 # FIVE render directories, so unlike the interior fork this call can actually fire. A sweep whose
 # panels came from different generator states would compare the camera AND the renderer.
 INPUTS = C.piece_inputs([(f"pieces-{r['tag']}", os.path.join(HERE, f"pieces-{r['tag']}"))
-                         for r in SWEEP["angles"]])
+                         for r in ROWS])
 CODE_STATE = provenance.require_one_code_state(INPUTS)
 
 panels, report = [], []
-for row in SWEEP["angles"]:
+for row in ROWS:
     tag, deg = row["tag"], row["elevationDeg"]
     island, meta = rebind(tag)
     assert abs(float(meta["camera"]["elevationDeg"]) - deg) < 1e-9, (
@@ -194,9 +224,10 @@ dr.text((PAD, 8), "ADR-0367 D1 — WHICH CAMERA ELEVATION SHOULD THE LAND DECLAR
                   "one island, one tree (mature frame, u=1.0), one code state; "
                   "b++ land = relaxed mesh + flat status-tinted fills + rim-piece walls",
         fill=(232, 232, 232))
-dr.text((PAD, 24), "higher = more bird's eye. ground foreshortens by sin(theta), an upright object's "
-                   "height by cos(theta). the 20 deg panel is the SHIPPED art (its tree frame is "
-                   "pixel-identical to the delivered frame-18).", fill=(150, 150, 156))
+dr.text((PAD, 24), SUBTITLE or
+        "higher = more bird's eye. ground foreshortens by sin(theta), an upright object's "
+        "height by cos(theta). the 20 deg panel is the SHIPPED art (its tree frame is "
+        "pixel-identical to the delivered frame-18).", fill=(150, 150, 156))
 
 for i, p in enumerate(panels):
     cell = np.full((ch, cw, 3), C.BOARD, dtype=np.uint8)
@@ -212,17 +243,32 @@ for i, p in enumerate(panels):
         label += "  ← CURRENT"
     elif p["tag"] == "35p26":
         label += "  true isometric"
+    elif p["tag"] in ("45", "50") and PANELS:
+        # only on the narrowed sheet: on the full five-panel sweep these are two candidates among
+        # five and calling them out would prejudge the very comparison the sheet exists to enable
+        label += "  ← CANDIDATE"
     dr.text((x + 3, HDR + CELL_H + 4), label, fill=(255, 236, 160))
     dr.text((x + 3, HDR + CELL_H + 18),
             f"ground x{r['groundFlattening']:.3f}  upright x{r['uprightForeshortening']:.3f}",
             fill=(168, 168, 174))
 
-SHEET = os.path.join(HERE, "camera-elevation-sweep.png")
+SHEET = os.path.join(HERE, OUT_NAME)
 sheet.save(SHEET)
-print("wrote camera-elevation-sweep.png", sheet.size, flush=True)
+print(f"wrote {OUT_NAME}", sheet.size, flush=True)
 
 for p in panels:
-    provenance.write_sidecar(os.path.join(HERE, f"panel-{p['tag']}.png"), __file__, sys.argv[1:],
+    panel_png = os.path.join(HERE, f"panel-{p['tag']}.png")
+    # A NARROWED RE-COMPOSE DOES NOT OVERWRITE AN EXISTING PANEL'S RECORD.
+    #
+    # `INPUTS` is a SHEET-level fact — every piece directory the one-code-state refusal was run
+    # across — so a 3-panel run writes a 3-cell record where the original 5-panel run wrote 5. The
+    # panel PNG itself is unaffected (re-composing 35.26 and 45 for the 45-vs-50 sheet reproduced
+    # both files byte-identically, which is how this was noticed), so the sidecar already on disk
+    # still describes the exact bytes it names. Overwriting it would trade a record of the run that
+    # established the sweep for a poorer record of a run that changed nothing.
+    if PANELS and os.path.exists(provenance.sidecar_path(panel_png)):
+        continue
+    provenance.write_sidecar(panel_png, __file__, sys.argv[1:],
                              INPUTS, CODE_STATE,
                              extra={"cameraElevationDeg": p["deg"], "variant": "b++",
                                     "island": {"sha256": provenance.sha256_file(
@@ -232,7 +278,9 @@ provenance.write_sidecar(SHEET, __file__, sys.argv[1:], INPUTS, CODE_STATE,
                                 "cameraElevationsDeg": [p["deg"] for p in panels],
                                 "variant": "b++", "matureFrame": MATURE})
 
-with open(os.path.join(HERE, "sweep-compose-report.json"), "w") as fh:
+report_name = os.path.splitext(OUT_NAME)[0] + "-report.json" if PANELS \
+    else "sweep-compose-report.json"
+with open(os.path.join(HERE, report_name), "w") as fh:
     json.dump({"variant": "b++", "matureFrame": MATURE,
                "codeState": (CODE_STATE or {}).get("sha256"),
                "panels": report}, fh, indent=1)
