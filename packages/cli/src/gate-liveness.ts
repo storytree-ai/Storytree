@@ -78,6 +78,12 @@ export type LivenessVerdict =
  * Deliberately small. This is not a performance bar — the question is "is anything happening at all?",
  * and half a second of CPU across a whole process tree is far below anything a working step produces
  * while comfortably above the noise a mostly-idle supervisor accrues.
+ *
+ * IT CANNOT USEFULLY GO LOWER, because the probe's resolution is not the same on both platforms:
+ * POSIX `ps -o time=` reports whole seconds, so on Linux each survivor's per-window delta is an
+ * INTEGER and anything under 1s means only "at least one survivor crossed a second boundary". That is
+ * fine at a 60-second window — a working process crosses several — but a threshold tuned finer would
+ * be describing a precision Linux does not have.
  */
 export const CPU_PROGRESS_THRESHOLD_SECONDS = 0.5;
 

@@ -15,6 +15,14 @@
 //
 // The parsers are exported and pure so the OS-format handling — three `ps` time layouts and Windows'
 // 100-nanosecond ticks — is unit-testable without a real process tree.
+//
+// RESOLUTION IS NOT THE SAME ON BOTH PLATFORMS, and a reader lowering the classifier's threshold needs
+// to know it. Windows reports 100-nanosecond ticks; POSIX `ps -o time=` reports WHOLE SECONDS, so on
+// Linux a young process reads `00:00:00` and each survivor's per-window delta is an INTEGER. That is
+// harmless at the runner's 60-second window — any working process crosses several second boundaries —
+// but it means a sub-second threshold cannot mean anything finer there than "at least one survivor
+// crossed a whole second". Measured, not assumed: an assertion that a live node process had burned
+// CPU passed on Windows and went red on Linux CI against the same code.
 
 import { spawn } from "node:child_process";
 

@@ -146,7 +146,14 @@ test("the real OS read yields EITHER a sane reading OR a null carrying why — n
     console.log(`      (the process table could not be read on ${process.platform}: ${taken.note})`);
     return;
   }
-  assert.ok(taken.processes.size >= 1, "the test runner itself is in its own tree");
-  assert.ok(taken.processes.has(process.pid), "the root is in its own tree");
-  assert.ok(total(taken.processes) > 0, "a running node process has burned some CPU");
+  assert.ok(taken.processes.has(process.pid), "the root is found in its own tree");
+  // NOT `> 0`. `ps -o time=` reports WHOLE SECONDS, so a young process on POSIX legitimately reads
+  // `00:00:00` — measured, by this assertion going red on Linux CI while passing on Windows, where
+  // 100-nanosecond ticks make it always positive. An assertion may only claim what the instrument
+  // guarantees on every platform it runs on; the rest is the parsers' job, which is exercised above
+  // against captured output from both.
+  assert.ok(
+    total(taken.processes) >= 0 && Number.isFinite(total(taken.processes)),
+    "every collected value parsed into a real number of seconds",
+  );
 });

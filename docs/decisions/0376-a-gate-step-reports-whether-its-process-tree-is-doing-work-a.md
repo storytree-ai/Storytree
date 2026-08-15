@@ -132,6 +132,16 @@ the very gate run that measured the timeout. That is this repo's own recorded tr
 manufacturing false reds) reproduced in miniature. It is not vacuous: a null with no note fails, as
 does any throw, and the branch taken is printed.
 
+**Nor on which platform it runs.** The same test then went red on Linux CI while green on Windows,
+asserting that a live node process had burned some CPU: POSIX `ps -o time=` reports WHOLE SECONDS, so
+a young process legitimately reads `00:00:00`, where Windows' 100-nanosecond ticks make it always
+positive. The general rule the two failures share is that **an assertion may only claim what the
+instrument guarantees on every platform it runs on** — the format handling is proved by the pure
+parsers against captured output from both instead. The same resolution gap bounds the feature: on
+Linux each survivor's per-window delta is an integer, so a sub-second threshold cannot mean anything
+finer than "at least one survivor crossed a second boundary". Harmless at a 60-second window, and now
+stated at both the threshold and the probe so nobody tunes it below the precision Linux has.
+
 **Converting the runner to async is the real risk taken here**, and it is taken knowingly: `runGate`
 is what every gate verdict in the repo passes through. It is mitigated by the walk staying sequential
 and by the runner's 51 unit tests, which now drive it through an awaited executor unchanged in every
