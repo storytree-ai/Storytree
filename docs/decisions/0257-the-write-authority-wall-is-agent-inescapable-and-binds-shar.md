@@ -508,8 +508,9 @@ cannot be forged by the writer, expires, and is read-only to the writer profile.
   increment 2 until ADR-0284 D4 removed it; it mints identity and takes the claim, nothing more.)*
 - `packages/cli/src/codex-session-containment.ts` — ADR-0355's managed-policy, hook, and trusted
   actuator generator; installation and installed-host attestation remain administrator-owned.
-- `packages/cli/src/codex-live-claim-probe-entry.ts` — the standalone bundle entry that reads claims
-  through the dedicated keyless, read-only identity.
+- `packages/cli/src/codex-live-claim-probe-entry.ts` — the standalone bundle entry that read claims
+  through the dedicated keyless, read-only identity at the time this ADR was written; DELETED by
+  ADR-0375 D8, which moved the live-claim read onto the resident claim authority instead.
 - `packages/drive/src/noticeboard.ts` — `deriveIdentity()`, which the boundary validates against.
 - `packages/drive/src/write-authority-rules.ts` — the generator for the static deny block, which is
   the whole of this ADR that runs. *(The hook, the receipt module and the decision core

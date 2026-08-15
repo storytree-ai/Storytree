@@ -732,11 +732,23 @@ function renderManagedRequirements(args: {
 
 /**
  * Self-contained managed-hook transport. Device management writes these exact bytes under
- * `hooks.windows_managed_dir`; the repository command only prints them. The live-claim reader is a
- * separate administrator-owned executable because its database credentials and Cloud SQL transport
- * must not be embedded in an agent-writable repository. Its protocol is deliberately tiny:
- * stdin carries `{readMode:"live-claims-required", sessionId, observedTopology, event}` and stdout
- * must be `{claims:[...]}`. Missing, slow, non-zero, or malformed probes fail closed.
+ * `hooks.windows_managed_dir`; the repository command only prints them.
+ *
+ * The live-claim reader is NOT a separate administrator-owned executable any more (ADR-0375 D8
+ * deleted it). The hook asks the RESIDENT CLAIM AUTHORITY over loopback instead — one warm pool held
+ * by an operator-started process — so there is exactly one live-claim reader rather than two
+ * credential paths, and no per-call Cloud SQL connector build. Credentials still never reach the
+ * repository or the sandbox: what crosses the wall is the answer.
+ *
+ * Two things about that call are load-bearing and easy to erode. The handshake path comes from the
+ * administrator-owned POLICY, never the environment (ADR-0375 D5) — a sandbox that could redirect it
+ * would be answered by a broker it controls, and the fence would open completely. And an unreachable
+ * authority is a REFUSAL, never an empty list (D4): every fault routes to `fail()`, and the wording
+ * names the resident process rather than saying "no live work claim exists", which would send an
+ * operator hunting for a missing claim instead of a closed desktop app.
+ *
+ * There are TWO budgets, not one: the hook aborts the authority fetch at 5s, and Codex kills the
+ * whole hook at the `timeout = 30` declared in requirements.toml.
  */
 export const MANAGED_CODEX_HOOK_SCRIPT = String.raw`#!/usr/bin/env node
 import { execFileSync } from "node:child_process";
@@ -1500,9 +1512,13 @@ export function buildCodexContainmentBundle(
     "     `codex-windows-sandbox-setup.exe`. A flat copy fails at sandbox setup with `program not",
     "     found`, naming a helper that is present on disk under the other path.",
     "  4. Then write the emitted actuator to its path above and run it ELEVATED, with no arguments",
-    "     beyond the verb: `storytree-codex-trusted-actuator.ps1 install`. It writes the hook, probe,",
+    "     beyond the verb: `storytree-codex-trusted-actuator.ps1 install`. It writes the hook,",
     "     creator, policy and requirements itself (requirements LAST), then refreshes the sandbox",
     "     account and applies the credential denies.",
+    "  5. RE-INSTALLING OVER A PRE-ADR-0375 SET? `install` writes only what it owns, so the retired",
+    "     standalone claim reader is NOT removed for you — it stays on disk as a credentialed",
+    "     executable claiming to be a fence reader the fence no longer calls. Delete it by hand,",
+    `     elevated, after the install: ${path.join(args.managedDir, "storytree-codex-live-claim-probe.mjs")}`,
     "EXPECT `install` TO TAKE MINUTES, AND SCALE WITH WORKTREE COUNT. Sandbox setup grants the",
     "standing write ACE across the whole worktrees area, walking every file under it — a checkout",
     "carrying many worktrees, each with its own node_modules, is millions of files. That is a direct",

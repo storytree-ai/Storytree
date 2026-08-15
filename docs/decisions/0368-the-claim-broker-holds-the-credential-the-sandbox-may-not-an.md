@@ -169,5 +169,7 @@ tests is not a lifecycle that works.
   vacuous-negative-test trap that faked a clean pass.
 - `packages/cli/src/codex-claim-broker.ts` — grammar and decisions (pure).
 - `packages/cli/src/codex-claim-broker-door.ts` — the channel guard and the handshake ACL.
-- `packages/cli/src/codex-claim-broker-entry.ts` — the resident process and the identity it holds.
+- `packages/cli/src/codex-claim-broker-entry.ts` — the resident process and the identity it holds at
+  the time this ADR was written; since ADR-0375 D1 it is the headless fallback for a host with no
+  desktop app, and the desktop app is the ordinary resident holder.
 - `apps/desktop/src/backend/loopback-guard.ts` — the loopback-guard precedent D5 follows.
