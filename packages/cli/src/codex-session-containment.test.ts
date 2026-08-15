@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
@@ -77,6 +77,107 @@ test("the production containment IO probes this registered checkout and pinned C
 function norm(value: string): string {
   const resolved = path.resolve(value).replaceAll("\\", "/");
   return process.platform === "win32" ? resolved.toLowerCase() : resolved;
+}
+
+interface FakeAuthority {
+  readonly handshakePath: string;
+  /** The sessions the hook asked about, in order — read back from the fake's own request log. */
+  requests(): { sessionId: string }[];
+  stop(): void;
+}
+
+/**
+ * A stand-in for the RESIDENT claim authority (ADR-0375): a real loopback listener speaking the
+ * broker's `claims` verb, plus the handshake file the hook reads its port and token from.
+ *
+ * It is deliberately a REAL socket rather than a stub, because these tests drive the RENDERED hook.
+ * The defect ADR-0364 warns about — a fence narrowing on something baked in at install time — passes
+ * every test written against the pure twin, so the transport has to be real for the assertions to
+ * mean anything.
+ *
+ * It runs as its OWN PROCESS, and that is not incidental: the tests below drive the hook with
+ * `spawnSync`, which blocks this process's event loop for the whole child run. An in-process server
+ * would never get a turn to answer, and every assertion would silently become "the authority timed
+ * out" instead of whatever it meant to prove. Requests are recorded to a log file for the same
+ * reason — the counting has to survive across the process boundary.
+ */
+function fakeClaimAuthority(
+  dir: string,
+  sequence: ClaimDocT[][],
+  opts: { readonly token?: string; readonly always?: ClaimDocT[]; readonly fault?: string } = {},
+): FakeAuthority {
+  const token = opts.token ?? "fake-broker-token";
+  const handshakePath = path.join(dir, "handshake.json");
+  const logPath = path.join(dir, "broker-requests.log");
+  const scriptPath = path.join(dir, "fake-broker.mjs");
+  writeFileSync(
+    scriptPath,
+    [
+      'import { createServer } from "node:http";',
+      'import { appendFileSync, writeFileSync } from "node:fs";',
+      "const token = process.env.FAKE_BROKER_TOKEN;",
+      "const sequence = JSON.parse(process.env.FAKE_BROKER_SEQUENCE);",
+      "const always = process.env.FAKE_BROKER_ALWAYS ? JSON.parse(process.env.FAKE_BROKER_ALWAYS) : null;",
+      "const fault = process.env.FAKE_BROKER_FAULT || null;",
+      "let seen = 0;",
+      "const server = createServer((request, response) => {",
+      "  let body = '';",
+      "  request.on('data', (chunk) => { body += chunk; });",
+      "  request.on('end', () => {",
+      "    const answer = (payload) => {",
+      "      const text = JSON.stringify(payload);",
+      "      response.writeHead(200, { 'content-type': 'application/json', 'content-length': Buffer.byteLength(text) });",
+      "      response.end(text);",
+      "    };",
+      "    if (request.headers['x-storytree-codex-broker-token'] !== token) {",
+      "      answer({ ok: false, reason: 'missing or wrong broker token' });",
+      "      return;",
+      "    }",
+      "    const parsed = JSON.parse(body);",
+      "    appendFileSync(process.env.FAKE_BROKER_LOG, JSON.stringify({ sessionId: parsed.sessionId, verb: parsed.verb }) + '\\n');",
+      "    if (fault) { answer({ ok: false, reason: fault }); return; }",
+      "    if (parsed.verb !== 'claims') { answer({ ok: false, reason: 'unexpected verb ' + parsed.verb }); return; }",
+      "    const index = seen++;",
+      "    answer({ ok: true, verb: 'claims', claims: always ?? sequence[index] ?? [] });",
+      "  });",
+      "});",
+      "server.listen(0, '127.0.0.1', () => {",
+      "  writeFileSync(process.env.FAKE_BROKER_HANDSHAKE, JSON.stringify({ protocolVersion: 1, port: server.address().port, token }));",
+      "});",
+    ].join("\n"),
+  );
+  writeFileSync(logPath, "");
+  const child = spawn(process.execPath, [scriptPath], {
+    stdio: ["ignore", "ignore", "inherit"],
+    env: {
+      ...process.env,
+      FAKE_BROKER_TOKEN: token,
+      FAKE_BROKER_SEQUENCE: JSON.stringify(sequence),
+      FAKE_BROKER_LOG: logPath,
+      FAKE_BROKER_HANDSHAKE: handshakePath,
+      ...(opts.always ? { FAKE_BROKER_ALWAYS: JSON.stringify(opts.always) } : {}),
+      ...(opts.fault ? { FAKE_BROKER_FAULT: opts.fault } : {}),
+    },
+  });
+  // Block until the handshake lands. `spawnSync` below would otherwise race the fake's own startup,
+  // and a missing handshake reads as "authority unreachable" — a green test proving nothing.
+  const deadline = Date.now() + 20_000;
+  while (!existsSync(handshakePath)) {
+    if (Date.now() > deadline) {
+      child.kill();
+      throw new Error("fake claim authority did not publish a handshake");
+    }
+    spawnSync(process.execPath, ["-e", "setTimeout(() => {}, 25)"]);
+  }
+  return {
+    handshakePath,
+    requests: () =>
+      readFileSync(logPath, "utf8")
+        .split("\n")
+        .filter((line) => line.trim().length > 0)
+        .map((line) => JSON.parse(line) as { sessionId: string }),
+    stop: () => child.kill(),
+  };
 }
 
 function worktreeProbe(overrides: Partial<CodexGitProbe> = {}): CodexGitProbe {
@@ -328,7 +429,11 @@ test("managed bundle selects one exact profile, omits full access, and never mix
     "the standing grant deliberately covers registered siblings; the hook is what refuses them",
   );
   assert.match(bundle.operatorReadme, /generated, not installed/i);
-  assert.match(bundle.operatorReadme, /SELECT-only database principal/i);
+  // The readme has to name the RESIDENT authority, not the retired probe (ADR-0375): the operator's
+  // first symptom of a closed desktop app is every covered write being refused, and the readme is
+  // where they look. It replaces a probe-era line about a SELECT-only database principal.
+  assert.match(bundle.operatorReadme, /resident claim authority/i);
+  assert.match(bundle.operatorReadme, /storytree desktop app/i);
   assert.match(bundle.operatorReadme, /only fence/i);
   assert.match(bundle.operatorReadme, /blast radius is every\nworktree/i);
   assert.match(bundle.operatorReadme, /live smoke/i);
@@ -384,8 +489,19 @@ test("managed bundle selects one exact profile, omits full access, and never mix
   }
 });
 
-test("generated live-claim probe is a self-contained fail-closed production bundle", () => {
-  const temp = mkdtempSync(path.join(os.tmpdir(), "storytree-codex-claim-probe-"));
+/**
+ * ADR-0375 D5. The hook reads live claims through the resident authority, and takes that authority's
+ * handshake path from the INSTALLED POLICY rather than from the environment.
+ *
+ * ADR-0368 recorded the env-sourced handshake path as a harmless residual, and it was: a forged
+ * answer only bought a worktree whose claim did not exist, and the hook refused every write one layer
+ * down. The hook IS that layer. If it took its path from the environment, a sandbox could point it at
+ * a broker it controls and hand itself a forged work claim, opening the fence completely — so this
+ * asserts BOTH halves: the path is present and absolute, and the retired probe command is gone rather
+ * than lingering as a second reader nothing consults.
+ */
+test("the standing policy carries the resident authority's handshake, not a probe command", () => {
+  const temp = mkdtempSync(path.join(os.tmpdir(), "storytree-codex-claim-authority-"));
   const authority = authorizeCodexWriter(topology(), [claim()], NOW);
   if (!authority.ok) assert.fail(authority.reason);
   const bundle = buildCodexContainmentBundle({
@@ -394,19 +510,41 @@ test("generated live-claim probe is a self-contained fail-closed production bund
     managedDir: temp,
     managedNodePath: process.execPath,
     gitCommand: [process.execPath],
+    claimBrokerHandshake: path.resolve("C:/handshake/handshake.json"),
   });
   if (!bundle.ok) assert.fail(bundle.reason);
-  writeFileSync(bundle.claimProbeScriptPath, bundle.managedClaimProbeScript);
-  assert.ok(bundle.managedClaimProbeScript.length > 100_000, "production dependencies are bundled");
-  assert.doesNotMatch(bundle.managedClaimProbeScript, /from\s+["']@storytree\//);
-  assert.doesNotMatch(bundle.managedClaimProbeScript, /import\(["']@storytree\//);
 
-  const invalid = spawnSync(process.execPath, [bundle.claimProbeScriptPath], {
-    input: JSON.stringify({ protocolVersion: 1, readMode: "cached", sessionId: "codex-current" }),
-    encoding: "utf8",
+  const policy = JSON.parse(bundle.sessionPolicyJson) as Record<string, unknown>;
+  assert.equal(norm(String(policy["claimBrokerHandshake"])), norm(path.resolve("C:/handshake/handshake.json")));
+  assert.ok(path.isAbsolute(String(policy["claimBrokerHandshake"])));
+  assert.equal(policy["claimProbeCommand"], undefined, "the retired probe command must not linger");
+  assert.equal(bundle.claimBrokerHandshake, path.resolve("C:/handshake/handshake.json"));
+
+  // The hook must never reach for the environment for this path. Reading the RENDERED script rather
+  // than the twin is the point: the twin cannot express where the rendered hook sources a value from.
+  assert.match(bundle.managedHookScript, /policy\.claimBrokerHandshake/);
+  assert.doesNotMatch(
+    bundle.managedHookScript,
+    /STORYTREE_CODEX_BROKER_HANDSHAKE|STORYTREE_CODEX_BROKER_DIR/,
+    "the hook must not source the handshake path from the environment (ADR-0375 D5)",
+  );
+
+  // D8: one live-claim reader, not two. A bundle that still emitted the probe would leave a pinned,
+  // credentialed executable on disk claiming to be the fence's reader when the fence never calls it.
+  assert.doesNotMatch(bundle.trustedActuatorScript, /claimProbeScript/);
+  assert.doesNotMatch(bundle.operatorReadme, /live-claim probe/i);
+
+  const relative = buildCodexContainmentBundle({
+    authority,
+    codexVersion: "codex-cli 0.145.0",
+    managedDir: temp,
+    managedNodePath: process.execPath,
+    gitCommand: [process.execPath],
+    claimBrokerHandshake: "handshake.json",
   });
-  assert.equal(invalid.status, 2, invalid.stderr);
-  assert.match(invalid.stderr, /failed closed/i);
+  assert.equal(relative.ok, false);
+  if (relative.ok) assert.fail("a relative handshake path must be refused");
+  assert.match(relative.reason, /absolute/i);
 
   writeFileSync(bundle.worktreeCreateScriptPath, bundle.managedWorktreeCreateScript);
   assert.ok(
@@ -927,11 +1065,13 @@ test("rendered managed hook re-probes Git and live claims on every write, then m
 
   const temp = mkdtempSync(path.join(os.tmpdir(), "storytree-codex-hook-"));
   const gitScript = path.join(temp, "fake-git.mjs");
-  const claimScript = path.join(temp, "fake-claims.mjs");
   const hookScript = path.join(temp, "managed-hook.mjs");
   const policyPath = path.join(temp, "active-session.json");
-  const claimCounter = path.join(temp, "claim-count.txt");
   const gitLog = path.join(temp, "git-log.txt");
+  // The claim sequence is per-request: a live claim first, then nothing. That is what proves the read
+  // is genuinely re-run per covered call rather than answered once and remembered — the property
+  // ADR-0364's fence rests on, and the reason a cache was rejected as the fix for the latency.
+  const broker = fakeClaimAuthority(temp, [[claim()], []]);
 
   writeFileSync(
     gitScript,
@@ -944,31 +1084,16 @@ test("rendered managed hook re-probes Git and live claims on every write, then m
       'process.stdout.write(responses[key]);',
     ].join("\n"),
   );
-  writeFileSync(
-    claimScript,
-    [
-      'import { existsSync, readFileSync, writeFileSync } from "node:fs";',
-      'let input = ""; for await (const chunk of process.stdin) input += chunk;',
-      'const request = JSON.parse(input);',
-      'if (request.readMode !== "live-claims-required") process.exit(8);',
-      'const counter = process.env.FAKE_CLAIM_COUNTER;',
-      'const n = existsSync(counter) ? Number(readFileSync(counter, "utf8")) : 0;',
-      'writeFileSync(counter, String(n + 1));',
-      'const sequence = JSON.parse(process.env.FAKE_CLAIM_SEQUENCE);',
-      'process.stdout.write(JSON.stringify({ claims: sequence[n] ?? [] }));',
-    ].join("\n"),
-  );
-
   const bundle = buildCodexContainmentBundle({
     authority,
     codexVersion: "codex-cli 0.145.0",
     managedDir: temp,
     managedNodePath: process.execPath,
     gitCommand: [process.execPath, gitScript],
-    claimProbeCommand: [process.execPath, claimScript],
+    claimBrokerHandshake: broker.handshakePath,
   });
   if (!bundle.ok) assert.fail(bundle.reason);
-  assert.match(bundle.managedHookScript, /live-claims-required/);
+  assert.match(bundle.managedHookScript, /verb: "claims"/);
   assert.match(bundle.managedHookScript, /permissionDecision/);
   writeFileSync(hookScript, bundle.managedHookScript);
   writeFileSync(policyPath, bundle.sessionPolicyJson);
@@ -992,8 +1117,6 @@ test("rendered managed hook re-probes Git and live claims on every write, then m
     ...process.env,
     FAKE_GIT_LOG: gitLog,
     FAKE_GIT_RESPONSES: JSON.stringify(responses),
-    FAKE_CLAIM_COUNTER: claimCounter,
-    FAKE_CLAIM_SEQUENCE: JSON.stringify([[claim()], []]),
   };
   const first = spawnSync(process.execPath, [hookScript, "pre-tool-use", policyPath], {
     input: event,
@@ -1015,7 +1138,12 @@ test("rendered managed hook re-probes Git and live claims on every write, then m
   assert.equal(denial.hookSpecificOutput.hookEventName, "PreToolUse");
   assert.equal(denial.hookSpecificOutput.permissionDecision, "deny");
   assert.match(denial.hookSpecificOutput.permissionDecisionReason, /no live work claim/i);
-  assert.equal(readFileSync(claimCounter, "utf8"), "2", "claim probe runs once per covered write");
+  assert.equal(broker.requests().length, 2, "the authority is asked once per covered write");
+  assert.deepEqual(
+    broker.requests().map((r) => r.sessionId),
+    ["codex-current", "codex-current"],
+    "the hook asks about the GIT-derived session, never one a caller supplied",
+  );
   assert.equal(
     readFileSync(gitLog, "utf8").match(/rev-parse --abbrev-ref HEAD/g)?.length,
     2,
@@ -1030,7 +1158,7 @@ test("rendered managed hook re-probes Git and live claims on every write, then m
       tool_input: { command: "escape" },
     }),
     encoding: "utf8",
-    env: { ...env, FAKE_CLAIM_SEQUENCE: JSON.stringify([[claim()], [claim()], [claim()]]) },
+    env,
   });
   assert.equal(widening.status, 0, widening.stderr);
   assert.equal(
@@ -1038,37 +1166,117 @@ test("rendered managed hook re-probes Git and live claims on every write, then m
     "deny",
     "PermissionRequest maps to Codex's deny response",
   );
+
+  broker.stop();
 });
 
-test("rendered managed hook fail-closes when its trusted live-claim probe cannot run", () => {
+/**
+ * ADR-0375 D4 — THE negative test, and the reason it is written against the RENDERED hook.
+ *
+ * An unreachable claim authority must be a REFUSAL, never an empty claim list. Both directions
+ * happen to deny today (an empty list means "no live work claim"), so this is not testing the
+ * outcome so much as the SHAPE: any future edit that catches the fault and answers with no claims —
+ * or worse, adds a fallback admitting the write when the read fails — removes the only fence
+ * ADR-0364 leaves standing, and nothing downstream would notice.
+ *
+ * Git is made to WORK here, unlike the probe-era version of this test which pointed both git and the
+ * probe at missing scripts and could therefore have passed on a topology failure instead. Only the
+ * authority is absent, so the refusal can only be about the authority.
+ *
+ * It also pins the MESSAGE. "No live work claim exists for this session" would send an operator
+ * hunting for a missing claim when the real cause is a closed desktop app — the behavioural change
+ * ADR-0375 accepts, and the one an operator has to be able to see.
+ */
+test("rendered managed hook refuses — never silently allows — when the claim authority is unreachable", () => {
   const current = topology();
   const authority = authorizeCodexWriter(current, [claim()], NOW);
   if (!authority.ok) assert.fail(authority.reason);
   const temp = mkdtempSync(path.join(os.tmpdir(), "storytree-codex-hook-fail-"));
-  const bundle = buildCodexContainmentBundle({
-    authority,
-    codexVersion: "codex-cli 0.145.0",
-    managedDir: temp,
-    managedNodePath: process.execPath,
-    gitCommand: [process.execPath, path.join(temp, "missing-git.mjs")],
-    claimProbeCommand: [process.execPath, path.join(temp, "missing-claim-probe.mjs")],
-  });
-  if (!bundle.ok) assert.fail(bundle.reason);
-  const hookScript = path.join(temp, "managed-hook.mjs");
-  const policyPath = path.join(temp, "active-session.json");
-  writeFileSync(hookScript, bundle.managedHookScript);
-  writeFileSync(policyPath, bundle.sessionPolicyJson);
-  const result = spawnSync(process.execPath, [hookScript, "pre-tool-use", policyPath], {
-    input: JSON.stringify({
-      hook_event_name: "PreToolUse",
-      cwd: CURRENT,
-      tool_name: "Bash",
-      tool_input: { command: "pnpm test" },
+  const gitScript = path.join(temp, "fake-git.mjs");
+  writeFileSync(
+    gitScript,
+    [
+      'const key = process.argv.slice(2).join(" ");',
+      'const responses = JSON.parse(process.env.FAKE_GIT_RESPONSES);',
+      'if (!(key in responses)) process.exit(9);',
+      'process.stdout.write(responses[key]);',
+    ].join("\n"),
+  );
+  const env = {
+    ...process.env,
+    FAKE_GIT_RESPONSES: JSON.stringify({
+      "rev-parse --path-format=absolute --show-toplevel": CURRENT,
+      "rev-parse --path-format=absolute --git-dir": GIT_DIR,
+      "rev-parse --path-format=absolute --git-common-dir": COMMON_DIR,
+      "rev-parse --abbrev-ref HEAD": "claude/codex-current",
+      "worktree list --porcelain": worktreeProbe().worktreeList,
     }),
-    encoding: "utf8",
+  };
+  const write = JSON.stringify({
+    hook_event_name: "PreToolUse",
+    cwd: CURRENT,
+    tool_name: "Bash",
+    tool_input: { command: "pnpm test" },
   });
-  assert.equal(result.status, 2);
-  assert.match(result.stderr, /failed closed/i);
+
+  const runAgainst = (handshakePath: string) => {
+    const bundle = buildCodexContainmentBundle({
+      authority,
+      codexVersion: "codex-cli 0.145.0",
+      managedDir: temp,
+      managedNodePath: process.execPath,
+      gitCommand: [process.execPath, gitScript],
+      claimBrokerHandshake: handshakePath,
+    });
+    if (!bundle.ok) assert.fail(bundle.reason);
+    const hookScript = path.join(temp, "managed-hook.mjs");
+    const policyPath = path.join(temp, "active-session.json");
+    writeFileSync(hookScript, bundle.managedHookScript);
+    writeFileSync(policyPath, bundle.sessionPolicyJson);
+    return spawnSync(process.execPath, [hookScript, "pre-tool-use", policyPath], {
+      input: write,
+      encoding: "utf8",
+      env,
+    });
+  };
+
+  // (a) The desktop app was never started — there is no handshake at all.
+  const absent = runAgainst(path.join(temp, "no-such-handshake.json"));
+  assert.equal(absent.status, 2, absent.stderr);
+  assert.match(absent.stderr, /failed closed/i);
+  assert.match(absent.stderr, /resident claim authority is not reachable/i);
+  assert.match(absent.stderr, /desktop app/i);
+  assert.doesNotMatch(
+    absent.stderr,
+    /no live work claim/i,
+    "an unreachable authority must not be reported as a missing claim (ADR-0375 D4)",
+  );
+  assert.equal(absent.stdout, "", "a fault is never answered with an allow");
+
+  // (b) A HARD KILL left a handshake naming a port nothing is listening on. This is the case that
+  // would otherwise look most like a real answer, because the file parses perfectly.
+  const deadDir = mkdtempSync(path.join(os.tmpdir(), "storytree-codex-hook-dead-"));
+  const dead = fakeClaimAuthority(deadDir, []);
+  dead.stop();
+  const stale = runAgainst(dead.handshakePath);
+  assert.equal(stale.status, 2, stale.stderr);
+  assert.match(stale.stderr, /resident claim authority is not reachable/i);
+  assert.equal(stale.stdout, "", "a dead port is never answered with an allow");
+
+  // (c) The authority is REACHABLE but REFUSES (a ledger fault). `ok:false` must never be read as
+  // "no claims" — it is not an answer at all, and the message must carry the broker's own reason so
+  // an operator can tell a store outage from a missing claim.
+  const faultDir = mkdtempSync(path.join(os.tmpdir(), "storytree-codex-hook-fault-"));
+  const faulting = fakeClaimAuthority(faultDir, [], {
+    fault: "broker failed closed: store unreachable",
+  });
+  const refused = runAgainst(faulting.handshakePath);
+  assert.equal(refused.status, 2, refused.stderr);
+  assert.match(refused.stderr, /refused the live claim read/i);
+  assert.match(refused.stderr, /store unreachable/i);
+  assert.equal(refused.stdout, "", "a refusal is never answered with an allow");
+  assert.equal(faulting.requests().length, 1, "the hook did ask — this is a refusal, not an outage");
+  faulting.stop();
 });
 
 test("interactive hook admits current targets and refuses siblings, traversal, and ambiguity", () => {
@@ -1196,7 +1404,6 @@ test("a session claiming one worktree is refused in a sibling the profile itself
 
   const temp = mkdtempSync(path.join(os.tmpdir(), "storytree-codex-sibling-"));
   const gitScript = path.join(temp, "fake-git.mjs");
-  const claimScript = path.join(temp, "fake-claims.mjs");
   const hookScript = path.join(temp, "managed-hook.mjs");
   const policyPath = path.join(temp, "standing.json");
 
@@ -1209,17 +1416,12 @@ test("a session claiming one worktree is refused in a sibling the profile itself
       "process.stdout.write(responses[key]);",
     ].join("\n"),
   );
-  // The ledger answers with the session's REAL live claim every time. Handing the hook a genuine
-  // work claim and watching it refuse anyway is the point: nothing weaker than the claim-to-worktree
-  // binding can be what produces the refusal.
-  writeFileSync(
-    claimScript,
-    [
-      'let input = ""; for await (const chunk of process.stdin) input += chunk;',
-      'if (JSON.parse(input).readMode !== "live-claims-required") process.exit(8);',
-      "process.stdout.write(JSON.stringify({ claims: JSON.parse(process.env.FAKE_CLAIMS) }));",
-    ].join("\n"),
-  );
+  // The authority answers with the session's REAL live claim every time, whatever session is asked
+  // about. Handing the hook a genuine work claim and watching it refuse anyway is the point: nothing
+  // weaker than the claim-to-worktree binding can be what produces the refusal. `always` is load
+  // bearing here — an authority that went quiet after one request would produce the same refusals for
+  // an entirely different (and uninteresting) reason.
+  const broker = fakeClaimAuthority(temp, [], { always: [claim()] });
 
   const bundle = buildCodexContainmentBundle({
     authority,
@@ -1227,7 +1429,7 @@ test("a session claiming one worktree is refused in a sibling the profile itself
     managedDir: temp,
     managedNodePath: process.execPath,
     gitCommand: [process.execPath, gitScript],
-    claimProbeCommand: [process.execPath, claimScript],
+    claimBrokerHandshake: broker.handshakePath,
   });
   if (!bundle.ok) assert.fail(bundle.reason);
   writeFileSync(hookScript, bundle.managedHookScript);
@@ -1256,11 +1458,7 @@ test("a session claiming one worktree is refused in a sibling the profile itself
     spawnSync(process.execPath, [hookScript, "pre-tool-use", policyPath], {
       input: JSON.stringify(event),
       encoding: "utf8",
-      env: {
-        ...process.env,
-        FAKE_GIT_RESPONSES: gitResponses,
-        FAKE_CLAIMS: JSON.stringify([claim()]),
-      },
+      env: { ...process.env, FAKE_GIT_RESPONSES: gitResponses },
     });
 
   const inCurrent = gitFor(CURRENT, GIT_DIR, "claude/codex-current");
@@ -1321,6 +1519,13 @@ test("a session claiming one worktree is refused in a sibling the profile itself
     JSON.parse(shellInSibling.stdout).hookSpecificOutput.permissionDecisionReason,
     /no live work claim/i,
   );
+
+  // The identity the hook asked about came from GIT, not from anything a caller supplied — which is
+  // what makes the walk-in refusal real rather than incidental. Standing in the sibling, it asked
+  // about the SIBLING's session, whose claim does not exist.
+  assert.deepEqual(new Set(broker.requests().map((r) => r.sessionId)), new Set(["codex-current", "codex-sibling"]));
+
+  broker.stop();
 });
 
 /**
@@ -1335,7 +1540,6 @@ test("the standing policy still refuses the lobby, and asks no ledger to do it",
 
   const temp = mkdtempSync(path.join(os.tmpdir(), "storytree-codex-lobby-hook-"));
   const gitScript = path.join(temp, "fake-git.mjs");
-  const claimScript = path.join(temp, "exploding-claims.mjs");
   const hookScript = path.join(temp, "managed-hook.mjs");
   const policyPath = path.join(temp, "standing.json");
 
@@ -1348,9 +1552,11 @@ test("the standing policy still refuses the lobby, and asks no ledger to do it",
       "process.stdout.write(responses[key]);",
     ].join("\n"),
   );
-  // A probe that CANNOT succeed. In the lobby the hook must never reach it; if it does, this test
-  // fails closed and says so, rather than passing on a refusal that came from the wrong reason.
-  writeFileSync(claimScript, 'process.stderr.write("the lobby must not consult the ledger"); process.exit(7);');
+  // A LIVE authority that would gladly hand out a work claim. Proving the lobby refusal while this is
+  // up and answering is stronger than proving it against an authority that cannot answer: the request
+  // count below shows the hook never ASKED, rather than that it asked and was refused. A refusal for
+  // the wrong reason would pass the weaker form.
+  const broker = fakeClaimAuthority(temp, [], { always: [claim()] });
 
   const bundle = buildCodexContainmentBundle({
     authority,
@@ -1358,7 +1564,7 @@ test("the standing policy still refuses the lobby, and asks no ledger to do it",
     managedDir: temp,
     managedNodePath: process.execPath,
     gitCommand: [process.execPath, gitScript],
-    claimProbeCommand: [process.execPath, claimScript],
+    claimBrokerHandshake: broker.handshakePath,
   });
   if (!bundle.ok) assert.fail(bundle.reason);
   writeFileSync(hookScript, bundle.managedHookScript);
@@ -1392,7 +1598,6 @@ test("the standing policy still refuses the lobby, and asks no ledger to do it",
     JSON.parse(write.stdout).hookSpecificOutput.permissionDecisionReason,
     /lobby is read-only/i,
   );
-  assert.doesNotMatch(write.stderr, /must not consult the ledger/);
 
   const read = run({
     hook_event_name: "PreToolUse",
@@ -1402,6 +1607,13 @@ test("the standing policy still refuses the lobby, and asks no ledger to do it",
   });
   assert.equal(read.status, 0, read.stderr);
   assert.equal(read.stdout, "", "reading the lobby stays allowed");
+
+  assert.equal(
+    broker.requests().length,
+    0,
+    "the lobby decision asks no ledger — it is a location refusal, not a claim refusal",
+  );
+  broker.stop();
 });
 
 test("PermissionRequest never widens the strict profile", () => {

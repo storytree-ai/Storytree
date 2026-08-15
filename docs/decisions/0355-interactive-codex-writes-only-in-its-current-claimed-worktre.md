@@ -132,9 +132,10 @@ The blocking defect is a credential circularity in the bootstrap, confirmed at t
 This is a composition fault, not a reason to widen the sandbox. The claim-first ordering is right and
 the OS boundary is right; what was missing is a narrow broker holding operator authentication OUTSIDE
 `CodexSandboxOffline` that exposes only these lifecycle operations. Note the two credential paths
-disagreed about this: the live-claim PROBE reaches the store as a dedicated impersonated reader
+disagreed about this: the live-claim PROBE reached the store as a dedicated impersonated reader
 (`storytree-codex-claim-reader@…`), while the bootstrap WRITE path reached for a human's personal
-secret.
+secret. (That probe no longer exists — ADR-0375 D8 deleted it when the hook's claim read moved to the
+resident authority, leaving one live-claim reader rather than two credential paths.)
 
 **This gap is now CLOSED.** [ADR-0368](0368-the-claim-broker-holds-the-credential-the-sandbox-may-not-an.md)
 built exactly that broker: a resident process the OPERATOR starts — by hand or by a logon task, never

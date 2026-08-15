@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";
 
-import type { ClaimDocT, ClaimResult } from "@storytree/notice-board";
+import type { ClaimDocT, ClaimResult } from "../claim.js";
 
-import { readBrokerHandshake, BrokerClaimLedger } from "./codex-claim-broker-client.js";
+import { readBrokerHandshake, BrokerClaimLedger, claimsForSession } from "./client.js";
 import {
   BROKER_HANDSHAKE_ENV,
   BROKER_TOKEN_HEADER,
@@ -15,8 +15,8 @@ import {
   mintBrokerToken,
   sandboxAccountName,
   tokenMatches,
-} from "./codex-claim-broker-door.js";
-import { startBrokerServer } from "./codex-claim-broker-server.js";
+} from "./door.js";
+import { startBrokerServer } from "./server.js";
 import {
   BrokerSessionRegistry,
   CODEX_CLAIM_BROKER_PROTOCOL_VERSION,
@@ -26,7 +26,7 @@ import {
   type BrokerDeps,
   type BrokerLedger,
   type BrokerTopologyProbe,
-} from "./codex-claim-broker.js";
+} from "./broker.js";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -53,14 +53,16 @@ interface LedgerCalls {
   readonly takes: Array<{ unitId: string; sessionId: string; branch: string; grade?: string }>;
   readonly upgrades: Array<{ unitId: string; sessionId: string; branch: string }>;
   readonly releases: Array<{ unitId: string; sessionId: string }>;
+  readonly claimReads: string[];
 }
 
 function recordingLedger(answers: {
+  claimsBySession?: (sessionId: string) => ClaimDocT[];
   take?: (req: { unitId: string; sessionId: string; branch: string }) => ClaimResult;
   upgrade?: (unitId: string, sessionId: string, branch: string) => ClaimResult;
   release?: () => boolean;
 }): { ledger: BrokerLedger; calls: LedgerCalls } {
-  const calls: LedgerCalls = { takes: [], upgrades: [], releases: [] };
+  const calls: LedgerCalls = { takes: [], upgrades: [], releases: [], claimReads: [] };
   const ledger: BrokerLedger = {
     async take(req) {
       calls.takes.push({
@@ -90,6 +92,10 @@ function recordingLedger(answers: {
     async release(unitId, sessionId) {
       calls.releases.push({ unitId, sessionId });
       return answers.release?.() ?? true;
+    },
+    async claimsBySession(sessionId) {
+      calls.claimReads.push(sessionId);
+      return answers.claimsBySession?.(sessionId) ?? [];
     },
   };
   return { ledger, calls };
@@ -328,7 +334,7 @@ test("an unreachable store is a refusal on every verb — never a throw, never a
   const boom = (): never => {
     throw new Error("ECONNREFUSED 34.87.0.1:5432");
   };
-  const ledger: BrokerLedger = { take: boom, upgrade: boom, release: boom };
+  const ledger: BrokerLedger = { take: boom, upgrade: boom, release: boom, claimsBySession: boom };
   const registry = new BrokerSessionRegistry();
   registry.remember(SESSION);
   const shared: BrokerDeps = {
@@ -341,6 +347,7 @@ test("an unreachable store is a refusal on every verb — never a throw, never a
     { verb: "take", unitId: UNIT, sessionId: SESSION, branch: BRANCH, intent: "why" },
     { verb: "promote", unitId: UNIT, worktree: "C:/wt/a", intent: "why" },
     { verb: "release", unitId: UNIT, sessionId: SESSION },
+    { verb: "claims", sessionId: SESSION },
   ] as const) {
     const answer = await handleBrokerRequest(request, shared);
     assert.equal(answer.ok, false, `${request.verb} must fail closed`);
@@ -350,7 +357,77 @@ test("an unreachable store is a refusal on every verb — never a throw, never a
       undefined,
       "an outage must not masquerade as contention",
     );
+    // `claims` is the one whose fail-closed shape carries the whole ADR-0364 fence: the managed hook
+    // reads an empty list as "no live work claim" and denies, so a fault that came back as
+    // `{ok:true, claims:[]}` would be indistinguishable from a real answer at the call site. It must
+    // be `ok:false`, and it must carry NO claims key at all.
+    assert.equal("claims" in answer, false, `${request.verb}: a fault carries no claims payload`);
   }
+});
+
+// ---------------------------------------------------------------------------
+// The `claims` verb (ADR-0375 D3) — the read the managed hook's fence runs on
+// ---------------------------------------------------------------------------
+
+test("the claims verb answers ONE named session's live claims, under the same exact grammar", async () => {
+  const mine = claim({ grade: "work" });
+  const { ledger, calls } = recordingLedger({ claimsBySession: () => [mine] });
+  const deps: BrokerDeps = { ledger, registry: new BrokerSessionRegistry(), topology: probeSaying({}) };
+
+  const answer = await handleBrokerRequest({ verb: "claims", sessionId: SESSION }, deps);
+  assert.equal(answer.ok, true);
+  assert.equal(answer.ok === true && answer.verb === "claims" ? answer.verb : "", "claims");
+  assert.deepEqual(answer.ok === true && answer.verb === "claims" ? answer.claims : null, [mine]);
+  assert.deepEqual(calls.claimReads, [SESSION], "the ledger is asked about exactly the named session");
+
+  // A session holding nothing genuinely answers with none — this is the ONE case where an empty list
+  // is a real answer, and it is why an error must never be spelled the same way.
+  const { ledger: emptyLedger } = recordingLedger({ claimsBySession: () => [] });
+  const none = await handleBrokerRequest(
+    { verb: "claims", sessionId: SESSION },
+    { ledger: emptyLedger, registry: new BrokerSessionRegistry(), topology: probeSaying({}) },
+  );
+  assert.equal(none.ok, true);
+  assert.deepEqual(none.ok === true && none.verb === "claims" ? none.claims : null, []);
+
+  // Exact-keys grammar, same as the other three verbs: unknown fields are REFUSED, not ignored.
+  assert.throws(
+    () => parseBrokerRequest({ protocolVersion: 1, verb: "claims", sessionId: SESSION, unitId: UNIT }),
+    /unexpected field/iu,
+  );
+  assert.throws(
+    () => parseBrokerRequest({ protocolVersion: 1, verb: "claims" }),
+    /sessionId must be a string/iu,
+  );
+  assert.throws(
+    () => parseBrokerRequest({ protocolVersion: 1, verb: "claims", sessionId: "Not A Session" }),
+    /well-formed minted session id/iu,
+  );
+  assert.deepEqual(parseBrokerRequest({ protocolVersion: 1, verb: "claims", sessionId: SESSION }), {
+    verb: "claims",
+    sessionId: SESSION,
+  });
+});
+
+/**
+ * The verb reads and never grants, so it needs no identity narrowing — but that is only safe because
+ * the AUTHORITY decision stays with the hook, taken against the identity Git derives for the process
+ * being fenced. This pins the half that lives here: asking about someone else's session returns THEIR
+ * rows and mints nothing, so a forged question yields an answer the hook cannot match itself to.
+ */
+test("the claims verb grants nothing — a caller may ask about any session and gain no authority", async () => {
+  const theirs = claim({ sessionId: "codex-someone-else", branch: "claude/codex-someone-else", grade: "work" });
+  const { ledger, calls } = recordingLedger({ claimsBySession: (id) => (id === "codex-someone-else" ? [theirs] : []) });
+  const registry = new BrokerSessionRegistry();
+  const deps: BrokerDeps = { ledger, registry, topology: probeSaying({}) };
+
+  const answer = await handleBrokerRequest({ verb: "claims", sessionId: "codex-someone-else" }, deps);
+  assert.equal(answer.ok, true);
+  assert.deepEqual(answer.ok === true && answer.verb === "claims" ? answer.claims : null, [theirs]);
+  assert.deepEqual(calls.takes, [], "reading claims takes nothing");
+  assert.deepEqual(calls.upgrades, [], "reading claims promotes nothing");
+  assert.deepEqual(calls.releases, [], "reading claims releases nothing");
+  assert.equal(registry.size, 0, "reading claims mints no session in the release registry");
 });
 
 // ---------------------------------------------------------------------------
@@ -493,7 +570,42 @@ test("the client speaks the ledger seams the bootstrap already drives", async ()
     );
 
     assert.equal(await client.release(UNIT, SESSION), true);
+    // ADR-0368 D4 is UNCHANGED by ADR-0375: the unit-scoped board read is still not brokered, because
+    // an empty answer there would render "no other sessions" to an operator. The new session-scoped
+    // read below is a different object with the opposite consumer, and both live here at once.
     await assert.rejects(() => client.claimsFor(UNIT), /exposes no board read/u);
+
+    const live = await claimsForSession(broker.handshake, SESSION);
+    assert.deepEqual(live, [], "a session holding nothing genuinely reads as none");
+  } finally {
+    await broker.close();
+  }
+});
+
+/**
+ * The client half of ADR-0375 D4. `[]` may only ever mean "this session holds nothing" — a REFUSAL
+ * must arrive as a throw, because the hook reads an empty list as deny and would be unable to tell
+ * an outage from an honest answer. Everything downstream of this rests on the distinction.
+ */
+test("claimsForSession THROWS on a refusal rather than answering with an empty list", async () => {
+  const boom = (): never => {
+    throw new Error("ECONNREFUSED 34.87.0.1:5432");
+  };
+  const token = mintBrokerToken();
+  const broker = await startBrokerServer({
+    token,
+    deps: {
+      ledger: { take: boom, upgrade: boom, release: boom, claimsBySession: boom },
+      registry: new BrokerSessionRegistry(),
+      topology: probeSaying({}),
+    },
+  });
+  try {
+    await assert.rejects(
+      () => claimsForSession(broker.handshake, SESSION),
+      /live claim read REFUSED[\s\S]*ECONNREFUSED/u,
+      "an unreachable store must not be spelled the same way as an empty claim list",
+    );
   } finally {
     await broker.close();
   }
