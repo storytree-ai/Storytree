@@ -59,7 +59,7 @@ entire pass at another angle with no source edit.
 
 | file | what it is |
 |---|---|
-| **`grass-normals-sweep.png`** | **THE HEADLINE.** One tuft at seven normal mixes. TOP row = the Blender render; BOTTOM row = what ships. The top row changes dramatically; the bottom row does not change at all. |
+| **`grass-normals-sweep.png`** | **THE HEADLINE.** One tuft at seven normal mixes. TOP row = the Blender render; BOTTOM row = what ships. The top row changes dramatically; the bottom row does not change at all. *(The top row is red/green/blue because the render emits BAND KEYS, never colour — the token is looked up per placement at paint time, which is how the status stays out of the renderer under ADR-0367 D5. Watch which key each pixel takes, not the hue.)* |
 | **`grass-geometry-fork.png`** | blade vs clump, raw and delivered. 7 px against 18 px. |
 | **`grass-on-island.png`** | today / normals at full / clump — three islands at 1:1, one land, one code state. |
 | **`grass-detail-6x.png`** | **JUDGE THE ART HERE.** The same crop of the same island at 6×. |
