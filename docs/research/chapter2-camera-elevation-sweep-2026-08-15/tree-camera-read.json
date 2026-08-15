@@ -51,6 +51,18 @@
    "recordedCameraDeg": 45.0
   },
   {
+   "elevationDeg": 50.0,
+   "bboxHeightPx": 127,
+   "bboxWidthPx": 117,
+   "treePx": 8431,
+   "barkPx": 1399,
+   "foliagePx": 4804,
+   "barkShare": 0.1659,
+   "clearStemRowsBelowCanopy": 33,
+   "aspect": 1.085,
+   "recordedCameraDeg": 50.0
+  },
+  {
    "elevationDeg": 60.0,
    "bboxHeightPx": 114,
    "bboxWidthPx": 117,
