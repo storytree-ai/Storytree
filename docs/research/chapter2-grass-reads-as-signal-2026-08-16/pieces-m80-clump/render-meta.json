@@ -1,0 +1,344 @@
+{
+ "generator": "blender_grass.py",
+ "grassNormalMix": 0.8,
+ "grassGeometry": "clump",
+ "grassNormalRule": "blade shading normals blended 0.8 of the way toward a SHARED analytic dome fitted to this tuft's own blade envelope (centre at its ground contact). 0.0 is an exact no-op. NOT inherited from the crown's 0.22 \u2014 a 4200 px crown and a 30 px tuft are different instruments; see grass-report.json normalSweep.",
+ "code_state": {
+  "generator": "blender_grass.py",
+  "sha256": "3eb5515a738b652f260e895e81c90680c42b20061329bd09f15fa3d5fc9cb5e6"
+ },
+ "argv": [
+  "--island",
+  "island.json",
+  "--out",
+  "pieces-m80-clump",
+  "--normals",
+  "0.8",
+  "--geometry",
+  "clump",
+  "--samples",
+  "48"
+ ],
+ "blender": "5.2.0 LTS",
+ "engine": "CYCLES/CPU",
+ "seed": 20260816,
+ "samples": 48,
+ "supersample": 3,
+ "pieceCanvasWorld": 28.0,
+ "pieceCanvasPx": 84,
+ "camera": {
+  "elevationDeg": 50.0,
+  "rule": "orthographic; ortho_scale == the piece canvas in ground px, and the piece's GROUND CONTACT POINT sits at the canvas centre, so a decor piece pastes at its placement's projected point by the SAME rule as a land piece"
+ },
+ "lightDir": [
+  -0.435,
+  -0.429,
+  0.792
+ ],
+ "lightRuleSource": "the hero tree's own key direction \u2014 land, object and ground cover share one",
+ "bandTriples": {
+  "K0": [
+   255,
+   0,
+   0
+  ],
+  "K1": [
+   0,
+   255,
+   0
+  ],
+  "K2": [
+   0,
+   0,
+   255
+  ],
+  "K3": [
+   255,
+   255,
+   0
+  ],
+  "K4": [
+   0,
+   255,
+   255
+  ],
+  "K5": [
+   255,
+   0,
+   255
+  ]
+ },
+ "pieceNames": [
+  "tuft-2",
+  "tuft-3a",
+  "tuft-3b",
+  "tuft-4",
+  "shrub-a",
+  "shrub-b",
+  "wilt-twig",
+  "wilt-stem",
+  "flower-proven",
+  "flower-pending",
+  "flower-failing"
+ ],
+ "pieceRoles": {
+  "tuft-2": {
+   "K0": [
+    "bladeFront",
+    1.0
+   ],
+   "K1": [
+    "bladeFront",
+    0.82
+   ],
+   "K2": [
+    "bladeBack",
+    1.0
+   ]
+  },
+  "tuft-3a": {
+   "K0": [
+    "bladeFront",
+    1.0
+   ],
+   "K1": [
+    "bladeFront",
+    0.82
+   ],
+   "K2": [
+    "bladeBack",
+    1.0
+   ]
+  },
+  "tuft-3b": {
+   "K0": [
+    "bladeFront",
+    1.0
+   ],
+   "K1": [
+    "bladeFront",
+    0.82
+   ],
+   "K2": [
+    "bladeBack",
+    1.0
+   ]
+  },
+  "tuft-4": {
+   "K0": [
+    "bladeFront",
+    1.0
+   ],
+   "K1": [
+    "bladeFront",
+    0.82
+   ],
+   "K2": [
+    "bladeBack",
+    1.0
+   ]
+  },
+  "shrub-a": {
+   "K0": [
+    "crown",
+    1.0
+   ],
+   "K1": [
+    "crown",
+    0.82
+   ],
+   "K2": [
+    "under",
+    1.0
+   ]
+  },
+  "shrub-b": {
+   "K0": [
+    "crown",
+    1.0
+   ],
+   "K1": [
+    "crown",
+    0.82
+   ],
+   "K2": [
+    "under",
+    1.0
+   ]
+  },
+  "wilt-twig": {
+   "K0": [
+    "stem",
+    1.0
+   ],
+   "K1": [
+    "stem",
+    0.82
+   ],
+   "K3": [
+    "fleck",
+    1.0
+   ]
+  },
+  "wilt-stem": {
+   "K0": [
+    "stem",
+    1.0
+   ],
+   "K1": [
+    "stem",
+    0.82
+   ],
+   "K3": [
+    "fleck",
+    1.0
+   ]
+  },
+  "flower-proven": {
+   "K0": [
+    "petal",
+    1.0
+   ],
+   "K1": [
+    "petal",
+    0.82
+   ],
+   "K2": [
+    "centre",
+    1.0
+   ],
+   "K3": [
+    "stem",
+    1.0
+   ],
+   "K4": [
+    "leaf",
+    1.0
+   ]
+  },
+  "flower-pending": {
+   "K0": [
+    "bud",
+    1.0
+   ],
+   "K1": [
+    "bud",
+    0.82
+   ],
+   "K3": [
+    "stem",
+    1.0
+   ],
+   "K4": [
+    "leaf",
+    1.0
+   ]
+  },
+  "flower-failing": {
+   "K0": [
+    "petal",
+    1.0
+   ],
+   "K1": [
+    "petal",
+    0.82
+   ],
+   "K2": [
+    "centre",
+    1.0
+   ],
+   "K3": [
+    "stem",
+    1.0
+   ],
+   "K4": [
+    "leaf",
+    1.0
+   ]
+  }
+ },
+ "tokenFamilies": {
+  "blade": {
+   "healthy": {
+    "bladeFront": "#71a154",
+    "bladeBack": "#436b32"
+   },
+   "building": {
+    "bladeFront": "#71a154",
+    "bladeBack": "#436b32"
+   },
+   "mapped": {
+    "bladeFront": "#9fa88f",
+    "bladeBack": "#7d886c"
+   },
+   "proposed": {
+    "bladeFront": "#9fa88f",
+    "bladeBack": "#7d886c"
+   },
+   "unknown": {
+    "bladeFront": "#b0afa2",
+    "bladeBack": "#8f8e7c"
+   },
+   "unhealthy": {
+    "bladeFront": "#ab8c54",
+    "bladeBack": "#87693b"
+   }
+  },
+  "shrub": {
+   "healthy": {
+    "crown": "#89b56b",
+    "under": "#4f7a3e"
+   },
+   "building": {
+    "crown": "#eccb6d",
+    "under": "#cc9f3c"
+   },
+   "mapped": {
+    "crown": "#89b56b",
+    "under": "#4f7a3e"
+   },
+   "proposed": {
+    "crown": "#89b56b",
+    "under": "#4f7a3e"
+   },
+   "unknown": {
+    "crown": "#89b56b",
+    "under": "#4f7a3e"
+   },
+   "unhealthy": {
+    "crown": "#a08355",
+    "under": "#7a5f3a"
+   }
+  },
+  "wilt": {
+   "unhealthy": {
+    "stem": "#7c5b40",
+    "fleck": "#9f2d22"
+   }
+  },
+  "flower": {
+   "proven": {
+    "stem": "#6f9257",
+    "leaf": "#7ea363",
+    "petal": "#fbf3e0",
+    "centre": "#eab94e"
+   },
+   "pending": {
+    "stem": "#6f9257",
+    "leaf": "#7ea363",
+    "bud": "#7f9d5c"
+   },
+   "failing": {
+    "stem": "#6f9257",
+    "leaf": "#7ea363",
+    "petal": "#b9b3a7",
+    "centre": "#8f8672"
+   }
+  }
+ },
+ "headBillboard": {
+  "rotationRad": 0.6981317007977318,
+  "why": "a flower head left in the ground plane reads as a lid, not a face \u2014 the 'horizontal head' the owner rejected on the baked uat-flower asset (2026-07-22). Derived from the island's camera so it stays face-on at any authored angle."
+ },
+ "vocabularySource": "ADR-0226 D2/D3/D4 \u2014 grass = a capability's tests, dead grass = the status wilt, a flower = the story's UAT and only UAT with the verdict read from form. No member is added to that vocabulary by this render."
+}
