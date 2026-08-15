@@ -401,6 +401,7 @@
       "apps/studio/src/lib/factoryBuildings.ts": "studio",
       "apps/studio/src/lib/format.ts": "studio",
       "apps/studio/src/lib/loadState.ts": "studio",
+      "apps/studio/src/lib/motionSettled.ts": "studio",
       "apps/studio/src/lib/panelFlyout.ts": "studio",
       "apps/studio/src/lib/poll.ts": "studio",
       "apps/studio/src/lib/sprite-sheet.ts": "studio",
