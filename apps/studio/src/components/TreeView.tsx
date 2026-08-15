@@ -86,6 +86,13 @@ import {
   type WorldCameraFrameDelivery,
 } from '../lib/worldCameraFrameDelivery.js';
 import {
+  countActiveStructuralAnimations,
+  motionSettledSnapshot,
+  readStructuralAnimations,
+  MOTION_SETTLED_BRIDGE_KEY,
+  type MotionSettledBridge,
+} from '../lib/motionSettled.js';
+import {
   promotedStamps,
   stampsByCarrier,
   sharedIslandStories,
@@ -2663,6 +2670,34 @@ export function TreeView({
   const act2PlayedToken = useRef(0);
   const act2Replay = act2Player.replay;
   const act2Settle = act2Player.settle;
+
+  // ── motionSettled: the app's own POSITIVELY-ASSERTED answer to "is this frame still moving?" ──
+  // (frontend-visual-judgment-arc, increment frontend-settled-signal-from-the-app). Always published
+  // — NOT gated behind a diagnostic query param like the camera-rasterisation probe below — because
+  // every capture path needs it, not only that one diagnostic. See lib/motionSettled.ts for the full
+  // rationale and for why `lane-motion-${selectionMotion}` (the `.world-scene` className below, in
+  // the render) is explicitly NOT this signal: it is a permanent motion-MODE class the fully-settled
+  // control render carries identically, not a per-frame state. `svgRef.current` (that same
+  // `.world-scene` element) is the animation scope this reads: it contains the camera, every lane,
+  // every trail mask and every arrival pop-in.
+  const motionSettledSnapshotRef = useRef<MotionSettledBridge>(() =>
+    motionSettledSnapshot({ act2Regrowing: false, activeStructuralAnimations: 0 }),
+  );
+  motionSettledSnapshotRef.current = () =>
+    motionSettledSnapshot({
+      act2Regrowing: act2Player.regrowing,
+      activeStructuralAnimations: countActiveStructuralAnimations(
+        readStructuralAnimations(svgRef.current),
+      ),
+    });
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const bridge: MotionSettledBridge = () => motionSettledSnapshotRef.current();
+    window[MOTION_SETTLED_BRIDGE_KEY] = bridge;
+    return () => {
+      if (window[MOTION_SETTLED_BRIDGE_KEY] === bridge) delete window[MOTION_SETTLED_BRIDGE_KEY];
+    };
+  }, []);
 
   // Small production-browser protocol consumed by the committed Playwright collector. It exposes
   // observations and the player's EXISTING replay/settle actions only: sampling never drives motion.
