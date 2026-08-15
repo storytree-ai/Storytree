@@ -114,7 +114,8 @@ was proved end to end on this box; `pnpm studio:up` registers through the identi
 live up/stop leg is unproven here; an arbitrary non-storytree process is still untouched either
 way)*, the stop paths that report success while a detached child keeps its port *(closed for
 storytree's own stop path by ADR-0370; `TaskStop` remains harness-owned and broken)*, and the
-gate-step liveness signal. Work that does not register is invisible here, and a session reading an empty
+gate-step liveness signal *(closed by ADR-0376 — a step past two minutes now reports whether its own
+process tree is burning CPU)*. Work that does not register is invisible here, and a session reading an empty
 inventory as "the box is clean" would be drawing a conclusion D6 explicitly refuses to support. The
 mitigation is that the limit is printed on every render; the risk accepted is that a reader ignores
 it.

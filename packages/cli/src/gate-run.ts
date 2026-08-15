@@ -18,6 +18,14 @@
 // Callers that read only the exit code (`scripts/gate-bg.sh` via PIPESTATUS) are unaffected: any
 // step not passing still exits non-zero.
 //
+// LIVENESS (`shared-box-session-ownership-arc` end state 4, `gate-liveness.ts`). A step running past
+// two minutes prints one line a minute saying whether its process tree is burning CPU, because
+// elapsed time alone cannot tell a WEDGED step from a slow one — `pnpm -r` buffers a workspace's
+// output for minutes at a time, so silence is the normal appearance of a healthy long step. It is
+// reporting only: it never changes a verdict, never stops a step, and reports `unknown` rather than
+// guessing when the measurement could not be taken. It is also the reason steps are `spawn`ed rather
+// than `spawnSync`'d — a blocked event loop can emit no heartbeat at all.
+//
 // NOT PARALLELISED, deliberately — steps share a working tree, a live DB, and `pnpm -r` already fans
 // out internally. Interleaved output and shared connections are a different unit with different
 // risks, and mixing them in would make this one's proof about scheduling instead of about reporting.
@@ -39,7 +47,7 @@
 // can neither be committed nor read across worktrees; a run's own log/`.exit` files stay the
 // completion contract they already were.
 
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -84,6 +92,8 @@ import {
   treeChangedSince,
 } from "./gate-rerun.js";
 import { credentialFreeTestEnvironment, isStandardTestLeg } from "./gate-test-environment.js";
+import { type CpuSample, classifyLiveness, renderLivenessLine } from "./gate-liveness.js";
+import { sampleTreeCpu } from "./gate-liveness-probe.js";
 
 // This file sits at packages/cli/src/ — three levels up is the repo root.
 const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
@@ -233,22 +243,106 @@ function resolveScope(full: boolean): AffectedScope {
   }
 }
 
-/** Run one step in the repo root, inheriting stdio so it prints exactly what it always did. */
-function executeStep(step: GateStep): GateExecution {
-  const res = spawnSync(step.command, {
-    cwd: repoRoot,
-    stdio: "inherit",
-    shell: true,
-    env: credentialFreeTestEnvironment(step.command, process.env),
+/** How often a running step is sampled for liveness; `0` (or `STORYTREE_GATE_HEARTBEAT_MS=0`) is off. */
+const DEFAULT_HEARTBEAT_MS = 60_000;
+
+function heartbeatIntervalMs(): number {
+  const raw = (process.env["STORYTREE_GATE_HEARTBEAT_MS"] ?? "").trim();
+  if (raw === "") return DEFAULT_HEARTBEAT_MS;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : DEFAULT_HEARTBEAT_MS;
+}
+
+/**
+ * Print a liveness line for a running step every interval, and hand back the stop.
+ *
+ * THE FIRST LINE LANDS AT TWO INTERVALS, not one, because a verdict needs two samples to compare —
+ * which is also the behaviour a reader wants: a step under two minutes says nothing at all, so the
+ * signal appears exactly for the long steps where "has this stopped?" is a live question. A short step
+ * costs ZERO probes, since the first timer never fires.
+ *
+ * IT CANNOT AFFECT THE STEP. Nothing here reads or writes the child's streams (`stdio: "inherit"` is
+ * untouched), nothing here can throw into the runner ({@link sampleTreeCpu} never rejects), and the
+ * timer is `unref`'d so a pending probe can never hold the gate open past its own verdict. The line
+ * interleaves with the step's own output, which is the accepted cost of leaving `inherit` alone.
+ */
+function startHeartbeat(rootPid: number, startedAt: number): () => void {
+  const intervalMs = heartbeatIntervalMs();
+  if (intervalMs <= 0) return () => {};
+
+  let previous: CpuSample | null = null;
+  let stopped = false;
+  let inFlight = false;
+
+  const tick = async (): Promise<void> => {
+    // The probe is not instant — reading the Windows process table costs a few seconds — so a short
+    // interval can fire again while the last one is still out. Overlapping probes would spawn a second
+    // reader and, worse, could resolve out of order and compare samples across the wrong window.
+    if (stopped || inFlight) return;
+    inFlight = true;
+    const sample = await sampleTreeCpu(rootPid).finally(() => {
+      inFlight = false;
+    });
+    // The step may have finished while the probe was out; a heartbeat for a step that already
+    // reported its verdict would read as the NEXT step's, which is worse than no line.
+    if (stopped) return;
+    if (previous !== null) {
+      const verdict = classifyLiveness(previous, sample);
+      console.log(`${TAG} ${renderLivenessLine(verdict, Date.now() - startedAt)}`);
+    }
+    previous = sample;
+  };
+
+  const timer = setInterval(() => void tick(), intervalMs);
+  timer.unref();
+  return () => {
+    stopped = true;
+    clearInterval(timer);
+  };
+}
+
+/**
+ * Run one step in the repo root, inheriting stdio so it prints exactly what it always did.
+ *
+ * ASYNC `spawn`, NOT `spawnSync` — the change end state 4 of `shared-box-session-ownership-arc`
+ * turns on. `spawnSync` blocked the runner's event loop for the whole step, so no timer could fire and
+ * the gate had no way to say anything at all about a step in flight; a wedged step and a slow one were
+ * the same observation. The step is still awaited one at a time, so the walk's ordering, the shared
+ * working tree and the shared DB connection are exactly as before.
+ */
+function executeStep(step: GateStep): Promise<GateExecution> {
+  return new Promise((resolve) => {
+    const startedAt = Date.now();
+    let settled = false;
+    let stopHeartbeat = (): void => {};
+    const finish = (execution: GateExecution): void => {
+      if (settled) return;
+      settled = true;
+      stopHeartbeat();
+      resolve(execution);
+    };
+
+    const child = spawn(step.command, {
+      cwd: repoRoot,
+      stdio: "inherit",
+      shell: true,
+      env: credentialFreeTestEnvironment(step.command, process.env),
+    });
+
+    child.on("error", (err) => {
+      finish({ exitCode: null, note: `could not start: ${err.message}` });
+    });
+    child.on("close", (code, signal) => {
+      // Killed mid-flight: it produced no verdict, so it is UNVERIFIED rather than failed.
+      if (signal !== null && signal !== undefined) {
+        finish({ exitCode: null, unverified: true, note: `killed by ${signal}` });
+        return;
+      }
+      finish({ exitCode: code });
+    });
+
+    if (child.pid !== undefined) stopHeartbeat = startHeartbeat(child.pid, startedAt);
   });
-  if (res.error !== undefined) {
-    return { exitCode: null, note: `could not start: ${res.error.message}` };
-  }
-  // Killed mid-flight: it produced no verdict, so it is UNVERIFIED rather than failed.
-  if (res.signal !== null && res.signal !== undefined) {
-    return { exitCode: null, unverified: true, note: `killed by ${res.signal}` };
-  }
-  return { exitCode: res.status };
 }
 
 /**
@@ -282,7 +376,7 @@ function registerGateRun(): () => void {
   }
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   const failFast =
     argv.includes("--fail-fast") || (process.env["STORYTREE_GATE_FAIL_FAST"] ?? "") !== "";
@@ -376,8 +470,8 @@ function main(): void {
   const digest = treeDigest();
 
   // --- interruption ------------------------------------------------------------------------------
-  // A step inherits stdio and runs synchronously, so on Ctrl+C the OS delivers the signal to the
-  // child too and `executeStep` reports it. This flag covers the gap BETWEEN steps.
+  // A step inherits stdio and shares this console, so on Ctrl+C the OS delivers the signal to the
+  // child too and `executeStep` reports the kill. This flag covers the gap BETWEEN steps.
   // Registering a handler suppresses Node's default exit-on-signal, which is what lets the summary
   // print at all; a SECOND signal must therefore still be able to kill the runner outright, or Ctrl+C
   // would stop working. First one stops the walk gracefully, second one exits.
@@ -409,7 +503,7 @@ function main(): void {
     );
   }
 
-  const results = runGate({
+  const results = await runGate({
     steps,
     execute: executeStep,
     failFast,
@@ -480,7 +574,7 @@ function main(): void {
 // what a leaked record MEANS, and reporting it is how a session learns its gate was killed.
 const deregisterGateRun = registerGateRun();
 try {
-  main();
+  await main();
 } finally {
   deregisterGateRun();
 }

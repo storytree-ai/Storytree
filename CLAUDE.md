@@ -268,6 +268,29 @@ kind owes a seed export any more.
   normally, do NOT restart. Announce-only (→ **RESTART the session**, no mid-build git surgery)
   remains for the un-repairable shapes: a POPULATED husk (half-`git worktree remove` residue) or main
   not on a `claude/*` branch. Doctor: `node packages/cli/worktree-health.mjs --cwd <slot> [--repair]`.
+- **⚠ TEMPORARY (vendor bug, `session-cutting-outage-arc`) — DO NOT let the desktop create the
+  worktree; it hangs and creates NOTHING.** Any desktop session started with "create a fresh worktree"
+  TICKED — and every background-task CHIP, which always requests one — enters
+  `LocalSessions.start`, logs nothing further, and never appears: no session record, no worktree, no
+  `claude.exe`. **This is NOT our repo, our hooks or our tooling** — proved 2026-08-16 against a
+  throwaway one-commit repo with no submodules, no `.claude/`, no history, which hangs identically.
+  Worked on desktop 1.24012.9, broken by 1.26832.0, still broken on 1.30096.5; upstream
+  https://github.com/anthropics/claude-code/issues/86574. **Don't watch a shell that will never
+  start** — the tell is `LocalSessions.start:` in `%APPDATA%\Claude\logs\main.log` with no following
+  `Starting local session`. **Cut sessions this way instead — pre-create the worktree, then point a
+  session at it:**
+
+      git -C C:/code/storytree worktree add .claude/worktrees/<name> -b claude/<name> origin/main
+
+  then EITHER (human) new desktop session → pick that folder → worktree toggle **UNTICKED**; OR
+  (agent, no click, verified end-to-end) hydrate `CLAUDE_CODE_OAUTH_TOKEN` from
+  `~/.storytree/secrets.json`, `cd` to the worktree and `claude --bg "<task>"` — then
+  `claude agents --json` / `claude logs <id>` / `claude stop <id>`. ⚠ A `--bg` cut comes up **Sonnet 5,
+  not Opus** (pass `--model`), its banner reads `Claude API` so the **billing path is UNVERIFIED**
+  (confirm before routine fan-out — the owner meters spend), and a raw `claude` does NOT auto-hydrate
+  the token the way `pnpm storytree …` does. **REMOVE THIS WHOLE BULLET when the upstream bug is
+  fixed** — re-test by ticking the worktree box on a new session; if it starts, delete this and close
+  the arc.
 - Gate: `pnpm -r typecheck` · `pnpm -r test` (the two `-r` legs need no DB or API key; two gate rungs
   DO need the live store — `check:guidance` / `check:agents` read it since ADR-0302 D1, so bring the
   DB up before a full gate)
@@ -279,6 +302,17 @@ kind owes a seed export any more.
   nine evidence-backed ones retained by ADR-0311, plus `check:web-experience-closure`, re-wired by
   ADR-0336 — and prints a per-step **PASS / FAIL / SKIP / NOT RUN** table. (The plan carried
   25 steps before ADR-0302 and ADR-0311 retired sixteen; the plan remains the count's source of truth.)
+  **A step running past two minutes now prints one liveness line a minute (ADR-0376), and it is the
+  only honest answer to "is this wedged or just slow?"** — `PROGRESSING` (its process tree burned CPU,
+  or changed shape), `NO CPU PROGRESS`, or `LIVENESS UNKNOWN`. Read it precisely: elapsed silence
+  proves nothing, because `pnpm -r` buffers a workspace's output until that workspace finishes, so
+  **ten minutes of no output is the NORMAL appearance of a healthy leg** — `PROGRESSING` is what
+  acquits it, and it is the line that removes the old manoeuvre of leaving the tool to read process
+  CPU by hand (which on this shared box is how a session ends up sweeping a sibling's live run).
+  `NO CPU PROGRESS` does **not** mean wedged: a tree burning no CPU is blocked (I/O, a lock, a DB or
+  network wait) or wedged, and the signal says outright that it cannot tell which and has neither
+  stopped nor judged the step. It never changes a verdict, and `STORYTREE_GATE_HEARTBEAT_MS=0` turns
+  it off.
   **Read the table, not the tail** — and read **both** `NOT RUN` and `SKIP` as
   *unverified*, never as passed. They are the same epistemic class and different causes: `NOT RUN`
   means the runner never asked (only under `--fail-fast`, or when a run was interrupted / a step was
