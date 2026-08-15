@@ -276,6 +276,50 @@ the woody read — has **not begun at 50°**. What 50° does spend is stem: a fi
 below the canopy, on top of the quarter already given up between 20° and 45°. At 50° the tree keeps
 60% of its original bark share and 60% of its original clear stem.
 
+### ADR-0293's staging boundary, settled for both candidates BEFORE the pick — and it kills 60°
+
+The first look flagged this as unfinishable here: *"whoever lands a new angle must re-run
+`measure.py` and re-confirm the boundary at that angle"*, i.e. a full 19-frame render per candidate,
+paid twice if the pick moves. **It does not need a render.** ADR-0293's flush is keyed on the reveal
+iteration, not on the camera:
+
+```python
+con = np.clip((N - LEAF_ON) / (LEAF_FULL - LEAF_ON), 0.0, 1.0)   # LEAF_ON = 17
+```
+
+So a frame carries foliage **iff its `N > 17`** — a camera-independent rule. What the camera changes
+is which `N` each frame INDEX lands on, and `sweep_render.py --plan-only` already records `N` per
+frame per angle. The boundary is therefore decidable from the retime table:
+
+| angle | N at frame 06 | N at frame 07 | first leafy frame | ADR-0293 boundary |
+|---:|---:|---:|---:|---|
+| 20° (today) | 16.59 | 17.82 | 7 | holds — this is the signed track |
+| 30° | 16.29 | 17.51 | 7 | holds |
+| 35.26° | 16.29 | 17.82 | 7 | holds |
+| **45°** | **15.68** | **17.20** | **7** | **holds**, with 0.20 of margin at frame 07 |
+| **50°** | **16.29** | **17.82** | **7** | **holds**, with 0.82 — the same margin as today |
+| 60° | 17.20 | 18.13 | **6** | **BREAKS** — frame 06 crosses `LEAF_ON` and leafs early |
+
+**The model is validated against known ground truth rather than trusted:** at 20° it predicts first
+leafy = frame 07, which is exactly what the hero track's README records from the rendered
+`measure.py --monotone` run (*"frames 00–06 contain zero foliage, and frame 07 is the first leafy
+frame at 19 px"*). A derivation that reproduces the measured answer at the one angle where the answer
+is already known is worth more than one that only speaks about angles nobody has rendered.
+
+Two consequences, one for each candidate and one for the option already rejected:
+
+- **Both 45° and 50° preserve the boundary**, so ADR-0293 does not discriminate between them. 50° is
+  the *safer* of the two by margin — frame 07 sits 0.82 above `LEAF_ON`, identical to today's 20°,
+  where 45° sits only 0.20 above it and is the tightest of every angle measured.
+- **60° would have silently broken an owner-picked staging decision**, moving the first leafy frame
+  from 07 to 06. The first look rejected 60° on the tree's silhouette alone and never saw this; it is
+  an independent second reason, and it is the kind of breakage that ships looking fine.
+
+**What this does NOT settle.** `measure.py --monotone` asserts two things — the staging boundary AND
+that silhouette and foliage area never decrease across the track. Only the first is derived here. The
+monotonicity half still wants the full 19-frame run at whichever angle lands, and that obligation
+stands.
+
 ### What this section deliberately does NOT do
 
 **It makes no recommendation, and it does not re-open 35.26°.** The owner declined that angle by
