@@ -135,11 +135,15 @@ visible to the Codex process. The **managed hook** does not: it takes the handsh
 administrator-owned policy under `%ProgramData%` (`claimBrokerHandshake`), which the sandbox cannot
 write (ADR-0375 D5).
 
-ADR-0368 recorded the env-sourced path as a harmless residual, and it was — a forged `ok` only bought
-a worktree whose claim did not exist, and the hook refused every write one layer down. **The hook is
+ADR-0368 recorded the bootstrap's env-sourced path as a harmless residual, and it still is — a forged
+`ok` only buys a worktree whose claim does not exist, and the hook refuses every write one layer down.
+**That holds only while the hook's own read cannot be redirected the same way, and the hook is now
 that layer.** If the hook took its path from the environment, a compromised sandbox could point it at
-a broker of its own and hand itself a forged work claim, opening the fence completely. So if you move
-the handshake, the env var moves the bootstrap and **re-installing the boundary** moves the hook.
+a broker of its own, hand itself a forged work claim, and open the fence completely.
+
+Practical consequence: if you move the handshake, the **env var** moves the bootstrap and
+**re-installing the boundary** moves the hook. They are two separate acts, and doing only the first
+leaves the hook looking for an authority that is no longer there — which fails closed, loudly.
 
 ## What crosses the wall
 

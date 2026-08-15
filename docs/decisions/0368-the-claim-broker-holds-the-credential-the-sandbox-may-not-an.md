@@ -47,9 +47,12 @@ Two further forces shaped the answer:
 
 **D1. The broker is a resident process running as the OPERATOR, which Codex sends a message to.
 Codex starts nothing.** This single property is the whole repair, and it is the easy one to rebuild by
-accident: a broker the writer launches is the actuator again wearing a new name. Implemented as
-`packages/cli/src/codex-claim-broker-entry.ts`, started by hand or by a logon task — never by the
-sandbox, and never on demand.
+accident: a broker the writer launches is the actuator again wearing a new name. (The rule was never
+"the broker is a standalone process" — it is that Codex must never LAUNCH the broker. The storytree
+desktop app is now the ordinary resident holder, started and stopped with the app itself;
+`packages/cli/src/codex-claim-broker-entry.ts` — started by hand or by a logon task — is retained as a
+headless fallback for a host with no desktop app. Never by the sandbox, and never on demand, either
+way. ADR-0375 D1.)
 
 **D2. Results cross the wall; credentials do not.** The broker performs the ledger write itself and
 answers `ok`, or a refusal naming the holder. Nothing secret crosses, so a prompt-injected or confused
@@ -130,13 +133,22 @@ at all. The profile remains a BLOCKLIST — broad read minus an enumerated list 
 appearing in a new location tomorrow is still readable by default; this decision does not fix that, it
 removes the reason anyone would need it.
 
-**One residual, stated rather than left to be discovered.** The handshake path is resolved from the
-environment (`STORYTREE_CODEX_BROKER_HANDSHAKE`, else a shared default), so a compromised sandbox
-could point the bootstrap at a handshake of its own and be answered by a broker it controls. What that
-buys is nothing: a forged `ok` yields a worktree whose claim does not exist in the real ledger, and the
-managed hook re-probes the LIVE claim on every tool call and refuses every write. It fails closed one
-layer down. Moving the path into the administrator-owned actuator config would close it at this layer
-too, and is the obvious hardening if the live smoke gives any reason to want it.
+**One residual, stated rather than left to be discovered. It STANDS, and it is still harmless — but
+only because of a decision taken later.** The BOOTSTRAP's handshake path is resolved from the
+environment (`STORYTREE_CODEX_BROKER_HANDSHAKE`, else a shared default —
+`codex-worktree-create-entry.ts`), so a compromised sandbox can point the bootstrap at a handshake of
+its own and be answered by a broker it controls. What that buys is nothing: a forged `ok` yields a
+worktree whose claim does not exist in the real ledger, and the managed hook re-reads the LIVE claim
+on every tool call and refuses every write. It fails closed one layer down.
+
+**That argument depends entirely on the hook's own read NOT being redirectable the same way**, which
+was free here (the hook reached a probe named by the administrator-owned policy) and stopped being
+free when ADR-0375 moved the hook's read to this same broker. Had the hook taken its handshake path
+from the environment too, the layer this residual falls through to would have been redirectable by
+the sandbox, and a forged `ok` would have opened the fence completely instead. ADR-0375 D5 is what
+kept that from happening: the hook takes `claimBrokerHandshake` from the policy under `%ProgramData%`,
+never from the environment. The residual named here is unchanged; the reason it is survivable is now
+a decision someone had to make on purpose, not an accident of the mechanism.
 
 **What this does NOT deliver.** `codex-bootstrap-dials-the-broker` landed in this same change:
 `codex-worktree-create-entry.ts` now dials the broker instead of calling `loadLocalSecrets()` /

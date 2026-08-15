@@ -114,14 +114,21 @@ misleading "no live work claim exists for this session".
 **D5. The hook takes the broker's handshake path from the ADMINISTRATOR-OWNED POLICY, not from the
 environment.** The policy field `claimBrokerHandshake` replaces `claimProbeCommand`.
 
-ADR-0368 recorded as a residual that the handshake path is resolved from the environment, and judged
-it harmless *there* because a forged `ok` only yields a worktree whose claim does not exist, which
-the hook then refuses on every write — it failed closed one layer down. **That argument does not
-survive this change**, because the hook IS that layer now. A sandbox that could point the hook at a
-broker it controls could hand itself a forged work claim and open the fence completely. The policy
-lives under `%ProgramData%` and is written by the administrator-owned actuator, which the sandbox
-cannot write. This closes at this layer the hardening ADR-0368 named as obvious if the live smoke
-gave any reason to want it. It did.
+ADR-0368 recorded as a residual that the BOOTSTRAP's handshake path is resolved from the environment,
+and judged it harmless because a forged `ok` only yields a worktree whose claim does not exist, which
+the hook then refuses on every write — it fails closed one layer down. **That residual is unchanged
+and still harmless, and this decision is the reason it stays that way.** It was safe only because the
+hook's own read was NOT redirectable by the sandbox: the hook reached a probe named by the
+administrator-owned policy. Moving the hook's read onto the same broker is exactly the change that
+could have destroyed that property, because the hook IS the layer the bootstrap's residual falls
+through to. A hook taking its handshake path from the environment could be pointed at a broker the
+sandbox controls, handed a forged work claim, and the fence would open completely.
+
+So the hook takes `claimBrokerHandshake` from the policy under `%ProgramData%`, written by the
+administrator-owned actuator, which the sandbox cannot write. Note what this does and does not do:
+it closes the path for the HOOK, and it leaves the bootstrap reading the environment exactly as
+ADR-0368 described. Moving the bootstrap's path into the actuator config as well remains the open
+hardening ADR-0368 named — it is not done here, and it is not needed for the fence to hold.
 
 **D6. The broker moves to `@storytree/notice-board` behind a `./codex-broker` subpath.** Not a
 preference: `apps/desktop` may not import `@storytree/cli` (ADR-0112), and the broker's old home was
