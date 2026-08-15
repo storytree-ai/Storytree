@@ -61,7 +61,9 @@ window.
 **D2. The managed hook is the effective fence.** It refuses any worktree the session does not hold a
 live claim on. This is the authority ADR-0355 intended; it is now the one that actually decides,
 rather than the second of two agreeing checks. It continues to fail closed on a missing, slow,
-non-zero or malformed claim probe.
+unreachable or malformed claim read. (The read mechanism itself later moved — from a spawned
+standalone probe process to a resident broker call, ADR-0375 D1/D3/D4 — but the fail-closed property
+this decision states is unchanged either way.)
 
 **D3. The lobby stays read-only.** Unchanged, and not in scope. It is the wall that matters.
 

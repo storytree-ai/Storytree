@@ -15,57 +15,43 @@ import process from "node:process";
 
 import type { ClaimDocT, ClaimResult } from "@storytree/notice-board";
 import { claimGrade, liveClaims } from "@storytree/notice-board";
+// Codex session TOPOLOGY moved to @storytree/notice-board/codex-broker (ADR-0375): apps/desktop may
+// not import @storytree/cli (ADR-0112), but the broker's `promote` verb needs exactly this Git
+// resolution, and @storytree/notice-board already owns the claim ledger it promotes into. Imported
+// and re-exported here so this module's existing consumers (codex-session-containment.test.ts,
+// commands.ts) are unaffected by the move.
+import {
+  brokerHandshakePath,
+  CODEX_WORKTREES_SEGMENTS,
+  codexWorktreesRoot,
+  insidePath,
+  resolveCodexSessionTopology,
+  samePath,
+  type CodexGitProbe,
+  type CodexLobbyTopology,
+  type CodexSessionTopology,
+  type CodexWorktreeTopology,
+  type TopologyResult,
+} from "@storytree/notice-board/codex-broker";
 
 import type { Envelope } from "./envelope.js";
-import { buildManagedCodexLiveClaimProbe } from "./codex-live-claim-probe-bundle.js";
 import { buildManagedCodexWorktreeCreate } from "./codex-worktree-create-bundle.js";
+
+export {
+  CODEX_WORKTREES_SEGMENTS,
+  codexWorktreesRoot,
+  resolveCodexSessionTopology,
+  type CodexGitProbe,
+  type CodexLobbyTopology,
+  type CodexSessionTopology,
+  type CodexWorktreeTopology,
+  type TopologyResult,
+};
 
 export const MIN_CODEX_PERMISSION_PROFILE_VERSION = "0.138.0";
 export const CODEX_WRITER_PROFILE = "storytree_codex_current";
 export const CODEX_PHASE_AUTHOR_PROFILE = "storytree_codex_phase_author";
 export const CODEX_LOBBY_PROFILE = "storytree_codex_lobby";
-
-/**
- * Where repository-minted worktrees live, relative to the primary checkout. ADR-0364 D1 grants this
- * whole area once instead of naming one worktree per launch, so the path has to be derivable without
- * a session — it is, because the primary checkout is the one thing a standing profile may pin.
- */
-export const CODEX_WORKTREES_SEGMENTS: readonly string[] = [".claude", "worktrees"];
-
-export function codexWorktreesRoot(primaryCheckout: string): string {
-  return path.join(primaryCheckout, ...CODEX_WORKTREES_SEGMENTS);
-}
-
-export interface CodexGitProbe {
-  readonly topLevel: string;
-  readonly gitDir: string;
-  readonly commonDir: string;
-  readonly branch: string;
-  readonly worktreeList: string;
-}
-
-interface TopologyBase {
-  readonly ok: true;
-  readonly primaryCheckout: string;
-  readonly registeredWorktrees: readonly string[];
-}
-
-export interface CodexLobbyTopology extends TopologyBase {
-  readonly location: "lobby";
-}
-
-export interface CodexWorktreeTopology extends TopologyBase {
-  readonly location: "worktree";
-  readonly currentWorktree: string;
-  readonly siblingWorktrees: readonly string[];
-  readonly sessionId: string;
-  readonly branch: string;
-  readonly gitDir: string;
-  readonly commonDir: string;
-}
-
-export type CodexSessionTopology = CodexLobbyTopology | CodexWorktreeTopology;
-export type TopologyResult = CodexSessionTopology | { readonly ok: false; readonly reason: string };
 
 export interface CodexWriterAuthority extends CodexWorktreeTopology {
   readonly liveClaimIds: readonly string[];
@@ -88,13 +74,17 @@ export interface CodexContainmentBundle {
   readonly managedDir: string;
   readonly policyPath: string;
   readonly hookScriptPath: string;
-  readonly claimProbeScriptPath: string;
   readonly worktreeCreateScriptPath: string;
   readonly trustedActuatorScriptPath: string;
+  /**
+   * Where the hook expects the resident claim authority's handshake (ADR-0375 D5). Carried in the
+   * POLICY rather than read from the environment, because the hook is the only fence ADR-0364 leaves
+   * standing and a redirectable path would let a sandbox be answered by a broker it controls.
+   */
+  readonly claimBrokerHandshake: string;
   readonly requirementsToml: string;
   readonly sessionPolicyJson: string;
   readonly managedHookScript: string;
-  readonly managedClaimProbeScript: string;
   readonly managedWorktreeCreateScript: string;
   readonly trustedActuatorScript: string;
   readonly operatorReadme: string;
@@ -113,8 +103,13 @@ export interface BuildBundleArgs {
   readonly managedNodePath: string;
   /** Absolute administrator-owned Git command (executable first, fixed prefix arguments after). */
   readonly gitCommand?: readonly string[];
-  /** Absolute trusted probe which re-reads live claims and returns `{claims:[...]}` on every call. */
-  readonly claimProbeCommand?: readonly string[];
+  /**
+   * Absolute path to the resident claim authority's handshake file. Defaults to the same location
+   * the broker publishes to (`%LOCALAPPDATA%\Storytree\codex-broker\handshake.json`). The hook reads
+   * live claims through that authority and takes this path from the installed POLICY, never from the
+   * environment (ADR-0375 D5).
+   */
+  readonly claimBrokerHandshake?: string;
   /** Optional administrator-owned, hash-pinned native Codex executable under the managed directory. */
   readonly codexPayload?: Readonly<{ path: string; sha256: string }>;
   /** Optional administrator-owned, hash-pinned managed Node executable for the generated creator. */
@@ -382,99 +377,10 @@ function comparable(value: string): string {
   const slashed = path.resolve(value).replaceAll("\\", "/").replace(/\/+$/, "");
   return process.platform === "win32" ? slashed.toLowerCase() : slashed;
 }
-
-function samePath(left: string, right: string): boolean {
-  return comparable(left) === comparable(right);
-}
-
-function insidePath(root: string, candidate: string): boolean {
-  const base = comparable(root);
-  const target = comparable(candidate);
-  return target === base || target.startsWith(`${base}/`);
-}
-
-function parseRegisteredWorktrees(porcelain: string): string[] {
-  return porcelain
-    .replaceAll("\r\n", "\n")
-    .split("\n")
-    .filter((line) => line.startsWith("worktree "))
-    .map((line) => line.slice("worktree ".length).trim())
-    .filter((line) => line.length > 0);
-}
-
-function sessionIdFor(topLevel: string, gitDir: string): string {
-  const claude = /[/\\]\.claude[/\\]worktrees[/\\]([^/\\]+)\s*$/.exec(topLevel);
-  if (claude?.[1]) return claude[1];
-  return path.basename(gitDir.replace(/[/\\]+$/, ""));
-}
-
-/**
- * Resolve the current checkout only from Git's own topology and registry. No caller-supplied root,
- * session id, or sibling allowlist participates in the answer.
- */
-export function resolveCodexSessionTopology(
-  probe: CodexGitProbe,
-  io: { canonicalize: (target: string) => string },
-): TopologyResult {
-  try {
-    const topLevel = io.canonicalize(probe.topLevel);
-    const gitDir = io.canonicalize(probe.gitDir);
-    const commonDir = io.canonicalize(probe.commonDir);
-    const primaryCheckout = io.canonicalize(path.dirname(probe.commonDir));
-    const registeredWorktrees = parseRegisteredWorktrees(probe.worktreeList).map(io.canonicalize);
-    const registrations = registeredWorktrees.filter((root) => samePath(root, topLevel));
-    if (registrations.length !== 1) {
-      return {
-        ok: false,
-        reason:
-          `current checkout resolves to ${topLevel}, but Git reports ${registrations.length} ` +
-          "matching registrations — it is not exactly one registered worktree",
-      };
-    }
-
-    if (samePath(gitDir, commonDir)) {
-      if (!samePath(topLevel, primaryCheckout)) {
-        return {
-          ok: false,
-          reason: "Git reports a primary checkout whose top-level disagrees with its common directory",
-        };
-      }
-      return {
-        ok: true,
-        location: "lobby",
-        primaryCheckout,
-        registeredWorktrees,
-      };
-    }
-
-    if (probe.branch.trim().length === 0 || probe.branch.trim() === "HEAD") {
-      return { ok: false, reason: "the registered worktree is detached or has no current branch" };
-    }
-    const sessionId = sessionIdFor(topLevel, gitDir);
-    if (sessionId.length === 0) {
-      return { ok: false, reason: "Git topology produced no repository-minted session identity" };
-    }
-    return {
-      ok: true,
-      location: "worktree",
-      primaryCheckout,
-      registeredWorktrees,
-      currentWorktree: topLevel,
-      siblingWorktrees: registeredWorktrees.filter(
-        (root) => !samePath(root, topLevel) && !samePath(root, primaryCheckout),
-      ),
-      sessionId,
-      branch: probe.branch.trim(),
-      gitDir,
-      commonDir,
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      reason: `could not canonicalise the current Git topology: ${String(error)}`,
-    };
-  }
-}
+// samePath / insidePath / parseRegisteredWorktrees / sessionIdFor / resolveCodexSessionTopology
+// moved to @storytree/notice-board/codex-broker (topology.ts) — see the import block near the top
+// of this file. `comparable` above stays here: it is also used below by `credentialRoots` and by
+// the interactive-tool-use path check, neither of which moved.
 
 export function parseCodexVersion(raw: string): ParsedCodexVersion | null {
   const match = /(?:^|\s)(\d+)\.(\d+)\.(\d+)(?:\s|$)/.exec(raw.trim());
@@ -938,17 +844,64 @@ async function readStdin() {
   return text;
 }
 
-function readLiveClaims(policy, observed, event) {
-  const probe = command(policy.claimProbeCommand, "claimProbeCommand");
-  const request = JSON.stringify({
-    protocolVersion: 1,
-    readMode: "live-claims-required",
-    sessionId: observed.sessionId,
-    observedTopology: observed,
-    event,
-  });
-  const parsed = JSON.parse(run(probe, [], request));
-  if (!parsed || !Array.isArray(parsed.claims)) throw new Error("live claim probe returned malformed JSON");
+// ADR-0375: the live claims are read through the RESIDENT claim authority (the storytree desktop
+// app), which holds a warm pool, instead of by spawning a probe that built a Cloud SQL connector per
+// invocation — measured at 18,976 ms and 48,192 ms against this hook's 30 s budget, so the SAME
+// legitimate write was refused on one run and admitted on the next.
+//
+// The handshake path comes from the POLICY, never from the environment (ADR-0375 D5). ADR-0368
+// recorded the env-sourced path as a harmless residual because a forged answer only bought a worktree
+// whose claim the hook would then refuse on every write — it failed closed one layer down. THIS IS
+// THAT LAYER. A sandbox that could point the hook at a broker it controls could hand itself a forged
+// work claim and open the fence completely, so the path must come from the administrator-owned policy
+// under %ProgramData%, which the sandbox cannot write.
+//
+// EVERY failure here THROWS, and that is the single most dangerous line in this file to get wrong.
+// An unreachable authority must be a REFUSAL, never an empty list: the caller reads an empty list as
+// "no live work claim" and denies, so an empty array still fails closed — but any future edit that
+// catches a fault and returns an empty array, or that adds a fallback admitting the write when the
+// read fails, removes the only fence ADR-0364 leaves standing, and nothing downstream would notice.
+// The write would simply be admitted. Refuse; never invent an answer.
+async function readLiveClaims(policy, observed) {
+  const handshakePath = policy.claimBrokerHandshake;
+  if (typeof handshakePath !== "string" || !path.isAbsolute(handshakePath)) {
+    throw new Error("claimBrokerHandshake is not an absolute administrator-owned path");
+  }
+  let handshake;
+  try {
+    handshake = JSON.parse(readFileSync(handshakePath, "utf8"));
+  } catch (error) {
+    throw new Error(
+      "the resident claim authority is not reachable — no handshake at " + handshakePath +
+        " (is the storytree desktop app running?): " + (error && error.message ? error.message : String(error)),
+    );
+  }
+  if (handshake === null || typeof handshake !== "object" || handshake.protocolVersion !== 1 ||
+      !Number.isInteger(handshake.port) || handshake.port <= 0 || typeof handshake.token !== "string" ||
+      handshake.token.length === 0) {
+    throw new Error("the resident claim authority published an unreadable handshake at " + handshakePath);
+  }
+  let response;
+  try {
+    response = await fetch("http://127.0.0.1:" + handshake.port + "/claim", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-storytree-codex-broker-token": handshake.token },
+      body: JSON.stringify({ protocolVersion: 1, verb: "claims", sessionId: observed.sessionId }),
+      signal: AbortSignal.timeout(5000),
+    });
+  } catch (error) {
+    throw new Error(
+      "the resident claim authority is not reachable on 127.0.0.1:" + handshake.port +
+        " (is the storytree desktop app running?): " + (error && error.message ? error.message : String(error)),
+    );
+  }
+  const parsed = await response.json();
+  if (!parsed || parsed.ok !== true || parsed.verb !== "claims" || !Array.isArray(parsed.claims)) {
+    throw new Error(
+      "the resident claim authority refused the live claim read: " +
+        (parsed && parsed.reason ? parsed.reason : "unreadable answer (HTTP " + response.status + ")"),
+    );
+  }
   return parsed.claims;
 }
 
@@ -1082,7 +1035,7 @@ try {
   // topology rather than from a mode chosen when the file was installed (ADR-0364 D1/D3). A process
   // in the lobby gets the read-only decision; a process in a worktree must produce a live claim.
   const inWorktree = observed.location === "worktree";
-  const claims = inWorktree ? readLiveClaims(policy, observed, event) : [];
+  const claims = inWorktree ? await readLiveClaims(policy, observed) : [];
   const decision = inWorktree ? decideWriter(policy, observed, claims, event) : decideLobby(event);
   emitDecision(expectedEvent, decision);
 } catch (error) {
@@ -1193,7 +1146,10 @@ function Write-Atomic([string] $Target, [string] $Content) {
 }
 function Install-Policy($Policy) {
   Write-Atomic ([string]$Config.hookScriptPath) (Decode ([string]$Config.hookScript))
-  Write-Atomic ([string]$Config.claimProbeScriptPath) (Decode ([string]$Config.claimProbeScript))
+  # No live-claim probe script any more (ADR-0375 D8): the hook reads live claims through the RESIDENT
+  # claim authority over loopback, so there is exactly one live-claim reader instead of two credential
+  # paths. Leaving the probe installed would keep a pinned, credentialed executable on disk claiming to
+  # be the fence's reader when the fence no longer consults it.
   Write-Atomic ([string]$Config.worktreeCreateScriptPath) (Decode ([string]$Config.worktreeCreateScript))
   Write-Atomic ([string]$Policy.policyPath) (Decode ([string]$Policy.policyJson))
   # Requirements move last: Codex can never observe a profile before its exact hook/policy exists.
@@ -1367,17 +1323,24 @@ export function buildCodexContainmentBundle(
     "gitCommand",
   );
   if ("ok" in gitCommand) return gitCommand;
-  const claimProbeScriptPath = path.join(args.managedDir, "storytree-codex-live-claim-probe.mjs");
   const worktreeCreateScriptPath = path.join(
     args.managedDir,
     "storytree-codex-worktree-create.mjs",
   );
-  const claimProbeCommand = exactManagedCommand(
-    args.claimProbeCommand,
-    [args.managedNodePath, claimProbeScriptPath],
-    "claimProbeCommand",
-  );
-  if ("ok" in claimProbeCommand) return claimProbeCommand;
+  // ADR-0375 D5: the hook reads live claims through the resident authority, and takes the handshake
+  // path from THIS policy rather than from the environment. That is not tidiness — the hook is the
+  // only fence ADR-0364 leaves standing, so a sandbox that could redirect this path could be answered
+  // by a broker it controls and hand itself a forged work claim. The policy lives under the
+  // administrator-owned managed root, which the sandbox cannot write.
+  const claimBrokerHandshake = args.claimBrokerHandshake ?? brokerHandshakePath(process.env);
+  if (!path.isAbsolute(claimBrokerHandshake)) {
+    return {
+      ok: false,
+      reason:
+        "claimBrokerHandshake must be an absolute path — the managed hook reads the resident claim " +
+        "authority's handshake from the policy, never from the environment (ADR-0375 D5)",
+    };
+  }
   const codexPayload = managedPayload(args.codexPayload, args.managedDir, "codexPayload");
   if (codexPayload !== null && "ok" in codexPayload) return codexPayload;
   // The hook interpreter is taken from the RUNNING Node, so generating from an ordinary shell bakes
@@ -1426,12 +1389,12 @@ export function buildCodexContainmentBundle(
   );
   const requirementsPath = path.join(path.dirname(args.managedDir), "requirements.toml");
   const policy = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     mode: "standing",
     primaryCheckout: args.authority.primaryCheckout,
     worktreesRoot,
     gitCommand,
-    claimProbeCommand,
+    claimBrokerHandshake,
     note:
       "Standing grant (ADR-0364). This file carries NO worktree, branch, or session identity: which " +
       "worktree a process may write in is decided by the live claim, re-read by the managed hook on " +
@@ -1448,7 +1411,6 @@ export function buildCodexContainmentBundle(
   // expectation and it never carries a session. `bootstrap` mints a worktree there; `install` writes
   // the standing policy there. Neither hosts a Codex session, so neither needs to know about one.
   const expected = { location: "lobby", primaryCheckout: args.authority.primaryCheckout };
-  const managedClaimProbeScript = buildManagedCodexLiveClaimProbe();
   const managedWorktreeCreateScript = buildManagedCodexWorktreeCreate();
   const worktreeCreatePayload =
     worktreeCreateExecutable === null
@@ -1463,22 +1425,20 @@ export function buildCodexContainmentBundle(
           ],
         };
   const trustedActuatorConfig = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     managedDir: args.managedDir,
     nodePath: args.managedNodePath,
     requirementsPath,
     hookScriptPath,
-    claimProbeScriptPath,
     worktreeCreateScriptPath,
     trustedActuatorScriptPath,
     gitCommand,
-    claimProbeCommand,
+    claimBrokerHandshake,
     credentialAclPaths: credentialAclPaths(),
     codexPayload,
     worktreeCreatePayload,
     toolchainPayload: toolchainExecutable,
     hookScript: base64(MANAGED_CODEX_HOOK_SCRIPT),
-    claimProbeScript: base64(managedClaimProbeScript),
     worktreeCreateScript: base64(managedWorktreeCreateScript),
     activeProfile: CODEX_WRITER_PROFILE,
     expected,
@@ -1510,9 +1470,14 @@ export function buildCodexContainmentBundle(
     "\":read-only\" and its only write grant is the worktrees area, which the lobby's own files are not",
     "inside; the lobby profile stays declared so the wall is an explicit statement, not an inference.",
     "",
-    "The generated hook reads claims through the standalone live-claim probe installed beside it. Its",
-    "keyless impersonated identity is a SELECT-only database principal; missing source ADC,",
-    "impersonation authority, or transport fails closed.",
+    "The generated hook reads claims through the RESIDENT CLAIM AUTHORITY over loopback (ADR-0375) —",
+    "in practice, the storytree desktop app, which holds a warm pool. START IT, or every covered write",
+    "is refused: the hook takes the authority's handshake from the policy field below and fails closed",
+    "if it cannot be reached, saying so in those words rather than 'no live work claim'.",
+    `  claim authority handshake: ${claimBrokerHandshake}`,
+    "The per-call standalone probe it replaced built a Cloud SQL connector on EVERY tool call — measured",
+    "at 18,976 ms and 48,192 ms against a 30 s budget, so the same legitimate write was refused on one",
+    "run and admitted on the next. That probe is deleted; there is exactly one live-claim reader now.",
     "Native Windows shell reads do not honor profile deny_read rules. The trusted actuator therefore",
     "refreshes the Codex sandbox account and places explicit filesystem DACL denies over ADC,",
     "Storytree secrets, and Codex subscription auth. Those are machine state, applied once at install.",
@@ -1583,13 +1548,12 @@ export function buildCodexContainmentBundle(
     managedDir: args.managedDir,
     policyPath,
     hookScriptPath,
-    claimProbeScriptPath,
     worktreeCreateScriptPath,
     trustedActuatorScriptPath,
+    claimBrokerHandshake,
     requirementsToml,
     sessionPolicyJson: `${JSON.stringify(policy, null, 2)}\n`,
     managedHookScript: MANAGED_CODEX_HOOK_SCRIPT,
-    managedClaimProbeScript,
     managedWorktreeCreateScript,
     trustedActuatorScript,
     operatorReadme,
@@ -2024,7 +1988,7 @@ export async function codexSessionContainmentCommand(
       "",
       `requirements.toml: ${bundle.requirementsPath}`,
       `managed hook:      ${bundle.hookScriptPath} (installed separately by device management)`,
-      `live claim probe:  ${bundle.claimProbeScriptPath} (installed separately by device management)`,
+      `claim authority:   ${bundle.claimBrokerHandshake} (the RESIDENT broker's handshake — run the storytree desktop app)`,
       `worktree creator:  ${bundle.worktreeCreateScriptPath} (installed separately by device management)`,
       `trusted actuator:  ${bundle.trustedActuatorScriptPath} (installed separately by device management)`,
       `session policy:    ${bundle.policyPath}`,
@@ -2047,8 +2011,6 @@ export async function codexSessionContainmentCommand(
       bundle.sessionPolicyJson.trimEnd(),
       "--- storytree-codex-containment-hook.mjs ---",
       bundle.managedHookScript.trimEnd(),
-      "--- storytree-codex-live-claim-probe.mjs ---",
-      bundle.managedClaimProbeScript.trimEnd(),
       "--- storytree-codex-worktree-create.mjs ---",
       bundle.managedWorktreeCreateScript.trimEnd(),
       "--- storytree-codex-trusted-actuator.ps1 ---",

@@ -7,7 +7,9 @@
   "exports": {
     ".": "./src/index.ts",
     "./store": "./src/store/index.ts",
-    "./store/claim-store": "./src/store/claim-store.ts"
+    "./store/claim-store": "./src/store/claim-store.ts",
+    "./codex-broker": "./src/codex-broker/index.ts",
+    "./codex-broker/resident": "./src/codex-broker/resident.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

@@ -297,6 +297,10 @@
       "packages/notice-board/src/store": "presence-store",
       "packages/notice-board/src/claim*.ts": "claim-at-declare",
       "packages/notice-board/src/index.ts": "notice-board",
+      "$note_codex_broker": "The Codex claim broker (ADR-0368) and the resident claim authority the desktop app hosts (ADR-0375). It lives HERE rather than in packages/cli because apps/desktop may not import @storytree/cli (ADR-0112) and the broker is claim machinery notice-board already owns. Owner is an INCREMENT, not a capability, because this surface is bound to no capability in stories/** — ADR-0308 D5's case, and the same grain the work was claimed at.",
+      "packages/notice-board/src/codex-broker": "codex-desktop-app-holds-the-claim-authority",
+      "packages/cli/src/codex-claim-broker-resident.ts": "codex-desktop-app-holds-the-claim-authority",
+      "apps/desktop/src/backend/claim-authority.ts": "codex-desktop-app-holds-the-claim-authority",
       "packages/studio-members/src": "user-directory",
 
       "$section_studio_server": "apps/studio/server — the shared API route table. Owned largely by studio-cloud, library-review and studio-members capabilities rather than by the `studio` surface story.",
