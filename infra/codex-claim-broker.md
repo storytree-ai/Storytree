@@ -26,10 +26,57 @@ impersonate nothing and no broker starts. Hosting the broker in a GUI app does n
 ## Who holds it
 
 **The storytree desktop app (ADR-0375 D1).** It starts the broker at launch and stops it at shutdown.
-Start the app and the authority is up; there is no separate thing to remember.
+
+> ⚠ **But hosting is OPT-IN, and off by default (ADR-0375 D9).** Starting the app is *not* enough.
+> Without `STORYTREE_CODEX_CLAIM_AUTHORITY=1` the backend opens no pool and logs
+> `Codex claim authority: not hosting the Codex claim authority — set STORYTREE_CODEX_CLAIM_AUTHORITY=1
+> to enable it`, and every covered Codex write is then refused. The default is off on purpose: an
+> ordinary member holds no impersonation grant on the claim-writer account, so an unconditional
+> attempt would log a credential error on every launch for everyone not running the Codex factory.
 
 `packages/cli/src/codex-claim-broker-entry.ts` remains as a **headless fallback** for a host with no
 desktop app. It is no longer the ordinary holder.
+
+### Starting the desktop host
+
+```powershell
+$env:STORYTREE_CODEX_CLAIM_AUTHORITY = '1'
+pnpm --filter desktop start
+```
+
+**First check what code the app will actually run.** Under ADR-0181 the Electron shell is built from
+the checkout you launch in, but the studio bundle and the *backend sidecar* — which is what hosts the
+authority — are served from the **pinned runtime worktree** named in `~/.storytree/desktop.runtime.json`.
+A runtime worktree behind `origin/main` serves a sidecar with no claim authority in it at all, and the
+only symptom is silence: no success block, no refusal line, because the code that would log either is
+not there. Advance it first (or use the app's in-app *Rebuild & relaunch*, which does the same):
+
+```powershell
+git -C C:\code\storytree-runtime fetch origin
+git -C C:\code\storytree-runtime merge --ff-only origin/main
+pnpm -C C:\code\storytree-runtime install
+```
+
+On success both the resident block and the backend's own one-liner go to **stderr**:
+
+```
+storytree codex claim broker listening on 127.0.0.1:<port>
+  identity:   storytree-codex-claim-writer@storytree-498613.iam
+  repository: C:\code\storytree
+  handshake:  C:\Users\<you>\AppData\Local\Storytree\codex-broker\handshake.json
+```
+
+Read the `repository:` line: it must name the **primary checkout**, never a worktree. If the console
+shows nothing, capture it — an Electron GUI process does not always deliver stderr to the console
+that launched it:
+
+```powershell
+pnpm --filter desktop start 2>&1 | Tee-Object -FilePath $env:TEMP\desktop-launch.log
+```
+
+A failure to host is **never** a desktop outage (ADR-0375 D9): the app still launches and the backend
+logs `Codex claim authority NOT started (the Codex fence will refuse every covered write until it is
+up): …` with the cause. That is a Codex lifecycle outage only, and the fence fails closed on its own.
 
 > ⚠ **Never run both at once.** They race for the same handshake file and the same default directory.
 > The loser publishes a port the winner is not listening on, and every caller then fails closed
@@ -49,7 +96,8 @@ app.
 
 A logon task named `Storytree Codex Claim Broker` was registered on the dev host on 2026-08-15, back
 when the standalone entry was the holder. It is now a **second** broker racing the desktop app for
-the same handshake. Remove it:
+the same handshake. **On this dev host it was unregistered on 2026-08-16 and verified absent**; the
+step stays here for any other host that registered one. Remove it:
 
 ```powershell
 Unregister-ScheduledTask -TaskName 'Storytree Codex Claim Broker' -Confirm:$false

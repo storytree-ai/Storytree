@@ -284,8 +284,12 @@ they are applied once at `install` rather than around each session — the actua
 model turn to apply them before. The live
 attestation confirmed those files, application-default credentials, the claim-reader's cloud token
 path, and outbound OAuth access all fail from the sandbox while the outer operator remains logged in.
-The claim hook reaches the live ledger only through a dedicated keyless impersonated service account
-whose database role can `SELECT` `events.node_claim` and cannot insert, update, or delete it.
+At the time of that attestation the claim hook reached the live ledger through a dedicated keyless
+impersonated service account whose database role could only `SELECT` `events.node_claim`. **That is
+attestation history, not current state — ADR-0375 D8 deleted the standalone reader**, and the hook now
+asks the resident claim authority over loopback for the answer, so there is one live-claim reader
+rather than two credential paths. The narrow-credential property is unchanged in kind; it moved to
+the writer identity the resident authority holds (ADR-0375 D2).
 
 ## References
 
@@ -296,7 +300,9 @@ whose database role can `SELECT` `events.node_claim` and cannot insert, update, 
 - `packages/cli/src/worktree-create.ts` — the claim-before-workspace ceremony the launcher admits.
 - `packages/cli/src/codex-session-containment.ts` — the managed requirements, hooks, session policy,
   and trusted-actuator generator.
-- `packages/cli/src/codex-live-claim-probe-entry.ts` — the standalone keyless live-claim reader.
+- `packages/cli/src/codex-live-claim-probe-entry.ts` — the standalone keyless live-claim reader this
+  ADR's attestation used; DELETED by ADR-0375 D8, which moved the hook's claim read onto the resident
+  claim authority instead (see the "Delivery status" and "Consequences" corrections above).
 - `packages/cli/src/codex-worktree-create-entry.ts` — the standalone, exact-argument lobby bootstrap
   over the claim-before-workspace ceremony.
 - `packages/agent/src/codex-author.ts` — the factory phase author selects the managed replica-only

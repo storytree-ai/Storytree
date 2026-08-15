@@ -534,6 +534,12 @@ test("the standing policy carries the resident authority's handshake, not a prob
   assert.doesNotMatch(bundle.trustedActuatorScript, /claimProbeScript/);
   assert.doesNotMatch(bundle.operatorReadme, /live-claim probe/i);
 
+  // …and because `install` writes only what it owns, a re-install OVER a pre-ADR-0375 set leaves the
+  // old probe on disk. That is the exact residue D8 exists to prevent, so the readme must name the
+  // file and say to delete it — otherwise the operator's only signal is its absence from a list.
+  assert.match(bundle.operatorReadme, /storytree-codex-live-claim-probe\.mjs/);
+  assert.match(bundle.operatorReadme, /RE-INSTALLING OVER A PRE-ADR-0375 SET/);
+
   const relative = buildCodexContainmentBundle({
     authority,
     codexVersion: "codex-cli 0.145.0",
