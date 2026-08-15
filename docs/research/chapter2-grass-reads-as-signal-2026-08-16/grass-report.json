@@ -1,0 +1,689 @@
+{
+ "question": "does ADR-0226's DECIDED vegetation vocabulary read as SIGNAL rather than noise at delivered pixel scale, and what makes it so",
+ "occasion": "the owner looked at the island-place-dressing pass and said the grass 'looks rather ugly', and proposed a basic/flat base with the grass left to carry test density. The SECOND half of that is already DECIDED \u2014 ADR-0226 D2/D3/D4 \u2014 so this pass re-decides nothing and measures the LOOK plus the BASE.",
+ "camera": {
+  "elevationDeg": 50.0,
+  "appLandCameraElevationDeg": 20.0,
+  "note": "the app-side constant is NOT touched by this pass"
+ },
+ "codeState": {
+  "generators": {
+   "blender_grass.py": "3eb5515a738b652f260e895e81c90680c42b20061329bd09f15fa3d5fc9cb5e6",
+   "blender_land.py": "15927bf56c77cd23bc4d41a7353a5890450aeabca02013a08051beb52613b007"
+  },
+  "sha256": "66df58a8729d6a9d26c1d242541e4a091433eb1e6b0ae879e5ea6c96f7a7b2c9",
+  "rule": "one code state PER GENERATOR; the composite's identity is the digest of the whole {generator: state} map, so any generator moving moves it"
+ },
+ "landPx": 34968,
+ "normalSweep": [
+  {
+   "normalMix": 0.0,
+   "geometry": "blade",
+   "deliveredPx": 7,
+   "deliveredColours": 2,
+   "litPx": 3,
+   "litCaps": 1,
+   "largestLitCapShareOfLitPct": 100.0,
+   "rawOpaquePx": 61,
+   "rawPxRepaintedVsMix0": 0,
+   "rawRepaintedPct": 0.0,
+   "islandDecorPx": 301,
+   "islandDecorSharePct": 0.86
+  },
+  {
+   "normalMix": 0.15,
+   "geometry": "blade",
+   "deliveredPx": 7,
+   "deliveredColours": 2,
+   "litPx": 5,
+   "litCaps": 1,
+   "largestLitCapShareOfLitPct": 100.0,
+   "rawOpaquePx": 61,
+   "rawPxRepaintedVsMix0": 34,
+   "rawRepaintedPct": 55.7,
+   "islandDecorPx": 305,
+   "islandDecorSharePct": 0.87
+  },
+  {
+   "normalMix": 0.3,
+   "geometry": "blade",
+   "deliveredPx": 7,
+   "deliveredColours": 2,
+   "litPx": 4,
+   "litCaps": 1,
+   "largestLitCapShareOfLitPct": 100.0,
+   "rawOpaquePx": 61,
+   "rawPxRepaintedVsMix0": 48,
+   "rawRepaintedPct": 78.7,
+   "islandDecorPx": 307,
+   "islandDecorSharePct": 0.88
+  },
+  {
+   "normalMix": 0.45,
+   "geometry": "blade",
+   "deliveredPx": 7,
+   "deliveredColours": 2,
+   "litPx": 3,
+   "litCaps": 1,
+   "largestLitCapShareOfLitPct": 100.0,
+   "rawOpaquePx": 61,
+   "rawPxRepaintedVsMix0": 52,
+   "rawRepaintedPct": 85.2,
+   "islandDecorPx": 303,
+   "islandDecorSharePct": 0.87
+  },
+  {
+   "normalMix": 0.6,
+   "geometry": "blade",
+   "deliveredPx": 7,
+   "deliveredColours": 3,
+   "litPx": 3,
+   "litCaps": 1,
+   "largestLitCapShareOfLitPct": 100.0,
+   "rawOpaquePx": 61,
+   "rawPxRepaintedVsMix0": 52,
+   "rawRepaintedPct": 85.2,
+   "islandDecorPx": 305,
+   "islandDecorSharePct": 0.87
+  },
+  {
+   "normalMix": 0.8,
+   "geometry": "blade",
+   "deliveredPx": 7,
+   "deliveredColours": 2,
+   "litPx": 3,
+   "litCaps": 1,
+   "largestLitCapShareOfLitPct": 100.0,
+   "rawOpaquePx": 61,
+   "rawPxRepaintedVsMix0": 53,
+   "rawRepaintedPct": 86.9,
+   "islandDecorPx": 301,
+   "islandDecorSharePct": 0.86
+  },
+  {
+   "normalMix": 1.0,
+   "geometry": "blade",
+   "deliveredPx": 7,
+   "deliveredColours": 2,
+   "litPx": 4,
+   "litCaps": 1,
+   "largestLitCapShareOfLitPct": 100.0,
+   "rawOpaquePx": 61,
+   "rawPxRepaintedVsMix0": 55,
+   "rawRepaintedPct": 90.2,
+   "islandDecorPx": 297,
+   "islandDecorSharePct": 0.85
+  }
+ ],
+ "geometrySweep": [
+  {
+   "normalMix": 0.0,
+   "geometry": "clump",
+   "deliveredPx": 18,
+   "deliveredColours": 2,
+   "litPx": 16,
+   "litCaps": 1,
+   "largestLitCapShareOfLitPct": 100.0,
+   "rawOpaquePx": 128,
+   "rawPxRepaintedVsMix0": 0,
+   "rawRepaintedPct": 0.0,
+   "islandDecorPx": 522,
+   "islandDecorSharePct": 1.49
+  },
+  {
+   "normalMix": 0.15,
+   "geometry": "clump",
+   "deliveredPx": 18,
+   "deliveredColours": 2,
+   "litPx": 14,
+   "litCaps": 1,
+   "largestLitCapShareOfLitPct": 100.0,
+   "rawOpaquePx": 128,
+   "rawPxRepaintedVsMix0": 47,
+   "rawRepaintedPct": 36.7,
+   "islandDecorPx": 519,
+   "islandDecorSharePct": 1.48
+  },
+  {
+   "normalMix": 0.3,
+   "geometry": "clump",
+   "deliveredPx": 18,
+   "deliveredColours": 2,
+   "litPx": 13,
+   "litCaps": 1,
+   "largestLitCapShareOfLitPct": 100.0,
+   "rawOpaquePx": 128,
+   "rawPxRepaintedVsMix0": 53,
+   "rawRepaintedPct": 41.4,
+   "islandDecorPx": 529,
+   "islandDecorSharePct": 1.51
+  },
+  {
+   "normalMix": 0.45,
+   "geometry": "clump",
+   "deliveredPx": 18,
+   "deliveredColours": 2,
+   "litPx": 13,
+   "litCaps": 1,
+   "largestLitCapShareOfLitPct": 100.0,
+   "rawOpaquePx": 128,
+   "rawPxRepaintedVsMix0": 60,
+   "rawRepaintedPct": 46.9,
+   "islandDecorPx": 527,
+   "islandDecorSharePct": 1.51
+  },
+  {
+   "normalMix": 0.6,
+   "geometry": "clump",
+   "deliveredPx": 18,
+   "deliveredColours": 3,
+   "litPx": 12,
+   "litCaps": 1,
+   "largestLitCapShareOfLitPct": 100.0,
+   "rawOpaquePx": 128,
+   "rawPxRepaintedVsMix0": 63,
+   "rawRepaintedPct": 49.2,
+   "islandDecorPx": 522,
+   "islandDecorSharePct": 1.49
+  },
+  {
+   "normalMix": 0.8,
+   "geometry": "clump",
+   "deliveredPx": 18,
+   "deliveredColours": 3,
+   "litPx": 11,
+   "litCaps": 1,
+   "largestLitCapShareOfLitPct": 100.0,
+   "rawOpaquePx": 128,
+   "rawPxRepaintedVsMix0": 80,
+   "rawRepaintedPct": 62.5,
+   "islandDecorPx": 511,
+   "islandDecorSharePct": 1.46
+  },
+  {
+   "normalMix": 1.0,
+   "geometry": "clump",
+   "deliveredPx": 18,
+   "deliveredColours": 3,
+   "litPx": 10,
+   "litCaps": 1,
+   "largestLitCapShareOfLitPct": 100.0,
+   "rawOpaquePx": 128,
+   "rawPxRepaintedVsMix0": 84,
+   "rawRepaintedPct": 65.6,
+   "islandDecorPx": 517,
+   "islandDecorSharePct": 1.48
+  }
+ ],
+ "normalsVerdict": {
+  "wired": true,
+  "rawEffect": "the lever repaints 90% of the blade tuft's raw pixels at mix 1.0 \u2014 it is wired, and it is doing exactly what it did for the crown",
+  "deliveredEffect": {
+   "tuftDeliveredPx": {
+    "min": 7,
+    "max": 7,
+    "spreadPct": 0.0
+   },
+   "tuftDeliveredColours": {
+    "min": 2,
+    "max": 3,
+    "spreadPct": 50.0
+   },
+   "litCaps": {
+    "min": 1,
+    "max": 1,
+    "spreadPct": 0.0
+   },
+   "islandDecorPx": {
+    "min": 297,
+    "max": 307,
+    "spreadPct": 3.4
+   }
+  },
+  "theScaleProblem": {
+   "crownRawPx": 4200,
+   "crownMixAdopted": 0.22,
+   "tuftRawOpaquePx": 61,
+   "tuftDeliveredPx": 7,
+   "reading": "the crown carried ~4200 delivered pixels and its highlight fragmented into 11-13 connected caps, which is a shading structure large enough to have a shape and therefore large enough to unify. A tuft is a few dozen SUPERSAMPLED pixels and single digits DELIVERED, and its lit band is already ONE connected cap at every mix from 0.00 to 1.00. There is no fragmentation for the technique to remove."
+  },
+  "conclusion": "MEASURED AND REFUSED FOR GRASS, on numbers rather than on a look. The mechanism transfers and is correctly wired \u2014 it is the same code path that closed the crown's gap \u2014 but the majority downsample destroys the whole of its effect, because a tuft has no shading structure at delivered scale to unify. This is NOT a claim that the grass looks fine; it is a claim that custom normals are not what is wrong with it."
+ },
+ "pick": {
+  "rule": "maximise the largest connected LIT cap as a share of the lit band, subject to >= 2 delivered colours; ties to the lower mix",
+  "blade": 0.0,
+  "clump": 0.0,
+  "degenerate": true,
+  "crownMixNotInherited": {
+   "crown": 0.22,
+   "why": "0.22 is a strict optimum for a 4200 px crown picked against exp-16's highlight-cap structure. The mechanism transfers; the number is its own measurement, and this pass's measurement is that no number in 0..1 changes the delivered tuft."
+  },
+  "notOwnerAttested": "this rule picks a MEASUREMENT. Whether the grass stops reading as ugly is the owner's look and this pass has no standing to sign it."
+ },
+ "geometryVerdict": {
+  "atMix0": {
+   "blade": {
+    "rawOpaquePx": 61,
+    "deliveredPx": 7,
+    "islandDecorPx": 301,
+    "islandDecorSharePct": 0.86
+   },
+   "clump": {
+    "rawOpaquePx": 128,
+    "deliveredPx": 18,
+    "islandDecorPx": 522,
+    "islandDecorSharePct": 1.49
+   }
+  },
+  "deliveredPxRatio": 2.57,
+  "islandDecorPxRatio": 1.73,
+  "reading": "the geometry fork is the one that MOVES the delivered picture, and it moves it by giving the tuft a BODY rather than by shading it better \u2014 the base mound and the weld are silhouette, and silhouette is the only thing that survives a majority downsample at this size. This is the arc's own strategic takeaway ('sparse clump meshes rather than individual blades') arriving as a measurement.",
+  "theCostToWeigh": "a clump is a bigger object, and the 2026-07-23 owner verdict on baked sprite art was that it read 'way too big'. Bigger delivered pixels is exactly what that verdict refused, so this is a FORK for the owner's look and not a recommendation."
+ },
+ "signalLegibility": {
+  "whyThisOutranksTheLook": "ADR-0226 D2 makes grass COUNT a capability's test count and D3 makes grass HEALTH its proof state. A prettier grass that no longer distinguishes 3 tests from 30 has broken the instrument, and ADR-0367 D5 plus the meaning-outranks-appearance principle both put the signal above the appearance.",
+  "testCountLadder": {
+   "blade": [
+    {
+     "tests": 0,
+     "appGrassRule": "round(2 + 0*1.9) = 2",
+     "placements": 21,
+     "deliveredDecorPx": 161,
+     "shareOfLandPct": 0.46
+    },
+    {
+     "tests": 1,
+     "appGrassRule": "round(2 + 1*1.9) = 4",
+     "placements": 37,
+     "deliveredDecorPx": 189,
+     "shareOfLandPct": 0.54
+    },
+    {
+     "tests": 2,
+     "appGrassRule": "round(2 + 2*1.9) = 6",
+     "placements": 61,
+     "deliveredDecorPx": 219,
+     "shareOfLandPct": 0.63
+    },
+    {
+     "tests": 3,
+     "appGrassRule": "round(2 + 3*1.9) = 8",
+     "placements": 81,
+     "deliveredDecorPx": 241,
+     "shareOfLandPct": 0.69
+    },
+    {
+     "tests": 5,
+     "appGrassRule": "round(2 + 5*1.9) = 12",
+     "placements": 121,
+     "deliveredDecorPx": 327,
+     "shareOfLandPct": 0.94
+    },
+    {
+     "tests": 8,
+     "appGrassRule": "round(2 + 8*1.9) = 17",
+     "placements": 173,
+     "deliveredDecorPx": 417,
+     "shareOfLandPct": 1.19
+    },
+    {
+     "tests": 13,
+     "appGrassRule": "round(2 + 13*1.9) = 27",
+     "placements": 276,
+     "deliveredDecorPx": 622,
+     "shareOfLandPct": 1.78
+    },
+    {
+     "tests": 21,
+     "appGrassRule": "round(2 + 21*1.9) = 42",
+     "placements": 434,
+     "deliveredDecorPx": 852,
+     "shareOfLandPct": 2.44
+    },
+    {
+     "tests": 30,
+     "appGrassRule": "round(2 + 30*1.9) = 59",
+     "placements": 613,
+     "deliveredDecorPx": 1035,
+     "shareOfLandPct": 2.96
+    }
+   ],
+   "clump": [
+    {
+     "tests": 0,
+     "appGrassRule": "round(2 + 0*1.9) = 2",
+     "placements": 21,
+     "deliveredDecorPx": 197,
+     "shareOfLandPct": 0.56
+    },
+    {
+     "tests": 1,
+     "appGrassRule": "round(2 + 1*1.9) = 4",
+     "placements": 37,
+     "deliveredDecorPx": 274,
+     "shareOfLandPct": 0.78
+    },
+    {
+     "tests": 2,
+     "appGrassRule": "round(2 + 2*1.9) = 6",
+     "placements": 61,
+     "deliveredDecorPx": 326,
+     "shareOfLandPct": 0.93
+    },
+    {
+     "tests": 3,
+     "appGrassRule": "round(2 + 3*1.9) = 8",
+     "placements": 81,
+     "deliveredDecorPx": 366,
+     "shareOfLandPct": 1.05
+    },
+    {
+     "tests": 5,
+     "appGrassRule": "round(2 + 5*1.9) = 12",
+     "placements": 121,
+     "deliveredDecorPx": 516,
+     "shareOfLandPct": 1.48
+    },
+    {
+     "tests": 8,
+     "appGrassRule": "round(2 + 8*1.9) = 17",
+     "placements": 173,
+     "deliveredDecorPx": 793,
+     "shareOfLandPct": 2.27
+    },
+    {
+     "tests": 13,
+     "appGrassRule": "round(2 + 13*1.9) = 27",
+     "placements": 276,
+     "deliveredDecorPx": 1188,
+     "shareOfLandPct": 3.4
+    },
+    {
+     "tests": 21,
+     "appGrassRule": "round(2 + 21*1.9) = 42",
+     "placements": 434,
+     "deliveredDecorPx": 1561,
+     "shareOfLandPct": 4.46
+    },
+    {
+     "tests": 30,
+     "appGrassRule": "round(2 + 30*1.9) = 59",
+     "placements": 613,
+     "deliveredDecorPx": 1804,
+     "shareOfLandPct": 5.16
+    }
+   ]
+  },
+  "strictlyMonotonicInDeliveredPx": {
+   "blade": true,
+   "clump": true
+  },
+  "threeVsThirty": {
+   "blade": {
+    "deliveredPx": [
+     241,
+     1035
+    ],
+    "ratio": 4.29,
+    "sharePct": [
+     0.69,
+     2.96
+    ]
+   }
+  },
+  "normalsAreSignalSafe": {
+   "islandDecorPxByMix": {
+    "0": 301,
+    "0.15": 305,
+    "0.3": 307,
+    "0.45": 303,
+    "0.6": 305,
+    "0.8": 301,
+    "1": 297
+   },
+   "spreadPct": 3.4,
+   "why": "normals decide which BAND a pixel takes and never whether a pixel is grass \u2014 the same property the arc measured on the hero tree, where bark held flat at 629-631 px across the entire 0..1 crown-normal fork. So however much of this treatment is applied, the density signal is safe BY CONSTRUCTION. That is the cheapest good news in the pass, and it is the reason a look-driven change here cannot silently cost meaning."
+  },
+  "healthRead": {
+   "changedDeliveredPx": 21066,
+   "changedSharePctOfLand": 60.2,
+   "bladeTokenAfterSnap": {
+    "healthy": [
+     113,
+     161,
+     84
+    ],
+    "unhealthy": [
+     171,
+     140,
+     84
+    ]
+   },
+   "bladeTokenRgbDistance": 61.7,
+   "collapsedToSameEntry": false,
+   "perStatus": {
+    "healthy": {
+     "placements": 139,
+     "landColours": 47
+    },
+    "unhealthy": {
+     "placements": 140,
+     "landColours": 46
+    }
+   },
+   "note": "the whole island is driven to one status in turn, so nothing moves except what the land is SAYING. This read is carried mostly by the GROUND tint rather than by the grass, which is the same finding the base fork reaches from the other direction: at 1-2% ground cover the grass cannot be the thing that changes an island's colour."
+  },
+  "perCapabilityOnTheDeliveredIsland": {
+   "probed": [
+    {
+     "cap": 2,
+     "status": "building",
+     "tests": 2,
+     "cells": 18,
+     "placements": 6,
+     "deliveredDecorPx": 14,
+     "pxPerCell": 0.78
+    },
+    {
+     "cap": 8,
+     "status": "building",
+     "tests": 8,
+     "cells": 36,
+     "placements": 20,
+     "deliveredDecorPx": 40,
+     "pxPerCell": 1.11
+    },
+    {
+     "cap": 6,
+     "status": "unhealthy",
+     "tests": 2,
+     "cells": 37,
+     "placements": 7,
+     "deliveredDecorPx": 3,
+     "pxPerCell": 0.08
+    }
+   ],
+   "note": "3 of the island's 10 capabilities \u2014 fewest tests, most tests, and the unhealthy one \u2014 because each row costs a full composite. `pxPerCell` is the read a viewer actually makes: how much grass per unit of ground this capability's parcel carries."
+  }
+ },
+ "baseFork": {
+  "rows": [
+   {
+    "base": "flat",
+    "description": "the settled b++ ground exactly as delivered \u2014 one flat status-tinted fill per cell. The owner's 'maybe even just a flat green'.",
+    "groundTreatmentDeliveredPx": 0,
+    "groundTreatmentSharePct": 0.0,
+    "signalDeliveredPx": 301,
+    "signalSharePct": 0.86,
+    "signalFractionOfNonFlatPct": 100.0
+   },
+   {
+    "base": "mottle",
+    "description": "the same ground carrying a deterministic two-shade split per cell, drawn from (token x shade) pairs the closed palette already holds. Ground interest that claims nothing about the work.",
+    "groundTreatmentDeliveredPx": 9266,
+    "groundTreatmentSharePct": 26.5,
+    "signalDeliveredPx": 298,
+    "signalSharePct": 0.85,
+    "signalFractionOfNonFlatPct": 3.1
+   },
+   {
+    "base": "carpet",
+    "description": "grass used AS the ground treatment: a fixed per-cell quota that does NOT scale with test count, under the signal tufts.",
+    "groundTreatmentDeliveredPx": 897,
+    "groundTreatmentSharePct": 2.57,
+    "signalDeliveredPx": 275,
+    "signalSharePct": 0.79,
+    "signalFractionOfNonFlatPct": 23.5
+   }
+  ],
+  "whyCarpetIsRenderedRatherThanArguedAway": "the technique reference's one transferable strategic takeaway is 'rely ~80% on the terrain treatment, sparse clump meshes rather than individual blades', and the obvious way to spend that here is a carpet of grass. Under ADR-0226 grass MEANS a capability's tests, so a carpet that tracks no test count is art asserting something the meaning layer does not authorise \u2014 ADR-0367 D5's failure. `signalFractionOfNonFlatPct` is what that costs as a number: it is the share of the island's non-flat-ground pixels that still SAY anything.",
+  "whatTheConstraintDoesToTheTakeaway": "the takeaway is STRONGER for us than for the game it comes from, and in the opposite direction to the obvious reading. Delivered land is quantised at small pixel scale, so detail below the quantisation threshold does not become subtle \u2014 it becomes noise. That argues for the terrain carrying the look, which is the takeaway; it argues AGAINST the terrain carrying it as GRASS, which is the naive implementation."
+ },
+ "paletteEntries": 132,
+ "uatCriteria": [
+  {
+   "id": "uat-1",
+   "state": "proven"
+  },
+  {
+   "id": "uat-2",
+   "state": "proven"
+  },
+  {
+   "id": "uat-3",
+   "state": "pending"
+  },
+  {
+   "id": "uat-4",
+   "state": "failing"
+  },
+  {
+   "id": "uat-5",
+   "state": "proven"
+  },
+  {
+   "id": "uat-6",
+   "state": "pending"
+  }
+ ],
+ "deliveredIslandScatter": {
+  "tuft": 95,
+  "shrub": 10,
+  "wilt": 1,
+  "flower": 6,
+  "centroidFallbacks": 0,
+  "flowerFallbacks": 0
+ },
+ "deliveredIslandPerCapability": [
+  {
+   "cap": 0,
+   "status": "healthy",
+   "cells": 24,
+   "tests": 8,
+   "grassRule": "round(2 + 8*1.9)",
+   "lush": true,
+   "tufts": 17,
+   "shrubs": 3,
+   "wilts": 0
+  },
+  {
+   "cap": 1,
+   "status": "healthy",
+   "cells": 21,
+   "tests": 5,
+   "grassRule": "round(2 + 5*1.9)",
+   "lush": false,
+   "tufts": 11,
+   "shrubs": 1,
+   "wilts": 0
+  },
+  {
+   "cap": 2,
+   "status": "building",
+   "cells": 18,
+   "tests": 2,
+   "grassRule": "round(2 + 2*1.9)",
+   "lush": false,
+   "tufts": 5,
+   "shrubs": 1,
+   "wilts": 0
+  },
+  {
+   "cap": 3,
+   "status": "proposed",
+   "cells": 24,
+   "tests": 2,
+   "grassRule": "round(2 + 2*1.9)*0.85 mapped/proposed",
+   "lush": false,
+   "tufts": 5,
+   "shrubs": 0,
+   "wilts": 0
+  },
+  {
+   "cap": 4,
+   "status": "proposed",
+   "cells": 15,
+   "tests": 3,
+   "grassRule": "round(2 + 3*1.9)*0.85 mapped/proposed",
+   "lush": false,
+   "tufts": 7,
+   "shrubs": 0,
+   "wilts": 0
+  },
+  {
+   "cap": 5,
+   "status": "mapped",
+   "cells": 12,
+   "tests": 5,
+   "grassRule": "round(2 + 5*1.9)*0.85 mapped/proposed",
+   "lush": false,
+   "tufts": 10,
+   "shrubs": 0,
+   "wilts": 0
+  },
+  {
+   "cap": 6,
+   "status": "unhealthy",
+   "cells": 37,
+   "tests": 2,
+   "grassRule": "round(2 + 2*1.9)",
+   "lush": false,
+   "tufts": 6,
+   "shrubs": 0,
+   "wilts": 1
+  },
+  {
+   "cap": 7,
+   "status": "healthy",
+   "cells": 13,
+   "tests": 5,
+   "grassRule": "round(2 + 5*1.9)",
+   "lush": false,
+   "tufts": 12,
+   "shrubs": 2,
+   "wilts": 0
+  },
+  {
+   "cap": 8,
+   "status": "building",
+   "cells": 36,
+   "tests": 8,
+   "grassRule": "round(2 + 8*1.9)",
+   "lush": true,
+   "tufts": 17,
+   "shrubs": 3,
+   "wilts": 0
+  },
+  {
+   "cap": 9,
+   "status": "proposed",
+   "cells": 14,
+   "tests": 2,
+   "grassRule": "round(2 + 2*1.9)*0.85 mapped/proposed",
+   "lush": false,
+   "tufts": 5,
+   "shrubs": 0,
+   "wilts": 0
+  }
+ ]
+}

@@ -1,0 +1,899 @@
+{
+ "schema": "storytree/derived-evidence-provenance/1",
+ "artifact": "grass-on-island.png",
+ "producer": {
+  "tool": "compose_grass.py",
+  "sha256": "d75875453b9ceb1e04f82313fa72c3f990c665f7fcf568499b7fe5a6491011fe"
+ },
+ "command": {
+  "tool": "compose_grass.py",
+  "argv": []
+ },
+ "inputs": [
+  {
+   "label": "pieces-land",
+   "dir": "../chapter2-grass-reads-as-signal-2026-08-16/pieces-land",
+   "codeState": {
+    "generator": "blender_land.py",
+    "sha256": "15927bf56c77cd23bc4d41a7353a5890450aeabca02013a08051beb52613b007"
+   },
+   "pieces": [
+    {
+     "file": "tile-0.png",
+     "sha256": "1ee7c22c6fff10ed32f9b9640ba0eece30d002804eca60b2e6de39b6a8265901"
+    },
+    {
+     "file": "tile-1.png",
+     "sha256": "818b5fc71b1d9cd7553ceeb1c0f2ec9527ee176aaa8e594b62232585f83620a0"
+    },
+    {
+     "file": "tile-2.png",
+     "sha256": "ec3916c73469d5839deacf76e5edfaeff4ace064b489be3a710befa4d806fc72"
+    },
+    {
+     "file": "tile-3.png",
+     "sha256": "1aedbde4e0006247cb19ea189b2ed5a6bb42f832f2394fba8db3888c7000650f"
+    },
+    {
+     "file": "tile-4.png",
+     "sha256": "27fa23b71518728eb40b87dff6f72d3e2560a2072a0dff4c102d5e756040f575"
+    },
+    {
+     "file": "tile-5.png",
+     "sha256": "87c6d38bff0265232e7cdf82c032cecea333722aa3ceb43607e360e9203e5542"
+    },
+    {
+     "file": "wall-0.png",
+     "sha256": "eb70293f078aa0a4f38739f06164c6a5a1be0eea15ce682db2ad2a4624d72b54"
+    },
+    {
+     "file": "wall-1.png",
+     "sha256": "d496dee2922ee97e5332d26b56f9a3f80e6db50fbf8e5f2be64422f64a7104d5"
+    },
+    {
+     "file": "wall-10.png",
+     "sha256": "5deafd8bad1ca17fb364f1175f2c41d412d9712f5f9ad6d48eca9869f4a07f8e"
+    },
+    {
+     "file": "wall-11.png",
+     "sha256": "04c20e73dcc2f75d0b758d0efd388a6664a1087bc85b1c9bf1e7662086a74a09"
+    },
+    {
+     "file": "wall-12.png",
+     "sha256": "d266ae4951e062469549cb4bc46f88a704f481a4e46af03603f774838091d281"
+    },
+    {
+     "file": "wall-13.png",
+     "sha256": "abf3b464b77a2f08c836dbe70d75ff348e7f91e0f9e7fdcf0e7dadaaecc36c5c"
+    },
+    {
+     "file": "wall-14.png",
+     "sha256": "7c49e888aca89fb5fe11043784d6c48865a0448f7e73aa32403856fa20418286"
+    },
+    {
+     "file": "wall-15.png",
+     "sha256": "018b6670f60f35e14d8a6d400b8b65059906fa7f1459268cbcd5b133c5abde5c"
+    },
+    {
+     "file": "wall-2.png",
+     "sha256": "96a8ee518ea6ff8150951a9e26a66761dd006adb0615009e8d0863e2a523e6e8"
+    },
+    {
+     "file": "wall-3.png",
+     "sha256": "2aef979cb09aec63d3bae440f8e02830bec2cd6adc928dea264f9f238c8a1fe2"
+    },
+    {
+     "file": "wall-4.png",
+     "sha256": "05fd3c2cf6507ad616745063458dac4ca7dae9af5aa38c9c1d4fdc10ef4db57c"
+    },
+    {
+     "file": "wall-5.png",
+     "sha256": "274ad4029a93e6eca9b32bd984dc12fa0fd32d032887080342b20eeb60012624"
+    },
+    {
+     "file": "wall-6.png",
+     "sha256": "988ca37b468cf69a10df251f97915e09e8a4667420ddb6e280bd53c2a46e64dd"
+    },
+    {
+     "file": "wall-7.png",
+     "sha256": "8d60816c4126a564e4b2663161ac9158adda120d299d7cdbc2039a2d25fc6c70"
+    },
+    {
+     "file": "wall-8.png",
+     "sha256": "d129cf85047d3f91895bbb2085d3a5774bf814f9dbb4f86f9fabe623345b661f"
+    },
+    {
+     "file": "wall-9.png",
+     "sha256": "a7b5289a20555d7c1bb0b7f1ed6ab50ded942325e7c76b4c1c4795f79f3864ce"
+    }
+   ]
+  },
+  {
+   "label": "pieces-m00-blade",
+   "dir": "../chapter2-grass-reads-as-signal-2026-08-16/pieces-m00-blade",
+   "codeState": {
+    "generator": "blender_grass.py",
+    "sha256": "3eb5515a738b652f260e895e81c90680c42b20061329bd09f15fa3d5fc9cb5e6"
+   },
+   "pieces": [
+    {
+     "file": "flower-failing.png",
+     "sha256": "ef99a3ceba6a9bd40724bf4b5b413b715461906ee6e66008475fd2368fdd5b4f"
+    },
+    {
+     "file": "flower-pending.png",
+     "sha256": "03aa5fff16c965074b27b68ac5144121e943657247b5f9666632a13816793353"
+    },
+    {
+     "file": "flower-proven.png",
+     "sha256": "f6a2a07346697baed79d07bd25458ede57478119c126acdd40df3150b06f60ae"
+    },
+    {
+     "file": "shrub-a.png",
+     "sha256": "0ef484f2be55224b249646a22db8f19205e91e1ce249387845812277405516b2"
+    },
+    {
+     "file": "shrub-b.png",
+     "sha256": "e49f65eb35583a597691db283f102b6ac11da6c30657c7c229a6cc6210995497"
+    },
+    {
+     "file": "tuft-2.png",
+     "sha256": "f98cf4bc5a39336852e92f0fa0812177dec9adc299da525980c0df8f91b2220b"
+    },
+    {
+     "file": "tuft-3a.png",
+     "sha256": "958c461a34bbcc49d123ec8a460c64ee120f36dfb454d2a2575fcd5948d84a88"
+    },
+    {
+     "file": "tuft-3b.png",
+     "sha256": "eacb6331a61c5d000a062d4a1c5bbd93b1001256d28991f4ea4792302e88da44"
+    },
+    {
+     "file": "tuft-4.png",
+     "sha256": "80b7cb931485b8e9b3866a94565e9155f95a747aba454cfe7b13cce41c141e38"
+    },
+    {
+     "file": "wilt-stem.png",
+     "sha256": "927e698055ab9a9be33a7ec7b1b5b42846f4f58f0fff2dc72a8c88d48041c33f"
+    },
+    {
+     "file": "wilt-twig.png",
+     "sha256": "5949dcdf63fb85fd024ab33d99f683f540975d4d35bd0e3d184c186ef2b6872e"
+    }
+   ]
+  },
+  {
+   "label": "pieces-m15-blade",
+   "dir": "../chapter2-grass-reads-as-signal-2026-08-16/pieces-m15-blade",
+   "codeState": {
+    "generator": "blender_grass.py",
+    "sha256": "3eb5515a738b652f260e895e81c90680c42b20061329bd09f15fa3d5fc9cb5e6"
+   },
+   "pieces": [
+    {
+     "file": "flower-failing.png",
+     "sha256": "2757722d83ece9ca1ab684d81584240078c7eb47d80916550ca178e59de9f706"
+    },
+    {
+     "file": "flower-pending.png",
+     "sha256": "f4489764ae2dfee35213e6a7876deed3561959de3d314e5e7746b38589a5c927"
+    },
+    {
+     "file": "flower-proven.png",
+     "sha256": "87c538f8cee5b261a224d1b0c822d29fb8cd6559b2eaa1b7ca6744a1d9c94b71"
+    },
+    {
+     "file": "shrub-a.png",
+     "sha256": "1557e691aaf563875328dd0bcbde4e843168c9fbe1184202cb5ec780cde15a7c"
+    },
+    {
+     "file": "shrub-b.png",
+     "sha256": "ddb56be7f78e78c40749f99d568a3a86e8457f5ff82c2723b3460e282a36b03e"
+    },
+    {
+     "file": "tuft-2.png",
+     "sha256": "49b4b77b5f2e54d3035bca713fc861aab95932c3ee856ff291f27e43b7f414e9"
+    },
+    {
+     "file": "tuft-3a.png",
+     "sha256": "4dfb683d1b03d8199d8046465b9551696c117ecd7e54b18e856218ede1d92efd"
+    },
+    {
+     "file": "tuft-3b.png",
+     "sha256": "31b5ff689a1e67df7232928adb0f76e28007e0b6131c4f67fdaf5bee232020bc"
+    },
+    {
+     "file": "tuft-4.png",
+     "sha256": "cb2396f9dde445b2d71069fabde121998d70eaae30186e4a08ec20d7c52f6879"
+    },
+    {
+     "file": "wilt-stem.png",
+     "sha256": "eb68f7e19bc25934f22bbaea4755dc01de6dee6043fa815bae8e9a72fce58e03"
+    },
+    {
+     "file": "wilt-twig.png",
+     "sha256": "7e72032a019a34c0d639ba3f9fcd41fd56b7a55841fb5413fb46b7e57df397e3"
+    }
+   ]
+  },
+  {
+   "label": "pieces-m30-blade",
+   "dir": "../chapter2-grass-reads-as-signal-2026-08-16/pieces-m30-blade",
+   "codeState": {
+    "generator": "blender_grass.py",
+    "sha256": "3eb5515a738b652f260e895e81c90680c42b20061329bd09f15fa3d5fc9cb5e6"
+   },
+   "pieces": [
+    {
+     "file": "flower-failing.png",
+     "sha256": "091f9eb4d6f9b96844d158780a30f5c9ca424fb10fc8975b31a8c9c68af09a22"
+    },
+    {
+     "file": "flower-pending.png",
+     "sha256": "6b1dd256e2467753802410fd05a4759aa4511946d41609d9f1fd6a93c254c846"
+    },
+    {
+     "file": "flower-proven.png",
+     "sha256": "23b4a7eee8ff49d3e8bb20b3b57cc05eef2cb9ff70bf3b23218756b673b68428"
+    },
+    {
+     "file": "shrub-a.png",
+     "sha256": "2867c3c6d1e4a0dd55afb2a7827cb4ad9c37c2bb3eb2f4132cedd25b97dcb8dc"
+    },
+    {
+     "file": "shrub-b.png",
+     "sha256": "a19b410033e44a5c75101404e98007cf389ebfa43a7fdfdfd31306bbfa574d76"
+    },
+    {
+     "file": "tuft-2.png",
+     "sha256": "e0b495f643c623e0ec67ea49f938f071fde36236164078010f826be1aca783cc"
+    },
+    {
+     "file": "tuft-3a.png",
+     "sha256": "433c5f1cc55737298283f98b38512e8c395e1508fa5514d12843f1c29545ec9e"
+    },
+    {
+     "file": "tuft-3b.png",
+     "sha256": "9d6b89f3057179dc1c272679b65ddbf5165f9f0e0b136314163a1a57304e65ca"
+    },
+    {
+     "file": "tuft-4.png",
+     "sha256": "71f73682c9bfbe88efad1f157ac6a14ba6c5789b1d57a783c1c9d4d4179080d3"
+    },
+    {
+     "file": "wilt-stem.png",
+     "sha256": "085ad6eae8c8a3f9a0144495186a6a3179a6b59010c4d550cd386dcaa2733f4e"
+    },
+    {
+     "file": "wilt-twig.png",
+     "sha256": "d992b8f810d4ff5d46aa8ab8f00a8260c8590cbfa9cbd779d11e22934fd92353"
+    }
+   ]
+  },
+  {
+   "label": "pieces-m45-blade",
+   "dir": "../chapter2-grass-reads-as-signal-2026-08-16/pieces-m45-blade",
+   "codeState": {
+    "generator": "blender_grass.py",
+    "sha256": "3eb5515a738b652f260e895e81c90680c42b20061329bd09f15fa3d5fc9cb5e6"
+   },
+   "pieces": [
+    {
+     "file": "flower-failing.png",
+     "sha256": "56d78a3f61738552c2c8028fa5a82782d930c397163ed046ad0d7e6940e04dd2"
+    },
+    {
+     "file": "flower-pending.png",
+     "sha256": "ab0f782c214a86e56ae439d03b3916671b56d957a5092abc50c913e67e58b10b"
+    },
+    {
+     "file": "flower-proven.png",
+     "sha256": "e8120522f1db7ba902e0e1e39df07e5e94ae2630cc12e561baba8a7327c23233"
+    },
+    {
+     "file": "shrub-a.png",
+     "sha256": "d5d5de21d4e32525cb8863e3310f8b8cf320dff0a0748cadca9597620151d7ec"
+    },
+    {
+     "file": "shrub-b.png",
+     "sha256": "cf9929f52e51fba1130fbe1208795b7147a73311890d2476722fcc6e0c339e84"
+    },
+    {
+     "file": "tuft-2.png",
+     "sha256": "36a0963c0b152eb9a6f28888a618e7aaebc735cfafe6d2fe1b7d021a7eb6d059"
+    },
+    {
+     "file": "tuft-3a.png",
+     "sha256": "77eb5487a006a9d78083803a667971b579e6ce5312f31a269486ba000133a84b"
+    },
+    {
+     "file": "tuft-3b.png",
+     "sha256": "9fcf2c07ce7c707bdeda18bfec69596c9b6c224637d12cde6de4052c586658bf"
+    },
+    {
+     "file": "tuft-4.png",
+     "sha256": "e0948bf3657d9ea12f7940b3bcd764d90a879abaa6251459f461ba56f540b3d9"
+    },
+    {
+     "file": "wilt-stem.png",
+     "sha256": "cf6533145f32cf078cb4eb2768e54173b68021d73265f1f5b1ad4e76bf51cb86"
+    },
+    {
+     "file": "wilt-twig.png",
+     "sha256": "067056bda8f60d1ff96c65ca2a8726c7748609942278484982a24ffe12c25331"
+    }
+   ]
+  },
+  {
+   "label": "pieces-m60-blade",
+   "dir": "../chapter2-grass-reads-as-signal-2026-08-16/pieces-m60-blade",
+   "codeState": {
+    "generator": "blender_grass.py",
+    "sha256": "3eb5515a738b652f260e895e81c90680c42b20061329bd09f15fa3d5fc9cb5e6"
+   },
+   "pieces": [
+    {
+     "file": "flower-failing.png",
+     "sha256": "031768003c561667337e3ca47f0bffd446a0f25e48ef29d9df420f1a2e223131"
+    },
+    {
+     "file": "flower-pending.png",
+     "sha256": "654758758b56362b3ba2cd62334514bd14185c5083e810a8670c4d8fc384e7c0"
+    },
+    {
+     "file": "flower-proven.png",
+     "sha256": "9f250251d2aab33ec01572a1419a1e13ac2829701cd364b085b389a42eca5905"
+    },
+    {
+     "file": "shrub-a.png",
+     "sha256": "176f64bfa7cfff1047dd54b33f2946d473a56f7384e6f66862c09652853a5a38"
+    },
+    {
+     "file": "shrub-b.png",
+     "sha256": "1fd5d0646ae7445e0075a47762bf27c33f01cce8a866af646a8af6a75b0629d0"
+    },
+    {
+     "file": "tuft-2.png",
+     "sha256": "767b092d81abf1c32b9af90cb80c44acb3c952db0c843987f3304bd6e3924ee3"
+    },
+    {
+     "file": "tuft-3a.png",
+     "sha256": "4a5e98216b3aa4ecbc1b1c161f82580563f4acb3b5bcfcd52ad2437d15522dfe"
+    },
+    {
+     "file": "tuft-3b.png",
+     "sha256": "4f3c515dea22dea981257c10943754c79c1c33f89d925e05b3a58fb59bdcdc29"
+    },
+    {
+     "file": "tuft-4.png",
+     "sha256": "a5b7efcf355341e74edfb8d467c41888f4941a5120df87ea8c9234f8832c34c4"
+    },
+    {
+     "file": "wilt-stem.png",
+     "sha256": "4678d38a8c4d9a00777b4229e746546f0d85c0ffa968a775969bf21170e5db1e"
+    },
+    {
+     "file": "wilt-twig.png",
+     "sha256": "11e19dd04ca1c813ca51a1aa7598da7f32031bd3b24144f7d284b04ec0d90b7e"
+    }
+   ]
+  },
+  {
+   "label": "pieces-m80-blade",
+   "dir": "../chapter2-grass-reads-as-signal-2026-08-16/pieces-m80-blade",
+   "codeState": {
+    "generator": "blender_grass.py",
+    "sha256": "3eb5515a738b652f260e895e81c90680c42b20061329bd09f15fa3d5fc9cb5e6"
+   },
+   "pieces": [
+    {
+     "file": "flower-failing.png",
+     "sha256": "11d000b36be7ae91fb904924343a3dbe0ba4d8c5f416736699e699c69dbc7826"
+    },
+    {
+     "file": "flower-pending.png",
+     "sha256": "5a81a41d52c5550b5b396b8492d63b767d8fcad31f3aa62d00942605c54ee7a9"
+    },
+    {
+     "file": "flower-proven.png",
+     "sha256": "4eee3db77ec27930930f68d5f1b4b47627cf00f85b9b41fb6943e73b039c441a"
+    },
+    {
+     "file": "shrub-a.png",
+     "sha256": "e2f490a96843e62ebc3040e96a2dcd8f95f23a729a1afeb354915a27dffc1dc2"
+    },
+    {
+     "file": "shrub-b.png",
+     "sha256": "3a7bbc0b28ff91b63418539ee9ec65cd7a166e1e262aaaeb246d4b10ae022ce4"
+    },
+    {
+     "file": "tuft-2.png",
+     "sha256": "facc51ae6f79f96585037fda13dd7332150e2c74845465bf3e0311b4d1cf29bf"
+    },
+    {
+     "file": "tuft-3a.png",
+     "sha256": "1ea63172397e17b7c0ccdd64ed792b6b67881b62a67915bce0f96b712b07fcd9"
+    },
+    {
+     "file": "tuft-3b.png",
+     "sha256": "f5db034d1c5b25e6eb7700b94ac23660a80b639aa773b739ab4b1f22fd478a3b"
+    },
+    {
+     "file": "tuft-4.png",
+     "sha256": "626320a66b29d9c0a57c7cface57902e5840cf50fc784ce1dcf03ec4e88e92ec"
+    },
+    {
+     "file": "wilt-stem.png",
+     "sha256": "6e1f9616ad9e045696096f3a4ace802064de46b280449bdbc562b04edd33d0cc"
+    },
+    {
+     "file": "wilt-twig.png",
+     "sha256": "fedbf3311fddd4930418520a932ae16e6dc6bab6431cebcb664205c7ba45af0f"
+    }
+   ]
+  },
+  {
+   "label": "pieces-m100-blade",
+   "dir": "../chapter2-grass-reads-as-signal-2026-08-16/pieces-m100-blade",
+   "codeState": {
+    "generator": "blender_grass.py",
+    "sha256": "3eb5515a738b652f260e895e81c90680c42b20061329bd09f15fa3d5fc9cb5e6"
+   },
+   "pieces": [
+    {
+     "file": "flower-failing.png",
+     "sha256": "46e0fd8c18b627b95ffedf3a7300e8ffbb218ee47cb7be4b3351fa4ce19420d6"
+    },
+    {
+     "file": "flower-pending.png",
+     "sha256": "d0086d87c558202287bd606de4da356261ca9afff01ec4092f6c960f34380b13"
+    },
+    {
+     "file": "flower-proven.png",
+     "sha256": "1aa806141999e5329cdba7be04065e4eff62342a88911f045c86ebe493cdc5fa"
+    },
+    {
+     "file": "shrub-a.png",
+     "sha256": "06dc806fab30fd63b8430149cf33ddc4b3a84fda74f7307ed9fe4f86cf0bcf67"
+    },
+    {
+     "file": "shrub-b.png",
+     "sha256": "533f1202f412a07eef3ce439ab169c7b4152b8948b9fc465c949a89b9f833419"
+    },
+    {
+     "file": "tuft-2.png",
+     "sha256": "e3a680a93a556b5d7e1cdff11fae784a62abaab6b3330a4dc5cd893f04c719b0"
+    },
+    {
+     "file": "tuft-3a.png",
+     "sha256": "a90c4aa912c7acf445a3b60734e9e77b5d772410406486f5676ef2ec06c2c862"
+    },
+    {
+     "file": "tuft-3b.png",
+     "sha256": "d6625d42cba6a6225a91e192c6f534a6b2c6fafe98159598842dcc61d0cd3191"
+    },
+    {
+     "file": "tuft-4.png",
+     "sha256": "4049bae552f12a860a8fad7af114c6464246446e4c463c81f4144f5e8bf91df6"
+    },
+    {
+     "file": "wilt-stem.png",
+     "sha256": "84859e218d7abaf91fb44b24f18a1fc95ca81da52c7feb7c4711693e56e2e9a4"
+    },
+    {
+     "file": "wilt-twig.png",
+     "sha256": "5d3b4536db4eb153385d1aa54615d3a903431bd2783fcd8296377a20e295aaf7"
+    }
+   ]
+  },
+  {
+   "label": "pieces-m00-clump",
+   "dir": "../chapter2-grass-reads-as-signal-2026-08-16/pieces-m00-clump",
+   "codeState": {
+    "generator": "blender_grass.py",
+    "sha256": "3eb5515a738b652f260e895e81c90680c42b20061329bd09f15fa3d5fc9cb5e6"
+   },
+   "pieces": [
+    {
+     "file": "flower-failing.png",
+     "sha256": "4a04b20ddea8969d55e69f3f0cc372ed9fdabc932c8f96d634d7938d13efe1ab"
+    },
+    {
+     "file": "flower-pending.png",
+     "sha256": "4826428ecb401b5196a4a40d8103ada0ac858f8bfc4559850e935dcc6d146839"
+    },
+    {
+     "file": "flower-proven.png",
+     "sha256": "8c641f0ef1ee07b452a97cb9c2607e821ad22b1d141a6fd08e68b32014299c32"
+    },
+    {
+     "file": "shrub-a.png",
+     "sha256": "a4f7e32f803bc060061e8b408627d9e18c4a4cb6f20a7623b9ab5cce27b692c6"
+    },
+    {
+     "file": "shrub-b.png",
+     "sha256": "2227c0a34b09c7430044ff5baf31056ce1ed9f48045cf0b9983964386fbf59d2"
+    },
+    {
+     "file": "tuft-2.png",
+     "sha256": "f46c7ff33ce8385b55cb53c53834d1a4cc3f89b63f89701fda47e23eff0d0d72"
+    },
+    {
+     "file": "tuft-3a.png",
+     "sha256": "6999a0f3d70d9d1654d33edf09357355a30c990b00065135aac55aed53f21deb"
+    },
+    {
+     "file": "tuft-3b.png",
+     "sha256": "abd66f131e9cc3444b3100c5db9efd608c2dc0e157718fa68a836b55d6b05ae8"
+    },
+    {
+     "file": "tuft-4.png",
+     "sha256": "d4b871a22b39b0dae8a54577560bb3ee4ea10f412df15dc6db1033fa134f11f2"
+    },
+    {
+     "file": "wilt-stem.png",
+     "sha256": "54693cddcf348e5d0eb93a9bb8e97ff2c3bb85caca43c0b9ca63892fbc182833"
+    },
+    {
+     "file": "wilt-twig.png",
+     "sha256": "64ea1ff5fb68a91d245ff7b1f7901394d1e4d4ae8002d4e2630803be76ff14e0"
+    }
+   ]
+  },
+  {
+   "label": "pieces-m15-clump",
+   "dir": "../chapter2-grass-reads-as-signal-2026-08-16/pieces-m15-clump",
+   "codeState": {
+    "generator": "blender_grass.py",
+    "sha256": "3eb5515a738b652f260e895e81c90680c42b20061329bd09f15fa3d5fc9cb5e6"
+   },
+   "pieces": [
+    {
+     "file": "flower-failing.png",
+     "sha256": "7c2c1c906f6fbac2bb685578587376a77c05634b772fcd5782d6302d9f513f1b"
+    },
+    {
+     "file": "flower-pending.png",
+     "sha256": "ff9c155ec85735fac39b91057ecd56cde32658ad1571134a94a90b57085b7609"
+    },
+    {
+     "file": "flower-proven.png",
+     "sha256": "9cd587d4505695fb3b522a27dffbcb67621baa3cc5c97a1cae29693de981165c"
+    },
+    {
+     "file": "shrub-a.png",
+     "sha256": "c1c54132af5ace4abef38f26825997a26e32ca35409ed9c9b4abcb35916c2696"
+    },
+    {
+     "file": "shrub-b.png",
+     "sha256": "e61e0944444e2b98fdf3d858d07148bcabdfc95332dc07478404d55b4e2c353a"
+    },
+    {
+     "file": "tuft-2.png",
+     "sha256": "728bf09451e29e358f5bbaf8380d5c6bc8bc62e0f9232fe4c2ba05d351085913"
+    },
+    {
+     "file": "tuft-3a.png",
+     "sha256": "8a2b9b93138e440dc3136f2f1847fc1db347f454007c445e81a1ddab76886792"
+    },
+    {
+     "file": "tuft-3b.png",
+     "sha256": "fd923a7d993cb357c8853cc400ba64747fc6adcae5073db93d336ac4552f3863"
+    },
+    {
+     "file": "tuft-4.png",
+     "sha256": "1808b561c83b65b28ddb72973d4d42706b75839d721e1416fb383de58968a405"
+    },
+    {
+     "file": "wilt-stem.png",
+     "sha256": "0bfa81059d6e5b15288dc2ed06da7a25751f422c6d536f5c0908e7b72e27b6e5"
+    },
+    {
+     "file": "wilt-twig.png",
+     "sha256": "70b8c283c7e078a9f3a96ab3e91159e70526c3bd1b1932947053ccf15f477169"
+    }
+   ]
+  },
+  {
+   "label": "pieces-m30-clump",
+   "dir": "../chapter2-grass-reads-as-signal-2026-08-16/pieces-m30-clump",
+   "codeState": {
+    "generator": "blender_grass.py",
+    "sha256": "3eb5515a738b652f260e895e81c90680c42b20061329bd09f15fa3d5fc9cb5e6"
+   },
+   "pieces": [
+    {
+     "file": "flower-failing.png",
+     "sha256": "b8fd40bff2aa167d0fcec6684c5c0a59dff525c98320cc1ffb96c971515f372c"
+    },
+    {
+     "file": "flower-pending.png",
+     "sha256": "05e87a21e2b65be9a17f2ac67c4b03cad9a629d6ad16e3577603b8f8ae0fcf5c"
+    },
+    {
+     "file": "flower-proven.png",
+     "sha256": "8f8fbf2e9b656f00cefbc37bc8e9832c20a499e8a71b21aec5bada6ca06f3e2e"
+    },
+    {
+     "file": "shrub-a.png",
+     "sha256": "37988b546173044aefe1f7d17be95f0b9128b27bbe6e32834bd097b19fc38c7a"
+    },
+    {
+     "file": "shrub-b.png",
+     "sha256": "e1e14d468d646984713451ad576acac9a844ab1911f457e6c04b11e42e9fdd7f"
+    },
+    {
+     "file": "tuft-2.png",
+     "sha256": "bf30f512c629d2924f2d5c1889659cfd647ece9643dff3c4af053a39365d43fa"
+    },
+    {
+     "file": "tuft-3a.png",
+     "sha256": "143f29ce19630dae4de3fce69f921ed8b76e7fa627d59b65a437a19ce1fac3e9"
+    },
+    {
+     "file": "tuft-3b.png",
+     "sha256": "76aa4a769496d6174d517bb84b84aa620edc71c7fef9c258806b21073b26f07e"
+    },
+    {
+     "file": "tuft-4.png",
+     "sha256": "ce4fa2fc2656b10bbae1e63b0a256586f15868bfacb0f36833a529b27d50b4d4"
+    },
+    {
+     "file": "wilt-stem.png",
+     "sha256": "04dc91c2819b87eea2e7c2664983f8dab250e414878b1b83b657c1082613f00c"
+    },
+    {
+     "file": "wilt-twig.png",
+     "sha256": "61591aec9b3efb74dd306ce9a3437a2fb1799f972225d842288c7c4dfb2606de"
+    }
+   ]
+  },
+  {
+   "label": "pieces-m45-clump",
+   "dir": "../chapter2-grass-reads-as-signal-2026-08-16/pieces-m45-clump",
+   "codeState": {
+    "generator": "blender_grass.py",
+    "sha256": "3eb5515a738b652f260e895e81c90680c42b20061329bd09f15fa3d5fc9cb5e6"
+   },
+   "pieces": [
+    {
+     "file": "flower-failing.png",
+     "sha256": "6edb81597a5d79f88e5dedb0da0bdf825a8e67c8cc01e277b644c65866e19ae0"
+    },
+    {
+     "file": "flower-pending.png",
+     "sha256": "12dfa020afaa497d0060a03382f9d6d096c5f42a6faef628a9cb63dee4a4ce40"
+    },
+    {
+     "file": "flower-proven.png",
+     "sha256": "61ad29189f451ef852934aed2522e9c36bb293510754696c39bfdb350fe35b48"
+    },
+    {
+     "file": "shrub-a.png",
+     "sha256": "f0fe5fa3e2362c8ae04722af0823b7e3cd87840ece17ce564d9fda9fc3f3e831"
+    },
+    {
+     "file": "shrub-b.png",
+     "sha256": "4c8c97af0c1161804749980043bfe27398e849f3f6cf7feb5691886594955cd3"
+    },
+    {
+     "file": "tuft-2.png",
+     "sha256": "9a530c9a50f7cbd55e04f909ba4cb75ec0d71d45f305d798b08c3dff08f29f5b"
+    },
+    {
+     "file": "tuft-3a.png",
+     "sha256": "9faca0d521320486c27aa40c28c33157af746151269451ee86a3963b71cfbc08"
+    },
+    {
+     "file": "tuft-3b.png",
+     "sha256": "b31e92fe30182026dee054c4833b9e57aafe4543219a6c7564be34ffd94007eb"
+    },
+    {
+     "file": "tuft-4.png",
+     "sha256": "10eff34ec8702b476ffdaeb6cdfb5e9bf908104d71c9b0a3ab9533e3d04ba17e"
+    },
+    {
+     "file": "wilt-stem.png",
+     "sha256": "ed42bd411b2f7c0c678341ace7dcfdf67c222bb2ac3892a28cd2ce2bed14be52"
+    },
+    {
+     "file": "wilt-twig.png",
+     "sha256": "875157d1c6c9c033526017b34c7bcd6cc4f05900076229c59ddd01b5708bdadc"
+    }
+   ]
+  },
+  {
+   "label": "pieces-m60-clump",
+   "dir": "../chapter2-grass-reads-as-signal-2026-08-16/pieces-m60-clump",
+   "codeState": {
+    "generator": "blender_grass.py",
+    "sha256": "3eb5515a738b652f260e895e81c90680c42b20061329bd09f15fa3d5fc9cb5e6"
+   },
+   "pieces": [
+    {
+     "file": "flower-failing.png",
+     "sha256": "e552bc7649b10450f6995c9293248e83fb990ff1c33cf7ac465477d441551f0b"
+    },
+    {
+     "file": "flower-pending.png",
+     "sha256": "456c0e30c1a1a4608a23584dcd9d1d3082797b737cbb1f15983bcba71dbb6d8f"
+    },
+    {
+     "file": "flower-proven.png",
+     "sha256": "bb7e3b72e8bfda512718ab3feaeacce61b6e510a4c34c2fe9b6b172310673218"
+    },
+    {
+     "file": "shrub-a.png",
+     "sha256": "3fa3e8028430cd855d95d868c246baffb31fdc6837e045cbaa221222423c48aa"
+    },
+    {
+     "file": "shrub-b.png",
+     "sha256": "f761b5950cc25e1dce0422474ffed70d9673c57455e7b14668072a242339de73"
+    },
+    {
+     "file": "tuft-2.png",
+     "sha256": "543347b1a90d9b1aecca178d2ac0f955a68b0f532d8c6b694d1931b5c5a29562"
+    },
+    {
+     "file": "tuft-3a.png",
+     "sha256": "3edbf5b5c72393323f859e83ea5d5447f752b2b2f23b06a59523d82973c5f82a"
+    },
+    {
+     "file": "tuft-3b.png",
+     "sha256": "07a28144cd991d4278f7a4ba957e66880859e2fa4b36a2b250d4843c2a561386"
+    },
+    {
+     "file": "tuft-4.png",
+     "sha256": "7cfc6f7e16bc30d198db64343d7a3959e6385e29badaf7997455a7f914e087d5"
+    },
+    {
+     "file": "wilt-stem.png",
+     "sha256": "1e9b13ce260d3d28edca0e0ac37a02b0c4bc2fbcb3ba5a60d403d5a87885cb29"
+    },
+    {
+     "file": "wilt-twig.png",
+     "sha256": "c297271e4a6b90797b67901fbf57aaaf4980370674c9d7bdddf1e7164dde9360"
+    }
+   ]
+  },
+  {
+   "label": "pieces-m80-clump",
+   "dir": "../chapter2-grass-reads-as-signal-2026-08-16/pieces-m80-clump",
+   "codeState": {
+    "generator": "blender_grass.py",
+    "sha256": "3eb5515a738b652f260e895e81c90680c42b20061329bd09f15fa3d5fc9cb5e6"
+   },
+   "pieces": [
+    {
+     "file": "flower-failing.png",
+     "sha256": "4b319e2056744d293ce97b406d9c15d7d6055326b42af03a11c38dacfae753b8"
+    },
+    {
+     "file": "flower-pending.png",
+     "sha256": "e8446a578d7a7f469b412f0cbf980fb3a24d1535ac7e4519c028a1c55c68a60c"
+    },
+    {
+     "file": "flower-proven.png",
+     "sha256": "240bceeec16812c24cef3ca2e6a42662d2c24a77cb5e21badce67151b80a097e"
+    },
+    {
+     "file": "shrub-a.png",
+     "sha256": "43f69d84d0e9c36608907b7f6bfe0455f6c7a4738715f0312af5c0bee118c8e5"
+    },
+    {
+     "file": "shrub-b.png",
+     "sha256": "052ba974fdaf0692c4f495eb10de554b97d0a2bb0fd442a71eb82280c860fa6a"
+    },
+    {
+     "file": "tuft-2.png",
+     "sha256": "cf13f5f4b7ee9487ea29eb22e3b02f5248f502356f410cb8f4cd8c4c92273ba9"
+    },
+    {
+     "file": "tuft-3a.png",
+     "sha256": "4483281ca65453fdf4fb0232004d45b5536323f9f4a59ddf4d04c822d55369db"
+    },
+    {
+     "file": "tuft-3b.png",
+     "sha256": "3b30bd0a540c960f61e3dc94105be98ac0df584ac91f05e30b65e09e532ba7c9"
+    },
+    {
+     "file": "tuft-4.png",
+     "sha256": "186e0d6e332ee777667b88eafb446fb2ed99ed5dd5db3ae826a6b1da88dd8d6d"
+    },
+    {
+     "file": "wilt-stem.png",
+     "sha256": "58da5c1af5b69e4c54cd9fedfb41c8fbdcc08050e41dd11300ace9d897518279"
+    },
+    {
+     "file": "wilt-twig.png",
+     "sha256": "6d2b121c1b157138edaf84edef226d7f1627b6950f090bb583bac5390f271ac1"
+    }
+   ]
+  },
+  {
+   "label": "pieces-m100-clump",
+   "dir": "../chapter2-grass-reads-as-signal-2026-08-16/pieces-m100-clump",
+   "codeState": {
+    "generator": "blender_grass.py",
+    "sha256": "3eb5515a738b652f260e895e81c90680c42b20061329bd09f15fa3d5fc9cb5e6"
+   },
+   "pieces": [
+    {
+     "file": "flower-failing.png",
+     "sha256": "d4c46a011b99a7a7875003dfae007e07d9e58fec673cdad0da99506964214fbd"
+    },
+    {
+     "file": "flower-pending.png",
+     "sha256": "017376e79e247bd8813d32e4633bf66147466c31abdd41c8290e227f0c733a31"
+    },
+    {
+     "file": "flower-proven.png",
+     "sha256": "494c0ed970673ab96d52cd602c7b1055330c6aee9b01945a5796701148b7837d"
+    },
+    {
+     "file": "shrub-a.png",
+     "sha256": "0ceecadaf567f1ce396219c84c5c49a16992ba699806d115e63dde0656f799d1"
+    },
+    {
+     "file": "shrub-b.png",
+     "sha256": "7dbcd54c93ec2292cabc3b42c701610b22d2b53ce819b4282041b415429a2c1a"
+    },
+    {
+     "file": "tuft-2.png",
+     "sha256": "adb3331e3d4a43ce9c308026447947d4a45b7ea21fe22affa024365d2d94d462"
+    },
+    {
+     "file": "tuft-3a.png",
+     "sha256": "e88cc37e7c14b53ed94650ec6e60c0844cd9502d4dee9a99d277d3d5de11462a"
+    },
+    {
+     "file": "tuft-3b.png",
+     "sha256": "f7c153b9720996cf5e1dcef0f47f5c778460d52b18642018a174236e15db5704"
+    },
+    {
+     "file": "tuft-4.png",
+     "sha256": "b7028190b80341555cc86ab6b9994e461e0f1f6d1b9ff59f4ee23e43de47aba5"
+    },
+    {
+     "file": "wilt-stem.png",
+     "sha256": "fa2a0a3e9ac3cb9ffbc4e8a3ea8cec039d7197161b09a447ab5e034445903c75"
+    },
+    {
+     "file": "wilt-twig.png",
+     "sha256": "e3a82dc992d0ba0f51bba7a14cc8eb3f752e80af11ed32e7918146cb632dd938"
+    }
+   ]
+  }
+ ],
+ "codeState": {
+  "generators": {
+   "blender_grass.py": "3eb5515a738b652f260e895e81c90680c42b20061329bd09f15fa3d5fc9cb5e6",
+   "blender_land.py": "15927bf56c77cd23bc4d41a7353a5890450aeabca02013a08051beb52613b007"
+  },
+  "sha256": "66df58a8729d6a9d26c1d242541e4a091433eb1e6b0ae879e5ea6c96f7a7b2c9",
+  "rule": "one code state PER GENERATOR; the composite's identity is the digest of the whole {generator: state} map, so any generator moving moves it"
+ },
+ "output": {
+  "sha256": "9b0a97e1140a62bc9c816a2fbc533bd1b196f4fbf77db5b29eef3c2d9fdec36d",
+  "bytes": 66751
+ },
+ "cameraElevationDeg": 50.0,
+ "variant": "b++ land + ADR-0226 vegetation vocabulary, grass forks swept",
+ "scatterSeed": "grass-reads-as-signal-2026-08-16",
+ "normalMixes": [
+  0.0,
+  0.15,
+  0.3,
+  0.45,
+  0.6,
+  0.8,
+  1.0
+ ],
+ "geometries": [
+  "blade",
+  "clump"
+ ],
+ "island": {
+  "sha256": "5e07da65124c00eb3aaceaa355ae1922bc2784f2dee62875b3f011010f64766c"
+ }
+}
