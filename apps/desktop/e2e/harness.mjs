@@ -20,11 +20,14 @@
 // WHY THE MAP IS STATIC (the third determinism leg, 2026-08-03): since ADR-0286 the FIRST map mount of
 // a browser session plays an arrival regrow that materialises the world island by island over many
 // seconds, and ADR-0292 grows each island's vegetation frame by frame on that same cursor. None of it
-// moves the camera, so `waitForForestSettled`'s transform-stability poll could not see it and returned
-// onto a half-built map (measured: 3 of 5 launches came back with 1 of 4 islands in the DOM). So
-// launchOffline ARRIVES before the map mounts — it sets the app's own session flag — and every spec
-// reads the static steady state a real second visit gets. Clicking mid-regrow is a real scenario, but
-// it is a spec of its own, not a source of flake in the pointer-capture wall.
+// moves the camera, so back when `waitForForestSettled` polled the transform for byte-stability it could
+// not see a regrow in flight and returned onto a half-built map (measured: 3 of 5 launches came back with
+// 1 of 4 islands in the DOM). `waitForForestSettled` now waits on the app's own settled bridge (see its
+// doc comment below) and WOULD wait out a regrow correctly — but launchOffline still arrives ahead of the
+// mount on purpose: paying the ~9 s regrow on every launch of a suite that isn't testing the regrow itself
+// would make every spec here slower for no coverage gained. It sets the app's own session flag so every
+// spec reads the static steady state a real second visit gets. Clicking (or capturing) mid-regrow is a
+// real scenario, but it is a spec of its own, not a source of flake in the pointer-capture wall.
 //
 // WHY REAL-INPUT CLICKS + RELOAD-RESET: the node-click bug this suite guards reproduces ONLY in Electron
 // (pointer capture retargets a captured click), so we drive `win.mouse` real input, never `.click()` on a
@@ -37,6 +40,7 @@
 import { _electron as electron } from 'playwright-core';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { writeFile } from 'node:fs/promises';
 
 /** apps/desktop — the Electron app root Playwright launches (`args: ['.']`). */
 export const appDir = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -364,46 +368,87 @@ export const renderedStoryIds = (win) =>
 export const FIXTURE_MAP_STORY_IDS = TREE_FIXTURE.stories.map((s) => s.id).sort();
 
 /**
- * Wait for the forest to be rendered AND the camera to stop moving. SVG `<g>` isn't "visible" to
- * Playwright's heuristic, so we wait for ATTACHED, then poll the world transform until it is byte-stable
- * across two reads — the robust replacement for a fixed settle timeout (the post-mount flex re-fit and the
- * select zoom both animate, and a fixed wait flakes on a slow box).
+ * Wait for the forest to be rendered AND declared settled by the APP ITSELF — never a guess.
+ *
+ * Before `frontend-settled-signal-from-the-app` (frontend-visual-judgment-arc) this polled the
+ * `<g class="world-camera">` transform for byte-stability across two reads, plus a marker-class
+ * check for `svg.act2-regrowing`. Both were HEURISTICS: a camera that legitimately never moves
+ * during a regrow (ADR-0286's islands materialise in place) reads as "stable" from frame one, which
+ * is exactly the guess a blind `frontend-builder` run on 2026-08-15 made and got wrong — it had no
+ * way to check either signal against ground truth. That heuristic is gone. This now waits on
+ * `window.__storytreeMotionSettled` (apps/studio/src/lib/motionSettled.ts), the app's own discrete,
+ * positively-asserted fact: no Act 2 regrow / vegetation-growth cursor in flight AND no finite CSS
+ * animation (camera transition, lane draw-on, trail reveal, shore pulse, arrival pop-in) still
+ * running under the scene root. **`lane-motion-draw` is NOT that signal** — see motionSettled.ts's
+ * header for why a permanent motion-MODE class was misread as an in-progress state.
+ *
+ * `waitForFunction` polls a REAL predicate the app computes fresh on every call — this is not a
+ * sleep-and-hope: a wedged bridge fails LOUD (the Playwright timeout below), not silent.
  */
 export async function waitForForestSettled(win, { timeout = 25_000 } = {}) {
   // Wait on the per-island TERRITORY group (`g.hex-flora`), not the central tree: under the ADR-0226
   // vegetation vocabulary (now the studio default) the tree is a baked-art `<use>` (the autumn-tree
   // hero), NOT a `g.story-tree`, so waiting on the tree class would hang. `g.hex-flora` is present
-  // regardless of the tree kind or the async hero-kit load.
+  // regardless of the tree kind or the async hero-kit load, and TreeView publishes the settled
+  // bridge on the same mount, so by the time this locator resolves the bridge is reachable too.
   await win.locator('g.hex-flora').first().waitFor({ state: 'attached', timeout });
-  // Then wait out any ARRIVAL REGROW still in flight (ADR-0286). The camera-stability poll below
-  // cannot see one: the regrow materialises islands in place and never moves the camera, so the
-  // transform is byte-stable across two reads while stories are still absent from the DOM entirely
-  // (`regrowHides` renders them as null) and trees are still growing frame by frame. launchOffline
-  // arrives ahead of the mount so this should already be true; it stays as the BACKSTOP, so a future
-  // entry animation cannot silently re-open the same window. Bounded, and non-fatal on expiry — a
-  // stuck animation should fail on the spec's own assertion, with its own message, not here.
-  const regrowDeadline = Date.now() + 15_000;
-  for (;;) {
-    const regrowing = await win
-      .evaluate(() => !!document.querySelector('svg.act2-regrowing, .arrive-island'))
-      .catch(() => false);
-    if (!regrowing || Date.now() > regrowDeadline) break;
-    await win.waitForTimeout(100);
+  await win.waitForFunction(
+    () => {
+      const bridge = window.__storytreeMotionSettled;
+      // A missing bridge (not yet published, or already unmounted) is NOT settled — never assume
+      // "no signal" means "nothing moving". Fail closed toward waiting, exactly like the module's
+      // own doc comment requires of every reader.
+      return typeof bridge === 'function' && bridge().settled === true;
+    },
+    { timeout },
+  );
+}
+
+/**
+ * The full settled attestation as the app itself computed it, at this exact moment. Throws if the
+ * bridge is unreachable (not on `#/tree`, or TreeView unmounted) rather than returning a fabricated
+ * "settled" — a caller stamping a capture must never paper over "I couldn't ask".
+ */
+export async function readMotionSettled(win) {
+  const snapshot = await win.evaluate(() => {
+    const bridge = window.__storytreeMotionSettled;
+    return typeof bridge === 'function' ? bridge() : null;
+  });
+  if (!snapshot) {
+    throw new Error(
+      'readMotionSettled: window.__storytreeMotionSettled is unreachable — not on #/tree, or TreeView is unmounted',
+    );
   }
-  const readTransform = () =>
-    win.evaluate(() => {
-      const g = document.querySelector('g.world-camera');
-      return g ? g.getAttribute('transform') : null;
-    });
-  let prev = await readTransform();
-  const deadline = Date.now() + 5_000;
-  for (;;) {
-    await win.waitForTimeout(100);
-    const next = await readTransform();
-    if (next === prev) return;
-    prev = next;
-    if (Date.now() > deadline) return; // settled enough; don't hang the spec on a perpetual animation
+  return snapshot;
+}
+
+/**
+ * Take a screenshot ONLY once the app itself attests it is settled, and write the attestation as a
+ * `<png>.settled.json` sidecar beside it — so a capture this project takes for a verdict carries, as
+ * metadata beside the PNG, that it was taken in a settled state. A capture that cannot prove settled
+ * REFUSES rather than writing a plausible-looking image with no backing (the whole point of this
+ * increment: a stale or mid-motion capture must be refusable evidence, not a guess a reader has to
+ * trust).
+ */
+export async function captureSettledScreenshot(win, pngPath, { timeout = 25_000, ...screenshotOpts } = {}) {
+  await waitForForestSettled(win, { timeout });
+  const attestation = await readMotionSettled(win);
+  if (attestation.settled !== true) {
+    throw new Error(
+      `captureSettledScreenshot: refusing to capture — motion not settled (reasons: ${attestation.reasons.join(', ') || 'none reported'})`,
+    );
   }
+  await win.screenshot({ path: pngPath, ...screenshotOpts });
+  const stamp = {
+    settled: true,
+    reasons: attestation.reasons,
+    activeStructuralAnimations: attestation.activeStructuralAnimations,
+    act2Regrowing: attestation.act2Regrowing,
+    capturedAt: new Date().toISOString(),
+    pngPath,
+  };
+  await writeFile(`${pngPath}.settled.json`, `${JSON.stringify(stamp, null, 2)}\n`, 'utf8');
+  return stamp;
 }
 
 /**
