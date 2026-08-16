@@ -17,7 +17,9 @@ delivered a correct island with nothing growing on it. This pass builds the miss
 > the pass, in order:
 >
 > 1. The owner looked and said **"grass looks rather ugly"**.
-> 2. A follow-up pass (**PR #1371**, merged) measured why, and its answer supersedes any shading
+> 2. A follow-up pass (**PR #1371**, merged — evidence in
+>    [`docs/research/chapter2-grass-reads-as-signal-2026-08-16/`](../chapter2-grass-reads-as-signal-2026-08-16/))
+>    measured why, and its answer supersedes any shading
 >    hypothesis this page reaches for: **a tuft is 61 opaque pixels in Blender and 7 delivered
 >    pixels.** Custom normals were built and swept 0.00 → 1.00; the lever demonstrably fires — 90% of
 >    RAW pixels repainted at full strength — and changes **zero delivered pixels at every setting**.
