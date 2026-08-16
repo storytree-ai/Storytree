@@ -56,13 +56,14 @@ const ISLANDS: DemoIsland[] = [
 ];
 
 function territoryOf(island: DemoIsland): SceneTerritoryInput {
-  // NOT `island.tiles.map(hexCenter)`: `hexCenter(h, elevationDeg = LAND_CAMERA_ELEVATION_DEG)`
-  // takes an optional second argument, and `Array.prototype.map` calls its callback with
-  // `(element, index, array)` — so a bare `.map(hexCenter)` feeds each tile's ARRAY INDEX into
-  // `elevationDeg`, silently re-flattening every tile by its own position (0deg for the first
-  // tile, 1deg for the second, ...) instead of the declared camera. Same
-  // `['1','2'].map(parseInt)`-shaped trap already fixed at the studio's two call sites
-  // (`TreeView.tsx`, `land-camera-consumers-reconcile`) — this harness carried the identical bug.
+  // NOT `island.tiles.map(hexCenter)`: this harness carried the identical bare `.map(hexCenter)`
+  // bug already fixed at the studio's two call sites (`TreeView.tsx`,
+  // `land-camera-consumers-reconcile`) — `Array.prototype.map` calls its callback with
+  // `(element, index, array)`, and back when `elevationDeg` was a bare optional `number` that
+  // silently fed each tile's ARRAY INDEX into it (0deg for the first tile, 1deg for the second,
+  // ...) instead of the declared camera. `hexCenter`'s second parameter is now an `ElevationOpts`
+  // object (see `hex.ts`), so a bare `.map(hexCenter)` fails to COMPILE rather than misbehaving —
+  // this wrap is kept anyway, matching the arrow-wrapped form at every other call site.
   const centres = island.tiles.map((h) => hexCenter(h));
   const cx = centres.reduce((s, c) => s + c.x, 0) / centres.length;
   const cy = centres.reduce((s, c) => s + c.y, 0) / centres.length;
