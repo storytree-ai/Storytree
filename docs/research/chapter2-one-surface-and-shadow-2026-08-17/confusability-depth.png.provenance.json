@@ -3,7 +3,7 @@
  "artifact": "confusability-depth.png",
  "producer": {
   "tool": "compose_shadow.py",
-  "sha256": "2ba76a276e5587e15a010dbc33eac1d26117de67ab19ed302d9c9a13603e9128"
+  "sha256": "0ed8ef94bb10a6998d68b69850649063ef63708d7f1a221434ac096040ac1724"
  },
  "command": {
   "tool": "compose_shadow.py",
@@ -172,8 +172,8 @@
   "rule": "one code state PER GENERATOR; the composite's identity is the digest of the whole {generator: state} map, so any generator moving moves it"
  },
  "output": {
-  "sha256": "4de5e7714a77c7401ffdd04de372033d71b322826e0bdca1305a9d62074cba69",
-  "bytes": 30274
+  "sha256": "39d929dfdef239affc4e5c05d2067cc1dca9dde6ab8ada2ba890180a0403be1d",
+  "bytes": 30678
  },
  "cameraElevationDeg": 50.0,
  "storyId": "context-traversal-capture",

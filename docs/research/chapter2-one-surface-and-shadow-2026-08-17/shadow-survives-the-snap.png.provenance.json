@@ -3,7 +3,7 @@
  "artifact": "shadow-survives-the-snap.png",
  "producer": {
   "tool": "compose_shadow.py",
-  "sha256": "2ba76a276e5587e15a010dbc33eac1d26117de67ab19ed302d9c9a13603e9128"
+  "sha256": "0ed8ef94bb10a6998d68b69850649063ef63708d7f1a221434ac096040ac1724"
  },
  "command": {
   "tool": "compose_shadow.py",
