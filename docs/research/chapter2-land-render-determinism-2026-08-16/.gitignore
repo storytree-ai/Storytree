@@ -1,0 +1,10 @@
+# WHAT IS NOT COMMITTED HERE, AND WHY.
+#
+# `runs/` is MBs of render INTERMEDIATE — fourteen piece sets whose entire evidentiary content is the
+# single sentence "they are all identical". Committing fourteen copies of one picture to prove they
+# are one picture is the opposite of the point, and this pass's whole finding is that the pieces
+# rebuild raster-identical from a stated code state plus a stated `--samples`. The same reasoning,
+# and the same exclusion, as the camera-elevation sweep's own .gitignore.
+#
+# Rebuild any of it with the three scripts here; each prints the numbers this README quotes.
+runs/
