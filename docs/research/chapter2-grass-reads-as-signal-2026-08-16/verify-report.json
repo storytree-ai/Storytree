@@ -1,0 +1,121 @@
+{
+ "passed": 19,
+ "total": 19,
+ "fast": false,
+ "checks": [
+  {
+   "section": "determinism",
+   "check": "every piece re-renders raster-identical UNDER CONCURRENT LOAD",
+   "pass": true,
+   "detail": "11/11 pieces, mix 0.60 clump"
+  },
+  {
+   "section": "determinism",
+   "check": "the placement pass is identical when re-run",
+   "pass": true,
+   "detail": "112 placements"
+  },
+  {
+   "section": "levers",
+   "check": "--normals REPAINTS the raw blade tuft (0.00 -> 1.00)",
+   "pass": true,
+   "detail": "55 of 61 opaque px = 90%"
+  },
+  {
+   "section": "levers",
+   "check": "--normals REPAINTS the raw clump tuft (0.00 -> 1.00)",
+   "pass": true,
+   "detail": "84 of 128 opaque px = 66%"
+  },
+  {
+   "section": "levers",
+   "check": "--geometry clump is a DIFFERENT tuft from blade",
+   "pass": true,
+   "detail": "blade 61 raw opaque px, clump 128"
+  },
+  {
+   "section": "provenance",
+   "check": "all 14 grass directories declare ONE generator state",
+   "pass": true,
+   "detail": "generators: ['blender_grass.py', 'blender_land.py']"
+  },
+  {
+   "section": "provenance",
+   "check": "every mix in the sweep is present exactly once per geometry",
+   "pass": true,
+   "detail": "[0.0, 0.15, 0.3, 0.45, 0.6, 0.8, 1.0]"
+  },
+  {
+   "section": "thesis",
+   "check": "(blade) the tuft occupies the SAME pixels at every mix 0.00..1.00",
+   "pass": true,
+   "detail": "supersampled [26] px, delivered [7] px, identical at all 7 mixes \u2014 normals pick a BAND, never whether a pixel is grass. (This is the piece as PASTED \u2014 its footprint on the island's canvas \u2014 which is the number the ADR-0226 D2 density signal is actually made of.)"
+  },
+  {
+   "section": "thesis",
+   "check": "(clump) the tuft occupies the SAME pixels at every mix 0.00..1.00",
+   "pass": true,
+   "detail": "supersampled [85] px, delivered [18] px, identical at all 7 mixes \u2014 normals pick a BAND, never whether a pixel is grass. (This is the piece as PASTED \u2014 its footprint on the island's canvas \u2014 which is the number the ADR-0226 D2 density signal is actually made of.)"
+  },
+  {
+   "section": "tint",
+   "check": "no rendered piece contains ANY island token colour",
+   "pass": true,
+   "detail": "154 piece renders scanned"
+  },
+  {
+   "section": "tint",
+   "check": "all six statuses render from ONE grass piece set",
+   "pass": true,
+   "detail": "the status reaches the PAINT, never the RENDER"
+  },
+  {
+   "section": "palette",
+   "check": "every (decor token x authored shade) pair is IN the closed palette",
+   "pass": true,
+   "detail": "132 entries, 2 shade levels"
+  },
+  {
+   "section": "palette",
+   "check": "the `mottle` base widens the palette by NOTHING",
+   "pass": true,
+   "detail": "it reuses C.SEAM_LEVEL=0.9, an entry the land's own seams already emit"
+  },
+  {
+   "section": "land",
+   "check": "compose_core's land pass is byte-identical to the shipped compose.py",
+   "pass": true,
+   "detail": "asserted on the raw supersampled canvas AND its alpha, before any snap"
+  },
+  {
+   "section": "vocabulary",
+   "check": "exactly one flower per UAT criterion (ADR-0226 D4)",
+   "pass": true,
+   "detail": "6 flowers, 6 criteria"
+  },
+  {
+   "section": "vocabulary",
+   "check": "no decorative species was added back (ADR-0226 D2 retired them)",
+   "pass": true,
+   "detail": "kinds: flower, shrub, tuft, wilt"
+  },
+  {
+   "section": "vocabulary",
+   "check": "every placement stands on a land cell (no decor in the water)",
+   "pass": true,
+   "detail": "112 placements"
+  },
+  {
+   "section": "fence",
+   "check": "the working tree's changes are confined to docs/research/**",
+   "pass": true,
+   "detail": "217 paths touched"
+  },
+  {
+   "section": "fence",
+   "check": "LAND_CAMERA_ELEVATION_DEG is still 20 and was not touched by this pass",
+   "pass": true,
+   "detail": "frontend-visual-judgment-arc's live dogfood fixture \u2014 the owner refused a fix"
+  }
+ ]
+}

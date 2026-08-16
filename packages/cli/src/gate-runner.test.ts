@@ -43,13 +43,13 @@ const byCommand = (results: readonly GateStepResult[], command: string): GateSte
 
 // ── the defect this exists to close ──────────────────────────────────────────
 
-test("a failing step does NOT stop the walk — every later step still executes and reports", () => {
+test("a failing step does NOT stop the walk — every later step still executes and reports", async () => {
   // The 2026-08-02 shape: check:declared reds at link 2, and under `&&` the four steps behind it —
   // including both that judge the session's own diff — were never run and never mentioned.
   const { ran, execute } = scripted({ "pnpm check:declared": 1 });
   const plan = steps("check:manifest", "check:declared", "-r typecheck", "-r test", "check:coverage");
 
-  const results = runGate({ steps: plan, execute, now: fakeClock() });
+  const results = await runGate({ steps: plan, execute, now: fakeClock() });
 
   assert.deepEqual(ran, [
     "pnpm check:manifest",
@@ -65,22 +65,22 @@ test("a failing step does NOT stop the walk — every later step still executes 
   assert.equal(gateExitCode(results), 1, "a red anywhere still fails the gate");
 });
 
-test("several independent failures are ALL reported, not just the first", () => {
+test("several independent failures are ALL reported, not just the first", async () => {
   // The 2026-07-29 shape: a flake early hid a genuine check:corpus-content RED behind it.
   const { execute } = scripted({ "pnpm -r test": 1, "pnpm check:corpus-content": 1 });
   const plan = steps("-r test", "check:corpus-content", "check:node-version");
 
-  const results = runGate({ steps: plan, execute, now: fakeClock() });
+  const results = await runGate({ steps: plan, execute, now: fakeClock() });
 
   assert.deepEqual(tallyGate(results), { pass: 1, fail: 2, notRun: 0, skip: 0 });
   assert.equal(byCommand(results, "pnpm check:corpus-content").status, "fail");
 });
 
-test("every step gets exactly one result, in plan order — an absent row can never mean 'passed'", () => {
+test("every step gets exactly one result, in plan order — an absent row can never mean 'passed'", async () => {
   const { execute } = scripted({ "pnpm check:b": 1 });
   const plan = steps("check:a", "check:b", "check:c");
 
-  const results = runGate({ steps: plan, execute, now: fakeClock() });
+  const results = await runGate({ steps: plan, execute, now: fakeClock() });
 
   assert.equal(results.length, plan.length);
   assert.deepEqual(
@@ -91,14 +91,14 @@ test("every step gets exactly one result, in plan order — an absent row can ne
 
 // ── SKIP is a fourth status: it RAN, and it verified nothing ─────────────────
 
-test("a step exiting the reserved code reports SKIP, never PASS — the measured defect", () => {
+test("a step exiting the reserved code reports SKIP, never PASS — the measured defect", async () => {
   // The 2026-08-01 shape (#1051): nothing flaked and the chain exited 0, while DB-backed checks had
   // silently opted out. PASS was computed from the exit code, so opting out and verifying were
   // indistinguishable. Today's live instance is `check:web-grounding` with no `web/` submodule.
   const { execute } = scripted({ "pnpm check:web-grounding": GATE_SKIP_EXIT_CODE });
   const plan = steps("check:web-grounding", "check:boundaries");
 
-  const results = runGate({ steps: plan, execute, now: fakeClock() });
+  const results = await runGate({ steps: plan, execute, now: fakeClock() });
 
   assert.equal(byCommand(results, "pnpm check:web-grounding").status, "skip");
   assert.notEqual(
@@ -109,9 +109,9 @@ test("a step exiting the reserved code reports SKIP, never PASS — the measured
   assert.deepEqual(tallyGate(results), { pass: 1, fail: 0, notRun: 0, skip: 1 });
 });
 
-test("a SKIP does not red the gate, and the summary says green is NARROWED", () => {
+test("a SKIP does not red the gate, and the summary says green is NARROWED", async () => {
   const { execute } = scripted({ "pnpm check:web-grounding": GATE_SKIP_EXIT_CODE });
-  const results = runGate({ steps: steps("check:web-grounding", "check:boundaries"), execute, now: fakeClock() });
+  const results = await runGate({ steps: steps("check:web-grounding", "check:boundaries"), execute, now: fakeClock() });
 
   assert.equal(gateExitCode(results), 0, "a legitimate opt-out must not train sessions to ignore reds");
 
@@ -121,46 +121,46 @@ test("a SKIP does not red the gate, and the summary says green is NARROWED", () 
   assert.match(summary, /SKIP is UNVERIFIED too/, "the reader is told what a skip did and did not prove");
 });
 
-test("SKIP and NOT RUN stay distinct — same epistemic class, different cause", () => {
+test("SKIP and NOT RUN stay distinct — same epistemic class, different cause", async () => {
   const { execute } = scripted({ "pnpm check:a": GATE_SKIP_EXIT_CODE, "pnpm check:b": 1 });
   const plan = steps("check:a", "check:b", "check:c");
 
-  const results = runGate({ steps: plan, execute, failFast: true, now: fakeClock() });
+  const results = await runGate({ steps: plan, execute, failFast: true, now: fakeClock() });
 
   assert.equal(byCommand(results, "pnpm check:a").status, "skip", "asked, and answered 'nothing to check'");
   assert.equal(byCommand(results, "pnpm check:c").status, "not-run", "never asked at all");
   assert.equal(gateExitCode(results), 1, "the real red still fails the gate");
 });
 
-test("a SKIP never stops the walk — only a real failure can, and only under --fail-fast", () => {
+test("a SKIP never stops the walk — only a real failure can, and only under --fail-fast", async () => {
   const { ran, execute } = scripted({ "pnpm check:a": GATE_SKIP_EXIT_CODE });
   const plan = steps("check:a", "check:b", "check:c");
 
-  const results = runGate({ steps: plan, execute, failFast: true, now: fakeClock() });
+  const results = await runGate({ steps: plan, execute, failFast: true, now: fakeClock() });
 
   assert.deepEqual(ran, ["pnpm check:a", "pnpm check:b", "pnpm check:c"], "a skip is not a red");
   assert.equal(gateExitCode(results), 0);
 });
 
-test("the reserved skip code is not a value any ordinary failure produces", () => {
+test("the reserved skip code is not a value any ordinary failure produces", async () => {
   // If a check could land on it by accident, a genuine failure would stop being counted.
   assert.notEqual(GATE_SKIP_EXIT_CODE, 0, "0 is PASS");
   assert.notEqual(GATE_SKIP_EXIT_CODE, 1, "1 is what process.exit(1) and an uncaught throw produce");
   assert.notEqual(GATE_SKIP_EXIT_CODE, 2, "2 is conventional shell misuse / bad arguments");
 
   const { execute } = scripted({ "pnpm check:a": 1, "pnpm check:b": 2 });
-  const results = runGate({ steps: steps("check:a", "check:b"), execute, now: fakeClock() });
+  const results = await runGate({ steps: steps("check:a", "check:b"), execute, now: fakeClock() });
   assert.equal(byCommand(results, "pnpm check:a").status, "fail");
   assert.equal(byCommand(results, "pnpm check:b").status, "fail");
 });
 
 // ── NOT RUN is a third status, never collapsed into a neighbour ──────────────
 
-test("--fail-fast reports the remainder NOT RUN — it never omits them and never calls them PASS", () => {
+test("--fail-fast reports the remainder NOT RUN — it never omits them and never calls them PASS", async () => {
   const { ran, execute } = scripted({ "pnpm check:b": 1 });
   const plan = steps("check:a", "check:b", "check:c", "check:d");
 
-  const results = runGate({ steps: plan, execute, failFast: true, now: fakeClock() });
+  const results = await runGate({ steps: plan, execute, failFast: true, now: fakeClock() });
 
   assert.deepEqual(ran, ["pnpm check:a", "pnpm check:b"], "nothing after the red is executed");
   assert.equal(byCommand(results, "pnpm check:c").status, "not-run");
@@ -169,10 +169,10 @@ test("--fail-fast reports the remainder NOT RUN — it never omits them and neve
   assert.equal(gateExitCode(results), 1);
 });
 
-test("an interrupted walk reports the untouched steps NOT RUN rather than green", () => {
+test("an interrupted walk reports the untouched steps NOT RUN rather than green", async () => {
   let calls = 0;
   const plan = steps("check:a", "check:b", "check:c");
-  const results = runGate({
+  const results = await runGate({
     steps: plan,
     execute: () => ({ exitCode: 0 }),
     // Interrupted after the first step.
@@ -186,9 +186,9 @@ test("an interrupted walk reports the untouched steps NOT RUN rather than green"
   assert.equal(gateExitCode(results), 1, "not-run is unverified — it can never bank a pass");
 });
 
-test("a step KILLED mid-flight is NOT RUN (unverified), not FAIL — and it stops the walk", () => {
+test("a step KILLED mid-flight is NOT RUN (unverified), not FAIL — and it stops the walk", async () => {
   const plan = steps("check:a", "check:b", "check:c");
-  const results = runGate({
+  const results = await runGate({
     steps: plan,
     execute: (step) =>
       step.command === "pnpm check:b"
@@ -202,9 +202,9 @@ test("a step KILLED mid-flight is NOT RUN (unverified), not FAIL — and it stop
   assert.equal(byCommand(results, "pnpm check:c").status, "not-run");
 });
 
-test("a step that could not be SPAWNED is a FAIL — nothing ran, and nothing may pass on its behalf", () => {
+test("a step that could not be SPAWNED is a FAIL — nothing ran, and nothing may pass on its behalf", async () => {
   const plan = steps("check:a");
-  const results = runGate({
+  const results = await runGate({
     steps: plan,
     execute: () => ({ exitCode: null, note: "could not start: ENOENT" }),
     now: fakeClock(),
@@ -216,7 +216,7 @@ test("a step that could not be SPAWNED is a FAIL — nothing ran, and nothing ma
 
 // ── the exit rule: this must remain a gate that CAN go red ───────────────────
 
-test("gateExitCode is 0 only when EVERY step passed", () => {
+test("gateExitCode is 0 only when EVERY step passed", async () => {
   const pass = (command: string): GateStepResult => ({
     command,
     status: "pass",
@@ -235,16 +235,16 @@ test("gateExitCode is 0 only when EVERY step passed", () => {
   );
 });
 
-test("an EMPTY run is red — a gate that proved nothing has not earned a pass", () => {
+test("an EMPTY run is red — a gate that proved nothing has not earned a pass", async () => {
   // The `cannot-fail` guard for this module: a runner handed no steps must not exit 0.
   assert.equal(gateExitCode([]), 1);
 });
 
 // ── the summary a session actually reads ─────────────────────────────────────
 
-test("the summary distinguishes FAIL from NOT RUN, and says what NOT RUN means", () => {
+test("the summary distinguishes FAIL from NOT RUN, and says what NOT RUN means", async () => {
   const { execute } = scripted({ "pnpm check:b": 1 });
-  const results = runGate({
+  const results = await runGate({
     steps: steps("check:a", "check:b", "check:c"),
     execute,
     failFast: true,
@@ -260,8 +260,8 @@ test("the summary distinguishes FAIL from NOT RUN, and says what NOT RUN means",
   assert.match(text, /GATE RED/);
 });
 
-test("an all-green run says so, and lists no FAILED or NOT RUN section", () => {
-  const results = runGate({
+test("an all-green run says so, and lists no FAILED or NOT RUN section", async () => {
+  const results = await runGate({
     steps: steps("check:a", "check:b"),
     execute: () => ({ exitCode: 0 }),
     now: fakeClock(),
@@ -280,9 +280,9 @@ const partialOf = (...commands: string[]) => ({
   notice: "--only check:b — re-executing 1 of 3 step(s).",
 });
 
-test("an unselected step is NOT executed, but still gets a row carrying why", () => {
+test("an unselected step is NOT executed, but still gets a row carrying why", async () => {
   const { ran, execute } = scripted({});
-  const results = runGate({
+  const results = await runGate({
     steps: steps("check:a", "check:b", "check:c"),
     execute,
     unselected: new Map([
@@ -299,11 +299,11 @@ test("an unselected step is NOT executed, but still gets a row carrying why", ()
   assert.equal(byCommand(results, "pnpm check:b").status, "pass");
 });
 
-test("an unselected step does NOT make the steps behind it look interrupted", () => {
+test("an unselected step does NOT make the steps behind it look interrupted", async () => {
   // `not-run` from a KILL answers for the whole walk — whatever stopped it is still in force. "You did
   // not ask for this one" must not borrow that meaning, or a single --only would poison the rest.
   const { ran, execute } = scripted({});
-  const results = runGate({
+  const results = await runGate({
     steps: steps("check:a", "check:b", "check:c"),
     execute,
     unselected: new Map([["pnpm check:a", "not selected"]]),
@@ -314,10 +314,10 @@ test("an unselected step does NOT make the steps behind it look interrupted", ()
   assert.equal(byCommand(results, "pnpm check:c").status, "pass");
 });
 
-test("a partial run whose selected steps ALL PASS still cannot exit 0", () => {
+test("a partial run whose selected steps ALL PASS still cannot exit 0", async () => {
   // The design constraint, as a number. 4 is not a green: every caller reading non-zero as not-green
   // is unaffected, and a session can still tell 'the flake cleared' from 'it is genuinely red'.
-  const results = runGate({
+  const results = await runGate({
     steps: steps("check:a", "check:b", "check:c"),
     execute: () => ({ exitCode: 0 }),
     unselected: new Map([
@@ -332,9 +332,9 @@ test("a partial run whose selected steps ALL PASS still cannot exit 0", () => {
   assert.equal(gateExitCode(results), 1, "read as a whole gate it is still not green");
 });
 
-test("a partial run whose selected step FAILED is 1, not the partial code", () => {
+test("a partial run whose selected step FAILED is 1, not the partial code", async () => {
   const { execute } = scripted({ "pnpm check:b": 1 });
-  const results = runGate({
+  const results = await runGate({
     steps: steps("check:a", "check:b"),
     execute,
     unselected: new Map([["pnpm check:a", "not selected"]]),
@@ -343,8 +343,8 @@ test("a partial run whose selected step FAILED is 1, not the partial code", () =
   assert.equal(gateExitCode(results, partialOf("pnpm check:b")), 1);
 });
 
-test("a partial run that selected nothing, or whose own step was killed, has not earned the partial code", () => {
-  const results = runGate({
+test("a partial run that selected nothing, or whose own step was killed, has not earned the partial code", async () => {
+  const results = await runGate({
     steps: steps("check:a", "check:b"),
     execute: () => ({ exitCode: null, unverified: true, note: "killed by SIGKILL" }),
     unselected: new Map([["pnpm check:a", "not selected"]]),
@@ -354,10 +354,10 @@ test("a partial run that selected nothing, or whose own step was killed, has not
   assert.equal(gateExitCode(results, partialOf("pnpm check:nothing")), 1, "selecting nothing proves nothing");
 });
 
-test("a partial summary states the arithmetic instead of borrowing GATE RED", () => {
+test("a partial summary states the arithmetic instead of borrowing GATE RED", async () => {
   // A session re-running one flaked step and reading `GATE RED` would conclude something failed, when
   // what happened is that the other steps were never asked.
-  const results = runGate({
+  const results = await runGate({
     steps: steps("check:a", "check:b", "check:c"),
     execute: () => ({ exitCode: 0 }),
     unselected: new Map([
@@ -376,9 +376,9 @@ test("a partial summary states the arithmetic instead of borrowing GATE RED", ()
   assert.doesNotMatch(text, /GATE RED/);
 });
 
-test("a partial summary whose selected step failed points at FAILED rather than claiming a clean re-run", () => {
+test("a partial summary whose selected step failed points at FAILED rather than claiming a clean re-run", async () => {
   const { execute } = scripted({ "pnpm check:b": 1 });
-  const results = runGate({
+  const results = await runGate({
     steps: steps("check:a", "check:b"),
     execute,
     unselected: new Map([["pnpm check:a", "not selected"]]),

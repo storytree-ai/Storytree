@@ -120,7 +120,11 @@ from this repo — measured, not inferred (ADR-0366). What is now true is that s
 path no longer has the defect, so there is a correct path to point at.
 
 **Not closed by this ADR:** end state 2 (attribution for arbitrary OS processes) and end state 4
-(gate-step liveness). Both remain open entries on the arc.
+(gate-step liveness). *Both have since closed — end state 2 by the arc's
+`spawned-work-is-attributable-to-its-session` entry (PR #1361, the detached studio and Electron spawn
+paths now register), and end state 4 by ADR-0376 (a gate step past two minutes reports whether its own
+process tree is burning CPU). What remains open is not an end state but the two limits named above:
+`TaskStop` is harness-owned, and only work that REGISTERS is visible.*
 
 ## References
 

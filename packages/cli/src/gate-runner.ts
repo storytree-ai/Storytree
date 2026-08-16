@@ -143,8 +143,16 @@ export interface GateStepResult {
 
 export interface RunGateInput {
   readonly steps: readonly GateStep[];
-  /** Run one step and report its exit code. Injected, so tests drive the runner with stubs. */
-  readonly execute: (step: GateStep, index: number) => GateExecution;
+  /**
+   * Run one step and report its exit code. Injected, so tests drive the runner with stubs.
+   *
+   * ASYNC-CAPABLE SINCE THE LIVENESS SIGNAL (`shared-box-session-ownership-arc` end state 4). The real
+   * executor used `spawnSync`, which BLOCKS the runner's event loop for the whole step — so the gate
+   * could not emit a heartbeat while a step was running, no timer could fire, and there was nothing to
+   * hook. Awaiting the step here is what makes a liveness signal possible at all; the walk itself is
+   * still strictly sequential, because steps share a working tree and a live DB.
+   */
+  readonly execute: (step: GateStep, index: number) => GateExecution | Promise<GateExecution>;
   /**
    * Opt-in fail-fast for the inner loop (default false — run every step). The steps after the first
    * failure are reported `not-run`, which is exactly what they are; they are never omitted, because
@@ -175,7 +183,7 @@ export interface RunGateInput {
  * Run the plan and return ONE result per step, in plan order — always `steps.length` of them, so a
  * caller can never mistake an absent row for a passing one.
  */
-export function runGate(input: RunGateInput): GateStepResult[] {
+export async function runGate(input: RunGateInput): Promise<GateStepResult[]> {
   const { steps, execute } = input;
   const failFast = input.failFast ?? false;
   const now = input.now ?? Date.now;
@@ -218,7 +226,7 @@ export function runGate(input: RunGateInput): GateStepResult[] {
 
     input.onStepStart?.(step, index, total);
     const started = now();
-    const exec = execute(step, index);
+    const exec = await execute(step, index);
     const durationMs = now() - started;
     const status: GateStepStatus =
       exec.unverified === true
