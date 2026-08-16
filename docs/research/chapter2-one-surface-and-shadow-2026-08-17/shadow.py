@@ -81,16 +81,31 @@ TREE_SHADOW_ELEVATION_DEG = 75.0
 #: it for stops being its own. On this island that bound is **0.74**, so the deepest rung here sits
 #: `SHADOW_MARGIN` clear of it. `verify.py` re-measures the bound on every run and FAILS if this
 #: ladder ever reaches past it, so the constant cannot drift away from the palette that constrains it.
-SHADOW_LEVELS = (0.94, 0.87, 0.80)
+#:
+#: ONE PARAMETER, NOT FOUR. The floor is the decision; the rungs are evenly spaced between it and
+#: full light by `ladder_for`. Declaring three numbers that have to stay consistent with a fourth is
+#: how a ladder ends up with a rung nothing can reach, or a floor below its own deepest rung.
+SHADOW_FLOOR = 0.79
 
 #: How much clearance the deepest rung keeps from the measured bound. Stated rather than implied,
 #: because "it happened to pass" and "it passes with room" are different claims.
 SHADOW_MARGIN = 0.05
 
-#: The deepest the composed light multiplier may go before the snap sees it. Set just below the
-#: deepest ladder rung so the rung is reachable and nothing darker is ever composed — a value the
-#: palette cannot express is a value the snap decides for you.
-SHADOW_FLOOR = 0.79
+STOPS = 3
+
+
+def ladder_for(floor, stops=STOPS):
+    """The rungs, evenly spaced between full light and just above `floor`.
+
+    Just ABOVE: the deepest rung has to be reachable, so the composed multiplier is allowed to sit one
+    hundredth below it and snap up to it. A rung the field can never reach is a colour in the palette
+    and nothing on the island.
+    """
+    deepest = round(floor + 0.01, 4)
+    return tuple(round(deepest + (1.0 - deepest) * i / stops, 4) for i in range(stops - 1, -1, -1))
+
+
+SHADOW_LEVELS = ladder_for(SHADOW_FLOOR)
 
 # How much each term darkens at full strength. These are the three shadow OBJECTS the increment names
 # — cast from raised terracing, cast from the hero tree, and ambient occlusion in the joins — and they
@@ -184,7 +199,7 @@ def light_ground_direction(sin_flat):
     return toward, (-toward[0], -toward[1])
 
 
-def extended_palette(base_palette, levels=SHADOW_LEVELS):
+def extended_palette(base_palette, levels=None):
     """THE PALETTE, CLOSED OVER THE LIGHT LADDER — as a closure over the EXISTING palette, never a
     second copy of the token tables.
 
@@ -200,6 +215,7 @@ def extended_palette(base_palette, levels=SHADOW_LEVELS):
     authored light level. 1.0 is included, so the result is a strict SUPERSET and an unshadowed
     correctly-composed pixel still snaps to itself.
     """
+    levels = SHADOW_LEVELS if levels is None else levels
     out = {tuple(int(round(v)) for v in c) for c in base_palette}
     for lv in levels:
         for c in base_palette:
@@ -377,7 +393,7 @@ def top_face_mask(C, cells, erode=1):
 
 
 def build(C, cells, tree_ground=None, sprite=None, anchor=None,
-          terrain=TERRAIN_CAST, tree=TREE_CAST, ao=JOIN_AO, floor=SHADOW_FLOOR):
+          terrain=None, tree=None, ao=None, floor=None):
     """The delivered light multiplier, one value per SUPERSAMPLED canvas pixel.
 
     Returns `(field, stats)`. The field multiplies the assembled canvas BEFORE `back_half`, so the
@@ -394,6 +410,10 @@ def build(C, cells, tree_ground=None, sprite=None, anchor=None,
         nearby stands. Identically zero across a join between two cells at one height, which is what
         keeps it from redrawing the mesh seam the owner removed.
     """
+    terrain = TERRAIN_CAST if terrain is None else terrain
+    tree_k = TREE_CAST if tree is None else tree
+    ao = JOIN_AO if ao is None else ao
+    floor = SHADOW_FLOOR if floor is None else floor
     frame, hg = _ground_frame(C, cells)
     gx0, gy0, w, h = frame
     toward, _falls = light_ground_direction(C.SIN)
@@ -440,7 +460,7 @@ def build(C, cells, tree_ground=None, sprite=None, anchor=None,
     s_ao = _sample(ao_field, frame, gxp, gyp)
     s_tree = _sample(canopy, frame, gxp, gyp)
 
-    field = 1.0 - (terrain * s_occl + ao * s_ao + tree * s_tree)
+    field = 1.0 - (terrain * s_occl + ao * s_ao + tree_k * s_tree)
     field = np.clip(field, floor, 1.0).astype(np.float32)
     land = idx >= 0
     stats = {

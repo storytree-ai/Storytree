@@ -1,0 +1,58 @@
+{
+ "fired": 13,
+ "total": 13,
+ "guards": [
+  {
+   "name": "an over-strong gradient is REFUSED, with pixel evidence, and NO picture is written",
+   "ok": true
+  },
+  {
+   "name": "the refusal names MORE THAN A HANDFUL of corrupted pixels, so it is not a threshold artefact",
+   "ok": true
+  },
+  {
+   "name": "a ladder that does not clear the measured ceiling is REFUSED even with a CLEAN surface",
+   "ok": true
+  },
+  {
+   "name": "a rig pointing the WRONG WAY across the land pieces is REFUSED",
+   "ok": true
+  },
+  {
+   "name": "an INVENTED status is still REFUSED through this pass",
+   "ok": true
+  },
+  {
+   "name": "a `healthy` cell with NO signed pass is still REFUSED here (ADR-0040's wall)",
+   "ok": true
+  },
+  {
+   "name": "`safe_depth` finds a depth at which the healthy fill DOES lie \u2014 the ceiling is not vacuous",
+   "ok": true
+  },
+  {
+   "name": "and the reader table names what it lies AS, rather than merely refusing",
+   "ok": true
+  },
+  {
+   "name": "the SAME terrain+AO term DOES fire on the real terraced island",
+   "ok": true
+  },
+  {
+   "name": "on the SHIPPED palette, every shadow rung is quantised away",
+   "ok": true
+  },
+  {
+   "name": "on the CLOSED palette, every rung reaches the delivered raster",
+   "ok": true
+  },
+  {
+   "name": "a ONE-PIXEL drift is caught by the raster comparison",
+   "ok": true
+  },
+  {
+   "name": "...and the SAME comparison passes on the unperturbed raster",
+   "ok": true
+  }
+ ]
+}

@@ -3,7 +3,7 @@
  "artifact": "one-surface-and-shadow.png",
  "producer": {
   "tool": "compose_shadow.py",
-  "sha256": "45ddbdd2ea7e587a968957f987e5f4493abfa39522fc27d79c3d2d5eda6b44ba"
+  "sha256": "2ba76a276e5587e15a010dbc33eac1d26117de67ab19ed302d9c9a13603e9128"
  },
  "command": {
   "tool": "compose_shadow.py",
@@ -172,8 +172,8 @@
   "rule": "one code state PER GENERATOR; the composite's identity is the digest of the whole {generator: state} map, so any generator moving moves it"
  },
  "output": {
-  "sha256": "bf9c99ed2c944fa1e1999b1f79e1b90d7116fcf00f04204b30571458482ef3e5",
-  "bytes": 47647
+  "sha256": "9f6f9fbf445baf2564250ef89cb199a1ae77e67010a9edd742d572758860d94c",
+  "bytes": 46852
  },
  "cameraElevationDeg": 50.0,
  "storyId": "context-traversal-capture",
@@ -223,17 +223,17 @@
   "joinAO": 0.07,
   "floor": 0.79,
   "ladder": [
-   0.94,
-   0.87,
+   0.9333,
+   0.8667,
    0.8
   ]
  },
  "paletteEntries": {
   "shipped": 132,
-  "lightClosed": 514
+  "lightClosed": 506
  },
  "statusIsNotCorrupted": {
-  "nonHealthyBodyPx": 988,
+  "nonHealthyBodyPx": 986,
   "bodyPx": 14042
  },
  "island": {

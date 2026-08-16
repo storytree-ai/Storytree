@@ -61,6 +61,20 @@ import shadow as SH                                        # noqa: E402
 
 OUT = os.environ.get("STORYTREE_SHADOW_OUT") or HERE
 
+# THE ONE LEVER THE REFUSAL HARNESS PULLS, and it is here for the same reason `compose_healthy.py`
+# takes its inputs from the environment. The central guard below is a NEGATIVE — *the shadow does not
+# change what any cell says* — and a negative is worth exactly what the instrument that failed to find
+# anything is worth. So `verify_refusal.py` drives this module, in this directory, with the floor
+# pushed past the measured ceiling, and requires the guard to refuse a REAL composed picture rather
+# than a swatch. `STORYTREE_SHADOW_OUT` sends that run's writes to a scratch directory, so a guard
+# that fails to fire cannot overwrite the delivered pictures with its perturbed ones.
+if os.environ.get("STORYTREE_SHADOW_FLOOR"):
+    SH.SHADOW_FLOOR = float(os.environ["STORYTREE_SHADOW_FLOOR"])
+    SH.SHADOW_LEVELS = SH.ladder_for(SH.SHADOW_FLOOR)
+    g = float(os.environ.get("STORYTREE_SHADOW_GAIN", "1"))
+    SH.TERRAIN_CAST, SH.TREE_CAST, SH.JOIN_AO = (SH.TERRAIN_CAST * g, SH.TREE_CAST * g, SH.JOIN_AO * g)
+    print(f"OVERRIDE: shadow floor {SH.SHADOW_FLOOR} ladder {SH.SHADOW_LEVELS} gain {g}", flush=True)
+
 #: THE ONE SURFACE. `substrate.ts:237` gives every cell `variant = hash(...) % 3` plus a `wheat`
 #: override; `scene.ts:3128` renders it. On this island all eleven capabilities are `healthy`, so that
 #: variation is provably not semantic — PR #1382 measured it at SIX distinct delivered cell fills with
@@ -505,16 +519,20 @@ def ladder_survival(img, solid):
     """
     body = cell_bodies(img, solid)
     rgb = img[:, :, :3][body].astype(np.int32)
+    # ONLY THE FLAT BAND, and the reason is a false positive this instrument had before it was
+    # narrowed. Counting the SEAM band too made `0.8667 x 0.90 = 0.780` collide with the palette's
+    # authored `chamfer_dark` level, so an entry that is present with NO shadow at all was being
+    # reported as a surviving shadow rung — on the SHIPPED palette, where the honest answer is none.
+    # With the interior seams off (owner-decided) a cell fill emits exactly one band, so restricting
+    # to it is not a simplification; it is the only band a cell fill has.
     base = C.hexrgb(C.STATUS_TOKENS["healthy"]["top"][ONE_SURFACE_VARIANT])
     out, matched = {}, 0
     for lv in (1.0,) + SH.SHADOW_LEVELS:
-        for band in (C.FLAT_LEVEL, C.SEAM_LEVEL):
-            want = np.array([int(round(v * lv * band)) for v in base], dtype=np.int32)
-            n = int(np.count_nonzero(np.all(rgb == want, axis=1)))
-            if n:
-                out.setdefault(f"light-{lv:g}", 0)
-                out[f"light-{lv:g}"] += n
-                matched += n
+        want = np.array([int(round(v * lv * C.FLAT_LEVEL)) for v in base], dtype=np.int32)
+        n = int(np.count_nonzero(np.all(rgb == want, axis=1)))
+        if n:
+            out[f"light-{lv:g}"] = n
+            matched += n
     # STATED, NOT SWEPT UNDER: the mask is geometric and the downsample is a MAJORITY vote, so a
     # top-face block lying against a cell edge can legitimately deliver its neighbour's or its own
     # wall's colour. Those pixels match no rung of the healthy top ladder and are counted here rather
@@ -634,6 +652,20 @@ REPORT["howDeepBeforeItLies"] = {
     "actualMargin": round(min(SH.SHADOW_LEVELS) - CEILING, 3),
     "ladderIsWithinTheCeiling": bool(min(SH.SHADOW_LEVELS) >= CEILING + SH.SHADOW_MARGIN),
     "sweep": DEPTH_ROWS,
+    # THE CEILING IS PER-STATUS, AND THIS ISLAND ONLY EXERCISES ONE OF THEM. Every capability here is
+    # `healthy`, so the bound above is `healthy`'s. A real mixed island puts four tokens on the land at
+    # once and the admissible depth is the MINIMUM over the ones present — which is a smaller number,
+    # and worth knowing before anyone carries this ladder to a mixed surface.
+    "ceilingPerRenderedStatus": {
+        st: {"fill": "#%02x%02x%02x" % tuple(
+            int(round(v)) for v in C.shade(C.hexrgb(C.STATUS_TOKENS[st]["top"][ONE_SURFACE_VARIANT]),
+                                           C.FLAT_LEVEL)),
+             "ceiling": SH.safe_depth(C, C.shade(C.hexrgb(C.STATUS_TOKENS[st]["top"][ONE_SURFACE_VARIANT]),
+                                                 C.FLAT_LEVEL), TABLE)[0],
+             "readsAsAtFullLight": SH.safe_depth(
+                 C, C.shade(C.hexrgb(C.STATUS_TOKENS[st]["top"][ONE_SURFACE_VARIANT]), C.FLAT_LEVEL),
+                 TABLE)[1]}
+        for st in P.RENDERED_VOCABULARY},
     "reading":
         "the ladder is BOUNDED BY MEASUREMENT rather than chosen: the delivered top-face colour is "
         "darkened until the nearest status a reader could take it for stops being its own, and the "
@@ -641,6 +673,22 @@ REPORT["howDeepBeforeItLies"] = {
         "every run and fails if the ladder ever reaches past it, and `verify_refusal.py` drives a "
         "REAL composed picture past it and requires the guard to catch it.",
 }
+# --- THE GUARD, AS A REFUSAL --------------------------------------------------------------------------
+# A REPORT LINE IS NOT A GUARD. `compose_healthy.py` made the same call about its own central claim and
+# said why: *"a report explaining afterwards that the island was fabricated is not the same object as a
+# composer that declines to draw one."* This pass's central claim is the ADR-0367 D5 floor — meaning
+# outranks appearance — so a shadow that changes what a cell SAYS must stop the pictures being written,
+# not annotate them.
+_fail = MOVED_LIT["pureFillPxThatChangedWhatTheySay"]
+if _fail or not REPORT["howDeepBeforeItLies"]["ladderIsWithinTheCeiling"]:
+    raise SystemExit(
+        f"REFUSED: the shadow corrupts status. {_fail} of {MOVED_LIT['pureFillPx']} pixels that "
+        f"delivered the healthy top FILL unshadowed now read as a different status "
+        f"{MOVED_LIT['pureFillColourPairs']}; ladder deepest {min(SH.SHADOW_LEVELS)} against a "
+        f"measured ceiling of {CEILING} (margin required {SH.SHADOW_MARGIN}). Land cells ARE the "
+        f"capability and the FILL carries the status, so this is the art asserting something false "
+        f"about the work — ADR-0367 D5. No picture is written.")
+
 print(f"ceiling {CEILING} (reads {CEIL_READ}) | ladder deepest {min(SH.SHADOW_LEVELS)} | "
       f"shadow changed the status read of {MOVED_LIT['pixelsWhoseStatusReadChanged']} of "
       f"{MOVED_LIT['bodyPx']} top-face px | cross-reads before any shadow "
@@ -695,7 +743,7 @@ CH.caption(dr1, PAD, T1 + IH + 6, [
 im1.save(os.path.join(OUT, "one-surface-and-shadow.png"))
 
 # ---- 2. THE THREE MOVES, one variable at a time -----------------------------------------------------
-im2, dr2, T2 = CH.sheet(PAD + 3 * (IW + PAD), HDR + IH + CAP + 46,
+im2, dr2, T2 = CH.sheet(PAD + 3 * (IW + PAD), HDR + IH + CAP + 70,
                         "TWO INCREMENTS, ONE MOVE — the noise out, the shadow in",
                         "One island, one code state, one piece set, one camera. Panel 1 is PR #1382's "
                         "delivered surface (interior mesh seams already removed). Panel 2 changes "
@@ -717,7 +765,7 @@ for k, (img, title, cap, col) in enumerate([
     cx = PAD + k * (IW + PAD)
     im2.paste(img, (cx, T2))
     CH.caption(dr2, cx, T2 + IH + 6, [(title, INK), (cap, col)], IW)
-CH.caption(dr2, PAD, T2 + IH + 34, [
+CH.caption(dr2, PAD, T2 + IH + 46, [
     ("Read the luma rows together: collapsing the variants NARROWS the range, because what it removes "
      "was hash-picked noise. The shadow then re-spends range on a low-frequency gradient that carries "
      "form. Whether that trade reads better is the owner's look.", DIM),
@@ -749,7 +797,7 @@ for k, (t, img) in enumerate(zoom):
 im3.save(os.path.join(OUT, "shadow-detail-6x.png"))
 
 # ---- 4. DOES IT SURVIVE THE SNAP --------------------------------------------------------------------
-im4, dr4, T4 = CH.sheet(PAD + 2 * (IW + PAD), HDR + IH + CAP + 60,
+im4, dr4, T4 = CH.sheet(PAD + 2 * (IW + PAD), HDR + IH + CAP + 118,
                         "A SHADOW ONLY EXISTS IF THE PALETTE HOLDS IT",
                         f"The land's palette is CLOSED — every colour it may emit is an authored token "
                         f"times an authored shade level — and `snap()` clamps everything else to the "
@@ -768,7 +816,7 @@ for k, (img, title, cap, col) in enumerate([
     cx = PAD + k * (IW + PAD)
     im4.paste(img, (cx, T4))
     CH.caption(dr4, cx, T4 + IH + 6, [(title, INK), (cap, col)], IW)
-CH.caption(dr4, PAD, T4 + IH + 34, [
+CH.caption(dr4, PAD, T4 + IH + 70, [
     ("`build_palette` records what a PARTIAL closure costs: the nearest surviving entry belonged to a "
      "different STATUS FAMILY and an `unknown` island's rim came out `healthy` green over 2564 px "
      "with nothing failing. A snap can only clamp toward what it holds, which is why the closure here "
@@ -802,10 +850,11 @@ for r in rows:
     dr5.text((sx, T5 + SWH + 18), r["readsAs"][:9], fill=(DIM if ok else WARN))
     sx += SWZ
 CH.caption(dr5, PAD, T5 + SWH + 40, [
-    (f"DELIVERED: the shadow changed the status read of "
-     f"{MOVED_LIT['pixelsWhoseStatusReadChanged']} of {MOVED_LIT['bodyPx']} top-face px "
-     f"{MOVED_LIT['transitions'] or '(no transitions)'}",
-     GOOD if MOVED_LIT["pixelsWhoseStatusReadChanged"] == 0 else WARN),
+    (f"DELIVERED: {MOVED_LIT['pureFillPxThatChangedWhatTheySay']} of {MOVED_LIT['pureFillPx']} "
+     f"pixels that delivered the healthy top FILL unshadowed read as a different status once the "
+     f"shadow is applied. The guard is a REFUSAL, and verify_refusal.py makes it FIRE on a real "
+     f"composed picture naming over a thousand.",
+     GOOD if MOVED_LIT["pureFillPxThatChangedWhatTheySay"] == 0 else WARN),
     (f"the same colour vocabulary ALREADY cross-reads without any shadow: {CROSS['crossReading']} of "
      f"{CROSS['entries']} colours the land may emit ({CROSS['pct']}%) read nearest to a status other "
      f"than the one that authored them. That is why the guard above is a DELTA — an instrument that "

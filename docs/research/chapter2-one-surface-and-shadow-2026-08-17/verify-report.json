@@ -1,0 +1,150 @@
+{
+ "passed": 36,
+ "total": 36,
+ "checks": [
+  {
+   "name": "every changed / untracked file is under docs/research/",
+   "ok": true
+  },
+  {
+   "name": "LAND_CAMERA_ELEVATION_DEG is still 20 and was not touched",
+   "ok": true
+  },
+  {
+   "name": "substrate.ts still carries the diagnosed line, unedited",
+   "ok": true
+  },
+  {
+   "name": "the land pieces' LIT wall band sits to screen-LEFT of their DARK one",
+   "ok": true
+  },
+  {
+   "name": "the hero tree's crown brightens UP-LEFT, independently of the pieces",
+   "ok": true
+  },
+  {
+   "name": "the declared LIGHT_SCREEN_FROM agrees with both instruments",
+   "ok": true
+  },
+  {
+   "name": "blender_land.py and blender_tree.py declare the SAME key sun",
+   "ok": true
+  },
+  {
+   "name": "KEY_ELEVATION_DEG is derived from that euler, not asserted",
+   "ok": true
+  },
+  {
+   "name": "the delivered top fill reads `healthy` at full light",
+   "ok": true
+  },
+  {
+   "name": "the ceiling is RE-MEASURED here and agrees with the report",
+   "ok": true
+  },
+  {
+   "name": "the deepest rung is clear of the ceiling by the declared margin",
+   "ok": true
+  },
+  {
+   "name": "the ladder is DERIVED from the floor, not declared beside it",
+   "ok": true
+  },
+  {
+   "name": "the floor sits below the deepest rung, so that rung is reachable",
+   "ok": true
+  },
+  {
+   "name": "each of the three terms alone lands on a DISTINCT rung",
+   "ok": true
+  },
+  {
+   "name": "every rung actually REACHED the delivered raster",
+   "ok": true
+  },
+  {
+   "name": "the light-closed palette is a STRICT SUPERSET of the shipped one",
+   "ok": true
+  },
+  {
+   "name": "every shipped-palette colour still snaps to ITSELF under the closure",
+   "ok": true
+  },
+  {
+   "name": "the closure covers the coast sand at every light level",
+   "ok": true
+  },
+  {
+   "name": "the closure covers the coast sand edge at every light level",
+   "ok": true
+  },
+  {
+   "name": "with every cell at ONE height, the terrain+AO field is identically full light",
+   "ok": true
+  },
+  {
+   "name": "this pass IMPORTS the healthy-island pass rather than copying it",
+   "ok": true
+  },
+  {
+   "name": "`compose_land` is called, never restated here",
+   "ok": true
+  },
+  {
+   "name": "`back_half` is called, never restated here",
+   "ok": true
+  },
+  {
+   "name": "`snap` is called, never restated here",
+   "ok": true
+  },
+  {
+   "name": "`plant_tree` is called, never restated here",
+   "ok": true
+  },
+  {
+   "name": "`STATUS_TOKENS` is called, never restated here",
+   "ok": true
+  },
+  {
+   "name": "the only new composition code is shadow.py plus one panel driver",
+   "ok": true
+  },
+  {
+   "name": "one-surface-and-shadow.png has a sidecar declaring the camera and the rig",
+   "ok": true
+  },
+  {
+   "name": "three-moves.png has a sidecar declaring the camera and the rig",
+   "ok": true
+  },
+  {
+   "name": "shadow-detail-6x.png has a sidecar declaring the camera and the rig",
+   "ok": true
+  },
+  {
+   "name": "shadow-survives-the-snap.png has a sidecar declaring the camera and the rig",
+   "ok": true
+  },
+  {
+   "name": "confusability-depth.png has a sidecar declaring the camera and the rig",
+   "ok": true
+  },
+  {
+   "name": "all five pictures come from ONE code state",
+   "ok": true
+  },
+  {
+   "name": "the report records ZERO Blender frames rendered",
+   "ok": true
+  },
+  {
+   "name": "the delivered surface reads as ONE top-face fill",
+   "ok": true
+  },
+  {
+   "name": "no unambiguous healthy FILL pixel changed what it says",
+   "ok": true
+  }
+ ]
+}

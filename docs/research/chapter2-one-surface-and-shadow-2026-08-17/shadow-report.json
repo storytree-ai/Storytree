@@ -102,8 +102,8 @@
    "joinAO": 0.07,
    "floor": 0.79,
    "ladder": [
-    0.94,
-    0.87,
+    0.9333,
+    0.8667,
     0.8
    ]
   },
@@ -146,33 +146,33 @@
    "bodyPx": 14042,
    "lumaMin": 72.9,
    "lumaMax": 160.9,
-   "lumaP2": 96.7,
+   "lumaP2": 99.3,
    "lumaP98": 160.9,
-   "lumaRangeP2toP98": 64.2,
-   "lumaStdDev": 17.23,
-   "distinctLumaLevels": 25
+   "lumaRangeP2toP98": 61.6,
+   "lumaStdDev": 17.21,
+   "distinctLumaLevels": 24
   },
-  "deliveredPxChangedByTheShadow": 9788,
+  "deliveredPxChangedByTheShadow": 9700,
   "islandPx": 30477,
-  "pctOfIslandReached": 32.12,
+  "pctOfIslandReached": 31.83,
   "reading": "read the two rows together. Collapsing the variants NARROWS the luminance range, because the range it removes was hash-picked noise. The shadow then re-spends range on a low-frequency gradient. Whether the second is worth more than the first is exactly the owner's look and this file has no standing to make it (ADR-0070 stage 2)."
  },
  "survivesTheSnap": {
   "shippedPaletteEntries": 132,
-  "lightClosedPaletteEntries": 514,
+  "lightClosedPaletteEntries": 506,
   "ladderOnShippedPalette": {
-   "light-1": 10190,
-   "unmatchedByTheHealthyTopLadder": 3852
+   "light-1": 9904,
+   "unmatchedByTheHealthyTopLadder": 4138
   },
   "ladderOnClosedPalette": {
-   "light-1": 10138,
-   "light-0.94": 1156,
-   "light-0.87": 319,
-   "light-0.8": 743,
-   "unmatchedByTheHealthyTopLadder": 1686
+   "light-1": 9931,
+   "light-0.9333": 822,
+   "light-0.8667": 158,
+   "light-0.8": 747,
+   "unmatchedByTheHealthyTopLadder": 2384
   },
   "deliveredColoursShippedPalette": 32,
-  "deliveredColoursClosedPalette": 42,
+  "deliveredColoursClosedPalette": 43,
   "reading": "a closed palette is not a formality the shadow has to satisfy \u2014 it is the thing that decides whether a shadow exists at all. `snap()` clamps every pixel to the nearest entry it HOLDS, so shading a token the palette only holds at full light quantises the shadow back out. The closure here is taken against the DELIVERED palette rather than against the token tables, so it covers the coast sand too \u2014 the family `build_palette` records having missed once, at a cost of 2564 px of an `unknown` rim rendered `healthy` green with nothing failing."
  },
  "statusIsNotCorrupted": {
@@ -207,11 +207,11 @@
   "oneSurfaceShadowClosedPalette": {
    "bodyPx": 14042,
    "mix": {
-    "healthy": 13054,
-    "unhealthy": 988
+    "healthy": 13056,
+    "unhealthy": 986
    },
-   "nonHealthyPx": 988,
-   "nonHealthyPct": 7.036
+   "nonHealthyPx": 986,
+   "nonHealthyPct": 7.022
   },
   "test": "every delivered CELL-BODY pixel (silhouette rim and coast excluded) is matched to the nearest status by its `top` shades and its `side`, in the same luma-weighted space `snap` uses. All 11 capabilities on this island are `healthy`, so any pixel reading as another status is a false assertion about the work \u2014 ADR-0367 D5, meaning outranks appearance.",
   "wheatExcludedFromTheReaderTable": "five of the six statuses share the identical wheat hex `#d6b271`, so wheat identifies no status (PR #1372). Including it would make every status equidistant and the test would answer nothing. That is a pre-existing defect of the token table, not one a shadow creates.",
@@ -238,28 +238,28 @@
    },
    "closedPalette": {
     "bodyPx": 14042,
-    "pixelsWhoseStatusReadChanged": 29,
-    "pctChanged": 0.207,
+    "pixelsWhoseStatusReadChanged": 27,
+    "pctChanged": 0.192,
     "pureFillPx": 12457,
     "pureFillPxThatChangedWhatTheySay": 0,
     "pureFillColourPairs": {},
     "transitions": {
-     "healthy -> unhealthy": 21,
+     "healthy -> unhealthy": 19,
      "unhealthy -> healthy": 8
     },
     "colourPairs": {
      "#5a753d -> #8cb85e": 6,
      "#8cb85e -> #57713b": 6,
-     "#8cb85e -> #4e6535": 4,
-     "#8cb85e -> #4e6635": 2,
-     "#8cb85e -> #5a753d": 2,
+     "#8cb85e -> #4e6535": 2,
+     "#8cb85e -> #546d39": 2,
      "#8cb85e -> #57733a": 2,
-     "#8cb85e -> #495f32": 1,
+     "#8cb85e -> #4b6132": 1,
+     "#8cb85e -> #5a753d": 1,
      "#8cb85e -> #485e31": 1,
-     "#8cb85e -> #556e39": 1,
      "#8cb85e -> #44582e": 1,
-     "#8cb85e -> #5f7d40": 1,
-     "#5a753d -> #84ad58": 1
+     "#8cb85e -> #455a2f": 1,
+     "#8cb85e -> #5e7d3f": 1,
+     "#506836 -> #799f51": 1
     }
    }
   }
@@ -531,6 +531,28 @@
     "readsAs": "unhealthy"
    }
   ],
+  "ceilingPerRenderedStatus": {
+   "healthy": {
+    "fill": "#8cb85e",
+    "ceiling": 0.74,
+    "readsAsAtFullLight": "healthy"
+   },
+   "mapped": {
+    "fill": "#b3946a",
+    "ceiling": 0.76,
+    "readsAsAtFullLight": "mapped"
+   },
+   "proposed": {
+    "fill": "#d8c069",
+    "ceiling": 0.88,
+    "readsAsAtFullLight": "proposed"
+   },
+   "unknown": {
+    "fill": "#a9c87f",
+    "ceiling": 0.91,
+    "readsAsAtFullLight": "unknown"
+   }
+  },
   "reading": "the ladder is BOUNDED BY MEASUREMENT rather than chosen: the delivered top-face colour is darkened until the nearest status a reader could take it for stops being its own, and the deepest rung is kept a declared margin clear of that. `verify.py` re-measures the ceiling every run and fails if the ladder ever reaches past it, and `verify_refusal.py` drives a REAL composed picture past it and requires the guard to catch it."
  },
  "surface": {
