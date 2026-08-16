@@ -1,0 +1,395 @@
+{
+ "bare": {
+  "caption": "BARE \u2014 the settled b++ land, as the track delivered it",
+  "decorPlacements": 0,
+  "landPx": 34968,
+  "landColours": 60
+ },
+ "meadow": {
+  "caption": "+ MEADOW \u2014 grass = a capability's tests, dead grass = the status wilt",
+  "decorPlacements": 111,
+  "landPx": 34968,
+  "landColours": 72
+ },
+ "dressed": {
+  "caption": "+ UAT FLOWERS \u2014 one per criterion, the verdict read from form",
+  "decorPlacements": 117,
+  "landPx": 34968,
+  "landColours": 79
+ },
+ "bladeGroundContrast": {
+  "measured": [
+   {
+    "status": "healthy",
+    "role": "bladeFront",
+    "token": "#71a154",
+    "snapsTo": [
+     113,
+     161,
+     84
+    ],
+    "groundTokensItCollapsesInto": [],
+    "invisibleOnThisGround": false
+   },
+   {
+    "status": "healthy",
+    "role": "bladeBack",
+    "token": "#436b32",
+    "snapsTo": [
+     67,
+     107,
+     50
+    ],
+    "groundTokensItCollapsesInto": [],
+    "invisibleOnThisGround": false
+   },
+   {
+    "status": "building",
+    "role": "bladeFront",
+    "token": "#71a154",
+    "snapsTo": [
+     113,
+     161,
+     84
+    ],
+    "groundTokensItCollapsesInto": [],
+    "invisibleOnThisGround": false
+   },
+   {
+    "status": "building",
+    "role": "bladeBack",
+    "token": "#436b32",
+    "snapsTo": [
+     67,
+     107,
+     50
+    ],
+    "groundTokensItCollapsesInto": [],
+    "invisibleOnThisGround": false
+   },
+   {
+    "status": "mapped",
+    "role": "bladeFront",
+    "token": "#9fa88f",
+    "snapsTo": [
+     159,
+     168,
+     143
+    ],
+    "groundTokensItCollapsesInto": [],
+    "invisibleOnThisGround": false
+   },
+   {
+    "status": "mapped",
+    "role": "bladeBack",
+    "token": "#7d886c",
+    "snapsTo": [
+     125,
+     136,
+     108
+    ],
+    "groundTokensItCollapsesInto": [],
+    "invisibleOnThisGround": false
+   },
+   {
+    "status": "proposed",
+    "role": "bladeFront",
+    "token": "#9fa88f",
+    "snapsTo": [
+     159,
+     168,
+     143
+    ],
+    "groundTokensItCollapsesInto": [],
+    "invisibleOnThisGround": false
+   },
+   {
+    "status": "proposed",
+    "role": "bladeBack",
+    "token": "#7d886c",
+    "snapsTo": [
+     125,
+     136,
+     108
+    ],
+    "groundTokensItCollapsesInto": [],
+    "invisibleOnThisGround": false
+   },
+   {
+    "status": "unknown",
+    "role": "bladeFront",
+    "token": "#b0afa2",
+    "snapsTo": [
+     176,
+     175,
+     162
+    ],
+    "groundTokensItCollapsesInto": [],
+    "invisibleOnThisGround": false
+   },
+   {
+    "status": "unknown",
+    "role": "bladeBack",
+    "token": "#8f8e7c",
+    "snapsTo": [
+     143,
+     142,
+     124
+    ],
+    "groundTokensItCollapsesInto": [],
+    "invisibleOnThisGround": false
+   },
+   {
+    "status": "unhealthy",
+    "role": "bladeFront",
+    "token": "#ab8c54",
+    "snapsTo": [
+     171,
+     140,
+     84
+    ],
+    "groundTokensItCollapsesInto": [],
+    "invisibleOnThisGround": false
+   },
+   {
+    "status": "unhealthy",
+    "role": "bladeBack",
+    "token": "#87693b",
+    "snapsTo": [
+     135,
+     105,
+     59
+    ],
+    "groundTokensItCollapsesInto": [],
+    "invisibleOnThisGround": false
+   }
+  ],
+  "collapsedCombinations": 0,
+  "totalCombinations": 12,
+  "note": "a collapsed combination is grass that is placed and then erased by the palette snap, because its authored blade token and the authored ground token under it resolve to the SAME closed-palette entry"
+ },
+ "densitySweep": [
+  {
+   "density": 1.0,
+   "placements": 117,
+   "meadowPlacements": 111,
+   "flowerPlacements": 6,
+   "decorPx": 353,
+   "landPx": 34968,
+   "decorShareOfLandPct": 1.01,
+   "decorPxBeforeDownsampleGroundEquiv": 368.1,
+   "survivalOfDownsamplePct": 95.9,
+   "landColours": 79
+  },
+  {
+   "density": 3.0,
+   "placements": 339,
+   "meadowPlacements": 333,
+   "flowerPlacements": 6,
+   "decorPx": 689,
+   "landPx": 34968,
+   "decorShareOfLandPct": 1.97,
+   "decorPxBeforeDownsampleGroundEquiv": 724.8,
+   "survivalOfDownsamplePct": 95.1,
+   "landColours": 79
+  },
+  {
+   "density": 6.0,
+   "placements": 670,
+   "meadowPlacements": 664,
+   "flowerPlacements": 6,
+   "decorPx": 1016,
+   "landPx": 34968,
+   "decorShareOfLandPct": 2.91,
+   "decorPxBeforeDownsampleGroundEquiv": 1073.3,
+   "survivalOfDownsamplePct": 94.7,
+   "landColours": 79
+  }
+ ],
+ "scatter": {
+  "tuft": 99,
+  "shrub": 10,
+  "wilt": 2,
+  "flower": 6,
+  "perCapability": [
+   {
+    "cap": 0,
+    "status": "healthy",
+    "cells": 24,
+    "tests": 7,
+    "grassRule": "round(2 + 7*1.9)",
+    "lush": true,
+    "tufts": 15,
+    "shrubs": 3,
+    "wilts": 0
+   },
+   {
+    "cap": 1,
+    "status": "healthy",
+    "cells": 21,
+    "tests": 7,
+    "grassRule": "round(2 + 7*1.9)",
+    "lush": true,
+    "tufts": 14,
+    "shrubs": 2,
+    "wilts": 0
+   },
+   {
+    "cap": 2,
+    "status": "building",
+    "cells": 18,
+    "tests": 4,
+    "grassRule": "round(2 + 4*1.9)",
+    "lush": false,
+    "tufts": 9,
+    "shrubs": 2,
+    "wilts": 0
+   },
+   {
+    "cap": 3,
+    "status": "proposed",
+    "cells": 24,
+    "tests": 1,
+    "grassRule": "round(2 + 1*1.9)*0.85 mapped/proposed",
+    "lush": false,
+    "tufts": 3,
+    "shrubs": 0,
+    "wilts": 0
+   },
+   {
+    "cap": 4,
+    "status": "proposed",
+    "cells": 15,
+    "tests": 3,
+    "grassRule": "round(2 + 3*1.9)*0.85 mapped/proposed",
+    "lush": false,
+    "tufts": 7,
+    "shrubs": 0,
+    "wilts": 0
+   },
+   {
+    "cap": 5,
+    "status": "mapped",
+    "cells": 12,
+    "tests": 7,
+    "grassRule": "round(2 + 7*1.9)*0.85 mapped/proposed",
+    "lush": false,
+    "tufts": 13,
+    "shrubs": 0,
+    "wilts": 0
+   },
+   {
+    "cap": 6,
+    "status": "unhealthy",
+    "cells": 37,
+    "tests": 4,
+    "grassRule": "round(2 + 4*1.9)",
+    "lush": false,
+    "tufts": 10,
+    "shrubs": 0,
+    "wilts": 2
+   },
+   {
+    "cap": 7,
+    "status": "healthy",
+    "cells": 13,
+    "tests": 3,
+    "grassRule": "round(2 + 3*1.9)",
+    "lush": false,
+    "tufts": 8,
+    "shrubs": 1,
+    "wilts": 0
+   },
+   {
+    "cap": 8,
+    "status": "building",
+    "cells": 36,
+    "tests": 6,
+    "grassRule": "round(2 + 6*1.9)",
+    "lush": true,
+    "tufts": 13,
+    "shrubs": 2,
+    "wilts": 0
+   },
+   {
+    "cap": 9,
+    "status": "proposed",
+    "cells": 14,
+    "tests": 3,
+    "grassRule": "round(2 + 3*1.9)*0.85 mapped/proposed",
+    "lush": false,
+    "tufts": 7,
+    "shrubs": 0,
+    "wilts": 0
+   }
+  ],
+  "centroidFallbacks": 0,
+  "flowerFallbacks": 0
+ },
+ "pieceSet": {
+  "decorPieces": 11,
+  "landPieces": 22,
+  "indexedBy": "decor by kind x variant; land rim by quantised outward ground heading \u2014 neither by cell shape or island outline"
+ },
+ "paletteEntries": 132,
+ "cameraElevationDeg": 50.0,
+ "appLandCameraElevationDeg": 20.0,
+ "uatCriteria": [
+  {
+   "id": "uat-1",
+   "state": "proven"
+  },
+  {
+   "id": "uat-2",
+   "state": "proven"
+  },
+  {
+   "id": "uat-3",
+   "state": "pending"
+  },
+  {
+   "id": "uat-4",
+   "state": "failing"
+  },
+  {
+   "id": "uat-5",
+   "state": "proven"
+  },
+  {
+   "id": "uat-6",
+   "state": "pending"
+  }
+ ],
+ "statusVocabulary": [
+  {
+   "status": "healthy",
+   "landPx": 34968,
+   "landColours": 47,
+   "placements": 148
+  },
+  {
+   "status": "building",
+   "landPx": 34968,
+   "landColours": 47,
+   "placements": 148
+  },
+  {
+   "status": "proposed",
+   "landPx": 34968,
+   "landColours": 45,
+   "placements": 62
+  },
+  {
+   "status": "mapped",
+   "landPx": 34968,
+   "landColours": 44,
+   "placements": 109
+  },
+  {
+   "status": "unhealthy",
+   "landPx": 34968,
+   "landColours": 46,
+   "placements": 148
+  }
+ ]
+}

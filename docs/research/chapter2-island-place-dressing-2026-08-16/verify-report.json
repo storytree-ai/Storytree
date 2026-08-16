@@ -1,0 +1,104 @@
+{
+ "green": true,
+ "checks": [
+  {
+   "name": "scatter: re-running the placement is identical",
+   "pass": true,
+   "detail": "117 placements"
+  },
+  {
+   "name": "scatter: changing the UAT criteria moves NO meadow placement",
+   "pass": true,
+   "detail": "111 meadow placements unmoved with 5 criteria"
+  },
+  {
+   "name": "render: every decor piece re-renders raster-identical",
+   "pass": true,
+   "detail": "11/11 pixel-identical (11 with a differing PNG container \u2014 Blender stamps the file, so the claim is on the raster)"
+  },
+  {
+   "name": "composite: two runs are byte-identical",
+   "pass": true,
+   "detail": "34968 land px, 79 colours"
+  },
+  {
+   "name": "(a) no rendered decor piece contains ANY island token colour",
+   "pass": true,
+   "detail": "11 pieces checked"
+  },
+  {
+   "name": "(b) all five statuses render from ONE decor piece set",
+   "pass": true,
+   "detail": "healthy:148pl/47col, building:148pl/47col, proposed:62pl/45col, mapped:109pl/44col, unhealthy:148pl/46col"
+  },
+  {
+   "name": "(c) permuting the statuses repaints the island and moves no piece",
+   "pass": true,
+   "detail": "76 colours under the permutation vs 79"
+  },
+  {
+   "name": "every (decor token x authored shade) pair is IN the closed palette",
+   "pass": true,
+   "detail": "46 decor entries, 132 palette entries total"
+  },
+  {
+   "name": "every decor piece's roles fit inside ONE token family variant (so a fringe pixel cannot cross a status)",
+   "pass": true,
+   "detail": "11 pieces, each contained in one variant"
+  },
+  {
+   "name": "compose_dressed's land pass is byte-identical to the shipped compose.py",
+   "pass": true,
+   "detail": "canvas + alpha + tree height"
+  },
+  {
+   "name": "paste_decor reproduces C.paste_piece exactly on a two-role piece",
+   "pass": true,
+   "detail": "same blit, same rounding, same clipping"
+  },
+  {
+   "name": "exactly one flower per UAT criterion (ADR-0226 D4)",
+   "pass": true,
+   "detail": "6 flowers for 6 criteria, 0 placed by the exhaustion fallback"
+  },
+  {
+   "name": "the density dial scales the meadow and NEVER the UAT flowers",
+   "pass": true,
+   "detail": "x3 -> 333 meadow, 6 flowers"
+  },
+  {
+   "name": "every placement stands on a land cell (the app's keep-IN, no decor in the water)",
+   "pass": true,
+   "detail": "117 placements on land"
+  },
+  {
+   "name": "the working tree's changes are confined to docs/research/**",
+   "pass": true,
+   "detail": "62 paths, all under docs/research/"
+  }
+ ],
+ "cameraElevationDeg": 50.0,
+ "appLandCameraElevationDeg": 20.0,
+ "statusRenders": {
+  "healthy": {
+   "placements": 148,
+   "colours": 47
+  },
+  "building": {
+   "placements": 148,
+   "colours": 47
+  },
+  "proposed": {
+   "placements": 62,
+   "colours": 45
+  },
+  "mapped": {
+   "placements": 109,
+   "colours": 44
+  },
+  "unhealthy": {
+   "placements": 148,
+   "colours": 46
+  }
+ }
+}
