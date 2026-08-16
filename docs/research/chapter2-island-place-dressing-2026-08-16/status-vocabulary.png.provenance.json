@@ -1,0 +1,184 @@
+{
+ "schema": "storytree/derived-evidence-provenance/1",
+ "artifact": "status-vocabulary.png",
+ "producer": {
+  "tool": "compose_dressed.py",
+  "sha256": "b3935dabbeb37e44e3836d77e89ccde4e9bc6681dfa6b364ee0f5aa89db534ef"
+ },
+ "command": {
+  "tool": "compose_dressed.py",
+  "argv": []
+ },
+ "inputs": [
+  {
+   "label": "pieces-land",
+   "dir": "../chapter2-island-place-dressing-2026-08-16/pieces-land",
+   "codeState": {
+    "generator": "blender_land.py",
+    "sha256": "15927bf56c77cd23bc4d41a7353a5890450aeabca02013a08051beb52613b007"
+   },
+   "pieces": [
+    {
+     "file": "tile-0.png",
+     "sha256": "f4f722765b12cf1897e2621db86095fcda6c9c3721ce465c632ba046869e9093"
+    },
+    {
+     "file": "tile-1.png",
+     "sha256": "ba5432f556bad62e36122795472b0769a6e7a8a60ec92359f64612a31d4d8717"
+    },
+    {
+     "file": "tile-2.png",
+     "sha256": "ed58ecd9f1d33b9c3f1eecebc3d01be82fa2cd3b500822c1b10e9dc287ef22c6"
+    },
+    {
+     "file": "tile-3.png",
+     "sha256": "6e95b1d74e88795a727797dcb59354ec3b4bb8d88bc3ef4392439fd103ae24e1"
+    },
+    {
+     "file": "tile-4.png",
+     "sha256": "4ec4e5584643220ac0924379f3f5766b2decfcd75bd4d4bbbef82613a513e342"
+    },
+    {
+     "file": "tile-5.png",
+     "sha256": "5587119d24501168d5cdb86f46e448a97ae67298a1ed053b423584dd1ac67385"
+    },
+    {
+     "file": "wall-0.png",
+     "sha256": "045e381d21a29018ee1897edc84bccbea206ba103a0676b0468f9f907a09e3be"
+    },
+    {
+     "file": "wall-1.png",
+     "sha256": "d2926a06ae1e02baf5cd7e4cc81289733a96a3bc082ea85b23e7c2f17420aea2"
+    },
+    {
+     "file": "wall-10.png",
+     "sha256": "def5ba22b003afad71f5d22f20bd3dfe0f16ba5ee6ccba65bb795f034897e639"
+    },
+    {
+     "file": "wall-11.png",
+     "sha256": "0a58418050786c794471787f24c583ee4b656fe5278b988c0b787c816cbd6622"
+    },
+    {
+     "file": "wall-12.png",
+     "sha256": "8de7246b8de4c80fdc391e673e5dc6cb13ba63cc2e6a4a974ad03dba7bc65907"
+    },
+    {
+     "file": "wall-13.png",
+     "sha256": "790dd0d73dcb0e1be0c25acfe14af1cd6674a3210433872644a7e5ca166cf795"
+    },
+    {
+     "file": "wall-14.png",
+     "sha256": "4e5da6c0bb7212de45789866ccae75174c7356919163a471a95da053f8fb44cc"
+    },
+    {
+     "file": "wall-15.png",
+     "sha256": "c9d6e5414a21345f6bbff51c71e26aef789ea3be0e90549dd06a36cd6e1b4579"
+    },
+    {
+     "file": "wall-2.png",
+     "sha256": "19c01aed274bc7bf318158f834596b9c7e4ef4599e9bdcf8fa36362dadcc346e"
+    },
+    {
+     "file": "wall-3.png",
+     "sha256": "4c5ab7f1a1c68b92a36555a48ebf9d6c34ee005e654fe025f0e5682bb48ecbfb"
+    },
+    {
+     "file": "wall-4.png",
+     "sha256": "7cd29d9101559e955c11d622a28b7d675917de9cfa889643a30fcfe6e6d2fb93"
+    },
+    {
+     "file": "wall-5.png",
+     "sha256": "8978da27059b1b7e9b4e42ae8d686642299c6df45363836db5a0200c592e27c3"
+    },
+    {
+     "file": "wall-6.png",
+     "sha256": "16feb3e2a9f5966997c00d30eb8e70e0fa1d29128a3ffa4e03e32687390f39c4"
+    },
+    {
+     "file": "wall-7.png",
+     "sha256": "3ec5125e184f33a2740aa3df6aeb0b9dd1eee3ad7204c8d159c115869182fc57"
+    },
+    {
+     "file": "wall-8.png",
+     "sha256": "bf562b7e11c63989d68a0816b648996a05c91220ec25e6da40b71ef9a318ef7f"
+    },
+    {
+     "file": "wall-9.png",
+     "sha256": "bce698b6709707463548b197bcc3e25a8ee10cf16f535f6ae4bf5958ff4ca4a0"
+    }
+   ]
+  },
+  {
+   "label": "pieces-decor",
+   "dir": "../chapter2-island-place-dressing-2026-08-16/pieces-decor",
+   "codeState": {
+    "generator": "blender_decor.py",
+    "sha256": "c17798ecd1af8d38bd3e6fcdf5c1d02b7226d7ba5aef6e8760b90478ef4b8671"
+   },
+   "pieces": [
+    {
+     "file": "flower-failing.png",
+     "sha256": "34141108246d0dad0384fb1acdc11ab6adfb4fbbc08d140501f1edba4124c10d"
+    },
+    {
+     "file": "flower-pending.png",
+     "sha256": "ca2ae2e1e5079896625c913d594712b4a3ede599e72d9d097a9eb81bfff95862"
+    },
+    {
+     "file": "flower-proven.png",
+     "sha256": "5da480ca5eed15c079a0d0288dd401e1f3047a304601540af08495d8379179db"
+    },
+    {
+     "file": "shrub-a.png",
+     "sha256": "90672d35ce190d5901d6a3942d8a59919867d93df8c8612be46e559437e4dd80"
+    },
+    {
+     "file": "shrub-b.png",
+     "sha256": "3235269b9d2c48f806a9a1856372aeb4a36de09c14f2f1a5f88f132193dc5f19"
+    },
+    {
+     "file": "tuft-2.png",
+     "sha256": "5a0741331b5a219aed0e4a107437128ad2e285009743ed8be5292c74bb2acaf4"
+    },
+    {
+     "file": "tuft-3a.png",
+     "sha256": "aaa2c5f3243aa0eb9548411500f79113eb7f4d84e43509944edee06fd95a85fb"
+    },
+    {
+     "file": "tuft-3b.png",
+     "sha256": "c98887003941c534517d19ea493cb9892de66505208d1c3cb98cf8cd56010740"
+    },
+    {
+     "file": "tuft-4.png",
+     "sha256": "67f9b40e19aeb745043fb345fb38a135f64c19afc233313eb30d640a55889493"
+    },
+    {
+     "file": "wilt-stem.png",
+     "sha256": "91741f6859784dffcd717791f6684ec988fb9e03e730a802bf9ddb4279ab3224"
+    },
+    {
+     "file": "wilt-twig.png",
+     "sha256": "f06162886cfa3cd300ee77e499485085632cc6a9cd5b700e3ec347c38a4ea558"
+    }
+   ]
+  }
+ ],
+ "codeState": {
+  "generators": {
+   "blender_decor.py": "c17798ecd1af8d38bd3e6fcdf5c1d02b7226d7ba5aef6e8760b90478ef4b8671",
+   "blender_land.py": "15927bf56c77cd23bc4d41a7353a5890450aeabca02013a08051beb52613b007"
+  },
+  "sha256": "91459f3e8e1e30c8bd0732dbe4b790ca79b18b4f1c80a0a28ffc761cbfe2a5aa",
+  "rule": "one code state PER GENERATOR; the composite's identity is the digest of the whole {generator: state} map, so any generator moving moves it"
+ },
+ "output": {
+  "sha256": "488fa9942f1cb88b9ea1637f853b3bb2ea9daca9c88210571e3a07f345a48b16",
+  "bytes": 109804
+ },
+ "cameraElevationDeg": 50.0,
+ "variant": "b++ land + ADR-0226 vegetation vocabulary",
+ "scatterSeed": "island-place-dressing-2026-08-16",
+ "island": {
+  "sha256": "5e07da65124c00eb3aaceaa355ae1922bc2784f2dee62875b3f011010f64766c"
+ }
+}
