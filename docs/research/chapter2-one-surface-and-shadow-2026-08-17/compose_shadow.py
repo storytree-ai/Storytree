@@ -828,7 +828,7 @@ im4.save(os.path.join(OUT, "shadow-survives-the-snap.png"))
 SWZ, SWH = 52, 40
 rows = [r for r in DEPTH_ROWS if r["multiplier"] >= (FIRST_BAD - 0.06 if FIRST_BAD else 0.5)]
 rows = rows[::2] if len(rows) > 14 else rows
-im5, dr5, T5 = CH.sheet(max(SHEET_MIN_W, PAD * 2 + SWZ * len(rows)), HDR + SWH + 96,
+im5, dr5, T5 = CH.sheet(max(SHEET_MIN_W, PAD * 2 + SWZ * len(rows)), HDR + SWH + 132,
                         "HOW DEEP A SHADOW MAY GO BEFORE IT LIES ABOUT THE WORK",
                         f"Land cells ARE the capability and the FILL carries the status, so a "
                         f"darkening pass is precisely the operation that can make a `healthy` cell "
