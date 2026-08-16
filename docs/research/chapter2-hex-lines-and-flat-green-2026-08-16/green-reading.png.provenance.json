@@ -1,6 +1,6 @@
 {
  "schema": "storytree/derived-evidence-provenance/1",
- "artifact": "line-detail-6x.png",
+ "artifact": "green-reading.png",
  "producer": {
   "tool": "compose_lines.py",
   "sha256": "60db135b8b14ecec35c349f1b6ce5ab134d7e2b648a1d37a3a5730da0c1f2632"
@@ -172,8 +172,8 @@
   "rule": "one code state PER GENERATOR; the composite's identity is the digest of the whole {generator: state} map, so any generator moving moves it"
  },
  "output": {
-  "sha256": "d630a1ac65b4945e485a47ad2d23c76621eeba7de30587a074f517bad435b211",
-  "bytes": 27392
+  "sha256": "d1a05e709d82723fcf47190d5035e0e5a2ca6744bcbfbf47975584c5306fef8d",
+  "bytes": 47201
  },
  "cameraElevationDeg": 50.0,
  "variant": "b++ land, flat green ground, ADR-0226 vegetation as it ships; seam classes suppressed one at a time",

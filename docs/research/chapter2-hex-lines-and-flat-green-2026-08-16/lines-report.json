@@ -180,7 +180,7 @@
    "proposed": 4,
    "unhealthy": 4
   },
-  "statusPairsSharingADeliveredColour": {
+  "statusPairsSharingADeliveredColourWithSeams": {
    "building|healthy": [
     [
      214,
@@ -203,13 +203,60 @@
     ]
    ]
   },
-  "reading": "With every interior seam removed, each status still delivers its own colour set and no two statuses collide (3 colliding pairs). The status tint is carried by the cell FILL, which the seam removal does not touch \u2014 which is the mechanical reason the ADR-0367 D5 obligation survives this change."
+  "statusPairsSharingADeliveredColourWithoutSeams": {
+   "building|healthy": [
+    [
+     214,
+     178,
+     113
+    ]
+   ],
+   "building|proposed": [
+    [
+     214,
+     178,
+     113
+    ]
+   ],
+   "healthy|proposed": [
+    [
+     214,
+     178,
+     113
+    ]
+   ]
+  },
+  "removalIntroducedNewCollisions": [],
+  "reading": "TWO SEPARATE FACTS, and keeping them apart is the point of measuring the island BOTH ways. (a) Seam removal introduces NO new status collision: the pairs that share a delivered colour are the same 3 with the seams drawn as without them, so nothing about the status read is spent by this change. The tint is carried by the cell FILL, which suppression does not touch \u2014 the mechanical reason the ADR-0367 D5 obligation survives. (b) Those collisions EXIST, and they are a pre-existing property of the island rather than a finding about lines: the shared entry is the WHEAT colour, which several statuses emit identically, so a wheat cell does not report its capability's status by colour whether or not it is outlined. That is worth someone's attention and it is NOT this pass's to fix."
  },
  "greenReading": {
   "deliveredLandPx": 23736,
   "greenPx": 5117,
   "greenPct": 21.6,
   "nonGreenPct": 78.4,
+  "perStatus": {
+   "building": {
+    "deliveredPx": 6328,
+    "greenPct": 0.1
+   },
+   "healthy": {
+    "deliveredPx": 6370,
+    "greenPct": 78.4
+   },
+   "mapped": {
+    "deliveredPx": 1452,
+    "greenPct": 0.0
+   },
+   "proposed": {
+    "deliveredPx": 5727,
+    "greenPct": 2.0
+   },
+   "unhealthy": {
+    "deliveredPx": 3859,
+    "greenPct": 0.1
+   }
+  },
+  "greenTest": "g > r and g > b on the delivered pixel \u2014 a coarse test, chosen because it needs no threshold anyone could tune toward a preferred answer.",
   "capStatuses": [
    "healthy",
    "healthy",

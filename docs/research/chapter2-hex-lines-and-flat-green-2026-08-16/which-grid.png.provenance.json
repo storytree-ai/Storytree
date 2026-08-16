@@ -3,7 +3,7 @@
  "artifact": "which-grid.png",
  "producer": {
   "tool": "compose_lines.py",
-  "sha256": "94f449cb385b220741ac0494fe525482ba51515e5553434e5dc271b66d377153"
+  "sha256": "60db135b8b14ecec35c349f1b6ce5ab134d7e2b648a1d37a3a5730da0c1f2632"
  },
  "command": {
   "tool": "compose_lines.py",
@@ -172,8 +172,8 @@
   "rule": "one code state PER GENERATOR; the composite's identity is the digest of the whole {generator: state} map, so any generator moving moves it"
  },
  "output": {
-  "sha256": "cc68e06ed9dcc83368c3f52c559c8e4bbd62c57e6d55e99e64df457f0bd48645",
-  "bytes": 46442
+  "sha256": "e71a19b7aad3b88ce52e2f1d8676b4a689f38326de753003663c9f2c17cf22fd",
+  "bytes": 48458
  },
  "cameraElevationDeg": 50.0,
  "variant": "b++ land, flat green ground, ADR-0226 vegetation as it ships; seam classes suppressed one at a time",

@@ -450,25 +450,38 @@ def status_of_cell(i):
     return ISLAND["capStatuses"][CELLS[i]["cap"]]
 
 
-status_colours = {}
-for i, col in COL_OFF.items():
-    status_colours.setdefault(status_of_cell(i), set()).add(col)
-overlap = {}
-sts = sorted(status_colours)
-for a in range(len(sts)):
-    for b in range(a + 1, len(sts)):
-        sh = status_colours[sts[a]] & status_colours[sts[b]]
-        if sh:
-            overlap[f"{sts[a]}|{sts[b]}"] = [list(x) for x in sorted(sh)]
+def status_colour_overlap(colmap):
+    by_status = {}
+    for i, col in colmap.items():
+        by_status.setdefault(status_of_cell(i), set()).add(col)
+    ov = {}
+    sts = sorted(by_status)
+    for a in range(len(sts)):
+        for b in range(a + 1, len(sts)):
+            sh = by_status[sts[a]] & by_status[sts[b]]
+            if sh:
+                ov[f"{sts[a]}|{sts[b]}"] = [list(x) for x in sorted(sh)]
+    return by_status, ov
+
+
+BY_ST_ASIS, OV_ASIS = status_colour_overlap(COL_ASIS)
+BY_ST_OFF, OV_OFF = status_colour_overlap(COL_OFF)
 
 REPORT["statusStillReads"] = {
-    "statusesOnThisIsland": {s: len(v) for s, v in sorted(status_colours.items())},
-    "statusPairsSharingADeliveredColour": overlap,
+    "statusesOnThisIsland": {s: len(v) for s, v in sorted(BY_ST_OFF.items())},
+    "statusPairsSharingADeliveredColourWithSeams": OV_ASIS,
+    "statusPairsSharingADeliveredColourWithoutSeams": OV_OFF,
+    "removalIntroducedNewCollisions": sorted(set(OV_OFF) - set(OV_ASIS)),
     "reading":
-        "With every interior seam removed, each status still delivers its own colour set and no "
-        f"two statuses collide ({len(overlap)} colliding pairs). The status tint is carried by the "
-        "cell FILL, which the seam removal does not touch — which is the mechanical reason the "
-        "ADR-0367 D5 obligation survives this change.",
+        "TWO SEPARATE FACTS, and keeping them apart is the point of measuring the island BOTH ways. "
+        f"(a) Seam removal introduces NO new status collision: the pairs that share a delivered "
+        f"colour are the same {len(OV_ASIS)} with the seams drawn as without them, so nothing about "
+        "the status read is spent by this change. The tint is carried by the cell FILL, which "
+        "suppression does not touch — the mechanical reason the ADR-0367 D5 obligation survives. "
+        "(b) Those collisions EXIST, and they are a pre-existing property of the island rather than "
+        "a finding about lines: the shared entry is the WHEAT colour, which several statuses emit "
+        "identically, so a wheat cell does not report its capability's status by colour whether or "
+        "not it is outlined. That is worth someone's attention and it is NOT this pass's to fix.",
 }
 
 
@@ -481,11 +494,28 @@ def is_green(rgb):
 land_mask = PANEL_SOLID["as-is"] & (IDS >= 0)
 land_px = LAND_ONLY["as-is"][land_mask]
 green_px = int(sum(1 for p in land_px if is_green(tuple(int(v) for v in p))))
+
+#: The same split per STATUS, because the headline share is driven by which statuses this island
+#: happens to carry and by the wheat cells, not by anything about the art. Without the breakdown
+#: the top-line number invites exactly the wrong inference.
+per_status = {}
+for st in sorted(set(ISLAND["capStatuses"])):
+    m = land_mask & np.isin(IDS, [i for i in range(len(CELLS)) if status_of_cell(i) == st])
+    px = LAND_ONLY["as-is"][m]
+    if px.shape[0] == 0:
+        continue
+    g = int(sum(1 for p in px if is_green(tuple(int(v) for v in p))))
+    per_status[st] = {"deliveredPx": int(px.shape[0]),
+                      "greenPct": round(100.0 * g / px.shape[0], 1)}
+
 REPORT["greenReading"] = {
     "deliveredLandPx": int(land_px.shape[0]),
     "greenPx": green_px,
     "greenPct": round(100.0 * green_px / max(1, land_px.shape[0]), 1),
     "nonGreenPct": round(100.0 - 100.0 * green_px / max(1, land_px.shape[0]), 1),
+    "perStatus": per_status,
+    "greenTest": "g > r and g > b on the delivered pixel — a coarse test, chosen because it needs "
+                 "no threshold anyone could tune toward a preferred answer.",
     "capStatuses": list(ISLAND["capStatuses"]),
     "reading":
         "'stick with green' is taken as the GROUND treatment: `flat`, with `mottle` and `carpet` "
@@ -516,13 +546,39 @@ def board(img):
 
 
 def sheet(w, h, title, sub, sub2=None):
-    im = Image.new("RGB", (w, h), BG)
+    """A titled board. Long header lines WRAP to the sheet width and push the content down.
+
+    The header lines carry this pass's findings, so the one thing a fork sheet must never do is clip
+    one at its own right edge. Widening the sheet to fit them instead leaves a band of dead board
+    beside the pictures, which reads as a rendering fault; wrapping keeps the sheet the width of the
+    art it is presenting. Returns the y the content starts at, so a caller never has to guess.
+    """
+    dummy = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+
+    def wrap(text):
+        if not text:
+            return []
+        out, line = [], ""
+        for word in text.split():
+            trial = f"{line} {word}".strip()
+            if dummy.textlength(trial) > w - 2 * PAD and line:
+                out.append(line)
+                line = word
+            else:
+                line = trial
+        if line:
+            out.append(line)
+        return out
+
+    rows = [(title, INK)] + [(t, DIM) for t in wrap(sub)] + [(t, WARN) for t in wrap(sub2)]
+    top = 12 + 13 * len(rows)
+    im = Image.new("RGB", (w, h + max(0, top - HDR)), BG)
     dr = ImageDraw.Draw(im)
-    dr.text((PAD, 8), title, fill=INK)
-    dr.text((PAD, 24), sub, fill=DIM)
-    if sub2:
-        dr.text((PAD, 38), sub2, fill=WARN)
-    return im, dr
+    y = 8
+    for text, fill in rows:
+        dr.text((PAD, y), text, fill=fill)
+        y += 13
+    return im, dr, top
 
 
 CAM = (f"camera {C.ELEV:g} deg (the owner's signed research angle, a named parameter) - "
@@ -535,7 +591,7 @@ bimg = {n: board(PANEL_RGBA[n]) for n, _c in tiles}
 iw, ih = bimg["as-is"].size
 cols = 3
 rows = 2
-im, dr = sheet(PAD + cols * (iw + PAD), HDR + rows * (ih + CAP),
+im, dr, TOP1 = sheet(PAD + cols * (iw + PAD), HDR + rows * (ih + CAP),
                "THE LINE FORK - same island, same code state, same piece set, ONE variable",
                "The owner asked to see the hex lines removed. The island has TWO grids and only "
                "one of them is ever stroked; panels 1 and 2 are therefore PIXEL-IDENTICAL, and "
@@ -543,7 +599,7 @@ im, dr = sheet(PAD + cols * (iw + PAD), HDR + rows * (ih + CAP),
                CAM)
 for k, (n, cap) in enumerate(tiles):
     cx = PAD + (k % cols) * (iw + PAD)
-    cy = HDR + (k // cols) * (ih + CAP)
+    cy = TOP1 + (k // cols) * (ih + CAP)
     im.paste(bimg[n], (cx, cy))
     ch = REPORT["deliveredPixels"]["panels"][n]["changedVsAsIs"]
     pct = REPORT["deliveredPixels"]["panels"][n]["changedVsAsIsPctOfIsland"]
@@ -572,16 +628,16 @@ def crop6(n):
 pairs = [("as-is", "the island as it ships - interior seams drawn"),
          ("cells-off", "interior-cell seams removed"),
          ("all-off", "every seam removed, coast edge included")]
-im2, dr2 = sheet(PAD + len(pairs) * (CW * Z + PAD), HDR + CH * Z + CAP,
+im2, dr2, TOP2 = sheet(PAD + len(pairs) * (CW * Z + PAD), HDR + CH * Z + CAP,
                  "JUDGE THE ART HERE - the same crop of the same island at 6x",
                  "Nearest-neighbour, so every delivered pixel is a 6x6 block: what you are looking "
                  "at is exactly what ships, magnified, not a re-render at higher resolution.",
                  CAM)
 for k, (n, cap) in enumerate(pairs):
     cx = PAD + k * (CW * Z + PAD)
-    im2.paste(crop6(n), (cx, HDR))
-    dr2.text((cx, HDR + CH * Z + 6), n, fill=INK)
-    dr2.text((cx, HDR + CH * Z + 18), cap, fill=DIM)
+    im2.paste(crop6(n), (cx, TOP2))
+    dr2.text((cx, TOP2 + CH * Z + 6), n, fill=INK)
+    dr2.text((cx, TOP2 + CH * Z + 18), cap, fill=DIM)
 im2.save(os.path.join(HERE, "line-detail-6x.png"))
 
 # ---- 3. WHICH GRID: the diagnostic that answers the mechanical question --------------------------
@@ -597,14 +653,29 @@ def overlay(poly_sets, colour, width=1):
     return im3
 
 
-hex_polys = [(t["poly"], 0.0) for t in HEXES["tiles"]]
+#: Each hex outlined at the height of the TERRAIN under it, not at ground zero. The cells are
+#: terraced, so a lattice drawn on the ground plane floats below the land it is supposed to be
+#: describing and invites the reader to dismiss a real overlap as a misalignment. Height is the
+#: median of the cells whose centroid is nearest that tile's centre — the cells the tile actually
+#: covers.
+def _hex_height(t):
+    cxx, cyy = t["centreGround"]
+    owned = [c["_h"] for c in CELLS
+             if min(range(len(HEXES["tiles"])),
+                    key=lambda k: math.hypot(c["c"][0] - HEXES["tiles"][k]["centreGround"][0],
+                                             c["c"][1] - HEXES["tiles"][k]["centreGround"][1]))
+             == HEXES["tiles"].index(t)]
+    return float(np.median(owned)) if owned else 0.0
+
+
+hex_polys = [(t["poly"], _hex_height(t)) for t in HEXES["tiles"]]
 cell_polys = [(c["poly"], c["_h"]) for c in CELLS]
 ov = [("the 17 HEX TILES", overlay(hex_polys, (255, 96, 96)),
        f"stroked {INV['hex']} times by the compositor - never drawn"),
       ("the 214 MESH CELLS", overlay(cell_polys, (120, 200, 255)),
        f"stroked {INV['cell']} times - THESE are the lines")]
 ow, oh = ov[0][1].size
-im3, dr3 = sheet(PAD + 2 * (ow + PAD), HDR + oh + CAP,
+im3, dr3, TOP3 = sheet(PAD + 2 * (ow + PAD), HDR + oh + CAP,
                  "WHICH GRID PRODUCES THE VISIBLE LINES - measured, not eyeballed",
                  "Both grids drawn onto the SEAM-FREE island in a colour the palette does not "
                  "contain, so the overlay cannot be confused with the art. Left is the grid the "
@@ -612,12 +683,39 @@ im3, dr3 = sheet(PAD + 2 * (ow + PAD), HDR + oh + CAP,
                  CAM)
 for k, (t, img, cap) in enumerate(ov):
     cx = PAD + k * (ow + PAD)
-    im3.paste(img, (cx, HDR))
-    dr3.text((cx, HDR + oh + 6), t, fill=INK)
-    dr3.text((cx, HDR + oh + 18), cap, fill=(WARN if k == 0 else HI))
+    im3.paste(img, (cx, TOP3))
+    dr3.text((cx, TOP3 + oh + 6), t, fill=INK)
+    dr3.text((cx, TOP3 + oh + 18), cap, fill=(WARN if k == 0 else HI))
 im3.save(os.path.join(HERE, "which-grid.png"))
 
+# ---- 4. THE GREEN READING: why the island is not green, and the lever that is not the art --------
+#: The per-status split says only `healthy` delivers green at all. So the island reads tan because
+#: SEVEN OF TEN capabilities on this fixture are not healthy — a semantic fact, not an art choice.
+#: Rendering the all-healthy island beside the real one shows the owner what "green" would actually
+#: cost: a different FIXTURE, not a different palette and not a deleted status tint.
+CTRL.reset({"coast"})
+green_img, green_solid, _c, _g = D.render_variant(
+    ITEMS, tree=True, ground="flat", caps=["healthy"] * len(ISLAND["capStatuses"]))
 CTRL.restore()
+
+gb = [("the fixture's real status mix", board(PANEL_RGBA["both-off"]),
+       f"{REPORT['greenReading']['greenPct']}% green - 3 of 10 caps healthy"),
+      ("every capability driven to `healthy`", board(green_img),
+       "same art, same palette - only STATUS differs")]
+gw, gh = gb[0][1].size
+im4, dr4, TOP4 = sheet(PAD + 2 * (gw + PAD), HDR + gh + CAP,
+                       "WHY THE ISLAND IS NOT GREEN - and the lever that is not the art",
+                       "Both panels have the interior seams removed, which is the direction the "
+                       "fork points. Only `healthy` cells deliver green (78.4% of their pixels); "
+                       "every other status is under 2%. So an island that reads tan is reporting "
+                       "its capabilities' proof state, exactly as ADR-0367 D5 requires.",
+                       CAM)
+for k, (t, img, cap) in enumerate(gb):
+    cx = PAD + k * (gw + PAD)
+    im4.paste(img, (cx, TOP4))
+    dr4.text((cx, TOP4 + gh + 6), t, fill=INK)
+    dr4.text((cx, TOP4 + gh + 18), cap, fill=(DIM if k == 0 else HI))
+im4.save(os.path.join(HERE, "green-reading.png"))
 
 # ================================================================= report + sidecars
 REPORT["paletteEntries"] = int(len(C.PALETTE))
@@ -626,7 +724,7 @@ REPORT["appLandCameraElevationDeg"] = grass.APP_LAND_CAMERA_ELEVATION_DEG
 with open(os.path.join(HERE, "lines-report.json"), "w") as fh:
     json.dump(REPORT, fh, indent=1)
 
-PICTURES = ("line-fork.png", "line-detail-6x.png", "which-grid.png")
+PICTURES = ("line-fork.png", "line-detail-6x.png", "which-grid.png", "green-reading.png")
 for pic in PICTURES:
     provenance.write_sidecar(
         os.path.join(HERE, pic), __file__, sys.argv[1:], INPUTS, CODE_STATE,

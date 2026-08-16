@@ -1,0 +1,25 @@
+{
+ "pass": [
+  "1. the land pass is byte-identical to the shipped compositor",
+  "1b. the pass composes at its declared angle",
+  "2. every stroke on the island is attributed (no `other`)",
+  "2b. no hex TILE is ever stroked",
+  "2c. exactly one stroke per mesh cell",
+  "2d. the hex detector is ARMED (a negative result from a live detector)",
+  "3. `hex-off` is PIXEL-IDENTICAL to `as-is`",
+  "3b. `both-off` is PIXEL-IDENTICAL to `cells-off`",
+  "3c. removing the interior seams DOES change the island",
+  "3d. the coast seam is a SEPARATE line class",
+  "4. the composite is deterministic, asserted on the DECODED raster",
+  "5. NO cell's delivered fill moves when only a seam is suppressed",
+  "6. seam removal introduces NO colour outside the closed palette",
+  "6b. removal never WIDENS the delivered colour set",
+  "7. the hex ghost EXCEEDS chance at every tolerance",
+  "7b. the excess is largest at the TIGHTEST tolerance",
+  "8. the cross-capability cost is measured and small",
+  "8b. seam removal introduces no NEW status-colour collision",
+  "9. the working tree changes are confined to docs/research/**",
+  "9b. LAND_CAMERA_ELEVATION_DEG is STILL 20 and was not touched"
+ ],
+ "fail": []
+}

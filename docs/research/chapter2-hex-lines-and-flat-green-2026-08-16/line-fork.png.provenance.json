@@ -3,7 +3,7 @@
  "artifact": "line-fork.png",
  "producer": {
   "tool": "compose_lines.py",
-  "sha256": "94f449cb385b220741ac0494fe525482ba51515e5553434e5dc271b66d377153"
+  "sha256": "60db135b8b14ecec35c349f1b6ce5ab134d7e2b648a1d37a3a5730da0c1f2632"
  },
  "command": {
   "tool": "compose_lines.py",
@@ -172,8 +172,8 @@
   "rule": "one code state PER GENERATOR; the composite's identity is the digest of the whole {generator: state} map, so any generator moving moves it"
  },
  "output": {
-  "sha256": "adebd165a87389dd900fc587d71e60a318593b6b5f7d7905a2d8040f11ba4183",
-  "bytes": 83721
+  "sha256": "57581dcd6f57803b45a90c3d3626dea024f0ab820ef97003f3307c33e90a4fed",
+  "bytes": 84285
  },
  "cameraElevationDeg": 50.0,
  "variant": "b++ land, flat green ground, ADR-0226 vegetation as it ships; seam classes suppressed one at a time",
