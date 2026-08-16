@@ -133,6 +133,7 @@ import {
   TILE_DEPTH,
   groundRadiusToScreenHalfHeight,
   PLAN_VIEW_ELEVATION_DEG,
+  projectGround,
   axialKey,
   AXIAL_DIRS,
   hexCenter,
@@ -149,6 +150,7 @@ import {
   rankStories,
   descendantCounts,
   smoothCoast,
+  smoothLoopPath,
   type BoundarySeg,
   type SubstrateMode,
   type SubstrateTuning,
@@ -645,11 +647,18 @@ export function buildWorld(
     const wheatTiles = new Set<string>();
 
     // Territory boundary: every tile edge whose neighbour is foreign soil.
+    //
+    // ADR-0367's fourth named cost: `coast.ts`'s outset (`COAST_OUTSET`) pushes each boundary
+    // vertex along its local edge normal by a FIXED distance — isotropic, only a true "beach
+    // width" in the ground plane, exactly like `routeTrails`'s obstacle radius. Build the
+    // boundary from GROUND-SPACE hex corners (`PLAN_VIEW_ELEVATION_DEG` recovers the
+    // pre-camera, un-flattened positions), so the outset + Chaikin smoothing both run in ground
+    // space; the loop is projected to screen once, below, after `smoothCoast` returns it.
     const mineSet = new Set(tiles.map(axialKey));
     const boundary: BoundarySeg[] = [];
     for (const tile of tiles) {
-      const c = hexCenter(tile);
-      const corners = hexCorners(c.x, c.y, HEX_R);
+      const c = hexCenter(tile, PLAN_VIEW_ELEVATION_DEG);
+      const corners = hexCorners(c.x, c.y, HEX_R, PLAN_VIEW_ELEVATION_DEG);
       AXIAL_DIRS.forEach((d, e) => {
         if (mineSet.has(axialKey({ q: tile.q + d.q, r: tile.r + d.r }))) return;
         const a = corners[e];
@@ -667,7 +676,14 @@ export function buildWorld(
       groundRadiusToScreenHalfHeight(HEX_R) +
       TILE_DEPTH +
       8;
-    const coast = smoothCoast(boundary, story.id);
+    // `smoothCoast` outset + smoothed in GROUND space (see the boundary comment above); project
+    // the loop to screen once here and regenerate the `d` strings from the projected points —
+    // `smoothLoopPath` builds its curve from midpoints (linear in its input points), so
+    // projecting-then-smoothing reproduces exactly what smoothing-then-projecting would draw.
+    const coastGround = smoothCoast(boundary, story.id);
+    const coastLoopsScreen = coastGround.loops.map((loop) => loop.map((p) => projectGround(p)));
+    const coastPathsScreen = coastLoopsScreen.map(smoothLoopPath);
+    const coast = { loops: coastLoopsScreen, paths: coastPathsScreen };
 
     // ADR-0102: this island carries the icon of each BUILDING it depends on (promotion is
     // building-incident, "you carry the icon of what you depend on"). Fan the stamps around the
