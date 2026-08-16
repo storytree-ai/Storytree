@@ -237,6 +237,20 @@ const EMPTY_ID_SET: ReadonlySet<string> = new Set();
 // ---------- world building ----------
 
 const MARGIN = 60;
+// `resting-view-still-clips-five-islands`: the resting camera fit's own `padding: 16` guarantees only
+// 16px of headroom at whichever vertical edge `buildWorld`'s bounds happen to sit snug against — but
+// TWO pieces of UI chrome are PERMANENTLY docked over the map at rest, and 16px does not clear either:
+// the collapsed `.library-drawer` handle (top-centre, ~27px tall — `.library-drawer-handle-bar`'s
+// `padding: 3px 12px` plus its grip) and the folded `.terminal-dock` bar (bottom, full-width, ~35px
+// tall — `.terminal-dock-unavailable`). Neither is a `buildWorld` concern (they are chrome, not scene
+// content) and neither should ever cause the WORLD ITSELF to reflow when opened/resized (the
+// `.tree-layout` design note: "opening, expanding, or resizing any of them never reflows or rescales
+// the world") — this only widens the ONE-TIME resting fit computed on mount/resize, not a live
+// per-panel recompute, so that invariant is untouched. Sized to the chrome's own COLLAPSED/folded
+// height plus a visible buffer (never flush against it): `FIT_PADDING_TOP` clears the drawer handle,
+// `FIT_PADDING_BOTTOM` the terminal bar.
+const FIT_PADDING_TOP = 40;
+const FIT_PADDING_BOTTOM = 48;
 const RANK_GAP = 78; // vertical clearance between grown territories of adjacent ranks (gives rivers room)
 const ISLAND_GAP = 96; // horizontal clearance between territories sharing a rank (gives rivers room)
 const RANK_SWING = 235; // lateral swing for a lone island, so its roads read as diagonals
@@ -1957,9 +1971,18 @@ export function TreeView({
     const fh = frameRef.current.clientHeight;
     const fit = fitWorld(world.width, world.height, fw, fh, {
       padding: 16,
+      paddingTop: FIT_PADDING_TOP,
+      paddingBottom: FIT_PADDING_BOTTOM,
       maxScale: 980 / world.width, // the old .world-scene 980px width cap, as a scale ceiling
       align: 'bottom',
-      fit: 'contain', // show the WHOLE forest in the window-filling viewport, not a width-clipped slice
+      // show the WHOLE forest in the window-filling viewport, not a width-clipped slice
+      // (`resting-view-still-clips-five-islands`: the DAG lays out top-to-bottom, so its own bounds
+      // are portrait — a landscape frame's side margins are that shape's designed consequence of
+      // "see it all" under 'contain', not fit residue. The alternative, `fit: 'width'`, trades that
+      // guarantee for vertical overflow the operator would have to pan through on every load — a
+      // worse resting view for a forest whose whole point is to be surveyed at rest. Widening the
+      // DAG's own layout to use the sides is a story-author/layout-hierarchy call, out of scope here.)
+      fit: 'contain',
     });
     limitsRef.current = limitsForFit(fit.scale);
     fitCameraRef.current = fit;
@@ -2010,6 +2033,8 @@ export function TreeView({
     if (fw <= 0 || fh <= 0) return;
     const fit = fitWorld(w.width, w.height, fw, fh, {
       padding: 16,
+      paddingTop: FIT_PADDING_TOP,
+      paddingBottom: FIT_PADDING_BOTTOM,
       maxScale: 980 / w.width,
       align: 'bottom',
       fit: 'contain',

@@ -156,6 +156,98 @@ describe('fitWorld', () => {
     const explicit = fitWorld(1000, 2000, 600, 900, { padding: 20, align: 'bottom', fit: 'width' });
     expect(explicit).toEqual(implicit);
   });
+
+  // resting-view-still-clips-five-islands: the studio permanently docks two overlays over the map at
+  // rest — the collapsed library-drawer handle (top-centre) and the folded terminal-dock bar (bottom,
+  // full width) — that a flat symmetric `padding` never reserved room for. A height-bound contain fit
+  // guarantees only `padding` px of headroom at whichever edge isn't pinned by `align`, so a portrait
+  // world whose own bounds happen to sit snug against that edge lands its tallest content AT that edge,
+  // behind the chrome (this is what a blind visual eval measured off the live corpus: three islands
+  // entirely above y=0, two more grazing the drawer handle).
+  describe('paddingTop / paddingBottom (resting-view-still-clips-five-islands)', () => {
+    it('defaults both to `padding` — an unchanged caller sees identical output', () => {
+      const withFlat = fitWorld(1000, 2000, 1600, 1000, {
+        padding: 16,
+        align: 'bottom',
+        fit: 'contain',
+      });
+      const withBoth = fitWorld(1000, 2000, 1600, 1000, {
+        padding: 16,
+        paddingTop: 16,
+        paddingBottom: 16,
+        align: 'bottom',
+        fit: 'contain',
+      });
+      expect(withBoth).toEqual(withFlat);
+    });
+
+    it('contain + bottom-align: a taller paddingTop pushes the WHOLE world down, clearing top chrome', () => {
+      const worldW = 600;
+      const worldH = 900; // height-bound at this frame, so paddingTop directly sets top headroom
+      const frameW = 1600;
+      const frameH = 1000;
+      const flat = fitWorld(worldW, worldH, frameW, frameH, {
+        padding: 16,
+        align: 'bottom',
+        fit: 'contain',
+      });
+      // With only the flat 16px pad, the guaranteed top gap is exactly `padding` (no slack to spare).
+      expect(worldToScreen(flat, 0, 0).y).toBeCloseTo(16, 6);
+
+      const reserved = fitWorld(worldW, worldH, frameW, frameH, {
+        padding: 16,
+        paddingTop: 40, // clears a ~27px docked handle plus a buffer
+        paddingBottom: 48, // clears a ~35px docked terminal bar plus a buffer
+        align: 'bottom',
+        fit: 'contain',
+      });
+      // The top of the world now sits at (at least) paddingTop, not the flat padding.
+      expect(worldToScreen(reserved, 0, 0).y).toBeCloseTo(40, 6);
+      // The bottom of the world sits at frameH - paddingBottom, not frameH - padding.
+      expect(worldToScreen(reserved, 0, worldH).y).toBeCloseTo(frameH - 48, 6);
+      // The whole world is still fully contained (both edges within the frame).
+      expect(worldToScreen(reserved, 0, 0).y).toBeGreaterThanOrEqual(0);
+      expect(worldToScreen(reserved, 0, worldH).y).toBeLessThanOrEqual(frameH);
+      // Reserving more vertical room can only shrink (never grow) the resulting scale.
+      expect(reserved.scale).toBeLessThanOrEqual(flat.scale);
+    });
+
+    it('stays horizontally centred at whatever scale the extra vertical reserve produces', () => {
+      const worldW = 600;
+      const frameW = 1600;
+      const withReserve = fitWorld(worldW, 900, frameW, 1000, {
+        padding: 16,
+        paddingTop: 40,
+        paddingBottom: 48,
+        align: 'bottom',
+        fit: 'contain',
+      });
+      expect(withReserve.tx).toBeCloseTo((frameW - worldW * withReserve.scale) / 2, 9);
+      expect(worldToScreen(withReserve, worldW / 2, 0).x).toBeCloseTo(frameW / 2, 9);
+    });
+
+    it("align: 'center' ignores paddingTop/paddingBottom exactly as it already ignores padding", () => {
+      const cam = fitWorld(1000, 2000, 600, 900, {
+        padding: 0,
+        paddingTop: 200,
+        paddingBottom: 200,
+        align: 'center',
+      });
+      expect(worldToScreen(cam, 500, 1000).y).toBeCloseTo(900 / 2, 9);
+    });
+
+    it("fit: 'width' (the non-contain default) is unaffected by paddingTop/paddingBottom", () => {
+      const flat = fitWorld(1000, 2000, 600, 900, { padding: 20, align: 'bottom' });
+      const withReserve = fitWorld(1000, 2000, 600, 900, {
+        padding: 20,
+        paddingTop: 60,
+        paddingBottom: 80,
+        align: 'bottom',
+      });
+      // scale (width-bound) is identical — paddingTop/paddingBottom only ever narrow the CONTAIN scale.
+      expect(withReserve.scale).toBeCloseTo(flat.scale, 9);
+    });
+  });
 });
 
 describe('limitsForFit', () => {

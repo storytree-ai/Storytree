@@ -154,6 +154,21 @@ export function centerOn(
 
 export interface FitOpts {
   padding?: number;
+  /**
+   * Vertical inset reserved at the TOP of the frame, in addition to (not instead of) `padding` — for
+   * chrome that is permanently docked there at the resting view regardless of world content (e.g. the
+   * studio's collapsed library-drawer handle). Defaults to `padding` when omitted, so every existing
+   * caller is unaffected. Only changes the CONTAIN-fit scale and the bottom-aligned placement's
+   * headroom; `align: 'center'` ignores it exactly as it already ignores `padding`
+   * (`resting-view-still-clips-five-islands`).
+   */
+  paddingTop?: number;
+  /**
+   * Vertical inset reserved at the BOTTOM of the frame, in addition to (not instead of) `padding` — for
+   * chrome permanently docked there at rest (e.g. the studio's folded terminal dock bar). Defaults to
+   * `padding` when omitted. See {@link paddingTop}.
+   */
+  paddingBottom?: number;
   maxScale?: number;
   align?: 'bottom' | 'center';
   /** 'width' (default) fits the world to the frame WIDTH (a tall forest overflows vertically and is
@@ -169,6 +184,10 @@ export interface FitOpts {
  * large/maximized window. Horizontally centred. `align` pins the vertical: 'bottom' (default) lands the
  * world's bottom near the frame bottom — the foundation, where the world reads from; 'center' centres
  * it. A non-positive dimension yields a safe identity-ish camera rather than NaN.
+ *
+ * `paddingTop`/`paddingBottom` (default: `padding`) let a caller reserve EXTRA headroom at one edge for
+ * chrome that is permanently docked there at rest — see {@link FitOpts.paddingTop}. Without them, a
+ * caller that only names one flat `padding` gets the prior behaviour exactly.
  */
 export function fitWorld(
   worldW: number,
@@ -178,19 +197,21 @@ export function fitWorld(
   opts?: FitOpts,
 ): Camera {
   const pad = opts?.padding ?? 0;
+  const padTop = opts?.paddingTop ?? pad;
+  const padBottom = opts?.paddingBottom ?? pad;
   if (worldW <= 0 || worldH <= 0 || frameW <= 0 || frameH <= 0) {
     return { tx: 0, ty: 0, scale: opts?.maxScale ?? 1 };
   }
   const widthScale = (frameW - 2 * pad) / worldW;
   let scale =
-    opts?.fit === 'contain' ? Math.min(widthScale, (frameH - 2 * pad) / worldH) : widthScale;
+    opts?.fit === 'contain' ? Math.min(widthScale, (frameH - padTop - padBottom) / worldH) : widthScale;
   if (opts?.maxScale !== undefined) scale = Math.min(scale, opts.maxScale);
   const tx = (frameW - worldW * scale) / 2;
   const bottomAlign = (opts?.align ?? 'bottom') === 'bottom';
-  const ty = bottomAlign ? frameH - pad - worldH * scale : (frameH - worldH * scale) / 2;
+  const ty = bottomAlign ? frameH - padBottom - worldH * scale : (frameH - worldH * scale) / 2;
   // Bottom-aligned fits record their exact world ground point so downstream consumers (the Act 2
   // regrow pull-back) can anchor to it directly instead of unprojecting the frame's raw bottom
-  // pixel, which drifts from the true ground by `padding / scale` whenever `padding` is non-zero.
+  // pixel, which drifts from the true ground by `padBottom / scale` whenever `padBottom` is non-zero.
   return bottomAlign ? { tx, ty, scale, groundWorldY: worldH } : { tx, ty, scale };
 }
 
