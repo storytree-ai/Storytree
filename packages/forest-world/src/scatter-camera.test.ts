@@ -87,7 +87,7 @@ interface Island {
  *  surface derives from those projected anchors. Both come out elevation-INDEPENDENT here, which is
  *  the property the symmetric disc buys. */
 function island(elevationDeg: number, rings = 2): Island {
-  const centres = discTiles(rings).map((h) => hexCenter(h, elevationDeg));
+  const centres = discTiles(rings).map((h) => hexCenter(h, { elevationDeg }));
   const cx = centres.reduce((s, p) => s + p.x, 0) / centres.length;
   const cy = centres.reduce((s, p) => s + p.y, 0) / centres.length;
   return {

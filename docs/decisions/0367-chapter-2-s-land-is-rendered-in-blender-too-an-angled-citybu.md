@@ -46,6 +46,16 @@ camera", plus a single `TILE_DEPTH = 8` pixel offset on a fallback path. So "ang
 a change to a camera value. It is the first time the land is given a camera at all, and that — not
 the choice of renderer — is the load-bearing part of this decision.
 
+**Annotated in place 2026-08-16 (ADR-0139); the decision is unchanged.** This paragraph is the
+decision-time snapshot that D1 itself goes on to resolve, not a standing claim about today's
+codebase: PR #1344 (increment `land-declares-a-shared-camera`) built exactly what D1 required, and
+`LAND_CAMERA_ELEVATION_DEG` now exists in `packages/forest-world/src/camera.ts`, with
+`hexCenter`/`hexCorners`/`pixelToHex`/`hexPath` projecting through it. Read the "no camera at all" /
+"none has ever existed" sentences above as describing the land BEFORE this ADR's own D1 landed, not
+as a claim about the present. The load-bearing point they establish — that giving the land a camera
+was a first, not a value change — is unaffected by the correction and is why the paragraph is kept
+rather than deleted.
+
 **FACT 2 — the island's silhouette is computed at runtime and can never be pre-rendered whole.**
 Each story claims hex tiles on a quota of `max(3, capabilities.length + 2)`; the territory boundary
 is recomputed as every tile edge whose neighbour is foreign soil; and the coast path is a
@@ -61,6 +71,13 @@ seed points and **each individual cell carries its capability's status tint**, s
 status display, not decoration. And the accretion reveal indexes cells by their literal SVG path `d`
 string, so the per-cell reveal transform is keyed to the exact emitted geometry.
 
+**Corrected in place 2026-08-16 (ADR-0139); the decision is unchanged.** The path-`d` index was the
+decision-time fact and is exactly what made the Consequences section below name a real cell id as an
+accepted cost still owed. It was paid down the same day, by a sibling increment rather than by this
+ADR's own D1: PR #1341 (`land-cells-get-a-shape-free-id`) re-keyed the reveal onto `landCellId` — a
+stable, shape-free, emission-order identity — so it now survives the land's geometry moving. Treat
+the sentence above as the state this ADR was written against, not the state today.
+
 ## Decision
 
 **D1 — THE LAND GETS A DECLARED CAMERA, AND IT IS THE SAME ONE THE HERO TREE ALREADY DECLARES.** The
@@ -70,6 +87,14 @@ tree rendered at another do not compose, and today's 20-degree trees standing on
 are exactly that mismatch, currently absorbed by a squash dial that is admitted not to be a camera.
 Whether the shared value stays 20 degrees or moves is an increment's measurement to make, but there
 is ONE value and both sides read it.
+
+**Corrected in place 2026-08-16 (ADR-0139); the decision is unchanged.** This D1 built exactly as
+written: PR #1344 gave the land the declared camera, `hexCenter` and its siblings now project through
+it (see the Context FACT 1 annotation), and the squash dial's default is now DERIVED rather than the
+hand-picked stand-in. "Today's 20-degree trees standing on a plan-view ground" describes the mismatch
+D1 existed to fix, not the shipped state. Whether the value stays 20 degrees remains genuinely
+unsettled at the ADR level (see Consequences, "What this does not license") — this correction touches
+only the now-resolved mismatch, not the still-open value question.
 
 **D2 — LAND ART IS PRODUCED BY OUR OWN BLENDER SCRIPT AT AUTHOR TIME, AND IT IS DELIVERED AS AN
 ADDRESSABLE SET, NEVER AS A BAKED ISLAND.** ADR-0280 D1's terms carry over unchanged: the script is
@@ -122,8 +147,14 @@ against the two named options rather than by argument.
 nameplate baseline and the scene bounds both add it — so giving the land real depth misplaces
 nameplates and crops bounds until those two sites are reconciled. The accretion reveal's index is the
 literal path `d` string, which is fragile under any change to how cell geometry is emitted and should
-be given a real cell id before the land's geometry moves at all. Author-time render cost and
-committed PNG weight both rise, and the land is a much larger surface than a 128px tree. And the
+be given a real cell id before the land's geometry moves at all.
+
+**Corrected in place 2026-08-16 (ADR-0139); the decision is unchanged.** This particular cost was
+paid down before the land's geometry moved: PR #1341 re-keyed the accretion reveal onto `landCellId`
+the same day this ADR was decided (see the Context annotation above). It should not be re-driven.
+
+Author-time render cost and committed PNG weight both rise, and the land is a much larger surface
+than a 128px tree. And the
 existing SVG island is not merely a placeholder being replaced: it is a working, data-driven,
 status-bearing display, so every increment here is a substitution under load rather than a green field.
 
@@ -143,7 +174,13 @@ verdict conditional — that verdict is signed and independent of whether this l
   [ADR-0293](0293-the-chapter-2-growth-track-grows-the-wood-first-and-flushes.md) — the staging
   decisions of the hero-tree track this extends.
 - `packages/forest-world/src/hex.ts` — `HEX_R`, `HEX_W`, `TILE_DEPTH`, `hexCenter`: the land's whole
-  coordinate system, and the evidence that it carries no projection term.
+  coordinate system. At decision time it carried no projection term, which was the evidence for FACT
+  1 above; PR #1344 built D1's camera and `hexCenter`/`hexCorners`/`pixelToHex`/`hexPath` now project
+  through `packages/forest-world/src/camera.ts`'s `LAND_CAMERA_ELEVATION_DEG` — see the FACT 1
+  annotation. Corrected in place 2026-08-16 per ADR-0139.
+- `packages/forest-world/src/camera.ts` — `LAND_CAMERA_ELEVATION_DEG` and the projection functions D1
+  called for (`groundFlattening`, `uprightForeshortening`, `projectGround`/`unprojectGround`), added
+  by PR #1344.
 - `packages/forest-world/src/substrate.ts` — the relaxed quad mesh whose per-cell uniqueness forces
   the Consequences fork.
 - `packages/forest-world/src/coast.ts` — outset, Chaikin smoothing and the story-id-hashed shore.

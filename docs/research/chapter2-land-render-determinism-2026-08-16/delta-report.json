@@ -1,0 +1,66 @@
+{
+ "question": "one source digest, two published numbers \u2014 what varied?",
+ "rows": [
+  {
+   "label": "fresh --samples 32",
+   "pieces": "docs/research/chapter2-land-render-determinism-2026-08-16/runs/base1",
+   "samples": 32,
+   "codeState": "15927bf56c77cd23",
+   "canvas": [
+    258,
+    353
+   ],
+   "landPx": 34970,
+   "landColours": 59
+  },
+  {
+   "label": "fresh --samples 48",
+   "pieces": "docs/research/chapter2-land-render-determinism-2026-08-16/runs/s48",
+   "samples": 48,
+   "codeState": "15927bf56c77cd23",
+   "canvas": [
+    258,
+    353
+   ],
+   "landPx": 34968,
+   "landColours": 59
+  },
+  {
+   "label": "committed pieces-land (48)",
+   "pieces": "docs/research/chapter2-island-place-dressing-2026-08-16/pieces-land",
+   "samples": 48,
+   "codeState": "15927bf56c77cd23",
+   "canvas": [
+    258,
+    353
+   ],
+   "landPx": 34968,
+   "landColours": 59
+  }
+ ],
+ "throughTheDressingComposer": {
+  "label": "dressing lane's own compose_land (48)",
+  "landPx": 34968,
+  "landColours": 60
+ },
+ "attribution": {
+  "theTwoPixels": "`--samples` 32 vs 48 \u2014 a RENDER FLAG, on an otherwise identical run",
+  "theOneColour": "the COMPOSITOR \u2014 the sweep's land leg counts through the fork's bare `C.compose('flat','cell')`, the dressing lane through its own `compose_land`. Both report the SAME `solid` mask and therefore the same landPx; only the colour set differs."
+ },
+ "allOneCodeState": true,
+ "published": {
+  "sweepPanel50": {
+   "landPx": 34970,
+   "landColours": 59,
+   "samples": 32,
+   "source": "docs/research/chapter2-camera-elevation-sweep-2026-08-15/camera-elevation-45-vs-50-report.json"
+  },
+  "dressingBare": {
+   "landPx": 34968,
+   "landColours": 60,
+   "samples": 48,
+   "source": "docs/research/chapter2-island-place-dressing-2026-08-16/dressing-report.json"
+  }
+ },
+ "finding": "`--samples` is a RENDER FLAG, and `_own_code_state()` is the SOURCE DIGEST by design ('NOT the flags'). Both lanes declared 15927bf5 honestly while rendering at 32 and 48 samples, and the sample count moves the antialiased edge coverage that the majority downsample then resolves \u2014 which is where the pixels and the one extra colour come from."
+}

@@ -58,10 +58,29 @@ export const AXIAL_DIRS: Axial[] = [
 ];
 
 /**
+ * The camera options {@link hexCenter}/{@link pixelToHex} take — an OBJECT, not a bare positional
+ * `number`, and that shape is deliberate (ADR-0367 D1 / the `bare-map-hexcenter-feeds-array-index-
+ * as-elevation` increment). `Array.prototype.map` calls its callback `(element, index, array)`; a
+ * positional `elevationDeg: number` is exactly the type of `index`, so `xs.map(hexCenter)` used to
+ * type-check while silently flattening every tile at its own array position instead of the declared
+ * camera (the classic `['1','2'].map(parseInt)` trap — it cost `land-camera-consumers-reconcile` a
+ * measured content-extent collapse). `index` is never assignable to `ElevationOpts | undefined`, so
+ * that same bare `.map(hexCenter)` now FAILS TO COMPILE instead of silently misbehaving.
+ */
+export interface ElevationOpts {
+  elevationDeg?: number;
+}
+
+/**
  * Axial coordinates → SCREEN pixels, through the declared land camera. The `r` axis runs into the
  * ground plane so its pitch foreshortens; the `q` axis runs across the screen so it does not.
+ *
+ * Pass `{ elevationDeg }` to ask what the land looks like at another camera — never a bare number
+ * (see {@link ElevationOpts}), and never point-free to `Array.prototype.map`: wrap even the default
+ * case as `xs.map((h) => hexCenter(h))`.
  */
-export function hexCenter(h: Axial, elevationDeg: number = LAND_CAMERA_ELEVATION_DEG): Pt {
+export function hexCenter(h: Axial, opts?: ElevationOpts): Pt {
+  const elevationDeg = opts?.elevationDeg ?? LAND_CAMERA_ELEVATION_DEG;
   return {
     x: HEX_W * (h.q + h.r / 2),
     y: 1.5 * HEX_R * h.r * groundFlattening(elevationDeg),
@@ -71,8 +90,12 @@ export function hexCenter(h: Axial, elevationDeg: number = LAND_CAMERA_ELEVATION
 /**
  * The inverse of {@link hexCenter} — the map's hit test. It MUST read the same camera: an inverse
  * still dividing by a plan-view pitch would mis-key every click on an angled map.
+ *
+ * Same `{ elevationDeg }` options shape as {@link hexCenter}, for the same reason — see
+ * {@link ElevationOpts}.
  */
-export function pixelToHex(p: Pt, elevationDeg: number = LAND_CAMERA_ELEVATION_DEG): Axial {
+export function pixelToHex(p: Pt, opts?: ElevationOpts): Axial {
+  const elevationDeg = opts?.elevationDeg ?? LAND_CAMERA_ELEVATION_DEG;
   const rf = p.y / (1.5 * HEX_R * groundFlattening(elevationDeg));
   const qf = p.x / HEX_W - rf / 2;
   const sf = -qf - rf;

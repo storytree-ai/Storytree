@@ -1,0 +1,105 @@
+{
+ "question": "is blender_land.py's render deterministic, or load-dependent?",
+ "island": "docs/research/chapter2-island-place-dressing-2026-08-16/island.json",
+ "samples": 32,
+ "runs": [
+  {
+   "tag": "base1",
+   "threads": "auto",
+   "spinners": 0,
+   "seconds": 16.24,
+   "cpuPctBefore": 100,
+   "cpuPctDuringTail": 100
+  },
+  {
+   "tag": "base2",
+   "threads": "auto",
+   "spinners": 0,
+   "seconds": 21.97,
+   "cpuPctBefore": 100,
+   "cpuPctDuringTail": 100
+  },
+  {
+   "tag": "t1",
+   "threads": 1,
+   "spinners": 0,
+   "seconds": 18.28,
+   "cpuPctBefore": 100,
+   "cpuPctDuringTail": 100
+  },
+  {
+   "tag": "t2",
+   "threads": 2,
+   "spinners": 0,
+   "seconds": 32.57,
+   "cpuPctBefore": 100,
+   "cpuPctDuringTail": 100
+  },
+  {
+   "tag": "t7",
+   "threads": 7,
+   "spinners": 0,
+   "seconds": 52.05,
+   "cpuPctBefore": 100,
+   "cpuPctDuringTail": 100
+  },
+  {
+   "tag": "load",
+   "threads": "auto",
+   "spinners": 6,
+   "seconds": 64.92,
+   "cpuPctBefore": 100,
+   "cpuPctDuringTail": 100
+  }
+ ],
+ "comparisons": [
+  {
+   "a": "base1",
+   "b": "base2",
+   "pieces": 22,
+   "piecesDiffering": 0,
+   "detail": []
+  },
+  {
+   "a": "base1",
+   "b": "t1",
+   "pieces": 22,
+   "piecesDiffering": 0,
+   "detail": []
+  },
+  {
+   "a": "base1",
+   "b": "t2",
+   "pieces": 22,
+   "piecesDiffering": 0,
+   "detail": []
+  },
+  {
+   "a": "base1",
+   "b": "t7",
+   "pieces": 22,
+   "piecesDiffering": 0,
+   "detail": []
+  },
+  {
+   "a": "base1",
+   "b": "load",
+   "pieces": 22,
+   "piecesDiffering": 0,
+   "detail": []
+  }
+ ],
+ "crossSession": {
+  "a": "fresh --samples 48 (this session, this worktree, under sibling load)",
+  "b": "docs/research/chapter2-island-place-dressing-2026-08-16/pieces-land (committed by another session from worktree agent-a1d851b5b498c6145)",
+  "pieces": 22,
+  "piecesDiffering": 0,
+  "detail": []
+ },
+ "containerHashTrap": {
+  "piecesWithIdenticalFileBytes": 0,
+  "pieces": 22,
+  "reading": "a file-hash comparison of two runs whose DECODED RASTERS are identical"
+ },
+ "verdict": "DETERMINISTIC \u2014 every run's decoded raster is identical, across thread counts, under deliberate load, and against another session's committed pieces"
+}
