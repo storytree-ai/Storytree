@@ -122,12 +122,23 @@ def compose_attributed(decor_items, cells=None, caps=None, ground="flat"):
     for pl in D.ISLAND["wall"]["placements"]:
         if C.faces_viewer(pl["heading"]):
             draw.append((pl["c"][1], 0, ("wall", pl["c"], pl["heading"], 0.0, story_side)))
-    for pos, h, height, side in C.boundary_walls(cells, D.ELEVATION_MODE):
+    # the two rules below are `compose_core`'s and are CALLED, not restated: the wall query reads the
+    # `caps` ARGUMENT (rebound for its duration, restored in a `finally`) and the decor depth key is
+    # `D.decor_depth_key`. `assert_mirror` compares this canvas to `compose_land`'s byte for byte, so
+    # a copy of either rule here would be a second implementation this instrument could drift on.
+    saved_caps = C.CAPS
+    if D.CAPS_ARGUMENT_IS_AUTHORITATIVE_FOR_WALLS:
+        C.CAPS = list(caps)
+    try:
+        walls = C.boundary_walls(cells, D.ELEVATION_MODE)
+    finally:
+        C.CAPS = saved_caps
+    for pos, h, height, side in walls:
         draw.append((pos[1], 1, ("wall", pos, h, height, side)))
     for c in cells:
         draw.append((c["c"][1], 2, ("cell", c, C.height_of(c, D.ELEVATION_MODE))))
     for i, d in enumerate(decor_items):
-        draw.append((d["g"][1], 3, ("decor", d, i)))
+        draw.append((D.decor_depth_key(d, cells), 3, ("decor", d, i)))
     draw.sort(key=lambda t: (t[0], t[1]))
 
     for _, _, item in draw:

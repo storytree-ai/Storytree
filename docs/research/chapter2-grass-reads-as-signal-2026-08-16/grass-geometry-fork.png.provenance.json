@@ -874,8 +874,8 @@
   "rule": "one code state PER GENERATOR; the composite's identity is the digest of the whole {generator: state} map, so any generator moving moves it"
  },
  "output": {
-  "sha256": "021e7983dcd5425e318717912232ee398166fe94f7deb749120f5d18c23a85ba",
-  "bytes": 13981
+  "sha256": "9d8a7d705084120e582e94c86818689da6179b962d1b23b5d82dc2dc0b9806a1",
+  "bytes": 13885
  },
  "cameraElevationDeg": 50.0,
  "variant": "b++ land + ADR-0226 vegetation vocabulary, grass forks swept",

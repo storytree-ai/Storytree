@@ -24,25 +24,42 @@
    ],
    "deliveredSolidPx": 34968,
    "bleed": {
-    "decorPx": 292,
-    "bleedPx": 0,
+    "decorPx": 510,
+    "bleedPx": 6,
     "bleedPxOnTheSilhouetteRim": 0,
-    "bleedPxInTheBody": 0,
-    "byWhatItActuallyIs": {},
-    "byPiece": {}
+    "bleedPxInTheBody": 6,
+    "byWhatItActuallyIs": {
+     "decor:wilt:unhealthy:fleck@1.0": 3,
+     "decor:wilt:unhealthy:stem@1.0": 3
+    },
+    "byPiece": {
+     "wilt-stem": 3,
+     "wilt-twig": 3
+    }
    },
    "black": {
-    "decorPx": 292,
-    "landPx": 34676,
-    "decorBelowGrassLumaFloor": 0,
-    "decorBelowGrassLumaFloorPreRim": 0,
+    "decorPx": 510,
+    "landPx": 34458,
+    "decorBelowGrassLumaFloor": 3,
+    "decorBelowGrassLumaFloorPreRim": 3,
     "decorInTheBlackBand": 0,
-    "landInTheBlackBand": 937,
-    "landInTheBlackBandPctOfLand": 2.7,
+    "landInTheBlackBand": 936,
+    "landInTheBlackBandPctOfLand": 2.72,
     "landInTheBlackBandOnTheSilhouetteRim": 66,
-    "landInTheBlackBandInTheBody": 871,
-    "minDecorLuma": 108.5,
-    "darkestDecorColours": [],
+    "landInTheBlackBandInTheBody": 870,
+    "minDecorLuma": 68.4,
+    "darkestDecorColours": [
+     {
+      "rgb": [
+       159,
+       45,
+       34
+      ],
+      "luma": 68.4,
+      "is": "decor:wilt:unhealthy:fleck@1.0",
+      "px": 3
+     }
+    ],
     "darkestLandColours": [
      {
       "rgb": [
@@ -52,7 +69,7 @@
       ],
       "luma": 47.8,
       "is": "land:unhealthy:side@0.9",
-      "px": 522
+      "px": 521
      },
      {
       "rgb": [
@@ -88,92 +105,98 @@
    },
    "charcoal": {
     "deliveredPx": 34968,
-    "charcoalRegionPx": 4253,
-    "pctOfDelivered": 12.2,
+    "charcoalRegionPx": 4246,
+    "pctOfDelivered": 12.1,
     "meanLuma": 82.2
    },
    "rim": {
-    "decorPx": 292,
+    "decorPx": 510,
     "decorOnSilhouette": 0,
     "decorRecolouredByRim": 0,
     "decorRecolouredOutOfItsOwnFamily": 0,
     "bleedPxThatAreRim": 0
    },
    "reverse": {
-    "landPx": 34676,
+    "landPx": 34458,
     "landPxWearingADecorTokenColour": 0,
     "byToken": {}
    },
    "overhang": {
-    "decorPx": 292,
-    "decorPxOverAKnownCell": 265,
-    "decorPxStandingOnANOTHERCapabilitysCell": 20,
-    "pctOfDecor": 6.8,
+    "decorPx": 510,
+    "decorPxOverAKnownCell": 479,
+    "decorPxStandingOnANOTHERCapabilitysCell": 23,
+    "pctOfDecor": 4.5,
     "decorPxOverWaterOrCoastSand": 0
    },
    "contrast": {
-    "decorPxOverAKnownCell": 265,
-    "medianHueDegreesFromTheGroundBeneath": 41.8,
-    "pxMoreThan40DegreesFromTheirGround": 136,
-    "pctMoreThan40Degrees": 51.3,
+    "decorPxOverAKnownCell": 479,
+    "medianHueDegreesFromTheGroundBeneath": 34.6,
+    "pxMoreThan40DegreesFromTheirGround": 211,
+    "pctMoreThan40Degrees": 44.1,
     "crossTab": {
-     "blade:healthy ON healthy ground": 48,
+     "blade:healthy ON healthy ground": 97,
+     "shrub:healthy ON healthy ground": 63,
+     "blade:healthy ON building ground": 62,
+     "shrub:building ON building ground": 50,
+     "blade:mapped ON proposed ground": 42,
      "flower:proven ON unhealthy ground": 33,
-     "blade:healthy ON building ground": 32,
      "flower:proven ON mapped ground": 31,
-     "blade:mapped ON proposed ground": 24,
-     "shrub:healthy ON healthy ground": 21,
+     "blade:mapped ON mapped ground": 27,
      "flower:proven ON proposed ground": 21,
-     "shrub:building ON building ground": 15,
-     "blade:mapped ON mapped ground": 14,
-     "flower:proven ON building ground": 7,
+     "flower:proven ON building ground": 14,
+     "flower:proven ON healthy ground": 10,
+     "wilt:unhealthy ON unhealthy ground": 7,
      "flower:failing ON proposed ground": 5,
      "flower:pending ON unhealthy ground": 5,
-     "blade:unhealthy ON unhealthy ground": 3,
+     "blade:unhealthy ON unhealthy ground": 4,
      "flower:pending ON healthy ground": 2,
+     "blade:mapped ON building ground": 2,
      "flower:pending ON building ground": 2,
-     "flower:proven ON healthy ground": 1,
-     "blade:healthy ON unhealthy ground": 1
+     "blade:healthy ON unhealthy ground": 1,
+     "flower:failing ON healthy ground": 1
     }
    },
    "spread": {
-    "decorPx": 292,
+    "decorPx": 510,
     "byTokenFamily": {
-     "flower:proven": 109,
-     "blade:healthy": 86,
-     "blade:mapped": 40,
-     "shrub:healthy": 22,
-     "shrub:building": 15,
+     "blade:healthy": 165,
+     "flower:proven": 125,
+     "blade:mapped": 75,
+     "shrub:healthy": 64,
+     "shrub:building": 51,
+     "flower:failing": 9,
      "flower:pending": 9,
-     "flower:failing": 8,
-     "blade:unhealthy": 3
+     "wilt:unhealthy": 8,
+     "blade:unhealthy": 4
     },
-    "pxWhoseFamilyIsAnINVENTEDNonGreenStatus": 43,
-    "pctNonGreen": 14.7
+    "pxWhoseFamilyIsAnINVENTEDNonGreenStatus": 87,
+    "pctNonGreen": 17.1
    },
    "buggy": {
     "placements": 112,
-    "placementsDeliveringAtLeastOnePixel": 61,
-    "placementsDeliveringNOTHING": 51,
+    "placementsDeliveringAtLeastOnePixel": 104,
+    "placementsDeliveringNOTHING": 8,
     "medianPxPerPlacement": 3,
     "pxPerPlacementHistogram": {
-     "1": 10,
-     "2": 15,
-     "3": 17,
-     "4": 8,
-     "5": 2,
-     "8": 1,
+     "1": 8,
+     "2": 24,
+     "3": 31,
+     "4": 22,
+     "5": 3,
+     "9": 2,
      "10": 1,
      "11": 1,
      "12": 2,
-     "18": 1,
+     "13": 4,
+     "18": 2,
+     "19": 1,
      "28": 1,
      "29": 1,
      "31": 1
     },
-    "placementsArrivingAsMoreThanOneDisconnectedBlob": 4,
-    "totalDisconnectedBlobs": 67,
-    "placementsDeliveringOneOrTwoPx": 25
+    "placementsArrivingAsMoreThanOneDisconnectedBlob": 6,
+    "totalDisconnectedBlobs": 111,
+    "placementsDeliveringOneOrTwoPx": 32
    },
    "attribution": {
     "ambiguousPx": 0,
@@ -203,7 +226,7 @@
    ],
    "deliveredSolidPx": 34968,
    "bleed": {
-    "decorPx": 384,
+    "decorPx": 676,
     "bleedPx": 0,
     "bleedPxOnTheSilhouetteRim": 0,
     "bleedPxInTheBody": 0,
@@ -211,8 +234,8 @@
     "byPiece": {}
    },
    "black": {
-    "decorPx": 384,
-    "landPx": 34584,
+    "decorPx": 676,
+    "landPx": 34292,
     "decorBelowGrassLumaFloor": 0,
     "decorBelowGrassLumaFloorPreRim": 0,
     "decorInTheBlackBand": 0,
@@ -242,72 +265,75 @@
     "meanLuma": null
    },
    "rim": {
-    "decorPx": 384,
+    "decorPx": 676,
     "decorOnSilhouette": 0,
     "decorRecolouredByRim": 0,
     "decorRecolouredOutOfItsOwnFamily": 0,
     "bleedPxThatAreRim": 0
    },
    "reverse": {
-    "landPx": 34584,
+    "landPx": 34292,
     "landPxWearingADecorTokenColour": 0,
     "byToken": {}
    },
    "overhang": {
-    "decorPx": 384,
-    "decorPxOverAKnownCell": 349,
-    "decorPxStandingOnANOTHERCapabilitysCell": 20,
-    "pctOfDecor": 5.2,
+    "decorPx": 676,
+    "decorPxOverAKnownCell": 636,
+    "decorPxStandingOnANOTHERCapabilitysCell": 23,
+    "pctOfDecor": 3.4,
     "decorPxOverWaterOrCoastSand": 0
    },
    "contrast": {
-    "decorPxOverAKnownCell": 349,
-    "medianHueDegreesFromTheGroundBeneath": 8.1,
-    "pxMoreThan40DegreesFromTheirGround": 104,
-    "pctMoreThan40Degrees": 29.8,
+    "decorPxOverAKnownCell": 636,
+    "medianHueDegreesFromTheGroundBeneath": 7.8,
+    "pxMoreThan40DegreesFromTheirGround": 162,
+    "pctMoreThan40Degrees": 25.5,
     "crossTab": {
-     "blade:healthy ON healthy ground": 150,
-     "flower:proven ON healthy ground": 95,
-     "shrub:healthy ON healthy ground": 89,
+     "blade:healthy ON healthy ground": 292,
+     "shrub:healthy ON healthy ground": 218,
+     "flower:proven ON healthy ground": 110,
      "flower:pending ON healthy ground": 10,
-     "flower:failing ON healthy ground": 5
+     "flower:failing ON healthy ground": 6
     }
    },
    "spread": {
-    "decorPx": 384,
+    "decorPx": 676,
     "byTokenFamily": {
-     "blade:healthy": 161,
-     "flower:proven": 111,
-     "shrub:healthy": 94,
+     "blade:healthy": 306,
+     "shrub:healthy": 225,
+     "flower:proven": 126,
      "flower:pending": 10,
-     "flower:failing": 8
+     "flower:failing": 9
     },
     "pxWhoseFamilyIsAnINVENTEDNonGreenStatus": 0,
     "pctNonGreen": 0.0
    },
    "buggy": {
     "placements": 145,
-    "placementsDeliveringAtLeastOnePixel": 78,
-    "placementsDeliveringNOTHING": 67,
+    "placementsDeliveringAtLeastOnePixel": 133,
+    "placementsDeliveringNOTHING": 12,
     "medianPxPerPlacement": 3,
     "pxPerPlacementHistogram": {
-     "1": 10,
-     "2": 21,
-     "3": 20,
-     "4": 11,
-     "5": 2,
-     "8": 1,
-     "10": 2,
-     "11": 3,
+     "1": 8,
+     "2": 33,
+     "3": 37,
+     "4": 24,
+     "5": 5,
+     "9": 2,
+     "10": 3,
+     "11": 7,
      "12": 4,
+     "13": 4,
+     "17": 1,
+     "19": 1,
      "21": 1,
      "28": 1,
      "29": 1,
      "31": 1
     },
-    "placementsArrivingAsMoreThanOneDisconnectedBlob": 4,
-    "totalDisconnectedBlobs": 85,
-    "placementsDeliveringOneOrTwoPx": 31
+    "placementsArrivingAsMoreThanOneDisconnectedBlob": 5,
+    "totalDisconnectedBlobs": 140,
+    "placementsDeliveringOneOrTwoPx": 41
    },
    "attribution": {
     "ambiguousPx": 0,
@@ -341,12 +367,12 @@
   {
    "guard": "a PARTIAL palette (decor families omitted) reassigns semantic state",
    "fired": true,
-   "bleedPx": 376,
+   "bleedPx": 664,
    "decorBelowGrassLumaFloor": 0,
    "seenAs": [
     "land:healthy:top@0.78",
-    "land:healthy:top@0.9",
     "land:healthy:side@0.9",
+    "land:healthy:top@0.9",
     "coast:sand",
     "land:building:top@1.0"
    ]

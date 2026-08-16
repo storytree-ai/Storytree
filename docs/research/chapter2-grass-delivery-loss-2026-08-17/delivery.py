@@ -61,6 +61,7 @@ here). `scale.py` in this directory is what asks whether the rate is a property 
 of that number.
 """
 import argparse
+import contextlib
 import json
 import math
 import os
@@ -297,6 +298,54 @@ def occluder_profile(run, rows):
             "belowTheCellCentroid_paintedAFTERTheCell": rate(below),
         },
     }
+
+
+@contextlib.contextmanager
+def centroid_key():
+    """Compose with the PRE-FIX depth key — a placement sorting on its own ground point alone.
+
+    THE FIX HAS LANDED (2026-08-17), so `compose_core` now sorts a placement on
+    `max(own y, its cell's centroid y)` and the numbers this file reports as "before" no longer exist
+    anywhere in the code. They are still the thing the measurement is ABOUT, so the compositor keeps
+    one switch whose only caller is this block: `DECOR_SORTS_AFTER_ITS_CELL = False` reinstates the
+    defect for the duration of one composite and nothing else changes. That is deliberately a switch
+    on the ONE compositor rather than a second copy of it carrying the old key — a fourth copy is
+    exactly what this track has been told not to create, and a guard that cannot reintroduce the
+    defect it guards against is not a guard.
+    """
+    saved = D.DECOR_SORTS_AFTER_ITS_CELL
+    D.DECOR_SORTS_AFTER_ITS_CELL = False
+    try:
+        yield
+    finally:
+        D.DECOR_SORTS_AFTER_ITS_CELL = saved
+
+
+def assert_data_route_agrees(meta, caps, shipped):
+    """THE TWO ROUTES TO THE SAME PICTURE, held to agreeing — and it is what keeps
+    `assert_projection_unchanged` armed now that the repair lives in the compositor.
+
+    Before the fix landed, this file measured the repair as a DATA transform: move a placement
+    down-field by `d` and raise its world height by `d*SIN/COS`, which lands it on the identical
+    canvas pixel while sorting it `d` later (`repair_depth_keys`). The compositor now does the
+    reordering itself, so the data transform must be a NO-OP on the delivered raster: composing the
+    shifted items under the shipped rule must produce byte-identical pixels to composing the raw
+    items under it.
+
+    Running it keeps two guards alive that would otherwise have quietly stopped being exercised:
+    `assert_projection_unchanged` (every placement's integer blit origin is unchanged) and the claim
+    that the repair is a REORDERING rather than a move.
+    """
+    run = run_captured(meta, caps, "cross-check", perturb=repair_depth_keys)
+    same = np.array_equal(run["rgb"], shipped["rgb"]) and np.array_equal(run["solid"],
+                                                                        shipped["solid"])
+    if not same:
+        raise SystemExit(
+            "REFUSED: the down-field data transform and the compositor's own depth key deliver "
+            "DIFFERENT rasters. One of the two is not doing what it says, so neither number below "
+            "can be attributed to the reordering.")
+    return {"guard": "the pre-fix data transform is now a no-op against the shipped depth key",
+            "identicalRaster": True}
 
 
 def repair_depth_keys(items):
@@ -538,10 +587,15 @@ def main():
         "islands": {},
     }
     for label, caps in (("fixture", fixture_caps), ("healthy", healthy_caps)):
-        run = run_captured(meta, caps, label)
-        rows = per_placement(run)
+        # the `label` row is the DEFECT, reintroduced on purpose (see `centroid_key`); the
+        # `label-repaired` row is what the compositor ships since 2026-08-17. The two names are kept
+        # from the pre-fix report so the picture and the prose that cite them still resolve.
+        with centroid_key():
+            run = run_captured(meta, caps, label)
+            rows = per_placement(run)
         summary = summarise(rows, cull_count(meta, caps), label)
         summary["occlusion"] = occluder_profile(run, rows)
+        summary["depthKeyRule"] = "PRE-FIX: a placement sorts on its own ground y alone"
         report["islands"][label] = summary
         report["islands"][label]["rows"] = rows
         a = summary["all"]
@@ -549,12 +603,14 @@ def main():
               f"({a['deliveringNothingPct']}%)  TRUE zero={a['TRULYdeliveringNothing']} "
               f"({a['TRULYdeliveringNothingPct']}%)  fates={a['fates']}")
 
-        rep = run_captured(meta, caps, label + "-repaired", perturb=repair_depth_keys)
+        rep = run_captured(meta, caps, label + "-repaired")
         rrows = per_placement(rep)
         rsummary = summarise(rrows, cull_count(meta, caps), label + "-repaired")
         rsummary["occlusion"] = occluder_profile(rep, rrows)
         rsummary["deliveredSolidPx"] = int(rep["solid"].sum())
         rsummary["decorPxDelivered"] = int((rep["cls"] == 2).sum())
+        rsummary["depthKeyRule"] = "SHIPPED: max(own ground y, the cell's centroid y)"
+        rsummary["crossCheck"] = assert_data_route_agrees(meta, caps, rep)
         summary["deliveredSolidPx"] = int(run["solid"].sum())
         summary["decorPxDelivered"] = int((run["cls"] == 2).sum())
         report["islands"][label + "-repaired"] = rsummary

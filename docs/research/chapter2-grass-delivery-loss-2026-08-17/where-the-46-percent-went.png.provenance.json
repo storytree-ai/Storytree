@@ -3,7 +3,7 @@
  "artifact": "where-the-46-percent-went.png",
  "producer": {
   "tool": "picture.py",
-  "sha256": "f71c1d78cb92ca06aeb9a087b4a369143c6fdb1eab12481c8759bdd06e05f769"
+  "sha256": "f3bfd7e78f5c65808c482f2789225b64ccdceea4b08536cdbb5ff729d9da3554"
  },
  "command": {
   "tool": "picture.py",
@@ -172,8 +172,8 @@
   "rule": "one code state PER GENERATOR; the composite's identity is the digest of the whole {generator: state} map, so any generator moving moves it"
  },
  "output": {
-  "sha256": "e13314355b48eaf6af81953ecac7174260873c41ee40993bf115fdddd53e498b",
-  "bytes": 40663
+  "sha256": "a828d5f6ef4c943bb958b709fb9455eeda6654416350d51ffc0c7b5a08d5e63f",
+  "bytes": 42976
  },
  "cameraElevationDeg": 50.0,
  "variant": "b++ land + ADR-0226 vegetation, ATTRIBUTED, before/after the depth-key repair",
