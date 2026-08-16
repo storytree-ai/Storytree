@@ -12,16 +12,32 @@
 // its ordered chain of segment refs) smoothed to centripetal Catmull-Rom
 // cubics. A pure function of (islands, edges, seed): hash/rand01 only, no
 // Math.random, no clock — same input, byte-identical output.
+//
+// THE ROUTER ITSELF STAYS CAMERA-AGNOSTIC (ADR-0367 D1/D3). Every distance it reasons about —
+// clearance, falloff, the reuse halo, an island's obstacle radius — is an ISOTROPIC screen
+// distance, which is only true in the ground plane: a ground-plane circle seen through the land's
+// declared camera is an ELLIPSE, and treating it as a circle is exactly what forces edges that
+// could route around an island to give up and tunnel under it instead (the measured 0 -> 156
+// `world-cave` delta, `land-camera-consumers-reconcile`). Rather than teach every isotropic
+// distance in this module about an anisotropic screen projection, the CALLER routes with
+// GROUND-SPACE islands (see `TrailIsland`'s doc) and calls {@link projectTrailNetwork} once, at
+// the end, to project the routed geometry into screen space. Centripetal Catmull-Rom is affine in
+// its control points, so projecting the points and re-splining reproduces exactly the curve that
+// splining the already-projected points would have drawn.
 
 import type { Pt } from './hex.js';
 import { HEX_R } from './hex.js';
 import { hash, rand01 } from './rng.js';
+import { LAND_CAMERA_ELEVATION_DEG, projectGround } from './camera.js';
 
 export interface TrailIsland {
   id: string;
-  x: number; // world px
+  /** GROUND-plane px — isotropic, unprojected (the router is camera-agnostic; see the module
+   *  doc). Pass `unprojectGround`/plan-view coordinates here, not screen coordinates, and
+   *  recover screen space from the result via {@link projectTrailNetwork}. */
+  x: number;
   y: number;
-  r: number; // obstacle disc radius
+  r: number; // obstacle disc radius, in the same ground-plane units as x/y
 }
 
 export interface TrailEdgeIn {
@@ -465,7 +481,7 @@ function r2(v: number): string {
 }
 
 /** Centripetal Catmull-Rom (alpha 0.5) through the points, as M + cubic C `d`. */
-function crPathD(pts: readonly Pt[]): string {
+export function crPathD(pts: readonly Pt[]): string {
   const first = pts[0];
   if (!first) return '';
   let d = `M ${r2(first.x)} ${r2(first.y)}`;
@@ -1326,4 +1342,41 @@ export function routeTrails(
     return { id: rec.id, d: sm.d, points: sm.points, usage: rec.usage, hidden: rec.hidden };
   });
   return { segments, edges: outEdges, caves, dropped: finishDropped() };
+}
+
+/**
+ * Project a network routed in GROUND SPACE (via {@link routeTrails} fed ground-plane
+ * `TrailIsland`s) into SCREEN space at the declared land camera (ADR-0367 D1). The router itself
+ * stays camera-agnostic (see the module doc) — this is the one seam where that ground-space
+ * geometry becomes the screen-space `d`/`points` every render surface expects.
+ *
+ * Centripetal Catmull-Rom is affine in its control points, so re-splining the PROJECTED points
+ * (`crPathD`) reproduces exactly the curve `routeTrails` would have drawn had it computed the
+ * spline after projection — this is not an approximation.
+ *
+ * A cave's `bearing` is recomputed from the PROJECTED island centre to the PROJECTED portal point
+ * rather than reprojecting the ground-space angle directly: an anisotropic (non-uniform) scale
+ * does not carry an angle to its own image (a ground-space outward normal does not project to the
+ * screen-space outward normal of the resulting ellipse), where "point away from the projected
+ * centre, through the projected portal" is still exactly the outward direction on screen.
+ */
+export function projectTrailNetwork(
+  network: TrailNetwork,
+  islands: readonly TrailIsland[],
+  elevationDeg: number = LAND_CAMERA_ELEVATION_DEG,
+): TrailNetwork {
+  const centreOf = new Map<string, Pt>();
+  for (const isl of islands) {
+    if (!centreOf.has(isl.id)) centreOf.set(isl.id, projectGround({ x: isl.x, y: isl.y }, elevationDeg));
+  }
+  const segments: TrailSegment[] = network.segments.map((seg) => {
+    const points = seg.points.map((p) => projectGround(p, elevationDeg));
+    return { ...seg, points, d: crPathD(points) };
+  });
+  const caves: TrailCave[] = network.caves.map((cave) => {
+    const p = projectGround({ x: cave.x, y: cave.y }, elevationDeg);
+    const centre = centreOf.get(cave.islandId) ?? p;
+    return { ...cave, x: p.x, y: p.y, bearing: Math.atan2(p.y - centre.y, p.x - centre.x) };
+  });
+  return { ...network, segments, caves };
 }

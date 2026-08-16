@@ -78,6 +78,7 @@ export {
   type TrailEdgeOut,
   type TrailNetwork,
   routeTrails,
+  projectTrailNetwork,
   trailFillWidth,
 } from './routing.js';
 

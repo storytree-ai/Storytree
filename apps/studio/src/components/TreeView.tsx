@@ -132,6 +132,7 @@ import {
   HEX_W,
   TILE_DEPTH,
   groundRadiusToScreenHalfHeight,
+  PLAN_VIEW_ELEVATION_DEG,
   axialKey,
   AXIAL_DIRS,
   hexCenter,
@@ -156,6 +157,7 @@ import {
   buildRelaxedCells as buildRelaxedCellsFromTiles,
   buildScene,
   routeTrails,
+  projectTrailNetwork,
   trailFillWidth,
   wispBand,
   type SceneInput,
@@ -166,6 +168,7 @@ import {
   type SceneStatus,
   type ScenePlantInput,
   type SceneTerritoryInput,
+  type TrailIsland,
   type TrailNetwork,
   type ClaimGrade,
   type BuildPhase,
@@ -755,21 +758,40 @@ export function buildWorld(
   // never enter `edgeList`, so no trail to a building can exist — no filter needed.
   // A world with no edges (the Shared-Islands panel's one-island worlds) skips the
   // router entirely.
+  //
+  // ADR-0367's third named cost: `routeTrails` reasons in ISOTROPIC screen distances (clearance,
+  // falloff, the obstacle radius itself), which is only true in the GROUND plane — a ground-plane
+  // disc seen through the land's declared camera is an ELLIPSE, and feeding the router the
+  // already-PROJECTED (compressed) centroid with an un-projected radius inflates the effective
+  // obstacle far past the island's real footprint, forcing edges that could route around an
+  // island to give up and tunnel under it instead (`land-camera-consumers-reconcile`'s measured
+  // 0 -> 156 `world-cave` delta). So route with GROUND-SPACE islands (`hexCenter` at
+  // `PLAN_VIEW_ELEVATION_DEG` recovers the pre-camera, un-flattened tile positions exactly) and
+  // project the routed network back to screen space once, at the end, via `projectTrailNetwork`.
+  const trailIslands: TrailIsland[] = territories.map((t) => {
+    const groundCenters = t.tiles.map((tile) => hexCenter(tile, PLAN_VIEW_ELEVATION_DEG));
+    const groundCentroid: Pt = {
+      x: groundCenters.reduce((s, p) => s + p.x, 0) / Math.max(groundCenters.length, 1),
+      y: groundCenters.reduce((s, p) => s + p.y, 0) / Math.max(groundCenters.length, 1),
+    };
+    const groundRadius =
+      Math.max(0, ...groundCenters.map((p) => Math.hypot(p.x - groundCentroid.x, p.y - groundCentroid.y))) +
+      HEX_R;
+    return { id: t.story.id, x: groundCentroid.x, y: groundCentroid.y, r: groundRadius * 0.82 };
+  });
   const trails: TrailNetwork =
     edgeList.length && territories.length
-      ? routeTrails(
-          territories.map((t) => ({
-            id: t.story.id,
-            x: t.centroid.x,
-            y: t.centroid.y,
-            r: t.radius * 0.82,
-          })),
-          edgeList.map((e) => ({
-            from: e.from,
-            to: e.to,
-            title: `${e.to} depends on ${e.from}${e.via.length ? ` (via ${e.via.join(', ')})` : ''}`,
-          })),
-          `trails:dag:${stories.map((s) => s.id).sort().join('|')}`,
+      ? projectTrailNetwork(
+          routeTrails(
+            trailIslands,
+            edgeList.map((e) => ({
+              from: e.from,
+              to: e.to,
+              title: `${e.to} depends on ${e.from}${e.via.length ? ` (via ${e.via.join(', ')})` : ''}`,
+            })),
+            `trails:dag:${stories.map((s) => s.id).sort().join('|')}`,
+          ),
+          trailIslands,
         )
       : { segments: [], edges: [], caves: [], dropped: [] };
 
