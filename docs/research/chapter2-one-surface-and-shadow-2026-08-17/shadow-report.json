@@ -1,0 +1,726 @@
+{
+ "lightRig": {
+  "authoredKeyRotationDeg": [
+   48.0,
+   0.0,
+   34.0
+  ],
+  "keyElevationDeg": 42.0,
+  "treeShadowElevationDeg": 75.0,
+  "lightScreenFrom": [
+   -0.857,
+   -0.516
+  ],
+  "lightGroundToward": [
+   -0.7862,
+   -0.618
+  ],
+  "shadowFallsTowardGround": [
+   0.7862,
+   0.618
+  ],
+  "measuredFromLandPieces": {
+   "top": 95.5,
+   "chamfer_lit": 95.5,
+   "chamfer_dark": null,
+   "wall_lit": 81.1,
+   "wall_dark": 113.0,
+   "silhouette": 95.5,
+   "litSideIsScreenLeft": true
+  },
+  "measuredFromHeroTreeCrown": {
+   "brightensToward": [
+    -0.857,
+    -0.516
+   ],
+   "crownPx": 4804
+  },
+  "reading": "the rig is READ from the delivered art, not restated: the land pieces put their lit wall band to screen-LEFT of their dark one, and the hero tree's crown brightens up-left by a least-squares fit over its own pixels. Two generators, two shading models, one answer. Both generators already share `KEY_ROT = (48, 0, 34)`, so the land and the tree agreeing is a property this pass INHERITS and must not break, rather than one it establishes.",
+  "honestGap": "working that euler by hand gives the opposite sign on screen x. One of the two is wrong about a convention (Blender's euler order, its sun default axis, or the compositor's ground-y flip relative to the render camera). The delivered pixels are what the owner looked at, so they win \u2014 and the disagreement is recorded rather than resolved."
+ },
+ "oneSurface": {
+  "mechanism": {
+   "file": "packages/forest-world/src/substrate.ts:237",
+   "line": "quads.push({ owner, ids, variant: hash(`cell:${key}:${i}`) % 3, wheat: cellWheat })",
+   "renderedAt": "packages/forest-world/src/scene.ts:3128",
+   "notEdited": true
+  },
+  "cells": 162,
+  "wheatCellsBefore": 21,
+  "variantCellsBefore": {
+   "variant-0": 44,
+   "variant-1": 48,
+   "variant-2": 49
+  },
+  "deliveredCellFillsBefore": {
+   "distinctDeliveredCellFills": 6,
+   "colours": [
+    "#5a753d",
+    "#648244",
+    "#7dab50",
+    "#8cb85e",
+    "#9ac570",
+    "#d6b271"
+   ],
+   "distinctTopFaceFills": 4,
+   "topFaceColours": [
+    "#7dab50",
+    "#8cb85e",
+    "#9ac570",
+    "#d6b271"
+   ]
+  },
+  "deliveredCellFillsAfter": {
+   "distinctDeliveredCellFills": 3,
+   "colours": [
+    "#5a753d",
+    "#648244",
+    "#8cb85e"
+   ],
+   "distinctTopFaceFills": 1,
+   "topFaceColours": [
+    "#8cb85e"
+   ]
+  },
+  "cellFillsMoved": 117,
+  "reading": "the collapse is DATA, not code: every cell is drawn at variant 0 with wheat off, through the same compositor, the same tokens and the same palette. Nothing about the status fold, the geometry or the piece set moves \u2014 which is what makes the fill count before and after a reading of the noise rather than of the change."
+ },
+ "shadow": {
+  "field": {
+   "terrainOccludedGroundSamples": 5733,
+   "aoGroundSamples": 41944,
+   "canopyGroundSamples": 13138,
+   "landPixels": 162452,
+   "landPixelsDarkened": 93109,
+   "minMultiplier": 0.7900000214576721,
+   "meanMultiplier": 0.9681467413902283,
+   "landPctDarkened": 57.3
+  },
+  "terms": {
+   "terrainCast": 0.12,
+   "canopyCast": 0.19,
+   "joinAO": 0.07,
+   "floor": 0.79,
+   "ladder": [
+    0.94,
+    0.87,
+    0.8
+   ]
+  },
+  "treeWorldHeight": 197.6,
+  "tallestTerraceStep": 7.6,
+  "aoIsStepDrivenNotJoinDriven": "AO is driven by the local height EXCESS and is identically zero across a join between two cells at one height. Applying it at every join would have redrawn, as a shade band, exactly the interior mesh seam the owner removed nine hours earlier at a cost of 1892 delivered px."
+ },
+ "whatTheShadowBuys": {
+  "asShipped": {
+   "bodyPx": 14042,
+   "lumaMin": 91.3,
+   "lumaMax": 181.6,
+   "lumaP2": 102.7,
+   "lumaP98": 181.6,
+   "lumaRangeP2toP98": 78.9,
+   "lumaStdDev": 19.58,
+   "distinctLumaLevels": 7
+  },
+  "oneSurfaceNoShadow": {
+   "bodyPx": 14042,
+   "lumaMin": 91.3,
+   "lumaMax": 160.9,
+   "lumaP2": 102.7,
+   "lumaP98": 160.9,
+   "lumaRangeP2toP98": 58.2,
+   "lumaStdDev": 14.47,
+   "distinctLumaLevels": 4
+  },
+  "oneSurfaceShadowShippedPalette": {
+   "bodyPx": 14042,
+   "lumaMin": 72.9,
+   "lumaMax": 160.9,
+   "lumaP2": 102.7,
+   "lumaP98": 160.9,
+   "lumaRangeP2toP98": 58.2,
+   "lumaStdDev": 16.99,
+   "distinctLumaLevels": 16
+  },
+  "oneSurfaceShadowClosedPalette": {
+   "bodyPx": 14042,
+   "lumaMin": 72.9,
+   "lumaMax": 160.9,
+   "lumaP2": 96.7,
+   "lumaP98": 160.9,
+   "lumaRangeP2toP98": 64.2,
+   "lumaStdDev": 17.23,
+   "distinctLumaLevels": 25
+  },
+  "deliveredPxChangedByTheShadow": 9788,
+  "islandPx": 30477,
+  "pctOfIslandReached": 32.12,
+  "reading": "read the two rows together. Collapsing the variants NARROWS the luminance range, because the range it removes was hash-picked noise. The shadow then re-spends range on a low-frequency gradient. Whether the second is worth more than the first is exactly the owner's look and this file has no standing to make it (ADR-0070 stage 2)."
+ },
+ "survivesTheSnap": {
+  "shippedPaletteEntries": 132,
+  "lightClosedPaletteEntries": 514,
+  "ladderOnShippedPalette": {
+   "light-1": 10190,
+   "unmatchedByTheHealthyTopLadder": 3852
+  },
+  "ladderOnClosedPalette": {
+   "light-1": 10138,
+   "light-0.94": 1156,
+   "light-0.87": 319,
+   "light-0.8": 743,
+   "unmatchedByTheHealthyTopLadder": 1686
+  },
+  "deliveredColoursShippedPalette": 32,
+  "deliveredColoursClosedPalette": 42,
+  "reading": "a closed palette is not a formality the shadow has to satisfy \u2014 it is the thing that decides whether a shadow exists at all. `snap()` clamps every pixel to the nearest entry it HOLDS, so shading a token the palette only holds at full light quantises the shadow back out. The closure here is taken against the DELIVERED palette rather than against the token tables, so it covers the coast sand too \u2014 the family `build_palette` records having missed once, at a cost of 2564 px of an `unknown` rim rendered `healthy` green with nothing failing."
+ },
+ "statusIsNotCorrupted": {
+  "asShipped": {
+   "bodyPx": 14042,
+   "mix": {
+    "healthy": 11456,
+    "proposed": 1602,
+    "unhealthy": 984
+   },
+   "nonHealthyPx": 2586,
+   "nonHealthyPct": 18.416
+  },
+  "oneSurfaceNoShadow": {
+   "bodyPx": 14042,
+   "mix": {
+    "healthy": 13067,
+    "unhealthy": 975
+   },
+   "nonHealthyPx": 975,
+   "nonHealthyPct": 6.943
+  },
+  "oneSurfaceShadowShippedPalette": {
+   "bodyPx": 14042,
+   "mix": {
+    "healthy": 13045,
+    "unhealthy": 997
+   },
+   "nonHealthyPx": 997,
+   "nonHealthyPct": 7.1
+  },
+  "oneSurfaceShadowClosedPalette": {
+   "bodyPx": 14042,
+   "mix": {
+    "healthy": 13054,
+    "unhealthy": 988
+   },
+   "nonHealthyPx": 988,
+   "nonHealthyPct": 7.036
+  },
+  "test": "every delivered CELL-BODY pixel (silhouette rim and coast excluded) is matched to the nearest status by its `top` shades and its `side`, in the same luma-weighted space `snap` uses. All 11 capabilities on this island are `healthy`, so any pixel reading as another status is a false assertion about the work \u2014 ADR-0367 D5, meaning outranks appearance.",
+  "wheatExcludedFromTheReaderTable": "five of the six statuses share the identical wheat hex `#d6b271`, so wheat identifies no status (PR #1372). Including it would make every status equidistant and the test would answer nothing. That is a pre-existing defect of the token table, not one a shadow creates.",
+  "readChangedByTheShadow": {
+   "shippedPalette": {
+    "bodyPx": 14042,
+    "pixelsWhoseStatusReadChanged": 26,
+    "pctChanged": 0.185,
+    "pureFillPx": 12457,
+    "pureFillPxThatChangedWhatTheySay": 0,
+    "pureFillColourPairs": {},
+    "transitions": {
+     "healthy -> unhealthy": 24,
+     "unhealthy -> healthy": 2
+    },
+    "colourPairs": {
+     "#8cb85e -> #5a753d": 12,
+     "#8cb85e -> #4e6535": 6,
+     "#8cb85e -> #506836": 4,
+     "#5a753d -> #7dab50": 2,
+     "#8cb85e -> #5b7847": 1,
+     "#8cb85e -> #648244": 1
+    }
+   },
+   "closedPalette": {
+    "bodyPx": 14042,
+    "pixelsWhoseStatusReadChanged": 29,
+    "pctChanged": 0.207,
+    "pureFillPx": 12457,
+    "pureFillPxThatChangedWhatTheySay": 0,
+    "pureFillColourPairs": {},
+    "transitions": {
+     "healthy -> unhealthy": 21,
+     "unhealthy -> healthy": 8
+    },
+    "colourPairs": {
+     "#5a753d -> #8cb85e": 6,
+     "#8cb85e -> #57713b": 6,
+     "#8cb85e -> #4e6535": 4,
+     "#8cb85e -> #4e6635": 2,
+     "#8cb85e -> #5a753d": 2,
+     "#8cb85e -> #57733a": 2,
+     "#8cb85e -> #495f32": 1,
+     "#8cb85e -> #485e31": 1,
+     "#8cb85e -> #556e39": 1,
+     "#8cb85e -> #44582e": 1,
+     "#8cb85e -> #5f7d40": 1,
+     "#5a753d -> #84ad58": 1
+    }
+   }
+  }
+ },
+ "crossReadsBeforeAnyShadow": {
+  "entries": 78,
+  "crossReading": 21,
+  "examples": [
+   {
+    "authored": "proposed",
+    "face": "top",
+    "shade": 0.9,
+    "rgb": "#b8a04f",
+    "readsAs": "mapped"
+   },
+   {
+    "authored": "proposed",
+    "face": "top",
+    "shade": 0.78,
+    "rgb": "#b0a162",
+    "readsAs": "mapped"
+   },
+   {
+    "authored": "proposed",
+    "face": "side",
+    "shade": 0.78,
+    "rgb": "#83713a",
+    "readsAs": "mapped"
+   },
+   {
+    "authored": "proposed",
+    "face": "side",
+    "shade": 0.8,
+    "rgb": "#86743b",
+    "readsAs": "mapped"
+   },
+   {
+    "authored": "proposed",
+    "face": "side",
+    "shade": 0.9,
+    "rgb": "#978243",
+    "readsAs": "mapped"
+   },
+   {
+    "authored": "building",
+    "face": "top",
+    "shade": 0.9,
+    "rgb": "#bb8b3b",
+    "readsAs": "proposed"
+   },
+   {
+    "authored": "building",
+    "face": "top",
+    "shade": 0.78,
+    "rgb": "#b39351",
+    "readsAs": "proposed"
+   },
+   {
+    "authored": "building",
+    "face": "top",
+    "shade": 0.9,
+    "rgb": "#cfa95e",
+    "readsAs": "proposed"
+   },
+   {
+    "authored": "building",
+    "face": "side",
+    "shade": 0.78,
+    "rgb": "#856228",
+    "readsAs": "mapped"
+   },
+   {
+    "authored": "building",
+    "face": "side",
+    "shade": 0.8,
+    "rgb": "#886429",
+    "readsAs": "mapped"
+   },
+   {
+    "authored": "healthy",
+    "face": "top",
+    "shade": 0.9,
+    "rgb": "#709a48",
+    "readsAs": "unknown"
+   },
+   {
+    "authored": "healthy",
+    "face": "top",
+    "shade": 0.78,
+    "rgb": "#789a57",
+    "readsAs": "unknown"
+   },
+   {
+    "authored": "healthy",
+    "face": "side",
+    "shade": 0.78,
+    "rgb": "#4e6535",
+    "readsAs": "unhealthy"
+   },
+   {
+    "authored": "healthy",
+    "face": "side",
+    "shade": 0.8,
+    "rgb": "#506836",
+    "readsAs": "unhealthy"
+   },
+   {
+    "authored": "mapped",
+    "face": "side",
+    "shade": 0.78,
+    "rgb": "#685131",
+    "readsAs": "unhealthy"
+   },
+   {
+    "authored": "mapped",
+    "face": "side",
+    "shade": 0.8,
+    "rgb": "#6a5332",
+    "readsAs": "unhealthy"
+   },
+   {
+    "authored": "unknown",
+    "face": "top",
+    "shade": 0.9,
+    "rgb": "#98b472",
+    "readsAs": "healthy"
+   },
+   {
+    "authored": "unknown",
+    "face": "top",
+    "shade": 0.9,
+    "rgb": "#8fae68",
+    "readsAs": "healthy"
+   },
+   {
+    "authored": "unknown",
+    "face": "side",
+    "shade": 0.78,
+    "rgb": "#69774a",
+    "readsAs": "healthy"
+   },
+   {
+    "authored": "unknown",
+    "face": "side",
+    "shade": 0.8,
+    "rgb": "#6c7a4c",
+    "readsAs": "healthy"
+   },
+   {
+    "authored": "unknown",
+    "face": "side",
+    "shade": 0.9,
+    "rgb": "#7a8956",
+    "readsAs": "healthy"
+   }
+  ],
+  "pct": 26.9,
+  "reading": "the status-by-colour vocabulary is ALREADY ambiguous with no shadow anywhere near it. Over the closed set of colours the land may emit, this many read nearest to a status OTHER than the one that authored them \u2014 `healthy`'s dark wall band reads `unhealthy`, and `unknown`'s entire side family reads `healthy`. This is measured over the `faces=all` table (tops AND sides); the guard uses the narrower FILL-only table, where the same count is lower but still not zero. It is an app-side finding, written down and NOT acted on: the fence puts `packages/forest-world` and `apps/studio/src/index.css` out of scope for this pass."
+ },
+ "howDeepBeforeItLies": {
+  "deliveredTopFaceColour": "#8cb85e",
+  "readsAsAtFullLight": "healthy",
+  "measuredCeiling": 0.74,
+  "firstMultiplierReadingAsAnotherStatus": 0.73,
+  "ladderDeepest": 0.8,
+  "composedFloor": 0.79,
+  "declaredMargin": 0.05,
+  "actualMargin": 0.06,
+  "ladderIsWithinTheCeiling": true,
+  "sweep": [
+   {
+    "multiplier": 1.0,
+    "rgb": "#8cb85e",
+    "readsAs": "healthy"
+   },
+   {
+    "multiplier": 0.98,
+    "rgb": "#89b45c",
+    "readsAs": "healthy"
+   },
+   {
+    "multiplier": 0.96,
+    "rgb": "#86b15a",
+    "readsAs": "healthy"
+   },
+   {
+    "multiplier": 0.94,
+    "rgb": "#84ad58",
+    "readsAs": "healthy"
+   },
+   {
+    "multiplier": 0.92,
+    "rgb": "#81a956",
+    "readsAs": "healthy"
+   },
+   {
+    "multiplier": 0.9,
+    "rgb": "#7ea655",
+    "readsAs": "healthy"
+   },
+   {
+    "multiplier": 0.88,
+    "rgb": "#7ba253",
+    "readsAs": "healthy"
+   },
+   {
+    "multiplier": 0.86,
+    "rgb": "#789e51",
+    "readsAs": "healthy"
+   },
+   {
+    "multiplier": 0.84,
+    "rgb": "#769b4f",
+    "readsAs": "healthy"
+   },
+   {
+    "multiplier": 0.82,
+    "rgb": "#73974d",
+    "readsAs": "healthy"
+   },
+   {
+    "multiplier": 0.8,
+    "rgb": "#70934b",
+    "readsAs": "healthy"
+   },
+   {
+    "multiplier": 0.78,
+    "rgb": "#6d9049",
+    "readsAs": "healthy"
+   },
+   {
+    "multiplier": 0.76,
+    "rgb": "#6a8c47",
+    "readsAs": "healthy"
+   },
+   {
+    "multiplier": 0.74,
+    "rgb": "#688846",
+    "readsAs": "healthy"
+   },
+   {
+    "multiplier": 0.72,
+    "rgb": "#658444",
+    "readsAs": "unhealthy"
+   },
+   {
+    "multiplier": 0.7,
+    "rgb": "#628142",
+    "readsAs": "unhealthy"
+   },
+   {
+    "multiplier": 0.68,
+    "rgb": "#5f7d40",
+    "readsAs": "unhealthy"
+   },
+   {
+    "multiplier": 0.66,
+    "rgb": "#5c793e",
+    "readsAs": "unhealthy"
+   },
+   {
+    "multiplier": 0.64,
+    "rgb": "#5a763c",
+    "readsAs": "unhealthy"
+   },
+   {
+    "multiplier": 0.62,
+    "rgb": "#57723a",
+    "readsAs": "unhealthy"
+   }
+  ],
+  "reading": "the ladder is BOUNDED BY MEASUREMENT rather than chosen: the delivered top-face colour is darkened until the nearest status a reader could take it for stops being its own, and the deepest rung is kept a declared margin clear of that. `verify.py` re-measures the ceiling every run and fails if the ladder ever reaches past it, and `verify_refusal.py` drives a REAL composed picture past it and requires the guard to catch it."
+ },
+ "surface": {
+  "storyId": "context-traversal-capture",
+  "storyTitle": "The real terminal CLI captures its own context reads to a replayable durable trace",
+  "storyAuthoredStatus": "proposed",
+  "source": "stories/context-traversal-capture/ \u2014 read through @storytree/orchestrator loadNodeSpec",
+  "capabilityCount": 11,
+  "capabilities": [
+   {
+    "id": "traversal-trace-sink",
+    "authoredStatus": "proposed",
+    "verdictGlyph": "\u2713",
+    "renderedStatus": "healthy",
+    "tests": 4
+   },
+   {
+    "id": "terminal-boundary-observations",
+    "authoredStatus": "proposed",
+    "verdictGlyph": "\u2713",
+    "renderedStatus": "healthy",
+    "tests": 5
+   },
+   {
+    "id": "traversal-session-query",
+    "authoredStatus": "proposed",
+    "verdictGlyph": "\u2713",
+    "renderedStatus": "healthy",
+    "tests": 4
+   },
+   {
+    "id": "terminal-capture-activation",
+    "authoredStatus": "proposed",
+    "verdictGlyph": "\u2713",
+    "renderedStatus": "healthy",
+    "tests": 5
+   },
+   {
+    "id": "revisit-link-metadata",
+    "authoredStatus": "proposed",
+    "verdictGlyph": "\u2713",
+    "renderedStatus": "healthy",
+    "tests": 5
+   },
+   {
+    "id": "agent-ref-descent",
+    "authoredStatus": "proposed",
+    "verdictGlyph": "\u2713",
+    "renderedStatus": "healthy",
+    "tests": 7
+   },
+   {
+    "id": "artifact-offer-candidate-sets",
+    "authoredStatus": "proposed",
+    "verdictGlyph": "\u2713",
+    "renderedStatus": "healthy",
+    "tests": 7
+   },
+   {
+    "id": "offer-follow-edges",
+    "authoredStatus": "proposed",
+    "verdictGlyph": "\u2713",
+    "renderedStatus": "healthy",
+    "tests": 7
+   },
+   {
+    "id": "decision-point-playback",
+    "authoredStatus": "proposed",
+    "verdictGlyph": "\u2713",
+    "renderedStatus": "healthy",
+    "tests": 7
+   },
+   {
+    "id": "offer-observability-share",
+    "authoredStatus": "proposed",
+    "verdictGlyph": "\u2713",
+    "renderedStatus": "healthy",
+    "tests": 7
+   },
+   {
+    "id": "offer-set-render-agreement",
+    "authoredStatus": "proposed",
+    "verdictGlyph": "\u2713",
+    "renderedStatus": "healthy",
+    "tests": 6
+   }
+  ],
+  "renderedStatusMix": {
+   "healthy": 11
+  },
+  "authoredStatusMix": {
+   "proposed": 11
+  },
+  "testCounts": [
+   4,
+   5,
+   4,
+   5,
+   5,
+   7,
+   7,
+   7,
+   7,
+   7,
+   6
+  ],
+  "totalTests": 64,
+  "uatCriteria": [
+   {
+    "id": "uatc_7d2fd64553fdd66d3d23248c",
+    "revisionId": "uatr1:1ff82f7c25357a12",
+    "witness": "machine",
+    "state": "proven"
+   },
+   {
+    "id": "uatc_6e39dfcc18d5caa4aa3c64a5",
+    "revisionId": "uatr1:63ba2bacb36c23cd",
+    "witness": "machine",
+    "state": "proven"
+   },
+   {
+    "id": "uatc_411c5b920d3cc42fc2fb2a4f",
+    "revisionId": "uatr1:3e7eb060347651e7",
+    "witness": "machine",
+    "state": "proven"
+   },
+   {
+    "id": "uatc_65130d5b0ef6482a5b443cf7",
+    "revisionId": "uatr1:1e4a7006a96937cd",
+    "witness": "machine",
+    "state": "proven"
+   },
+   {
+    "id": "uatc_11abf3bd67912119d765e77a",
+    "revisionId": "uatr1:c1fb11dbcf0067ef",
+    "witness": "machine",
+    "state": "proven"
+   },
+   {
+    "id": "uatc_6b22fe35e0d9d416355d515a",
+    "revisionId": "uatr1:bfbeadbe7ad9f435",
+    "witness": "machine",
+    "state": "proven"
+   },
+   {
+    "id": "uatc_cb75462a2561f8db0825a9a2",
+    "revisionId": "uatr1:3fa49ba3844329a1",
+    "witness": "machine",
+    "state": "proven"
+   },
+   {
+    "id": "uatc_4bbb8909ea3e832c7033ae7a",
+    "revisionId": "uatr1:4cfc5cbe322171bc",
+    "witness": "machine",
+    "state": "proven"
+   },
+   {
+    "id": "uatc_c52578cfeae287b056726977",
+    "revisionId": "uatr1:81cf81492ff1399e",
+    "witness": "machine",
+    "state": "proven"
+   },
+   {
+    "id": "uatc_413f00cf1ff8cd520194c4c4",
+    "revisionId": "uatr1:e58f48ee23bb441e",
+    "witness": "machine",
+    "state": "proven"
+   }
+  ],
+  "tiles": 13,
+  "tileQuota": {
+   "quota": 13,
+   "rule": "Math.max(3, capabilities.length + 2) \u2014 apps/studio/src/components/TreeView.tsx",
+   "grownBy": "the app's own frontier rule: hexDist(seed, cand) + rand01(hash(`${storyId}:${key}`)) * 1.4"
+  },
+  "meshCells": 162,
+  "verdictEventsRead": 2229,
+  "reading": "every status on this island is provenStatus(authored, signed verdict) over a real story's real capabilities. NO status is invented, and every `healthy` is backed by a signed pass."
+ },
+ "cameraElevationDeg": 50.0,
+ "appLandCameraElevationDeg": 20.0,
+ "blenderFramesRendered": 0,
+ "importedNotCopied": {
+  "compose_healthy.py": "the whole pass, run in its own directory with its writes redirected",
+  "compose_core.compose_land": "the land",
+  "compose.back_half / snap / STATUS_TOKENS / PALETTE": "the palette back half",
+  "seams.SeamControl": "the owner's seam decision",
+  "newHere": [
+   "shadow.py",
+   "compose_shadow.panel (~20 lines, for the seam between land and snap)"
+  ]
+ }
+}
