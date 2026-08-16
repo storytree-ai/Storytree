@@ -109,7 +109,7 @@
    "section": "fence",
    "check": "the working tree's changes are confined to docs/research/**",
    "pass": true,
-   "detail": "217 paths touched"
+   "detail": "25 paths touched"
   },
   {
    "section": "fence",

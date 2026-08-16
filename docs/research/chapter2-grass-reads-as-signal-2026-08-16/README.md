@@ -1,5 +1,15 @@
 # Does the grass read as SIGNAL? — the vegetation vocabulary, measured at delivered scale
 
+> **⚠ RE-RENDERED 2026-08-17 ON THE FIXED COMPOSITOR.** Two defects in this directory's own
+> `compose_core.py` were fixed on 2026-08-17 — the decor painter order (a placement in the back half
+> of its own cell was overpainted by that cell) and `compose_land`'s `caps` argument not reaching the
+> walls. Both change numbers on this page, so all six pictures and `grass-report.json` were
+> re-rendered here and `verify.py` / `verify_refusal.py` re-run (**19/19**, **7/7**). Every delivered
+> vegetation count is now roughly 1.7–1.8× what it was, and the health read moved from 60.2% to
+> **78.6%**. No verdict on this page flips. The two sections that carry the moved numbers — the
+> test-count ladder (b) and the health read (c) — are corrected in place with the pre-fix figures
+> kept alongside. Full write-up: `../chapter2-compositor-order-and-caps-2026-08-17/`.
+
 **Date:** 2026-08-16 · **Blender:** 5.2.0 LTS, headless, CPU Cycles, adaptive sampling OFF, seed
 20260816 · **Camera:** 50° (a named parameter, not a literal) · **Land:** the interior fork's settled
 `b++`, ONE land for every panel · **Cost:** $0 · **Vendor calls:** 0
@@ -167,15 +177,19 @@ the terrain carrying the look. It argues *against* the terrain carrying it as GR
 
 | base | ground-treatment px | share of land | signal px | signal as % of non-flat-ground px |
 |---|---:|---:|---:|---:|
-| **`flat`** — the owner's proposal, the ground exactly as delivered | 0 | 0% | 301 | **100%** |
-| **`mottle`** — a deterministic two-shade split per cell | 9 266 | 26.5% | 298 | 3.2% |
-| **`carpet`** — grass used AS the ground treatment | 897 | 2.6% | 275 | **24%** |
+| **`flat`** — the owner's proposal, the ground exactly as delivered | 0 | 0% | 519 | **100%** |
+| **`mottle`** — a deterministic two-shade split per cell | 9 266 | 26.5% | 516 | 5.3% |
+| **`carpet`** — grass used AS the ground treatment | 1 681 | 4.81% | 439 | **20.7%** |
+
+*(Re-measured 2026-08-17 on the fixed compositor; before it, 301 / 298 / 275 signal px and
+`carpet` at 897 px / 2.6%. Both `carpet` columns roughly doubled because carpet tufts were being
+overpainted by their own cells too. Every conclusion below is unchanged.)*
 
 **`flat` costs nothing and is the only option under which every non-ground pixel means something.**
 
 **`mottle` buys a lot of ground for free, and claims nothing.** It moves 26.5% of the island using
 `(token × shade)` pairs the closed palette **already holds** (`C.SEAM_LEVEL`, which the land's own
-seams emit) — `verify.py` check 6 asserts it widens the palette by nothing. Its 3.2% signal fraction
+seams emit) — `verify.py` check 6 asserts it widens the palette by nothing. Its 5.3% signal fraction
 is **not** the same kind of cost as `carpet`'s: those 9 266 pixels are the capability's own status
 colour at a second shade, so they compete for ATTENTION but never for MEANING. Whether that reads as
 "ground with life in it" or "a busy mess" is a look.
@@ -216,22 +230,35 @@ Every capability driven to one test count in turn; same island, same piece set, 
 | tests | 0 | 1 | 2 | 3 | 5 | 8 | 13 | 21 | 30 |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | placements | 21 | 37 | 61 | 81 | 121 | 173 | 276 | 434 | 613 |
-| **blade** delivered px | 161 | 189 | 219 | **241** | 327 | 417 | 622 | 852 | **1035** |
-| **clump** delivered px | 197 | 274 | 326 | **366** | 516 | 793 | 1188 | 1561 | **1804** |
+| **blade** delivered px | 210 | 255 | 366 | **418** | 560 | 731 | 1073 | 1476 | **1809** |
+| **clump** delivered px | 284 | 404 | 585 | **693** | 973 | 1425 | 2115 | 2838 | **3275** |
 
 **Strictly monotonic across all nine counts, for both geometries.** 3 tests → 30 tests is
-**4.29× (0.69% → 2.96% of land)** for blade and **4.93%** of land for clump. The density signal
+**4.33× (1.20% → 5.17% of land)** for blade and **9.37%** of land for clump. The density signal
 survives everything this pass did to the look.
+
+*(Re-measured 2026-08-17 on the fixed compositor. Before the painter-order fix the same ladder read
+161 / 189 / 219 / **241** / 327 / 417 / 622 / 852 / **1035** for blade and 197 … **1804** for clump,
+i.e. 4.29× and 0.69% → 2.96%. The ratio barely moved — which is the point: the loss was roughly
+proportional, so the MONOTONICITY finding never depended on the defect. The absolute shares did move,
+and it is the shares the vocabulary question is argued from.)*
 
 ### (c) The health read (D3)
 
 Blade tokens stay **61.7 apart in RGB after the closed-palette snap** and do **not** collapse to the
 same entry (`healthy` → `(113,161,84)`, `unhealthy` → `(171,140,84)`). Driving the whole island to
-each status changes **21 066 delivered px = 60.2%** of it.
+each status changes **27 475 delivered px = 78.6%** of it.
 
-**But read that 60.2% precisely, because it flatters the grass.** It is carried mostly by the GROUND
-tint, not by the vegetation — which is the base fork's finding arriving from the other direction: at
-1–2% ground cover the grass cannot be the thing that changes an island's colour.
+⚠ **This figure was 21 066 px = 60.2% and it was an UNDER-count**, for a reason found by PR #1381
+and fixed on 2026-08-17: the read drives the island through `compose_land(caps=…)`, and that argument
+used to recolour the CELLS while the walls kept reading the module global. So the "before" and
+"after" islands shared their walls and the diff could never include them. With `caps` authoritative
+the read moved by **6 409 px / 18.4 percentage points**. See
+`../chapter2-compositor-order-and-caps-2026-08-17/`.
+
+**But read the 78.6% precisely, because it flatters the grass.** It is carried mostly by the GROUND
+tint and now by the WALLS, not by the vegetation — which is the base fork's finding arriving from the
+other direction: at 1–5% ground cover the grass cannot be the thing that changes an island's colour.
 
 ### (d) The weak spot, stated plainly: two capabilities SIDE BY SIDE on one island
 
@@ -239,20 +266,25 @@ tint, not by the vegetation — which is the base fork's finding arriving from t
 
 | capability | status | tests | cells | placements | delivered px | **px per cell** |
 |---|---|---:|---:|---:|---:|---:|
-| cap 2 | building | 2 | 18 | 6 | 14 | **0.78** |
-| cap 8 | building | 8 | 36 | 20 | 40 | **1.11** |
-| cap 6 | unhealthy | 2 | 37 | 7 | 3 | **0.08** |
+| cap 2 | building | 2 | 18 | 6 | 31 | **1.72** |
+| cap 8 | building | 8 | 36 | 20 | 89 | **2.47** |
+| cap 6 | unhealthy | 2 | 37 | 7 | 12 | **0.32** |
+
+*(Re-measured 2026-08-17 on the fixed compositor. Before it: 14 px / **0.78**, 40 px / **1.11**,
+3 px / **0.08**.)*
 
 **This is the honest limit of the whole vocabulary at delivered scale, and it is not something any
-treatment in this pass fixes.** The ladder's 4.3× is a comparison between whole islands. The read a
-viewer actually makes — *is that parcel busier than the one next to it?* — is **0.78 vs 1.11 px per
-cell, a 1.4× difference on sub-pixel-per-cell quantities.** Four times the tests buys about forty
+treatment in this pass fixes — the painter-order fix moved the quantities and left the SHAPE of the
+limit exactly where it was.** The ladder's 4.3× is a comparison between whole islands. The read a
+viewer actually makes — *is that parcel busier than the one next to it?* — is **1.72 vs 2.47 px per
+cell, a 1.4× difference on a couple of pixels per cell.** Four times the tests still buys about forty
 percent more grass per unit of ground.
 
-**And an unhealthy capability's ground cover very nearly vanishes: 7 placements deliver 3 pixels.**
-That is D3's wilt swap working as designed in one sense (a dying parcel reads as *thinning*, not
-merely recoloured) and a warning in another — at delivered scale the unhealthy read is carried almost
-entirely by the ground tint, with the vegetation contributing nearly nothing.
+**And an unhealthy capability's ground cover is still very nearly nothing: 7 placements deliver 12
+pixels across 37 cells.** That is D3's wilt swap working as designed in one sense (a dying parcel
+reads as *thinning*, not merely recoloured) and a warning in another — at delivered scale the
+unhealthy read is carried almost entirely by the ground tint, with the vegetation contributing
+nearly nothing.
 
 ## Proof — the machine-checkable half (`verify.py`, 19/19 green)
 

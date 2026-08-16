@@ -289,6 +289,58 @@ def mottle_patch(cell, index):
     return _clip_half_plane(poly, nx, ny, d)
 
 
+# ---------------------------------------------------------------- the painter order
+#: WHETHER A DECOR PLACEMENT SORTS AFTER THE CELL IT STANDS ON.
+#:
+#: `True` is the rule this compositor ships, and the only rule any picture on this track is composed
+#: with. `False` restores the pre-2026-08-17 key — a placement sorting on its OWN ground point alone —
+#: and exists for exactly one purpose: so the regression guard can REINTRODUCE the defect and measure
+#: what it protects against. A guard that cannot be made to fire is not a guard, and the alternative
+#: (a fourth copy of this compositor carrying the old key) is the thing this track has been told not
+#: to create. Nothing but a guard may set it, and nothing may leave it set.
+DECOR_SORTS_AFTER_ITS_CELL = True
+
+#: WHETHER `compose_land`'s `caps` ARGUMENT IS AUTHORITATIVE FOR THE WALLS.
+#:
+#: `True` is the rule this compositor ships. `False` restores the pre-2026-08-17 behaviour, in which
+#: the cell fills read the argument and `C.boundary_walls` read the module global `C.CAPS` — a
+#: function that honoured half of the parameter it was handed. Same contract as the switch above:
+#: it exists so the guard can reintroduce the defect and prove it is caught, and nothing may leave
+#: it set.
+CAPS_ARGUMENT_IS_AUTHORITATIVE_FOR_WALLS = True
+
+
+def decor_depth_key(d, cells):
+    """The y a decor placement SORTS on — never earlier than the surface it stands on.
+
+    THE DEFECT THIS FIXES, measured by PR #1383 and not re-derived here. The draw list sorts on
+    `(y, class)`. A CELL's key is its CENTROID; a PLACEMENT's key was its OWN ground point. So every
+    placement in the BACK HALF of its own cell sorted BEFORE that cell, and `C.fill_polygon` is a
+    hard write — the cell's own top face erased the thing standing on it. Of 51 zero-delivery
+    placements, 36 (71%) were occluded, and 86% of those had their footprint owned by the fill of the
+    cell they stand on. The prediction that carries the sign: above the centroid 78.3% delivered
+    nothing, below it 3.8%.
+
+    The correct key is `max(own ground y, the cell's centroid y)`: after the surface it stands on,
+    and otherwise unchanged. It is a REORDERING and not a move — the placement is still projected and
+    blitted from its own untouched `g` and `h`, so no pixel shifts. Loss 45.5% -> 7.1% on the fixture
+    geometry and 46.2% -> 8.3% driven all-`healthy`; nothing is re-rendered, re-scaled or re-coloured.
+
+    The rule generalises past this raster, and is the sentence to carry if the pipeline is ever
+    promoted into app code: *a drawable that STANDS ON a surface sorts after that surface, never on
+    its own ground point alone.* (The shipped SVG map does not have the defect — `scene.ts` paints
+    ground as one layer and all flora in a later `flora-layer` — so this is a research-raster fix.)
+    """
+    if not (0 <= d["cell"] < len(cells)):
+        raise SystemExit(
+            f"REFUSED: decor placement names cell {d['cell']} but this composite was handed "
+            f"{len(cells)} cells. The depth key would be read off the wrong cell, which is a "
+            "silently wrong painter order rather than a crash.")
+    if not DECOR_SORTS_AFTER_ITS_CELL:
+        return d["g"][1]
+    return max(d["g"][1], cells[d["cell"]]["c"][1])
+
+
 # ---------------------------------------------------------------- the land pass
 def compose_land(decor_items, cells=None, caps=None, ground="flat"):
     """The `b++` land with `decor_items` interleaved into its painter order.
@@ -297,10 +349,22 @@ def compose_land(decor_items, cells=None, caps=None, ground="flat"):
     has to enter that list. `assert_land_unchanged()` holds the mirror honest by running both and
     comparing bytes, so this is a proved copy rather than a trusted one.
 
-    Decor sorts at tier 3 on its OWN ground y — after the cell it stands on (tier 2) and before
-    anything nearer. That single sort is what makes the composite correct without a depth buffer:
-    a tuft on a far cell is covered by a nearer raised cell's top face, exactly as the cell behind
-    it is.
+    Decor sorts at tier 3 on `decor_depth_key` — `max(its own ground y, its cell's centroid y)`, so
+    it is drawn after the cell it stands on and before anything nearer. That single sort is what
+    makes the composite correct without a depth buffer: a tuft on a far cell is covered by a nearer
+    raised cell's top face, exactly as the cell behind it is, and is never covered by its own.
+
+    `caps` IS AUTHORITATIVE FOR EVERY PATH THAT READS CAPABILITY STATUS, walls included. It did not
+    used to be: the cell fills read the argument while `C.boundary_walls` read the module global
+    `C.CAPS`, so composing an all-`healthy` island through the argument ALONE delivered recoloured
+    cell tops standing on the ORIGINAL statuses' walls — **904** charcoal `unhealthy` wall pixels on
+    the body of an island with no unhealthy capability in it, at exit 0, with nothing to see. (PR
+    #1381 reported 936 for the same defect on a slightly different basis; 958 is the figure with the
+    silhouette rim included, which `C.back_half` authorises to reach the whole palette.) A false-pass
+    generator: a caller believes it varied one variable and it varied part of one. The global is
+    rebound for the duration of the wall query and restored in a `finally`, so the argument is
+    honoured in full rather than partially, and callers that rebind `C.CAPS` themselves (the
+    diagnosis pass does) are unaffected because they rebind it to the same value.
     """
     cells = ISLAND["variantB"]["cells"] if cells is None else cells
     caps = C.CAPS if caps is None else caps
@@ -317,12 +381,19 @@ def compose_land(decor_items, cells=None, caps=None, ground="flat"):
     for pl in ISLAND["wall"]["placements"]:
         if C.faces_viewer(pl["heading"]):
             draw.append((pl["c"][1], 0, ("wall", pl["c"], pl["heading"], 0.0, story_side)))
-    for pos, h, height, side in C.boundary_walls(cells, ELEVATION_MODE):
+    saved_caps = C.CAPS
+    if CAPS_ARGUMENT_IS_AUTHORITATIVE_FOR_WALLS:
+        C.CAPS = list(caps)
+    try:
+        walls = C.boundary_walls(cells, ELEVATION_MODE)
+    finally:
+        C.CAPS = saved_caps
+    for pos, h, height, side in walls:
         draw.append((pos[1], 1, ("wall", pos, h, height, side)))
     for c in cells:
         draw.append((c["c"][1], 2, ("cell", c, C.height_of(c, ELEVATION_MODE))))
     for d in decor_items:
-        draw.append((d["g"][1], 3, ("decor", d)))
+        draw.append((decor_depth_key(d, cells), 3, ("decor", d)))
     draw.sort(key=lambda t: (t[0], t[1]))
 
     for _, _, item in draw:

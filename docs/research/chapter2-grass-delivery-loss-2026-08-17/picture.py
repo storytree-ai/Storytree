@@ -8,10 +8,16 @@ hand-marked overlay — the same discipline the sibling pass's `picture.py` uses
 reason: the owner named the defect by looking at a picture, so the answer has to be legible in one.
 
 THE TWO RIGHT-HAND PANELS ARE NOT NEW ART. Nothing is re-rendered, re-scaled, re-coloured or moved;
-`delivery.repair_depth_keys` changes only the depth key each placement sorts on, and
-`assert_projection_unchanged` holds every placement to the same integer blit origin. So the extra
-vegetation on the right is vegetation that was ALWAYS being painted and was being overpainted by the
-cell it stands on, one drawable later in the same list.
+only the depth key each placement sorts on differs. So the extra vegetation on the right is
+vegetation that was ALWAYS being painted and was being overpainted by the cell it stands on, one
+drawable later in the same list.
+
+WHICH SIDE IS THE SHIPPED ONE FLIPPED ON 2026-08-17. The repair landed in `compose_core`, so the
+RIGHT panels are now what the compositor produces and the LEFT ones are the defect deliberately
+reintroduced for the duration of one composite (`delivery.centroid_key`). `assert_data_route_agrees`
+re-runs the old data-transform route against the shipped one and refuses unless they deliver
+byte-identical rasters, which is what keeps `assert_projection_unchanged` — the guard that makes
+this a REORDERING and not a move — armed after the repair moved into the compositor.
 
 The hero tree is omitted from every panel, as in the sibling pass: it is composited after the back
 half at 1:1 with its own palette and its own signed verdict, so it is not part of what is attributed.
@@ -72,9 +78,11 @@ def _wrap(text, n):
 def main():
     meta = G.mount()
     caps = list(D.ISLAND["capStatuses"])
-    before = L.run_captured(meta, caps, "fixture")
-    after = L.run_captured(meta, caps, "fixture-repaired", perturb=L.repair_depth_keys)
-    L.per_placement(after)          # arms assert_projection_unchanged + the footprint guard
+    with L.centroid_key():          # the pre-2026-08-17 key, reintroduced for the left panels only
+        before = L.run_captured(meta, caps, "fixture")
+    after = L.run_captured(meta, caps, "fixture-repaired")
+    L.per_placement(after)          # arms the footprint guard
+    L.assert_data_route_agrees(meta, caps, after)   # arms assert_projection_unchanged
     db, da = before["cls"] == 2, after["cls"] == 2
     nb, na = int(db.sum()), int(da.sum())
 
@@ -85,11 +93,12 @@ def main():
     box = (int(px - cw * 0.52), int(py - ch * 0.28), int(px + cw * 0.48), int(py + ch * 0.72))
     panels = [
         (board(before["rgb"], before["solid"]), HI,
-         "AS SHIPPED - the picture the owner declined. 51 of 112 placements are not in it."),
+         "THE OLD KEY - the picture the owner declined, and what the compositor produced until "
+         "2026-08-17. 51 of 112 placements are not in it."),
         (board(before["rgb"], before["solid"], db), INK,
          f"the same crop with every vegetation pixel painted - {nb} px, ALL of it"),
         (board(after["rgb"], after["solid"]), GOOD,
-         "DEPTH KEY REPAIRED - one sort key, nothing moved, nothing re-rendered, nothing "
+         "AS SHIPPED SINCE 2026-08-17 - one sort key, nothing moved, nothing re-rendered, nothing "
          "re-coloured. 104 of 112 placements now deliver."),
         (board(after["rgb"], after["solid"], da), GOOD,
          f"and its vegetation painted - {na} px, +{na - nb} ({round(100.0 * (na - nb) / nb)}%). "

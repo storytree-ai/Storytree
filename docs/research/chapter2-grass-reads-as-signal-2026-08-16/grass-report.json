@@ -27,8 +27,8 @@
    "rawOpaquePx": 61,
    "rawPxRepaintedVsMix0": 0,
    "rawRepaintedPct": 0.0,
-   "islandDecorPx": 301,
-   "islandDecorSharePct": 0.86
+   "islandDecorPx": 519,
+   "islandDecorSharePct": 1.48
   },
   {
    "normalMix": 0.15,
@@ -41,8 +41,8 @@
    "rawOpaquePx": 61,
    "rawPxRepaintedVsMix0": 34,
    "rawRepaintedPct": 55.7,
-   "islandDecorPx": 305,
-   "islandDecorSharePct": 0.87
+   "islandDecorPx": 522,
+   "islandDecorSharePct": 1.49
   },
   {
    "normalMix": 0.3,
@@ -55,8 +55,8 @@
    "rawOpaquePx": 61,
    "rawPxRepaintedVsMix0": 48,
    "rawRepaintedPct": 78.7,
-   "islandDecorPx": 307,
-   "islandDecorSharePct": 0.88
+   "islandDecorPx": 525,
+   "islandDecorSharePct": 1.5
   },
   {
    "normalMix": 0.45,
@@ -69,8 +69,8 @@
    "rawOpaquePx": 61,
    "rawPxRepaintedVsMix0": 52,
    "rawRepaintedPct": 85.2,
-   "islandDecorPx": 303,
-   "islandDecorSharePct": 0.87
+   "islandDecorPx": 522,
+   "islandDecorSharePct": 1.49
   },
   {
    "normalMix": 0.6,
@@ -83,8 +83,8 @@
    "rawOpaquePx": 61,
    "rawPxRepaintedVsMix0": 52,
    "rawRepaintedPct": 85.2,
-   "islandDecorPx": 305,
-   "islandDecorSharePct": 0.87
+   "islandDecorPx": 523,
+   "islandDecorSharePct": 1.5
   },
   {
    "normalMix": 0.8,
@@ -97,8 +97,8 @@
    "rawOpaquePx": 61,
    "rawPxRepaintedVsMix0": 53,
    "rawRepaintedPct": 86.9,
-   "islandDecorPx": 301,
-   "islandDecorSharePct": 0.86
+   "islandDecorPx": 519,
+   "islandDecorSharePct": 1.48
   },
   {
    "normalMix": 1.0,
@@ -111,8 +111,8 @@
    "rawOpaquePx": 61,
    "rawPxRepaintedVsMix0": 55,
    "rawRepaintedPct": 90.2,
-   "islandDecorPx": 297,
-   "islandDecorSharePct": 0.85
+   "islandDecorPx": 510,
+   "islandDecorSharePct": 1.46
   }
  ],
  "geometrySweep": [
@@ -127,8 +127,8 @@
    "rawOpaquePx": 128,
    "rawPxRepaintedVsMix0": 0,
    "rawRepaintedPct": 0.0,
-   "islandDecorPx": 522,
-   "islandDecorSharePct": 1.49
+   "islandDecorPx": 938,
+   "islandDecorSharePct": 2.68
   },
   {
    "normalMix": 0.15,
@@ -141,8 +141,8 @@
    "rawOpaquePx": 128,
    "rawPxRepaintedVsMix0": 47,
    "rawRepaintedPct": 36.7,
-   "islandDecorPx": 519,
-   "islandDecorSharePct": 1.48
+   "islandDecorPx": 936,
+   "islandDecorSharePct": 2.68
   },
   {
    "normalMix": 0.3,
@@ -155,8 +155,8 @@
    "rawOpaquePx": 128,
    "rawPxRepaintedVsMix0": 53,
    "rawRepaintedPct": 41.4,
-   "islandDecorPx": 529,
-   "islandDecorSharePct": 1.51
+   "islandDecorPx": 956,
+   "islandDecorSharePct": 2.73
   },
   {
    "normalMix": 0.45,
@@ -169,8 +169,8 @@
    "rawOpaquePx": 128,
    "rawPxRepaintedVsMix0": 60,
    "rawRepaintedPct": 46.9,
-   "islandDecorPx": 527,
-   "islandDecorSharePct": 1.51
+   "islandDecorPx": 954,
+   "islandDecorSharePct": 2.73
   },
   {
    "normalMix": 0.6,
@@ -183,8 +183,8 @@
    "rawOpaquePx": 128,
    "rawPxRepaintedVsMix0": 63,
    "rawRepaintedPct": 49.2,
-   "islandDecorPx": 522,
-   "islandDecorSharePct": 1.49
+   "islandDecorPx": 944,
+   "islandDecorSharePct": 2.7
   },
   {
    "normalMix": 0.8,
@@ -197,8 +197,8 @@
    "rawOpaquePx": 128,
    "rawPxRepaintedVsMix0": 80,
    "rawRepaintedPct": 62.5,
-   "islandDecorPx": 511,
-   "islandDecorSharePct": 1.46
+   "islandDecorPx": 925,
+   "islandDecorSharePct": 2.65
   },
   {
    "normalMix": 1.0,
@@ -211,8 +211,8 @@
    "rawOpaquePx": 128,
    "rawPxRepaintedVsMix0": 84,
    "rawRepaintedPct": 65.6,
-   "islandDecorPx": 517,
-   "islandDecorSharePct": 1.48
+   "islandDecorPx": 933,
+   "islandDecorSharePct": 2.67
   }
  ],
  "normalsVerdict": {
@@ -235,9 +235,9 @@
     "spreadPct": 0.0
    },
    "islandDecorPx": {
-    "min": 297,
-    "max": 307,
-    "spreadPct": 3.4
+    "min": 510,
+    "max": 525,
+    "spreadPct": 2.9
    }
   },
   "theScaleProblem": {
@@ -265,18 +265,18 @@
    "blade": {
     "rawOpaquePx": 61,
     "deliveredPx": 7,
-    "islandDecorPx": 301,
-    "islandDecorSharePct": 0.86
+    "islandDecorPx": 519,
+    "islandDecorSharePct": 1.48
    },
    "clump": {
     "rawOpaquePx": 128,
     "deliveredPx": 18,
-    "islandDecorPx": 522,
-    "islandDecorSharePct": 1.49
+    "islandDecorPx": 938,
+    "islandDecorSharePct": 2.68
    }
   },
   "deliveredPxRatio": 2.57,
-  "islandDecorPxRatio": 1.73,
+  "islandDecorPxRatio": 1.81,
   "reading": "the geometry fork is the one that MOVES the delivered picture, and it moves it by giving the tuft a BODY rather than by shading it better \u2014 the base mound and the weld are silhouette, and silhouette is the only thing that survives a majority downsample at this size. This is the arc's own strategic takeaway ('sparse clump meshes rather than individual blades') arriving as a measurement.",
   "theCostToWeigh": "a clump is a bigger object, and the 2026-07-23 owner verdict on baked sprite art was that it read 'way too big'. Bigger delivered pixels is exactly what that verdict refused, so this is a FORK for the owner's look and not a recommendation."
  },
@@ -288,64 +288,64 @@
      "tests": 0,
      "appGrassRule": "round(2 + 0*1.9) = 2",
      "placements": 21,
-     "deliveredDecorPx": 161,
-     "shareOfLandPct": 0.46
+     "deliveredDecorPx": 210,
+     "shareOfLandPct": 0.6
     },
     {
      "tests": 1,
      "appGrassRule": "round(2 + 1*1.9) = 4",
      "placements": 37,
-     "deliveredDecorPx": 189,
-     "shareOfLandPct": 0.54
+     "deliveredDecorPx": 255,
+     "shareOfLandPct": 0.73
     },
     {
      "tests": 2,
      "appGrassRule": "round(2 + 2*1.9) = 6",
      "placements": 61,
-     "deliveredDecorPx": 219,
-     "shareOfLandPct": 0.63
+     "deliveredDecorPx": 366,
+     "shareOfLandPct": 1.05
     },
     {
      "tests": 3,
      "appGrassRule": "round(2 + 3*1.9) = 8",
      "placements": 81,
-     "deliveredDecorPx": 241,
-     "shareOfLandPct": 0.69
+     "deliveredDecorPx": 418,
+     "shareOfLandPct": 1.2
     },
     {
      "tests": 5,
      "appGrassRule": "round(2 + 5*1.9) = 12",
      "placements": 121,
-     "deliveredDecorPx": 327,
-     "shareOfLandPct": 0.94
+     "deliveredDecorPx": 560,
+     "shareOfLandPct": 1.6
     },
     {
      "tests": 8,
      "appGrassRule": "round(2 + 8*1.9) = 17",
      "placements": 173,
-     "deliveredDecorPx": 417,
-     "shareOfLandPct": 1.19
+     "deliveredDecorPx": 731,
+     "shareOfLandPct": 2.09
     },
     {
      "tests": 13,
      "appGrassRule": "round(2 + 13*1.9) = 27",
      "placements": 276,
-     "deliveredDecorPx": 622,
-     "shareOfLandPct": 1.78
+     "deliveredDecorPx": 1073,
+     "shareOfLandPct": 3.07
     },
     {
      "tests": 21,
      "appGrassRule": "round(2 + 21*1.9) = 42",
      "placements": 434,
-     "deliveredDecorPx": 852,
-     "shareOfLandPct": 2.44
+     "deliveredDecorPx": 1476,
+     "shareOfLandPct": 4.22
     },
     {
      "tests": 30,
      "appGrassRule": "round(2 + 30*1.9) = 59",
      "placements": 613,
-     "deliveredDecorPx": 1035,
-     "shareOfLandPct": 2.96
+     "deliveredDecorPx": 1809,
+     "shareOfLandPct": 5.17
     }
    ],
    "clump": [
@@ -353,64 +353,64 @@
      "tests": 0,
      "appGrassRule": "round(2 + 0*1.9) = 2",
      "placements": 21,
-     "deliveredDecorPx": 197,
-     "shareOfLandPct": 0.56
+     "deliveredDecorPx": 284,
+     "shareOfLandPct": 0.81
     },
     {
      "tests": 1,
      "appGrassRule": "round(2 + 1*1.9) = 4",
      "placements": 37,
-     "deliveredDecorPx": 274,
-     "shareOfLandPct": 0.78
+     "deliveredDecorPx": 404,
+     "shareOfLandPct": 1.16
     },
     {
      "tests": 2,
      "appGrassRule": "round(2 + 2*1.9) = 6",
      "placements": 61,
-     "deliveredDecorPx": 326,
-     "shareOfLandPct": 0.93
+     "deliveredDecorPx": 585,
+     "shareOfLandPct": 1.67
     },
     {
      "tests": 3,
      "appGrassRule": "round(2 + 3*1.9) = 8",
      "placements": 81,
-     "deliveredDecorPx": 366,
-     "shareOfLandPct": 1.05
+     "deliveredDecorPx": 693,
+     "shareOfLandPct": 1.98
     },
     {
      "tests": 5,
      "appGrassRule": "round(2 + 5*1.9) = 12",
      "placements": 121,
-     "deliveredDecorPx": 516,
-     "shareOfLandPct": 1.48
+     "deliveredDecorPx": 973,
+     "shareOfLandPct": 2.78
     },
     {
      "tests": 8,
      "appGrassRule": "round(2 + 8*1.9) = 17",
      "placements": 173,
-     "deliveredDecorPx": 793,
-     "shareOfLandPct": 2.27
+     "deliveredDecorPx": 1425,
+     "shareOfLandPct": 4.08
     },
     {
      "tests": 13,
      "appGrassRule": "round(2 + 13*1.9) = 27",
      "placements": 276,
-     "deliveredDecorPx": 1188,
-     "shareOfLandPct": 3.4
+     "deliveredDecorPx": 2115,
+     "shareOfLandPct": 6.05
     },
     {
      "tests": 21,
      "appGrassRule": "round(2 + 21*1.9) = 42",
      "placements": 434,
-     "deliveredDecorPx": 1561,
-     "shareOfLandPct": 4.46
+     "deliveredDecorPx": 2838,
+     "shareOfLandPct": 8.12
     },
     {
      "tests": 30,
      "appGrassRule": "round(2 + 30*1.9) = 59",
      "placements": 613,
-     "deliveredDecorPx": 1804,
-     "shareOfLandPct": 5.16
+     "deliveredDecorPx": 3275,
+     "shareOfLandPct": 9.37
     }
    ]
   },
@@ -421,32 +421,32 @@
   "threeVsThirty": {
    "blade": {
     "deliveredPx": [
-     241,
-     1035
+     418,
+     1809
     ],
-    "ratio": 4.29,
+    "ratio": 4.33,
     "sharePct": [
-     0.69,
-     2.96
+     1.2,
+     5.17
     ]
    }
   },
   "normalsAreSignalSafe": {
    "islandDecorPxByMix": {
-    "0": 301,
-    "0.15": 305,
-    "0.3": 307,
-    "0.45": 303,
-    "0.6": 305,
-    "0.8": 301,
-    "1": 297
+    "0": 519,
+    "0.15": 522,
+    "0.3": 525,
+    "0.45": 522,
+    "0.6": 523,
+    "0.8": 519,
+    "1": 510
    },
-   "spreadPct": 3.4,
+   "spreadPct": 2.9,
    "why": "normals decide which BAND a pixel takes and never whether a pixel is grass \u2014 the same property the arc measured on the hero tree, where bark held flat at 629-631 px across the entire 0..1 crown-normal fork. So however much of this treatment is applied, the density signal is safe BY CONSTRUCTION. That is the cheapest good news in the pass, and it is the reason a look-driven change here cannot silently cost meaning."
   },
   "healthRead": {
-   "changedDeliveredPx": 21066,
-   "changedSharePctOfLand": 60.2,
+   "changedDeliveredPx": 27475,
+   "changedSharePctOfLand": 78.6,
    "bladeTokenAfterSnap": {
     "healthy": [
      113,
@@ -464,11 +464,11 @@
    "perStatus": {
     "healthy": {
      "placements": 139,
-     "landColours": 47
+     "landColours": 31
     },
     "unhealthy": {
      "placements": 140,
-     "landColours": 46
+     "landColours": 33
     }
    },
    "note": "the whole island is driven to one status in turn, so nothing moves except what the land is SAYING. This read is carried mostly by the GROUND tint rather than by the grass, which is the same finding the base fork reaches from the other direction: at 1-2% ground cover the grass cannot be the thing that changes an island's colour."
@@ -481,8 +481,8 @@
      "tests": 2,
      "cells": 18,
      "placements": 6,
-     "deliveredDecorPx": 14,
-     "pxPerCell": 0.78
+     "deliveredDecorPx": 31,
+     "pxPerCell": 1.72
     },
     {
      "cap": 8,
@@ -490,8 +490,8 @@
      "tests": 8,
      "cells": 36,
      "placements": 20,
-     "deliveredDecorPx": 40,
-     "pxPerCell": 1.11
+     "deliveredDecorPx": 89,
+     "pxPerCell": 2.47
     },
     {
      "cap": 6,
@@ -499,8 +499,8 @@
      "tests": 2,
      "cells": 37,
      "placements": 7,
-     "deliveredDecorPx": 3,
-     "pxPerCell": 0.08
+     "deliveredDecorPx": 12,
+     "pxPerCell": 0.32
     }
    ],
    "note": "3 of the island's 10 capabilities \u2014 fewest tests, most tests, and the unhealthy one \u2014 because each row costs a full composite. `pxPerCell` is the read a viewer actually makes: how much grass per unit of ground this capability's parcel carries."
@@ -513,8 +513,8 @@
     "description": "the settled b++ ground exactly as delivered \u2014 one flat status-tinted fill per cell. The owner's 'maybe even just a flat green'.",
     "groundTreatmentDeliveredPx": 0,
     "groundTreatmentSharePct": 0.0,
-    "signalDeliveredPx": 301,
-    "signalSharePct": 0.86,
+    "signalDeliveredPx": 519,
+    "signalSharePct": 1.48,
     "signalFractionOfNonFlatPct": 100.0
    },
    {
@@ -522,18 +522,18 @@
     "description": "the same ground carrying a deterministic two-shade split per cell, drawn from (token x shade) pairs the closed palette already holds. Ground interest that claims nothing about the work.",
     "groundTreatmentDeliveredPx": 9266,
     "groundTreatmentSharePct": 26.5,
-    "signalDeliveredPx": 298,
-    "signalSharePct": 0.85,
-    "signalFractionOfNonFlatPct": 3.1
+    "signalDeliveredPx": 516,
+    "signalSharePct": 1.48,
+    "signalFractionOfNonFlatPct": 5.3
    },
    {
     "base": "carpet",
     "description": "grass used AS the ground treatment: a fixed per-cell quota that does NOT scale with test count, under the signal tufts.",
-    "groundTreatmentDeliveredPx": 897,
-    "groundTreatmentSharePct": 2.57,
-    "signalDeliveredPx": 275,
-    "signalSharePct": 0.79,
-    "signalFractionOfNonFlatPct": 23.5
+    "groundTreatmentDeliveredPx": 1681,
+    "groundTreatmentSharePct": 4.81,
+    "signalDeliveredPx": 439,
+    "signalSharePct": 1.26,
+    "signalFractionOfNonFlatPct": 20.7
    }
   ],
   "whyCarpetIsRenderedRatherThanArguedAway": "the technique reference's one transferable strategic takeaway is 'rely ~80% on the terrain treatment, sparse clump meshes rather than individual blades', and the obvious way to spend that here is a carpet of grass. Under ADR-0226 grass MEANS a capability's tests, so a carpet that tracks no test count is art asserting something the meaning layer does not authorise \u2014 ADR-0367 D5's failure. `signalFractionOfNonFlatPct` is what that costs as a number: it is the share of the island's non-flat-ground pixels that still SAY anything.",

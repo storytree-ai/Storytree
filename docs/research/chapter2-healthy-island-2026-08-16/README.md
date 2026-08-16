@@ -190,6 +190,16 @@ is what makes the density a reading of the work:
 
 The count rules are the app's own and unchanged (`round(2 + tests·1.9)` and the status multipliers).
 
+> **⚠ PANEL 3 WAS RE-RENDERED 2026-08-17.** The compositor this pass delegates to had a
+> painter-order defect — a placement in the back half of its own cell was overpainted by that cell —
+> which was fixed in `compose_core.py` on 2026-08-17. `island-detail-6x.png` is the only artifact in
+> this directory that carries decor, so it is the only one whose pixels moved; the other four
+> pictures and `island-report.json` are byte-identical, and `verify.py` re-runs **47/47**. The
+> placement counts above are unaffected (they are what the scatterer emits, not what the raster
+> delivers), but the DENSITY the panel shows is now the real one. This island's own delivery rate,
+> measured on its own geometry for the first time, is **52.2% → 17.2%** — see
+> `../chapter2-compositor-order-and-caps-2026-08-17/`.
+
 ## THE FENCE — what this pass did not touch
 
 **`LAND_CAMERA_ELEVATION_DEG` in `packages/forest-world/src/camera.ts` is still 20 and was not

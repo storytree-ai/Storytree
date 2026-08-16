@@ -1,5 +1,27 @@
 # The three named grass defects, isolated — "black", "bleeding through", "buggy"
 
+> **⚠ RE-MEASURED 2026-08-17 ON THE FIXED COMPOSITOR.** This pass's 46%-deliver-nothing finding was
+> diagnosed by PR #1383 as painter-order occlusion and fixed in `compose_core.py` on 2026-08-17, so
+> `diagnose-report.json`, `what-the-grass-delivers.png` and `where-the-black-is.png` were
+> re-rendered here and every headline number below moved. The verdicts did **not** change; two of
+> them got weaker, and that is worth reading rather than skipping:
+>
+> | | before the fix | now | note |
+> |---|---:|---:|---|
+> | delivered vegetation px (fixture / all-healthy) | 292 / 384 | **510 / 676** | |
+> | placements delivering nothing | 51 of 112 | **8 of 112** | the fix |
+> | vegetation px below the grass luma floor | 0 | **3** | still 0 in the black band |
+> | vegetation px carrying an unauthorised colour | 0 | **6** | both from `wilt` pieces |
+> | median hue distance from the ground beneath | 41.8° | **34.6°** | 51.3% → **44.1%** over 40° |
+> | vegetation standing on ANOTHER capability's cell | 20 px (6.8%) | **23 px (4.5%)** | |
+> | the charcoal LAND region | 4 253 px (12.2%) | **4 246 px (12.1%)** | unchanged in substance |
+>
+> **The two zeros were zeros over a raster missing 46% of its placements.** They are still small and
+> neither verdict flips, but a negative finding measured on an incomplete raster is a weaker object
+> than it read as. Body text below that still quotes the pre-fix figures is superseded by
+> `diagnose-report.json`; the fix and its full write-up are in
+> `../chapter2-compositor-order-and-caps-2026-08-17/`.
+
 **Date:** 2026-08-16 · **Camera:** 50° (the research track's named parameter) · **Piece set:** the
 declined grass exactly — `pieces-m00-blade`, blade geometry, normals 0.00 · **Cost:** $0 ·
 **Vendor calls:** 0 · **Blender renders:** 0 (this pass renders nothing; it re-composes the sibling
@@ -17,9 +39,9 @@ argument — is how a bug survives three rejections.
 
 | the owner said | the verdict | the number that carries it |
 |---|---|---|
-| **"theres bvlack grass"** | **Not grass, not a bug — and 100% a FIXTURE ARTEFACT** | **0** delivered vegetation pixels below the grass luma floor, on either island. The black is **4 253 px of charcoal LAND** (12.2% of the island) from the ONE fabricated `unhealthy` capability, and it is **0 px** on an all-healthy island. |
-| **"ther colors bleeding through"** | **Not a palette bug. A real hue-contrast effect, all of it authorised** | **0** vegetation pixels carry a colour their own capability's status family did not authorise (the check fires at 376 px when made to). But the median vegetation pixel sits **41.8° of hue** from the ground beneath it, and **51.3%** are more than 40° away. |
-| **"it looks buggy"** | **THE FINDING OF THIS PASS, and it is not taste** | Of **112 placements, 51 — 46% — deliver ZERO pixels.** The 61 that survive deliver a **median of 3**, and 25 of them deliver **one or two**. |
+| **"theres bvlack grass"** | **Not grass, not a bug — and 100% a FIXTURE ARTEFACT** | **3** delivered vegetation px below the grass luma floor (0 on an all-healthy island), and **0** in the black band at all — the darkest is luma **68.4** against land's darkest at 40.9. The black is **4 246 px of charcoal LAND** (12.1% of the island) from the ONE fabricated `unhealthy` capability, and **0 px** on an all-healthy island. |
+| **"ther colors bleeding through"** | **Not a palette bug. A real hue-contrast effect, nearly all of it authorised** | **6** of 510 vegetation px carry a colour their own capability's status family did not authorise — all six from two `wilt` pieces (the check fires at 376 px when made to). The median vegetation pixel sits **34.6° of hue** from the ground beneath it, and **44.1%** are more than 40° away. |
+| **"it looks buggy"** | **THE FINDING OF THIS PASS, and it is not taste** | Of **112 placements, 51 — 46% — delivered ZERO pixels**, which PR #1383 diagnosed as painter-order occlusion and 2026-08-17 fixed: **8 (7.1%)** now. The survivors still deliver a **median of 3**, and 32 of them deliver **one or two** — the SIZE question the fix does not touch. |
 
 **Nothing here is owner-attested and no treatment is chosen.** Whether the grass is good enough is
 the owner's look (ADR-0070 stage 2) and this page has no standing to make it.
@@ -213,21 +235,27 @@ outcome is **zero**. Seven was the best case, not the typical one.
 > a different measurement), but the per-placement read is much weaker than a placement count
 > suggests. **Routed, not decided:** this belongs to the ADR-0226 re-examination.
 
-## 4. A defect in the RESEARCH harness, found on the way
+## 4. A defect in the RESEARCH harness, found on the way — ✅ FIXED 2026-08-17
 
-**`compose_land(caps=...)` does not recolour an island — it recolours the CELLS.** `C.boundary_walls`
-reads the module global `C.CAPS` for its wall side token, not the `caps` argument, so a
-"drive the island to one status" run composed through the argument alone delivers recoloured cell
+**`compose_land(caps=...)` did not recolour an island — it recoloured the CELLS.** `C.boundary_walls`
+read the module global `C.CAPS` for its wall side token, not the `caps` argument, so a
+"drive the island to one status" run composed through the argument alone delivered recoloured cell
 tops standing on the ORIGINAL statuses' walls.
 
-Measured: an all-`healthy` island composed that way still carries **936 charcoal `unhealthy` side
-pixels** — which is the exact shape of the defect this pass was trying to attribute, produced by the
-instrument rather than by the pipeline. `diagnose.py` rebinds both together.
+Measured at the time: an all-`healthy` island composed that way still carried **936 charcoal
+`unhealthy` side pixels** — the exact shape of the defect this pass was trying to attribute, produced
+by the instrument rather than by the pipeline. `diagnose.py` rebinds both together, which is why this
+pass's own numbers were never affected by it.
 
-This affects the sibling pass's health read (*"driving the whole island to each status changes
-21 066 delivered px = 60.2%"*), which was a cells-only recolour and therefore an UNDER-count.
-Reported here rather than fixed there: editing `compose_core.py` would invalidate that pass's
-committed provenance, and this pass renders nothing of its own to compare against.
+**`caps` is authoritative on every path since 2026-08-17.** Re-measured on the island BODY: **904
+wall px → 0**, and the guard fires the other way too (one genuinely `unhealthy` capability delivers
+904 wall px). The 936 and the 904 are the same defect measured with and without the silhouette rim,
+which `C.back_half` explicitly authorises to reach the whole palette.
+
+The sibling pass's health read (*"driving the whole island to each status changes 21 066 delivered
+px = 60.2%"*) WAS the under-count this predicted. Restated with the corrected composer:
+**27 475 px = 78.6%** — an under-count of 6 409 delivered px, 18.4 percentage points. Full write-up:
+`../chapter2-compositor-order-and-caps-2026-08-17/`.
 
 ## Proof — the guards, and every one of them made to FIRE
 

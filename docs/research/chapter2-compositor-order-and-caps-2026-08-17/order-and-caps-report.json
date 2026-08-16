@@ -1,0 +1,445 @@
+{
+ "fence": {
+  "pathsTouchedCount": 38,
+  "outsideDocsResearch": [],
+  "researchDirsTouched": [
+   "docs/research/chapter2-compositor-order-and-caps-2026-08-17",
+   "docs/research/chapter2-grass-defects-2026-08-16",
+   "docs/research/chapter2-grass-delivery-loss-2026-08-17",
+   "docs/research/chapter2-grass-reads-as-signal-2026-08-16",
+   "docs/research/chapter2-healthy-island-2026-08-16"
+  ],
+  "landCameraElevationDeg": "emits SVG vector nodes at `LAND_CAMERA_ELEVATION_DEG = 20`, with no supersample, no closed-palette\nAPP_LAND_CAMERA_ELEVATION_DEG = 20.0\n          \"LAND_CAMERA_ELEVATION_DEG = 20\" in src.replace(\":\", \" \").replace(\"  \", \" \")\nAPP_LAND_CAMERA_ELEVATION_DEG = 20.0\n      \"export const LAND_CAMERA_ELEVATION_DEG = 20;\" in cam,\nAPP_LAND_CAMERA_ELEVATION_DEG = 20.0\n      \"LAND_CAMERA_ELEVATION_DEG = 20\" in cam.replace(\"export const \", \"\"),\nexport const LAND_CAMERA_ELEVATION_DEG = 20;"
+ },
+ "shippedSurfaces": {
+  "svg": {
+   "file": "packages/forest-world/src/scene.ts",
+   "layerOrderIsTestEnforced": "packages/forest-world/src/scene.test.ts",
+   "verdict": "CLEAN \u2014 ground-mesh is a whole layer painted before flora-layer, so no flora drawable can sort ahead of the ground it stands on"
+  },
+  "r3f": {
+   "package": "packages/forest-world-r3f",
+   "verdict": "CANNOT HAVE THE DEFECT BY CONSTRUCTION \u2014 a react-three-fiber <Canvas> is a depth-buffered 3D scene, so occlusion is decided per fragment by z rather than by a painter's draw list. It also carries no flora layer yet (the package is the placeholder-mesh spike). This closes PR #1383's open caveat, which covered the SVG path alone."
+  },
+  "reading": "the 46% loss is a defect of the RESEARCH RASTER. Nothing in packages/** or apps/** needs this fix today. The rule to carry if the raster pipeline is ever promoted: a drawable that STANDS ON a surface sorts after that surface, never on its own ground point alone."
+ },
+ "fixtureGeometry": {
+  "asAuthored": {
+   "withTheOldKey": {
+    "placements": 112,
+    "deliveringNothing": 51,
+    "deliveringNothingPct": 45.5,
+    "TRULYdeliveringNothing": 49,
+    "TRULYdeliveringNothingPct": 43.8,
+    "occludedByAnything": 36,
+    "occludedByItsOWNCell": 31,
+    "vegetationPxDelivered": 292,
+    "deliveredIslandPx": 34968,
+    "medianPxPerSurvivor": 3,
+    "aboveVsBelowTheCentroid": {
+     "aboveTheCellCentroid_paintedFIRST_soTheCellFillErasesIt": {
+      "n": 60,
+      "trueZero": 47,
+      "occluded": 34,
+      "pct": 78.3,
+      "occludedPct": 56.7
+     },
+     "belowTheCellCentroid_paintedAFTERTheCell": {
+      "n": 52,
+      "trueZero": 2,
+      "occluded": 2,
+      "pct": 3.8,
+      "occludedPct": 3.8
+     }
+    }
+   },
+   "asShipped": {
+    "placements": 112,
+    "deliveringNothing": 8,
+    "deliveringNothingPct": 7.1,
+    "TRULYdeliveringNothing": 7,
+    "TRULYdeliveringNothingPct": 6.2,
+    "occludedByAnything": 6,
+    "occludedByItsOWNCell": 0,
+    "vegetationPxDelivered": 510,
+    "deliveredIslandPx": 34968,
+    "medianPxPerSurvivor": 3,
+    "aboveVsBelowTheCentroid": {
+     "aboveTheCellCentroid_paintedFIRST_soTheCellFillErasesIt": {
+      "n": 60,
+      "trueZero": 5,
+      "occluded": 4,
+      "pct": 8.3,
+      "occludedPct": 6.7
+     },
+     "belowTheCellCentroid_paintedAFTERTheCell": {
+      "n": 52,
+      "trueZero": 2,
+      "occluded": 2,
+      "pct": 3.8,
+      "occludedPct": 3.8
+     }
+    }
+   }
+  },
+  "drivenAllHealthy": {
+   "withTheOldKey": {
+    "placements": 145,
+    "deliveringNothing": 67,
+    "deliveringNothingPct": 46.2,
+    "TRULYdeliveringNothing": 65,
+    "TRULYdeliveringNothingPct": 44.8,
+    "occludedByAnything": 45,
+    "occludedByItsOWNCell": 41,
+    "vegetationPxDelivered": 384,
+    "deliveredIslandPx": 34968,
+    "medianPxPerSurvivor": 3,
+    "aboveVsBelowTheCentroid": {
+     "aboveTheCellCentroid_paintedFIRST_soTheCellFillErasesIt": {
+      "n": 74,
+      "trueZero": 60,
+      "occluded": 43,
+      "pct": 81.1,
+      "occludedPct": 58.1
+     },
+     "belowTheCellCentroid_paintedAFTERTheCell": {
+      "n": 71,
+      "trueZero": 5,
+      "occluded": 2,
+      "pct": 7.0,
+      "occludedPct": 2.8
+     }
+    }
+   },
+   "asShipped": {
+    "placements": 145,
+    "deliveringNothing": 12,
+    "deliveringNothingPct": 8.3,
+    "TRULYdeliveringNothing": 11,
+    "TRULYdeliveringNothingPct": 7.6,
+    "occludedByAnything": 5,
+    "occludedByItsOWNCell": 0,
+    "vegetationPxDelivered": 676,
+    "deliveredIslandPx": 34968,
+    "medianPxPerSurvivor": 3,
+    "aboveVsBelowTheCentroid": {
+     "aboveTheCellCentroid_paintedFIRST_soTheCellFillErasesIt": {
+      "n": 74,
+      "trueZero": 6,
+      "occluded": 3,
+      "pct": 8.1,
+      "occludedPct": 4.1
+     },
+     "belowTheCellCentroid_paintedAFTERTheCell": {
+      "n": 71,
+      "trueZero": 5,
+      "occluded": 2,
+      "pct": 7.0,
+      "occludedPct": 2.8
+     }
+    }
+   }
+  },
+  "island": "chapter2-grass-reads-as-signal-2026-08-16/island.json",
+  "storyId": "fork-spike-island"
+ },
+ "capsAuthority": {
+  "allHealthyThroughTheArgumentAlone": {
+   "nonAuthoritative": {
+    "wallPx": 904,
+    "cellPx": 0
+   },
+   "authoritative": {
+    "wallPx": 0,
+    "cellPx": 0
+   },
+   "islandBodyPx": 34968
+  },
+  "madeToFire": {
+   "capabilityDrivenUnhealthy": 6,
+   "wallPx": 904,
+   "cellPx": 3391
+  },
+  "silhouetteRim": {
+   "unhealthyEntriesOnTheOutline": 92,
+   "authorisedBy": "C.back_half's own rim rule"
+  },
+  "restatedHealthRead": {
+   "committedBefore": {
+    "changedDeliveredPx": 21066,
+    "sharePctOfLand": 60.2,
+    "source": "chapter2-grass-reads-as-signal-2026-08-16/grass-report.json at PR #1381, a CELLS-ONLY recolour"
+   },
+   "note": "re-rendered in this pass; see grass-report.json signalLegibility.healthRead for the corrected figure, which is an INCREASE because driving the island to a status now moves its walls too"
+  }
+ },
+ "realCorpusIsland": {
+  "island": "chapter2-healthy-island-2026-08-16/island.json",
+  "storyId": "context-traversal-capture",
+  "capabilities": 11,
+  "uatCriteria": 10,
+  "testCountsAreTheStorysOwn": true,
+  "rates": {
+   "withTheOldKey": {
+    "placements": 180,
+    "deliveringNothing": 94,
+    "deliveringNothingPct": 52.2,
+    "TRULYdeliveringNothing": 92,
+    "TRULYdeliveringNothingPct": 51.1,
+    "occludedByAnything": 66,
+    "occludedByItsOWNCell": 56,
+    "vegetationPxDelivered": 524,
+    "deliveredIslandPx": 30481,
+    "medianPxPerSurvivor": 3,
+    "aboveVsBelowTheCentroid": {
+     "aboveTheCellCentroid_paintedFIRST_soTheCellFillErasesIt": {
+      "n": 98,
+      "trueZero": 79,
+      "occluded": 60,
+      "pct": 80.6,
+      "occludedPct": 61.2
+     },
+     "belowTheCellCentroid_paintedAFTERTheCell": {
+      "n": 82,
+      "trueZero": 13,
+      "occluded": 6,
+      "pct": 15.9,
+      "occludedPct": 7.3
+     }
+    }
+   },
+   "asShipped": {
+    "placements": 180,
+    "deliveringNothing": 31,
+    "deliveringNothingPct": 17.2,
+    "TRULYdeliveringNothing": 27,
+    "TRULYdeliveringNothingPct": 15.0,
+    "occludedByAnything": 14,
+    "occludedByItsOWNCell": 0,
+    "vegetationPxDelivered": 911,
+    "deliveredIslandPx": 30481,
+    "medianPxPerSurvivor": 4,
+    "aboveVsBelowTheCentroid": {
+     "aboveTheCellCentroid_paintedFIRST_soTheCellFillErasesIt": {
+      "n": 98,
+      "trueZero": 14,
+      "occluded": 8,
+      "pct": 14.3,
+      "occludedPct": 8.2
+     },
+     "belowTheCellCentroid_paintedAFTERTheCell": {
+      "n": 82,
+      "trueZero": 13,
+      "occluded": 6,
+      "pct": 15.9,
+      "occludedPct": 7.3
+     }
+    }
+   }
+  },
+  "reading": "this geometry delegates to the same compositor and inherited the same loss. It had never been measured on its own geometry \u2014 PR #1383's 'healthy' row is the FIXTURE driven all-healthy, which is a different island."
+ },
+ "refusals": [
+  {
+   "guard": "a footprint blit displaced by 7px is caught",
+   "fired": true,
+   "refusal": "REFUSED: the isolated footprint blit has drifted from the composite's - every occlusion number below would be about a different piece."
+  },
+  {
+   "guard": "a 60-unit grass well is counted as a cull",
+   "fired": true,
+   "culled": 36
+  },
+  {
+   "guard": "sinking every placement 40 units below its cell buries it (OCCLUDED)",
+   "fired": true,
+   "occluded": 94,
+   "of": 112
+  },
+  {
+   "guard": "a single placement alone still competes with the land it stands on",
+   "fired": true,
+   "fateOfTheOnePlacement": "delivered",
+   "maxOwnedInABlock": 9,
+   "deliveredPx": 2
+  }
+ ],
+ "checks": [
+  {
+   "check": "every change in the working tree is under docs/research/**",
+   "pass": true,
+   "detail": "38 paths touched"
+  },
+  {
+   "check": "LAND_CAMERA_ELEVATION_DEG is still 20 and was not touched",
+   "pass": true,
+   "detail": "emits SVG vector nodes at `LAND_CAMERA_ELEVATION_DEG = 20`, with no supersample, no closed-palette"
+  },
+  {
+   "check": "the SVG scene paints ground-mesh BEFORE flora-layer, and a test holds the order",
+   "pass": true,
+   "detail": "['empties-layer', 'coast-layer', 'ground-mesh', 'trails-layer', 'flora-layer', 'hits-layer'],"
+  },
+  {
+   "check": "forest-world-r3f is a DEPTH-BUFFERED r3f scene with no manual draw order",
+   "pass": true,
+   "detail": "an r3f <Canvas> resolves occlusion per-fragment by z; no renderOrder / depthWrite / depthTest / sortObjects appears, so there is no draw-list sort to get wrong"
+  },
+  {
+   "check": "the wall token and the cell tokens of `unhealthy` share NO delivered colour",
+   "pass": true,
+   "detail": "5 wall / 20 cell entries over levels [0.78, 0.8, 0.82, 0.9, 1.0] \u2014 so a wall count is a count of walls"
+  },
+  {
+   "check": "[fixture] at most 10% of placements deliver zero",
+   "pass": true,
+   "detail": "45.5% -> 7.1% (51 -> 8 of 112)"
+  },
+  {
+   "check": "[fixture] at most 8 placements are occluded by the fill of their OWN cell",
+   "pass": true,
+   "detail": "31 -> 0"
+  },
+  {
+   "check": "[fixture] the vegetation that was always being painted now reaches the raster",
+   "pass": true,
+   "detail": "292 -> 510 px"
+  },
+  {
+   "check": "[fixture] the island's delivered area is BYTE-STABLE \u2014 a reorder, not a resize",
+   "pass": true,
+   "detail": "34968 px both ways"
+  },
+  {
+   "check": "[fixture] the SIZE finding is untouched: the median surviving placement is unchanged",
+   "pass": true,
+   "detail": "3 -> 3 px per survivor \u2014 fixing the order does not make a tuft bigger, and that question stays open"
+  },
+  {
+   "check": "[fixture driven all-healthy] at most 10% of placements deliver zero",
+   "pass": true,
+   "detail": "46.2% -> 8.3% (67 -> 12 of 145)"
+  },
+  {
+   "check": "[fixture driven all-healthy] at most 8 placements are occluded by the fill of their OWN cell",
+   "pass": true,
+   "detail": "41 -> 0"
+  },
+  {
+   "check": "[fixture driven all-healthy] the vegetation that was always being painted now reaches the raster",
+   "pass": true,
+   "detail": "384 -> 676 px"
+  },
+  {
+   "check": "[fixture driven all-healthy] the island's delivered area is BYTE-STABLE \u2014 a reorder, not a resize",
+   "pass": true,
+   "detail": "34968 px both ways"
+  },
+  {
+   "check": "[fixture driven all-healthy] the SIZE finding is untouched: the median surviving placement is unchanged",
+   "pass": true,
+   "detail": "3 -> 3 px per survivor \u2014 fixing the order does not make a tuft bigger, and that question stays open"
+  },
+  {
+   "check": "the diagnosis' SIGNED prediction still holds with the old key reinstated",
+   "pass": true,
+   "detail": "above the centroid 78.3% deliver nothing, below it 3.8%"
+  },
+  {
+   "check": "an all-healthy island composed through `caps=` ALONE carries ZERO unhealthy px",
+   "pass": true,
+   "detail": "walls 904 -> 0 px, cells 0 -> 0 px, over 34968 body px"
+  },
+  {
+   "check": "and the check is not vacuous: with the argument non-authoritative the walls carry it",
+   "pass": true,
+   "detail": "904 charcoal `unhealthy` wall px survive on an island with no unhealthy capability"
+  },
+  {
+   "check": "and it FIRES: one genuinely unhealthy capability DOES reach the walls",
+   "pass": true,
+   "detail": "cap 6 unhealthy -> 904 wall px + 3391 cell px. A check that can only ever report zero is not a check"
+  },
+  {
+   "check": "the silhouette rim is reported, not hidden",
+   "pass": true,
+   "detail": "92 px on the outline snap to an `unhealthy` entry on an all-healthy island. C.back_half authorises this explicitly (the rim darkens from the local colour and re-snaps, so it may legally reach another family's entry) \u2014 which is why the assertion above is made on the island BODY. It is an outline artefact of the closed-palette snap against the dark board, carried by no capability, and it is NOT the walls defect"
+  },
+  {
+   "check": "[real corpus] the real island inherited the defect and the fix recovers it too",
+   "pass": true,
+   "detail": "52.2% -> 17.2% (94 -> 31 of 180 placements)"
+  },
+  {
+   "check": "[real corpus] its delivered area is byte-stable across the change",
+   "pass": true,
+   "detail": "30481 px both ways"
+  },
+  {
+   "check": "[real corpus] vegetation delivered",
+   "pass": true,
+   "detail": "524 -> 911 px"
+  },
+  {
+   "check": "[inherited] a footprint blit displaced by 7px is caught",
+   "pass": true,
+   "detail": "refusal=REFUSED: the isolated footprint blit has drifted from the composite's - every occlusion number below would be about a different piece."
+  },
+  {
+   "check": "[inherited] a 60-unit grass well is counted as a cull",
+   "pass": true,
+   "detail": "culled=36"
+  },
+  {
+   "check": "[inherited] sinking every placement 40 units below its cell buries it (OCCLUDED)",
+   "pass": true,
+   "detail": "occluded=94, of=112"
+  },
+  {
+   "check": "[inherited] a single placement alone still competes with the land it stands on",
+   "pass": true,
+   "detail": "fateOfTheOnePlacement=delivered, maxOwnedInABlock=9, deliveredPx=2"
+  },
+  {
+   "check": "assert_projection_unchanged is still armed: the data route and the compositor agree",
+   "pass": true,
+   "detail": "identical delivered raster, and every placement's INTEGER blit origin is unchanged (the guard is held to the integer origin, not to float bit-identity \u2014 the first version fired on 1e-13 of float reassociation)"
+  },
+  {
+   "check": "a placement naming a cell this composite was not handed is REFUSED",
+   "pass": true,
+   "detail": "REFUSED: decor placement names cell 1000000 but this composite was handed 214 cells. The depth key would be read off the"
+  },
+  {
+   "check": "re-composing reproduces the DECODED raster exactly",
+   "pass": true,
+   "detail": "compared as decoded arrays, never as file bytes \u2014 two pixel-identical runs of this track have already been shown to differ in every PNG's bytes"
+  },
+  {
+   "check": "both defect switches are back to their shipped value",
+   "pass": true,
+   "detail": "DECOR_SORTS_AFTER_ITS_CELL=True, CAPS_ARGUMENT_IS_AUTHORITATIVE_FOR_WALLS=True"
+  }
+ ],
+ "scale": {
+  "deliveredCanvasPx": [
+   258,
+   353
+  ],
+  "supersample": 3,
+  "groundUnitsPerDeliveredPx": 1.0,
+  "cameraElevationDeg": 50.0,
+  "blenderRendersThisPass": 0,
+  "note": "no piece is re-rendered here, so no number in this file depends on a sample count and none is compared across passes that rendered their own pieces. The app constant LAND_CAMERA_ELEVATION_DEG is 20 and is neither read nor touched."
+ },
+ "guardWiring": {
+  "wired": false,
+  "statedPlainly": "The regression guard is THIS FILE, and it is NOT wired to a `check:*` gate rung. Two reasons, both structural rather than an omission. (1) Wiring it means editing `package.json` and `packages/cli/src/gate-order.ts`, which is outside `docs/research/**` and therefore outside the owner's 2026-08-16 fence for this track. (2) It costs ~6 min of numpy compositing and needs a Python toolchain the gate does not otherwise require, and because `docs/**` is a root path in the affected-scope classifier every branch would pay it. What would wire it, when the track comes out from behind the fence: a `check:research-compositor` script running `verify.py` and asserting its exit code, added to the gate plan.",
+  "assertionItWouldCarry": "on the shipped piece set at most 10% of placements may deliver zero px and at most 8 may be occluded by the fill of their own cell; and an all-healthy island composed through `caps=` alone carries zero `unhealthy` px in its body."
+ },
+ "result": {
+  "checks": 31,
+  "passed": 31,
+  "green": true
+ }
+}

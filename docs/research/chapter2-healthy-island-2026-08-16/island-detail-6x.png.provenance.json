@@ -172,8 +172,8 @@
   "rule": "one code state PER GENERATOR; the composite's identity is the digest of the whole {generator: state} map, so any generator moving moves it"
  },
  "output": {
-  "sha256": "be7476800022ec3206ae795dc467aeca58696cf947f9a7a844ab5232ed0801f2",
-  "bytes": 29115
+  "sha256": "bd6d3e254dad868c0e44f7a9680bd665d7999df6544a69338ee416cc8b1ecd7b",
+  "bytes": 29432
  },
  "cameraElevationDeg": 50.0,
  "storyId": "context-traversal-capture",

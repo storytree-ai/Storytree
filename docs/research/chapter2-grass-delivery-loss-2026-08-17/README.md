@@ -1,5 +1,15 @@
 # The 46% is a PAINTER-ORDER BUG — the grass was painted, and then its own cell painted over it
 
+> **⚠ THE FIX HAS LANDED (2026-08-17), so read the columns in this file by their labels and not by
+> their position.** `compose_core.py` now sorts a placement on `max(own ground y, its cell's centroid
+> y)`, so every "before" number below is the DEFECT DELIBERATELY REINSTATED for the duration of one
+> composite (`delivery.centroid_key`, over the compositor's own `DECOR_SORTS_AFTER_ITS_CELL` switch)
+> and every "repaired" number is what the compositor now produces. `delivery-report.json` and
+> `where-the-46-percent-went.png` were re-rendered on that basis and every number in this file still
+> reproduces. The two sections that were written as *unmade* — "Where the fix goes" and its guard —
+> are corrected in place below. Full write-up, the real-corpus island's own rate, and the `caps`
+> defect that landed with it: `../chapter2-compositor-order-and-caps-2026-08-17/`.
+
 **Date:** 2026-08-17 · **Camera:** 50° (the research track's named parameter) · **Delivered raster:**
 258 × 353 px for the whole island, supersample 3 · **Piece set:** `pieces-m00-blade` — the declined
 grass exactly · **Cost:** $0 · **Vendor calls:** 0 · **Blender renders:** 0 (this pass renders
@@ -156,34 +166,46 @@ matters, because this raster pipeline is the medium chapter 2 is trying to move 
 defect is in the thing being built, not in the thing being replaced. But "the app places a count and
 half of it never appears" is not true of `scene.ts` as it stands today, and should not be repeated.
 
-## Where the fix goes — WRITTEN DOWN, NOT MADE
+## Where the fix went — MADE on 2026-08-17
 
-Owner directive, 2026-08-16, verbatim: *"this should just be a research pass on a single island …
-isolate this away from the main app until we ready"*. So the fix is named to the line and left
-unmade. Three sites, one change:
+This section was written as *"WRITTEN DOWN, NOT MADE"*: the owner's 2026-08-16 directive
+(*"this should just be a research pass on a single island … isolate this away from the main app
+until we ready"*) is a fence around `packages/**` and `apps/**`, not around `docs/research/**`, and
+the lane holding `compose_core.py` landed as PR #1385. All three sites now carry it:
 
-| file | line | today | should be |
+| file | line | now | status |
 |---|---|---|---|
-| `docs/research/chapter2-grass-reads-as-signal-2026-08-16/compose_core.py` | **325** | `draw.append((d["g"][1], 3, ("decor", d)))` | key = `max(d["g"][1], cells[d["cell"]]["c"][1])` |
-| `docs/research/chapter2-grass-defects-2026-08-16/attribute.py` | **130** | `draw.append((d["g"][1], 3, ("decor", d, i)))` | the same |
-| `docs/research/chapter2-healthy-island-2026-08-16/compose_healthy.py` | — | delegates to `compose_core.compose_land` | inherits the fix |
+| `docs/research/chapter2-grass-reads-as-signal-2026-08-16/compose_core.py` | **325** | `draw.append((decor_depth_key(d, cells), 3, ("decor", d)))` | **applied** — `decor_depth_key` is the one implementation |
+| `docs/research/chapter2-grass-defects-2026-08-16/attribute.py` | **130** | `draw.append((D.decor_depth_key(d, cells), 3, ("decor", d, i)))` | **applied** — it CALLS the rule, so `assert_mirror` cannot drift |
+| `docs/research/chapter2-healthy-island-2026-08-16/compose_healthy.py` | — | delegates to `compose_core.compose_land` | **inherits it**; its `island-detail-6x.png` was re-rendered |
 
-Neither of the first two was edited here: `compose_core.py` is a sibling increment's file whose edit
-would invalidate committed provenance across the track, and `attribute.py` is the instrument this
-pass depends on being unchanged. **A fourth copy of the compositor was not created** — the whole
-reason the repair is expressed as a depth-key transform on the item list.
+**A fourth copy of the compositor was still not created.** The rule lives in exactly one function,
+`attribute.py` calls it, and the pre-fix key is reachable only through a switch
+(`compose_core.DECOR_SORTS_AFTER_ITS_CELL`) that exists so a guard can reintroduce the defect and
+prove it is caught.
+
+⚠ One site is still un-fixed and it is named here so it is not mistaken for done:
+`chapter2-island-place-dressing-2026-08-16/compose_dressed.py:253` has its OWN copy of the draw-list
+assembly, does not import `compose_core`, and still sorts decor on `d["g"][1]` alone.
 
 **Nothing in `packages/**` or `apps/**` needs this fix today** (see the scale section). When the
 raster pipeline is promoted into app code, the rule it must carry is: *a drawable that STANDS ON a
 surface sorts after that surface, never on its own ground point alone.*
 
-### The guard that would catch a regression
+### The guard that catches a regression — and it is NOT wired to a gate rung
 
 `delivery.py` is it, and the assertion is one line of arithmetic on its own output: on the shipped
 piece set, **at most 10% of placements may deliver zero pixels**, and **no more than 8 of them may be
 `OCCLUDED` by the fill of their own cell**. Both are measured today at 7.1% / 6 (fixture) and 8.3% /
-5 (healthy); before the repair they were 45.5% / 36 and 46.2% / 45. Any reintroduction of the
-centroid key moves the second number by an order of magnitude on the first run.
+5 (healthy); with the centroid key reinstated they are 45.5% / 36 and 46.2% / 45. Any reintroduction
+of that key moves the second number by an order of magnitude on the first run.
+
+**It is described-but-unwired, deliberately.** Wiring it to a `check:*` rung means editing
+`package.json` and `packages/cli/src/gate-order.ts`, which is outside `docs/research/**` and so
+outside the owner's fence for this track; and it costs minutes of numpy compositing on a root path
+that fails the affected-scope classifier WIDE, so every branch would pay it. The wiring, and the
+exact assertion it would carry, are written down in
+`../chapter2-compositor-order-and-caps-2026-08-17/README.md` §6.
 
 ## What this does and does not hand the vocabulary question
 
@@ -267,12 +289,14 @@ sidecar anywhere on this track is invalidated.
    flat screen-y quartiles — it is **not** measured at a second render scale, which would need
    re-rendered land and decor pieces.
 4. **The all-`healthy` island is the fixture GEOMETRY with its statuses driven**, not PR #1382's real
-   corpus island. That pass has its own compositor entry point (`compose_healthy.py`) which delegates
-   to `compose_core.compose_land` and therefore inherits the identical defect, but the numbers above
-   were not re-measured on its geometry.
-5. **`packages/forest-world-r3f` was not examined.** The claim "the app does not have this defect" is
-   about the SVG path in `scene.ts`. A depth-buffered 3D renderer cannot have a painter-order defect
-   by construction, but that was reasoned, not measured.
+   corpus island. ✅ **CLOSED 2026-08-17** — the real island was measured on its own geometry:
+   **52.2% → 17.2%** over 180 placements. Note the residual is more than twice the fixture's, so
+   7.1% is not the track's delivery rate; see
+   `../chapter2-compositor-order-and-caps-2026-08-17/README.md` §7.
+5. **`packages/forest-world-r3f` was not examined.** ✅ **CLOSED 2026-08-17** — it is checked now,
+   in `../chapter2-compositor-order-and-caps-2026-08-17/verify.py`: it is a react-three-fiber
+   `<Canvas>`, i.e. depth-buffered, with no `renderOrder` / `depthWrite` / `depthTest` /
+   `sortObjects` anywhere in it and no flora layer yet. There is no draw-list sort to get wrong.
 6. **The 3 culled placements are the research harness's own grass well**, not the app's — `scene.ts`'s
    meadow has no explicit grass keep-out (`scatter.py:28-34` says so). So the cull term is not an app
    number and should not be carried into one.
