@@ -1,0 +1,190 @@
+{
+ "storyId": "library-tech-tree-overlay",
+ "readAt": "2026-08-16T13:17:33.527Z",
+ "source": "events.verdict via PgWorkStore.readEvents + deriveVerdictGlyphs (@storytree/drive) \u2014 the same derivation `storytree tree --pg` prints; criterion states via rollupCriterionStatus (@storytree/orchestrator), the same compute apiRouter.applyUatCriteria uses",
+ "fold": "provenStatus(authoredStatus, verdict) \u2014 apps/studio/src/lib/worldStatus.ts (ADR-0040 / ADR-0038 / ADR-0296)",
+ "verdictEventsRead": 2229,
+ "storyAuthoredStatus": "proposed",
+ "storyVerdictGlyph": "\u2013",
+ "capabilities": [
+  {
+   "id": "library-drawer-shell",
+   "title": "The `?overlay=library` invocation gate \u2014 a pure `readLibraryOverlay` flag reader that gates the Library overlay's presence (its closed\u2192peek\u2192dive state machine RETIRED into the permanent lens by ADR-0187 dec 1)",
+   "authoredStatus": "proposed",
+   "verdictGlyph": "\u2713",
+   "verdictOutcome": "pass",
+   "renderedStatus": "healthy",
+   "tests": 5
+  },
+  {
+   "id": "library-finder",
+   "title": "A client-side search finder over the loaded corpus with a kind sub-line and lifted selection",
+   "authoredStatus": "proposed",
+   "verdictGlyph": "\u2713",
+   "verdictOutcome": "pass",
+   "renderedStatus": "healthy",
+   "tests": 6
+  },
+  {
+   "id": "library-dag-canvas",
+   "title": "The focus canvas is a true layered dependency DAG: dagre rankdir-LR ranks over the authored standsOn edge BOTH ways to ONE level upstream + ONE level downstream (the full transitive walk retired, ADR-0193 dec 3; the references[] citation substrate retired, ADR-0223), DRAWN SVG edges between rank-adjacent nodes, per-branch \u2295 expanders taming breadth (the global depth stepper retired), NO \u2190 Back / breadcrumb and NO pan/zoom controls \u2014 search-first plus click-through re-centre is the whole navigation \u2014 and a machine-asserted fit-to-view viewBox containing every laid-out node \u2014 the brownfield rework of library-focus-subgraph (source files keep their names)",
+   "authoredStatus": "proposed",
+   "verdictGlyph": "\u2713",
+   "verdictOutcome": "pass",
+   "renderedStatus": "healthy",
+   "tests": 14
+  },
+  {
+   "id": "library-dive-body",
+   "title": "The dive body panel \u2014 an artifact's full body + Sources over the map, reusing AssetView / DocView",
+   "authoredStatus": "proposed",
+   "verdictGlyph": "\u2713",
+   "verdictOutcome": "pass",
+   "renderedStatus": "healthy",
+   "tests": 6
+  },
+  {
+   "id": "library-overview",
+   "title": "The empty-state whole-corpus dot field under the ADR-0185 dec-4 LOD ladder \u2014 importance = degree, owning its own search input, geometry machine-witnessed / appearance operator-attested",
+   "authoredStatus": "proposed",
+   "verdictGlyph": "\u2713",
+   "verdictOutcome": "pass",
+   "renderedStatus": "healthy",
+   "tests": 8
+  },
+  {
+   "id": "library-adr-wire-signals",
+   "title": "Each ADR's load_bearing boolean + its outbound decision-lineage edge NUMBERS onto the studio wire \u2014 a pure, tolerant flat-scan frontmatter parser mirroring parseDocStatus; MACHINE-ONLY, no look leg",
+   "authoredStatus": "proposed",
+   "verdictGlyph": "\u2713",
+   "verdictOutcome": "pass",
+   "renderedStatus": "healthy",
+   "tests": 5
+  },
+  {
+   "id": "library-typed-edges",
+   "title": "The three ALREADY-STORED structured typed-edge fields (agent `stepRefs`, process `branchEdges`, plan `arcRef`) surface onto the rendered GuidanceAsset wire shape via renderStoredDoc's STRUCTURED branch; MACHINE-ONLY, no look leg",
+   "authoredStatus": "proposed",
+   "verdictGlyph": "\u2713",
+   "verdictOutcome": "pass",
+   "renderedStatus": "healthy",
+   "tests": 5
+  },
+  {
+   "id": "library-process-flow",
+   "title": "A process node's authored branchEdges become DOWNSTREAM flow edges in the focus DAG: each target joins the one-level downstream frontier as a node, each edge carries its authored label, branch edges are kind-tagged apart from reference edges, and a process carrying no branchEdges contributes none",
+   "authoredStatus": "proposed",
+   "verdictGlyph": "\u2713",
+   "verdictOutcome": "pass",
+   "renderedStatus": "healthy",
+   "tests": 4
+  },
+  {
+   "id": "library-permanent-lens",
+   "title": "The Library overlay is a permanent lens \u2014 the closed\u2192peek\u2192dive state machine and the \u00d7 close button are retired; the flag gates presence, the map stays live beneath, a body slot renders content, and a bottom selection-preview section fires Open",
+   "authoredStatus": "proposed",
+   "verdictGlyph": "\u2713",
+   "verdictOutcome": "pass",
+   "renderedStatus": "healthy",
+   "tests": 5
+  },
+  {
+   "id": "library-open-overlay",
+   "title": "The Open document overlay \u2014 a separate full-detail artifact view over the map, reusing the byte-locked LibraryDiveBody router, dismissable back to the lens",
+   "authoredStatus": "proposed",
+   "verdictGlyph": "\u2713",
+   "verdictOutcome": "pass",
+   "renderedStatus": "healthy",
+   "tests": 3
+  },
+  {
+   "id": "library-open-trigger",
+   "title": "Double-clicking a node on either node surface (the overview constellation or the focus subgraph) fires onOpen with the node's finder-parity SearchResult \u2014 additive to the signed single-click onSelect, which stays byte-green",
+   "authoredStatus": "proposed",
+   "verdictGlyph": "\u2713",
+   "verdictOutcome": "pass",
+   "renderedStatus": "healthy",
+   "tests": 2
+  },
+  {
+   "id": "library-category-shelf",
+   "title": "The finder's idle state is a category shelf (one row per corpus category + a Decisions/ADRs row, each with its count, all derived from the loaded corpus) and each category is a removable search scope: picking one lists all its artifacts, subsequent typing filters within the scope, clearing returns to the shelf \u2014 the signed lf-* query path stays byte-green",
+   "authoredStatus": "proposed",
+   "verdictGlyph": "\u2713",
+   "verdictOutcome": "pass",
+   "renderedStatus": "healthy",
+   "tests": 6
+  },
+  {
+   "id": "library-selection-card",
+   "title": "A pinned selection card in the side panel renders what is selected \u2014 an asset's title/kind/description (description looked up from the loaded corpus, since SearchResult carries none) or an ADR's title/status/load-bearing badge \u2014 with an Open button; null renders nothing and a stale selection renders tolerantly off the SearchResult alone",
+   "authoredStatus": "proposed",
+   "verdictGlyph": "\u2713",
+   "verdictOutcome": "pass",
+   "renderedStatus": "healthy",
+   "tests": 5
+  },
+  {
+   "id": "library-top-drawer",
+   "title": "The permanent lens defaults to a SLIM, TITLE-LESS collapsed top drawer handle; lens state is URL-derived (?overlay=library present = expanded, absent = the collapsed handle); the terminal-dock ARROW chevron is the single open/close affordance (the Expand/Collapse WORD buttons retire) firing an onToggle seam the parent glue owns; the \"Library\" wordmark renders EXPANDED-ONLY; the expanded drawer gains a drag-resize separator (the terminal dock idiom); the ADR-0188 dec-6 component-local Minimise/Restore machine and the #715 corner toggle retire; the map stays live beneath with no scrim in either state; the pure readLibraryOverlay reader survives",
+   "authoredStatus": "proposed",
+   "verdictGlyph": "\u2713",
+   "verdictOutcome": "pass",
+   "renderedStatus": "healthy",
+   "tests": 7
+  },
+  {
+   "id": "library-lifecycle-wire",
+   "title": "One pure, browser-safe lifecycle projection `lifecycleOf(kind, doc) \u2192 open | active | archived` in @storytree/library (root barrel, no node: imports) maps every stored per-kind vocabulary onto ADR-0196's universal triad; AND `renderStoredDoc` serializes a plan doc's `status` onto the GuidanceAsset wire (mirroring arcRef) so the studio can project plan lifecycle. MACHINE-ONLY, no look leg.",
+   "authoredStatus": "proposed",
+   "verdictGlyph": "\u2713",
+   "verdictOutcome": "pass",
+   "renderedStatus": "healthy",
+   "tests": 6
+  },
+  {
+   "id": "library-lifecycle-shelf",
+   "title": "The Library panel carries ONE three-state lifecycle selector (open | active | archived, DEFAULT open) and the selected state governs the whole panel: the shelf renders only categories with \u22651 item in the state (plain per-state count, 'N of M' retired), scoped browse filters to the state uniformly for every kind, and a typed search's results filter to the state (assets + Decisions); the per-kind state chips retire; empty states are one quiet line \u2014 the surviving lf-*/lcs- blocks stay byte-green, the re-tensed ones are trimmed before the build (ADR-0197 D5)",
+   "authoredStatus": "proposed",
+   "verdictGlyph": "\u2713",
+   "verdictOutcome": "pass",
+   "renderedStatus": "healthy",
+   "tests": 6
+  },
+  {
+   "id": "library-retire-standalone-page",
+   "title": "The standalone `#/library` studio page retires into the lens: `libraryHref()` re-points to the `?overlay=library#/tree` lens href (dropping its `category` parameter), `parseRoute('#/library')` (and `/library/<category>`) resolves to the tree route so a legacy bookmark lands on the forest map where the lens lives, the `{ name: 'library' }` variant is removed from the `Route` union, and every other route (`#/asset/<id>`, `#/asset/<id>/edit`, `#/asset/new`, `#/doc/<id>`, `#/tree`, `#/tree/<focus>`, `#/members`, `#/`) still resolves unchanged",
+   "authoredStatus": "proposed",
+   "verdictGlyph": "\u2713",
+   "verdictOutcome": "pass",
+   "renderedStatus": "healthy",
+   "tests": 4
+  }
+ ],
+ "uatCriteria": [
+  {
+   "id": "uatc_dc5913099db55821e44fe257",
+   "revisionId": "uatr1:6dee52ba676b0173",
+   "witness": "machine",
+   "state": "pending"
+  },
+  {
+   "id": "uatc_586b8bb4e1f926b416497e3f",
+   "revisionId": "uatr1:ac51807fd7c96d83",
+   "witness": "machine",
+   "state": "pending"
+  },
+  {
+   "id": "uatc_2539bfd0b1c1c04c2adf77c7",
+   "revisionId": "uatr1:d44edbb8ee4ca285",
+   "witness": "machine",
+   "state": "pending"
+  },
+  {
+   "id": "uatc_1dfa5ebe29eb8a99f847ac01",
+   "revisionId": "uatr1:790734e60d1b58ed",
+   "witness": "machine",
+   "state": "pending"
+  }
+ ]
+}
