@@ -58,12 +58,23 @@ export function uprightForeshortening(elevationDeg: number = LAND_CAMERA_ELEVATI
   return Math.cos(elevationDeg * RAD);
 }
 
-/** Project a ground-plane point into screen space at the declared camera. */
+/**
+ * Project a ground-plane point into screen space at the declared camera.
+ *
+ * ⚠ NEVER pass this point-free to `Array.prototype.map` — `pts.map(projectGround)` calls it as
+ * `projectGround(p, index, array)`, silently feeding each point's ARRAY INDEX into `elevationDeg`
+ * (the `hexCenter`/`['1','2'].map(parseInt)` trap, ADR-0367 D1). Always wrap:
+ * `pts.map((p) => projectGround(p))`.
+ */
 export function projectGround(p: Pt, elevationDeg: number = LAND_CAMERA_ELEVATION_DEG): Pt {
   return { x: p.x, y: p.y * groundFlattening(elevationDeg) };
 }
 
-/** The inverse of {@link projectGround}: screen space back onto the ground plane. */
+/**
+ * The inverse of {@link projectGround}: screen space back onto the ground plane.
+ *
+ * ⚠ Same point-free `.map` trap as {@link projectGround} — never pass this bare to `.map`.
+ */
 export function unprojectGround(p: Pt, elevationDeg: number = LAND_CAMERA_ELEVATION_DEG): Pt {
   return { x: p.x, y: p.y / groundFlattening(elevationDeg) };
 }
@@ -75,6 +86,10 @@ export function unprojectGround(p: Pt, elevationDeg: number = LAND_CAMERA_ELEVAT
  * projected half-height under a nameplate, the bottom of the scene bounds, a contact shadow's
  * semi-minor axis. It equals `r` only in plan view, which is why those sites were correct before
  * the land had a camera and wrong the moment it got one.
+ *
+ * ⚠ NEVER pass this point-free to `Array.prototype.map` — same index-as-`elevationDeg` trap as
+ * {@link hexCenter}/{@link projectGround} (ADR-0367 D1). Always wrap:
+ * `rs.map((r) => groundRadiusToScreenHalfHeight(r))`.
  */
 export function groundRadiusToScreenHalfHeight(
   r: number,
@@ -92,6 +107,9 @@ export function groundRadiusToScreenHalfHeight(
  * nothing about the sprite's own ground footprint, which was baked at the angle it was rendered at;
  * a sprite standing on land at a different camera needs RE-RENDERING. The dial survives as a
  * comparison control precisely because that is all it ever was.
+ *
+ * ⚠ NEVER pass this point-free to `Array.prototype.map` — same index-as-`landElevationDeg` trap as
+ * {@link hexCenter}/{@link projectGround} (ADR-0367 D1).
  */
 export function spriteUprightScale(
   spriteElevationDeg: number,

@@ -680,7 +680,7 @@ export function buildWorld(
     const mineSet = new Set(tiles.map(axialKey));
     const boundary: BoundarySeg[] = [];
     for (const tile of tiles) {
-      const c = hexCenter(tile, PLAN_VIEW_ELEVATION_DEG);
+      const c = hexCenter(tile, { elevationDeg: PLAN_VIEW_ELEVATION_DEG });
       const corners = hexCorners(c.x, c.y, HEX_R, PLAN_VIEW_ELEVATION_DEG);
       AXIAL_DIRS.forEach((d, e) => {
         if (mineSet.has(axialKey({ q: tile.q + d.q, r: tile.r + d.r }))) return;
@@ -808,7 +808,7 @@ export function buildWorld(
   // `PLAN_VIEW_ELEVATION_DEG` recovers the pre-camera, un-flattened tile positions exactly) and
   // project the routed network back to screen space once, at the end, via `projectTrailNetwork`.
   const trailIslands: TrailIsland[] = territories.map((t) => {
-    const groundCenters = t.tiles.map((tile) => hexCenter(tile, PLAN_VIEW_ELEVATION_DEG));
+    const groundCenters = t.tiles.map((tile) => hexCenter(tile, { elevationDeg: PLAN_VIEW_ELEVATION_DEG }));
     const groundCentroid: Pt = {
       x: groundCenters.reduce((s, p) => s + p.x, 0) / Math.max(groundCenters.length, 1),
       y: groundCenters.reduce((s, p) => s + p.y, 0) / Math.max(groundCenters.length, 1),
