@@ -56,6 +56,17 @@ recorded island lead), the existing procedural `story-tree` renderer, the arriva
 No per-territory raster track. No generated land, coast or composite — ADR-0274 D1 continues to hold.
 Nothing here is rewritten that already exists and is tested; this increment composes.
 
+*(Narrowed by [ADR-0367](0367-chapter-2-s-land-is-rendered-in-blender-too-an-angled-citybu.md),
+2026-08-14: ADR-0274 D1 itself was narrowed — land ART may now be produced by our own Blender script
+at author time, delivered as an addressable per-cell/per-coast-segment set. The interior-fork spike
+(increment `blender-land-interior-fork`, PR #1355) measured that the rendered piece set is FOREST-WIDE
+by construction — 16 heading-indexed rim pieces are indexed by quantised outward ground heading, not
+by cell shape, so they serve any coast without per-island authoring. What this D1 sentence actually
+decided — no per-territory raster track, no art budget that scales with story count — still holds
+exactly as written: a shared, forest-wide piece set is not a per-territory track. What no longer holds
+is the recital of ADR-0274 D1 as an unconditional "no generated land" ban; read ADR-0274 D1's own
+narrowing note as the current statement of that rule. Noted in place per ADR-0139.)*
+
 ### D2 — Exactly one focused tree earns authored frames
 
 The authored raster track is mounted on one focused hero tree, not on the forest. Which treatment that
@@ -154,6 +165,13 @@ pointer is forward only.
 
 - A per-territory authored raster track, or any art budget that scales with story count.
 - A generated island, coast or scene composite (ADR-0274 D1).
+  **NARROWED by [ADR-0367](0367-chapter-2-s-land-is-rendered-in-blender-too-an-angled-citybu.md)
+  (2026-08-14):** ADR-0274 D1 itself narrowed — land ART may now be produced by our own Blender script
+  at author time, delivered as a forest-wide addressable per-cell/per-coast-segment piece set (measured
+  forest-wide by construction, PR #1355), never as a baked composite. What this bullet still rejects,
+  unchanged: a per-territory raster track or an art budget that scales with story count, and a full
+  baked island plate — structurally impossible regardless, since the coast is computed at runtime from
+  live claim data (ADR-0367 Context FACT 2).
 - A scripted or hand-authored growth order that is not derived from the real dependency graph.
 - A separate desktop renderer, or a studio-server import from the desktop backend.
 - ~~Reading D2 as a hero-tree selection~~, or this ADR as closure of the organic-growth arc.
@@ -192,7 +210,11 @@ pointer is forward only.
   D6's reach: the regrow plays on first arrival each session, so the clean route is no longer
   byte-identical.
 - [ADR-0274](0274-pixellab-animates-organic-growth-over-the-app-owned-svg-isla.md) — app-owned SVG
-  island as the sole land substrate; organic tracks are author-time only.
+  island as the sole land substrate; organic tracks are author-time only. D1 narrowed by ADR-0367.
+- [ADR-0367](0367-chapter-2-s-land-is-rendered-in-blender-too-an-angled-citybu.md) — narrows ADR-0274
+  D1 (and ADR-0280's parallel clause) to admit author-time Blender-rendered land art as a forest-wide
+  addressable piece set; this ADR's D1/D8 recitals of the old blanket ban are corrected in place
+  against it.
 - [ADR-0277](0277-occlusion-registered-cutouts-are-plant-only.md) — retained plant tracks.
 - [ADR-0264](0264-chapter-2-tree-growth-uses-one-deterministic-topology-rig-wi.md) — superseded
   topology rig; its 2026-08-02 evidence note records what round 4 measured about that reversal.
