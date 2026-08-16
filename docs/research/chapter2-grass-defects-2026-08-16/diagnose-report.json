@@ -1,0 +1,360 @@
+{
+ "pieceSet": "pieces-m00-blade (the declined grass: blade geometry, normals 0.00)",
+ "camera": {
+  "elevationDeg": 50.0,
+  "note": "the research track's authoring angle; the app constant LAND_CAMERA_ELEVATION_DEG is 20 and is NOT touched"
+ },
+ "lumaFloors": {
+  "grass": 90.0,
+  "black": 60.0
+ },
+ "islands": {
+  "fixture": {
+   "capStatuses": [
+    "healthy",
+    "healthy",
+    "building",
+    "proposed",
+    "proposed",
+    "mapped",
+    "unhealthy",
+    "healthy",
+    "building",
+    "proposed"
+   ],
+   "deliveredSolidPx": 34968,
+   "bleed": {
+    "decorPx": 292,
+    "bleedPx": 0,
+    "bleedPxOnTheSilhouetteRim": 0,
+    "bleedPxInTheBody": 0,
+    "byWhatItActuallyIs": {},
+    "byPiece": {}
+   },
+   "black": {
+    "decorPx": 292,
+    "landPx": 34676,
+    "decorBelowGrassLumaFloor": 0,
+    "decorBelowGrassLumaFloorPreRim": 0,
+    "decorInTheBlackBand": 0,
+    "landInTheBlackBand": 937,
+    "landInTheBlackBandPctOfLand": 2.7,
+    "landInTheBlackBandOnTheSilhouetteRim": 66,
+    "landInTheBlackBandInTheBody": 871,
+    "minDecorLuma": 108.5,
+    "darkestDecorColours": [],
+    "darkestLandColours": [
+     {
+      "rgb": [
+       50,
+       48,
+       40
+      ],
+      "luma": 47.8,
+      "is": "land:unhealthy:side@0.9",
+      "px": 522
+     },
+     {
+      "rgb": [
+       55,
+       53,
+       44
+      ],
+      "luma": 52.8,
+      "is": "land:unhealthy:side@1.0",
+      "px": 207
+     },
+     {
+      "rgb": [
+       44,
+       42,
+       35
+      ],
+      "luma": 41.9,
+      "is": "land:unhealthy:side@0.8",
+      "px": 177
+     },
+     {
+      "rgb": [
+       43,
+       41,
+       34
+      ],
+      "luma": 40.9,
+      "is": "land:unhealthy:side@0.78",
+      "px": 31
+     }
+    ]
+   },
+   "charcoal": {
+    "deliveredPx": 34968,
+    "charcoalRegionPx": 4253,
+    "pctOfDelivered": 12.2,
+    "meanLuma": 82.2
+   },
+   "rim": {
+    "decorPx": 292,
+    "decorOnSilhouette": 0,
+    "decorRecolouredByRim": 0,
+    "decorRecolouredOutOfItsOwnFamily": 0,
+    "bleedPxThatAreRim": 0
+   },
+   "reverse": {
+    "landPx": 34676,
+    "landPxWearingADecorTokenColour": 0,
+    "byToken": {}
+   },
+   "overhang": {
+    "decorPx": 292,
+    "decorPxOverAKnownCell": 265,
+    "decorPxStandingOnANOTHERCapabilitysCell": 20,
+    "pctOfDecor": 6.8,
+    "decorPxOverWaterOrCoastSand": 0
+   },
+   "contrast": {
+    "decorPxOverAKnownCell": 265,
+    "medianHueDegreesFromTheGroundBeneath": 41.8,
+    "pxMoreThan40DegreesFromTheirGround": 136,
+    "pctMoreThan40Degrees": 51.3,
+    "crossTab": {
+     "blade:healthy ON healthy ground": 48,
+     "flower:proven ON unhealthy ground": 33,
+     "blade:healthy ON building ground": 32,
+     "flower:proven ON mapped ground": 31,
+     "blade:mapped ON proposed ground": 24,
+     "shrub:healthy ON healthy ground": 21,
+     "flower:proven ON proposed ground": 21,
+     "shrub:building ON building ground": 15,
+     "blade:mapped ON mapped ground": 14,
+     "flower:proven ON building ground": 7,
+     "flower:failing ON proposed ground": 5,
+     "flower:pending ON unhealthy ground": 5,
+     "blade:unhealthy ON unhealthy ground": 3,
+     "flower:pending ON healthy ground": 2,
+     "flower:pending ON building ground": 2,
+     "flower:proven ON healthy ground": 1,
+     "blade:healthy ON unhealthy ground": 1
+    }
+   },
+   "spread": {
+    "decorPx": 292,
+    "byTokenFamily": {
+     "flower:proven": 109,
+     "blade:healthy": 86,
+     "blade:mapped": 40,
+     "shrub:healthy": 22,
+     "shrub:building": 15,
+     "flower:pending": 9,
+     "flower:failing": 8,
+     "blade:unhealthy": 3
+    },
+    "pxWhoseFamilyIsAnINVENTEDNonGreenStatus": 43,
+    "pctNonGreen": 14.7
+   },
+   "buggy": {
+    "placements": 112,
+    "placementsDeliveringAtLeastOnePixel": 61,
+    "placementsDeliveringNOTHING": 51,
+    "medianPxPerPlacement": 3,
+    "pxPerPlacementHistogram": {
+     "1": 10,
+     "2": 15,
+     "3": 17,
+     "4": 8,
+     "5": 2,
+     "8": 1,
+     "10": 1,
+     "11": 1,
+     "12": 2,
+     "18": 1,
+     "28": 1,
+     "29": 1,
+     "31": 1
+    },
+    "placementsArrivingAsMoreThanOneDisconnectedBlob": 4,
+    "totalDisconnectedBlobs": 67,
+    "placementsDeliveringOneOrTwoPx": 25
+   },
+   "attribution": {
+    "ambiguousPx": 0,
+    "unattributedSolidPx": 0
+   },
+   "placements": {
+    "tuft": 95,
+    "shrub": 10,
+    "wilt": 1,
+    "flower": 6,
+    "centroidFallbacks": 0,
+    "flowerFallbacks": 0
+   }
+  },
+  "healthy": {
+   "capStatuses": [
+    "healthy",
+    "healthy",
+    "healthy",
+    "healthy",
+    "healthy",
+    "healthy",
+    "healthy",
+    "healthy",
+    "healthy",
+    "healthy"
+   ],
+   "deliveredSolidPx": 34968,
+   "bleed": {
+    "decorPx": 384,
+    "bleedPx": 0,
+    "bleedPxOnTheSilhouetteRim": 0,
+    "bleedPxInTheBody": 0,
+    "byWhatItActuallyIs": {},
+    "byPiece": {}
+   },
+   "black": {
+    "decorPx": 384,
+    "landPx": 34584,
+    "decorBelowGrassLumaFloor": 0,
+    "decorBelowGrassLumaFloorPreRim": 0,
+    "decorInTheBlackBand": 0,
+    "landInTheBlackBand": 58,
+    "landInTheBlackBandPctOfLand": 0.17,
+    "landInTheBlackBandOnTheSilhouetteRim": 58,
+    "landInTheBlackBandInTheBody": 0,
+    "minDecorLuma": 108.5,
+    "darkestDecorColours": [],
+    "darkestLandColours": [
+     {
+      "rgb": [
+       55,
+       53,
+       44
+      ],
+      "luma": 52.8,
+      "is": "land:unhealthy:side@1.0",
+      "px": 58
+     }
+    ]
+   },
+   "charcoal": {
+    "deliveredPx": 34968,
+    "charcoalRegionPx": 0,
+    "pctOfDelivered": 0.0,
+    "meanLuma": null
+   },
+   "rim": {
+    "decorPx": 384,
+    "decorOnSilhouette": 0,
+    "decorRecolouredByRim": 0,
+    "decorRecolouredOutOfItsOwnFamily": 0,
+    "bleedPxThatAreRim": 0
+   },
+   "reverse": {
+    "landPx": 34584,
+    "landPxWearingADecorTokenColour": 0,
+    "byToken": {}
+   },
+   "overhang": {
+    "decorPx": 384,
+    "decorPxOverAKnownCell": 349,
+    "decorPxStandingOnANOTHERCapabilitysCell": 20,
+    "pctOfDecor": 5.2,
+    "decorPxOverWaterOrCoastSand": 0
+   },
+   "contrast": {
+    "decorPxOverAKnownCell": 349,
+    "medianHueDegreesFromTheGroundBeneath": 8.1,
+    "pxMoreThan40DegreesFromTheirGround": 104,
+    "pctMoreThan40Degrees": 29.8,
+    "crossTab": {
+     "blade:healthy ON healthy ground": 150,
+     "flower:proven ON healthy ground": 95,
+     "shrub:healthy ON healthy ground": 89,
+     "flower:pending ON healthy ground": 10,
+     "flower:failing ON healthy ground": 5
+    }
+   },
+   "spread": {
+    "decorPx": 384,
+    "byTokenFamily": {
+     "blade:healthy": 161,
+     "flower:proven": 111,
+     "shrub:healthy": 94,
+     "flower:pending": 10,
+     "flower:failing": 8
+    },
+    "pxWhoseFamilyIsAnINVENTEDNonGreenStatus": 0,
+    "pctNonGreen": 0.0
+   },
+   "buggy": {
+    "placements": 145,
+    "placementsDeliveringAtLeastOnePixel": 78,
+    "placementsDeliveringNOTHING": 67,
+    "medianPxPerPlacement": 3,
+    "pxPerPlacementHistogram": {
+     "1": 10,
+     "2": 21,
+     "3": 20,
+     "4": 11,
+     "5": 2,
+     "8": 1,
+     "10": 2,
+     "11": 3,
+     "12": 4,
+     "21": 1,
+     "28": 1,
+     "29": 1,
+     "31": 1
+    },
+    "placementsArrivingAsMoreThanOneDisconnectedBlob": 4,
+    "totalDisconnectedBlobs": 85,
+    "placementsDeliveringOneOrTwoPx": 31
+   },
+   "attribution": {
+    "ambiguousPx": 0,
+    "unattributedSolidPx": 0
+   },
+   "placements": {
+    "tuft": 119,
+    "shrub": 20,
+    "wilt": 0,
+    "flower": 6,
+    "centroidFallbacks": 0,
+    "flowerFallbacks": 0
+   }
+  }
+ },
+ "refusals": [
+  {
+   "guard": "check_bleed catches a tuft repainted with a FOREIGN status family",
+   "fired": true,
+   "bleedPx": 2,
+   "seenAs": [
+    "decor:blade:unhealthy:bladeFront@1.0"
+   ]
+  },
+  {
+   "guard": "check_black catches a tuft painted near-black",
+   "fired": true,
+   "decorBelowGrassLumaFloor": 2,
+   "minDecorLuma": 40.9
+  },
+  {
+   "guard": "a PARTIAL palette (decor families omitted) reassigns semantic state",
+   "fired": true,
+   "bleedPx": 376,
+   "decorBelowGrassLumaFloor": 0,
+   "seenAs": [
+    "land:healthy:top@0.78",
+    "land:healthy:top@0.9",
+    "land:healthy:side@0.9",
+    "coast:sand",
+    "land:building:top@1.0"
+   ]
+  },
+  {
+   "guard": "and the UNPERTURBED healthy island still passes (the control)",
+   "fired": false,
+   "bleedPx": 0
+  }
+ ]
+}
