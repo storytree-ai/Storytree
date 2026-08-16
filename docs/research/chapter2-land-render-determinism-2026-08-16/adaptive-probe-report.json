@@ -1,0 +1,36 @@
+{
+ "inheritedSettings": "PROBE inherited use_adaptive_sampling=True threshold=0.009999999776482582 min_samples=0 samples=32",
+ "siblingGenerators": {
+  "blender_decor.py": "sets use_adaptive_sampling = False explicitly",
+  "blender_grass.py": "sets use_adaptive_sampling = False explicitly",
+  "blender_land.py": "never mentions it \u2014 inherits Cycles' default, which is True"
+ },
+ "sampleLadder": [
+  {
+   "samples": 32,
+   "pieces": 6,
+   "pxDifferingOnVsOff": 0,
+   "active": false
+  },
+  {
+   "samples": 48,
+   "pieces": 6,
+   "pxDifferingOnVsOff": 0,
+   "active": false
+  },
+  {
+   "samples": 512,
+   "pieces": 6,
+   "pxDifferingOnVsOff": 3304,
+   "active": true
+  }
+ ],
+ "threadInvarianceWhereActive": [
+  {
+   "samples": 512,
+   "pieces": 6,
+   "pxDifferingAutoVs1Thread": 0
+  }
+ ],
+ "reading": "the flag is ENABLED and INERT at every sample count this arc has rendered at (32, 48): forcing it off moves no pixel. It wakes up at higher counts \u2014 and even awake it is thread-invariant, so it changes WHICH picture you get, never AS A FUNCTION OF LOAD. That makes it a latent inconsistency with its two siblings rather than the live load-dependence it was suspected of."
+}
