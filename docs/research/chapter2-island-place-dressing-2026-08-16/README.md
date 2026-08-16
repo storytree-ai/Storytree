@@ -11,9 +11,29 @@ The track had settled the land's **structure** (interior fork → `b++`) and its
 sweep → 50°, owner look verdict 2026-08-16: *"50 degrees looks good, i think we go with this"*). Both
 delivered a correct island with nothing growing on it. This pass builds the missing component art.
 
-**Nothing here is owner-attested.** There has been no owner LOOK at the dressing. How the island
-READS is the owner's verdict and this page has no standing to make it. The angle is separately
-settled; the art is not.
+> ## ⚠ THE OWNER HAS SINCE LOOKED, AND THE GRASS WAS DECLINED. READ THIS FIRST.
+>
+> This page is **evidence of what was tried**, not a proposal awaiting adoption. What happened after
+> the pass, in order:
+>
+> 1. The owner looked and said **"grass looks rather ugly"**.
+> 2. A follow-up pass (**PR #1371**, merged) measured why, and its answer supersedes any shading
+>    hypothesis this page reaches for: **a tuft is 61 opaque pixels in Blender and 7 delivered
+>    pixels.** Custom normals were built and swept 0.00 → 1.00; the lever demonstrably fires — 90% of
+>    RAW pixels repainted at full strength — and changes **zero delivered pixels at every setting**.
+>    **Geometry and silhouette are the only lever** (clumping the blades takes 7 px → 18 px).
+> 3. The owner then **declined both grass shapes** — ADR-0280 D4's honest *"none of these is good
+>    enough"* — and directed **flat green** for the ground.
+>
+> So the density question below is **closed, not open**, and this page makes no ask of the owner. The
+> measurements are kept in full because they are why the decline is well-founded rather than a matter
+> of taste, and because two of them (§ *Measurements* and traps 2–4) are about the RENDER PIPELINE and
+> outlive the art entirely.
+>
+> The UAT flowers were not part of that decline; only the grass was judged.
+
+**Nothing here was owner-attested at the time of writing.** The camera angle was separately settled;
+the art was not, and has since been declined as above.
 
 ## THE FENCE — what this pass did not touch
 
@@ -146,10 +166,19 @@ measured and BOTH REJECTED, which is why the third is worth believing:
   items pile into the same cells and cover ground already covered. **The actionable consequence: more
   coverage needs better-DISTRIBUTED placement (a per-cell quota or blue-noise), not more items.**
 
-**What this implies for the look, stated as the owner's question and not answered here:** at any
-density reachable this way the ground cover is a few percent of the island, so whatever "reads as a
-place" the pictures achieve is coming from the **flowers and shrubs as silhouette events**, not from
-grass coverage. Whether ×1 is too sparse is a look, not a number.
+**What this implies for the look:** at any density reachable this way the ground cover is a few
+percent of the island, so whatever "reads as a place" the pictures achieve comes from the **flowers
+and shrubs as silhouette events**, not from grass coverage.
+
+**This is the finding the decline rests on, and PR #1371 sharpened it into the general rule.** The
+sublinearity here says *more grass does not buy coverage*; #1371 then measured that **more SHADING
+does not buy anything either** — a tuft is 61 opaque pixels in Blender and 7 delivered, and a custom-
+normal sweep that repaints 90% of RAW pixels changes zero delivered ones. Together those two say the
+same thing from opposite directions: **at this component size the only lever that moves a delivered
+pixel is GEOMETRY/SILHOUETTE** (clumping takes 7 px → 18 px). Neither count nor shading is a lever.
+That is why "make the grass nicer" was not a fix available to any amount of tuning, and why the owner
+declining both shapes and directing flat green is the honest end of this line rather than a rejection
+of an implementation detail.
 
 ### The vocabulary is a reading of the work (`status-vocabulary.png`)
 
@@ -302,11 +331,12 @@ seconds.
 
 ## Honest gaps
 
-1. **There is no owner LOOK at the dressing.** Nothing here is attested and no density is chosen.
-2. **The density question is open and is the main thing to look at.** ×1 is the app's authored truth;
-   ×3 and ×6 are what the same rules produce scaled. This page makes no recommendation, because
-   "is that too sparse" is a look and the last time this track guessed at a look the owner declined
-   its recommendation.
+1. **The grass was DECLINED** (see the banner at the top). The owner looked, called it *"rather
+   ugly"*, and after PR #1371 measured that neither density nor shading moves a delivered pixel,
+   declined both shapes and directed flat green. Nothing on this page is adopted.
+2. **The density question is therefore CLOSED, not open.** ×1 is the app's authored truth; ×3 and ×6
+   are what the same rules produce scaled. The sweep is retained as the evidence that count is not a
+   lever, which is half of why the decline is well-founded — not as a choice awaiting a pick.
 3. **The test counts are INVENTED.** `island.json` carries geometry and status, not proof state, and no
    real story is being read. The distribution was chosen to exercise every branch of the app's count
    rules rather than to flatter them, but real tests would redistribute the meadow.
