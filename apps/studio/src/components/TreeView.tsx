@@ -590,7 +590,16 @@ export function buildWorld(
   const territories: Territory[] = stories.map((story, i) => {
     const tiles = tilesByStory[i] ?? [];
     const seed = seeds[i] ?? { q: 0, r: 0 };
-    const centers = tiles.map(hexCenter);
+    // NOT `tiles.map(hexCenter)`: `hexCenter(h, elevationDeg = LAND_CAMERA_ELEVATION_DEG)` takes an
+    // optional second argument, and `Array.prototype.map` calls its callback with `(element, index,
+    // array)` — so a bare `.map(hexCenter)` feeds each tile's ARRAY INDEX into `elevationDeg`,
+    // silently re-flattening every tile by its own position (0deg for the first tile, 1deg for the
+    // second, ...), never the declared camera. This was the classic `['1','2'].map(parseInt)` trap,
+    // newly load-bearing the moment `hexCenter` grew a second parameter (ADR-0367 D1) — the single
+    // largest driver of `land-camera-consumers-reconcile`'s measured content-extent collapse (a
+    // territory's own `centroid`/`radius` were computed from tiles each seen through a DIFFERENT,
+    // index-derived camera).
+    const centers = tiles.map((h) => hexCenter(h));
     const centroid: Pt = {
       x: centers.reduce((s, p) => s + p.x, 0) / Math.max(centers.length, 1),
       y: centers.reduce((s, p) => s + p.y, 0) / Math.max(centers.length, 1),
@@ -816,7 +825,16 @@ export function buildWorld(
   // it served, and the `HexWorld` field it fed went with it.
 
   // Scene bounds over every tile (claimed + coast), plus label + tree space.
-  const allCenters = [...drawTiles.map((t) => hexCenter(t.h)), ...empties.map(hexCenter)];
+  //
+  // `empties.map(hexCenter)` (not the arrow-wrapped form used just above) is the SAME
+  // `Array.prototype.map` arity trap documented on `centers` above: it fed every coast hex's ARRAY
+  // INDEX into `hexCenter`'s `elevationDeg`, so a coast ring's outer hexes (dozens to hundreds of
+  // them, at increasing indices) were flattened at wildly wrong, ever-growing "degree" values —
+  // `Math.sin` swinging through its full range past 90 deg — rather than the declared 20 deg camera.
+  // This is what fed `allCenters`, and therefore `minY`/`maxY` below, values orders of magnitude
+  // outside the map's true extent: the measured content-extent collapse's dominant cause, not the
+  // vertical-squash story this increment's own trap warns against assuming.
+  const allCenters = [...drawTiles.map((t) => hexCenter(t.h)), ...empties.map((e) => hexCenter(e))];
   const minX = Math.min(...allCenters.map((p) => p.x)) - HEX_W / 2 - MARGIN;
   const maxX = Math.max(...allCenters.map((p) => p.x)) + HEX_W / 2 + MARGIN;
   // Same reconciliation as the nameplate baseline above (ADR-0367's second named cost): the vertical
