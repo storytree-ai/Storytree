@@ -524,13 +524,18 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
       expect(section).toBeTruthy();
       expect(section?.getAttribute('data-svg-island-accretion-cells')).toBe('52');
       expect(section?.getAttribute('data-svg-island-accretion-duration-ms')).toBe('1600');
-      // 52 cells over 8 connected waves. The counts moved from 50 / `1,4,7,10,11,9,6,2` when
-      // ADR-0367 D1 gave the land a camera: the relaxed mesh interns vertices at 0.1 px in SCREEN
+      // 52 cells over 7 connected waves. The counts moved from 50 / `1,4,7,10,11,9,6,2` when
+      // ADR-0367 D1 gave the land a camera (the relaxed mesh interns vertices at 0.1 px in SCREEN
       // space, so foreshortening the lattice re-decides which vertices coincide and the cell
-      // decomposition shifts with it. The reveal STRUCTURE is unchanged — still one connected
+      // decomposition shifts with it), then moved AGAIN to `1,4,8,13,13,9,4` when
+      // `land-camera-consumers-reconcile` fixed `buildWorld`'s `tiles.map(hexCenter)` /
+      // `empties.map(hexCenter)` — `Array.prototype.map` calls its callback `(element, index,
+      // array)`, and `hexCenter`'s optional second parameter is an elevation in DEGREES, so every
+      // bare `.map(hexCenter)` was silently re-flattening each tile by its own ARRAY INDEX rather
+      // than the declared 20 deg camera. The reveal STRUCTURE is unchanged — still one connected
       // adjacency wave per ring, still monotone-then-tapering — and the shift is caught here loudly
       // rather than silently, which is what this assertion is for.
-      expect(section?.getAttribute('data-svg-island-accretion-waves')).toBe('1,4,7,8,8,10,11,3');
+      expect(section?.getAttribute('data-svg-island-accretion-waves')).toBe('1,4,8,13,13,9,4');
       const legend = flagged.querySelector('[data-island-accretion-legend="true"]');
       expect(legend).toBeTruthy();
       for (const term of [

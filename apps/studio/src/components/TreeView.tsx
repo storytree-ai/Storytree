@@ -132,6 +132,8 @@ import {
   HEX_W,
   TILE_DEPTH,
   groundRadiusToScreenHalfHeight,
+  PLAN_VIEW_ELEVATION_DEG,
+  projectGround,
   axialKey,
   AXIAL_DIRS,
   hexCenter,
@@ -148,6 +150,7 @@ import {
   rankStories,
   descendantCounts,
   smoothCoast,
+  smoothLoopPath,
   type BoundarySeg,
   type SubstrateMode,
   type SubstrateTuning,
@@ -156,6 +159,7 @@ import {
   buildRelaxedCells as buildRelaxedCellsFromTiles,
   buildScene,
   routeTrails,
+  projectTrailNetwork,
   trailFillWidth,
   wispBand,
   type SceneInput,
@@ -166,6 +170,7 @@ import {
   type SceneStatus,
   type ScenePlantInput,
   type SceneTerritoryInput,
+  type TrailIsland,
   type TrailNetwork,
   type ClaimGrade,
   type BuildPhase,
@@ -585,7 +590,16 @@ export function buildWorld(
   const territories: Territory[] = stories.map((story, i) => {
     const tiles = tilesByStory[i] ?? [];
     const seed = seeds[i] ?? { q: 0, r: 0 };
-    const centers = tiles.map(hexCenter);
+    // NOT `tiles.map(hexCenter)`: `hexCenter(h, elevationDeg = LAND_CAMERA_ELEVATION_DEG)` takes an
+    // optional second argument, and `Array.prototype.map` calls its callback with `(element, index,
+    // array)` — so a bare `.map(hexCenter)` feeds each tile's ARRAY INDEX into `elevationDeg`,
+    // silently re-flattening every tile by its own position (0deg for the first tile, 1deg for the
+    // second, ...), never the declared camera. This was the classic `['1','2'].map(parseInt)` trap,
+    // newly load-bearing the moment `hexCenter` grew a second parameter (ADR-0367 D1) — the single
+    // largest driver of `land-camera-consumers-reconcile`'s measured content-extent collapse (a
+    // territory's own `centroid`/`radius` were computed from tiles each seen through a DIFFERENT,
+    // index-derived camera).
+    const centers = tiles.map((h) => hexCenter(h));
     const centroid: Pt = {
       x: centers.reduce((s, p) => s + p.x, 0) / Math.max(centers.length, 1),
       y: centers.reduce((s, p) => s + p.y, 0) / Math.max(centers.length, 1),
@@ -642,11 +656,18 @@ export function buildWorld(
     const wheatTiles = new Set<string>();
 
     // Territory boundary: every tile edge whose neighbour is foreign soil.
+    //
+    // ADR-0367's fourth named cost: `coast.ts`'s outset (`COAST_OUTSET`) pushes each boundary
+    // vertex along its local edge normal by a FIXED distance — isotropic, only a true "beach
+    // width" in the ground plane, exactly like `routeTrails`'s obstacle radius. Build the
+    // boundary from GROUND-SPACE hex corners (`PLAN_VIEW_ELEVATION_DEG` recovers the
+    // pre-camera, un-flattened positions), so the outset + Chaikin smoothing both run in ground
+    // space; the loop is projected to screen once, below, after `smoothCoast` returns it.
     const mineSet = new Set(tiles.map(axialKey));
     const boundary: BoundarySeg[] = [];
     for (const tile of tiles) {
-      const c = hexCenter(tile);
-      const corners = hexCorners(c.x, c.y, HEX_R);
+      const c = hexCenter(tile, PLAN_VIEW_ELEVATION_DEG);
+      const corners = hexCorners(c.x, c.y, HEX_R, PLAN_VIEW_ELEVATION_DEG);
       AXIAL_DIRS.forEach((d, e) => {
         if (mineSet.has(axialKey({ q: tile.q + d.q, r: tile.r + d.r }))) return;
         const a = corners[e];
@@ -664,7 +685,14 @@ export function buildWorld(
       groundRadiusToScreenHalfHeight(HEX_R) +
       TILE_DEPTH +
       8;
-    const coast = smoothCoast(boundary, story.id);
+    // `smoothCoast` outset + smoothed in GROUND space (see the boundary comment above); project
+    // the loop to screen once here and regenerate the `d` strings from the projected points —
+    // `smoothLoopPath` builds its curve from midpoints (linear in its input points), so
+    // projecting-then-smoothing reproduces exactly what smoothing-then-projecting would draw.
+    const coastGround = smoothCoast(boundary, story.id);
+    const coastLoopsScreen = coastGround.loops.map((loop) => loop.map((p) => projectGround(p)));
+    const coastPathsScreen = coastLoopsScreen.map(smoothLoopPath);
+    const coast = { loops: coastLoopsScreen, paths: coastPathsScreen };
 
     // ADR-0102: this island carries the icon of each BUILDING it depends on (promotion is
     // building-incident, "you carry the icon of what you depend on"). Fan the stamps around the
@@ -755,21 +783,40 @@ export function buildWorld(
   // never enter `edgeList`, so no trail to a building can exist — no filter needed.
   // A world with no edges (the Shared-Islands panel's one-island worlds) skips the
   // router entirely.
+  //
+  // ADR-0367's third named cost: `routeTrails` reasons in ISOTROPIC screen distances (clearance,
+  // falloff, the obstacle radius itself), which is only true in the GROUND plane — a ground-plane
+  // disc seen through the land's declared camera is an ELLIPSE, and feeding the router the
+  // already-PROJECTED (compressed) centroid with an un-projected radius inflates the effective
+  // obstacle far past the island's real footprint, forcing edges that could route around an
+  // island to give up and tunnel under it instead (`land-camera-consumers-reconcile`'s measured
+  // 0 -> 156 `world-cave` delta). So route with GROUND-SPACE islands (`hexCenter` at
+  // `PLAN_VIEW_ELEVATION_DEG` recovers the pre-camera, un-flattened tile positions exactly) and
+  // project the routed network back to screen space once, at the end, via `projectTrailNetwork`.
+  const trailIslands: TrailIsland[] = territories.map((t) => {
+    const groundCenters = t.tiles.map((tile) => hexCenter(tile, PLAN_VIEW_ELEVATION_DEG));
+    const groundCentroid: Pt = {
+      x: groundCenters.reduce((s, p) => s + p.x, 0) / Math.max(groundCenters.length, 1),
+      y: groundCenters.reduce((s, p) => s + p.y, 0) / Math.max(groundCenters.length, 1),
+    };
+    const groundRadius =
+      Math.max(0, ...groundCenters.map((p) => Math.hypot(p.x - groundCentroid.x, p.y - groundCentroid.y))) +
+      HEX_R;
+    return { id: t.story.id, x: groundCentroid.x, y: groundCentroid.y, r: groundRadius * 0.82 };
+  });
   const trails: TrailNetwork =
     edgeList.length && territories.length
-      ? routeTrails(
-          territories.map((t) => ({
-            id: t.story.id,
-            x: t.centroid.x,
-            y: t.centroid.y,
-            r: t.radius * 0.82,
-          })),
-          edgeList.map((e) => ({
-            from: e.from,
-            to: e.to,
-            title: `${e.to} depends on ${e.from}${e.via.length ? ` (via ${e.via.join(', ')})` : ''}`,
-          })),
-          `trails:dag:${stories.map((s) => s.id).sort().join('|')}`,
+      ? projectTrailNetwork(
+          routeTrails(
+            trailIslands,
+            edgeList.map((e) => ({
+              from: e.from,
+              to: e.to,
+              title: `${e.to} depends on ${e.from}${e.via.length ? ` (via ${e.via.join(', ')})` : ''}`,
+            })),
+            `trails:dag:${stories.map((s) => s.id).sort().join('|')}`,
+          ),
+          trailIslands,
         )
       : { segments: [], edges: [], caves: [], dropped: [] };
 
@@ -778,7 +825,16 @@ export function buildWorld(
   // it served, and the `HexWorld` field it fed went with it.
 
   // Scene bounds over every tile (claimed + coast), plus label + tree space.
-  const allCenters = [...drawTiles.map((t) => hexCenter(t.h)), ...empties.map(hexCenter)];
+  //
+  // `empties.map(hexCenter)` (not the arrow-wrapped form used just above) is the SAME
+  // `Array.prototype.map` arity trap documented on `centers` above: it fed every coast hex's ARRAY
+  // INDEX into `hexCenter`'s `elevationDeg`, so a coast ring's outer hexes (dozens to hundreds of
+  // them, at increasing indices) were flattened at wildly wrong, ever-growing "degree" values —
+  // `Math.sin` swinging through its full range past 90 deg — rather than the declared 20 deg camera.
+  // This is what fed `allCenters`, and therefore `minY`/`maxY` below, values orders of magnitude
+  // outside the map's true extent: the measured content-extent collapse's dominant cause, not the
+  // vertical-squash story this increment's own trap warns against assuming.
+  const allCenters = [...drawTiles.map((t) => hexCenter(t.h)), ...empties.map((e) => hexCenter(e))];
   const minX = Math.min(...allCenters.map((p) => p.x)) - HEX_W / 2 - MARGIN;
   const maxX = Math.max(...allCenters.map((p) => p.x)) + HEX_W / 2 + MARGIN;
   // Same reconciliation as the nameplate baseline above (ADR-0367's second named cost): the vertical
