@@ -1,0 +1,283 @@
+{
+ "strokeInventory": {
+  "coast": 1,
+  "cell": 214,
+  "hex": 0,
+  "other": 0,
+  "hexTilesInIsland": 17,
+  "meshCellsInIsland": 214,
+  "hexRingsRegisteredWithTheDetector": 102,
+  "reading": "EVERY line on the island is accounted for. The compositor strokes a ring only through `fill_polygon(..., seam_rgb=...)`, and it is called with a seam exactly 215 times: 1 for the coast and 214 for the 214 mesh cells. The 17 hex TILES are stroked 0 times. The detector that would have caught them is real and is armed with 102 candidate rings (every tile at every height a cell is drawn at); `verify_refusal.py` makes it fire on a synthetic hex. The hex grid contributes no pixel to the delivered raster: it is upstream geometry that the mesh was built FROM, and it is never drawn."
+ },
+ "hexGhost": {
+  "sampleStepGroundUnits": 0.5,
+  "samplesOnIsland": 5585,
+  "rows": [
+   {
+    "toleranceGroundUnits": 0.25,
+    "latticePct": 40.5,
+    "controlDisplacedPct": 13.0,
+    "controlRotated17degPct": 9.5,
+    "ratioVsRotatedControl": 4.28
+   },
+   {
+    "toleranceGroundUnits": 0.5,
+    "latticePct": 49.8,
+    "controlDisplacedPct": 22.5,
+    "controlRotated17degPct": 17.6,
+    "ratioVsRotatedControl": 2.82
+   },
+   {
+    "toleranceGroundUnits": 1.0,
+    "latticePct": 64.2,
+    "controlDisplacedPct": 43.0,
+    "controlRotated17degPct": 32.9,
+    "ratioVsRotatedControl": 1.95
+   },
+   {
+    "toleranceGroundUnits": 2.0,
+    "latticePct": 82.5,
+    "controlDisplacedPct": 62.4,
+    "controlRotated17degPct": 57.7,
+    "ratioVsRotatedControl": 1.43
+   }
+  ],
+  "reading": "THE OWNER'S EYE IS NOT WRONG, AND THIS IS THE NUMBER THAT SAYS SO. No hex tile is stroked (the inventory above is total), but the mesh is BUILT from the lattice \u2014 `substrate.ts` interns the same `hexCorners` \u2014 and a substantial part of the lattice SURVIVES as cell edges. At a 1.0 ground-unit tolerance 64.2% of the hex lattice's perimeter is still traced by some cell edge, against 32.9% for the same lattice rotated 17 degrees and 43.0% displaced half a hex width \u2014 a 1.95x excess over chance that holds across the whole tolerance sweep. `buildMeshCells` erodes the lattice without erasing it: same-owner triangles are MERGED across a shared hex-boundary edge (deleting that edge), and every unpinned vertex is then RELAXED (jitter 0.42, 3 iterations) \u2014 but pinned rim vertices do not move and unmerged boundaries survive. So the island really does carry hex-scale structure in its seams. WHAT FOLLOWS IS THE PRACTICAL POINT: there is no hex seam to remove on its own. The hex-shaped lines a viewer sees ARE cell seams, so the only lever that removes them is the one that removes ALL the interior seams \u2014 which is exactly what panels 3 and 4 show."
+ },
+ "scatter": {
+  "tuft": 95,
+  "shrub": 10,
+  "wilt": 1,
+  "flower": 6,
+  "centroidFallbacks": 0,
+  "flowerFallbacks": 0
+ },
+ "deliveredPixels": {
+  "islandSolidPx": 34968,
+  "panels": {
+   "as-is": {
+    "changedVsAsIs": 0,
+    "changedVsAsIsPctOfIsland": 0.0
+   },
+   "hex-off": {
+    "changedVsAsIs": 0,
+    "changedVsAsIsPctOfIsland": 0.0
+   },
+   "cells-off": {
+    "changedVsAsIs": 2221,
+    "changedVsAsIsPctOfIsland": 6.35
+   },
+   "both-off": {
+    "changedVsAsIs": 2221,
+    "changedVsAsIsPctOfIsland": 6.35
+   },
+   "all-off": {
+    "changedVsAsIs": 2596,
+    "changedVsAsIsPctOfIsland": 7.42
+   }
+  },
+  "asIsEqualsHexOff": true,
+  "cellsOffEqualsBothOff": true
+ },
+ "fillsHeld": {
+  "cellsSampled": 214,
+  "cellsWhoseDeliveredFillMoved": 0,
+  "meanModalPurity": 0.779,
+  "reading": "Seam suppression drops `seam_rgb` to None and touches nothing else, so every cell's own delivered fill must be identical across the fork. It is. Had a fill moved, the four panels would differ in more than one variable and none of them would be evidence."
+ },
+ "whatRemovalCosts": {
+  "cellAdjacencies": 396,
+  "crossCapabilityAdjacencies": 77,
+  "crossCapabilityAdjacenciesThatGoInvisible": 4,
+  "crossCapabilityAdjacenciesThatGoInvisiblePct": 5.2,
+  "sameCapabilityAdjacenciesThatMerge": 119,
+  "sameCapabilityAdjacencies": 319,
+  "invisibleCrossCapabilityDetail": [
+   {
+    "cells": [
+     11,
+     12
+    ],
+    "caps": [
+     2,
+     8
+    ],
+    "statuses": [
+     "building",
+     "building"
+    ],
+    "colour": [
+     230,
+     188,
+     104
+    ]
+   },
+   {
+    "cells": [
+     143,
+     144
+    ],
+    "caps": [
+     4,
+     0
+    ],
+    "statuses": [
+     "proposed",
+     "healthy"
+    ],
+    "colour": [
+     214,
+     178,
+     113
+    ]
+   },
+   {
+    "cells": [
+     149,
+     150
+    ],
+    "caps": [
+     4,
+     8
+    ],
+    "statuses": [
+     "proposed",
+     "building"
+    ],
+    "colour": [
+     214,
+     178,
+     113
+    ]
+   },
+   {
+    "cells": [
+     149,
+     152
+    ],
+    "caps": [
+     4,
+     8
+    ],
+    "statuses": [
+     "proposed",
+     "building"
+    ],
+    "colour": [
+     214,
+     178,
+     113
+    ]
+   }
+  ],
+  "reading": "A seam is drawn in its OWN cell's status token at `SEAM_LEVEL` (0.90) \u2014 a darker shade of the fill it borders \u2014 so it carries no colour a reader could not already get from the fill, and no cell's status, identity or claimed footprint is encoded in it. What a seam CAN be the only thing drawing is a boundary between two cells whose fills happen to deliver the same colour. Across the island's 77 adjacencies that cross a CAPABILITY boundary, 4 would become invisible without the seam (5.2%). That count is the whole measured cost of removing the interior seams."
+ },
+ "statusStillReads": {
+  "statusesOnThisIsland": {
+   "building": 4,
+   "healthy": 4,
+   "mapped": 3,
+   "proposed": 4,
+   "unhealthy": 4
+  },
+  "statusPairsSharingADeliveredColourWithSeams": {
+   "building|healthy": [
+    [
+     214,
+     178,
+     113
+    ]
+   ],
+   "building|proposed": [
+    [
+     214,
+     178,
+     113
+    ]
+   ],
+   "healthy|proposed": [
+    [
+     214,
+     178,
+     113
+    ]
+   ]
+  },
+  "statusPairsSharingADeliveredColourWithoutSeams": {
+   "building|healthy": [
+    [
+     214,
+     178,
+     113
+    ]
+   ],
+   "building|proposed": [
+    [
+     214,
+     178,
+     113
+    ]
+   ],
+   "healthy|proposed": [
+    [
+     214,
+     178,
+     113
+    ]
+   ]
+  },
+  "removalIntroducedNewCollisions": [],
+  "reading": "TWO SEPARATE FACTS, and keeping them apart is the point of measuring the island BOTH ways. (a) Seam removal introduces NO new status collision: the pairs that share a delivered colour are the same 3 with the seams drawn as without them, so nothing about the status read is spent by this change. The tint is carried by the cell FILL, which suppression does not touch \u2014 the mechanical reason the ADR-0367 D5 obligation survives. (b) Those collisions EXIST, and they are a pre-existing property of the island rather than a finding about lines: the shared entry is the WHEAT colour, which several statuses emit identically, so a wheat cell does not report its capability's status by colour whether or not it is outlined. That is worth someone's attention and it is NOT this pass's to fix."
+ },
+ "greenReading": {
+  "deliveredLandPx": 23736,
+  "greenPx": 5117,
+  "greenPct": 21.6,
+  "nonGreenPct": 78.4,
+  "perStatus": {
+   "building": {
+    "deliveredPx": 6328,
+    "greenPct": 0.1
+   },
+   "healthy": {
+    "deliveredPx": 6370,
+    "greenPct": 78.4
+   },
+   "mapped": {
+    "deliveredPx": 1452,
+    "greenPct": 0.0
+   },
+   "proposed": {
+    "deliveredPx": 5727,
+    "greenPct": 2.0
+   },
+   "unhealthy": {
+    "deliveredPx": 3859,
+    "greenPct": 0.1
+   }
+  },
+  "greenTest": "g > r and g > b on the delivered pixel \u2014 a coarse test, chosen because it needs no threshold anyone could tune toward a preferred answer.",
+  "capStatuses": [
+   "healthy",
+   "healthy",
+   "building",
+   "proposed",
+   "proposed",
+   "mapped",
+   "unhealthy",
+   "healthy",
+   "building",
+   "proposed"
+  ],
+  "reading": "'stick with green' is taken as the GROUND treatment: `flat`, with `mottle` and `carpet` declined by the owner and not re-rendered. It is NOT taken as 'paint every cell green', because that would delete the per-capability status tint \u2014 semantic state ADR-0367 D5 puts above the art. This is what the island is today: the non-green share is the wheat and the wilt, and it is the number the owner needs in order to say which reading they meant."
+ },
+ "declinedByTheOwner": {
+  "grassShapeIterations": "the owner answered 'none of these is good enough' on the grass fork (ADR-0280 D4's honest not-good-enough, taken deliberately). Neither the loose blades nor the welded clump is adopted, and this pass is not another grass-shape iteration: the grass renders exactly as it ships.",
+  "mottle": "declined by the owner, 2026-08-16. Not re-rendered here.",
+  "carpet": "declined by the owner, 2026-08-16, and already refused on a number by the prior pass: roughly 3 in 4 grass pixels would assert tests that do not exist, swallowing 9% of the real signal. Not re-rendered here.",
+  "decorativeFlowers": "retired by ADR-0226 \u2014 a flower means UAT and only UAT. Not restored."
+ },
+ "paletteEntries": 132,
+ "cameraElevationDeg": 50.0,
+ "appLandCameraElevationDeg": 20.0
+}
