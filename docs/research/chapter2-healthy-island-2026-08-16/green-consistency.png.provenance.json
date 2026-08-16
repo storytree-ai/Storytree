@@ -3,7 +3,7 @@
  "artifact": "green-consistency.png",
  "producer": {
   "tool": "compose_healthy.py",
-  "sha256": "292719c17dc73c5e143418d4c486a53e3312ed4ccdea36b47243b6f823ad2f76"
+  "sha256": "fe97d6b5cb243371fe9fd728d40cd604eecaf13661324d285b0eeebfcdfac37a"
  },
  "command": {
   "tool": "compose_healthy.py",

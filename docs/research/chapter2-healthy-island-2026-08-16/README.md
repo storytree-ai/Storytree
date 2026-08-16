@@ -23,11 +23,16 @@ page has no standing to make it (ADR-0070 stage 2).
 1. **The story node was `fork-spike-island` — a fixture**, invented for the interior-fork spike on
    2026-08-15 and carried unchanged through every appearance judgment this arc has made: the grass
    pass (#1371), the hex-lines pass (#1372), the dressing pass (#1373).
-2. **Its charcoal is not merely invented — it is a colour the app cannot draw.** The fixture's tenth
-   capability is `unhealthy`, and `worldStatus` folds `unhealthy → mapped` (ADR-0296,
-   owner-directed: *the world draws no withered form*). The shipped map has drawn no charcoal for any
-   story, in any state, since that decision. Two of the fixture's five tokens are like this —
-   `building → proposed` as well (ADR-0038).
+2. **Its charcoal is not merely invented — it is a colour the studio's map cannot reach.** The
+   fixture's tenth capability is `unhealthy`, and `worldStatus` folds `unhealthy → mapped` (ADR-0296,
+   owner-directed: *the world draws no withered form*). Every story the studio's forest map draws
+   passes through `presentStories`, and the app's own legend says the consequence outright: *"Since
+   ADR-0296 withdrew the withered form from the picture, every rendered status is an alive one"*
+   (`WorldLegend.tsx`). Two of the fixture's five tokens are like this — `building → proposed` as
+   well (ADR-0038). **Scope this precisely:** the withered/dead-flora machinery in the render CORE
+   (`packages/forest-world/src/scene.ts`) is intact and `worldStatus.ts` says it is left there
+   deliberately — *"unreachable rather than deleted"*. So the charcoal exists in the code; what it
+   cannot do is arrive through the fold every studio world surface sits behind.
 3. **And no capability anywhere in the corpus is authored `healthy` — 0 of 244.** Green derives from
    a SIGNED VERDICT and never from authored paint (ADR-0040). A healthy story is found in the STORE,
    not in the frontmatter, and looking in the frontmatter is what would have sent this increment
@@ -181,7 +186,12 @@ The whole diff is `docs/research/chapter2-healthy-island-2026-08-16/**`. Asserte
 promised: `verify.py` runs `git diff` + `git ls-files --others` and fails if anything outside
 `docs/research/` moved, and separately re-reads `camera.ts` to confirm the constant.
 
-**No Blender frame was rendered, and that is a proved property rather than a convenience.**
+**No Blender frame was rendered, and that is a proved property rather than a convenience.** (The
+sibling lane settled the question that would otherwise hang over reusing committed pieces:
+[`chapter2-land-render-determinism-2026-08-16`](../chapter2-land-render-determinism-2026-08-16/)
+proved `blender_land.py`'s render **deterministic** under real concurrent load — the suspected
+adaptive-sampling drift was a `--samples` difference between two lanes, 32 against 48. So the
+committed pieces this pass composes from are not a measurement of what else the box was doing.)
 `blender_land.py` renders one sprite per variant-A shape class (six kites) plus 16 wall headings, and
 those kite shapes are a property of the HEX LATTICE, not of which hexes a story claims. The composer
 compares this island's six shape keys against the ones the committed pieces were rendered for and

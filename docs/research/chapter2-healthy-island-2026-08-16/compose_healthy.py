@@ -576,13 +576,15 @@ im1.save(os.path.join(OUT, "healthy-island.png"))
 fw, fh = b_fix.size
 sw, sh = b_surface.size
 cw, ch = max(fw, sw), max(fh, sh)
-im2, dr2, TOP2 = sheet(PAD + 2 * (cw + PAD), HDR + ch + CAP + 34,
+im2, dr2, TOP2 = sheet(PAD + 2 * (cw + PAD), HDR + ch + CAP + 58,
                        "WHAT EVERY APPEARANCE JUDGMENT ON THIS ARC WAS ACTUALLY MADE AGAINST",
                        "Left: `fork-spike-island`, a fixture invented for the interior-fork spike "
                        "on 2026-08-15, with ten hand-written capability statuses. Right: a real "
                        "story node. The charcoal on the left is its one fabricated `unhealthy` "
                        "capability - and `worldStatus` folds `unhealthy` to `mapped` (ADR-0296), so "
-                       "the shipped map has drawn NO charcoal for any story since that decision.",
+                       "no story reaches the studio's map wearing it. The withered art still EXISTS "
+                       "in the render core, left there deliberately - 'unreachable rather than "
+                       "deleted' - so this is a claim about the fold, not about the code.",
                        CAM)
 _fix_mix = ", ".join(
     f"{s} x{list(FIXTURE['capStatuses']).count(s)}" for s in sorted(set(FIXTURE["capStatuses"])))

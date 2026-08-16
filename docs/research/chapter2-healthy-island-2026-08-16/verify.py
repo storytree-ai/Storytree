@@ -156,6 +156,32 @@ check("the pass's declared RENDERED vocabulary excludes both folded-away tokens"
       "building" not in P.RENDERED_VOCABULARY and "unhealthy" not in P.RENDERED_VOCABULARY,
       f"{list(P.RENDERED_VOCABULARY)}")
 
+# THE SCOPE OF THE CLAIM, asserted rather than trusted. "The map cannot draw charcoal" is true of the
+# STUDIO's world fold and NOT of the render core, whose withered machinery `worldStatus.ts` says is
+# left in place "unreachable rather than deleted". Both halves are checked, because a claim this
+# pass's headline rests on must not be one a reader has to take on trust — and the over-broad version
+# ("the app cannot draw it") was in this README until this check was written.
+STUDIO_SRC = os.path.join(REPO, "apps", "studio", "src")
+callers = []
+for root, _dirs, files in os.walk(STUDIO_SRC):
+    for f in files:
+        if not f.endswith((".ts", ".tsx")) or ".test." in f:
+            continue
+        body = open(os.path.join(root, f), encoding="utf-8").read()
+        if re.search(r"\bpresentStories\s*\(", body):
+            callers.append(os.path.relpath(os.path.join(root, f), REPO).replace(os.sep, "/"))
+check("`presentStories` is the ONE fold the studio's world sits behind",
+      sorted(set(callers)) == ["apps/studio/src/components/TreeView.tsx",
+                               "apps/studio/src/lib/worldStatus.ts"],
+      f"{sorted(set(callers))}")
+legend = open(os.path.join(STUDIO_SRC, "components", "WorldLegend.tsx"), encoding="utf-8").read()
+check("...and the app's own legend states the consequence: every rendered status is an ALIVE one",
+      "every rendered status is an alive one" in " ".join(legend.split()).lower())
+core = open(os.path.join(REPO, "packages", "forest-world", "src", "scene.ts"), encoding="utf-8").read()
+check("SCOPE: the withered machinery still EXISTS in the render core - unreachable, not deleted",
+      "'unhealthy'" in core and "withered" in core,
+      "so the claim is about the studio's fold, never about the code not containing the colour")
+
 # --- the claim about the fixture, asserted rather than asserted-in-prose ---------------------------
 fixture = json.load(open(os.path.join(GRASS, "island.json")))
 outside = sorted({s for s in fixture["capStatuses"] if s not in P.RENDERED_VOCABULARY})

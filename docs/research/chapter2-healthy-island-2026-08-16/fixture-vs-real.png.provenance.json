@@ -3,7 +3,7 @@
  "artifact": "fixture-vs-real.png",
  "producer": {
   "tool": "compose_healthy.py",
-  "sha256": "292719c17dc73c5e143418d4c486a53e3312ed4ccdea36b47243b6f823ad2f76"
+  "sha256": "fe97d6b5cb243371fe9fd728d40cd604eecaf13661324d285b0eeebfcdfac37a"
  },
  "command": {
   "tool": "compose_healthy.py",
@@ -172,8 +172,8 @@
   "rule": "one code state PER GENERATOR; the composite's identity is the digest of the whole {generator: state} map, so any generator moving moves it"
  },
  "output": {
-  "sha256": "07e2ab7873fd04531f847f473ffcae35e19052d32be1105aad1c08ae9450c2c8",
-  "bytes": 60786
+  "sha256": "ac5745640524106ff6fbbaa183231e97f1769c5309519c87c568d98490bf4c3d",
+  "bytes": 62220
  },
  "cameraElevationDeg": 50.0,
  "storyId": "context-traversal-capture",
