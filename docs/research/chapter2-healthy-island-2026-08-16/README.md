@@ -90,6 +90,21 @@ also fully green) and was rejected for exactly that reason: all four of its crit
 | territory | **13 hexes** — the app's own `max(3, caps + 2)` quota, grown by its own frontier rule |
 | interior | 162 relaxed mesh cells |
 
+### A sibling lane reached the same finding from the other end, independently
+
+[`chapter2-grass-defects-2026-08-16`](../chapter2-grass-defects-2026-08-16/) (#1381) took the owner's
+*"theres bvlack grass"* literally and went looking for black pixels in the vegetation. It found
+**zero** — and found the black instead in the LAND: **4 253 px of charcoal, 12.2% of the island,
+fifteen times the entire vegetation layer**, every pixel owned by the fixture's one fabricated
+`unhealthy` capability. Its verdict on that defect is *"100% a FIXTURE ARTEFACT"*.
+
+**The two lanes are complementary, not duplicative, and the difference matters.** That pass drove
+every capability to `healthy` synthetically and watched the charcoal go to **0 px** — which shows the
+charcoal is a function of the status mix. This pass went and found a story whose status mix is
+**already** like that, so the 0 px is a property of real work rather than of a driven fixture. Two
+instruments, two directions, one root cause: the loudest thing in every picture this arc has shown
+the owner was a status that was made up.
+
 ## 2. Mesh seams off — the owner's decision, executed and re-measured
 
 `seam-fork.png` · report section `whatRemovalCosts`
