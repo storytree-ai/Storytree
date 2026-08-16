@@ -23,9 +23,13 @@ WHAT THIS PASS FOUND BEFORE IT RENDERED ANYTHING, and it changes the shape of th
      SIGNED VERDICT, never from authored paint (ADR-0040), so a "healthy story" is found in the
      STORE, not in the frontmatter. `census_healthy.ts` is the whole-corpus evidence.
 
-So the surface is `library-tech-tree-overlay`: 17 capabilities, every one rendering `healthy` off its
-own signed pass, real test counts 2..14, 4 real UAT criteria. It is the largest fully-green island the
-corpus contains.
+So the surface is `context-traversal-capture`, chosen by `census_healthy.ts` over the whole corpus.
+Sixteen stories render fully green; this is the only one green at BOTH TIERS — all eleven capabilities
+carry their OWN signed pass (none leans on ADR-0097 gate coverage) AND all ten UAT criteria roll up
+`proven`. That second half is what selected it: under ADR-0226 D4 a flower IS a UAT criterion with its
+verdict read from FORM, so on any other candidate every flower would be a closed bud on a picture
+whose whole point is that it is healthy. `library-tech-tree-overlay` is larger (17 capabilities, also
+fully green) and was rejected for exactly that reason.
 
 WHAT ELSE THIS PASS DELIVERS, both already owner-decided and not re-asked:
 
@@ -74,8 +78,18 @@ GOOD = (170, 226, 150)
 BG = (24, 24, 26)
 PAD, HDR, CAP = 10, 52, 40
 
-ISLAND_PATH = os.path.join(HERE, "island.json")
-PROOF_PATH = os.path.join(HERE, "proof.json")
+# THE INPUTS AND THE OUTPUT DIRECTORY ARE OVERRIDABLE, and only `verify_refusal.py` overrides them.
+# A refusal harness has to feed this file the exact thing each guard exists to catch, and the two
+# obvious ways to arrange that are both wrong: copying this script somewhere else re-roots `HERE`, so
+# it can no longer find the prior passes and dies on an unrelated `FileNotFoundError` (measured — five
+# guards "fired" and none of them had reached the guard); and running it in place against perturbed
+# inputs would overwrite the delivered pictures with perturbed ones the moment a guard FAILED to
+# fire, which is precisely the run where you least want that. Reading the inputs and the output
+# directory from the environment lets the harness run the REAL module, resolved from the REAL
+# directory, writing to a scratch directory it throws away.
+ISLAND_PATH = os.environ.get("STORYTREE_HEALTHY_ISLAND") or os.path.join(HERE, "island.json")
+PROOF_PATH = os.environ.get("STORYTREE_HEALTHY_PROOF") or os.path.join(HERE, "proof.json")
+OUT = os.environ.get("STORYTREE_HEALTHY_OUT") or HERE
 FIXTURE_ISLAND = os.path.join(GRASS, "island.json")
 LAND_PIECES = os.path.join(GRASS, "pieces-land")
 DECOR_PIECES = os.path.join(GRASS, "pieces-m00-blade")
@@ -131,16 +145,6 @@ if REAL["wall"]["headings"] != FIXTURE["wall"]["headings"]:
 INPUTS = C.piece_inputs([("pieces-land", LAND_PIECES), ("pieces-m00-blade", DECOR_PIECES)])
 CODE_STATE = D.require_one_state_per_generator(INPUTS)
 
-# --- 1c. the land pass is byte-identical to the shipped compositor ---------------------------------
-# Run BEFORE the seam wrapper is installed: `assert_land_unchanged` compares this pass's land to the
-# shipped one, so it has to compare the UNINSTRUMENTED path or it only proves the wrapper is
-# symmetric. Run on BOTH islands, because the mirror is a property of the compositor and a rebind is
-# exactly the operation that could break it.
-use_island(FIXTURE_ISLAND, LAND_PIECES)
-D.assert_land_unchanged()
-use_island(ISLAND_PATH, LAND_PIECES)
-D.assert_land_unchanged()
-
 # --- 1d. the camera ------------------------------------------------------------------------------
 if abs(C.ELEV - P.PASS_ELEVATION_DEG) > 1e-9:
     raise SystemExit(f"composing at {C.ELEV} but the pass angle is {P.PASS_ELEVATION_DEG}")
@@ -155,25 +159,38 @@ if PROOF["storyId"] != REAL["storyId"] or REAL["storyId"] != P.STORY_ID:
         f"REFUSED: island.json is '{REAL['storyId']}', proof.json is '{PROOF['storyId']}', "
         f"island_pass.STORY_ID is '{P.STORY_ID}'. All three must name one story.")
 
-print(f"refusals passed - piece set valid for this island ({len(real_shapes)} shapes), land "
-      f"byte-identical on BOTH islands, camera {C.ELEV:g} deg, story {P.STORY_ID}", flush=True)
-
-
-# ================================================================= 2. NOTHING HERE IS INVENTED
-# The increment's actual proof obligation. Asserted here as well as in `verify.py` because a picture
-# must not be WRITTEN from data that fails it — a report explaining afterwards that the island was
-# fabricated is not the same object as a composer that refuses to draw one.
+# --- 1f. NOTHING HERE IS INVENTED -----------------------------------------------------------------
+# THE INCREMENT'S ACTUAL PROOF OBLIGATION, and it is a refusal rather than a report line because a
+# picture must not be WRITTEN from data that fails it: a report explaining afterwards that the island
+# was fabricated is not the same object as a composer that declines to draw one.
 CAPS_REAL = REAL["capabilities"]
 statuses_real = [c["status"] for c in CAPS_REAL]
 bad = sorted({s for s in statuses_real if s not in P.RENDERED_VOCABULARY})
 if bad:
     raise SystemExit(f"REFUSED: status(es) {bad} are outside the RENDERED vocabulary "
-                     f"{list(P.RENDERED_VOCABULARY)} — the map cannot draw them")
+                     f"{list(P.RENDERED_VOCABULARY)} - the map cannot draw them")
 for c in CAPS_REAL:
     if c["status"] == "healthy" and c["verdictGlyph"] != "✓":
         raise SystemExit(f"REFUSED: capability {c['id']} renders healthy without a signed pass "
-                         f"(glyph {c['verdictGlyph']!r}) — green is the verdict's (ADR-0040)")
+                         f"(glyph {c['verdictGlyph']!r}) - green is the verdict's (ADR-0040)")
 
+# --- THE LAND MIRROR, run LAST of the refusals because it is the only expensive one ---------------
+# `assert_land_unchanged` composes twice per island, so it costs real seconds; every cheap refusal
+# above and every data refusal below runs first, so a run that is going to be refused for bad DATA is
+# refused before any compute is spent on it. It still runs BEFORE the seam wrapper is installed:
+# it compares this pass's land to the shipped one, so it has to compare the UNINSTRUMENTED path or it
+# only proves the wrapper is symmetric. Run on BOTH islands, because the mirror is a property of the
+# compositor and a rebind is exactly the operation that could break it.
+use_island(FIXTURE_ISLAND, LAND_PIECES)
+D.assert_land_unchanged()
+use_island(ISLAND_PATH, LAND_PIECES)
+D.assert_land_unchanged()
+
+print(f"refusals passed - piece set valid for this island ({len(real_shapes)} shapes), land "
+      f"byte-identical on BOTH islands, camera {C.ELEV:g} deg, story {P.STORY_ID}", flush=True)
+
+
+# ================================================================= 2. WHAT THE SURFACE IS
 REPORT["surface"] = {
     "storyId": REAL["storyId"],
     "storyTitle": REAL["storyTitle"],
@@ -553,7 +570,7 @@ caption(dr1, PAD, TOP1 + ih + 6, [
     ("nothing on this island is invented - the statuses, the contract counts and the UAT criteria "
      "are all read from the corpus and the live store", DIM),
 ], im1.size[0] - 2 * PAD)
-im1.save(os.path.join(HERE, "healthy-island.png"))
+im1.save(os.path.join(OUT, "healthy-island.png"))
 
 # ---- 2. WHAT IT REPLACES -------------------------------------------------------------------------
 fw, fh = b_fix.size
@@ -581,7 +598,7 @@ for k, (img, title, lines) in enumerate([
     cx = PAD + k * (cw + PAD)
     im2.paste(img, (cx, TOP2))
     caption(dr2, cx, TOP2 + ch + 6, [(title, INK)] + lines, cw - PAD)
-im2.save(os.path.join(HERE, "fixture-vs-real.png"))
+im2.save(os.path.join(OUT, "fixture-vs-real.png"))
 
 # ---- 3. THE SEAM FORK, on the real island --------------------------------------------------------
 im3, dr3, TOP3 = sheet(PAD + 2 * (iw + PAD), HDR + ih + CAP + 46,
@@ -608,7 +625,7 @@ caption(dr3, PAD, TOP3 + ih + 32, [
      f"is arithmetic, not a regression: a boundary is invisible exactly when both sides deliver the "
      f"same colour, and on a one-status island every neighbour pair already agrees.", DIM),
 ], im3.size[0] - 2 * PAD)
-im3.save(os.path.join(HERE, "seam-fork.png"))
+im3.save(os.path.join(OUT, "seam-fork.png"))
 
 # ---- 4. DETAIL 6x --------------------------------------------------------------------------------
 Z = 6
@@ -632,7 +649,7 @@ for k, (t, img) in enumerate(zoom):
     cx = PAD + k * (CW * Z + PAD)
     im4.paste(img, (cx, TOP4))
     dr4.text((cx, TOP4 + CH * Z + 6), t, fill=(HI if k == 1 else (WARN if k == 2 else DIM)))
-im4.save(os.path.join(HERE, "island-detail-6x.png"))
+im4.save(os.path.join(OUT, "island-detail-6x.png"))
 
 # ---- 5. WHY THE GREEN STILL VARIES, with the status variable removed -----------------------------
 # The owner's SECOND complaint, and the one this island is the right instrument for: with every
@@ -661,7 +678,7 @@ for name, v in groups:
     dr5.text((sx - SWZ * len(v["colours"]), TOP5 + SWH + 5), name, fill=INK)
     dr5.text((sx - SWZ * len(v["colours"]), TOP5 + SWH + 18), f"{v['cells']} cells", fill=DIM)
     sx += PAD
-im5.save(os.path.join(HERE, "green-consistency.png"))
+im5.save(os.path.join(OUT, "green-consistency.png"))
 
 
 # ================================================================= 6. report + sidecars
@@ -676,14 +693,14 @@ REPORT["landPieceSetValidForThisIsland"] = {
                "claims, so the committed piece set covers this island. Measured, not assumed - if "
                "it had differed the pieces would have needed a re-render.",
 }
-with open(os.path.join(HERE, "island-report.json"), "w") as fh:
+with open(os.path.join(OUT, "island-report.json"), "w") as fh:
     json.dump(REPORT, fh, indent=1)
 
 PICTURES = ("healthy-island.png", "fixture-vs-real.png", "seam-fork.png", "island-detail-6x.png",
             "green-consistency.png")
 for pic in PICTURES:
     provenance.write_sidecar(
-        os.path.join(HERE, pic), __file__, sys.argv[1:], INPUTS, CODE_STATE,
+        os.path.join(OUT, pic), __file__, sys.argv[1:], INPUTS, CODE_STATE,
         extra={"cameraElevationDeg": C.ELEV,
                "storyId": P.STORY_ID,
                "variant": "b++ land, flat green ground, interior mesh seams REMOVED (coast kept); "
