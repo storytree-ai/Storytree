@@ -214,7 +214,7 @@ REPORT["fixtureItReplaces"] = {
 
 
 # ================================================================= 3. COMPOSING
-def compose_panel(island_path, drawn, ground=P.GROUND, decor=None, caps=None):
+def compose_panel(island_path, drawn, ground=P.GROUND, decor=None, caps=None, tree=True):
     """One delivered composite: mount the island, suppress the named seam classes, compose.
 
     Returns (rgba, solid, inventory). Seam suppression drops `seam_rgb` to None on the way through
@@ -228,9 +228,9 @@ def compose_panel(island_path, drawn, ground=P.GROUND, decor=None, caps=None):
     ctrl = S.SeamControl(C, island, lattice).install()
     ctrl.reset(drawn)
     try:
-        items = decor(island, cells) if decor else []
+        items = decor(island, cells)[0] if decor else []
         img, solid, colours, _g = D.render_variant(items, cells=cells, caps=caps,
-                                                   tree=True, ground=ground)
+                                                   tree=tree, ground=ground)
     finally:
         ctrl.restore()
     return img, solid, ctrl.inventory(), colours
@@ -264,6 +264,21 @@ FIX, FIX_SOLID, FIX_INV, _fc = compose_panel(FIXTURE_ISLAND, P.SEAMS_AS_IS)
 # ---- the real island dressed at REAL test counts (the DECLINED grass, shown for its density) -----
 DRESSED, DRESSED_SOLID, _di, _dc = compose_panel(ISLAND_PATH, P.SEAMS_DRAWN, decor=scatter_real)
 
+# ---- THE MEASUREMENT PAIR: the same two panels with NO HERO TREE --------------------------------
+# EVERY per-cell measurement below runs on these, and the reason is a bug this pass shipped once and
+# caught in its own swatch strip. The hero tree is composited ON TOP of the land at 1:1, so a cell
+# whose projected centroid falls under the canopy or the trunk has those pixels as its modal fill:
+# `cell_modal_fill` was reporting dark browns as land colours, `variation_breakdown` was drawing them
+# in the swatch strip, and — the part that actually mattered — the boundary cost was counting two
+# cells as "delivering the same colour" when what they had in common was the trunk covering both.
+# The tree is art composited after the back half, not a land fill, so measuring the land means
+# measuring the land WITHOUT it. The delivered pictures keep the tree; only the instruments lose it.
+SURFACE_BARE, SURFACE_BARE_SOLID, _sbi, SURFACE_BARE_COLOURS = compose_panel(
+    ISLAND_PATH, P.SEAMS_DRAWN, tree=False)
+AS_IS_BARE, AS_IS_BARE_SOLID, _abi, AS_IS_BARE_COLOURS = compose_panel(
+    ISLAND_PATH, P.SEAMS_AS_IS, tree=False)
+FIX_BARE, FIX_BARE_SOLID, _fbi, _fbc = compose_panel(FIXTURE_ISLAND, P.SEAMS_AS_IS, tree=False)
+
 # The scatter's own statistics, recomputed outside the render so the counts are reportable.
 use_island(ISLAND_PATH, LAND_PIECES)
 _cells = D.prepare(D.ISLAND["variantB"]["cells"])
@@ -286,9 +301,10 @@ def delivered_rgb(img):
     return img[:, :, :3].astype(np.int32)
 
 
-changed = int(np.count_nonzero(np.any(delivered_rgb(SURFACE) != delivered_rgb(AS_IS), axis=2)
-                               & (SURFACE_SOLID | AS_IS_SOLID)))
-island_px = int(np.count_nonzero(AS_IS_SOLID))
+changed = int(np.count_nonzero(
+    np.any(delivered_rgb(SURFACE_BARE) != delivered_rgb(AS_IS_BARE), axis=2)
+    & (SURFACE_BARE_SOLID | AS_IS_BARE_SOLID)))
+island_px = int(np.count_nonzero(AS_IS_BARE_SOLID))
 
 # --- which cell owns which delivered pixel, so a fill can be compared across the fork --------------
 def cell_modal_fill(img, solid, island):
@@ -318,8 +334,8 @@ def cell_modal_fill(img, solid, island):
 
 
 use_island(ISLAND_PATH, LAND_PIECES)
-FILL_AS_IS = cell_modal_fill(AS_IS, AS_IS_SOLID, D.ISLAND)
-FILL_SURFACE = cell_modal_fill(SURFACE, SURFACE_SOLID, D.ISLAND)
+FILL_AS_IS = cell_modal_fill(AS_IS_BARE, AS_IS_BARE_SOLID, D.ISLAND)
+FILL_SURFACE = cell_modal_fill(SURFACE_BARE, SURFACE_BARE_SOLID, D.ISLAND)
 moved = sum(1 for a, b in zip(FILL_AS_IS, FILL_SURFACE) if a is not None and b is not None and a != b)
 
 # --- the boundary cost, re-measured on THIS island -------------------------------------------------
@@ -348,7 +364,8 @@ REPORT["whatRemovalCosts"] = {
     "crossCapabilityAdjacencies": len(cross_cap),
     "crossCapabilityBoundariesGoingInvisible": len(invisible),
     "sameCapabilityAdjacenciesMerging": len(same_cap_merged),
-    "paletteWidened": bool(SURFACE_COLOURS - AS_IS_COLOURS),
+    "paletteWidened": bool(SURFACE_BARE_COLOURS - AS_IS_BARE_COLOURS),
+    "measuredWithoutTheHeroTree": True,
     "reading":
         "PR #1372 measured 4 of 77 cross-capability boundaries going invisible on the MIXED-status "
         "fixture. That number could not carry over, because a boundary is invisible exactly when "
@@ -367,17 +384,69 @@ def green_share(img, solid):
     return round(100.0 * float(np.count_nonzero(is_green)) / len(rgb), 1), int(len(rgb))
 
 
-g_surface, n_surface = green_share(SURFACE, SURFACE_SOLID)
-g_fixture, n_fixture = green_share(FIX, FIX_SOLID)
+g_surface, n_surface = green_share(SURFACE_BARE, SURFACE_BARE_SOLID)
+g_fixture, n_fixture = green_share(FIX_BARE, FIX_BARE_SOLID)
 REPORT["greenReading"] = {
     "realIslandGreenPct": g_surface, "realIslandPx": n_surface,
     "fixtureGreenPct": g_fixture, "fixturePx": n_fixture,
-    "greenTest": "g > r + 8 and g > b + 8 on the delivered raster",
+    "greenTest": "g > r + 8 and g > b + 8 on the delivered raster, hero tree EXCLUDED",
+    "notComparableTo1372":
+        "PR #1372 reported 21.6% for the fixture on a per-status pixel table; this is a different "
+        "instrument (a direct channel test over the whole land, tree excluded) and the two figures "
+        "are NOT comparable. What IS comparable is the pair below: both islands are measured here "
+        "by this same instrument, in one run.",
     "reading":
         "PR #1372 measured the fixture at 21.6% green and named the lever: the island is not green "
         "because 7 of its 10 capabilities are not healthy. This is that lever pulled with real data "
         "rather than by driving a fixture — the statuses were not changed, a genuinely green story "
         "was found.",
+}
+
+# --- WHY THE GREEN IS NOT CONSISTENT, on an island where every capability agrees ------------------
+# The owner, 2026-08-16: *"the green on the land is not consistent either with different mesh
+# trianles rendering different colors"*. That is usually read as a status-mix complaint, and on the
+# fixture it partly was. This island removes the status variable entirely — all 11 capabilities are
+# `healthy` — so whatever variation survives here is NOT semantic, and can be attributed exactly.
+#
+# Two authored mechanisms produce it, both per-CELL and neither carrying any meaning a reader could
+# act on:
+#   * `variant` (0/1/2)  — `STATUS_TOKENS[status]["top"]` is a THREE-shade list and each cell picks
+#                          one by a hash (`buildRelaxedCells`' own `variant`).
+#   * `wheat` (bool)     — a deterministic subset of hexes is tinted with the wheat token, which on a
+#                          green island is a TAN cell.
+# Counted here per delivered pixel so the complaint has a size. This pass measures and does NOT act:
+# whether to collapse them is an appearance decision and the owner's (ADR-0070 stage 2).
+def variation_breakdown(img, solid, island):
+    fills = cell_modal_fill(img, solid, island)
+    buckets = {}
+    for c, fill in zip(island["variantB"]["cells"], fills):
+        if fill is None:
+            continue
+        key = f"wheat" if c["wheat"] else f"variant-{c['variant']}"
+        b = buckets.setdefault(key, {"cells": 0, "colours": set()})
+        b["cells"] += 1
+        b["colours"].add(fill)
+    return {k: {"cells": v["cells"], "distinctDeliveredColours": len(v["colours"]),
+                "colours": sorted("#%02x%02x%02x" % c for c in v["colours"])}
+            for k, v in sorted(buckets.items())}
+
+
+VARIATION = variation_breakdown(SURFACE_BARE, SURFACE_BARE_SOLID, D.ISLAND)
+distinct_land = sorted({f for f in FILL_SURFACE if f is not None})
+wheat_cells = sum(1 for c in cells_real if c["wheat"])
+REPORT["greenConsistency"] = {
+    "capabilitiesOnThisIsland": len(CAPS_REAL),
+    "distinctStatusesOnThisIsland": 1,
+    "distinctDeliveredCellFills": len(distinct_land),
+    "byAuthoredMechanism": VARIATION,
+    "wheatCells": wheat_cells,
+    "wheatCellsPct": round(100.0 * wheat_cells / max(1, len(cells_real)), 1),
+    "reading":
+        "the status variable is REMOVED on this island - every capability is `healthy` - so every "
+        "remaining cell-to-cell colour difference is authored variation carrying no meaning: the "
+        "three-entry `top` shade list picked per cell by hash, and the wheat subset. That is the "
+        "measurable content of the owner's 'different mesh triangles rendering different colors'. "
+        "MEASURED, NOT ACTED ON: collapsing them is an appearance decision and the owner's.",
 }
 
 REPORT["decorAtRealTestCounts"] = {
@@ -400,26 +469,51 @@ def board(img):
     return Image.fromarray(C.on_board(img.astype(np.uint8)), "RGB")
 
 
+_DUMMY = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+
+
+def wrap_to(text, width):
+    """Greedy word wrap to a pixel width. Used for BOTH the header and the per-panel captions.
+
+    The prior passes wrapped only the header, and a caption was assumed short enough. On this sheet
+    they are not: a caption naming eleven capabilities and their status mix ran off its own column
+    and over the neighbouring panel's, so a picture whose whole subject is honest attribution had
+    two captions overlapping. Wrapping the captions with the same function that wraps the header is
+    the fix, and it is why this returns a LIST rather than drawing.
+    """
+    if not text:
+        return []
+    out, line = [], ""
+    for word in str(text).split():
+        trial = f"{line} {word}".strip()
+        if _DUMMY.textlength(trial) > width and line:
+            out.append(line)
+            line = word
+        else:
+            line = trial
+    if line:
+        out.append(line)
+    return out
+
+
+def caption(dr, x, y, lines, width):
+    """Draw wrapped caption lines from the top-left, returning the y after the last one."""
+    for text, fill in lines:
+        for part in wrap_to(text, width):
+            dr.text((x, y), part, fill=fill)
+            y += 12
+    return y
+
+
 def sheet(w, h, title, sub, sub2=None):
-    """A titled board whose header lines WRAP rather than clip — the hex-lines pass's, unchanged."""
-    dummy = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+    """A titled board whose header lines WRAP rather than clip — the hex-lines pass's, extended so
+    the TITLE wraps too (a long title clipped at the right edge on the first run here)."""
 
     def wrap(text):
-        if not text:
-            return []
-        out, line = [], ""
-        for word in text.split():
-            trial = f"{line} {word}".strip()
-            if dummy.textlength(trial) > w - 2 * PAD and line:
-                out.append(line)
-                line = word
-            else:
-                line = trial
-        if line:
-            out.append(line)
-        return out
+        return wrap_to(text, w - 2 * PAD)
 
-    rows = [(title, INK)] + [(t, DIM) for t in wrap(sub)] + [(t, WARN) for t in wrap(sub2)]
+    rows = [(t, INK) for t in wrap(title)] + [(t, DIM) for t in wrap(sub)] + \
+           [(t, WARN) for t in wrap(sub2)]
     top = 12 + 13 * len(rows)
     im = Image.new("RGB", (w, h + max(0, top - HDR)), BG)
     dr = ImageDraw.Draw(im)
@@ -439,8 +533,12 @@ b_fix = board(FIX)
 b_dressed = board(DRESSED)
 
 # ---- 1. THE SURFACE ------------------------------------------------------------------------------
+# A FLOOR ON THE SHEET WIDTH. The island is ~276 px wide, and a sheet sized to it alone leaves the
+# header wrapping to four words a line — technically unclipped and unreadable. The floor is the
+# minimum a header line needs, not a decoration.
+SHEET_MIN_W = 560
 iw, ih = b_surface.size
-im1, dr1, TOP1 = sheet(PAD * 2 + iw, HDR + ih + CAP,
+im1, dr1, TOP1 = sheet(max(SHEET_MIN_W, PAD * 2 + iw), HDR + ih + CAP + 14,
                        f"THE RESEARCH SURFACE - `{P.STORY_ID}`, a real story node",
                        f"{len(CAPS_REAL)} capabilities, every one rendering `healthy` off its own "
                        f"SIGNED PASS (not authored paint - ADR-0040). Real contract counts "
@@ -450,17 +548,18 @@ im1, dr1, TOP1 = sheet(PAD * 2 + iw, HDR + ih + CAP,
                        f"ground flat green - both owner-decided 2026-08-16.",
                        CAM)
 im1.paste(b_surface, (PAD, TOP1))
-dr1.text((PAD, TOP1 + ih + 6), f"{g_surface}% of the delivered land is green", fill=GOOD)
-dr1.text((PAD, TOP1 + ih + 18),
-         "nothing on this island is invented: statuses, test counts and UAT criteria are all read",
-         fill=DIM)
+caption(dr1, PAD, TOP1 + ih + 6, [
+    (f"{g_surface}% of the delivered land is green (the fixture it replaces: {g_fixture}%)", GOOD),
+    ("nothing on this island is invented - the statuses, the contract counts and the UAT criteria "
+     "are all read from the corpus and the live store", DIM),
+], im1.size[0] - 2 * PAD)
 im1.save(os.path.join(HERE, "healthy-island.png"))
 
 # ---- 2. WHAT IT REPLACES -------------------------------------------------------------------------
 fw, fh = b_fix.size
 sw, sh = b_surface.size
 cw, ch = max(fw, sw), max(fh, sh)
-im2, dr2, TOP2 = sheet(PAD + 2 * (cw + PAD), HDR + ch + CAP + 14,
+im2, dr2, TOP2 = sheet(PAD + 2 * (cw + PAD), HDR + ch + CAP + 34,
                        "WHAT EVERY APPEARANCE JUDGMENT ON THIS ARC WAS ACTUALLY MADE AGAINST",
                        "Left: `fork-spike-island`, a fixture invented for the interior-fork spike "
                        "on 2026-08-15, with ten hand-written capability statuses. Right: a real "
@@ -468,24 +567,24 @@ im2, dr2, TOP2 = sheet(PAD + 2 * (cw + PAD), HDR + ch + CAP + 14,
                        "capability - and `worldStatus` folds `unhealthy` to `mapped` (ADR-0296), so "
                        "the shipped map has drawn NO charcoal for any story since that decision.",
                        CAM)
-for k, (img, title, cap, col) in enumerate([
-        (b_fix, "fork-spike-island (INVENTED)",
-         f"10 caps: {', '.join(f'{s} x{list(FIXTURE['capStatuses']).count(s)}' for s in sorted(set(FIXTURE['capStatuses'])))} - {g_fixture}% green",
-         WARN),
-        (b_surface, f"{P.STORY_ID} (REAL, seams off)",
-         f"{len(CAPS_REAL)} caps: healthy x{len(CAPS_REAL)}, all signed - {g_surface}% green",
-         GOOD)]):
+_fix_mix = ", ".join(
+    f"{s} x{list(FIXTURE['capStatuses']).count(s)}" for s in sorted(set(FIXTURE["capStatuses"])))
+for k, (img, title, lines) in enumerate([
+        (b_fix, "fork-spike-island (INVENTED)", [
+            (f"10 caps: {_fix_mix} - {g_fixture}% green", WARN),
+            ("two of its five tokens (`building`, `unhealthy`) are folded away before the map draws "
+             "anything, so they are colours no story can produce", DIM)]),
+        (b_surface, f"{P.STORY_ID} (REAL, seams off)", [
+            (f"{len(CAPS_REAL)} caps: healthy x{len(CAPS_REAL)}, each off its own signed pass; "
+             f"{len(REAL['uatCriteria'])} UAT criteria, all proven - {g_surface}% green", GOOD),
+            ("every status here is provenStatus(authored, signed verdict)", DIM)])]):
     cx = PAD + k * (cw + PAD)
     im2.paste(img, (cx, TOP2))
-    dr2.text((cx, TOP2 + ch + 6), title, fill=INK)
-    dr2.text((cx, TOP2 + ch + 18), cap, fill=col)
-    dr2.text((cx, TOP2 + ch + 30),
-             "two of its five tokens are colours the map cannot produce" if k == 0
-             else "every status here is provenStatus(authored, signed verdict)", fill=DIM)
+    caption(dr2, cx, TOP2 + ch + 6, [(title, INK)] + lines, cw - PAD)
 im2.save(os.path.join(HERE, "fixture-vs-real.png"))
 
 # ---- 3. THE SEAM FORK, on the real island --------------------------------------------------------
-im3, dr3, TOP3 = sheet(PAD + 2 * (iw + PAD), HDR + ih + CAP + 14,
+im3, dr3, TOP3 = sheet(PAD + 2 * (iw + PAD), HDR + ih + CAP + 46,
                        "MESH SEAMS OFF - the owner's decision, executed and re-measured HERE",
                        "One island, one code state, one piece set, ONE variable: `seam_rgb` drops "
                        "to None and nothing else changes. PR #1372 measured the mechanism on the "
@@ -493,18 +592,22 @@ im3, dr3, TOP3 = sheet(PAD + 2 * (iw + PAD), HDR + ih + CAP + 14,
                        "exactly when both sides deliver the same colour, and on a "
                        "uniformly-healthy island that is a different question.",
                        CAM)
-for k, (img, title, cap) in enumerate([
-        (b_asis, "1. as the track has been shipping it", f"every interior cell stroked ({AS_IS_INV['cell']} cells)"),
+for k, (img, title, cap, col) in enumerate([
+        (b_asis, "1. as the track has been shipping it",
+         f"every interior cell stroked ({AS_IS_INV['cell']} cells)", DIM),
         (b_surface, "2. interior seams removed (DELIVERED)",
-         f"{changed} px changed ({REPORT['whatRemovalCosts']['pctOfIsland']}% of the island)")]):
+         f"{changed} px changed ({REPORT['whatRemovalCosts']['pctOfIsland']}% of the island)", HI)]):
     cx = PAD + k * (iw + PAD)
     im3.paste(img, (cx, TOP3))
-    dr3.text((cx, TOP3 + ih + 6), title, fill=INK)
-    dr3.text((cx, TOP3 + ih + 18), cap, fill=(DIM if k == 0 else HI))
-dr3.text((PAD, TOP3 + ih + 30),
-         f"{moved} of {len(cells_real)} cell fills moved  |  "
-         f"{len(invisible)} of {len(cross_cap)} cross-capability boundaries go invisible  |  "
-         f"palette widened: {REPORT['whatRemovalCosts']['paletteWidened']}", fill=GOOD)
+    caption(dr3, cx, TOP3 + ih + 6, [(title, INK), (cap, col)], iw)
+caption(dr3, PAD, TOP3 + ih + 32, [
+    (f"{moved} of {len(cells_real)} cell fills moved  |  "
+     f"{len(invisible)} of {len(cross_cap)} cross-capability boundaries go invisible  |  "
+     f"palette widened: {REPORT['whatRemovalCosts']['paletteWidened']}", GOOD),
+    (f"PR #1372 measured 4 of 77 on the MIXED-status fixture. The share is far higher here and that "
+     f"is arithmetic, not a regression: a boundary is invisible exactly when both sides deliver the "
+     f"same colour, and on a one-status island every neighbour pair already agrees.", DIM),
+], im3.size[0] - 2 * PAD)
 im3.save(os.path.join(HERE, "seam-fork.png"))
 
 # ---- 4. DETAIL 6x --------------------------------------------------------------------------------
@@ -531,6 +634,35 @@ for k, (t, img) in enumerate(zoom):
     dr4.text((cx, TOP4 + CH * Z + 6), t, fill=(HI if k == 1 else (WARN if k == 2 else DIM)))
 im4.save(os.path.join(HERE, "island-detail-6x.png"))
 
+# ---- 5. WHY THE GREEN STILL VARIES, with the status variable removed -----------------------------
+# The owner's SECOND complaint, and the one this island is the right instrument for: with every
+# capability agreeing, any remaining variation is provably not semantic. The swatch strip is drawn
+# from the DELIVERED raster's own modal cell fills, so it is what the picture contains rather than
+# what the palette allows.
+SWZ, SWH = 46, 34
+groups = list(VARIATION.items())
+strip_w = max(SHEET_MIN_W, PAD + sum(PAD + SWZ * max(1, len(v["colours"])) for _k, v in groups))
+im5, dr5, TOP5 = sheet(strip_w, HDR + SWH + 62,
+                       "THE GREEN IS NOT UNIFORM - and on THIS island that is provably not status",
+                       f"All {len(CAPS_REAL)} capabilities are `healthy`, so the semantic variable "
+                       f"is gone. What remains is authored per-CELL variation carrying no meaning a "
+                       f"reader could act on: the three-entry `top` shade list picked by hash, and "
+                       f"the wheat subset ({wheat_cells} of {len(cells_real)} cells = "
+                       f"{REPORT['greenConsistency']['wheatCellsPct']}%). "
+                       f"{len(distinct_land)} distinct delivered cell fills in total.",
+                       "MEASURED, NOT ACTED ON - whether to collapse these is an appearance "
+                       "decision and the owner's (ADR-0070 stage 2). " + CAM)
+sx = PAD
+for name, v in groups:
+    for c in v["colours"]:
+        rgb = tuple(int(c[i:i + 2], 16) for i in (1, 3, 5))
+        dr5.rectangle([sx, TOP5, sx + SWZ - 4, TOP5 + SWH], fill=rgb)
+        sx += SWZ
+    dr5.text((sx - SWZ * len(v["colours"]), TOP5 + SWH + 5), name, fill=INK)
+    dr5.text((sx - SWZ * len(v["colours"]), TOP5 + SWH + 18), f"{v['cells']} cells", fill=DIM)
+    sx += PAD
+im5.save(os.path.join(HERE, "green-consistency.png"))
+
 
 # ================================================================= 6. report + sidecars
 REPORT["paletteEntries"] = int(len(C.PALETTE))
@@ -547,7 +679,8 @@ REPORT["landPieceSetValidForThisIsland"] = {
 with open(os.path.join(HERE, "island-report.json"), "w") as fh:
     json.dump(REPORT, fh, indent=1)
 
-PICTURES = ("healthy-island.png", "fixture-vs-real.png", "seam-fork.png", "island-detail-6x.png")
+PICTURES = ("healthy-island.png", "fixture-vs-real.png", "seam-fork.png", "island-detail-6x.png",
+            "green-consistency.png")
 for pic in PICTURES:
     provenance.write_sidecar(
         os.path.join(HERE, pic), __file__, sys.argv[1:], INPUTS, CODE_STATE,

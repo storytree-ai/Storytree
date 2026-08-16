@@ -20,10 +20,18 @@ this arc has made so far, was `fork-spike-island` — a SYNTHETIC fixture. See `
 """
 
 # --------------------------------------------------------------------------- the story
-#: THE REAL STORY NODE. Chosen by `census_healthy.ts` over the whole corpus, not by preference: it is
-#: the LARGEST story whose every capability renders `healthy` (17 of 17, each from a signed pass) and
-#: which is not `retired` (a retired story has no island at all, ADR-0038).
-STORY_ID = "library-tech-tree-overlay"
+#: THE REAL STORY NODE. Chosen by `census_healthy.ts` over the whole corpus, not by preference.
+#:
+#: Sixteen stories render fully green. This is the only one that is green at BOTH TIERS: all eleven
+#: capabilities carry their OWN signed pass (none leans on ADR-0097 gate coverage), AND all ten of
+#: its UAT test criteria roll up `proven`. That second half is what makes it the right surface rather
+#: than merely a green one — under ADR-0226 D4 a flower IS a UAT criterion with its verdict read from
+#: FORM, so on any other candidate the island's flowers would all be closed buds. `library-tech-tree-
+#: overlay` is larger (17 capabilities) but every one of its 4 criteria is `pending`, which would put
+#: four unproven buds on a picture whose whole point is that it is healthy.
+#:
+#: 11 capabilities -> a 13-hex territory; real contract counts 4..7; 10 proven criteria.
+STORY_ID = "context-traversal-capture"
 
 #: The fixture every prior judgment on this arc was actually made against, kept here because this
 #: pass renders it BESIDE the real island — a claim about a fixture is worth what the picture beside

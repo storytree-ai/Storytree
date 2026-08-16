@@ -28,6 +28,7 @@ import { fileURLToPath } from 'node:url';
 import { createPool, closePool } from '../../../packages/library/src/store/index.js';
 import { PgWorkStore } from '../../../packages/orchestrator/src/store/index.js';
 import { deriveVerdictGlyphs, readVerdictEvents } from '../../../packages/drive/src/index.js';
+import { rollupCapStatus } from '../../../packages/orchestrator/src/index.js';
 import { loadNodeSpec, type NodeSpec } from '../../../packages/orchestrator/src/node-spec.js';
 
 import { asciiJson } from './ascii_json.js';
@@ -44,7 +45,8 @@ const argOf = (n: string, f: string): string => {
 };
 const JSON_OUT = argOf('--json', join(HERE, 'census.json'));
 
-/** `apps/studio/src/lib/worldStatus.ts`, ported — see `emit_proof.ts` for why it is a port. */
+/** `apps/studio/src/lib/worldStatus.ts`, ported — see `emit_proof.ts` for why it is a port, and
+ *  why the PROOF half beside it is imported rather than reduced by hand. */
 const worldStatus = (s: string | null): string | null =>
   s === 'building' ? 'proposed' : s === 'unhealthy' ? 'mapped' : s;
 const provenStatus = (s: string | null, outcome: string | undefined): string | null =>
@@ -82,6 +84,8 @@ interface Row {
   rendersOnMap: boolean;
   caps: number;
   authoredHealthy: number;
+  /** green through a covering reliability gate, not its own verdict (ADR-0097 §5). */
+  greenViaGateCoverage: number;
   renderedHealthy: number;
   allGreen: boolean;
   /** allGreen AND the story is not retired — the actual candidate test. */
@@ -105,6 +109,8 @@ async function main(): Promise<void> {
       const dir = join(STORIES, e.name);
       const spec = storySpecIn(dir, e.name);
       if (!spec) continue;
+      // ADR-0097 gate coverage is part of the app's per-cap fold, so it is part of this census's.
+      const coverage = spec.reliabilityGates.map((g) => ({ id: g.id, covers: g.covers }));
       const caps = spec.capabilities
         .map((capId) => {
           const f = join(dir, `${capId}.md`);
@@ -112,9 +118,12 @@ async function main(): Promise<void> {
           try {
             const cs = loadNodeSpec(f);
             const g = glyphs.get(capId);
+            const rolled = rollupCapStatus(capId, events, coverage);
             return {
               authored: cs.status,
-              rendered: provenStatus(cs.status, g === '✓' ? 'pass' : g === '✗' ? 'fail' : undefined),
+              rendered: provenStatus(cs.status, rolled === 'healthy' ? 'pass' : undefined),
+              ownVerdict: g ?? '–',
+              coveredByGate: rolled === 'healthy' && g !== '✓',
               tests: cs.contracts.length,
             };
           } catch {
@@ -132,6 +141,7 @@ async function main(): Promise<void> {
         rendersOnMap,
         caps: caps.length,
         authoredHealthy: caps.filter((c) => c.authored === 'healthy').length,
+        greenViaGateCoverage: caps.filter((c) => c.coveredByGate).length,
         renderedHealthy: caps.filter((c) => c.rendered === 'healthy').length,
         allGreen,
         candidate: allGreen && rendersOnMap,

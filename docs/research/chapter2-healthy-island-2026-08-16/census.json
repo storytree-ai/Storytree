@@ -1,12 +1,12 @@
 {
- "readAt": "2026-08-16T13:18:15.499Z",
+ "readAt": "2026-08-16T13:22:11.023Z",
  "verdictEventsRead": 2229,
  "fold": "provenStatus \u2014 apps/studio/src/lib/worldStatus.ts (ADR-0040/0038/0296)",
  "totals": {
   "stories": 46,
   "capabilities": 244,
   "authoredHealthy": 0,
-  "renderedHealthy": 125,
+  "renderedHealthy": 164,
   "fullyGreenStories": [
    "library-tech-tree-overlay",
    "context-traversal-capture",
@@ -16,17 +16,18 @@
    "notice-board",
    "uat-criterion-detail",
    "agent",
-   "context-traversal-spawn",
    "context-traversal-transcript",
+   "desktop-build-mount",
    "model-uat-witness",
    "terminal-repo-picker",
-   "context-traversal-telemetry",
    "embedded-terminal",
-   "map-terminal-build",
    "terminal-tabs",
+   "uat-detail-studio",
+   "forest-world",
    "chat-subagent-spawn",
    "chat-drive-bridge",
-   "headless-orchestrator"
+   "headless-orchestrator",
+   "spawn-visibility"
   ],
   "candidates": [
    "library-tech-tree-overlay",
@@ -37,19 +38,20 @@
    "notice-board",
    "uat-criterion-detail",
    "agent",
-   "context-traversal-spawn",
    "context-traversal-transcript",
+   "desktop-build-mount",
    "model-uat-witness",
    "terminal-repo-picker",
-   "context-traversal-telemetry",
    "embedded-terminal",
-   "map-terminal-build",
-   "terminal-tabs"
+   "terminal-tabs",
+   "uat-detail-studio",
+   "forest-world"
   ],
   "retiredButFullyGreen": [
    "chat-subagent-spawn",
    "chat-drive-bridge",
-   "headless-orchestrator"
+   "headless-orchestrator",
+   "spawn-visibility"
   ]
  },
  "rows": [
@@ -59,6 +61,7 @@
    "rendersOnMap": true,
    "caps": 17,
    "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
    "renderedHealthy": 17,
    "allGreen": true,
    "candidate": true,
@@ -93,6 +96,7 @@
    "rendersOnMap": true,
    "caps": 11,
    "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
    "renderedHealthy": 11,
    "allGreen": true,
    "candidate": true,
@@ -121,6 +125,7 @@
    "rendersOnMap": true,
    "caps": 8,
    "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
    "renderedHealthy": 8,
    "allGreen": true,
    "candidate": true,
@@ -146,6 +151,7 @@
    "rendersOnMap": true,
    "caps": 5,
    "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
    "renderedHealthy": 5,
    "allGreen": true,
    "candidate": true,
@@ -168,6 +174,7 @@
    "rendersOnMap": true,
    "caps": 4,
    "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
    "renderedHealthy": 4,
    "allGreen": true,
    "candidate": true,
@@ -189,6 +196,7 @@
    "rendersOnMap": true,
    "caps": 4,
    "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
    "renderedHealthy": 4,
    "allGreen": true,
    "candidate": true,
@@ -210,6 +218,7 @@
    "rendersOnMap": true,
    "caps": 4,
    "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
    "renderedHealthy": 4,
    "allGreen": true,
    "candidate": true,
@@ -231,6 +240,7 @@
    "rendersOnMap": true,
    "caps": 3,
    "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
    "renderedHealthy": 3,
    "allGreen": true,
    "candidate": true,
@@ -246,31 +256,12 @@
    }
   },
   {
-   "story": "context-traversal-spawn",
-   "storyStatus": "proposed",
-   "rendersOnMap": true,
-   "caps": 3,
-   "authoredHealthy": 0,
-   "renderedHealthy": 3,
-   "allGreen": true,
-   "candidate": true,
-   "quota": 5,
-   "tests": [
-    18,
-    8,
-    4
-   ],
-   "uatCriteria": 6,
-   "renderedMix": {
-    "healthy": 3
-   }
-  },
-  {
    "story": "context-traversal-transcript",
    "storyStatus": "proposed",
    "rendersOnMap": true,
    "caps": 3,
    "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
    "renderedHealthy": 3,
    "allGreen": true,
    "candidate": true,
@@ -286,11 +277,33 @@
    }
   },
   {
+   "story": "desktop-build-mount",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 3,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 2,
+   "renderedHealthy": 3,
+   "allGreen": true,
+   "candidate": true,
+   "quota": 5,
+   "tests": [
+    4,
+    4,
+    4
+   ],
+   "uatCriteria": 2,
+   "renderedMix": {
+    "healthy": 3
+   }
+  },
+  {
    "story": "model-uat-witness",
    "storyStatus": "proposed",
    "rendersOnMap": true,
    "caps": 3,
    "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
    "renderedHealthy": 3,
    "allGreen": true,
    "candidate": true,
@@ -311,6 +324,7 @@
    "rendersOnMap": true,
    "caps": 3,
    "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
    "renderedHealthy": 3,
    "allGreen": true,
    "candidate": true,
@@ -326,30 +340,12 @@
    }
   },
   {
-   "story": "context-traversal-telemetry",
-   "storyStatus": "proposed",
-   "rendersOnMap": true,
-   "caps": 2,
-   "authoredHealthy": 0,
-   "renderedHealthy": 2,
-   "allGreen": true,
-   "candidate": true,
-   "quota": 4,
-   "tests": [
-    6,
-    4
-   ],
-   "uatCriteria": 5,
-   "renderedMix": {
-    "healthy": 2
-   }
-  },
-  {
    "story": "embedded-terminal",
    "storyStatus": "proposed",
    "rendersOnMap": true,
    "caps": 2,
    "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
    "renderedHealthy": 2,
    "allGreen": true,
    "candidate": true,
@@ -364,30 +360,12 @@
    }
   },
   {
-   "story": "map-terminal-build",
-   "storyStatus": "proposed",
-   "rendersOnMap": true,
-   "caps": 2,
-   "authoredHealthy": 0,
-   "renderedHealthy": 2,
-   "allGreen": true,
-   "candidate": true,
-   "quota": 4,
-   "tests": [
-    3,
-    4
-   ],
-   "uatCriteria": 7,
-   "renderedMix": {
-    "healthy": 2
-   }
-  },
-  {
    "story": "terminal-tabs",
    "storyStatus": "proposed",
    "rendersOnMap": true,
    "caps": 2,
    "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
    "renderedHealthy": 2,
    "allGreen": true,
    "candidate": true,
@@ -402,11 +380,97 @@
    }
   },
   {
+   "story": "uat-detail-studio",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 2,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 2,
+   "renderedHealthy": 2,
+   "allGreen": true,
+   "candidate": true,
+   "quota": 4,
+   "tests": [
+    2,
+    3
+   ],
+   "uatCriteria": 0,
+   "renderedMix": {
+    "healthy": 2
+   }
+  },
+  {
+   "story": "forest-world",
+   "storyStatus": "mapped",
+   "rendersOnMap": true,
+   "caps": 1,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 1,
+   "renderedHealthy": 1,
+   "allGreen": true,
+   "candidate": true,
+   "quota": 3,
+   "tests": [
+    7
+   ],
+   "uatCriteria": 0,
+   "renderedMix": {
+    "healthy": 1
+   }
+  },
+  {
+   "story": "drive-machinery",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 27,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 18,
+   "renderedHealthy": 23,
+   "allGreen": false,
+   "candidate": false,
+   "quota": 29,
+   "tests": [
+    7,
+    9,
+    8,
+    7,
+    11,
+    8,
+    3,
+    6,
+    11,
+    6,
+    5,
+    8,
+    6,
+    6,
+    6,
+    8,
+    10,
+    4,
+    1,
+    1,
+    1,
+    5,
+    5,
+    16,
+    16,
+    5,
+    4
+   ],
+   "uatCriteria": 3,
+   "renderedMix": {
+    "healthy": 23,
+    "mapped": 4
+   }
+  },
+  {
    "story": "studio",
    "storyStatus": "proposed",
    "rendersOnMap": true,
    "caps": 21,
    "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
    "renderedHealthy": 8,
    "allGreen": false,
    "candidate": false,
@@ -448,7 +512,8 @@
    "rendersOnMap": true,
    "caps": 12,
    "authoredHealthy": 0,
-   "renderedHealthy": 7,
+   "greenViaGateCoverage": 1,
+   "renderedHealthy": 8,
    "allGreen": false,
    "candidate": false,
    "quota": 14,
@@ -468,54 +533,38 @@
    ],
    "uatCriteria": 9,
    "renderedMix": {
-    "proposed": 2,
-    "healthy": 7,
+    "healthy": 8,
+    "proposed": 1,
     "mapped": 3
    }
   },
   {
-   "story": "drive-machinery",
+   "story": "library",
    "storyStatus": "proposed",
    "rendersOnMap": true,
-   "caps": 27,
+   "caps": 10,
    "authoredHealthy": 0,
-   "renderedHealthy": 5,
+   "greenViaGateCoverage": 7,
+   "renderedHealthy": 8,
    "allGreen": false,
    "candidate": false,
-   "quota": 29,
+   "quota": 12,
    "tests": [
-    7,
-    9,
-    8,
-    7,
-    11,
-    8,
-    3,
+    6,
     6,
     11,
-    6,
-    5,
-    8,
-    6,
-    6,
-    6,
-    8,
-    10,
-    4,
     1,
-    1,
-    1,
-    5,
-    5,
-    16,
-    16,
-    5,
-    4
+    6,
+    2,
+    7,
+    15,
+    6,
+    3
    ],
-   "uatCriteria": 3,
+   "uatCriteria": 0,
    "renderedMix": {
-    "mapped": 22,
-    "healthy": 5
+    "healthy": 8,
+    "proposed": 2
    }
   },
   {
@@ -524,6 +573,7 @@
    "rendersOnMap": false,
    "caps": 5,
    "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
    "renderedHealthy": 5,
    "allGreen": true,
    "candidate": false,
@@ -546,6 +596,7 @@
    "rendersOnMap": true,
    "caps": 8,
    "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
    "renderedHealthy": 4,
    "allGreen": false,
    "candidate": false,
@@ -567,11 +618,38 @@
    }
   },
   {
+   "story": "app-surface",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 7,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 2,
+   "renderedHealthy": 4,
+   "allGreen": false,
+   "candidate": false,
+   "quota": 9,
+   "tests": [
+    3,
+    4,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "uatCriteria": 1,
+   "renderedMix": {
+    "healthy": 4,
+    "proposed": 3
+   }
+  },
+  {
    "story": "wisp-as-story-claim",
    "storyStatus": "proposed",
    "rendersOnMap": true,
    "caps": 7,
    "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
    "renderedHealthy": 4,
    "allGreen": false,
    "candidate": false,
@@ -597,6 +675,7 @@
    "rendersOnMap": false,
    "caps": 4,
    "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
    "renderedHealthy": 4,
    "allGreen": true,
    "candidate": false,
@@ -618,6 +697,7 @@
    "rendersOnMap": false,
    "caps": 4,
    "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
    "renderedHealthy": 4,
    "allGreen": true,
    "candidate": false,
@@ -634,12 +714,104 @@
    }
   },
   {
+   "story": "spawn-visibility",
+   "storyStatus": "retired",
+   "rendersOnMap": false,
+   "caps": 4,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 4,
+   "renderedHealthy": 4,
+   "allGreen": true,
+   "candidate": false,
+   "quota": 6,
+   "tests": [
+    3,
+    3,
+    3,
+    3
+   ],
+   "uatCriteria": 6,
+   "renderedMix": {
+    "healthy": 4
+   }
+  },
+  {
+   "story": "cli",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 5,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 3,
+   "renderedHealthy": 3,
+   "allGreen": false,
+   "candidate": false,
+   "quota": 7,
+   "tests": [
+    3,
+    2,
+    4,
+    8,
+    9
+   ],
+   "uatCriteria": 1,
+   "renderedMix": {
+    "healthy": 3,
+    "mapped": 2
+   }
+  },
+  {
+   "story": "art-factory",
+   "storyStatus": "mapped",
+   "rendersOnMap": true,
+   "caps": 4,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 3,
+   "renderedHealthy": 3,
+   "allGreen": false,
+   "candidate": false,
+   "quota": 6,
+   "tests": [
+    6,
+    6,
+    4,
+    4
+   ],
+   "uatCriteria": 0,
+   "renderedMix": {
+    "healthy": 3,
+    "proposed": 1
+   }
+  },
+  {
+   "story": "context-traversal-spawn",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 3,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
+   "renderedHealthy": 2,
+   "allGreen": false,
+   "candidate": false,
+   "quota": 5,
+   "tests": [
+    18,
+    8,
+    4
+   ],
+   "uatCriteria": 6,
+   "renderedMix": {
+    "healthy": 2,
+    "proposed": 1
+   }
+  },
+  {
    "story": "studio-cloud",
    "storyStatus": "proposed",
    "rendersOnMap": true,
    "caps": 8,
    "authoredHealthy": 0,
-   "renderedHealthy": 2,
+   "greenViaGateCoverage": 0,
+   "renderedHealthy": 1,
    "allGreen": false,
    "candidate": false,
    "quota": 10,
@@ -655,61 +827,7 @@
    ],
    "uatCriteria": 5,
    "renderedMix": {
-    "proposed": 6,
-    "healthy": 2
-   }
-  },
-  {
-   "story": "app-surface",
-   "storyStatus": "proposed",
-   "rendersOnMap": true,
-   "caps": 7,
-   "authoredHealthy": 0,
-   "renderedHealthy": 2,
-   "allGreen": false,
-   "candidate": false,
-   "quota": 9,
-   "tests": [
-    3,
-    4,
-    0,
-    0,
-    0,
-    0,
-    0
-   ],
-   "uatCriteria": 1,
-   "renderedMix": {
-    "proposed": 5,
-    "healthy": 2
-   }
-  },
-  {
-   "story": "library",
-   "storyStatus": "proposed",
-   "rendersOnMap": true,
-   "caps": 10,
-   "authoredHealthy": 0,
-   "renderedHealthy": 1,
-   "allGreen": false,
-   "candidate": false,
-   "quota": 12,
-   "tests": [
-    6,
-    6,
-    11,
-    1,
-    6,
-    2,
-    7,
-    15,
-    6,
-    3
-   ],
-   "uatCriteria": 0,
-   "renderedMix": {
-    "mapped": 6,
-    "proposed": 3,
+    "proposed": 7,
     "healthy": 1
    }
   },
@@ -719,6 +837,7 @@
    "rendersOnMap": true,
    "caps": 3,
    "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
    "renderedHealthy": 1,
    "allGreen": false,
    "candidate": false,
@@ -735,32 +854,12 @@
    }
   },
   {
-   "story": "desktop-build-mount",
-   "storyStatus": "proposed",
-   "rendersOnMap": true,
-   "caps": 3,
-   "authoredHealthy": 0,
-   "renderedHealthy": 1,
-   "allGreen": false,
-   "candidate": false,
-   "quota": 5,
-   "tests": [
-    4,
-    4,
-    4
-   ],
-   "uatCriteria": 2,
-   "renderedMix": {
-    "proposed": 2,
-    "healthy": 1
-   }
-  },
-  {
    "story": "studio-members",
    "storyStatus": "proposed",
    "rendersOnMap": true,
    "caps": 3,
    "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
    "renderedHealthy": 1,
    "allGreen": false,
    "candidate": false,
@@ -777,11 +876,54 @@
    }
   },
   {
+   "story": "context-traversal-telemetry",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 2,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
+   "renderedHealthy": 1,
+   "allGreen": false,
+   "candidate": false,
+   "quota": 4,
+   "tests": [
+    6,
+    4
+   ],
+   "uatCriteria": 5,
+   "renderedMix": {
+    "proposed": 1,
+    "healthy": 1
+   }
+  },
+  {
+   "story": "map-terminal-build",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 2,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
+   "renderedHealthy": 1,
+   "allGreen": false,
+   "candidate": false,
+   "quota": 4,
+   "tests": [
+    3,
+    4
+   ],
+   "uatCriteria": 7,
+   "renderedMix": {
+    "proposed": 1,
+    "healthy": 1
+   }
+  },
+  {
    "story": "ci-cd",
    "storyStatus": "proposed",
    "rendersOnMap": true,
    "caps": 7,
    "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
    "renderedHealthy": 0,
    "allGreen": false,
    "candidate": false,
@@ -801,33 +943,12 @@
    }
   },
   {
-   "story": "cli",
-   "storyStatus": "proposed",
-   "rendersOnMap": true,
-   "caps": 5,
-   "authoredHealthy": 0,
-   "renderedHealthy": 0,
-   "allGreen": false,
-   "candidate": false,
-   "quota": 7,
-   "tests": [
-    3,
-    2,
-    4,
-    8,
-    9
-   ],
-   "uatCriteria": 1,
-   "renderedMix": {
-    "mapped": 5
-   }
-  },
-  {
    "story": "app-guide",
    "storyStatus": "proposed",
    "rendersOnMap": true,
    "caps": 4,
    "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
    "renderedHealthy": 0,
    "allGreen": false,
    "candidate": false,
@@ -844,33 +965,12 @@
    }
   },
   {
-   "story": "art-factory",
-   "storyStatus": "mapped",
-   "rendersOnMap": true,
-   "caps": 4,
-   "authoredHealthy": 0,
-   "renderedHealthy": 0,
-   "allGreen": false,
-   "candidate": false,
-   "quota": 6,
-   "tests": [
-    6,
-    6,
-    4,
-    4
-   ],
-   "uatCriteria": 0,
-   "renderedMix": {
-    "mapped": 3,
-    "proposed": 1
-   }
-  },
-  {
    "story": "model-uat-pilot",
    "storyStatus": "proposed",
    "rendersOnMap": true,
    "caps": 4,
    "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
    "renderedHealthy": 0,
    "allGreen": false,
    "candidate": false,
@@ -887,32 +987,12 @@
    }
   },
   {
-   "story": "spawn-visibility",
-   "storyStatus": "retired",
-   "rendersOnMap": false,
-   "caps": 4,
-   "authoredHealthy": 0,
-   "renderedHealthy": 0,
-   "allGreen": false,
-   "candidate": false,
-   "quota": 6,
-   "tests": [
-    3,
-    3,
-    3,
-    3
-   ],
-   "uatCriteria": 6,
-   "renderedMix": {
-    "retired": 4
-   }
-  },
-  {
    "story": "feedback-graduation",
    "storyStatus": "proposed",
    "rendersOnMap": true,
    "caps": 3,
    "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
    "renderedHealthy": 0,
    "allGreen": false,
    "candidate": false,
@@ -933,6 +1013,7 @@
    "rendersOnMap": true,
    "caps": 3,
    "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
    "renderedHealthy": 0,
    "allGreen": false,
    "candidate": false,
@@ -953,6 +1034,7 @@
    "rendersOnMap": false,
    "caps": 3,
    "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
    "renderedHealthy": 0,
    "allGreen": false,
    "candidate": false,
@@ -973,6 +1055,7 @@
    "rendersOnMap": true,
    "caps": 3,
    "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
    "renderedHealthy": 0,
    "allGreen": false,
    "candidate": false,
@@ -993,6 +1076,7 @@
    "rendersOnMap": true,
    "caps": 3,
    "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
    "renderedHealthy": 0,
    "allGreen": false,
    "candidate": false,
@@ -1008,48 +1092,12 @@
    }
   },
   {
-   "story": "uat-detail-studio",
-   "storyStatus": "proposed",
-   "rendersOnMap": true,
-   "caps": 2,
-   "authoredHealthy": 0,
-   "renderedHealthy": 0,
-   "allGreen": false,
-   "candidate": false,
-   "quota": 4,
-   "tests": [
-    2,
-    3
-   ],
-   "uatCriteria": 0,
-   "renderedMix": {
-    "proposed": 2
-   }
-  },
-  {
-   "story": "forest-world",
-   "storyStatus": "mapped",
-   "rendersOnMap": true,
-   "caps": 1,
-   "authoredHealthy": 0,
-   "renderedHealthy": 0,
-   "allGreen": false,
-   "candidate": false,
-   "quota": 3,
-   "tests": [
-    7
-   ],
-   "uatCriteria": 0,
-   "renderedMix": {
-    "mapped": 1
-   }
-  },
-  {
    "story": "proof-protocol",
    "storyStatus": "mapped",
    "rendersOnMap": true,
    "caps": 0,
    "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
    "renderedHealthy": 0,
    "allGreen": false,
    "candidate": false,
@@ -1064,6 +1112,7 @@
    "rendersOnMap": true,
    "caps": 0,
    "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
    "renderedHealthy": 0,
    "allGreen": false,
    "candidate": false,
@@ -1078,6 +1127,7 @@
    "rendersOnMap": true,
    "caps": 0,
    "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
    "renderedHealthy": 0,
    "allGreen": false,
    "candidate": false,

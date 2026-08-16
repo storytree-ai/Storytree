@@ -62,7 +62,10 @@ import { fileURLToPath } from 'node:url';
 // question and not a second copy.
 import { createPool, closePool } from '../../../packages/library/src/store/index.js';
 import { PgWorkStore } from '../../../packages/orchestrator/src/store/index.js';
-import { rollupCriterionStatus } from '../../../packages/orchestrator/src/index.js';
+import {
+  rollupCapStatus,
+  rollupCriterionStatus,
+} from '../../../packages/orchestrator/src/index.js';
 import { deriveVerdictGlyphs, readVerdictEvents } from '../../../packages/drive/src/index.js';
 
 import { loadNodeSpec, type NodeSpec } from '../../../packages/orchestrator/src/node-spec.js';
@@ -105,15 +108,25 @@ function loadStorySpec(): NodeSpec {
 }
 
 /**
- * The app's fold, ported verbatim from `apps/studio/src/lib/worldStatus.ts`.
+ * THE PRESENTATION FOLD, ported from `apps/studio/src/lib/worldStatus.ts`.
  *
- * IT IS RESTATED HERE RATHER THAN IMPORTED, AND THAT IS A REAL COST — a second copy that could
- * drift. It is restated because the original lives in `apps/studio/src`, a browser-bundled React
- * module behind a Vite alias graph, and importing it from a `tsx` script would drag the studio's
- * bundle config into a research pass. So `verify.py` check 2 does what an import would have done
- * mechanically: it re-reads `worldStatus.ts` from disk, extracts its three folding clauses, and
- * fails if this port's behaviour disagrees on any (status x verdict) pair. A copy that is checked
- * against its original on every run is not the same object as a copy nobody compares.
+ * IT IS RESTATED RATHER THAN IMPORTED, AND THAT IS A REAL COST — a second copy that could drift. It
+ * is restated because the original lives in `apps/studio/src`, a browser-bundled React module behind
+ * a Vite alias graph, and importing it from a `tsx` script would drag the studio's bundle config into
+ * a research pass. `verify.py` check 2 does mechanically what an import would have done: it re-reads
+ * `worldStatus.ts` from disk, extracts its folding clauses, and fails if this port disagrees on any
+ * (status x verdict) pair. A copy checked against its original on every run is not the same object
+ * as a copy nobody compares.
+ *
+ * THE PROOF HALF IS NOT PORTED — `rollupCapStatus` is IMPORTED from the orchestrator, and that
+ * distinction cost a real measurement error before it was fixed. A first version of this file
+ * reduced the store to "does this unit have its own signed pass", which is NOT the app's rule:
+ * ADR-0097 §5 (owner decision 2026-06-25, Option A) greens a brownfield capability through a HEALTHY
+ * reliability gate that `(covers:)` it, via that gate's signed verdict. Reducing by own-verdict-only
+ * therefore UNDER-counts the green corpus, and it did — `desktop-build-mount` and `uat-detail-studio`
+ * read partial here while `storytree tree --pg` showed them fully green. The number was wrong in the
+ * safe direction, which is exactly the kind of wrong that survives review. Importing the real compute
+ * removes the class.
  */
 function worldStatus(status: string | null): string | null {
   if (status === 'building') return 'proposed';
@@ -139,19 +152,29 @@ async function main(): Promise<void> {
       );
     }
     const glyphs = deriveVerdictGlyphs(events);
+    /** ADR-0097 reliability gates: `{id, covers}`, exactly the shape `rollupCapStatus` takes. */
+    const coverage = storySpec.reliabilityGates.map((g) => ({ id: g.id, covers: g.covers }));
 
     const capabilities = storySpec.capabilities.map((capId) => {
       const file = join(STORY_DIR, `${capId}.md`);
       if (!existsSync(file)) throw new Error(`stories/${STORY_ID}/${capId}.md is missing`);
       const spec = loadNodeSpec(file);
       const glyph = glyphs.get(capId);
-      const outcome = glyph === '✓' ? 'pass' : glyph === '✗' ? 'fail' : undefined;
+      // The app's own per-capability proof fold, INCLUDING ADR-0097 gate coverage. `glyph` is the
+      // cap's OWN verdict and is reported alongside precisely so the two are distinguishable: a cap
+      // that is green through a covering gate shows glyph `–` and `coveredByGate: true`, which is a
+      // materially different claim from an own-driven pass even though the map paints them alike.
+      const rolled = rollupCapStatus(capId, events, coverage);
+      const outcome = rolled === 'healthy' ? 'pass' : undefined;
       return {
         id: capId,
         title: spec.title,
         authoredStatus: spec.status,
-        /** '✓' signed pass · '✗' signed fail · '–' the store holds no verdict for this unit. */
+        /** '✓' signed pass · '✗' signed fail · '–' the store holds no OWN verdict for this unit. */
         verdictGlyph: glyph ?? '–',
+        rollupStatus: rolled,
+        /** green through a covering reliability gate rather than its own verdict (ADR-0097 §5). */
+        coveredByGate: rolled === 'healthy' && glyph !== '✓',
         verdictOutcome: outcome ?? null,
         /** WHAT THE MAP DRAWS. The only field the island's tint may read. */
         renderedStatus: provenStatus(spec.status, outcome),
@@ -175,9 +198,11 @@ async function main(): Promise<void> {
       storyId: STORY_ID,
       readAt: new Date().toISOString(),
       source:
-        'events.verdict via PgWorkStore.readEvents + deriveVerdictGlyphs (@storytree/drive) — the ' +
-        'same derivation `storytree tree --pg` prints; criterion states via rollupCriterionStatus ' +
-        '(@storytree/orchestrator), the same compute apiRouter.applyUatCriteria uses',
+        'events.verdict via PgWorkStore.readEvents; per-capability status via rollupCapStatus ' +
+        '(@storytree/orchestrator, ADR-0097 coverage included) and criterion states via ' +
+        'rollupCriterionStatus — the same computes `storytree tree --pg` and ' +
+        'apiRouter.applyUatCriteria use. The `verdictGlyph` column is the cap\'s OWN verdict ' +
+        '(deriveVerdictGlyphs), reported separately so gate-covered green stays distinguishable.',
       fold: 'provenStatus(authoredStatus, verdict) — apps/studio/src/lib/worldStatus.ts (ADR-0040 / ADR-0038 / ADR-0296)',
       verdictEventsRead: events.length,
       storyAuthoredStatus: storySpec.status,
