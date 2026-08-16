@@ -123,8 +123,9 @@ is no room to clamp into a neighbouring family.
 
 The number that makes that a finding rather than an unfalsifiable claim: rebuild the palette WITHOUT
 the decor families — the interior fork's own bug, injected at the level it actually occurred — and
-the same check reports **376 bleeding px**, seen as `land:healthy:top@0.78`, `land:healthy:side@0.9`,
-`coast:sand` and `land:building:top@1.0`. The instrument works; the pipeline is clean.
+the same check reports **376 bleeding px**, landing on `land:healthy:top@0.78`,
+`land:healthy:top@0.9`, `land:healthy:side@0.9`, `coast:sand` and `land:building:top@1.0` — i.e. the
+vegetation repainted as ground and as beach. The instrument works; the pipeline is clean.
 
 ### (b) The silhouette rim — it CAN cross families, and it never touches the grass
 
@@ -241,8 +242,8 @@ proved, because a check that cannot fail reports zero for free.
                        back_half_attributed's output equals the shipped C.back_half's
 == the refusals ==     FIRED  a tuft repainted with a FOREIGN status family is caught (2 px)
                        FIRED  a tuft painted #050505 is caught (min decor luma 40.9)
-                       FIRED  a PARTIAL palette reassigns semantic state (376 px, into 5 land
-                              token families + coast sand)
+                       FIRED  a PARTIAL palette reassigns semantic state (376 px, repainted as
+                              land top / land side / coast sand)
                        clean  and the unperturbed healthy island still passes (0 px)
 ```
 
