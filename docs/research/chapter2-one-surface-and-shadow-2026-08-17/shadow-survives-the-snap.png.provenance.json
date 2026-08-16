@@ -1,0 +1,245 @@
+{
+ "schema": "storytree/derived-evidence-provenance/1",
+ "artifact": "shadow-survives-the-snap.png",
+ "producer": {
+  "tool": "compose_shadow.py",
+  "sha256": "2ba76a276e5587e15a010dbc33eac1d26117de67ab19ed302d9c9a13603e9128"
+ },
+ "command": {
+  "tool": "compose_shadow.py",
+  "argv": []
+ },
+ "inputs": [
+  {
+   "label": "pieces-land",
+   "dir": "../chapter2-grass-reads-as-signal-2026-08-16/pieces-land",
+   "codeState": {
+    "generator": "blender_land.py",
+    "sha256": "15927bf56c77cd23bc4d41a7353a5890450aeabca02013a08051beb52613b007"
+   },
+   "pieces": [
+    {
+     "file": "tile-0.png",
+     "sha256": "1ee7c22c6fff10ed32f9b9640ba0eece30d002804eca60b2e6de39b6a8265901"
+    },
+    {
+     "file": "tile-1.png",
+     "sha256": "818b5fc71b1d9cd7553ceeb1c0f2ec9527ee176aaa8e594b62232585f83620a0"
+    },
+    {
+     "file": "tile-2.png",
+     "sha256": "ec3916c73469d5839deacf76e5edfaeff4ace064b489be3a710befa4d806fc72"
+    },
+    {
+     "file": "tile-3.png",
+     "sha256": "1aedbde4e0006247cb19ea189b2ed5a6bb42f832f2394fba8db3888c7000650f"
+    },
+    {
+     "file": "tile-4.png",
+     "sha256": "27fa23b71518728eb40b87dff6f72d3e2560a2072a0dff4c102d5e756040f575"
+    },
+    {
+     "file": "tile-5.png",
+     "sha256": "87c6d38bff0265232e7cdf82c032cecea333722aa3ceb43607e360e9203e5542"
+    },
+    {
+     "file": "wall-0.png",
+     "sha256": "eb70293f078aa0a4f38739f06164c6a5a1be0eea15ce682db2ad2a4624d72b54"
+    },
+    {
+     "file": "wall-1.png",
+     "sha256": "d496dee2922ee97e5332d26b56f9a3f80e6db50fbf8e5f2be64422f64a7104d5"
+    },
+    {
+     "file": "wall-10.png",
+     "sha256": "5deafd8bad1ca17fb364f1175f2c41d412d9712f5f9ad6d48eca9869f4a07f8e"
+    },
+    {
+     "file": "wall-11.png",
+     "sha256": "04c20e73dcc2f75d0b758d0efd388a6664a1087bc85b1c9bf1e7662086a74a09"
+    },
+    {
+     "file": "wall-12.png",
+     "sha256": "d266ae4951e062469549cb4bc46f88a704f481a4e46af03603f774838091d281"
+    },
+    {
+     "file": "wall-13.png",
+     "sha256": "abf3b464b77a2f08c836dbe70d75ff348e7f91e0f9e7fdcf0e7dadaaecc36c5c"
+    },
+    {
+     "file": "wall-14.png",
+     "sha256": "7c49e888aca89fb5fe11043784d6c48865a0448f7e73aa32403856fa20418286"
+    },
+    {
+     "file": "wall-15.png",
+     "sha256": "018b6670f60f35e14d8a6d400b8b65059906fa7f1459268cbcd5b133c5abde5c"
+    },
+    {
+     "file": "wall-2.png",
+     "sha256": "96a8ee518ea6ff8150951a9e26a66761dd006adb0615009e8d0863e2a523e6e8"
+    },
+    {
+     "file": "wall-3.png",
+     "sha256": "2aef979cb09aec63d3bae440f8e02830bec2cd6adc928dea264f9f238c8a1fe2"
+    },
+    {
+     "file": "wall-4.png",
+     "sha256": "05fd3c2cf6507ad616745063458dac4ca7dae9af5aa38c9c1d4fdc10ef4db57c"
+    },
+    {
+     "file": "wall-5.png",
+     "sha256": "274ad4029a93e6eca9b32bd984dc12fa0fd32d032887080342b20eeb60012624"
+    },
+    {
+     "file": "wall-6.png",
+     "sha256": "988ca37b468cf69a10df251f97915e09e8a4667420ddb6e280bd53c2a46e64dd"
+    },
+    {
+     "file": "wall-7.png",
+     "sha256": "8d60816c4126a564e4b2663161ac9158adda120d299d7cdbc2039a2d25fc6c70"
+    },
+    {
+     "file": "wall-8.png",
+     "sha256": "d129cf85047d3f91895bbb2085d3a5774bf814f9dbb4f86f9fabe623345b661f"
+    },
+    {
+     "file": "wall-9.png",
+     "sha256": "a7b5289a20555d7c1bb0b7f1ed6ab50ded942325e7c76b4c1c4795f79f3864ce"
+    }
+   ]
+  },
+  {
+   "label": "pieces-m00-blade",
+   "dir": "../chapter2-grass-reads-as-signal-2026-08-16/pieces-m00-blade",
+   "codeState": {
+    "generator": "blender_grass.py",
+    "sha256": "3eb5515a738b652f260e895e81c90680c42b20061329bd09f15fa3d5fc9cb5e6"
+   },
+   "pieces": [
+    {
+     "file": "flower-failing.png",
+     "sha256": "ef99a3ceba6a9bd40724bf4b5b413b715461906ee6e66008475fd2368fdd5b4f"
+    },
+    {
+     "file": "flower-pending.png",
+     "sha256": "03aa5fff16c965074b27b68ac5144121e943657247b5f9666632a13816793353"
+    },
+    {
+     "file": "flower-proven.png",
+     "sha256": "f6a2a07346697baed79d07bd25458ede57478119c126acdd40df3150b06f60ae"
+    },
+    {
+     "file": "shrub-a.png",
+     "sha256": "0ef484f2be55224b249646a22db8f19205e91e1ce249387845812277405516b2"
+    },
+    {
+     "file": "shrub-b.png",
+     "sha256": "e49f65eb35583a597691db283f102b6ac11da6c30657c7c229a6cc6210995497"
+    },
+    {
+     "file": "tuft-2.png",
+     "sha256": "f98cf4bc5a39336852e92f0fa0812177dec9adc299da525980c0df8f91b2220b"
+    },
+    {
+     "file": "tuft-3a.png",
+     "sha256": "958c461a34bbcc49d123ec8a460c64ee120f36dfb454d2a2575fcd5948d84a88"
+    },
+    {
+     "file": "tuft-3b.png",
+     "sha256": "eacb6331a61c5d000a062d4a1c5bbd93b1001256d28991f4ea4792302e88da44"
+    },
+    {
+     "file": "tuft-4.png",
+     "sha256": "80b7cb931485b8e9b3866a94565e9155f95a747aba454cfe7b13cce41c141e38"
+    },
+    {
+     "file": "wilt-stem.png",
+     "sha256": "927e698055ab9a9be33a7ec7b1b5b42846f4f58f0fff2dc72a8c88d48041c33f"
+    },
+    {
+     "file": "wilt-twig.png",
+     "sha256": "5949dcdf63fb85fd024ab33d99f683f540975d4d35bd0e3d184c186ef2b6872e"
+    }
+   ]
+  }
+ ],
+ "codeState": {
+  "generators": {
+   "blender_grass.py": "3eb5515a738b652f260e895e81c90680c42b20061329bd09f15fa3d5fc9cb5e6",
+   "blender_land.py": "15927bf56c77cd23bc4d41a7353a5890450aeabca02013a08051beb52613b007"
+  },
+  "sha256": "66df58a8729d6a9d26c1d242541e4a091433eb1e6b0ae879e5ea6c96f7a7b2c9",
+  "rule": "one code state PER GENERATOR; the composite's identity is the digest of the whole {generator: state} map, so any generator moving moves it"
+ },
+ "output": {
+  "sha256": "4ca1bc7f38ba3daf6fd4e7022ceafc042e05ebd34a305a541bac48526dcf070c",
+  "bytes": 65481
+ },
+ "cameraElevationDeg": 50.0,
+ "storyId": "context-traversal-capture",
+ "variant": "b++ land, flat green, interior mesh seams REMOVED, per-cell variant/wheat COLLAPSED to one surface, author-time shadow baked before the palette snap",
+ "lightRig": {
+  "authoredKeyRotationDeg": [
+   48.0,
+   0.0,
+   34.0
+  ],
+  "keyElevationDeg": 42.0,
+  "treeShadowElevationDeg": 75.0,
+  "lightScreenFrom": [
+   -0.857,
+   -0.516
+  ],
+  "lightGroundToward": [
+   -0.7862,
+   -0.618
+  ],
+  "shadowFallsTowardGround": [
+   0.7862,
+   0.618
+  ],
+  "measuredFromLandPieces": {
+   "top": 95.5,
+   "chamfer_lit": 95.5,
+   "chamfer_dark": null,
+   "wall_lit": 81.1,
+   "wall_dark": 113.0,
+   "silhouette": 95.5,
+   "litSideIsScreenLeft": true
+  },
+  "measuredFromHeroTreeCrown": {
+   "brightensToward": [
+    -0.857,
+    -0.516
+   ],
+   "crownPx": 4804
+  },
+  "reading": "the rig is READ from the delivered art, not restated: the land pieces put their lit wall band to screen-LEFT of their dark one, and the hero tree's crown brightens up-left by a least-squares fit over its own pixels. Two generators, two shading models, one answer. Both generators already share `KEY_ROT = (48, 0, 34)`, so the land and the tree agreeing is a property this pass INHERITS and must not break, rather than one it establishes.",
+  "honestGap": "working that euler by hand gives the opposite sign on screen x. One of the two is wrong about a convention (Blender's euler order, its sun default axis, or the compositor's ground-y flip relative to the render camera). The delivered pixels are what the owner looked at, so they win \u2014 and the disagreement is recorded rather than resolved."
+ },
+ "shadowTerms": {
+  "terrainCast": 0.12,
+  "canopyCast": 0.19,
+  "joinAO": 0.07,
+  "floor": 0.79,
+  "ladder": [
+   0.9333,
+   0.8667,
+   0.8
+  ]
+ },
+ "paletteEntries": {
+  "shipped": 132,
+  "lightClosed": 506
+ },
+ "statusIsNotCorrupted": {
+  "nonHealthyBodyPx": 986,
+  "bodyPx": 14042
+ },
+ "island": {
+  "sha256": "2b008f312aa8391b7018d2a6a502c7827ec36a1b733e878072478fb09aa138b6"
+ },
+ "proof": {
+  "sha256": "8c6bc0752d50f276cb44159f56ee66cc19e26354acfad92be19d2f8ed3fdb108"
+ }
+}
