@@ -60,6 +60,12 @@ export const AXIAL_DIRS: Axial[] = [
 /**
  * Axial coordinates → SCREEN pixels, through the declared land camera. The `r` axis runs into the
  * ground plane so its pitch foreshortens; the `q` axis runs across the screen so it does not.
+ *
+ * ⚠ NEVER pass this point-free to `Array.prototype.map` — `xs.map(hexCenter)` calls it as
+ * `hexCenter(h, index, array)`, silently feeding each tile's ARRAY INDEX into `elevationDeg`
+ * (the classic `['1','2'].map(parseInt)` trap, load-bearing since this grew its second parameter
+ * under ADR-0367 D1 — it cost `land-camera-consumers-reconcile` a measured content-extent
+ * collapse). Always wrap: `xs.map((h) => hexCenter(h))`.
  */
 export function hexCenter(h: Axial, elevationDeg: number = LAND_CAMERA_ELEVATION_DEG): Pt {
   return {
@@ -71,6 +77,8 @@ export function hexCenter(h: Axial, elevationDeg: number = LAND_CAMERA_ELEVATION
 /**
  * The inverse of {@link hexCenter} — the map's hit test. It MUST read the same camera: an inverse
  * still dividing by a plan-view pitch would mis-key every click on an angled map.
+ *
+ * ⚠ Same point-free `.map` trap as {@link hexCenter} — never pass this bare to `Array.prototype.map`.
  */
 export function pixelToHex(p: Pt, elevationDeg: number = LAND_CAMERA_ELEVATION_DEG): Axial {
   const rf = p.y / (1.5 * HEX_R * groundFlattening(elevationDeg));

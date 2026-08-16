@@ -56,7 +56,14 @@ const ISLANDS: DemoIsland[] = [
 ];
 
 function territoryOf(island: DemoIsland): SceneTerritoryInput {
-  const centres = island.tiles.map(hexCenter);
+  // NOT `island.tiles.map(hexCenter)`: `hexCenter(h, elevationDeg = LAND_CAMERA_ELEVATION_DEG)`
+  // takes an optional second argument, and `Array.prototype.map` calls its callback with
+  // `(element, index, array)` — so a bare `.map(hexCenter)` feeds each tile's ARRAY INDEX into
+  // `elevationDeg`, silently re-flattening every tile by its own position (0deg for the first
+  // tile, 1deg for the second, ...) instead of the declared camera. Same
+  // `['1','2'].map(parseInt)`-shaped trap already fixed at the studio's two call sites
+  // (`TreeView.tsx`, `land-camera-consumers-reconcile`) — this harness carried the identical bug.
+  const centres = island.tiles.map((h) => hexCenter(h));
   const cx = centres.reduce((s, c) => s + c.x, 0) / centres.length;
   const cy = centres.reduce((s, c) => s + c.y, 0) / centres.length;
   return {
