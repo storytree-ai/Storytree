@@ -1,28 +1,35 @@
 #!/usr/bin/env node
 // The corpus-scale comparative capture (frontend-visual-judgment-arc, increment
-// `frontend-corpus-scale-comparative-capture`): renders THIS branch beside
-// `merge-base(origin/main, HEAD)` over the SAME live corpus, same viewport, same settle discipline,
-// and prints the five-measure element-count delta the increment names — content extent (union bbox
-// of `.parcel`), island parcels, `world-cave` portals, `trail-fill`, `parcel-blade` — before it ever
-// writes an image. This is the surface `frontend-builder`'s Stage 2 appearance witnessing now points
-// at, replacing `launchOffline()`'s four-island `TREE_FIXTURE` stub for that purpose (the stub stays
-// for what it is good at: deterministic, DB-less pointer-capture E2E — see harness.mjs's own header).
+// `frontend-corpus-scale-comparative-capture`; settled-attestation + explicit baseline added by
+// increment `frontend-capture-settled-and-explicit-baseline`): renders THIS branch beside a baseline
+// (by default `merge-base(origin/main, HEAD)`) over the SAME live corpus, same viewport, same settle
+// discipline, and prints the five-measure element-count delta the increment names — content extent
+// (union bbox of `.parcel`), island parcels, `world-cave` portals, `trail-fill`, `parcel-blade` —
+// before it ever writes an image. This is the surface `frontend-builder`'s Stage 2 appearance
+// witnessing now points at, replacing `launchOffline()`'s four-island `TREE_FIXTURE` stub for that
+// purpose (the stub stays for what it is good at: deterministic, DB-less pointer-capture E2E — see
+// harness.mjs's own header).
 //
 // NUMBERS FIRST, IMAGE SECOND (the increment's own design note): the delta table is the thing a
 // human never has to eyeball to catch a shrink or a lost connector; the screenshot pair is for the
 // judgment a count cannot make.
 //
-// THE SETTLE IS A SLEEP, ON PURPOSE, STATED PLAINLY. `frontend-settled-signal-from-the-app` (the
-// sibling increment on this arc) has not landed — there is no app-emitted "I have stopped moving"
-// signal yet. Rather than inventing a second, competing one here (explicitly forbidden by this
-// increment's design notes), this script waits for the first real DOM evidence the map painted at
-// all (`g.hex-flora` attached), then SLEEPS a fixed `--settle-ms` (default below) and reads whatever
-// is on screen at that point. Replace this sleep with the real signal the moment it exists; until
-// then, every printed report says so.
+// THE SETTLE IS THE APP'S OWN ATTESTATION, NOT A SLEEP. Both captures are taken through
+// `captureSettledScreenshot` (apps/desktop/e2e/harness.mjs, built for
+// `frontend-settled-signal-from-the-app`) — reused rather than re-derived, so this script waits on
+// `window.__storytreeMotionSettled` exactly the way the desktop E2E harness does, and writes the same
+// `<png>.settled.json` sidecar attestation beside each PNG. There is no plain sleep left here.
 //
-// THE TWO-CHECKOUTS PROBLEM. Comparing against `merge-base(origin/main, HEAD)` means having it
-// checked out and runnable. This script provisions a SEPARATE worktree at that commit (once — later
-// runs reuse it if the merge-base hasn't moved) and `pnpm install`s it, the same shape
+// THE BASELINE IS EXPLICIT, MERGE-BASE STAYS THE DEFAULT. `merge-base(origin/main, HEAD)` answers
+// "did MY BRANCH change the render?" — right for a PR, and the zero-argument behaviour still. It does
+// NOT answer "is the CURRENT render right?", and the two come apart the moment a defect is already on
+// `main`: on a branch that hasn't touched the render, merge-base IS the branch, so a defect already on
+// `main` shows a confident all-zero delta. `--baseline-ref <commit-ish>` lets a caller ask the second
+// question by pointing the baseline capture at an explicit historical commit instead.
+//
+// THE TWO-CHECKOUTS PROBLEM. Comparing against a baseline commit means having it checked out and
+// runnable. This script provisions a SEPARATE worktree at that commit (once — later runs reuse it if
+// the resolved baseline ref hasn't moved) and `pnpm install`s it, the same shape
 // `dogfood-probe.run.ts` already uses for an isolated probe checkout. That + two live-store dev
 // servers + a real Chromium is NOT cheap or fully deterministic (a live corpus can change between
 // the two captures), which is why this is an on-demand command for Stage 2 visual witnessing, not a
@@ -32,11 +39,13 @@
 // ADR-0324's librarian-curation trigger): by default this script first asks whether the branch's own
 // diff against `merge-base(origin/main, HEAD)` even touches the render surface
 // (`frontend-capture-trigger.ts`'s `RENDER_SURFACE_PROJECTS`). An untouched surface prints the
-// reason and exits 0 without spinning anything up; `--force` overrides.
+// reason and exits 0 without spinning anything up; `--force` overrides. This trigger always reasons
+// about the BRANCH's own diff against `origin/main` — it is unaffected by `--baseline-ref`, which
+// only changes what the baseline capture renders, never whether a capture is worth taking.
 //
-// Usage: pnpm --filter studio capture:comparative [-- --out <dir>] [--settle-ms <ms>]
-//        [--viewport WxH] [--branch-url <url>] [--baseline-url <url>] [--force]
-//        [--clean-worktree] [--branch-port <n>] [--baseline-port <n>]
+// Usage: pnpm --filter studio capture:comparative [-- --out <dir>] [--settle-timeout-ms <ms>]
+//        [--viewport WxH] [--branch-url <url>] [--baseline-url <url>] [--baseline-ref <commit-ish>]
+//        [--force] [--clean-worktree] [--branch-port <n>] [--baseline-port <n>]
 // (DB up — `pnpm db:up` — unless both --branch-url and --baseline-url are given.)
 
 import { chromium } from '@playwright/test';
@@ -57,12 +66,18 @@ import {
   formatCaptureComparisonTable,
   toRenderElementCounts,
 } from '../src/lib/comparativeCapture.ts';
+// Reused, not re-derived (frontend-capture-settled-and-explicit-baseline's own design note): the
+// desktop E2E harness's settled-attestation glue operates on any Playwright Page-like object
+// (`.locator`/`.waitForFunction`/`.evaluate`/`.screenshot`) — an Electron window and this script's
+// plain Chromium `page` both satisfy it, so there is no reason to fork a second implementation of the
+// wait.
+import { captureSettledScreenshot } from '../../desktop/e2e/harness.mjs';
 
 const studioDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const repoRoot = path.resolve(studioDir, '..', '..');
 
 const DEFAULT_VIEWPORT = { width: 1600, height: 1000 };
-const DEFAULT_SETTLE_MS = 8_000;
+const DEFAULT_SETTLE_TIMEOUT_MS = 45_000;
 const DEFAULT_BRANCH_PORT = 5187;
 const DEFAULT_BASELINE_PORT = 5188;
 const READY_TIMEOUT_MS = 60_000;
@@ -95,10 +110,11 @@ function readArgs(argv) {
   })();
   return {
     out: values.get('out') ?? path.join(repoRoot, '.gate-logs', 'frontend-capture', new Date().toISOString().replace(/[:.]/g, '-')),
-    settleMs: Number(values.get('settle-ms') ?? DEFAULT_SETTLE_MS),
+    settleTimeoutMs: Number(values.get('settle-timeout-ms') ?? DEFAULT_SETTLE_TIMEOUT_MS),
     viewport,
     branchUrl: values.get('branch-url') ?? null,
     baselineUrl: values.get('baseline-url') ?? null,
+    baselineRef: values.get('baseline-ref') ?? null,
     branchPort: Number(values.get('branch-port') ?? DEFAULT_BRANCH_PORT),
     baselinePort: Number(values.get('baseline-port') ?? DEFAULT_BASELINE_PORT),
     force: flags.has('force'),
@@ -109,21 +125,27 @@ function readArgs(argv) {
 
 function printHelp() {
   console.log(`
-storytree studio comparative capture — branch vs merge-base(origin/main, HEAD), same live corpus.
+storytree studio comparative capture — branch vs a baseline (default merge-base(origin/main, HEAD)),
+same live corpus, both captures attested settled by the app itself.
 
   pnpm --filter studio capture:comparative -- [options]
 
   --out <dir>            output directory (default: .gate-logs/frontend-capture/<timestamp>/)
-  --settle-ms <ms>        the placeholder settle sleep, ms (default ${DEFAULT_SETTLE_MS} — see the
-                          file header: this is a sleep until frontend-settled-signal-from-the-app lands)
+  --settle-timeout-ms <ms>  how long to wait for window.__storytreeMotionSettled to attest settled,
+                          per capture (default ${DEFAULT_SETTLE_TIMEOUT_MS}) — this is a timeout on the
+                          real app signal, not a sleep; see captureSettledScreenshot (harness.mjs).
   --viewport WxH          capture viewport (default ${DEFAULT_VIEWPORT.width}x${DEFAULT_VIEWPORT.height})
   --branch-url <url>      skip provisioning; capture the branch render from this already-running URL
   --baseline-url <url>    skip provisioning; capture the baseline render from this already-running URL
+  --baseline-ref <ref>    render the baseline from this commit-ish instead of
+                          merge-base(origin/main, HEAD) — answers "is the CURRENT render right?"
+                          rather than "did my branch change it?". Ignored when --baseline-url is given.
+                          merge-base stays the default when this is omitted.
   --branch-port <n>       port for the branch's own dev server (default ${DEFAULT_BRANCH_PORT})
   --baseline-port <n>     port for the baseline worktree's dev server (default ${DEFAULT_BASELINE_PORT})
   --force                 capture even when the render-surface trigger says this branch didn't touch it
   --clean-worktree        remove the provisioned baseline worktree when done (default: kept, reused
-                          by the next run when the merge-base hasn't moved)
+                          by the next run when the resolved baseline ref hasn't moved)
   --help                  this text
 `);
 }
@@ -156,17 +178,27 @@ function localDiff() {
   }
 }
 
-function ensureBaselineWorktree(mergeBaseSha, baselineDir) {
+/** Resolve a commit-ish (branch, tag, sha, `HEAD~1`, …) to a concrete sha, or throw loudly — a
+ *  `--baseline-ref` a caller mistyped must fail the run, never silently fall back to merge-base. */
+function resolveRef(ref) {
+  try {
+    return git(['rev-parse', ref]);
+  } catch (err) {
+    throw new Error(`--baseline-ref "${ref}" did not resolve to a commit: ${err.message}`);
+  }
+}
+
+function ensureBaselineWorktree(baselineSha, baselineDir) {
   const marker = path.join(baselineDir, '.git');
   if (existsSync(marker)) {
     try {
       const head = git(['rev-parse', 'HEAD'], baselineDir);
-      if (head === mergeBaseSha) {
-        log(`reusing the existing baseline worktree at ${baselineDir} (already at ${mergeBaseSha.slice(0, 10)})`);
+      if (head === baselineSha) {
+        log(`reusing the existing baseline worktree at ${baselineDir} (already at ${baselineSha.slice(0, 10)})`);
         return { reused: true };
       }
-      log(`baseline worktree at ${baselineDir} is at ${head.slice(0, 10)}, merge-base moved to ${mergeBaseSha.slice(0, 10)} — checking it out`);
-      git(['checkout', '--detach', mergeBaseSha], baselineDir);
+      log(`baseline worktree at ${baselineDir} is at ${head.slice(0, 10)}, resolved baseline is ${baselineSha.slice(0, 10)} — checking it out`);
+      git(['checkout', '--detach', baselineSha], baselineDir);
       return { reused: false, checkedOut: true };
     } catch (err) {
       log(`baseline worktree at ${baselineDir} looked stale/broken (${err.message}) — re-provisioning`);
@@ -179,8 +211,8 @@ function ensureBaselineWorktree(mergeBaseSha, baselineDir) {
     }
   }
   mkdirSync(path.dirname(baselineDir), { recursive: true });
-  log(`cutting a fresh baseline worktree at ${baselineDir} (detached at ${mergeBaseSha.slice(0, 10)})`);
-  git(['worktree', 'add', '--detach', baselineDir, mergeBaseSha]);
+  log(`cutting a fresh baseline worktree at ${baselineDir} (detached at ${baselineSha.slice(0, 10)})`);
+  git(['worktree', 'add', '--detach', baselineDir, baselineSha]);
   return { reused: false, checkedOut: false };
 }
 
@@ -238,17 +270,20 @@ function killTree(child, label) {
 }
 
 /** Navigate to `#/tree`, skip the Act 2 arrival regrow (same static-map treatment both renders get —
- *  the same flag `launchOffline()` sets), wait for the first real paint evidence, then SLEEP the
- *  placeholder settle window (see file header). Returns the raw extraction + a PNG buffer. */
-async function captureOne(browser, url, viewport, settleMs, label) {
+ *  the same flag `launchOffline()` sets), then capture ONLY once the app itself attests it has
+ *  settled (`captureSettledScreenshot`, reused from the desktop E2E harness — no sleep here). Writes
+ *  the PNG straight to `pngPath` and the `<pngPath>.settled.json` attestation sidecar
+ *  `captureSettledScreenshot` stamps beside it, then reads the element counts off the same settled
+ *  DOM. Returns the extracted counts + the settle attestation stamp. */
+async function captureOne(browser, url, viewport, settleTimeoutMs, pngPath, label) {
   const context = await browser.newContext({ viewport, deviceScaleFactor: 1 });
   await context.addInitScript(() => sessionStorage.setItem('storytree.act2.arrived', '1'));
   const page = await context.newPage();
   log(`[${label}] navigating to ${url}#/tree…`);
   await page.goto(`${url}/#/tree`, { waitUntil: 'domcontentloaded', timeout: 120_000 });
-  await page.locator('g.hex-flora').first().waitFor({ state: 'attached', timeout: 60_000 });
-  log(`[${label}] painted — settling (placeholder sleep, ${settleMs}ms — see file header)…`);
-  await page.waitForTimeout(settleMs);
+  log(`[${label}] waiting for the app's own settled attestation (window.__storytreeMotionSettled)…`);
+  const stamp = await captureSettledScreenshot(page, pngPath, { timeout: settleTimeoutMs, fullPage: false });
+  log(`[${label}] settled and captured — reasons still open: ${stamp.reasons.join(', ') || 'none'}`);
   const raw = await page.evaluate((sel) => {
     const rectOf = (el) => {
       const r = el.getBoundingClientRect();
@@ -261,9 +296,8 @@ async function captureOne(browser, url, viewport, settleMs, label) {
       parcelBlade: document.querySelectorAll(sel.parcelBlade).length,
     };
   }, CAPTURE_SELECTORS);
-  const screenshot = await page.screenshot({ fullPage: false });
   await context.close();
-  return { counts: toRenderElementCounts(raw), screenshot };
+  return { counts: toRenderElementCounts(raw), stamp };
 }
 
 async function main() {
@@ -290,7 +324,17 @@ async function main() {
     console.error(`[capture-comparative] cannot resolve merge-base(origin/main, HEAD): ${diff.ok ? '' : diff.reason}`);
     return 1;
   }
-  log(`merge-base(origin/main, HEAD) = ${mergeBase}`);
+  log(`merge-base(origin/main, HEAD) = ${mergeBase} (used for the render-surface trigger, and the baseline default)`);
+
+  // The baseline capture's commit: an explicit --baseline-ref if given, else merge-base(origin/main,
+  // HEAD) — unrelated to the trigger decision above, which always reasons about the branch's own diff.
+  let baselineSha = mergeBase;
+  let baselineSource = 'merge-base(origin/main, HEAD)';
+  if (args.baselineRef) {
+    baselineSha = resolveRef(args.baselineRef);
+    baselineSource = `--baseline-ref "${args.baselineRef}"`;
+    log(`explicit baseline ref: ${baselineSource} resolves to ${baselineSha}`);
+  }
 
   mkdirSync(args.out, { recursive: true });
 
@@ -319,11 +363,11 @@ async function main() {
     if (baselineUrl === null) {
       const scratchRoot = path.join(tmpdir(), 'storytree-frontend-capture');
       mkdirSync(scratchRoot, { recursive: true });
-      // A DIFFERENT merge-base than any cached dir gets its own path, so a stale worktree is never
+      // A DIFFERENT baseline sha than any cached dir gets its own path, so a stale worktree is never
       // silently reused across unrelated runs — old ones just accumulate under scratchRoot until
-      // cleaned by hand or via --clean-worktree next time the SAME merge-base recurs.
-      baselineWorktree = path.join(scratchRoot, `baseline-${mergeBase.slice(0, 12)}`);
-      ensureBaselineWorktree(mergeBase, baselineWorktree);
+      // cleaned by hand or via --clean-worktree next time the SAME baseline sha recurs.
+      baselineWorktree = path.join(scratchRoot, `baseline-${baselineSha.slice(0, 12)}`);
+      ensureBaselineWorktree(baselineSha, baselineWorktree);
       log('provisioning the baseline worktree (pnpm install — this is the expensive step)…');
       pnpmInstall(baselineWorktree);
       const baselineStudioDir = path.join(baselineWorktree, 'apps', 'studio');
@@ -332,27 +376,34 @@ async function main() {
       await waitForReady(baselineUrl, READY_TIMEOUT_MS);
     }
 
+    const baselinePngPath = path.join(args.out, 'baseline.png');
+    const branchPngPath = path.join(args.out, 'branch.png');
+
     const browser = await chromium.launch({ headless: true });
     let branchResult;
     let baselineResult;
     try {
-      baselineResult = await captureOne(browser, baselineUrl, args.viewport, args.settleMs, 'baseline');
-      branchResult = await captureOne(browser, branchUrl, args.viewport, args.settleMs, 'branch');
+      baselineResult = await captureOne(browser, baselineUrl, args.viewport, args.settleTimeoutMs, baselinePngPath, 'baseline');
+      branchResult = await captureOne(browser, branchUrl, args.viewport, args.settleTimeoutMs, branchPngPath, 'branch');
     } finally {
       await browser.close();
     }
 
-    const branchLabel = `BRANCH (${git(['rev-parse', '--abbrev-ref', 'HEAD']).trim() || 'HEAD'})`;
-    const baselineLabel = `BASELINE (merge-base ${mergeBase.slice(0, 10)})`;
+    const branchLabel = `BRANCH (${git(['rev-parse', '--abbrev-ref', 'HEAD']) || 'HEAD'})`;
+    const baselineLabel = `BASELINE (${baselineSource} ${baselineSha.slice(0, 10)})`;
     const rows = computeCaptureDelta(baselineResult.counts, branchResult.counts);
     const table = formatCaptureComparisonTable(baselineLabel, branchLabel, rows);
 
-    writeFileSync(path.join(args.out, 'baseline.png'), baselineResult.screenshot);
-    writeFileSync(path.join(args.out, 'branch.png'), branchResult.screenshot);
+    // Both PNGs are already written to baselinePngPath/branchPngPath by captureSettledScreenshot
+    // (inside captureOne), along with their `.settled.json` attestation sidecars — nothing left to
+    // write here for the images themselves.
     const report = [
       '# Forest map — corpus-scale comparative capture',
       '',
-      `merge-base: \`${mergeBase}\` · viewport ${args.viewport.width}x${args.viewport.height} · settle: PLACEHOLDER SLEEP ${args.settleMs}ms (no app-emitted settled signal yet — frontend-settled-signal-from-the-app)`,
+      `baseline: ${baselineSource} = \`${baselineSha}\` (trigger merge-base: \`${mergeBase}\`) · ` +
+        `viewport ${args.viewport.width}x${args.viewport.height} · ` +
+        `settle: app-attested via window.__storytreeMotionSettled (captureSettledScreenshot, timeout ${args.settleTimeoutMs}ms) — ` +
+        `see baseline.png.settled.json / branch.png.settled.json`,
       '',
       table,
       '',

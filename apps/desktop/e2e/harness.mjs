@@ -392,6 +392,14 @@ export async function waitForForestSettled(win, { timeout = 25_000 } = {}) {
   // regardless of the tree kind or the async hero-kit load, and TreeView publishes the settled
   // bridge on the same mount, so by the time this locator resolves the bridge is reachable too.
   await win.locator('g.hex-flora').first().waitFor({ state: 'attached', timeout });
+  // waitForFunction's real signature is (pageFunction, arg, options) — the SECOND positional
+  // parameter is always `arg`, passed into the page function, never options. A two-argument call
+  // here (`waitForFunction(fn, { timeout })`) silently binds `{ timeout }` as an unused `arg` and
+  // leaves `options` (hence the real timeout) undefined, so Playwright falls back to its own
+  // internal default (30_000ms) regardless of what this function's caller asked for — invisible on
+  // the tiny four-island offline fixture (settles well under 30s either way) and only surfaced by a
+  // slower corpus-scale render (frontend-capture-settled-and-explicit-baseline). `undefined` as the
+  // explicit second argument is required to reach the third, real `options` parameter.
   await win.waitForFunction(
     () => {
       const bridge = window.__storytreeMotionSettled;
@@ -400,6 +408,7 @@ export async function waitForForestSettled(win, { timeout = 25_000 } = {}) {
       // own doc comment requires of every reader.
       return typeof bridge === 'function' && bridge().settled === true;
     },
+    undefined,
     { timeout },
   );
 }
