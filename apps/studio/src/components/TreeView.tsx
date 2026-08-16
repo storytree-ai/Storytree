@@ -251,9 +251,32 @@ const MARGIN = 60;
 // `FIT_PADDING_BOTTOM` the terminal bar.
 const FIT_PADDING_TOP = 40;
 const FIT_PADDING_BOTTOM = 48;
-const RANK_GAP = 78; // vertical clearance between grown territories of adjacent ranks (gives rivers room)
-const ISLAND_GAP = 96; // horizontal clearance between territories sharing a rank (gives rivers room)
-const RANK_SWING = 235; // lateral swing for a lone island, so its roads read as diagonals
+// `islands-sit-too-far-apart-and-the-resting-zoom-is-too-far-out` (owner look verdict, 2026-08-16):
+// all three cut roughly in half. Measured against the live corpus at 1600x1000 (`?rankGap=78
+// &islandGap=96&rankSwing=235` reproduces the prior values for an in-app side-by-side): the
+// resting composition's content extent grows 552.7x869.3 -> 563.0x863.8px (unused frame width
+// 65.5% -> 64.8%), the topmost five islands' own canopy rects grow ~8-13% (26.4-28.5px ->
+// 27.5-32.1px — the direct answer to "an individual island stops being readable"), and the
+// closest same-rank island pair tightens 47.2px -> 41.1px centre-to-centre. `RANK_GAP` alone
+// drives the zoom (it shrinks the world's VERTICAL extent, which `fitWorld`'s 'contain' fit is
+// bound by — see the increment note below); `ISLAND_GAP` mostly re-shapes the horizontal
+// spacing between islands rather than the zoom, since width was never the tight constraint.
+// `world-cave` stayed 0 and every one of 227 island parcels stayed present at every value tried
+// from these defaults down to `rankGap=10&islandGap=20&rankSwing=60` — the hex-lattice growth
+// floor (below, the `floor = ringsOf(...) + ringsOf(...) + 1` pass) is what actually protects
+// island integrity, not these seed-spacing constants, so there was room to cut them this far
+// without risking a collision/cave regression.
+const RANK_GAP = 40; // vertical clearance between grown territories of adjacent ranks (gives rivers room)
+const ISLAND_GAP = 60; // horizontal clearance between territories sharing a rank (gives rivers room)
+const RANK_SWING = 140; // lateral swing for a lone island, so its roads read as diagonals
+
+/** The three row/rank spacing knobs `islands-sit-too-far-apart-and-the-resting-zoom-is-too-far-out`
+ *  tunes — see `readSpacingTuning` and `buildWorld`'s `spacing` opt. */
+interface SpacingTuning {
+  rankGap: number;
+  islandGap: number;
+  rankSwing: number;
+}
 const RIVER_FAN_STEP = 0.34; // rad (~19°) of shore between adjacent river mouths leaving one source
 const RIVER_FAN_MAX = 2.5; // rad (~145°) widest arc a source's outgoing delta fans across
 const LANE_GAP = 13; // px centre-to-centre between adjacent metro lanes sharing a corridor (a shared sand braid-bar)
@@ -408,10 +431,17 @@ export function buildWorld(
      *  When a single building story is passed with `buildings: false`, it lays out as one plain
      *  island — exactly the one-island Territory the Shared Islands panel renders per building. */
     buildings?: boolean;
+    /** `islands-sit-too-far-apart-and-the-resting-zoom-is-too-far-out` — a live-tunable override
+     *  of the row/rank spacing constants, exactly the `readSubstrateTuning` dial pattern below
+     *  (mesh jitter/relax/etc): absent ⇒ the module defaults (unchanged callers, unchanged tests). */
+    spacing?: Partial<SpacingTuning>;
   },
 ): HexWorld {
   const plantsScatter = opts?.plantsScatter ?? false;
   const buildings = opts?.buildings ?? false;
+  const rankGap = opts?.spacing?.rankGap ?? RANK_GAP;
+  const islandGap = opts?.spacing?.islandGap ?? ISLAND_GAP;
+  const rankSwing = opts?.spacing?.rankSwing ?? RANK_SWING;
 
   // ADR-0102 (per-island icon stamps, owner-directed 2026-06-25): a story tagged `render: building`
   // (today `library` and `cli`) PROMOTES every edge incident to it from a road to a per-island icon
@@ -479,7 +509,7 @@ export function buildWorld(
         ...(byRank[r - 1] ?? []).map((i) => estRadius(quotas[i] ?? 3)),
         HEX_R,
       );
-      yCursor -= below + tallest + RANK_GAP;
+      yCursor -= below + tallest + rankGap;
     }
     rowY.push(yCursor);
   }
@@ -521,13 +551,13 @@ export function buildWorld(
     }
     const sequence = display.map((idx) => ({ idx, w: estRadius(quotas[idx] ?? 3) }));
     const total =
-      sequence.reduce((sum, s) => sum + 2 * s.w, 0) + ISLAND_GAP * Math.max(0, sequence.length - 1);
+      sequence.reduce((sum, s) => sum + 2 * s.w, 0) + islandGap * Math.max(0, sequence.length - 1);
     // A lone island would otherwise sit directly on top of its dependencies,
     // stacking every road into one vertical corridor — swing it to an
     // alternating side so roads sweep as separated diagonals (the dbt-DAG read).
     let rowCenter =
       r === 0 ? 0 : display.reduce((sum, i) => sum + baryOf(i), 0) / Math.max(display.length, 1);
-    if (r > 0 && sequence.length === 1) rowCenter += (r % 2 === 1 ? 1 : -1) * RANK_SWING;
+    if (r > 0 && sequence.length === 1) rowCenter += (r % 2 === 1 ? 1 : -1) * rankSwing;
     let xCursor = rowCenter - total / 2;
     for (const s of sequence) {
       const story = stories[s.idx];
@@ -536,7 +566,7 @@ export function buildWorld(
         x: xCursor + s.w + (rand01(seedH) - 0.5) * 44,
         y: (rowY[r] ?? 0) + (rand01(seedH + 1) - 0.5) * 30,
       });
-      xCursor += 2 * s.w + ISLAND_GAP;
+      xCursor += 2 * s.w + islandGap;
     }
   }
 
@@ -1306,6 +1336,31 @@ function readSubstrateTuning(): Partial<SubstrateTuning> {
   return out;
 }
 
+/** Live row/rank spacing overrides from the URL — the same "let the owner dial the look in
+ *  directly" pattern as `readSubstrateTuning`, for
+ *  `islands-sit-too-far-apart-and-the-resting-zoom-is-too-far-out`'s staged-variant comparison.
+ *  Absent params ⇒ `buildWorld`'s own defaults (`RANK_GAP`/`ISLAND_GAP`/`RANK_SWING`), so a bare
+ *  `#/tree` is unaffected. `?rankGap=78&islandGap=96&rankSwing=235` reproduces the pre-repair
+ *  spacing exactly, for an in-app side-by-side against the new default. */
+function readSpacingTuning(): Partial<SpacingTuning> {
+  if (typeof window === 'undefined') return {};
+  const q = new URLSearchParams(window.location.search);
+  const out: Partial<SpacingTuning> = {};
+  const num = (key: string): number | null => {
+    const raw = q.get(key);
+    if (raw === null) return null;
+    const v = Number(raw);
+    return Number.isFinite(v) && v >= 0 ? v : null;
+  };
+  const rg = num('rankGap');
+  const ig = num('islandGap');
+  const rs = num('rankSwing');
+  if (rg !== null) out.rankGap = rg;
+  if (ig !== null) out.islandGap = ig;
+  if (rs !== null) out.rankSwing = rs;
+  return out;
+}
+
 /** `?plants=scatter` disperses the capability garden off its rigid front arc. */
 function readPlantsScatter(): boolean {
   if (typeof window === 'undefined') return false;
@@ -1811,9 +1866,13 @@ export function TreeView({
   // The buildings themselves live in the permanent Shared Islands panel. Default ON since the
   // owner attested it; `?buildings=off` restores normal connected islands (no panel, no stamps).
   const buildings = useMemo(() => readBuildings(search), [search]);
+  // `islands-sit-too-far-apart-and-the-resting-zoom-is-too-far-out`: live row/rank spacing dial
+  // (`?rankGap=`/`?islandGap=`/`?rankSwing=`), same shape as `substrateTuning` above. Absent ⇒
+  // `buildWorld`'s own (now tighter) defaults.
+  const spacingTuning = useMemo(() => readSpacingTuning(), [search]);
   const world = useMemo(
-    () => (stories ? buildWorld(stories, { plantsScatter, buildings }) : null),
-    [stories, plantsScatter, buildings],
+    () => (stories ? buildWorld(stories, { plantsScatter, buildings, spacing: spacingTuning }) : null),
+    [stories, plantsScatter, buildings, spacingTuning],
   );
   // ADR-0088: the building-class stories that fill the permanent Shared Islands panel. Generic
   // over `story.building === true` (sharedIslandStories). Empty when `?buildings=off` (the
