@@ -1,0 +1,424 @@
+{
+ "surface": {
+  "storyId": "context-traversal-capture",
+  "storyTitle": "The real terminal CLI captures its own context reads to a replayable durable trace",
+  "storyAuthoredStatus": "proposed",
+  "source": "stories/context-traversal-capture/ \u2014 read through @storytree/orchestrator loadNodeSpec",
+  "capabilityCount": 11,
+  "capabilities": [
+   {
+    "id": "traversal-trace-sink",
+    "authoredStatus": "proposed",
+    "verdictGlyph": "\u2713",
+    "renderedStatus": "healthy",
+    "tests": 4
+   },
+   {
+    "id": "terminal-boundary-observations",
+    "authoredStatus": "proposed",
+    "verdictGlyph": "\u2713",
+    "renderedStatus": "healthy",
+    "tests": 5
+   },
+   {
+    "id": "traversal-session-query",
+    "authoredStatus": "proposed",
+    "verdictGlyph": "\u2713",
+    "renderedStatus": "healthy",
+    "tests": 4
+   },
+   {
+    "id": "terminal-capture-activation",
+    "authoredStatus": "proposed",
+    "verdictGlyph": "\u2713",
+    "renderedStatus": "healthy",
+    "tests": 5
+   },
+   {
+    "id": "revisit-link-metadata",
+    "authoredStatus": "proposed",
+    "verdictGlyph": "\u2713",
+    "renderedStatus": "healthy",
+    "tests": 5
+   },
+   {
+    "id": "agent-ref-descent",
+    "authoredStatus": "proposed",
+    "verdictGlyph": "\u2713",
+    "renderedStatus": "healthy",
+    "tests": 7
+   },
+   {
+    "id": "artifact-offer-candidate-sets",
+    "authoredStatus": "proposed",
+    "verdictGlyph": "\u2713",
+    "renderedStatus": "healthy",
+    "tests": 7
+   },
+   {
+    "id": "offer-follow-edges",
+    "authoredStatus": "proposed",
+    "verdictGlyph": "\u2713",
+    "renderedStatus": "healthy",
+    "tests": 7
+   },
+   {
+    "id": "decision-point-playback",
+    "authoredStatus": "proposed",
+    "verdictGlyph": "\u2713",
+    "renderedStatus": "healthy",
+    "tests": 7
+   },
+   {
+    "id": "offer-observability-share",
+    "authoredStatus": "proposed",
+    "verdictGlyph": "\u2713",
+    "renderedStatus": "healthy",
+    "tests": 7
+   },
+   {
+    "id": "offer-set-render-agreement",
+    "authoredStatus": "proposed",
+    "verdictGlyph": "\u2713",
+    "renderedStatus": "healthy",
+    "tests": 6
+   }
+  ],
+  "renderedStatusMix": {
+   "healthy": 11
+  },
+  "authoredStatusMix": {
+   "proposed": 11
+  },
+  "testCounts": [
+   4,
+   5,
+   4,
+   5,
+   5,
+   7,
+   7,
+   7,
+   7,
+   7,
+   6
+  ],
+  "totalTests": 64,
+  "uatCriteria": [
+   {
+    "id": "uatc_7d2fd64553fdd66d3d23248c",
+    "revisionId": "uatr1:1ff82f7c25357a12",
+    "witness": "machine",
+    "state": "proven"
+   },
+   {
+    "id": "uatc_6e39dfcc18d5caa4aa3c64a5",
+    "revisionId": "uatr1:63ba2bacb36c23cd",
+    "witness": "machine",
+    "state": "proven"
+   },
+   {
+    "id": "uatc_411c5b920d3cc42fc2fb2a4f",
+    "revisionId": "uatr1:3e7eb060347651e7",
+    "witness": "machine",
+    "state": "proven"
+   },
+   {
+    "id": "uatc_65130d5b0ef6482a5b443cf7",
+    "revisionId": "uatr1:1e4a7006a96937cd",
+    "witness": "machine",
+    "state": "proven"
+   },
+   {
+    "id": "uatc_11abf3bd67912119d765e77a",
+    "revisionId": "uatr1:c1fb11dbcf0067ef",
+    "witness": "machine",
+    "state": "proven"
+   },
+   {
+    "id": "uatc_6b22fe35e0d9d416355d515a",
+    "revisionId": "uatr1:bfbeadbe7ad9f435",
+    "witness": "machine",
+    "state": "proven"
+   },
+   {
+    "id": "uatc_cb75462a2561f8db0825a9a2",
+    "revisionId": "uatr1:3fa49ba3844329a1",
+    "witness": "machine",
+    "state": "proven"
+   },
+   {
+    "id": "uatc_4bbb8909ea3e832c7033ae7a",
+    "revisionId": "uatr1:4cfc5cbe322171bc",
+    "witness": "machine",
+    "state": "proven"
+   },
+   {
+    "id": "uatc_c52578cfeae287b056726977",
+    "revisionId": "uatr1:81cf81492ff1399e",
+    "witness": "machine",
+    "state": "proven"
+   },
+   {
+    "id": "uatc_413f00cf1ff8cd520194c4c4",
+    "revisionId": "uatr1:e58f48ee23bb441e",
+    "witness": "machine",
+    "state": "proven"
+   }
+  ],
+  "tiles": 13,
+  "tileQuota": {
+   "quota": 13,
+   "rule": "Math.max(3, capabilities.length + 2) \u2014 apps/studio/src/components/TreeView.tsx",
+   "grownBy": "the app's own frontier rule: hexDist(seed, cand) + rand01(hash(`${storyId}:${key}`)) * 1.4"
+  },
+  "meshCells": 162,
+  "verdictEventsRead": 2229,
+  "reading": "every status on this island is provenStatus(authored, signed verdict) over a real story's real capabilities. NO status is invented, and every `healthy` is backed by a signed pass."
+ },
+ "fixtureItReplaces": {
+  "storyId": "fork-spike-island",
+  "capStatuses": [
+   "healthy",
+   "healthy",
+   "building",
+   "proposed",
+   "proposed",
+   "mapped",
+   "unhealthy",
+   "healthy",
+   "building",
+   "proposed"
+  ],
+  "capabilityCount": 10,
+  "tiles": 17,
+  "meshCells": 214,
+  "invented": true,
+  "tokensOutsideRenderedVocabulary": [
+   "building",
+   "unhealthy"
+  ],
+  "reading": "the fixture's statuses were written by hand for the interior-fork spike. Two of its five tokens (`building`, `unhealthy`) are folded away by worldStatus before the map draws anything, so they are colours no story can produce (ADR-0038 / ADR-0296)."
+ },
+ "strokeInventory": {
+  "asIs": {
+   "coast": 1,
+   "cell": 162,
+   "hex": 0,
+   "other": 0
+  },
+  "delivered": {
+   "coast": 1,
+   "cell": 162,
+   "hex": 0,
+   "other": 0
+  },
+  "reading": "the accounting is TOTAL \u2014 `other` is a refusal, not a bucket \u2014 so a zero here is what remains once every stroke on the canvas has been attributed. Re-measured on the REAL island: PR #1372's inventory was taken on the 17-tile fixture."
+ },
+ "whatRemovalCosts": {
+  "deliveredPxChanged": 1892,
+  "islandPx": 30477,
+  "pctOfIsland": 6.21,
+  "cellFillsMoved": 0,
+  "cellsSampled": 162,
+  "adjacencies": 290,
+  "crossCapabilityAdjacencies": 69,
+  "crossCapabilityBoundariesGoingInvisible": 31,
+  "sameCapabilityAdjacenciesMerging": 64,
+  "paletteWidened": false,
+  "measuredWithoutTheHeroTree": true,
+  "reading": "PR #1372 measured 4 of 77 cross-capability boundaries going invisible on the MIXED-status fixture. That number could not carry over, because a boundary is invisible exactly when both sides deliver the same colour \u2014 and on a ONE-status island every neighbour pair already shares a status. So this is the honest re-measurement the increment asked for, and the number it produces is the cost of drawing a uniformly-healthy island without seams."
+ },
+ "greenReading": {
+  "realIslandGreenPct": 74.8,
+  "realIslandPx": 30477,
+  "fixtureGreenPct": 23.9,
+  "fixturePx": 34968,
+  "greenTest": "g > r + 8 and g > b + 8 on the delivered raster, hero tree EXCLUDED",
+  "notComparableTo1372": "PR #1372 reported 21.6% for the fixture on a per-status pixel table; this is a different instrument (a direct channel test over the whole land, tree excluded) and the two figures are NOT comparable. What IS comparable is the pair below: both islands are measured here by this same instrument, in one run.",
+  "reading": "PR #1372 measured the fixture at 21.6% green and named the lever: the island is not green because 7 of its 10 capabilities are not healthy. This is that lever pulled with real data rather than by driving a fixture \u2014 the statuses were not changed, a genuinely green story was found."
+ },
+ "greenConsistency": {
+  "capabilitiesOnThisIsland": 11,
+  "distinctStatusesOnThisIsland": 1,
+  "distinctDeliveredCellFills": 6,
+  "byAuthoredMechanism": {
+   "variant-0": {
+    "cells": 44,
+    "distinctDeliveredColours": 2,
+    "colours": [
+     "#8cb85e",
+     "#9ac570"
+    ]
+   },
+   "variant-1": {
+    "cells": 48,
+    "distinctDeliveredColours": 2,
+    "colours": [
+     "#648244",
+     "#7dab50"
+    ]
+   },
+   "variant-2": {
+    "cells": 49,
+    "distinctDeliveredColours": 2,
+    "colours": [
+     "#7dab50",
+     "#9ac570"
+    ]
+   },
+   "wheat": {
+    "cells": 21,
+    "distinctDeliveredColours": 2,
+    "colours": [
+     "#5a753d",
+     "#d6b271"
+    ]
+   }
+  },
+  "wheatCells": 21,
+  "wheatCellsPct": 13.0,
+  "reading": "the status variable is REMOVED on this island - every capability is `healthy` - so every remaining cell-to-cell colour difference is authored variation carrying no meaning: the three-entry `top` shade list picked per cell by hash, and the wheat subset. That is the measurable content of the owner's 'different mesh triangles rendering different colors'. MEASURED, NOT ACTED ON: collapsing them is an appearance decision and the owner's."
+ },
+ "decorAtRealTestCounts": {
+  "tufts": 143,
+  "shrubs": 27,
+  "wilts": 0,
+  "flowers": 10,
+  "centroidFallbacks": 0,
+  "flowerFallbacks": 1,
+  "perCapability": [
+   {
+    "cap": 0,
+    "status": "healthy",
+    "cells": 39,
+    "tests": 4,
+    "grassRule": "round(2 + 4*1.9)",
+    "lush": false,
+    "tufts": 9,
+    "shrubs": 2,
+    "wilts": 0
+   },
+   {
+    "cap": 1,
+    "status": "healthy",
+    "cells": 17,
+    "tests": 5,
+    "grassRule": "round(2 + 5*1.9)",
+    "lush": false,
+    "tufts": 12,
+    "shrubs": 2,
+    "wilts": 0
+   },
+   {
+    "cap": 2,
+    "status": "healthy",
+    "cells": 11,
+    "tests": 4,
+    "grassRule": "round(2 + 4*1.9)",
+    "lush": false,
+    "tufts": 10,
+    "shrubs": 2,
+    "wilts": 0
+   },
+   {
+    "cap": 3,
+    "status": "healthy",
+    "cells": 2,
+    "tests": 5,
+    "grassRule": "round(2 + 5*1.9)",
+    "lush": false,
+    "tufts": 12,
+    "shrubs": 2,
+    "wilts": 0
+   },
+   {
+    "cap": 4,
+    "status": "healthy",
+    "cells": 9,
+    "tests": 5,
+    "grassRule": "round(2 + 5*1.9)",
+    "lush": false,
+    "tufts": 12,
+    "shrubs": 2,
+    "wilts": 0
+   },
+   {
+    "cap": 5,
+    "status": "healthy",
+    "cells": 1,
+    "tests": 7,
+    "grassRule": "round(2 + 7*1.9)",
+    "lush": true,
+    "tufts": 15,
+    "shrubs": 3,
+    "wilts": 0
+   },
+   {
+    "cap": 6,
+    "status": "healthy",
+    "cells": 21,
+    "tests": 7,
+    "grassRule": "round(2 + 7*1.9)",
+    "lush": true,
+    "tufts": 15,
+    "shrubs": 3,
+    "wilts": 0
+   },
+   {
+    "cap": 7,
+    "status": "healthy",
+    "cells": 10,
+    "tests": 7,
+    "grassRule": "round(2 + 7*1.9)",
+    "lush": true,
+    "tufts": 15,
+    "shrubs": 3,
+    "wilts": 0
+   },
+   {
+    "cap": 8,
+    "status": "healthy",
+    "cells": 25,
+    "tests": 7,
+    "grassRule": "round(2 + 7*1.9)",
+    "lush": true,
+    "tufts": 15,
+    "shrubs": 3,
+    "wilts": 0
+   },
+   {
+    "cap": 9,
+    "status": "healthy",
+    "cells": 20,
+    "tests": 7,
+    "grassRule": "round(2 + 7*1.9)",
+    "lush": true,
+    "tufts": 15,
+    "shrubs": 3,
+    "wilts": 0
+   },
+   {
+    "cap": 10,
+    "status": "healthy",
+    "cells": 7,
+    "tests": 6,
+    "grassRule": "round(2 + 6*1.9)",
+    "lush": true,
+    "tufts": 13,
+    "shrubs": 2,
+    "wilts": 0
+   }
+  ],
+  "reading": "the counts are the app's own rules over the story's REAL contract counts \u2014 `round(2 + tests*1.9)`, ADR-0226 D2 \u2014 replacing `scatter.capability_tests`, which invents one from a hash. THE GRASS ART ITSELF IS DECLINED (owner, 2026-08-16: neither shape is good enough) and is rendered here only so the real density is visible as a picture rather than as a number. The delivered surface above carries none of it."
+ },
+ "paletteEntries": 132,
+ "cameraElevationDeg": 50.0,
+ "appLandCameraElevationDeg": 20.0,
+ "blenderFramesRendered": 0,
+ "landPieceSetValidForThisIsland": {
+  "shapeClasses": 6,
+  "equalToRenderedSet": true,
+  "reading": "the six kite shapes are a property of the hex lattice, not of which hexes a story claims, so the committed piece set covers this island. Measured, not assumed - if it had differed the pieces would have needed a re-render."
+ }
+}

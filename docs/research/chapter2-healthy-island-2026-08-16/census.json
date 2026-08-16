@@ -1,0 +1,1140 @@
+{
+ "readAt": "2026-08-16T13:42:35.266Z",
+ "verdictEventsRead": 2229,
+ "fold": "provenStatus \u2014 apps/studio/src/lib/worldStatus.ts (ADR-0040/0038/0296)",
+ "totals": {
+  "stories": 46,
+  "capabilities": 244,
+  "authoredHealthy": 0,
+  "renderedHealthy": 164,
+  "fullyGreenStories": [
+   "library-tech-tree-overlay",
+   "context-traversal-capture",
+   "library-review",
+   "binding-staleness",
+   "model-judged-uat",
+   "notice-board",
+   "uat-criterion-detail",
+   "agent",
+   "context-traversal-transcript",
+   "desktop-build-mount",
+   "model-uat-witness",
+   "terminal-repo-picker",
+   "embedded-terminal",
+   "terminal-tabs",
+   "uat-detail-studio",
+   "forest-world",
+   "chat-subagent-spawn",
+   "chat-drive-bridge",
+   "headless-orchestrator",
+   "spawn-visibility"
+  ],
+  "candidates": [
+   "library-tech-tree-overlay",
+   "context-traversal-capture",
+   "library-review",
+   "binding-staleness",
+   "model-judged-uat",
+   "notice-board",
+   "uat-criterion-detail",
+   "agent",
+   "context-traversal-transcript",
+   "desktop-build-mount",
+   "model-uat-witness",
+   "terminal-repo-picker",
+   "embedded-terminal",
+   "terminal-tabs",
+   "uat-detail-studio",
+   "forest-world"
+  ],
+  "retiredButFullyGreen": [
+   "chat-subagent-spawn",
+   "chat-drive-bridge",
+   "headless-orchestrator",
+   "spawn-visibility"
+  ]
+ },
+ "rows": [
+  {
+   "story": "library-tech-tree-overlay",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 17,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
+   "renderedHealthy": 17,
+   "allGreen": true,
+   "candidate": true,
+   "quota": 19,
+   "tests": [
+    5,
+    6,
+    14,
+    6,
+    8,
+    5,
+    5,
+    4,
+    5,
+    3,
+    2,
+    6,
+    5,
+    7,
+    6,
+    6,
+    4
+   ],
+   "uatCriteria": 4,
+   "renderedMix": {
+    "healthy": 17
+   }
+  },
+  {
+   "story": "context-traversal-capture",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 11,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
+   "renderedHealthy": 11,
+   "allGreen": true,
+   "candidate": true,
+   "quota": 13,
+   "tests": [
+    4,
+    5,
+    4,
+    5,
+    5,
+    7,
+    7,
+    7,
+    7,
+    7,
+    6
+   ],
+   "uatCriteria": 10,
+   "renderedMix": {
+    "healthy": 11
+   }
+  },
+  {
+   "story": "library-review",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 8,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
+   "renderedHealthy": 8,
+   "allGreen": true,
+   "candidate": true,
+   "quota": 10,
+   "tests": [
+    3,
+    4,
+    4,
+    4,
+    3,
+    3,
+    4,
+    4
+   ],
+   "uatCriteria": 5,
+   "renderedMix": {
+    "healthy": 8
+   }
+  },
+  {
+   "story": "binding-staleness",
+   "storyStatus": "mapped",
+   "rendersOnMap": true,
+   "caps": 5,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
+   "renderedHealthy": 5,
+   "allGreen": true,
+   "candidate": true,
+   "quota": 7,
+   "tests": [
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "uatCriteria": 0,
+   "renderedMix": {
+    "healthy": 5
+   }
+  },
+  {
+   "story": "model-judged-uat",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 4,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
+   "renderedHealthy": 4,
+   "allGreen": true,
+   "candidate": true,
+   "quota": 6,
+   "tests": [
+    3,
+    3,
+    3,
+    3
+   ],
+   "uatCriteria": 6,
+   "renderedMix": {
+    "healthy": 4
+   }
+  },
+  {
+   "story": "notice-board",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 4,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
+   "renderedHealthy": 4,
+   "allGreen": true,
+   "candidate": true,
+   "quota": 6,
+   "tests": [
+    4,
+    4,
+    4,
+    4
+   ],
+   "uatCriteria": 8,
+   "renderedMix": {
+    "healthy": 4
+   }
+  },
+  {
+   "story": "uat-criterion-detail",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 4,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
+   "renderedHealthy": 4,
+   "allGreen": true,
+   "candidate": true,
+   "quota": 6,
+   "tests": [
+    3,
+    3,
+    3,
+    3
+   ],
+   "uatCriteria": 4,
+   "renderedMix": {
+    "healthy": 4
+   }
+  },
+  {
+   "story": "agent",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 3,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
+   "renderedHealthy": 3,
+   "allGreen": true,
+   "candidate": true,
+   "quota": 5,
+   "tests": [
+    0,
+    0,
+    0
+   ],
+   "uatCriteria": 1,
+   "renderedMix": {
+    "healthy": 3
+   }
+  },
+  {
+   "story": "context-traversal-transcript",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 3,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
+   "renderedHealthy": 3,
+   "allGreen": true,
+   "candidate": true,
+   "quota": 5,
+   "tests": [
+    6,
+    4,
+    5
+   ],
+   "uatCriteria": 6,
+   "renderedMix": {
+    "healthy": 3
+   }
+  },
+  {
+   "story": "desktop-build-mount",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 3,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 2,
+   "renderedHealthy": 3,
+   "allGreen": true,
+   "candidate": true,
+   "quota": 5,
+   "tests": [
+    4,
+    4,
+    4
+   ],
+   "uatCriteria": 2,
+   "renderedMix": {
+    "healthy": 3
+   }
+  },
+  {
+   "story": "model-uat-witness",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 3,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
+   "renderedHealthy": 3,
+   "allGreen": true,
+   "candidate": true,
+   "quota": 5,
+   "tests": [
+    3,
+    3,
+    3
+   ],
+   "uatCriteria": 6,
+   "renderedMix": {
+    "healthy": 3
+   }
+  },
+  {
+   "story": "terminal-repo-picker",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 3,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
+   "renderedHealthy": 3,
+   "allGreen": true,
+   "candidate": true,
+   "quota": 5,
+   "tests": [
+    5,
+    4,
+    7
+   ],
+   "uatCriteria": 7,
+   "renderedMix": {
+    "healthy": 3
+   }
+  },
+  {
+   "story": "embedded-terminal",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 2,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
+   "renderedHealthy": 2,
+   "allGreen": true,
+   "candidate": true,
+   "quota": 4,
+   "tests": [
+    7,
+    13
+   ],
+   "uatCriteria": 7,
+   "renderedMix": {
+    "healthy": 2
+   }
+  },
+  {
+   "story": "terminal-tabs",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 2,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
+   "renderedHealthy": 2,
+   "allGreen": true,
+   "candidate": true,
+   "quota": 4,
+   "tests": [
+    6,
+    6
+   ],
+   "uatCriteria": 6,
+   "renderedMix": {
+    "healthy": 2
+   }
+  },
+  {
+   "story": "uat-detail-studio",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 2,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 2,
+   "renderedHealthy": 2,
+   "allGreen": true,
+   "candidate": true,
+   "quota": 4,
+   "tests": [
+    2,
+    3
+   ],
+   "uatCriteria": 0,
+   "renderedMix": {
+    "healthy": 2
+   }
+  },
+  {
+   "story": "forest-world",
+   "storyStatus": "mapped",
+   "rendersOnMap": true,
+   "caps": 1,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 1,
+   "renderedHealthy": 1,
+   "allGreen": true,
+   "candidate": true,
+   "quota": 3,
+   "tests": [
+    7
+   ],
+   "uatCriteria": 0,
+   "renderedMix": {
+    "healthy": 1
+   }
+  },
+  {
+   "story": "drive-machinery",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 27,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 18,
+   "renderedHealthy": 23,
+   "allGreen": false,
+   "candidate": false,
+   "quota": 29,
+   "tests": [
+    7,
+    9,
+    8,
+    7,
+    11,
+    8,
+    3,
+    6,
+    11,
+    6,
+    5,
+    8,
+    6,
+    6,
+    6,
+    8,
+    10,
+    4,
+    1,
+    1,
+    1,
+    5,
+    5,
+    16,
+    16,
+    5,
+    4
+   ],
+   "uatCriteria": 3,
+   "renderedMix": {
+    "healthy": 23,
+    "mapped": 4
+   }
+  },
+  {
+   "story": "studio",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 21,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
+   "renderedHealthy": 8,
+   "allGreen": false,
+   "candidate": false,
+   "quota": 23,
+   "tests": [
+    15,
+    9,
+    12,
+    12,
+    11,
+    11,
+    10,
+    5,
+    5,
+    3,
+    4,
+    6,
+    7,
+    9,
+    6,
+    4,
+    4,
+    4,
+    3,
+    10,
+    7
+   ],
+   "uatCriteria": 13,
+   "renderedMix": {
+    "proposed": 10,
+    "retired": 1,
+    "healthy": 8,
+    "mapped": 2
+   }
+  },
+  {
+   "story": "desktop",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 12,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 1,
+   "renderedHealthy": 8,
+   "allGreen": false,
+   "candidate": false,
+   "quota": 14,
+   "tests": [
+    9,
+    0,
+    3,
+    3,
+    4,
+    3,
+    4,
+    3,
+    4,
+    13,
+    6,
+    11
+   ],
+   "uatCriteria": 9,
+   "renderedMix": {
+    "healthy": 8,
+    "proposed": 1,
+    "mapped": 3
+   }
+  },
+  {
+   "story": "library",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 10,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 7,
+   "renderedHealthy": 8,
+   "allGreen": false,
+   "candidate": false,
+   "quota": 12,
+   "tests": [
+    6,
+    6,
+    11,
+    1,
+    6,
+    2,
+    7,
+    15,
+    6,
+    3
+   ],
+   "uatCriteria": 0,
+   "renderedMix": {
+    "healthy": 8,
+    "proposed": 2
+   }
+  },
+  {
+   "story": "chat-subagent-spawn",
+   "storyStatus": "retired",
+   "rendersOnMap": false,
+   "caps": 5,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
+   "renderedHealthy": 5,
+   "allGreen": true,
+   "candidate": false,
+   "quota": 7,
+   "tests": [
+    3,
+    3,
+    4,
+    5,
+    3
+   ],
+   "uatCriteria": 7,
+   "renderedMix": {
+    "healthy": 5
+   }
+  },
+  {
+   "story": "website-experience",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 8,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
+   "renderedHealthy": 4,
+   "allGreen": false,
+   "candidate": false,
+   "quota": 10,
+   "tests": [
+    3,
+    4,
+    4,
+    4,
+    0,
+    0,
+    0,
+    0
+   ],
+   "uatCriteria": 8,
+   "renderedMix": {
+    "healthy": 4,
+    "proposed": 4
+   }
+  },
+  {
+   "story": "app-surface",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 7,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 2,
+   "renderedHealthy": 4,
+   "allGreen": false,
+   "candidate": false,
+   "quota": 9,
+   "tests": [
+    3,
+    4,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "uatCriteria": 1,
+   "renderedMix": {
+    "healthy": 4,
+    "proposed": 3
+   }
+  },
+  {
+   "story": "wisp-as-story-claim",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 7,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
+   "renderedHealthy": 4,
+   "allGreen": false,
+   "candidate": false,
+   "quota": 9,
+   "tests": [
+    3,
+    3,
+    2,
+    0,
+    2,
+    0,
+    0
+   ],
+   "uatCriteria": 7,
+   "renderedMix": {
+    "healthy": 4,
+    "proposed": 3
+   }
+  },
+  {
+   "story": "chat-drive-bridge",
+   "storyStatus": "retired",
+   "rendersOnMap": false,
+   "caps": 4,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
+   "renderedHealthy": 4,
+   "allGreen": true,
+   "candidate": false,
+   "quota": 6,
+   "tests": [
+    4,
+    3,
+    4,
+    4
+   ],
+   "uatCriteria": 5,
+   "renderedMix": {
+    "healthy": 4
+   }
+  },
+  {
+   "story": "headless-orchestrator",
+   "storyStatus": "retired",
+   "rendersOnMap": false,
+   "caps": 4,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
+   "renderedHealthy": 4,
+   "allGreen": true,
+   "candidate": false,
+   "quota": 6,
+   "tests": [
+    7,
+    5,
+    5,
+    6
+   ],
+   "uatCriteria": 5,
+   "renderedMix": {
+    "healthy": 4
+   }
+  },
+  {
+   "story": "spawn-visibility",
+   "storyStatus": "retired",
+   "rendersOnMap": false,
+   "caps": 4,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 4,
+   "renderedHealthy": 4,
+   "allGreen": true,
+   "candidate": false,
+   "quota": 6,
+   "tests": [
+    3,
+    3,
+    3,
+    3
+   ],
+   "uatCriteria": 6,
+   "renderedMix": {
+    "healthy": 4
+   }
+  },
+  {
+   "story": "cli",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 5,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 3,
+   "renderedHealthy": 3,
+   "allGreen": false,
+   "candidate": false,
+   "quota": 7,
+   "tests": [
+    3,
+    2,
+    4,
+    8,
+    9
+   ],
+   "uatCriteria": 1,
+   "renderedMix": {
+    "healthy": 3,
+    "mapped": 2
+   }
+  },
+  {
+   "story": "art-factory",
+   "storyStatus": "mapped",
+   "rendersOnMap": true,
+   "caps": 4,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 3,
+   "renderedHealthy": 3,
+   "allGreen": false,
+   "candidate": false,
+   "quota": 6,
+   "tests": [
+    6,
+    6,
+    4,
+    4
+   ],
+   "uatCriteria": 0,
+   "renderedMix": {
+    "healthy": 3,
+    "proposed": 1
+   }
+  },
+  {
+   "story": "context-traversal-spawn",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 3,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
+   "renderedHealthy": 2,
+   "allGreen": false,
+   "candidate": false,
+   "quota": 5,
+   "tests": [
+    18,
+    8,
+    4
+   ],
+   "uatCriteria": 6,
+   "renderedMix": {
+    "healthy": 2,
+    "proposed": 1
+   }
+  },
+  {
+   "story": "studio-cloud",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 8,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
+   "renderedHealthy": 1,
+   "allGreen": false,
+   "candidate": false,
+   "quota": 10,
+   "tests": [
+    3,
+    4,
+    2,
+    2,
+    2,
+    4,
+    5,
+    3
+   ],
+   "uatCriteria": 5,
+   "renderedMix": {
+    "proposed": 7,
+    "healthy": 1
+   }
+  },
+  {
+   "story": "arc",
+   "storyStatus": "mapped",
+   "rendersOnMap": true,
+   "caps": 3,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
+   "renderedHealthy": 1,
+   "allGreen": false,
+   "candidate": false,
+   "quota": 5,
+   "tests": [
+    9,
+    8,
+    1
+   ],
+   "uatCriteria": 0,
+   "renderedMix": {
+    "mapped": 2,
+    "healthy": 1
+   }
+  },
+  {
+   "story": "studio-members",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 3,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
+   "renderedHealthy": 1,
+   "allGreen": false,
+   "candidate": false,
+   "quota": 5,
+   "tests": [
+    3,
+    3,
+    3
+   ],
+   "uatCriteria": 3,
+   "renderedMix": {
+    "proposed": 2,
+    "healthy": 1
+   }
+  },
+  {
+   "story": "context-traversal-telemetry",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 2,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
+   "renderedHealthy": 1,
+   "allGreen": false,
+   "candidate": false,
+   "quota": 4,
+   "tests": [
+    6,
+    4
+   ],
+   "uatCriteria": 5,
+   "renderedMix": {
+    "proposed": 1,
+    "healthy": 1
+   }
+  },
+  {
+   "story": "map-terminal-build",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 2,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
+   "renderedHealthy": 1,
+   "allGreen": false,
+   "candidate": false,
+   "quota": 4,
+   "tests": [
+    3,
+    4
+   ],
+   "uatCriteria": 7,
+   "renderedMix": {
+    "proposed": 1,
+    "healthy": 1
+   }
+  },
+  {
+   "story": "ci-cd",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 7,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
+   "renderedHealthy": 0,
+   "allGreen": false,
+   "candidate": false,
+   "quota": 9,
+   "tests": [
+    4,
+    3,
+    6,
+    3,
+    3,
+    3,
+    4
+   ],
+   "uatCriteria": 7,
+   "renderedMix": {
+    "proposed": 7
+   }
+  },
+  {
+   "story": "app-guide",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 4,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
+   "renderedHealthy": 0,
+   "allGreen": false,
+   "candidate": false,
+   "quota": 6,
+   "tests": [
+    5,
+    3,
+    3,
+    2
+   ],
+   "uatCriteria": 1,
+   "renderedMix": {
+    "proposed": 4
+   }
+  },
+  {
+   "story": "model-uat-pilot",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 4,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
+   "renderedHealthy": 0,
+   "allGreen": false,
+   "candidate": false,
+   "quota": 6,
+   "tests": [
+    3,
+    3,
+    3,
+    4
+   ],
+   "uatCriteria": 6,
+   "renderedMix": {
+    "proposed": 4
+   }
+  },
+  {
+   "story": "feedback-graduation",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 3,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
+   "renderedHealthy": 0,
+   "allGreen": false,
+   "candidate": false,
+   "quota": 5,
+   "tests": [
+    3,
+    3,
+    3
+   ],
+   "uatCriteria": 4,
+   "renderedMix": {
+    "proposed": 3
+   }
+  },
+  {
+   "story": "proof-binding-integrity",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 3,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
+   "renderedHealthy": 0,
+   "allGreen": false,
+   "candidate": false,
+   "quota": 5,
+   "tests": [
+    0,
+    1,
+    1
+   ],
+   "uatCriteria": 1,
+   "renderedMix": {
+    "proposed": 3
+   }
+  },
+  {
+   "story": "scoped-glue-actuator",
+   "storyStatus": "retired",
+   "rendersOnMap": false,
+   "caps": 3,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
+   "renderedHealthy": 0,
+   "allGreen": false,
+   "candidate": false,
+   "quota": 5,
+   "tests": [
+    4,
+    4,
+    3
+   ],
+   "uatCriteria": 6,
+   "renderedMix": {
+    "retired": 3
+   }
+  },
+  {
+   "story": "studio-build",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 3,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
+   "renderedHealthy": 0,
+   "allGreen": false,
+   "candidate": false,
+   "quota": 5,
+   "tests": [
+    6,
+    6,
+    6
+   ],
+   "uatCriteria": 10,
+   "renderedMix": {
+    "proposed": 3
+   }
+  },
+  {
+   "story": "uat-attestation",
+   "storyStatus": "proposed",
+   "rendersOnMap": true,
+   "caps": 3,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
+   "renderedHealthy": 0,
+   "allGreen": false,
+   "candidate": false,
+   "quota": 5,
+   "tests": [
+    2,
+    3,
+    2
+   ],
+   "uatCriteria": 0,
+   "renderedMix": {
+    "proposed": 3
+   }
+  },
+  {
+   "story": "proof-protocol",
+   "storyStatus": "mapped",
+   "rendersOnMap": true,
+   "caps": 0,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
+   "renderedHealthy": 0,
+   "allGreen": false,
+   "candidate": false,
+   "quota": 3,
+   "tests": [],
+   "uatCriteria": 0,
+   "renderedMix": {}
+  },
+  {
+   "story": "storage-protocol",
+   "storyStatus": "mapped",
+   "rendersOnMap": true,
+   "caps": 0,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
+   "renderedHealthy": 0,
+   "allGreen": false,
+   "candidate": false,
+   "quota": 3,
+   "tests": [],
+   "uatCriteria": 0,
+   "renderedMix": {}
+  },
+  {
+   "story": "website",
+   "storyStatus": "mapped",
+   "rendersOnMap": true,
+   "caps": 0,
+   "authoredHealthy": 0,
+   "greenViaGateCoverage": 0,
+   "renderedHealthy": 0,
+   "allGreen": false,
+   "candidate": false,
+   "quota": 3,
+   "tests": [],
+   "uatCriteria": 0,
+   "renderedMix": {}
+  }
+ ]
+}

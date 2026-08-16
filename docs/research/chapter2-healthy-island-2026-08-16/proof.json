@@ -1,0 +1,194 @@
+{
+ "storyId": "context-traversal-capture",
+ "readAt": "2026-08-16T13:23:03.612Z",
+ "source": "events.verdict via PgWorkStore.readEvents; per-capability status via rollupCapStatus (@storytree/orchestrator, ADR-0097 coverage included) and criterion states via rollupCriterionStatus \u2014 the same computes `storytree tree --pg` and apiRouter.applyUatCriteria use. The `verdictGlyph` column is the cap's OWN verdict (deriveVerdictGlyphs), reported separately so gate-covered green stays distinguishable.",
+ "fold": "provenStatus(authoredStatus, verdict) \u2014 apps/studio/src/lib/worldStatus.ts (ADR-0040 / ADR-0038 / ADR-0296)",
+ "verdictEventsRead": 2229,
+ "storyAuthoredStatus": "proposed",
+ "storyVerdictGlyph": "\u2013",
+ "capabilities": [
+  {
+   "id": "traversal-trace-sink",
+   "title": "A traversal trace survives process exit and reads back honestly partial",
+   "authoredStatus": "proposed",
+   "verdictGlyph": "\u2713",
+   "rollupStatus": "healthy",
+   "coveredByGate": false,
+   "verdictOutcome": "pass",
+   "renderedStatus": "healthy",
+   "tests": 4
+  },
+  {
+   "id": "terminal-boundary-observations",
+   "title": "Terminal invocations become observations only through a read allowlist",
+   "authoredStatus": "proposed",
+   "verdictGlyph": "\u2713",
+   "rollupStatus": "healthy",
+   "coveredByGate": false,
+   "verdictOutcome": "pass",
+   "renderedStatus": "healthy",
+   "tests": 5
+  },
+  {
+   "id": "traversal-session-query",
+   "title": "A captured session renders as an honest chronological replay",
+   "authoredStatus": "proposed",
+   "verdictGlyph": "\u2713",
+   "rollupStatus": "healthy",
+   "coveredByGate": false,
+   "verdictOutcome": "pass",
+   "renderedStatus": "healthy",
+   "tests": 4
+  },
+  {
+   "id": "terminal-capture-activation",
+   "title": "The real terminal CLI captures its own reads additively and replays them",
+   "authoredStatus": "proposed",
+   "verdictGlyph": "\u2713",
+   "rollupStatus": "healthy",
+   "coveredByGate": false,
+   "verdictOutcome": "pass",
+   "renderedStatus": "healthy",
+   "tests": 5
+  },
+  {
+   "id": "revisit-link-metadata",
+   "title": "A repeat read names the earlier visit it repeats",
+   "authoredStatus": "proposed",
+   "verdictGlyph": "\u2713",
+   "rollupStatus": "healthy",
+   "coveredByGate": false,
+   "verdictOutcome": "pass",
+   "renderedStatus": "healthy",
+   "tests": 5
+  },
+  {
+   "id": "agent-ref-descent",
+   "title": "An agent's essentials render descends its floor refs",
+   "authoredStatus": "proposed",
+   "verdictGlyph": "\u2713",
+   "rollupStatus": "healthy",
+   "coveredByGate": false,
+   "verdictOutcome": "pass",
+   "renderedStatus": "healthy",
+   "tests": 7
+  },
+  {
+   "id": "artifact-offer-candidate-sets",
+   "title": "An artifact render records what it offered, followed or not",
+   "authoredStatus": "proposed",
+   "verdictGlyph": "\u2713",
+   "rollupStatus": "healthy",
+   "coveredByGate": false,
+   "verdictOutcome": "pass",
+   "renderedStatus": "healthy",
+   "tests": 7
+  },
+  {
+   "id": "offer-follow-edges",
+   "title": "A read that carries an offer id declares the edge it answered; a bare read declares none",
+   "authoredStatus": "proposed",
+   "verdictGlyph": "\u2713",
+   "rollupStatus": "healthy",
+   "coveredByGate": false,
+   "verdictOutcome": "pass",
+   "renderedStatus": "healthy",
+   "tests": 7
+  },
+  {
+   "id": "decision-point-playback",
+   "title": "The replay draws the branch taken and the branches not taken, and says so when it cannot",
+   "authoredStatus": "proposed",
+   "verdictGlyph": "\u2713",
+   "rollupStatus": "healthy",
+   "coveredByGate": false,
+   "verdictOutcome": "pass",
+   "renderedStatus": "healthy",
+   "tests": 7
+  },
+  {
+   "id": "offer-observability-share",
+   "title": "A decision point states how much of its own offer set the telemetry could not see",
+   "authoredStatus": "proposed",
+   "verdictGlyph": "\u2713",
+   "rollupStatus": "healthy",
+   "coveredByGate": false,
+   "verdictOutcome": "pass",
+   "renderedStatus": "healthy",
+   "tests": 7
+  },
+  {
+   "id": "offer-set-render-agreement",
+   "title": "The recorded offer set is checked against the artifact's real rendered Sources block",
+   "authoredStatus": "proposed",
+   "verdictGlyph": "\u2713",
+   "rollupStatus": "healthy",
+   "coveredByGate": false,
+   "verdictOutcome": "pass",
+   "renderedStatus": "healthy",
+   "tests": 6
+  }
+ ],
+ "uatCriteria": [
+  {
+   "id": "uatc_7d2fd64553fdd66d3d23248c",
+   "revisionId": "uatr1:1ff82f7c25357a12",
+   "witness": "machine",
+   "state": "proven"
+  },
+  {
+   "id": "uatc_6e39dfcc18d5caa4aa3c64a5",
+   "revisionId": "uatr1:63ba2bacb36c23cd",
+   "witness": "machine",
+   "state": "proven"
+  },
+  {
+   "id": "uatc_411c5b920d3cc42fc2fb2a4f",
+   "revisionId": "uatr1:3e7eb060347651e7",
+   "witness": "machine",
+   "state": "proven"
+  },
+  {
+   "id": "uatc_65130d5b0ef6482a5b443cf7",
+   "revisionId": "uatr1:1e4a7006a96937cd",
+   "witness": "machine",
+   "state": "proven"
+  },
+  {
+   "id": "uatc_11abf3bd67912119d765e77a",
+   "revisionId": "uatr1:c1fb11dbcf0067ef",
+   "witness": "machine",
+   "state": "proven"
+  },
+  {
+   "id": "uatc_6b22fe35e0d9d416355d515a",
+   "revisionId": "uatr1:bfbeadbe7ad9f435",
+   "witness": "machine",
+   "state": "proven"
+  },
+  {
+   "id": "uatc_cb75462a2561f8db0825a9a2",
+   "revisionId": "uatr1:3fa49ba3844329a1",
+   "witness": "machine",
+   "state": "proven"
+  },
+  {
+   "id": "uatc_4bbb8909ea3e832c7033ae7a",
+   "revisionId": "uatr1:4cfc5cbe322171bc",
+   "witness": "machine",
+   "state": "proven"
+  },
+  {
+   "id": "uatc_c52578cfeae287b056726977",
+   "revisionId": "uatr1:81cf81492ff1399e",
+   "witness": "machine",
+   "state": "proven"
+  },
+  {
+   "id": "uatc_413f00cf1ff8cd520194c4c4",
+   "revisionId": "uatr1:e58f48ee23bb441e",
+   "witness": "machine",
+   "state": "proven"
+  }
+ ]
+}
