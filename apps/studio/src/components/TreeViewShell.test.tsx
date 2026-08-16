@@ -522,20 +522,18 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
         '[data-organic-technique="pose-to-pose"][data-island-technique="connected-accretion"]',
       );
       expect(section).toBeTruthy();
-      expect(section?.getAttribute('data-svg-island-accretion-cells')).toBe('52');
+      expect(section?.getAttribute('data-svg-island-accretion-cells')).toBe('50');
       expect(section?.getAttribute('data-svg-island-accretion-duration-ms')).toBe('1600');
-      // 52 cells over 7 connected waves. The counts moved from 50 / `1,4,7,10,11,9,6,2` when
-      // ADR-0367 D1 gave the land a camera (the relaxed mesh interns vertices at 0.1 px in SCREEN
-      // space, so foreshortening the lattice re-decides which vertices coincide and the cell
-      // decomposition shifts with it), then moved AGAIN to `1,4,8,13,13,9,4` when
-      // `land-camera-consumers-reconcile` fixed `buildWorld`'s `tiles.map(hexCenter)` /
-      // `empties.map(hexCenter)` — `Array.prototype.map` calls its callback `(element, index,
-      // array)`, and `hexCenter`'s optional second parameter is an elevation in DEGREES, so every
-      // bare `.map(hexCenter)` was silently re-flattening each tile by its own ARRAY INDEX rather
-      // than the declared 20 deg camera. The reveal STRUCTURE is unchanged — still one connected
-      // adjacency wave per ring, still monotone-then-tapering — and the shift is caught here loudly
+      // 50 cells over 9 connected waves. The counts moved from 52 / `1,4,8,13,13,9,4` when
+      // `islands-sit-too-far-apart-and-the-resting-zoom-is-too-far-out` halved RANK_GAP/ISLAND_GAP/
+      // RANK_SWING — this fixture's two-story world (buildWorld([demoStory, COMPANION_STORY], …))
+      // seeds at a different row/column offset under the new spacing, and the relaxed mesh interns
+      // vertices at 0.1 px in SCREEN space (as the prior two moves already established), so a
+      // shifted seed re-decides which vertices coincide and the cell decomposition shifts with it.
+      // The reveal STRUCTURE is unchanged — still one connected adjacency wave per ring, still
+      // monotone-then-tapering (1,4,7,9,10, then 8,5,4,2) — and the shift is caught here loudly
       // rather than silently, which is what this assertion is for.
-      expect(section?.getAttribute('data-svg-island-accretion-waves')).toBe('1,4,8,13,13,9,4');
+      expect(section?.getAttribute('data-svg-island-accretion-waves')).toBe('1,4,7,9,10,8,5,4,2');
       const legend = flagged.querySelector('[data-island-accretion-legend="true"]');
       expect(legend).toBeTruthy();
       for (const term of [
@@ -1480,7 +1478,9 @@ describe('Chapter 2 round-3 comparison lab (`?organicGrowth=r3-lab`)', () => {
       // The FIXED half: the Experiment 6 connected accretion island over the pose-to-pose clock.
       expect(section.getAttribute('data-organic-technique')).toBe('pose-to-pose');
       expect(section.getAttribute('data-island-technique')).toBe('connected-accretion');
-      expect(section.getAttribute('data-svg-island-accretion-cells')).toBe('52');
+      // Same fixture/golden as the organic-island-accretion gate above — see its comment for why
+      // 52 -> 50 (islands-sit-too-far-apart-and-the-resting-zoom-is-too-far-out's spacing cut).
+      expect(section.getAttribute('data-svg-island-accretion-cells')).toBe('50');
       expect(section.getAttribute('data-svg-island-accretion-duration-ms')).toBe('1600');
 
       // The picker names every candidate, with the incumbent pressed by default.
