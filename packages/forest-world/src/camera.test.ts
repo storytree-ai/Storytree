@@ -104,8 +104,8 @@ test('hexCenter reads the declared camera: ground depth foreshortens, screen x d
   assert.equal(hexCenter({ q: 1, r: 0 }).y, 0);
 
   // ...and at the plan-view limit it is byte-for-byte the pre-camera mapping.
-  assert.equal(hexCenter({ q: 0, r: 1 }, PLAN_VIEW_ELEVATION_DEG).y, 1.5 * HEX_R);
-  assert.equal(hexCenter({ q: 2, r: 3 }, PLAN_VIEW_ELEVATION_DEG).y, 1.5 * HEX_R * 3);
+  assert.equal(hexCenter({ q: 0, r: 1 }, { elevationDeg: PLAN_VIEW_ELEVATION_DEG }).y, 1.5 * HEX_R);
+  assert.equal(hexCenter({ q: 2, r: 3 }, { elevationDeg: PLAN_VIEW_ELEVATION_DEG }).y, 1.5 * HEX_R * 3);
 });
 
 test('a lower camera flattens the land strictly more: hexCenter.y is monotone in the elevation', () => {
@@ -114,7 +114,7 @@ test('a lower camera flattens the land strictly more: hexCenter.y is monotone in
     const lo = SWEEP[i - 1]!;
     const hi = SWEEP[i]!;
     assert.ok(
-      hexCenter(h, lo).y < hexCenter(h, hi).y,
+      hexCenter(h, { elevationDeg: lo }).y < hexCenter(h, { elevationDeg: hi }).y,
       `expected the land to flatten as the camera drops: y(${lo}) < y(${hi})`,
     );
   }
@@ -128,7 +128,7 @@ test('pixelToHex inverts hexCenter at the same camera, across the sweep', () => 
       for (let r = -4; r <= 4; r++) {
         const h: Axial = { q, r };
         assert.deepEqual(
-          pixelToHex(hexCenter(h, deg), deg),
+          pixelToHex(hexCenter(h, { elevationDeg: deg }), { elevationDeg: deg }),
           h,
           `round-trip failed at ${q},${r} under a ${deg} deg camera`,
         );
@@ -174,11 +174,11 @@ test('the projected lattice still CLOSES: neighbouring cells share their edge co
     for (let q = -2; q <= 2; q++) {
       for (let r = -2; r <= 2; r++) {
         const h: Axial = { q, r };
-        const hc = hexCenter(h, deg);
+        const hc = hexCenter(h, { elevationDeg: deg });
         const mine = hexCorners(hc.x, hc.y, HEX_R, deg);
         AXIAL_DIRS.forEach((d, e) => {
           const n: Axial = { q: q + d.q, r: r + d.r };
-          const nc = hexCenter(n, deg);
+          const nc = hexCenter(n, { elevationDeg: deg });
           const theirs = hexCorners(nc.x, nc.y, HEX_R, deg);
           // My edge e runs corner e -> e+1; the neighbour across it draws the same two points as
           // its own corners e+3 and e+4 (the opposite edge), reversed.
@@ -205,7 +205,7 @@ test("a cell's projected vertical half-extent is its ground radius through the c
   // which is the ground-plane radius and only equals the on-screen half-height in plan view.
   for (const deg of SWEEP) {
     assert.equal(groundRadiusToScreenHalfHeight(HEX_R, deg), HEX_R * groundFlattening(deg));
-    const hc = hexCenter({ q: 0, r: 0 }, deg);
+    const hc = hexCenter({ q: 0, r: 0 }, { elevationDeg: deg });
     const ys = hexCorners(hc.x, hc.y, HEX_R, deg).map((p) => p.y);
     assert.ok(
       Math.abs(Math.max(...ys) - groundRadiusToScreenHalfHeight(HEX_R, deg)) < 1e-9,
@@ -235,8 +235,8 @@ test('a ground contact anchored to a cell lands ON that cell, across the sweep',
     for (let q = -3; q <= 3; q++) {
       for (let r = -3; r <= 3; r++) {
         const h: Axial = { q, r };
-        const contact = hexCenter(h, deg);
-        const hc = hexCenter(h, deg);
+        const contact = hexCenter(h, { elevationDeg: deg });
+        const hc = hexCenter(h, { elevationDeg: deg });
         const cell = hexCorners(hc.x, hc.y, HEX_R, deg);
         assert.ok(
           pointInPolygon(contact, cell),
@@ -252,9 +252,9 @@ test('the contact assertion has TEETH: an anchor at a different camera falls off
   // drawn at the declared camera with its anchor still placed by the pre-camera (plan-view)
   // mapping is exactly today's mismatch, and it must be caught.
   const h: Axial = { q: 0, r: 3 };
-  const hc = hexCenter(h, LAND_CAMERA_ELEVATION_DEG);
+  const hc = hexCenter(h, { elevationDeg: LAND_CAMERA_ELEVATION_DEG });
   const cell = hexCorners(hc.x, hc.y, HEX_R, LAND_CAMERA_ELEVATION_DEG);
-  const planViewAnchor = hexCenter(h, PLAN_VIEW_ELEVATION_DEG);
+  const planViewAnchor = hexCenter(h, { elevationDeg: PLAN_VIEW_ELEVATION_DEG });
   assert.ok(
     !pointInPolygon(planViewAnchor, cell),
     'a plan-view anchor on an angled cell should NOT be judged planted',

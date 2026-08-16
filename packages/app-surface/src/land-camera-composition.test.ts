@@ -56,7 +56,7 @@ function pointInPolygon(p: Pt, poly: readonly Pt[]): boolean {
 
 /** The projected polygon of one land cell, at a given camera. */
 function cellPolygon(h: Axial, elevationDeg: number): Pt[] {
-  const c = hexCenter(h, elevationDeg);
+  const c = hexCenter(h, { elevationDeg });
   return hexCorners(c.x, c.y, HEX_R, elevationDeg);
 }
 
@@ -70,7 +70,7 @@ function plantedHeroTree(h: Axial, elevationDeg: number): OrganicLayerPlacement 
   return {
     canvas: candidate.canvas,
     assetAnchor: candidate.groundAnchor,
-    worldAnchor: hexCenter(h, elevationDeg),
+    worldAnchor: hexCenter(h, { elevationDeg }),
     scale: (HEX_R * 2) / candidate.canvas.width,
     projection: spriteUprightReconciliation(candidate.renderedCameraElevationDeg, elevationDeg),
   };
@@ -239,7 +239,7 @@ describe('an object’s ground contact lands on the cell it is anchored to', () 
     const h: Axial = { q: 0, r: 3 };
     const stale = organicLayerGroundContact({
       ...plantedHeroTree(h, LAND_CAMERA_ELEVATION_DEG),
-      worldAnchor: hexCenter(h, PLAN_VIEW_ELEVATION_DEG),
+      worldAnchor: hexCenter(h, { elevationDeg: PLAN_VIEW_ELEVATION_DEG }),
     });
     expect(pointInPolygon(stale, cellPolygon(h, LAND_CAMERA_ELEVATION_DEG))).toBe(false);
   });
