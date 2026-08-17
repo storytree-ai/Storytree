@@ -1,0 +1,29 @@
+{
+ "picture": "greenery-techniques.png",
+ "size": [
+  1204,
+  742
+ ],
+ "zoom": 14,
+ "deliveredResolution": true,
+ "codeStates": {
+  "blender_greenery.py": "07d648b5c6ca6a59487c3e53bf455a71cea3f46a0e158289b42c8d661851676d",
+  "measure.py": "11473d7ad97502f7cb8f19c178945736ddff87e5fad241459d7480942d0beb21",
+  "sheet.py": "f60bdd28b101a9bcace619e0337fe44e089a103d903c340b3c01121e6db0fd4f"
+ },
+ "renderMeta": {
+  "blender": "5.2.0 LTS",
+  "samples": 48,
+  "seed": 20260817,
+  "engine": "CYCLES/CPU",
+  "curveShape": "THICK",
+  "cameraElevationDeg": 50.0
+ },
+ "pieceSets": {
+  "candidates": "docs/research/chapter2-greenery-techniques-2026-08-17/pieces-greenery",
+  "baselineBlade": "docs/research/chapter2-grass-reads-as-signal-2026-08-16/pieces-m00-blade",
+  "baselineSpecies": "docs/research/chapter2-high-frequency-options-2026-08-17/pieces-species"
+ },
+ "rule": "delivered resolution, nearest-neighbour upscale, opaque backdrop, real `healthy` blade tokens substituted through the piece's own pieceRoles map",
+ "notOwnerAttested": "ADR-0070 stage 2 \u2014 this sheet carries no appearance verdict; ADR-0280 D4 makes an honest 'none of these helped' an accepted outcome"
+}

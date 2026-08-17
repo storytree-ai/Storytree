@@ -1,0 +1,516 @@
+{
+ "generator": "blender_greenery.py",
+ "purpose": "STAGE 1 of the greenery technique survey \u2014 what each Blender greenery technique DELIVERS after the palette snap and 3x3 majority downsample. No island, no appearance verdict (ADR-0070 stage 2).",
+ "pieceCanvasWorld": 28.0,
+ "pieceCanvasPx": 84,
+ "supersample": 3,
+ "groundUnitsPerDeliveredPx": 1.0,
+ "supersampledPxPerGroundUnit": 3.0,
+ "deliveredCanvasPx": 28,
+ "camera": {
+  "elevationDeg": 50.0,
+  "rule": "orthographic; ortho_scale == the piece canvas in ground units, and the piece's GROUND CONTACT POINT sits at the canvas centre",
+  "source": "docs/research/chapter2-healthy-island-2026-08-16/island.json"
+ },
+ "code_state": {
+  "generator": "blender_greenery.py",
+  "sha256": "07d648b5c6ca6a59487c3e53bf455a71cea3f46a0e158289b42c8d661851676d"
+ },
+ "argv": [
+  "--out",
+  "pieces-greenery"
+ ],
+ "blender": "5.2.0 LTS",
+ "engine": "CYCLES/CPU",
+ "curveShape": "THICK",
+ "seed": 20260817,
+ "samples": 48,
+ "lightDir": [
+  -0.435,
+  -0.429,
+  0.792
+ ],
+ "bandTriples": {
+  "K0": [
+   255,
+   0,
+   0
+  ],
+  "K1": [
+   0,
+   255,
+   0
+  ],
+  "K2": [
+   0,
+   0,
+   255
+  ],
+  "K3": [
+   255,
+   255,
+   0
+  ],
+  "K4": [
+   0,
+   255,
+   255
+  ],
+  "K5": [
+   255,
+   0,
+   255
+  ]
+ },
+ "tokenFamilies": {
+  "blade": {
+   "healthy": {
+    "bladeFront": "#71a154",
+    "bladeBack": "#436b32"
+   },
+   "building": {
+    "bladeFront": "#71a154",
+    "bladeBack": "#436b32"
+   },
+   "mapped": {
+    "bladeFront": "#9fa88f",
+    "bladeBack": "#7d886c"
+   },
+   "proposed": {
+    "bladeFront": "#9fa88f",
+    "bladeBack": "#7d886c"
+   },
+   "unknown": {
+    "bladeFront": "#b0afa2",
+    "bladeBack": "#8f8e7c"
+   },
+   "unhealthy": {
+    "bladeFront": "#ab8c54",
+    "bladeBack": "#87693b"
+   }
+  },
+  "shrub": {
+   "healthy": {
+    "crown": "#89b56b",
+    "under": "#4f7a3e"
+   },
+   "building": {
+    "crown": "#eccb6d",
+    "under": "#cc9f3c"
+   },
+   "mapped": {
+    "crown": "#89b56b",
+    "under": "#4f7a3e"
+   },
+   "proposed": {
+    "crown": "#89b56b",
+    "under": "#4f7a3e"
+   },
+   "unknown": {
+    "crown": "#89b56b",
+    "under": "#4f7a3e"
+   },
+   "unhealthy": {
+    "crown": "#a08355",
+    "under": "#7a5f3a"
+   }
+  },
+  "wilt": {
+   "unhealthy": {
+    "stem": "#7c5b40",
+    "fleck": "#9f2d22"
+   }
+  },
+  "flower": {
+   "proven": {
+    "stem": "#6f9257",
+    "leaf": "#7ea363",
+    "petal": "#fbf3e0",
+    "centre": "#eab94e"
+   },
+   "pending": {
+    "stem": "#6f9257",
+    "leaf": "#7ea363",
+    "bud": "#7f9d5c"
+   },
+   "failing": {
+    "stem": "#6f9257",
+    "leaf": "#7ea363",
+    "petal": "#b9b3a7",
+    "centre": "#8f8672"
+   }
+  }
+ },
+ "pieceNames": [
+  "control-emitter-only",
+  "hair-tutorial",
+  "hair-fine",
+  "hair-1px",
+  "hair-2px",
+  "hair-clumped",
+  "hair-domesized",
+  "hair-sparse",
+  "geonodes-fine",
+  "geonodes-1px",
+  "card-authored"
+ ],
+ "pieceRoles": {
+  "control-emitter-only": {
+   "K0": [
+    "bladeFront",
+    1.0
+   ],
+   "K1": [
+    "bladeFront",
+    0.82
+   ],
+   "K2": [
+    "bladeBack",
+    1.0
+   ]
+  },
+  "hair-tutorial": {
+   "K0": [
+    "bladeFront",
+    1.0
+   ],
+   "K1": [
+    "bladeFront",
+    0.82
+   ],
+   "K2": [
+    "bladeBack",
+    1.0
+   ]
+  },
+  "hair-fine": {
+   "K0": [
+    "bladeFront",
+    1.0
+   ],
+   "K1": [
+    "bladeFront",
+    0.82
+   ],
+   "K2": [
+    "bladeBack",
+    1.0
+   ]
+  },
+  "hair-1px": {
+   "K0": [
+    "bladeFront",
+    1.0
+   ],
+   "K1": [
+    "bladeFront",
+    0.82
+   ],
+   "K2": [
+    "bladeBack",
+    1.0
+   ]
+  },
+  "hair-2px": {
+   "K0": [
+    "bladeFront",
+    1.0
+   ],
+   "K1": [
+    "bladeFront",
+    0.82
+   ],
+   "K2": [
+    "bladeBack",
+    1.0
+   ]
+  },
+  "hair-clumped": {
+   "K0": [
+    "bladeFront",
+    1.0
+   ],
+   "K1": [
+    "bladeFront",
+    0.82
+   ],
+   "K2": [
+    "bladeBack",
+    1.0
+   ]
+  },
+  "hair-domesized": {
+   "K0": [
+    "bladeFront",
+    1.0
+   ],
+   "K1": [
+    "bladeFront",
+    0.82
+   ],
+   "K2": [
+    "bladeBack",
+    1.0
+   ]
+  },
+  "hair-sparse": {
+   "K0": [
+    "bladeFront",
+    1.0
+   ],
+   "K1": [
+    "bladeFront",
+    0.82
+   ],
+   "K2": [
+    "bladeBack",
+    1.0
+   ]
+  },
+  "geonodes-fine": {
+   "K0": [
+    "bladeFront",
+    1.0
+   ],
+   "K1": [
+    "bladeFront",
+    0.82
+   ],
+   "K2": [
+    "bladeBack",
+    1.0
+   ]
+  },
+  "geonodes-1px": {
+   "K0": [
+    "bladeFront",
+    1.0
+   ],
+   "K1": [
+    "bladeFront",
+    0.82
+   ],
+   "K2": [
+    "bladeBack",
+    1.0
+   ]
+  },
+  "card-authored": {
+   "K0": [
+    "bladeFront",
+    1.0
+   ],
+   "K1": [
+    "bladeFront",
+    0.82
+   ],
+   "K2": [
+    "bladeBack",
+    1.0
+   ]
+  }
+ },
+ "hairApplied": {
+  "hair-tutorial": {
+   "type": "HAIR",
+   "count": 140,
+   "hair_length": 4.5,
+   "hair_step": 5,
+   "render_type": "PATH",
+   "child_type": "NONE",
+   "rendered_child_count": 100,
+   "clump_factor": 0.0,
+   "roughness_1": 0.0,
+   "roughness_endpoint": 0.0,
+   "root_radius": 1.0,
+   "tip_radius": 0.0,
+   "radius_scale": 0.01,
+   "brownian_factor": 0.0,
+   "use_advanced_hair": true,
+   "material": 2,
+   "strandWidthGroundUnits": 0.02,
+   "strandWidthDeliveredPx": 0.02,
+   "strandWidthSupersampledPx": 0.06,
+   "seed": 60817,
+   "emitterMaterialSlot0": "transparent BSDF (use_render_emitter is GONE in 5.2)"
+  },
+  "hair-fine": {
+   "type": "HAIR",
+   "count": 140,
+   "hair_length": 4.5,
+   "hair_step": 5,
+   "render_type": "PATH",
+   "child_type": "NONE",
+   "rendered_child_count": 100,
+   "clump_factor": 0.0,
+   "roughness_1": 0.0,
+   "roughness_endpoint": 0.0,
+   "root_radius": 1.0,
+   "tip_radius": 0.0,
+   "radius_scale": 0.165,
+   "brownian_factor": 0.0,
+   "use_advanced_hair": true,
+   "material": 2,
+   "strandWidthGroundUnits": 0.33,
+   "strandWidthDeliveredPx": 0.33,
+   "strandWidthSupersampledPx": 0.99,
+   "seed": 60817,
+   "emitterMaterialSlot0": "transparent BSDF (use_render_emitter is GONE in 5.2)"
+  },
+  "hair-1px": {
+   "type": "HAIR",
+   "count": 90,
+   "hair_length": 4.5,
+   "hair_step": 5,
+   "render_type": "PATH",
+   "child_type": "NONE",
+   "rendered_child_count": 100,
+   "clump_factor": 0.0,
+   "roughness_1": 0.0,
+   "roughness_endpoint": 0.0,
+   "root_radius": 1.0,
+   "tip_radius": 0.0,
+   "radius_scale": 0.5,
+   "brownian_factor": 0.0,
+   "use_advanced_hair": true,
+   "material": 2,
+   "strandWidthGroundUnits": 1.0,
+   "strandWidthDeliveredPx": 1.0,
+   "strandWidthSupersampledPx": 3.0,
+   "seed": 60817,
+   "emitterMaterialSlot0": "transparent BSDF (use_render_emitter is GONE in 5.2)"
+  },
+  "hair-2px": {
+   "type": "HAIR",
+   "count": 60,
+   "hair_length": 4.5,
+   "hair_step": 5,
+   "render_type": "PATH",
+   "child_type": "NONE",
+   "rendered_child_count": 100,
+   "clump_factor": 0.0,
+   "roughness_1": 0.0,
+   "roughness_endpoint": 0.0,
+   "root_radius": 1.0,
+   "tip_radius": 0.0,
+   "radius_scale": 1.0,
+   "brownian_factor": 0.0,
+   "use_advanced_hair": true,
+   "material": 2,
+   "strandWidthGroundUnits": 2.0,
+   "strandWidthDeliveredPx": 2.0,
+   "strandWidthSupersampledPx": 6.0,
+   "seed": 60817,
+   "emitterMaterialSlot0": "transparent BSDF (use_render_emitter is GONE in 5.2)"
+  },
+  "hair-clumped": {
+   "type": "HAIR",
+   "count": 24,
+   "hair_length": 5.0,
+   "hair_step": 5,
+   "render_type": "PATH",
+   "child_type": "INTERPOLATED",
+   "rendered_child_count": 180,
+   "clump_factor": 0.55,
+   "roughness_1": 0.18,
+   "roughness_endpoint": 0.18,
+   "root_radius": 1.0,
+   "tip_radius": 0.0,
+   "radius_scale": 0.5,
+   "brownian_factor": 0.02,
+   "use_advanced_hair": true,
+   "material": 2,
+   "strandWidthGroundUnits": 1.0,
+   "strandWidthDeliveredPx": 1.0,
+   "strandWidthSupersampledPx": 3.0,
+   "seed": 60817,
+   "emitterMaterialSlot0": "transparent BSDF (use_render_emitter is GONE in 5.2)"
+  },
+  "hair-domesized": {
+   "type": "HAIR",
+   "count": 90,
+   "hair_length": 2.0,
+   "hair_step": 5,
+   "render_type": "PATH",
+   "child_type": "NONE",
+   "rendered_child_count": 100,
+   "clump_factor": 0.0,
+   "roughness_1": 0.0,
+   "roughness_endpoint": 0.0,
+   "root_radius": 1.0,
+   "tip_radius": 0.0,
+   "radius_scale": 0.5,
+   "brownian_factor": 0.0,
+   "use_advanced_hair": true,
+   "material": 2,
+   "strandWidthGroundUnits": 1.0,
+   "strandWidthDeliveredPx": 1.0,
+   "strandWidthSupersampledPx": 3.0,
+   "seed": 60817,
+   "emitterMaterialSlot0": "transparent BSDF (use_render_emitter is GONE in 5.2)"
+  },
+  "hair-sparse": {
+   "type": "HAIR",
+   "count": 12,
+   "hair_length": 4.5,
+   "hair_step": 5,
+   "render_type": "PATH",
+   "child_type": "NONE",
+   "rendered_child_count": 100,
+   "clump_factor": 0.0,
+   "roughness_1": 0.0,
+   "roughness_endpoint": 0.0,
+   "root_radius": 1.0,
+   "tip_radius": 0.0,
+   "radius_scale": 0.75,
+   "brownian_factor": 0.0,
+   "use_advanced_hair": true,
+   "material": 2,
+   "strandWidthGroundUnits": 1.5,
+   "strandWidthDeliveredPx": 1.5,
+   "strandWidthSupersampledPx": 4.5,
+   "seed": 60817,
+   "emitterMaterialSlot0": "transparent BSDF (use_render_emitter is GONE in 5.2)"
+  }
+ },
+ "geonodeApplied": {
+  "geonodes-fine": {
+   "density": 3.1831,
+   "requestedCount": 90,
+   "bladeWidthGroundUnits": 0.4,
+   "bladeHeightGroundUnits": 4.5,
+   "bladeWidthDeliveredPx": 0.4,
+   "alignedToSurfaceNormal": true,
+   "seed": 817
+  },
+  "geonodes-1px": {
+   "density": 1.94523,
+   "requestedCount": 55,
+   "bladeWidthGroundUnits": 1.0,
+   "bladeHeightGroundUnits": 4.5,
+   "bladeWidthDeliveredPx": 1.0,
+   "alignedToSurfaceNormal": true,
+   "seed": 817
+  }
+ },
+ "cardApplied": {
+  "card-authored": {
+   "authoredDeliveredPx": 20,
+   "authoredBox": [
+    7,
+    4
+   ],
+   "textureSizePx": [
+    21,
+    12
+   ],
+   "upscale": 3,
+   "interpolation": "Closest",
+   "billboardedToCamera": true,
+   "rule": "authored AT delivered resolution and upscaled by exactly the supersample factor, so the majority downsample is an identity on it by construction"
+  }
+ },
+ "comparedAgainst": "docs/research/chapter2-grass-reads-as-signal-2026-08-16/pieces-m00-clump",
+ "notASpeciesSet": "These pieces are MEASUREMENT SUBJECTS, not a mountable piece set. They are not named for any `tuft-*` slot and no compositor mounts them; naming them for slots would invite exactly the silent mismount `use_pieces` refuses.",
+ "vocabularySource": "ADR-0226 D2/D3/D4 \u2014 grass = a capability's tests, dead grass = the status wilt, a flower = the story's UAT and only UAT with the verdict read from form. No member is added to that vocabulary by this render."
+}

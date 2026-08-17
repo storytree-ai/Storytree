@@ -1,0 +1,589 @@
+{
+ "what": "Stage 1 of the greenery technique survey: what each Blender greenery technique DELIVERS after the palette snap and the 3x3 majority downsample.",
+ "pipelineFacts": {
+  "pieceCanvasWorld": 28.0,
+  "pieceCanvasPx": 84,
+  "supersample": 3,
+  "deliveredCanvasPx": 28,
+  "groundUnitsPerDeliveredPx": 1.0,
+  "note": "ONE GROUND UNIT IS ONE DELIVERED PIXEL. Blender's default hair radius_scale of 0.01 is therefore 1/150th of a delivered pixel wide."
+ },
+ "candidates": {
+  "control-emitter-only": {
+   "rawOpaquePx": 0,
+   "deliveredPx": 0,
+   "survivalPctOfBlocks": 0.0,
+   "bboxW": 0,
+   "bboxH": 0,
+   "aspect": 0.0,
+   "rows": []
+  },
+  "hair-tutorial": {
+   "rawOpaquePx": 0,
+   "deliveredPx": 0,
+   "survivalPctOfBlocks": 0.0,
+   "bboxW": 0,
+   "bboxH": 0,
+   "aspect": 0.0,
+   "rows": []
+  },
+  "hair-fine": {
+   "rawOpaquePx": 222,
+   "deliveredPx": 26,
+   "survivalPctOfBlocks": 105.4,
+   "bboxW": 7,
+   "bboxH": 6,
+   "aspect": 1.17,
+   "rows": [
+    "..#.##.",
+    "..####.",
+    ".#####.",
+    "#######",
+    ".######",
+    "...#..."
+   ]
+  },
+  "hair-1px": {
+   "rawOpaquePx": 323,
+   "deliveredPx": 36,
+   "survivalPctOfBlocks": 100.3,
+   "bboxW": 8,
+   "bboxH": 7,
+   "aspect": 1.14,
+   "rows": [
+    "..####..",
+    "..####..",
+    ".#####..",
+    "########",
+    "###..##.",
+    ".######.",
+    "..####.."
+   ]
+  },
+  "hair-2px": {
+   "rawOpaquePx": 316,
+   "deliveredPx": 33,
+   "survivalPctOfBlocks": 94.0,
+   "bboxW": 7,
+   "bboxH": 7,
+   "aspect": 1.0,
+   "rows": [
+    "..###..",
+    "..####.",
+    ".#####.",
+    "######.",
+    ".######",
+    ".######",
+    "..##.#."
+   ]
+  },
+  "hair-clumped": {
+   "rawOpaquePx": 494,
+   "deliveredPx": 55,
+   "survivalPctOfBlocks": 100.2,
+   "bboxW": 9,
+   "bboxH": 8,
+   "aspect": 1.12,
+   "rows": [
+    "..######.",
+    "..######.",
+    "#.######.",
+    "#########",
+    ".########",
+    ".#######.",
+    "..######.",
+    "..######."
+   ]
+  },
+  "hair-domesized": {
+   "rawOpaquePx": 139,
+   "deliveredPx": 15,
+   "survivalPctOfBlocks": 97.1,
+   "bboxW": 5,
+   "bboxH": 5,
+   "aspect": 1.0,
+   "rows": [
+    ".##..",
+    "####.",
+    "#..##",
+    "####.",
+    ".##.."
+   ]
+  },
+  "hair-sparse": {
+   "rawOpaquePx": 125,
+   "deliveredPx": 10,
+   "survivalPctOfBlocks": 72.0,
+   "bboxW": 5,
+   "bboxH": 6,
+   "aspect": 0.83,
+   "rows": [
+    "..#..",
+    ".##..",
+    "#.#..",
+    ".##.#",
+    ".....",
+    ".#.#."
+   ]
+  },
+  "geonodes-fine": {
+   "rawOpaquePx": 337,
+   "deliveredPx": 40,
+   "survivalPctOfBlocks": 106.8,
+   "bboxW": 8,
+   "bboxH": 8,
+   "aspect": 1.0,
+   "rows": [
+    "...#....",
+    ".######.",
+    ".######.",
+    "########",
+    "#######.",
+    ".##.###.",
+    "..####..",
+    "..##.#.."
+   ]
+  },
+  "geonodes-1px": {
+   "rawOpaquePx": 391,
+   "deliveredPx": 45,
+   "survivalPctOfBlocks": 103.6,
+   "bboxW": 8,
+   "bboxH": 8,
+   "aspect": 1.0,
+   "rows": [
+    "...###..",
+    ".######.",
+    "########",
+    "########",
+    "####.###",
+    ".####.#.",
+    "..#####.",
+    "...###.."
+   ]
+  },
+  "card-authored": {
+   "rawOpaquePx": 186,
+   "deliveredPx": 24,
+   "survivalPctOfBlocks": 116.1,
+   "bboxW": 8,
+   "bboxH": 4,
+   "aspect": 2.0,
+   "rows": [
+    "..####..",
+    ".######.",
+    "########",
+    ".######."
+   ]
+  }
+ },
+ "baselines": {
+  "pieces-m00-blade (the WITHDRAWN long grass)": {
+   "tuft-2": {
+    "rawOpaquePx": 30,
+    "deliveredPx": 2,
+    "survivalPctOfBlocks": 60.0,
+    "bboxW": 2,
+    "bboxH": 1,
+    "aspect": 2.0,
+    "rows": [
+     "##"
+    ]
+   },
+   "tuft-3a": {
+    "rawOpaquePx": 26,
+    "deliveredPx": 2,
+    "survivalPctOfBlocks": 69.2,
+    "bboxW": 2,
+    "bboxH": 1,
+    "aspect": 2.0,
+    "rows": [
+     "##"
+    ]
+   },
+   "tuft-3b": {
+    "rawOpaquePx": 34,
+    "deliveredPx": 3,
+    "survivalPctOfBlocks": 79.4,
+    "bboxW": 2,
+    "bboxH": 2,
+    "aspect": 1.0,
+    "rows": [
+     "#.",
+     "##"
+    ]
+   },
+   "tuft-4": {
+    "rawOpaquePx": 42,
+    "deliveredPx": 2,
+    "survivalPctOfBlocks": 42.9,
+    "bboxW": 2,
+    "bboxH": 1,
+    "aspect": 2.0,
+    "rows": [
+     "##"
+    ]
+   },
+   "shrub-a": {
+    "rawOpaquePx": 114,
+    "deliveredPx": 12,
+    "survivalPctOfBlocks": 94.7,
+    "bboxW": 6,
+    "bboxH": 3,
+    "aspect": 2.0,
+    "rows": [
+     "######",
+     ".####.",
+     "..##.."
+    ]
+   }
+  },
+  "pieces-m00-clump": {
+   "tuft-2": {
+    "rawOpaquePx": 95,
+    "deliveredPx": 9,
+    "survivalPctOfBlocks": 85.3,
+    "bboxW": 4,
+    "bboxH": 3,
+    "aspect": 1.33,
+    "rows": [
+     ".#..",
+     "####",
+     "####"
+    ]
+   },
+   "tuft-3a": {
+    "rawOpaquePx": 85,
+    "deliveredPx": 8,
+    "survivalPctOfBlocks": 84.7,
+    "bboxW": 4,
+    "bboxH": 2,
+    "aspect": 2.0,
+    "rows": [
+     "####",
+     "####"
+    ]
+   },
+   "tuft-3b": {
+    "rawOpaquePx": 68,
+    "deliveredPx": 7,
+    "survivalPctOfBlocks": 92.6,
+    "bboxW": 4,
+    "bboxH": 3,
+    "aspect": 1.33,
+    "rows": [
+     ".#..",
+     "####",
+     ".##."
+    ]
+   },
+   "tuft-4": {
+    "rawOpaquePx": 118,
+    "deliveredPx": 10,
+    "survivalPctOfBlocks": 76.3,
+    "bboxW": 4,
+    "bboxH": 3,
+    "aspect": 1.33,
+    "rows": [
+     ".##.",
+     "####",
+     "####"
+    ]
+   },
+   "shrub-a": {
+    "rawOpaquePx": 114,
+    "deliveredPx": 12,
+    "survivalPctOfBlocks": 94.7,
+    "bboxW": 6,
+    "bboxH": 3,
+    "aspect": 2.0,
+    "rows": [
+     "######",
+     ".####.",
+     "..##.."
+    ]
+   }
+  },
+  "pieces-species (PR #1389)": {
+   "tuft-2": {
+    "rawOpaquePx": 65,
+    "deliveredPx": 7,
+    "survivalPctOfBlocks": 96.9,
+    "bboxW": 2,
+    "bboxH": 4,
+    "aspect": 0.5,
+    "rows": [
+     "##",
+     "##",
+     "##",
+     ".#"
+    ]
+   },
+   "tuft-3a": {
+    "rawOpaquePx": 171,
+    "deliveredPx": 18,
+    "survivalPctOfBlocks": 94.7,
+    "bboxW": 6,
+    "bboxH": 4,
+    "aspect": 1.5,
+    "rows": [
+     "..##..",
+     "######",
+     "######",
+     ".####."
+    ]
+   },
+   "tuft-3b": {
+    "rawOpaquePx": 165,
+    "deliveredPx": 20,
+    "survivalPctOfBlocks": 109.1,
+    "bboxW": 8,
+    "bboxH": 3,
+    "aspect": 2.67,
+    "rows": [
+     ".######.",
+     "########",
+     ".######."
+    ]
+   },
+   "tuft-4": {
+    "rawOpaquePx": 78,
+    "deliveredPx": 10,
+    "survivalPctOfBlocks": 115.4,
+    "bboxW": 6,
+    "bboxH": 3,
+    "aspect": 2.0,
+    "rows": [
+     ".#....",
+     "##..##",
+     "###.##"
+    ]
+   },
+   "shrub-a": {
+    "rawOpaquePx": 114,
+    "deliveredPx": 12,
+    "survivalPctOfBlocks": 94.7,
+    "bboxW": 6,
+    "bboxH": 3,
+    "aspect": 2.0,
+    "rows": [
+     "######",
+     ".####.",
+     "..##.."
+    ]
+   }
+  }
+ },
+ "hairApplied": {
+  "hair-tutorial": {
+   "type": "HAIR",
+   "count": 140,
+   "hair_length": 4.5,
+   "hair_step": 5,
+   "render_type": "PATH",
+   "child_type": "NONE",
+   "rendered_child_count": 100,
+   "clump_factor": 0.0,
+   "roughness_1": 0.0,
+   "roughness_endpoint": 0.0,
+   "root_radius": 1.0,
+   "tip_radius": 0.0,
+   "radius_scale": 0.01,
+   "brownian_factor": 0.0,
+   "use_advanced_hair": true,
+   "material": 2,
+   "strandWidthGroundUnits": 0.02,
+   "strandWidthDeliveredPx": 0.02,
+   "strandWidthSupersampledPx": 0.06,
+   "seed": 60817,
+   "emitterMaterialSlot0": "transparent BSDF (use_render_emitter is GONE in 5.2)"
+  },
+  "hair-fine": {
+   "type": "HAIR",
+   "count": 140,
+   "hair_length": 4.5,
+   "hair_step": 5,
+   "render_type": "PATH",
+   "child_type": "NONE",
+   "rendered_child_count": 100,
+   "clump_factor": 0.0,
+   "roughness_1": 0.0,
+   "roughness_endpoint": 0.0,
+   "root_radius": 1.0,
+   "tip_radius": 0.0,
+   "radius_scale": 0.165,
+   "brownian_factor": 0.0,
+   "use_advanced_hair": true,
+   "material": 2,
+   "strandWidthGroundUnits": 0.33,
+   "strandWidthDeliveredPx": 0.33,
+   "strandWidthSupersampledPx": 0.99,
+   "seed": 60817,
+   "emitterMaterialSlot0": "transparent BSDF (use_render_emitter is GONE in 5.2)"
+  },
+  "hair-1px": {
+   "type": "HAIR",
+   "count": 90,
+   "hair_length": 4.5,
+   "hair_step": 5,
+   "render_type": "PATH",
+   "child_type": "NONE",
+   "rendered_child_count": 100,
+   "clump_factor": 0.0,
+   "roughness_1": 0.0,
+   "roughness_endpoint": 0.0,
+   "root_radius": 1.0,
+   "tip_radius": 0.0,
+   "radius_scale": 0.5,
+   "brownian_factor": 0.0,
+   "use_advanced_hair": true,
+   "material": 2,
+   "strandWidthGroundUnits": 1.0,
+   "strandWidthDeliveredPx": 1.0,
+   "strandWidthSupersampledPx": 3.0,
+   "seed": 60817,
+   "emitterMaterialSlot0": "transparent BSDF (use_render_emitter is GONE in 5.2)"
+  },
+  "hair-2px": {
+   "type": "HAIR",
+   "count": 60,
+   "hair_length": 4.5,
+   "hair_step": 5,
+   "render_type": "PATH",
+   "child_type": "NONE",
+   "rendered_child_count": 100,
+   "clump_factor": 0.0,
+   "roughness_1": 0.0,
+   "roughness_endpoint": 0.0,
+   "root_radius": 1.0,
+   "tip_radius": 0.0,
+   "radius_scale": 1.0,
+   "brownian_factor": 0.0,
+   "use_advanced_hair": true,
+   "material": 2,
+   "strandWidthGroundUnits": 2.0,
+   "strandWidthDeliveredPx": 2.0,
+   "strandWidthSupersampledPx": 6.0,
+   "seed": 60817,
+   "emitterMaterialSlot0": "transparent BSDF (use_render_emitter is GONE in 5.2)"
+  },
+  "hair-clumped": {
+   "type": "HAIR",
+   "count": 24,
+   "hair_length": 5.0,
+   "hair_step": 5,
+   "render_type": "PATH",
+   "child_type": "INTERPOLATED",
+   "rendered_child_count": 180,
+   "clump_factor": 0.55,
+   "roughness_1": 0.18,
+   "roughness_endpoint": 0.18,
+   "root_radius": 1.0,
+   "tip_radius": 0.0,
+   "radius_scale": 0.5,
+   "brownian_factor": 0.02,
+   "use_advanced_hair": true,
+   "material": 2,
+   "strandWidthGroundUnits": 1.0,
+   "strandWidthDeliveredPx": 1.0,
+   "strandWidthSupersampledPx": 3.0,
+   "seed": 60817,
+   "emitterMaterialSlot0": "transparent BSDF (use_render_emitter is GONE in 5.2)"
+  },
+  "hair-domesized": {
+   "type": "HAIR",
+   "count": 90,
+   "hair_length": 2.0,
+   "hair_step": 5,
+   "render_type": "PATH",
+   "child_type": "NONE",
+   "rendered_child_count": 100,
+   "clump_factor": 0.0,
+   "roughness_1": 0.0,
+   "roughness_endpoint": 0.0,
+   "root_radius": 1.0,
+   "tip_radius": 0.0,
+   "radius_scale": 0.5,
+   "brownian_factor": 0.0,
+   "use_advanced_hair": true,
+   "material": 2,
+   "strandWidthGroundUnits": 1.0,
+   "strandWidthDeliveredPx": 1.0,
+   "strandWidthSupersampledPx": 3.0,
+   "seed": 60817,
+   "emitterMaterialSlot0": "transparent BSDF (use_render_emitter is GONE in 5.2)"
+  },
+  "hair-sparse": {
+   "type": "HAIR",
+   "count": 12,
+   "hair_length": 4.5,
+   "hair_step": 5,
+   "render_type": "PATH",
+   "child_type": "NONE",
+   "rendered_child_count": 100,
+   "clump_factor": 0.0,
+   "roughness_1": 0.0,
+   "roughness_endpoint": 0.0,
+   "root_radius": 1.0,
+   "tip_radius": 0.0,
+   "radius_scale": 0.75,
+   "brownian_factor": 0.0,
+   "use_advanced_hair": true,
+   "material": 2,
+   "strandWidthGroundUnits": 1.5,
+   "strandWidthDeliveredPx": 1.5,
+   "strandWidthSupersampledPx": 4.5,
+   "seed": 60817,
+   "emitterMaterialSlot0": "transparent BSDF (use_render_emitter is GONE in 5.2)"
+  }
+ },
+ "geonodeApplied": {
+  "geonodes-fine": {
+   "density": 3.1831,
+   "requestedCount": 90,
+   "bladeWidthGroundUnits": 0.4,
+   "bladeHeightGroundUnits": 4.5,
+   "bladeWidthDeliveredPx": 0.4,
+   "alignedToSurfaceNormal": true,
+   "seed": 817
+  },
+  "geonodes-1px": {
+   "density": 1.94523,
+   "requestedCount": 55,
+   "bladeWidthGroundUnits": 1.0,
+   "bladeHeightGroundUnits": 4.5,
+   "bladeWidthDeliveredPx": 1.0,
+   "alignedToSurfaceNormal": true,
+   "seed": 817
+  }
+ },
+ "cardApplied": {
+  "card-authored": {
+   "authoredDeliveredPx": 20,
+   "authoredBox": [
+    7,
+    4
+   ],
+   "textureSizePx": [
+    21,
+    12
+   ],
+   "upscale": 3,
+   "interpolation": "Closest",
+   "billboardedToCamera": true,
+   "rule": "authored AT delivered resolution and upscaled by exactly the supersample factor, so the majority downsample is an identity on it by construction"
+  }
+ },
+ "codeState": {
+  "generator": "blender_greenery.py",
+  "sha256": "07d648b5c6ca6a59487c3e53bf455a71cea3f46a0e158289b42c8d661851676d"
+ },
+ "samples": 48,
+ "seed": 20260817,
+ "blender": "5.2.0 LTS",
+ "emitterControl": {
+  "deliveredPx": 0,
+  "rawOpaquePx": 0,
+  "meaning": "the Transparent BSDF substitute for the removed `use_render_emitter` works: the emitter contributes nothing to any hair piece's delivered footprint"
+ }
+}
