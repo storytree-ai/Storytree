@@ -1,0 +1,1104 @@
+{
+  "date": "2026-08-17",
+  "question": "why is the island dense at its edges, and can dispersion be asserted",
+  "camera": "not applicable - every number here is measured in GROUND units, before any projection. The research track's 50 deg camera and the app's LAND_CAMERA_ELEVATION_DEG=20 both scale y by a constant, which cannot create or remove a radial gradient.",
+  "blenderRenders": 0,
+  "vendorCalls": 0,
+  "seedsPerDistribution": 120,
+  "clearanceGroundUnits": 4.0,
+  "candidatesPerPlacement": 10,
+  "islands": {
+    "healthy": {
+      "source": "chapter2-healthy-island-2026-08-16",
+      "what": "the real-corpus island: story `context-traversal-capture`, 11 capabilities all healthy, 162 mesh cells",
+      "cells": 162,
+      "capabilities": 11,
+      "seed": "context-traversal-capture",
+      "mechanismA_cellGeometryByCoastQuintile": [
+        {
+          "coastFrom": 9.1,
+          "coastTo": 18.1,
+          "cells": 32,
+          "meanCellArea": 157.2,
+          "medianCellArea": 154.7,
+          "minCellArea": 107.1,
+          "meanBboxFill": 0.5815,
+          "minBboxFill": 0.4881,
+          "worstCaseFallbackProbability": 0.00032378
+        },
+        {
+          "coastFrom": 18.7,
+          "coastTo": 25.1,
+          "cells": 32,
+          "meanCellArea": 148.9,
+          "medianCellArea": 144.8,
+          "minCellArea": 92.5,
+          "meanBboxFill": 0.5739,
+          "minBboxFill": 0.4854,
+          "worstCaseFallbackProbability": 0.00034509
+        },
+        {
+          "coastFrom": 25.3,
+          "coastTo": 31.7,
+          "cells": 33,
+          "meanCellArea": 149.8,
+          "medianCellArea": 152.3,
+          "minCellArea": 73.5,
+          "meanBboxFill": 0.569,
+          "minBboxFill": 0.4817,
+          "worstCaseFallbackProbability": 0.00037586
+        },
+        {
+          "coastFrom": 31.7,
+          "coastTo": 39.4,
+          "cells": 32,
+          "meanCellArea": 148.7,
+          "medianCellArea": 153.3,
+          "minCellArea": 59.0,
+          "meanBboxFill": 0.5718,
+          "minBboxFill": 0.4197,
+          "worstCaseFallbackProbability": 0.00145717
+        },
+        {
+          "coastFrom": 39.5,
+          "coastTo": 62.1,
+          "cells": 33,
+          "meanCellArea": 155.4,
+          "medianCellArea": 153.3,
+          "minCellArea": 93.3,
+          "meanBboxFill": 0.5537,
+          "minBboxFill": 0.4514,
+          "worstCaseFallbackProbability": 0.00074304
+        }
+      ],
+      "mechanismA_verdict": "FALSIFIED. Mean cell area is flat across coast-distance quintiles, so the premise 'boundary cells are clipped smaller' does not hold on this mesh; and the counterfactual that IS mechanism A's fix (cell choice proportional to area) leaves the rim/core ratio essentially unchanged.",
+      "mechanismB_over_seeds": {
+        "seeds": 120,
+        "placements": 17821,
+        "centroidFallbacks": 0,
+        "centroidFallbackRate": 0.0,
+        "coincidentPlacements": 0,
+        "expectedFallbacksFromGeometry": 2.19,
+        "measuredPerDrawHitRate": 0.5699
+      },
+      "mechanismB_verdict": "FALSIFIED. The fallback is real machinery but it never fires: the worst cell on either island has a bounding-box fill ratio near 0.4, so twelve independent draws all miss with probability ~2e-3, and the measured count is zero.",
+      "mechanismC_areaBlindBudget": {
+        "unconditionedDensityByCoastQuintile": [
+          {
+            "coastFrom": 9.1,
+            "coastTo": 18.1,
+            "per1000Area": 9.0593
+          },
+          {
+            "coastFrom": 18.7,
+            "coastTo": 25.1,
+            "per1000Area": 5.2797
+          },
+          {
+            "coastFrom": 25.3,
+            "coastTo": 31.7,
+            "per1000Area": 6.6775
+          },
+          {
+            "coastFrom": 31.7,
+            "coastTo": 39.4,
+            "per1000Area": 5.1232
+          },
+          {
+            "coastFrom": 39.5,
+            "coastTo": 62.1,
+            "per1000Area": 3.9803
+          }
+        ],
+        "rimCoreRatio": 2.276,
+        "counterfactualAreaWeightedCellChoice": [
+          {
+            "coastFrom": 9.1,
+            "coastTo": 18.1,
+            "per1000Area": 9.304
+          },
+          {
+            "coastFrom": 18.7,
+            "coastTo": 25.1,
+            "per1000Area": 5.2542
+          },
+          {
+            "coastFrom": 25.3,
+            "coastTo": 31.7,
+            "per1000Area": 6.4057
+          },
+          {
+            "coastFrom": 31.7,
+            "coastTo": 39.4,
+            "per1000Area": 4.9214
+          },
+          {
+            "coastFrom": 39.5,
+            "coastTo": 62.1,
+            "per1000Area": 4.2134
+          }
+        ],
+        "counterfactualRimCoreRatio": 2.208,
+        "corrLogOwnedAreaVsDensity": -0.9272,
+        "corrMeanCoastDistanceVsDensity": -0.7448,
+        "corrOwnedAreaVsMeanCoastDistance": 0.6216,
+        "capabilityDensitySpread": 29.51
+      },
+      "positioners": {
+        "before": {
+          "clearance": 4.0,
+          "axisCorrelation": 0.9997,
+          "onDiagonalFraction": 1.0,
+          "placements": 156,
+          "islandArea": 24622.0,
+          "clarkEvansIsland": 1.1143,
+          "clarkEvansPerCapabilityMean": 1.1492,
+          "capabilitiesScored": 11,
+          "nearPairFraction": 0.3526,
+          "minNearestNeighbour": 0.0057,
+          "medianNearestNeighbour": 7.0474,
+          "coincidentGroups": 0,
+          "densityByCoast": [
+            {
+              "from": 0,
+              "to": 12,
+              "area": 1731.9,
+              "placements": 25,
+              "per1000Area": 14.4351
+            },
+            {
+              "from": 12,
+              "to": 20,
+              "area": 4974.5,
+              "placements": 29,
+              "per1000Area": 5.8297
+            },
+            {
+              "from": 20,
+              "to": 28,
+              "area": 5085.6,
+              "placements": 34,
+              "per1000Area": 6.6855
+            },
+            {
+              "from": 28,
+              "to": 36,
+              "area": 6090.2,
+              "placements": 31,
+              "per1000Area": 5.0901
+            },
+            {
+              "from": 36,
+              "to": null,
+              "area": 6739.7,
+              "placements": 37,
+              "per1000Area": 5.4899
+            }
+          ],
+          "rimCoreRatio": 2.629,
+          "conditionedNearFarRatio": 0.9315,
+          "conditionedCounts": {
+            "nearPlacements": 65.0,
+            "nearArea": 12568.14,
+            "farPlacements": 64.0,
+            "farArea": 11527.22
+          },
+          "maxOverload": 1.262,
+          "overloadedCapabilities": 1,
+          "perCapability": [
+            {
+              "cap": 0,
+              "cells": 39,
+              "area": 5534.8,
+              "placements": 17,
+              "per1000Area": 3.071,
+              "meanCoastDistance": 34.32,
+              "capacityAtClearance": 399.4,
+              "overload": 0.043,
+              "clarkEvans": 1.2825,
+              "nearPairFraction": 0.0
+            },
+            {
+              "cap": 1,
+              "cells": 17,
+              "area": 2537.0,
+              "placements": 18,
+              "per1000Area": 7.095,
+              "meanCoastDistance": 27.44,
+              "capacityAtClearance": 183.1,
+              "overload": 0.098,
+              "clarkEvans": 1.3958,
+              "nearPairFraction": 0.1111
+            },
+            {
+              "cap": 2,
+              "cells": 11,
+              "area": 1738.6,
+              "placements": 12,
+              "per1000Area": 6.902,
+              "meanCoastDistance": 23.27,
+              "capacityAtClearance": 125.5,
+              "overload": 0.096,
+              "clarkEvans": 1.4347,
+              "nearPairFraction": 0.1667
+            },
+            {
+              "cap": 3,
+              "cells": 2,
+              "area": 329.0,
+              "placements": 9,
+              "per1000Area": 27.354,
+              "meanCoastDistance": 21.23,
+              "capacityAtClearance": 23.7,
+              "overload": 0.379,
+              "clarkEvans": 0.5309,
+              "nearPairFraction": 1.0
+            },
+            {
+              "cap": 4,
+              "cells": 9,
+              "area": 1375.3,
+              "placements": 18,
+              "per1000Area": 13.088,
+              "meanCoastDistance": 35.18,
+              "capacityAtClearance": 99.3,
+              "overload": 0.181,
+              "clarkEvans": 0.6922,
+              "nearPairFraction": 0.7222
+            },
+            {
+              "cap": 5,
+              "cells": 1,
+              "area": 197.6,
+              "placements": 18,
+              "per1000Area": 91.101,
+              "meanCoastDistance": 11.47,
+              "capacityAtClearance": 14.3,
+              "overload": 1.262,
+              "clarkEvans": 0.171,
+              "nearPairFraction": 1.0
+            },
+            {
+              "cap": 6,
+              "cells": 21,
+              "area": 3374.3,
+              "placements": 12,
+              "per1000Area": 3.556,
+              "meanCoastDistance": 36.95,
+              "capacityAtClearance": 243.5,
+              "overload": 0.049,
+              "clarkEvans": 1.3707,
+              "nearPairFraction": 0.0
+            },
+            {
+              "cap": 7,
+              "cells": 10,
+              "area": 1516.2,
+              "placements": 7,
+              "per1000Area": 4.617,
+              "meanCoastDistance": 21.61,
+              "capacityAtClearance": 109.4,
+              "overload": 0.064,
+              "clarkEvans": 1.5124,
+              "nearPairFraction": 0.0
+            },
+            {
+              "cap": 8,
+              "cells": 25,
+              "area": 4004.1,
+              "placements": 15,
+              "per1000Area": 3.746,
+              "meanCoastDistance": 27.33,
+              "capacityAtClearance": 289.0,
+              "overload": 0.052,
+              "clarkEvans": 1.3178,
+              "nearPairFraction": 0.2667
+            },
+            {
+              "cap": 9,
+              "cells": 20,
+              "area": 2930.5,
+              "placements": 18,
+              "per1000Area": 6.142,
+              "meanCoastDistance": 23.65,
+              "capacityAtClearance": 211.5,
+              "overload": 0.085,
+              "clarkEvans": 1.4999,
+              "nearPairFraction": 0.1111
+            },
+            {
+              "cap": 10,
+              "cells": 7,
+              "area": 1084.6,
+              "placements": 12,
+              "per1000Area": 11.064,
+              "meanCoastDistance": 27.52,
+              "capacityAtClearance": 78.3,
+              "overload": 0.153,
+              "clarkEvans": 1.4333,
+              "nearPairFraction": 0.3333
+            }
+          ],
+          "crossParcelNearPairs": 3
+        },
+        "after": {
+          "clearance": 4.0,
+          "axisCorrelation": -0.0154,
+          "onDiagonalFraction": 0.0382,
+          "placements": 157,
+          "islandArea": 24622.0,
+          "clarkEvansIsland": 1.4205,
+          "clarkEvansPerCapabilityMean": 1.8758,
+          "capabilitiesScored": 11,
+          "nearPairFraction": 0.1592,
+          "minNearestNeighbour": 1.7721,
+          "medianNearestNeighbour": 8.6124,
+          "coincidentGroups": 0,
+          "densityByCoast": [
+            {
+              "from": 0,
+              "to": 12,
+              "area": 1731.9,
+              "placements": 29,
+              "per1000Area": 16.7447
+            },
+            {
+              "from": 12,
+              "to": 20,
+              "area": 4974.5,
+              "placements": 31,
+              "per1000Area": 6.2317
+            },
+            {
+              "from": 20,
+              "to": 28,
+              "area": 5085.6,
+              "placements": 25,
+              "per1000Area": 4.9158
+            },
+            {
+              "from": 28,
+              "to": 36,
+              "area": 6090.2,
+              "placements": 39,
+              "per1000Area": 6.4037
+            },
+            {
+              "from": 36,
+              "to": null,
+              "area": 6739.7,
+              "placements": 33,
+              "per1000Area": 4.8964
+            }
+          ],
+          "rimCoreRatio": 3.42,
+          "conditionedNearFarRatio": 1.07,
+          "conditionedCounts": {
+            "nearPlacements": 70.0,
+            "nearArea": 12568.14,
+            "farPlacements": 60.0,
+            "farArea": 11527.22
+          },
+          "maxOverload": 1.262,
+          "overloadedCapabilities": 1,
+          "perCapability": [
+            {
+              "cap": 0,
+              "cells": 39,
+              "area": 5534.8,
+              "placements": 18,
+              "per1000Area": 3.252,
+              "meanCoastDistance": 34.32,
+              "capacityAtClearance": 399.4,
+              "overload": 0.045,
+              "clarkEvans": 1.9072,
+              "nearPairFraction": 0.0
+            },
+            {
+              "cap": 1,
+              "cells": 17,
+              "area": 2537.0,
+              "placements": 18,
+              "per1000Area": 7.095,
+              "meanCoastDistance": 27.44,
+              "capacityAtClearance": 183.1,
+              "overload": 0.098,
+              "clarkEvans": 1.8342,
+              "nearPairFraction": 0.0
+            },
+            {
+              "cap": 2,
+              "cells": 11,
+              "area": 1738.6,
+              "placements": 12,
+              "per1000Area": 6.902,
+              "meanCoastDistance": 23.27,
+              "capacityAtClearance": 125.5,
+              "overload": 0.096,
+              "clarkEvans": 2.0486,
+              "nearPairFraction": 0.0
+            },
+            {
+              "cap": 3,
+              "cells": 2,
+              "area": 329.0,
+              "placements": 9,
+              "per1000Area": 27.354,
+              "meanCoastDistance": 21.23,
+              "capacityAtClearance": 23.7,
+              "overload": 0.379,
+              "clarkEvans": 1.7764,
+              "nearPairFraction": 0.0
+            },
+            {
+              "cap": 4,
+              "cells": 9,
+              "area": 1375.3,
+              "placements": 18,
+              "per1000Area": 13.088,
+              "meanCoastDistance": 35.18,
+              "capacityAtClearance": 99.3,
+              "overload": 0.181,
+              "clarkEvans": 1.8326,
+              "nearPairFraction": 0.0
+            },
+            {
+              "cap": 5,
+              "cells": 1,
+              "area": 197.6,
+              "placements": 18,
+              "per1000Area": 91.101,
+              "meanCoastDistance": 11.47,
+              "capacityAtClearance": 14.3,
+              "overload": 1.262,
+              "clarkEvans": 1.7442,
+              "nearPairFraction": 1.0
+            },
+            {
+              "cap": 6,
+              "cells": 21,
+              "area": 3374.3,
+              "placements": 12,
+              "per1000Area": 3.556,
+              "meanCoastDistance": 36.95,
+              "capacityAtClearance": 243.5,
+              "overload": 0.049,
+              "clarkEvans": 1.8133,
+              "nearPairFraction": 0.0
+            },
+            {
+              "cap": 7,
+              "cells": 10,
+              "area": 1516.2,
+              "placements": 7,
+              "per1000Area": 4.617,
+              "meanCoastDistance": 21.61,
+              "capacityAtClearance": 109.4,
+              "overload": 0.064,
+              "clarkEvans": 1.9639,
+              "nearPairFraction": 0.0
+            },
+            {
+              "cap": 8,
+              "cells": 25,
+              "area": 4004.1,
+              "placements": 15,
+              "per1000Area": 3.746,
+              "meanCoastDistance": 27.33,
+              "capacityAtClearance": 289.0,
+              "overload": 0.052,
+              "clarkEvans": 1.8701,
+              "nearPairFraction": 0.0
+            },
+            {
+              "cap": 9,
+              "cells": 20,
+              "area": 2930.5,
+              "placements": 18,
+              "per1000Area": 6.142,
+              "meanCoastDistance": 23.65,
+              "capacityAtClearance": 211.5,
+              "overload": 0.085,
+              "clarkEvans": 1.842,
+              "nearPairFraction": 0.0
+            },
+            {
+              "cap": 10,
+              "cells": 7,
+              "area": 1084.6,
+              "placements": 12,
+              "per1000Area": 11.064,
+              "meanCoastDistance": 27.52,
+              "capacityAtClearance": 78.3,
+              "overload": 0.153,
+              "clarkEvans": 2.0014,
+              "nearPairFraction": 0.0
+            }
+          ],
+          "crossParcelNearPairs": 12
+        },
+        "beforeMeanOver30Seeds": {
+          "clarkEvansIsland": 0.8724,
+          "clarkEvansPerCapabilityMean": 0.974,
+          "nearPairFraction": 0.5055,
+          "rimCoreRatio": 3.1062,
+          "conditionedNearFarRatio": 1.0536,
+          "maxOverload": 1.0727,
+          "axisCorrelation": 0.9997,
+          "onDiagonalFraction": 1.0,
+          "minNearestNeighbour": 0.0418
+        },
+        "afterMeanOver30Seeds": {
+          "clarkEvansIsland": 1.3859,
+          "clarkEvansPerCapabilityMean": 1.9291,
+          "nearPairFraction": 0.1819,
+          "rimCoreRatio": 3.196,
+          "conditionedNearFarRatio": 1.0998,
+          "maxOverload": 1.0727,
+          "axisCorrelation": -0.0136,
+          "onDiagonalFraction": 0.0402,
+          "minNearestNeighbour": 1.4595
+        },
+        "countPreserved": {
+          "beforeMeadow": 156,
+          "afterMeadow": 157,
+          "afterWellCulled": 0
+        }
+      }
+    },
+    "fixture": {
+      "source": "chapter2-grass-reads-as-signal-2026-08-16",
+      "what": "the fixture island: `fork-spike-island`, 10 capabilities across six statuses, 214 mesh cells",
+      "cells": 214,
+      "capabilities": 10,
+      "seed": "land-interior-fork-2026-08-15",
+      "mechanismA_cellGeometryByCoastQuintile": [
+        {
+          "coastFrom": 8.1,
+          "coastTo": 19.7,
+          "cells": 42,
+          "meanCellArea": 150.0,
+          "medianCellArea": 151.2,
+          "minCellArea": 103.5,
+          "meanBboxFill": 0.5768,
+          "minBboxFill": 0.4282,
+          "worstCaseFallbackProbability": 0.00122117
+        },
+        {
+          "coastFrom": 19.8,
+          "coastTo": 28.3,
+          "cells": 43,
+          "meanCellArea": 149.8,
+          "medianCellArea": 149.8,
+          "minCellArea": 72.8,
+          "meanBboxFill": 0.5657,
+          "minBboxFill": 0.4788,
+          "worstCaseFallbackProbability": 0.00040187
+        },
+        {
+          "coastFrom": 28.4,
+          "coastTo": 40.3,
+          "cells": 43,
+          "meanCellArea": 155.7,
+          "medianCellArea": 152.0,
+          "minCellArea": 88.8,
+          "meanBboxFill": 0.5657,
+          "minBboxFill": 0.4779,
+          "worstCaseFallbackProbability": 0.00041053
+        },
+        {
+          "coastFrom": 40.7,
+          "coastTo": 53.8,
+          "cells": 43,
+          "meanCellArea": 148.9,
+          "medianCellArea": 151.5,
+          "minCellArea": 69.5,
+          "meanBboxFill": 0.5767,
+          "minBboxFill": 0.4805,
+          "worstCaseFallbackProbability": 0.00038657
+        },
+        {
+          "coastFrom": 55.0,
+          "coastTo": 85.1,
+          "cells": 43,
+          "meanCellArea": 147.9,
+          "medianCellArea": 144.8,
+          "minCellArea": 59.8,
+          "meanBboxFill": 0.545,
+          "minBboxFill": 0.3961,
+          "worstCaseFallbackProbability": 0.00235171
+        }
+      ],
+      "mechanismA_verdict": "FALSIFIED. Mean cell area is flat across coast-distance quintiles, so the premise 'boundary cells are clipped smaller' does not hold on this mesh; and the counterfactual that IS mechanism A's fix (cell choice proportional to area) leaves the rim/core ratio essentially unchanged.",
+      "mechanismB_over_seeds": {
+        "seeds": 120,
+        "placements": 12530,
+        "centroidFallbacks": 0,
+        "centroidFallbackRate": 0.0,
+        "coincidentPlacements": 0,
+        "expectedFallbacksFromGeometry": 1.713,
+        "measuredPerDrawHitRate": 0.5659
+      },
+      "mechanismB_verdict": "FALSIFIED. The fallback is real machinery but it never fires: the worst cell on either island has a bounding-box fill ratio near 0.4, so twelve independent draws all miss with probability ~2e-3, and the measured count is zero.",
+      "mechanismC_areaBlindBudget": {
+        "unconditionedDensityByCoastQuintile": [
+          {
+            "coastFrom": 8.1,
+            "coastTo": 19.7,
+            "per1000Area": 3.4425
+          },
+          {
+            "coastFrom": 19.8,
+            "coastTo": 28.3,
+            "per1000Area": 3.5787
+          },
+          {
+            "coastFrom": 28.4,
+            "coastTo": 40.3,
+            "per1000Area": 3.0486
+          },
+          {
+            "coastFrom": 40.7,
+            "coastTo": 53.8,
+            "per1000Area": 3.3267
+          },
+          {
+            "coastFrom": 55.0,
+            "coastTo": 85.1,
+            "per1000Area": 2.8254
+          }
+        ],
+        "rimCoreRatio": 1.218,
+        "counterfactualAreaWeightedCellChoice": [
+          {
+            "coastFrom": 8.1,
+            "coastTo": 19.7,
+            "per1000Area": 3.3218
+          },
+          {
+            "coastFrom": 19.8,
+            "coastTo": 28.3,
+            "per1000Area": 3.6403
+          },
+          {
+            "coastFrom": 28.4,
+            "coastTo": 40.3,
+            "per1000Area": 3.1423
+          },
+          {
+            "coastFrom": 40.7,
+            "coastTo": 53.8,
+            "per1000Area": 3.1239
+          },
+          {
+            "coastFrom": 55.0,
+            "coastTo": 85.1,
+            "per1000Area": 2.9882
+          }
+        ],
+        "counterfactualRimCoreRatio": 1.112,
+        "corrLogOwnedAreaVsDensity": -0.4688,
+        "corrMeanCoastDistanceVsDensity": -0.3932,
+        "corrOwnedAreaVsMeanCoastDistance": 0.4283,
+        "capabilityDensitySpread": 4.42
+      },
+      "positioners": {
+        "before": {
+          "clearance": 4.0,
+          "axisCorrelation": 0.9996,
+          "onDiagonalFraction": 1.0,
+          "placements": 98,
+          "islandArea": 32198.0,
+          "clarkEvansIsland": 1.1124,
+          "clarkEvansPerCapabilityMean": 1.3098,
+          "capabilitiesScored": 8,
+          "nearPairFraction": 0.2041,
+          "minNearestNeighbour": 0.2804,
+          "medianNearestNeighbour": 10.3816,
+          "coincidentGroups": 0,
+          "densityByCoast": [
+            {
+              "from": 0,
+              "to": 12,
+              "area": 1647.6,
+              "placements": 5,
+              "per1000Area": 3.0346
+            },
+            {
+              "from": 12,
+              "to": 20,
+              "area": 5243.1,
+              "placements": 21,
+              "per1000Area": 4.0053
+            },
+            {
+              "from": 20,
+              "to": 28,
+              "area": 5308.3,
+              "placements": 17,
+              "per1000Area": 3.2025
+            },
+            {
+              "from": 28,
+              "to": 36,
+              "area": 5523.6,
+              "placements": 14,
+              "per1000Area": 2.5346
+            },
+            {
+              "from": 36,
+              "to": null,
+              "area": 14475.3,
+              "placements": 41,
+              "per1000Area": 2.8324
+            }
+          ],
+          "rimCoreRatio": 1.071,
+          "conditionedNearFarRatio": 0.9,
+          "conditionedCounts": {
+            "nearPlacements": 49.0,
+            "nearArea": 16946.71,
+            "farPlacements": 49.0,
+            "farArea": 15251.25
+          },
+          "maxOverload": 0.121,
+          "overloadedCapabilities": 0,
+          "perCapability": [
+            {
+              "cap": 0,
+              "cells": 24,
+              "area": 3497.9,
+              "placements": 9,
+              "per1000Area": 2.573,
+              "meanCoastDistance": 33.78,
+              "capacityAtClearance": 252.4,
+              "overload": 0.036,
+              "clarkEvans": 1.3136,
+              "nearPairFraction": 0.2222
+            },
+            {
+              "cap": 1,
+              "cells": 21,
+              "area": 3229.0,
+              "placements": 9,
+              "per1000Area": 2.787,
+              "meanCoastDistance": 43.59,
+              "capacityAtClearance": 233.0,
+              "overload": 0.039,
+              "clarkEvans": 1.3056,
+              "nearPairFraction": 0.2222
+            },
+            {
+              "cap": 2,
+              "cells": 18,
+              "area": 2875.6,
+              "placements": 15,
+              "per1000Area": 5.216,
+              "meanCoastDistance": 44.34,
+              "capacityAtClearance": 207.5,
+              "overload": 0.072,
+              "clarkEvans": 1.3245,
+              "nearPairFraction": 0.1333
+            },
+            {
+              "cap": 3,
+              "cells": 24,
+              "area": 3365.3,
+              "placements": 7,
+              "per1000Area": 2.08,
+              "meanCoastDistance": 24.51,
+              "capacityAtClearance": 242.9,
+              "overload": 0.029,
+              "clarkEvans": 1.5624,
+              "nearPairFraction": 0.0
+            },
+            {
+              "cap": 4,
+              "cells": 15,
+              "area": 2395.0,
+              "placements": 3,
+              "per1000Area": 1.253,
+              "meanCoastDistance": 51.25,
+              "capacityAtClearance": 172.8,
+              "overload": 0.017,
+              "clarkEvans": 2.1078,
+              "nearPairFraction": 0.0
+            },
+            {
+              "cap": 5,
+              "cells": 12,
+              "area": 1908.3,
+              "placements": 7,
+              "per1000Area": 3.668,
+              "meanCoastDistance": 22.12,
+              "capacityAtClearance": 137.7,
+              "overload": 0.051,
+              "clarkEvans": 1.1219,
+              "nearPairFraction": 0.2857
+            },
+            {
+              "cap": 6,
+              "cells": 37,
+              "area": 5231.9,
+              "placements": 15,
+              "per1000Area": 2.867,
+              "meanCoastDistance": 46.32,
+              "capacityAtClearance": 377.6,
+              "overload": 0.04,
+              "clarkEvans": 1.297,
+              "nearPairFraction": 0.1333
+            },
+            {
+              "cap": 7,
+              "cells": 13,
+              "area": 2057.7,
+              "placements": 18,
+              "per1000Area": 8.747,
+              "meanCoastDistance": 21.25,
+              "capacityAtClearance": 148.5,
+              "overload": 0.121,
+              "clarkEvans": 1.1044,
+              "nearPairFraction": 0.4444
+            },
+            {
+              "cap": 8,
+              "cells": 36,
+              "area": 5514.6,
+              "placements": 12,
+              "per1000Area": 2.176,
+              "meanCoastDistance": 39.32,
+              "capacityAtClearance": 398.0,
+              "overload": 0.03,
+              "clarkEvans": 1.4491,
+              "nearPairFraction": 0.0
+            },
+            {
+              "cap": 9,
+              "cells": 14,
+              "area": 2122.6,
+              "placements": 3,
+              "per1000Area": 1.413,
+              "meanCoastDistance": 29.53,
+              "capacityAtClearance": 153.2,
+              "overload": 0.02,
+              "clarkEvans": 1.7668,
+              "nearPairFraction": 0.0
+            }
+          ],
+          "crossParcelNearPairs": 2
+        },
+        "after": {
+          "clearance": 4.0,
+          "axisCorrelation": -0.0844,
+          "onDiagonalFraction": 0.0408,
+          "placements": 98,
+          "islandArea": 32198.0,
+          "clarkEvansIsland": 1.4518,
+          "clarkEvansPerCapabilityMean": 1.8936,
+          "capabilitiesScored": 8,
+          "nearPairFraction": 0.0204,
+          "minNearestNeighbour": 3.0213,
+          "medianNearestNeighbour": 12.3631,
+          "coincidentGroups": 0,
+          "densityByCoast": [
+            {
+              "from": 0,
+              "to": 12,
+              "area": 1647.6,
+              "placements": 10,
+              "per1000Area": 6.0693
+            },
+            {
+              "from": 12,
+              "to": 20,
+              "area": 5243.1,
+              "placements": 18,
+              "per1000Area": 3.4331
+            },
+            {
+              "from": 20,
+              "to": 28,
+              "area": 5308.3,
+              "placements": 15,
+              "per1000Area": 2.8257
+            },
+            {
+              "from": 28,
+              "to": 36,
+              "area": 5523.6,
+              "placements": 17,
+              "per1000Area": 3.0777
+            },
+            {
+              "from": 36,
+              "to": null,
+              "area": 14475.3,
+              "placements": 38,
+              "per1000Area": 2.6252
+            }
+          ],
+          "rimCoreRatio": 2.312,
+          "conditionedNearFarRatio": 1.1511,
+          "conditionedCounts": {
+            "nearPlacements": 55.0,
+            "nearArea": 16946.71,
+            "farPlacements": 43.0,
+            "farArea": 15251.25
+          },
+          "maxOverload": 0.121,
+          "overloadedCapabilities": 0,
+          "perCapability": [
+            {
+              "cap": 0,
+              "cells": 24,
+              "area": 3497.9,
+              "placements": 9,
+              "per1000Area": 2.573,
+              "meanCoastDistance": 33.78,
+              "capacityAtClearance": 252.4,
+              "overload": 0.036,
+              "clarkEvans": 2.2143,
+              "nearPairFraction": 0.0
+            },
+            {
+              "cap": 1,
+              "cells": 21,
+              "area": 3229.0,
+              "placements": 9,
+              "per1000Area": 2.787,
+              "meanCoastDistance": 43.59,
+              "capacityAtClearance": 233.0,
+              "overload": 0.039,
+              "clarkEvans": 1.5017,
+              "nearPairFraction": 0.0
+            },
+            {
+              "cap": 2,
+              "cells": 18,
+              "area": 2875.6,
+              "placements": 15,
+              "per1000Area": 5.216,
+              "meanCoastDistance": 44.34,
+              "capacityAtClearance": 207.5,
+              "overload": 0.072,
+              "clarkEvans": 1.9616,
+              "nearPairFraction": 0.0
+            },
+            {
+              "cap": 3,
+              "cells": 24,
+              "area": 3365.3,
+              "placements": 7,
+              "per1000Area": 2.08,
+              "meanCoastDistance": 24.51,
+              "capacityAtClearance": 242.9,
+              "overload": 0.029,
+              "clarkEvans": 2.2414,
+              "nearPairFraction": 0.0
+            },
+            {
+              "cap": 4,
+              "cells": 15,
+              "area": 2395.0,
+              "placements": 3,
+              "per1000Area": 1.253,
+              "meanCoastDistance": 51.25,
+              "capacityAtClearance": 172.8,
+              "overload": 0.017,
+              "clarkEvans": 2.2771,
+              "nearPairFraction": 0.0
+            },
+            {
+              "cap": 5,
+              "cells": 12,
+              "area": 1908.3,
+              "placements": 7,
+              "per1000Area": 3.668,
+              "meanCoastDistance": 22.12,
+              "capacityAtClearance": 137.7,
+              "overload": 0.051,
+              "clarkEvans": 1.9257,
+              "nearPairFraction": 0.0
+            },
+            {
+              "cap": 6,
+              "cells": 37,
+              "area": 5231.9,
+              "placements": 15,
+              "per1000Area": 2.867,
+              "meanCoastDistance": 46.32,
+              "capacityAtClearance": 377.6,
+              "overload": 0.04,
+              "clarkEvans": 1.787,
+              "nearPairFraction": 0.0
+            },
+            {
+              "cap": 7,
+              "cells": 13,
+              "area": 2057.7,
+              "placements": 18,
+              "per1000Area": 8.747,
+              "meanCoastDistance": 21.25,
+              "capacityAtClearance": 148.5,
+              "overload": 0.121,
+              "clarkEvans": 1.8729,
+              "nearPairFraction": 0.0
+            },
+            {
+              "cap": 8,
+              "cells": 36,
+              "area": 5514.6,
+              "placements": 12,
+              "per1000Area": 2.176,
+              "meanCoastDistance": 39.32,
+              "capacityAtClearance": 398.0,
+              "overload": 0.03,
+              "clarkEvans": 1.644,
+              "nearPairFraction": 0.0
+            },
+            {
+              "cap": 9,
+              "cells": 14,
+              "area": 2122.6,
+              "placements": 3,
+              "per1000Area": 1.413,
+              "meanCoastDistance": 29.53,
+              "capacityAtClearance": 153.2,
+              "overload": 0.02,
+              "clarkEvans": 2.5335,
+              "nearPairFraction": 0.0
+            }
+          ],
+          "crossParcelNearPairs": 2
+        },
+        "beforeMeanOver30Seeds": {
+          "clarkEvansIsland": 1.0292,
+          "clarkEvansPerCapabilityMean": 1.1663,
+          "nearPairFraction": 0.2491,
+          "rimCoreRatio": 1.0484,
+          "conditionedNearFarRatio": 0.9855,
+          "maxOverload": 0.1057,
+          "axisCorrelation": 0.9997,
+          "onDiagonalFraction": 1.0,
+          "minNearestNeighbour": 0.3196
+        },
+        "afterMeanOver30Seeds": {
+          "clarkEvansIsland": 1.4419,
+          "clarkEvansPerCapabilityMean": 1.9101,
+          "nearPairFraction": 0.0221,
+          "rimCoreRatio": 1.3795,
+          "conditionedNearFarRatio": 1.1023,
+          "maxOverload": 0.1057,
+          "axisCorrelation": -0.0551,
+          "onDiagonalFraction": 0.0441,
+          "minNearestNeighbour": 3.6077
+        },
+        "countPreserved": {
+          "beforeMeadow": 98,
+          "afterMeadow": 98,
+          "afterWellCulled": 0
+        }
+      }
+    }
+  }
+}

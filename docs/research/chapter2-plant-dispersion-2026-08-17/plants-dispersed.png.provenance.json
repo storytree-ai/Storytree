@@ -1,0 +1,49 @@
+{
+  "schema": "storytree/derived-evidence-provenance/1",
+  "artifact": "plants-dispersed.png",
+  "kind": "placement diagram - NOT a composite. No rendered piece is stamped, no band key is decoded, no token is mapped and no palette snap is applied, so this artifact makes no claim about delivery, colour or size - only about where the ground points are.",
+  "producer": {
+    "tool": "picture.py",
+    "sha256": "818f5e550293af591094006b8442cc60b2277666b95ea84a21d4f818fffddf4f",
+    "digestNote": "line endings normalised to LF before hashing"
+  },
+  "command": {
+    "tool": "picture.py",
+    "argv": []
+  },
+  "camera": {
+    "elevationDeg": 50.0,
+    "note": "the research track's named parameter; the app's LAND_CAMERA_ELEVATION_DEG stays 20 and is not touched by this pass"
+  },
+  "supersample": 3,
+  "blenderRenders": 0,
+  "renderedPiecesConsumed": 0,
+  "inputs": [
+    {
+      "label": "island",
+      "file": "../chapter2-healthy-island-2026-08-16/island.json",
+      "sha256": "2b008f312aa8391b7018d2a6a502c7827ec36a1b733e878072478fb09aa138b6"
+    },
+    {
+      "label": "count rules + original positioner",
+      "file": "../chapter2-grass-reads-as-signal-2026-08-16/scatter.py",
+      "sha256": "9491bf0e926d8d72eef75005fb96b773cac715a3b79fef19feab8156b901b6fc"
+    },
+    {
+      "label": "fixed positioner",
+      "file": "disperse.py",
+      "sha256": "505d2cb611c69de31947599a507c8821d4bfd80b12f6ebba727f17947b75ad0b"
+    },
+    {
+      "label": "instrument",
+      "file": "dispersion.py",
+      "sha256": "69a85b036889f0e6f11dfd27a91c811e863c258b2497fc9fadbc722e9e569016"
+    }
+  ],
+  "seed": "context-traversal-capture",
+  "chartSeeds": 40,
+  "placements": {
+    "before": 156,
+    "after": 157
+  }
+}
