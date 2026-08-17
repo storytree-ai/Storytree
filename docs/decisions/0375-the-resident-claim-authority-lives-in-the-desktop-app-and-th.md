@@ -165,7 +165,10 @@ broken the desktop-hosted broker in its ordinary configuration. `--git-common-di
 primary checkout from anywhere in the repository, so both hosts are correct from anywhere.
 
 **D9. Hosting the authority is OPT-IN, via `STORYTREE_CODEX_CLAIM_AUTHORITY=1`, and its absence never
-breaks a desktop launch.** Hosting opens a second Cloud SQL pool, impersonates the scoped
+breaks a desktop launch.** *(The opt-in half is AMENDED by [ADR-0379](0379-the-desktop-hosts-the-codex-claim-authority-whenever-the-bou.md):
+hosting is now gated on an installed standing policy, and the variable is only an override. The
+property this decision protects — an ordinary member never attempts, and an absent authority is never
+a desktop outage — is preserved there exactly, and the rest of D9 below still describes it.)* Hosting opens a second Cloud SQL pool, impersonates the scoped
 claim-writer service account, and publishes an ACL'd handshake — machinery meaningful only on a host
 running the Codex containment boundary. An ordinary member holds no impersonation grant on that
 account, so an unconditional attempt would open a connector, fail, and log a credential error on
