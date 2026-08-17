@@ -27,12 +27,20 @@ impersonate nothing and no broker starts. Hosting the broker in a GUI app does n
 
 **The storytree desktop app (ADR-0375 D1).** It starts the broker at launch and stops it at shutdown.
 
-> ⚠ **But hosting is OPT-IN, and off by default (ADR-0375 D9).** Starting the app is *not* enough.
-> Without `STORYTREE_CODEX_CLAIM_AUTHORITY=1` the backend opens no pool and logs
-> `Codex claim authority: not hosting the Codex claim authority — set STORYTREE_CODEX_CLAIM_AUTHORITY=1
-> to enable it`, and every covered Codex write is then refused. The default is off on purpose: an
-> ordinary member holds no impersonation grant on the claim-writer account, so an unconditional
-> attempt would log a credential error on every launch for everyone not running the Codex factory.
+**Hosting is SELF-DETECTED (ADR-0379, amending ADR-0375 D9): install the boundary, open the app, and
+it hosts.** There is nothing to set and nothing to remember. The backend hosts when it finds an
+installed standing policy (`standing-*.json` under `%ProgramData%\OpenAI\Codex\Storytree\sessions`) —
+the same artifact that tells the managed hook where the handshake is.
+
+> An ordinary member's laptop has no such policy, so it opens no pool and attempts nothing — which is
+> the property ADR-0375 D9 was protecting when it required an environment variable. What changed is
+> only how that host is recognised: by the machine, rather than by a human remembering. Forgetting was
+> silent, because the fence then fails closed and refuses every covered write without saying why.
+>
+> `STORYTREE_CODEX_CLAIM_AUTHORITY` survives as an **override in both directions** and is needed by
+> nobody in the ordinary case: `=1` forces hosting on a host with no policy installed, `=0` forces it
+> off for debugging. An unrecognised value is ignored (and named in the log) rather than read as off,
+> so a typo can never silently disable a factory host.
 
 `packages/cli/src/codex-claim-broker-entry.ts` remains as a **headless fallback** for a host with no
 desktop app. It is no longer the ordinary holder.
@@ -40,9 +48,11 @@ desktop app. It is no longer the ordinary holder.
 ### Starting the desktop host
 
 ```powershell
-$env:STORYTREE_CODEX_CLAIM_AUTHORITY = '1'
 pnpm --filter desktop start
 ```
+
+Or simply open the app however you normally do — a shortcut is fine, since there is no environment to
+carry in.
 
 **First check what code the app will actually run.** Under ADR-0181 the Electron shell is built from
 the checkout you launch in, but the studio bundle and the *backend sidecar* — which is what hosts the

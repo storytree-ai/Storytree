@@ -357,7 +357,9 @@ async function main(): Promise<void> {
 
   // ---------- the resident Codex claim authority (ADR-0375 D1/D2/D9) ----------
   //
-  // Opt-in only (STORYTREE_CODEX_CLAIM_AUTHORITY=1) — see claim-authority.ts for why. It opens its
+  // SELF-DETECTING (ADR-0379, amending ADR-0375 D9): it hosts when a standing policy is installed on
+  // this host, so installing the boundary is the only action that turns it on and there is nothing
+  // for an operator to remember. STORYTREE_CODEX_CLAIM_AUTHORITY only FORCES either answer. It opens its
   // OWN second pool on the narrow claim-writer identity (D2 — never rides `pool` above, which is this
   // backend's full library identity) and publishes an ACL'd handshake so the managed Codex hook can
   // reach a warm loopback claim read instead of building a Cloud SQL connector from scratch per call.

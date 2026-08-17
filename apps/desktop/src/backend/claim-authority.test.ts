@@ -3,8 +3,14 @@ import test from "node:test";
 
 import {
   CLAIM_AUTHORITY_ENV,
+  decideHosting,
+  standingPolicyDirectory,
   startDesktopClaimAuthority,
 } from "./claim-authority.js";
+
+/** What an installed boundary looks like to the gate: the actuator's standing policy receipt. */
+const INSTALLED = () => ["standing-6bb0f51b663e19dfb4cbba11.json"];
+const NOT_INSTALLED = () => [];
 
 /**
  * The pool a test can watch without opening one. `createPool` is the single place the broker's
@@ -76,16 +82,87 @@ test("the desktop hosts the authority on the claim-writer identity, never its ow
   if (result.ok) await result.broker.close();
 });
 
-test("the authority is off unless the operator opts in, and says so rather than failing", async () => {
+/**
+ * ADR-0375 D9's property, preserved exactly: an ordinary member's laptop holds no impersonation grant,
+ * so it must never ATTEMPT. What changed is only how that host is recognised — the absence of an
+ * installed boundary rather than the absence of a variable.
+ */
+test("a host with no boundary installed never attempts, and says so rather than failing", async () => {
   const spy = poolSpy();
   const result = await startDesktopClaimAuthority(
-    { ...HOST, env: { COMPUTERNAME: "BOX", USERNAME: "operator" } },
+    {
+      ...HOST,
+      env: { COMPUTERNAME: "BOX", USERNAME: "operator" },
+      standingPolicies: NOT_INSTALLED,
+    },
     { createPool: spy.createPool as never, publishHandshake: () => {}, resolveRepository: () => "/repo" },
   );
 
   assert.equal(result.ok, false);
   assert.equal(result.ok === false && "disabled" in result && result.disabled, true);
-  assert.equal(spy.calls.length, 0, "no pool is opened when the operator did not ask for one");
+  assert.equal(spy.calls.length, 0, "no pool is opened on a host that is not running the boundary");
+});
+
+/**
+ * THE test this change exists for.
+ *
+ * The operator installs the boundary and opens the app. Nothing else. If this goes red, the boundary
+ * is back to being a two-step install whose second step is a human remembering — and the failure mode
+ * is silent, because the fence then refuses every covered write without saying why.
+ */
+test("a host WITH the boundary installed hosts the authority with no environment variable set", async () => {
+  const spy = poolSpy();
+  const result = await startDesktopClaimAuthority(
+    {
+      ...HOST,
+      env: { COMPUTERNAME: "BOX", USERNAME: "operator" },
+      standingPolicies: INSTALLED,
+    },
+    { createPool: spy.createPool as never, publishHandshake: () => {}, resolveRepository: () => "/repo" },
+  );
+
+  assert.equal(result.ok, true, "an installed boundary is sufficient on its own");
+  assert.equal(spy.calls.length, 1);
+  if (result.ok) await result.broker.close();
+});
+
+test("the gate answers on the machine, and the variable only overrides it", () => {
+  assert.equal(decideHosting({ env: {}, standingPolicies: INSTALLED }).host, true);
+  assert.equal(decideHosting({ env: {}, standingPolicies: NOT_INSTALLED }).host, false);
+
+  // Both overrides, in both directions — the debugging escape hatch and the host with no policy.
+  assert.equal(
+    decideHosting({ env: { [CLAIM_AUTHORITY_ENV]: "0" }, standingPolicies: INSTALLED }).host,
+    false,
+    "an explicit off beats an installed boundary",
+  );
+  assert.equal(
+    decideHosting({ env: { [CLAIM_AUTHORITY_ENV]: "1" }, standingPolicies: NOT_INSTALLED }).host,
+    true,
+    "an explicit on beats an absent boundary",
+  );
+
+  // A typo must not silently re-create the failure this change removes: it falls through to the
+  // machine's own answer and NAMES the value it ignored, rather than reading as off.
+  const typo = decideHosting({ env: { [CLAIM_AUTHORITY_ENV]: "ture" }, standingPolicies: INSTALLED });
+  assert.equal(typo.host, true, "an unrecognised value never disables a factory host");
+  assert.match(typo.reason, /unrecognised/i);
+  assert.match(typo.reason, /ture/);
+});
+
+/**
+ * Every failure direction of the probe means "not a factory host", so none of them may produce an
+ * attempt. A machine with no `%ProgramData%` at all is the ordinary case here, not an exotic one.
+ */
+test("the policy directory resolves under ProgramData, and its absence reads as not-installed", () => {
+  assert.match(
+    standingPolicyDirectory({ PROGRAMDATA: "D:\\PD" }),
+    /D:[\\/]PD[\\/]OpenAI[\\/]Codex[\\/]Storytree[\\/]sessions/,
+  );
+
+  const decision = decideHosting({ env: {}, standingPolicies: NOT_INSTALLED });
+  assert.equal(decision.host, false);
+  assert.match(decision.reason, /no Codex containment boundary is installed/i);
 });
 
 /**
