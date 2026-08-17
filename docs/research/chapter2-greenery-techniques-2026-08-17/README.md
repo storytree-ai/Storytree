@@ -200,6 +200,14 @@ Two checks are built to **fire** rather than to pass:
   the statistic this pass reports. `control-emitter-only` proves it worked (0 raw px, 0 delivered);
   `verify.py` then runs the guard against a visible disc and confirms it rejects it.
 
+**The sidecar hashes are reproducible across checkouts, and that was checked rather than assumed.** A
+sibling pass on this arc was bitten by the opposite: a committed `sha256` computed over a file's CRLF
+working-copy bytes while git stored it LF, so re-running an *untouched* script appeared to have changed
+it. Here all three scripts are LF-clean and worktree, index and sidecar hashes agree exactly — the
+files git did normalise on commit are the three generated JSONs, none of which is hashed by the
+sidecar. Worth stating because the failure mode is a **false positive in the one mechanism that proves
+a picture came from one code state**.
+
 `verify.py` also covers the fence (`docs/research/**` only — 19 files touched, none outside;
 `blender_grass.py`, `blender_species.py` and `scatter.py` all untouched; `LAND_CAMERA_ELEVATION_DEG`
 still 20), the pipeline arithmetic, every finding above re-derived from the report, and evidence
