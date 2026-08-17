@@ -1,0 +1,585 @@
+{
+ "dispersion": {
+  "currentBudget": {
+   "label": "current budget",
+   "placements": 171,
+   "corrUV": 0.0366,
+   "onDiagonalShare": 0.0468,
+   "closestPairGroundUnits": 1.772,
+   "medianNearestNeighbour": 8.845,
+   "shareWithNeighbourUnder4Units": 0.1988
+  },
+  "areaAwareBudget": {
+   "label": "area-aware budget",
+   "placements": 166,
+   "corrUV": 0.0226,
+   "onDiagonalShare": 0.0482,
+   "closestPairGroundUnits": 1.772,
+   "medianNearestNeighbour": 9.026,
+   "shareWithNeighbourUnder4Units": 0.1747
+  }
+ },
+ "relief": {
+  "coarse": {
+   "band": "coarse",
+   "wavelengthsGroundUnits": [
+    14.0,
+    7.0
+   ],
+   "amplitudeGroundUnits": 0.55,
+   "cast": 0.115,
+   "landSupersampledPx": 162452,
+   "minMultiplier": 0.9771,
+   "meanMultiplier": 0.9878,
+   "pctLandDarkenedOver1pct": 76.15
+  },
+  "fine": {
+   "band": "fine",
+   "wavelengthsGroundUnits": [
+    7.0,
+    3.5
+   ],
+   "amplitudeGroundUnits": 0.55,
+   "cast": 0.115,
+   "landSupersampledPx": 162452,
+   "minMultiplier": 0.958,
+   "meanMultiplier": 0.9795,
+   "pctLandDarkenedOver1pct": 97.21
+  }
+ },
+ "paletteCost": {
+  "shippedLandOnlyEntries": 86,
+  "shippedDressedEntries": 132,
+  "shadowLadder": [
+   0.9333,
+   0.8667,
+   0.8
+  ],
+  "reliefLadder": [
+   0.955,
+   0.91
+  ],
+  "jointLevels": [
+   0.955,
+   0.9333,
+   0.91,
+   0.891301,
+   0.8667,
+   0.849303,
+   0.827699,
+   0.8
+  ],
+  "entries": {
+   "shipped_landOnly": 86,
+   "shipped_dressed": 132,
+   "shadowOnly": 506,
+   "reliefOnly": 395,
+   "joint": 1125
+  },
+  "reliefAloneCostsOverShipped": 263,
+  "reliefCostsOverShadowOnly": 619,
+  "speciesSetEntries": 132,
+  "bladeSetEntries": 132,
+  "silhouetteVarietyCostsInPaletteEntries": 0,
+  "note": "The shadow pass's 132 -> 506 figure is the LAND-ONLY palette. Every panel here draws decor, so its base is the DRESSED palette (land + the four decor token families at every shade level any piece declares) and the numbers are not comparable to 132 without that adjustment. Both bases are reported."
+ },
+ "bodies": {
+  "_measuredOn": "TREE-LESS AND PLANT-LESS renders. A plant stands ON a cell top face, so its pixels fall inside the eroded body mask; measured with plants in, these numbers would mix the ground's light field with the vegetation's own token family and would not be comparable to the arc's 78.9 / 58.2 / 61.6 series, every term of which was measured on a bare island.",
+  "baselineShadowOnly": {
+   "label": "flat green + shadow, bare",
+   "bodyPx": 14042,
+   "lumaP2toP98": 62.6,
+   "lumaMean": 152.7,
+   "lumaStd": 17.12,
+   "distinctLumaLevels": 44
+  },
+  "plusRelief": {
+   "label": "+ micro-relief (fine), bare",
+   "bodyPx": 14042,
+   "lumaP2toP98": 66.1,
+   "lumaMean": 149.6,
+   "lumaStd": 16.97,
+   "distinctLumaLevels": 44
+  },
+  "reliefOnShippedPalette": {
+   "label": "relief, SHIPPED palette",
+   "bodyPx": 14042,
+   "lumaP2toP98": 69.6,
+   "lumaMean": 151.0,
+   "lumaStd": 17.31,
+   "distinctLumaLevels": 16
+  },
+  "reliefOnShadowOnlyPalette": {
+   "label": "relief, shadow-only palette",
+   "bodyPx": 14042,
+   "lumaP2toP98": 65.1,
+   "lumaMean": 150.6,
+   "lumaStd": 17.43,
+   "distinctLumaLevels": 24
+  },
+  "reliefCoarse": {
+   "label": "relief coarse, bare",
+   "bodyPx": 14042,
+   "lumaP2toP98": 65.1,
+   "lumaMean": 151.8,
+   "lumaStd": 17.33,
+   "distinctLumaLevels": 47
+  },
+  "plusBothLandOnly": {
+   "label": "+ relief + species (land only)",
+   "bodyPx": 14042,
+   "lumaP2toP98": 66.1,
+   "lumaMean": 149.6,
+   "lumaStd": 16.97,
+   "distinctLumaLevels": 44
+  },
+  "priorPassFigures": {
+   "asShipped3VariantsPlusWheat": 78.9,
+   "oneSurfaceNoShadow": 58.2,
+   "oneSurfacePlusShadow": 61.6,
+   "source": "chapter2-one-surface-and-shadow-2026-08-17/README.md section 3"
+  }
+ },
+ "survivesTheSnap": {
+  "shippedDressedPalette": {
+   "light-1": 5912,
+   "light-0.955": 0,
+   "light-0.9333": 0,
+   "light-0.91": 0,
+   "light-0.891301": 0,
+   "light-0.8667": 0,
+   "light-0.849303": 0,
+   "light-0.827699": 0,
+   "light-0.8": 0
+  },
+  "shadowOnlyPalette": {
+   "light-1": 5919,
+   "light-0.955": 0,
+   "light-0.9333": 2529,
+   "light-0.91": 0,
+   "light-0.891301": 0,
+   "light-0.8667": 220,
+   "light-0.849303": 0,
+   "light-0.827699": 0,
+   "light-0.8": 531
+  },
+  "jointPalette": {
+   "light-1": 4287,
+   "light-0.955": 5606,
+   "light-0.9333": 869,
+   "light-0.91": 371,
+   "light-0.891301": 119,
+   "light-0.8667": 139,
+   "light-0.849303": 63,
+   "light-0.827699": 75,
+   "light-0.8": 380
+  }
+ },
+ "howDeepBeforeItLies": {
+  "safeDepth": 0.74,
+  "readsAsAtFullLight": "healthy",
+  "deepestJointLevel": 0.8,
+  "deepestReliefLevel": 0.91
+ },
+ "statusIsNotCorrupted": {
+  "reliefAloneOnBareLand": {
+   "label": "shadow -> shadow + relief, bare",
+   "bodyPx": 14314,
+   "pixelsWhoseStatusReadChanged": 0
+  },
+  "asDelivered": {
+   "label": "species + shadow -> species + shadow + relief",
+   "bodyPx": 11873,
+   "pixelsWhoseStatusReadChanged": 0
+  }
+ },
+ "theSharedLightBudget": {
+  "shadowDeepestRung": 0.8,
+  "reliefDeepestRung": 0.91,
+  "unclampedDeepestProduct": 0.728,
+  "measuredCeilingForHealthyFill": 0.74,
+  "clampedDeepest": 0.79,
+  "unclampedStatusDelta": {
+   "label": "shadow -> shadow x relief, UNCLAMPED, bare",
+   "bodyPx": 14314,
+   "pixelsWhoseStatusReadChanged": 0
+  },
+  "reliefFieldOwnMinimum": 0.958,
+  "finding": "The two techniques spend ONE luminance budget. Each ladder is safe alone and their PRODUCT is not \u2014 0.80 x 0.91 = 0.728 against a 0.74 ceiling \u2014 so the clamp is justified by arithmetic that holds on any island. But the MEASURED breach on THIS island is ZERO: the relief field's own minimum is 0.958, so no delivered pixel approaches the deepest product. The clamp is a precaution, not a fix for an observed defect, and it is reported that way rather than credited with a save.",
+  "howThisWasAlmostGotWrong": "The guard fired four times before it was right, and every one was the INSTRUMENT rather than the art \u2014 108 px, then 51, then 384, then 99, all of them false. Three distinct mechanisms, each of which had to be dumped and looked at rather than reasoned about: (1) a geometric top-face mask counts blocks straddling a cell and the wall stamped in front of it, where `mode_down`'s MAJORITY VOTE tips when the light moves \u2014 the tell was transitions running in BOTH directions to a colour at 0.62 of the token, far below any level the field can reach; (2) comparing the blade baseline against the species composite varies the plant set as well as the light, so a bigger plant covering ground it did not cover before is counted as a corrupted fill; (3) a strict fill mask cut from a PLANT-LESS canvas still contains every pixel a plant will later stand on, and the field multiplies plant pixels too. The shadow pass recorded the first of these and this pass still had to rediscover the other two, which is the reason they are written down here at all."
+ },
+ "marks": {
+  "withdrawnBladeSet": {
+   "tuft-2": {
+    "deliveredPx": 2,
+    "bboxW": 2,
+    "bboxH": 1,
+    "aspect": 2.0,
+    "rows": [
+     "##"
+    ]
+   },
+   "tuft-3a": {
+    "deliveredPx": 2,
+    "bboxW": 2,
+    "bboxH": 1,
+    "aspect": 2.0,
+    "rows": [
+     "##"
+    ]
+   },
+   "tuft-3b": {
+    "deliveredPx": 3,
+    "bboxW": 2,
+    "bboxH": 2,
+    "aspect": 1.0,
+    "rows": [
+     "#.",
+     "##"
+    ]
+   },
+   "tuft-4": {
+    "deliveredPx": 2,
+    "bboxW": 2,
+    "bboxH": 1,
+    "aspect": 2.0,
+    "rows": [
+     "##"
+    ]
+   },
+   "shrub-a": {
+    "deliveredPx": 12,
+    "bboxW": 6,
+    "bboxH": 3,
+    "aspect": 2.0,
+    "rows": [
+     "######",
+     ".####.",
+     "..##.."
+    ]
+   },
+   "shrub-b": {
+    "deliveredPx": 11,
+    "bboxW": 5,
+    "bboxH": 3,
+    "aspect": 1.67,
+    "rows": [
+     "#####",
+     "####.",
+     ".##.."
+    ]
+   }
+  },
+  "speciesSet": {
+   "tuft-3a": {
+    "deliveredPx": 18,
+    "bboxW": 6,
+    "bboxH": 4,
+    "aspect": 1.5,
+    "rows": [
+     "..##..",
+     "######",
+     "######",
+     ".####."
+    ]
+   },
+   "tuft-2": {
+    "deliveredPx": 7,
+    "bboxW": 2,
+    "bboxH": 4,
+    "aspect": 0.5,
+    "rows": [
+     "##",
+     "##",
+     "##",
+     ".#"
+    ]
+   },
+   "tuft-3b": {
+    "deliveredPx": 20,
+    "bboxW": 8,
+    "bboxH": 3,
+    "aspect": 2.67,
+    "rows": [
+     ".######.",
+     "########",
+     ".######."
+    ]
+   },
+   "tuft-4": {
+    "deliveredPx": 10,
+    "bboxW": 6,
+    "bboxH": 3,
+    "aspect": 2.0,
+    "rows": [
+     ".#....",
+     "##..##",
+     "###.##"
+    ]
+   },
+   "shrub-a": {
+    "deliveredPx": 12,
+    "bboxW": 6,
+    "bboxH": 3,
+    "aspect": 2.0,
+    "rows": [
+     "######",
+     ".####.",
+     "..##.."
+    ]
+   },
+   "shrub-b": {
+    "deliveredPx": 11,
+    "bboxW": 5,
+    "bboxH": 3,
+    "aspect": 1.67,
+    "rows": [
+     "#####",
+     "####.",
+     ".##.."
+    ]
+   }
+  },
+  "bladeTuftOutlineSpread": {
+   "aspectMin": 1.0,
+   "aspectMax": 2.0,
+   "aspectSpread": 2.0,
+   "deliveredPxMin": 2,
+   "deliveredPxMax": 3,
+   "deliveredPxMedian": 2
+  },
+  "speciesOutlineSpread": {
+   "aspectMin": 0.5,
+   "aspectMax": 2.67,
+   "aspectSpread": 5.34,
+   "deliveredPxMin": 7,
+   "deliveredPxMax": 20,
+   "deliveredPxMedian": 14
+  },
+  "note": "The arc's 'median 3 delivered px' figure is the WITHDRAWN long grass (`pieces-m00-blade`, the set `compose_healthy.py:95` still mounts). It is not the budget a shrub or a species has."
+ },
+ "vegetation": {
+  "currentBudget": {
+   "authoredTufts": 144,
+   "authoredShrubs": 27,
+   "authoredFlowers": 10,
+   "wellCulled": 0,
+   "total": 181
+  },
+  "areaAwareBudget": {
+   "authoredTufts": 140,
+   "authoredShrubs": 26,
+   "authoredFlowers": 10,
+   "wellCulled": 0,
+   "total": 176
+  },
+  "deliveredPxBladeSet": 984,
+  "deliveredPxSpeciesSet": 2120,
+  "deliveredPxPerMarkBlade": 5.44,
+  "deliveredPxPerMarkSpecies": 11.71
+ },
+ "countFork": {
+  "rule": "grass = round(2 + tests*1.9); shrubs = round(tests/2.6). No area term.",
+  "areaAwareVariant": "the SAME rule, then capped at the parcel's own capacity at a shrub's footprint (`dispersion.capacity`). The minimal change derived from the measured overload, and nothing more.",
+  "rows": [
+   {
+    "cap": 0,
+    "tests": 4,
+    "cells": 39,
+    "areaGroundUnits": 5534.8,
+    "capacityAtShrubFootprint": 399.4,
+    "currentBudget": 12,
+    "areaAwareBudget": 12,
+    "overloadRatio": 0.03,
+    "densityCurrent": 2.17,
+    "densityAreaAware": 2.17
+   },
+   {
+    "cap": 2,
+    "tests": 4,
+    "cells": 11,
+    "areaGroundUnits": 1738.6,
+    "capacityAtShrubFootprint": 125.5,
+    "currentBudget": 12,
+    "areaAwareBudget": 12,
+    "overloadRatio": 0.096,
+    "densityCurrent": 6.9,
+    "densityAreaAware": 6.9
+   },
+   {
+    "cap": 1,
+    "tests": 5,
+    "cells": 17,
+    "areaGroundUnits": 2537.0,
+    "capacityAtShrubFootprint": 183.1,
+    "currentBudget": 14,
+    "areaAwareBudget": 14,
+    "overloadRatio": 0.076,
+    "densityCurrent": 5.52,
+    "densityAreaAware": 5.52
+   },
+   {
+    "cap": 3,
+    "tests": 5,
+    "cells": 2,
+    "areaGroundUnits": 329.0,
+    "capacityAtShrubFootprint": 23.7,
+    "currentBudget": 14,
+    "areaAwareBudget": 14,
+    "overloadRatio": 0.59,
+    "densityCurrent": 42.55,
+    "densityAreaAware": 42.55
+   },
+   {
+    "cap": 4,
+    "tests": 5,
+    "cells": 9,
+    "areaGroundUnits": 1375.3,
+    "capacityAtShrubFootprint": 99.3,
+    "currentBudget": 14,
+    "areaAwareBudget": 14,
+    "overloadRatio": 0.141,
+    "densityCurrent": 10.18,
+    "densityAreaAware": 10.18
+   },
+   {
+    "cap": 10,
+    "tests": 6,
+    "cells": 7,
+    "areaGroundUnits": 1084.6,
+    "capacityAtShrubFootprint": 78.3,
+    "currentBudget": 15,
+    "areaAwareBudget": 15,
+    "overloadRatio": 0.192,
+    "densityCurrent": 13.83,
+    "densityAreaAware": 13.83
+   },
+   {
+    "cap": 5,
+    "tests": 7,
+    "cells": 1,
+    "areaGroundUnits": 197.6,
+    "capacityAtShrubFootprint": 14.3,
+    "currentBudget": 18,
+    "areaAwareBudget": 13,
+    "overloadRatio": 1.262,
+    "densityCurrent": 91.1,
+    "densityAreaAware": 65.8
+   },
+   {
+    "cap": 6,
+    "tests": 7,
+    "cells": 21,
+    "areaGroundUnits": 3374.3,
+    "capacityAtShrubFootprint": 243.5,
+    "currentBudget": 18,
+    "areaAwareBudget": 18,
+    "overloadRatio": 0.074,
+    "densityCurrent": 5.33,
+    "densityAreaAware": 5.33
+   },
+   {
+    "cap": 7,
+    "tests": 7,
+    "cells": 10,
+    "areaGroundUnits": 1516.2,
+    "capacityAtShrubFootprint": 109.4,
+    "currentBudget": 18,
+    "areaAwareBudget": 18,
+    "overloadRatio": 0.164,
+    "densityCurrent": 11.87,
+    "densityAreaAware": 11.87
+   },
+   {
+    "cap": 8,
+    "tests": 7,
+    "cells": 25,
+    "areaGroundUnits": 4004.1,
+    "capacityAtShrubFootprint": 289.0,
+    "currentBudget": 18,
+    "areaAwareBudget": 18,
+    "overloadRatio": 0.062,
+    "densityCurrent": 4.5,
+    "densityAreaAware": 4.5
+   },
+   {
+    "cap": 9,
+    "tests": 7,
+    "cells": 20,
+    "areaGroundUnits": 2930.5,
+    "capacityAtShrubFootprint": 211.5,
+    "currentBudget": 18,
+    "areaAwareBudget": 18,
+    "overloadRatio": 0.085,
+    "densityCurrent": 6.14,
+    "densityAreaAware": 6.14
+   }
+  ],
+  "totalCurrent": 171,
+  "totalAreaAware": 166,
+  "overloadedCapabilitiesUnderCurrentRule": [
+   5
+  ],
+  "monotonicityBreaksCurrent": [],
+  "monotonicityBreaksAreaAware": [
+   {
+    "moreTestedCap": 5,
+    "tests": 7,
+    "gets": 13,
+    "lessTestedCap": 1,
+    "itsTests": 5,
+    "itGets": 14
+   },
+   {
+    "moreTestedCap": 5,
+    "tests": 7,
+    "gets": 13,
+    "lessTestedCap": 3,
+    "itsTests": 5,
+    "itGets": 14
+   },
+   {
+    "moreTestedCap": 5,
+    "tests": 7,
+    "gets": 13,
+    "lessTestedCap": 4,
+    "itsTests": 5,
+    "itGets": 14
+   },
+   {
+    "moreTestedCap": 5,
+    "tests": 7,
+    "gets": 13,
+    "lessTestedCap": 10,
+    "itsTests": 6,
+    "itGets": 15
+   }
+  ],
+  "THIS_IS_A_FORK": "Changing the count rule is an ADR-0226 D2 semantic change and is NOT decided here. Both panels are shown; neither is recommended."
+ },
+ "detailCrop": {
+  "x": 120,
+  "y": 246,
+  "w": 92,
+  "h": 62,
+  "vegetationPxInCrop": 677,
+  "treePxInCrop": 0,
+  "rule": "the window containing NO hero-tree pixel that holds the most DELIVERED vegetation \u2014 the panel the appearance call is made on has to show plants, not bark"
+ },
+ "fence": {
+  "diffScope": "docs/research/** only",
+  "cameraElevationDeg": 50.0,
+  "appLandCameraElevationDeg": 20,
+  "appLandCameraTouched": false,
+  "blenderRendersThisPass": 4,
+  "samples": 48,
+  "scatterPyEdited": false,
+  "positioner": "chapter2-plant-dispersion-2026-08-17/disperse.py, IMPORTED (not vendored)"
+ },
+ "inputs": {
+  "island": "docs/research/chapter2-healthy-island-2026-08-16/island.json",
+  "storyId": "context-traversal-capture",
+  "bladePieces": "docs/research/chapter2-grass-reads-as-signal-2026-08-16/pieces-m00-blade",
+  "speciesPieces": "docs/research/chapter2-high-frequency-options-2026-08-17/pieces-species"
+ }
+}
