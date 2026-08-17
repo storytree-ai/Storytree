@@ -1,0 +1,19 @@
+{
+  "source": "packages/forest-world/src/scene.ts:1715 driftSpot (transcribed, not executed)",
+  "island": "chapter2-healthy-island-2026-08-16",
+  "seeds": 200,
+  "placements": 29716,
+  "offIsland": 9,
+  "offIslandFraction": 0.0003,
+  "offOwnParcel": 3228,
+  "offOwnParcelFraction": 0.10863,
+  "meanBedArea": 246.5,
+  "meanParcelArea": 2238.4,
+  "concentrationFactor": 9.08,
+  "minNearestNeighbour": 0.0217,
+  "medianNearestNeighbour": 2.059,
+  "nearPairFractionAt4": 0.8799,
+  "nearPairFractionAt3": 0.7416,
+  "medianCoastDistanceOfParcelEscapees": 21.12,
+  "verdict": "The app does NOT share the research scatter's coordinate-pair collapse - it draws from a mulberry32 stream, not from two CRC32s over near-identical addresses. It has a DIFFERENT and unrelated gap: driftSpot applies no containment test of any kind, so roughly one placement in nine lands outside the parcel whose status tinted it. Its heavy clumping is DELIBERATE - the drift beds are an owner-directed 2026-07-18 refinement and the docstring says so - but that decision was taken for long grass, which is being withdrawn, and a bed that reads as massed grass reads as a blob when it is made of shrubs."
+}
