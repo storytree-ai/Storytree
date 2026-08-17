@@ -252,8 +252,15 @@ guard is a **REFUSAL**: no picture is written if it trips.
 | the re-measured ceiling for the `healthy` fill | **0.74**, re-derived every run |
 | deepest reachable joint level | **0.80** (clears it by the declared 0.05 margin) |
 
-**And the guard fires:** `verify_refusal.py` drives the real composer with the combined field pushed
-past the ceiling and it refuses a real picture, naming the corrupted pixels.
+**And the guard fires, on a real drive of the real composer.** `verify_refusal.py` pushes the
+combined field past the ceiling and the composer refuses a REAL picture naming **1 382 of 14 314**
+top-face pixels — the same order as the shadow pass's own 1 332, and far too many for a
+threshold-only guard to have squeaked past. It writes **no** picture when it fires, which is checked
+separately: a guard that reports a problem and then draws the picture anyway is not a guard.
+
+The diagonal gate fires the same way: driven with the affine-CRC32 sampler the composer refuses at
+**corr(u, v) = 0.9997** against a floor of 0.15 and a null of 0, before a single pixel is composed,
+and again writes nothing.
 
 ### The clamp in `combine` is a PRECAUTION, not a save — and an earlier draft of this file said otherwise
 
