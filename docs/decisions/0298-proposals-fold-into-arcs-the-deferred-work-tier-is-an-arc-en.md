@@ -244,6 +244,16 @@ and it is the mechanism behind the owner's "this should push sessions to setup a
 stays first-class and free: the failure being fenced is minting a HOMELESS item, not chartering an
 arc.
 
+**Correction (2026-08-17, per [ADR-0377](0377-arc-folding-defaults-to-a-new-arc-folding-requires-surface-o.md)):
+"owns" above was never defined, and in practice got satisfied by thematic resemblance — an arc being
+describable as the same subject as the defect — rather than by owning the surface a fix actually
+edits. Measured cost: one arc (`verification-integrity-arc`) absorbed 20 friction ids across 14
+parked entries over 19 days by the thematic reading and never trended toward zero, while ten
+arcs chartered under a genuine-ownership reading over the same window all closed honestly. "Owns"
+now means owns the surface (the package/panel/write-path a fix edits) — a thematic match alone does
+not satisfy it, and D6's shape (fold if owned, charter if not) is unchanged. ADR-0377 additionally
+caps every arc at 20 increments, closed included, independent of this fix.
+
 ### D7 — every live proposal is rehomed before anything is deleted
 
 Each is placed on the arc that owns it, by reading its `motivation` and `scope`, never by keyword.
