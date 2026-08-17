@@ -31,6 +31,7 @@ PASSES, FAILS, RESULTS = [], [], {}
 
 
 def ok(name, cond, detail=""):
+    detail = "" if detail is None else str(detail)
     (PASSES if cond else FAILS).append(name)
     print(("  PASS  " if cond else "  FAIL  ") + name + (("   " + detail) if detail else ""),
           flush=True)
@@ -71,9 +72,13 @@ def fires(out, code, needle):
 print("== 1. the CONTROL — unperturbed, every guard reached and none fires ==")
 # =====================================================================================================
 code, out, written, _t = drive(None, "control (no hatch)")
+#: NOT `fires()` here — its vocabulary is about a guard tripping, and for the control the marker
+#: means the opposite. Reporting "FIRED" beside a passing control is exactly the kind of log line
+#: that gets misread later.
 ok("the control reaches every guard and none of them fires",
    code == 0 and "all guards reached, none fired" in out,
-   fires(out, code, "all guards reached, none fired"))
+   "reached every guard, exit 0" if code == 0 and "all guards reached, none fired" in out
+   else "control did NOT reach the end (exit %s)" % code)
 RESULTS["control"] = {"exit": code, "reachedAllGuards":
                       "all guards reached, none fired" in out}
 
@@ -85,15 +90,20 @@ code, out, written, _t = drive("unfixed-positioner", "the affine-CRC32 sampler")
 st = fires(out, code, "carry the DIAGONAL COLLAPSE")
 ok("the unfixed positioner is REFUSED", st == "FIRED", st)
 ok("the refusal names the correlation it measured", "corr(u,v)=" in out.replace(" ", ""),
-   [ln.strip() for ln in out.splitlines() if "DIAGONAL COLLAPSE" in ln][:1])
+   " | ".join(ln.strip() for ln in out.splitlines() if "DIAGONAL COLLAPSE" in ln)[:160])
 ok("NO picture is written when it fires", not written, "wrote %s" % (written or "nothing"))
 #: NOT A THRESHOLD ARTEFACT: the value it refuses on has to be nowhere near the floor, or the guard
 #: would only be catching noise. The floor is 0.15 and the null is exactly 0.
+#: Parse the number off the line AS PRINTED. A first version stripped whitespace first and then split
+#: on the comma, which turns "corr(u,v)=0.9997 over 170 placements," into "0.9997over170placements"
+#: and silently yields None — so the check reported "corr=None" and FAILED while the refusal it was
+#: reading had worked perfectly. A harness that cannot parse its own evidence looks exactly like a
+#: guard that did not fire.
 _corr = None
 for ln in out.splitlines():
-    if "corr(u,v)=" in ln.replace(" ", ""):
+    if "corr(u,v)=" in ln:
         try:
-            _corr = float(ln.replace(" ", "").split("corr(u,v)=")[1].split(",")[0])
+            _corr = float(ln.split("corr(u,v)=")[1].split()[0].rstrip(","))
         except (ValueError, IndexError):
             pass
 ok("it refuses on a correlation far above the floor, not at it",

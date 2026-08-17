@@ -20,6 +20,13 @@ variable is the option: **1.** today · **2.** + ground micro-relief · **3.** +
 **4.** both. Then `high-frequency-detail-6x.png` to judge the art, where every block is one
 delivered pixel.
 
+**Where that 6× crop goes is part of the deliverable and took three attempts.** Centring it on the
+island's centroid — the obvious choice — lands it on the hero tree's trunk, so the appearance call
+gets made on a close-up of bark. Sliding it to the most vegetation lands it *under the canopy*,
+because plants are densest at the island centre. It is now the window containing **no tree pixel at
+all** that holds the most delivered vegetation (677 px), with the tree mask derived from the
+difference between the with-tree board and the identical tree-less one rather than guessed.
+
 **Nothing here is owner-attested and this page has no standing to make an appearance verdict**
 (ADR-0070 stage 2). ADR-0280 D4 makes an honest *"this did not help"* an accepted outcome — and one
 of the two options below is close to it.
@@ -286,11 +293,11 @@ numbers that cannot be compared to that series at all while looking exactly as i
 
 ---
 
-## Proof
+## Proof — `verify.py` **68/68**
 
 ```text
 python compose_options.py      # 5 pictures + options-report.json + 5 sidecars   (~30 min)
-python verify.py               # the floor; the determinism re-compose is folded in (~30 min)
+python verify.py               # the floor, 68 checks; the determinism re-compose is folded in (~30 min)
 python verify_refusal.py       # drives the real composer through 4 configurations (~25 min)
 ```
 
@@ -307,8 +314,14 @@ on every shipped entry · the status delta being zero and the ceiling clearing i
 compositor · sidecars, one code state, the declared sample count, and every sheet opaque rather than
 transparent · determinism on the DECODED raster, never a file hash.
 
-**Determinism is asserted on the decoded raster** — across two pixel-identical runs on this track,
-0 of 22 files had identical bytes.
+**Determinism is asserted on the decoded raster**, and this run happened to agree by bytes as well —
+5 of 5 identical both ways. That agreement is a coincidence of this pass's encoder path, not a
+licence to compare hashes: the rule exists because a sibling pass on this track measured **0 of 22**
+files byte-identical across two runs that were pixel-identical. `verify.py` reports both numbers side
+by side so the reason for the rule stays visible even on a run where they match.
+
+**Relief is geometry, not pigment — 0 of 44** distinct delivered cell-body colours lie off the flat
+token's ray, while the surface the owner rejected fails the same instrument at **3 of 7**.
 
 **No fourth compositor.** The track has three copies of a ~700-line compositor and nothing detects
 the fork. This pass adds none: it imports `compose_healthy.py` whole with its writes sent to scratch
