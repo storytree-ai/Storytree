@@ -4,14 +4,20 @@ decided: 2026-08-17
 amends: [298]
 arc: verification-integrity-arc
 ---
-# ADR-0377: Arc folding defaults to a new arc; folding requires surface ownership; arcs cap at 20 increments
+# ADR-0377: Arc folding defaults to a new arc; folding requires surface ownership
 
 ## Status
 
 accepted (2026-08-17) — decided/directed by the owner in conversation on 2026-08-17. Design-time alignment IS the ratification (ADR-0110); no second end-of-flow ask.
 
-**Amends** ADR-0298 D6 — sharpens what "owns" means (surface, not theme) and adds an independent
-increment cap. It does not overturn D6's shape: fold-if-owned, charter-if-not was always the rule.
+**Amends** ADR-0298 D6 — sharpens what "owns" means (surface, not theme). It does not overturn D6's
+shape: fold-if-owned, charter-if-not was always the rule.
+
+**D3, D4 and D5 below — the numeric 20-increment cap, its at-the-cap refusal, and the
+no-grandfather-clause bullet — are WITHDRAWN by [ADR-0382](0382-the-20-increment-arc-cap-is-withdrawn-placement-discipline-r.md)
+(2026-08-18).** They never had a code enforcement point (verified against `origin/main` at
+withdrawal time), so the withdrawal cost no migration. D1 and D2 are unaffected and remain this
+ADR's live decision.
 
 ## Context
 
@@ -42,17 +48,10 @@ loophole, and needs its own backstop rather than relying on the ownership fix to
    stated fallback — sharpening "owns" is what makes it bite in practice instead of being satisfied
    by the first thematically-adjacent arc found. Chartering stays first-class and free, per D6's own
    words: "the failure being fenced is minting a HOMELESS item, not chartering an arc."
-3. **Every arc caps at 20 increments, counted cumulatively — closed increments included.** Closed
-   increments are never pruned (ADR-0305 D3) and are exactly what floods a reader's or an agent's
-   context on `arc show`; a cap on open increments alone would not touch that cost at all.
-4. **At the cap, the write is refused.** No 21st increment — landing record or parked entry — may
-   be added to that arc. The driving session charters a successor arc instead; the successor
-   records a reference back to the exhausted arc (a predecessor/provenance link) so the trail is
-   not lost, the way `supersedes` keeps a superseded ADR's history reachable.
-5. **No grandfather clause.** `verification-integrity-arc` sits at 75 increments today — 55 over
-   the cap — and none of that history is touched, nor are its six currently in-flight entries. Its
-   very next new increment (the 76th) is refused under the same rule as any other arc at 20; it
-   simply becomes the first entry of a successor arc instead.
+
+(D3, D4 and D5 — the numeric increment cap, its at-the-cap refusal, and the no-grandfather-clause
+bullet naming `verification-integrity-arc` — are withdrawn by ADR-0382, 2026-08-18. What now bounds
+an arc's size is D1/D2's placement discipline alone.)
 
 ## Consequences
 
@@ -61,20 +60,14 @@ loophole, and needs its own backstop rather than relying on the ownership fix to
   indefinitely while actually being an unsorted intake queue). The marginal cost is one more line on
   the arc worklist, not new process — chartering was already free.
 - The one measured failure mode — a broad, thematically-matched arc absorbing everything and never
-  draining — loses its mechanism twice over: it can no longer be fed by theme alone once "owns"
-  means surface, and even a legitimately busy arc cannot grow its log without bound once it hits 20.
-- `verification-integrity-arc`'s six in-flight entries land as planned; the arc still auto-closes
-  behind them per ADR-0335 once drained (untouched by this ADR). Anything that would have been its
-  76th entry becomes a successor arc's first.
+  draining — loses its mechanism: it can no longer be fed by theme alone once "owns" means surface.
+  (The independent numeric backstop D3–D5 added on top is withdrawn by ADR-0382.)
 - This does not reverse D6's shape. "Owns" was always the operative word; this forecloses the
-  thematic-resemblance reading that let it be satisfied without genuine ownership, and adds an
-  independent, mechanical backstop (the cap) for the case where ownership-gating alone still isn't
-  tight enough for a given arc.
+  thematic-resemblance reading that let it be satisfied without genuine ownership.
 
 ## References
 
 - [ADR-0298](0298-proposals-fold-into-arcs-the-deferred-work-tier-is-an-arc-en.md) D6 — the fold/charter rule this amends (corrected in place to point here).
-- [ADR-0305](0305-arcs-hold-increments-one-durable-typed-tier-replaces-increme.md) D3 — increments are durable; why the cap counts closed ones.
-- [ADR-0335](0335-arc-lifecycle-is-derived-from-increment-state-min-one-increm.md) — mechanical arc lifecycle; unaffected, the cap is an independent write-time gate.
+- [ADR-0382](0382-the-20-increment-arc-cap-is-withdrawn-placement-discipline-r.md) — withdraws D3, D4 and D5 (the numeric cap); D1/D2 here are unaffected.
 - `oq-does-fold-by-default-have-an-ownership-floor-surface-or-t` — the open question this answers.
 - Library: `asset:edit-first-curation`, `asset:arc`.
