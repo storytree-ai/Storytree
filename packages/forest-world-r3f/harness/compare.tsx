@@ -8,6 +8,7 @@
 
 import { createRoot } from 'react-dom/client';
 
+import { HardwareHud } from './HardwareHud.js';
 import { PlantComparison } from './PlantComparison.js';
 
 declare global {
@@ -17,12 +18,21 @@ declare global {
   }
 }
 
-createRoot(document.getElementById('root')!).render(<PlantComparison />);
+function App() {
+  return (
+    <>
+      {/* The D2 hardware probe measures whatever browser is looking at the page, and OWNS
+          the settled signal: it finishes last (90 frames), so gating on it guarantees the
+          panels have long since drawn AND that the capture never photographs a HUD that is
+          still counting. */}
+      <HardwareHud
+        onSettled={() => {
+          window.__stExperimentSettled = true;
+        }}
+      />
+      <PlantComparison />
+    </>
+  );
+}
 
-// Two frames after mount: React has committed and every panel's `useEffect` has run its
-// synchronous `renderer.render`, so the framebuffers hold their final pixels.
-requestAnimationFrame(() => {
-  requestAnimationFrame(() => {
-    window.__stExperimentSettled = true;
-  });
-});
+createRoot(document.getElementById('root')!).render(<App />);

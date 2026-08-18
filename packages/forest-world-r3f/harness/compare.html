@@ -105,6 +105,56 @@
         width: 110px;
         flex: none;
       }
+      .hud {
+        position: fixed;
+        top: 14px;
+        right: 14px;
+        z-index: 10;
+        width: 300px;
+        background: #232930;
+        border: 1px solid #4a545e;
+        border-radius: 8px;
+        padding: 12px 14px;
+        font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      .hud strong {
+        display: block;
+        color: #eceff1;
+        margin-bottom: 8px;
+        font-size: 11px;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+      }
+      .hud dl {
+        display: grid;
+        grid-template-columns: 74px 1fr;
+        gap: 2px 8px;
+        margin: 0;
+      }
+      .hud dt {
+        color: #8fa0aa;
+      }
+      .hud dd {
+        margin: 0;
+        color: #cfd8dc;
+        overflow-wrap: anywhere;
+      }
+      .hud .verdict {
+        margin: 10px 0 0;
+        padding-top: 9px;
+        border-top: 1px solid #3b434c;
+        font-size: 11px;
+        line-height: 1.5;
+      }
+      .hud .verdict.bad {
+        color: #e8b4a0;
+      }
+      .hud .verdict.ok {
+        color: #b7e08a;
+      }
+      .hud.measuring {
+        color: #8fa0aa;
+      }
       code {
         font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
         color: #d6e6b8;
