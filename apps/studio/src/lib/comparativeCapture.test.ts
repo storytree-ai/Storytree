@@ -4,6 +4,7 @@ import {
   formatCaptureComparisonTable,
   toRenderElementCounts,
   unionRect,
+  verifyServedTree,
   type CaptureDeltaRow,
   type RenderElementCounts,
 } from './comparativeCapture';
@@ -144,5 +145,67 @@ describe('computeCaptureDelta + formatCaptureComparisonTable', () => {
     const rows = computeCaptureDelta(empty, empty);
     const extent = rows.find((r) => r.measure.startsWith('content extent'));
     expect(extent?.noteDisplay).toBe('no content in either render');
+  });
+});
+
+describe('verifyServedTree', () => {
+  const OURS = 'fcbcb55126817d16b8d2a0deebb82bcac4fb7c13';
+  const THEIRS = 'e7348a6e8265c8499279f025da7d6f693dac57fb';
+  const stamp = (head: string, stale = false) => ({ code: { startedAt: head, head, stale } });
+
+  test('the server serving our own commit passes', () => {
+    expect(verifyServedTree(stamp(OURS), OURS, 'branch')).toEqual({ ok: true });
+  });
+
+  /**
+   * THE DEFECT THIS GUARDS, stated as the scenario rather than as a shape. A sibling session holds
+   * port 5187; `--strictPort` makes our vite exit; the readiness poll answers 200 from THEIR server;
+   * the run measures their worktree and labels the numbers as ours. Before this check that was a
+   * silent pass, and it is indistinguishable from a real rendering regression in the output table.
+   */
+  test('a stranger holding our port is REFUSED, not measured', () => {
+    const verdict = verifyServedTree(stamp(THEIRS), OURS, 'branch');
+    expect(verdict.ok).toBe(false);
+    expect(verdict.reason).toContain('DIFFERENT tree');
+    // Both commits are named, so the reader can identify the intruder without re-deriving anything.
+    expect(verdict.reason).toContain(OURS.slice(0, 12));
+    expect(verdict.reason).toContain(THEIRS.slice(0, 12));
+    // The likeliest cause is named too — this failure is otherwise very hard to interpret.
+    expect(verdict.reason).toContain('port collision');
+  });
+
+  test('an abbreviated expected sha still matches its own tree', () => {
+    expect(verifyServedTree(stamp(OURS), OURS.slice(0, 12), 'baseline')).toEqual({ ok: true });
+  });
+
+  test('a sha too short to identify a tree is refused rather than matched loosely', () => {
+    expect(verifyServedTree(stamp(OURS), 'fcb', 'branch').ok).toBe(false);
+  });
+
+  // FAIL-CLOSED: the three "cannot confirm" shapes must all refuse. A server that cannot name its
+  // own commit has not been identified, and an unidentified tree must never be measured.
+  test('a server reporting no code stamp is refused', () => {
+    const verdict = verifyServedTree({ store: 'pg', db: 'ok' }, OURS, 'baseline');
+    expect(verdict.ok).toBe(false);
+    expect(verdict.reason).toContain('no code stamp');
+  });
+
+  test('a non-object health payload is refused', () => {
+    expect(verifyServedTree(null, OURS, 'branch').ok).toBe(false);
+    expect(verifyServedTree('ok', OURS, 'branch').ok).toBe(false);
+  });
+
+  test('a code stamp with no usable head is refused', () => {
+    expect(verifyServedTree({ code: { startedAt: OURS, stale: false } }, OURS, 'branch').ok).toBe(false);
+  });
+
+  test('a checkout that moved under the running server is refused even though the commit matches', () => {
+    const verdict = verifyServedTree(stamp(OURS, true), OURS, 'branch');
+    expect(verdict.ok).toBe(false);
+    expect(verdict.reason).toContain('MOVED under the running server');
+  });
+
+  test('the label names which of the two servers failed', () => {
+    expect(verifyServedTree(stamp(THEIRS), OURS, 'baseline').reason).toContain('baseline');
   });
 });
