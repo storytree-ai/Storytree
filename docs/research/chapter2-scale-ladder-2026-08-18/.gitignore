@@ -1,0 +1,11 @@
+# THE PIECE RASTERS ARE INTERMEDIATES, NOT EVIDENCE — and at four rungs they are ~16 MB.
+#
+# `render_all.py` rebuilds every one of them from the committed generators in about eight minutes,
+# and nothing downstream reads them once the delivered pictures exist. What IS committed is each
+# set's own `render-meta.json` (and the hero tree's `registration.json` and delivered sprite), so a
+# reader can audit the authored density, the sample count and the code state of every rung — which
+# is what `verify.py` checks 7, 8, 11 and 25 read — without re-rendering anything.
+pieces/pieces-land-*/*.png
+pieces/pieces-species-*/*.png
+pieces/pieces-decor-*/*.png
+pieces/*/raw/

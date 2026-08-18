@@ -1,0 +1,1086 @@
+{
+  "rungs": {},
+  "pass": {
+    "question": "which land elements actually need a live renderer (ADR-0380 D6) and which read well enough on the sprite path (D4)",
+    "storyId": "context-traversal-capture",
+    "cameraElevationDeg": 50.0,
+    "appLandCameraElevationDeg": 20.0,
+    "rungs": [
+      1,
+      2,
+      4,
+      8
+    ],
+    "supersample": 3,
+    "landSamples": 48,
+    "speciesSamples": 48,
+    "sampleCountRule": "PINNED and stated. The arc measured that the sample count alone moves the delivered land pixel count by ~2 px and that nothing in a committed artifact records it (PR #1379). Never compare a land pixel count here against one from a lane at another value.",
+    "oneSurfaceVariant": 0,
+    "seamsDrawn": [
+      "coast"
+    ],
+    "ground": "flat",
+    "vegetation": "the four-species silhouette set of the high-frequency pass, RE-RENDERED at every rung. The withdrawn long-grass blade is not measured: the owner rejected it twice and it is the one piece on this arc that loses to the majority downsample.",
+    "takesNoAppearanceVerdict": true,
+    "fence": "docs/research/** only. No packages/forest-world/src, no apps/**, no app-surface, no web gitlink bump."
+  },
+  "ladder": [
+    {
+      "rung": 1,
+      "authored": {
+        "pxPerGroundUnit": 3.0,
+        "landPieces": 3.0,
+        "decorPieces": 3.0,
+        "heroTreeSpritePx": 128,
+        "supersample": 3
+      },
+      "deliveredCanvasPx": [
+        282,
+        347
+      ],
+      "islandDeliveredPx": 30477,
+      "classification": {
+        "deliveredOpaquePx": 30477,
+        "unclassifiedPx": 11,
+        "landPxWhereColourAndIdAgree": 27778,
+        "landPx": 28373,
+        "colourIdAgreementShare": 0.979029
+      },
+      "drawables": 717,
+      "placements": 181,
+      "outlinePx": 6765,
+      "outlineShareOfIsland": 0.222,
+      "committedPngBytes": 14432,
+      "codeState": "a8d6ee80af6d72647bf60fdbe4debc2ec8dcbd85ecd7799d52db001c6eea8f69"
+    },
+    {
+      "rung": 2,
+      "authored": {
+        "pxPerGroundUnit": 6.0,
+        "landPieces": 6.0,
+        "decorPieces": 6.0,
+        "heroTreeSpritePx": 256,
+        "supersample": 3
+      },
+      "deliveredCanvasPx": [
+        564,
+        694
+      ],
+      "islandDeliveredPx": 121218,
+      "classification": {
+        "deliveredOpaquePx": 121218,
+        "unclassifiedPx": 17,
+        "landPxWhereColourAndIdAgree": 111635,
+        "landPx": 112832,
+        "colourIdAgreementShare": 0.989391
+      },
+      "drawables": 717,
+      "placements": 181,
+      "outlinePx": 15424,
+      "outlineShareOfIsland": 0.1272,
+      "committedPngBytes": 34184,
+      "codeState": "a8d6ee80af6d72647bf60fdbe4debc2ec8dcbd85ecd7799d52db001c6eea8f69"
+    },
+    {
+      "rung": 4,
+      "authored": {
+        "pxPerGroundUnit": 12.0,
+        "landPieces": 12.0,
+        "decorPieces": 12.0,
+        "heroTreeSpritePx": 512,
+        "supersample": 3
+      },
+      "deliveredCanvasPx": [
+        1128,
+        1388
+      ],
+      "islandDeliveredPx": 483438,
+      "classification": {
+        "deliveredOpaquePx": 483438,
+        "unclassifiedPx": 13,
+        "landPxWhereColourAndIdAgree": 447599,
+        "landPx": 449987,
+        "colourIdAgreementShare": 0.994693
+      },
+      "drawables": 717,
+      "placements": 181,
+      "outlinePx": 33190,
+      "outlineShareOfIsland": 0.0687,
+      "committedPngBytes": 77530,
+      "codeState": "a8d6ee80af6d72647bf60fdbe4debc2ec8dcbd85ecd7799d52db001c6eea8f69"
+    },
+    {
+      "rung": 8,
+      "authored": {
+        "pxPerGroundUnit": 24.0,
+        "landPieces": 24.0,
+        "decorPieces": 24.0,
+        "heroTreeSpritePx": 1024,
+        "supersample": 3
+      },
+      "deliveredCanvasPx": [
+        2256,
+        2776
+      ],
+      "islandDeliveredPx": 1931564,
+      "classification": {
+        "deliveredOpaquePx": 1931564,
+        "unclassifiedPx": 21,
+        "landPxWhereColourAndIdAgree": 1793066,
+        "landPx": 1797867,
+        "colourIdAgreementShare": 0.99733
+      },
+      "drawables": 717,
+      "placements": 181,
+      "outlinePx": 68675,
+      "outlineShareOfIsland": 0.0356,
+      "committedPngBytes": 177490,
+      "codeState": "a8d6ee80af6d72647bf60fdbe4debc2ec8dcbd85ecd7799d52db001c6eea8f69"
+    }
+  ],
+  "elements": {
+    "1": [
+      {
+        "element": "cell-fill",
+        "rung": 1,
+        "instances": 162,
+        "instancesDelivering": 162,
+        "zeroDeliveryShare": 0.0,
+        "deliveredPx": 13945,
+        "medianInstancePx": 84.0,
+        "medianInstanceMinorAxisPx": 11.0,
+        "minorAxisInstrument": "median bbox minor axis",
+        "medianInstanceDistinctColours": 1.0,
+        "distinctColoursInClass": 1,
+        "flatByConstruction": true,
+        "readsHere": true,
+        "outlinePx": 1255,
+        "outlineShareOfElement": 0.09,
+        "outlineReadsHere": true
+      },
+      {
+        "element": "rim-wall",
+        "rung": 1,
+        "instances": 35,
+        "instancesDelivering": 35,
+        "zeroDeliveryShare": 0.0,
+        "deliveredPx": 2440,
+        "medianInstancePx": 75.0,
+        "medianInstanceMinorAxisPx": 9.0,
+        "minorAxisInstrument": "median bbox minor axis",
+        "medianInstanceDistinctColours": 2.0,
+        "distinctColoursInClass": 3,
+        "flatByConstruction": false,
+        "readsHere": true,
+        "outlinePx": 578,
+        "outlineShareOfElement": 0.2369,
+        "outlineReadsHere": true
+      },
+      {
+        "element": "terrace",
+        "rung": 1,
+        "instances": 338,
+        "instancesDelivering": 329,
+        "zeroDeliveryShare": 0.0266,
+        "deliveredPx": 6586,
+        "medianInstancePx": 13.0,
+        "medianInstanceMinorAxisPx": 4.0,
+        "minorAxisInstrument": "median bbox minor axis",
+        "medianInstanceDistinctColours": 2.0,
+        "distinctColoursInClass": 3,
+        "flatByConstruction": false,
+        "readsHere": true,
+        "outlinePx": 3250,
+        "outlineShareOfElement": 0.5495,
+        "outlineReadsHere": false
+      },
+      {
+        "element": "coast",
+        "rung": 1,
+        "instances": 1,
+        "instancesDelivering": 1,
+        "zeroDeliveryShare": 0.0,
+        "deliveredPx": 5176,
+        "medianInstancePx": 5176.0,
+        "medianInstanceMinorAxisPx": 6.0,
+        "minorAxisInstrument": "median band run-length",
+        "medianInstanceDistinctColours": 2.0,
+        "distinctColoursInClass": 2,
+        "flatByConstruction": false,
+        "readsHere": true,
+        "outlinePx": 0,
+        "outlineShareOfElement": 0.0,
+        "outlineReadsHere": true
+      },
+      {
+        "element": "vegetation-mark",
+        "rung": 1,
+        "instances": 171,
+        "instancesDelivering": 167,
+        "zeroDeliveryShare": 0.0234,
+        "deliveredPx": 2104,
+        "medianInstancePx": 11.0,
+        "medianInstanceMinorAxisPx": 3.0,
+        "minorAxisInstrument": "median bbox minor axis",
+        "medianInstanceDistinctColours": 2.0,
+        "distinctColoursInClass": 14,
+        "flatByConstruction": false,
+        "readsHere": true,
+        "outlinePx": 1572,
+        "outlineShareOfElement": 0.7778,
+        "outlineReadsHere": false
+      },
+      {
+        "element": "flower",
+        "rung": 1,
+        "instances": 10,
+        "instancesDelivering": 10,
+        "zeroDeliveryShare": 0.0,
+        "deliveredPx": 83,
+        "medianInstancePx": 7.0,
+        "medianInstanceMinorAxisPx": 2.0,
+        "minorAxisInstrument": "median bbox minor axis",
+        "medianInstanceDistinctColours": 2.0,
+        "distinctColoursInClass": 6,
+        "flatByConstruction": false,
+        "readsHere": false,
+        "outlinePx": 63,
+        "outlineShareOfElement": 0.759,
+        "outlineReadsHere": false
+      },
+      {
+        "element": "hero-tree",
+        "rung": 1,
+        "instances": 1,
+        "instancesDelivering": 1,
+        "zeroDeliveryShare": 0.0,
+        "deliveredPx": 9198,
+        "medianInstancePx": 9198.0,
+        "medianInstanceMinorAxisPx": 117.0,
+        "minorAxisInstrument": "sprite alpha bounding box",
+        "medianInstanceDistinctColours": 9.0,
+        "distinctColoursInClass": 9,
+        "readsHere": true,
+        "outlinePx": 0,
+        "outlineShareOfElement": 0.0,
+        "outlineReadsHere": true,
+        "note": "the hero tree is a SHIPPED sprite with its own palette and its own SIGNED ceiling verdict (2026-08-14), already carrying its own selective material-tinted outline. It is composited after the land's back half and is deliberately not put through the land's snap, so this row describes its own render rather than this pipeline."
+      }
+    ],
+    "2": [
+      {
+        "element": "cell-fill",
+        "rung": 2,
+        "instances": 162,
+        "instancesDelivering": 162,
+        "zeroDeliveryShare": 0.0,
+        "deliveredPx": 55507,
+        "medianInstancePx": 333.5,
+        "medianInstanceMinorAxisPx": 23.0,
+        "minorAxisInstrument": "median bbox minor axis",
+        "medianInstanceDistinctColours": 1.0,
+        "distinctColoursInClass": 1,
+        "flatByConstruction": true,
+        "readsHere": true,
+        "outlinePx": 2758,
+        "outlineShareOfElement": 0.0497,
+        "outlineReadsHere": true
+      },
+      {
+        "element": "rim-wall",
+        "rung": 2,
+        "instances": 35,
+        "instancesDelivering": 35,
+        "zeroDeliveryShare": 0.0,
+        "deliveredPx": 10048,
+        "medianInstancePx": 300.0,
+        "medianInstanceMinorAxisPx": 19.0,
+        "minorAxisInstrument": "median bbox minor axis",
+        "medianInstanceDistinctColours": 2.0,
+        "distinctColoursInClass": 3,
+        "flatByConstruction": false,
+        "readsHere": true,
+        "outlinePx": 1223,
+        "outlineShareOfElement": 0.1217,
+        "outlineReadsHere": true
+      },
+      {
+        "element": "terrace",
+        "rung": 2,
+        "instances": 338,
+        "instancesDelivering": 333,
+        "zeroDeliveryShare": 0.0148,
+        "deliveredPx": 26739,
+        "medianInstancePx": 51.0,
+        "medianInstanceMinorAxisPx": 9.0,
+        "minorAxisInstrument": "median bbox minor axis",
+        "medianInstanceDistinctColours": 2.0,
+        "distinctColoursInClass": 3,
+        "flatByConstruction": false,
+        "readsHere": true,
+        "outlinePx": 7432,
+        "outlineShareOfElement": 0.3094,
+        "outlineReadsHere": true
+      },
+      {
+        "element": "coast",
+        "rung": 2,
+        "instances": 1,
+        "instancesDelivering": 1,
+        "zeroDeliveryShare": 0.0,
+        "deliveredPx": 21490,
+        "medianInstancePx": 21490.0,
+        "medianInstanceMinorAxisPx": 11.0,
+        "minorAxisInstrument": "median band run-length",
+        "medianInstanceDistinctColours": 2.0,
+        "distinctColoursInClass": 2,
+        "flatByConstruction": false,
+        "readsHere": true,
+        "outlinePx": 0,
+        "outlineShareOfElement": 0.0,
+        "outlineReadsHere": true
+      },
+      {
+        "element": "vegetation-mark",
+        "rung": 2,
+        "instances": 171,
+        "instancesDelivering": 168,
+        "zeroDeliveryShare": 0.0175,
+        "deliveredPx": 8386,
+        "medianInstancePx": 42.0,
+        "medianInstanceMinorAxisPx": 5.0,
+        "minorAxisInstrument": "median bbox minor axis",
+        "medianInstanceDistinctColours": 2.0,
+        "distinctColoursInClass": 14,
+        "flatByConstruction": false,
+        "readsHere": true,
+        "outlinePx": 3808,
+        "outlineShareOfElement": 0.4721,
+        "outlineReadsHere": true
+      },
+      {
+        "element": "flower",
+        "rung": 2,
+        "instances": 10,
+        "instancesDelivering": 10,
+        "zeroDeliveryShare": 0.0,
+        "deliveredPx": 320,
+        "medianInstancePx": 29.5,
+        "medianInstanceMinorAxisPx": 5.0,
+        "minorAxisInstrument": "median bbox minor axis",
+        "medianInstanceDistinctColours": 2.0,
+        "distinctColoursInClass": 6,
+        "flatByConstruction": false,
+        "readsHere": true,
+        "outlinePx": 158,
+        "outlineShareOfElement": 0.4938,
+        "outlineReadsHere": true
+      },
+      {
+        "element": "hero-tree",
+        "rung": 2,
+        "instances": 1,
+        "instancesDelivering": 1,
+        "zeroDeliveryShare": 0.0,
+        "deliveredPx": 36720,
+        "medianInstancePx": 36720.0,
+        "medianInstanceMinorAxisPx": 234.0,
+        "minorAxisInstrument": "sprite alpha bounding box",
+        "medianInstanceDistinctColours": 9.0,
+        "distinctColoursInClass": 9,
+        "readsHere": true,
+        "outlinePx": 0,
+        "outlineShareOfElement": 0.0,
+        "outlineReadsHere": true,
+        "note": "the hero tree is a SHIPPED sprite with its own palette and its own SIGNED ceiling verdict (2026-08-14), already carrying its own selective material-tinted outline. It is composited after the land's back half and is deliberately not put through the land's snap, so this row describes its own render rather than this pipeline."
+      }
+    ],
+    "4": [
+      {
+        "element": "cell-fill",
+        "rung": 4,
+        "instances": 162,
+        "instancesDelivering": 162,
+        "zeroDeliveryShare": 0.0,
+        "deliveredPx": 222023,
+        "medianInstancePx": 1339.5,
+        "medianInstanceMinorAxisPx": 45.0,
+        "minorAxisInstrument": "median bbox minor axis",
+        "medianInstanceDistinctColours": 1.0,
+        "distinctColoursInClass": 1,
+        "flatByConstruction": true,
+        "readsHere": true,
+        "outlinePx": 6012,
+        "outlineShareOfElement": 0.0271,
+        "outlineReadsHere": true
+      },
+      {
+        "element": "rim-wall",
+        "rung": 4,
+        "instances": 35,
+        "instancesDelivering": 35,
+        "zeroDeliveryShare": 0.0,
+        "deliveredPx": 40678,
+        "medianInstancePx": 1204.0,
+        "medianInstanceMinorAxisPx": 37.0,
+        "minorAxisInstrument": "median bbox minor axis",
+        "medianInstanceDistinctColours": 2.0,
+        "distinctColoursInClass": 3,
+        "flatByConstruction": false,
+        "readsHere": true,
+        "outlinePx": 2425,
+        "outlineShareOfElement": 0.0596,
+        "outlineReadsHere": true
+      },
+      {
+        "element": "terrace",
+        "rung": 4,
+        "instances": 338,
+        "instancesDelivering": 335,
+        "zeroDeliveryShare": 0.0089,
+        "deliveredPx": 106923,
+        "medianInstancePx": 203.0,
+        "medianInstanceMinorAxisPx": 18.0,
+        "minorAxisInstrument": "median bbox minor axis",
+        "medianInstanceDistinctColours": 2.0,
+        "distinctColoursInClass": 3,
+        "flatByConstruction": false,
+        "readsHere": true,
+        "outlinePx": 15954,
+        "outlineShareOfElement": 0.1664,
+        "outlineReadsHere": true
+      },
+      {
+        "element": "coast",
+        "rung": 4,
+        "instances": 1,
+        "instancesDelivering": 1,
+        "zeroDeliveryShare": 0.0,
+        "deliveredPx": 87839,
+        "medianInstancePx": 87839.0,
+        "medianInstanceMinorAxisPx": 20.0,
+        "minorAxisInstrument": "median band run-length",
+        "medianInstanceDistinctColours": 2.0,
+        "distinctColoursInClass": 2,
+        "flatByConstruction": false,
+        "readsHere": true,
+        "outlinePx": 0,
+        "outlineShareOfElement": 0.0,
+        "outlineReadsHere": true
+      },
+      {
+        "element": "vegetation-mark",
+        "rung": 4,
+        "instances": 171,
+        "instancesDelivering": 168,
+        "zeroDeliveryShare": 0.0175,
+        "deliveredPx": 33451,
+        "medianInstancePx": 168.5,
+        "medianInstanceMinorAxisPx": 11.0,
+        "minorAxisInstrument": "median bbox minor axis",
+        "medianInstanceDistinctColours": 3.0,
+        "distinctColoursInClass": 14,
+        "flatByConstruction": false,
+        "readsHere": true,
+        "outlinePx": 8384,
+        "outlineShareOfElement": 0.2608,
+        "outlineReadsHere": true
+      },
+      {
+        "element": "flower",
+        "rung": 4,
+        "instances": 10,
+        "instancesDelivering": 10,
+        "zeroDeliveryShare": 0.0,
+        "deliveredPx": 1303,
+        "medianInstancePx": 121.0,
+        "medianInstanceMinorAxisPx": 10.5,
+        "minorAxisInstrument": "median bbox minor axis",
+        "medianInstanceDistinctColours": 4.0,
+        "distinctColoursInClass": 7,
+        "flatByConstruction": false,
+        "readsHere": true,
+        "outlinePx": 368,
+        "outlineShareOfElement": 0.2824,
+        "outlineReadsHere": true
+      },
+      {
+        "element": "hero-tree",
+        "rung": 4,
+        "instances": 1,
+        "instancesDelivering": 1,
+        "zeroDeliveryShare": 0.0,
+        "deliveredPx": 146762,
+        "medianInstancePx": 146762.0,
+        "medianInstanceMinorAxisPx": 468.0,
+        "minorAxisInstrument": "sprite alpha bounding box",
+        "medianInstanceDistinctColours": 9.0,
+        "distinctColoursInClass": 9,
+        "readsHere": true,
+        "outlinePx": 0,
+        "outlineShareOfElement": 0.0,
+        "outlineReadsHere": true,
+        "note": "the hero tree is a SHIPPED sprite with its own palette and its own SIGNED ceiling verdict (2026-08-14), already carrying its own selective material-tinted outline. It is composited after the land's back half and is deliberately not put through the land's snap, so this row describes its own render rather than this pipeline."
+      }
+    ],
+    "8": [
+      {
+        "element": "cell-fill",
+        "rung": 8,
+        "instances": 162,
+        "instancesDelivering": 162,
+        "zeroDeliveryShare": 0.0,
+        "deliveredPx": 886506,
+        "medianInstancePx": 5340.0,
+        "medianInstanceMinorAxisPx": 91.5,
+        "minorAxisInstrument": "median bbox minor axis",
+        "medianInstanceDistinctColours": 1.0,
+        "distinctColoursInClass": 1,
+        "flatByConstruction": true,
+        "readsHere": true,
+        "outlinePx": 12597,
+        "outlineShareOfElement": 0.0142,
+        "outlineReadsHere": true
+      },
+      {
+        "element": "rim-wall",
+        "rung": 8,
+        "instances": 35,
+        "instancesDelivering": 35,
+        "zeroDeliveryShare": 0.0,
+        "deliveredPx": 164231,
+        "medianInstancePx": 4828.0,
+        "medianInstanceMinorAxisPx": 75.0,
+        "minorAxisInstrument": "median bbox minor axis",
+        "medianInstanceDistinctColours": 2.0,
+        "distinctColoursInClass": 3,
+        "flatByConstruction": false,
+        "readsHere": true,
+        "outlinePx": 4870,
+        "outlineShareOfElement": 0.0297,
+        "outlineReadsHere": true
+      },
+      {
+        "element": "terrace",
+        "rung": 8,
+        "instances": 338,
+        "instancesDelivering": 335,
+        "zeroDeliveryShare": 0.0089,
+        "deliveredPx": 429896,
+        "medianInstancePx": 813.0,
+        "medianInstanceMinorAxisPx": 37.0,
+        "minorAxisInstrument": "median bbox minor axis",
+        "medianInstanceDistinctColours": 2.0,
+        "distinctColoursInClass": 3,
+        "flatByConstruction": false,
+        "readsHere": true,
+        "outlinePx": 32939,
+        "outlineShareOfElement": 0.0855,
+        "outlineReadsHere": true
+      },
+      {
+        "element": "coast",
+        "rung": 8,
+        "instances": 1,
+        "instancesDelivering": 1,
+        "zeroDeliveryShare": 0.0,
+        "deliveredPx": 354523,
+        "medianInstancePx": 354523.0,
+        "medianInstanceMinorAxisPx": 37.0,
+        "minorAxisInstrument": "median band run-length",
+        "medianInstanceDistinctColours": 2.0,
+        "distinctColoursInClass": 2,
+        "flatByConstruction": false,
+        "readsHere": true,
+        "outlinePx": 0,
+        "outlineShareOfElement": 0.0,
+        "outlineReadsHere": true
+      },
+      {
+        "element": "vegetation-mark",
+        "rung": 8,
+        "instances": 171,
+        "instancesDelivering": 169,
+        "zeroDeliveryShare": 0.0117,
+        "deliveredPx": 133697,
+        "medianInstancePx": 675.0,
+        "medianInstanceMinorAxisPx": 21.0,
+        "minorAxisInstrument": "median bbox minor axis",
+        "medianInstanceDistinctColours": 3.0,
+        "distinctColoursInClass": 13,
+        "flatByConstruction": false,
+        "readsHere": true,
+        "outlinePx": 17433,
+        "outlineShareOfElement": 0.1357,
+        "outlineReadsHere": true
+      },
+      {
+        "element": "flower",
+        "rung": 8,
+        "instances": 10,
+        "instancesDelivering": 10,
+        "zeroDeliveryShare": 0.0,
+        "deliveredPx": 5218,
+        "medianInstancePx": 487.5,
+        "medianInstanceMinorAxisPx": 20.5,
+        "minorAxisInstrument": "median bbox minor axis",
+        "medianInstanceDistinctColours": 3.0,
+        "distinctColoursInClass": 5,
+        "flatByConstruction": false,
+        "readsHere": true,
+        "outlinePx": 769,
+        "outlineShareOfElement": 0.1474,
+        "outlineReadsHere": true
+      },
+      {
+        "element": "hero-tree",
+        "rung": 8,
+        "instances": 1,
+        "instancesDelivering": 1,
+        "zeroDeliveryShare": 0.0,
+        "deliveredPx": 586887,
+        "medianInstancePx": 586887.0,
+        "medianInstanceMinorAxisPx": 936.0,
+        "minorAxisInstrument": "sprite alpha bounding box",
+        "medianInstanceDistinctColours": 9.0,
+        "distinctColoursInClass": 9,
+        "readsHere": true,
+        "outlinePx": 0,
+        "outlineShareOfElement": 0.0,
+        "outlineReadsHere": true,
+        "note": "the hero tree is a SHIPPED sprite with its own palette and its own SIGNED ceiling verdict (2026-08-14), already carrying its own selective material-tinted outline. It is composited after the land's back half and is deliberately not put through the land's snap, so this row describes its own render rather than this pipeline."
+      }
+    ]
+  },
+  "bytePrice": {
+    "measured": [
+      {
+        "rung": 1,
+        "islandRasterBytes": 14432,
+        "islandRasterKB": 14.1,
+        "measuredRatioToX1": 1.0,
+        "squareLawRatio": 1,
+        "d4StatedWholePayload": "805 KB",
+        "wholePayloadProjectedKB": 805.0,
+        "wholePayloadIfSquareLawKB": 805
+      },
+      {
+        "rung": 2,
+        "islandRasterBytes": 34184,
+        "islandRasterKB": 33.4,
+        "measuredRatioToX1": 2.37,
+        "squareLawRatio": 4,
+        "d4StatedWholePayload": "~3 MB",
+        "wholePayloadProjectedKB": 1906.7,
+        "wholePayloadIfSquareLawKB": 3220
+      },
+      {
+        "rung": 4,
+        "islandRasterBytes": 77530,
+        "islandRasterKB": 75.7,
+        "measuredRatioToX1": 5.37,
+        "squareLawRatio": 16,
+        "d4StatedWholePayload": "~13 MB",
+        "wholePayloadProjectedKB": 4324.5,
+        "wholePayloadIfSquareLawKB": 12880
+      },
+      {
+        "rung": 8,
+        "islandRasterBytes": 177490,
+        "islandRasterKB": 173.3,
+        "measuredRatioToX1": 12.3,
+        "squareLawRatio": 64,
+        "d4StatedWholePayload": "~50 MB",
+        "wholePayloadProjectedKB": 9900.2,
+        "wholePayloadIfSquareLawKB": 51520
+      }
+    ],
+    "engineSpritePayloadMeasuredKB": 645.6,
+    "engineSpritePayloadFiles": 80,
+    "engineSpritePayloadRoot": "packages/app-surface/src/assets",
+    "d4StatedPayloadKB": 805,
+    "d4PayloadDeltaPct": -19.8,
+    "d4Rule": "raster bytes scale with the SQUARE of linear resolution",
+    "d4PayloadKbAtX1": 805,
+    "islandShareOfPayloadAtX1": 0.0175,
+    "reading": "this measures ONE island's delivered raster, which is a strict SUBSET of the engine's whole committed sprite payload, so the two are compared on their RATIOS \u2014 which is what D4's square law actually predicts \u2014 and never by pretending one island's PNG is the whole budget. Where the measured ratio falls below the square law the reason is the encoder, not the geometry: this is a closed-palette image, and PNG's entropy coding gets cheaper per pixel as the pixels get more locally uniform, which is exactly what raising the rung does to a flat-tinted land. The square law remains the right planning figure for an UNCOMPRESSED budget and for art with more local variety than this island has."
+  },
+  "perElement": {
+    "rule": "an element READS at the smallest rung where its MEDIAN instance has minor axis >= 3 delivered px (the 3x3 majority vote needs 5 of 9, so finer structure is not guaranteed to survive it) AND delivers >= 2 distinct colours (one colour is a silhouette with no interior) AND therefore has room for the outline probe",
+    "outlineRule": "an element CARRIES an outline when the outline does not consume it \u2014 at most half its delivered pixels lie on its own boundary. Below ~3 px across, every pixel of a mark is on its boundary and outlining it is recolouring it.",
+    "affordableRung": 2,
+    "edgeRung": 4,
+    "thisIsNonBinding": "a RECOMMENDATION. The appearance call is the owner's (ADR-0070 stage 2) and nothing in this directory has standing to sign one.",
+    "verdicts": [
+      {
+        "element": "cell-fill",
+        "firstRungItReads": 1,
+        "firstRungItCarriesAnOutline": 1,
+        "recommendedPath": "live",
+        "why": "FLAT BY CONSTRUCTION \u2014 it delivers exactly ONE authored colour at every rung, so no rung adds interior detail to it; all a rung buys is its boundary, at the square law. Its interior is resolution-independent, which is what a vector or live path draws for free. Note the shipped map already renders this element as SVG (ADR-0380 Context), so this is less a change of path than a reason not to move it onto raster.",
+        "byRung": {
+          "x1": {
+            "deliveredPx": 13945,
+            "medianInstancePx": 84.0,
+            "medianInstanceMinorAxisPx": 11.0,
+            "medianInstanceDistinctColours": 1.0,
+            "zeroDeliveryShare": 0.0,
+            "outlineShareOfElement": 0.09,
+            "readsHere": true,
+            "outlineReadsHere": true
+          },
+          "x2": {
+            "deliveredPx": 55507,
+            "medianInstancePx": 333.5,
+            "medianInstanceMinorAxisPx": 23.0,
+            "medianInstanceDistinctColours": 1.0,
+            "zeroDeliveryShare": 0.0,
+            "outlineShareOfElement": 0.0497,
+            "readsHere": true,
+            "outlineReadsHere": true
+          },
+          "x4": {
+            "deliveredPx": 222023,
+            "medianInstancePx": 1339.5,
+            "medianInstanceMinorAxisPx": 45.0,
+            "medianInstanceDistinctColours": 1.0,
+            "zeroDeliveryShare": 0.0,
+            "outlineShareOfElement": 0.0271,
+            "readsHere": true,
+            "outlineReadsHere": true
+          },
+          "x8": {
+            "deliveredPx": 886506,
+            "medianInstancePx": 5340.0,
+            "medianInstanceMinorAxisPx": 91.5,
+            "medianInstanceDistinctColours": 1.0,
+            "zeroDeliveryShare": 0.0,
+            "outlineShareOfElement": 0.0142,
+            "readsHere": true,
+            "outlineReadsHere": true
+          }
+        }
+      },
+      {
+        "element": "rim-wall",
+        "firstRungItReads": 1,
+        "firstRungItCarriesAnOutline": 1,
+        "recommendedPath": "sprite",
+        "why": "reads at x1 and carries an outline at x1, both inside the ~one-more-doubling the sprite path affords (D4). D6 obliges no one to spend the GPU, so bytes are the cheaper answer here.",
+        "byRung": {
+          "x1": {
+            "deliveredPx": 2440,
+            "medianInstancePx": 75.0,
+            "medianInstanceMinorAxisPx": 9.0,
+            "medianInstanceDistinctColours": 2.0,
+            "zeroDeliveryShare": 0.0,
+            "outlineShareOfElement": 0.2369,
+            "readsHere": true,
+            "outlineReadsHere": true
+          },
+          "x2": {
+            "deliveredPx": 10048,
+            "medianInstancePx": 300.0,
+            "medianInstanceMinorAxisPx": 19.0,
+            "medianInstanceDistinctColours": 2.0,
+            "zeroDeliveryShare": 0.0,
+            "outlineShareOfElement": 0.1217,
+            "readsHere": true,
+            "outlineReadsHere": true
+          },
+          "x4": {
+            "deliveredPx": 40678,
+            "medianInstancePx": 1204.0,
+            "medianInstanceMinorAxisPx": 37.0,
+            "medianInstanceDistinctColours": 2.0,
+            "zeroDeliveryShare": 0.0,
+            "outlineShareOfElement": 0.0596,
+            "readsHere": true,
+            "outlineReadsHere": true
+          },
+          "x8": {
+            "deliveredPx": 164231,
+            "medianInstancePx": 4828.0,
+            "medianInstanceMinorAxisPx": 75.0,
+            "medianInstanceDistinctColours": 2.0,
+            "zeroDeliveryShare": 0.0,
+            "outlineShareOfElement": 0.0297,
+            "readsHere": true,
+            "outlineReadsHere": true
+          }
+        }
+      },
+      {
+        "element": "terrace",
+        "firstRungItReads": 1,
+        "firstRungItCarriesAnOutline": 2,
+        "recommendedPath": "sprite",
+        "why": "reads at x1 and carries an outline at x2, both inside the ~one-more-doubling the sprite path affords (D4). D6 obliges no one to spend the GPU, so bytes are the cheaper answer here.",
+        "byRung": {
+          "x1": {
+            "deliveredPx": 6586,
+            "medianInstancePx": 13.0,
+            "medianInstanceMinorAxisPx": 4.0,
+            "medianInstanceDistinctColours": 2.0,
+            "zeroDeliveryShare": 0.0266,
+            "outlineShareOfElement": 0.5495,
+            "readsHere": true,
+            "outlineReadsHere": false
+          },
+          "x2": {
+            "deliveredPx": 26739,
+            "medianInstancePx": 51.0,
+            "medianInstanceMinorAxisPx": 9.0,
+            "medianInstanceDistinctColours": 2.0,
+            "zeroDeliveryShare": 0.0148,
+            "outlineShareOfElement": 0.3094,
+            "readsHere": true,
+            "outlineReadsHere": true
+          },
+          "x4": {
+            "deliveredPx": 106923,
+            "medianInstancePx": 203.0,
+            "medianInstanceMinorAxisPx": 18.0,
+            "medianInstanceDistinctColours": 2.0,
+            "zeroDeliveryShare": 0.0089,
+            "outlineShareOfElement": 0.1664,
+            "readsHere": true,
+            "outlineReadsHere": true
+          },
+          "x8": {
+            "deliveredPx": 429896,
+            "medianInstancePx": 813.0,
+            "medianInstanceMinorAxisPx": 37.0,
+            "medianInstanceDistinctColours": 2.0,
+            "zeroDeliveryShare": 0.0089,
+            "outlineShareOfElement": 0.0855,
+            "readsHere": true,
+            "outlineReadsHere": true
+          }
+        }
+      },
+      {
+        "element": "coast",
+        "firstRungItReads": 1,
+        "firstRungItCarriesAnOutline": 1,
+        "recommendedPath": "sprite",
+        "why": "reads at x1 and carries an outline at x1, both inside the ~one-more-doubling the sprite path affords (D4). D6 obliges no one to spend the GPU, so bytes are the cheaper answer here.",
+        "byRung": {
+          "x1": {
+            "deliveredPx": 5176,
+            "medianInstancePx": 5176.0,
+            "medianInstanceMinorAxisPx": 6.0,
+            "medianInstanceDistinctColours": 2.0,
+            "zeroDeliveryShare": 0.0,
+            "outlineShareOfElement": 0.0,
+            "readsHere": true,
+            "outlineReadsHere": true
+          },
+          "x2": {
+            "deliveredPx": 21490,
+            "medianInstancePx": 21490.0,
+            "medianInstanceMinorAxisPx": 11.0,
+            "medianInstanceDistinctColours": 2.0,
+            "zeroDeliveryShare": 0.0,
+            "outlineShareOfElement": 0.0,
+            "readsHere": true,
+            "outlineReadsHere": true
+          },
+          "x4": {
+            "deliveredPx": 87839,
+            "medianInstancePx": 87839.0,
+            "medianInstanceMinorAxisPx": 20.0,
+            "medianInstanceDistinctColours": 2.0,
+            "zeroDeliveryShare": 0.0,
+            "outlineShareOfElement": 0.0,
+            "readsHere": true,
+            "outlineReadsHere": true
+          },
+          "x8": {
+            "deliveredPx": 354523,
+            "medianInstancePx": 354523.0,
+            "medianInstanceMinorAxisPx": 37.0,
+            "medianInstanceDistinctColours": 2.0,
+            "zeroDeliveryShare": 0.0,
+            "outlineShareOfElement": 0.0,
+            "readsHere": true,
+            "outlineReadsHere": true
+          }
+        }
+      },
+      {
+        "element": "vegetation-mark",
+        "firstRungItReads": 1,
+        "firstRungItCarriesAnOutline": 2,
+        "recommendedPath": "sprite",
+        "why": "reads at x1 and carries an outline at x2, both inside the ~one-more-doubling the sprite path affords (D4). D6 obliges no one to spend the GPU, so bytes are the cheaper answer here.",
+        "byRung": {
+          "x1": {
+            "deliveredPx": 2104,
+            "medianInstancePx": 11.0,
+            "medianInstanceMinorAxisPx": 3.0,
+            "medianInstanceDistinctColours": 2.0,
+            "zeroDeliveryShare": 0.0234,
+            "outlineShareOfElement": 0.7778,
+            "readsHere": true,
+            "outlineReadsHere": false
+          },
+          "x2": {
+            "deliveredPx": 8386,
+            "medianInstancePx": 42.0,
+            "medianInstanceMinorAxisPx": 5.0,
+            "medianInstanceDistinctColours": 2.0,
+            "zeroDeliveryShare": 0.0175,
+            "outlineShareOfElement": 0.4721,
+            "readsHere": true,
+            "outlineReadsHere": true
+          },
+          "x4": {
+            "deliveredPx": 33451,
+            "medianInstancePx": 168.5,
+            "medianInstanceMinorAxisPx": 11.0,
+            "medianInstanceDistinctColours": 3.0,
+            "zeroDeliveryShare": 0.0175,
+            "outlineShareOfElement": 0.2608,
+            "readsHere": true,
+            "outlineReadsHere": true
+          },
+          "x8": {
+            "deliveredPx": 133697,
+            "medianInstancePx": 675.0,
+            "medianInstanceMinorAxisPx": 21.0,
+            "medianInstanceDistinctColours": 3.0,
+            "zeroDeliveryShare": 0.0117,
+            "outlineShareOfElement": 0.1357,
+            "readsHere": true,
+            "outlineReadsHere": true
+          }
+        }
+      },
+      {
+        "element": "flower",
+        "firstRungItReads": 2,
+        "firstRungItCarriesAnOutline": 2,
+        "recommendedPath": "sprite",
+        "why": "reads at x2 and carries an outline at x2, both inside the ~one-more-doubling the sprite path affords (D4). D6 obliges no one to spend the GPU, so bytes are the cheaper answer here.",
+        "byRung": {
+          "x1": {
+            "deliveredPx": 83,
+            "medianInstancePx": 7.0,
+            "medianInstanceMinorAxisPx": 2.0,
+            "medianInstanceDistinctColours": 2.0,
+            "zeroDeliveryShare": 0.0,
+            "outlineShareOfElement": 0.759,
+            "readsHere": false,
+            "outlineReadsHere": false
+          },
+          "x2": {
+            "deliveredPx": 320,
+            "medianInstancePx": 29.5,
+            "medianInstanceMinorAxisPx": 5.0,
+            "medianInstanceDistinctColours": 2.0,
+            "zeroDeliveryShare": 0.0,
+            "outlineShareOfElement": 0.4938,
+            "readsHere": true,
+            "outlineReadsHere": true
+          },
+          "x4": {
+            "deliveredPx": 1303,
+            "medianInstancePx": 121.0,
+            "medianInstanceMinorAxisPx": 10.5,
+            "medianInstanceDistinctColours": 4.0,
+            "zeroDeliveryShare": 0.0,
+            "outlineShareOfElement": 0.2824,
+            "readsHere": true,
+            "outlineReadsHere": true
+          },
+          "x8": {
+            "deliveredPx": 5218,
+            "medianInstancePx": 487.5,
+            "medianInstanceMinorAxisPx": 20.5,
+            "medianInstanceDistinctColours": 3.0,
+            "zeroDeliveryShare": 0.0,
+            "outlineShareOfElement": 0.1474,
+            "readsHere": true,
+            "outlineReadsHere": true
+          }
+        }
+      },
+      {
+        "element": "hero-tree",
+        "firstRungItReads": 1,
+        "firstRungItCarriesAnOutline": 1,
+        "recommendedPath": "sprite",
+        "why": "reads at x1 and carries an outline at x1, both inside the ~one-more-doubling the sprite path affords (D4). D6 obliges no one to spend the GPU, so bytes are the cheaper answer here.",
+        "byRung": {
+          "x1": {
+            "deliveredPx": 9198,
+            "medianInstancePx": 9198.0,
+            "medianInstanceMinorAxisPx": 117.0,
+            "medianInstanceDistinctColours": 9.0,
+            "zeroDeliveryShare": 0.0,
+            "outlineShareOfElement": 0.0,
+            "readsHere": true,
+            "outlineReadsHere": true
+          },
+          "x2": {
+            "deliveredPx": 36720,
+            "medianInstancePx": 36720.0,
+            "medianInstanceMinorAxisPx": 234.0,
+            "medianInstanceDistinctColours": 9.0,
+            "zeroDeliveryShare": 0.0,
+            "outlineShareOfElement": 0.0,
+            "readsHere": true,
+            "outlineReadsHere": true
+          },
+          "x4": {
+            "deliveredPx": 146762,
+            "medianInstancePx": 146762.0,
+            "medianInstanceMinorAxisPx": 468.0,
+            "medianInstanceDistinctColours": 9.0,
+            "zeroDeliveryShare": 0.0,
+            "outlineShareOfElement": 0.0,
+            "readsHere": true,
+            "outlineReadsHere": true
+          },
+          "x8": {
+            "deliveredPx": 586887,
+            "medianInstancePx": 586887.0,
+            "medianInstanceMinorAxisPx": 936.0,
+            "medianInstanceDistinctColours": 9.0,
+            "zeroDeliveryShare": 0.0,
+            "outlineShareOfElement": 0.0,
+            "readsHere": true,
+            "outlineReadsHere": true
+          }
+        }
+      }
+    ]
+  },
+  "detailWindow": {
+    "x": 148,
+    "y": 260,
+    "w": 64,
+    "h": 48,
+    "vegetationPxAtLowestRung": 485,
+    "treePxInWindow": 0,
+    "rule": "the window with NO hero-tree pixel that holds the most vegetation; the tree mask is a with-tree / tree-less DIFFERENCE, not a guess"
+  },
+  "checks": {
+    "plantLessCrossCheck": {
+      "rung": 1,
+      "cellFillPxFromAttribution": 13986,
+      "cellFillPxFromPlantLessCanvas": 15805,
+      "plantLessMinusAttributed": 1819,
+      "bodyLumaWLuma": 160.9,
+      "lumaInstrument": "C.W_LUMA (the quantiser's), NOT Rec.709 \u2014 a Rec.709 number cannot be compared to this arc's 78.9 / 58.2 / 61.6 series while looking exactly as if it can",
+      "reading": "the plant-less canvas is the LARGER of the two by the footprint the plants later stand on, which is the inflation the trap names. The attribution pass is the tighter instrument and is what every per-element number in this pass uses."
+    },
+    "heroTreeDeterminism": {
+      "decodedRasterIdentical": true,
+      "fileBytesIdentical": true,
+      "comparedAgainst": "docs/research/chapter2-camera-elevation-sweep-2026-08-15/tree-50/frames/frame-18.png",
+      "reading": "asserted on the DECODED raster. The byte comparison is reported beside it ONLY so the container-hash trap stays visible: a PNG container differs on every re-render, so a file hash can report drift that is not there."
+    }
+  }
+}
