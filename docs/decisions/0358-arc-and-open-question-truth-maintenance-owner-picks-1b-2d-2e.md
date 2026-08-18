@@ -95,6 +95,15 @@ items) plus a small bounded drain only on actual expiry.
   landing with no open-question involved is left for the next session that happens to touch it, same as
   before. If arc-body drift is later measured at a comparable rate to the 2-of-4 open-question figure,
   that is grounds to revisit 1A, not evidence this ADR ignored.
+  **(Revisited 2026-08-19, corrected in place per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md) —
+  [ADR-0384](0384-the-increment-lifecycle-s-middle-states-get-a-write-path.md):** the predicted trigger
+  fired — a parked proposal measured arc-body drift at 67%, clearing this bullet's own bar — and the
+  owner considered it directly, after a blind-reader grounding experiment. The residual is now
+  **answered, not merely revisited**: 1A stays declined a second time, and the remedy that landed
+  instead — a mechanical write path for the increment lifecycle's middle states — is a different
+  mechanism from anything Axis 1/Axis 2 named here, on the finding that the experiment's blind readers
+  were not actually misled by the prose. This does not reopen 1A or change what this ADR decided; it
+  closes the open loop the bullet above predicted.)
 - Drift that happens and self-corrects within one 7-day lease window is invisible to 2B, same accepted
   residual ADR-0202 carries for agent-memory.
 - 2D/2A-shaped gaps remain: a session that never runs `arc show` or ignores the age render sees nothing.

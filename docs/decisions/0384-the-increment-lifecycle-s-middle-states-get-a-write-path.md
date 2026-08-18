@@ -1,7 +1,7 @@
 ---
 status: accepted
 decided: 2026-08-19
-amends: [305]
+amends: [305, 358]
 arc: arc-and-open-question-truth-maintenance-arc
 ---
 # ADR-0384: The increment lifecycle's middle states get a write path
