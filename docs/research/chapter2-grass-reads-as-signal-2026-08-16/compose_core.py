@@ -310,6 +310,38 @@ DECOR_SORTS_AFTER_ITS_CELL = True
 CAPS_ARGUMENT_IS_AUTHORITATIVE_FOR_WALLS = True
 
 
+def walls_under_caps(compose, cells, elevation_mode, caps):
+    """`boundary_walls`, with the `caps` ARGUMENT authoritative for the wall side token.
+
+    THE DEFECT THIS FIXES, measured by PR #1381 and applied by PR #1387. `compose_land(caps=...)`
+    recoloured the CELLS from its argument while `compose.boundary_walls` read the module global
+    `compose.CAPS`, so a function honoured half the parameter it was handed: an island driven
+    all-`healthy` through the argument ALONE kept **904** charcoal `unhealthy` wall pixels on its
+    body, at exit 0, with nothing to see. The global is rebound for the duration of the wall query
+    and restored in a `finally`, so a caller that rebinds it itself is unaffected.
+
+    `compose` IS A PARAMETER BECAUSE EACH PASS HOLDS ITS OWN COMPOSITOR INSTANCE. Every pass on this
+    track loads `chapter2-land-interior-fork-2026-08-15/compose.py` through
+    `importlib.util.spec_from_file_location`, which builds a NEW module object per load — so
+    `compose_core`'s `C` and `compose_dressed`'s `C` are different objects bound to different
+    islands. A helper that closed over one of them would silently rebind the wrong island's statuses.
+
+    The switch it reads is THIS module's `CAPS_ARGUMENT_IS_AUTHORITATIVE_FOR_WALLS`, and that is
+    load-bearing rather than incidental: a caller importing this function gets a callee that resolves
+    the switch in `compose_core`'s globals, so a guard reintroducing the defect must set it HERE.
+    That is the "converting a module to an alias disarms every monkey-patch aimed at it" trap turned
+    into the mechanism — one switch reaches every compositor that imports this, and a guard that
+    patched an importer's own copy of the name would find no such name to patch.
+    """
+    saved = compose.CAPS
+    if CAPS_ARGUMENT_IS_AUTHORITATIVE_FOR_WALLS:
+        compose.CAPS = list(caps)
+    try:
+        return compose.boundary_walls(cells, elevation_mode)
+    finally:
+        compose.CAPS = saved
+
+
 def decor_depth_key(d, cells):
     """The y a decor placement SORTS on — never earlier than the surface it stands on.
 
@@ -323,8 +355,12 @@ def decor_depth_key(d, cells):
 
     The correct key is `max(own ground y, the cell's centroid y)`: after the surface it stands on,
     and otherwise unchanged. It is a REORDERING and not a move — the placement is still projected and
-    blitted from its own untouched `g` and `h`, so no pixel shifts. Loss 45.5% -> 7.1% on the fixture
-    geometry and 46.2% -> 8.3% driven all-`healthy`; nothing is re-rendered, re-scaled or re-coloured.
+    blitted from its own untouched `g` and `h`, so no pixel shifts; nothing is re-rendered, re-scaled or
+    re-coloured. Loss 35.7% -> 7.0% on the fixture geometry, 35.8% -> 5.4% driven all-`healthy`, and
+    35.9% -> 6.6% on the real-corpus island. (Those figures were 45.5% -> 7.1% and 46.2% -> 8.3% when
+    this was written: PR #1393 replaced the plant positioner the next day, which removed a second,
+    independent loss on top of this one. The attribution is
+    `chapter2-delivery-residual-2026-08-18/`.)
 
     The rule generalises past this raster, and is the sentence to carry if the pipeline is ever
     promoted into app code: *a drawable that STANDS ON a surface sorts after that surface, never on
@@ -381,13 +417,7 @@ def compose_land(decor_items, cells=None, caps=None, ground="flat"):
     for pl in ISLAND["wall"]["placements"]:
         if C.faces_viewer(pl["heading"]):
             draw.append((pl["c"][1], 0, ("wall", pl["c"], pl["heading"], 0.0, story_side)))
-    saved_caps = C.CAPS
-    if CAPS_ARGUMENT_IS_AUTHORITATIVE_FOR_WALLS:
-        C.CAPS = list(caps)
-    try:
-        walls = C.boundary_walls(cells, ELEVATION_MODE)
-    finally:
-        C.CAPS = saved_caps
+    walls = walls_under_caps(C, cells, ELEVATION_MODE, caps)
     for pos, h, height, side in walls:
         draw.append((pos[1], 1, ("wall", pos, h, height, side)))
     for c in cells:

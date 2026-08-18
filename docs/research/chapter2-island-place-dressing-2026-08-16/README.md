@@ -1,12 +1,26 @@
 # Does one island read as a PLACE? — the component art, rendered
 
-> **⚠ RE-COMPOSED 2026-08-18 — 6 of 8 pictures moved.** The plant positioner's CRC32 affine collapse was
-> propagated into `scatter.py` itself by the increment
-> `crc32-dispersion-fix-propagated-and-evidence-rerendered`, so every placement on this pass's
-> pictures moved. Its `scatter.py` copy is held byte-identical to the canonical one. Delivered decor went 111 -> 114 placements: the old positioner silently dropped plants that landed in the tree well. ⚠ This pass still composes through `compose_dressed.py:253`'s OLD depth key, so its pictures still carry the ~46% painter-order occlusion — that fourth site belongs to a different increment.  **Nothing was re-RENDERED** — no piece PNG is touched; the fix changes
-> where a piece is stamped, never what it looks like. The full delta table, and what did NOT move,
-> is in `../chapter2-plant-dispersion-2026-08-17/README.md`. Numbers in the prose below were
-> measured on the PRE-FIX placements unless they say otherwise.
+> **⚠ RE-COMPOSED TWICE, AND THE SECOND TIME IS THE ONE THAT MOVED THE FINDING.**
+>
+> **2026-08-18 (a) — the positioner.** The plant positioner's CRC32 affine collapse was propagated
+> into `scatter.py` itself by `crc32-dispersion-fix-propagated-and-evidence-rerendered`, so every
+> placement on this pass's pictures moved (111 -> 114 meadow: the old positioner silently dropped
+> plants that landed in the tree well). Its `scatter.py` copy is held byte-identical to the canonical
+> one.
+>
+> **2026-08-18 (b) — THE FOURTH COMPOSITOR SITE, now FIXED.** This pass kept its own draw-list
+> assembly, so PR #1387's painter-order fix and its `caps`-authoritative walls never reached it.
+> `compose_dressed.py` now IMPORTS `compose_core.decor_depth_key` and `compose_core.walls_under_caps`
+> rather than restating either, and every picture here was re-composed through them. **32 of 120
+> placements owned ZERO supersampled pixels under the old rule; 3 do now**, and the walls follow the
+> `caps` argument, which is what the `status-vocabulary.png` panels needed. What that moved is
+> restated in place below — the density table and its sublinearity finding both changed. Full
+> attribution: `../chapter2-delivery-residual-2026-08-18/README.md`.
+>
+> **Nothing was re-RENDERED in either pass** — no piece PNG is touched; both fixes change where and
+> in what order a piece is stamped, never what it looks like. `island-bare.png` is byte-identical
+> across both, which is the check on the whole thing: bare land carries no decor and its walls come
+> from the island's own statuses, so neither fix may move a pixel of it.
 
 
 **Date:** 2026-08-16 · **Blender:** 5.2.0 LTS, headless, CPU Cycles, seed 20260816 · **Camera:** 50°
@@ -154,16 +168,26 @@ delivered scale has bought a reader nothing.
 
 | density | placements (meadow + UAT) | decor px | share of delivered land | survived the downsample |
 |---|---:|---:|---:|---:|
-| **×1 — the app's authored counts** | **111 + 6** | **353** | **1.01%** | 95.9% |
-| ×3 | 333 + 6 | 689 | 1.97% | 95.1% |
-| ×6 | 664 + 6 | 1 016 | 2.91% | 94.7% |
+| **×1 — the app's authored counts** | **114 + 6** | **547** | **1.56%** | 94.5% |
+| ×3 | 339 + 6 | 1 387 | 3.97% | 94.8% |
+| ×6 | 678 + 6 | 2 630 | 7.52% | 96.2% |
 
-**At the app's own authored density the dressing occupies one percent of the island.** That is the
-pass's central finding and it is not a defect in the render — it is what the authored counts produce
-at the delivered scale.
+> **⚠ RESTATED 2026-08-18 (b), and the two causes are separated rather than pooled.** The prose row
+> above used to read **353 px / 1.01%** at ×1 and **1 016 px / 2.91%** at ×6 — figures from BEFORE the
+> positioner fix, which this README's own table was never updated for (the report JSON was). The
+> post-positioner, pre-painter-order value was **339 px / 0.97%**. So the painter order alone is
+> **339 → 547 px, +61%**: 32 of 120 placements were being buried before the downsample was ever
+> reached. Whichever baseline is taken, the delivered share at the authored density is **1.56%**, and
+> the sublinearity below is much weaker than it read.
 
-**The curve is sublinear: six times the placements buys 2.9× the pixels.** Two plausible causes were
-measured and BOTH REJECTED, which is why the third is worth believing:
+**At the app's own authored density the dressing occupies about one and a half percent of the
+island.** That is still the pass's central finding and it is still not a defect in the render — it is
+what the authored counts produce at the delivered scale — but it is half again as much ground cover as
+this README reported for two days.
+
+**The curve is sublinear, though far less so than it looked: 5.7× the placements buys 4.8× the
+pixels.** It used to read 6× for 2.9×. Two plausible causes were measured and BOTH REJECTED, which is
+why the third is worth believing — and the third has since been half-answered:
 
 - **Palette collapse — REJECTED.** A tuft is only visible if its blade token survives the snap as a
   different entry from the ground under it, and both are authored tokens from the same app (on a
@@ -172,10 +196,13 @@ measured and BOTH REJECTED, which is why the third is worth believing:
   precisely because it was rejected: it is the explanation a reader reaches for first.
 - **The majority downsample — REJECTED.** **94.7–95.9%** of the decor's ground-equivalent coverage
   survives it at every density.
-- **Self-overlap in the scatter — the remaining cause.** Per-placement contribution falls from 3.1 to
-  1.6 delivered px between ×1 and ×6: the scatter picks a cell uniformly per item, so at high density
-  items pile into the same cells and cover ground already covered. **The actionable consequence: more
-  coverage needs better-DISTRIBUTED placement (a per-cell quota or blue-noise), not more items.**
+- **Self-overlap in the scatter — the remaining cause, and it was ACTED ON.** Per-placement
+  contribution now falls from **4.6 to 3.8** delivered px between ×1 and ×6; it used to fall from 3.1
+  to 1.6. The prescription this section wrote — *"more coverage needs better-DISTRIBUTED placement (a
+  per-cell quota or blue-noise), not more items"* — was taken by
+  `crc32-dispersion-fix-propagated-and-evidence-rerendered`, which gave `scatter.py` an
+  area-weighted cell choice and best-candidate blue noise. The remaining fall is the honest residue
+  of finite ground.
 
 **What this implies for the look:** at any density reachable this way the ground cover is a few
 percent of the island, so whatever "reads as a place" the pictures achieve comes from the **flowers
@@ -207,9 +234,13 @@ vocabulary working rather than a rendering difference.
 
 ### The delivered island, per capability
 
-10 capabilities, 214 cells, 117 placements: 99 tufts, 10 shrubs, 2 wilt, 6 UAT flowers. Land colours
-60 (bare) → 72 (meadow) → 79 (dressed), on a 132-entry closed palette. 0 centroid fallbacks, 0 flower
-exhaustion fallbacks.
+10 capabilities, 214 cells, 120 placements. Land colours 60 (bare) → 72 (meadow) → 79 (dressed), on
+a 132-entry closed palette. 0 centroid fallbacks, 0 flower exhaustion fallbacks.
+
+**The `status-vocabulary.png` panels each shed 9–16 colours** when the walls started following the
+`caps` argument — `healthy` 47 → 31, `building` 47 → 37, `proposed` 45 → 36, `mapped` 44 → 33,
+`unhealthy` 46 → 33. Every one of those was a wall band belonging to a status that panel was not
+showing, on a sheet whose entire purpose is to say what one status looks like.
 
 ## Proof — the machine-checkable half (`verify.py`, 15/15 green)
 

@@ -65,14 +65,56 @@ def sha256_file(path):
     return h.hexdigest()
 
 
+#: What `producer.sha256` is a digest OF. Written into every new sidecar so the rule is READABLE
+#: rather than inferred: a sidecar carrying this key was hashed line-ending-normalised, and one
+#: without it (every sidecar committed before 2026-08-18) was hashed raw and may therefore disagree
+#: with a re-render on a checkout whose line endings differ.
+PRODUCER_DIGEST_BASIS = "source-bytes-with-CRLF-and-CR-normalised-to-LF"
+
+
+def sha256_source(path):
+    """The digest of a TEXT source file, immune to the checkout's line endings.
+
+    THE DEFECT THIS FIXES, measured while establishing PR #1387's invalidation list. Re-running the
+    UNTOUCHED `compose_shadow.py` rewrote its sidecars with a different `producer.sha256`: the
+    committed value was the CRLF hash of a file this repo stores LF (`.gitattributes` sets
+    `* text=auto eol=lf`). So the digest recorded the WORKING-COPY LINE ENDINGS of whoever rendered,
+    not the source — and the one mechanism this track relies on to prove a picture was made at one
+    code state produced a false positive on a byte-identical file.
+
+    That is worse than noise. The whole point of the record is that a reader can ask "is the picture
+    on disk still the one this describes?"; a digest that moves when nothing moved trains a reader to
+    dismiss the answer, which is exactly the state observation 2 above was in.
+
+    NEWLINES ONLY, AND ONLY FOR SOURCE. A CRLF pair and a bare CR both fold to a bare LF; nothing else is
+    touched, so two genuinely different sources still differ. {@link sha256_file} keeps hashing RAW
+    bytes and is what every PNG, frame and output digest goes through — normalising a binary would
+    corrupt the digest of the very thing this record exists to identify. A file that cannot be read
+    as UTF-8 text falls back to its raw bytes rather than raising, because a producer this cannot
+    parse is still a producer worth naming.
+    """
+    if not os.path.isfile(path):
+        return None
+    with open(path, "rb") as fh:
+        raw = fh.read()
+    return hashlib.sha256(raw.replace(b"\r\n", b"\n")
+                          .replace(b"\r", b"\n")).hexdigest()
+
+
 def producer_record(pyfile):
     """The tool whose `__file__` this is, plus its own source digest.
 
     A producer is part of the code state that made its output, so a record naming the tool without
     pinning its version answers half the question. Keyed `tool` rather than `generator` so a reader
     never confuses it with `codeState`, which names the tool that grew the TREE.
+
+    The digest is {@link sha256_source}'s, so re-running an UNEDITED producer from a checkout with
+    different line endings reproduces it exactly. `basis` says so in the record itself: the rule a
+    sidecar was written under is readable from the sidecar rather than dated by its commit.
     """
-    return {"tool": os.path.basename(pyfile), "sha256": sha256_file(os.path.abspath(pyfile))}
+    return {"tool": os.path.basename(pyfile),
+            "sha256": sha256_source(os.path.abspath(pyfile)),
+            "basis": PRODUCER_DIGEST_BASIS}
 
 
 def sidecar_path(out):

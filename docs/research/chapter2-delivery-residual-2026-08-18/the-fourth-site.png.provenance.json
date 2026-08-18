@@ -1,14 +1,16 @@
 {
  "schema": "storytree/derived-evidence-provenance/1",
- "artifact": "components.png",
+ "artifact": "the-fourth-site.png",
  "producer": {
-  "tool": "compose_dressed.py",
-  "sha256": "8c8ff2ca13e7836061e9de7d8e51bf0326d6f308a23060691ecf6af3637f79dd",
+  "tool": "picture.py",
+  "sha256": "67491e3c2c3e4e9fe8225b8375625d5cc5c7f65dc36a321afdaaafd0c5a9113c",
   "basis": "source-bytes-with-CRLF-and-CR-normalised-to-LF"
  },
  "command": {
-  "tool": "compose_dressed.py",
-  "argv": []
+  "tool": "picture.py",
+  "argv": [
+   "picture.py"
+  ]
  },
  "inputs": [
   {
@@ -173,13 +175,20 @@
   "rule": "one code state PER GENERATOR; the composite's identity is the digest of the whole {generator: state} map, so any generator moving moves it"
  },
  "output": {
-  "sha256": "1e184dcbeea45c61258c5f923e63dac56deb021d5f190e716cbe86afcd7957d8",
-  "bytes": 11092
+  "sha256": "d70e4965bb3d4fe61ad2f1cd3437569901f596eb76d0a175f4674888f2ed8785",
+  "bytes": 33720
  },
+ "island": "chapter2-island-place-dressing-2026-08-16/island.json",
  "cameraElevationDeg": 50.0,
- "variant": "b++ land + ADR-0226 vegetation vocabulary",
- "scatterSeed": "island-place-dressing-2026-08-16",
- "island": {
-  "sha256": "5e07da65124c00eb3aaceaa355ae1922bc2784f2dee62875b3f011010f64766c"
+ "onlyVariable": "compose_core.DECOR_SORTS_AFTER_ITS_CELL",
+ "changedDeliveredPx": 223,
+ "crop": {
+  "x": 72,
+  "y": 200,
+  "w": 96,
+  "h": 60,
+  "zoom": 6,
+  "changedInWindow": 89,
+  "derivedAs": "the window holding the most changed pixels"
  }
 }

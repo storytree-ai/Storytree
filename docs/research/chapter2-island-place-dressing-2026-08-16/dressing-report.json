@@ -9,13 +9,13 @@
   "caption": "+ MEADOW \u2014 grass = a capability's tests, dead grass = the status wilt",
   "decorPlacements": 114,
   "landPx": 34968,
-  "landColours": 70
+  "landColours": 72
  },
  "dressed": {
   "caption": "+ UAT FLOWERS \u2014 one per criterion, the verdict read from form",
   "decorPlacements": 120,
   "landPx": 34968,
-  "landColours": 77
+  "landColours": 79
  },
  "bladeGroundContrast": {
   "measured": [
@@ -174,23 +174,23 @@
    "placements": 120,
    "meadowPlacements": 114,
    "flowerPlacements": 6,
-   "decorPx": 339,
+   "decorPx": 547,
    "landPx": 34968,
-   "decorShareOfLandPct": 0.97,
-   "decorPxBeforeDownsampleGroundEquiv": 356.1,
-   "survivalOfDownsamplePct": 95.2,
-   "landColours": 77
+   "decorShareOfLandPct": 1.56,
+   "decorPxBeforeDownsampleGroundEquiv": 578.8,
+   "survivalOfDownsamplePct": 94.5,
+   "landColours": 79
   },
   {
    "density": 3.0,
    "placements": 345,
    "meadowPlacements": 339,
    "flowerPlacements": 6,
-   "decorPx": 766,
+   "decorPx": 1387,
    "landPx": 34968,
-   "decorShareOfLandPct": 2.19,
-   "decorPxBeforeDownsampleGroundEquiv": 822.1,
-   "survivalOfDownsamplePct": 93.2,
+   "decorShareOfLandPct": 3.97,
+   "decorPxBeforeDownsampleGroundEquiv": 1463.1,
+   "survivalOfDownsamplePct": 94.8,
    "landColours": 79
   },
   {
@@ -198,11 +198,11 @@
    "placements": 684,
    "meadowPlacements": 678,
    "flowerPlacements": 6,
-   "decorPx": 1504,
+   "decorPx": 2630,
    "landPx": 34968,
-   "decorShareOfLandPct": 4.3,
-   "decorPxBeforeDownsampleGroundEquiv": 1585.7,
-   "survivalOfDownsamplePct": 94.8,
+   "decorShareOfLandPct": 7.52,
+   "decorPxBeforeDownsampleGroundEquiv": 2734.0,
+   "survivalOfDownsamplePct": 96.2,
    "landColours": 79
   }
  ],
@@ -367,31 +367,31 @@
   {
    "status": "healthy",
    "landPx": 34968,
-   "landColours": 47,
+   "landColours": 31,
    "placements": 151
   },
   {
    "status": "building",
    "landPx": 34968,
-   "landColours": 47,
+   "landColours": 37,
    "placements": 151
   },
   {
    "status": "proposed",
    "landPx": 34968,
-   "landColours": 45,
+   "landColours": 36,
    "placements": 62
   },
   {
    "status": "mapped",
    "landPx": 34968,
-   "landColours": 44,
+   "landColours": 33,
    "placements": 110
   },
   {
    "status": "unhealthy",
    "landPx": 34968,
-   "landColours": 46,
+   "landColours": 33,
    "placements": 151
   }
  ]

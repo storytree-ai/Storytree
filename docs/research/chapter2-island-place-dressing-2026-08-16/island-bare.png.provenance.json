@@ -3,7 +3,8 @@
  "artifact": "island-bare.png",
  "producer": {
   "tool": "compose_dressed.py",
-  "sha256": "b3935dabbeb37e44e3836d77e89ccde4e9bc6681dfa6b364ee0f5aa89db534ef"
+  "sha256": "8c8ff2ca13e7836061e9de7d8e51bf0326d6f308a23060691ecf6af3637f79dd",
+  "basis": "source-bytes-with-CRLF-and-CR-normalised-to-LF"
  },
  "command": {
   "tool": "compose_dressed.py",

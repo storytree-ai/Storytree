@@ -1,0 +1,277 @@
+{
+ "fence": "docs/research/** only",
+ "attribution": {
+  "headline": {
+   "quotedRate17_2": 14.4,
+   "quotedRateAsPublished": 17.2,
+   "todaysRate": 6.1,
+   "fixtureToday": 7.0,
+   "reading": "17.2% was measured on the affine-CRC32 placements PR #1393 replaced the next morning. On today's positioner the real-corpus island is at or below the fixture, so the 'more than twice the fixture' gap is absent rather than explained. The committed order-and-caps README table was never updated when that PR re-ran its own report; the report JSON already carries these numbers."
+  },
+  "crossIsland": {
+   "claim": "the two islands differ in what the dispersion fix bought BECAUSE they differ in plants per cell, and in nothing else the pipeline knows about",
+   "fixture": {
+    "plantsPerCell": 0.54,
+    "dispersionBought": 0.1
+   },
+   "realCorpus": {
+    "plantsPerCell": 1.12,
+    "dispersionBought": 8.3
+   },
+   "densityRatio": 2.07
+  },
+  "whatEachFixBought": {
+   "realCorpus": {
+    "painterOrder_ADR1387": 36.7,
+    "dispersion_PR1393_total": 8.3,
+    "ofWhich_theDiagonalAndAreaWeighting": 8.3,
+    "ofWhich_bestCandidateBlueNoise": 0.0,
+    "residual": 6.1,
+    "unit": "percentage points of placements delivering zero pixels"
+   },
+   "fixture": {
+    "painterOrder_ADR1387": 37.5,
+    "dispersion_PR1393_total": 0.1,
+    "ofWhich_theDiagonalAndAreaWeighting": 1.0,
+    "ofWhich_bestCandidateBlueNoise": -0.9,
+    "residual": 7.0,
+    "unit": "percentage points of placements delivering zero pixels"
+   }
+  }
+ },
+ "fourthSite": {
+  "occlusionOldKey": {
+   "placements": 120,
+   "ownZeroSupersampledPx": 32,
+   "ownZeroPct": 26.7,
+   "totalOwnedSupersampledPx": 3205,
+   "medianOwnedSupersampledPxPerSurvivor": 25
+  },
+  "occlusionShipped": {
+   "placements": 120,
+   "ownZeroSupersampledPx": 3,
+   "ownZeroPct": 2.5,
+   "totalOwnedSupersampledPx": 5209,
+   "medianOwnedSupersampledPxPerSurvivor": 34
+  },
+  "wallsDefectReintroduced": {
+   "supersampledPxDisagreeing": 43227,
+   "groundEquivalentPx": 4803.0,
+   "ofWhichUnhealthySideTokenSS": 7826,
+   "ofWhichUnhealthySideTokenGroundEquiv": 869.6,
+   "distinctWrongWallColours": 12,
+   "colours": {
+    "#99702d": 8660,
+    "#978242": 6418,
+    "#aa7d33": 5576,
+    "#a8914a": 5067,
+    "#312f27": 4542,
+    "#886428": 4286,
+    "#86743b": 2850,
+    "#2c2a23": 1769,
+    "#775d38": 1634,
+    "#37352c": 1515,
+    "#85683f": 548,
+    "#6a5332": 362
+   },
+   "identical": false
+  },
+  "wallsAsShipped": {
+   "supersampledPxDisagreeing": 0,
+   "groundEquivalentPx": 0.0,
+   "ofWhichUnhealthySideTokenSS": 0,
+   "ofWhichUnhealthySideTokenGroundEquiv": 0.0,
+   "distinctWrongWallColours": 0,
+   "colours": {},
+   "identical": true
+  }
+ },
+ "provenance": {
+  "basis": "source-bytes-with-CRLF-and-CR-normalised-to-LF",
+  "sourceDigestStableAcrossLineEndings": true,
+  "binaryDigestUnchanged": true
+ },
+ "checks": [
+  {
+   "check": "the 2x2's top-left corner reproduces PR #1387's committed 'before' EXACTLY",
+   "pass": true,
+   "detail": "94 of 180 = 52.2% (published: 94 of 180 = 52.2%)"
+  },
+  {
+   "check": "the top-right corner reproduces the published 17.2% to within one placement",
+   "pass": true,
+   "detail": "30 of 180 = 16.7% (published: 31 of 180 = 17.2%); the one-placement gap is the UAT flower spiral, which LEGACY_AFFINE does not restore"
+  },
+  {
+   "check": "TODAY the real-corpus island is at or BELOW the fixture \u2014 the 'more than twice the fixture' gap is absent, not merely explained",
+   "pass": true,
+   "detail": "real 6.1% vs fixture 7.0%"
+  },
+  {
+   "check": "the decomposition adds up: painter order + dispersion + residual = the original loss",
+   "pass": true,
+   "detail": "36.7 + 8.3 + 6.1 = 51.1 vs 51.1%"
+  },
+  {
+   "check": "and the dispersion fix is split rather than credited whole",
+   "pass": true,
+   "detail": "diagonal+area 8.3 + blue noise 0.0 = 8.3 points"
+  },
+  {
+   "check": "[realCorpus] under LEGACY the loss concentrates on CROWDED cells",
+   "pass": true,
+   "detail": "alone in its cell 4.6%  ->  two or more co-tenants 40.6%"
+  },
+  {
+   "check": "[realCorpus] a plant ALONE in its cell loses about the same either way \u2014 the positioner is not the variable, the crowding is",
+   "pass": true,
+   "detail": "legacy 4.6% vs spread 2.5%"
+  },
+  {
+   "check": "[realCorpus] and under SPREAD the gradient COLLAPSES",
+   "pass": true,
+   "detail": "legacy spread-of-rate 36.0 points  ->  spread 3.1 points"
+  },
+  {
+   "check": "[fixture] under LEGACY the loss concentrates on CROWDED cells",
+   "pass": true,
+   "detail": "alone in its cell 2.7%  ->  two or more co-tenants 25.0%"
+  },
+  {
+   "check": "[fixture] a plant ALONE in its cell loses about the same either way \u2014 the positioner is not the variable, the crowding is",
+   "pass": true,
+   "detail": "legacy 2.7% vs spread 7.6%"
+  },
+  {
+   "check": "the two geometries have essentially the SAME mean cell area, so plants-per-cell is the only relevant difference between them",
+   "pass": true,
+   "detail": "fixture 150.5 ground units^2 over 214 cells vs real 152.0 over 162 \u2014 1.0% apart. The order-and-caps README guessed the real island had SMALLER cells; it does not, it has FEWER"
+  },
+  {
+   "check": "THE CROSS-ISLAND CLAIM, which could have failed loudly: the island with more plants per cell is the one the dispersion fix bought more on",
+   "pass": true,
+   "detail": "fixture 0.54/cell bought 0.1 pts; real 1.12/cell bought 8.3 pts"
+  },
+  {
+   "check": "[realCorpus] no OUT-VOTED placement reaches the 3x3 majority's 5-of-9 threshold",
+   "pass": true,
+   "detail": "their best blocks hold [1, 2, 3, 3, 4] \u2014 the residual is the quantiser, not a third defect"
+  },
+  {
+   "check": "[realCorpus] and reaching it is SUFFICIENT, without exception",
+   "pass": true,
+   "detail": "167 of 167 placements owning 5+ of a block deliver or are co-credited"
+  },
+  {
+   "check": "[realCorpus] and NO surviving occlusion is a placement buried by its OWN cell",
+   "pass": true,
+   "detail": "what remains: {'ownCellsFill': 0, 'anotherCell': 2, 'aWall': 3, 'theCoast': 0, 'anotherPlacement': 1, 'nothingUnpainted': 0} \u2014 a plant genuinely behind a nearer raised surface, which is correct 2.5D occlusion"
+  },
+  {
+   "check": "[fixture] no OUT-VOTED placement reaches the 3x3 majority's 5-of-9 threshold",
+   "pass": true,
+   "detail": "their best blocks hold [2, 4, 4] \u2014 the residual is the quantiser, not a third defect"
+  },
+  {
+   "check": "[fixture] and reaching it is SUFFICIENT, without exception",
+   "pass": true,
+   "detail": "107 of 107 placements owning 5+ of a block deliver or are co-credited"
+  },
+  {
+   "check": "[fixture] and NO surviving occlusion is a placement buried by its OWN cell",
+   "pass": true,
+   "detail": "what remains: {'ownCellsFill': 0, 'anotherCell': 3, 'aWall': 2, 'theCoast': 0, 'anotherPlacement': 0, 'nothingUnpainted': 0} \u2014 a plant genuinely behind a nearer raised surface, which is correct 2.5D occlusion"
+  },
+  {
+   "check": "compose_dressed VENDORS NO COPY of either rule \u2014 it calls compose_core's own functions",
+   "pass": true,
+   "detail": "identity, not equality: a copy that happened to agree today would pass an equality test"
+  },
+  {
+   "check": "and it defines NEITHER switch of its own, so a guard cannot patch a name the callee never reads",
+   "pass": true,
+   "detail": "the PR #1393 trap turned into the mechanism: patch compose_core, or patch nothing"
+  },
+  {
+   "check": "compose_dressed's code calls no bare `C.boundary_walls` \u2014 the wall query goes through the shared rule",
+   "pass": true,
+   "detail": "durable form: a promise about what the file DOES, not a claim that it is unedited"
+  },
+  {
+   "check": "and it carries no bare own-ground-y depth key",
+   "pass": true,
+   "detail": "the exact expression the defect was"
+  },
+  {
+   "check": "THE GUARD FIRES: reintroducing the old key through compose_core's switch buries placements in the DRESSING compositor, and the shipped key does not",
+   "pass": true,
+   "detail": "32 of 120 own nothing with the old key (26.7%)  ->  3 (2.5%)"
+  },
+  {
+   "check": "and the recovered paint is real, not a reshuffle",
+   "pass": true,
+   "detail": "3205 -> 5209 supersampled px owned by decor (+2004, 223 delivered-equivalent)"
+  },
+  {
+   "check": "`caps=` is AUTHORITATIVE on the dressing compositor: driving the island all-healthy through the argument alone is byte-identical to driving it through both",
+   "pass": true,
+   "detail": "asserted on the raw supersampled canvas, before any palette snap could hide a difference by clamping it away"
+  },
+  {
+   "check": "and THAT guard fires too \u2014 with the rule off, the walls keep the ORIGINAL statuses",
+   "pass": true,
+   "detail": "4803.0 ground-equivalent px disagree across 12 wrong wall colours, of which 869.6 are the charcoal `unhealthy` side token PR #1381 counted (it counted ONE status; every status' walls were wrong)"
+  },
+  {
+   "check": "and the BARE land is still byte-identical to the shipped compositor after the import",
+   "pass": true,
+   "detail": "so nothing above is measuring a second change that came in with the repair"
+  },
+  {
+   "check": "re-composing reproduces the measurement exactly",
+   "pass": true,
+   "detail": "compared as values, never as PNG bytes \u2014 0 of 22 files matched by bytes across two pixel-identical runs on this track (PR #1379)"
+  },
+  {
+   "check": "the same source hashes IDENTICALLY from an LF checkout and a CRLF one",
+   "pass": true,
+   "detail": "this is the defect PR #1387 hit: re-running the untouched compose_shadow.py rewrote its sidecars because the committed value was the CRLF hash of a file stored LF"
+  },
+  {
+   "check": "and the check is not vacuous \u2014 the RAW byte digests of the two files DO differ",
+   "pass": true,
+   "detail": "471f27ed2096 vs dbe13ef71d01"
+  },
+  {
+   "check": "every new record says which rule produced its digest, so a reader never has to date a sidecar by its commit",
+   "pass": true,
+   "detail": "source-bytes-with-CRLF-and-CR-normalised-to-LF"
+  },
+  {
+   "check": "binaries still hash RAW \u2014 the normalisation is source-only",
+   "pass": true,
+   "detail": "island-bare.png 0422a02300b6"
+  },
+  {
+   "check": "and that matters here: this PNG contains CRLF byte pairs a text rule would have folded",
+   "pass": true,
+   "detail": "a normalised binary digest would identify a file that does not exist"
+  },
+  {
+   "check": "every rate the order-and-caps README quotes is a rate its own report holds",
+   "pass": true,
+   "detail": "this is the check that would have caught the stale table: PR #1393 regenerated that report and left the prose quoting the pre-dispersion numbers for a day"
+  },
+  {
+   "check": "every path this pass writes is under docs/research/**",
+   "pass": true,
+   "detail": "the owner's 2026-08-16 isolate directive"
+  },
+  {
+   "check": "and no file here assigns LAND_CAMERA_ELEVATION_DEG",
+   "pass": true,
+   "detail": "it stays 20 in the app; this track composes at 50 as a named parameter"
+  }
+ ],
+ "result": "GREEN"
+}

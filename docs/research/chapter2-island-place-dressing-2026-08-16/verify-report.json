@@ -19,7 +19,7 @@
   {
    "name": "composite: two runs are byte-identical",
    "pass": true,
-   "detail": "34968 land px, 77 colours"
+   "detail": "34968 land px, 79 colours"
   },
   {
    "name": "(a) no rendered decor piece contains ANY island token colour",
@@ -29,12 +29,12 @@
   {
    "name": "(b) all five statuses render from ONE decor piece set",
    "pass": true,
-   "detail": "healthy:151pl/47col, building:151pl/47col, proposed:62pl/45col, mapped:110pl/44col, unhealthy:151pl/46col"
+   "detail": "healthy:151pl/31col, building:151pl/37col, proposed:62pl/36col, mapped:110pl/33col, unhealthy:151pl/33col"
   },
   {
    "name": "(c) permuting the statuses repaints the island and moves no piece",
    "pass": true,
-   "detail": "77 colours under the permutation vs 77"
+   "detail": "74 colours under the permutation vs 79"
   },
   {
    "name": "every (decor token x authored shade) pair is IN the closed palette",
@@ -74,7 +74,7 @@
   {
    "name": "the working tree's changes are confined to docs/research/**",
    "pass": true,
-   "detail": "76 paths, all under docs/research/"
+   "detail": "30 paths, all under docs/research/"
   }
  ],
  "cameraElevationDeg": 50.0,
@@ -82,23 +82,23 @@
  "statusRenders": {
   "healthy": {
    "placements": 151,
-   "colours": 47
+   "colours": 31
   },
   "building": {
    "placements": 151,
-   "colours": 47
+   "colours": 37
   },
   "proposed": {
    "placements": 62,
-   "colours": 45
+   "colours": 36
   },
   "mapped": {
    "placements": 110,
-   "colours": 44
+   "colours": 33
   },
   "unhealthy": {
    "placements": 151,
-   "colours": 46
+   "colours": 33
   }
  }
 }

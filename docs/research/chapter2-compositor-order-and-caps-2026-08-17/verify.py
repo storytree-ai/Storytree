@@ -226,7 +226,12 @@ check(not OUTSIDE, "every change in the working tree is under docs/research/**",
       f"{len(TOUCHED)} paths touched" if not OUTSIDE else f"OUTSIDE: {OUTSIDE}")
 
 CAM = os.path.join(REPO, "packages", "forest-world", "src")
-elev = subprocess.run(["git", "-C", REPO, "grep", "-h", "LAND_CAMERA_ELEVATION_DEG ="],
+# SCOPED TO THE APP SOURCE, and that is a repair rather than a tightening. Unscoped, this grep
+# matched THIS FILE'S OWN COMMITTED REPORT, so every run embedded the previous run's copy of the
+# match inside the next one and the field grew geometrically. The claim the check makes is about the
+# APP constant, so the app is where it should look.
+elev = subprocess.run(["git", "-C", REPO, "grep", "-h", "LAND_CAMERA_ELEVATION_DEG =",
+                       "--", "packages/forest-world/src", "packages/app-surface/src"],
                       capture_output=True, text=True).stdout
 check("= 20" in elev, "LAND_CAMERA_ELEVATION_DEG is still 20 and was not touched",
       elev.strip().splitlines()[0].strip() if elev.strip() else "not found")
