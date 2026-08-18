@@ -895,7 +895,8 @@ function absenceLockInput(): SceneInput {
         status: 'healthy',
         caps: 3,
         centroid: { x: 100, y: 200 },
-        radius: 60,
+        groundRadius: 60,
+        screenRadius: 60,
         treeSpot: { x: 100, y: 190 },
         labelY: 260,
         coastPaths: ['M 0 0 L 10 0 L 10 10 Z'],
@@ -919,7 +920,8 @@ function absenceLockInput(): SceneInput {
         status: 'proposed',
         caps: 2,
         centroid: { x: 300, y: 60 },
-        radius: 50,
+        groundRadius: 50,
+        screenRadius: 50,
         treeSpot: { x: 300, y: 50 },
         labelY: 120,
         coastPaths: ['M 0 0 L 8 0 L 8 8 Z'],
@@ -1266,7 +1268,7 @@ test('the flowers respect the keep-outs, and the human-witness signpost seal is 
       const d = unprojectGround({ x: a.x - b.x, y: a.y - b.y });
       return Math.hypot(d.x, d.y);
     };
-    assert.ok(onGround(s, t.centroid) <= t.radius * 0.85 + 1, 'inside the island');
+    assert.ok(onGround(s, t.centroid) <= t.groundRadius * 0.85 + 1, 'inside the island');
     assert.ok(onGround(s, t.treeSpot) > 30, 'clear of the tree well');
   }
 });
@@ -1577,6 +1579,55 @@ test('garden stone path — deterministic stepping-stones that dock at the downw
   assert.ok(stones.some((s) => yOf(s) > tree), 'a stone sits below the tree — the path docks toward the bottom-shore landfall');
 });
 
+test('garden stone-path spacing tracks the GROUND radius, not the SCREEN one (scene-territory-radius-states-its-space)', () => {
+  // `scene-territory-radius-states-its-space`: the seam used to carry ONE `radius` field for both
+  // spaces — scene.ts read it as ground, TreeView.tsx fed the territory's SCREEN-projected magnitude.
+  // Reproduce the mismatch directly: a territory whose GROUND radius (400) is far bigger than its
+  // SCREEN radius (100), which is exactly the shape a real, non-disc story island comes out to (a
+  // territory's screen radius mixes an un-foreshortened q-extent with a foreshortened r-extent, so it
+  // strictly underestimates the true ground radius — measured ~0.65-0.89x for ordinary shapes,
+  // approaching sin 20 deg =~ 0.342x in the pure north-south limit).
+  const groundR = 400;
+  const screenR = 100;
+  const territories = mkGardenTerritories({ groundRadius: groundR, screenRadius: screenR });
+  const t = territories[0]!;
+  const garden = mkGarden('library');
+  const scene = buildScene(mkInput({ territories, relaxedCells: null, garden }));
+  const isle = territoryById(scene, 'library');
+  const xy = (n: SceneNode): { x: number; y: number } => {
+    const m = /translate\((-?[\d.]+) (-?[\d.]+)\)/.exec(n.transform ?? '');
+    return { x: Number(m?.[1] ?? '0'), y: Number(m?.[2] ?? '0') };
+  };
+  const walkStones = allByKind(isle, 'baked-art').filter(
+    (u) => (u as { defId: string }).defId === 'garden-hero-stepping-stone' && (u.id ?? '').startsWith('garden-walk-'),
+  );
+  assert.ok(walkStones.length >= 3, 'the walk lays several stones to measure spacing from');
+  // Ground-plane positions (the screen transform is `projectGround` of the laid-out point) — the
+  // nearest-neighbour ground distance per stone is a paint-order-independent stand-in for "stone-
+  // centre spacing" (the stones lie close to one line, so nearest-neighbour IS along-path spacing).
+  const groundPts = walkStones.map(xy).map((p) => unprojectGround(p));
+  const nn = groundPts.map((p, i) =>
+    Math.min(...groundPts.filter((_, j) => j !== i).map((q) => Math.hypot(p.x - q.x, p.y - q.y))),
+  );
+  const medianSpacing = [...nn].sort((a, b) => a - b)[Math.floor(nn.length / 2)]!;
+  // buildStonePath's own formula (spacingMul 0.72 for the primary walk): `max(stoneW·1.05,
+  // radius·0.06) · spacingMul`. `stoneW` reproduced via the exported `fittedHeroScale` — chosen so
+  // `stoneW·1.05` (≈11.5, driven by `crownRadius`/caps, independent of either radius field) sits
+  // BELOW the ground floor (`groundR·0.06` = 24) and ABOVE the screen floor (`screenR·0.06` = 6): the
+  // two candidate readings of the old single field give measurably different, non-overlapping
+  // predictions, so this is a genuine discriminating measurement, not a coincidence of scale.
+  const stone = garden.heroes['stepping-stone'];
+  const s = fittedHeroScale('stepping-stone', stone, t);
+  const stoneW = s * stone.width;
+  const groundFloor = Math.max(stoneW * 1.05, groundR * 0.06) * 0.72;
+  const screenFloor = Math.max(stoneW * 1.05, screenR * 0.06) * 0.72;
+  assert.ok(screenFloor < groundFloor * 0.7, 'fixture sanity: the ground/screen floors must clearly diverge');
+  assert.ok(
+    Math.abs(medianSpacing - groundFloor) < groundFloor * 0.4,
+    `median stone spacing ${medianSpacing.toFixed(1)} should track the GROUND floor ${groundFloor.toFixed(1)}, not the screen one ${screenFloor.toFixed(1)}`,
+  );
+});
+
 test('garden footpath — no stepping-stone is buried behind the tree crown (grounded-art inc 12 footpath fix)', () => {
   // The refined footpath must not bury a stone under the canopy: a stone NORTH of the tree base and within
   // the fitted crown would be painted over by the tree (the owner's occlusion complaint). Land-free so the
@@ -1586,7 +1637,7 @@ test('garden footpath — no stepping-stone is buried behind the tree crown (gro
     return { x: Number(m?.[1] ?? '0'), y: Number(m?.[2] ?? '0') };
   };
   const territories = [
-    mkTerritory({ id: 'library', radius: 120, caps: 9 }),
+    mkTerritory({ id: 'library', groundRadius: 120, screenRadius: 120, caps: 9 }),
     mkTerritory({ id: 'cli', caps: 2, centroid: { x: 600, y: 60 }, treeSpot: { x: 600, y: 50 } }),
   ];
   const gdn = mkGarden('library');
@@ -1614,7 +1665,7 @@ test('garden heroes are FITTED to the island — a small island shrinks them wit
     const scene = buildScene(
       mkInput({
         territories: [
-          mkTerritory({ id: 'library', radius, caps: 9 }),
+          mkTerritory({ id: 'library', groundRadius: radius, screenRadius: radius, caps: 9 }),
           mkTerritory({ id: 'cli', caps: 2, centroid: { x: 800, y: 60 }, treeSpot: { x: 800, y: 50 } }),
         ],
         garden: mkGarden('library'),
@@ -1656,7 +1707,7 @@ test('placeGardenHeroes fallback honours the tree keep-out — a building never 
   // The bug the owner saw on a small island: the exhausted-draws fallback (when no sampled point fits the
   // shore) snapped a hero to a land-cell centroid WITHOUT the tree keep-out, landing the gazebo on the
   // trunk. This fixture forces that fallback and asserts the fix routes the hero to a tree-clearing cell.
-  const t = mkTerritory({ id: 'library', radius: 60, caps: 9 }); // centroid (100,200), treeSpot (100,190)
+  const t = mkTerritory({ id: 'library', groundRadius: 60, screenRadius: 60, caps: 9 }); // centroid (100,200), treeSpot (100,190)
   const TREE_HALF_W = 40; // the fitted autumn-tree footprint half-width → canopy keep-out 40·1.15 = 46
   const keepOut = treeKeepOut(TREE_HALF_W);
   // Two land cells force the fallback: a BIG cell hugging the TRUNK (its centroid is the treeSpot and a
@@ -1684,7 +1735,7 @@ test('placeGardenHeroes keeps every settled hero outside the fitted tree footpri
   // With no land constraint the rejection sampler settles freely; every hero it places must still clear the
   // tree keep-out (the invariant the fallback test guards on the exhausted path). A roomy island so the
   // sampler can settle deterministically.
-  const t = mkTerritory({ id: 'library', radius: 140, caps: 9 });
+  const t = mkTerritory({ id: 'library', groundRadius: 140, screenRadius: 140, caps: 9 });
   const TREE_HALF_W = 45;
   const canopyKeepOut = treeKeepOut(TREE_HALF_W);
   const ids: GardenHeroId[] = ['cottage', 'gazebo'];

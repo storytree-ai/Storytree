@@ -122,7 +122,10 @@ function territory(isl: Island): SceneTerritoryInput {
     status: 'healthy',
     caps: 3,
     centroid: isl.centroid,
-    radius: isl.radius,
+    // The symmetric-disc fixture's `radius` is elevation-INVARIANT by construction (see `island()`'s
+    // doc comment), so it stands in for both spaces here without weakening this suite's invariant.
+    groundRadius: isl.radius,
+    screenRadius: isl.radius,
     treeSpot: isl.treeSpot,
     // Parked far south — see the header: the plate band is a screen constraint and must not bind here.
     labelY: isl.centroid.y + 4000,
@@ -321,7 +324,7 @@ test('the UAT scatter assertion has TEETH: the PRE-CAMERA rule is camera-DEPENDE
       let settled = false;
       for (let attempt = 0; attempt < 20; attempt++) {
         const ang = rand01(k + attempt * 2) * Math.PI * 2;
-        const rr = (0.3 + rand01(k + attempt * 2 + 1) * 0.5) * t.radius;
+        const rr = (0.3 + rand01(k + attempt * 2 + 1) * 0.5) * t.screenRadius;
         x = t.centroid.x + Math.cos(ang) * rr;
         y = t.centroid.y + Math.sin(ang) * rr * 0.7; // the inherited squash
         const clearsTree = Math.hypot(x - t.treeSpot.x, y - t.treeSpot.y) > 36; // isotropic SCREEN

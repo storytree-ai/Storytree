@@ -505,7 +505,28 @@ export interface SceneTerritoryInput {
   /** Capability count — the core derives crown size + young/withered from it + status. */
   caps: number;
   centroid: Pt;
-  radius: number;
+  /** The island's GROUND-plane radius — an isotropic map-space magnitude, camera-independent. Feed
+   *  this to anything that treats the value as a ground distance BEFORE the camera sees it:
+   *  {@link groundPolarOffset}'s `r`, a threshold compared against {@link groundGap}'s output, a
+   *  march stepped in ground units and projected per step. Never feed it to raw screen arithmetic —
+   *  it is not what is actually drawn on screen (`screenRadius` is).
+   *
+   *  THE SEAM USED TO CARRY ONE `radius` FIELD FOR BOTH SPACES (`scene-territory-radius-states-its-
+   *  space`). `scene.ts` read it as ground; `TreeView.tsx` fed the SCREEN-projected magnitude a
+   *  territory's tiles come out to (`hexCenter`'s default camera, ADR-0367 D1) — camera-dependent,
+   *  and for a non-disc island strictly SMALLER than the true ground radius (measured: ~0.65–0.89x
+   *  for ordinary story shapes, approaching `sin 20° ≈ 0.342x` in the pure north–south limit, since
+   *  only the projected y-extent is foreshortened and the ratio depends on how much of the island's
+   *  spread runs along r vs q). Every ground-side reader was therefore silently under-scaled. Split
+   *  into two named fields so that mismatch is a TYPE ERROR the next time, not a quiet 11–66%
+   *  shortfall. */
+  groundRadius: number;
+  /** The island's already-SCREEN-projected radius — px at the declared land camera, exactly the
+   *  magnitude a territory's projected tile centres come out to. Feed this ONLY to raw screen-space
+   *  arithmetic that is never projected again (an orbit ring's `translate`, the click-hit rect's
+   *  bounds). Passing this to a ground-space function (`groundPolarOffset`, a `groundGap` threshold)
+   *  is the exact bug `groundRadius` exists to make unrepresentable. */
+  screenRadius: number;
   treeSpot: Pt;
   /** The nameplate baseline y (also the delegation hit's bottom). */
   labelY: number;
@@ -1166,7 +1187,7 @@ function buildUatMarkers(
     let settled = false;
     for (let attempt = 0; attempt < 20; attempt++) {
       const ang = rand01(k + attempt * 2) * Math.PI * 2;
-      const rr = (0.3 + rand01(k + attempt * 2 + 1) * 0.5) * t.radius;
+      const rr = (0.3 + rand01(k + attempt * 2 + 1) * 0.5) * t.groundRadius;
       const off = groundPolarOffset(ang, rr, elevationDeg);
       x = t.centroid.x + off.x;
       y = t.centroid.y + off.y;
@@ -1395,7 +1416,7 @@ export function buildConifer(x: number, y: number, h: number, seed: number): Sce
  *  (the studio's SMIL `animateTransform`, the website's CSS) from `phase`. */
 function buildWisps(t: SceneTerritoryInput): SceneG | null {
   if (!t.wisps.length) return null;
-  const orbitR = t.radius * 0.72 + 10;
+  const orbitR = t.screenRadius * 0.72 + 10;
   const wisps = t.wisps.map((w) => {
     const phase = rand01(hash(w.runId)) * 360;
     return g(
@@ -1445,7 +1466,7 @@ function buildClaimWisps(t: SceneTerritoryInput): SceneG | null {
   // `claims` is OPTIONAL (a surface with no live-claim concept omits it) — absent/empty ⇒ no layer.
   const claims = t.claims ?? [];
   if (!claims.length) return null;
-  const orbitR = t.radius * 0.72 + 22;
+  const orbitR = t.screenRadius * 0.72 + 22;
   // the hover rest spot is anchored above the story tree (the layer's frame is the centroid).
   const treeDx = t.treeSpot.x - t.centroid.x;
   const treeDy = t.treeSpot.y - t.centroid.y;
@@ -1554,7 +1575,7 @@ function buildClaimWisps(t: SceneTerritoryInput): SceneG | null {
 function buildDepartingWisps(t: SceneTerritoryInput): SceneG | null {
   const departures = t.departures ?? [];
   if (!departures.length) return null;
-  const orbitR = t.radius * 0.72 + 22;
+  const orbitR = t.screenRadius * 0.72 + 22;
   const treeDx = t.treeSpot.x - t.centroid.x;
   const treeDy = t.treeSpot.y - t.centroid.y;
   const wisps = departures.map((d) => {
@@ -2422,8 +2443,12 @@ const GARDEN_TREE_GAP = 0.15;
  *  of the placement point, so a caller can derive the footprint half-width before it places the hero. */
 export function fittedHeroScale(id: GardenHeroId, hero: SceneGardenHero, t: SceneTerritoryInput): number {
   const sTarget = (crownRadius(t.caps) * GARDEN_HERO_TARGET[id]) / hero.height;
-  const sCapW = (2 * GARDEN_FIT_HALF_FRAC * t.radius) / hero.width;
-  const sCapH = (GARDEN_FIT_HEIGHT_FRAC * t.radius) / hero.height;
+  // A SIZE cap, not a ground displacement: `s` scales the hero's local def units directly into a
+  // screen `scale()` transform with no further camera projection, so the bound it must stay inside
+  // is how big the fitted footprint reads ON SCREEN — `screenRadius`, matching what is actually drawn
+  // (`scene-territory-radius-states-its-space`).
+  const sCapW = (2 * GARDEN_FIT_HALF_FRAC * t.screenRadius) / hero.width;
+  const sCapH = (GARDEN_FIT_HEIGHT_FRAC * t.screenRadius) / hero.height;
   return Math.min(sTarget, sCapW, sCapH);
 }
 
@@ -2471,8 +2496,9 @@ function gardenHeroUse(
  *  landed a gazebo on the trunk). Exported for the placement unit test.
  *
  *  THE KEEP-OUTS ARE GROUND DISTANCES (ADR-0367 D1), for the same reason the UAT scatter's are: the
- *  tree well and the hero-to-hero spread both ask "how far apart on the ground", and `t.radius` is a
- *  ground radius. `footprintOnLand` needs NO camera term — it spans the base HORIZONTALLY (`x ± hw`
+ *  tree well and the hero-to-hero spread both ask "how far apart on the ground", so they read
+ *  `t.groundRadius` (`scene-territory-radius-states-its-space`). `footprintOnLand` needs NO camera
+ *  term — it spans the base HORIZONTALLY (`x ± hw`
  *  at one y) and the q axis does not foreshorten, so the three probes it casts are already the right
  *  three points. That is why this site moved its heroes without ever losing one. */
 export function placeGardenHeroes(
@@ -2501,7 +2527,7 @@ export function placeGardenHeroes(
   // that snapped onto the trunk. Independent of which hero — it is the tree's footprint, not the pair's,
   // that must not be sat inside (a building may still nestle under the canopy EDGE, matching the concept).
   const canopyKeepOut = treeKeepOut(treeFitHalfW);
-  const samplerKeepOut = Math.max(t.radius * 0.5, canopyKeepOut);
+  const samplerKeepOut = Math.max(t.groundRadius * 0.5, canopyKeepOut);
   const dTree = (x: number, y: number): number => groundGap({ x, y }, t.treeSpot, elevationDeg);
   const clearsCanopy = (x: number, y: number): boolean => dTree(x, y) > canopyKeepOut;
   const clearsTreeSampler = (x: number, y: number): boolean => dTree(x, y) > samplerKeepOut;
@@ -2517,12 +2543,12 @@ export function placeGardenHeroes(
     // footprint clears the shore; the footprint check is the hard guarantee, this just seeds it well.
     for (let attempt = 0; attempt < 48; attempt++) {
       const ang = rand01(k + attempt * 2) * Math.PI * 2;
-      const rr = (0.28 + rand01(k + attempt * 2 + 1) * 0.34) * t.radius;
+      const rr = (0.28 + rand01(k + attempt * 2 + 1) * 0.34) * t.groundRadius;
       const off = groundPolarOffset(ang, rr, elevationDeg); // a GROUND disc, projected
       x = t.centroid.x + off.x;
       y = t.centroid.y + off.y;
       const clearsPlate = y < t.labelY - 18;
-      const clearsOthers = placed.every((p) => groundGap({ x, y }, p, elevationDeg) > t.radius * 0.55);
+      const clearsOthers = placed.every((p) => groundGap({ x, y }, p, elevationDeg) > t.groundRadius * 0.55);
       if (clearsTreeSampler(x, y) && clearsPlate && clearsOthers && footprintOnLand(x, y, hw)) {
         settled = true;
         break;
@@ -2540,7 +2566,7 @@ export function placeGardenHeroes(
             groundGap(a, { x, y }, elevationDeg) - groundGap(b, { x, y }, elevationDeg),
         );
       const clearsPlaced = (p: Pt): boolean =>
-        placed.every((q) => groundGap(p, q, elevationDeg) > t.radius * 0.5);
+        placed.every((q) => groundGap(p, q, elevationDeg) > t.groundRadius * 0.5);
       const free =
         spots.find((p) => clearsCanopy(p.x, p.y) && clearsPlaced(p) && footprintOnLand(p.x, p.y, hw)) ??
         spots.find((p) => clearsCanopy(p.x, p.y) && clearsPlaced(p)) ??
@@ -2562,11 +2588,11 @@ export function placeGardenHeroes(
  *
  *  THE MARCH IS IN GROUND UNITS (ADR-0367 D1), projected per step. Its RESULT never needed
  *  unprojecting — the projection is monotone in y, so the furthest on-land screen point down a
- *  vertical ray IS the furthest on-land ground point — but the STEP did: `d · radius` walked SCREEN
- *  pixels while `t.radius` is a ground radius, so at the declared camera each 0.05 step covered ~3x
- *  the ground it covers in plan view (17.6 ground units against 6 on a 120-unit island) and the whole
- *  0.2–1.05 sweep stopped ~3x short of the shore it was written to reach. Stepping on the ground and
- *  projecting each probe keeps one resolution at every elevation. */
+ *  vertical ray IS the furthest on-land ground point — but the STEP needs a genuine ground radius
+ *  (`t.groundRadius`, `scene-territory-radius-states-its-space`): stepping `d ·` the SCREEN-projected
+ *  magnitude instead walked a fraction of the intended ground distance per step, so the whole
+ *  0.2–1.05 sweep could stop well short of the shore it was written to reach. Stepping on the ground
+ *  and projecting each probe keeps one resolution at every elevation. */
 function islandLandfall(
   t: SceneTerritoryInput,
   land: RelaxedCell[] | null,
@@ -2576,7 +2602,7 @@ function islandLandfall(
     !land || land.some((c) => pointInPoly(x, y, c.poly));
   const down = (d: number): Pt => ({
     x: t.centroid.x,
-    y: t.centroid.y + projectGround({ x: 0, y: d * t.radius }, elevationDeg).y,
+    y: t.centroid.y + projectGround({ x: 0, y: d * t.groundRadius }, elevationDeg).y,
   });
   let best: Pt = down(0.2);
   for (let d = 0.2; d <= 1.05; d += 0.05) {
@@ -2611,13 +2637,19 @@ interface StonePathOpts {
  *  path and drops any stone buried under the tree crown (the `skipNear` occlusion filter).
  *
  *  THE WALK IS LAID ON THE GROUND AND PROJECTED (ADR-0367 D1) — this is the site that was LOSING
- *  STONES, not merely moving them. `spacing` is a ground distance (a fraction of `t.radius`, floored
- *  by the stone's own footprint width), but the leg it was divided into was measured in SCREEN pixels;
- *  a mostly north–south leg projects to ~34% of its ground length at the declared camera, so
- *  `round(usable / spacing)` returned roughly a third of the stones and the front-door walk thinned
- *  out to a few slabs. Unprojecting the waypoints, walking in ground units and projecting each stone
- *  makes the stone COUNT a property of the island rather than of the camera, and lays them at even
- *  GROUND spacing — which is what reads as a path in perspective. */
+ *  STONES, not merely moving them. `spacing` is a ground distance (a fraction of `t.groundRadius`,
+ *  floored by the stone's own footprint width), but the leg it was divided into was measured in
+ *  SCREEN pixels; a mostly north–south leg projects to ~34% of its ground length at the declared
+ *  camera, so `round(usable / spacing)` returned roughly a third of the stones and the front-door
+ *  walk thinned out to a few slabs. Unprojecting the waypoints, walking in ground units and projecting
+ *  each stone makes the stone COUNT a property of the island rather than of the camera, and lays them
+ *  at even GROUND spacing — which is what reads as a path in perspective.
+ *
+ *  THE SPACING FLOOR HAD A SEPARATE, LATER DEFECT (`scene-territory-radius-states-its-space`): the
+ *  waypoint-leg fix above landed while `t.radius` itself still carried the territory's SCREEN-
+ *  projected magnitude, not a true ground radius, so `t.radius * 0.06` under-scaled the spacing floor
+ *  by the same camera factor it had just eliminated from the leg length — stones laid measurably
+ *  closer together than the intended ground spacing. Reading `t.groundRadius` here fixes it. */
 function buildStonePath(
   t: SceneTerritoryInput,
   hero: SceneGardenHero,
@@ -2629,7 +2661,7 @@ function buildStonePath(
   const stoneW = s * hero.width; // scaled footprint width (a ground x extent — no camera term)
   const spacingMul = opts.spacingMul ?? 1;
   const wobbleMul = opts.wobbleMul ?? 1;
-  const spacing = Math.max(stoneW * 1.05, t.radius * 0.06) * spacingMul; // stone-centre GROUND gap
+  const spacing = Math.max(stoneW * 1.05, t.groundRadius * 0.06) * spacingMul; // stone-centre GROUND gap
   // The occlusion filter, split by what each half actually asks. The NORTH/SOUTH half is a
   // painter-order question — is the tree drawn over this stone — and y-sort order is a screen fact, so
   // it stays a screen comparison. The RADIUS half asks whether the stone sits inside the tree's
@@ -2851,8 +2883,9 @@ function buildGardenArt(
   // massed bud-bed read as a subtle clump; the 1:1 small-flower scatter is the one vocabulary the whole
   // map now speaks). The scatter keeps out of the hero tree well + spaces itself + lands on owned cells.
   // Both accent offsets are GROUND displacements (`crownR` is a ground radius, `rr` a fraction of the
-  // island's ground radius), so both are projected through the declared camera before `towardLand`
-  // clamps them onto owned land — otherwise the clamp is faithfully relocating the wrong point.
+  // island's GROUND radius — `t.groundRadius`, `scene-territory-radius-states-its-space`), so both
+  // are projected through the declared camera before `towardLand` clamps them onto owned land —
+  // otherwise the clamp is faithfully relocating the wrong point.
   const cen = t.centroid;
   const accentScale = crownR / 26;
   if (cottage) {
@@ -2864,7 +2897,7 @@ function buildGardenArt(
   for (let i = 0; i < 3; i++) {
     const k = hash(`${t.id}:grass:${i}`);
     const ang = rand01(k) * Math.PI * 2;
-    const rr = (0.4 + rand01(k + 1) * 0.32) * t.radius;
+    const rr = (0.4 + rand01(k + 1) * 0.32) * t.groundRadius;
     const off = groundPolarOffset(ang, rr, elevationDeg);
     const gp = towardLand({ x: cen.x + off.x, y: cen.y + off.y }, cen, land);
     out.push({ y: gp.y, node: g(grassMarks(k), { transform: `translate(${f(gp.x)} ${f(gp.y)}) scale(${f(accentScale)})` }) });
@@ -3264,7 +3297,7 @@ function buildHits(input: SceneInput): SceneG {
       const crownR = crownRadius(t.caps);
       const top = t.treeSpot.y - (2.7 * crownR + 16);
       const hgt = t.labelY + t.plate.h - top;
-      return rect(t.centroid.x - t.radius, top, t.radius * 2, hgt, 14, {
+      return rect(t.centroid.x - t.screenRadius, top, t.screenRadius * 2, hgt, 14, {
         kind: 'hit',
         id: t.id,
         title: t.plate.title,

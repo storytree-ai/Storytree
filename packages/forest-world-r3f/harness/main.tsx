@@ -72,7 +72,8 @@ function territoryOf(island: DemoIsland): SceneTerritoryInput {
     status: island.status,
     caps: island.caps,
     centroid: { x: cx, y: cy },
-    radius: 40,
+    groundRadius: 40,
+    screenRadius: 40,
     treeSpot: { x: cx, y: cy - 6 },
     labelY: cy + 46,
     coastPaths: [],
@@ -102,7 +103,7 @@ function demoInput(): SceneInput {
     id: t.id,
     x: t.centroid.x,
     y: t.centroid.y,
-    r: t.radius,
+    r: t.groundRadius,
   }));
   const edge = (a: number, b: number) => ({
     from: ISLANDS[a]!.id,
