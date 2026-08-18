@@ -54,17 +54,22 @@ const PARCELS: SceneParcelInput[] = [
 ];
 
 function fixture(): SceneG {
-  const centres = TILES.map(hexCenter);
+  const centres = TILES.map((h) => hexCenter(h));
   const cx = centres.reduce((s, c) => s + c.x, 0) / centres.length;
   const cy = centres.reduce((s, c) => s + c.y, 0) / centres.length;
   const drawTiles = TILES.map((h) => ({ h, owner: 0 }));
-  const relaxed: RelaxedCell[] = buildRelaxedCells(drawTiles, [new Set<string>()]);
+  // 'mesh' is the shipped studio substrate — the parcels path the flora rides on.
+  const relaxed: RelaxedCell[] = buildRelaxedCells(drawTiles, [new Set<string>()], 'mesh');
   const territory: SceneTerritoryInput = {
     id: 'context-traversal-capture',
     status: 'healthy',
     caps: PARCELS.length,
     centroid: { x: cx, y: cy },
-    radius: 40,
+    // The seam carries the two radii SEPARATELY on purpose: `groundRadius` is a
+    // camera-independent ground magnitude, `screenRadius` what is actually drawn.
+    // Collapsing them is the exact bug the split exists to make unrepresentable.
+    groundRadius: 40,
+    screenRadius: 40 * Math.sin((50 * Math.PI) / 180),
     treeSpot: { x: cx, y: cy - 6 },
     labelY: cy + 46,
     coastPaths: [],
@@ -92,7 +97,7 @@ function fixture(): SceneG {
     relaxedCells: relaxed,
     drawTiles,
     wheatSets: [new Set<string>()],
-    trails: { segments: [], edges: [], caves: [] },
+    trails: { segments: [], edges: [], caves: [], dropped: [] },
     territories: [territory],
   };
   return buildScene(input);
