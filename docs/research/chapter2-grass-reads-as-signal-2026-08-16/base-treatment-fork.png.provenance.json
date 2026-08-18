@@ -3,7 +3,7 @@
  "artifact": "base-treatment-fork.png",
  "producer": {
   "tool": "compose_grass.py",
-  "sha256": "d75875453b9ceb1e04f82313fa72c3f990c665f7fcf568499b7fe5a6491011fe"
+  "sha256": "ec7a56fc69b023fa9327d6a3e962d9b24ab8d480b46eb76725e1cb23cc9cdf78"
  },
  "command": {
   "tool": "compose_grass.py",
@@ -874,8 +874,8 @@
   "rule": "one code state PER GENERATOR; the composite's identity is the digest of the whole {generator: state} map, so any generator moving moves it"
  },
  "output": {
-  "sha256": "a303796a6b10d2d7afc6ebfd909f8c14f730b01dcc35f92612be5599d8194ef7",
-  "bytes": 37638
+  "sha256": "075eaed0ddd65c5931d3c0307e3b1a66095f459b23652765fe5f9ff067aa6b51",
+  "bytes": 38028
  },
  "cameraElevationDeg": 50.0,
  "variant": "b++ land + ADR-0226 vegetation vocabulary, grass forks swept",

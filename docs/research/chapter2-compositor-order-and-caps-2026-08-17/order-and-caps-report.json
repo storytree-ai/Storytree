@@ -1,15 +1,20 @@
 {
  "fence": {
-  "pathsTouchedCount": 38,
+  "pathsTouchedCount": 79,
   "outsideDocsResearch": [],
   "researchDirsTouched": [
-   "docs/research/chapter2-compositor-order-and-caps-2026-08-17",
    "docs/research/chapter2-grass-defects-2026-08-16",
    "docs/research/chapter2-grass-delivery-loss-2026-08-17",
    "docs/research/chapter2-grass-reads-as-signal-2026-08-16",
-   "docs/research/chapter2-healthy-island-2026-08-16"
+   "docs/research/chapter2-greenery-techniques-2026-08-17",
+   "docs/research/chapter2-healthy-island-2026-08-16",
+   "docs/research/chapter2-hex-lines-and-flat-green-2026-08-16",
+   "docs/research/chapter2-high-frequency-options-2026-08-17",
+   "docs/research/chapter2-island-place-dressing-2026-08-16",
+   "docs/research/chapter2-one-surface-and-shadow-2026-08-17",
+   "docs/research/chapter2-plant-dispersion-2026-08-17"
   ],
-  "landCameraElevationDeg": "emits SVG vector nodes at `LAND_CAMERA_ELEVATION_DEG = 20`, with no supersample, no closed-palette\nAPP_LAND_CAMERA_ELEVATION_DEG = 20.0\n          \"LAND_CAMERA_ELEVATION_DEG = 20\" in src.replace(\":\", \" \").replace(\"  \", \" \")\nAPP_LAND_CAMERA_ELEVATION_DEG = 20.0\n      \"export const LAND_CAMERA_ELEVATION_DEG = 20;\" in cam,\nAPP_LAND_CAMERA_ELEVATION_DEG = 20.0\n      \"LAND_CAMERA_ELEVATION_DEG = 20\" in cam.replace(\"export const \", \"\"),\nexport const LAND_CAMERA_ELEVATION_DEG = 20;"
+  "landCameraElevationDeg": "\"landCameraElevationDeg\": \"emits SVG vector nodes at `LAND_CAMERA_ELEVATION_DEG = 20`, with no supersample, no closed-palette\\nAPP_LAND_CAMERA_ELEVATION_DEG = 20.0\\n          \\\"LAND_CAMERA_ELEVATION_DEG = 20\\\" in src.replace(\\\":\\\", \\\" \\\").replace(\\\"  \\\", \\\" \\\")\\nAPP_LAND_CAMERA_ELEVATION_DEG = 20.0\\n      \\\"export const LAND_CAMERA_ELEVATION_DEG = 20;\\\" in cam,\\nAPP_LAND_CAMERA_ELEVATION_DEG = 20.0\\n      \\\"LAND_CAMERA_ELEVATION_DEG = 20\\\" in cam.replace(\\\"export const \\\", \\\"\\\"),\\nexport const LAND_CAMERA_ELEVATION_DEG = 20;\"\n   \"detail\": \"emits SVG vector nodes at `LAND_CAMERA_ELEVATION_DEG = 20`, with no supersample, no closed-palette\"\nelev = subprocess.run([\"git\", \"-C\", REPO, \"grep\", \"-h\", \"LAND_CAMERA_ELEVATION_DEG =\"],\nemits SVG vector nodes at `LAND_CAMERA_ELEVATION_DEG = 20`, with no supersample, no closed-palette\nAPP_LAND_CAMERA_ELEVATION_DEG = 20.0\n          \"LAND_CAMERA_ELEVATION_DEG = 20\" in src.replace(\":\", \" \").replace(\"  \", \" \")\n      \"LAND_CAMERA_ELEVATION_DEG = 20\" in cam.replace(\":\", \"\").replace(\"number\", \"\"),\nAPP_LAND_CAMERA_ELEVATION_DEG = 20.0\n      \"export const LAND_CAMERA_ELEVATION_DEG = 20;\" in cam,\n   \"LAND_CAMERA_ELEVATION_DEG = 20\" in cam.replace(\"export const \", \"\"),\nAPP_LAND_CAMERA_ELEVATION_DEG = 20.0\n      \"LAND_CAMERA_ELEVATION_DEG = 20\" in cam.replace(\"export const \", \"\"),\nprojection \u00e2\u20ac\u201d the research track's 50\u00c2\u00b0 and the app's `LAND_CAMERA_ELEVATION_DEG = 20` both scale `y`\nexport const LAND_CAMERA_ELEVATION_DEG = 20;"
  },
  "shippedSurfaces": {
   "svg": {
@@ -26,116 +31,116 @@
  "fixtureGeometry": {
   "asAuthored": {
    "withTheOldKey": {
-    "placements": 112,
-    "deliveringNothing": 51,
-    "deliveringNothingPct": 45.5,
-    "TRULYdeliveringNothing": 49,
-    "TRULYdeliveringNothingPct": 43.8,
-    "occludedByAnything": 36,
-    "occludedByItsOWNCell": 31,
-    "vegetationPxDelivered": 292,
+    "placements": 115,
+    "deliveringNothing": 41,
+    "deliveringNothingPct": 35.7,
+    "TRULYdeliveringNothing": 41,
+    "TRULYdeliveringNothingPct": 35.7,
+    "occludedByAnything": 29,
+    "occludedByItsOWNCell": 22,
+    "vegetationPxDelivered": 338,
     "deliveredIslandPx": 34968,
     "medianPxPerSurvivor": 3,
     "aboveVsBelowTheCentroid": {
      "aboveTheCellCentroid_paintedFIRST_soTheCellFillErasesIt": {
-      "n": 60,
-      "trueZero": 47,
-      "occluded": 34,
-      "pct": 78.3,
-      "occludedPct": 56.7
+      "n": 55,
+      "trueZero": 35,
+      "occluded": 25,
+      "pct": 63.6,
+      "occludedPct": 45.5
      },
      "belowTheCellCentroid_paintedAFTERTheCell": {
-      "n": 52,
-      "trueZero": 2,
-      "occluded": 2,
-      "pct": 3.8,
-      "occludedPct": 3.8
+      "n": 60,
+      "trueZero": 6,
+      "occluded": 4,
+      "pct": 10.0,
+      "occludedPct": 6.7
      }
     }
    },
    "asShipped": {
-    "placements": 112,
+    "placements": 115,
     "deliveringNothing": 8,
-    "deliveringNothingPct": 7.1,
-    "TRULYdeliveringNothing": 7,
-    "TRULYdeliveringNothingPct": 6.2,
-    "occludedByAnything": 6,
+    "deliveringNothingPct": 7.0,
+    "TRULYdeliveringNothing": 8,
+    "TRULYdeliveringNothingPct": 7.0,
+    "occludedByAnything": 5,
     "occludedByItsOWNCell": 0,
-    "vegetationPxDelivered": 510,
+    "vegetationPxDelivered": 534,
     "deliveredIslandPx": 34968,
     "medianPxPerSurvivor": 3,
     "aboveVsBelowTheCentroid": {
      "aboveTheCellCentroid_paintedFIRST_soTheCellFillErasesIt": {
-      "n": 60,
-      "trueZero": 5,
-      "occluded": 4,
-      "pct": 8.3,
-      "occludedPct": 6.7
+      "n": 55,
+      "trueZero": 2,
+      "occluded": 1,
+      "pct": 3.6,
+      "occludedPct": 1.8
      },
      "belowTheCellCentroid_paintedAFTERTheCell": {
-      "n": 52,
-      "trueZero": 2,
-      "occluded": 2,
-      "pct": 3.8,
-      "occludedPct": 3.8
+      "n": 60,
+      "trueZero": 6,
+      "occluded": 4,
+      "pct": 10.0,
+      "occludedPct": 6.7
      }
     }
    }
   },
   "drivenAllHealthy": {
    "withTheOldKey": {
-    "placements": 145,
-    "deliveringNothing": 67,
-    "deliveringNothingPct": 46.2,
-    "TRULYdeliveringNothing": 65,
-    "TRULYdeliveringNothingPct": 44.8,
-    "occludedByAnything": 45,
-    "occludedByItsOWNCell": 41,
-    "vegetationPxDelivered": 384,
+    "placements": 148,
+    "deliveringNothing": 53,
+    "deliveringNothingPct": 35.8,
+    "TRULYdeliveringNothing": 53,
+    "TRULYdeliveringNothingPct": 35.8,
+    "occludedByAnything": 36,
+    "occludedByItsOWNCell": 28,
+    "vegetationPxDelivered": 452,
     "deliveredIslandPx": 34968,
     "medianPxPerSurvivor": 3,
     "aboveVsBelowTheCentroid": {
      "aboveTheCellCentroid_paintedFIRST_soTheCellFillErasesIt": {
-      "n": 74,
-      "trueZero": 60,
-      "occluded": 43,
-      "pct": 81.1,
-      "occludedPct": 58.1
+      "n": 70,
+      "trueZero": 47,
+      "occluded": 32,
+      "pct": 67.1,
+      "occludedPct": 45.7
      },
      "belowTheCellCentroid_paintedAFTERTheCell": {
-      "n": 71,
-      "trueZero": 5,
-      "occluded": 2,
-      "pct": 7.0,
-      "occludedPct": 2.8
+      "n": 78,
+      "trueZero": 6,
+      "occluded": 4,
+      "pct": 7.7,
+      "occludedPct": 5.1
      }
     }
    },
    "asShipped": {
-    "placements": 145,
-    "deliveringNothing": 12,
-    "deliveringNothingPct": 8.3,
-    "TRULYdeliveringNothing": 11,
-    "TRULYdeliveringNothingPct": 7.6,
+    "placements": 148,
+    "deliveringNothing": 8,
+    "deliveringNothingPct": 5.4,
+    "TRULYdeliveringNothing": 8,
+    "TRULYdeliveringNothingPct": 5.4,
     "occludedByAnything": 5,
     "occludedByItsOWNCell": 0,
-    "vegetationPxDelivered": 676,
+    "vegetationPxDelivered": 709,
     "deliveredIslandPx": 34968,
     "medianPxPerSurvivor": 3,
     "aboveVsBelowTheCentroid": {
      "aboveTheCellCentroid_paintedFIRST_soTheCellFillErasesIt": {
-      "n": 74,
-      "trueZero": 6,
-      "occluded": 3,
-      "pct": 8.1,
-      "occludedPct": 4.1
+      "n": 70,
+      "trueZero": 2,
+      "occluded": 1,
+      "pct": 2.9,
+      "occludedPct": 1.4
      },
      "belowTheCellCentroid_paintedAFTERTheCell": {
-      "n": 71,
-      "trueZero": 5,
-      "occluded": 2,
-      "pct": 7.0,
-      "occludedPct": 2.8
+      "n": 78,
+      "trueZero": 6,
+      "occluded": 4,
+      "pct": 7.7,
+      "occludedPct": 5.1
      }
     }
    }
@@ -181,58 +186,58 @@
   "testCountsAreTheStorysOwn": true,
   "rates": {
    "withTheOldKey": {
-    "placements": 180,
-    "deliveringNothing": 94,
-    "deliveringNothingPct": 52.2,
-    "TRULYdeliveringNothing": 92,
-    "TRULYdeliveringNothingPct": 51.1,
-    "occludedByAnything": 66,
-    "occludedByItsOWNCell": 56,
-    "vegetationPxDelivered": 524,
-    "deliveredIslandPx": 30481,
+    "placements": 181,
+    "deliveringNothing": 65,
+    "deliveringNothingPct": 35.9,
+    "TRULYdeliveringNothing": 63,
+    "TRULYdeliveringNothingPct": 34.8,
+    "occludedByAnything": 43,
+    "occludedByItsOWNCell": 32,
+    "vegetationPxDelivered": 624,
+    "deliveredIslandPx": 30477,
     "medianPxPerSurvivor": 3,
     "aboveVsBelowTheCentroid": {
      "aboveTheCellCentroid_paintedFIRST_soTheCellFillErasesIt": {
-      "n": 98,
-      "trueZero": 79,
-      "occluded": 60,
-      "pct": 80.6,
-      "occludedPct": 61.2
+      "n": 86,
+      "trueZero": 55,
+      "occluded": 37,
+      "pct": 64.0,
+      "occludedPct": 43.0
      },
      "belowTheCellCentroid_paintedAFTERTheCell": {
-      "n": 82,
-      "trueZero": 13,
+      "n": 95,
+      "trueZero": 8,
       "occluded": 6,
-      "pct": 15.9,
-      "occludedPct": 7.3
+      "pct": 8.4,
+      "occludedPct": 6.3
      }
     }
    },
    "asShipped": {
-    "placements": 180,
-    "deliveringNothing": 31,
-    "deliveringNothingPct": 17.2,
-    "TRULYdeliveringNothing": 27,
-    "TRULYdeliveringNothingPct": 15.0,
-    "occludedByAnything": 14,
+    "placements": 181,
+    "deliveringNothing": 12,
+    "deliveringNothingPct": 6.6,
+    "TRULYdeliveringNothing": 11,
+    "TRULYdeliveringNothingPct": 6.1,
+    "occludedByAnything": 6,
     "occludedByItsOWNCell": 0,
-    "vegetationPxDelivered": 911,
-    "deliveredIslandPx": 30481,
+    "vegetationPxDelivered": 959,
+    "deliveredIslandPx": 30477,
     "medianPxPerSurvivor": 4,
     "aboveVsBelowTheCentroid": {
      "aboveTheCellCentroid_paintedFIRST_soTheCellFillErasesIt": {
-      "n": 98,
-      "trueZero": 14,
-      "occluded": 8,
-      "pct": 14.3,
-      "occludedPct": 8.2
+      "n": 86,
+      "trueZero": 3,
+      "occluded": 0,
+      "pct": 3.5,
+      "occludedPct": 0.0
      },
      "belowTheCellCentroid_paintedAFTERTheCell": {
-      "n": 82,
-      "trueZero": 13,
+      "n": 95,
+      "trueZero": 8,
       "occluded": 6,
-      "pct": 15.9,
-      "occludedPct": 7.3
+      "pct": 8.4,
+      "occludedPct": 6.3
      }
     }
    }
@@ -248,32 +253,32 @@
   {
    "guard": "a 60-unit grass well is counted as a cull",
    "fired": true,
-   "culled": 36
+   "culled": 10
   },
   {
    "guard": "sinking every placement 40 units below its cell buries it (OCCLUDED)",
    "fired": true,
-   "occluded": 94,
-   "of": 112
+   "occluded": 101,
+   "of": 115
   },
   {
    "guard": "a single placement alone still competes with the land it stands on",
    "fired": true,
    "fateOfTheOnePlacement": "delivered",
    "maxOwnedInABlock": 9,
-   "deliveredPx": 2
+   "deliveredPx": 3
   }
  ],
  "checks": [
   {
    "check": "every change in the working tree is under docs/research/**",
    "pass": true,
-   "detail": "38 paths touched"
+   "detail": "79 paths touched"
   },
   {
    "check": "LAND_CAMERA_ELEVATION_DEG is still 20 and was not touched",
    "pass": true,
-   "detail": "emits SVG vector nodes at `LAND_CAMERA_ELEVATION_DEG = 20`, with no supersample, no closed-palette"
+   "detail": "\"landCameraElevationDeg\": \"emits SVG vector nodes at `LAND_CAMERA_ELEVATION_DEG = 20`, with no supersample, no closed-palette\\nAPP_LAND_CAMERA_ELEVATION_DEG = 20.0\\n          \\\"LAND_CAMERA_ELEVATION_DEG = 20\\\" in src.replace(\\\":\\\", \\\" \\\").replace(\\\"  \\\", \\\" \\\")\\nAPP_LAND_CAMERA_ELEVATION_DEG = 20.0\\n      \\\"export const LAND_CAMERA_ELEVATION_DEG = 20;\\\" in cam,\\nAPP_LAND_CAMERA_ELEVATION_DEG = 20.0\\n      \\\"LAND_CAMERA_ELEVATION_DEG = 20\\\" in cam.replace(\\\"export const \\\", \\\"\\\"),\\nexport const LAND_CAMERA_ELEVATION_DEG = 20;\""
   },
   {
    "check": "the SVG scene paints ground-mesh BEFORE flora-layer, and a test holds the order",
@@ -293,17 +298,17 @@
   {
    "check": "[fixture] at most 10% of placements deliver zero",
    "pass": true,
-   "detail": "45.5% -> 7.1% (51 -> 8 of 112)"
+   "detail": "35.7% -> 7.0% (41 -> 8 of 115)"
   },
   {
    "check": "[fixture] at most 8 placements are occluded by the fill of their OWN cell",
    "pass": true,
-   "detail": "31 -> 0"
+   "detail": "22 -> 0"
   },
   {
    "check": "[fixture] the vegetation that was always being painted now reaches the raster",
    "pass": true,
-   "detail": "292 -> 510 px"
+   "detail": "338 -> 534 px"
   },
   {
    "check": "[fixture] the island's delivered area is BYTE-STABLE \u2014 a reorder, not a resize",
@@ -318,17 +323,17 @@
   {
    "check": "[fixture driven all-healthy] at most 10% of placements deliver zero",
    "pass": true,
-   "detail": "46.2% -> 8.3% (67 -> 12 of 145)"
+   "detail": "35.8% -> 5.4% (53 -> 8 of 148)"
   },
   {
    "check": "[fixture driven all-healthy] at most 8 placements are occluded by the fill of their OWN cell",
    "pass": true,
-   "detail": "41 -> 0"
+   "detail": "28 -> 0"
   },
   {
    "check": "[fixture driven all-healthy] the vegetation that was always being painted now reaches the raster",
    "pass": true,
-   "detail": "384 -> 676 px"
+   "detail": "452 -> 709 px"
   },
   {
    "check": "[fixture driven all-healthy] the island's delivered area is BYTE-STABLE \u2014 a reorder, not a resize",
@@ -343,7 +348,7 @@
   {
    "check": "the diagnosis' SIGNED prediction still holds with the old key reinstated",
    "pass": true,
-   "detail": "above the centroid 78.3% deliver nothing, below it 3.8%"
+   "detail": "above the centroid 63.6% deliver nothing, below it 10.0%"
   },
   {
    "check": "an all-healthy island composed through `caps=` ALONE carries ZERO unhealthy px",
@@ -368,17 +373,17 @@
   {
    "check": "[real corpus] the real island inherited the defect and the fix recovers it too",
    "pass": true,
-   "detail": "52.2% -> 17.2% (94 -> 31 of 180 placements)"
+   "detail": "35.9% -> 6.6% (65 -> 12 of 181 placements)"
   },
   {
    "check": "[real corpus] its delivered area is byte-stable across the change",
    "pass": true,
-   "detail": "30481 px both ways"
+   "detail": "30477 px both ways"
   },
   {
    "check": "[real corpus] vegetation delivered",
    "pass": true,
-   "detail": "524 -> 911 px"
+   "detail": "624 -> 959 px"
   },
   {
    "check": "[inherited] a footprint blit displaced by 7px is caught",
@@ -388,17 +393,17 @@
   {
    "check": "[inherited] a 60-unit grass well is counted as a cull",
    "pass": true,
-   "detail": "culled=36"
+   "detail": "culled=10"
   },
   {
    "check": "[inherited] sinking every placement 40 units below its cell buries it (OCCLUDED)",
    "pass": true,
-   "detail": "occluded=94, of=112"
+   "detail": "occluded=101, of=115"
   },
   {
    "check": "[inherited] a single placement alone still competes with the land it stands on",
    "pass": true,
-   "detail": "fateOfTheOnePlacement=delivered, maxOwnedInABlock=9, deliveredPx=2"
+   "detail": "fateOfTheOnePlacement=delivered, maxOwnedInABlock=9, deliveredPx=3"
   },
   {
    "check": "assert_projection_unchanged is still armed: the data route and the compositor agree",

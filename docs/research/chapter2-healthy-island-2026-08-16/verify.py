@@ -231,15 +231,20 @@ def sha(path):
 
 # The drift this pass INHERITED and did not create, reported because a reader deserves to know the
 # machinery has forked before. `compose_core.py` is the grass pass's copy of the dressing pass's
-# `compose_dressed.py`, and `scatter.py` exists in both directories. Neither is this pass's to fix
-# (both are committed evidence of landed work), but nothing detects the fork, so this names it.
+# `compose_dressed.py`, and `scatter.py` exists in both directories. The COMPOSITOR fork is still
+# unfixed and still nobody's but its own increment's; the SCATTER fork now has a second detector —
+# `chapter2-plant-dispersion-2026-08-17/verify.py` rung 9 asserts the same equality alongside
+# `disperse.scatter_dispersed is scatter.scatter_island`, so the positioner has exactly one
+# implementation reached through two identical files rather than two implementations that happen to
+# agree. This line is kept because a duplicated FILE can still diverge, and it is the cheaper of the
+# two places that would notice.
 dressed = os.path.join(REPO, "docs", "research", "chapter2-island-place-dressing-2026-08-16")
 scatter_copies = [os.path.join(d, "scatter.py") for d in (GRASS, dressed)
                   if os.path.exists(os.path.join(d, "scatter.py"))]
-check("REPORTED, not fixed: the two committed `scatter.py` copies are still identical",
+check("the two committed `scatter.py` copies are still identical",
       len({sha(p) for p in scatter_copies}) == 1,
       f"{len(scatter_copies)} copies, sha {sorted({sha(p) for p in scatter_copies})} - "
-      f"nothing detects a divergence but this line")
+      f"also asserted by the dispersion floor's rung 9")
 
 
 # ================================================================= 5. THE FENCE

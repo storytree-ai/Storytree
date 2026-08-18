@@ -69,15 +69,22 @@ ok("LAND_CAMERA_ELEVATION_DEG is still 20",
 ok("this pass renders at 50 deg as a NAMED parameter",
    abs(float(REPORT["fence"]["cameraElevationDeg"]) - 50.0) < 1e-9)
 
-#: `scatter.py` CARRIES THE BUG AND IS DELIBERATELY NOT EDITED. Propagating the fix is the parked
-#: `crc32-dispersion-fix-propagated-and-evidence-rerendered`; this pass IMPORTS the fixed positioner
-#: instead. The check is that the buggy line is still exactly where the dispersion pass diagnosed it,
-#: because if someone repointed it, this pass's "we used the fix" claim would be about nothing.
+#: `scatter.py` NOW CARRIES THE FIX — the increment `crc32-dispersion-fix-propagated-and-evidence-
+#: rerendered` landed it on 2026-08-18, which is what this pass was waiting for. It used to assert
+#: the OPPOSITE ("still carries the affine-CRC32 draw, UNEDITED"), because at the time this pass
+#: imported the fix from a lane copy and its claim to have used it was only meaningful if the
+#: shipped module still had the defect. That premise is spent; the check inverts rather than
+#: retires, because the property it protects is unchanged — this pass's pictures must be composed
+#: through the DISPERSED positioner, and the way it can silently stop being true has simply moved
+#: from "someone repointed our import" to "someone reverted the fix".
 scatter_src = open(os.path.join(GRASS, "scatter.py")).read()
-ok("scatter.py still carries the affine-CRC32 draw, UNEDITED",
-   'det(addr, "x", t)' in scatter_src and 'det(addr, "y", t)' in scatter_src)
-ok("scatter.py is not in this branch's diff", "docs/research/chapter2-grass-reads-as-signal-"
-   "2026-08-16/scatter.py" not in touched)
+ok("scatter.py carries the FIXED draw (avalanche-finalised, both coordinates from one hash)",
+   "_fmix32" in scatter_src and "def _uv(" in scatter_src
+   and 'u, v = _uv(*addr, "cand", j, "uv", t)' in scatter_src)
+ok("the affine-CRC32 draw survives ONLY behind the named legacy branch",
+   scatter_src.count('det(addr, "x", t)') == 1
+   and "def legacy_affine_sample_in_cell(" in scatter_src
+   and "LEGACY_AFFINE" in scatter_src)
 ok("blender_grass.py is not in this branch's diff — its sha256 is stamped in 14 committed sets",
    "docs/research/chapter2-grass-reads-as-signal-2026-08-16/blender_grass.py" not in touched)
 ok("the positioner is IMPORTED, not vendored",
@@ -147,8 +154,12 @@ _orig = X.S.capability_tests
 X.S.capability_tests = lambda ci, status, seed: _REAL[ci]
 try:
     fixed_items, _s = X.scatter_dispersed(ISLAND, TOKENS, ISLAND["storyId"], ISLAND["uatCriteria"])
+    # THE UNFIXED SIDE IS NOW AN EXPLICIT BRANCH, not "the shipped module with no argument". Since
+    # 2026-08-18 `scatter_island`'s default IS the fix, so calling it bare here would compare the
+    # fix against itself and this non-vacuity check would pass while proving nothing.
     unfixed_items, _s2 = X.S.scatter_island(ISLAND, TOKENS, ISLAND["storyId"],
-                                            ISLAND["uatCriteria"])
+                                            ISLAND["uatCriteria"],
+                                            positioner=X.S.LEGACY_AFFINE)
 finally:
     X.S.capability_tests = _orig
 

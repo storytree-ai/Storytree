@@ -164,15 +164,15 @@
    "light-0.8": 531
   },
   "jointPalette": {
-   "light-1": 4287,
-   "light-0.955": 5606,
-   "light-0.9333": 869,
-   "light-0.91": 371,
-   "light-0.891301": 119,
-   "light-0.8667": 139,
-   "light-0.849303": 63,
-   "light-0.827699": 75,
-   "light-0.8": 380
+   "light-1": 4250,
+   "light-0.955": 5593,
+   "light-0.9333": 860,
+   "light-0.91": 363,
+   "light-0.891301": 115,
+   "light-0.8667": 140,
+   "light-0.849303": 58,
+   "light-0.827699": 73,
+   "light-0.8": 392
   }
  },
  "howDeepBeforeItLies": {
@@ -189,7 +189,7 @@
   },
   "asDelivered": {
    "label": "species + shadow -> species + shadow + relief",
-   "bodyPx": 11873,
+   "bodyPx": 11840,
    "pixelsWhoseStatusReadChanged": 0
   }
  },
@@ -373,10 +373,10 @@
    "wellCulled": 0,
    "total": 176
   },
-  "deliveredPxBladeSet": 984,
-  "deliveredPxSpeciesSet": 2120,
-  "deliveredPxPerMarkBlade": 5.44,
-  "deliveredPxPerMarkSpecies": 11.71
+  "deliveredPxBladeSet": 997,
+  "deliveredPxSpeciesSet": 2124,
+  "deliveredPxPerMarkBlade": 5.51,
+  "deliveredPxPerMarkSpecies": 11.73
  },
  "countFork": {
   "rule": "grass = round(2 + tests*1.9); shrubs = round(tests/2.6). No area term.",
@@ -562,7 +562,7 @@
   "y": 246,
   "w": 92,
   "h": 62,
-  "vegetationPxInCrop": 677,
+  "vegetationPxInCrop": 680,
   "treePxInCrop": 0,
   "rule": "the window containing NO hero-tree pixel that holds the most DELIVERED vegetation \u2014 the panel the appearance call is made on has to show plants, not bark"
  },

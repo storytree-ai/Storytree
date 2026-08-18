@@ -200,13 +200,21 @@ def place(island, area_aware=False):
       * `scatter.capability_tests` INVENTS a test count from a hash — its own docstring says so. It
         is replaced by the story's real `spec.contracts.length`, exactly as the healthy-island pass
         does, so the counts on these pictures are the story's and not a spike's.
-      * `disperse._counts` is wrapped ONLY for the area-aware fork panel. The count RULE is not
+      * `scatter.counts_for` is wrapped ONLY for the area-aware fork panel. The count RULE is not
         rewritten and not copied: the wrapper calls the real one and then scales its result. There is
         still exactly one implementation of `2 + tests*1.9` on this track.
+
+    ⚠ BOTH PATCHES MUST LAND ON `X.S`, THE SCATTER MODULE, AND NOT ON `X`. Since the dispersion fix
+    moved into `scatter.py` (2026-08-18) `disperse` is an ALIAS module: `X.scatter_dispersed` IS
+    `scatter.scatter_island`, which resolves `counts_for` in ITS OWN globals. Rebinding `X._counts`
+    — which is what this function used to do, correctly, when `disperse` owned the positioner —
+    now changes nothing at all, and the area-aware panel would silently render the ordinary counts
+    while still being captioned as the fork. `verify.py` catches it by re-deriving the fork's
+    delivered mark counts rather than reading them back out of the report.
     """
     real_tests = [c["tests"] for c in island["capabilities"]]
     original_tests = X.S.capability_tests
-    original_counts = X._counts
+    original_counts = X.S.counts_for
     areas = owned_areas(island)
 
     def area_aware_counts(ci, status, seed, density):
@@ -221,16 +229,19 @@ def place(island, area_aware=False):
 
     X.S.capability_tests = lambda ci, status, seed: real_tests[ci]
     if area_aware:
-        X._counts = area_aware_counts
+        X.S.counts_for = area_aware_counts
     #: THE HATCH: the affine-CRC32 sampler this pass exists to avoid, reachable only by the refusal
-    #: harness, so the corr gate below can be shown to fire on real placements.
-    positioner = X.S.scatter_island if PERTURB_POSITIONER else X.scatter_dispersed
+    #: harness, so the corr gate below can be shown to fire on real placements. Since the dispersion
+    #: fix landed in `scatter.py` itself (2026-08-18) the hatch must NAME the legacy branch — the
+    #: bare `scatter_island` it used to call is now the fixed positioner, so the perturbation would
+    #: have quietly become a no-op that still printed as a hatch.
+    kw = {"positioner": X.S.LEGACY_AFFINE} if PERTURB_POSITIONER else {}
     try:
-        return positioner(island, D.DECOR_META["tokenFamilies"],
-                          island["storyId"], island["uatCriteria"])
+        return X.scatter_dispersed(island, D.DECOR_META["tokenFamilies"],
+                                   island["storyId"], island["uatCriteria"], **kw)
     finally:
         X.S.capability_tests = original_tests
-        X._counts = original_counts
+        X.S.counts_for = original_counts
 
 
 def respeciate(items):

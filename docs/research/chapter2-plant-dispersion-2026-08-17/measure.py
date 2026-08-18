@@ -164,7 +164,8 @@ for name, (dirname, blurb) in ISLANDS.items():
     coincident = 0
     placements = 0
     for s in range(NSEED):
-        items, st = S.scatter_island(island, TOKENS, f"probe-{s}", UAT, density=1.0)
+        items, st = S.scatter_island(island, TOKENS, f"probe-{s}", UAT, density=1.0,
+                                     positioner=S.LEGACY_AFFINE)
         fallbacks += st["centroidFallbacks"]
         pts = [(it["g"][0], it["g"][1]) for it in items if it["kind"] != "flower"]
         placements += len(pts)
@@ -213,7 +214,11 @@ for name, (dirname, blurb) in ISLANDS.items():
 
     # ---------------------------------------------------------------- 4. the two positioners
     seed = island["seed"]
-    before_items, before_stats = S.scatter_island(island, TOKENS, seed, UAT, density=1.0)
+    # THE "BEFORE" SIDE NAMES THE LEGACY BRANCH. Until 2026-08-18 the defect WAS the default,
+    # so a bare call was the before; now the default is the fix and a bare call here would
+    # compare the fix against itself while every delta printed as zero improvement.
+    before_items, before_stats = S.scatter_island(island, TOKENS, seed, UAT, density=1.0,
+                                                  positioner=S.LEGACY_AFFINE)
     after_items, after_stats = X.scatter_dispersed(island, TOKENS, seed, UAT, density=1.0)
     before_pts = meadow_by_cap(before_items)
     after_pts = meadow_by_cap(after_items)
@@ -236,7 +241,8 @@ for name, (dirname, blurb) in ISLANDS.items():
         return {k: round(statistics.mean(v), 4) for k, v in acc.items()}
 
     print("   averaging the floor over 30 seeds ...", flush=True)
-    before_avg = avg_over_seeds(lambda i, t, s, u, d: S.scatter_island(i, t, s, u, d))
+    before_avg = avg_over_seeds(
+        lambda i, t, s, u, d: S.scatter_island(i, t, s, u, d, positioner=S.LEGACY_AFFINE))
     after_avg = avg_over_seeds(lambda i, t, s, u, d: X.scatter_dispersed(i, t, s, u, d))
 
     report["islands"][name] = {

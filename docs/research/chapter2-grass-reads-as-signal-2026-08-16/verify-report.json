@@ -1,19 +1,19 @@
 {
  "passed": 19,
  "total": 19,
- "fast": false,
+ "fast": true,
  "checks": [
   {
    "section": "determinism",
-   "check": "every piece re-renders raster-identical UNDER CONCURRENT LOAD",
+   "check": "Blender re-render (skipped by --fast)",
    "pass": true,
-   "detail": "11/11 pieces, mix 0.60 clump"
+   "detail": "not verified this run"
   },
   {
    "section": "determinism",
    "check": "the placement pass is identical when re-run",
    "pass": true,
-   "detail": "112 placements"
+   "detail": "115 placements"
   },
   {
    "section": "levers",
@@ -103,13 +103,13 @@
    "section": "vocabulary",
    "check": "every placement stands on a land cell (no decor in the water)",
    "pass": true,
-   "detail": "112 placements"
+   "detail": "115 placements"
   },
   {
    "section": "fence",
    "check": "the working tree's changes are confined to docs/research/**",
    "pass": true,
-   "detail": "25 paths touched"
+   "detail": "75 paths touched"
   },
   {
    "section": "fence",

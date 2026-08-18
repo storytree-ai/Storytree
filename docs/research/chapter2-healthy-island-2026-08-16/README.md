@@ -1,5 +1,14 @@
 # One healthy island, from a real story node — and what it replaces
 
+> **⚠ RE-COMPOSED 2026-08-18 — 1 of 5 pictures moved.** The plant positioner's CRC32 affine collapse was
+> propagated into `scatter.py` itself by the increment
+> `crc32-dispersion-fix-propagated-and-evidence-rerendered`, so every placement on this pass's
+> pictures moved. Only `island-detail-6x.png` — `healthy-island.png` is the DELIVERED surface, which carries no vegetation, so the vegetation appears only in the detail sheet's third reference panel.  **Nothing was re-RENDERED** — no piece PNG is touched; the fix changes
+> where a piece is stamped, never what it looks like. The full delta table, and what did NOT move,
+> is in `../chapter2-plant-dispersion-2026-08-17/README.md`. Numbers in the prose below were
+> measured on the PRE-FIX placements unless they say otherwise.
+
+
 **Date:** 2026-08-16 · **Camera:** 50° (a named parameter, inherited, not restated) · **Land:** the
 interior fork's settled `b++`, interior mesh seams REMOVED · **Story:** `context-traversal-capture`,
 read live · **Cost:** $0 · **Vendor calls:** 0 · **Blender renders:** 0

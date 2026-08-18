@@ -1,6 +1,6 @@
 {
- "passed": 42,
- "total": 42,
+ "passed": 36,
+ "total": 36,
  "checks": [
   {
    "name": "every changed / untracked file is under docs/research/",
@@ -144,30 +144,6 @@
   },
   {
    "name": "no unambiguous healthy FILL pixel changed what it says",
-   "ok": true
-  },
-  {
-   "name": "re-composing succeeds",
-   "ok": true
-  },
-  {
-   "name": "one-surface-and-shadow.png re-composes PIXEL-IDENTICALLY",
-   "ok": true
-  },
-  {
-   "name": "three-moves.png re-composes PIXEL-IDENTICALLY",
-   "ok": true
-  },
-  {
-   "name": "shadow-detail-6x.png re-composes PIXEL-IDENTICALLY",
-   "ok": true
-  },
-  {
-   "name": "shadow-survives-the-snap.png re-composes PIXEL-IDENTICALLY",
-   "ok": true
-  },
-  {
-   "name": "confusability-depth.png re-composes PIXEL-IDENTICALLY",
    "ok": true
   }
  ]

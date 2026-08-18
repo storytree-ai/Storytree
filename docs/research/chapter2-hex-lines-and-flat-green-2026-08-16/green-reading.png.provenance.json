@@ -3,7 +3,7 @@
  "artifact": "green-reading.png",
  "producer": {
   "tool": "compose_lines.py",
-  "sha256": "60db135b8b14ecec35c349f1b6ce5ab134d7e2b648a1d37a3a5730da0c1f2632"
+  "sha256": "90e3e28db5cdc24e1ee1d3121f97f722fab26aed14ad6e60904d1cc12fd685a5"
  },
  "command": {
   "tool": "compose_lines.py",
@@ -172,8 +172,8 @@
   "rule": "one code state PER GENERATOR; the composite's identity is the digest of the whole {generator: state} map, so any generator moving moves it"
  },
  "output": {
-  "sha256": "d1a05e709d82723fcf47190d5035e0e5a2ca6744bcbfbf47975584c5306fef8d",
-  "bytes": 47201
+  "sha256": "4045cadf86de47347e2bb85c6f464b0818a9f2c443d9d551c7a8e35ddca76d2d",
+  "bytes": 49121
  },
  "cameraElevationDeg": 50.0,
  "variant": "b++ land, flat green ground, ADR-0226 vegetation as it ships; seam classes suppressed one at a time",

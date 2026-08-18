@@ -1,5 +1,14 @@
 # The three named grass defects, isolated — "black", "bleeding through", "buggy"
 
+> **⚠ RE-COMPOSED 2026-08-18 — both pictures moved.** The plant positioner's CRC32 affine collapse was
+> propagated into `scatter.py` itself by the increment
+> `crc32-dispersion-fix-propagated-and-evidence-rerendered`, so every placement on this pass's
+> pictures moved.  **Nothing was re-RENDERED** — no piece PNG is touched; the fix changes
+> where a piece is stamped, never what it looks like. The full delta table, and what did NOT move,
+> is in `../chapter2-plant-dispersion-2026-08-17/README.md`. Numbers in the prose below were
+> measured on the PRE-FIX placements unless they say otherwise.
+
+
 > **⚠ RE-MEASURED 2026-08-17 ON THE FIXED COMPOSITOR.** This pass's 46%-deliver-nothing finding was
 > diagnosed by PR #1383 as painter-order occlusion and fixed in `compose_core.py` on 2026-08-17, so
 > `diagnose-report.json`, `what-the-grass-delivers.png` and `where-the-black-is.png` were

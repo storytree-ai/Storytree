@@ -172,8 +172,8 @@
   "rule": "one code state PER GENERATOR; the composite's identity is the digest of the whole {generator: state} map, so any generator moving moves it"
  },
  "output": {
-  "sha256": "a828d5f6ef4c943bb958b709fb9455eeda6654416350d51ffc0c7b5a08d5e63f",
-  "bytes": 42976
+  "sha256": "50be3b08b53ed71e7372ab7c37450bcb7102f99b116328b52d105f5e9b7856ea",
+  "bytes": 43788
  },
  "cameraElevationDeg": 50.0,
  "variant": "b++ land + ADR-0226 vegetation, ATTRIBUTED, before/after the depth-key repair",
@@ -185,8 +185,8 @@
  "scatterSeed": "grass-reads-as-signal-2026-08-16",
  "blenderRendersThisPass": 0,
  "heroTree": "omitted from every panel",
- "decorPxBefore": 292,
- "decorPxAfter": 510,
+ "decorPxBefore": 338,
+ "decorPxAfter": 534,
  "island": {
   "sha256": "5e07da65124c00eb3aaceaa355ae1922bc2784f2dee62875b3f011010f64766c"
  }

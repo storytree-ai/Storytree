@@ -1,5 +1,14 @@
 # Does the grass read as SIGNAL? — the vegetation vocabulary, measured at delivered scale
 
+> **⚠ RE-COMPOSED 2026-08-18 — 5 of 6 pictures moved.** The plant positioner's CRC32 affine collapse was
+> propagated into `scatter.py` itself by the increment
+> `crc32-dispersion-fix-propagated-and-evidence-rerendered`, so every placement on this pass's
+> pictures moved. This pass also owned the defect: its `scatter.py` is the file that was fixed, and its `carpet_items` was an unlisted caller of the affine sampler, so the CARPET variant was on the diagonal too.  **Nothing was re-RENDERED** — no piece PNG is touched; the fix changes
+> where a piece is stamped, never what it looks like. The full delta table, and what did NOT move,
+> is in `../chapter2-plant-dispersion-2026-08-17/README.md`. Numbers in the prose below were
+> measured on the PRE-FIX placements unless they say otherwise.
+
+
 > **⚠ RE-RENDERED 2026-08-17 ON THE FIXED COMPOSITOR.** Two defects in this directory's own
 > `compose_core.py` were fixed on 2026-08-17 — the decor painter order (a placement in the back half
 > of its own cell was overpainted by that cell) and `compose_land`'s `caps` argument not reaching the

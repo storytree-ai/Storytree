@@ -15,7 +15,7 @@
   ],
   "results": [
     {
-      "perturbation": "P1 the shipped positioner (scatter.py, unmodified)",
+      "perturbation": "P1 the pre-fix positioner (scatter.LEGACY_AFFINE)",
       "island": "healthy",
       "expectedToFire": [
         1,
@@ -41,7 +41,7 @@
       }
     },
     {
-      "perturbation": "P1 the shipped positioner (scatter.py, unmodified)",
+      "perturbation": "P1 the pre-fix positioner (scatter.LEGACY_AFFINE)",
       "island": "fixture",
       "expectedToFire": [
         1,
@@ -82,7 +82,7 @@
       "values": {
         "1": "|corr(u,v)|=0.9997",
         "2": "onDiagonal=1.0000",
-        "3": "clarkEvans=1.661",
+        "3": "clarkEvans=1.657",
         "4": "minNN=0.521",
         "5": "delivered==authored",
         "6": "coincidentGroups=0",
@@ -124,13 +124,13 @@
       ],
       "caught": true,
       "values": {
-        "1": "|corr(u,v)|=0.0244",
+        "1": "|corr(u,v)|=0.0275",
         "2": "onDiagonal=0.0409",
-        "3": "clarkEvans=1.190",
+        "3": "clarkEvans=1.189",
         "4": "minNN=0.201",
         "5": "delivered 134 vs authored 134",
         "6": "coincidentGroups=0",
-        "7": "conditioned=1.165"
+        "7": "conditioned=1.158"
       }
     },
     {
@@ -168,13 +168,13 @@
       ],
       "caught": true,
       "values": {
-        "1": "|corr(u,v)|=0.5870",
-        "2": "onDiagonal=0.0793",
-        "3": "clarkEvans=1.693",
+        "1": "|corr(u,v)|=0.5868",
+        "2": "onDiagonal=0.0776",
+        "3": "clarkEvans=1.698",
         "4": "minNN=0.221",
         "5": "delivered==authored",
         "6": "coincidentGroups=0",
-        "7": "conditioned=1.109"
+        "7": "conditioned=1.103"
       }
     },
     {
@@ -208,13 +208,13 @@
       ],
       "caught": true,
       "values": {
-        "1": "|corr(u,v)|=0.0014",
-        "2": "onDiagonal=0.0387",
+        "1": "|corr(u,v)|=0.0168",
+        "2": "onDiagonal=0.0394",
         "3": "clarkEvans=1.931",
         "4": "minNN=2.403",
         "5": "delivered 133 vs authored 134",
         "6": "coincidentGroups=0",
-        "7": "conditioned=1.178"
+        "7": "conditioned=1.172"
       }
     },
     {
