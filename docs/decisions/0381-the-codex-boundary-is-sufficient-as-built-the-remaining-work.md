@@ -67,11 +67,20 @@ ceremony and becomes the ordinary way this gets used. What comes after it is mor
 fence.
 
 **D3. A restriction that BLOCKS legitimate work is a defect, and is now to be reported and removed
-rather than worked around.** The prime suspect is already identified and untested: all three managed
-profiles carry `network.enabled = false`, which plausibly blocks the bootstrap's loopback call to the
-claim broker as well as any workspace command needing the network. If that proves to block the
-lifecycle, the profile is wrong and gets narrowed — not the lifecycle re-engineered around it. This is
-the clause that operationalises "walls that may not even be needed": we now find out, by running.
+rather than worked around.** The prime suspect this clause was written around has since been TESTED,
+and it is REFUTED (2026-08-18, PR #1405): all three managed profiles carry `network.enabled = false`,
+and it does **not** block the bootstrap's loopback call to the claim broker. Under both the lobby and
+current profiles a lobby write is refused `EPERM` and an external TCP connect is refused `EACCES` — so
+the sandbox is engaged and the network fence is live, and the result is not vacuous — yet loopback
+connects and the broker's own router answers. It does block the network generally, which is a real
+constraint on any workspace command that needs one. Evidence: §9 of
+`docs/research/codex-boundary-reinstall-adr0375-2026-08-16.md`.
+
+The clause itself is unchanged, and it is the clause that matters rather than the example: where a
+restriction does prove to block the lifecycle, the profile is wrong and gets narrowed — not the
+lifecycle re-engineered around it. This is what operationalises "walls that may not even be needed":
+we find out by running. The first run found one restriction innocent and no restriction guilty, which
+is the outcome this clause has to be able to record as readily as the other.
 
 **D4. The Claude/Codex asymmetry is NOT to be closed by levelling Codex's fence up or down, and the
 question is closed rather than parked.** The measured comparison above stands as the record. Whether
