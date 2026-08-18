@@ -46,6 +46,7 @@ export { arcIsClosed, storyArcStamps };
  *
  *   storytree arc list [--pg]        the ACTIVE arcs: intent + increment count (--all / --closed widen it)
  *   storytree arc show <id> [--pg]   one arc: lifecycle / intent / end state / increments + derived children
+ *       --no-log                     the landing log as one summary line, not every entry (ADR-0359's CLI half)
  *
  * Arcs are LIVE-canonical (ADR-0023) and plans are live-ONLY (ADR-0183 D2), so the offline seed
  * store shows neither — run with --pg for the real view. The ADR/story stamps are read from disk
@@ -66,6 +67,28 @@ export interface ArcViewDeps {
    * for tests; defaults to the real clock at call time when omitted.
    */
   now?: string;
+}
+
+/**
+ * Presentation options for `arc show` — ADR-0359's CLI half.
+ *
+ * D1 collapsed the landed log in the STUDIO briefing panel to a summary line behind a disclosure,
+ * and said outright that the CLI's `arc show` was left unchanged. These are the flags that close
+ * that gap. They are presentation only: nothing here reaches {@link ArcRollup}, which both the CLI
+ * and the studio server read from the one join, so a narrowed terminal read cannot make the two
+ * surfaces disagree about what an arc CONTAINS — only about how much of it is printed.
+ */
+export interface ArcShowOptions {
+  /**
+   * Render the closed increment log as ONE summary line instead of every entry (`--no-log`).
+   *
+   * The measured case for it: across 56 recent sessions, 172 of 172 `arc show` invocations were
+   * narrowed by hand (`head`/`tail`/`grep`/`sed`/redirect) and none was read bare, because the tool
+   * offered no narrowing and every reader improvised one. The improvisations lose content a flag
+   * does not — a `head -200` cutting mid-sentence and never remediated, one arc paginated by hand
+   * as `head -200` then `tail -150`, and hard truncations at 110.8 KB and 37.1 KB.
+   */
+  readonly noLog?: boolean;
 }
 
 /** Read a string field off an untyped stored doc body ("" when absent). */
@@ -175,7 +198,11 @@ async function arcList(deps: ArcViewDeps, scope: ArcScope): Promise<Envelope> {
   };
 }
 
-async function arcShow(deps: ArcViewDeps, id: string | undefined): Promise<Envelope> {
+async function arcShow(
+  deps: ArcViewDeps,
+  id: string | undefined,
+  opts: ArcShowOptions = {},
+): Promise<Envelope> {
   if (id === undefined) {
     return {
       ok: false,
@@ -207,7 +234,7 @@ async function arcShow(deps: ArcViewDeps, id: string | undefined): Promise<Envel
   if (rollup === null) return { ok: false, body: `no arc "${id}".`, next: ["storytree arc list --pg"] };
   return {
     ok: true,
-    body: renderArcRollup(rollup, deps.pg, deps.now ?? new Date().toISOString()).join("\n"),
+    body: renderArcRollup(rollup, deps.pg, deps.now ?? new Date().toISOString(), opts).join("\n"),
     next: arcShowNext(rollup, deps.pg),
   };
 }
@@ -218,7 +245,12 @@ async function arcShow(deps: ArcViewDeps, id: string | undefined): Promise<Envel
  * `Date.now()`) so the render stays deterministic under test — the one clock read lives at the
  * `arcShow` call site above.
  */
-export function renderArcRollup(rollup: ArcRollup, pg: boolean, nowIso: string): string[] {
+export function renderArcRollup(
+  rollup: ArcRollup,
+  pg: boolean,
+  nowIso: string,
+  opts: ArcShowOptions = {},
+): string[] {
   // `arc show` renders ANY arc regardless of lifecycle (ADR-0239 D3 — only the LIST filters) and
   // states which it is, so a closed initiative is readable without being mistaken for live work.
   // Each line says WHY it is off the worklist, because that is the difference between the two ways
@@ -302,17 +334,34 @@ export function renderArcRollup(rollup: ArcRollup, pg: boolean, nowIso: string):
   // The durable residue: what LANDED (ADR-0183 D1, now the closed increments themselves — ADR-0305 D3
   // keeps them by never pruning the artifact that produced the entry).
   lines.push("", `## Increment log  (${landed.length} closed)`);
-  if (landed.length === 0) lines.push("  (no landings yet)");
-  for (const i of landed) {
-    const o = i.outcome ?? {};
-    lines.push(
-      `  - ${o.date ?? "?"}${o.pr !== undefined ? `  ${o.pr}` : ""}  ${i.id}  — ${i.title}`.trimEnd(),
-    );
-    if (i.objective) lines.push(`      ${i.objective}`);
-    // `note` is the REASON it closed, and it is printed rather than folded into the objective because
-    // ADR-0305 D2 removed `superseded`/`retired` on the understanding that the reason would be
-    // written here instead. A closure whose reason is invisible is the state collapse's cost unpaid.
-    if (o.note !== undefined && o.note !== "" && o.note !== i.objective) lines.push(`      ${o.note}`);
+  if (landed.length === 0) {
+    lines.push("  (no landings yet)");
+  } else if (opts.noLog === true) {
+    // The COUNT in the heading above is still printed, so a narrowed read can never be mistaken for
+    // an arc that has landed nothing: what `--no-log` drops is the ENTRIES, never the fact that they
+    // exist. That is the line between narrowing a read and lying about one.
+    //
+    // The most recent landing is the LAST element, not the first. `compareIncrements` orders within
+    // the closed rank by date ASCENDING, so reaching for `landed[0]` would name the arc's OLDEST
+    // landing and make a busy initiative read as stalled — the exact misreading this flag exists to
+    // prevent.
+    const last = landed[landed.length - 1];
+    const when = last?.outcome?.date ?? "?";
+    const pr = last?.outcome?.pr === undefined ? "" : `  ${last.outcome.pr}`;
+    lines.push(`  last landing ${when}${pr}  — drop --no-log to read all ${landed.length}`);
+  } else {
+    for (const i of landed) {
+      const o = i.outcome ?? {};
+      lines.push(
+        `  - ${o.date ?? "?"}${o.pr !== undefined ? `  ${o.pr}` : ""}  ${i.id}  — ${i.title}`.trimEnd(),
+      );
+      if (i.objective) lines.push(`      ${i.objective}`);
+      // `note` is the REASON it closed, and it is printed rather than folded into the objective
+      // because ADR-0305 D2 removed `superseded`/`retired` on the understanding that the reason
+      // would be written here instead. A closure whose reason is invisible is the state collapse's
+      // cost unpaid.
+      if (o.note !== undefined && o.note !== "" && o.note !== i.objective) lines.push(`      ${o.note}`);
+    }
   }
 
   // The questions the arc is waiting on (ADR-0267 D4): an `arcRef` on the QUESTION, derived by
@@ -2168,7 +2217,10 @@ export function arcHelp(): Envelope {
       "storytree arc — the derived initiative view (ADR-0183): an arc reveals its increments / stories / ADRs by query.",
       "",
       "  storytree arc list [--all|--closed|--parked] [--pg]   the ACTIVE arcs (ADR-0239 D3): landed + open counts",
-      "  storytree arc show <id> [--pg]                        one arc: lifecycle / intent / end state / work / increment log",
+      "  storytree arc show <id> [--no-log] [--pg]             one arc: lifecycle / intent / end state / work / increment log",
+      "        --no-log renders the landing log as ONE summary line (count + most recent landing)",
+      "        instead of every closed entry — the terminal half of what ADR-0359 D1 gave the",
+      "        studio panel. The log stays reachable; drop the flag to read it in full.",
       "",
       "AN ARC HOLDS INCREMENTS (ADR-0305 D1). What was `increments[]`, `proposals[]` and the `plan`",
       "kind is ONE tier now — an `increment` doc citing its arc, moving through",
@@ -2286,10 +2338,11 @@ export async function arcCommand(
   third: string | undefined,
   deps: ArcViewDeps,
   scope: ArcScope = "active",
+  opts: ArcShowOptions = {},
 ): Promise<Envelope> {
   if (sub === undefined || sub === "help") return arcHelp();
   if (sub === "list") return arcList(deps, scope);
-  if (sub === "show") return arcShow(deps, third);
+  if (sub === "show") return arcShow(deps, third, opts);
   return {
     ok: false,
     body: `unknown arc command "${sub}". try: storytree arc list --pg  |  storytree arc show <id> --pg`,
