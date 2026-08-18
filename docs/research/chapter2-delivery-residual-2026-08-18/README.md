@@ -19,10 +19,23 @@ The increment that commissioned this pass asked for an attribution of a number:
 > *"The real-corpus island's grass delivery residual is 17.2%, more than twice the fixture's 7.1%
 > and unattributed."*
 
-The attribution is that **the number no longer exists, and the gap it names is absent rather than
-explained.** 17.2% was measured on 2026-08-17 against the plant positions the affine-CRC32 scatterer
-produced. PR #1393 replaced that positioner the next morning. On the same island, the same
-compositor, the same seed and the same piece set:
+**THE INCREMENT'S OWN PREMISE IS FALSIFIED, and a reader should take that first.** There is no 17.2%
+residual to attribute, there has been none since 2026-08-18 10:39 (`33c0a63e`, PR #1393), and the gap
+it names is **absent rather than explained**. Do not re-import the figure: wherever it still appears
+— the increment body, the arc's prose, an agent memory — it was copied from ONE stale table, named
+below.
+
+**WHERE THE 17.2% CAME FROM, exactly, so it can be traced and stopped.** It is a real measurement of a
+real defect, taken on 2026-08-17 by PR #1387 against the plant positions the affine-CRC32 scatterer
+produced. PR #1393 replaced that scatterer the next morning AND re-ran #1387's `verify.py`, rewriting
+`chapter2-compositor-order-and-caps-2026-08-17/order-and-caps-report.json` with the post-fix numbers
+— but it did not touch that pass's README table, which went on printing the pre-dispersion row. Every
+later quotation of 17.2% traces to that table and not to the report beside it, and nothing on the
+track compares the two. Corrected in place here; `verify.py` now carries the rung that would have
+caught it.
+
+The attribution is therefore that **the number no longer exists, and the gap it names is absent rather
+than explained.** On the same island, the same compositor, the same seed and the same piece set:
 
 | | placements | delivering nothing |
 |---|---:|---:|
