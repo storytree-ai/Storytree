@@ -109,12 +109,18 @@ entry has a place to put that fact where the surface can see it, instead of a bo
 both record for remembered state.
 
 **Bad / accepted residual.**
-- **A verb is still a remembered call.** Nothing yet flips `active` automatically when a session claims
-  an increment on the notice board, which is the mechanical binding this corpus prefers (ADR-0335). That
-  binding is the natural next increment and is deliberately not bundled here: the verbs are its
-  prerequisite either way, and the cross-package change (noticeboard → arc) has its own blast radius.
+- ~~**A verb is still a remembered call.**~~ **CLOSED by
+  [ADR-0386](0386-the-increment-s-active-flip-rides-the-notice-board-claim.md) (2026-08-19).** This was
+  named here as the natural next increment and deliberately not bundled — the verbs were its
+  prerequisite either way, and the cross-package change (noticeboard → arc) had its own blast radius.
+  `noticeboard declare` on an increment now flips it to `active`, composed at the CLI root so neither
+  organism grew a dependency on the other. `ready` stays an explicit editorial act, decided on the
+  re-measured population rather than on symmetry. What remains open is narrower: `noticeboard
+  claim`/`upgrade` still produce no flip (ADR-0386 D4).
 - **The 37 existing entries are not backfilled.** They stay `proposal` until someone promotes them; this
-  is a one-time gap, not a standing one.
+  is a one-time gap, not a standing one. (Re-measured 2026-08-19, the day after this landed: 33 open
+  increments on 10 active arcs — 32 `proposal`, 1 `ready`, 0 `active`. The backlog drains as sessions
+  declare, now that ADR-0386 makes the flip automatic.)
 - **Arc-body prose drift is untouched**, exactly as ADR-0358 left it.
 
 **Neutral.** `arc increment add` still writes `closed` directly — recording a landing that was never

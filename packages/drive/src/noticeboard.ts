@@ -32,7 +32,7 @@ import {
   workClaimRequest,
 } from "@storytree/notice-board";
 
-import { claimNamespaceOneLine, fenceStoryWorkClaim } from "./claim-namespace.js";
+import { claimNamespaceOneLine, fenceStoryWorkClaim, type ClaimKind } from "./claim-namespace.js";
 import { guardClaimNamespace, kindSuffix, type ClaimUniverseLoader } from "./claim-universe.js";
 import type { Envelope } from "./envelope.js";
 
@@ -94,6 +94,24 @@ export interface NoticeboardDeps {
    * unchecked, the pre-ADR-0310 behaviour.
    */
   universe?: ClaimUniverseLoader | null;
+  /**
+   * Called once per node this declare ACTUALLY CLAIMED, so a work claim can carry a rider that
+   * records execution state elsewhere (ADR-0386: the increment's `active` flip).
+   *
+   * Injected rather than imported because the arrow had to be chosen, not inherited: the claim
+   * ledger and the arc tier are separate organisms, and neither may reach into the other to get
+   * this. The CLI composition root already holds both, so the binding lives there and this package
+   * stays ignorant of what an increment is.
+   *
+   * Returns a line to print under the claim, or null for "nothing to say". It is a RIDER: it runs
+   * after the claim is already taken and it may never cost one — a throw here is caught and
+   * reported, and the claim stands regardless.
+   *
+   * `kind` is null when the namespace check did not run (no universe composed, or it failed open),
+   * which is exactly the case where nothing is known about the node — a rider must treat that as
+   * "not my kind" rather than guessing.
+   */
+  onWorkClaimed?: (node: { id: string; kind: ClaimKind | null }) => Promise<string | null>;
 }
 
 // ---------------------------------------------------------------------------
@@ -480,6 +498,20 @@ export async function noticeboardCommand(
             : `    ${nodeId}: HELD by ${describeHolder(res.heldBy, deps.now())} — ` +
               `${"queued" in res ? "you are QUEUED behind them" : "NOT queued — take the waiting claim"}; this node is fenced`,
         );
+        // The RIDER (ADR-0386), inside its own guard so it can only ever ADD a line. It runs after
+        // the claim is banked and is deliberately unable to reclassify it: without this nesting a
+        // throw would fall to the outer catch and mark a node `failed` that the store had already
+        // granted — the exact "write path reporting one thing while the durable row says another"
+        // defect this verb was fixed for.
+        if (res.acquired && deps.onWorkClaimed !== undefined) {
+          try {
+            const note = await deps.onWorkClaimed({ id: nodeId, kind: named.kind });
+            if (note !== null && note !== "") claimLines.push(`      ${note}`);
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            claimLines.push(`      (lifecycle rider failed: ${msg} — the claim itself stands)`);
+          }
+        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         failed.push(nodeId);
