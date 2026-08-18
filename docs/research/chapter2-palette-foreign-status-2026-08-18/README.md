@@ -200,14 +200,22 @@ draws both.
 | **STRICT** — delivered colour IS an emitted top token (13 827 px) | **0.0%** | **0.0%** |
 | **LOOSE** — every delivered land pixel (30 477 px) | **31.1%** | 43.1% |
 
-The strict mask is EXACT rather than geometric, so nothing straddling a boundary and nothing
-overpainted by a wall can enter it. The loose one is the shape PR #1385's `cell_bodies` used for its
-absolute 13.6%, and that pass's own third correction already says why it over-reports: a wall is
-painter-ordered after the cell behind it and legitimately covers part of that cell's projected top
-face, and `mode_down` is a majority vote. **Every pixel of the 31.1% is a wall, a chamfer band or the
-coast — surfaces that are not a status assertion at all.** *(The surfaces differ — this is the
-as-shipped 3-variant island, that was the collapsed one-surface baseline — so this is the same MASK
-effect, not a reproduction of that exact figure.)*
+The strict mask is EXACT rather than geometric: a pixel enters it only when its delivered colour IS
+one of the top tokens the island's own status emits, so nothing straddling a boundary and nothing
+overpainted by a wall can get in. **Every pixel of the 31.1% is a wall, a chamfer band or the coast —
+surfaces that are not a status assertion at all.**
+
+**Where the 13.6% sits.** PR #1385's `cell_bodies` is a GEOMETRIC top-face mask (`top_face_mask` ∩
+solid ∩ 4-neighbours) — looser than the exact mask here and tighter than every-land-pixel, so it falls
+between these two rows. That pass's own third correction already names why a geometric mask
+over-reports: a wall is painter-ordered AFTER the cell behind it and legitimately covers part of that
+cell's projected top face, and `mode_down` is a majority vote over each supersample block. Both
+mechanisms change which SURFACE won the pixel, not what a fill says. **This pass bounds the effect
+rather than reproducing that figure** — the two surfaces differ (this is the as-shipped 3-variant
+island; that was the collapsed one-surface baseline), and an attempt to run `cell_bodies` directly on
+this island was abandoned rather than forced: `top_face_mask` reaches `compose.height_of`, which reads
+module-global `CAP_LEVEL` bound to the interior-fork island at import, and rebinding another pass's
+globals to make a number appear is how this track has produced false findings before.
 
 ⚠ **What this island cannot answer: it carries ONE status.** A same-island confusion needs two.
 

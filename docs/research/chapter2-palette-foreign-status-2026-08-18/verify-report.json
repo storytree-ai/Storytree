@@ -1,7 +1,7 @@
 {
- "passed": 59,
- "of": 59,
- "fast": false,
+ "passed": 56,
+ "of": 56,
+ "fast": true,
  "checks": [
   {
    "ok": true,
@@ -226,18 +226,6 @@
   {
    "ok": true,
    "name": "the LOOSE mask on the SAME island reports a large non-zero \u2014 so the symptom is the MASK, measured rather than argued"
-  },
-  {
-   "ok": true,
-   "name": "the re-compose exited cleanly"
-  },
-  {
-   "ok": true,
-   "name": "`matched-condition.png` re-composes PIXEL-IDENTICALLY (decoded raster, never a file hash)"
-  },
-  {
-   "ok": true,
-   "name": "`the-inversion.png` re-composes PIXEL-IDENTICALLY (decoded raster, never a file hash)"
   }
  ]
 }
