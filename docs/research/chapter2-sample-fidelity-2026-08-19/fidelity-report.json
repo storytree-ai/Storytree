@@ -1,0 +1,4030 @@
+{
+ "generatedBy": "scan_fidelity.py",
+ "producer": {
+  "tool": "scan_fidelity.py",
+  "sha256": "db6698be3b0ab8bb99a02a4ea6bddded4778980efdf2dc4d83806d745ea72439",
+  "basis": "source-bytes-with-CRLF-and-CR-normalised-to-LF"
+ },
+ "reads": "committed files only (git ls-files)",
+ "fidelityKeys": [
+  "samples",
+  "shadow_samples"
+ ],
+ "scanned": {
+  "renderDirectories": 56,
+  "renderDirectoriesDeclaringACodeState": 45,
+  "renderDirectoriesDeclaringAFidelity": 46,
+  "distinctCodeStates": 8,
+  "sidecars": 67,
+  "sidecarsCarryingFidelity": 0,
+  "inputRecords": 283
+ },
+ "attribution": {
+  "inferred-unique": 279,
+  "unknown": 4
+ },
+ "codeStates": [
+  {
+   "generator": "blender_decor.py",
+   "codeState": "c17798ecd1af8d38bd3e6fcdf5c1d02b7226d7ba5aef6e8760b90478ef4b8671",
+   "byFidelity": {
+    "samples=48": [
+     "docs/research/chapter2-island-place-dressing-2026-08-16/pieces-decor"
+    ]
+   },
+   "distinctFidelities": 1,
+   "split": false
+  },
+  {
+   "generator": "blender_grass.py",
+   "codeState": "3eb5515a738b652f260e895e81c90680c42b20061329bd09f15fa3d5fc9cb5e6",
+   "byFidelity": {
+    "samples=48": [
+     "docs/research/chapter2-grass-reads-as-signal-2026-08-16/pieces-m00-blade",
+     "docs/research/chapter2-grass-reads-as-signal-2026-08-16/pieces-m00-clump",
+     "docs/research/chapter2-grass-reads-as-signal-2026-08-16/pieces-m100-blade",
+     "docs/research/chapter2-grass-reads-as-signal-2026-08-16/pieces-m100-clump",
+     "docs/research/chapter2-grass-reads-as-signal-2026-08-16/pieces-m15-blade",
+     "docs/research/chapter2-grass-reads-as-signal-2026-08-16/pieces-m15-clump",
+     "docs/research/chapter2-grass-reads-as-signal-2026-08-16/pieces-m30-blade",
+     "docs/research/chapter2-grass-reads-as-signal-2026-08-16/pieces-m30-clump",
+     "docs/research/chapter2-grass-reads-as-signal-2026-08-16/pieces-m45-blade",
+     "docs/research/chapter2-grass-reads-as-signal-2026-08-16/pieces-m45-clump",
+     "docs/research/chapter2-grass-reads-as-signal-2026-08-16/pieces-m60-blade",
+     "docs/research/chapter2-grass-reads-as-signal-2026-08-16/pieces-m60-clump",
+     "docs/research/chapter2-grass-reads-as-signal-2026-08-16/pieces-m80-blade",
+     "docs/research/chapter2-grass-reads-as-signal-2026-08-16/pieces-m80-clump",
+     "docs/research/chapter2-scale-ladder-2026-08-18/pieces/pieces-decor-x1",
+     "docs/research/chapter2-scale-ladder-2026-08-18/pieces/pieces-decor-x2",
+     "docs/research/chapter2-scale-ladder-2026-08-18/pieces/pieces-decor-x4",
+     "docs/research/chapter2-scale-ladder-2026-08-18/pieces/pieces-decor-x8"
+    ]
+   },
+   "distinctFidelities": 1,
+   "split": false
+  },
+  {
+   "generator": "blender_greenery.py",
+   "codeState": "07d648b5c6ca6a59487c3e53bf455a71cea3f46a0e158289b42c8d661851676d",
+   "byFidelity": {
+    "samples=48": [
+     "docs/research/chapter2-greenery-techniques-2026-08-17/pieces-greenery"
+    ]
+   },
+   "distinctFidelities": 1,
+   "split": false
+  },
+  {
+   "generator": "blender_land.py",
+   "codeState": "15927bf56c77cd23bc4d41a7353a5890450aeabca02013a08051beb52613b007",
+   "byFidelity": {
+    "samples=48": [
+     "docs/research/chapter2-grass-reads-as-signal-2026-08-16/pieces-land",
+     "docs/research/chapter2-island-place-dressing-2026-08-16/pieces-land",
+     "docs/research/chapter2-scale-ladder-2026-08-18/pieces/pieces-land-x1",
+     "docs/research/chapter2-scale-ladder-2026-08-18/pieces/pieces-land-x2",
+     "docs/research/chapter2-scale-ladder-2026-08-18/pieces/pieces-land-x4",
+     "docs/research/chapter2-scale-ladder-2026-08-18/pieces/pieces-land-x8"
+    ]
+   },
+   "distinctFidelities": 1,
+   "split": false
+  },
+  {
+   "generator": "blender_land.py",
+   "codeState": "920755590a617a54cdb8ff1582885053aa778caed79fade584bf3aaf33204870",
+   "byFidelity": {
+    "samples=32": [
+     "docs/research/chapter2-land-interior-fork-2026-08-15/pieces",
+     "docs/research/chapter2-land-interior-fork-2026-08-15/sweep-a",
+     "docs/research/chapter2-land-interior-fork-2026-08-15/sweep-b"
+    ]
+   },
+   "distinctFidelities": 1,
+   "split": false
+  },
+  {
+   "generator": "blender_shrubs.py",
+   "codeState": "463aaec809e6732c4f0ba9da5984ed82ee2e93b65a47fd0207d5171078c472af",
+   "byFidelity": {
+    "samples=48": [
+     "docs/research/chapter2-shrub-species-2026-08-18/pieces-shrubs"
+    ]
+   },
+   "distinctFidelities": 1,
+   "split": false
+  },
+  {
+   "generator": "blender_species.py",
+   "codeState": "97189eb0d4d2cc24b5fd81712bf38bc08edcbefebf0e10fcb1f973b7097a12ab",
+   "byFidelity": {
+    "samples=48": [
+     "docs/research/chapter2-high-frequency-options-2026-08-17/pieces-species",
+     "docs/research/chapter2-scale-ladder-2026-08-18/pieces/pieces-species-x1",
+     "docs/research/chapter2-scale-ladder-2026-08-18/pieces/pieces-species-x2",
+     "docs/research/chapter2-scale-ladder-2026-08-18/pieces/pieces-species-x4",
+     "docs/research/chapter2-scale-ladder-2026-08-18/pieces/pieces-species-x8"
+    ]
+   },
+   "distinctFidelities": 1,
+   "split": false
+  },
+  {
+   "generator": "blender_tree.py",
+   "codeState": "76d66a997df734cf61f667310fec0b8e222639ce773d1f9875649d1f850eee80",
+   "byFidelity": {
+    "samples=72;shadow_samples=32": [
+     "docs/research/chapter2-camera-elevation-sweep-2026-08-15/tree-20/frames",
+     "docs/research/chapter2-camera-elevation-sweep-2026-08-15/tree-30/frames",
+     "docs/research/chapter2-camera-elevation-sweep-2026-08-15/tree-35p26/frames",
+     "docs/research/chapter2-camera-elevation-sweep-2026-08-15/tree-45/frames",
+     "docs/research/chapter2-camera-elevation-sweep-2026-08-15/tree-50/frames",
+     "docs/research/chapter2-camera-elevation-sweep-2026-08-15/tree-60/frames",
+     "docs/research/chapter2-scale-ladder-2026-08-18/pieces/tree-x1/frames",
+     "docs/research/chapter2-scale-ladder-2026-08-18/pieces/tree-x2/frames",
+     "docs/research/chapter2-scale-ladder-2026-08-18/pieces/tree-x4/frames",
+     "docs/research/chapter2-scale-ladder-2026-08-18/pieces/tree-x8/frames"
+    ]
+   },
+   "distinctFidelities": 1,
+   "split": false
+  }
+ ],
+ "splits": [],
+ "unrecoverableDirectories": [],
+ "renderDirectories": [
+  {
+   "dir": "docs/research/chapter2-camera-elevation-sweep-2026-08-15/tree-20/frames",
+   "declaredBy": "registration.json",
+   "generator": "blender_tree.py",
+   "codeState": "76d66a997df734cf61f667310fec0b8e222639ce773d1f9875649d1f850eee80",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 72,
+    "shadow_samples": 32
+   },
+   "fidelityKey": "samples=72;shadow_samples=32",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-camera-elevation-sweep-2026-08-15/tree-30/frames",
+   "declaredBy": "registration.json",
+   "generator": "blender_tree.py",
+   "codeState": "76d66a997df734cf61f667310fec0b8e222639ce773d1f9875649d1f850eee80",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 72,
+    "shadow_samples": 32
+   },
+   "fidelityKey": "samples=72;shadow_samples=32",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-camera-elevation-sweep-2026-08-15/tree-35p26/frames",
+   "declaredBy": "registration.json",
+   "generator": "blender_tree.py",
+   "codeState": "76d66a997df734cf61f667310fec0b8e222639ce773d1f9875649d1f850eee80",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 72,
+    "shadow_samples": 32
+   },
+   "fidelityKey": "samples=72;shadow_samples=32",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-camera-elevation-sweep-2026-08-15/tree-45/frames",
+   "declaredBy": "registration.json",
+   "generator": "blender_tree.py",
+   "codeState": "76d66a997df734cf61f667310fec0b8e222639ce773d1f9875649d1f850eee80",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 72,
+    "shadow_samples": 32
+   },
+   "fidelityKey": "samples=72;shadow_samples=32",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-camera-elevation-sweep-2026-08-15/tree-50/frames",
+   "declaredBy": "registration.json",
+   "generator": "blender_tree.py",
+   "codeState": "76d66a997df734cf61f667310fec0b8e222639ce773d1f9875649d1f850eee80",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 72,
+    "shadow_samples": 32
+   },
+   "fidelityKey": "samples=72;shadow_samples=32",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-camera-elevation-sweep-2026-08-15/tree-60/frames",
+   "declaredBy": "registration.json",
+   "generator": "blender_tree.py",
+   "codeState": "76d66a997df734cf61f667310fec0b8e222639ce773d1f9875649d1f850eee80",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 72,
+    "shadow_samples": 32
+   },
+   "fidelityKey": "samples=72;shadow_samples=32",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-code-only-art-2026-08-01/blender-hero-v1/frames",
+   "declaredBy": "registration.json",
+   "generator": null,
+   "codeState": null,
+   "codeStateUndeclared": "registration.json declares no codeState",
+   "fidelity": {
+    "samples": 72,
+    "shadow_samples": 32
+   },
+   "fidelityKey": "samples=72;shadow_samples=32",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-code-only-art-2026-08-01/code-lsystem-svg/frames",
+   "declaredBy": "registration.json",
+   "generator": null,
+   "codeState": null,
+   "codeStateUndeclared": "registration.json declares no codeState",
+   "fidelity": null,
+   "fidelityKey": null,
+   "fidelityUndeclared": "registration.json declares no render block"
+  },
+  {
+   "dir": "docs/research/chapter2-code-only-art-2026-08-01/code-pixel-rasteriser/frames",
+   "declaredBy": "registration.json",
+   "generator": null,
+   "codeState": null,
+   "codeStateUndeclared": "registration.json declares no codeState",
+   "fidelity": null,
+   "fidelityKey": null,
+   "fidelityUndeclared": "registration.json declares no render block"
+  },
+  {
+   "dir": "docs/research/chapter2-code-only-art-2026-08-01/code-sdf-volume/frames",
+   "declaredBy": "registration.json",
+   "generator": null,
+   "codeState": null,
+   "codeStateUndeclared": "registration.json declares no codeState",
+   "fidelity": null,
+   "fidelityKey": null,
+   "fidelityUndeclared": "registration.json declares no render block"
+  },
+  {
+   "dir": "docs/research/chapter2-code-only-art-2026-08-01/code-your-own-call/frames",
+   "declaredBy": "registration.json",
+   "generator": null,
+   "codeState": null,
+   "codeStateUndeclared": "registration.json declares no codeState",
+   "fidelity": null,
+   "fidelityKey": null,
+   "fidelityUndeclared": "registration.json declares no render block"
+  },
+  {
+   "dir": "docs/research/chapter2-grass-reads-as-signal-2026-08-16/pieces-land",
+   "declaredBy": "render-meta.json",
+   "generator": "blender_land.py",
+   "codeState": "15927bf56c77cd23bc4d41a7353a5890450aeabca02013a08051beb52613b007",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 48
+   },
+   "fidelityKey": "samples=48",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-grass-reads-as-signal-2026-08-16/pieces-m00-blade",
+   "declaredBy": "render-meta.json",
+   "generator": "blender_grass.py",
+   "codeState": "3eb5515a738b652f260e895e81c90680c42b20061329bd09f15fa3d5fc9cb5e6",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 48
+   },
+   "fidelityKey": "samples=48",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-grass-reads-as-signal-2026-08-16/pieces-m00-clump",
+   "declaredBy": "render-meta.json",
+   "generator": "blender_grass.py",
+   "codeState": "3eb5515a738b652f260e895e81c90680c42b20061329bd09f15fa3d5fc9cb5e6",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 48
+   },
+   "fidelityKey": "samples=48",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-grass-reads-as-signal-2026-08-16/pieces-m100-blade",
+   "declaredBy": "render-meta.json",
+   "generator": "blender_grass.py",
+   "codeState": "3eb5515a738b652f260e895e81c90680c42b20061329bd09f15fa3d5fc9cb5e6",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 48
+   },
+   "fidelityKey": "samples=48",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-grass-reads-as-signal-2026-08-16/pieces-m100-clump",
+   "declaredBy": "render-meta.json",
+   "generator": "blender_grass.py",
+   "codeState": "3eb5515a738b652f260e895e81c90680c42b20061329bd09f15fa3d5fc9cb5e6",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 48
+   },
+   "fidelityKey": "samples=48",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-grass-reads-as-signal-2026-08-16/pieces-m15-blade",
+   "declaredBy": "render-meta.json",
+   "generator": "blender_grass.py",
+   "codeState": "3eb5515a738b652f260e895e81c90680c42b20061329bd09f15fa3d5fc9cb5e6",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 48
+   },
+   "fidelityKey": "samples=48",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-grass-reads-as-signal-2026-08-16/pieces-m15-clump",
+   "declaredBy": "render-meta.json",
+   "generator": "blender_grass.py",
+   "codeState": "3eb5515a738b652f260e895e81c90680c42b20061329bd09f15fa3d5fc9cb5e6",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 48
+   },
+   "fidelityKey": "samples=48",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-grass-reads-as-signal-2026-08-16/pieces-m30-blade",
+   "declaredBy": "render-meta.json",
+   "generator": "blender_grass.py",
+   "codeState": "3eb5515a738b652f260e895e81c90680c42b20061329bd09f15fa3d5fc9cb5e6",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 48
+   },
+   "fidelityKey": "samples=48",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-grass-reads-as-signal-2026-08-16/pieces-m30-clump",
+   "declaredBy": "render-meta.json",
+   "generator": "blender_grass.py",
+   "codeState": "3eb5515a738b652f260e895e81c90680c42b20061329bd09f15fa3d5fc9cb5e6",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 48
+   },
+   "fidelityKey": "samples=48",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-grass-reads-as-signal-2026-08-16/pieces-m45-blade",
+   "declaredBy": "render-meta.json",
+   "generator": "blender_grass.py",
+   "codeState": "3eb5515a738b652f260e895e81c90680c42b20061329bd09f15fa3d5fc9cb5e6",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 48
+   },
+   "fidelityKey": "samples=48",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-grass-reads-as-signal-2026-08-16/pieces-m45-clump",
+   "declaredBy": "render-meta.json",
+   "generator": "blender_grass.py",
+   "codeState": "3eb5515a738b652f260e895e81c90680c42b20061329bd09f15fa3d5fc9cb5e6",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 48
+   },
+   "fidelityKey": "samples=48",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-grass-reads-as-signal-2026-08-16/pieces-m60-blade",
+   "declaredBy": "render-meta.json",
+   "generator": "blender_grass.py",
+   "codeState": "3eb5515a738b652f260e895e81c90680c42b20061329bd09f15fa3d5fc9cb5e6",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 48
+   },
+   "fidelityKey": "samples=48",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-grass-reads-as-signal-2026-08-16/pieces-m60-clump",
+   "declaredBy": "render-meta.json",
+   "generator": "blender_grass.py",
+   "codeState": "3eb5515a738b652f260e895e81c90680c42b20061329bd09f15fa3d5fc9cb5e6",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 48
+   },
+   "fidelityKey": "samples=48",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-grass-reads-as-signal-2026-08-16/pieces-m80-blade",
+   "declaredBy": "render-meta.json",
+   "generator": "blender_grass.py",
+   "codeState": "3eb5515a738b652f260e895e81c90680c42b20061329bd09f15fa3d5fc9cb5e6",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 48
+   },
+   "fidelityKey": "samples=48",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-grass-reads-as-signal-2026-08-16/pieces-m80-clump",
+   "declaredBy": "render-meta.json",
+   "generator": "blender_grass.py",
+   "codeState": "3eb5515a738b652f260e895e81c90680c42b20061329bd09f15fa3d5fc9cb5e6",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 48
+   },
+   "fidelityKey": "samples=48",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-greenery-techniques-2026-08-17/pieces-greenery",
+   "declaredBy": "render-meta.json",
+   "generator": "blender_greenery.py",
+   "codeState": "07d648b5c6ca6a59487c3e53bf455a71cea3f46a0e158289b42c8d661851676d",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 48
+   },
+   "fidelityKey": "samples=48",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-high-frequency-options-2026-08-17/pieces-species",
+   "declaredBy": "render-meta.json",
+   "generator": "blender_species.py",
+   "codeState": "97189eb0d4d2cc24b5fd81712bf38bc08edcbefebf0e10fcb1f973b7097a12ab",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 48
+   },
+   "fidelityKey": "samples=48",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-island-place-dressing-2026-08-16/pieces-decor",
+   "declaredBy": "render-meta.json",
+   "generator": "blender_decor.py",
+   "codeState": "c17798ecd1af8d38bd3e6fcdf5c1d02b7226d7ba5aef6e8760b90478ef4b8671",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 48
+   },
+   "fidelityKey": "samples=48",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-island-place-dressing-2026-08-16/pieces-land",
+   "declaredBy": "render-meta.json",
+   "generator": "blender_land.py",
+   "codeState": "15927bf56c77cd23bc4d41a7353a5890450aeabca02013a08051beb52613b007",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 48
+   },
+   "fidelityKey": "samples=48",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-land-interior-fork-2026-08-15/pieces",
+   "declaredBy": "render-meta.json",
+   "generator": "blender_land.py",
+   "codeState": "920755590a617a54cdb8ff1582885053aa778caed79fade584bf3aaf33204870",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 32
+   },
+   "fidelityKey": "samples=32",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-land-interior-fork-2026-08-15/sweep-a",
+   "declaredBy": "render-meta.json",
+   "generator": "blender_land.py",
+   "codeState": "920755590a617a54cdb8ff1582885053aa778caed79fade584bf3aaf33204870",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 32
+   },
+   "fidelityKey": "samples=32",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-land-interior-fork-2026-08-15/sweep-b",
+   "declaredBy": "render-meta.json",
+   "generator": "blender_land.py",
+   "codeState": "920755590a617a54cdb8ff1582885053aa778caed79fade584bf3aaf33204870",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 32
+   },
+   "fidelityKey": "samples=32",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-organic-round3-2026-08-01/exp-11-in-context-inpaint",
+   "declaredBy": "registration.json",
+   "generator": null,
+   "codeState": null,
+   "codeStateUndeclared": "registration.json declares no codeState",
+   "fidelity": null,
+   "fidelityKey": null,
+   "fidelityUndeclared": "registration.json declares no render block"
+  },
+  {
+   "dir": "docs/research/chapter2-organic-round3-2026-08-01/exp-12-chained-ladder",
+   "declaredBy": "registration.json",
+   "generator": null,
+   "codeState": null,
+   "codeStateUndeclared": "registration.json declares no codeState",
+   "fidelity": null,
+   "fidelityKey": null,
+   "fidelityUndeclared": "registration.json declares no render block"
+  },
+  {
+   "dir": "docs/research/chapter2-organic-round3-2026-08-01/exp-15-object-rig-v3",
+   "declaredBy": "registration.json",
+   "generator": null,
+   "codeState": null,
+   "codeStateUndeclared": "registration.json declares no codeState",
+   "fidelity": null,
+   "fidelityKey": null,
+   "fidelityUndeclared": "registration.json declares no render block"
+  },
+  {
+   "dir": "docs/research/chapter2-organic-round3-2026-08-01/exp-16-leader-repair/frames",
+   "declaredBy": "registration.json",
+   "generator": null,
+   "codeState": null,
+   "codeStateUndeclared": "registration.json declares no codeState",
+   "fidelity": null,
+   "fidelityKey": null,
+   "fidelityUndeclared": "registration.json declares no render block"
+  },
+  {
+   "dir": "docs/research/chapter2-organic-round3-2026-08-01/exp-17-reverse-ablation",
+   "declaredBy": "registration.json",
+   "generator": null,
+   "codeState": null,
+   "codeStateUndeclared": "registration.json declares no codeState",
+   "fidelity": null,
+   "fidelityKey": null,
+   "fidelityUndeclared": "registration.json declares no render block"
+  },
+  {
+   "dir": "docs/research/chapter2-organic-round3-2026-08-01/exp-18-topology-eroded-prior/work",
+   "declaredBy": "registration.json",
+   "generator": null,
+   "codeState": null,
+   "codeStateUndeclared": "registration.json declares no codeState",
+   "fidelity": null,
+   "fidelityKey": null,
+   "fidelityUndeclared": "registration.json declares no render block"
+  },
+  {
+   "dir": "docs/research/chapter2-scale-ladder-2026-08-18/pieces/pieces-decor-x1",
+   "declaredBy": "render-meta.json",
+   "generator": "blender_grass.py",
+   "codeState": "3eb5515a738b652f260e895e81c90680c42b20061329bd09f15fa3d5fc9cb5e6",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 48
+   },
+   "fidelityKey": "samples=48",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-scale-ladder-2026-08-18/pieces/pieces-decor-x2",
+   "declaredBy": "render-meta.json",
+   "generator": "blender_grass.py",
+   "codeState": "3eb5515a738b652f260e895e81c90680c42b20061329bd09f15fa3d5fc9cb5e6",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 48
+   },
+   "fidelityKey": "samples=48",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-scale-ladder-2026-08-18/pieces/pieces-decor-x4",
+   "declaredBy": "render-meta.json",
+   "generator": "blender_grass.py",
+   "codeState": "3eb5515a738b652f260e895e81c90680c42b20061329bd09f15fa3d5fc9cb5e6",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 48
+   },
+   "fidelityKey": "samples=48",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-scale-ladder-2026-08-18/pieces/pieces-decor-x8",
+   "declaredBy": "render-meta.json",
+   "generator": "blender_grass.py",
+   "codeState": "3eb5515a738b652f260e895e81c90680c42b20061329bd09f15fa3d5fc9cb5e6",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 48
+   },
+   "fidelityKey": "samples=48",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-scale-ladder-2026-08-18/pieces/pieces-land-x1",
+   "declaredBy": "render-meta.json",
+   "generator": "blender_land.py",
+   "codeState": "15927bf56c77cd23bc4d41a7353a5890450aeabca02013a08051beb52613b007",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 48
+   },
+   "fidelityKey": "samples=48",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-scale-ladder-2026-08-18/pieces/pieces-land-x2",
+   "declaredBy": "render-meta.json",
+   "generator": "blender_land.py",
+   "codeState": "15927bf56c77cd23bc4d41a7353a5890450aeabca02013a08051beb52613b007",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 48
+   },
+   "fidelityKey": "samples=48",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-scale-ladder-2026-08-18/pieces/pieces-land-x4",
+   "declaredBy": "render-meta.json",
+   "generator": "blender_land.py",
+   "codeState": "15927bf56c77cd23bc4d41a7353a5890450aeabca02013a08051beb52613b007",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 48
+   },
+   "fidelityKey": "samples=48",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-scale-ladder-2026-08-18/pieces/pieces-land-x8",
+   "declaredBy": "render-meta.json",
+   "generator": "blender_land.py",
+   "codeState": "15927bf56c77cd23bc4d41a7353a5890450aeabca02013a08051beb52613b007",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 48
+   },
+   "fidelityKey": "samples=48",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-scale-ladder-2026-08-18/pieces/pieces-species-x1",
+   "declaredBy": "render-meta.json",
+   "generator": "blender_species.py",
+   "codeState": "97189eb0d4d2cc24b5fd81712bf38bc08edcbefebf0e10fcb1f973b7097a12ab",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 48
+   },
+   "fidelityKey": "samples=48",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-scale-ladder-2026-08-18/pieces/pieces-species-x2",
+   "declaredBy": "render-meta.json",
+   "generator": "blender_species.py",
+   "codeState": "97189eb0d4d2cc24b5fd81712bf38bc08edcbefebf0e10fcb1f973b7097a12ab",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 48
+   },
+   "fidelityKey": "samples=48",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-scale-ladder-2026-08-18/pieces/pieces-species-x4",
+   "declaredBy": "render-meta.json",
+   "generator": "blender_species.py",
+   "codeState": "97189eb0d4d2cc24b5fd81712bf38bc08edcbefebf0e10fcb1f973b7097a12ab",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 48
+   },
+   "fidelityKey": "samples=48",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-scale-ladder-2026-08-18/pieces/pieces-species-x8",
+   "declaredBy": "render-meta.json",
+   "generator": "blender_species.py",
+   "codeState": "97189eb0d4d2cc24b5fd81712bf38bc08edcbefebf0e10fcb1f973b7097a12ab",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 48
+   },
+   "fidelityKey": "samples=48",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-scale-ladder-2026-08-18/pieces/tree-x1/frames",
+   "declaredBy": "registration.json",
+   "generator": "blender_tree.py",
+   "codeState": "76d66a997df734cf61f667310fec0b8e222639ce773d1f9875649d1f850eee80",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 72,
+    "shadow_samples": 32
+   },
+   "fidelityKey": "samples=72;shadow_samples=32",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-scale-ladder-2026-08-18/pieces/tree-x2/frames",
+   "declaredBy": "registration.json",
+   "generator": "blender_tree.py",
+   "codeState": "76d66a997df734cf61f667310fec0b8e222639ce773d1f9875649d1f850eee80",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 72,
+    "shadow_samples": 32
+   },
+   "fidelityKey": "samples=72;shadow_samples=32",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-scale-ladder-2026-08-18/pieces/tree-x4/frames",
+   "declaredBy": "registration.json",
+   "generator": "blender_tree.py",
+   "codeState": "76d66a997df734cf61f667310fec0b8e222639ce773d1f9875649d1f850eee80",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 72,
+    "shadow_samples": 32
+   },
+   "fidelityKey": "samples=72;shadow_samples=32",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-scale-ladder-2026-08-18/pieces/tree-x8/frames",
+   "declaredBy": "registration.json",
+   "generator": "blender_tree.py",
+   "codeState": "76d66a997df734cf61f667310fec0b8e222639ce773d1f9875649d1f850eee80",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 72,
+    "shadow_samples": 32
+   },
+   "fidelityKey": "samples=72;shadow_samples=32",
+   "fidelityUndeclared": null
+  },
+  {
+   "dir": "docs/research/chapter2-shrub-species-2026-08-18/pieces-shrubs",
+   "declaredBy": "render-meta.json",
+   "generator": "blender_shrubs.py",
+   "codeState": "463aaec809e6732c4f0ba9da5984ed82ee2e93b65a47fd0207d5171078c472af",
+   "codeStateUndeclared": null,
+   "fidelity": {
+    "samples": 48
+   },
+   "fidelityKey": "samples=48",
+   "fidelityUndeclared": null
+  }
+ ],
+ "sidecars": [
+  {
+   "sidecar": "docs/research/chapter2-camera-elevation-sweep-2026-08-15/camera-elevation-45-vs-50.png.provenance.json",
+   "pass": "chapter2-camera-elevation-sweep-2026-08-15",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 3,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-35p26",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-45",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-50",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-camera-elevation-sweep-2026-08-15/camera-elevation-sweep.png.provenance.json",
+   "pass": "chapter2-camera-elevation-sweep-2026-08-15",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 5,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-20",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-30",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-35p26",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-45",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-60",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-camera-elevation-sweep-2026-08-15/panel-20.png.provenance.json",
+   "pass": "chapter2-camera-elevation-sweep-2026-08-15",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 5,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-20",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-30",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-35p26",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-45",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-60",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-camera-elevation-sweep-2026-08-15/panel-30.png.provenance.json",
+   "pass": "chapter2-camera-elevation-sweep-2026-08-15",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 5,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-20",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-30",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-35p26",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-45",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-60",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-camera-elevation-sweep-2026-08-15/panel-35p26.png.provenance.json",
+   "pass": "chapter2-camera-elevation-sweep-2026-08-15",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 5,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-20",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-30",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-35p26",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-45",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-60",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-camera-elevation-sweep-2026-08-15/panel-45.png.provenance.json",
+   "pass": "chapter2-camera-elevation-sweep-2026-08-15",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 5,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-20",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-30",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-35p26",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-45",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-60",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-camera-elevation-sweep-2026-08-15/panel-50.png.provenance.json",
+   "pass": "chapter2-camera-elevation-sweep-2026-08-15",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 3,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-35p26",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-45",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-50",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-camera-elevation-sweep-2026-08-15/panel-60.png.provenance.json",
+   "pass": "chapter2-camera-elevation-sweep-2026-08-15",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 5,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-20",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-30",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-35p26",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-45",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-60",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-delivery-residual-2026-08-18/the-fourth-site.png.provenance.json",
+   "pass": "chapter2-delivery-residual-2026-08-18",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 2,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-decor",
+     "generator": "blender_decor.py",
+     "codeState": "c17798ecd1af",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-grass-defects-2026-08-16/what-the-grass-delivers.png.provenance.json",
+   "pass": "chapter2-grass-defects-2026-08-16",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 2,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-grass-defects-2026-08-16/where-the-black-is.png.provenance.json",
+   "pass": "chapter2-grass-defects-2026-08-16",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 2,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-grass-delivery-loss-2026-08-17/where-the-46-percent-went.png.provenance.json",
+   "pass": "chapter2-grass-delivery-loss-2026-08-17",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 2,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-grass-reads-as-signal-2026-08-16/base-treatment-fork.png.provenance.json",
+   "pass": "chapter2-grass-reads-as-signal-2026-08-16",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 15,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m15-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m30-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m45-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m60-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m80-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m100-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m15-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m30-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m45-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m60-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m80-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m100-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-grass-reads-as-signal-2026-08-16/grass-detail-6x.png.provenance.json",
+   "pass": "chapter2-grass-reads-as-signal-2026-08-16",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 15,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m15-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m30-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m45-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m60-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m80-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m100-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m15-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m30-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m45-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m60-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m80-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m100-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-grass-reads-as-signal-2026-08-16/grass-geometry-fork.png.provenance.json",
+   "pass": "chapter2-grass-reads-as-signal-2026-08-16",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 15,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m15-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m30-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m45-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m60-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m80-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m100-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m15-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m30-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m45-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m60-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m80-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m100-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-grass-reads-as-signal-2026-08-16/grass-normals-sweep.png.provenance.json",
+   "pass": "chapter2-grass-reads-as-signal-2026-08-16",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 15,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m15-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m30-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m45-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m60-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m80-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m100-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m15-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m30-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m45-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m60-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m80-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m100-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-grass-reads-as-signal-2026-08-16/grass-on-island.png.provenance.json",
+   "pass": "chapter2-grass-reads-as-signal-2026-08-16",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 15,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m15-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m30-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m45-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m60-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m80-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m100-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m15-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m30-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m45-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m60-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m80-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m100-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-grass-reads-as-signal-2026-08-16/signal-legibility.png.provenance.json",
+   "pass": "chapter2-grass-reads-as-signal-2026-08-16",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 15,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m15-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m30-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m45-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m60-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m80-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m100-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m15-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m30-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m45-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m60-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m80-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m100-clump",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-greenery-techniques-2026-08-17/greenery-techniques.png.provenance.json",
+   "pass": "chapter2-greenery-techniques-2026-08-17",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 0,
+   "inputsCarryingFidelity": 0,
+   "inputs": []
+  },
+  {
+   "sidecar": "docs/research/chapter2-healthy-island-2026-08-16/fixture-vs-real.png.provenance.json",
+   "pass": "chapter2-healthy-island-2026-08-16",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 2,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-healthy-island-2026-08-16/green-consistency.png.provenance.json",
+   "pass": "chapter2-healthy-island-2026-08-16",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 2,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-healthy-island-2026-08-16/healthy-island.png.provenance.json",
+   "pass": "chapter2-healthy-island-2026-08-16",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 2,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-healthy-island-2026-08-16/island-detail-6x.png.provenance.json",
+   "pass": "chapter2-healthy-island-2026-08-16",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 2,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-healthy-island-2026-08-16/seam-fork.png.provenance.json",
+   "pass": "chapter2-healthy-island-2026-08-16",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 2,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-hex-lines-and-flat-green-2026-08-16/green-reading.png.provenance.json",
+   "pass": "chapter2-hex-lines-and-flat-green-2026-08-16",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 2,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-hex-lines-and-flat-green-2026-08-16/line-detail-6x.png.provenance.json",
+   "pass": "chapter2-hex-lines-and-flat-green-2026-08-16",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 2,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-hex-lines-and-flat-green-2026-08-16/line-fork.png.provenance.json",
+   "pass": "chapter2-hex-lines-and-flat-green-2026-08-16",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 2,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-hex-lines-and-flat-green-2026-08-16/which-grid.png.provenance.json",
+   "pass": "chapter2-hex-lines-and-flat-green-2026-08-16",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 2,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-high-frequency-options-2026-08-17/count-fork.png.provenance.json",
+   "pass": "chapter2-high-frequency-options-2026-08-17",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 3,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-species",
+     "generator": "blender_species.py",
+     "codeState": "97189eb0d4d2",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-high-frequency-options-2026-08-17/high-frequency-detail-6x.png.provenance.json",
+   "pass": "chapter2-high-frequency-options-2026-08-17",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 3,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-species",
+     "generator": "blender_species.py",
+     "codeState": "97189eb0d4d2",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-high-frequency-options-2026-08-17/high-frequency-options.png.provenance.json",
+   "pass": "chapter2-high-frequency-options-2026-08-17",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 3,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-species",
+     "generator": "blender_species.py",
+     "codeState": "97189eb0d4d2",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-high-frequency-options-2026-08-17/relief-frequency-fork.png.provenance.json",
+   "pass": "chapter2-high-frequency-options-2026-08-17",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 3,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-species",
+     "generator": "blender_species.py",
+     "codeState": "97189eb0d4d2",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-high-frequency-options-2026-08-17/relief-survives-the-snap.png.provenance.json",
+   "pass": "chapter2-high-frequency-options-2026-08-17",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 3,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-species",
+     "generator": "blender_species.py",
+     "codeState": "97189eb0d4d2",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-island-place-dressing-2026-08-16/components.png.provenance.json",
+   "pass": "chapter2-island-place-dressing-2026-08-16",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 2,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-decor",
+     "generator": "blender_decor.py",
+     "codeState": "c17798ecd1af",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-island-place-dressing-2026-08-16/dressing-density.png.provenance.json",
+   "pass": "chapter2-island-place-dressing-2026-08-16",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 2,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-decor",
+     "generator": "blender_decor.py",
+     "codeState": "c17798ecd1af",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-island-place-dressing-2026-08-16/dressing-layers.png.provenance.json",
+   "pass": "chapter2-island-place-dressing-2026-08-16",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 2,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-decor",
+     "generator": "blender_decor.py",
+     "codeState": "c17798ecd1af",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-island-place-dressing-2026-08-16/island-bare.png.provenance.json",
+   "pass": "chapter2-island-place-dressing-2026-08-16",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 2,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-decor",
+     "generator": "blender_decor.py",
+     "codeState": "c17798ecd1af",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-island-place-dressing-2026-08-16/island-dressed-detail.png.provenance.json",
+   "pass": "chapter2-island-place-dressing-2026-08-16",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 2,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-decor",
+     "generator": "blender_decor.py",
+     "codeState": "c17798ecd1af",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-island-place-dressing-2026-08-16/island-dressed.png.provenance.json",
+   "pass": "chapter2-island-place-dressing-2026-08-16",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 2,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-decor",
+     "generator": "blender_decor.py",
+     "codeState": "c17798ecd1af",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-island-place-dressing-2026-08-16/island-meadow.png.provenance.json",
+   "pass": "chapter2-island-place-dressing-2026-08-16",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 2,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-decor",
+     "generator": "blender_decor.py",
+     "codeState": "c17798ecd1af",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-island-place-dressing-2026-08-16/status-vocabulary.png.provenance.json",
+   "pass": "chapter2-island-place-dressing-2026-08-16",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 2,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-decor",
+     "generator": "blender_decor.py",
+     "codeState": "c17798ecd1af",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-land-interior-fork-2026-08-15/a.png.provenance.json",
+   "pass": "chapter2-land-interior-fork-2026-08-15",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 1,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces",
+     "generator": "blender_land.py",
+     "codeState": "920755590a61",
+     "candidatesFromCorpus": [
+      "samples=32"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-land-interior-fork-2026-08-15/b.png.provenance.json",
+   "pass": "chapter2-land-interior-fork-2026-08-15",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 1,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces",
+     "generator": "blender_land.py",
+     "codeState": "920755590a61",
+     "candidatesFromCorpus": [
+      "samples=32"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-land-interior-fork-2026-08-15/bplus.png.provenance.json",
+   "pass": "chapter2-land-interior-fork-2026-08-15",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 1,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces",
+     "generator": "blender_land.py",
+     "codeState": "920755590a61",
+     "candidatesFromCorpus": [
+      "samples=32"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-land-interior-fork-2026-08-15/bplusplus.png.provenance.json",
+   "pass": "chapter2-land-interior-fork-2026-08-15",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 1,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces",
+     "generator": "blender_land.py",
+     "codeState": "920755590a61",
+     "candidatesFromCorpus": [
+      "samples=32"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-land-interior-fork-2026-08-15/chamfer-fairness.png.provenance.json",
+   "pass": "chapter2-land-interior-fork-2026-08-15",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 3,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "chamfer 1.7",
+     "generator": "blender_land.py",
+     "codeState": "920755590a61",
+     "candidatesFromCorpus": [
+      "samples=32"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "chamfer 3.4",
+     "generator": "blender_land.py",
+     "codeState": "920755590a61",
+     "candidatesFromCorpus": [
+      "samples=32"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "chamfer 5.5",
+     "generator": "blender_land.py",
+     "codeState": "920755590a61",
+     "candidatesFromCorpus": [
+      "samples=32"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-land-interior-fork-2026-08-15/interior-fork.png.provenance.json",
+   "pass": "chapter2-land-interior-fork-2026-08-15",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 1,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces",
+     "generator": "blender_land.py",
+     "codeState": "920755590a61",
+     "candidatesFromCorpus": [
+      "samples=32"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-one-surface-and-shadow-2026-08-17/confusability-depth.png.provenance.json",
+   "pass": "chapter2-one-surface-and-shadow-2026-08-17",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 2,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-one-surface-and-shadow-2026-08-17/one-surface-and-shadow.png.provenance.json",
+   "pass": "chapter2-one-surface-and-shadow-2026-08-17",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 2,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-one-surface-and-shadow-2026-08-17/shadow-detail-6x.png.provenance.json",
+   "pass": "chapter2-one-surface-and-shadow-2026-08-17",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 2,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-one-surface-and-shadow-2026-08-17/shadow-survives-the-snap.png.provenance.json",
+   "pass": "chapter2-one-surface-and-shadow-2026-08-17",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 2,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-one-surface-and-shadow-2026-08-17/three-moves.png.provenance.json",
+   "pass": "chapter2-one-surface-and-shadow-2026-08-17",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 2,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-palette-foreign-status-2026-08-18/island-read.png.provenance.json",
+   "pass": "chapter2-palette-foreign-status-2026-08-18",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 2,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-palette-foreign-status-2026-08-18/matched-condition.png.provenance.json",
+   "pass": "chapter2-palette-foreign-status-2026-08-18",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 2,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-palette-foreign-status-2026-08-18/the-inversion.png.provenance.json",
+   "pass": "chapter2-palette-foreign-status-2026-08-18",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 2,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-plant-dispersion-2026-08-17/plants-dispersed.png.provenance.json",
+   "pass": "chapter2-plant-dispersion-2026-08-17",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 4,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "island",
+     "generator": null,
+     "codeState": null,
+     "status": "unknown",
+     "why": "the record declares no code state"
+    },
+    {
+     "label": "count rules + original positioner",
+     "generator": null,
+     "codeState": null,
+     "status": "unknown",
+     "why": "the record declares no code state"
+    },
+    {
+     "label": "fixed positioner",
+     "generator": null,
+     "codeState": null,
+     "status": "unknown",
+     "why": "the record declares no code state"
+    },
+    {
+     "label": "instrument",
+     "generator": null,
+     "codeState": null,
+     "status": "unknown",
+     "why": "the record declares no code state"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-scale-ladder-2026-08-18/island-x1.png.provenance.json",
+   "pass": "chapter2-scale-ladder-2026-08-18",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 8,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land-x1",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-species-x1",
+     "generator": "blender_species.py",
+     "codeState": "97189eb0d4d2",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-land-x2",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-species-x2",
+     "generator": "blender_species.py",
+     "codeState": "97189eb0d4d2",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-land-x4",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-species-x4",
+     "generator": "blender_species.py",
+     "codeState": "97189eb0d4d2",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-land-x8",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-species-x8",
+     "generator": "blender_species.py",
+     "codeState": "97189eb0d4d2",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-scale-ladder-2026-08-18/island-x2.png.provenance.json",
+   "pass": "chapter2-scale-ladder-2026-08-18",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 8,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land-x1",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-species-x1",
+     "generator": "blender_species.py",
+     "codeState": "97189eb0d4d2",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-land-x2",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-species-x2",
+     "generator": "blender_species.py",
+     "codeState": "97189eb0d4d2",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-land-x4",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-species-x4",
+     "generator": "blender_species.py",
+     "codeState": "97189eb0d4d2",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-land-x8",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-species-x8",
+     "generator": "blender_species.py",
+     "codeState": "97189eb0d4d2",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-scale-ladder-2026-08-18/island-x4.png.provenance.json",
+   "pass": "chapter2-scale-ladder-2026-08-18",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 8,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land-x1",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-species-x1",
+     "generator": "blender_species.py",
+     "codeState": "97189eb0d4d2",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-land-x2",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-species-x2",
+     "generator": "blender_species.py",
+     "codeState": "97189eb0d4d2",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-land-x4",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-species-x4",
+     "generator": "blender_species.py",
+     "codeState": "97189eb0d4d2",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-land-x8",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-species-x8",
+     "generator": "blender_species.py",
+     "codeState": "97189eb0d4d2",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-scale-ladder-2026-08-18/island-x8.png.provenance.json",
+   "pass": "chapter2-scale-ladder-2026-08-18",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 8,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land-x1",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-species-x1",
+     "generator": "blender_species.py",
+     "codeState": "97189eb0d4d2",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-land-x2",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-species-x2",
+     "generator": "blender_species.py",
+     "codeState": "97189eb0d4d2",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-land-x4",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-species-x4",
+     "generator": "blender_species.py",
+     "codeState": "97189eb0d4d2",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-land-x8",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-species-x8",
+     "generator": "blender_species.py",
+     "codeState": "97189eb0d4d2",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-scale-ladder-2026-08-18/outline-probe.png.provenance.json",
+   "pass": "chapter2-scale-ladder-2026-08-18",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 8,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land-x1",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-species-x1",
+     "generator": "blender_species.py",
+     "codeState": "97189eb0d4d2",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-land-x2",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-species-x2",
+     "generator": "blender_species.py",
+     "codeState": "97189eb0d4d2",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-land-x4",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-species-x4",
+     "generator": "blender_species.py",
+     "codeState": "97189eb0d4d2",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-land-x8",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-species-x8",
+     "generator": "blender_species.py",
+     "codeState": "97189eb0d4d2",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-scale-ladder-2026-08-18/scale-ladder-detail.png.provenance.json",
+   "pass": "chapter2-scale-ladder-2026-08-18",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 8,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land-x1",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-species-x1",
+     "generator": "blender_species.py",
+     "codeState": "97189eb0d4d2",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-land-x2",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-species-x2",
+     "generator": "blender_species.py",
+     "codeState": "97189eb0d4d2",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-land-x4",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-species-x4",
+     "generator": "blender_species.py",
+     "codeState": "97189eb0d4d2",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-land-x8",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-species-x8",
+     "generator": "blender_species.py",
+     "codeState": "97189eb0d4d2",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-scale-ladder-2026-08-18/scale-ladder.png.provenance.json",
+   "pass": "chapter2-scale-ladder-2026-08-18",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 8,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land-x1",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-species-x1",
+     "generator": "blender_species.py",
+     "codeState": "97189eb0d4d2",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-land-x2",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-species-x2",
+     "generator": "blender_species.py",
+     "codeState": "97189eb0d4d2",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-land-x4",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-species-x4",
+     "generator": "blender_species.py",
+     "codeState": "97189eb0d4d2",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-land-x8",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-species-x8",
+     "generator": "blender_species.py",
+     "codeState": "97189eb0d4d2",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-shrub-species-2026-08-18/shrub-detail-6x.png.provenance.json",
+   "pass": "chapter2-shrub-species-2026-08-18",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 4,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-species",
+     "generator": "blender_species.py",
+     "codeState": "97189eb0d4d2",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-shrubs",
+     "generator": "blender_shrubs.py",
+     "codeState": "463aaec809e6",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-shrub-species-2026-08-18/shrub-species.png.provenance.json",
+   "pass": "chapter2-shrub-species-2026-08-18",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 4,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-species",
+     "generator": "blender_species.py",
+     "codeState": "97189eb0d4d2",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-shrubs",
+     "generator": "blender_shrubs.py",
+     "codeState": "463aaec809e6",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-shrub-species-2026-08-18/small-plant-set.png.provenance.json",
+   "pass": "chapter2-shrub-species-2026-08-18",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 4,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-species",
+     "generator": "blender_species.py",
+     "codeState": "97189eb0d4d2",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-shrubs",
+     "generator": "blender_shrubs.py",
+     "codeState": "463aaec809e6",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  },
+  {
+   "sidecar": "docs/research/chapter2-shrub-species-2026-08-18/test-count-channel.png.provenance.json",
+   "pass": "chapter2-shrub-species-2026-08-18",
+   "carriesFidelity": false,
+   "mixed": null,
+   "inputRecords": 4,
+   "inputsCarryingFidelity": 0,
+   "inputs": [
+    {
+     "label": "pieces-land",
+     "generator": "blender_land.py",
+     "codeState": "15927bf56c77",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-m00-blade",
+     "generator": "blender_grass.py",
+     "codeState": "3eb5515a738b",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-species",
+     "generator": "blender_species.py",
+     "codeState": "97189eb0d4d2",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    },
+    {
+     "label": "pieces-shrubs",
+     "generator": "blender_shrubs.py",
+     "codeState": "463aaec809e6",
+     "candidatesFromCorpus": [
+      "samples=48"
+     ],
+     "status": "inferred-unique"
+    }
+   ]
+  }
+ ]
+}
