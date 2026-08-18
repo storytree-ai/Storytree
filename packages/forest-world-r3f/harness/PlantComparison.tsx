@@ -357,6 +357,18 @@ export function PlantComparison() {
           a palette; each colour is <code>token &times; quantise(lambert)</code>, so a status can
           only ever deliver its own family.
         </p>
+        <p className="lede caveat">
+          <strong>Not all six of these reach a viewer, and saying so matters.</strong> The app&rsquo;s
+          own <code>worldStatus</code> fold sends <code>unhealthy</code>&rarr;<code>mapped</code>{' '}
+          (ADR-0296) and <code>building</code>&rarr;<code>proposed</code> (ADR-0038), so two of these
+          tokens are unreachable on a real island &mdash; the arc has already once over-counted a
+          palette problem by scoring all six as if the app could draw them. And{' '}
+          <code>unknown</code> is <em>not a schema status at all</em>: it is the null-status fallback
+          stamped when a capability has none, which is why it rendering as a healthy-looking green is
+          worth a look rather than a shrug &mdash; that is absence of information wearing the colour
+          of a signed pass. All six are drawn here because this panel is testing the SHADER, not
+          proposing a vocabulary.
+        </p>
         <div className="row ladder">
           {Object.keys(STATUS_TOKENS).map((status) => (
             <Panel

@@ -188,5 +188,10 @@ sleep — the pattern the desktop E2E harness already established.
 - `panel-detail-ladder.png` — geodesic subdivision 0→3 at a FIXED footprint. Triangles ×4 a rung while
   the plant stays the same size — precisely what the 1×/2×/4×/8× raster ladder could not do, since that
   one scaled the same authored geometry and so authored no new detail at any rung.
-- `panel-status-tokens.png` — every parcel status through one shader.
+- `panel-status-tokens.png` — every parcel status through one shader. ⚠ Carries its own caveat on
+  the page: `worldStatus` folds `unhealthy`→`mapped` (ADR-0296) and `building`→`proposed`
+  (ADR-0038), so two of the six are unreachable on a real island, and `unknown` is not a schema
+  status at all but the null-status fallback — which is why it rendering as a healthy-looking green
+  is worth a look. All six are drawn because the panel tests the SHADER, not a vocabulary. The arc
+  has already once over-counted a palette problem by scoring all six as if the app could draw them.
 - `capture-report.json` — the measured numbers, including the WebGL renderer string and per-panel counts.
