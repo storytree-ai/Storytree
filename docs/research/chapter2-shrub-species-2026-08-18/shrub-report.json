@@ -1,0 +1,1446 @@
+{
+ "dispersion": {
+  "label": "current budget, fixed positioner",
+  "placements": 171,
+  "corrUV": 0.0366,
+  "onDiagonalShare": 0.0468,
+  "closestPairGroundUnits": 1.772,
+  "medianNearestNeighbour": 8.845,
+  "shareWithNeighbourUnder4Units": 0.1988
+ },
+ "marks": {
+  "perSet": {
+   "blade": {
+    "tuft-3a": {
+     "species": "blade tuft",
+     "deliveredPx": 2,
+     "rawOpaqueSs": 26,
+     "survivalPct": 69.2,
+     "bboxW": 2,
+     "bboxH": 1,
+     "aspect": 2.0,
+     "fillRatio": 1.0,
+     "rows": [
+      "##"
+     ]
+    },
+    "tuft-2": {
+     "species": "blade tuft",
+     "deliveredPx": 2,
+     "rawOpaqueSs": 30,
+     "survivalPct": 60.0,
+     "bboxW": 2,
+     "bboxH": 1,
+     "aspect": 2.0,
+     "fillRatio": 1.0,
+     "rows": [
+      "##"
+     ]
+    },
+    "tuft-3b": {
+     "species": "blade tuft",
+     "deliveredPx": 3,
+     "rawOpaqueSs": 34,
+     "survivalPct": 79.4,
+     "bboxW": 2,
+     "bboxH": 2,
+     "aspect": 1.0,
+     "fillRatio": 0.75,
+     "rows": [
+      "#.",
+      "##"
+     ]
+    },
+    "tuft-4": {
+     "species": "blade tuft",
+     "deliveredPx": 2,
+     "rawOpaqueSs": 42,
+     "survivalPct": 42.9,
+     "bboxW": 2,
+     "bboxH": 1,
+     "aspect": 2.0,
+     "fillRatio": 1.0,
+     "rows": [
+      "##"
+     ]
+    },
+    "shrub-a": {
+     "species": "legacy clump shrub",
+     "deliveredPx": 12,
+     "rawOpaqueSs": 114,
+     "survivalPct": 94.7,
+     "bboxW": 6,
+     "bboxH": 3,
+     "aspect": 2.0,
+     "fillRatio": 0.67,
+     "rows": [
+      "######",
+      ".####.",
+      "..##.."
+     ]
+    },
+    "shrub-b": {
+     "species": "legacy clump shrub",
+     "deliveredPx": 11,
+     "rawOpaqueSs": 99,
+     "survivalPct": 100.0,
+     "bboxW": 5,
+     "bboxH": 3,
+     "aspect": 1.67,
+     "fillRatio": 0.73,
+     "rows": [
+      "#####",
+      "####.",
+      ".##.."
+     ]
+    }
+   },
+   "species": {
+    "tuft-3a": {
+     "species": "dome",
+     "deliveredPx": 18,
+     "rawOpaqueSs": 171,
+     "survivalPct": 94.7,
+     "bboxW": 6,
+     "bboxH": 4,
+     "aspect": 1.5,
+     "fillRatio": 0.75,
+     "rows": [
+      "..##..",
+      "######",
+      "######",
+      ".####."
+     ]
+    },
+    "tuft-2": {
+     "species": "spire",
+     "deliveredPx": 7,
+     "rawOpaqueSs": 65,
+     "survivalPct": 96.9,
+     "bboxW": 2,
+     "bboxH": 4,
+     "aspect": 0.5,
+     "fillRatio": 0.88,
+     "rows": [
+      "##",
+      "##",
+      "##",
+      ".#"
+     ]
+    },
+    "tuft-3b": {
+     "species": "spreader",
+     "deliveredPx": 20,
+     "rawOpaqueSs": 165,
+     "survivalPct": 109.1,
+     "bboxW": 8,
+     "bboxH": 3,
+     "aspect": 2.67,
+     "fillRatio": 0.83,
+     "rows": [
+      ".######.",
+      "########",
+      ".######."
+     ]
+    },
+    "tuft-4": {
+     "species": "pair",
+     "deliveredPx": 10,
+     "rawOpaqueSs": 78,
+     "survivalPct": 115.4,
+     "bboxW": 6,
+     "bboxH": 3,
+     "aspect": 2.0,
+     "fillRatio": 0.56,
+     "rows": [
+      ".#....",
+      "##..##",
+      "###.##"
+     ]
+    },
+    "shrub-a": {
+     "species": "legacy clump shrub",
+     "deliveredPx": 12,
+     "rawOpaqueSs": 114,
+     "survivalPct": 94.7,
+     "bboxW": 6,
+     "bboxH": 3,
+     "aspect": 2.0,
+     "fillRatio": 0.67,
+     "rows": [
+      "######",
+      ".####.",
+      "..##.."
+     ]
+    },
+    "shrub-b": {
+     "species": "legacy clump shrub",
+     "deliveredPx": 11,
+     "rawOpaqueSs": 99,
+     "survivalPct": 100.0,
+     "bboxW": 5,
+     "bboxH": 3,
+     "aspect": 1.67,
+     "fillRatio": 0.73,
+     "rows": [
+      "#####",
+      "####.",
+      ".##.."
+     ]
+    }
+   },
+   "shrubs": {
+    "tuft-3a": {
+     "species": "dome",
+     "deliveredPx": 18,
+     "rawOpaqueSs": 171,
+     "survivalPct": 94.7,
+     "bboxW": 6,
+     "bboxH": 4,
+     "aspect": 1.5,
+     "fillRatio": 0.75,
+     "rows": [
+      "..##..",
+      "######",
+      "######",
+      ".####."
+     ]
+    },
+    "tuft-2": {
+     "species": "spire",
+     "deliveredPx": 7,
+     "rawOpaqueSs": 65,
+     "survivalPct": 96.9,
+     "bboxW": 2,
+     "bboxH": 4,
+     "aspect": 0.5,
+     "fillRatio": 0.88,
+     "rows": [
+      "##",
+      "##",
+      "##",
+      ".#"
+     ]
+    },
+    "tuft-3b": {
+     "species": "spreader",
+     "deliveredPx": 20,
+     "rawOpaqueSs": 165,
+     "survivalPct": 109.1,
+     "bboxW": 8,
+     "bboxH": 3,
+     "aspect": 2.67,
+     "fillRatio": 0.83,
+     "rows": [
+      ".######.",
+      "########",
+      ".######."
+     ]
+    },
+    "tuft-4": {
+     "species": "pair",
+     "deliveredPx": 10,
+     "rawOpaqueSs": 78,
+     "survivalPct": 115.4,
+     "bboxW": 6,
+     "bboxH": 3,
+     "aspect": 2.0,
+     "fillRatio": 0.56,
+     "rows": [
+      ".#....",
+      "##..##",
+      "###.##"
+     ]
+    },
+    "shrub-a": {
+     "species": "cushion",
+     "deliveredPx": 8,
+     "rawOpaqueSs": 62,
+     "survivalPct": 116.1,
+     "bboxW": 4,
+     "bboxH": 3,
+     "aspect": 1.33,
+     "fillRatio": 0.67,
+     "rows": [
+      ".##.",
+      "####",
+      ".##."
+     ]
+    },
+    "shrub-b": {
+     "species": "frond",
+     "deliveredPx": 14,
+     "rawOpaqueSs": 130,
+     "survivalPct": 96.9,
+     "bboxW": 8,
+     "bboxH": 3,
+     "aspect": 2.67,
+     "fillRatio": 0.58,
+     "rows": [
+      "###..###",
+      ".##..##.",
+      "..####.."
+     ]
+    },
+    "shrub-alt-tier": {
+     "species": "tier (candidate)",
+     "deliveredPx": 8,
+     "rawOpaqueSs": 79,
+     "survivalPct": 91.1,
+     "bboxW": 4,
+     "bboxH": 3,
+     "aspect": 1.33,
+     "fillRatio": 0.67,
+     "rows": [
+      ".##.",
+      "####",
+      ".##."
+     ]
+    }
+   }
+  },
+  "spread": {
+   "blade": {
+    "species": 6,
+    "aspectMin": 1.0,
+    "aspectMax": 2.0,
+    "aspectSpread": 2.0,
+    "fillMin": 0.67,
+    "fillMax": 1.0,
+    "fillSpread": 1.49,
+    "deliveredPxMin": 2,
+    "deliveredPxMax": 12,
+    "deliveredPxMedian": 2,
+    "deliveredPxSpread": 6.0
+   },
+   "species": {
+    "species": 6,
+    "aspectMin": 0.5,
+    "aspectMax": 2.67,
+    "aspectSpread": 5.34,
+    "fillMin": 0.56,
+    "fillMax": 0.88,
+    "fillSpread": 1.57,
+    "deliveredPxMin": 7,
+    "deliveredPxMax": 20,
+    "deliveredPxMedian": 11,
+    "deliveredPxSpread": 2.86
+   },
+   "shrubs": {
+    "species": 6,
+    "aspectMin": 0.5,
+    "aspectMax": 2.67,
+    "aspectSpread": 5.34,
+    "fillMin": 0.56,
+    "fillMax": 0.88,
+    "fillSpread": 1.57,
+    "deliveredPxMin": 7,
+    "deliveredPxMax": 20,
+    "deliveredPxMedian": 12,
+    "deliveredPxSpread": 2.86
+   }
+  },
+  "separation": {
+   "blade": {
+    "minPairwiseSeparation": 0.0,
+    "closestPair": [
+     "tuft-3a",
+     "tuft-2"
+    ],
+    "closestPairSpecies": [
+     "blade tuft",
+     "blade tuft"
+    ],
+    "axes": "aspect, fill ratio, log delivered px \u2014 each normalised by the set's own range"
+   },
+   "species": {
+    "minPairwiseSeparation": 0.255,
+    "closestPair": [
+     "shrub-a",
+     "shrub-b"
+    ],
+    "closestPairSpecies": [
+     "legacy clump shrub",
+     "legacy clump shrub"
+    ],
+    "axes": "aspect, fill ratio, log delivered px \u2014 each normalised by the set's own range"
+   },
+   "shrubs": {
+    "minPairwiseSeparation": 0.449,
+    "closestPair": [
+     "tuft-4",
+     "shrub-b"
+    ],
+    "closestPairSpecies": [
+     "pair",
+     "frond"
+    ],
+    "axes": "aspect, fill ratio, log delivered px \u2014 each normalised by the set's own range"
+   }
+  },
+  "candidate": {
+   "species": "tier (candidate)",
+   "deliveredPx": 8,
+   "rawOpaqueSs": 79,
+   "survivalPct": 91.1,
+   "bboxW": 4,
+   "bboxH": 3,
+   "aspect": 1.33,
+   "fillRatio": 0.67,
+   "rows": [
+    ".##.",
+    "####",
+    ".##."
+   ]
+  },
+  "note": "The arc's 'median 3 delivered px' is the WITHDRAWN long grass measured IN SITU on diagonal-collapsed placements. The piece-level figures here are footprints measured off the committed PNGs; the in-situ re-measurement is under `delivery`.",
+  "survivalFloor": {
+   "floorPct": 85.0,
+   "appliesTo": "every mounted piece in `pieces-species` and `pieces-shrubs`",
+   "bladeSetExemptedBecause": "it is the set being WITHDRAWN and its collapse is the finding \u2014 the greenery survey measured the long-grass blade at 43-79% against 94-116% for every other piece on the arc",
+   "bladeSurvival": {
+    "tuft-3a": 69.2,
+    "tuft-2": 60.0,
+    "tuft-3b": 79.4,
+    "tuft-4": 42.9,
+    "shrub-a": 94.7,
+    "shrub-b": 100.0
+   }
+  }
+ },
+ "paletteCost": {
+  "entries": 132,
+  "identicalAcrossAllThreeSets": true,
+  "costOfTheSpeciesChangeInPaletteEntries": 0,
+  "why": "the new pieces declare the SAME roles (`crown` at 1.00 and 0.82, `under` at 1.00) resolved through the SAME `shrub` token family as the pieces they replace, so the (family x level) closure is unchanged"
+ },
+ "delivery": {
+  "blade": {
+   "placements": 171,
+   "zeroDelivery": 14,
+   "zeroDeliveryShare": 0.0819,
+   "medianDeliveredPxPerSurvivor": 3,
+   "meanDeliveredPxPerPlacement": 3.68,
+   "totalDeliveredPxAttributed": 629,
+   "fates": {
+    "delivered": 157,
+    "occluded": 3,
+    "outVoted": 11
+   },
+   "perPiece": {
+    "shrub-a": {
+     "n": 14,
+     "median": 12,
+     "zero": 0
+    },
+    "shrub-b": {
+     "n": 13,
+     "median": 11,
+     "zero": 1
+    },
+    "tuft-2": {
+     "n": 37,
+     "median": 3,
+     "zero": 4
+    },
+    "tuft-3a": {
+     "n": 38,
+     "median": 2,
+     "zero": 5
+    },
+    "tuft-3b": {
+     "n": 34,
+     "median": 3,
+     "zero": 0
+    },
+    "tuft-4": {
+     "n": 35,
+     "median": 3,
+     "zero": 4
+    }
+   }
+  },
+  "species": {
+   "placements": 171,
+   "zeroDelivery": 3,
+   "zeroDeliveryShare": 0.0175,
+   "medianDeliveredPxPerSurvivor": 8,
+   "meanDeliveredPxPerPlacement": 10.11,
+   "totalDeliveredPxAttributed": 1728,
+   "fates": {
+    "delivered": 168,
+    "occluded": 3
+   },
+   "perPiece": {
+    "shrub-a": {
+     "n": 14,
+     "median": 12,
+     "zero": 0
+    },
+    "shrub-b": {
+     "n": 13,
+     "median": 11,
+     "zero": 1
+    },
+    "tuft-2": {
+     "n": 37,
+     "median": 6,
+     "zero": 0
+    },
+    "tuft-3a": {
+     "n": 38,
+     "median": 17,
+     "zero": 1
+    },
+    "tuft-3b": {
+     "n": 34,
+     "median": 15,
+     "zero": 0
+    },
+    "tuft-4": {
+     "n": 35,
+     "median": 7,
+     "zero": 1
+    }
+   }
+  },
+  "shrubs": {
+   "placements": 171,
+   "zeroDelivery": 4,
+   "zeroDeliveryShare": 0.0234,
+   "medianDeliveredPxPerSurvivor": 8,
+   "meanDeliveredPxPerPlacement": 9.85,
+   "totalDeliveredPxAttributed": 1685,
+   "fates": {
+    "delivered": 167,
+    "outVoted": 2,
+    "occluded": 2
+   },
+   "perPiece": {
+    "shrub-a": {
+     "n": 14,
+     "median": 6,
+     "zero": 1
+    },
+    "shrub-b": {
+     "n": 13,
+     "median": 12,
+     "zero": 1
+    },
+    "tuft-2": {
+     "n": 37,
+     "median": 6,
+     "zero": 0
+    },
+    "tuft-3a": {
+     "n": 38,
+     "median": 17,
+     "zero": 1
+    },
+    "tuft-3b": {
+     "n": 34,
+     "median": 15,
+     "zero": 0
+    },
+    "tuft-4": {
+     "n": 35,
+     "median": 7,
+     "zero": 1
+    }
+   }
+  }
+ },
+ "vegetation": {
+  "authored": {
+   "tufts": 144,
+   "shrubs": 27,
+   "wilts": 0,
+   "flowers": 10,
+   "wellCulled": 0,
+   "meadowTotal": 171
+  },
+  "deliveredPx": {
+   "blade": 682,
+   "species": 1488,
+   "shrubs": 1446
+  },
+  "deliveredPxPerMark": {
+   "blade": 3.77,
+   "species": 8.22,
+   "shrubs": 7.99
+  }
+ },
+ "baselineIsRemeasured": {
+  "whatWasInherited": "nothing. The 'median 3 delivered px' figure was measured on the withdrawn long-grass blade AND on placements carrying the CRC32 diagonal collapse, and both have since been corrected.",
+  "thisPassMeasured": "the blade set, the #1389 species set and this pass's shrub set, all three on the CURRENT positioner (`scatter.py`, post-#1393) and the CURRENT compositor (post-#1387 painter order), on the real-corpus healthy island, at 48 Cycles samples, with the SAME placements.",
+  "quotedFromASibling": {
+   "17.2%": "the real-corpus zero-delivery residual after #1387 (chapter2-compositor-order-and-caps-2026-08-17) \u2014 this pass re-derives its own figure and reports both",
+   "+0.9997": "the unfixed sampler's corr(u,v), from chapter2-plant-dispersion-2026-08-17",
+   "988 / 2120 px": "#1389's vegetation totals, which were taken against DIFFERENT light fields for the two sets (shadow-only vs shadow+relief). This pass composes all three sets on ONE unlit surface, so its totals are comparable to each other and NOT to #1389's."
+  }
+ },
+ "testCountChannel": {
+  "rule": "grass = round(2 + tests*1.9); shrubs = round(tests/2.6). ADR-0226 D2, UNCHANGED.",
+  "storyTestSpread": {
+   "min": 4,
+   "max": 7,
+   "note": "the real story's contract counts, not a swept ladder. A 4-to-7 spread is narrow, so this island cannot reproduce the 3-to-30 density ladder measured elsewhere and does not claim to."
+  },
+  "rows": {
+   "blade": [
+    {
+     "cap": 0,
+     "tests": 4,
+     "cells": 39,
+     "areaGroundUnits": 5534.8,
+     "authoredMarks": 12,
+     "deliveredPx": 51,
+     "deliveredPxPerCell": 1.31,
+     "deliveredPxPer1000Area": 9.21,
+     "marksPerCell": 0.31,
+     "marksPer1000Area": 2.17
+    },
+    {
+     "cap": 2,
+     "tests": 4,
+     "cells": 11,
+     "areaGroundUnits": 1738.6,
+     "authoredMarks": 12,
+     "deliveredPx": 56,
+     "deliveredPxPerCell": 5.09,
+     "deliveredPxPer1000Area": 32.21,
+     "marksPerCell": 1.09,
+     "marksPer1000Area": 6.9
+    },
+    {
+     "cap": 1,
+     "tests": 5,
+     "cells": 17,
+     "areaGroundUnits": 2537.0,
+     "authoredMarks": 14,
+     "deliveredPx": 53,
+     "deliveredPxPerCell": 3.12,
+     "deliveredPxPer1000Area": 20.89,
+     "marksPerCell": 0.82,
+     "marksPer1000Area": 5.52
+    },
+    {
+     "cap": 3,
+     "tests": 5,
+     "cells": 2,
+     "areaGroundUnits": 329.0,
+     "authoredMarks": 14,
+     "deliveredPx": 39,
+     "deliveredPxPerCell": 19.5,
+     "deliveredPxPer1000Area": 118.53,
+     "marksPerCell": 7.0,
+     "marksPer1000Area": 42.55
+    },
+    {
+     "cap": 4,
+     "tests": 5,
+     "cells": 9,
+     "areaGroundUnits": 1375.3,
+     "authoredMarks": 14,
+     "deliveredPx": 38,
+     "deliveredPxPerCell": 4.22,
+     "deliveredPxPer1000Area": 27.63,
+     "marksPerCell": 1.56,
+     "marksPer1000Area": 10.18
+    },
+    {
+     "cap": 10,
+     "tests": 6,
+     "cells": 7,
+     "areaGroundUnits": 1084.6,
+     "authoredMarks": 15,
+     "deliveredPx": 27,
+     "deliveredPxPerCell": 3.86,
+     "deliveredPxPer1000Area": 24.89,
+     "marksPerCell": 2.14,
+     "marksPer1000Area": 13.83
+    },
+    {
+     "cap": 5,
+     "tests": 7,
+     "cells": 1,
+     "areaGroundUnits": 197.6,
+     "authoredMarks": 18,
+     "deliveredPx": 67,
+     "deliveredPxPerCell": 67.0,
+     "deliveredPxPer1000Area": 339.1,
+     "marksPerCell": 18.0,
+     "marksPer1000Area": 91.1
+    },
+    {
+     "cap": 6,
+     "tests": 7,
+     "cells": 21,
+     "areaGroundUnits": 3374.3,
+     "authoredMarks": 18,
+     "deliveredPx": 75,
+     "deliveredPxPerCell": 3.57,
+     "deliveredPxPer1000Area": 22.23,
+     "marksPerCell": 0.86,
+     "marksPer1000Area": 5.33
+    },
+    {
+     "cap": 7,
+     "tests": 7,
+     "cells": 10,
+     "areaGroundUnits": 1516.2,
+     "authoredMarks": 18,
+     "deliveredPx": 79,
+     "deliveredPxPerCell": 7.9,
+     "deliveredPxPer1000Area": 52.1,
+     "marksPerCell": 1.8,
+     "marksPer1000Area": 11.87
+    },
+    {
+     "cap": 8,
+     "tests": 7,
+     "cells": 25,
+     "areaGroundUnits": 4004.1,
+     "authoredMarks": 18,
+     "deliveredPx": 77,
+     "deliveredPxPerCell": 3.08,
+     "deliveredPxPer1000Area": 19.23,
+     "marksPerCell": 0.72,
+     "marksPer1000Area": 4.5
+    },
+    {
+     "cap": 9,
+     "tests": 7,
+     "cells": 20,
+     "areaGroundUnits": 2930.5,
+     "authoredMarks": 18,
+     "deliveredPx": 67,
+     "deliveredPxPerCell": 3.35,
+     "deliveredPxPer1000Area": 22.86,
+     "marksPerCell": 0.9,
+     "marksPer1000Area": 6.14
+    }
+   ],
+   "species": [
+    {
+     "cap": 0,
+     "tests": 4,
+     "cells": 39,
+     "areaGroundUnits": 5534.8,
+     "authoredMarks": 12,
+     "deliveredPx": 155,
+     "deliveredPxPerCell": 3.97,
+     "deliveredPxPer1000Area": 28.0,
+     "marksPerCell": 0.31,
+     "marksPer1000Area": 2.17
+    },
+    {
+     "cap": 2,
+     "tests": 4,
+     "cells": 11,
+     "areaGroundUnits": 1738.6,
+     "authoredMarks": 12,
+     "deliveredPx": 112,
+     "deliveredPxPerCell": 10.18,
+     "deliveredPxPer1000Area": 64.42,
+     "marksPerCell": 1.09,
+     "marksPer1000Area": 6.9
+    },
+    {
+     "cap": 1,
+     "tests": 5,
+     "cells": 17,
+     "areaGroundUnits": 2537.0,
+     "authoredMarks": 14,
+     "deliveredPx": 150,
+     "deliveredPxPerCell": 8.82,
+     "deliveredPxPer1000Area": 59.13,
+     "marksPerCell": 0.82,
+     "marksPer1000Area": 5.52
+    },
+    {
+     "cap": 3,
+     "tests": 5,
+     "cells": 2,
+     "areaGroundUnits": 329.0,
+     "authoredMarks": 14,
+     "deliveredPx": 131,
+     "deliveredPxPerCell": 65.5,
+     "deliveredPxPer1000Area": 398.15,
+     "marksPerCell": 7.0,
+     "marksPer1000Area": 42.55
+    },
+    {
+     "cap": 4,
+     "tests": 5,
+     "cells": 9,
+     "areaGroundUnits": 1375.3,
+     "authoredMarks": 14,
+     "deliveredPx": 169,
+     "deliveredPxPerCell": 18.78,
+     "deliveredPxPer1000Area": 122.88,
+     "marksPerCell": 1.56,
+     "marksPer1000Area": 10.18
+    },
+    {
+     "cap": 10,
+     "tests": 6,
+     "cells": 7,
+     "areaGroundUnits": 1084.6,
+     "authoredMarks": 15,
+     "deliveredPx": 88,
+     "deliveredPxPerCell": 12.57,
+     "deliveredPxPer1000Area": 81.13,
+     "marksPerCell": 2.14,
+     "marksPer1000Area": 13.83
+    },
+    {
+     "cap": 5,
+     "tests": 7,
+     "cells": 1,
+     "areaGroundUnits": 197.6,
+     "authoredMarks": 18,
+     "deliveredPx": 150,
+     "deliveredPxPerCell": 150.0,
+     "deliveredPxPer1000Area": 759.18,
+     "marksPerCell": 18.0,
+     "marksPer1000Area": 91.1
+    },
+    {
+     "cap": 6,
+     "tests": 7,
+     "cells": 21,
+     "areaGroundUnits": 3374.3,
+     "authoredMarks": 18,
+     "deliveredPx": 169,
+     "deliveredPxPerCell": 8.05,
+     "deliveredPxPer1000Area": 50.08,
+     "marksPerCell": 0.86,
+     "marksPer1000Area": 5.33
+    },
+    {
+     "cap": 7,
+     "tests": 7,
+     "cells": 10,
+     "areaGroundUnits": 1516.2,
+     "authoredMarks": 18,
+     "deliveredPx": 184,
+     "deliveredPxPerCell": 18.4,
+     "deliveredPxPer1000Area": 121.36,
+     "marksPerCell": 1.8,
+     "marksPer1000Area": 11.87
+    },
+    {
+     "cap": 8,
+     "tests": 7,
+     "cells": 25,
+     "areaGroundUnits": 4004.1,
+     "authoredMarks": 18,
+     "deliveredPx": 233,
+     "deliveredPxPerCell": 9.32,
+     "deliveredPxPer1000Area": 58.19,
+     "marksPerCell": 0.72,
+     "marksPer1000Area": 4.5
+    },
+    {
+     "cap": 9,
+     "tests": 7,
+     "cells": 20,
+     "areaGroundUnits": 2930.5,
+     "authoredMarks": 18,
+     "deliveredPx": 187,
+     "deliveredPxPerCell": 9.35,
+     "deliveredPxPer1000Area": 63.81,
+     "marksPerCell": 0.9,
+     "marksPer1000Area": 6.14
+    }
+   ],
+   "shrubs": [
+    {
+     "cap": 0,
+     "tests": 4,
+     "cells": 39,
+     "areaGroundUnits": 5534.8,
+     "authoredMarks": 12,
+     "deliveredPx": 143,
+     "deliveredPxPerCell": 3.67,
+     "deliveredPxPer1000Area": 25.84,
+     "marksPerCell": 0.31,
+     "marksPer1000Area": 2.17
+    },
+    {
+     "cap": 2,
+     "tests": 4,
+     "cells": 11,
+     "areaGroundUnits": 1738.6,
+     "authoredMarks": 12,
+     "deliveredPx": 101,
+     "deliveredPxPerCell": 9.18,
+     "deliveredPxPer1000Area": 58.09,
+     "marksPerCell": 1.09,
+     "marksPer1000Area": 6.9
+    },
+    {
+     "cap": 1,
+     "tests": 5,
+     "cells": 17,
+     "areaGroundUnits": 2537.0,
+     "authoredMarks": 14,
+     "deliveredPx": 136,
+     "deliveredPxPerCell": 8.0,
+     "deliveredPxPer1000Area": 53.61,
+     "marksPerCell": 0.82,
+     "marksPer1000Area": 5.52
+    },
+    {
+     "cap": 3,
+     "tests": 5,
+     "cells": 2,
+     "areaGroundUnits": 329.0,
+     "authoredMarks": 14,
+     "deliveredPx": 125,
+     "deliveredPxPerCell": 62.5,
+     "deliveredPxPer1000Area": 379.91,
+     "marksPerCell": 7.0,
+     "marksPer1000Area": 42.55
+    },
+    {
+     "cap": 4,
+     "tests": 5,
+     "cells": 9,
+     "areaGroundUnits": 1375.3,
+     "authoredMarks": 14,
+     "deliveredPx": 177,
+     "deliveredPxPerCell": 19.67,
+     "deliveredPxPer1000Area": 128.7,
+     "marksPerCell": 1.56,
+     "marksPer1000Area": 10.18
+    },
+    {
+     "cap": 10,
+     "tests": 6,
+     "cells": 7,
+     "areaGroundUnits": 1084.6,
+     "authoredMarks": 15,
+     "deliveredPx": 92,
+     "deliveredPxPerCell": 13.14,
+     "deliveredPxPer1000Area": 84.82,
+     "marksPerCell": 2.14,
+     "marksPer1000Area": 13.83
+    },
+    {
+     "cap": 5,
+     "tests": 7,
+     "cells": 1,
+     "areaGroundUnits": 197.6,
+     "authoredMarks": 18,
+     "deliveredPx": 156,
+     "deliveredPxPerCell": 156.0,
+     "deliveredPxPer1000Area": 789.55,
+     "marksPerCell": 18.0,
+     "marksPer1000Area": 91.1
+    },
+    {
+     "cap": 6,
+     "tests": 7,
+     "cells": 21,
+     "areaGroundUnits": 3374.3,
+     "authoredMarks": 18,
+     "deliveredPx": 179,
+     "deliveredPxPerCell": 8.52,
+     "deliveredPxPer1000Area": 53.05,
+     "marksPerCell": 0.86,
+     "marksPer1000Area": 5.33
+    },
+    {
+     "cap": 7,
+     "tests": 7,
+     "cells": 10,
+     "areaGroundUnits": 1516.2,
+     "authoredMarks": 18,
+     "deliveredPx": 187,
+     "deliveredPxPerCell": 18.7,
+     "deliveredPxPer1000Area": 123.33,
+     "marksPerCell": 1.8,
+     "marksPer1000Area": 11.87
+    },
+    {
+     "cap": 8,
+     "tests": 7,
+     "cells": 25,
+     "areaGroundUnits": 4004.1,
+     "authoredMarks": 18,
+     "deliveredPx": 216,
+     "deliveredPxPerCell": 8.64,
+     "deliveredPxPer1000Area": 53.94,
+     "marksPerCell": 0.72,
+     "marksPer1000Area": 4.5
+    },
+    {
+     "cap": 9,
+     "tests": 7,
+     "cells": 20,
+     "areaGroundUnits": 2930.5,
+     "authoredMarks": 18,
+     "deliveredPx": 173,
+     "deliveredPxPerCell": 8.65,
+     "deliveredPxPer1000Area": 59.03,
+     "marksPerCell": 0.9,
+     "marksPer1000Area": 6.14
+    }
+   ]
+  },
+  "authoredMarksMonotonicInTests": {
+   "breaks": [],
+   "why": "monotone BY CONSTRUCTION \u2014 `2 + tests*1.9` has no term but tests"
+  },
+  "deliveredPxMonotonicInTests": {
+   "blade": [
+    {
+     "moreTestedCap": 3,
+     "tests": 5,
+     "gets": 39,
+     "lessTestedCap": 0,
+     "itsTests": 4,
+     "itGets": 51
+    },
+    {
+     "moreTestedCap": 4,
+     "tests": 5,
+     "gets": 38,
+     "lessTestedCap": 0,
+     "itsTests": 4,
+     "itGets": 51
+    },
+    {
+     "moreTestedCap": 10,
+     "tests": 6,
+     "gets": 27,
+     "lessTestedCap": 0,
+     "itsTests": 4,
+     "itGets": 51
+    },
+    {
+     "moreTestedCap": 1,
+     "tests": 5,
+     "gets": 53,
+     "lessTestedCap": 2,
+     "itsTests": 4,
+     "itGets": 56
+    },
+    {
+     "moreTestedCap": 3,
+     "tests": 5,
+     "gets": 39,
+     "lessTestedCap": 2,
+     "itsTests": 4,
+     "itGets": 56
+    },
+    {
+     "moreTestedCap": 4,
+     "tests": 5,
+     "gets": 38,
+     "lessTestedCap": 2,
+     "itsTests": 4,
+     "itGets": 56
+    },
+    {
+     "moreTestedCap": 10,
+     "tests": 6,
+     "gets": 27,
+     "lessTestedCap": 2,
+     "itsTests": 4,
+     "itGets": 56
+    },
+    {
+     "moreTestedCap": 10,
+     "tests": 6,
+     "gets": 27,
+     "lessTestedCap": 1,
+     "itsTests": 5,
+     "itGets": 53
+    },
+    {
+     "moreTestedCap": 10,
+     "tests": 6,
+     "gets": 27,
+     "lessTestedCap": 3,
+     "itsTests": 5,
+     "itGets": 39
+    },
+    {
+     "moreTestedCap": 10,
+     "tests": 6,
+     "gets": 27,
+     "lessTestedCap": 4,
+     "itsTests": 5,
+     "itGets": 38
+    }
+   ],
+   "species": [
+    {
+     "moreTestedCap": 1,
+     "tests": 5,
+     "gets": 150,
+     "lessTestedCap": 0,
+     "itsTests": 4,
+     "itGets": 155
+    },
+    {
+     "moreTestedCap": 3,
+     "tests": 5,
+     "gets": 131,
+     "lessTestedCap": 0,
+     "itsTests": 4,
+     "itGets": 155
+    },
+    {
+     "moreTestedCap": 10,
+     "tests": 6,
+     "gets": 88,
+     "lessTestedCap": 0,
+     "itsTests": 4,
+     "itGets": 155
+    },
+    {
+     "moreTestedCap": 5,
+     "tests": 7,
+     "gets": 150,
+     "lessTestedCap": 0,
+     "itsTests": 4,
+     "itGets": 155
+    },
+    {
+     "moreTestedCap": 10,
+     "tests": 6,
+     "gets": 88,
+     "lessTestedCap": 2,
+     "itsTests": 4,
+     "itGets": 112
+    },
+    {
+     "moreTestedCap": 10,
+     "tests": 6,
+     "gets": 88,
+     "lessTestedCap": 1,
+     "itsTests": 5,
+     "itGets": 150
+    },
+    {
+     "moreTestedCap": 10,
+     "tests": 6,
+     "gets": 88,
+     "lessTestedCap": 3,
+     "itsTests": 5,
+     "itGets": 131
+    },
+    {
+     "moreTestedCap": 10,
+     "tests": 6,
+     "gets": 88,
+     "lessTestedCap": 4,
+     "itsTests": 5,
+     "itGets": 169
+    },
+    {
+     "moreTestedCap": 5,
+     "tests": 7,
+     "gets": 150,
+     "lessTestedCap": 4,
+     "itsTests": 5,
+     "itGets": 169
+    }
+   ],
+   "shrubs": [
+    {
+     "moreTestedCap": 1,
+     "tests": 5,
+     "gets": 136,
+     "lessTestedCap": 0,
+     "itsTests": 4,
+     "itGets": 143
+    },
+    {
+     "moreTestedCap": 3,
+     "tests": 5,
+     "gets": 125,
+     "lessTestedCap": 0,
+     "itsTests": 4,
+     "itGets": 143
+    },
+    {
+     "moreTestedCap": 10,
+     "tests": 6,
+     "gets": 92,
+     "lessTestedCap": 0,
+     "itsTests": 4,
+     "itGets": 143
+    },
+    {
+     "moreTestedCap": 10,
+     "tests": 6,
+     "gets": 92,
+     "lessTestedCap": 2,
+     "itsTests": 4,
+     "itGets": 101
+    },
+    {
+     "moreTestedCap": 10,
+     "tests": 6,
+     "gets": 92,
+     "lessTestedCap": 1,
+     "itsTests": 5,
+     "itGets": 136
+    },
+    {
+     "moreTestedCap": 10,
+     "tests": 6,
+     "gets": 92,
+     "lessTestedCap": 3,
+     "itsTests": 5,
+     "itGets": 125
+    },
+    {
+     "moreTestedCap": 10,
+     "tests": 6,
+     "gets": 92,
+     "lessTestedCap": 4,
+     "itsTests": 5,
+     "itGets": 177
+    },
+    {
+     "moreTestedCap": 5,
+     "tests": 7,
+     "gets": 156,
+     "lessTestedCap": 4,
+     "itsTests": 5,
+     "itGets": 177
+    },
+    {
+     "moreTestedCap": 9,
+     "tests": 7,
+     "gets": 173,
+     "lessTestedCap": 4,
+     "itsTests": 5,
+     "itGets": 177
+    }
+   ]
+  },
+  "adjacentParcelRead": {
+   "blade": {
+    "lowestTests": 4,
+    "lowestPxPerCell": 1.31,
+    "highestTests": 7,
+    "highestPxPerCell": 3.35,
+    "ratio": 2.56,
+    "lowestPxPer1000Area": 9.21,
+    "highestPxPer1000Area": 22.86,
+    "ratioByArea": 2.48,
+    "testRatio": 1.75
+   },
+   "species": {
+    "lowestTests": 4,
+    "lowestPxPerCell": 3.97,
+    "highestTests": 7,
+    "highestPxPerCell": 9.35,
+    "ratio": 2.36,
+    "lowestPxPer1000Area": 28.0,
+    "highestPxPer1000Area": 63.81,
+    "ratioByArea": 2.28,
+    "testRatio": 1.75
+   },
+   "shrubs": {
+    "lowestTests": 4,
+    "lowestPxPerCell": 3.67,
+    "highestTests": 7,
+    "highestPxPerCell": 8.65,
+    "ratio": 2.36,
+    "lowestPxPer1000Area": 25.84,
+    "highestPxPer1000Area": 59.03,
+    "ratioByArea": 2.28,
+    "testRatio": 1.75
+   }
+  }
+ },
+ "countRuleOverload": {
+  "rows": [
+   {
+    "cap": 0,
+    "tests": 4,
+    "areaGroundUnits": 5534.8,
+    "capacityAtShrubFootprint": 399.4,
+    "authoredMarks": 12,
+    "overloadRatio": 0.03
+   },
+   {
+    "cap": 2,
+    "tests": 4,
+    "areaGroundUnits": 1738.6,
+    "capacityAtShrubFootprint": 125.5,
+    "authoredMarks": 12,
+    "overloadRatio": 0.096
+   },
+   {
+    "cap": 1,
+    "tests": 5,
+    "areaGroundUnits": 2537.0,
+    "capacityAtShrubFootprint": 183.1,
+    "authoredMarks": 14,
+    "overloadRatio": 0.076
+   },
+   {
+    "cap": 3,
+    "tests": 5,
+    "areaGroundUnits": 329.0,
+    "capacityAtShrubFootprint": 23.7,
+    "authoredMarks": 14,
+    "overloadRatio": 0.59
+   },
+   {
+    "cap": 4,
+    "tests": 5,
+    "areaGroundUnits": 1375.3,
+    "capacityAtShrubFootprint": 99.3,
+    "authoredMarks": 14,
+    "overloadRatio": 0.141
+   },
+   {
+    "cap": 10,
+    "tests": 6,
+    "areaGroundUnits": 1084.6,
+    "capacityAtShrubFootprint": 78.3,
+    "authoredMarks": 15,
+    "overloadRatio": 0.192
+   },
+   {
+    "cap": 5,
+    "tests": 7,
+    "areaGroundUnits": 197.6,
+    "capacityAtShrubFootprint": 14.3,
+    "authoredMarks": 18,
+    "overloadRatio": 1.262
+   },
+   {
+    "cap": 6,
+    "tests": 7,
+    "areaGroundUnits": 3374.3,
+    "capacityAtShrubFootprint": 243.5,
+    "authoredMarks": 18,
+    "overloadRatio": 0.074
+   },
+   {
+    "cap": 7,
+    "tests": 7,
+    "areaGroundUnits": 1516.2,
+    "capacityAtShrubFootprint": 109.4,
+    "authoredMarks": 18,
+    "overloadRatio": 0.164
+   },
+   {
+    "cap": 8,
+    "tests": 7,
+    "areaGroundUnits": 4004.1,
+    "capacityAtShrubFootprint": 289.0,
+    "authoredMarks": 18,
+    "overloadRatio": 0.062
+   },
+   {
+    "cap": 9,
+    "tests": 7,
+    "areaGroundUnits": 2930.5,
+    "capacityAtShrubFootprint": 211.5,
+    "authoredMarks": 18,
+    "overloadRatio": 0.085
+   }
+  ],
+  "overloaded": [
+   5
+  ],
+  "THIS_IS_SHOWN_NOT_DECIDED": "`2 + tests*1.9` has NO area term: across this arc's measurements corr(log owned-area, density) is -0.93 over a 29.5x area spread. Shrubs inheriting the rule INHERIT the overload. The area-aware variant was rendered in #1389 and introduces FOUR monotonicity breaks against the current rule's zero \u2014 a reader would then read the test counts in the WRONG ORDER. That is an ADR-0226 D2 semantic change and is the OWNER's, not this pass's."
+ },
+ "interpenetration": {
+  "blade": {
+   "plants": 171,
+   "overlappingPairs": 21,
+   "plantsInAtLeastOneOverlap": 28,
+   "shareOfPlantsOverlapping": 0.1637,
+   "overlappingSupersampledPx": 130,
+   "overlapAsShareOfTotalFootprint": 0.0171,
+   "worstPair": {
+    "px": 23,
+    "a": "tuft-3b",
+    "b": "shrub-b"
+   },
+   "medianFootprintSs": 34
+  },
+  "species": {
+   "plants": 171,
+   "overlappingPairs": 58,
+   "plantsInAtLeastOneOverlap": 44,
+   "shareOfPlantsOverlapping": 0.2573,
+   "overlappingSupersampledPx": 910,
+   "overlapAsShareOfTotalFootprint": 0.0452,
+   "worstPair": {
+    "px": 57,
+    "a": "tuft-3a",
+    "b": "tuft-4"
+   },
+   "medianFootprintSs": 114
+  },
+  "shrubs": {
+   "plants": 171,
+   "overlappingPairs": 59,
+   "plantsInAtLeastOneOverlap": 42,
+   "shareOfPlantsOverlapping": 0.2456,
+   "overlappingSupersampledPx": 945,
+   "overlapAsShareOfTotalFootprint": 0.0477,
+   "worstPair": {
+    "px": 57,
+    "a": "tuft-3a",
+    "b": "tuft-4"
+   },
+   "medianFootprintSs": 78
+  }
+ },
+ "determinism": {
+  "rule": "asserted on the DECODED raster. A Blender PNG's CONTAINER differs on every re-render, so a file hash reports drift that is not there \u2014 measured live on this arc at 0 of 22 files byte-identical across two pixel-identical runs.",
+  "deliveredRasterIdentical": true,
+  "solidMaskIdentical": true
+ },
+ "detailCrop": {
+  "y": 246,
+  "x": 120,
+  "w": 92,
+  "h": 62,
+  "zoom": 6,
+  "vegetationPxInWindow": 635,
+  "treePxInWindow": 0,
+  "treeMaskPx": 9198,
+  "vegetationMaskPx": 1446,
+  "rule": "the window with NO tree pixel holding the most delivered vegetation"
+ },
+ "fence": {
+  "diffScope": "docs/research/** only",
+  "cameraElevationDeg": 50.0,
+  "appLandCameraElevationDeg": 20,
+  "appLandCameraTouched": false,
+  "blenderRendersThisPass": 3,
+  "samples": 48,
+  "vendorsNoCompositor": "`compose_healthy.py` is imported whole with its writes sent to scratch; no compositor is copied into this directory",
+  "vendorsNoScatter": "the positioner is `scatter.py` reached through `disperse.scatter_dispersed`, which IS `scatter.scatter_island`",
+  "vendorsNoAttribution": "`attribute.py` and `delivery.py` are imported from the passes that own them",
+  "generatorsNotEdited": [
+   "blender_species.py",
+   "blender_grass.py"
+  ]
+ },
+ "inputs": {
+  "island": "docs/research/chapter2-healthy-island-2026-08-16/island.json",
+  "storyId": "context-traversal-capture",
+  "sets": {
+   "blade": "docs/research/chapter2-grass-reads-as-signal-2026-08-16/pieces-m00-blade",
+   "species": "docs/research/chapter2-high-frequency-options-2026-08-17/pieces-species",
+   "shrubs": "docs/research/chapter2-shrub-species-2026-08-18/pieces-shrubs"
+  }
+ }
+}

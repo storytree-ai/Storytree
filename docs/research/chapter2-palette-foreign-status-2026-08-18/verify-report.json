@@ -1,0 +1,243 @@
+{
+ "passed": 59,
+ "of": 59,
+ "fast": false,
+ "checks": [
+  {
+   "ok": true,
+   "name": "every path this branch touches is under docs/research/**"
+  },
+  {
+   "ok": true,
+   "name": "`substrate.ts` is READ and NOT edited \u2014 the diagnosed cause stays in the app (owner fence)"
+  },
+  {
+   "ok": true,
+   "name": "`apps/studio/src/index.css` is READ and NOT edited"
+  },
+  {
+   "ok": true,
+   "name": "LAND_CAMERA_ELEVATION_DEG is still 20 \u2014 no camera moved here"
+  },
+  {
+   "ok": true,
+   "name": "this pass declares NO token table of its own"
+  },
+  {
+   "ok": true,
+   "name": "this pass declares NO palette builder, snap, or shade table of its own"
+  },
+  {
+   "ok": true,
+   "name": "the tokens come from the interior fork's `compose.py` BY PATH, not by re-declaration"
+  },
+  {
+   "ok": true,
+   "name": "the rendered vocabulary comes from `island_pass.py`, not from a local list"
+  },
+  {
+   "ok": true,
+   "name": "the ceiling comes from `shadow.safe_depth`, imported \u2014 not a second implementation"
+  },
+  {
+   "ok": true,
+   "name": "this pass adds NO compositor \u2014 it mounts `compose_healthy.py` whole"
+  },
+  {
+   "ok": true,
+   "name": "row A REPRODUCES PR #1385's own count exactly (21 of 78) \u2014 same instrument, not a new one"
+  },
+  {
+   "ok": true,
+   "name": "the count SHRINKS as the reader is corrected, and every row is non-zero"
+  },
+  {
+   "ok": true,
+   "name": "the FILL-ONLY rate is HIGHER than the all-faces rate \u2014 the narrower table is not the more forgiving one, correcting PR #1385's own wording"
+  },
+  {
+   "ok": true,
+   "name": "a THIRD of the shipped count names a token pair the app can never draw"
+  },
+  {
+   "ok": true,
+   "name": "`unhealthy` and `building` really are outside the rendered vocabulary (ADR-0296 / ADR-0038), re-read from worldStatus.ts rather than trusted"
+  },
+  {
+   "ok": true,
+   "name": "the SYMMETRIC reader \u2014 a second, independent removal of the same objection \u2014 agrees the defect is real"
+  },
+  {
+   "ok": true,
+   "name": "the shipped fills FAIL the matched-condition rule"
+  },
+  {
+   "ok": true,
+   "name": "the failing pair is `healthy` beside `unknown`"
+  },
+  {
+   "ok": true,
+   "name": "the bar is DERIVED from the shade table, and re-derives to the same value now"
+  },
+  {
+   "ok": true,
+   "name": "the gap is smaller than the bar by more than 4x \u2014 not a marginal call"
+  },
+  {
+   "ok": true,
+   "name": "THE INVERSION: the meaningless texture step is LARGER than the meaningful status gap"
+  },
+  {
+   "ok": true,
+   "name": "EVERY other rendered pair clears the bar as shipped \u2014 the defect is ONE pair, not the palette"
+  },
+  {
+   "ok": true,
+   "name": "the COLLAPSE clears the rule \u2014 one top token per status is admissible"
+  },
+  {
+   "ok": true,
+   "name": "the collapse improves EVERY pair, none regresses"
+  },
+  {
+   "ok": true,
+   "name": "the side ladder carries a degenerate pair (~2.3 dE), which is why the bar is the FILL ladder"
+  },
+  {
+   "ok": true,
+   "name": "every token this pass measures is REALLY in the app's stylesheet"
+  },
+  {
+   "ok": true,
+   "name": "the app path has NO shade ladder \u2014 4 colours per status, not 13"
+  },
+  {
+   "ok": true,
+   "name": "the app is NOT exempt: two statuses collide inside its own smaller set at FULL LIGHT"
+  },
+  {
+   "ok": true,
+   "name": "`unknown` is NOT a schema status \u2014 it is the null-status fallback class"
+  },
+  {
+   "ok": true,
+   "name": "so the direction is the worst one available: absence of information reading as a signed pass"
+  },
+  {
+   "ok": true,
+   "name": "which pair the app DRAWS is a hash, and it collides 2 times in 9"
+  },
+  {
+   "ok": true,
+   "name": "read from the REAL corpus census (46 stories / 244 capabilities), not a fixture"
+  },
+  {
+   "ok": true,
+   "name": "NO capability in the live corpus renders `unknown` \u2014 the worst pair is LATENT, not drawn"
+  },
+  {
+   "ok": true,
+   "name": "no island draws healthy beside unknown today"
+  },
+  {
+   "ok": true,
+   "name": "but the closest pair that IS drawn today clears the bar by under 2%"
+  },
+  {
+   "ok": true,
+   "name": "the fix costs NEGATIVE palette entries \u2014 the first move on this arc that pays for itself"
+  },
+  {
+   "ok": true,
+   "name": "the shipped palette this pass prices IS the one `compose.build_palette` delivers"
+  },
+  {
+   "ok": true,
+   "name": "the ceilings reproduce the arc's own 0.74 / 0.76 / 0.88 / 0.91 series"
+  },
+  {
+   "ok": true,
+   "name": "the binding ceiling is `unknown`'s, and the FOLD does not move it"
+  },
+  {
+   "ok": true,
+   "name": "THE COLLAPSE DOES NOT RAISE HEADROOM \u2014 it moves the binding ceiling the WRONG way, against the arc's stated expectation"
+  },
+  {
+   "ok": true,
+   "name": "so the 0.80 ladder stays INADMISSIBLE on a mixed island under every configuration measured"
+  },
+  {
+   "ok": true,
+   "name": "the gate REFUSES the shipped table"
+  },
+  {
+   "ok": true,
+   "name": "the refusal names both statuses, both colours and the bar \u2014 not just a boolean"
+  },
+  {
+   "ok": true,
+   "name": "the gate ADMITS the collapsed table, so it is not refusing everything"
+  },
+  {
+   "ok": true,
+   "name": "`matched-condition.png` exists and decodes"
+  },
+  {
+   "ok": true,
+   "name": "`matched-condition.png` carries a provenance sidecar naming ONE code state"
+  },
+  {
+   "ok": true,
+   "name": "`the-inversion.png` exists and decodes"
+  },
+  {
+   "ok": true,
+   "name": "`the-inversion.png` carries a provenance sidecar naming ONE code state"
+  },
+  {
+   "ok": true,
+   "name": "`island-read.png` exists and decodes"
+  },
+  {
+   "ok": true,
+   "name": "`island-read.png` carries a provenance sidecar naming ONE code state"
+  },
+  {
+   "ok": true,
+   "name": "no Blender frame was rendered by this pass"
+  },
+  {
+   "ok": true,
+   "name": "the island measurement ran on a TREE-LESS, PLANT-LESS canvas"
+  },
+  {
+   "ok": true,
+   "name": "the island's fill mask is EXACT (delivered colour is an emitted top token), not geometric"
+  },
+  {
+   "ok": true,
+   "name": "every capability on the research surface is `healthy`, so this island exercises ONE status"
+  },
+  {
+   "ok": true,
+   "name": "NOT ONE strict fill pixel reads foreign, under ANY of the four readers \u2014 the delivered raster is clean"
+  },
+  {
+   "ok": true,
+   "name": "the LOOSE mask on the SAME island reports a large non-zero \u2014 so the symptom is the MASK, measured rather than argued"
+  },
+  {
+   "ok": true,
+   "name": "the re-compose exited cleanly"
+  },
+  {
+   "ok": true,
+   "name": "`matched-condition.png` re-composes PIXEL-IDENTICALLY (decoded raster, never a file hash)"
+  },
+  {
+   "ok": true,
+   "name": "`the-inversion.png` re-composes PIXEL-IDENTICALLY (decoded raster, never a file hash)"
+  }
+ ]
+}

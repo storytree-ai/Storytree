@@ -1,0 +1,66 @@
+{
+ "guards": [
+  {
+   "ok": true,
+   "name": "P1  the gate REFUSES the shipped table, naming both statuses, both colours and the bar",
+   "detail": "names all of ['healthy', 'unknown', '#789a57', '#7c975a', '13.98']"
+  },
+  {
+   "ok": true,
+   "name": "P1b the dE the refusal prints is the one an INDEPENDENT recomputation gets",
+   "detail": "names all of ['3.37']"
+  },
+  {
+   "ok": true,
+   "name": "P2  the gate ADMITS the collapsed table \u2014 so P1 is a verdict, not a `raise`",
+   "detail": "gap 17.84 dE vs bar 13.98"
+  },
+  {
+   "ok": true,
+   "name": "P3  a DIFFERENT pair made to collide is refused too \u2014 the gate is not keyed on one pair",
+   "detail": "names all of ['mapped', 'proposed']"
+  },
+  {
+   "ok": true,
+   "name": "P4  with `unknown` off the green ramp the SHIPPED 3-variant table passes \u2014 a fix exists",
+   "detail": "gap 14.19 dE"
+  },
+  {
+   "ok": true,
+   "name": "P5  a moved token table makes the driver REFUSE TO REPORT rather than publish a new number",
+   "detail": "names all of ['did not reproduce']"
+  },
+  {
+   "ok": true,
+   "name": "P6  the bar REFUSES to be taken from the degenerate SIDE ladder",
+   "detail": "names all of ['FILL ladder']"
+  },
+  {
+   "ok": true,
+   "name": "P7  a census with no map-rendering stories REFUSES rather than reporting 0 exposure",
+   "detail": "names all of ['no map-rendering stories']"
+  },
+  {
+   "ok": true,
+   "name": "P8  a one-status configuration REFUSES rather than returning `no gap`",
+   "detail": "names all of ['nothing was measured']"
+  },
+  {
+   "ok": true,
+   "name": "P9  a missing sibling module REFUSES with the path, rather than importing something else",
+   "detail": "names all of ['no such file']"
+  },
+  {
+   "ok": true,
+   "name": "P10 a caption colour that is not a colour REFUSES rather than drawing a different one",
+   "detail": "names all of ['not a hex colour']"
+  },
+  {
+   "ok": true,
+   "name": "P11 `safe_depth` FINDS a depth at which `unknown` stops reading as itself \u2014 the ceiling is measured, not a floor the search never left",
+   "detail": "unknown holds to 0.91, reads `unknown` at full light"
+  }
+ ],
+ "passed": 12,
+ "of": 12
+}
