@@ -288,7 +288,12 @@ kind owes a seed export any more.
   `claude agents --json` / `claude logs <id>` / `claude stop <id>`. ⚠ A `--bg` cut comes up **Sonnet 5,
   not Opus** (pass `--model`), its banner reads `Claude API` so the **billing path is UNVERIFIED**
   (confirm before routine fan-out — the owner meters spend), and a raw `claude` does NOT auto-hydrate
-  the token the way `pnpm storytree …` does. **REMOVE THIS WHOLE BULLET when the upstream bug is
+  the token the way `pnpm storytree …` does. **The repeatable check is now a committed script, not a
+  hand-run procedure:** `node scripts/check-worktree-session-creation.mjs baseline`, fire the thing
+  you're testing (a chip or a worktree-ticked session), then `... check` — it correlates
+  `LocalSessions.start:` against the following `Starting local session` line and prints a per-attempt
+  HEALTHY/BROKEN verdict, so nobody has to re-derive the log-reading from memory. `... census`
+  reproduces the day-by-`worktree=`-flag table above without a hand grep. **REMOVE THIS WHOLE BULLET when the upstream bug is
   fixed** — re-test by ticking the worktree box on a new session; if it starts, delete this and close
   the arc.
 - Gate: `pnpm -r typecheck` · `pnpm -r test` (the two `-r` legs need no DB or API key; two gate rungs
