@@ -21,5 +21,17 @@
 
 islands/
 logs/
-pieces-*/
 tree-*/raw/
+
+# THE PIECE RENDERS STAY OUT; THEIR DECLARATION DOES NOT (2026-08-19).
+# `pieces-*/` was excluded whole, which took `render-meta.json` — ~2 KB of text declaring the code
+# state AND the `--samples` the pieces were measured at — out with ~3.6 MB of PNG. That is what left
+# these panels' fidelity reachable only from `sweep-report.json`, a file nothing links them to: PR
+# #1379 spent a lane on 34,970 px vs 34,968 because a reader resolving the panels' declared
+# `blender_land.py@15927bf5` against the committed corpus finds only 48-sample directories from other
+# passes, while these were rendered at 32. Keeping the declaration makes each piece directory
+# self-describing by the same mechanism every other pass on this arc already uses, and lets
+# `chapter2-sample-fidelity-2026-08-19/scan_fidelity.py` see the split. The PNGs remain excluded for
+# exactly the reasons above.
+pieces-*/*
+!pieces-*/render-meta.json

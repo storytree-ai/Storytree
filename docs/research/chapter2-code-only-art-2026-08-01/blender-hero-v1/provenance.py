@@ -36,6 +36,15 @@ that is what a fork sheet is for. What it must never vary is the code underneath
 observation 3. So the identity is the generator's own source digest, recorded by the generator at
 render time and propagated into the delivered directory by the raster back half.
 
+AND WHY ONE CLASS OF FLAG STILL NEEDS A KEY OF ITS OWN. `--chamfer` varies the SUBJECT of a
+comparison; `--samples` varies the FIDELITY OF THE MEASUREMENT of it. The source digest is blind to
+both by design, and being blind to the first is correct. Being blind to the second cost PR #1379 a
+lane. {@link FIDELITY_KEYS} and {@link require_one_fidelity} sit BESIDE the code state and never
+inside it, so a fork still compares freely while two cells of ONE subject may not be measured two
+ways. The fidelity is DISCLOSED in every sidecar ({@link fidelity_summary}) and REFUSED only within
+one agreed code state — the cross-pass case that produced #1379 is legitimate and wanted the number
+written down, never a veto.
+
 STANDARD LIBRARY ONLY, ON PURPOSE. `sheet.py` runs its guard before it imports numpy/Pillow, so the
 refusal is reachable — and therefore testable — on a host with no imaging stack at all. Keep it that
 way. `blender_tree.py` computes the same digest inline with `hashlib` rather than importing this
@@ -150,6 +159,163 @@ def declared_code_state(directory):
     return None, "no registration.json or render-meta.json"
 
 
+
+#: The render levers that vary the FIDELITY OF THE MEASUREMENT rather than its SUBJECT.
+#:
+#: WHY THIS SITS BESIDE THE CODE STATE AND IS NOT FOLDED INTO IT. {@link declared_code_state} is a
+#: SOURCE digest and deliberately NOT the flags, and that choice is right: a fork sheet varies
+#: `--chamfer` or `--normals` on purpose, so hashing flags into the identity would refuse exactly
+#: the comparison the fork exists to make. But flags are not one kind. `--chamfer` varies WHAT IS
+#: BEING MEASURED; `--samples` varies HOW WELL IT IS MEASURED. The first must be free to differ
+#: across a fork's panels. The second must not differ between two cells whose pixel counts a reader
+#: will compare — and nothing distinguished the two kinds until now.
+#:
+#: THE MEASURED COST OF NOT DISTINGUISHING THEM. PR #1379 spent a lane chasing a suspected
+#: non-determinism in `blender_land.py`: 34,970 delivered land px against 34,968, and 59 colours
+#: against 60, on ONE source digest `15927bf5`. The render was deterministic. The difference was a
+#: `--samples` constant — 32 in one driver script, 48 in another — and it took a lane to find
+#: because THE SAMPLE COUNT WAS RECOVERABLE FROM NO COMMITTED ARTIFACT, only from a literal inside
+#: a script that does not ship with the picture it produced.
+#:
+#: Kept as an explicit tuple rather than "every integer in the record" so a new render lever is
+#: opted IN by someone who has decided which kind it is.
+#:
+#: `supersample` AND `supersample_res` ARE DELIBERATELY NOT HERE, and the reason is the sharpest
+#: available demonstration that the subject/fidelity line is the whole mechanism. Both were in this
+#: tuple for an afternoon, on the reading that "the scale the measurement is taken at" is a fidelity.
+#: It is not: the supersample factor sets the DELIVERED RESOLUTION, so changing it changes what the
+#: artifact IS. `chapter2-scale-ladder-2026-08-18` exists precisely to vary it — one island at
+#: 1x/2x/4x/8x, four rungs of `blender_land.py@15927bf5` at supersample 3/6/12/24 composed into ONE
+#: sheet — and with those keys included this guard REFUSED that sheet. A pass whose entire subject is
+#: a lever cannot have that lever policed as measurement noise, which is the failure the increment
+#: named in advance: a guard that refuses a fork its own variable is worse than the gap it closes.
+#:
+#: What remains is the genuine article: `samples` and `shadow_samples` are Cycles PATH counts. They
+#: change how well a fixed subject is estimated and nothing about what is drawn — which is why 32 and
+#: 48 samples of one island differ by 2 px out of 34,970 rather than by a visible shape.
+FIDELITY_KEYS = ("samples", "shadow_samples")
+
+#: Asserted verbatim by the test exactly as {@link REFUSAL} is, so a WARNING can never quietly take
+#: this refusal's place either.
+REFUSAL_FIDELITY = "REFUSED: one code state was measured at two fidelities"
+
+
+def declared_fidelity(directory):
+    """The MEASUREMENT FIDELITY a render directory declares, or (None, why-not).
+
+    The same two shapes {@link declared_code_state} reads, because the fidelity is already written
+    into both and was simply never picked up: a delivered directory's `registration.json` carries
+    it under `render` (propagated by `pixelise.py`), and a raw render directory's
+    `render-meta.json` carries it at the top level (written by every `blender_*.py`).
+
+    So this recovers a number that was ALREADY BEING RECORDED and thrown away at the door — no
+    renderer is asked for anything new, and nothing already committed becomes wrong. Absent or
+    unreadable is UNDECLARED and never a refusal, exactly as an absent code state is: the past is
+    not policed here, and a directory rendered before this existed still composes.
+    """
+    for name, section in (("registration.json", "render"), ("render-meta.json", None)):
+        path = os.path.join(directory, name)
+        if not os.path.isfile(path):
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                doc = json.load(fh)
+        except (OSError, ValueError) as exc:
+            return None, f"{name} is unreadable ({exc.__class__.__name__})"
+        if not isinstance(doc, dict):
+            return None, f"{name} is not an object"
+        block = doc.get(section) if section else doc
+        if not isinstance(block, dict):
+            return None, f"{name} declares no {section} block"
+        # `bool` is an `int` in Python and a flag is not a fidelity, so it is excluded explicitly.
+        fid = {k: block[k] for k in FIDELITY_KEYS
+               if isinstance(block.get(k), int) and not isinstance(block.get(k), bool)}
+        if fid:
+            return fid, None
+        return None, f"{name} declares none of {', '.join(FIDELITY_KEYS)}"
+    return None, "no registration.json or render-meta.json"
+
+
+def fidelity_key(fidelity):
+    """A stable string identity for one fidelity, or None when nothing is declared.
+
+    Ordered by {@link FIDELITY_KEYS} rather than by the dict, so two records written by different
+    tools compare equal exactly when they mean the same thing.
+    """
+    if not fidelity:
+        return None
+    return ";".join(f"{k}={fidelity[k]}" for k in FIDELITY_KEYS if k in fidelity)
+
+
+def require_one_fidelity(inputs):
+    """Refuse cells that share a code state but were measured at different fidelities.
+
+    THE SCOPE IS THE WHOLE POINT, so read it before widening it. This is only ever reached from
+    {@link require_one_code_state} AFTER that call has established the cells agree on one code
+    state — i.e. one generator at one source digest, which is one SUBJECT. Two such cells' delivered
+    pixel counts are directly comparable, so measuring them at different sample counts is never
+    legitimate and is refused.
+
+    IT DELIBERATELY DOES NOT REACH ACROSS SUBJECTS. A composite built from `blender_land.py` and
+    `blender_decor.py` pieces is two subjects, and their sample counts are free to differ because
+    nobody compares a land pixel count to a decor one. That case never arrives here: differing code
+    states are already refused above, and the multi-generator composers on this track call the guard
+    once PER GENERATOR (`compose_core.require_one_state_per_generator`), so the grouping that makes
+    this rung correct is the grouping those callers already use.
+
+    Undeclared is unattributed, never a refusal — {@link declared_fidelity}'s rule, and the module's.
+    """
+    declared = [r for r in inputs if r.get("fidelity")]
+    by_key = {}
+    for r in declared:
+        by_key.setdefault(fidelity_key(r["fidelity"]), []).append(r["label"])
+    if len(by_key) <= 1:
+        return declared[0]["fidelity"] if declared else None
+    lines = [REFUSAL_FIDELITY, ""]
+    for key, labels in sorted(by_key.items(), key=lambda kv: kv[1]):
+        lines.append(f"  {key}  {', '.join(labels)}")
+    silent = [r["label"] for r in inputs if not r.get("fidelity")]
+    if silent:
+        lines.append(f"  (fidelity undeclared, not counted: {', '.join(silent)})")
+    lines += [
+        "",
+        "These cells agree on the code state, so they are the SAME SUBJECT and their delivered",
+        "pixel counts will be compared. A fork may vary --chamfer or --normals freely; it may not",
+        "vary --samples, which changes how well the subject is measured rather than what it is.",
+        "Re-render the disagreeing directories at one sample count, then compose again.",
+    ]
+    raise SystemExit("\n".join(lines))
+
+
+def fidelity_summary(inputs):
+    """The measurement fidelity of every input, hoisted to the TOP of a sidecar.
+
+    RECORDING IT PER INPUT IS NOT ENOUGH, which is the lesson PR #1379 paid for. The number has to be
+    findable by a reader holding two pictures from two different passes and wondering why their pixel
+    counts disagree — a per-cell field buried under a hundred piece hashes is recoverable in
+    principle and missed in practice. `mixed` is stated explicitly so the answer to "was this one
+    picture measured one way?" is a key rather than an inference over a list.
+
+    This DISCLOSES and never refuses. The refusal lives in {@link require_one_fidelity} and is scoped
+    to one code state; the cross-subject and cross-PASS cases are legitimate, and what they needed
+    was never a veto — it was the number written down.
+    """
+    by_key = {}
+    for r in inputs:
+        key = fidelity_key(r.get("fidelity"))
+        if key:
+            by_key.setdefault(key, []).append(r.get("label"))
+    undeclared = [r.get("label") for r in inputs if not r.get("fidelity")]
+    return {
+        "keys": list(FIDELITY_KEYS),
+        "byFidelity": {k: v for k, v in sorted(by_key.items())},
+        "mixed": len(by_key) > 1,
+        "undeclared": undeclared,
+        "rule": "a fidelity varies HOW WELL the subject was measured, never WHAT it is; never "
+                "compare delivered pixel counts across two fidelities",
+    }
+
+
 def input_records(tracks, frames):
     """One record per composed cell: which frames went in, and a content hash for each.
 
@@ -160,6 +326,7 @@ def input_records(tracks, frames):
     records = []
     for label, directory in tracks:
         state, why = declared_code_state(directory)
+        fid, fid_why = declared_fidelity(directory)
         composed = []
         for f in frames:
             name = "frame-%02d.png" % f
@@ -180,6 +347,10 @@ def input_records(tracks, frames):
         }
         if state is None:
             record["codeStateUndeclared"] = why
+        if fid:
+            record["fidelity"] = fid
+        else:
+            record["fidelityUndeclared"] = fid_why
         records.append(record)
     return records
 
@@ -191,12 +362,23 @@ def require_one_code_state(inputs):
     states cannot produce the picture that varied two levers while claiming to isolate one. It exits
     rather than warning, because a warning printed into a scrolling render log is what the failure
     already looked like.
+
+    TWO RUNGS, IN THIS ORDER. The code state first, because it establishes the SUBJECT; then
+    {@link require_one_fidelity} within the state it agreed, because only cells of one subject have
+    comparable pixel counts. A caller gets both from this one call, so the fidelity rung inherits
+    whatever grouping the caller already uses — which for the multi-generator composers on this
+    track is one call per generator, exactly the scope the rung needs.
     """
     declared = [r for r in inputs if r.get("codeState")]
     by_sha = {}
     for r in declared:
         by_sha.setdefault(r["codeState"]["sha256"], []).append(r["label"])
     if len(by_sha) <= 1:
+        # ONE SUBJECT ESTABLISHED, so the second rung is now meaningful: cells agreeing on the code
+        # state must also agree on the fidelity they were measured at. Running it HERE rather than at
+        # each call site is what gives every composer on the track the rung for free, and scopes it
+        # correctly for the multi-generator callers, which already call this once per generator.
+        require_one_fidelity(declared)
         return declared[0]["codeState"] if declared else None
     lines = [REFUSAL, ""]
     for sha, labels in sorted(by_sha.items(), key=lambda kv: kv[1]):
@@ -229,6 +411,7 @@ def write_sidecar(out, tool_file, argv, inputs, code_state, extra=None):
         "command": {"tool": os.path.basename(tool_file), "argv": list(argv)},
         "inputs": inputs,
         "codeState": code_state,
+        "fidelity": fidelity_summary(inputs),
     }
     digest = sha256_file(out)
     if digest is not None:
@@ -252,8 +435,12 @@ def _main(args):
     state = require_one_code_state(records)
     for r in records:
         sha = r["codeState"]["sha256"][:12] if r["codeState"] else "undeclared"
-        print(f"{r['label']:>12}  {sha}  {r['dir']}/")
+        fid = fidelity_key(r.get("fidelity")) or "fidelity undeclared"
+        print(f"{r['label']:>12}  {sha}  {r['dir']}/  [{fid}]")
     print("agreed code state:", state["sha256"][:12] if state else "none declared")
+    summary = fidelity_summary(records)
+    print("fidelity:", ", ".join(summary["byFidelity"]) or "none declared",
+          "(MIXED)" if summary["mixed"] else "")
 
 
 if __name__ == "__main__":

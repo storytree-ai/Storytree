@@ -488,15 +488,27 @@ def piece_inputs(dirs):
     Shaped for `provenance.require_one_code_state`, which keys on `codeState.sha256` and treats an
     undeclared directory as unattributed rather than as a refusal. `provenance.input_records` is not
     reused because it is written for `sheet.py`'s frame-indexed cells, and these inputs are piece
-    directories — the same contract, a different unit."""
+    directories — the same contract, a different unit.
+
+    THE FIDELITY IS CARRIED TOO, and it is a different kind of fact from the code state. The digest
+    says WHAT was rendered; `fidelity` says HOW WELL it was measured (`provenance.FIDELITY_KEYS`).
+    Every `blender_*.py` already writes its `--samples` into `render-meta.json` and this record was
+    dropping it at the door, which is why PR #1379 could only recover a sample count from a literal
+    inside a driver script. Stamping it here puts the number in the sidecar that ships beside the
+    picture, and lets `require_one_code_state` refuse two cells of ONE subject measured two ways."""
     recs = []
     for label, d in dirs:
         state, why = provenance.declared_code_state(d)
+        fid, fid_why = provenance.declared_fidelity(d)
         rec = {"label": label, "dir": os.path.relpath(d, HERE).replace(os.sep, "/")}
         if state:
             rec["codeState"] = state
         else:
             rec["undeclared"] = why
+        if fid:
+            rec["fidelity"] = fid
+        else:
+            rec["fidelityUndeclared"] = fid_why
         rec["pieces"] = [{"file": f, "sha256": provenance.sha256_file(os.path.join(d, f))}
                          for f in sorted(os.listdir(d)) if f.endswith(".png")]
         recs.append(rec)
