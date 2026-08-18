@@ -252,7 +252,9 @@ parked entries over 19 days by the thematic reading and never trended toward zer
 arcs chartered under a genuine-ownership reading over the same window all closed honestly. "Owns"
 now means owns the surface (the package/panel/write-path a fix edits) — a thematic match alone does
 not satisfy it, and D6's shape (fold if owned, charter if not) is unchanged. ADR-0377 additionally
-caps every arc at 20 increments, closed included, independent of this fix.
+capped every arc at 20 increments, closed included, independent of this fix; that numeric cap was
+withdrawn the next day by [ADR-0382](0382-the-20-increment-arc-cap-is-withdrawn-placement-discipline-r.md)
+— placement discipline alone is what bounds an arc's size now.
 
 ### D7 — every live proposal is rehomed before anything is deleted
 
