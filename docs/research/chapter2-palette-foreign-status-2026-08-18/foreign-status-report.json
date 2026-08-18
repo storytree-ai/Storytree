@@ -1,0 +1,1539 @@
+{
+ "question": "does the land emit a colour that reads as a status other than the one that authored it \u2014 and is PR #1385's 21-of-78 a real misread or an artefact of the reader?",
+ "surface": {
+  "storyId": "context-traversal-capture",
+  "cameraElevationDeg": 50.0,
+  "appLandCameraElevationDeg": 20.0
+ },
+ "blenderFramesRendered": 0,
+ "theReaderVaried": {
+  "A shipped reader (6 statuses, tops+sides)": {
+   "entries": 78,
+   "crossReading": 21,
+   "pct": 26.9,
+   "reachableCrossReading": 12,
+   "examples": [
+    {
+     "authored": "proposed",
+     "face": "top",
+     "token": 1,
+     "shade": 0.9,
+     "rgb": "#b8a04f",
+     "readsAs": "mapped",
+     "dEwin": 13.2,
+     "dEown": 14.6,
+     "marginPct": 9.7,
+     "reachable": true
+    },
+    {
+     "authored": "proposed",
+     "face": "top",
+     "token": 2,
+     "shade": 0.78,
+     "rgb": "#b0a162",
+     "readsAs": "mapped",
+     "dEwin": 10.0,
+     "dEown": 15.7,
+     "marginPct": 36.0,
+     "reachable": true
+    },
+    {
+     "authored": "proposed",
+     "face": "side",
+     "token": 0,
+     "shade": 0.78,
+     "rgb": "#83713a",
+     "readsAs": "mapped",
+     "dEwin": 7.3,
+     "dEown": 32.2,
+     "marginPct": 77.4,
+     "reachable": true
+    },
+    {
+     "authored": "proposed",
+     "face": "side",
+     "token": 0,
+     "shade": 0.8,
+     "rgb": "#86743b",
+     "readsAs": "mapped",
+     "dEwin": 9.3,
+     "dEown": 29.3,
+     "marginPct": 68.1,
+     "reachable": true
+    },
+    {
+     "authored": "proposed",
+     "face": "side",
+     "token": 0,
+     "shade": 0.9,
+     "rgb": "#978243",
+     "readsAs": "mapped",
+     "dEwin": 10.7,
+     "dEown": 14.7,
+     "marginPct": 26.8,
+     "reachable": true
+    },
+    {
+     "authored": "building",
+     "face": "top",
+     "token": 1,
+     "shade": 0.9,
+     "rgb": "#bb8b3b",
+     "readsAs": "proposed",
+     "dEwin": 12.6,
+     "dEown": 14.3,
+     "marginPct": 12.3,
+     "reachable": false
+    },
+    {
+     "authored": "building",
+     "face": "top",
+     "token": 2,
+     "shade": 0.78,
+     "rgb": "#b39351",
+     "readsAs": "proposed",
+     "dEwin": 6.8,
+     "dEown": 17.4,
+     "marginPct": 60.9,
+     "reachable": false
+    },
+    {
+     "authored": "building",
+     "face": "top",
+     "token": 2,
+     "shade": 0.9,
+     "rgb": "#cfa95e",
+     "readsAs": "proposed",
+     "dEwin": 7.2,
+     "dEown": 8.2,
+     "marginPct": 12.3,
+     "reachable": false
+    },
+    {
+     "authored": "building",
+     "face": "side",
+     "token": 0,
+     "shade": 0.78,
+     "rgb": "#856228",
+     "readsAs": "mapped",
+     "dEwin": 9.2,
+     "dEown": 29.7,
+     "marginPct": 69.0,
+     "reachable": false
+    },
+    {
+     "authored": "building",
+     "face": "side",
+     "token": 0,
+     "shade": 0.8,
+     "rgb": "#886429",
+     "readsAs": "mapped",
+     "dEwin": 8.1,
+     "dEown": 27.0,
+     "marginPct": 69.8,
+     "reachable": false
+    },
+    {
+     "authored": "healthy",
+     "face": "top",
+     "token": 1,
+     "shade": 0.9,
+     "rgb": "#709a48",
+     "readsAs": "unknown",
+     "dEwin": 14.6,
+     "dEown": 15.0,
+     "marginPct": 3.2,
+     "reachable": true
+    },
+    {
+     "authored": "healthy",
+     "face": "top",
+     "token": 2,
+     "shade": 0.78,
+     "rgb": "#789a57",
+     "readsAs": "unknown",
+     "dEwin": 8.6,
+     "dEown": 13.8,
+     "marginPct": 37.5,
+     "reachable": true
+    },
+    {
+     "authored": "healthy",
+     "face": "side",
+     "token": 0,
+     "shade": 0.78,
+     "rgb": "#4e6535",
+     "readsAs": "unhealthy",
+     "dEwin": 15.8,
+     "dEown": 25.5,
+     "marginPct": 38.3,
+     "reachable": false
+    },
+    {
+     "authored": "healthy",
+     "face": "side",
+     "token": 0,
+     "shade": 0.8,
+     "rgb": "#506836",
+     "readsAs": "unhealthy",
+     "dEwin": 15.5,
+     "dEown": 23.2,
+     "marginPct": 33.3,
+     "reachable": false
+    },
+    {
+     "authored": "mapped",
+     "face": "side",
+     "token": 0,
+     "shade": 0.78,
+     "rgb": "#685131",
+     "readsAs": "unhealthy",
+     "dEwin": 12.5,
+     "dEown": 24.2,
+     "marginPct": 48.3,
+     "reachable": false
+    },
+    {
+     "authored": "mapped",
+     "face": "side",
+     "token": 0,
+     "shade": 0.8,
+     "rgb": "#6a5332",
+     "readsAs": "unhealthy",
+     "dEwin": 13.2,
+     "dEown": 22.0,
+     "marginPct": 40.0,
+     "reachable": false
+    },
+    {
+     "authored": "unknown",
+     "face": "top",
+     "token": 0,
+     "shade": 0.9,
+     "rgb": "#98b472",
+     "readsAs": "healthy",
+     "dEwin": 9.9,
+     "dEown": 10.7,
+     "marginPct": 7.1,
+     "reachable": true
+    },
+    {
+     "authored": "unknown",
+     "face": "top",
+     "token": 1,
+     "shade": 0.9,
+     "rgb": "#8fae68",
+     "readsAs": "healthy",
+     "dEwin": 8.8,
+     "dEown": 17.5,
+     "marginPct": 49.8,
+     "reachable": true
+    },
+    {
+     "authored": "unknown",
+     "face": "side",
+     "token": 0,
+     "shade": 0.78,
+     "rgb": "#69774a",
+     "readsAs": "healthy",
+     "dEwin": 9.5,
+     "dEown": 31.2,
+     "marginPct": 69.6,
+     "reachable": true
+    },
+    {
+     "authored": "unknown",
+     "face": "side",
+     "token": 0,
+     "shade": 0.8,
+     "rgb": "#6c7a4c",
+     "readsAs": "healthy",
+     "dEwin": 8.2,
+     "dEown": 28.3,
+     "marginPct": 70.9,
+     "reachable": true
+    },
+    {
+     "authored": "unknown",
+     "face": "side",
+     "token": 0,
+     "shade": 0.9,
+     "rgb": "#7a8956",
+     "readsAs": "healthy",
+     "dEwin": 14.1,
+     "dEown": 14.2,
+     "marginPct": 0.3,
+     "reachable": true
+    }
+   ]
+  },
+  "B fills only (6 statuses, ADR-0367 D5's own table)": {
+   "entries": 54,
+   "crossReading": 16,
+   "pct": 29.6,
+   "reachableCrossReading": 9,
+   "examples": [
+    {
+     "authored": "proposed",
+     "face": "top",
+     "token": 0,
+     "shade": 0.78,
+     "rgb": "#a89652",
+     "readsAs": "mapped",
+     "dEwin": 9.9,
+     "dEown": 29.2,
+     "marginPct": 65.9,
+     "reachable": true
+    },
+    {
+     "authored": "proposed",
+     "face": "top",
+     "token": 1,
+     "shade": 0.78,
+     "rgb": "#9f8b45",
+     "readsAs": "mapped",
+     "dEwin": 8.4,
+     "dEown": 39.4,
+     "marginPct": 78.5,
+     "reachable": true
+    },
+    {
+     "authored": "proposed",
+     "face": "top",
+     "token": 1,
+     "shade": 0.9,
+     "rgb": "#b8a04f",
+     "readsAs": "mapped",
+     "dEwin": 13.2,
+     "dEown": 17.9,
+     "marginPct": 26.5,
+     "reachable": true
+    },
+    {
+     "authored": "proposed",
+     "face": "top",
+     "token": 2,
+     "shade": 0.78,
+     "rgb": "#b0a162",
+     "readsAs": "mapped",
+     "dEwin": 10.0,
+     "dEown": 20.1,
+     "marginPct": 50.1,
+     "reachable": true
+    },
+    {
+     "authored": "building",
+     "face": "top",
+     "token": 0,
+     "shade": 0.78,
+     "rgb": "#ac8540",
+     "readsAs": "mapped",
+     "dEwin": 8.2,
+     "dEown": 25.5,
+     "marginPct": 67.7,
+     "reachable": false
+    },
+    {
+     "authored": "building",
+     "face": "top",
+     "token": 1,
+     "shade": 0.78,
+     "rgb": "#a27833",
+     "readsAs": "mapped",
+     "dEwin": 15.5,
+     "dEown": 36.5,
+     "marginPct": 57.4,
+     "reachable": false
+    },
+    {
+     "authored": "building",
+     "face": "top",
+     "token": 1,
+     "shade": 0.9,
+     "rgb": "#bb8b3b",
+     "readsAs": "mapped",
+     "dEwin": 15.4,
+     "dEown": 16.6,
+     "marginPct": 7.1,
+     "reachable": false
+    },
+    {
+     "authored": "building",
+     "face": "top",
+     "token": 2,
+     "shade": 0.78,
+     "rgb": "#b39351",
+     "readsAs": "mapped",
+     "dEwin": 8.3,
+     "dEown": 17.4,
+     "marginPct": 52.2,
+     "reachable": false
+    },
+    {
+     "authored": "building",
+     "face": "top",
+     "token": 2,
+     "shade": 0.9,
+     "rgb": "#cfa95e",
+     "readsAs": "proposed",
+     "dEwin": 7.2,
+     "dEown": 8.2,
+     "marginPct": 12.3,
+     "reachable": false
+    },
+    {
+     "authored": "healthy",
+     "face": "top",
+     "token": 1,
+     "shade": 0.78,
+     "rgb": "#62853e",
+     "readsAs": "unhealthy",
+     "dEwin": 30.2,
+     "dEown": 33.1,
+     "marginPct": 8.8,
+     "reachable": false
+    },
+    {
+     "authored": "mapped",
+     "face": "top",
+     "token": 1,
+     "shade": 0.78,
+     "rgb": "#816844",
+     "readsAs": "unhealthy",
+     "dEwin": 18.6,
+     "dEown": 30.7,
+     "marginPct": 39.5,
+     "reachable": false
+    },
+    {
+     "authored": "unknown",
+     "face": "top",
+     "token": 0,
+     "shade": 0.78,
+     "rgb": "#849c63",
+     "readsAs": "healthy",
+     "dEwin": 13.7,
+     "dEown": 32.6,
+     "marginPct": 58.1,
+     "reachable": true
+    },
+    {
+     "authored": "unknown",
+     "face": "top",
+     "token": 0,
+     "shade": 0.9,
+     "rgb": "#98b472",
+     "readsAs": "healthy",
+     "dEwin": 9.9,
+     "dEown": 10.7,
+     "marginPct": 7.1,
+     "reachable": true
+    },
+    {
+     "authored": "unknown",
+     "face": "top",
+     "token": 1,
+     "shade": 0.78,
+     "rgb": "#7c975a",
+     "readsAs": "healthy",
+     "dEwin": 16.1,
+     "dEown": 38.8,
+     "marginPct": 58.5,
+     "reachable": true
+    },
+    {
+     "authored": "unknown",
+     "face": "top",
+     "token": 1,
+     "shade": 0.9,
+     "rgb": "#8fae68",
+     "readsAs": "healthy",
+     "dEwin": 8.8,
+     "dEown": 17.6,
+     "marginPct": 50.1,
+     "reachable": true
+    },
+    {
+     "authored": "unknown",
+     "face": "top",
+     "token": 2,
+     "shade": 0.78,
+     "rgb": "#8ba16c",
+     "readsAs": "healthy",
+     "dEwin": 14.1,
+     "dEown": 26.7,
+     "marginPct": 47.1,
+     "reachable": true
+    }
+   ]
+  },
+  "C folded (4 rendered statuses, tops+sides)": {
+   "entries": 52,
+   "crossReading": 12,
+   "pct": 23.1,
+   "reachableCrossReading": 12,
+   "examples": [
+    {
+     "authored": "healthy",
+     "face": "top",
+     "token": 1,
+     "shade": 0.9,
+     "rgb": "#709a48",
+     "readsAs": "unknown",
+     "dEwin": 14.6,
+     "dEown": 15.0,
+     "marginPct": 3.2,
+     "reachable": true
+    },
+    {
+     "authored": "healthy",
+     "face": "top",
+     "token": 2,
+     "shade": 0.78,
+     "rgb": "#789a57",
+     "readsAs": "unknown",
+     "dEwin": 8.6,
+     "dEown": 13.8,
+     "marginPct": 37.5,
+     "reachable": true
+    },
+    {
+     "authored": "proposed",
+     "face": "top",
+     "token": 1,
+     "shade": 0.9,
+     "rgb": "#b8a04f",
+     "readsAs": "mapped",
+     "dEwin": 13.2,
+     "dEown": 14.6,
+     "marginPct": 9.7,
+     "reachable": true
+    },
+    {
+     "authored": "proposed",
+     "face": "top",
+     "token": 2,
+     "shade": 0.78,
+     "rgb": "#b0a162",
+     "readsAs": "mapped",
+     "dEwin": 10.0,
+     "dEown": 15.7,
+     "marginPct": 36.0,
+     "reachable": true
+    },
+    {
+     "authored": "proposed",
+     "face": "side",
+     "token": 0,
+     "shade": 0.78,
+     "rgb": "#83713a",
+     "readsAs": "mapped",
+     "dEwin": 7.3,
+     "dEown": 32.2,
+     "marginPct": 77.4,
+     "reachable": true
+    },
+    {
+     "authored": "proposed",
+     "face": "side",
+     "token": 0,
+     "shade": 0.8,
+     "rgb": "#86743b",
+     "readsAs": "mapped",
+     "dEwin": 9.3,
+     "dEown": 29.3,
+     "marginPct": 68.1,
+     "reachable": true
+    },
+    {
+     "authored": "proposed",
+     "face": "side",
+     "token": 0,
+     "shade": 0.9,
+     "rgb": "#978243",
+     "readsAs": "mapped",
+     "dEwin": 10.7,
+     "dEown": 14.7,
+     "marginPct": 26.8,
+     "reachable": true
+    },
+    {
+     "authored": "unknown",
+     "face": "top",
+     "token": 0,
+     "shade": 0.9,
+     "rgb": "#98b472",
+     "readsAs": "healthy",
+     "dEwin": 9.9,
+     "dEown": 10.7,
+     "marginPct": 7.1,
+     "reachable": true
+    },
+    {
+     "authored": "unknown",
+     "face": "top",
+     "token": 1,
+     "shade": 0.9,
+     "rgb": "#8fae68",
+     "readsAs": "healthy",
+     "dEwin": 8.8,
+     "dEown": 17.5,
+     "marginPct": 49.8,
+     "reachable": true
+    },
+    {
+     "authored": "unknown",
+     "face": "side",
+     "token": 0,
+     "shade": 0.78,
+     "rgb": "#69774a",
+     "readsAs": "healthy",
+     "dEwin": 9.5,
+     "dEown": 31.2,
+     "marginPct": 69.6,
+     "reachable": true
+    },
+    {
+     "authored": "unknown",
+     "face": "side",
+     "token": 0,
+     "shade": 0.8,
+     "rgb": "#6c7a4c",
+     "readsAs": "healthy",
+     "dEwin": 8.2,
+     "dEown": 28.3,
+     "marginPct": 70.9,
+     "reachable": true
+    },
+    {
+     "authored": "unknown",
+     "face": "side",
+     "token": 0,
+     "shade": 0.9,
+     "rgb": "#7a8956",
+     "readsAs": "healthy",
+     "dEwin": 14.1,
+     "dEown": 14.2,
+     "marginPct": 0.3,
+     "reachable": true
+    }
+   ]
+  },
+  "D folded + fills only": {
+   "entries": 36,
+   "crossReading": 9,
+   "pct": 25.0,
+   "reachableCrossReading": 9,
+   "examples": [
+    {
+     "authored": "proposed",
+     "face": "top",
+     "token": 0,
+     "shade": 0.78,
+     "rgb": "#a89652",
+     "readsAs": "mapped",
+     "dEwin": 9.9,
+     "dEown": 29.2,
+     "marginPct": 65.9,
+     "reachable": true
+    },
+    {
+     "authored": "proposed",
+     "face": "top",
+     "token": 1,
+     "shade": 0.78,
+     "rgb": "#9f8b45",
+     "readsAs": "mapped",
+     "dEwin": 8.4,
+     "dEown": 39.4,
+     "marginPct": 78.5,
+     "reachable": true
+    },
+    {
+     "authored": "proposed",
+     "face": "top",
+     "token": 1,
+     "shade": 0.9,
+     "rgb": "#b8a04f",
+     "readsAs": "mapped",
+     "dEwin": 13.2,
+     "dEown": 17.9,
+     "marginPct": 26.5,
+     "reachable": true
+    },
+    {
+     "authored": "proposed",
+     "face": "top",
+     "token": 2,
+     "shade": 0.78,
+     "rgb": "#b0a162",
+     "readsAs": "mapped",
+     "dEwin": 10.0,
+     "dEown": 20.1,
+     "marginPct": 50.1,
+     "reachable": true
+    },
+    {
+     "authored": "unknown",
+     "face": "top",
+     "token": 0,
+     "shade": 0.78,
+     "rgb": "#849c63",
+     "readsAs": "healthy",
+     "dEwin": 13.7,
+     "dEown": 32.6,
+     "marginPct": 58.1,
+     "reachable": true
+    },
+    {
+     "authored": "unknown",
+     "face": "top",
+     "token": 0,
+     "shade": 0.9,
+     "rgb": "#98b472",
+     "readsAs": "healthy",
+     "dEwin": 9.9,
+     "dEown": 10.7,
+     "marginPct": 7.1,
+     "reachable": true
+    },
+    {
+     "authored": "unknown",
+     "face": "top",
+     "token": 1,
+     "shade": 0.78,
+     "rgb": "#7c975a",
+     "readsAs": "healthy",
+     "dEwin": 16.1,
+     "dEown": 38.8,
+     "marginPct": 58.5,
+     "reachable": true
+    },
+    {
+     "authored": "unknown",
+     "face": "top",
+     "token": 1,
+     "shade": 0.9,
+     "rgb": "#8fae68",
+     "readsAs": "healthy",
+     "dEwin": 8.8,
+     "dEown": 17.6,
+     "marginPct": 50.1,
+     "reachable": true
+    },
+    {
+     "authored": "unknown",
+     "face": "top",
+     "token": 2,
+     "shade": 0.78,
+     "rgb": "#8ba16c",
+     "readsAs": "healthy",
+     "dEwin": 14.1,
+     "dEown": 26.7,
+     "marginPct": 47.1,
+     "reachable": true
+    }
+   ]
+  }
+ },
+ "howMuchOfTheCountIsUnREACHABLE": {
+  "shippedRowCrossReads": 21,
+  "ofThoseReachableBothEnds": 12,
+  "unreachable": 9,
+  "fold": "`worldStatus.ts` folds `unhealthy -> mapped` (ADR-0296) and `building -> proposed` (ADR-0038), so a cross-read with either token at either end names a colour the app cannot draw or a status it cannot be mistaken for.",
+  "headlineInstanceThatDissolves": "`healthy`'s dark WALL band reads `unhealthy` \u2014 the target is not in the rendered vocabulary, so this instance does not exist on any island the app can draw.",
+  "headlineInstanceThatSURVIVES": "`unknown`'s side family reads `healthy` \u2014 both ends are reachable, and `unknown` is the NULL-STATUS fallback, so this is absence of information rendered as proof."
+ },
+ "symmetricReader": {
+  "foldedFills": {
+   "entries": 36,
+   "crossReading": 9,
+   "examples": [
+    {
+     "authored": "healthy",
+     "face": "top",
+     "token": 2,
+     "shade": 0.78,
+     "rgb": "#789a57",
+     "nearest": "unknown",
+     "nearestFace": "top",
+     "nearestShade": 0.78,
+     "nearestRgb": "#7c975a",
+     "dEwin": 3.4,
+     "dEown": 6.6
+    },
+    {
+     "authored": "healthy",
+     "face": "top",
+     "token": 2,
+     "shade": 0.9,
+     "rgb": "#8bb165",
+     "nearest": "unknown",
+     "nearestFace": "top",
+     "nearestShade": 0.9,
+     "nearestRgb": "#8fae68",
+     "dEwin": 3.9,
+     "dEown": 5.7
+    },
+    {
+     "authored": "healthy",
+     "face": "top",
+     "token": 2,
+     "shade": 1.0,
+     "rgb": "#9ac570",
+     "nearest": "unknown",
+     "nearestFace": "top",
+     "nearestShade": 1.0,
+     "nearestRgb": "#9fc174",
+     "dEwin": 4.3,
+     "dEown": 13.9
+    },
+    {
+     "authored": "mapped",
+     "face": "top",
+     "token": 2,
+     "shade": 1.0,
+     "rgb": "#bda278",
+     "nearest": "proposed",
+     "nearestFace": "top",
+     "nearestShade": 0.78,
+     "nearestRgb": "#b0a162",
+     "dEwin": 10.0,
+     "dEown": 12.9
+    },
+    {
+     "authored": "proposed",
+     "face": "top",
+     "token": 0,
+     "shade": 0.78,
+     "rgb": "#a89652",
+     "nearest": "mapped",
+     "nearestFace": "top",
+     "nearestShade": 0.9,
+     "nearestRgb": "#aa926c",
+     "dEwin": 9.2,
+     "dEown": 10.8
+    },
+    {
+     "authored": "proposed",
+     "face": "top",
+     "token": 1,
+     "shade": 0.78,
+     "rgb": "#9f8b45",
+     "nearest": "mapped",
+     "nearestFace": "top",
+     "nearestShade": 1.0,
+     "nearestRgb": "#a68557",
+     "dEwin": 8.4,
+     "dEown": 10.8
+    },
+    {
+     "authored": "unknown",
+     "face": "top",
+     "token": 1,
+     "shade": 0.78,
+     "rgb": "#7c975a",
+     "nearest": "healthy",
+     "nearestFace": "top",
+     "nearestShade": 0.78,
+     "nearestRgb": "#789a57",
+     "dEwin": 3.4,
+     "dEown": 6.6
+    },
+    {
+     "authored": "unknown",
+     "face": "top",
+     "token": 1,
+     "shade": 0.9,
+     "rgb": "#8fae68",
+     "nearest": "healthy",
+     "nearestFace": "top",
+     "nearestShade": 0.9,
+     "nearestRgb": "#8bb165",
+     "dEwin": 3.9,
+     "dEown": 7.6
+    },
+    {
+     "authored": "unknown",
+     "face": "top",
+     "token": 1,
+     "shade": 1.0,
+     "rgb": "#9fc174",
+     "nearest": "healthy",
+     "nearestFace": "top",
+     "nearestShade": 1.0,
+     "nearestRgb": "#9ac570",
+     "dEwin": 4.3,
+     "dEown": 6.0
+    }
+   ],
+   "pct": 25.0
+  },
+  "foldedAllFaces": {
+   "entries": 52,
+   "crossReading": 9,
+   "examples": [
+    {
+     "authored": "healthy",
+     "face": "top",
+     "token": 2,
+     "shade": 0.78,
+     "rgb": "#789a57",
+     "nearest": "unknown",
+     "nearestFace": "top",
+     "nearestShade": 0.78,
+     "nearestRgb": "#7c975a",
+     "dEwin": 3.4,
+     "dEown": 6.6
+    },
+    {
+     "authored": "healthy",
+     "face": "top",
+     "token": 2,
+     "shade": 0.9,
+     "rgb": "#8bb165",
+     "nearest": "unknown",
+     "nearestFace": "top",
+     "nearestShade": 0.9,
+     "nearestRgb": "#8fae68",
+     "dEwin": 3.9,
+     "dEown": 5.7
+    },
+    {
+     "authored": "healthy",
+     "face": "top",
+     "token": 2,
+     "shade": 1.0,
+     "rgb": "#9ac570",
+     "nearest": "unknown",
+     "nearestFace": "top",
+     "nearestShade": 1.0,
+     "nearestRgb": "#9fc174",
+     "dEwin": 4.3,
+     "dEown": 13.9
+    },
+    {
+     "authored": "healthy",
+     "face": "side",
+     "token": 0,
+     "shade": 0.9,
+     "rgb": "#5a753d",
+     "nearest": "unknown",
+     "nearestFace": "side",
+     "nearestShade": 0.78,
+     "nearestRgb": "#69774a",
+     "dEwin": 9.5,
+     "dEown": 11.6
+    },
+    {
+     "authored": "mapped",
+     "face": "top",
+     "token": 2,
+     "shade": 1.0,
+     "rgb": "#bda278",
+     "nearest": "proposed",
+     "nearestFace": "top",
+     "nearestShade": 0.78,
+     "nearestRgb": "#b0a162",
+     "dEwin": 10.0,
+     "dEown": 12.9
+    },
+    {
+     "authored": "unknown",
+     "face": "top",
+     "token": 1,
+     "shade": 0.78,
+     "rgb": "#7c975a",
+     "nearest": "healthy",
+     "nearestFace": "top",
+     "nearestShade": 0.78,
+     "nearestRgb": "#789a57",
+     "dEwin": 3.4,
+     "dEown": 6.3
+    },
+    {
+     "authored": "unknown",
+     "face": "top",
+     "token": 1,
+     "shade": 0.9,
+     "rgb": "#8fae68",
+     "nearest": "healthy",
+     "nearestFace": "top",
+     "nearestShade": 0.9,
+     "nearestRgb": "#8bb165",
+     "dEwin": 3.9,
+     "dEown": 7.6
+    },
+    {
+     "authored": "unknown",
+     "face": "top",
+     "token": 1,
+     "shade": 1.0,
+     "rgb": "#9fc174",
+     "nearest": "healthy",
+     "nearestFace": "top",
+     "nearestShade": 1.0,
+     "nearestRgb": "#9ac570",
+     "dEwin": 4.3,
+     "dEown": 6.0
+    },
+    {
+     "authored": "unknown",
+     "face": "side",
+     "token": 0,
+     "shade": 0.9,
+     "rgb": "#7a8956",
+     "nearest": "healthy",
+     "nearestFace": "top",
+     "nearestShade": 0.78,
+     "nearestRgb": "#6d9049",
+     "dEwin": 9.4,
+     "dEown": 10.8
+    }
+   ],
+   "pct": 17.3
+  }
+ },
+ "matchedCondition": {
+  "shippedFills": {
+   "ok": false,
+   "gap": {
+    "dE": 3.37,
+    "face": "top",
+    "shade": 0.78,
+    "a": {
+     "status": "healthy",
+     "token": 2,
+     "rgb": "#789a57"
+    },
+    "b": {
+     "status": "unknown",
+     "token": 1,
+     "rgb": "#7c975a"
+    }
+   },
+   "bar": {
+    "dE": 13.98,
+    "status": "mapped",
+    "token": "#a68557",
+    "from": 1.0,
+    "to": 0.9
+   },
+   "withinStatus": {
+    "dE": 6.48,
+    "status": "unknown",
+    "face": "top",
+    "shade": 0.78,
+    "a": "#849c63",
+    "b": "#8ba16c"
+   },
+   "ratio": 0.241,
+   "inverted": true
+  },
+  "shippedAllFaces": {
+   "gap": {
+    "dE": 3.37,
+    "face": "top",
+    "shade": 0.78,
+    "a": {
+     "status": "healthy",
+     "token": 2,
+     "rgb": "#789a57"
+    },
+    "b": {
+     "status": "unknown",
+     "token": 1,
+     "rgb": "#7c975a"
+    }
+   }
+  },
+  "collapsedFills": {
+   "ok": true,
+   "gap": {
+    "dE": 17.84,
+    "face": "top",
+    "shade": 0.78,
+    "a": {
+     "status": "healthy",
+     "token": 0,
+     "rgb": "#6d9049"
+    },
+    "b": {
+     "status": "unknown",
+     "token": 0,
+     "rgb": "#849c63"
+    }
+   },
+   "bar": {
+    "dE": 13.98,
+    "status": "mapped",
+    "token": "#a68557",
+    "from": 1.0,
+    "to": 0.9
+   },
+   "withinStatus": null,
+   "ratio": 1.276,
+   "inverted": false
+  },
+  "collapsedAllFaces": {
+   "gap": {
+    "dE": 15.68,
+    "face": "side",
+    "shade": 0.78,
+    "a": {
+     "status": "proposed",
+     "token": 0,
+     "rgb": "#83713a"
+    },
+    "b": {
+     "status": "unknown",
+     "token": 0,
+     "rgb": "#69774a"
+    }
+   }
+  },
+  "perPair": {
+   "healthy|mapped": {
+    "shipped": 25.64,
+    "collapsed": 27.43
+   },
+   "healthy|proposed": {
+    "shipped": 24.99,
+    "collapsed": 32.94
+   },
+   "healthy|unknown": {
+    "shipped": 3.37,
+    "collapsed": 17.84
+   },
+   "mapped|proposed": {
+    "shipped": 14.19,
+    "collapsed": 30.74
+   },
+   "mapped|unknown": {
+    "shipped": 22.59,
+    "collapsed": 31.91
+   },
+   "proposed|unknown": {
+    "shipped": 20.54,
+    "collapsed": 21.41
+   }
+  },
+  "rule": "two statuses must be further apart, where the land renders them alike, than one status is from itself one shade rung away. Status must outweigh light \u2014 ADR-0367 D5 as a number. The bar is DERIVED from the shade table, not chosen."
+ },
+ "theInversion": {
+  "meaninglessStep": {
+   "dE": 6.48,
+   "status": "unknown",
+   "face": "top",
+   "shade": 0.78,
+   "a": "#849c63",
+   "b": "#8ba16c"
+  },
+  "meaningfulGap": {
+   "dE": 3.37,
+   "face": "top",
+   "shade": 0.78,
+   "a": {
+    "status": "healthy",
+    "token": 2,
+    "rgb": "#789a57"
+   },
+   "b": {
+    "status": "unknown",
+    "token": 1,
+    "rgb": "#7c975a"
+   }
+  },
+  "reading": "the palette draws the distinction that MEANS NOTHING \u2014 `substrate.ts:237`'s hash-picked texture variant, which nothing reads and nothing derives from \u2014 louder than the distinction that carries SEMANTIC STATE. That is the ADR-0367 D5 failure stated as one comparison, and it needs no reader table at all."
+ },
+ "sideLadderIsDegenerate": {
+  "pairs": [
+   {
+    "status": "healthy",
+    "levels": [
+     0.78,
+     0.8
+    ],
+    "dE": 2.32,
+    "a": "#4e6535",
+    "b": "#506836"
+   },
+   {
+    "status": "mapped",
+    "levels": [
+     0.78,
+     0.8
+    ],
+    "dE": 2.2,
+    "a": "#685131",
+    "b": "#6a5332"
+   },
+   {
+    "status": "proposed",
+    "levels": [
+     0.78,
+     0.8
+    ],
+    "dE": 2.93,
+    "a": "#83713a",
+    "b": "#86743b"
+   },
+   {
+    "status": "unknown",
+    "levels": [
+     0.78,
+     0.8
+    ],
+    "dE": 2.83,
+    "a": "#69774a",
+    "b": "#6c7a4c"
+   }
+  ],
+  "reading": "a separate, smaller defect found while deriving the bar: `KEY_SHADE` holds `chamfer_dark = 0.78` beside `wall_dark = 0.80` and `build_palette` gives the SIDE family every level, so the side ladder contains pairs ~2.3 dE apart \u2014 two palette entries no reader can separate. Harmless today (same status at both ends) and the reason the bar above is the FILL ladder."
+ },
+ "theShippedApp": {
+  "path": "substrate.ts -> scene.ts -> index.css (SVG fill from a CSS variable; NO shade ladder)",
+  "researchPath": "emit_island.ts -> blender_land.py -> the closed-palette snap (13 colours/status)",
+  "appColoursPerStatus": 4,
+  "matchedGapFills": {
+   "dE": 4.32,
+   "face": "top",
+   "a": {
+    "status": "healthy",
+    "token": 2,
+    "rgb": "#9ac570"
+   },
+   "b": {
+    "status": "unknown",
+    "token": 1,
+    "rgb": "#9fc174"
+   }
+  },
+  "matchedGapAllFaces": {
+   "dE": 4.32,
+   "face": "top",
+   "a": {
+    "status": "healthy",
+    "token": 2,
+    "rgb": "#9ac570"
+   },
+   "b": {
+    "status": "unknown",
+    "token": 1,
+    "rgb": "#9fc174"
+   }
+  },
+  "bar": {
+   "dE": 13.98,
+   "status": "mapped",
+   "token": "#a68557",
+   "from": 1.0,
+   "to": 0.9
+  },
+  "variantCollisionRate": {
+   "healthy|mapped": {
+    "collidingVariantPairs": 0,
+    "of": 9,
+    "rate": 0.0,
+    "pairs": []
+   },
+   "healthy|proposed": {
+    "collidingVariantPairs": 0,
+    "of": 9,
+    "rate": 0.0,
+    "pairs": []
+   },
+   "healthy|unknown": {
+    "collidingVariantPairs": 2,
+    "of": 9,
+    "rate": 0.222,
+    "pairs": [
+     [
+      2,
+      0
+     ],
+     [
+      2,
+      1
+     ]
+    ]
+   },
+   "mapped|proposed": {
+    "collidingVariantPairs": 0,
+    "of": 9,
+    "rate": 0.0,
+    "pairs": []
+   },
+   "mapped|unknown": {
+    "collidingVariantPairs": 0,
+    "of": 9,
+    "rate": 0.0,
+    "pairs": []
+   },
+   "proposed|unknown": {
+    "collidingVariantPairs": 0,
+    "of": 9,
+    "rate": 0.0,
+    "pairs": []
+   }
+  },
+  "whereUnknownComesFrom": {
+   "schemaStatuses": [
+    "building",
+    "healthy",
+    "mapped",
+    "proposed",
+    "retired",
+    "unhealthy"
+   ],
+   "unknownIsASchemaStatus": false,
+   "cssTerritoryBlocks": [
+    "building",
+    "healthy",
+    "mapped",
+    "proposed",
+    "unhealthy"
+   ],
+   "unknownHasItsOwnBlock": false,
+   "baseFamily": {
+    "top": [
+     "#a9c87f",
+     "#9fc174",
+     "#b2cf8b"
+    ],
+    "side": "#87985f"
+   },
+   "reading": "`unknown` is the null-status fallback class, not a schema status; it has no `.hex-territory` block and so inherits `:root`'s base grass family. A cell wearing it asserts NOTHING about a capability, and it is the family that collides with `healthy`, which asserts a signed pass (ADR-0040)."
+  },
+  "reading": "NOT exempt. The app's set is SMALLER than the research pipeline's and the same two families overlap inside it, at full light, with no shading and no quantiser. `substrate.ts:237` picks the variant by hash, so which pair gets drawn is a coin toss the renderer takes per cell."
+ },
+ "corpusExposure": {
+  "censusReadAt": "2026-08-16T13:42:35.266Z",
+  "storiesRenderingOnMap": 41,
+  "capabilities": 244,
+  "statusPresentOnNStories": {
+   "healthy": 31,
+   "mapped": 5,
+   "proposed": 19,
+   "retired": 1
+  },
+  "coDrawnPairs": {
+   "healthy|mapped": 5,
+   "healthy|proposed": 12,
+   "healthy|retired": 1,
+   "mapped|proposed": 2,
+   "mapped|retired": 1,
+   "proposed|retired": 1
+  },
+  "coDrawnPairStories": {
+   "healthy|mapped": [
+    "arc",
+    "cli",
+    "desktop",
+    "drive-machinery",
+    "studio"
+   ],
+   "healthy|proposed": [
+    "app-surface",
+    "art-factory",
+    "context-traversal-spawn",
+    "context-traversal-telemetry",
+    "desktop",
+    "library",
+    "map-terminal-build",
+    "studio",
+    "studio-cloud",
+    "studio-members",
+    "website-experience",
+    "wisp-as-story-claim"
+   ],
+   "healthy|retired": [
+    "studio"
+   ],
+   "mapped|proposed": [
+    "desktop",
+    "studio"
+   ],
+   "mapped|retired": [
+    "studio"
+   ],
+   "proposed|retired": [
+    "studio"
+   ]
+  },
+  "reading": "the difference between a latent defect and an active misdraw, and it cuts BOTH ways. No capability in the live corpus renders `unknown` (0 of 244), so no island draws the 3.37 dE pair today \u2014 the worst instance is one null status away, not on screen. But the pair that IS drawn today and sits closest to the bar, `mapped` beside `proposed` on 2 stories, clears it by 1.5%."
+ },
+ "thePrice": {
+  "shippedPaletteEntries": 86,
+  "collapsedPaletteEntries": 50,
+  "deliveredShippedPalette": 86,
+  "comparisons": {
+   "shadowLadder": 506,
+   "shadowLadderCost": 374,
+   "microRelief": 1125,
+   "microReliefCost": 619
+  },
+  "reading": "a RE-ANCHORING costs ZERO entries \u2014 the palette's size is |tokens| x |levels| and changing a token's value changes no count. The collapse this pass measures costs NEGATIVE entries: it removes two of the three top tokens per status. Every other move priced on this arc ADDED entries (shadow +374, micro-relief +619); this is the first that pays for itself, and the owner has already directed the surface it needs (flat green, one surface, 2026-08-16)."
+ },
+ "theCeilings": {
+  "instrument": "shadow.safe_depth, imported \u2014 the same function that produced the arc's series",
+  "readTheDirection": "the ceiling is the DEEPEST multiplier at which a fill still reads as itself, so a LOWER number is MORE headroom, and a ladder is admissible on a mixed island when its deepest rung sits below the MAXIMUM of the ceilings present.",
+  "asPR1385Measured": {
+   "healthy": {
+    "fill": "#8cb85e",
+    "ceiling": 0.74,
+    "readsAsAtFullLight": "healthy"
+   },
+   "mapped": {
+    "fill": "#b3946a",
+    "ceiling": 0.76,
+    "readsAsAtFullLight": "mapped"
+   },
+   "proposed": {
+    "fill": "#d8c069",
+    "ceiling": 0.88,
+    "readsAsAtFullLight": "proposed"
+   },
+   "unknown": {
+    "fill": "#a9c87f",
+    "ceiling": 0.91,
+    "readsAsAtFullLight": "unknown"
+   },
+   "_binding": 0.91
+  },
+  "folded": {
+   "healthy": {
+    "fill": "#8cb85e",
+    "ceiling": 0.67,
+    "readsAsAtFullLight": "healthy"
+   },
+   "mapped": {
+    "fill": "#b3946a",
+    "ceiling": 0.3,
+    "readsAsAtFullLight": "mapped"
+   },
+   "proposed": {
+    "fill": "#d8c069",
+    "ceiling": 0.88,
+    "readsAsAtFullLight": "proposed"
+   },
+   "unknown": {
+    "fill": "#a9c87f",
+    "ceiling": 0.91,
+    "readsAsAtFullLight": "unknown"
+   },
+   "_binding": 0.91
+  },
+  "collapsed": {
+   "healthy": {
+    "fill": "#8cb85e",
+    "ceiling": 0.72,
+    "readsAsAtFullLight": "healthy"
+   },
+   "mapped": {
+    "fill": "#b3946a",
+    "ceiling": 0.3,
+    "readsAsAtFullLight": "mapped"
+   },
+   "proposed": {
+    "fill": "#d8c069",
+    "ceiling": 0.9,
+    "readsAsAtFullLight": "proposed"
+   },
+   "unknown": {
+    "fill": "#a9c87f",
+    "ceiling": 0.94,
+    "readsAsAtFullLight": "unknown"
+   },
+   "_binding": 0.94
+  },
+  "deepestAuthoredRung": 0.8,
+  "reading": "THIS CONTRADICTS THE ARC'S OWN EXPECTATION AND THE CONTRADICTION IS THE POINT. The increment was sequenced ahead of `shadow-ladder-is-admissible-and-affordable` because separating the cross-reading bands 'may raise the confusability ceilings'. It does not. The binding ceiling is `unknown`'s and it moves 0.91 -> 0.91 -> 0.94: the fold does not touch it and the collapse makes it slightly WORSE, because this instrument rewards a family for owning a darker sibling to fall back on and the collapse takes those siblings away. The 0.80 ladder stays inadmissible on a mixed island either way. The reason is structural: the four rendered statuses are ordered along LUMINANCE and a shadow is a luminance operation, so darkening one walks it toward the next. Separating them by HUE or CHROMA is what would move these numbers, and that is an owner art call this pass prices but does not spend."
+ },
+ "theGate": {
+  "shippedTable": {
+   "refused": true,
+   "message": "REFUSED to draw a 3-variant island: `healthy` and `unknown` are 3.37 dE apart on the same face at the same light (#789a57 vs #7c975a), against a shade rung of 13.98 dE. A reader cannot tell the status apart from the light. ADR-0367 D5."
+  },
+  "collapsedTable": {
+   "refused": false
+  }
+ },
+ "theIsland": {
+  "storyId": "context-traversal-capture",
+  "statusesOnThisIsland": [
+   "healthy"
+  ],
+  "landPx": 30477,
+  "fillPx": 13827,
+  "fillPxPctOfLand": 45.4,
+  "distinctFillColours": 3,
+  "foreignReadingFillPx": {
+   "A shipped reader (6 statuses, tops+sides)": 0,
+   "B fills only (6 statuses, ADR-0367 D5's own table)": 0,
+   "C folded (4 rendered statuses, tops+sides)": 0,
+   "D folded + fills only": 0
+  },
+  "foreignReadingFillPct": {
+   "A shipped reader (6 statuses, tops+sides)": 0.0,
+   "B fills only (6 statuses, ADR-0367 D5's own table)": 0.0,
+   "C folded (4 rendered statuses, tops+sides)": 0.0,
+   "D folded + fills only": 0.0
+  },
+  "foreignReadingLoosePx": {
+   "A shipped reader (6 statuses, tops+sides)": 9478,
+   "B fills only (6 statuses, ADR-0367 D5's own table)": 16650,
+   "C folded (4 rendered statuses, tops+sides)": 7692,
+   "D folded + fills only": 13132
+  },
+  "foreignReadingLoosePct": {
+   "A shipped reader (6 statuses, tops+sides)": 31.1,
+   "B fills only (6 statuses, ADR-0367 D5's own table)": 54.6,
+   "C folded (4 rendered statuses, tops+sides)": 25.2,
+   "D folded + fills only": 43.1
+  },
+  "perColour": [
+   {
+    "rgb": "#7dab50",
+    "authored": "healthy",
+    "token": 1,
+    "shade": 1.0,
+    "px": 4965,
+    "readsAs": {
+     "A shipped reader (6 statuses, tops+sides)": "healthy",
+     "B fills only (6 statuses, ADR-0367 D5's own table)": "healthy",
+     "C folded (4 rendered statuses, tops+sides)": "healthy",
+     "D folded + fills only": "healthy"
+    }
+   },
+   {
+    "rgb": "#8cb85e",
+    "authored": "healthy",
+    "token": 0,
+    "shade": 1.0,
+    "px": 4092,
+    "readsAs": {
+     "A shipped reader (6 statuses, tops+sides)": "healthy",
+     "B fills only (6 statuses, ADR-0367 D5's own table)": "healthy",
+     "C folded (4 rendered statuses, tops+sides)": "healthy",
+     "D folded + fills only": "healthy"
+    }
+   },
+   {
+    "rgb": "#9ac570",
+    "authored": "healthy",
+    "token": 2,
+    "shade": 1.0,
+    "px": 4770,
+    "readsAs": {
+     "A shipped reader (6 statuses, tops+sides)": "healthy",
+     "B fills only (6 statuses, ADR-0367 D5's own table)": "healthy",
+     "C folded (4 rendered statuses, tops+sides)": "healthy",
+     "D folded + fills only": "healthy"
+    }
+   }
+  ],
+  "measuredOn": "SURFACE_BARE \u2014 the delivered island with seams off, NO hero tree and NO plants. The tree occludes cells (it cost this track a full re-measure once) and body statistics must come from a plant-less canvas.",
+  "reading": "THE DELIVERED RASTER IS CLEAN AND THE SYMPTOM COUNT WAS THE MASK. Under the STRICT mask \u2014 a pixel whose delivered colour IS one of the top tokens the island's own status emits \u2014 not one pixel of 13827 reads as anything but `healthy`, under any of the four readers. Under the LOOSE mask, which is the shape PR #1385's `cell_bodies` used for its absolute 13.6%, the same island reports a non-zero share, and every pixel of the difference is a wall, a chamfer band or the coast \u2014 surfaces that are not a status assertion. The surfaces differ (this is the as-shipped 3-variant island, that was the collapsed one-surface baseline), so this is the same MASK effect rather than a reproduction of that exact figure. Note also what this island cannot answer: it carries ONE status, and a same-island confusion needs two."
+ }
+}
