@@ -2845,11 +2845,20 @@ export function TreeView({
   // control render carries identically, not a per-frame state. `svgRef.current` (that same
   // `.world-scene` element) is the animation scope this reads: it contains the camera, every lane,
   // every trail mask and every arrival pop-in.
+  //
+  // `worldArrived` (settle-bridge-reports-settled-before-the-world-arrives, 2026-08-18): the
+  // positive arrival assertion motionSettled.ts's header describes — computed from the SAME state
+  // that gates the "Growing the world…" placeholder a few hundred lines down (`if (!stories ||
+  // !world) return <p>Growing the world…</p>`), so the bridge and the placeholder can never
+  // disagree. `loadError` counts as arrived too: a load that failed outright is a terminal state,
+  // not one still in flight, and a reader waiting on this bridge deserves a prompt, honest verdict
+  // rather than hanging until its own timeout.
   const motionSettledSnapshotRef = useRef<MotionSettledBridge>(() =>
-    motionSettledSnapshot({ act2Regrowing: false, activeStructuralAnimations: 0 }),
+    motionSettledSnapshot({ worldArrived: false, act2Regrowing: false, activeStructuralAnimations: 0 }),
   );
   motionSettledSnapshotRef.current = () =>
     motionSettledSnapshot({
+      worldArrived: Boolean(stories) || Boolean(loadError),
       act2Regrowing: act2Player.regrowing,
       activeStructuralAnimations: countActiveStructuralAnimations(
         readStructuralAnimations(svgRef.current),
