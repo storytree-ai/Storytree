@@ -117,15 +117,41 @@ export function bandedColour(token: string, lambert: number): Rgb255 {
   return { r: q(t.r), g: q(t.g), b: q(t.b) };
 }
 
+/** The ladder INDEX a lighting scalar falls on — the same decision as `bandShade`, returned
+ *  as a position rather than a multiplier.
+ *
+ *  THIS IS THE FORM THE SHADER USES, AND THE REASON IS MEASURED, NOT STYLISTIC. A first
+ *  version had the GPU compute `token * level` in normalised floats and let the framebuffer
+ *  write-back round. That delivered 929 px of `#c2ad5e` where the authored entry is
+ *  `#c2ad5f`: the exact product for `#d8c069`'s blue channel at level 0.9 is 94.5, and
+ *  JavaScript's `Math.round` takes an exact half UP while the GPU's float-to-unorm8
+ *  conversion took it DOWN. Both are defensible; they are not the same. So the rounding is
+ *  done ONCE, here, in specified arithmetic, and the GPU is given the finished colours to
+ *  SELECT between — it never multiplies a colour at all. The closure argument is untouched
+ *  (a shader still only ever reaches its own token's entries); what changes is that
+ *  "on-palette" now means bit-identical rather than within-one-LSB. */
+export function bandLevelIndex(lambert: number): number {
+  const banded = bandShade(lambert);
+  const i = SHADE_LEVELS.indexOf(banded);
+  // `bandShade` only ever returns a member of the ladder, so this cannot miss; the guard
+  // exists so that if it ever could, it fails loudly instead of silently indexing -1.
+  if (i < 0) throw new Error(`palette-band: bandShade returned ${banded}, not a ladder member`);
+  return i;
+}
+
+/** The token's RAMP: its delivered colour at every ladder rung, in ladder order. This is
+ *  what the material uploads — the shader picks `ramp[bandLevelIndex(lambert)]` and writes
+ *  it through unchanged. */
+export function tokenRamp(token: string): Rgb255[] {
+  return SHADE_LEVELS.map((level) => bandedColour(token, level));
+}
+
 /** Every colour ONE token can deliver, across the whole ladder — the token's own closed
- *  image. A live material's reachable set is the union of these over its instances' tokens,
- *  which is what makes the closure provable without sampling the shader. */
+ *  image, deduped. A live material's reachable set is the union of these over its
+ *  instances' tokens, which is what makes the closure provable without sampling the shader. */
 export function paletteImageOfToken(token: string): Rgb255[] {
   const seen = new Map<string, Rgb255>();
-  for (const level of SHADE_LEVELS) {
-    const c = bandedColour(token, level);
-    seen.set(toHex(c), c);
-  }
+  for (const c of tokenRamp(token)) seen.set(toHex(c), c);
   return [...seen.values()];
 }
 
@@ -180,31 +206,34 @@ export function statusFamilyOf(colour: Rgb255): string | null {
 // parse its own evidence and therefore looked exactly like a guard that did not fire;
 // deriving beats asserting.)
 
-/** GLSL source for the banding quantiser: the same nearest-level-ties-down rule as
- *  `bandShade`, with the ladder written in from `SHADE_LEVELS`. Injected into the material's
- *  fragment stage, which then computes `outColour = uToken * st_bandShade(lambert)` — so the
- *  GPU CONSTRUCTS a palette entry instead of searching for one. */
+/** GLSL source for the banding quantiser, with the ladder written in from `SHADE_LEVELS`.
+ *
+ *  It returns the ladder INDEX, not the multiplier: the fragment stage then reads
+ *  `uRamp[index]` — the finished, already-rounded authored colour uploaded by
+ *  `tokenRamp` — and writes it through unchanged. The GPU therefore performs no colour
+ *  arithmetic at all, which is what makes "the delivered pixel is an authored entry" a
+ *  bit-identity rather than an approximation (see `bandLevelIndex`). */
 export function bandGlsl(): string {
   const n = SHADE_LEVELS.length;
   const levels = SHADE_LEVELS.map((l) => l.toFixed(6)).join(', ');
   const lines = [
     '// GENERATED from palette-band.ts SHADE_LEVELS — do not hand-edit this ladder.',
     `const int ST_N_LEVELS = ${n};`,
-    `float st_level(int i) {`,
+    'float st_level(int i) {',
     ...SHADE_LEVELS.map((l, i) => `  if (i == ${i}) return ${l.toFixed(6)};`),
     `  return ${SHADE_LEVELS[SHADE_LEVELS.length - 1]!.toFixed(6)};`,
-    `}`,
+    '}',
     '',
-    'float st_bandShade(float lambert) {',
-    '  float lo = st_level(0);',
-    '  float hi = st_level(ST_N_LEVELS - 1);',
-    '  if (lambert <= lo) return lo;',
-    '  if (lambert >= hi) return hi;',
-    '  float best = lo;',
+    '// The ladder rung a lighting scalar falls on. Nearest, ties DOWN, ends clamped —',
+    '// identical to bandShade/bandLevelIndex in palette-band.ts.',
+    'int st_bandIndex(float lambert) {',
+    '  if (lambert <= st_level(0)) return 0;',
+    '  if (lambert >= st_level(ST_N_LEVELS - 1)) return ST_N_LEVELS - 1;',
+    '  int best = 0;',
     '  float bestD = 1e9;',
     '  for (int i = 0; i < ST_N_LEVELS; i++) {',
     '    float d = abs(st_level(i) - lambert);',
-    '    if (d < bestD) { bestD = d; best = st_level(i); }',
+    '    if (d < bestD) { bestD = d; best = i; }',
     '  }',
     '  return best;',
     '}',
