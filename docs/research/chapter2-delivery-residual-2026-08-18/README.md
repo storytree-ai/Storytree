@@ -241,6 +241,17 @@ Here that is the point — one switch in `compose_core` now reaches three compos
 patched an importer's own copy of the name would find **no such name to patch** and raise, rather than
 measuring the unmodified rule and printing CAUGHT.
 
+⚠ **AND THERE IS AN ADJACENT HAZARD THIS IMPORT NOW SHARES, named by the sibling shrub pass that
+landed the same day.** `attribute.py` registers its OWN `compose_core` object under that name in
+`sys.modules` (`attribute.py:48`), while everyone else imports the name ordinarily — so whichever
+runs FIRST decides whether the process holds one `compose_core` or two, and with two, a switch set on
+one is invisible through the other. `compose_dressed` is now a client of that name, so it is exposed
+to it. What covers it here is not care but a MECHANISM: `verify.py` asserts
+`compose_dressed.CORE.decor_depth_key is compose_core.decor_depth_key` — function-object identity, so
+two live modules fail it — and the switch is then driven through the dressing compositor and SEEN to
+fire (32 buried placements → 3). A patch that reached the wrong module would report no change, which
+is exactly what the assertion refuses to let pass silently.
+
 **Three copies remain three; convergence beyond these two rules is NOT done.** `compose_core.py` is a
 554-line superset of `compose_dressed.py`'s first 400 lines, so a full convergence is available — but
 it would have to rebind `compose_core` to a second decor piece set with four roles per piece and would
