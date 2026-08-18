@@ -1,20 +1,15 @@
 {
  "fence": {
-  "pathsTouchedCount": 79,
+  "pathsTouchedCount": 24,
   "outsideDocsResearch": [],
   "researchDirsTouched": [
-   "docs/research/chapter2-grass-defects-2026-08-16",
-   "docs/research/chapter2-grass-delivery-loss-2026-08-17",
+   "docs/research/chapter2-code-only-art-2026-08-01",
+   "docs/research/chapter2-compositor-order-and-caps-2026-08-17",
+   "docs/research/chapter2-delivery-residual-2026-08-18",
    "docs/research/chapter2-grass-reads-as-signal-2026-08-16",
-   "docs/research/chapter2-greenery-techniques-2026-08-17",
-   "docs/research/chapter2-healthy-island-2026-08-16",
-   "docs/research/chapter2-hex-lines-and-flat-green-2026-08-16",
-   "docs/research/chapter2-high-frequency-options-2026-08-17",
-   "docs/research/chapter2-island-place-dressing-2026-08-16",
-   "docs/research/chapter2-one-surface-and-shadow-2026-08-17",
-   "docs/research/chapter2-plant-dispersion-2026-08-17"
+   "docs/research/chapter2-island-place-dressing-2026-08-16"
   ],
-  "landCameraElevationDeg": "\"landCameraElevationDeg\": \"emits SVG vector nodes at `LAND_CAMERA_ELEVATION_DEG = 20`, with no supersample, no closed-palette\\nAPP_LAND_CAMERA_ELEVATION_DEG = 20.0\\n          \\\"LAND_CAMERA_ELEVATION_DEG = 20\\\" in src.replace(\\\":\\\", \\\" \\\").replace(\\\"  \\\", \\\" \\\")\\nAPP_LAND_CAMERA_ELEVATION_DEG = 20.0\\n      \\\"export const LAND_CAMERA_ELEVATION_DEG = 20;\\\" in cam,\\nAPP_LAND_CAMERA_ELEVATION_DEG = 20.0\\n      \\\"LAND_CAMERA_ELEVATION_DEG = 20\\\" in cam.replace(\\\"export const \\\", \\\"\\\"),\\nexport const LAND_CAMERA_ELEVATION_DEG = 20;\"\n   \"detail\": \"emits SVG vector nodes at `LAND_CAMERA_ELEVATION_DEG = 20`, with no supersample, no closed-palette\"\nelev = subprocess.run([\"git\", \"-C\", REPO, \"grep\", \"-h\", \"LAND_CAMERA_ELEVATION_DEG =\"],\nemits SVG vector nodes at `LAND_CAMERA_ELEVATION_DEG = 20`, with no supersample, no closed-palette\nAPP_LAND_CAMERA_ELEVATION_DEG = 20.0\n          \"LAND_CAMERA_ELEVATION_DEG = 20\" in src.replace(\":\", \" \").replace(\"  \", \" \")\n      \"LAND_CAMERA_ELEVATION_DEG = 20\" in cam.replace(\":\", \"\").replace(\"number\", \"\"),\nAPP_LAND_CAMERA_ELEVATION_DEG = 20.0\n      \"export const LAND_CAMERA_ELEVATION_DEG = 20;\" in cam,\n   \"LAND_CAMERA_ELEVATION_DEG = 20\" in cam.replace(\"export const \", \"\"),\nAPP_LAND_CAMERA_ELEVATION_DEG = 20.0\n      \"LAND_CAMERA_ELEVATION_DEG = 20\" in cam.replace(\"export const \", \"\"),\nprojection \u00e2\u20ac\u201d the research track's 50\u00c2\u00b0 and the app's `LAND_CAMERA_ELEVATION_DEG = 20` both scale `y`\nexport const LAND_CAMERA_ELEVATION_DEG = 20;"
+  "landCameraElevationDeg": "export const LAND_CAMERA_ELEVATION_DEG = 20;"
  },
  "shippedSurfaces": {
   "svg": {
@@ -273,12 +268,12 @@
   {
    "check": "every change in the working tree is under docs/research/**",
    "pass": true,
-   "detail": "79 paths touched"
+   "detail": "24 paths touched"
   },
   {
    "check": "LAND_CAMERA_ELEVATION_DEG is still 20 and was not touched",
    "pass": true,
-   "detail": "\"landCameraElevationDeg\": \"emits SVG vector nodes at `LAND_CAMERA_ELEVATION_DEG = 20`, with no supersample, no closed-palette\\nAPP_LAND_CAMERA_ELEVATION_DEG = 20.0\\n          \\\"LAND_CAMERA_ELEVATION_DEG = 20\\\" in src.replace(\\\":\\\", \\\" \\\").replace(\\\"  \\\", \\\" \\\")\\nAPP_LAND_CAMERA_ELEVATION_DEG = 20.0\\n      \\\"export const LAND_CAMERA_ELEVATION_DEG = 20;\\\" in cam,\\nAPP_LAND_CAMERA_ELEVATION_DEG = 20.0\\n      \\\"LAND_CAMERA_ELEVATION_DEG = 20\\\" in cam.replace(\\\"export const \\\", \\\"\\\"),\\nexport const LAND_CAMERA_ELEVATION_DEG = 20;\""
+   "detail": "export const LAND_CAMERA_ELEVATION_DEG = 20;"
   },
   {
    "check": "the SVG scene paints ground-mesh BEFORE flora-layer, and a test holds the order",

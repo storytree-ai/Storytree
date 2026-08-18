@@ -3,7 +3,8 @@
  "artifact": "island-dressed.png",
  "producer": {
   "tool": "compose_dressed.py",
-  "sha256": "b3935dabbeb37e44e3836d77e89ccde4e9bc6681dfa6b364ee0f5aa89db534ef"
+  "sha256": "8c8ff2ca13e7836061e9de7d8e51bf0326d6f308a23060691ecf6af3637f79dd",
+  "basis": "source-bytes-with-CRLF-and-CR-normalised-to-LF"
  },
  "command": {
   "tool": "compose_dressed.py",
@@ -172,8 +173,8 @@
   "rule": "one code state PER GENERATOR; the composite's identity is the digest of the whole {generator: state} map, so any generator moving moves it"
  },
  "output": {
-  "sha256": "71837a99204cb3a7e60113f4b80e665ca105bb1efce251607aa4a364c7599bd2",
-  "bytes": 21884
+  "sha256": "caab6d85d38fc75636c5922bf72b251cb390c55a301deab2a805625f86b8fd33",
+  "bytes": 22494
  },
  "cameraElevationDeg": 50.0,
  "variant": "b++ land + ADR-0226 vegetation vocabulary",

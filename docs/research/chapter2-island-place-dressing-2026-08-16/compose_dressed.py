@@ -68,6 +68,30 @@ import provenance  # noqa: E402
 
 import scatter  # noqa: E402
 
+# THE PAINTER-ORDER RULES ARE IMPORTED, NOT RESTATED — and this is the fourth-site repair.
+#
+# This file kept its OWN copy of the draw-list assembly, so when PR #1387 fixed the depth key and the
+# `caps` wall authority in `compose_core.py` neither fix reached here: the dressing pictures went on
+# composing with a placement sorting on its own ground point alone — measured on this island, 32 of
+# 120 placements (26.7%) owned ZERO supersampled pixels once the composite finished, against 3 (2.5%)
+# under the shipped rule — and with `status-vocabulary.png` driving each status through `caps=` while
+# its walls kept the ORIGINAL statuses'. Nothing detected it, because nothing on this track compares
+# one compositor copy to another. (26.7% is OCCLUSION alone, measured before the downsample; the
+# arc's 46% figure is placements delivering zero DELIVERED pixels, which also counts out-voting.)
+#
+# The repair is an IMPORT rather than a fifth copy of the two rules. `compose_core` is the canonical
+# home: `attribute.py` already calls the same two functions rather than restating them, and
+# `delivery.centroid_key()` reintroduces the defect by setting `compose_core`'s own switch. Because
+# a callee resolves its globals in the module that DEFINES it, that one switch now reaches this
+# compositor too — which is the same aliasing property that silently disarmed two monkey-patches on
+# this track in PR #1393, used deliberately instead of walked into. `verify.py` asserts the identity
+# and drives the switch through THIS file, so the coupling is proved rather than assumed.
+#
+# GRASS is APPENDED to `sys.path`, never prepended: this directory owns `scatter.py` and `dressing.py`
+# and must keep winning those names.
+sys.path.append(os.path.join(REPO, "docs", "research", "chapter2-grass-reads-as-signal-2026-08-16"))
+import compose_core as CORE  # noqa: E402
+
 ISLAND_PATH = os.path.join(HERE, "island.json")
 LAND_PIECES = os.path.join(HERE, "pieces-land")
 DECOR_PIECES = os.path.join(HERE, "pieces-decor")
@@ -225,10 +249,21 @@ def compose_land(decor_items, cells=None, caps=None):
     has to enter that list. `assert_land_unchanged()` holds the mirror honest by running both and
     comparing bytes, so this is a proved copy rather than a trusted one.
 
-    Decor sorts at tier 3 on its OWN ground y — after the cell it stands on (tier 2) and before
-    anything nearer. That single sort is what makes the composite correct without a depth buffer:
-    a tuft on a far cell is covered by a nearer raised cell's top face, exactly as the cell behind
-    it is.
+    Decor sorts at tier 3 on `CORE.decor_depth_key` — `max(its own ground y, its cell's centroid
+    y)` — so it is drawn after the cell it stands on and before anything nearer. That single sort is
+    what makes the composite correct without a depth buffer: a tuft on a far cell is covered by a
+    nearer raised cell's top face, exactly as the cell behind it is, and is never covered by its own.
+
+    IT USED TO SORT ON ITS OWN GROUND Y ALONE, which is the defect PR #1383 diagnosed and PR #1387
+    fixed in `compose_core` — and MISSED here, because this file carries its own draw list. A cell's
+    sort key is its CENTROID, so any placement in the back half of its own cell sorted BEFORE that
+    cell, and `C.fill_polygon` is a hard write: the cell's own top face erased the thing standing on
+    it. Every dressing picture on this track was composed that way until this repair.
+
+    `caps` IS AUTHORITATIVE FOR THE WALLS TOO, via the same imported rule. `status-vocabulary.png`
+    is the picture that needed it: it drives every capability to one status through `caps=` alone,
+    and the walls were reading the module global, so each of its five panels stood on the ORIGINAL
+    island's mixed-status walls while claiming to show one status.
     """
     cells = ISLAND["variantB"]["cells"] if cells is None else cells
     caps = C.CAPS if caps is None else caps
@@ -245,12 +280,12 @@ def compose_land(decor_items, cells=None, caps=None):
     for pl in ISLAND["wall"]["placements"]:
         if C.faces_viewer(pl["heading"]):
             draw.append((pl["c"][1], 0, ("wall", pl["c"], pl["heading"], 0.0, story_side)))
-    for pos, h, height, side in C.boundary_walls(cells, ELEVATION_MODE):
+    for pos, h, height, side in CORE.walls_under_caps(C, cells, ELEVATION_MODE, caps):
         draw.append((pos[1], 1, ("wall", pos, h, height, side)))
     for c in cells:
         draw.append((c["c"][1], 2, ("cell", c, C.height_of(c, ELEVATION_MODE))))
     for d in decor_items:
-        draw.append((d["g"][1], 3, ("decor", d)))
+        draw.append((CORE.decor_depth_key(d, cells), 3, ("decor", d)))
     draw.sort(key=lambda t: (t[0], t[1]))
 
     for _, _, item in draw:

@@ -1,0 +1,1031 @@
+{
+ "fence": "every path this pass writes is under docs/research/**; LAND_CAMERA_ELEVATION_DEG is neither read nor written",
+ "camera": {
+  "elevationDeg": 50.0,
+  "supersample": 3,
+  "note": "the research track's named parameter, owner look verdict 2026-08-16"
+ },
+ "geometries": {
+  "fixture": {
+   "island": "chapter2-grass-reads-as-signal-2026-08-16/island.json",
+   "storyId": "fork-spike-island",
+   "capabilities": 10,
+   "cells": 214,
+   "corners": {
+    "legacy/old": {
+     "label": "fixture-legacy-old",
+     "positioner": "legacy",
+     "depthKey": "old",
+     "candidates": null,
+     "placements": 112,
+     "deliveringNothing": 52,
+     "deliveringNothingPct": 46.4,
+     "TRULYdeliveringNothing": 50,
+     "TRULYdeliveringNothingPct": 44.6,
+     "fates": {
+      "delivered": 60,
+      "coCredited": 2,
+      "occluded": 36,
+      "outVoted": 14
+     },
+     "vegetationPxDelivered": 289,
+     "deliveredIslandPx": 34968,
+     "medianPxPerSurvivor": 3,
+     "wellCulled": 3,
+     "centroidFallbacks": 0,
+     "aboveVsBelowTheCentroid": {
+      "aboveTheCellCentroid_paintedFIRST_soTheCellFillErasesIt": {
+       "n": 61,
+       "trueZero": 47,
+       "occluded": 34,
+       "pct": 77.0,
+       "occludedPct": 55.7
+      },
+      "belowTheCellCentroid_paintedAFTERTheCell": {
+       "n": 51,
+       "trueZero": 3,
+       "occluded": 2,
+       "pct": 5.9,
+       "occludedPct": 3.9
+      }
+     },
+     "whatOwnsAnOccludedPlacementsFootprint": {
+      "ownCellsFill": 31,
+      "anotherCell": 1,
+      "aWall": 1,
+      "theCoast": 0,
+      "anotherPlacement": 3,
+      "nothingUnpainted": 0
+     }
+    },
+    "legacy/shipped": {
+     "label": "fixture-legacy-shipped",
+     "positioner": "legacy",
+     "depthKey": "shipped",
+     "candidates": null,
+     "placements": 112,
+     "deliveringNothing": 9,
+     "deliveringNothingPct": 8.0,
+     "TRULYdeliveringNothing": 8,
+     "TRULYdeliveringNothingPct": 7.1,
+     "fates": {
+      "delivered": 103,
+      "coCredited": 1,
+      "occluded": 6,
+      "outVoted": 2
+     },
+     "vegetationPxDelivered": 503,
+     "deliveredIslandPx": 34968,
+     "medianPxPerSurvivor": 3,
+     "wellCulled": 3,
+     "centroidFallbacks": 0,
+     "aboveVsBelowTheCentroid": {
+      "aboveTheCellCentroid_paintedFIRST_soTheCellFillErasesIt": {
+       "n": 61,
+       "trueZero": 5,
+       "occluded": 4,
+       "pct": 8.2,
+       "occludedPct": 6.6
+      },
+      "belowTheCellCentroid_paintedAFTERTheCell": {
+       "n": 51,
+       "trueZero": 3,
+       "occluded": 2,
+       "pct": 5.9,
+       "occludedPct": 3.9
+      }
+     },
+     "whatOwnsAnOccludedPlacementsFootprint": {
+      "ownCellsFill": 0,
+      "anotherCell": 1,
+      "aWall": 1,
+      "theCoast": 0,
+      "anotherPlacement": 4,
+      "nothingUnpainted": 0
+     }
+    },
+    "spread/old": {
+     "label": "fixture-spread-old",
+     "positioner": "spread",
+     "depthKey": "old",
+     "candidates": null,
+     "placements": 115,
+     "deliveringNothing": 41,
+     "deliveringNothingPct": 35.7,
+     "TRULYdeliveringNothing": 41,
+     "TRULYdeliveringNothingPct": 35.7,
+     "fates": {
+      "delivered": 74,
+      "occluded": 29,
+      "outVoted": 12
+     },
+     "vegetationPxDelivered": 338,
+     "deliveredIslandPx": 34968,
+     "medianPxPerSurvivor": 3,
+     "wellCulled": 0,
+     "centroidFallbacks": 0,
+     "aboveVsBelowTheCentroid": {
+      "aboveTheCellCentroid_paintedFIRST_soTheCellFillErasesIt": {
+       "n": 55,
+       "trueZero": 35,
+       "occluded": 25,
+       "pct": 63.6,
+       "occludedPct": 45.5
+      },
+      "belowTheCellCentroid_paintedAFTERTheCell": {
+       "n": 60,
+       "trueZero": 6,
+       "occluded": 4,
+       "pct": 10.0,
+       "occludedPct": 6.7
+      }
+     },
+     "whatOwnsAnOccludedPlacementsFootprint": {
+      "ownCellsFill": 22,
+      "anotherCell": 3,
+      "aWall": 4,
+      "theCoast": 0,
+      "anotherPlacement": 0,
+      "nothingUnpainted": 0
+     }
+    },
+    "spread/shipped": {
+     "label": "fixture-spread-shipped",
+     "positioner": "spread",
+     "depthKey": "shipped",
+     "candidates": null,
+     "placements": 115,
+     "deliveringNothing": 8,
+     "deliveringNothingPct": 7.0,
+     "TRULYdeliveringNothing": 8,
+     "TRULYdeliveringNothingPct": 7.0,
+     "fates": {
+      "delivered": 107,
+      "occluded": 5,
+      "outVoted": 3
+     },
+     "vegetationPxDelivered": 534,
+     "deliveredIslandPx": 34968,
+     "medianPxPerSurvivor": 3,
+     "wellCulled": 0,
+     "centroidFallbacks": 0,
+     "aboveVsBelowTheCentroid": {
+      "aboveTheCellCentroid_paintedFIRST_soTheCellFillErasesIt": {
+       "n": 55,
+       "trueZero": 2,
+       "occluded": 1,
+       "pct": 3.6,
+       "occludedPct": 1.8
+      },
+      "belowTheCellCentroid_paintedAFTERTheCell": {
+       "n": 60,
+       "trueZero": 6,
+       "occluded": 4,
+       "pct": 10.0,
+       "occludedPct": 6.7
+      }
+     },
+     "whatOwnsAnOccludedPlacementsFootprint": {
+      "ownCellsFill": 0,
+      "anotherCell": 3,
+      "aWall": 2,
+      "theCoast": 0,
+      "anotherPlacement": 0,
+      "nothingUnpainted": 0
+     }
+    },
+    "spreadNoBlueNoise/shipped": {
+     "label": "fixture-spread-c1",
+     "positioner": "spread",
+     "depthKey": "shipped",
+     "candidates": 1,
+     "placements": 114,
+     "deliveringNothing": 7,
+     "deliveringNothingPct": 6.1,
+     "TRULYdeliveringNothing": 7,
+     "TRULYdeliveringNothingPct": 6.1,
+     "fates": {
+      "delivered": 107,
+      "outVoted": 6,
+      "occluded": 1
+     },
+     "vegetationPxDelivered": 524,
+     "deliveredIslandPx": 34968,
+     "medianPxPerSurvivor": 3,
+     "wellCulled": 1,
+     "centroidFallbacks": 0,
+     "aboveVsBelowTheCentroid": {
+      "aboveTheCellCentroid_paintedFIRST_soTheCellFillErasesIt": {
+       "n": 52,
+       "trueZero": 3,
+       "occluded": 1,
+       "pct": 5.8,
+       "occludedPct": 1.9
+      },
+      "belowTheCellCentroid_paintedAFTERTheCell": {
+       "n": 62,
+       "trueZero": 4,
+       "occluded": 0,
+       "pct": 6.5,
+       "occludedPct": 0.0
+      }
+     },
+     "whatOwnsAnOccludedPlacementsFootprint": {
+      "ownCellsFill": 0,
+      "anotherCell": 0,
+      "aWall": 1,
+      "theCoast": 0,
+      "anotherPlacement": 0,
+      "nothingUnpainted": 0
+     }
+    }
+   },
+   "plantsPerCell": 0.54,
+   "whatEachFixBought": {
+    "painterOrder_ADR1387": 37.5,
+    "dispersion_PR1393_total": 0.1,
+    "ofWhich_theDiagonalAndAreaWeighting": 1.0,
+    "ofWhich_bestCandidateBlueNoise": -0.9,
+    "residual": 7.0,
+    "unit": "percentage points of placements delivering zero pixels"
+   },
+   "theSignedPrediction": {
+    "axis": "co-tenants of the placement's own cell (a COUNT, no pixel quantity in it)",
+    "legacy": {
+     "0": {
+      "n": 75,
+      "trueZero": 2,
+      "pct": 2.7
+     },
+     "1": {
+      "n": 30,
+      "trueZero": 5,
+      "pct": 16.7
+     },
+     "2": {
+      "n": 3,
+      "trueZero": 0,
+      "pct": 0.0
+     },
+     "3+": {
+      "n": 4,
+      "trueZero": 1,
+      "pct": 25.0
+     }
+    },
+    "spread": {
+     "0": {
+      "n": 79,
+      "trueZero": 6,
+      "pct": 7.6
+     },
+     "1": {
+      "n": 36,
+      "trueZero": 2,
+      "pct": 5.6
+     },
+     "2": {
+      "n": 0,
+      "trueZero": 0,
+      "pct": null
+     },
+     "3+": {
+      "n": 0,
+      "trueZero": 0,
+      "pct": null
+     }
+    }
+   },
+   "residualDetail": [
+    {
+     "i": 3,
+     "kind": "tuft",
+     "piece": "tuft-3b",
+     "status": "healthy",
+     "cell": 139,
+     "fate": "occluded",
+     "footprintSS": 34,
+     "ownedSS": 0,
+     "occludedSS": 34,
+     "blocksTouched": 0,
+     "maxOwnedInABlock": 0,
+     "coTenants": 0,
+     "nearestCoTenantGround": null,
+     "cellArea": 89.5,
+     "screenX": 155.95,
+     "screenY": 306.83
+    },
+    {
+     "i": 33,
+     "kind": "shrub",
+     "piece": "shrub-a",
+     "status": "healthy",
+     "cell": 86,
+     "fate": "occluded",
+     "footprintSS": 114,
+     "ownedSS": 0,
+     "occludedSS": 114,
+     "blocksTouched": 0,
+     "maxOwnedInABlock": 0,
+     "coTenants": 1,
+     "nearestCoTenantGround": 17.08,
+     "cellArea": 135.7,
+     "screenX": 115.67,
+     "screenY": 189.09
+    },
+    {
+     "i": 46,
+     "kind": "tuft",
+     "piece": "tuft-3a",
+     "status": "proposed",
+     "cell": 53,
+     "fate": "occluded",
+     "footprintSS": 26,
+     "ownedSS": 0,
+     "occludedSS": 26,
+     "blocksTouched": 0,
+     "maxOwnedInABlock": 0,
+     "coTenants": 0,
+     "nearestCoTenantGround": null,
+     "cellArea": 177.1,
+     "screenX": 138.41,
+     "screenY": 270.26
+    },
+    {
+     "i": 50,
+     "kind": "tuft",
+     "piece": "tuft-3a",
+     "status": "proposed",
+     "cell": 149,
+     "fate": "occluded",
+     "footprintSS": 26,
+     "ownedSS": 0,
+     "occludedSS": 26,
+     "blocksTouched": 0,
+     "maxOwnedInABlock": 0,
+     "coTenants": 0,
+     "nearestCoTenantGround": null,
+     "cellArea": 152.9,
+     "screenX": 105.17,
+     "screenY": 292.63
+    },
+    {
+     "i": 52,
+     "kind": "tuft",
+     "piece": "tuft-3a",
+     "status": "proposed",
+     "cell": 55,
+     "fate": "outVoted",
+     "footprintSS": 26,
+     "ownedSS": 6,
+     "occludedSS": 20,
+     "blocksTouched": 2,
+     "maxOwnedInABlock": 4,
+     "coTenants": 0,
+     "nearestCoTenantGround": null,
+     "cellArea": 130.5,
+     "screenX": 130.86,
+     "screenY": 282.63
+    },
+    {
+     "i": 54,
+     "kind": "tuft",
+     "piece": "tuft-3a",
+     "status": "mapped",
+     "cell": 100,
+     "fate": "outVoted",
+     "footprintSS": 26,
+     "ownedSS": 2,
+     "occludedSS": 24,
+     "blocksTouched": 1,
+     "maxOwnedInABlock": 2,
+     "coTenants": 1,
+     "nearestCoTenantGround": 13.26,
+     "cellArea": 238.2,
+     "screenX": 180.34,
+     "screenY": 179.79
+    },
+    {
+     "i": 67,
+     "kind": "tuft",
+     "piece": "tuft-3a",
+     "status": "unhealthy",
+     "cell": 47,
+     "fate": "outVoted",
+     "footprintSS": 26,
+     "ownedSS": 5,
+     "occludedSS": 21,
+     "blocksTouched": 2,
+     "maxOwnedInABlock": 4,
+     "coTenants": 0,
+     "nearestCoTenantGround": null,
+     "cellArea": 146.4,
+     "screenX": 125.0,
+     "screenY": 249.43
+    },
+    {
+     "i": 68,
+     "kind": "tuft",
+     "piece": "wilt-stem",
+     "status": "unhealthy",
+     "cell": 36,
+     "fate": "occluded",
+     "footprintSS": 14,
+     "ownedSS": 0,
+     "occludedSS": 14,
+     "blocksTouched": 0,
+     "maxOwnedInABlock": 0,
+     "coTenants": 0,
+     "nearestCoTenantGround": null,
+     "cellArea": 220.4,
+     "screenX": 143.84,
+     "screenY": 219.99
+    }
+   ],
+   "theOutVoteThreshold": {
+    "theMajorityNeeds": "5 of 9 supersampled pixels in one delivered block",
+    "outVotedPlacements": 3,
+    "outVotedMaxOwnedInABlock": [
+     2,
+     4,
+     4
+    ],
+    "noOutVotedPlacementReachesTheThreshold": true,
+    "placementsReachingTheThreshold": 107,
+    "ofWhichDeliverOrAreCoCredited": 107,
+    "everyPlacementReachingItDelivers": true,
+    "placementsBelowIt": 8,
+    "ofWhichStillDeliver": 0,
+    "reading": "a placement below the threshold MAY still deliver, because the majority is a mode and four can win when the other five are split. Reaching it is what is sufficient, and no out-voted placement does."
+   },
+   "whatTheResidualIS": {
+    "trueZeros": 8,
+    "occluded": {
+     "total": 5,
+     "byWhat": {
+      "ownCellsFill": 0,
+      "anotherCell": 3,
+      "aWall": 2,
+      "theCoast": 0,
+      "anotherPlacement": 0,
+      "nothingUnpainted": 0
+     },
+     "reading": "ownCellsFill is ZERO - the fixed defect. What remains is a plant genuinely standing behind a nearer raised cell, a wall, or another plant, which is correct 2.5D occlusion and not a defect to remove."
+    },
+    "outVoted": {
+     "total": 3,
+     "reading": "the raster's own quantisation floor - the SIZE question this arc already has open, not a new bug."
+    }
+   }
+  },
+  "realCorpus": {
+   "island": "chapter2-healthy-island-2026-08-16/island.json",
+   "storyId": "context-traversal-capture",
+   "capabilities": 11,
+   "cells": 162,
+   "corners": {
+    "legacy/old": {
+     "label": "realCorpus-legacy-old",
+     "positioner": "legacy",
+     "depthKey": "old",
+     "candidates": null,
+     "placements": 180,
+     "deliveringNothing": 94,
+     "deliveringNothingPct": 52.2,
+     "TRULYdeliveringNothing": 92,
+     "TRULYdeliveringNothingPct": 51.1,
+     "fates": {
+      "delivered": 86,
+      "occluded": 65,
+      "outVoted": 27,
+      "coCredited": 2
+     },
+     "vegetationPxDelivered": 527,
+     "deliveredIslandPx": 30477,
+     "medianPxPerSurvivor": 3,
+     "wellCulled": 1,
+     "centroidFallbacks": 0,
+     "aboveVsBelowTheCentroid": {
+      "aboveTheCellCentroid_paintedFIRST_soTheCellFillErasesIt": {
+       "n": 98,
+       "trueZero": 79,
+       "occluded": 60,
+       "pct": 80.6,
+       "occludedPct": 61.2
+      },
+      "belowTheCellCentroid_paintedAFTERTheCell": {
+       "n": 82,
+       "trueZero": 13,
+       "occluded": 5,
+       "pct": 15.9,
+       "occludedPct": 6.1
+      }
+     },
+     "whatOwnsAnOccludedPlacementsFootprint": {
+      "ownCellsFill": 57,
+      "anotherCell": 3,
+      "aWall": 2,
+      "theCoast": 0,
+      "anotherPlacement": 3,
+      "nothingUnpainted": 0
+     }
+    },
+    "legacy/shipped": {
+     "label": "realCorpus-legacy-shipped",
+     "positioner": "legacy",
+     "depthKey": "shipped",
+     "candidates": null,
+     "placements": 180,
+     "deliveringNothing": 30,
+     "deliveringNothingPct": 16.7,
+     "TRULYdeliveringNothing": 26,
+     "TRULYdeliveringNothingPct": 14.4,
+     "fates": {
+      "delivered": 150,
+      "outVoted": 13,
+      "occluded": 13,
+      "coCredited": 4
+     },
+     "vegetationPxDelivered": 905,
+     "deliveredIslandPx": 30477,
+     "medianPxPerSurvivor": 4,
+     "wellCulled": 1,
+     "centroidFallbacks": 0,
+     "aboveVsBelowTheCentroid": {
+      "aboveTheCellCentroid_paintedFIRST_soTheCellFillErasesIt": {
+       "n": 98,
+       "trueZero": 13,
+       "occluded": 8,
+       "pct": 13.3,
+       "occludedPct": 8.2
+      },
+      "belowTheCellCentroid_paintedAFTERTheCell": {
+       "n": 82,
+       "trueZero": 13,
+       "occluded": 5,
+       "pct": 15.9,
+       "occludedPct": 6.1
+      }
+     },
+     "whatOwnsAnOccludedPlacementsFootprint": {
+      "ownCellsFill": 0,
+      "anotherCell": 3,
+      "aWall": 1,
+      "theCoast": 0,
+      "anotherPlacement": 9,
+      "nothingUnpainted": 0
+     }
+    },
+    "spread/old": {
+     "label": "realCorpus-spread-old",
+     "positioner": "spread",
+     "depthKey": "old",
+     "candidates": null,
+     "placements": 181,
+     "deliveringNothing": 65,
+     "deliveringNothingPct": 35.9,
+     "TRULYdeliveringNothing": 63,
+     "TRULYdeliveringNothingPct": 34.8,
+     "fates": {
+      "delivered": 116,
+      "occluded": 43,
+      "outVoted": 20,
+      "coCredited": 2
+     },
+     "vegetationPxDelivered": 624,
+     "deliveredIslandPx": 30477,
+     "medianPxPerSurvivor": 3,
+     "wellCulled": 0,
+     "centroidFallbacks": 0,
+     "aboveVsBelowTheCentroid": {
+      "aboveTheCellCentroid_paintedFIRST_soTheCellFillErasesIt": {
+       "n": 86,
+       "trueZero": 55,
+       "occluded": 37,
+       "pct": 64.0,
+       "occludedPct": 43.0
+      },
+      "belowTheCellCentroid_paintedAFTERTheCell": {
+       "n": 95,
+       "trueZero": 8,
+       "occluded": 6,
+       "pct": 8.4,
+       "occludedPct": 6.3
+      }
+     },
+     "whatOwnsAnOccludedPlacementsFootprint": {
+      "ownCellsFill": 32,
+      "anotherCell": 6,
+      "aWall": 5,
+      "theCoast": 0,
+      "anotherPlacement": 0,
+      "nothingUnpainted": 0
+     }
+    },
+    "spread/shipped": {
+     "label": "realCorpus-spread-shipped",
+     "positioner": "spread",
+     "depthKey": "shipped",
+     "candidates": null,
+     "placements": 181,
+     "deliveringNothing": 12,
+     "deliveringNothingPct": 6.6,
+     "TRULYdeliveringNothing": 11,
+     "TRULYdeliveringNothingPct": 6.1,
+     "fates": {
+      "delivered": 169,
+      "outVoted": 5,
+      "occluded": 6,
+      "coCredited": 1
+     },
+     "vegetationPxDelivered": 959,
+     "deliveredIslandPx": 30477,
+     "medianPxPerSurvivor": 4,
+     "wellCulled": 0,
+     "centroidFallbacks": 0,
+     "aboveVsBelowTheCentroid": {
+      "aboveTheCellCentroid_paintedFIRST_soTheCellFillErasesIt": {
+       "n": 86,
+       "trueZero": 3,
+       "occluded": 0,
+       "pct": 3.5,
+       "occludedPct": 0.0
+      },
+      "belowTheCellCentroid_paintedAFTERTheCell": {
+       "n": 95,
+       "trueZero": 8,
+       "occluded": 6,
+       "pct": 8.4,
+       "occludedPct": 6.3
+      }
+     },
+     "whatOwnsAnOccludedPlacementsFootprint": {
+      "ownCellsFill": 0,
+      "anotherCell": 2,
+      "aWall": 3,
+      "theCoast": 0,
+      "anotherPlacement": 1,
+      "nothingUnpainted": 0
+     }
+    },
+    "spreadNoBlueNoise/shipped": {
+     "label": "realCorpus-spread-c1",
+     "positioner": "spread",
+     "depthKey": "shipped",
+     "candidates": 1,
+     "placements": 180,
+     "deliveringNothing": 11,
+     "deliveringNothingPct": 6.1,
+     "TRULYdeliveringNothing": 11,
+     "TRULYdeliveringNothingPct": 6.1,
+     "fates": {
+      "delivered": 169,
+      "outVoted": 6,
+      "occluded": 5
+     },
+     "vegetationPxDelivered": 942,
+     "deliveredIslandPx": 30477,
+     "medianPxPerSurvivor": 4,
+     "wellCulled": 1,
+     "centroidFallbacks": 0,
+     "aboveVsBelowTheCentroid": {
+      "aboveTheCellCentroid_paintedFIRST_soTheCellFillErasesIt": {
+       "n": 88,
+       "trueZero": 5,
+       "occluded": 2,
+       "pct": 5.7,
+       "occludedPct": 2.3
+      },
+      "belowTheCellCentroid_paintedAFTERTheCell": {
+       "n": 92,
+       "trueZero": 6,
+       "occluded": 3,
+       "pct": 6.5,
+       "occludedPct": 3.3
+      }
+     },
+     "whatOwnsAnOccludedPlacementsFootprint": {
+      "ownCellsFill": 0,
+      "anotherCell": 0,
+      "aWall": 2,
+      "theCoast": 0,
+      "anotherPlacement": 3,
+      "nothingUnpainted": 0
+     }
+    }
+   },
+   "plantsPerCell": 1.12,
+   "whatEachFixBought": {
+    "painterOrder_ADR1387": 36.7,
+    "dispersion_PR1393_total": 8.3,
+    "ofWhich_theDiagonalAndAreaWeighting": 8.3,
+    "ofWhich_bestCandidateBlueNoise": 0.0,
+    "residual": 6.1,
+    "unit": "percentage points of placements delivering zero pixels"
+   },
+   "theSignedPrediction": {
+    "axis": "co-tenants of the placement's own cell (a COUNT, no pixel quantity in it)",
+    "legacy": {
+     "0": {
+      "n": 65,
+      "trueZero": 3,
+      "pct": 4.6
+     },
+     "1": {
+      "n": 68,
+      "trueZero": 7,
+      "pct": 10.3
+     },
+     "2": {
+      "n": 15,
+      "trueZero": 3,
+      "pct": 20.0
+     },
+     "3+": {
+      "n": 32,
+      "trueZero": 13,
+      "pct": 40.6
+     }
+    },
+    "spread": {
+     "0": {
+      "n": 79,
+      "trueZero": 2,
+      "pct": 2.5
+     },
+     "1": {
+      "n": 42,
+      "trueZero": 6,
+      "pct": 14.3
+     },
+     "2": {
+      "n": 24,
+      "trueZero": 1,
+      "pct": 4.2
+     },
+     "3+": {
+      "n": 36,
+      "trueZero": 2,
+      "pct": 5.6
+     }
+    }
+   },
+   "residualDetail": [
+    {
+     "i": 15,
+     "kind": "tuft",
+     "piece": "tuft-3b",
+     "status": "healthy",
+     "cell": 60,
+     "fate": "outVoted",
+     "footprintSS": 34,
+     "ownedSS": 15,
+     "occludedSS": 19,
+     "blocksTouched": 6,
+     "maxOwnedInABlock": 4,
+     "coTenants": 1,
+     "nearestCoTenantGround": 10.26,
+     "cellArea": 171.1,
+     "screenX": 153.6,
+     "screenY": 184.15
+    },
+    {
+     "i": 16,
+     "kind": "tuft",
+     "piece": "tuft-3b",
+     "status": "healthy",
+     "cell": 31,
+     "fate": "outVoted",
+     "footprintSS": 34,
+     "ownedSS": 2,
+     "occludedSS": 32,
+     "blocksTouched": 2,
+     "maxOwnedInABlock": 1,
+     "coTenants": 1,
+     "nearestCoTenantGround": 1.07,
+     "cellArea": 153.3,
+     "screenX": 147.93,
+     "screenY": 198.79
+    },
+    {
+     "i": 42,
+     "kind": "tuft",
+     "piece": "tuft-3b",
+     "status": "healthy",
+     "cell": 119,
+     "fate": "occluded",
+     "footprintSS": 34,
+     "ownedSS": 0,
+     "occludedSS": 34,
+     "blocksTouched": 0,
+     "maxOwnedInABlock": 0,
+     "coTenants": 5,
+     "nearestCoTenantGround": 5.19,
+     "cellArea": 143.6,
+     "screenX": 178.28,
+     "screenY": 299.7
+    },
+    {
+     "i": 58,
+     "kind": "tuft",
+     "piece": "tuft-3a",
+     "status": "healthy",
+     "cell": 59,
+     "fate": "outVoted",
+     "footprintSS": 26,
+     "ownedSS": 12,
+     "occludedSS": 14,
+     "blocksTouched": 5,
+     "maxOwnedInABlock": 3,
+     "coTenants": 2,
+     "nearestCoTenantGround": 7.6,
+     "cellArea": 162.0,
+     "screenX": 141.47,
+     "screenY": 175.23
+    },
+    {
+     "i": 63,
+     "kind": "tuft",
+     "piece": "tuft-3a",
+     "status": "healthy",
+     "cell": 23,
+     "fate": "occluded",
+     "footprintSS": 26,
+     "ownedSS": 0,
+     "occludedSS": 26,
+     "blocksTouched": 0,
+     "maxOwnedInABlock": 0,
+     "coTenants": 1,
+     "nearestCoTenantGround": 9.97,
+     "cellArea": 131.8,
+     "screenX": 162.73,
+     "screenY": 189.4
+    },
+    {
+     "i": 88,
+     "kind": "tuft",
+     "piece": "tuft-4",
+     "status": "healthy",
+     "cell": 8,
+     "fate": "occluded",
+     "footprintSS": 42,
+     "ownedSS": 0,
+     "occludedSS": 42,
+     "blocksTouched": 0,
+     "maxOwnedInABlock": 0,
+     "coTenants": 0,
+     "nearestCoTenantGround": null,
+     "cellArea": 186.7,
+     "screenX": 140.08,
+     "screenY": 241.96
+    },
+    {
+     "i": 98,
+     "kind": "tuft",
+     "piece": "tuft-3a",
+     "status": "healthy",
+     "cell": 17,
+     "fate": "occluded",
+     "footprintSS": 26,
+     "ownedSS": 0,
+     "occludedSS": 26,
+     "blocksTouched": 0,
+     "maxOwnedInABlock": 0,
+     "coTenants": 0,
+     "nearestCoTenantGround": null,
+     "cellArea": 192.4,
+     "screenX": 115.14,
+     "screenY": 220.6
+    },
+    {
+     "i": 156,
+     "kind": "tuft",
+     "piece": "tuft-3b",
+     "status": "healthy",
+     "cell": 105,
+     "fate": "outVoted",
+     "footprintSS": 34,
+     "ownedSS": 4,
+     "occludedSS": 30,
+     "blocksTouched": 3,
+     "maxOwnedInABlock": 2,
+     "coTenants": 1,
+     "nearestCoTenantGround": 8.54,
+     "cellArea": 144.1,
+     "screenX": 156.66,
+     "screenY": 287.7
+    },
+    {
+     "i": 158,
+     "kind": "tuft",
+     "piece": "tuft-3b",
+     "status": "healthy",
+     "cell": 123,
+     "fate": "outVoted",
+     "footprintSS": 34,
+     "ownedSS": 16,
+     "occludedSS": 18,
+     "blocksTouched": 6,
+     "maxOwnedInABlock": 3,
+     "coTenants": 1,
+     "nearestCoTenantGround": 6.93,
+     "cellArea": 151.4,
+     "screenX": 179.83,
+     "screenY": 296.6
+    },
+    {
+     "i": 163,
+     "kind": "tuft",
+     "piece": "tuft-3b",
+     "status": "healthy",
+     "cell": 105,
+     "fate": "occluded",
+     "footprintSS": 34,
+     "ownedSS": 0,
+     "occludedSS": 34,
+     "blocksTouched": 0,
+     "maxOwnedInABlock": 0,
+     "coTenants": 1,
+     "nearestCoTenantGround": 8.54,
+     "cellArea": 144.1,
+     "screenX": 163.52,
+     "screenY": 291.59
+    },
+    {
+     "i": 168,
+     "kind": "tuft",
+     "piece": "tuft-3b",
+     "status": "healthy",
+     "cell": 117,
+     "fate": "occluded",
+     "footprintSS": 34,
+     "ownedSS": 0,
+     "occludedSS": 34,
+     "blocksTouched": 0,
+     "maxOwnedInABlock": 0,
+     "coTenants": 3,
+     "nearestCoTenantGround": 7.49,
+     "cellArea": 168.2,
+     "screenX": 202.53,
+     "screenY": 291.97
+    }
+   ],
+   "theOutVoteThreshold": {
+    "theMajorityNeeds": "5 of 9 supersampled pixels in one delivered block",
+    "outVotedPlacements": 5,
+    "outVotedMaxOwnedInABlock": [
+     1,
+     2,
+     3,
+     3,
+     4
+    ],
+    "noOutVotedPlacementReachesTheThreshold": true,
+    "placementsReachingTheThreshold": 167,
+    "ofWhichDeliverOrAreCoCredited": 167,
+    "everyPlacementReachingItDelivers": true,
+    "placementsBelowIt": 14,
+    "ofWhichStillDeliver": 2,
+    "reading": "a placement below the threshold MAY still deliver, because the majority is a mode and four can win when the other five are split. Reaching it is what is sufficient, and no out-voted placement does."
+   },
+   "whatTheResidualIS": {
+    "trueZeros": 11,
+    "occluded": {
+     "total": 6,
+     "byWhat": {
+      "ownCellsFill": 0,
+      "anotherCell": 2,
+      "aWall": 3,
+      "theCoast": 0,
+      "anotherPlacement": 1,
+      "nothingUnpainted": 0
+     },
+     "reading": "ownCellsFill is ZERO - the fixed defect. What remains is a plant genuinely standing behind a nearer raised cell, a wall, or another plant, which is correct 2.5D occlusion and not a defect to remove."
+    },
+    "outVoted": {
+     "total": 5,
+     "reading": "the raster's own quantisation floor - the SIZE question this arc already has open, not a new bug."
+    }
+   }
+  }
+ },
+ "theCrossIslandClaim": {
+  "claim": "the two islands differ in what the dispersion fix bought BECAUSE they differ in plants per cell, and in nothing else the pipeline knows about",
+  "fixture": {
+   "plantsPerCell": 0.54,
+   "dispersionBought": 0.1
+  },
+  "realCorpus": {
+   "plantsPerCell": 1.12,
+   "dispersionBought": 8.3
+  },
+  "densityRatio": 2.07
+ },
+ "theHeadline": {
+  "quotedRate17_2": 14.4,
+  "quotedRateAsPublished": 17.2,
+  "todaysRate": 6.1,
+  "fixtureToday": 7.0,
+  "reading": "17.2% was measured on the affine-CRC32 placements PR #1393 replaced the next morning. On today's positioner the real-corpus island is at or below the fixture, so the 'more than twice the fixture' gap is absent rather than explained. The committed order-and-caps README table was never updated when that PR re-ran its own report; the report JSON already carries these numbers."
+ }
+}

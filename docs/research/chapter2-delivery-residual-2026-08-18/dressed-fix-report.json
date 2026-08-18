@@ -1,0 +1,69 @@
+{
+ "mirrorHeld": true,
+ "fence": "docs/research/** only; LAND_CAMERA_ELEVATION_DEG neither read nor written",
+ "island": "chapter2-island-place-dressing-2026-08-16/island.json",
+ "camera": {
+  "elevationDeg": 50.0,
+  "supersample": 3
+ },
+ "theFourthSite": {
+  "file": "chapter2-island-place-dressing-2026-08-16/compose_dressed.py",
+  "wasBroken": "it kept its own draw list and imported neither rule from compose_core",
+  "occlusionWithTheOldKey": {
+   "placements": 120,
+   "ownZeroSupersampledPx": 32,
+   "ownZeroPct": 26.7,
+   "totalOwnedSupersampledPx": 3205,
+   "medianOwnedSupersampledPxPerSurvivor": 25
+  },
+  "occlusionAsShipped": {
+   "placements": 120,
+   "ownZeroSupersampledPx": 3,
+   "ownZeroPct": 2.5,
+   "totalOwnedSupersampledPx": 5209,
+   "medianOwnedSupersampledPxPerSurvivor": 34
+  },
+  "recoveredPlacements": 29,
+  "recoveredSupersampledPx": 2004
+ },
+ "theWalls": {
+  "question": "does compose_land(caps=...) reach C.boundary_walls on THIS compositor?",
+  "defectReintroduced": {
+   "supersampledPxDisagreeing": 43227,
+   "groundEquivalentPx": 4803.0,
+   "ofWhichUnhealthySideTokenSS": 7826,
+   "ofWhichUnhealthySideTokenGroundEquiv": 869.6,
+   "distinctWrongWallColours": 12,
+   "colours": {
+    "#99702d": 8660,
+    "#978242": 6418,
+    "#aa7d33": 5576,
+    "#a8914a": 5067,
+    "#312f27": 4542,
+    "#886428": 4286,
+    "#86743b": 2850,
+    "#2c2a23": 1769,
+    "#775d38": 1634,
+    "#37352c": 1515,
+    "#85683f": 548,
+    "#6a5332": 362
+   },
+   "identical": false
+  },
+  "asShipped": {
+   "supersampledPxDisagreeing": 0,
+   "groundEquivalentPx": 0.0,
+   "ofWhichUnhealthySideTokenSS": 0,
+   "ofWhichUnhealthySideTokenGroundEquiv": 0.0,
+   "distinctWrongWallColours": 0,
+   "colours": {},
+   "identical": true
+  }
+ },
+ "singleImplementation": {
+  "decorDepthKeyIsCoresOwnFunction": true,
+  "wallsUnderCapsIsCoresOwnFunction": true,
+  "composeDressedDefinesNoSwitchOfItsOwn": true,
+  "why": "a guard reintroducing either defect must set compose_core's switch. If this file carried its own copy of the name, a guard could patch the copy, measure the unmodified rule, and print CAUGHT - which is exactly how two monkey-patches went inert on this track in PR #1393."
+ }
+}

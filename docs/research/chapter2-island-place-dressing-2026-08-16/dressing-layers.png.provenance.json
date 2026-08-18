@@ -3,7 +3,8 @@
  "artifact": "dressing-layers.png",
  "producer": {
   "tool": "compose_dressed.py",
-  "sha256": "b3935dabbeb37e44e3836d77e89ccde4e9bc6681dfa6b364ee0f5aa89db534ef"
+  "sha256": "8c8ff2ca13e7836061e9de7d8e51bf0326d6f308a23060691ecf6af3637f79dd",
+  "basis": "source-bytes-with-CRLF-and-CR-normalised-to-LF"
  },
  "command": {
   "tool": "compose_dressed.py",
@@ -172,8 +173,8 @@
   "rule": "one code state PER GENERATOR; the composite's identity is the digest of the whole {generator: state} map, so any generator moving moves it"
  },
  "output": {
-  "sha256": "858057e31b4aa183691b0100cf54f7b52ba894c8a3f0a23c869655cbde0f9ddb",
-  "bytes": 66056
+  "sha256": "d7bc777db3cd0ab23605a3c9ef728670b4d6b75470a26e0ed4bf366533bcf086",
+  "bytes": 67174
  },
  "cameraElevationDeg": 50.0,
  "variant": "b++ land + ADR-0226 vegetation vocabulary",
