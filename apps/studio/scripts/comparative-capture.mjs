@@ -78,7 +78,14 @@ const studioDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..
 const repoRoot = path.resolve(studioDir, '..', '..');
 
 const DEFAULT_VIEWPORT = { width: 1600, height: 1000 };
-const DEFAULT_SETTLE_TIMEOUT_MS = 45_000;
+// 90s, not 45s: `settle-bridge-reports-settled-before-the-world-arrives`
+// (frontend-appearance-repair-arc) measured GENUINE settle at 42-80s (load-dependent) on the live
+// corpus this script captures against — a 45s default expired BEFORE the app could legitimately
+// settle. It went unnoticed only because the predicate it fed had its own bug (reporting `settled:
+// true` ~8s in, before the world had even arrived) that happened to mask the too-short timeout by
+// returning early on a false positive; fixing that bug without raising this default would have
+// started biting on the very next slow-corpus run. 90s carries margin above the observed ceiling.
+const DEFAULT_SETTLE_TIMEOUT_MS = 90_000;
 const DEFAULT_BRANCH_PORT = 5187;
 const DEFAULT_BASELINE_PORT = 5188;
 const READY_TIMEOUT_MS = 60_000;

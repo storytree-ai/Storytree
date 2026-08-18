@@ -4,6 +4,7 @@ import {
   isAnimationInFlight,
   isMotionSettled,
   isStructuralAnimation,
+  motionSettledPhase,
   motionSettledReasons,
   motionSettledSnapshot,
   readStructuralAnimations,
@@ -116,44 +117,116 @@ describe('readStructuralAnimations', () => {
 });
 
 describe('motionSettledReasons / isMotionSettled', () => {
-  it('is settled — no reasons — when nothing is regrowing and no structural animation runs', () => {
-    const input = { act2Regrowing: false, activeStructuralAnimations: 0 };
+  it('is settled — no reasons — when the world has arrived, nothing is regrowing and no structural animation runs', () => {
+    const input = { worldArrived: true, act2Regrowing: false, activeStructuralAnimations: 0 };
     expect(motionSettledReasons(input)).toEqual([]);
     expect(isMotionSettled(input)).toBe(true);
   });
 
   it('names act2-regrow while the Act 2 arrival regrow / vegetation growth cursor is < 1', () => {
-    const input = { act2Regrowing: true, activeStructuralAnimations: 0 };
+    const input = { worldArrived: true, act2Regrowing: true, activeStructuralAnimations: 0 };
     expect(motionSettledReasons(input)).toEqual(['act2-regrow']);
     expect(isMotionSettled(input)).toBe(false);
   });
 
   it('names structural-animation while a lane draw-on / trail reveal / shore pulse is in flight', () => {
-    const input = { act2Regrowing: false, activeStructuralAnimations: 2 };
+    const input = { worldArrived: true, act2Regrowing: false, activeStructuralAnimations: 2 };
     expect(motionSettledReasons(input)).toEqual(['structural-animation']);
     expect(isMotionSettled(input)).toBe(false);
   });
 
   it('names both when both are true at once', () => {
-    const input = { act2Regrowing: true, activeStructuralAnimations: 1 };
+    const input = { worldArrived: true, act2Regrowing: true, activeStructuralAnimations: 1 };
     expect(motionSettledReasons(input)).toEqual(['act2-regrow', 'structural-animation']);
     expect(isMotionSettled(input)).toBe(false);
+  });
+
+  // THE DEFECT THIS GUARDS (settle-bridge-reports-settled-before-the-world-arrives,
+  // frontend-appearance-repair-arc): before the world has arrived, `act2Regrowing` is false and
+  // `activeStructuralAnimations` is 0 not because motion has FINISHED but because it hasn't
+  // STARTED — every existing input is an absence, so "nothing in flight" was vacuously true during
+  // the ~8s "Growing the world…" placeholder window. `worldArrived` is the positive arrival
+  // assertion that closes the gap: it must win over both absences, unconditionally.
+  it('names world-not-arrived — and ONLY world-not-arrived — before the world has arrived, regardless of the other two absences', () => {
+    const input = { worldArrived: false, act2Regrowing: false, activeStructuralAnimations: 0 };
+    expect(motionSettledReasons(input)).toEqual(['world-not-arrived']);
+    expect(isMotionSettled(input)).toBe(false);
+  });
+
+  it('a not-yet-arrived world is never settled even if act2Regrowing/activeStructuralAnimations would themselves read as settled', () => {
+    // Same absent-motion facts as the very first (settled) case above — only worldArrived flips.
+    const notArrived = { worldArrived: false, act2Regrowing: false, activeStructuralAnimations: 0 };
+    const arrived = { worldArrived: true, act2Regrowing: false, activeStructuralAnimations: 0 };
+    expect(isMotionSettled(notArrived)).toBe(false);
+    expect(isMotionSettled(arrived)).toBe(true);
+  });
+});
+
+describe('motionSettledPhase — three states, so "too early" reads differently from "done"', () => {
+  it('is not-started before the world has arrived', () => {
+    expect(
+      motionSettledPhase({ worldArrived: false, act2Regrowing: false, activeStructuralAnimations: 0 }),
+    ).toBe('not-started');
+    // Even a stray truthy regrow/animation reading (shouldn't happen pre-arrival, but the phase
+    // must not depend on it) still reads not-started, never in-flight.
+    expect(
+      motionSettledPhase({ worldArrived: false, act2Regrowing: true, activeStructuralAnimations: 2 }),
+    ).toBe('not-started');
+  });
+
+  it('is in-flight once arrived but something is still moving', () => {
+    expect(
+      motionSettledPhase({ worldArrived: true, act2Regrowing: true, activeStructuralAnimations: 0 }),
+    ).toBe('in-flight');
+    expect(
+      motionSettledPhase({ worldArrived: true, act2Regrowing: false, activeStructuralAnimations: 1 }),
+    ).toBe('in-flight');
+  });
+
+  it('is settled once arrived and nothing is moving', () => {
+    expect(
+      motionSettledPhase({ worldArrived: true, act2Regrowing: false, activeStructuralAnimations: 0 }),
+    ).toBe('settled');
   });
 });
 
 describe('motionSettledSnapshot — the shape stamped onto a capture', () => {
-  it('carries the verdict plus every raw fact it was computed from', () => {
-    expect(motionSettledSnapshot({ act2Regrowing: false, activeStructuralAnimations: 0 })).toEqual({
+  it('carries the verdict plus every raw fact it was computed from, including the new arrival gate', () => {
+    expect(
+      motionSettledSnapshot({ worldArrived: true, act2Regrowing: false, activeStructuralAnimations: 0 }),
+    ).toEqual({
       settled: true,
+      phase: 'settled',
       reasons: [],
+      worldArrived: true,
       activeStructuralAnimations: 0,
       act2Regrowing: false,
     });
-    expect(motionSettledSnapshot({ act2Regrowing: true, activeStructuralAnimations: 3 })).toEqual({
+    expect(
+      motionSettledSnapshot({ worldArrived: true, act2Regrowing: true, activeStructuralAnimations: 3 }),
+    ).toEqual({
       settled: false,
+      phase: 'in-flight',
       reasons: ['act2-regrow', 'structural-animation'],
+      worldArrived: true,
       activeStructuralAnimations: 3,
       act2Regrowing: true,
+    });
+  });
+
+  it('reports settled: false, phase: not-started, and no reason but world-not-arrived pre-arrival — THE FALSE POSITIVE THIS FIXES', () => {
+    // Reproduces the exact measured defect: the ~8s "Growing the world…" placeholder window
+    // reported `settled: true` under the old predicate because act2Regrowing and
+    // activeStructuralAnimations were both absent (not yet started, not finished).
+    expect(
+      motionSettledSnapshot({ worldArrived: false, act2Regrowing: false, activeStructuralAnimations: 0 }),
+    ).toEqual({
+      settled: false,
+      phase: 'not-started',
+      reasons: ['world-not-arrived'],
+      worldArrived: false,
+      activeStructuralAnimations: 0,
+      act2Regrowing: false,
     });
   });
 });

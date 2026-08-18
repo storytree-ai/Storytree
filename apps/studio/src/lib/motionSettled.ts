@@ -20,6 +20,30 @@
 // "still animating" is indistinguishable, from the class alone, from reading nothing at all.
 // ══════════════════════════════════════════════════════════════════════════════════════════════
 //
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+// THE 2026-08-18 FOLLOW-ON DEFECT: A NEGATIVE SIGNAL READ AS A POSITIVE ONE.
+// (settle-bridge-reports-settled-before-the-world-arrives, frontend-appearance-repair-arc.)
+//
+// Both signals below (`act2Regrowing`, `activeStructuralAnimations`) are ABSENCES: they answer "is
+// something moving RIGHT NOW?", not "has the thing that moves already happened?". Before the world
+// has even arrived — while only the "Growing the world…" placeholder exists and `/api/tree` is still
+// in flight — there is no Act 2 regrow to be running and no structural animation to be counted, so
+// "nothing in flight" was VACUOUSLY TRUE. Measured: `settled: true` for ~8s of pure placeholder,
+// before ~30-70s of genuine growth, before genuine settle at ~42-80s. That is the SAME fault class
+// this module was built to fix one level up (a heuristic standing in for a discrete fact) — the fact
+// asserted was simply the wrong SIGN of fact.
+//
+// `worldArrived` is the positive arrival assertion that closes the gap: the world must have arrived
+// BEFORE "nothing in flight" is allowed to mean "settled" rather than "not started". It is computed
+// by the caller (TreeView.tsx) from the same state that gates the "Growing the world…" placeholder
+// itself — `Boolean(stories) || Boolean(loadError)`: the initial `/api/tree` load resolved one way or
+// another (data arrived, the corpus is genuinely empty, or the load failed outright), as opposed to
+// still being in flight. `motionSettledPhase` turns this into three states — `not-started` /
+// `in-flight` / `settled` — so a reader can tell "too early" apart from "done", which the boolean
+// alone makes indistinguishable by construction; `settled`/`isMotionSettled` stay as a boolean
+// projection of the phase for the readers that only ever checked `.settled === true`.
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+//
 // WHAT ACTUALLY MOVES, AND HOW EACH IS CAUGHT:
 //   - ADR-0286's Act 2 arrival regrow, and ADR-0292's per-object vegetation growth riding the same
 //     cursor: both write DOM attributes IMPERATIVELY every animation frame (`useAct2Intro`'s own
@@ -96,6 +120,14 @@ export function readStructuralAnimations(
 
 export interface MotionSettledInput {
   /**
+   * THE POSITIVE ARRIVAL ASSERTION (see the 2026-08-18 header note above). True once the initial
+   * tree load has resolved one way or another — real content, a genuinely empty corpus, or a load
+   * error — as opposed to still being in flight behind the "Growing the world…" placeholder. Without
+   * this gate, `act2Regrowing: false` + `activeStructuralAnimations: 0` is indistinguishable between
+   * "finished" and "not started yet", because both are absences.
+   */
+  readonly worldArrived: boolean;
+  /**
    * ADR-0286's Act 2 arrival regrow AND ADR-0292's per-object vegetation growth: both are driven by
    * the SAME `useAct2Intro` cursor and write DOM attributes imperatively every frame, so
    * `getAnimations()` cannot see either — this flag is the positive assertion for that half.
@@ -107,27 +139,49 @@ export interface MotionSettledInput {
   readonly activeStructuralAnimations: number;
 }
 
-export type MotionSettledReason = 'act2-regrow' | 'structural-animation';
+export type MotionSettledReason = 'world-not-arrived' | 'act2-regrow' | 'structural-animation';
 
 /**
- * Every reason the frame is still moving, or `[]` when it is settled. Never a heuristic: each entry
+ * The three states a reader can distinguish. `not-started` and `settled` were the SAME `settled:
+ * true`-with-no-reasons reading before `worldArrived` existed — this is the fix's whole point: a
+ * reader can now tell "too early" apart from "done" instead of only ever seeing one flattened value.
+ */
+export type MotionSettledPhase = 'not-started' | 'in-flight' | 'settled';
+
+/**
+ * Every reason the frame is not settled, or `[]` when it is settled. Never a heuristic: each entry
  * names a positively-asserted fact the app already computes for its own render, not an inference
- * from a CSS class or an elapsed-time guess.
+ * from a CSS class or an elapsed-time guess. `world-not-arrived` WINS unconditionally over the other
+ * two — it is checked first and short-circuits — because before the world has arrived, whatever
+ * `act2Regrowing`/`activeStructuralAnimations` happen to read is not yet meaningful.
  */
 export function motionSettledReasons(input: MotionSettledInput): readonly MotionSettledReason[] {
+  if (!input.worldArrived) return ['world-not-arrived'];
   const reasons: MotionSettledReason[] = [];
   if (input.act2Regrowing) reasons.push('act2-regrow');
   if (input.activeStructuralAnimations > 0) reasons.push('structural-animation');
   return reasons;
 }
 
+/** `not-started` before the world has arrived, `settled` once arrived with no reasons left,
+ *  `in-flight` once arrived but something is still moving. */
+export function motionSettledPhase(input: MotionSettledInput): MotionSettledPhase {
+  if (!input.worldArrived) return 'not-started';
+  return motionSettledReasons(input).length === 0 ? 'settled' : 'in-flight';
+}
+
+/** A boolean projection of `motionSettledPhase` for readers that only ever check one value — kept
+ *  because most existing callers (`captureSettledScreenshot`'s `waitForFunction`) do exactly that;
+ *  see the module header for why three states exist underneath it. */
 export function isMotionSettled(input: MotionSettledInput): boolean {
-  return motionSettledReasons(input).length === 0;
+  return motionSettledPhase(input) === 'settled';
 }
 
 export interface MotionSettledSnapshot {
   readonly settled: boolean;
+  readonly phase: MotionSettledPhase;
   readonly reasons: readonly MotionSettledReason[];
+  readonly worldArrived: boolean;
   readonly activeStructuralAnimations: number;
   readonly act2Regrowing: boolean;
 }
@@ -136,7 +190,9 @@ export interface MotionSettledSnapshot {
 export function motionSettledSnapshot(input: MotionSettledInput): MotionSettledSnapshot {
   return {
     settled: isMotionSettled(input),
+    phase: motionSettledPhase(input),
     reasons: motionSettledReasons(input),
+    worldArrived: input.worldArrived,
     activeStructuralAnimations: input.activeStructuralAnimations,
     act2Regrowing: input.act2Regrowing,
   };

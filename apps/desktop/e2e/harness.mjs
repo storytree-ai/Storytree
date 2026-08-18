@@ -377,10 +377,14 @@ export const FIXTURE_MAP_STORY_IDS = TREE_FIXTURE.stories.map((s) => s.id).sort(
  * is exactly the guess a blind `frontend-builder` run on 2026-08-15 made and got wrong — it had no
  * way to check either signal against ground truth. That heuristic is gone. This now waits on
  * `window.__storytreeMotionSettled` (apps/studio/src/lib/motionSettled.ts), the app's own discrete,
- * positively-asserted fact: no Act 2 regrow / vegetation-growth cursor in flight AND no finite CSS
- * animation (camera transition, lane draw-on, trail reveal, shore pulse, arrival pop-in) still
- * running under the scene root. **`lane-motion-draw` is NOT that signal** — see motionSettled.ts's
- * header for why a permanent motion-MODE class was misread as an in-progress state.
+ * positively-asserted fact: the world has ARRIVED (the initial `/api/tree` load resolved — real
+ * content, a genuinely empty corpus, or an outright error; NOT merely the "no motion in flight" half
+ * below, which is vacuously true while the "Growing the world…" placeholder is still up — see
+ * `settle-bridge-reports-settled-before-the-world-arrives`, frontend-appearance-repair-arc) AND no
+ * Act 2 regrow / vegetation-growth cursor in flight AND no finite CSS animation (camera transition,
+ * lane draw-on, trail reveal, shore pulse, arrival pop-in) still running under the scene root.
+ * **`lane-motion-draw` is NOT that signal** — see motionSettled.ts's header for why a permanent
+ * motion-MODE class was misread as an in-progress state.
  *
  * `waitForFunction` polls a REAL predicate the app computes fresh on every call — this is not a
  * sleep-and-hope: a wedged bridge fails LOUD (the Playwright timeout below), not silent.
@@ -450,7 +454,9 @@ export async function captureSettledScreenshot(win, pngPath, { timeout = 25_000,
   await win.screenshot({ path: pngPath, ...screenshotOpts });
   const stamp = {
     settled: true,
+    phase: attestation.phase,
     reasons: attestation.reasons,
+    worldArrived: attestation.worldArrived,
     activeStructuralAnimations: attestation.activeStructuralAnimations,
     act2Regrowing: attestation.act2Regrowing,
     capturedAt: new Date().toISOString(),
