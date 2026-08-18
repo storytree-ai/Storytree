@@ -154,6 +154,28 @@ a fourth.
 vocabulary has no member for species, so six outlines assert exactly what two did. Making a species
 mean something would be inventing a channel under cover of an art change.
 
+### ⚠ The picture shows more variety than the shipped scatterer would reach, and that is deliberate
+
+`scatter.tuft_piece` reserves `tuft-2` for an `unknown` capability and `tuft-4` for a lush one, so on
+an island where **every** capability is `healthy` — which this one is, and which is the surface the
+owner asked for — only two or three of the four tuft slots are ever chosen. A four-species set would
+deliver as two or three.
+
+So all three panels here spread their tuft placements over all four slots by a hash of each
+placement's own address (`respeciate`). It is a **relabel, not a re-scatter**: same count, same
+order, same ground points, same roles, only the piece NAME differs, and only for a tuft —
+`verify.py` asserts exactly that property rather than trusting it. It is applied to **all three**
+panels including the blade baseline, which is a correction to how #1389 ran the comparison (it
+respeciated only the species panel, so its comparison varied the slot spread as well as the
+species; the blade set barely notices, since all four of its tuft pieces deliver 2–3 px anyway).
+
+**What this means for the look:** the variety on these panels is the SET's variety, not the
+scatterer's. If the set is adopted, delivering all six species on a healthy island needs
+`tuft_piece` to choose among them — a change to `scatter.py`'s slot choice, which is **art
+direction, not vocabulary** (species carry no meaning, so re-pointing which slots are reachable
+asserts nothing new). It is outside this pass's `docs/research/**` fence and is named here rather
+than made.
+
 ---
 
 ## The test-count channel — what survives, and what was already broken
@@ -326,4 +348,7 @@ pixel-identical runs.
 4. **Delivered-pixel monotonicity** — 9 inverted pairs out of 11 capabilities, pre-existing and not
    caused by the re-skin. Whether "vegetation density reads as test count" can hold on a single
    island with a 28× parcel-area spread is the same question the rule's missing area term asks, from
-   the other end.
+   the other end. It belongs with the parked `adr0226-vocabulary-re-examined-for-3d`, not here.
+5. **Reaching all six species on a healthy island** needs `scatter.tuft_piece` to choose among them
+   (see the caveat above). Art direction rather than vocabulary, and outside this pass's fence —
+   named, not made. Only worth doing if the owner takes the set.
