@@ -2230,3 +2230,69 @@ test("ADR-0352: dropping a discharged citation writes references alone, sparing 
   assert.equal(await fieldOf(inner, "the-friction", "routeReason"), "the adjudicator's reasoning");
   assert.deepEqual(await fieldOf(inner, "the-friction", "references"), []);
 });
+
+// ADR-0359's CLI half. D1 collapsed the landed log in the studio briefing panel to a summary line
+// behind a disclosure, and said outright that `arc show` was left unchanged; this is that deferred
+// half. The evidence for it is behavioural and unanimous: measured over 56 recent sessions,
+// 172 of 172 `arc show` invocations were narrowed BY HAND — piped through head/tail/grep/sed or
+// redirected to a file — with zero bare reads, because the tool offers no narrowing and every
+// reader therefore improvises one. The improvised filters lose content the flag would not: a
+// `head -200` that cut mid-sentence and was never remediated, a session paginating one arc by hand
+// with `head -200` then `tail -150`, and hard truncations at 110.8 KB and 37.1 KB.
+test("arc show --no-log summarises the landing log; the default render is untouched", async () => {
+  const store = await seededStore();
+  const deps = writeDeps(store);
+  // Two landings with distinct dates, added OLDEST FIRST, plus one parked entry. The dates matter:
+  // `compareIncrements` sorts within the closed rank by date ASCENDING, so the most recent landing
+  // is the LAST element of the landed half, never the first — a summary that reached for [0] would
+  // name the oldest landing and read as a stalled arc.
+  await arcIncrementAdd(deps, "map-arc", { outcome: "the first landing", pr: "#900", date: "2026-07-19" });
+  await arcIncrementAdd(deps, "map-arc", { outcome: "the latest landing", pr: "#951", date: "2026-08-02" });
+  await arcIncrementNew(deps, "map-arc", { id: "density-lod", title: "Density LOD", ...BODY });
+
+  const fx = diskFixture();
+  try {
+    const full = await arcCommand("show", "map-arc", depsFor(store, fx));
+    const brief = await arcCommand("show", "map-arc", depsFor(store, fx), "active", { noLog: true });
+
+    // The DEFAULT is unchanged — this unit adds a way to ask for less, and decides nothing about
+    // what a bare read returns. Any change there is the owner's call, not a side effect of this.
+    assert.match(full.body, /the first landing/);
+    assert.match(full.body, /the latest landing/);
+
+    // The narrowed render drops the ENTRIES...
+    assert.doesNotMatch(brief.body, /the first landing/);
+    assert.doesNotMatch(brief.body, /the latest landing/);
+    // ...but never hides that history EXISTS: the count stays, so a reader cannot mistake a
+    // narrowed read for an arc that has never landed anything.
+    assert.match(brief.body, /## Increment log {2}\(2 closed\)/);
+    // ...and names the MOST RECENT landing, which is what "where is this up to" actually asks.
+    assert.match(brief.body, /last landing 2026-08-02 {2}#951/);
+    assert.match(brief.body, /--no-log/);
+
+    // The forward-looking half is the whole point of the narrowed read and must survive it intact.
+    // `map-arc` is seeded carrying a `ready` entry of its own, so the forward half is 1+1 here —
+    // the same count the sibling ordering test asserts against this fixture.
+    assert.match(brief.body, /## Work {2}\(1 proposal · 1 ready · 0 active\)/);
+    assert.match(brief.body, /density-lod/);
+    // The intent still renders — a narrowed read is still a read of the arc, not of its worklist.
+    assert.match(brief.body, /\*\*The intent\.\*\*/);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("arc show --no-log on an arc with no landings says so, rather than summarising nothing", async () => {
+  const store = await withClosedArc(await seededStore());
+  const fx = diskFixture();
+  try {
+    const brief = await arcCommand("show", "done-arc", depsFor(store, fx), "active", { noLog: true });
+    // The empty case keeps the existing wording. A summary line here would assert a landing history
+    // the arc does not have, which is the same class of dishonesty as hiding one it does.
+    assert.match(brief.body, /## Increment log {2}\(0 closed\)/);
+    assert.match(brief.body, /\(no landings yet\)/);
+    assert.doesNotMatch(brief.body, /last landing/);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});

@@ -2565,6 +2565,10 @@ export const CLI_OPTIONS = {
   all: { type: "boolean", default: false },
   closed: { type: "boolean", default: false },
   parked: { type: "boolean", default: false },
+  // `storytree arc show <id> --no-log` — ADR-0359's CLI half: render the landing log as one
+  // summary line instead of every entry. Measured need: of 172 `arc show` invocations across 56
+  // recent sessions, 172 were narrowed BY HAND and none was read bare.
+  "no-log": { type: "boolean", default: false },
   date: { type: "string" },
   pr: { type: "string" },
   threshold: { type: "string" },
@@ -3524,6 +3528,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         closed: values.closed === true,
         parked: values.parked === true,
       }),
+      { noLog: values["no-log"] === true },
     );
   }
 
