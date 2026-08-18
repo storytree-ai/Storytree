@@ -1498,6 +1498,138 @@ function citationLines(outcome: CitationOutcome, arcId: string): string[] {
   return lines;
 }
 
+/** The increment lifecycle as an ORDER (ADR-0305 D2), so a promotion can refuse to run backwards. */
+const INCREMENT_STAGE: Record<string, number> = { proposal: 0, ready: 1, active: 2, closed: 3 };
+
+/** The user-facing verb that reaches each promotable state — `ready` reads as a state, `active` as an act. */
+const PROMOTE_VERB: Record<"ready" | "active", string> = { ready: "ready", active: "start" };
+
+/**
+ * `storytree arc increment ready <id> --pg` / `storytree arc increment start <id> --pg` — the
+ * lifecycle's MIDDLE TWO STATES, which had no write path at all until this verb.
+ *
+ * ADR-0305 D2 collapsed the increment lifecycle to `proposal → ready → active → closed`, and only its
+ * two ENDS were reachable: {@link arcIncrementNew} writes `proposal`, {@link arcIncrementClose} writes
+ * `closed`, and nothing anywhere wrote `ready` or `active`. Measured 2026-08-19: all 37 open
+ * increments across all 9 active arcs sat at `proposal`. A four-state lifecycle was a two-state one in
+ * practice, so every consumer of the middle states was reading a constant:
+ *
+ *  - {@link arcShowNext} offers the freshness check on `ready` entries only — so it never offered one.
+ *  - `incrementCheck`'s execute-once write-lock (ADR-0183 D2, renamed by ADR-0305 D2) treats `active`
+ *    as spent — so the lock never engaged, and a consumed increment stayed re-consumable forever.
+ *  - Readiness therefore lived in PROSE instead. Three blind onboarding runs on 2026-08-19 each had to
+ *    reconstruct it from increment bodies, ADRs and git at ~100k tokens apiece; on `traversal-panel-arc`
+ *    the owner's own unblocking verdict sat in a body while the arc surface still rendered "parked".
+ *
+ * FORWARD-ONLY, on the same reasoning as {@link arcIncrementClose}'s record-once closure: these states
+ * record what HAS happened. A demotion is refused rather than silently applied — work that turned out
+ * not to be started is a correction to make in place (`library artifact edit`), not a lifecycle move.
+ *
+ * Deliberately does NOT recompute the arc's lifecycle (contrast {@link arcIncrementClose}): ADR-0335
+ * keys that on the OPEN/closed partition, and all three of `proposal`/`ready`/`active` are open, so a
+ * promotion cannot change it.
+ */
+export async function arcIncrementPromote(
+  deps: ArcWriteDeps,
+  id: string | undefined,
+  target: "ready" | "active",
+): Promise<Envelope> {
+  const verb = PROMOTE_VERB[target];
+  if (!deps.writable) return arcNotWritable(`increment ${verb}`);
+  if (id === undefined || id.trim() === "") {
+    return {
+      ok: false,
+      body: `arc increment ${verb} needs an increment id: storytree arc increment ${verb} <id> --pg`,
+      next: ["storytree arc list --pg"],
+    };
+  }
+  const stored = await deps.store.getDoc(id);
+  if (!stored || stored.kind !== "increment") {
+    return {
+      ok: false,
+      body: stored
+        ? `"${id}" is a ${stored.kind}, not an increment.`
+        : `no increment "${id}"${deps.pg ? "" : " in the OFFLINE fixture — increments are live-ONLY (ADR-0183 D2); run with --pg"}.`,
+      next: ["storytree arc list --pg"],
+    };
+  }
+  const doc =
+    typeof stored.doc === "object" && stored.doc !== null ? { ...(stored.doc as Record<string, unknown>) } : {};
+  const arcRef = typeof doc["arcRef"] === "string" ? (doc["arcRef"] as string).replace(/^asset:/, "") : "?";
+  const status = typeof doc["status"] === "string" ? (doc["status"] as string) : "proposal";
+
+  const from = INCREMENT_STAGE[status] ?? 0;
+  const to = INCREMENT_STAGE[target] ?? 0;
+  if (from === to) {
+    return {
+      ok: false,
+      body: `increment "${id}" is already ${target} — a promotion is recorded once, like a closure.`,
+      next: [`storytree arc show ${arcRef} --pg`, `storytree library artifact ${id} --pg`],
+    };
+  }
+  if (from > to) {
+    return {
+      ok: false,
+      body: [
+        `increment "${id}" is ${status}; \`${verb}\` would move it BACKWARDS to ${target}.`,
+        status === "closed"
+          ? "A closed increment is terminal (ADR-0305 D2/D3) — increments are durable and nothing reopens one."
+          : "These states record what has already happened, so they only run forward. If the status is",
+        status === "closed"
+          ? "If the work continues, park a fresh increment on the arc; the closed one stays as the log entry."
+          : "simply wrong, correct it in place: storytree library artifact edit " + id + " --set status=... --pg",
+      ].join("\n"),
+      next:
+        status === "closed"
+          ? [`storytree arc increment new ${arcRef} --id <slug> --title "…" --objective <text|@file> --body <text|@file> --pg`]
+          : [`storytree library artifact ${id} --pg`],
+    };
+  }
+
+  // FIELD-SCOPED (ADR-0352): a promotion names `status` and the stamp, nothing else. A sibling's
+  // in-place correction to the body while this ran is not this write's to carry back.
+  const fields: Record<string, unknown> = { status: target, updatedAt: deps.now };
+  Object.assign(doc, fields);
+
+  const written = await patchFields(deps, id, "increment", fields);
+  if ("invalid" in written) {
+    return {
+      ok: false,
+      body: `promoting increment "${id}" to ${target} would be invalid:\n${explainDocValidationError(doc, written.invalid)}`,
+      next: [`storytree arc show ${arcRef} --pg`],
+    };
+  }
+  if ("retired" in written) return retiredUnderfoot("increment", id, "the promotion was being prepared");
+
+  // An honest note rather than a refusal: `ready` is what {@link arcShowNext} offers the freshness
+  // check on, and that check needs `anchor.sha` (the planner writes it, ADR-0183). A hand-parked entry
+  // has none, so the offer would come back VACUOUS — say so here rather than letting the reader find out.
+  const anchor = doc["anchor"] as Record<string, unknown> | undefined;
+  const anchored = anchor !== undefined && typeof anchor["sha"] === "string";
+  const lines = [
+    `increment "${id}" is now ${target} (was ${status}) on arc ${arcRef}.`,
+    ...(target === "ready"
+      ? anchored
+        ? ["", "It now carries the arc's freshness-check offer — consume it via the claim machinery."]
+        : [
+            "",
+            "NOTE: it carries no `anchor.sha`, so `increment check` will report VACUOUS rather than fresh —",
+            "an anchor is the planner's to write (ADR-0183). That is honest, not a failure: readiness is",
+            "recorded, and the mechanical freshness verdict simply has nothing to git-log yet.",
+          ]
+      : ["", "It is now SPENT for consumption purposes — ADR-0183 D2's execute-once write-lock engages here."]),
+  ];
+
+  return {
+    ok: true,
+    body: lines.join("\n"),
+    next:
+      target === "ready"
+        ? [`storytree increment check ${id} --pg`, `storytree arc show ${arcRef} --pg`]
+        : [`storytree arc increment close ${id} --pr <ref> --pg`, `storytree arc show ${arcRef} --pg`],
+  };
+}
+
 /**
  * `storytree arc increment close <id> [--pr <ref>] [--date <YYYY-MM-DD>] [--note <text|@file>] --pg`
  * — mark one increment TERMINAL (ADR-0305 D2/D5), for any reason.
@@ -2259,6 +2391,13 @@ export function arcHelp(): Envelope {
       "        ids `decomposition` used to carry. A SET: no order, no proof route (those stay in --body). A ref",
       "        that does not resolve is REPORTED on read, never refused on write — the work hierarchy is",
       "        disk-canonical and branch-dependent, so citing a story this branch is about to create is legal.",
+      "  storytree arc increment ready <id> --pg   ·   storytree arc increment start <id> --pg",
+      "        The lifecycle's MIDDLE two states (ADR-0305 D2's `proposal → ready → active → closed`),",
+      "        which had no write path at all before this: measured 2026-08-19, all 37 open increments",
+      "        across all 9 active arcs sat at `proposal`, so readiness lived in PROSE and every reader",
+      "        had to reconstruct it. `ready` = consumable, and it is what carries the arc's freshness-",
+      "        check offer; `start` = execution began, which engages ADR-0183 D2's execute-once lock.",
+      "        FORWARD-ONLY: a demotion is refused — correct a wrong status in place instead.",
       "  storytree arc increment close <id> [--pr <ref>] [--date] [--note <text|@file>] --pg",
       "        Mark one increment TERMINAL — for ANY reason, not only a landing. `--note` is REQUIRED",
       "        when there is no `--pr`: ADR-0305 D2 dropped `superseded`/`retired` because the",

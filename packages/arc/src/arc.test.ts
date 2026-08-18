@@ -19,6 +19,7 @@ import {
   arcNew,
   arcIncrementClose,
   arcIncrementNew,
+  arcIncrementPromote,
   arcScopeOf,
   storyArcStamps,
   type ArcViewDeps,
@@ -773,6 +774,105 @@ test("arc increment add on an ALREADY-closed arc offers no close hint", async ()
   assert.equal(res.ok, true, "appending to a closed arc still works — closure is not a write lock");
   assert.doesNotMatch(res.body, /this arc's end state/);
   assert.ok(!(res.next ?? []).some((n) => n.startsWith("storytree arc close")), "no close hint on a closed arc");
+});
+
+// ---------------------------------------------------------------------------
+// THE LIFECYCLE'S MIDDLE TWO STATES — `arc increment ready` / `arc increment start`.
+//
+// ADR-0305 D2 declares `proposal → ready → active → closed`, and until this verb only the two ENDS
+// had a writer: `arc increment new` → proposal, `arc increment close` → closed. Measured 2026-08-19,
+// all 37 open increments across all 9 active arcs sat at `proposal` — so `arcShowNext`'s ready-only
+// freshness offer never fired and ADR-0183 D2's execute-once lock (keyed on `active`) never engaged.
+// These pin the write path that makes both reachable, and its forward-only rule.
+// ---------------------------------------------------------------------------
+
+/** An increment parked by hand carries no `anchor` — the planner writes that (ADR-0183). */
+async function arcWithIncrement(id = "lc-arc"): Promise<{ store: InMemoryStore; deps: ArcWriteDeps }> {
+  const store = new InMemoryStore();
+  const deps = writeDeps(store);
+  await arcNew(deps, id, { title: "Lifecycle", intent: "i", endState: "e", ...FIRST_INC });
+  return { store, deps };
+}
+
+test("increment ready promotes proposal → ready and offers the freshness check", async () => {
+  const { store, deps } = await arcWithIncrement();
+  const res = await arcIncrementPromote(deps, "lc-arc-inc-01", "ready");
+  assert.equal(res.ok, true);
+  assert.match(res.body, /is now ready \(was proposal\)/);
+
+  const doc = (await store.getDoc("lc-arc-inc-01"))?.doc as Record<string, unknown>;
+  assert.equal(doc["status"], "ready");
+  assert.ok((res.next ?? []).some((n) => n.startsWith("storytree increment check lc-arc-inc-01")));
+});
+
+test("increment ready on an UNANCHORED entry says the freshness verdict will be vacuous", async () => {
+  const { deps } = await arcWithIncrement();
+  const res = await arcIncrementPromote(deps, "lc-arc-inc-01", "ready");
+  assert.equal(res.ok, true);
+  // Honest note, not a refusal: readiness is recorded; the git-log check simply has nothing to read.
+  assert.match(res.body, /no `anchor\.sha`.*VACUOUS/s);
+});
+
+test("increment start promotes to active, engaging ADR-0183 D2's execute-once lock", async () => {
+  const { store, deps } = await arcWithIncrement();
+  await arcIncrementPromote(deps, "lc-arc-inc-01", "ready");
+  const res = await arcIncrementPromote(deps, "lc-arc-inc-01", "active");
+  assert.equal(res.ok, true);
+
+  const doc = (await store.getDoc("lc-arc-inc-01"))?.doc as Record<string, unknown>;
+  assert.equal(doc["status"], "active");
+});
+
+test("increment start may skip ready — proposal → active is a legal forward move", async () => {
+  const { store, deps } = await arcWithIncrement();
+  const res = await arcIncrementPromote(deps, "lc-arc-inc-01", "active");
+  assert.equal(res.ok, true);
+  assert.equal(((await store.getDoc("lc-arc-inc-01"))?.doc as Record<string, unknown>)["status"], "active");
+});
+
+test("a promotion is FORWARD-ONLY — active → ready is refused, not silently applied", async () => {
+  const { store, deps } = await arcWithIncrement();
+  await arcIncrementPromote(deps, "lc-arc-inc-01", "active");
+  const back = await arcIncrementPromote(deps, "lc-arc-inc-01", "ready");
+  assert.equal(back.ok, false);
+  assert.match(back.body, /BACKWARDS/);
+  // The refusal must not have written anything.
+  assert.equal(((await store.getDoc("lc-arc-inc-01"))?.doc as Record<string, unknown>)["status"], "active");
+});
+
+test("re-promoting to the state it already holds is refused, like a second closure", async () => {
+  const { deps } = await arcWithIncrement();
+  await arcIncrementPromote(deps, "lc-arc-inc-01", "ready");
+  const again = await arcIncrementPromote(deps, "lc-arc-inc-01", "ready");
+  assert.equal(again.ok, false);
+  assert.match(again.body, /already ready/);
+});
+
+test("a CLOSED increment is terminal — promotion is refused and points at parking a fresh one", async () => {
+  const { deps } = await arcWithIncrement();
+  await arcIncrementClose(deps, "lc-arc-inc-01", { pr: "#1" });
+  const res = await arcIncrementPromote(deps, "lc-arc-inc-01", "active");
+  assert.equal(res.ok, false);
+  assert.match(res.body, /terminal/);
+  assert.ok((res.next ?? []).some((n) => n.includes("arc increment new")));
+});
+
+test("promoting does NOT touch the arc's lifecycle — proposal/ready/active are all OPEN", async () => {
+  const { store, deps } = await arcWithIncrement();
+  await arcIncrementPromote(deps, "lc-arc-inc-01", "active");
+  const arc = (await store.getDoc("lc-arc"))?.doc as Record<string, unknown>;
+  assert.equal(arc["lifecycle"], "active");
+});
+
+test("promotion refuses without a writable store and without an id", async () => {
+  const store = new InMemoryStore();
+  await arcNew(writeDeps(store), "ro-arc", { title: "T", intent: "i", endState: "e", ...FIRST_INC });
+  const readOnly = await arcIncrementPromote(writeDeps(store, false, false), "ro-arc-inc-01", "ready");
+  assert.equal(readOnly.ok, false);
+
+  const noId = await arcIncrementPromote(writeDeps(store), undefined, "ready");
+  assert.equal(noId.ok, false);
+  assert.match(noId.body, /needs an increment id/);
 });
 
 // ---------------------------------------------------------------------------

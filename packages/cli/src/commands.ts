@@ -74,6 +74,7 @@ import {
   arcReopen,
   arcPark,
   arcIncrementClose,
+  arcIncrementPromote,
   arcIncrementNew,
   arcScopeOf,
   questionCommand,
@@ -3434,6 +3435,10 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
             ...(resolved.note !== undefined ? { note: resolved.note } : {}),
           });
         }
+        // The lifecycle's MIDDLE two states, which had no write path before this. `ready` reads as a
+        // state and `start` as an act, which is why the verbs are not spelled the same as the values.
+        if (third === "ready") return arcIncrementPromote(writeDeps, fourth, "ready");
+        if (third === "start") return arcIncrementPromote(writeDeps, fourth, "active");
       }
       // The SCAFFOLDER (the missing first lifecycle step): the id is an optional positional, matching
       // every other arc verb — omitted, it is derived from --title.
