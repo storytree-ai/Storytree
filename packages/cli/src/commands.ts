@@ -3000,6 +3000,36 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
             : null,
         // The claim namespace (ADR-0310 D2) — `declare --node` is a claim-taking path.
         universe: deps.claimUniverse ?? null,
+        // ADR-0386 — the increment's `active` flip rides the claim a session ALREADY takes.
+        //
+        // THE ARROW IS COMPOSED HERE, and that is the decision, not an implementation detail.
+        // `packages/drive` (the ledger) and `packages/arc` (the tier) are separate organisms and
+        // neither may import the other to get this; this dispatch is the one place that already
+        // holds both, so the binding costs no new package edge in either direction.
+        //
+        // Bound to `declare` alone, not to every path that can produce a work claim. `declare` is
+        // the verb a session runs to say "I am starting this", which is what `active` records —
+        // `claim`/`upgrade` are ledger surgery, and reading them as an execution event would flip
+        // increments on hands that were only tidying rows.
+        onWorkClaimed: async ({ id, kind }) => {
+          if (kind !== "increment") return null;
+          const res = await arcIncrementPromote(
+            {
+              store: deps.store,
+              writable: deps.writable === true,
+              ...(deps.actor !== undefined ? { actor: deps.actor } : {}),
+              now: new Date().toISOString(),
+              pg: values.pg === true,
+            },
+            id,
+            "active",
+          );
+          // A refusal is SILENT by design: the reachable ones are "already active" (a re-declare,
+          // which is the common case and says nothing new) and "closed" (terminal, ADR-0305 D2).
+          // Neither is news, and neither is this verb's business to argue with. A genuine store
+          // failure THROWS, and the rider's own guard in `noticeboard.ts` reports that.
+          return res.ok ? "→ increment is now ACTIVE (ADR-0386) — execution state, recorded not remembered" : null;
+        },
       },
     );
   }

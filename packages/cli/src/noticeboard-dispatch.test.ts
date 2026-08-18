@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 import { InMemoryStore } from "@storytree/storage-protocol";
 import type { ClaimDocT, ClaimRequest } from "@storytree/notice-board";
 
+import type { ClaimUniverseLoader } from "@storytree/drive";
+
 import { run } from "./commands.js";
 
 /**
@@ -174,4 +176,104 @@ test("noticeboard --help teaches the registered linked-worktree identity contrac
 
   const top = await run([], { store: new InMemoryStore() });
   assert.match(top.body, /noticeboard/);
+});
+
+// ---------------------------------------------------------------------------
+// declare — the increment `active` binding (ADR-0386)
+// ---------------------------------------------------------------------------
+
+/** A universe naming `inc-a` an increment and `cap-a` a capability. */
+const INCREMENT_UNIVERSE: ClaimUniverseLoader = async () => ({
+  targets: [
+    { id: "inc-a", kind: "increment" },
+    { id: "cap-a", kind: "capability" },
+  ],
+  nonClaimable: [],
+  complete: true,
+  unreadSources: [],
+});
+
+async function storeWithIncrement(status = "proposal"): Promise<InMemoryStore> {
+  const store = new InMemoryStore();
+  await store.upsertDoc({
+    id: "inc-a",
+    kind: "increment",
+    doc: {
+      kind: "increment",
+      id: "inc-a",
+      title: "an increment",
+      description: "d",
+      objective: "o",
+      body: "b",
+      arcRef: "asset:some-arc",
+      status,
+      references: [],
+      createdAt: "2026-08-19",
+      updatedAt: "2026-08-19",
+    },
+  });
+  return store;
+}
+
+/**
+ * THE BINDING ITSELF (ADR-0386). This is the assertion that keeps the mechanism from being dormant:
+ * the drive-side tests prove the rider is CALLED, and this one proves the CLI hands it a callback
+ * that actually reaches the arc write path. Without it both halves could pass while the durable row
+ * never moved — the same "green in two places, broken between them" shape ADR-0384 was measuring.
+ */
+test("declare on an INCREMENT flips it to active — the claim is the execution event", async () => {
+  const store = await storeWithIncrement();
+  const env = await run(["noticeboard", "declare", "--working-on", "driving it", "--node", "inc-a"], {
+    store,
+    writable: true,
+    presence: { identity: { sessionId: "alpha-3", branch: "claude/x" }, claims: fakeClaims() },
+    claimUniverse: INCREMENT_UNIVERSE,
+  });
+  assert.equal(env.ok, true, env.body);
+  const after = await store.getDoc("inc-a");
+  assert.equal((after?.doc as { status?: string } | undefined)?.status, "active");
+  assert.match(env.body, /increment is now ACTIVE \(ADR-0386\)/);
+});
+
+test("declare on a NON-increment writes no lifecycle at all", async () => {
+  const store = await storeWithIncrement();
+  const env = await run(["noticeboard", "declare", "--working-on", "driving it", "--node", "cap-a"], {
+    store,
+    writable: true,
+    presence: { identity: { sessionId: "alpha-4", branch: "claude/x" }, claims: fakeClaims() },
+    claimUniverse: INCREMENT_UNIVERSE,
+  });
+  assert.equal(env.ok, true, env.body);
+  const after = await store.getDoc("inc-a");
+  assert.equal((after?.doc as { status?: string } | undefined)?.status, "proposal");
+  assert.doesNotMatch(env.body, /ADR-0386/);
+});
+
+test("a RE-declare on an already-active increment is silent, never a scary refusal", async () => {
+  const store = await storeWithIncrement("active");
+  const env = await run(["noticeboard", "declare", "--working-on", "still driving", "--node", "inc-a"], {
+    store,
+    writable: true,
+    presence: { identity: { sessionId: "alpha-5", branch: "claude/x" }, claims: fakeClaims() },
+    claimUniverse: INCREMENT_UNIVERSE,
+  });
+  // Re-declaring is the COMMON case (a session refines what it is working on). The promotion is
+  // recorded once, so the second one has nothing to say — and saying it loudly would train sessions
+  // to read a normal declare as a problem.
+  assert.equal(env.ok, true, env.body);
+  assert.doesNotMatch(env.body, /ADR-0386/);
+  assert.match(env.body, /inc-a.*claimed — the wisp is lit/);
+});
+
+test("a CLOSED increment is never reopened by a declare — closed is terminal (ADR-0305 D2)", async () => {
+  const store = await storeWithIncrement("closed");
+  const env = await run(["noticeboard", "declare", "--working-on", "late claim", "--node", "inc-a"], {
+    store,
+    writable: true,
+    presence: { identity: { sessionId: "alpha-6", branch: "claude/x" }, claims: fakeClaims() },
+    claimUniverse: INCREMENT_UNIVERSE,
+  });
+  assert.equal(env.ok, true, env.body);
+  const after = await store.getDoc("inc-a");
+  assert.equal((after?.doc as { status?: string } | undefined)?.status, "closed");
 });

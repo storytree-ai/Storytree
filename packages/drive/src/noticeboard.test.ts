@@ -999,3 +999,112 @@ test("declare: with NO universe every id passes, exactly as before ADR-0310", as
   );
   assert.doesNotMatch(env.body, /NOT CLAIMED/);
 });
+
+// ---------------------------------------------------------------------------
+// declare — the work-claim RIDER (ADR-0386: the increment's `active` flip)
+// ---------------------------------------------------------------------------
+
+/** A universe where `inc-a` is an increment and `cap-a` a capability — the rider keys on kind. */
+const KNOWS_INCREMENT: NonNullable<NoticeboardDeps["universe"]> = async () => ({
+  targets: [
+    { id: "inc-a", kind: "increment" },
+    { id: "cap-a", kind: "capability" },
+  ],
+  nonClaimable: [],
+  complete: true,
+  unreadSources: [],
+});
+
+test("declare: the rider is called once per CLAIMED node, with that node's id and kind", async () => {
+  const claims = makeFakeClaims();
+  const seen: Array<{ id: string; kind: string | null }> = [];
+  const deps: NoticeboardDeps = {
+    identity: CLAIM_IDENTITY,
+    now: nowFn,
+    claims,
+    universe: KNOWS_INCREMENT,
+    onWorkClaimed: async (node) => {
+      seen.push(node);
+      return null;
+    },
+  };
+  const env = await noticeboardCommand("declare", { workingOn: "w", nodes: ["inc-a", "cap-a"] }, deps);
+  assert.equal(env.ok, true);
+  assert.deepEqual(seen, [
+    { id: "inc-a", kind: "increment" },
+    { id: "cap-a", kind: "capability" },
+  ]);
+});
+
+test("declare: the rider's note renders UNDER the claim line it belongs to", async () => {
+  const claims = makeFakeClaims();
+  const deps: NoticeboardDeps = {
+    identity: CLAIM_IDENTITY,
+    now: nowFn,
+    claims,
+    universe: KNOWS_INCREMENT,
+    onWorkClaimed: async ({ kind }) => (kind === "increment" ? "→ increment is now ACTIVE" : null),
+  };
+  const env = await noticeboardCommand("declare", { workingOn: "w", nodes: ["inc-a", "cap-a"] }, deps);
+  const lines = env.body.split("\n");
+  const claimLine = lines.findIndex((l) => l.includes("inc-a") && l.includes("claimed"));
+  assert.ok(claimLine >= 0, "the increment's claim line renders");
+  assert.match(lines[claimLine + 1] ?? "", /→ increment is now ACTIVE/);
+  // A null from the rider adds nothing at all — the capability's line is the last word on it.
+  assert.equal(env.body.match(/→ increment is now ACTIVE/g)?.length, 1);
+});
+
+test("declare: a THROWING rider never costs the claim — the row stands, the failure is said", async () => {
+  const claims = makeFakeClaims();
+  const deps: NoticeboardDeps = {
+    identity: CLAIM_IDENTITY,
+    now: nowFn,
+    claims,
+    universe: KNOWS_INCREMENT,
+    onWorkClaimed: async () => {
+      throw new Error("arc store said no");
+    },
+  };
+  const env = await noticeboardCommand("declare", { workingOn: "w", nodes: ["inc-a"] }, deps);
+  // The claim is the verb's job; the lifecycle flip is a rider on it. Were the throw allowed to
+  // reach the loop's own catch, this node would be reported `failed` while the store held its row.
+  assert.equal(env.ok, true, "the declare still succeeded");
+  assert.equal(claims.claimed.length, 1, "the claim was still written");
+  assert.match(env.body, /inc-a.*claimed — the wisp is lit/);
+  assert.match(env.body, /lifecycle rider failed: arc store said no — the claim itself stands/);
+});
+
+test("declare: a WITHHELD node never reaches the rider — no claim, no flip", async () => {
+  const claims = makeFakeClaims({ refuseWith: OTHER_HOLDER });
+  let calls = 0;
+  const deps: NoticeboardDeps = {
+    identity: CLAIM_IDENTITY,
+    now: nowFn,
+    claims,
+    universe: KNOWS_INCREMENT,
+    onWorkClaimed: async () => {
+      calls += 1;
+      return "→ flipped";
+    },
+  };
+  const env = await noticeboardCommand("declare", { workingOn: "w", nodes: ["inc-a"] }, deps);
+  assert.equal(env.ok, false, "nothing was claimed");
+  assert.equal(calls, 0, "an increment this session was FENCED out of is not one it started");
+  assert.doesNotMatch(env.body, /→ flipped/);
+});
+
+test("declare: with no rider injected the verb is byte-identical to before ADR-0386", async () => {
+  const withRider = makeFakeClaims();
+  const without = makeFakeClaims();
+  const base = { identity: CLAIM_IDENTITY, now: nowFn, universe: KNOWS_INCREMENT } as const;
+  const a = await noticeboardCommand("declare", { workingOn: "w", nodes: ["inc-a"] }, {
+    ...base,
+    claims: withRider,
+    onWorkClaimed: async () => null,
+  });
+  const b = await noticeboardCommand("declare", { workingOn: "w", nodes: ["inc-a"] }, {
+    ...base,
+    claims: without,
+  });
+  assert.equal(a.body, b.body);
+});
