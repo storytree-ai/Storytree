@@ -69,9 +69,28 @@ because nothing there was a journey run by a Codex task. All twelve are still yo
 
 ## The journey to run
 
-The authoritative criteria are the twelve in the `codex-lobby-to-write-live-smoke` increment — read
-them first (`storytree library artifact codex-lobby-to-write-live-smoke --pg`) and report against
-those numbers, not against this summary. **Do not renumber them.** In outline:
+The authoritative criteria are the twelve in the `codex-lobby-to-write-live-smoke` increment. Report
+against those numbers, not against this summary. **Do not renumber them.**
+
+⚠ **You cannot read that increment yourself, and this is by design — do not treat it as a fault and do
+not try to route around it.** `storytree library artifact … --pg` FAILS from inside your sandbox, for
+two independent reasons, and the one you hit first is not the obvious one. Measured 2026-08-18:
+
+    Error: createPool: no IAM principal resolved; set STORYTREE_DB_USER to the operator IAM email
+
+It fails at CREDENTIAL RESOLUTION, before any network call: `~/.storytree` is a denied path, so
+`STORYTREE_DB_USER` cannot hydrate from `secrets.json` the way it does outside the sandbox. Behind
+that sits a second wall — your profile blocks outbound network (DNS resolves, TCP 443 to Google is
+`EACCES`), so the Cloud SQL connector could not dial out even with a credential. Both are the fence
+working as intended. **Reading the criteria is therefore the operator's job: ask them to paste the
+twelve if you need the exact text.** The outline below is a faithful summary and is enough to run the
+journey and report by number.
+
+Note what this does NOT affect: your CLAIMS. Those go through the broker over loopback, which is
+exactly why the broker exists. A claim operation failing is a real finding; a library read failing is
+not.
+
+In outline:
 
 1. You begin on the lobby, and the lobby is read-only to you. Confirm a lobby write is REFUSED.
 2. Make ONE bootstrap request naming an exact unit and intent. It mints you a worktree and takes a
