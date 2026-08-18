@@ -46,7 +46,7 @@ PICTURES = ["shrub-species.png", "small-plant-set.png", "shrub-detail-6x.png",
 
 #: DECLARED UP FRONT. A run that reports fewer than this many rungs has died on the way and is a
 #: FAILURE regardless of what it did report.
-EXPECTED_RUNGS = 26
+EXPECTED_RUNGS = 27
 
 RESULTS = []
 
@@ -562,6 +562,68 @@ def _r26():
         raise AssertionError("a hatch is SET in this environment — the committed pictures would be "
                              "composed from something other than what their captions claim")
     return "both hatches declared and unset"
+
+
+@rung("27. THE README'S OWN HEADLINE NUMBERS ARE THE REPORT'S — the page the owner reads is checked")
+def _r27():
+    """THE LAST GAP, AND IT IS THE ONE THAT MATTERS MOST TO A READER. Rungs 1-26 establish that the
+    REPORT is honest. Nobody reads the report. The page in front of the owner is `README.md`, and a
+    number that drifts there is indistinguishable to them from a number that drifted in the
+    measurement — worse, actually, because the report will still verify.
+
+    Every string below is DERIVED FROM THE REPORT and then required to appear literally in the
+    README, so the check cannot be satisfied by editing the expectation: change a measurement and
+    this rung fails until the prose is brought with it.
+    """
+    #: NON-BREAKING SPACES ARE NORMALISED ON BOTH SIDES. Markdown prose picks them up from
+    #: editors and from thousands separators, and a rung that fails on U+00A0 against U+0020 is
+    #: reporting a TYPOGRAPHY difference as a measurement drift — which is exactly the false alarm
+    #: that teaches a reader to stop believing the harness.
+    def flat(s):
+        return s.replace(" ", " ").replace(" ", " ").replace(" ", " ")
+
+    md = flat(open(os.path.join(HERE, "README.md"), encoding="utf-8").read())
+
+    def num(n):
+        """The README's own thousands convention: a gap above 999, bare below."""
+        return f"{n:,}".replace(",", " ") if n >= 1000 else str(n)
+
+    d, v, m, i = (need(R, "delivery"), need(R, "vegetation"), need(R, "marks"),
+                  need(R, "interpenetration"))
+    want = {
+        "the three median delivered marks":
+            "| **%d** | **%d** | **%d** |" % tuple(d[k]["medianDeliveredPxPerSurvivor"]
+                                                   for k in ("blade", "species", "shrubs")),
+        "the blade's zero-delivery share":
+            "%.1f%% (%d/%d)" % (d["blade"]["zeroDeliveryShare"] * 100,
+                                d["blade"]["zeroDelivery"], d["blade"]["placements"]),
+        "the three vegetation totals":
+            "| **%s** | **%s** | **%s** |" % tuple(num(v["deliveredPx"][k])
+                                                   for k in ("blade", "species", "shrubs")),
+        "the small-plant set's outline separation":
+            "**%.3f**" % m["separation"]["shrubs"]["minPairwiseSeparation"],
+        "#1389's outline separation": "%.3f" % m["separation"]["species"]["minPairwiseSeparation"],
+        "the blade set's outline separation":
+            "**%.3f**" % m["separation"]["blade"]["minPairwiseSeparation"],
+        "the small-plant set's interpenetration share":
+            "**%.2f%%**" % (i["shrubs"]["overlapAsShareOfTotalFootprint"] * 100),
+        "the blade set's interpenetration share":
+            "**%.2f%%**" % (i["blade"]["overlapAsShareOfTotalFootprint"] * 100),
+        "the worst overload ratio":
+            "%.3f×" % max(r["overloadRatio"] or 0 for r in need(R, "countRuleOverload",
+                                                                     "rows")),
+        "the delivered-monotonicity break counts":
+            "blade %d, four species %d, small plants %d"
+            % tuple(len(need(R, "testCountChannel", "deliveredPxMonotonicInTests")[k])
+                    for k in ("blade", "species", "shrubs")),
+        "the palette size": "%d entries, the shipped dressed palette" % need(R, "paletteCost",
+                                                                            "entries"),
+    }
+    missing = [f"{label} — expected the README to contain {s!r}"
+               for label, s in want.items() if flat(s) not in md]
+    if missing:
+        raise AssertionError("; ".join(missing))
+    return "%d headline figures derived from the report and found verbatim in README.md" % len(want)
 
 
 # =====================================================================================================
