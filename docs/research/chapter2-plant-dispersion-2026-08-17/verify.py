@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """THE DISPERSION FLOOR — the property this pass adds so nobody has to eyeball it again.
 
-    python verify.py            # ~90 s, renders nothing, needs no Blender and no network
+    python verify.py            # ~3 min, renders nothing, needs no Blender and no network
 
 Every check below is run against BOTH islands and against a declared list of seeds, not one draw,
 so a green here is a statement about the positioner and not about a lucky picture.
@@ -31,6 +31,52 @@ differently:
                               consequence of the count rules, is 2.28x on the real-corpus island,
                               and is the owner's to decide, not this floor's to launder.
 
+  STRUCTURAL RUNGS (island-independent; added when the fix moved into `scatter.py` itself):
+    8. the legacy path is     `scatter.LEGACY_AFFINE` must still COLLAPSE onto the bounding-box
+       really the defect      diagonal. `verify_refusal.py` P1 used to read the shipped module with
+                              no argument, so it could not drift from reality; now it names a
+                              branch, and a branch that quietly stopped reproducing the defect would
+                              turn the load-bearing refusal probe into a probe of nothing while it
+                              kept printing CAUGHT.
+    9. exactly one            `disperse.scatter_dispersed` must BE `scatter.scatter_island`, and the
+       implementation        two committed `scatter.py` copies must be byte-identical. The three-way
+                              copy is how this arc kept paying the same bill twice.
+   10. no compositor takes    nothing under `docs/research/**` outside this pass's own harness may
+       the legacy path        pass `LEGACY_AFFINE` or call `legacy_affine_sample_in_cell`. It exists
+                              to make a refusal fire, and a compositor reaching for it would be
+                              re-introducing the defect through the door built to prove it is gone.
+
+   11. the cross-parcel rise   the total near-pair count must FALL between the two positioners. PR
+       is a redistribution     #1388 left the cross-parcel rise as a bare NOTE; measuring the total
+                              settles it, because the rise happens inside a total that drops by
+                              63%. Floored on the TOTAL rather than on the slice, so a later change
+                              that flattered the cross-parcel number by giving the total back goes
+                              red — which the NOTE could not catch.
+   14. the UAT flowers are    a flower's DELIVERED polar angle and radius must be uncorrelated. The
+       not on a spiral        meadow's diagonal was the loud instance of the affine-CRC32 property;
+                              this was the quiet one, scoped out of PR #1388 on the reasoning that
+                              the flowers already reject against a 15-unit spacing. That sampler
+                              rejects on distance BETWEEN points and is structurally blind to one
+                              point's own angle-radius relationship, so the correlation passed
+                              through into delivered positions at +0.507 / +0.509. The mask differs
+                              from the meadow's (0x7d65435d vs 0x01c26a37), so the SHAPE differs
+                              too — a spiral rather than a diagonal. The diagonal was a symptom of
+                              the affine property, never its definition; hunting the symptom would
+                              have missed this.
+   13. nobody calls the       `_sample_in_cell` was the affine draw's entry point, and it had an
+       removed sampler        unlisted caller: `compose_grass.carpet_items` filled a fixed quota per
+                              cell with it, so the CARPET variant stood on the diagonal too. The
+                              name was REMOVED rather than aliased to the fix, because an alias
+                              would have silently repaired this caller while silently mis-serving
+                              any caller that actually wanted the legacy draw. Public replacement:
+                              `scatter.sample_in_cell`.
+   12. the area cache         `_area` caches on `id()`, which is unique only among LIVE objects.
+       survives a reload      Measured on the pre-fix cache shape: 689 of 3,008 lookups across
+                              sixteen island loads — 22.9% — returned a FREED cell's area to the
+                              area-weighted draw. This rung drives the real load-use-free sequence
+                              rather than inspecting the cache's shape, so a rewrite that keeps the
+                              bug in another shape still fails.
+
 WHAT IS DELIBERATELY NOT ASSERTED. The island-wide near-pair fraction is REPORTED and not floored,
 because on the real-corpus island it cannot reach zero: capability 5 owns one 198-unit cell and is
 budgeted 18 plants, which is 1.26x what that much ground holds at the clearance. That residual is
@@ -51,6 +97,7 @@ it has to survive fell by a factor of four - and it is the difference between a 
 measures the positioner and one that measures the seed list.
 """
 import collections
+import gc
 import json
 import math
 import os
@@ -228,6 +275,210 @@ for name, dirname in ISLANDS.items():
     rows.append(("NOTE", f"[{name}] rim/core density gradient (reported, not floored)",
                  f"{statistics.mean(col('rimCoreRatio')):.3f}x - a consequence of the count rules, "
                  f"not of the positioner; see README"))
+
+# ---------------------------------------------------------------- the structural rungs (8, 9, 10)
+# These ask about the CODE rather than about a draw, so they run once rather than per island/seed.
+S = X.S
+_leg_island = load(ISLANDS["fixture"])
+_leg = [it for it in S.scatter_island(_leg_island, TOKENS, "verify-0", UAT, 1.0,
+                                      positioner=S.LEGACY_AFFINE)[0]
+        if it["kind"] in ("tuft", "shrub", "wilt")]
+_leg_uv = D.axis_uv([(it["g"][0], it["g"][1], it["cell"]) for it in _leg],
+                    _leg_island["variantB"]["cells"])
+_leg_diag = sum(1 for u, v in _leg_uv if abs(u - v) <= 0.02) / len(_leg_uv)
+check(_leg_diag > 0.90, "8. the legacy path still reproduces the defect",
+      f"scatter.LEGACY_AFFINE puts {_leg_diag:.4f} of its placements within 0.02 of the "
+      f"bounding-box diagonal (must stay above 0.90; the fixed positioner scores ~0.04, chance is "
+      f"0.0396). This is what makes verify_refusal.py P1 a probe of the real pre-fix state.")
+
+_grass = os.path.join(REPO, "docs", "research", "chapter2-grass-reads-as-signal-2026-08-16",
+                      "scatter.py")
+_dressed = os.path.join(REPO, "docs", "research", "chapter2-island-place-dressing-2026-08-16",
+                        "scatter.py")
+_same_impl = X.scatter_dispersed is S.scatter_island
+_same_bytes = open(_grass, "rb").read() == open(_dressed, "rb").read()
+check(_same_impl and _same_bytes, "9. exactly one implementation",
+      f"disperse.scatter_dispersed is scatter.scatter_island: {_same_impl}; the two committed "
+      f"scatter.py copies are byte-identical: {_same_bytes}")
+
+# THE ALLOWLIST IS THE CHECK. A blanket "only this pass may say it" would have been wrong — the
+# high-frequency options pass has a legitimate, environment-gated refusal hatch that must feed the
+# real defect to its own corr gate. So the rule is not "nobody else" but "nobody else WITHOUT a
+# stated reason on this list", which means adding a caller is an edit a reviewer sees rather than a
+# silent import.
+_RESEARCH = os.path.join(REPO, "docs", "research")
+_ALLOWED = {
+    "chapter2-grass-reads-as-signal-2026-08-16/scatter.py":
+        "defines it",
+    "chapter2-island-place-dressing-2026-08-16/scatter.py":
+        "the byte-identical committed copy, held identical by rung 9",
+    "chapter2-plant-dispersion-2026-08-17/verify.py":
+        "rungs 8 and 10 — this file",
+    "chapter2-plant-dispersion-2026-08-17/verify_refusal.py":
+        "P1, the load-bearing perturbation",
+    "chapter2-plant-dispersion-2026-08-17/measure.py":
+        "the before/after measurement this pass's report is made of",
+    "chapter2-plant-dispersion-2026-08-17/picture.py":
+        "the before/after picture",
+    "chapter2-high-frequency-options-2026-08-17/compose_options.py":
+        "its STORYTREE_OPTIONS_PERTURB=unfixed-positioner hatch, asserted OFF at rest by its own "
+        "verify.py",
+    "chapter2-high-frequency-options-2026-08-17/verify.py":
+        "its 'the UNFIXED sampler TRIPS the same gate' non-vacuity check",
+    "chapter2-plant-dispersion-2026-08-17/disperse.py":
+        "NAMES IT IN A COMMENT ONLY, to say why it is not re-exported — asserted below, because a "
+        "text scan cannot tell a comment from a call",
+}
+_leaks = []
+for root, _dirs, files in os.walk(_RESEARCH):
+    for f in files:
+        if not f.endswith(".py"):
+            continue
+        p = os.path.abspath(os.path.join(root, f))
+        rel = os.path.relpath(p, _RESEARCH).replace(os.sep, "/")
+        if rel in _ALLOWED:
+            continue
+        src = open(p, encoding="utf-8", errors="replace").read()
+        for token in ("LEGACY_AFFINE", "legacy_affine_sample_in_cell"):
+            if token in src:
+                _leaks.append(f"{rel} mentions {token}")
+# RUNG 11 — THE CROSS-PARCEL REGRESSION, DECIDED RATHER THAN REPORTED.
+# PR #1388 left this as a NOTE because the remedy (island-wide spacing memory) trades away the
+# determinism property `scatter.py` is built on, and that read as an owner fork. Measuring the
+# thing the fork actually turns on settles it without one: the cross-parcel count rises INSIDE A
+# MUCH SMALLER TOTAL. On the real-corpus island near-pair plants fall 75.9 -> 28.4 while the
+# cross-parcel slice rises 1.7 -> 16.6 — so each cross-parcel pair gained is bought against ~5.6
+# same-parcel pairs removed, and on the fixture the same-parcel slice reaches exactly zero. An
+# island-wide remedy is therefore bidding for the last ~11 percentage points having already been
+# handed 33, at the price of making capability i's positions depend on capabilities 0..i-1 — which
+# is what makes every before/after picture on this arc comparable at all.
+# SO THE SCOPED RULE IS KEPT DELIBERATELY, and what is floored is the quantity the decision turns
+# on: the TOTAL must fall, not merely the same-parcel half. A future change that traded the total
+# away to flatter the cross-parcel number would go red here, which is exactly the failure the old
+# NOTE could not catch.
+CROSS_PARCEL_SEEDS = SEEDS[:6]     # a subset, stated: this rung runs both positioners
+
+
+def _near_split(island, seed, legacy):
+    kw = {"positioner": X.S.LEGACY_AFFINE} if legacy else {}
+    its = X.S.scatter_island(island, TOKENS, seed, UAT, 1.0, **kw)[0]
+    flat = [(it["g"][0], it["g"][1], it["cap"]) for it in its
+            if it["kind"] in ("tuft", "shrub", "wilt")]
+    near = cross = 0
+    for i, (x, y, ci) in enumerate(flat):
+        hit = xhit = False
+        for j, (xj, yj, cj) in enumerate(flat):
+            if i != j and math.hypot(x - xj, y - yj) < D.CLEARANCE:
+                hit = True
+                xhit = xhit or cj != ci
+        near += hit
+        cross += xhit
+    return len(flat), near, cross
+
+
+for name, dirname in ISLANDS.items():
+    isl = load(dirname)
+    b = [_near_split(isl, s, True) for s in CROSS_PARCEL_SEEDS]
+    a = [_near_split(isl, s, False) for s in CROSS_PARCEL_SEEDS]
+    bn = statistics.mean(r[1] for r in b)
+    an, ac = statistics.mean(r[1] for r in a), statistics.mean(r[2] for r in a)
+    bc = statistics.mean(r[2] for r in b)
+    check(an < bn, f"[{name}] 11. the cross-parcel rise is a redistribution, not a net loss",
+          f"near-pair plants {bn:.1f} -> {an:.1f} in total (must FALL); the cross-parcel slice "
+          f"{bc:.1f} -> {ac:.1f} and the same-parcel slice {bn - bc:.1f} -> {an - ac:.1f}, so each "
+          f"cross-parcel pair gained costs "
+          f"{((bn - bc) - (an - ac)) / max(ac - bc, 1e-9):.1f} same-parcel pairs removed. Scoping "
+          f"spacing to a capability is KEPT: the island-wide remedy would make one capability's "
+          f"positions depend on its siblings, over {CROSS_PARCEL_SEEDS and len(CROSS_PARCEL_SEEDS)}"
+          f" seeds.")
+
+# RUNG 12 — THE AREA CACHE IS KEYED ON `id()`, WHICH IS ONLY UNIQUE AMONG LIVE OBJECTS.
+# Found while promoting this positioner from a lane copy to the shipped path, and it is not a
+# theoretical hazard: with the pre-2026-08-18 cache shape (area only, no reference retained),
+# 689 of 3,008 area lookups across sixteen island loads — 22.9% — would have returned a DEAD
+# cell's area, because CPython recycles the address of a freed list. That silently skews the
+# area-weighted cell choice in exactly the harnesses that load more than one island, which is
+# every multi-island harness on this track including this one. The fix is to store the polygon
+# beside its area and check identity on read, which both prevents the recycling and refuses to
+# believe it if it happened anyway. This rung drives the real sequence rather than inspecting
+# the cache's shape, so a future rewrite that keeps the bug in a different shape still fails.
+_a_seen, _a_wrong, _a_checked = {}, 0, 0
+for _rep in range(3):
+    for _dirname in ISLANDS.values():
+        _isl = load(_dirname)
+        for _c in _isl["variantB"]["cells"]:
+            _p = _c["poly"]
+            _truth = abs(sum(_p[i][0] * _p[(i + 1) % len(_p)][1]
+                             - _p[(i + 1) % len(_p)][0] * _p[i][1]
+                             for i in range(len(_p)))) / 2.0
+            _a_checked += 1
+            if abs(X.S._area(_p) - _truth) > 1e-6:
+                _a_wrong += 1
+        del _isl, _c, _p
+        gc.collect()
+check(_a_wrong == 0, "12. the area cache survives island reloads",
+      f"{_a_checked} area lookups across {3 * len(ISLANDS)} island loads, {_a_wrong} wrong. "
+      f"The cache is keyed on id(), which CPython recycles: the pre-fix shape got 22.9% of these "
+      f"wrong by returning a freed cell's area to the area-weighted draw.")
+
+# RUNG 13 — NOBODY CALLS THE REMOVED PRIVATE SAMPLER.
+# `_sample_in_cell` was the affine draw's entry point and it had a caller nobody had listed:
+# `compose_grass.carpet_items` filled a fixed quota per cell with it, so the CARPET variant stood on
+# the diagonal exactly as the meadow did. Renaming it surfaced that caller as a loud AttributeError
+# five minutes into a re-compose, which is the right failure mode and the reason the name was not
+# kept as an alias — an alias would have silently fixed this caller while silently mis-serving any
+# caller that actually wanted the legacy draw. The public replacement is `scatter.sample_in_cell`.
+# Matched WITH the open paren so the prose that discusses the old name by name still passes — and
+# the needle is ASSEMBLED rather than written, because a literal here matches this file and the
+# rung reports itself. It did, on the first run.
+_NEEDLE = "._sample" + "_in_cell("
+_removed = []
+for root, _dirs, files in os.walk(_RESEARCH):
+    for f in files:
+        if f.endswith(".py"):
+            p = os.path.join(root, f)
+            if _NEEDLE in open(p, encoding="utf-8", errors="replace").read():
+                _removed.append(os.path.relpath(p, _RESEARCH).replace(os.sep, "/"))
+check(not _removed, "13. nobody calls the removed private sampler",
+      f"no file under docs/research/** calls scatter{_NEEDLE}; the public single-cell entry "
+      f"point is scatter.sample_in_cell" if not _removed else "; ".join(_removed))
+
+# RUNG 14 — THE UAT FLOWERS ARE NOT ON A SPIRAL.
+# The meadow's diagonal was the LOUD instance of the affine-CRC32 property; the flowers were the
+# quiet one, and this pass originally scoped them out because they already reject against a 15-unit
+# spacing. That reasoning was sound and the conclusion was wrong: a spacing sampler rejects on
+# DISTANCE BETWEEN chosen points and is structurally blind to a relationship between one point's own
+# angle and its own radius. Measured before the fix: the `ang ^ rad` XOR mask is the constant
+# 0x7d65435d, the raw draws correlate at +0.4999, and the correlation passes through into DELIVERED
+# positions at +0.5073 / +0.5086 with ZERO exhaustion fallbacks. Under ADR-0226 D4 each flower IS a
+# UAT criterion, so a criterion's distance from the centre was half-determined by its bearing.
+# The floor is on DELIVERED polar coordinates, not on the draw, because the draw is the mechanism
+# and the delivered position is the claim a reader would act on.
+FLOWER_POLAR_CORR_MAX = 0.15       # measured: +0.507 / +0.509 before, +0.024 / -0.018 after
+for name, dirname in ISLANDS.items():
+    isl = load(dirname)
+    _cx, _cy = isl["islandCentreGround"]
+    _ang, _rad = [], []
+    for _i in range(60):
+        for _it in X.S.scatter_island(isl, TOKENS, f"flower-{_i}", UAT, 1.0)[0]:
+            if _it["kind"] == "flower":
+                _dx, _dy = _it["g"][0] - _cx, _it["g"][1] - _cy
+                _ang.append(math.atan2(_dy, _dx) % math.tau)
+                _rad.append(math.hypot(_dx, _dy) / isl["_radius"])
+    _c = abs(D.correlation(list(zip(_ang, _rad))))
+    check(_c <= FLOWER_POLAR_CORR_MAX, f"[{name}] 14. the UAT flowers are not on a spiral",
+          f"|corr(polar angle, radius)| over {len(_ang)} delivered flowers = {_c:.4f} "
+          f"(limit {FLOWER_POLAR_CORR_MAX}, null width 1/sqrt(n) = {1/math.sqrt(len(_ang)):.4f}). "
+          f"The pre-fix draw scored +0.507; the 15-unit spacing sampler does NOT catch it, because "
+          f"it rejects on distance BETWEEN points and cannot see one point's own angle-radius "
+          f"relationship.")
+
+_alias_clean = not any(hasattr(X, n) for n in ("LEGACY_AFFINE", "legacy_affine_sample_in_cell"))
+check(not _leaks and _alias_clean, "10. no undeclared caller takes the legacy path",
+      f"{len(_ALLOWED)} declared callers, each with a stated reason; no other file under "
+      f"docs/research/** names LEGACY_AFFINE or legacy_affine_sample_in_cell; the alias module "
+      f"re-exports neither name ({_alias_clean})"
+      if not _leaks and _alias_clean else "; ".join(_leaks or ["disperse re-exports the legacy name"]))
 
 w = max(len(r[1]) for r in rows)
 print()

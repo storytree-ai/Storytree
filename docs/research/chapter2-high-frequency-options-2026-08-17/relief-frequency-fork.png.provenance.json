@@ -3,7 +3,7 @@
  "artifact": "relief-frequency-fork.png",
  "producer": {
   "tool": "compose_options.py",
-  "sha256": "b7c72ec561eaea884bd4193907b43f7247a8b12cef6a383e4965772f03de3f23"
+  "sha256": "fc5725df9c4c422e5feb0b77ba4879b67627b5f8688c010c44eedc721c71604b"
  },
  "command": {
   "tool": "compose_options.py",
@@ -226,8 +226,8 @@
   "rule": "one code state PER GENERATOR; the composite's identity is the digest of the whole {generator: state} map, so any generator moving moves it"
  },
  "output": {
-  "sha256": "b0b7c29c7c166bc4c69b370a54a47747791c81827e7b88edcbf6abaaa168d363",
-  "bytes": 40423
+  "sha256": "a112de1b18cc1c4f329cf9edc70bd767ad6f96fd7a4736567da245c3870638cd",
+  "bytes": 40473
  },
  "pass": "chapter2-high-frequency-options-2026-08-17",
  "speciesGenerator": {

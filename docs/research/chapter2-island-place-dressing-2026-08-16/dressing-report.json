@@ -7,15 +7,15 @@
  },
  "meadow": {
   "caption": "+ MEADOW \u2014 grass = a capability's tests, dead grass = the status wilt",
-  "decorPlacements": 111,
+  "decorPlacements": 114,
   "landPx": 34968,
-  "landColours": 72
+  "landColours": 70
  },
  "dressed": {
   "caption": "+ UAT FLOWERS \u2014 one per criterion, the verdict read from form",
-  "decorPlacements": 117,
+  "decorPlacements": 120,
   "landPx": 34968,
-  "landColours": 79
+  "landColours": 77
  },
  "bladeGroundContrast": {
   "measured": [
@@ -171,44 +171,44 @@
  "densitySweep": [
   {
    "density": 1.0,
-   "placements": 117,
-   "meadowPlacements": 111,
+   "placements": 120,
+   "meadowPlacements": 114,
    "flowerPlacements": 6,
-   "decorPx": 353,
+   "decorPx": 339,
    "landPx": 34968,
-   "decorShareOfLandPct": 1.01,
-   "decorPxBeforeDownsampleGroundEquiv": 368.1,
-   "survivalOfDownsamplePct": 95.9,
-   "landColours": 79
+   "decorShareOfLandPct": 0.97,
+   "decorPxBeforeDownsampleGroundEquiv": 356.1,
+   "survivalOfDownsamplePct": 95.2,
+   "landColours": 77
   },
   {
    "density": 3.0,
-   "placements": 339,
-   "meadowPlacements": 333,
+   "placements": 345,
+   "meadowPlacements": 339,
    "flowerPlacements": 6,
-   "decorPx": 689,
+   "decorPx": 766,
    "landPx": 34968,
-   "decorShareOfLandPct": 1.97,
-   "decorPxBeforeDownsampleGroundEquiv": 724.8,
-   "survivalOfDownsamplePct": 95.1,
+   "decorShareOfLandPct": 2.19,
+   "decorPxBeforeDownsampleGroundEquiv": 822.1,
+   "survivalOfDownsamplePct": 93.2,
    "landColours": 79
   },
   {
    "density": 6.0,
-   "placements": 670,
-   "meadowPlacements": 664,
+   "placements": 684,
+   "meadowPlacements": 678,
    "flowerPlacements": 6,
-   "decorPx": 1016,
+   "decorPx": 1504,
    "landPx": 34968,
-   "decorShareOfLandPct": 2.91,
-   "decorPxBeforeDownsampleGroundEquiv": 1073.3,
-   "survivalOfDownsamplePct": 94.7,
+   "decorShareOfLandPct": 4.3,
+   "decorPxBeforeDownsampleGroundEquiv": 1585.7,
+   "survivalOfDownsamplePct": 94.8,
    "landColours": 79
   }
  ],
  "scatter": {
-  "tuft": 99,
-  "shrub": 10,
+  "tuft": 101,
+  "shrub": 11,
   "wilt": 2,
   "flower": 6,
   "perCapability": [
@@ -230,8 +230,8 @@
     "tests": 7,
     "grassRule": "round(2 + 7*1.9)",
     "lush": true,
-    "tufts": 14,
-    "shrubs": 2,
+    "tufts": 15,
+    "shrubs": 3,
     "wilts": 0
    },
    {
@@ -241,7 +241,7 @@
     "tests": 4,
     "grassRule": "round(2 + 4*1.9)",
     "lush": false,
-    "tufts": 9,
+    "tufts": 10,
     "shrubs": 2,
     "wilts": 0
    },
@@ -324,6 +324,9 @@
    }
   ],
   "centroidFallbacks": 0,
+  "wellCulled": 0,
+  "positioner": "spread",
+  "candidates": 10,
   "flowerFallbacks": 0
  },
  "pieceSet": {
@@ -365,13 +368,13 @@
    "status": "healthy",
    "landPx": 34968,
    "landColours": 47,
-   "placements": 148
+   "placements": 151
   },
   {
    "status": "building",
    "landPx": 34968,
    "landColours": 47,
-   "placements": 148
+   "placements": 151
   },
   {
    "status": "proposed",
@@ -383,13 +386,13 @@
    "status": "mapped",
    "landPx": 34968,
    "landColours": 44,
-   "placements": 109
+   "placements": 110
   },
   {
    "status": "unhealthy",
    "landPx": 34968,
    "landColours": 46,
-   "placements": 148
+   "placements": 151
   }
  ]
 }

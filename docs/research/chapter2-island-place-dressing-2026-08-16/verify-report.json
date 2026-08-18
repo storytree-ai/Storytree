@@ -4,22 +4,22 @@
   {
    "name": "scatter: re-running the placement is identical",
    "pass": true,
-   "detail": "117 placements"
+   "detail": "120 placements"
   },
   {
    "name": "scatter: changing the UAT criteria moves NO meadow placement",
    "pass": true,
-   "detail": "111 meadow placements unmoved with 5 criteria"
+   "detail": "114 meadow placements unmoved with 5 criteria"
   },
   {
    "name": "render: every decor piece re-renders raster-identical",
    "pass": true,
-   "detail": "11/11 pixel-identical (11 with a differing PNG container \u2014 Blender stamps the file, so the claim is on the raster)"
+   "detail": "SKIPPED (--fast)"
   },
   {
    "name": "composite: two runs are byte-identical",
    "pass": true,
-   "detail": "34968 land px, 79 colours"
+   "detail": "34968 land px, 77 colours"
   },
   {
    "name": "(a) no rendered decor piece contains ANY island token colour",
@@ -29,12 +29,12 @@
   {
    "name": "(b) all five statuses render from ONE decor piece set",
    "pass": true,
-   "detail": "healthy:148pl/47col, building:148pl/47col, proposed:62pl/45col, mapped:109pl/44col, unhealthy:148pl/46col"
+   "detail": "healthy:151pl/47col, building:151pl/47col, proposed:62pl/45col, mapped:110pl/44col, unhealthy:151pl/46col"
   },
   {
    "name": "(c) permuting the statuses repaints the island and moves no piece",
    "pass": true,
-   "detail": "76 colours under the permutation vs 79"
+   "detail": "77 colours under the permutation vs 77"
   },
   {
    "name": "every (decor token x authored shade) pair is IN the closed palette",
@@ -64,28 +64,28 @@
   {
    "name": "the density dial scales the meadow and NEVER the UAT flowers",
    "pass": true,
-   "detail": "x3 -> 333 meadow, 6 flowers"
+   "detail": "x3 -> 339 meadow, 6 flowers"
   },
   {
    "name": "every placement stands on a land cell (the app's keep-IN, no decor in the water)",
    "pass": true,
-   "detail": "117 placements on land"
+   "detail": "120 placements on land"
   },
   {
    "name": "the working tree's changes are confined to docs/research/**",
    "pass": true,
-   "detail": "62 paths, all under docs/research/"
+   "detail": "76 paths, all under docs/research/"
   }
  ],
  "cameraElevationDeg": 50.0,
  "appLandCameraElevationDeg": 20.0,
  "statusRenders": {
   "healthy": {
-   "placements": 148,
+   "placements": 151,
    "colours": 47
   },
   "building": {
-   "placements": 148,
+   "placements": 151,
    "colours": 47
   },
   "proposed": {
@@ -93,11 +93,11 @@
    "colours": 45
   },
   "mapped": {
-   "placements": 109,
+   "placements": 110,
    "colours": 44
   },
   "unhealthy": {
-   "placements": 148,
+   "placements": 151,
    "colours": 46
   }
  }

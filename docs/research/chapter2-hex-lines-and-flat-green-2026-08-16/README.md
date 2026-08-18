@@ -1,5 +1,14 @@
 # The hex lines, and flat green — which grid actually draws the island's lines
 
+> **⚠ RE-COMPOSED 2026-08-18 — 3 of 4 pictures moved.** The plant positioner's CRC32 affine collapse was
+> propagated into `scatter.py` itself by the increment
+> `crc32-dispersion-fix-propagated-and-evidence-rerendered`, so every placement on this pass's
+> pictures moved.  **Nothing was re-RENDERED** — no piece PNG is touched; the fix changes
+> where a piece is stamped, never what it looks like. The full delta table, and what did NOT move,
+> is in `../chapter2-plant-dispersion-2026-08-17/README.md`. Numbers in the prose below were
+> measured on the PRE-FIX placements unless they say otherwise.
+
+
 **Date:** 2026-08-16 · **Camera:** 50° (a named parameter, inherited from the prior pass, not
 restated) · **Land:** the interior fork's settled `b++`, ONE island for every panel · **Cost:** $0 ·
 **Vendor calls:** 0 · **Blender renders:** 0 (this pass composes from the prior pass's committed

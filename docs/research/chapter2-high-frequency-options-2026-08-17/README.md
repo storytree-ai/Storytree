@@ -1,5 +1,14 @@
 # High frequency without looking off — the two options, rendered
 
+> **⚠ RE-COMPOSED 2026-08-18 — all 5 pictures moved.** The plant positioner's CRC32 affine collapse was
+> propagated into `scatter.py` itself by the increment
+> `crc32-dispersion-fix-propagated-and-evidence-rerendered`, so every placement on this pass's
+> pictures moved. This pass already imported the fixed MEADOW positioner, so what moved here is the **UAT FLOWERS**: they drew angle and radius from two equal-length address tokens and carried the same affine property at a delivered correlation of +0.507, which the 15-unit spacing sampler cannot catch by construction.  **Nothing was re-RENDERED** — no piece PNG is touched; the fix changes
+> where a piece is stamped, never what it looks like. The full delta table, and what did NOT move,
+> is in `../chapter2-plant-dispersion-2026-08-17/README.md`. Numbers in the prose below were
+> measured on the PRE-FIX placements unless they say otherwise.
+
+
 **Date:** 2026-08-17 · **Camera:** 50° (the research track's named parameter; the app's
 `LAND_CAMERA_ELEVATION_DEG` is **20** and is neither read nor written) · **Island:** the real-corpus
 `context-traversal-capture` — 11 capabilities, every one `healthy` off its own signed pass, 162 mesh

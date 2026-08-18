@@ -3,7 +3,7 @@
  "artifact": "high-frequency-options.png",
  "producer": {
   "tool": "compose_options.py",
-  "sha256": "b7c72ec561eaea884bd4193907b43f7247a8b12cef6a383e4965772f03de3f23"
+  "sha256": "fc5725df9c4c422e5feb0b77ba4879b67627b5f8688c010c44eedc721c71604b"
  },
  "command": {
   "tool": "compose_options.py",
@@ -226,8 +226,8 @@
   "rule": "one code state PER GENERATOR; the composite's identity is the digest of the whole {generator: state} map, so any generator moving moves it"
  },
  "output": {
-  "sha256": "76acb05393273958c96304bb71314cae26005f58777d14a1d70224153ee835b0",
-  "bytes": 106529
+  "sha256": "65f2d6f896c482e019891c76f7d7e8f493d99660eaa1f01df9473e0b9c0ca5e9",
+  "bytes": 107010
  },
  "pass": "chapter2-high-frequency-options-2026-08-17",
  "speciesGenerator": {

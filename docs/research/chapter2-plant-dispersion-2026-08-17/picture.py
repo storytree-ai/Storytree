@@ -73,7 +73,11 @@ class _T(dict):
 
 TOKENS = {"blade": _T(), "shrub": _T(), "wilt": _T(), "flower": _T()}
 
-before = [it for it in S.scatter_island(ISLAND, TOKENS, SEED, UAT, 1.0)[0] if it["kind"] != "flower"]
+# The BEFORE panel is the legacy branch by name — `scatter_island`'s default has been the fix
+# since 2026-08-18, so a bare call would draw two identical panels captioned as a comparison.
+before = [it for it in S.scatter_island(ISLAND, TOKENS, SEED, UAT, 1.0,
+                                        positioner=S.LEGACY_AFFINE)[0]
+          if it["kind"] != "flower"]
 after = [it for it in X.scatter_dispersed(ISLAND, TOKENS, SEED, UAT, 1.0)[0] if it["kind"] != "flower"]
 
 
@@ -213,7 +217,8 @@ abin = [0.0] * 5
 for i in range(len(CELLS)):
     abin[_bin(cdist[i])] += areas[i]
 series = []
-for fn in (lambda s: S.scatter_island(ISLAND, TOKENS, s, UAT, 1.0)[0],
+for fn in (lambda s: S.scatter_island(ISLAND, TOKENS, s, UAT, 1.0,
+                                      positioner=S.LEGACY_AFFINE)[0],
            lambda s: X.scatter_dispersed(ISLAND, TOKENS, s, UAT, 1.0)[0]):
     cb = [0] * 5
     for s in CHART_SEEDS:

@@ -281,12 +281,12 @@
   "reading": "the status variable is REMOVED on this island - every capability is `healthy` - so every remaining cell-to-cell colour difference is authored variation carrying no meaning: the three-entry `top` shade list picked per cell by hash, and the wheat subset. That is the measurable content of the owner's 'different mesh triangles rendering different colors'. MEASURED, NOT ACTED ON: collapsing them is an appearance decision and the owner's."
  },
  "decorAtRealTestCounts": {
-  "tufts": 143,
+  "tufts": 144,
   "shrubs": 27,
   "wilts": 0,
   "flowers": 10,
   "centroidFallbacks": 0,
-  "flowerFallbacks": 1,
+  "flowerFallbacks": 0,
   "perCapability": [
    {
     "cap": 0,
@@ -295,7 +295,7 @@
     "tests": 4,
     "grassRule": "round(2 + 4*1.9)",
     "lush": false,
-    "tufts": 9,
+    "tufts": 10,
     "shrubs": 2,
     "wilts": 0
    },

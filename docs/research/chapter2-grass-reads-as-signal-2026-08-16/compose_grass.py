@@ -175,7 +175,11 @@ def carpet_items(meta, per_cell=grass.CARPET_PER_CELL):
         toks = meta["tokenFamilies"]["blade"][status]
         for k in range(per_cell):
             addr = ("carpet", i, k)
-            gx, gy, _fb = scatter._sample_in_cell(cell, addr)
+            # The FIXED single-cell sampler (2026-08-18). This line used to call the affine-CRC32
+            # `_sample_in_cell`, so the carpet's tufts stood on their cell's bounding-box diagonal
+            # exactly as the meadow's did — the collapse is a property of the DRAW and does not care
+            # that the cell here is given rather than chosen.
+            gx, gy, _fb = scatter.sample_in_cell(cell, addr)
             if math.hypot(gx - cx, gy - cy) < scatter.GRASS_WELL:
                 continue
             items.append({"kind": "carpet",

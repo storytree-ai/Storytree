@@ -3,7 +3,7 @@
  "artifact": "grass-normals-sweep.png",
  "producer": {
   "tool": "compose_grass.py",
-  "sha256": "d75875453b9ceb1e04f82313fa72c3f990c665f7fcf568499b7fe5a6491011fe"
+  "sha256": "ec7a56fc69b023fa9327d6a3e962d9b24ab8d480b46eb76725e1cb23cc9cdf78"
  },
  "command": {
   "tool": "compose_grass.py",

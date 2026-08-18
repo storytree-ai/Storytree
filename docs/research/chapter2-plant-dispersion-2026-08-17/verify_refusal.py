@@ -8,10 +8,15 @@ feeding each rung the thing it exists to catch and REQUIRING it to catch it.
 
 The perturbations are not invented defects. Each one is a real state the code was in:
 
-  P1  the ORIGINAL positioner, unmodified, imported live from
-      `chapter2-grass-reads-as-signal-2026-08-16/scatter.py`. This is the code that produced every
-      committed picture on this arc, and it must trip rungs 1, 2 and 3. It is the load-bearing
-      perturbation: the others are ablations of the fix, this one is the shipped state.
+  P1  the PRE-FIX positioner, reproduced bit-for-bit by `scatter.LEGACY_AFFINE`. This is the code
+      that produced every committed picture on this arc up to 2026-08-18, and it must trip rungs 1,
+      2 and 3. It is the load-bearing perturbation: the others are ablations of the fix, this one is
+      the state the arc actually shipped from.
+      ⚠ IT IS NO LONGER THE DEFAULT, AND THAT CHANGES WHAT THIS PROBE PROVES. Until the fix landed
+      in `scatter.py` itself, P1 read the shipped module with no argument at all, so it could not
+      drift from reality. Now it names a branch, and the branch is only worth as much as its
+      fidelity to the code it replaced — which is why `verify.py` rung 8 asserts that
+      `LEGACY_AFFINE` still collapses onto the bounding-box diagonal rather than trusting the label.
   P2  the fix WITHOUT the avalanche finaliser - two raw CRC32 draws for x and y, everything else
       the new positioner. Isolates the coordinate-pair collapse from the blue noise, and proves
       rung 1 is measuring the hash and not the spacing.
@@ -63,19 +68,25 @@ ISLANDS = {k: V.load(v) for k, v in V.ISLANDS.items()}
 
 # ------------------------------------------------------------------ the perturbations
 def p1_original(island, seed):
-    """The shipped positioner, untouched."""
-    return S.scatter_island(island, TOKENS, seed, UAT, 1.0)[0]
+    """The pre-fix positioner, reproduced bit-for-bit — see the module docstring."""
+    return S.scatter_island(island, TOKENS, seed, UAT, 1.0, positioner=S.LEGACY_AFFINE)[0]
 
 
 def _with_candidate(fn):
-    """Swap `disperse._candidate` for the duration of one run, and put it back."""
+    """Swap the candidate sampler for the duration of one run, and put it back.
+
+    PATCHED ON `S`, NOT ON `X`. `disperse` is an alias module now — its names are bound to
+    `scatter`'s objects, and `scatter_island` resolves its helpers in ITS OWN module globals, so
+    rebinding `X._candidate` would leave the real run untouched and every ablation below would
+    silently measure the unmodified fix instead of the ablation it names.
+    """
     def run(island, seed, **kw):
-        real = X._candidate
-        X._candidate = fn
+        real = S._candidate
+        S._candidate = fn
         try:
             return X.scatter_dispersed(island, TOKENS, seed, UAT, 1.0, **kw)[0]
         finally:
-            X._candidate = real
+            S._candidate = real
     return run
 
 
@@ -144,7 +155,7 @@ def p5_well_scored_as_ground(island, seed):
 
 
 PERTURBATIONS = [
-    ("P1 the shipped positioner (scatter.py, unmodified)", p1_original, (1, 2, 3)),
+    ("P1 the pre-fix positioner (scatter.LEGACY_AFFINE)", p1_original, (1, 2, 3)),
     ("P2 the fix minus the avalanche finaliser (two raw CRC32 draws)",
      lambda i, s: _with_candidate(_raw_crc_candidate)(i, s), (1, 2)),
     ("P3 the fix minus best-candidate (candidates=1)",

@@ -1,5 +1,14 @@
 # One surface, and a shadow on it
 
+> **⚠ RE-COMPOSED 2026-08-18 — NO picture moved — all 5 are pixel-identical.** The plant positioner's CRC32 affine collapse was
+> propagated into `scatter.py` itself by the increment
+> `crc32-dispersion-fix-propagated-and-evidence-rerendered`, so every placement on this pass's
+> pictures moved. This pass draws no plants, and its provenance sidecars PROVE it rather than asserting it: each changed by exactly one line (the recorded `scatter.py` hash) while every picture stayed byte-identical.  **Nothing was re-RENDERED** — no piece PNG is touched; the fix changes
+> where a piece is stamped, never what it looks like. The full delta table, and what did NOT move,
+> is in `../chapter2-plant-dispersion-2026-08-17/README.md`. Numbers in the prose below were
+> measured on the PRE-FIX placements unless they say otherwise.
+
+
 **Date:** 2026-08-17 · **Camera:** 50° (a named parameter, inherited) · **Surface:** PR #1382's healthy
 island — `context-traversal-capture`, seams already off · **Blender renders:** 0 · **Cost:** $0
 

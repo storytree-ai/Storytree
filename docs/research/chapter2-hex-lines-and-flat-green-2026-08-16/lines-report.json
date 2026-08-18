@@ -45,11 +45,14 @@
   "reading": "THE OWNER'S EYE IS NOT WRONG, AND THIS IS THE NUMBER THAT SAYS SO. No hex tile is stroked (the inventory above is total), but the mesh is BUILT from the lattice \u2014 `substrate.ts` interns the same `hexCorners` \u2014 and a substantial part of the lattice SURVIVES as cell edges. At a 1.0 ground-unit tolerance 64.2% of the hex lattice's perimeter is still traced by some cell edge, against 32.9% for the same lattice rotated 17 degrees and 43.0% displaced half a hex width \u2014 a 1.95x excess over chance that holds across the whole tolerance sweep. `buildMeshCells` erodes the lattice without erasing it: same-owner triangles are MERGED across a shared hex-boundary edge (deleting that edge), and every unpinned vertex is then RELAXED (jitter 0.42, 3 iterations) \u2014 but pinned rim vertices do not move and unmerged boundaries survive. So the island really does carry hex-scale structure in its seams. WHAT FOLLOWS IS THE PRACTICAL POINT: there is no hex seam to remove on its own. The hex-shaped lines a viewer sees ARE cell seams, so the only lever that removes them is the one that removes ALL the interior seams \u2014 which is exactly what panels 3 and 4 show."
  },
  "scatter": {
-  "tuft": 95,
-  "shrub": 10,
+  "tuft": 97,
+  "shrub": 11,
   "wilt": 1,
   "flower": 6,
   "centroidFallbacks": 0,
+  "wellCulled": 0,
+  "positioner": "spread",
+  "candidates": 10,
   "flowerFallbacks": 0
  },
  "deliveredPixels": {
@@ -64,16 +67,16 @@
     "changedVsAsIsPctOfIsland": 0.0
    },
    "cells-off": {
-    "changedVsAsIs": 2221,
-    "changedVsAsIsPctOfIsland": 6.35
+    "changedVsAsIs": 2176,
+    "changedVsAsIsPctOfIsland": 6.22
    },
    "both-off": {
-    "changedVsAsIs": 2221,
-    "changedVsAsIsPctOfIsland": 6.35
+    "changedVsAsIs": 2176,
+    "changedVsAsIsPctOfIsland": 6.22
    },
    "all-off": {
-    "changedVsAsIs": 2596,
-    "changedVsAsIsPctOfIsland": 7.42
+    "changedVsAsIs": 2551,
+    "changedVsAsIsPctOfIsland": 7.3
    }
   },
   "asIsEqualsHexOff": true,

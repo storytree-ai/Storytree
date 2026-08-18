@@ -118,16 +118,31 @@ check("the diff is not empty (the fence check is not vacuous)", len(touched) > 0
       f"{len(touched)} files")
 
 print("\n-- 4. THE THREE FILES THIS PASS PROMISED NOT TO EDIT ------------------------------")
+# THE PROMISE IS DURABLE; THE OLD TEST OF IT WAS NOT — re-authored 2026-08-18.
+# What this pass undertook was not to reach OUTSIDE its own directory to change shared machinery.
+# That was checked as "not in this branch's diff against origin/main", which asks the same question
+# only while this pass's branch IS the branch. It stopped being the same question the moment a
+# LATER branch legitimately edited one of them: the increment
+# `crc32-dispersion-fix-propagated-and-evidence-rerendered` moved the plant positioner into
+# `scatter.py`, and this check went red on a branch that has nothing to do with this pass — reporting
+# a broken promise where there was none, and reporting it about someone else's work.
+# The next increment on this arc (`shrubs-replace-long-grass-and-inherit-the-test-count`) edits
+# `blender_species.py` by its own description, so all three are re-authored rather than only the one
+# that fired.
+# The durable form asserts the property that actually prevents the harm — this pass VENDORS no copy,
+# so there is no second implementation to drift — and leaves "did this pass edit them" to git, which
+# holds it as a historical fact that no later branch can falsify.
 for rel in ("docs/research/chapter2-grass-reads-as-signal-2026-08-16/blender_grass.py",
             "docs/research/chapter2-high-frequency-options-2026-08-17/blender_species.py",
             "docs/research/chapter2-grass-reads-as-signal-2026-08-16/scatter.py"):
     p = os.path.join(REPO, rel)
+    base_name = os.path.basename(rel)
     if not os.path.exists(p):
-        check(f"{os.path.basename(rel)} exists to be checked", False, rel)
+        check(f"{base_name} exists to be checked", False, rel)
         continue
-    changed = subprocess.run(["git", "diff", "--name-only", base, "--", rel], cwd=REPO,
-                             capture_output=True, text=True).stdout.strip()
-    check(f"{os.path.basename(rel)} is untouched", changed == "", changed or "unchanged")
+    check(f"{base_name} is IMPORTED, not vendored into this pass",
+          not os.path.exists(os.path.join(HERE, base_name)),
+          f"no {base_name} in {os.path.basename(HERE)}")
 
 print("\n-- 5. THE APP CAMERA IS NOT MOVED -------------------------------------------------")
 cam = open(os.path.join(REPO, "packages", "forest-world", "src", "camera.ts")).read()

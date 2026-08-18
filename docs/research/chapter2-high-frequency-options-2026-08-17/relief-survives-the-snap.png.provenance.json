@@ -3,7 +3,7 @@
  "artifact": "relief-survives-the-snap.png",
  "producer": {
   "tool": "compose_options.py",
-  "sha256": "b7c72ec561eaea884bd4193907b43f7247a8b12cef6a383e4965772f03de3f23"
+  "sha256": "fc5725df9c4c422e5feb0b77ba4879b67627b5f8688c010c44eedc721c71604b"
  },
  "command": {
   "tool": "compose_options.py",
@@ -226,8 +226,8 @@
   "rule": "one code state PER GENERATOR; the composite's identity is the digest of the whole {generator: state} map, so any generator moving moves it"
  },
  "output": {
-  "sha256": "d9d5ca4ac51624123e554886b35255e6193786bef8180646b05b6d4d4df64810",
-  "bytes": 99625
+  "sha256": "b1ee7bfe7b2a95436671aff63b6091aa932ecf80fe401d86253b5bdea232c6a2",
+  "bytes": 99803
  },
  "pass": "chapter2-high-frequency-options-2026-08-17",
  "speciesGenerator": {

@@ -1,5 +1,14 @@
 # Does one island read as a PLACE? — the component art, rendered
 
+> **⚠ RE-COMPOSED 2026-08-18 — 6 of 8 pictures moved.** The plant positioner's CRC32 affine collapse was
+> propagated into `scatter.py` itself by the increment
+> `crc32-dispersion-fix-propagated-and-evidence-rerendered`, so every placement on this pass's
+> pictures moved. Its `scatter.py` copy is held byte-identical to the canonical one. Delivered decor went 111 -> 114 placements: the old positioner silently dropped plants that landed in the tree well. ⚠ This pass still composes through `compose_dressed.py:253`'s OLD depth key, so its pictures still carry the ~46% painter-order occlusion — that fourth site belongs to a different increment.  **Nothing was re-RENDERED** — no piece PNG is touched; the fix changes
+> where a piece is stamped, never what it looks like. The full delta table, and what did NOT move,
+> is in `../chapter2-plant-dispersion-2026-08-17/README.md`. Numbers in the prose below were
+> measured on the PRE-FIX placements unless they say otherwise.
+
+
 **Date:** 2026-08-16 · **Blender:** 5.2.0 LTS, headless, CPU Cycles, seed 20260816 · **Camera:** 50°
 · **Land:** the interior fork's settled `b++` · **Tree:** the committed `code-blender` mature frame
 at 50° · **Cost:** $0 · **Vendor calls:** 0

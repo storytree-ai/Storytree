@@ -3,7 +3,7 @@
  "artifact": "count-fork.png",
  "producer": {
   "tool": "compose_options.py",
-  "sha256": "b7c72ec561eaea884bd4193907b43f7247a8b12cef6a383e4965772f03de3f23"
+  "sha256": "fc5725df9c4c422e5feb0b77ba4879b67627b5f8688c010c44eedc721c71604b"
  },
  "command": {
   "tool": "compose_options.py",
@@ -226,8 +226,8 @@
   "rule": "one code state PER GENERATOR; the composite's identity is the digest of the whole {generator: state} map, so any generator moving moves it"
  },
  "output": {
-  "sha256": "3d8a27695d2aa610cd8cba2865b847e220dc14e4c6439c99dbada00c97614600",
-  "bytes": 67190
+  "sha256": "94eddf6a6b8e66272ae5edf1e941f4b79d1f28ac76190ce8c459f8c65ee503ec",
+  "bytes": 67386
  },
  "pass": "chapter2-high-frequency-options-2026-08-17",
  "speciesGenerator": {

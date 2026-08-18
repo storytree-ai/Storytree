@@ -3,7 +3,7 @@
  "artifact": "grass-on-island.png",
  "producer": {
   "tool": "compose_grass.py",
-  "sha256": "d75875453b9ceb1e04f82313fa72c3f990c665f7fcf568499b7fe5a6491011fe"
+  "sha256": "ec7a56fc69b023fa9327d6a3e962d9b24ab8d480b46eb76725e1cb23cc9cdf78"
  },
  "command": {
   "tool": "compose_grass.py",
@@ -874,8 +874,8 @@
   "rule": "one code state PER GENERATOR; the composite's identity is the digest of the whole {generator: state} map, so any generator moving moves it"
  },
  "output": {
-  "sha256": "65a3af672eed72619d7652e4e509ae4a06a3bd2c5d3a57bda41a0fce32d50ad4",
-  "bytes": 68719
+  "sha256": "f6224b353ce6be7fda6ad091aaa67ea3c238bac6612e8812d4f94d6d32740293",
+  "bytes": 69681
  },
  "cameraElevationDeg": 50.0,
  "variant": "b++ land + ADR-0226 vegetation vocabulary, grass forks swept",

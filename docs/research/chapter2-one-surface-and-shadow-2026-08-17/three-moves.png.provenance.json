@@ -3,7 +3,7 @@
  "artifact": "three-moves.png",
  "producer": {
   "tool": "compose_shadow.py",
-  "sha256": "0ed8ef94bb10a6998d68b69850649063ef63708d7f1a221434ac096040ac1724"
+  "sha256": "bd0f639f86b8af60764f107938b0a3744e48d0741e82d6e61a0b592280710f96"
  },
  "command": {
   "tool": "compose_shadow.py",

@@ -1,5 +1,14 @@
 # The 46% is a PAINTER-ORDER BUG — the grass was painted, and then its own cell painted over it
 
+> **⚠ RE-COMPOSED 2026-08-18 — its one picture moved.** The plant positioner's CRC32 affine collapse was
+> propagated into `scatter.py` itself by the increment
+> `crc32-dispersion-fix-propagated-and-evidence-rerendered`, so every placement on this pass's
+> pictures moved.  **Nothing was re-RENDERED** — no piece PNG is touched; the fix changes
+> where a piece is stamped, never what it looks like. The full delta table, and what did NOT move,
+> is in `../chapter2-plant-dispersion-2026-08-17/README.md`. Numbers in the prose below were
+> measured on the PRE-FIX placements unless they say otherwise.
+
+
 > **⚠ THE FIX HAS LANDED (2026-08-17), so read the columns in this file by their labels and not by
 > their position.** `compose_core.py` now sorts a placement on `max(own ground y, its cell's centroid
 > y)`, so every "before" number below is the DEFECT DELIBERATELY REINSTATED for the duration of one

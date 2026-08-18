@@ -116,7 +116,18 @@ independent draws are uncorrelated whatever the cells look like. The most legibl
 
 ### The fix, and the two traps in it
 
-`disperse.py` changes three things and no counts:
+> **UPDATE 2026-08-18 — THE FIX NOW LIVES IN `scatter.py` ITSELF, and this pass's `disperse.py` is a
+> named alias of it.** When this pass landed, the fix was deliberately built in a lane copy so the
+> before/after comparison had a stable "before"; that left every composite on the arc still carrying
+> the collapse. The increment `crc32-dispersion-fix-propagated-and-evidence-rerendered` closed that:
+> `scatter_island`'s DEFAULT positioner is now the one described below, both committed `scatter.py`
+> copies carry it identically, `disperse.scatter_dispersed` **is** `scatter.scatter_island` (asserted,
+> not merely intended), and every affected picture was re-composed in the same commit. The pre-fix
+> placement survives bit-for-bit as `scatter.LEGACY_AFFINE`, reachable only from a named allowlist of
+> callers, so the refusal harness still feeds the floor the real defect rather than an invented one.
+> **Everywhere below that says "`disperse.py` does X", read "`scatter.py` does X".**
+
+`scatter.py` changes three things and no counts:
 
 1. **both coordinates come out of ONE hash, avalanche-finalised** (`_uv`). Murmur3's `fmix32` is
    non-linear, so no fixed input edit maps to a fixed output difference. Sixteen bits per
@@ -149,8 +160,9 @@ it is not explained.
 
 ## The dispersion floor — `verify.py`
 
-Fourteen checks, two islands, twenty seeds each. Four are FIXES that failed before this pass; three
-are FENCES that already held.
+Twenty-three checks — eight per island across two islands and twenty seeds each, plus structural
+rungs about the CODE rather than about a draw. Four are FIXES that failed before this pass; three
+are FENCES that already held; the rest were added when the fix moved into `scatter.py`.
 
 ```
 1. axis independence      |corr(u,v)| pooled <= 0.15        was 0.9997
@@ -160,12 +172,55 @@ are FENCES that already held.
 5. counts unchanged       delivered == what the rules authored
 6. no coincident points   the centroid fallback stays a floor, not a path
 7. no rim gradient WITHIN a parcel   conditioned ratio in 0.70..1.40
+8. the legacy path is really the defect   LEGACY_AFFINE still lands 1.0000 on the diagonal
+9. exactly one implementation            disperse.scatter_dispersed IS scatter.scatter_island,
+                                         and the two committed copies are byte-identical
+10. no undeclared caller takes the legacy path   nine allowlisted callers, each with a reason
+11. the cross-parcel rise is a redistribution    the TOTAL near-pair count must fall
+12. the area cache survives island reloads       id() is unique only among LIVE objects
+13. nobody calls the removed private sampler     the public entry point is scatter.sample_in_cell
+14. the UAT flowers are not on a spiral          delivered polar angle vs radius, was +0.507
 ```
 
+### THE DIAGONAL WAS A SYMPTOM, NOT THE DEFINITION — and that cost two more findings
+
+The affine-CRC32 property binds ANY pair of equal-length address tokens. This pass found it in the
+one place where the mask happened to have seven leading zeros, which makes the two draws numerically
+near-equal and puts the point on a diagonal — spectacular, and easy to search for. Two other
+instances were carrying the same root cause with different masks and therefore different shapes, and
+neither would have been found by looking for a diagonal:
+
+* **`compose_grass.carpet_items`** filled its fixed per-cell quota through the same `_sample_in_cell`,
+  so the CARPET variant stood on the diagonal too. It was invisible because it is not the meadow and
+  nobody had listed it as a caller; renaming the function surfaced it as an AttributeError.
+* **the UAT flowers** drew `"ang"` and `"rad"` — equal-length tokens, mask `0x7d65435d`, top bit at
+  position 30 rather than 25. Not near-equality but a strong linear dependency: **raw draws +0.4999,
+  and the correlation passes straight through the rejection sampler into delivered positions at
+  +0.5073 / +0.5086 over 720 flowers with zero exhaustion fallbacks.** A UAT criterion's distance
+  from the island centre was half-determined by its bearing. **The 15-unit spacing sampler cannot
+  catch this by construction** — it rejects on distance BETWEEN chosen points and is blind to a
+  relationship inside one point. That is why PR #1388's reasoning for scoping the flowers out was
+  true in both halves and still did not follow.
+
+Both are fixed, and rungs 13 and 14 hold them.
+
+**Rung 8 exists because the fix moved.** Until it did, the refusal harness's load-bearing
+perturbation read the shipped module with no argument, so it could not drift from reality. Now it
+names a branch — and a branch that quietly stopped reproducing the defect would turn the probe into
+a probe of nothing while it kept printing CAUGHT. Rung 8 measures the branch instead of trusting its
+label.
+
 **`verify_refusal.py` proves it is not vacuous:** five perturbations × two islands, all ten caught.
-P1 is the shipped positioner unmodified — it trips rungs 1, 2, 3, 4 and 5. P2 and P3 ablate the two
-halves of the fix separately, proving rung 1 measures the hash and rung 3 measures the spacing. P4
-and P5 are the two traps above.
+P1 is the pre-fix positioner reproduced bit-for-bit by `scatter.LEGACY_AFFINE` — it trips rungs 1,
+2, 3, 4 and 5. P2 and P3 ablate the two halves of the fix separately, proving rung 1 measures the
+hash and rung 3 measures the spacing. P4 and P5 are the two traps above.
+
+> **A monkey-patch must land where the CALLEE resolves the name.** `_with_candidate` used to swap
+> `disperse._candidate`; now that `disperse` is an alias and `scatter_island` resolves its helpers in
+> `scatter`'s globals, that swap would have left every ablation silently measuring the unmodified
+> fix while still printing as an ablation. The same defect bit the high-frequency pass's area-aware
+> count fork in the same edit, and both are now patched on `S`. It is the alias module's whole
+> hazard, and its docstring says so.
 
 Two rungs POOL across seeds rather than taking the worst one, and not to make them easier: the
 first draft asserted worst-of-twenty on rungs 1 and 7 and both went red on values indistinguishable
@@ -177,6 +232,50 @@ TIGHTER test at the same tolerance.
 gradient. The first cannot reach zero while capability 5 is over capacity; the second is a
 consequence of the count rules, and a floor that laundered it would be this pass quietly deciding
 the owner's question. Rung 4 skips over-capacity parcels for the same reason and names them.
+
+## Which committed pictures moved when the fix landed (2026-08-18)
+
+Every composite on the arc was re-composed in ONE run against ONE `scatter.py`, so no picture here
+was drawn either side of an edit. **Nothing was re-RENDERED**: not one file under any `pieces-*`
+directory is in the diff, because the fix moves WHERE a piece is stamped and never what a piece looks
+like. Deltas are counted on the DECODED raster, never on bytes — a container hash reports drift that
+is not there, which this arc has confirmed live.
+
+| pass | pictures moved | largest delta |
+|---|---|---|
+| `chapter2-grass-reads-as-signal-2026-08-16` | 5 / 6 | `signal-legibility.png` 99,362 px (3.87%) |
+| `chapter2-island-place-dressing-2026-08-16` | 6 / 8 | `dressing-density.png` 35,600 px (1.33%) |
+| `chapter2-high-frequency-options-2026-08-17` | 5 / 5 | `high-frequency-detail-6x.png` 24,799 px (2.18%) |
+| `chapter2-hex-lines-and-flat-green-2026-08-16` | 3 / 4 | `line-detail-6x.png` 19,404 px (2.47%) |
+| `chapter2-grass-defects-2026-08-16` | 2 / 2 | `what-the-grass-delivers.png` 57,960 px (4.39%) |
+| `chapter2-grass-delivery-loss-2026-08-17` | 1 / 1 | `where-the-46-percent-went.png` 46,143 px (3.41%) |
+| `chapter2-healthy-island-2026-08-16` | 1 / 5 | `island-detail-6x.png` 15,156 px (1.93%) |
+| `chapter2-one-surface-and-shadow-2026-08-17` | **0 / 5** | pixel-identical |
+| `chapter2-plant-dispersion-2026-08-17` | **0 / 1** | pixel-identical |
+| `chapter2-greenery-techniques-2026-08-17` | **0 / 1** | pixel-identical |
+
+**23 of 33 moved. The three passes at zero are the interesting rows, and each is a different reason:**
+
+* **the shadow pass** draws no plants at all, and its sidecars PROVE it rather than asserting it:
+  all five pictures are byte-identical while every sidecar changed by exactly one line, the recorded
+  `scatter.py` hash. A code state moved, the pixels did not, and the provenance says both.
+* **the healthy island's 1-of-5** is the same fact one level down. `healthy-island.png` is the
+  DELIVERED surface, which carries no vegetation; only `island-detail-6x.png`'s third panel does —
+  the reference panel showing the grass the owner declined on 2026-08-16.
+* **`plants-dispersed.png` is unchanged BY CONSTRUCTION and that is the check on the whole landing.**
+  Its two panels are the legacy positioner and the fixed one. `LEGACY_AFFINE` reproduces the pre-fix
+  placement bit-for-bit and `SPREAD` reproduces this pass's lane copy bit-for-bit, so if either had
+  drifted while moving into `scatter.py`, this picture would have moved. It did not.
+
+**High-frequency options moved 5 of 5 even though it already used the fixed positioner** — because
+the UAT FLOWERS moved (see the spiral finding above). That pass imported the meadow fix on the day it
+was built; the flowers were the half nobody had measured.
+
+**One thing the re-render does NOT repair, stated so nobody reads it as a full repair:** the dressing
+pass still composes through `compose_dressed.py:253`'s OLD depth key, so its pictures still carry the
+~46% painter-order occlusion PR #1387 fixed at the other three sites. That fourth site belongs to
+`delivery-residual-attributed-and-the-fourth-compositor-site-fixed` and was deliberately left alone
+here.
 
 ## Does the shipped app share this? No — it has a different gap
 
@@ -202,7 +301,7 @@ fences this pass edits no app source; findings are written down with a file and 
 | file | what it is |
 |---|---|
 | `dispersion.py` | the instrument: Clark–Evans, near-pair fraction, parcel capacity, coast-binned density, and the two within-cell statistics. No opinion about positioners. |
-| `disperse.py` | the fixed positioner. Imports every count rule live from `scatter.py`; owns positions only. |
+| `disperse.py` | **a named alias of `scatter.py`, not a second copy** (since 2026-08-18). Every symbol is bound to `scatter`'s own object and `scatter_dispersed is scatter.scatter_island`, so a divergence is unrepresentable rather than merely discouraged. Kept because this pass's committed evidence and prose name the positioner by this name. |
 | `measure.py` | runs all four questions, writes `dispersion-report.json` (~4 min). |
 | `verify.py` | the dispersion floor (~90 s). |
 | `verify_refusal.py` | makes every rung fire (~2 min). |
@@ -211,24 +310,29 @@ fences this pass edits no app source; findings are written down with a file and 
 
 ## Gaps, stated
 
-* **Spacing is enforced within a capability, never across parcel boundaries — and the fix makes
-  that boundary case WORSE, measurably.** `crossParcelNearPairs` (plants under 4 units apart whose
-  two halves belong to different capabilities) goes **3 → 12 on the real-corpus island** and 2 → 2
-  on the fixture. This is a direct consequence of the fix working: best-candidate pushes plants away
-  from their own parcel's plants, which pushes them toward its boundary, where the spacing rule
-  cannot see the neighbour on the other side. It is a real trade and the net is still strongly
-  positive — island-wide near-pair fraction falls 50.6% → 18.2% — but 12 of 157 plants now have a
-  too-close neighbour they did not have before, and that is the first thing to fix next. The
-  obvious remedy, accumulating spacing island-wide, would make capability *i*'s positions depend on
-  capabilities *0..i−1*, which is exactly the property `scatter.py`'s determinism rule exists to
-  protect: a fork for the owner, not a change to slip in. A cheaper option that keeps the property
-  is to let a capability's spacing memory be seeded with the plants of parcels it BORDERS, computed
-  from the mesh rather than from placement order — unexplored here.
-* **`scatter.py` itself is not edited.** The bug is in a committed research artifact whose renders
-  are provenance-stamped, and two vendored copies exist
-  (`chapter2-island-place-dressing-2026-08-16/scatter.py:70-71` is identical). Every composite this
-  arc has delivered was drawn with the diagonal collapse in it. Repointing them is a separate
-  landing.
+* **Spacing is enforced within a capability, never across parcel boundaries — and this is now a
+  DECIDED trade rather than an open one (2026-08-18).** This pass left it as a bare NOTE, reading it
+  as an owner fork because the obvious remedy trades away determinism. Measuring the quantity the
+  fork actually turns on settles it without one: **the cross-parcel count rises inside a total that
+  drops by 63%.** On the real-corpus island near-pair plants fall **78.7 → 25.8**, of which the
+  cross-parcel slice rises **2.5 → 15.0** while the same-parcel slice falls **76.2 → 10.8** — so
+  every cross-parcel pair gained is bought against **5.2** same-parcel pairs removed. On the fixture
+  the same-parcel slice reaches **exactly zero** (26.5 → 3.0 total, all of it cross-parcel).
+  An island-wide remedy is therefore bidding for the last ~11 percentage points having already been
+  handed 33, at the price of making capability *i*'s positions depend on capabilities *0..i−1* —
+  which is the property that makes every before/after picture on this arc comparable at all.
+  **So the scoped rule is KEPT, and rung 11 floors the quantity the decision turns on: the TOTAL
+  must fall, not merely the same-parcel half.** A later change that flattered the cross-parcel
+  number by giving the total back now goes red, which the NOTE could not catch. Still unexplored,
+  and still the cheaper option if the trade is ever re-opened: seeding a capability's spacing memory
+  with the plants of parcels it BORDERS, computed from the mesh rather than from placement order —
+  that keeps determinism and is not a fork.
+* ~~**`scatter.py` itself is not edited.**~~ **CLOSED 2026-08-18** by
+  `crc32-dispersion-fix-propagated-and-evidence-rerendered`. Both committed copies now carry the fix
+  identically, `disperse` is an alias of the one implementation, and every affected composite was
+  re-rendered in the same commit. The gap's own warning held exactly: editing the module invalidated
+  committed pixels across the whole track, which is why the propagation and the re-render had to be
+  one landing rather than two.
 * **Nothing here is rendered.** The floor measures ground positions. Whether better dispersion
   survives the compositor — occlusion, the 3 px median delivered size, the palette snap — is
   unmeasured, and the delivery track's 17.2% loss rate on the real corpus applies to these

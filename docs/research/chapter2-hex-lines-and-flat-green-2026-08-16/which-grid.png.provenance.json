@@ -3,7 +3,7 @@
  "artifact": "which-grid.png",
  "producer": {
   "tool": "compose_lines.py",
-  "sha256": "60db135b8b14ecec35c349f1b6ce5ab134d7e2b648a1d37a3a5730da0c1f2632"
+  "sha256": "90e3e28db5cdc24e1ee1d3121f97f722fab26aed14ad6e60904d1cc12fd685a5"
  },
  "command": {
   "tool": "compose_lines.py",

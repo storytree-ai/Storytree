@@ -3,7 +3,7 @@
  "artifact": "grass-geometry-fork.png",
  "producer": {
   "tool": "compose_grass.py",
-  "sha256": "d75875453b9ceb1e04f82313fa72c3f990c665f7fcf568499b7fe5a6491011fe"
+  "sha256": "ec7a56fc69b023fa9327d6a3e962d9b24ab8d480b46eb76725e1cb23cc9cdf78"
  },
  "command": {
   "tool": "compose_grass.py",
@@ -874,8 +874,8 @@
   "rule": "one code state PER GENERATOR; the composite's identity is the digest of the whole {generator: state} map, so any generator moving moves it"
  },
  "output": {
-  "sha256": "9d8a7d705084120e582e94c86818689da6179b962d1b23b5d82dc2dc0b9806a1",
-  "bytes": 13885
+  "sha256": "35a104081e775b16d918b36cc75ecafdbb081de27f4a46f18b3ab1fc45b9da04",
+  "bytes": 13774
  },
  "cameraElevationDeg": 50.0,
  "variant": "b++ land + ADR-0226 vegetation vocabulary, grass forks swept",

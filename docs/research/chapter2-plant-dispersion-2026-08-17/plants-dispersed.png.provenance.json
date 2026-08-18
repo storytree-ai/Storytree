@@ -4,7 +4,7 @@
   "kind": "placement diagram - NOT a composite. No rendered piece is stamped, no band key is decoded, no token is mapped and no palette snap is applied, so this artifact makes no claim about delivery, colour or size - only about where the ground points are.",
   "producer": {
     "tool": "picture.py",
-    "sha256": "818f5e550293af591094006b8442cc60b2277666b95ea84a21d4f818fffddf4f",
+    "sha256": "1ec5cd7838aa0fd304fcf10620889f6fd0f86a64f3d2ad22ed396ba92be965b5",
     "digestNote": "line endings normalised to LF before hashing"
   },
   "command": {
@@ -27,12 +27,12 @@
     {
       "label": "count rules + original positioner",
       "file": "../chapter2-grass-reads-as-signal-2026-08-16/scatter.py",
-      "sha256": "9491bf0e926d8d72eef75005fb96b773cac715a3b79fef19feab8156b901b6fc"
+      "sha256": "cd71cf187cff41412a09bcf89a349b69fb4c01aacbba4d392fa81422b1e7175c"
     },
     {
       "label": "fixed positioner",
       "file": "disperse.py",
-      "sha256": "505d2cb611c69de31947599a507c8821d4bfd80b12f6ebba727f17947b75ad0b"
+      "sha256": "e5b4583883e12491a46f851977a4aba356af75671ce3b4a277a93bd8149e7317"
     },
     {
       "label": "instrument",
