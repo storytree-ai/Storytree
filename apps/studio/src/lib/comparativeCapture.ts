@@ -170,3 +170,80 @@ export function toRenderElementCounts(extraction: {
     parcelBlade: extraction.parcelBlade,
   };
 }
+
+/** The verdict {@link verifyServedTree} returns. `reason` is present exactly when `ok` is false. */
+export interface ServedTreeVerdict {
+  readonly ok: boolean;
+  readonly reason?: string;
+}
+
+/** The shortest prefix we will accept as an identity claim. A collision at this width is not a
+ *  realistic failure mode; refusing a legitimately-abbreviated sha would be. */
+const MIN_SHA_PREFIX = 7;
+
+/**
+ * Does the server we are about to measure actually serve the commit we believe it does?
+ *
+ * WHY THIS EXISTS — a measured failure, not a hypothetical. `comparative-capture` starts its two dev
+ * servers on FIXED ports (5187/5188) with `--strictPort`. When a sibling session already holds one of
+ * those ports vite EXITS, and nothing downstream notices: `waitForReady` polls the URL, gets a healthy
+ * `200` from the STRANGER'S server, and the run measures a completely different worktree while
+ * labelling it this branch. On a box carrying dozens of worktrees and parallel sessions that collision
+ * is routine — one was found live on 2026-08-18, a server on a neighbouring port started with
+ * `startDevServer`'s exact flags from an unrelated worktree.
+ *
+ * The signature it produces is the expensive part: the same islands at non-similar relative offsets,
+ * unreproducible on re-measure, and impossible to tell apart from a real rendering regression. It cost
+ * this arc a day of chasing scroll offsets and element-choice theories for a ~180px disagreement that
+ * two honest instruments could never have reconciled, because they were not looking at the same tree.
+ *
+ * FAILS CLOSED. A missing or unreadable stamp is a REFUSAL, never a pass: an instrument that cannot
+ * say which tree it measured has not measured anything. That is the same rule
+ * `readMotionSettled` applies to a missing settle bridge, for the same reason.
+ */
+export function verifyServedTree(
+  health: unknown,
+  expectedSha: string,
+  label: string,
+): ServedTreeVerdict {
+  const expected = expectedSha.trim().toLowerCase();
+  if (expected.length < MIN_SHA_PREFIX) {
+    return { ok: false, reason: `${label}: expected commit "${expectedSha}" is too short to identify a tree` };
+  }
+  if (typeof health !== "object" || health === null) {
+    return { ok: false, reason: `${label}: /api/health returned no object — cannot confirm which tree it serves` };
+  }
+  const code = (health as { code?: unknown }).code;
+  if (typeof code !== "object" || code === null) {
+    return {
+      ok: false,
+      reason:
+        `${label}: /api/health reported no code stamp — cannot confirm which tree it serves. ` +
+        `A server that cannot name its own commit must not be measured.`,
+    };
+  }
+  const head = (code as { head?: unknown }).head;
+  if (typeof head !== "string" || head.length < MIN_SHA_PREFIX) {
+    return { ok: false, reason: `${label}: /api/health reported no usable code.head — cannot confirm which tree it serves` };
+  }
+  const served = head.trim().toLowerCase();
+  if (served !== expected && !served.startsWith(expected) && !expected.startsWith(served)) {
+    return {
+      ok: false,
+      reason:
+        `${label}: the server is serving a DIFFERENT tree than this run believes. ` +
+        `expected ${expected.slice(0, 12)}, serving ${served.slice(0, 12)}. ` +
+        `The likeliest cause is a port collision: another session already held this port, ` +
+        `--strictPort made our own vite exit, and the readiness poll answered from theirs.`,
+    };
+  }
+  if ((code as { stale?: unknown }).stale === true) {
+    return {
+      ok: false,
+      reason:
+        `${label}: the checkout MOVED under the running server (code.stale) — ` +
+        `the served bundle no longer matches its own working tree. Restart the server before measuring.`,
+    };
+  }
+  return { ok: true };
+}

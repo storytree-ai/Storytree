@@ -65,6 +65,7 @@ import {
   computeCaptureDelta,
   formatCaptureComparisonTable,
   toRenderElementCounts,
+  verifyServedTree,
 } from '../src/lib/comparativeCapture.ts';
 // Reused, not re-derived (frontend-capture-settled-and-explicit-baseline's own design note): the
 // desktop E2E harness's settled-attestation glue operates on any Playwright Page-like object
@@ -241,9 +242,22 @@ function startDevServer(cwd, port, label) {
   return child;
 }
 
-async function waitForReady(url, timeoutMs) {
+/**
+ * Wait for `url` to answer — and, when we started the server ourselves, notice if OUR OWN child died
+ * first. `--strictPort` makes vite EXIT when the port is already held, and without this check the
+ * loop would keep polling and then happily accept a `200` from whoever DOES hold it. Watching the
+ * child turns that silent substitution into an immediate, named failure.
+ */
+async function waitForReady(url, timeoutMs, child = null) {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
+    if (child && child.exitCode !== null) {
+      throw new Error(
+        `${url}: our own dev server exited (code ${child.exitCode}) before answering. ` +
+          `With --strictPort that almost always means another session already holds this port — ` +
+          `re-run with --branch-port / --baseline-port pointing at free ports.`,
+      );
+    }
     try {
       const res = await fetch(url);
       if (res.ok || res.status < 500) return;
@@ -253,6 +267,28 @@ async function waitForReady(url, timeoutMs) {
     if (Date.now() > deadline) throw new Error(`${url} did not answer within ${timeoutMs}ms`);
     await new Promise((r) => setTimeout(r, 300));
   }
+}
+
+/**
+ * Assert the server answering `url` really serves `expectedSha` before a single number is read off
+ * it. See {@link verifyServedTree} for the measured failure this exists to stop; the short version is
+ * that a port collision can hand this script a stranger's worktree and nothing downstream would
+ * notice. Throws on any doubt — an unidentified tree is never measured.
+ */
+async function assertServedTree(url, expectedSha, label) {
+  let health;
+  try {
+    const res = await fetch(`${url}/api/health`);
+    health = await res.json();
+  } catch (err) {
+    throw new Error(
+      `[capture-comparative] ${label}: could not read /api/health (${err?.message ?? err}) — ` +
+        `refusing to measure a server whose tree cannot be confirmed.`,
+    );
+  }
+  const verdict = verifyServedTree(health, expectedSha, label);
+  if (!verdict.ok) throw new Error(`[capture-comparative] ${verdict.reason}`);
+  log(`${label} server confirmed serving ${expectedSha.slice(0, 12)}`);
 }
 
 function killTree(child, label) {
@@ -356,7 +392,8 @@ async function main() {
     if (branchUrl === null) {
       branchProc = startDevServer(studioDir, args.branchPort, 'branch');
       branchUrl = `http://127.0.0.1:${args.branchPort}`;
-      await waitForReady(branchUrl, READY_TIMEOUT_MS);
+      await waitForReady(branchUrl, READY_TIMEOUT_MS, branchProc);
+      await assertServedTree(branchUrl, git(['rev-parse', 'HEAD']), 'branch');
     }
 
     let baselineUrl = args.baselineUrl;
@@ -373,7 +410,8 @@ async function main() {
       const baselineStudioDir = path.join(baselineWorktree, 'apps', 'studio');
       baselineProc = startDevServer(baselineStudioDir, args.baselinePort, 'baseline');
       baselineUrl = `http://127.0.0.1:${args.baselinePort}`;
-      await waitForReady(baselineUrl, READY_TIMEOUT_MS);
+      await waitForReady(baselineUrl, READY_TIMEOUT_MS, baselineProc);
+      await assertServedTree(baselineUrl, baselineSha, 'baseline');
     }
 
     const baselinePngPath = path.join(args.out, 'baseline.png');
