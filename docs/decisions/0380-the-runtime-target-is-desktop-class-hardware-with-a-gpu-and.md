@@ -37,12 +37,34 @@ plus a 1-ground-unit-to-1-delivered-pixel sprite convention that puts the sprite
 vector plate at default zoom. An identity choice, inherited as if it were a limit.
 
 **What IS a real website constraint is the ceiling, not the floor.** Raster bytes scale with the
-square of linear resolution. The engine's whole committed sprite payload is **805 KB** today;
-roughly 3 MB at 2×, **13 MB at 4×**, 50 MB at 8×. The owner's reference images are *game* assets — a
+square of linear resolution *before compression*. The owner's reference images are *game* assets — a
 game ships a binary and streams from disk, where 50 MB of textures is unremarkable. A website served
-over the wire cannot. So density on the sprite path is affordable for about one more doubling and
-not much beyond. Geometry and shaders, by contrast, are a few hundred KB **and do not scale with
+over the wire cannot. Geometry and shaders, by contrast, are a few hundred KB **and do not scale with
 resolution at all**.
+
+**THE ARITHMETIC THIS PARAGRAPH ORIGINALLY CARRIED IS CORRECTED IN PLACE (ADR-0139), 2026-08-18, on
+measurement rather than argument — PR #1413.** It read: *the engine's whole committed sprite payload
+is 805 KB today; roughly 3 MB at 2×, 13 MB at 4×, 50 MB at 8× … so density on the sprite path is
+affordable for about one more doubling and not much beyond.* Both halves are wrong for the art this
+project actually ships, and the decision below is unaffected — only its numbers move.
+
+**The committed bytes do not follow the square law; they follow about n^1.21.** The Chapter 2 scale
+ladder rendered one real-corpus island at 1×/2×/4×/8×, authoring every Blender piece set *and* the
+hero tree at each rung rather than upscaling, and weighed the committed raster: **14.1 KB / 33.4 KB /
+75.7 KB / 173.3 KB**, i.e. **1.00× / 2.37× / 5.37× / 12.30×** against the square law's 1 / 4 / 16 / 64.
+The *delivered pixel count* follows the square law exactly (×3.98 / ×3.99 / ×4.00), so the divergence
+is the **encoder, not the geometry**: a closed-palette, flat-tinted image gets *more* locally uniform
+as the rung rises, which is precisely what PNG's entropy coding rewards. The whole island at 8× is
+**173 KB — about 27% of the current sprite payload, not 64× of it.**
+
+**And the 805 KB anchor re-measures at 645.6 KB (−19.8%)** across the 80 files under
+`packages/app-surface/src/assets`. The ladder's `verify.py` re-measures it on every run rather than
+restating it, so this number cannot go stale the same way twice.
+
+**What this does NOT change:** the square law remains correct for an *uncompressed* or GPU-texture
+budget, so D4's rule stands wherever bytes are not entropy-coded. What is retired is the specific
+counsel that the sprite path is good for "about one more doubling and not much beyond" — for this
+locked-palette art on the wire that is far too conservative.
 
 **The reference machine, measured rather than assumed.** The owner supposed this box "doesn't have
 the strongest GPU". It has no discrete GPU at all: a **Snapdragon X Elite X1E80100** with an
@@ -105,10 +127,17 @@ quietly-worse experience and let the user conclude the product is bad. A refusal
 maintain and to test; a silent fallback is two, and the second is the one nobody looks at.
 
 **D4 — DELIVERY OVER THE WIRE IS A STANDING CONSTRAINT, AND IT BINDS RASTER SPECIFICALLY.** Storytree
-is served as a website. Raster art costs bytes that scale with the square of resolution, so raising
-sprite density is a real spend with a real ceiling (~13 MB at 4×). Geometry and shaders do not have
-this property. This is now a recorded constraint rather than an unexamined instinct, and it is the
-honest argument for D6 — not a preference for 3D.
+is served as a website. Raster art costs bytes, and raising sprite density is a real spend with a
+real ceiling. Geometry and shaders do not have this property. This is a recorded constraint rather
+than an unexamined instinct, and it is the honest argument for D6 — not a preference for 3D.
+
+**The ceiling this clause originally quoted (“~13 MB at 4×”) is corrected in place (ADR-0139),
+2026-08-18, by the measurement in the Context above: the committed bytes follow about n^1.21 rather
+than n², and the whole island at 8× weighs 173 KB.** The CONSTRAINT is unchanged and still binds
+raster specifically — what changes is that it binds far less tightly than this ADR assumed, which
+makes the sprite path a live option at rungs it had been written off at. Where a byte budget is
+*uncompressed* (a GPU texture, an atlas held in VRAM) the square law still applies and this
+correction does not reach it.
 
 **D5 — AUTHOR-TIME COMPUTE MAY EXCEED THE FLOOR, AND NEEDING IT IS AN OWNER CALL-OUT.** Building the
 models is not the same activity as running the product. Author-time work may require hardware this
@@ -177,6 +206,24 @@ engineering decisions to be taken on measurement. The scale ladder already recom
 keeps its value and changes its question: it no longer asks *whether* live rendering is permitted,
 but *which elements actually need it* — if 2× sprites read well enough for an element, D4 says that
 is the cheaper answer and D6 obliges no one to spend the GPU.
+
+**THAT LADDER HAS SINCE BEEN RUN, AND ITS ANSWER IS RECORDED HERE RATHER THAN LEFT IN A README —
+PR #1413, 2026-08-18.** On the evidence it produced, **no land element needs the GPU, and the
+deciding rung is 2× — exactly the one doubling D4 affords.** Reads-at / carries-an-outline-at, per
+element: cell fill 1×/1× · rim wall 1×/1× · terrace 1×/**2×** · coast 1×/1× · vegetation mark
+1×/**2×** · flower **2×**/**2×** · hero tree 1×/1×. A related finding worth keeping beside it: the
+land has never had an outline pass, and **it could not have carried one below 2×** — at 1× an
+outline consumes 78% of a vegetation mark and 55% of a terrace.
+
+**One element does come back as a live-path candidate — the cell fill — and for the OPPOSITE reason
+to a size failure, which is easy to read backwards.** It delivers exactly ONE authored colour at
+every rung from 1× to 8×, so no rung adds interior detail: its interior is resolution-*independent*,
+which a vector path draws for free and which **the shipped SVG map already does**. That is an
+argument for leaving it on the vector path, not for spending a GPU on it.
+
+**This measurement decides nothing on its own** — D6's open questions stay open and remain the
+owner's and the engineering call. What it removes is the assumption that the sprite path had run
+out of room. It had not.
 
 ## Consequences
 
