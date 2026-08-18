@@ -414,3 +414,41 @@ is exactly the kind of wall ADR-0381 D1 forbids adding.
 
 ⚠ Same caveat as §9: this advances no criterion. It is the mechanism proven runnable by the harness,
 not a workspace command run by a Codex task from a worktree it minted itself.
+
+---
+
+## 11. A contained task cannot read the Library — measured 2026-08-18, and both walls are by design
+
+Same instrument as §9/§10. A live Library read from inside the sandbox, run from a worktree that has
+`node_modules`, under `storytree_codex_current`:
+
+```
+Error: createPool: no IAM principal resolved; set STORYTREE_DB_USER to the operator IAM email
+    at createPool (packages/library/src/store/connection.ts:76:11)
+```
+
+**It fails at credential resolution, before any network call** — which is not where the reasoning that
+led here expected it to fail. `~/.storytree` is a denied path (ADR-0368's credential ACLs), so
+`STORYTREE_DB_USER` cannot hydrate from `secrets.json` the way it does outside the sandbox.
+
+Behind that sits a **second, independent wall**: outbound network is refused. DNS resolves
+(`sqladmin.googleapis.com` → an address) but TCP 443 to it is `EACCES`, so the Cloud SQL connector
+could not dial out even holding a credential. The store door is no escape either — it is HTTPS on 443,
+the same wall.
+
+**Neither is a defect, and neither is an ADR-0381 D3 blocking restriction to remove.** Denying the
+sandbox credentials is the point of the fence; ADR-0368 built the loopback broker precisely because
+the bootstrap must operate without one. What is worth stating plainly is the consequence, because it
+is easy to discover the expensive way mid-journey:
+
+- **Claims are unaffected.** They go through the broker over loopback. A claim operation failing is a
+  real finding; a Library read failing is not.
+- **A contained task cannot read its own work definitions** — criteria, arcs, increments, stories. Any
+  runbook that tells it to `storytree library artifact … --pg` is giving it an instruction that cannot
+  succeed. `infra/codex-lobby-to-write-smoke-handoff.md` carried exactly that instruction and has been
+  corrected: reading the criteria is the operator's job, and the outline in the prompt is what the
+  session runs from.
+
+Whether a Codex driver that cannot read the Library is *sufficient* is a question for the live smoke
+to answer with evidence, not for this document to pre-judge — which is the posture ADR-0381 D1 asks
+for. It is recorded here so the smoke recognises it instantly instead of diagnosing it.
