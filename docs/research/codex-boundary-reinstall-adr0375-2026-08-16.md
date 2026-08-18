@@ -233,15 +233,38 @@ database weather cannot be made sound by raising the timeout.
 Even at the good end, every covered tool call was paying **6+ seconds**, and all three invocations sat
 past the 5 s authority-fetch abort the new hook uses.
 
-### 7.2 After the re-install — NOT YET MEASURED
+### 7.2 After the re-install — measured 2026-08-18, GREEN 6/6 across three repeats
 
-The harness is written and exercised; what it needs is the installed set to measure. It refuses to
-score a `FAILED CLOSED` as a pass, so a run against an unreachable authority reports `INCONCLUSIVE`
-rather than a fence verdict — which is the distinction ADR-0375 D4 exists to make legible, and the
-reason this section is empty rather than optimistic.
+Driven by `fence-remeasure.mjs --own <a worktree holding a live work claim> --repeat 3` against the
+installed ADR-0375 hook. The hook's own verbatim refusal reasons, each matching §3 exactly:
+
+```
+A  lobby write             DENY   "the Storytree lobby is read-only and no bootstrap actuator is installed"
+B  own claimed worktree    ALLOW  (no denial emitted)
+C  sibling reached-into    DENY   "target resolves outside the current claimed worktree"
+D  sibling walked-into     DENY   "no live work claim exists for this session/current branch"
+E  own .git                DENY   "target resolves to protected repository/session metadata"
+F  lobby read              ALLOW  (no denial emitted)
+```
+
+Both sibling directions refused is ADR-0364's property, re-confirmed against the new hook rather than
+carried over from the 2026-08-15 table — which this run deliberately did not copy, per the warning
+retained below.
+
+**The latency defect is closed, and this is the number the whole of ADR-0375 was for.** Across all 18
+invocations: **min 559.9 ms, max 910.9 ms**; claim-reading cases (B, C, D, E) 608–911 ms. Against the
+§7.1 baseline of 6,261–7,672 ms and the 18,976 / 48,192 ms cited in ADR-0375. Every invocation sat
+inside **both** budgets — the 5 s authority-fetch abort and the 30 s Codex hook kill — with an order
+of magnitude to spare. There is no longer a per-call connector to have a tail, so the
+verdict-depends-on-database-weather defect is gone rather than merely rarer.
+
+⚠ Attribution the harness prints and worth preserving: elapsed time includes managed-Node process
+start and five `git rev-parse`/`worktree` calls, and cases A and F read no claims at all — so ~560 ms
+is the floor to subtract before attributing cost to the claim read itself.
 
 **Do not fill this in from §3 of the 2026-08-15 document.** That table was measured against a
-different hook. The whole point of the criterion is that the six directions are re-run, not assumed.
+different hook. The whole point of the criterion is that the six directions are re-run, not assumed —
+which is why the table above is the 2026-08-18 run and not a transcription of the older one.
 
 ---
 
@@ -268,12 +291,126 @@ anchor) — so there was nothing to drain first, and the cost had to be paid rat
 **Unelevated.** Quit the desktop app first, then relaunch it hosting the authority:
 
 ```powershell
-$env:STORYTREE_CODEX_CLAIM_AUTHORITY = '1'
 pnpm --filter desktop start
 ```
+
+⚠ **Corrected in place 2026-08-18 (ADR-0379).** This block used to set
+`$env:STORYTREE_CODEX_CLAIM_AUTHORITY = '1'` first. That opt-in is retired: hosting is now
+SELF-DETECTED from an installed `standing-*.json`, because the variable asked "did a human remember"
+rather than "is the boundary installed", and forgetting was silent — the hook is the only fence, so it
+refused every covered write with no stated cause. The variable survives only as a two-way override.
+Detection was proven in force on this host on 2026-08-18 with the variable REMOVED from the user
+environment. Also note ADR-0181: the desktop serves its sidecar from the pinned runtime worktree
+`C:\code\storytree-runtime`, so advance that worktree before concluding anything about a
+desktop-hosted change.
 
 Read the `repository:` line it prints: it must name the primary checkout, never a worktree
 (ADR-0375 D7). Then re-run the fence harness with `--repeat 3`, since §4's defect was a *nondeterministic*
 verdict and a single invocation cannot see it.
 
 **Then, and only then**, the reader identity in §6 becomes revocable.
+
+---
+
+## 9. The named prime suspect, tested and REFUTED — measured 2026-08-18
+
+ADR-0381 D3 and the `codex-lobby-to-write-live-smoke` increment both name one untested restriction as
+the prime suspect for blocking the lifecycle at its very first step:
+
+> ⚠ all three managed profiles carry `network.enabled = false`, which plausibly blocks the
+> bootstrap's own loopback call to the claim broker — and if it does, criterion 2 fails at the very
+> first step and the failure will LOOK like a broker fault rather than a profile one.
+
+**It does not block it.** The restriction is real and live, and loopback is exempt from it.
+
+### How it was tested without a Codex desktop task
+
+`codex sandbox` runs an arbitrary command under the same Windows restricted-token sandbox and the same
+named managed profile a task gets — so the question is answerable directly, out of band:
+
+```
+codex sandbox -P <profile> --include-managed-config -- <managed node.exe> -e <probe>
+```
+
+The probe deliberately carries its own controls, because a network test that passes because the
+sandbox never engaged is worthless:
+
+| # | Probe | `storytree_codex_lobby` | `storytree_codex_current` |
+|---|---|---|---|
+| 0 | **FS control** — write into the lobby | `DENIED EPERM` | `DENIED EPERM` |
+| 1 | Read `%LOCALAPPDATA%\Storytree\codex-broker\handshake.json` | `OK` (port 50162) | `OK` (port 50162) |
+| 2 | **Network control** — TCP `1.1.1.1:443` | `ERROR EACCES` | `ERROR EACCES` |
+| 3 | TCP loopback to the broker port | **`CONNECT`** | **`CONNECT`** |
+| 4 | HTTP POST to the broker | `404 {"ok":false,"reason":"no such endpoint"}` | `404 {"ok":false,"reason":"no such endpoint"}` |
+
+Row 0 proves the sandbox was fencing rather than absent. Row 2 proves `network.enabled = false` is in
+force and blocking. Rows 3 and 4 are therefore not vacuous: **the fence is live, and loopback passes
+through it anyway.** Row 4 is the strongest of the four — that 404 is the broker's *own router*
+answering, so reachability is proven at the application layer and not merely at TCP.
+
+Row 1 matters on its own account: it is ADR-0368's handshake-location design point measured in force.
+`~/.storytree` is a denied root, so a handshake placed there would be unreadable by the one process
+that must read it; `%LOCALAPPDATA%\Storytree\codex-broker` is readable from inside the sandbox.
+
+### What this changes, and what it does not
+
+It **removes the leading hypothesis** for a criterion-2 failure. If the bootstrap cannot reach the
+broker during the live smoke, the profile's network setting is no longer the first thing to suspect —
+look at authority liveness instead (TCP-connect the port the handshake names; the file existing proves
+nothing) and at `codex-sidecar-dies-under-electron`.
+
+It does **not** advance any of the twelve criteria. This is a reachability measurement made out of
+band by the harness, not a journey run by a Codex task; criterion 5 requires the same task that made
+the bootstrap request to write in the worktree it minted, which nothing here does. The distinction is
+the one §intro keeps sharp, and it is kept sharp here for the same reason.
+
+⚠ One measurement note, recorded so it is not mistaken for a defect: the third profile,
+`storytree_codex_phase_author`, cannot be exercised this way — `codex sandbox` refuses it with
+`workspace-write sandbox has no writable root capability SIDs`. That is an artefact of driving the
+profile with no workspace root attached, not a finding about the profile; the worktree it names
+(`wt-workaround-probe`) does exist on this host.
+
+---
+
+## 10. The managed toolchain, exercised — and criterion 9 has a hidden precondition
+
+Same instrument as §9, pointed at criterion 9's mechanism: the pinned managed toolchain
+(`<managed node.exe> <pinned dist/pnpm.cjs>`), run under `storytree_codex_current` with the working
+directory set to a worktree. It had never been exercised.
+
+**It works — but only after criterion 10's step, and that ordering was not previously stated.**
+
+```
+# no environment preparation
+EPERM: operation not permitted, lstat 'C:\Users\mickh\AppData'
+    at Object.realpathSync (node:fs:2776:29)
+    at .../temp-dir@2.0.0/index.js   (evaluated at REQUIRE time)
+
+# with TEMP/TMP pointed at <worktree>\.storytree-scratch
+9.15.0
+```
+
+`9.15.0` matches the repository's `pnpm@9.15.0` pin, so the pinned payload is the right pnpm and it
+executes inside the sandbox.
+
+**Why the failure is worth recording rather than merely fixing.** `temp-dir` calls
+`realpathSync(os.tmpdir())` at **module evaluation time**, reached through pnpm's own
+`plugin-commands-env` → `node.fetcher` require chain. So pnpm resolves the temp directory before it
+does anything else; `os.tmpdir()` defaults to `C:\Users\mickh\AppData\Local\Temp`, and resolving that
+path lstats `C:\Users\mickh\AppData`, which the profile does not grant. The process dies at startup,
+before argument parsing — `--version` never runs.
+
+The consequence for the live smoke: **criterion 9 cannot pass unless criterion 10's step is performed
+first.** They read as independent checks and they are not. The failure mode is also actively
+misleading — an EPERM naming `C:\Users\mickh\AppData` with a `temp-dir` frame suggests a broken
+toolchain payload or a missing credential grant, and points nowhere near "TEMP was not set". Expect a
+session that hits it to misdiagnose it.
+
+**This is NOT reported as an ADR-0381 D3 blocking restriction, and the distinction matters.** D3 is
+about restrictions that block *legitimate work*. Here the documented step — which the increment
+already requires, and which no launcher performs since ADR-0364 removed the launcher — makes the work
+succeed. Widening the profile to grant `%LOCALAPPDATA%` would be engineering around a non-problem, and
+is exactly the kind of wall ADR-0381 D1 forbids adding.
+
+⚠ Same caveat as §9: this advances no criterion. It is the mechanism proven runnable by the harness,
+not a workspace command run by a Codex task from a worktree it minted itself.
