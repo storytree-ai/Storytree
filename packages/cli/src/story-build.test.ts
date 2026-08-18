@@ -325,6 +325,121 @@ test("story build on a story with nodes lacking proof config fails closed BEFORE
   assert.doesNotMatch(env.body, /phase trail/);
 });
 
+/**
+ * A temp stories/ root with a two-capability story, both real-buildable (no `install`, so
+ * `realConfigRefusal`'s typecheck wall never fires). `cap-b` depends on `cap-a` so the chain's topo
+ * order proves the ADR-0378 precondition fires on a NON-FIRST driven node too, not merely node 1.
+ * `cap-b`'s declared sourceFile is pre-written to disk (the tmp dir doubles as the repo root, via
+ * `repoRoot` below) and its prose carries an anchored stale absence claim about that exact file.
+ */
+function fixtureStaleClaimStoriesDir(): string {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "storytree-stale-claim-story-"));
+  const storyDir = path.join(dir, "fixture-story");
+  mkdirSync(storyDir, { recursive: true });
+  writeFileSync(
+    path.join(storyDir, "story.md"),
+    [
+      "---",
+      'id: "fixture-story"',
+      "tier: story",
+      'title: "temp ADR-0378 story"',
+      'outcome: "temp"',
+      "status: proposed",
+      "proof_mode: UAT",
+      "capabilities: [cap-a, cap-b]",
+      "---",
+      "",
+      "# temp",
+      "",
+    ].join("\n"),
+  );
+  writeFileSync(
+    path.join(storyDir, "cap-a.md"),
+    [
+      "---",
+      'id: "cap-a"',
+      "tier: capability",
+      'title: "temp cap a"',
+      'outcome: "temp"',
+      "status: proposed",
+      "proof_mode: integration-test",
+      'story: "fixture-story"',
+      "depends_on: []",
+      "proof:",
+      "  command:",
+      "    file: node",
+      '    args: ["--version"]',
+      "  scope:",
+      '    testGlobs: ["packages/fixture/src/cap-a.test.ts"]',
+      '    sourceGlobs: ["packages/fixture/src/cap-a.ts"]',
+      "  real:",
+      '    testFile: "packages/fixture/src/cap-a.test.ts"',
+      '    sourceFile: "packages/fixture/src/cap-a.ts"',
+      "    scope:",
+      '      testGlobs: ["packages/fixture/src/cap-a.test.ts"]',
+      '      sourceGlobs: ["packages/fixture/src/cap-a.ts"]',
+      "---",
+      "",
+      "`cap-a.ts` does not exist at HEAD (genuinely — nothing writes it in this fixture).",
+      "",
+    ].join("\n"),
+  );
+  writeFileSync(
+    path.join(storyDir, "cap-b.md"),
+    [
+      "---",
+      'id: "cap-b"',
+      "tier: capability",
+      'title: "temp cap b"',
+      'outcome: "temp"',
+      "status: proposed",
+      "proof_mode: integration-test",
+      'story: "fixture-story"',
+      "depends_on: [cap-a]",
+      "proof:",
+      "  command:",
+      "    file: node",
+      '    args: ["--version"]',
+      "  scope:",
+      '    testGlobs: ["packages/fixture/src/cap-b.test.ts"]',
+      '    sourceGlobs: ["packages/fixture/src/cap-b.ts"]',
+      "  real:",
+      '    testFile: "packages/fixture/src/cap-b.test.ts"',
+      '    sourceFile: "packages/fixture/src/cap-b.ts"',
+      "    scope:",
+      '      testGlobs: ["packages/fixture/src/cap-b.test.ts"]',
+      '      sourceGlobs: ["packages/fixture/src/cap-b.ts"]',
+      "---",
+      "",
+      "The RED the spine observes: `cap-b.ts` does not exist at HEAD, so the import fails.",
+      "",
+    ].join("\n"),
+  );
+  mkdirSync(path.join(dir, "packages", "fixture", "src"), { recursive: true });
+  writeFileSync(path.join(dir, "packages", "fixture", "src", "cap-b.ts"), "export const capB = 1;\n");
+  return dir;
+}
+
+test("story build --real refuses a STALE NEGATIVE-EXISTENCE CLAIM on a NON-FIRST driven node, before any worktree (ADR-0378)", async () => {
+  const dir = fixtureStaleClaimStoriesDir();
+  try {
+    const env = await storyBuild("fixture-story", {
+      dryRun: false,
+      real: true,
+      actor: "tester@example.com",
+      storiesDir: dir,
+      repoRoot: dir,
+    });
+    assert.equal(env.ok, false);
+    assert.match(env.body, /cap-b/);
+    assert.match(env.body, /cap-b\.ts/);
+    assert.match(env.body, /already exists/);
+    assert.match(env.body, /ADR-0378/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("story build on an unknown story id is guidance", async () => {
   const env = await run(["story", "build", "no-such-story", "--dry-run", "--actor", "t@e.c"], deps);
   assert.equal(env.ok, false);

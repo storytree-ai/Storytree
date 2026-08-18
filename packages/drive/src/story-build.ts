@@ -70,6 +70,7 @@ import type { SessionIdentity } from "./noticeboard.js";
 import { oqHygieneGate, type OqGateDeps } from "./oq-gate.js";
 import { emitWisp, gateEmitWisp } from "./wisp-smoke.js";
 import type { EmitWispDeps } from "./wisp-smoke.js";
+import { staleExistenceClaimRefusal } from "./stale-existence-claim.js";
 
 /**
  * ADR-0082: the story's OWN UAT crown rolled up from its per-test signed verdicts, as a report line.
@@ -550,6 +551,10 @@ export async function storyBuild(
     for (const n of driveOrder) {
       const refusal = realConfigRefusal(n, resolveBuildConfig(n)?.config ?? null, storiesDir);
       if (refusal !== null) return refusal;
+      // ADR-0378: the SAME stale negative-existence-claim precondition `node build --real` uses,
+      // checked here per driven node — before any worktree is cut for the chain.
+      const staleClaim = staleExistenceClaimRefusal(n, rootDir);
+      if (staleClaim !== null) return staleClaim;
     }
   }
 

@@ -35,6 +35,9 @@ export * from "./build-progress.js";
 export * from "./spawn-registry.js";
 export * from "./spawn-stop.js";
 export * from "./node-build.js";
+// ADR-0378: the stale negative-existence-claim REAL-mode precondition — a declared sourceFile that
+// already exists on disk while the spec's own prose still (anchored) says it does not.
+export * from "./stale-existence-claim.js";
 // Per-slice token-usage persistence (accounting, never proof): the SdkRunInfo → UsageEventDoc
 // mapping + the advisory append the build paths run after proveUnit.
 export * from "./usage.js";

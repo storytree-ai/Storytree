@@ -172,6 +172,7 @@
       "packages/drive/src/build.ts": "build-drive-cli",
       "packages/drive/src/build-progress.ts": "build-drive-cli",
       "packages/drive/src/node-build.ts": "build-drive-cli",
+      "packages/drive/src/stale-existence-claim.ts": "build-drive-cli",
       "packages/drive/src/story-build.ts": "story-topo-build",
       "packages/drive/src/chain-backstop.ts": "story-real-chain",
       "packages/drive/src/real-chain-fixture.ts": "story-real-chain",

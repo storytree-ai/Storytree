@@ -71,6 +71,7 @@ import { deriveIdentity } from "./noticeboard.js";
 import type { SessionIdentity } from "./noticeboard.js";
 import { appendSliceUsage } from "./usage.js";
 import type { LiveRunInfo } from "./usage.js";
+import { staleExistenceClaimRefusal } from "./stale-existence-claim.js";
 
 /**
  * `storytree node build <id> --dry-run` (drive-machinery Phase C): drive a REAL node spec through
@@ -1371,6 +1372,11 @@ export async function nodeBuild(
   if (real) {
     const refusal = realConfigRefusal(spec, buildConfig, storiesDir);
     if (refusal !== null) return refusal;
+    // ADR-0378: refuse a stale negative-existence claim BEFORE any worktree or live-store touch —
+    // the declared sourceFile already exists, and the spec's own prose (anchored on its basename)
+    // still says it does not. Checked here, alongside the other REAL-mode fail-closed preconditions.
+    const staleClaim = staleExistenceClaimRefusal(spec, rootDir);
+    if (staleClaim !== null) return staleClaim;
   }
 
   // ADR-0064: a `real.db:true` node's proof connects to an ISOLATED test DB. Compute + assert the
