@@ -1,6 +1,14 @@
 // palette-band.ts — the LOCKED-PALETTE SHADER CONTRACT (chapter2 live-render experiment,
-// ADR-0380 D6 fence 3). Pure, browser-free, node:test-provable: it lives INSIDE the
-// provability firewall alongside world-to-3d.ts and imports no React and no three.js.
+// ADR-0380 D6 fence 3). Pure, browser-free, node:test-provable.
+//
+// IT LIVES IN `harness/` RATHER THAN `src/`, AND THAT IS A SCOPE DECISION, NOT A FILING
+// ACCIDENT. `packages/forest-world-r3f/src` is MIRRORED into the public website repo by
+// `pnpm sync:web-engine`, which copies every non-test file it finds and offers no way to
+// exclude one. The increment authorises the EXPERIMENT and explicitly does not authorise
+// adopting it, so publishing these modules to a public repo is not this session's call to
+// make. `harness/` is dev-only and outside the synced tree, so the experiment reaches no
+// public surface at all. If it is ever adopted, MOVING IT INTO `src/` IS PART OF THAT
+// ADOPTION — and it is then that the sync becomes correct rather than presumptuous.
 //
 // THE QUESTION THIS ANSWERS. ADR-0380 D6 reopened a live-rendered land, but only behind
 // four binding fences, and the third is that a live render stays banded to the LOCKED

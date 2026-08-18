@@ -33,9 +33,9 @@ import {
   configureExactColour,
   createBandedMaterial,
   toBufferGeometry,
-} from '../src/banded-material.js';
-import { growPlant, type PlantMesh } from '../src/plant-geometry.js';
-import { STATUS_TOKENS, landPalette } from '../src/palette-band.js';
+} from './banded-material.js';
+import { growPlant, type PlantMesh } from './plant-geometry.js';
+import { STATUS_TOKENS, landPalette } from './palette-band.js';
 
 /** The arc's measured shrub: ~12 delivered px in a 6x3 world-unit box. */
 const FOOTPRINT = { w: 6, h: 3 };

@@ -10,7 +10,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test \"src/**/*.test.ts\"",
+    "test": "node --import tsx --test \"src/**/*.test.ts\" \"harness/**/*.test.ts\"",
     "dev": "vite harness",
     "capture": "node --import tsx harness/capture.mjs"
   },

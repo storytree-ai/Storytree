@@ -26,7 +26,7 @@ import { fileURLToPath } from 'node:url';
 // The authored palette comes from the SAME module the shader's GLSL ladder is generated
 // from. A capture script holding its own copy of the palette would only ever prove that
 // the two copies agree.
-import { landPalette, statusFamilyOf } from '../src/palette-band.js';
+import { landPalette, statusFamilyOf } from './palette-band.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = join(HERE, '../../../docs/research/chapter2-live-render-2026-08-19');

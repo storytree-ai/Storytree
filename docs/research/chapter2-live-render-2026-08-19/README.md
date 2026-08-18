@@ -151,10 +151,26 @@ aliased on purpose; that is what "locked" costs. Same reason `imageSmoothingEnab
 | **Locked-palette identity** | HONOURED AND PROVED — section 3. |
 | **Projection does not move** | HONOURED BY CONSTRUCTION. Orthographic at the arc's signed 50°, no orbit control, no perspective camera. |
 
-Scope fence: the increment required this be built BEHIND the existing provability firewall. All code is
-in `packages/forest-world-r3f` (the spike) and its dev-only `harness/`. **The shipped SVG map is
-untouched; no default user path reaches any of it.** Adopting this into the app is a separate event and
-is NOT authorised by the experiment.
+### The scope fence, and the one place it bit
+
+The increment required this be built BEHIND the existing provability firewall. Every file is in
+`packages/forest-world-r3f/harness/` — dev-only, typechecked, tested. **`packages/forest-world-r3f/src`
+is byte-identical to `main`.** The shipped SVG map is untouched and no default user path reaches any of
+it. Adopting this into the app is a separate event and is NOT authorised by the experiment.
+
+**That filing is a scope decision, not a tidiness one, and it was forced by CI.** The four modules first
+landed in `src/` — the natural home — and CI refused: `packages/forest-world-r3f/src` is MIRRORED into
+the public storytree-web repo by `pnpm sync:web-engine`, which copies every non-test file it finds and
+offers no way to exclude one. The documented remedy (run the sync, commit the web submodule, bump the
+gitlink) would have **published an unadopted experiment to a public repo** — precisely the "different
+decision, and it is the owner's" the increment names. So the modules moved to `harness/`, which sits
+outside the synced tree. `harness/scope-fence.test.ts` now holds that as a property rather than a habit,
+including the reverse direction (no `src/` file may import the harness, which would leave a dangling
+import in the public mirror).
+
+⚠ **The local gate CANNOT catch this**, and it said so honestly: `check:web-engine` SKIPPED here because
+the `web/` submodule is not checked out, and a skip is reported as *unverified*, never as passed. This
+is the one class of failure a laptop gate structurally cannot see. Read a NARROWED green as narrowed.
 
 ## Reproducing it
 
