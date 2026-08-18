@@ -185,6 +185,22 @@ test("node build --real on a node WITHOUT a real-proof config fails closed befor
   assert.ok(env.next?.some((n) => n === "storytree node build verdict-line --real"));
 });
 
+test("node build --real refuses a STALE NEGATIVE-EXISTENCE CLAIM before any worktree or live-store touch (ADR-0378)", async () => {
+  // boot-read-routes.md declares proof.real.sourceFile "apps/desktop/src/backend/boot-read-routes.ts",
+  // which already exists on disk, while the spec's own prose still (anchored on the basename) says
+  // it "does not exist at HEAD" — the exact end-to-end shape ADR-0378 refuses. Driven through the
+  // full CLI dispatch (not just the detector function) to prove the precondition actually gates the
+  // real build path; it fires before renderLeafPhasePrompts / any DB touch, so this stays hermetic.
+  const env = await run(
+    ["node", "build", "boot-read-routes", "--real", "--actor", "tester@example.com"],
+    deps,
+  );
+  assert.equal(env.ok, false);
+  assert.match(env.body, /boot-read-routes\.ts/);
+  assert.match(env.body, /already exists/);
+  assert.match(env.body, /ADR-0378/);
+});
+
 test("the verdict-line node spec loads and dry-runs (the real target is also glue-driveable)", async () => {
   const env = await run(
     ["node", "build", "verdict-line", "--dry-run", "--actor", "tester@example.com"],

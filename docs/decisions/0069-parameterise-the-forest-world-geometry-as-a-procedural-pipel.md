@@ -75,6 +75,18 @@ variance, a regression) and **text + accessibility** (SVG gives free crisp DOM t
 tooltips, and screen-reader access — load-bearing for a deployed members app; every canvas/WebGL
 option forfeits this and must rebuild a hidden-DOM overlay).
 
+> **⚠ AMENDED BY [ADR-0380](0380-the-runtime-target-is-desktop-class-hardware-with-a-gpu-and.md)
+> (2026-08-18), for the LAND only — and the two constraints above SURVIVE.** A third assumption this
+> ADR carried, that rendering must work with **no GPU**, is retired outright: ADR-0380 D1/D3 set the
+> target at desktop-class hardware with a working GPU and refuse below it. On that basis ADR-0380 D6
+> admits a live renderer for the land and its vegetation. It does NOT relax either constraint named
+> here. Accessibility is restated as a binding fence — labels, nameplates and hit targets stay in the
+> DOM/SVG layer, which is the "hidden-DOM overlay" this paragraph already anticipated. Determinism is
+> restated at the level that can hold it: the deterministic scene GRAPH remains the source of truth
+> and stays byte-reproducible, and proofs attach to the graph and to author-time renders rather than
+> to a live GPU raster. The rest of this ADR — the procedural authoring model, and SVG for everything
+> that is not the land — stands unchanged.
+
 ## Decision
 
 **The forest world's geometry is authored as a parameterised procedural pipeline over a

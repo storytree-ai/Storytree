@@ -174,8 +174,14 @@ pipeline risks over-engineering a non-core surface.
 
 Consequently:
 
-- **3D at runtime stays closed**, as decided by ADR-0145, ADR-0214 ("Rejected: a three.js / WebGL
-  substrate swap") and ADR-0069 D3.
+- ~~**3D at runtime stays closed**, as decided by ADR-0145, ADR-0214 ("Rejected: a three.js / WebGL
+  substrate swap") and ADR-0069 D3.~~ **Corrected in place 2026-08-18
+  ([ADR-0380](0380-the-runtime-target-is-desktop-class-hardware-with-a-gpu-and.md) D6); the decision
+  is changed, not the record of what this bullet once said.** That was true when written and is no
+  longer the current decision: ADR-0380 D1 retired ADR-0069's no-GPU rendering premise, and D6
+  reopened runtime 3D for the land and its vegetation specifically, owner-directed. See the "Reopening
+  3D is an owner decision" bullet below, which already carries the fuller correction — this bullet is
+  struck rather than silently left to contradict it.
 - **Author-time 3D is not rejected on identity grounds and has not yet been tested on its merits.**
   ADR-0069 D4's rejection of WebGL is grounded in the requirement for pixel-stable deterministic
   output, which a CPU-side renderer satisfies; ADR-0219 already contemplates an author-time 3D
@@ -193,8 +199,12 @@ Consequently:
   `chapter2-code-generated-organic-art-arc`, increment `attest-code-generated-hero-tree-ceiling`),
   the stated reason being that Blender's shadows and lighting make a material difference. Its first
   spend is [ADR-0367](0367-chapter-2-s-land-is-rendered-in-blender-too-an-angled-citybu.md) — Chapter
-  2's land, rendered the same way. Author-time 3D is no longer "untested" or "held open"; runtime 3D
-  stays closed, unchanged, on the same scope grounds.
+  2's land, rendered the same way. Author-time 3D is no longer "untested" or "held open". **⚠ The
+  clause that followed — that runtime 3D stays closed on the same scope grounds — is AMENDED by
+  [ADR-0380](0380-the-runtime-target-is-desktop-class-hardware-with-a-gpu-and.md) D6 (2026-08-18):
+  a live renderer is admitted for the land, owner-directed, once the target hardware envelope was
+  settled.** The scope reasoning recorded here was not refuted; it was knowingly set aside, because
+  the sprite path's payload ceiling had become the thing capping the art. ADR-0380 carries the fences.
 
 ### D6 — Unchanged
 
@@ -276,8 +286,14 @@ bounds. Noted in place per ADR-0139.)*
   rig and its reversal; this decision re-tests that reversal with the renderer changed.
 - [ADR-0145](0145-act-2-walks-the-real-2-5d-map-the-r3f-forest-retreats-to-far.md),
   [ADR-0214](0214-ground-ai-authored-art-in-a-physical-model-csg-over-svg-not.md) and
-  [ADR-0069](0069-parameterise-the-forest-world-geometry-as-a-procedural-pipel.md) — the standing
-  runtime-3D rejections and the determinism constraint behind them.
+  [ADR-0069](0069-parameterise-the-forest-world-geometry-as-a-procedural-pipel.md) — the runtime-3D
+  rejections this decision was weighed against, and the determinism constraint behind them. **No
+  longer "standing" without qualification** — [ADR-0380](0380-the-runtime-target-is-desktop-class-hardware-with-a-gpu-and.md)
+  D6 (2026-08-18) reopened runtime 3D for the land and its vegetation specifically; ADR-0214's
+  building-authoring rejection and the general SVG-substrate decision are untouched.
+- [ADR-0380](0380-the-runtime-target-is-desktop-class-hardware-with-a-gpu-and.md) — amends D5's
+  "runtime 3D stays closed" clause above; the current authority on whether/where runtime 3D is
+  admitted.
 - [ADR-0070](0070-frontend-as-an-inner-loop-role-the-two-stage-proof-for-visua.md) — owner-held
   appearance verdict.
 - `docs/research/chapter2-code-only-art-2026-08-01/VERDICT.md` — the round-4 evidence, its two

@@ -9,10 +9,21 @@
  * THE WALK IS THE POINT. `packageOwnership` does not decay because a procedure walks the disk and
  * demands every package be classified. The map one grain down had no such procedure, so it did not
  * decay either — it never existed. {@link gatherSourceFiles} is that missing procedure: it enumerates
- * every non-test `.ts`/`.tsx` under `packages/*` and `apps/*` and the judge names each one that falls
- * under no declared subtree. The denominator deliberately matches the one `first-class-edges-arc`
- * measured (519 files at HEAD `7115c899`), so this report's numbers are comparable with the arc's
- * rather than a fresh measure nobody can line up against.
+ * every non-test `.ts`/`.tsx`/`.mts`/`.cts`/`.mjs`/`.cjs` file under `packages/*` and `apps/*` and the
+ * judge names each one that falls under no declared subtree.
+ *
+ * THE APERTURE WIDENED ONCE, DELIBERATELY (`ownership-walk-extension-aperture`, 2026-08-18). The walk
+ * originally covered only `.ts`/`.tsx`, which made it blind to `.mts`/`.cts`/`.mjs` source — a file
+ * added or edited in one of those extensions was invisible to `check:ownership-totality` even though
+ * that rung blocks on this walk's output. The extension set now matches "source, not test" rather than
+ * "TypeScript, not JavaScript": `.mts`/`.cts` are real source on the same terms as `.ts`/`.tsx`; `.mjs`
+ * harness entrypoints and e2e specs are executed code and belong in too. `.d.ts` declaration files were
+ * NEVER excluded here (only the `.test.ts`/`.test.tsx` suffix is), so `.d.mts`/`.d.cts` are included on
+ * the same precedent — excluding them now would be the inconsistent move, not the consistent one. The
+ * original denominator deliberately matched the one `first-class-edges-arc` measured (519 files at HEAD
+ * `7115c899`); this aperture change moved it again, on purpose, per ADR-0269 ("a drain ceiling rises
+ * only when the measured population enlarges") — read the CURRENT number from `repo-manifest.json` →
+ * `sourceOwnership.baseline`, never from this comment, which will drift the moment the map is re-walked.
  *
  * REPORT-ONLY: the envelope is `ok: true` even when most of the tree is unowned. That is not
  * softness — at authoring the map is a hand-verified seed, so a blocking rung would red the repo on
@@ -74,10 +85,25 @@ export interface OwnershipDeps {
   readonly gather: () => OwnershipFacts;
 }
 
-/** Is this a source file the totality rule covers? Tests are excluded; `.d.ts` is not. */
+/**
+ * Every extension the totality rule treats as "source" — TypeScript AND JavaScript, ESM and CJS
+ * module-scoped variants included. `.d.ts`/`.d.mts`/`.d.cts` are not listed separately: they end in
+ * one of these suffixes and are never excluded, matching the walk's original (undocumented-until-now)
+ * treatment of `.d.ts`.
+ */
+const SOURCE_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".mjs", ".cjs"] as const;
+
+/**
+ * Is this a source file the totality rule covers? Tests are excluded for every extension — mirroring
+ * the original `.test.ts`/`.test.tsx` exclusion — declaration files (`.d.ts`, `.d.mts`, `.d.cts`, …)
+ * are not.
+ */
 function isSourceFile(name: string): boolean {
-  if (name.endsWith(".test.ts") || name.endsWith(".test.tsx")) return false;
-  return name.endsWith(".ts") || name.endsWith(".tsx");
+  for (const ext of SOURCE_EXTENSIONS) {
+    if (!name.endsWith(ext)) continue;
+    return !name.endsWith(`.test${ext}`);
+  }
+  return false;
 }
 
 /** Every source file under `dir`, recursively, as repo-relative POSIX paths. */

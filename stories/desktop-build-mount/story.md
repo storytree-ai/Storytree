@@ -88,7 +88,7 @@ depends_on: [drive-machinery, studio-build, desktop, library, studio]
 # write-target / hosted-seam consumption, narrated per-edge in the comments/body of this spec) — the
 # declared-edge honesty gate accepts these without a code import; remove an entry if the seam ever
 # becomes a real package import.
-artifact_edges: [studio-build, desktop, studio]
+artifact_edges: [studio-build, desktop, studio, library]
 # Deciding ADRs (ADR-0037 §2): 133 (PRIMARY — the inner-circle desktop is the priority and decision 3
 # names THIS story's mechanism; its temporary broker deferral was later lifted by 180); 108 (the
 # phased chat→drive→land — this completes Phase 3+4 ON THE

@@ -38,12 +38,17 @@ proof:
     testFile: "packages/drive/src/build-worker-relocation.test.ts"
     sourceFile: "packages/drive/src/build-worker.ts"
     scope:
-      # The net-new test is one literal file; the source scope spans the relocated drive module AND the
-      # re-pointed studio importers (apiRouter.ts / devApi.ts / chat-build-dispatch's old home) — both
-      # observed by the suite proofCommand below so the spine sees the parity, not just the new home.
+      # The net-new test is one literal file; the OWNED source is the relocated drive module itself.
+      # The re-pointed studio importers (apiRouter.ts / devApi.ts / chat-build-dispatch's old home) were
+      # named here only while the relocation was IN FLIGHT, to fence the studio re-point as part of this
+      # capability's write scope — that relocation landed (7ac4d84b) and the importers are the studio's
+      # own files, not this capability's. The parity is still observed by the suite proofCommand below
+      # (it runs the studio server suite too); it does not need a spent write-scope glob to do so, and
+      # leaving those two files declared here was producing false ADR-0115 drift edges (arc, notice-board,
+      # uat-criterion-detail) on desktop-build-mount, which consumes none of them —
+      # spent-write-fence-globs-fake-three-drift-edges.
       testGlobs: ["packages/drive/src/build-worker-relocation.test.ts"]
-      sourceGlobs:
-        ["packages/drive/src/build-worker.ts", "apps/studio/server/apiRouter.ts", "apps/studio/server/devApi.ts"]
+      sourceGlobs: ["packages/drive/src/build-worker.ts"]
     install: true
     # A broad (multi-file, cross-package) relocation REQUIRES a suite proofCommand — the default node:test
     # on the single test file cannot observe the studio importers' parity (the re-point must stay green).
