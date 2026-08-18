@@ -3,7 +3,8 @@
  "artifact": "grass-geometry-fork.png",
  "producer": {
   "tool": "compose_grass.py",
-  "sha256": "ec7a56fc69b023fa9327d6a3e962d9b24ab8d480b46eb76725e1cb23cc9cdf78"
+  "sha256": "ec7a56fc69b023fa9327d6a3e962d9b24ab8d480b46eb76725e1cb23cc9cdf78",
+  "basis": "source-bytes-with-CRLF-and-CR-normalised-to-LF"
  },
  "command": {
   "tool": "compose_grass.py",

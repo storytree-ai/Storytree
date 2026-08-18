@@ -3,7 +3,8 @@
  "artifact": "fixture-vs-real.png",
  "producer": {
   "tool": "compose_healthy.py",
-  "sha256": "fe97d6b5cb243371fe9fd728d40cd604eecaf13661324d285b0eeebfcdfac37a"
+  "sha256": "fe97d6b5cb243371fe9fd728d40cd604eecaf13661324d285b0eeebfcdfac37a",
+  "basis": "source-bytes-with-CRLF-and-CR-normalised-to-LF"
  },
  "command": {
   "tool": "compose_healthy.py",

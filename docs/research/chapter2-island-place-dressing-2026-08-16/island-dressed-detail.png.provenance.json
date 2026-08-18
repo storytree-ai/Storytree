@@ -3,7 +3,7 @@
  "artifact": "island-dressed-detail.png",
  "producer": {
   "tool": "compose_dressed.py",
-  "sha256": "8c8ff2ca13e7836061e9de7d8e51bf0326d6f308a23060691ecf6af3637f79dd",
+  "sha256": "bdae23a7b241b8938c5ba7d49fb11d2192f353b86b2cc986dc2fd8821055f132",
   "basis": "source-bytes-with-CRLF-and-CR-normalised-to-LF"
  },
  "command": {
