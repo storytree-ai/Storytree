@@ -77,7 +77,8 @@ function mkInput(opts: FixtureOpts = {}): SceneInput {
         status,
         caps: opts.caps ?? plants.length,
         centroid: { x: 50, y: 50 },
-        radius: 30,
+        groundRadius: 30,
+        screenRadius: 30,
         treeSpot: { x: 50, y: 45 },
         labelY: 80,
         coastPaths: ['M 0 0 L 1 0 Z'],
@@ -123,7 +124,7 @@ function mkPlan(opts: FixtureOpts = {}): IslandVegetationPlan {
   const plan = deriveIslandVegetationPlan(territory, {
     storyId: t.id,
     caps: t.caps,
-    radius: t.radius,
+    radius: t.screenRadius,
     status: t.status,
   });
   if (!plan) throw new Error('no plan');
@@ -257,7 +258,7 @@ function mkParcelPlan(): IslandVegetationPlan {
   return deriveIslandVegetationPlan(territory, {
     storyId: t.id,
     caps: t.caps,
-    radius: t.radius,
+    radius: t.screenRadius,
     status: t.status,
   })!;
 }

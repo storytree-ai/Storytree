@@ -300,8 +300,15 @@ export interface Territory {
   story: TreeStory;
   tiles: Axial[];
   centroid: Pt;
-  /** px from centroid to the farthest tile centre, plus the tile radius. */
+  /** px from centroid to the farthest tile centre, plus the tile radius — SCREEN-projected (the
+   *  declared land camera), NOT a ground distance. Feeds `SceneTerritoryInput.screenRadius`
+   *  (`scene-territory-radius-states-its-space`). */
   radius: number;
+  /** The same reach, computed from UNPROJECTED (`PLAN_VIEW_ELEVATION_DEG`) tile centres — an
+   *  isotropic ground-plane magnitude, camera-independent. Feeds `SceneTerritoryInput.groundRadius`.
+   *  Same formula `trailIslands` below already uses for routing; kept here too so every consumer of
+   *  the built `Territory` — not just the router — can read a true ground radius. */
+  groundRadius: number;
   /** Where the central story tree stands (the tile nearest the centroid). */
   treeSpot: Pt;
   caps: CapSpot[];
@@ -651,6 +658,19 @@ export function buildWorld(
     const radius =
       Math.max(0, ...centers.map((p) => Math.hypot(p.x - centroid.x, p.y - centroid.y))) +
       HEX_R;
+    // A true GROUND-plane radius (scene-territory-radius-states-its-space) — same formula as
+    // `radius` above, but over UNPROJECTED tile centres, so it is isotropic and camera-independent.
+    // `radius` is a SCREEN magnitude (foreshortened on r, untouched on q); scene.ts's ground-side
+    // consumers (garden-hero keep-outs, the UAT/grass scatter, the stone-path spacing floor) need
+    // THIS one, not that one — feeding them the screen value silently under-scaled every one of them.
+    const groundTileCenters = tiles.map((h) => hexCenter(h, { elevationDeg: PLAN_VIEW_ELEVATION_DEG }));
+    const groundCentroid: Pt = {
+      x: groundTileCenters.reduce((s, p) => s + p.x, 0) / Math.max(groundTileCenters.length, 1),
+      y: groundTileCenters.reduce((s, p) => s + p.y, 0) / Math.max(groundTileCenters.length, 1),
+    };
+    const groundRadius =
+      Math.max(0, ...groundTileCenters.map((p) => Math.hypot(p.x - groundCentroid.x, p.y - groundCentroid.y))) +
+      HEX_R;
 
     // The story's own tree takes the tile nearest the centroid; capabilities
     // garden in a squashed ring around it (walked inward until they sit on
@@ -760,6 +780,7 @@ export function buildWorld(
       tiles,
       centroid,
       radius,
+      groundRadius,
       treeSpot,
       caps,
       decor,
@@ -1196,7 +1217,8 @@ function territoryToScene(
     status: st,
     caps,
     centroid: t.centroid,
-    radius: t.radius,
+    groundRadius: t.groundRadius,
+    screenRadius: t.radius,
     treeSpot: t.treeSpot,
     labelY: t.labelY,
     coastPaths: t.coastPaths,
@@ -2773,7 +2795,10 @@ export function TreeView({
             sceneInput.territories.map((t) => ({
               storyId: t.id,
               caps: t.caps,
-              radius: t.radius,
+              // IslandVegetationInput.radius is unread internally (see its own doc comment — deriving
+              // tree size from it was tried and measurably wrong); `screenRadius` just preserves the
+              // pre-split numeric value here (`scene-territory-radius-states-its-space`).
+              radius: t.screenRadius,
               status: t.status,
             })),
             // The active art style, so a growth track inherits the size that is actually on screen.
