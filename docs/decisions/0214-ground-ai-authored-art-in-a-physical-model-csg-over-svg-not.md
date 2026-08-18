@@ -58,6 +58,12 @@ Two alternatives were weighed against that and rejected:
   wrong. It stays rejected on ADR-0069's constraints: WebGL forfeits determinism (cross-GPU
   antialiasing variance), DOM text, and no-GPU rendering; and it would require reimplementing the
   look, which lives in ~5,900 lines of `apps/studio/src/index.css` rather than in the scene graph.
+  *(The "no-GPU rendering" ground is corrected in place 2026-08-18: [ADR-0380](0380-the-runtime-target-is-desktop-class-hardware-with-a-gpu-and.md)
+  D1 retires that premise generally — the runtime target is now desktop-class hardware with a working
+  GPU. This decision's rejection of a 3D substrate swap for building/architecture authoring is
+  unaffected: it stands on the surviving determinism and DOM-text/accessibility grounds plus the CSS
+  reimplementation cost. ADR-0380 D6 separately reopens runtime 3D, but only for the land and its
+  vegetation — a different surface from the buildings this ADR authors.)*
 
 ## Decision
 

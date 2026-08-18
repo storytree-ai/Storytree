@@ -103,13 +103,20 @@ randomness is identity-keyed; renders are deterministic from a fixed seed on pin
 CPU Cycles (ADR-0280 D2a). What the render delivers is pieces the app composes per cell and per
 coast segment — because Context FACT 2 makes anything coarser impossible.
 
-**D3 — RUNTIME 3D STAYS CLOSED, AND THE APP KEEPS OWNING THE LAND.** This is ADR-0280's promise
-restated rather than weakened, and it is the fence this ADR must not be read as opening. No 3D
-substrate, no second renderer, no asset-owned clock, no vendor call and no generated clock in the
-runtime, build or deployed environment. The app continues to own: which cells are claimed and by
-which story, the coast derivation, per-cell capability identity AND status tint, the accretion
-reveal and its timing, hit targets, trail routing and docking, nameplate placement, scene bounds,
-reduced motion, replay and painter order. Blender contributes pixels at author time and nothing else.
+**D3 — THE APP KEEPS OWNING THE LAND. ⚠ THE RUNTIME-3D HALF OF THIS DECISION IS AMENDED BY
+[ADR-0380](0380-the-runtime-target-is-desktop-class-hardware-with-a-gpu-and.md) D6 (2026-08-18) —
+a live renderer IS now admitted for the land and its vegetation, owner-directed.** What that
+amendment does NOT touch, and what therefore still stands here in full: no asset-owned clock, no
+vendor call and no generated clock in the runtime, build or deployed environment; and the app
+continues to own which cells are claimed and by which story, the coast derivation, per-cell
+capability identity AND status tint, the accretion reveal and its timing, hit targets, trail routing
+and docking, nameplate placement, scene bounds, reduced motion, replay and painter order. ADR-0380
+restates every one of those as a binding fence on the renderer it admits, and adds two more from
+ADR-0069 — accessible DOM text/hit targets, and determinism held on the scene GRAPH rather than on a
+live raster. The sentence this decision originally carried — that runtime 3D stays closed and this
+ADR "must not be read as opening" it — was true when written and is no longer the current decision.
+Blender contributing pixels at author time is likewise no longer the ONLY route to land pixels,
+though it remains the right one wherever a sprite is the better answer.
 
 **D4 — THE SAME BACK HALF APPLIES.** Land renders pass through the same quantise/palette treatment
 the hero tree's do, against the island's existing palette. A raw Blender render shipped as land is

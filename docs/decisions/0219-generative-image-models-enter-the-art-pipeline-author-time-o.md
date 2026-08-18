@@ -31,6 +31,14 @@ per-frame raster track is affordable for at most one focused tree.
 D1's author-time-only boundary, committed-assets source of truth, 2.5D posture and owner-held LOOK
 verdict all stand and are strengthened by each of those amendments.
 
+**Currency (2026-08-18).** [ADR-0380](0380-the-runtime-target-is-desktop-class-hardware-with-a-gpu-and.md)
+D6 narrows D4's "never a shipped map renderer" clause: once the runtime hardware envelope was
+settled (a working GPU is now the target, not a constraint to design around), a live 3D renderer is
+admitted for the land and its vegetation specifically, owner-directed — see D4's own inline note.
+D4's other holdings are untouched: Act 2 forest growth stays a 2D system (GSAP/SVG, never Google
+video), and this arc's own "3D" (decision 2's light ortho/generator-produced blocking substrate) stays
+an author-time authoring aid, never itself shipped.
+
 ## Context
 
 This arc's end-state eye test was **fidelity to the existing look**: ADR-0214 D4 made "improving the
@@ -117,6 +125,13 @@ stays 2.5D isometric.** In four parts.
    mutating state) is done by **us** in a real-time 2D system — lightweight GSAP/SVG for "just enough";
    Rive is a heavier, separately-scoped call — **never** Google video (Veo produces fixed one-off clips,
    not data-driven animation).
+   **⚠ NARROWED by [ADR-0380](0380-the-runtime-target-is-desktop-class-hardware-with-a-gpu-and.md) D6
+   (2026-08-18): "never a shipped map renderer" no longer holds without qualification — a live
+   renderer IS now admitted for the land and its vegetation, owner-directed, once the target hardware
+   envelope was settled. This "PARKED — do NOT reopen" framing was true when written and is no longer
+   the current decision for that slice. Everything else in this bullet stands: Act 1 stays R3F-free,
+   Act 2 animation stays app-driven 2D (never Google video), and this arc's own light-3D authoring
+   substrate stays author-time-only, never itself shipped.**
 
 **Import-time rule — key the background GLOBALLY, never flood-fill from the edges (2026-08-02,
 measured).** A generated component arrives on a background, and the import step that removes it is
@@ -145,8 +160,9 @@ directed target," judged by the owner.
 
 Rejected: any per-instance or runtime call to the generative model; auto-tracing raster into the
 scene-graph as geometry (vector soup); any asset-owned semantic timeline or unregistered frame drift;
-shipping real 3D / R3F as the map renderer; Google video for Act 2; and any machine-signed look
-verdict.
+shipping real 3D / R3F as the map renderer *(narrowed for the land and its vegetation by ADR-0380 D6,
+2026-08-18 — see decision 4's inline note; the rejection stands for everything else)*; Google video
+for Act 2; and any machine-signed look verdict.
 
 ## Consequences
 
@@ -181,6 +197,11 @@ verdict.
 
 ## References
 
+- [ADR-0380](0380-the-runtime-target-is-desktop-class-hardware-with-a-gpu-and.md) — **narrows this
+  ADR.** D6 admits a live 3D renderer for the land and its vegetation specifically, once the target
+  hardware envelope was settled; D4's "PARKED — do NOT reopen" / "never a shipped map renderer"
+  framing no longer holds for that slice. Everything else here — author-time-only, the bridge, baked
+  vector, Act 1/Act 2's own posture — stands.
 - [ADR-0225](0225-generative-3d-produces-the-bridge-blocking-substrate-via-a-v.md) — **amends this
   ADR.** Decision 2's hand-built light-3D blocking substrate becomes **generator-produced** (a reputable
   generative-3D model, reached through a vendor-swappable author-time adapter — NVIDIA Edify first,
