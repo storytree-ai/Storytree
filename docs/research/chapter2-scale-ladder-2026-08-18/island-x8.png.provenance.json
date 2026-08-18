@@ -1,0 +1,757 @@
+{
+ "schema": "storytree/derived-evidence-provenance/1",
+ "artifact": "island-x8.png",
+ "producer": {
+  "tool": "compose_ladder.py",
+  "sha256": "a9071c3ba13b9faadb19f2b2b87a5b95009db334566b2ed893758a0fb5e70f12"
+ },
+ "command": {
+  "tool": "compose_ladder.py",
+  "argv": []
+ },
+ "inputs": [
+  {
+   "label": "pieces-land-x1",
+   "dir": "../chapter2-scale-ladder-2026-08-18/pieces/pieces-land-x1",
+   "codeState": {
+    "generator": "blender_land.py",
+    "sha256": "15927bf56c77cd23bc4d41a7353a5890450aeabca02013a08051beb52613b007"
+   },
+   "pieces": [
+    {
+     "file": "tile-0.png",
+     "sha256": "40e22a40fe11e2555d8acc14a01afbe85ef1116833f8aeec67160197d2e0c1af"
+    },
+    {
+     "file": "tile-1.png",
+     "sha256": "223a4d1668569b318a6a35e6d54251bc0b953f3eba85ecf17709d8611d00572d"
+    },
+    {
+     "file": "tile-2.png",
+     "sha256": "600dec57828cc8205d0afa49e8940a0d663d090627782c8c66ebdba161cce696"
+    },
+    {
+     "file": "tile-3.png",
+     "sha256": "7da5c36d7a1d520cf183e1adcdf4d88eaa4b81bedd0289a15e68a6da47e5492b"
+    },
+    {
+     "file": "tile-4.png",
+     "sha256": "9d10f43566c57cf46506c390c374ab15b77e0223b69456c55d22dcce4bbbcdd9"
+    },
+    {
+     "file": "tile-5.png",
+     "sha256": "bcd5543bcf31bb2985360312113366c3bb387c997b8407a8b0cef52d1b3b37c3"
+    },
+    {
+     "file": "wall-0.png",
+     "sha256": "01a14c93ee34fb17041b4c2400af2c9672bf9ecfeb2ef1305f6ecadf97bffe6b"
+    },
+    {
+     "file": "wall-1.png",
+     "sha256": "4fa6347244c4d65c439522b6456b466c076c8973a6154221492c22797e14ba2e"
+    },
+    {
+     "file": "wall-10.png",
+     "sha256": "74ce266c4fd376a18d799106c87f9a70f5cda55c8f4e10b71b219fc58000901d"
+    },
+    {
+     "file": "wall-11.png",
+     "sha256": "a9e995cca2b20db21797559cb7371d21f261a0663fc4e0f341d63456b49fde54"
+    },
+    {
+     "file": "wall-12.png",
+     "sha256": "a974eede57401968d8f4cdb8e7ba0fafd806d24799d0c6bcdee035cd65a136dd"
+    },
+    {
+     "file": "wall-13.png",
+     "sha256": "4f22f840f7737d86848894316e2e610ab9d82a2d2c3decd69dbe2ba65757e6d0"
+    },
+    {
+     "file": "wall-14.png",
+     "sha256": "638baa782563adae679b9d7a6b2d5fd4b9fe7bc1a92542f5bb23491b94472d69"
+    },
+    {
+     "file": "wall-15.png",
+     "sha256": "79fff750fd482b5336ede24af4bae04f3b85007fe4114888c62035c9a763fd53"
+    },
+    {
+     "file": "wall-2.png",
+     "sha256": "d468ac62f48ad145b25d178174a5601bd78dce47f1c05e023734d9a86fa3311e"
+    },
+    {
+     "file": "wall-3.png",
+     "sha256": "ccd45ef5d1fd7f397abc9e2c4db43439ee2a99dbb0bae578976e1dedc84414c3"
+    },
+    {
+     "file": "wall-4.png",
+     "sha256": "2ce280af056440fbb09231e7edad068560c5ac7fde1490d5b23450d280ef5aab"
+    },
+    {
+     "file": "wall-5.png",
+     "sha256": "7489165b28b9c1bea0ea3dce0b1c48d7960532af423419df031f5b1d0536e660"
+    },
+    {
+     "file": "wall-6.png",
+     "sha256": "d707ab1b187519daa181468f37e121e783535f05d06cac8799d58133293d62a6"
+    },
+    {
+     "file": "wall-7.png",
+     "sha256": "b6545ea66ba88553f545c5dfd8eb6d546a94bf9b50d38f3161bcf49e8309a7a9"
+    },
+    {
+     "file": "wall-8.png",
+     "sha256": "d3727061678a3c0630d409d236e46498f6832f5cbd117412a1e1e13aadfb9041"
+    },
+    {
+     "file": "wall-9.png",
+     "sha256": "e82f6b32218cba4bba03def63f66ee9a60acb9a22519494134a2a032ac783b03"
+    }
+   ]
+  },
+  {
+   "label": "pieces-species-x1",
+   "dir": "../chapter2-scale-ladder-2026-08-18/pieces/pieces-species-x1",
+   "codeState": {
+    "generator": "blender_species.py",
+    "sha256": "97189eb0d4d2cc24b5fd81712bf38bc08edcbefebf0e10fcb1f973b7097a12ab"
+   },
+   "pieces": [
+    {
+     "file": "flower-failing.png",
+     "sha256": "fcab6cccef4a79407fcb5024277137eb0fd8b41d50904525518e181ab5f2af05"
+    },
+    {
+     "file": "flower-pending.png",
+     "sha256": "f0c41275bb27255a3ecd0566dc3d39a65232e7141450b52ec3e5ffbc107f960a"
+    },
+    {
+     "file": "flower-proven.png",
+     "sha256": "ce867c12a0da37713c43d6c7e83092574d22391260bc06af0c8a8a7ef923a4d7"
+    },
+    {
+     "file": "shrub-a.png",
+     "sha256": "ad2f5f1e169147a343cd482aabf4b803f5b67ba46a717c140582fd09708dc2db"
+    },
+    {
+     "file": "shrub-b.png",
+     "sha256": "b1dd78784d5b9621f049ee15eb5ed7a4cd35b6545752d823f1d00f11169c53f2"
+    },
+    {
+     "file": "tuft-2.png",
+     "sha256": "c560d9f7ecc0f84aa68b5062c1d5dd02d05bcd9d1b95da686cba7f065047ce22"
+    },
+    {
+     "file": "tuft-3a.png",
+     "sha256": "20ca3d3d5e6f4f1da4c1a586d8fa9c2677814f57b586b25ef50231eee2197d1c"
+    },
+    {
+     "file": "tuft-3b.png",
+     "sha256": "b90dbbba0e6bda5a4b9ec3abf6f78688615bf9a1e6583e1493a0e1e0fe5eee01"
+    },
+    {
+     "file": "tuft-4.png",
+     "sha256": "2924f381ccf5dcde00a5c6534fa525a8e184f05e93c2aafd82123f5bc5426b97"
+    },
+    {
+     "file": "wilt-stem.png",
+     "sha256": "fa308f0b6573c39c0389958dd0d4c70b0552344e1a6ccdf61b57c184425dbb5f"
+    },
+    {
+     "file": "wilt-twig.png",
+     "sha256": "d78650bf779d89f7232bafcd8ec345d8f2b08b24cef7f1e3792578a9c5df08e2"
+    }
+   ]
+  },
+  {
+   "label": "pieces-land-x2",
+   "dir": "../chapter2-scale-ladder-2026-08-18/pieces/pieces-land-x2",
+   "codeState": {
+    "generator": "blender_land.py",
+    "sha256": "15927bf56c77cd23bc4d41a7353a5890450aeabca02013a08051beb52613b007"
+   },
+   "pieces": [
+    {
+     "file": "tile-0.png",
+     "sha256": "65a90ef537038fdc3504eb0f9980624c03472bfc9fa6bb11d7f6fe27d2a5ad1a"
+    },
+    {
+     "file": "tile-1.png",
+     "sha256": "02736cde5e77781ea0df5ed84372ec47d0270de89cc92a166602ba6b7378f0e6"
+    },
+    {
+     "file": "tile-2.png",
+     "sha256": "2f30e1c0807af85e4584c7d729a0278b99e093e9abd73686c48e9a13dd013ab0"
+    },
+    {
+     "file": "tile-3.png",
+     "sha256": "7510b458f9339d9ef811627829f7cfbc1c424631a6dc851662ad481e69379572"
+    },
+    {
+     "file": "tile-4.png",
+     "sha256": "069ac8d2324c515280b39a923856d834d28ed4e2a8e4065cc2a4bc3afe032019"
+    },
+    {
+     "file": "tile-5.png",
+     "sha256": "ce0d13a8b821f2af54fa476ca268e7f478fb285b9fd7e1cbff3ef31cbed5f554"
+    },
+    {
+     "file": "wall-0.png",
+     "sha256": "a2f0019514ead1027df44cbcd68041700b5734b2fd96cbc237e96664948ef055"
+    },
+    {
+     "file": "wall-1.png",
+     "sha256": "12f8cd3a17a8809961e340fda56b686d87f4ff0c9c17499667a123e153c6811b"
+    },
+    {
+     "file": "wall-10.png",
+     "sha256": "dc2b348a60a1ff63c08d9921d6d421c2032aa59e37eeedabb86361c93b5de217"
+    },
+    {
+     "file": "wall-11.png",
+     "sha256": "a163a74d0e0a540cf8d5cb8cc3f5123db5fad558043d6e475c3b2127534f64e6"
+    },
+    {
+     "file": "wall-12.png",
+     "sha256": "60939dab3894f334347be1d8aa89c64f47626e44175dd2e034b36265e2f0d6c7"
+    },
+    {
+     "file": "wall-13.png",
+     "sha256": "33a99e8faf45723691bd04a8d56e8cd3b4de51a4b2eb89e05b5961aeca6aafad"
+    },
+    {
+     "file": "wall-14.png",
+     "sha256": "319b935ded7d952692aeb2088b352f0d991dfbc5307bf3f564fbfdc5e8ab40e0"
+    },
+    {
+     "file": "wall-15.png",
+     "sha256": "36cf3c45e8ec5a1229685494e47ee6346d936598f41e19ea15f6965cb88a3ec5"
+    },
+    {
+     "file": "wall-2.png",
+     "sha256": "f30ed060625199286aae5c0b6f52bb7706cfd5fcc9018273df470a91da75acba"
+    },
+    {
+     "file": "wall-3.png",
+     "sha256": "e05e5c65c3de4386d5eb91de6e9071094d8c9fb1c596391cfd99b16d42b770d0"
+    },
+    {
+     "file": "wall-4.png",
+     "sha256": "788617d9bb09db1b88e74b2ba3caf8265f94c56b7fd1af2f52c559c6b7cca93f"
+    },
+    {
+     "file": "wall-5.png",
+     "sha256": "aebff3743d4cdaac8d2a06cf0feabcaf60dc5c57234cd246560ecb3f68dd0fa7"
+    },
+    {
+     "file": "wall-6.png",
+     "sha256": "28f4d2836aa6c55a6c6095ab65e304f8d0a2ef6fe38e135e1dbada6029eb65ab"
+    },
+    {
+     "file": "wall-7.png",
+     "sha256": "0f9221d2f84e83f7fd90707cc5eec2675f9846a373ffde657e94d1415e1e53ce"
+    },
+    {
+     "file": "wall-8.png",
+     "sha256": "5fd5ccc8ccfef5e757ccfef4020bfedeebbed012e313331fc4564d5e0ec984a0"
+    },
+    {
+     "file": "wall-9.png",
+     "sha256": "185381eac7c44d007d3205a1e62754988cb12a5c5741d42acf271b801719089a"
+    }
+   ]
+  },
+  {
+   "label": "pieces-species-x2",
+   "dir": "../chapter2-scale-ladder-2026-08-18/pieces/pieces-species-x2",
+   "codeState": {
+    "generator": "blender_species.py",
+    "sha256": "97189eb0d4d2cc24b5fd81712bf38bc08edcbefebf0e10fcb1f973b7097a12ab"
+   },
+   "pieces": [
+    {
+     "file": "flower-failing.png",
+     "sha256": "edee003768827b493903529b0af34f3b4ddb4ed976d7867e814e644462cce19c"
+    },
+    {
+     "file": "flower-pending.png",
+     "sha256": "41cae32076b55785c4cf558a392783a743c6fd12fde7ddc5ed35200cf957f1f8"
+    },
+    {
+     "file": "flower-proven.png",
+     "sha256": "bbd081d57b9a2d209d9b459c9a01a7bbf3e354213ee5c3ceac3b7cbce7c7791c"
+    },
+    {
+     "file": "shrub-a.png",
+     "sha256": "c23d410c4dea6b17d0c43b07805663cb93343a22a92e048052ffc1353666dc06"
+    },
+    {
+     "file": "shrub-b.png",
+     "sha256": "b76f569b0ad98db43fd6aebc6d17e408d8a2a4393f3da9d9fc4d1754d697a119"
+    },
+    {
+     "file": "tuft-2.png",
+     "sha256": "9b854b3370c404e57751a750a518ecea3761288ac307707960eeeaba335cae14"
+    },
+    {
+     "file": "tuft-3a.png",
+     "sha256": "7bbac2f79a08a1a9aa800884384c92bec645c7944095596d9516d974fbf97d36"
+    },
+    {
+     "file": "tuft-3b.png",
+     "sha256": "175796ff12235faf92a589e6ed5095cbd44b5bbfc5ee41d80b90ed496440d155"
+    },
+    {
+     "file": "tuft-4.png",
+     "sha256": "7a549d9487b9de7ac46b6080bb94a1e48dbe010d0c25ff17ea4033edca98be35"
+    },
+    {
+     "file": "wilt-stem.png",
+     "sha256": "e5d72ba912eeec34dda8a15c19586ae9b005ea1bcefc7c37440a6194a844e903"
+    },
+    {
+     "file": "wilt-twig.png",
+     "sha256": "7e08bde2fc050f0908efa669eeebe607d174d7fa3e0bd82b22c92070e87199a6"
+    }
+   ]
+  },
+  {
+   "label": "pieces-land-x4",
+   "dir": "../chapter2-scale-ladder-2026-08-18/pieces/pieces-land-x4",
+   "codeState": {
+    "generator": "blender_land.py",
+    "sha256": "15927bf56c77cd23bc4d41a7353a5890450aeabca02013a08051beb52613b007"
+   },
+   "pieces": [
+    {
+     "file": "tile-0.png",
+     "sha256": "5a3476fc48265bcfbc59e92a0271fa968f2350dffab9ca788e733654d4719b2f"
+    },
+    {
+     "file": "tile-1.png",
+     "sha256": "2fb718e396906a424b1989a3a39dd8d2bb844eadecb8482f6b73835138e7f46e"
+    },
+    {
+     "file": "tile-2.png",
+     "sha256": "891b49850a2959d0411e1bd79f659a9860b591012feb65106ef9ea534a35fd3a"
+    },
+    {
+     "file": "tile-3.png",
+     "sha256": "0e5ef89a471fccebef3fb4d1dcb5a8acde9781592c2d5eb7547586abe6be3a90"
+    },
+    {
+     "file": "tile-4.png",
+     "sha256": "d63a14ab464c70288706844fd982298805a23a2659e0f0eb7eda3d7891542fa8"
+    },
+    {
+     "file": "tile-5.png",
+     "sha256": "fbdef4a71ae1093f395b10c91e49b5b1b63363089627e0c6fef3ed66167d95ff"
+    },
+    {
+     "file": "wall-0.png",
+     "sha256": "94094f3b040dd81e48a8e37e4b6840f44d016d034dab6b285b47b9f0895da94c"
+    },
+    {
+     "file": "wall-1.png",
+     "sha256": "3b493f25846e75abe30de9d78a95dde79258ff5a05e9a684a0a6f234a741f45a"
+    },
+    {
+     "file": "wall-10.png",
+     "sha256": "d381e9840e1fb77e177b5b066ffa5b347f35929d622cd88747639992edbc6306"
+    },
+    {
+     "file": "wall-11.png",
+     "sha256": "1a60127a32d5d0fb261deac5dc26b2b5d221a0a0a0e6237864b8e8f0d0a66455"
+    },
+    {
+     "file": "wall-12.png",
+     "sha256": "94dac988abbdeb4a18a87ea43900a3e629a4b0461da43f96fecc05dd10c52360"
+    },
+    {
+     "file": "wall-13.png",
+     "sha256": "e29e8dd1d442032a643fe1af6e2f6a5fa765d46770f74600286ef061ea8c6abb"
+    },
+    {
+     "file": "wall-14.png",
+     "sha256": "e2bf6e410b1e24f4e42dbc882dc17022aa3dc5cfcd95b24b030b07dd66528cbc"
+    },
+    {
+     "file": "wall-15.png",
+     "sha256": "7385daa312a4061e0c1708bb6506dc5b2c00893d0f719282a7c378b02b0aea9d"
+    },
+    {
+     "file": "wall-2.png",
+     "sha256": "12e487b80b45e94facbb7dea303b69a458dc336eb94f4b68dc2e9eca7256a869"
+    },
+    {
+     "file": "wall-3.png",
+     "sha256": "bbddf00ec865870f89b4c1cec2e6d425f0d08fa8115cf9d216dab2a35c46881b"
+    },
+    {
+     "file": "wall-4.png",
+     "sha256": "f0ccc27d06210b161c9609837072bf1293dc23c90c162bab4da0c8ce7b327252"
+    },
+    {
+     "file": "wall-5.png",
+     "sha256": "9ce9f1dacc45eff29ead400762b1bdf0f36c1de063e5f792a1a914c64d4eef20"
+    },
+    {
+     "file": "wall-6.png",
+     "sha256": "08254f4844f75c12de8e87279ebf2498e72967e10929e1b07a5cabb9bd611b89"
+    },
+    {
+     "file": "wall-7.png",
+     "sha256": "4e835bf720844557ebcc013898b48c8b3b27b382182dbd82aa635c81cc18bcf1"
+    },
+    {
+     "file": "wall-8.png",
+     "sha256": "ec48cbacdda47e1d98ede0b8664626721f6d27854b790c3ae68afbc6aaaa4ce9"
+    },
+    {
+     "file": "wall-9.png",
+     "sha256": "775fcf7818b1391f68c5e032c412aed4f8b8fef0d4e59742d0bbc177a9f4cb5d"
+    }
+   ]
+  },
+  {
+   "label": "pieces-species-x4",
+   "dir": "../chapter2-scale-ladder-2026-08-18/pieces/pieces-species-x4",
+   "codeState": {
+    "generator": "blender_species.py",
+    "sha256": "97189eb0d4d2cc24b5fd81712bf38bc08edcbefebf0e10fcb1f973b7097a12ab"
+   },
+   "pieces": [
+    {
+     "file": "flower-failing.png",
+     "sha256": "08de5b284d31d6e6334c533dd462b481dd1a2f84bdaa809081ea886bb9025117"
+    },
+    {
+     "file": "flower-pending.png",
+     "sha256": "c4802881b763baf600663787459754507bf0cdd406b6e44bf335858f7e5ca03b"
+    },
+    {
+     "file": "flower-proven.png",
+     "sha256": "b384748543ce2d6e066e6bf56fd3b85e244a0da06223e075d8f1876ddddb0d5e"
+    },
+    {
+     "file": "shrub-a.png",
+     "sha256": "80d51c5c436729e0dbeaa35dc7494e384bccc28fd5a12f09b38cb3350ab9a8df"
+    },
+    {
+     "file": "shrub-b.png",
+     "sha256": "2985d5ac8882e0309e96f89bd6908de6457f8122f196d2b91afcf680ff2b6f94"
+    },
+    {
+     "file": "tuft-2.png",
+     "sha256": "ae22dabd0c6630c80c2aeb4a622e457937b0fde442ebc3bce8a1214d4290b136"
+    },
+    {
+     "file": "tuft-3a.png",
+     "sha256": "d12407319ffd419086bd378e749c72581ae02426a39e4befae79046f8966ac06"
+    },
+    {
+     "file": "tuft-3b.png",
+     "sha256": "88104281ed87f8e23a254bfdfdcf6d2c0bda0da64ceaf671250c33741a06d0bd"
+    },
+    {
+     "file": "tuft-4.png",
+     "sha256": "17c36abeb593b590042ce1bc12321806647c3279c0f0da1e2694918c6d4e8456"
+    },
+    {
+     "file": "wilt-stem.png",
+     "sha256": "cf56e53ac6f36e0713d9168ea753251f0b33b8aa144f95ec5400c1f8308bbdfe"
+    },
+    {
+     "file": "wilt-twig.png",
+     "sha256": "fbde7e24db23a34b9e16b0a75deedb5c1ec9d625343022c20a58c97bd59bb5c5"
+    }
+   ]
+  },
+  {
+   "label": "pieces-land-x8",
+   "dir": "../chapter2-scale-ladder-2026-08-18/pieces/pieces-land-x8",
+   "codeState": {
+    "generator": "blender_land.py",
+    "sha256": "15927bf56c77cd23bc4d41a7353a5890450aeabca02013a08051beb52613b007"
+   },
+   "pieces": [
+    {
+     "file": "tile-0.png",
+     "sha256": "a3776cb10414c776210dc290681f9d07c1ad24a41ce0a044cd4a686a91779f3b"
+    },
+    {
+     "file": "tile-1.png",
+     "sha256": "431f04379ce0b5520caccdb5f4898d1fa3433fef892a3877a44cd5589da3e04d"
+    },
+    {
+     "file": "tile-2.png",
+     "sha256": "fda93bb5aeaae767db189246c947679db666f6053d711023aa9f7096f5855d2e"
+    },
+    {
+     "file": "tile-3.png",
+     "sha256": "b9032c4a0ac55c9726dfee96e1d2c85deca28f3e7e7b1019d3938ed36d08632e"
+    },
+    {
+     "file": "tile-4.png",
+     "sha256": "7e9dab52a4e008c04a8b2988c751e0d8e2bb914e72e56bb2d402f155163d64ca"
+    },
+    {
+     "file": "tile-5.png",
+     "sha256": "7541247c124967338c5ad6839ad6bc1c0a41fe1ab5ab62bf4edab4e78e445dc9"
+    },
+    {
+     "file": "wall-0.png",
+     "sha256": "3d47885a8c71b1a3d2898308c2d8c66deafd2aded637ab09fcf39ff7c18ffe76"
+    },
+    {
+     "file": "wall-1.png",
+     "sha256": "05f89acb3f9f957ffccfcc0e472208ca524ce676f45ebf03c2748894d5cff61c"
+    },
+    {
+     "file": "wall-10.png",
+     "sha256": "deebd6fb8282e44a6767b985127bf182d61750e6123a97012fbb62518ef4d990"
+    },
+    {
+     "file": "wall-11.png",
+     "sha256": "f6d6c544d8dc6a3ca9abe0b9cc51ec9a3cc02a291800406846a7ee83d22790f8"
+    },
+    {
+     "file": "wall-12.png",
+     "sha256": "2ce32ecd7fc8c8c189d1c0cb3012f485b33bd288228ff8250c1aefacba7cc787"
+    },
+    {
+     "file": "wall-13.png",
+     "sha256": "d45b44daad410749b05c56df990d0e582d13f2d8968e0b5e0eb2864685b52e18"
+    },
+    {
+     "file": "wall-14.png",
+     "sha256": "0a5ff2bafed1ca0a3e3bbf98d905ed6e5ed087bdffd0da2e8ce8d95e9b36b5e3"
+    },
+    {
+     "file": "wall-15.png",
+     "sha256": "c8bdb034915ba946e9cd24f7e4213e44813a840ce4b3fb5c927b44b63b11705f"
+    },
+    {
+     "file": "wall-2.png",
+     "sha256": "dd67573407b9ebb3ba0506be354af523d20576afae80264d7e0d403847ec6a27"
+    },
+    {
+     "file": "wall-3.png",
+     "sha256": "9364165faf643e994123991da93f4c71a8de4643d6a4930c5b131fb6b14a611a"
+    },
+    {
+     "file": "wall-4.png",
+     "sha256": "e52859d0b99cbdac92f03ba16ae9d50f25e06cb1ef55af2d3f3355603affc138"
+    },
+    {
+     "file": "wall-5.png",
+     "sha256": "fb147a64a070846c6f939169395f7f92b41e6d4246ab8dd47a27a7b65e3e6c53"
+    },
+    {
+     "file": "wall-6.png",
+     "sha256": "c07cac67572d4d7f191adb823e81a9922cb5bbca14034a26224d34518fde35cb"
+    },
+    {
+     "file": "wall-7.png",
+     "sha256": "134b5e0a19bd1b2e91f319708ccae4d1449a82291a779d2c26547231f93cbbb2"
+    },
+    {
+     "file": "wall-8.png",
+     "sha256": "e78cfe39f7f3c58428dbc47487a122eae824ee02046f06fc8f3f4d1c66176047"
+    },
+    {
+     "file": "wall-9.png",
+     "sha256": "db8875ace6955ae049df337edce4cb7bed211bd6ae60411b84577693ca237180"
+    }
+   ]
+  },
+  {
+   "label": "pieces-species-x8",
+   "dir": "../chapter2-scale-ladder-2026-08-18/pieces/pieces-species-x8",
+   "codeState": {
+    "generator": "blender_species.py",
+    "sha256": "97189eb0d4d2cc24b5fd81712bf38bc08edcbefebf0e10fcb1f973b7097a12ab"
+   },
+   "pieces": [
+    {
+     "file": "flower-failing.png",
+     "sha256": "48242feac35f2575dd9dee940911e00465ad6ea443eecd585081c3ff7f8961d5"
+    },
+    {
+     "file": "flower-pending.png",
+     "sha256": "279cac1d54422e70d946096a80bf290f27bf6c732e928d91b56ddfe2b01b0afc"
+    },
+    {
+     "file": "flower-proven.png",
+     "sha256": "7d66c87941f3d1465ba5a395655d594787f0ed2d1b774217d819f99c90b391c3"
+    },
+    {
+     "file": "shrub-a.png",
+     "sha256": "acda33fd58f7abb91b5d4e97db24995678b207c906f971e6069c51a64f1730ff"
+    },
+    {
+     "file": "shrub-b.png",
+     "sha256": "b27b4bbaeb8d6a0791c4cabeaabcef05cefc5c85edbb9f306202ae772a7908fb"
+    },
+    {
+     "file": "tuft-2.png",
+     "sha256": "f2ab93ed179f67b1f51c1c6c3bad588aa065e999249f6c8693e2793b51cef586"
+    },
+    {
+     "file": "tuft-3a.png",
+     "sha256": "9cddd181050cc884ac606b9fb64dd33bfe9f4452ff65260ac915030864466340"
+    },
+    {
+     "file": "tuft-3b.png",
+     "sha256": "f3772aab11ee60334a170d7b55f252d926ffd12e7eb72d66aef797811cf15029"
+    },
+    {
+     "file": "tuft-4.png",
+     "sha256": "7d5ec648c8c835f8f9d4345c539250042f2d33daf7eca2a6a442f7660fb32252"
+    },
+    {
+     "file": "wilt-stem.png",
+     "sha256": "ab32c77d1609b165e50b811ae1cea97faf4ff32d56ec5db938e41bd4a5d925a8"
+    },
+    {
+     "file": "wilt-twig.png",
+     "sha256": "4fa44bf1631ed6b6bcf1ad7f2176810808ea1909db2ade1fadfd97a71a121e5f"
+    }
+   ]
+  }
+ ],
+ "codeState": {
+  "generator": "compose_ladder.py (one code state per generator, per rung)",
+  "sha256": "c350bd9a1b8d54848b6413c95638a78fe5b0cb95ae156d22f17c47123635735a"
+ },
+ "output": {
+  "sha256": "c7cfc76e2c51818bd6a6b5f817cb6e0c76b683c464a81e891b35a4244df5c3cc",
+  "bytes": 177490
+ },
+ "cameraElevationDeg": 50.0,
+ "storyId": "context-traversal-capture",
+ "rungs": [
+  1,
+  2,
+  4,
+  8
+ ],
+ "supersample": 3,
+ "landSamples": 48,
+ "authoredNotUpscaled": {
+  "x1": {
+   "pxPerGroundUnit": 3.0,
+   "landPieces": 3.0,
+   "decorPieces": 3.0,
+   "heroTreeSpritePx": 128,
+   "supersample": 3
+  },
+  "x2": {
+   "pxPerGroundUnit": 6.0,
+   "landPieces": 6.0,
+   "decorPieces": 6.0,
+   "heroTreeSpritePx": 256,
+   "supersample": 3
+  },
+  "x4": {
+   "pxPerGroundUnit": 12.0,
+   "landPieces": 12.0,
+   "decorPieces": 12.0,
+   "heroTreeSpritePx": 512,
+   "supersample": 3
+  },
+  "x8": {
+   "pxPerGroundUnit": 24.0,
+   "landPieces": 24.0,
+   "decorPieces": 24.0,
+   "heroTreeSpritePx": 1024,
+   "supersample": 3
+  }
+ },
+ "bytePrice": [
+  {
+   "rung": 1,
+   "islandRasterBytes": 14432,
+   "islandRasterKB": 14.1,
+   "measuredRatioToX1": 1.0,
+   "squareLawRatio": 1,
+   "d4StatedWholePayload": "805 KB",
+   "wholePayloadProjectedKB": 805.0,
+   "wholePayloadIfSquareLawKB": 805
+  },
+  {
+   "rung": 2,
+   "islandRasterBytes": 34184,
+   "islandRasterKB": 33.4,
+   "measuredRatioToX1": 2.37,
+   "squareLawRatio": 4,
+   "d4StatedWholePayload": "~3 MB",
+   "wholePayloadProjectedKB": 1906.7,
+   "wholePayloadIfSquareLawKB": 3220
+  },
+  {
+   "rung": 4,
+   "islandRasterBytes": 77530,
+   "islandRasterKB": 75.7,
+   "measuredRatioToX1": 5.37,
+   "squareLawRatio": 16,
+   "d4StatedWholePayload": "~13 MB",
+   "wholePayloadProjectedKB": 4324.5,
+   "wholePayloadIfSquareLawKB": 12880
+  },
+  {
+   "rung": 8,
+   "islandRasterBytes": 177490,
+   "islandRasterKB": 173.3,
+   "measuredRatioToX1": 12.3,
+   "squareLawRatio": 64,
+   "d4StatedWholePayload": "~50 MB",
+   "wholePayloadProjectedKB": 9900.2,
+   "wholePayloadIfSquareLawKB": 51520
+  }
+ ],
+ "perElement": [
+  {
+   "element": "cell-fill",
+   "firstRungItReads": 1,
+   "firstRungItCarriesAnOutline": 1,
+   "recommendedPath": "live"
+  },
+  {
+   "element": "rim-wall",
+   "firstRungItReads": 1,
+   "firstRungItCarriesAnOutline": 1,
+   "recommendedPath": "sprite"
+  },
+  {
+   "element": "terrace",
+   "firstRungItReads": 1,
+   "firstRungItCarriesAnOutline": 2,
+   "recommendedPath": "sprite"
+  },
+  {
+   "element": "coast",
+   "firstRungItReads": 1,
+   "firstRungItCarriesAnOutline": 1,
+   "recommendedPath": "sprite"
+  },
+  {
+   "element": "vegetation-mark",
+   "firstRungItReads": 1,
+   "firstRungItCarriesAnOutline": 2,
+   "recommendedPath": "sprite"
+  },
+  {
+   "element": "flower",
+   "firstRungItReads": 2,
+   "firstRungItCarriesAnOutline": 2,
+   "recommendedPath": "sprite"
+  },
+  {
+   "element": "hero-tree",
+   "firstRungItReads": 1,
+   "firstRungItCarriesAnOutline": 1,
+   "recommendedPath": "sprite"
+  }
+ ],
+ "takesNoAppearanceVerdict": true
+}

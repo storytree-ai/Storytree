@@ -1,0 +1,17 @@
+{
+  "probes": [
+    {
+      "n": 1,
+      "name": "an upscaled rung is REFUSED before any pixel is written",
+      "fired": true,
+      "detail": "exit 1; the guard named it: - land pieces are 3 px per ground unit, rung x2 needs 6"
+    },
+    {
+      "n": 2,
+      "name": "the cell-to-cell exclusion is load-bearing",
+      "fired": true,
+      "detail": "delivered outline 6765 px vs 8170 px once cell-to-cell joins are outlined too (+1405 px, 20.8%) \u2014 those extra pixels ARE the interior mesh seam the owner removed, which is what the exclusion keeps out"
+    }
+  ],
+  "rule": "a guard that cannot be made to fire is not a guard; both probes drive the REAL composer in this directory through its own hatches, never a copy"
+}
