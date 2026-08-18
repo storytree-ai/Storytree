@@ -86,7 +86,9 @@ factory, does not remove it.**
    **The API key is owner-provided; Claude never enters credentials.**
 4. **Scope and invariants that STAND.** Studio map plus Chapter 2's shared app-surface artifact;
    `packages/forest-world-r3f` remains untouched and Chapter 2 may not implement a parallel
-   website-local sprite renderer (ADR-0237). Stays **2.5D isometric** (ADR-0219 D4).
+   website-local sprite renderer (ADR-0237). Stays **2.5D isometric** (ADR-0219 D4 — **narrowed for
+   the land and its vegetation by [ADR-0380](0380-the-runtime-target-is-desktop-class-hardware-with-a-gpu-and.md)
+   D6, 2026-08-18; the sprite sheets and everything else this ADR decides are unaffected**).
    The **look verdict stays owner-attested** (ADR-0070 stage 2 / ADR-0159). The vector factory
    (ADR-0214/0217) remains available and is NOT deleted; it coexists behind the toggle.
 
@@ -98,7 +100,10 @@ factory, does not remove it.**
 
 Rejected: replacing or deleting the parametric factory; per-instance or runtime generative calls;
 auto-tracing raster into the scene-graph as geometry; an independent website sprite/render fork; any
-machine-signed look verdict; real 3D / R3F as the map renderer (ADR-0219 D4 stands).
+machine-signed look verdict; real 3D / R3F as the map renderer *(ADR-0219 D4 stood at decision time;
+[ADR-0380](0380-the-runtime-target-is-desktop-class-hardware-with-a-gpu-and.md) D6, 2026-08-18,
+narrows it for the land and its vegetation specifically — the sprite-sheet decision here is otherwise
+unaffected)*.
 
 ## Consequences
 
@@ -125,6 +130,10 @@ machine-signed look verdict; real 3D / R3F as the map renderer (ADR-0219 D4 stan
 
 ## References
 
+- [ADR-0380](0380-the-runtime-target-is-desktop-class-hardware-with-a-gpu-and.md) — narrows this ADR's
+  reliance on ADR-0219 D4: a live 3D renderer is now admitted for the land and its vegetation
+  specifically. The sprite-sheet render mode decided here — for the studio map generally, and for
+  everything on it other than the land/vegetation — is unaffected.
 - [ADR-0219](0219-generative-image-models-enter-the-art-pipeline-author-time-o.md) — **amends this
   ADR's parent**: takes its D3 parked raster-sprite fork (for the studio, prototype-scoped). Its D1
   (author-time only), D2 (hand-the-angle / never inline raw), and D4 (2.5D isometric) all STAND.
