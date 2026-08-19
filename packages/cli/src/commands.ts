@@ -98,9 +98,11 @@ import { branchNext, branchHelp } from "./branch.js";
 import {
   pruneWorktrees,
   worktreeDrainStatus,
+  worktreeIdleReport,
   worktreeHelp,
   DEFAULT_THRESHOLD_MS,
   type WorktreeIo,
+  type IdleSignalReading,
   type PruneOptions,
 } from "./worktree.js";
 import type { DrainLedgerIo } from "./worktree-drain.js";
@@ -1906,6 +1908,8 @@ export interface RunDeps {
      * drain-health series offline-testable without writing a real `.prune-history.jsonl`.
      */
     readonly drain?: DrainLedgerIo;
+    /** The per-signal idle reader (`worktree idle`) — keeps the clock breakdown offline-testable. */
+    readonly idle?: (dir: string) => IdleSignalReading;
     /**
      * The `storytree worktree create` seams (ADR-0200 D3) — injected IO (git/fs/pnpm), arc stamps,
      * and suffix draws keep the claim-gated ceremony offline-testable (no real worktree cut, no real
@@ -3107,14 +3111,15 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         },
       );
     }
-    if (sub !== "prune" && sub !== "drain") {
+    if (sub !== "prune" && sub !== "drain" && sub !== "idle") {
       return {
         ok: false,
-        body: `unknown worktree command "${sub}". try: storytree worktree create | storytree worktree prune | storytree worktree drain`,
+        body: `unknown worktree command "${sub}". try: storytree worktree create | storytree worktree prune | storytree worktree drain | storytree worktree idle`,
         next: [
           'storytree worktree create --node <story> --intent "<what>" --pg',
           "storytree worktree prune",
           "storytree worktree drain",
+          "storytree worktree idle",
           "storytree worktree --help",
         ],
       };
@@ -3144,7 +3149,14 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       ...(wtIoShared !== undefined ? { io: wtIoShared } : {}),
       ...(deps.worktree?.now !== undefined ? { now: deps.worktree.now } : {}),
       ...(deps.worktree?.drain !== undefined ? { drain: deps.worktree.drain } : {}),
+      ...(deps.worktree?.idle !== undefined ? { idle: deps.worktree.idle } : {}),
     };
+    if (sub === "idle") {
+      // worktree-reaper-eligibility-arc — the clock's own evidence. `drain` says the reaper is not
+      // draining; this says WHY each worktree is not ageing, and alarms when a bulk sweep is
+      // resetting the clock (the fault class that has now bitten twice).
+      return worktreeIdleReport({ thresholdMs }, wtDeps);
+    }
     if (sub === "drain") {
       // worktree-reaper-integrity-arc strand 3 — read-only drain observability. Reads the ledger the
       // executing runs append to and goes RED on a measured stall, so "reaped nothing every run for a

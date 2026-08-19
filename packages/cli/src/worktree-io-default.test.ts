@@ -374,3 +374,39 @@ test("resolveContext + gatherSnapshots over the REAL defaultWorktreeIo: register
     process.chdir(cwd);
   }
 });
+
+/**
+ * THE REAPER MUST NOT RESET THE CLOCK IT READS.
+ *
+ * A plain `git status` rewrites the index whenever the stat cache has drifted, and admin `index` is
+ * an idle signal — so the dirty probe could push a worktree's idle clock forward at the exact moment
+ * it was being judged. Measured consequences (worktree-reaper-eligibility-arc): a candidate deferred
+ * by `--cap` went back to `cooling` for a fresh 48 h without ever being removed, and both READ-ONLY
+ * surfaces — the default dry-run `prune`, and `drain`, which advertises itself as removing nothing
+ * and safe to run anywhere — reset the clock of the cohort they were reporting on.
+ *
+ * This needs real git: the write is git's own optional-lock behaviour, so a fake `runGit` can assert
+ * the flag is passed but can never demonstrate that it prevents the write. That is the same blind
+ * spot that hid the reflog defect for weeks, one layer along — the self-defeat property was unfenced.
+ */
+test("worktreeDirty over the REAL io leaves every idle signal unmoved — the probe cannot reset the clock it reads", () => {
+  const live = addWorktree("no-clock-reset");
+
+  // Drift the stat cache exactly as real use does: rewrite a tracked file with identical CONTENT, so
+  // the tree is genuinely clean while every tracked entry's stat data is new. This is the state in
+  // which a plain `git status` writes the index back.
+  const seed = path.join(live, "seed.txt");
+  const content = execFileSync("git", ["-C", live, "show", "HEAD:seed.txt"], { encoding: "utf8" });
+  writeFileSync(seed, content, "utf8");
+
+  const before = defaultWorktreeIo.statMtimeMs(live);
+  assert.ok(before > 0, "fixture precondition: the idle proxy can read this worktree");
+
+  assert.equal(worktreeDirty(defaultWorktreeIo, live), false, "same content re-written is still clean");
+
+  assert.equal(
+    defaultWorktreeIo.statMtimeMs(live),
+    before,
+    "the dirty probe must not advance the idle clock — drop `--no-optional-locks` and this fails",
+  );
+});
