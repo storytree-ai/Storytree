@@ -78,6 +78,28 @@ suggestion surface's route paths.
 > marked `accepted` without its content applied. The suggestion-CREATE route (`/api/suggestions`)
 > has no handler yet — the gate opening it first is this cap's point; the route lands with the UI caps.
 
+> **⚠ DISPOSITION: BUILT · UNREACHED · PARKED (ADR-0388, 2026-08-14). Do not read this capability as
+> live, and do not delete it.** ADR-0388 retires suggestions-as-proposals on the Review surface, so the
+> member/owner write split this capability enforces is **never exercised by any shipped surface**. The
+> editor that actually ships (`ReviewEditor.tsx`, ADR-0146) has **no role branch at all** — ADR-0146 D4
+> decided "everyone suggests", the surface offers only direct CriticMarkup editing plus Save/Cancel,
+> and there is no suggestion-create and no accept/reject control for the policy to gate. The one route
+> a member could in principle be refused at is reached by nothing in the running app.
+>
+> What that does and does not mean:
+>
+> - **The proof STANDS.** The signed REAL PASS @ `a62393c` (run `real-mr3kexsx`, 4/4) is a true verdict
+>   over `createMembersPolicy.gate`'s real behaviour, and the four `msp-*` assertions still run in
+>   `pnpm --filter studio test` on every gate. The wall is real; nothing reaches it.
+> - **The code STAYS.** ADR-0388 parks the machinery rather than deleting it, because the owner may
+>   pick the propose-accept cycle up much later and a revival should start from proven code.
+> - **The ADJACENT gating is NOT parked.** The same `gate` refuses a member's hard asset edit and 401s
+>   an identity-less caller, and those rules ARE live and load-bearing today. Only the
+>   suggestion-specific allowances (`msp-member-may-create-a-suggestion`,
+>   `msp-member-cannot-decide-a-suggestion`) are unreached — do not delete the module.
+> - **It is NOT a live claim.** `library-review`'s UAT legs no longer assert a member/owner suggestion
+>   split. Reviving it is a fresh decision amending ADR-0388, not a follow-on somebody owes.
+
 ## Guidance
 
 WHY THIS IS A CAPABILITY, NOT A CONTRACT: it is a cohesive evolution of ONE module's authorization rule
