@@ -151,8 +151,8 @@
   },
   "frameTiming": {
     "samples": 39,
-    "p50Ms": 16.3,
-    "meanMs": 16.52,
+    "p50Ms": 16.8,
+    "meanMs": 16.29,
     "interpretation": "RELATIVE ONLY. Software rasteriser, static scene — this is the headless compositor present cadence, not a GPU-bound frame cost. Do not quote it as a D2 verdict."
   }
 }

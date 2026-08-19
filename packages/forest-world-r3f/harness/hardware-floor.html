@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>ADR-0380 D2 — the hardware floor, on a scene that is being drawn</title>
+    <style>
+      body {
+        margin: 0;
+        background: #0b0e13;
+        color: #e6e9ef;
+        font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+        padding: 20px;
+      }
+      p {
+        max-width: 70ch;
+        color: #aab2c0;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>ADR-0380 D2 — the hardware floor</h1>
+    <p>
+      This page renders a vegetated land CONTINUOUSLY so that a frame time means something. It is
+      driven by <code>harness/hardware-floor.mjs</code>, which calls
+      <code>window.__stFloor(spec)</code> once per rung of the sweep. Opening it by hand shows only
+      the canvas; the numbers live in the driver's report.
+    </p>
+    <div id="root"></div>
+    <script type="module">
+      import { mountHardwareFloor } from './hardware-floor.ts';
+      mountHardwareFloor(document.getElementById('root'));
+    </script>
+  </body>
+</html>

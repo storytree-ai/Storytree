@@ -1,0 +1,133 @@
+{
+  "what": "ADR-0380 D2 — the hardware floor, measured on the floor machine with a scene being drawn",
+  "measuredOn": {
+    "renderer": "ANGLE (Qualcomm, Qualcomm(R) Adreno(TM) X1-85 GPU (0x36334330) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+    "webgl": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+    "note": "Launched HEADED. The same box headless rasterises through ANGLE-on-SwiftShader, which is why PR #1417 correctly declined to answer this question from a headless capture."
+  },
+  "controls": {
+    "blankPage": {
+      "p50": 16.69999999552965,
+      "p95": 18,
+      "hidden": false
+    },
+    "comparePageStatic": {
+      "p50": 16.700000002980232,
+      "p95": 17.80000000447035,
+      "hidden": false
+    },
+    "reading": "These two measure the quantity `HardwareHud` prints, on the real GPU. `compare.html` renders each panel once and then draws nothing, so if these agree the HUD number is the display refresh interval and contains no information about the scene."
+  },
+  "sweep": [
+    {
+      "plants": 0,
+      "width": 2880,
+      "height": 1920,
+      "frames": 120,
+      "batch": 30,
+      "renderer": "ANGLE (Qualcomm, Qualcomm(R) Adreno(TM) X1-85 GPU (0x36334330) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "software": false,
+      "rafP50": 16.600000001490116,
+      "rafP95": 18.100000001490116,
+      "rafWorst": 26.600000001490116,
+      "gpuMsPerFrame": 0.27666666681567825,
+      "triangles": 2,
+      "drawCalls": 1,
+      "hidden": false
+    },
+    {
+      "plants": 50,
+      "width": 2880,
+      "height": 1920,
+      "frames": 120,
+      "batch": 30,
+      "renderer": "ANGLE (Qualcomm, Qualcomm(R) Adreno(TM) X1-85 GPU (0x36334330) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "software": false,
+      "rafP50": 16.69999999552965,
+      "rafP95": 18.19999999552965,
+      "rafWorst": 19.399999998509884,
+      "gpuMsPerFrame": 0.10333333338300386,
+      "triangles": 9602,
+      "drawCalls": 51,
+      "hidden": false
+    },
+    {
+      "plants": 171,
+      "width": 2880,
+      "height": 1920,
+      "frames": 120,
+      "batch": 30,
+      "renderer": "ANGLE (Qualcomm, Qualcomm(R) Adreno(TM) X1-85 GPU (0x36334330) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "software": false,
+      "rafP50": 16.69999999552965,
+      "rafP95": 18.100000001490116,
+      "rafWorst": 18.899999998509884,
+      "gpuMsPerFrame": 0.40999999990065894,
+      "triangles": 32834,
+      "drawCalls": 172,
+      "hidden": false
+    },
+    {
+      "plants": 500,
+      "width": 2880,
+      "height": 1920,
+      "frames": 120,
+      "batch": 30,
+      "renderer": "ANGLE (Qualcomm, Qualcomm(R) Adreno(TM) X1-85 GPU (0x36334330) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "software": false,
+      "rafP50": 16.69999999552965,
+      "rafP95": 18.100000001490116,
+      "rafWorst": 33.600000001490116,
+      "gpuMsPerFrame": 1.1399999998509884,
+      "triangles": 96002,
+      "drawCalls": 501,
+      "hidden": false
+    },
+    {
+      "plants": 1500,
+      "width": 2880,
+      "height": 1920,
+      "frames": 120,
+      "batch": 30,
+      "renderer": "ANGLE (Qualcomm, Qualcomm(R) Adreno(TM) X1-85 GPU (0x36334330) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "software": false,
+      "rafP50": 16.5,
+      "rafP95": 24.200000002980232,
+      "rafWorst": 56.29999999701977,
+      "gpuMsPerFrame": 3.466666666666667,
+      "triangles": 288002,
+      "drawCalls": 1501,
+      "hidden": false
+    },
+    {
+      "plants": 4000,
+      "width": 2880,
+      "height": 1920,
+      "frames": 120,
+      "batch": 30,
+      "renderer": "ANGLE (Qualcomm, Qualcomm(R) Adreno(TM) X1-85 GPU (0x36334330) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "software": false,
+      "rafP50": 16.600000001490116,
+      "rafP95": 19.799999997019768,
+      "rafWorst": 37,
+      "gpuMsPerFrame": 8.790000000099342,
+      "triangles": 768002,
+      "drawCalls": 4001,
+      "hidden": false
+    }
+  ],
+  "verdict": {
+    "realCorpusIslandPlants": 171,
+    "gpuMsPerFrameAtIsland": 0.40999999990065894,
+    "headroomAtIslandVs60Hz": 40.73170732694227,
+    "plantsAtWhichOneFrameIsSpent": 7600,
+    "cadenceNoiseFloorMs": 18.100000001490116,
+    "cadenceIsUninformative": "Every rung`s rafP50 is the display interval, and the 0-plant rung`s rafP95 is HIGHER than the 171-plant rung`s. Read gpuMsPerFrame, not the cadence: the cadence can only ever show 60 Hz being MISSED, never how much room is left.",
+    "caveats": [
+      "MEASUREMENT FLOOR: the 0-plant rung costs about as much as the 50-plant rung, so readings below ~0.5 ms/frame are at this instrument`s noise floor and should not be compared with each other.",
+      "THIS IS THE NAIVE DRAW PATH — one draw call per plant, confirmed by the sweep`s own call counts. So the numbers are a FLOOR on achievable performance, not a ceiling: instancing the plants, which a real renderer would do, moves them a long way down.",
+      "THIS IS THE HARNESS LAND — procedural shrubs on a ground plane under the banded material. It is NOT the shipped island with its terracing, rim walls, coast, trails, nameplates or accretion reveal. It bounds the VEGETATION question ADR-0380 D2 was asked about; it does not certify a whole live map.",
+      "ACCESSIBILITY, which ADR-0380 names as the HARDEST part of D6, is untouched by this and by PR #1417. Nothing here is evidence that fence is affordable."
+    ]
+  }
+}

@@ -13,8 +13,13 @@ renderer that draws at the display's resolution instead of at a fixed authored p
 | | question | answered? |
 |---|---|---|
 | 1 | Does vegetation stop being twelve pixels? | **Qualified yes — see below.** The answer is not the one the increment expected. |
-| 2 | Does it clear the ADR-0380 D2 hardware floor? | **NO — and it cannot be answered from here.** Needs the owner, on the owner's GPU. |
+| 2 | Does it clear the ADR-0380 D2 hardware floor? | **YES, with ~41x headroom — measured on the Adreno X1-85 itself.** See section 2; this row was *"cannot be answered from here"* until the follow-up run below. |
 | 3 | Does the locked palette survive in a shader? | **YES, proved on delivered pixels.** 46,576 opaque px, 0 off-palette. |
+
+> **Section 2 was rewritten on 2026-08-19, after the rest of this document.** The original run
+> declined to answer question 2 and shipped a `HardwareHud` for the owner to answer it by opening
+> the page. Both halves of that turned out to be wrong in the same direction, and the correction is
+> section 2. What PR #1417 itself concluded is unchanged everywhere else in this file.
 
 ## 1 — Vegetation and the twelve pixels: the honest answer is about ZOOM, not about pixels
 
@@ -72,22 +77,103 @@ denominators (46% / 17.2% / 6.6% / 8.2% / 2.3%), every one true of what it measu
 transferable. This is a sixth surface — a procedural mesh under an orthographic camera on a
 transparent panel — and it is not comparable to any of them.
 
-## 2 — The hardware floor is NOT answered, and this is the honest limit of the whole run
+## 2 — The hardware floor IS cleared, and the two reasons it looked unanswerable were both wrong
 
 ADR-0380 D2 names the floor precisely: a Snapdragon X Elite X1E80100 with an **integrated Adreno
-X1-85**, no discrete GPU, no CUDA, at 2880×1920. **This run cannot measure that**, and it would have
-been easy to pretend otherwise.
+X1-85**, no discrete GPU, no CUDA, at 2880x1920. The first run declined to answer it, and was right
+to: headless Chromium here rasterises through **ANGLE-on-SwiftShader**, which is software, so its
+frame times are the compositor's present cadence and nothing more.
 
-Headless Chromium on this box rasterises WebGL through **ANGLE-on-SwiftShader** — measured every run,
-recorded in `capture-report.json` → `webgl.renderer`, never assumed. SwiftShader is a **software**
-rasteriser. It delivers the same PIXELS a GPU would, so questions 1 and 3 are sound; it says nothing
-whatever about frame cost on the Adreno. The frame timing in the report sits at a suspiciously flat
-~16.7 ms, which is the headless compositor's present cadence, not a GPU-bound cost — it is labelled
-`RELATIVE ONLY` in the report itself.
+Two things were then assumed rather than measured, and both are false.
 
-**Reporting a SwiftShader frame time as a D2 verdict would be exactly the class of error this arc has
-had to correct five times.** So it is not reported. Question 2 needs the owner to open the harness in
-a real browser on the real machine; that is staged below.
+### (a) The limit was HEADLESS, not the box — this machine IS the floor
+
+`chromium.launch({ headless: false })` on this same machine reports:
+
+```
+ANGLE (Qualcomm, Qualcomm(R) Adreno(TM) X1-85 GPU (0x36334330) Direct3D11 vs_5_0 ps_5_0, D3D11)
+```
+
+The installed Chrome reports the identical string. That is the D2 floor hardware itself, so the
+measurement never needed to wait for anyone to open a URL — it needed a browser with a window.
+`hardware-floor.mjs` asserts this rather than assuming it: a software renderer **REFUSES** the run
+instead of producing a number, which keeps PR #1417's refusal intact for any machine where it still
+applies.
+
+### (b) The shipped `HardwareHud` cannot answer D2 even on the real GPU
+
+This is the part worth carrying forward, because the remedy looked sound and was not.
+
+`compare.html` renders each panel **once** and blits it to a 2D canvas; after the settled signal
+nothing is drawn again. `HardwareHud` then samples ninety `requestAnimationFrame` deltas of an
+**idle page** — and an idle page presents at the display's refresh interval whatever is or is not on
+it. So the HUD reproduces the very artefact this document correctly refused to quote from the
+headless run, arrived at by a different road.
+
+Measured, not argued — the same probe the HUD runs, on the real GPU, on two pages:
+
+| control | p50 | p95 |
+|---|---:|---:|
+| a **blank page** | 16.70 ms | 18.0 ms |
+| **`compare.html`**, settled | 16.70 ms | 17.8 ms |
+
+They are the same number, and the page with 22 rendered panels is if anything *marginally faster*
+than the empty one. **The HUD's reading contains no scene.** An owner opening the page and seeing
+`Adreno X1-85` beside `p50 16.7 ms` would have read a display refresh rate as a hardware verdict —
+this arc's most-repeated error class, in a new costume.
+
+### What a scene that is actually being drawn costs
+
+`hardware-floor.html` draws a vegetated land continuously at D2's 2880x1920, using the same plant
+generator, the same banded material and the same signed 50-degree orthographic camera. Two numbers
+are reported because they fail in different ways: `rafP50/P95` is **vsync-capped**, so it can only
+ever show 60 Hz being *missed*, never headroom; `gpuMsPerFrame` times a batch of renders closed by
+`gl.finish()`, so it is uncapped and is the one that shows margin.
+
+| plants | GPU ms/frame | triangles | draw calls | rAF p95 |
+|---:|---:|---:|---:|---:|
+| 0 | 0.28 | 2 | 1 | 18.1 |
+| 50 | 0.10 | 9,602 | 51 | 18.2 |
+| **171** (the real-corpus island) | **0.41** | 32,834 | 172 | 18.1 |
+| 500 | 1.14 | 96,002 | 501 | 18.1 |
+| 1,500 | 3.47 | 288,002 | 1,501 | 24.2 |
+| 4,000 | 8.79 | 768,002 | 4,001 | 19.8 |
+
+**At the real island's 171 vegetation marks the land costs 0.41 ms of a 16.7 ms frame — about 41x
+headroom.** Extrapolating the heaviest rung linearly, a whole frame would be spent at roughly
+**7,600 plants**, some 44x the island's actual count.
+
+**Read the cadence column as noise, not as signal.** The **empty** scene and the **171-plant** scene
+have the *same* p95 (18.1), the 50-plant scene's is *higher* than both (18.2), and the blank-page
+control sits at 18.0 — so across the whole range where the answer actually matters, this column is
+measuring the display and not the land. The verdict in `hardware-floor-report.json` is therefore
+computed against those controls rather than against a chosen tolerance: an earlier draft scored the
+rungs against `16.7 x 1.35`, where 1.35 was a number picked because it made the answer come out.
+
+### Four things this does NOT say
+
+1. **It is the naive draw path** — one draw call per plant, confirmed by the sweep's own call
+   counts. The numbers are a **floor** on achievable performance, not a ceiling; instancing, which
+   any real renderer would do, moves them a long way down.
+2. **It is the harness land**, not the shipped island: procedural shrubs on a ground plane. No
+   terracing, rim walls, coast, trails, nameplates or accretion reveal. It bounds the **vegetation**
+   question D2 was asked about; it does not certify a whole live map.
+3. **Readings below ~0.5 ms/frame are at the instrument's noise floor** — the empty scene costs
+   about what the 50-plant scene does. Do not compare the small rungs against each other.
+4. **Accessibility — ADR-0380's own "hardest part of D6" — remains untouched**, by this run and by
+   PR #1417. Nothing here is evidence that fence is affordable.
+
+### Reproducing it
+
+```bash
+pnpm --filter @storytree/forest-world-r3f hardware-floor
+```
+
+Needs the dev server up (`pnpm --filter @storytree/forest-world-r3f dev`) and **must run headed** —
+it opens real browser windows, because that is the entire point. It refuses rather than reporting a
+number when the renderer is software, when the tab is hidden, when the blank-page control shows rAF
+being throttled (a backgrounded window ticks at ~1 Hz and reads as a plausible "this is slow"
+figure), or when any page logs an error.
 
 ## 3 — The locked palette survives in a shader, and it is proved on delivered pixels
 
@@ -211,3 +297,8 @@ sleep — the pattern the desktop E2E harness already established.
   is worth a look. All six are drawn because the panel tests the SHADER, not a vocabulary. The arc
   has already once over-counted a palette problem by scoring all six as if the app could draw them.
 - `capture-report.json` — the measured numbers, including the WebGL renderer string and per-panel counts.
+- `hardware-floor-report.json` — **question 2's answer** (section 2): the Adreno renderer string, the
+  two idle controls that show the `HardwareHud` reading carries no scene, the plant-count sweep, and
+  a verdict computed against those controls rather than against a chosen tolerance.
+- `hardware-floor-page.png` — the continuously-drawn land the sweep timed. It is a benchmark surface,
+  **not an art panel**: nothing about how it looks is a finding, and it is not the shipped island.
