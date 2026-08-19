@@ -37,7 +37,7 @@ A four-lane investigation on 2026-08-19 cleared our guardrails on their own evid
 ## Consequences
 
 - The factory can parallelise through fresh sessions again, and follow-ups have a working dispatch route rather than only a parked home.
-- **The restoration currently rests on a hand drain.** The population was back to 24 within the same session. Until `session-cutting-outage-arc-inc-03` lands, a refilled pool returns the reuse path and with it the outage. This is the named residual risk of accepting D1 now.
+- **The restoration rested on a hand drain, and that gap closed the same day.** The population was back to 24 within the session that drained it, which would have returned the reuse path and with it the outage. ADR-0387 (accepted 2026-08-19, `worktree-reaper-eligibility-arc`) removes that risk at the source: the reaper's idle clock now reads only the git admin dir, so an external sweep can no longer reset it, and `worktreeDirty` passes `--no-optional-locks` so the reaper's own probe cannot rewrite the index of the worktree it is judging. Merged, clean worktrees should now age out unaided. The residual risk is narrower: the 17 worktrees outside `.claude/worktrees/` that the reaper never looks at (`worktree-reaper-eligibility-arc-inc-02`).
 - The junction cycle remains a latent hazard until `-inc-02`: whenever that clean does run, it cannot terminate. Measured 58 s with the single edge removed versus non-terminating with it.
 - Standing guidance (`CLAUDE.md`, the `session-orchestrator` artifact and its projections, agent memory) still describes the outage as live until `-inc-04`, and the mechanical check is actively misleading until `-inc-05`.
 - Cost accepted knowingly: six days were spent on a misattribution because the control varied only the repo, and because a census instrument keyed on a `worktree=true` flag that a successful 2026-08-15 start never emitted — so "zero since 08-13" could not distinguish a dead capability from an unstamped one. Both lessons are carried by `-inc-05`.
@@ -45,7 +45,8 @@ A four-lane investigation on 2026-08-19 cleared our guardrails on their own evid
 
 ## References
 
-- `session-cutting-outage-arc` — increments `-inc-02` (remove the cycle), `-inc-03` (self-limiting population), `-inc-04` (standing guidance), `-inc-05` (the mechanical check).
+- `session-cutting-outage-arc` — increments `-inc-02` (remove the cycle), `-inc-04` (standing guidance), `-inc-05` (the mechanical check). `-inc-03` (self-limiting population) was parked and closed the same hour as ALREADY DELIVERED by ADR-0387; its live continuation is `worktree-reaper-eligibility-arc-inc-02`.
+- ADR-0387 (the worktree idle clock reads only the git admin dir) — lands the population half of this ADR's residual risk, decided independently the same day.
 - `scripts/check-worktree-session-creation.mjs` — the mechanical check whose tell this ADR retires.
 - `packages/proof-protocol/package.json`, `packages/proof-protocol/src/parity.test.ts` — the dev-dependency back-edge that closes the cycle.
 - anthropics/claude-code#86574 — the upstream issue; re-scope to the awaited-unbounded-clean residue in D4.
