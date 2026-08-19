@@ -5552,8 +5552,17 @@ export function UatTestCriteriaSection({
             // leg an admin may still sign — there the icon IS the "I saw it work" button. The text
             // labels are gone, so the title + aria-label carry witness + state (+ the click hint).
             const witnessNoun = t.witness === 'machine' ? 'machine' : 'human';
+            // ADR-0357 D3: a human leg's tooltip carries its OWN authored basis (the story's
+            // `(witness-basis: …)` tag). The owner decides what to attest HERE, at the glyph — not
+            // in story.md — so "why does this need me?" has to be answerable at the hover; before
+            // this, every human leg produced the identical generic string, telling the owner THAT
+            // they were needed and never WHY. It rides every human state, not just the signable
+            // one: the basis is why the leg is human at all, which stays true once it is proven.
+            // A machine leg justifies nothing (ADR-0357 D2) and appends nothing.
+            const basis = t.witness === 'human' ? (t.witnessBasis ?? '') : '';
+            const basisLine = basis.length > 0 ? `\n\nWhy this needs a person: ${basis}` : '';
             const witnessTitle =
-              proven === 'pass'
+              (proven === 'pass'
                 ? `${witnessNoun}-witnessed · PROVEN — a signed verdict (greens the story crown once every test passes, ADR-0082)`
                 : proven === 'fail'
                   ? `${witnessNoun}-witnessed · a signed FAIL verdict for this test`
@@ -5561,12 +5570,16 @@ export function UatTestCriteriaSection({
                     ? 'human-witnessed · not yet proven — click to sign "I saw it work" (a REAL gate verdict, ADR-0082)'
                     : t.witness === 'machine'
                       ? 'machine-witnessed · not yet proven — the gate/adopt signs a machine leg, not a click'
-                      : 'human-witnessed · not yet proven';
-            const witnessAria = proven
-              ? `${t.title}: ${witnessNoun}-witnessed, ${proven === 'pass' ? 'proven' : 'failed'}`
-              : canSign
-                ? `${t.title}: human-witnessed, not yet proven — click to sign "I saw it work"`
-                : `${t.title}: ${witnessNoun}-witnessed, not yet proven`;
+                      : 'human-witnessed · not yet proven') + basisLine;
+            // The basis rides the aria-label too: a screen-reader user meets the leg at this same
+            // control and has no other route to the story's prose.
+            const witnessAria =
+              (proven
+                ? `${t.title}: ${witnessNoun}-witnessed, ${proven === 'pass' ? 'proven' : 'failed'}`
+                : canSign
+                  ? `${t.title}: human-witnessed, not yet proven — click to sign "I saw it work"`
+                  : `${t.title}: ${witnessNoun}-witnessed, not yet proven`) +
+              (basis.length > 0 ? `. Why this needs a person: ${basis}` : '');
 
             // ADR-0209 D7: story-owned one-liner is display-canonical; optional Library detail
             // pointer opens via assetHref — never dumps procedure prose into the cell, and never

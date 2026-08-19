@@ -285,3 +285,71 @@ describe('UatTestCriteriaSection — ADR-0209 D7 one-liner + Library detail open
     ).toBe(false);
   });
 });
+
+// ADR-0357 D3 — the owner decides what to attest at the glyph, not in story.md, so the leg's own
+// authored basis has to be readable HERE. Before this, every human leg produced the identical
+// generic string: it told the owner THAT they were needed and never WHY.
+describe('UatTestCriteriaSection — the human leg states WHY it needs a person (ADR-0357 D3)', () => {
+  const BASIS =
+    'dialog.showOpenDialog is an Electron main-process modal and Playwright drives the renderer; ' +
+    'retired when the spine owns OS-level automation.';
+
+  it('carries the leg\u2019s own basis on the hover title, not the generic human string', async () => {
+    apiMock.attestations.mockResolvedValue(
+      payload([{ id: 'agent#uat-1', title: 'native picker', witness: 'human', witnessBasis: BASIS }]),
+    );
+    render(<UatTestCriteriaSection storyId="agent" onCrownRefresh={() => {}} />);
+    await flush();
+
+    const btn = screen.getByRole('button', { name: /native picker/i });
+    expect(btn.getAttribute('title')).toContain(BASIS);
+    expect(btn.getAttribute('aria-label')).toContain(BASIS);
+  });
+
+  it('distinguishes two human legs from each other — the defect was one identical string', async () => {
+    apiMock.attestations.mockResolvedValue(
+      payload([
+        { id: 'agent#uat-1', title: 'leg one', witness: 'human', witnessBasis: 'first basis.' },
+        { id: 'agent#uat-2', title: 'leg two', witness: 'human', witnessBasis: 'second basis.' },
+      ]),
+    );
+    render(<UatTestCriteriaSection storyId="agent" onCrownRefresh={() => {}} />);
+    await flush();
+
+    const one = screen.getByRole('button', { name: /leg one/i }).getAttribute('title');
+    const two = screen.getByRole('button', { name: /leg two/i }).getAttribute('title');
+    expect(one).toContain('first basis.');
+    expect(two).toContain('second basis.');
+    expect(one).not.toEqual(two);
+  });
+
+  it('keeps the basis once the leg is PROVEN — it is why the leg is human at all', async () => {
+    apiMock.attestations.mockResolvedValue(
+      payload([
+        { id: 'agent#uat-1', title: 'proven leg', witness: 'human', witnessBasis: BASIS, proven: 'pass' },
+      ]),
+    );
+    render(<UatTestCriteriaSection storyId="agent" onCrownRefresh={() => {}} />);
+    await flush();
+
+    expect(screen.getByRole('button', { name: /proven leg/i }).getAttribute('title')).toContain(BASIS);
+  });
+
+  it('adds nothing to a machine leg, and falls back cleanly on a human leg with no basis yet', async () => {
+    apiMock.attestations.mockResolvedValue(
+      payload([
+        { id: 'agent#uat-1', title: 'machine leg', witness: 'machine' },
+        { id: 'agent#uat-2', title: 'bare human leg', witness: 'human' },
+      ]),
+    );
+    render(<UatTestCriteriaSection storyId="agent" onCrownRefresh={() => {}} />);
+    await flush();
+
+    expect(screen.getByRole('button', { name: /machine leg/i }).getAttribute('title')).not.toContain(
+      'Why this needs a person',
+    );
+    expect(screen.getByRole('button', { name: /bare human leg/i }).getAttribute('title')).not.toContain(
+      'Why this needs a person',
+    );
+  });
+});

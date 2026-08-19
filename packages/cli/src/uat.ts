@@ -328,6 +328,17 @@ function uatCensus(deps: UatDeps): Envelope {
       ...(census.wouldBe > 0
         ? [`  ${census.wouldBe} of these are declared under a (would-be) heading — exclude them knowingly.`, ""]
         : []),
+      // ADR-0357 D4 binds EVERY human leg, and its reason is auditability: an unjustified leg is
+      // indistinguishable from a bug at the hover. Naming the offenders is the whole point — a bare
+      // count would report the gap in the same shape as the undercount this verb exists to prevent.
+      ...(census.humanWithoutBasis.length > 0
+        ? [
+            `  ⚠ ${census.humanWithoutBasis.length} human leg(s) state NO basis (ADR-0357 D4 gap) —`,
+            "    hovering an unjustified leg is indistinguishable from a bug:",
+            ...census.humanWithoutBasis.map((row) => `      ${row.sourcePath}  ${row.criterionId}`),
+            "",
+          ]
+        : ["  Every human leg states its ADR-0357 D2 basis.", ""]),
       "Counted through parseUatTestCriteria — the same reader the gate, the tree, the build and the",
       "studio use. The witness tag has TWO written forms (standalone, and fused with a detail",
       "pointer), so a grep for either literal silently undercounts while looking complete: that is",

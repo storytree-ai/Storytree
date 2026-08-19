@@ -738,6 +738,17 @@ export interface UatTestCriterionRow {
   title: string;
   /** The RESOLVED binary witness (ADR-0106) — `either` is resolved server-side and never reaches here. */
   witness: 'human' | 'machine';
+  /**
+   * The leg's own authored justification for needing a person (ADR-0357 D2), from its
+   * `(witness-basis: …)` tag — why no harness the proof spine owns reaches it, and what would
+   * retire the exception.
+   *
+   * This is what makes ADR-0357 D3 true: the owner decides what to attest at the witness glyph, not
+   * in `story.md`, so a basis that reaches only the story file has not been stated where it counts.
+   * The tooltip renders it in place of the generic human string. Absent on a `machine` leg (nothing
+   * to justify) and on a human leg not yet carrying one (the D4 gap `uat census` names).
+   */
+  witnessBasis?: string;
   human?: AttestationMark;
   machine?: AttestationMark;
   /**
