@@ -22,8 +22,12 @@ depends_on: [dev-server-persistence-backbone, read-corpus]
 > DELETED.** The whole W3C text-quote / select-to-highlight annotation approach this capability describes
 > (`annotate.ts`, the `useAnnotations.tsx` popover, `CommentPanel.tsx`, the `<mark>.st-hl` highlights,
 > the `kind:'text'` comment anchor) has been REMOVED in a clean swap — the `library-review` cap
-> `remove-text-selection-anchoring` (LANDED). Commenting now rides a **block-position** anchor rendered
-> in the document flow, authored through the split-pane markdown editor (`ReviewEditor.tsx`, ADR-0146).
+> `remove-text-selection-anchoring` (LANDED). Commenting now rides CriticMarkup comment markup
+> (`{>>…<<}`) at a point in the document's own markdown, authored through the split-pane markdown
+> editor (`ReviewEditor.tsx`, ADR-0146). **Corrected 2026-08-14 (ADR-0139, via ADR-0388):** this
+> capability's replacement, `block-position-comment-anchor`, IS real and proven at the STORE layer, but
+> that is not what the shipped editor renders — the shipped comment is markup in the source, not a
+> stored block-anchor record (ADR-0388).
 > **The 11 contracts below and the integration test describe DELETED code** (`annotate.ts:*`,
 > `useAnnotations.tsx:*`) and their `file:line` refs no longer resolve — they are retained here as
 > superseded HISTORY, not a live worklist. A full retirement of these dead contract bodies is a

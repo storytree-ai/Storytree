@@ -2,7 +2,7 @@
 id: "library-review"
 tier: story
 title: "Review mode — a word-processor collaboration layer for library documents"
-outcome: "A member opens a library open-question in Review mode, drops an inline comment at a block position, and proposes a collapsed suggestion the owner accepts — comments and suggestions placed in the document flow (never a side panel), and the old text-selection anchoring is gone."
+outcome: "A member opens a library open-question in Review mode and annotates it directly in the document's own markdown — inline comments and tracked changes as CriticMarkup, rendered in the document flow beside the prose (never a side panel) — and the old text-selection anchoring is gone."
 status: proposed
 proof_mode: UAT
 # ADR-0348 D1 (2026-08-12): every surviving story-UAT leg is `witness: machine`, model-driven. This
@@ -44,14 +44,32 @@ artifact_edges: [library, studio]
 # pane, and comments + tracked changes as CriticMarkup inserted by a toolbar — reusing the caps-6–8 DATA
 # proofs (block model, suggestion store + routes, accept-apply splice) while superseding their standalone
 # UI components.
-decisions: [140, 146]
+# ADR-0388 (amends 0140 + 0146, 2026-08-14, owner-directed) RETIRES suggestions-as-proposals on this
+# surface: ADR-0146 did not only refine ADR-0140, it NARROWED it, and that is now recorded. The
+# suggestion record, the accept/reject cycle, the proposed-result-by-default + no-strikethrough
+# rendering and the member/owner split across them are retired here — NOT deferred. The built
+# machinery is KEPT and marked PARKED (accept-reject-suggestion-api, member-suggest-write-policy).
+# Leg 8's live-refresh claim is NOT covered by 0388 and its red still stands.
+decisions: [140, 146, 388]
 ---
 
 # Review mode — a word-processor collaboration layer for library documents
 
-**Outcome —** A member opens a library open-question in Review mode, drops an inline comment at a
-block position, and proposes a collapsed suggestion the owner accepts — comments and suggestions
-placed in the document flow (never a side panel), and the old text-selection anchoring is gone.
+**Outcome —** A member opens a library open-question in Review mode and annotates it directly in the
+document's own markdown — inline comments and tracked changes as CriticMarkup, rendered in the
+document flow beside the prose (never a side panel) — and the old text-selection anchoring is gone.
+
+> **The promise was NARROWED on 2026-08-14 — read this before the model section below.** The outcome
+> sentence above used to end *"…and proposes a collapsed suggestion the owner accepts"*.
+> **[ADR-0388](../../docs/decisions/0388-suggestions-as-proposals-is-retired-on-the-review-surface-di.md)
+> retires suggestions-as-proposals on this surface** (owner-directed; it amends ADR-0140 and ADR-0146).
+> Direct CriticMarkup editing IS the answer, and it has been fine in use. So this story no longer
+> claims a propose→accept cycle: there is no suggestion record, no accept/reject control, and no
+> collapsed "show change" view in the shipped editor, and the tracked-change preview DOES strike the
+> original through — the opposite of ADR-0140's explicit "no strikethrough". The backend machinery
+> that would have served the retired cycle is **kept, not deleted** (the owner may return to it much
+> later) and is marked PARKED on its own capability specs. The clauses of ADR-0140's model that this
+> retired are called out inline below.
 
 This is a responsive, word-processor-feel collaboration layer for library documents — especially
 **open questions**, the unresolved decisions a team argues out before they become ADRs. It replaced
@@ -64,14 +82,21 @@ are the model ADR-0140 fixed; ADR-0146 settled how you author them:
 
 - **A Review toggle (View ↔ Review)** — a mode switch, like a word processor's. View is the read
   posture; Review turns on commenting and suggesting.
-- **Inline comments at a BLOCK POSITION, rendered IN the document flow** (above a block, like a
-  code-review thread) — NOT in a side panel. A comment is anchored only to a block position (WHICH
-  block), never to a selected text span; the consuming AI infers what a comment refers to from
-  position + surrounding text.
-- **Suggestions, not direct overwrites** — editing prose in Review mode produces a PROPOSED edit (a
-  suggestion) the owner/admin accepts or rejects. A suggested deletion/replacement renders the
-  PROPOSED RESULT by default, with the original collapsed behind a "show change" expand toggle — NO
-  strikethrough.
+- **Inline comments rendered IN the document flow** — NOT in a side panel, and never anchored to a
+  selected text span; the consuming AI infers what a comment refers to from position + surrounding
+  text. ADR-0140's model was a comment anchored to a BLOCK POSITION (which block) and stored as a
+  comment record — that STORED model is real and proven (`block-position-comment-anchor`), but the
+  shipped editor does not use it: a comment is a `{>>…<<}` CriticMarkup span at a point in the
+  document's own markdown source. The "in the flow, never a side panel, never a text selection" half
+  holds either way; the block-anchor half describes the store, not the surface.
+- **Tracked changes in the document's own markdown** (ADR-0388, narrowing ADR-0140) — editing prose in
+  Edit mode produces a **CriticMarkup tracked change** (`{++ins++}` / `{--del--}` / `{~~old~>new~~}`)
+  inserted by the toolbar into the markdown source, which the live preview renders as a tracked change
+  beside the prose. It is NOT a separate suggestion record, and there is no accept/reject cycle:
+  ADR-0140's *"a PROPOSED edit the owner/admin accepts or rejects, rendering the PROPOSED RESULT by
+  default with the original collapsed behind a 'show change' toggle — NO strikethrough"* is **retired
+  on this surface.** The shipped preview shows both halves at once and strikes the original through
+  (`.cm-del { text-decoration: line-through }`).
 
 ## The model (from ADR-0140)
 
@@ -79,16 +104,24 @@ are the model ADR-0140 fixed; ADR-0146 settled how you author them:
   accept/reject and may hard-edit. Members cannot hard-edit; their suggestions are additive proposals.
   Resolution rides `studio-members`' existing `resolveAccess` (`admin ⊇ member`), the same compute
   `guestPolicy` already calls — this story does NOT add a role.
+  **Narrowed by ADR-0388:** the shipped editor has **no role branch** (ADR-0146 D4 — "everyone
+  suggests", no accept/reject in the surface), so the member/owner split above is enforced at the HTTP
+  layer by `guestPolicy` and is not exercised by any shipped Review surface. The wall is real and
+  proven; nothing reaches it.
 - **Block-position anchor replaces the text-quote anchor.** A comment's anchor records WHICH block
   (a stable block index / id within the rendered topic), not a `quote`/`prefix`/`suffix` span. The
   W3C text-quote machinery (`annotate.ts` re-find, the `<mark>` highlights, the select-to-highlight
   popover) is REMOVED, not kept alongside — a clean swap (ADR-0140; the owner wants the dead code
   gone, the removal is its own capability `remove-text-selection-anchoring`).
-- **Suggestions are a separate record from comments.** A suggestion is a proposed edit with a status
-  (`open` / `accepted` / `rejected`), authored by a member, resolved by an owner/admin. It carries
-  the proposed replacement and enough of the original to render the collapsed "show change" view.
-  Accepting applies the edit (through the existing admin asset-write path); rejecting closes it; both
-  are owner/admin-only state transitions.
+- ~~**Suggestions are a separate record from comments.**~~ **RETIRED on this surface by ADR-0388.**
+  ADR-0140 modelled a suggestion as a proposed edit with a status (`open` / `accepted` / `rejected`),
+  authored by a member and resolved by an owner/admin, carrying the proposed replacement and enough of
+  the original to render the collapsed "show change" view — accepting applying the edit through the
+  admin asset-write path, rejecting closing it. **None of that cycle is reachable through the shipped
+  editor**, and the owner has narrowed the promise rather than leaving it unbuilt. The record, store
+  and routes that implement it are BUILT and PARKED (see `suggestion-edit-store`,
+  `accept-reject-suggestion-api`, `member-suggest-write-policy`); the model is kept here as ADR-0140's
+  text so a later revival has it, not as a claim about what ships.
 - **No real-time, but live refresh.** A single trusted dev works async — there is no collaborative
   cursor / OT / CRDT. But content, comments, and suggestions REFRESH live (reuse the existing 30 s
   visibility-gated poll, `apps/studio/src/lib/presence.ts`, or the chat SSE pattern) so a posted
@@ -179,11 +212,22 @@ old green onto a new claim — which is why the five revisions below were recomp
 The note under the ADR-0294 disposition table deferring this re-adjudication to chip `task_47c74cb0`
 is **discharged here**, by the increment ADR-0348 created for it.
 
-### ⚠ WHAT THE FIRST DRIVE FOUND — this story's journey does NOT run end to end (2026-08-12)
+### ⚠ WHAT THE FIRST DRIVE FOUND — the measurement that forced the narrowing (2026-08-12)
 
-**The flip is what made this visible, and the reds below are TRUE. Do not "fix" them by re-authoring
-the criteria to match what shipped** — that is precisely the move ADR-0294 exists to prevent, and the
-criteria are the older, owner-approved claim.
+**The flip is what made this visible, and the reds below were TRUE as measured.** This section is
+kept as the EVIDENCE; it is no longer the disposition.
+
+> **DISPOSITIONED 2026-08-14 by ADR-0388 — read this before acting on anything below.** When this was
+> written, re-authoring the criteria to match what shipped was the forbidden move: ADR-0294 exists to
+> prevent exactly that, and the criteria were the older owner-approved claim, so the reds were left
+> RED and the fork was raised as an open question. **The owner has now answered that fork** — the
+> promise is NARROWED, not unbuilt. Suggestions-as-proposals is retired on this surface; direct
+> CriticMarkup editing IS the answer and has been fine in use. So legs 2, 4 and 7 and the outcome
+> sentence WERE re-authored, on 2026-08-14, under an owner-directed decision — which is the one thing
+> that makes it not the ADR-0294 violation this paragraph warned against. **Do not re-derive this and
+> do not revert the legs toward the propose-accept claim.** If the propose-accept cycle is ever
+> revived, that is a fresh decision amending ADR-0388, and the machinery is still there to build on.
+> Leg 8 (live refresh) was NOT in that narrowing and its red below still stands.
 
 Driving the five legs for real against the running studio (live Cloud SQL, real Chromium under
 Playwright, and for leg 4 a real member identity resolved `role=member` against the live
@@ -222,9 +266,11 @@ So the collaboration layer this story exists to build **has no live surface.** L
   still did not render after a full manual reload.** The poll (`api.getReviewFeed` + `setInterval` on
   `PRESENCE_POLL_MS`) exists only inside the unmounted components.
 
-**The consequence, stated plainly: this story's OUTCOME sentence is not achievable in the shipped
-app.** "A member … drops an inline comment at a block position, and proposes a collapsed suggestion
-the owner accepts" cannot be walked — no part of it round-trips through the store. The backend is real
+**The consequence, stated plainly: this story's OUTCOME sentence AS IT THEN STOOD was not achievable
+in the shipped app.** That sentence — *"A member … drops an inline comment at a block position, and
+proposes a collapsed suggestion the owner accepts"* — could not be walked; no part of it round-tripped
+through the store. (ADR-0388 has since replaced it; the sentence is quoted here as the claim this
+drive falsified.) The backend is real
 and proven at the DATA layer: `block-position-comment-anchor`, `suggestion-edit-store`,
 `accept-reject-suggestion-api`, `member-suggest-write-policy` and `review-refresh-feed` each hold a
 genuine signed `--real` verdict, recorded in `## Proof` below. **Nine capabilities signed green at the
@@ -232,12 +278,15 @@ capability rung while the story-rung journey did not exist end to end, and no ga
 That is exactly what ADR-0294 says story UAT is FOR: *a flower on the map means a journey ran end to
 end — a claim no grass blade makes.*
 
-**This is a measurement, not a re-decision.** Open modeling call 4 below already knew the caps-7/8
-components were superseded — but it treated that as dead CODE to retire, and never noticed it had also
-made three acceptance CLAIMS unreachable. Nothing here settles whether the remedy is to wire the
-suggestion flow into `ReviewEditor` (which its own follow-on note implies was always the intent) or to
-re-adjudicate what ADR-0146 meant to promise. That fork is owner/story-author work and is raised as an
-open question against `uat-journey-surgery-arc` rather than answered here.
+**This was a measurement, not a re-decision — and the re-decision has since been made.** Open modeling
+call 4 below already knew the caps-7/8 components were superseded, but it treated that as dead CODE to
+retire and never noticed it had also made three acceptance CLAIMS unreachable. The fork it raised —
+wire the suggestion flow into `ReviewEditor`, or re-adjudicate what ADR-0146 meant to promise — went
+to the owner as an open question against `uat-journey-surgery-arc`. **The owner answered it on
+2026-08-14: re-adjudicate. ADR-0388 records the answer** — the promise is narrowed, the propose-accept
+cycle is retired on this surface rather than owed, and the built machinery is parked rather than
+deleted so a later revival starts from working code. Legs 2, 4 and 7 above now claim what the surface
+does. What is NOT settled by that answer: leg 8's live-refresh red, which ADR-0388 does not touch.
 
 ### ADR-0294 disposition of the nine original criteria
 
@@ -276,16 +325,27 @@ artifacts are retired in the store (ADR-0307 D5 — the tier is live-canonical, 
 1. **Open an open-question in Review.** _(witness: machine)(detail: library-review#uat-1)_ _(proof-gate: library-review#gate-1)_ Open a library open-question in the studio _(criterion-id: uatc_50675817f38dafb3d307de22)_ _(revision-id: uatr1:387958f502e9fa79)_ _(previous-revision-id: uatr1:c45ed3b712f91d3a)_
    and flip the View → Review toggle. **Success —** the surface enters Review mode; the commenting +
    suggesting affordances appear, View was read-only.
-2. **Comment at a block position.** _(witness: machine)(detail: library-review#uat-2)_ _(proof-gate: library-review#gate-2)_ In Review mode, drop an inline comment above a _(criterion-id: uatc_76b48b635e2a58dabf134d05)_ _(revision-id: uatr1:7ec7f2f018bcb2d8)_ _(previous-revision-id: uatr1:f162af5d3872ecda)_
-   specific block (not a side panel; not a text selection). **Success —** the comment thread renders
-   IN the document flow above that block, like a code-review thread.
-4. **Propose a suggestion.** _(witness: machine)(detail: library-review#uat-4)_ _(proof-gate: library-review#gate-3)_ As a member, edit a block's prose in Review mode and _(criterion-id: uatc_579e8c23c11391ebd2396159)_ _(revision-id: uatr1:e61dda1e2684f208)_ _(previous-revision-id: uatr1:4cabbf0e6953dd9f)_
-   submit it as a suggestion. **Success —** a suggestion record is created `open` (a proposal, not a
-   direct overwrite); the surface shows the PROPOSED RESULT by default with the original collapsed
-   behind a "show change" toggle — no strikethrough.
-7. **The owner accepts.** _(witness: machine)(detail: library-review#uat-7)_ _(proof-gate: library-review#gate-4)_ As the owner/admin, click Accept. **Success —** _(criterion-id: uatc_2c1854c481f8d507d1b88ebd)_ _(revision-id: uatr1:6a5213adb2e9f346)_ _(previous-revision-id: uatr1:aee83238ae66332a)_
-   the suggestion flips `open → accepted`, the edit is applied to the document through the admin
-   asset-write path, and re-deciding the now-closed suggestion is refused.
+2. **Comment in the document flow.** _(witness: machine)(detail: library-review#uat-2)_ _(proof-gate: library-review#gate-2)_ In Edit mode, place the cursor at a point in the _(criterion-id: uatc_76b48b635e2a58dabf134d05)_ _(revision-id: uatr1:aba39113d01c03e6)_ _(previous-revision-id: uatr1:7ec7f2f018bcb2d8)_
+   markdown source pane and press the toolbar's **Comment** button (not a side panel; not a text
+   selection). **Success —** a `{>>…<<}` CriticMarkup span is inserted at the cursor in the source
+   pane, and the live preview renders it as an inline comment bubble at that point in the document
+   flow. **Narrowed by ADR-0388:** the comment is markup in the document's own markdown, NOT a stored
+   comment record — it carries no author, no timestamp, no reply and no thread container.
+4. **Track a change in the prose.** _(witness: machine)(detail: library-review#uat-4)_ _(proof-gate: library-review#gate-3)_ In Edit mode, select a span of prose and press the _(criterion-id: uatc_579e8c23c11391ebd2396159)_ _(revision-id: uatr1:538d7dc6bf88ff33)_ _(previous-revision-id: uatr1:e61dda1e2684f208)_
+   toolbar's **Substitute** (or **Insert** / **Delete**). **Success —** the source gains the matching
+   CriticMarkup (`{~~old~>new~~}` / `{++…++}` / `{--…--}`) and the live preview renders it as a
+   tracked change beside the surrounding prose. **Narrowed by ADR-0388:** this is a tracked change in
+   the document source, NOT an `open` suggestion record — the preview shows both halves at once and
+   strikes the original through, so there is no proposed-result-by-default rendering and no collapsed
+   "show change" toggle.
+7. **The annotated edit is never silently lost.** _(witness: machine)(detail: library-review#uat-7)_ _(proof-gate: library-review#gate-4)_ Press **Save**. **Success —** the surface _(criterion-id: uatc_2c1854c481f8d507d1b88ebd)_ _(revision-id: uatr1:c67c48fe76f7d5f3)_ _(previous-revision-id: uatr1:6a5213adb2e9f346)_
+   states plainly what it did with the annotated body and the edits stay in the pane: on the
+   structured artifact this journey opened (an open-question — its `fields` are authoritative and its
+   body a derived render) Save is deliberately LOCAL and SAYS so, rather than making a lossy
+   body-over-fields write; a refused write reports that the admin write is required and keeps the
+   edits. **Narrowed by ADR-0388:** there is no Accept control and no `open → accepted` transition —
+   the propose-accept cycle is retired on this surface, and per-change accept/reject persistence is
+   explicitly not wired.
 8. **Live refresh, no reload.** _(witness: machine)(detail: library-review#uat-8)_ _(proof-gate: library-review#gate-5)_ With the open-question open, a second comment / _(criterion-id: uatc_ee3daee25bc4403dc413100a)_ _(revision-id: uatr1:03e7a20acab3e7bb)_ _(previous-revision-id: uatr1:bdfcd2940eee27cc)_
    suggestion is posted (another session / a scripted POST). **Success —** it appears on the Review
    surface within the poll window WITHOUT a manual reload (the 30 s visibility-gated refresh feed).
@@ -358,17 +418,18 @@ deliberate re-drive, not a silent carry-forward of a green nobody re-earned.
    Witnesses that a model brought the studio up, opened a real library open-question and flipped
    View → Review against the running surface, observing that the commenting + suggesting affordances
    appeared and that View was read-only.
-2. **UAT leg 2 — "Comment at a block position" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts library-review uatc_76b48b635e2a58dabf134d05`.
-   Witnesses that a model dropped an inline comment above a specific block in Review mode and observed
-   the thread render IN the document flow — not in a side panel, not anchored to a text selection.
-3. **UAT leg 4 — "Propose a suggestion" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts library-review uatc_579e8c23c11391ebd2396159`.
-   Witnesses that a model, acting as a member, edited a block's prose and submitted it as a
-   suggestion, observing an `open` proposal (not a direct overwrite) rendered as the PROPOSED RESULT
-   with the original collapsed behind "show change".
-4. **UAT leg 7 — "The owner accepts" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts library-review uatc_2c1854c481f8d507d1b88ebd`.
-   Witnesses that a model, acting as owner/admin, accepted the suggestion and observed the
-   `open → accepted` flip, the edit applied through the admin asset-write path, and re-deciding the
-   now-closed suggestion refused.
+2. **UAT leg 2 — "Comment in the document flow" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts library-review uatc_76b48b635e2a58dabf134d05`.
+   Witnesses that a model inserted a `{>>…<<}` CriticMarkup comment from the Edit-mode toolbar and
+   observed it render as an inline bubble at that point in the preview's document flow — not in a side
+   panel, not anchored to a text selection.
+3. **UAT leg 4 — "Track a change in the prose" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts library-review uatc_579e8c23c11391ebd2396159`.
+   Witnesses that a model selected prose, applied a CriticMarkup tracked change from the toolbar, and
+   observed the preview render it as a tracked change beside the surrounding prose — no suggestion
+   record, no accept/reject.
+4. **UAT leg 7 — "The annotated edit is never silently lost" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts library-review uatc_2c1854c481f8d507d1b88ebd`.
+   Witnesses that a model pressed Save on the annotated structured artifact and observed the surface
+   state what it did with the body — the deliberate LOCAL keep, named as such — with the edits still
+   in the pane and no lossy body-over-fields write.
 5. **UAT leg 8 — "Live refresh, no reload" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts library-review uatc_ee3daee25bc4403dc413100a`.
    Witnesses that a model posted a second comment / suggestion out of band and observed it appear on
    the open Review surface within the poll window with no manual reload.

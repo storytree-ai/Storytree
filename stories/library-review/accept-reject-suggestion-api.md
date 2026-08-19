@@ -74,6 +74,28 @@ store's surface and its transition guard.
 > skip. Frontmatter stays `proposed` — status is earned through the rollup (caps 1–2 follow the same
 > convention).
 
+> **⚠ DISPOSITION: BUILT · UNREACHED · PARKED (ADR-0388, 2026-08-14). Do not read this capability as
+> live, and do not delete it.** ADR-0388 retires suggestions-as-proposals on the Review surface: the
+> shipped editor (`ReviewEditor.tsx`, ADR-0146) offers direct CriticMarkup editing and has **no accept
+> or reject control at all**, so nothing in the running studio ever calls this handler. Measured
+> 2026-08-12 by driving the story's UAT legs against the real running app — `POST
+> /api/suggestions/decision` is reachable at the HTTP layer, but a full button-text enumeration and a
+> full-page text search found no Accept control anywhere in Review mode, and no request to
+> `/api/suggestions` fired at any point in the walk.
+>
+> What that does and does not mean:
+>
+> - **The proof STANDS.** The signed REAL PASS @ `b33d27c` (run `real-mr3is5wu`, 4/4) is a true verdict
+>   over the handler's own behaviour. Nothing here is unproven or suspect.
+> - **The code STAYS.** The owner may pick the propose-accept cycle up much later, and ADR-0388 keeps
+>   the machinery deliberately rather than deleting it — a revival should start from working, proven
+>   code. `suggestionApi.ts`, its test and its route mount are all retained.
+> - **It is NOT a live claim.** No shipped user journey reaches this capability, and `library-review`'s
+>   UAT legs no longer assert one. Reviving it is a fresh decision amending ADR-0388, not a follow-on
+>   somebody is expected to finish.
+> - The already-loud accept-APPLY deferral (`applyToAsset` refusing 501, recorded on cap 4) is
+>   unchanged, and is moot for as long as this stays parked.
+
 ## Guidance
 
 WHY THIS IS A CAPABILITY, NOT A CONTRACT: its honest proof is the accept/reject HANDLER as a whole — a

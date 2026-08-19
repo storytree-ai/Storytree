@@ -66,6 +66,21 @@ directed each fork in-session):
    and rejected: the whole corpus is markdown, and markdown-plus-extensions covers the need at a
    fraction of the churn.
 
+**This NARROWED ADR-0140 — it did not only refine it. (Corrected in place 2026-08-14, ADR-0139; the
+decision recorded above is unchanged, its account of its own effect was incomplete.)** As originally
+written this ADR described itself as settling an interaction ADR-0140 left open, which understated it.
+Decisions 3 and 4 above REPLACE part of ADR-0140's model rather than implementing it: a tracked change
+becomes CriticMarkup **inline in the document's own markdown**, not a separate suggestion record with
+an `open`/`accepted`/`rejected` status; and "everyone suggests, no role branch in the editor" removes
+ADR-0140's member-proposes / owner-decides split from the surface. Two further ADR-0140 clauses did not
+survive contact with this editor at all — the proposed-result-by-default rendering with the original
+collapsed behind a "show change" toggle, and the explicit **no-strikethrough** rule (the shipped
+preview shows both halves at once and strikes the deleted text through). The Consequences below left
+the persistence question open in writing and it stayed open; **[ADR-0388](0388-suggestions-as-proposals-is-retired-on-the-review-surface-di.md)
+closes it (2026-08-14, owner-directed): suggestions-as-proposals is RETIRED on this surface** — not
+deferred — while the built suggestion store, decision route and write policy are kept and marked
+PARKED. Read this ADR with 0388 beside it.
+
 This supersedes the pill/compose model AND the interim inline-prose model. The three caps-6–8 **data
 proofs stand and are reused** — the block model (`splitBlocks`), the suggestion store + create/decision
 routes, and the accept-apply splice are the data layer under CriticMarkup. The caps' **UI components**
@@ -95,7 +110,10 @@ carries.
 
 ## References
 
-- Amends ADR-0140 (Library Review mode — the model this settles the editing interaction for).
+- Amends ADR-0140 (Library Review mode — the model this settles the editing interaction for, and
+  NARROWS: see the correction in the Decision section).
+- Amended by ADR-0388 — which records that narrowing as a decision and retires suggestions-as-proposals
+  on this surface, closing the persistence question the Consequences below left open.
 - ADR-0110 (design-time alignment is ratification — why this is born accepted).
 - ADR-0070 (two-stage frontend proof — the look stays owner-attested).
 - CriticMarkup — the markdown editorial-markup standard adopted for comments + tracked changes.

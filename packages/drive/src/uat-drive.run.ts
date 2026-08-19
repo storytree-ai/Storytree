@@ -41,7 +41,9 @@
  * 30-min default, for a journey that CONTAINS a long operation (see {@link DRIVE_TIMEOUT_MIN}).
  */
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import net from "node:net";
+import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { parseUatTestCriterionSources } from "@storytree/library";
@@ -49,14 +51,25 @@ import { applySchema, closePool, createPool } from "@storytree/library/store";
 import { loadNodeSpec } from "@storytree/orchestrator";
 
 import { ensureLiveDb } from "./db-control.js";
+import { deriveIdentity } from "./noticeboard.js";
 import { loadLocalSecrets } from "./secrets.js";
 import {
+  assertDriveIsolated,
   auditDrivePrompt,
+  classifyDriveEnd,
+  classifyDriveResidue,
+  driveChildEnv,
+  driveScratchDir,
+  driveSurfacePorts,
+  mintDriveSessionId,
   parseDriveReport,
+  parsePorcelain,
   selectDriveTargets,
   uatDriveTaskPrompt,
   UatDriveRecord,
+  type DriveIsolation,
   type DriveTarget,
+  type UatDriveSpec,
 } from "./uat-drive.js";
 
 /**
@@ -159,37 +172,82 @@ async function main(): Promise<number> {
     return 1;
   }
 
+  // The record pins the commit the journey was driven against, so a dirty tree would record a claim
+  // about a commit nobody can reconstruct (the `uat attest` / `observeAndSign` posture). It is read
+  // BEFORE the prompts because every prompt now carries the pinned commit: it is what a drive checks
+  // `/api/health` against to prove the surface it found is its OWN checkout's.
+  const commitSha = git(["rev-parse", "HEAD"], toplevel);
+  const treeBefore = parsePorcelain(git(["status", "--porcelain"], toplevel));
+  if (treeBefore.length > 0) {
+    console.error(
+      "[uat-drive] REFUSED: the working tree is DIRTY. A drive record pins the commit that was driven;\n" +
+        "recording against uncommitted edits would claim a commit that does not match what was walked.\n" +
+        "Commit (or stash) first, then drive the clean commit.\n" +
+        `  dirty: ${treeBefore.map((e) => e.path).join(", ")}`,
+    );
+    return 1;
+  }
+
+  const runId = `uat-drive:${storyId}:${commitSha.slice(0, 10)}:${process.pid}`;
+
+  // ISOLATION, decided before any spend. A drive is a GUEST in this checkout: its own notice-board
+  // identity (so its tidy-up can never release the LAUNCHING session's claims), its own reserved
+  // surface port (so it cannot walk a sibling worktree's studio), and its own out-of-tree scratch
+  // directory (so what it leaves behind cannot refuse the next drive).
+  const launching = deriveIdentity();
+  const ports = await reserveDrivePorts(selection.targets.length, process.pid);
+  if (ports === null) {
+    console.error(
+      `[uat-drive] REFUSED: no free port in the reserved drive band — every candidate is in use.\n` +
+        "  A drive must OWN its surface; attaching to whatever is already listening is how a drive\n" +
+        "  ends up measuring a sibling worktree's checkout. Free a port and re-run.",
+    );
+    return 1;
+  }
+  const scratchDir = driveScratchDir(tmpdir().replace(/\\/g, "/"), runId);
+  mkdirSync(scratchDir, { recursive: true });
+
   // Fail-closed BEFORE any spend: every prompt must still carry the authored journey verbatim, the
-  // honesty clause, and the report contract. The standing test (`uat-drive.test.ts`) proves this of
-  // the builder; asserting it per run means a drive can never spend against a weakened prompt.
+  // honesty clause, the report contract, the tooling clause and this drive's own isolation. The
+  // standing test (`uat-drive.test.ts`) proves this of the builder; asserting it per run means a
+  // drive can never spend against a weakened prompt.
   const prompts = new Map<string, string>();
-  for (const t of selection.targets) {
-    const prompt = uatDriveTaskPrompt({
+  const isolations = new Map<string, DriveIsolation>();
+  for (const [i, t] of selection.targets.entries()) {
+    const isolation: DriveIsolation = {
+      sessionId: mintDriveSessionId({ criterionId: t.criterionId, pid: process.pid }),
+      surfacePort: ports[i]!,
+      commitSha,
+      scratchDir,
+      ceilingMinutes: DRIVE_TIMEOUT_MIN,
+    };
+    const refusal = assertDriveIsolated(launching, isolation.sessionId);
+    if (refusal !== null) {
+      console.error(`[uat-drive] ${refusal}`);
+      return 1;
+    }
+    const driveSpec: UatDriveSpec = {
       storyId,
       storyTitle: spec.title,
       storyOutcome: spec.outcome,
       criterionId: t.criterionId,
       journey: t.journey,
-    });
-    const audit = auditDrivePrompt(prompt, t.journey);
+      isolation,
+    };
+    const prompt = uatDriveTaskPrompt(driveSpec);
+    const audit = auditDrivePrompt(prompt, driveSpec);
     if (!audit.ok) {
       console.error(`[uat-drive] REFUSED: the drive prompt for ${t.criterionId} lost ${audit.missing.join(", ")}`);
       return 1;
     }
     prompts.set(t.criterionId, prompt);
+    isolations.set(t.criterionId, isolation);
   }
-
-  // The record pins the commit the journey was driven against, so a dirty tree would record a claim
-  // about a commit nobody can reconstruct (the `uat attest` / `observeAndSign` posture).
-  const commitSha = git(["rev-parse", "HEAD"], toplevel);
-  if (git(["status", "--porcelain"], toplevel).length > 0) {
-    console.error(
-      "[uat-drive] REFUSED: the working tree is DIRTY. A drive record pins the commit that was driven;\n" +
-        "recording against uncommitted edits would claim a commit that does not match what was walked.\n" +
-        "Commit (or stash) first, then drive the clean commit.",
-    );
-    return 1;
-  }
+  log(
+    `isolated — each drive gets its own notice-board session, its own port (${ports.join(", ")}) and\n` +
+      `  scratch at ${scratchDir}. The launching session ` +
+      `(${launching?.sessionId ?? "none — primary checkout"}) keeps every claim it holds.`,
+  );
 
   log(`bringing the live store up (the record persists to events.uat_drive)…`);
   const ready = await ensureLiveDb((m) => console.error(`[db] ${m}`));
@@ -198,14 +256,14 @@ async function main(): Promise<number> {
     return 1;
   }
 
-  const runId = `uat-drive:${storyId}:${commitSha.slice(0, 10)}:${process.pid}`;
   log(
     `driving ${selection.targets.length} criterion(s) of "${storyId}" @ ${commitSha.slice(0, 10)} — ` +
       `each is a fresh subscription-funded session (ADR-0010 §5, out-of-band), ceiling ${DRIVE_TIMEOUT_MIN} min.`,
   );
 
   const handle = await createPool();
-  const failures: string[] = [];
+  const findings: string[] = [];
+  const harnessEnds: string[] = [];
   try {
     await applySchema(handle.pool);
 
@@ -216,21 +274,40 @@ async function main(): Promise<number> {
         runId,
         cwd: toplevel,
         pool: handle.pool,
+        isolation: isolations.get(t.criterionId)!,
       });
-      if (outcome !== null) failures.push(outcome);
+      if (outcome !== null) (outcome.harness ? harnessEnds : findings).push(outcome.line);
     }
   } finally {
     await closePool(handle.pool, handle.connector);
   }
 
-  if (failures.length > 0) {
-    console.error(`[uat-drive] ${failures.length} of ${selection.targets.length} criterion(s) did NOT pass:`);
-    for (const f of failures) console.error(`  x ${f}`);
+  sweepResidue(toplevel, treeBefore);
+
+  // THE TWO REDS ARE DIFFERENT REPAIRS, so they are reported and EXITED differently. A journey that
+  // reported `fail` is a finding about the product; a drive the harness cut off, or one whose session
+  // ended mid-walk, says nothing at all about the product — reporting them as one number is what made
+  // a MISS read as a red the product had earned. A real finding still outranks a harness end, so the
+  // exit code never gets quieter than the worst thing that happened.
+  if (harnessEnds.length > 0) {
+    console.error(`\n[uat-drive] ${harnessEnds.length} drive(s) did not finish — HARNESS ends, NOT product findings:`);
+    for (const h of harnessEnds) console.error(`  ~ ${h}`);
+  }
+  if (findings.length > 0) {
+    console.error(`\n[uat-drive] ${findings.length} of ${selection.targets.length} criterion(s) reported a FAIL:`);
+    for (const f of findings) console.error(`  x ${f}`);
     console.error(
       "\nA failed journey is a real finding, not a flaky harness — read the record's summary in\n" +
         "events.uat_drive before re-running. The witness gate stays honestly red until a pass lands.",
     );
     return 1;
+  }
+  if (harnessEnds.length > 0) {
+    console.error(
+      `\nNothing above is a claim about the product: nothing was observed to be wrong, and NOTHING was\n` +
+        `persisted. Exit ${EXIT_HARNESS} says exactly that — do not read it as a red the product earned.`,
+    );
+    return EXIT_HARNESS;
   }
   log(`SUCCESS — every driven criterion passed and its record persisted. The witness gate can now see them:`);
   for (const t of selection.targets) {
@@ -239,17 +316,104 @@ async function main(): Promise<number> {
   return 0;
 }
 
+/**
+ * The exit code for "no drive reported a FAIL, but at least one never got to report at all".
+ *
+ * Distinct from 1 on purpose: 1 means a journey was walked and the product came up short, and reading
+ * a cut-off walk as that is the misattribution this closes. Distinct from 3 too, which this house
+ * reserves for a gate step DECLARING it had nothing to check (`gate-run.ts`) — a drive that ran out
+ * of clock did have something to check, and did not get to it.
+ */
+const EXIT_HARNESS = 4;
+
+/**
+ * Is `port` free to bind on loopback right now? A real bind, because that is the only honest answer:
+ * a connect-probe cannot distinguish "nothing is listening" from "something is listening but refused
+ * me", and the drive needs the port it can actually SERVE from.
+ */
+function portFree(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const srv = net.createServer();
+    srv.once("error", () => resolve(false));
+    srv.once("listening", () => srv.close(() => resolve(true)));
+    srv.listen(port, "127.0.0.1");
+  });
+}
+
+/**
+ * Reserve `count` DISTINCT free ports from the drive band, or null when the band is exhausted.
+ *
+ * "Reserve" is honest about what it is: the socket is closed again before the child starts, so this
+ * is a probe, not a lock. It buys the thing that was actually missing — the drive is TOLD a port that
+ * was free moments ago, instead of being left to discover a listener and walk somebody else's
+ * checkout. The residual race is covered on the other side: the prompt requires `--strictPort`, so a
+ * collision fails loudly, and `/api/health` ownership ({@link judgeDriveSurface}) refuses a foreign
+ * server even when one does answer.
+ */
+async function reserveDrivePorts(count: number, seed: number): Promise<number[] | null> {
+  const chosen: number[] = [];
+  for (const port of driveSurfacePorts(seed)) {
+    if (chosen.length === count) break;
+    if (await portFree(port)) chosen.push(port);
+  }
+  return chosen.length === count ? chosen : null;
+}
+
+/**
+ * Remove what THIS run left in the tree, and say so.
+ *
+ * The next drive refuses against a dirty tree, so an orphaned driver's screenshot does not merely
+ * litter — it blocks the next drive, which is exactly how one invented harness cost three of them.
+ * Only UNTRACKED paths that appeared during this run are swept: they did not exist when the run
+ * started (the cleanliness check above proves it), so removing them destroys nothing. A change to a
+ * TRACKED file is never touched — that is a drive that edited repository source, which the prompt
+ * forbids, and deleting it would destroy work and hide the violation at once.
+ */
+function sweepResidue(toplevel: string, before: readonly ReturnType<typeof parsePorcelain>[number][]): void {
+  let after;
+  try {
+    after = parsePorcelain(git(["status", "--porcelain"], toplevel));
+  } catch {
+    return; // a git hiccup on the way out must never change a drive's outcome
+  }
+  const residue = classifyDriveResidue(before, after);
+  for (const p of residue.sweep) {
+    try {
+      rmSync(path.join(toplevel, p), { recursive: true, force: true });
+      log(`swept drive residue: ${p} (untracked, created during this run — it would refuse the next drive)`);
+    } catch (e) {
+      console.error(`[uat-drive] could not sweep residue ${p}: ${(e as Error).message} — remove it before the next drive.`);
+    }
+  }
+  if (residue.blocking.length > 0) {
+    console.error(
+      `[uat-drive] this drive changed TRACKED files, which the drive prompt forbids: ${residue.blocking.join(", ")}\n` +
+        "  They are NOT swept — that would destroy work and hide the violation. Review them by hand.",
+    );
+  }
+}
+
 interface DriveContext {
   storyId: string;
   commitSha: string;
   runId: string;
   cwd: string;
   pool: { query(text: string, values?: unknown[]): Promise<unknown> };
+  /** This drive's separation from the launching session — the only thing the child inherits ON PURPOSE. */
+  isolation: DriveIsolation;
 }
 
-/** Drive ONE criterion and persist its record. Returns a failure line, or `null` on a clean pass. */
-async function driveOne(target: DriveTarget, prompt: string, ctx: DriveContext): Promise<string | null> {
+/** A drive that did not pass, and whether it says anything about the PRODUCT at all. */
+interface DriveNonPass {
+  readonly line: string;
+  /** True = a harness end (cut off, or the session ran out before the walk did): never a finding. */
+  readonly harness: boolean;
+}
+
+/** Drive ONE criterion and persist its record. Returns a non-pass, or `null` on a clean pass. */
+async function driveOne(target: DriveTarget, prompt: string, ctx: DriveContext): Promise<DriveNonPass | null> {
   log(`— ${target.criterionId}: ${target.title}`);
+  log(`  as session "${ctx.isolation.sessionId}" on port ${ctx.isolation.surfacePort}`);
   const t0 = Date.now();
   const res = spawnSync("claude", ["-p", "--permission-mode", "bypassPermissions", "--output-format", "json"], {
     cwd: ctx.cwd,
@@ -258,22 +422,27 @@ async function driveOne(target: DriveTarget, prompt: string, ctx: DriveContext):
     shell: true,
     timeout: DRIVE_TIMEOUT_MS,
     maxBuffer: 256 * 1024 * 1024,
-    env: process.env,
+    // The ONE seam the isolation travels through. An in-process test cannot answer a spawnSync
+    // child, so `driveChildEnv` is where the property is proved and this line is all that can drift.
+    env: driveChildEnv(process.env, ctx.isolation),
   });
-  const mins = ((Date.now() - t0) / 60_000).toFixed(1);
-  if (res.error !== undefined && (res.error as NodeJS.ErrnoException).code === "ETIMEDOUT") {
-    log(
-      `  hit the ${DRIVE_TIMEOUT_MIN}-min ceiling (${mins}m) — reading whatever it reported…\n` +
-        "  NOTE: a run cut off here usually emits no report, which records as a MISS. A MISS is not a\n" +
-        "  pass, but it is also NOT a finding about the product — re-run with\n" +
-        "  STORYTREE_UAT_DRIVE_TIMEOUT_MIN=<minutes> before reading its red as a real one.",
-    );
-  } else {
-    log(`  the drive session finished after ${mins}m (exit ${res.status}).`);
-  }
+  const elapsedMinutes = (Date.now() - t0) / 60_000;
+  const timedOut = res.error !== undefined && (res.error as NodeJS.ErrnoException).code === "ETIMEDOUT";
 
   const text = finalText(res.stdout ?? "");
   const parsed = parseDriveReport(text);
+  const end = classifyDriveEnd({
+    timedOut,
+    reportReadable: parsed.ok,
+    ceilingMinutes: DRIVE_TIMEOUT_MIN,
+    elapsedMinutes,
+  });
+  log(
+    end.kind === "reported"
+      ? `  the drive session finished after ${elapsedMinutes.toFixed(1)}m (exit ${res.status}).`
+      : `  ${end.kind.toUpperCase()} after ${elapsedMinutes.toFixed(1)}m — ${end.reason}`,
+  );
+
   if (!parsed.ok) {
     // A run whose report cannot be read did NOT pass, and nothing is PERSISTED — an unreadable run
     // must leave no trace a later witness could mistake for evidence. But "persists nothing" was
@@ -281,11 +450,11 @@ async function driveOne(target: DriveTarget, prompt: string, ctx: DriveContext):
     // arrived as one line with no way to tell a driver that hit a wall from one that ended a turn
     // early, and diagnosing it cost a second paid drive. The tail below is DIAGNOSTIC OUTPUT, not
     // evidence — it reaches stderr and never `events.uat_drive`, so the witness gate cannot see it.
-    console.error(`  x ${target.criterionId}: ${parsed.reason}`);
+    console.error(`  ~ ${target.criterionId}: ${parsed.reason}`);
     console.error(`  --- the driver's last ${UNREADABLE_TAIL_CHARS} chars (diagnostic only; nothing was persisted) ---`);
     console.error(text.length > 0 ? indentTail(text) : "  (the driver produced no output at all)");
     console.error("  --- end of unreadable output ---");
-    return `${target.criterionId} — ${parsed.reason}`;
+    return { line: `${target.criterionId} — ${end.reason}`, harness: end.harness };
   }
   const report = parsed.report;
 
@@ -322,7 +491,12 @@ async function driveOne(target: DriveTarget, prompt: string, ctx: DriveContext):
   if (record.escalated) {
     log(`  the driver ESCALATED (ADR-0348 D4): open-question ${record.openQuestionId ?? "(unnamed)"}`);
   }
-  return record.outcome === "pass" ? null : `${target.criterionId} — the journey reported FAIL: ${record.summary.slice(0, 200)}`;
+  return record.outcome === "pass"
+    ? null
+    : {
+        line: `${target.criterionId} — the journey reported FAIL: ${record.summary.slice(0, 200)}`,
+        harness: false,
+      };
 }
 
 main().then(

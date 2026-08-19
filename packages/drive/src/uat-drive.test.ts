@@ -9,6 +9,7 @@ import {
   parseDriveReport,
   selectDriveTargets,
   selectWitnessableDrive,
+  uatDriveIsolationClause,
   uatDriveTaskPrompt,
   UAT_DRIVE_AUTONOMY_CLAUSE,
   UAT_DRIVE_HONESTY_CLAUSE,
@@ -17,6 +18,7 @@ import {
   UAT_DRIVE_WITNESS_ENTRY,
   UatDriveRecord,
   type DriveGate,
+  type DriveIsolation,
   type DriveRow,
   type DriveWitnessDeps,
   type DriveWitnessPolicy,
@@ -33,12 +35,21 @@ const JOURNEY = [
   "   **Success —** the traversal panel opens on that story.",
 ].join("\n");
 
+const ISOLATION: DriveIsolation = {
+  sessionId: "uat-drive~uatc_0123456789abcdef01234567~4242",
+  surfacePort: 5311,
+  commitSha: "0123456789abcdef0123456789abcdef01234567",
+  scratchDir: "/tmp/storytree-uat-drive/demo",
+  ceilingMinutes: 30,
+};
+
 const SPEC: UatDriveSpec = {
   storyId: "demo",
   storyTitle: "The demo story",
   storyOutcome: "A reader can walk from the map into a story.",
   criterionId: "uatc_0123456789abcdef01234567",
   journey: JOURNEY,
+  isolation: ISOLATION,
 };
 
 // ── which legs this driver owns ──────────────────────────────────────────────
@@ -163,15 +174,21 @@ test("uatDriveTaskPrompt: forbids an unbounded wait, an inherited server, and ar
   assert.match(prompt, /OUTSIDE the repository, or under an\s+already-ignored path/);
 });
 
-test("auditDrivePrompt: the REAL prompt keeps all four guarded properties", () => {
-  const audit = auditDrivePrompt(uatDriveTaskPrompt(SPEC), JOURNEY);
+test("auditDrivePrompt: the REAL prompt keeps all five guarded properties", () => {
+  const audit = auditDrivePrompt(uatDriveTaskPrompt(SPEC), SPEC);
   assert.equal(audit.ok, true, `drive prompt lost: ${audit.missing.join(", ")}`);
   assert.deepEqual(audit.missing, []);
 });
 
 /** A prompt carrying every guarded property EXCEPT the ones a case deliberately omits. */
 function promptWithout(...omit: readonly string[]): string {
-  return [JOURNEY, UAT_DRIVE_HONESTY_CLAUSE, "```" + UAT_DRIVE_REPORT_FENCE, UAT_DRIVE_TOOLING_CLAUSE]
+  return [
+    JOURNEY,
+    UAT_DRIVE_HONESTY_CLAUSE,
+    "```" + UAT_DRIVE_REPORT_FENCE,
+    UAT_DRIVE_TOOLING_CLAUSE,
+    uatDriveIsolationClause(ISOLATION),
+  ]
     .filter((part) => !omit.includes(part))
     .join("\n");
 }
@@ -181,22 +198,38 @@ test("auditDrivePrompt: a prompt that PARAPHRASES the journey fails the audit (t
     /^/,
     "Click the flower and check the panel opens.\n",
   );
-  const audit = auditDrivePrompt(paraphrased, JOURNEY);
+  const audit = auditDrivePrompt(paraphrased, SPEC);
   assert.equal(audit.ok, false);
   assert.deepEqual(audit.missing, ["the authored journey prose, verbatim"]);
 });
 
-test("auditDrivePrompt: dropping the honesty clause, the fence, or the tooling clause each fails", () => {
-  assert.deepEqual(auditDrivePrompt(promptWithout(UAT_DRIVE_HONESTY_CLAUSE), JOURNEY).missing, [
+test("auditDrivePrompt: dropping the honesty clause, the fence, the tooling or the isolation clause each fails", () => {
+  assert.deepEqual(auditDrivePrompt(promptWithout(UAT_DRIVE_HONESTY_CLAUSE), SPEC).missing, [
     "the honesty clause",
   ]);
   assert.deepEqual(
-    auditDrivePrompt(promptWithout("```" + UAT_DRIVE_REPORT_FENCE), JOURNEY).missing,
+    auditDrivePrompt(promptWithout("```" + UAT_DRIVE_REPORT_FENCE), SPEC).missing,
     ["the report contract fence"],
   );
-  assert.deepEqual(auditDrivePrompt(promptWithout(UAT_DRIVE_TOOLING_CLAUSE), JOURNEY).missing, [
+  assert.deepEqual(auditDrivePrompt(promptWithout(UAT_DRIVE_TOOLING_CLAUSE), SPEC).missing, [
     "the tooling clause",
   ]);
+  assert.deepEqual(auditDrivePrompt(promptWithout(uatDriveIsolationClause(ISOLATION)), SPEC).missing, [
+    "the isolation clause",
+  ]);
+});
+
+test("auditDrivePrompt: a prompt built for a DIFFERENT drive fails its own audit", () => {
+  // The isolation clause is parameterized, so the audit is only meaningful if it rebuilds the clause
+  // from THIS spec. A prompt carrying another drive's port and session id would sail through a
+  // constant-comparison audit while telling the driver to walk somebody else's surface.
+  const other: UatDriveSpec = {
+    ...SPEC,
+    isolation: { ...ISOLATION, sessionId: "uat-drive~other~99", surfacePort: 5399 },
+  };
+  const audit = auditDrivePrompt(uatDriveTaskPrompt(other), SPEC);
+  assert.equal(audit.ok, false);
+  assert.deepEqual(audit.missing, ["the isolation clause"]);
 });
 
 // ── the report contract ──────────────────────────────────────────────────────

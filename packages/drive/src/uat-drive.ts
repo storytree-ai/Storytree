@@ -283,6 +283,13 @@ export interface UatDriveSpec {
    * and judge its own assertions is that the claim being tested stays human-authored.
    */
   readonly journey: string;
+  /**
+   * How this drive is separated from the session that launched it. REQUIRED, so that a prompt
+   * carrying no isolation is not a shape this builder can produce: the three measured failures were
+   * all a drive inheriting its parent's identity, ports and tree, and a drive that does not KNOW it
+   * has its own reproduces failure 2 by discovering a sibling's server.
+   */
+  readonly isolation: DriveIsolation;
 }
 
 /**
@@ -315,6 +322,8 @@ export function uatDriveTaskPrompt(spec: UatDriveSpec): string {
     "    building what is missing. If the surface is broken, that is a FAIL and it is the finding.",
     "",
     UAT_DRIVE_TOOLING_CLAUSE,
+    "",
+    uatDriveIsolationClause(spec.isolation),
     "",
     UAT_DRIVE_AUTONOMY_CLAUSE,
     "",
@@ -363,23 +372,34 @@ export interface DrivePromptAudit {
  *  2. the honesty clause is present (without it a summarised run and a driven run are the same text);
  *  3. the report contract is named, so an absent report is a MISS rather than an implied pass.
  *
- * THE FOURTH IS A CAPABILITY property, and the distinction is worth keeping. Losing
- * {@link UAT_DRIVE_TOOLING_CLAUSE} cannot make a green untrue — it makes a MISS likelier, which is a
- * red for a harness reason rather than a finding about the product. It is guarded here anyway
- * because it was learned the expensive way (three drives spent, nothing persisted) and because the
- * failure looks identical to a slow journey. A reader deciding what a refusal MEANS should read the
- * class: the first three mean *this drive could lie*; the fourth means *this drive will probably
- * waste its spend*.
+ * TWO ARE CAPABILITY properties, and the distinction is worth keeping. Losing
+ * {@link UAT_DRIVE_TOOLING_CLAUSE} or the isolation clause cannot make a green untrue — it makes a
+ * MISS likelier, which is a red for a harness reason rather than a finding about the product. Both
+ * are guarded here anyway because both were learned the expensive way (three drives spent and
+ * nothing persisted for the first; four drives silently clearing the launching session's claims for
+ * the second) and because each failure looks identical to a slow or unlucky journey. A reader
+ * deciding what a refusal MEANS should read the class: the first three mean *this drive could lie*;
+ * the last two mean *this drive will probably waste its spend, or damage the session that launched it*.
+ *
+ * It takes the whole {@link UatDriveSpec} rather than the journey alone, because the isolation clause
+ * is PARAMETERIZED by the drive: there is no constant to compare against, only the clause this exact
+ * drive should be carrying. Asking the audit to rebuild it from the spec is what keeps a prompt built
+ * for one drive from being audited as though it were built for another.
  *
  * The drive suite runs it against the real {@link uatDriveTaskPrompt}, so an edit that drops one
  * reds `pnpm -r test` instead of quietly degrading every later drive.
  */
-export function auditDrivePrompt(prompt: string, journey: string): DrivePromptAudit {
+export function auditDrivePrompt(prompt: string, spec: UatDriveSpec): DrivePromptAudit {
   const missing: string[] = [];
-  if (!prompt.includes(journey.trim())) missing.push("the authored journey prose, verbatim");
+  if (!prompt.includes(spec.journey.trim())) missing.push("the authored journey prose, verbatim");
   if (!prompt.includes(UAT_DRIVE_HONESTY_CLAUSE)) missing.push("the honesty clause");
-  if (!prompt.includes(UAT_DRIVE_REPORT_FENCE)) missing.push("the report contract fence");
+  // The OPENER, not the bare token. The token alone is a substring an unrelated line can satisfy by
+  // accident — the drive's own scratch directory is named `storytree-uat-drive/<run>` and did exactly
+  // that, which would have let a prompt that lost its report contract still pass this audit. What the
+  // contract actually requires is the fenced block, so that is what is checked.
+  if (!prompt.includes("```" + UAT_DRIVE_REPORT_FENCE)) missing.push("the report contract fence");
   if (!prompt.includes(UAT_DRIVE_TOOLING_CLAUSE)) missing.push("the tooling clause");
+  if (!prompt.includes(uatDriveIsolationClause(spec.isolation))) missing.push("the isolation clause");
   return { ok: missing.length === 0, missing };
 }
 
@@ -527,4 +547,474 @@ export function selectWitnessableDrive(
     if (best === null || atMs > best.atMs) best = { row, atMs };
   }
   return best !== null ? { ok: true, drive: best.row } : { ok: false, reasons };
+}
+
+// ---------------------------------------------------------------------------
+// ISOLATION FROM THE LAUNCHING SESSION
+// ---------------------------------------------------------------------------
+
+/**
+ * Everything below closes ONE defect with three faces, measured across four production drives:
+ * **the spawned drive is indistinguishable from the session that launched it.**
+ *
+ * `uat-drive.run.ts` spawns a fresh Claude Code session with `bypassPermissions` in the SAME
+ * worktree, on the SAME branch, sharing the SAME env, ports and process tree. Everything that keys
+ * on "which session is this?" therefore answers with the PARENT, and three separate harms follow:
+ *
+ *  1. CLAIMS. `events.node_claim` is keyed `(unit_id, session_id)`, and `deriveIdentity()` reads the
+ *     session id off the WORKTREE — so parent and child resolve to one identity. A drive that tidies
+ *     up with `noticeboard done` calls `releaseClaimsBySession(<the parent's id>)` and deletes the
+ *     LAUNCHING session's claims. Under ADR-0346 D1 a work claim BINDS, so a sibling attempting the
+ *     same capability in that gap is ADMITTED rather than queued — the exact contention the ledger
+ *     exists to prevent. It is silent: `done` reports success, because from the ledger's point of
+ *     view the session that held those claims is the one asking to release them. Observed after all
+ *     four drives.
+ *  2. SURFACE. The drive discovers a studio rather than owning one, and the well-known ports are
+ *     held by OTHER worktrees' servers. One drive walked `localhost:5180` — a sibling's JSON-backed
+ *     studio — and reported on the criterion as though it had driven its own checkout. That is worse
+ *     than failing to reach a surface, which the drive contract already handles honestly as a FAIL
+ *     naming the reason.
+ *  3. LIFETIME. The runner waits for the SESSION to end, not for the WALK to finish, so a journey
+ *     still progressing when its session's turn budget runs out emits no report and is recorded as a
+ *     MISS — a harness red wearing a product red's clothes — while the orphan it leaves writes into
+ *     the shared tree, whose dirtiness then REFUSES the next drive. Cost when filed: two extra
+ *     subscription-funded drives, ~41 minutes, learning nothing about the product.
+ *
+ * The correction is one idea applied three times: **a drive is a GUEST, never the host.** It gets its
+ * own notice-board identity ({@link mintDriveSessionId}), its own reserved surface
+ * ({@link driveSurfacePorts} + {@link judgeDriveSurface}), and its own out-of-tree scratch
+ * ({@link driveScratchDir}) — and what it leaves behind is attributed and swept
+ * ({@link classifyDriveResidue}) rather than inherited by whoever drives next.
+ *
+ * All of it is PURE and decided here; `uat-drive.run.ts` stays the thin wiring that a `*.run.ts`
+ * is allowed to be, and {@link driveChildEnv} is the single seam through which the isolation
+ * actually reaches the child — so a test can prove the runner hands it over, rather than trusting
+ * that it does.
+ */
+
+// -- 1. CLAIMS: the drive's own notice-board identity -------------------------
+
+/**
+ * The env var carrying a spawned drive's OWN notice-board session id.
+ *
+ * Deliberately NOT `STORYTREE_SESSION_ID`, which already means the opposite: `spawn-record.mjs`
+ * documents it as the override by which *"a spawned runtime INHERITS its parent session"*, and
+ * several runtimes set it for exactly that. Reusing it here would express "be your parent" in the
+ * one place that must express "be someone else".
+ */
+export const UAT_DRIVE_SESSION_ENV = "STORYTREE_DRIVE_SESSION_ID";
+
+/**
+ * The reserved prefix every drive session id carries.
+ *
+ * It is what makes {@link isDriveSessionId} total, and what makes a collision with a real session
+ * impossible: a worktree-derived id is a git admin-dir BASENAME (`deriveIdentity` rules 1 and 2),
+ * and this prefix is not a legal shape for one. The board therefore renders a drive as visibly a
+ * drive, so a human reading the ledger can tell a walk from a worker without consulting anything.
+ */
+export const UAT_DRIVE_SESSION_PREFIX = "uat-drive~";
+
+/** Characters that must never reach a session id — it keys spawn-record FILES as well as ledger rows. */
+const UNSAFE_IN_SESSION_ID = /[/\\:*?"<>|\s]/;
+
+/**
+ * PURE: mint the session id for one criterion's drive.
+ *
+ * Deterministic in its inputs and unique per run: the criterion says WHAT is being walked and the pid
+ * says WHICH walk, so two concurrent drives of the same criterion are two rows rather than one, and a
+ * ledger reader can trace a row back to a process. Characters outside `[A-Za-z0-9_-]` in the criterion
+ * id are folded to `-` because this string keys spawn-record files as well as ledger rows
+ * (`spawn-registry.test.ts` pins that a separator in a session id writes the record into somebody
+ * else's path).
+ */
+export function mintDriveSessionId(spec: { criterionId: string; pid: number }): string {
+  const safe = spec.criterionId.replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
+  return `${UAT_DRIVE_SESSION_PREFIX}${safe.length > 0 ? safe : "unnamed"}~${spec.pid}`;
+}
+
+/** PURE + total: is this id one a drive minted for itself, rather than a real session's? */
+export function isDriveSessionId(sessionId: string): boolean {
+  return sessionId.startsWith(UAT_DRIVE_SESSION_PREFIX);
+}
+
+/**
+ * PURE: the session id a process should adopt because it was spawned AS a drive, or null.
+ *
+ * `deriveIdentity()` consults this FIRST (its rule 0). Validated rather than trusted, because it is
+ * unvalidated env on a path that keys ledger rows and spawn-record files: an id without the reserved
+ * prefix, or carrying a path separator, is IGNORED — falling back to the ordinary worktree
+ * derivation, which is the pre-existing behaviour. Failing open here is right: the worst case of
+ * ignoring it is the defect this closes, while a bad value HONOURED could re-key a real session's
+ * claims onto a string nobody can find.
+ */
+export function driveIdentityOverride(env: Readonly<Record<string, string | undefined>>): string | null {
+  const raw = env[UAT_DRIVE_SESSION_ENV];
+  if (raw === undefined) return null;
+  const id = raw.trim();
+  if (id.length === 0) return null;
+  if (!isDriveSessionId(id)) return null;
+  if (UNSAFE_IN_SESSION_ID.test(id)) return null;
+  return id;
+}
+
+/**
+ * PURE: the refusal a runner must print rather than spawn, or null when the spawn is isolated.
+ *
+ * The property being enforced is the one the increment states: **a drive cannot release the launching
+ * session's claims.** It holds exactly when the two identities differ, so this is that sentence as an
+ * assertion rather than as a comment — checked BEFORE any subscription-funded spend, so a regression
+ * that re-collapses the two identities costs a refusal instead of a silently-cleared ledger.
+ *
+ * A launching session with NO identity (the primary checkout) is not a hazard: it holds no claims to
+ * release. The drive still takes its own id, so it stays distinguishable on the board.
+ */
+export function assertDriveIsolated(
+  launching: { sessionId: string } | null,
+  driveSessionId: string,
+): string | null {
+  if (!isDriveSessionId(driveSessionId)) {
+    return (
+      `REFUSED: the drive session id "${driveSessionId}" does not carry the reserved ` +
+      `"${UAT_DRIVE_SESSION_PREFIX}" prefix, so ${UAT_DRIVE_SESSION_ENV} would be ignored and the ` +
+      "drive would run under the launching session's identity — where its tidy-up releases the " +
+      "launching session's claims (ADR-0346 D1: a released work claim ADMITS a sibling that should queue)."
+    );
+  }
+  if (launching !== null && launching.sessionId === driveSessionId) {
+    return (
+      "REFUSED: the drive would run under the launching session's own identity " +
+      `("${launching.sessionId}"). A drive that shares its parent's session id releases its parent's ` +
+      "claims when it tidies up, silently and with a success message."
+    );
+  }
+  return null;
+}
+
+// -- 2. SURFACE: a reserved port, and an OWNERSHIP check that fails closed -----
+
+/** The env var naming the exclusive localhost port reserved for this drive's own studio. */
+export const UAT_DRIVE_SURFACE_PORT_ENV = "STORYTREE_DRIVE_SURFACE_PORT";
+
+/**
+ * The port band reserved for drives, chosen to sit clear of every studio port this box was measured
+ * holding: vite's 5173 and its neighbours 5174-5178, plus 5180, 5190 and 5199. A drive never competes
+ * for a well-known port, so "something is already listening" stops being the normal case.
+ */
+export const UAT_DRIVE_PORT_BASE = 5310;
+export const UAT_DRIVE_PORT_SPAN = 40;
+
+/**
+ * PURE: the ordered candidate ports for one drive — a seed-derived starting offset, then the whole
+ * band exactly once.
+ *
+ * Seeded (by pid) rather than fixed so two concurrent drives start at different candidates instead of
+ * racing for one; exhaustive so the runner's answer is "the whole reserved band is busy", never a
+ * silent fallback onto a port somebody else owns. Choosing a free port is the runner's job (it is the
+ * only one that can bind); choosing WHICH to try, and in what order, is decidable here.
+ */
+export function driveSurfacePorts(seed: number): number[] {
+  const start = Math.abs(Math.trunc(seed)) % UAT_DRIVE_PORT_SPAN;
+  return Array.from(
+    { length: UAT_DRIVE_PORT_SPAN },
+    (_, i) => UAT_DRIVE_PORT_BASE + ((start + i) % UAT_DRIVE_PORT_SPAN),
+  );
+}
+
+/** What a drive requires of the surface it is about to measure. */
+export interface SurfaceExpectation {
+  /** The clean commit this drive is pinned to — the code the surface must actually be serving. */
+  readonly commitSha: string;
+  /** ADR-0302: a drive measures the LIVE store; a JSON-backed studio is a different product. */
+  readonly requireLiveStore: boolean;
+}
+
+export type SurfaceJudgement = { ok: true; note: string } | { ok: false; reason: string };
+
+/**
+ * PURE + FAIL-CLOSED: may this drive treat the thing answering `/api/health` as ITS OWN surface?
+ *
+ * The measured failure is not "the drive could not find a studio" — that outcome is already honest,
+ * and the drive contract records it as a FAIL naming the reason. It is that the drive FOUND one and
+ * it belonged to somebody else: a sibling worktree's JSON-backed server on 5180, reported on as
+ * though it were this checkout's live-store studio.
+ *
+ * `/api/health` already carries everything needed to tell them apart, for reasons that predate this:
+ * `store` says which backend answers, and `code.startedAt` is the git HEAD the SERVER PROCESS LOADED
+ * (`apps/studio/server/codeStamp.ts`, built for the "the checkout moved under a running server"
+ * incident). A server whose `startedAt` is this drive's pinned commit is serving this drive's code.
+ *
+ * Every unknown is a REFUSAL, and that asymmetry is the whole point: an unparseable payload, an
+ * absent `code` stamp, an absent `store` — none of them PROVE the surface is foreign, and none prove
+ * it is ours either. The failure being closed is a drive BELIEVING an unproven surface, so "cannot
+ * tell" must land on the same side as "not mine". `code.stale` is deliberately NOT a refusal: it says
+ * the checkout moved on disk since the server started, which leaves what the server is SERVING — the
+ * pinned commit — exactly right.
+ */
+export function judgeDriveSurface(health: unknown, expect: SurfaceExpectation): SurfaceJudgement {
+  if (typeof health !== "object" || health === null) {
+    return {
+      ok: false,
+      reason:
+        "nothing readable answered /api/health — this is not a studio, or it is not up. A surface that " +
+        "cannot be identified is NOT this drive's surface (report a fail naming the unreachable surface).",
+    };
+  }
+  const h = health as { store?: unknown; code?: unknown };
+
+  if (expect.requireLiveStore) {
+    if (typeof h.store !== "string") {
+      return {
+        ok: false,
+        reason: "/api/health named no `store`, so the backend behind this surface is unknown — refused.",
+      };
+    }
+    if (h.store !== "pg") {
+      return {
+        ok: false,
+        reason:
+          `this surface is backed by the "${h.store}" store, not the live "pg" store. A JSON-backed ` +
+          "studio is a DIFFERENT product from the one under test (it does not reflect CLI writes), and " +
+          "it is the signature of a sibling worktree's server — the measured localhost:5180 failure.",
+      };
+    }
+  }
+
+  const code = h.code as { startedAt?: unknown; stale?: unknown } | undefined;
+  if (typeof code !== "object" || code === null || typeof code.startedAt !== "string") {
+    return {
+      ok: false,
+      reason:
+        "/api/health carried no `code` stamp, so which checkout this server loaded cannot be proven. " +
+        "Refused: an unproven surface is not this drive's surface. Start your OWN studio on the port " +
+        "this drive reserved for you.",
+    };
+  }
+  if (code.startedAt !== expect.commitSha) {
+    return {
+      ok: false,
+      reason:
+        `this server started on commit ${code.startedAt.slice(0, 10)}, but this drive is pinned to ` +
+        `${expect.commitSha.slice(0, 10)} — it is serving a DIFFERENT checkout (another worktree's ` +
+        "studio). Anything observed here is a finding about somebody else's tree.",
+    };
+  }
+  const stale =
+    code.stale === true ? " (its checkout has since moved on disk, which does not change what it serves)" : "";
+  return {
+    ok: true,
+    note: `the surface is this drive's own: store "pg", started on ${expect.commitSha.slice(0, 10)}${stale}.`,
+  };
+}
+
+// -- 3. LIFETIME: a cut-off walk is not a MISS, and its residue is attributed --
+
+/** The env var naming the out-of-tree directory a drive writes screenshots, traces and scratch into. */
+export const UAT_DRIVE_SCRATCH_ENV = "STORYTREE_DRIVE_SCRATCH";
+
+/**
+ * PURE: the out-of-tree scratch directory for one run.
+ *
+ * OUT of the repository by construction, because the drive refuses to run against a dirty tree: a
+ * screenshot written into the checkout does not merely litter, it REFUSES THE NEXT DRIVE, which is
+ * how one invented Playwright harness cost three drives. `runId` already carries the story, the
+ * commit and the pid, so two drives never share a directory.
+ */
+export function driveScratchDir(tmpRoot: string, runId: string): string {
+  const safe = runId.replace(/[^A-Za-z0-9_.-]+/g, "-");
+  return `${tmpRoot.replace(/[/\\]+$/, "")}/storytree-uat-drive/${safe}`;
+}
+
+/**
+ * How one drive ENDED, before anything is said about the product.
+ *
+ * The distinction is the point. `reported` is the only end that carries a claim about the system.
+ * `cut-off` and `no-report` are both non-passes, and neither is a MISS in the sense that matters: a
+ * MISS is currently reported as though the journey had been walked and found wanting, when in fact
+ * the harness stopped the walk (`cut-off`) or the session's own budget ran out mid-walk
+ * (`no-report`). Both are HARNESS outcomes — a red that tells nobody anything about the product —
+ * and ADR-0348's flip increment says to keep those distinct from a real red.
+ */
+export type DriveEndKind = "reported" | "cut-off" | "no-report";
+
+export interface DriveEnd {
+  readonly kind: DriveEndKind;
+  /** True when this end says nothing about the product — a harness outcome, never a finding. */
+  readonly harness: boolean;
+  readonly reason: string;
+}
+
+/**
+ * PURE: classify how a drive ended, from what the harness OBSERVED rather than from what it hoped.
+ *
+ * `timedOut` is the runner's own ETIMEDOUT — the harness killed the walk, so whatever the journey
+ * would have concluded is unknown and unknowable from here. Everything else with no readable report
+ * is a session that ENDED without saying anything: the measured shape is a driver that started a
+ * 40-minute poll inside an 11-minute session, so the WALK outlived its own driver.
+ *
+ * Neither is ever a pass. What changes is that neither is reported as a product FAIL either, so the
+ * repair a reader reaches for ("raise the ceiling" / "bound the wait" / "split the journey") is the
+ * one that actually fixes it.
+ */
+export function classifyDriveEnd(args: {
+  readonly timedOut: boolean;
+  readonly reportReadable: boolean;
+  readonly ceilingMinutes: number;
+  readonly elapsedMinutes: number;
+}): DriveEnd {
+  if (args.reportReadable) {
+    return { kind: "reported", harness: false, reason: "the driver reported on the journey" };
+  }
+  if (args.timedOut) {
+    return {
+      kind: "cut-off",
+      harness: true,
+      reason:
+        `the HARNESS stopped the walk at its ${args.ceilingMinutes}-min ceiling — the journey was still ` +
+        "running and never got to report. This is NOT a finding about the product: nothing was observed " +
+        `to be wrong. Re-run with STORYTREE_UAT_DRIVE_TIMEOUT_MIN=${Math.ceil(args.ceilingMinutes * 2)} ` +
+        "if the journey is genuinely this long, or bound the step that is eating the clock.",
+    };
+  }
+  return {
+    kind: "no-report",
+    harness: true,
+    reason:
+      `the drive session ENDED after ${args.elapsedMinutes.toFixed(1)}m without a readable report, inside ` +
+      `a ${args.ceilingMinutes}-min ceiling it never reached — so the SESSION ran out before the WALK did ` +
+      "(the measured shape: a 40-min poll started inside an 11-min session). This is NOT a finding about " +
+      "the product. Shorten the walk, or split the journey.",
+  };
+}
+
+/** One `git status --porcelain` entry. */
+export interface TreeEntry {
+  /** The two-character status code, e.g. `??` (untracked), ` M` (modified), `A ` (added). */
+  readonly code: string;
+  readonly path: string;
+}
+
+/** PURE: parse `git status --porcelain` output. Rename entries keep their destination path. */
+export function parsePorcelain(text: string): TreeEntry[] {
+  const out: TreeEntry[] = [];
+  for (const raw of text.replace(/\r\n/g, "\n").split("\n")) {
+    if (raw.trim().length === 0) continue;
+    const code = raw.slice(0, 2);
+    let p = raw.slice(2).trim();
+    const arrow = p.indexOf(" -> ");
+    if (arrow >= 0) p = p.slice(arrow + 4);
+    if (p.startsWith('"') && p.endsWith('"') && p.length > 1) p = p.slice(1, -1);
+    if (p.length > 0) out.push({ code, path: p });
+  }
+  return out;
+}
+
+/** What a drive left behind, split by what may be swept and what must never be. */
+export interface DriveResidue {
+  /** UNTRACKED paths that appeared during the drive — safe to remove: they did not exist before it. */
+  readonly sweep: string[];
+  /** Changes to TRACKED files that appeared during the drive. Never auto-removed; a real finding. */
+  readonly blocking: string[];
+}
+
+/**
+ * PURE: what did this drive leave in the tree?
+ *
+ * The drive already refuses to start against a dirty tree, so `before` is empty in practice — which
+ * is exactly what makes the sweep safe rather than merely convenient: every path in `after` came into
+ * existence DURING the drive, so removing the untracked ones destroys nothing that existed before the
+ * run, and restores precisely the state the next drive's cleanliness check demands. `before` is a
+ * parameter anyway, so the attribution is real rather than assumed.
+ *
+ * The split is load-bearing and the asymmetry is deliberate. An untracked screenshot is litter and is
+ * swept. A modified TRACKED file is a drive that edited repository source, which the prompt forbids
+ * outright — deleting that would destroy work AND hide a violation, so it is reported instead and the
+ * run says so out loud.
+ */
+export function classifyDriveResidue(
+  before: readonly TreeEntry[],
+  after: readonly TreeEntry[],
+): DriveResidue {
+  const seen = new Set(before.map((e) => `${e.code} ${e.path}`));
+  const priorPaths = new Set(before.map((e) => e.path));
+  const sweep: string[] = [];
+  const blocking: string[] = [];
+  for (const e of after) {
+    if (seen.has(`${e.code} ${e.path}`)) continue;
+    if (e.code === "??" && !priorPaths.has(e.path)) sweep.push(e.path);
+    else blocking.push(e.path);
+  }
+  return { sweep, blocking };
+}
+
+// -- The seam the isolation actually travels through --------------------------
+
+/** Everything one drive needs in order to be a guest rather than the host. */
+export interface DriveIsolation {
+  /** The drive's OWN notice-board session id — never the launching session's. */
+  readonly sessionId: string;
+  /** The exclusive localhost port the runner reserved for this drive's own studio. */
+  readonly surfacePort: number;
+  /** The clean commit the drive is pinned to, and which its surface must be serving. */
+  readonly commitSha: string;
+  /** The out-of-tree directory for screenshots, traces and scratch. */
+  readonly scratchDir: string;
+  /** The wall-clock ceiling, in minutes, after which the harness kills the walk. */
+  readonly ceilingMinutes: number;
+}
+
+/**
+ * PURE: the environment the drive child is spawned with.
+ *
+ * This is the ONLY route by which the isolation reaches the spawned session, which is why it is a
+ * function rather than an object literal inside the runner: an in-process test cannot answer a
+ * `spawnSync` child, so proving the runner ISOLATES the child means proving the ENV it hands over.
+ * Here that is a pure assertion; in the runner it is one line that cannot drift.
+ *
+ * `STORYTREE_SESSION_ID` is explicitly DELETED, not merely overridden. It means "inherit the parent
+ * session" wherever it is honoured, so a drive inheriting it from its launcher's env would re-collapse
+ * the two identities through the other door while {@link UAT_DRIVE_SESSION_ENV} said they were apart.
+ */
+export function driveChildEnv(
+  parentEnv: Readonly<Record<string, string | undefined>>,
+  iso: DriveIsolation,
+): Record<string, string | undefined> {
+  const env: Record<string, string | undefined> = { ...parentEnv };
+  delete env["STORYTREE_SESSION_ID"];
+  env[UAT_DRIVE_SESSION_ENV] = iso.sessionId;
+  env[UAT_DRIVE_SURFACE_PORT_ENV] = String(iso.surfacePort);
+  env[UAT_DRIVE_SCRATCH_ENV] = iso.scratchDir;
+  return env;
+}
+
+/**
+ * The isolation clause, built per drive — the driver's half of what the harness has already done.
+ *
+ * The mechanical half stands whatever the model does: the identity is env-carried and the ledger
+ * honours it, the port was probed free before the spawn, the scratch directory exists. This clause
+ * exists so the driver does not fight the isolation out of ignorance — a driver that does not know it
+ * has a reserved port discovers a sibling's server, which is failure 2 in full.
+ */
+export function uatDriveIsolationClause(iso: DriveIsolation): string {
+  return [
+    "Isolation — you are a GUEST in this checkout, not the session that owns it:",
+    "",
+    `  - Your notice-board session is "${iso.sessionId}", which is NOT the session that launched you.`,
+    "    Never run `storytree noticeboard done` on this checkout's behalf, and never release, reclaim or",
+    "    tidy a claim you did not take: the launching session is still working, and its claims are what",
+    "    stop a sibling from writing the same capability underneath it.",
+    `  - Your surface is http://localhost:${iso.surfacePort} and NOTHING is listening there yet — the port`,
+    "    was probed free for you. START your own studio on it (`--strictPort`). Other worktrees run their",
+    "    own studios on the well-known ports; those are not yours.",
+    "  - Before you trust ANY surface, GET /api/health on it and check two fields: `store` is \"pg\", and",
+    `    \`code.startedAt\` is ${iso.commitSha.slice(0, 10)} — the commit this drive is pinned to. If either`,
+    "    disagrees, or the payload carries neither field, you are looking at a DIFFERENT checkout: do not",
+    "    walk it. Report `fail` naming what you found instead. A drive that reaches no surface is honest;",
+    "    a drive that walks somebody else's is not.",
+    `  - Write every screenshot, trace, log and scratch file under ${iso.scratchDir} — it is outside the`,
+    "    repository and already exists. Anything you leave in the tree REFUSES the next drive.",
+    `  - You have ${iso.ceilingMinutes} minutes of wall clock, total, and the harness KILLS you at it. Budget`,
+    "    against that: a walk that outlives its own session reports nothing at all, which is a harness",
+    "    failure that teaches nobody anything. If the journey cannot fit, stop early and report `fail`",
+    "    naming the ceiling.",
+  ].join("\n");
 }
