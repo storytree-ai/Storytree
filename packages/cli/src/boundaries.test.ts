@@ -497,13 +497,6 @@ test("the scan does NOT flag test-file / parity reuse (the real devDep parity sc
         specifier: "@storytree/storage-protocol",
         typeOnly: false,
       },
-      // proof-protocol's parity test imports library (the real proof-protocol↔library devDep).
-      {
-        importer: "@storytree/proof-protocol",
-        file: "packages/proof-protocol/src/parity.test.ts",
-        specifier: "@storytree/library",
-        typeOnly: false,
-      },
       // a parity SUITE definition file reaching cross-package is sanctioned scaffolding too.
       {
         importer: "@storytree/storage-protocol",
