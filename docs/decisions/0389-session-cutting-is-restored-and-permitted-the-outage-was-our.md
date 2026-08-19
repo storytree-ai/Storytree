@@ -2,6 +2,7 @@
 status: accepted
 decided: 2026-08-19
 arc: session-cutting-outage-arc
+load_bearing: true
 ---
 # ADR-0389: Session cutting is restored and permitted: the outage was our own worktree-pool reuse, not vendor session creation
 

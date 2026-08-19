@@ -268,34 +268,48 @@ kind owes a seed export any more.
   normally, do NOT restart. Announce-only (→ **RESTART the session**, no mid-build git surgery)
   remains for the un-repairable shapes: a POPULATED husk (half-`git worktree remove` residue) or main
   not on a `claude/*` branch. Doctor: `node packages/cli/worktree-health.mjs --cwd <slot> [--repair]`.
-- **⚠ TEMPORARY (vendor bug, `session-cutting-outage-arc`) — DO NOT let the desktop create the
-  worktree; it hangs and creates NOTHING.** Any desktop session started with "create a fresh worktree"
-  TICKED — and every background-task CHIP, which always requests one — enters
-  `LocalSessions.start`, logs nothing further, and never appears: no session record, no worktree, no
-  `claude.exe`. **This is NOT our repo, our hooks or our tooling** — proved 2026-08-16 against a
-  throwaway one-commit repo with no submodules, no `.claude/`, no history, which hangs identically.
-  Worked on desktop 1.24012.9, broken by 1.26832.0, still broken on 1.30096.5; upstream
-  https://github.com/anthropics/claude-code/issues/86574. **Don't watch a shell that will never
-  start** — the tell is `LocalSessions.start:` in `%APPDATA%\Claude\logs\main.log` with no following
-  `Starting local session`. **Cut sessions this way instead — pre-create the worktree, then point a
-  session at it:**
-
-      git -C C:/code/storytree worktree add .claude/worktrees/<name> -b claude/<name> origin/main
-
-  then EITHER (human) new desktop session → pick that folder → worktree toggle **UNTICKED**; OR
-  (agent, no click, verified end-to-end) hydrate `CLAUDE_CODE_OAUTH_TOKEN` from
-  `~/.storytree/secrets.json`, `cd` to the worktree and `claude --bg "<task>"` — then
-  `claude agents --json` / `claude logs <id>` / `claude stop <id>`. ⚠ A `--bg` cut comes up **Sonnet 5,
-  not Opus** (pass `--model`), its banner reads `Claude API` so the **billing path is UNVERIFIED**
-  (confirm before routine fan-out — the owner meters spend), and a raw `claude` does NOT auto-hydrate
-  the token the way `pnpm storytree …` does. **The repeatable check is now a committed script, not a
-  hand-run procedure:** `node scripts/check-worktree-session-creation.mjs baseline`, fire the thing
-  you're testing (a chip or a worktree-ticked session), then `... check` — it correlates
-  `LocalSessions.start:` against the following `Starting local session` line and prints a per-attempt
-  HEALTHY/BROKEN verdict, so nobody has to re-derive the log-reading from memory. `... census`
-  reproduces the day-by-`worktree=`-flag table above without a hand grep. **REMOVE THIS WHOLE BULLET when the upstream bug is
-  fixed** — re-test by ticking the worktree box on a new session; if it starts, delete this and close
-  the arc.
+- **Session cutting WORKS — chips are a live dispatch route again (ADR-0389 D1, 2026-08-19).** The
+  2026-08-14 freeze ("cutting is broken, park follow-ups as arc increments instead") is WITHDRAWN; the
+  owner confirmed a fresh cut independently. What does NOT change (D5): the ADR-0288 worth-a-session
+  bar still sits on the minting side, declining a follow-up is still free and carries no durable
+  record, and silence is still forbidden — restoring the route is not a licence to chip everything,
+  and "the click is consent, not selection" stands.
+- **If a desktop session start ever hangs again, this is the shape — and do NOT re-attribute it
+  upstream.** From 2026-08-13 to 08-19 every worktree-ticked start (so every chip) died, and it was
+  blamed on a vendor bug in session creation; **that attribution is withdrawn** (ADR-0389 D2/D4). The
+  cause was ours. When the desktop REUSES a pooled worktree slot it scrubs it with an awaited
+  `git clean -ffdx -- :(icase,glob).claude/**`, and pnpm materialises a workspace dev-dependency cycle
+  as Windows JUNCTIONS, which git traverses as ordinary directories — so the clean recurses unboundedly
+  (154,373 `Function not implemented` warnings; one live capture at 29.5 min and ~85% of a core) and
+  never returns. The start therefore never reaches `[rebindWorktree]`, no `claude.exe` is ever spawned,
+  and the renderer is left holding a session id the manager reports "not found after session load".
+  `session-cutting-outage-arc-inc-02` removes the cycle. What IS worth filing upstream is only the
+  narrower residue: an unbounded `git clean -ffdx` awaited on the session-start path breaks any pnpm
+  workspace with a dev-dependency cycle on Windows, and the app keeps its worktrees inside the very
+  directory that pathspec covers.
+  - **The one surviving tell:** does `Starting local session <id> in <cwd>` follow `LocalSessions.start:`
+    in `%APPDATA%\Claude\logs\main.log` AT ALL. ⚠ **~5 s is the NORMAL latency, not a deadline** —
+    measured 2026-08-19, a worktree-backed start took **95 s and SUCCEEDED** (the pool scrubbed six
+    reuse candidates first, gave up, and fell through to create-fresh, which finished in four), so a
+    five-second cutoff manufactures a false BROKEN. **Both older tells are FALSE**, which is most of
+    what the six days cost: `LocalSessions.start:` is a hardcoded fieldless literal logged identically
+    on EVERY start, healthy or broken, so it is only ever a marker to correlate FROM; and a real failure
+    DOES allocate — the 08-19 07:49 failure created a branch and re-leased a pooled slot — so "check
+    that nothing was created" is satisfied by a genuine failure. Ask the committed check rather than
+    re-deriving the log-reading: `node scripts/check-worktree-session-creation.mjs baseline`, fire the
+    thing you are testing, then `… check`.
+  - **Found a wedged clean? KILLING it is the SAFE direction** (owner-approved) — look for a
+    `git clean -ffdx` child of `claude.exe` via
+    `Get-CimInstance Win32_Process -Filter "Name='git.exe'"`. Files it has not removed yet simply
+    survive the kill, whereas letting it COMPLETE would delete every worktree under
+    `.claude/worktrees/`, uncommitted work included. Never `mv` a junction — `cmd /c rmdir` removes the
+    reparse point, `cmd /c mklink /J` restores it.
+  - **Escape hatch, no longer the required route:** pre-create the worktree with
+    `git -C C:/code/storytree worktree add .claude/worktrees/<name> -b claude/<name> origin/main`, then
+    start a desktop session on that folder with the worktree toggle UNTICKED. A `claude --bg` route
+    also exists but comes up Sonnet 5 unless you pass `--model`, does not auto-hydrate
+    `CLAUDE_CODE_OAUTH_TOKEN` the way `pnpm storytree …` does, and its billing path is UNVERIFIED —
+    clear it with the owner before any routine use.
 - Gate: `pnpm -r typecheck` · `pnpm -r test` (the two `-r` legs need no DB or API key; two gate rungs
   DO need the live store — `check:guidance` / `check:agents` read it since ADR-0302 D1, so bring the
   DB up before a full gate)
