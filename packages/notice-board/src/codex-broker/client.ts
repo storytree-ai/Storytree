@@ -17,6 +17,7 @@
  */
 
 import { readFileSync } from "node:fs";
+import { connect } from "node:net";
 
 import type { ClaimDocT, ClaimResult } from "../claim.js";
 
@@ -55,25 +56,164 @@ export function readBrokerHandshake(handshakePath: string): BrokerHandshake {
   if (typeof token !== "string" || token.length === 0) {
     throw new Error("broker handshake carries no token");
   }
-  return { protocolVersion: CODEX_CLAIM_BROKER_PROTOCOL_VERSION, port, token };
+  // Stamped so a later failure can NAME the file it trusted. Without it the only diagnosable fact
+  // about a dead broker — where the port came from — is the one the message cannot state.
+  return { protocolVersion: CODEX_CLAIM_BROKER_PROTOCOL_VERSION, port, token, sourcePath: handshakePath };
 }
 
 /** How long to wait on the broker before failing closed. A local call that is slow is a broken call. */
 const REQUEST_TIMEOUT_MS = 15_000;
 
+/** How long a bare liveness connect may take. Loopback answers in single-digit ms or not at all. */
+const LIVENESS_PROBE_TIMEOUT_MS = 2_000;
+
+function brokerAddress(handshake: BrokerHandshake): string {
+  return `127.0.0.1:${handshake.port}`;
+}
+
+/**
+ * Why a readable handshake can name a port nothing answers on — carried by every dead-broker
+ * message, because without it the reader's next move is to check that the file exists, and that is
+ * precisely the check that recorded a false "criterion met" in two artifacts.
+ */
+const STALE_HANDSHAKE_NOTE =
+  "the handshake is published at startup and removed only on GRACEFUL shutdown, so it outlives a " +
+  "crash and keeps naming a dead port";
+
+function handshakeClause(handshake: BrokerHandshake): string {
+  return handshake.sourcePath === undefined ? "" : ` Handshake read from ${handshake.sourcePath}.`;
+}
+
+/**
+ * Pull every errno out of a rejected `fetch`. undici throws a bare `TypeError: fetch failed` and
+ * hangs the real reason off `cause` — which may itself be an `AggregateError`, because the
+ * IPv4/IPv6 fan-out tries both and collects. A single `.cause.code` read misses that case.
+ */
+function transportCodes(error: unknown, seen = new Set<unknown>()): string[] {
+  if (error === null || typeof error !== "object" || seen.has(error)) return [];
+  seen.add(error);
+  const codes: string[] = [];
+  const code = (error as { code?: unknown }).code;
+  if (typeof code === "string") codes.push(code);
+  const errors = (error as { errors?: unknown }).errors;
+  if (Array.isArray(errors)) for (const inner of errors) codes.push(...transportCodes(inner, seen));
+  codes.push(...transportCodes((error as { cause?: unknown }).cause, seen));
+  return codes;
+}
+
+/**
+ * Translate a transport failure into something a human or an agent can ACT on.
+ *
+ * The case that actually happens is a dead broker behind a live handshake: measured 2026-08-19, the
+ * desktop sidecar died minutes after publishing, and the live smoke's bootstrap reported the whole
+ * condition as `fetch failed` — undici's opaque TypeError for a refused connection, naming no port,
+ * no path and no conclusion. The refusal itself was CORRECT and stays unchanged; only the words do.
+ *
+ * The three cases are kept apart because they call for different actions: nothing listening means
+ * relaunch the host, a timeout means it is hosting but wedged (relaunching on that evidence would
+ * be guesswork), and anything else is reported with its errno rather than guessed at.
+ */
+function describeTransportFailure(handshake: BrokerHandshake, error: unknown): string {
+  const address = brokerAddress(handshake);
+  const where = handshakeClause(handshake);
+  if (error instanceof Error && error.name === "TimeoutError") {
+    return (
+      `the claim broker at ${address} accepted the connection but did not answer within ` +
+      `${REQUEST_TIMEOUT_MS} ms — it is hosting but wedged, which is NOT the same as absent, so do ` +
+      `not relaunch on this evidence alone.${where}`
+    );
+  }
+  const codes = transportCodes(error);
+  if (codes.includes("ECONNREFUSED")) {
+    return (
+      `the claim broker is NOT LISTENING on ${address} (ECONNREFUSED) — ${STALE_HANDSHAKE_NOTE}. ` +
+      `The desktop app that hosts the resident authority (ADR-0375) is not running, or its sidecar ` +
+      `died after publishing; relaunch it and re-run.${where}`
+    );
+  }
+  const code = codes[0];
+  const detail = error instanceof Error ? error.message : String(error);
+  return (
+    `the claim broker at ${address} was unreachable${code === undefined ? "" : ` (${code})`} — ` +
+    `${STALE_HANDSHAKE_NOTE}, so a readable handshake is not evidence that anything is listening. ` +
+    `Underlying failure: ${detail}.${where}`
+  );
+}
+
+/** What a liveness probe answers: the verdict, and the sentence a caller can print verbatim. */
+export interface BrokerLivenessVerdict {
+  readonly live: boolean;
+  readonly detail: string;
+}
+
+/**
+ * Is the authority UP? Answered from the SOCKET, never from the handshake's existence.
+ *
+ * That distinction is the whole function. A published handshake proves only that a broker once
+ * started; it survives a crash, so "the file is there" is not liveness — yet it was used as the
+ * liveness precondition in the Codex handoff prompt AND as the evidence recording a reinstall
+ * criterion met, and both were wrong. A TCP connect to the port the handshake names is the minimum
+ * honest form of the question, and it belongs wherever the question is asked.
+ */
+export function probeBrokerLiveness(
+  handshake: BrokerHandshake,
+  opts: { readonly timeoutMs?: number } = {},
+): Promise<BrokerLivenessVerdict> {
+  const timeoutMs = opts.timeoutMs ?? LIVENESS_PROBE_TIMEOUT_MS;
+  const address = brokerAddress(handshake);
+  const where = handshakeClause(handshake);
+  return new Promise<BrokerLivenessVerdict>((resolve) => {
+    const socket = connect({ host: "127.0.0.1", port: handshake.port });
+    let settled = false;
+    const settle = (verdict: BrokerLivenessVerdict): void => {
+      if (settled) return;
+      settled = true;
+      socket.destroy();
+      resolve(verdict);
+    };
+    socket.setTimeout(timeoutMs, () =>
+      settle({
+        live: false,
+        detail: `the claim broker at ${address} did not complete a TCP connect within ${timeoutMs} ms.${where}`,
+      }),
+    );
+    socket.on("connect", () =>
+      settle({ live: true, detail: `the claim broker is listening on ${address}.${where}` }),
+    );
+    // `on`, never `once`: a socket can emit a SECOND error (the `destroy()` in `settle`, a reset
+    // racing the refusal), and an unhandled 'error' on a net.Socket is a process-level throw. A
+    // liveness probe that can take the process down is worse than the unobservability it fixes.
+    socket.on("error", (error: NodeJS.ErrnoException) =>
+      settle({
+        live: false,
+        detail:
+          `the claim broker is NOT LISTENING on ${address} (${error.code ?? error.message}) — ` +
+          `${STALE_HANDSHAKE_NOTE}.${where}`,
+      }),
+    );
+  });
+}
+
 export async function postBrokerRequest(
   handshake: BrokerHandshake,
   body: Record<string, unknown>,
 ): Promise<BrokerResponse> {
-  const response = await fetch(`http://127.0.0.1:${handshake.port}${BROKER_REQUEST_PATH}`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      [BROKER_TOKEN_HEADER]: handshake.token,
-    },
-    body: JSON.stringify({ protocolVersion: CODEX_CLAIM_BROKER_PROTOCOL_VERSION, ...body }),
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`http://127.0.0.1:${handshake.port}${BROKER_REQUEST_PATH}`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        [BROKER_TOKEN_HEADER]: handshake.token,
+      },
+      body: JSON.stringify({ protocolVersion: CODEX_CLAIM_BROKER_PROTOCOL_VERSION, ...body }),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+  } catch (error) {
+    // Fails closed exactly as before — every caller already treats a throw from here as "refuse the
+    // whole bootstrap", which stays the right end for a dead broker. Only the WORDS change.
+    throw new Error(describeTransportFailure(handshake, error), { cause: error });
+  }
   const payload: unknown = await response.json();
   if (typeof payload !== "object" || payload === null || typeof (payload as { ok?: unknown }).ok !== "boolean") {
     throw new Error(`broker returned an unreadable answer (HTTP ${response.status})`);

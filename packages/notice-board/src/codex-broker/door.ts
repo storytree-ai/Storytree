@@ -71,6 +71,12 @@ export interface BrokerHandshake {
   readonly protocolVersion: number;
   readonly port: number;
   readonly token: string;
+  /**
+   * Where this handshake was READ from, when it was read from a file. Diagnostic only — never sent,
+   * never trusted — but it is the one fact a dead-broker message otherwise cannot state, and the
+   * override envs mean a client cannot re-derive it. Absent when the broker minted it in-process.
+   */
+  readonly sourcePath?: string;
 }
 
 /** A fresh per-launch secret. 32 bytes of CSPRNG — never derived from anything guessable. */
