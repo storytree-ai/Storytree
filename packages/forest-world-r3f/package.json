@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test \"src/**/*.test.ts\" \"harness/**/*.test.ts\"",
     "dev": "vite harness",
-    "capture": "node --import tsx harness/capture.mjs"
+    "capture": "node --import tsx harness/capture.mjs",
+    "hardware-floor": "node --import tsx harness/hardware-floor.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",

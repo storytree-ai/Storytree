@@ -7,13 +7,21 @@
 // Chromium on this box rasterises through ANGLE-on-SwiftShader, which is software, so its
 // frame times are the compositor's present cadence and nothing more.
 //
-// The measurement therefore has to happen where the real GPU is, which means it has to
-// happen in front of the owner. Rather than hand back a command and a request to read a
-// devtools panel, the page measures itself and prints the two things that decide it: the
-// UNMASKED RENDERER STRING (which says whether a GPU was engaged at all) and the frame-time
-// distribution. If the renderer string says SwiftShader, the numbers below it mean nothing,
-// and the HUD says so itself rather than leaving that inference to the reader — a frame time
-// with no provenance is exactly how a software cadence gets quoted as a hardware verdict.
+// The measurement therefore has to happen where the real GPU is. This panel reports the
+// UNMASKED RENDERER STRING, which answers WHICH RASTERISER honestly and is what it is for.
+//
+// ⚠ CORRECTED 2026-08-19 — ITS TIMINGS ARE NOT A D2 VERDICT, AND ONCE READ AS ONE.
+// This panel was built to let the owner answer question 2 by opening the page. It cannot,
+// and the reason is structural rather than a tuning problem: `compare.html` renders each
+// panel ONCE and blits it, so by the time these ninety `requestAnimationFrame` deltas are
+// sampled the page is IDLE — and an idle page presents at the display's refresh interval on
+// any hardware whatsoever. Measured on the real Adreno X1-85, a settled `compare.html` and a
+// BLANK page both report a p50 of 16.70 ms. The number contains no scene.
+//
+// That is the same artefact the README correctly refused to quote from the SwiftShader run,
+// reached by a different road — which is why the labels below say "idle cadence" and the
+// verdict text says outright what the number is not. The real answer lives in
+// `hardware-floor.mjs`, which draws a land continuously and times it with `gl.finish()`.
 
 import { useEffect, useState } from 'react';
 
@@ -96,9 +104,12 @@ export function HardwareHud({ onSettled }: { onSettled: () => void }) {
         <dd>
           {reading.screen} at dpr {reading.dpr}
         </dd>
-        <dt>frame p50</dt>
+        {/* Labelled IDLE, not `frame`. This page renders each panel once and then draws
+            nothing, so these deltas are the display's presentation interval — see the verdict
+            note below, and `hardware-floor-report.json` for the controls that measured it. */}
+        <dt>idle cadence p50</dt>
         <dd>{reading.p50.toFixed(2)} ms</dd>
-        <dt>frame p95</dt>
+        <dt>idle cadence p95</dt>
         <dd>{reading.p95.toFixed(2)} ms</dd>
         <dt>worst</dt>
         <dd>{reading.worst.toFixed(2)} ms</dd>
@@ -112,9 +123,15 @@ export function HardwareHud({ onSettled }: { onSettled: () => void }) {
         </p>
       ) : (
         <p className="verdict ok">
-          Hardware rasteriser engaged, so these frame times are real. Note the honest caveat: this page
-          draws a few dozen small static meshes, not a whole island, so a comfortable number here is a
-          NECESSARY condition for D2 and not a sufficient one.
+          Hardware rasteriser engaged &mdash; so the GPU line above is a real answer to{' '}
+          <em>which renderer</em>. The timings are <strong>not</strong> a D2 verdict, and this
+          correction replaces what this panel used to claim: every panel on this page is drawn{' '}
+          <strong>once</strong> and then blitted, so these deltas are the display&rsquo;s refresh
+          interval and contain no scene. Measured on this GPU, a settled{' '}
+          <code>compare.html</code> and a <strong>blank page</strong> present identically
+          (16.70&thinsp;ms p50 each). For the real answer run{' '}
+          <code>pnpm --filter @storytree/forest-world-r3f hardware-floor</code>, which draws a land
+          continuously and times it with <code>gl.finish()</code>.
         </p>
       )}
     </aside>
