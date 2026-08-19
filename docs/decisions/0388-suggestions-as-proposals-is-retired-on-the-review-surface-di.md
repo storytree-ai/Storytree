@@ -91,10 +91,14 @@ answer.** Concretely:
    pick the propose-accept cycle up much later, and a revival should start from working, proven code
    rather than from scratch. Deleting them would convert a cheap future decision into an expensive one.
 
-5. **But they may not read as LIVE.** Each carries an explicit **BUILT · UNREACHED · PARKED**
-   disposition on its own spec, naming ADR-0388, stating that no shipped surface calls it and that its
-   verdict remains a true statement about its own behaviour. "Proven" and "reached" are different
-   claims and the corpus now says which is which.
+5. **But they may not read as LIVE.** `accept-reject-suggestion-api` and `member-suggest-write-policy`
+   each carry an explicit **BUILT · UNREACHED · PARKED** disposition on their own spec, naming
+   ADR-0388, stating that no shipped surface calls them and that their verdicts remain true statements
+   about their own behaviour. "Proven" and "reached" are different claims and the corpus now says
+   which is which. **`suggestion-edit-store` is deliberately NOT dispositioned here** — the increment
+   this decision executes named exactly two capabilities, and widening it unasked is the scope creep
+   the increment's own fence forbids. It is equally built-and-unreached and is named as a follow-up in
+   the Consequences below; do not read its absence as a claim that it IS reached.
 
 6. **The `library-review` UAT legs claim what the surface does.** Legs 2, 4 and 7 and the story's
    outcome sentence are re-authored to the CriticMarkup journey — a `{>>…<<}` comment rendered inline
@@ -128,6 +132,23 @@ answer.** Concretely:
   surface it was written against moves under it, so a revival may find the seams no longer fit. The
   alternative (delete now, rebuild later) was rejected because the verdicts and the design thinking are
   the expensive parts and both survive in the code.
+- **A named follow-up: `suggestion-edit-store` still lacks its PARKED block.** It is in exactly the
+  same state as the two that got one — proven, retained, reached by nothing — and only the increment's
+  two-capability fence kept it out of this change. The same is true of the ADR-0146-era superseded UI
+  caps (`collapsed-suggestion-view`, `inline-comment-thread`) and of `block-position-comment-anchor` /
+  `review-refresh-feed`, each of which already carries an accurate ADR-0146-era note but no ADR-0388
+  disposition. Finishing that sweep is a follow-up increment on `uat-journey-surgery-arc`, not a
+  defect in this one — but until it lands, "capability has no PARKED block" does not mean "capability
+  is reached".
+- **ADR-0140's concurrency answer is overtaken in MECHANISM, not in SAFETY.** Its Context and
+  Consequences settle the same-artifact concurrency question *"in the suggestion direction — a
+  non-owner does not overwrite the document at all; they propose a suggestion the owner accepts or
+  rejects — rather than by adding a lock or a claim."* The mechanism named there is exactly what this
+  ADR retires. **The safety property survives on a different mechanism:** `guestPolicy` still refuses a
+  member's hard asset edit, and the editor's Save is LOCAL for a structured artifact and fails closed
+  for a non-admin — so a non-owner still never overwrites the shared document. What is gone is the
+  *proposal* as the route by which their change reaches it; a non-owner now has no route at all. That
+  is a real narrowing of what a member can do, and it is accepted knowingly.
 - **The `guestPolicy` module is NOT dead.** Only its suggestion-specific allowances are unreached; the
   same gate still refuses a member's hard asset edit and 401s an identity-less caller, and those rules
   are live. A future cleanup pass must not read "parked capability" as "deletable module".
