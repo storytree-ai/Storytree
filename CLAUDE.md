@@ -288,7 +288,10 @@ kind owes a seed export any more.
   workspace with a dev-dependency cycle on Windows, and the app keeps its worktrees inside the very
   directory that pathspec covers.
   - **The one surviving tell:** does `Starting local session <id> in <cwd>` follow `LocalSessions.start:`
-    in `%APPDATA%\Claude\logs\main.log` within ~5 s. **Both older tells are FALSE**, which is most of
+    in `%APPDATA%\Claude\logs\main.log` AT ALL. ⚠ **~5 s is the NORMAL latency, not a deadline** —
+    measured 2026-08-19, a worktree-backed start took **95 s and SUCCEEDED** (the pool scrubbed six
+    reuse candidates first, gave up, and fell through to create-fresh, which finished in four), so a
+    five-second cutoff manufactures a false BROKEN. **Both older tells are FALSE**, which is most of
     what the six days cost: `LocalSessions.start:` is a hardcoded fieldless literal logged identically
     on EVERY start, healthy or broken, so it is only ever a marker to correlate FROM; and a real failure
     DOES allocate — the 08-19 07:49 failure created a branch and re-leased a pooled slot — so "check
