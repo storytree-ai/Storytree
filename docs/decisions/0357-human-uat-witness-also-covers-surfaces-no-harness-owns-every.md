@@ -115,14 +115,20 @@ be a stale harness statement).
 > behind IAP, and no identity the factory holds can mint an IAP-audience OIDC token since ADR-0254 D4
 > retired `storytree-remote-dev`. So the un-harnessable category is not one leg with one cause; it is
 > two causes, and the second one gates a whole surface rather than a single dialog.
-> **TWO are MOOT** — `chat-drive-bridge` 5 and `chat-subagent-spawn` 5 sit on `status: retired` stories
-> whose surfaces were DELETED, so their journeys cannot be walked at all. Neither answer this ADR
-> offers fits: their D2/spend bases are withdrawn, but a `machine` gate there could never go green for a
-> reason that is neither a harness limit nor a product defect — precisely the indistinguishable red D1's
-> second basis exists to prevent minting. They were left tagged as they stand with the mootness recorded
-> on the leg, and the disposition (delete the legs, ordinals burned, or keep them verbatim as history)
-> routed to a story-author / librarian pass. **If this shape recurs, it is a candidate for a D6-style
-> deletion rule for retired stories rather than a third witness basis.**
+> **THREE are MOOT, not two — corrected in place (ADR-0139).** `chat-drive-bridge` 5 and
+> `chat-subagent-spawn` 5 sit on `status: retired` stories whose surfaces were DELETED, so their
+> journeys cannot be walked at all; `chat-subagent-spawn` 6 is moot on the same grounds, which that
+> leg's own basis already says in passing: it names a real no-compiler routing judgment first — the
+> consultative verdict has no oracle and would hold even if the run were free — then records that
+> "this leg's own triage note says the mootness reaches it the same way as leg 5", since the story the
+> judgment routes through was deleted too. Neither answer this ADR offers fits any of the three: their
+> D2/spend bases are withdrawn, but a `machine` gate there could never go green for a reason that is
+> neither a harness
+> limit nor a product defect — precisely the indistinguishable red D1's second basis exists to prevent
+> minting. They were left tagged as they stand with the mootness recorded on each leg, and the
+> disposition (delete the legs, ordinals burned, or keep them verbatim as history) routed to a
+> story-author / librarian pass. **If this shape recurs, it is a candidate for a D6-style deletion rule
+> for retired stories rather than a third witness basis.**
 >
 > **A claim in this ADR's own Consequences was wrong and is corrected in place (ADR-0139).** It read
 > "the `_electron` suite already relaunches across a restart". `session-survival.e2e.mjs` launches the
@@ -136,24 +142,34 @@ be a stale harness statement).
 > authored by this triage. Four are the taste legs, of which `headless-orchestrator` 4,
 > `chat-subagent-spawn` 6 and `map-terminal-build` 6 already state both a basis and what would (or
 > would never) retire it — `map-terminal-build` 6's *"dissolves under neither a new harness nor cheaper
-> spend"* is the model — while **`feedback-graduation` 4 states its no-compiler basis but no explicit
-> retiring sentence, and is the one outstanding D4 gap.** Two are the moot pair above. Closing that one
-> gap belongs with D3's product slice, which is where every human leg's basis has to become structured
-> anyway.
+> spend"* is the model, though `chat-subagent-spawn` 6's basis is a dual one whose second ground is the
+> mootness corrected above. **`feedback-graduation` 4 now also states an explicit retiring sentence —
+> "it would retire only if the justification bar itself became a mechanical predicate" — closing what
+> was the one outstanding D4 gap, delivered with D3's product slice below.** Two of the nine are the
+> pure moot pair above (`chat-drive-bridge` 5, `chat-subagent-spawn` 5); `chat-subagent-spawn` 6,
+> already counted above among the four taste legs, is moot on the same grounds too — the moot SET is
+> three legs wide even though the ninefold partition still sums 3 + 4 + 2.
 
-**D3 is a product increment, not corpus work, and it does not exist today.** `UatTestCriterion` is
-`.strict()` with eight fields and no rationale among them
-(`packages/library/src/uat-test-criteria.ts:39`), so a stated basis has no structured home. Delivering
-D3 is a thin vertical slice: an authored tag → the parser → the schema → the attestations payload → the
-studio row type → the tooltip string.
+**D3 delivered 2026-08-19 as a thin vertical slice — corrected in place here (ADR-0139), replacing the
+"does not exist today" description this Consequences section carried while it was pending.** The
+authored tag is `_(witness-basis: …)_`, read by `itemWitnessBasis` beside `itemWitness`; it refuses a
+duplicate tag, an empty basis, and a basis on an explicitly `machine` leg. `UatTestCriterion` gained the
+optional `witnessBasis` field — still `.strict()`, now nine fields — with a matching `superRefine` that
+refuses the `witness: machine` + `witnessBasis` combination
+(`packages/library/src/uat-test-criteria.ts:39,197`). `censusUatWitnesses` gained `humanWithoutBasis` —
+the D4 population check, surfaced by `storytree uat census` — and the studio's own
+`UatTestCriterionRow.witnessBasis` feeds the witness-glyph tooltip in `TreeView.tsx`, which now appends
+"Why this needs a person: <basis>" to the title and aria-label for every human leg. All nine surviving
+human legs now carry an authored basis, with revision ids recomputed accordingly.
 
 **⚠️ A new non-identity tag changes every affected leg's `revision-id`.**
 `canonicalUatCriterionContent` strips only identity annotations — criterion-id, revision-id,
-previous-revision-id, lineage (`packages/library/src/uat-test-criteria.ts:189`) — so a
-`witness-because`-style tag lands INSIDE the hashed content. This is contained: only `human` legs gain
+previous-revision-id, lineage (`packages/library/src/uat-test-criteria.ts:189`) — so the delivered
+`witness-basis` tag lands INSIDE the hashed content. This is contained: only `human` legs gain
 the tag, and human legs hold no drive records to invalidate. But it forces an ordering — the schema and
-parser land before any basis is authored — and recomputing a revision-id still has no verb (an open
-friction), so the slice must carry one.
+parser land before any basis is authored — and recomputing a revision-id already had a verb,
+`storytree uat rerevision <story-id> [--write]`, landed 2026-08-15 ahead of this slice and unrelated to
+it — corrected in place here (ADR-0139): the slice did not need to carry one, and used the existing verb.
 
 **Leg 7 stays `human`, and its existing prose is already most of the way to D2.** Its parenthetical
 already names the mechanism — *"an OS-level modal sits outside every harness the proof spine owns"* —

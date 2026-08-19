@@ -571,8 +571,14 @@ credential never leaving the machine.
    injected broker-POST seam (a reachable/authorized double and an unreachable/forbidden double drive
    both paths). *(Machine: the fail-closed branch needs no live broker at all — it is exactly what an
    injected seam proves. Only the AUTHORIZED path needs the live grant, and that is leg 8.)*
-7. **A real build reaches a signed verdict locally and blooms in the shared forest VIA THE BROKER.** _(criterion-id: uatc_da3559fd2874e2df93362733)_ _(revision-id: uatr1:1903082aec93aac0)_ _(previous-revision-id: uatr1:6841ee14c731ef06)_
-   _(witness: human)_ The member triggers a build from the UI; the local backend drives the real `story
+7. **A real build reaches a signed verdict locally and blooms in the shared forest VIA THE BROKER.** _(criterion-id: uatc_da3559fd2874e2df93362733)_ _(revision-id: uatr1:61042eb66b4e4a06)_ _(previous-revision-id: uatr1:1903082aec93aac0)_
+   _(witness: human)_
+   _(witness-basis: the brokered POST is gated on ensureHostedIdentity at
+   apps/desktop/electron/main.ts:180, which opens a BrowserWindow and polls until an INTERACTIVE
+   Google sign-in completes behind IAP. No harness can supply that credential: IAP wants an OIDC
+   token audienced to its own OAuth client, and ADR-0254 D4 retired the last non-human identity the
+   factory held. Retires the day a harness can mint an IAP-audience token — the costed options and
+   the OIDC-issuer probe live on remote-session-access-arc.)_ The member triggers a build from the UI; the local backend drives the real `story
    build --real` (or a node `--live` smoke) on their machine — a real checkout + git + pnpm + worktrees —
    the spine observes RED then GREEN from real exit codes and SIGNS LOCALLY, then the local backend **POSTs
    the signed verdict to the studio's write-broker** (ADR-0117), the SERVER persists it to the SHARED
@@ -598,7 +604,14 @@ credential never leaving the machine.
    options and the OIDC-issuer probe that is step one live on `remote-session-access-arc`. The day a
    harness can mint an IAP-audience token this leg is `machine` and binds a model-driven gate like any
    other — nothing else in it is a judgment call.)*
-8. **The owner's in-app `builder` grant opens the brokered write path.** _(witness: human)_ After the _(criterion-id: uatc_1207e89e3a5adfdc8c21359f)_ _(revision-id: uatr1:d6b0fa603e751678)_ _(previous-revision-id: uatr1:7afcb9cc7915a1b3)_
+8. **The owner's in-app `builder` grant opens the brokered write path.** _(witness: human)_
+   _(witness-basis: both ends sit behind IAP — the grant is performed as an ADMIN in the HOSTED
+   studio's Members panel, and the write path it opens is then exercised through ensureHostedIdentity
+   at apps/desktop/electron/main.ts:180, an interactive Google sign-in inside an Electron
+   BrowserWindow. No identity the factory holds can mint an IAP-audience OIDC token since ADR-0254 D4,
+   and a locally-identified studio serve would witness a DIFFERENT claim rather than this one. Retires
+   with the same IAP-credential fork as leg 7, on remote-session-access-arc; the role predicate itself
+   is already compiled by writeBroker.test.ts.)_ After the _(criterion-id: uatc_1207e89e3a5adfdc8c21359f)_ _(revision-id: uatr1:e3225ae8f5169a2d)_ _(previous-revision-id: uatr1:d6b0fa603e751678)_
    owner marks the member a **builder** in the live Members panel (an in-app grant — no `gcloud`, no
    Cloud SQL IAM grant; ADR-0117 d.2), the member's brokered write path connects against the real hosted
    broker. **Success —** the owner's attestation that the grant they performed authorized the write.

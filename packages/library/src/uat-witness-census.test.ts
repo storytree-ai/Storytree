@@ -136,3 +136,37 @@ test("a would-be UAT section is counted separately from proven-intent criteria",
   assert.equal(census.byWitness.human, 4);
   assert.equal(census.wouldBe, 1, "would-be legs are visible, so a reader can exclude them knowingly");
 });
+
+// ── the ADR-0357 D4 population gap ─────────────────────────────────────────────────────────────
+
+/** A human leg stating its ADR-0357 D2 basis, in the fused written form the corpus also uses. */
+function justified(ordinal: number, basis: string): string {
+  return item(ordinal, `**Leg ${ordinal}**: a claim.`, `_(witness: human)_ _(witness-basis: ${basis})_`);
+}
+
+test("D4: the census names every human leg stating no basis, not merely how many", () => {
+  // D4 is a claim about a POPULATION — a per-criterion schema sees one leg and cannot make it — so
+  // the gap is reported where the whole set is visible, each offender still attributable.
+  const census = censusUatWitnesses([
+    story("alpha", justified(1, "no harness reaches it; a new one retires it."), standalone(2, "human")),
+    story("beta", standalone(1, "machine"), fused(2, "human", "beta")),
+  ]);
+  assert.equal(census.byWitness.human, 3);
+  assert.deepEqual(
+    census.humanWithoutBasis.map((row) => row.sourcePath),
+    ["stories/alpha/story.md", "stories/beta/story.md"],
+  );
+  assert.equal(census.humanWithoutBasis.length, 2, "the justified leg is NOT a gap");
+});
+
+test("D4: a fully justified human population reports an EMPTY gap, and the basis is carried", () => {
+  const census = censusUatWitnesses([
+    story("alpha", justified(1, "an OS modal sits outside every harness; owning OS automation retires it.")),
+    story("beta", standalone(1, "machine"), standalone(2, "either")),
+  ]);
+  assert.deepEqual(census.humanWithoutBasis, [], "empty is the D4-satisfied state");
+  assert.equal(
+    census.rows.find((row) => row.witness === "human")?.witnessBasis,
+    "an OS modal sits outside every harness; owning OS automation retires it.",
+  );
+});

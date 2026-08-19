@@ -126,7 +126,12 @@ the accumulated signal warrants.
    retained item still accepts a `reinforcedBy` entry instead of being deleted. *(proven by
    `friction.test.ts`: “lifecycleOf projects open / archived from route”, “route refuses a missing
    --reason”, and “reinforce records a recurrence on an ARCHIVED item”.)*
-4. **Synthesis** _(witness: human)_: the graduation-synthesist reads the connected friction signal _(criterion-id: uatc_03ea0411c6fce01ae8ff93bd)_ _(revision-id: uatr1:89b76b760f74c199)_
+4. **Synthesis** _(witness: human)_
+   _(witness-basis: whether this evidence earns this guidance is a sufficiency and durability value
+   call with NO oracle — no schema, count or generated-agent check can decide it — so this is a
+   judgment gap rather than a missing harness. It therefore dissolves under neither a new harness nor
+   cheaper spend; it would retire only if the justification bar itself became a mechanical predicate,
+   which would be a narrower claim than the one this leg makes.)_: the graduation-synthesist reads the connected friction signal _(criterion-id: uatc_03ea0411c6fce01ae8ff93bd)_ _(revision-id: uatr1:e1bb663cf55612da)_ _(previous-revision-id: uatr1:89b76b760f74c199)_
    with comments, agent-memory candidates, and the decision log, applies the
    `friction-adjudication` process and `friction-justification-bar`, and routes the durable essence.
    **Success —** the chosen `route` and its `routeReason` clear the justification bar against the

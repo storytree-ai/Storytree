@@ -518,8 +518,16 @@ ever rebuilt, this paragraph is the brief for what it should feel like.
    the panel renders the dispatched run's progress; there is NO code path by which a free-text "yes"
    parsed from the conversation triggers a build (ADR-0108 d.3); and the thin client imports no
    agent/drive/model (ADR-0004).
-5. **Live: a chat proposal, accepted by a click, drives a real signed build and opens a PR.** _(criterion-id: uatc_329bcfb0db6d738d16bab9da)_ _(revision-id: uatr1:045e2af541ec2a08)_ _(previous-revision-id: uatr1:216d98b7ee24b0ed)_
-   _(witness: human)(detail: chat-drive-bridge#uat-5)_ In the desktop app, hold a REAL chat conversation
+5. **Live: a chat proposal, accepted by a click, drives a real signed build and opens a PR.** _(criterion-id: uatc_329bcfb0db6d738d16bab9da)_ _(revision-id: uatr1:71a4eee548ea9e03)_ _(previous-revision-id: uatr1:045e2af541ec2a08)_
+   _(witness: human)(detail: chat-drive-bridge#uat-5)_
+   _(witness-basis: MOOT rather than un-harnessable — this story is `status: retired` and the in-app
+   interactive chat this walk names was retired by ADR-0174, so no harness reaches the journey because
+   the journey no longer exists. ADR-0357's triage recorded that neither of its answers fits: the old
+   spend and outward-facing bases are withdrawn by ADR-0348 D2/D3, while a `machine` gate here could
+   never go green for a reason that is neither a harness limit nor a product defect — the
+   indistinguishable red D1's second basis exists to prevent. The leg is retired history and is on
+   nobody's attestation queue. Retires by DELETION, once a story-author pass settles whether a retired
+   story's legs are deleted with their ordinals burned or kept verbatim as history.)_ In the desktop app, hold a REAL chat conversation
    (a real subscription `query()`), get a proposal carrying a unit id, and CLICK Build to accept it.
    **Success —** the run is genuine on both counts only a human can vouch for: the SDK session was REALLY
    billed (not a scripted `queryFn`), and the trunk was REALLY written to — the spine's verdict is

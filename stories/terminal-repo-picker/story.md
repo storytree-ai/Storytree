@@ -361,7 +361,12 @@ surviving a relaunch, the studio-standalone build degrading honestly, and the pi
    directly, never calling the bridge, never hanging, never crashing. **Success —**
    [`repo-picker-panel`](repo-picker-panel.md)'s and [`terminal-repo-gate`](terminal-repo-gate.md)'s
    signed absent-bridge verdicts.
-7. **The native OS directory dialog opens and is usable.** _(witness: human)_ The member clicks "Choose _(criterion-id: uatc_7a3b2d98cf30074c51c67eac)_ _(revision-id: uatr1:637969e7fff36934)_ _(previous-revision-id: uatr1:ecfe9b180bebff79)_
+7. **The native OS directory dialog opens and is usable.** _(witness: human)_
+   _(witness-basis: "Choose repo…" reaches dialog.showOpenDialog in the Electron MAIN process at
+   apps/desktop/electron/main.ts:594, and Playwright drives the RENDERER — a main-process native OS
+   modal has no renderer surface to click, which is exactly why the e2e suite stubs this one call to
+   make legs 3–5 deterministic. Retires when the proof spine owns OS-level input automation that can
+   click the real chooser itself.)_ The member clicks "Choose _(criterion-id: uatc_7a3b2d98cf30074c51c67eac)_ _(revision-id: uatr1:d50372c1eb182e30)_ _(previous-revision-id: uatr1:637969e7fff36934)_
    repo…" and a REAL native OS directory chooser appears, titled for this purpose, and returns their
    chosen checkout. **Success —** the owner's attestation that the one call legs 3–5 stub behaves in the
    real OS. *(HUMAN on **ADR-0357 D1's second basis** — the success condition is mechanical, but sits
