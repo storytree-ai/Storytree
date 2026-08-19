@@ -1,13 +1,20 @@
 import assert from "node:assert/strict";
+import { connect, createServer } from "node:net";
 import path from "node:path";
 import test from "node:test";
 
 import type { ClaimDocT, ClaimResult } from "../claim.js";
 
-import { readBrokerHandshake, BrokerClaimLedger, claimsForSession } from "./client.js";
+import {
+  readBrokerHandshake,
+  BrokerClaimLedger,
+  claimsForSession,
+  probeBrokerLiveness,
+} from "./client.js";
 import {
   BROKER_HANDSHAKE_ENV,
   BROKER_TOKEN_HEADER,
+  type BrokerHandshake,
   brokerHandshakePath,
   guardBrokerRequest,
   handshakeAclArguments,
@@ -665,4 +672,131 @@ test("broker and bootstrap resolve the SAME handshake path, and never one the pr
     path.join("D:\\dir", "handshake.json"),
     "the directory override keeps the shared filename",
   );
+});
+
+// ---------------------------------------------------------------------------
+// A DEAD broker (the handshake outlives it) — see codex-sidecar-dies-under-electron
+// ---------------------------------------------------------------------------
+
+/**
+ * The handshake is published at startup and removed only on GRACEFUL shutdown, so it outlives a
+ * crash and names a dead port. That is the single most likely way this client fails in the field,
+ * and it is exactly how it failed on 2026-08-19: the desktop sidecar died minutes after publishing,
+ * and the live smoke's bootstrap reported the whole condition as the two words `fetch failed` —
+ * undici's opaque TypeError for a refused connection. No port, no path, no diagnosis.
+ *
+ * The direction was right (fail-closed) and the PRESENTATION was not. `readBrokerHandshake` already
+ * asks "is the operator's broker running?" when the FILE is unreadable; a readable file naming a
+ * dead port is the case that actually happens, and it said nothing at all.
+ */
+/**
+ * A handshake naming a port that is PROVABLY refusing right now — the state a crashed broker leaves
+ * behind. Built by binding an ephemeral port, releasing it, and then CONFIRMING the refusal with a
+ * raw connect, retrying if the OS handed that port to someone else in between. Closing a server and
+ * assuming its port stays dead is not safe on a loaded box: ephemeral ports get recycled, and the
+ * test would then be measuring a stranger's socket. The token is never used — nothing connects.
+ */
+async function refusingHandshake(): Promise<BrokerHandshake> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const port = await new Promise<number>((resolve, reject) => {
+      const probe = createServer();
+      probe.on("error", reject);
+      probe.listen(0, "127.0.0.1", () => {
+        const address = probe.address();
+        const chosen = typeof address === "object" && address !== null ? address.port : 0;
+        probe.close(() => resolve(chosen));
+      });
+    });
+    const refuses = await new Promise<boolean>((resolve) => {
+      const socket = connect({ host: "127.0.0.1", port });
+      const settle = (value: boolean): void => {
+        socket.destroy();
+        resolve(value);
+      };
+      socket.on("connect", () => settle(false));
+      socket.on("error", () => settle(true));
+    });
+    if (refuses) {
+      return { protocolVersion: CODEX_CLAIM_BROKER_PROTOCOL_VERSION, port, token: "unused" };
+    }
+  }
+  throw new Error("could not obtain a refusing loopback port in 20 attempts");
+}
+
+test("a dead broker is NAMED — a refused connection never reaches the caller as `fetch failed`", async () => {
+  const handshake = await refusingHandshake();
+
+  const client = new BrokerClaimLedger(handshake, () => "C:/wt/a");
+  await assert.rejects(
+    () => client.take({ unitId: UNIT, sessionId: SESSION, branch: BRANCH, intent: "why" }),
+    (error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      assert.match(
+        message,
+        new RegExp(`127\\.0\\.0\\.1:${handshake.port}`, "u"),
+        "the message must name the address nothing answered on",
+      );
+      assert.match(
+        message,
+        /not listening|nothing is listening/iu,
+        "it must state the conclusion, not merely echo an errno",
+      );
+      assert.match(
+        message,
+        /stale|outlives|graceful/iu,
+        "it must explain why a handshake can name a dead port at all",
+      );
+      assert.doesNotMatch(
+        message,
+        /^fetch failed$/u,
+        "the undici TypeError is not a diagnosis — this is the regression under test",
+      );
+      return true;
+    },
+  );
+});
+
+/**
+ * The same translation must cover the OTHER verbs, because the bootstrap's first call is `take` but
+ * the ceremony's rollback is `release` and the hook's read is `claims` — a diagnosis wired into one
+ * of them is a diagnosis the field will miss two times in three.
+ */
+test("every brokered verb reports a dead broker the same way", async () => {
+  const handshake = await refusingHandshake();
+
+  const client = new BrokerClaimLedger(handshake, () => "C:/wt/a");
+  const diagnoses = (call: () => Promise<unknown>): Promise<void> =>
+    assert.rejects(call, (error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      assert.match(message, new RegExp(`127\\.0\\.0\\.1:${handshake.port}`, "u"));
+      assert.match(message, /not listening/iu);
+      return true;
+    });
+
+  await diagnoses(() => client.release(UNIT, SESSION));
+  await diagnoses(() => client.upgrade(UNIT, SESSION, { branch: BRANCH, intent: "why" }));
+  await diagnoses(() => claimsForSession(handshake, SESSION));
+});
+
+/**
+ * Liveness must be answerable by a CHECK rather than by a file's existence — the mistake that put a
+ * false "criterion met" into two artifacts. A TCP connect to the port the handshake names is the
+ * minimum honest form, and it has to be able to say NO.
+ */
+test("probeBrokerLiveness answers from the socket, never from the handshake's existence", async () => {
+  const { ledger } = recordingLedger({});
+  const token = mintBrokerToken();
+  const broker = await startBrokerServer({ token, deps: deps({ ledger }) });
+  const handshake = broker.handshake;
+
+  const live = await probeBrokerLiveness(handshake);
+  assert.equal(live.live, true, "a listening broker must probe live");
+  await broker.close();
+
+  // The published handshake of a broker that is GONE — same shape, no listener behind it.
+  const stale = await refusingHandshake();
+  const dead = await probeBrokerLiveness(stale);
+  assert.equal(dead.live, false, "a published handshake is not evidence of a listening broker");
+  assert.match(dead.detail, new RegExp(`127\\.0\\.0\\.1:${stale.port}`, "u"));
+  assert.match(dead.detail, /not listening/iu);
 });
