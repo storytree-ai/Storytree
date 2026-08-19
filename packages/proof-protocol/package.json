@@ -15,7 +15,6 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
-    "@storytree/library": "workspace:*",
     "@types/node": "^22.10.7",
     "tsx": "^4.19.2",
     "typescript": "~5.7.3"
