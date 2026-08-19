@@ -122,6 +122,13 @@ than the empty one. **The HUD's reading contains no scene.** An owner opening th
 `Adreno X1-85` beside `p50 16.7 ms` would have read a display refresh rate as a hardware verdict —
 this arc's most-repeated error class, in a new costume.
 
+A second demonstration arrived by accident while staging the page for the owner, and it is the
+blunter one: **the same static page, on the same GPU, in a differently-sized window, reported
+`idle cadence p50 33.30 ms`** — almost exactly twice 16.7, i.e. that window was presenting at 30 Hz.
+Nothing about the scene, the shader or the geometry differed between the two readings. A quantity
+that halves because a window changed, while the thing it supposedly measures is byte-identical, is
+measuring the presentation environment.
+
 ### What a scene that is actually being drawn costs
 
 `hardware-floor.html` draws a vegetated land continuously at D2's 2880x1920, using the same plant
