@@ -44,11 +44,31 @@ export const UatTestCriterion = z
     lineage: CriterionLineage.optional(),
     title: z.string().min(1),
     witness: UatTestCriterionWitness.default("either"),
+    /**
+     * The authored justification for needing a person (ADR-0357 D2) — why no harness the proof
+     * spine owns reaches this leg, and what would retire the exception.
+     *
+     * OPTIONAL here because a `machine` leg has nothing to justify, not because a `human` leg may
+     * skip it: ADR-0357 D4 binds EVERY human leg, and an unjustified one is indistinguishable from
+     * a bug at the hover. That population rule is enforced where it can name every offender at once
+     * — `censusUatWitnesses`' {@link UatWitnessCensus.humanWithoutBasis} — rather than here, since a
+     * per-criterion schema sees one leg and cannot report a population.
+     */
+    witnessBasis: z.string().min(1).optional(),
     wouldBe: z.boolean().default(false),
     proofGateId: z.string().min(1).optional(),
   })
   .strict()
   .superRefine((value, ctx) => {
+    // A basis justifies needing a PERSON; a machine leg needs no person, so a basis there is dead
+    // prose no surface renders. Refused rather than ignored so a human→machine flip has to drop it.
+    if (value.witness === "machine" && value.witnessBasis !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["witnessBasis"],
+        message: "a machine leg states no witness-basis — drop the tag, or flip the witness (ADR-0357 D2)",
+      });
+    }
     if (value.previousRevisionId === value.revisionId) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -80,6 +100,10 @@ const NEXT_H2 = /^## /m;
 const NUMBERED_ITEM = /^\d+\.[^\n\S]+(.*)$/;
 const BOLD_LEAD = /^\*\*(.+?)\*\*/;
 const WITNESS_TAG = /\(witness:\s*([A-Za-z]+)\)/i;
+// Distinct from WITNESS_TAG by construction: that one matches the literal "(witness:", which
+// "(witness-basis:" does not contain, so the two tags can never read each other's value.
+const WITNESS_BASIS_TAG = /\(witness-basis:\s*([^)]*)\)/i;
+const WITNESS_BASIS_TAG_ALL = /\(witness-basis:\s*[^)]*\)/gi;
 const PROOF_GATE_TAG = /\(proof-gate:\s*([^)]+)\)/i;
 const PROOF_GATE_TAG_ALL = /\(proof-gate:\s*[^)]+\)/gi;
 const PROOF_GATE_ID_SHAPE = /^\S+#gate-\d+$/i;
@@ -157,6 +181,46 @@ function itemWitness(item: string, id: string): UatTestCriterionWitness {
     );
   }
   return parsed.data;
+}
+
+/**
+ * Read the leg's authored `(witness-basis: …)` — the justification for needing a person (ADR-0357 D2).
+ *
+ * Fail-closed on the two shapes that would LOOK satisfied while saying nothing: a duplicate (which
+ * of the two does the tooltip render?) and an empty one. Both would render as a basis the owner
+ * could hover, which is precisely the "indistinguishable from a bug" failure D4 names.
+ *
+ * The tag is NOT an identity annotation, so {@link canonicalUatCriterionContent} keeps it inside the
+ * hashed content and adding one advances the leg's `(revision-id:)` — recompute with
+ * `storytree uat rerevision <story-id> --write`.
+ */
+function itemWitnessBasis(
+  item: string,
+  id: string,
+  witness: UatTestCriterionWitness,
+): string | undefined {
+  const all = item.match(WITNESS_BASIS_TAG_ALL) ?? [];
+  if (all.length > 1) {
+    throw new Error(`${id}: duplicate witness-basis annotations — only one is allowed per leg`);
+  }
+  const tag = WITNESS_BASIS_TAG.exec(item);
+  if (tag === null) return undefined;
+  // Normalised the way a title is: the tag may wrap across authored lines, and the owner reads it
+  // as one tooltip sentence rather than as the source's line breaks.
+  const raw = tag[1]!.trim().replace(/\s+/g, " ");
+  if (raw === "") {
+    throw new Error(
+      `${id}: empty witness-basis — state which harness would have to reach this leg and why none ` +
+        "does (naming the mechanism), and what would retire the exception (ADR-0357 D2)",
+    );
+  }
+  if (witness === "machine") {
+    throw new Error(
+      `${id}: a machine leg states no witness-basis — the basis justifies needing a PERSON ` +
+        "(ADR-0357 D2); drop the tag, or flip the witness",
+    );
+  }
+  return raw;
 }
 
 function itemProofGateId(item: string, id: string): string | undefined {
@@ -263,13 +327,16 @@ export function parseUatTestCriterionSources(
     const previousRevisionId = itemPreviousRevisionId(item);
     const lineage = itemLineage(item);
     const proofGateId = itemProofGateId(item, criterionId);
+    const witness = itemWitness(item, criterionId);
+    const witnessBasis = itemWitnessBasis(item, criterionId, witness);
     const criterion = UatTestCriterion.parse({
       criterionId,
       revisionId,
       ...(previousRevisionId !== undefined ? { previousRevisionId } : {}),
       ...(lineage !== undefined ? { lineage } : {}),
       title: itemTitle(item),
-      witness: itemWitness(item, criterionId),
+      witness,
+      ...(witnessBasis !== undefined ? { witnessBasis } : {}),
       wouldBe: parsed.wouldBe,
       ...(proofGateId !== undefined ? { proofGateId } : {}),
     });
@@ -323,7 +390,7 @@ const ANY_PREVIOUS_REVISION_ID_TAG = /\(previous-revision-id:\s*[^)]*\)/i;
 /**
  * Recompute every criterion's content-bound revision id for one story (ADR-0253).
  *
- * The `(witness:)` and `(proof-gate:)` tags sit INSIDE the hashed canonical content, so any flip or
+ * The `(witness:)`, `(witness-basis:)` and `(proof-gate:)` tags sit INSIDE the hashed canonical content, so any flip or
  * prose edit invalidates the authored `(revision-id:)` and makes {@link parseUatTestCriteria} throw
  * for the WHOLE story until it is recomputed — a failure that surfaces in some later, unrelated
  * command rather than at the edit. This is that recompute as a function: it reports drift, and the

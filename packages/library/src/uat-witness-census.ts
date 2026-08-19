@@ -38,6 +38,8 @@ export interface UatWitnessCensusRow {
   readonly criterionId: string;
   readonly witness: UatTestCriterionWitness;
   readonly wouldBe: boolean;
+  /** The leg's authored ADR-0357 D2 basis, when it states one. */
+  readonly witnessBasis?: string;
 }
 
 export type UatWitnessTally = Readonly<Record<UatTestCriterionWitness, number>>;
@@ -53,6 +55,19 @@ export interface UatWitnessCensus {
   /** DISTINCT stories holding at least one leg of each witness (the count that was also wrong: 10 vs 17). */
   readonly storiesByWitness: UatWitnessTally;
   readonly storiesWithCriteria: number;
+  /**
+   * The ADR-0357 D4 gap: `human` legs stating no basis, in census order.
+   *
+   * D4 binds EVERY human leg, and its stated reason is auditability — "if only some human legs carry
+   * a basis, hovering an unjustified one is indistinguishable from a bug, and the population stops
+   * being auditable". That is a claim about a POPULATION, which no per-criterion schema can make: a
+   * validator sees one leg and cannot say whether the set is complete. This is where the set is
+   * visible, so this is where the gap is named — every offender at once, each still attributable to
+   * its source path.
+   *
+   * Empty is the D4-satisfied state.
+   */
+  readonly humanWithoutBasis: readonly UatWitnessCensusRow[];
 }
 
 function emptyTally(): Record<UatTestCriterionWitness, number> {
@@ -88,6 +103,7 @@ export function censusUatWitnesses(
         criterionId: criterion.criterionId,
         witness: criterion.witness,
         wouldBe: criterion.wouldBe,
+        ...(criterion.witnessBasis !== undefined ? { witnessBasis: criterion.witnessBasis } : {}),
       });
       byWitness[criterion.witness] += 1;
       storyIdsByWitness[criterion.witness].add(story.sourcePath);
@@ -107,6 +123,9 @@ export function censusUatWitnesses(
     byWitness,
     storiesByWitness,
     storiesWithCriteria: storiesWithCriteria.size,
+    humanWithoutBasis: rows.filter(
+      (row) => row.witness === "human" && row.witnessBasis === undefined,
+    ),
   };
 }
 
