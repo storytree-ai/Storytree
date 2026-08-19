@@ -317,7 +317,11 @@ before.
    judgment: no success condition here lacks a compiler. Because the machine half is ALREADY covered by
    the contract above, this leg REFERENCES that verdict instead of being split — restating a compiled
    fact as a human success condition would launder it into an unrepeatable signature.)*
-6. **The seeded command is the invocation the owner actually wants.** _(witness: human)(detail: map-terminal-build#uat-6)_ _(criterion-id: uatc_a011b79159dd94012486cb91)_ _(revision-id: uatr1:5d6b5456e5a878fa)_ _(previous-revision-id: uatr1:776452095f26ccde)_
+6. **The seeded command is the invocation the owner actually wants.** _(witness: human)(detail: map-terminal-build#uat-6)_
+   _(witness-basis: whether the emitted `pnpm ` prefix is the invocation FORM the owner wants on their
+   own shell is an owner value call no code decides — that the composed command actually RUNS is
+   leg 7's machine claim, so nothing mechanical is being restated here. Dissolves under neither a new
+   harness nor cheaper spend; discharged only when the owner settles the prefix.)_ _(criterion-id: uatc_a011b79159dd94012486cb91)_ _(revision-id: uatr1:814e68a43e60e69b)_ _(previous-revision-id: uatr1:5d6b5456e5a878fa)_
    Shown the pre-filled command, the owner accepts its FORM — specifically the
    `pnpm ` prefix the composer emits (`pnpm storytree story build <id> --real --store pg`), which
    ADR-0174's own text does not write and which open modeling call 1 explicitly left to the owner.

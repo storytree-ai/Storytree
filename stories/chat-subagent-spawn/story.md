@@ -415,8 +415,15 @@ landed nothing.
    > from the old wording would have gone RED against correct code (the same failure shape as the
    > ADR-0152 landing-wall claim corrected on leg 7). The leg's id, position, and `machine` witness
    > are unchanged; only the factually wrong description moved.
-5. **Live: the chat brings a story in by spawning the story-author.** _(criterion-id: uatc_65f364261f271dee7271115d)_ _(revision-id: uatr1:8bea84cea74f0bd2)_ _(previous-revision-id: uatr1:ee6835bd189837f0)_
-   _(witness: human)(detail: chat-subagent-spawn#uat-5)_ In the desktop app, converse until the
+5. **Live: the chat brings a story in by spawning the story-author.** _(criterion-id: uatc_65f364261f271dee7271115d)_ _(revision-id: uatr1:24bd66de0e93c5be)_ _(previous-revision-id: uatr1:8bea84cea74f0bd2)_
+   _(witness: human)(detail: chat-subagent-spawn#uat-5)_
+   _(witness-basis: MOOT rather than un-harnessable — the spawn tool surface this walk needs was
+   DELETED on 2026-07-31, held gone by apps/desktop/src/backend/spawn-surface-retired.test.ts, which
+   is why this story is `status: retired`. No harness reaches the journey because the journey no
+   longer exists. The old SPEND basis is withdrawn by ADR-0348 D2, but the leg does not flip: binding
+   a `machine` gate here would mint one that can never go green for a reason that is neither a harness
+   limit nor a product defect. Retires by DELETION, once a story-author pass settles the disposition
+   of a retired story's legs.)_ In the desktop app, converse until the
    orchestrator decides a story should exist. **Success —** the orchestrator takes the story-claim
    (visible as the story's wisp — authoring colour, witnessed properly in wisp-as-story-claim's
    appearance UAT), spawns the story-author, and `stories/<id>/story.md` (+ capability files) appear
@@ -441,8 +448,15 @@ landed nothing.
    (ordinals burned, as ADR-0348 D6 did for experience legs) or kept verbatim as history is a
    story-author / librarian disposition call, deliberately not made here — and it reaches leg 6 the same
    way, whose no-compiler routing judgment is equally unwalkable now.)*
-6. **Live: a bug becomes a contract and is driven through the gate.** _(criterion-id: uatc_10e4514e1271034569a02b50)_ _(revision-id: uatr1:e00526bb66704d7e)_
-   _(witness: human)(detail: chat-subagent-spawn#uat-6)_ Raise a real defect in conversation.
+6. **Live: a bug becomes a contract and is driven through the gate.** _(criterion-id: uatc_10e4514e1271034569a02b50)_ _(revision-id: uatr1:def0dee3b5d18725)_ _(previous-revision-id: uatr1:e00526bb66704d7e)_
+   _(witness: human)(detail: chat-subagent-spawn#uat-6)_
+   _(witness-basis: two bases, and the second now governs. The NO-COMPILER half is real — the
+   consultative routing verdict is explicitly not a mechanical classifier, so it has no oracle and
+   would hold even if the run were free. But the leg is MOOT: the spawn tool surface the judgment
+   routes through was DELETED on 2026-07-31 and this story is `status: retired`, so the routing
+   judgment is equally unwalkable now — this leg's own triage note says the mootness reaches it the
+   same way as leg 5. Retires by DELETION with leg 5, once a story-author pass settles the disposition
+   of a retired story's legs.)_ Raise a real defect in conversation.
    **Success —** the orchestrator makes decision 4's consultative judgment (under-specified story →
    spawn the story-author to add the missing contract, then spawn the builder to drive it;
    right-contract-wrong-impl → straight to the builder) **and a competent reader agrees that was the

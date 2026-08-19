@@ -428,7 +428,13 @@ runtime surfaces a proposed unit — having written, built, signed, and landed N
    asserting the composition wired seed-backed orientation deps would have gone red against correct code.
    What IS true, and what `orchestrate.test.ts` actually pins, is that the system prompt handed to the
    runner is the REAL rendered `session-orchestrator` off the seed store.)*
-4. **The live runtime orients on the real three surfaces and proposes.** _(witness: human)(detail: headless-orchestrator#uat-4)_ Run the _(criterion-id: uatc_b99e6bbd2913b4f032252d69)_ _(revision-id: uatr1:9cd3a8b79f37584d)_
+4. **The live runtime orients on the real three surfaces and proposes.** _(witness: human)(detail: headless-orchestrator#uat-4)_
+   _(witness-basis: whether the runtime emitted a COHERENT unit proposal — one that follows from what
+   it actually read rather than plausible prose it could have produced from the system prompt alone —
+   has no oracle, and no model-judged witness kind is reachable in this corpus today. This story is
+   retired IN PLACE but its Phase-1 entry is live, so the leg is walkable; irreducible and unwalkable
+   are different facts. The basis dissolves under nothing — the metered-spend half that once rode
+   with it was withdrawn by ADR-0348 D2.)_ Run the _(criterion-id: uatc_b99e6bbd2913b4f032252d69)_ _(revision-id: uatr1:7ad9c5039c483be1)_ _(previous-revision-id: uatr1:9cd3a8b79f37584d)_
    programmatic entry LIVE (a real subscription `query()`, no injected `queryFn`) against the real seed
    corpus (and, with the DB up, the live notice board), then JUDGE the unit it proposed. **Success —** the
    owner's verdict that the agent, running the session-orchestrator prompt over the real three surfaces,
