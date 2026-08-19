@@ -19,7 +19,33 @@ The managed hook that decides whether you may write a file used to answer by bui
 connection on every single tool call — 6 to 48 seconds each, against a fixed timeout, so the same
 legitimate write was refused on one run and allowed on the next. That is fixed: the storytree desktop
 app now holds a warm claim authority and the hook reads through it over loopback. The boundary carrying
-that fix was installed on 2026-08-18. Nothing has exercised it from your side yet.
+that fix was installed on 2026-08-18.
+
+**Two attempts have been made since, and both stopped before criterion 2 — neither found a fault in the
+lifecycle itself.** The first was stopped at 60 seconds during the sandbox permission walk and wrongly
+recorded as a failure (see the section immediately below). The second reached past a claim-broker
+permission problem, since fixed, and then stopped at `fetch failed` because the desktop sidecar had
+died and nothing was listening on the broker port. So criteria 3 onward have still never been
+exercised by a Codex task. The lifecycle is not known to work; it is not known to be broken either.
+
+## Read this before you run anything — your FIRST action can block for minutes with no output
+
+**Allow 8–10 minutes for your first tool call, and do not interpret silence during it as a failure.**
+Measured on this host 2026-08-19: a Codex task's first sandboxed command produced **no log output at
+all for 6 minutes 27 seconds** before completing normally. A previous run was stopped at 60 seconds
+and recorded as "criterion 1 FAILED"; it had not failed, it had not finished. That is a NOT-RUN, and
+it cost a whole attempt.
+
+The cause is the sandbox's own permission setup, not the fence and not the lifecycle. From
+`~/.codex/.sandbox/sandbox.<date>.log`: the setup pass applies deny ACEs across the worktrees area and
+then makes a GRANT pass that is **not logged at all**, so the cost appears as an unexplained gap. The
+discriminator is the write-root count — every refresh processing **1 write root** finished in under a
+second; the one processing **2** took 6.5 minutes, because root #2 is the standing grant over
+`.claude/worktrees`, which currently holds dozens of slots with `node_modules` in them.
+
+**Only the first action pays this.** A sandboxed command run after setup is current completed in about
+one second with no refresh. So: be patient exactly once, then expect normal speed. If your first call
+is still silent past ~10 minutes, say so and stop — do not retry, because a retry restarts the walk.
 
 ## Before you start — three preconditions, and how to check each
 
@@ -38,6 +64,17 @@ failure that looks like the lifecycle is broken when it is not.
    was measured on this host on 2026-08-18: handshake present naming port 60465, TCP connect
    ECONNREFUSED. If you check for the file and not the port, you will report a working lifecycle that
    is not there.
+
+   ⚠⚠ **If the bootstrap says `fetch failed`, THIS precondition is what failed — the broker is dead.**
+   It happened on 2026-08-19: the run stopped at
+   `exploring claim on "codex-lobby-to-write-live-smoke" FAILED — no claim, no workspace (ADR-0200 D3):
+   fetch failed`, and the cause was a dead sidecar behind a handshake published four hours earlier
+   naming port 57579 with nothing listening. `fetch failed` is Node's opaque wording for a refused
+   connection; it is NOT a broker fault, a permission problem, or the network fence. The client was
+   taught to say this properly in PR #1423 — **but the bootstrap you run is a PINNED bundle in
+   ProgramData, esbuilt at install time and deliberately isolated from repository code, so until the
+   boundary is regenerated and re-installed you will still see the bare two words.** Read them as
+   "the broker is not listening", check the port, and report that.
 2. **The desktop app is running its BACKEND, not merely showing a window.** The app runs as
    `electron.exe`, never `Storytree.exe` — `Get-Process -Name Storytree` returns nothing even when the
    app is up, so do not use it. The backend is a separate SIDECAR process, and it is known to die
@@ -133,6 +170,10 @@ Two things worth flagging loudly if you see them:
   kills the whole hook at 30 s. Slow-but-allowed is the signature of the old defect and means
   something is still reading claims the expensive way.
 - **Silence.** If a step produces neither a success nor a refusal, say so explicitly rather than
-  retrying. Silence has a known cause here (a desktop serving a stale sidecar) and it is a real result.
+  retrying. Silence has TWO known causes here and they need different answers, so name which one you
+  are in. On your **first** action it is almost certainly the sandbox permission walk described at the
+  top — wait it out to ~10 minutes; a retry restarts it. **After** setup is current, a step that goes
+  quiet is a real result: report it, and check whether the broker port still answers, because a
+  sidecar that dies mid-run leaves the window open and looking healthy.
 
 Do not record any of this as an attestation or close any increment. Report to the operator.
