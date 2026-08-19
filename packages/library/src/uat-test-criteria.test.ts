@@ -61,6 +61,78 @@ test("proof-gate binding is exact and malformed/duplicate bindings are refused",
   assert.throws(() => parseUatTestCriteria(STORY, `## UAT Test Criteria\n\n${duplicate}`), /duplicate proof-gate/i);
 });
 
+// ── the authored witness-basis (ADR-0357 D2/D3) ────────────────────────────────────────────────
+
+const uat = (prose: string) => `## UAT Test Criteria\n\n${line(1, prose)}`;
+
+test("a human leg's authored basis is read, and an absent one is simply absent", () => {
+  const stated = uat(
+    "**Native picker** _(witness: human)_ _(witness-basis: dialog.showOpenDialog is an Electron " +
+      "main-process modal and Playwright drives the renderer; retired when the spine owns OS-level " +
+      "automation.)_: it opens.",
+  );
+  assert.equal(
+    parseUatTestCriteria(STORY, stated)[0]?.witnessBasis,
+    "dialog.showOpenDialog is an Electron main-process modal and Playwright drives the renderer; " +
+      "retired when the spine owns OS-level automation.",
+  );
+  assert.equal(parseUatTestCriteria(STORY, uat("**Bare** _(witness: human)_: works."))[0]?.witnessBasis, undefined);
+});
+
+test("the basis tag cannot be confused with the witness tag it sits beside", () => {
+  // `(witness-basis:` does not contain the literal `(witness:`, so neither tag can read the other's
+  // value — the witness stays a witness even when the basis names a witness-ish word.
+  const criterion = parseUatTestCriteria(
+    STORY,
+    uat("**Both** _(witness: human)_ _(witness-basis: no machine harness reaches it; retired by one.)_: ok."),
+  )[0];
+  assert.equal(criterion?.witness, "human");
+  assert.equal(criterion?.witnessBasis, "no machine harness reaches it; retired by one.");
+});
+
+test("a basis that would LOOK satisfied while saying nothing is refused (empty, duplicate)", () => {
+  assert.throws(
+    () => parseUatTestCriteria(STORY, uat("**Empty** _(witness: human)_ _(witness-basis:   )_: no.")),
+    /empty witness-basis/i,
+  );
+  assert.throws(
+    () =>
+      parseUatTestCriteria(
+        STORY,
+        uat("**Twice** _(witness: human)_ _(witness-basis: first.)_ _(witness-basis: second.)_: no."),
+      ),
+    /duplicate witness-basis/i,
+  );
+});
+
+test("a machine leg carrying a basis is REFUSED, not ignored — a flip must drop the dead prose", () => {
+  assert.throws(
+    () => parseUatTestCriteria(STORY, uat("**Flipped** _(witness: machine)_ _(witness-basis: stale.)_: no.")),
+    /machine leg states no witness-basis/i,
+  );
+  assert.equal(
+    UatTestCriterion.safeParse({
+      criterionId: "uatc_0123456789abcdef01234567",
+      revisionId: "uatr1:0123456789abcdef",
+      title: "A criterion",
+      witness: "machine",
+      witnessBasis: "stale",
+    }).success,
+    false,
+  );
+});
+
+test("the basis is INSIDE the hashed content, so authoring one advances the revision", () => {
+  // The ordering constraint ADR-0357 names: witness-basis is not an identity annotation, so
+  // canonicalUatCriterionContent keeps it and the authored (revision-id:) must be recomputed.
+  const bare = "1. **A leg** _(witness: human)_: works.";
+  const withBasis = "1. **A leg** _(witness: human)_ _(witness-basis: no harness reaches it; a new one retires it.)_: works.";
+  assert.notEqual(
+    criterionRevisionId(canonicalUatCriterionContent(bare)),
+    criterionRevisionId(canonicalUatCriterionContent(withBasis)),
+  );
+});
+
 test("schema defaults remain conservative but exact identity/revision are mandatory", () => {
   const base = {
     criterionId: "uatc_0123456789abcdef01234567",
