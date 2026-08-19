@@ -7,7 +7,10 @@ import path from "node:path";
 import {
   classifyWorktree,
   defaultWorktreeIo,
+  detectIdleStampClusters,
+  readIdleSignals,
   DEFAULT_THRESHOLD_MS,
+  type IdleSignalReading,
   type PrunePolicy,
   type WorktreeSnapshot,
 } from "./worktree.js";
@@ -75,6 +78,19 @@ function makeWorktree(root: string, name: string, stamps: Stamps): string {
   utimesSync(path.join(admin, "logs"), secs(stamps.reflog), secs(stamps.reflog));
   utimesSync(admin, secs(stamps.admin), secs(stamps.admin));
   utimesSync(dir, secs(stamps.dir), secs(stamps.dir));
+  return dir;
+}
+
+/**
+ * A HUSK — an on-disk worktree dir with no `.git` gitfile, which is what a half-completed
+ * `git worktree remove` leaves behind. It has no admin dir, so its own mtime is all there is.
+ */
+function makeOrphan(root: string, name: string, at: number): string {
+  const dir = path.join(root, ".claude", "worktrees", name);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(path.join(dir, "README.md"), "husk\n", "utf8");
+  utimesSync(path.join(dir, "README.md"), secs(at), secs(at));
+  utimesSync(dir, secs(at), secs(at));
   return dir;
 }
 
@@ -173,28 +189,194 @@ test("REGRESSION at scale: one `reflog expire --all` pass must not hold back the
  * regressions above while making the reaper delete LIVE worktrees. So each honest signal is stamped
  * fresh IN TURN and must, on its own, keep the worktree alive.
  */
-for (const signal of ["dir", "admin"] as const) {
-  test(`ACTIVE: a fresh \`${signal}\` signal alone keeps an otherwise-idle worktree (the clock still sees real use)`, () => {
-    withTempRoot((root) => {
-      const stamps: Stamps = {
-        dir: signal === "dir" ? FRESH : IDLE,
-        admin: signal === "admin" ? FRESH : IDLE,
-        reflog: IDLE,
-      };
-      const dir = makeWorktree(root, `active-${signal}`, stamps);
+test("ACTIVE: a fresh `admin` signal alone keeps an otherwise-idle worktree (the clock still sees real use)", () => {
+  withTempRoot((root) => {
+    const dir = makeWorktree(root, "active-admin", { dir: IDLE, admin: FRESH, reflog: IDLE });
 
-      const mtimeMs = defaultWorktreeIo.statMtimeMs(dir);
-      assert.ok(
-        mtimeMs >= FRESH - 5_000,
-        `a fresh ${signal} signal must be seen; proxy reported ${new Date(mtimeMs).toISOString()}`,
-      );
+    const mtimeMs = defaultWorktreeIo.statMtimeMs(dir);
+    assert.ok(
+      mtimeMs >= FRESH - 5_000,
+      `a fresh admin signal must be seen; proxy reported ${new Date(mtimeMs).toISOString()}`,
+    );
 
-      const verdict = classifyWorktree(snapshotOf(dir, mtimeMs), policy());
-      assert.equal(verdict.decision, "keep", `fresh ${signal} activity must keep the worktree`);
-      assert.match(verdict.reason, /active </);
-    });
+    const verdict = classifyWorktree(snapshotOf(dir, mtimeMs), policy());
+    assert.equal(verdict.decision, "keep", "fresh admin activity must keep the worktree");
+    assert.match(verdict.reason, /active </);
   });
-}
+});
+
+/**
+ * The ORPHAN counterweight. Dropping the worktree's own files from the honest set must not blind the
+ * clock on a husk, which has no admin dir at all — there, the dir mtime is the only evidence there
+ * is, and a fresh one must still keep it. (Erring toward KEEP is the safe direction: the failure
+ * mode of an over-eager idle reading is deleting someone's work.)
+ */
+test("ACTIVE: an ORPHAN with no admin dir still falls back to its own mtime, and a fresh one keeps it", () => {
+  withTempRoot((root) => {
+    const dir = makeOrphan(root, "husk-fresh", FRESH);
+
+    const reading = readIdleSignals(dir);
+    assert.equal(reading.admin, null, "a husk has no admin dir");
+    assert.equal(reading.fellBack, true, "with no admin dir the reading must fall back");
+    assert.ok(
+      reading.mtimeMs >= FRESH - 5_000,
+      `the fallback must see the husk's own mtime; got ${new Date(reading.mtimeMs).toISOString()}`,
+    );
+
+    const snap = { ...snapshotOf(dir, reading.mtimeMs), kind: "orphan" as const, merged: false };
+    assert.equal(classifyWorktree(snap, policy()).decision, "keep");
+  });
+});
+
+test("an idle ORPHAN is still reaped — the fallback ages, it does not pin", () => {
+  withTempRoot((root) => {
+    const dir = makeOrphan(root, "husk-idle", IDLE);
+    const snap = {
+      ...snapshotOf(dir, defaultWorktreeIo.statMtimeMs(dir)),
+      kind: "orphan" as const,
+      merged: false,
+    };
+    assert.equal(classifyWorktree(snap, policy()).decision, "reap");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// THE REGRESSION THIS ARC EXISTS FOR — an HONEST clock reset from OUTSIDE
+// ---------------------------------------------------------------------------
+
+/**
+ * The reflog bug was an INTERNALLY WRONG signal: git housekeeping owned `logs/HEAD`, so the reaper
+ * was reading the repo's last maintenance. This is the opposite shape and the same fault class — the
+ * worktree's own directory mtime is an honest file, reset from OUTSIDE by anything that creates or
+ * deletes a top-level entry.
+ *
+ * Measured 2026-08-19: four unrelated worktrees carried a `dir` mtime inside a 59 ms window while
+ * their admin signals sat frozen 25-40 days in the past. Each had gained an EMPTY `.codex/`
+ * directory; creating a child stamps the parent, so a directory containing nothing erased more than
+ * a month of accumulated idleness. 56 of 68 worktrees were held in `cooling` — merged, clean, and
+ * disqualified on idleness alone.
+ */
+test("REGRESSION: an empty directory created inside an untouched worktree does not revive it", () => {
+  withTempRoot((root) => {
+    const dir = makeWorktree(root, "swept", { dir: IDLE, admin: IDLE, reflog: IDLE });
+
+    // The exact production event: a pass scaffolds an empty `.codex/`, stamping the parent NOW.
+    mkdirSync(path.join(dir, ".codex"));
+
+    const mtimeMs = defaultWorktreeIo.statMtimeMs(dir);
+    assert.ok(
+      mtimeMs <= IDLE + 60_000,
+      `a directory created by an external pass is not this worktree being used, but the clock read ` +
+        `${new Date(mtimeMs).toISOString()} (real activity ${new Date(IDLE).toISOString()})`,
+    );
+
+    const verdict = classifyWorktree(snapshotOf(dir, mtimeMs), policy());
+    assert.equal(
+      verdict.decision,
+      "reap",
+      `a merged, clean, 100 h-idle worktree must be reaped; got keep — ${verdict.reason}`,
+    );
+  });
+});
+
+test("REGRESSION: a DELETION inside the worktree root does not revive it either (it leaves no other trace)", () => {
+  withTempRoot((root) => {
+    const dir = makeWorktree(root, "swept-delete", { dir: IDLE, admin: IDLE, reflog: IDLE });
+    // Created before the dir is re-stamped idle, so only the DELETE below is under test.
+    writeFileSync(path.join(dir, "CLAUDE.local.md"), "x\n", "utf8");
+    utimesSync(dir, secs(IDLE), secs(IDLE));
+
+    rmSync(path.join(dir, "CLAUDE.local.md"));
+
+    assert.ok(
+      defaultWorktreeIo.statMtimeMs(dir) <= IDLE + 60_000,
+      "a file removed by an external sweep must not read as activity",
+    );
+  });
+});
+
+test("REGRESSION at scale: one bulk sweep must not hold back the whole registry", () => {
+  withTempRoot((root) => {
+    // The measured shape: four unrelated worktrees, admin signals frozen, all swept at once.
+    const names = ["gemini-subagents", "dreamy-colden", "admiring-bose", "adr0178-gate"];
+    const verdicts = names.map((name) => {
+      const dir = makeWorktree(root, name, { dir: IDLE, admin: IDLE, reflog: IDLE });
+      mkdirSync(path.join(dir, ".codex"));
+      return classifyWorktree(snapshotOf(dir, defaultWorktreeIo.statMtimeMs(dir)), policy());
+    });
+
+    assert.deepEqual(
+      verdicts.filter((v) => v.decision === "keep").map((v) => `${v.name}: ${v.reason}`),
+      [],
+      "a single bulk sweep must not hold back any idle worktree",
+    );
+  });
+});
+
+test("a registered worktree is judged ONLY by its admin signals — the worktree tree is not read", () => {
+  withTempRoot((root) => {
+    const dir = makeWorktree(root, "admin-only", { dir: FRESH, admin: IDLE, reflog: FRESH });
+
+    const reading = readIdleSignals(dir);
+    assert.equal(reading.fellBack, false, "an admin dir was resolvable, so nothing should fall back");
+    assert.deepEqual(
+      [...reading.signals.keys()].sort(),
+      ["HEAD", "ORIG_HEAD", "index"],
+      "only the admin triple may be consulted when an admin dir exists",
+    );
+    assert.ok(
+      reading.mtimeMs <= IDLE + 60_000,
+      "a fresh worktree dir must not be visible to the idle clock at all",
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// THE DETECTOR — a third instance of this fault class should announce itself
+// ---------------------------------------------------------------------------
+
+test("detectIdleStampClusters names worktrees swept in one pass, and stays quiet on genuine activity", () => {
+  const at = Date.parse("2026-08-18T12:24:25.807Z");
+  const reading = (name: string, mtimeMs: number): IdleSignalReading => ({
+    dir: path.join("C:", "wt", name),
+    admin: null,
+    signals: new Map([["HEAD", mtimeMs]]),
+    binding: "HEAD",
+    mtimeMs,
+    fellBack: false,
+  });
+
+  // The measured 59 ms spread — an exact-equality match would miss this entirely.
+  const swept = [
+    reading("gemini-subagents", at),
+    reading("dreamy-colden", at),
+    reading("admiring-bose", at + 49),
+    reading("adr0178-gate", at + 59),
+  ];
+  const clusters = detectIdleStampClusters(swept);
+  assert.equal(clusters.length, 1, "the four sweep victims are one cluster");
+  assert.equal(clusters[0]?.names.length, 4);
+  assert.deepEqual(clusters[0]?.names.slice().sort(), [
+    "admiring-bose",
+    "adr0178-gate",
+    "dreamy-colden",
+    "gemini-subagents",
+  ]);
+
+  // Real use is spread across seconds — no alarm.
+  assert.deepEqual(
+    detectIdleStampClusters([
+      reading("a", at),
+      reading("b", at + 4_000),
+      reading("c", at + 9_000),
+    ]),
+    [],
+    "worktrees used at different times must not read as a sweep",
+  );
+
+  // Two is a coincidence; the alarm needs a crowd.
+  assert.deepEqual(detectIdleStampClusters([reading("a", at), reading("b", at + 10)]), []);
+});
 
 test("ACTIVE: a worktree used minutes ago is kept even though its reflog is ancient", () => {
   withTempRoot((root) => {

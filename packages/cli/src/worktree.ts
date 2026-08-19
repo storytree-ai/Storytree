@@ -292,35 +292,126 @@ export interface WorktreeIo {
  *
  * HEAD / index / ORIG_HEAD all pass the rule: git writes them only for ops in this worktree
  * (checkout, commit, merge, rebase), and gc/repack/fetch leave them alone.
+ *
+ * THE WORKTREE'S OWN FILES FAIL THE RULE, and are read only as an orphan fallback — see
+ * {@link readIdleSignals}. The reflog was one instance of a general shape, not the whole defect.
  */
 export const ADMIN_ACTIVITY_SIGNALS: readonly string[] = ["HEAD", "index", "ORIG_HEAD"];
 
+/**
+ * The signals read from the WORKTREE itself. These do NOT satisfy the rule above and are used only
+ * when no admin dir can be resolved (an orphan / husk), where nothing better exists.
+ *
+ * WHY THEY ARE NOT HONEST SIGNALS (measured 2026-08-19, worktree-reaper-eligibility-arc). A
+ * directory's mtime changes whenever ANY entry is created, deleted or renamed at its top level —
+ * by anyone, for any reason. It is not a record of this worktree being USED; it is a record of
+ * something having touched it. Four unrelated worktrees — `gemini-subagents-preserved`,
+ * `dreamy-colden-6536f2`, `admiring-bose-15ce17`, `adr0178-gate` — carried a `dir` mtime of
+ * 2026-08-18T12:24:25.807/.807/.856/.866Z, a 59 ms window with no shared session, while their admin
+ * signals sat frozen in JULY (2026-07-09 through 2026-07-25). A pass had created an EMPTY `.codex/`
+ * directory in each; creating a child stamps the parent, so 25-40 days of accumulated idleness was
+ * erased by a directory that contained nothing. The same signal also picks up pure DELETIONS inside
+ * the worktree root, which leave no other trace at all.
+ *
+ * Measured effect on eligibility: of 17 surviving worktrees, `dir` bound 10 of them and was the ONLY
+ * one of the five signals whose removal changed any verdict — dropping it took eligibility from 6/17
+ * to 10/17, while dropping `gitfile`, `HEAD`, `index` or `ORIG_HEAD` changed nothing. `gitfile` never
+ * bound at all: it is written at `worktree add` and is a millisecond-duplicate of admin `HEAD`, so it
+ * contributes no information — and `git worktree repair` rewrites it for EVERY worktree in one pass,
+ * which is the same repo-wide-housekeeping shape the reflog had.
+ *
+ * This is the SAME fault class as the reflog (worktree-reaper-integrity-arc) arriving through a
+ * different door, and the distinction matters for the fix: the reflog was an INTERNALLY WRONG signal
+ * — git housekeeping owned it. These are HONEST files being reset from OUTSIDE. Excluding one bad
+ * signal at a time is what let the second instance survive the first arc's fix, so the rule is now
+ * stated positively and the worktree tree is not read at all when an admin dir exists.
+ */
+export const WORKTREE_FALLBACK_SIGNALS: readonly string[] = ["<dir>", ".git"];
+
+/** One worktree's idle reading, per signal — the instrument behind `worktree drain --idle`. */
+export interface IdleSignalReading {
+  /** The worktree dir the reading is for. */
+  readonly dir: string;
+  /** The admin dir `<dir>/.git` points at, or null for an orphan / husk with no gitfile. */
+  readonly admin: string | null;
+  /** Every signal considered, with its mtime in ms (0 = could not be stat'd). */
+  readonly signals: ReadonlyMap<string, number>;
+  /** The signal that produced {@link mtimeMs}, or null when nothing could be stat'd. */
+  readonly binding: string | null;
+  /** The idle clock's reading — the newest signal the rule above admits. */
+  readonly mtimeMs: number;
+  /** True when the reading fell back to the worktree's own files (no admin dir was readable). */
+  readonly fellBack: boolean;
+}
+
+const mtimeOr0 = (p: string): number => {
+  try {
+    return statSync(p).mtimeMs;
+  } catch {
+    return 0;
+  }
+};
+
+/** Resolve `<dir>/.git`'s `gitdir:` pointer to the admin dir; null for an orphan / plain dir. */
+function resolveAdminDir(dir: string): string | null {
+  try {
+    const m = /^gitdir:\s*(.+)$/m.exec(readFileSync(path.join(dir, ".git"), "utf8"));
+    return m && m[1] !== undefined ? m[1].trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Read every idle signal for one worktree, keeping WHICH signal bound — never a tree walk.
+ *
+ * The max-of-everything reading this replaces could not say which signal held a worktree back, which
+ * is precisely why an external clock reset survived a whole arc: the reaper reported "merged but
+ * active < 48h ago" and named no culprit. Keeping the breakdown is what makes the next instance of
+ * this fault class visible without a bespoke script.
+ */
+export function readIdleSignals(dir: string): IdleSignalReading {
+  const signals = new Map<string, number>();
+  const admin = resolveAdminDir(dir);
+
+  // A REGISTERED worktree is judged ONLY by its admin signals: those are the files git writes for
+  // ops in THIS worktree, and nothing else writes them. The worktree tree itself is not consulted —
+  // anything at all can write into a checkout, so reading it measures the world, not the worktree.
+  if (admin !== null) {
+    for (const f of ADMIN_ACTIVITY_SIGNALS) signals.set(f, mtimeOr0(path.join(admin, f)));
+  }
+  const adminBest = pickBinding(signals);
+
+  // An orphan (no gitfile) has no admin dir, and a registered worktree whose admin is unreadable has
+  // nothing left to read. Fall back to the worktree's own files rather than returning 0 — 0 reads as
+  // INFINITELY old and would reap on a failed stat, the one direction that destroys work.
+  if (adminBest.mtimeMs > 0) {
+    return { dir, admin, signals, binding: adminBest.binding, mtimeMs: adminBest.mtimeMs, fellBack: false };
+  }
+  signals.set("<dir>", mtimeOr0(dir));
+  signals.set(".git", mtimeOr0(path.join(dir, ".git")));
+  const best = pickBinding(signals);
+  return { dir, admin, signals, binding: best.binding, mtimeMs: best.mtimeMs, fellBack: true };
+}
+
+function pickBinding(signals: ReadonlyMap<string, number>): {
+  binding: string | null;
+  mtimeMs: number;
+} {
+  let binding: string | null = null;
+  let mtimeMs = 0;
+  for (const [name, ms] of signals) {
+    if (ms > mtimeMs) {
+      mtimeMs = ms;
+      binding = name;
+    }
+  }
+  return { binding, mtimeMs };
+}
+
 /** Read the newest mtime among a small FIXED set of activity signals — never a tree walk. */
 function defaultStatMtimeMs(dir: string): number {
-  const mtimeOr0 = (p: string): number => {
-    try {
-      return statSync(p).mtimeMs;
-    } catch {
-      return 0;
-    }
-  };
-  let newest = Math.max(mtimeOr0(dir), mtimeOr0(path.join(dir, ".git")));
-  // A worktree's `.git` is a FILE ("gitdir: <admin>"); the admin dir's HEAD/index/ORIG_HEAD track
-  // git ops IN THIS WORKTREE — a precise "recently used" signal with no node_modules walk. See
-  // ADMIN_ACTIVITY_SIGNALS for why the reflog is deliberately absent.
-  try {
-    const gitfile = readFileSync(path.join(dir, ".git"), "utf8");
-    const m = /^gitdir:\s*(.+)$/m.exec(gitfile);
-    if (m && m[1] !== undefined) {
-      const admin = m[1].trim();
-      for (const f of ADMIN_ACTIVITY_SIGNALS) {
-        newest = Math.max(newest, mtimeOr0(path.join(admin, f)));
-      }
-    }
-  } catch {
-    // No gitfile (orphan / plain dir) — the dir mtime above stands.
-  }
-  return newest;
+  return readIdleSignals(dir).mtimeMs;
 }
 
 /** Recursive remove with a Windows fallback for long/locked node_modules paths. */
@@ -485,13 +576,22 @@ function detachedMerged(io: WorktreeIo, dir: string): boolean {
  * lose). Only a dir with its own `.git` is probed, and even then the toplevel is re-checked so a
  * pathological link can't leak the parent's status. Called ONLY on reap candidates (never the whole
  * scan), so the git spawn cost is bounded to what is about to be deleted.
+ *
+ * `--no-optional-locks` IS LOAD-BEARING, not tidiness. A plain `git status` REWRITES the index when
+ * the stat cache has drifted, which bumps admin `index` — an idle signal. That made this probe
+ * self-defeating in three ways, all measured (worktree-reaper-eligibility-arc): a candidate deferred
+ * by the `--cap` was pushed back to `cooling` for a fresh 48 h having never been removed; and BOTH
+ * read-only surfaces — the default dry-run `prune` and `drain`, which advertises itself as removing
+ * nothing and safe to run anywhere — reset the clock of the exact cohort they were reporting on.
+ * With the flag, git answers from the index without writing it back (verified against git 2.54: the
+ * index was byte-identical after, and rewritten without it). Do not drop it to "simplify" the call.
  */
 export function worktreeDirty(io: WorktreeIo, dir: string): boolean {
   if (!io.hasOwnGit(dir)) return false;
   try {
     const top = io.runGit(["-C", dir, "rev-parse", "--show-toplevel"]);
     if (normPath(top) !== normPath(dir)) return false;
-    return io.runGit(["-C", dir, "status", "--porcelain"]).length > 0;
+    return io.runGit(["-C", dir, "--no-optional-locks", "status", "--porcelain"]).length > 0;
   } catch {
     return false;
   }
@@ -614,6 +714,8 @@ export interface PruneDeps {
   readonly now?: () => number;
   /** The drain ledger seam (worktree-reaper-integrity-arc strand 3); defaults to the real fs. */
   readonly drain?: DrainLedgerIo;
+  /** The per-signal idle reader (`worktree idle`); defaults to the real fs. */
+  readonly idle?: (dir: string) => IdleSignalReading;
 }
 
 /**
@@ -690,7 +792,13 @@ export function pruneWorktrees(options: PruneOptions, deps: PruneDeps = {}): Env
   const reapAll = verdicts.filter((v) => v.decision === "reap");
   const kept = verdicts.filter((v) => v.decision === "keep");
 
-  // Apply the cap (hook / --cap): the OLDEST-first, so a bounded run drains the deadest husks first.
+  // Apply the cap (hook / --cap). The order is ALPHABETICAL, not oldest-first — the comment here used
+  // to claim the latter, which was never true: `base()` drops `mtimeMs` from the verdict, so age is
+  // not available to sort on. It is stated rather than fixed because the consequence is small and
+  // knowable: a capped run always defers the same tail of the alphabet, so a worktree late in the
+  // sort waits for the backlog ahead of it to clear. Deterministic beats arbitrary; if the cap is
+  // ever observed to strand a specific tail indefinitely, carry `mtimeMs` onto the verdict and sort
+  // by it rather than reintroducing this comment's claim.
   const ordered = [...reapAll].sort((a, b) => a.name.localeCompare(b.name));
   const targets = options.cap === null ? ordered : ordered.slice(0, Math.max(0, options.cap));
   const capped = reapAll.length - targets.length;
@@ -893,6 +1001,151 @@ export function worktreeDrainStatus(
   };
 }
 
+// ---------------------------------------------------------------------------
+// `storytree worktree idle` — WHY is the clock reading what it reads
+// ---------------------------------------------------------------------------
+
+/** A set of worktrees whose idle stamps land on the same second — the bulk-sweep signature. */
+export interface IdleStampCluster {
+  /** The shared stamp, truncated to the second. */
+  readonly atMs: number;
+  /** The signal carrying it. */
+  readonly signal: string;
+  /** The worktrees sharing it, by name. */
+  readonly names: readonly string[];
+}
+
+/**
+ * Find worktrees whose idle clocks were stamped at the same instant.
+ *
+ * THE POINT. Two unrelated worktrees cannot be USED at the same second; a shared stamp means one
+ * pass touched them both, and a pass is not activity. This is the generic detector for the fault
+ * class that has now bitten twice — the reflog rewrite (76 worktrees, one `reflog expire --all`) and
+ * the empty-`.codex/` scaffold (4 worktrees, a 59 ms window) — each of which took a bespoke
+ * investigation to find because the reaper reported only a verdict, never the evidence behind it.
+ * A third instance should announce itself here instead.
+ *
+ * Second granularity, not millisecond: the measured `.codex/` sweep spanned 59 ms across four
+ * worktrees, so an exact-equality match would have missed it entirely.
+ */
+export function detectIdleStampClusters(
+  readings: readonly IdleSignalReading[],
+  minSize = 3,
+): IdleStampCluster[] {
+  const groups = new Map<string, { atMs: number; signal: string; names: string[] }>();
+  for (const r of readings) {
+    if (r.mtimeMs <= 0 || r.binding === null) continue;
+    const second = Math.floor(r.mtimeMs / 1000) * 1000;
+    const key = `${r.binding}@${second}`;
+    const g = groups.get(key) ?? { atMs: second, signal: r.binding, names: [] };
+    g.names.push(path.basename(r.dir));
+    groups.set(key, g);
+  }
+  return [...groups.values()]
+    .filter((g) => g.names.length >= minSize)
+    .sort((a, b) => b.names.length - a.names.length || b.atMs - a.atMs)
+    .map((g) => ({ atMs: g.atMs, signal: g.signal, names: g.names }));
+}
+
+export interface IdleReportOptions {
+  readonly thresholdMs: number;
+}
+
+/**
+ * `storytree worktree idle` — read-only: WHICH signal is holding each worktree back, and is anything
+ * resetting the clock in bulk?
+ *
+ * `prune` decides and `drain` reports the series; neither could ever answer "why is this worktree
+ * not ageing?", which is the question that mattered when 56 of 68 worktrees sat in `cooling` — merged,
+ * clean, and disqualified on idleness alone. The verdict said `merged but active < 48h ago` and named
+ * no culprit, so finding the writer took a bespoke sweep. This prints the breakdown that made it
+ * obvious, and stats only the fixed signal set — no tree walk, no git spawn, no DB.
+ */
+export function worktreeIdleReport(options: IdleReportOptions, deps: PruneDeps = {}): Envelope {
+  const io = deps.io ?? defaultWorktreeIo;
+  const readIdle = deps.idle ?? readIdleSignals;
+  const now = deps.now ? deps.now() : Date.now();
+
+  let ctx: ReturnType<typeof resolveContext>;
+  try {
+    ctx = resolveContext(io);
+  } catch (err) {
+    return {
+      ok: false,
+      body: `could not resolve the git worktree context: ${err instanceof Error ? err.message : String(err)}`,
+      next: ["git status"],
+    };
+  }
+
+  const names = io.listChildDirs(ctx.worktreesDir);
+  if (names.length === 0) {
+    return {
+      ok: true,
+      body: `no worktrees under ${ctx.worktreesDir} — nothing to report.`,
+      next: ["storytree worktree drain"],
+    };
+  }
+
+  const readings = names.map((n) => readIdle(path.join(ctx.worktreesDir, n)));
+  const thresholdH = Math.round(options.thresholdMs / 3_600_000);
+  const ageH = (r: IdleSignalReading): number =>
+    r.mtimeMs > 0 ? (now - r.mtimeMs) / 3_600_000 : Number.POSITIVE_INFINITY;
+
+  const sorted = [...readings].sort((a, b) => ageH(a) - ageH(b));
+  const lines: string[] = [
+    `IDLE CLOCK — what the reaper reads, per worktree (threshold ${thresholdH}h).`,
+    "",
+    "  age      binding      worktree",
+  ];
+  for (const r of sorted) {
+    const age = ageH(r);
+    const ageStr = Number.isFinite(age) ? `${age.toFixed(1)}h`.padStart(7) : "unknown";
+    const binding = `${r.binding ?? "none"}${r.fellBack ? "*" : ""}`.padEnd(11);
+    lines.push(`  ${ageStr}  ${binding}  ${path.basename(r.dir)}`);
+  }
+
+  const histogram = new Map<string, number>();
+  for (const r of readings) {
+    const key = `${r.binding ?? "none"}${r.fellBack ? "*" : ""}`;
+    histogram.set(key, (histogram.get(key) ?? 0) + 1);
+  }
+  const idleCount = readings.filter((r) => ageH(r) >= thresholdH).length;
+  lines.push(
+    "",
+    `binding: ${[...histogram].map(([k, v]) => `${k} ${v}`).join(" · ")}`,
+    `past the ${thresholdH}h threshold: ${idleCount} of ${readings.length}.`,
+    "* = FALLBACK to the worktree's own files (an orphan with no admin dir). A registered worktree is",
+    "  judged only by its admin HEAD/index/ORIG_HEAD — those are written by git ops IN it, and nothing",
+    "  else. Its directory mtime is NOT read: any pass that creates or deletes a top-level entry bumps",
+    "  it, which is how an empty `.codex/` scaffold once erased 25-40 days of idleness on 4 worktrees.",
+  );
+
+  const clusters = detectIdleStampClusters(readings);
+  if (clusters.length > 0) {
+    lines.push("", "⚠ BULK SWEEP SUSPECTED — unrelated worktrees cannot be used at the same second:");
+    for (const c of clusters) {
+      lines.push(
+        `  ${new Date(c.atMs).toISOString()}  [${c.signal}]  ${c.names.length} worktrees: ${c.names.join(", ")}`,
+      );
+    }
+    lines.push(
+      "  Something touched them in one pass. Find it before trusting these ages — a shared stamp is",
+      "  the fingerprint of an externally reset clock, not of activity.",
+    );
+  } else {
+    lines.push("", "no bulk-sweep signature: no 3+ worktrees share an idle stamp to the second.");
+  }
+
+  return {
+    ok: true,
+    body: lines.join("\n"),
+    next: [
+      "storytree worktree drain                  (is the reaper actually draining?)",
+      "storytree worktree prune                  (what would be reaped right now)",
+    ],
+  };
+}
+
 /** The `storytree worktree` help envelope. */
 export function worktreeHelp(): Envelope {
   return {
@@ -916,6 +1169,12 @@ export function worktreeHelp(): Envelope {
       "                                             OK / WARN / FAIL, exit 1 on a measured STALL. Prints",
       "                                             today's population census (holds bucketed) beside it.",
       "",
+      "  storytree worktree idle                    WHY is the clock reading what it reads? read-only,",
+      "                                             offline. Per-worktree age + WHICH signal binds, and",
+      "                                             a BULK-SWEEP alarm when 3+ unrelated worktrees share",
+      "                                             an idle stamp to the second (they cannot all have",
+      "                                             been used at once — something swept them).",
+      "",
       "prune flags:",
       "  --dry-run            (default) print what WOULD be reaped, remove nothing",
       "  --force --yes        actually remove (both required — there is no interactive prompt)",
@@ -928,9 +1187,12 @@ export function worktreeHelp(): Envelope {
       "worktrees held by `git worktree lock` (release with `git worktree unlock <path>`),",
       "or (without --include-detached) detached-HEAD gate worktrees.",
       "",
-      "IDLE SIGNAL: newest mtime across the worktree dir, its .git file, and the admin",
-      "HEAD/index/ORIG_HEAD. Reflogs are deliberately EXCLUDED — `git gc` rewrites every",
-      "worktree's logs/HEAD in one pass, which used to reset the idle clock repo-wide.",
+      "IDLE SIGNAL: newest mtime across the admin HEAD/index/ORIG_HEAD — the files git writes",
+      "only for operations IN this worktree. The worktree's OWN dir and .git file are NOT read",
+      "(only as a fallback for an orphan with no admin dir): anything can write into a checkout,",
+      "so reading it measures the world, not the worktree. Reflogs are excluded for the same",
+      "reason — `git gc` rewrites every worktree's logs/HEAD in one pass. Both exclusions are one",
+      "fault class: a signal someone ELSE writes in bulk. `worktree idle` names it when it recurs.",
       "",
       "DRAIN LEDGER: every EXECUTING run appends one line to .claude/worktrees/.prune-history.jsonl",
       "(dry runs do not — they drain nothing by design, and recording them would fake a stall).",
