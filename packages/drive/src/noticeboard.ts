@@ -35,6 +35,10 @@ import {
 import { claimNamespaceOneLine, fenceStoryWorkClaim, type ClaimKind } from "./claim-namespace.js";
 import { guardClaimNamespace, kindSuffix, type ClaimUniverseLoader } from "./claim-universe.js";
 import type { Envelope } from "./envelope.js";
+// The direction is deliberate: `uat-drive.ts` is pure (zod only) and OWNS the drive-session concept,
+// because it is the only thing that ever mints or sets one. The board merely HONOURS it, so the edge
+// points board -> drive and no cycle is possible.
+import { driveIdentityOverride } from "./uat-drive.js";
 
 // ---------------------------------------------------------------------------
 // Exported interfaces
@@ -158,6 +162,18 @@ function samePath(a: string, b: string): boolean {
  *
  * `branch` = current HEAD branch name. `sessionId` resolves in this order:
  *
+ *  0. A SPAWNED DRIVE'S OWN ID (`STORYTREE_DRIVE_SESSION_ID`, {@link driveIdentityOverride}) — the
+ *     one case where the worktree is the WRONG answer. `uat-drive.run.ts` spawns a fresh model
+ *     session inside the launching session's worktree, on its branch, so rules 1–3 hand the child
+ *     its PARENT's identity; `events.node_claim` is keyed `(unit_id, session_id)`, so the child's
+ *     tidy-up `noticeboard done` then called `releaseClaimsBySession(<the parent's id>)` and deleted
+ *     the launching session's claims — silently, with a success message, after all four production
+ *     drives measured. Under ADR-0346 D1 a released work claim ADMITS a sibling that should have
+ *     queued, which is the contention the ledger exists to prevent. The override is VALIDATED, not
+ *     trusted (reserved prefix, no path separators), and an invalid value falls through to the
+ *     unchanged rules below — failing open, because the worst case of ignoring it is the defect it
+ *     closes, while honouring a bad value would re-key a real session's claims.
+ *
  *  1. `.claude/worktrees/<name>` -> `<name>`, the historical rule, byte-for-byte. It stays FIRST and
  *     separate rather than folding into rule 2 because the two can genuinely disagree: a slot
  *     RENAMED after creation keeps git's original admin-dir name, and this box carries exactly that
@@ -177,8 +193,16 @@ function samePath(a: string, b: string): boolean {
  */
 export function deriveIdentity(
   runGit: (args: string[]) => string = builtinRunGit,
+  env: Readonly<Record<string, string | undefined>> = process.env,
 ): SessionIdentity | null {
   try {
+    // Rule 0: this process was spawned AS a UAT drive and carries its own id (see the doc above).
+    // It runs before the git reads because it does not depend on them — but it still needs `branch`,
+    // so the throw-guard around everything stays the single failure path it has always been.
+    const driveSessionId = driveIdentityOverride(env);
+    if (driveSessionId !== null) {
+      return { sessionId: driveSessionId, branch: runGit(["rev-parse", "--abbrev-ref", "HEAD"]) };
+    }
     const toplevel = runGit(["rev-parse", "--show-toplevel"]);
     // Rule 1: .../.claude/worktrees/<name> (both / and \ separators, name is last path component).
     const match = /[/\\]\.claude[/\\]worktrees[/\\]([^/\\]+)\s*$/.exec(toplevel);
