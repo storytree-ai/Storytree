@@ -216,11 +216,11 @@ function verifyClaudeRuntime(): DriverRuntime | null {
 }
 
 /** The Codex CLI's final-answer file is the report; stdout is only a diagnostic fallback. */
-function readCodexFinalMessage(finalMessagePath: string, stdout: string): string {
+function readCodexFinalMessage(finalMessagePath: string, stdout: string, stderr: string): string {
   try {
     return readFileSync(finalMessagePath, "utf8");
   } catch {
-    return finalText(stdout);
+    return finalText([stdout, stderr].filter((text) => text.length > 0).join("\n"));
   }
 }
 
@@ -559,7 +559,7 @@ async function driveOne(target: DriveTarget, prompt: string, ctx: DriveContext):
 
   const text =
     ctx.runtime.provider === "codex"
-      ? readCodexFinalMessage(finalMessagePath, res.stdout ?? "")
+      ? readCodexFinalMessage(finalMessagePath, res.stdout ?? "", res.stderr ?? "")
       : finalText(res.stdout ?? "");
   const parsed = parseDriveReport(text);
   const end = classifyDriveEnd({
