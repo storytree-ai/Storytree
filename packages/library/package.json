@@ -8,6 +8,7 @@
     ".": "./src/index.ts",
     "./sources": "./src/knowledge-sources.ts",
     "./knowledge": "./src/knowledge.ts",
+    "./knowledge-depth": "./src/knowledge-depth.ts",
     "./knowledge-render": "./src/knowledge-render.ts",
     "./repo-root": "./src/repo-root.ts",
     "./store": "./src/store/index.ts",

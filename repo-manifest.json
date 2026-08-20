@@ -133,6 +133,7 @@
       "packages/cli/src/build-*.ts": "cli",
       "packages/cli/src/check-dist-drift.ts": "cli",
       "packages/cli/src/check-node-version.ts": "cli",
+      "packages/cli/src/probe-depth-from-work.ts": "cli",
       "packages/cli/src/claude-region.ts": "cli",
       "packages/cli/src/*coverage*.ts": "cli",
       "packages/cli/src/db-cli.ts": "cli",
@@ -280,6 +281,7 @@
       "packages/library/src/knowledge-sources.ts": "library-cli",
       "packages/library/src/loader.ts": "library-cli",
       "packages/library/src/knowledge-dag.ts": "library-dag-acyclic-core",
+      "packages/library/src/knowledge-depth.ts": "library",
       "packages/library/src/lifecycle.ts": "library-lifecycle-wire",
       "packages/library/src/templates.ts": "author-library-artifact",
       "packages/library/src/reliability-gates.ts": "library-health-gate",
@@ -409,6 +411,7 @@
       "apps/studio/src/lib/trailReveal.ts": "studio",
       "apps/studio/src/lib/worldSettings.ts": "studio",
       "apps/studio/src/lib/traversalIndex.ts": "studio",
+      "apps/studio/src/lib/knowledgeDepth.ts": "studio",
       "apps/studio/src/lib/worldStatus.ts": "studio",
 
       "$section_studio_shell": "apps/studio — the SPA shell, the Playwright/Vitest configs and the story-UAT spec.",

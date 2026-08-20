@@ -43,6 +43,12 @@
 // `traversal-panel-wide-attestation`; the tests beside this file assert geometry and behaviour only.
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  anchorSummary,
+  markKnowledgeDepth,
+  reportKnowledgeDepth,
+  type KnowledgeDepthModel,
+} from '../lib/knowledgeDepth';
 import { TRAVERSAL_MAX_DRAWN_DEPTH } from '../lib/traversalDepth';
 import type { TraversalLane } from '../lib/traversalLanes';
 import type { TraversalOffer } from '../lib/traversalOffers';
@@ -102,10 +108,22 @@ interface Geometry {
 export function TraversalSpine({
   replay,
   compact = false,
+  knowledge,
 }: {
   replay: TraversalReplayPayload;
   /** The host's own measurement that the panel is dragged small. OR-ed with this component's. */
   compact?: boolean;
+  /**
+   * ADR-0363 D2's READ-ONLY depth-from-work join, supplied by the mount (`TraversalReplay`), which is
+   * where the corpus lives. OPTIONAL and absent-by-default: with no corpus to join against, the
+   * picture draws exactly what it drew before and says nothing about knowledge depth — an absent
+   * model is never rendered as "nothing was deep".
+   *
+   * NOTE THE TWO DEPTHS ARE DIFFERENT QUANTITIES. The indentation this picture already draws is
+   * SESSION-traversal depth from `parentVisitId`. This is KNOWLEDGE depth: how far the artifact that
+   * was read sits from the actual work. Two axes, never one number.
+   */
+  knowledge?: KnowledgeDepthModel;
 }): React.JSX.Element {
   const model = useMemo(() => buildTraversalSpine(replay), [replay]);
   const { scale, marks, edges, occupancy, lanes, depth, offers } = model;
@@ -323,6 +341,7 @@ export function TraversalSpine({
                     mark={mark}
                     geometry={geometry}
                     visible={playPos >= mark.y}
+                    {...(knowledge ? { knowledge } : {})}
                   />
                 ))}
 
@@ -346,6 +365,7 @@ export function TraversalSpine({
             <OccupancyNote model={model} />
             <LaneNote model={model} />
             <DepthNote model={model} />
+            <KnowledgeDepthNote replay={replay} knowledge={knowledge} />
             <OfferNote model={model} />
             <DeferredNote model={model} />
           </div>
@@ -545,27 +565,39 @@ function RowLabels({
   );
 }
 
-/** A plain mark — identity and read strength, and NEVER a per-visit token readout or a gauge ring. */
+/**
+ * A plain mark — identity and read strength, and NEVER a per-visit token readout or a gauge ring.
+ *
+ * KNOWLEDGE DEPTH RIDES THE HOVER LABEL, NOT THE MARK, and that is a grammar constraint rather than a
+ * layout preference: ADR-0354 clause 5 keeps marks plain with no per-node gauge, so a drawn depth
+ * readout on every circle is exactly what may not be added. The reading is identity metadata — it
+ * joins the label an operator already hovers for, and rides `data-knowledge-depth` so it is
+ * assertable. The distribution an operator actually reads is `KnowledgeDepthNote`, below the picture.
+ */
 function Mark({
   mark,
   geometry,
   visible,
+  knowledge,
 }: {
   mark: TraversalMark;
   geometry: Geometry;
   visible: boolean;
+  knowledge?: KnowledgeDepthModel;
 }): React.JSX.Element {
   const x = geometry.x(mark.y);
   const y = geometry.depthY(mark.depth);
   const r = geometry.markRadius;
+  const reading = knowledge ? markKnowledgeDepth(knowledge, mark.nodeId) : null;
   return (
     <g
       className={`traversal-mark strength-${mark.strength}${visible ? ' is-visible' : ''}`}
       data-testid="traversal-mark"
       data-strength={mark.strength}
       data-depth={mark.depth}
+      {...(reading ? { 'data-knowledge-depth': reading.attr } : {})}
     >
-      <title>{mark.label}</title>
+      <title>{reading ? `${mark.label} · ${reading.label}` : mark.label}</title>
       {mark.strength === 'search' ? (
         // The only non-circular mark in the grammar: a small magnifying glass.
         <>
@@ -981,6 +1013,70 @@ function DepthNote({ model }: { model: ReturnType<typeof buildTraversalSpine> })
         ? `; ${depth.unresolvedParents} link${depth.unresolvedParents === 1 ? '' : 's'} named a visit this trace does not contain and ${depth.unresolvedParents === 1 ? 'was' : 'were'} not indented`
         : ''}
       .
+    </p>
+  );
+}
+
+/**
+ * KNOWLEDGE depth from the work (ADR-0363 D2) — the SECOND depth on this panel, and a different
+ * quantity from its neighbour above.
+ *
+ * `DepthNote` reports SESSION-traversal depth: how deep in this one context walk a visit sat, from
+ * `parentVisitId`. This reports how far the ARTIFACTS that were read sit from the actual work, over
+ * the authored `standsOn` graph. The two are two axes on one picture and are deliberately rendered as
+ * two sentences — one number claiming to be both would mean nothing in either system.
+ *
+ * WHAT IT IS FOR: in a healthy system an agent should not need to reach far from the work to find its
+ * answer. A traversal whose reads skew deep says the near-work layer is under-serving.
+ *
+ * THREE THINGS IT REFUSES TO DO, each of which would report the opposite of that signal:
+ *   • it never renders an UNREACHABLE artifact as a deep one — no chain reaches it, which is an
+ *     absence of measurement rather than a measurement of distance;
+ *   • it never files a non-artifact id (a story id, a retired artifact, a CLI token) under the
+ *     corpus's unreachable count;
+ *   • it never prints a per-trace figure without the corpus-wide anchor line beside it. A trace
+ *     annotating 3 of its 306 reads is a fact about how thinly the corpus is anchored, not about the
+ *     session — and measured on the live corpus, only 42 of 1,612 artifacts anchor the walk at all.
+ *
+ * And the accepted risk is on the surface rather than in a comment: nothing enforces this join, so
+ * the work graph and the knowledge graph can drift and only this panel would notice.
+ */
+function KnowledgeDepthNote({
+  replay,
+  knowledge,
+}: {
+  replay: TraversalReplayPayload;
+  knowledge?: KnowledgeDepthModel | undefined;
+}): React.JSX.Element | null {
+  if (!knowledge) return null;
+
+  if (knowledge.status !== 'measured') {
+    // NEVER "0 artifacts annotated": a corpus that was not read is not a corpus that reached nothing.
+    return (
+      <p className="small muted traversal-knowledge-note" data-testid="traversal-knowledge-note">
+        knowledge depth from the work: not measured — {knowledge.reason}.
+      </p>
+    );
+  }
+
+  const report = reportKnowledgeDepth(replay.events, knowledge);
+  if (report === null || report.visited === 0) return null;
+
+  const spread = report.buckets.map((bucket) => `${bucket.count} at ${bucket.depth}`).join(', ');
+  return (
+    <p className="small muted traversal-knowledge-note" data-testid="traversal-knowledge-note">
+      knowledge depth from the work (a different axis from the indentation above):{' '}
+      <strong>{report.reached}</strong> of {report.visited} artifact
+      {report.visited === 1 ? '' : 's'} read here sit on an authored chain from a work anchor
+      {report.reached > 0 ? `, deepest ${report.maxDepth} (${spread})` : ''}
+      {report.unreachable > 0
+        ? `; ${report.unreachable} ${report.unreachable === 1 ? 'is in the corpus with no chain reaching it' : 'are in the corpus with no chain reaching them'} — unmeasured, NOT deep`
+        : ''}
+      {report.absent > 0
+        ? `; ${report.absent} ${report.absent === 1 ? 'is not a Library artifact' : 'are not Library artifacts'} at all`
+        : ''}
+      . {anchorSummary(knowledge)}. Nothing enforces this join, so the work graph and the knowledge
+      graph can drift — read the depth as a derived reading of the corpus, never as a guarantee.
     </p>
   );
 }

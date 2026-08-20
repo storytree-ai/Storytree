@@ -55,6 +55,12 @@ export * from "./knowledge.js";
 // store read around. Pure, browser-safe: no zod, no store, no node: — it reads `standsOn` and
 // nothing else, so the citation web is structurally outside the dependency relation.
 export * from "./knowledge-dag.js";
+// ADR-0363 D2 (`traversal-panel-arc` increment `standson-depth-from-work-join`): the READ-ONLY
+// depth-from-work join — the same `standsOn` substrate seeded at the artifacts whose `cites` names a
+// work unit, so a reader can ask "how far is this knowledge from the actual work". Pure and
+// browser-safe like its sibling; it reports its own denominators because an UNREACHABLE artifact and
+// a VERY DEEP one must never print alike. Nothing records the result and no gate enforces it.
+export * from "./knowledge-depth.js";
 // ADR-0223 dec 5's one-time seed, as a pure function: the tier order (dec 3, amended by ADR-0363 D1)
 // and the down-tier citation projection the migration applies. Pure and browser-safe apart from the
 // zod pointer check it borrows from the schema.

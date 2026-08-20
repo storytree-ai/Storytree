@@ -58,6 +58,14 @@ export interface TraversalMark {
   readonly depth: number;
   /** What an operator hovers to see. Identity only — a node id or a search operation, never content. */
   readonly label: string;
+  /**
+   * The artifact this visit read, or `null` for a search (which reads no single node).
+   *
+   * Carried as its own field rather than parsed back out of {@link TraversalMark.label}: the
+   * knowledge-depth join (`lib/knowledgeDepth.ts`) keys on it, and recovering an id from prose that
+   * exists to be read by a human is how a renderer starts depending on the wording of a label.
+   */
+  readonly nodeId: string | null;
 }
 
 export interface TraversalEdge {
@@ -127,6 +135,7 @@ export function buildTraversalSpine(
     y: yAt(scale, item.atMs),
     depth: visitDepth(depth, item.event),
     label: labelOf(item.event),
+    nodeId: nodeIdOf(item.event),
   }));
 
   const edges: TraversalEdge[] = [];
@@ -182,6 +191,12 @@ function identityOf(event: TraversalEventEnvelope, index: number): string {
     return `${event.visitId}#${index}`;
   }
   return `${event.eventId}#${index}`;
+}
+
+/** The artifact a visit read. `null` for a search — it reads no single node, so it has no depth. */
+function nodeIdOf(event: TraversalEventEnvelope): string | null {
+  if (event.kind === 'full_payload_read' || event.kind === 'front_matter_read') return event.nodeId;
+  return null;
 }
 
 function labelOf(event: TraversalEventEnvelope): string {

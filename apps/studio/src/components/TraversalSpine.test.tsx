@@ -17,10 +17,12 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import type {
+  GuidanceAsset,
   TraversalDecisionPointReport,
   TraversalEventEnvelope,
   TraversalReplayPayload,
 } from '../types';
+import { buildKnowledgeDepth } from '../lib/knowledgeDepth';
 import { TraversalSpine, TRAVERSAL_SPINE_GEOMETRY } from './TraversalSpine';
 
 afterEach(cleanup);
@@ -781,5 +783,142 @@ describe('the transport', () => {
     expect(button.getAttribute('aria-pressed')).toBe('true');
     fireEvent.click(button);
     expect(button.textContent).toBe('Play');
+  });
+});
+
+/**
+ * THE SECOND DEPTH (ADR-0363 D2, increment `standson-depth-from-work-join`) — knowledge depth from
+ * the work, joined onto the picture at render time.
+ *
+ * `lib/knowledgeDepth.test.ts` proves the join itself. What is under test here is the wiring, and
+ * every case is one where the picture would otherwise make a confident wrong claim: an unread corpus
+ * rendering as "nothing was reached", an unreachable artifact rendering as a deep one, and the
+ * per-trace figure printing without the corpus-wide anchor line that makes it readable.
+ *
+ * Nothing here touches the SIGNED GRAMMAR: the reading rides the hover label and a data attribute,
+ * never a drawn readout on the mark (ADR-0354 clause 5 keeps marks plain, with no per-node gauge).
+ */
+describe('knowledge depth from the work is a SECOND axis, joined read-only at render time', () => {
+  const CORPUS: GuidanceAsset[] = [
+    {
+      id: 'inc-one',
+      category: 'principle',
+      title: 'inc-one',
+      description: '',
+      body: '',
+      references: [],
+      cites: ['story:studio', 'asset:ceremony'],
+      createdAt: '2026-08-20T00:00:00.000Z',
+      updatedAt: '2026-08-20T00:00:00.000Z',
+    },
+    {
+      id: 'ceremony',
+      category: 'pattern',
+      title: 'ceremony',
+      description: '',
+      body: '',
+      references: [],
+      standsOn: ['asset:principle'],
+      createdAt: '2026-08-20T00:00:00.000Z',
+      updatedAt: '2026-08-20T00:00:00.000Z',
+    },
+    {
+      id: 'principle',
+      category: 'principle',
+      title: 'principle',
+      description: '',
+      body: '',
+      references: [],
+      createdAt: '2026-08-20T00:00:00.000Z',
+      updatedAt: '2026-08-20T00:00:00.000Z',
+    },
+    {
+      id: 'orphan',
+      category: 'principle',
+      title: 'orphan',
+      description: '',
+      body: '',
+      references: [],
+      createdAt: '2026-08-20T00:00:00.000Z',
+      updatedAt: '2026-08-20T00:00:00.000Z',
+    },
+  ];
+
+  const READY = buildKnowledgeDepth({ assets: CORPUS, assetsStatus: 'ready', assetsError: '' });
+
+  const WALK = replay([
+    visit('full_payload_read', 0, 'ceremony'),
+    visit('full_payload_read', 20_000, 'principle'),
+    visit('front_matter_read', 40_000, 'orphan'),
+    visit('full_payload_read', 60_000, 'forest-world'),
+  ]);
+
+  it('draws exactly what it drew before when no corpus is supplied', () => {
+    // Absent-by-default: the join is the mount's to supply, and a picture with no corpus to join
+    // against says nothing about knowledge depth rather than reporting an empty verdict.
+    render(<TraversalSpine replay={WALK} />);
+    expect(screen.queryByTestId('traversal-knowledge-note')).toBeNull();
+    expect(
+      screen.getAllByTestId('traversal-mark').every((mark) => !mark.hasAttribute('data-knowledge-depth')),
+    ).toBe(true);
+  });
+
+  it('annotates each reached artifact with its hop count, on the hover label and never as a gauge', () => {
+    render(<TraversalSpine replay={WALK} knowledge={READY} />);
+    const attrs = screen
+      .getAllByTestId('traversal-mark')
+      .map((mark) => mark.getAttribute('data-knowledge-depth'));
+    expect(attrs).toEqual(['1', '2', 'unreachable', 'absent']);
+
+    const titles = screen.getAllByTestId('traversal-mark').map((mark) => mark.querySelector('title')?.textContent);
+    expect(titles[0]).toBe('ceremony · full payload · knowledge depth 1 from the work');
+    // The grammar clause: the mark itself stays plain. Identity and read strength are all it draws.
+    expect(screen.getAllByTestId('traversal-mark')[0]?.querySelectorAll('text')).toHaveLength(0);
+  });
+
+  it('never renders an UNREACHABLE artifact as a deep one', () => {
+    render(<TraversalSpine replay={WALK} knowledge={READY} />);
+    const orphan = screen.getAllByTestId('traversal-mark')[2];
+    expect(orphan?.getAttribute('data-knowledge-depth')).toBe('unreachable');
+    // Not a number, and the word "unmeasured" rather than "deep": no chain reaches it, which is an
+    // absence of measurement, not a measurement of distance.
+    expect(orphan?.querySelector('title')?.textContent).toContain('unmeasured');
+    expect(screen.getByTestId('traversal-knowledge-note').textContent).toContain('unmeasured, NOT deep');
+  });
+
+  it('counts the trace and prints the corpus-wide anchor line beside it', () => {
+    render(<TraversalSpine replay={WALK} knowledge={READY} />);
+    const note = screen.getByTestId('traversal-knowledge-note').textContent ?? '';
+    expect(note).toContain('2 of 4 artifacts read here sit on an authored chain from a work anchor');
+    expect(note).toContain('1 is in the corpus with no chain reaching it');
+    expect(note).toContain('1 is not a Library artifact at all');
+    // Without the anchor line a reader would blame the SESSION for a thin count that is really a fact
+    // about how little of the corpus names any work at all.
+    expect(note).toContain('1 of 4 artifacts name a story or capability and anchor the walk');
+    // The accepted risk is on the surface, not only in a comment (ADR-0363 D2).
+    expect(note).toContain('never as a guarantee');
+  });
+
+  it('says an unread corpus was NOT MEASURED rather than reporting nothing reached', () => {
+    const loading = buildKnowledgeDepth({ assets: [], assetsStatus: 'loading', assetsError: '' });
+    render(<TraversalSpine replay={WALK} knowledge={loading} />);
+
+    const note = screen.getByTestId('traversal-knowledge-note').textContent ?? '';
+    expect(note).toContain('not measured');
+    expect(note).not.toContain('0 of');
+    // And no mark claims a reading the join never made.
+    expect(
+      screen.getAllByTestId('traversal-mark').every((mark) => !mark.hasAttribute('data-knowledge-depth')),
+    ).toBe(true);
+  });
+
+  it('keeps the two depths apart — the session axis and the knowledge axis are separate sentences', () => {
+    render(<TraversalSpine replay={WALK} knowledge={READY} />);
+    // `traversal-depth-note` is depth from `parentVisitId`; this one is depth from the work. One
+    // number claiming to be both would mean nothing in either system.
+    expect(screen.getByTestId('traversal-depth-note').textContent).toContain('parentVisitId');
+    expect(screen.getByTestId('traversal-knowledge-note').textContent).toContain(
+      'a different axis from the indentation above',
+    );
   });
 });

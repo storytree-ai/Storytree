@@ -4729,6 +4729,9 @@ button.legend-tile:hover {
 
 .traversal-lane-note,
 .traversal-depth-note,
+/* Knowledge depth from the work (ADR-0363 D2) — the SECOND depth, and a sibling note rather than an
+   addition to `.traversal-depth-note` above, because the two are different quantities. */
+.traversal-knowledge-note,
 .traversal-offer-note {
   margin: 6px 0 0;
   overflow-wrap: anywhere;
