@@ -78,11 +78,11 @@ export function resolveUatDriveProvider(raw: string | undefined):
 /** The Codex final message is the report contract, not a provider-specific event stream. */
 export function codexExecArguments(finalMessagePath: string): string[] {
   return [
-    "exec",
     "--sandbox",
     "danger-full-access",
     "--ask-for-approval",
     "never",
+    "exec",
     "--output-last-message",
     finalMessagePath,
     "-",

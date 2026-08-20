@@ -99,11 +99,11 @@ test("isModelDrivenGate: only a command-bearing observe gate running the witness
 
 test("Codex subscription boundary: only the non-interactive Codex exec path is invoked", () => {
   assert.deepEqual(codexExecArguments("C:/tmp/report.md"), [
-    "exec",
     "--sandbox",
     "danger-full-access",
     "--ask-for-approval",
     "never",
+    "exec",
     "--output-last-message",
     "C:/tmp/report.md",
     "-",
