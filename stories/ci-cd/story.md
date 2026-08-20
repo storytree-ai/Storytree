@@ -267,7 +267,7 @@ witness. Opening the PR is now the session's own ceremony, not a repository seam
    removed from this list when ADR-0311 D2 retired them, because a seam-presence gate that names a
    retired rung reds on the retirement itself rather than on drift.
 3. **The current local/CI relationship is declared** _(gate: observe)_
-   `node --input-type=module -e "import fs from 'node:fs';const src=fs.readFileSync('packages/cli/src/gate-order.ts','utf8');const i=src.indexOf('export const GATE_PLAN');if(i<0)throw new Error('GATE_PLAN literal not found');const end=src.indexOf('];',i);if(end<0)throw new Error('GATE_PLAN literal unterminated');const plan=src.slice(i,end);const c=fs.readFileSync('.github/workflows/ci.yml','utf8');for(const s of ['check:boundaries','check:mirror-conformance','check:web-grounding','check:web-engine','check:guidance','check:agents'])if(!plan.includes(s)||!c.includes(s))throw new Error('shared gate seam drifted: '+s);for(const s of ['pnpm -r typecheck','pnpm -r test'])if(!plan.includes(s))throw new Error('shared expensive leg missing from GATE_PLAN: '+s);for(const s of ['- name: Typecheck','- name: Test'])if(!c.includes(s))throw new Error('shared expensive leg missing from verify: '+s);for(const s of ['pnpm -r build','ADR number collision (open PRs)','Merged-branch guard (a branch dies on merge)','Affected scope (PRs only)'])if(!c.includes(s)||plan.includes(s))throw new Error('CI-only delta drifted: '+s);if(!plan.includes('check:verification-decay')||c.includes('check:verification-decay'))throw new Error('local-only delta drifted: check:verification-decay')"`.
+   `node --input-type=module -e "import fs from 'node:fs';const src=fs.readFileSync('packages/cli/src/gate-order.ts','utf8');const i=src.indexOf('export const GATE_PLAN');if(i<0)throw new Error('GATE_PLAN literal not found');const end=src.indexOf('];',i);if(end<0)throw new Error('GATE_PLAN literal unterminated');const plan=src.slice(i,end);const planN=plan.replace(/\s+--[a-z][a-z-]*/g,'');const c=fs.readFileSync('.github/workflows/ci.yml','utf8');for(const s of ['check:boundaries','check:mirror-conformance','check:web-grounding','check:web-engine','check:guidance','check:agents'])if(!plan.includes(s)||!c.includes(s))throw new Error('shared gate seam drifted: '+s);for(const s of ['pnpm -r typecheck','pnpm -r test'])if(!planN.includes(s))throw new Error('shared expensive leg missing from GATE_PLAN: '+s);for(const s of ['- name: Typecheck','- name: Test'])if(!c.includes(s))throw new Error('shared expensive leg missing from verify: '+s);for(const s of ['pnpm -r build','ADR number collision (open PRs)','Merged-branch guard (a branch dies on merge)','Affected scope (PRs only)'])if(!c.includes(s)||plan.includes(s))throw new Error('CI-only delta drifted: '+s);if(!plan.includes('check:verification-decay')||c.includes('check:verification-decay'))throw new Error('local-only delta drifted: check:verification-decay')"`.
    It reads the local gate's real step list from the `GATE_PLAN` literal in
    `packages/cli/src/gate-order.ts` — **never** from `package.json`'s `gate` script, which since
    2026-08-04 is just the runner invocation (`… src/gate-run.ts`) and names zero steps, so every
@@ -278,6 +278,16 @@ witness. Opening the PR is now the session's own ceremony, not a repository seam
    present in both, `pnpm -r build` + the two PR-only guards + affected selection are present in CI
    and absent from the plan, and `check:verification-decay` is present in the plan and absent from
    CI — each direction asserted BOTH ways, so a step migrating between them fails here.
+   *(Corrected in place 2026-08-21, ADR-0139. This gate was RED on `main` and had been since
+   ADR-0276 increment 4. It asserted the literals `pnpm -r typecheck` / `pnpm -r test` against the
+   `GATE_PLAN` literal, which now declares `pnpm -r --no-bail typecheck` / `pnpm -r --no-bail test`,
+   so `plan.includes(…)` was false and the command exited 1 with `shared expensive leg missing from
+   GATE_PLAN: pnpm -r typecheck` — exactly the drift-on-its-own-flags failure gate 2's prose above
+   warns about. The two literals are KEPT as the declared floor; the plan text is now normalised
+   through `planN` (long flags stripped) before they are matched, so adding or removing a flag on a
+   shared leg no longer reds a gate that is about WHICH legs are shared, not how they are invoked.
+   Verified red-then-green by extracting this exact command from the story and running it: exit 1 on
+   `origin/main`, exit 0 here.)*
 4. **The green-only non-squash automerge rail is present** _(gate: observe)_
    `node --input-type=module -e "import fs from 'node:fs';const c=fs.readFileSync('.github/workflows/ci.yml','utf8');for(const s of ['automerge:','needs: verify','github.event.pull_request.draft == false','!contains(github.event.pull_request.labels.*.name','hold','gh pr merge','--merge','--delete-branch'])if(!c.includes(s))throw new Error('automerge seam drifted: '+s)"`.
    The audit is structural and deterministic; it does not claim to create a live PR.
