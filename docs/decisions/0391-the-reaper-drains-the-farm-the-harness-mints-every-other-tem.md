@@ -105,9 +105,13 @@ adds the universe half of the same defect, which ADR-0387's body does not cover.
   instead of seven weeks and counting.
 - **The sweep is rare by construction, because its trigger is the thing that creates the mess.** A
   box that runs no REAL builds accumulates no temp trees and needs no sweep; a box that runs them
-  sweeps on every one. That is the property that makes the creator the right owner, and it is also
-  the reason a backlog that predates the fix needs one manual drain (done 2026-08-20) rather than
-  waiting for the next build to nibble 4 off it.
+  sweeps on every one. That is the property that makes the creator the right owner.
+- **The 4-per-mint cap drained a seven-week backlog in two gate runs, with no manual sweep at all.**
+  Measured while landing this: `%TEMP%` went **241 trees → 88** (build parents 59 → 43, fixtures
+  182 → 45) across the two `pnpm gate` runs that verified this branch, because the drive real-chain
+  suites cut build worktrees and every mint sweeps. So the cap is not the bottleneck it looks like:
+  a repo that mints often enough to make the mess also mints often enough to clear it. Nothing
+  registered was touched, and nothing inside the threshold moved.
 - **A test suite that cuts real build worktrees now performs real housekeeping in the real temp
   dir.** `build-worktree.test.ts` already cuts real worktrees in `os.tmpdir()` against real git, so
   this is in character rather than a new class of side effect — but it is a genuine widening of what
