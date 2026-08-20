@@ -136,7 +136,22 @@ export function ArcSurface({ arcs, now, claims = null, onOpen }: ArcSurfaceProps
             ))}
           </div>
           {arcs === undefined ? (
-            <p className="muted small arc-lanes-note">Reading arcs…</p>
+            /* STILL READING — and it says so with a moving part, not just words. The read retries
+               on a 30 s budget (api.ts `arcs`), so this state can legitimately last tens of seconds
+               on a slow answer; a static line of text held that long reads as a surface that has
+               given up, which is the very thing the unreachable note below exists to say honestly.
+               The spinner is what distinguishes "working" from "stalled" while both look identical
+               in prose. It is bounded by construction — the retry is finite, so this always resolves
+               to arcs or to the note below, never the never-resolving spinner #1191 rendered. */
+            <p
+              className="muted small arc-lanes-note arc-lanes-reading"
+              data-testid="arc-lanes-reading"
+              role="status"
+              aria-live="polite"
+            >
+              <span className="spinner" aria-hidden="true" />
+              Reading arcs…
+            </p>
           ) : arcs === ARCS_UNREACHABLE ? (
             /* The read never answered — the request failed, or this backend does not serve the
                route at all. The desktop's local backend used to be the standing example of the
