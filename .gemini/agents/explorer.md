@@ -59,7 +59,7 @@ If the question presumes something false ('where is the X that does Y' when noth
 
 - When a piece of work needs multi-step exploration — roughly three or more consecutive Read/Grep/Glob turns, or any broad 'find where X lives / sweep many files' question — delegate it to a read-only explorer subagent that returns a DIGEST (its conclusions plus file:line pointers), rather than pulling the raw file contents into the orchestrating session's own context. A single targeted lookup where the file or symbol is already known stays inline. The digest, not the raw files, is what belongs in the expensive context.  — `storytree library artifact delegate-exploration-to-digest-subagents`
 - Durable discipline lives ONCE as a Library unit; every consumer — an agent spec, a work unit, a report — cites it via a typed `asset:`/`doc:` reference, never restates it in prose.  — `storytree library artifact reference-dont-restate`
-- Write every artifact so a newcomer with the repo NOT loaded grasps the stake in the first sentence and never hits an unexplained internal term.  — `storytree library artifact plain-language-first`
+- Write every ARTIFACT so a newcomer with the repo NOT loaded grasps the stake in the first sentence and never hits an unexplained internal term — and note the declared reader is a NEWCOMER, so for the OWNER, who set the project and needs only the machine vocabulary translated, `register-follows-audience` applies instead.  — `storytree library artifact plain-language-first`
 
 ## Escalate UP when blocked or out of scope
 
