@@ -28,25 +28,30 @@ import {
   groundCellsFrom,
   type GroundCell,
 } from './island-descriptors.js';
+import { flowersFrom } from './flower-descriptors.js';
+import { growFlower } from './flower-geometry.js';
 import {
   LAND_CELL_DEPTH as CELL_DEPTH,
   LAND_RELIEF_AMPLITUDE,
   PARCEL_BEVEL_DROP,
   landHeight,
-  landHeightRange,
   landNormal,
   planLandDefinition,
   signedArea2,
   wallFootY,
 } from './land-definition.js';
 import { islandScene, type IslandOptions } from './island-fixture.js';
+import type { GeneratedMesh } from './mesh-kit.js';
 import { plantsFrom, type PlantInstance } from './plant-descriptors.js';
 import { growPlant } from './plant-geometry.js';
 import { STATUS_TOKENS } from './palette-band.js';
+import { treesFrom } from './tree-descriptors.js';
+import { growTree } from './tree-geometry.js';
 import {
   LAND_CAMERA_ELEVATION_DEG,
   groundFlattening,
   uprightForeshortening,
+  type SceneG,
 } from '@storytree/forest-world';
 
 /** The elevation the live camera renders at — the arc's signed research angle (2026-08-16:
@@ -84,6 +89,11 @@ export interface IslandViewProps {
   style?: 'mound' | 'foliage';
   /** Draw the vegetation at all (a bare-land control). */
   plants?: boolean;
+  /** Draw the UAT flowers at all - the pre-2026-08-20 control, which is what makes "what did
+   *  the flowers add" answerable rather than remembered. */
+  flowers?: boolean;
+  /** Draw the hero story tree at all - the same control, for the other new component. */
+  tree?: boolean;
   /** Give one capability a foreign status, for the mixed-island panel. */
   island?: IslandOptions;
   /** How much interior definition the land carries. Defaults to `full`. */
@@ -137,19 +147,66 @@ function sharedRenderer(): { renderer: THREE.WebGLRenderer; canvas: HTMLCanvasEl
  *  multi-second stall that looks like a hung harness. */
 const shadowFieldCache = new Map<string, ShadowTexture>();
 
-/** The plants, as upright cylinders standing on the land.
+/**
+ * Everything that stands upright on the land, as the cylinders that cast its shadow.
  *
- *  THE RADIUS IS THE FOOTPRINT'S HALF-WIDTH AND THE HEIGHT IS UNPROJECTED — the same two
- *  numbers `plantMesh` grows the geometry from, read the same way. Taking the height
- *  straight off the descriptor would foreshorten the caster while the plant it belongs to
- *  stands upright, and the shadow would be 6% short of the plant casting it. */
-function castersFrom(plants: readonly PlantInstance[], groundFlat: number, up: number): ShadowCaster[] {
-  return plants.map((p) => ({
-    x: p.transform.x,
-    z: p.transform.z / groundFlat,
-    radius: Math.max(1.5, p.footprint.w) / 2,
-    height: Math.max(1.2, p.footprint.h / up),
-  }));
+ * THE RADIUS IS THE FOOTPRINT'S HALF-WIDTH AND THE HEIGHT IS UNPROJECTED — the same two
+ * numbers each generator grows its geometry from, read the same way. Taking the height
+ * straight off the descriptor would foreshorten the caster while the prop it belongs to
+ * stands upright, and the shadow would be 6% short of the thing casting it.
+ *
+ * ALL THREE PROPS CAST, and that is a decision rather than a sweep. Excluding one would have
+ * been the arbitrary act: the flowers are tiny and their shadows are near-invisible at
+ * delivered size, but they are upright objects standing in the same light, and an island
+ * where two of the three kinds of thing cast reads as a rendering bug rather than as a
+ * choice. The hero tree is the opposite case and the one that matters — it is by far the
+ * tallest thing here, so it throws by far the longest shadow.
+ *
+ * WHAT IS DRAWN AND WHAT CASTS ARE KEPT IN STEP by the caller passing the panel's own
+ * toggles through: a caster whose mesh is not drawn would lay a shadow under nothing, which
+ * is the most confusing possible artefact because every part of it looks deliberate.
+ */
+function castersFrom(
+  scene: SceneG,
+  plants: readonly PlantInstance[],
+  groundFlat: number,
+  up: number,
+  include: { plants: boolean; flowers: boolean; tree: boolean },
+): ShadowCaster[] {
+  const out: ShadowCaster[] = [];
+  if (include.plants) {
+    for (const p of plants) {
+      out.push({
+        x: p.transform.x,
+        z: p.transform.z / groundFlat,
+        radius: Math.max(1.5, p.footprint.w) / 2,
+        height: Math.max(1.2, p.footprint.h / up),
+      });
+    }
+  }
+  if (include.flowers) {
+    for (const f of flowersFrom(scene)) {
+      // A flower's height is its HEAD's offset above its planted base — SVG y runs down, so
+      // the offset is negative — scaled by the wrapper and unprojected like any upright.
+      out.push({
+        x: f.transform.x,
+        z: f.transform.z / groundFlat,
+        radius: Math.max(0.4, (Math.abs(f.head.x) * f.scale) / 2 + 0.4),
+        height: Math.max(0.5, (Math.abs(f.head.y) * f.scale) / up),
+      });
+    }
+  }
+  if (include.tree) {
+    for (const t of treesFrom(scene)) {
+      out.push({
+        x: t.transform.x,
+        z: t.transform.z / groundFlat,
+        radius: Math.max(1.5, t.footprint.w) / 2,
+        height: Math.max(1.2, t.footprint.h / up),
+      });
+    }
+  }
+  return out;
 }
 
 /** A 3D vertex plus the normal it wears — the unit the emitters below trade in. */
@@ -393,6 +450,103 @@ function groundMeshes(
   return meshes;
 }
 
+/**
+ * Merge a set of already-world-positioned meshes into ONE buffer per authored token, at
+ * `offset`. Shared by the UAT flowers and the story tree because both generators return the same
+ * `Map<token, mesh>` shape, and both need the same two things done to it: translated onto the
+ * ground, and merged so an island's props cost a handful of draw calls rather than hundreds.
+ *
+ * Positions are baked rather than carried on a `Matrix4`: the banded material shades from a
+ * WORLD normal, so a per-instance transform would mean one more matrix per prop for no visual
+ * difference at all.
+ */
+function mergeParts(
+  groups: readonly { parts: ReadonlyMap<string, GeneratedMesh>; offset: [number, number, number] }[],
+): THREE.Mesh[] {
+  const byToken = new Map<string, { pos: number[]; nrm: number[] }>();
+  for (const { parts, offset } of groups) {
+    for (const [token, mesh] of parts) {
+      const acc = byToken.get(token) ?? { pos: [], nrm: [] };
+      byToken.set(token, acc);
+      for (let v = 0; v < mesh.indices.length; v++) {
+        const i = mesh.indices[v]! * 3;
+        acc.pos.push(
+          mesh.positions[i]! + offset[0],
+          mesh.positions[i + 1]! + offset[1],
+          mesh.positions[i + 2]! + offset[2],
+        );
+        acc.nrm.push(mesh.normals[i]!, mesh.normals[i + 1]!, mesh.normals[i + 2]!);
+      }
+    }
+  }
+  const out: THREE.Mesh[] = [];
+  for (const [token, acc] of byToken) {
+    if (!acc.pos.length) continue;
+    const geom = new THREE.BufferGeometry();
+    geom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(acc.pos), 3));
+    geom.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(acc.nrm), 3));
+    // Double-sided: a swept stalk is open at its ends and a petal is a thin lobe, so a
+    // single-sided pass would punch holes exactly where a reader looks.
+    out.push(new THREE.Mesh(geom, createBandedMaterial({ token, doubleSided: true })));
+  }
+  return out;
+}
+
+/**
+ * The island's UAT FLOWERS — one per criterion, 1:1 (ADR-0226 D4), verdict read from the FORM.
+ *
+ * A flower's GROUND position unprojects by `sin(elev)` exactly as a plant's does; its own
+ * heights recover by `cos(elev)` INSIDE `growFlower`. The two foreshortenings are the reason
+ * this is spelled out rather than folded into one number: using the ground flattening on a
+ * height is the silent error that made every plant 2.75x too tall.
+ *
+ * `relief` is the same argument `plantMesh` takes and for the same reason: a flower is grown
+ * standing on y = 0, so on land that is no longer a plane it either floats or sinks. A flower
+ * half a unit into the ground still reads as a flower, which is precisely why it is threaded
+ * through rather than left to be noticed.
+ */
+function flowerMeshes(scene: SceneG, relief: number): THREE.Mesh[] {
+  const groundFlat = groundFlattening(LAND_CAMERA_ELEVATION_DEG);
+  const upright = uprightForeshortening(LAND_CAMERA_ELEVATION_DEG);
+  return mergeParts(
+    flowersFrom(scene).map((flower) => {
+      const gx = flower.transform.x;
+      const gz = flower.transform.z / groundFlat;
+      return {
+        parts: growFlower(flower, upright),
+        offset: [gx, landHeight(gx, gz, relief), gz] as [number, number, number],
+      };
+    }),
+  );
+}
+
+/**
+ * The HERO STORY TREE, grown as a solid from the scene's own authored tree.
+ *
+ * The tree-angle fork — a raster baked at 20 degrees against a live island rendered at 50 — is
+ * decided and argued at the top of `tree-descriptors.ts`. The short of it: the tree is GROWN
+ * rather than composited, so the camera is genuinely a parameter and the crown stays the
+ * scene's own rather than becoming this session's.
+ *
+ * It rides the relief field like everything else. The tree is the ONE prop where floating would
+ * be obvious rather than quiet — a 92-unit trunk hanging off the ground is not subtle — but it
+ * takes the same lift as the flowers so there is one rule rather than one rule and an exception.
+ */
+function treeMeshes(scene: SceneG, relief: number): THREE.Mesh[] {
+  const groundFlat = groundFlattening(LAND_CAMERA_ELEVATION_DEG);
+  const upright = uprightForeshortening(LAND_CAMERA_ELEVATION_DEG);
+  return mergeParts(
+    treesFrom(scene).map((tree) => {
+      const gx = tree.transform.x;
+      const gz = tree.transform.z / groundFlat;
+      return {
+        parts: growTree(tree, upright),
+        offset: [gx, landHeight(gx, gz, relief), gz] as [number, number, number],
+      };
+    }),
+  );
+}
+
 /** One merged mesh per (status, style) for the vegetation — same merging rationale.
  *
  *  `relief` is the ground's amplitude, and passing it is not optional dressing: a plant is
@@ -495,7 +649,12 @@ function renderIsland(canvas: HTMLCanvasElement, props: IslandViewProps): void {
   let shadowTex: ShadowTexture | undefined;
   if (wantShadow) {
     const mode = props.shadow!;
-    const key = JSON.stringify([mode, relief, land, props.island ?? {}]);
+    const include = {
+      plants: props.plants !== false,
+      flowers: props.flowers !== false,
+      tree: props.tree !== false,
+    };
+    const key = JSON.stringify([mode, relief, land, props.island ?? {}, include]);
     let cached = shadowFieldCache.get(key);
     if (!cached) {
       const groundFlat = groundFlattening(LAND_CAMERA_ELEVATION_DEG);
@@ -505,7 +664,7 @@ function renderIsland(canvas: HTMLCanvasElement, props: IslandViewProps): void {
           bounds: { minX: bounds.minX, maxX: bounds.maxX, minZ: bounds.minY, maxZ: bounds.maxY },
           relief,
           casters:
-            mode === 'terrain' ? [] : castersFrom(plants, groundFlat, up),
+            mode === 'terrain' ? [] : castersFrom(scene, plants, groundFlat, up, include),
           terrain: mode !== 'canopy',
           canopy: mode !== 'terrain',
         }),
@@ -519,21 +678,32 @@ function renderIsland(canvas: HTMLCanvasElement, props: IslandViewProps): void {
   if (props.plants !== false) {
     for (const m of plantMesh(plants, props.style ?? 'mound', relief)) scene3.add(m);
   }
+  if (props.flowers !== false) for (const m of flowerMeshes(scene, relief)) scene3.add(m);
+  if (props.tree !== false) for (const m of treeMeshes(scene, relief)) scene3.add(m);
 
   // The island's on-screen size at this camera: the ground's depth foreshortens by
-  // sin(RENDER_ELEV), and its width does not. The relief's own height is an UPRIGHT extent,
-  // so it foreshortens by cos — the other of the two flattenings, and using one where the
-  // other belongs is the silent 2.75x error this file already paid for once.
+  // sin(RENDER_ELEV), and its width does not.
   //
-  // The upright extent is the whole solid, top to bottom: relief reaches `landHeightRange`
-  // either side of zero, the bevel takes the rim a further `PARCEL_BEVEL_DROP` down, and
-  // the wall hangs `CELL_DEPTH` below that. Framing on less crops the coast, which reads
-  // like a clipped island rather than like a camera that is too tight.
+  // THE FRAME IS THE SCENE'S BOUNDING BOX, NOT AN ARITHMETIC ONE, and that replaced a formula
+  // rather than merely restating it. The analytic version summed what the LAND reaches —
+  // `2 * landHeightRange(relief)` for the relief either side of zero, `PARCEL_BEVEL_DROP` for
+  // the rim, `CELL_DEPTH` for the wall hanging below it — and was correct while the land was
+  // the tallest thing on the island. It cannot be correct now: a 92-unit hero tree reaches
+  // far above anything the ground knows about, and a frame that does not know the tree exists
+  // CROPS IT — silently, and in a way that reads as an art choice rather than as a camera bug.
+  //
+  // The box is measured once every mesh is in the scene, so it contains the relief, the bevel,
+  // the wall skirt AND the props by construction. Nothing has to be remembered and added.
   const elev = (RENDER_ELEV_DEG * Math.PI) / 180;
-  const screenW = bounds.w;
-  const upright =
-    2 * landHeightRange(relief) + (land === 'bevel' || land === 'full' ? PARCEL_BEVEL_DROP : 0);
-  const screenH = bounds.h * Math.sin(elev) + (CELL_DEPTH + upright) * Math.cos(elev);
+  const box = new THREE.Box3().setFromObject(scene3);
+  // Where a world point lands vertically at this camera: its depth foreshortens by sin, its
+  // height by cos — the same two flattenings, and using one where the other belongs is the
+  // silent 2.75x error this file already paid for once. Both signs matter: z runs INTO the
+  // screen, so the FAR edge (min z) is the one that rides up.
+  const screenTop = -box.min.z * Math.sin(elev) + box.max.y * Math.cos(elev);
+  const screenBottom = -box.max.z * Math.sin(elev) + box.min.y * Math.cos(elev);
+  const screenW = Math.max(bounds.w, box.max.x - box.min.x);
+  const screenH = screenTop - screenBottom;
   const pad = 3;
   const bufW = Math.max(1, Math.round((screenW + pad * 2) * props.pxPerUnit));
   const bufH = Math.max(1, Math.round((screenH + pad * 2) * props.pxPerUnit));
@@ -541,15 +711,26 @@ function renderIsland(canvas: HTMLCanvasElement, props: IslandViewProps): void {
   const { renderer, canvas: glCanvas } = sharedRenderer();
   renderer.setSize(bufW, bufH, false);
 
-  const cx = (bounds.minX + bounds.maxX) / 2;
+  const cx = (box.min.x + box.max.x) / 2;
   const cz = (bounds.minY + bounds.maxY) / 2;
+  // Vertical centring follows the SCENE's screen extent, so a tall crown pushes the island down
+  // in frame rather than off the top of it.
+  //
+  // ⚠ IT IS MEASURED RELATIVE TO WHAT THE CAMERA LOOKS AT, not to the world origin. `screenTop`
+  // and `screenBottom` are absolute screen heights, while the frustum's top/bottom are offsets
+  // from the camera's own centre — which is the point `(cx, 0, cz)`, itself at screen height
+  // `-cz * sin(elev)`. Subtracting that is the whole correction. It is invisible on THIS island,
+  // whose ground bounds are symmetric so `cz` is 0, which is exactly why it is written down: an
+  // island whose ground box is off-centre would frame wrong and look like a composition choice.
+  const cameraCentreScreenY = -cz * Math.sin(elev);
+  const cyScreen = (screenTop + screenBottom) / 2 - cameraCentreScreenY;
   const camera = new THREE.OrthographicCamera(
     -(screenW + pad * 2) / 2,
     (screenW + pad * 2) / 2,
-    (screenH + pad * 2) / 2,
-    -(screenH + pad * 2) / 2,
-    -2000,
-    2000,
+    (screenH + pad * 2) / 2 + cyScreen,
+    -(screenH + pad * 2) / 2 + cyScreen,
+    -4000,
+    4000,
   );
   const dist = 500;
   camera.position.set(cx, Math.sin(elev) * dist, cz + Math.cos(elev) * dist);
@@ -586,6 +767,8 @@ export function IslandPanel({
     props.displayPxPerUnit,
     props.style,
     props.plants,
+    props.flowers,
+    props.tree,
     props.island,
     props.land,
     props.amplitude,

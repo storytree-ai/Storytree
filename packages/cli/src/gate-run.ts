@@ -56,6 +56,7 @@ import { fileURLToPath } from "node:url";
 import { deregisterSpawn, deriveIdentity, registerSpawn } from "@storytree/drive";
 
 import { discoverWorkspaceProjects, pnpmArgsFor, type AffectedScope } from "./ci-affected.js";
+import { gateHelpRequested, renderGateHelp } from "./gate-help.js";
 import {
   GATE_PLAN,
   type GateStep,
@@ -378,6 +379,18 @@ function registerGateRun(): () => void {
 
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
+
+  // HELP IS ANSWERED BEFORE ANY WORK, AND THIS MUST STAY THE FIRST BRANCH IN THIS FUNCTION.
+  // `--help` used to match nothing here, so asking what the flags were ran the whole plan —
+  // plan validation, a git spawn for the scope, then every declared step. Everything below this
+  // line costs real time, so the check goes above all of it rather than "early enough".
+  // `gate-help.test.ts` asserts that ordering against this file's own source, because a regression
+  // here is silent: help would still print, it would just cost five minutes first.
+  if (gateHelpRequested(argv)) {
+    console.log(renderGateHelp());
+    return;
+  }
+
   const failFast =
     argv.includes("--fail-fast") || (process.env["STORYTREE_GATE_FAIL_FAST"] ?? "") !== "";
   const forceFull = argv.includes("--full") || (process.env["STORYTREE_GATE_FULL"] ?? "") !== "";

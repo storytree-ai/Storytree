@@ -15,23 +15,23 @@ import { composeBuildCommand } from './buildCommand';
 
 describe('composeBuildCommand — the CLI command a Build click seeds into the terminal', () => {
   it('cbc-composes-story-real-build: scope story → pnpm storytree story build <unitId> --real --store pg', () => {
-    expect(composeBuildCommand({ unitId: 'story-alpha', scope: 'story' })).toBe(
-      'pnpm storytree story build story-alpha --real --store pg',
+    expect(composeBuildCommand({ unitId: 'story-alpha', scope: 'story', runtime: 'claude' })).toBe(
+      'pnpm storytree story build story-alpha --real --store pg --runtime claude',
     );
   });
 
   it('cbc-composes-node-real-build: scope node → pnpm storytree node build <unitId> --real --store pg', () => {
-    expect(composeBuildCommand({ unitId: 'node-beta', scope: 'node' })).toBe(
-      'pnpm storytree node build node-beta --real --store pg',
+    expect(composeBuildCommand({ unitId: 'node-beta', scope: 'node', runtime: 'codex' })).toBe(
+      'pnpm storytree node build node-beta --real --store pg --runtime codex',
     );
   });
 
   it('cbc-embeds-the-unit-id-verbatim: interpolates the CLICKED unit id, not a hardcoded stand-in — a distinct id per scope', () => {
-    expect(composeBuildCommand({ unitId: 'compose-build-command', scope: 'story' })).toBe(
-      'pnpm storytree story build compose-build-command --real --store pg',
+    expect(composeBuildCommand({ unitId: 'compose-build-command', scope: 'story', runtime: 'claude' })).toBe(
+      'pnpm storytree story build compose-build-command --real --store pg --runtime claude',
     );
-    expect(composeBuildCommand({ unitId: 'map-build-seeds-terminal', scope: 'node' })).toBe(
-      'pnpm storytree node build map-build-seeds-terminal --real --store pg',
+    expect(composeBuildCommand({ unitId: 'map-build-seeds-terminal', scope: 'node', runtime: 'codex' })).toBe(
+      'pnpm storytree node build map-build-seeds-terminal --real --store pg --runtime codex',
     );
   });
 });

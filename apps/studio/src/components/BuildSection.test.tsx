@@ -14,10 +14,10 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act, cleanup } from '@testing-library/react';
-import type { BuildIntentResult, BuildStatus } from '../types';
+import type { BuildIntentResult, BuildRuntime, BuildStatus } from '../types';
 
 const apiMock = vi.hoisted(() => ({
-  build: vi.fn<(unitId: string) => Promise<BuildIntentResult>>(),
+  build: vi.fn<(unitId: string, runtime?: BuildRuntime) => Promise<BuildIntentResult>>(),
   buildStatus: vi.fn<(runId: string) => Promise<BuildStatus>>(),
   adopt: vi.fn<(storyId: string) => Promise<BuildIntentResult>>(),
 }));
@@ -76,7 +76,7 @@ describe('BuildSection', () => {
     await flush();
 
     expect(apiMock.build).toHaveBeenCalledTimes(1);
-    expect(apiMock.build).toHaveBeenCalledWith('drive-machinery');
+    expect(apiMock.build).toHaveBeenCalledWith('drive-machinery', 'claude');
     // the panel is now in a building state (the trigger is gone / the live region shows)
     expect(screen.queryByRole('button', { name: 'Build' })).toBeNull();
     expect(screen.getByText(/building/i)).toBeTruthy();
@@ -93,6 +93,18 @@ describe('BuildSection', () => {
     await flush();
 
     expect(apiMock.build).toHaveBeenCalledTimes(1);
+  });
+
+  it('selects Codex explicitly and posts that runtime with the build intent', async () => {
+    apiMock.build.mockResolvedValue({ runId: 'run-1' });
+    apiMock.buildStatus.mockResolvedValue(building());
+    render(<BuildSection unitId="drive-machinery" buildable />);
+
+    fireEvent.change(screen.getByLabelText('Build runtime'), { target: { value: 'codex' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Build' }));
+    await flush();
+
+    expect(apiMock.build).toHaveBeenCalledWith('drive-machinery', 'codex');
   });
 
   // ── ubt-transcript-polls-until-terminal ─────────────────────────────────────
@@ -637,7 +649,7 @@ describe('BuildSection — desktop terminal seed (map-build-seeds-terminal)', ()
     // the composed command matches the real composer, tying the seed to the journey it claims
     expect(onSeedTerminal).toHaveBeenCalledTimes(1);
     expect(onSeedTerminal).toHaveBeenCalledWith(
-      composeBuildCommand({ unitId: 'drive-machinery', scope: 'node' }),
+      composeBuildCommand({ unitId: 'drive-machinery', scope: 'node', runtime: 'claude' }),
     );
     // the dispatch is SUPPRESSED on the seed path — never both a seed AND an in-app POST
     expect(apiMock.build).not.toHaveBeenCalled();
@@ -664,7 +676,7 @@ describe('BuildSection — desktop terminal seed (map-build-seeds-terminal)', ()
     await flush();
 
     expect(onSeedTerminal).toHaveBeenCalledWith(
-      composeBuildCommand({ unitId: 'map-terminal-build', scope: 'story' }),
+      composeBuildCommand({ unitId: 'map-terminal-build', scope: 'story', runtime: 'claude' }),
     );
   });
 
@@ -683,7 +695,7 @@ describe('BuildSection — desktop terminal seed (map-build-seeds-terminal)', ()
 
     // the bridge-absent fallback: the existing in-app dispatch, never a seed (a Build click is never a no-op)
     expect(apiMock.build).toHaveBeenCalledTimes(1);
-    expect(apiMock.build).toHaveBeenCalledWith('drive-machinery');
+    expect(apiMock.build).toHaveBeenCalledWith('drive-machinery', 'claude');
     expect(onSeedTerminal).not.toHaveBeenCalled();
   });
 

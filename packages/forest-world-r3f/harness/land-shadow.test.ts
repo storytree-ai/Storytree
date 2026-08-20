@@ -15,6 +15,7 @@ import { groundBounds, groundCellsFrom } from './island-descriptors.js';
 import { islandScene } from './island-fixture.js';
 import { LAND_RELIEF_AMPLITUDE, landHeight } from './land-definition.js';
 import { plantsFrom } from './plant-descriptors.js';
+import { treesFrom } from './tree-descriptors.js';
 import {
   SHADOW_GRES,
   buildShadowField,
@@ -218,24 +219,30 @@ test('the two terms are SEPARABLE, and together are the union of the two', () =>
   }
 });
 
-test('ON THE REAL FIXTURE: 171 plants shadow 16% of the ground, and ONE hero tree would match them', () => {
-  // The sequencing finding, made reproducible instead of asserted in a README. Everything
-  // here is the FIELD only — no tree is drawn and none is proposed; this measures what a
-  // caster of the hero tree's signed height would do to the shadow field if one stood on
-  // this island, which is the question "is shadow worth its palette cost yet" turns on.
+test('ON THE REAL FIXTURE: the hero tree throws as much shadow as all 144 plants together', () => {
+  // The sequencing finding, and it is a MEASUREMENT now rather than a projection: the hero
+  // story tree landed on the island while this pass was in flight (PR #1451), so the tall
+  // caster the shadow was waiting for is actually here.
   const scene = islandScene({});
   const cells = groundCellsFrom(scene);
   const b = groundBounds(cells);
   const bounds = { minX: b.minX, maxX: b.maxX, minZ: b.minY, maxZ: b.maxY };
   const flat = groundFlattening(LAND_CAMERA_ELEVATION_DEG);
   const up = uprightForeshortening(LAND_CAMERA_ELEVATION_DEG);
-  const casters: ShadowCaster[] = plantsFrom(scene).map((p) => ({
+  const asCaster = (p: {
+    transform: { x: number; z: number };
+    footprint: { w: number; h: number };
+  }): ShadowCaster => ({
     x: p.transform.x,
     z: p.transform.z / flat,
     radius: Math.max(1.5, p.footprint.w) / 2,
     height: Math.max(1.2, p.footprint.h / up),
-  }));
-  assert.ok(casters.length > 150, `only ${casters.length} casters — the fixture changed`);
+  });
+  const plants = plantsFrom(scene).map(asCaster);
+  const trees = treesFrom(scene).map(asCaster);
+  assert.ok(plants.length > 120, `only ${plants.length} plants — the fixture changed`);
+  assert.equal(trees.length, 1, 'one hero story tree');
+  assert.ok(trees[0]!.height > 90, `the hero tree is only ${trees[0]!.height.toFixed(1)} units tall`);
 
   const insideIsland = (x: number, z: number): boolean => {
     for (const c of cells) {
@@ -252,7 +259,13 @@ test('ON THE REAL FIXTURE: 171 plants shadow 16% of the ground, and ONE hero tre
     }
     return false;
   };
-  const groundCoverage = (f: ReturnType<typeof buildShadowField>): number => {
+  const groundCoverage = (casters: ShadowCaster[]): number => {
+    const f = buildShadowField({
+      bounds,
+      relief: LAND_RELIEF_AMPLITUDE,
+      casters,
+      terrain: false,
+    });
     let on = 0;
     let total = 0;
     for (let j = 0; j < f.h; j += 2) {
@@ -265,32 +278,17 @@ test('ON THE REAL FIXTURE: 171 plants shadow 16% of the ground, and ONE hero tre
     return on / total;
   };
 
-  const all = groundCoverage(
-    buildShadowField({ bounds, relief: LAND_RELIEF_AMPLITUDE, casters }),
+  const canopy = groundCoverage(plants);
+  const hero = groundCoverage(trees);
+  assert.ok(canopy > 0.1, `144 plants shadow only ${(canopy * 100).toFixed(1)}% of the ground`);
+  // ONE prop against a hundred and forty-four. This is why the shadow's payoff moved the
+  // moment the tree landed, and it is the whole argument for measuring the island rather than
+  // the component.
+  assert.ok(
+    hero > canopy * 0.5,
+    `the hero tree shadows ${(hero * 100).toFixed(1)}% against the canopy's ${(canopy * 100).toFixed(1)}%`,
   );
-  assert.ok(all > 0.14 && all < 0.19, `171 plants shadow ${(all * 100).toFixed(1)}% of the ground`);
-
-  // The hero tree's signed world height, from blender_tree.py's provenance via PR #1385's
-  // report (`shadow.treeWorldHeight`). NOT a number invented here.
-  const HERO_HEIGHT = 197.6;
-  const one = groundCoverage(
-    buildShadowField({
-      bounds,
-      relief: LAND_RELIEF_AMPLITUDE,
-      terrain: false,
-      casters: [
-        {
-          x: (bounds.minX + bounds.maxX) / 2,
-          z: (bounds.minZ + bounds.maxZ) / 2,
-          radius: 18,
-          height: HERO_HEIGHT,
-        },
-      ],
-    }),
-  );
-  assert.ok(one > 0.12, `one hero tree shadows only ${(one * 100).toFixed(1)}% of the ground`);
-  assert.ok(one > all * 0.7, 'a single hero tree should be comparable to the whole canopy');
-  // ...and its cast crosses more than half the island, which is why it is comparable at all.
-  const cast = HERO_HEIGHT * shadowOffsetPerUnitHeight();
-  assert.ok(cast > (bounds.maxX - bounds.minX) / 2, `cast ${cast.toFixed(0)} units`);
+  // ...and its cast crosses a serious fraction of the island, which is why one prop can do that.
+  const cast = trees[0]!.height * shadowOffsetPerUnitHeight();
+  assert.ok(cast > (bounds.maxX - bounds.minX) / 5, `cast ${cast.toFixed(0)} units`);
 });

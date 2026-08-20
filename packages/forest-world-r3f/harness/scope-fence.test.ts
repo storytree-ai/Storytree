@@ -6,7 +6,7 @@
 // every non-test `.ts`/`.tsx` it finds under that directory and offers NO mechanism to
 // exclude one. CI's `check:web-engine` blocks until the mirror matches.
 //
-// This experiment first landed its four modules in `src/` and CI duly refused: four files
+// This experiment first landed its modules in `src/` and CI duly refused: the files were
 // "missing from the synced copy". The obvious remedy — run the sync, commit the web
 // submodule, bump the gitlink — would have PUBLISHED an unadopted experiment to a public
 // repo. The increment authorises the experiment and says in as many words that adopting it
@@ -31,9 +31,14 @@ const SRC = join(HARNESS, '..', 'src');
  *  exactly like a pass. */
 const EXPERIMENT = [
   'palette-band.ts',
+  'mesh-kit.ts',
   'plant-descriptors.ts',
   'plant-geometry.ts',
   'land-definition.ts',
+  'flower-descriptors.ts',
+  'flower-geometry.ts',
+  'tree-descriptors.ts',
+  'tree-geometry.ts',
   'shadow-ladder.ts',
   'land-shadow.ts',
   'banded-material.ts',
@@ -65,10 +70,11 @@ test('src/ still holds exactly the files the website sync expects, and nothing n
 });
 
 test('the PURE half of the experiment imports no browser library', () => {
-  // The provability-firewall discipline, applied inside the harness: every module but one
-  // must stay node:test-provable, so the palette closure, the confusability ceiling and the
-  // shadow geometry are all proved without a browser. Only `banded-material.ts` may reach
-  // for three.
+  // The provability-firewall discipline, applied inside the harness: every module but ONE
+  // must stay node:test-provable, so the palette closure, the three UAT verdict FORMS, the
+  // story tree's geometry, the confusability ceiling and the shadow field are all proved
+  // without a browser. Only `banded-material.ts` may reach for three, and the non-vacuity
+  // test below keeps that exemption earned.
   const pure = EXPERIMENT.filter((f) => f !== 'banded-material.ts');
   const breaches: string[] = [];
   for (const file of pure) {
@@ -118,4 +124,33 @@ test('no src/ module imports the harness — the dependency only ever points inw
         'copy would carry a dangling import.',
     );
   }
+});
+
+test('the pure half holds NO CLOCK and NO Math.random — determinism, and the never-animate rule', () => {
+  // TWO standing rules, and one sweep proves both because they forbid the same thing.
+  //
+  // ADR-0380 D6 fence 2: determinism MOVES rather than disappearing. A mesh whose shape changed
+  // between two frames would take the scene graph's byte-reproducibility with it, and every proof
+  // that attaches to the graph with it.
+  //
+  // And the UAT flowers' own corollary: NEVER ANIMATE A FLOWER. Motion that changes silhouette
+  // blurs the three verdict shapes into each other, which is the ADR-0045 honesty wall. Grass may
+  // move; a verdict may not. The enforcement is that there is no clock to read — a caller cannot
+  // animate a flower even by accident, because nothing downstream of `growFlower` can know what
+  // time it is.
+  const forbidden = [/Math\.random/, /Date\.now/, /new Date\b/, /performance\.now/];
+  const breaches: string[] = [];
+  for (const file of EXPERIMENT.filter((f) => f !== 'banded-material.ts')) {
+    const src = readFileSync(join(HARNESS, file), 'utf8');
+    for (const pattern of forbidden) {
+      // A mention inside a comment is a WARNING about the rule, which is exactly the kind of
+      // prose this codebase wants; only executable occurrences are breaches.
+      const code = src
+        .split('\n')
+        .filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line))
+        .join('\n');
+      if (pattern.test(code)) breaches.push(`${file} matches ${pattern}`);
+    }
+  }
+  assert.deepEqual(breaches, [], `non-deterministic sources in the pure half:\n  ${breaches.join('\n  ')}`);
 });

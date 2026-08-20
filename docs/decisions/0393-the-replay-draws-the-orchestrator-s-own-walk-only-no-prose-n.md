@@ -1,6 +1,7 @@
 ---
 status: accepted
 decided: 2026-08-20
+amends: [354]
 arc: traversal-panel-arc
 ---
 # ADR-0393: The replay draws the orchestrator's own walk only: no prose, no subagent lanes, no unobservable rays

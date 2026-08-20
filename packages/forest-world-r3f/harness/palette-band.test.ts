@@ -10,8 +10,13 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  MARKER_TOKENS,
   SHADE_LEVELS,
+  SHARED_TOKENS,
   STATUS_TOKENS,
+  TREE_TOKENS,
+  familylessPalette,
+  familylessTokens,
   bandGlsl,
   bandShade,
   bandedColour,
@@ -168,4 +173,96 @@ test('parseHex REFUSES a malformed token rather than guessing a colour', () => {
   assert.throws(() => parseHex('8cb85e'), /not a #rrggbb token/);
   assert.throws(() => parseHex('#8cb85'), /not a #rrggbb token/);
   assert.throws(() => parseHex('rebeccapurple'), /not a #rrggbb token/);
+});
+
+
+// --- the two families the island grew on 2026-08-20 ---------------------------
+//
+// The island learned to draw UAT flowers and a story tree, and both bring authored colours the
+// land family never held. The fence stays a fence only if those colours are DECLARED — a palette
+// with an exception is a palette that has stopped being closed — so these assertions are about
+// declaration and attribution rather than about the art.
+
+test('the flower and tree families are inside the closed palette, not exceptions to it', () => {
+  const palette = new Set(landPalette());
+  const tokens = new Set(landTokens());
+  for (const token of Object.values(MARKER_TOKENS)) {
+    assert.ok(tokens.has(token), `the flower token ${token} is not declared`);
+    for (const c of paletteImageOfToken(token)) {
+      assert.ok(palette.has(toHex(c)), `${token} can deliver ${toHex(c)}, which is off-palette`);
+    }
+  }
+  for (const fam of Object.values(TREE_TOKENS)) {
+    assert.ok(tokens.has(fam.crown), `the crown token ${fam.crown} is not declared`);
+  }
+  for (const token of Object.values(SHARED_TOKENS)) {
+    assert.ok(tokens.has(token), `the shared token ${token} is not declared`);
+  }
+});
+
+test('a CROWN colour attributes to its own status — the tree says what the ground says', () => {
+  // The crown is status-bearing art: `--crown-healthy-lo` claims healthy exactly as the ground
+  // does. If it ever attributed to another family, a tree would be contradicting the island it
+  // stands on, which is the foreign-status read this whole module exists to make unrepresentable.
+  for (const [status, fam] of Object.entries(TREE_TOKENS)) {
+    for (const c of paletteImageOfToken(fam.crown)) {
+      const read = statusFamilyOf(c);
+      // `building` and `unknown` share the app's unset default, so a colour from that pair may
+      // legitimately attribute to either. Every other status must attribute to itself.
+      const acceptable = status === 'building' || status === 'unknown' ? ['building', 'unknown'] : [status];
+      assert.ok(
+        read !== null && acceptable.includes(read),
+        `${status}'s crown can deliver ${toHex(c)}, which reads as ${read}`,
+      );
+    }
+  }
+});
+
+test('a FLOWER colour attributes to NO status, and that is the design (ADR-0226 D4)', () => {
+  // A flower's verdict is its FORM. Giving its colour a status family would invent a second
+  // channel saying something the form already says — and saying it about the PARCEL rather than
+  // about the criterion, which is a different claim entirely.
+  for (const token of Object.values(MARKER_TOKENS)) {
+    for (const c of paletteImageOfToken(token)) {
+      assert.equal(statusFamilyOf(c), null, `${token} delivers ${toHex(c)}, which reads as a status`);
+    }
+  }
+});
+
+test('the FAMILY-LESS set is exactly the tokens that discriminate no status', () => {
+  // The set a foreign-status audit subtracts before asking anything. If it were wider than this,
+  // the audit would stop seeing real defects; if narrower, every island with a flower on it would
+  // report one.
+  const familyless = new Set(familylessTokens());
+  assert.ok(familyless.has(SHARED_TOKENS.wheat), 'wheat is one shared override every status wears');
+  assert.ok(familyless.has(SHARED_TOKENS.storyTrunk), 'so is the story tree’s bole');
+  for (const token of Object.values(MARKER_TOKENS)) assert.ok(familyless.has(token));
+  for (const fam of Object.values(STATUS_TOKENS)) {
+    for (const token of [...fam.top, fam.side]) {
+      assert.ok(!familyless.has(token), `${token} is status-bearing and must NOT be excused`);
+    }
+  }
+  for (const fam of Object.values(TREE_TOKENS)) {
+    assert.ok(!familyless.has(fam.crown), 'a crown is status-bearing and must NOT be excused');
+  }
+  // And its delivered image is a subset of the palette, so subtracting it can never hide an
+  // off-palette colour.
+  const palette = new Set(landPalette());
+  for (const hex of familylessPalette()) assert.ok(palette.has(hex));
+});
+
+test('NON-VACUITY: the flower tokens really are OUTSIDE the pre-2026-08-20 land family', () => {
+  // Without this, the two tests above would still pass if a flower had quietly been given a
+  // ground token — the palette would close and nothing would attribute wrongly, because nothing
+  // new would have been added at all.
+  const landOnly = new Set<string>();
+  for (const fam of Object.values(STATUS_TOKENS)) {
+    for (const t of [...fam.top, fam.wheat, fam.side]) landOnly.add(t);
+  }
+  for (const token of Object.values(MARKER_TOKENS)) {
+    assert.ok(!landOnly.has(token), `${token} is a ground token wearing a flower’s name`);
+  }
+  for (const fam of Object.values(TREE_TOKENS)) {
+    assert.ok(!landOnly.has(fam.crown), `${fam.crown} is a ground token wearing a crown’s name`);
+  }
 });

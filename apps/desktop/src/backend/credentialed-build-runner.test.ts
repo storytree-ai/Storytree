@@ -199,6 +199,24 @@ test("runtime-credential-partition: credentialed-build-runner: rejects with the 
   assert.equal(calls.length, 0, "the base runner must never run without a credential");
 });
 
+test("runtime-credential-partition: Codex uses saved ChatGPT auth without requiring a Claude credential", async () => {
+  const broker = new CredentialBroker(new InMemoryKeychain());
+  const env: Record<string, string | undefined> = {};
+  const seen: Array<{ unitId: string; runtime: string | undefined }> = [];
+  const base: BuildRunner = async (unitId, _sink, runtime) => {
+    seen.push({ unitId, runtime });
+    return { ok: true, body: "codex: invoked" };
+  };
+  const runner = credentialedBuildRunner({ broker, runner: base, env });
+
+  const result = await runner("some-unit", () => undefined, "codex");
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(seen, [{ unitId: "some-unit", runtime: "codex" }]);
+  assert.equal(env[OAUTH_VAR], undefined, "Codex auth is not forged into Claude's env variable");
+  assert.equal(env[API_KEY_VAR], undefined, "Codex auth is managed by the official Codex CLI login");
+});
+
 test("runtime-credential-partition: credentialed-build-runner: a stray CURSOR_API_KEY env does not count as Claude auth", async () => {
   const broker = new CredentialBroker(new InMemoryKeychain());
   const env: Record<string, string | undefined> = {

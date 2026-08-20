@@ -107,8 +107,12 @@ brokered write over the network and the live `builder` grant are **operator-atte
 and 8)
 — a CI run has neither a hosted broker nor an in-app builder role. What CI proves is the PROBE + CLIENT
 LOGIC over an injected broker-POST seam — and since the 2026-07-25 ADR-0209 §8 re-adjudication that logic
-IS the whole of **machine** Story UAT leg 6 (the fail-closed half split out of old leg 6; the live grant
-remained human as leg 8).
+WAS the whole of **machine** Story UAT leg 6 (the fail-closed half split out of old leg 6; the live grant
+remained human as leg 8) — and because it was the WHOLE of it, the ADR-0294 D2/D4 pass DELETED that story
+leg on 2026-08-20 as a restatement of proof one rung down, leaving this capability's own assertions as
+the single home of the claim. *(This read "IS the whole of machine Story UAT leg 6"; corrected in place
+per ADR-0139. Nothing about what this capability proves has changed — only the story-tier duplicate is
+gone, and ordinal 6 is burned.)*
 
 THE PROBE FAILS CLOSED, NEVER HANGS OR FORGES (the honesty wall, unchanged from the direct-path version):
 an unreachable/forbidden broker must yield a clear, member-actionable readiness failure (the broker is
@@ -144,7 +148,9 @@ The integration test exercises this capability against its **real in-story colla
 probe + broker write client over an injected broker-POST seam (authorized / forbidden / unreachable /
 hanging doubles), POSTing the real proof-protocol `Verdict` / notice-board `PresenceDeclaration` shapes. The
 real broker over the network + the member's live `builder` grant are the operator-attested Story UAT legs
-(7 and 8), not this test — while this test's fail-closed assertions discharge machine Story UAT leg 6.
+(7 and 8), not this test — while this test's fail-closed assertions discharged machine Story UAT leg 6 so
+completely that the ADR-0294 D2/D4 pass deleted that story leg on 2026-08-20 rather than leaving a second
+signature over the same proof. *(Tense corrected in place per ADR-0139; the assertions are unchanged.)*
 
 The integration test would:
 

@@ -19,7 +19,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 
 import { runBuildJob } from "@storytree/drive/build-worker";
-import type { BuildContext, BuildRun } from "@storytree/drive/build-worker";
+import type { BuildContext, BuildRun, BuildRuntime } from "@storytree/drive/build-worker";
 
 // ---------- HTTP helpers (local copies — not imported from studio) ----------
 
@@ -103,6 +103,12 @@ export function createBuildRouteMount(
           sendJson(res, 400, { error: "unitId is required" });
           return true;
         }
+        const runtimeRaw = asString(input["runtime"]).trim().toLowerCase();
+        if (runtimeRaw !== "" && runtimeRaw !== "claude" && runtimeRaw !== "codex") {
+          sendJson(res, 400, { error: 'runtime must be "claude" or "codex"' });
+          return true;
+        }
+        const runtime: BuildRuntime = runtimeRaw === "codex" ? "codex" : "claude";
         // Validate against real discovery — an un-buildable / unknown id is a clean 404, never a worker
         // that spawns against nothing (the handleBuild 404 contract).
         if (!(await build.isBuildable(unitId))) {
@@ -119,7 +125,7 @@ export function createBuildRouteMount(
         // Fire-and-forget: the worker streams coarse progress into the run; runBuildJob never throws
         // (it records a failed terminal state), so the floating promise can't reject. The client polls
         // GET /api/build?runId for progress (ADR-0108 d.7).
-        void runBuildJob(build.registry, runId, unitId, build.runner);
+        void runBuildJob(build.registry, runId, unitId, build.runner, runtime);
         sendJson(res, 202, { runId });
         return true;
       }

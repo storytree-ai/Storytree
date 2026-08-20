@@ -38,6 +38,9 @@
 import {
   SHADE_LEVELS,
   STATUS_TOKENS,
+  TREE_TOKENS,
+  familylessTokens,
+  landTokens,
   parseHex,
   rungOfNormal,
   toHex,
@@ -288,14 +291,28 @@ export function shadowRamp(token: string): Rgb255[] {
 }
 
 /** The closed palette a shadowed live land may emit. Its size MINUS `landPalette()`'s is
- *  the palette COST of the shadow, which is the number this increment owes. */
+ *  the palette COST of the shadow, which is the number this increment owes.
+ *
+ *  It closes over `landTokens()` rather than re-enumerating, so a token added to the land's
+ *  vocabulary — the story tree's crown and bole and the UAT flower materials all arrived
+ *  after this module was first written — is priced automatically instead of silently
+ *  escaping the count. */
 export function landPaletteWithShadow(): string[] {
   const set = new Set<string>();
-  for (const st of Object.keys(STATUS_TOKENS)) {
-    const fam = STATUS_TOKENS[st]!;
-    for (const token of [...fam.top, fam.wheat, fam.side]) {
-      for (const c of shadowRamp(token)) set.add(toHex(c));
-    }
+  for (const token of landTokens()) {
+    for (const c of shadowRamp(token)) set.add(toHex(c));
+  }
+  return [...set].sort();
+}
+
+/** The family-less half of that palette — the shadow-aware sibling of
+ *  `familylessPalette()`. The shared overrides and every flower material belong to no status
+ *  BY DESIGN, and a caller auditing foreign-status reads needs to tell "family-less on
+ *  purpose" from "unaccounted for" at the shadow rung as much as at any other. */
+export function familylessPaletteWithShadow(): string[] {
+  const set = new Set<string>();
+  for (const token of familylessTokens()) {
+    for (const c of shadowRamp(token)) set.add(toHex(c));
   }
   return [...set].sort();
 }
@@ -332,19 +349,23 @@ export function ladderAdmissibility(
 
 /**
  * Which authored status family a delivered colour belongs to ON THE SHADOW LADDER — the
- * shadow-aware sibling of `palette-band.ts`'s `statusFamilyOf`.
+ * shadow-aware sibling of `palette-band.ts`'s `statusFamilyOf`, and it mirrors that
+ * function's token set exactly: the tree's crown IS status-bearing and joins the test, while
+ * the shared bole, the wheat override and the flower materials are family-less by design.
  *
  * IT EXISTS BECAUSE THE OLD ONE WOULD RAISE A FALSE ALARM RATHER THAN A REAL ONE. The shadow
  * rung is not a member of `SHADE_LEVELS`, so `statusFamilyOf` finds a shadowed pixel in NO
  * token's image and returns `null` — which `capture.mjs` counts as a foreign-status read.
- * All 26 shadow entries would report as foreign the moment a shadow was drawn, and a
- * capture that cries wolf over its own authored palette is worse than no capture at all.
+ * Every shadow entry would report as foreign the moment a shadow was drawn, and a capture
+ * that cries wolf over its own authored palette is worse than no capture at all.
  */
 export function familyOnShadowLadder(colour: Rgb255): string | null {
   const hex = toHex(colour);
   for (const st of Object.keys(STATUS_TOKENS)) {
     const fam = STATUS_TOKENS[st]!;
-    for (const token of [...fam.top, fam.side]) {
+    const tree = TREE_TOKENS[st];
+    const tokens = tree ? [...fam.top, fam.side, tree.crown] : [...fam.top, fam.side];
+    for (const token of tokens) {
       for (const level of SHADOW_LADDER) {
         if (toHex(deliveredColour(token, level)) === hex) return st;
       }
@@ -360,12 +381,7 @@ export function familyOnShadowLadder(colour: Rgb255): string | null {
  *  a shadow. */
 export function shadowRungEntries(): string[] {
   const set = new Set<string>();
-  for (const st of Object.keys(STATUS_TOKENS)) {
-    const fam = STATUS_TOKENS[st]!;
-    for (const token of [...fam.top, fam.wheat, fam.side]) {
-      set.add(toHex(deliveredColour(token, SHADOW_RUNG)));
-    }
-  }
+  for (const token of landTokens()) set.add(toHex(deliveredColour(token, SHADOW_RUNG)));
   return [...set].sort();
 }
 

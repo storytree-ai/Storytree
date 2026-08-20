@@ -14,6 +14,7 @@ import {
   SHADE_LEVELS,
   STATUS_TOKENS,
   landPalette,
+  landTokens,
   parseHex,
   statusFamilyOf,
   toHex,
@@ -190,12 +191,16 @@ test('SHADOW_LADDER extends the authored ladder by exactly one level, and stays 
   assert.ok(!SHADE_LEVELS.includes(SHADOW_RUNG));
 });
 
-test('THE PALETTE COST, as a number: one rung, 26 entries, every old entry preserved', () => {
+test('THE PALETTE COST, as a number: one rung, one entry per land token, nothing displaced', () => {
   const before = landPalette();
   const after = landPaletteWithShadow();
-  assert.equal(before.length, 104);
-  assert.equal(after.length, 130);
-  assert.equal(after.length - before.length, 26);
+  // The cost is ONE ENTRY PER AUTHORED LAND TOKEN, by construction — so it is stated as that
+  // identity rather than as a literal that goes stale the next time the land grows a prop.
+  // (It did, mid-flight: the story tree's crown and bole and the UAT flower materials landed
+  // on `main` while this pass was measuring, taking the closure from 104 to 156.)
+  assert.equal(after.length - before.length, landTokens().length);
+  assert.equal(before.length, 156);
+  assert.equal(after.length, 195);
   // A STRICT SUPERSET WITH AN IDENTITY ON EVERY OLD ENTRY — the same property PR #1385
   // asserted of its 506-entry closure over the shipped 132. Without it, "we added 26
   // entries" could hide "and moved four of the ones already there".

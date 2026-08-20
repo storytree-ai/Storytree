@@ -28,15 +28,17 @@ import { fileURLToPath } from 'node:url';
 // the two copies agree.
 import { landPalette } from './palette-band.js';
 // ...and the SHADOW half from the module that derives the shadow rung, for the same reason.
-// The authored palette a shadowed land may emit is the closure over the shadow ladder, so
+// The authored palette a shadowed land may emit is the closure over the shadow LADDER, so
 // checking delivered pixels against `landPalette()` alone would condemn every shadowed pixel
 // as off-palette — a refusal for the wrong reason, which is the failure mode this arc has
-// paid for more than once.
+// paid for more than once. Both family tests below are the shadow-aware siblings for the
+// same reason.
 import {
   RENDERED_STATUSES,
   SHADOW_LADDER,
   SHADOW_RUNG,
   familyOnShadowLadder,
+  familylessPaletteWithShadow,
   ladderAdmissibility,
   landPaletteWithShadow,
   liveCeilings,
@@ -295,18 +297,32 @@ const report = {
     offPalettePixels: offPalette,
     offPaletteColours: [...offenders.entries()].sort((a, b) => b[1] - a[1]).slice(0, 20),
     // MEMBERSHIP, the closure question — every delivered colour belongs to some authored
-    // status family. Shadow-aware, or all 26 shadow entries would report as orphans.
-    foreignStatusReads: [...distinct]
-      .filter((h) => palette.has(h))
-      .map((h) => ({
-        hex: h,
-        family: familyOnShadowLadder({
-          r: parseInt(h.slice(1, 3), 16),
-          g: parseInt(h.slice(3, 5), 16),
-          b: parseInt(h.slice(5, 7), 16),
-        }),
-      }))
-      .filter((x) => x.family === null).length,
+    // status family, or is family-less by design.
+    //
+    // THE FAMILY-LESS TOKENS ARE SUBTRACTED FIRST, AND THIS IS A CORRECTION, NOT A WIDENING.
+    // Some authored tokens genuinely belong to every status and therefore to none: the wheat
+    // override, the story tree's shared bole, and every UAT-flower material (a flower's verdict
+    // is its FORM, not its colour — ADR-0226 D4). The family test reports `null` for those BY
+    // DESIGN, so counting them here would report a defect on any island that grows a flower.
+    // Both halves are the SHADOW-AWARE siblings, or every shadow entry would report as an
+    // orphan the moment a shadow was drawn.
+    foreignStatusReads: (() => {
+      const familyless = new Set(familylessPaletteWithShadow());
+      return [...distinct]
+        .filter((h) => palette.has(h) && !familyless.has(h))
+        .map((h) => ({
+          hex: h,
+          family: familyOnShadowLadder({
+            r: parseInt(h.slice(1, 3), 16),
+            g: parseInt(h.slice(3, 5), 16),
+            b: parseInt(h.slice(5, 7), 16),
+          }),
+        }))
+        .filter((x) => x.family === null).length;
+    })(),
+    familylessDeliveredColours: [...distinct].filter((h) =>
+      new Set(familylessPaletteWithShadow()).has(h),
+    ).length,
     shadowRung: SHADOW_RUNG,
     // THE NUMBER THAT DECIDES WHETHER THE SHADOW EXISTS AT ALL, and the direct analogue of
     // PR #1385's finding that the same light field delivered ZERO pixels once quantised onto
