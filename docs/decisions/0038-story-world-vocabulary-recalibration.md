@@ -48,18 +48,20 @@ problems (owner feedback, 2026-06-12):
    `apps/studio/src/lib/worldStatus.ts` is the one seam. The ghost-skeleton form and its CSS are
    deleted. Searching/resurrecting retired work is later, data-side work — the frontmatter and
    schema keep the status.
-2. **Growth carries the lifecycle; brown means unproven.** The story tree's FORM now encodes
+2. **Growth carries the lifecycle; brown means brownfield provenance.** The story tree's FORM now encodes
    progress and its COLOUR encodes proof: a **young amber tree** = `proposed` (not fully grown —
-   still iterating). A claimed-but-empty story (zero capabilities) renders this SAME young form
+   still iterating, or greenfield work without a current signed pass). A claimed-but-empty story
+   (zero capabilities) renders this SAME young form
    in its status hue rather than a distinct stage — the **sapling** form (originally ADR-0036
    d.3, problem 2 above) was folded into `young` (owner 2026-06-21), since it was visually
    indistinguishable from a zero-cap proposed tree; a **full brownfield-brown canopy** = `mapped`
-   (the glossary's own word: real,
-   observationally verified, not yet UAT-proven — was teal); a **full deep-green canopy** =
+   (the glossary's own word: genuinely inherited existing work entering the adoption process —
+   registration after implementation does not make greenfield code brownfield, ADR-0395); a **full deep-green canopy** =
    `healthy` (proven through the gate); ~~**withered** = `unhealthy` (unchanged)~~ — the withered
    form was WITHDRAWN from the world by
    [ADR-0296](0296-the-world-renders-no-unhealthy-state-withdrawn-from-the-pict.md); `unhealthy`
-   now folds to `mapped`, exactly as `building` folds to `proposed` in point 3 below.
+   now folds to `proposed`, while a signed fail falls through to the unit's authored provenance rung
+   (ADR-0395), and `building` folds to `proposed` in point 3 below.
 3. **`building` wears `proposed` in the world.** A display-level fold (same seam as the prune):
    wisps say "being worked on", the proposed state says "still free to iterate" — one visual
    state covers both honestly. The `Status` enum and authored frontmatter keep `building`; only
@@ -77,6 +79,8 @@ problems (owner feedback, 2026-06-12):
   moved from teal to brown, and the building/retired crown pairs plus all ghost CSS are deleted.
 - ADR-0036 d.3's "status-true" principle survives in weakened form: the world is still
   authored-status-true for every status it *shows*; it now deliberately under-reports
-  building-vs-proposed and hides retired. Both are recoverable from the data, not erased.
+  building-vs-proposed, hides retired, and lets a signed pass replace either greenfield amber or
+  brownfield brown with green. When proof is absent, the honest authored provenance rung returns:
+  greenfield amber or inherited brownfield brown. Absence never invents provenance (ADR-0395).
 - A deep link `#/tree/<retired-story>` renders the unfocused world (the existing
   stale-deep-link behaviour) — acceptable until search exists.
