@@ -39,6 +39,7 @@ import {
   SHADOW_RUNG,
   familyOnShadowLadder,
   familylessPaletteWithShadow,
+  groundPaletteWithShadow,
   ladderAdmissibility,
   landPaletteWithShadow,
   liveCeilings,
@@ -445,6 +446,26 @@ const report = {
         shadowed.bodyPx > 0
           ? Number(((shadowed.shadowRungPx / shadowed.bodyPx) * 100).toFixed(2))
           : null,
+      // ...and the same thing over GROUND pixels only, which is the fraction the shadow
+      // FIELD's own coverage is directly comparable to. The gap between the two is how much
+      // of the island the props cover, which is a fact about plant density rather than about
+      // the shadow.
+      pctOfGroundReached: (() => {
+        const ground = new Set(groundPaletteWithShadow());
+        const onRung = new Set(shadowRungEntries());
+        const c = delivered.find((d) => d.tag === 'zoom-shadow');
+        if (!c) return null;
+        let groundPx = 0;
+        let shadowPx = 0;
+        for (const [hex, n] of c.colours) {
+          if (!ground.has(hex)) continue;
+          groundPx += n;
+          if (onRung.has(hex)) shadowPx += n;
+        }
+        return groundPx > 0
+          ? { groundPx, shadowPx, pct: Number(((shadowPx / groundPx) * 100).toFixed(2)) }
+          : null;
+      })(),
       // THE CONTROL THAT MAKES THE TERRAIN FINDING A MEASUREMENT RATHER THAN A CLAIM: the
       // terrain-only panel must be pixel-for-pixel the unshadowed one.
       terrainCastIsIdenticallyZero: (() => {
@@ -491,6 +512,11 @@ console.log(
 );
 console.log(
   `terrain    : identically zero = ${report.whatTheShadowBuys.terrainCastIsIdenticallyZero}`,
+);
+console.log(
+  `on ground  : ${report.whatTheShadowBuys.pctOfGroundReached?.pct}% of delivered GROUND px ` +
+    `(${report.whatTheShadowBuys.pctOfGroundReached?.shadowPx} of ` +
+    `${report.whatTheShadowBuys.pctOfGroundReached?.groundPx})`,
 );
 console.log(
   `bare land  : shadow on ${(

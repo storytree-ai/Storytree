@@ -10,296 +10,360 @@
     {
       "i": 0,
       "w": 240,
-      "h": 117,
-      "opaque": 19534,
-      "holes": 3
+      "h": 180,
+      "opaque": 21384,
+      "holes": 0
     },
     {
       "i": 1,
       "w": 480,
-      "h": 234,
-      "opaque": 77964,
-      "holes": 3
+      "h": 359,
+      "opaque": 85145,
+      "holes": 0
     },
     {
       "i": 2,
       "w": 240,
-      "h": 117,
-      "opaque": 19534,
-      "holes": 3
+      "h": 180,
+      "opaque": 21384,
+      "holes": 0
     },
     {
       "i": 3,
       "w": 959,
-      "h": 468,
-      "opaque": 311506,
-      "holes": 14
+      "h": 718,
+      "opaque": 340174,
+      "holes": 0
     },
     {
       "i": 4,
       "w": 240,
-      "h": 117,
-      "opaque": 19534,
-      "holes": 3
+      "h": 180,
+      "opaque": 21384,
+      "holes": 0
     },
     {
       "i": 5,
       "w": 1918,
-      "h": 936,
-      "opaque": 1246621,
-      "holes": 51
+      "h": 1436,
+      "opaque": 1361348,
+      "holes": 0
     },
     {
       "i": 6,
       "w": 1918,
-      "h": 936,
-      "opaque": 1246621,
-      "holes": 51
+      "h": 1436,
+      "opaque": 1361348,
+      "holes": 0
     },
     {
       "i": 7,
       "w": 1918,
-      "h": 936,
-      "opaque": 1247738,
-      "holes": 292
+      "h": 1438,
+      "opaque": 1361464,
+      "holes": 1
     },
     {
       "i": 8,
       "w": 480,
-      "h": 234,
-      "opaque": 77964,
-      "holes": 3
+      "h": 359,
+      "opaque": 85145,
+      "holes": 0
     },
     {
       "i": 9,
       "w": 480,
-      "h": 234,
-      "opaque": 78039,
-      "holes": 19
+      "h": 360,
+      "opaque": 85270,
+      "holes": 4
     },
     {
       "i": 10,
       "w": 1918,
       "h": 887,
-      "opaque": 1228454,
+      "opaque": 1228458,
       "holes": 0
     },
     {
       "i": 11,
       "w": 1918,
-      "h": 887,
-      "opaque": 1243912,
-      "holes": 0
+      "h": 1438,
+      "opaque": 1366367,
+      "holes": 71
     },
     {
       "i": 12,
       "w": 1918,
       "h": 887,
-      "opaque": 1228454,
+      "opaque": 1228458,
       "holes": 0
     },
     {
       "i": 13,
       "w": 1918,
-      "h": 936,
-      "opaque": 1233186,
+      "h": 930,
+      "opaque": 1234059,
       "holes": 0
     },
     {
       "i": 14,
       "w": 1918,
-      "h": 931,
-      "opaque": 1234264,
+      "h": 924,
+      "opaque": 1233753,
       "holes": 0
     },
     {
       "i": 15,
       "w": 1918,
       "h": 893,
-      "opaque": 1228598,
+      "opaque": 1228611,
       "holes": 0
     },
     {
       "i": 16,
       "w": 480,
       "h": 222,
-      "opaque": 76907,
+      "opaque": 76920,
       "holes": 0
     },
     {
       "i": 17,
       "w": 480,
-      "h": 234,
-      "opaque": 77118,
+      "h": 232,
+      "opaque": 77008,
       "holes": 0
     },
     {
       "i": 18,
       "w": 480,
-      "h": 222,
-      "opaque": 77705,
-      "holes": 9
+      "h": 357,
+      "opaque": 85090,
+      "holes": 0
     },
     {
       "i": 19,
       "w": 480,
-      "h": 234,
-      "opaque": 77964,
-      "holes": 3
+      "h": 359,
+      "opaque": 85145,
+      "holes": 0
     },
     {
       "i": 20,
       "w": 480,
       "h": 222,
-      "opaque": 76907,
+      "opaque": 76920,
       "holes": 0
     },
     {
       "i": 21,
       "w": 480,
-      "h": 228,
-      "opaque": 77101,
+      "h": 227,
+      "opaque": 77066,
       "holes": 0
     },
     {
       "i": 22,
       "w": 480,
-      "h": 233,
-      "opaque": 77261,
+      "h": 231,
+      "opaque": 77151,
       "holes": 0
     },
     {
       "i": 23,
       "w": 480,
-      "h": 238,
-      "opaque": 77427,
+      "h": 235,
+      "opaque": 77240,
       "holes": 0
     },
     {
       "i": 24,
       "w": 1918,
-      "h": 936,
-      "opaque": 1249707,
+      "h": 1446,
+      "opaque": 1367466,
       "holes": 0
     },
     {
       "i": 25,
       "w": 1918,
-      "h": 936,
-      "opaque": 1233186,
+      "h": 930,
+      "opaque": 1234059,
       "holes": 0
     },
     {
       "i": 26,
-      "w": 1918,
-      "h": 936,
-      "opaque": 1246621,
-      "holes": 51
+      "w": 480,
+      "h": 262,
+      "opaque": 78128,
+      "holes": 0
     },
     {
       "i": 27,
-      "w": 1918,
-      "h": 936,
-      "opaque": 1246621,
-      "holes": 51
+      "w": 480,
+      "h": 359,
+      "opaque": 85145,
+      "holes": 0
     },
     {
       "i": 28,
-      "w": 1918,
-      "h": 936,
-      "opaque": 1246621,
-      "holes": 51
+      "w": 480,
+      "h": 271,
+      "opaque": 78040,
+      "holes": 3
     },
     {
       "i": 29,
-      "w": 1918,
-      "h": 936,
-      "opaque": 1233186,
+      "w": 480,
+      "h": 359,
+      "opaque": 85145,
       "holes": 0
     },
     {
       "i": 30,
-      "w": 1918,
-      "h": 936,
-      "opaque": 1233186,
+      "w": 480,
+      "h": 359,
+      "opaque": 85145,
       "holes": 0
     },
     {
       "i": 31,
-      "w": 480,
-      "h": 234,
-      "opaque": 77964,
-      "holes": 3
+      "w": 1918,
+      "h": 1436,
+      "opaque": 1361348,
+      "holes": 0
     },
     {
       "i": 32,
-      "w": 480,
-      "h": 234,
-      "opaque": 77964,
-      "holes": 3
+      "w": 1439,
+      "h": 1077,
+      "opaque": 766126,
+      "holes": 0
     },
     {
       "i": 33,
-      "w": 1918,
-      "h": 936,
-      "opaque": 1244070,
+      "w": 1439,
+      "h": 1077,
+      "opaque": 766126,
       "holes": 0
     },
     {
       "i": 34,
+      "w": 1439,
+      "h": 1077,
+      "opaque": 766126,
+      "holes": 0
+    },
+    {
+      "i": 35,
       "w": 1918,
-      "h": 936,
-      "opaque": 1233186,
+      "h": 1436,
+      "opaque": 1361348,
+      "holes": 0
+    },
+    {
+      "i": 36,
+      "w": 1918,
+      "h": 1436,
+      "opaque": 1361348,
+      "holes": 0
+    },
+    {
+      "i": 37,
+      "w": 1918,
+      "h": 1436,
+      "opaque": 1361348,
+      "holes": 0
+    },
+    {
+      "i": 38,
+      "w": 1918,
+      "h": 1360,
+      "opaque": 1348048,
+      "holes": 0
+    },
+    {
+      "i": 39,
+      "w": 1918,
+      "h": 1360,
+      "opaque": 1348048,
+      "holes": 0
+    },
+    {
+      "i": 40,
+      "w": 480,
+      "h": 359,
+      "opaque": 85145,
+      "holes": 0
+    },
+    {
+      "i": 41,
+      "w": 480,
+      "h": 359,
+      "opaque": 85145,
+      "holes": 0
+    },
+    {
+      "i": 42,
+      "w": 1918,
+      "h": 1446,
+      "opaque": 1360714,
+      "holes": 0
+    },
+    {
+      "i": 43,
+      "w": 1918,
+      "h": 1360,
+      "opaque": 1348048,
       "holes": 0
     }
   ],
   "watertight": {
-    "totalInteriorHoles": 613,
+    "totalInteriorHoles": 79,
     "worstPanels": [
       {
-        "i": 7,
-        "holes": 292,
-        "opaque": 1247738
+        "i": 11,
+        "holes": 71,
+        "opaque": 1366367
       },
       {
-        "i": 5,
-        "holes": 51,
-        "opaque": 1246621
-      },
-      {
-        "i": 6,
-        "holes": 51,
-        "opaque": 1246621
-      },
-      {
-        "i": 26,
-        "holes": 51,
-        "opaque": 1246621
-      },
-      {
-        "i": 27,
-        "holes": 51,
-        "opaque": 1246621
+        "i": 9,
+        "holes": 4,
+        "opaque": 85270
       },
       {
         "i": 28,
-        "holes": 51,
-        "opaque": 1246621
+        "holes": 3,
+        "opaque": 78040
+      },
+      {
+        "i": 7,
+        "holes": 1,
+        "opaque": 1361464
+      },
+      {
+        "i": 0,
+        "holes": 0,
+        "opaque": 21384
+      },
+      {
+        "i": 1,
+        "holes": 0,
+        "opaque": 85145
       }
     ]
   },
   "palette": {
-    "authoredEntries": 130,
-    "canvases": 35,
-    "opaquePixels": 23682625,
-    "distinctDeliveredColours": 26,
+    "authoredEntries": 195,
+    "canvases": 44,
+    "opaquePixels": 29228338,
+    "distinctDeliveredColours": 59,
     "offPalettePixels": 0,
     "offPaletteColours": [],
     "foreignStatusReads": 0,
+    "familylessDeliveredColours": 29,
     "shadowRung": 0.84,
-    "shadowRungPixels": 370067,
+    "shadowRungPixels": 403347,
     "shadowRungColoursDelivered": 2,
-    "shadowRungColoursAuthored": 26,
+    "shadowRungColoursAuthored": 39,
     "shadowLadder": [
       0.78,
       0.8,
@@ -307,8 +371,8 @@
       0.9,
       1
     ],
-    "entriesWithoutShadow": 104,
-    "shadowPaletteCost": 26,
+    "entriesWithoutShadow": 156,
+    "shadowPaletteCost": 39,
     "everyPreShadowEntrySurvives": true
   },
   "confusability": {
@@ -454,18 +518,18 @@
       ]
     },
     "deliveredForeignPixels": {
-      "total": 27701,
+      "total": 24780,
       "byColour": [
         {
           "hex": "#87a066",
-          "px": 14127,
+          "px": 12672,
           "status": "unknown",
           "level": 0.8,
           "readsAs": "healthy"
         },
         {
           "hex": "#849c63",
-          "px": 13574,
+          "px": 12108,
           "status": "unknown",
           "level": 0.78,
           "readsAs": "healthy"
@@ -477,86 +541,91 @@
     "atDeliveredSize": {
       "lit": {
         "tag": "delivered-lit",
-        "bodyPx": 77964,
-        "distinctColours": 8,
-        "distinctLumaLevels": 8,
-        "lumaP2": 88.8,
+        "bodyPx": 85145,
+        "distinctColours": 27,
+        "distinctLumaLevels": 27,
+        "lumaP2": 65.5,
         "lumaP98": 160.9,
-        "lumaRangeP2toP98": 72.1,
+        "lumaRangeP2toP98": 95.4,
         "shadowRungPx": 0
       },
       "shadowed": {
         "tag": "delivered-shadow",
-        "bodyPx": 77964,
-        "distinctColours": 9,
-        "distinctLumaLevels": 9,
-        "lumaP2": 88.8,
+        "bodyPx": 85145,
+        "distinctColours": 28,
+        "distinctLumaLevels": 28,
+        "lumaP2": 65.5,
         "lumaP98": 160.9,
-        "lumaRangeP2toP98": 72.1,
-        "shadowRungPx": 2358
+        "lumaRangeP2toP98": 95.4,
+        "shadowRungPx": 6465
       }
     },
     "atEightPxPerUnit": {
       "lit": {
         "tag": "zoom-lit",
-        "bodyPx": 1246621,
-        "distinctColours": 8,
-        "distinctLumaLevels": 8,
-        "lumaP2": 88.8,
+        "bodyPx": 1361348,
+        "distinctColours": 27,
+        "distinctLumaLevels": 27,
+        "lumaP2": 65.5,
         "lumaP98": 160.9,
-        "lumaRangeP2toP98": 72.1,
+        "lumaRangeP2toP98": 95.4,
         "shadowRungPx": 0
       },
       "terrainOnly": {
         "tag": "zoom-terrain",
-        "bodyPx": 1246621,
-        "distinctColours": 8,
-        "distinctLumaLevels": 8,
-        "lumaP2": 88.8,
+        "bodyPx": 1361348,
+        "distinctColours": 27,
+        "distinctLumaLevels": 27,
+        "lumaP2": 65.5,
         "lumaP98": 160.9,
-        "lumaRangeP2toP98": 72.1,
+        "lumaRangeP2toP98": 95.4,
         "shadowRungPx": 0
       },
       "canopy": {
         "tag": "zoom-shadow",
-        "bodyPx": 1246621,
-        "distinctColours": 9,
-        "distinctLumaLevels": 9,
-        "lumaP2": 88.8,
+        "bodyPx": 1361348,
+        "distinctColours": 28,
+        "distinctLumaLevels": 28,
+        "lumaP2": 65.5,
         "lumaP98": 160.9,
-        "lumaRangeP2toP98": 72.1,
-        "shadowRungPx": 37963
+        "lumaRangeP2toP98": 95.4,
+        "shadowRungPx": 103482
       }
     },
     "bare": {
       "lit": {
         "tag": "bare-lit",
-        "bodyPx": 1233186,
-        "distinctColours": 4,
-        "distinctLumaLevels": 4,
-        "lumaP2": 125.7,
+        "bodyPx": 1348048,
+        "distinctColours": 23,
+        "distinctLumaLevels": 23,
+        "lumaP2": 65.5,
         "lumaP98": 160.9,
-        "lumaRangeP2toP98": 35.2,
+        "lumaRangeP2toP98": 95.4,
         "shadowRungPx": 0
       },
       "shadowed": {
         "tag": "bare-shadow",
-        "bodyPx": 1233186,
-        "distinctColours": 5,
-        "distinctLumaLevels": 5,
-        "lumaP2": 125.7,
+        "bodyPx": 1348048,
+        "distinctColours": 24,
+        "distinctLumaLevels": 24,
+        "lumaP2": 65.5,
         "lumaP98": 160.9,
-        "lumaRangeP2toP98": 35.2,
-        "shadowRungPx": 163266
+        "lumaRangeP2toP98": 95.4,
+        "shadowRungPx": 95772
       }
     },
-    "pctOfIslandReached": 3.02,
+    "pctOfIslandReached": 7.59,
+    "pctOfGroundReached": {
+      "groundPx": 865229,
+      "shadowPx": 103482,
+      "pct": 11.96
+    },
     "terrainCastIsIdenticallyZero": true
   },
   "frameTiming": {
     "samples": 39,
-    "p50Ms": 16.6,
-    "meanMs": 16.48,
+    "p50Ms": 16.5,
+    "meanMs": 16.34,
     "interpretation": "RELATIVE ONLY. Software rasteriser, static scene — this is the headless compositor present cadence, not a GPU-bound frame cost. Do not quote it as a D2 verdict."
   }
 }

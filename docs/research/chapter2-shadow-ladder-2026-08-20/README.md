@@ -7,20 +7,29 @@ recorded with its reason** — that is section 5.
 
 ## 1. The two questions, answered
 
-**AFFORDABLE — yes, and the live path is 14× cheaper than the author-time one.**
-A shadow on the live renderer costs **+26 authored palette entries** (104 → 130), because the
-shader emits `token × level` and one new level multiplies through the 26 land tokens. The
-author-time compositor bought the same thing for **+374** (132 → 506, PR #1385). Every
-pre-shadow entry survives unchanged, asserted rather than assumed.
+**AFFORDABLE — yes, and the live path is an order of magnitude cheaper than the author-time
+one.** A shadow on the live renderer costs **one authored palette entry per land token** — today
+**+39** (156 → 195) — because the shader emits `token × level` and one new level multiplies
+through the vocabulary. The author-time compositor bought the same thing for **+374** (132 → 506,
+PR #1385). Every pre-shadow entry survives unchanged, asserted rather than assumed.
+
+⚠ The baseline moved MID-PASS: the story tree and the UAT flowers landed on `main` (PR #1451)
+while this was being measured, taking the closure from 104 to 156. The cost is therefore stated
+as the identity it always was — one entry per token — with the literals asserted alongside, so
+the next prop to land prices itself instead of quietly going stale.
 
 **ADMISSIBLE — yes, at exactly one rung, and it is `0.84`.** Derived, not chosen: it is the
 deepest ladder level every rendered status can wear without reading as another one. One
 hundredth deeper, `unknown` reads `healthy`.
 
 **And the finding nobody was looking for: the SHIPPED ladder is already inadmissible, and this
-island already delivers the failure.** 27,701 delivered pixels of `unknown` ground read as
+island already delivers the failure.** 24,780 delivered pixels of `unknown` ground read as
 `healthy` — doubt painted as proof — and **no shadow is involved**. They are relief pushing
 `unknown` onto the shipped rungs 0.78 and 0.80. Section 4 has the numbers.
+
+**And one more, which arrived with the tree: the shadow's payoff is a SINGLE PROP.** All 144
+plants together shadow 14.63% of the island's ground; the one hero story tree shadows **16.58%**
+— more than the entire canopy. Section 6.
 
 ## 2. What was built
 
@@ -61,39 +70,38 @@ a result. Both instruments now run, and the report carries both.
 
 ## 4. Numbers
 
-Measured on delivered pixels by `capture.mjs` — 35 canvases, 23,682,625 opaque px, **0
-off-palette**.
+Measured on delivered pixels by `capture.mjs` — 44 canvases, 29,228,338 opaque px, **0
+off-palette**, **0 foreign-status reads** by the membership instrument.
 
 **The palette.**
 
 | | entries | delivered on the shadow rung |
 | --- | --- | --- |
-| live, no shadow | 104 | — |
-| live, with shadow | **130 (+26)** | 370,067 px across 2 of 26 authored shadow entries |
+| live, no shadow | 156 | — |
+| live, with shadow | **195 (+39)** | 403,347 px across 2 of 39 authored shadow entries |
 | author-time compositor, no shadow (PR #1385) | 132 | 0 px — every rung quantised away |
 | author-time compositor, shadow (PR #1385) | 506 (+374) | 822 / 158 / 747 px on three rungs |
 
-Only **2 of the 26** authored shadow entries are spent on this island, because the fixture
-renders two statuses. The other 24 are the closure's cost of being closed, not pixels anyone has
-drawn.
+Only **2 of the 39** authored shadow entries are spent on this island, because the ground it
+renders wears two tokens. The other 37 are the closure's cost of being closed, not pixels anyone
+has drawn.
 
-**Where the shadow actually lands, and where it goes.** Three numbers that only make sense read
-together:
+**Where the shadow actually lands, and where it goes.** Two numbers that only mean anything read
+together, and they are like-for-like — both over GROUND, so neither is diluted by however much of
+the island the vegetation happens to cover:
 
-- the shadow FIELD covers **16.45%** of the island's ground;
-- **76.4%** of those samples sit on a rung a shadow may darken (relief already put the rest
-  below it), so ~12.6% of the ground can change;
-- on BARE land the shadow delivers on **13.24%** of pixels — which agrees with that;
-- **dressed, it delivers on 3.05%.**
+- the shadow FIELD covers **29.66%** of the island's ground;
+- **11.96%** of delivered GROUND pixels are on the shadow rung (103,482 of 865,229).
 
-**The vegetation stands in front of roughly three quarters of its own shadow.** The light is at
-55.2° and the camera at 50°, so the shadow falls up-screen, away from the viewer, and the plant
-that threw it is drawn over where it lands. That is geometry, not a bug, and it is the single
-biggest reason the shadow reads as faintly as it does.
+**So roughly 60% of the shadow is hidden under the things that threw it.** The light is at 55.2°
+and the camera at 50°, so the cast falls up-screen, away from the viewer, and the prop that threw
+it is drawn over where it lands. That is geometry, not a bug. Over ALL delivered pixels — props
+included — the figure is **7.59%**.
 
-**The p2–p98 delivered luminance range does not move: 72.1 → 72.1.** The compositor's shadow
-spent 58.2 → 61.6. This one spends nothing, because 3% of the island at 6.7% darker cannot shift
-a 2nd/98th percentile. Stated plainly rather than replaced with a friendlier statistic.
+**The p2–p98 delivered luminance range does not move: 95.4 → 95.4.** The compositor's shadow
+spent 58.2 → 61.6. This one spends nothing, because a 6.7% darkening over an eighth of the
+ground cannot shift a 2nd/98th percentile. Stated plainly rather than replaced with a friendlier
+statistic.
 
 **THE LAND CANNOT SHADOW ITSELF — not faintly, at all.** A height field self-shadows only where
 it is steeper than the light. The authored light is 55.2°; the relief's steepest slope at the
@@ -109,8 +117,8 @@ shadow is the canopy.**
 
 | verdict | survives a 3-variant reader? | delivered here |
 | --- | --- | --- |
-| `unknown` @ 0.80 → `healthy` | **yes** | 14,127 px |
-| `unknown` @ 0.78 → `healthy` | **yes** | 13,574 px |
+| `unknown` @ 0.80 → `healthy` | **yes** | 12,672 px |
+| `unknown` @ 0.78 → `healthy` | **yes** | 12,108 px |
 | `proposed` @ 0.78 → `mapped` | **yes** | 0 px (not on this island) |
 | `proposed` @ 0.80 → `mapped` | no | — |
 | `healthy` @ 1.00 → `unknown` | no | — |
@@ -167,10 +175,15 @@ different change wearing this increment's clothes.
 0.80 (a steep face turned away from the light) keeps its level. The alternative — always taking
 the shadow rung — would have BRIGHTENED shaded slopes, which is a shadow lighting something up.
 
-**(e) Plants CAST but do not RECEIVE.** At the delivered 2 px/unit a whole shrub is about five
-pixels, so a shadow on one has nowhere to land, while the shadow it throws is 8.6 px long and is
-what the eye reads. Shadowing the plants would spend the one available rung on the element that
-cannot show it.
+**(e) EVERY upright prop CASTS — plants, flowers and the hero tree — and none of them RECEIVE.**
+Casting: excluding one would have been the arbitrary act. The flowers contribute 0.64% of the
+ground and are nearly invisible, but they are upright objects in the same light, and an island
+where two of the three kinds of thing cast reads as a rendering bug rather than as a choice.
+Receiving: at the delivered 2 px/unit a whole shrub is about five pixels, so a shadow on one has
+nowhere to land — it would spend the one available rung on the element that cannot show it. What
+is DRAWN and what CASTS are kept in step by threading each panel's own toggles through, because a
+caster whose mesh is not drawn lays a shadow under nothing, which is the most confusing possible
+artefact: every part of it looks deliberate.
 
 **(f) The terrain term was BUILT even though it delivers nothing, and it is KEPT.** Deleting it
 would leave "the land cannot shadow itself" as prose. Keeping it makes it a measurement: the
@@ -225,23 +238,30 @@ wider palette, and whether anything should is the owner's, not this pass's.**
 
 ## 6. What this means for the arc — the priced options, not a recommendation
 
-**Shadow is affordable and admissible. What it is not, yet, is worth much on THIS island** — 3% of
-delivered pixels and no change in luminance range. The reason is not the palette and not the
-ladder: **it is that the island has no tall casters.** Every plant is 4–15 ground units. ADR-0392
-D3 item 5 — *the hero story tree standing on the land* — has never been composited into a live
-island, and it is 197.6 world units tall. Measured on the field alone with no tree drawn: **one
-hero tree would shadow 14.1% of the island's ground by itself**, casting 137 ground units across a
-234-unit island — comparable to all 171 plants combined.
+**The tall caster arrived while this pass was measuring, and it changed the answer.** Before PR
+#1451 the shadow reached 3% of delivered pixels and the honest conclusion was *affordable,
+admissible, and not yet worth much on this island*. With the hero story tree standing on the land
+it reaches 7.6% of the picture and 12% of the ground, and it reads as a shape rather than a
+mottle. Measured on the field, per caster class:
 
-So the sequencing finding is: **shadow's payoff is gated on item 5, not on the palette.** Landing
-the hero tree first and re-measuring is cheaper than deepening anything.
+| caster | count | share of the island's ground it shadows |
+| --- | --- | --- |
+| plants | 144 | 14.63% |
+| UAT flowers | 10 | 0.64% |
+| **hero story tree** | **1** | **16.58%** |
+| all three | 155 | 29.66% |
 
-**And the ladder repair is a real cost that this pass did not spend, priced here:**
+**One prop out-shadows the other 154 together**, because at 94 ground units it throws 65 of them
+across a 234-unit island. That is worth stating as a general finding rather than a fact about this
+tree: on a banded island lit from 55°, shadow is a function of the TALLEST thing present, and
+measuring it on a component — a plant row, a contact sheet — cannot see that at all.
+
+**The ladder repair is a real cost that this pass did not spend, priced here:**
 
 | option | what it buys | what it costs |
 | --- | --- | --- |
-| leave it | nothing changes | 27,701 px of `unknown` ground keep reading `healthy` on any island carrying an `unknown` or `proposed` parcel |
-| shallower ladder | removes the two offending rungs | un-does part of yesterday's land definition, changes every panel, and does NOT separate the statuses — all six pairs still overlap in luminance |
+| leave it | nothing changes | 24,780 px of `unknown` ground keep reading `healthy` on any island carrying an `unknown` or `proposed` parcel |
+| shallower ladder | removes the two offending rungs | un-does part of the land definition that landed the day before, changes every panel, and does NOT separate the statuses — all six pairs still overlap in luminance |
 | hue/chroma separation between status tokens | actually fixes it | re-authoring the app's `.hex-territory` tokens; both the compositor and the live path inherit them, so it moves the shipped map's colours |
 
 The third is the only one that works, and it is the one the arc already named as the owner's.
@@ -268,15 +288,22 @@ The third is the only one that works, and it is the one the arc already named as
    authored palette, which is worse than no capture.
 5. **A per-vertex shadow attribute cannot work on this mesh** (fan per cell, 16.5-unit pitch), and
    the failure looks like a lighting bug rather than a resolution one.
-6. **The plants hide their own shadows.** Light at 55.2°, camera at 50°, so the cast falls
-   up-screen behind the caster. Any measurement of "how much shadow is there" must say whether it
-   is measuring the field, the bare land, or the dressed island — they read 16.45%, 13.24% and
-   3.05% for the same shadow.
-7. **`capture.mjs` still names panels by SECTION ORDER** (friction
+6. **The props hide their own shadows, and the denominator decides the answer.** Light at 55.2°,
+   camera at 50°, so the cast falls up-screen behind the caster. Any measurement of "how much
+   shadow is there" has to say what it is over: the same shadow reads **29.66%** as a fraction of
+   ground AREA, **11.96%** as a fraction of delivered GROUND pixels, and **7.59%** as a fraction
+   of all delivered pixels. Only the first two are like-for-like; the third is diluted by however
+   much of the island the vegetation happens to cover, which is a fact about plant density.
+7. **Shadow is a function of the TALLEST thing present, so a component measurement cannot see
+   it.** One hero tree out-shadows 144 plants. This pass began three hours before that tree
+   landed on the island and would have concluded "not yet worth much" on evidence that was
+   accurate and about the wrong object — which is the ADR-0392 sequencing complaint arriving from
+   a direction it did not anticipate.
+8. **`capture.mjs` still names panels by SECTION ORDER** (friction
    `capture-panel-names-bind-to-section-order`). The three sections here were appended LAST for
    that reason. The canvases the measurements compare are found by `data-st-tag` instead, because
    a mis-zipped measurement produces a NUMBER rather than a visibly wrong filename.
-8. And the inherited ones still bite: the scene's 2D coordinates are already projected at 20° and
+9. And the inherited ones still bite: the scene's 2D coordinates are already projected at 20° and
    must be unprojected exactly once; a GROUND distance foreshortens by `sin(elev)` while an UPRIGHT
    height foreshortens by `cos(elev)` (the caster's height uses the upright one — using the ground
    one would make every shadow 2.75× wrong); SVG `(x, y)` → 3D `(x, z)` flips handedness; and a
@@ -288,8 +315,8 @@ SwiftShader. The ADR-0380 D2 hardware-floor question is still unanswered.
 ## 8. The pictures
 
 - **`panel-shadow-casters.png` — read first.** No shadow / terrain-only / canopy at 8 px/unit,
-  then the same shadow on bare land. The terrain panel being identical to the control is the
-  measurement, not a mistake.
+  then the same shadow with the plants removed, so the tree's long cast is unobstructed. The
+  terrain panel being identical to the control is the measurement, not a mistake.
 - **`panel-shadow-delivered.png`** — the pair that decides it, at the delivered 2 px/unit.
 - **`panel-shadow-ladder.png`** — the admissibility table, computed live by the same instrument the
   shader is built from, plus a mixed island carrying the binding status.

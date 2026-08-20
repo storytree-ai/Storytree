@@ -468,18 +468,27 @@ function App() {
       <section>
         <h2>11 &mdash; the shadow, and which caster actually throws it</h2>
         <p className="lede">
-          Shadow was the stated reason author-time 3D was reopened, and no island has ever carried
-          one. Two casters were built and only one of them draws anything.{' '}
+          Shadow was the stated reason author-time 3D was reopened, and no island had ever carried
+          one. Two kinds of caster were built and only one of them draws anything.{' '}
           <strong>The land cannot shadow itself here</strong> &mdash; not faintly, at all: a height
           field self-shadows only where it is steeper than the light, the authored light comes in
           at 55.2&deg;, and the relief&rsquo;s steepest slope at the shipped amplitude is 24.4&deg;.
           Reaching the light would need amplitude ~7.0, more than twice the 3.2 the previous pass
-          already rejected. So the shadow on this island is the <strong>canopy</strong>, and the
-          terrain panel below is the measurement rather than a mistake.
+          already rejected. So the shadow here is thrown entirely by what STANDS on the land, and
+          the terrain panel below is the measurement rather than a mistake.
+        </p>
+        <p className="lede">
+          And what stands on it is now dominated by ONE prop. Measured on the field: all 144
+          plants together shadow <strong>14.63%</strong> of the island&rsquo;s ground, the ten UAT
+          flowers <strong>0.64%</strong>, and the single hero story tree{' '}
+          <strong>16.58%</strong> &mdash; more than the entire canopy, because at 94 ground units
+          it throws 65 of them across a 234-unit island. The tree landed on this island a few
+          hours before this pass measured it, and it is what turned the shadow from a treatment
+          worth 3% of the picture into one worth 12% of the ground.
         </p>
         <div className="row">
           <IslandPanel
-            label="no shadow â€” the control"
+            label="no shadow — the control"
             note="8 px/unit"
             pxPerUnit={8}
             displayPxPerUnit={8}
@@ -487,7 +496,7 @@ function App() {
           />
           <IslandPanel
             label="terrain cast only"
-            note="8 px/unit â€” identically zero"
+            note="8 px/unit — identically zero"
             pxPerUnit={8}
             displayPxPerUnit={8}
             shadow="terrain"
@@ -503,15 +512,18 @@ function App() {
           />
         </div>
         <p className="lede">
-          And the same shadow on BARE land, which is where most of it turns out to be. The
-          shadow falls up-screen, away from the light &mdash; so a plant stands in front of its
-          own cast and hides a large share of it. That is a real property of a 55&deg; light at a
-          50&deg; camera, not a bug, and it is why the dressed number below is so much smaller
-          than the field.
+          The same island with the PLANTS removed &mdash; the tree and the flowers stay, so the
+          long cast is unobstructed and the ground under the canopy can be seen. Note that what is
+          DRAWN and what CASTS are kept in step, so the plants stop casting here too. Worth
+          reading against the field: the field shadows{' '}
+          <strong>29.66%</strong> of the ground and only <strong>11.96%</strong> of delivered
+          ground pixels are shadowed, because the shadow falls up-screen, away from the light, and
+          the prop that threw it is drawn over where it lands. That is a real property of a
+          55&deg; light at a 50&deg; camera, not a bug.
         </p>
         <div className="row">
           <IslandPanel
-            label="bare â€” no shadow"
+            label="plants removed — no shadow"
             note="8 px/unit, no plants"
             pxPerUnit={8}
             displayPxPerUnit={8}
@@ -519,7 +531,7 @@ function App() {
             tag="bare-lit"
           />
           <IslandPanel
-            label="bare â€” the same canopy shadow"
+            label="plants removed — the same shadow"
             note="8 px/unit, no plants"
             pxPerUnit={8}
             displayPxPerUnit={8}
@@ -533,21 +545,22 @@ function App() {
       <section>
         <h2>12 &mdash; the shadow at the size it is actually delivered</h2>
         <p className="lede">
-          The pair that decides it. A median plant stands 6.2 ground units and throws 4.3 &mdash;
-          about 8.6 px at the delivered scale, which is enough to read. The shadow lands on{' '}
-          <strong>one rung</strong>, because one rung is all a closed palette with a measured
-          confusability ceiling leaves room for.
+          The pair that decides it, and the hero tree is what makes it decidable: it throws 65
+          ground units, about 130 px at the delivered scale, so the shadow is a shape rather than
+          a mottle. A median plant throws 4.3 units &mdash; about 8.6 px &mdash; which is why the
+          canopy alone read so faintly. The shadow lands on <strong>one rung</strong>, because one
+          rung is all a closed palette with a measured confusability ceiling leaves room for.
         </p>
         <div className="row">
           <IslandPanel
-            label="no shadow â€” as delivered"
+            label="no shadow — as delivered"
             note={`${DELIVERED} px/unit`}
             pxPerUnit={DELIVERED}
             displayPxPerUnit={DELIVERED}
             tag="delivered-lit"
           />
           <IslandPanel
-            label="shadow â€” as delivered"
+            label="shadow — as delivered"
             note={`${DELIVERED} px/unit`}
             pxPerUnit={DELIVERED}
             displayPxPerUnit={DELIVERED}
@@ -591,7 +604,7 @@ function App() {
                   return (
                     <td key={l} className={cls}>
                       <span className="chip" style={{ background: v.hex }} />
-                      {v.admissible ? v.hex : `${v.hex} â†’ ${v.readsAs}`}
+                      {v.admissible ? v.hex : `${v.hex} → ${v.readsAs}`}
                     </td>
                   );
                 })}

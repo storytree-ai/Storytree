@@ -445,3 +445,21 @@ export function luminanceOverlap(statuses: readonly string[] = RENDERED_STATUSES
   }
   return { ranges, overlaps };
 }
+
+/** Every colour the GROUND can deliver on the shadow ladder — the `top` tokens only, so
+ *  props (which wear `side`, crown and flower tokens) are excluded.
+ *
+ *  IT EXISTS TO MAKE ONE COMPARISON LIKE-FOR-LIKE. The shadow field's coverage is a fraction
+ *  of GROUND AREA, while a delivered-pixel fraction is over every opaque pixel on the canvas —
+ *  props included. Comparing the two directly understates the shadow by however much of the
+ *  island the vegetation happens to cover, which is a fact about plant density rather than
+ *  about the shadow. */
+export function groundPaletteWithShadow(): string[] {
+  const set = new Set<string>();
+  for (const st of Object.keys(STATUS_TOKENS)) {
+    for (const token of STATUS_TOKENS[st]!.top) {
+      for (const c of shadowRamp(token)) set.add(toHex(c));
+    }
+  }
+  return [...set].sort();
+}
