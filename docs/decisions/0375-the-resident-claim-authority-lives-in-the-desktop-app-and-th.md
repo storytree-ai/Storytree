@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded
 decided: 2026-08-15
 arc: codex-factory-parity-arc
 amends: [368]
@@ -7,6 +7,8 @@ amends: [368]
 # ADR-0375: The resident claim authority lives in the desktop app, and the managed hook reads through it
 
 ## Status
+
+**SUPERSEDED by [ADR-0390](0390-codex-runs-at-claude-parity-and-the-managed-containment-boun.md) (2026-08-20)** - Codex now runs at Claude parity and the managed containment boundary is withdrawn. The resident authority existed to survive the fence's per-call latency. With no fence there is no per-call claim read to make resident. Kept as browsable history; do not calibrate to it.
 
 accepted (2026-08-15) — decided/directed by the owner in conversation on 2026-08-15 ("we make the
 desktop app the holder"). Design-time alignment IS the ratification (ADR-0110); no second

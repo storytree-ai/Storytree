@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded
 decided: 2026-08-18
 arc: codex-factory-parity-arc
 amends: [375]
@@ -7,6 +7,8 @@ amends: [375]
 # ADR-0379: The desktop hosts the Codex claim authority whenever the boundary is installed
 
 ## Status
+
+**SUPERSEDED by [ADR-0390](0390-codex-runs-at-claude-parity-and-the-managed-containment-boun.md) (2026-08-20)** - Codex now runs at Claude parity and the managed containment boundary is withdrawn. Self-detected hosting is moot once nothing needs to be hosted. The DETECTION was proven correct on the dev host on 2026-08-19 (env var unset at both scopes, boundary installed, app hosted anyway) - it is retired as unnecessary, not as wrong. Kept as browsable history; do not calibrate to it.
 
 accepted (2026-08-18) — decided/directed by the owner in conversation on 2026-08-18 ("the desktop app
 is meant to be self contained, users should not need to set env variables or run specific start up

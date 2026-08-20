@@ -1,5 +1,22 @@
 # Handoff to a Codex desktop session — prove the lobby-to-write lifecycle
 
+> ## ⚠ RETIRED 2026-08-20 — DO NOT PASTE THIS TO A CODEX TASK
+>
+> **[ADR-0390](../docs/decisions/0390-codex-runs-at-claude-parity-and-the-managed-containment-boun.md)
+> withdrew the managed containment boundary and put Codex at Claude parity.** The journey below —
+> lobby start, a bootstrap request, a broker claim taken before the worktree exists, a hook deciding
+> each write — describes a lifecycle that no longer exists. Its twelve criteria are retired with it,
+> and the increment they belonged to (`codex-lobby-to-write-live-smoke`) is closed.
+>
+> **What to hand a Codex task instead:** the arc. `storytree arc show codex-factory-parity-arc --pg`,
+> and specifically the `codex-drives-a-unit-at-parity` increment, which asks the question that
+> survives — can Codex orient, claim, mint a worktree, pass the gate and land a PR the way Claude
+> does?
+>
+> **Kept, not deleted, for two reasons.** Its round-3 findings are what produced ADR-0390 — the fence
+> failing open, and the `.git` deny that made `git worktree add` impossible. And if the boundary is
+> ever reinstated, this is the journey that tests it. Read it as history until then.
+
 > **Paste this to a Codex desktop task.** It is the operator-facing prompt for the
 > `codex-lobby-to-write-live-smoke` increment on `codex-factory-parity-arc`. It lives in the
 > repository rather than in a session scratchpad or `Downloads` deliberately: the previous copy was

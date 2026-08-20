@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded
 decided: 2026-08-14
 arc: codex-factory-parity-arc
 amends: [355]
@@ -7,6 +7,8 @@ amends: [355]
 # ADR-0364: Codex write authority is a standing worktrees grant narrowed by the live claim
 
 ## Status
+
+**SUPERSEDED by [ADR-0390](0390-codex-runs-at-claude-parity-and-the-managed-containment-boun.md) (2026-08-20)** - Codex now runs at Claude parity and the managed containment boundary is withdrawn. The standing grant and the hook-as-only-fence are WITHDRAWN along with the containment they narrowed. On 2026-08-20 that fence was measured failing OPEN: a hook that returns no decision is an allow, because a deny is JSON on stdout while an error is only a non-zero exit code. Kept as browsable history; do not calibrate to it.
 
 accepted (2026-08-14) — decided/directed by the owner in conversation on 2026-08-14. Design-time alignment IS the ratification (ADR-0110); no second end-of-flow ask.
 

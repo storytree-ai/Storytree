@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded
 decided: 2026-08-12
 amends: [257, 284]
 arc: codex-factory-parity-arc
@@ -7,6 +7,8 @@ arc: codex-factory-parity-arc
 # ADR-0355: Interactive Codex writes only in its current claimed worktree
 
 ## Status
+
+**SUPERSEDED by [ADR-0390](0390-codex-runs-at-claude-parity-and-the-managed-containment-boun.md) (2026-08-20)** - Codex now runs at Claude parity and the managed containment boundary is withdrawn. This decision's core - *interactive Codex writes only in its current claimed worktree* - is WITHDRAWN. The containment posture it opened is retired. Kept as browsable history; do not calibrate to it.
 
 accepted (2026-08-12) — decided/directed by the owner in conversation on 2026-08-12. Design-time alignment IS the ratification (ADR-0110); no second end-of-flow ask.
 
