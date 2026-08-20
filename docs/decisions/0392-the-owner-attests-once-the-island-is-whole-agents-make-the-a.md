@@ -2,6 +2,7 @@
 status: accepted
 decided: 2026-08-20
 amends: [70]
+load_bearing: true
 ---
 # ADR-0392: The owner attests once the island is whole; agents make the art calls until then
 
