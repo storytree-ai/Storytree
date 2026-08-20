@@ -185,7 +185,12 @@ at 2 — a burned ordinal is never reused and no survivor is ever renumbered.)*
 >   the automerge seam CONTAINS `gh pr merge`, never that no SECOND merge door exists. Deleting the leg
 >   would have deleted a live claim to reach a number, which ADR-0294 D5 forbids. Gate 7's dead first
 >   half (the `landing-deps.test.ts` invocation) was removed from its command so the binding can
->   actually run; its ordinal, its criterion identity and the gate itself are untouched.
+>   actually run; its ordinal, its criterion identity and the gate itself are untouched. **Making it
+>   runnable immediately exposed a SECOND red the first was hiding** — the live half counted raw
+>   substring occurrences of `gh pr merge` in `ci.yml` and found FOUR, three of them in comments
+>   ABOUT the command. That is a defect in the assertion, not a finding about the workflow, and it
+>   was fixed in the same change by stripping whole-line YAML comments before counting. Recorded
+>   here because a short-circuiting `&&` is how a live assertion goes years without ever executing.
 >
 > **The other five legs were not D2 candidates and were not touched.** Legs 2, 3, 4 and 6 are bespoke
 > inline `node --input-type=module -e` audits of `.github/workflows/ci.yml`,
@@ -284,15 +289,24 @@ witness. Opening the PR is now the session's own ceremony, not a repository seam
    `node --input-type=module -e "import fs from 'node:fs';const c=fs.readFileSync('.github/workflows/ci.yml','utf8'),d=fs.readFileSync('.github/workflows/deploy-studio.yml','utf8');for(const s of ['actions: write','gh workflow run deploy-studio.yml --ref main','apps/studio/','packages/','docs/','stories/'])if(!c.includes(s))throw new Error('deploy dispatch drifted: '+s);for(const s of ['workflow_dispatch:','cancel-in-progress: false','google-github-actions/auth@v3','storytree-studio-deployer@','gcloud builds submit','git rev-parse --short HEAD','gcloud run deploy','--service-account','--set-env-vars','--no-allow-unauthenticated --iap','latestReadyRevisionName','latestCreatedRevisionName'])if(!d.includes(s))throw new Error('deploy posture drifted: '+s)"`.
    This is a standing workflow/posture proof, not a fabricated fresh deployment.
 7. **Only verified CI owns the merge command** _(gate: observe)_
-   `node --input-type=module -e "import fs from 'node:fs';const c=fs.readFileSync('.github/workflows/ci.yml','utf8');if((c.match(/gh pr merge/g)||[]).length!==1)throw new Error('workflow merge-command count drifted');if(!c.includes('needs: verify'))throw new Error('automerge lost verify dependency')"`.
+   `node --input-type=module -e "import fs from 'node:fs';const code=fs.readFileSync('.github/workflows/ci.yml','utf8').replace(/^[^\n\S]*#.*$/gm,'');if((code.match(/gh pr merge/g)||[]).length!==1)throw new Error('repository-owned merge-command count drifted');if(!code.includes('needs: verify'))throw new Error('automerge lost verify dependency')"`.
    This deliberately proves only the repository-owned path; external branch-policy configuration is
-   a residual live control. **The command lost a dead half on 2026-08-21** — it opened
+   a residual live control. **The command was REPAIRED TWICE on 2026-08-21, and the second repair
+   uncovered a red that the first was hiding.**
+   (1) It opened
    `pnpm --filter @storytree/drive exec node --import tsx --test src/landing-deps.test.ts && …`, and
    that file has not existed since ADR-0175 retired the landing surface, so the whole gate exited
-   non-zero before its live half ever ran. The surviving half is the WHOLE of what this gate now
-   claims and is unchanged byte for byte: exactly one `gh pr merge` in `ci.yml`, and `automerge` still
-   declaring `needs: verify`. This is a REPAIR of a binding that could not run, not a new gate
-   (ADR-0097 §2): the gate's ordinal, its kind and its criterion are untouched.
+   non-zero on `Could not find 'src/landing-deps.test.ts'` before its live half ever ran.
+   (2) With the dead half removed, the live half went RED on its first honest execution: the raw
+   substring count of `gh pr merge` in `ci.yml` is **four**, not one — line 316 is the real command,
+   and lines 34, 303 and 325 are COMMENTS discussing it. The assertion was counting prose. It now
+   strips whole-line YAML comments before counting, the same move
+   `apps/desktop/src/backend/landing-surface-retired.test.ts` already makes with its `code()` helper
+   for exactly this reason ("a PROSE mention … never counts as live wiring"). Verified on this tree:
+   4 raw occurrences, 1 after stripping, and `needs: verify` still present. The CLAIM is unchanged —
+   exactly one repository-owned merge command, in `automerge`, downstream of `verify`. Both are
+   REPAIRS of a binding that could not honestly run, not a new gate (ADR-0097 §2): the gate's
+   ordinal, its kind and its criterion are untouched.
 
 ## Open modeling calls (for the owner)
 
