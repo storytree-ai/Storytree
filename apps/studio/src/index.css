@@ -4276,26 +4276,8 @@ button.legend-tile:hover {
   min-height: 0;
   min-width: 0;
 }
-.traversal-replay-facts {
-  flex: 0 0 auto;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px 12px;
-  margin: 2px 0 0;
-  padding: 0;
-  list-style: none;
-  font-size: 10.5px;
-  overflow-wrap: anywhere;
-}
-/* Dragged small the facts fold with the other prose — they are restated by the route's own note and
-   by the honest-gap lines, and the arc's clause is that the traversal keeps the room. */
-.bottom-dock-compact .traversal-replay-facts {
-  display: none;
-}
-.traversal-replay-partial {
-  color: var(--warn);
-  font-weight: 600;
-}
+/* The replay FACTS LIST is gone with every other paragraph under the picture (ADR-0393 D1).
+   `.traversal-replay-facts` / `.traversal-replay-partial` had no other user. */
 
 /* ── the traversal picture, RE-FLOWED (increment `traversal-panel-wide-reflow`) ───────────────────
    The owner-signed GRAMMAR (docs/design/context-traversal/README.md) drawn hand-rolled against the
@@ -4388,16 +4370,9 @@ button.legend-tile:hover {
   width: 20%;
   background: var(--danger);
 }
-.traversal-gaps {
-  display: grid;
-  gap: 2px;
-}
-/* Dragged toward the dock's minimum the CHROME yields and the PICTURE keeps the room — the bottom
-   panel's analogue of the retired PANEL_MIN=360 rule, asked of height instead of width. Both the
-   blurb and the gap prose stay reachable in the notes below the panel. */
-.traversal-spine.is-compact .traversal-gaps {
-  display: none;
-}
+/* `.traversal-gaps` held the six explanatory notes and is retired with them (ADR-0393 D1). The
+   compact rule that folded them went too: there is nothing left under the picture to fold, which
+   is the same outcome the rule existed to reach, reached permanently. */
 .traversal-spine.is-compact .traversal-legend {
   font-size: 9.5px;
   gap: 3px 10px;
@@ -4511,10 +4486,7 @@ button.legend-tile:hover {
   color: var(--muted);
   font-size: 8.5px;
 }
-.traversal-occupancy-note,
-.traversal-occupancy-absent,
-.traversal-spine-empty,
-.traversal-spine-deferred {
+.traversal-spine-empty {
   margin: 0;
   overflow-wrap: anywhere;
 }
@@ -4604,98 +4576,10 @@ button.legend-tile:hover {
   fill: var(--text);
 }
 
-/* ── subagent lanes, depth and offer fans (increment `traversal-panel-lanes-and-depth`) ─────────
-   Colour identifies a stable agent TYPE and never an individual instance, so the hue is assigned
-   per type and every lane of that type wears it. Six stops, drawn from the studio's own category
-   hues rather than a new palette. */
-.traversal-lane.hue-0,
-.traversal-lane-badge.hue-0 {
-  --lane-color: var(--cat-definition);
-}
-.traversal-lane.hue-1,
-.traversal-lane-badge.hue-1 {
-  --lane-color: var(--cat-guideline);
-}
-.traversal-lane.hue-2,
-.traversal-lane-badge.hue-2 {
-  --lane-color: var(--cat-principle);
-}
-.traversal-lane.hue-3,
-.traversal-lane-badge.hue-3 {
-  --lane-color: var(--cat-template);
-}
-.traversal-lane.hue-4,
-.traversal-lane-badge.hue-4 {
-  --lane-color: var(--cat-pattern);
-}
-.traversal-lane.hue-5,
-.traversal-lane-badge.hue-5 {
-  --lane-color: var(--cat-friction);
-}
-
-.traversal-lane {
-  opacity: 0;
-  transition: opacity 120ms ease;
-}
-.traversal-lane.is-visible {
-  opacity: 1;
-}
-/* A lane is a ROW since the rotation. Its body is a bar for a lane with real duration and a DIAMOND
-   for one whose handoff and return share an instant — decided from the TIMESTAMPS, never from the
-   pixels the two ends map to, since a fold can place a one-millisecond pair 32px apart. */
-.traversal-lane-body {
-  fill: var(--lane-color);
-  opacity: 0.55;
-}
-/* An OPEN lane — no result_return was recorded — is fainter and dashed, so a bar running to the end
-   of the axis never reads as an observed close. */
-.traversal-lane.is-open .traversal-lane-body {
-  opacity: 0.28;
-}
-.traversal-lane-open-cap {
-  stroke: var(--lane-color);
-  stroke-dasharray: 2 2;
-}
-/* The chip carries the MODEL (clause 7). On a crowded packing the agent type drops — the row gutter
-   already names it — and the chip keeps the model, which is redundant with nothing. */
-.traversal-lane-chip-bg {
-  fill: var(--lane-color);
-  stroke: var(--surface);
-  stroke-width: 0.8;
-}
-.traversal-lane-chip-text {
-  fill: var(--surface);
-  font-family: inherit;
-  font-size: 8.5px;
-  font-weight: 600;
-}
-.traversal-lane-chip-text.is-unrecorded {
-  font-style: italic;
-}
-.traversal-lane-handoff,
-.traversal-lane-return {
-  fill: none;
-  stroke: var(--lane-color);
-  stroke-width: 1.2;
-  stroke-linecap: round;
-  opacity: 0;
-  transition: opacity 120ms ease;
-}
-.traversal-lane-handoff.is-visible,
-.traversal-lane-return.is-visible {
-  opacity: 0.85;
-}
-.traversal-lane-return {
-  stroke-dasharray: 3 2;
-}
-.traversal-lane-return.is-failed {
-  stroke: var(--danger);
-}
-
-/* The wrapping badge LIST below the picture is retired: the bottom panel is wide and SHORT, so a
-   list that grew downward spent the picture's own scarce dimension. Its one load-bearing job —
-   clause 7, every rendered lane names the model it ran on, and an unrecorded one says so — moved
-   into the in-band `.traversal-lane-chip*` above, which travels with the lane it describes. */
+/* ── depth and offer fans (increment `traversal-panel-lanes-and-depth`, trimmed by ADR-0393) ────
+   THE SUBAGENT LANE RULES ARE GONE with the lanes themselves (ADR-0393 D2) — the per-type hue
+   assignment, the bands, the open caps, the in-band model chips and the handoff/return edges. The
+   picture is the orchestrator's own walk; whether subagents come back, and how, is deferred. */
 
 /* An offer fan: one ray per recorded candidate, never sorted and never truncated. */
 .traversal-offer {
@@ -4713,36 +4597,30 @@ button.legend-tile:hover {
   stroke: var(--accent);
   stroke-width: 1.5;
 }
+/* SOLID, and this is a DEFECT FIX rather than a taste change: the legend has always said "solid ray
+   not followed", and this rule drew it DASHED. The two disagreed, and the legend was the one telling
+   the truth about the signed grammar. It mattered more than it looks — nothing is ever followed in
+   practice (measured: 373 offered, 0 followed on the trace the owner looked at), so every ray in
+   every fan was a dash, and the whole fan read as the dotted texture the owner objected to. */
 .traversal-offer-ray.status-not-followed {
   stroke: var(--border-strong);
-  stroke-dasharray: 2 2;
 }
-/* Permanently unfollowable, and it must never read as a declined branch (ADR-0312). */
-.traversal-offer-ray.status-unobservable {
-  stroke: var(--border);
-  stroke-dasharray: 1 3;
-}
+/* Solid too, for the same reason. Colour carries "we could not tell", which is what this state is;
+   a dash would put the objected-to texture straight back for a state nobody can act on. */
 .traversal-offer-ray.status-ambiguous {
   stroke: var(--warn);
-  stroke-dasharray: 2 2;
 }
+/* `.status-unobservable` is GONE (ADR-0393 D3) — those rays are no longer drawn at all, so a rule
+   for them would style nothing. The branches they stood for are still counted in the fan's raw
+   `offered N, observable M of N`, which is where ADR-0312 D6 now lives in full. */
 
-.traversal-lane-note,
-.traversal-depth-note,
-/* Knowledge depth from the work (ADR-0363 D2) — the SECOND depth, and a sibling note rather than an
-   addition to `.traversal-depth-note` above, because the two are different quantities. */
-.traversal-knowledge-note,
-.traversal-offer-note {
-  margin: 6px 0 0;
-  overflow-wrap: anywhere;
-}
+/* The four note rules that sat here are retired with the notes (ADR-0393 D1). The knowledge-depth
+   reading survives as a counts CHIP on the axis line above the picture, styled by
+   `.traversal-axis-note`, which it shares with the mark and fold counts it stands beside. */
 
 @media (prefers-reduced-motion: reduce) {
   .traversal-edge,
   .traversal-mark,
-  .traversal-lane,
-  .traversal-lane-handoff,
-  .traversal-lane-return,
   .traversal-offer {
     transition: none;
   }

@@ -107,22 +107,12 @@ export function TraversalReplay({
           traversal — not the bar, not a metric, not a line of prose — dominates the first glance. */}
       <TraversalSpine replay={replay} compact={compact} knowledge={knowledge} />
 
-      <ul className="traversal-replay-facts small">
-        <li>
-          <strong>{replay.events.length}</strong> replayed event{replay.events.length === 1 ? '' : 's'}
-          {replay.partial ? (
-            <span className="traversal-replay-partial" data-testid="traversal-partial">
-              {' '}
-              · PARTIAL: {replay.skipped} line{replay.skipped === 1 ? '' : 's'} could not be read
-            </span>
-          ) : null}
-        </li>
-        <li className="muted" data-testid="traversal-occupancy-note">
-          {/* Rendered VERBATIM — the route composes this line so a UI reader and a terminal reader
-              are told the same thing about what the adapters observed. */}
-          {replay.occupancy.note}
-        </li>
-      </ul>
+      {/* THE FACTS LIST IS DELETED (ADR-0393 D1). It stated the replayed-event count, the PARTIAL
+          warning, and the occupancy note verbatim from the route. The owner deleted all prose under
+          the picture at the LOOK, having been asked whether to collapse it behind a disclosure
+          instead. The route still composes those sentences and `storytree traversal show
+          <sessionId>` still prints them — the panel stopped repeating them, which is the accepted
+          cost: a PARTIAL trace now looks like a complete one until an operator asks the CLI. */}
     </div>
   );
 }
