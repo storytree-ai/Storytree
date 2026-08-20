@@ -24,19 +24,20 @@
 // costume. Making the match a property of the generator, rather than of the person setting
 // up the comparison, is what stops that recurring.
 
-/** A generated mesh: interleaved-free plain arrays, ready to upload as GPU buffers. */
-export interface PlantMesh {
-  /** xyz triples. */
-  positions: Float32Array;
-  /** xyz triples, unit length — the banded material's lambert is only honest if they are. */
-  normals: Float32Array;
-  /** Triangle indices. */
-  indices: Uint16Array;
-  /** Triangles, for the perf budget. */
-  triangles: number;
-  /** The mesh's own bounding box after fitting, in world units. */
-  bounds: { w: number; h: number; d: number };
-}
+import {
+  addLobe,
+  basisFromUp,
+  emptyRaw,
+  fitToFootprint,
+  mulberry32,
+  type GeneratedMesh,
+  type Raw,
+} from './mesh-kit.js';
+
+/** A generated mesh — the shared shape, named here for the callers that already speak it.
+ *  The primitives that build one live in `mesh-kit.ts`, which the UAT-flower and story-tree
+ *  generators build out of too. */
+export type PlantMesh = GeneratedMesh;
 
 /** The knobs a caller may turn. Everything else is derived, so two callers asking for the
  *  same plant get the same plant. */
@@ -70,195 +71,6 @@ export interface PlantSpec {
 }
 
 /**
- * A small deterministic PRNG (mulberry32) — the same generator family `scene.ts`'s own
- * `driftSpot` uses. `Math.random` is FORBIDDEN here: ADR-0380 D6 fence 2 says determinism
- * MOVES rather than disappearing, and a plant whose shape changed between two frames would
- * take the scene graph's byte-reproducibility with it.
- */
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-interface Raw {
-  pos: number[];
-  nrm: number[];
-  idx: number[];
-}
-
-/** An octahedron, the seed solid for the geodesic lobes. */
-const OCTA_V: [number, number, number][] = [
-  [1, 0, 0],
-  [-1, 0, 0],
-  [0, 1, 0],
-  [0, -1, 0],
-  [0, 0, 1],
-  [0, 0, -1],
-];
-const OCTA_F: [number, number, number][] = [
-  [0, 2, 4],
-  [2, 1, 4],
-  [1, 3, 4],
-  [3, 0, 4],
-  [2, 0, 5],
-  [1, 2, 5],
-  [3, 1, 5],
-  [0, 3, 5],
-];
-
-function norm(v: [number, number, number]): [number, number, number] {
-  const l = Math.hypot(v[0], v[1], v[2]) || 1;
-  return [v[0] / l, v[1] / l, v[2] / l];
-}
-
-function mid(
-  a: [number, number, number],
-  b: [number, number, number],
-): [number, number, number] {
-  return norm([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2]);
-}
-
-/** A geodesic sphere at `detail` subdivisions, appended into `raw` at `centre`, scaled by
- *  `radius` per axis. Normals are the unit sphere positions — exact, not estimated, which
- *  is what lets the banding read as curvature rather than as noise. */
-function addLobe(
-  raw: Raw,
-  centre: [number, number, number],
-  radius: [number, number, number],
-  detail: number,
-  /** Optional lobe-local basis (3 orthonormal axes). Absent = world-axis-aligned, which is
-   *  the `mound` style's union-of-circles silhouette. */
-  basis?: [[number, number, number], [number, number, number], [number, number, number]],
-): void {
-  let verts: [number, number, number][] = OCTA_V.map(norm);
-  let faces: [number, number, number][] = OCTA_F.map((f) => [...f] as [number, number, number]);
-
-  for (let d = 0; d < detail; d++) {
-    const cache = new Map<string, number>();
-    const nextFaces: [number, number, number][] = [];
-    const midpoint = (i: number, j: number): number => {
-      const key = i < j ? `${i}_${j}` : `${j}_${i}`;
-      const hit = cache.get(key);
-      if (hit !== undefined) return hit;
-      const m = mid(verts[i]!, verts[j]!);
-      verts.push(m);
-      const id = verts.length - 1;
-      cache.set(key, id);
-      return id;
-    };
-    for (const [a, b, c] of faces) {
-      const ab = midpoint(a, b);
-      const bc = midpoint(b, c);
-      const ca = midpoint(c, a);
-      nextFaces.push([a, ab, ca], [ab, b, bc], [ca, bc, c], [ab, bc, ca]);
-    }
-    faces = nextFaces;
-  }
-
-  const base = raw.pos.length / 3;
-  for (const v of verts) {
-    // Scale in the LOBE's own frame, then rotate that frame into the world. With no basis
-    // this is exactly the old axis-aligned ellipsoid; with one, the lobe tilts.
-    const sx = v[0] * radius[0];
-    const sy = v[1] * radius[1];
-    const sz = v[2] * radius[2];
-    // The true surface normal of a scaled ellipsoid is the sphere normal divided by the
-    // radii, re-normalised — computed in the same local frame, then rotated identically.
-    // Using the sphere normal directly would light a squashed lobe as if it were round, and
-    // on a BANDED material that moves a visible rung boundary and reads as art.
-    const ln = norm([v[0] / radius[0], v[1] / radius[1], v[2] / radius[2]]);
-    let px = sx;
-    let py = sy;
-    let pz = sz;
-    let nx = ln[0];
-    let ny = ln[1];
-    let nz = ln[2];
-    if (basis) {
-      const [u, w, t] = basis;
-      px = sx * u[0] + sy * w[0] + sz * t[0];
-      py = sx * u[1] + sy * w[1] + sz * t[1];
-      pz = sx * u[2] + sy * w[2] + sz * t[2];
-      // A basis is ORTHONORMAL, so it is its own inverse-transpose — a normal rotates by
-      // the same matrix as a position, with no correction term.
-      nx = ln[0] * u[0] + ln[1] * w[0] + ln[2] * t[0];
-      ny = ln[0] * u[1] + ln[1] * w[1] + ln[2] * t[1];
-      nz = ln[0] * u[2] + ln[1] * w[2] + ln[2] * t[2];
-    }
-    raw.pos.push(centre[0] + px, centre[1] + py, centre[2] + pz);
-    const n = norm([nx, ny, nz]);
-    raw.nrm.push(n[0], n[1], n[2]);
-  }
-  for (const [a, b, c] of faces) raw.idx.push(base + a, base + b, base + c);
-  verts = [];
-}
-
-/** Scale + translate a raw mesh so its bounding box is exactly `width` x `height` in the
- *  ground plane's x and the up axis y, standing on y = 0. THE MATCHED-FOOTPRINT CONTRACT. */
-function fitToFootprint(raw: Raw, width: number, height: number): PlantMesh {
-  let minX = Infinity;
-  let maxX = -Infinity;
-  let minY = Infinity;
-  let maxY = -Infinity;
-  let minZ = Infinity;
-  let maxZ = -Infinity;
-  for (let i = 0; i < raw.pos.length; i += 3) {
-    minX = Math.min(minX, raw.pos[i]!);
-    maxX = Math.max(maxX, raw.pos[i]!);
-    minY = Math.min(minY, raw.pos[i + 1]!);
-    maxY = Math.max(maxY, raw.pos[i + 1]!);
-    minZ = Math.min(minZ, raw.pos[i + 2]!);
-    maxZ = Math.max(maxZ, raw.pos[i + 2]!);
-  }
-  const sx = maxX - minX || 1;
-  const sy = maxY - minY || 1;
-  const sz = maxZ - minZ || 1;
-  const kx = width / sx;
-  const ky = height / sy;
-  // Depth follows the WIDTH scale, never its own: a plant is not squashed along the view
-  // axis just because its 2D marks happened to be short. The footprint constrains what the
-  // camera sees; the third axis stays proportionate to the first.
-  const kz = kx;
-  const cx = (minX + maxX) / 2;
-  const cz = (minZ + maxZ) / 2;
-
-  const positions = new Float32Array(raw.pos.length);
-  for (let i = 0; i < raw.pos.length; i += 3) {
-    positions[i] = (raw.pos[i]! - cx) * kx;
-    positions[i + 1] = (raw.pos[i + 1]! - minY) * ky;
-    positions[i + 2] = (raw.pos[i + 2]! - cz) * kz;
-  }
-
-  // A NON-UNIFORM scale changes the normals: the correct transform is the inverse
-  // transpose, which for a diagonal scale is the reciprocal scale, re-normalised. Skipping
-  // this is the classic silent shading bug — the mesh looks right in wireframe and lights
-  // wrong, which on a banded material shows up as a rung boundary in the wrong place.
-  const normals = new Float32Array(raw.nrm.length);
-  for (let i = 0; i < raw.nrm.length; i += 3) {
-    const nx = raw.nrm[i]! / kx;
-    const ny = raw.nrm[i + 1]! / ky;
-    const nz = raw.nrm[i + 2]! / kz;
-    const l = Math.hypot(nx, ny, nz) || 1;
-    normals[i] = nx / l;
-    normals[i + 1] = ny / l;
-    normals[i + 2] = nz / l;
-  }
-
-  return {
-    positions,
-    normals,
-    indices: Uint16Array.from(raw.idx),
-    triangles: raw.idx.length / 3,
-    bounds: { w: width, h: height, d: sz * kz },
-  };
-}
-
-/**
  * Grow one plant. Deterministic in `spec.seed`, fitted to `spec.width` x `spec.height`.
  *
  * The forms are deliberately COARSE and carry no meaning. ADR-0226 D2 gives the vegetation
@@ -270,7 +82,7 @@ export function growPlant(spec: PlantSpec): PlantMesh {
   const detail = Math.max(0, Math.min(3, spec.detail ?? 2));
   const style = spec.style ?? 'mound';
   const rand = mulberry32(spec.seed);
-  const raw: Raw = { pos: [], nrm: [], idx: [] };
+  const raw: Raw = emptyRaw();
 
   const lobeCount =
     spec.form === 'blade' ? 5 : spec.form === 'stem' ? 3 : spec.form === 'flower' ? 4 : 6;
@@ -306,24 +118,14 @@ export function growPlant(spec: PlantSpec): PlantMesh {
       Math.sin(tilt) * Math.sin(yaw),
     ];
     // Any vector not parallel to `up` gives the first tangent; Gram-Schmidt gives the rest.
-    const seedVec: [number, number, number] = Math.abs(up[1]) > 0.9 ? [1, 0, 0] : [0, 1, 0];
-    const uAxis = norm([
-      seedVec[1] * up[2] - seedVec[2] * up[1],
-      seedVec[2] * up[0] - seedVec[0] * up[2],
-      seedVec[0] * up[1] - seedVec[1] * up[0],
-    ]);
-    const tAxis = norm([
-      up[1] * uAxis[2] - up[2] * uAxis[1],
-      up[2] * uAxis[0] - up[0] * uAxis[2],
-      up[0] * uAxis[1] - up[1] * uAxis[0],
-    ]);
+    // `basisFromUp` is that construction, shared with the flower and tree generators.
     // Flattened along the disc's own normal: broad in its plane, thin across it.
     addLobe(
       raw,
       [cx, cy, cz],
       [lobeR * 1.25, lobeR * 0.34 * squash, lobeR * 1.05],
       detail,
-      [uAxis, up, tAxis],
+      basisFromUp(up),
     );
   }
 
