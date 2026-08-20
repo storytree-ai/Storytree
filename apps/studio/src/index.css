@@ -5968,6 +5968,32 @@ button.legend-tile:hover {
 .arc-lanes-note {
   padding: 14px 16px;
 }
+/* "Reading arcs…" carries a MOVING part, because it is the one lane state that can honestly last
+   tens of seconds (the read retries on a 30 s budget, api.ts `arcs`) and prose alone cannot tell a
+   working surface from a stalled one. Same idiom as .load-screen / .store-banner — the neutral hue,
+   not an accent: reading is progress, not an alarm — reusing @keyframes spin, tinted to the library
+   panel's own palette rather than the app-shell greys the drawer does not use. */
+.arc-lanes-reading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.arc-lanes-reading .spinner {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+  border: 2px solid color-mix(in srgb, var(--lp-ink-soft) 30%, transparent);
+  border-top-color: var(--lp-ink-soft);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+/* Under reduced motion the ring stays, static — the label still reads "Reading arcs…", so the state
+   survives losing its animation (the .build-spinner rule's standing bargain, ADR-0070 §3). */
+@media (prefers-reduced-motion: reduce) {
+  .arc-lanes-reading .spinner {
+    animation: none;
+  }
+}
 /* ADR-0335: which arcs draw (active / closed / all) — the studio's equivalent of the CLI's
    `arc list --all|--closed`, so a fully-drained arc is one flag away, not filed and forgotten. */
 .arc-lanes-scope {

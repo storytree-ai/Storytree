@@ -28,7 +28,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, within } from '@testing-library/react';
 import { ArcSurface } from './ArcSurface';
-import { ARCS_UNREACHABLE } from '../lib/arcRollups';
+import { ARCS_UNREACHABLE, type ArcRollupsState } from '../lib/arcRollups';
 import type {
   ArcRollup,
   ArcRollupIncrement,
@@ -556,6 +556,26 @@ describe('ArcSurface — honest absence: no store ≠ no arcs', () => {
     rerender(<ArcSurface arcs={[]} now={NOW} />);
     expect(screen.queryByTestId('arc-lanes-no-store')).toBeNull();
     expect(screen.getByTestId('arc-lanes').textContent).toContain('No active arcs.');
+  });
+
+  it('shows a MOVING part while reading, not just the word — and only while reading', () => {
+    // The read retries on a 30 s budget (api.ts `arcs`), so this state can honestly last tens of
+    // seconds. Held that long, a static line of prose reads as a surface that has given up — which
+    // is precisely what the unreachable note below exists to say, and must not be said by accident.
+    // The spinner is the only thing distinguishing "working" from "stalled" while both look alike.
+    const { rerender } = render(<ArcSurface arcs={undefined} now={NOW} />);
+    const reading = screen.getByTestId('arc-lanes-reading');
+    expect(reading.querySelector('.spinner')).not.toBeNull();
+    // Announced, not just drawn: the lanes region changes under a reader who cannot see it spin.
+    expect(reading.getAttribute('role')).toBe('status');
+
+    // It must NOT survive into a settled state — a spinner beside an answer claims work that has
+    // finished, and beside the unreachable note it would promise a retry that is no longer coming.
+    const settledStates: ArcRollupsState[] = [ARCS_UNREACHABLE, null, []];
+    for (const settled of settledStates) {
+      rerender(<ArcSurface arcs={settled} now={NOW} />);
+      expect(screen.queryByTestId('arc-lanes-reading')).toBeNull();
+    }
   });
 
   it('keeps the briefing panel honest in every non-answer state — no lane, no stale pick', () => {
