@@ -158,7 +158,7 @@ are already available rather than needing to be rediscovered.
 
 ## Numbers
 
-- **20,189,511** opaque delivered pixels across **35** canvases, **0 off-palette**, **49** distinct
+- **19,569,146** opaque delivered pixels across **35** canvases, **0 off-palette**, **49** distinct
   delivered colours against **156** authored entries (up from 104 — the flower family, the crown
   tokens and the shared bole are all newly declared, which is what keeps the fence a fence rather
   than a fence with an exception). Measured on the MERGED page, so the canvas count and the pixel
