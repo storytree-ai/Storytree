@@ -180,21 +180,44 @@ test("a real spawned CLI writes NO tsx transform-cache files", () => {
   }
 });
 
-test("this very test process inherited the flag — the wiring reaches where the work happens", () => {
+test("this very test process inherited the preload — the wiring reaches where the work happens", () => {
   // The end of the chain, asserted from INSIDE it. `node --test` spawns one child per test file and
   // forwards its `--import` list, so if that forwarding ever stopped, every runner child would be
   // back on the on-disk cache while the package script still looked correct — the whole win lost in
   // silence. Nothing else in this file would notice: the script-order test reads package.json, and
   // the launcher tests spawn a process that sets the flag for itself.
   //
+  // What is asserted is that the variable is DEFINED, not that it equals "1", and the difference is
+  // the whole point. `undefined` is the only value that means "the preload never ran here" — the
+  // regression. Any defined value means it ran: "1" is its default, and the EMPTY string is a caller
+  // who deliberately kept tsx's cache, which CI does on every job (see `.github/workflows/ci.yml`)
+  // because a fresh runner's cache is healthy. Asserting "1" here would red the whole suite on the
+  // one configuration the repo deliberately ships.
+  //
   // Running this file by hand as `node --import tsx --test src/tsx-cache-off.test.ts` fails here, and
   // that is the intended reading: that invocation is not the one the gate runs. Use `pnpm test`, or
   // add `--import ../../scripts/tsx-cache-off.mjs` ahead of `--import tsx`.
-  assert.equal(
+  assert.notEqual(
     process.env["TSX_DISABLE_CACHE"],
-    "1",
-    "the cache-off preload did not reach this test process — run the package's own `pnpm test`. " +
-      "If you set TSX_DISABLE_CACHE to the empty string on purpose (the escape hatch, e.g. to " +
-      "re-measure the cache), this failure IS the hatch working and is the only one it causes.",
+    undefined,
+    "the cache-off preload did not reach this test process — run the package's own `pnpm test`",
+  );
+});
+
+test("CI opts back IN to tsx's cache, and spells it the one way that works", () => {
+  // A hosted runner gets a fresh VM per job, so its cache cannot bloat and is a large WIN there —
+  // measured at suite scale: a fresh cache runs `pnpm -r --no-bail test` in 273-296s against 358s
+  // with the cache off. So CI sets the variable back.
+  //
+  // THE SPELLING IS THE WHOLE RISK. tsx tests this variable for TRUTHINESS, so `"0"` — the spelling
+  // anyone would reach for to mean "off" — still DISABLES the cache, silently costing CI ~30% while
+  // reading as correct in the diff. Only the empty string survives `??=` AND reads falsy to tsx.
+  const ci = fs.readFileSync(path.join(REPO_ROOT, ".github", "workflows", "ci.yml"), "utf8");
+  const declared = /^\s*TSX_DISABLE_CACHE:\s*(.*)$/m.exec(ci);
+  assert.ok(declared, "ci.yml must declare TSX_DISABLE_CACHE — a runner's cache is healthy and worth keeping");
+  assert.equal(
+    declared[1]?.trim(),
+    '""',
+    'CI must set TSX_DISABLE_CACHE to the EMPTY string — "0" is truthy to tsx and would disable the cache',
   );
 });
