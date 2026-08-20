@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded
 decided: 2026-08-14
 arc: codex-factory-parity-arc
 amends: [355]
@@ -7,6 +7,8 @@ amends: [355]
 # ADR-0368: The claim broker holds the credential the sandbox may not, and derives identity Git cannot be lied to about
 
 ## Status
+
+**SUPERSEDED by [ADR-0390](0390-codex-runs-at-claude-parity-and-the-managed-containment-boun.md) (2026-08-20)** - Codex now runs at Claude parity and the managed containment boundary is withdrawn. The broker's premise - that the sandbox may not hold a credential - is WITHDRAWN; under parity a Codex session reads the same credentials Claude does, so there is nothing for a broker to hold on its behalf. The code is not deleted by that supersession (ADR-0390 D5 parks its retirement); it simply stops being the required path. Kept as browsable history; do not calibrate to it.
 
 accepted (2026-08-14) — the DESIGN was directed by the owner in conversation on **2026-08-13** (the
 out-of-sandbox broker, chosen over the token-vending alternative); design-time alignment IS the
