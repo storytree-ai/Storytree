@@ -39,6 +39,25 @@ const launchRoot = join(appRoot, "..", "..");
 // below blocks serving, so the launch shows the misconfiguration instead of stray code). When NEITHER is
 // configured we fall back to the launch checkout (the dev-convenience behaviour). A sync `existsSync` +
 // `git` read are the real probes over which the pure resolveRuntimeRoot decides.
+// Whether git RESOLVES the runtime worktree as a work tree at all (ADR-0181). A linked worktree's `.git`
+// is a FILE pointing at `<main>/.git/worktrees/<name>`; when that admin dir is gone — a destroyed or
+// re-cloned main `.git` — every git command there fails with "fatal: not a git repository" while the
+// files sit perfectly intact. branchOfSync reads null for BOTH that and a stray detached HEAD, so the
+// resolver needs this second probe to tell a lost REGISTRATION from a branch-pin failure and print the
+// remedy that can actually run. Fail-closed like its siblings — any git error reads false.
+function isGitWorktreeSync(path: string): boolean {
+  try {
+    return (
+      execFileSync("git", ["rev-parse", "--is-inside-work-tree"], {
+        cwd: path,
+        windowsHide: true,
+        encoding: "utf8",
+      }).trim() === "true"
+    );
+  } catch {
+    return false;
+  }
+}
 function branchOfSync(path: string): string | null {
   try {
     const out = execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
@@ -96,7 +115,12 @@ const runtime = resolveRuntimeRoot(
       : pickConfiguredRuntime(process.env[RUNTIME_ROOT_ENV] ?? null, readRuntimeConfigRaw()),
     launchRoot,
   },
-  { exists: (p) => existsSync(p), branchOf: branchOfSync, pinnedToOriginMain: pinnedToOriginMainSync },
+  {
+    exists: (p) => existsSync(p),
+    isGitWorktree: isGitWorktreeSync,
+    branchOf: branchOfSync,
+    pinnedToOriginMain: pinnedToOriginMainSync,
+  },
 );
 if (runtime.ok) {
   console.error(`[main] serving runtime root ${runtime.root} (source: ${runtime.source})`);

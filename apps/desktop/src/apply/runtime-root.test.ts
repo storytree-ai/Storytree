@@ -19,9 +19,11 @@ import {
 function probes(
   worktrees: Record<string, string | null>,
   pinned: Set<string> = new Set(),
+  unregistered: Set<string> = new Set(),
 ): RuntimeRootProbes {
   return {
     exists: (p) => Object.prototype.hasOwnProperty.call(worktrees, p),
+    isGitWorktree: (p) => !unregistered.has(p),
     branchOf: (p) => worktrees[p] ?? null,
     pinnedToOriginMain: (p) => pinned.has(p),
   };
@@ -100,11 +102,32 @@ test("configured + DETACHED HEAD NOT reachable from origin/main → refuses (a s
 test("configured but git can't answer (null branch, not pinned) → refuses, naming the unknown state", () => {
   const r = resolveRuntimeRoot(
     { configured: "/runtime", launchRoot: "/dev/checkout" },
-    probes({ "/runtime": null }), // branchOf null (git missing / not a repo) AND not pinned → fail-closed
+    probes({ "/runtime": null }), // a REGISTERED worktree git can still not name a branch for → fail-closed
   );
   assert.equal(r.ok, false);
   assert.match((r as { error: string }).error, /detached\/unknown/);
   assert.match((r as { error: string }).error, /not pinned to origin\/main/);
+});
+
+test("configured + present but NOT a registered worktree → names the LOST REGISTRATION, not a branch pin", () => {
+  // The 2026-08-20 shape: the main checkout's `.git` was destroyed and re-cloned, so this worktree's
+  // admin dir (`<main>/.git/worktrees/<name>`) no longer exists. The DIRECTORY and every file in it are
+  // intact, and the code is legitimate merged `main` — git simply cannot read it, so `branchOf` reads
+  // null exactly as a stray detached HEAD would. The old single message called this
+  // "(detached/unknown) … not pinned to origin/main" and handed over a `git fetch && git checkout`
+  // remedy that CANNOT RUN here: with no registration git answers `fatal: not a git repository`. The
+  // two states need different fixes, so they must not share one message.
+  const r = resolveRuntimeRoot(
+    { configured: "/runtime", launchRoot: "/dev/checkout" },
+    probes({ "/runtime": null }, new Set(), new Set(["/runtime"])),
+  );
+  assert.equal(r.ok, false);
+  const { error } = r as { error: string };
+  assert.match(error, /registration/i);
+  assert.match(error, /not a git repository/);
+  // The load-bearing half: the WRONG remedy must not be offered for this state.
+  assert.doesNotMatch(error, /not pinned to origin\/main/);
+  assert.doesNotMatch(error, /checkout --detach origin\/main/);
 });
 
 // ---- pickConfiguredRuntime: env-wins-then-file source selection (ADR-0181 Decision 1) ----

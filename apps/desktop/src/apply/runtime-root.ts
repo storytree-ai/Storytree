@@ -69,6 +69,19 @@ export interface RuntimeRootConfig {
 export interface RuntimeRootProbes {
   /** True iff `path` exists as a directory the app can serve from. */
   exists: (path: string) => boolean;
+  /**
+   * True iff git RESOLVES `path` as a work tree (`git -C <path> rev-parse --is-inside-work-tree`).
+   *
+   * Separate from {@link branchOf} because a lost worktree REGISTRATION and a stray branch are
+   * indistinguishable through `branchOf` alone — both read null — yet their remedies are opposite. A
+   * linked worktree's `.git` is a FILE pointing at `<main>/.git/worktrees/<name>`; destroy or re-clone
+   * the main checkout's `.git` and that admin dir goes with it, leaving every file in the worktree
+   * intact but unreadable by git (`fatal: not a git repository`), which `git worktree repair` cannot
+   * rebuild. Measured 2026-08-20: the runtime worktree held legitimate merged `main` throughout, so the
+   * refusal was about READABILITY, never about the code being stray. Fail-closed like its siblings —
+   * any git error reads FALSE.
+   */
+  isGitWorktree: (path: string) => boolean;
   /** The git branch checked out at `path`, or null when it is not a resolvable git worktree. */
   branchOf: (path: string) => string | null;
   /**
@@ -98,6 +111,9 @@ export type RuntimeRootResolution =
  *  - No runtime configured → serve the launch checkout (`source: "launch"`), today's behaviour.
  *  - Configured but MISSING → refuse with a `git worktree add` hint (never fall back to the launch
  *    checkout, which would re-introduce the stray-branch bug the configuration exists to prevent).
+ *  - Configured and PRESENT but not a registered worktree (git cannot read it at all — the admin dir in
+ *    the main checkout is gone) → refuse naming the lost REGISTRATION, because every `git` remedy the
+ *    pin arm below suggests would itself fail with `fatal: not a git repository`.
  *  - Configured but NOT pinned to `main` (a stray commit outside `origin/main`'s history) → refuse: the
  *    desktop must serve pinned `main`, not whatever branch the runtime worktree drifted to.
  *  - Configured, present, pinned to `main` (a detached HEAD at/behind `origin/main` — the canonical
@@ -117,6 +133,26 @@ export function resolveRuntimeRoot(
       error:
         `runtime worktree not found at ${configured} — create it: ` +
         `git worktree add ${configured} origin/${RUNTIME_BRANCH} (ADR-0181)`,
+    };
+  }
+  // A lost REGISTRATION is not a branch-pin failure and must not borrow its remedy (ADR-0181). With no
+  // admin dir EVERY `git -C <path> …` command fails outright, so the re-pin hint below would hand the
+  // reader a command that cannot run — measured 2026-08-20, where it cost a full investigation before
+  // anyone noticed the suggested fix was answering a different question. Diagnose readability BEFORE
+  // asking about the branch, so each state carries the fix that actually applies to it.
+  if (!probes.isGitWorktree(configured)) {
+    return {
+      ok: false,
+      error:
+        `runtime worktree at ${configured} exists, but git does not recognise it as a worktree — its ` +
+        `registration is missing (the '.git/worktrees/<name>' admin directory inside the MAIN ` +
+        `checkout, which a destroyed or re-cloned main '.git' takes with it). The files here are ` +
+        `intact and this is NOT a branch problem: git commands run here fail with "fatal: not a git ` +
+        `repository", and 'git worktree repair' cannot rebuild a missing admin directory. Re-create ` +
+        `it from your MAIN checkout — this worktree only ever tracks ${RUNTIME_BRANCH}, so it holds ` +
+        `no unique work: move ${configured} aside, run ` +
+        `git -C <main-checkout> worktree add --detach ${configured} origin/${RUNTIME_BRANCH}, then ` +
+        `pnpm install && pnpm --filter studio build inside it (ADR-0181).`,
     };
   }
   // "On `main`" means PINNED to `main`, not the literal local branch NAME (ADR-0181). Accept either the
