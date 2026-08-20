@@ -29,7 +29,14 @@ import { fileURLToPath } from 'node:url';
 import { landPalette, statusFamilyOf } from './palette-band.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const OUT = join(HERE, '../../../docs/research/chapter2-live-render-2026-08-19');
+// The output directory is overridable so one capture script serves both evidence pages
+// (the plant row and the island) without a second copy of the readback + refusal logic —
+// this arc already carries three ~700-line compositor copies and a fork detector it had to
+// build because nothing noticed they had diverged.
+// Resolved against the REPO ROOT (three levels up from this harness), never `process.cwd()`
+// — pnpm runs a package script from the PACKAGE directory, so a cwd-relative path quietly
+// wrote the evidence to `packages/forest-world-r3f/docs/research/...` instead of the repo's.
+const OUT = join(HERE, '../../..', process.env['ST_OUT_DIR'] ?? 'docs/research/chapter2-live-render-2026-08-19');
 const URL = process.env['ST_HARNESS_URL'] ?? 'http://localhost:5184/compare.html';
 
 function fail(msg) {
@@ -179,10 +186,13 @@ const p50 = sorted[Math.floor(sorted.length / 2)];
 // --- the pictures -------------------------------------------------------------------------
 
 mkdirSync(OUT, { recursive: true });
-await page.screenshot({ path: join(OUT, 'live-vs-sprite.png'), fullPage: true });
+await page.screenshot({
+  path: join(OUT, process.env['ST_FULL_PAGE_NAME'] ?? 'live-vs-sprite.png'),
+  fullPage: true,
+});
 
 const sections = await page.$$('section');
-const names = ['delivered-size', 'zoom-ladder', 'magnified', 'detail-ladder', 'status-tokens'];
+const names = (process.env['ST_PANEL_NAMES'] ?? 'delivered-size,zoom-ladder,magnified,detail-ladder,status-tokens').split(',');
 for (let i = 0; i < sections.length && i < names.length; i++) {
   await sections[i].screenshot({ path: join(OUT, `panel-${names[i]}.png`) });
 }

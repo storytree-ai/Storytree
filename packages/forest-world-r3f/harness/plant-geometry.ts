@@ -53,6 +53,20 @@ export interface PlantSpec {
    *  experiment sweeps, because it is the thing a live renderer can spend that the sprite
    *  path provably could not. */
   detail?: number;
+  /** The SILHOUETTE style.
+   *
+   *  `mound` (the default, and the original) stacks axis-aligned ellipsoid lobes. The owner
+   *  looked at it on 2026-08-19 and called it "circular swirls", which is a fair reading of
+   *  what it is: every lobe is a sphere scaled on the world axes, so the outline is a union
+   *  of circles and the banded shading lays concentric rings inside each one — the rings
+   *  ARE the swirl.
+   *
+   *  `foliage` keeps everything else identical — same lobe count, same placement draws, same
+   *  ladder, same footprint fit — and changes only each lobe's ORIENTATION and PROPORTION:
+   *  lobes are flattened into leaf-like discs and tilted onto their own axes, so neither the
+   *  outline nor the shading rings stay circular. It is a silhouette answer, which is the
+   *  lever the arc measured as the affordable one (0 palette entries). */
+  style?: 'mound' | 'foliage';
 }
 
 /**
@@ -118,6 +132,9 @@ function addLobe(
   centre: [number, number, number],
   radius: [number, number, number],
   detail: number,
+  /** Optional lobe-local basis (3 orthonormal axes). Absent = world-axis-aligned, which is
+   *  the `mound` style's union-of-circles silhouette. */
+  basis?: [[number, number, number], [number, number, number], [number, number, number]],
 ): void {
   let verts: [number, number, number][] = OCTA_V.map(norm);
   let faces: [number, number, number][] = OCTA_F.map((f) => [...f] as [number, number, number]);
@@ -146,12 +163,35 @@ function addLobe(
 
   const base = raw.pos.length / 3;
   for (const v of verts) {
-    raw.pos.push(centre[0] + v[0] * radius[0], centre[1] + v[1] * radius[1], centre[2] + v[2] * radius[2]);
-    // The lobe is an ellipsoid, so the true surface normal is the sphere normal divided by
-    // the radii, re-normalised. Using the sphere normal directly would light a squashed
-    // mound as if it were round — a shading lie, and this experiment's whole subject is
-    // whether shading survives, so it must not be approximated here.
-    const n = norm([v[0] / radius[0], v[1] / radius[1], v[2] / radius[2]]);
+    // Scale in the LOBE's own frame, then rotate that frame into the world. With no basis
+    // this is exactly the old axis-aligned ellipsoid; with one, the lobe tilts.
+    const sx = v[0] * radius[0];
+    const sy = v[1] * radius[1];
+    const sz = v[2] * radius[2];
+    // The true surface normal of a scaled ellipsoid is the sphere normal divided by the
+    // radii, re-normalised — computed in the same local frame, then rotated identically.
+    // Using the sphere normal directly would light a squashed lobe as if it were round, and
+    // on a BANDED material that moves a visible rung boundary and reads as art.
+    const ln = norm([v[0] / radius[0], v[1] / radius[1], v[2] / radius[2]]);
+    let px = sx;
+    let py = sy;
+    let pz = sz;
+    let nx = ln[0];
+    let ny = ln[1];
+    let nz = ln[2];
+    if (basis) {
+      const [u, w, t] = basis;
+      px = sx * u[0] + sy * w[0] + sz * t[0];
+      py = sx * u[1] + sy * w[1] + sz * t[1];
+      pz = sx * u[2] + sy * w[2] + sz * t[2];
+      // A basis is ORTHONORMAL, so it is its own inverse-transpose — a normal rotates by
+      // the same matrix as a position, with no correction term.
+      nx = ln[0] * u[0] + ln[1] * w[0] + ln[2] * t[0];
+      ny = ln[0] * u[1] + ln[1] * w[1] + ln[2] * t[1];
+      nz = ln[0] * u[2] + ln[1] * w[2] + ln[2] * t[2];
+    }
+    raw.pos.push(centre[0] + px, centre[1] + py, centre[2] + pz);
+    const n = norm([nx, ny, nz]);
     raw.nrm.push(n[0], n[1], n[2]);
   }
   for (const [a, b, c] of faces) raw.idx.push(base + a, base + b, base + c);
@@ -228,6 +268,7 @@ function fitToFootprint(raw: Raw, width: number, height: number): PlantMesh {
  */
 export function growPlant(spec: PlantSpec): PlantMesh {
   const detail = Math.max(0, Math.min(3, spec.detail ?? 2));
+  const style = spec.style ?? 'mound';
   const rand = mulberry32(spec.seed);
   const raw: Raw = { pos: [], nrm: [], idx: [] };
 
@@ -246,7 +287,44 @@ export function growPlant(spec: PlantSpec): PlantMesh {
     const cy = t * 0.62 + rand() * 0.12;
     const lobeR = (0.42 - t * 0.2) * (0.75 + rand() * 0.5);
     const squash = spec.form === 'blade' ? 1.55 : spec.form === 'stem' ? 1.9 : 0.82;
-    addLobe(raw, [cx, cy, cz], [lobeR, lobeR * squash, lobeR], detail);
+
+    if (style === 'mound') {
+      addLobe(raw, [cx, cy, cz], [lobeR, lobeR * squash, lobeR], detail);
+      continue;
+    }
+
+    // FOLIAGE: the same lobe, flattened into a leaf-like disc and tilted onto its own axis.
+    // Both draws come from `rand` in a fixed order, so the plant stays deterministic and a
+    // foliage plant differs from a mound plant only in orientation and proportion — which
+    // is what makes the two panels a fair comparison of SILHOUETTE rather than of size.
+    const yaw = rand() * Math.PI * 2;
+    const tilt = 0.35 + rand() * 0.75;
+    // The disc's own normal, tilted off vertical by `tilt` and swung to `yaw`.
+    const up: [number, number, number] = [
+      Math.sin(tilt) * Math.cos(yaw),
+      Math.cos(tilt),
+      Math.sin(tilt) * Math.sin(yaw),
+    ];
+    // Any vector not parallel to `up` gives the first tangent; Gram-Schmidt gives the rest.
+    const seedVec: [number, number, number] = Math.abs(up[1]) > 0.9 ? [1, 0, 0] : [0, 1, 0];
+    const uAxis = norm([
+      seedVec[1] * up[2] - seedVec[2] * up[1],
+      seedVec[2] * up[0] - seedVec[0] * up[2],
+      seedVec[0] * up[1] - seedVec[1] * up[0],
+    ]);
+    const tAxis = norm([
+      up[1] * uAxis[2] - up[2] * uAxis[1],
+      up[2] * uAxis[0] - up[0] * uAxis[2],
+      up[0] * uAxis[1] - up[1] * uAxis[0],
+    ]);
+    // Flattened along the disc's own normal: broad in its plane, thin across it.
+    addLobe(
+      raw,
+      [cx, cy, cz],
+      [lobeR * 1.25, lobeR * 0.34 * squash, lobeR * 1.05],
+      detail,
+      [uAxis, up, tAxis],
+    );
   }
 
   return fitToFootprint(raw, spec.width, spec.height);
