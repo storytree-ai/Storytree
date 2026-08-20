@@ -5,7 +5,10 @@ story: model-uat-pilot
 arc: model-uat-promotion
 title: "Every pilot criterion points at a live-canonical detail artifact"
 outcome: "Every pilot criterion carries a `(detail: …)` pointer that resolves to a validating `uat-criterion` detail artifact in the live Library."
-status: proposed
+# RETIRED 2026-08-20 with its parent story (ADR-0247 D5, which names that story on its retirement
+# worklist by id). The code is NOT unmounted by this flip — ADR-0247 D5 makes each package retirement
+# its own provable unit, and that unit is still open.
+status: retired
 proof_mode: integration-test
 depends_on: [uat-criterion-library-surface, pilot-criteria-classified]
 decisions: [209, 307, 192]

@@ -5,7 +5,10 @@ story: model-uat-witness
 arc: model-uat-promotion
 title: "A model criterion declares a minimum capability tier — advanced or frontier, nothing below"
 outcome: "A model criterion declares a minimum capability tier of advanced or frontier; a non-model criterion carries none, and a tier below the advanced floor or an unknown tier is refused at the parse boundary."
-status: proposed
+# RETIRED 2026-08-20 with its parent story (ADR-0247 D5, which names that story on its retirement
+# worklist by id). The code is NOT unmounted by this flip — ADR-0247 D5 makes each package retirement
+# its own provable unit, and that unit is still open.
+status: retired
 proof_mode: integration-test
 depends_on: [three-kind-witness]
 decisions: [209, 192]
