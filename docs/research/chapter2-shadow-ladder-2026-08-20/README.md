@@ -206,9 +206,22 @@ not redraw the mesh seams the owner had removed. On this land the parcel bevel I
 already shades itself by normal. AO there would double-darken the one feature that already reads,
 and it would land on the same single rung, so it could add nothing the bevel does not already have.
 
-**(k) The shadow is OFF BY DEFAULT.** `shadow` defaults to `'off'`, so this increment adds a
-capability and changes no existing picture. Whether the island wears it is part of the terminal
-attestation, not this pass's to decide.
+**(k) The shadow is OFF BY DEFAULT, AND THE PALETTE IS PRICED RATHER THAN SPENT.** This distinction
+is the one that matters most, because the increment says in as many words that a shadow which
+cannot be held inside the closed palette is *a finding to price and escalate, not a licence to
+widen the palette under cover of an art change*. So, precisely:
+
+- `SHADE_LEVELS` is unchanged, and `landPalette()` still returns the same **104** entries. Asserted
+  by test, not claimed.
+- The 26 extra entries exist only on a material that is handed a shadow field, and `shadow`
+  defaults to `'off'` — so every panel that predates this delivers bit-identical pixels.
+- All of it lives in `harness/`, which the website sync does not copy (`scope-fence.test.ts`), and
+  ADR-0380 D6 already makes ADOPTING the live-render experiment a separate event from running it.
+
+The shadow was BUILT in order to count the price on real delivered pixels rather than assert it
+from the TypeScript — which is this arc's whole discipline, and the only way to know that 26
+entries buy 370,067 delivered pixels rather than PR #1385's zero. **Nothing shipped wears the
+wider palette, and whether anything should is the owner's, not this pass's.**
 
 ## 6. What this means for the arc — the priced options, not a recommendation
 
