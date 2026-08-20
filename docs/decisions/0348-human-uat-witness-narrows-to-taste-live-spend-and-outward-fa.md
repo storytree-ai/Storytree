@@ -328,7 +328,13 @@ which concerns a genuine TASTE leg and stays open and owner-owned.
 - The witness glyph tells the truth again: `human` means a person's judgment is genuinely required,
   and the standing story-tier attestation queue falls from **42 legs to 4** — 21 deleted as
   experience, 17 reclassified `machine`. That is the number the owner was actually being asked to
-  work through, and it was never going to be worked through at 42.
+  work through, and it was never going to be worked through at 42. *(Corrected in place 2026-08-21,
+  ADR-0139: "17 reclassified machine" assumed a clean flip that did not happen. Driving the flip
+  surfaced ADR-0357's second basis — nine of the seventeen sat behind the packaged Electron app, and
+  of those only four actually flipped; three stayed `human` on ADR-0357's D1 second basis and two were
+  moot. The queue did not settle at 4 — it settled at 9 per ADR-0357, then at 5 once ADR-0396 deleted
+  the criteria that sat on stories retired in the meantime. See ADR-0357's own correction for the final
+  count and names.)*
 - **Two questions, asked in order, instead of one asked of everything.** *Is this an acceptance claim
   at all?* comes first (D6) and removes the experience legs entirely; only what survives it reaches
   *does it have a compiler or a driver?* (D1). The old single question let an experience property

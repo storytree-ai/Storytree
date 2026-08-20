@@ -183,6 +183,19 @@ ADR-0348's own Context is the argument against it. The bet is that D2 and D3 tog
 between an exception and a carve-out. If the human population grows past its measured 13 without each
 addition surviving D2's bar, that bet has lost and the remedy is to tighten D2, not to widen D1.
 
+**Further reduced 2026-08-21 by [ADR-0396](0396-a-retired-story-s-uat-criteria-are-deleted-with-their-ordina.md)'s
+retired-story disposition — corrected in place (ADR-0139).** The "NINE, down from thirteen" count
+above is no longer current. Two of the four taste legs it counted — `headless-orchestrator` 4 and
+`chat-subagent-spawn` 6 — sat on stories ADR-0396 retired, and were deleted along with the rest of
+those stories' criteria (ordinals burned, not relocated), joining the already-moot `chat-drive-bridge`
+5 and `chat-subagent-spawn` 5 this ADR had already flagged. This is a DIFFERENT decision acting on a
+different axis (a story's retirement, not this ADR's taste/harness-basis test) reaching the same
+population from outside it; nothing in D1–D6 changed. Measured with `storytree uat census` on
+2026-08-21: the surviving story-tier `human` population is **FIVE, across four stories** —
+`terminal-repo-picker` 7, `desktop` 7, `desktop` 8, `map-terminal-build` 6, `feedback-graduation` 4 —
+matching the arc's closing measurement. All five still carry their D2 basis; D4's "every human leg is
+justified" invariant is unaffected by legs leaving the population rather than joining it unjustified.
+
 ## References
 
 - ADR-0348 — human UAT witness narrows to taste (amended here, D1 only).

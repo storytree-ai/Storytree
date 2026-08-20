@@ -122,6 +122,17 @@ section. This does not weaken ADR-0070 — it removes the duplicate rendering of
 verdict at the altitude where the visual change was actually made. Story UAT asks whether the journey
 completed; it does not ask whether the journey was handsome.
 
+**Corrected in place 2026-08-21 (ADR-0139). [ADR-0348](0348-human-uat-witness-narrows-to-taste-live-spend-and-outward-fa.md)
+D6 overtook the RELOCATE-EVERY-LEG reading of this point and went the other way: a user EXPERIENCE
+property is not a user ACCEPTANCE criterion at all, so the appearance legs this ADR counted (a
+re-measurement with the full parser later found 21, not 17 — see ADR-0348's own counting correction)
+are DELETED outright, not relocated to a capability — chip `task_99f7e0a9`, which owned the
+relocation, is discharged and owns nothing (its reservation on `app-guide` 4 and `app-surface` 11 is
+moot rather than overridden). What survives of this point unchanged: D3 still governs WHERE an
+appearance verdict lives *when one is worth carrying* — that home is `operator-attested` at the
+capability per ADR-0070 stage 2, never a story-UAT leg. What no longer holds is that every appearance
+leg must be carried somewhere.**
+
 **4. A story may declare zero UAT criteria, and pure ports should.**
 
 Already legal via the ADR-0085 union above; this ADR makes it the expected shape for a story nobody
@@ -152,7 +163,11 @@ exists to make visible; it is not a number to delete toward.
 - The deletions cost no coverage and no signal. They remove a second rendering of evidence, not the
   evidence.
 - The owner's standing attestation queue falls from 41 criteria to roughly 6, because 17 move to
-  capability-tier attestation and the rest are handled by ADR-0295.
+  capability-tier attestation and the rest are handled by ADR-0295. *(Corrected in place 2026-08-21,
+  ADR-0139: ADR-0348 D6 later deleted the experience legs outright (re-measured at 21, not 17) rather
+  than moving them to capability-tier attestation — see decision 3's correction above. The queue still
+  fell, just not by that mechanism; the final story-tier human population, per ADR-0357 and ADR-0396,
+  is 5.)*
 - The timing is close to free: with zero criteria holding proof credit after ADR-0253, deleting and
   re-authoring costs nothing that is not already spent.
 - The unbound-machine-leg population (97) is largely dissolved by the same pass rather than needing
