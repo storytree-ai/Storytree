@@ -23,7 +23,7 @@
 
 import * as THREE from 'three';
 
-import { SHADE_LEVELS, bandGlsl, parseHex, tokenRamp } from './palette-band.js';
+import { LIGHT_DIR_AUTHORED, SHADE_LEVELS, bandGlsl, parseHex, tokenRamp } from './palette-band.js';
 
 /** Put a renderer into EXACT-COLOUR mode: what the shader writes is what the framebuffer
  *  holds. Required for the palette-closure proof to mean anything. Call once per renderer. */
@@ -43,10 +43,11 @@ export function tokenColour(hex: string): THREE.Color {
   return new THREE.Color(r / 255, g / 255, b / 255);
 }
 
-/** The single light direction the whole land is shaded by. A live land is still a 2.5D
- *  isometric picture (ADR-0380 D6 fence 4: the projection does not move), so the light is a
- *  fixed authored direction rather than a scene-graph light a camera could swing around. */
-export const LIGHT_DIR = new THREE.Vector3(-0.45, 0.82, 0.35).normalize();
+/** The single light direction the whole land is shaded by, as a three vector. The NUMBERS live
+ *  in `palette-band.ts` beside the authored tokens — they are authored art, and the pure
+ *  geometry half derives from them (the UAT bloom faces the light). This is only their
+ *  browser-side form. */
+export const LIGHT_DIR = new THREE.Vector3(...LIGHT_DIR_AUTHORED).normalize();
 
 export interface BandedMaterialOptions {
   /** The authored token this material's surfaces wear, `#rrggbb`. */

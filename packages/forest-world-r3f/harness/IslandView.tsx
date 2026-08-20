@@ -26,14 +26,20 @@ import {
   triangulateFan,
   type GroundCell,
 } from './island-descriptors.js';
+import { flowersFrom } from './flower-descriptors.js';
+import { growFlower } from './flower-geometry.js';
 import { islandScene, type IslandOptions } from './island-fixture.js';
+import type { GeneratedMesh } from './mesh-kit.js';
 import { plantsFrom, type PlantInstance } from './plant-descriptors.js';
 import { growPlant } from './plant-geometry.js';
 import { STATUS_TOKENS } from './palette-band.js';
+import { treesFrom } from './tree-descriptors.js';
+import { growTree } from './tree-geometry.js';
 import {
   LAND_CAMERA_ELEVATION_DEG,
   groundFlattening,
   uprightForeshortening,
+  type SceneG,
 } from '@storytree/forest-world';
 
 /** The elevation the live camera renders at — the arc's signed research angle (2026-08-16:
@@ -55,6 +61,11 @@ export interface IslandViewProps {
   style?: 'mound' | 'foliage';
   /** Draw the vegetation at all (a bare-land control). */
   plants?: boolean;
+  /** Draw the UAT flowers at all - the pre-2026-08-20 control, which is what makes "what did
+   *  the flowers add" answerable rather than remembered. */
+  flowers?: boolean;
+  /** Draw the hero story tree at all - the same control, for the other new component. */
+  tree?: boolean;
   /** Give one capability a foreign status, for the mixed-island panel. */
   island?: IslandOptions;
 }
@@ -157,6 +168,86 @@ function groundMeshes(cells: readonly GroundCell[]): THREE.Mesh[] {
   return meshes;
 }
 
+/**
+ * Merge a set of already-world-positioned meshes into ONE buffer per authored token, at
+ * `offset`. Shared by the UAT flowers and the story tree because both generators return the same
+ * `Map<token, mesh>` shape, and both need the same two things done to it: translated onto the
+ * ground, and merged so an island's props cost a handful of draw calls rather than hundreds.
+ *
+ * Positions are baked rather than carried on a `Matrix4`: the banded material shades from a
+ * WORLD normal, so a per-instance transform would mean one more matrix per prop for no visual
+ * difference at all.
+ */
+function mergeParts(
+  groups: readonly { parts: ReadonlyMap<string, GeneratedMesh>; offset: [number, number, number] }[],
+): THREE.Mesh[] {
+  const byToken = new Map<string, { pos: number[]; nrm: number[] }>();
+  for (const { parts, offset } of groups) {
+    for (const [token, mesh] of parts) {
+      const acc = byToken.get(token) ?? { pos: [], nrm: [] };
+      byToken.set(token, acc);
+      for (let v = 0; v < mesh.indices.length; v++) {
+        const i = mesh.indices[v]! * 3;
+        acc.pos.push(
+          mesh.positions[i]! + offset[0],
+          mesh.positions[i + 1]! + offset[1],
+          mesh.positions[i + 2]! + offset[2],
+        );
+        acc.nrm.push(mesh.normals[i]!, mesh.normals[i + 1]!, mesh.normals[i + 2]!);
+      }
+    }
+  }
+  const out: THREE.Mesh[] = [];
+  for (const [token, acc] of byToken) {
+    if (!acc.pos.length) continue;
+    const geom = new THREE.BufferGeometry();
+    geom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(acc.pos), 3));
+    geom.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(acc.nrm), 3));
+    // Double-sided: a swept stalk is open at its ends and a petal is a thin lobe, so a
+    // single-sided pass would punch holes exactly where a reader looks.
+    out.push(new THREE.Mesh(geom, createBandedMaterial({ token, doubleSided: true })));
+  }
+  return out;
+}
+
+/**
+ * The island's UAT FLOWERS — one per criterion, 1:1 (ADR-0226 D4), verdict read from the FORM.
+ *
+ * A flower's GROUND position unprojects by `sin(elev)` exactly as a plant's does; its own
+ * heights recover by `cos(elev)` INSIDE `growFlower`. The two foreshortenings are the reason
+ * this is spelled out rather than folded into one number: using the ground flattening on a
+ * height is the silent error that made every plant 2.75x too tall.
+ */
+function flowerMeshes(scene: SceneG): THREE.Mesh[] {
+  const groundFlat = groundFlattening(LAND_CAMERA_ELEVATION_DEG);
+  const upright = uprightForeshortening(LAND_CAMERA_ELEVATION_DEG);
+  return mergeParts(
+    flowersFrom(scene).map((flower) => ({
+      parts: growFlower(flower, upright),
+      offset: [flower.transform.x, 0, flower.transform.z / groundFlat] as [number, number, number],
+    })),
+  );
+}
+
+/**
+ * The HERO STORY TREE, grown as a solid from the scene's own authored tree.
+ *
+ * The tree-angle fork — a raster baked at 20 degrees against a live island rendered at 50 — is
+ * decided and argued at the top of `tree-descriptors.ts`. The short of it: the tree is GROWN
+ * rather than composited, so the camera is genuinely a parameter and the crown stays the
+ * scene's own rather than becoming this session's.
+ */
+function treeMeshes(scene: SceneG): THREE.Mesh[] {
+  const groundFlat = groundFlattening(LAND_CAMERA_ELEVATION_DEG);
+  const upright = uprightForeshortening(LAND_CAMERA_ELEVATION_DEG);
+  return mergeParts(
+    treesFrom(scene).map((tree) => ({
+      parts: growTree(tree, upright),
+      offset: [tree.transform.x, 0, tree.transform.z / groundFlat] as [number, number, number],
+    })),
+  );
+}
+
 /** One merged mesh per (status, style) for the vegetation — same merging rationale. */
 function plantMesh(plants: readonly PlantInstance[], style: 'mound' | 'foliage'): THREE.Mesh[] {
   const byStatus = new Map<string, PlantInstance[]>();
@@ -232,12 +323,30 @@ function renderIsland(canvas: HTMLCanvasElement, props: IslandViewProps): void {
   if (props.plants !== false) {
     for (const m of plantMesh(plantsFrom(scene), props.style ?? 'mound')) scene3.add(m);
   }
+  if (props.flowers !== false) for (const m of flowerMeshes(scene)) scene3.add(m);
+  if (props.tree !== false) for (const m of treeMeshes(scene)) scene3.add(m);
 
   // The island's on-screen size at this camera: the ground's depth foreshortens by
   // sin(RENDER_ELEV), and its width does not.
+  //
+  // WARNING — THE FRAME IS THE SCENE'S, NOT THE GROUND'S. Until this island grew a tree, its
+  // tallest thing was a shrub and framing on the ground plane alone was harmless. A 92-unit hero
+  // tree is not: at this camera its crown reaches well above the ground's own top edge, and a
+  // frame computed from `bounds` alone CROPS IT — silently, and in a way that reads as an art
+  // choice rather than as a camera bug. So the scene's real bounding box is measured once
+  // everything is in it, and the frame grows to hold whatever the props reach.
   const elev = (RENDER_ELEV_DEG * Math.PI) / 180;
-  const screenW = bounds.w;
-  const screenH = bounds.h * Math.sin(elev) + CELL_DEPTH * Math.cos(elev);
+  const box = new THREE.Box3().setFromObject(scene3);
+  // Where a world point lands vertically at this camera: its depth foreshortens by sin, its
+  // height by cos. Both signs matter — z runs INTO the screen, so the far edge (min z) is the
+  // one that rides up.
+  const screenTop = -box.min.z * Math.sin(elev) + box.max.y * Math.cos(elev);
+  const screenBottom = -box.max.z * Math.sin(elev) + box.min.y * Math.cos(elev);
+  const screenW = Math.max(bounds.w, box.max.x - box.min.x);
+  const screenH = Math.max(
+    bounds.h * Math.sin(elev) + CELL_DEPTH * Math.cos(elev),
+    screenTop - screenBottom,
+  );
   const pad = 3;
   const bufW = Math.max(1, Math.round((screenW + pad * 2) * props.pxPerUnit));
   const bufH = Math.max(1, Math.round((screenH + pad * 2) * props.pxPerUnit));
@@ -245,15 +354,18 @@ function renderIsland(canvas: HTMLCanvasElement, props: IslandViewProps): void {
   const { renderer, canvas: glCanvas } = sharedRenderer();
   renderer.setSize(bufW, bufH, false);
 
-  const cx = (bounds.minX + bounds.maxX) / 2;
+  const cx = (box.min.x + box.max.x) / 2;
   const cz = (bounds.minY + bounds.maxY) / 2;
+  // Vertical centring follows the SCENE's screen extent, so a tall crown pushes the island down
+  // in frame rather than off the top of it.
+  const cyScreen = (screenTop + screenBottom) / 2;
   const camera = new THREE.OrthographicCamera(
     -(screenW + pad * 2) / 2,
     (screenW + pad * 2) / 2,
-    (screenH + pad * 2) / 2,
-    -(screenH + pad * 2) / 2,
-    -2000,
-    2000,
+    (screenH + pad * 2) / 2 + cyScreen,
+    -(screenH + pad * 2) / 2 + cyScreen,
+    -4000,
+    4000,
   );
   const dist = 500;
   camera.position.set(cx, Math.sin(elev) * dist, cz + Math.cos(elev) * dist);
@@ -285,7 +397,15 @@ export function IslandPanel({
   useEffect(() => {
     if (ref.current) renderIsland(ref.current, props);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.pxPerUnit, props.displayPxPerUnit, props.style, props.plants, props.island]);
+  }, [
+    props.pxPerUnit,
+    props.displayPxPerUnit,
+    props.style,
+    props.plants,
+    props.flowers,
+    props.tree,
+    props.island,
+  ]);
   return (
     <figure className="panel">
       <figcaption>

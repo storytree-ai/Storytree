@@ -1,0 +1,153 @@
+{
+  "capturedFrom": "http://localhost:5193/island.html",
+  "webgl": {
+    "version": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+    "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+    "isSoftware": true,
+    "note": "Headless Chromium on this box rasterises WebGL through SwiftShader (software). Delivered COLOURS are therefore trustworthy and frame COSTS are not — the ADR-0380 D2 hardware-floor question is NOT answered by this run and needs the owner on real hardware."
+  },
+  "perPanel": [
+    {
+      "i": 0,
+      "w": 240,
+      "h": 179,
+      "opaque": 21081
+    },
+    {
+      "i": 1,
+      "w": 480,
+      "h": 357,
+      "opaque": 83963
+    },
+    {
+      "i": 2,
+      "w": 240,
+      "h": 179,
+      "opaque": 21081
+    },
+    {
+      "i": 3,
+      "w": 959,
+      "h": 714,
+      "opaque": 335475
+    },
+    {
+      "i": 4,
+      "w": 240,
+      "h": 179,
+      "opaque": 21081
+    },
+    {
+      "i": 5,
+      "w": 1918,
+      "h": 1428,
+      "opaque": 1342429
+    },
+    {
+      "i": 6,
+      "w": 1918,
+      "h": 1428,
+      "opaque": 1342429
+    },
+    {
+      "i": 7,
+      "w": 1918,
+      "h": 1431,
+      "opaque": 1343319
+    },
+    {
+      "i": 8,
+      "w": 480,
+      "h": 357,
+      "opaque": 83963
+    },
+    {
+      "i": 9,
+      "w": 480,
+      "h": 358,
+      "opaque": 84090
+    },
+    {
+      "i": 10,
+      "w": 1918,
+      "h": 887,
+      "opaque": 1207951
+    },
+    {
+      "i": 11,
+      "w": 1918,
+      "h": 1438,
+      "opaque": 1349320
+    },
+    {
+      "i": 12,
+      "w": 480,
+      "h": 258,
+      "opaque": 76514
+    },
+    {
+      "i": 13,
+      "w": 480,
+      "h": 357,
+      "opaque": 83963
+    },
+    {
+      "i": 14,
+      "w": 480,
+      "h": 265,
+      "opaque": 76919
+    },
+    {
+      "i": 15,
+      "w": 480,
+      "h": 357,
+      "opaque": 83963
+    },
+    {
+      "i": 16,
+      "w": 480,
+      "h": 357,
+      "opaque": 83963
+    },
+    {
+      "i": 17,
+      "w": 1918,
+      "h": 1428,
+      "opaque": 1342429
+    },
+    {
+      "i": 18,
+      "w": 1439,
+      "h": 1071,
+      "opaque": 755493
+    },
+    {
+      "i": 19,
+      "w": 1439,
+      "h": 1071,
+      "opaque": 755493
+    },
+    {
+      "i": 20,
+      "w": 1439,
+      "h": 1071,
+      "opaque": 755493
+    }
+  ],
+  "palette": {
+    "authoredEntries": 156,
+    "canvases": 21,
+    "opaquePixels": 11250412,
+    "distinctDeliveredColours": 44,
+    "offPalettePixels": 0,
+    "offPaletteColours": [],
+    "foreignStatusReads": 0,
+    "familylessDeliveredColours": 29
+  },
+  "frameTiming": {
+    "samples": 39,
+    "p50Ms": 16.8,
+    "meanMs": 16.36,
+    "interpretation": "RELATIVE ONLY. Software rasteriser, static scene — this is the headless compositor present cadence, not a GPU-bound frame cost. Do not quote it as a D2 verdict."
+  }
+}

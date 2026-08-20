@@ -26,7 +26,7 @@ import { fileURLToPath } from 'node:url';
 // The authored palette comes from the SAME module the shader's GLSL ladder is generated
 // from. A capture script holding its own copy of the palette would only ever prove that
 // the two copies agree.
-import { landPalette, statusFamilyOf } from './palette-band.js';
+import { familylessPalette, landPalette, statusFamilyOf } from './palette-band.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 // The output directory is overridable so one capture script serves both evidence pages
@@ -224,17 +224,31 @@ const report = {
     distinctDeliveredColours: distinct.size,
     offPalettePixels: offPalette,
     offPaletteColours: [...offenders.entries()].sort((a, b) => b[1] - a[1]).slice(0, 20),
-    foreignStatusReads: [...distinct]
-      .filter((h) => palette.has(h))
-      .map((h) => ({
-        hex: h,
-        family: statusFamilyOf({
-          r: parseInt(h.slice(1, 3), 16),
-          g: parseInt(h.slice(3, 5), 16),
-          b: parseInt(h.slice(5, 7), 16),
-        }),
-      }))
-      .filter((x) => x.family === null).length,
+    // FOREIGN-STATUS READS: an in-palette colour that belongs to no status family at all.
+    //
+    // THE FAMILY-LESS TOKENS ARE SUBTRACTED FIRST, AND THIS IS A CORRECTION, NOT A WIDENING.
+    // Some authored tokens genuinely belong to every status and therefore to none: the wheat
+    // override, the story tree's shared bole, and every UAT-flower material (a flower's verdict
+    // is its FORM, not its colour — ADR-0226 D4). `statusFamilyOf` reports `null` for those BY
+    // DESIGN, so counting them here would report a defect on any island that grows a flower.
+    // The check that remains is the one worth having: a colour on the palette, not family-less
+    // by construction, and still unattributable to a status.
+    foreignStatusReads: (() => {
+      const familyless = new Set(familylessPalette());
+      return [...distinct]
+        .filter((h) => palette.has(h) && !familyless.has(h))
+        .map((h) => ({
+          hex: h,
+          family: statusFamilyOf({
+            r: parseInt(h.slice(1, 3), 16),
+            g: parseInt(h.slice(3, 5), 16),
+            b: parseInt(h.slice(5, 7), 16),
+          }),
+        }))
+        .filter((x) => x.family === null).length;
+    })(),
+    familylessDeliveredColours: [...distinct].filter((h) => new Set(familylessPalette()).has(h))
+      .length,
   },
   frameTiming: {
     samples: frames.length,
