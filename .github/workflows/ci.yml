@@ -51,6 +51,32 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name != 'merge_group' }}
 
+# CI KEEPS tsx's ON-DISK TRANSFORM CACHE, and the empty string is what keeps it
+# (`the-gate-costs-what-the-change-risks-arc` inc 4).
+#
+# Everywhere else in this repo the cache is turned OFF: `scripts/tsx-cache-off.mjs` is preloaded ahead
+# of every `--import tsx`, because tsx writes one file per transform into a FLAT `os.tmpdir()`
+# directory and never evicts, and on a long-lived dev box that directory reaches hundreds of thousands
+# of files — at which point a cache LOOKUP costs more than the transform it saves (232,254 files /
+# 4.18 GB measured; the whole test leg went 745s -> 444s with it off).
+#
+# A HOSTED RUNNER IS THE ONE PLACE THAT CANNOT HAPPEN: every job gets a fresh VM, so the cache starts
+# empty and is healthy BY CONSTRUCTION. There the cache is a large WIN, not a tax. Measured locally at
+# suite scale, `pnpm -r --no-bail test`, same 5,475 tests in every arm:
+#
+#   tsx cache, FRESH directory   296s (cold) then 277s / 273s      <- what a runner gets
+#   tsx cache OFF                358s
+#
+# — so disabling it here would cost roughly 30%, and the CI `Test` step did move 216s -> 320s on the
+# PR that landed the repo-wide default (#1464 vs #1460; directional, different diffs).
+#
+# THE EMPTY STRING IS LOAD-BEARING AND IS NOT A TYPO. tsx tests this variable for TRUTHINESS, so
+# `TSX_DISABLE_CACHE: "0"` would still DISABLE the cache. `scripts/tsx-cache-off.mjs` sets it with
+# `??=`, which leaves an explicitly-set value — including an empty one — alone. So "" is the only
+# spelling that reaches tsx as "keep the cache".
+env:
+  TSX_DISABLE_CACHE: ""
+
 jobs:
   # ---------------------------------------------------------------------------
   # The gate. Typecheck / test / build are offline and need no secrets.

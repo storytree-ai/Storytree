@@ -25,12 +25,24 @@
 // at moved most in absolute terms (packages/cli 287.3 s -> 193.5 s, context-traversal-capture
 // 179.2 s -> 64.6 s).
 //
-// THE ONE PLACE THIS MIGHT COST RATHER THAN SAVE is a fresh CI runner, whose temp directory starts
-// empty and therefore never bloats: there the cache is healthy and this preload gives up its ~280 ms
-// per process. That is accepted deliberately — the LOCAL gate is what this arc is about, ADR-0345
-// settled the CI tail, and the alternative (keep the cache and prune the directory by hand) is the
-// folklore this repo replaces with code. If CI's `verify` job measurably regresses, that is a
-// follow-up with evidence, not a reason to keep a cache that rots.
+// A HEALTHY CACHE IS STILL THE FASTEST THING THERE IS, AND THE ~280 ms/process ABOVE BADLY
+// UNDERSTATES IT AT SUITE SCALE. The single-process figure measures one mostly-cold process; across
+// a whole run, hundreds of processes HIT entries their predecessors wrote. Same measurement harness,
+// `pnpm -r --no-bail test`, the same 5,475 tests in every arm:
+//
+//   tsx cache, FRESH directory   296 s (cold) then 277 s / 273 s
+//   tsx cache OFF (this preload) 358 s
+//   tsx cache, the 232k-file dir 745 s / 621 s
+//
+// So the honest ordering is: healthy cache < no cache << rotted cache. This preload buys the FLOOR —
+// the guarantee that the third row can never happen — at about 30% against the first.
+//
+// WHICH IS WHY CI OPTS BACK IN. A hosted runner gets a fresh VM per job, so its cache is healthy BY
+// CONSTRUCTION and can never reach the third row; `.github/workflows/ci.yml` sets
+// `TSX_DISABLE_CACHE: ""` for exactly that reason. Nothing on a long-lived dev box has that
+// guarantee, and tsx offers no eviction and no cache-directory knob, so here the floor is the right
+// trade. The BETTER answer — bound the cache and keep it everywhere — is real and unbuilt; it is
+// parked on `the-gate-costs-what-the-change-risks-arc`, and it is worth roughly the 30% above.
 //
 // This buys the SAME proof more cheaply — no test is skipped, sampled or moved off the gate, which
 // is the one direction this arc forbids.

@@ -153,8 +153,10 @@ the landing PR. `[ ]` = open · `[~]` = in progress · `[x]` = landed.
   with the cache disabled cost **2078 ms**, and with a FRESH cache **1796 ms**. Disabling it
   (`scripts/tsx-cache-off.mjs`, preloaded ahead of every `--import tsx`) took the whole
   `pnpm -r --no-bail test` leg from 745 s / 621 s of wall to 444 s / 424 s, two interleaved runs per
-  arm, the same 5,446 tests in each. The lesson generalises past this ADR: **a "practical floor" read
-  off a cache is a floor only while that cache is healthy**, and a cache with no eviction is not.
+  arm, the same 5,446 tests in each. A FRESH cache is faster still — 273-296 s on the same harness —
+  so the ordering is healthy cache < no cache << rotted cache, and CI (whose runner is fresh per job)
+  therefore opts back in. The lesson generalises past this ADR: **a "practical floor" read off a cache
+  is a floor only while that cache is healthy**, and a cache with no eviction is not.
 - [ ] **2b. Lazy-pg — offline pg-free (deferred, cold-start-only)** — dynamic-`import()` the Postgres
   store graph so offline read commands never pull `pg` / the Cloud SQL connector / `google-auth-library`.
   Deferred because item 2's measurement showed it saves only **~100 ms warm** (warm is already at the
