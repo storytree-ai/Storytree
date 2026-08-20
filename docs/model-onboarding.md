@@ -132,17 +132,33 @@ Work it in order. Every step is yours to execute unless it says otherwise.
 2. **Verify you clear the capability bar** (§2), against your provider's API.
 3. **Install your harness** if it isn't — or ask the human to: an installer that wants admin rights
    is a legitimate handoff, one of the three.
-4. **Store your credential** (§3) — never in the repo. The value comes from the human or the
+4. **For Codex Desktop, choose the command-approval policy before the first working session.**
+   `Full access` gives the local agent filesystem/runtime access, but it does not by itself stop the
+   Terminal confirmation card. A user who wants their Codex agents to execute ordinary local commands
+   without being interrupted adds this to their user config — **not** to the repository and not to
+   `requirements.toml`:
+
+   ```toml
+   # ~/.codex/config.toml
+   approval_policy = "never"
+   ```
+
+   Restart Codex Desktop and start a new task after changing it. This is an explicit opt-in for a
+   trusted development machine: it auto-approves local terminal commands, so the user retains the
+   responsibility to limit prompts and project instructions to work they genuinely want performed.
+   It does not override approvals imposed by an external system such as a browser, connector, UAC, or
+   source-control host.
+5. **Store your credential** (§3) — never in the repo. The value comes from the human or the
    `gcloud` fetch they authorize; nowhere else.
-5. **Check the model registry your harness uses** (`https://models.dev/api.json` for OpenCode and
+6. **Check the model registry your harness uses** (`https://models.dev/api.json` for OpenCode and
    other models.dev-based harnesses) before writing any provider block — most providers are already
    there with correct limits and cost. Pin yourself in the project config, committed and
    secret-free. Hand-roll a provider block only if yours is genuinely absent.
-6. **Prove yourself end to end**: a real run that makes you *use a tool* against this repo —
+7. **Prove yourself end to end**: a real run that makes you *use a tool* against this repo —
    observed in your own transcript, not asserted.
-7. **Confirm orientation**: your harness reads `AGENTS.md` (add a pointer from whatever filename it
+8. **Confirm orientation**: your harness reads `AGENTS.md` (add a pointer from whatever filename it
    does read, if different — as `opencode.json`'s `instructions` does).
-8. **Onboard your harness's subagent surface, if it has one.** The nine delegatable Library agents
+9. **Onboard your harness's subagent surface, if it has one.** The nine delegatable Library agents
    are rendered to each harness's native subagent directory by `pnpm build:agents` and drift-gated
    by `check:agents`. If your harness has such a directory and no target exists yet, add one — this
    is a small, proven pattern, not a build: one renderer function beside `renderOpencodeAgentFile`
@@ -152,7 +168,7 @@ Work it in order. Every step is yours to execute unless it says otherwise.
    `packages/cli/src/build-agents.ts`, tests mirroring the OpenCode cases, then `pnpm build:agents`
    and commit. Never hand-write the agent files — the drift gate prunes orphans. If your harness
    has no subagent surface, skip this step entirely: `AGENTS.md` alone is enough.
-9. **Record the landing on the arc that sponsored your onboarding** — the human who handed you this
+10. **Record the landing on the arc that sponsored your onboarding** — the human who handed you this
    guide names it (`storytree arc increment add <sponsoring-arc> --outcome "..." --pr <n> --pg`;
    the historical instance is `onboard-non-claude-models-onto-storytree-arc`, now closed). Document
    any deviation from this guide **in this guide** — a step that needed editing to follow is the
@@ -161,7 +177,7 @@ Work it in order. Every step is yours to execute unless it says otherwise.
 
 You are done when: your harness boots on you in this repo, reads `AGENTS.md`, and you have explored
 the Library, run `pnpm gate` green, and landed one real change through the ordinary merge ceremony
-— the arc record in step 9 is that landing's residue.
+— the arc record in step 10 is that landing's residue.
 
 ---
 
@@ -272,11 +288,11 @@ opencode
 OpenCode reads `AGENTS.md` at the repo root, so Kimi K3 boots with the same
 `session-orchestrator` discipline every other session runs.
 
-OpenCode has a native subagent directory, so it also got the §4-step-8 treatment: the nine
+OpenCode has a native subagent directory, so it also got the §4-step-9 treatment: the nine
 delegatable Library agents render to `.opencode/agent/<id>.md` (via `renderOpencodeAgentFile` —
 `mode: subagent`, no `model` key), so fan-out works the same in every harness. That projection
 landed a day after the model itself (PR #1210) — the guide predates it, which is exactly the kind
-of drift step 9 exists to catch.
+of drift step 10 exists to catch.
 
 ### What this deliberately did NOT do
 
