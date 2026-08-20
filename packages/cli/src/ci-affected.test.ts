@@ -17,6 +17,7 @@ import {
 /** A representative workspace slice — names/dirs mirror the real repo shape. */
 const PROJECTS: WorkspaceProject[] = [
   { name: "@storytree/cli", dir: "packages/cli" },
+  { name: "@storytree/drive", dir: "packages/drive" },
   { name: "@storytree/forest-world", dir: "packages/forest-world" },
   { name: "@storytree/library", dir: "packages/library" },
   { name: "desktop", dir: "apps/desktop" },
@@ -53,7 +54,7 @@ test("windows separators and ./ prefixes normalise before mapping", () => {
 
 for (const [file, why] of [
   ["stories/approval-gated-trunk/story.md", "stories/** feeds cli's validate-corpus + drive's node-build tests"],
-  ["docs/decisions/0195-affected-only.md", "docs/decisions/** feeds the adr-health gates"],
+  ["docs/research/agentic-foundation-survey.md", "docs/** outside the reader map is unmapped"],
   ["pnpm-lock.yaml", "the lockfile is a repo-wide input"],
   ["pnpm-workspace.yaml", "the workspace globs define the graph"],
   [".github/workflows/ci.yml", "the workflow defines the gate itself"],
@@ -119,6 +120,63 @@ test("pnpmArgsFor: an unsafe or empty project list falls back to -r (full is alw
   assert.equal(pnpmArgsFor({ mode: "affected", projects: ["a;rm"], reason: "x" }), "-r");
 });
 
+// ── the root-path reader map (ADR-0394): narrow ONLY where the readers were measured ─────────
+
+test("a decision-only diff narrows to the packages that READ decision files — not everything, not nothing", () => {
+  const scope = classifyChangedFiles(["docs/decisions/0394-a-root-path.md"], PROJECTS);
+  assert.equal(scope.mode, "affected");
+  assert.deepEqual(
+    scope.mode === "affected" ? scope.projects : [],
+    ["@storytree/cli", "@storytree/drive"],
+  );
+});
+
+test("THE NEGATIVE THAT MATTERS: a branch adding an ADR still runs the suite that owns adr-number-unique", () => {
+  // The narrowing has exactly one unacceptable failure — a duplicate ADR number reaching `main`
+  // because the suite that catches it was filtered out. `adr-health.test.ts` lives in
+  // @storytree/cli, so cli must be selected AND must survive into the real filter chain; asserting
+  // the scope object alone would pass even if `pnpmArgsFor` dropped it.
+  const scope = classifyChangedFiles(["docs/decisions/0999-duplicate-number.md"], PROJECTS);
+  assert.equal(scope.mode, "affected");
+  assert.ok(
+    scope.mode === "affected" && scope.projects.includes("@storytree/cli"),
+    "the adr-health owner must be selected",
+  );
+  assert.match(pnpmArgsFor(scope), /--filter \.\.\.@storytree\/cli(\s|$)/);
+});
+
+test("a decision file mixed with package files unions both — narrowing never drops the package's own suite", () => {
+  const scope = classifyChangedFiles(
+    ["docs/decisions/0394-x.md", "packages/library/src/schema.ts"],
+    PROJECTS,
+  );
+  assert.equal(scope.mode, "affected");
+  assert.deepEqual(
+    scope.mode === "affected" ? scope.projects : [],
+    ["@storytree/cli", "@storytree/drive", "@storytree/library"],
+  );
+  assert.match(scope.reason, /via the root-path reader map/);
+});
+
+test("the map matches a DIRECTORY, not a string prefix — every other docs path still fails wide", () => {
+  for (const file of ["docs/decisions-archive/x.md", "docs/research/survey.md", "docs/glossary.md"]) {
+    const scope = classifyChangedFiles([file], PROJECTS);
+    assert.equal(scope.mode, "full", file);
+    assert.match(scope.reason, /outside the workspace dependency graph/);
+  }
+});
+
+test("a STALE map fails WIDE: a reader this workspace no longer has forces the full run", () => {
+  // The rename hazard, and the reason the map names packages rather than directories. If
+  // `@storytree/drive` were renamed away, narrowing to whatever names still resolved would silently
+  // under-select — a green earned by not running the suite that would have failed.
+  const withoutDrive = PROJECTS.filter((p) => p.name !== "@storytree/drive");
+  const scope = classifyChangedFiles(["docs/decisions/0394-x.md"], withoutDrive);
+  assert.equal(scope.mode, "full");
+  assert.match(scope.reason, /@storytree\/drive/);
+  assert.match(scope.reason, /absent from this workspace/);
+});
+
 // ── real-repo integration ────────────────────────────────────────────────────
 
 const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
@@ -133,6 +191,20 @@ test("discoverWorkspaceProjects finds the real workspace (packages/* + apps/*)",
   for (const p of projects) {
     assert.match(p.dir, /^(packages|apps)\/[^/]+$/, p.dir);
   }
+});
+
+test("real repo: every project the reader map names still exists, so the map cannot narrow to a ghost", () => {
+  // The map is measured evidence with a shelf life: a package rename would leave it naming a project
+  // pnpm cannot select. Against the REAL workspace it must still resolve to exactly its two readers.
+  const scope = classifyChangedFiles(
+    ["docs/decisions/0394-a-root-path.md"],
+    discoverWorkspaceProjects(repoRoot),
+  );
+  assert.equal(scope.mode, "affected", `the reader map has gone stale: ${scope.reason}`);
+  assert.deepEqual(
+    scope.mode === "affected" ? scope.projects : [],
+    ["@storytree/cli", "@storytree/drive"],
+  );
 });
 
 test("real-repo classification: a cli-only diff selects @storytree/cli", () => {
