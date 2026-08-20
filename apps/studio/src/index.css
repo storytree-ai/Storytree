@@ -2766,8 +2766,18 @@ a.stat:hover {
    because the signed markup carries a defensive inline `display:flex` on the wrapper; jsdom contract
    tests query the DOM tree, never computed style, so behaviour contracts are untouched. :has() is
    native in the Electron/Chromium renderer. */
-.terminal-dock:not(:has(.terminal-dock-toggle-expanded)) .terminal-dock-body-row {
+.terminal-dock:not(.terminal-dock-hosted):not(:has(.terminal-dock-toggle-expanded))
+  .terminal-dock-body-row {
   display: none !important;
+}
+/* Contract 12 (`traversal-panel-bottom-tab-host`) — a HOSTED dock renders no toggle, so the rule
+   above would match it forever and hide the terminal permanently. The host owns the fold: it simply
+   does not render this pane's tab when the panel is folded. The palette, the bezel and the body
+   styling all still come from `.terminal-dock` above; only the overlay geometry is the host's. */
+.terminal-dock-hosted {
+  border-top: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 /* The panel column — RIGHT of the pane (order flips the DOM order; VS Code's terminal tabs side). */
 .terminal-dock-panel {
@@ -4052,32 +4062,199 @@ button.legend-tile:hover {
 .tree-session-band.band-stale { background: var(--warn); }
 .tree-session-band.band-possibly-dead { background: var(--st-retired); }
 
-/* context-traversal picker + replay mount (traversal-panel-arc).
-   Every rule here exists to survive the panel at PANEL_MIN=360 and at the minimized
-   min(340px, 66%) cap — the constraint that chose the owner's Option A over the wider
-   alternatives. So: the control stacks under its label rather than sitting beside it, the
-   select is width-bounded and free to ellipsise (its option LIST is a popup and is not
-   clipped by the panel, which is why the unavailability reason can ride in the row text),
-   and every prose line wraps and breaks rather than forcing a horizontal scrollbar. */
-.traversal-picker-label {
+/* ── The BOTTOM PANEL tab host (traversal-panel-arc, `traversal-panel-bottom-tab-host`) ─────────
+   ADR-0354 D1: the bottom panel holds the terminal AND the context-traversal replay as sibling
+   tabs, so the FRAME is the host's — one border, one fold, one drag handle. Its own namespace
+   (`.bottom-dock*`), never `.terminal-dock*`, which belongs to the dock (the RepoPicker rule).
+   APPEARANCE IS OPERATOR-ATTESTED (ADR-0070) against
+   docs/design/context-traversal/bottom-panel-traversal-composition.html; these rules sign nothing
+   and no jsdom test asserts them. Structure is what the tests hold. */
+.bottom-dock {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  min-height: 0;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+  box-shadow: 0 -10px 34px rgba(0, 0, 0, 0.34);
+  overflow: hidden;
 }
-.traversal-picker-select {
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-  padding: 4px 6px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface-2);
-  color: var(--text);
+/* The drag strip, on the panel's top edge — the dock's own geometry, moved up with the frame. */
+.bottom-dock-resize {
+  height: 6px;
+  flex: 0 0 auto;
+  cursor: ns-resize;
+}
+.bottom-dock-resize:hover {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+/* The tab strip. Tabs left, the selected-trace meta and the one fold chevron right. */
+.bottom-dock-tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  flex: 0 0 auto;
+  height: 30px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--border);
+}
+.bottom-dock-tabs-spacer {
+  flex: 1 1 auto;
+}
+.bottom-dock-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
   font: inherit;
-  text-overflow: ellipsis;
+  font-size: 12px;
+  cursor: pointer;
 }
-.traversal-picker-note,
+.bottom-dock-tab[aria-selected='true'] {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+.bottom-dock-tab-glyph {
+  font-size: 10px;
+  opacity: 0.8;
+}
+.bottom-dock-meta {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 11px;
+}
+.bottom-dock-toggle {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+.bottom-dock-toggle:hover {
+  color: var(--text);
+}
+/* A pane fills what the strip leaves. `hidden` keeps the inactive tab MOUNTED (state survives a
+   switch), and `[hidden]` must beat the flex display or the hidden pane would still take space. */
+.bottom-dock-pane {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.bottom-dock-pane[hidden] {
+  display: none;
+}
+
+/* ── The traversal tab: the trace-index rail beside the picture ─────────────────────────────────
+   `traversal-panel-trace-index-list` — the rail is this machine's whole local trace index, newest
+   first, with no claim and no story (ADR-0354 D2). 196px is the composition reference's width. */
+.traversal-tab {
+  display: grid;
+  grid-template-columns: 196px minmax(0, 1fr);
+  min-height: 0;
+  flex: 1 1 auto;
+}
+.traversal-tab-rail {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  border-right: 1px solid var(--border);
+}
+.traversal-tab-rail-head {
+  padding: 7px 10px 6px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 11px;
+}
+.traversal-tab-rail-head b {
+  display: block;
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+}
+.traversal-tab-rail-note {
+  margin: 0;
+  padding: 8px 10px;
+  color: var(--muted);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.traversal-tab-rows {
+  overflow-y: auto;
+  min-height: 0;
+}
+.traversal-tab-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 6px;
+  width: 100%;
+  padding: 5px 10px;
+  border: 0;
+  border-left: 2px solid transparent;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+.traversal-tab-row:hover {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+.traversal-tab-row[aria-current='true'] {
+  color: var(--text);
+  border-left-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.traversal-tab-row-sid {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono), ui-monospace, monospace;
+}
+.traversal-tab-row-count {
+  font-variant-numeric: tabular-nums;
+}
+.traversal-tab-row-sub {
+  grid-column: 1 / -1;
+  font-size: 10px;
+  opacity: 0.78;
+}
+.traversal-tab-plot {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+.traversal-tab-idle {
+  margin: 0;
+  padding: 10px 12px;
+  color: var(--muted);
+  font-size: 11px;
+}
+/* Dragged small: the CHROME yields and the picture keeps the room (ADR-0354 D4's accepted cost). */
+.bottom-dock-compact .traversal-tab-rail-head {
+  padding: 5px 10px 4px;
+}
+
 .traversal-replay-note,
 .traversal-replay-pending {
   margin: 8px 0 0;
