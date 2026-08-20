@@ -65,7 +65,10 @@ export function presentEnv(name: string, env: NodeJS.ProcessEnv = process.env): 
  * suppressing the very hydration that would have fixed it — which is what the old `=== undefined`
  * test did. Precedence for every non-blank value is unchanged.
  */
-export function loadLocalSecrets(env: NodeJS.ProcessEnv = process.env): string[] {
+export function loadLocalSecrets(
+  env: NodeJS.ProcessEnv = process.env,
+  keys: readonly (typeof SECRET_KEYS)[number][] = SECRET_KEYS,
+): string[] {
   const file = env["STORYTREE_SECRETS_FILE"] ?? defaultSecretsFile();
   let parsed: unknown;
   try {
@@ -76,7 +79,7 @@ export function loadLocalSecrets(env: NodeJS.ProcessEnv = process.env): string[]
   if (typeof parsed !== "object" || parsed === null) return [];
   const doc = parsed as Record<string, unknown>;
   const filled: string[] = [];
-  for (const key of SECRET_KEYS) {
+  for (const key of keys) {
     const value = doc[key];
     if (presentEnv(key, env) === undefined && typeof value === "string" && value.trim().length > 0) {
       env[key] = value;

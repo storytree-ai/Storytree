@@ -29,6 +29,7 @@ import { gitLines, localAffectedScope, renderScopeNotice, scopeGatePlan } from "
 /** A representative workspace slice — names/dirs mirror the real repo shape. */
 const PROJECTS: WorkspaceProject[] = [
   { name: "@storytree/cli", dir: "packages/cli" },
+  { name: "@storytree/drive", dir: "packages/drive" },
   { name: "@storytree/library", dir: "packages/library" },
   { name: "studio", dir: "apps/studio" },
 ];
@@ -53,7 +54,7 @@ test("the LOCAL gate honours CI's FULL triggers — one classifier, or a local p
   // ever stopped delegating, these are the cases a hand-rolled local rule would get wrong.
   for (const [file, why] of [
     ["stories/approval-gated-trunk/story.md", "stories/** is read by tests no dependency edge declares"],
-    ["docs/decisions/0304-affected.md", "docs/decisions/** feeds the adr-health gates"],
+    ["docs/research/agentic-foundation-survey.md", "docs/** outside the ADR-0394 reader map is unmapped"],
     ["pnpm-lock.yaml", "the lockfile is a repo-wide input"],
     ["package.json", "a manifest is an input of the selection graph itself"],
     ["packages/cli/package.json", "a workspace manifest, likewise"],
@@ -64,6 +65,20 @@ test("the LOCAL gate honours CI's FULL triggers — one classifier, or a local p
     const scope = localAffectedScope({ ok: true, files: [file] }, PROJECTS);
     assert.equal(scope.mode, "full", `${file} must force the full suite — ${why}`);
   }
+});
+
+test("the LOCAL gate honours CI's reader-map NARROWING too — D2 cuts both ways", () => {
+  // The delegation test's mirror image. A local implementation that hard-coded "docs/** → FULL"
+  // would still pass every assertion above while quietly disagreeing with CI about the one path
+  // ADR-0394 narrows — and a local gate that runs MORE than CI is the failure that hides, because
+  // it never reds anything. So the narrowing is pinned here, not only in `ci-affected.test.ts`.
+  const scope = localAffectedScope({ ok: true, files: ["docs/decisions/0394-a-root-path.md"] }, PROJECTS);
+  assert.equal(scope.mode, "affected");
+  assert.deepEqual(
+    scope.mode === "affected" ? scope.projects : [],
+    ["@storytree/cli", "@storytree/drive"],
+  );
+  assert.match(renderScopeNotice(scope), /^scope: AFFECTED — @storytree\/cli, @storytree\/drive /);
 });
 
 test("an untracked file counts as changed — a session gates mid-flight, before it commits", () => {
