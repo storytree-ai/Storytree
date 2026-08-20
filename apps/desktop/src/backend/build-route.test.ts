@@ -84,11 +84,11 @@ function scriptedRunner(
   };
 }
 
-async function postBuild(base: string, unitId: string): Promise<Response> {
+async function postBuild(base: string, unitId: string, runtime?: "claude" | "codex"): Promise<Response> {
   return fetch(`${base}/api/build`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ unitId }),
+    body: JSON.stringify({ unitId, ...(runtime !== undefined ? { runtime } : {}) }),
   });
 }
 
@@ -134,6 +134,37 @@ test("dbr-post-dispatches-buildable-id: a buildable POST mints + runs over the r
     );
     assert.match(terminal.envelope ?? "", /verdict: PASS/, "the terminal envelope carries the build body");
     assert.equal(calls(), 1, "the injected runner was invoked exactly once");
+  });
+});
+
+test("dbr-runtime-selection: POST selects Codex and rejects unknown runtimes before the worker", async () => {
+  const registry = new BuildRegistry();
+  const seen: Array<string | undefined> = [];
+  const build: BuildContext = {
+    registry,
+    runner: async (_unitId, _sink, runtime) => {
+      seen.push(runtime);
+      return { ok: true, body: "verdict: PASS" };
+    },
+    isBuildable: async () => true,
+  };
+  const mount = createBuildRouteMount(build);
+
+  await withServer(mount, async (base) => {
+    const selected = await postBuild(base, "chat-drive-bridge", "codex");
+    assert.equal(selected.status, 202);
+    const { runId } = (await selected.json()) as { runId: string };
+    await pollUntilTerminal(base, runId);
+    assert.deepEqual(seen, ["codex"], "the request runtime reaches the build runner");
+
+    const invalid = await fetch(`${base}/api/build`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ unitId: "chat-drive-bridge", runtime: "mystery" }),
+    });
+    assert.equal(invalid.status, 400);
+    assert.match(JSON.stringify(await invalid.json()), /claude.*codex/);
+    assert.deepEqual(seen, ["codex"], "an invalid runtime never reaches the worker");
   });
 });
 

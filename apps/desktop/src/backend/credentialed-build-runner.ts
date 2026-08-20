@@ -58,10 +58,17 @@ export function credentialedBuildRunner(opts: CredentialedBuildRunnerOpts): Buil
   const env = opts.env ?? (process.env as Record<string, string | undefined>);
   const explicit = opts.explicitEnvVars ?? new Set<string>();
 
-  return async (unitId, sink) => {
+  return async (unitId, sink, runtime = "claude") => {
+    // Codex authenticates through the official CLI's saved ChatGPT login. It neither needs nor may
+    // be rejected by the Claude keychain bridge; the routed runner passes `runtime: codex` to the
+    // existing node/story build entries, whose Codex author invokes that supported path.
+    if (runtime === "codex") {
+      return opts.runner(unitId, sink, runtime);
+    }
+
     // Tier 1 — explicit env wins: the operator set a credential; the keychain never overrides it.
     if (CLAUDE_CREDENTIAL_KINDS.some((k) => explicit.has(CREDENTIAL_ENV_VAR[k]))) {
-      return opts.runner(unitId, sink);
+      return opts.runner(unitId, sink, runtime);
     }
 
     // Tier 2 — the keychain, kind-picked fresh PER BUILD (sign-in after launch just works;
@@ -77,7 +84,7 @@ export function credentialedBuildRunner(opts: CredentialedBuildRunnerOpts): Buil
     if (kind === null) {
       // Tier 3 — the secrets-file tier: loadLocalSecrets already hydrated the ambient env.
       if (CLAUDE_CREDENTIAL_KINDS.some((k) => isSet(env, CREDENTIAL_ENV_VAR[k]))) {
-        return opts.runner(unitId, sink);
+        return opts.runner(unitId, sink, runtime);
       }
       // No credential anywhere: route through the bridge so its typed fail-closed rejection
       // surfaces (the driver — and so the SDK — is never invoked without a token).
@@ -90,7 +97,7 @@ export function credentialedBuildRunner(opts: CredentialedBuildRunnerOpts): Buil
     // (incl. `next`) and the wrapper returns that.
     let captured: BuildEnvelope | null = null;
     const bridge = new CredentialBridge(opts.broker, async (id, _credentialEnv, driverSink) => {
-      const envelope = await opts.runner(id, driverSink);
+      const envelope = await opts.runner(id, driverSink, runtime);
       captured = envelope;
       return { ok: envelope.ok, body: envelope.body };
     }, env);

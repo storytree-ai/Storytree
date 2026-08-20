@@ -3087,7 +3087,11 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       // workspace), then mint → cut off origin/main → synchronous install → the start payload.
       // The ledger is the SAME live claim store the noticeboard verbs drive (null offline → refuse).
       return createWorktree(
-        { nodes: values.node ?? [], intent: values.intent ?? "" },
+        {
+          nodes: values.node ?? [],
+          intent: values.intent ?? "",
+          ...(values.runtime !== undefined ? { runtime: values.runtime } : {}),
+        },
         {
           ledger: deps.presence?.ledger ?? null,
           // The claim namespace (ADR-0310 D2) — this ceremony BORNS a session claimed, so a

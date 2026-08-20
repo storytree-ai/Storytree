@@ -145,6 +145,17 @@ written for. The `requirements.toml` change and the ACE removal are operator act
 elevation; a Codex session may neither perform nor request them. The sequence is: the operator
 withdraws the boundary, and only then does a Codex session take work under it.
 
+**D8 — Codex gets no bespoke memory layer without an observed continuity failure.** Owner direction
+on 2026-08-20 closes `codex-graduation-ceremony-has-an-honest-source` without implementation. Arcs,
+their increment logs, ADRs and the noticeboard already hold the durable state a later session needs;
+the absence of Claude Code's private memory-directory convention has not prevented Codex from driving
+the harness. If repeated Codex work later shows a concrete continuity failure that these shared
+surfaces do not cover, memory may be reconsidered against that evidence. The first move is then to
+evaluate established open-source memory libraries and product-supported sources, not to hand-craft a
+Storytree-specific Codex memory format. Until that evidence exists, the graduation leg records the
+honest free outcome that there is no compatible Codex memory source and leaves every other librarian
+duty in force.
+
 ## Consequences
 
 **Good.** A Codex session can finally do the thing the arc exists to test: read the Library, mint a
@@ -176,6 +187,26 @@ cleanup/recovery surface; retaining it is not a new fence.
 retired, so it is not fixed. If the boundary is ever reinstated, that defect is still there and must
 be fixed first: a fence must emit its refusal on the channel the caller reads, and must not rely on an
 exit code to mean "deny".
+
+**No memory subsystem is implied by parity.** Codex reaching the ordinary work lifecycle is evidence
+that the shared corpus is presently sufficient. D8 keeps a future memory choice reversible and
+evidence-led instead of turning one Claude-specific storage convention into a cross-agent requirement.
+
+**Parity finalisation (2026-08-20).** Three formerly ambiguous seams are now explicit. First,
+`storytree worktree create` names its Claude-farm ownership in help and accepts only
+`--runtime claude`; `--runtime codex` refuses before claiming or writing because Codex Desktop owns
+Codex worktree creation, recovery and `~/.codex/worktrees`. That refusal is an ownership boundary, not
+a missing parity feature. Second, Desktop's Build control carries the selected runtime through the UI,
+HTTP route and drive worker: Claude continues through Storytree's Claude credential broker, while
+Codex uses the official CLI's saved ChatGPT authentication and never forges a Claude credential.
+Third, the historical Electron-sidecar death could not be reproduced in the freshly built runtime:
+its build stamp matched `HEAD`, its pnpm virtual-store lock matched the committed lockfile, and the
+sidecar remained live under Electron. The actionable lifecycle defect was nevertheless real — a child
+that died after its port handshake left a healthy-looking window and Retry remained pinned to the dead
+ephemeral port. Electron now surfaces the captured exit in-window, marks the backend unavailable, and
+Retry starts a replacement which the long-lived proxy follows. If the underlying process death recurs,
+the surfaced stderr tail is the evidence a future session should start from; do not infer stale
+dependencies without that capture.
 
 ## References
 

@@ -31,3 +31,21 @@ export function describeSidecarExit(
   const base = `backend sidecar exited (${how}) before reporting a port`;
   return stderrTail.length > 0 ? `${base} — last stderr:\n${stderrTail}` : base;
 }
+
+/**
+ * Format an UNEXPECTED exit after the sidecar already reported its port. This is a different lifecycle
+ * failure from startup: the Electron window may still be healthy, but every local API operation has
+ * stopped. Main uses this text for the in-window refusal page and offers Retry, which starts a new
+ * sidecar and retargets the existing loopback proxy.
+ */
+export function describeRunningSidecarExit(
+  code: number | null,
+  signal: NodeJS.Signals | null,
+  stderrTail: string,
+): string {
+  const how =
+    code !== null ? `code ${code}` : signal !== null ? `signal ${signal}` : "code null";
+  const base =
+    `backend sidecar exited (${how}) after startup — local operations have stopped; Retry starts a fresh sidecar`;
+  return stderrTail.length > 0 ? `${base} — last stderr:\n${stderrTail}` : base;
+}

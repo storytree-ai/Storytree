@@ -30,7 +30,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { composeBuildCommand } from '../lib/buildCommand.js';
-import type { AdoptGate, AdoptionPlan, BuildStatus, StoryGoGreen, WorkStatus } from '../types.js';
+import type { AdoptGate, AdoptionPlan, BuildRuntime, BuildStatus, StoryGoGreen, WorkStatus } from '../types.js';
 
 /** The transcript poll cadence while a run is non-terminal (modest, mirrors the world's posture). */
 export const BUILD_POLL_MS = 1_500;
@@ -203,9 +203,11 @@ export function BuildSection({
    */
   onSeedTerminal?: ((command: string) => void) | undefined;
 }): React.JSX.Element {
+  const [runtime, setRuntime] = useState<BuildRuntime>('claude');
+  const postBuild = useCallback((id: string) => api.build(id, runtime), [runtime]);
   // The Build trigger + poll machinery (shared with AdoptPanel — see usePollableRun). Pressing Build
   // posts api.build; the run lands in the build registry and is polled via api.buildStatus.
-  const { phase, trigger } = usePollableRun(unitId, api.build, onTerminal);
+  const { phase, trigger } = usePollableRun(unitId, postBuild, onTerminal);
 
   // ── story scope: the status-aware go-green affordance (ADR-0094) ──
   // A `mapped` story surfaces ADOPT (observe-and-sign its reliability gates), not a fail-closed Build;
@@ -237,7 +239,7 @@ export function BuildSection({
   const handleBuildClick = (): void => {
     const bridge = getDesktopTerminal();
     if (bridge && onSeedTerminal) {
-      onSeedTerminal(composeBuildCommand({ unitId, scope }));
+      onSeedTerminal(composeBuildCommand({ unitId, scope, runtime }));
       return;
     }
     trigger();
@@ -247,6 +249,19 @@ export function BuildSection({
     <div className={`tree-build${showButton ? ' is-actionable' : ''}`}>
       {showButton && (
         <>
+          <label className="muted small" htmlFor={`build-runtime-${unitId}`}>
+            Build with{' '}
+            <select
+              id={`build-runtime-${unitId}`}
+              aria-label="Build runtime"
+              value={runtime}
+              onChange={(event) => setRuntime(event.target.value as BuildRuntime)}
+              disabled={busy}
+            >
+              <option value="claude">Claude</option>
+              <option value="codex">Codex</option>
+            </select>
+          </label>
           <button type="button" className="btn build-btn" onClick={handleBuildClick} disabled={busy}>
             {busy ? (
               <>
@@ -261,7 +276,7 @@ export function BuildSection({
             {scope === 'story' ? (
               <>
                 Builds the whole story for real — writes the tests and code for each part, then opens a
-                pull request that merges automatically once checks pass. Uses your Claude subscription.
+                pull request that merges automatically once checks pass. Uses your {runtime === 'codex' ? 'ChatGPT' : 'Claude'} subscription.
               </>
             ) : (
               <>

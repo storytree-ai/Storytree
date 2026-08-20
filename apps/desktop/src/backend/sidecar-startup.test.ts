@@ -12,6 +12,7 @@ import assert from "node:assert/strict";
 import {
   tailText,
   describeSidecarExit,
+  describeRunningSidecarExit,
 } from "./sidecar-startup.js";
 
 test("tailText: keeps the last N non-blank lines, trimmed", () => {
@@ -48,4 +49,17 @@ test("describeSidecarExit: falls back to the signal when the code is null", () =
 
 test("describeSidecarExit: null code and null signal degrades to 'code null'", () => {
   assert.match(describeSidecarExit(null, null, ""), /code null/);
+});
+
+test("describeRunningSidecarExit: distinguishes a post-handshake death and makes recovery explicit", () => {
+  const msg = describeRunningSidecarExit(
+    1,
+    null,
+    "Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@storytree/notice-board'",
+  );
+  assert.match(msg, /after startup/);
+  assert.match(msg, /local operations have stopped/);
+  assert.match(msg, /Retry starts a fresh sidecar/);
+  assert.match(msg, /ERR_MODULE_NOT_FOUND/);
+  assert.doesNotMatch(msg, /before reporting a port/);
 });
