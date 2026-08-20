@@ -274,8 +274,32 @@ permanent regression case, never speculative breadth).
 > main-held screen for legs 1, 4 and 6 reads a `claude` session's screen the same way. Leg 5 is bound
 > to the model-driven gate 1 under "Reliability Gates".
 >
-> The wiring legs (2, 3) are covered by the two capabilities' signed `--real` verdicts (the pty lifecycle
-> over a fake pty; the xterm dock over a mocked xterm + bridge) — those two tags are unchanged.
+> **ADR-0294 D2/D4 pass, 2026-08-20 — the two wiring legs are DELETED, and the four survivors are declared
+> UNBOUND.** Old legs **2** and **3** restated proof that already exists one rung down and named it in
+> their own success clauses. Leg 2's pty lifecycle is proven by the capability
+> [`pty-session-manager`](pty-session-manager.md) at
+> `apps/desktop/src/backend/pty-session-manager.test.ts` — `psm-spawns-and-routes-data`,
+> `psm-forwards-input-and-resize`, `psm-disposes-and-tears-down`, `psm-isolates-multiple-sessions`,
+> `psm-fails-closed-on-unknown-session`. Leg 3's renderer wiring is proven by the capability
+> [`terminal-dock-panel`](terminal-dock-panel.md) at `apps/studio/src/components/TerminalDock.test.tsx` —
+> `tdp-spawns-on-open-and-writes-data`, `tdp-forwards-input-to-bridge`, `tdp-resizes-with-the-dock`,
+> `tdp-toggles-visibility-keeping-terminal-mounted`, `tdp-degrades-when-bridge-absent`. Both were checked
+> against those tests' ACTUAL assertions, not their file existence (ADR-0294 D2's honesty wall). Ordinals
+> **2** and **3** are BURNED, not renumbered, so no surviving leg moves and no binding is re-pointed. This
+> story now carries **FIVE** `machine` legs (1, 4, 5, 6, 8) and no `human` leg. *(This paragraph read "The
+> wiring legs (2, 3) are covered by the two capabilities' signed `--real` verdicts … those two tags are
+> unchanged" — which was the deletion criterion being stated and then not acted on; corrected in place per
+> ADR-0139.)*
+>
+> **The four survivors stay unbound, and that is the honest state rather than an omission.** Legs 1, 4, 6
+> and 8 are genuine journey steps nobody can witness yet. The Electron `_electron` walk that observes legs
+> 1, 4 and 6 runs under no reliability gate and persists no artifact an `observe` gate could read; leg 8
+> additionally needs a live sidecar and a reachable store. So `resolveWitness` refuses each one
+> (`coverage: "refused"`) and no adopt pass can sign them. **No gate is minted for any of them.** Answering
+> an unbound leg with a freshly minted check is the rubber stamp ADR-0097 §2 forbids, and it is the exact
+> reflex ADR-0294's end state point 4 names. What binds them is a real instrument: the `_electron` walk
+> persisting a signed verdict, or ADR-0295 D1's model-driven executor — already the shape of gate 1 below,
+> which is how leg 5 is bound.
 >
 > Legs **1, 4 and 6** are `machine` through the **existing** Electron `_electron` Playwright harness
 > (`apps/desktop/e2e/`), which already launches the app offline, satisfies the repo gate by pre-writing
@@ -301,9 +325,12 @@ permanent regression case, never speculative breadth).
 > **Nothing here is green.** Per ADR-0209 §6 a substantive criterion change invalidates the old green, so
 > every leg below is UNSTAMPED and earns green only under its newly-declared witness. Legs 1, 4, 6 and 8
 > carry seed-canonical `uat-criterion` detail artifacts (ADR-0209 §5) because their one-line titles cannot
-> convey the stub boundary, the false-pass trap, or the renderer-independent observable; the remaining
-> legs are fully specified by their capability contracts or by short, self-contained attestation prose, so
-> per the owner's narrower bar they get no artifact.
+> convey the stub boundary, the false-pass trap, or the renderer-independent observable; leg 5 is fully
+> specified by its own prose and its model-driven gate, so per the owner's narrower bar it gets no
+> artifact. *(This read "the remaining legs are fully specified by their capability contracts or by short,
+> self-contained attestation prose". The capability-specified legs were 2 and 3, which the ADR-0294 D2
+> pass deleted on 2026-08-20; corrected in place per ADR-0139. No detail artifact was orphaned — neither
+> deleted leg carried a `(detail:` pointer.)*
 >
 > **Two `machine` legs have no spec at HEAD** (legs 6 and 8 — leg 1's and leg 4's observables are already
 > driven by `session-survival.e2e.mjs`). Tagging them `machine` with no spec yet is the correct, honest
@@ -365,7 +392,7 @@ permanent regression case, never speculative breadth).
 and watches a wisp light on the forest map for that Claude Code session — the interactive surface being
 the real tool, the observability layer watching it through the existing seams with no new code.
 
-1. **A terminal sits in the dock.** _(witness: machine)(detail: embedded-terminal#uat-1)_ The member opens the desktop app; with a valid _(criterion-id: uatc_a311ba8bd853bebf8a1eb587)_ _(revision-id: uatr1:13b9763209fd4a21)_
+1. **A terminal sits in the dock.** _(witness: machine)(detail: embedded-terminal#uat-1)_ The member opens the desktop app; with a valid _(criterion-id: uatc_a311ba8bd853bebf8a1eb587)_ _(revision-id: uatr1:99c3e2908980147a)_ _(previous-revision-id: uatr1:13b9763209fd4a21)_
    repo selected (the `terminal-repo-picker` gate — satisfied in the harness by pre-writing the userData
    `repo-selection.json`, as `session-survival.e2e.mjs` already does), a terminal panel sits in the same
    `.world-frame` dock slot the chat occupied. **Success —** in the real Electron renderer the forest page
@@ -375,27 +402,26 @@ the real tool, the observability layer watching it through the existing seams wi
    tree (ADR-0175). *(Presence, placement and the single-interactive-surface property are DOM-structural
    observables in the integrated harness. Mounting the dock stays glue at the capability tier — no
    isolatable red→green in swapping which already-proven component mounts — but that is a tiering call,
-   not a witness kind.)*
-2. **The pty lifecycle is honest over the whole spawn → I/O → resize → dispose cycle.** _(witness: _(criterion-id: uatc_d19150c1c780f2bdd9e556be)_ _(revision-id: uatr1:944231d7250f9f60)_
-   machine)_ Over a fake pty, the pty-session-manager spawns a session, routes the pty's output to the
-   session's sink, forwards typed input and resizes to the right session, isolates concurrent sessions,
-   and fails closed on an unknown/disposed id. **Success —** [`pty-session-manager`](pty-session-manager.md)'s
-   signed verdict (the backend lifecycle, no real native module).
-3. **The renderer terminal dock wires to the bridge and degrades honestly.** _(witness: machine)_ Over a _(criterion-id: uatc_624d374c52bba0e2bd7ce5d7)_ _(revision-id: uatr1:9eca9b765d599015)_
-   mocked xterm + mocked `desktopTerminal` bridge, the dock spawns on open, pipes bridge data into the
-   terminal and terminal input back to the bridge, resizes with the dock, toggles visibility keeping the
-   terminal mounted, and renders a disabled "terminal unavailable here" state where the bridge is absent.
-   **Success —** [`terminal-dock-panel`](terminal-dock-panel.md)'s signed verdict (geometry + wiring,
-   xterm mocked).
-4. **A REAL pty hosts a real interactive shell in the member's checkout.** _(witness: machine)(detail: embedded-terminal#uat-4)_ The dock _(criterion-id: uatc_4a73475c396b1635baf9f5d1)_ _(revision-id: uatr1:d5928c87db3d120b)_
+   not a witness kind.)* **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20).** This leg names no
+   `(proof-gate:)`. Its observable is driven today by `apps/desktop/e2e/session-survival.e2e.mjs`, but
+   that suite runs under no reliability gate and persists no artifact an `observe` gate could read, so
+   `resolveWitness` refuses it (`coverage: "refused"`) and no adopt pass can sign it. No gate is minted to
+   host it — that is the rubber stamp ADR-0097 §2 bans. See "The four survivors stay unbound" above for
+   what would bind it.
+4. **A REAL pty hosts a real interactive shell in the member's checkout.** _(witness: machine)(detail: embedded-terminal#uat-4)_ The dock _(criterion-id: uatc_4a73475c396b1635baf9f5d1)_ _(revision-id: uatr1:071685e9396e7687)_ _(previous-revision-id: uatr1:d5928c87db3d120b)_
    spawns a REAL node-pty in the selected repo; typed input reaches the real shell and its output comes
    back, and a full-screen interactive program (alternate screen buffer, redraw on keypress) drives the
    same session — the property that makes an interactive TUI work at all. **Success —** a line command
    round-trips through the real shell and an interactive full-screen program renders and responds, read
    back from the main-held serialized screen state (`desktopTerminal.snapshot`) — NOT the mocked
-   xterm/mocked bridge capability 3 signs. *(`session-survival.e2e.mjs` already spawns the real pty, types
-   `echo survival-probe` and reads it back this way, so the native-module half of this leg is harnessed
-   today; only the interactive-program assertion is net-new.)*
+   xterm/mocked bridge [`terminal-dock-panel`](terminal-dock-panel.md) signs. *(`session-survival.e2e.mjs`
+   already spawns the real pty, types `echo survival-probe` and reads it back this way, so the
+   native-module half of this leg is harnessed today; only the interactive-program assertion is net-new.
+   This sentence read "the mocked xterm/mocked bridge capability 3 signs"; the capability is named
+   directly here because the ADR-0294 D2 pass deleted the story leg that carried the same ordinal.)*
+   **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20).** No `(proof-gate:)`: the `_electron` walk that
+   witnesses this persists no artifact an `observe` gate can read, so `resolveWitness` refuses and nothing
+   can sign it. No gate is minted to host it (ADR-0097 §2).
 5. **Real Claude Code runs interactively in the embedded terminal.** _(witness: machine)_ _(proof-gate: embedded-terminal#gate-1)_ The member types _(criterion-id: uatc_855b0712c20d7cf71a4cc78a)_ _(revision-id: uatr1:9aa066aeebca3ef6)_ _(previous-revision-id: uatr1:8dc44ae2214f9202)_
    `claude` and drives a real session in-app — its own turn knobs, slash commands, permission modes, plan
    mode, MCP and skills all working (ADR-0174: the terminal's Claude Code has all of it for free).
@@ -414,18 +440,22 @@ the real tool, the observability layer watching it through the existing seams wi
    **Read the `#uat-5` attestation note above before reading this leg** — that 2026-07-16 row is a
    `witness: human` row against the LEGACY POSITIONAL id and already did not vouch for the claim here;
    this flip changes the claim's witness and decides nothing about the owner's open remedy call.)*
-6. **Scrollback, reflow and keys behave like a real terminal.** _(witness: machine)(detail: embedded-terminal#uat-6)_ Over the REAL xterm _(criterion-id: uatc_43d8956b3d08b704da13ce47)_ _(revision-id: uatr1:4b9fc94f98a35707)_
+6. **Scrollback, reflow and keys behave like a real terminal.** _(witness: machine)(detail: embedded-terminal#uat-6)_ Over the REAL xterm _(criterion-id: uatc_43d8956b3d08b704da13ce47)_ _(revision-id: uatr1:5a434910bdd51343)_ _(previous-revision-id: uatr1:4b9fc94f98a35707)_
    and REAL pty in the integrated harness: output beyond the viewport is retained in scrollback (the dock
    constructs xterm at scrollback 5000, aligned with the main-held headless screen model, ADR-0190);
    resizing the dock RESIZES the pty and reflows the session (the serialized screen returns at the new
    geometry with content rewrapped, not truncated); control keys reach the shell (Ctrl+C interrupts a
    running command); and collapsing/expanding the dock keeps the SAME session live. **Success —** the
-   terminal's mechanics asserted against a real renderer and a real shell. *(Capability 3's suite pins the
-   same WIRING over a MOCKED xterm — `tdp-resizes-with-the-dock`, `tdp-ctrl-c-copies-selection-ctrl-v-pastes`,
+   terminal's mechanics asserted against a real renderer and a real shell. *([`terminal-dock-panel`](terminal-dock-panel.md)'s
+   suite pins the same WIRING over a MOCKED xterm — `tdp-resizes-with-the-dock`, `tdp-ctrl-c-copies-selection-ctrl-v-pastes`,
    `tdp-toggles-visibility-keeping-terminal-mounted`, `tdp-constructs-with-aligned-scrollback` — but a mock
    cannot exhibit reflow or scrollback retention, so this leg is the real-renderer half, not a
-   restatement.)*
-8. **The existing observability seams watch a session started in the terminal — a wisp lights.** _(criterion-id: uatc_bdc148e9f00088bac6269e04)_ _(revision-id: uatr1:bc313477c63c7629)_ _(previous-revision-id: uatr1:fce9af7f0492b084)_
+   restatement. That is also why the ADR-0294 D2 pass did NOT delete it: the duplication is partial, and
+   the un-duplicated half is the whole point.)* **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20).** No
+   `(proof-gate:)`, and no spec at HEAD either: the `_electron` walk that would witness this persists no
+   artifact an `observe` gate can read, so `resolveWitness` refuses and nothing can sign it. No gate is
+   minted to host it (ADR-0097 §2).
+8. **The existing observability seams watch a session started in the terminal — a wisp lights.** _(criterion-id: uatc_bdc148e9f00088bac6269e04)_ _(revision-id: uatr1:93edaa00c3f34bd6)_ _(previous-revision-id: uatr1:bc313477c63c7629)_
    _(witness: machine)(detail: embedded-terminal#uat-8)_ A session started in the embedded terminal takes its claim through the EXISTING
    CLI seam — `storytree noticeboard declare --node embedded-terminal --pg`, run in the terminal's real
    pty (ADR-0142) — and the map paints a wisp for it with NO new observer code, proving the ADR-0174
@@ -442,6 +472,10 @@ the real tool, the observability layer watching it through the existing seams wi
    store (`packages/cli/src/ambient-presence-entry.ts`); the claim is taken by the explicit `declare`
    (or `storytree worktree create --node`), and the statusline only heartbeats an existing claim. A
    machine leg written from the old prose would have asserted a write that correctly no longer happens.
+   **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20).** No `(proof-gate:)`: the live-gated spec described
+   above does not exist, and nothing persisted today records this walk, so `resolveWitness` refuses and
+   nothing can sign it. No gate is minted to host it (ADR-0097 §2) — binding this to an offline suite that
+   never reaches a store would assert the opposite of what the leg claims.
 
 End state — the desktop app embeds a real local terminal that runs real Claude Code in-app as the
 interactive build surface: the pty lifecycle and the renderer dock signed under their suites, the dock
