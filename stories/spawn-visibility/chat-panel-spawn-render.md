@@ -25,7 +25,10 @@ decisions: [137, 70, 4, 138]
 # `spawn` frame (defensively ignored) and ChatPanel has no spawn render → the query for the line finds
 # nothing (a RUNTIME red, never type-only). FRONTEND-BUILDER TWO-STAGE (ADR-0070): this `real:` arm
 # proves the GEOMETRY/BEHAVIOUR ONLY (the frame is accepted, the line renders and resolves) — the
-# on-screen APPEARANCE inside the native shell is the story's operator-attested UAT leg 5 (do NOT add a
+# on-screen APPEARANCE inside the native shell is carried by NO UAT leg — ADR-0348 D6 deleted the
+# appearance leg on 2026-08-11 as experience rather than acceptance, and ADR-0396 deleted this retired
+# story's remaining criteria on 2026-08-21; the design intent survives under "The spawn line's
+# legibility" in story.md. The instruction is UNCHANGED and now unconditional (do NOT add a
 # visual assertion here). RUNNER: the studio suite is VITEST + jsdom (NOT node:test — the
 # vitest-runner-mismatch trap), so the real arm declares an explicit proofCommand running the ONE test
 # file under vitest. `install: true` (fresh worktree needs the lockfile-only install, ADR-0031 §2).
@@ -61,7 +64,8 @@ render couple directly to that frame shape.
 > `:91`). What is MISSING is the `spawn` variant: today `isChatEvent` REJECTS a `spawn` frame
 > (defensively ignored) and the panel has no spawn render. This capability EDITS the wire union + guard
 > to accept it and EDITS the panel to render the spawn line. Its GEOMETRY/BEHAVIOUR is machine-witnessed;
-> its APPEARANCE inside the native shell is the story's operator-attested UAT leg 5 (ADR-0070). Status
+> its APPEARANCE inside the native shell is carried by no UAT leg (ADR-0348 D6, then ADR-0396) and is
+> never asserted here (ADR-0070). Status
 > stays `proposed` — `healthy` is only ever DERIVED from signed verdicts (ADR-0020), never authored.
 
 ## Guidance
@@ -85,11 +89,13 @@ frame renders "🔧 spawning `<role>` for `<unitId>`…"; the matching `phase: "
 order. Do NOT treat a `spawn` frame as terminal (it must not replace the `done` proposal) and do NOT
 drop it (a rejected frame is the RED).
 
-GEOMETRY/BEHAVIOUR HERE, APPEARANCE OPERATOR-ATTESTED (ADR-0070 two-stage): this `real:` arm proves the
+GEOMETRY/BEHAVIOUR HERE, APPEARANCE CARRIED BY NO LEG (ADR-0070 two-stage; ADR-0348 D6 deleted the
+appearance leg and ADR-0396 the rest, so the second stage is design intent, never a verdict anyone
+signs): this `real:` arm proves the
 BEHAVIOUR ONLY — the `spawn` frame is accepted by the guard, the started line renders, the finished
 line resolves it, over a scripted `api` seam. The line's LOOK inside the native shell (does it read as
 a distinct spawn signal; is it legible against the transcript; ADR-0113 §9) is the story's
-operator-attested UAT leg 5 — witnessed by the owner, NEVER a machine visual verdict here. Do NOT
+carried by no UAT leg since ADR-0348 D6 / ADR-0396 — and NEVER a machine visual verdict here. Do NOT
 author a visual/appearance assertion in this capability's tests.
 
 OFFLINE-TESTABLE BY MOCKING THE SEAM (the chat-panel discipline): `@vitest-environment jsdom`,
@@ -127,7 +133,8 @@ The test-proven leaf behaviours — each **one isolated automated test** in the 
 jsdom, `apps/studio/src/components/ChatPanel.spawn.test.tsx`), the `api` chat-stream seam
 mocked/scripted. Per ADR-0122 (`storytree coverage`), each contract id is the lead of a distinctly-named
 test, so the coverage check reports 3/3. None of these is an APPEARANCE assertion — the look is the
-story's operator-attested UAT leg 5 (ADR-0070).
+story's design intent under "The spawn line's legibility", not by any UAT leg (ADR-0070; ADR-0348 D6,
+then ADR-0396).
 
 1. **`cps-wire-union-accepts-the-spawn-frame`** — the `spawn` variant is on the union + guard
    - **asserts —** the studio `ChatEvent` union carries a `ChatSpawnEvent`
@@ -140,7 +147,8 @@ story's operator-attested UAT leg 5 (ADR-0070).
    - **asserts —** a `spawn` `phase: "started"` frame renders a "🔧 spawning `<role>` for `<unitId>`…"
      line in the transcript, and the matching `phase: "finished"` frame resolves it to
      "✓ `<role>` finished" (or an honest failed line on `ok: false`) — the geometry/behaviour, over the
-     scripted seam. (The line's look is the story's UAT leg 5, not asserted here.)
+     scripted seam. (The line's look is design intent in story.md, carried by no UAT leg, and is not
+     asserted here.)
    - **covers —** `apps/studio/src/components/ChatPanel.tsx` (the spawn-line render)
    - **proven by —** `apps/studio/src/components/ChatPanel.spawn.test.tsx`.
 3. **`cps-spawn-frame-is-non-terminal`** — a spawn frame appends, never terminates
@@ -169,8 +177,8 @@ landed. This increment EDITS them to accept + render the `spawn` frame, test-fir
   arm) and `apps/studio/src/components/ChatPanel.tsx` (accumulate + render the spawn line). NO
   `@storytree/agent`, NO `@storytree/drive`, NO model path. After it, the wire-accepts + line-renders +
   non-terminal assertions hold, and `pnpm --filter studio test` + `pnpm --filter studio typecheck` stay
-  green. The line's APPEARANCE inside the native shell is witnessed under the story's UAT leg 5
-  (operator-attested, ADR-0070), not asserted in CI.
+  green. The line's APPEARANCE inside the native shell is carried by no UAT leg and is not asserted in
+  CI (ADR-0070 — never a machine visual verdict here either).
 
 Rules:
 
@@ -179,7 +187,7 @@ Rules:
   green.
 - **Non-terminal** — a `spawn` frame appends a line and never terminates the stream
   (`cps-spawn-frame-is-non-terminal`); the `done` proposal still renders after.
-- **Appearance is operator-attested, not asserted here** (ADR-0070) — prove geometry/behaviour only;
-  the line's look is the story's UAT leg 5. Do not author a visual verdict.
+- **Appearance is NOT asserted here** (ADR-0070) — prove geometry/behaviour only; the line's look is
+  design intent in story.md, carried by no UAT leg. Do not author a visual verdict.
 - **Edit, don't fork** — the existing delta/done/error/refused rendering is untouched except for the
   additive `spawn` variant + its line render. The panel's existing behaviour stays green.

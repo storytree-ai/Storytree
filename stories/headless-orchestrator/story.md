@@ -31,15 +31,24 @@ proof_mode: UAT
 # witness (operator-attested — subscription-billed, an agent should not burn the spend unattended).
 # The story-level uat_witness is absent → human (the ADR-0040 fail-closed signpost), so the machine-
 # driven whole-story UAT node stays withheld; the crown derives from the per-leg roll-up.
-# RE-ADJUDICATED 2026-07-26 (ADR-0209 D8 — see `## UAT Test Criteria`): legs 1-3 AND leg 5 are
-# `witness: machine`; only leg 4 stays `human`, on the NO-COMPILER basis (is the proposed unit COHERENT —
-# an owner verdict with no oracle) with real subscription spend as a second, dissolvable basis. Leg 5
-# ("confirm the Phase-1 scope walls hold") named NO judgment at all — a refused second session, an empty
-# tool list, an absent dep, a non-existent hosted entry — and three of its conditions were already
-# authored as contracts. Its blanket "NO build/gate drive, NO landing by the agent" walls were also
-# FALSIFIED by ADR-0137/0152/0173 on the desktop path, so the leg was re-scoped to this story's terminal
-# entry rather than re-tagged and left standing. Per ADR-0209 §6 a re-adjudicated leg is UNSTAMPED until
-# a spec judges it; nothing here goes green and the owner signs nothing.
+# RE-ADJUDICATED 2026-07-26 (ADR-0209 D8): the legs at ordinals 1-3 AND 5 were `witness: machine`; only
+# the leg at ordinal 4 stayed `human`, on the NO-COMPILER basis (is the proposed unit COHERENT — an owner
+# verdict with no oracle) with real subscription spend as a second, dissolvable basis that ADR-0348 D2
+# later withdrew. The leg at 5 ("confirm the Phase-1 scope walls hold") named NO judgment at all — a
+# refused second session, an empty tool list, an absent dep, a non-existent hosted entry — and three of
+# its conditions were already authored as contracts. Its blanket "NO build/gate drive, NO landing by the
+# agent" walls were also FALSIFIED by ADR-0137/0152/0173 on the desktop path, so the leg was re-scoped to
+# this story's terminal entry rather than re-tagged and left standing. Per ADR-0209 §6 a re-adjudicated
+# leg is UNSTAMPED until a spec judges it; nothing here went green and the owner signed nothing.
+# UAT CRITERIA: NONE since 2026-08-21 (ADR-0396 — a retired story's criteria are an obligation against a
+# withdrawn journey, so they are deleted and their ordinals burned; the body keeps the history).
+# Ordinals 1-5 are all burned. None held proof credit (all read `proven=–`), so ADR-0396 D8's
+# keep-the-proven fence did not bite; each key is `superseded` in stories/uat-legacy-dispositions.json
+# and the detail artifacts headless-orchestrator#uat-4/5 are retired in the live store. ⚠ THIS STORY'S
+# CODE IS STILL LIVE (retirement moved OWNERSHIP to app-guide, it removed nothing): the deletion removes
+# an obligation, never a wall — the Phase-1 walls stay asserted by ots-write-verb-refused-at-surface,
+# ots-exposes-exactly-the-read-surfaces, hsr-refuses-concurrent-session and oc-single-session-guard.
+# Everything above this line about the legs is DATED HISTORY, not anything current.
 capabilities: [orientation-tool-surface, headless-session-runner, orchestrator-composition, chat-session-stream]
 # Phase 2 (ADR-0108 — the chat surface over the Phase-1 runtime) is added as `chat-session-stream`: the
 # SSE route + chat-message intake that streams an `orchestrate`-driven session. It is CONSUMED by the
@@ -194,10 +203,12 @@ orientation tool surface and nothing else. The honest status is `proposed`:
   like the `agent` story's live `query()` leg: a REAL subscription `query()` running the
   `session-orchestrator` prompt, orienting on the REAL three surfaces and emitting a real proposal, is
   operator-attested (subscription-billed — an agent should not burn the spend unattended), NOT a
-  standing offline test. That leg is `witness: human` (Story UAT leg 4); the offline mechanics legs
-  (1–3) are `witness: machine`. *(Re-adjudicated 2026-07-26, ADR-0209 D8: the scope-wall leg 5 joined the
-  machine set, and leg 4's load-bearing basis was restated as NO-COMPILER — whether the proposed unit is
-  coherent — with the spend as a second, dissolvable basis rather than the whole reason.)*
+  standing offline test. That leg was `witness: human` (the Story UAT leg at ordinal 4); the offline
+  mechanics legs at ordinals 1–3 were `witness: machine`. *(Re-adjudicated 2026-07-26, ADR-0209 D8: the
+  scope-wall leg at ordinal 5 joined the machine set, and the live leg's load-bearing basis was restated
+  as NO-COMPILER — whether the proposed unit is coherent — with the spend as a second, dissolvable basis
+  rather than the whole reason. All five were then deleted by ADR-0396 on 2026-08-21; the UAT section
+  holds the record.)*
 
 Status stays `proposed` for every unit — `healthy` is earned through the prove-it-gate AND the
 operator's live-run attestation; it is never authored (ADR-0020).
@@ -213,9 +224,9 @@ Listed roots-first (a capability appears after everything it depends on). All th
 additive net-new red→green against the real package source), so they form a **dependency-closed,
 acyclic set in which every member resolves a `real:` arm** — exactly what makes the WHOLE story
 story-`real`-buildable (`isStoryBuildable`). The live orientation leg is NOT a fourth capability (it
-has no separate code — it is the runner's own mechanics run live); it is the human-witness Story UAT
-leg 4, the slow-growth-minimal choice (mirroring `studio-build`, whose live run is the human-witness
-UAT action, not a capability).
+has no separate code — it is the runner's own mechanics run live); it was carried by the human-witness
+Story UAT leg at ordinal 4, the slow-growth-minimal choice (mirroring `studio-build`, whose live run is
+the human-witness UAT action, not a capability). *(Carried by no leg since ADR-0396, 2026-08-21.)*
 
 | # | capability | outcome | depends on |
 |---|---|---|---|
@@ -304,190 +315,156 @@ composition ROOT that drives this runtime and injects the read dispatch through 
 
 ## UAT Test Criteria
 
-The integrated **acceptance walkthrough** that proves the whole `headless-orchestrator` runtime — the
-Phase-1 read/propose loop — meets its outcome end-to-end. It is minimal-first (one coherent journey:
-intent → load the agent + read tools → orient → propose), defect-driven thereafter (each real failure
-earns a permanent regression case, never speculative breadth). Mocks are forbidden in the consumed
-seams that CAN run offline: the orientation tools wrap the REAL `run()` over the REAL seed corpus; the
-rendered prompt is the REAL `session-orchestrator` agent. Only the SDK `query()` is scripted offline
-(the paid leaf can't be a free standing test) and is exercised live in leg 4.
+> **DELETED — all five criteria, 2026-08-21, under
+> [ADR-0396](../../docs/decisions/0396-a-retired-story-s-uat-criteria-are-deleted-with-their-ordina.md).**
+> A UAT criterion is a standing acceptance OBLIGATION against a story's outcome, not a record of one.
+> This story is `status: retired` — retirement moved OWNERSHIP of its substrate to
+> [`app-guide`](../app-guide/story.md) (ADR-0174 / ADR-0175) — so its outcome is withdrawn and every
+> criterion under it was an obligation against a journey nobody will run on THIS story's behalf. The
+> five legs that stood here — ordinals 1 through 5 — are deleted, and **every one of those ordinals is
+> BURNED, never reused** (ADR-0396 D2): no `headless-orchestrator#uat-<n>` key can ever denote a second
+> criterion.
+>
+> **⚠ THIS IS THE ONE OF THE FIVE RETIRED STORIES WHOSE CODE IS STILL LIVE — read the deletion
+> precisely.** `storytree orchestrate "<intent>"` remains a reachable terminal command
+> (`packages/cli/src/commands.ts`), every source file this story cites exists, and the suites over them
+> are green. **Deleting these legs removes a retired story's OBLIGATION; it removes no wall.** The
+> Phase-1 walls the leg at ordinal 5 asserted are still asserted one rung down, by contracts this
+> story's own capabilities own: `ots-write-verb-refused-at-surface` and
+> `ots-exposes-exactly-the-read-surfaces` (`packages/agent/src/orientation-tools.test.ts`),
+> `hsr-refuses-concurrent-session` (`packages/agent/src/headless-orchestrator.test.ts`) and
+> `oc-single-session-guard` (`packages/drive/src/orchestrate-single-session.test.ts`). **What is NOT
+> decided here, and is deliberately left open:** whether those walls deserve a standing STORY-tier
+> acceptance claim on whichever LIVE story owns the substrate today. If they do, that claim belongs to
+> `app-guide` and authoring it there is a separate story-author unit — recorded in ADR-0396's
+> Consequences so the silence is not mistaken for a finding that no claim is owed.
+>
+> **Nothing signed was destroyed.** All five read `proven=–` at deletion — no `events.verdict` row and
+> no `events.attestation` row named any of their `criterionId`s (`events.attestation` held 8 rows
+> corpus-wide when last probed and not one was a `headless-orchestrator#uat-*` id). ADR-0396 D8 keeps a
+> proof-bearing criterion in place when its story retires; none here was one.
+>
+> **Where the history is.** Each of the five positional keys is recorded `superseded` in
+> `stories/uat-legacy-dispositions.json` with its rationale (the ledger still totals 282 keys), the legs
+> themselves are in `git log -p` verbatim, and the two detail artifacts they pointed at —
+> `headless-orchestrator#uat-4` and `#uat-5` — are retired in the live store with the same rationale.
 
-> **HONEST status — `proposed`, read/propose only, part-scripted / part-attested.** The offline legs
-> (1–3) are automatable by the package suites (`@storytree/agent` + `@storytree/drive`) over an injected
-> `queryFn` + scripted read-tool doubles + the in-memory seed. Leg 4 — a REAL subscription `query()`
-> running the session-orchestrator prompt, orienting on the real three surfaces — is **operator-
-> attested** (subscription-billed; an agent should not burn the spend unattended), NOT a standing test.
-> This UAT is therefore part-scripted, part-attested — the `agent`/`studio-build` honesty pattern.
->
-> **Per-leg witness (ADR-0106; RE-ADJUDICATED 2026-07-26, ADR-0209 D8).** Legs 1–3 AND leg 5 are
-> `witness: machine`. Only leg 4 stays `witness: human`. No leg rests `either`.
->
-> **The coverage claim was CHECKED, not trusted.** The original text asserted that "the package suites
-> demonstrably cover" legs 1–3. They do: `packages/agent/src/orientation-tools.test.ts` carries all seven
-> `ots-*` contracts, `packages/agent/src/headless-orchestrator.test.ts` all five `hsr-*`, and
-> `packages/drive/src/{orchestrate,orchestrate-single-session}.test.ts` the five `oc-*`. Both suites ran
-> green on 2026-07-26 (`@storytree/agent` 189 pass / 0 fail; `@storytree/drive` 318 pass / 0 fail). Every
-> cited source file exists — nothing on this story is a dead binding.
->
-> **What the re-adjudication changed.** Leg 5 ("confirm the Phase-1 scope walls hold") was `human` while
-> naming NO judgment whatsoever: a refused second session, an empty tool list, an absent dep, a
-> non-existent hosted entry. Refusals, absences, shapes and counts all compile —
-> `human-witness-is-a-judgment-gap-not-cost` — and three of its conditions were ALREADY authored as
-> contracts (`oc-single-session-guard`, `hsr-refuses-concurrent-session`,
-> `ots-write-verb-refused-at-surface`). This is the subject-matter trap in its plainest form: a story
-> about an autonomous orchestrator tagged its own mechanics as judgment. `studio-build`#uat-8 is the
-> settled precedent — a "confirm the no-land walls hold" leg is machine.
->
-> **Leg 4 stays `human`, on the NO-COMPILER basis first and the SPEND basis second.** Whether the unit it
-> proposes is COHERENT has no oracle; that basis dissolves under nothing. The subscription spend is real
-> and also disqualifies an unattended agent, but that basis WOULD dissolve if the spend went away, so it
-> is not the load-bearing one. The leg's mechanical halves were removed rather than split off (see leg 4).
->
-> **NEITHER leg is gate-bound, and that is deliberate.** This story declares NO `## Reliability Gates`
-> section, so there is no gate id to name: `resolveWitness` reports every machine leg here `refused` — a
-> pre-existing OPEN BINDING GAP on legs 1–3 that leg 5 now joins, NOT a regression this pass introduced.
-> Minting an observe gate to make leg 5 look bound would be the rubber-stamp ADR-0097 §2 bans, especially
-> on a story whose capabilities' `real:` arms were dropped at retirement. The honest state is: machine and
-> unbound. Per ADR-0209 §6 leg 5 is UNSTAMPED until a spec judges it — the tag records which witness is
-> RIGHT, not that a proof exists, and the owner signs nothing here.
->
-> **No prior attestation is claimed, and none exists.** `events.attestation` holds 8 rows corpus-wide
-> (probed 2026-07-26); not one is a `headless-orchestrator#uat-*` test id. Every "attested" mention in
-> this story is forward-looking. The one backward-looking cross-reference — `agent`#uat-5 — is real
-> (seq 7, `outcome: pass`, `witness: human`, 2026-06-26), which is precisely why it remains a sound
-> precedent for leg 4.
->
-> The story-level `uat_witness` is absent → human (the ADR-0040 fail-closed signpost), so the
-> machine-driven whole-story UAT node stays withheld; the crown derives from the per-leg roll-up.
+**Goal (kept — what the journey was FOR) —** A programmatic intent loads the `session-orchestrator`
+agent into a server-side runtime with the read-only orientation tools wired, the agent orients on the
+real three surfaces, and the runtime surfaces a proposed unit — having written, built, signed, and
+landed NOTHING. Intent → load the agent + read tools → orient → propose.
 
-**Goal —** A programmatic intent loads the `session-orchestrator` agent into a server-side runtime
-with the read-only orientation tools wired, the agent orients on the real three surfaces, and the
-runtime surfaces a proposed unit — having written, built, signed, and landed NOTHING.
+### What the deleted legs established, carried up so it is not lost with them
 
-> **PRECONDITION SCOPE NOTE (recorded 2026-07-26 alongside the ADR-0209 D8 re-adjudication) — this story
-> is RETIRED, but its Phase-1 entry is NOT dormant.** `storytree orchestrate "<intent>"` is still a live,
-> reachable command (`packages/cli/src/commands.ts:2231-2276`), and every source file this story cites
-> exists and is under a green suite. So unlike the retired-and-dormant surfaces elsewhere in this
-> migration, legs 1–5 here are all WALKABLE today; retirement moved OWNERSHIP of the substrate to
-> [`app-guide`](../app-guide/story.md), it did not remove the code. **Irreducible and currently unwalkable
-> are different facts** — leg 4 is human because it is irreducible, and it happens also to be walkable.
->
-> **But the WALLS moved, and the leg had to be re-scoped to say where they still stand.** The Phase-1
-> read/propose-only walls hold on THIS entry, which wires no spawn / landing / inspect deps. They do NOT
-> hold on the DESKTOP path built over this story's own Phase-2 capability: `chat-stream.ts:280-282`
-> forwards spawn (ADR-0137), landing (ADR-0152) and inspect (ADR-0173) deps into `orchestrate`, so a
-> desktop chat session really can spawn a builder, run the gate and open a landing PR. Those doors were
-> opened by later ACCEPTED decisions, not by drift — which is exactly why leg 5's original blanket "NO
-> build/gate drive, NO landing by the agent" could not simply be re-tagged machine and left standing.
+These are the facts the per-leg scope notes had recorded and that the rest of this body does not
+otherwise carry (ADR-0396 D3). They describe LIVE code, so they are the most load-bearing carry-up of
+the five retired stories — each was written against the code on the date given and any of them could
+have gone RED as originally worded:
 
-1. **The read-only tool surface exposes the three surfaces and refuses every write.** _(criterion-id: uatc_dd56230157c85996da0a5bc1)_ _(revision-id: uatr1:b6eddfbb22380020)_
-   _(witness: machine)_ Construct the orientation tool surface over the in-memory seed store
-   (`writable: false`) + the real `stories/` corpus and call each tool. **Success —** the `tree` tool
-   returns the work-hierarchy envelope body, the `library` tool returns the dashboard / an artifact
-   body, and the surface exposes NO `Write`/`Edit`/`Bash` tool; an attempt to reach a write verb
-   through the surface is refused, never executed — the agent is structurally read-only.
-   *(SCOPE NOTE, corrected in place 2026-07-26 — the leg is unchanged in witness and position; its prose
-   drifted from the code and would have gone RED as written. **Where the refusal happens:** it is the
-   SURFACE's own `WRITE_VERBS` set that refuses, before the runner is ever called
-   (`packages/agent/src/orientation-tools.ts:91-97`, `:176-183`, contract `ots-write-verb-refused-at-surface`).
-   The CLI's `notWritable` guard — which the original prose credited — is the downstream BACKSTOP reached
-   only if a write verb slipped the surface; a test asserting the refusal came from `notWritable` would
-   find the runner was never invoked. **How many tools:** `buildOrientationTools` returns FOUR —
-   `tree`, `library`, `noticeboard`, `agents` — not three; the title's "three surfaces" is the ADR-0108
-   orientation triad, and `agents` (the self-onboarding read) was added later. Contract
-   `ots-exposes-exactly-the-read-surfaces` pins the exact four.)*
-2. **A headless session runs the injected prompt with the tools wired and surfaces the proposal.** _(criterion-id: uatc_7fa2dd3d2ef76ccd587e9256)_ _(revision-id: uatr1:3f06d4b7fa73a030)_
-   _(witness: machine)_ Drive the runner with a `ScriptedModel`-equivalent injected `queryFn` (zero
-   live calls) whose scripted session calls an orientation tool, then emits a final proposal in its
-   result message. **Success —** the runner wires the orientation tools into the `query()` options,
-   the scripted session's tool call dispatches to the real read command and returns its envelope, the
-   runner returns `{ ok: true, proposal: <final text> }`, and running past the scripted end is a LOUD
-   error, never a silent forged success.
-   *(SCOPE NOTE, corrected in place 2026-07-26 — witness and position unchanged. **The tools are wired
-   only when a runner is ALSO injected.** Since the ADR-0108 §7 scale-down,
-   `packages/agent/src/headless-orchestrator.ts:252-253` builds the orientation tools ONLY when
-   `args.runner !== undefined`; with no runner NO orientation tools are advertised and `allowedTools` is
-   empty. A walk that injects a `queryFn` alone and then asserts "the runner wires the orientation tools
-   into the `query()` options" goes red against correct code — both seams must be injected, exactly as
-   `headless-orchestrator.test.ts` does in its "injected runner is usable by orientation tools" case.
-   **The loud error is a RETURNED result, not a throw:** a session ending with no result message yields
-   `{ ok: false, error: "SDK session ended without a result message" }` (`:402-407`) — the runner never
-   throws, so an assertion shaped as `assert.throws` would also go red.)*
-3. **The composition renders the real agent and drives a session against the real seed corpus.** _(criterion-id: uatc_4b91382f4d89adc135be0f42)_ _(revision-id: uatr1:b1df8d5ef36af858)_
-   _(witness: machine)_ Call the Phase-1 programmatic entry with an injected `queryFn`. **Success —**
-   it renders the REAL `session-orchestrator` system prompt via `renderAgentPrompt` (a non-empty prompt
-   carrying the orchestrator's role + injected guidance, NOT a stub), renders that prompt off the real
-   seed corpus, drives the runner, and surfaces the scripted proposal — proving the loop definition is the
-   rendered library agent (ADR-0051), not a fork.
-   *(SCOPE NOTE, corrected in place 2026-07-26 — witness and position unchanged. The original prose said
-   the composition "assembles the orientation deps over the real seed corpus". It does NOT, and never has
-   on this code path: `orchestrate()` passes the seed `store` to `renderAgentPrompt` ONLY
-   (`packages/drive/src/orchestrate.ts:191`), and `runHeadlessOrchestrator` builds the orientation tools
-   with `{ store: null }` (`packages/agent/src/headless-orchestrator.ts:253`) — the tool surface reaches
-   the corpus through the INJECTED runner, not through a store the composition assembled. A machine leg
-   asserting the composition wired seed-backed orientation deps would have gone red against correct code.
-   What IS true, and what `orchestrate.test.ts` actually pins, is that the system prompt handed to the
-   runner is the REAL rendered `session-orchestrator` off the seed store.)*
-4. **The live runtime orients on the real three surfaces and proposes.** _(witness: human)(detail: headless-orchestrator#uat-4)_
-   _(witness-basis: whether the runtime emitted a COHERENT unit proposal — one that follows from what
-   it actually read rather than plausible prose it could have produced from the system prompt alone —
-   has no oracle, and no model-judged witness kind is reachable in this corpus today. This story is
-   retired IN PLACE but its Phase-1 entry is live, so the leg is walkable; irreducible and unwalkable
-   are different facts. The basis dissolves under nothing — the metered-spend half that once rode
-   with it was withdrawn by ADR-0348 D2.)_ Run the _(criterion-id: uatc_b99e6bbd2913b4f032252d69)_ _(revision-id: uatr1:7ad9c5039c483be1)_ _(previous-revision-id: uatr1:9cd3a8b79f37584d)_
-   programmatic entry LIVE (a real subscription `query()`, no injected `queryFn`) against the real seed
-   corpus (and, with the DB up, the live notice board), then JUDGE the unit it proposed. **Success —** the
-   owner's verdict that the agent, running the session-orchestrator prompt over the real three surfaces,
-   emitted a COHERENT proposed unit: a unit that follows from what it actually read, not plausible-looking
-   prose it could have produced from the system prompt alone.
-   *(HUMAN on TWO bases, stated apart because they dissolve differently. **(a) NO-COMPILER — the
-   load-bearing one:** "is this a coherent unit proposal" has no oracle; nothing decides it but the owner,
-   and no model-judged witness kind is reachable in this corpus today. This basis dissolves under nothing.
-   **(b) REAL METERED SUBSCRIPTION SPEND:** a live `query()` is subscription-billed and an agent may not
-   burn it unattended — the `agent`#uat-5 / `studio-build`#uat-9 pattern (`agent`#uat-5 is a genuinely
-   signed operator attestation, `events.attestation` seq 7, 2026-06-26). Basis (b) would dissolve if the
-   spend went away; (a) would not. **Removed 2026-07-26:** the MECHANICAL halves this leg also asserted —
-   that it CALLS the read tools, and that it "wrote nothing, opened no worktree, triggered no build,
-   signed no verdict, and landed nothing" — because legs 2 and 3 already compile the tool dispatch and the
-   proposal extraction, and re-adjudicated leg 5 now compiles the no-write / no-build / no-land walls.
-   Restating a compiled fact as something the owner signs launders it into an unrepeatable signature.)*
-5. **Confirm the Phase-1 scope walls hold.** _(witness: machine)(detail: headless-orchestrator#uat-5)_ _(criterion-id: uatc_7255f046a499b13e9a81d841)_ _(revision-id: uatr1:9ac5ef5256f76fff)_
-   Drive THIS story's Phase-1 entry — the terminal `orchestrate` command
-   (`packages/cli/src/commands.ts:2231-2276`) over the composition — and inspect what it actually
-   constructed. **Success —** the runtime served a SINGLE orchestration: with one composition in flight a
-   second intent is REFUSED with the typed `single-session` result (`packages/drive/src/orchestrate.ts:142`,
-   `:178-186`) and the running session completes untouched; the session's tool surface was READ-ONLY
-   throughout — the SDK options carry `tools: []`, `allowedTools` names only `mcp__orientation__*` read
-   tools, and a write/act verb routed as a tool arg is refused AT the surface before the runner is ever
-   called (`packages/agent/src/orientation-tools.ts:91-97`, `:176-183`); and the entry wired NO spawn, NO
-   landing and NO inspect deps, so no `spawn_builder`, `run_gate`, `open_landing_pr` or `git_inspect` tool
-   was advertised to the model at all — nothing was built, signed or landed because there was no tool
-   through which to do it. NO hosted entry exists (Phase 5).
-   *(Re-adjudicated human -> machine 2026-07-26, ADR-0209 D8. The leg named NO judgment at all — every
-   condition it states is a refusal, an absence, a shape or a count, and
-   `human-witness-is-a-judgment-gap-not-cost` puts those on the machine rung. It is the `studio-build`#uat-8
-   shape exactly: "confirm the no-land walls hold" is inspectable options and observable state, not a
-   verdict. Three of its conditions are already someone else's written assertion —
-   `oc-single-session-guard`, `hsr-refuses-concurrent-session`, `ots-write-verb-refused-at-surface` — which
-   is the clearest sign the leg was never irreducible. Per ADR-0209 §6 it returns to UNSTAMPED until a spec
-   judges it: the tag records which witness is RIGHT, not that a proof exists, and the owner signs nothing
-   here.)*
-   *(THREE original conditions were REMOVED as factually false rather than restated — a machine leg
-   asserting them would have gone RED against correct code. "There is NO chat UI (Phase 2)":
-   [`chat-session-stream`](chat-session-stream.md) is capability 4 of this very story and shipped green in
-   PR #398 / #399. "NO build/gate drive (Phase 3), NO landing by the agent (Phase 4)": ADR-0137 / ADR-0152 /
-   ADR-0173 deliberately opened those doors on the DESKTOP path, where `packages/drive/src/chat-stream.ts:280-282`
-   forwards spawn / landing / inspect deps straight into `orchestrate` — so the wall survives only where it
-   is now scoped, on this story's terminal entry, which wires none of them. "The orchestration declared
-   presence on the notice board": `orchestrate()` declares nothing anywhere on its path, and ADR-0200
-   retired advisory presence rows outright in favour of the claim ledger.)*
+- **The write refusal happens at the SURFACE, not at the CLI's `notWritable` guard** (2026-07-26). It
+  is the surface's own `WRITE_VERBS` set that refuses, before the runner is ever called
+  (`packages/agent/src/orientation-tools.ts:91-97`, `:176-183`, contract
+  `ots-write-verb-refused-at-surface`). The CLI's `notWritable` guard is the downstream BACKSTOP,
+  reached only if a write verb slipped the surface — a test asserting the refusal came from
+  `notWritable` would find the runner was never invoked.
+- **`buildOrientationTools` returns FOUR tools, not three** — `tree`, `library`, `noticeboard`,
+  `agents`. "Three surfaces" is the ADR-0108 orientation triad; `agents` (the self-onboarding read) was
+  added later. `ots-exposes-exactly-the-read-surfaces` pins the exact four.
+- **The orientation tools are wired only when a RUNNER is also injected** (2026-07-26). Since the
+  ADR-0108 §7 scale-down, `packages/agent/src/headless-orchestrator.ts:252-253` builds them ONLY when
+  `args.runner !== undefined`; with no runner NO orientation tools are advertised and `allowedTools` is
+  empty. A walk that injects a `queryFn` alone and then asserts the runner wired the tools into the
+  `query()` options goes red against correct code — both seams must be injected, exactly as
+  `headless-orchestrator.test.ts` does in its "injected runner is usable by orientation tools" case.
+- **The loud error is a RETURNED result, not a throw.** A session ending with no result message yields
+  `{ ok: false, error: "SDK session ended without a result message" }` (`headless-orchestrator.ts`
+  `:402-407`); the runner never throws, so an assertion shaped as `assert.throws` also goes red.
+- **The composition does NOT assemble seed-backed orientation deps, and never has on this path**
+  (2026-07-26). `orchestrate()` passes the seed `store` to `renderAgentPrompt` ONLY
+  (`packages/drive/src/orchestrate.ts:191`), and `runHeadlessOrchestrator` builds the orientation tools
+  with `{ store: null }` (`headless-orchestrator.ts:253`) — the tool surface reaches the corpus through
+  the INJECTED runner. What IS true, and what `orchestrate.test.ts` pins, is that the system prompt
+  handed to the runner is the REAL rendered `session-orchestrator` off the seed store.
+- **THE WALLS MOVED, and the scoping is the load-bearing part.** The Phase-1 read/propose-only walls
+  hold on THIS story's terminal entry, which wires no spawn / landing / inspect deps. They do NOT hold
+  on the DESKTOP path built over this story's own Phase-2 capability: `chat-stream.ts:280-282` forwards
+  spawn (ADR-0137), landing (ADR-0152) and inspect (ADR-0173) deps into `orchestrate`, so a desktop
+  chat session really can spawn a builder, run the gate and open a landing PR. Those doors were opened
+  by later ACCEPTED decisions, not by drift. Anyone re-authoring a walls claim anywhere must carry this
+  scoping or the claim goes RED against correct code.
+- **Three original wall conditions were REMOVED as factually false rather than restated** (2026-07-26),
+  and must not be revived: *"There is NO chat UI (Phase 2)"* — `chat-session-stream` is capability 4 of
+  this very story and shipped green in PR #398 / #399; *"NO build/gate drive (Phase 3), NO landing by
+  the agent (Phase 4)"* — ADR-0137 / ADR-0152 / ADR-0173 deliberately opened those doors on the desktop
+  path; and *"the orchestration declared presence on the notice board"* — `orchestrate()` declares
+  nothing anywhere on its path, and ADR-0200 retired advisory presence rows outright in favour of the
+  claim ledger.
+- **The coherence judgment had no oracle, and no `model` witness kind is reachable** — whether the
+  runtime emitted a COHERENT unit proposal (one that follows from what it actually READ, rather than
+  plausible prose it could have produced from the system prompt alone) is decided by nobody but the
+  owner. That basis dissolved under nothing; the metered-spend half that once rode with it was
+  withdrawn by ADR-0348 D2.
 
-End state — a server-side runtime ran the SAME `session-orchestrator` loop definition the terminal
-uses, headlessly, oriented on the real three surfaces through a read-only tool surface, and proposed a
-unit — every Phase-1 wall (read-only, no builds, no signing, no landing, single-session) held ON THIS
-ENTRY. *(Scoped 2026-07-26: the walls are still true of the terminal `orchestrate` entry this story
-owns; they were deliberately opened on the desktop chat path by ADR-0137 / ADR-0152 / ADR-0173, so the
-unqualified reading is no longer accurate — see leg 5.)*
+### The per-leg witness record, as it stood at deletion — history, describing a list that no longer exists
+
+Read every sentence below as dated: it describes how the five legs stood on 2026-08-13, not how
+anything stands now.
+
+As authored, the legs at ordinals 1–3 were automatable by the package suites (`@storytree/agent` +
+`@storytree/drive`) over an injected `queryFn` + scripted read-tool doubles + the in-memory seed, and
+the leg at ordinal 4 — a REAL subscription `query()` running the session-orchestrator prompt, orienting
+on the real three surfaces — was operator-attested rather than a standing test. The 2026-07-26
+re-adjudication (ADR-0209 D8) left ordinals 1–3 AND 5 `witness: machine`, with only ordinal 4 staying
+`witness: human`; no leg rested `either`.
+
+**The coverage claim was CHECKED, not trusted, and it held.** `orientation-tools.test.ts` carries all
+seven `ots-*` contracts, `headless-orchestrator.test.ts` all five `hsr-*`, and
+`packages/drive/src/{orchestrate,orchestrate-single-session}.test.ts` the five `oc-*`. Both suites ran
+green on 2026-07-26 (`@storytree/agent` 189 pass / 0 fail; `@storytree/drive` 318 pass / 0 fail). Every
+cited source file exists — nothing on this story was ever a dead binding.
+
+**What the re-adjudication changed.** The leg at ordinal 5 (*"confirm the Phase-1 scope walls hold"*)
+was `human` while naming NO judgment whatsoever: a refused second session, an empty tool list, an
+absent dep, a non-existent hosted entry. Refusals, absences, shapes and counts all compile —
+`human-witness-is-a-judgment-gap-not-cost` — and three of its conditions were ALREADY authored as
+contracts (`oc-single-session-guard`, `hsr-refuses-concurrent-session`,
+`ots-write-verb-refused-at-surface`), which is the clearest sign it was never irreducible. This is the
+subject-matter trap in its plainest form: a story about an autonomous orchestrator had tagged its own
+mechanics as judgment. `studio-build`'s own "confirm the no-land walls hold" leg is the settled
+precedent — that shape is machine.
+
+**The leg at ordinal 4 stayed `human`, on the NO-COMPILER basis FIRST and the SPEND basis second.**
+Whether the unit it proposed was COHERENT has no oracle; that basis dissolved under nothing. The
+subscription spend was real and also disqualified an unattended agent, but that basis WOULD have
+dissolved if the spend went away — and ADR-0348 D2 duly withdrew it — so it was never the load-bearing
+one. The leg's mechanical halves were REMOVED rather than split off: the legs at ordinals 2 and 3
+already compiled the tool dispatch and the proposal extraction, and the re-adjudicated leg at 5
+compiled the no-write / no-build / no-land walls. Restating a compiled fact as something the owner
+signs launders it into an unrepeatable signature.
+
+**NEITHER leg was gate-bound, and that was deliberate.** This story declares no `## Reliability Gates`
+section, so there was no gate id to name: `resolveWitness` reported every machine leg here `refused` —
+a pre-existing OPEN BINDING GAP that the re-adjudicated leg joined, never a regression that pass
+introduced. Minting an observe gate to make it look bound would be the rubber-stamp ADR-0097 §2 bans,
+especially on a story whose capabilities' `real:` arms were dropped at retirement. The honest state was:
+machine and unbound.
+
+**IRREDUCIBLE and CURRENTLY UNWALKABLE are different facts, and this story is the corpus's clearest
+demonstration.** Unlike the retired-and-dormant surfaces elsewhere in this migration, all five legs
+here were WALKABLE to the end — retirement moved ownership of the substrate, it did not remove the
+code. The leg at ordinal 4 was human because it was irreducible, and it happened also to be walkable.
+
+The story-level `uat_witness` is absent → human (the ADR-0040 fail-closed signpost), so the
+machine-driven whole-story UAT node stayed withheld; the crown derived from the per-leg roll-up, and
+now derives from the ADR-0085 own-proof union over a story that declares no criteria (ADR-0294 D5).
+
+**End state, as authored —** a server-side runtime ran the SAME `session-orchestrator` loop definition
+the terminal uses, headlessly, oriented on the real three surfaces through a read-only tool surface,
+and proposed a unit — every Phase-1 wall (read-only, no builds, no signing, no landing, single-session)
+held ON THIS ENTRY. *(Scoped 2026-07-26: the walls are still true of the terminal `orchestrate` entry
+this story owns; they were deliberately opened on the desktop chat path by ADR-0137 / ADR-0152 /
+ADR-0173, so the unqualified reading is not accurate — see "THE WALLS MOVED" above, which is where that
+scoping now lives.)*
 
 ## Proof
 
@@ -508,7 +485,8 @@ the spine can drive their offline suites red→green under its own gate
 (`pnpm storytree story build headless-orchestrator --real`); the story's own machine-driven UAT node is
 WITHHELD (its `uat_witness` is absent → human, ADR-0040), so driving the three capabilities to a signed
 verdict is what makes the WHOLE story buildable, and the crown additionally awaits the operator's
-live-run attestation (leg 4) — `healthy` is never authored here. *(Corrected 2026-08-08: the
+live-run attestation on the live leg — `healthy` is never authored here. Since ADR-0396 (2026-08-21)
+the crown awaits nothing here: the story declares no criteria. *(Corrected 2026-08-08: the
 paragraph above is AUTHORING-TIME history and its present tense no longer describes anything live —
 the story and all FOUR capabilities are `retired`, not `proposed` (it says "three"; the
 `capabilities:` list above has four), and their `real:` arms are dropped, so the `story build --real`
@@ -565,7 +543,8 @@ owner-fork bar):
      reach through `cli`.
    - **No GREEN forces the extraction.** Every offline proof scripts the `queryFn`, so the orientation
      `runner` is never exercised in the gate; the live orientation leg is operator-attested
-     (subscription-billed, leg 4) and NO non-cli backend wires a live runner in built code today (only
+     (subscription-billed; it stood as the leg at ordinal 4 until ADR-0396 deleted this retired story's
+     criteria on 2026-08-21) and NO non-cli backend wires a live runner in built code today (only
      `packages/cli` constructs the real `run()`-backed runner). Extracting a shared read-dispatch package
      now would build a package-level abstraction before any consumer forces it — the slow-growth /
      minimum-to-green violation the rule names.

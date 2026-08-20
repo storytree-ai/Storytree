@@ -10,32 +10,40 @@ outcome: "From a chat conversation the orchestrator proposes a machine-actionabl
 # accept-to-land-affordance) are retired with ADR-0155 as their deciding record; their deleted-feature
 # tests went with PR #587. The relocated `dispatchAcceptedBuild` worker call REMAINS live under
 # desktop-build-mount / builder-spawn-dispatch — only the chat propose/accept front retired. Body kept as
-# history. The live legs 5–6 (operator-attested) are moot: the accept-to-land experience they attested no
-# longer exists. NARROWED 2026-08-11 (ADR-0348 D6): leg 6 (the APPEARANCE) is DELETED as a user
-# EXPERIENCE rather than a user ACCEPTANCE claim — intent carried in "The accept-and-watch feel" — so
-# ONE human leg remains, leg 5, on its spend + outward-action bases.
+# history. The two live legs (operator-attested) were moot: the accept-to-land experience they attested
+# no longer exists. NARROWED 2026-08-11 (ADR-0348 D6): the APPEARANCE leg at ordinal 6 was DELETED as a
+# user EXPERIENCE rather than a user ACCEPTANCE claim — intent carried in "The accept-and-watch feel".
+# CLOSED 2026-08-21 (ADR-0396): ALL FIVE remaining criteria are DELETED and their ordinals burned,
+# because a retired story's criteria are an obligation against a withdrawn journey. See the
+# `## UAT Test Criteria` section, which is now the record rather than a list.
 status: retired
 proof_mode: UAT
+# UAT CRITERIA: NONE since 2026-08-21 (ADR-0396). Ordinals 1–5 burned here; 6 was already burned by
+# ADR-0348 D6. None held proof credit (all read `proven=–`), so ADR-0396 D8's keep-the-proven fence did
+# not bite; each key is `superseded` in stories/uat-legacy-dispositions.json and the detail artifact
+# chat-drive-bridge#uat-5 is retired in the live store. Everything below this line is DATED HISTORY of
+# how the list stood, not a description of anything current.
 # Per-leg witness (ADR-0106): the offline mechanics legs (the non-spoofable proposed-unit signal, the
 # threading through the stream, the dispatch routing/validation, the progress fold) are machine-
 # witnessed. The accept-to-land AFFORDANCE's APPEARANCE (the proposal card + the Build button's
 # look/feel, the live-progress feel) was human-witness (operator-attested, ADR-0070) until ADR-0348 D6
 # deleted that leg on 2026-08-11; it is now design intent, never a leg. Its GEOMETRY/BEHAVIOUR (the
 # button dispatches a build, progress renders) is machine-witnessed and unchanged.
-# RE-ADJUDICATED 2026-07-26 (ADR-0209 D8 — see the `## UAT Test Criteria` section): the tags are
-# UNCHANGED at 4 machine (legs 1–4) / 2 human (legs 5–6), and both human legs were tested against
-# `human-witness-is-a-judgment-gap-not-cost` rather than inherited. Leg 5 stays human on TWO recorded
-# bases that are neither of them a judgment gap — real metered subscription spend, and an outward-facing
-# action (it opens a PR CI auto-merges onto the trunk); leg 6 was human on the NO-COMPILER basis
-# (ADR-0070 stage-2 appearance) and is DELETED by ADR-0348 D6 — having no compiler was never enough to
-# make it an ACCEPTANCE claim. ZERO splits: every compiled half those two legs also asserted already
-# has its own machine leg here, so each references its sibling instead of restating it. The claim
-# corrected in this pass was the one attached to legs 1–4 — that "the suites demonstrably cover them" —
-# which has been FALSE since PR #587 deleted those tests; no leg carries a proof-gate binding, so
-# resolveWitness reports all four `refused`. Per ADR-0209 §6 that is honest: a tag records which witness
-# is RIGHT, never that a proof exists, and the owner signs nothing here.
+# RE-ADJUDICATED 2026-07-26 (ADR-0209 D8 — see the `## UAT Test Criteria` section): the tags were
+# UNCHANGED at 4 machine (ordinals 1–4) / 2 human (ordinals 5–6), and both human legs were tested
+# against `human-witness-is-a-judgment-gap-not-cost` rather than inherited. The leg at 5 stayed human on
+# TWO recorded bases that are neither of them a judgment gap — real metered subscription spend, and an
+# outward-facing action (it opens a PR CI auto-merges onto the trunk); the leg at 6 was human on the
+# NO-COMPILER basis (ADR-0070 stage-2 appearance) and was DELETED by ADR-0348 D6 — having no compiler
+# was never enough to make it an ACCEPTANCE claim. ZERO splits: every compiled half those two legs also
+# asserted already had its own machine leg here, so each referenced its sibling instead of restating it.
+# The claim corrected in that pass was the one attached to the four machine legs — that "the suites
+# demonstrably cover them" — which had been FALSE since PR #587 deleted those tests; no leg ever carried
+# a proof-gate binding, so resolveWitness reported all four `refused`. Per ADR-0209 §6 that was honest:
+# a tag records which witness is RIGHT, never that a proof exists, and the owner signed nothing here.
 # The story-level uat_witness is absent → human (the ADR-0040 fail-closed signpost), so the machine-
-# driven whole-story UAT node stays withheld; the crown derives from the per-leg roll-up.
+# driven whole-story UAT node stayed withheld; the crown derived from the per-leg roll-up and now
+# derives from the ADR-0085 own-proof union over a story that declares no criteria (ADR-0294 D5).
 capabilities: [proposed-unit-signal, proposal-id-threading, chat-build-dispatch, accept-to-land-affordance]
 # WHY A NEW STORY, NOT AN EDIT TO headless-orchestrator: that story is ADR-0108 Phases 1–2 and is
 # read/propose ONLY — its proof posture explicitly rests on "no builds, no signing, no landing" and it
@@ -278,7 +286,8 @@ Listed roots-first (a capability appears after everything it depends on). All fo
 red→green against the real package/app source), so they form a **dependency-closed, acyclic set in
 which every member resolves a `real:` arm** — exactly what makes the WHOLE story story-`real`-buildable
 (`isStoryBuildable`). The affordance's APPEARANCE is NOT a separate capability (it has no isolatable
-red→green — it was the human-witness Story UAT leg 6 and is design intent since ADR-0348 D6); the
+red→green — it was the human-witness Story UAT leg at ordinal 6 and is design intent since ADR-0348
+D6); the
 `accept-to-land-affordance` capability owns the affordance's machine-provable GEOMETRY/BEHAVIOUR.
 
 | # | capability | outcome | depends on |
@@ -372,118 +381,123 @@ another story's package while declaring the `depends_on` edge" is the **studio-b
 
 ## UAT Test Criteria
 
-The integrated **acceptance walkthrough** that proves the whole `chat-drive-bridge` — the Phase 3+4
-propose→accept→drive→sign→land loop — meets its outcome end-to-end. It is minimal-first (one coherent
-journey: chat proposes a unit id → human clicks Build → worker drives → spine signs → PR opens →
-progress streams back), defect-driven thereafter (each real failure earns a permanent regression case,
-never speculative breadth). Mocks are forbidden in the consumed seams that CAN run offline: the
-dispatch routes to the REAL worker registry over the REAL discovery + seed corpus; the threaded id is
-the REAL `orchestrate` → `startChatStream` chain. Only the SDK `query()` is scripted offline (the paid
-leaf can't be a free standing test) and the real drive + the affordance's appearance are exercised live
-in the operator-attested legs.
+> **DELETED — all five criteria, 2026-08-21, under
+> [ADR-0396](../../docs/decisions/0396-a-retired-story-s-uat-criteria-are-deleted-with-their-ordina.md).**
+> A UAT criterion is a standing acceptance OBLIGATION against a story's outcome, not a record of one.
+> This story has been `status: retired` since ADR-0155 / PR #587, so its outcome is withdrawn and every
+> criterion under it was an obligation against a journey nobody will run. The five legs that stood here
+> — ordinals 1, 2, 3, 4 and 5; ordinal 6 was already burned by ADR-0348 D6 on 2026-08-11 — are deleted,
+> and **every one of those ordinals is BURNED, never reused** (ADR-0396 D2): no
+> `chat-drive-bridge#uat-<n>` key can ever denote a second criterion.
+>
+> **Nothing signed was destroyed.** All five read `proven=–` at deletion — no `events.verdict` row and
+> no `events.attestation` row named any of their `criterionId`s. ADR-0396 D8 keeps a proof-bearing
+> criterion in place when its story retires; none here was one.
+>
+> **Where the history is.** Each of the five positional keys is recorded `superseded` in
+> `stories/uat-legacy-dispositions.json` with its rationale (the ledger still totals 282 keys), the legs
+> themselves are in `git log -p` verbatim, and the one detail artifact they pointed at —
+> `chat-drive-bridge#uat-5` — is retired in the live store with the same rationale. The body of this
+> story is the narrative history and is kept in place; what is gone is the obligation, not the record.
+>
+> **This ADR is the answer to a question this story was carrying.** The leg that stood at ordinal 5
+> ended with *"Whether a retired story's UAT legs should be DELETED (ordinals burned, as ADR-0348 D6 did
+> for experience legs) or kept verbatim as history is a story-author / librarian disposition call,
+> deliberately not made here."* It has now been made, and this is it.
 
-> **HONEST status — `retired` (ADR-0155), propose-accept-then-drive, part-scripted / part-attested as
-> authored.** Legs 1–4 were designed to be automatable by the package + server suites
-> (`@storytree/agent` + `@storytree/drive` + `apps/studio/server` + the desktop/studio component suite)
-> over an injected `queryFn` + scripted build runner + the in-memory seed. Leg 5 — a REAL chat
-> conversation whose proposal the operator ACCEPTS with a click, driving a REAL `story build --real` to
-> a spine-signed verdict + an opened PR, with progress streamed back — is **operator-attested**
-> (subscription-billed AND it lands real work; an agent should not burn the spend or open a PR
-> unattended), NOT a standing test. Leg 6 (the affordance's APPEARANCE) was operator-attested under
-> ADR-0070 until **ADR-0348 D6 deleted it on 2026-08-11**. *(Header corrected 2026-07-26: it read "`proposed`". Every unit in this story — the story
-> and all four capabilities — has carried `status: retired` since ADR-0155 / PR #587. The same
-> correction applies to the two later paragraphs that still said `proposed`.)*
->
-> **Per-leg witness (ADR-0106; RE-ADJUDICATED 2026-07-26, ADR-0209 D8).** The classification was
-> UNCHANGED — legs 1–4 `witness: machine`, legs 5–6 `witness: human`, no leg `either`, no leg `model`
-> (`witness: model` is unreachable through the story schema, whose parser accepts only
-> `human|machine|either` and hard-throws on anything else). What changed is that the tags are now
-> ARGUED rather than inherited, and one false claim attached to them was removed.
->
-> **NARROWED 2026-08-11 (ADR-0348 D6): leg 6 is DELETED, so the story carries four `machine` legs and
-> ONE `human` leg (five).** It asked whether the accept-and-watch surface is any GOOD, not whether the
-> journey achieved its goal — a user EXPERIENCE property, not a user ACCEPTANCE criterion. Its design
-> intent, and the record that the surface it describes no longer exists, are carried under "The
-> accept-and-watch feel" above. Ordinal 6 is BURNED, not reused, so no signed verdict or
-> `(proof-gate:)` binding is silently re-pointed. **Leg 5 is untouched and stays `human`** — its bases
-> are real metered spend and an outward-facing trunk landing, not a look; the only mechanical
-> consequence of deleting leg 6 is that leg 5 is now the section's LAST item and therefore absorbs the
-> trailing End-state paragraph, so its `revision-id` was recomputed with a `previous-revision-id`. Its
-> claim, its witness and its identity are unchanged.
->
-> **The removed claim — legs 1–4.** This block previously said of legs 1–4: *"the suites demonstrably
-> cover them, so the adopt pass observe-and-signs them."* That has been FALSE since **PR #587**, which
-> deleted every test that covered them along with the feature (`packages/agent/src/proposed-unit-signal.
-> test.ts`, `packages/drive/src/proposal-id-threading.test.ts`, `apps/studio/src/components/
-> ChatPanel.accept.test.tsx`; the dispatch's own front went with it). No suite reaches any of the four
-> today, and **no leg here carries a `proof-gate` annotation** — the story declares no reliability
-> gates at all — so `resolveWitness` reports every machine leg `refused`. That is left as-is on
-> purpose: minting an observe gate over a surface that was deliberately deleted would be exactly the
-> rubber-stamp [ADR-0097](../../docs/decisions/0097-brownfield-go-green-is-a-proving-process-adopt-enters-brown.md)
-> §2 bans. The tags stay `machine` because `machine` is the RIGHT KIND of witness for what those four
-> legs assert — a returned field, a stream event's field, a routing-and-refusal decision, and a DOM
-> presence plus a call count all compile — and per **ADR-0209 §6** they are UNSTAMPED. An open binding
-> gap on a retired unit is the truthful state, not a defect.
->
-> **Leg 5 stays `human` — on SPEND and OUTWARD ACTION, and on neither a judgment gap nor a harness
-> gap.** Its stated reason was tested rather than accepted (`human-witness-is-a-judgment-gap-not-cost`):
-> "a real driven build is subscription-billed AND lands real work". Both halves survive, and both are
-> honesty-wall bases in their own right — real metered subscription spend, and an outward-facing action
-> (the worker opens a NON-DRAFT PR that CI auto-merges onto the trunk, ADR-0022). Neither is a claim
-> that nothing could observe the leg. **This basis is recorded separately from irreducibility on
-> purpose**: a spend/outward basis DISSOLVES if the spend and the outward write go away, whereas leg 6's
-> no-compiler basis dissolved under neither — folding them together would hide a cost argument inside an
-> "unobservable" claim.
->
-> **Leg 6 was `human` — on the NO-COMPILER basis, and on that basis alone.** Not spend (rendering the
-> panel bills nothing), not liveness, not a missing harness: whether the proposal card, the Build button
-> and the live progress *read* as one coherent accept-and-watch experience is an ADR-0070 stage-2
-> aesthetic verdict with no oracle. **ADR-0348 D6 deleted it because that was never enough** — a
-> no-compiler property still has to be an ACCEPTANCE claim before its witness matters at all, and this
-> one was not. That is a narrowing of D6's scope, not of the no-compiler rule, which still governs
-> every leg that survives it.
->
-> **ZERO splits, and the reason.** Legs 5 and 6 each fused a compiled half with an irreducible half —
-> but in every case the compiled half ALREADY HAD its own machine leg in this same story: leg 3 for the
-> dispatch's validate/route/refuse and the coarse-progress fold and the no-verdict-path wall, leg 4 for
-> the conditional Build affordance, the single accepted-id POST, the progress render and the
-> no-free-text-path wall. Splitting those out as fresh human success conditions would launder compiled
-> facts into unrepeatable signatures — this migration running backwards — so each leg REFERENCES its
-> machine sibling instead of restating it.
->
-> **The surface is GONE, which is a separate fact from the witness.** ADR-0155 / PR #587 removed the
-> `propose_unit` tool, the `proposedUnitId` field, the accept route and the ChatPanel Build button; the
-> negative assertions that survive (e.g. `packages/agent/src/landing-tool-surface.test.ts:197`,
-> `packages/drive/src/chat-stream.test.ts:475`) exist to keep them gone. So **every surviving leg is
-> currently unwalkable** — leg 5 doubly so, since the experience it attests no longer exists.
-> IRREDUCIBLE and CURRENTLY UNWALKABLE are independent facts and neither implies the other: leg 5 is
-> human because of spend/outward-action, and *separately* it cannot be walked. Nothing here is a
-> re-tier — and note that ADR-0348 D6 deleted leg 6 on the FIRST fact (an experience property is not an
-> acceptance criterion), never on the second; unwalkability is recorded, not a deletion ground.
->
-> The story-level `uat_witness` is absent → human (the ADR-0040 fail-closed signpost), so the machine-
-> driven whole-story UAT node stays withheld; the crown derives from the per-leg roll-up.
+**Goal (kept — what the journey was FOR) —** A chat conversation surfaces a proposal carrying a
+machine-actionable unit id; the human accepts it with one explicit click; that click dispatches the
+real drive worker; the spine observes RED→GREEN and signs; a non-draft PR opens for CI; and the build's
+coarse progress streams back into the conversation — the human's click being the only path to the
+build, and the agent having signed nothing.
 
-**Goal —** A chat conversation surfaces a proposal carrying a machine-actionable unit id; the human
-accepts it with one explicit click; that click dispatches the real drive worker; the spine observes
-RED→GREEN and signs; a non-draft PR opens for CI; and the build's coarse progress streams back into the
-conversation — the human's click being the only path to the build, and the agent having signed nothing.
+### What the deleted legs established, carried up so it is not lost with them
+
+These are the facts the per-leg records had established and that the rest of this body does not
+otherwise carry (ADR-0396 D3), each dated to when it was written:
+
+- **The whole accept-to-Build surface is GONE, and the negative assertions that survive exist to keep
+  it gone.** ADR-0155 / PR #587 removed the `propose_unit` tool, the `proposedUnitId` field, the accept
+  route and the ChatPanel Build button, and deleted every test that covered the four machine legs
+  (`packages/agent/src/proposed-unit-signal.test.ts`,
+  `packages/drive/src/proposal-id-threading.test.ts`,
+  `apps/studio/src/components/ChatPanel.accept.test.tsx`). What is deliberately still asserted is the
+  ABSENCE: `packages/agent/src/landing-tool-surface.test.ts:197` and
+  `packages/drive/src/chat-stream.test.ts:475`.
+- **The four machine legs were UNBOUND, and that was correct rather than a gap to close.** This story
+  declares no `## Reliability Gates` section, so no leg ever carried a `proof-gate:` and
+  `resolveWitness` reported every machine leg `refused`. Minting an `observe` gate over a surface that
+  was deliberately deleted would be exactly the rubber-stamp ADR-0097 §2 bans. The tags stayed
+  `machine` because `machine` was the RIGHT KIND of witness for what those legs asserted — a returned
+  field, a stream event's field, a routing-and-refusal decision, and a DOM presence plus a call count
+  all compile — and per ADR-0209 §6 they were UNSTAMPED. An open binding gap on a retired unit was the
+  truthful state, not a defect.
+- **A false coverage claim once stood here and was removed.** The section preamble used to say of the
+  four machine legs *"the suites demonstrably cover them, so the adopt pass observe-and-signs them."*
+  That had been false since PR #587. It was corrected in place on 2026-07-26 rather than left standing.
+- **The spend on the live leg was UNDERSTATED as authored.** Since ADR-0144 a chat-accepted NODE id
+  also routes to a persisting `--real` build, so there was no cheap variant of that walk.
+- **IRREDUCIBLE and CURRENTLY UNWALKABLE are independent facts, and neither implies the other.** The
+  leg at ordinal 5 was `human` because of spend and outward action, and *separately* could not be
+  walked. ADR-0348 D6 deleted the leg at ordinal 6 on the FIRST kind of fact (an experience property is
+  not an acceptance criterion), never on the second — unwalkability is recorded, never a deletion
+  ground on its own. ADR-0396 deletes on a third ground again: the STORY is retired.
+
+### The per-leg witness record, as it stood at deletion — history, describing a list that no longer exists
+
+Read every sentence below as dated: it describes how the legs stood on 2026-08-13, not how anything
+stands now.
+
+The 2026-07-26 re-adjudication (ADR-0209 D8) left the classification UNCHANGED — the legs at ordinals
+1–4 `witness: machine`, the legs at 5–6 `witness: human`, none `either`, none `model` (`witness: model`
+is unreachable through the story schema, whose parser accepts only `human|machine|either`). What
+changed was that the tags became ARGUED rather than inherited, and the false coverage claim above was
+removed.
+
+**The leg at ordinal 5 stayed `human` on SPEND and OUTWARD ACTION** — real metered subscription spend,
+and an outward-facing action (the worker opens a NON-DRAFT PR that CI auto-merges onto the trunk,
+ADR-0022) — and on neither a judgment gap nor a harness gap. That basis was recorded separately from
+irreducibility on purpose: a spend/outward basis DISSOLVES if the spend and the outward write go away,
+whereas a no-compiler basis dissolves under neither. **ADR-0348 D2/D3 then withdrew both halves**, and
+the ADR-0357 triage of 2026-08-13 found that the leg still did not flip, because the journey cannot be
+walked at all — binding a `machine` gate would mint one that can never go green for a reason that is
+neither a harness limit nor a product defect, the indistinguishable red ADR-0357 exists to control. The
+triage recorded a third answer that neither of ADR-0348's two fits: MOOT. ADR-0396 is what that third
+answer resolves to.
+
+**The leg at ordinal 6 was `human` on the NO-COMPILER basis, and on that basis alone** — not spend
+(rendering the panel bills nothing), not liveness, not a missing harness: whether the proposal card,
+the Build button and the live progress *read* as one coherent accept-and-watch experience is an
+ADR-0070 stage-2 aesthetic verdict with no oracle. **ADR-0348 D6 deleted it because that was never
+enough** — a no-compiler property still has to be an ACCEPTANCE claim before its witness matters at
+all, and this one was not. Its intent survives under "The accept-and-watch feel" below.
+
+**ZERO splits, and the reason.** The legs at 5 and 6 each fused a compiled half with an irreducible
+half — but in every case the compiled half already had its own machine leg in this same story: the leg
+at ordinal 3 for the dispatch's validate/route/refuse, the coarse-progress fold and the no-verdict-path
+wall; the leg at ordinal 4 for the conditional Build affordance, the single accepted-id POST, the
+progress render and the no-free-text-path wall. Splitting those out as fresh human success conditions
+would have laundered compiled facts into unrepeatable signatures.
+
+The story-level `uat_witness` is absent → human (the ADR-0040 fail-closed signpost), so the
+machine-driven whole-story UAT node stayed withheld; the crown derived from the per-leg roll-up, and
+now derives from the ADR-0085 own-proof union over a story that declares no criteria (ADR-0294 D5).
 
 ### The accept-and-watch feel — design intent, deliberately NOT a UAT leg (ADR-0348 D6)
 
-The appearance intent that stood as leg 6 until 2026-08-11 is recorded here so it is not lost with its
-leg. **The proposal card, the Build button and the live build progress should read well inside the
+The appearance intent that stood as ordinal 6 until 2026-08-11 is recorded here so it is not lost with
+its leg. **The proposal card, the Build button and the live build progress should read well inside the
 native shell: the approval gate should be LEGIBLE — it should *read* as a deliberate authorization
 rather than as one more chat reply — the progress should feel alive, and the journey from proposal to
 landed PR should be coherent as ONE conversation.** The legibility half matters more than most look
 verdicts, because this surface is where a human authorizes a real, billed, trunk-landing build; an
 approval affordance that reads like a chat bubble is a safety problem wearing an aesthetic costume.
 
-Machine leg 4 pins the mechanical wall underneath it — the Build affordance is conditional, a single
-accepted-id POST is the only path, the progress renders, and there is no free-text path to a build.
-That is the fact that only the click triggers a build; it is NOT the claim that a reader recognises the
-click as an authorization. Under ADR-0348 D6 the second is not an acceptance criterion, and no component
-author ever signs a visual verdict either way.
+The machine leg that stood at ordinal 4 pinned the mechanical wall underneath it — the Build affordance
+is conditional, a single accepted-id POST is the only path, the progress renders, and there is no
+free-text path to a build. That is the fact that only the click triggers a build; it is NOT the claim
+that a reader recognises the click as an authorization. Under ADR-0348 D6 the second is not an
+acceptance criterion, and no component author ever signs a visual verdict either way.
 
 **This intent was never walked, and that is a RETIREMENT, not a pass.** ADR-0155 / PR #587 removed the
 `propose_unit` tool, the `proposedUnitId` field, the accept route and the ChatPanel Build button; the
@@ -493,74 +507,12 @@ describes does not exist to be looked at.** Nobody has judged it, nobody can, an
 verdict must not later be misread as approval (ADR-0348 Consequences). If the accept-and-watch loop is
 ever rebuilt, this paragraph is the brief for what it should feel like.
 
-1. **The agent declares a non-spoofable proposed unit id.** _(witness: machine)_ Drive the headless _(criterion-id: uatc_7fbed0269776431ef13c3d83)_ _(revision-id: uatr1:fb0283a034c68bc9)_
-   orchestrator with a scripted `queryFn` whose session invokes the typed `propose_unit({ unitId })`
-   read-only tool, then ends. **Success —** the runner returns `{ ok: true, proposal: <text>,
-   proposedUnitId: <id> }` — the id comes from the agent's structural tool invocation (a typed signal),
-   NOT from parsing the free-text proposal; the tool is read-only (no write tool exists on the surface);
-   and a session that never calls `propose_unit` returns `proposedUnitId: undefined` (no forged id).
-2. **The id is threaded to the stream's terminal `done` event.** _(witness: machine)_ Drive _(criterion-id: uatc_c17f8c2885fc7e599cc8ebd7)_ _(revision-id: uatr1:96b7ba54e33f3234)_
-   `startChatStream` (through `orchestrate`) with the same scripted session. **Success —** the terminal
-   `done` event carries `proposedUnitId` alongside `proposal` / `costUsd` / `turns`, reusing the
-   Phase-1/2 chain verbatim (the real `session-orchestrator` render, no fork) — so the SSE wire delivers
-   a machine-actionable id to the client.
-3. **A human-accepted id dispatches the real worker and streams progress back.** _(witness: machine)_ _(criterion-id: uatc_206995b49d4cdf147660d484)_ _(revision-id: uatr1:af5cccccb1f709c8)_
-   Call the chat-side build dispatch with an ACCEPTED unit id and an injected scripted build runner over
-   the real registry + the real discovery/seed. **Success —** the dispatch validates the unit is
-   buildable, routes it to `runBuildJob` against the registry (returning a runId), the worker's coarse
-   progress lines are forwarded back over the chat surface, and an UN-buildable / unknown id is refused
-   with a typed error (never dispatched) — the dispatch is a build INTENT only (no signing key, no
-   verdict path).
-4. **The accept affordance is the only path to the build, and it is explicit.** _(witness: machine)_ _(criterion-id: uatc_865aba7f1be766417e8c7f20)_ _(revision-id: uatr1:ea8811feb2205b31)_
-   Render the chat thin client given a `done` frame carrying a `proposedUnitId`. **Success —** a Build
-   affordance appears ONLY because the frame carries a `proposedUnitId` (a `done` frame without one
-   shows no Build button); clicking it POSTs the accepted id through the `api` seam (the dispatch) and
-   the panel renders the dispatched run's progress; there is NO code path by which a free-text "yes"
-   parsed from the conversation triggers a build (ADR-0108 d.3); and the thin client imports no
-   agent/drive/model (ADR-0004).
-5. **Live: a chat proposal, accepted by a click, drives a real signed build and opens a PR.** _(criterion-id: uatc_329bcfb0db6d738d16bab9da)_ _(revision-id: uatr1:71a4eee548ea9e03)_ _(previous-revision-id: uatr1:045e2af541ec2a08)_
-   _(witness: human)(detail: chat-drive-bridge#uat-5)_
-   _(witness-basis: MOOT rather than un-harnessable — this story is `status: retired` and the in-app
-   interactive chat this walk names was retired by ADR-0174, so no harness reaches the journey because
-   the journey no longer exists. ADR-0357's triage recorded that neither of its answers fits: the old
-   spend and outward-facing bases are withdrawn by ADR-0348 D2/D3, while a `machine` gate here could
-   never go green for a reason that is neither a harness limit nor a product defect — the
-   indistinguishable red D1's second basis exists to prevent. The leg is retired history and is on
-   nobody's attestation queue. Retires by DELETION, once a story-author pass settles whether a retired
-   story's legs are deleted with their ordinals burned or kept verbatim as history.)_ In the desktop app, hold a REAL chat conversation
-   (a real subscription `query()`), get a proposal carrying a unit id, and CLICK Build to accept it.
-   **Success —** the run is genuine on both counts only a human can vouch for: the SDK session was REALLY
-   billed (not a scripted `queryFn`), and the trunk was REALLY written to — the spine's verdict is
-   persisted to `events.verdict` and a NON-DRAFT PR is open for CI to auto-merge (ADR-0022). *(HUMAN on
-   TWO bases, both recorded and neither of them a judgment gap: **real metered subscription spend**, and
-   an **outward-facing action** — an agent may not burn the spend or open a PR onto the trunk unattended.
-   Re-adjudicated 2026-07-26 (ADR-0209 D8) and DELIBERATELY NARROWED: the mechanical conditions this leg
-   also used to assert — the click dispatching to the real worker, the coarse progress streaming back,
-   and the walls that the agent signs nothing, hands in no verdict, and cannot land without the click
-   (ADR-0091 / ADR-0108 d.3) — were removed, because each already has a machine leg here (3 and 4).
-   Restating a compiled fact as something the owner signs would launder it into an unrepeatable
-   signature. What is left is only what the compiler cannot reach: that the spend and the outward write
-   were real. NOTE the spend is understated as authored — since ADR-0144 a chat-accepted NODE id also
-   routes to a persisting `--real` build, so there is no cheap variant of this walk.
-   **TRIAGED 2026-08-13 (ADR-0357) — this leg is MOOT, and that is neither of ADR-0348's two answers.**
-   It is one of the nine the ADR-0357 triage was told to resolve to either `machine`-with-a-gate or
-   `human`-with-a-stated-basis. Reading the source gives a third answer that both of those would
-   misreport. **The two bases above are withdrawn** — ADR-0348 D2 retired real metered spend and D3
-   retired the outward-facing action, and the leg's own words (*"neither of them a judgment gap"*) said
-   as much before either decision landed. **But it does not flip either**, because the journey cannot be
-   walked at all: the accept-to-Build handshake this leg walks was REMOVED in PR #587 (ADR-0155), which
-   is why this whole story is `status: retired` and its header already records these live legs as moot.
-   Binding a `machine` gate here would mint one that can never go green for a reason that is neither a
-   harness limit nor a product defect — precisely the indistinguishable-red failure ADR-0357 exists to
-   control. So the tag is left as it stands and the record is the correction: the leg is retired history,
-   like the body around it, and it is on nobody's attestation queue. Whether a retired story's UAT legs
-   should be DELETED (ordinals burned, as ADR-0348 D6 did for experience legs) or kept verbatim as
-   history is a story-author / librarian disposition call, deliberately not made here.)*
-
-End state — a chat conversation drove a real, spine-signed, CI-landing build off one explicit human
-click on a proposal the agent declared a machine-actionable id for, with progress streamed back the
-whole way — every wall held (the agent declared but did not accept; the human's click was the only path
-to the build; the spine signed, the agent did not; CI is the second proof before the trunk).
+**End state, as authored —** a chat conversation drove a real, spine-signed, CI-landing build off one
+explicit human click on a proposal the agent declared a machine-actionable id for, with progress
+streamed back the whole way — every wall held (the agent declared but did not accept; the human's click
+was the only path to the build; the spine signed, the agent did not; CI is the second proof before the
+trunk). *(Authored goal, never a record of achievement: the story is retired, its surface deleted, and
+it now carries no criteria at all.)*
 
 ## Proof
 
@@ -573,7 +525,8 @@ id threading are isolatable and machine-provable over an injected `queryFn` + th
 dispatch is an integration test against the real worker registry + the real discovery/seed with the
 build runner injected (a scripted double — ADR-0010 §5, so a live SDK-billed build is never run on a
 gate pass); the affordance's geometry/behaviour is a component/behaviour test, its appearance the
-human-witness UAT leg.
+human-witness UAT leg until ADR-0348 D6, and design intent since. *(This whole paragraph is
+authoring-time history: since ADR-0396, 2026-08-21, the story carries no UAT criteria at all.)*
 
 **Honest status — `retired` (ADR-0155); authored as `proposed`.** *(Header corrected 2026-07-26 — see
 the same correction above. Everything the paragraph says about `healthy` remains exactly true; only the
@@ -583,7 +536,10 @@ can drive their offline suites red→green under its own gate
 (`pnpm storytree story build chat-drive-bridge --real`); the story's own machine-driven UAT node is
 WITHHELD (its `uat_witness` is absent → human, ADR-0040), so driving the four capabilities to a signed
 verdict is what makes the WHOLE story buildable, and the crown additionally awaits the operator's one
-attestation (leg 5) — `healthy` is never authored here.
+attestation on the live leg — `healthy` is never authored here. *(Authoring-time history: the story and
+all four capabilities are `retired`, the surface was deleted in PR #587, and since ADR-0396 the story
+declares no criteria, so no attestation is owed and the `story build --real` command quoted above cannot
+run.)*
 
 ## Open modeling calls (for the owner)
 

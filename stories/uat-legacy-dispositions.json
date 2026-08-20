@@ -165,33 +165,33 @@
     },
     {
       "legacyTestId": "chat-drive-bridge#uat-1",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-21",
+      "rationale": "Deleted by ADR-0396 (2026-08-21): a RETIRED story's UAT criteria are deleted with their ordinals burned, because a criterion is a standing acceptance obligation against a story's outcome and a retired story has withdrawn its outcome. Here the story is `status: retired` (ADR-0155) and the propose/accept-to-Build handshake its journey ran through was removed in PR #587, so the acceptance claim is retired with it. The claim is therefore retired, not relocated: this is ADR-0396 D5's retired ground, deliberately NOT ADR-0294 D2's proving-node ground, so no lower-tier node is named. The criterion held no proof credit at deletion (proven=–, no events.verdict row and no events.attestation row named it), so ADR-0396 D8's keep-the-proven fence did not apply. Ordinal burned, never reused; the leg is in git verbatim and its load-bearing content was carried into the story body in the same change (ADR-0396 D3).",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "chat-drive-bridge#uat-2",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-21",
+      "rationale": "Deleted by ADR-0396 (2026-08-21): a RETIRED story's UAT criteria are deleted with their ordinals burned, because a criterion is a standing acceptance obligation against a story's outcome and a retired story has withdrawn its outcome. Here the story is `status: retired` (ADR-0155) and the propose/accept-to-Build handshake its journey ran through was removed in PR #587, so the acceptance claim is retired with it. The claim is therefore retired, not relocated: this is ADR-0396 D5's retired ground, deliberately NOT ADR-0294 D2's proving-node ground, so no lower-tier node is named. The criterion held no proof credit at deletion (proven=–, no events.verdict row and no events.attestation row named it), so ADR-0396 D8's keep-the-proven fence did not apply. Ordinal burned, never reused; the leg is in git verbatim and its load-bearing content was carried into the story body in the same change (ADR-0396 D3).",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "chat-drive-bridge#uat-3",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-21",
+      "rationale": "Deleted by ADR-0396 (2026-08-21): a RETIRED story's UAT criteria are deleted with their ordinals burned, because a criterion is a standing acceptance obligation against a story's outcome and a retired story has withdrawn its outcome. Here the story is `status: retired` (ADR-0155) and the propose/accept-to-Build handshake its journey ran through was removed in PR #587, so the acceptance claim is retired with it. The claim is therefore retired, not relocated: this is ADR-0396 D5's retired ground, deliberately NOT ADR-0294 D2's proving-node ground, so no lower-tier node is named. The criterion held no proof credit at deletion (proven=–, no events.verdict row and no events.attestation row named it), so ADR-0396 D8's keep-the-proven fence did not apply. Ordinal burned, never reused; the leg is in git verbatim and its load-bearing content was carried into the story body in the same change (ADR-0396 D3).",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "chat-drive-bridge#uat-4",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-21",
+      "rationale": "Deleted by ADR-0396 (2026-08-21): a RETIRED story's UAT criteria are deleted with their ordinals burned, because a criterion is a standing acceptance obligation against a story's outcome and a retired story has withdrawn its outcome. Here the story is `status: retired` (ADR-0155) and the propose/accept-to-Build handshake its journey ran through was removed in PR #587, so the acceptance claim is retired with it. The claim is therefore retired, not relocated: this is ADR-0396 D5's retired ground, deliberately NOT ADR-0294 D2's proving-node ground, so no lower-tier node is named. The criterion held no proof credit at deletion (proven=–, no events.verdict row and no events.attestation row named it), so ADR-0396 D8's keep-the-proven fence did not apply. Ordinal burned, never reused; the leg is in git verbatim and its load-bearing content was carried into the story body in the same change (ADR-0396 D3).",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "chat-drive-bridge#uat-5",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-21",
+      "rationale": "Deleted by ADR-0396 (2026-08-21): a RETIRED story's UAT criteria are deleted with their ordinals burned, because a criterion is a standing acceptance obligation against a story's outcome and a retired story has withdrawn its outcome. Here the story is `status: retired` (ADR-0155) and the propose/accept-to-Build handshake its journey ran through was removed in PR #587, so the acceptance claim is retired with it. The claim is therefore retired, not relocated: this is ADR-0396 D5's retired ground, deliberately NOT ADR-0294 D2's proving-node ground, so no lower-tier node is named. The criterion held no proof credit at deletion (proven=–, no events.verdict row and no events.attestation row named it), so ADR-0396 D8's keep-the-proven fence did not apply. Ordinal burned, never reused; the leg is in git verbatim and its load-bearing content was carried into the story body in the same change (ADR-0396 D3).",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "chat-drive-bridge#uat-6",
@@ -201,45 +201,45 @@
     },
     {
       "legacyTestId": "chat-subagent-spawn#uat-1",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-21",
+      "rationale": "Deleted by ADR-0396 (2026-08-21): a RETIRED story's UAT criteria are deleted with their ordinals burned, because a criterion is a standing acceptance obligation against a story's outcome and a retired story has withdrawn its outcome. Here the story is `status: retired` (ADR-0174 + ADR-0175) and the spawn tool surface its journey ran through was deleted on 2026-07-31 (held gone by `spawn-surface-retired.test.ts`), so the acceptance claim is retired with it. The claim is therefore retired, not relocated: this is ADR-0396 D5's retired ground, deliberately NOT ADR-0294 D2's proving-node ground, so no lower-tier node is named. The criterion held no proof credit at deletion (proven=–, no events.verdict row and no events.attestation row named it), so ADR-0396 D8's keep-the-proven fence did not apply. Ordinal burned, never reused; the leg is in git verbatim and its load-bearing content was carried into the story body in the same change (ADR-0396 D3).",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "chat-subagent-spawn#uat-2",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-21",
+      "rationale": "Deleted by ADR-0396 (2026-08-21): a RETIRED story's UAT criteria are deleted with their ordinals burned, because a criterion is a standing acceptance obligation against a story's outcome and a retired story has withdrawn its outcome. Here the story is `status: retired` (ADR-0174 + ADR-0175) and the spawn tool surface its journey ran through was deleted on 2026-07-31 (held gone by `spawn-surface-retired.test.ts`), so the acceptance claim is retired with it. The claim is therefore retired, not relocated: this is ADR-0396 D5's retired ground, deliberately NOT ADR-0294 D2's proving-node ground, so no lower-tier node is named. The criterion held no proof credit at deletion (proven=–, no events.verdict row and no events.attestation row named it), so ADR-0396 D8's keep-the-proven fence did not apply. Ordinal burned, never reused; the leg is in git verbatim and its load-bearing content was carried into the story body in the same change (ADR-0396 D3).",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "chat-subagent-spawn#uat-3",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-21",
+      "rationale": "Deleted by ADR-0396 (2026-08-21): a RETIRED story's UAT criteria are deleted with their ordinals burned, because a criterion is a standing acceptance obligation against a story's outcome and a retired story has withdrawn its outcome. Here the story is `status: retired` (ADR-0174 + ADR-0175) and the spawn tool surface its journey ran through was deleted on 2026-07-31 (held gone by `spawn-surface-retired.test.ts`), so the acceptance claim is retired with it. The claim is therefore retired, not relocated: this is ADR-0396 D5's retired ground, deliberately NOT ADR-0294 D2's proving-node ground, so no lower-tier node is named. The criterion held no proof credit at deletion (proven=–, no events.verdict row and no events.attestation row named it), so ADR-0396 D8's keep-the-proven fence did not apply. Ordinal burned, never reused; the leg is in git verbatim and its load-bearing content was carried into the story body in the same change (ADR-0396 D3).",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "chat-subagent-spawn#uat-4",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-21",
+      "rationale": "Deleted by ADR-0396 (2026-08-21): a RETIRED story's UAT criteria are deleted with their ordinals burned, because a criterion is a standing acceptance obligation against a story's outcome and a retired story has withdrawn its outcome. Here the story is `status: retired` (ADR-0174 + ADR-0175) and the spawn tool surface its journey ran through was deleted on 2026-07-31 (held gone by `spawn-surface-retired.test.ts`), so the acceptance claim is retired with it. The claim is therefore retired, not relocated: this is ADR-0396 D5's retired ground, deliberately NOT ADR-0294 D2's proving-node ground, so no lower-tier node is named. The criterion held no proof credit at deletion (proven=–, no events.verdict row and no events.attestation row named it), so ADR-0396 D8's keep-the-proven fence did not apply. Ordinal burned, never reused; the leg is in git verbatim and its load-bearing content was carried into the story body in the same change (ADR-0396 D3).",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "chat-subagent-spawn#uat-5",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-21",
+      "rationale": "Deleted by ADR-0396 (2026-08-21): a RETIRED story's UAT criteria are deleted with their ordinals burned, because a criterion is a standing acceptance obligation against a story's outcome and a retired story has withdrawn its outcome. Here the story is `status: retired` (ADR-0174 + ADR-0175) and the spawn tool surface its journey ran through was deleted on 2026-07-31 (held gone by `spawn-surface-retired.test.ts`), so the acceptance claim is retired with it. The claim is therefore retired, not relocated: this is ADR-0396 D5's retired ground, deliberately NOT ADR-0294 D2's proving-node ground, so no lower-tier node is named. The criterion held no proof credit at deletion (proven=–, no events.verdict row and no events.attestation row named it), so ADR-0396 D8's keep-the-proven fence did not apply. Ordinal burned, never reused; the leg is in git verbatim and its load-bearing content was carried into the story body in the same change (ADR-0396 D3).",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "chat-subagent-spawn#uat-6",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-21",
+      "rationale": "Deleted by ADR-0396 (2026-08-21): a RETIRED story's UAT criteria are deleted with their ordinals burned, because a criterion is a standing acceptance obligation against a story's outcome and a retired story has withdrawn its outcome. Here the story is `status: retired` (ADR-0174 + ADR-0175) and the spawn tool surface its journey ran through was deleted on 2026-07-31 (held gone by `spawn-surface-retired.test.ts`), so the acceptance claim is retired with it. The claim is therefore retired, not relocated: this is ADR-0396 D5's retired ground, deliberately NOT ADR-0294 D2's proving-node ground, so no lower-tier node is named. The criterion held no proof credit at deletion (proven=–, no events.verdict row and no events.attestation row named it), so ADR-0396 D8's keep-the-proven fence did not apply. Ordinal burned, never reused; the leg is in git verbatim and its load-bearing content was carried into the story body in the same change (ADR-0396 D3).",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "chat-subagent-spawn#uat-7",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-21",
+      "rationale": "Deleted by ADR-0396 (2026-08-21): a RETIRED story's UAT criteria are deleted with their ordinals burned, because a criterion is a standing acceptance obligation against a story's outcome and a retired story has withdrawn its outcome. Here the story is `status: retired` (ADR-0174 + ADR-0175) and the spawn tool surface its journey ran through was deleted on 2026-07-31 (held gone by `spawn-surface-retired.test.ts`), so the acceptance claim is retired with it. The claim is therefore retired, not relocated: this is ADR-0396 D5's retired ground, deliberately NOT ADR-0294 D2's proving-node ground, so no lower-tier node is named. The criterion held no proof credit at deletion (proven=–, no events.verdict row and no events.attestation row named it), so ADR-0396 D8's keep-the-proven fence did not apply. Ordinal burned, never reused; the leg is in git verbatim and its load-bearing content was carried into the story body in the same change (ADR-0396 D3).",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "ci-cd#uat-1",
@@ -651,33 +651,33 @@
     },
     {
       "legacyTestId": "headless-orchestrator#uat-1",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-21",
+      "rationale": "Deleted by ADR-0396 (2026-08-21): a RETIRED story's UAT criteria are deleted with their ordinals burned, because a criterion is a standing acceptance obligation against a story's outcome and a retired story has withdrawn its outcome. Here the story is `status: retired` — ADR-0174 / ADR-0175 moved OWNERSHIP of its Phase-1 substrate to `app-guide` — so this story's acceptance claim is retired even though the code is still live and its walls remain asserted by the capability-tier contracts `ots-write-verb-refused-at-surface`, `ots-exposes-exactly-the-read-surfaces`, `hsr-refuses-concurrent-session` and `oc-single-session-guard`. The claim is therefore retired, not relocated: this is ADR-0396 D5's retired ground, deliberately NOT ADR-0294 D2's proving-node ground, so no lower-tier node is named. The criterion held no proof credit at deletion (proven=–, no events.verdict row and no events.attestation row named it), so ADR-0396 D8's keep-the-proven fence did not apply. Ordinal burned, never reused; the leg is in git verbatim and its load-bearing content was carried into the story body in the same change (ADR-0396 D3).",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "headless-orchestrator#uat-2",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-21",
+      "rationale": "Deleted by ADR-0396 (2026-08-21): a RETIRED story's UAT criteria are deleted with their ordinals burned, because a criterion is a standing acceptance obligation against a story's outcome and a retired story has withdrawn its outcome. Here the story is `status: retired` — ADR-0174 / ADR-0175 moved OWNERSHIP of its Phase-1 substrate to `app-guide` — so this story's acceptance claim is retired even though the code is still live and its walls remain asserted by the capability-tier contracts `ots-write-verb-refused-at-surface`, `ots-exposes-exactly-the-read-surfaces`, `hsr-refuses-concurrent-session` and `oc-single-session-guard`. The claim is therefore retired, not relocated: this is ADR-0396 D5's retired ground, deliberately NOT ADR-0294 D2's proving-node ground, so no lower-tier node is named. The criterion held no proof credit at deletion (proven=–, no events.verdict row and no events.attestation row named it), so ADR-0396 D8's keep-the-proven fence did not apply. Ordinal burned, never reused; the leg is in git verbatim and its load-bearing content was carried into the story body in the same change (ADR-0396 D3).",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "headless-orchestrator#uat-3",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-21",
+      "rationale": "Deleted by ADR-0396 (2026-08-21): a RETIRED story's UAT criteria are deleted with their ordinals burned, because a criterion is a standing acceptance obligation against a story's outcome and a retired story has withdrawn its outcome. Here the story is `status: retired` — ADR-0174 / ADR-0175 moved OWNERSHIP of its Phase-1 substrate to `app-guide` — so this story's acceptance claim is retired even though the code is still live and its walls remain asserted by the capability-tier contracts `ots-write-verb-refused-at-surface`, `ots-exposes-exactly-the-read-surfaces`, `hsr-refuses-concurrent-session` and `oc-single-session-guard`. The claim is therefore retired, not relocated: this is ADR-0396 D5's retired ground, deliberately NOT ADR-0294 D2's proving-node ground, so no lower-tier node is named. The criterion held no proof credit at deletion (proven=–, no events.verdict row and no events.attestation row named it), so ADR-0396 D8's keep-the-proven fence did not apply. Ordinal burned, never reused; the leg is in git verbatim and its load-bearing content was carried into the story body in the same change (ADR-0396 D3).",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "headless-orchestrator#uat-4",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-21",
+      "rationale": "Deleted by ADR-0396 (2026-08-21): a RETIRED story's UAT criteria are deleted with their ordinals burned, because a criterion is a standing acceptance obligation against a story's outcome and a retired story has withdrawn its outcome. Here the story is `status: retired` — ADR-0174 / ADR-0175 moved OWNERSHIP of its Phase-1 substrate to `app-guide` — so this story's acceptance claim is retired even though the code is still live and its walls remain asserted by the capability-tier contracts `ots-write-verb-refused-at-surface`, `ots-exposes-exactly-the-read-surfaces`, `hsr-refuses-concurrent-session` and `oc-single-session-guard`. The claim is therefore retired, not relocated: this is ADR-0396 D5's retired ground, deliberately NOT ADR-0294 D2's proving-node ground, so no lower-tier node is named. The criterion held no proof credit at deletion (proven=–, no events.verdict row and no events.attestation row named it), so ADR-0396 D8's keep-the-proven fence did not apply. Ordinal burned, never reused; the leg is in git verbatim and its load-bearing content was carried into the story body in the same change (ADR-0396 D3).",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "headless-orchestrator#uat-5",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-21",
+      "rationale": "Deleted by ADR-0396 (2026-08-21): a RETIRED story's UAT criteria are deleted with their ordinals burned, because a criterion is a standing acceptance obligation against a story's outcome and a retired story has withdrawn its outcome. Here the story is `status: retired` — ADR-0174 / ADR-0175 moved OWNERSHIP of its Phase-1 substrate to `app-guide` — so this story's acceptance claim is retired even though the code is still live and its walls remain asserted by the capability-tier contracts `ots-write-verb-refused-at-surface`, `ots-exposes-exactly-the-read-surfaces`, `hsr-refuses-concurrent-session` and `oc-single-session-guard`. The claim is therefore retired, not relocated: this is ADR-0396 D5's retired ground, deliberately NOT ADR-0294 D2's proving-node ground, so no lower-tier node is named. The criterion held no proof credit at deletion (proven=–, no events.verdict row and no events.attestation row named it), so ADR-0396 D8's keep-the-proven fence did not apply. Ordinal burned, never reused; the leg is in git verbatim and its load-bearing content was carried into the story body in the same change (ADR-0396 D3).",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "library#uat-1",
@@ -1035,63 +1035,63 @@
     },
     {
       "legacyTestId": "scoped-glue-actuator#uat-1",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-21",
+      "rationale": "Deleted by ADR-0396 (2026-08-21): a RETIRED story's UAT criteria are deleted with their ordinals burned, because a criterion is a standing acceptance obligation against a story's outcome and a retired story has withdrawn its outcome. Here the story is `status: retired` (ADR-0175) and the `spawn_glue_worker` actuator its journey ran through was deleted by `474f55ec`, so the acceptance claim is retired with it. The claim is therefore retired, not relocated: this is ADR-0396 D5's retired ground, deliberately NOT ADR-0294 D2's proving-node ground, so no lower-tier node is named. The criterion held no proof credit at deletion (proven=–, no events.verdict row and no events.attestation row named it), so ADR-0396 D8's keep-the-proven fence did not apply. Ordinal burned, never reused; the leg is in git verbatim and its load-bearing content was carried into the story body in the same change (ADR-0396 D3).",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "scoped-glue-actuator#uat-2",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-21",
+      "rationale": "Deleted by ADR-0396 (2026-08-21): a RETIRED story's UAT criteria are deleted with their ordinals burned, because a criterion is a standing acceptance obligation against a story's outcome and a retired story has withdrawn its outcome. Here the story is `status: retired` (ADR-0175) and the `spawn_glue_worker` actuator its journey ran through was deleted by `474f55ec`, so the acceptance claim is retired with it. The claim is therefore retired, not relocated: this is ADR-0396 D5's retired ground, deliberately NOT ADR-0294 D2's proving-node ground, so no lower-tier node is named. The criterion held no proof credit at deletion (proven=–, no events.verdict row and no events.attestation row named it), so ADR-0396 D8's keep-the-proven fence did not apply. Ordinal burned, never reused; the leg is in git verbatim and its load-bearing content was carried into the story body in the same change (ADR-0396 D3).",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "scoped-glue-actuator#uat-3",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-21",
+      "rationale": "Deleted by ADR-0396 (2026-08-21): a RETIRED story's UAT criteria are deleted with their ordinals burned, because a criterion is a standing acceptance obligation against a story's outcome and a retired story has withdrawn its outcome. Here the story is `status: retired` (ADR-0175) and the `spawn_glue_worker` actuator its journey ran through was deleted by `474f55ec`, so the acceptance claim is retired with it. The claim is therefore retired, not relocated: this is ADR-0396 D5's retired ground, deliberately NOT ADR-0294 D2's proving-node ground, so no lower-tier node is named. The criterion held no proof credit at deletion (proven=–, no events.verdict row and no events.attestation row named it), so ADR-0396 D8's keep-the-proven fence did not apply. Ordinal burned, never reused; the leg is in git verbatim and its load-bearing content was carried into the story body in the same change (ADR-0396 D3).",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "scoped-glue-actuator#uat-4",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-21",
+      "rationale": "Deleted by ADR-0396 (2026-08-21): a RETIRED story's UAT criteria are deleted with their ordinals burned, because a criterion is a standing acceptance obligation against a story's outcome and a retired story has withdrawn its outcome. Here the story is `status: retired` (ADR-0175) and the `spawn_glue_worker` actuator its journey ran through was deleted by `474f55ec`, so the acceptance claim is retired with it. The claim is therefore retired, not relocated: this is ADR-0396 D5's retired ground, deliberately NOT ADR-0294 D2's proving-node ground, so no lower-tier node is named. The criterion held no proof credit at deletion (proven=–, no events.verdict row and no events.attestation row named it), so ADR-0396 D8's keep-the-proven fence did not apply. Ordinal burned, never reused; the leg is in git verbatim and its load-bearing content was carried into the story body in the same change (ADR-0396 D3).",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "scoped-glue-actuator#uat-5",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-21",
+      "rationale": "Deleted by ADR-0396 (2026-08-21): a RETIRED story's UAT criteria are deleted with their ordinals burned, because a criterion is a standing acceptance obligation against a story's outcome and a retired story has withdrawn its outcome. Here the story is `status: retired` (ADR-0175) and the `spawn_glue_worker` actuator its journey ran through was deleted by `474f55ec`, so the acceptance claim is retired with it. The claim is therefore retired, not relocated: this is ADR-0396 D5's retired ground, deliberately NOT ADR-0294 D2's proving-node ground, so no lower-tier node is named. The criterion held no proof credit at deletion (proven=–, no events.verdict row and no events.attestation row named it), so ADR-0396 D8's keep-the-proven fence did not apply. Ordinal burned, never reused; the leg is in git verbatim and its load-bearing content was carried into the story body in the same change (ADR-0396 D3).",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "scoped-glue-actuator#uat-6",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-21",
+      "rationale": "Deleted by ADR-0396 (2026-08-21): a RETIRED story's UAT criteria are deleted with their ordinals burned, because a criterion is a standing acceptance obligation against a story's outcome and a retired story has withdrawn its outcome. Here the story is `status: retired` (ADR-0175) and the `spawn_glue_worker` actuator its journey ran through was deleted by `474f55ec`, so the acceptance claim is retired with it. The claim is therefore retired, not relocated: this is ADR-0396 D5's retired ground, deliberately NOT ADR-0294 D2's proving-node ground, so no lower-tier node is named. The criterion held no proof credit at deletion (proven=–, no events.verdict row and no events.attestation row named it), so ADR-0396 D8's keep-the-proven fence did not apply. Ordinal burned, never reused; the leg is in git verbatim and its load-bearing content was carried into the story body in the same change (ADR-0396 D3).",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "spawn-visibility#uat-1",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-21",
+      "rationale": "Deleted by ADR-0396 (2026-08-21): a RETIRED story's UAT criteria are deleted with their ordinals burned, because a criterion is a standing acceptance obligation against a story's outcome and a retired story has withdrawn its outcome. Here the story is `status: retired` (ADR-0174 + ADR-0175) and the chat spawn its journey made visible no longer exists — its own `ChatStreamSpawnEvent` frame went with the spawn thread on 2026-07-31 — so the acceptance claim is retired with it. The claim is therefore retired, not relocated: this is ADR-0396 D5's retired ground, deliberately NOT ADR-0294 D2's proving-node ground, so no lower-tier node is named. The criterion held no proof credit at deletion (proven=–, no events.verdict row and no events.attestation row named it), so ADR-0396 D8's keep-the-proven fence did not apply. Ordinal burned, never reused; the leg is in git verbatim and its load-bearing content was carried into the story body in the same change (ADR-0396 D3).",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "spawn-visibility#uat-2",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-21",
+      "rationale": "Deleted by ADR-0396 (2026-08-21): a RETIRED story's UAT criteria are deleted with their ordinals burned, because a criterion is a standing acceptance obligation against a story's outcome and a retired story has withdrawn its outcome. Here the story is `status: retired` (ADR-0174 + ADR-0175) and the chat spawn its journey made visible no longer exists — its own `ChatStreamSpawnEvent` frame went with the spawn thread on 2026-07-31 — so the acceptance claim is retired with it. The claim is therefore retired, not relocated: this is ADR-0396 D5's retired ground, deliberately NOT ADR-0294 D2's proving-node ground, so no lower-tier node is named. The criterion held no proof credit at deletion (proven=–, no events.verdict row and no events.attestation row named it), so ADR-0396 D8's keep-the-proven fence did not apply. Ordinal burned, never reused; the leg is in git verbatim and its load-bearing content was carried into the story body in the same change (ADR-0396 D3).",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "spawn-visibility#uat-3",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-21",
+      "rationale": "Deleted by ADR-0396 (2026-08-21): a RETIRED story's UAT criteria are deleted with their ordinals burned, because a criterion is a standing acceptance obligation against a story's outcome and a retired story has withdrawn its outcome. Here the story is `status: retired` (ADR-0174 + ADR-0175) and the chat spawn its journey made visible no longer exists — its own `ChatStreamSpawnEvent` frame went with the spawn thread on 2026-07-31 — so the acceptance claim is retired with it. The claim is therefore retired, not relocated: this is ADR-0396 D5's retired ground, deliberately NOT ADR-0294 D2's proving-node ground, so no lower-tier node is named. The criterion held no proof credit at deletion (proven=–, no events.verdict row and no events.attestation row named it), so ADR-0396 D8's keep-the-proven fence did not apply. Ordinal burned, never reused; the leg is in git verbatim and its load-bearing content was carried into the story body in the same change (ADR-0396 D3).",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "spawn-visibility#uat-4",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-21",
+      "rationale": "Deleted by ADR-0396 (2026-08-21): a RETIRED story's UAT criteria are deleted with their ordinals burned, because a criterion is a standing acceptance obligation against a story's outcome and a retired story has withdrawn its outcome. Here the story is `status: retired` (ADR-0174 + ADR-0175) and the chat spawn its journey made visible no longer exists — its own `ChatStreamSpawnEvent` frame went with the spawn thread on 2026-07-31 — so the acceptance claim is retired with it. The claim is therefore retired, not relocated: this is ADR-0396 D5's retired ground, deliberately NOT ADR-0294 D2's proving-node ground, so no lower-tier node is named. The criterion held no proof credit at deletion (proven=–, no events.verdict row and no events.attestation row named it), so ADR-0396 D8's keep-the-proven fence did not apply. Ordinal burned, never reused; the leg is in git verbatim and its load-bearing content was carried into the story body in the same change (ADR-0396 D3).",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "spawn-visibility#uat-5",
@@ -1101,15 +1101,15 @@
     },
     {
       "legacyTestId": "spawn-visibility#uat-6",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-21",
+      "rationale": "Deleted by ADR-0396 (2026-08-21): a RETIRED story's UAT criteria are deleted with their ordinals burned, because a criterion is a standing acceptance obligation against a story's outcome and a retired story has withdrawn its outcome. Here the story is `status: retired` (ADR-0174 + ADR-0175) and the chat spawn its journey made visible no longer exists — its own `ChatStreamSpawnEvent` frame went with the spawn thread on 2026-07-31 — so the acceptance claim is retired with it. The claim is therefore retired, not relocated: this is ADR-0396 D5's retired ground, deliberately NOT ADR-0294 D2's proving-node ground, so no lower-tier node is named. The criterion held no proof credit at deletion (proven=–, no events.verdict row and no events.attestation row named it), so ADR-0396 D8's keep-the-proven fence did not apply. Ordinal burned, never reused; the leg is in git verbatim and its load-bearing content was carried into the story body in the same change (ADR-0396 D3).",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "spawn-visibility#uat-7",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-21",
+      "rationale": "Deleted by ADR-0396 (2026-08-21): a RETIRED story's UAT criteria are deleted with their ordinals burned, because a criterion is a standing acceptance obligation against a story's outcome and a retired story has withdrawn its outcome. Here the story is `status: retired` (ADR-0174 + ADR-0175) and the chat spawn its journey made visible no longer exists — its own `ChatStreamSpawnEvent` frame went with the spawn thread on 2026-07-31 — so the acceptance claim is retired with it. The claim is therefore retired, not relocated: this is ADR-0396 D5's retired ground, deliberately NOT ADR-0294 D2's proving-node ground, so no lower-tier node is named. The criterion held no proof credit at deletion (proven=–, no events.verdict row and no events.attestation row named it), so ADR-0396 D8's keep-the-proven fence did not apply. Ordinal burned, never reused; the leg is in git verbatim and its load-bearing content was carried into the story body in the same change (ADR-0396 D3).",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "studio#uat-1",
