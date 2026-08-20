@@ -10,135 +10,289 @@
     {
       "i": 0,
       "w": 240,
-      "h": 179,
-      "opaque": 21081
+      "h": 180,
+      "opaque": 21384,
+      "holes": 0
     },
     {
       "i": 1,
       "w": 480,
-      "h": 357,
-      "opaque": 83963
+      "h": 359,
+      "opaque": 85145,
+      "holes": 0
     },
     {
       "i": 2,
       "w": 240,
-      "h": 179,
-      "opaque": 21081
+      "h": 180,
+      "opaque": 21384,
+      "holes": 0
     },
     {
       "i": 3,
       "w": 959,
-      "h": 714,
-      "opaque": 335475
+      "h": 718,
+      "opaque": 340174,
+      "holes": 0
     },
     {
       "i": 4,
       "w": 240,
-      "h": 179,
-      "opaque": 21081
+      "h": 180,
+      "opaque": 21384,
+      "holes": 0
     },
     {
       "i": 5,
       "w": 1918,
-      "h": 1428,
-      "opaque": 1342429
+      "h": 1436,
+      "opaque": 1361348,
+      "holes": 0
     },
     {
       "i": 6,
       "w": 1918,
-      "h": 1428,
-      "opaque": 1342429
+      "h": 1436,
+      "opaque": 1361348,
+      "holes": 0
     },
     {
       "i": 7,
       "w": 1918,
-      "h": 1431,
-      "opaque": 1343319
+      "h": 1438,
+      "opaque": 1361464,
+      "holes": 1
     },
     {
       "i": 8,
       "w": 480,
-      "h": 357,
-      "opaque": 83963
+      "h": 359,
+      "opaque": 85145,
+      "holes": 0
     },
     {
       "i": 9,
       "w": 480,
-      "h": 358,
-      "opaque": 84090
+      "h": 360,
+      "opaque": 85270,
+      "holes": 4
     },
     {
       "i": 10,
       "w": 1918,
       "h": 887,
-      "opaque": 1207951
+      "opaque": 1228458,
+      "holes": 0
     },
     {
       "i": 11,
       "w": 1918,
       "h": 1438,
-      "opaque": 1349320
+      "opaque": 1366367,
+      "holes": 71
     },
     {
       "i": 12,
-      "w": 480,
-      "h": 258,
-      "opaque": 76514
+      "w": 1918,
+      "h": 1352,
+      "opaque": 1346216,
+      "holes": 0
     },
     {
       "i": 13,
-      "w": 480,
-      "h": 357,
-      "opaque": 83963
+      "w": 1918,
+      "h": 1360,
+      "opaque": 1348048,
+      "holes": 0
     },
     {
       "i": 14,
-      "w": 480,
-      "h": 265,
-      "opaque": 76919
+      "w": 1918,
+      "h": 1354,
+      "opaque": 1344445,
+      "holes": 0
     },
     {
       "i": 15,
-      "w": 480,
-      "h": 357,
-      "opaque": 83963
+      "w": 1918,
+      "h": 1358,
+      "opaque": 1349811,
+      "holes": 0
     },
     {
       "i": 16,
       "w": 480,
-      "h": 357,
-      "opaque": 83963
+      "h": 338,
+      "opaque": 84180,
+      "holes": 0
     },
     {
       "i": 17,
-      "w": 1918,
-      "h": 1428,
-      "opaque": 1342429
+      "w": 480,
+      "h": 340,
+      "opaque": 84305,
+      "holes": 0
     },
     {
       "i": 18,
-      "w": 1439,
-      "h": 1071,
-      "opaque": 755493
+      "w": 480,
+      "h": 357,
+      "opaque": 85090,
+      "holes": 0
     },
     {
       "i": 19,
-      "w": 1439,
-      "h": 1071,
-      "opaque": 755493
+      "w": 480,
+      "h": 359,
+      "opaque": 85145,
+      "holes": 0
     },
     {
       "i": 20,
+      "w": 480,
+      "h": 338,
+      "opaque": 84180,
+      "holes": 0
+    },
+    {
+      "i": 21,
+      "w": 480,
+      "h": 338,
+      "opaque": 84067,
+      "holes": 0
+    },
+    {
+      "i": 22,
+      "w": 480,
+      "h": 339,
+      "opaque": 84207,
+      "holes": 0
+    },
+    {
+      "i": 23,
+      "w": 480,
+      "h": 339,
+      "opaque": 84103,
+      "holes": 0
+    },
+    {
+      "i": 24,
+      "w": 1918,
+      "h": 1446,
+      "opaque": 1367466,
+      "holes": 0
+    },
+    {
+      "i": 25,
+      "w": 1918,
+      "h": 1360,
+      "opaque": 1348048,
+      "holes": 0
+    },
+    {
+      "i": 26,
+      "w": 480,
+      "h": 262,
+      "opaque": 78128,
+      "holes": 0
+    },
+    {
+      "i": 27,
+      "w": 480,
+      "h": 359,
+      "opaque": 85145,
+      "holes": 0
+    },
+    {
+      "i": 28,
+      "w": 480,
+      "h": 271,
+      "opaque": 78040,
+      "holes": 3
+    },
+    {
+      "i": 29,
+      "w": 480,
+      "h": 359,
+      "opaque": 85145,
+      "holes": 0
+    },
+    {
+      "i": 30,
+      "w": 480,
+      "h": 359,
+      "opaque": 85145,
+      "holes": 0
+    },
+    {
+      "i": 31,
+      "w": 1918,
+      "h": 1436,
+      "opaque": 1361348,
+      "holes": 0
+    },
+    {
+      "i": 32,
       "w": 1439,
-      "h": 1071,
-      "opaque": 755493
+      "h": 1077,
+      "opaque": 766126,
+      "holes": 0
+    },
+    {
+      "i": 33,
+      "w": 1439,
+      "h": 1077,
+      "opaque": 766126,
+      "holes": 0
+    },
+    {
+      "i": 34,
+      "w": 1439,
+      "h": 1077,
+      "opaque": 766126,
+      "holes": 0
     }
   ],
+  "watertight": {
+    "totalInteriorHoles": 79,
+    "worstPanels": [
+      {
+        "i": 11,
+        "holes": 71,
+        "opaque": 1366367
+      },
+      {
+        "i": 9,
+        "holes": 4,
+        "opaque": 85270
+      },
+      {
+        "i": 28,
+        "holes": 3,
+        "opaque": 78040
+      },
+      {
+        "i": 7,
+        "holes": 1,
+        "opaque": 1361464
+      },
+      {
+        "i": 0,
+        "holes": 0,
+        "opaque": 21384
+      },
+      {
+        "i": 1,
+        "holes": 0,
+        "opaque": 85145
+      }
+    ]
+  },
   "palette": {
     "authoredEntries": 156,
-    "canvases": 21,
-    "opaquePixels": 11250412,
-    "distinctDeliveredColours": 44,
+    "canvases": 35,
+    "opaquePixels": 20189511,
+    "distinctDeliveredColours": 49,
     "offPalettePixels": 0,
     "offPaletteColours": [],
     "foreignStatusReads": 0,
@@ -146,8 +300,8 @@
   },
   "frameTiming": {
     "samples": 39,
-    "p50Ms": 16.8,
-    "meanMs": 16.36,
+    "p50Ms": 16.7,
+    "meanMs": 16.37,
     "interpretation": "RELATIVE ONLY. Software rasteriser, static scene — this is the headless compositor present cadence, not a GPU-bound frame cost. Do not quote it as a D2 verdict."
   }
 }

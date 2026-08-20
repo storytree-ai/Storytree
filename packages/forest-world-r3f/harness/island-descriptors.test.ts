@@ -156,3 +156,30 @@ test('triangulateFan REFUSES a degenerate polygon rather than emitting junk', ()
   assert.deepEqual(triangulateFan([]), []);
   assert.deepEqual(triangulateFan([{ x: 0, y: 0 }, { x: 1, y: 1 }]), []);
 });
+
+test('cells carry the OWNING CAPABILITY, and it comes from the parcel group', () => {
+  // The field the land's definition is placed by. Without it every seam looks alike and
+  // definition can only be sprayed everywhere — which is the treatment the owner rejected
+  // by looking, so an extractor that silently stopped carrying this would present as an
+  // art problem rather than as a missing field.
+  const parcels = new Set(CELLS.map((c) => c.parcel));
+  assert.ok(!parcels.has(undefined), 'a ground cell came back with no owning capability');
+  assert.ok(parcels.size > 5, `only ${parcels.size} capabilities across ${CELLS.length} cells`);
+  // Every capability must own more than one cell, or "boundary between capabilities" would
+  // be indistinguishable from "boundary between cells" and the fence would mean nothing.
+  const sizes = new Map<string, number>();
+  for (const c of CELLS) sizes.set(c.parcel!, (sizes.get(c.parcel!) ?? 0) + 1);
+  for (const [cap, n] of sizes) assert.ok(n > 1, `${cap} owns a single cell (${n})`);
+});
+
+test('the capability is taken ONLY from a group that says it is a parcel', () => {
+  // Every other `<g>` on the island carries an `id` for its own reasons — a territory, a
+  // trail edge, a hit target. Inheriting one of those would partition the land along lines
+  // that mean nothing, and the picture would look deliberate either way.
+  const territory = 'context-traversal-capture';
+  assert.ok(
+    !CELLS.some((c) => c.parcel === territory),
+    'a cell inherited the TERRITORY id instead of its capability — the walk is reading the ' +
+      'wrong `id`, and every land boundary drawn from it would be fiction',
+  );
+});

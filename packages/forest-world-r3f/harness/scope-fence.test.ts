@@ -34,6 +34,7 @@ const EXPERIMENT = [
   'mesh-kit.ts',
   'plant-descriptors.ts',
   'plant-geometry.ts',
+  'land-definition.ts',
   'flower-descriptors.ts',
   'flower-geometry.ts',
   'tree-descriptors.ts',

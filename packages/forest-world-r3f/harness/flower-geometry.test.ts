@@ -17,7 +17,7 @@ import test from 'node:test';
 import { flowersFrom, type FlowerInstance } from './flower-descriptors.js';
 import { flowerSpriteBudget, growFlower } from './flower-geometry.js';
 import { islandScene, type CriterionState } from './island-fixture.js';
-import { LIGHT_DIR_AUTHORED, MARKER_TOKENS, landTokens } from './palette-band.js';
+import { LIGHT_DIRECTION, MARKER_TOKENS, landTokens } from './palette-band.js';
 import type { GeneratedMesh } from './mesh-kit.js';
 
 /** `cos(20 deg)` — the SCENE's upright foreshortening, which is what a flower's own heights
@@ -138,7 +138,7 @@ test('the BLOOM FACES THE LIGHT — the tilt is derived from LIGHT_DIR, not chos
   const { w, d } = extent(petals);
   // A disc tilted `t` off horizontal about the world x axis keeps its full width in x and
   // shortens in z by cos(t). `t` is the light's own y–z tilt.
-  const t = Math.atan2(LIGHT_DIR_AUTHORED[2], LIGHT_DIR_AUTHORED[1]);
+  const t = Math.atan2(LIGHT_DIRECTION.z, LIGHT_DIRECTION.y);
   assert.ok(t > 0.15 && t < 0.6, 'the authored light leans, so the bloom leans with it');
   const expected = Math.cos(t);
   assert.ok(

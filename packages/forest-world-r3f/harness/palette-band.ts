@@ -130,18 +130,6 @@ export const SHARED_TOKENS = {
   storyTrunk: '#6e533d',
 } as const;
 
-/** THE AUTHORED LIGHT DIRECTION, as three plain numbers.
- *
- *  It lives with the tokens rather than with the material, because it is AUTHORED ART in
- *  exactly the way they are: a live land is still a 2.5D isometric picture (ADR-0380 D6 fence
- *  4 — the projection does not move), so the light is a fixed direction someone chose, not a
- *  scene-graph light a camera could swing around.
- *
- *  Keeping it in the pure half also lets geometry DERIVE from it rather than guess at it — the
- *  UAT bloom's tilt is read off this vector, because a daisy faces the light, and a number read
- *  off the light cannot drift away from the light the way a hand-picked one silently would. */
-export const LIGHT_DIR_AUTHORED: readonly [number, number, number] = [-0.45, 0.82, 0.35];
-
 /** The authored shade ladder — the ONLY multipliers a surface may wear, from the
  *  compositor's `KEY_SHADE` plus its flat/seam levels. A live material quantises its
  *  continuous lighting term ONTO this ladder; nothing else is representable.
@@ -149,6 +137,35 @@ export const LIGHT_DIR_AUTHORED: readonly [number, number, number] = [-0.45, 0.8
  *  Kept SORTED ASCENDING: `bandShade` relies on the order, and a test asserts the order
  *  rather than trusting the literal to stay sorted through a later edit. */
 export const SHADE_LEVELS: readonly number[] = [0.78, 0.8, 0.9, 1.0];
+
+/**
+ * The single authored light direction the whole land is shaded by, as plain numbers.
+ *
+ * IT LIVES HERE, IN THE PURE HALF, BECAUSE THE LADDER ALONE DOES NOT DECIDE A RUNG — the
+ * light does, jointly with a surface normal. Anything reasoning about which rung a piece of
+ * geometry will land on (which is the only thing that makes a shape visible on a banded
+ * material) needs both, and must be able to do it without a browser. `banded-material.ts`
+ * derives its three.js vector from this rather than carrying its own copy: a shader and a
+ * test holding private copies of the same numbers prove nothing about each other.
+ *
+ * A live land is still a 2.5D isometric picture (ADR-0380 D6 fence 4: the projection does
+ * not move), so this is a fixed authored direction rather than a scene-graph light a camera
+ * could swing around. Stored normalised, so `dot(n, LIGHT_DIRECTION)` is the lambert term
+ * with no further arithmetic.
+ */
+export const LIGHT_DIRECTION: { readonly x: number; readonly y: number; readonly z: number } =
+  (() => {
+    const [x, y, z] = [-0.45, 0.82, 0.35];
+    const len = Math.hypot(x, y, z);
+    return { x: x / len, y: y / len, z: z / len };
+  })();
+
+/** The rung a surface normal lands on under the authored light — the shader's own decision,
+ *  available to a node test. Half-lambert, exactly as `createBandedMaterial` computes it. */
+export function rungOfNormal(n: { x: number; y: number; z: number }): number {
+  const dot = n.x * LIGHT_DIRECTION.x + n.y * LIGHT_DIRECTION.y + n.z * LIGHT_DIRECTION.z;
+  return bandLevelIndex(dot * 0.5 + 0.5);
+}
 
 /** Parse `#rrggbb` to integer channels. Throws on a malformed token — an authored palette
  *  entry that does not parse is a corpus error, not a pixel to guess at. */

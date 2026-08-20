@@ -42,7 +42,7 @@ import {
   type Raw,
   type Vec3,
 } from './mesh-kit.js';
-import { LIGHT_DIR_AUTHORED, MARKER_TOKENS } from './palette-band.js';
+import { LIGHT_DIRECTION, MARKER_TOKENS } from './palette-band.js';
 import type { FlowerInstance } from './flower-descriptors.js';
 
 const RAD = Math.PI / 180;
@@ -58,12 +58,11 @@ const RAD = Math.PI / 180;
  * stays a ring while the head still belongs to the scene.
  *
  * So the head tilts off vertical by the AUTHORED LIGHT's own tilt in the y–z plane, read out of
- * `LIGHT_DIR_AUTHORED` rather than chosen. That has two properties a taste number would not: it
- * is a world constant that tracks no viewer, and it cannot silently drift away from the light —
- * if someone moves the light, the blooms turn with it, and a test asserts the two agree.
+ * `LIGHT_DIRECTION` rather than chosen. That has two properties a taste number would not: it is a
+ * world constant that tracks no viewer, and it cannot silently drift away from the light — if
+ * someone moves the light, the blooms turn with it, and a test asserts the two agree.
  */
-const HEAD_TILT_DEG =
-  Math.atan2(LIGHT_DIR_AUTHORED[2], LIGHT_DIR_AUTHORED[1]) / RAD;
+const HEAD_TILT_DEG = Math.atan2(LIGHT_DIRECTION.z, LIGHT_DIRECTION.y) / RAD;
 
 /**
  * APPEARANCE CALL 2 — HOW FAR A FAILING HEAD BOWS. In degrees off vertical, PAST the horizontal.

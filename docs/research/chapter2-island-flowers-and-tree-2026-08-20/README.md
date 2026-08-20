@@ -14,7 +14,18 @@ point in the source where it is made.
 ## What is on the island now
 
 **Read `panel-what-they-add.png` first.** Four panels at the size the map is actually delivered:
-the 2026-08-19 island as a control, the island with both new components, and each component alone.
+the island with vegetation only as a control, the island with both new components, and each
+component alone.
+
+⚠ **The control is not the 2026-08-19 island any more.** This branch merged
+[the land-definition pass](../chapter2-land-definition-2026-08-20/README.md) (#1450) on the way in,
+which gave the ground relief and a parcel bevel — closing ADR-0392 D3 item 1 in the same window
+this pass closed items 4 and 5. So the four panels isolate the two PROPS and not the ground beneath
+them, and every picture here shows the land as it now is. The merge was more than textual: a plant,
+a flower and a tree are all grown standing on `y = 0`, so the moment the land stopped being a plane
+each of them had to be lifted onto `landHeight(x, z, relief)` or it would float or sink. That
+failure is quiet at delivered size, which is why it is threaded through the code rather than left
+to be noticed.
 
 - **Ten UAT flowers**, one per criterion, 1:1 (ADR-0226 D4). The ten are the real story's own ten
   criterion ids, transcribed from `stories/context-traversal-capture/story.md` — the count and the
@@ -78,7 +89,7 @@ Each lives at the point in the source where it is made; this is the index.
 
 | Call | Where | What, and why |
 | --- | --- | --- |
-| **The bloom faces the light** | `flower-geometry.ts` | A daisy's head is a disc, and a disc in 3D has one dishonest answer (face the CAMERA — a billboard, which is what ADR-0380 D6 fence 4 refuses) and one that reads as a smear at this camera (face straight UP). It faces the LIGHT, which is what a real daisy does. The tilt is **derived from `LIGHT_DIR_AUTHORED`**, not chosen, so it cannot drift away from the light — and a test asserts the two still agree. |
+| **The bloom faces the light** | `flower-geometry.ts` | A daisy's head is a disc, and a disc in 3D has one dishonest answer (face the CAMERA — a billboard, which is what ADR-0380 D6 fence 4 refuses) and one that reads as a smear at this camera (face straight UP). It faces the LIGHT, which is what a real daisy does. The tilt is **derived from `LIGHT_DIRECTION`**, not chosen, so it cannot drift away from the light — and a test asserts the two still agree. |
 | **A failing head bows past vertical** | `flower-geometry.ts` | Past 90° the disc's normal turns downward, which is what nodding IS. How far past was rendered rather than reasoned: the first value (118°) put the head almost exactly edge-on to the delivered camera and the wilted flower read as a flat bar that could have been debris. 105° leaves about 40% of the hanging fan visible instead of 20%. The constant is camera-free; the delivered camera informed the CHOICE, which is the honest way round. |
 | **A petal has thickness** | `flower-geometry.ts` | A zero-thickness sheet has ONE normal, so on a four-rung banded material it lands wholly on one rung and the bloom reads as a flat cut-out star. A little volume carries the normal round a curve and picks up two rungs, which is what makes eight petals read as eight petals. |
 | **The two stalk leaves sit out of the stalk's plane** | `flower-geometry.ts` | The surface alternates them left and right ACROSS the stalk, which in a planar drawing is the only axis it has. In a solid, two leaves in one plane read as fins on a rudder. Deterministic in the authored side, never random. |
@@ -138,22 +149,27 @@ on the vegetation**, because that is what `buildTree` authors. If the open mound
 lands on `foliage`, the same question arrives for the hero tree — and answering it would be a
 `packages/forest-world` change to `buildTree`, not a harness one. Surfaced, not decided.
 
-**5. There is still no shadow.** ADR-0392 D3 item 2 names it, and it is
-`shadow-ladder-is-admissible-and-affordable`'s increment. The scene's contact-shadow ellipses are
+**5. There is still no shadow**, and it is now the most visible gap on the island. ADR-0392 D3
+item 2 names it, and it is `shadow-ladder-is-admissible-and-affordable`'s increment — but the
+merge sharpened the case: with the land carrying relief and a bevel, the ground has depth cues
+everywhere EXCEPT under the two things that stand tallest on it. The scene's contact-shadow ellipses are
 READ by both new extractors and deliberately discarded, so the moment a shadow ladder exists they
 are already available rather than needing to be rediscovered.
 
 ## Numbers
 
-- **11,250,412** opaque delivered pixels across **21** canvases, **0 off-palette**, **44** distinct
+- **20,189,511** opaque delivered pixels across **35** canvases, **0 off-palette**, **49** distinct
   delivered colours against **156** authored entries (up from 104 — the flower family, the crown
   tokens and the shared bole are all newly declared, which is what keeps the fence a fence rather
-  than a fence with an exception).
+  than a fence with an exception). Measured on the MERGED page, so the canvas count and the pixel
+  total include the land-definition pass's own panels; the palette closure is the joint result of
+  both passes and holds.
 - 13 hexes · 11 capabilities · all healthy · **10 UAT criteria** · vegetation density is
   `2 + tests × 1.9` (ADR-0226 D2).
 - The tree: 8 authored crown lobes, **91.6 world units** tall, crown **76 wide × 64 deep**, 1,024
   triangles in the crown and 70 in the bole.
-- **116 checks** in the package, up from 81.
+- **139 checks** in the package (81 before this pass, 116 after it, 139 with the land
+  definition pass merged in).
 
 ⚠ The frame timings in `capture-report.json` remain **RELATIVE ONLY** — headless Chromium here is
 SwiftShader (software). The ADR-0380 D2 hardware-floor question is still unanswered and still needs
@@ -186,12 +202,16 @@ a separate event and the owner's call (ADR-0380 D6).
 
 ## Files
 
-- `panel-what-they-add.png` — **read first.** The 2026-08-19 control, both components, and each alone.
+- `panel-what-they-add.png` — **read first.** The vegetation-only control, both components, and
+  each alone.
 - `panel-verdict-forms.png` — **the vocabulary's own test.** Mixed, then one state at a time.
 - `panel-delivered.png` — the whole island, life size, both delivery conventions.
 - `panel-zoom.png` — where the two conventions part.
 - `panel-swirls-fork.png` — the still-open mound-vs-foliage owner call, unchanged by this pass.
-- `panel-bare-and-mixed.png` — the bare-land control, and one unhealthy capability.
+- `panel-bare-before.png`, `panel-definition.png`, `panel-definition-delivered.png`,
+  `panel-amplitude.png`, `panel-mixed.png` — the merged-in land-definition pass's own panels,
+  re-captured here so every picture in this directory comes from ONE run of ONE page. Their
+  argument is [that pass's README](../chapter2-land-definition-2026-08-20/README.md), not this one.
 - `live-island.png` — the whole page.
 - `capture-report.json` — measured numbers, including the WebGL renderer string.
 
@@ -204,7 +224,7 @@ pnpm --filter @storytree/forest-world-r3f dev
 Then `http://localhost:5184/island.html`. The capture is:
 
 ```bash
-ST_HARNESS_URL=http://localhost:5184/island.html ST_OUT_DIR=docs/research/chapter2-island-flowers-and-tree-2026-08-20 ST_FULL_PAGE_NAME=live-island.png ST_PANEL_NAMES=delivered,zoom,swirls-fork,bare-and-mixed,what-they-add,verdict-forms pnpm --filter @storytree/forest-world-r3f run capture
+ST_HARNESS_URL=http://localhost:5184/island.html ST_OUT_DIR=docs/research/chapter2-island-flowers-and-tree-2026-08-20 ST_FULL_PAGE_NAME=live-island.png ST_PANEL_NAMES=delivered,zoom,swirls-fork,bare-before,definition,definition-delivered,amplitude,mixed,what-they-add,verdict-forms pnpm --filter @storytree/forest-world-r3f run capture
 ```
 
 ⚠ If port 5184 is already held by another worktree's harness, Vite refuses to start — but the

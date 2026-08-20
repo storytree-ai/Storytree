@@ -1,0 +1,243 @@
+{
+  "capturedFrom": "http://localhost:5187/island.html",
+  "webgl": {
+    "version": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+    "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+    "isSoftware": true,
+    "note": "Headless Chromium on this box rasterises WebGL through SwiftShader (software). Delivered COLOURS are therefore trustworthy and frame COSTS are not — the ADR-0380 D2 hardware-floor question is NOT answered by this run and needs the owner on real hardware."
+  },
+  "perPanel": [
+    {
+      "i": 0,
+      "w": 240,
+      "h": 117,
+      "opaque": 19534,
+      "holes": 3
+    },
+    {
+      "i": 1,
+      "w": 480,
+      "h": 234,
+      "opaque": 77964,
+      "holes": 3
+    },
+    {
+      "i": 2,
+      "w": 240,
+      "h": 117,
+      "opaque": 19534,
+      "holes": 3
+    },
+    {
+      "i": 3,
+      "w": 959,
+      "h": 468,
+      "opaque": 311506,
+      "holes": 14
+    },
+    {
+      "i": 4,
+      "w": 240,
+      "h": 117,
+      "opaque": 19534,
+      "holes": 3
+    },
+    {
+      "i": 5,
+      "w": 1918,
+      "h": 936,
+      "opaque": 1246621,
+      "holes": 51
+    },
+    {
+      "i": 6,
+      "w": 1918,
+      "h": 936,
+      "opaque": 1246621,
+      "holes": 51
+    },
+    {
+      "i": 7,
+      "w": 1918,
+      "h": 936,
+      "opaque": 1247738,
+      "holes": 292
+    },
+    {
+      "i": 8,
+      "w": 480,
+      "h": 234,
+      "opaque": 77964,
+      "holes": 3
+    },
+    {
+      "i": 9,
+      "w": 480,
+      "h": 234,
+      "opaque": 78039,
+      "holes": 19
+    },
+    {
+      "i": 10,
+      "w": 1918,
+      "h": 887,
+      "opaque": 1228454,
+      "holes": 0
+    },
+    {
+      "i": 11,
+      "w": 1918,
+      "h": 887,
+      "opaque": 1243912,
+      "holes": 0
+    },
+    {
+      "i": 12,
+      "w": 1918,
+      "h": 887,
+      "opaque": 1228454,
+      "holes": 0
+    },
+    {
+      "i": 13,
+      "w": 1918,
+      "h": 936,
+      "opaque": 1233186,
+      "holes": 0
+    },
+    {
+      "i": 14,
+      "w": 1918,
+      "h": 931,
+      "opaque": 1234264,
+      "holes": 0
+    },
+    {
+      "i": 15,
+      "w": 1918,
+      "h": 893,
+      "opaque": 1228598,
+      "holes": 0
+    },
+    {
+      "i": 16,
+      "w": 480,
+      "h": 222,
+      "opaque": 76907,
+      "holes": 0
+    },
+    {
+      "i": 17,
+      "w": 480,
+      "h": 234,
+      "opaque": 77118,
+      "holes": 0
+    },
+    {
+      "i": 18,
+      "w": 480,
+      "h": 222,
+      "opaque": 77705,
+      "holes": 9
+    },
+    {
+      "i": 19,
+      "w": 480,
+      "h": 234,
+      "opaque": 77964,
+      "holes": 3
+    },
+    {
+      "i": 20,
+      "w": 480,
+      "h": 222,
+      "opaque": 76907,
+      "holes": 0
+    },
+    {
+      "i": 21,
+      "w": 480,
+      "h": 228,
+      "opaque": 77101,
+      "holes": 0
+    },
+    {
+      "i": 22,
+      "w": 480,
+      "h": 233,
+      "opaque": 77261,
+      "holes": 0
+    },
+    {
+      "i": 23,
+      "w": 480,
+      "h": 238,
+      "opaque": 77427,
+      "holes": 0
+    },
+    {
+      "i": 24,
+      "w": 1918,
+      "h": 936,
+      "opaque": 1249707,
+      "holes": 0
+    },
+    {
+      "i": 25,
+      "w": 1918,
+      "h": 936,
+      "opaque": 1233186,
+      "holes": 0
+    }
+  ],
+  "watertight": {
+    "totalInteriorHoles": 454,
+    "worstPanels": [
+      {
+        "i": 7,
+        "holes": 292,
+        "opaque": 1247738
+      },
+      {
+        "i": 5,
+        "holes": 51,
+        "opaque": 1246621
+      },
+      {
+        "i": 6,
+        "holes": 51,
+        "opaque": 1246621
+      },
+      {
+        "i": 9,
+        "holes": 19,
+        "opaque": 78039
+      },
+      {
+        "i": 3,
+        "holes": 14,
+        "opaque": 311506
+      },
+      {
+        "i": 18,
+        "holes": 9,
+        "opaque": 77705
+      }
+    ]
+  },
+  "palette": {
+    "authoredEntries": 104,
+    "canvases": 26,
+    "opaquePixels": 14843206,
+    "distinctDeliveredColours": 16,
+    "offPalettePixels": 0,
+    "offPaletteColours": [],
+    "foreignStatusReads": 0
+  },
+  "frameTiming": {
+    "samples": 39,
+    "p50Ms": 16.6,
+    "meanMs": 16.33,
+    "interpretation": "RELATIVE ONLY. Software rasteriser, static scene — this is the headless compositor present cadence, not a GPU-bound frame cost. Do not quote it as a D2 verdict."
+  }
+}
