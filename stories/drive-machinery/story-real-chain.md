@@ -4,7 +4,7 @@ tier: capability
 story: drive-machinery
 title: "Whole-story REAL chain (story build --real)"
 outcome: "A story's capabilities grow to signed verdicts: real-built in dependency order over one shared worktree, then promoted once (the story's own UAT node still awaits a human witness, or expansion E)."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: [story-topo-build, real-build-worktree, spec-borne-proof-config]
 decisions: [5, 20, 30, 31, 57]
@@ -18,7 +18,7 @@ shared worktree, then the proven chain is promoted once. (A `--real` story's own
 
 **Depends on —** [`story-topo-build`](story-topo-build.md), [`real-build-worktree`](real-build-worktree.md), [`spec-borne-proof-config`](spec-borne-proof-config.md)
 
-> **Proof status (honest) — `mapped`, built outer-loop (the bootstrap).** ADR-0057 §3's expansion D —
+> **Proof status (honest) — `proposed`, built outer-loop (the bootstrap).** ADR-0057 §3's expansion D —
 > no new ADR (it ships under §3 + [ADR-0031](../../docs/decisions/0031-real-pass-promotion-and-worktree-deps.md), which named "chaining promotion through `story build --real`"
 > as future work; a one-sentence Consequences amendment to 0031 records that D landed). The chain
 > wiring (topo order over ONE worktree, intra-story dependency resolution, halt-is-never-a-pass,
@@ -26,8 +26,9 @@ shared worktree, then the proven chain is promoted once. (A `--real` story's own
 > mode exclusivity) is observationally verified by a real, passing, OFFLINE suite
 > (`packages/cli/src/story-real-build.test.ts` — fixture git repos + fixture stories + scripted
 > leaves; the spine's own commit + promotion seams run for real). The LIVE multi-node chain with the
-> SDK leaf is operator-attested, like every other live leg. `mapped`, not `healthy`: D is itself a
-> multi-file change the single-file inner loop cannot yet drive (it awaits expansion C). The honesty
+> SDK leaf is operator-attested, like every other live leg. D is greenfield Storytree work without a
+> current signed pass, so it remains `proposed`; being a multi-file change the single-file inner loop
+> could not yet drive does not make it brownfield (ADR-0395). The honesty
 > walls of [`prove-it-gate`](prove-it-gate.md) hold PER NODE unchanged — D orchestrates the chain; it
 > never reaches inside `proveUnit`.
 

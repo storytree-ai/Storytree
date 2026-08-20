@@ -15,7 +15,16 @@ would avoid touching ADR-0087). This **amends** [ADR-0059](0059-gate-as-proof-au
 [ADR-0087](0087-spec-borne-write-scope-is-bounded-structurally-not-by-pr-dif.md) (widens the
 structural scope bound to authoring-doc roots), without overturning either.
 
-**Correction ([ADR-0094](0094-go-green-is-a-status-transition-proposed-builds-mapped-adopt.md), per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** decision 1's studio-**Build** button-lighting purpose and decision 5's brownfield-`real:`-arm buildability are overtaken — the library's green path is **Adopt** / `## Reliability Gates` (ADR-0085), not a brownfield drive. The gate-as-proof MECHANISM (decision 1 — the `real:` arm over `stories/<story>/story.md`, the AUTHOR_TEST→…→GATE ladder) and decisions 2 (`storyUatCompleteness` spec hygiene), 3 (node-verdict ≠ story-green-crown), and 4 (the ADR-0087 scope-bound amendment) STAND. The body spots that carried the overtaken purpose are corrected below (Context, Decision 5, Consequences).
+**Correction ([ADR-0094](0094-go-green-is-a-status-transition-proposed-builds-mapped-adopt.md) and
+[ADR-0395](0395-brown-records-provenance-missing-proof-stays-on-the-greenfie.md), per
+[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** decision 1's
+studio-**Build** button-lighting purpose and decision 5's `library`-specific buildability purpose are
+overtaken. ADR-0094 first redirected the then-assumed brownfield story to Adopt; ADR-0395 later
+corrected that premise: Storytree's `library` story is greenfield and an unsigned retrospective
+registration is `proposed`, not a brownfield Adopt target. The gate-as-proof MECHANISM (decision 1 —
+the `real:` arm over `stories/<story>/story.md`, the AUTHOR_TEST→…→GATE ladder) and decisions 2
+(`storyUatCompleteness` spec hygiene), 3 (node-verdict ≠ story-green-crown), and 4 (the ADR-0087
+scope-bound amendment) STAND.
 
 ## Context
 
@@ -26,12 +35,14 @@ a `real:` arm. The `library` story is `uat_witness: machine`, so under ADR-0040 
 neither did any of its 7 capabilities (all registry-only, dry-run/live buildable but not real). So
 `story build library --real` was refused before any worktree — the studio could not offer the build.
 
-This was a KNOWN gap, named in [`story-real-chain`](../../stories/drive-machinery/story-real-chain.md):
+This was a KNOWN gap at the time, named in
+[`story-real-chain`](../../stories/drive-machinery/story-real-chain.md):
 "a machine-witnessed story whose UAT node lacks a `real:` arm is REFUSED … (a story UAT as a
 gate-as-proof node is expansion E, ADR-0057 §5)." This ADR fills that hole. *(The
-studio-Build-for-the-library outcome is overtaken by [ADR-0094](0094-go-green-is-a-status-transition-proposed-builds-mapped-adopt.md)
-per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md) — Adopt is the
-library's green path; the gate-as-proof mechanism introduced here stands.)*
+studio-Build-for-the-library outcome was overtaken by
+[ADR-0094](0094-go-green-is-a-status-transition-proposed-builds-mapped-adopt.md), and ADR-0395 then
+withdrew the brownfield/Adopt premise itself: `library` is greenfield `proposed`. The gate-as-proof
+mechanism introduced here stands.)*
 
 The hard part is the story node, not the capabilities. A capability's `real:` arm is an ordinary
 edit-existing proof against its package source. But a STORY's UAT is not a test-file red→green — it is
@@ -86,23 +97,22 @@ node can no more declare a repo-wide doc scope (`docs/**`, `stories/*/story.md`)
 declare `packages/*`. Enforcement is unchanged (the phase wall still walls every write spine-side);
 only the permitted DECLARATION widens.
 
-**5. The 7 library capabilities gain spec-borne brownfield `real:` arms.** Each carries an
+**5. Historical `library` application — withdrawn; the generic arm mechanism stands.** The seven
+library capabilities gained spec-borne `real:` arms. Each carries an
 `editsExisting` arm against its real `packages/library` / `packages/cli` source, so the WHOLE chain
 (7 capabilities + the story UAT node) is `--real`-buildable and `isStoryBuildable(library, caps,
 'real')` is true — the studio offers the story-level Build (ADR-0090/0091). One cap
 (`event-sourced-store-seam`) is `db: true` (ADR-0064) — the honest shape for the Postgres Store seam.
-*(Overtaken by [ADR-0094](0094-go-green-is-a-status-transition-proposed-builds-mapped-adopt.md) per
-[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md): these brownfield arms
-are vestigial for buildability — the library lights **Adopt**, green via `## Reliability Gates` / ADR-0085,
-not a brownfield drive. The gate-as-proof story-node mechanism (decision 1) is unaffected.)*
+*(ADR-0094 overtook their Build-button purpose; ADR-0395 later corrected the underlying provenance
+classification. They do not make the greenfield `library` story a brownfield Adopt target. The
+gate-as-proof story-node mechanism in decision 1 is unaffected.)*
 
 ## Consequences
 
 **Good.**
-- The studio can offer `story build library --real`; the ADR-0090/0091 story-level Build is unblocked
-  for the library organism. *(Overtaken by [ADR-0094](0094-go-green-is-a-status-transition-proposed-builds-mapped-adopt.md)
-  per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md): the brownfield
-  library offers **Adopt**, not Build.)*
+- The gate-as-proof mechanism made `story build library --real` structurally resolvable. Its
+  button-lighting application was overtaken by ADR-0094, and ADR-0395 later withdrew the premise that
+  `library` was brownfield and therefore an Adopt target.
 - Gate-as-proof generalizes to story authoring (ADR-0059 §4's named path), with the honesty walls
   intact — a story node earns a node + signed verdict + wisp like any build.
 - ZERO new engine machinery beyond the scope-bound amendment: the gate is tier-agnostic, `editsExisting`
@@ -111,18 +121,18 @@ not a brownfield drive. The gate-as-proof story-node mechanism (decision 1) is u
   arms and the per-story completeness test the leaf would author live.
 
 **Bad / costs & surfaced owner calls (not unilaterally decided).**
-- **Brownfield "no live red on a mature artifact" (the headline caveat).** Like a finished ADR, a
+- **No live red on a mature artifact (the headline caveat).** Like a finished ADR, a
   COMPLETE story (the library today — `storyUatCompleteness` reads it GREEN) has no genuine red for
   gate-as-proof to drive: a live story-node build observes the spec already-complete at CONFIRM_RED and
   fails closed (no real red was observed first). So this ADR ships the `--real` **affordance** + the
   dry-run glue + the mechanism — a live red→green needs a story authored from an INCOMPLETE/scaffold
-  state. The library caps' brownfield arms are likewise affordance arms (a live cap red needs a genuine
+  state. The library caps' arms are likewise affordance arms (a live cap red needs a genuine
   regression). The owner's live `story build library --real` of the mature library is a human-witness
   action; this is surfaced, never pretended. (Whether a complete-at-CONFIRM_RED story should instead
   observe-and-sign as `adopted` (ADR-0085) is the alternative the owner already weighed and declined in
-  favour of gate-as-proof; re-open it there if the mature-story live path is wanted.) *([ADR-0094](0094-go-green-is-a-status-transition-proposed-builds-mapped-adopt.md)
-  LATER re-opened exactly this and chose the library's green path = **Adopt** / `## Reliability Gates`
-  (ADR-0085), per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md).)*
+  favour of gate-as-proof; re-open it there if the mature-story live path is wanted.) *(ADR-0094 later
+  chose Adopt while treating `library` as brownfield; ADR-0395 withdrew that application because the
+  story is greenfield. No Adopt ceremony may be used to conceal that classification correction.)*
 - **The registry is now a pure parity/fallback oracle.** With the library caps moved spec-borne, NO
   corpus node resolves `source: "registry"` any more — the registry's fallback role is exercised only by
   the resolver unit tests (synthetic specs). The 7 migrated `real:` twins stay as the parity oracle.

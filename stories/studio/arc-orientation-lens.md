@@ -4,16 +4,16 @@ tier: capability
 story: studio
 title: "The arc lens — an owner arriving cold is oriented from the map's top drawer alone"
 outcome: "An owner arriving cold is oriented by the map's arc lens alone, without asking an agent to reconstruct the context."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: []
 decisions: [267, 314, 316, 305, 239]
-# A brownfield capability over already-implemented, already-tested code (the arc that authored it:
-# capability-layer-coverage-arc increment 4, 2026-08-07). It resolves FOUR story-grain
+# A greenfield capability registered retrospectively by capability-layer-coverage-arc increment 4
+# (2026-08-07). It resolves FOUR story-grain
 # `repo-manifest.json` declarations that existed only because no capability covered this organ.
 # The `proof:` block is spec-borne (ADR-0057); there is deliberately NO `real:` arm:
-#   1. ADR-0085/ADR-0094 — this code is mapped brownfield, so its green path is Adopt, never a
-#      manufactured red on mature code (ADR-0159). A `real:` arm would also move the pinned
+#   1. This classification correction does not add a `real:` arm or manufacture a red/verdict
+#      (ADR-0159). A `real:` arm would also move the pinned
 #      REAL-buildable snapshot in `packages/cli/src/node-build.test.ts`.
 #   2. `readUnitSourceFiles` (packages/cli/src/check-boundaries.ts:210-234) reads ONLY
 #      `real.sourceFile` + literal `real.scope.sourceGlobs` and `continue`s on an absent `real`
@@ -53,10 +53,10 @@ capability produces, the same same-file-adjacency-is-not-an-edge call `coalesced
 `map-payload-cache`, `map-server-memo` and `map-boot-independence` each already record in
 [`story.md`](story.md). It is a root.
 
-> **Proof status (honest) — `mapped` (a real, standing, passing suite; observational; NOT
-> `healthy`).** storytree's own prove-it-gate did not drive any of this red→green: the surface
-> landed through ordinary sessions (#1186, #1191, #1195) and its tests were written alongside it.
-> That is what `mapped` records (ADR-0094), and it is why there is no `real:` arm.
+> **Proof status (honest) — `proposed` (greenfield without a current signed pass; NOT `healthy`).**
+> The surface landed through ordinary sessions (#1186, #1191, #1195) and its tests were written
+> alongside it. That history is greenfield; neither late registration nor the absence of a gate-driven
+> red→green makes it brownfield or Adopt-bound (ADR-0395).
 >
 > **The outcome half — `apps/studio/src/components/ArcSurface.test.tsx`, 19 tests.** A jsdom render
 > of the REAL `ArcSurface` over real `ArcRollup[]` props, holding the lens to ADR-0314 decision by
@@ -202,7 +202,7 @@ rather than passing them through.
 
 **THE PROOF COMMAND.** `pnpm --filter studio test`. `apps/studio` is VITEST + jsdom
 (`apps/studio/vitest.config.ts`), not `node:test`, so the default runner cannot execute the two
-`.test.tsx` files this organ turns on. The command matches the two sibling brownfield capabilities
+`.test.tsx` files this organ turns on. The command matches the two sibling retrospectively registered capabilities
 authored on this arc and the studio's other spec-borne units. The scope globs are each
 repo-relative, rooted at `apps/`, and name one concrete file, so they are inside the ADR-0087
 structural bound (`scopeGlobBoundIssue`, `check-boundaries.ts:243-264`).
@@ -228,7 +228,7 @@ strip present and above the lanes (D7); and read-only — no comment box, no ans
 affordance (D9). The seventh group is the honest-absence contract, which is four facts rather than
 two: still-loading, read-never-answered, store-absent and store-empty each render differently.
 
-`mapped` (observational); the prove-it-gate did not drive it. The `GET /api/arcs` seam and the live
+The authored rung remains `proposed` until current signed proof exists. The `GET /api/arcs` seam and the live
 poll cadence are exercised nowhere in this scope — the stated gaps recorded above, not claimed here.
 
 ## Contracts (10)

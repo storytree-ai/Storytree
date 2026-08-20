@@ -4,7 +4,7 @@ tier: capability
 story: agent
 title: "One swappable Model seam + one typed model-event vocabulary, with the model SDK import isolated"
 outcome: "The owned loop calls any model through one swappable seam and speaks one typed model-event vocabulary, with every @anthropic-ai/sdk import isolated to a single file."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: []
 # Node-borne proof config (ADR-0057 keystone): authoring THIS block is what makes the capability
@@ -42,7 +42,7 @@ proof:
 **Outcome —** The owned loop calls any model through one swappable seam and speaks one typed
 model-event vocabulary, with every `@anthropic-ai/sdk` import isolated to a single file.
 
-> **Proof status (honest) — `mapped`.** `model.test.ts` (4) + `model-events.test.ts` (7) pass
+> **Proof status (honest) — `proposed`.** `model.test.ts` (4) + `model-events.test.ts` (7) pass
 > offline. The `Model` seam (`model.ts`) is the one swappable model call (`createMessage`);
 > `ScriptedModel` proves the loop runs with ZERO live calls and a LOUD error past the scripted end;
 > `AnthropicModel` is the only `@anthropic-ai/sdk` import site (ADR-0004/0011), keeping the live SDK
@@ -66,7 +66,7 @@ dogfood, never a standing test here.
 
 ## Guidance
 
-The brownfield slice that earns this capability a signed verdict (the next bootstrap rung toward
+The greenfield slice that can earn this capability a signed verdict (the next bootstrap rung toward
 `healthy`): WIDEN the model-event vocabulary's `StopReason` enum to recognise the Anthropic Messages
 API's real `"refusal"` stop reason. This is one additive value on an existing `z.enum`, additive-only.
 

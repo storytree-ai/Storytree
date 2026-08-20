@@ -4,18 +4,18 @@ tier: capability
 story: studio
 title: "The Act 2 regrow's app-owned cursor — one clock, movable, surviving a re-fetch"
 outcome: "The Act 2 forest regrow is driven end to end by one app-owned cursor the operator can move."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: []
 decisions: [282, 286, 292, 313]
-# A brownfield capability over already-implemented, already-tested code (the arc that authored it:
-# capability-layer-coverage-arc increment 4, 2026-08-07). It resolves TWO story-grain
+# A greenfield capability registered retrospectively by capability-layer-coverage-arc increment 4
+# (2026-08-07). It resolves TWO story-grain
 # `repo-manifest.json` declarations that existed only because no capability covered this organ —
 # the regrow CLOCK, as distinct from the CAMERA choreography riding it (already two capabilities)
 # and from the world GEOMETRY it plays over (already `@storytree/app-surface`'s).
 # The `proof:` block is spec-borne (ADR-0057); there is deliberately NO `real:` arm:
-#   1. ADR-0085/ADR-0094 — this code is mapped brownfield, so its green path is Adopt, never a
-#      manufactured red on mature code (ADR-0159). A `real:` arm would also move the pinned
+#   1. This classification correction does not add a `real:` arm or manufacture a red/verdict
+#      (ADR-0159). A `real:` arm would also move the pinned
 #      REAL-buildable snapshot in `packages/cli/src/node-build.test.ts`.
 #   2. `readUnitSourceFiles` (packages/cli/src/check-boundaries.ts:210-234) reads ONLY
 #      `real.sourceFile` + literal `real.scope.sourceGlobs` and `continue`s on an absent `real`
@@ -48,10 +48,10 @@ Its own code reaches no named `studio` capability — neighbouring the camera sl
 is not an edge, the same same-file-adjacency-is-not-an-edge call four siblings already record in
 [`story.md`](story.md). It is a root.
 
-> **Proof status (honest) — `mapped` (a real, standing, passing suite; observational; NOT
-> `healthy`).** storytree's own prove-it-gate did not drive this red→green; the player landed
-> through ordinary sessions across ADR-0282 / ADR-0286 / ADR-0292 and its tests were written
-> alongside it. That is what `mapped` records (ADR-0094), and it is why there is no `real:` arm.
+> **Proof status (honest) — `proposed` (greenfield without a current signed pass; NOT `healthy`).**
+> The player landed through ordinary sessions across ADR-0282 / ADR-0286 / ADR-0292 and its tests
+> were written alongside it. That history is greenfield; neither late registration nor the absence of
+> a gate-driven red→green makes it brownfield or Adopt-bound (ADR-0395).
 >
 > **The outcome half — `apps/studio/src/components/act2Intro.clock.test.tsx`, 9 tests.** A
 > `renderHook` of the REAL `useAct2Intro` against a real story graph and trail-edge set, with the
@@ -182,7 +182,7 @@ the first arriving plan, which is the case that actually flashed a frame of the 
 payload keeps the cursor running, while a graph that really changed still invalidates it — the
 two halves of `forestRegrowGraphKey`'s contract observed through the player rather than in isolation.
 
-`mapped` (observational); the prove-it-gate did not drive it. `Act2IntroControl.tsx`'s readout and
+The authored rung remains `proposed` until current signed proof exists. `Act2IntroControl.tsx`'s readout and
 the four render-stability memoizers are exercised but not asserted — the stated gaps recorded above,
 not claimed here.
 

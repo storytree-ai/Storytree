@@ -8,14 +8,14 @@ outcome: "A pure function computes, per story, the declared-but-code-unbacked cr
 status: mapped
 proof_mode: contract-test
 depends_on: []
-# DELIVERED, BUT NOT GATE-PROVEN — hence `status: mapped`, not `proposed` (2026-08-08 correction,
-# ADR-0139 correct-in-place). `declaredEdgeDriftReport` and `formatDriftReport` are exported from
+# DELIVERED, BUT NOT GATE-PROVEN. This file remains `status: mapped` only because ADR-0395's bounded
+# hierarchy audit reclassifies stories and capabilities, while this file is tier `contract`; the
+# retained contract status is not a claim of inherited brownfield provenance. `declaredEdgeDriftReport` and `formatDriftReport` are exported from
 # packages/cli/src/boundaries.ts at HEAD, wired non-blocking into check-boundaries.ts, and covered by
 # passing `declaredEdgeDriftReport: …` cases in packages/cli/src/boundaries.test.ts — landed by an
 # ORDINARY hand-authored commit ("feat(cli): non-blocking declared-edge drift report (ADR-0115)"), NOT
 # by a `--real` build. So the planned red was never observed by storytree's spine and no signed verdict
-# backs this contract: the same brownfield posture the parent capability `organism-boundary-tooling`
-# records for the blocking gate. The
+# backs this contract. Its parent capability is greenfield `proposed` under ADR-0395. The
 # `real:` arm below is RETAINED so the unit stays re-buildable, but a re-run must start from a genuine
 # red — the function it was to author already exists.
 #
@@ -157,7 +157,7 @@ data and NEVER appends to the gate's violation list / fails the gate.
        with no asymmetry contributes no drift entry.
    - **proven by —** `packages/cli/src/boundaries.test.ts` — the `declaredEdgeDriftReport: …` cases,
      passing at HEAD against `declaredEdgeDriftReport` / `formatDriftReport` in
-     `packages/cli/src/boundaries.ts`. *(Brownfield `mapped`: delivered by an ordinary hand-authored
-     commit rather than a `--real` build, so storytree's gate never drove it red→green and no signed
-     verdict backs it. The `real:` arm is retained for a future re-proof, which would have to start from
+     `packages/cli/src/boundaries.ts`. *(Contract status retained as `mapped` by this increment's
+     story/capability tier fence, not because ordinary delivery created brownfield provenance. No
+     signed verdict backs it. The `real:` arm is retained for a future re-proof, which would have to start from
      a genuine red.)*

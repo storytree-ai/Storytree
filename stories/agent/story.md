@@ -128,14 +128,15 @@ already carries.
 
 ## Honest status
 
-**Brownfield in origin, ADOPTED since 2026-06-26.** The organism's dominant behaviour is
+**Greenfield in origin, with historical signed verdicts since 2026-06-26.** The organism's dominant behaviour is
 observationally verified by a real, passing, OFFLINE suite (`pnpm --filter @storytree/agent test`):
 **189/189** on 2026-07-26 (no DB, no API key — `ScriptedModel`, an injectable `queryFn`, and an
-injectable Codex runner keep runtime decisions offline-testable). That observational green is exactly
-brownfield `mapped`: storytree's own prove-it-gate did not drive these red→green.
+injectable Codex runner keep runtime decisions offline-testable). The code was built inside Storytree;
+its later work-hierarchy registration does not make it inherited brownfield (ADR-0395). Without a
+current signed pass, each capability's honest authored baseline is `proposed`.
 
 *(Scope note 2026-07-26 — three claims in this paragraph were stale and are corrected in place. The
-suite count was **70/70 on 2026-06-21**; it is now 189/189, re-run at this date. The `mapped` basis
+suite count was **70/70 on 2026-06-21**; it is now 189/189, re-run at this date. The former `mapped` basis
 cited `docs/glossary.md`, which ADR-0135 RETIRED — the definitions are authoritative in the Library
 (`storytree library artifact mapped`), so the dead pointer is dropped rather than re-aimed. And the
 claim that this organism has **no signed verdicts** is now FALSE: the live store holds 25
@@ -143,8 +144,9 @@ claim that this organism has **no signed verdicts** is now FALSE: the live store
 signed — `agent#gate-1` and legs 1–4, 6, each `approvedBy: hua.mick@gmail.com` — plus the
 `operator-attested` verdict on leg 5 discussed under `## UAT Test Criteria`. `healthy` remains
 non-authorable (ADR-0020): it is only ever DERIVED from those verdicts, never written here. The
-authored frontmatter `status:` accordingly reads **`proposed`**, flipped by the adopt pass in commit
-`e21ee4d4`, not `mapped` as this section previously asserted.)*
+authored frontmatter `status:` accordingly reads **`proposed`**. Commit `e21ee4d4` made that earlier
+change during an Adopt pass; ADR-0395 now establishes the same baseline from greenfield provenance,
+independent of registration order or that historical ceremony.)*
 
 The recurring honesty shape, per capability: **offline-proven mechanics, live-attested-but-not-
 standing-tested live legs.** The owned loop, the file-tool surface, the model seam, and both live
@@ -155,8 +157,8 @@ subscription invocations remain need-gated, never a standing test in this packag
 
 Listed roots-first (a capability appears after everything it depends on). Edges are **within-story,
 code-derived** (ADR-0010 §3) — read off the real `./`-imports between the source files, never
-hand-drawn from UAT need. `mapped` = a real passing offline suite observationally verifies the
-dominant behaviour.
+hand-drawn from UAT need. A passing offline suite is evidence, not provenance: these greenfield
+capabilities stay `proposed` unless a current signed pass derives green (ADR-0395).
 
 The **buildable** column marks the split this story now carries. Three capabilities are **proof-wired**
 (ADR-0057 — they carry a `proof:` block with a `real:` arm describing a genuine additive red→green
@@ -164,15 +166,15 @@ against the real `packages/agent/src` source) and are listed in the story's `cap
 frontmatter; that closed, acyclic, every-cap-has-a-`real:`-arm set is exactly what makes the WHOLE
 story story-`real`-buildable (`isStoryBuildable`, the studio Build button). Two are **authored but
 intentionally unwired** — they cannot carry a genuine standalone red→green (see the note below the
-table) — so they are NOT in the buildable set, kept honestly `mapped` as documented gaps.
+table) — so they are NOT in the buildable set, kept honestly `proposed` as documented gaps.
 
 | # | capability | outcome | status | buildable | depends on |
 |---|---|---|---|---|---|
-| 1 | [`model-runtime-seam`](model-runtime-seam.md) | The owned loop calls any model through one swappable seam and speaks one typed model-event vocabulary, with every `@anthropic-ai/sdk` import isolated to a single file. | mapped | **yes** (proof-wired) | — |
-| 2 | [`phase-author-seam`](phase-author-seam.md) | The spine drives a leaf through one runtime-agnostic surface that only ever AUTHORS — it never observes red/green and never reports a verdict. | mapped | no (pure type module) | — |
-| 3 | [`leaf-tool-surface`](leaf-tool-surface.md) | A leaf's tool calls dispatch through one executor to real local file tools whose every path is confined to the workspace, errors captured as tool results, never thrown. | mapped | **yes** (proof-wired) | `model-runtime-seam` |
-| 4 | [`owned-turn-loop`](owned-turn-loop.md) | The owned loop runs a model↔tool turn to a natural stop and a step fail-closed: a malformed or wrong-shape result retries, then HALTS — never a forged success. | mapped | **yes** (proof-wired) | `model-runtime-seam`, `leaf-tool-surface` |
-| 5 | [`live-sdk-leaf`](live-sdk-leaf.md) | The live Claude Agent SDK authors one slice per `query()` with write scope enforced fail-closed by a PreToolUse hook before any write lands, Bash absent from the tool surface, and red/green never the runtime's to report. | mapped | no (operator-attested live leg) | `phase-author-seam` |
+| 1 | [`model-runtime-seam`](model-runtime-seam.md) | The owned loop calls any model through one swappable seam and speaks one typed model-event vocabulary, with every `@anthropic-ai/sdk` import isolated to a single file. | proposed | **yes** (proof-wired) | — |
+| 2 | [`phase-author-seam`](phase-author-seam.md) | The spine drives a leaf through one runtime-agnostic surface that only ever AUTHORS — it never observes red/green and never reports a verdict. | proposed | no (pure type module) | — |
+| 3 | [`leaf-tool-surface`](leaf-tool-surface.md) | A leaf's tool calls dispatch through one executor to real local file tools whose every path is confined to the workspace, errors captured as tool results, never thrown. | proposed | **yes** (proof-wired) | `model-runtime-seam` |
+| 4 | [`owned-turn-loop`](owned-turn-loop.md) | The owned loop runs a model↔tool turn to a natural stop and a step fail-closed: a malformed or wrong-shape result retries, then HALTS — never a forged success. | proposed | **yes** (proof-wired) | `model-runtime-seam`, `leaf-tool-surface` |
+| 5 | [`live-sdk-leaf`](live-sdk-leaf.md) | The live Claude Agent SDK authors one slice per `query()` with write scope enforced fail-closed by a PreToolUse hook before any write lands, Bash absent from the tool surface, and red/green never the runtime's to report. | proposed | no (operator-attested live leg) | `phase-author-seam` |
 
 **Why two capabilities stay unwired (honest gaps, not omissions).**
 
@@ -182,14 +184,14 @@ table) — so they are NOT in the buildable set, kept honestly `mapped` as docum
   THROUGH its three implementations (`ClaudeAgentAuthor`, `CodexPhaseAuthor`, and `OwnedLoopAuthor`
   in drive-machinery) and
   by the gate type-checking against it. There is no additive runtime assertion to fail-then-pass, so a
-  `real:` arm would be a fake. It stays `mapped`, unwired.
+  `real:` arm would be a fake. It stays `proposed`, unwired.
 - **`live-sdk-leaf` has an operator-attested live leg, and an unwired dependency.** Its DECISION
   functions are offline-proven (`decideWrite`, the prompt composition, the feedback doorbell), but its
   defining behaviour — a real subscription `query()` authoring a slice — is **operator-attested** from
   the drive-machinery dogfood, never a standing offline test (proving a live runtime needs the paid
   leaf). So it has no free, offline red→green to drive under the gate. It also `depends_on:
   [phase-author-seam]`, which is unwired, so dependency-closure would exclude it from the buildable set
-  regardless. It stays `mapped`, unwired.
+  regardless. It stays `proposed`, unwired.
 
 > **The Cursor second-harness leaf remains RETIRED (ADR-0198, superseding ADR-0177; subsequently
 > superseded by ADR-0232 without reversing that retirement).** The former
@@ -334,22 +336,16 @@ End state — one seam, three runtime implementations, every honesty wall (path 
 steps, scoped writes, no-self-verdict) held; the spine never named a model.
 ## Reliability Gates
 
-The agent runtime is **brownfield in origin** (`status:` was `mapped`, flipped to `proposed` by the
-2026-06-26 adopt pass): its dominant behaviour is observationally
+The agent runtime is **greenfield in origin**. Its dominant behaviour is observationally
 verified by a real, passing, OFFLINE suite (`pnpm --filter @storytree/agent test`, **189/189** on
 2026-07-26, was 70/70 —
 `ScriptedModel`, an injectable `queryFn`, and an injectable Codex runner keep runtime decisions
-offline-testable, no DB, no API key, see **Honest status**), but storytree's own prove-it-gate never
-DROVE those proofs red→green. So its honest
-path off `mapped` is **not** a fail-closed `--real` Build over a mature artifact with no genuine live
-red — it is the author-declared **reliability gates** below, observe-and-signed to an `adopted` verdict
-([ADR-0085](../../docs/decisions/0085-resolve-adr-0083-fork-b-brownfield-reliability-gates-author.md),
-resolving [ADR-0083](../../docs/decisions/0083-author-defined-story-green-declared-obligations-machine-per.md)
-Fork B). This is the `mapped → healthy` = **Adopt** transition
-[ADR-0094](../../docs/decisions/0094-go-green-is-a-status-transition-proposed-builds-mapped-adopt.md)
-names (its decision d.3 retired the status-blind Build for `mapped` stories). Distinct from
+offline-testable, no DB, no API key, see **Honest status**). Those tests and the historical adopted
+verdicts remain evidence, but neither implementation-before-registration nor absence of a gate-driven
+red makes the organism brownfield (ADR-0395). Its authored baseline is therefore `proposed`; the
+reliability gates below remain the declared evidence surface and do not establish provenance. Distinct from
 `## UAT Test Criteria` above (the integrated, part-scripted/part-attested acceptance journey across
-the runtime implementations): the gates are the author's **expandable reliability floor**, starting by adopting the
+the runtime implementations): the gates are the author's **expandable reliability floor**, observing the
 existing green suite and GROWING a `_(gate: build-tests)_` gate (a genuine red→green regression leg)
 the moment observation proves insufficient — a real defect slips through, or a live subscription leg
 (currently operator-attested) finally earns a standing offline test.
@@ -385,10 +381,11 @@ the moment observation proves insufficient — a real defect slips through, or a
    revision, when the driven commit is not in HEAD's ancestry, or when the newest record is older than
    90 days (the ADR-0016 ageing floor).
 
-Adopting this gate flips the runtime off `mapped` — **this HAS happened** (2026-06-26): the adopt pass
+The historical Adopt run signed this gate — **this HAS happened** (2026-06-26): the run
 observed the suite green at a clean HEAD and signed `adopted` verdicts for `agent#gate-1` and the five
 `machine` legs (1–4, 6), each `approvedBy: hua.mick@gmail.com`, and flipped the frontmatter `status:`
-to `proposed` in commit `e21ee4d4`. `healthy` stays non-authorable
+to `proposed` in commit `e21ee4d4`. ADR-0395 now makes `proposed` the correct greenfield baseline
+regardless of that ceremony. `healthy` stays non-authorable
 ([ADR-0020](../../docs/decisions/0020-red-green-enforcement-on-the-owned-loop.md)) — it is never
 written into the frontmatter; the world's crown DERIVES green from the signed verdicts
 ([ADR-0040](../../docs/decisions/0040-verdict-derived-green-and-the-human-witness-signpost.md)) and only
@@ -407,8 +404,8 @@ ADR-0083 Fork A + ADR-0085). No single gate greens the story.
 ## Proof
 
 The story carries the UAT above (ADR-0010 §2); it is proven when that walkthrough passes against the
-real runtimes with the capabilities' integration tests and contracts green underneath. Why the origin
-was `mapped` and what stays live-attested is pinned in **Honest status** and per capability. Per
+real runtimes with the capabilities' integration tests and contracts green underneath. The greenfield
+provenance and what stays live-attested are pinned in **Honest status** and per capability. Per
 ADR-0020 `healthy` is only ever DERIVED from signed verdicts — *(scope note 2026-07-26: the claim that
 "this organism has none yet" was FALSE and is corrected here, verified against the live store. The
 2026-06-26 adopt pass signed `adopted` verdicts for `agent#gate-1` and legs 1–4, 6, so
@@ -430,7 +427,7 @@ end to end with `pnpm storytree story build agent --real` (and the studio's stor
 PR #299/#300), which walks the three capabilities in dependency order through a genuine spine-observed
 red→green.
 
-Each `real:` arm is an **edits-existing** brownfield slice (ADR-0057 §3 expansion C), offline-verified
+Each `real:` arm is an **edits-existing** greenfield slice (ADR-0057 §3 expansion C), offline-verified
 genuinely RED against the current source: the leaf authors a NEW regression test that FAILS against
 `packages/agent/src` as it stands today, then EDITS the one existing source file to make it pass —
 `StopReason` widened to admit the Messages API's `"refusal"` (`model-events.ts`), `edit_file` given an

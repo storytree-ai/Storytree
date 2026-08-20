@@ -4,13 +4,13 @@ tier: capability
 story: drive-machinery
 title: "Per-slice token accounting on the build's own event stream — accounting, never proof"
 outcome: "A build's per-slice token accounting lands on its own event stream as a kind no verdict reads."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: [work-verdict-event-log]
-# A brownfield capability over already-implemented, already-tested code (capability-layer-coverage-arc,
-# 2026-08-07). Spec-borne `proof:` (ADR-0057) with NO `real:` arm — the drive machinery is `mapped`, so
-# its green path is Adopt (the story's `## Reliability Gates`, ADR-0085), not a fail-closed `--real`
-# Build (ADR-0094). The proving file is drive-resident, so the package suite is the whole command.
+# A greenfield capability registered after its implementation and tests (capability-layer-coverage-arc,
+# 2026-08-07). Per ADR-0395, retrospective registration does not make it brownfield or Adopt-bound.
+# Spec-borne `proof:` (ADR-0057) with NO `real:` arm; the proving file is drive-resident, so the package
+# suite is the whole command.
 proof:
   command:
     file: pnpm
@@ -34,12 +34,12 @@ in contract 5 `the-accounting-append-is-advisory`.)*
 `usage` event kind, its `runId:unitId:phase` key, its fail-closed validation, and the SQL routing to
 `events.usage_event`. This capability cannot append a single honest row without it.
 
-> **Proof status (honest) — `mapped` (real passing offline tests, observational; NOT `healthy`).** The
+> **Proof status (honest) — `proposed` (real passing offline tests, but no current signed pass).** The
 > whole mapping and the whole append are covered by 5 REAL, passing, offline tests in
 > `packages/drive/src/usage.test.ts`, part of the `@storytree/drive` suite, which I ran on 2026-08-07 —
 > **484 tests, 484 pass, 0 fail, 0 skipped**. No DB, no SDK, no credential: the append runs against a
-> real `InMemoryStore`. storytree's own prove-it-gate did NOT drive these red→green, so this is
-> brownfield `mapped`.
+> real `InMemoryStore`. The implementation is greenfield Storytree work; its standing tests do not
+> change provenance or supply the missing signed pass (ADR-0395).
 >
 > **What this capability does NOT claim, and where each half really lives.** The CAPTURE half (an SDK /
 > Codex result → a `TokenUsage` breakdown) is `@storytree/agent`'s. The `usageEvent` CONSTRUCTOR and the
@@ -54,8 +54,8 @@ in contract 5 `the-accounting-append-is-advisory`.)*
 > run is exercised out-of-band, never on a gate pass (ADR-0010 §5).
 >
 > **No reliability gate `(covers:)` this capability yet.** Gate-3 runs the proving suite, but its
-> `(covers:)` list was frozen before this node existed, so no signed `adopted` verdict names it — a
-> stated gap, and an id-aware edit for the owner rather than a silent one.
+> `(covers:)` list was frozen before this node existed, so no current signed verdict names it — a
+> stated proof gap, not a reason to route this greenfield capability through Adopt.
 
 ## Guidance
 
@@ -110,7 +110,8 @@ with its token axes intact. `:35` runs the same wire-shape parse over every mapp
 per-model split.
 
 Underneath, 5 tests in `usage.test.ts` (all passing) cover the mapping, both skip disciplines and the
-advisory failure path. `mapped` (observational); the prove-it-gate did not drive it.
+advisory failure path. `proposed`: the greenfield capability has standing observational evidence but
+no current signed pass (ADR-0395).
 
 ## Contracts (5)
 

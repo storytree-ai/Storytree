@@ -73,7 +73,7 @@ test("loadNodeSpec parses the real library-cli frontmatter (id/tier/outcome/proo
   assert.equal(spec.tier, "capability");
   assert.equal(spec.story, "library");
   assert.equal(spec.proofMode, "integration-test");
-  assert.equal(spec.status, "mapped");
+  assert.equal(spec.status, "proposed");
   assert.match(spec.outcome, /curates library artifacts/);
   assert.ok(spec.dependsOn.includes("event-sourced-store-seam"));
   // The ## Guidance prose is carried for prompt assembly.

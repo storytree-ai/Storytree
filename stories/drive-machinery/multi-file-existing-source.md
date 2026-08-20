@@ -4,7 +4,7 @@ tier: capability
 story: drive-machinery
 title: "Multi-file & existing-source builds"
 outcome: "A node can declare a multi-file write scope and an edit-existing-source regression red→green, so bug-fixes, refactors, and multi-file changes go through the gate — keeping test-author ≠ code-author."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: [spec-borne-proof-config, proof-command-vocabulary]
 decisions: [20, 57]
@@ -18,7 +18,7 @@ test-author ≠ code-author.
 
 **Depends on —** [`spec-borne-proof-config`](spec-borne-proof-config.md), [`proof-command-vocabulary`](proof-command-vocabulary.md)
 
-> **Proof status (honest) — `mapped`, built outer-loop (the bootstrap).** ADR-0057 §3's expansion C —
+> **Proof status (honest) — `proposed`, built outer-loop (the bootstrap).** ADR-0057 §3's expansion C —
 > no new ADR (it ships under the already-decided §3 plan + [ADR-0020](../../docs/decisions/0020-red-green-enforcement-on-the-owned-loop.md)'s
 > honesty walls, like B and D). The change is BUILT and its dominant behaviour is observationally
 > verified by a real, passing, OFFLINE suite: `proof-config.test.ts` (the `editsExisting` schema +
@@ -26,8 +26,9 @@ test-author ≠ code-author.
 > matrix, and a REAL edit-existing red→green walk against a fixture git repo with an existing
 > committed source + a scripted leaf — plus the forged-already-green CONFIRM_RED self-defeat).
 > `@storytree/orchestrator` 146/146, ran 2026-06-15. Like the keystones it extends, C is itself a
-> MULTI-FILE change the single-file inner loop could not yet drive, so it was built outer-loop first
-> and is `mapped`, not `healthy`; the `proposed` pocket is gate-driving the drive-machinery keystones
+> MULTI-FILE change the single-file inner loop could not yet drive, so it was built outer-loop first.
+> That build order does not make this greenfield work brownfield (ADR-0395); it remains `proposed`
+> without a current signed pass. The remaining proof work is gate-driving the drive-machinery keystones
 > (A/B/D/C) now that the loop can express multi-file + edit-existing — the next bootstrap rung. A LIVE
 > edit-existing `--real` red→green is an operator-attested smoke, not a standing test (the same
 > posture as the other live legs in this story). The honesty walls of

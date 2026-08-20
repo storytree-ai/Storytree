@@ -4,7 +4,7 @@ tier: capability
 story: drive-machinery
 title: "The owned loop behind the executor seam (OwnedLoopAuthor)"
 outcome: "The owned agent loop authors one phase slice at a time behind the PhaseAuthor seam under the in-process write wall."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: [phase-scoped-write-wall, red-green-phase-machine]
 ---
@@ -15,7 +15,7 @@ depends_on: [phase-scoped-write-wall, red-green-phase-machine]
 
 **Depends on —** [`phase-scoped-write-wall`](phase-scoped-write-wall.md), [`red-green-phase-machine`](red-green-phase-machine.md)
 
-> **Proof status (honest) — `mapped`, now with a dedicated characterization test.** This adapter is the
+> **Proof status (honest) — `proposed`, now with a dedicated characterization test.** This adapter is the
 > leaf in EVERY offline gate test: the unit walk (`prove-it-gate.test.ts:106-237`), the genuine e2e
 > (`prove-it-gate.e2e.test.ts:160`, `:214`), the dry-run glue (`resolve-prove-spec.test.ts:309`),
 > and the offline REAL-mode walk (`resolve-prove-spec.test.ts:539`) all drive a real

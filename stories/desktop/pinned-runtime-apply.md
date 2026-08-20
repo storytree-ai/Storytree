@@ -4,24 +4,24 @@ tier: capability
 story: desktop
 title: "Apply a landed fix — the desktop reports the code it is running and advances onto merged `main` fast-forward-only, or refuses"
 outcome: "A landed fix reaches the running desktop app only by a fast-forward of its pinned-`main` runtime worktree."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: []
 decisions: [164, 181, 70, 100]
-# A brownfield capability over already-implemented, already-tested code (the arc that authored it:
-# capability-layer-coverage-arc increment 2, 2026-08-07). The `proof:` block is spec-borne (ADR-0057);
-# there is deliberately NO `real:` arm — the desktop's apply loop is `mapped`, so its green path is
-# Adopt (ADR-0085/ADR-0094 removed the ADR-0092 brownfield arm), not a fail-closed `--real` Build.
+# A greenfield capability registered retrospectively by capability-layer-coverage-arc increment 2
+# (2026-08-07). Implementation-before-registration and standing tests do not make it brownfield
+# (ADR-0395). The `proof:` block remains spec-borne (ADR-0057); this classification correction does
+# not add a `real:` arm or manufacture a verdict.
 # TWO-SUITE PROOF COMMAND — the precedent is `post-build-curation-pass`
-# (stories/drive-machinery/post-build-curation-pass.md), THIS arc's own increment 1: the same brownfield
-# shape (`mapped`, integration-test, no `real:` arm) reaching the same conclusion in its own words — it
+# (stories/drive-machinery/post-build-curation-pass.md), THIS arc's own increment 1: the same
+# multi-package proof-command shape reaching the same conclusion in its own words — it
 # names BOTH packages because half its outcome is proven in the other one, since "a single-package
 # command would leave that half unproven". The split here is the same: the four pure cores live in
 # `apps/desktop` (node:test) and the renderer bridge lives in `apps/studio` (vitest jsdom, proven
 # through StoreBanner.test.tsx's desktop legs), so a `desktop`-only command would claim a proof it does
 # not run. `worker-relocation` (stories/desktop-build-mount/worker-relocation.md) is the only other
 # multi-`--filter` command in the corpus and is cited for the SHAPE only — it is `proposed` and carries
-# a `real:` arm, so it is not a brownfield precedent.
+# a `real:` arm, so it differs in proof configuration.
 # NOT the `credential-broker` precedent, and the difference is worth pinning so it is not re-derived
 # wrongly: that capability DOES span two packages, but its `proof.command` deliberately names just one
 # (`--filter studio`). The command naming both suites there is its RELIABILITY GATE (`desktop#gate-1`,
@@ -56,7 +56,7 @@ that gives the outcome its "only" — a configured runtime that is missing, on a
 `local-backend-boot` and `desktop-launch-preconditions`: the four pure cores import no other in-story
 capability, and the modules that consume them are consumers, not upstreams — see **Guidance**.
 
-> **Proof status (honest) — `mapped` (real passing offline tests, observational; NOT `healthy`).** The
+> **Proof status (honest) — `proposed` (greenfield without a current signed pass; NOT `healthy`).** The
 > whole decision surface is covered by REAL, passing, offline tests in FIVE colocated files across two
 > suites.
 >
@@ -75,7 +75,8 @@ capability, and the modules that consume them are consumers, not upstreams — s
 > shared `StoreBanner` against a health payload carrying both the `code` and `runtime` fields this
 > capability produces; only the main-process call across the bridge is faked.
 >
-> storytree's own prove-it-gate did NOT drive any of this red→green, so it is brownfield `mapped`.
+> Those tests are evidence, but neither their standing state nor the absence of a gate-driven
+> red→green establishes brownfield provenance (ADR-0395).
 >
 > **The un-asserted pockets, named rather than implied.** (a) `spawnStepRunner` (`rebuild.ts:156-182`) —
 > the real `execFile` spawn, including the win32 `cmd.exe /d /s /c` wrap `pnpm`'s `.cmd` shim needs — has
@@ -215,8 +216,8 @@ behind renders with correct plurality, `behind: 0` renders nothing, and `pinned:
 Underneath, the four `apps/desktop` cores are each proven over injected probes: 15 tests cover every
 branch of the resolve (including all four refusal shapes and the config-file precedence), 8 cover both
 recipes and every fail-closed halt, 7 cover the build-stamp-vs-HEAD comparison and its advisory nulls,
-and 7 cover the branch/behind reads and the swallowed fetch. `mapped` (observational); the prove-it-gate
-did not drive it. The composition that JOINS the two halves — `main.ts:112`'s `ffToMain` — is
+and 7 cover the branch/behind reads and the swallowed fetch. The authored rung remains `proposed`
+until current signed proof exists. The composition that JOINS the two halves — `main.ts:112`'s `ffToMain` — is
 operator-attested glue and is the stated gap recorded above, not claimed here.
 
 ## Contracts (13)

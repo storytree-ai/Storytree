@@ -3,11 +3,11 @@ id: "website"
 tier: story
 title: "The public website — the consuming surface that draws the forest-world look from the synced render core"
 outcome: "The public site (the `storytree-web` subrepo) is a first-class node in the observability world: a CONSUMING SURFACE that renders the forest-world metaphor from the shared render core's SYNCED build artifact, never its source — so the public front door can never silently drift from the system, and its forest-world edge is a visible, enforced road. A sink at the top of the dependency order: it consumes `forest-world`, and nothing consumes it."
-status: mapped
+status: proposed
 proof_mode: UAT
-# Machine-judged: the public site exists and deploys (the `web/` submodule, here.now CD), so its proof
-# is brownfield observe-and-sign (ADR-0085) — the two cross-repo drift gates below, OBSERVED green at a
-# clean HEAD and signed into `adopted` machine verdicts. The FULL visual UAT (the ADR-0070 two-stage
+# Machine-judged: the public site and its `web/` submodule were built for this initiative, so their
+# earlier implementation/deployment does not make this node brownfield (ADR-0395). The two cross-repo
+# drift checks below are evidence, not current signed verdicts. The FULL visual UAT (the ADR-0070 two-stage
 # operator-attested appearance proof of the rendered site) is a human job, deferred — see "Open modeling
 # calls". This thin wiring node proves the EDGE is live, not the pixels.
 uat_witness: machine
@@ -102,36 +102,33 @@ two-act front-door experience — `depends_on` this node, consuming its delivere
 mechanism (a story-graph edge, not a package import), so the surface stays a package-level sink
 while `website-experience` sits above it as the story-level sink.
 
-## Reliability Gates
+## Existing machine checks
 
-The public site already exists and deploys, so there is no greenfield user JOURNEY to build red→green
-here — its proof is brownfield **observe-and-sign** ([ADR-0085](../../docs/decisions/0085-resolve-adr-0083-fork-b-brownfield-reliability-gates-author.md),
-resolving [ADR-0083](../../docs/decisions/0083-author-defined-story-green-declared-obligations-machine-per.md)
-Fork B), machine-judged (the cross-repo drift checks are a machine's job, not a human attestation).
-This node declares the two gates that ALREADY guard the site parent-side and flip it off `mapped`; both
-run today in `pnpm gate`. The list is the **expandable floor** — the visual appearance proof and the
+The public site was built as Storytree's new public marketing site and registered as a node later.
+That registration order, its deployment, and its standing drift checks do not make it brownfield or
+Adopt-bound
+([ADR-0395](../../docs/decisions/0395-brown-records-provenance-missing-proof-stays-on-the-greenfie.md)).
+The two checks below already guard the site parent-side and run in `pnpm gate`; they remain useful
+evidence but do not by themselves sign this greenfield story. The visual appearance proof and the
 content/roadmap gates ([ADR-0066](../../docs/decisions/0066-wire-the-website-into-the-system-a-tracked-corpus-grounded-s.md)
 Decision 4) land as their own capabilities below, not before. *(The roadmap half of that floor is
 OVERTAKEN since 2026-07-06 —
 [ADR-0167](../../docs/decisions/0167-info-page-triage-the-signed-disposition-set-and-the-keystati.md)
 discarded `/roadmap/`, so no `check:web-roadmap` gate is owed unless the page returns.)*
 
-1. **The synced render core matches its source** _(gate: observe)_ `pnpm check:web-engine`. The spine
-   runs the drift guard at a clean committed HEAD and OBSERVES it green — the site's
+1. **The synced render core matches its source** — `pnpm check:web-engine`. The drift guard checks the site's
    `web/src/lib/forest-world/` synced copy is byte-identical (EOL-insensitive) to
-   `packages/forest-world`'s browser-safe sources, with no stale leftover — then signs an `adopted`
-   verdict (`storytree gate run website#gate-1 --pg`). This is the cross-repo analog of the organism
+   `packages/forest-world`'s browser-safe sources, with no stale leftover. This is the cross-repo analog of the organism
    import scan ([ADR-0100](../../docs/decisions/0100-bring-consuming-surfaces-apps-and-the-public-website-subrepo.md)
    §3): the drift gate is the mechanism that proves the `forest-world` edge is LIVE — a studio look
    change can't silently leave the public site stale, because a submodule bump must carry a fresh sync
    ([ADR-0093](../../docs/decisions/0093-shared-forest-world-render-core-for-studio-and-the-public-we.md)
-   §3). Adopting this gate flips the surface off `mapped`; the world's crown derives green from the
-   signed verdict ([ADR-0040](../../docs/decisions/0040-verdict-derived-green-and-the-human-witness-signpost.md)).
+   §3). Its pass is evidence, not an Adopt verdict.
 
-2. **The site's claims are grounded in current ADRs** _(gate: observe)_ `pnpm check:web-grounding`. The
-   spine runs the grounding guard at a clean committed HEAD and OBSERVES it green — every load-bearing
+2. **The site's claims are grounded in current ADRs** — `pnpm check:web-grounding`. The grounding
+   guard checks every load-bearing
    claim the site carries a `data-grounds="ADR-NNNN"` attribute for resolves to a live, non-superseded
-   decision in the corpus — then signs an `adopted` verdict (`storytree gate run website#gate-2 --pg`).
+   decision in the corpus. Its pass is evidence, not an Adopt verdict.
    This is the existing [ADR-0056](../../docs/decisions/0056-ground-the-public-website-s-claims-to-the-corpus-via-data-gr.md)
    wire ([ADR-0066](../../docs/decisions/0066-wire-the-website-into-the-system-a-tracked-corpus-grounded-s.md)
    Decision 4b): a cited ADR that goes missing or is fully superseded reddens the gate, so the public
@@ -139,18 +136,11 @@ discarded `/roadmap/`, so no `check:web-roadmap` gate is owed unless the page re
 
 ## Proof
 
-**Status off `mapped` is EARNED, not authored.** The public site already exists, deploys, and is
-guarded by two real, passing, parent-side gates (`check:web-engine` + `check:web-grounding`, both in
-`pnpm gate`) — that observational green is brownfield `mapped`. The surface leaves `mapped` exactly
-when its two `observe` reliability gates above are **adopted**: the spine observes each gate green at a
-clean committed HEAD and signs an `adopted` machine verdict
-([ADR-0085](../../docs/decisions/0085-resolve-adr-0083-fork-b-brownfield-reliability-gates-author.md)).
-`healthy` is non-authorable ([ADR-0020](../../docs/decisions/0020-red-green-enforcement-on-the-owned-loop.md))
-— the authored frontmatter `status:` stays `mapped`; the world crown DERIVES green from the signed
-verdicts ([ADR-0040](../../docs/decisions/0040-verdict-derived-green-and-the-human-witness-signpost.md)). Because the
-crown greens only when ALL the surface's gates are healthy (and its capabilities — there are none yet
-— [ADR-0083](../../docs/decisions/0083-author-defined-story-green-declared-obligations-machine-per.md)
-Fork A), a green website crown will MEAN both the render-core edge and the claim-grounding are live.
+**Green remains earned, not authored.** The public site exists, deploys, and is guarded by two real,
+passing parent-side checks (`check:web-engine` + `check:web-grounding`, both in `pnpm gate`), but that
+evidence neither changes its greenfield provenance nor substitutes for a current signed pass. The
+authored rung remains `proposed`; the world crown derives green only from signed proof
+(ADR-0020 / ADR-0040 / ADR-0395).
 
 ## Open modeling calls (for the owner)
 

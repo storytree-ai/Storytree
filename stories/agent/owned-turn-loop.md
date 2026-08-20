@@ -4,7 +4,7 @@ tier: capability
 story: agent
 title: "A model-tool turn runs to a natural stop and a step fails closed, never forging success"
 outcome: "The owned loop runs a model↔tool turn to a natural stop and a step fails closed: a malformed or wrong-shape result retries, then HALTS — never a forged success."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: [model-runtime-seam, leaf-tool-surface]
 # Node-borne proof config (ADR-0057 keystone): authoring THIS block is what makes the capability
@@ -44,7 +44,7 @@ proof:
 **Outcome —** The owned loop runs a model↔tool turn to a natural stop and a step fails closed: a
 malformed or wrong-shape result retries, then HALTS — never a forged success.
 
-> **Proof status (honest) — `mapped`.** `run-turn.test.ts` (5) + `step.test.ts` (8) pass offline.
+> **Proof status (honest) — `proposed`.** `run-turn.test.ts` (5) + `step.test.ts` (8) pass offline.
 > `runTurn` (`run-turn.ts`) drives the model↔tool exchange to a natural stop with a turn cap
 > (`DEFAULT_MAX_TURNS`), reading text/tool blocks via the model-event helpers. `runStep` /
 > `runStepValidated` (`step.ts`) wrap a turn with fail-closed validation: malformed JSON or a
@@ -66,7 +66,7 @@ invariant the spine's sequence relies on (`runSequence` in drive-machinery consu
 
 ## Guidance
 
-The brownfield slice that earns this capability a signed verdict (the next bootstrap rung toward
+The greenfield slice that can earn this capability a signed verdict (the next bootstrap rung toward
 `healthy`): surface the TERMINATING `stopReason` on `runTurn`'s result, so a consumer can tell a
 clean `end_turn` from a `max_tokens` truncation or a `refusal` instead of being blind to WHY the turn
 ended. This is one additive field on an existing interface, additive-only.

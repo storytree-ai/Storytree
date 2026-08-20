@@ -4,15 +4,16 @@ tier: capability
 story: desktop
 title: "Mirrored route conformance — every `/api/*` payload the desktop re-composes is proven equal to the studio's, or the divergence is named"
 outcome: "Every `/api/*` payload the desktop re-composes is proven equal to the studio's reference payload."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: [local-backend-boot, boot-read-routes]
 decisions: [251, 176, 100, 252, 249, 57]
-# A brownfield capability over already-implemented, already-tested code (the arc that authored it:
-# capability-layer-coverage-arc increment 3, 2026-08-07). The `proof:` block is spec-borne (ADR-0057);
+# A greenfield capability registered retrospectively by capability-layer-coverage-arc increment 3
+# (2026-08-07). Implementation-before-registration and a standing gate do not make it brownfield
+# (ADR-0395). The `proof:` block is spec-borne (ADR-0057);
 # there is deliberately NO `real:` arm, and here that omission is load-bearing TWICE over:
-#   1. ADR-0085/ADR-0094 — the desktop's harness is `mapped`, so its green path is Adopt, never a
-#      manufactured red on mature code (ADR-0159); a `real:` arm would also move the pinned
+#   1. This classification correction does not add a `real:` arm or manufacture a red/verdict
+#      (ADR-0159); adding one would also move the pinned
 #      REAL-buildable snapshot in `packages/cli/src/node-build.test.ts`.
 #   2. `readUnitSourceFiles` (packages/cli/src/check-boundaries.ts:210-234) reads ONLY `real.sourceFile`
 #      + literal `real.scope.sourceGlobs` and `continue`s on an absent `real` (`:226`). So this unit
@@ -57,9 +58,9 @@ being true — is contract 5.)*
 The desktop half of this harness cannot produce a payload at all until those two routes exist — which
 is the dependency test in both directions: neither of them needs anything from this unit.
 
-> **Proof status (honest) — `mapped` (a real, standing, passing gate; observational; NOT `healthy`).**
+> **Proof status (honest) — `proposed` (greenfield without a current signed pass; NOT `healthy`).**
 > The outcome is proven by a STANDING GATE, not by a package suite, and the distinction is the whole
-> reason this capability's `proof.command` is not a `--filter … test` like its two sibling brownfield
+> reason this capability's `proof.command` is not a `--filter … test` like its two sibling retrospective
 > units.
 >
 > **The outcome half — `pnpm check:mirror-conformance`.** One of the NINE retained gate steps
@@ -78,7 +79,8 @@ is the dependency test in both directions: neither of them needs anything from t
 > the gate's PASS meaningful: a judge that could not detect a drift would pass forever. These are the
 > contracts below.
 >
-> storytree's own prove-it-gate did NOT drive any of this red→green, so it is brownfield `mapped`.
+> The standing gate is evidence, but neither it nor the absence of a gate-driven red→green establishes
+> brownfield provenance (ADR-0395).
 >
 > **The stated gap that matters most — the proof command runs the gate, NOT the judge's suite, and the
 > two are disjoint.** `pnpm check:mirror-conformance` exercises the judge only on a corpus that
@@ -212,7 +214,7 @@ constraint that narrows the granted vocabulary back down to a test runner.
 
 It is nonetheless novel IN PRACTICE, which is a claim about this corpus and not about the decision: of
 the 190 spec-borne `proof.command` blocks, 189 are `pnpm --filter <pkg> test` and this is the only
-`check:*` — the two sibling brownfield units in this story and its two arc predecessors among them.
+`check:*` — the two sibling retrospectively registered units in this story among them.
 Novel in practice is not novel in decision. The form was sanctioned when ADR-0057 staged the
 proof-mode vocabulary beyond `node:test`; it had simply not yet been reached for, because until this
 unit no outcome needed a standing gate to prove it.
@@ -289,7 +291,8 @@ two implementations over one input rather than against a recorded value, so corp
 destabilise it.
 
 Underneath, the judge's 32 tests cover every divergence kind it can report — which is what makes the
-gate's PASS mean something. `mapped` (observational); the prove-it-gate did not drive it. The gather
+gate's PASS mean something. The authored rung remains `proposed` until current signed proof exists.
+The gather
 half and the never-vacuous rule are exercised on every run but not asserted offline — the stated gap
 recorded above, not claimed here.
 

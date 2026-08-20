@@ -4,7 +4,7 @@ tier: capability
 story: cli
 title: "The CLI-resident authoring primitives the gates build on"
 outcome: "The CLI-resident authoring primitives the gates build on: the stories/ YAML corpus guard and the ADR frontmatter parser."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: []
 ---

@@ -3,7 +3,7 @@ id: "arc"
 tier: story
 title: "The arc — the durable initiative record a long-running effort is read from"
 outcome: "A session arriving cold on a long-running initiative reads its whole current state from the arc alone, including whether the work parked there is still safe to act on."
-status: mapped
+status: proposed
 proof_mode: UAT
 # Machine-judged, and the judgment is not close. Every success condition in this organism COMPILES —
 # what a derived join contains, an envelope field, a commit count against a path set, a refusal
@@ -112,7 +112,7 @@ owned a file inside `drive-machinery`'s building, and the only reason the landlo
 is that `readUnitSourceFiles` skips a unit with no `real:` arm — so rules 5 and 6 never looked. The
 capability said so itself, in an honesty note that ended *"If this organ ever earns a `real:` arm, its
 source file must be the `packages/cli` half or the organ must move to its own package first."* The
-organ was **frozen at `mapped` by its address**. It no longer is: every source file all three
+organ was **frozen out of a `real:` arm by its address**. It no longer is: every source file all three
 capabilities name is now inside this story's own building, so a future `real:` arm trips no rule. That
 is the discharge, and the note in the capability records it as paid rather than deleted.
 
@@ -136,20 +136,20 @@ cross-story capability edge is not a shape the model has. It is authored now.
 
 | # | capability | outcome | status | depends on |
 |---|---|---|---|---|
-| 1 | [`arc-derived-initiative-view`](arc-derived-initiative-view.md) | A session arriving cold on a long-running initiative reads its whole current state from the arc alone. | mapped | — |
-| 2 | [`increment-freshness-check`](increment-freshness-check.md) | A session about to consume a parked increment is told mechanically whether the repo moved under it since the increment was anchored. | mapped | — |
+| 1 | [`arc-derived-initiative-view`](arc-derived-initiative-view.md) | A session arriving cold on a long-running initiative reads its whole current state from the arc alone. | proposed | — |
+| 2 | [`increment-freshness-check`](increment-freshness-check.md) | A session about to consume a parked increment is told mechanically whether the repo moved under it since the increment was anchored. | proposed | — |
 | 3 | [`arc-explicit-id-fidelity`](arc-explicit-id-fidelity.md) | An agent scaffolding an arc with an explicit id receives a refusal instead of creating an arc under a silently truncated id. | proposed | `arc-derived-initiative-view` |
 
 All three moved here from `stories/cli` with their code, unchanged in substance
 ([ADR-0369](../../docs/decisions/0369-the-arc-domain-owns-its-own-package-and-the-arrow-runs-arc-t.md)
-D1). **Rows 1 and 2** remain ADR-0094 brownfield `mapped` with **no `real:` arm** — this landing is a
-MOVE, not a re-proof, and manufacturing a red over mature code is exactly what ADR-0085 / ADR-0094
-forbid.
+D1). **Rows 1 and 2** are greenfield `proposed` with **no `real:` arm**: this landing was a MOVE, not
+a re-proof, and registration after implementation does not turn them into inherited brownfield
+(ADR-0395).
 
 **Row 3 is a different animal, and the difference matters twice.** `arc-explicit-id-fidelity` is the
 one unit here the spine genuinely drove red→green: the `--real` run `real-msgbv0z0` was promoted, and
 promotion happens only on a SIGNED PASS. So it is REAL-buildable, it carries a `real:` arm, and it is
-authored `proposed` rather than `mapped` — `mapped` would falsely deny gate-driven proof, and
+authored `proposed`; its signed pass derives green while `healthy` remains non-authorable, and
 `healthy` is non-authorable (ADR-0020).
 
 That `real:` arm is also why its move here was **not optional**. The ADR-0192 landlord rule reads
@@ -256,7 +256,7 @@ consuming session acts on; close the increment and witness closure be terminal r
 **That walkthrough is authored here as prose and as ZERO numbered criteria, deliberately
 ([ADR-0294](../../docs/decisions/0294-story-uat-is-a-journey-not-a-spec-criteria-that-duplicate-lo.md)
 D2).** Every step of it is already driven end-to-end by `pnpm --filter @storytree/arc test` — the exact
-command that greens the two `mapped` capabilities above and the exact command this story's one
+command that observes the two `proposed` capabilities above and the exact command this story's one
 reliability gate names. A criterion here would name that same command a third time and would therefore
 be the capability rung re-signed at the story rung, which is the 100-leg pattern ADR-0294 D2 deletes
 rather than re-points. A story with zero UAT criteria greens honestly: the crown's own-proof clause
@@ -283,15 +283,11 @@ never the evidence.
 
 ## Reliability Gates
 
-The story entered as **brownfield**: `packages/arc` carries a real, standing, passing OFFLINE suite
-over already-implemented code, but storytree's own prove-it-gate never DROVE any of it red→green. So
-its honest path off `mapped` is not a fail-closed `--real` Build over mature code with no genuine red
-— it is the author-declared reliability gate below, observe-and-signed to an `adopted` verdict
-([ADR-0085](../../docs/decisions/0085-resolve-adr-0083-fork-b-brownfield-reliability-gates-author.md),
-resolving [ADR-0083](../../docs/decisions/0083-author-defined-story-green-declared-obligations-machine-per.md)
-Fork B; the `mapped → healthy` = **Adopt** transition
-[ADR-0094](../../docs/decisions/0094-go-green-is-a-status-transition-proposed-builds-mapped-adopt.md)
-names). Expandable: it grows a `_(gate: build-tests)_` leg the moment observation proves insufficient
+The story is **greenfield**: `packages/arc` carries a real, standing, passing OFFLINE suite over code
+built inside Storytree. The suite predates this extracted story registration, but registration order
+does not create brownfield provenance (ADR-0395). Its honest authored baseline is `proposed`; the
+reliability gate below remains an evidence surface and does not establish provenance. Expandable: it
+grows a `_(gate: build-tests)_` leg the moment observation proves insufficient
 — a real arc/increment defect slipping through, or the live `--pg` write path earning a standing test.
 
 1. **The arc organism's own suite is green** _(gate: observe)_ _(covers: arc-derived-initiative-view, increment-freshness-check)_
@@ -319,17 +315,17 @@ names). Expandable: it grows a `_(gate: build-tests)_` leg the moment observatio
 
 ## Proof
 
-**Honest status — `mapped` (a real, standing, passing suite; observational; NOT `healthy`).** The
+**Honest status — `proposed` (greenfield without a current story-level signed pass; NOT `healthy`).** The
 STORY's own status describes the story's own proof state, and nothing here is signed. `packages/arc`
 has a real, passing, offline automated suite that storytree's prove-it-gate never drove red→green,
-which is what `mapped` records (ADR-0094). `healthy` stays non-authorable (ADR-0020) — the authored
+but that proof fact does not change greenfield provenance (ADR-0395). `healthy` stays non-authorable (ADR-0020) — the authored
 `status:` is never `healthy`; the world's crown DERIVES green from signed verdicts (ADR-0040) and only
 when every capability is `healthy` AND every own-proof obligation is signed (ADR-0082 / ADR-0083
 Fork A + ADR-0085). This story's obligations are exactly one: `arc#gate-1` above.
 
-**Read that alongside one member that IS gate-proven, because `mapped` at the story rung does not mean
-`mapped` all the way down.** `arc-explicit-id-fidelity` carries a promoted `--real` signed pass (run
-`real-msgbv0z0`) and is authored `proposed`, not `mapped`, for exactly that reason. A story is not the
+**Read that alongside one member that IS gate-proven.** `arc-explicit-id-fidelity` carries a promoted
+`--real` signed pass (run `real-msgbv0z0`) and is authored `proposed`; the signed pass, not a different
+authored provenance rung, is what derives green. A story is not the
 minimum of its members' statuses; it is a claim about its OWN obligations, which here are unsigned.
 
 **No `arc#` verdict or attestation exists.** The story was created on 2026-08-14 by

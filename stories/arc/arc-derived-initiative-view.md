@@ -4,7 +4,7 @@ tier: capability
 story: arc
 title: "The arc's derived initiative view — children stamp the arc, the arc stamps nothing"
 outcome: "A session arriving cold on a long-running initiative reads its whole current state from the arc alone."
-status: mapped
+status: proposed
 proof_mode: integration-test
 # An independent ROOT within `arc`. It declared `depends_on: [unified-command-dispatch]` under its
 # previous `cli` home, on the ground that the verbs are reached through the one dispatcher and return
@@ -20,7 +20,7 @@ depends_on: []
 # `--arc` is required where the schema's `arcRef` is optional; ADR-0369 D1/D2 moves this organ and
 # its three source files into `@storytree/arc` and fixes the arrow at arc → drive.
 decisions: [183, 267, 305, 314, 369]
-# A brownfield capability over already-implemented, already-tested code (the arc that authored it:
+# A greenfield capability registered after its implementation and tests (the arc that authored it:
 # capability-layer-coverage-arc increment 6, 2026-08-08; the arc that re-homed it:
 # arc-tier-extraction-arc increment 1, 2026-08-14). It resolves THREE `repo-manifest.json`
 # `sourceOwnership` declarations, all three now in this story's OWN building:
@@ -51,8 +51,8 @@ decisions: [183, 267, 305, 314, 369]
 # SIMPLIFICATION EARNED by ADR-0369, not an author who forgot half the evidence.
 #
 # The `proof:` block is spec-borne (ADR-0057); there is deliberately NO `real:` arm:
-#   1. ADR-0085/ADR-0094 — mapped brownfield, so the green path is Adopt, never a manufactured red
-#      over mature code. This landing was a MOVE, not a re-proof.
+#   1. This landing was a MOVE, not a re-proof. ADR-0395 classifies this unsigned greenfield unit as
+#      `proposed`; registration order does not make it brownfield or Adopt-bound.
 #      CORRECTED IN PLACE 2026-08-14 (ADR-0139), because the reason this clause used to give is dead:
 #      it said a `real:` arm "would also enter the pinned REAL-buildable snapshot in
 #      `packages/cli/src/node-build.test.ts`, where this id sorts BETWEEN `app-surface-world-view` and
@@ -120,9 +120,9 @@ why this paragraph could only describe the direction instead of pointing at a de
 capability's `depends_on` names siblings, and the two were in different stories. ADR-0369 made them
 siblings, and `arc-explicit-id-fidelity` now carries `depends_on: [arc-derived-initiative-view]`.
 
-> **Proof status (honest) — `mapped` (a real, standing, passing suite; observational; NOT
-> `healthy`).** storytree's own prove-it-gate did not drive any of this red→green. That is what
-> `mapped` records (ADR-0094), and it is why there is no `real:` arm.
+> **Proof status (honest) — `proposed` (a real, standing, passing suite; observational; NOT
+> `healthy`).** storytree's own prove-it-gate did not drive any of this red→green, but the code was
+> built inside Storytree, so ADR-0395 keeps its unsigned authored baseline at `proposed`.
 >
 > **The proof — 71 tests across three files**, all now in one package and one command:
 > `packages/arc/src/arc.test.ts` (51), `packages/arc/src/question.test.ts` (12),
@@ -131,14 +131,14 @@ siblings, and `arc-explicit-id-fidelity` now carries `depends_on: [arc-derived-i
 > **THE RESIDUAL IS DISCHARGED — recorded as paid, not deleted (ADR-0369).** This note used to state
 > a live cost plainly: this capability owned a file inside `drive-machinery`'s building, ADR-0192
 > decision 2 pushes genuinely new hosted work toward its own package, and the only reason no rule
-> fired was that the ADR-0094 brownfield shape leaves `real:` empty — the rules read `proof.real`, not
+> fired was that this retrospective spec leaves `real:` empty — the rules read `proof.real`, not
 > the ownership map. It ended: *"If this organ ever earns a `real:` arm, its source file must be the
 > `packages/cli` half or the organ must move to its own package first."* **The organ moved.** Every
 > source file this unit names is now inside `stories/arc`'s own building, so the condition the note
 > set is met and the mechanical silence it flagged is no longer doing any work. The consequence is
-> concrete rather than tidy: this capability was **frozen at `mapped` by its address**, unable to earn
-> a `real:` arm without tripping the landlord rule. It is no longer frozen. It stays `mapped` today
-> only because this landing was a move rather than a re-proof.
+> concrete rather than tidy: this capability was **frozen out of a `real:` arm by its address**, unable to earn
+> a `real:` arm without tripping the landlord rule. It is no longer frozen. Its `proposed` baseline
+> records greenfield provenance without manufacturing proof.
 
 ## Guidance
 

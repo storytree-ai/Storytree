@@ -4,7 +4,7 @@ tier: capability
 story: drive-machinery
 title: "The work/verdict event log and the status rollup"
 outcome: "A unit's lifecycle status is derived as a pure projection over typed work and signing events, never hand-maintained."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: []
 ---
@@ -13,7 +13,7 @@ depends_on: []
 
 **Outcome —** A unit's lifecycle status is derived as a pure projection over typed work and signing events, never hand-maintained.
 
-> **Proof status (honest) — `mapped`, with a `proposed` live-Postgres pocket.** The projection and
+> **Proof status (honest) — `proposed`, with the live-Postgres arm still unsigned.** The projection and
 > the event routing are covered by real, passing, offline suites (`packages/orchestrator/src/proof/rollup.test.ts`
 > incl. the reusable parity suite, and `packages/orchestrator/src/store/pg-work-store.test.ts` against a
 > structural fake client — both suites now resident in `@storytree/orchestrator`

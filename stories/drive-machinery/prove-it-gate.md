@@ -4,7 +4,7 @@ tier: capability
 story: drive-machinery
 title: "The prove-it-gate driver (proveUnit)"
 outcome: "A unit earns a signed PASS verdict only by walking the whole red→green ladder with spine-observed evidence on a clean committed tree."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: [red-green-phase-machine]
 ---
@@ -15,14 +15,15 @@ depends_on: [red-green-phase-machine]
 
 **Depends on —** [`red-green-phase-machine`](red-green-phase-machine.md)
 
-> **Proof status (honest) — `mapped`.** The whole walk — including a genuine end-to-end with real
+> **Proof status (honest) — `proposed`.** The whole walk — including a genuine end-to-end with real
 > file writes and a real spawned test process — is covered by real, passing, offline suites
 > (`packages/orchestrator/src/prove-it-gate.test.ts` + `prove-it-gate.e2e.test.ts`, part of
 > `@storytree/orchestrator` 99/99 — I ran them 2026-06-13). The one residual pocket:
 > `gitTreeState` against a REAL repository is exercised offline by the REAL-mode walk
 > (`resolve-prove-spec.test.ts:539`) and the worktree suite, not by the gate's own tests (which
-> inject the tree seam for determinism — by design, ADR-0020 §4). Brownfield `mapped`; per
-> ADR-0020 `healthy` is only ever DERIVED from the signed verdicts this very gate appends.
+> inject the tree seam for determinism — by design, ADR-0020 §4). This is greenfield Storytree work;
+> without a current signed pass it remains `proposed` (ADR-0395). Per ADR-0020 `healthy` is only ever
+> DERIVED from the signed verdicts this very gate appends.
 
 ## Guidance
 

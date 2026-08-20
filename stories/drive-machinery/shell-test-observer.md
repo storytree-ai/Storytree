@@ -4,7 +4,7 @@ tier: capability
 story: drive-machinery
 title: "The spine's shell test observer (exit-code red/green)"
 outcome: "Red or green is a fact the spine reads off a spawned proof command's own exit code, never a claim a leaf could forge."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: [red-green-phase-machine]
 ---
@@ -15,9 +15,10 @@ depends_on: [red-green-phase-machine]
 
 **Depends on —** [`red-green-phase-machine`](red-green-phase-machine.md)
 
-> **Proof status (honest) — `mapped`.** Fully covered by a real, passing, offline suite that spawns
+> **Proof status (honest) — `proposed`.** Fully covered by a real, passing, offline suite that spawns
 > real Node child processes (`packages/orchestrator/src/shell-test-executor.test.ts` — 22/22, I ran
-> the file 2026-08-06). Brownfield `mapped`, not `healthy`.
+> the file 2026-08-06). This greenfield capability has no current signed pass; the standing suite
+> does not make it brownfield (ADR-0395).
 
 ## Guidance
 

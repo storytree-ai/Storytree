@@ -8,9 +8,9 @@ status: proposed
 proof_mode: integration-test
 depends_on: [event-sourced-store-seam, migrate-on-write-upcaster]
 # ADR-0092 / ADR-0094: a spec-borne dry-run/live `proof:` config over the real packages/library source,
-# so this capability is single-node `--live`-buildable. The ADR-0092 brownfield `real:` arm was REMOVED
-# (ADR-0094 supersedes_in_part 92 d.5): the library is `mapped`, so its green path is Adopt (the story's
-# `## Reliability Gates`, ADR-0085), not a fail-closed `--real` Build over a mature artifact.
+# so this capability is single-node `--live`-buildable. The earlier `real:` arm was REMOVED by
+# ADR-0094. ADR-0395 records this greenfield unit without a current signed pass as `proposed`;
+# registration order does not make it brownfield or Adopt-bound.
 # ADR-0098 (U5, the live pilot) RE-ADDS a `real:` arm — but a DIFFERENT kind from the removed ADR-0092
 # one: this is an R2 `refactorForTests` build-tests config (a genuine structural red→green for this
 # `proposed`, genuinely-untested pocket), borrowed by the story's `library#gate-4` `(build:)` annotation
@@ -51,7 +51,7 @@ proof:
 
 **Depends on —** [`event-sourced-store-seam`](event-sourced-store-seam.md), [`migrate-on-write-upcaster`](migrate-on-write-upcaster.md)
 
-> **Proof status (honest) — `proposed` (no standalone behavioural test).** The data-provenance root: `loadFixtureCorpus` IS exercised TRANSITIVELY as a real collaborator inside the CLI seed (`cli.test.ts:16-20`) and the health SEED gate (`health.test.ts:191-203`), but NO test asserts its own returned counts, and `loadComments` / `applySchema` / `recordLedger` / both entry-guarded `main()`s have NO behavioural test (Postgres-specific / smoke-only). Per the glossary a capability is `mapped` only when its dominant behaviour is observationally verified by an existing test suite — that bar is NOT met here in isolation, so this half is honestly `proposed`. Every contract below is a **would-be** test. *(The genuinely-proven eager-migrate + render half split out to [`eager-batch-migrate`](eager-batch-migrate.md), which is `mapped`.)*
+> **Proof status (honest) — `proposed` (no standalone behavioural test).** The data-provenance root: `loadFixtureCorpus` IS exercised TRANSITIVELY as a real collaborator inside the CLI seed (`cli.test.ts:16-20`) and the health SEED gate (`health.test.ts:191-203`), but NO test asserts its own returned counts, and `loadComments` / `applySchema` / `recordLedger` / both entry-guarded `main()`s have NO behavioural test (Postgres-specific / smoke-only). This greenfield capability has no current signed pass, so ADR-0395 keeps it `proposed`; the absent standalone coverage is recorded separately as proof detail. Every contract below is a **would-be** test. *(The observationally proven eager-migrate + render half split out to [`eager-batch-migrate`](eager-batch-migrate.md), which is also greenfield `proposed`.)*
 
 ## Guidance
 

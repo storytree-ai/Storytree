@@ -15,14 +15,15 @@ proof_mode: UAT
 # as SSE — IS a desktop capability (`chat-sse-mount`), the thin glue the consuming surface owns. The
 # renderer chat PANEL is a `studio` frontend component (consumed compiled), not a capability
 # here (see the Cross-story boundary section + "Renderer chat panel placement").
-# The last two are BROWNFIELD capabilities authored over already-built, already-tested code by
-# capability-layer-coverage-arc increment 2 (2026-08-07), both `status: mapped` with a spec-borne
-# `proof:` block and deliberately NO `real:` arm (ADR-0094): `pinned-runtime-apply` (the ADR-0164/
+# The last two are GREENFIELD capabilities registered retrospectively by capability-layer-coverage-arc
+# increment 2 (2026-08-07), both `status: proposed` with a spec-borne `proof:` block and no `real:`
+# arm added by this classification correction: `pinned-runtime-apply` (the ADR-0164/
 # ADR-0181 apply-a-landed-fix loop — resolve a pinned-`main` runtime, report the running version,
 # fast-forward onto merged `main` or refuse) and `advisory-overlay-reads` (the ADR-0033 advisory-read
 # helper the sidecar's five overlay reads share). Both are independent ROOTS in the code sense; the
 # second declares a `local-backend-boot` edge because its route-level proof composes the real backend.
-# Row 12 is the same arc's increment 3 (2026-08-07), also brownfield: `mirrored-route-conformance`, the
+# Row 12 is the same arc's increment 3 (2026-08-07), also greenfield `proposed`:
+# `mirrored-route-conformance`, the
 # ADR-0251 cross-surface conformance harness that proves this story's re-composed `/api/*` payloads
 # still equal the studio's. It is the one unit here whose code spans THREE buildings (packages/cli,
 # apps/studio, apps/desktop) and whose proof is a standing GATE rather than a package suite — see its
@@ -268,11 +269,11 @@ pulled into this story, to keep the thick-client journey small.
 
 ## Capabilities (12)
 
-Listed roots-first (a capability appears after everything it depends on). Rows 10–12 are BROWNFIELD
-(`status: mapped`, authored over already-built and already-tested code by capability-layer-coverage-arc
-increments 2 and 3, 2026-08-07): their proof is a spec-borne `proof:` block over REAL passing offline
-tests, with deliberately no `real:` arm — the green path for `mapped` is Adopt (ADR-0085 / ADR-0094),
-never a manufactured red on mature code (ADR-0159).
+Listed roots-first (a capability appears after everything it depends on). Rows 10–12 are GREENFIELD
+`status: proposed`, registered retrospectively by capability-layer-coverage-arc increments 2 and 3
+(2026-08-07). Their proof commands run real passing offline tests. This classification correction adds
+no `real:` arm or verdict; implementation-before-registration and standing tests do not make these
+units brownfield or Adopt-bound (ADR-0395).
 
 Row 12 differs from its two predecessors in one way worth reading before its spec: its `proof.command`
 is a standing GATE STEP (`pnpm check:mirror-conformance`), not a `--filter … test`. That is not a
@@ -291,9 +292,9 @@ rubber-stamp ADR-0097 §2 forbids.
 | 7 | [`shared-forest-connection`](shared-forest-connection.md) | The local backend BROKERS its verdict/presence writes to the hosted studio's members-gated write-broker (no local DB connection; ADR-0117), with a readiness probe that fails closed (and clear guidance) when the broker is unreachable or the member is not an authorized `builder`. | contract-test (CI red→green) + operator-attested live broker/builder-grant | `local-backend-boot` |
 | 8 | [`brokered-local-uat-signing`](brokered-local-uat-signing.md) | A local human's observation of a declared human-witness UAT leg becomes a real operator-attested verdict pinned to a clean git HEAD and persisted through the injected forest broker writer; machine legs, blank/agent signers, dirty/malformed state, unknown tests, and broker refusals fail closed. | integration-test (CI red→green) | `shared-forest-connection`, `boot-read-routes` |
 | 9 | [`desktop-launch-preconditions`](desktop-launch-preconditions.md) | Before the sidecar wires ANY backend, a pure gate proves two launch preconditions — an available git checkout and a reachable live store (auto-waking it if asleep, bounded) — and refuses with a clear reason naming the unmet precondition, so the sidecar wires the ONE full backend or refuses cleanly, never degrading to a partial read shell (ADR-0176). | contract-test (CI red→green) + operator-attested refuse UX | — (independent root; front-runs the backend boot) |
-| 10 | [`pinned-runtime-apply`](pinned-runtime-apply.md) | A landed fix reaches the running desktop app only by a fast-forward of its pinned-`main` runtime worktree — the app reporting the code it is actually running, and refusing a runtime that is not pinned rather than serving a stray branch (ADR-0164 / ADR-0181). | integration-test, `mapped` (real passing offline tests across the `desktop` + `studio` suites; observational, NOT driven red→green) | — (independent root; consumed BY the health composition and the Electron main, which are glue) |
-| 11 | [`advisory-overlay-reads`](advisory-overlay-reads.md) | Every overlay read the sidecar makes fails to a bounded, logged null rather than to a throw or a hang, so a down store leaves the forest under-claiming instead of hanging `/api/tree` (ADR-0033). | integration-test, `mapped` (real passing offline tests; observational, NOT driven red→green) | `local-backend-boot` |
-| 12 | [`mirrored-route-conformance`](mirrored-route-conformance.md) | Every `/api/*` payload this story re-composes is proven equal to the studio's reference payload — the same entries, the same order, the same field values — with neither surface importing the other (ADR-0251 / ADR-0176). | integration-test, `mapped` (a real STANDING GATE, `pnpm check:mirror-conformance`; observational, NOT driven red→green) | `local-backend-boot`, `boot-read-routes` |
+| 10 | [`pinned-runtime-apply`](pinned-runtime-apply.md) | A landed fix reaches the running desktop app only by a fast-forward of its pinned-`main` runtime worktree — the app reporting the code it is actually running, and refusing a runtime that is not pinned rather than serving a stray branch (ADR-0164 / ADR-0181). | integration-test, `proposed` (real passing offline tests across the `desktop` + `studio` suites; no current signed pass) | — (independent root; consumed BY the health composition and the Electron main, which are glue) |
+| 11 | [`advisory-overlay-reads`](advisory-overlay-reads.md) | Every overlay read the sidecar makes fails to a bounded, logged null rather than to a throw or a hang, so a down store leaves the forest under-claiming instead of hanging `/api/tree` (ADR-0033). | integration-test, `proposed` (real passing offline tests; no current signed pass) | `local-backend-boot` |
+| 12 | [`mirrored-route-conformance`](mirrored-route-conformance.md) | Every `/api/*` payload this story re-composes is proven equal to the studio's reference payload — the same entries, the same order, the same field values — with neither surface importing the other (ADR-0251 / ADR-0176). | integration-test, `proposed` (a real standing gate, `pnpm check:mirror-conformance`; no current signed pass) | `local-backend-boot`, `boot-read-routes` |
 
 The **chat surface** the member talks to has THREE layers, split across two stories:
 - its provable streaming **BACKEND** (the SSE/intake core that drives `orchestrate`, `startChatStream`)
@@ -335,7 +336,7 @@ any backend is wired at all, and consumes only `@storytree/drive`'s `ensureLiveD
   brokered `ForestWriter` persistence boundary and the declared local UAT test context; `LOCAL_ME`
   remains deliberately `member`, while the signer is a separately injected local operator identity).
 
-- `pinned-runtime-apply` — a root (added 2026-08-07, brownfield). Its five modules import no other
+- `pinned-runtime-apply` — a root (registered 2026-08-07, greenfield). Its five modules import no other
   in-story capability; everything that touches them is a CONSUMER, not an upstream. `backend-entry.ts`
   mounts its two probes into `/api/health` and `main.ts` drives its resolve + rebuild, and both are
   operator-attested glue. Note the near-miss with `desktop-launch-preconditions`: the graph text above
@@ -343,14 +344,14 @@ any backend is wired at all, and consumes only `@storytree/drive`'s `ensureLiveD
   `probeGitRepo` as an injected effect, and the GLUE (`backend-entry.ts:337`) happens to satisfy that
   effect with `gitHead`. A shared glue call site is not a capability edge, and the gate's own proof
   injects a double, so no `depends_on` is drawn in either direction.
-- `advisory-overlay-reads` → `local-backend-boot` (added 2026-08-07, brownfield). The only in-story edge
+- `advisory-overlay-reads` → `local-backend-boot` (registered 2026-08-07, greenfield). The only in-story edge
   among the two increment-2 units, and it is earned by the PROOF rather than by an import: the helper's
   route-level test composes the REAL `createLocalBackend` over a real `node:http` server to assert that
   a failing overlay read reaches the client as an under-claiming `200 { builds: null }` rather than a
   500. The direction does not invert — `local-backend-boot` receives its seams already advisory-wrapped
   by `backend-entry.ts`, so it needs nothing from this unit.
-- `mirrored-route-conformance` → `local-backend-boot`, `boot-read-routes` (added 2026-08-07,
-  brownfield). Both edges are earned by real IMPORTS, read off the three desktop probes:
+- `mirrored-route-conformance` → `local-backend-boot`, `boot-read-routes` (registered 2026-08-07,
+  greenfield). Both edges are earned by real IMPORTS, read off the three desktop probes:
   `docs-mirror-probe.ts:21` imports `listDocs` from `./boot-read-routes.js`, and
   `activity-mirror-probe.ts:43` / `arcs-mirror-probe.ts:45` import `createLocalBackend` from
   `./local-backend.js`. The desktop half of the harness cannot emit a payload until those routes

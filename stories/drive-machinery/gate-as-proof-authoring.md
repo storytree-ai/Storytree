@@ -4,7 +4,7 @@ tier: capability
 story: drive-machinery
 title: "Gate-as-proof for authoring work"
 outcome: "Authoring an ADR earns a node + signed verdict + wisp through the unchanged prove-it-gate, by reducing to edit-existing with a structural-completeness check as the proof — the machine witnesses authoring hygiene, never acceptance."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: [multi-file-existing-source, spec-borne-proof-config]
 decisions: [20, 57, 59]
@@ -18,7 +18,7 @@ authoring hygiene, never acceptance.
 
 **Depends on —** [`multi-file-existing-source`](multi-file-existing-source.md), [`spec-borne-proof-config`](spec-borne-proof-config.md)
 
-> **Proof status (honest) — `mapped`, built outer-loop (the bootstrap).** [ADR-0057](../../docs/decisions/0057-dogfood-the-inner-loop-as-the-default-node-borne-proof-confi.md)
+> **Proof status (honest) — `proposed`, built outer-loop (the bootstrap).** [ADR-0057](../../docs/decisions/0057-dogfood-the-inner-loop-as-the-default-node-borne-proof-confi.md)
 > §5's expansion E, designed + decided in its own [ADR-0059](../../docs/decisions/0059-gate-as-proof-authoring-nodes-earn-a-signed-verdict-via-thei.md)
 > (a 3-framing judge panel). The change is BUILT and its dominant behaviour is observationally
 > verified by a real, passing, OFFLINE suite: `packages/cli/src/adr-completeness.test.ts` (the
@@ -30,7 +30,8 @@ authoring hygiene, never acceptance.
 > authored directly, not via a leaf completing a scaffold — the accepted bootstrap caveat). The
 > `proposed` pocket: a LIVE gate-as-proof `--real` build that authors a real ADR to a signed verdict
 > is an operator-attested smoke (the redone blind dogfood already live-proved the edit-existing
-> machinery E rides on). The honesty walls of [`prove-it-gate`](prove-it-gate.md) and
+> machinery E rides on). That build order does not make this greenfield work brownfield (ADR-0395).
+> The honesty walls of [`prove-it-gate`](prove-it-gate.md) and
 > [`phase-scoped-write-wall`](phase-scoped-write-wall.md) are PRESERVED unchanged — gate-as-proof adds
 > NO new proof mode, field, or phase; it is edit-existing applied to a doc artifact.
 

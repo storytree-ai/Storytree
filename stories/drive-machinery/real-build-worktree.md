@@ -4,7 +4,7 @@ tier: capability
 story: drive-machinery
 title: "REAL build worktrees and promotion (ADR-0031)"
 outcome: "A signed REAL pass survives its worktree: the proven commit is parked on a run-unique claude/real branch that lands through the merge gate."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: [shell-test-observer]
 ---
@@ -15,7 +15,7 @@ depends_on: [shell-test-observer]
 
 **Depends on —** [`shell-test-observer`](shell-test-observer.md)
 
-> **Proof status (honest) — `mapped`, with two `proposed` pockets.** The lifecycle — worktree cut,
+> **Proof status (honest) — `proposed`, with two live arms still unsigned.** The lifecycle — worktree cut,
 > spine commit, promotion branch, push/withhold, install-failure teardown, exit-code regression and
 > typecheck observation, the Windows pnpm shim — is covered by a real, passing, offline suite that
 > runs real git against throwaway repos (`packages/orchestrator/src/build-worktree.test.ts`, part

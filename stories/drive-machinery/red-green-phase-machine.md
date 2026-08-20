@@ -4,7 +4,7 @@ tier: capability
 story: drive-machinery
 title: "The ADR-0020 red-green phase machine"
 outcome: "A unit advances through the spine-owned phase ladder only via fail-closed transitions the spine itself legitimizes."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: []
 ---
@@ -13,9 +13,10 @@ depends_on: []
 
 **Outcome —** A unit advances through the spine-owned phase ladder only via fail-closed transitions the spine itself legitimizes.
 
-> **Proof status (honest) — `mapped`.** Fully covered by a real, passing, offline suite
+> **Proof status (honest) — `proposed`.** Fully covered by a real, passing, offline suite
 > (`packages/orchestrator/src/phase-machine.test.ts` — 23/23, I ran the file 2026-08-06).
-> Brownfield `mapped`, not `healthy`: the gate never drove these proofs.
+> This greenfield capability has no current signed pass; the standing suite and absence of a
+> gate-driven proof do not make it brownfield (ADR-0395).
 
 ## Guidance
 

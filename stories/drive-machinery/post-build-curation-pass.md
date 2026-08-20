@@ -4,13 +4,13 @@ tier: capability
 story: drive-machinery
 title: "The post-build curation pass — a scoped curator judges, the spine holds the kind fence"
 outcome: "A green story build ends by enacting a scoped curator's open-question judgments behind a kind fence the curator cannot open."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: []
-# A brownfield capability over already-implemented, already-tested code (capability-layer-coverage-arc,
-# 2026-08-07). Spec-borne `proof:` (ADR-0057) with NO `real:` arm — the drive machinery is `mapped`, so
-# its green path is Adopt (the story's `## Reliability Gates`, ADR-0085), not a fail-closed `--real`
-# Build (ADR-0094). The command names BOTH packages deliberately: the 20 contract-grain proofs are
+# A greenfield capability registered after its implementation and tests (capability-layer-coverage-arc,
+# 2026-08-07). Per ADR-0395, retrospective registration does not make it brownfield or Adopt-bound.
+# Spec-borne `proof:` (ADR-0057) with NO `real:` arm. The command names BOTH packages deliberately: the
+# 20 contract-grain proofs are
 # drive-resident (packages/drive/src/curate.test.ts), and the green-ONLY trigger — the half of the
 # outcome that says "a GREEN story build ends by" — is proven cli-resident against the real storyBuild
 # (packages/cli/src/story-build.test.ts). A single-package command would leave that half unproven.
@@ -39,14 +39,14 @@ the pass after the chain goes green (`:979`). Declaring the reverse edge because
 happens to live in the chain's test file would put a CYCLE in the story graph, which is a modelling
 error, not a tolerable one.
 
-> **Proof status (honest) — `mapped` (real passing offline tests, observational; NOT `healthy`).** The
+> **Proof status (honest) — `proposed` (real passing offline tests, but no current signed pass).** The
 > judging half, the enactment half, the kind fence, the tolerant output parser and the whole pass
 > orchestration are covered by 20 REAL, passing, offline tests in `packages/drive/src/curate.test.ts`,
 > part of the `@storytree/drive` suite, which I ran on 2026-08-07 — **484 tests, 484 pass, 0 fail, 0
 > skipped**. The GREEN-ONLY trigger and the end-to-end serialize→SDK→parse→enact path are covered by
 > three further REAL tests in `packages/cli/src/story-build.test.ts` (`:70`, `:93`, `:120`) against the
-> real `storyBuild`. storytree's own prove-it-gate did NOT drive any of this red→green, so this is
-> brownfield `mapped`.
+> real `storyBuild`. The implementation is greenfield Storytree work; standing tests and the absence
+> of a gate-driven red→green do not make it brownfield (ADR-0395).
 >
 > **The `proposed` pockets, named rather than implied.** (a) The LIVE SDK session itself —
 > `runSdkCurator` — is `@storytree/agent`'s, proven in `packages/agent/src/sdk-curator.test.ts`, not
@@ -62,8 +62,8 @@ error, not a tolerable one.
 > return paths, and this pocket is why.
 >
 > **No reliability gate `(covers:)` this capability yet.** Gate-2 and gate-3 run both proving suites but
-> their `(covers:)` lists were frozen before this node existed, so no signed `adopted` verdict names it
-> — a stated gap, and an id-aware edit for the owner rather than a silent one.
+> their `(covers:)` lists were frozen before this node existed, so no current signed verdict names it
+> — a stated proof gap, not a reason to route this greenfield capability through Adopt.
 
 ## Guidance
 
@@ -121,7 +121,8 @@ build that HALTS never runs curation at all — the OQ survives untouched and no
 in the envelope.
 
 Underneath, 20 tests in `packages/drive/src/curate.test.ts` (all passing) cover every action, every
-refusal, the parser and the report. `mapped` (observational); the prove-it-gate did not drive it.
+refusal, the parser and the report. `proposed`: the greenfield capability has standing observational
+evidence but no current signed pass (ADR-0395).
 
 ## Contracts (16)
 

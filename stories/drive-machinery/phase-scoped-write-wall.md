@@ -4,7 +4,7 @@ tier: capability
 story: drive-machinery
 title: "The per-phase write wall on the tool surface"
 outcome: "A leaf write outside the current phase's scope is refused before it reaches the real executor, and the refusal is recorded."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: [red-green-phase-machine]
 ---
@@ -15,9 +15,10 @@ depends_on: [red-green-phase-machine]
 
 **Depends on —** [`red-green-phase-machine`](red-green-phase-machine.md)
 
-> **Proof status (honest) — `mapped`.** Fully covered by a real, passing, offline suite
+> **Proof status (honest) — `proposed`.** Fully covered by a real, passing, offline suite
 > (`packages/orchestrator/src/write-scoped-executor.test.ts`, part of `@storytree/orchestrator`
-> 99/99 — I ran it 2026-06-13). Brownfield `mapped`, not `healthy`.
+> 99/99 — I ran it 2026-06-13). This greenfield capability has no current signed pass; the standing
+> suite does not make it brownfield (ADR-0395).
 
 ## Guidance
 

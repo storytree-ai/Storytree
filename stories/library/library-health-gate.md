@@ -4,13 +4,13 @@ tier: capability
 story: library
 title: "Classify library health and separate gate failures from warnings"
 outcome: "Four health checks classify every stored doc into PASS, WARN, or FAIL."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: [library-schema-and-write-validation, migrate-on-write-upcaster]
 # ADR-0092 / ADR-0094: a spec-borne dry-run/live `proof:` config over the real packages/cli source (the
-# health classifier lives in the CLI), so this capability is single-node `--live`-buildable. The ADR-0092
-# brownfield `real:` arm was REMOVED (ADR-0094 supersedes_in_part 92 d.5): the library is `mapped`, so its
-# green path is Adopt (the story's `## Reliability Gates`, ADR-0085), not a fail-closed `--real` Build.
+# health classifier lives in the CLI), so this capability is single-node `--live`-buildable. The earlier
+# `real:` arm was REMOVED by ADR-0094. ADR-0395 now records this greenfield unit without a current signed
+# pass as `proposed`; registration order does not make it brownfield or Adopt-bound.
 proof:
   command:
     file: pnpm
@@ -26,11 +26,11 @@ proof:
 
 *(The gate-vs-warn blocking — “only GATE-class FAILs gate, a WARN keeps `ok=true`” — was demoted out of the outcome to avoid a banned conjunction; it lives where it is proven, in contract 5 `gate-fails-vs-warn-does-not-gate`.)*
 
-*(**FOUR, not five, since 2026-08-08.** The count was five while `count-reconciliation` compared the store against the generated `apps/studio/data/assets.json`. [ADR-0210](../../docs/decisions/0210-retire-the-generated-apps-studio-data-assets-json.md) deleted that file "and with it … the `count-reconciliation` health check" — and NOTHING replaced it, because the count had no subject once the thing it counted against was gone. `libraryHealth()` returns exactly four results. The dead contract 5 `count-reconciliation-levels` was removed here in the same pass, since a `mapped` capability listing a contract for a check that does not exist claims a proof obligation it cannot meet.)*
+*(**FOUR, not five, since 2026-08-08.** The count was five while `count-reconciliation` compared the store against the generated `apps/studio/data/assets.json`. [ADR-0210](../../docs/decisions/0210-retire-the-generated-apps-studio-data-assets-json.md) deleted that file "and with it … the `count-reconciliation` health check" — and NOTHING replaced it, because the count had no subject once the thing it counted against was gone. `libraryHealth()` returns exactly four results. The dead contract 5 `count-reconciliation-levels` was removed here in the same pass, since a capability listing a contract for a check that does not exist claims a proof obligation it cannot meet.)*
 
 **Depends on —** [`library-schema-and-write-validation`](library-schema-and-write-validation.md), [`migrate-on-write-upcaster`](migrate-on-write-upcaster.md)
 
-> **Proof status (honest) — `mapped` (real passing offline tests, observational; NOT `healthy`).** All four checks + the gate-vs-warn classification + the fixture gate are covered by REAL, passing, offline tests: `packages/cli/src/health.test.ts` (20 pure-function tests + 1 fixture-gate test, 21 in all) is part of the `@storytree/cli` suite, which I ran. It observationally verifies the whole pure module AND wires two real collaborators (the health checks + the fixture loader `loadFixtureCorpus`) in the test **“FIXTURE gate: the frozen fixture corpus has NO gate failures (schema/retired/version clean)”**. But storytree's prove-it-gate did NOT drive these red→green, so this is brownfield `mapped`, not `healthy`. No would-be contracts here — every leaf has a real test. The CLI WIRING that surfaces this (dashboard banner, `--check` report) is NOT in this capability — see [`library-cli`](library-cli.md).
+> **Proof status (honest) — `proposed` (real passing offline tests, observational; NOT `healthy`).** All four checks + the gate-vs-warn classification + the fixture gate are covered by REAL, passing, offline tests: `packages/cli/src/health.test.ts` (20 pure-function tests + 1 fixture-gate test, 21 in all) is part of the `@storytree/cli` suite, which I ran. It observationally verifies the whole pure module AND wires two real collaborators (the health checks + the fixture loader `loadFixtureCorpus`) in the test **“FIXTURE gate: the frozen fixture corpus has NO gate failures (schema/retired/version clean)”**. Storytree's prove-it-gate did NOT drive these red→green, but this is greenfield Storytree work, so ADR-0395 keeps its unsigned authored baseline at `proposed`. No would-be contracts here — every leaf has a real test. The CLI WIRING that surfaces this (dashboard banner, `--check` report) is NOT in this capability — see [`library-cli`](library-cli.md).
 
 ## Guidance
 
@@ -52,7 +52,7 @@ Real collaborators, no stubs: the integration-flavoured proof is `packages/cli/s
 
 **The subject is the JUDGE, not the corpus, and this wording was corrected on 2026-08-08 to say so.** It read "the REAL seed corpus … proving the stamped seed clears the GATE-class checks", which was true while `loadFixtureCorpus`'s ancestor read `apps/studio/data/knowledge.json` — the committed mirror of the live Library. ADR-0302 D1 deleted that file, and D3 makes the replacement a frozen 13-artifact literal that is "deliberately NOT a mirror and never reconciled, so it drifts by design". A green run here has therefore said nothing about corpus health since; on 2026-08-08 the live corpus was GATE-class RED on `version-floor` — ten docs below the schema floor, authored by no session then working — with this suite passing. `stories/cli/verification-decay-instruments.md` already classes this unit that way ("four checks over a frozen fixture corpus … facts about a JUDGE"), so the correction aligns the spec with a reading the tree had already settled. Live-corpus health is `storytree library --check`, an on-demand operator report that ADR-0026 §5 deliberately made no merge gate.
 
-Underneath, 20 pure-function tests in the same file (all passing) cover every level of all four checks plus the gate-vs-warn classification and the cheap-subset shape. `mapped` (observational); the prove-it-gate did not drive it.
+Underneath, 20 pure-function tests in the same file (all passing) cover every level of all four checks plus the gate-vs-warn classification and the cheap-subset shape. `proposed` (greenfield, observationally tested, without a current signed pass).
 
 ## Contracts (7)
 

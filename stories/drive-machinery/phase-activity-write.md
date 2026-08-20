@@ -4,13 +4,13 @@ tier: capability
 story: drive-machinery
 title: "The drive-side phase write — the board learns the phase without the gate touching the board"
 outcome: "Each phase the spine commits to is recorded as a fresh phase-stamped `building` event by an observer that lives outside the gate."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: [work-verdict-event-log]
-# A brownfield capability over already-implemented, already-tested code (capability-layer-coverage-arc,
-# 2026-08-07). Spec-borne `proof:` (ADR-0057) with NO `real:` arm — the drive machinery is `mapped`, so
-# its green path is Adopt (the story's `## Reliability Gates`, ADR-0085), not a fail-closed `--real`
-# Build (ADR-0094); a `real:` arm here would additionally churn the pinned REAL-buildable snapshot in
+# A greenfield capability registered after its implementation and tests (capability-layer-coverage-arc,
+# 2026-08-07). Per ADR-0395, retrospective registration does not make it brownfield or Adopt-bound.
+# Spec-borne `proof:` (ADR-0057) with NO `real:` arm; adding one would additionally churn the pinned
+# REAL-buildable snapshot in
 # packages/cli/src/node-build.test.ts. The proving file is drive-resident, so the package suite is the
 # whole command. NOTE the deliberate boundary in `## Contracts`: two of the six tests in
 # phase-activity.test.ts belong to wisp-as-story-claim's `colour-by-subagent`, not to this node.
@@ -38,13 +38,13 @@ word" guarantee below is a statement ABOUT that capability's vocabulary — the 
 and the phase rides as a field on `WorkEventDoc` — so this writer cannot state its own outcome without
 the event log's.
 
-> **Proof status (honest) — `mapped` (real passing offline tests, observational; NOT `healthy`).** The
+> **Proof status (honest) — `proposed` (real passing offline tests, but no current signed pass).** The
 > per-phase append, the optional tier column, the advisory swallow and the no-role back-compat path are
 > covered by REAL, passing, offline tests in `packages/drive/src/phase-activity.test.ts`, part of the
 > `@storytree/drive` suite, which I ran on 2026-08-07 — **484 tests, 484 pass, 0 fail, 0 skipped**. The
 > writer takes its store as an injected seam (`PhaseActivityStore`, `:24-32`), so the proof runs against
-> a recording fake: no DB, no worktree, no SDK. storytree's own prove-it-gate did NOT drive these
-> red→green, so this is brownfield `mapped`.
+> a recording fake: no DB, no worktree, no SDK. The implementation is greenfield Storytree work;
+> standing tests and the absence of a gate-driven red→green do not make it brownfield (ADR-0395).
 >
 > **The boundary with [`colour-by-subagent`](../wisp-as-story-claim/colour-by-subagent.md), stated so it
 > cannot be double-claimed.** That `wisp-as-story-claim` capability owns a DIFFERENT file — the pure
@@ -64,8 +64,8 @@ the event log's.
 > capability owns the WRITE and names the reader without claiming it.
 >
 > **No reliability gate `(covers:)` this capability yet.** Gate-3 runs the proving suite, but its
-> `(covers:)` list was frozen before this node existed, so no signed `adopted` verdict names it — a
-> stated gap, and an id-aware edit for the owner rather than a silent one.
+> `(covers:)` list was frozen before this node existed, so no current signed verdict names it — a
+> stated proof gap, not a reason to route this greenfield capability through Adopt.
 
 ## Guidance
 
@@ -117,7 +117,8 @@ not on a hand-held object. The injected `PhaseActivityStore` is the seam the wri
 pool"), which is what makes a five-phase walk provable offline in milliseconds.
 
 Underneath, three more tests cover the optional tier column, the advisory swallow and the no-role
-back-compat path. `mapped` (observational); the prove-it-gate did not drive it.
+back-compat path. `proposed`: the greenfield capability has standing observational evidence but no
+current signed pass (ADR-0395).
 
 ## Contracts (4)
 

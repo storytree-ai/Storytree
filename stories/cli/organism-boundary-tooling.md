@@ -4,7 +4,7 @@ tier: capability
 story: cli
 title: "The organism-boundary analyser — the pure judge behind check:boundaries (the blocking gate + the non-blocking drift report)"
 outcome: "The pure organism-boundary analyser the CLI's check:boundaries builds on: the blocking subgraph judge (every real cross-organism code edge is a declared cross-story edge) and the non-blocking declared-edge drift report (declared edges with no code backing, deriving virtual stories' real edges from their units' sourceFile imports)."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: []
 ---
@@ -36,10 +36,11 @@ imports.
   unit-testable offline (`node:test` + `node:assert/strict`, builtins + `./boundaries.js` only, no
   `@storytree/*` value imports). `check-boundaries.ts` gathers the inputs from disk and wires the
   CLI/gate; that non-leaf I/O glue is NOT this capability's provable surface.
-- **The blocking gate (ADR-0074) is brownfield (`mapped`).** The subgraph check + the v2 source-import
+- **The blocking gate (ADR-0074) is greenfield (`proposed`).** The subgraph check + the v2 source-import
   scan + acyclicity (`checkBoundaries`, `mergeDeclaredGraph`, `findCycle`, `extractImports`, …) have a
   real, passing, OFFLINE suite, but storytree's prove-it-gate never DROVE them red→green — so they are
-  observationally verified `mapped`, not `healthy`; it is not a net-new `--real` build. **That posture is
+  observationally verified but has no current signed pass; ADR-0395 therefore makes its authored
+  baseline `proposed`, not `healthy`. It is not a net-new `--real` build. **That posture is
   recorded HERE — in this capability and in the contract-list entry below — and in NO contract file,
   because `boundary-judge-subgraph` was never authored** (2026-08-09 correction, ADR-0139
   correct-in-place). It is a real, intended unit and keeps its place in the list below, but there is no
@@ -51,8 +52,8 @@ imports.
   already-written `extractImports` and the already-maintained `proof.real.sourceFile` fields — no new
   authoring burden, no new language, no build step. **It was AUTHORED as this capability's net-new
   provable slice but was DELIVERED by hand**, in an ordinary `feat(cli)` commit rather than a `--real`
-  build, so storytree's gate never drove it red→green either — it is `mapped` on the same brownfield
-  honesty the bullet above records for the blocking gate, and its `real:` arm is retained for a future
+  build, so storytree's gate never drove it red→green either — it is `proposed` on the same greenfield
+  proof posture the bullet above records for the blocking gate, and its `real:` arm is retained for a future
   re-proof. The two
   blocking rules below (`hosted-story-landlord-rule`, `packages-forward-refusal`) are this capability's
   only spine-driven red→green work.
@@ -95,7 +96,7 @@ The integration test would:
 ## Contracts (4)
 
 1. **`boundary-judge-subgraph`** — the blocking judge: a real cross-organism code edge with no declared
-   cross-story edge is a violation; acyclicity + the source-import scan hold (ADR-0074, brownfield)
+   cross-story edge is a violation; acyclicity + the source-import scan hold (ADR-0074, greenfield)
    - **UNAUTHORED — there is no contract file.** `stories/cli/boundary-judge-subgraph.md` was never
      written, so THIS entry is the only place in `stories/` the unit is recorded (2026-08-09 correction,
      ADR-0139 correct-in-place). The entry stays because the unit is real and intended, and the behaviour
@@ -107,8 +108,8 @@ The integration test would:
      `@storytree/*` dependency is not covered by either endpoint's declaration (`depends_on` ∪
      `consumed_by`), accepts a covered edge, flags a cross-story cycle in the merged declared graph, and
      flags the v2 source-import escapes (cross-package relative import; devDep/undeclared runtime import).
-     *(Brownfield `mapped`: observed green by the existing `boundaries.test.ts`, not driven red→green by
-     storytree's gate — no net-new `proof.real` build.)*
+     *(Greenfield `proposed`: observed green by the existing `boundaries.test.ts`, without a current
+     signed pass — no net-new `proof.real` build.)*
 2. **`declared-edge-drift-report`** — the non-blocking report: per story, the declared edges with no code
    backing (and the backed-but-undeclared edges), deriving a virtual story's real edges from its units'
    `proof.real.sourceFile` imports (ADR-0115)
@@ -125,8 +126,8 @@ The integration test would:
      never a gate failure).
    - **proven by —** `packages/cli/src/boundaries.test.ts` — the `declaredEdgeDriftReport: …` cases,
      passing at HEAD against `declaredEdgeDriftReport` / `formatDriftReport` in
-     `packages/cli/src/boundaries.ts`. *(Brownfield `mapped`: delivered by an ordinary hand-authored
-     commit rather than a `--real` build, so no signed verdict backs it — see the Guidance note above.)*
+     `packages/cli/src/boundaries.ts`. *(Greenfield `proposed`: delivered by an ordinary hand-authored
+     commit rather than a `--real` build, with no current signed verdict — see the Guidance note above.)*
 3. **`hosted-story-landlord-rule`** — the blocking landlord rule: a story whose units'
    `proof.real.sourceFile`s live inside ANOTHER story's building (a foreign `packages/`/`apps/` dir) must
    declare an edge to that host in either direction, or the gate fails (ADR-0192)

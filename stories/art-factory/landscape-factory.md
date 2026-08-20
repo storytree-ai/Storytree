@@ -4,7 +4,7 @@ tier: capability
 story: art-factory
 title: "The landscape factory — hero landscape modules that bake to real isometric solids and the garden hero-kit roster"
 outcome: "Each landscape hero (standing-stone, autumn-tree, stepping-stone) is a parametric factory module that builds a sound, cheap model baking to a real isometric solid, and the fixed garden set bakes deterministically into the hero-kit roster a surface composes."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: [art-pipeline]
 ---
@@ -19,11 +19,11 @@ deterministically into the hero-kit roster a surface composes.
 builder (station 1), is judged by its invariant checker (station 2), and is baked by the pipeline's bake
 — a real within-story code edge onto the pipeline (ADR-0010 §3).
 
-> **Proof status (honest) — `mapped`, brownfield.** The landscape modules have real, passing OFFLINE
-> suites (`landscape/*.test.ts`, `hero-kit.test.ts`), but storytree's prove-it-gate never DROVE them
-> red→green. This capability greens via the story's `observe` reliability gate (`art-factory#gate-1`,
-> `(covers: … landscape-factory)`, ADR-0085 / ADR-0097). `healthy` is DERIVED from the signed adopted
-> verdict (ADR-0020 / ADR-0040), never authored.
+> **Proof status (honest) — `proposed`, greenfield without a current signed pass.** The landscape
+> modules were built inside this initiative and have real, passing OFFLINE tests
+> (`landscape/*.test.ts`, `hero-kit.test.ts`). Neither those standing tests nor retrospective
+> capability registration makes them brownfield or Adopt-bound (ADR-0395). Green remains derived from
+> signed proof.
 
 ## Guidance
 
@@ -60,7 +60,7 @@ the node-count budgets, bake the standing stone and assert a fresh bake matches 
 ## Contracts (4)
 
 The test-proven leaf behaviours — each **one isolated automated test** in the
-`@storytree/procedural-architecture` suite, mapped by the story's observe gate.
+`@storytree/procedural-architecture` suite; the suite is evidence, not a provenance verdict.
 
 1. **`lf-standing-stone-bakes-isometric-solid`** — the standing stone bakes to a cheap, origin-placed isometric solid
    - **asserts —** `standingStone(DEFAULTS)` is `check`-sound across its parameter space; `bakeStone`
