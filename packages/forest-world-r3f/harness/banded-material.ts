@@ -23,7 +23,14 @@
 
 import * as THREE from 'three';
 
+import type { ShadowField } from './land-shadow.js';
 import { LIGHT_DIRECTION, SHADE_LEVELS, bandGlsl, parseHex, tokenRamp } from './palette-band.js';
+import {
+  SHADOW_LADDER,
+  SHADOW_RUNG_INDEX,
+  rungsAShadowDarkens,
+  shadowRamp,
+} from './shadow-ladder.js';
 
 /** Put a renderer into EXACT-COLOUR mode: what the shader writes is what the framebuffer
  *  holds. Required for the palette-closure proof to mean anything. Call once per renderer. */
@@ -61,6 +68,51 @@ export interface BandedMaterialOptions {
   token: string;
   /** Draw the back faces too (a plant is not a closed solid from every angle). */
   doubleSided?: boolean;
+  /** RECEIVE the ground-space shadow field. Absent means this material is not shadowed at
+   *  all and its ramp stays the four authored rungs — so a panel without a shadow delivers
+   *  bit-identical pixels to the ones it delivered before this existed. */
+  shadow?: ShadowTexture;
+}
+
+/** The shadow field, uploaded. Built by `shadowFieldTexture` so the rect and the texture can
+ *  never disagree about which ground the samples cover. */
+export interface ShadowTexture {
+  texture: THREE.Texture;
+  minX: number;
+  minZ: number;
+  spanX: number;
+  spanZ: number;
+}
+
+/**
+ * Upload a `ShadowField` as a single-channel texture.
+ *
+ * LINEAR FILTERING, ON PURPOSE, AND IT COSTS NOTHING. The fragment stage thresholds this
+ * scalar (one shadow rung means the decision is binary), so interpolation cannot introduce a
+ * colour — it only moves WHERE the edge falls, to sub-texel precision. Nearest filtering
+ * would staircase the shadow's outline along the field's own grid at the 8 px/unit panels,
+ * which reads as a defect in the shadow rather than in the sampling.
+ */
+export function shadowFieldTexture(field: ShadowField): ShadowTexture {
+  const tex = new THREE.DataTexture(
+    field.data,
+    field.w,
+    field.h,
+    THREE.RedFormat,
+    THREE.UnsignedByteType,
+  );
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.wrapS = THREE.ClampToEdgeWrapping;
+  tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.needsUpdate = true;
+  return {
+    texture: tex,
+    minX: field.minX,
+    minZ: field.minZ,
+    spanX: field.w / field.gres,
+    spanZ: field.h / field.gres,
+  };
 }
 
 /**
@@ -76,34 +128,68 @@ export interface BandedMaterialOptions {
  * The palette's darkest rung IS the ambient floor; that is what a locked palette means.
  */
 export function createBandedMaterial(opts: BandedMaterialOptions): THREE.ShaderMaterial {
+  const shadowed = opts.shadow !== undefined;
   // The RAMP is the token's finished delivered colours, already rounded in TypeScript by
   // `tokenRamp`. The GPU selects one and writes it through; it performs no colour
   // arithmetic. That is what makes the palette proof a bit-identity — see `bandLevelIndex`
   // for the 929-pixel measurement that forced this design.
-  const ramp = tokenRamp(opts.token).map((c) => new THREE.Vector3(c.r / 255, c.g / 255, c.b / 255));
+  //
+  // With a shadow the ramp is one entry longer and NOTHING ELSE CHANGES: the extra entry is
+  // `token x SHADOW_RUNG`, which is a member of the same `(authored token x authored level)`
+  // closure the palette is defined as. The shadow costs palette ENTRIES; it does not cost
+  // the closure argument.
+  const levels = shadowed ? SHADOW_LADDER : SHADE_LEVELS;
+  const rampColours = shadowed ? shadowRamp(opts.token) : tokenRamp(opts.token);
+  const ramp = rampColours.map((c) => new THREE.Vector3(c.r / 255, c.g / 255, c.b / 255));
+
+  // `st_bandIndex` quantises onto `SHADE_LEVELS` and always will — the shadow rung is
+  // deliberately NOT reachable by lighting (see `SHADOW_LADDER`). So the lit rung index has
+  // to be remapped from the authored ladder into the longer one, and the map is generated
+  // here from the two arrays rather than written down, because a hand-typed map that drifted
+  // would repaint every rung one step off and look like a shading bug.
+  const remap = SHADE_LEVELS.map((level, i) => `if (rung == ${i}) idx = ${levels.indexOf(level)};`);
+  // Which lit rungs a shadow is allowed to darken: those LIGHTER than the shadow rung. A
+  // pixel already darker keeps its own level, because a shadow that brightened a surface
+  // would be a shadow lighting something up.
+  const darkenable = rungsAShadowDarkens();
 
   const material = new THREE.ShaderMaterial({
     uniforms: {
       uRamp: { value: ramp },
       uLightDir: { value: LIGHT_DIR.clone() },
+      uShadowTex: { value: opts.shadow?.texture ?? null },
+      uShadowRect: {
+        value: new THREE.Vector4(
+          opts.shadow?.minX ?? 0,
+          opts.shadow?.minZ ?? 0,
+          1 / (opts.shadow?.spanX ?? 1),
+          1 / (opts.shadow?.spanZ ?? 1),
+        ),
+      },
     },
     vertexShader: `
       varying vec3 vNormal;
+      varying vec3 vWorld;
       void main() {
         // The normal reaches the fragment stage in WORLD space: the light is an authored
         // world direction, so shading it in view space would swing the lighting whenever
         // the camera moved — which on a banded material means visible rungs sliding across
         // static geometry.
         vNormal = normalize(mat3(modelMatrix) * normal);
+        // The world POSITION for the same reason: the shadow field is authored in ground
+        // coordinates, so it has to be sampled in ground coordinates.
+        vWorld = (modelMatrix * vec4(position, 1.0)).xyz;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
       }
     `,
     fragmentShader: `
       ${bandGlsl()}
 
-      uniform vec3 uRamp[${SHADE_LEVELS.length}];
+      uniform vec3 uRamp[${levels.length}];
       uniform vec3 uLightDir;
+      ${shadowed ? 'uniform sampler2D uShadowTex;\n      uniform vec4 uShadowRect;' : ''}
       varying vec3 vNormal;
+      varying vec3 vWorld;
 
       void main() {
         vec3 n = normalize(vNormal);
@@ -112,10 +198,27 @@ export function createBandedMaterial(opts: BandedMaterialOptions): THREE.ShaderM
         // scalar, so the closure argument is untouched.
         float lambert = dot(n, normalize(uLightDir)) * 0.5 + 0.5;
         int rung = st_bandIndex(lambert);
+        int idx = 0;
+        ${remap.join('\n        ')}
+${
+  shadowed
+    ? `        // ONE shadow rung, so the decision is BINARY. That is not a simplification —
+        // it is what a closed palette with a measured confusability ceiling leaves room
+        // for. A penumbra needs intermediate rungs and every one of them costs palette
+        // entries and walks a status closer to its neighbour.
+        vec2 uv = vec2((vWorld.x - uShadowRect.x) * uShadowRect.z,
+                       (vWorld.z - uShadowRect.y) * uShadowRect.w);
+        float sh = texture2D(uShadowTex, uv).r;
+        if (sh > 0.5) {
+          ${darkenable.map((i) => `if (rung == ${i}) idx = ${SHADOW_RUNG_INDEX};`).join('\n          ')}
+        }`
+    : ''
+}
         // A constant-indexed read: GLSL ES 1.0 forbids a dynamic index into a uniform
         // array, so the rung is selected by comparison rather than by subscript.
         vec3 c = uRamp[0];
-        ${SHADE_LEVELS.map((_, i) => (i === 0 ? '' : `if (rung == ${i}) c = uRamp[${i}];`))
+        ${levels
+          .map((_, i) => (i === 0 ? '' : `if (idx == ${i}) c = uRamp[${i}];`))
           .filter(Boolean)
           .join('\n        ')}
         gl_FragColor = vec4(c, 1.0);

@@ -1,0 +1,562 @@
+{
+  "capturedFrom": "http://localhost:5191/island.html",
+  "webgl": {
+    "version": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+    "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+    "isSoftware": true,
+    "note": "Headless Chromium on this box rasterises WebGL through SwiftShader (software). Delivered COLOURS are therefore trustworthy and frame COSTS are not — the ADR-0380 D2 hardware-floor question is NOT answered by this run and needs the owner on real hardware."
+  },
+  "perPanel": [
+    {
+      "i": 0,
+      "w": 240,
+      "h": 117,
+      "opaque": 19534,
+      "holes": 3
+    },
+    {
+      "i": 1,
+      "w": 480,
+      "h": 234,
+      "opaque": 77964,
+      "holes": 3
+    },
+    {
+      "i": 2,
+      "w": 240,
+      "h": 117,
+      "opaque": 19534,
+      "holes": 3
+    },
+    {
+      "i": 3,
+      "w": 959,
+      "h": 468,
+      "opaque": 311506,
+      "holes": 14
+    },
+    {
+      "i": 4,
+      "w": 240,
+      "h": 117,
+      "opaque": 19534,
+      "holes": 3
+    },
+    {
+      "i": 5,
+      "w": 1918,
+      "h": 936,
+      "opaque": 1246621,
+      "holes": 51
+    },
+    {
+      "i": 6,
+      "w": 1918,
+      "h": 936,
+      "opaque": 1246621,
+      "holes": 51
+    },
+    {
+      "i": 7,
+      "w": 1918,
+      "h": 936,
+      "opaque": 1247738,
+      "holes": 292
+    },
+    {
+      "i": 8,
+      "w": 480,
+      "h": 234,
+      "opaque": 77964,
+      "holes": 3
+    },
+    {
+      "i": 9,
+      "w": 480,
+      "h": 234,
+      "opaque": 78039,
+      "holes": 19
+    },
+    {
+      "i": 10,
+      "w": 1918,
+      "h": 887,
+      "opaque": 1228454,
+      "holes": 0
+    },
+    {
+      "i": 11,
+      "w": 1918,
+      "h": 887,
+      "opaque": 1243912,
+      "holes": 0
+    },
+    {
+      "i": 12,
+      "w": 1918,
+      "h": 887,
+      "opaque": 1228454,
+      "holes": 0
+    },
+    {
+      "i": 13,
+      "w": 1918,
+      "h": 936,
+      "opaque": 1233186,
+      "holes": 0
+    },
+    {
+      "i": 14,
+      "w": 1918,
+      "h": 931,
+      "opaque": 1234264,
+      "holes": 0
+    },
+    {
+      "i": 15,
+      "w": 1918,
+      "h": 893,
+      "opaque": 1228598,
+      "holes": 0
+    },
+    {
+      "i": 16,
+      "w": 480,
+      "h": 222,
+      "opaque": 76907,
+      "holes": 0
+    },
+    {
+      "i": 17,
+      "w": 480,
+      "h": 234,
+      "opaque": 77118,
+      "holes": 0
+    },
+    {
+      "i": 18,
+      "w": 480,
+      "h": 222,
+      "opaque": 77705,
+      "holes": 9
+    },
+    {
+      "i": 19,
+      "w": 480,
+      "h": 234,
+      "opaque": 77964,
+      "holes": 3
+    },
+    {
+      "i": 20,
+      "w": 480,
+      "h": 222,
+      "opaque": 76907,
+      "holes": 0
+    },
+    {
+      "i": 21,
+      "w": 480,
+      "h": 228,
+      "opaque": 77101,
+      "holes": 0
+    },
+    {
+      "i": 22,
+      "w": 480,
+      "h": 233,
+      "opaque": 77261,
+      "holes": 0
+    },
+    {
+      "i": 23,
+      "w": 480,
+      "h": 238,
+      "opaque": 77427,
+      "holes": 0
+    },
+    {
+      "i": 24,
+      "w": 1918,
+      "h": 936,
+      "opaque": 1249707,
+      "holes": 0
+    },
+    {
+      "i": 25,
+      "w": 1918,
+      "h": 936,
+      "opaque": 1233186,
+      "holes": 0
+    },
+    {
+      "i": 26,
+      "w": 1918,
+      "h": 936,
+      "opaque": 1246621,
+      "holes": 51
+    },
+    {
+      "i": 27,
+      "w": 1918,
+      "h": 936,
+      "opaque": 1246621,
+      "holes": 51
+    },
+    {
+      "i": 28,
+      "w": 1918,
+      "h": 936,
+      "opaque": 1246621,
+      "holes": 51
+    },
+    {
+      "i": 29,
+      "w": 1918,
+      "h": 936,
+      "opaque": 1233186,
+      "holes": 0
+    },
+    {
+      "i": 30,
+      "w": 1918,
+      "h": 936,
+      "opaque": 1233186,
+      "holes": 0
+    },
+    {
+      "i": 31,
+      "w": 480,
+      "h": 234,
+      "opaque": 77964,
+      "holes": 3
+    },
+    {
+      "i": 32,
+      "w": 480,
+      "h": 234,
+      "opaque": 77964,
+      "holes": 3
+    },
+    {
+      "i": 33,
+      "w": 1918,
+      "h": 936,
+      "opaque": 1244070,
+      "holes": 0
+    },
+    {
+      "i": 34,
+      "w": 1918,
+      "h": 936,
+      "opaque": 1233186,
+      "holes": 0
+    }
+  ],
+  "watertight": {
+    "totalInteriorHoles": 613,
+    "worstPanels": [
+      {
+        "i": 7,
+        "holes": 292,
+        "opaque": 1247738
+      },
+      {
+        "i": 5,
+        "holes": 51,
+        "opaque": 1246621
+      },
+      {
+        "i": 6,
+        "holes": 51,
+        "opaque": 1246621
+      },
+      {
+        "i": 26,
+        "holes": 51,
+        "opaque": 1246621
+      },
+      {
+        "i": 27,
+        "holes": 51,
+        "opaque": 1246621
+      },
+      {
+        "i": 28,
+        "holes": 51,
+        "opaque": 1246621
+      }
+    ]
+  },
+  "palette": {
+    "authoredEntries": 130,
+    "canvases": 35,
+    "opaquePixels": 23682625,
+    "distinctDeliveredColours": 26,
+    "offPalettePixels": 0,
+    "offPaletteColours": [],
+    "foreignStatusReads": 0,
+    "shadowRung": 0.84,
+    "shadowRungPixels": 370067,
+    "shadowRungColoursDelivered": 2,
+    "shadowRungColoursAuthored": 26,
+    "shadowLadder": [
+      0.78,
+      0.8,
+      0.84,
+      0.9,
+      1
+    ],
+    "entriesWithoutShadow": 104,
+    "shadowPaletteCost": 26,
+    "everyPreShadowEntrySurvives": true
+  },
+  "confusability": {
+    "reader": "port of shadow.py's reader_status_table/nearest_status/safe_depth, re-based to the level flat ground is actually delivered at (0.90) rather than to full light",
+    "ceilings": [
+      {
+        "status": "healthy",
+        "relative": 0.72,
+        "absolute": 0.648,
+        "readsAs": "healthy"
+      },
+      {
+        "status": "mapped",
+        "relative": 0.3,
+        "absolute": 0.27,
+        "readsAs": "mapped"
+      },
+      {
+        "status": "proposed",
+        "relative": 0.9,
+        "absolute": 0.81,
+        "readsAs": "proposed"
+      },
+      {
+        "status": "unknown",
+        "relative": 0.94,
+        "absolute": 0.846,
+        "readsAs": "unknown"
+      }
+    ],
+    "inadmissible": [
+      {
+        "status": "healthy",
+        "level": 1,
+        "hex": "#8cb85e",
+        "readsAs": "unknown"
+      },
+      {
+        "status": "proposed",
+        "level": 0.78,
+        "hex": "#a89652",
+        "readsAs": "mapped"
+      },
+      {
+        "status": "proposed",
+        "level": 0.8,
+        "hex": "#ad9a54",
+        "readsAs": "mapped"
+      },
+      {
+        "status": "unknown",
+        "level": 0.78,
+        "hex": "#849c63",
+        "readsAs": "healthy"
+      },
+      {
+        "status": "unknown",
+        "level": 0.8,
+        "hex": "#87a066",
+        "readsAs": "healthy"
+      }
+    ],
+    "statuses": [
+      "healthy",
+      "mapped",
+      "proposed",
+      "unknown"
+    ],
+    "robust": [
+      {
+        "status": "proposed",
+        "level": 0.78,
+        "hex": "#a89652",
+        "readsAs": "mapped"
+      },
+      {
+        "status": "unknown",
+        "level": 0.78,
+        "hex": "#849c63",
+        "readsAs": "healthy"
+      },
+      {
+        "status": "unknown",
+        "level": 0.8,
+        "hex": "#87a066",
+        "readsAs": "healthy"
+      }
+    ],
+    "luminanceOverlap": {
+      "ranges": [
+        {
+          "status": "healthy",
+          "min": 125.69,
+          "max": 160.9
+        },
+        {
+          "status": "mapped",
+          "min": 118.97999999999999,
+          "max": 152.67999999999998
+        },
+        {
+          "status": "proposed",
+          "min": 147.92000000000002,
+          "max": 189.63
+        },
+        {
+          "status": "unknown",
+          "min": 142.52999999999997,
+          "max": 182.67
+        }
+      ],
+      "overlaps": [
+        {
+          "a": "healthy",
+          "b": "mapped",
+          "luma": 27
+        },
+        {
+          "a": "healthy",
+          "b": "proposed",
+          "luma": 13
+        },
+        {
+          "a": "healthy",
+          "b": "unknown",
+          "luma": 18.4
+        },
+        {
+          "a": "mapped",
+          "b": "proposed",
+          "luma": 4.8
+        },
+        {
+          "a": "mapped",
+          "b": "unknown",
+          "luma": 10.2
+        },
+        {
+          "a": "proposed",
+          "b": "unknown",
+          "luma": 34.7
+        }
+      ]
+    },
+    "deliveredForeignPixels": {
+      "total": 27701,
+      "byColour": [
+        {
+          "hex": "#87a066",
+          "px": 14127,
+          "status": "unknown",
+          "level": 0.8,
+          "readsAs": "healthy"
+        },
+        {
+          "hex": "#849c63",
+          "px": 13574,
+          "status": "unknown",
+          "level": 0.78,
+          "readsAs": "healthy"
+        }
+      ]
+    }
+  },
+  "whatTheShadowBuys": {
+    "atDeliveredSize": {
+      "lit": {
+        "tag": "delivered-lit",
+        "bodyPx": 77964,
+        "distinctColours": 8,
+        "distinctLumaLevels": 8,
+        "lumaP2": 88.8,
+        "lumaP98": 160.9,
+        "lumaRangeP2toP98": 72.1,
+        "shadowRungPx": 0
+      },
+      "shadowed": {
+        "tag": "delivered-shadow",
+        "bodyPx": 77964,
+        "distinctColours": 9,
+        "distinctLumaLevels": 9,
+        "lumaP2": 88.8,
+        "lumaP98": 160.9,
+        "lumaRangeP2toP98": 72.1,
+        "shadowRungPx": 2358
+      }
+    },
+    "atEightPxPerUnit": {
+      "lit": {
+        "tag": "zoom-lit",
+        "bodyPx": 1246621,
+        "distinctColours": 8,
+        "distinctLumaLevels": 8,
+        "lumaP2": 88.8,
+        "lumaP98": 160.9,
+        "lumaRangeP2toP98": 72.1,
+        "shadowRungPx": 0
+      },
+      "terrainOnly": {
+        "tag": "zoom-terrain",
+        "bodyPx": 1246621,
+        "distinctColours": 8,
+        "distinctLumaLevels": 8,
+        "lumaP2": 88.8,
+        "lumaP98": 160.9,
+        "lumaRangeP2toP98": 72.1,
+        "shadowRungPx": 0
+      },
+      "canopy": {
+        "tag": "zoom-shadow",
+        "bodyPx": 1246621,
+        "distinctColours": 9,
+        "distinctLumaLevels": 9,
+        "lumaP2": 88.8,
+        "lumaP98": 160.9,
+        "lumaRangeP2toP98": 72.1,
+        "shadowRungPx": 37963
+      }
+    },
+    "bare": {
+      "lit": {
+        "tag": "bare-lit",
+        "bodyPx": 1233186,
+        "distinctColours": 4,
+        "distinctLumaLevels": 4,
+        "lumaP2": 125.7,
+        "lumaP98": 160.9,
+        "lumaRangeP2toP98": 35.2,
+        "shadowRungPx": 0
+      },
+      "shadowed": {
+        "tag": "bare-shadow",
+        "bodyPx": 1233186,
+        "distinctColours": 5,
+        "distinctLumaLevels": 5,
+        "lumaP2": 125.7,
+        "lumaP98": 160.9,
+        "lumaRangeP2toP98": 35.2,
+        "shadowRungPx": 163266
+      }
+    },
+    "pctOfIslandReached": 3.02,
+    "terrainCastIsIdenticallyZero": true
+  },
+  "frameTiming": {
+    "samples": 39,
+    "p50Ms": 16.6,
+    "meanMs": 16.48,
+    "interpretation": "RELATIVE ONLY. Software rasteriser, static scene — this is the headless compositor present cadence, not a GPU-bound frame cost. Do not quote it as a D2 verdict."
+  }
+}

@@ -19,7 +19,10 @@ import * as THREE from 'three';
 import {
   configureExactColour,
   createBandedMaterial,
+  shadowFieldTexture,
+  type ShadowTexture,
 } from './banded-material.js';
+import { buildShadowField, type ShadowCaster } from './land-shadow.js';
 import {
   groundBounds,
   groundCellsFrom,
@@ -62,6 +65,16 @@ const RENDER_ELEV_DEG = 50;
  */
 export type LandDefinition = 'flat' | 'relief' | 'bevel' | 'full';
 
+/**
+ * Which shadow terms the land receives.
+ *
+ * Separable for the same reason `LandDefinition` is: the two casters answer differently to
+ * the measurement. The LAND casts at most `2 x landHeightRange` of ground shadow — 5.9 units
+ * at the shipped amplitude — while the median PLANT casts 4.3 and the tallest 10.2. A reader
+ * who cannot see them apart cannot tell which one is drawing the picture.
+ */
+export type LandShadow = 'off' | 'terrain' | 'canopy' | 'both';
+
 export interface IslandViewProps {
   /** Rasterise at this many device pixels per ground unit. 1 = the sprite convention. */
   pxPerUnit: number;
@@ -77,6 +90,19 @@ export interface IslandViewProps {
   land?: LandDefinition;
   /** Relief amplitude override, for the amplitude ladder panel. */
   amplitude?: number;
+  /** Which shadow terms the LAND receives. Defaults to `off`, so every panel that predates
+   *  the shadow delivers exactly the pixels it delivered before. */
+  shadow?: LandShadow;
+  /** A stable NAME for this canvas, stamped onto the element as `data-st-tag`.
+   *
+   *  It exists so the capture can find a specific panel by name rather than by position.
+   *  Panel FILENAMES are already zipped positionally against the page's sections, which
+   *  means inserting a section silently re-points every later filename at a different
+   *  picture while the run still exits 0 (filed as friction
+   *  `capture-panel-names-bind-to-section-order`). A measurement that compared the wrong two
+   *  canvases would be worse than that, because it would produce a NUMBER rather than a
+   *  mislabelled file. */
+  tag?: string;
 }
 
 /** ONE shared WebGL context for the page — a browser caps simultaneous contexts near
@@ -100,6 +126,30 @@ function sharedRenderer(): { renderer: THREE.WebGLRenderer; canvas: HTMLCanvasEl
   renderer.setClearColor(0x000000, 0);
   shared = { renderer, canvas };
   return shared;
+}
+
+/** Built shadow fields, keyed by everything they depend on.
+ *
+ *  A CACHE RATHER THAN A CONVENIENCE. The field is a function of the land alone — its
+ *  relief, its casters, the authored light — and NOT of `pxPerUnit`, so the island page's
+ *  panels ask for the same handful of fields over and over. Without this the page rebuilds a
+ *  285k-sample field per canvas and the capture's settled-signal wait turns into a
+ *  multi-second stall that looks like a hung harness. */
+const shadowFieldCache = new Map<string, ShadowTexture>();
+
+/** The plants, as upright cylinders standing on the land.
+ *
+ *  THE RADIUS IS THE FOOTPRINT'S HALF-WIDTH AND THE HEIGHT IS UNPROJECTED — the same two
+ *  numbers `plantMesh` grows the geometry from, read the same way. Taking the height
+ *  straight off the descriptor would foreshorten the caster while the plant it belongs to
+ *  stands upright, and the shadow would be 6% short of the plant casting it. */
+function castersFrom(plants: readonly PlantInstance[], groundFlat: number, up: number): ShadowCaster[] {
+  return plants.map((p) => ({
+    x: p.transform.x,
+    z: p.transform.z / groundFlat,
+    radius: Math.max(1.5, p.footprint.w) / 2,
+    height: Math.max(1.2, p.footprint.h / up),
+  }));
 }
 
 /** A 3D vertex plus the normal it wears — the unit the emitters below trade in. */
@@ -137,6 +187,7 @@ function groundMeshes(
   cells: readonly GroundCell[],
   land: LandDefinition,
   amplitude: number,
+  shadow: ShadowTexture | undefined,
 ): THREE.Mesh[] {
   const relief = land === 'relief' || land === 'full' ? amplitude : 0;
   const bevel = land === 'bevel' || land === 'full';
@@ -328,7 +379,16 @@ function groundMeshes(
     // and differing only by rung makes it a fold in the land instead. Colour is per-mesh,
     // so a cell can never emit a colour from another status's family.
     const token = wheat ? fam.wheat : fam.top[0]!;
-    meshes.push(new THREE.Mesh(geom, createBandedMaterial({ token, doubleSided: false })));
+    meshes.push(
+      new THREE.Mesh(
+        geom,
+        createBandedMaterial({
+          token,
+          doubleSided: false,
+          ...(shadow ? { shadow } : {}),
+        }),
+      ),
+    );
   }
   return meshes;
 }
@@ -420,9 +480,44 @@ function renderIsland(canvas: HTMLCanvasElement, props: IslandViewProps): void {
   const amplitude = props.amplitude ?? LAND_RELIEF_AMPLITUDE;
   const relief = land === 'relief' || land === 'full' ? amplitude : 0;
 
-  for (const m of groundMeshes(cells, land, amplitude)) scene3.add(m);
+  const plants = plantsFrom(scene);
+
+  // THE SHADOW FIELD — built in ground space, before any mesh, because the ground meshes and
+  // the wall skirts all sample the SAME field and a per-mesh field would let them disagree
+  // about where the shadow falls along a shared edge.
+  //
+  // PLANTS CAST BUT DO NOT RECEIVE, and that is a call rather than an oversight (recorded in
+  // the increment): at the delivered 2 px/unit a whole shrub is about five pixels, so a
+  // shadow ON one has nowhere to land, while the shadow it THROWS is 8.6 px long and is most
+  // of what the eye reads. Shadowing the plants would spend the one available rung on the
+  // element that cannot show it.
+  const wantShadow = (props.shadow ?? 'off') !== 'off';
+  let shadowTex: ShadowTexture | undefined;
+  if (wantShadow) {
+    const mode = props.shadow!;
+    const key = JSON.stringify([mode, relief, land, props.island ?? {}]);
+    let cached = shadowFieldCache.get(key);
+    if (!cached) {
+      const groundFlat = groundFlattening(LAND_CAMERA_ELEVATION_DEG);
+      const up = uprightForeshortening(LAND_CAMERA_ELEVATION_DEG);
+      cached = shadowFieldTexture(
+        buildShadowField({
+          bounds: { minX: bounds.minX, maxX: bounds.maxX, minZ: bounds.minY, maxZ: bounds.maxY },
+          relief,
+          casters:
+            mode === 'terrain' ? [] : castersFrom(plants, groundFlat, up),
+          terrain: mode !== 'canopy',
+          canopy: mode !== 'terrain',
+        }),
+      );
+      shadowFieldCache.set(key, cached);
+    }
+    shadowTex = cached;
+  }
+
+  for (const m of groundMeshes(cells, land, amplitude, shadowTex)) scene3.add(m);
   if (props.plants !== false) {
-    for (const m of plantMesh(plantsFrom(scene), props.style ?? 'mound', relief)) scene3.add(m);
+    for (const m of plantMesh(plants, props.style ?? 'mound', relief)) scene3.add(m);
   }
 
   // The island's on-screen size at this camera: the ground's depth foreshortens by
@@ -494,6 +589,7 @@ export function IslandPanel({
     props.island,
     props.land,
     props.amplitude,
+    props.shadow,
   ]);
   return (
     <figure className="panel">
@@ -502,7 +598,7 @@ export function IslandPanel({
         <span>{note}</span>
       </figcaption>
       <div className="stage">
-        <canvas ref={ref} />
+        <canvas ref={ref} {...(props.tag ? { 'data-st-tag': props.tag } : {})} />
       </div>
     </figure>
   );

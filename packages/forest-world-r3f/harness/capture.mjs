@@ -26,7 +26,24 @@ import { fileURLToPath } from 'node:url';
 // The authored palette comes from the SAME module the shader's GLSL ladder is generated
 // from. A capture script holding its own copy of the palette would only ever prove that
 // the two copies agree.
-import { landPalette, statusFamilyOf } from './palette-band.js';
+import { landPalette } from './palette-band.js';
+// ...and the SHADOW half from the module that derives the shadow rung, for the same reason.
+// The authored palette a shadowed land may emit is the closure over the shadow ladder, so
+// checking delivered pixels against `landPalette()` alone would condemn every shadowed pixel
+// as off-palette — a refusal for the wrong reason, which is the failure mode this arc has
+// paid for more than once.
+import {
+  RENDERED_STATUSES,
+  SHADOW_LADDER,
+  SHADOW_RUNG,
+  familyOnShadowLadder,
+  ladderAdmissibility,
+  landPaletteWithShadow,
+  liveCeilings,
+  luminanceOverlap,
+  robustlyInadmissible,
+  shadowRungEntries,
+} from './shadow-ladder.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 // The output directory is overridable so one capture script serves both evidence pages
@@ -138,14 +155,24 @@ const delivered = await page.evaluate(() => {
     }
     let holes = 0;
     for (let p = 0; p < w * h; p++) if (clear[p] && !seen[p]) holes++;
-    out.push({ w, h, opaque, holes, colours: [...counts.entries()] });
+    out.push({
+      w,
+      h,
+      opaque,
+      holes,
+      tag: canvas.dataset.stTag ?? null,
+      colours: [...counts.entries()],
+    });
   }
   return out;
 });
 
 if (delivered.length === 0) fail('the page drew no canvases at all');
 
-const palette = new Set(landPalette());
+const palette = new Set(landPaletteWithShadow());
+// The pre-shadow closure, kept so the report can state the COST as a difference the reader
+// can check rather than a number they have to take on trust.
+const paletteBefore = new Set(landPalette());
 let totalOpaque = 0;
 let offPalette = 0;
 const offenders = new Map();
@@ -267,18 +294,152 @@ const report = {
     distinctDeliveredColours: distinct.size,
     offPalettePixels: offPalette,
     offPaletteColours: [...offenders.entries()].sort((a, b) => b[1] - a[1]).slice(0, 20),
+    // MEMBERSHIP, the closure question — every delivered colour belongs to some authored
+    // status family. Shadow-aware, or all 26 shadow entries would report as orphans.
     foreignStatusReads: [...distinct]
       .filter((h) => palette.has(h))
       .map((h) => ({
         hex: h,
-        family: statusFamilyOf({
+        family: familyOnShadowLadder({
           r: parseInt(h.slice(1, 3), 16),
           g: parseInt(h.slice(3, 5), 16),
           b: parseInt(h.slice(5, 7), 16),
         }),
       }))
       .filter((x) => x.family === null).length,
+    shadowRung: SHADOW_RUNG,
+    // THE NUMBER THAT DECIDES WHETHER THE SHADOW EXISTS AT ALL, and the direct analogue of
+    // PR #1385's finding that the same light field delivered ZERO pixels once quantised onto
+    // the shipped 132-entry palette. An authored entry nothing lands on is a colour in the
+    // palette and nothing on the island.
+    shadowRungPixels: (() => {
+      const onRung = new Set(shadowRungEntries());
+      let n = 0;
+      for (const c of delivered) for (const [hex, k] of c.colours) if (onRung.has(hex)) n += k;
+      return n;
+    })(),
+    shadowRungColoursDelivered: [...distinct].filter((h) => shadowRungEntries().includes(h)).length,
+    shadowRungColoursAuthored: shadowRungEntries().length,
+    shadowLadder: [...SHADOW_LADDER],
+    entriesWithoutShadow: paletteBefore.size,
+    shadowPaletteCost: palette.size - paletteBefore.size,
+    everyPreShadowEntrySurvives: [...paletteBefore].every((h) => palette.has(h)),
   },
+  // CONFUSABILITY, which is a DIFFERENT question and the one this increment exists for.
+  // Membership above can never fail for a shadow — the shader only emits its own token's
+  // entries, by construction — so it is blind to a `unknown` cell darkened until it reads
+  // `healthy`. This block reports the borrowed reader model's verdict on every rung,
+  // including the two rungs of the SHIPPED ladder that already fail it.
+  confusability: {
+    reader:
+      "port of shadow.py's reader_status_table/nearest_status/safe_depth, re-based to the " +
+      'level flat ground is actually delivered at (0.90) rather than to full light',
+    ceilings: liveCeilings(),
+    inadmissible: ladderAdmissibility()
+      .filter((v) => !v.admissible)
+      .map((v) => ({ status: v.status, level: v.level, hex: v.hex, readsAs: v.readsAs })),
+    statuses: [...RENDERED_STATUSES],
+    // The verdicts that survive a reader holding all three authored ground variants as well
+    // as the one the renderer emits. The rest are the reference set showing, not the island.
+    robust: robustlyInadmissible().map((v) => ({
+      status: v.status,
+      level: v.level,
+      hex: v.hex,
+      readsAs: v.readsAs,
+    })),
+    // The statement no reader model can argue with.
+    luminanceOverlap: luminanceOverlap(),
+    // AND HOW MANY OF THOSE THIS PAGE ACTUALLY DELIVERS. The list above is what the ladder
+    // COULD emit; this is what it DID. Every one of them belongs to the shipped ladder, so
+    // it is a measurement of the land as it stands rather than a cost of the shadow — and
+    // reporting only the potential would have let a real, delivered foreign read hide behind
+    // a table of hypotheticals.
+    deliveredForeignPixels: (() => {
+      // ROBUST verdicts only. Counting the reader-sensitive ones here would have reported
+      // two million pixels of healthy ground as a foreign read on the strength of a reader
+      // that holds one reference colour per status.
+      const bad = new Map(robustlyInadmissible().map((v) => [v.hex, v]));
+      const hits = [];
+      let total = 0;
+      for (const c of delivered) {
+        for (const [hex, n] of c.colours) {
+          const v = bad.get(hex);
+          if (!v) continue;
+          total += n;
+          const found = hits.find((x) => x.hex === hex);
+          if (found) found.px += n;
+          else hits.push({ hex, px: n, status: v.status, level: v.level, readsAs: v.readsAs });
+        }
+      }
+      return { total, byColour: hits.sort((a, b) => b.px - a.px) };
+    })(),
+  },
+  // WHAT THE SHADOW BUYS — the same question PR #1385 asked of the compositor, asked of this
+  // renderer, and answered off the DELIVERED raster rather than off the TypeScript that fed
+  // it. The two canvases are found by their `data-st-tag`, never by position: the panel
+  // filenames on this page are already zipped positionally against sections, and a
+  // measurement that silently compared the wrong two canvases would produce a NUMBER rather
+  // than a mislabelled file.
+  whatTheShadowBuys: (() => {
+    const luma = (hex) =>
+      0.3 * parseInt(hex.slice(1, 3), 16) +
+      0.59 * parseInt(hex.slice(3, 5), 16) +
+      0.11 * parseInt(hex.slice(5, 7), 16);
+    const stats = (tag) => {
+      const c = delivered.find((d) => d.tag === tag);
+      if (!c) return { tag, missing: true };
+      const rows = c.colours
+        .map(([hex, n]) => ({ hex, n, l: luma(hex) }))
+        .sort((a, b) => a.l - b.l);
+      const total = rows.reduce((s2, r) => s2 + r.n, 0);
+      const at = (f) => {
+        let seen2 = 0;
+        for (const r of rows) {
+          seen2 += r.n;
+          if (seen2 >= total * f) return Number(r.l.toFixed(1));
+        }
+        return Number(rows[rows.length - 1].l.toFixed(1));
+      };
+      const onRung = new Set(shadowRungEntries());
+      return {
+        tag,
+        bodyPx: total,
+        distinctColours: rows.length,
+        distinctLumaLevels: new Set(rows.map((r) => Number(r.l.toFixed(2)))).size,
+        lumaP2: at(0.02),
+        lumaP98: at(0.98),
+        lumaRangeP2toP98: Number((at(0.98) - at(0.02)).toFixed(1)),
+        shadowRungPx: rows.filter((r) => onRung.has(r.hex)).reduce((s2, r) => s2 + r.n, 0),
+      };
+    };
+    const lit = stats('delivered-lit');
+    const shadowed = stats('delivered-shadow');
+    return {
+      atDeliveredSize: { lit, shadowed },
+      atEightPxPerUnit: {
+        lit: stats('zoom-lit'),
+        terrainOnly: stats('zoom-terrain'),
+        canopy: stats('zoom-shadow'),
+      },
+      // BARE LAND, same shadow. The gap between this and the dressed panel is how much of
+      // its own shadow the vegetation stands in front of — the shadow falls up-screen, away
+      // from the light, and the plant that threw it is drawn on top of where it lands.
+      bare: { lit: stats('bare-lit'), shadowed: stats('bare-shadow') },
+      pctOfIslandReached:
+        shadowed.bodyPx > 0
+          ? Number(((shadowed.shadowRungPx / shadowed.bodyPx) * 100).toFixed(2))
+          : null,
+      // THE CONTROL THAT MAKES THE TERRAIN FINDING A MEASUREMENT RATHER THAN A CLAIM: the
+      // terrain-only panel must be pixel-for-pixel the unshadowed one.
+      terrainCastIsIdenticallyZero: (() => {
+        const a = delivered.find((d) => d.tag === 'zoom-lit');
+        const b = delivered.find((d) => d.tag === 'zoom-terrain');
+        if (!a || !b) return null;
+        const key = (c) => JSON.stringify([...c.colours].sort());
+        return key(a) === key(b);
+      })(),
+    };
+  })(),
   frameTiming: {
     samples: frames.length,
     p50Ms: Number(p50.toFixed(2)),
@@ -298,6 +459,39 @@ console.log(`software   : ${report.webgl.isSoftware}`);
 console.log(`canvases   : ${delivered.length}`);
 console.log(`opaque px  : ${totalOpaque}`);
 console.log(`distinct   : ${distinct.size} delivered colours, ${palette.size} authored entries`);
+console.log(
+  `shadow     : rung ${SHADOW_RUNG}, palette ${paletteBefore.size} -> ${palette.size} ` +
+    `(+${palette.size - paletteBefore.size})`,
+);
+console.log(
+  `on the rung: ${report.palette.shadowRungPixels} delivered px across ` +
+    `${report.palette.shadowRungColoursDelivered} of ${report.palette.shadowRungColoursAuthored} ` +
+    'authored shadow entries',
+);
+console.log(
+  `delivered  : shadow reaches ${report.whatTheShadowBuys.pctOfIslandReached}% of the island; ` +
+    `p2-p98 luma ${report.whatTheShadowBuys.atDeliveredSize.lit.lumaRangeP2toP98} -> ` +
+    `${report.whatTheShadowBuys.atDeliveredSize.shadowed.lumaRangeP2toP98}`,
+);
+console.log(
+  `terrain    : identically zero = ${report.whatTheShadowBuys.terrainCastIsIdenticallyZero}`,
+);
+console.log(
+  `bare land  : shadow on ${(
+    (report.whatTheShadowBuys.bare.shadowed.shadowRungPx /
+      report.whatTheShadowBuys.bare.shadowed.bodyPx) *
+    100
+  ).toFixed(2)}% of delivered px (dressed: ${(
+    (report.whatTheShadowBuys.atEightPxPerUnit.canopy.shadowRungPx /
+      report.whatTheShadowBuys.atEightPxPerUnit.canopy.bodyPx) *
+    100
+  ).toFixed(2)}%)`,
+);
+console.log(
+  `confusable : ${report.confusability.inadmissible.length} (status, rung) pairs read foreign ` +
+    `under the borrowed reader; this page DELIVERED ` +
+    `${report.confusability.deliveredForeignPixels.total} such px, all on the SHIPPED ladder`,
+);
 console.log(`OFF-PALETTE: ${offPalette} px`);
 if (offPalette > 0) {
   for (const [hex, n] of [...offenders.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10)) {

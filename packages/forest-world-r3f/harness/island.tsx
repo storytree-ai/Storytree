@@ -6,6 +6,13 @@
 import { createRoot } from 'react-dom/client';
 
 import { IslandPanel } from './IslandView.js';
+import {
+  RENDERED_STATUSES,
+  SHADOW_LADDER,
+  SHADOW_RUNG,
+  ladderAdmissibility,
+  robustlyInadmissible,
+} from './shadow-ladder.js';
 
 declare global {
   interface Window {
@@ -301,6 +308,164 @@ function App() {
             plants={false}
             island={{ oddOneOut: { index: 0, status: 'unhealthy' } }}
             land="full"
+          />
+        </div>
+      </section>
+
+      <section>
+        <h2>9 &mdash; the shadow, and which caster actually throws it</h2>
+        <p className="lede">
+          Shadow was the stated reason author-time 3D was reopened, and no island has ever carried
+          one. Two casters were built and only one of them draws anything.{' '}
+          <strong>The land cannot shadow itself here</strong> &mdash; not faintly, at all: a height
+          field self-shadows only where it is steeper than the light, the authored light comes in
+          at 55.2&deg;, and the relief&rsquo;s steepest slope at the shipped amplitude is 24.4&deg;.
+          Reaching the light would need amplitude ~7.0, more than twice the 3.2 the previous pass
+          already rejected. So the shadow on this island is the <strong>canopy</strong>, and the
+          terrain panel below is the measurement rather than a mistake.
+        </p>
+        <div className="row">
+          <IslandPanel
+            label="no shadow — the control"
+            note="8 px/unit"
+            pxPerUnit={8}
+            displayPxPerUnit={8}
+            tag="zoom-lit"
+          />
+          <IslandPanel
+            label="terrain cast only"
+            note="8 px/unit — identically zero"
+            pxPerUnit={8}
+            displayPxPerUnit={8}
+            shadow="terrain"
+            tag="zoom-terrain"
+          />
+          <IslandPanel
+            label="canopy cast"
+            note="8 px/unit"
+            pxPerUnit={8}
+            displayPxPerUnit={8}
+            shadow="canopy"
+            tag="zoom-shadow"
+          />
+        </div>
+        <p className="lede">
+          And the same shadow on BARE land, which is where most of it turns out to be. The
+          shadow falls up-screen, away from the light &mdash; so a plant stands in front of its
+          own cast and hides a large share of it. That is a real property of a 55&deg; light at a
+          50&deg; camera, not a bug, and it is why the dressed number below is so much smaller
+          than the field.
+        </p>
+        <div className="row">
+          <IslandPanel
+            label="bare — no shadow"
+            note="8 px/unit, no plants"
+            pxPerUnit={8}
+            displayPxPerUnit={8}
+            plants={false}
+            tag="bare-lit"
+          />
+          <IslandPanel
+            label="bare — the same canopy shadow"
+            note="8 px/unit, no plants"
+            pxPerUnit={8}
+            displayPxPerUnit={8}
+            plants={false}
+            shadow="canopy"
+            tag="bare-shadow"
+          />
+        </div>
+      </section>
+
+      <section>
+        <h2>10 &mdash; the shadow at the size it is actually delivered</h2>
+        <p className="lede">
+          The pair that decides it. A median plant stands 6.2 ground units and throws 4.3 &mdash;
+          about 8.6 px at the delivered scale, which is enough to read. The shadow lands on{' '}
+          <strong>one rung</strong>, because one rung is all a closed palette with a measured
+          confusability ceiling leaves room for.
+        </p>
+        <div className="row">
+          <IslandPanel
+            label="no shadow — as delivered"
+            note={`${DELIVERED} px/unit`}
+            pxPerUnit={DELIVERED}
+            displayPxPerUnit={DELIVERED}
+            tag="delivered-lit"
+          />
+          <IslandPanel
+            label="shadow — as delivered"
+            note={`${DELIVERED} px/unit`}
+            pxPerUnit={DELIVERED}
+            displayPxPerUnit={DELIVERED}
+            shadow="both"
+            tag="delivered-shadow"
+          />
+        </div>
+      </section>
+
+      <section>
+        <h2>11 &mdash; the ladder, and the status whose ceiling binds it</h2>
+        <p className="lede">
+          The shadow rung is <code>{SHADOW_RUNG}</code>, and it was DERIVED rather than chosen: it
+          is the deepest level every rendered status can wear without reading as another one, and
+          one hundredth deeper <code>unknown</code> reads <code>healthy</code> &mdash; doubt painted
+          as proof. The table is computed by the same instrument on every load, so it cannot drift
+          from the shader. <strong>Every red cell belongs to the SHIPPED ladder</strong>; the shadow
+          rung adds none. <span className="amber">Amber</span> marks a verdict that does NOT survive
+          a reader holding all three authored ground variants &mdash; the reference set talking
+          rather than the island &mdash; and it is kept visible rather than quietly dropped.
+        </p>
+        <table className="admissibility">
+          <thead>
+            <tr>
+              <th>status</th>
+              {SHADOW_LADDER.map((l) => (
+                <th key={l}>{l === SHADOW_RUNG ? `${l} (shadow)` : l}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {RENDERED_STATUSES.map((st) => (
+              <tr key={st}>
+                <th>{st}</th>
+                {SHADOW_LADDER.map((l) => {
+                  const v = ladderAdmissibility()!.find((r) => r.status === st && r.level === l)!;
+                  const robust = robustlyInadmissible().some(
+                    (r) => r.status === st && r.level === l,
+                  );
+                  const cls = v.admissible ? 'ok' : robust ? 'bad' : 'soft';
+                  return (
+                    <td key={l} className={cls}>
+                      <span className="chip" style={{ background: v.hex }} />
+                      {v.admissible ? v.hex : `${v.hex} → ${v.readsAs}`}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="lede">
+          And the same shadow on a mixed island &mdash; one capability given the binding status.
+        </p>
+        <div className="row">
+          <IslandPanel
+            label="one unknown capability, shadowed"
+            note="8 px/unit"
+            pxPerUnit={8}
+            displayPxPerUnit={8}
+            island={{ oddOneOut: { index: 0, status: 'unknown' } }}
+            shadow="both"
+          />
+          <IslandPanel
+            label="bare, one unknown capability, shadowed"
+            note="8 px/unit, no plants"
+            pxPerUnit={8}
+            displayPxPerUnit={8}
+            plants={false}
+            island={{ oddOneOut: { index: 0, status: 'unknown' } }}
+            shadow="both"
           />
         </div>
       </section>

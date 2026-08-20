@@ -34,6 +34,8 @@ const EXPERIMENT = [
   'plant-descriptors.ts',
   'plant-geometry.ts',
   'land-definition.ts',
+  'shadow-ladder.ts',
+  'land-shadow.ts',
   'banded-material.ts',
 ];
 
@@ -63,9 +65,10 @@ test('src/ still holds exactly the files the website sync expects, and nothing n
 });
 
 test('the PURE half of the experiment imports no browser library', () => {
-  // The provability-firewall discipline, applied inside the harness: three of the four
-  // modules must stay node:test-provable so the palette closure and the geometry contract
-  // are proved without a browser. Only `banded-material.ts` may reach for three.
+  // The provability-firewall discipline, applied inside the harness: every module but one
+  // must stay node:test-provable, so the palette closure, the confusability ceiling and the
+  // shadow geometry are all proved without a browser. Only `banded-material.ts` may reach
+  // for three.
   const pure = EXPERIMENT.filter((f) => f !== 'banded-material.ts');
   const breaches: string[] = [];
   for (const file of pure) {
