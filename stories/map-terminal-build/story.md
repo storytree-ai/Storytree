@@ -10,7 +10,8 @@ proof_mode: UAT
 # (ADR-0209 D8): the human residue is NARROWER than first authored. It is NOT "the pre-fill lands in the
 # native shell" (a harness statement — the Electron `_electron` harness already drives the real
 # `window.desktopTerminal` bridge, see leg 4) and NOT "the bridge-absent surface is unchanged" (already a
-# signed contract, see leg 5). What genuinely has no compiler is the owner's acceptance of the INVOCATION
+# signed contract — `mbt-without-bridge-dispatches-as-today`; the story leg that restated it was leg 5,
+# deleted by the ADR-0294 D2 pass on 2026-08-20). What genuinely has no compiler is the owner's acceptance of the INVOCATION
 # FORM the composer emits (leg 6) and the owner's verdict on a real, BILLED, PR-opening run (leg 7). The
 # crown derives from the two capabilities' signed verdicts (plus the consumed terminal-tabs
 # seed-opens-new-tab verdict for the dock side) plus those two attestations.
@@ -264,6 +265,42 @@ thereafter (each real failure earns a permanent regression case, never speculati
 > signed verdicts plus the operator's attestations (legs 6, 7). Per ADR-0209 §6 every re-adjudicated leg
 > returns to UNSTAMPED until judged — a `machine` tag here asserts which witness is RIGHT, never that the
 > proof exists.
+>
+> **ADR-0294 D2/D4 pass, 2026-08-20 — four legs are DELETED, and the one surviving machine journey leg is
+> declared UNBOUND.** The paragraph above states the deletion criterion and then does not act on it: legs
+> 1, 2, 3 and 5 each restated proof that already exists one rung down and named it in their own success
+> clauses, which is exactly ADR-0294 D2's case. Leg 1's composition is proven by the capability
+> [`compose-build-command`](compose-build-command.md) at `apps/studio/src/lib/buildCommand.test.ts` —
+> `cbc-composes-story-real-build`, `cbc-composes-node-real-build`, `cbc-embeds-the-unit-id-verbatim`. Leg
+> 2's fresh-tab pre-fill is proven by `terminal-tabs`' consumed capability
+> [`seed-opens-new-tab`](../terminal-tabs/seed-opens-new-tab.md) at
+> `apps/studio/src/components/TerminalDock.test.tsx` — `son-seed-opens-a-fresh-tab`,
+> `son-seed-never-touches-active-session`, `son-pre-spawn-seed-writes-on-resolve`,
+> `son-token-bump-opens-another-fresh-tab`, `son-prefills-without-trailing-newline`,
+> `son-absent-seed-is-a-no-op`. Legs 3 and 5 are BOTH proven by the capability
+> [`map-build-seeds-terminal`](map-build-seeds-terminal.md) at
+> `apps/studio/src/components/BuildSection.test.tsx` — `mbt-desktop-build-seeds-not-dispatches`,
+> `mbt-seeds-scoped-command`, `mbt-without-bridge-dispatches-as-today`, `mbt-adopt-path-unaffected` — and
+> leg 5's own text already said so, calling itself "the same assertion leg 3 already carries … not a second
+> obligation", which makes it a restatement of a restatement. All four were checked against those tests'
+> ACTUAL assertions, not their file existence (ADR-0294 D2's honesty wall). Ordinals **1**, **2**, **3**
+> and **5** are BURNED, not renumbered. This story now carries **TWO** `machine` legs (4, 7) and ONE
+> `human` leg (6).
+>
+> **Leg 4 stays unbound, and that is the honest state rather than an omission.** It is a genuine journey
+> step nobody can witness yet: gate 1 below is bound to leg 7, the `_electron` spec that would observe leg
+> 4 has no spec at HEAD, and nothing it could run persists an artifact an `observe` gate could read. So
+> `resolveWitness` refuses it (`coverage: "refused"`) and no adopt pass can sign it. **No gate is minted
+> for it** — answering an unbound leg with a freshly minted check is the rubber stamp ADR-0097 §2 forbids
+> and the exact reflex ADR-0294's end state point 4 names. What binds it is a real instrument: that spec
+> landing AND a standing `observe` gate reading what it persists, or ADR-0295 D1's model-driven executor,
+> already the shape of gate 1.
+>
+> **Legs 3 and 4's `(witness:)` tags were LINE-BROKEN and therefore parsed as `either`, not `machine`.**
+> `_(witness:` ended one line and `machine)_` began the next, so `parseUatTestCriteria` fell back to the
+> undecided `either` and both were invisible to every machine-leg census — this story held HALF the
+> corpus's four such legs. Leg 3 is deleted above; leg 4's tag was rejoined in the same change, with no
+> change to its authored claim.
 
 **Goal —** A desktop user on the forest map clicks Build on a node or story; the corresponding `storytree
 … build <id> --real --store pg` command appears **pre-filled** (expanded, un-run) in the embedded terminal;
@@ -271,52 +308,29 @@ the user reviews it and presses Enter to run a real build as their own Claude Co
 SDK-driven dispatch. Where the terminal is absent, clicking Build dispatches the in-app build exactly as
 before.
 
-1. **The Build command composes correctly for the unit's scope.** _(witness: machine)_ A story-scope Build _(criterion-id: uatc_b07259986f069bd596907ee9)_ _(revision-id: uatr1:230deb354c1673c3)_
-   composes `pnpm storytree story build <id> --real --store pg`; a node-scope Build composes `pnpm
-   storytree node build <id> --real --store pg`; the unit id is embedded verbatim. **Success —**
-   [`compose-build-command`](compose-build-command.md)'s signed verdict (a pure red→green).
-   *(Scope note, 2026-07-25: witness UNCHANGED. The prose said bare `storytree …`, but the landed composer
-   — `apps/studio/src/lib/buildCommand.ts:15` — emits the `pnpm ` prefix, exactly as open modeling call 1
-   settled and as the three passing `cbc-*` tests assert. Corrected in place: had this leg been executed
-   as written it would have understated the command it is meant to pin.)*
-2. **The terminal dock accepts the seed and pre-fills it without running it.** _(witness: machine)_ A new _(criterion-id: uatc_a70068a45105d3afc6f8255a)_ _(revision-id: uatr1:e0ff90f034b580c5)_
-   seed opens a **fresh tab** (never the active Claude Code session — ADR-0186), switches to it, and writes
-   the command as a pre-fill with NO trailing newline; a pre-spawn seed is written once the new tab's
-   session resolves; a token bump opens another fresh tab; an absent seed leaves the dock byte-identical.
-   **Success —** [`terminal-tabs`' seed-opens-new-tab](../terminal-tabs/seed-opens-new-tab.md)'s signed
-   verdict (behaviour over the mocked xterm + bridge) — a consumed dependency, not a cap of this story
-   (originally this story's `terminal-dock-seed`, superseded by the ADR-0186 re-decision).
-3. **On the desktop, the Build button seeds the terminal instead of dispatching in-app.** _(witness: _(criterion-id: uatc_130790b19621b3789ac8e97e)_ _(revision-id: uatr1:ed78096936ee28e8)_
-   machine)_ With the bridge present + a callback, a Build click seeds the composed command and does NOT
-   POST `api.build`; with the bridge absent (or no callback) it dispatches `api.build` as today; the Adopt
-   path is untouched. **Success —** [`map-build-seeds-terminal`](map-build-seeds-terminal.md)'s signed
-   verdict (the branch over a mocked bridge + spy).
-4. **Clicking Build drops a runnable command into the REAL terminal, pre-filled and NOT run.** _(witness: _(criterion-id: uatc_865913dcc84077215e5b7175)_ _(revision-id: uatr1:bebdddf8150ee479)_
-   machine)(detail: map-terminal-build#uat-4)_ The INTEGRATED walk over the real seam rather than a mocked
+4. **Clicking Build drops a runnable command into the REAL terminal, pre-filled and NOT run.** _(witness: machine)(detail: map-terminal-build#uat-4)_ _(criterion-id: uatc_865913dcc84077215e5b7175)_ _(revision-id: uatr1:0dc173ed9bf34455)_ _(previous-revision-id: uatr1:bebdddf8150ee479)_
+   The INTEGRATED walk over the real seam rather than a mocked
    one: in the desktop app the member clicks Build on a node/story; the composed command travels the
    TreeView `seed` glue to the real `window.desktopTerminal` bridge, lands in a fresh tab, and sits there
-   **un-executed**. This is the only leg that exercises the glue legs 1–3 all stop short of (the `seed`
-   state + prop pass-through, un-asserted by design per ADR-0158). **Success —** an Electron `_electron`
+   **un-executed**. This is the only leg that exercises the glue the three capability verdicts all stop
+   short of (the `seed` state + prop pass-through, un-asserted by design per ADR-0158). **Success —** an Electron `_electron`
    spec asserting the composed command's text in the main-held `desktopTerminal.snapshot()` AND that no
    execution occurred. *(Re-adjudicated 2026-07-25, ADR-0209 D8 — was `human`, justified by "an automated
    CI run cannot drive the real `window.desktopTerminal` bridge". That is a HARNESS statement, and it is
    FALSE today: `apps/desktop/e2e/session-survival.e2e.mjs` already drives that bridge and a real pty
    offline in CI, reading `desktopTerminal.list()`/`snapshot()`. The two genuinely no-compiler clauses
    fused into this leg — whether the command reads like one the member would type, and whether pressing
-   Enter runs a real billed build — are SPLIT OUT to legs 6 and 7. Deliberately UNBOUND: this story
-   declares no reliability gate, so the binding gap is recorded rather than rubber-stamped over absent
-   machinery (ADR-0097 §2). That gap is PRE-EXISTING — no leg here was bound before this pass.)*
-5. **Where the terminal is absent, clicking Build is unchanged.** _(witness: machine)_ On a bridge-absent _(criterion-id: uatc_1a746f62e0b216cf0850e273)_ _(revision-id: uatr1:12179a95a334c5a7)_
-   surface (the hosted / dev studio in a plain browser, no `window.desktopTerminal`), clicking Build POSTs
-   the in-app build and polls to a verdict exactly as before — no regression, no seed attempted.
-   **Success —** [`map-build-seeds-terminal`](map-build-seeds-terminal.md)'s signed verdict, contract
-   `mbt-without-bridge-dispatches-as-today` (`apps/studio/src/components/BuildSection.test.tsx:671`,
-   verified passing 2026-07-25) — the same assertion leg 3 already carries; this leg is its real-surface
-   fidelity, not a second obligation. *(Re-adjudicated 2026-07-25, ADR-0209 D8 — was `human`, whose ONLY
-   stated reason was "needs the running studio without the desktop bridge". That names a harness, not a
-   judgment: no success condition here lacks a compiler. Because the machine half is ALREADY covered by
-   the contract above, this leg REFERENCES that verdict instead of being split — restating a compiled
-   fact as a human success condition would launder it into an unrepeatable signature.)*
+   Enter runs a real billed build — are SPLIT OUT to legs 6 and 7. That "legs 1–3" reference now names the
+   capability verdicts directly: the ADR-0294 D2 pass deleted legs 1, 2 and 3 on 2026-08-20 as
+   restatements of them, so citing the ordinals would point at nothing — corrected in place per
+   ADR-0139. The line-broken `_(witness:` / `machine)(detail: …)_` tag was joined in the same change:
+   split across lines it parsed as `either`, so a leg authored `machine` was silently invisible to every
+   machine-leg census.)* **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20).** No `(proof-gate:)`: gate 1
+   below is bound to leg 7, the `_electron` spec that would witness THIS walk has no spec at HEAD, and
+   nothing it could run persists an artifact an `observe` gate could read — so `resolveWitness` refuses
+   (`coverage: "refused"`) and nothing can sign it. No gate is minted to host it; binding it to a package
+   suite that never opens the app is the rubber stamp ADR-0097 §2 bans. That gap is PRE-EXISTING — this
+   leg has never been bound.
 6. **The seeded command is the invocation the owner actually wants.** _(witness: human)(detail: map-terminal-build#uat-6)_
    _(witness-basis: whether the emitted `pnpm ` prefix is the invocation FORM the owner wants on their
    own shell is an owner value call no code decides — that the composed command actually RUNS is
@@ -330,7 +344,7 @@ before.
    but whether this is the invocation the owner wants on their shell is an owner value call no code can
    decide. This basis dissolves under neither a new harness nor cheaper spend; it is discharged only when
    the owner settles the prefix.)*
-7. **Pressing Enter runs a real, billed build from the seeded command.** _(witness: machine)(detail: map-terminal-build#uat-7)_ _(proof-gate: map-terminal-build#gate-1)_ _(criterion-id: uatc_00996f29a26216200b5a5c92)_ _(revision-id: uatr1:dd5f5524dcb94f70)_ _(previous-revision-id: uatr1:4078c6a341e1688e)_
+7. **Pressing Enter runs a real, billed build from the seeded command.** _(witness: machine)(detail: map-terminal-build#uat-7)_ _(proof-gate: map-terminal-build#gate-1)_ _(criterion-id: uatc_00996f29a26216200b5a5c92)_ _(revision-id: uatr1:047bf26a3a172de9)_ _(previous-revision-id: uatr1:dd5f5524dcb94f70)_
    Enter is pressed on the pre-filled command in the native shell, UNMODIFIED; a
    real build runs as the operator's own Claude Code and — for a story-scope seed — opens the auto-merging PR
    (ADR-0136). **Success —** the seeded command, run exactly as composed, launches the real build it
@@ -354,8 +368,11 @@ End state — on the desktop, a Build click on the forest map composes the right
 as real Claude Code; off the desktop, the existing dispatch is unchanged. The two caps' behaviours are
 signed under the studio suite (the dock-side fresh-tab seed handling by `terminal-tabs`'
 seed-opens-new-tab), the integrated real-bridge pre-fill machine-observable in the Electron harness (leg 4,
-not yet written), and only the invocation form and the billed run left operator-attested (legs 6, 7) — the
-prove-it-gate leaf and the spine untouched, the app composing intent while the real tool runs the build.
+not yet written), the billed run model-driven under gate 1 below (leg 7), and only the invocation form left
+operator-attested (leg 6) — the prove-it-gate leaf and the spine untouched, the app composing intent while
+the real tool runs the build. *(This clause read "and only the invocation form and the billed run left
+operator-attested (legs 6, 7)", which ADR-0348 D2/D3's 2026-08-13 flip of leg 7 to `machine` had already
+falsified; corrected in place per ADR-0139.)*
 
 ## Reliability Gates
 
@@ -386,14 +403,17 @@ unchanged. It goes red — honestly — when no `pass` record exists for the cri
 
 ## Proof
 
-The story is proven when that walkthrough passes — the mechanics legs (1, 3) green under this story's two
-capabilities' signed `--real` verdicts, leg 2 under `terminal-tabs`' consumed seed-opens-new-tab verdict
-and leg 5 under this story's own `mbt-without-bridge-dispatches-as-today` (with each cap's contracts green
-underneath), leg 4 green under a still-to-be-written Electron `_electron` spec over the real bridge,
-leg 7 green under the model-driven gate 1 above, and the ONE owner-judgment leg (6) operator-attested.
-*(This read "and the two owner-judgment legs (6, 7) operator-attested"; corrected in place per ADR-0139
-when ADR-0348 D2/D3's triage flipped leg 7 on 2026-08-13 — leg 7 was never an owner judgment, as its own
-prose said.)* Per
+The story is proven when that walkthrough passes — leg 4 green under a still-to-be-written Electron
+`_electron` spec over the real bridge, leg 7 green under the model-driven gate 1 above, and the ONE
+owner-judgment leg (6) operator-attested. The mechanics that stood as legs 1, 2, 3 and 5 are proven one
+rung down and no longer sit here as story criteria: composition under this story's
+[`compose-build-command`](compose-build-command.md), the desktop seed branch and the bridge-absent
+dispatch under its [`map-build-seeds-terminal`](map-build-seeds-terminal.md), and the dock's fresh-tab
+pre-fill under `terminal-tabs`' consumed [`seed-opens-new-tab`](../terminal-tabs/seed-opens-new-tab.md) —
+each capability's own contracts green underneath. *(This sentence enumerated legs 1, 2, 3 and 5 as story
+criteria; the ADR-0294 D2 pass deleted them on 2026-08-20. It earlier read "and the two owner-judgment legs
+(6, 7) operator-attested"; that half was corrected in place per ADR-0139 when ADR-0348 D2/D3's triage
+flipped leg 7 on 2026-08-13 — leg 7 was never an owner judgment, as its own prose said.)* Per
 ADR-0020, `healthy` is only ever DERIVED from signed verdicts; nothing here is authored healthy. Both
 capabilities are proof-wired (each carries a `proof:` block with a `real:` arm — a NET-NEW red→green for the
 composer, edit-existing red→green for the button re-point) so the spine can drive their studio vitest suites
