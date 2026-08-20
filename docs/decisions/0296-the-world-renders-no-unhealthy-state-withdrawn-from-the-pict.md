@@ -50,10 +50,11 @@ That splits the owner's ask cleanly in two, and only one half was actually reque
 untouched.**
 
 1. **The fold is the one place it is expressed.** `worldStatus()` in
-   `apps/studio/src/lib/worldStatus.ts` folds `unhealthy → mapped`, exactly as it already folds
-   `building → proposed` (ADR-0038). `provenStatus()` loses its wither branch, so a signed **fail**
-   falls through to the authored ladder instead of painting a withered form. Every world surface sits
-   behind this fold, so the withdrawal is complete at one seam.
+   `apps/studio/src/lib/worldStatus.ts` folds an authored `unhealthy → proposed`, alongside
+   `building → proposed` (ADR-0038/ADR-0395). `provenStatus()` has no wither branch, so a signed
+   **fail** falls through to the unit's authored ladder instead of painting a withered form: genuine
+   `mapped` provenance remains brown; greenfield `proposed` remains amber. Every world surface sits
+   behind this fold, so the withdrawal is complete at one seam without manufacturing provenance.
 2. **ADR-0040's invariant is preserved, in the conservative direction.** A signed fail still can
    never paint green — it now **under-claims to unproven** rather than painting a distinct failure
    state. The system's stated rule is "never over-claim `healthy`"; this stays inside it.
@@ -88,8 +89,8 @@ than "remove it for now", and one the owner has not made. It is deliberately lef
 
 **Bad / accepted.**
 
-- **The map can no longer distinguish "failed its last signed run" from "never proven".** Both read as
-  an unproven rung. This is a real loss of signal, accepted because the state has never occurred and
+- **The map can no longer distinguish "failed its last signed run" from "never proven" at the same
+  authored provenance rung.** Both read as that rung. This is a real loss of signal, accepted because the state has never occurred and
   the verdict line still carries it. It is the first thing to revisit if fails start landing.
 - The authored-`unhealthy`-beats-a-signed-pass override goes with it: an authored `unhealthy` unit
   with a signed pass now renders green. Vacuous today (nothing authors it), but a genuine change to
@@ -105,7 +106,8 @@ than "remove it for now", and one the owner has not made. It is deliberately lef
 - Directed by the owner in conversation, 2026-08-03, during the ADR-0070 stage-2 LOOK for
   `act2-tree-and-plant-growth-arc` increment 1.
 - Amends [ADR-0038](0038-story-world-vocabulary-recalibration.md) (the world's status fold — this
-  adds `unhealthy → mapped` beside `building → proposed`).
+  adds authored `unhealthy → proposed` beside `building → proposed`; ADR-0395 prevents absence or
+  failure of proof from inventing brownfield provenance).
 - Amends [ADR-0040](0040-verdict-derived-green-and-the-human-witness-signpost.md) (the wither half of
   the `provenStatus` fold is withdrawn; the green half and the never-over-claim invariant stand).
 - Amends [ADR-0226](0226-unified-world-art-vegetation-vocabulary-grass-proves-capabil.md) /

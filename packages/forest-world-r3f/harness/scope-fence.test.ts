@@ -39,6 +39,8 @@ const EXPERIMENT = [
   'flower-geometry.ts',
   'tree-descriptors.ts',
   'tree-geometry.ts',
+  'shadow-ladder.ts',
+  'land-shadow.ts',
   'banded-material.ts',
 ];
 
@@ -69,9 +71,10 @@ test('src/ still holds exactly the files the website sync expects, and nothing n
 
 test('the PURE half of the experiment imports no browser library', () => {
   // The provability-firewall discipline, applied inside the harness: every module but ONE
-  // must stay node:test-provable, so the palette closure, the three UAT verdict FORMS and the
-  // story tree's geometry are all proved without a browser. Only `banded-material.ts` may
-  // reach for three, and the non-vacuity test below keeps that exemption earned.
+  // must stay node:test-provable, so the palette closure, the three UAT verdict FORMS, the
+  // story tree's geometry, the confusability ceiling and the shadow field are all proved
+  // without a browser. Only `banded-material.ts` may reach for three, and the non-vacuity
+  // test below keeps that exemption earned.
   const pure = EXPERIMENT.filter((f) => f !== 'banded-material.ts');
   const breaches: string[] = [];
   for (const file of pure) {

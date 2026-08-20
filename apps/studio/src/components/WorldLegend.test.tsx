@@ -156,6 +156,31 @@ describe('WorldLegend (adaptive bar)', () => {
     expect(screen.queryByText('awaiting witness')).toBeNull();
   });
 
+  it('explains provenance separately from proof (ADR-0395)', () => {
+    renderLegend(offlineWorld());
+
+    fireEvent.click(screen.getByRole('button', { name: 'story trees' }));
+    const treeCopy = screen.getByRole('region', { name: 'legend — story trees' }).textContent ?? '';
+    expect(treeCopy).toMatch(/amber[^.]*greenfield[^.]*current signed pass/i);
+    expect(treeCopy).toMatch(/authored [“"]healthy[”"][^.]*[“"]unhealthy[”"][^.]*proposed/i);
+    expect(treeCopy).toMatch(/brown[^.]*inherited brownfield[^.]*adoption/i);
+    expect(treeCopy).not.toMatch(/authored [“"]healthy[”"][^.]*(?:renders|waits)[^.]*brown/i);
+    fireEvent.click(screen.getByRole('button', { name: 'story trees' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'test coverage' }));
+    const floraCopy =
+      screen.getByRole('region', { name: 'legend — test coverage' }).textContent ?? '';
+    expect(floraCopy).toMatch(/signed pass[^.]*only[^.]*green/i);
+    expect(floraCopy).toMatch(/signed fail[^.]*authored rung[^.]*node panel/i);
+    expect(floraCopy).not.toMatch(/every other hue[^.]*unproven/i);
+    fireEvent.click(screen.getByRole('button', { name: 'test coverage' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'proof' }));
+    const proofCopy = screen.getByRole('region', { name: 'legend — proof' }).textContent ?? '';
+    expect(proofCopy).toMatch(/signed pass[^.]*only[^.]*green/i);
+    expect(proofCopy).toMatch(/signed fail[^.]*node panel[^.]*authored rung/i);
+  });
+
   it('proof hues light their tiles without the retired witness vocabulary', () => {
     const stories = [
       story('s', 'healthy', [cap('c', 'healthy', { verdict: { outcome: 'pass', at: 'now' } })], {
