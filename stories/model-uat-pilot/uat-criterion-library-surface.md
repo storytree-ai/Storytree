@@ -5,7 +5,10 @@ story: model-uat-pilot
 arc: model-uat-promotion
 title: "Library recognizes uat-criterion as a first-class kind"
 outcome: "Library recognizes `uat-criterion` as a first-class kind (`KnowledgeKind` + `KIND_SPECS`) so a detail artifact resolves through the Library kind tables like every other live-canonical kind."
-status: proposed
+# RETIRED 2026-08-20 with its parent story (ADR-0247 D5, which names that story on its retirement
+# worklist by id). The code is NOT unmounted by this flip — ADR-0247 D5 makes each package retirement
+# its own provable unit, and that unit is still open.
+status: retired
 proof_mode: integration-test
 depends_on: []
 decisions: [209, 192, 307]

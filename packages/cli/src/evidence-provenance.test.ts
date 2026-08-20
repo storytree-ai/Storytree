@@ -33,10 +33,8 @@ import { test } from "node:test";
  *
  * WHY THE PROOF LIVES HERE, IN TYPESCRIPT, OVER A SUBPROCESS. The repo has no Python test runner and
  * introducing one is out of scope, so the producer is proved the way the repo already proves an
- * external tool: spawned for real, and skipped with a named reason when the host lacks it — the
- * precedent `codex-session-containment.test.ts` states as *"a fabricated stand-in would prove
- * nothing about the real toolchain"*. A test in `packages/cli/src` asserting over committed `docs/**`
- * is `friction-inbox.test.ts`'s precedent.
+ * external tool: spawned for real, and skipped with a named reason when the host lacks it. A test in
+ * `packages/cli/src` asserting over committed `docs/**` is `friction-inbox.test.ts`'s precedent.
  *
  * THE REFUSAL HALF NEEDS ONLY THE STANDARD LIBRARY, and that is why `sheet.py` runs its coherence
  * guard BEFORE it imports numpy/Pillow: the half with teeth then runs everywhere, CI included, where

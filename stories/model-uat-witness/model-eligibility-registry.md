@@ -5,7 +5,10 @@ story: model-uat-witness
 arc: model-uat-promotion
 title: "A criterion's required tier resolves against an explicit versioned registry — substitute up, or hold"
 outcome: "A criterion's required model tier resolves against an explicit, versioned registry — a stronger registered judge substitutes upward, an unregistered or self-declared model is ineligible, and a required tier with no available judge holds the criterion rather than downgrading, rerouting, or relabelling it."
-status: proposed
+# RETIRED 2026-08-20 with its parent story (ADR-0247 D5, which names that story on its retirement
+# worklist by id). The code is NOT unmounted by this flip — ADR-0247 D5 makes each package retirement
+# its own provable unit, and that unit is still open.
+status: retired
 proof_mode: integration-test
 depends_on: [model-tier-classification]
 decisions: [209, 192]

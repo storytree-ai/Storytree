@@ -5,6 +5,7 @@ import type { UatTestCriterionSource } from "@storytree/library";
 
 import {
   auditDrivePrompt,
+  driveSurfaceUrl,
   isModelDrivenGate,
   parseDriveReport,
   selectDriveTargets,
@@ -181,6 +182,9 @@ test("auditDrivePrompt: the REAL prompt keeps all five guarded properties", () =
 });
 
 /** A prompt carrying every guarded property EXCEPT the ones a case deliberately omits. */
+/** The report contract's `surface` line, as `auditDrivePrompt` looks for it — parameterized by port. */
+const SURFACE_CONTRACT = `"surface": "${driveSurfaceUrl(ISOLATION.surfacePort)}" | null`;
+
 function promptWithout(...omit: readonly string[]): string {
   return [
     JOURNEY,
@@ -188,6 +192,7 @@ function promptWithout(...omit: readonly string[]): string {
     "```" + UAT_DRIVE_REPORT_FENCE,
     UAT_DRIVE_TOOLING_CLAUSE,
     uatDriveIsolationClause(ISOLATION),
+    SURFACE_CONTRACT,
   ]
     .filter((part) => !omit.includes(part))
     .join("\n");
@@ -217,6 +222,9 @@ test("auditDrivePrompt: dropping the honesty clause, the fence, the tooling or t
   assert.deepEqual(auditDrivePrompt(promptWithout(uatDriveIsolationClause(ISOLATION)), SPEC).missing, [
     "the isolation clause",
   ]);
+  assert.deepEqual(auditDrivePrompt(promptWithout(SURFACE_CONTRACT), SPEC).missing, [
+    "the report contract's `surface` field, naming this drive's reserved URL",
+  ]);
 });
 
 test("auditDrivePrompt: a prompt built for a DIFFERENT drive fails its own audit", () => {
@@ -229,7 +237,14 @@ test("auditDrivePrompt: a prompt built for a DIFFERENT drive fails its own audit
   };
   const audit = auditDrivePrompt(uatDriveTaskPrompt(other), SPEC);
   assert.equal(audit.ok, false);
-  assert.deepEqual(audit.missing, ["the isolation clause"]);
+  // BOTH parameterized properties catch it, and that is the point rather than noise: the surface
+  // contract names the reserved URL too, so a prompt built for another drive is refused twice over —
+  // once for telling the driver to walk port 5399, and once for inviting it to REPORT port 5399 as
+  // its own. A single-property audit here would have been one edit away from missing the swap.
+  assert.deepEqual(audit.missing, [
+    "the isolation clause",
+    "the report contract's `surface` field, naming this drive's reserved URL",
+  ]);
 });
 
 // ── the report contract ──────────────────────────────────────────────────────

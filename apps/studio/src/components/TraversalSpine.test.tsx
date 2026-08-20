@@ -161,6 +161,41 @@ function drawnXs(): number[] {
   return xs;
 }
 
+/**
+ * The same sweep down the OTHER axis. It exists because the rotation (ADR-0354 D3) made the vertical
+ * the scarce dimension: depth rows, lane rows and the offer band now share the dock's height, where
+ * before nothing could overflow downward at all.
+ */
+function drawnYs(): number[] {
+  const svg = screen.getByTestId('traversal-spine-map');
+  const ys: number[] = [];
+  const push = (value: string | null, pad = 0): void => {
+    if (value === null) return;
+    const parsed = Number.parseFloat(value);
+    if (Number.isFinite(parsed)) ys.push(parsed + pad, parsed - pad);
+  };
+  for (const node of svg.querySelectorAll('*')) {
+    const element = node as SVGElement;
+    push(element.getAttribute('y1'));
+    push(element.getAttribute('y2'));
+    push(element.getAttribute('cy'), Number.parseFloat(element.getAttribute('r') ?? '0') || 0);
+    const y = element.getAttribute('y');
+    const height = Number.parseFloat(element.getAttribute('height') ?? '0') || 0;
+    push(y);
+    if (y !== null) push(String(Number.parseFloat(y) + height));
+    // Odd-indexed numbers in a `d` are the y's. A `rotate(...)` transform on the fold label carries
+    // its own coordinates and is deliberately not swept — it re-frames a point already counted.
+    const d = element.getAttribute('d');
+    if (d !== null) {
+      const numbers = d.match(/-?\d+(?:\.\d+)?/g) ?? [];
+      numbers.forEach((value, index) => {
+        if (index % 2 === 1) ys.push(Number.parseFloat(value));
+      });
+    }
+  }
+  return ys;
+}
+
 /** Drag the scrubber to a fraction of its range — the transport's only synchronous entry point. */
 function scrubTo(fraction: number): void {
   const scrubber = screen.getByTestId('traversal-scrubber') as HTMLInputElement;
@@ -283,11 +318,14 @@ describe('the one playhead occupancy bar', () => {
 
     scrubTo(1);
     // Scale is the base 1M ceiling: 500k safe + 100k over.
-    expect((screen.getByTestId('traversal-occupancy-safe') as HTMLElement).style.width).toBe('50%');
+    expect((screen.getByTestId('traversal-occupancy-safe') as HTMLElement).style.height).toBe('50%');
     const over = screen.getByTestId('traversal-occupancy-over') as HTMLElement;
-    expect(over.style.width).toBe('10%');
-    expect(over.style.left).toBe('50%');
-    expect(screen.getByTestId('traversal-occupancy-readout').textContent).toContain('600.0k resident');
+    expect(over.style.height).toBe('10%');
+    expect(over.style.bottom).toBe('50%');
+    // The word "resident" caps the track above the readout in the vertical composition, so the claim
+    // is read off the whole block rather than the numeric line alone.
+    expect(screen.getByTestId('traversal-occupancy-readout').textContent).toContain('600.0k');
+    expect(screen.getByTestId('traversal-occupancy').textContent).toContain('resident');
   });
 
   it('has no red at all at exactly the threshold', () => {
@@ -302,8 +340,8 @@ describe('the one playhead occupancy bar', () => {
     );
 
     scrubTo(1);
-    expect((screen.getByTestId('traversal-occupancy-over') as HTMLElement).style.width).toBe('0%');
-    expect((screen.getByTestId('traversal-occupancy-safe') as HTMLElement).style.width).toBe('50%');
+    expect((screen.getByTestId('traversal-occupancy-over') as HTMLElement).style.height).toBe('0%');
+    expect((screen.getByTestId('traversal-occupancy-safe') as HTMLElement).style.height).toBe('50%');
   });
 
   it('reads "— resident" before the first observation rather than zero', () => {
@@ -318,7 +356,12 @@ describe('the one playhead occupancy bar', () => {
     );
 
     scrubTo(0);
-    expect(screen.getByTestId('traversal-occupancy-readout').textContent).toContain('— resident');
+    // An em dash, never a zero: "nothing observed YET at this playhead" is not "the window was
+    // empty". The word "resident" caps the vertical track above this readout.
+    const readout = screen.getByTestId('traversal-occupancy-readout');
+    expect(readout.textContent).toContain('—');
+    expect(readout.textContent).not.toMatch(/\b0\b/);
+    expect(screen.getByTestId('traversal-occupancy').textContent).toContain('resident');
   });
 
   it('falls when the series recedes — the quantity is resident context, not a billing total', () => {
@@ -334,13 +377,15 @@ describe('the one playhead occupancy bar', () => {
       />,
     );
 
-    const safeWidth = (): number =>
-      Number.parseFloat((screen.getByTestId('traversal-occupancy-safe') as HTMLElement).style.width);
+    // The bar is a VERTICAL track since the rotation, so its fill is a height. The claim is
+    // unchanged: the plotted quantity is resident context and it must be free to FALL.
+    const safeFill = (): number =>
+      Number.parseFloat((screen.getByTestId('traversal-occupancy-safe') as HTMLElement).style.height);
 
     scrubTo(0.5);
-    const first = safeWidth();
+    const first = safeFill();
     scrubTo(1);
-    const second = safeWidth();
+    const second = safeFill();
     // The billing total rose across those two events; the plotted bar FELL.
     expect(second).toBeLessThan(first);
   });
@@ -369,7 +414,7 @@ describe('subagent lanes name their agent type and the model they ran on', () =>
     expect(screen.getAllByTestId('traversal-lane-handoff')).toHaveLength(1);
     expect(screen.getAllByTestId('traversal-lane-return')).toHaveLength(1);
 
-    const badge = screen.getByTestId('traversal-lane-badge');
+    const badge = screen.getByTestId('traversal-lane-chip');
     expect(badge.textContent).toContain('Explore');
     expect(badge.textContent).toContain('claude-opus-5');
 
@@ -394,7 +439,7 @@ describe('subagent lanes name their agent type and the model they ran on', () =>
     );
     scrubTo(1);
 
-    const badge = screen.getByTestId('traversal-lane-badge');
+    const badge = screen.getByTestId('traversal-lane-chip');
     expect(badge.textContent).toContain('model not recorded');
     expect(screen.getAllByTestId('traversal-lane')[0]?.getAttribute('data-model')).toBe('not-recorded');
     // No model name of any kind leaked into the badge.
@@ -413,9 +458,12 @@ describe('subagent lanes name their agent type and the model they ran on', () =>
     );
     scrubTo(1);
 
-    expect(screen.getAllByTestId('traversal-lane')[0]?.getAttribute('data-open')).toBe('true');
+    const lane = screen.getAllByTestId('traversal-lane')[0];
+    expect(lane?.getAttribute('data-open')).toBe('true');
     expect(screen.queryAllByTestId('traversal-lane-return')).toHaveLength(0);
-    expect(screen.getByTestId('traversal-lane-badge').textContent).toContain('open');
+    // RE-POINTED: the chip carries the MODEL now (clause 7), so openness is read where it is stated
+    // — the lane's own hover identity, which names the absence rather than a guessed end.
+    expect(lane?.querySelector('title')?.textContent).toContain('the lane is open');
     expect(screen.getByTestId('traversal-spine-deferred').textContent).toContain('left open');
   });
 
@@ -451,10 +499,13 @@ describe('subagent lanes name their agent type and the model they ran on', () =>
       />,
     );
     scrubTo(1);
-    const concurrentXs = new Set(
-      screen.getAllByTestId('traversal-lane').map((lane) => lane.querySelector('rect')?.getAttribute('x')),
+    // RE-POINTED BY THE ROTATION: a packed column is a ROW now, so the discriminator is `y`, not `x`
+    // — `x` carries TIME and would differ for two lanes even if the packing had collapsed them onto
+    // one another, which is exactly the failure this test exists to catch.
+    const concurrentYs = new Set(
+      screen.getAllByTestId('traversal-lane').map((lane) => lane.querySelector('rect')?.getAttribute('y')),
     );
-    expect(concurrentXs.size).toBe(2);
+    expect(concurrentYs.size).toBe(2);
     unmount();
 
     render(
@@ -469,10 +520,10 @@ describe('subagent lanes name their agent type and the model they ran on', () =>
       />,
     );
     scrubTo(1);
-    const sequentialXs = new Set(
-      screen.getAllByTestId('traversal-lane').map((lane) => lane.querySelector('rect')?.getAttribute('x')),
+    const sequentialYs = new Set(
+      screen.getAllByTestId('traversal-lane').map((lane) => lane.querySelector('rect')?.getAttribute('y')),
     );
-    expect(sequentialXs.size).toBe(1);
+    expect(sequentialYs.size).toBe(1);
   });
 });
 
@@ -511,14 +562,22 @@ describe('depth indents only where parent links exist', () => {
     );
     scrubTo(1);
 
+    // RE-POINTED BY THE ROTATION (ADR-0354 D3/D4): depth is the VERTICAL now, so a trace with no
+    // resolvable parent link is one flat ROW — every mark shares a single `cy` while its `cx` walks
+    // the time axis. The claim is identical to the one this test made when the axis ran downward;
+    // only which coordinate carries it moved.
+    const ys = new Set(
+      screen.getAllByTestId('traversal-mark').map((mark) => mark.querySelector('circle')?.getAttribute('cy')),
+    );
+    expect(ys.size).toBe(1);
+
     const xs = new Set(
       screen.getAllByTestId('traversal-mark').map((mark) => mark.querySelector('circle')?.getAttribute('cx')),
     );
-    expect(xs.size).toBe(1);
-    expect([...xs][0]).toBe(String(TRAVERSAL_SPINE_GEOMETRY.SPINE_X));
+    expect(xs.size).toBe(3);
 
     const note = screen.getByTestId('traversal-depth-note');
-    expect(note.textContent).toContain('single column');
+    expect(note.textContent).toContain('single row');
     expect(note.textContent).toContain('never inferred');
   });
 });
@@ -655,15 +714,31 @@ describe('nothing paints past the block’s right edge', () => {
     expect(screen.getAllByTestId('traversal-lane')).toHaveLength(6);
     expect(screen.getAllByTestId('traversal-offer-ray')).toHaveLength(8);
 
+    // RE-POINTED, NOT DELETED (the increment's own instruction). The claim is unchanged — a
+    // coordinate inside the viewBox is inside the block at every rendered size, and one outside it is
+    // clipped at every size — but the box is no longer the constant 360: the rotation made the axis
+    // the stretching dimension, so the bound is now the COMPUTED viewBox itself, read off the render.
+    // This is still only half of a two-part shape: a jsdom bounds test cannot see CSS overflow in the
+    // text blocks, which is what the browser probe over real markup + real `index.css` is for.
+    const svg = screen.getByTestId('traversal-spine-map');
+    const viewBox = (svg.getAttribute('viewBox') ?? '').split(/\s+/).map(Number);
+    expect(viewBox).toHaveLength(4);
+    const [, , boxWidth, boxHeight] = viewBox as [number, number, number, number];
+    expect(boxWidth).toBeGreaterThan(0);
+    expect(boxHeight).toBeGreaterThan(0);
+
     const xs = drawnXs();
     expect(xs.length).toBeGreaterThan(20);
     expect(Math.min(...xs)).toBeGreaterThanOrEqual(0);
-    expect(Math.max(...xs)).toBeLessThanOrEqual(TRAVERSAL_SPINE_GEOMETRY.VIEW_WIDTH);
+    expect(Math.max(...xs)).toBeLessThanOrEqual(boxWidth);
 
-    // And the SVG really does scale to its block rather than carrying a fixed pixel width.
-    const svg = screen.getByTestId('traversal-spine-map');
-    expect(svg.getAttribute('viewBox')).toMatch(/^0 0 360 /);
-    expect(svg.getAttribute('width')).toBeNull();
+    // The VERTICAL is now the scarce axis — depth rows, six lane rows and the offer band all share
+    // it — so it is bounded here for the first time. Before the rotation nothing could overflow
+    // downward; now it is the direction most likely to.
+    const ys = drawnYs();
+    expect(ys.length).toBeGreaterThan(20);
+    expect(Math.min(...ys)).toBeGreaterThanOrEqual(0);
+    expect(Math.max(...ys)).toBeLessThanOrEqual(boxHeight);
   });
 });
 

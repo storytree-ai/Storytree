@@ -128,7 +128,7 @@ export function TraversalTab({ active, onMeta, compact }: TraversalTabProps): Re
 
       <div className="traversal-tab-plot">
         {chosen ? (
-          <TraversalReplay sessionId={chosen.sessionId} />
+          <TraversalReplay sessionId={chosen.sessionId} compact={compact} />
         ) : (
           <p className="traversal-tab-idle" data-testid="traversal-tab-idle">
             {list.state === 'listed'
@@ -138,9 +138,10 @@ export function TraversalTab({ active, onMeta, compact }: TraversalTabProps): Re
         )}
       </div>
 
-      {/* The compact state is the host's measurement, applied here as a hook for the picture to read
-          once it is redrawn (`traversal-panel-wide-reflow`). Rendered as data rather than acted on,
-          so the two increments do not have to land together. */}
+      {/* The host's own measurement that the panel is dragged small, forwarded to the picture above.
+          The picture ALSO measures its own remaining room and ORs the two, because a narrow viewport
+          wraps the foot's prose and eats the same height a short dock does — a dock-height signal
+          alone cannot know that happened. */}
       <span hidden data-testid="traversal-tab-compact" data-compact={compact ? 'true' : 'false'} />
     </div>
   );

@@ -203,6 +203,7 @@
       "packages/drive/src/tree-attestations.ts": "attestation-surface",
       "packages/drive/src/wisp-smoke.ts": "render-claim-as-wisp",
       "packages/drive/src/witnessable-verdict*.ts": "witnessable-verdict",
+      "packages/drive/src/uat-drive*.ts": "drive-machinery",
       "packages/drive/src/coupling-churn*.ts": "drive-machinery",
       "packages/drive/src/curate.ts": "post-build-curation-pass",
       "packages/drive/src/db-control.ts": "live-build-db-preflight",
@@ -299,10 +300,6 @@
       "packages/notice-board/src/store": "presence-store",
       "packages/notice-board/src/claim*.ts": "claim-at-declare",
       "packages/notice-board/src/index.ts": "notice-board",
-      "$note_codex_broker": "The Codex claim broker (ADR-0368) and the resident claim authority the desktop app hosts (ADR-0375). It lives HERE rather than in packages/cli because apps/desktop may not import @storytree/cli (ADR-0112) and the broker is claim machinery notice-board already owns. Owner is an INCREMENT, not a capability, because this surface is bound to no capability in stories/** — ADR-0308 D5's case, and the same grain the work was claimed at.",
-      "packages/notice-board/src/codex-broker": "codex-desktop-app-holds-the-claim-authority",
-      "packages/cli/src/codex-claim-broker-resident.ts": "codex-desktop-app-holds-the-claim-authority",
-      "apps/desktop/src/backend/claim-authority.ts": "codex-desktop-app-holds-the-claim-authority",
       "packages/studio-members/src": "user-directory",
 
       "$section_studio_server": "apps/studio/server — the shared API route table. Owned largely by studio-cloud, library-review and studio-members capabilities rather than by the `studio` surface story.",
@@ -523,7 +520,7 @@
       "packages/context-traversal-transcript/src/ingest-occupancy.ts": "transcript-occupancy-ingest",
       "packages/context-traversal-transcript/src/transcript-occupancy.ts": "transcript-occupancy-extraction",
       "packages/context-traversal-transcript/src/index.ts": "context-traversal-transcript",
-      "$comment_aperture": "NINTH BLOCK — the extension-aperture widening (`ownership-walk-extension-aperture`, 2026-08-18). `gatherSourceFiles` (packages/cli/src/ownership.ts) widened from `.ts`/`.tsx`-only to also walk `.mts`/`.cts`/`.mjs`/`.cjs` (test variants excluded, `.d.*` included, matching the pre-existing `.d.ts` treatment). The entries below are the newly-visible files this widening exposed, each declared per rule (1)/(7): capability grain ONLY where an existing capability's OWN scope.sourceGlobs already names the file (`camera-rasterisation-probe` for measure-camera-rasterisation.mjs; `live-sdk-leaf` for codex-scope-hook.mjs, the runtime half of the already-declared codex-scope-hook.d.ts), story grain everywhere else because no capability's stated proof reaches these author-time/harness/e2e scripts. This is a SEPARATE authoring pass from the eight numbered blocks above (those predate the aperture and cover only `.ts`/`.tsx`); it is deliberately not folded into the numbered rules, which is why it is its own top-level comment rather than a ninth numbered rule there.",
+      "$comment_aperture": "NINTH BLOCK — the extension-aperture widening (`ownership-walk-extension-aperture`, 2026-08-18). `gatherSourceFiles` (packages/cli/src/ownership.ts) widened from `.ts`/`.tsx`-only to also walk `.mts`/`.cts`/`.mjs`/`.cjs` (test variants excluded, `.d.*` included, matching the pre-existing `.d.ts` treatment). The entries below are the newly-visible files this widening exposed, each declared per rule (1)/(7): capability grain ONLY where an existing capability's OWN scope.sourceGlobs already names the file (`camera-rasterisation-probe` for measure-camera-rasterisation.mjs), story grain everywhere else because no capability's stated proof reaches these author-time/harness/e2e scripts. This is a SEPARATE authoring pass from the eight numbered blocks above (those predate the aperture and cover only `.ts`/`.tsx`); it is deliberately not folded into the numbered rules, which is why it is its own top-level comment rather than a ninth numbered rule there.",
       "packages/cli/*.mjs": "cli",
       "packages/cli/*.d.mts": "cli",
       "packages/drive/src/spawn-record.mjs": "drive-machinery",
@@ -533,8 +530,7 @@
       "apps/desktop/scripts/write-build-stamp.mjs": "desktop",
       "apps/studio/scripts/comparative-capture.mjs": "studio",
       "apps/studio/scripts/measure-camera-rasterisation.mjs": "camera-rasterisation-probe",
-      "packages/orchestrator/src/proof/assert-oracle-guard.mjs": "drive-machinery",
-      "packages/agent/src/codex-scope-hook.mjs": "live-sdk-leaf"
+      "packages/orchestrator/src/proof/assert-oracle-guard.mjs": "drive-machinery"
     }
   },
   "hostedStories": {
@@ -555,7 +551,6 @@
       "terminal-repo-picker": "hosted in desktop (apps/desktop) + studio (apps/studio)",
       "terminal-tabs": "hosted in studio (apps/studio)",
       "uat-detail-studio": "hosted in studio (apps/studio)",
-      "model-uat-pilot": "hosted in library (packages/library) — KIND_SPECS glue for uat-criterion; harness package is story-owned",
       "website-experience": "hosted in cli (packages/cli)",
       "wisp-as-story-claim": "hosted in agent (packages/agent) + drive-machinery (packages/drive) + notice-board (packages/notice-board) + studio (apps/studio)"
     }

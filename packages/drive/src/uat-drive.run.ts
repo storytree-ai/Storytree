@@ -61,13 +61,18 @@ import {
   driveChildEnv,
   driveScratchDir,
   driveSurfacePorts,
+  driveSurfaceUrl,
   mintDriveSessionId,
   parseDriveReport,
   parsePorcelain,
+  parseSurfaceAttestations,
+  requireOwnSurface,
   selectDriveTargets,
   uatDriveTaskPrompt,
   UatDriveRecord,
+  UAT_DRIVE_SURFACE_ATTESTATION_FILE,
   type DriveIsolation,
+  type DriveSurfaceAttestation,
   type DriveTarget,
   type UatDriveSpec,
 } from "./uat-drive.js";
@@ -360,6 +365,24 @@ async function reserveDrivePorts(count: number, seed: number): Promise<number[] 
 }
 
 /**
+ * Read back the surface-ownership evidence the child left in its scratch directory.
+ *
+ * An unreadable or absent file yields NO attestations, which {@link requireOwnSurface} then treats
+ * as "the check never ran" — the fail-closed direction. Reading this must never throw: a drive that
+ * walked its own surface correctly and then hit a filesystem hiccup on the way out should be refused
+ * with a reason, not crash the whole run and lose the other criteria's results with it.
+ */
+function readSurfaceAttestations(scratchDir: string): DriveSurfaceAttestation[] {
+  try {
+    return parseSurfaceAttestations(
+      readFileSync(path.join(scratchDir, UAT_DRIVE_SURFACE_ATTESTATION_FILE), "utf8"),
+    );
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Remove what THIS run left in the tree, and say so.
  *
  * The next drive refuses against a dirty tree, so an orphaned driver's screenshot does not merely
@@ -458,6 +481,29 @@ async function driveOne(target: DriveTarget, prompt: string, ctx: DriveContext):
   }
   const report = parsed.report;
 
+  // SURFACE OWNERSHIP, enforced rather than instructed. `judgeDriveSurface` ran inside the child (the
+  // runner is blocked in `spawnSync` for the whole walk and cannot probe a live surface itself), and
+  // left its answer in the scratch directory. This is where a drive that never ran the check, or ran
+  // it against somebody else's studio, stops being a pass. A refusal is a HARNESS end: nothing is
+  // persisted, and it says nothing about the product.
+  const surfaceOwnership = requireOwnSurface({
+    reportedSurface: report.surface,
+    reservedUrl: driveSurfaceUrl(ctx.isolation.surfacePort),
+    attestations: readSurfaceAttestations(ctx.isolation.scratchDir),
+  });
+  if (!surfaceOwnership.ok) {
+    console.error(`  ~ ${target.criterionId}: surface ownership REFUSED — ${surfaceOwnership.reason}`);
+    console.error(
+      "  Nothing was persisted. This is a harness refusal, not a product red: it says the walk cannot be\n" +
+        "  attributed to this checkout's surface, not that the journey failed.",
+    );
+    return {
+      line: `${target.criterionId} — surface ownership refused: ${surfaceOwnership.reason}`,
+      harness: true,
+    };
+  }
+  log(`  surface: ${surfaceOwnership.note}`);
+
   const record = UatDriveRecord.parse({
     storyId: ctx.storyId,
     criterionId: target.criterionId,
@@ -470,6 +516,10 @@ async function driveOne(target: DriveTarget, prompt: string, ctx: DriveContext):
     steps: report.steps,
     escalated: report.escalated,
     ...(report.openQuestionId !== undefined ? { openQuestionId: report.openQuestionId } : {}),
+    // Carried onto the record so a later reader can see WHICH server a green was earned against.
+    // Only reached once `requireOwnSurface` has already accepted it, so the record never stores a
+    // surface the harness refused.
+    ...(report.surface !== undefined ? { surface: report.surface } : {}),
     at: new Date().toISOString(),
   });
 

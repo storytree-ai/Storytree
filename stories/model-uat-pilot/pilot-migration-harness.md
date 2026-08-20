@@ -5,7 +5,10 @@ story: model-uat-pilot
 arc: model-uat-promotion
 title: "A public harness proves pilot migration completeness and reports counts"
 outcome: "A public `@storytree/model-uat-pilot` harness parses the three stories + seed, refuses incomplete migration / silent model default, and reports classified counts."
-status: proposed
+# RETIRED 2026-08-20 with its parent story (ADR-0247 D5, which names that story on its retirement
+# worklist by id). The code is NOT unmounted by this flip — ADR-0247 D5 makes each package retirement
+# its own provable unit, and that unit is still open.
+status: retired
 proof_mode: integration-test
 depends_on: [pilot-criteria-classified, pilot-detail-seed]
 decisions: [209, 192, 82]

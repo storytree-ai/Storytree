@@ -49,36 +49,18 @@ rows are written by sessions only" becomes "presence rows are not written at all
 lifecycle machinery for the presence rows this ADR retires (they remained operative until the arc's
 final increment landed the retirement on 2026-07-17, PRs #760–#766; their bodies stay as history).
 
-**Correction ([ADR-0255](0255-the-primary-checkout-is-a-read-only-agent-lobby-write-author.md), per
-[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** Decision 3's
-primary-checkout lobby and claim-before-worktree ceremony stand, but the admitted fail-open gap is
-overtaken **as a decision**: ADR-0255 D1 rules the lobby mechanically read-only to every agent
-harness, and ADR-0257 D5/D7 require generic writes to carry a recognised repository-minted worktree
-with matching live claim and branch, with an unavailable ledger refusing new writes. SessionStart
-nudges remain the feedback layer. `check:declared` was demoted to defence in depth here and ADR-0311
-later retired its standalone merge-gate wiring; its source remains an on-demand diagnostic.
-
-*(Build state corrected in place 2026-08-13, then RE-corrected 2026-08-14 per ADR-0139 — the
-correction above unchanged in substance; the paragraph stated a decided state in the present
-indicative and read as achieved. On 2026-08-02, ADR-0257 increment 3 had installed only the STATIC
-Claude half on the developer machine: a lobby write by `Write`/`Edit`/`NotebookEdit` was refused
-before mutation, but the wall was claim-blind and did not bind a shell. [ADR-0284](0284-the-write-authority-wall-stays-static-worktree-to-worktree-i.md)
-D2/D4 permanently retired that semantic layer and its receipt **for Claude**. ADR-0355 designs the
-distinct Codex composition those decisions preserved — on the supported Windows host the managed
-filesystem profile binds shell and patch routes to the current worktree, while a managed hook reads
-the live claim — but that composition is **installed, not yet operational**: a fresh Codex desktop
-session on 2026-08-13 falsified the earlier "claim-bound and fails closed" reading, because the lobby
-bootstrap hits a credential circularity that stops it reaching a claimed worktree at all on a live
-task (ADR-0355 § Delivery status). The two harnesses therefore have different current enforcement:
-Claude remains static and claim-blind; interactive Codex's stronger design is not yet live.)*
-
-*(One consequence worth stating plainly here, because this ADR is where the claim ledger's authority
-is decided: **the claim ledger never became a write-authority input for Claude, and per ADR-0284 it
-will not become one there.** Claims coordinate Claude sessions; the static path list knows nothing of
-them. ADR-0355 is the explicit Codex exception: its managed hook re-reads the ledger for every covered
-write and its OS profile contains shell and patch routes while that decision is made. ADR-0311 also
-retires this ADR's former D3 landing-gate backstop; outside the installed Codex composition the claim
-requirement remains operating discipline and coordination state.)*
+**Correction ([ADR-0255](0255-the-primary-checkout-is-a-read-only-agent-lobby-write-author.md),
+[ADR-0284](0284-the-write-authority-wall-stays-static-worktree-to-worktree-i.md), and
+[ADR-0390](0390-codex-runs-at-claude-parity-and-the-managed-containment-boun.md), per
+[ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** The claim ledger
+is coordination state for both Claude and Codex; it is not a write-authority input for either. Claude
+keeps ADR-0284's static, claim-blind file-tool deny block. ADR-0390 withdraws the distinct Codex
+managed profile, hook and broker composition and gives interactive Codex the same broad repository
+access as Claude, with claims enforced by the session ceremony rather than the filesystem. ADR-0311
+also retired this ADR's former landing-gate backstop; `check:declared` survives only as an on-demand
+diagnostic. This corrects the former current-state paragraphs here that described ADR-0355's Codex
+composition as installed but not operational; ADR-0390 supersedes ADR-0355 and that composition is
+now retired.
 
 ## Context
 
@@ -156,6 +138,14 @@ at start — which requires the claim to grow a non-exclusive grade, or explorat
    longer blocks the merge ceremony; claims remain required by the session workflow and by the
    claim-aware commands themselves. The one grade of "forced" we do not pretend to have: a
    fail-silent hook cannot divine a story.
+
+   *(Corrected 2026-08-20 after the first completed Codex parity run: this is the canonical
+   Storytree-owned mint, not the only harness entry shape. Codex Desktop can provision a detached
+   worktree before the session starts; that session takes its live capability/increment claim from
+   the provisioned worktree before writing. The claim-first coordination rule stands, while
+   ADR-0390 D4 explicitly withdraws any claim-aware filesystem enforcement. The remaining helper
+   mismatch — `worktree create` still assumes Claude's directory and branch conventions — is parked
+   on `codex-factory-parity-arc` as `codex-worktree-helper-is-harness-aware`.)*
 
 4. **Push is cursor-once deltas riding existing outputs — never a schedule.** Each session holds a
    cursor over the sequenced `claim_event` log; deltas that intersect the session's own claim set

@@ -37,6 +37,17 @@ D5 requires. See the increment-2 note below.)*
 > proved. The build-state bullets below are kept as the record of what increments 1–3 produced;
 > read them as history, not as current state.
 
+> **CODEX THREAD RETIRED 2026-08-20 by
+> [ADR-0390](0390-codex-runs-at-claude-parity-and-the-managed-containment-boun.md), which amends this
+> ADR.** ADR-0390 withdraws the premise that interactive Codex needs a separate Storytree-built
+> containment boundary. D2/D3/D7 and every associated Codex delivery/proof clause below are now
+> historical: there is no managed Storytree profile, claim hook, broker/resident authority, trusted
+> actuator or claim-aware filesystem decision for interactive Codex. Codex runs with broad repository,
+> credential and network access at Claude parity; claims remain coordination under ADR-0390 D4. The
+> static Claude file-tool deny block and this ADR's diagnosis of the shared-lobby incident remain
+> current. This annotation does not re-fence Codex and does not revive the retired semantic Claude
+> layer.
+
 **Accepted is not built — and as of 2026-08-02 it is PARTLY built, on Claude only, and now
 ENFORCING on the developer machine.** What went green on 2026-07-28 was *what the wall must be*, not
 that any of it existed. Increment 1 (2026-07-29, #1001) added the pure decision —
@@ -140,18 +151,12 @@ open. *(Verified 2026-08-02 against the installed block: 93 rules, none matching
 of heavy concurrent use produced zero evidenced worktree-to-worktree writes, against 13 for the lobby.
 It returns as work if an incident is filed.
 
-**Current split (corrected in place 2026-08-13, then RE-corrected 2026-08-14 per ADR-0139 — see
-ADR-0355 § Delivery status).** The preserved Codex adapter (D2/D3/D7) and exact lobby actuator are
-installed on the supported Windows host, and the managed OS profile's individual writer-scope
-behaviour (contains Codex shell and patch routes to one claimed worktree; the managed hook re-reads
-its live claim) was observed. **That is not the same as "attested":** ADR-0355 D5's live smoke — the
-full lobby-bootstrap-through-write lifecycle — has NOT passed; the lobby bootstrap hits a credential
-circularity that stops it reaching a claimed worktree at all on a live task. Claude remains on
-ADR-0284's static, claim-blind file-tool wall: its shell and accepted sibling-worktree gap are
-unchanged. Shared Git authority is not granted broadly; the trusted actuator owns the exact bootstrap
-and launch operations, once the credential fork is resolved. **D9's bar remains retired** by ADR-0284
-D7; ADR-0355 D5 and its installed-host smoke are the governing Codex delivery evidence, and that
-evidence does not yet exist.
+**Current split (corrected in place 2026-08-20 per ADR-0139).** Claude remains on ADR-0284's static,
+claim-blind file-tool wall; its shell and accepted sibling-worktree gap are unchanged. Interactive
+Codex has no Storytree-managed containment composition: ADR-0390 supersedes ADR-0355 and withdraws
+the managed profile, hook and exact actuator. The completed parity run reached the live Library,
+ordinary workspace toolchain and standard landing ceremony directly. Claims coordinate that work;
+they do not grant its filesystem authority.
 [ADR-0245](0245-cross-session-signalling-addresses-the-shared-primary-checko.md) D5.2's gate-time
 lobby arm is no longer the *only* live enforcement — since increment 3 this ADR's static layer refuses
 lobby writes before mutation — but it still stands as the landing-gate backstop this ADR sits in front
@@ -502,16 +507,18 @@ cannot be forged by the writer, expires, and is read-only to the writer profile.
   — `requirements.toml`, allowed profiles and non-user-overridable requirements.
 - [Codex worktrees](https://learn.chatgpt.com/docs/environments/git-worktrees.md) — Desktop-managed
   worktree location, detached HEAD and Handoff behaviour.
-- `packages/agent/src/codex-scope-hook.mjs` — replica-phase seed code, not the interactive policy.
+- `packages/agent/src/codex-scope-hook.mjs` — former replica-phase seed code, deleted by the
+  ADR-0390 retirement increment; it was never the interactive policy.
 - `packages/agent/src/sdk-author.ts` — the analogous Claude SDK phase boundary.
 - `packages/cli/src/worktree-create.ts` — the claim-first mint. *(It stamped a receipt from
   increment 2 until ADR-0284 D4 removed it; it mints identity and takes the claim, nothing more.)*
-- `packages/cli/src/codex-session-containment.ts` — ADR-0355's managed-policy, hook, and trusted
-  actuator generator; installation and installed-host attestation remain administrator-owned.
+- `packages/cli/src/codex-session-containment.ts` — former ADR-0355 managed-policy, hook, and trusted
+  actuator generator, deleted by the ADR-0390 retirement increment.
 - `packages/cli/src/codex-live-claim-probe-entry.ts` — the standalone bundle entry that read claims
   through the dedicated keyless, read-only identity at the time this ADR was written; DELETED by
-  ADR-0375 D8, which moved the live-claim read onto the resident claim authority instead.
-- `packages/drive/src/noticeboard.ts` — `deriveIdentity()`, which the boundary validates against.
+  ADR-0375 D8. ADR-0390 then superseded and retired the resident authority it moved onto.
+- `packages/drive/src/noticeboard.ts` — `deriveIdentity()`, retained for session/claim coordination;
+  no Codex filesystem boundary validates against it now.
 - `packages/drive/src/write-authority-rules.ts` — the generator for the static deny block, which is
   the whole of this ADR that runs. *(The hook, the receipt module and the decision core
   `write-authority.ts` are deleted — ADR-0284 D2/D4; recover them from git if a Codex adapter needs

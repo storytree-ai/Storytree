@@ -102,16 +102,6 @@ export const LITERAL_FLAGS: ReadonlySet<string> = new Set([
   "file",
   "set",
   "raw",
-  // `write-authority codex --toolchain-payload <abs path>` (ADR-0368) — the already-staged
-  // dist/pnpm.cjs. A path, hashed to mint a pin; it is never stored into an artifact, and reading
-  // the FILE here would be exactly backwards — the file's CONTENTS are the payload, not the value.
-  "toolchain-payload",
-  // The other two staged payload pins, same reasoning exactly: `--codex-payload` names the native
-  // Codex executable and `--worktree-create-payload` the managed Node the creator runs under. Both
-  // are hashed to mint a pin, neither is stored into an artifact, and expanding either from its
-  // file would replace the path with the contents of a multi-hundred-megabyte binary.
-  "codex-payload",
-  "worktree-create-payload",
   // `--raw <field> --out <path>` / `library artifact history --field <f>` (ADR-0361): a path and a
   // field NAME. Both are already the kind of value `@` would be part of, and neither is ever stored
   // into an artifact, so neither can corrupt a durable record.

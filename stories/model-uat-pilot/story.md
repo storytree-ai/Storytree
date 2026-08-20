@@ -3,10 +3,23 @@ id: "model-uat-pilot"
 tier: story
 title: "Three pilot stories migrate to explicit witnesses and addressable UAT detail"
 outcome: "Every UAT criterion on drive-machinery, library-review, and library-tech-tree-overlay is explicitly classified as machine, tiered model, or human with a resolvable live-canonical detail pointer — zero legacy-unresolved either remains on those three — and a machine harness reports the migration counts that inform corpus-wide rollout."
-status: proposed
+# RETIRED 2026-08-20 — ADR-0247 D5 names this story on its retirement worklist by id. It exists to
+# migrate three pilot stories onto the explicit `machine` | `model` | `human` witness contract WITH a
+# declared model tier, and ADR-0247 D1 retired that vocabulary and that tier outright — so the target
+# state this story measures progress toward no longer exists. Body kept as history (the
+# spawn-visibility / chat-drive-bridge precedent); the four capability files flip to `status: retired`.
+# NOT retired by this, and deliberately so: the three PILOT stories themselves (`drive-machinery`,
+# `library-review`, `library-tech-tree-overlay`) are live and untouched — this retires the harness that
+# measured their migration, not the stories it measured. Nor is the DETAIL-artifact contract retired:
+# `uat-criterion-detail` and `uat-detail-studio` are the two stories ADR-0247 D5 explicitly KEEPS, and
+# the `uat-criterion` kind stays registered in the Library kind tables.
+# `packages/model-uat-pilot` is NOT deleted here — ADR-0247 D5 makes each package retirement its own
+# provable unit and that unit is still OPEN.
+status: retired
 proof_mode: UAT
-# Every story-UAT leg below is deterministic and machine-witnessed. Absence would default the
-# story node to human (ADR-0040) and withhold story build --real dishonestly.
+# UAT criteria: NONE (deleted 2026-08-20). A story may declare zero criteria and still green honestly
+# through the ADR-0085 own-proof union, so `uat_witness` below is now inert rather than load-bearing —
+# it is retained only so a reader of the history sees what the legs were declared as.
 uat_witness: machine
 # Immutable arc provenance (ADR-0183): the FIFTH landable increment of the `model-uat-promotion`
 # arc (ADR-0209, owner-directed 2026-07-17). Increments 1–4 landed witness/tier, detail/pointer/hash,
@@ -184,24 +197,40 @@ migrated.
 
 ## UAT Test Criteria
 
-The integrated **acceptance walkthrough** proving the pilot end-to-end against the public
-`@storytree/model-uat-pilot` barrel + the real migrated corpus on disk. Every leg is
-**(witness: machine)**.
+**None — this story is retired (ADR-0247 D5).** Its six criteria were deleted on 2026-08-20 and each is
+recorded `superseded`, with its rationale, in `stories/uat-legacy-dispositions.json`. Nothing is silently
+dropped: the ledger still carries all 282 keys reviewed at the ADR-0253 cutover.
 
-**Goal —** The three pilot stories are fully migrated: every criterion is explicitly classified,
-every detail pointer resolves to a live-canonical Library artifact, and the harness reports the
-counts with no silent path into model judgment.
+A story may declare zero UAT criteria (ADR-0294 D4) and still green honestly through the ADR-0085
+own-proof union, so an empty section here is a statement rather than a gap.
 
-1. **Library surface admits the detail kind.** _(witness: machine)_ _(proof-gate: model-uat-pilot#gate-1)_ Import / resolve `uat-criterion` through the Library kind tables. **Success —** `uat-criterion` is a `KnowledgeKind` with a `KIND_SPECS` entry, so a detail artifact resolves by id through those tables. No committed directory participates: ADR-0307 D5 withdrew the seed-canonical posture ADR-0209 D5 rested on, so kind registration is the whole admitted surface. _(criterion-id: uatc_2da84216aec52749bba2a930)_ _(previous-revision-id: uatr1:d5aa50ae863c7754)_ _(revision-id: uatr1:e1d419fafeb51bd1)_
-2. **Zero legacy-unresolved on the three pilots.** _(witness: machine)_ _(proof-gate: model-uat-pilot#gate-1)_ Parse `drive-machinery`, `library-review`, and `library-tech-tree-overlay` via `@storytree/model-uat` `parseCriteria`. **Success —** every criterion's witness ∈ {machine, model, human}; none is `either`; every `model` criterion declares `advanced` or `frontier` (ADR-0209 D8/D2). _(criterion-id: uatc_2fd3f06617acf375e5c74c53)_ _(revision-id: uatr1:f85b950747bd855c)_
-3. **Every pilot criterion has a resolvable detail.** _(witness: machine)_ _(proof-gate: model-uat-pilot#gate-1)_ Parse pointers via `@storytree/uat-criterion` `parseCriterionPointers` and load seed details. **Success —** pointer count equals criterion count on each pilot story; every detail id validates as `UatCriterionDetail`; `displayTitle` remains the story one-liner. _(criterion-id: uatc_001591d1102af0b3efaf822c)_ _(revision-id: uatr1:0a7fbb901b38ec3b)_
-4. **Silent model default is refused.** _(witness: machine)_ _(proof-gate: model-uat-pilot#gate-1)_ Present an untagged fixture criterion to the harness alongside the pilots. **Success —** it remains legacy-unresolved / outside the "migrated" set; it cannot enter model judgment; the pilots' completeness check does not coerce it (ADR-0209 D8). _(criterion-id: uatc_e64c1f58d3377dfff5093b47)_ _(revision-id: uatr1:423c15adeff48150)_
-5. **Migration counts are observable.** _(witness: machine)_ _(proof-gate: model-uat-pilot#gate-1)_ Ask the harness for a summary over the three pilots. **Success —** it reports per-story and total counts by witness kind (and model tier), plus detail-pointer coverage — the measurement ADR-0209 Consequences requires before corpus-wide rollout. _(criterion-id: uatc_5832f729b08d865542c43c6a)_ _(revision-id: uatr1:6c9a476e4d1d5b0e)_
-6. **Public barrel exports the harness.** _(witness: machine)_ _(proof-gate: model-uat-pilot#gate-1)_ Import the harness API from `@storytree/model-uat-pilot`. **Success —** the root barrel exports the parse/assert/report surface; an empty barrel fails this leg. _(criterion-id: uatc_f609cdef47efa4bba4db2b2c)_ _(revision-id: uatr1:c1cd3ef651d2c117)_
+**Why these six were deleted — and note that they did NOT all go for the same reason.** This story's
+legs split into two groups, and collapsing them would have quietly lost a live claim.
 
-End state — the three pilot stories are on the explicit witness+detail contract; the harness
-machine-witnesses completeness and counts; corpus-wide migration remains a later, informed
-increment.
+- **Legs 2, 4, 5 and 6 — the claim is WITHDRAWN.** They asserted that the pilot stories carry an
+  explicit `machine` | `model` | `human` witness with a declared model tier, that an untagged criterion
+  stays outside the migrated set rather than defaulting into model judgment, and that the harness reports
+  per-story counts *by witness kind and model tier*. **ADR-0247 D1 retired the three-kind vocabulary and
+  the tier**, so a criterion cannot declare `model` and there is no tier to count. There is no lower-tier
+  node to name because there is no surviving claim.
+- **Legs 1 and 3 — the claim SURVIVES, one rung down, and the proof was checked rather than assumed.**
+  Leg 1 (the `uat-criterion` detail kind is admitted by the Library kind tables) is proven by the
+  `library` capability: the kind is registered in `KIND_SPECS` and `KNOWLEDGE_TIERS`
+  (`packages/library/src/knowledge.ts`), asserted directly in
+  `packages/library/src/standson-bootstrap.test.ts` (it resolves at tier 6 and its refs seed), and
+  `buildKindSchema("uat-criterion")` would throw at module load if the entry were absent. Leg 3 (a
+  criterion points at a detail without ceding its one-line title — `displayTitle` stays the story's) is
+  proven by the capability `criterion-detail-pointer` at
+  `packages/uat-criterion/src/criterion-pointer.test.ts`, and re-asserted at the story rung by the LIVE
+  story `uat-criterion-detail`, whose own leg 3 makes the display-canonical claim directly.
+
+Every leg was also bound to one `pnpm --filter @storytree/model-uat-pilot test` gate — a single package's
+own suite signing the story rung, the exact shape ADR-0294 D1 says a story criterion is not.
+
+**What this retirement does NOT decide.** The three pilot stories themselves — `drive-machinery`,
+`library-review` and `library-tech-tree-overlay` — are live and unaffected; retiring the harness that
+measured their migration says nothing about their own criteria, which the `uat-journey-surgery-arc`
+adjudicates on their own merits.
 
 ## Reliability Gates
 

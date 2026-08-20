@@ -4,7 +4,7 @@ decided: 2026-08-18
 arc: codex-factory-parity-arc
 amends: [355, 364]
 ---
-# ADR-0381: The Codex boundary is sufficient as built; the remaining work is exercise
+# ADR-0381: Unevidenced Codex hardening stops; the remaining work is exercise
 
 ## Status
 
@@ -13,12 +13,15 @@ want codex to work, we haven't really been able to give it a chance to do the wo
 against the harness. can we update the arc and adrs to reflect this objective rather then build walls
 around it that may not even be needed."* Design-time alignment IS the ratification (ADR-0110).
 
-Amends **ADR-0355** and **ADR-0364** in their INVESTMENT posture only. Every mechanism either decides
-stands unchanged and is explicitly NOT weakened here — see "What this does not do".
+Originally amended **ADR-0355** and **ADR-0364** in their investment posture only.
+[ADR-0390](0390-codex-runs-at-claude-parity-and-the-managed-containment-boun.md) subsequently
+superseded both mechanisms and **amends this ADR**: this ADR's evidenced-hazard bar and exercise-first
+direction stand, while its claims that the fence itself remained current do not.
 
 ## Context
 
-The Codex containment boundary is finished and, as of 2026-08-18, measured working. The fence
+**Historical measurement, not current delivery state.** The Codex containment boundary was finished
+and, as of 2026-08-18, measured working. The fence
 re-measurement ran 6/6 cases green across three repeats: the lobby refused, the session's own claimed
 worktree admitted, a sibling refused BOTH when reached into and when walked into, `.git` refused,
 lobby reads allowed — each matching the expected reason text verbatim. Latency landed at 560–911 ms
@@ -55,16 +58,17 @@ for a first fence, and the wrong order for the fifth.
 
 ## Decision
 
-**D1. The boundary is DONE. No further containment hardening without an evidenced hazard.** A
+**D1. No containment hardening without an evidenced hazard.** A
 restriction may be added or tightened when something actually observed motivates it — a Codex session
 that reached somewhere it should not, a fence that admitted what it should have refused. "It would be
 safer" is no longer sufficient. This reverses the arc's working posture, and it is the whole point of
-this ADR.
+this ADR. ADR-0390 later withdrew the boundary itself and preserved this bar for any proposal to
+re-fence Codex.
 
 **D2. The arc's remaining objective is EXERCISE: give Codex real work and stress-test it against the
-harness.** `codex-lobby-to-write-live-smoke` is the next unit, and it stops being an attestation
-ceremony and becomes the ordinary way this gets used. What comes after it is more Codex work, not more
-fence.
+harness.** ADR-0390 retired the containment-shaped `codex-lobby-to-write-live-smoke`; the replacement
+parity unit then completed the ordinary claim, direct `--pg`, toolchain, gate and PR journey. What
+comes after it is evidence-backed parity work, not more fence.
 
 **D3. A restriction that BLOCKS legitimate work is a defect, and is now to be reported and removed
 rather than worked around.** The prime suspect this clause was written around has since been TESTED,
@@ -82,53 +86,43 @@ lifecycle re-engineered around it. This is what operationalises "walls that may 
 we find out by running. The first run found one restriction innocent and no restriction guilty, which
 is the outcome this clause has to be able to record as readily as the other.
 
-**D4. The Claude/Codex asymmetry is NOT to be closed by levelling Codex's fence up or down, and the
-question is closed rather than parked.** The measured comparison above stands as the record. Whether
-the interactive Claude session should gain a claim-aware fence is a separate matter for ADR-0284's own
-line, on its own evidence, and is explicitly not this arc's work. No `open-question` is authored: the
-owner answered it — stop building walls, go get evidence.
+**D4. RE-DECIDED by ADR-0390.** This ADR originally closed the Claude/Codex asymmetry question without
+levelling either fence. After exercise exposed that Codex's boundary failed open and blocked the
+legitimate journey, the owner directed Codex to run at Claude parity and withdrew the containment.
+The measured comparison above remains evidence; the no-levelling conclusion does not.
 
-## What this does NOT do
+## Interaction with ADR-0390
 
-Nothing here weakens the fence, and nobody may read it as licence to.
-
-- ADR-0364's core stands verbatim: the managed hook is the ONLY fence, and anyone weakening it weakens
-  everything. It is now measured correct in all six directions.
-- ADR-0368 D1 stands: Codex must never LAUNCH the broker. Authority comes from who started a process.
-- ADR-0375 and ADR-0379 stand: the desktop app hosts the authority on a separately-scoped narrow
-  identity, self-detected from the installed policy.
-- The credential denials stand. `danger-full-access` stays refused at the config layer — it bypasses
-  hooks entirely, so enabling it would not be "more permissive", it would be **no fence at all**.
-- ADR-0364 D6 stands: an agent may never edit its own fence. D3 above is a REPORTING route, not a
-  self-service one — a blocking restriction is surfaced to the owner with its evidence, and the owner
-  installs any change.
+ADR-0390 supersedes the former fence, broker and resident authority decisions. Interactive Codex now
+runs with `danger-full-access`, readable credentials and network access at Claude parity; the managed
+hook/profile composition is not a current fallback. The one procedural rule that survives from the
+former boundary is that an agent does not remove its own installed fence: the operator performed the
+withdrawal before the parity session began. Re-fencing remains subject to D1's observed-hazard bar.
 
 ## Consequences
 
 **The arc's shape changes and its worklist shortens.** Work that exists only to harden further is
-descoped. What remains is the smoke, its toolchain precondition, the intermittent sidecar death (which
-is a RELIABILITY defect blocking exercise, not a containment one), and whatever running real work
-turns up.
+descoped. ADR-0390 later removed the containment-shaped smoke and sidecar machinery after the parity
+journey succeeded; only concrete differences found by running real work remain.
 
-**We will probably find the fence is wrong somewhere, and that is the point.** A fence tested only by
-its authors against its own hazard model has never met a real workload. D3 says the first such finding
-is a defect report rather than a redesign.
+**Exercise, not modelling, supplies the next requirement.** The first real workload showed the fence
+both failed open and blocked legitimate work, which is the evidence ADR-0390 acted on. D3 keeps future
+findings as defect evidence rather than invitations to hypothetical hardening.
 
-**The accepted risk, stated plainly.** Relaxing the posture on hardening means a real hazard could
-appear that a further wall would have caught. That is accepted knowingly: the fence already refuses
-every direction it was built to refuse, it is the only one of the two agents on this box that is fenced
-at all, and the cost of continuing to build unevidenced walls is now concrete — an arc that spent its
-length on enforcement while the thing it was for never ran once.
+**The accepted risk, stated plainly.** A real hazard could appear that a wall would have caught. That
+risk is now the same broad repository/credential blast radius already accepted for Claude, and it is
+revisited by observed behaviour under ADR-0390 D6 rather than by adding speculative controls.
 
 ## References
 
-- [ADR-0364](0364-codex-write-authority-is-a-standing-worktrees-grant-narrowed.md) — the standing grant
-  and the hook as the only fence. Unweakened; D6 still binds.
-- [ADR-0355](0355-interactive-codex-writes-only-in-its-current-claimed-worktre.md) — the lifecycle this
-  exercises.
+- [ADR-0390](0390-codex-runs-at-claude-parity-and-the-managed-containment-boun.md) — amends this
+  exercise-first posture and supersedes its former containment mechanism.
+- [ADR-0364](0364-codex-write-authority-is-a-standing-worktrees-grant-narrowed.md) / [ADR-0355](0355-interactive-codex-writes-only-in-its-current-claimed-worktre.md) — superseded historical
+  fence and lifecycle decisions.
 - [ADR-0375](0375-the-resident-claim-authority-lives-in-the-desktop-app-and-th.md) /
   [ADR-0379](0379-the-desktop-hosts-the-codex-claim-authority-whenever-the-bou.md) — the resident
   authority and its self-detection.
 - [ADR-0284](0284-the-write-authority-wall-stays-static-worktree-to-worktree-i.md) — where the
   Claude-side asymmetry lives, if it is ever taken up.
-- `codex-lobby-to-write-live-smoke` — the next unit under D2.
+- `codex-lobby-to-write-live-smoke` — retired containment-shaped exercise; the parity unit replaced
+  it under D2.
