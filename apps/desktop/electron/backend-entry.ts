@@ -40,7 +40,6 @@ import {
 import type { InspectSurfaceDeps } from "@storytree/drive";
 
 import { createAdvisoryReader } from "../src/backend/advisory.js";
-import { startDesktopClaimAuthority } from "../src/backend/claim-authority.js";
 import {
   IN_FLIGHT_CLAIMS_SQL,
   claimRowsToActivity,
@@ -354,35 +353,6 @@ async function main(): Promise<void> {
   // CLI board reads; listLiveClaims staleness-filters in SQL. Separate instance from the PgClaimStore
   // built inside the spawn-surface block below (that one adapts the narrow claim/bumpHeartbeat seam).
   const claimLedger = new PgClaimStore(pool);
-
-  // ---------- the resident Codex claim authority (ADR-0375 D1/D2/D9) ----------
-  //
-  // SELF-DETECTING (ADR-0379, amending ADR-0375 D9): it hosts when a standing policy is installed on
-  // this host, so installing the boundary is the only action that turns it on and there is nothing
-  // for an operator to remember. STORYTREE_CODEX_CLAIM_AUTHORITY only FORCES either answer. It opens its
-  // OWN second pool on the narrow claim-writer identity (D2 — never rides `pool` above, which is this
-  // backend's full library identity) and publishes an ACL'd handshake so the managed Codex hook can
-  // reach a warm loopback claim read instead of building a Cloud SQL connector from scratch per call.
-  // NEVER THROWS (D9) — a degrade-quiet typed refusal, following the buildInspectDeps precedent
-  // below: an absent authority is a Codex-lifecycle outage, never a desktop-launch outage.
-  const claimAuthority = await startDesktopClaimAuthority({
-    env: process.env,
-    cwd: repoRoot,
-    log: (line) => process.stderr.write(line),
-  });
-  if (claimAuthority.ok) {
-    console.error(
-      `[backend-entry] resident Codex claim authority listening on 127.0.0.1:${claimAuthority.broker.port} ` +
-        `(identity ${claimAuthority.broker.databaseUser}, repository ${claimAuthority.broker.primaryCheckout})`,
-    );
-  } else if ("disabled" in claimAuthority && claimAuthority.disabled) {
-    console.error(`[backend-entry] Codex claim authority: ${claimAuthority.error}`);
-  } else {
-    console.error(
-      `[backend-entry] Codex claim authority NOT started (the Codex fence will refuse every covered ` +
-        `write until it is up): ${claimAuthority.error}`,
-    );
-  }
 
   // The RAW signed-verdict event stream (events.verdict ORDER BY seq) shaped as `{ kind: 'signing',
   // seq, doc }` — shared by the backend's advisory overlay read below AND the orientation runner's
@@ -1066,21 +1036,7 @@ async function main(): Promise<void> {
   const port = await announce(server);
   console.error(`[backend-entry] thick-local backend listening on 127.0.0.1:${port} (repo ${repoRoot})`);
 
-  // Reap cleanly when the Electron main kills us on quit: close the claim authority (its OWN pool and
-  // handshake) FIRST, then drain this backend's pool + close the socket. Resilient to the broker's
-  // close throwing — the pool must still be closed, so any failure there is swallowed rather than
-  // left to skip the pool teardown (the 3s watchdog in installShutdown force-exits regardless, but a
-  // leaked pool on the way out is still wrong).
   installShutdown(server, async () => {
-    if (claimAuthority.ok) {
-      try {
-        await claimAuthority.broker.close();
-      } catch (error) {
-        console.error(
-          `[backend-entry] error closing the Codex claim authority: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      }
-    }
     await closePool(pool, connector);
   });
 }

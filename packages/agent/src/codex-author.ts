@@ -2,13 +2,15 @@
  * The Codex CLI live leaf. One `codex exec` turn authors one phase slice while the deterministic
  * spine remains the only red/green/verdict authority.
  *
- * Authentication and confinement are intentionally redundant:
+ * Authentication and promotion controls are intentionally redundant:
  * - `codex login status` must report the exact ChatGPT-managed method before a model can run;
  * - metered credential environment variables are removed from both child processes;
- * - the CLI runs in a disposable replica, never the real workspace, with network disabled;
- * - ADR-0355 managed hooks re-probe live claim/worktree authority on every tool call;
- * - the narrower managed phase-author profile contains writes to an ignored in-worktree replica.
- *   The spine alone promotes an explicit observed target set.
+ * - the CLI runs from a disposable replica, never the real workspace, with network disabled;
+ * - the spine observes the replica and alone promotes an explicit target set.
+ *
+ * ADR-0390 withdrew Storytree's managed Codex permission profiles and hook boundary. The retained
+ * phase author therefore requests Codex's unfenced native mode explicitly and relies on the
+ * disposable replica plus exact, observed promotion instead of the retired containment machinery.
  */
 
 import { spawn } from "node:child_process";
@@ -23,9 +25,7 @@ import type { AuthoringPhase, AuthorResult, PhaseAuthor } from "./phase-author.j
 import type { TokenUsage } from "./model-events.js";
 
 export const DEFAULT_CODEX_MODEL = "gpt-5.6-terra";
-/** Managed ADR-0355 profile whose only writable repository subtree is the replica parent. */
-export const CODEX_PHASE_AUTHOR_PROFILE = "storytree_codex_phase_author";
-export const MANAGED_CODEX_EXECUTABLE_ENV = "STORYTREE_CODEX_MANAGED_EXECUTABLE";
+export const CODEX_EXECUTABLE_ENV = "STORYTREE_CODEX_EXECUTABLE";
 
 const CHATGPT_LOGIN_STATUS = "Logged in using ChatGPT";
 const AUTH_ENV_NAMES = new Set(["openai_api_key", "codex_api_key", "codex_access_token"]);
@@ -253,14 +253,14 @@ export function buildCodexExecArgs(args: {
     "--ignore-rules",
     "--skip-git-repo-check",
     "--strict-config",
+    "--sandbox",
+    "danger-full-access",
     "--model",
     args.model,
     "--cd",
     args.cwd,
     "--config",
     'approval_policy="never"',
-    "--config",
-    `default_permissions="${CODEX_PHASE_AUTHOR_PROFILE}"`,
     "--config",
     'web_search="disabled"',
     "--config",
@@ -272,7 +272,7 @@ export function buildCodexExecArgs(args: {
     "--config",
     "agents.enabled=false",
     "--config",
-    "features.hooks=true",
+    "features.hooks=false",
     "--config",
     "features.apps=false",
     "--config",
@@ -280,8 +280,8 @@ export function buildCodexExecArgs(args: {
     "--config",
     "features.multi_agent=false",
     "--config",
-    // The legacy shell tool registration also carries Codex's apply_patch tool. The managed
-    // phase-author profile contains either route to the ignored replica subtree.
+    // The legacy shell tool registration also carries Codex's apply_patch tool. The disposable
+    // replica and exact promotion manifest remain the phase boundary.
     "features.shell_tool=true",
     "--config",
     "features.unified_exec=false",
@@ -399,15 +399,15 @@ function resolvePinnedCodexEntrypoint(): string {
 
 /** Production runner for the pinned official CLI wrapper. */
 export const runPinnedCodexCli: CodexRunner = async (command) => {
-  const managedExecutable = command.env[MANAGED_CODEX_EXECUTABLE_ENV]?.trim();
-  if (managedExecutable !== undefined && !path.isAbsolute(managedExecutable)) {
-    throw new Error(`${MANAGED_CODEX_EXECUTABLE_ENV} must name an absolute executable`);
+  const configuredExecutable = command.env[CODEX_EXECUTABLE_ENV]?.trim();
+  if (configuredExecutable !== undefined && !path.isAbsolute(configuredExecutable)) {
+    throw new Error(`${CODEX_EXECUTABLE_ENV} must name an absolute executable`);
   }
-  const entrypoint = managedExecutable === undefined ? resolvePinnedCodexEntrypoint() : undefined;
+  const entrypoint = configuredExecutable === undefined ? resolvePinnedCodexEntrypoint() : undefined;
   return await new Promise<CodexCommandResult>((resolve, reject) => {
     const child = spawn(
-      managedExecutable ?? process.execPath,
-      managedExecutable === undefined ? [entrypoint!, ...command.args] : command.args,
+      configuredExecutable ?? process.execPath,
+      configuredExecutable === undefined ? [entrypoint!, ...command.args] : command.args,
       {
       cwd: command.cwd,
       env: command.env,

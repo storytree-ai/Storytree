@@ -2,6 +2,7 @@
 status: accepted
 decided: 2026-08-20
 supersedes: [355, 364, 368, 375, 379]
+amends: [255, 257, 284, 381]
 arc: codex-factory-parity-arc
 ---
 # ADR-0390: Codex runs at Claude parity and the managed containment boundary is withdrawn
@@ -21,6 +22,13 @@ credential; ADR-0375 moved that authority into the desktop app to survive the fe
 latency; ADR-0379 made its hosting self-detecting. Remove the containment and none of them has a
 subject left. They are superseded rather than amended because this is a re-decision, not a
 correction: their reasoning was sound for the posture they served, and the posture is what changed.
+
+**Amends** ADR-0255, ADR-0257, ADR-0284 and ADR-0381. The first three stay current for the static
+Claude file-tool wall and the shared-checkout incident they answer, but their harness-neutral and
+Codex-specific mechanical write-authority clauses no longer bind interactive Codex. ADR-0381's
+exercise-first direction and evidenced-hazard bar stand, while its instruction to keep the existing
+fence does not. For Codex, claims survive as coordination and the standard landing ceremony, not as a
+filesystem grant.
 
 This does **not** supersede ADR-0381, which directed the arc to stop building walls and go get
 evidence. This ADR is that direction carried to its conclusion, on the evidence ADR-0381 asked for.
@@ -116,12 +124,15 @@ and the merge ceremony's release step. What ends is the idea that an OS profile 
 *enforces* it. Sibling-worktree isolation is now discipline for both agents, which is what ADR-0284
 already accepted for Claude with zero evidenced instances against it.
 
-**D5 — The broker path becomes optional, and its retirement is parked, not performed here.** ADR-0368's
-broker, ADR-0375's resident authority and ADR-0379's self-detection are superseded as the *required*
-path: nothing may depend on them from now on, and no new work may be justified by keeping them alive.
-They are not deleted by this ADR, because working machinery should not be ripped out ahead of the
-replacement being exercised. Removal is an increment on `codex-factory-parity-arc`, to be taken once a
-Codex session has driven a unit end to end without them.
+**D5 — The broker path is retired after the replacement was exercised.** ADR-0368's broker,
+ADR-0375's resident authority and ADR-0379's self-detection ceased to be the required path when this
+ADR was accepted. The condition that initially parked physical deletion is now met: a Codex session
+drove a real Storytree unit end to end with direct `--pg` access, ordinary worktree/toolchain use and
+the standard gate/PR ceremony, without the broker or resident authority. The retirement increment on
+`codex-factory-parity-arc` therefore deletes those components, the managed policy/hook/profile
+generator, its worktree bootstrap bundle and the obsolete phase scope hook. The operator-only
+boundary-withdrawal script, claim ledger, Codex phase author and IAM identity remain because none is
+the retired interactive containment path.
 
 **D6 — Re-fencing requires an evidenced hazard, and the hazard bar now has a worked example.**
 ADR-0381 D1 stands and is strengthened, not weakened, by this ADR: the first evidenced fence failure
@@ -154,11 +165,12 @@ two concurrent sessions writing the same worktree — only the claim ledger, whi
 forced to obey. If a Codex session does misbehave, we will find out by observing it rather than by
 being protected from it, and D6 is what turns that observation into a decision.
 
-**A live artifact is stale until the operator acts.** The boundary is installed on this host right
-now. Until D2 is performed the old behaviour persists, and `infra/codex-lobby-to-write-smoke-handoff.md`
-plus the twelve criteria of `codex-lobby-to-write-live-smoke` describe a journey that is being
-retired. Anything read from those between this ADR landing and the operator withdrawing the boundary
-will describe the superseded world.
+**Delivery correction (2026-08-20).** The operator performed D2 and the subsequent Codex parity run
+confirmed direct Library/credential access and ordinary workspace operation. The retirement
+increment now deletes `infra/codex-lobby-to-write-smoke-handoff.md` and the worktree bootstrap bundle
+that served the superseded lifecycle. The live-smoke criteria remain historical evidence, not a
+current delivery path. `infra/codex-boundary-withdraw.ps1` remains as the operator-only
+cleanup/recovery surface; retaining it is not a new fence.
 
 **A hazard this ADR does not address.** The hook's silent error path is a defect in a component being
 retired, so it is not fixed. If the boundary is ever reinstated, that defect is still there and must

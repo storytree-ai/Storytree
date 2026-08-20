@@ -51,6 +51,17 @@ ratification (ADR-0110); no second end-of-flow ask.
 > This ADR's lobby diagnosis and D1's containment floor survive intact and are what the static block
 > enforces.
 
+> **CODEX SCOPE WITHDRAWN 2026-08-20 by
+> [ADR-0390](0390-codex-runs-at-claude-parity-and-the-managed-containment-boun.md), which amends this
+> ADR.** The shared-checkout diagnosis and ADR-0284's static Claude file-tool wall remain current.
+> Interactive Codex is now the explicit exception to this ADR's mechanical write-authority clauses:
+> its managed profile, hook, broker/resident authority and trusted actuator are retired, and its
+> repository access is broad at Claude parity. For Codex, claims and worktree identity remain session
+> coordination discipline, not filesystem authority; a missing claim or unreachable ledger does not
+> mechanically deny a write. Read every Codex-specific statement below as history unless it describes
+> that surviving coordination ceremony. The `amends: [255, 257]` edges on ADR-0390 record this
+> narrowing without removing either accepted ADR from the current set.
+
 **Amends** [ADR-0033](0033-session-presence-notice-board.md): its never-blocking contract continues
 to govern ambient noticeboard automation, but a separate write-authority guard is blocking by
 design. **Amends** [ADR-0121](0121-per-unit-write-claim-refuses-a-second-concurrent-build-of-on.md):
@@ -113,34 +124,21 @@ installation. Read the build state only from here and from the amending ADRs nam
   per ADR-0139, because that phrasing read as one command away from ON — which is precisely the trap
   ADR-0284 D2 deleted the code to close. The host problem was not the reason it was retired; it was
   one symptom of the reason: a boundary sourced from a mutable checkout is a convention, not a wall.)*
-- **CODEX NOT OPERATIONAL; CLAUDE UNCHANGED (corrected in place 2026-08-14 per ADR-0139 — this
-  bullet previously read "CODEX OPERATIONAL 2026-08-13", which a fresh Codex desktop session that
-  same day falsified; see ADR-0355 § Delivery status).** ADR-0355 delivers the preserved Codex
-  thread with an administrator-owned profile, managed hooks, a live-claim reader, and an exact
-  trusted actuator, and the individual writer-scope profiles were observed to admit/refuse writes as
-  designed. That is not D5's lifecycle smoke: the lobby bootstrap hits a credential circularity (the
-  sandbox ACL that denies the Codex process gcloud ADC / `~/.storytree/secrets.json` is exactly what
-  the bootstrap then needs to take the claim), so no live task can yet reach a claimed worktree
-  through the installed lobby. The Claude wall remains the static, claim-blind file-tool block
-  described above; its shell and accepted sibling-worktree gap are unchanged. Shared Git authority is
-  not granted broadly: the trusted actuator owns the exact bootstrap/launch operations, once the
-  credential fork above is resolved.
+- **CODEX CONTAINMENT WITHDRAWN; CLAUDE UNCHANGED (2026-08-20, ADR-0390).** Interactive Codex no
+  longer uses an administrator-owned profile, managed claim hook, resident authority or trusted
+  actuator. A completed parity run read the live Library directly, used the ordinary toolchain and
+  drove a unit through the standard claim/gate/PR ceremony. Claude remains on the static,
+  claim-blind file-tool block described above; its shell and accepted sibling-worktree gap are
+  unchanged.
 - **There is no claim receipt.** *(This bullet read "The claim receipt of D7 exists but is UNSIGNED".
   Retired by ADR-0284 D4 with its only consumer.)*
 
 Two readings this note exists to refuse. For Claude, it is **not** true that "the primary checkout is
 a mechanically read-only agent lobby" without qualification: the installed static wall binds that
-harness's file tools, not its shell, and accepts the sibling-worktree gap. For interactive Codex on
-the supported Windows host, ADR-0355 designs the stronger statement but does **not yet make it true**
-*(corrected in place 2026-08-14 per ADR-0139 — this paragraph previously read "ADR-0355 now makes the
-stronger statement true … behaviourally verified on that host"; a fresh Codex desktop session on
-2026-08-13 falsified that reading, and ADR-0355 § Delivery status now records why: the lobby bootstrap
-cannot yet reach a claimed worktree due to a credential circularity)*. It is equally **not** true
-that "nothing enforces it" — the individual writer-scope profiles are real and were verified on that
-host; what is unverified is the full lobby-bootstrap-through-write lifecycle. *(This paragraph used
-to close "D8's proof bar is what closes the gap between the two, and it is unmet." D8 is retired —
-ADR-0284 D7 — so nothing is scheduled to close that gap; the gap is now the accepted, stated residual
-risk of ADR-0284 D8, not a work item.)*
+harness's file tools, not its shell, and accepts the sibling-worktree gap. For interactive Codex it
+is no longer a current requirement at all: ADR-0390 deliberately withdraws the stronger wall and
+accepts broad repository access at Claude parity. Claims still coordinate both harnesses; neither
+harness has a live-claim decision on its write path.
 
 ## Context
 

@@ -1,20 +1,17 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
-import { fileURLToPath } from "node:url";
 
 import {
   buildCodexExecArgs,
-  CODEX_PHASE_AUTHOR_PROFILE,
+  CODEX_EXECUTABLE_ENV,
   CodexPhaseAuthor,
   codexProductionReplicaRoot,
   DEFAULT_CODEX_MODEL,
   genericPhasePrompt,
   isChatGptManagedLogin,
-  MANAGED_CODEX_EXECUTABLE_ENV,
   parseCodexJsonl,
   prepareCodexDisposableReplica,
   runPinnedCodexCli,
@@ -25,7 +22,6 @@ import type {
   CodexCommandResult,
   CodexRunner,
 } from "./codex-author.js";
-import { decideCodexToolUse } from "./codex-scope-hook.mjs";
 
 const CWD = process.platform === "win32" ? "C:\\work\\tree" : "/work/tree";
 const WRITE_GLOBS = {
@@ -126,7 +122,7 @@ test("the production runner can select one absolute administrator-managed execut
   const result = await runPinnedCodexCli({
     args: ["--version"],
     cwd: process.cwd(),
-    env: { ...process.env, [MANAGED_CODEX_EXECUTABLE_ENV]: process.execPath },
+    env: { ...process.env, [CODEX_EXECUTABLE_ENV]: process.execPath },
   });
   assert.equal(result.code, 0, result.stderr);
   assert.match(result.stdout, /^v\d+\./);
@@ -134,7 +130,7 @@ test("the production runner can select one absolute administrator-managed execut
     runPinnedCodexCli({
       args: ["--version"],
       cwd: process.cwd(),
-      env: { ...process.env, [MANAGED_CODEX_EXECUTABLE_ENV]: "relative/codex" },
+      env: { ...process.env, [CODEX_EXECUTABLE_ENV]: "relative/codex" },
     }),
     /must name an absolute executable/,
   );
@@ -248,7 +244,7 @@ test("API-key and unlogged states fail before codex exec with no fallback", asyn
   }
 });
 
-test("exec selects Terra, one ephemeral JSON turn, and the managed phase-author profile", async () => {
+test("exec selects Terra and one ephemeral JSON turn without retired managed containment", async () => {
   const cap = captureRunner([chatGpt(), completed()]);
   const author = new CodexPhaseAuthor({
     cwd: CWD,
@@ -283,7 +279,7 @@ test("exec selects Terra, one ephemeral JSON turn, and the managed phase-author 
   ]) {
     assert.ok(exec.args.includes(required), `missing ${required}`);
   }
-  assert.equal(exec.args.includes("--sandbox"), false);
+  assert.equal(exec.args[exec.args.indexOf("--sandbox") + 1], "danger-full-access");
   assert.equal(exec.args.includes("--dangerously-bypass-hook-trust"), false);
   assert.equal(exec.args.at(-1), "-");
   assert.equal(exec.args[exec.args.indexOf("--model") + 1], DEFAULT_CODEX_MODEL);
@@ -291,9 +287,11 @@ test("exec selects Terra, one ephemeral JSON turn, and the managed phase-author 
   assert.ok(exec.args.includes('approval_policy="never"'));
   assert.ok(exec.args.some((arg) => arg === 'web_search="disabled"'));
   assert.ok(exec.args.some((arg) => arg === 'forced_login_method="chatgpt"'));
-  assert.ok(exec.args.includes(`default_permissions="${CODEX_PHASE_AUTHOR_PROFILE}"`));
+  assert.equal(exec.args.some((arg) => arg.startsWith("default_permissions=")), false);
   assert.equal(exec.args.some((arg) => arg.startsWith("sandbox_workspace_write.")), false);
   assert.equal(exec.args.some((arg) => arg.startsWith("hooks.PreToolUse=")), false);
+  assert.equal(exec.args.includes("features.hooks=true"), false);
+  assert.ok(exec.args.includes("features.hooks=false"));
   assert.match(exec.stdin ?? "", /Write the red test/);
   assert.match(exec.stdin ?? "", /deterministic spine/);
   assert.equal(author.runtime, "codex");
@@ -652,145 +650,26 @@ test("reported changes without an observed replica diff are not promotion eviden
   });
 });
 
-test("command builder selects only the managed phase profile and disables optional surfaces", () => {
+test("command builder uses no managed profile or hook and disables optional surfaces", () => {
   const args = buildCodexExecArgs({
     model: DEFAULT_CODEX_MODEL,
     cwd: CWD,
   });
-  assert.equal(args.includes("--sandbox"), false);
+  assert.equal(args[args.indexOf("--sandbox") + 1], "danger-full-access");
   assert.equal(args.includes("--add-dir"), false);
-  assert.ok(args.includes(`default_permissions="${CODEX_PHASE_AUTHOR_PROFILE}"`));
+  assert.equal(args.some((arg) => arg.startsWith("default_permissions=")), false);
   assert.equal(args.some((arg) => arg.startsWith("sandbox_workspace_write.")), false);
   assert.equal(args.some((arg) => arg.startsWith("hooks.")), false);
   assert.equal(args.includes("--dangerously-bypass-hook-trust"), false);
   assert.ok(args.includes("mcp_servers={}"));
   assert.ok(args.includes("agents.enabled=false"));
-  assert.ok(args.includes("features.hooks=true"));
+  assert.equal(args.includes("features.hooks=true"), false);
+  assert.ok(args.includes("features.hooks=false"));
   assert.ok(args.includes("features.apps=false"));
   assert.ok(args.includes("features.remote_plugin=false"));
   assert.ok(args.includes("features.multi_agent=false"));
   assert.ok(args.includes("features.shell_tool=true"));
   assert.ok(args.includes("features.unified_exec=false"));
-});
-
-function hook(
-  phase: "AUTHOR_TEST" | "IMPLEMENT",
-  tool_name: string,
-  tool_input: unknown,
-) {
-  return decideCodexToolUse({
-    phase,
-    cwd: CWD,
-    writeGlobs: WRITE_GLOBS,
-    event: { hook_event_name: "PreToolUse", tool_name, tool_input },
-  });
-}
-
-test("scope hook denies Bash, unified exec, MCP, Agent, and unknown local tools", () => {
-  for (const tool of [
-    "Bash",
-    "exec_command",
-    "unified_exec",
-    "mcp__filesystem__write_file",
-    "Agent",
-    "update_plan",
-  ]) {
-    const decision = hook("AUTHOR_TEST", tool, {});
-    assert.equal(decision.allow, false, `${tool} should be denied`);
-  }
-});
-
-test("scope hook process exits 2 and emits its deny reason", () => {
-  const hookPath = fileURLToPath(new URL("./codex-scope-hook.mjs", import.meta.url));
-  const policy = Buffer.from(
-    JSON.stringify({
-      phase: "AUTHOR_TEST",
-      cwd: process.cwd(),
-      writeGlobs: WRITE_GLOBS,
-    }),
-  ).toString("base64url");
-  const result = spawnSync(process.execPath, [hookPath], {
-    cwd: process.cwd(),
-    env: { ...process.env, STORYTREE_CODEX_HOOK_POLICY: policy },
-    input: JSON.stringify({
-      hook_event_name: "PreToolUse",
-      tool_name: "Bash",
-      tool_input: { command: "echo no" },
-    }),
-    encoding: "utf8",
-  });
-  assert.equal(result.status, 2);
-  assert.match(result.stderr, /shell and unified execution are unavailable/);
-});
-
-test("scope hook allows only its small explicit read-only allowlist", () => {
-  for (const tool of ["Read", "Glob", "Grep", "read_file", "list_dir", "list_files"]) {
-    assert.deepEqual(hook("IMPLEMENT", tool, {}), { allow: true, tool, paths: [] });
-  }
-});
-
-test("scope hook inspects every apply_patch path and enforces the active phase", () => {
-  const allowed = hook("AUTHOR_TEST", "apply_patch", {
-    patch:
-      "*** Begin Patch\n" +
-      "*** Add File: packages/widget/src/new.test.ts\n" +
-      "+test\n" +
-      "*** Update File: packages/widget/src/widget.test.ts\n" +
-      "@@\n" +
-      "-old\n" +
-      "+new\n" +
-      "*** End Patch",
-  });
-  assert.equal(allowed.allow, true);
-
-  const wrongPhase = hook("IMPLEMENT", "apply_patch", {
-    patch:
-      "*** Begin Patch\n" +
-      "*** Update File: packages/widget/src/widget.test.ts\n" +
-      "@@\n-old\n+new\n" +
-      "*** End Patch",
-  });
-  assert.equal(wrongPhase.allow, false);
-
-  const mixed = hook("AUTHOR_TEST", "apply_patch", {
-    patch:
-      "*** Begin Patch\n" +
-      "*** Update File: packages/widget/src/widget.test.ts\n" +
-      "@@\n-old\n+new\n" +
-      "*** Update File: packages/widget/src/widget.ts\n" +
-      "@@\n-old\n+new\n" +
-      "*** End Patch",
-  });
-  assert.equal(mixed.allow, false);
-  assert.match(mixed.allow ? "" : mixed.reason, /widget\.ts/);
-});
-
-test("scope hook handles Write/Edit and fails closed on malformed, outside, and ambiguous paths", () => {
-  assert.equal(
-    hook("IMPLEMENT", "Write", { file_path: "packages/widget/src/widget.ts" }).allow,
-    true,
-  );
-  assert.equal(
-    hook("IMPLEMENT", "Edit", { path: "packages/widget/src/helper.ts" }).allow,
-    true,
-  );
-  assert.equal(hook("IMPLEMENT", "Write", {}).allow, false);
-  assert.equal(hook("IMPLEMENT", "Write", { path: "../outside.ts" }).allow, false);
-  assert.equal(
-    hook("IMPLEMENT", "apply_patch", {
-      patch: "--- a/packages/widget/src/widget.ts\n+++ b/packages/widget/src/widget.ts",
-    }).allow,
-    false,
-  );
-  assert.equal(
-    decideCodexToolUse({
-      phase: "IMPLEMENT",
-      cwd: CWD,
-      writeGlobs: WRITE_GLOBS,
-      event: "not an event",
-    }).allow,
-    false,
-  );
 });
 
 test("successful JSONL maps usage and reasoning without a price field", async () => {

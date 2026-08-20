@@ -109,7 +109,6 @@ import type { DrainLedgerIo } from "./worktree-drain.js";
 // `worktree create` — the claim-gated workspace ceremony (ADR-0200 D3).
 import { createWorktree, type WorktreeCreateIo } from "./worktree-create.js";
 import { writeAuthorityCommand } from "./write-authority-install.js";
-import { codexSessionContainmentCommand } from "./codex-session-containment.js";
 import {
   desktopHelp,
   desktopInstallShortcut,
@@ -2596,15 +2595,6 @@ export const CLI_OPTIONS = {
   // sibling's body into its commit.
   id: { type: "string", multiple: true },
   write: { type: "boolean", default: false },
-  // `storytree write-authority codex --toolchain-payload <abs path>` — the already-staged
-  // `dist/pnpm.cjs` under the managed payloads directory. The command hashes what is actually there
-  // and mints the pin itself, so no operator ever transcribes a 64-character digest by hand.
-  "toolchain-payload": { type: "string" },
-  // `storytree write-authority codex --codex-payload / --worktree-create-payload <abs path>` — the
-  // other two administrator-owned staged payloads, pinned the same way. Without them the generated
-  // actuator refuses at its first Assert-PinnedPayload, so nothing in the bundle can be installed.
-  "codex-payload": { type: "string" },
-  "worktree-create-payload": { type: "string" },
   // `storytree arc reconcile --write --only <close|reopen>` — narrow WHICH drift direction is
   // applied. The report always carries both; this only scopes the write.
   only: { type: "string" },
@@ -3183,26 +3173,6 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
   }
 
   if (area === "write-authority") {
-    if (sub === "codex") {
-      // ADR-0355: generation is repository-owned; installation remains administrator-owned.
-      return codexSessionContainmentCommand(
-        {
-          write: values.write === true,
-          help,
-          // The staged `dist/pnpm.cjs` — the pin is minted from the file, never transcribed.
-          ...(typeof values["toolchain-payload"] === "string"
-            ? { toolchainPayload: values["toolchain-payload"] }
-            : {}),
-          ...(typeof values["codex-payload"] === "string"
-            ? { codexPayload: values["codex-payload"] }
-            : {}),
-          ...(typeof values["worktree-create-payload"] === "string"
-            ? { worktreeCreatePayload: values["worktree-create-payload"] }
-            : {}),
-        },
-        { ledger: deps.presence?.ledger ?? null, now: () => new Date() },
-      );
-    }
     // ADR-0257 D1/D6, narrowed to the static block by ADR-0284 — install/inspect the wall. The deny
     // block is DERIVED from repo-manifest.json, so it needs a caller that can regenerate it;
     // installing by hand is how the wall and the repo surface drift apart. Offline, no store.
