@@ -148,11 +148,12 @@ value is as evidence that a capability boundary is drawn too coarse, which is a 
 Add it if repeated same-capability blocks show up in the log.
 
 **D4 — A blocked session works another capability, or lands its residue on the arc and ENDS.** It does
-not idle waiting for promotion. Since a session already holds 8–13 units, the first branch is usually
-available. When it is not, the session writes what it was attempting and what remains onto the owning
-arc, releases its claims, and ends — the ADR-0303 posture (escalating is a landing, never a pause)
-applied to contention, and for the same reason: a dormant holder is the one claim contention the
-ledger cannot resolve.
+not idle waiting for promotion. Since sessions are directly evidenced holding several units AT ONCE —
+the three concurrent overlaps named in Context, not the lifetime count, which is not a concurrency
+figure — the first branch is usually available. When it is not, the session writes what it was
+attempting and what remains onto the owning arc, releases its claims, and ends — the ADR-0303 posture
+(escalating is a landing, never a pause) applied to contention, and for the same reason: a dormant
+holder is the one claim contention the ledger cannot resolve.
 
 The owner's rationale, recorded because it is not derivable from the code: a session held open across
 a block loses the prompt-cache window, so **resuming it later pays full price for the whole
@@ -205,12 +206,17 @@ actually being grown.
   landing, never a pause; D4 applies the same posture to contention.
 - [ADR-0329](0329-a-small-unit-is-driven-in-thread-not-cut-into-a-fresh-sessio.md) D1 — the measured
   fresh-session orientation cost, the counterweight D4 accepts.
-- `packages/drive/src/noticeboard.ts` — `declare` validating and discarding `--working-on` (:273, :390,
-  :331); the no-containment note (:400).
-- `packages/cli/src/worktree-create.ts:382` — the one path that does write real intent prose.
-- `apps/studio/src/lib/claimColour.ts:26` — the enum reader of the same column.
+- `packages/drive/src/noticeboard.ts` — `declare` validating `--working-on` (:416) and writing it
+  through to the claim row (:501, `intent: workingOn.trim()`); the no-containment note (:595).
+  *(D3 DISCHARGED 2026-08-11: `capability-claim-binds-arc` increment 2 (#1277) split the one column
+  into a typed `role` and a free-prose `intent`, so this citation now points at the write-through
+  rather than the discard it was originally written against. Before that landing, `declare` validated
+  the prose and dropped it at the store boundary — the row got the literal `"orchestrate"` — which is
+  the defect D3 names, not current behaviour.)*
+- `packages/cli/src/worktree-create.ts:586` — the one path that did write real intent prose before D3.
+- `apps/studio/src/lib/claimColour.ts:33` — the enum reader of the same column.
 - `packages/drive/src/story-build.ts:637-651` — the build path already claiming members over `story.id`.
-- `packages/notice-board/src/store/claim-store.ts` — `listLiveClaims` (:605, stale-filtered) vs
-  `claimsFor` (:584, unfiltered).
+- `packages/notice-board/src/store/claim-store.ts` — `listLiveClaims` (:681, stale-filtered) vs
+  `claimsFor` (:664, unfiltered).
 - Friction `the-board-says-no-live-claims-while-the-unit-view-shows-them` — the honesty defect D1 makes
   load-bearing.
