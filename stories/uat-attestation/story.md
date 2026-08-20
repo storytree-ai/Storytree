@@ -100,7 +100,10 @@ The bold lead is each test's title; the `(witness: …)` tag declares who may at
 > ADR-0209 §8 corpus-wide migration. That pass resolved this story to six `machine` legs and one
 > `human` leg; no leg is model-judged — nothing here turns on semantic judgment of prose or artifacts,
 > so the model rung genuinely does not apply. **NARROWED 2026-08-11 (ADR-0348 D6): the one `human` leg
-> is DELETED, so the story now carries six `machine` legs and ZERO `human` legs.** It asked whether the
+> is DELETED, so the story carried six `machine` legs and ZERO `human` legs from that date.** *(This
+> read "so the story NOW carries six `machine` legs"; the ADR-0294 D2/D4 pass below then deleted legs
+> 1, 2 and 5, leaving THREE. Corrected in place 2026-08-20 per ADR-0139 — the 2026-08-11 narrowing
+> itself is unchanged.)* It asked whether the
 > two rigor tiers are any GOOD to read, not whether the journey achieved its goal — a user EXPERIENCE
 > property, not a user ACCEPTANCE criterion. Because that claim is this story's own reason to exist,
 > its intent is carried at length under "The rigor tiers must READ apart" below rather than in a line.
@@ -111,7 +114,9 @@ The bold lead is each test's title; the `(witness: …)` tag declares who may at
 > carried by the arc — recorded here, not settled here.)
 >
 > **This story is ABOUT attestation, so read its legs carefully.** A leg that DESCRIBES human
-> witnessing does not thereby NEED a human witness. Legs 2 and 5 were tagged `human` because their
+> witnessing does not thereby NEED a human witness. Legs 2 and 5 — *Human verdict* and *Vouch never
+> greens*, both since deleted by the ADR-0294 D2/D4 pass below, which found their proof one rung down
+> in exactly the suites this paragraph names — were tagged `human` because their
 > subject matter is an operator's signature and an operator's vouch — but their success conditions are
 > a verdict's shape, its signer, and the ABSENCE of a write, every one of which has a compiler and is
 > already exercised offline today (`packages/orchestrator/src/proof/uat-proof.test.ts`,
@@ -151,12 +156,79 @@ The bold lead is each test's title; the `(witness: …)` tag declares who may at
 > SPLIT leg, or must it be re-signed?* ([`wisp-as-story-claim`](../wisp-as-story-claim/story.md), open
 > modeling call 1, for the owner to settle once and generally) — does not bite on the leg-6 split here.
 >
-> **Ordering note (leg ids are POSITIONAL, `uat-attestation#uat-N`).** Legs 1–5 keep their positions:
-> `packages/cli/src/attest.test.ts` uses `uat-attestation#uat-2` and `uat-attestation#uat-3` as fixture
-> ids, so *Human verdict* and *Machine* must stay at 2 and 3. The old leg 6 was narrowed IN PLACE and
-> its irreducible human half APPENDED as leg 7 rather than interleaved. **ADR-0348 D6 then deleted leg
-> 7 on 2026-08-11 and BURNED the ordinal** — nothing was renumbered, so those two fixture ids and every
-> other position still denote exactly what they always did.
+> **Ordering note (leg ids are POSITIONAL, `uat-attestation#uat-N`).** Legs 1–5 kept their positions
+> through every pass. The old leg 6 was narrowed IN PLACE and its irreducible human half APPENDED as
+> leg 7 rather than interleaved. **ADR-0348 D6 then deleted leg 7 on 2026-08-11 and BURNED the
+> ordinal**, and the ADR-0294 D2/D4 pass of 2026-08-20 deleted legs **1**, **2** and **5** and burned
+> those too — nothing has ever been renumbered, so every surviving position still denotes exactly what
+> it always did. *(This read "`packages/cli/src/attest.test.ts` uses `uat-attestation#uat-2` and
+> `uat-attestation#uat-3` as fixture ids, so *Human verdict* and *Machine* must stay at 2 and 3." That
+> is no longer true and was checked before acting: since ADR-0253 that fixture keys off a `uatc_*`
+> criterion id and a bare story id, and `grep -rn "uat-attestation#" packages apps` returns nothing at
+> all — no code anywhere carries a positional id for this story. The don't-renumber rule stands on its
+> own (`asset:edit-story-uat-criteria`); only its stated evidence had gone stale. Corrected in place
+> per ADR-0139.)*
+>
+> **ADR-0294 D2/D4 pass, 2026-08-20 — THREE of six legs deleted (1, 2, 5); the three survivors (3, 4,
+> 6) are declared UNBOUND.** The third and final slice of the D4 pass over live stories (predecessors:
+> PR #1444, the desktop terminal cluster; PR #1448, the studio/claim cluster).
+>
+> **Read the method here before reusing it, because the cheap shortcut gives the WRONG answer on this
+> story.** The rule of thumb carried into this pass was: where a story's capabilities register no
+> `proof.real.testFile` at all, there is no lower tier to name and D2 cannot be discharged for ANY leg
+> (which is why `studio-build`'s legs were kept twice). All THREE of this story's capabilities —
+> [`uat-test-units`](uat-test-units.md), [`attestation-signals`](attestation-signals.md),
+> [`attestation-surface`](attestation-surface.md) — register no `proof:` block, so the shortcut would
+> have kept all six. It is unsound here: `attestation-signals`' three declared contracts are all BUILT
+> and carry their contract ids VERBATIM as test titles in real suites that run on every `pnpm -r test`.
+> A missing `proof.real.testFile` means `storytree coverage` cannot SEE the proof; it does not mean the
+> proof is absent. Grep the built tree for the contract id before concluding a capability is unbuilt.
+>
+> - **Leg 1 (Decompose) — DELETED.** Proven by the capability
+>   [`uat-machine-proof-binding`](../drive-machinery/uat-machine-proof-binding.md) (story
+>   `drive-machinery`), whose declared `proof.real.testFile` is
+>   `packages/library/src/uat-test-criteria.test.ts`: "parser reads authored criteria, titles,
+>   witnesses, and would-be state", "invalid witness is refused and an absent witness stays either" and
+>   "schema defaults remain conservative but exact identity/revision are mandatory" — the leg's whole
+>   success condition ("each test has a stable id and a `witness`"), one-to-one.
+> - **Leg 2 (Human verdict) — DELETED.** Proven by the capability
+>   [`brokered-local-uat-signing`](../desktop/brokered-local-uat-signing.md) (story `desktop`) at
+>   `apps/desktop/src/backend/local-uat-attest.test.ts`, whose contracts
+>   `luat-persists-a-real-human-verdict-through-the-broker` and
+>   `luat-refuses-untrustworthy-proof-before-writing` are present in that file by name and cover every
+>   clause: the verdict persisting, and each of the three `checkUatProof` refusals the leg names — "a
+>   blank signer fails closed", "the running agent cannot self-attest its own human leg", "a
+>   machine-witness leg cannot be greened by a human click" — plus the `commitSha` clause ("a dirty git
+>   tree refuses — never attest uncommitted bytes", "a blank commit SHA refuses", "a malformed
+>   (non-hex) commit SHA refuses"). The "VERIFIED operator identity, never client-supplied" clause is
+>   additionally asserted by `apps/studio/server/uatAttestApi.integration.test.ts` ("an admin signs a
+>   human-witness test; the signer is the IAP identity, NOT the forged body field").
+> - **Leg 5 (Vouch never greens) — DELETED, and this one is proven by THIS story's OWN capability.**
+>   [`attestation-signals`](attestation-signals.md)'s three contracts all exist as named test titles:
+>   `separate-from-verdicts: recording NEVER issues SQL against events.verdict` and
+>   `signed-with-provenance: a blank signer / unknown witness is refused before any SQL` in
+>   `packages/orchestrator/src/store/attestation-store.test.ts`;
+>   `no-story-rollup: every test of a story attested → keys are ONLY per-test ids, no story key` in
+>   `packages/orchestrator/src/proof/attestations.test.ts`; and the signer/`relayedBy` provenance in
+>   `packages/cli/src/attest.test.ts` ("record human relay: signer = operator, relayedBy = the scribing
+>   session"). The load-bearing half of the leg is the ABSENCE of a write, and that is the literal
+>   subject of `separate-from-verdicts`.
+>
+> All three were checked against those tests' ACTUAL assertions, not their file existence (ADR-0294
+> D2's honesty wall). **Legs 3, 4 and 6 are KEPT** — 3 and 4 because the real assertions that would
+> discharge them live in files NO capability declares (`storytree ownership packages/orchestrator`
+> reports `packages/orchestrator/src/proof` as its single unowned subtree), so D2's "name the node"
+> cannot be satisfied; 6 because it is a partial duplicate whose studio half nothing asserts. Each
+> survivor's own clause says which. **No gate is minted for any of the three** (ADR-0097 §2 / ADR-0294
+> end state point 4).
+>
+> Ordinals **1**, **2** and **5** are BURNED, not renumbered; no surviving ordinal collides with a
+> `superseded` key for this story in `stories/uat-legacy-dispositions.json` (the burned set is now 1,
+> 2, 5, 7 and the survivors are 3, 4, 6). Verified on the live store before deleting: all six read
+> `proven=–`, so no signed verdict was destroyed. Legs 2 and 5 carried `(detail:)` pointers, so the
+> `uat-criterion` artifacts `uat-attestation#uat-2` and `uat-attestation#uat-5` were RETIRED in the
+> same change rather than left orphaned (the ADR-0307 D5 precedent); `uat-attestation#uat-6` stays
+> live with its leg.
 
 ### The rigor tiers must READ apart — design intent, deliberately NOT a UAT leg (ADR-0348 D6)
 
@@ -190,31 +262,33 @@ approval** (ADR-0348 Consequences). `apps/studio/src/index.css` already records 
 as owner-attested art (ADR-0070), which is the nearest thing to a standing home for this judgment; if it
 becomes worth carrying a verdict again, the capability tier is where it belongs.
 
-1. **Decompose** _(witness: machine)_: a story's UAT prose resolves to addressable test ids with _(criterion-id: uatc_076b7e695fa9a4c068e71b97)_ _(revision-id: uatr1:fc1a6ea562a05a62)_
-   witness kinds. **Success —** each test has a stable id and a `witness`.
-2. **Human verdict** _(witness: machine)(detail: uat-attestation#uat-2)_: a permitted operator _(criterion-id: uatc_023a51aaaea120055d0ad955)_ _(revision-id: uatr1:7037d180f3570e6b)_
-   signs "I saw it work" for a human-witness test — the studio row's muted person icon, or
-   `storytree witness attest <story>#uat-<n> --pg` (the ADR-0118 canonical verb; `uat attest` still
-   works as a back-compat alias). **Success —** a signed `operator-attested` verdict lands in
-   `events.verdict` carrying the VERIFIED operator identity as `signer` (never client-supplied) and
-   the commit it attests as `commitSha`, having passed `checkUatProof` — which refuses an empty
-   signer, a `sandbox:` identity, and the building session itself — and that test reads PROVEN ✓.
-   *(Re-adjudicated `human` → `machine` 2026-07-26: the leg's SUBJECT is a human signature, but its
-   success condition is a verdict's shape, signer and derived state, all of which have compilers.)*
-3. **Machine** _(witness: machine)_: an automated UAT run proves a `machine` test. **Success —** a _(criterion-id: uatc_b551ee8c331f7ba4abb747b6)_ _(revision-id: uatr1:dd78e322d1f1ce41)_
+3. **Machine** _(witness: machine)_: an automated UAT run proves a `machine` test. **Success —** a _(criterion-id: uatc_b551ee8c331f7ba4abb747b6)_ _(revision-id: uatr1:1a0f5e782f6eea95)_ _(previous-revision-id: uatr1:dd78e322d1f1ce41)_
    signed machine verdict for that test id; it reads PROVEN ✓.
-4. **Story roll-up** _(witness: machine)_: every per-test verdict for the story passes. _(criterion-id: uatc_656099008b06476c25330283)_ _(revision-id: uatr1:d5e2042b7691e6c9)_
+   **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20), and kept for an OWNERSHIP reason rather than a
+   proof one.** Both halves are asserted today by real, gate-run tests —
+   `packages/orchestrator/src/proof/uat-proof.test.ts` ("guard: a machine test is proven by a machine
+   verdict", "guard: a human click cannot green a machine test"),
+   `apps/studio/server/uatVerdict.test.ts` ("REFUSES a machine-witness test — a click cannot stand in
+   for a machine proof (ADR-0082 d.2)") and `packages/cli/src/uat.test.ts` ("attest: a machine-witness
+   test refuses operator attestation (run the machine proof)"). But **no capability anywhere declares
+   any of those three files**: `storytree ownership packages/orchestrator` reports
+   `packages/orchestrator/src/proof` as its single unowned subtree, and neither `uatVerdict.test.ts`
+   nor `uat.test.ts` appears as any capability's `proof.real.testFile`. ADR-0294 D2 requires NAMING the
+   lower-tier node, and there is none to name — so the leg is not deleted. It carries no
+   `(proof-gate:)`, `resolveWitness` refuses it (`coverage: "refused"`), and no gate is minted
+   (ADR-0097 §2). What would let a later pass delete it is one declaration, not a new test: give
+   `packages/orchestrator/src/proof/uat-proof.ts` an owning capability.
+4. **Story roll-up** _(witness: machine)_: every per-test verdict for the story passes. _(criterion-id: uatc_656099008b06476c25330283)_ _(revision-id: uatr1:29cfcded27ba4bc3)_ _(previous-revision-id: uatr1:d5e2042b7691e6c9)_
    **Success —** the story's own UAT crown greens as the AND-roll-up (`rollupStoryUat`); a single
    signed `fail` withers it.
-5. **Vouch never greens** _(witness: machine)(detail: uat-attestation#uat-5)_: a lower-rigor vouch _(criterion-id: uatc_2e712e4b36459c0030e82aac)_ _(revision-id: uatr1:0e6749e2688384ce)_
-   ("I also eyeballed it") is recorded for a test — `storytree witness vouch <story>#uat-<n> --pg`
-   (the ADR-0118 canonical verb; `storytree attest` still works as a back-compat alias), or
-   `POST /api/attestations`. **Success —** it lands in `events.attestation` only (signer,
-   `relayedBy` when an agent scribed); `events.verdict` is untouched, the test's derived PROVEN state
-   and the story-UAT roll-up (`rollupStoryUat`) are unchanged, the island hue is unchanged, and no
-   green is forged. *(Re-adjudicated `human` → `machine` 2026-07-26: this is an ISOLATION claim — the
-   load-bearing half is the absence of a write — and an absence is machine-observable.)*
-6. **The proof tier and the vouch tier are never conflated on any surface.** _(criterion-id: uatc_3df6631198729794e56861e6)_ _(revision-id: uatr1:292bf7b5d4951044)_
+   **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20), kept for the SAME ownership reason as leg 3.**
+   `packages/orchestrator/src/proof/uat-proof.test.ts` asserts this leg verbatim — "rollup: all tests
+   signed pass => healthy", "rollup: a test that regressed (pass then fail) withers the story to
+   unhealthy", "rollup: a regression wins even when every other test passes", "rollup: any test still
+   unproven => null (under-claim, never over-claim)" — and that file is declared by no capability, so
+   D2's honesty wall cannot be discharged. `resolveWitness` refuses it (`coverage: "refused"`); no gate
+   is minted (ADR-0097 §2).
+6. **The proof tier and the vouch tier are never conflated on any surface.** _(criterion-id: uatc_3df6631198729794e56861e6)_ _(revision-id: uatr1:316719247bff3b1d)_ _(previous-revision-id: uatr1:292bf7b5d4951044)_
    _(witness: machine)(detail: uat-attestation#uat-6)_ With one test carrying a signed verdict, one
    carrying only a vouch, and one carrying neither, read both surfaces. **Success —**
    `storytree tree <story>` renders the two in SEPARATE columns — `proven=✓/✗/–` derived from
@@ -225,6 +299,20 @@ becomes worth carrying a verdict again, the capability tier is where it belongs.
    with no vouch column. *(Restated 2026-07-26 to what the surfaces actually do — see the stale-prose
    note above — and re-adjudicated `human` → `machine`: which mark, which column, and which state can
    reach a row are all structural.)*
+   **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20), and it is a PARTIAL duplicate that is therefore
+   KEPT.** Its CLI half is largely proven one rung down by the capability
+   [`tree-view`](../notice-board/tree-view.md) (story `notice-board`) at `packages/cli/src/tree.test.ts`
+   — "focused view renders the UAT test criteria block from the spec; marks absent offline", "focused
+   view shows attestation marks when the reader answers (human seal vs – never voucht)" and "focused
+   view: a story with one unproven test under-claims (crown –, the test proven=–)". What no test
+   reaches is the rest of the leg: that the STUDIO row surfaces the signed verdict only, so no vouch
+   state can reach it while `/api/attestations` still carries the marks — the claim the 2026-07-26
+   restatement was written for — and that `storytree witness list` carries a `proven=` column and no
+   vouch column (`packages/cli/src/witness.test.ts` asserts only that the verb ROUTES to the read path,
+   never what the read renders). A partial duplicate is not a duplicate (ADR-0294 D2), so the leg
+   stands; `resolveWitness` refuses it (`coverage: "refused"`), and no gate is minted (ADR-0097 §2) —
+   binding it to the CLI suite would sign the half that is covered and silently claim the studio half
+   that is not, which is the exact conflation this leg exists to forbid.
 
 ## Resolved modeling calls
 
