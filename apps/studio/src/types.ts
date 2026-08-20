@@ -1338,13 +1338,70 @@ export interface ArcRollup {
 }
 
 /**
+ * One increment as the LANE LIST sees it — the wire mirror of `ArcRollupSummaryIncrement`.
+ *
+ * The narrowed row `GET /api/arcs` ships. It is a SUBSET of {@link ArcRollupIncrement} by
+ * intention, not by accident, and the one field that changed NAME says so: the landing date arrives
+ * as {@link ArcRollupSummaryIncrement.landedOn}, never as a one-key `outcome`, so nothing here can
+ * be read as an increment that landed without a PR.
+ */
+export interface ArcRollupSummaryIncrement {
+  id: string;
+  title: string;
+  /** `proposal` | `ready` | `active` | `closed`, or `"?"` — the bar's tone and its tooltip. */
+  status: string;
+  /** When it was parked (ISO), on a not-yet-landed entry. */
+  parked?: string;
+  /** The typed work-hierarchy pointers (ADR-0306 D2) — the `claimed` lane state's join. */
+  cites?: string[];
+  /** `outcome.date` alone. The `pr` and the outcome prose live on `GET /api/arcs/<id>`. */
+  landedOn?: string;
+}
+
+/**
+ * One arc as the LANE LIST sees it — the wire mirror of `ArcRollupSummary`, and what
+ * `GET /api/arcs` now serves.
+ *
+ * THE LIST IS NARROWER THAN THE ROLLUP ON PURPOSE. The lane strip draws a title, a lifecycle, a
+ * state chip and one bar per increment; the briefing panel is what renders an arc's prose, and it
+ * renders exactly one arc at a time. Shipping every arc's `intent`, `endState` and every
+ * increment's outcome narrative so the strip could count bars cost 1,364,425 bytes over 76 arcs
+ * (measured against the live store, 2026-08-20) on a read that re-polls every 30 s. Narrowed to
+ * this, the same list is 226,836 bytes. The briefing panel reads {@link ArcRollup} off
+ * `GET /api/arcs/<id>` instead — 5-90 KB for the one arc it is open on.
+ *
+ * A row here is NOT a degraded {@link ArcRollup} and must never be widened back into one field at a
+ * time: anything a LANE needs belongs here, and anything only the PANEL needs belongs on the per-id
+ * read. If a lane ever needs an arc's prose, that is a design question about the lane, not a field
+ * to add quietly to a payload multiplied by every arc in the store.
+ */
+export interface ArcRollupSummary {
+  id: string;
+  title: string;
+  /** The stored lifecycle (ADR-0239 D1 / ADR-0374 D1) — which scope the lane strip files it under. */
+  lifecycle: 'active' | 'parked' | 'closed';
+  /** ADR-0267 D7's one server-computed state: this arc has open questions waiting on the owner. */
+  waiting: boolean;
+  /**
+   * HOW MANY questions wait on the owner, not WHICH — the questions themselves (and their `stakes`
+   * prose, which is authored to be cold-answerable) arrive with the briefing panel's per-id read.
+   */
+  openQuestions: number;
+  /** Every increment, forward-looking entries FIRST (the server's status-rank order). */
+  increments: ArcRollupSummaryIncrement[];
+}
+
+/**
  * GET /api/arcs — sibling of {@link ClaimsPayload} and {@link ActivityPayload} in its advisory
  * contract: `arcs: null` means the backend has no document store (the offline json one), which is a
  * DIFFERENT fact from "there are no arcs". A surface built to restore context must not blur the two
  * into a confident empty state, so the two answers render differently.
+ *
+ * The list carries {@link ArcRollupSummary} rows; the WHOLE {@link ArcRollup} is one arc at a time,
+ * off `GET /api/arcs/<id>` (see {@link ArcRollupSummary} for the measured reason).
  */
 export interface ArcsPayload {
-  arcs: ArcRollup[] | null;
+  arcs: ArcRollupSummary[] | null;
 }
 
 // ---------- the factory-floor health reading (GET /api/floor-health, ADR-0314 D7 / ADR-0316) ----------

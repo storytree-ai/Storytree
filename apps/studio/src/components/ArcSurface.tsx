@@ -34,9 +34,19 @@
  *        click-through is a read; the briefing itself is authored by the escalating session
  *        (`storytree question new`, ADR-0314 D5, landed #1186), never by the owner through here.
  *
- * WHERE THE DATA COMES FROM. One already-joined `ArcRollup[]` off `GET /api/arcs` — drive's
- * `loadArcRollups`, the same join `storytree arc show` renders. This component derives presentation
- * only (lib/arcSurface.ts) and joins nothing.
+ * WHERE THE DATA COMES FROM — TWO READS OF ONE JOIN, split by what each half of the surface draws.
+ * The LANES read `ArcRollupSummary[]` off `GET /api/arcs`: a title, a lifecycle, and one narrowed
+ * row per increment. The BRIEFING PANEL reads the WHOLE `ArcRollup` for the arc it is open on off
+ * `GET /api/arcs/<id>` — that is where an arc's `intent`, its questions' `stakes` and each
+ * increment's outcome prose live, and it needs them for one arc, not seventy-six. Both are
+ * `@storytree/arc`'s one join (`loadArcRollupSummaries` is `loadArcRollups` projected), the same
+ * value `storytree arc show` renders; this component derives presentation only (lib/arcSurface.ts)
+ * and joins nothing.
+ *
+ * THE SPLIT IS A MEASUREMENT, NOT A PREFERENCE. Shipping every arc's prose so the strip could count
+ * bars was 1,364,425 bytes over 76 arcs against the live store on 2026-08-20, re-polled every 30 s
+ * for as long as this lens is open; the lane rows alone are 226,836. What the split costs back is
+ * the panel's one loading state per selection, rendered below as `arc-briefing-reading`.
  */
 
 import { useState } from 'react';
@@ -54,8 +64,19 @@ import {
   type ArcLane,
   type ArcLaneScope,
 } from '../lib/arcSurface';
-import type { ArcRollupIncrement, SessionClaimGroup } from '../types';
-import { ARCS_UNREACHABLE, type ArcRollupsState } from '../lib/arcRollups';
+import type {
+  ArcRollup,
+  ArcRollupIncrement,
+  ArcRollupSummary,
+  SessionClaimGroup,
+} from '../types';
+import {
+  ARC_DETAIL_UNREACHABLE,
+  ARCS_UNREACHABLE,
+  useArcRollup,
+  type ArcRollupsState,
+  type ArcRollupState,
+} from '../lib/arcRollups';
 import type { SearchResult } from '../lib/librarySearch';
 
 export interface ArcSurfaceProps {
@@ -82,9 +103,24 @@ export interface ArcSurfaceProps {
    * normal navigation, unchanged from before this prop existed.
    */
   onOpen?: (selection: SearchResult) => void;
+  /**
+   * Read ONE arc's whole rollup — the briefing panel's own source (`GET /api/arcs/<id>`).
+   *
+   * INJECTED RATHER THAN IMPORTED, like every other seam this component has: it holds no `api`, no
+   * fetch and no socket, which is what lets it prove standalone. The composition root passes
+   * `api.arc`; a test passes its fixtures. It must be STABLE across renders — the hook re-reads on
+   * the selected id, not on this identity.
+   */
+  readArc: (id: string) => Promise<ArcRollup>;
 }
 
-export function ArcSurface({ arcs, now, claims = null, onOpen }: ArcSurfaceProps): React.JSX.Element {
+export function ArcSurface({
+  arcs,
+  now,
+  claims = null,
+  onOpen,
+  readArc,
+}: ArcSurfaceProps): React.JSX.Element {
   // ADR-0335: closed arcs are drawn one flag away, not only "one click away in the Library" — the
   // studio surface had no equivalent of the CLI's `arc list --closed` until this scope toggle.
   // ADR-0374 D5 made it THREE scopes, one per lifecycle: `Parked` joined, and `All` was removed as
@@ -98,6 +134,10 @@ export function ArcSurface({ arcs, now, claims = null, onOpen }: ArcSurfaceProps
   const selectedId =
     picked !== null && lanes.some((l) => l.arc.id === picked) ? picked : defaultLaneId(lanes);
   const selected = lanes.find((l) => l.arc.id === selectedId) ?? null;
+  // The panel's OWN read (`GET /api/arcs/<id>`), keyed on the selection. Called unconditionally —
+  // hooks cannot be conditional — and `null` in means `null` out, which is how "nothing is selected"
+  // stays distinct from "the read did not answer".
+  const detail = useArcRollup(selected?.arc.id ?? null, readArc);
   const emptyLabel = `No ${scope} arcs.`;
 
   return (
@@ -181,7 +221,7 @@ export function ArcSurface({ arcs, now, claims = null, onOpen }: ArcSurfaceProps
             ))
           )}
         </div>
-        <ArcBriefingPanel lane={selected} onOpen={onOpen} />
+        <ArcBriefingPanel lane={selected} detail={detail} onOpen={onOpen} />
       </div>
     </div>
   );
@@ -275,12 +315,25 @@ function openOnClick(
  * escalating session authored (ADR-0314 D5) rather than a one-line summary they then have to go
  * looking for. Read-only: there is no reply box here by decision (ADR-0267 D6 / ADR-0314 D9), and
  * answering happens by the owner prompting an agent harness.
+ *
+ * IT READS ITS OWN ARC. The lane list carries only what a lane DRAWS, so everything below this
+ * panel's header — the questions and their `stakes`, the arc's `intent`, every increment's outcome —
+ * arrives on a per-selection `GET /api/arcs/<id>` (`useArcRollup`). That gives the panel three
+ * states the lane strip does not have, and each renders as a different fact rather than collapsing
+ * into a plausible-looking empty briefing: still reading, did not answer, and here it is.
  */
 function ArcBriefingPanel({
   lane,
+  detail,
   onOpen,
 }: {
   lane: ArcLane | null;
+  /**
+   * The selected arc's WHOLE rollup, read per selection off `GET /api/arcs/<id>` — `null` when no
+   * lane is selected, `undefined` while the read is in flight, `ARC_DETAIL_UNREACHABLE` when it did
+   * not answer. Everything below the header comes from here; `lane` supplies only the identity.
+   */
+  detail: ArcRollupState;
   onOpen?: ((selection: SearchResult) => void) | undefined;
 }): React.JSX.Element {
   if (lane === null) {
@@ -290,21 +343,77 @@ function ArcBriefingPanel({
       </aside>
     );
   }
-  const briefing = arcBriefing(lane.arc);
+
+  // THE HEADER RENDERS FROM THE LANE, THE BODY FROM THE DETAIL. The lane summary already carries the
+  // arc's identity, so the title and the deep-link are up the moment the owner clicks and do not
+  // flicker through a placeholder while the rollup arrives. Everything the panel exists to show —
+  // the questions, the intent, the increments — is prose that lives only on the per-id read.
+  const summary: ArcRollupSummary = lane.arc;
+  const header = (
+    <header className="arc-briefing-header">
+      <h4 className="arc-briefing-title">{summary.title || summary.id}</h4>
+      <a
+        className="arc-briefing-open"
+        href={assetHref(summary.id)}
+        onClick={openOnClick(onOpen, {
+          id: summary.id,
+          title: summary.title || summary.id,
+          category: 'arc',
+          source: 'asset',
+        })}
+      >
+        open the arc ↗
+      </a>
+    </header>
+  );
+
+  if (detail === undefined || detail === null) {
+    /* STILL READING. A moving part rather than a line of prose, for the reason the lane list's own
+       reading state carries one (#1436): this read runs the same join on the same 30 s budget with
+       the same three attempts, so it can legitimately last, and a static sentence held that long
+       reads as a surface that has given up. Bounded by construction — the retry is finite, so this
+       always resolves to a briefing or to the note below. `detail === null` cannot happen with a
+       lane selected (the hook returns `null` only for a `null` id) and is folded in here rather than
+       given a state of its own: an impossible case must not be able to render as a CONFIDENT empty
+       briefing. */
+    return (
+      <aside className="arc-briefing" data-testid="arc-briefing" aria-label="arc briefing">
+        {header}
+        <p
+          className="muted small arc-briefing-reading"
+          data-testid="arc-briefing-reading"
+          role="status"
+          aria-live="polite"
+        >
+          <span className="spinner" aria-hidden="true" />
+          Reading this arc&apos;s briefing…
+        </p>
+      </aside>
+    );
+  }
+
+  if (detail === ARC_DETAIL_UNREACHABLE) {
+    /* THE READ DID NOT ANSWER — every attempt lost, or the arc is gone from under the poll. Said
+       plainly rather than papered over with the summary's own fields: the lane knows how many
+       questions wait on this arc, and rendering that count with no questions under it would be a
+       briefing that looks complete and is not. What the owner can still do is open the artifact,
+       which the header above already offers. */
+    return (
+      <aside className="arc-briefing" data-testid="arc-briefing" aria-label="arc briefing">
+        {header}
+        <p className="muted small arc-briefing-note" data-testid="arc-briefing-unreachable">
+          This arc&apos;s briefing didn&apos;t answer — open the arc above to read it.
+        </p>
+      </aside>
+    );
+  }
+
+  const briefing = arcBriefing(detail);
   const { arc } = briefing;
 
   return (
     <aside className="arc-briefing" data-testid="arc-briefing" aria-label="arc briefing">
-      <header className="arc-briefing-header">
-        <h4 className="arc-briefing-title">{arc.title || arc.id}</h4>
-        <a
-          className="arc-briefing-open"
-          href={assetHref(arc.id)}
-          onClick={openOnClick(onOpen, { id: arc.id, title: arc.title || arc.id, category: 'arc', source: 'asset' })}
-        >
-          open the arc ↗
-        </a>
-      </header>
+      {header}
 
       {/* WAITING FIRST — the half that makes this a place to act rather than another index.
           TWO GROUPS since ADR-0359 D2: authored questions (answerable right now) and parked
@@ -405,7 +514,7 @@ function ArcBriefingPanel({
         {briefing.landed.length === 0 ? (
           <p className="muted small">Nothing has landed yet.</p>
         ) : (
-          <DetailDisclosure label={landedSummary(lane.arc)} className="arc-landed-disclosure">
+          <DetailDisclosure label={landedSummary(arc)} className="arc-landed-disclosure">
             <ul className="arc-increment-list">
               {briefing.landed.map((inc) => (
                 <IncrementRow key={inc.id} increment={inc} onOpen={onOpen} />

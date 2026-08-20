@@ -3,6 +3,7 @@
 import { retryRead } from './lib/retryRead';
 import type {
   ActivityPayload,
+  ArcRollup,
   ArcsPayload,
   AssetInput,
   AttestationsPayload,
@@ -287,6 +288,25 @@ export const api = {
   // repeat — a pure GET that writes nothing.
   arcs: (): Promise<ArcsPayload> =>
     retryRead(() => http<ArcsPayload>('/api/arcs', { signal: AbortSignal.timeout(30_000) }), {
+      attempts: 3,
+      backoffMs: (attempt) => attempt * 500,
+    }),
+  // ONE arc's WHOLE rollup (ADR-0267's `/api/arcs/<id>`) — the briefing panel's read, and the other
+  // half of the list/detail split the summary projection above created. The list carries what a LANE
+  // draws; every piece of an arc's prose the panel renders — its `intent`, its questions' `stakes`,
+  // each increment's outcome — arrives here, for the one arc the owner has open.
+  //
+  // THE SAME 30 s BUDGET AND RETRY AS ITS SIBLING, because it is the same read narrowed rather than
+  // a cheaper class of read: it runs the identical join and can meet the identical latency spike, and
+  // an arc whose briefing "didn't answer" is exactly the false-absence #1436 measured on the list.
+  // It is far smaller in the answer (5-90 KB per arc against the list's 1.36 MB), which is a reason
+  // to expect it to win the race, never a reason to give it less room to.
+  //
+  // A 404 here is a real answer, not a failure: the list re-polls, so an arc can close or be renamed
+  // between a poll and a click. `http` throws on it and the caller reports it as a read that did not
+  // answer, which is the honest reading — the panel has no rollup either way.
+  arc: (id: string): Promise<ArcRollup> =>
+    retryRead(() => http<ArcRollup>(`/api/arcs/${q(id)}`, { signal: AbortSignal.timeout(30_000) }), {
       attempts: 3,
       backoffMs: (attempt) => attempt * 500,
     }),

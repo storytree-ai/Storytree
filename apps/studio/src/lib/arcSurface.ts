@@ -1,5 +1,14 @@
 // The arc surface's PURE derivation layer (ADR-0314) — momentum lanes, arc state, and the briefing
-// panel's payload, all computed from ONE already-joined `ArcRollup` and nothing else.
+// panel's payload, all computed from an already-joined server value and nothing else.
+//
+// TWO INPUT SHAPES, AND THE SPLIT IS THE PAYLOAD DECISION MADE VISIBLE IN THE TYPES. The LANE half
+// (`laneBars` / `laneCounts` / `arcState` / `arcClaimants` / `lastActivityAt` / `arcLanes`) takes
+// `ArcRollupSummary` — the narrowed row `GET /api/arcs` ships for every arc. The BRIEFING half
+// (`arcBriefing` / `landedSummary`) takes the whole `ArcRollup`, which the panel reads for the ONE
+// arc it is open on off `GET /api/arcs/<id>`. A lane function that reached for `intent`, a
+// question's `stakes` or an increment's outcome prose would not compile against the summary, which
+// is the point: the list payload cannot be widened here by accident, only deliberately and in
+// `packages/arc/src/arc-rollup.ts` where the projection lives.
 //
 // WHERE THE JOIN LIVES, AND WHY NONE OF IT IS HERE. `packages/arc/src/arc-rollup.ts` owns the
 // arc → children join, and both `storytree arc show` and `GET /api/arcs` render from that one
@@ -16,6 +25,8 @@ import type {
   ArcRollup,
   ArcRollupIncrement,
   ArcRollupQuestion,
+  ArcRollupSummary,
+  ArcRollupSummaryIncrement,
   SessionClaimGroup,
 } from '../types';
 
@@ -56,8 +67,8 @@ export interface LaneBar {
  * forward-looking work first and oldest-first within a rank, which puts the LONGEST-WAITING remedy
  * at the head of the grey run, and that is the entry a reader most needs to see.
  */
-export function laneBars(rollup: ArcRollup): LaneBar[] {
-  const bar = (inc: ArcRollupIncrement): LaneBar => ({
+export function laneBars(rollup: ArcRollupSummary): LaneBar[] {
+  const bar = (inc: ArcRollupSummaryIncrement): LaneBar => ({
     id: inc.id,
     title: inc.title,
     status: inc.status,
@@ -82,7 +93,7 @@ export interface LaneCounts {
   queued: number;
 }
 
-export function laneCounts(rollup: ArcRollup): LaneCounts {
+export function laneCounts(rollup: ArcRollupSummary): LaneCounts {
   let landed = 0;
   let queued = 0;
   for (const inc of rollup.increments) {
@@ -168,7 +179,7 @@ export type DerivableArcState = Exclude<ArcSurfaceState, 'blocked'>;
  * support a negative claim.
  */
 export function arcClaimants(
-  rollup: ArcRollup,
+  rollup: ArcRollupSummary,
   groups: readonly SessionClaimGroup[] | null,
 ): Array<{ sessionId: string; branch: string; unitId: string }> {
   if (groups === null || groups.length === 0) return [];
@@ -232,7 +243,7 @@ export const BLOCKED_UNAVAILABLE_NOTE =
  * Unparseable values are skipped rather than treated as epoch 0, so one malformed row cannot drag a
  * live arc into `quiet`.
  */
-export function lastActivityAt(rollup: ArcRollup): number | null {
+export function lastActivityAt(rollup: ArcRollupSummary): number | null {
   let latest: number | null = null;
   const consider = (value: string | undefined): void => {
     if (value === undefined || value === '') return;
@@ -241,7 +252,7 @@ export function lastActivityAt(rollup: ArcRollup): number | null {
     if (latest === null || at > latest) latest = at;
   };
   for (const inc of rollup.increments) {
-    consider(inc.outcome?.date);
+    consider(inc.landedOn);
     consider(inc.parked);
   }
   return latest;
@@ -275,14 +286,18 @@ export function lastActivityAt(rollup: ArcRollup): number | null {
  * session cannot add it here without deliberately widening the signature.
  */
 export function arcState(
-  rollup: ArcRollup,
+  rollup: ArcRollupSummary,
   now: Date,
   claims: readonly SessionClaimGroup[] | null = null,
 ): DerivableArcState {
   void now;
   if (rollup.lifecycle === 'closed') return 'closed';
   if (rollup.lifecycle === 'parked') return 'parked';
-  if (rollup.questions.length > 0) return 'waiting';
+  // The COUNT, not the question array — the list projection carries how many wait on the owner and
+  // leaves the questions themselves to the per-id read. `> 0` is the identical predicate the array's
+  // `.length > 0` was; what changed is that the surface no longer needs every arc's `stakes` prose
+  // on the wire to answer it.
+  if (rollup.openQuestions > 0) return 'waiting';
   if (arcClaimants(rollup, claims).length > 0) return 'claimed';
   return 'quiet';
 }
@@ -291,7 +306,8 @@ export function arcState(
 
 /** One lane, ready to render: the arc, its bars, its counts and its state. */
 export interface ArcLane {
-  arc: ArcRollup;
+  /** The LANE projection off `GET /api/arcs`. The whole rollup is the briefing panel's own read. */
+  arc: ArcRollupSummary;
   bars: LaneBar[];
   counts: LaneCounts;
   state: DerivableArcState;
@@ -348,7 +364,7 @@ export type ArcLaneScope = 'active' | 'parked' | 'closed';
  * the arcs that have something for them to act on sit at the top of the list they scan.
  */
 export function arcLanes(
-  arcs: readonly ArcRollup[],
+  arcs: readonly ArcRollupSummary[],
   now: Date,
   scope: ArcLaneScope = 'active',
   claims: readonly SessionClaimGroup[] | null = null,
@@ -397,6 +413,7 @@ export function defaultLaneId(lanes: readonly ArcLane[]): string | null {
  * somewhere to ACT rather than another index.
  */
 export interface ArcBriefing {
+  /** The WHOLE rollup — the panel's own per-id read, not the lane's summary row. */
   arc: ArcRollup;
   /** Open questions on this arc — empty when nothing waits on the owner. */
   waiting: ArcRollupQuestion[];

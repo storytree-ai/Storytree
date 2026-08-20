@@ -4,9 +4,15 @@
 //
 // The contract under test is ADR-0267's: the studio serves the SAME derived arc → children join the
 // CLI renders. So these tests deliberately assert the endpoint's payload against `loadArcRollup`
-// from @storytree/drive — the CLI's own join — rather than against a hand-shaped literal. That is
+// from @storytree/arc — the CLI's own join — rather than against a hand-shaped literal. That is
 // what makes a future fork RED here: if the handler ever starts deriving anything itself, the two
 // stop agreeing and this suite says so.
+//
+// TWO WIDTHS OF THAT ONE JOIN, and both are asserted against it. `/api/arcs/<id>` serves the WHOLE
+// rollup; `/api/arcs` serves `summariseArcRollup` of it — the lane projection, which drops the
+// narrative prose no lane draws. So the list is checked against `summariseArcRollup(loadArcRollup())`
+// and, separately, for the ABSENCE of those fields on the real response: the whole point of the
+// projection is what it does not carry, and a field creeping back would go unmeasured otherwise.
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createServer, type Server } from 'node:http';
@@ -16,7 +22,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { InMemoryStore } from '@storytree/storage-protocol';
-import { loadArcRollup } from '@storytree/arc';
+import { loadArcRollup, summariseArcRollup } from '@storytree/arc';
 
 import { handleArcs, type Paths } from './apiRouter';
 import { HttpError } from './httpUtil';
@@ -171,6 +177,64 @@ describe('/api/arcs', () => {
     storeResult = store;
     const body = (await (await fetch(`${base}/api/arcs`)).json()) as { arcs: { id: string }[] };
     expect(body.arcs.map((a) => a.id)).toEqual(['surface-arc']);
+  });
+
+  it('the LIST is the summary projection of that same join — narrowed, never re-derived', async () => {
+    // The other half of the anti-fork assertion above. The list serves a NARROWER shape than the
+    // per-id read, and the authority for the narrowing is `summariseArcRollup` in @storytree/arc —
+    // run here directly over the join, so a handler that started picking its own fields (or a
+    // narrowing that quietly widened) fails HERE rather than shipping.
+    storeResult = store;
+    const body = (await (await fetch(`${base}/api/arcs`)).json()) as unknown;
+    const rollup = await loadArcRollup(
+      { store, decisionsDir: path.join(paths.docsDir, 'decisions'), storiesDir: paths.storiesDir },
+      'surface-arc',
+    );
+    expect(body).toEqual(
+      JSON.parse(JSON.stringify({ arcs: [summariseArcRollup(rollup!)] })),
+    );
+  });
+
+  it('THE LIST CARRIES NO NARRATIVE PROSE — the fields the lane strip never draws are absent', async () => {
+    // WHY THIS IS A FENCE AND NOT A PREFERENCE. Measured against the live store on 2026-08-20, the
+    // list shipped 1,364,425 bytes over 76 arcs, re-polled every 30 s while the arcs lens is open,
+    // and 75.5% of it sat in FOUR prose fields no lane renders: increment `outcome` (39.4%), arc
+    // `intent` (14.8%), arc `endState` (11.1%) and increment `objective` (10.2%). The projection
+    // dropped them and the payload fell to 226,836 bytes. Each is one property away from coming
+    // back — a rollup spread, a "while we're here" field — and nothing would go red but the wire.
+    //
+    // ASSERTED AS AN ABSENCE ON THE REAL RESPONSE, not as a shape on the projection function, so it
+    // holds against whatever this route actually serves. The per-id read carries all of them, and
+    // the test above proves it still does.
+    storeResult = store;
+    const { arcs } = (await (await fetch(`${base}/api/arcs`)).json()) as {
+      arcs: Record<string, unknown>[];
+    };
+    const [arc] = arcs;
+    expect(Object.keys(arc!).sort()).toEqual([
+      'id',
+      'increments',
+      'lifecycle',
+      'openQuestions',
+      'title',
+      'waiting',
+    ]);
+    // The question COUNT crosses, the questions themselves (and their cold-answerable `stakes`
+    // prose) do not — the briefing panel reads those from `/api/arcs/<id>`.
+    expect(arc!['openQuestions']).toBe(1);
+    expect(Object.hasOwn(arc!, 'questions')).toBe(false);
+
+    const increments = arc!['increments'] as Record<string, unknown>[];
+    expect(increments).toEqual([
+      {
+        id: 'surface-arc-inc-01',
+        title: 'the rollup landed',
+        status: 'closed',
+        // `outcome.date` alone, re-spelled so it cannot read as a truncated `outcome`: the `pr` and
+        // the outcome note stay on the per-id read.
+        landedOn: '2026-07-30',
+      },
+    ]);
   });
 
   it('404s an unknown arc id rather than answering with an empty shell', async () => {

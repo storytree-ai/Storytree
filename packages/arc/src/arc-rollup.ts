@@ -188,6 +188,121 @@ export interface ArcRollup {
   waiting: boolean;
 }
 
+/**
+ * ONE INCREMENT AS THE LANE LIST SEES IT — {@link ArcRollupSummary}'s narrowed increment row.
+ *
+ * Every field here has a reader in the lane strip; the ones that are gone are the ones only the
+ * briefing panel reads. `objective`, `frictionRefs`, `anchorSha`, `danglingCites` and — the big
+ * one — the whole `outcome` object are dropped, and the landing DATE is re-spelled as
+ * {@link ArcRollupSummaryIncrement.landedOn} rather than shipped as a one-key `outcome`. That
+ * rename is the decision, not a tidy-up: a summary carrying `outcome: { date }` would let a reader
+ * take the absent `pr` for an increment that landed without one, which is a different fact. A field
+ * with a new name cannot be mistaken for a truncated version of the old one.
+ */
+export interface ArcRollupSummaryIncrement {
+  id: string;
+  /** The lane bar's tooltip, and the increment's name in the briefing lists. */
+  title: string;
+  /** `proposal` | `ready` | `active` | `closed`; `"?"` when a doc omits it — the bar's tone. */
+  status: string;
+  /** When it was parked — half of the lane's most-recent-activity sort. */
+  parked?: string;
+  /**
+   * The typed work-hierarchy pointers, VERBATIM — the claim-ledger join behind the `claimed` lane
+   * state (`arcClaimants` in the studio resolves a claim's unit id through these).
+   */
+  cites?: string[];
+  /**
+   * `outcome.date` ALONE — the other half of the activity sort, and what dates a landed bar.
+   * The `pr` and the `note` prose stay on the per-id route; `outcome` alone is 39% of the bytes
+   * the full list used to ship.
+   */
+  landedOn?: string;
+}
+
+/**
+ * ONE ARC AS THE LANE LIST SEES IT — the LIST projection of {@link ArcRollup} (`GET /api/arcs`).
+ *
+ * WHY THE LIST IS NARROWER THAN THE ROLLUP. `GET /api/arcs` is the heaviest read the app makes and
+ * the one most exposed to a timeout budget: measured against the live store on 2026-08-20 the full
+ * rollup list was **1,364,425 bytes** over 76 arcs, and a sampled read took 12.56 s against what was
+ * then a 10 s abort — which rendered "Arcs aren't available here" over a completely healthy store
+ * (#1436 widened the budget and added the retry; it deliberately did not touch the payload). The
+ * route is polled every 30 s for as long as the arcs lens is open, so the cost is ongoing.
+ *
+ * Nearly all of that weight is NARRATIVE PROSE the lane strip never draws. Measured over the same
+ * payload: increment `outcome` 39.4%, arc `intent` 14.8%, arc `endState` 11.1%, increment
+ * `objective` 10.2% — 75.5% of the bytes in four fields, none of which reaches a lane. The prose IS
+ * needed, but only for the ONE arc the briefing panel is open on, and `GET /api/arcs/<id>` already
+ * serves the whole rollup for exactly that. This projection is what the list ships instead:
+ * **226,836 bytes** over the same 76 arcs, 83.4% smaller.
+ *
+ * IT IS A PROJECTION, NEVER A SECOND JOIN. {@link summariseArcRollup} takes a derived
+ * {@link ArcRollup} and drops fields; nothing here reads a doc, a decision file or a story tree. So
+ * the list, the per-id route and `storytree arc show` still render from ONE join and cannot come to
+ * disagree about what an arc contains — the invariant ADR-0267 rests on, and the reason the
+ * `MIRRORS` row for this route can say the rollup's CONTENT carries no re-composition risk.
+ *
+ * WHAT IS DELIBERATELY ABSENT, and why each is safe to leave off a list row: `description`,
+ * `intent` and `endState` (prose, and the briefing panel is the only reader); `adrs`, `stories` and
+ * `citedStories` (no browser surface renders them today — and `stories`/`citedStories` are the
+ * branch-dependent disk-scan pair, so shipping them on a poll would put a working-tree scan on the
+ * wire 76 times for nobody); and the `questions` ARRAY, replaced by
+ * {@link ArcRollupSummary.openQuestions}, because a lane reads only whether the count is above zero
+ * while a question's `stakes` is authored to be cold-answerable and runs to hundreds of words.
+ */
+export interface ArcRollupSummary {
+  id: string;
+  title: string;
+  /** Which of the three lifecycle scopes the lane strip files this arc under. */
+  lifecycle: "active" | "parked" | "closed";
+  /** ADR-0267 D7's one defined state — the same boolean the full rollup carries. */
+  waiting: boolean;
+  /**
+   * HOW MANY questions wait on the owner, not WHICH — the array is per-id-route-only.
+   *
+   * A count rather than {@link ArcRollupSummary.waiting} alone because the count is the strictly
+   * stronger of the two and costs one number per arc. Both ride the wire so a reader of either is
+   * reading one projection of one join rather than re-deriving a state from a list it was handed.
+   */
+  openQuestions: number;
+  /** Every increment, in the rollup's own status-rank order — narrowed to the lane's fields. */
+  increments: ArcRollupSummaryIncrement[];
+}
+
+/**
+ * PURE: narrow one derived {@link ArcRollup} to the {@link ArcRollupSummary} the lane list ships.
+ *
+ * The ONE place the list/detail line is drawn. Both HTTP surfaces reach it through
+ * {@link loadArcRollupSummaries} rather than mapping the rollup themselves, so a field can only
+ * enter or leave the list payload here — the same reason the join is shared rather than re-composed
+ * per surface. ADR-0176's one-wired-backend rule leaves the desktop hand-copying this route's
+ * ENVELOPE, and every field it does not have to hand-copy is one it cannot drift on.
+ */
+export function summariseArcRollup(rollup: ArcRollup): ArcRollupSummary {
+  return {
+    id: rollup.id,
+    title: rollup.title,
+    lifecycle: rollup.lifecycle,
+    waiting: rollup.waiting,
+    openQuestions: rollup.questions.length,
+    increments: rollup.increments.map((inc) => {
+      const row: ArcRollupSummaryIncrement = {
+        id: inc.id,
+        title: inc.title,
+        status: inc.status,
+      };
+      if (inc.parked !== undefined) row.parked = inc.parked;
+      if (inc.cites !== undefined) row.cites = inc.cites;
+      // Written only when a date is actually there: `outcome.date` is optional even on a closed
+      // increment, and under `exactOptionalPropertyTypes` an explicit `undefined` is not the same
+      // as an absent key.
+      if (typeof inc.outcome?.date === "string") row.landedOn = inc.outcome.date;
+      return row;
+    }),
+  };
+}
+
 /** Read a string field off an untyped stored doc body ("" when absent). */
 function str(doc: Record<string, unknown>, key: string): string {
   const v = doc[key];
@@ -701,3 +816,22 @@ export async function loadArcRollups(deps: ArcRollupDeps): Promise<ArcRollup[]> 
     .map((arc) => deriveArcRollup({ arc, ...children }))
     .sort((a, b) => a.id.localeCompare(b.id));
 }
+
+/**
+ * Every arc's LIST projection, id-sorted — what `GET /api/arcs` serves (see {@link ArcRollupSummary}
+ * for the measured reason the list is narrower than the rollup).
+ *
+ * BOTH HTTP SURFACES CALL THIS, never `loadArcRollups().map(summariseArcRollup)` of their own. The
+ * studio serves the route and the desktop backend hand-copies its ENVELOPE (ADR-0176 forbids the
+ * import), so the narrowing has to be one function or it becomes the second thing the two could
+ * drift on. `check:mirror-conformance` compares the two payloads, but a gate that catches a drift is
+ * a worse answer than a shape that cannot have one.
+ *
+ * It joins EXACTLY as {@link loadArcRollups} does and then drops fields, so the saving is on the
+ * WIRE and not in the read. That is the intended trade: the join already loads each child set once
+ * for all arcs, and re-cutting it per-projection would fork the one join ADR-0267 rests on.
+ */
+export async function loadArcRollupSummaries(deps: ArcRollupDeps): Promise<ArcRollupSummary[]> {
+  return (await loadArcRollups(deps)).map(summariseArcRollup);
+}
+

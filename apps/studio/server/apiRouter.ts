@@ -1666,12 +1666,23 @@ export async function handleActivity(
  * integration test (the handleActivity pattern).
  */
 /**
- * `GET /api/arcs` → `{ arcs: ArcRollup[] }` · `GET /api/arcs/<id>` → one `ArcRollup`.
+ * `GET /api/arcs` → `{ arcs: ArcRollupSummary[] }` · `GET /api/arcs/<id>` → one full `ArcRollup`.
  *
  * The studio's arc read (ADR-0267). Every value here comes from `deriveArcRollup` in
  * `@storytree/arc` — the SAME join `storytree arc show` renders — so the map surface and the CLI
  * can never disagree about what an arc contains. This handler adds routing, the method check, and
  * the honest store-absent answer; it derives nothing of its own.
+ *
+ * THE LIST AND THE ONE-ARC READ SERVE DIFFERENT WIDTHS OF THE SAME JOIN, and that is the decision.
+ * The list carries only what the lane strip draws (`loadArcRollupSummaries` — see
+ * `ArcRollupSummary` in @storytree/arc for the measurement); the per-id read carries the WHOLE
+ * rollup, because the briefing panel renders an arc's `intent`, its questions' `stakes` and every
+ * increment's outcome prose, and it renders them for exactly one arc at a time. Shipping that prose
+ * 76 times on a 30 s poll to draw green and grey bars was 1,364,425 bytes; the lane rows are
+ * 226,836, and one arc's whole rollup is 5-90 KB.
+ *
+ * The narrowing is a PROJECTION of the rollup, not a second join — it happens in @storytree/arc, so
+ * the desktop mirror reaches the same one and the two payloads cannot fork.
  *
  * Read-only by decision, not by omission: ADR-0267 D6 ships no write path this round ("no in-surface
  * answering of questions, no comment affordance, no edit"), so a non-GET is refused rather than
@@ -1699,14 +1710,14 @@ export async function handleArcs(
     sendJson(res, 200, { arcs: null });
     return;
   }
-  const { loadArcRollup, loadArcRollups } = await loadArc();
+  const { loadArcRollup, loadArcRollupSummaries } = await loadArc();
   const deps = {
     store,
     decisionsDir: path.join(ctx.paths.docsDir, 'decisions'),
     storiesDir: ctx.paths.storiesDir,
   };
   if (id === null) {
-    sendJson(res, 200, { arcs: await loadArcRollups(deps) });
+    sendJson(res, 200, { arcs: await loadArcRollupSummaries(deps) });
     return;
   }
   const rollup = await loadArcRollup(deps, id);
