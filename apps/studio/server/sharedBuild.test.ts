@@ -10,8 +10,11 @@ import { sharedBuild } from './libraryBackend';
  * ~11 s on this machine — so a cold page load opened a herd of connectors racing each other, and the
  * advisory probes (`inFlightClaims` and siblings, hard 4 s race) could not win against their own
  * contention. Symptom one process away: `{"db":"unreachable"}`, `claims: null`, `/api/assets` 295 s
- * where a warm read is 7.2 s, and a context-traversal picker that never rendered at all because
- * `SessionTraversalSection` draws nothing when its claims are empty.
+ * where a warm read is 7.2 s, and a context-traversal picker that never rendered at all because the
+ * story panel's picker of the day drew nothing when its claims were empty. (That picker is gone —
+ * ADR-0354 D2 withdrew the claim-join and the rail now lists the local trace index, which needs no
+ * claims and so cannot be blanked by this race. The pool defect it exposed is what this file proves,
+ * and that is why the history is kept rather than the component name.)
  *
  * The fix is the promise-memo idiom this same file already uses for `loadStoreModule`, extracted
  * here so the three behaviours that MATTER are provable without a database:

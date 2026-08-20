@@ -106,7 +106,7 @@ import {
 import { ConnectionsSection } from './ConnectionsSection.js';
 import { DetailDisclosure } from './DetailDisclosure.js';
 import { BuildSection } from './BuildSection.js';
-import { SessionTraversalSection } from './SessionTraversalSection.js';
+import { BottomDock } from './BottomDock.js';
 import { WorldSettingsPanel } from './WorldSettingsPanel.js';
 import { LibraryDrawer } from './LibraryDrawer.js';
 import { ArcSurface } from './ArcSurface.js';
@@ -120,8 +120,6 @@ import { LibraryOpenOverlay } from './LibraryOpenOverlay.js';
 import { LibrarySelectionCard } from './LibrarySelectionCard.js';
 import type { SearchResult } from '../lib/librarySearch.js';
 import type { TerminalDockSeed } from './TerminalDock.js';
-import { TerminalRepoGate } from './TerminalRepoGate.js';
-import { RepoPicker } from './RepoPicker.js';
 import type { BuildActivity, ClaimActivity, DepartedClaim, DocMeta, SessionClaimGroup, TreeCapability, TreeStory, TreeVerdict, UatTestCriterionRow } from '../types';
 import {
   hash,
@@ -3706,25 +3704,23 @@ export function TreeView({
               dive slot; transient (dismiss returns to the lens/map, clearing openSelection). Supplement
               glue after the leaf PASS — the proven LibraryOpenOverlay stays byte-untouched. */}
           <LibraryOpenOverlay selection={openSelection} onDismiss={() => setOpenSelection(null)} />
-          {/* The embedded terminal overlays the MAP (absolute within .world-frame), not the whole app —
-              the same dock slot the chat used (ADR-0174 terminal pivot; ChatDock stays dormant in the
-              tree for a future app-guide, ADR-0175). It is FAIL-CLOSED behind TerminalRepoGate
-              (terminal-repo-gate): the byte-locked dock renders only once a valid repo is selected (else a
-              "select a repository" gate), reopening in the new repo when the selection changes. A thin
-              client: it reaches a real local pty only through the desktop `window.desktopTerminal` bridge,
-              and degrades to an honest disabled state in the hosted/dev studio (a plain browser, no
-              bridge). The seed (a map Build's pre-filled command, ADR-0137) is forwarded through the gate. */}
-          {/* The repo control (terminal-repo-picker, ADR-0174 follow-on) is INJECTED into the gate, not
-              mounted as a floating sibling over the map (owner UX refinement 2026-07-12): the gate renders
-              it as the prominent SELECT affordance inside the gated chrome while no repo is selected (a new
-              user is forced to pick before the terminal runs), and forwards it into TerminalDock's header
-              as the compact repo GEAR once a repo is ready (off the map — no longer covering the terminal).
-              A thin client over window.desktopRepo; the gate omits it entirely in the hosted/dev studio
-              (no bridge → the dock's own honest "unavailable" state stands alone). */}
-          <TerminalRepoGate
-            {...(terminalSeed ? { seed: terminalSeed } : {})}
-            repoControl={<RepoPicker />}
-          />
+          {/* The BOTTOM PANEL overlays the MAP (absolute within .world-frame), not the whole app — the
+              same dock slot the chat used, then the terminal (ADR-0174 terminal pivot; ChatDock stays
+              dormant in the tree for a future app-guide, ADR-0175). Since ADR-0354 D1 it is a TAB HOST:
+              the terminal keeps its tab and the context-traversal replay is its sibling, so the frame
+              (fold, drag-resize, tab strip) belongs to `BottomDock` and the dock draws only its body.
+              The terminal half is unchanged behind it — still FAIL-CLOSED behind TerminalRepoGate
+              (terminal-repo-gate): the dock renders only once a valid repo is selected (else a "select a
+              repository" gate), reopening in the new repo when the selection changes; still a thin client
+              reaching a real local pty only through the desktop `window.desktopTerminal` bridge, and
+              degrading to an honest disabled state in the hosted/dev studio (a plain browser, no bridge);
+              and the repo control (terminal-repo-picker, ADR-0174 follow-on) is still INJECTED into the
+              gate rather than mounted as a floating sibling over the map (owner UX refinement
+              2026-07-12) — the prominent SELECT affordance while no repo is chosen, the compact repo GEAR
+              in the dock header once one is ready. The seed (a map Build's pre-filled command, ADR-0137)
+              is forwarded through the host, which also brings the terminal tab forward so a seeded
+              command can never land in a pane hidden behind the traversal. */}
+          <BottomDock {...(terminalSeed ? { seed: terminalSeed } : {})} />
         </div>
 
         {selected && (
@@ -5931,14 +5927,14 @@ function StoryPanel({
         </DetailDisclosure>
       )}
 
-      {/* The context-traversal replay's entry point (`traversal-panel-arc`): the SAME claims the
-          disclosure above lists, joined against which of them this machine can actually replay, and
-          the replay mounted in place on selection. It sits immediately after "Sessions here" because
-          it is the same question one step further in — who is here, and can I watch what they did.
-          A block in the sequence, not a registered section: StoryPanel has no section-config seam,
-          and inventing one for a single caller would be a registry with one entry. It renders
-          nothing at all when nobody claims this story. */}
-      <SessionTraversalSection storyId={story.id} claims={claims} />
+      {/* The context-traversal replay used to enter HERE, as a claim-joined picker in this panel.
+          ADR-0354 moved it: it is a tab in the bottom panel (`BottomDock`), listed by this machine's
+          whole local trace index rather than by who claims this story. Staging the old placement is
+          what falsified it — 339 local traces, exactly ONE reachable through the claim-gated picker,
+          and only because the staging session took a claim to manufacture a row. A claim is a LIVE
+          signal and a replay is RETROSPECTIVE; joining them offered only the sessions an operator
+          happened to catch mid-flight. Nothing replaces it in this panel by design — the question
+          "who is here" is answered by "Sessions here" above, and "what did they do" is now a tab. */}
 
       <DetailDisclosure
         label="Capabilities"

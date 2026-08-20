@@ -129,5 +129,10 @@ quietly disagreeing with the code.
 - ADR-0248 — `residentInputTokens`, not the monotonic billing total, is what the bar plots.
 - ADR-0305 D2 — the increment lifecycle has no `superseded` status; D5 closes with a reason.
 - ADR-0312 D6 — an offer set states a raw `M of N`, never a percentage (retained by D3).
-- `apps/studio/src/lib/traversalPicker.ts` — the claim-join withdrawn by D2.
+- `apps/studio/src/lib/traversalIndex.ts` — D2 as built. It replaced `lib/traversalPicker.ts`, which
+  carried the withdrawn claim-join and was DELETED rather than left dead when D2 landed; the honesty
+  that lived beside the join — pending / failed / empty kept distinct, an undated trace offered and
+  explained, the searched directory carried with the answer — moved here intact.
+- `apps/studio/src/components/BottomDock.tsx` — D1 as built: the tab host that owns the panel frame,
+  with `TerminalDock`'s contract-12 `host` seam as how the terminal became a pane without changing.
 - `apps/studio/src/components/TraversalSpine.tsx` — the 360-wide composition redrawn by D3.
