@@ -546,6 +546,23 @@ test("declare: null identity → ok:false with guidance about worktree identity 
   assert.match(env.body, /worktree|identity/i);
 });
 
+test("declare: primary-checkout refusal teaches the linked-worktree bootstrap order without manual identity", async () => {
+  const deps: NoticeboardDeps = { identity: null, now: nowFn, claims: makeFakeClaims() };
+  const env = await noticeboardCommand("declare", { workingOn: "some work", nodes: ["story-a"] }, deps);
+
+  assert.equal(env.ok, false);
+  assert.match(env.body, /PRIMARY CHECKOUT is deliberately refused/);
+  assert.match(env.body, /git worktree add/i);
+  assert.match(env.body, /enter (?:that|the) linked worktree/i);
+  assert.match(env.body, /then run `?storytree noticeboard declare/i);
+  assert.match(env.body, /no flag to supply an identity manually/i);
+
+  const create = env.body.search(/git worktree add/i);
+  const enter = env.body.search(/enter (?:that|the) linked worktree/i);
+  const declare = env.body.search(/then run `?storytree noticeboard declare/i);
+  assert.ok(create < enter && enter < declare, "guidance must teach create → enter → declare order");
+});
+
 test("declare: blank workingOn → ok:false polite refusal", async () => {
   const deps: NoticeboardDeps = { identity: CLAIM_IDENTITY, now: nowFn, claims: makeFakeClaims() };
   const env = await noticeboardCommand("declare", { workingOn: "   ", nodes: ["story-a"] }, deps);

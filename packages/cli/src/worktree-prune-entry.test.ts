@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { resolveRepoBash } from "../../../scripts/resolve-bash.mjs";
 import { announceContext } from "./worktree-prune-entry.js";
 import { DRAIN_COOLING_FLOOR, DRAIN_MIN_RUNS, serialiseDrainHistory, type DrainRecord } from "./worktree-drain.js";
 
@@ -57,6 +58,7 @@ test("announceContext: builds a SessionStart additionalContext payload only for 
 
 const repoRoot = path.resolve(fileURLToPath(import.meta.url), "..", "..", "..", "..");
 const hookScript = path.join(repoRoot, "scripts", "worktree-prune-hook.sh");
+const bash = resolveRepoBash();
 
 const git = (args: readonly string[], cwd: string): string =>
   execFileSync("git", [...args], { cwd, encoding: "utf8" }).trim();
@@ -120,7 +122,7 @@ function withFixture(fn: (primary: string, worktreesDir: string) => void): void 
  * (`definition-injection.test.ts` sets the same 30s headroom for the same reason).
  */
 function runHook(cwd: string): string {
-  return execFileSync("bash", [hookScript], { cwd, encoding: "utf8", timeout: 30_000 });
+  return execFileSync(bash, [hookScript], { cwd, encoding: "utf8", timeout: 30_000 });
 }
 
 /** A stalled `DrainRecord`: reaped 0, cooling well past the floor, at the given time. */
