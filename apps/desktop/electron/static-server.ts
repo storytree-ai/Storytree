@@ -42,20 +42,33 @@ const CONTENT_TYPES: Record<string, string> = {
  * request, the secret the sidecar requires so it can tell a proxied request from any other local client
  * hitting its ephemeral port directly. Read-only GETs proxy untouched.
  */
+export interface BackendTarget {
+  port: number;
+  sidecarToken?: string;
+}
+
 export function serveStudio(
   distDir: string,
-  opts?: { backendPort?: number; sidecarToken?: string },
+  opts?: {
+    backendPort?: number;
+    sidecarToken?: string;
+    /** Re-read for every request so a restarted sidecar can replace the original ephemeral port. */
+    backend?: () => BackendTarget | null;
+  },
 ): Promise<{ url: string; server: Server }> {
   const root = normalize(distDir);
   const indexHtml = join(root, "index.html");
-  const backendPort = opts?.backendPort;
-  const sidecarToken = opts?.sidecarToken;
 
   const server = createServer((req, res) => {
     const rawPath = (req.url ?? "/").split("?")[0] ?? "/";
 
     if (rawPath.startsWith("/api/")) {
-      if (backendPort === undefined) {
+      const backend = opts?.backend
+        ? opts.backend()
+        : opts?.backendPort === undefined
+          ? null
+          : { port: opts.backendPort, sidecarToken: opts.sidecarToken };
+      if (backend === null) {
         res.writeHead(503, { "content-type": "application/json; charset=utf-8" });
         res.end('{"error":"no local backend (sidecar not started)"}');
         return;
@@ -72,13 +85,16 @@ export function serveStudio(
       }
       // Inject the per-launch shared secret so the sidecar can distinguish a proxied request from any
       // other local client hitting its port directly (defense-in-depth over the Origin/Host checks).
-      const headers = { ...req.headers, ...(sidecarToken ? { [SIDECAR_TOKEN_HEADER]: sidecarToken } : {}) };
+      const headers = {
+        ...req.headers,
+        ...(backend.sidecarToken ? { [SIDECAR_TOKEN_HEADER]: backend.sidecarToken } : {}),
+      };
       // Pipe the full request (method + path + query + headers + body) to the sidecar and stream its
       // response back. A connection error becomes a 502 JSON envelope (never HTML for a JSON fetch).
       const proxyReq = httpRequest(
         {
           host: "127.0.0.1",
-          port: backendPort,
+          port: backend.port,
           method: req.method,
           path: req.url,
           headers,

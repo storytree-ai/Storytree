@@ -10,7 +10,11 @@ import { NapiKeychain } from "../src/keychain/napi-adapter.js";
 import { capturedFromInput } from "../src/oauth/login.js";
 import type { CredentialKind } from "../src/credential/kinds.js";
 import { serveStudio } from "./static-server.js";
-import { describeSidecarExit, tailText } from "../src/backend/sidecar-startup.js";
+import {
+  describeRunningSidecarExit,
+  describeSidecarExit,
+  tailText,
+} from "../src/backend/sidecar-startup.js";
 import { rebuildSteps, runRebuild, spawnStepRunner, type RebuildResult } from "../src/apply/rebuild.js";
 import { pickConfiguredRuntime, resolveRuntimeRoot, RUNTIME_ROOT_ENV } from "../src/apply/runtime-root.js";
 import { PtySessionManager } from "../src/backend/pty-session-manager.js";
@@ -167,6 +171,7 @@ let backendChild: ChildProcess | null = null;
 let backendPort: number | null = null;
 let startupInFlight: Promise<void> | null = null;
 let brokerLoginInFlight: Promise<string> | null = null;
+let shuttingDown = false;
 
 const RETRY_URL = "storytree-retry://start";
 const HOSTED_STUDIO_URL = (
@@ -381,8 +386,25 @@ function startBackend(): Promise<number> {
       void handleSidecarBrokerRequest(child, message);
     });
     let settled = false;
+    let stoppedReported = false;
     let buf = "";
     let errBuf = "";
+    const reportUnexpectedStop = (
+      code: number | null,
+      signal: NodeJS.Signals | null,
+    ): void => {
+      if (stoppedReported || shuttingDown) return;
+      stoppedReported = true;
+      backendPort = null;
+      const reason = describeRunningSidecarExit(code, signal, tailText(errBuf, 12));
+      console.error(`[main] ${reason}`);
+      const page = launchPage(
+        "storytree backend stopped",
+        `The app window is still running, but its local backend stopped.\n\n${reason}`,
+        true,
+      );
+      for (const win of BrowserWindow.getAllWindows()) void safeLoadURL(win, page);
+    };
     const onData = (chunk: Buffer): void => {
       buf += chunk.toString("utf8");
       const m = buf.match(/STORYTREE_BACKEND_PORT=(\d+)/);
@@ -406,6 +428,8 @@ function startBackend(): Promise<number> {
       if (!settled) {
         settled = true;
         rejectPort(err);
+      } else {
+        reportUnexpectedStop(null, null);
       }
     });
     child.once("exit", (code, signal) => {
@@ -413,6 +437,8 @@ function startBackend(): Promise<number> {
       if (!settled) {
         settled = true;
         rejectPort(new Error(describeSidecarExit(code, signal, tailText(errBuf, 12))));
+      } else {
+        reportUnexpectedStop(code, signal);
       }
     });
   });
@@ -425,10 +451,13 @@ async function ensureStudioServed(): Promise<string> {
     // the e2e specs stub every /api call in the renderer, so nothing ever reaches it anyway.
     // The sidecarToken rides only when a real sidecar is running (it is what validates the proxy's
     // injected header); in e2e there is no sidecar, so it is omitted with the backendPort.
-    const served = await serveStudio(
-      STUDIO_DIST,
-      backendPort === null ? {} : { backendPort, sidecarToken },
-    );
+    const served = await serveStudio(STUDIO_DIST, {
+      // The sidecar owns an ephemeral port. Re-read it for every proxied request so Retry after an
+      // unexpected death can start a replacement without leaving the long-lived static server pinned
+      // to the dead child's port.
+      backend: () =>
+        backendPort === null ? null : { port: backendPort, sidecarToken },
+    });
     studioUrl = served.url;
   }
   return studioUrl;
@@ -846,6 +875,10 @@ void app.whenReady().then(async () => {
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
+});
+
+app.on("before-quit", () => {
+  shuttingDown = true;
 });
 
 // Reap the backend sidecar + every embedded-terminal pty on quit so neither outlives the shell

@@ -351,8 +351,8 @@ export const api = {
   // UI-driven build (ADR-0090 Phase 1 "the local loop"). build() posts a build INTENT (a safe
   // write — never a verdict); buildStatus() polls the run's coarse transcript + status. The frontend
   // imports NO build code (ADR-0004) — its only path to a build is these two endpoints.
-  build: (unitId: string): Promise<BuildIntentResult> =>
-    http('/api/build', jsonInit('POST', { unitId })),
+  build: (unitId: string, runtime?: 'claude' | 'codex'): Promise<BuildIntentResult> =>
+    http('/api/build', jsonInit('POST', { unitId, ...(runtime !== undefined ? { runtime } : {}) })),
   buildStatus: (runId: string): Promise<BuildStatus> =>
     http(`/api/build?runId=${q(runId)}`),
   // Adopt a brownfield (`mapped`) story (ADR-0097 Layer 1). adopt() posts an adoption INTENT that

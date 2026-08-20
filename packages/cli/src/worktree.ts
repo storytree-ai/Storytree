@@ -1174,8 +1174,11 @@ export function worktreeHelp(): Envelope {
     body: [
       "storytree worktree — worktree lifecycle hygiene (ADR-0200 / ADR-0142 / ADR-0033): create and reap are inverse ceremonies.",
       "",
-      '  storytree worktree create --node <story>… --intent "<what>" --pg',
-      "                                             the claim-gated workspace ceremony (ADR-0200 D3): takes the",
+      '  storytree worktree create --runtime claude --node <story>… --intent "<what>" --pg',
+      "                                             the Claude-farm claim-gated workspace ceremony (ADR-0200 D3):",
+      "                                             Codex Desktop owns ~/.codex/worktrees and this helper refuses",
+      "                                             --runtime codex instead of guessing inside product-owned slots;",
+      "                                             for Claude it takes the",
       "                                             exploring claim(s) FIRST (no claim, no workspace), mints the",
       "                                             <arc>-<story>-<suffix> name (basename = your session id),",
       "                                             cuts the worktree off origin/main, installs, and returns the",
@@ -1221,7 +1224,7 @@ export function worktreeHelp(): Envelope {
       "an owner running a manual stock take — silence is no longer the signal for 'nothing drained'.",
     ].join("\n"),
     next: [
-      'storytree worktree create --node <story> --intent "<what>" --pg',
+      'storytree worktree create --runtime claude --node <story> --intent "<what>" --pg',
       "storytree worktree prune",
       "storytree worktree drain",
     ],

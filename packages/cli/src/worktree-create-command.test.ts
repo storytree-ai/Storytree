@@ -238,6 +238,43 @@ test("run dispatch: `worktree create` with a MISSING --intent refuses", async ()
   assert.equal(ledger.takes.length, 0);
 });
 
+test("run dispatch: Codex uses its product-owned worktree helper, never a guessed Claude farm slot", async () => {
+  const ledger = fakeLedger();
+  const io = fakeIo();
+  const env = await run(
+    [
+      "worktree", "create",
+      "--runtime", "codex",
+      "--node", "story-a",
+      "--intent", "continue in Codex",
+      "--pg",
+    ],
+    {
+      store: new InMemoryStore(),
+      presence: { ledger },
+      worktree: { createIo: io, stamps: NO_STAMPS, generateSuffix: suffixSequence() },
+    },
+  );
+  assert.equal(env.ok, false);
+  assert.match(env.body, /Codex Desktop owns Codex worktree creation and recovery/);
+  assert.match(env.body, /~\/.codex\/worktrees/);
+  assert.equal(ledger.takes.length, 0, "the ownership refusal happens before claims");
+  assert.equal(io.calls.add.length, 0, "Storytree must not create a product-owned Codex slot");
+});
+
+test("create: an unknown runtime refuses before claims or filesystem IO", async () => {
+  const ledger = fakeLedger();
+  const io = fakeIo();
+  const env = await createWorktree(
+    { nodes: ["story-a"], intent: "reading", runtime: "mystery" },
+    { ledger, io, stamps: NO_STAMPS, generateSuffix: suffixSequence(), checkpoint: QUIET },
+  );
+  assert.equal(env.ok, false);
+  assert.match(env.body, /choose claude or codex/);
+  assert.equal(ledger.takes.length, 0);
+  assert.equal(io.calls.add.length, 0);
+});
+
 // ---------------------------------------------------------------------------
 // (3) missing --node
 // ---------------------------------------------------------------------------
