@@ -104,7 +104,41 @@ const delivered = await page.evaluate(() => {
         data[i + 2].toString(16).padStart(2, '0');
       counts.set(hex, (counts.get(hex) ?? 0) + 1);
     }
-    out.push({ w, h, opaque, colours: [...counts.entries()] });
+    // INTERIOR HOLES — a watertightness instrument for the land, REPORTED and deliberately
+    // not thresholded.
+    //
+    // Once the ground stopped being one flat plane it became possible for two surfaces to
+    // fail to meet, and a seam that fails to meet shows the page through it as a hairline.
+    // That presents as a rendering artefact rather than as a geometry bug, so it gets
+    // chased as one — this arc has lost time to exactly that class of thing twice.
+    //
+    // The measurement: flood-fill the TRUE exterior from the canvas border, then count the
+    // transparent pixels the fill cannot reach. Those are inside the island. It is NOT a
+    // pass/fail rung, because a legitimate silhouette pinches to a single pixel here and
+    // there at low raster resolutions, and any tolerance chosen today would be a number
+    // picked to make today's picture pass. THE REFERENCE IS THE FLAT CONTROL ON THE SAME
+    // PAGE: it reads 0, so a defined panel reading a handful is rasterisation and one
+    // reading hundreds is a torn seam.
+    const clear = new Uint8Array(w * h);
+    for (let p = 0; p < w * h; p++) clear[p] = data[p * 4 + 3] === 255 ? 0 : 1;
+    const seen = new Uint8Array(w * h);
+    const stack = [];
+    for (let x = 0; x < w; x++) stack.push(x, x + (h - 1) * w);
+    for (let y = 0; y < h; y++) stack.push(y * w, y * w + w - 1);
+    while (stack.length) {
+      const p = stack.pop();
+      if (seen[p] || !clear[p]) continue;
+      seen[p] = 1;
+      const x = p % w;
+      const y = (p - x) / w;
+      if (x > 0) stack.push(p - 1);
+      if (x < w - 1) stack.push(p + 1);
+      if (y > 0) stack.push(p - w);
+      if (y < h - 1) stack.push(p + w);
+    }
+    let holes = 0;
+    for (let p = 0; p < w * h; p++) if (clear[p] && !seen[p]) holes++;
+    out.push({ w, h, opaque, holes, colours: [...counts.entries()] });
   }
   return out;
 });
@@ -216,7 +250,16 @@ const report = {
   // camera delivers about FIVE pixels at 1 px/unit, not the ~13 the box arithmetic
   // predicts, because the tilt foreshortens the height and a mound does not fill its box.
   // Both numbers are reported; neither is quietly replaced by the other.
-  perPanel: delivered.map((c, i) => ({ i, w: c.w, h: c.h, opaque: c.opaque })),
+  perPanel: delivered.map((c, i) => ({ i, w: c.w, h: c.h, opaque: c.opaque, holes: c.holes })),
+  // Watertightness, REPORTED not judged — see the flood fill above for why there is no
+  // threshold. Read it against the flat control panels on the same page, which read 0.
+  watertight: {
+    totalInteriorHoles: delivered.reduce((s, c) => s + c.holes, 0),
+    worstPanels: delivered
+      .map((c, i) => ({ i, holes: c.holes, opaque: c.opaque }))
+      .sort((a, b) => b.holes - a.holes)
+      .slice(0, 6),
+  },
   palette: {
     authoredEntries: palette.size,
     canvases: delivered.length,
@@ -261,5 +304,9 @@ if (offPalette > 0) {
     console.log(`   ${hex}  ${n} px`);
   }
 }
+console.log(
+  `holes      : ${report.watertight.totalInteriorHoles} interior px across ${delivered.length} ` +
+    'canvases (REPORTED, not a rung — the flat control reads 0)',
+);
 console.log(`frame p50  : ${report.frameTiming.p50Ms} ms (RELATIVE — software rasteriser)`);
 console.log(offPalette === 0 ? 'PALETTE CLOSED ON THE GPU' : 'PALETTE BREACHED');

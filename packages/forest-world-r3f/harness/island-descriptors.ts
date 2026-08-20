@@ -36,6 +36,15 @@ export interface GroundCell {
   status: string;
   /** The scene's per-cell colour variant (`substrate.ts` hash-picks one of three). */
   variant: number;
+  /** The owning capability, from the enclosing `kind: 'parcel'` group's id.
+   *
+   *  CARRIED BECAUSE IT IS THE ONE EDGE THAT MEANS SOMETHING. A seam between two cells of
+   *  the same capability is an artefact of how the substrate decomposed a hex and asserts
+   *  nothing; a boundary between two capabilities is structure the island already owns and,
+   *  on an all-healthy island, currently draws invisibly. Without this field the renderer
+   *  cannot tell the two apart, and definition can then only be sprayed everywhere — which
+   *  is precisely the treatment the owner rejected (`land-definition.ts`). */
+  parcel?: string;
   /** The shape-free cell identity (ADR-0367), when the scene stamped one. */
   cellId?: string;
   /** True for a `cell-wheat` cell — the wheat token overrides the status family. */
@@ -76,14 +85,23 @@ export function groundCellsFrom(
 ): GroundCell[] {
   const out: GroundCell[] = [];
 
-  const walk = (node: SceneNode, at: { x: number; y: number }, status: string | undefined): void => {
+  const walk = (
+    node: SceneNode,
+    at: { x: number; y: number },
+    status: string | undefined,
+    parcel: string | undefined,
+  ): void => {
     if (node.el === 'g') {
       const t = parseTranslate(node.transform);
       const here = { x: at.x + t.x, y: at.y + t.y };
-      // A `parcel` group carries the owning capability's status; cells inherit it when
-      // their own path does not restate it.
+      // A `parcel` group carries the owning capability's status AND its capId; cells
+      // inherit both when their own path does not restate them. The capId is only ever
+      // taken from a group that says it IS a parcel — every other `<g>` on the island
+      // carries an `id` for its own reasons (a territory, a trail edge, a hit target), and
+      // inheriting one of those would silently partition the land along the wrong lines.
+      const here2 = node.kind === 'parcel' ? node.id ?? parcel : parcel;
       const inherited = node.status ?? status;
-      for (const child of node.children) walk(child, here, inherited);
+      for (const child of node.children) walk(child, here, inherited, here2);
       return;
     }
     if (node.el !== 'path') return;
@@ -99,11 +117,12 @@ export function groundCellsFrom(
       status: node.status ?? status ?? 'unknown',
       variant: node.variant ?? 0,
       wheat: node.kind === 'cell-wheat',
+      ...(parcel !== undefined ? { parcel } : {}),
       ...(node.cellId !== undefined ? { cellId: node.cellId } : {}),
     });
   };
 
-  walk(scene, { x: 0, y: 0 }, undefined);
+  walk(scene, { x: 0, y: 0 }, undefined, undefined);
   return out;
 }
 

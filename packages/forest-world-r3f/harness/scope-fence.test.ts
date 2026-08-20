@@ -33,6 +33,7 @@ const EXPERIMENT = [
   'palette-band.ts',
   'plant-descriptors.ts',
   'plant-geometry.ts',
+  'land-definition.ts',
   'banded-material.ts',
 ];
 
