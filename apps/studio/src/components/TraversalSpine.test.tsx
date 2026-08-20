@@ -23,7 +23,12 @@ import type {
   TraversalReplayPayload,
 } from '../types';
 import { buildKnowledgeDepth } from '../lib/knowledgeDepth';
-import { TraversalSpine, TRAVERSAL_SPINE_GEOMETRY } from './TraversalSpine';
+import { buildTraversalSpine } from '../lib/traversalSpine';
+import {
+  TraversalSpine,
+  TRAVERSAL_SPINE_GEOMETRY,
+  computeTraversalGeometry,
+} from './TraversalSpine';
 
 afterEach(cleanup);
 
@@ -298,12 +303,16 @@ describe('the one playhead occupancy bar', () => {
     );
 
     expect(screen.queryByTestId('traversal-occupancy')).toBeNull();
-    const absent = screen.getByTestId('traversal-occupancy-absent');
-    expect(absent.textContent).toContain('no occupancy series to plot');
-    expect(absent.textContent).toContain('traversal ingest');
-    // It does NOT recompute what was observed: the route's declaration is rendered verbatim by the
-    // mount, and a second account here could disagree with it.
-    expect(absent.textContent).not.toContain('2 model requests');
+    // The TRACK is what says it now (ADR-0393 D1 deleted the sentence that used to sit below the
+    // picture). It keeps its column, goes dashed, and draws NO FILL — a flat zero bar would say the
+    // window was empty, which is a claim about the session rather than about the observation.
+    const track = document.querySelector('.traversal-occupancy.is-unobserved');
+    expect(track).not.toBeNull();
+    expect(track?.querySelector('[aria-label="no context occupancy was observed for this session"]')).not.toBeNull();
+    expect(track?.textContent).toContain('none');
+    expect(track?.textContent).toContain('observed');
+    // And the deleted paragraph really is deleted, not merely hidden.
+    expect(screen.queryByTestId('traversal-occupancy-absent')).toBeNull();
   });
 
   it('holds the reading at the playhead and reddens only the portion past 500k', () => {
@@ -393,139 +402,84 @@ describe('the one playhead occupancy bar', () => {
   });
 });
 
-describe('subagent lanes name their agent type and the model they ran on', () => {
-  it('draws a band with a handoff and a return edge, badged with the recorded model', () => {
-    render(
-      <TraversalSpine
-        replay={replay([
-          visit('full_payload_read', 0, 'a'),
-          handoff('e1', 10_000, { agentType: 'Explore', model: 'claude-opus-5', runtime: 'sdk-leaf' }),
-          result('e1', 40_000),
-          visit('full_payload_read', 60_000, 'b'),
-        ])}
-      />,
-    );
+/**
+ * SUBAGENT LANES ARE NOT DRAWN (ADR-0393 D2). The owner removed them at the LOOK — "we just show the
+ * orchestrator traversal in the chart, having builder and tester subagents on there isn't valuable,
+ * we can think how and if to show these later".
+ *
+ * These tests assert the REMOVAL rather than leaving it untested, because an untested removal is one
+ * a later session restores by accident. They also pin the half that did NOT change: the telemetry.
+ * `spawn_handoff` / `result_return` keep their optional model + runtime (PR #1272), the pure lane
+ * fold still runs, and the axis still counts a spawn as activity — so "later" stays cheap.
+ */
+describe("the picture is the ORCHESTRATOR's own walk — no subagent lanes", () => {
+  const WITH_LANES: TraversalEventEnvelope[] = [
+    visit('full_payload_read', 0, 'a'),
+    handoff('e1', 10_000, { agentType: 'Explore', model: 'claude-opus-5', runtime: 'sdk-leaf' }),
+    result('e1', 40_000),
+    handoff('e2', 12_000, { agentType: 'frontend-builder' }),
+    result('e2', 50_000),
+    visit('full_payload_read', 60_000, 'b'),
+  ];
+
+  it('draws no lane, no handoff or return edge, and no agent-type chip', () => {
+    render(<TraversalSpine replay={replay(WITH_LANES)} />);
     scrubTo(1);
 
-    const lanes = screen.getAllByTestId('traversal-lane');
-    expect(lanes).toHaveLength(1);
-    expect(lanes[0]?.getAttribute('data-agent-type')).toBe('Explore');
-    expect(lanes[0]?.getAttribute('data-model')).toBe('claude-opus-5');
-    expect(lanes[0]?.getAttribute('data-open')).toBe('false');
-    // Both linking edges: the payload out and the result back.
-    expect(screen.getAllByTestId('traversal-lane-handoff')).toHaveLength(1);
-    expect(screen.getAllByTestId('traversal-lane-return')).toHaveLength(1);
-
-    const badge = screen.getByTestId('traversal-lane-chip');
-    expect(badge.textContent).toContain('Explore');
-    expect(badge.textContent).toContain('claude-opus-5');
-
-    // The band is the span the PARENT observed. The child's own steps live in a different trace file
-    // (`childSessionId` is its own session id) and are not read here — said out loud, so an empty
-    // band is never taken for a child that did nothing.
-    expect(screen.getByTestId('traversal-lane-note').textContent).toContain(
-      'own steps are in its own trace and are not read here',
-    );
-  });
-
-  it('SAYS a lane whose model was not recorded, rather than guessing one', () => {
-    render(
-      <TraversalSpine
-        replay={replay([
-          visit('full_payload_read', 0, 'a'),
-          // The runtime IS recorded. It still must not become a model.
-          handoff('e1', 10_000, { agentType: 'general-purpose', runtime: 'sdk-leaf' }),
-          result('e1', 40_000),
-        ])}
-      />,
-    );
-    scrubTo(1);
-
-    const badge = screen.getByTestId('traversal-lane-chip');
-    expect(badge.textContent).toContain('model not recorded');
-    expect(screen.getAllByTestId('traversal-lane')[0]?.getAttribute('data-model')).toBe('not-recorded');
-    // No model name of any kind leaked into the badge.
-    expect(badge.textContent).not.toMatch(/claude|gpt|opus|sonnet/i);
-  });
-
-  it('leaves a lane with no recorded return OPEN, and draws no return edge for it', () => {
-    render(
-      <TraversalSpine
-        replay={replay([
-          visit('full_payload_read', 0, 'a'),
-          handoff('e1', 10_000),
-          visit('full_payload_read', 60_000, 'b'),
-        ])}
-      />,
-    );
-    scrubTo(1);
-
-    const lane = screen.getAllByTestId('traversal-lane')[0];
-    expect(lane?.getAttribute('data-open')).toBe('true');
+    expect(screen.queryAllByTestId('traversal-lane')).toHaveLength(0);
+    expect(screen.queryAllByTestId('traversal-lane-handoff')).toHaveLength(0);
     expect(screen.queryAllByTestId('traversal-lane-return')).toHaveLength(0);
-    // RE-POINTED: the chip carries the MODEL now (clause 7), so openness is read where it is stated
-    // — the lane's own hover identity, which names the absence rather than a guessed end.
-    expect(lane?.querySelector('title')?.textContent).toContain('the lane is open');
-    expect(screen.getByTestId('traversal-spine-deferred').textContent).toContain('left open');
+    expect(screen.queryAllByTestId('traversal-lane-chip')).toHaveLength(0);
+    // The lane row labels go with them — the gutter names the spine and the depth rows only.
+    const labels = screen.getByTestId('traversal-row-labels').textContent ?? '';
+    expect(labels).not.toContain('Explore');
+    expect(labels).not.toContain('frontend-builder');
+    expect(labels).not.toContain('lane');
   });
 
-  it('reveals a lane as the playhead reaches its handoff, and not before', () => {
-    render(
-      <TraversalSpine
-        replay={replay([
-          visit('full_payload_read', 0, 'a'),
-          visit('full_payload_read', 20_000, 'b'),
-          handoff('e1', 40_000),
-          result('e1', 50_000),
-          visit('full_payload_read', 60_000, 'c'),
-        ])}
-      />,
-    );
-
-    scrubTo(0);
-    expect(screen.getAllByTestId('traversal-lane')[0]?.classList.contains('is-visible')).toBe(false);
-    scrubTo(1);
-    expect(screen.getAllByTestId('traversal-lane')[0]?.classList.contains('is-visible')).toBe(true);
+  it('gives the reclaimed vertical to the walk itself', () => {
+    // The point of the removal, made mechanical: at a fixed box the marks must not be pushed into a
+    // sliver by rows nobody asked for. With no lane rows the spine sits where a one-row picture puts
+    // it, exactly as it would for the same trace carrying no spawn events at all.
+    const withLanes = computeTraversalGeometry({
+      box: { width: 900, height: 240 },
+      totalPx: 600,
+      hasOffers: false,
+      maxDepth: 1,
+    });
+    expect(withLanes.step).toBeGreaterThan(11);
+    // The geometry no longer has a lane concept to compute at all.
+    expect('laneY' in withLanes).toBe(false);
+    expect('laneRows' in withLanes).toBe(false);
   });
 
-  it('puts two overlapping children in different columns and two sequential ones in the same column', () => {
-    const { unmount } = render(
-      <TraversalSpine
-        replay={replay([
-          visit('full_payload_read', 0, 'a'),
-          handoff('e1', 10_000),
-          handoff('e2', 20_000),
-          result('e1', 80_000),
-          result('e2', 90_000),
-        ])}
-      />,
-    );
-    scrubTo(1);
-    // RE-POINTED BY THE ROTATION: a packed column is a ROW now, so the discriminator is `y`, not `x`
-    // — `x` carries TIME and would differ for two lanes even if the packing had collapsed them onto
-    // one another, which is exactly the failure this test exists to catch.
-    const concurrentYs = new Set(
-      screen.getAllByTestId('traversal-lane').map((lane) => lane.querySelector('rect')?.getAttribute('y')),
-    );
-    expect(concurrentYs.size).toBe(2);
-    unmount();
+  it('KEEPS the telemetry — the fold still runs and still carries the recorded model', () => {
+    // "we can think how and if to show these later" is a drawing decision, not a capture retraction.
+    // Whoever brings lanes back must find the data waiting rather than a capture to rebuild.
+    const model = buildTraversalSpine(replay(WITH_LANES));
+    expect(model.lanes.lanes).toHaveLength(2);
+    expect(model.lanes.lanes[0]?.model).toBe('claude-opus-5');
+    expect(model.lanes.lanes[1]?.model).toBeNull();
+    expect(model.lanes.agentTypes).toContain('frontend-builder');
+  });
 
-    render(
-      <TraversalSpine
-        replay={replay([
-          visit('full_payload_read', 0, 'a'),
-          handoff('e1', 10_000),
-          result('e1', 20_000),
-          handoff('e2', 60_000),
-          result('e2', 80_000),
-        ])}
-      />,
+  it('still counts a spawn as ACTIVITY on the axis, which is a claim about the parent', () => {
+    // The density weighting reads lane instants, and that survives the removal on its own merits: a
+    // parent waiting on a child is busy, so that span is not idle. Dropping it would silently fold
+    // real elapsed work into an idle stub.
+    const withSpawns = buildTraversalSpine(replay(WITH_LANES));
+    const withoutSpawns = buildTraversalSpine(
+      replay([visit('full_payload_read', 0, 'a'), visit('full_payload_read', 60_000, 'b')]),
     );
-    scrubTo(1);
-    const sequentialYs = new Set(
-      screen.getAllByTestId('traversal-lane').map((lane) => lane.querySelector('rect')?.getAttribute('y')),
-    );
-    expect(sequentialYs.size).toBe(1);
+    expect(withSpawns.scale.totalPx).toBeGreaterThan(withoutSpawns.scale.totalPx);
+  });
+
+  it('says a trace holding ONLY spawn events has nothing plottable', () => {
+    // It used to draw lanes and nothing else. Now there is genuinely nothing to draw, and the empty
+    // state must say so rather than render a bare axis.
+    render(<TraversalSpine replay={replay([handoff('e1', 0), result('e1', 1_000)])} />);
+    expect(screen.queryByTestId('traversal-spine-map')).toBeNull();
+    expect(screen.getByTestId('traversal-spine-empty').textContent).toContain('nothing plottable');
   });
 });
 
@@ -549,7 +503,9 @@ describe('depth indents only where parent links exist', () => {
       (edge) => edge.getAttribute('data-depth-move'),
     );
     expect(moves).toEqual(['descend', 'return']);
-    expect(screen.getByTestId('traversal-depth-note').textContent).toContain('1 visit indented');
+    // The paragraph that used to restate this in words is DELETED (ADR-0393 D1). The indentation and
+    // the two typed moves are the claim now, and they are what a screenshot could not have checked.
+    expect(screen.queryByTestId('traversal-depth-note')).toBeNull();
   });
 
   it('renders a SINGLE COLUMN where no parent link resolves, and says why', () => {
@@ -578,9 +534,11 @@ describe('depth indents only where parent links exist', () => {
     );
     expect(xs.size).toBe(3);
 
-    const note = screen.getByTestId('traversal-depth-note');
-    expect(note.textContent).toContain('single row');
-    expect(note.textContent).toContain('never inferred');
+    // The single row IS the honest picture wherever parent links are absent, and the sentence that
+    // used to say so under the graph is deleted (ADR-0393 D1). What must never happen is the tree
+    // being INFERRED instead — that is what the one shared `cy` above proves, and it proves it
+    // whether or not any prose explains it.
+    expect(screen.queryByTestId('traversal-depth-note')).toBeNull();
   });
 });
 
@@ -615,30 +573,37 @@ describe('offer fans carry their raw denominator', () => {
     orphanFollows: [],
   };
 
-  it('draws one ray per recorded candidate, in recorded order, with its outcome', () => {
+  it('draws NO ray for an unobservable branch, and keeps recorded order among the rest', () => {
     render(<TraversalSpine replay={replay(OFFER_EVENTS, OFFER_REPORT)} />);
     scrubTo(1);
 
+    // ADR-0393 D3: the owner removed the faint dashed rays at the LOOK. They were branches no read
+    // could ever have followed — an ADR file pointer — so what is left is only what the agent could
+    // actually have taken.
     const rays = screen.getAllByTestId('traversal-offer-ray');
-    expect(rays).toHaveLength(3);
-    // Recorded order, never sorted (ADR-0318 D3).
-    expect(rays.map((ray) => ray.getAttribute('data-status'))).toEqual([
-      'followed',
-      'not-followed',
-      'unobservable',
-    ]);
+    expect(rays).toHaveLength(2);
+    expect(rays.map((ray) => ray.getAttribute('data-status'))).toEqual(['followed', 'not-followed']);
+    // Recorded order among the survivors, never sorted (ADR-0318 D3): filtering must not re-order.
+    expect(document.querySelectorAll('.traversal-offer-ray.status-unobservable')).toHaveLength(0);
   });
 
-  it('states `M of N` and never a percentage', () => {
+  it('KEEPS the raw `M of N` denominator, and still never a percentage', () => {
     render(<TraversalSpine replay={replay(OFFER_EVENTS, OFFER_REPORT)} />);
     scrubTo(1);
 
-    const note = screen.getByTestId('traversal-offer-note');
-    expect(note.textContent).toContain('offered 3, observable 2 of 3');
-    expect(note.textContent).toContain('followed 1 of 2 observable');
-    expect(note.textContent).not.toMatch(/%/);
-    // An unobservable branch must never read as a declined one.
-    expect(note.textContent).toContain('never a declined one');
+    // ADR-0312 D6 is NOT repealed by dropping the dashed rays and the note (ADR-0393 D3): the fan
+    // still carries the full denominator, on hover and on its data attributes. What narrowed is the
+    // denominator's SURFACE. A change that drops THESE too would be the repeal.
+    const fan = screen.getByTestId('traversal-offer');
+    expect(fan.getAttribute('data-offered')).toBe('3');
+    expect(fan.getAttribute('data-observable')).toBe('2');
+    expect(fan.getAttribute('data-followed')).toBe('1');
+    expect(fan.getAttribute('data-drawn')).toBe('2');
+    const title = fan.querySelector('title')?.textContent ?? '';
+    expect(title).toContain('offered 3, observable 2 of 3');
+    expect(title).not.toMatch(/%/);
+    // And the deleted paragraph is deleted, not hidden.
+    expect(screen.queryByTestId('traversal-offer-note')).toBeNull();
   });
 
   it('draws a nearly-empty fork picture honestly rather than making it look fuller', () => {
@@ -664,8 +629,11 @@ describe('offer fans carry their raw denominator', () => {
     );
     scrubTo(1);
 
-    expect(screen.getAllByTestId('traversal-offer-ray')).toHaveLength(3);
-    expect(screen.getByTestId('traversal-offer-note').textContent).toContain('followed 0 of 2 observable');
+    // Two drawn (the unobservable one is not), and nothing followed — the measured shape on this
+    // machine, drawn as the sparse signal it is rather than padded to look fuller.
+    expect(screen.getAllByTestId('traversal-offer-ray')).toHaveLength(2);
+    expect(screen.getByTestId('traversal-offer').getAttribute('data-followed')).toBe('0');
+    expect(screen.getByTestId('traversal-offer').getAttribute('data-observable')).toBe('2');
   });
 });
 
@@ -711,10 +679,12 @@ describe('nothing paints past the block’s right edge', () => {
     );
     scrubTo(1);
 
-    // Six concurrent lanes and an eight-way fan really are drawn — the guard is not passing on an
-    // empty picture.
-    expect(screen.getAllByTestId('traversal-lane')).toHaveLength(6);
+    // The guard is not passing on an empty picture: a descent past the drawn cap and an eight-way
+    // fan really are drawn. The six spawn pairs are still IN the trace and still stretch the axis —
+    // they are simply no longer drawn as rows (ADR-0393 D2).
+    expect(screen.getAllByTestId('traversal-mark').length).toBeGreaterThan(7);
     expect(screen.getAllByTestId('traversal-offer-ray')).toHaveLength(8);
+    expect(screen.queryAllByTestId('traversal-lane')).toHaveLength(0);
 
     // RE-POINTED, NOT DELETED (the increment's own instruction). The claim is unchanged — a
     // coordinate inside the viewBox is inside the block at every rendered size, and one outside it is
@@ -734,9 +704,9 @@ describe('nothing paints past the block’s right edge', () => {
     expect(Math.min(...xs)).toBeGreaterThanOrEqual(0);
     expect(Math.max(...xs)).toBeLessThanOrEqual(boxWidth);
 
-    // The VERTICAL is now the scarce axis — depth rows, six lane rows and the offer band all share
-    // it — so it is bounded here for the first time. Before the rotation nothing could overflow
-    // downward; now it is the direction most likely to.
+    // The VERTICAL is the scarce axis — the depth rows and the offer band share it — so it is
+    // bounded here. It got materially less crowded when the six lane rows went (ADR-0393 D2), which
+    // is the point of the removal, but the bound is asserted rather than assumed either way.
     const ys = drawnYs();
     expect(ys.length).toBeGreaterThan(20);
     expect(Math.min(...ys)).toBeGreaterThanOrEqual(0);
@@ -744,27 +714,22 @@ describe('nothing paints past the block’s right edge', () => {
   });
 });
 
-describe('what could not be placed is said out loud', () => {
-  it('names a return with no handoff rather than dropping it', () => {
-    render(
-      <TraversalSpine replay={replay([visit('full_payload_read', 0, 'a'), result('ghost', 10_000)])} />,
-    );
-
-    expect(screen.getByTestId('traversal-spine-deferred').textContent).toContain(
-      'naming an edge no handoff in this trace opened',
-    );
-  });
-
-  it('renders no note when nothing was left unplaced', () => {
-    render(<TraversalSpine replay={replay([visit('full_payload_read', 0, 'a')])} />);
-    expect(screen.queryByTestId('traversal-spine-deferred')).toBeNull();
-  });
-
-  it('says a trace with nothing drawable is empty rather than drawing an empty axis', () => {
+describe('an empty trace says so rather than drawing an empty axis', () => {
+  it('names nothing plottable and disables the transport', () => {
     render(<TraversalSpine replay={replay([occupancyEvent(0)])} />);
     expect(screen.queryByTestId('traversal-spine-map')).toBeNull();
     expect(screen.getByTestId('traversal-spine-empty').textContent).toContain('nothing plottable');
     expect((screen.getByTestId('traversal-play') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('no longer prints the unplaced-events note under the picture', () => {
+    // ADR-0393 D1. A result_return naming an edge no handoff opened is still COUNTED by the pure
+    // fold — `model.lanes.unpairedReturns` — and `storytree traversal show` still reports it. The
+    // panel stopped saying it, which is the cost the owner accepted along with the rest of the prose.
+    const payload = replay([visit('full_payload_read', 0, 'a'), result('ghost', 10_000)]);
+    render(<TraversalSpine replay={payload} />);
+    expect(screen.queryByTestId('traversal-spine-deferred')).toBeNull();
+    expect(buildTraversalSpine(payload).lanes.unpairedReturns).toBe(1);
   });
 });
 
@@ -857,7 +822,7 @@ describe('knowledge depth from the work is a SECOND axis, joined read-only at re
     // Absent-by-default: the join is the mount's to supply, and a picture with no corpus to join
     // against says nothing about knowledge depth rather than reporting an empty verdict.
     render(<TraversalSpine replay={WALK} />);
-    expect(screen.queryByTestId('traversal-knowledge-note')).toBeNull();
+    expect(screen.queryByTestId('traversal-knowledge-chip')).toBeNull();
     expect(
       screen.getAllByTestId('traversal-mark').every((mark) => !mark.hasAttribute('data-knowledge-depth')),
     ).toBe(true);
@@ -872,7 +837,8 @@ describe('knowledge depth from the work is a SECOND axis, joined read-only at re
 
     const titles = screen.getAllByTestId('traversal-mark').map((mark) => mark.querySelector('title')?.textContent);
     expect(titles[0]).toBe('ceremony · full payload · knowledge depth 1 from the work');
-    // The grammar clause: the mark itself stays plain. Identity and read strength are all it draws.
+    // The grammar clause survives every trim: the mark itself stays plain. Identity and read
+    // strength are all it draws.
     expect(screen.getAllByTestId('traversal-mark')[0]?.querySelectorAll('text')).toHaveLength(0);
   });
 
@@ -883,42 +849,49 @@ describe('knowledge depth from the work is a SECOND axis, joined read-only at re
     // Not a number, and the word "unmeasured" rather than "deep": no chain reaches it, which is an
     // absence of measurement, not a measurement of distance.
     expect(orphan?.querySelector('title')?.textContent).toContain('unmeasured');
-    expect(screen.getByTestId('traversal-knowledge-note').textContent).toContain('unmeasured, NOT deep');
+    // The reading moved to the counts chip above the picture when the prose went (ADR-0393 D1); the
+    // three-state distinction it protects did NOT move.
+    expect(screen.getByTestId('traversal-knowledge-chip').getAttribute('data-unreachable')).toBe('1');
+    expect(screen.getByTestId('traversal-knowledge-chip').getAttribute('title')).toContain('unmeasured, NOT deep');
   });
 
-  it('counts the trace and prints the corpus-wide anchor line beside it', () => {
+  it('counts the trace and carries the corpus-wide anchor figure beside it', () => {
     render(<TraversalSpine replay={WALK} knowledge={READY} />);
-    const note = screen.getByTestId('traversal-knowledge-note').textContent ?? '';
-    expect(note).toContain('2 of 4 artifacts read here sit on an authored chain from a work anchor');
-    expect(note).toContain('1 is in the corpus with no chain reaching it');
-    expect(note).toContain('1 is not a Library artifact at all');
-    // Without the anchor line a reader would blame the SESSION for a thin count that is really a fact
-    // about how little of the corpus names any work at all.
-    expect(note).toContain('1 of 4 artifacts name a story or capability and anchor the walk');
-    // The accepted risk is on the surface, not only in a comment (ADR-0363 D2).
-    expect(note).toContain('never as a guarantee');
+    const chip = screen.getByTestId('traversal-knowledge-chip');
+    expect(chip.textContent).toContain('knowledge 2/4 on-chain');
+    expect(chip.textContent).toContain('deepest 2');
+    // WITHOUT THE ANCHOR FIGURE a reader blames the SESSION for a thin count that is really a fact
+    // about how little of the corpus names any work. It is the reason the chip is worth its width.
+    expect(chip.textContent).toContain('1/4 anchored');
+    expect(chip.getAttribute('data-unreachable')).toBe('1');
+    expect(chip.getAttribute('data-absent')).toBe('1');
+    // The accepted risk stays on the surface, not only in a comment (ADR-0363 D2).
+    expect(chip.getAttribute('title')).toContain('never a guarantee');
   });
 
   it('says an unread corpus was NOT MEASURED rather than reporting nothing reached', () => {
     const loading = buildKnowledgeDepth({ assets: [], assetsStatus: 'loading', assetsError: '' });
     render(<TraversalSpine replay={WALK} knowledge={loading} />);
 
-    const note = screen.getByTestId('traversal-knowledge-note').textContent ?? '';
-    expect(note).toContain('not measured');
-    expect(note).not.toContain('0 of');
+    const chip = screen.getByTestId('traversal-knowledge-chip').textContent ?? '';
+    expect(chip).toContain('not measured');
+    expect(chip).not.toContain('0/');
     // And no mark claims a reading the join never made.
     expect(
       screen.getAllByTestId('traversal-mark').every((mark) => !mark.hasAttribute('data-knowledge-depth')),
     ).toBe(true);
   });
 
-  it('keeps the two depths apart — the session axis and the knowledge axis are separate sentences', () => {
+  it('keeps the two depths apart — the drawn indentation and the counted knowledge depth', () => {
     render(<TraversalSpine replay={WALK} knowledge={READY} />);
-    // `traversal-depth-note` is depth from `parentVisitId`; this one is depth from the work. One
-    // number claiming to be both would mean nothing in either system.
-    expect(screen.getByTestId('traversal-depth-note').textContent).toContain('parentVisitId');
-    expect(screen.getByTestId('traversal-knowledge-note').textContent).toContain(
-      'a different axis from the indentation above',
-    );
+    // The picture's indentation is depth from `parentVisitId`; the chip is depth from the work. Both
+    // paragraphs that used to name the difference are deleted (ADR-0393 D1), so the separation now
+    // rests on their being two different SURFACES carrying two different numbers — which is exactly
+    // why the chip must never be labelled "depth" alone.
+    expect(screen.getByTestId('traversal-knowledge-chip').textContent).toContain('knowledge');
+    const drawnDepths = screen.getAllByTestId('traversal-mark').map((m) => m.getAttribute('data-depth'));
+    expect(new Set(drawnDepths)).toEqual(new Set(['0']));
+    const knowledge = screen.getAllByTestId('traversal-mark').map((m) => m.getAttribute('data-knowledge-depth'));
+    expect(knowledge).toEqual(['1', '2', 'unreachable', 'absent']);
   });
 });

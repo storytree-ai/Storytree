@@ -1463,6 +1463,9 @@ export interface FloorHealthPayload {
 /** A build run's lifecycle state (mirrors the server's `BuildRunStatus`). */
 export type BuildRunStatus = 'building' | 'passed' | 'failed';
 
+/** The live author selected by a desktop build intent. */
+export type BuildRuntime = 'claude' | 'codex';
+
 /** POST /api/build response: the accepted run's id (the client then polls GET for progress). */
 export interface BuildIntentResult {
   runId: string;

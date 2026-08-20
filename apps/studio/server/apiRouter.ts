@@ -68,7 +68,13 @@ import type { InviteMailer } from './inviteMailer';
 // out of apps/studio/server so the desktop local backend may import it too; an app may not import another
 // app's server, ADR-0100). handleBuild/handleAdopt stay here as thin HTTP wrappers over the relocated
 // runBuildJob + BuildContext.
-import { runBuildJob, type BuildRegistry, type BuildRunner, type BuildContext } from '@storytree/drive/build-worker';
+import {
+  runBuildJob,
+  type BuildRegistry,
+  type BuildRunner,
+  type BuildContext,
+  type BuildRuntime,
+} from '@storytree/drive/build-worker';
 // Re-export the relocated BuildContext so devApi.ts (and any other studio consumer) keeps importing it from here.
 export type { BuildContext };
 // writeBroker.ts is config-load-safe (it type-imports the raw-TS zod packages and loads their runtime
@@ -1811,6 +1817,11 @@ export async function handleBuild(
     const input = await readJsonBody<Record<string, unknown>>(req);
     const unitId = asString(input.unitId).trim();
     if (!unitId) throw new HttpError(400, 'unitId is required');
+    const runtimeRaw = asString(input.runtime).trim().toLowerCase();
+    if (runtimeRaw !== '' && runtimeRaw !== 'claude' && runtimeRaw !== 'codex') {
+      throw new HttpError(400, 'runtime must be "claude" or "codex"');
+    }
+    const runtime: BuildRuntime = runtimeRaw === 'codex' ? 'codex' : 'claude';
     // Validate against real discovery — a typo'd / non-buildable id is a clean 404, never a worker
     // that spawns against nothing.
     if (!(await build.isBuildable(unitId))) {
@@ -1822,7 +1833,7 @@ export async function handleBuild(
     const { runId } = created.run;
     // Fire-and-forget: the build runs after the 202; the client polls GET for progress. runBuildJob
     // never throws (it records a failed terminal state), so the floating promise can't reject.
-    void runBuildJob(build.registry, runId, unitId, build.runner);
+    void runBuildJob(build.registry, runId, unitId, build.runner, runtime);
     return sendJson(res, 202, { runId });
   }
 

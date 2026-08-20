@@ -17,7 +17,9 @@ import type { Paths } from './apiRouter';
 // A runner we can hold open mid-build, then release — so we can observe the `building` state, the
 // concurrency refusal, and the terminal transition deterministically.
 let release: ((env: BuildEnvelope) => void) | null = null;
-const heldRunner: BuildRunner = async (_unitId, sink) => {
+let selectedRuntime: string | undefined;
+const heldRunner: BuildRunner = async (_unitId, sink, runtime) => {
+  selectedRuntime = runtime;
   sink('phase: AUTHOR_TEST');
   return new Promise<BuildEnvelope>((resolve) => {
     release = resolve;
@@ -80,10 +82,11 @@ async function pollUntilTerminal(runId: string, tries = 50): Promise<Record<stri
 describe('/api/build', () => {
   it('runs an operator-dispatched build from intent to a terminal verdict over the wire', async () => {
     // 1. POST a valid intent → 202 { runId }.
-    const accepted = await postBuild({ unitId: 'library-cli' });
+    const accepted = await postBuild({ unitId: 'library-cli', runtime: 'codex' });
     expect(accepted.status).toBe(202);
     const { runId } = (await accepted.json()) as { runId: string };
     expect(runId).toBeTruthy();
+    expect(selectedRuntime).toBe('codex');
 
     // 2. GET status immediately → building, transcript growing with coarse lines.
     const live = await fetch(`${base}/api/build?runId=${runId}`);
@@ -97,6 +100,9 @@ describe('/api/build', () => {
     const concurrent = await postBuild({ unitId: 'library-cli' });
     expect(concurrent.status).toBe(409);
     expect(((await concurrent.json()) as { error: string }).error).toMatch(/already running/i);
+
+    // Runtime validation happens before the worker/concurrency gate, so a typo is its own 400.
+    expect((await postBuild({ unitId: 'library-cli', runtime: 'cursor' })).status).toBe(400);
 
     // 4. Unknown / unbuildable id → 404 (validated against real discovery), no run created.
     const unknown = await postBuild({ unitId: 'no-such-node' });

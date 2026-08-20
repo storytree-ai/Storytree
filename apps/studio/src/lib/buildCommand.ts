@@ -9,8 +9,9 @@ export type BuildScope = 'story' | 'node';
 export interface ComposeBuildCommandInput {
   unitId: string;
   scope: BuildScope;
+  runtime: 'claude' | 'codex';
 }
 
-export function composeBuildCommand({ unitId, scope }: ComposeBuildCommandInput): string {
-  return `pnpm storytree ${scope} build ${unitId} --real --store pg`;
+export function composeBuildCommand({ unitId, scope, runtime }: ComposeBuildCommandInput): string {
+  return `pnpm storytree ${scope} build ${unitId} --real --store pg --runtime ${runtime}`;
 }

@@ -67,6 +67,69 @@ export const STATUS_TOKENS: Record<
   unknown: { top: ['#a9c87f', '#9fc174', '#b2cf8b'], wheat: '#d6b271', side: '#87985f' },
 };
 
+/** The STORY TREE's authored crown token, per status. Verbatim from the app's
+ *  `.story-tree .crown-lo circle` rules — `--crown-<status>-lo` — with `--story-trunk` as the
+ *  shared bole (see {@link SHARED_TOKENS}).
+ *
+ *  `--crown-<status>-hi` IS DELIBERATELY NOT TRANSCRIBED, and the reason is the difference
+ *  between the two renderers rather than taste. The SVG crown is two overlapping circle sets:
+ *  five `crown-lo` blobs and three lighter `crown-hi` blobs clustered up-and-left. The lighter
+ *  fill is the flat surface STANDING IN for a light it does not have — it paints a highlight
+ *  where a highlight would fall. A live crown has the light: `LIGHT_DIR` comes from up-left-
+ *  forward, which is where those three blobs already sit, so the banded material lands them on
+ *  a brighter rung on its own. Grow both lobe groups (their silhouette is authored and real),
+ *  paint them one token, and the highlight is said ONCE.
+ *
+ *  The consequence for the palette is the reason this is written down rather than just done: an
+ *  authored token the renderer can never emit would enlarge the closed palette with an entry
+ *  nothing delivers, and a fence with unreachable entries reads as more coverage than it has. */
+export const TREE_TOKENS: Record<string, { crown: string }> = {
+  proposed: { crown: '#b06a24' },
+  // `building` has NO `.story-tree.st-building` rule and no `--crown-building-*` pair in the
+  // app, so a building story's tree falls through to the unset default, which is `unknown`.
+  // Transcribed as what the app DELIVERS rather than as the amber the ground family would
+  // suggest — inventing the missing pair here would put a colour on an island that the shipped
+  // renderer never draws.
+  building: { crown: '#6b7280' },
+  healthy: { crown: '#2f6b3f' },
+  mapped: { crown: '#7d5f3b' },
+  unhealthy: { crown: '#9f2d22' },
+  unknown: { crown: '#6b7280' },
+};
+
+/** The UAT FLOWERS' authored tokens. Verbatim from the app's `--flower-*` custom properties,
+ *  which `.tall-flower-stem/-leaf/-bud/-petal/-center` resolve against.
+ *
+ *  THEY CARRY NO STATUS AND THAT IS THE POINT (ADR-0226 D4). A flower's verdict is read from
+ *  its FORM — a bloomed daisy is proven, a closed bud is pending, a wilted nodding head is
+ *  failing — so the colour is a MATERIAL, not a channel. That is why they are their own record
+ *  rather than a sixth field on {@link STATUS_TOKENS}, and why {@link statusFamilyOf} must go
+ *  on reporting `null` for them: a flower colour genuinely belongs to no status family, and
+ *  making one up would be the art asserting a state the work does not hold (ADR-0367 D5).
+ *
+ *  `--flower-glow-proven` is DELIBERATELY ABSENT. The glow is drawn at opacity 0.10/0.16 over
+ *  whatever is behind it, and a blend of two entries is a colour on NEITHER — the one thing a
+ *  closed palette cannot represent. It is dropped rather than approximated; the bloom says
+ *  "proven" with its petals, which is what ADR-0226 D4 asked of it in the first place. */
+export const MARKER_TOKENS = {
+  stem: '#6f9257',
+  leaf: '#7ea363',
+  bud: '#7f9d5c',
+  petalProven: '#fbf3e0',
+  centreProven: '#eab94e',
+  petalFailing: '#b9b3a7',
+  centreFailing: '#8f8672',
+} as const;
+
+/** Authored tokens shared by EVERY status, so they discriminate none: the wheat override and
+ *  the story tree's bole. They are palette entries like any other — {@link landPalette} closes
+ *  over them — but they are excluded from {@link statusFamilyOf}'s family test, because a token
+ *  every family carries can answer "which family is this" for none of them. */
+export const SHARED_TOKENS = {
+  wheat: '#d6b271',
+  storyTrunk: '#6e533d',
+} as const;
+
 /** The authored shade ladder — the ONLY multipliers a surface may wear, from the
  *  compositor's `KEY_SHADE` plus its flat/seam levels. A live material quantises its
  *  continuous lighting term ONTO this ladder; nothing else is representable.
@@ -74,6 +137,35 @@ export const STATUS_TOKENS: Record<
  *  Kept SORTED ASCENDING: `bandShade` relies on the order, and a test asserts the order
  *  rather than trusting the literal to stay sorted through a later edit. */
 export const SHADE_LEVELS: readonly number[] = [0.78, 0.8, 0.9, 1.0];
+
+/**
+ * The single authored light direction the whole land is shaded by, as plain numbers.
+ *
+ * IT LIVES HERE, IN THE PURE HALF, BECAUSE THE LADDER ALONE DOES NOT DECIDE A RUNG — the
+ * light does, jointly with a surface normal. Anything reasoning about which rung a piece of
+ * geometry will land on (which is the only thing that makes a shape visible on a banded
+ * material) needs both, and must be able to do it without a browser. `banded-material.ts`
+ * derives its three.js vector from this rather than carrying its own copy: a shader and a
+ * test holding private copies of the same numbers prove nothing about each other.
+ *
+ * A live land is still a 2.5D isometric picture (ADR-0380 D6 fence 4: the projection does
+ * not move), so this is a fixed authored direction rather than a scene-graph light a camera
+ * could swing around. Stored normalised, so `dot(n, LIGHT_DIRECTION)` is the lambert term
+ * with no further arithmetic.
+ */
+export const LIGHT_DIRECTION: { readonly x: number; readonly y: number; readonly z: number } =
+  (() => {
+    const [x, y, z] = [-0.45, 0.82, 0.35];
+    const len = Math.hypot(x, y, z);
+    return { x: x / len, y: y / len, z: z / len };
+  })();
+
+/** The rung a surface normal lands on under the authored light — the shader's own decision,
+ *  available to a node test. Half-lambert, exactly as `createBandedMaterial` computes it. */
+export function rungOfNormal(n: { x: number; y: number; z: number }): number {
+  const dot = n.x * LIGHT_DIRECTION.x + n.y * LIGHT_DIRECTION.y + n.z * LIGHT_DIRECTION.z;
+  return bandLevelIndex(dot * 0.5 + 0.5);
+}
 
 /** Parse `#rrggbb` to integer channels. Throws on a malformed token — an authored palette
  *  entry that does not parse is a corpus error, not a pixel to guess at. */
@@ -163,14 +255,46 @@ export function paletteImageOfToken(token: string): Rgb255[] {
   return [...seen.values()];
 }
 
-/** Every authored token in the land's vocabulary, deduped, in a stable order. */
+/** Every authored token an ISLAND may wear, deduped, in a stable order — the ground and wall
+ *  families, the story tree's crowns and bole, and the UAT flowers' materials.
+ *
+ *  IT GREW WHEN THE ISLAND DID, AND THAT IS WHAT KEEPS THE FENCE A FENCE. The palette is the
+ *  closure of (authored token x authored level), and `capture.mjs` refuses any delivered pixel
+ *  outside it. An island that grows flowers and a tree therefore either declares their authored
+ *  tokens here — same provenance, same transcription, same app CSS — or delivers colours the
+ *  check has to be told to ignore. The first is a palette; the second is a palette with an
+ *  exception, and an exception is how a closed palette stops being closed. */
 export function landTokens(): string[] {
   const out: string[] = [];
+  const push = (t: string): void => {
+    if (!out.includes(t)) out.push(t);
+  };
   for (const st of Object.keys(STATUS_TOKENS).sort()) {
     const fam = STATUS_TOKENS[st]!;
-    for (const t of [...fam.top, fam.wheat, fam.side]) if (!out.includes(t)) out.push(t);
+    for (const t of [...fam.top, fam.wheat, fam.side]) push(t);
   }
+  for (const st of Object.keys(TREE_TOKENS).sort()) push(TREE_TOKENS[st]!.crown);
+  for (const t of Object.values(SHARED_TOKENS)) push(t);
+  for (const t of Object.values(MARKER_TOKENS)) push(t);
   return out;
+}
+
+/** The tokens that belong to no single status: the shared overrides and every flower material.
+ *  {@link statusFamilyOf} reports `null` for their delivered colours BY DESIGN, so a caller
+ *  auditing foreign-status reads needs this set to tell "family-less on purpose" from "in the
+ *  palette and unaccounted for". Without it a wheat cell or a daisy petal reads as a defect. */
+export function familylessTokens(): string[] {
+  return [...Object.values(SHARED_TOKENS), ...Object.values(MARKER_TOKENS)];
+}
+
+/** Every colour the family-less tokens can deliver — the set a foreign-status audit subtracts
+ *  before asking {@link statusFamilyOf} anything. */
+export function familylessPalette(): string[] {
+  const set = new Set<string>();
+  for (const token of familylessTokens()) {
+    for (const c of paletteImageOfToken(token)) set.add(toHex(c));
+  }
+  return [...set].sort();
 }
 
 /** The CLOSED palette a live-rendered land may emit: the full closure of
@@ -195,7 +319,13 @@ export function statusFamilyOf(colour: Rgb255): string | null {
   const hex = toHex(colour);
   for (const st of Object.keys(STATUS_TOKENS)) {
     const fam = STATUS_TOKENS[st]!;
-    for (const token of [...fam.top, fam.side]) {
+    const tree = TREE_TOKENS[st];
+    // The tree's crown IS status-bearing — `--crown-healthy-lo` says healthy as surely as the
+    // ground does — so it joins the family test rather than sitting outside it. The BOLE does
+    // not: `--story-trunk` is one shared brown every status wears, so it is family-less with the
+    // wheat override (see `familylessTokens`).
+    const tokens = tree ? [...fam.top, fam.side, tree.crown] : [...fam.top, fam.side];
+    for (const token of tokens) {
       for (const c of paletteImageOfToken(token)) if (toHex(c) === hex) return st;
     }
   }

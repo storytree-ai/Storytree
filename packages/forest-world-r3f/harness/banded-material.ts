@@ -23,7 +23,7 @@
 
 import * as THREE from 'three';
 
-import { SHADE_LEVELS, bandGlsl, parseHex, tokenRamp } from './palette-band.js';
+import { LIGHT_DIRECTION, SHADE_LEVELS, bandGlsl, parseHex, tokenRamp } from './palette-band.js';
 
 /** Put a renderer into EXACT-COLOUR mode: what the shader writes is what the framebuffer
  *  holds. Required for the palette-closure proof to mean anything. Call once per renderer. */
@@ -43,10 +43,18 @@ export function tokenColour(hex: string): THREE.Color {
   return new THREE.Color(r / 255, g / 255, b / 255);
 }
 
-/** The single light direction the whole land is shaded by. A live land is still a 2.5D
- *  isometric picture (ADR-0380 D6 fence 4: the projection does not move), so the light is a
- *  fixed authored direction rather than a scene-graph light a camera could swing around. */
-export const LIGHT_DIR = new THREE.Vector3(-0.45, 0.82, 0.35).normalize();
+/** The single light direction the whole land is shaded by, DERIVED from the pure half's
+ *  authored constant rather than re-typed. Whether a shape is visible on a banded material
+ *  is decided by the light jointly with a surface normal, so a node test has to be able to
+ *  reach the same direction the GPU is given — and two private copies of one number would
+ *  prove nothing about each other, which is the argument `bandGlsl` already makes about the
+ *  ladder. See `LIGHT_DIRECTION` in `palette-band.ts` for the projection fence it sits
+ *  behind. */
+export const LIGHT_DIR = new THREE.Vector3(
+  LIGHT_DIRECTION.x,
+  LIGHT_DIRECTION.y,
+  LIGHT_DIRECTION.z,
+);
 
 export interface BandedMaterialOptions {
   /** The authored token this material's surfaces wear, `#rrggbb`. */

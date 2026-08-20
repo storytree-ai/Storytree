@@ -371,6 +371,11 @@ export interface WorktreeCreateOpts {
   readonly nodes: readonly string[];
   /** The `--intent` prose — REQUIRED, non-blank: the exploring claim IS its intent (ADR-0200 D2). */
   readonly intent: string;
+  /**
+   * The harness that owns the requested workspace. This helper owns Claude's in-repository farm;
+   * Codex Desktop owns `~/.codex/worktrees/*` and must never have those slots guessed or reaped here.
+   */
+  readonly runtime?: string;
 }
 
 export interface WorktreeCreateDeps {
@@ -399,7 +404,8 @@ export interface WorktreeCreateDeps {
   readonly checkpoint?: (text: string) => void;
 }
 
-const USAGE = 'storytree worktree create --node <story> [--node <story>…] --intent "<what>" --pg';
+const USAGE =
+  'storytree worktree create --runtime claude --node <story> [--node <story>…] --intent "<what>" --pg';
 
 function errMsg(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -457,6 +463,25 @@ export async function createWorktree(
         'worktree create requires --intent "<prose>" — the exploring claim IS its intent (ADR-0200 D2/D3): ' +
         `no intent, no claim, no workspace.\nUsage: ${USAGE}`,
       next: [USAGE],
+    };
+  }
+  const runtime = (opts.runtime ?? "claude").trim().toLowerCase();
+  if (runtime !== "claude" && runtime !== "codex") {
+    return {
+      ok: false,
+      body: `worktree create does not recognise runtime "${opts.runtime ?? ""}" — choose claude or codex.`,
+      next: [USAGE],
+    };
+  }
+  if (runtime === "codex") {
+    return {
+      ok: false,
+      body: [
+        "Codex Desktop owns Codex worktree creation and recovery; Storytree will not mint or adopt a slot under ~/.codex/worktrees.",
+        "Start or continue the Codex task with its product-managed worktree, then run `storytree noticeboard declare` from that registered checkout.",
+        "This command owns only the Claude session farm under <primary>/.claude/worktrees; spelling the boundary prevents a Codex caller from silently receiving a Claude branch and path.",
+      ].join("\n"),
+      next: ["git worktree list", "storytree noticeboard mine --pg"],
     };
   }
   if (deps.ledger === null) {

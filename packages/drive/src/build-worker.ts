@@ -54,6 +54,9 @@ export interface BuildRun {
   reason?: string;
 }
 
+/** The live author selected for a UI-driven build. */
+export type BuildRuntime = 'claude' | 'codex';
+
 /** `createRun` either mints a run, or refuses (single-build-at-a-time) with a reason. */
 export type CreateRunResult = { ok: true; run: BuildRun } | { ok: false; reason: string };
 
@@ -185,7 +188,11 @@ export interface BuildEnvelope {
  * forwards each to the run's transcript). Resolves with the final {@link BuildEnvelope}; a thrown
  * error is treated as a failed build.
  */
-export type BuildRunner = (unitId: string, sink: (line: string) => void) => Promise<BuildEnvelope>;
+export type BuildRunner = (
+  unitId: string,
+  sink: (line: string) => void,
+  runtime?: BuildRuntime,
+) => Promise<BuildEnvelope>;
 
 /** The Phase-1 options the worker passes to `nodeBuild` — single node, real mode, pg verdict store. */
 export interface NodeBuildLikeOpts {
@@ -204,6 +211,7 @@ export interface NodeBuildLikeOpts {
   real?: boolean;
   dryRun?: boolean;
   actor?: string;
+  runtime?: BuildRuntime;
 }
 
 /** The `nodeBuild` entry the production runner adapts (structurally `(id, opts) => Promise<Envelope>`). */
@@ -220,10 +228,11 @@ export async function runBuildJob(
   runId: string,
   unitId: string,
   runner: BuildRunner,
+  runtime?: BuildRuntime,
 ): Promise<void> {
   registry.appendLine(runId, `▸ build started: ${unitId}`);
   try {
-    const envelope = await runner(unitId, (line) => registry.appendLine(runId, line));
+    const envelope = await runner(unitId, (line) => registry.appendLine(runId, line), runtime);
     // Append the envelope body as coarse lines BEFORE terminalising (a terminal run accepts no more
     // appends) so the final transcript carries the phase trail + verdict line.
     for (const line of envelope.body.split('\n')) registry.appendLine(runId, line);
@@ -298,6 +307,7 @@ export interface StoryBuildLikeOpts {
   dryRun: boolean;
   verdictStore: string;
   actor?: string;
+  runtime?: BuildRuntime;
   /**
    * Open a NON-DRAFT PR for the green chain so CI auto-merges it to trunk (ADR-0022) — clicking Build
    * in the UI IS the approval to land. The worker always sets this for a UI-driven story build.
@@ -336,7 +346,8 @@ export interface RoutedBuildDeps {
  */
 export function routedBuildRunner(deps: RoutedBuildDeps): BuildRunner {
   const actorOpt = deps.actor !== undefined ? { actor: deps.actor } : {};
-  return async (unitId, sink) => {
+  return async (unitId, sink, runtime) => {
+    const runtimeOpt = runtime !== undefined ? { runtime } : {};
     const kind = await deps.classify(unitId);
     if (kind === 'story') {
       sink('▸ mode: whole-story --real — authors each capability for real, then opens a PR that auto-merges to trunk');
@@ -346,6 +357,7 @@ export function routedBuildRunner(deps: RoutedBuildDeps): BuildRunner {
         verdictStore: 'pg',
         openPr: true,
         ...actorOpt,
+        ...runtimeOpt,
       });
     }
     // ADR-0144: the node branch drives the node's REAL proof, not the synthetic --live smoke.
@@ -354,7 +366,13 @@ export function routedBuildRunner(deps: RoutedBuildDeps): BuildRunner {
     // ADR-0136 wall: `openPr` is NOT passed — a node --real PASS parks the proven commit on a
     // `claude/real/<unit>-<run>` branch (ADR-0031) for the human to land non-squash deliberately.
     sink('▸ mode: node --real — real red→green, persists signed verdict to events.verdict, parks claude/real/<unit>-<run> branch (ADR-0031/ADR-0136: the human lands non-squash)');
-    return deps.nodeBuild(unitId, { real: true, dryRun: false, verdictStore: 'pg', ...actorOpt });
+    return deps.nodeBuild(unitId, {
+      real: true,
+      dryRun: false,
+      verdictStore: 'pg',
+      ...actorOpt,
+      ...runtimeOpt,
+    });
   };
 }
 
