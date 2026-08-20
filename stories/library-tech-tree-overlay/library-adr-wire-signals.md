@@ -18,7 +18,8 @@ decisions: [187, 185, 86, 161, 122]
 # precedent in apps/studio/server/apiRouter.ts — dependency-free, NO import of the CLI's
 # parseAdrFrontmatter/yaml/zod (the frontmatter is CI-validated by adr-health, so a flat scan suffices).
 # MACHINE-ONLY: this cap is pure data on the wire — NO look leg, NO operator-attested UAT leg (contrast the
-# sibling library-overview whose appearance is UAT leg 5; this one has NONE). The number→doc:decisions/
+# sibling library-overview, whose appearance is recorded LOOK INTENT in story.md — design intent, not a UAT
+# leg, since ADR-0348 D6 and the 2026-08-21 deletion of story leg 5; this one has NONE of either). The number→doc:decisions/
 # NNNN-slug.md resolution + the DocMeta fold in apiRouter.ts listDocs + the types.ts DocMeta.loadBearing?/
 # references? additions are AFTER-PASS SUPPLEMENT GLUE, explicitly OUT of the leaf's `real:` scope (which is
 # the ONE NEW file only) — the leaf must NOT edit apiRouter.ts, types.ts, or any signed inc-1..5 source.
@@ -83,9 +84,22 @@ finder. This capability's `real:` red→green surface is ONE NEW pure file only 
 > edge-set union over the three lineage arrays, the leaf-ADR emptiness, and the tolerant empty on
 > non-ADR/malformed input), RED at HEAD (module-not-found), GREEN once the module is written. The whole cap is
 > machine-witnessed — there is NO look leg and NO operator-attested UAT leg this increment (contrast the
-> sibling `library-overview`, whose appearance is the story's UAT leg 5; this one has none — it is invisible
-> plumbing). Status stays `proposed` — `healthy` is only ever DERIVED from signed verdicts (ADR-0020), never
-> authored.
+> sibling `library-overview`, whose appearance is recorded LOOK INTENT in `story.md`; this one has no
+> appearance at all — it is invisible plumbing). Status stays `proposed` — `healthy` is only ever DERIVED
+> from signed verdicts (ADR-0020), never authored.
+
+> **ADR-0294 D2/D4 pass correction, 2026-08-21 (ADR-0139).** The sentences above and below used
+> `library-overview`'s appearance as a CONTRAST — "unlike the sibling whose appearance is the story's
+> operator-attested UAT leg 5, this one has none". **That contrast's other half no longer exists**, so
+> every mention of it is corrected in place: the ADR-0294 D2/D4 pass deleted story leg 5 on 2026-08-21
+> (burning the ordinal), and **ADR-0348 D6** had already ruled on 2026-08-11 that a user EXPERIENCE
+> property is not a user ACCEPTANCE criterion at all — so the sibling's appearance is now design intent
+> recorded under **"The Library's LOOK"** in [`story.md`](story.md), not a leg. **The point being made is
+> UNCHANGED and still correct:** this capability is pure data on the wire, has no appearance to witness,
+> and must carry no visual / colour / stroke / pixel / animation assertion. What changed is only that the
+> sibling it was contrasted with no longer has a look LEG either — the difference is now that the sibling
+> has recorded look INTENT and this capability has none at all.
+
 
 ## Guidance
 
@@ -97,7 +111,8 @@ single parser, not a single assertion. The number→id resolution + the DocMeta 
 CONSUMABLE are a later increment's / the after-pass glue's job, gated on this parser.
 
 MACHINE-ONLY — THERE IS NO LOOK LEG. This capability puts pure DATA on the wire. Unlike the sibling
-`library-overview` (whose dot-field appearance is the story's operator-attested UAT leg 5), this increment has
+`library-overview` (whose dot-field appearance is the story's recorded LOOK INTENT — design intent, not a
+UAT leg, ADR-0348 D6), this increment has
 **NO appearance to witness and NO operator-attested UAT leg**. Nothing renders differently when it lands — the
 signals sit on `DocMeta` waiting for a later increment to draw with them (size/colour = load_bearing, edges =
 the tech-tree lineage lines, per ADR-0187). Do NOT author any visual / colour / stroke / pixel / animation
@@ -263,7 +278,8 @@ Rules:
 - **Machine-only — no look leg, no operator-attested UAT leg** — this capability is pure data on the wire;
   nothing renders differently until a later increment consumes it. Do NOT author a visual / colour / stroke /
   pixel / animation assertion, and do NOT frame any part of it as owner-witnessed (contrast the sibling
-  `library-overview`, whose appearance is UAT leg 5 — this one has none). The whole proof is machine-witnessed
+  `library-overview`, whose appearance is recorded LOOK INTENT rather than a leg — this one has neither).
+  The whole proof is machine-witnessed
   pure logic.
 - **Every `laws-` test title carries a unique id** — coverage scans only `real.testFile` and silently drops
   N-1/N on a shared/dropped id (`friction-leaf-duplicate-contract-id-silently-drops-coverage` /

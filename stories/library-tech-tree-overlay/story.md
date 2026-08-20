@@ -5,12 +5,18 @@ title: "The Library as a tech-tree drawer over the forest map"
 outcome: "An operator explores the knowledge corpus as a tech-tree lens pulled down over the living forest map."
 status: proposed
 proof_mode: UAT
-# Frontend-builder two-stage (ADR-0070): every drawer surface (the shell, the finder, the
-# focus subgraph, the dive body, the overview constellation) splits into a machine-witnessed
-# GEOMETRY/BEHAVIOUR leg and an operator-attested LOOK leg. A UI an agent cannot drive is a
-# human-witness UAT action, not a machine visual verdict (uat-proves-the-goal-not-the-surface).
-# So this story is mixed-witness and carries NO blanket `uat_witness: machine` override — each
-# UAT leg below marks its own witness (ADR-0040 fail-closed default for the un-drivable look).
+# Frontend-builder two-stage (ADR-0070) still governs where an appearance verdict lives at the
+# CAPABILITY tier, but this story's UAT carries NO look leg any more. ADR-0348 D6 (2026-08-11)
+# ruled a user EXPERIENCE property is not a user ACCEPTANCE criterion, and the ADR-0294 D2/D4
+# pass of 2026-08-21 deleted the four fused `Look (operator-attested)` clauses this story carried
+# (their design intent is preserved under "The Library's LOOK" in the UAT section). The story
+# still carries NO blanket `uat_witness: machine` override and its one surviving UAT leg marks
+# its own witness, which is `machine`.
+#   (This comment previously read: "every drawer surface (the shell, the finder, the focus
+#   subgraph, the dive body, the overview constellation) splits into a machine-witnessed
+#   GEOMETRY/BEHAVIOUR leg and an operator-attested LOOK leg. A UI an agent cannot drive is a
+#   human-witness UAT action, not a machine visual verdict (uat-proves-the-goal-not-the-surface).
+#   So this story is mixed-witness…". Corrected in place, ADR-0139.)
 capabilities: [library-drawer-shell, library-finder, library-dag-canvas, library-dive-body, library-overview, library-adr-wire-signals, library-typed-edges, library-process-flow, library-permanent-lens, library-open-overlay, library-open-trigger, library-category-shelf, library-selection-card, library-top-drawer, library-lifecycle-wire, library-lifecycle-shelf, library-retire-standalone-page]
 # GROWS one provable unit at a time (slow growth / ADR-0183). The build is owned by the arc
 # `library-tech-tree-overlay-arc`, whose disposable per-increment plans carry the live roadmap (the
@@ -52,10 +58,20 @@ The studio's Library today is a separate page (`#/library`, a searchable list/gr
 *away* from the forest map, which is the studio's home surface. ADR-0185 (accepted 2026-07-11)
 rebuilds it as a **city-builder tech-tree drawer OVER the map**: a lens pulled down over the living
 world, not a different room. **Peek**: the drawer slides down and the map stays fully live below it.
-**Dive**: opening an artifact renders its full body over the rest of the map while the drawer
-collapses to a bar; Esc unwinds dive → peek → map. Navigation is search-first (a search-only
-finder driving a focus subgraph); kind is text, colour is state; the empty state is the whole
-corpus as a dot constellation under a level-of-detail ladder.
+**Open**: opening an artifact mounts its full body in a separate overlay over the map, and dismissing
+it (the close control or Esc) returns to the lens in one hop. Navigation is search-first (a
+search-only finder driving a focus subgraph); kind is text, colour is state; the empty state is the
+whole corpus as a dot constellation under a level-of-detail ladder.
+
+*(The **Open** sentence previously read: "**Dive**: opening an artifact renders its full body over
+the rest of the map while the drawer collapses to a bar; Esc unwinds dive → peek → map." That was
+ADR-0185 dec 1's closed↔peek↔dive state machine, which **ADR-0187 dec 1 RETIRED** in favour of the
+permanent lens plus a separate Open document overlay (dec 2). It stood here in the present tense long
+after the model it describes stopped existing, and the ADR-0294 D2/D4 pass of 2026-08-21 — which
+re-authored the UAT leg that restated the same retired clauses — would otherwise contradict it.
+Corrected in place, ADR-0139. The **empty state** sentence is also weaker than it reads: the
+constellation surface exists and its suite is green, but ADR-0188 dec 4 removed its mount and nothing
+has re-mounted it, so it is not on screen today — see the increment-9 note under "Capabilities".)*
 
 This is a **new bounded surface**, modelled as its own story (the peer pattern of `library-review`,
 `spawn-visibility`, `app-guide` — a coherent studio-surface feature-arc gets its own story, not
@@ -66,9 +82,15 @@ traps live in the plan; this story carries the provable units and the acceptance
 
 The design is SETTLED — **ADR-0185 is the decision record; do not re-litigate** the peek/dive model,
 the search-first finder, kind-as-text/colour-as-state, the dot-constellation LOD ladder, the
-forest-cozy theme, or the `#/library` retirement call. The remaining owner touchpoints are the
-operator-attested LOOK legs on each increment and the `#/library` retirement attestation (ADR-0185
-dec 6, re-checked against the hosted members studio at that leg).
+forest-cozy theme, or the `#/library` retirement call. The one remaining owner touchpoint is the
+`#/library` retirement attestation (ADR-0185 dec 6, re-checked against the hosted members studio at
+that leg; the owner attested the lens 2026-07-15).
+
+*(This previously read "The remaining owner touchpoints are the **operator-attested LOOK legs on each
+increment** and the `#/library` retirement attestation…". There are no look legs to attest — ADR-0348
+D6 ruled a user EXPERIENCE property is not a user ACCEPTANCE criterion, and the ADR-0294 D2/D4 pass of
+2026-08-21 deleted the four fused `Look (operator-attested)` clauses this story carried, recording
+their intent under "The Library's LOOK" in the UAT section instead. Corrected in place, ADR-0139.)*
 
 ## Capabilities (grows with the arc)
 
@@ -256,85 +278,265 @@ scene-graph layer).
 
 The integrated **acceptance walkthrough** that proves the whole `library-tech-tree-overlay` organism
 meets its outcome end-to-end against the **real running studio** (`pnpm --filter studio dev` with the
-live corpus). Minimal-first: one coherent operator journey that opens the drawer, walks the corpus DAG
-by search, dives into an artifact, sees the overview constellation, and closes back to the map. Each leg
-marks its own witness — GEOMETRY/BEHAVIOUR legs are machine-witnessed (the frontend-builder `real:` arms
-of the capabilities), the LOOK legs are operator-attested (ADR-0070 stage 2; the owner sees the drawer
-slide, read as part of the world, legible against the map).
+live corpus). Minimal-first: one coherent operator journey. After the ADR-0294 D2/D4 pass of
+2026-08-21 the walkthrough carries ONE leg — the composed open-an-artifact step, whose halves are
+proven at the capability tier but whose COMPOSITION is not (see the pass block below); the other five
+steps of the original journey are each proven one rung down and are recorded in the disposition table
+rather than restated here. The surviving leg marks its own witness and is machine-witnessed.
+*(This paragraph previously read "…one coherent operator journey that opens the drawer, walks the
+corpus DAG by search, dives into an artifact, sees the overview constellation, and closes back to the
+map. Each leg marks its own witness — GEOMETRY/BEHAVIOUR legs are machine-witnessed (the
+frontend-builder `real:` arms of the capabilities), the LOOK legs are operator-attested (ADR-0070
+stage 2; the owner sees the drawer slide, read as part of the world, legible against the map)."
+There are no LOOK legs any more — ADR-0348 D6 ruled an experience property is not an acceptance
+criterion — and the journey it enumerated no longer matches the surviving list. Corrected in place,
+ADR-0139.)*
 
-> **Proof status (honest) — `proposed`; only increment 1 authored.** This UAT describes the TARGET
-> journey the whole drawer must pass. As of authoring only `library-drawer-shell` (increment 1) exists
-> and is real-buildable; legs 2–6 depend on increments 2–5 and are placeholders until those capabilities
-> are authored and built. The story reaches `healthy` only when every capability's proof is green AND
-> this UAT passes against the real running studio — earned through the gate, never authored (ADR-0020).
+> **Proof status (honest) — `proposed`.** This UAT describes the operator journey the whole drawer
+> must pass. The story reaches `healthy` only when every capability's proof is green AND this UAT
+> passes against the real running studio — earned through the gate, never authored (ADR-0020).
+> *(This note previously read "`proposed`; only increment 1 authored … As of authoring only
+> `library-drawer-shell` (increment 1) exists and is real-buildable; legs 2–6 depend on increments
+> 2–5 and are placeholders until those capabilities are authored and built." That stopped being true
+> once all five named capabilities were built and carried real suites; the 2026-08-08 disposition
+> below recorded the correction in its own prose but left the sentence standing. Corrected in place
+> here per ADR-0139.)*
 
-**Goal —** One operator, in one session against the real running studio, pulls the Library down over the
-forest map, walks from a search to an artifact's neighbourhood, dives into its body and back, glimpses the
-whole-corpus constellation, and closes the drawer — the map staying live the whole time except during a
-deliberate dive.
+> **ADR-0294 D2/D4 pass, 2026-08-21 — legs 1, 3 and 5 are DELETED; leg 4 is RE-AUTHORED and declared
+> UNBOUND.** The fourth and final slice of the D4 pass over live stories (predecessors: PR #1444, the
+> desktop terminal cluster; PR #1448, the studio/claim cluster; PR #1459, `website-experience` /
+> `uat-attestation` / `desktop`). All four legs were left whole by the 2026-08-08 adjudication for a
+> SCOPING reason that has since expired — each FUSES a machine `Success` clause with a
+> `Look (operator-attested)` clause, and the Look halves were reserved for chip `task_99f7e0a9`
+> (ADR-0294 D3, which would have RELOCATED them to the capability whose look it is). **ADR-0348 D6 is
+> that adjudication and it went the other way** — a user EXPERIENCE property is not a user ACCEPTANCE
+> criterion at all — so the disposition changed from relocate-to-capability to DELETE and the chip's
+> claim on these four is discharged. With the Look halves disposed of, D2 applies to what remains.
+> The design intent the Look clauses carried is preserved under "The Library's LOOK" below.
+>
+> **Leg 1 (open the Library drawer on the map) is DELETED.** Every observable it states is asserted
+> one-to-one by [`library-top-drawer`](library-top-drawer.md) at
+> `apps/studio/src/components/LibraryTopDrawer.test.tsx`: "ltd-collapsed-handle-by-default:
+> `search=""` renders the collapsed handle — no wordmark, no body, no scrim" (presents by DEFAULT as
+> a collapsed handle, visible with no URL knowledge); "ltd-flag-renders-expanded: `?overlay=library`
+> renders expanded, with the body, the handle, and the wordmark" (a deep link carrying the flag opens
+> EXPANDED); "ltd-handle-toggle-fires-in-both-states: the arrow toggle fires onToggle once from
+> collapsed and once from expanded; no word button; no history mutation" and
+> "ltd-lens-state-is-url-derived: a changed `search` flips collapsed -> expanded -> collapsed ->
+> expanded, keeping the handed body" (clicking the handle expands, state is URL-derived);
+> "ltd-no-scrim-either-state: no scrim renders collapsed or expanded" (the leg's own parenthesised
+> observable for "the map stays fully live beneath", verbatim); and "ltd-flag-reader-survives:
+> `?overlay=library` reads true; `""` and an unrelated value read false". Checked against that file's
+> ACTUAL assertions, not its file existence (ADR-0294 D2's honesty wall).
+> **⚠ Its FRAMING was also overtaken, and that is a second reason it should not survive as authored.**
+> The leg says "the LIBRARY presents by default as a collapsed top drawer handle". Since ADR-0267 D1
+> and ADR-0314 D6 the handle belongs to the DRAWER, whose PRIMARY lens is arcs
+> (`DEFAULT_DRAWER_LENS = 'arcs'` in `apps/studio/src/lib/drawerLens.ts`), and the Library is the
+> demoted half of an `Arcs | Library` toggle in the same header — so clicking the handle opens ARCS,
+> not the Library. The deletion is not "this is proven one rung down" alone; the journey step as
+> WORDED no longer describes the surface.
+>
+> **Leg 3 (read the selected neighbourhood DAG) is DELETED — and the deletion must NOT be read as
+> "proven one rung down" without this correction.** Its observables map one-to-one onto
+> [`library-dag-canvas`](library-dag-canvas.md) at
+> `apps/studio/src/components/LibraryDagCanvas.test.tsx`: "ldag-adjacency-one-level-each-way",
+> "ldag-layered-ranks-upstream-left-downstream-right", "ldag-edges-drawn-between-nodes",
+> "ldag-per-branch-fan-cap-collapses-overflow", "ldag-per-node-expander-expands-in-place",
+> "ldag-viewbox-contains-all-nodes", "ldag-neighbour-click-refocuses" and
+> "ldag-no-back-no-breadcrumb-no-panzoom". **But the leg names the wrong MECHANISM.** It says the DAG
+> fans the artifact's `references[]`; the shipped behaviour walks **`standsOn`**
+> ("ldag-adjacency-one-level-each-way: walks standsOn BOTH ways to ONE level only in each direction")
+> and explicitly DEMOTES citations out of the graph
+> ("ldag-citations-are-demoted-out-of-the-dag: a `references[]` citation contributes NO node and NO
+> edge, and a mutual citation pair cannot close a cycle"). The leg's wording predates that demotion.
+> So what the rung proves is the CORRECTED behaviour, not the one the leg describes — the journey
+> step survives at the capability tier, the field name it cites does not survive anywhere.
+>
+> **Leg 5 (see the whole-corpus overview) is DELETED, and it carries the pass's one authoring call.**
+> Its behavioural clauses are asserted by [`library-overview`](library-overview.md) at
+> `apps/studio/src/components/LibraryOverview.test.tsx`:
+> "lov-far-band-one-element-per-node: at the FAR band each node is exactly one element — circle for an
+> artifact, square for an ADR — with no ambient labels" (the dot constellation, the shapes, and one
+> element per node at far zoom); "lov-size-tier-buckets-by-importance" with
+> "lov-importance-degree-over-references" (sized by importance); "lov-lod-band-by-zoom: zoom maps to
+> exactly one of far/mid/close, and never reverses to a farther band as zoom increases" together with
+> "lov-close-band-arc-plaque-reads-epic" (nodes swap to plaques at close zoom); and
+> "lov-search-glow-matched-set-via-searchcorpus" (the matched set that glows). **Two things the rung
+> does NOT cover are recorded rather than glossed.** First, "a search match pulses INDEPENDENT OF
+> ZOOM" is not asserted: `data-glow` is applied per node regardless of band in the source, but every
+> glow assertion runs at the component's default zoom, so the independence itself is untested.
+> Second, the Look clause fused a taste claim with an UNBUDGETED PERFORMANCE claim ("stays smooth as
+> the corpus grows toward ~2000 nodes"); both are disposed of under "The Library's LOOK" below.
+> **⚠ And the leg is not walkable at all.** `LibraryOverview` is imported by no non-test source file —
+> ADR-0188 dec 4 removed its mount from the inc-9 glue and nothing has re-mounted it, exactly as the
+> increment-9 note in "Capabilities" above already records. Its suite is green and its source stands,
+> but the journey step "clear the finder to the empty state and see the constellation" cannot be
+> walked in the running studio.
+>
+> **Leg 4 (open the selected artifact) is RE-AUTHORED, not deleted, and stays UNBOUND.** Its
+> behavioural half IS proven one rung down — [`library-dive-body`](library-dive-body.md)'s
+> "ldb-asset-selection-renders-assetview-body-and-sources" and
+> "ldb-doc-selection-fetches-and-renders-markdown", and
+> [`library-open-overlay`](library-open-overlay.md)'s
+> "loo-open-overlay-mounts-full-detail-over-map" and "loo-dismiss-fires-ondismiss". What KEEPS the leg
+> is the parent-glue COMPOSITION, which no component suite reaches: `TreeView`'s
+> `onOpen={setOpenSelection}` wiring into `<LibraryOpenOverlay selection={openSelection} …/>`, mounted
+> as a `.world-frame` sibling over the live map. **The originating surfaces were MEASURED, not
+> assumed** — `onOpen={setOpenSelection}` appears at exactly three call sites in `TreeView.tsx`:
+> `ArcSurface`, `LibraryFocusGraph` (the DAG canvas) and `LibrarySelectionCard`. `LibraryFinder` is
+> handed `onSelect` only and fires no `onOpen`, and `LibraryOverview` accepts one but is mounted by no
+> non-test source, so neither originates an open today. Every capability suite renders its component
+> directly with props, and three `TreeView` test files deliberately stub `./LibraryDrawer.js` down to
+> `{ LibraryDrawer: () => null }` to keep the pan/camera suites light
+> (`apps/studio/src/lib/drawerLens.ts` records why), so the composition is exercised nowhere. **Its ORIGINAL wording was substantially overtaken and is corrected in place**
+> (ADR-0139): it read "the drawer collapses to a bar and the artifact's full body + Sources render
+> over the rest of the map (ADR bodies fetched via `docContent()`); the route syncs to `#/asset/<id>`;
+> Esc unwinds dive → peek → map." Of that, "the drawer collapses to a bar" and "Esc unwinds dive →
+> peek → map" describe the closed↔peek↔dive state machine ADR-0187 dec 1 RETIRED; "the route syncs to
+> `#/asset/<id>`" was never built in the Open-overlay model at all — `openSelection` is transient
+> React state and the overlay writes no URL; and Esc now dismisses in ONE hop
+> ("loo-dismiss-fires-ondismiss"). Three stale clauses, not three uncovered residuals.
+>
+> **No gate is minted for the survivor.** This story declares no reliability gate at all, and
+> answering an unbound leg with a freshly minted check is the rubber stamp ADR-0097 §2 forbids and the
+> reflex ADR-0294's end state point 4 names. Ordinals **1**, **3** and **5** are BURNED, joining **2**
+> and **6** (burned 2026-08-08) — never reused, never backfilled, and no surviving ordinal collides
+> with a `superseded` key for this story in `stories/uat-legacy-dispositions.json` (the burned set is
+> now 1, 2, 3, 5, 6; leg 4 keeps the number it has always had). Verified on the LIVE store before
+> deleting: all four legs read `proven=–`, so no signed verdict was destroyed. Each deleted leg's
+> `(detail:)` artifact (`library-tech-tree-overlay#uat-1`, `#uat-3`, `#uat-5`) is RETIRED in the store
+> in the same pass, so no orphan is left behind; leg 4 keeps `#uat-4`, as `PILOT_STORY_IDS` coverage
+> requires — `packages/model-uat-pilot` asserts BOTH that this story still declares at least one
+> criterion and that every criterion it declares carries a well-formed detail pointer, which is why
+> the story is cut to one leg and not to zero.
+
+**Goal —** One operator, in one session against the real running studio, pulls the Library down over
+the forest map, walks from a search to an artifact's neighbourhood, opens that artifact's body over
+the map, and dismisses it back to the map — the map staying live the whole time. *(This previously
+also promised "glimpses the whole-corpus constellation, and closes the drawer — the map staying live
+the whole time except during a deliberate dive". The constellation glimpse is removed because
+`LibraryOverview` is mounted by no non-test source, and the dive exception is removed because
+ADR-0187 dec 1 retired the dive state the exception was carved for. Corrected in place, ADR-0139.)*
 
 ### ADR-0294 disposition of the six original criteria
 
-**Two of six deleted (2026-08-08); four kept for a scoping reason, not a proof one.** Every leg here
-is a genuine D1 journey step — the six are consecutive moves of one operator session (open → find →
-read the DAG → dive → overview → close) — and every leg is UNBOUND, since this story declares no
-reliability gate at all. But four of the six FUSE two claims into one criterion: a machine `Success`
-clause and a `Look (operator-attested)` clause. Those Look clauses are ADR-0294 D3 appearance
-verdicts, owned by the D3 increment (chip `task_99f7e0a9`), which relocates them to the capability
-whose look it is. Cutting the machine half of a fused leg would either destroy the appearance claim
-or force a re-authoring that D3 must then re-author again, so those four are left whole and untouched.
+**Five of six deleted (two on 2026-08-08, three on 2026-08-21); the sixth re-authored.** Every leg
+here was a genuine D1 journey step — the six are consecutive moves of one operator session (open →
+find → read the DAG → open the artifact → overview → close) — and every leg is UNBOUND, since this
+story declares no reliability gate at all.
 
-Legs 2 and 6 are the only two carrying NO Look clause, so they are pure machine legs and can be
-adjudicated here alone. Both are duplicates of their named capability, verified against actual test
-titles.
+*(What this paragraph read before, corrected in place per ADR-0139: "**Two of six deleted
+(2026-08-08); four kept for a scoping reason, not a proof one.** … four of the six FUSE two claims
+into one criterion: a machine `Success` clause and a `Look (operator-attested)` clause. Those Look
+clauses are ADR-0294 D3 appearance verdicts, owned by the D3 increment (chip `task_99f7e0a9`), which
+relocates them to the capability whose look it is. Cutting the machine half of a fused leg would
+either destroy the appearance claim or force a re-authoring that D3 must then re-author again, so
+those four are left whole and untouched." **That reservation is RETIRED.** ADR-0348 D6 settled the
+question the other way on 2026-08-11 — an experience property is not an acceptance criterion, so the
+disposition became DELETE rather than relocate — and chip `task_99f7e0a9` has nothing left to move
+here. `app-guide` and `app-surface` recorded the same discharge on their own tables; this one was
+never updated until now, so it went on citing a chip that owned nothing.)*
 
-**One stale claim corrected in place** (ADR-0139): the proof-status note above stated "only
-`library-drawer-shell` (increment 1) exists … legs 2–6 depend on increments 2–5 and are placeholders".
-That is no longer true — all five capabilities these legs name are built and carry real suites
-(`LibraryTopDrawer`, `LibraryFinder`, `LibraryDagCanvas`, `LibraryDiveBody`, `LibraryOverview`), which
-is what made this adjudication possible at all.
-
-**The surviving numbers are deliberately NOT closed up.** `2` and `6` are burned; their live
-`uat-criterion` detail artifacts (`library-tech-tree-overlay#uat-2`, `#uat-6`) are retired in the
-store. The four survivors keep their `(detail:)` pointers, as `PILOT_STORY_IDS` coverage requires.
+**The surviving number is deliberately NOT closed up.** `1`, `2`, `3`, `5` and `6` are burned; the
+detail artifacts of every deleted leg are retired in the live store. Leg 4 keeps its `(detail:)`
+pointer, as `PILOT_STORY_IDS` coverage requires.
 
 | original leg | criterion id | disposition |
 |---|---|---|
-| 1. **Open the Library drawer on the map** | `uatc_dc5913099db55821e44fe257` | **Keep — fused D3 clause.** Its machine half is largely covered by [`library-top-drawer`](library-top-drawer.md) (`ltd-collapsed-handle-by-default`, `ltd-flag-renders-expanded`, `ltd-no-scrim-either-state`, `ltd-lens-state-is-url-derived`), but it carries a Look clause (the drawer spans the full frame, reads as part of the world, legible against the map) that is D3's to relocate. |
-| 2. **Find an artifact in the drawer** | `uatc_a89c30e97ac72fc3c454d2fe` | **Delete as duplicate.** No Look clause — a pure machine leg. [`library-finder`](library-finder.md), `apps/studio/src/components/LibraryFinder.test.tsx`: **“lf-search-ranks-asset-matches-across-fields: an id/title hit outranks a description/body-only hit, all four asset fields are match surfaces”** asserts the client-side narrowing over id/title/description/body, and **“lf-adrs-matched-on-title-and-id-only”** asserts the ADR-title half. The kind sub-line via `kindLabel` is pinned by the sibling `LibraryDagCanvas` test **“ldag-node-plaque-kind-via-kindLabel: … an arc node reads ‘epic’, never the raw key”**, the same `kindLabel` seam this leg names. |
-| 3. **Read the selected neighbourhood DAG** | `uatc_586b8bb4e1f926b416497e3f` | **Keep — fused D3 clause.** Its machine half maps one-to-one onto [`library-dag-canvas`](library-dag-canvas.md) (`ldag-adjacency-one-level-each-way`, `ldag-edges-drawn-between-nodes`, `ldag-per-branch-fan-cap-collapses-overflow`, `ldag-viewbox-contains-all-nodes`, `ldag-layered-ranks-upstream-left-downstream-right`), but the two-line plaque and colour-encoding Look clause is D3's. |
-| 4. **Dive into the selected artifact** | `uatc_2539bfd0b1c1c04c2adf77c7` | **Keep — fused D3 clause.** Machine half in [`library-dive-body`](library-dive-body.md) (`ldb-asset-selection-renders-assetview-body-and-sources`, `ldb-doc-selection-fetches-and-renders-markdown`); the "reads over the world without losing the peek bar" clause is D3's. |
-| 5. **See the whole-corpus overview** | `uatc_1dfa5ebe29eb8a99f847ac01` | **Keep — fused D3 clause.** Machine half in [`library-overview`](library-overview.md) (`lov-importance-degree-over-references`, `lov-size-tier-buckets-by-importance`, `lov-lod-band-by-zoom`); the "reads as a tech-tree overview and stays smooth toward ~2000 nodes" clause is D3's. |
-| 6. **Close the Library drawer** | `uatc_f8209997c50c90df84024161` | **Delete as duplicate.** No Look clause — a pure machine leg, and the close half of the same capability leg 1 opens. [`library-top-drawer`](library-top-drawer.md), `apps/studio/src/components/LibraryTopDrawer.test.tsx`: **“ltd-handle-toggle-fires-in-both-states: the arrow toggle fires onToggle once from collapsed and once from expanded; no word button; no history mutation”** asserts the close firing `onToggle`; **“ltd-lens-state-is-url-derived: a changed `search` flips collapsed → expanded → collapsed → expanded”** asserts the flag-clearing round trip; **“ltd-flag-reader-survives: `?overlay=library` reads true; `""` … read false”** asserts that a reload with the flag cleared stays collapsed. |
+| 1. **Open the Library drawer on the map** | `uatc_dc5913099db55821e44fe257` | ~~**Keep — fused D3 clause.** Its machine half is largely covered by `library-top-drawer` …but it carries a Look clause that is D3's to relocate.~~ **DELETED 2026-08-21 by the ADR-0294 D2/D4 pass above; the D3 reservation is RETIRED and chip `task_99f7e0a9`'s claim on this leg is discharged (ADR-0348 D6).** Every observable maps one-to-one onto [`library-top-drawer`](library-top-drawer.md) (`ltd-collapsed-handle-by-default`, `ltd-flag-renders-expanded`, `ltd-handle-toggle-fires-in-both-states`, `ltd-lens-state-is-url-derived`, `ltd-no-scrim-either-state`, `ltd-flag-reader-survives`) — including the parenthesised "no dimming scrim, in either state" verbatim. Its framing was separately overtaken by ADR-0267 D1 / ADR-0314 D6: the handle is the drawer's and opens onto ARCS by default, the Library being the demoted half of an `Arcs \| Library` toggle. |
+| 2. **Find an artifact in the drawer** | `uatc_a89c30e97ac72fc3c454d2fe` | **Delete as duplicate (2026-08-08).** No Look clause — a pure machine leg. [`library-finder`](library-finder.md), `apps/studio/src/components/LibraryFinder.test.tsx`: **“lf-search-ranks-asset-matches-across-fields: an id/title hit outranks a description/body-only hit, all four asset fields are match surfaces”** asserts the client-side narrowing over id/title/description/body, and **“lf-adrs-matched-on-title-and-id-only”** asserts the ADR-title half. The kind sub-line via `kindLabel` is pinned by the sibling `LibraryDagCanvas` test **“ldag-node-plaque-kind-via-kindLabel: … an arc node reads ‘epic’, never the raw key”**, the same `kindLabel` seam this leg names. |
+| 3. **Read the selected neighbourhood DAG** | `uatc_586b8bb4e1f926b416497e3f` | ~~**Keep — fused D3 clause.** Its machine half maps one-to-one onto `library-dag-canvas` …but the two-line plaque and colour-encoding Look clause is D3's.~~ **DELETED 2026-08-21 — but as a PROSE DEFECT as much as a duplicate.** The journey step is proven by [`library-dag-canvas`](library-dag-canvas.md) (`ldag-adjacency-one-level-each-way`, `ldag-layered-ranks-upstream-left-downstream-right`, `ldag-edges-drawn-between-nodes`, `ldag-per-branch-fan-cap-collapses-overflow`, `ldag-per-node-expander-expands-in-place`, `ldag-viewbox-contains-all-nodes`, `ldag-neighbour-click-refocuses`, `ldag-no-back-no-breadcrumb-no-panzoom`), but the leg's stated MECHANISM was overtaken: it says the DAG fans `references[]`, while the shipped walk is `standsOn` and `ldag-citations-are-demoted-out-of-the-dag` asserts a `references[]` citation contributes no node and no edge. The rung proves the corrected behaviour, not the one the leg describes. |
+| 4. **Dive into the selected artifact** → **Open the selected artifact over the map** | `uatc_2539bfd0b1c1c04c2adf77c7` | ~~**Keep — fused D3 clause.** Machine half in `library-dive-body`; the "reads over the world without losing the peek bar" clause is D3's.~~ **RE-AUTHORED 2026-08-21, and KEPT as this story's only criterion.** The Look clause is deleted under ADR-0348 D6 (intent carried below). Its behavioural half is proven by [`library-dive-body`](library-dive-body.md) (`ldb-asset-selection-renders-assetview-body-and-sources`, `ldb-doc-selection-fetches-and-renders-markdown`) and [`library-open-overlay`](library-open-overlay.md) (`loo-open-overlay-mounts-full-detail-over-map`, `loo-dismiss-fires-ondismiss`); what keeps it is the parent-glue COMPOSITION no component suite reaches. Three clauses of its original wording were stale rather than uncovered — see the pass block above. |
+| 5. **See the whole-corpus overview** | `uatc_1dfa5ebe29eb8a99f847ac01` | ~~**Keep — fused D3 clause.** Machine half in `library-overview`; the "reads as a tech-tree overview and stays smooth toward ~2000 nodes" clause is D3's.~~ **DELETED 2026-08-21.** Its behavioural clauses are proven by [`library-overview`](library-overview.md) (`lov-far-band-one-element-per-node`, `lov-size-tier-buckets-by-importance`, `lov-importance-degree-over-references`, `lov-lod-band-by-zoom`, `lov-close-band-arc-plaque-reads-epic`, `lov-search-glow-matched-set-via-searchcorpus`). Two gaps are recorded rather than glossed: "pulses INDEPENDENT OF ZOOM" is asserted at no band but the component's default, and the surface is mounted by no non-test source (ADR-0188 dec 4 removed the mount), so the step is not walkable. The taste half and the unbudgeted ~2000-node performance claim are disposed of below. |
+| 6. **Close the Library drawer** | `uatc_f8209997c50c90df84024161` | **Delete as duplicate (2026-08-08).** No Look clause — a pure machine leg, and the close half of the same capability leg 1 opens. [`library-top-drawer`](library-top-drawer.md), `apps/studio/src/components/LibraryTopDrawer.test.tsx`: **“ltd-handle-toggle-fires-in-both-states: the arrow toggle fires onToggle once from collapsed and once from expanded; no word button; no history mutation”** asserts the close firing `onToggle`; **“ltd-lens-state-is-url-derived: a changed `search` flips collapsed → expanded → collapsed → expanded”** asserts the flag-clearing round trip; **“ltd-flag-reader-survives: `?overlay=library` reads true; `""` … read false”** asserts that a reload with the flag cleared stays collapsed. |
 
-1. **Open the Library drawer on the map.** _(witness: machine)(detail: library-tech-tree-overlay#uat-1)_ Open the studio map (`#/tree`). **Success (machine — `library-top-drawer`) —** the Library presents by _(criterion-id: uatc_dc5913099db55821e44fe257)_ _(revision-id: uatr1:6dee52ba676b0173)_
-   DEFAULT as a collapsed top drawer handle at the top edge of the forest (visible on load with no URL
-   knowledge); clicking the handle slides the lens down (expanded), the forest map staying fully live and
-   interactive beneath it (no dimming scrim, in either state) — and a deep link that already carries
-   `?overlay=library` opens the lens EXPANDED (state is URL-derived; the handle firing `onToggle` and the
-   parent glue writing the flag via `commitSearch`). **Look (operator-attested) —** the drawer spans the
-   full width of the forest frame, expanded takes ~the top 1/3, and reads as part of the world (the map's
-   forest-cozy palette), legible against the map.
-3. **Read the selected neighbourhood DAG.** _(witness: machine)(detail: library-tech-tree-overlay#uat-3)_ Read the selected artifact's neighbourhood. **Success (machine — `library-dag-canvas`) —** the selected _(criterion-id: uatc_586b8bb4e1f926b416497e3f)_ _(revision-id: uatr1:ac51807fd7c96d83)_
-   artifact is centred in a layered reference DAG, its `references[]` fanning upstream (stands on) left
-   and downstream (stood on by) right to ONE level each way (ADR-0193 dec 3), with DRAWN edges between rank-adjacent
-   nodes and per-branch ⊕ expanders taming breadth (no global depth stepper) and a fit-to-view viewBox
-   holding every node; clicking a neighbour re-centres the DAG on it — no ← Back / breadcrumb / pan-zoom. **Look (operator-attested) —** two-line kind-in-node
-   plaques (title / kind), colour encoding STATE only (the selected chain lights purple, ephemeral
-   plan nodes dashed).
-4. **Dive into the selected artifact.** _(witness: machine)(detail: library-tech-tree-overlay#uat-4)_ Open the selected artifact to read it. **Success (machine — `dive-body`) —** the drawer collapses to _(criterion-id: uatc_2539bfd0b1c1c04c2adf77c7)_ _(revision-id: uatr1:d44edbb8ee4ca285)_
-   a bar and the artifact's full body + Sources render over the rest of the map (ADR bodies fetched via
-   `docContent()`); the route syncs to `#/asset/<id>`; Esc unwinds dive → peek → map. **Look
-   (operator-attested) —** the dive body reads over the world without losing the peek bar.
-5. **See the whole-corpus overview.** _(witness: machine)(detail: library-tech-tree-overlay#uat-5)_ Clear the finder to the empty state. **Success (machine — `overview`) —** the whole corpus renders as _(criterion-id: uatc_1dfa5ebe29eb8a99f847ac01)_ _(revision-id: uatr1:790734e60d1b58ed)_
-   a dot constellation (circle = artifact, square = ADR), sized by importance, one SVG element per node
-   at far zoom; a search match pulses independent of zoom; nodes swap to plaques at close zoom. **Look
-   (operator-attested) —** the constellation reads as a tech-tree overview and stays smooth as the corpus
-   grows toward ~2000 nodes (the LOD ladder holds).
+### The Library's LOOK — design intent, deliberately NOT a UAT leg (ADR-0348 D6)
+
+The appearance intent that stood fused into legs 1, 3, 4 and 5 until 2026-08-21 is recorded here so it
+is not lost with those legs. Under ADR-0348 D6 none of it is an acceptance criterion: it is a user
+EXPERIENCE property, gathered as continuous owner feedback through use rather than signed off as a
+discrete obligation the story must clear to be green. **An agent never renders any of these verdicts.**
+
+- **The drawer reads as part of the world** (from leg 1) — expanded it spans the full width of the
+  forest frame and takes about the top third, wearing the map's forest-cozy palette, legible against
+  the map beneath it rather than floating over it as a separate application.
+- **The DAG canvas encodes state in colour and nothing else** (from leg 3) — two-line kind-in-node
+  plaques (title over kind), with colour reserved for STATE: the traversed chain lights purple,
+  ephemeral plan nodes read dashed. The machine-observable half of that intent is already asserted —
+  `ldag-node-plaque-kind-via-kindLabel` pins the kind line and
+  `ldag-selected-chain-and-ephemeral-markers` pins the `data-chain` / `data-ephemeral` markers the CSS
+  hangs off — so what is left here is only whether the resulting palette READS right.
+- **The opened artifact reads over the world** (from leg 4) — the full-detail overlay should read as a
+  document opened on top of the living map, not as a route away from it, and the lens beneath should
+  not feel lost while it is open.
+- **The constellation reads as a tech-tree overview** (from leg 5) — the dot field, its size tiers,
+  its band transitions, and the search glow's pulse should read as one legible overview of the whole
+  corpus rather than as scattered noise.
+
+**The ~2000-node performance claim is NOT taste, and it is recorded here as UNDISCHARGED rather than
+deleted quietly.** Leg 5's Look clause fused the reading above with a second, machine-shaped claim:
+*"stays smooth as the corpus grows toward ~2000 nodes (the LOD ladder holds)."* It was NOT kept as a
+machine leg, and the reason is a discriminator worth stating, because the corpus holds a leg that
+looks like its twin. [`app-surface`](../app-surface/story.md) leg 10 ("the hosted witness is viewable
+within its recorded browser budget") IS kept as a machine leg, deliberately unbound, because no
+lower-tier node opens a deployed build in a real browser and measures it — but that leg names a
+RECORDED BUDGET and a DEPLOYED artifact to measure it against. This claim has neither: "smooth" names
+no threshold and "~2000 nodes" names a corpus size rather than a frame time, so no instrument could
+ever discharge it as written; and `LibraryOverview` is mounted by no non-test source, so there is no
+running surface to measure at all. Keeping it as a machine leg would have manufactured an obligation
+that could not be met by any amount of effort, which is the hollow proof ADR-0294 exists to remove.
+
+What IS proven of it, one rung down, is its stated MECHANISM: `lov-far-band-one-element-per-node`
+asserts that at the far band the whole corpus stays exactly one element per node with no ambient
+labels, and `lov-lod-band-by-zoom` asserts the ladder is monotonic and never reverses. So "the LOD
+ladder holds" is green; "stays smooth at ~2000 nodes" has never been measured, by anybody, and its
+absence must not later be read as approval (ADR-0348 Consequences). **No gate is minted for it**
+(ADR-0097 §2 — a check is minted only where a real persisted artifact exists to witness). Two things
+would have to exist before it could honestly become a leg again: the overview re-mounted into a
+running surface, and a recorded budget with a number in it. Until then this paragraph is the record
+that the claim was made and never discharged.
+
+4. **Open the selected artifact over the map.** _(witness: machine)(detail: library-tech-tree-overlay#uat-4)_ Select an artifact in the drawer, then open it from each of the THREE mounted surfaces that fire `onOpen` — the arc surface, the DAG canvas, and the selection card. **Success (machine) —** a _(criterion-id: uatc_2539bfd0b1c1c04c2adf77c7)_ _(revision-id: uatr1:8334f2aed9035ca2)_ _(previous-revision-id: uatr1:d44edbb8ee4ca285)_
+   distinct full-detail overlay mounts OVER the live forest map as a `.world-frame` sibling, rendering
+   the artifact's full body + Sources (an ADR body fetched on demand via `docContent()`), with the map
+   and the drawer both still mounted beneath it; dismissing it — the close control or Esc — returns to
+   the drawer and the live map in ONE hop, clearing the open selection.
+   **UNBOUND — fails closed (ADR-0294 D4, 2026-08-21).** No `(proof-gate:)`: this story declares no
+   reliability gate at all, and none is minted here — answering an unbound leg with a freshly minted
+   check is the rubber stamp ADR-0097 §2 forbids. The leg's two HALVES are proven one rung down —
+   [`library-dive-body`](library-dive-body.md)'s `ldb-asset-selection-renders-assetview-body-and-sources`
+   and `ldb-doc-selection-fetches-and-renders-markdown` for the body/Sources render and the on-demand
+   ADR fetch, and [`library-open-overlay`](library-open-overlay.md)'s
+   `loo-open-overlay-mounts-full-detail-over-map` and `loo-dismiss-fires-ondismiss` for the distinct
+   overlay container and the one-hop dismiss. What the leg ADDS, and what nothing reaches, is the
+   COMPOSITION: that `TreeView`'s `onOpen={setOpenSelection}` wiring actually carries a selection into
+   `<LibraryOpenOverlay selection={openSelection} …/>` from each of the three surfaces that fire it —
+   `ArcSurface` (the drawer's primary arcs lens), `LibraryFocusGraph` (the DAG canvas) and
+   `LibrarySelectionCard` — and that the overlay lands over a map and drawer that stay mounted. Read
+   that list as measured, not as the obvious one: `LibraryFinder` is handed `onSelect` only and fires
+   no `onOpen` at all, and `LibraryOverview` — which DOES accept an `onOpen` — is mounted by no
+   non-test source, so neither is a live originating surface. Every capability suite renders its
+   component directly with props, and three `TreeView` test files stub `./LibraryDrawer.js` down to
+   `{ LibraryDrawer: () => null }` to keep the pan/camera suites light, so the composed path is
+   exercised nowhere. The instrument that WOULD bind it is a mounted-composition test over `TreeView`
+   (or the desktop `_electron` harness) driving select → Open → dismiss against the real mount; none
+   exists, so the leg stays deliberately unbound and fails closed, and it still blocks the crown.
+   *(Machine, not human: every condition above is a DOM/mount observable, not a judgment. Whether the
+   result LOOKS right is no longer a leg at all — ADR-0348 D6 deleted that experience clause; the
+   intent lives under "The Library's LOOK" above.)*
+
 ## Proof
 
 The story carries the UAT (above) at the story tier (ADR-0010 §2). It is proven when that UAT passes
 against the real running studio AND its capabilities' `real:` proofs (geometry/behaviour) are signed
-green underneath it, with the LOOK legs operator-attested (ADR-0070). **Honest status — `proposed`.**
+green underneath it. **Honest status — `proposed`.**
 Nothing here is proven through the ceremony; `healthy` is derived from signed verdicts, never authored.
 See [`../README.md`](../README.md) for the representation and field mapping.
+
+*(This section previously read "…are signed green underneath it, **with the LOOK legs
+operator-attested (ADR-0070)**." There are no LOOK legs to attest: ADR-0348 D6 ruled a user
+EXPERIENCE property is not a user ACCEPTANCE criterion, and the ADR-0294 D2/D4 pass of 2026-08-21
+deleted the four fused Look clauses this story carried, recording their design intent under "The
+Library's LOOK" instead. ADR-0070's two-stage posture still governs where an appearance verdict lives
+WHEN one is worth carrying — it is the "this story owes an operator-attested UAT signature" reading
+that is withdrawn. Corrected in place, ADR-0139.)*

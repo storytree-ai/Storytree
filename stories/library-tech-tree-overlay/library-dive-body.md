@@ -23,8 +23,9 @@ decisions: [185, 70, 122, 23]
 # guard at the data boundary). The dive body's APPEARANCE (does the full-body reading pane read as one
 # forest-cozy lens over the map with the drawer collapsed to a bar; the empty/prompt state styling; the
 # reading-pane legibility) and its real MOUNTING into TreeView's `diveSlot` composition are the story's
-# operator-attested UAT leg 4 (the look is witnessed, never a machine visual verdict; do NOT add a
-# visual/colour assertion here, and do NOT edit TreeView.tsx or LibraryDrawer.tsx in this `real:` scope —
+# recorded LOOK INTENT (design intent, NOT a UAT leg — ADR-0348 D6; the intent lives under "The Library's
+# LOOK" in story.md, and the `diveSlot` mount itself was RETIRED by ADR-0187 dec 1/2). The INSTRUCTION is
+# unchanged: never a machine visual verdict, do NOT add a visual/colour assertion here, and do NOT edit TreeView.tsx or LibraryDrawer.tsx in this `real:` scope —
 # the dive body is proven in isolation and takes `selection` as a PROP, the diveSlot prop add on the shell
 # and the diveSlot={<LibraryDiveBody …/>} mount in TreeView are the orchestrator's supplement glue after
 # PASS, exactly as the finder's / subgraph's mount was — trap k).
@@ -100,9 +101,27 @@ deterministically drivable in jsdom.
 > reuse-of-AssetView-DocView / fetch-error behaviour, RED at HEAD (module-not-found), GREEN once both
 > modules are written. Its ROUTING/BEHAVIOUR is machine-witnessed; its APPEARANCE inside the real drawer
 > (the full-body reading pane over the map, the drawer collapsed to a bar, the forest-cozy palette, the
-> empty/prompt state styling) and its real mounting into the shell's `diveSlot` are the story's
-> operator-attested UAT leg 4 (ADR-0070). Status stays `proposed` — `healthy` is only ever DERIVED from
-> signed verdicts (ADR-0020), never authored.
+> empty/prompt state styling) and its real mounting into the shell's `diveSlot` are the story's recorded LOOK INTENT (design intent, NOT a UAT leg — ADR-0348 D6)
+> and are asserted nowhere. Status stays `proposed` — `healthy` is only ever DERIVED from signed verdicts
+> (ADR-0020), never authored.
+
+> **ADR-0294 D2/D4 pass correction, 2026-08-21 (ADR-0139).** Every sentence in this file that called the
+> dive body's appearance and its `diveSlot` mounting "the story's operator-attested UAT leg 4" has been
+> corrected in place. **Two separate things changed.** (a) There is no LOOK leg: **ADR-0348 D6**
+> (2026-08-11) ruled a user EXPERIENCE property is not a user ACCEPTANCE criterion, so the appearance half
+> of story leg 4 was deleted and its intent preserved under **"The Library's LOOK"** in
+> [`story.md`](story.md) — no owner signature is owed for it and none is withheld. (b) Story leg 4 itself
+> SURVIVES, but RE-AUTHORED: it is now "Open the selected artifact over the map", a machine leg whose
+> residual is the parent-glue COMPOSITION (`TreeView`'s `onOpen={setOpenSelection}` wiring into
+> `LibraryOpenOverlay`), declared UNBOUND and fails closed. ⚠ **The `diveSlot` composition this file keeps
+> describing is RETIRED.** ADR-0187 dec 1 retired the closed↔peek↔dive state machine and dec 2 replaced the
+> inline dive with a separate Open document overlay; `LibraryDiveBody` is today mounted ONLY inside
+> `LibraryOpenOverlay`, and the drawer does not collapse to a bar. This capability's own contracts are
+> unaffected — it is proven in isolation from props — but read every "drawer collapsed to a bar" /
+> `diveSlot` sentence below as a record of the mount it was authored against, not of the live one.
+> **What is UNCHANGED is the instruction:** do NOT author a visual / colour / layout assertion in this
+> capability's tests.
+
 
 ## Guidance
 
@@ -185,8 +204,9 @@ leaf's scope (trap k).
 APPEARANCE IS OPERATOR-ATTESTED, NOT ASSERTED (ADR-0185 dec 5/6 + ADR-0070). The dive follows the map's
 forest-cozy palette (the world's CSS variables, as the shell/finder/subgraph do), NOT neutral-admin white
 and NEVER the black-terminal look. The full-body reading pane over the map (the drawer collapsed to a bar),
-the reading-pane legibility, and the empty/prompt state styling are WITNESSED by the owner (UAT leg 4),
-never a machine visual verdict — do NOT author a visual/colour/layout assertion in this cap's tests (assert
+the reading-pane legibility, and the empty/prompt state styling are the story's recorded LOOK INTENT (design intent, NOT a UAT leg — ADR-0348 D6) —
+never a machine visual verdict, and since ADR-0348 D6 not an owner signature either. Do NOT author a
+visual/colour/layout assertion in this cap's tests (assert
 the routing, which renderer mounts, the stubbed `docContent` call + rendered markdown, and the error-state
 guard, never their styling). Surface the STILL-UNSIGNED drawer-shell + finder + subgraph look legs at the
 SAME attestation (trap l), rather than letting them sit unsigned. Witness the look at
@@ -236,7 +256,7 @@ The test-proven leaf behaviours — each **one isolated automated test** in the 
 `../lib/diveBody`). Per ADR-0122 (`storytree coverage`) each contract id is the lead of a distinctly-named
 test, so the coverage check reports 6/6 against the ONE `real.testFile`. None of these is an APPEARANCE
 assertion — the look (the full-body reading pane over the map, the drawer collapsed to a bar, the forest-cozy
-palette, the empty/prompt state styling) is the story's operator-attested UAT leg 4 (ADR-0070).
+palette, the empty/prompt state styling) is the story's recorded LOOK INTENT (design intent, NOT a UAT leg — ADR-0348 D6).
 
 1. **`ldb-plandive-empty-on-null`** — `planDive(null)` returns `{ kind: 'empty' }`
    - **asserts —** the pure `planDive(null)` returns `{ kind: 'empty' }` (no selection → the empty render
@@ -300,7 +320,7 @@ The bootstrap rung toward `healthy` (ADR-0057 §3, NET-NEW): author the dive bod
   holding no data of its own (the reused renderers own their `useAppData()` read + fetch/loading/error).
   MOUNTING it into TreeView's `diveSlot` composition (the `diveSlot` prop add on the shell +
   `diveSlot={<LibraryDiveBody selection={librarySelection} />}` in TreeView) and the forest-cozy appearance
-  are witnessed under the story's UAT leg 4 (operator-attested, ADR-0070), NOT asserted in CI and NOT in this
+  are the story's recorded LOOK INTENT (design intent, NOT a UAT leg — ADR-0348 D6), NOT asserted in CI and NOT in this
   `real:` scope. After it, the imports resolve, the assertions hold, and `pnpm --filter studio test` +
   `pnpm --filter studio typecheck` stay green.
 
@@ -323,11 +343,11 @@ Rules:
   crashing the panel (`ldb-doc-fetch-error-surfaces-error-not-crash`, the inc-3-crash-class guard).
 - **Deep-link is deferred to increment 7** — inc-4 opens the dive purely from the in-memory
   `librarySelection`, touches no hash, builds no `diveHref` helper speculatively (slow growth).
-- **Appearance is operator-attested, not asserted here** (ADR-0070) — prove the routing, which renderer
+- **Appearance is design intent, not asserted here** (ADR-0348 D6) — prove the routing, which renderer
   mounts, the stubbed `docContent` call + rendered markdown, and the error-state guard; the full-body reading
   pane over the map, the drawer collapsed to a bar, the forest-cozy palette, and the empty/prompt state
-  styling are the story's UAT leg 4 (surface the still-unsigned shell/finder/subgraph look legs at the same
-  attestation — trap l). Do not author a visual verdict, and do NOT edit `TreeView.tsx` or `LibraryDrawer.tsx`
+  styling are the story's recorded LOOK INTENT (design intent, NOT a UAT leg — ADR-0348 D6) — there is no look leg left to surface them at, and
+  the "same attestation" this bullet used to point at no longer exists. Do not author a visual verdict, and do NOT edit `TreeView.tsx` or `LibraryDrawer.tsx`
   in the `real:` scope (the `diveSlot` prop add + the TreeView mount are the orchestrator's supplement glue
   after PASS; the dive is proven in isolation, driven by props — trap k). `LibraryDrawer.test.tsx`
   (`lds-*`/`ldw-*`), `LibraryFinder.test.tsx` (`lf-*`), and `LibraryFocusGraph.test.tsx` (`lfg-*`) must all
