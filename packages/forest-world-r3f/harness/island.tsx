@@ -198,6 +198,8 @@ function App() {
             pxPerUnit={8}
             displayPxPerUnit={8}
             plants={false}
+            flowers={false}
+            tree={false}
             land="flat"
           />
           <IslandPanel
@@ -206,6 +208,8 @@ function App() {
             pxPerUnit={8}
             displayPxPerUnit={8}
             plants={false}
+            flowers={false}
+            tree={false}
             land="full"
           />
         </div>
@@ -225,6 +229,8 @@ function App() {
             pxPerUnit={8}
             displayPxPerUnit={8}
             plants={false}
+            flowers={false}
+            tree={false}
             land="relief"
           />
           <IslandPanel
@@ -233,6 +239,8 @@ function App() {
             pxPerUnit={8}
             displayPxPerUnit={8}
             plants={false}
+            flowers={false}
+            tree={false}
             land="bevel"
           />
         </div>
@@ -252,6 +260,8 @@ function App() {
             pxPerUnit={DELIVERED}
             displayPxPerUnit={DELIVERED}
             plants={false}
+            flowers={false}
+            tree={false}
             land="flat"
           />
           <IslandPanel
@@ -260,6 +270,8 @@ function App() {
             pxPerUnit={DELIVERED}
             displayPxPerUnit={DELIVERED}
             plants={false}
+            flowers={false}
+            tree={false}
             land="full"
           />
         </div>
@@ -305,6 +317,8 @@ function App() {
               pxPerUnit={DELIVERED}
               displayPxPerUnit={DELIVERED}
               plants={false}
+              flowers={false}
+              tree={false}
               land="relief"
               amplitude={a}
             />
@@ -334,6 +348,8 @@ function App() {
             pxPerUnit={8}
             displayPxPerUnit={8}
             plants={false}
+            flowers={false}
+            tree={false}
             island={{ oddOneOut: { index: 0, status: 'unhealthy' } }}
             land="full"
           />

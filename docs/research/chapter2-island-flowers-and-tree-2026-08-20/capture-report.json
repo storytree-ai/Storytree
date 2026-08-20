@@ -94,43 +94,43 @@
     {
       "i": 12,
       "w": 1918,
-      "h": 1352,
-      "opaque": 1346216,
+      "h": 887,
+      "opaque": 1228458,
       "holes": 0
     },
     {
       "i": 13,
       "w": 1918,
-      "h": 1360,
-      "opaque": 1348048,
+      "h": 930,
+      "opaque": 1234059,
       "holes": 0
     },
     {
       "i": 14,
       "w": 1918,
-      "h": 1354,
-      "opaque": 1344445,
+      "h": 924,
+      "opaque": 1233753,
       "holes": 0
     },
     {
       "i": 15,
       "w": 1918,
-      "h": 1358,
-      "opaque": 1349811,
+      "h": 893,
+      "opaque": 1228611,
       "holes": 0
     },
     {
       "i": 16,
       "w": 480,
-      "h": 338,
-      "opaque": 84180,
+      "h": 222,
+      "opaque": 76920,
       "holes": 0
     },
     {
       "i": 17,
       "w": 480,
-      "h": 340,
-      "opaque": 84305,
+      "h": 232,
+      "opaque": 77008,
       "holes": 0
     },
     {
@@ -150,29 +150,29 @@
     {
       "i": 20,
       "w": 480,
-      "h": 338,
-      "opaque": 84180,
+      "h": 222,
+      "opaque": 76920,
       "holes": 0
     },
     {
       "i": 21,
       "w": 480,
-      "h": 338,
-      "opaque": 84067,
+      "h": 227,
+      "opaque": 77066,
       "holes": 0
     },
     {
       "i": 22,
       "w": 480,
-      "h": 339,
-      "opaque": 84207,
+      "h": 231,
+      "opaque": 77151,
       "holes": 0
     },
     {
       "i": 23,
       "w": 480,
-      "h": 339,
-      "opaque": 84103,
+      "h": 235,
+      "opaque": 77240,
       "holes": 0
     },
     {
@@ -185,8 +185,8 @@
     {
       "i": 25,
       "w": 1918,
-      "h": 1360,
-      "opaque": 1348048,
+      "h": 930,
+      "opaque": 1234059,
       "holes": 0
     },
     {
@@ -291,7 +291,7 @@
   "palette": {
     "authoredEntries": 156,
     "canvases": 35,
-    "opaquePixels": 20189511,
+    "opaquePixels": 19569146,
     "distinctDeliveredColours": 49,
     "offPalettePixels": 0,
     "offPaletteColours": [],
@@ -301,7 +301,7 @@
   "frameTiming": {
     "samples": 39,
     "p50Ms": 16.7,
-    "meanMs": 16.37,
+    "meanMs": 16.65,
     "interpretation": "RELATIVE ONLY. Software rasteriser, static scene — this is the headless compositor present cadence, not a GPU-bound frame cost. Do not quote it as a D2 verdict."
   }
 }
