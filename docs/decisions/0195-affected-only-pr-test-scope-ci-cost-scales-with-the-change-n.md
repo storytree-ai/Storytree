@@ -59,15 +59,23 @@ declared dependency edge, which pnpm's graph cannot see —
    filtering is deliberately NOT used, so the classifier and the selection can never disagree
    about what changed.
 3. **Conservative classification — the FULL `-r` run fires when ANY changed file is:**
-   (a) outside `packages/*` / `apps/*` — `stories/**`, `docs/decisions/**`, `scripts/**`,
-   `.github/**`, `pnpm-lock.yaml`, root `package.json`/tsconfig, `CLAUDE.md`, `.claude/**`, the
-   `web` gitlink — the paths the trap suites read;
+   (a) outside `packages/*` / `apps/*` — `stories/**`, `scripts/**`, `.github/**`,
+   `pnpm-lock.yaml`, root `package.json`/tsconfig, `CLAUDE.md`, `.claude/**`, the `web` gitlink —
+   the paths the trap suites read. **`docs/decisions/**` is NO LONGER in this list**: ADR-0394 took
+   the amendment rule below and narrowed that one path to its MEASURED readers (`@storytree/cli`
+   and `@storytree/drive`, plus dependents). Every other root path here is unchanged and still
+   fires FULL;
    (b) under `apps/studio/data/**` — the corpus seed read across package boundaries;
    (c) any `package.json` — workspace manifests are the selection graph's own inputs;
    (d) inside `packages/`/`apps/` but mapping to no known workspace project (conservative
    unknown — covers `packages/README.md`, deleted-package leftovers).
    Refining these rules (e.g. "stories/** selects cli+drive instead of FULL") is an amendment to
    this ADR, never a quiet edit — every FULL trigger is pinned red→green in `ci-affected.test.ts`.
+   [ADR-0394](0394-a-root-path-with-proven-readers-narrows-the-affected-scope-e.md) is the first
+   such amendment, and it adds one condition this clause did not state: the refinement costs a
+   MEASUREMENT, not an argument. The reader set is established by instrumenting `node:fs` across a
+   full `-r` test run, because the guess in this ADR's own Context — that `docs/decisions/**` is
+   read by the adr-health gates — was incomplete, and a grep would have under-selected.
 4. **Fail-open to FULL, fail-visible otherwise:** not a PR event, HEAD not a merge commit, git
    failure, or any classifier error → `-r`. A crash before the step writes its output fails the
    step — red CI, never a silently narrowed green. Push and dispatch events skip the classifier
@@ -101,8 +109,12 @@ declared dependency edge, which pnpm's graph cannot see —
 - PR CI's dominant cost now scales with the change: a leaf-surface PR runs its dependent slice
   (e.g. forest-world → r3f → studio/desktop) instead of all 13 projects; low-tier protocol changes
   still fan out to nearly everything — correct, not a bug.
-- Doc-only, stories-only, corpus-seed, lockfile, and workflow PRs still run FULL by rule —
-  correctness over savings; the measured win concentrates on in-package source changes.
+- Stories-only, corpus-seed, lockfile, and workflow PRs still run FULL by rule — correctness over
+  savings; the measured win concentrates on in-package source changes. (Written when DOC-only PRs
+  ran full too. Since ADR-0394 a **decision-only** PR narrows to the two packages measured to read
+  `docs/decisions/**` plus their dependents — 9 of 25 projects, worth about 11% of test work, since
+  the cost is concentrated in `packages/cli`, which is one of the readers. Every other doc path is
+  still outside the map and still runs FULL.)
 - Sanity-watch after landing: on the next few real PRs the `Affected scope` step must log
   `mode=full` for a doc-only PR and the filtered project set for a leaf-package PR.
 
