@@ -21,8 +21,9 @@
 // drift from the world's palette — it IS the world's palette.
 //
 // The captions carry the observability contract's caveats in operator-facing
-// text: hue-is-the-signed-verdict (ADR-0040 — authored status can never paint
-// green), crown-is-never-a-roll-up, offline-under-claims, and
+// text: green-is-the-signed-verdict (ADR-0040 — authored status can never paint
+// green), non-green hue reveals the honest authored rung (ADR-0395),
+// crown-is-never-a-roll-up, offline-under-claims, and
 // build-wisps-are-the-harness (ADR-0048).
 
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
@@ -67,9 +68,9 @@ export type RowKey = 'tree' | 'flora' | 'proof' | 'activity' | 'claim';
 
 /**
  * Status fan order: the growth ladder. `building`, `retired` and `unhealthy`
- * never reach the legend — the world folds building into proposed, folds
- * unhealthy into mapped (ADR-0296), and prunes retired entirely
- * (worldStatus.ts, ADR-0038/0296).
+ * never reach the legend — the world folds building and defensive authored
+ * unhealthy into proposed, and prunes retired entirely
+ * (worldStatus.ts, ADR-0038/0296/0395).
  */
 const STATUS_ORDER = ['proposed', 'mapped', 'healthy'] as const;
 
@@ -572,13 +573,13 @@ export function LegendDrawerBody({
         </div>
         <p className="legend-cap">
           An island is a <strong>story</strong>; the big tree is the story itself — growth and
-          colour carry the lifecycle. A young amber tree = <strong>proposed</strong>, still
-          iterating (a claimed-but-empty story renders here too, and a story under active build —
-          live work shows as session wisps, not a hue); a full brown tree ={' '}
-          <strong>mapped</strong> brownfield — real, not yet proven (an authored “healthy” renders
-          here until the gate signs); deep green = <strong>proven</strong>, a signed pass on the
-          story's own UAT. Retired stories leave the forest. Click a tile to fade that status
-          across the forest.
+          colour carry the lifecycle. A young amber tree = <strong>proposed</strong> greenfield work
+          without a current signed pass (defensive authored “healthy” or “unhealthy” values with
+          no proof also become proposed); a full brown tree = <strong>mapped</strong> inherited
+          brownfield provenance, awaiting or completing adoption. Deep green ={' '}
+          <strong>proven</strong>: a current signed pass on the story&apos;s own UAT is the only source
+          of green. Active work shows as session wisps, not a hue. Retired stories leave the
+          forest. Click a tile to fade that status across the forest.
         </p>
       </>,
     );
@@ -597,10 +598,11 @@ export function LegendDrawerBody({
         <p className="legend-cap">
           Flora density is a compressed view of each capability&apos;s declared,{' '}
           <strong>test-proven contracts</strong>: more behavioural obligations grow a denser drift,
-          but one plant is not one source test. Colour carries capability status: deep green = the
-          last signed run passed (the only green source, ADR-0040), every other hue = the authored
-          ladder, unproven. A signed <em>fail</em> draws no distinct flora — it under-claims to
-          unproven (ADR-0296); the node panel&apos;s verdict line is where a failure reads.
+          but one plant is not one source test. Colour preserves the authored rung when proof is
+          missing or failing: proposed greenfield work is amber, while inherited mapped brownfield
+          provenance is brown. A current signed pass is the only source of green. A signed{' '}
+          <em>fail</em> falls to the authored rung while remaining visible on the node panel&apos;s
+          verdict line.
         </p>
       </>,
     );
@@ -618,13 +620,13 @@ export function LegendDrawerBody({
           />
         </div>
         <p className="legend-cap">
-          Hue only ever reports a <strong>signed</strong> prove-it-gate verdict — authored status
-          can never paint green, and a story's crown answers only to its <strong>own</strong> UAT
-          (“all capabilities pass” and “the story passed UAT” are different claims). A signed{' '}
-          <em>fail</em> paints no state of its own (ADR-0296): a failed unit falls back to the
-          authored ladder, and the node panel&apos;s verdict line is where the failure reads. With
-          the live store down, verdicts are absent and the world <strong>under-claims</strong> the
-          same way — the store banner is the signal.
+          A current signed pass is the only source of green, and a story&apos;s crown answers only to
+          its <strong>own</strong> UAT (“all capabilities pass” and “the story passed UAT” are
+          different claims). A signed <em>fail</em> remains visible on the node panel&apos;s verdict
+          line while the map falls back to the honest authored rung. With the live store down,
+          verdicts are absent and the world <strong>under-claims</strong> by falling back the same
+          way — proposed greenfield work is amber and inherited mapped brownfield provenance is
+          brown; the store banner is the signal.
         </p>
       </>,
     );
