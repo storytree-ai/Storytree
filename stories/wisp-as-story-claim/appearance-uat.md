@@ -65,7 +65,10 @@ job with an eye.
   anchoring are right is story legs 1–2, not this.)*
 - **Contention reads as coordination, not as a duplicate** — a second session queues visibly behind the
   holder rather than appearing as a second island orbit. *(That the store refuses and names the holder is
-  story leg 3.)*
+  the capability [`claim-store-work-time`](claim-store-work-time.md)'s, at
+  `packages/notice-board/src/store/claim-store.test.ts`. This read "is story leg 3"; that leg was deleted
+  on 2026-08-20 by the ADR-0294 D2 pass as a duplicate of exactly that proof, so the claim is named where
+  it lives rather than by a burned ordinal. Corrected in place per ADR-0139.)*
 - **The §5 honesty wall holds on the map** — a claimed-but-not-proven wisp must read as **clearly different**
   from a real signed-verdict green **bloom** (ADR-0045). If they look alike, the map inflates proof and this
   leg FAILS regardless of the data.
@@ -83,8 +86,11 @@ stage (claim a story, drive a build) but a human renders the verdict.
 > fusing a countable claim onto a felt one. The story's `## UAT Test Criteria` then carried **eleven** legs
 > — seven `machine`, four `human` — and this capability kept exactly the four HUMAN ones, renumbered to
 > match the story: **story legs 4, 6, 8 and 11**. The counts, placements, contention logic, structural
-> honesty wall and merge-release sweep that were welded onto these legs are **story legs 1, 2, 3, 5, 7, 9
-> and 10**, discharged by specs in B's, C's and A's own harnesses — not by an operator's eye. Nothing felt
+> honesty wall and merge-release sweep that were welded onto these legs became **story legs 1, 2, 3, 5, 7,
+> 9 and 10**, discharged by specs in B's, C's and A's own harnesses — not by an operator's eye. *(Legs 3
+> and 7 of that set were themselves deleted on 2026-08-20 by the ADR-0294 D2 pass, as duplicates of the
+> capability-tier proof they named; the story now carries 1, 2, 5, 9 and 10. Nothing this capability
+> claims changes — the felt half was never on those legs. Corrected in place per ADR-0139.)* Nothing felt
 > was reclassified; the human set got NARROWER and more honest, not weaker.
 >
 > **NARROWED AGAIN 2026-08-11 (ADR-0348 D6): the four story-tier human legs are DELETED.** The story now
@@ -116,7 +122,11 @@ stage (claim a story, drive a build) but a human renders the verdict.
 - **c. Claimed LOOKS clearly different from proven-green** _(story leg 8 — witness: human; NOT in the
   2026-07-17 attestation)_ — the §5 honesty wall on the map, including the hard case of one story carrying
   a claim wisp AND an in-window bloom at once. If they look alike this FAILS regardless of what the data
-  says — and story leg 7 proving the two families share no code is precisely NOT this claim.
+  says — and the structural proof that the two families share no code is precisely NOT this claim. *(That
+  structural proof was story leg 7 until the ADR-0294 D2 pass deleted it on 2026-08-20 as a duplicate; it
+  lives at `render-claim-as-wisp`'s `claim-activity-is-visibly-distinct-from-proven-green`, `render-core`'s
+  §5 walks in `packages/forest-world/src/scene.test.ts`, and `app-surface-world-view`'s class-level walls
+  in `packages/app-surface/src/SceneView.test.tsx`. Corrected in place per ADR-0139.)*
 - **d. The departure reads as *just left*, not as *lost*** _(story leg 11 — witness: human; the 2026-07-17
   signature was given here)_ — the fade reads as a session having walked away, never as a claim dropped or
   silently vanished. A permanent regression case: the opposite reading was a real recorded defect

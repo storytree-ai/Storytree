@@ -21,8 +21,11 @@ proof_mode: operator-attested
 # claim-ledger contention logic, the structural honesty wall and the release sweep all can, and are now
 # seven `machine` legs beside four `human` ones (see `## UAT Test Criteria`). Nothing about the human legs
 # is weakened by that; the story-level witness is unchanged. NARROWED 2026-08-11 (ADR-0348 D6): those four
-# human legs are DELETED as user EXPERIENCE rather than user ACCEPTANCE claims, leaving SEVEN machine legs
-# and ZERO human ones at the story tier. Nothing is lost — the capability `appearance-uat` already carries
+# human legs are DELETED as user EXPERIENCE rather than user ACCEPTANCE claims, leaving seven machine legs
+# and ZERO human ones at the story tier. NARROWED AGAIN 2026-08-20 (ADR-0294 D2/D4): legs 3 and 7 are
+# deleted as duplicates of proof one rung down, leaving FIVE machine legs (1, 2, 5, 9, 10) and still
+# zero human ones.
+# Nothing is lost — the capability `appearance-uat` already carries
 # all four near-verbatim as legs a/b/c/d, so for this story D6 completes ADR-0294 D3. The owner's
 # 2026-07-17 attestation record and open modeling call 1 are UNTOUCHED and stay open.
 capabilities: [claim-store-work-time, render-claim-as-wisp, colour-by-subagent, ci-clear-on-merge, take-claim-at-spawn, claim-at-declare, appearance-uat]
@@ -196,8 +199,11 @@ the render. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 D1).
 > and four `human` legs (eleven, up from four — see the splits below). Only `machine` and `human` exist
 > as classified kinds here; there is no third rung to reach for.
 >
-> **NARROWED 2026-08-11 (ADR-0348 D6): all FOUR EXPERIENCE legs are DELETED, so the story now carries
-> seven `machine` legs and ZERO `human` legs.** The deleted set — *"the three stages READ apart at a
+> **NARROWED 2026-08-11 (ADR-0348 D6): all FOUR EXPERIENCE legs are DELETED, so the story carried
+> seven `machine` legs and ZERO `human` legs from that date.** *(This read "so the story NOW carries
+> seven `machine` legs"; the ADR-0294 D2/D4 pass below then deleted legs 3 and 7, leaving five.
+> Corrected in place per ADR-0139 — the 2026-08-11 narrowing itself is unchanged.)*
+> The deleted set — *"the three stages READ apart at a
 > glance"* (old leg 4), *"the three colour states are distinguishable to the eye"* (old leg 6),
 > *"claimed LOOKS clearly different from proven-green"* (old leg 8) and *"the departure reads as just
 > left, not as lost"* (old leg 11) — asked whether this surface is any GOOD, not whether the journey
@@ -220,9 +226,9 @@ the render. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 D1).
 >
 > | old leg | machine half | felt half (deleted 2026-08-11, ADR-0348 D6) |
 > | --- | --- | --- |
-> | 1 (one wisp per claimed story, shaped by grade) | **1** — the COUNT and the ANCHOR: one body per claim, on the STORY's territory, never a second island orbit; **2** — the GRADE→POSITION channel; **3** — contention: the second work claim refused-and-named, or queued | ~~**4** — whether the three stages READ apart at a glance~~ → `appearance-uat` leg **a** |
+> | 1 (one wisp per claimed story, shaped by grade) | **1** — the COUNT and the ANCHOR: one body per claim, on the STORY's territory, never a second island orbit; **2** — the GRADE→POSITION channel; ~~**3** — contention: the second work claim refused-and-named, or queued~~ (deleted 2026-08-20, ADR-0294 D2) | ~~**4** — whether the three stages READ apart at a glance~~ → `appearance-uat` leg **a** |
 > | 2 (colour shifts by the active subagent) | **5** — the data→colour stamp: role/intent in, one of three mutually distinct non-green tokens out, and the token actually SHIFTING as the active subagent changes | ~~**6** — whether the three colours are DISTINGUISHABLE TO THE EYE~~ → `appearance-uat` leg **b** |
-> | 3 (claimed is visibly distinct from proven-green) | **7** — the STRUCTURAL wall: the claim/hover/queue/departing families emit no bloom kind, no `outcome`, no `bloom`/`verdict` class — even with a GREEN build band riding the work body | ~~**8** — whether claimed LOOKS clearly different from a bloom to a human eye~~ → `appearance-uat` leg **c** |
+> | 3 (claimed is visibly distinct from proven-green) | ~~**7** — the STRUCTURAL wall: the claim/hover/queue/departing families emit no bloom kind, no `outcome`, no `bloom`/`verdict` class — even with a GREEN build band riding the work body~~ (deleted 2026-08-20, ADR-0294 D2) | ~~**8** — whether claimed LOOKS clearly different from a bloom to a human eye~~ → `appearance-uat` leg **c** |
 > | 4 (the wisp clears on merge, with a legible departure) | **9** — the merge sweep: every grade released for the branch, audited, oldest live waiter promoted; **10** — the departure WINDOW: a departing body inside `DEPARTURE_WINDOW_MS` fading by age, gone past it, no zombie | ~~**11** — whether the departure reads as *just left* rather than *lost*~~ → `appearance-uat` leg **d** |
 >
 > **THE OWNER'S 2026-07-17 ATTESTATION — PRESERVED, RE-POINTED, AND NOT RE-GRANTED.** The graded
@@ -266,8 +272,65 @@ the render. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 D1).
 > so. Where a spec does not exist, the leg never pretends one does, and this re-adjudication creates none.
 > Legs 1, 2, 5 and 9 carry seed-canonical `uat-criterion` detail artifacts (ADR-0209 D5, under the owner's
 > narrower bar: a detail ONLY where the one-line title is too thin to judge against, never one per leg).
+>
+> **ADR-0294 D2/D4 pass, 2026-08-20 — legs 3 and 7 are DELETED, and the five survivors are declared
+> UNBOUND.** Old legs **3** and **7** restated proof that already exists one rung down and named it in
+> their own success clauses. Leg 3's contention walk is proven by the capability
+> [`claim-store-work-time`](claim-store-work-time.md), whose declared proof command
+> (`pnpm --filter @storytree/notice-board test`) runs
+> `packages/notice-board/src/store/claim-store.test.ts` — “claim (REFUSED — the red→green): a
+> different session's live claim → acquired:false, holder named, 'conflict-refused' event, NO write
+> to node_claim”, “upgrade (held by a LIVE other session): the session QUEUES → waiting upsert,
+> 'queued' event, queued arm names the holder”, and the live-gated “live: two concurrent claims on
+> one unit — exactly one wins; release lets the other in; stale reclaim”. Leg 7's honesty wall is
+> proven in three places, one per surface the leg walks: the DATA level by this story's own capability
+> [`render-claim-as-wisp`](render-claim-as-wisp.md), contract
+> `claim-activity-is-visibly-distinct-from-proven-green` at
+> `apps/studio/server/inFlightActivity.test.ts`; the SCENE CORE by
+> [`forest-world`](../forest-world/render-core.md)'s `render-core` (greened by `forest-world#gate-1`
+> over `pnpm --filter @storytree/forest-world test`) at `packages/forest-world/src/scene.test.ts` —
+> “§5 honesty wall: a claim wisp is NEVER a bloom — no bloom/outcome token anywhere on the claim
+> layer”, “§5 honesty wall holds for EVERY grade + the departure layer: no bloom kind, no verdict
+> outcome” and “ADR-0212: folding a GREEN build band never turns the claim body into a proof (the §5
+> wall holds)”; and the RENDERED DOM by
+> [`app-surface`](../app-surface/app-surface-world-view.md)'s `app-surface-world-view` (greened by
+> `app-surface#gate-1` over `pnpm --filter @storytree/app-surface test`) at
+> `packages/app-surface/src/SceneView.test.tsx` — “§5 HONESTY WALL: a claim wisp is NEVER painted as
+> the proven-green bloom (class-level)”, “§5 HONESTY WALL extended: hover / queue / departing wisps
+> never carry bloom/verdict classes” and “ADR-0212 honesty wall: a GREEN build band never paints the
+> claim body as a proof”. Both were checked against those tests' ACTUAL assertions, not their file
+> existence (ADR-0294 D2's honesty wall). Ordinals **3** and **7** are BURNED, not renumbered, so no
+> surviving leg moves and no binding is re-pointed. This story now carries **FIVE** `machine` legs
+> (1, 2, 5, 9, 10) and no `human` leg.
+>
+> **A citation caveat worth reading before reusing these two.** Neither deletion could name a
+> CONTRACT, only a capability. `claim-store-work-time`'s three declared contracts are
+> `releaseClaimsByBranch`, the heartbeat-bump shape and the work-time `ClaimRequest` builder — none of
+> them the contention arms — and the graded `take` / `upgrade` / `downgrade` machinery is, by that
+> capability's own text, the [`notice-board`](../notice-board/story.md) story's living shape, consumed
+> here through the ADR-0192 hosted seam. `render-core` and `app-surface-world-view` likewise green a
+> whole package suite through an observe gate without declaring a contract per claim-family walk. So
+> both rationales cite the ASSERTIONS rather than a contract id — the same discipline PR #1444 arrived
+> at when `repo-selection`'s declared ids turned out to appear in no test file. The proof runs on
+> every `pnpm -r test` either way; what is missing is a contract NAMING it, which is a
+> capability-shape gap and not a reason to keep a story-tier duplicate standing.
+>
+> **The five survivors stay unbound, and that is the honest state rather than an omission.** Legs 1,
+> 2, 5, 9 and 10 are genuine journey steps, and each is at most a PARTIAL duplicate — the
+> un-duplicated half is what keeps it. Legs 1 and 10 both rest on the studio-side fold in
+> `TreeView.tsx`, whose only spec (`apps/studio/src/components/sceneAdapter.test.ts`) walks parcels,
+> trails and UAT markers and asserts nothing about claims or departures at all; leg 2's own text says
+> “SUBSTANTIALLY discharged”; leg 5 says outright that the colour SHIFT is not green and has no live
+> producer; leg 9 says the released FUNCTION is proven live and that what the leg ADDS is the CI job
+> actually calling it. None declares a `(proof-gate:)`, so `resolveWitness` refuses each one
+> (`coverage: "refused"`) and no adopt pass can sign them. **No gate is minted for any of them.**
+> Answering an unbound leg with a freshly minted check is the rubber stamp ADR-0097 §2 forbids, and it
+> is the exact reflex ADR-0294's end state point 4 names. What binds them is a real instrument: a spec
+> that passes claims and departures through `worldToScene`, a producer that drives all three colour
+> states, a live-gated assertion on the workflow's release step — or ADR-0295 D1's model-driven
+> executor.
 
-1. **One wisp per claimed story, anchored on the STORY's territory.** _(witness: machine)(detail: wisp-as-story-claim#uat-1)_ Fold a set of _(criterion-id: uatc_d267439415d002238392d7b8)_ _(revision-id: uatr1:7fae5863e09358c8)_
+1. **One wisp per claimed story, anchored on the STORY's territory.** _(witness: machine)(detail: wisp-as-story-claim#uat-1)_ Fold a set of _(criterion-id: uatc_d267439415d002238392d7b8)_ _(revision-id: uatr1:4481807efbe1efb6)_ _(previous-revision-id: uatr1:7fae5863e09358c8)_
    live claims — one per session, some landing on capability units, some on story units, some on unknown
    ids — through the real surface path (`worldToScene` → `buildScene`,
    `apps/studio/src/components/TreeView.tsx` / `packages/forest-world/src/scene.ts`) and walk the resulting
@@ -277,7 +340,14 @@ the render. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 D1).
    whole-island orbit exists per story however many grades are present — hover and queue bodies may coexist
    with it, a second island orbit may not (the work claim is an exclusive mutex, ADR-0200 D2, and wisp
    COUNT encodes SESSIONS, ADR-0212).
-2. **The claim GRADE is the position channel.** _(witness: machine)(detail: wisp-as-story-claim#uat-2)_ Build the scene with one claim of each _(criterion-id: uatc_989445a3b7008767a9e59506)_ _(revision-id: uatr1:f61efef77732c3f2)_
+   **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20).** No `(proof-gate:)`. The one-body-per-claim
+   and stale-drop clauses ARE proven at the data level by
+   [`render-claim-as-wisp`](render-claim-as-wisp.md)'s `claim-rows-fold-to-one-wisp-per-claimed-story`,
+   but the re-anchoring, unknown-unit and one-island-orbit clauses run through `worldToScene` in
+   `TreeView.tsx`, which no spec exercises for claims — so the leg is a PARTIAL duplicate,
+   `resolveWitness` refuses it (`coverage: "refused"`) and nothing can sign it. No gate is minted to
+   host it (ADR-0097 §2).
+2. **The claim GRADE is the position channel.** _(witness: machine)(detail: wisp-as-story-claim#uat-2)_ Build the scene with one claim of each _(criterion-id: uatc_989445a3b7008767a9e59506)_ _(revision-id: uatr1:ee29a5f91fa15e7a)_ _(previous-revision-id: uatr1:f61efef77732c3f2)_
    grade on one territory, plus one grade-absent claim, and assert each body's placement. **Success —** an
    `exploring` claim sits on a SMALL LOCAL orbit beside the story tree (`HOVER_ORBIT_R`), its rest spot on
    a parent `g` so the rotation cannot sweep the centroid; a `waiting` claim is STATIONARY and index-placed
@@ -286,18 +356,12 @@ the render. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 D1).
    ADR-0200 D2). Substantially discharged already by `packages/forest-world/src/scene.test.ts` (the
    window-shop, queue-order, work and grade-absent walks) and `packages/app-surface/src/SceneView.test.tsx`
    (the rendered classes and orbit durations).
-3. **Contention resolves — refused and told the holder, or queued.** _(witness: machine)_ Two sessions _(criterion-id: uatc_47e392690c2b1f9b7b96005a)_ _(revision-id: uatr1:1a9cf1aab1ab6d9a)_
-   contend for the `work` claim on one unit through the real `PgClaimStore`. **Success —** exactly one
-   acquires; the loser's `claim` returns `{acquired: false, heldBy}` NAMING the live holder, appends a
-   `conflict-refused` audit event, and writes nothing to `events.node_claim`, while `upgrade` instead
-   upserts a `waiting` row, appends `queued`, and returns the queued arm naming the holder — so the map
-   gains a QUEUE body, never a second island orbit. Discharged offline by
-   `packages/notice-board/src/store/claim-store.test.ts` (both the refusal and the queue arms, against a
-   fake pg client) and live by `claim-store-grades.live.test.ts` (the partial index refusing a second work
-   claim under real concurrency). *(Machine, not human: "exactly one winner, and the loser is told who
-   holds it" is a returned value and an audit row — there is nothing here for an eye to judge. This half
-   was fused onto a look leg only because it is WITNESSED on the map.)*
-5. **The active subagent's colour state is STAMPED, and it SHIFTS.** _(witness: machine)(detail: wisp-as-story-claim#uat-5)_ Drive one claimed _(criterion-id: uatc_7b39f68835e41d1f472d4fc1)_ _(revision-id: uatr1:17eb530972d07a8e)_
+   **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20).** No `(proof-gate:)`, and the operative word
+   above is SUBSTANTIALLY: those suites green `render-core` and `app-surface-world-view` through their
+   own observe gates, not this leg, and a partial duplicate is not a duplicate (ADR-0294 D2) — which is
+   why this pass kept it where it deleted legs 3 and 7. So `resolveWitness` refuses it
+   (`coverage: "refused"`), and no gate is minted to host it (ADR-0097 §2).
+5. **The active subagent's colour state is STAMPED, and it SHIFTS.** _(witness: machine)(detail: wisp-as-story-claim#uat-5)_ Drive one claimed _(criterion-id: uatc_7b39f68835e41d1f472d4fc1)_ _(revision-id: uatr1:6adfb6a92117f207)_ _(previous-revision-id: uatr1:17eb530972d07a8e)_
    story through authoring → proving → supplementing and read the colour state off the data the surface
    consumes. **Success —** the pure mapping returns exactly one of three mutually distinct, never-green
    tokens for each subagent role and each claim intent (`subagentColourState`,
@@ -308,21 +372,11 @@ the render. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 D1).
    real run actually produces CHANGES across the three phases of work. The two mapping halves are green
    today; **the SHIFT is not, and no live producer drives all three states** — see the detail's producer
    gap.
-7. **The claim layer never wears the bloom's visual vocabulary — even under a green band.** _(criterion-id: uatc_8c9b5b23c10dc585a257193b)_ _(revision-id: uatr1:da41aec80028a221)_ _(previous-revision-id: uatr1:919336692177f8f5)_
-   _(witness: machine)_ Walk the claim, hover, queue and departing families in the scene core and in the
-   rendered DOM, across every grade and every colour state, including the at-risk case of a story whose
-   work body carries a GREEN build phase band (ADR-0212 channel 3 folded the retired build wisp's red→green
-   band onto the work body). **Success —** no node in those families carries a bloom kind
-   (`bloom-anchor`/`-crown`/`-plant`/`-ring`/`-spark`), none carries an `outcome` field, and no rendered
-   class matches `/bloom|verdict/` — so a renderer reading claim data can never paint a claim as a
-   signed-verdict green (ADR-0138 §5 / ADR-0045 / ADR-0099). Discharged already by
-   `packages/forest-world/src/scene.test.ts` (recursive honesty-wall walks over all grades plus
-   departures), `packages/app-surface/src/SceneView.test.tsx` (the rendered walls including the green-band
-   case) and `apps/studio/server/inFlightActivity.test.ts` (the data-level `kind: 'claim'` discriminator).
-   *(Machine, not human: a disjoint kind / class / field set is a structural comparison. That the two
-   families are SEPARATE CODE is this leg; that they LOOK apart is the capability
-   [`appearance-uat`](appearance-uat.md)'s leg c, and one has never implied the other.)*
-9. **The CI merge releases the branch's claims — every grade, audited, waiter promoted.** _(criterion-id: uatc_89597d2010852d4ef712a33a)_ _(revision-id: uatr1:53d8c3cefe6eb5b2)_
+   **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20).** No `(proof-gate:)`: with no producer at HEAD
+   there is no artifact for an `observe` gate to read, so `resolveWitness` refuses it
+   (`coverage: "refused"`). No gate is minted to host it (ADR-0097 §2) — binding this to the two
+   mapping suites that ARE green would sign exactly the half the leg does not turn on.
+9. **The CI merge releases the branch's claims — every grade, audited, waiter promoted.** _(criterion-id: uatc_89597d2010852d4ef712a33a)_ _(revision-id: uatr1:e3abf61d6f7ccf53)_ _(previous-revision-id: uatr1:53d8c3cefe6eb5b2)_
    _(witness: machine)(detail: wisp-as-story-claim#uat-9)_ Merge a real PR whose branch holds claims, then read the ledger. **Success —**
    every `events.node_claim` row for the merged branch is gone whatever its grade, one `released`
    `claim_event` row exists per cleared claim, the oldest LIVE waiter on each cleared unit is promoted in
@@ -335,7 +389,12 @@ the render. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 D1).
    the machine evidence the clear fired" is what that capability already calls its own evidence. The
    workflow being un-harnessed by the prove-it-gate is a COST, not a judgment gap — open modeling call
    4.)*
-10. **The departure window: fades by age, then gone — no zombie.** _(witness: machine)_ Release a claim and _(criterion-id: uatc_38393cb281430ed91e51f2c9)_ _(revision-id: uatr1:7cebb1a11ddf673d)_
+   **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20).** No `(proof-gate:)`: nothing observes the CI
+   job CALLING the release, and that call persists no artifact an `observe` gate could read, so
+   `resolveWitness` refuses it (`coverage: "refused"`). No gate is minted to host it (ADR-0097 §2) —
+   re-running capability A's own live spec would be a FALSE pass here, which
+   [`ci-clear-on-merge`](ci-clear-on-merge.md) already says in its own words.
+10. **The departure window: fades by age, then gone — no zombie.** _(witness: machine)_ Release a claim and _(criterion-id: uatc_38393cb281430ed91e51f2c9)_ _(revision-id: uatr1:20ea9828fce68efe)_ _(previous-revision-id: uatr1:7cebb1a11ddf673d)_
     observe the departing body across the window. **Success —** the released claim surfaces as a
     `departing-wisp` family body inside `DEPARTURE_WINDOW_MS` (120 s,
     `packages/notice-board/src/claim.ts`) carrying an `ageRatio` that drives both the fade and the upward
@@ -348,6 +407,9 @@ the render. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 D1).
     `ageRatio`). **Residual gap —** the studio-side fold that feeds all of it (`departureAgeRatio` and the
     per-territory `departures` mapping in `TreeView.tsx`) has NO test: no spec passes `departuresByStory`
     through `worldToScene`, so the window is proven on both sides of a seam that is itself unproven.
+    **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20).** No `(proof-gate:)`: that residual gap is
+    exactly the seam an honest binding would have to cross, so `resolveWitness` refuses it
+    (`coverage: "refused"`). No gate is minted to host it (ADR-0097 §2).
 
 ## Open modeling calls (for the owner)
 
@@ -376,8 +438,13 @@ Surfaced rather than guessed — none blocks the delivered layer, and none is se
    folded its red→green `phaseBand` onto the work body as **motion** (speed / pulse = build phase, red
    steady / green pulsing) — a new visual channel on the very drawable this story owns. No UAT leg was
    added when that landed. This re-adjudication does NOT invent one (that would be authoring new scope
-   under a re-classification pass); it folds only the honesty-wall consequence — a green BAND is still
-   never a bloom — into machine leg 7. Whether the motion channel earns its own leg (a machine half: the
+   under a re-classification pass); it folded only the honesty-wall consequence — a green BAND is still
+   never a bloom — into machine leg 7, which the ADR-0294 D2 pass then deleted on 2026-08-20, so that
+   consequence now sits where it is proven: `scene.test.ts`'s “ADR-0212: folding a GREEN build band
+   never turns the claim body into a proof” and `SceneView.test.tsx`'s “ADR-0212 honesty wall: a
+   GREEN build band never paints the claim body as a proof”. *(This read “it folds only … into
+   machine leg 7”, present tense, and cited an ordinal that no longer exists; corrected in place per
+   ADR-0139.)* Whether the motion channel earns its own leg (a machine half: the
    band maps from the resolved build phase, RED WINS; a human half: does pulsing read as *nearly done*?)
    is an owner/story-shape call.
 3. **Is `authoring` (amber) reachable from real data at all?** Machine leg 5 asserts the colour SHIFTS
@@ -395,14 +462,20 @@ Surfaced rather than guessed — none blocks the delivered layer, and none is se
    6. Candidate shapes, none chosen: a live-gated spec that invokes the workflow's release step directly
    against `storytree_test`; a post-merge CI assertion published back as a verdict; or leaving the leg
    discharged by CI evidence the spine does not sign. Owner/build-time call.
-5. **The honesty wall is proven ONE-DIRECTIONALLY, and never with both layers present.** Machine leg 7's
-   existing coverage asserts the claim families never reach for bloom vocabulary. Nothing asserts the
+5. **The honesty wall is proven ONE-DIRECTIONALLY, and never with both layers present.** The
+   capability-tier coverage named in the ADR-0294 D2/D4 pass above — `render-claim-as-wisp`'s
+   `claim-activity-is-visibly-distinct-from-proven-green`, `render-core`'s §5 walks in
+   `scene.test.ts`, and `app-surface-world-view`'s class-level walls in `SceneView.test.tsx` —
+   asserts that the claim families never reach for bloom vocabulary. Nothing asserts the
    converse (the bloom renderer never reaches for claim styling), and no test renders one story carrying a
    claim wisp AND an in-window bloom simultaneously — which is the case a human eye actually has to
    separate, and the case [`appearance-uat`](appearance-uat.md)'s leg c is asked to judge (story leg 8
    until ADR-0348 D6 deleted it). Both fields exist on `SceneTerritoryInput`, so the co-presence case is
-   buildable. Whether leg 7 should widen to cover it, or whether it stays that capability leg's human
-   burden, is a build-time call.
+   buildable. Whether that capability-tier coverage should WIDEN to the co-presence case, or whether
+   it stays `appearance-uat` leg c's human burden, is a build-time call. *(This call read “Machine leg
+   7's existing coverage … Whether leg 7 should widen”. Story leg 7 was deleted by the ADR-0294 D2
+   pass on 2026-08-20 as a duplicate of the very capability coverage it was describing; the GAP is
+   unchanged and the call stays OPEN — only its address moved. Corrected in place per ADR-0139.)*
 6. **Capability E is half-orphaned by ADR-0175: does it narrow to its one live contract, and does its
    spent `real:` arm come off?** Two facts now sit under [`take-claim-at-spawn`](take-claim-at-spawn.md),
    both verified at file level. **(a)** Its E1 seam LANDED — `packages/agent/src/spawn-claim.ts`

@@ -139,19 +139,58 @@ owner reads, without touching a terminal.
 | 7. **Revoke** | `uatc_79977112ba53b5410622e661` | **Keep.** [`circle-onboarding`](circle-onboarding.md) declares live revoke UAT, but no lower-tier test removes a real production IAM binding, re-enumerates policy, and observes Google's edge deny a fresh visit before the app. |
 | 8. **Broker a build (ADR-0117)** | `uatc_57f6f0fcb7addad5b9f35c44` | **Keep.** [`write-broker`](write-broker.md) proves broker walls through an injected recording store with no live DB or IAP; no lower-tier proof composes a thick-local build, production broker, live store, and deployed forest bloom. |
 
-1. **Grant.** _(witness: machine)_ _(criterion-id: uatc_cf832d40045d76c96a9fb153)_ _(revision-id: uatr1:8ab2d240e8e5a9b7)_
+### ADR-0294 **D4** pass (2026-08-20): five legs declared UNBOUND, none deleted — two ordinals restored
+
+The D2 pass above deleted three of the eight original criteria. This pass answers the other half of
+ADR-0294's end state, point 4: **what the five survivors ARE, given every one of them binds no gate.**
+The answer for this story is the simplest in the corpus, and worth stating so nobody re-adjudicates
+it: **all five are RE-AUTHORS, and zero are deletions.** Each is a live-deployment walk with no lower
+tier to point at — granting a real `roles/iap.httpsResourceAccessor` binding and enumerating the real
+IAP policy (1), completing Google's real sign-in against the production URL (2), traversing the
+deployed read surfaces (3), revoking and being denied at Google's edge (7), and the desktop → hosted
+write-broker → live store → deployed forest round trip (8). The per-leg witness note above already
+established this in 2026-07-26 terms — *"explicit machine-proof BINDING GAPS that adoption must
+refuse"*, and *"a PASSING run of any [supplemental suite] is a FALSE PASS"*. What this pass adds is the
+house form: each leg now says so **in its own text** rather than only in a shared preamble, in the
+compact **UNBOUND — fails closed** clause PR #1444 settled on, so a reader who reaches a leg without
+reading the preamble still gets the truth. **No gate is minted for any of them** (ADR-0097 §2), and no
+supplemental suite is bound.
+
+**Two ordinals are RESTORED, and this is a correction rather than a renumbering (ADR-0139).** The
+2026-08-06 D2 pass burned positions 4, 5 and 6 in `stories/uat-legacy-dispositions.json` — where they
+are still recorded `superseded` as Comment / Scope walls / No identity — but then renumbered the two
+survivors below them to 4 and 5, so those two positional keys denoted two different criteria at once.
+The file gave the collision away itself: leg 5's own note referred to *"legs 1–3 and 7"*, a numbering
+its own list no longer matched. **Revoke** returns to **7** and **Broker a build** returns to **8**,
+the positions their ledger keys `studio-cloud#uat-7` / `#uat-8` have always named. The restoration
+moves no identity and no proof: the `(criterion-id:)` is what identifies a leg; the leading ordinal is
+stripped before the `(revision-id:)` is computed, so the renumbering alone changes no revision (the
+five revisions below DO advance, but from this pass's added prose, not from the digits); all five read
+`proven=–` on the live store; this story holds zero `uat-criterion` detail artifacts; and nothing
+anywhere else cites a `studio-cloud#uat-N` ordinal. Positions **4, 5 and 6 are now genuinely absent**,
+which is what "burned, never renumbered" is supposed to look like.
+
+1. **Grant.** _(witness: machine)_ _(criterion-id: uatc_cf832d40045d76c96a9fb153)_ _(revision-id: uatr1:1706a452cf504cbf)_ _(previous-revision-id: uatr1:8ab2d240e8e5a9b7)_
    The owner grants `dev@example.com` `roles/iap.httpsResourceAccessor` on the production Cloud Run
    IAP resource using the runbook (`infra/studio-cloud.md` §5), then enumerates that resource's IAM
    policy. **Success —** the real IAP policy contains exactly the granted user on the served studio
    resource.
-2. **Sign in.** _(witness: machine)_ _(criterion-id: uatc_7f0c7763d324ffb43169bb76)_ _(revision-id: uatr1:f490699b9d6d71a7)_
+   **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20).** No `(proof-gate:)`: nothing in the repo grants or
+   enumerates a REAL production IAP policy, and the runbook step persists no artifact an `observe`
+   gate could read, so `resolveWitness` refuses it (`coverage: "refused"`). No gate is minted to host
+   it (ADR-0097 §2).
+2. **Sign in.** _(witness: machine)_ _(criterion-id: uatc_7f0c7763d324ffb43169bb76)_ _(revision-id: uatr1:66c3146f68d0630f)_ _(previous-revision-id: uatr1:f490699b9d6d71a7)_
    The dev opens the production studio URL, completes Google's real sign-in, and reaches the served
    studio with no local setup or forged identity header. **Success —** the deployed world renders from
    the live store under `dev@example.com`, carrying verdict-derived hues and whatever session CLAIM
    wisps the live claim ledger holds at that moment. *(Corrected 2026-07-26: this leg read "active
    wisps" from the pre-ADR-0200 world. The advisory presence layer is retired — a wisp is a story
    claim now, so a harness must seed a live claim rather than assume one is orbiting.)*
-3. **Browse.** _(witness: machine)_ _(criterion-id: uatc_74a8267a8cb36c8780ff3a88)_ _(revision-id: uatr1:e1720299519d5445)_
+   **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20).** No `(proof-gate:)`: the mounted-router suites forge
+   an already-verified identity header and never complete Google's real sign-in, so binding one would
+   be a FALSE PASS by the preamble's own rule and `resolveWitness` refuses the leg
+   (`coverage: "refused"`). No gate is minted to host it (ADR-0097 §2).
+3. **Browse.** _(witness: machine)_ _(criterion-id: uatc_74a8267a8cb36c8780ff3a88)_ _(revision-id: uatr1:4c432907e645b1f7)_ _(previous-revision-id: uatr1:e1720299519d5445)_
    In that authenticated production browser session, the dev navigates the story world, a story
    panel, the Library lens over the map, and an ADR. **Success —** every deployed read surface renders
    from its real served route/API and the journey completes without a read or authorization error.
@@ -159,11 +198,20 @@ owner reads, without touching a terminal.
    dec 6 retired the standalone `#/library` page — `parseRoute` redirects every `/library` path to the
    tree route — so the Library is reached as an overlay lens over the forest map, and a harness that
    deep-links `#/library` will silently land on the map instead of failing.)*
-4. **Revoke.** _(witness: machine)_ _(criterion-id: uatc_79977112ba53b5410622e661)_ _(revision-id: uatr1:476854f0f2907be8)_
+   **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20).** No `(proof-gate:)`: [`serve-mode`](serve-mode.md) and
+   [`guest-scope`](guest-scope.md) prove LOCAL mounted HTTP slices, not one authenticated
+   production-browser traversal of the deployed surfaces, so `resolveWitness` refuses it
+   (`coverage: "refused"`). No gate is minted to host it (ADR-0097 §2).
+7. **Revoke.** _(witness: machine)_ _(criterion-id: uatc_79977112ba53b5410622e661)_ _(revision-id: uatr1:f2d7ddd5d962cf81)_ _(previous-revision-id: uatr1:476854f0f2907be8)_
    The owner removes `dev@example.com`'s `roles/iap.httpsResourceAccessor` binding from the
    production IAP resource, then the dev starts a fresh visit. **Success —** the real IAP policy no
    longer contains the user and Google's edge denies the next visit before any studio API is reached.
-5. **Broker a build (ADR-0117).** _(witness: machine)_ The owner marks `friend@example.com` a _(criterion-id: uatc_57f6f0fcb7addad5b9f35c44)_ _(revision-id: uatr1:aa5a8227739592b0)_
+   **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20).** No `(proof-gate:)`: no test removes a real production
+   IAM binding, re-enumerates the policy, or observes Google's edge deny a fresh visit before the app
+   is reached, so `resolveWitness` refuses it (`coverage: "refused"`). No gate is minted to host it
+   (ADR-0097 §2). *(This leg was numbered 4 between 2026-08-06 and 2026-08-20, colliding with the
+   burned ordinal `studio-cloud#uat-4`; restored to 7 by the D4 pass above, per ADR-0139.)*
+8. **Broker a build (ADR-0117).** _(witness: machine)_ The owner marks `friend@example.com` a _(criterion-id: uatc_57f6f0fcb7addad5b9f35c44)_ _(revision-id: uatr1:09e63f9a51b8704c)_ _(previous-revision-id: uatr1:aa5a8227739592b0)_
    **builder** in the deployed Members panel; the friend's thick-local desktop performs a REAL local
    build and POSTs its already-signed verdict through the production hosted write-broker into the
    live shared store. **Success —** the broker validates shape, attribution, and builder scope and
@@ -193,6 +241,13 @@ owner reads, without touching a terminal.
    > unstamped until that harness lands: this pass classifies, it does not make the leg green, and no
    > gate is minted to host it. Zero attestation and zero verdict rows exist for this story, so the
    > move strands nothing signed.
+
+   **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20).** No `(proof-gate:)`, restating the blockquote above in
+   the house form: the walls are proven offline against an injected recording store with no live DB,
+   no IAP, no desktop and no deployed browser, and the COMPOSED live harness this leg turns on does
+   not exist — so `resolveWitness` refuses it (`coverage: "refused"`) and no gate is minted to host it
+   (ADR-0097 §2). *(This leg was numbered 5 between 2026-08-06 and 2026-08-20, colliding with the
+   burned ordinal `studio-cloud#uat-5`; restored to 8 by the D4 pass above, per ADR-0139.)*
 
 ## Reliability Gates
 
