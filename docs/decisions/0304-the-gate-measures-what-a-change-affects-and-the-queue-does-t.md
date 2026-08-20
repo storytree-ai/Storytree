@@ -162,6 +162,10 @@ not silently delete a policy check.
 - ADR-0345 — measured the landing tail, found the claim-release defect that blocked D3's flip (since
   fixed, PR #1292), and showed concurrent landing already delivers D3's wall-clock half.
 - ADR-0195 §5 — the dispatched full-suite backstop that ADR-0362 D1 read to decide D3.
+- ADR-0394 — amends this ADR: D1 still scopes to the changed packages plus dependents, but a root
+  path whose test-time readers have been MEASURED now narrows to those readers instead of forcing
+  the full run (`docs/decisions/` is the first and, so far, only such path). D2 is untouched and is
+  what makes that narrowing land on both surfaces at once.
 - `merge-queue-release-claims-then-flip` — the increment that carried D3's prerequisite and the flip;
   closed unflipped by ADR-0362 D1.
 - `package.json` — `gate` and `ci:affected`; the asymmetry D1/D2 close.
