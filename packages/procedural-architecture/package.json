@@ -11,8 +11,8 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test \"src/**/*.test.ts\"",
-    "bake": "node --import tsx scripts/bake-kit.ts"
+    "test": "node --import ../../scripts/tsx-cache-off.mjs --import tsx --test \"src/**/*.test.ts\"",
+    "bake": "node --import ../../scripts/tsx-cache-off.mjs --import tsx scripts/bake-kit.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.7",

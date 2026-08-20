@@ -140,9 +140,21 @@ the landing PR. `[ ]` = open · `[~]` = in progress · `[x]` = landed.
   **~3.8 s → ~1.9 s direct** (`node packages/cli/launch.mjs …`) / ~2.6 s via `pnpm storytree`.
   **Measurement reframed the cost model:** the two pnpm layers were **~1.7 s** of the ~3.8 s; the eager
   pg-store import (Context §2's headline target) is only **~100 ms marginal warm** — the library/zod
-  tsx-transpile graph, which every offline command needs regardless, dominates the residual ~1.9 s,
-  which is the practical floor under the no-build-step convention (ADR-0023). So the launcher, not
-  lazy-pg, was the real win; lazy-pg split to 2b. _(PR: #612.)_
+  tsx-transpile graph, which every offline command needs regardless, dominates the residual ~1.9 s.
+  So the launcher, not lazy-pg, was the real win; lazy-pg split to 2b. _(PR: #612.)_
+
+  **CORRECTION (2026-08-21, `the-gate-costs-what-the-change-risks-arc` inc 4): that residual was NOT
+  a floor, and calling it one hid a cost that GROWS.** This item originally read "…the residual
+  ~1.9 s, which is the practical floor under the no-build-step convention (ADR-0023)"; the clause is
+  removed because part of that residual is tsx's own ON-DISK TRANSFORM CACHE, which is unbounded.
+  tsx writes one file per transform into a flat `os.tmpdir()` directory and never evicts, so the
+  "floor" silently rises as the directory fills — on this box it reached **232,254 files / 4.18 GB**,
+  at which point a warm `storytree <unknown-command>` cost **3703 ms of CPU** where the same call
+  with the cache disabled cost **2078 ms**, and with a FRESH cache **1796 ms**. Disabling it
+  (`scripts/tsx-cache-off.mjs`, preloaded ahead of every `--import tsx`) took the whole
+  `pnpm -r --no-bail test` leg from 745 s / 621 s of wall to 444 s / 424 s, two interleaved runs per
+  arm, the same 5,446 tests in each. The lesson generalises past this ADR: **a "practical floor" read
+  off a cache is a floor only while that cache is healthy**, and a cache with no eviction is not.
 - [ ] **2b. Lazy-pg — offline pg-free (deferred, cold-start-only)** — dynamic-`import()` the Postgres
   store graph so offline read commands never pull `pg` / the Cloud SQL connector / `google-auth-library`.
   Deferred because item 2's measurement showed it saves only **~100 ms warm** (warm is already at the
