@@ -3,10 +3,10 @@ id: "proof-protocol"
 tier: story
 title: "The proof-protocol port — the shared verdict vocabulary at the root of the graph"
 outcome: "Every organism that reads or writes a verdict speaks one zod-validated, browser-safe verdict SHAPE — the foundational root node the whole graph points at, depending on nothing."
-status: mapped
+status: proposed
 proof_mode: UAT
-# Machine-judged: a pure SHAPE has no UAT journey (ADR-0085) — its green is an `observe` reliability
-# gate (the port's own offline suite), observe-and-signed into an `adopted` verdict. No DB, no API key.
+# Machine-judged: a pure SHAPE has no UAT journey. Its offline suite is evidence, not brownfield
+# provenance or a current signed pass (ADR-0395). No DB, no API key.
 uat_witness: machine
 # Lightweight + expandable (ADR-0074 §3, the hub/port shape): the port IS the unit — a single
 # published shape — so it carries no sub-capabilities yet; the list grows one case per real defect.
@@ -18,7 +18,7 @@ depends_on: []
 consumed_by: [cli]
 # Deciding ADRs (ADR-0037 §2): the verdict SHAPE / first port (68); ports as root organisms (74/75);
 # the role-not-position rename verdict-contract→proof-protocol (78); author-defined story green +
-# mapped-as-bootstrap (83); the brownfield reliability gates + observe-and-sign that flip it (85).
+# the historical mapped bootstrap (83) and observe-gate mechanism (85), narrowed by ADR-0395.
 decisions: [68, 74, 75, 78, 83, 85]
 ---
 
@@ -54,32 +54,24 @@ it by construction. (Belt-and-suspenders over two backstops: it is the bottom si
 to a real organism would close a cycle the gate already rejects (ADR-0058); and the studio browser
 build catches an external node-only npm import the gate cannot see.)
 
-## Reliability Gates
+## Existing machine check
 
-A pure protocol is a published SHAPE — there is no integrated user JOURNEY to walk, so UAT-as-prose
-does not fit it ([ADR-0085](../../docs/decisions/0085-resolve-adr-0083-fork-b-brownfield-reliability-gates-author.md),
-resolving [ADR-0083](../../docs/decisions/0083-author-defined-story-green-declared-obligations-machine-per.md)
-Fork B). Instead this port declares the author-owned **reliability gates** that flip it off `mapped`:
-the brownfield obligation set, machine-judged (a schema/scaffolding port is a machine's job, not a
-human attestation). The list is the **expandable floor** — start by adopting the existing green suite,
-and add a `_(gate: build-tests)_` gate (a genuine red→green regression leg) the moment that observation
-proves insufficient (a real defect slips through a consumer).
+A pure protocol is a published SHAPE — there is no integrated user JOURNEY to walk; a schema port is
+a machine's job, not a human attestation. This port was extracted and named inside the Storytree
+initiative, so its passing suite and foundational position do not make it brownfield or Adopt-bound
+([ADR-0395](../../docs/decisions/0395-brown-records-provenance-missing-proof-stays-on-the-greenfie.md)).
+The check below remains the current executable coverage inventory; it is evidence, not a signed verdict.
 
-1. **The port's own suite is green** _(gate: observe)_ `pnpm --filter @storytree/proof-protocol test`.
-   The spine runs it at a clean committed HEAD and OBSERVES it green — the zod shapes, the validators,
-   and the cross-boundary parity guard all pass offline (no DB, no API key) — then signs an `adopted`
-   verdict (`storytree gate run proof-protocol#gate-1 --pg`). Adopting this gate flips the port off
-   `mapped`; the world's crown derives green from the signed verdict (ADR-0040), no faked red required.
+1. **The port's own suite** `pnpm --filter @storytree/proof-protocol test` exercises the zod shapes,
+   validators, and cross-boundary parity guard offline (no DB, no API key). It does not by itself sign
+   or adopt this greenfield story.
 
 ## Proof
 
-**Status off `mapped` is EARNED, not authored.** `packages/proof-protocol` has a real, passing,
-offline suite that observationally verifies the shapes + validators + the parity guard today — that
-observational green is brownfield `mapped`. The port leaves `mapped` exactly when its `observe`
-reliability gate above is **adopted**: the spine observes the suite green at a clean committed HEAD and
-signs an `adopted` machine verdict ([ADR-0085](../../docs/decisions/0085-resolve-adr-0083-fork-b-brownfield-reliability-gates-author.md)).
-`healthy` is non-authorable (ADR-0020) — the authored frontmatter `status:` stays `mapped`; the world
-crown DERIVES green from the signed verdict.
+**Green remains earned, not authored.** `packages/proof-protocol` has a real, passing offline suite,
+but that evidence neither changes its greenfield provenance nor substitutes for a current signed pass.
+The authored rung remains `proposed`; the world crown derives green only from signed proof
+(ADR-0020 / ADR-0040 / ADR-0395).
 
 ## Open modeling calls (for the owner)
 

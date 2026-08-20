@@ -4,14 +4,14 @@ tier: capability
 story: library
 title: "The narrow event-sourced Store seam over the keyless events schema (in-memory + Postgres)"
 outcome: "A narrow Store seam appends every write as a history event and updates a current-state projection atomically, over one keyless-IAM events schema."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: [library-schema-and-write-validation, migrate-on-write-upcaster]
 # ADR-0092 / ADR-0094: a spec-borne dry-run/live `proof:` config over the real Postgres Store seam, so
-# this capability is single-node `--live`-buildable. The ADR-0092 brownfield `real:` arm (which carried
+# this capability is single-node `--live`-buildable. The earlier `real:` arm (which carried
 # `db: true`, ADR-0064 — an ISOLATED test database, never production) was REMOVED (ADR-0094
-# supersedes_in_part 92 d.5): the library is `mapped`, so its green path is Adopt (the story's
-# `## Reliability Gates`, ADR-0085), not a fail-closed `--real` Build.
+# supersedes_in_part 92 d.5). ADR-0395 now records this greenfield unit without a current signed pass
+# as `proposed`; registration order does not make it brownfield or Adopt-bound.
 # ADR-0098 (the Pg-pocket live pilot, story gate 5) RE-ADDS a `real:` arm — but, exactly like the one on
 # `seed-corpus-scripts` for gate 4, it does NOT re-light a fail-closed blanket Build. It is borrowed by
 # the story's `library#gate-5` `(build:)` annotation and driven via `storytree gate run library#gate-5
@@ -84,10 +84,10 @@ proof:
 > the keyless Cloud SQL connection and the one `events` schema are the substrate the live half of
 > THIS seam writes through, proven by the same one exported parity run — aspects of the one
 > Store-seam journey, not two peer journeys. They land here as the Pg-pocket contracts below
-> (`pg-createpool-iam-no-password`, `schema-shape-stable`), keeping their honest `mapped`/`proposed`
+> (`pg-createpool-iam-no-password`, `schema-shape-stable`), keeping their honest proven/unproven
 > (live-DB-gated, integration-test) status — never claiming a status the offline run can't back.
 
-> **Proof status (honest) — the riskiest `mapped` call: a `mapped` in-memory half + a `proposed` Postgres half.** The IN-MEMORY seam is genuinely proven offline: `storeParitySuite` (5 contracts, `@storytree/storage-protocol/parity`) + 3 InMemoryStore-specific tests are REAL and passing (the `@storytree/storage-protocol` parity suite + `packages/library/src/store/store.test.ts`). storytree's prove-it-gate did NOT drive them, so even the in-memory half is `mapped`, not `healthy`. The POSTGRES half — `PgLibraryStore`'s transactional read/write, the one shared `events` schema (`schema.sql`), and the keyless-IAM `createPool` connection (`connection.ts`) — is `proposed`: it is proven ONLY by the same parity suite registered against a real `PgLibraryStore` under `STORYTREE_DB_LIVE=1` (`packages/library/src/store/store.test.ts:101`), which is a visible **skip** by default (`store.test.ts:103-106`). The `InMemoryStore` parity run proves the *contract* offline but never touches the Pg impl, the connection, or the schema, so the three Pg/substrate contracts below are **would-be** tests.
+> **Proof status (honest) — `proposed`: an offline-proven in-memory half + an unproven Postgres half.** The IN-MEMORY seam is genuinely proven offline: `storeParitySuite` (5 contracts, `@storytree/storage-protocol/parity`) + 3 InMemoryStore-specific tests are REAL and passing (the `@storytree/storage-protocol` parity suite + `packages/library/src/store/store.test.ts`). Storytree's prove-it-gate did NOT drive them, but these are greenfield Storytree implementations, so ADR-0395 leaves the capability's unsigned baseline `proposed`. The POSTGRES half — `PgLibraryStore`'s transactional read/write, the one shared `events` schema (`schema.sql`), and the keyless-IAM `createPool` connection (`connection.ts`) — is also `proposed`: it is proven ONLY by the same parity suite registered against a real `PgLibraryStore` under `STORYTREE_DB_LIVE=1` (`packages/library/src/store/store.test.ts:101`), which is a visible **skip** by default (`store.test.ts:103-106`). The `InMemoryStore` parity run proves the *contract* offline but never touches the Pg impl, the connection, or the schema, so the three Pg/substrate contracts below are **would-be** tests.
 
 ## Guidance
 
@@ -122,9 +122,9 @@ HONESTY TRAP: the in-memory seam is fully proven offline, and the schema's table
 
 Real collaborators, no stubs: `storeParitySuite` (`packages/storage-protocol/src/store-parity.ts:60`) is run against a REAL `InMemoryStore` at `packages/storage-protocol/src/store.test.ts:11` — 5 passing parity tests (upsert replaces + bumps `updatedAt` + preserves `createdAt`; `appendEvent` monotonic `seq` + order; `getDoc(absent)=null`; `queryDocs` empty=`[]`; `deleteDoc` idempotent), plus 3 `InMemoryStore`-specific passing tests (event+projection atomicity `store.test.ts:13`, `deleteDoc` appends a deleted event `store.test.ts:30`, `queryDocs` filters by kind `store.test.ts:39`).
 
-The `events` schema shape is also proven OFFLINE: `packages/library/src/store/store.test.ts:20-39` reads `schema.sql` and asserts it declares the `events` schema + every organism's history/projection tables (`library_event`/`library_artifact`/`comment*`/`work_event`/`verdict`/`adr_number`), the `created`/`updated`/`deleted` event-type check, and the ADR-0017 no-foreign-key invariant — so `schema-shape-stable` is `mapped` (real), not would-be.
+The `events` schema shape is also proven OFFLINE: `packages/library/src/store/store.test.ts:20-39` reads `schema.sql` and asserts it declares the `events` schema + every organism's history/projection tables (`library_event`/`library_artifact`/`comment*`/`work_event`/`verdict`/`adr_number`), the `created`/`updated`/`deleted` event-type check, and the ADR-0017 no-foreign-key invariant — so `schema-shape-stable` is real, not would-be, while the capability's authored greenfield baseline remains `proposed`.
 
-The SAME parity suite is registered against a REAL `PgLibraryStore` (`packages/library/src/store/store.test.ts:101` via `makePgStore` `store.test.ts:86-99`) but only under `STORYTREE_DB_LIVE=1`; by default it is a visible skip placeholder (`store.test.ts:103-106`) — so the Postgres transactional half + the keyless connection are would-be (`proposed`) and the in-memory half + the schema shape are `mapped`. `connection.ts` / `pg-store.ts` / `load-corpus.ts` also pass a real offline import-smoke test (`store.test.ts:65-77`) asserting `createPool`/`closePool` exist and the ADR-0015 instance + database constants — the keyless IAM/no-password wiring itself is exercised only behind the live gate.
+The SAME parity suite is registered against a REAL `PgLibraryStore` (`packages/library/src/store/store.test.ts:101` via `makePgStore` `store.test.ts:86-99`) but only under `STORYTREE_DB_LIVE=1`; by default it is a visible skip placeholder (`store.test.ts:103-106`) — so the Postgres transactional half + the keyless connection are would-be, while the in-memory half + the schema shape are observationally proven. Both remain within a greenfield `proposed` capability until current signed proof derives green. `connection.ts` / `pg-store.ts` / `load-corpus.ts` also pass a real offline import-smoke test (`store.test.ts:65-77`) asserting `createPool`/`closePool` exist and the ADR-0015 instance + database constants — the keyless IAM/no-password wiring itself is exercised only behind the live gate.
 
 **The field-scoped write (ADR-0352).** `upsertDoc` replaces the doc its caller read some time
 earlier, so every change landed in between is silently reverted — measured on `session-orchestrator`,

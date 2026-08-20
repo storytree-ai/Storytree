@@ -135,8 +135,9 @@ Listed roots-first (a capability appears after everything it depends on).
 | 20 | [`arc-orientation-lens`](arc-orientation-lens.md) | An owner arriving cold is oriented by the map's arc lens alone, without asking an agent to reconstruct the context. | — |
 | 21 | [`act2-intro-cursor`](act2-intro-cursor.md) | The Act 2 forest regrow is driven end to end by one app-owned cursor the operator can move. | — |
 
-Rows 20–21 are **brownfield `mapped` units authored retrospectively** by
-`capability-layer-coverage-arc` increment 4 (2026-08-07) over already-working, already-tested code.
+Rows 20–21 are **greenfield `proposed` units registered retrospectively** by
+`capability-layer-coverage-arc` increment 4 (2026-08-07). Their implementation and tests were built
+inside this initiative; registration order does not make them brownfield (ADR-0395).
 They close ADR-0317's grain residue: six `repo-manifest.json` subtrees whose declared owner was this
 STORY only because no capability existed for that code. Both carry a spec-borne `proof:` and no
 `real:` arm (ADR-0094) — see each file's frontmatter comment for why that omission is load-bearing.

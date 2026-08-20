@@ -4,13 +4,13 @@ tier: capability
 story: library
 title: "Eagerly drain the version tail and render stored docs for reading"
 outcome: "A lagging library doc is bulk forward-migrated in place non-destructively at the store boundary."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: [event-sourced-store-seam, migrate-on-write-upcaster]
 # ADR-0092 / ADR-0094: a spec-borne dry-run/live `proof:` config over the real packages/library source,
-# so this capability is single-node `--live`-buildable. The ADR-0092 brownfield `real:` arm was REMOVED
-# (ADR-0094 supersedes_in_part 92 d.5): the library is `mapped`, so its green path is Adopt (the story's
-# `## Reliability Gates`, ADR-0085), not a fail-closed `--real` Build. batchMigrate is store-agnostic (it
+# so this capability is single-node `--live`-buildable. The earlier `real:` arm was REMOVED by
+# ADR-0094. ADR-0395 now records this greenfield unit without a current signed pass as `proposed`;
+# registration order does not make it brownfield or Adopt-bound. batchMigrate is store-agnostic (it
 # runs over the Store seam), so no db is needed offline.
 proof:
   command:
@@ -27,15 +27,15 @@ proof:
 
 **Depends on —** [`event-sourced-store-seam`](event-sourced-store-seam.md), [`migrate-on-write-upcaster`](migrate-on-write-upcaster.md)
 
-> **Proof status (honest) — `mapped` (real passing offline tests, observational; NOT `healthy`).** The EAGER BATCH migrator (`batchMigrate`) and the read adapter (`renderStoredDoc`) are genuinely proven offline: `packages/library/src/store/batch-migrate.test.ts` (3/3) and the `renderStoredDoc` cases in `packages/library/src/store/render-doc.test.ts` are REAL passing tests I ran (part of the `@storytree/library` suite, 99 pass + 1 live-gated skip). storytree's prove-it-gate did NOT drive them red→green, so this is brownfield `mapped`, not `healthy`. Every contract below has a real passing test. *(The seed-script half — `loadFixtureCorpus` / `loadComments` / `applySchema` / `recordLedger` — split out to [`seed-corpus-scripts`](seed-corpus-scripts.md), which is honestly `proposed`.)*
+> **Proof status (honest) — `proposed` (real passing offline tests, observational; NOT `healthy`).** The EAGER BATCH migrator (`batchMigrate`) and the read adapter (`renderStoredDoc`) are genuinely proven offline: `packages/library/src/store/batch-migrate.test.ts` (3/3) and the `renderStoredDoc` cases in `packages/library/src/store/render-doc.test.ts` are REAL passing tests I ran (part of the `@storytree/library` suite, 99 pass + 1 live-gated skip). Storytree's prove-it-gate did NOT drive them red→green, but these are greenfield Storytree implementations, so ADR-0395 keeps the unsigned baseline at `proposed`. Every contract below has a real passing test. *(The seed-script half — `loadFixtureCorpus` / `loadComments` / `applySchema` / `recordLedger` — split out to [`seed-corpus-scripts`](seed-corpus-scripts.md), which is honestly `proposed`.)*
 
 ## Guidance
 
 The eager-migration root the CLI's read store stands on, plus the read adapter that shapes a stored doc for viewing.
 
-**EAGER BATCH (proven, `mapped`):** `batchMigrate` (`packages/library/src/store/batch-migrate.ts:48-66`) is store-agnostic — it takes a `Store`, `queryDocs()` every live artifact, runs `upcast` on each, and re-upserts ONLY rows whose `schemaVersion` actually changed (`after === before` guard, `batch-migrate.ts:56`), preserving all other content; deliberately NON-DESTRUCTIVE, unlike `load-corpus --force`. `schemaVersionOf` (`batch-migrate.ts:27-33`) treats absent/non-numeric as 0. The code edge: `batch-migrate.ts:4` imports `upcast` + `CURRENT_SCHEMA_VERSION` from `../migrations.js` (the migrate capability) and the `Store` type from `@storytree/storage-protocol` (line 3); its `main()` also imports `PgLibraryStore` + `createPool`.
+**EAGER BATCH (observationally proven, `proposed` baseline):** `batchMigrate` (`packages/library/src/store/batch-migrate.ts:48-66`) is store-agnostic — it takes a `Store`, `queryDocs()` every live artifact, runs `upcast` on each, and re-upserts ONLY rows whose `schemaVersion` actually changed (`after === before` guard, `batch-migrate.ts:56`), preserving all other content; deliberately NON-DESTRUCTIVE, unlike `load-corpus --force`. `schemaVersionOf` (`batch-migrate.ts:27-33`) treats absent/non-numeric as 0. The code edge: `batch-migrate.ts:4` imports `upcast` + `CURRENT_SCHEMA_VERSION` from `../migrations.js` (the migrate capability) and the `Store` type from `@storytree/storage-protocol` (line 3); its `main()` also imports `PgLibraryStore` + `createPool`.
 
-**RENDER (proven, `mapped`):** `render-doc` is folded here as the read shaping the eager-migrated store feeds: `renderStoredDoc` (`packages/library/src/store/render-doc.ts:176-237`) maps a `StoredDoc` into the studio GuidanceAsset wire shape, deriving structured bodies via `renderBody` (a code edge to knowledge-render) and passing template/edited bodies through; it is fully proven. *(NOTE — open call: `render-doc`'s only live consumer is the CLI view path (`commands.ts:15` → `viewArtifact` `commands.ts:242`), not `batchMigrate`; it co-resides here by package locality. The owner may prefer to move it under `library-cli` where it actually couples — see story open call #7.)*
+**RENDER (observationally proven, `proposed` baseline):** `render-doc` is folded here as the read shaping the eager-migrated store feeds: `renderStoredDoc` (`packages/library/src/store/render-doc.ts:176-237`) maps a `StoredDoc` into the studio GuidanceAsset wire shape, deriving structured bodies via `renderBody` (a code edge to knowledge-render) and passing template/edited bodies through; it is fully proven. *(NOTE — open call: `render-doc`'s only live consumer is the CLI view path (`commands.ts:15` → `viewArtifact` `commands.ts:242`), not `batchMigrate`; it co-resides here by package locality. The owner may prefer to move it under `library-cli` where it actually couples — see story open call #7.)*
 
 ## Integration test
 

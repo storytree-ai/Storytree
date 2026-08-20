@@ -4,7 +4,7 @@ tier: capability
 story: art-factory
 title: "The building factory — parametric building modules that build sound models and bake to the kit roster"
 outcome: "Each building type (mushroom-dwelling, forest-windmill, tiered-pagoda, cottage, gazebo) is a parametric factory module that builds a physically-sound model across its parameter space and bakes, with the whole set, deterministically into the kit roster a surface composes."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: [art-pipeline]
 ---
@@ -19,11 +19,10 @@ bakes, with the whole set, deterministically into the kit roster a surface compo
 builder (station 1) and is judged by its invariant checker (station 2), then baked by `bakeBuilding` —
 a real within-story code edge onto the pipeline (ADR-0010 §3).
 
-> **Proof status (honest) — `mapped`, brownfield.** The building modules have real, passing OFFLINE
-> suites (`buildings/*.test.ts`, `kit.test.ts`), but storytree's prove-it-gate never DROVE them
-> red→green. This capability greens via the story's `observe` reliability gate (`art-factory#gate-1`,
-> `(covers: … building-factory …)`, ADR-0085 / ADR-0097). `healthy` is DERIVED from the signed adopted
-> verdict (ADR-0020 / ADR-0040), never authored.
+> **Proof status (honest) — `proposed`, greenfield without a current signed pass.** The building
+> modules were built inside this initiative and have real, passing OFFLINE tests
+> (`buildings/*.test.ts`, `kit.test.ts`). Neither those standing tests nor retrospective capability
+> registration makes them brownfield or Adopt-bound (ADR-0395). Green remains derived from signed proof.
 
 ## Guidance
 
@@ -54,7 +53,7 @@ each building at its `DEFAULTS` and at swept parameters, assert `check` returns 
 ## Contracts (6)
 
 The test-proven leaf behaviours — each **one isolated automated test** in the
-`@storytree/procedural-architecture` suite, mapped by the story's observe gate.
+`@storytree/procedural-architecture` suite; the suite is evidence, not a provenance verdict.
 
 1. **`bf-mushroom-dwelling-sound-and-part-count`** — mushroom-dwelling builds a sound model with the expected part count
    - **asserts —** `mushroomDwelling(DEFAULTS)` builds a model `check`-sound at defaults and across its

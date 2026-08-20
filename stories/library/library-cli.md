@@ -4,13 +4,13 @@ tier: capability
 story: library
 title: "The choose-your-own-adventure library CLI"
 outcome: "An agent curates library artifacts through guidance-enveloped, --pg-gated commands."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: [event-sourced-store-seam, eager-batch-migrate, seed-corpus-scripts, library-health-gate, library-schema-and-write-validation, migrate-on-write-upcaster]
 # ADR-0092 / ADR-0094: a spec-borne dry-run/live `proof:` config over the real packages/cli source (the
-# CLI command dispatch), so this capability is single-node `--live`-buildable. The ADR-0092 brownfield
-# `real:` arm was REMOVED (ADR-0094 supersedes_in_part 92 d.5): the library is `mapped`, so its green
-# path is Adopt (the story's `## Reliability Gates`, ADR-0085), not a fail-closed `--real` Build.
+# CLI command dispatch), so this capability is single-node `--live`-buildable. The earlier `real:` arm
+# was REMOVED by ADR-0094. ADR-0395 now records this greenfield unit without a current signed pass as
+# `proposed`; registration order does not make it brownfield or Adopt-bound.
 proof:
   command:
     file: pnpm
@@ -24,11 +24,11 @@ proof:
 
 **Outcome —** An agent curates library artifacts through guidance-enveloped, `--pg`-gated commands.
 
-*(“Curate” deliberately covers both the read slice — fully `mapped` — and the write slice, which carries several `proposed` branches; the earlier “explores AND authors” phrasing was a banned outcome conjunction that papered over that mapped-vs-proposed seam. See the proof note and open call #4.)*
+*(“Curate” deliberately covers both the observationally proven read slice and the write slice, which carries several would-be branches; the earlier “explores AND authors” phrasing was a banned outcome conjunction that papered over that proof seam. See the proof note and open call #4.)*
 
 **Depends on —** [`event-sourced-store-seam`](event-sourced-store-seam.md), [`eager-batch-migrate`](eager-batch-migrate.md), [`seed-corpus-scripts`](seed-corpus-scripts.md), [`library-health-gate`](library-health-gate.md), [`library-schema-and-write-validation`](library-schema-and-write-validation.md), [`migrate-on-write-upcaster`](migrate-on-write-upcaster.md)
 
-> **Proof status (honest) — `mapped` read slice + several `proposed` write/wiring branches.** `packages/cli/src/cli.test.ts` is REAL and passing (part of the `@storytree/cli` suite, which I ran): it drives `run()` exactly as `main` does over a real `InMemoryStore` seeded by the real `loadFixtureCorpus`, so the read slice (dashboard/view/list/tree) and the covered write branches are observationally verified — `mapped`, not `healthy` (the prove-it-gate never drove them). HONESTY: these run against an `InMemoryStore`, so the real cross-store `--pg` write contract (`PgLibraryStore`) is NOT exercised offline, and several branches are **would-be** (`proposed`): `--file` reads, malformed-JSON for `new`, whole-doc `--json`/`--file` replace in `edit`, the bad `--set` token, `main`'s `writable=usePg` wiring, and the FAIL/WARN dashboard banner variant (only the OK banner is tested).
+> **Proof status (honest) — `proposed`: an observationally proven read slice + several would-be write/wiring branches.** `packages/cli/src/cli.test.ts` is REAL and passing (part of the `@storytree/cli` suite, which I ran): it drives `run()` exactly as `main` does over a real `InMemoryStore` seeded by the real `loadFixtureCorpus`, so the read slice (dashboard/view/list/tree) and the covered write branches are observationally verified. The prove-it-gate never drove them, and ADR-0395 keeps this greenfield capability's unsigned authored baseline at `proposed`. HONESTY: these run against an `InMemoryStore`, so the real cross-store `--pg` write contract (`PgLibraryStore`) is NOT exercised offline, and several branches are **would-be**: `--file` reads, malformed-JSON for `new`, whole-doc `--json`/`--file` replace in `edit`, the bad `--set` token, `main`'s `writable=usePg` wiring, and the FAIL/WARN dashboard banner variant (only the OK banner is tested).
 
 ## Guidance
 

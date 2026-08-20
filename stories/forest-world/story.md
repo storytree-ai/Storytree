@@ -3,11 +3,11 @@ id: "forest-world"
 tier: story
 title: "The forest-world render core — the shared deterministic geometry both surfaces draw from"
 outcome: "The studio and the public website draw the same forest-world look from ONE pure, browser-safe, deterministic geometry core — data-in → geometry-out — so the metaphor can never visually drift and a studio look change flows to the site instead of being hand-ported. A foundational root the whole render rests on, depending on nothing."
-status: mapped
+status: proposed
 proof_mode: UAT
-# Machine-judged: a pure GEOMETRY core has no UAT journey (ADR-0085) — its green is an `observe`
-# reliability gate (the core's own offline determinism/invariant suite), observe-and-signed into an
-# `adopted` verdict. No DB, no API key, no browser — the geometry is exercised headless.
+# Machine-judged: a pure GEOMETRY core has no UAT journey. Its existing offline
+# determinism/invariant suite is evidence, not brownfield provenance or a current signed pass
+# (ADR-0395). No DB, no API key, no browser — the geometry is exercised headless.
 uat_witness: machine
 # The capability FLOOR (ADR-0222 D2, option A — the owner's stated preference, executing the live
 # `forest-world-capability-floor` proposal): ONE capability standing for the render core — the geometry
@@ -34,8 +34,8 @@ depends_on: []
 consumed_by: [website-experience]
 # Deciding ADRs (ADR-0037 §2): the shared render-core decision / this package's identity as a
 # foundational root (93); the organism model it stands on (68); ports/shared cores as root organisms,
-# the foundational-minimality rule (75); author-defined story green + mapped-as-bootstrap (83); the
-# brownfield reliability gates + observe-and-sign that flip it off mapped (85); and the capability-floor
+# the foundational-minimality rule (75); author-defined story green (83); the historical observe-gate
+# mechanism (85), narrowed to genuine brownfield by ADR-0395; and the capability-floor
 # split that gives this story its one render-core capability (222).
 decisions: [68, 75, 83, 85, 93, 222]
 ---
@@ -109,49 +109,38 @@ suspenders over two backstops: it is a bottom root, so any back-edge to a real o
 cycle the gate already rejects (ADR-0058); and the studio browser build catches a node-only import the
 gate cannot see.)
 
-## Reliability Gates
+## Existing machine check
 
-A pure render core is deterministic GEOMETRY — there is no integrated user JOURNEY to walk, so
-UAT-as-prose does not fit it ([ADR-0085](../../docs/decisions/0085-resolve-adr-0083-fork-b-brownfield-reliability-gates-author.md),
-resolving [ADR-0083](../../docs/decisions/0083-author-defined-story-green-declared-obligations-machine-per.md)
-Fork B). Instead this core declares the author-owned **reliability gates** that flip it off `mapped`:
-the brownfield obligation set, machine-judged (a geometry kernel is a machine's job, not a human
-attestation). The list is the **expandable floor** — start by adopting the existing green suite, and
-add a `_(gate: build-tests)_` gate (a genuine red→green regression leg) the moment that observation
-proves insufficient (a real geometry defect slips through to a surface), and again if a layer of
-this core is ever authored as its own capability. (The scene-graph
+A pure render core is deterministic GEOMETRY — there is no integrated user JOURNEY to walk; a
+geometry kernel is a machine's job, not a human attestation. This core was designed and built inside
+the Storytree initiative, so its passing suite and later capability registration do not make it
+brownfield or Adopt-bound
+([ADR-0395](../../docs/decisions/0395-brown-records-provenance-missing-proof-stays-on-the-greenfie.md)).
+The check below remains the current executable coverage inventory; it is evidence, not a signed
+verdict. (The scene-graph
 ([ADR-0093](../../docs/decisions/0093-shared-forest-world-render-core-for-studio-and-the-public-we.md)
 §1) has since LANDED inside this core — `scene.ts`, covered by the same observed suite — and the
 three mappers (§2–§3, [ADR-0123](../../docs/decisions/0123-webgl-forest-world-renderer-via-react-three-fiber-website-fi.md))
 live with their surfaces/packages, proven there; none of that growth has needed a new gate here yet.)
 
-1. **The core's own geometry suite is green** _(gate: observe)_ _(covers: render-core)_ `pnpm --filter @storytree/forest-world test`.
-   The spine runs it at a clean committed HEAD and OBSERVES it green — the 122 offline tests
+1. **The core's own geometry suite** `pnpm --filter @storytree/forest-world test`.
+   The 122 offline tests exercise
    (18 geometry-kernel + 23 trail-router + 81 scene-graph) covering determinism (same input →
    byte-identical mesh, coast, trail network, and scene), longest-path ranking (a dependent ranks
    strictly above every dependency, cycle-safe), the mesh / coast invariants, and the scene-graph's
-   drawable / status-folding correctness all pass offline (no DB, no API key, no browser) — then the
-   one `render-core` capability greens via this gate's `(covers:)` (ADR-0097 §5) and the spine signs an
-   `adopted` verdict
-   (`storytree gate run forest-world#gate-1 --pg`). This is the
+   drawable / status-folding correctness all pass offline (no DB, no API key, no browser). This is the
    [ADR-0093](../../docs/decisions/0093-shared-forest-world-render-core-for-studio-and-the-public-we.md)
    / [ADR-0020](../../docs/decisions/0020-red-green-enforcement-on-the-owned-loop.md) /
    [ADR-0057](../../docs/decisions/0057-dogfood-the-inner-loop-as-the-default-node-borne-proof-confi.md)
-   inner-loop dogfood. Adopting this gate flips the core off `mapped`; the world's crown derives green
-   from the signed verdict (ADR-0040), no faked red required.
+   current coverage command, but it does not by itself sign or adopt this greenfield story/capability.
 
 ## Proof
 
-**Status off `mapped` is EARNED, not authored.** `packages/forest-world` already has a real, passing,
-offline suite (122 tests today — determinism, ranking, mesh/coast invariants, the deterministic trail
-router, and scene-graph correctness) that observationally verifies both pure layers — that observational
-green is brownfield `mapped`.
-The core leaves `mapped` exactly when its `observe` reliability gate above is **adopted**: the spine observes the suite
-green at a clean committed HEAD and signs an `adopted` machine verdict
-([ADR-0085](../../docs/decisions/0085-resolve-adr-0083-fork-b-brownfield-reliability-gates-author.md)).
-`healthy` is non-authorable ([ADR-0020](../../docs/decisions/0020-red-green-enforcement-on-the-owned-loop.md))
-— the authored frontmatter `status:` stays `mapped`; the world crown DERIVES green from the signed
-verdict.
+**Green remains earned, not authored.** `packages/forest-world` has a real, passing offline suite
+(122 tests today — determinism, ranking, mesh/coast invariants, the deterministic trail router, and
+scene-graph correctness), but that evidence neither changes its greenfield provenance nor substitutes
+for a current signed pass. The authored rung remains `proposed`; the world crown derives green only
+from signed proof (ADR-0020 / ADR-0040 / ADR-0395).
 
 ## Open modeling calls (for the owner)
 

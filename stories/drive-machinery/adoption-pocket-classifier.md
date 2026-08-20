@@ -4,7 +4,7 @@ tier: capability
 story: drive-machinery
 title: "The adoption-proposal pocket classifier (observe / R1 / R2)"
 outcome: "The spine turns each uncovered brownfield pocket into a proposed reliability gate with a build-tests classification and the key forks the human must settle."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: [build-drive-cli]
 # Deciding ADRs (ADR-0037 §2): the proving-process model that NAMED this gap (97), the build-tests
@@ -25,10 +25,11 @@ surface (where the structural covers-diff already renders) and emits gate stanza
 `gate run --real` then drives; it reads the same loaded `NodeSpec` (caps + reliability gates) that the
 build drive resolves.
 
-> **Proof status (honest) — `mapped` (brownfield): built outer-loop 2026-06-27, observationally
-> green, never gate-driven.** The behaviour was hand-built and landed via the ordinary gate→PR path
-> (commit `2c170db`, on `main`), so it never earned a driven verdict — the same brownfield shape as
-> the story's other 17 capabilities. Every contract below is proven by a real, passing, OFFLINE test:
+> **Proof status (honest) — `proposed`: built outer-loop 2026-06-27, observationally green, never
+> gate-driven.** The behaviour was built as greenfield Storytree work and landed via the ordinary
+> gate→PR path (commit `2c170db`, on `main`), but it has no current signed pass. Per ADR-0395,
+> implementation or registration order does not make it brownfield. Every contract below is proven by
+> a real, passing, OFFLINE test:
 > the judgment half [`assembleProposal`](../../packages/orchestrator/src/proof/adoption-proposal.ts)
 > + `renderProposedGate` + the `parsePocketReadings` boundary live beside the mechanical
 > `classifyAdoption` in `@storytree/orchestrator` (suite: `adoption-proposal.test.ts`), and the CLI

@@ -3,10 +3,10 @@ id: "storage-protocol"
 tier: story
 title: "The storage-protocol port — the universal document-event storage seam every organism persists through"
 outcome: "Every organism that persists state speaks ONE narrow, browser-safe Store/ChangeStore contract — the same event-sourced grammar (append an event AND update the projection, atomically) over any backend — so WHAT an organism stores is decoupled from WHERE it is stored. A foundational root the whole graph rests on, depending only on the proof-protocol root."
-status: mapped
+status: proposed
 proof_mode: UAT
-# Machine-judged: a pure SEAM has no UAT journey (ADR-0085) — its green is an `observe` reliability
-# gate (the port's own parity suite), observe-and-signed into an `adopted` verdict. No DB, no API key.
+# Machine-judged: a pure SEAM has no UAT journey. Its parity suite is evidence, not brownfield
+# provenance or a current signed pass (ADR-0395). No DB, no API key.
 uat_witness: machine
 # Lightweight + expandable (ADR-0074 §3, the port shape): the narrow seam, its in-memory reference,
 # and the seam's own HTTP transport (ADR-0259) are ONE unit; no sub-capabilities yet. The list grows
@@ -18,8 +18,8 @@ capabilities: []
 depends_on: [proof-protocol]
 consumed_by: [cli]
 # Deciding ADRs (ADR-0037 §2): the seam extraction (68); ports as root organisms (74/75); the
-# role-not-position rename base→storage-protocol (78); author-defined story green + mapped-as-bootstrap
-# (83); the brownfield reliability gates + observe-and-sign that flip it (85); the HTTP front door that
+# role-not-position rename base→storage-protocol (78); author-defined story green and the historical
+# mapped bootstrap (83); the observe-gate mechanism (85), narrowed by ADR-0395; the HTTP front door that
 # made the seam's own transport this port's job — contract only, no caller migrated (259).
 decisions: [68, 74, 75, 78, 83, 85, 259]
 ---
@@ -108,37 +108,28 @@ a browser never needs is quarantined behind a subpath, and there are now **two**
 `node:test` parity machinery at `./parity`, and the door's server half (`handleStoreRequest`) at
 `./http-server`. The main entry still imports no `node:*`.
 
-## Reliability Gates
+## Existing machine check
 
 A pure seam is a published CONTRACT (verbs + a reference impl) — there is no integrated user JOURNEY
-to walk, so UAT-as-prose does not fit it ([ADR-0085](../../docs/decisions/0085-resolve-adr-0083-fork-b-brownfield-reliability-gates-author.md),
-resolving [ADR-0083](../../docs/decisions/0083-author-defined-story-green-declared-obligations-machine-per.md)
-Fork B). Instead this port declares the author-owned **reliability gates** that flip it off `mapped`:
-the brownfield obligation set, machine-judged (a seam + its parity suite is a machine's job, not a
-human attestation). The list is the **expandable floor** — start by adopting the existing green parity
-suite, and add a `_(gate: build-tests)_` gate (a genuine red→green regression leg) the moment that
-observation proves insufficient (a real defect slips through a backend).
+to walk; a seam and its parity suite are a machine's job, not a human attestation. This port was
+extracted and named inside the Storytree initiative, so its passing suite and foundational position do
+not make it brownfield or Adopt-bound
+([ADR-0395](../../docs/decisions/0395-brown-records-provenance-missing-proof-stays-on-the-greenfie.md)).
+The check below remains the current executable coverage inventory; it is evidence, not a signed verdict.
 
-1. **The seam, its `InMemoryStore` reference, and the HTTP transport are parity-green** _(gate: observe)_
-   `pnpm --filter @storytree/storage-protocol test`. The spine runs it at a clean committed HEAD and
-   OBSERVES it green — the `Store`/`ChangeStore` seam, the `InMemoryStore` reference, AND the ADR-0259
+1. **The seam, its `InMemoryStore` reference, and the HTTP transport parity suite**
+   `pnpm --filter @storytree/storage-protocol test` exercises the `Store`/`ChangeStore` seam, the
+   `InMemoryStore` reference, AND the ADR-0259
    transport (`HttpStore` driven over a real loopback socket with `handleStoreRequest` behind it, so
-   both halves of the wire contract are covered at once) all satisfy the shared `./parity` contract
-   offline (no DB, no API key, no deployed door) — then signs an `adopted` verdict
-   (`storytree gate run storage-protocol#gate-1 --pg`). Adopting this gate flips the port off `mapped`;
-   the world's crown derives green from the signed verdict (ADR-0040), no faked red required.
+   both halves of the wire contract are covered at once) against the shared `./parity` contract
+   offline (no DB, no API key, no deployed door). It does not by itself sign or adopt this greenfield story.
 
 ## Proof
 
-**Status off `mapped` is EARNED, not authored.** `packages/storage-protocol` has a real, passing,
-offline suite — the seam, its `InMemoryStore` reference and the ADR-0259 HTTP transport all held to the
-one `./parity` contract, which is also the executable spec a real Postgres backend answers to — and that
-observational green is brownfield `mapped`. The port leaves `mapped` exactly when its
-`observe` reliability gate above is **adopted**: the spine observes the parity suite green at a clean
-committed HEAD and signs an `adopted` machine verdict
-([ADR-0085](../../docs/decisions/0085-resolve-adr-0083-fork-b-brownfield-reliability-gates-author.md)).
-`healthy` is non-authorable (ADR-0020) — the authored frontmatter `status:` stays `mapped`; the world
-crown DERIVES green from the signed verdict.
+**Green remains earned, not authored.** `packages/storage-protocol` has a real, passing offline suite
+over the seam, its `InMemoryStore` reference, and the ADR-0259 HTTP transport, but that evidence neither
+changes its greenfield provenance nor substitutes for a current signed pass. The authored rung remains
+`proposed`; the world crown derives green only from signed proof (ADR-0020 / ADR-0040 / ADR-0395).
 
 ## Open modeling calls (for the owner)
 

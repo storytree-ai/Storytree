@@ -118,11 +118,11 @@ repo's verification apparatus, and no story in the tree owns either subject.
 
 | # | capability | outcome | status | depends on |
 |---|---|---|---|---|
-| 1 | [`unified-command-dispatch`](unified-command-dispatch.md) | `storytree <verb>` parses args, hydrates credentials, dispatches to the owning organism, and returns a typed `Envelope`/exit code; offline commands run with no DB. | mapped | — |
-| 2 | [`cli-resident-corpus-tools`](cli-resident-corpus-tools.md) | The CLI-resident authoring primitives the gates build on: the `stories/` YAML corpus guard and the ADR frontmatter parser. | mapped | — |
-| 3 | [`organism-boundary-tooling`](organism-boundary-tooling.md) | The pure organism-boundary analyser behind `check:boundaries`: the blocking subgraph judge (ADR-0074) + the non-blocking declared-edge drift report (ADR-0115) that derives a virtual story's real edges from its units' `sourceFile` imports. | mapped | — |
-| 4 | [`guided-setup-repair`](guided-setup-repair.md) | A dev's failing setup probe is driven to a re-verified repair, or to a secrets-redacted owner escalation naming why no installer step can fix it. | mapped | — |
-| 5 | [`verification-decay-instruments`](verification-decay-instruments.md) | Every chartered verification instrument reports the decay it locates as a finding charged to the branch that authored it. | mapped | — |
+| 1 | [`unified-command-dispatch`](unified-command-dispatch.md) | `storytree <verb>` parses args, hydrates credentials, dispatches to the owning organism, and returns a typed `Envelope`/exit code; offline commands run with no DB. | proposed | — |
+| 2 | [`cli-resident-corpus-tools`](cli-resident-corpus-tools.md) | The CLI-resident authoring primitives the gates build on: the `stories/` YAML corpus guard and the ADR frontmatter parser. | proposed | — |
+| 3 | [`organism-boundary-tooling`](organism-boundary-tooling.md) | The pure organism-boundary analyser behind `check:boundaries`: the blocking subgraph judge (ADR-0074) + the non-blocking declared-edge drift report (ADR-0115) that derives a virtual story's real edges from its units' `sourceFile` imports. | proposed | — |
+| 4 | [`guided-setup-repair`](guided-setup-repair.md) | A dev's failing setup probe is driven to a re-verified repair, or to a secrets-redacted owner escalation naming why no installer step can fix it. | proposed | — |
+| 5 | [`verification-decay-instruments`](verification-decay-instruments.md) | Every chartered verification instrument reports the decay it locates as a finding charged to the branch that authored it. | proposed | — |
 
 *(Renumbered 1–5 on 2026-08-14 when three rows left. Safe, and different from the open modeling calls
 below, whose numbers are cited from OTHER files and are therefore never reused or shifted: nothing
@@ -257,19 +257,15 @@ End state — the live store reached through one binary, credentials hydrated wi
 the envelope contract held.
 ## Reliability Gates
 
-The CLI hub entered as **brownfield**: `packages/cli` has a real, passing, OFFLINE
+The CLI hub is **greenfield**: `packages/cli` has a real, passing, OFFLINE
 automated suite that observationally verifies the dominant dispatch / envelope / write-gate / corpus-
 guard behaviour (no live-`--pg` test exists), but storytree's own prove-
-it-gate never DROVE those proofs red→green. So its honest path off `mapped` is **not** a fail-closed
-`--real` Build over a mature artifact with no genuine live red — it is the author-declared
-**reliability gates** below, observe-and-signed to an `adopted` verdict
-([ADR-0085](../../docs/decisions/0085-resolve-adr-0083-fork-b-brownfield-reliability-gates-author.md),
-resolving [ADR-0083](../../docs/decisions/0083-author-defined-story-green-declared-obligations-machine-per.md)
-Fork B). This is the `mapped → healthy` = **Adopt** transition
-[ADR-0094](../../docs/decisions/0094-go-green-is-a-status-transition-proposed-builds-mapped-adopt.md)
-names (d.3 retired the status-blind Build for `mapped` stories). Distinct from `## UAT Test Criteria` above
+it-gate never DROVE those proofs red→green. The later hierarchy registration does not make the code
+inherited brownfield, and a missing signed pass leaves greenfield work at `proposed` (ADR-0395). The
+author-declared **reliability gates** below remain evidence surfaces; they do not establish provenance.
+Distinct from `## UAT Test Criteria` above
 (the integrated, expandable acceptance journey): the gates are the author's **expandable reliability
-floor**, starting by adopting the existing green suite and GROWING a `_(gate: build-tests)_` gate (a
+floor**, starting by recording the existing green suite and GROWING a `_(gate: build-tests)_` gate (a
 genuine red→green regression leg) the moment observation proves insufficient — a real dispatch/envelope
 defect slips through, or the live `--pg` credential-hydration leg earns a standing offline test.
 
@@ -302,9 +298,9 @@ defect slips through, or the live `--pg` credential-hydration leg earns a standi
    > `cli-resident-corpus-tools`' own capability text still names the ADR frontmatter parser; correcting
    > a capability's outcome is a story-shape call and is escalated, not taken here.
 
-Adopting this gate flips the hub off `mapped` — **this already happened** (`studio-adopt`, 2026-07-04
-at `c79fe948`; the flip landed in `98dc73e6`), which is why the frontmatter above reads
-`status: proposed`, not `mapped`. `healthy` stays non-authorable
+The historical Adopt run signed this gate — **this already happened** (`studio-adopt`, 2026-07-04
+at `c79fe948`; the status edit landed in `98dc73e6`). ADR-0395 now makes the frontmatter's
+`status: proposed` the correct greenfield baseline independent of that ceremony. `healthy` stays non-authorable
 ([ADR-0020](../../docs/decisions/0020-red-green-enforcement-on-the-owned-loop.md)) — the authored
 frontmatter `status:` is never `healthy`; the world's crown DERIVES green from the signed verdicts
 ([ADR-0040](../../docs/decisions/0040-verdict-derived-green-and-the-human-witness-signpost.md)) and only
@@ -315,7 +311,7 @@ ADR-0083 Fork A + ADR-0085). No single gate greens the story.
 
 ## Proof
 
-**Honest status — `proposed` (adopted brownfield), NOT `healthy`.** `packages/cli` has a real, passing,
+**Honest status — `proposed` (greenfield without a complete current signed pass), NOT `healthy`.** `packages/cli` has a real, passing,
 offline automated suite (the dominant dispatch/envelope/guard behaviour is observationally verified;
 no live-`--pg` test exists). storytree's prove-it-gate never drove these red→green, so nothing here is
 `healthy`. The live-DB credential-hydration + pull (leg 4) is the unharnessed pocket — machine-witnessed

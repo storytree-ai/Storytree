@@ -4,7 +4,7 @@ tier: capability
 story: drive-machinery
 title: "Node-borne proof config (self-registering nodes)"
 outcome: "An authored node carries its own proof config, so authoring it is the single act that makes it inner-loop-buildable."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: [prove-spec-resolution]
 ---
@@ -15,7 +15,7 @@ depends_on: [prove-spec-resolution]
 
 **Depends on —** [`prove-spec-resolution`](prove-spec-resolution.md)
 
-> **Proof status (honest) — `mapped`, built outer-loop (the bootstrap).** The change is BUILT and
+> **Proof status (honest) — `proposed`, built outer-loop (the bootstrap).** The change is BUILT and
 > its dominant behaviour is observationally verified by a real, passing, OFFLINE suite
 > (`packages/orchestrator/src/proof-config.test.ts` — the schema legs — plus the spec-borne
 > resolution/parity/wall legs in `resolve-prove-spec.test.ts`; `@storytree/orchestrator` 119/119,
@@ -23,8 +23,9 @@ depends_on: [prove-spec-resolution]
 > [ADR-0057](../../docs/decisions/0057-dogfood-the-inner-loop-as-the-default-node-borne-proof-confi.md)
 > it had to be built **outer-loop first** (the loop cannot self-register until this exists) and is a
 > MULTI-FILE change (proof-config.ts + node-spec.ts + resolve-prove-spec.ts + the 7 specs + the CLI),
-> which the single-file inner loop cannot yet drive — so it is `mapped`, not `healthy`. The
-> `proposed` pocket: re-running these proofs UNDER the gate (the bootstrap rung toward `healthy`) is
+> which the single-file inner loop cannot yet drive. That build order does not make this greenfield
+> work brownfield (ADR-0395); without a current signed pass it remains `proposed`. Re-running these
+> proofs UNDER the gate (the bootstrap rung toward `healthy`) is
 > open work, and awaits expansion C (multi-file builds). The honesty walls of
 > [`prove-it-gate`](prove-it-gate.md) and [`phase-scoped-write-wall`](phase-scoped-write-wall.md) are
 > PRESERVED unchanged — only the *source* of a node's write scope moves (spec, not registry);

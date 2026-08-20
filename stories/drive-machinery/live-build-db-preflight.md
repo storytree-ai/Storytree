@@ -4,15 +4,14 @@ tier: capability
 story: drive-machinery
 title: "The live-build database preflight — probe it, start it, or refuse with the reason"
 outcome: "A build that owns the live store begins only against a database it has just watched accept connections."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: []
-# A brownfield capability over already-implemented, already-tested code (the arc that authored it:
-# capability-layer-coverage-arc, 2026-08-07). The `proof:` block is spec-borne (ADR-0057) so the node is
-# single-node `--live`-buildable; there is deliberately NO `real:` arm — the drive machinery is `mapped`,
-# so its green path is Adopt (the story's `## Reliability Gates`, ADR-0085), not a fail-closed `--real`
-# Build (ADR-0094 removed the ADR-0092 brownfield arm). Both proving test files are drive-resident, so
-# the package suite is the whole proof command.
+# A greenfield capability registered after its implementation and tests (capability-layer-coverage-arc,
+# 2026-08-07). Per ADR-0395, retrospective registration does not make it brownfield or Adopt-bound.
+# The `proof:` block is spec-borne (ADR-0057) so the node is single-node `--live`-buildable; there is
+# deliberately NO `real:` arm. Both proving test files are drive-resident, so the package suite is the
+# whole proof command.
 proof:
   command:
     file: pnpm
@@ -40,14 +39,15 @@ this consumes are the `library` story's, reached through this story's already-de
 `library` edge (`stories/drive-machinery/story.md` `depends_on`) — see **Guidance** for why no
 capability-grain edge is added.
 
-> **Proof status (honest) — `mapped` (real passing offline tests, observational; NOT `healthy`).** The
+> **Proof status (honest) — `proposed` (real passing offline tests, but no current signed pass).** The
 > whole decision flow and the whole probe are covered by REAL, passing, offline tests in TWO colocated
 > drive-resident files: `packages/drive/src/db-control.test.ts` (24 tests) and
 > `packages/drive/src/db-probe.test.ts` (18 tests). Both are part of the `@storytree/drive` suite, which
 > I ran on 2026-08-08 — **505 tests, 505 pass, 0 fail, 0 skipped**. Neither file touches a database, a
 > REST endpoint, or a wall clock: `ensureDbUp` and `probeDb` take their effects as INJECTED deps, so the
 > cold-start poll, both timeouts and the teardown paths are all deterministic. storytree's own
-> prove-it-gate did NOT drive these red→green, so this is brownfield `mapped`.
+> prove-it-gate did NOT drive these red→green. The implementation is greenfield Storytree work, so
+> that missing signed pass leaves it `proposed` rather than changing its provenance (ADR-0395).
 >
 > **The `proposed` pockets, named rather than implied.** (a) `ensureLiveDb` (`db-control.ts:410-424`) —
 > the real wiring that binds `probeLiveDb` / `startLiveDbViaRest` / `statusLiveDbViaRest` /
@@ -72,9 +72,8 @@ capability-grain edge is added.
 >
 > **No reliability gate `(covers:)` this capability yet.** The story's gate-3
 > (`pnpm --filter @storytree/drive test`) literally RUNS both proving files, but its `(covers:)` list
-> was frozen before this node existed, so no signed `adopted` verdict names it. That is a stated gap,
-> not a hidden one — adding it to gate-3 changes what an already-signed verdict claims and is a
-> deliberate, id-aware edit for the owner.
+> was frozen before this node existed, so no current signed verdict names it. That is a stated proof
+> gap, not a reason to route this greenfield capability through Adopt.
 
 ## Guidance
 
@@ -163,8 +162,8 @@ timeout are not testable against wall-clock. `:320` is the structural pin that t
 probe stay assignable; `:286` / `:301` are the ADR-0060 exit-vocabulary pins.
 
 Underneath, 24 tests in `db-control.test.ts` cover every branch of the decision flow and 18 in
-`db-probe.test.ts` cover the probe's happy, reason, timeout and teardown paths. `mapped`
-(observational); the prove-it-gate did not drive it.
+`db-probe.test.ts` cover the probe's happy, reason, timeout and teardown paths. `proposed`: the
+greenfield capability has standing observational evidence but no current signed pass (ADR-0395).
 
 ## Contracts (16)
 

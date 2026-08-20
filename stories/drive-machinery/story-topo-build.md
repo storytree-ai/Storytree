@@ -4,7 +4,7 @@ tier: capability
 story: drive-machinery
 title: "Topo-ordered story chaining (runStoryBuild)"
 outcome: "A story's nodes drive through the gate in dependency order with the story's UAT node last and a halt never reported as a pass."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: [halt-aware-sequence, prove-spec-resolution, prove-it-gate]
 ---
@@ -15,9 +15,10 @@ depends_on: [halt-aware-sequence, prove-spec-resolution, prove-it-gate]
 
 **Depends on —** [`halt-aware-sequence`](halt-aware-sequence.md), [`prove-spec-resolution`](prove-spec-resolution.md), [`prove-it-gate`](prove-it-gate.md)
 
-> **Proof status (honest) — `mapped`.** Fully covered by a real, passing, offline suite
+> **Proof status (honest) — `proposed`.** Fully covered by a real, passing, offline suite
 > (`packages/orchestrator/src/story-build.test.ts`, part of `@storytree/orchestrator` 99/99 —
-> I ran it 2026-06-13). Brownfield `mapped`, not `healthy`.
+> I ran it 2026-06-13). This greenfield capability has no current signed pass; the standing suite
+> does not make it brownfield (ADR-0395).
 
 ## Guidance
 

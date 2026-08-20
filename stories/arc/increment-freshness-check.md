@@ -4,7 +4,7 @@ tier: capability
 story: arc
 title: "The increment freshness check — staleness is measured against the repo, never assumed absent"
 outcome: "A session about to consume a parked increment is told mechanically whether the repo moved under it since the increment was anchored."
-status: mapped
+status: proposed
 proof_mode: integration-test
 # An independent ROOT within `arc`. It declared `depends_on: [unified-command-dispatch]` under its
 # previous `cli` home, because `increment check` is reached through the one dispatcher and returns
@@ -17,7 +17,7 @@ depends_on: []
 # path-bearing body fields to two (`objective`, `body`), which is the surface this check mines;
 # ADR-0369 D1 moves this organ into `@storytree/arc` and out of `stories/cli`.
 decisions: [183, 305, 369]
-# A brownfield capability over already-implemented, already-tested code (the arc that authored it:
+# A greenfield capability registered after its implementation and tests (the arc that authored it:
 # capability-layer-coverage-arc increment 6, 2026-08-08; the arc that re-homed it:
 # arc-tier-extraction-arc increment 1, 2026-08-14). It resolves ONE `repo-manifest.json`
 # `sourceOwnership` declaration: `packages/arc/src/increment.ts`.
@@ -34,9 +34,9 @@ decisions: [183, 305, 369]
 # increment rows rather than creating them through the arc verbs — so no dependency edge to that
 # capability is declared either. The two are siblings, not a chain.
 #
-# The `proof:` block is spec-borne (ADR-0057); there is deliberately NO `real:` arm: ADR-0085/ADR-0094
-# — mapped brownfield, so the green path is Adopt, never a manufactured red over mature code, and
-# this landing was a MOVE rather than a re-proof. (This note also used to warn that a `real:` arm
+# The `proof:` block is spec-borne (ADR-0057); there is deliberately NO `real:` arm: this landing was
+# a MOVE rather than a re-proof. ADR-0395 classifies the unsigned greenfield unit as `proposed`;
+# registration order does not make it brownfield or Adopt-bound. (This note also used to warn that a `real:` arm
 # "would enter the pinned REAL-buildable snapshot in `packages/cli/src/node-build.test.ts`". Corrected
 # in place 2026-08-14, ADR-0139: ADR-0340 replaced that hardcoded catalogue with a DERIVED assertion,
 # and the test now states "this file keeps no list to append to". There is nothing to enter and
@@ -79,9 +79,9 @@ dispatcher and returns that capability's `Envelope`. Both halves are now wrong:
 Nothing within this story either; see the frontmatter note for why no edge runs to
 [`arc-derived-initiative-view`](arc-derived-initiative-view.md).
 
-> **Proof status (honest) — `mapped` (a real, standing, passing suite; observational; NOT
-> `healthy`).** storytree's own prove-it-gate did not drive this red→green. That is what `mapped`
-> records (ADR-0094), and it is why there is no `real:` arm.
+> **Proof status (honest) — `proposed` (a real, standing, passing suite; observational; NOT
+> `healthy`).** storytree's own prove-it-gate did not drive this red→green, but the code was built
+> inside Storytree, so ADR-0395 keeps its unsigned authored baseline at `proposed`.
 >
 > **The proof — 22 tests** in `packages/arc/src/increment.test.ts`, driving the real `incrementCommand`
 > over a real `InMemoryStore` with the commit counter injected as a `CountCommitsSince` dep, so the

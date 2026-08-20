@@ -4,7 +4,7 @@ tier: capability
 story: forest-world
 title: "The render core — the deterministic geometry kernel and framework-agnostic scene-graph both surfaces draw from"
 outcome: "The pure geometry kernel (mesh, coast, ranking, hex, sizing) and the framework-agnostic scene-graph (buildScene over the core's own SceneInput) turn story data into byte-identical typed drawables — the one deterministic look both the studio and the website render."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: []
 ---
@@ -19,13 +19,13 @@ drawables — the one deterministic look both the studio and the website render.
 (ADR-0010 §3). The three thin mappers (studio React, website string-SVG, R3F) live with their
 surfaces/packages, not here.
 
-> **Proof status (honest) — `mapped`, brownfield.** `packages/forest-world` has a real, passing OFFLINE
-> suite (122 tests: the geometry kernel, the deterministic trail router, and the scene-graph), but
-> storytree's prove-it-gate never DROVE it red→green. This capability greens via the story's `observe`
-> reliability gate (`forest-world#gate-1`, `(covers: render-core)`, ADR-0085 / ADR-0097). This is the
+> **Proof status (honest) — `proposed`, greenfield without a current signed pass.**
+> `packages/forest-world` was built inside this initiative and has a real, passing OFFLINE suite (122
+> tests across the geometry kernel, trail router and scene-graph). Neither those standing tests nor
+> retrospective capability registration makes it brownfield or Adopt-bound (ADR-0395). This is the
 > capability FLOOR (ADR-0222 D2, option A): one capability standing for the render core so the island
 > grows honest flora, split no finer until an in-core unit earns its own red→green leg. `healthy` is
-> DERIVED from the signed adopted verdict (ADR-0020 / ADR-0040), never authored.
+> DERIVED from signed proof (ADR-0020 / ADR-0040), never authored.
 
 ## Guidance
 
@@ -57,7 +57,7 @@ the trail router emits a deterministic shared-segment network, and a second run 
 ## Contracts (7)
 
 The test-proven leaf behaviours — each **one isolated automated test** in the
-`@storytree/forest-world` suite, mapped by the story's observe gate.
+`@storytree/forest-world` suite; the suite is evidence, not a provenance verdict.
 
 1. **`rc-mesh-substrate-deterministic`** — the relaxed mesh substrate is deterministic from a seed
    - **asserts —** `substrate.ts` builds the relaxed Townscaper mesh byte-identically for the same seed

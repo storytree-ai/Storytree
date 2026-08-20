@@ -4,7 +4,7 @@ tier: capability
 story: art-factory
 title: "The shared pipeline — a declared-relations model, invariant-checked and drawn in a deterministic order, baked to drawables and printed"
 outcome: "A declared part-tree becomes an invariant-checked model, ordered by a deterministic painter pass, baked to resolved-paint drawables and printed to an SVG document — one renderer-agnostic pipeline every per-object-type factory composes."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: []
 ---
@@ -19,12 +19,11 @@ pipeline every per-object-type factory composes.
 ([`building-factory`](building-factory.md), [`landscape-factory`](landscape-factory.md)) compose, so it
 is the story's within-story root (ADR-0010 §3).
 
-> **Proof status (honest) — `mapped`, brownfield.** `packages/procedural-architecture`'s pipeline
-> modules have a real, passing OFFLINE suite (`core.test.ts`, `apertures.test.ts`, `draw-order.test.ts`,
-> `bake.test.ts`), but storytree's prove-it-gate never DROVE them red→green. This capability greens via
-> the story's `observe` reliability gate (`art-factory#gate-1`, `(covers: art-pipeline …)`, ADR-0085 /
-> ADR-0097). Do not call it proven or `healthy` — `healthy` is DERIVED from the signed adopted verdict
-> (ADR-0020 / ADR-0040), never authored.
+> **Proof status (honest) — `proposed`, greenfield without a current signed pass.**
+> `packages/procedural-architecture`'s pipeline was built inside this initiative and has real, passing
+> OFFLINE tests (`core.test.ts`, `apertures.test.ts`, `draw-order.test.ts`, `bake.test.ts`). Neither
+> those standing tests nor retrospective capability registration makes it brownfield or Adopt-bound
+> (ADR-0395). Do not call it proven or `healthy`; green remains derived from signed proof.
 
 ## Guidance
 
@@ -59,7 +58,7 @@ unsound one and assert `check` returns the expected `Violation[]`.
 ## Contracts (6)
 
 The test-proven leaf behaviours — each **one isolated automated test** in the
-`@storytree/procedural-architecture` suite, mapped by the story's observe gate.
+`@storytree/procedural-architecture` suite; the suite is evidence, not a provenance verdict.
 
 1. **`ap-model-builder-derives-positions`** — the part-tree builder derives positions from declared relations, then projects
    - **asserts —** the builder composes a part-tree whose child positions are DERIVED from their parents

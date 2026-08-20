@@ -4,13 +4,13 @@ tier: capability
 story: library
 title: "Schema-defined library docs, validated at the write boundary"
 outcome: "Every library artifact is zod-validated at the write boundary against a single per-kind schema source of truth."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: []
 # ADR-0092 / ADR-0094: a spec-borne dry-run/live `proof:` config over the real packages/library source,
-# so this capability is single-node `--live`-buildable. The ADR-0092 brownfield `real:` arm was REMOVED
-# (ADR-0094 supersedes_in_part 92 d.5): the library is `mapped`, so its green path is Adopt (the story's
-# `## Reliability Gates`, ADR-0085), not a fail-closed `--real` Build over a mature artifact with no red.
+# so this capability is single-node `--live`-buildable. The earlier `real:` arm was REMOVED by
+# ADR-0094. ADR-0395 now records this greenfield unit without a current signed pass as `proposed`;
+# registration order does not make it brownfield or Adopt-bound.
 proof:
   command:
     file: pnpm
@@ -26,7 +26,7 @@ proof:
 
 **Depends on —** (root — no within-story upstream)
 
-> **Proof status (honest) — `mapped` (real passing offline tests, observational; NOT `healthy`).** This is the schema root the whole tier stands on, and it is genuinely covered: `packages/library/src/library-doc.test.ts:13-66` (4 cases) and `packages/library/src/store/store.test.ts:50-61` (2 cases) are REAL, passing, offline tests I ran (part of the `@storytree/library` suite, 99 pass + 1 live-gated skip). They observationally verify the validator. But storytree's own prove-it-gate (`packages/orchestrator/src/prove-it-gate.ts`) did NOT drive them red→green — they are pre-existing target-repo tests, so this is brownfield `mapped`, weaker than `healthy`. One contract below (`strict-rejects-extra-key-on-valid-doc`) is a **would-be** test — no committed assertion isolates the `.strict()` extra-key rejection on an otherwise-valid structured doc; it is only transitively exercised by the migrate suite's seeAlso case.
+> **Proof status (honest) — `proposed` (real passing offline tests, observational; NOT `healthy`).** This is the schema root the whole tier stands on, and it is genuinely covered: `packages/library/src/library-doc.test.ts:13-66` (4 cases) and `packages/library/src/store/store.test.ts:50-61` (2 cases) are REAL, passing, offline tests I ran (part of the `@storytree/library` suite, 99 pass + 1 live-gated skip). They observationally verify the validator. Storytree's own prove-it-gate (`packages/orchestrator/src/prove-it-gate.ts`) did NOT drive them red→green, but they are greenfield Storytree tests, so ADR-0395 keeps the unsigned authored baseline at `proposed`. One contract below (`strict-rejects-extra-key-on-valid-doc`) is a **would-be** test — no committed assertion isolates the `.strict()` extra-key rejection on an otherwise-valid structured doc; it is only transitively exercised by the migrate suite's seeAlso case.
 
 ## Guidance
 
@@ -43,7 +43,7 @@ The integration test exercises this capability against its **real in-story colla
 - `packages/library/src/library-doc.test.ts:13-66` (4 cases): a well-formed structured `principle` round-trips with its `kind` discriminator intact (`library-doc.test.ts:13-27`); a generated `template` artifact validates via the `LibraryAsset` branch (`library-doc.test.ts:29-42`); a general edited `definition`-category body asset validates via the same branch (`library-doc.test.ts:44-60`); and three malformed inputs (principle missing fields, unknown kind, body asset missing body/title) all throw (`library-doc.test.ts:62-66`).
 - `packages/library/src/store/store.test.ts:50-61` adds a second real-collaborator touch: `validateLibraryDoc` is run against the FIRST real unit read off `apps/studio/data/knowledge.json` (`store.test.ts:50-55`) and rejects garbage (`store.test.ts:57-61`).
 
-These are real passing tests, observational (`mapped`) — storytree's prove-it-gate did not drive them.
+These are real passing tests, observational; the greenfield capability remains `proposed` without a current signed pass.
 
 ## Contracts (6)
 

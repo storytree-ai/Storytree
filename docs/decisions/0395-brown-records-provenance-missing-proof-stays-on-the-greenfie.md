@@ -1,7 +1,7 @@
 ---
 status: accepted
 decided: 2026-08-21
-amends: [38, 40, 97, 296]
+amends: [38, 40, 92, 94, 97, 296]
 arc: forest-status-provenance-arc
 ---
 # ADR-0395: Brown records provenance; missing proof stays on the greenfield rung
@@ -12,12 +12,16 @@ accepted (2026-08-21) — decided/directed by the owner in conversation on 2026-
 
 **Amends** [ADR-0038](0038-story-world-vocabulary-recalibration.md),
 [ADR-0040](0040-verdict-derived-green-and-the-human-witness-signpost.md),
+[ADR-0092](0092-gate-as-proof-for-a-machine-witnessed-story-s-own-uat-node.md),
+[ADR-0094](0094-go-green-is-a-status-transition-proposed-builds-mapped-adopt.md),
 [ADR-0097](0097-brownfield-go-green-is-a-proving-process-adopt-enters-brown.md), and
 [ADR-0296](0296-the-world-renders-no-unhealthy-state-withdrawn-from-the-pict.md). Their standing
 decisions remain current: growth carries lifecycle, only signed proof paints green, genuine
-brownfield adoption runs brown → proposed → green, and `unhealthy` remains outside the rendered
-vocabulary. This ADR narrows the brown rung to provenance and replaces their generic
-missing-proof → brown fallback.
+brownfield adoption runs brown → proposed → green, gate-as-proof remains a valid authoring
+mechanism, status selects the appropriate go-green path, and `unhealthy` remains outside the
+rendered vocabulary. This ADR narrows the brown rung to provenance, replaces the generic
+missing-proof → brown fallback, and withdraws ADR-0092/0094's application of the brownfield path to
+Storytree's greenfield `library` story.
 
 ## Context
 
@@ -107,6 +111,10 @@ rung, not on the brownfield rung.
   here so brown names provenance rather than generic absence of proof.
 - [ADR-0040](0040-verdict-derived-green-and-the-human-witness-signpost.md) — signed-verdict green and
   offline under-claiming; the anti-hand-painting wall stands.
+- [ADR-0092](0092-gate-as-proof-for-a-machine-witnessed-story-s-own-uat-node.md) — its
+  gate-as-proof mechanism stands, while the `library`-as-brownfield application is withdrawn.
+- [ADR-0094](0094-go-green-is-a-status-transition-proposed-builds-mapped-adopt.md) — its
+  status-aware go-green model stands, while the `library`-as-Adopt-target application is withdrawn.
 - [ADR-0097](0097-brownfield-go-green-is-a-proving-process-adopt-enters-brown.md) — the genuine
   brownfield adoption ladder, now explicitly scoped by provenance.
 - [ADR-0296](0296-the-world-renders-no-unhealthy-state-withdrawn-from-the-pict.md) — failure remains

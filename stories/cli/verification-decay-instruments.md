@@ -4,7 +4,7 @@ tier: capability
 story: cli
 title: "The chartered decay instruments — located, charged to their author, held to a per-instrument ceiling"
 outcome: "Every chartered verification instrument reports the decay it locates as a finding charged to the branch that authored it."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: []
 # Deciding ADRs (ADR-0037 §2): ADR-0252 D1 charters the instrument roster and D3 is why this is a
@@ -12,7 +12,7 @@ depends_on: []
 # (`unproven-seam-default`); ADR-0301 is the attribution half — a breach resting entirely on signals
 # this branch did not author is `inherited` and does not block the landing.
 decisions: [252, 278, 301]
-# A brownfield capability over already-implemented, already-tested code (the arc that authored it:
+# A greenfield capability registered after its implementation and tests (the arc that authored it:
 # capability-layer-coverage-arc increment 5, 2026-08-08). It resolves ONE story-grain
 # `repo-manifest.json` declaration (`packages/cli/src/*decay*.ts`).
 # THE MANIFEST KEY IS COARSER THAN THIS SCOPE, DELIBERATELY. The key also matches
@@ -24,8 +24,8 @@ decisions: [252, 278, 301]
 # capability's own spec excludes it. Ownership answers who is RESPONSIBLE; the proof block answers
 # what is BOUND. They are allowed to differ, and here they do.
 # The `proof:` block is spec-borne (ADR-0057); there is deliberately NO `real:` arm:
-#   1. ADR-0085/ADR-0094 — mapped brownfield, so the green path is Adopt, never a manufactured red on
-#      mature code (ADR-0097 ":61"/":89" — corrected by the pre-merge librarian pass from ADR-0159,
+#   1. ADR-0395 — registration order does not make greenfield code brownfield or Adopt-bound; without
+#      a current signed pass its honest authored baseline is `proposed` (corrected by the pre-merge librarian pass from ADR-0159,
 #      which is about frontend-builder's two-stage visual proof and says nothing about manufactured
 #      reds). A `real:` arm would also move the pinned REAL-buildable snapshot in
 #      `packages/cli/src/node-build.test.ts` (verified: this id appears there zero times).
@@ -56,9 +56,9 @@ exactly two things: the TypeScript compiler API, and `readTestCallTitle` from
 `vacuous-proof` join is spelled identically on both sides rather than re-derived. That is a shared
 parser, not a consumed outcome. It is a root.
 
-> **Proof status (honest) — `mapped` (a real, standing, passing suite; observational; NOT
-> `healthy`).** storytree's own prove-it-gate did not drive this red→green. That is what `mapped`
-> records (ADR-0094), and it is why there is no `real:` arm.
+> **Proof status (honest) — `proposed` (a real, standing, passing suite; observational; NOT
+> `healthy`).** Storytree's prove-it-gate did not drive this red→green, but the code was built inside
+> Storytree, so ADR-0395 keeps its unsigned authored baseline at `proposed`.
 >
 > **The proof — 116 tests.** `verification-decay.test.ts` (103 `it()` across 24 `describe` blocks)
 > and `decay-attribution.test.ts` (13). Every one of the five instruments is held on BOTH sides —
@@ -195,7 +195,7 @@ this judge could silently disagree with the classifier it is joining against.
 Facts are injected rather than read, which is the design (`verification-decay.ts:59-62`) and the
 stated limit above; nothing in this scope walks the repo.
 
-`mapped` (observational); the prove-it-gate did not drive it.
+`proposed` (greenfield, observationally tested, without a current signed pass).
 
 ## Contracts (9)
 

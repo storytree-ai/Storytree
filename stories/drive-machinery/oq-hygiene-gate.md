@@ -4,7 +4,7 @@ tier: capability
 story: drive-machinery
 title: "The open-question hygiene gate on live story builds (ADR-0037 §5)"
 outcome: "A live story build is refused while an operator answer on a deciding ADR's open question sits unprocessed."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: [prove-spec-resolution]
 ---
@@ -15,7 +15,7 @@ depends_on: [prove-spec-resolution]
 
 **Depends on —** [`prove-spec-resolution`](prove-spec-resolution.md)
 
-> **Proof status (honest) — `mapped`, with the live loader as the `proposed` pocket.** The
+> **Proof status (honest) — `proposed`, with the live loader still unsigned.** The
 > classification and every gate disposition are covered by a real, passing, offline suite over
 > injected rows (`packages/drive/src/oq-gate.test.ts`, part of `@storytree/cli` 110/110 — I ran it
 > 2026-06-13). The pocket: `loadLive` — the thin loader composing the library tier's live

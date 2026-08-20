@@ -4,7 +4,7 @@ tier: capability
 story: drive-machinery
 title: "Node specs, the build registry, and ProveSpec resolution"
 outcome: "Any registered node id resolves into a runnable ProveSpec for the chosen mode with nothing left to hand-wire."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: [red-green-phase-machine, shell-test-observer, prove-it-gate, owned-loop-phase-author, real-build-worktree]
 ---
@@ -15,7 +15,7 @@ depends_on: [red-green-phase-machine, shell-test-observer, prove-it-gate, owned-
 
 **Depends on —** [`red-green-phase-machine`](red-green-phase-machine.md), [`shell-test-observer`](shell-test-observer.md), [`prove-it-gate`](prove-it-gate.md), [`owned-loop-phase-author`](owned-loop-phase-author.md), [`real-build-worktree`](real-build-worktree.md)
 
-> **Proof status (honest) — `mapped`, with the LIVE-leaf arm as the `proposed` pocket.** The
+> **Proof status (honest) — `proposed`, with the LIVE-leaf arm still unsigned.** The
 > resolver, the spec loader, the registry, the prompts, the feedback-tool arming, and BOTH offline
 > end-to-end walks (dry-run glue and the REAL-mode worktree walk with a scripted author) are
 > covered by a real, passing, offline suite (`packages/orchestrator/src/resolve-prove-spec.test.ts`,

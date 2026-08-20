@@ -4,7 +4,7 @@ tier: capability
 story: cli
 title: "The setup repair loop — a failing invariant is repaired and re-verified, or escalated"
 outcome: "A dev's failing setup probe is driven to a re-verified repair, or to a secrets-redacted owner escalation naming why no installer step can fix it."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: []
 # Deciding ADRs (ADR-0037 §2): ADR-0207 D6 charters this loop in one decision with two layers
@@ -14,13 +14,13 @@ depends_on: []
 # ADR-0302 D1 removed one probe outright (`seedReadable`) by deleting its subject; the probe list
 # below is the post-0302 one.
 decisions: [207, 302]
-# A brownfield capability over already-implemented, already-tested code (the arc that authored it:
+# A greenfield capability registered after its implementation and tests (the arc that authored it:
 # capability-layer-coverage-arc increment 5, 2026-08-08). It resolves FOUR story-grain
 # `repo-manifest.json` declarations that existed only because no capability covered this organ
 # (`guide*.ts`, `escalation-blob.ts`, `repair-planner.ts`, and `doctor.ts` split out of `doct*.ts`).
 # The `proof:` block is spec-borne (ADR-0057); there is deliberately NO `real:` arm:
-#   1. ADR-0085/ADR-0094 — this code is mapped brownfield, so its green path is Adopt, never a
-#      manufactured red on mature code (ADR-0097 §Decision, ":61"/":89" — corrected by the pre-merge
+#   1. ADR-0395 — registration order does not make greenfield code brownfield or Adopt-bound; without
+#      a current signed pass its honest authored baseline is `proposed` (the pre-merge
 #      librarian pass from ADR-0159, which is about frontend-builder's two-stage visual proof and
 #      says nothing about manufactured reds). A `real:` arm would also move the pinned
 #      REAL-buildable snapshot in `packages/cli/src/node-build.test.ts` (verified: this id appears
@@ -62,10 +62,10 @@ CONSUMES this organ rather than being consumed by it. The shared `Envelope` type
 delivered outcome — the suite below drives `guideCommand`/`doctorCommand` directly and never through
 `run()`, so nothing this capability proves is preconditioned on the dispatcher. It is a root.
 
-> **Proof status (honest) — `mapped` (a real, standing, passing suite; observational; NOT
-> `healthy`).** storytree's own prove-it-gate did not drive any of this red→green; it landed through
-> ordinary sessions with its tests written alongside. That is what `mapped` records (ADR-0094), and
-> it is why there is no `real:` arm.
+> **Proof status (honest) — `proposed` (a real, standing, passing suite; observational; NOT
+> `healthy`).** This was greenfield work landed through ordinary sessions with its tests written
+> alongside. Storytree's prove-it-gate did not drive it red→green, but that proof fact does not create
+> brownfield provenance (ADR-0395); no `real:` arm is manufactured here.
 >
 > **The outcome half — `packages/cli/src/guide.test.ts`, 12 tests.** The whole loop is driven through
 > the real modules: only the two EFFECTS are faked (`observe` and `runStep`, `guide.test.ts:46-56`),
@@ -193,7 +193,7 @@ instructed and never executed in either mode (`:97`); an owner-side block escala
 reported healthy (`:111`); and an unrepairable residue terminating `stuck` rather than retrying the
 same step forever (`:120`).
 
-`mapped` (observational); the prove-it-gate did not drive it. The two effect seams and the
+`proposed` (greenfield, observationally tested, without a current signed pass). The two effect seams and the
 `commands.ts` dispatch are exercised nowhere in this scope — the stated gaps recorded above, not
 claimed here.
 

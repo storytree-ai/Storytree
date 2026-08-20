@@ -4,7 +4,7 @@ tier: capability
 story: drive-machinery
 title: "Node-declared proof command (proof-mode vocabulary beyond node:test)"
 outcome: "A node declares its own proof command, so the same prove-it-gate drives non-node:test work red→green from a spec-borne command."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: [spec-borne-proof-config]
 decisions: [20, 57]
@@ -17,13 +17,14 @@ work red→green from a spec-borne command.
 
 **Depends on —** [`spec-borne-proof-config`](spec-borne-proof-config.md)
 
-> **Proof status (honest) — `mapped`, built outer-loop (the bootstrap).** This is ADR-0057 §3's
+> **Proof status (honest) — `proposed`, built outer-loop (the bootstrap).** This is ADR-0057 §3's
 > expansion B (no new ADR — it ships under the already-decided §3 plan + [ADR-0020](../../docs/decisions/0020-red-green-enforcement-on-the-owned-loop.md)'s
 > honesty walls). The change is BUILT and its dominant behaviour is observationally verified by a
 > real, passing, OFFLINE suite (`proof-config.test.ts` schema legs + `resolve-prove-spec.test.ts`
 > resolution/prompt/forge legs). Like the keystone it extends, B is a MULTI-FILE change the
-> single-file inner loop cannot yet drive, so it was built outer-loop first and is `mapped`, not
-> `healthy`; the `proposed` pocket is gate-driving it (awaits expansion C, multi-file builds). A LIVE
+> single-file inner loop cannot yet drive, so it was built outer-loop first. That build order does not
+> make this greenfield work brownfield (ADR-0395); without a current signed pass it remains `proposed`.
+> The remaining proof work is gate-driving it (awaits expansion C, multi-file builds). A LIVE
 > non-node:test red→green (e.g. a `pnpm --filter x test` proof) is an operator-attested `--real`
 > smoke, not a standing test — the same posture as the other live legs in this story. The honesty
 > walls are PRESERVED: only the proof COMMAND the spine spawns becomes declarable; the spine still

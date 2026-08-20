@@ -4,7 +4,7 @@ tier: capability
 story: drive-machinery
 title: "The build drive CLI (node build / story build)"
 outcome: "An operator drives any registered node or whole story through the gate from one CLI command and gets an honest envelope back."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: [prove-spec-resolution, prove-it-gate, real-build-worktree, story-topo-build, oq-hygiene-gate, work-verdict-event-log]
 ---
@@ -15,7 +15,7 @@ depends_on: [prove-spec-resolution, prove-it-gate, real-build-worktree, story-to
 
 **Depends on —** [`prove-spec-resolution`](prove-spec-resolution.md), [`prove-it-gate`](prove-it-gate.md), [`real-build-worktree`](real-build-worktree.md), [`story-topo-build`](story-topo-build.md), [`oq-hygiene-gate`](oq-hygiene-gate.md), [`work-verdict-event-log`](work-verdict-event-log.md)
 
-> **Proof status (honest) — `mapped`, with the live arms as `proposed` pockets.** The dry-run
+> **Proof status (honest) — `proposed`, with the live arms still unsigned.** The dry-run
 > walks (single node AND whole story), every mode/refusal branch, and the forged-healthy store
 > wall are covered by real, passing, offline suites (`packages/cli/src/node-build.test.ts` +
 > `packages/cli/src/story-build.test.ts`, part of `@storytree/cli` 110/110 — I ran them

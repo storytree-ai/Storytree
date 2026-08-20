@@ -17,6 +17,13 @@ real work, never flipped by a button**. The owner ratified this model and direct
 decision log before next steps; the `status:` flip was applied by this session per
 [ADR-0084](0084-agents-may-flip-an-adr-green.md).
 
+**Provenance correction ([ADR-0395](0395-brown-records-provenance-missing-proof-stays-on-the-greenfie.md),
+per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** the brown →
+proposed → green process in this ADR stands for genuinely inherited brownfield work. Its use of
+Storytree's `library` story as the concrete brownfield example is withdrawn: that story is greenfield,
+and retrospective registration does not make it an Adopt target. The example's test-coverage gaps
+remain historical evidence about proof, not evidence of provenance.
+
 It **amends [ADR-0085](0085-resolve-adr-0083-fork-b-brownfield-reliability-gates-author.md)** (observe-and-sign
 becomes the cheap first step of a human-entered proving process — machine-witnessed and human-approved —
 not a deliberate human-invoked `gate run`, and never a one-click green), **amends
@@ -67,11 +74,10 @@ objection through the conversation surfaced, in order:
    in is a deliberate human act, and what follows is real work with key decisions escalated — a **process**,
    not a flip. The owner named the ladder: **brown → proposed → green**.
 
-The two foundational ports (`proof-protocol`, `storage-protocol`) are the trivial end of this — already
-fully tested, nothing owed — but the `library`, a brownfield story *with capabilities and untested
-pockets*, is the case [ADR-0085](0085-resolve-adr-0083-fork-b-brownfield-reliability-gates-author.md) left
-structurally unable to green: it handled the zero-capability port (greens from its gates) but not a
-with-capabilities brownfield story whose caps have no driven verdict.
+The two foundational ports (`proof-protocol`, `storage-protocol`) were the trivial end of this — already
+fully tested, nothing owed. At decision time `library` was treated as the with-capabilities brownfield
+example whose caps had no driven verdict. ADR-0395 later withdrew that classification: the proof gap was
+real, but the Storytree-built code was greenfield and therefore not an Adopt case.
 
 ## Decision
 
@@ -226,4 +232,5 @@ been built — see the dated updates below).**
   (`rollupStoryGreen`), `packages/library/src/reliability-gates.ts`,
   `apps/studio/src/components/BuildSection.tsx` (`AdoptPanel`), `apps/studio/server/apiRouter.ts`
   (`storyGoGreen` / `applyUatCrowns`) — the compute + surfaces this model refines.
-- `stories/library/story.md` — the canonical brownfield story whose path to green this model defines.
+- `stories/library/story.md` — the historical example this ADR used; ADR-0395 corrected it to
+  greenfield `proposed`, so it is no longer a brownfield/Adopt exemplar.

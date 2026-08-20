@@ -4,7 +4,7 @@ tier: capability
 story: cli
 title: "storytree <verb> dispatches to the owning organism and returns a typed envelope"
 outcome: "storytree <verb> parses args, hydrates credentials, dispatches to the owning organism, and returns a typed Envelope/exit code; offline commands run with no DB."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: []
 ---

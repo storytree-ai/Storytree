@@ -4,7 +4,7 @@ tier: capability
 story: agent
 title: "Tool calls dispatch through one executor to workspace-confined real file tools"
 outcome: "A leaf's tool calls dispatch through one executor to real local file tools whose every path is confined to the workspace, errors captured as tool results, never thrown."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: [model-runtime-seam]
 # Node-borne proof config (ADR-0057 keystone): authoring THIS block is what makes the capability
@@ -43,7 +43,7 @@ proof:
 **Outcome —** A leaf's tool calls dispatch through one executor to real local file tools whose every
 path is confined to the workspace, errors captured as tool results, never thrown.
 
-> **Proof status (honest) — `mapped`.** `tool-executor.test.ts` (4) + `fs-tools.test.ts` (17) pass
+> **Proof status (honest) — `proposed`.** `tool-executor.test.ts` (4) + `fs-tools.test.ts` (17) pass
 > offline. `ToolExecutor` (`tool-executor.ts`) is the dispatch seam; `MapToolExecutor` routes a
 > `ToolUseBlock` to a registered handler, awaits async handlers, and turns an unknown tool or a
 > throwing handler into an `is_error` tool result (never a thrown crash). `FileToolExecutor`
@@ -66,7 +66,7 @@ this executor; that decorator lives in drive-machinery).
 
 ## Guidance
 
-The brownfield slice that earns this capability a signed verdict (the next bootstrap rung toward
+The greenfield slice that can earn this capability a signed verdict (the next bootstrap rung toward
 `healthy`): give `edit_file` an OPT-IN `replace_all` mode while keeping the ambiguous-edit refusal as
 the safe default. This is additive — the default behaviour (refuse an `old_str` that appears more than
 once) is unchanged; a caller must explicitly ask for replace-all.

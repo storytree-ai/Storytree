@@ -4,15 +4,14 @@ tier: capability
 story: desktop
 title: "The sidecar's overlay reads fail to a bounded, logged null — a down store under-claims the forest instead of hanging it"
 outcome: "Every overlay read the sidecar makes fails to a bounded, logged null rather than to a throw or a hang."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: [local-backend-boot]
 decisions: [33]
-# A brownfield capability over already-implemented, already-tested code (the arc that authored it:
-# capability-layer-coverage-arc increment 2, 2026-08-07). The `proof:` block is spec-borne (ADR-0057);
-# there is deliberately NO `real:` arm — the desktop's advisory-read helper is `mapped`, so its green
-# path is Adopt (ADR-0085 / ADR-0094, which removed the ADR-0092 brownfield arm), not a fail-closed
-# `--real` Build. The one proving file is desktop-resident, so the package suite is the whole command.
+# A greenfield capability registered retrospectively by capability-layer-coverage-arc increment 2
+# (2026-08-07). Implementation-before-registration and standing tests do not make it brownfield
+# (ADR-0395). The `proof:` block remains spec-borne (ADR-0057); this classification correction does
+# not add a `real:` arm or manufacture a verdict. The proving file is desktop-resident.
 proof:
   command:
     file: pnpm
@@ -35,14 +34,14 @@ describes a helper that already existed before this module was extracted.)*
 
 **Depends on —** [`local-backend-boot`](local-backend-boot.md).
 
-> **Proof status (honest) — `mapped` (real passing offline tests, observational; NOT `healthy`).** The
+> **Proof status (honest) — `proposed` (greenfield without a current signed pass; NOT `healthy`).** The
 > whole helper is covered by REAL, passing, offline tests in ONE colocated file:
 > `apps/desktop/src/backend/advisory.test.ts` (11 tests), part of the `desktop` suite, which I ran on
 > 2026-08-07 — **249 tests, 249 pass, 0 fail, 0 skipped**. Nothing in it touches a database, a network,
 > or a wall clock: the read function and the log sink are INJECTED, and the two cold-start budget tests
 > drive `setTimeout` through `node:test`'s mock timers against a hand-resolved deferred, so the timeout,
-> the retry and the dedupe state are all deterministic. storytree's own prove-it-gate did NOT drive this
-> red→green, so it is brownfield `mapped`.
+> the retry and the dedupe state are all deterministic. Those tests are evidence, but neither their
+> standing state nor the absence of a gate-driven red→green establishes brownfield provenance.
 >
 > **What is NOT proven here, named rather than implied.** The FIVE real call sites live in
 > `apps/desktop/electron/backend-entry.ts` (`:403`, `:419`, `:424`, `:493`, `:513`, `:516`, `:850`) —
@@ -134,8 +133,8 @@ which is the design — the failure mode under test IS the double.
 
 Underneath, 10 more tests cover the helper's own lifecycle: the null-and-log core, the silent happy
 path, all four dedupe behaviours (repeat, per-name, streak reset, changed cause), the timeout arm, both
-halves of the targeted cold-start budget, and the bounded retry. `mapped` (observational); the
-prove-it-gate did not drive it.
+halves of the targeted cold-start budget, and the bounded retry. The authored rung remains `proposed`
+until current signed proof exists (ADR-0395).
 
 ## Contracts (6)
 

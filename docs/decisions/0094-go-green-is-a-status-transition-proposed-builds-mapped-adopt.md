@@ -20,6 +20,12 @@ red→green *user-facing* wording and routing brownfield through
 / [ADR-0091](0091-proof-bearing-builds-may-run-in-a-hosted-self-contained-work.md)) a new session must
 calibrate to.
 
+**Provenance correction ([ADR-0395](0395-brown-records-provenance-missing-proof-stays-on-the-greenfie.md),
+per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):** the general
+status-aware split in decisions 1–3 stands for genuinely greenfield versus inherited brownfield work.
+The `library`-specific application in decisions 4–5 does not: Storytree's `library` story is
+greenfield, and retrospective registration does not turn it into a `mapped` Adopt target.
+
 ## Context
 
 The studio's story-level **Build** button ([ADR-0090](0090-ui-driven-orchestration-hosted-build-capable-backend-thin-cl.md) /
@@ -29,13 +35,16 @@ The studio's story-level **Build** button ([ADR-0090](0090-ui-driven-orchestrati
 
 [ADR-0092](0092-gate-as-proof-for-a-machine-witnessed-story-s-own-uat-node.md) made the `library` story
 satisfy that check: it added a gate-as-proof `real:` arm to the story's machine-witnessed UAT node and
-brownfield `real:` arms to its 7 capabilities, so the studio offered Build for the library. But the
-library is **brownfield** (`status: mapped`), and its honest path to green is **not** a red→green drive
-— it is [ADR-0085](0085-resolve-adr-0083-fork-b-brownfield-reliability-gates-author.md)'s author-declared
+brownfield-labelled `real:` arms to its seven capabilities, so the studio offered Build for the
+library. The story was then treated as **brownfield** (`status: mapped`) and redirected away from a
+red→green drive to
+[ADR-0085](0085-resolve-adr-0083-fork-b-brownfield-reliability-gates-author.md)'s author-declared
 `## Reliability Gates`, whose `observe` gates the spine **observe-and-signs** into an `adopted` verdict.
 A red→green arm on a mature, already-green artifact has no genuine red, so it **fails closed**: the
 button lit, but pressing it cannot deliver green. The two foundational ports (`proof-protocol`,
-`storage-protocol`) already go green the ADR-0085 way; the library was simply never wired for it.
+`storage-protocol`) already went green the ADR-0085 way. ADR-0395 later corrected the distinct
+provenance mistake in this example: `library` is greenfield, so neither its prior `mapped` label nor
+registration order authorises Adopt.
 
 Underneath that wiring gap is a **modelling error**. The "press Build to turn a story green" framing
 silently imports a transition that does not exist in our world: a story sitting in a **red status** that
@@ -83,10 +92,11 @@ author-declared red→green). *(Amends [ADR-0090](0090-ui-driven-orchestration-h
 / [ADR-0091](0091-proof-bearing-builds-may-run-in-a-hosted-self-contained-work.md), which defined the
 single status-blind Build affordance.)*
 
-**4. Correct ADR-0092 in place: its studio-Build purpose is overtaken.** A brownfield story's UAT node
-does **not** earn the studio **Build** affordance via a gate-as-proof `real:` arm, and the library's
-caps do **not** go green via brownfield `real:` arms — the library's green path is `## Reliability Gates`
-(ADR-0085). This overtakes **ADR-0092 decision 1's *button-lighting purpose*** (the gate-as-proof
+**4. Correct ADR-0092 in place: its studio-Build purpose is overtaken.** A genuinely brownfield story's
+UAT node does **not** earn the studio **Build** affordance via a gate-as-proof `real:` arm. At the time
+this was applied to `library` and redirected it to `## Reliability Gates` (ADR-0085); ADR-0395 later
+withdrew that application because `library` is greenfield. This still overtakes **ADR-0092 decision 1's
+*button-lighting purpose*** (the gate-as-proof
 story-node arm) **and decision 5's *buildability purpose*** (the 7 caps' brownfield `real:` arms). What
 **survives** ADR-0092: decision 1's gate-as-proof MECHANISM (the `real:` arm via `editsExisting` over
 `stories/<story>/story.md`, the AUTHOR_TEST→…→GATE ladder), **decision 2** (`storyUatCompleteness` as a
@@ -96,11 +106,11 @@ authoring-doc scope-bound amendment). Because ADR-0092's core stands, it is **co
 ([ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)) and stays
 `accepted` — not fully superseded.
 
-**5. The library gets `## Reliability Gates`.** As the canonical brownfield story, the library declares
-`observe` gates over its existing passing suites (`@storytree/library`, `@storytree/cli`,
-`@storytree/storage-protocol`) so `gate run library#gate-N --pg` observe-and-signs them to an honest
-`adopted` green — the same path the two ports use. *(Named follow-on — story-author work, after this
-ADR's shape is accepted.)*
+**5. The historical `library`-as-brownfield application is withdrawn.** This ADR directed `library`
+to declare `observe` gates over its existing passing suites and treated those gates as an Adopt path.
+ADR-0395 corrects that classification: Storytree's `library` story is greenfield, and neither those
+gates nor its retrospective registration establish brownfield provenance. The general reliability-gate
+mechanism remains available to genuinely inherited brownfield stories.
 
 ## Consequences
 
@@ -109,8 +119,8 @@ ADR's shape is accepted.)*
   (**Adopt**), not a fail-closed **Build**.
 - The model only carries transitions that exist (`proposed → healthy`, `mapped → healthy`); speculative
   user-facing red-recovery is excluded by construction until observed — the YAGNI the owner asked for.
-- ADR-0085's brownfield-green path becomes the library's *actual* path, so the library can reach an
-  honest signed green instead of being stranded at `mapped`.
+- ADR-0085's brownfield-green path remains the actual path for genuinely inherited stories. Its
+  `library` application was withdrawn by ADR-0395; unsigned greenfield `library` work is `proposed`.
 - ADR-0092 is **corrected in place** ([ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)):
   its overtaken Build-button purpose is fixed while its still-valid parts (decisions 2–4 + the
   gate-as-proof mechanism) stay — truth-maintenance, not an orphan additive ADR.

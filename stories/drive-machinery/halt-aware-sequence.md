@@ -4,7 +4,7 @@ tier: capability
 story: drive-machinery
 title: "The fail-closed step sequence (runSequence / runLoop)"
 outcome: "The spine composes leaf steps in strict order and a halted step can never be reported as a pass."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: []
 ---
@@ -13,10 +13,10 @@ depends_on: []
 
 **Outcome —** The spine composes leaf steps in strict order and a halted step can never be reported as a pass.
 
-> **Proof status (honest) — `mapped`.** The whole behaviour is covered by a real, passing, offline
+> **Proof status (honest) — `proposed`.** The whole behaviour is covered by a real, passing, offline
 > suite (`packages/orchestrator/src/sequence.test.ts`, part of `@storytree/orchestrator` 99/99 —
-> I ran it 2026-06-13). storytree's own prove-it-gate did not drive these proofs red→green, so this
-> is brownfield `mapped`, never `healthy`.
+> I ran it 2026-06-13). The capability is greenfield Storytree work without a current signed pass;
+> standing tests and the absence of a gate-driven red→green do not make it brownfield (ADR-0395).
 
 ## Guidance
 

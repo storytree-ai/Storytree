@@ -4,13 +4,13 @@ tier: capability
 story: library
 title: "Forward-migrate and version-stamp library docs on write"
 outcome: "A library doc authored against an older schema is forward-migrated and version-stamped at the write boundary rather than rejected."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: [library-schema-and-write-validation]
 # ADR-0092 / ADR-0094: a spec-borne dry-run/live `proof:` config over the real packages/library source,
-# so this capability is single-node `--live`-buildable. The ADR-0092 brownfield `real:` arm was REMOVED
-# (ADR-0094 supersedes_in_part 92 d.5): the library is `mapped`, so its green path is Adopt (the story's
-# `## Reliability Gates`, ADR-0085), not a fail-closed `--real` Build.
+# so this capability is single-node `--live`-buildable. The earlier `real:` arm was REMOVED by
+# ADR-0094. ADR-0395 now records this greenfield unit without a current signed pass as `proposed`;
+# registration order does not make it brownfield or Adopt-bound.
 proof:
   command:
     file: pnpm
@@ -26,7 +26,7 @@ proof:
 
 **Depends on —** [`library-schema-and-write-validation`](library-schema-and-write-validation.md)
 
-> **Proof status (honest) — `mapped` (real passing offline tests, observational; NOT `healthy`).** The full suite `packages/library/src/migrations.test.ts` is REAL and passing — I ran it (part of the `@storytree/library` suite, 99 pass + 1 live-gated skip). It observationally verifies the upcaster + the `upcastAndValidate` seam offline. But storytree's prove-it-gate (`packages/orchestrator/src/prove-it-gate.ts`) did NOT drive it red→green, so this is brownfield `mapped`, not `healthy`. One contract (`upcast-skips-already-migrated`) is a **would-be** test: the `m.version > v` skip guard is only exercised transitively (a v1-pinned doc skips migration #1 while #2 applies, but #1 is a no-op on those fixtures), never by an isolated assertion of the skip.
+> **Proof status (honest) — `proposed` (real passing offline tests, observational; NOT `healthy`).** The full suite `packages/library/src/migrations.test.ts` is REAL and passing — I ran it (part of the `@storytree/library` suite, 99 pass + 1 live-gated skip). It observationally verifies the upcaster + the `upcastAndValidate` seam offline. Storytree's prove-it-gate (`packages/orchestrator/src/prove-it-gate.ts`) did NOT drive it red→green, but this is greenfield Storytree work, so ADR-0395 keeps its unsigned authored baseline at `proposed`. One contract (`upcast-skips-already-migrated`) is a **would-be** test: the `m.version > v` skip guard is only exercised transitively (a v1-pinned doc skips migration #1 while #2 applies, but #1 is a no-op on those fixtures), never by an isolated assertion of the skip.
 
 ## Guidance
 
@@ -38,7 +38,7 @@ The lazy half of the schema-evolution story (the eager half lives in [`eager-bat
 
 **Goal —** Run the real `upcast` (`migrations.ts`) composed with the real `validateLibraryDoc` (`library-doc.ts`) — exactly the `upcastAndValidate` seam, no stubs — proving an old-shape doc is forward-migrated and stamped rather than rejected, and a current-shape doc validates unchanged.
 
-The integration test exercises this capability against its **real in-story collaborator** — the schema validator from [`library-schema-and-write-validation`](library-schema-and-write-validation.md), composed live (ADR-0010 §2/§5). The REAL passing tests are in `packages/library/src/migrations.test.ts`: a v0 `definition` carrying a stray `seeAlso` is upcast — `seeAlso` dropped, `schemaVersion` stamped to `CURRENT_SCHEMA_VERSION`, and the RESULT then passes `validateLibraryDoc` (`migrations.test.ts:47-55`); `upcast` is idempotent (`migrations.test.ts:57-61`); a template asset passes through byte-for-byte with no `schemaVersion` stamped and still validates (`migrations.test.ts:63-70`); `upcastAndValidate` forwards a v0 doc that bare `validateLibraryDoc` throws on (`migrations.test.ts:72-78`); the `MIGRATIONS` registry is strictly version-ordered and its top equals `CURRENT_SCHEMA_VERSION` (`migrations.test.ts:155-163`). `mapped` (observational); the prove-it-gate did not drive it.
+The integration test exercises this capability against its **real in-story collaborator** — the schema validator from [`library-schema-and-write-validation`](library-schema-and-write-validation.md), composed live (ADR-0010 §2/§5). The REAL passing tests are in `packages/library/src/migrations.test.ts`: a v0 `definition` carrying a stray `seeAlso` is upcast — `seeAlso` dropped, `schemaVersion` stamped to `CURRENT_SCHEMA_VERSION`, and the RESULT then passes `validateLibraryDoc` (`migrations.test.ts:47-55`); `upcast` is idempotent (`migrations.test.ts:57-61`); a template asset passes through byte-for-byte with no `schemaVersion` stamped and still validates (`migrations.test.ts:63-70`); `upcastAndValidate` forwards a v0 doc that bare `validateLibraryDoc` throws on (`migrations.test.ts:72-78`); the `MIGRATIONS` registry is strictly version-ordered and its top equals `CURRENT_SCHEMA_VERSION` (`migrations.test.ts:155-163`). `proposed` (greenfield, observationally tested, without a current signed pass).
 
 ## Contracts (6)
 

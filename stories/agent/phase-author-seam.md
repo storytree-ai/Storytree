@@ -4,7 +4,7 @@ tier: capability
 story: agent
 title: "The runtime-agnostic executor seam that only ever authors — never observes, never verdicts"
 outcome: "The spine drives a leaf through one runtime-agnostic surface that only ever AUTHORS — it never observes red/green and never reports a verdict."
-status: mapped
+status: proposed
 proof_mode: integration-test
 depends_on: []
 ---
@@ -14,7 +14,7 @@ depends_on: []
 **Outcome —** The spine drives a leaf through one runtime-agnostic surface that only ever AUTHORS —
 it never observes red/green and never reports a verdict.
 
-> **Proof status (honest) — `mapped`.** `phase-author.ts` is a pure type module (no runtime, no
+> **Proof status (honest) — `proposed`.** `phase-author.ts` is a pure type module (no runtime, no
 > test of its own to count): it declares `AuthoringPhase` (`"AUTHOR_TEST" | "IMPLEMENT"`),
 > `AuthorResult` (`{ ok: true } | { ok: false; error }`), and the `PhaseAuthor` interface
 > (`author(phase, prompt) → Promise<AuthorResult>`). Its behaviour is proven by its three
