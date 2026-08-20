@@ -150,9 +150,15 @@ exactly the junk-becomes-noise risk the owner flagged. Disposition: **fold in, b
   typecheck and the full package regression suite running in between (`node-build.ts`), and a wider
   window still for a `story build --real` chain, which promotes ONCE at the stacked HEAD. A kill,
   crash, or timeout anywhere in that window leaves the proven commit referenced only by the
-  worktree, which `git worktree prune` and OS temp cleanup then reclaim (`removeDirBestEffort`) —
-  an unreferenced commit, which is precisely the evidence-only state this ADR names, and one no
-  build envelope reports because none is emitted. Recovery depends on the operator having kept the
+  worktree, which is then reclaimed — leaving an unreferenced commit, precisely the evidence-only
+  state this ADR names, and one no build envelope reports because none is emitted.
+  **CORRECTED 2026-08-20 (ADR-0391): this used to name `git worktree prune` and OS temp cleanup as
+  the reclaimers, and neither was doing the job.** `git worktree prune` reclaims a stale
+  REGISTRATION, not the directory; `removeDirBestEffort` swallows a Windows file lock it cannot
+  outlast; and nothing swept what that left, so 6.6 GB of temp trees stood for seven weeks. The
+  reclaimer is now `sweepStaleBuildWorktrees`, which every build-worktree mint runs. It does not
+  narrow this window — it never touches a tree inside the 48 h idle threshold, and the object
+  itself survives in the shared store either way. Recovery depends on the operator having kept the
   SHA (`git merge --ff-only <sha>`). Narrowing that window is unowned work, not a decision taken
   here.
 - Repo settings should disallow squash-merge for `claude/real/*` PRs (or reviewers must pick a

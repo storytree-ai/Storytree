@@ -3,10 +3,25 @@ id: "model-uat-witness"
 tier: story
 title: "A classified UAT criterion earns a tiered witness — machine, capability-tiered model, or irreducible human"
 outcome: "A newly classified or migrated UAT criterion resolves to deterministic machine, capability-tiered model, or irreducible human while existing untagged criteria remain legacy-unresolved until migration, and a model criterion is admitted only by a registered judge of at least its declared tier."
-status: proposed
+# RETIRED 2026-08-20 — ADR-0247 D5 names this story on its retirement worklist by id. The tier this
+# story exists to build is gone: ADR-0247 D1 retired the three-kind witness vocabulary outright, so
+# there is no `model` witness kind, no capability tier and no eligibility registry left for a criterion
+# to earn. ADR-0295 then settled who witnesses a journey instead — the model that DROVE it, producing a
+# `machine` outcome — reviving none of this machinery. Body kept as history (the spawn-visibility /
+# chat-drive-bridge precedent); the three capability files flip to `status: retired` with it.
+# CODE IS NOT UNMOUNTED, AND THAT IS DELIBERATE — do not read this retirement as "the package is gone".
+# `packages/model-uat` is still MOUNTED and transitively LIVE: `packages/uat-criterion` imports
+# `Criterion` + `parseCriteria` from its root barrel, and `@storytree/uat-criterion` is in turn consumed
+# by `packages/library/src/knowledge.ts` and `apps/studio/src/types.ts`. ADR-0247 D5 lists the package
+# retirement separately from the story retirement and says each is "its own provable unit"; lifting that
+# residual criterion parser out of a retired organism is that unit, and it is still OPEN. Retiring the
+# story records that the JOURNEY is no longer pursued, which is exactly what the precedent stories did
+# (their code unmount landed later, and was tracked separately in their own frontmatter).
+status: retired
 proof_mode: UAT
-# Every UAT leg below is deterministic and machine-witnessed. Absence defaults the story node to
-# human (ADR-0040), which would make `story build --real` withhold it dishonestly.
+# UAT criteria: NONE (deleted 2026-08-20). A story may declare zero criteria and still green honestly
+# through the ADR-0085 own-proof union, so `uat_witness` below is now inert rather than load-bearing —
+# it is retained only so a reader of the history sees what the legs were declared as.
 uat_witness: machine
 # Immutable arc provenance (ADR-0183): the FIRST landable increment of the `model-uat-promotion` arc
 # (ADR-0209, owner-directed 2026-07-17). This story is the DATA + RESOLUTION foundation the rest of the
@@ -180,58 +195,27 @@ superseded through the new port after integration, while its vouch-vs-proof jour
 
 ## UAT Test Criteria
 
-The integrated **acceptance walkthrough** proving the foundation end-to-end against the real reshaped
-parser + the new tier/registry modules. Minimal-first (one coherent classify-then-resolve journey),
-defect-driven thereafter. Every leg is **`(witness: machine)`** — this foundation is itself
-deterministic, offline, spine-observable code (the pleasing bootstrap: the machinery that tiers a
-model witness is proven by a *machine* witness, ADR-0209 D1 keeping `machine` deterministic).
+**None — this story is retired (ADR-0247 D5).** Its six criteria were deleted on 2026-08-20 and each is
+recorded `superseded`, with its rationale, in `stories/uat-legacy-dispositions.json`. Nothing is silently
+dropped: the ledger still carries all 282 keys reviewed at the ADR-0253 cutover.
 
-> **Honest status — implementation promoted; per-test UAT still unproven.** The REAL story build
-> produced the package implementation on `claude/real/model-uat-witness-story-real-mrov6y3t`, but its
-> output correctly reported `uat proof: unproven`: the six criteria had no exact proof-gate bindings.
-> The bindings + gate below repair that obligation; no existing node verdict substitutes for the six
-> per-test rows. Authored status remains `proposed`; `healthy` is derived, never authored (ADR-0020).
+A story may declare zero UAT criteria (ADR-0294 D4) and still green honestly through the ADR-0085
+own-proof union, so an empty section here is a statement rather than a gap.
 
-**Goal —** An author explicitly classifies one new or migrated UAT criterion's witness and, for a
-model, its tier; the machinery resolves an eligible judge or an honest hold while an existing
-untagged criterion stays legacy-unresolved, and every route from that legacy state into model
-judgment is refused.
+**Why these six were deleted rather than adjudicated.** Every other cluster on the
+`uat-journey-surgery-arc` was adjudicated criterion by criterion against ADR-0294 D2's honesty wall —
+name the lower-tier node that already proves the claim. That wall cannot be discharged here, and the
+reason is not that the proof is missing but that **the claim is**. All six asserted properties of the
+three-kind witness vocabulary (`machine` | `model` | `human`), the model capability tier, and the judge
+eligibility registry — and **ADR-0247 D1 retired all three of those outright**. The witness split is
+binary; there is no `model` witness kind, no tier and no registry for a criterion to be true about. So
+there is no surviving claim to re-home and no node to name, which is the second of the two honest
+accountings `packages/library/src/corpus-criterion-migration.test.ts` allows: the claim itself was
+withdrawn.
 
-1. **Classify the three kinds through the public port.** _(witness: machine)_ _(proof-gate: model-uat-witness#gate-1)_ Import _(criterion-id: uatc_21a05878775fd9686d340d4f)_ _(revision-id: uatr1:4527412ae369727a)_
-   `Criterion`, `ClassifiedWitness`, `Tier`, the registry API, and
-   `resolveStoryWitnesses`/`resolveWitness` from the `@storytree/model-uat` ROOT barrel, then parse a
-   criterion tagged `machine`, one tagged `model`, and one tagged `human`. **Success —** every public
-   symbol resolves through `src/index.ts`; `model` is DISTINCT from `machine`; the three kinds
-   round-trip through the public parser/validator. An empty barrel fails this leg.
-2. **Preserve legacy parsing without defaulting to model.** _(witness: machine)_ _(proof-gate: model-uat-witness#gate-1)_ An existing _(criterion-id: uatc_5c6e5d713558fcb57c9fbaad)_ _(revision-id: uatr1:6f3e01337252d8fd)_
-   untagged criterion is presented to the parser before its staged migration. **Success —** it parses
-   as legacy-unresolved `either` and continues the current conservative path; it carries no model tier,
-   cannot enter model judgment, and remains visibly due for explicit reclassification. A new or
-   migrated criterion must explicitly declare `machine`, `model`, or `human` (ADR-0209 D8).
-3. **A model criterion declares its tier.** _(witness: machine)_ _(proof-gate: model-uat-witness#gate-1)_ A `model` criterion tagged _(criterion-id: uatc_122b8e1ebdd04e08ce6db12b)_ _(revision-id: uatr1:20c5cdb257e2577e)_
-   `advanced` and one tagged `frontier` parse their tiers; a `model` criterion with no tier, and a
-   `machine`/`human` criterion carrying a tier, are refused. **Success —** tier ∈ {advanced, frontier}
-   is required on and only on a `model` criterion; a below-`advanced` or unknown tier is refused at the
-   parse boundary (ADR-0209 D2).
-4. **The curated concrete judges satisfy their admitted rungs.** _(witness: machine)_ _(proof-gate: model-uat-witness#gate-1)_ Resolve _(criterion-id: uatc_ee1c9168e130b50126743f67)_ _(revision-id: uatr1:4d38e2ba6e334d24)_
-   against the seed registry. **Success —** the available advanced entry is exactly
-   `claude-opus-4-8`, the available frontier entry is exactly `claude-fable-5`, an advanced criterion
-   resolves to the advanced Opus entry, and a frontier criterion resolves to Fable. A frontier judge
-   still substitutes upward when it is the eligible stronger judge; an advanced judge never satisfies
-   a frontier requirement (ADR-0209 D2).
-5. **An unavailable tier HOLDS, honestly.** _(witness: machine)_ _(proof-gate: model-uat-witness#gate-1)_ A `frontier` criterion is resolved _(criterion-id: uatc_b8d649e60dfb66b7c9a77dcd)_ _(revision-id: uatr1:65b600cefa88d3b8)_
-   against a registry with no available frontier judge. **Success —** it resolves to a distinct HOLD —
-   NOT downgraded to `advanced`, NOT routed to a lower model, NOT relabelled `human` (ADR-0209 D2/D4).
-6. **Only the curated concrete allowlist confers eligibility.** _(witness: machine)_ _(proof-gate: model-uat-witness#gate-1)_ A _(criterion-id: uatc_f20d7e917c904ae29279cff8)_ _(revision-id: uatr1:3b1aeb0a820e5000)_
-   self-declared/unregistered model and GPT-5.6 Sol are considered beside the seed. **Success —** the
-   seed's available ids are exactly `claude-opus-4-8` and `claude-fable-5`; GPT-5.6 Sol is absent or
-   unavailable, the self-declared model is ineligible, and only an explicit versioned registry entry
-   confers a tier (ADR-0209 D2).
-
-End state — a new or migrated criterion's witness kind, model tier, and judge eligibility are decided
-by explicit deterministic offline rules; an existing untagged criterion remains parseable only as
-legacy-unresolved `either`; every dishonest shortcut from that state into model judgment, plus every
-below-floor tier, self-declared judge, or laundered downgrade, is refused.
+They were also, independently, the exact shape ADR-0294 D1 says a story criterion is not — six legs
+that all bound to one `pnpm --filter @storytree/model-uat test` gate, i.e. a single package's own suite
+signing the story rung. Either reason alone would have deleted them.
 
 ## Reliability Gates
 

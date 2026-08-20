@@ -31,6 +31,14 @@
 // A TRANSIENT failure is still absorbed: once anything has answered, a later error keeps the
 // last-known value rather than flapping the surface to unreachable on one dropped poll. Only a
 // failure with nothing yet known is reported, because that is the one a reader cannot wait out.
+//
+// `unreachable` IS NOW EXPENSIVE TO REACH, which is the point: `api.arcs()` retries three times on a
+// 30 s budget (see its comment for the measurement), so reaching the catch below means every attempt
+// lost — not that one fetch was slow. Before that it took a single clipped read: a 12.56 s answer
+// against a 10 s abort put the lens on "the arc read didn't answer" while the store was healthy, and
+// left it there until a later 30 s poll happened to land. Throughout the retry this state stays
+// `undefined`, which is what ArcSurface renders as a spinner + "Reading arcs…" — the honest reading
+// of a read still in flight, and the reason that spinner cannot hang: the retry is finite.
 
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';

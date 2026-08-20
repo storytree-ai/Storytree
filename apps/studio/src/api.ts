@@ -267,8 +267,29 @@ export const api = {
   // no write verb here and a non-GET is refused server-side. Same advisory contract + abort backstop
   // as claims — a backend with no document store answers `{arcs: null}`. Fetched only while the
   // arcs lens is open, not on the world's poll cadence.
+  //
+  // RETRIES, AND ON A LONGER BUDGET THAN ITS 10 s NEIGHBOURS — both halves for the reason its two
+  // siblings already carry, because this read has the same shape and hit the same wall. It is the
+  // heaviest read the app makes: the 76-arc join across the store, `docs/decisions` and `stories/`,
+  // serialised to ~1.2 MB. Measured against the running desktop backend on 2026-08-20: ~0.4-2.2 s
+  // warm, but ONE sample answered in 12.56 s — over the old 10 s budget, which aborted the fetch and
+  // left the lens saying "Arcs aren't available here — the arc read didn't answer" while the store
+  // was healthy and every layer beneath it green. That message is reserved for a read that did not
+  // answer; a read that was still answering must not borrow it.
+  //
+  // The tail was NOT reproducible on a second cold attempt (0.51 s), so this is a latency spike
+  // rather than a systematic cost — which is an argument FOR the retry, not against it: a budget
+  // tight enough to clip an occasional spike converts one slow answer into a stated absence, and the
+  // lens then holds that absence until the next 30 s poll happens to land. 30 s is the same backstop
+  // `floorHealth` settled on after the same failure, and three attempts is `traversalSessions`'s
+  // answer to the same "losing the race once is terminal" defect. The lens honestly shows a spinner
+  // and "Reading arcs…" throughout, and only reaches `unreachable` when every attempt lost. Safe to
+  // repeat — a pure GET that writes nothing.
   arcs: (): Promise<ArcsPayload> =>
-    http('/api/arcs', { signal: AbortSignal.timeout(10_000) }),
+    retryRead(() => http<ArcsPayload>('/api/arcs', { signal: AbortSignal.timeout(30_000) }), {
+      attempts: 3,
+      backoffMs: (attempt) => attempt * 500,
+    }),
   // The factory-floor health reading behind the arc surface's strip (ADR-0314 D7 / ADR-0316 D5) —
   // drive's `loadFloorHealthReading`, the SAME composition `storytree factory health` prints. Same
   // advisory contract as arcs: a backend with no document store answers `{reading: null}`, which is

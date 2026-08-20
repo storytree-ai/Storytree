@@ -127,6 +127,24 @@ the packages, and the stories of a tier that no leg uses and no code path can ex
    - `stories/*/story.md` prose that describes a three-kind witness or a model tier.
    `uat-criterion-detail` and `uat-detail-studio` are NOT in this list — they implement D5–D7 and stay.
 
+   **Execution status (recorded 2026-08-20, so a later reader does not have to re-derive it).**
+   - **The three STORIES are RETIRED — done.** `model-uat-witness`, `model-judged-uat` and
+     `model-uat-pilot` carry `status: retired`, as do their eleven capability files, and their
+     eighteen UAT criteria are deleted with each recorded `superseded` in
+     `stories/uat-legacy-dispositions.json` (landed on the `uat-journey-surgery-arc`, which owns
+     ADR-0294's criteria pass). Two of the eighteen — `model-uat-pilot` legs 1 and 3 — carried claims
+     that SURVIVE, and their ledger rationales name where: the `uat-criterion` kind registration in the
+     Library kind tables, and the `criterion-detail-pointer` capability plus the live
+     `uat-criterion-detail` story's own leg 3.
+   - **The three PACKAGES are still MOUNTED — open.** `packages/model-judged-uat` and
+     `packages/model-uat-pilot` are imported by nothing outside their own organisms and are genuinely
+     dead. `packages/model-uat` is **not**: `packages/uat-criterion` imports `Criterion` and
+     `parseCriteria` from its root barrel, and `@storytree/uat-criterion` is consumed in turn by
+     `packages/library/src/knowledge.ts` and `apps/studio/src/types.ts`. So retiring that package needs
+     a prior step — lift the residual criterion parser out of the retired organism — which is exactly
+     why this decision made each retirement its own provable unit. Do not read a retired story as
+     evidence its package is gone.
+
 6. **Record what the sweep proved, so the premise is not silently re-litigated.** The 26-story result
    is the evidence for this decision and belongs with it, not only in the arc log: a corpus-wide,
    leg-by-leg, adversarially-briefed adjudication found no criterion that a rubric-bound model judge

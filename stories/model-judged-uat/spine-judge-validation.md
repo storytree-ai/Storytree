@@ -5,7 +5,10 @@ story: model-judged-uat
 arc: model-uat-promotion
 title: "The spine admits a model judgment only when shape, eligibility, tier, and hash are clean"
 outcome: "The spine admits a result only when shape, registered eligibility, criterion tier, fresh detail-hash anchor, and evidence bindings all hold — and builds a signable model-UAT payload the model itself cannot sign."
-status: proposed
+# RETIRED 2026-08-20 with its parent story (ADR-0247 D5, which names that story on its retirement
+# worklist by id). The code is NOT unmounted by this flip — ADR-0247 D5 makes each package retirement
+# its own provable unit, and that unit is still open.
+status: retired
 proof_mode: integration-test
 depends_on: [judge-result-shape]
 decisions: [209, 20, 192, 82]

@@ -1670,3 +1670,105 @@ describe('TerminalDock', () => {
     expect(fireEvent.contextMenu(pane)).toBe(false);
   });
 });
+
+// ── contract 12: HOST-OWNED CHROME (`traversal-panel-arc`, `traversal-panel-bottom-tab-host`) ─────
+//
+// ADR-0354 D1 makes the bottom panel a TAB HOST, so the FRAME moves out of this dock and up to the
+// host — a dock inside a dock would give the operator two chevrons and two drag handles for one
+// fold. The seam is ABSENT BY DEFAULT, and the first test here is the one that matters most: with
+// no `host`, nothing about this component moved. The rest prove the hosted shape does not degrade
+// the terminal, which is the clause ADR-0354 D1 is explicit about.
+describe('TerminalDock — contract 12, host-owned chrome', () => {
+  it('tdp-host-absent-is-unchanged: with no host the dock still draws its own aside, toggle and (when open) resize edge', async () => {
+    const { container } = render(<TerminalDock />);
+    const root = container.querySelector('.terminal-dock');
+
+    expect(root?.tagName).toBe('ASIDE');
+    expect(root?.classList.contains('terminal-dock-hosted')).toBe(false);
+    expect(container.querySelector('.terminal-dock-toggle')).not.toBeNull();
+    expect(screen.getByLabelText('expand terminal')).toBeTruthy();
+
+    await expand();
+    expect(screen.getByLabelText('resize terminal')).toBeTruthy();
+    // The overlay geometry is the dock's own while nobody hosts it.
+    expect((root as HTMLElement).style.position).toBe('absolute');
+  });
+
+  it('tdp-hosted-draws-no-second-frame: a hosted dock renders no toggle and no resize edge', () => {
+    const { container } = render(
+      <TerminalDock host={{ expanded: true, onRequestExpand: () => {} }} />,
+    );
+    const root = container.querySelector('.terminal-dock');
+
+    expect(root?.classList.contains('terminal-dock-hosted')).toBe(true);
+    expect(container.querySelector('.terminal-dock-toggle')).toBeNull();
+    expect(container.querySelector('.terminal-dock-resize')).toBeNull();
+    // It fills the pane it was given rather than overlaying the map itself.
+    expect((root as HTMLElement).style.position).toBe('');
+    expect((root as HTMLElement).style.height).toBe('100%');
+  });
+
+  it('tdp-hosted-reads-the-host-fold: the host’s expanded flag drives the terminal, not a second local one', async () => {
+    const { rerender } = render(
+      <TerminalDock host={{ expanded: false, onRequestExpand: () => {} }} />,
+    );
+    // Folded from the host's point of view: nothing spawned, exactly as a folded dock behaves.
+    expect(bridgeMock.spawn).not.toHaveBeenCalled();
+
+    await act(async () => {
+      rerender(<TerminalDock host={{ expanded: true, onRequestExpand: () => {} }} />);
+      await flush();
+    });
+
+    // Unfolding through the host spawns the first session — the terminal is not degraded by being
+    // hosted; it simply takes its fold state from one owner instead of two.
+    expect(bridgeMock.spawn).toHaveBeenCalledTimes(1);
+    expect(xtermMock.FakeTerminal.instances.length).toBe(1);
+  });
+
+  it('tdp-hosted-asks-the-host-to-reveal: a map Build seed calls onRequestExpand rather than unfolding itself', async () => {
+    const onRequestExpand = vi.fn();
+    const host = { expanded: false, onRequestExpand };
+    const { rerender } = render(<TerminalDock host={host} />);
+
+    await act(async () => {
+      rerender(
+        <TerminalDock host={host} seed={{ command: 'pnpm storytree node build x', token: 1 }} />,
+      );
+      await flush();
+    });
+
+    // The dock cannot unfold itself under a host — and it must not silently drop the request, or a
+    // seeded command would land in a pane the operator never sees.
+    expect(onRequestExpand).toHaveBeenCalledTimes(1);
+  });
+
+  it('tdp-hosted-keeps-the-tab-substrate: sessions, tabs and per-tab panes are untouched by hosting', async () => {
+    const { container } = render(
+      <TerminalDock host={{ expanded: true, onRequestExpand: () => {} }} />,
+    );
+    await flush();
+
+    // The "+" control, the per-tab rows and the panes are all still the dock's own.
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText('new terminal tab'));
+      await flush();
+    });
+
+    expect(bridgeMock.spawn).toHaveBeenCalledTimes(2);
+    expect(container.querySelectorAll('.terminal-dock-tab')).toHaveLength(2);
+    expect(container.querySelectorAll('.terminal-dock-body')).toHaveLength(2);
+  });
+
+  it('tdp-hosted-degrades-honestly: with no bridge, a hosted dock still says so — inside the pane', () => {
+    delete (window as unknown as { desktopTerminal?: typeof bridgeMock }).desktopTerminal;
+    const { container } = render(
+      <TerminalDock host={{ expanded: true, onRequestExpand: () => {} }} />,
+    );
+    const root = container.querySelector('.terminal-dock');
+
+    expect(root?.tagName).toBe('DIV');
+    expect(root?.classList.contains('terminal-dock-hosted')).toBe(true);
+    expect(screen.getByText('Terminal unavailable here')).toBeTruthy();
+  });
+});

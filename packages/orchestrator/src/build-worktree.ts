@@ -66,6 +66,11 @@ export interface CreateBuildWorktreeOptions {
   addDeps?: AddDepsGroup[];
   /** Injectable dep-adder (offline tests); defaults to spawning the real `pnpm add`. */
   addDepsRunner?: (root: string, groups: AddDepsGroup[]) => Promise<void>;
+  /**
+   * Housekeeping knobs for the stale-temp-tree sweep every mint runs
+   * ({@link sweepStaleBuildWorktrees}), or `false` to skip it. Defaults to a real, capped sweep.
+   */
+  sweepStale?: SweepStaleOptions | false;
 }
 
 /**
@@ -79,7 +84,14 @@ export async function createBuildWorktree(
   repoRoot: string,
   options: CreateBuildWorktreeOptions = {},
 ): Promise<BuildWorktree> {
-  const parent = await fs.mkdtemp(path.join(os.tmpdir(), "storytree-real-"));
+  // Housekeeping BEFORE the mint (see the sweep's own header): this mint clears the residue of the
+  // mints before it, so the temp farm is bounded by the sweep rather than by whether the last
+  // teardown won its race with a Windows file lock. Never throws, and capped so it cannot stall a
+  // build; whatever it leaves, the next mint takes.
+  if (options.sweepStale !== false) {
+    await sweepStaleBuildWorktrees(repoRoot, options.sweepStale ?? {});
+  }
+  const parent = await fs.mkdtemp(path.join(os.tmpdir(), BUILD_TEMP_PREFIX));
   const root = path.join(parent, "wt");
   await runGit(["worktree", "add", "--detach", root, "HEAD"], repoRoot);
   const headSha = (await runGit(["rev-parse", "HEAD"], root)).trim();
@@ -155,6 +167,11 @@ async function worktreeAdminDir(root: string): Promise<string | null> {
  *
  * Entries genuinely orphaned by a hard crash are left for the deliberate reaper (`storytree
  * worktree prune`), which is a maintenance verb run on a quiet repo — not a hot concurrent path.
+ *
+ * The TEMP TREE is a different matter, and this comment used to get it wrong: it handed the residue
+ * of a swallowed {@link removeDirBestEffort} to that same reaper, whose universe is filtered to
+ * `.claude/worktrees/` and could never see a path under the OS temp dir. That residue now goes to
+ * {@link sweepStaleBuildWorktrees}, which the next mint runs.
  */
 async function dropWorktree(args: {
   repoRoot: string;
@@ -683,8 +700,8 @@ export async function retryOnWindowsFileLock<T>(
  * `storytree-real-*` temp dirs. `fs.rm`'s own `maxRetries` handles the common case; the outer
  * {@link retryOnWindowsFileLock} covers a lock that outlives them. Best-effort by construction —
  * `force` swallows ENOENT and a final failure is swallowed, never thrown: teardown housekeeping
- * must never mask the build result (OS temp cleanup, and for a registration the deliberate
- * `storytree worktree prune` reaper, reclaim it).
+ * must never mask the build result — {@link sweepStaleBuildWorktrees} reclaims what it leaves at
+ * the next mint, and a leftover REGISTRATION is the deliberate `storytree worktree prune` reaper's.
  */
 async function removeDirBestEffort(dir: string): Promise<void> {
   try {
@@ -728,4 +745,143 @@ function runGh(args: string[], cwd: string): Promise<string> {
       );
     });
   });
+}
+
+// ── The stale build-worktree sweep (arc worktree-reaper-eligibility, increment 2) ─────────────
+//
+// WHY THIS EXISTS. Teardown is best-effort by construction: {@link removeDirBestEffort} swallows a
+// Windows lock it could not outlast, and the doc comment on {@link dropWorktree} used to hand that
+// residue to "the deliberate reaper (`storytree worktree prune`)". That delegation landed NOWHERE.
+// The reaper's universe is filtered by `underManaged` — the `.claude/worktrees/` prefix test — so a
+// parent under the OS temp dir was never eligible or ineligible, it was never LOOKED AT, and no
+// threshold ever aged it out. Measured on the dev box 2026-08-20: 241 stale `storytree-real-*`
+// trees, oldest 2026-07-04, holding 6.6 GB across 188,043 files — the same order as the
+// `.claude/worktrees/` farm the reaper was built for.
+//
+// The fix is ownership, not a wider reaper: whoever cuts a temp worktree owns removing it. Every
+// mint sweeps the residue of the mints before it, so the temp farm is BOUNDED by this function
+// rather than by whether the last teardown happened to win its race with a file lock.
+//
+// The prefix deliberately covers `storytree-real-chain-*` too — the drive real-chain fixtures cut
+// throwaway repos under the same prefix and have no teardown of their own (182 of the 241 measured
+// above). They are this repo's temp trees by the same argument.
+//
+// SAFETY. The three rules, in the order they bind:
+//   1. A tree git still TRACKS is never swept. A build in flight registers with `git worktree add`
+//      before anything else runs, so registration is the liveness signal this class does have — the
+//      `merged`/`clean`/`claimed` triad the reaper leans on is meaningless for a detached temp tree.
+//   2. Nothing inside the idle threshold is swept, so a concurrent build that has already torn its
+//      registration down, and a long test run holding a fixture repo, are both out of reach.
+//   3. Errors are swallowed and the work is CAPPED. A sweep that threw, or that spent minutes
+//      deleting a 1.4 GB tree, would turn housekeeping into a build failure or a build stall.
+//      Whatever the cap leaves is swept by the next mint.
+//
+// Fail-safe direction: an mtime an outside writer refreshed makes a tree read YOUNGER, so poisoning
+// this clock holds trees back rather than reaping live ones (ADR-0387's hazard, pointed the safe
+// way).
+
+/** The mkdtemp prefix every REAL-build worktree parent — and the drive fixtures — is cut under. */
+export const BUILD_TEMP_PREFIX = "storytree-real-";
+
+/** Idle threshold before a leftover temp tree may be swept (48 h — the reaper's own default). */
+export const STALE_BUILD_WORKTREE_MS = 48 * 60 * 60 * 1000;
+
+/** How many stale trees one sweep may remove. Bounded so a mint is never stalled by housekeeping. */
+export const SWEEP_CAP = 4;
+
+/** Knobs for {@link sweepStaleBuildWorktrees}; every one defaults to the real thing. */
+export interface SweepStaleOptions {
+  /** Where temp trees are cut (default `os.tmpdir()`). */
+  tmpDir?: string;
+  /** Clock, injectable so a test can age a tree without waiting 48 h. */
+  now?: number;
+  /** Idle threshold in ms (default {@link STALE_BUILD_WORKTREE_MS}). */
+  thresholdMs?: number;
+  /** Max removals this sweep (default {@link SWEEP_CAP}). */
+  cap?: number;
+  /** Absolute worktree paths git currently tracks; defaults to `git worktree list` in `repoRoot`. */
+  listRegistered?: () => Promise<string[]>;
+}
+
+/** What one sweep saw and did — enough for a caller to log it, never enough to fail a build on. */
+export interface SweepResult {
+  /** Temp trees carrying the prefix that were considered. */
+  readonly scanned: number;
+  /** Absolute paths removed (or attempted — removal is best-effort). */
+  readonly swept: readonly string[];
+  /** Considered but held: registered, too young, or past the cap. */
+  readonly held: number;
+}
+
+/**
+ * Sweep leftover `storytree-real-*` temp trees that git no longer tracks and nothing has touched
+ * for the idle threshold. Best-effort and never throws: a caller may `await` it on a hot path.
+ */
+export async function sweepStaleBuildWorktrees(
+  repoRoot: string,
+  options: SweepStaleOptions = {},
+): Promise<SweepResult> {
+  const tmpDir = options.tmpDir ?? os.tmpdir();
+  const now = options.now ?? Date.now();
+  const thresholdMs = options.thresholdMs ?? STALE_BUILD_WORKTREE_MS;
+  const cap = options.cap ?? SWEEP_CAP;
+  const listRegistered = options.listRegistered ?? (() => registeredWorktreePaths(repoRoot));
+
+  let entries: string[];
+  try {
+    entries = (await fs.readdir(tmpDir, { withFileTypes: true }))
+      .filter((e) => e.isDirectory() && e.name.startsWith(BUILD_TEMP_PREFIX))
+      .map((e) => path.join(tmpDir, e.name));
+  } catch {
+    // No temp dir, or unreadable — nothing to sweep, and never a reason to fail a build.
+    return { scanned: 0, swept: [], held: 0 };
+  }
+  if (entries.length === 0) return { scanned: 0, swept: [], held: 0 };
+
+  // Rule 1: anything git still tracks is out of reach, including the tree of a build in flight.
+  // A registration lives at `<parent>/wt`, so the parent is protected by its child's registration.
+  let tracked: Set<string>;
+  try {
+    tracked = new Set((await listRegistered()).map(normalizeSweepPath));
+  } catch {
+    // Could not establish liveness — hold everything. A sweep that cannot see registrations must
+    // never guess: reaping a live build's tree would destroy a run in flight.
+    return { scanned: entries.length, swept: [], held: entries.length };
+  }
+
+  const candidates: string[] = [];
+  for (const dir of entries) {
+    const key = normalizeSweepPath(dir);
+    if ([...tracked].some((t) => t === key || t.startsWith(`${key}${path.sep}`))) continue;
+    let mtimeMs: number;
+    try {
+      mtimeMs = (await fs.stat(dir)).mtimeMs;
+    } catch {
+      continue; // Vanished under us, or unreadable — leave it alone.
+    }
+    // Rule 2: inside the threshold is out of reach.
+    if (now - mtimeMs < thresholdMs) continue;
+    candidates.push(dir);
+  }
+
+  // Rule 3: capped. Oldest first, so the sweep always makes progress on the worst residue.
+  const swept = candidates.slice(0, Math.max(0, cap));
+  await Promise.all(swept.map((dir) => removeDirBestEffort(dir)));
+  return { scanned: entries.length, swept, held: entries.length - swept.length };
+}
+
+/** Absolute paths of every worktree git currently tracks for `repoRoot`. */
+async function registeredWorktreePaths(repoRoot: string): Promise<string[]> {
+  const out = await runGit(["worktree", "list", "--porcelain"], repoRoot);
+  return out
+    .split(/\r?\n/)
+    .filter((line) => line.startsWith("worktree "))
+    .map((line) => line.slice("worktree ".length).trim())
+    .filter((p) => p.length > 0);
+}
+
+/** Normalize for comparison: git prints forward slashes, and Windows is case-insensitive. */
+function normalizeSweepPath(p: string): string {
+  const resolved = path.resolve(p);
+  return process.platform === "win32" ? resolved.toLowerCase() : resolved;
 }

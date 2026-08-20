@@ -637,14 +637,21 @@ command quoted just above no longer applies either — kept as history.)*
    `timeoutMs` override, a single retry-once, or both, are all acceptable — the leaf chooses the
    minimal one that passes the contracts. Surfaced so the leaf does not over-build (no blanket raise of
    the shared 4s, which would risk hanging `/api/tree`).
-4. **`witness: model` is UNREACHABLE through the story schema — an owner fork, not an agent's call.**
-   *(Raised 2026-07-26 during the re-adjudication.)* `@storytree/model-uat`'s prose parser recognises
-   `(witness: model)` and its `Criterion` schema accepts it, but the story-side witness enum
-   (`UAT_TEST_CRITERION_WITNESSES = ["human","machine","either"]`) hard-throws on it, and
-   `proof-protocol`'s `UatWitness` is `z.enum(["human","machine"])`. So a model-judged witness cannot be
-   authored on a story leg today even where it might be the right rung. No leg of this story is tagged
-   `model`, and this re-adjudication does not decide the fork — it records it. Same call surfaced across
-   the sibling stories of the ADR-0209 D8 pass; for the owner to settle once and generally.
+4. **~~`witness: model` is UNREACHABLE through the story schema — an owner fork, not an agent's call.~~
+   CLOSED — the owner settled it, and the answer is that the story schema was RIGHT.** *(Raised
+   2026-07-26 during the re-adjudication; closed in place 2026-08-20, ADR-0139.)* The call asked the
+   owner to settle "once and generally" why `@storytree/model-uat`'s prose parser accepted
+   `(witness: model)` while the story-side enum (`UAT_TEST_CRITERION_WITNESSES`) and `proof-protocol`'s
+   `UatWitness` both refused it. **[ADR-0247](../../docs/decisions/0247-retire-the-model-uat-witness-tier-the-witness-split-is-human.md)
+   answered it on the very day it was raised** — owner-directed 2026-07-26, decision 1: the witness
+   split is **binary**, `human` | `machine`, with no `model` witness kind, no capability tier, no
+   eligibility registry and no escalation ladder. So the divergence resolves in favour of the two
+   schemas that refused it; the outlier was `@storytree/model-uat`'s parser, whose whole organism
+   ADR-0247 D5 puts on the retirement worklist (its story `model-uat-witness` retired 2026-08-20).
+   ADR-0295 later reopened *who* may witness a journey — the model that DROVE it — but explicitly
+   revives none of that machinery and still yields a `machine` outcome, so it does not reopen this.
+   **No agent decided anything here:** this records an owner decision that already existed and had
+   simply never been carried back onto the call it answered.
 5. **Legs 6 and 7 are `machine` with NO harness and NO bound gate — a real, recorded hole.**
    *(Raised 2026-07-26.)* Both assert the PRESENCE of a rendered thing (a map node for the just-authored
    story; a wisp for the just-taken claim) end-to-end across the dock → reload → render path and the

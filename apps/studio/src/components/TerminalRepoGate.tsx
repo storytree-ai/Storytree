@@ -22,7 +22,7 @@
 
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import { TerminalDock, type TerminalDockSeed } from './TerminalDock';
+import { TerminalDock, type TerminalDockHost, type TerminalDockSeed } from './TerminalDock';
 
 /** The `ready`/`onChanged` slice of the `desktopRepo` bridge this gate consumes (alongside the
  *  picker's `pick`/`get` on the same bridge). Read locally — see the LOCAL CAST note above. */
@@ -43,11 +43,16 @@ export interface TerminalRepoGateProps {
    *  TerminalDock's `headerRight` slot (the repo gear) once a repo is ready. The gate places it; it
    *  never interprets it. */
   repoControl?: ReactNode;
+  /** Forwarded VERBATIM to `TerminalDock`'s contract-12 host seam (`traversal-panel-bottom-tab-host`).
+   *  The gate does not interpret it — it neither folds nor unfolds anything itself; it only decides
+   *  whether a dock exists to be hosted. Absent by default, so a gate with no host is unchanged. */
+  host?: TerminalDockHost;
 }
 
 export function TerminalRepoGate({
   seed,
   repoControl,
+  host,
 }: TerminalRepoGateProps = {}): React.JSX.Element {
   const bridge = getDesktopRepoGateBridge();
   const [cwd, setCwd] = useState<string | null>(null);
@@ -72,7 +77,7 @@ export function TerminalRepoGate({
   if (!bridge) {
     // Studio-standalone: no desktop preload, no repo concept to gate on. Render the dock directly —
     // it has no `desktopTerminal` bridge either and shows its own honest disabled state.
-    return <TerminalDock {...(seed ? { seed } : {})} />;
+    return <TerminalDock {...(seed ? { seed } : {})} {...(host ? { host } : {})} />;
   }
 
   if (!cwd) {
@@ -94,6 +99,7 @@ export function TerminalRepoGate({
       key={cwd}
       {...(repoControl != null ? { headerRight: repoControl } : {})}
       {...(seed ? { seed } : {})}
+      {...(host ? { host } : {})}
     />
   );
 }

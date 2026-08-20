@@ -198,6 +198,33 @@ export interface TerminalDockProps {
   /** The tab-title debounce window (ms) — a TEST SEAM only, same discipline as `resizeDebounceMs`;
    *  product code never passes it (the default is TITLE_UPDATE_DEBOUNCE_MS). */
   titleDebounceMs?: number;
+  /**
+   * Contract 12 — HOST-OWNED CHROME (`traversal-panel-arc`, increment `traversal-panel-bottom-tab-host`).
+   *
+   * ABSENT BY DEFAULT, and that default is the whole point: with no `host` the dock renders its own
+   * `<aside>`, collapse toggle and drag-resize handle exactly as before, so every existing caller —
+   * and every existing contract test — sees a byte-identical dock. The `headerRight` slot above set
+   * this precedent; this is the same move, one level out.
+   *
+   * When PRESENT, the bottom panel is a TAB HOST (ADR-0354 D1): the terminal is one tab beside the
+   * context-traversal replay, so the FRAME is the host's — one border, one fold, one drag handle
+   * shared by both tabs rather than a dock nested inside a dock. This component then renders only
+   * its body row, reads the host's fold state instead of holding its own, and asks the host to
+   * unfold when a map Build seeds it.
+   *
+   * What does NOT change under a host: sessions, tabs, the pty bridge, the re-attach replay, the
+   * fit lifecycle and every debounce. The terminal behaves exactly as it does today (ADR-0354 D1
+   * adds a sibling and must not degrade the CLI) — only who draws the surrounding box moves.
+   */
+  host?: TerminalDockHost;
+}
+
+/** The frame contract a tab host offers the dock — see {@link TerminalDockProps.host}. */
+export interface TerminalDockHost {
+  /** The host's fold state. Replaces the dock's own `expanded` when a host is present. */
+  readonly expanded: boolean;
+  /** Ask the host to unfold — a map Build seed must still open the terminal (ADR-0137). */
+  readonly onRequestExpand: () => void;
 }
 
 /** One tab's imperative state — held in `recordsRef` (a `Map`, keyed by the tab's stable local id), NOT
@@ -244,10 +271,16 @@ export function TerminalDock({
   headerRight,
   resizeDebounceMs = RESIZE_FORWARD_DEBOUNCE_MS,
   titleDebounceMs = TITLE_UPDATE_DEBOUNCE_MS,
+  host,
 }: TerminalDockProps = {}): React.JSX.Element {
   const bridge = getDesktopTerminal();
 
-  const [expanded, setExpanded] = useState(false);
+  // Contract 12 — the fold state has ONE owner at a time. Un-hosted (the default) the dock owns it,
+  // as it always has. Hosted, the host owns it and this local state is simply never read: two
+  // sources of truth for one fold is how a tab switch and a chevron come to disagree about whether
+  // the terminal is open.
+  const [ownExpanded, setOwnExpanded] = useState(false);
+  const expanded = host ? host.expanded : ownExpanded;
   const [height, setHeight] = useState(DEFAULT_HEIGHT);
 
   // The session table: `tabIds` (state) is the ORDER or tabs — it drives render and the "tab N"/"close
@@ -287,7 +320,7 @@ export function TerminalDock({
   const seedTokenRef = useRef<number | null>(null);
 
   const toggleDock = useCallback((): void => {
-    setExpanded((e) => !e);
+    setOwnExpanded((e) => !e);
   }, []);
 
   /** Create a new tab — a fresh local id, an empty record, appended to the order, made active. The
@@ -748,10 +781,14 @@ export function TerminalDock({
     if (seedTokenRef.current === seed.token) return; // same token = no-op, even for the same command
     seedTokenRef.current = seed.token;
 
-    setExpanded(true);
+    // Contract 12 — a map Build must still OPEN the terminal. Un-hosted the dock unfolds itself;
+    // hosted, unfolding is the host's to do (it must also switch to the terminal tab, or the seeded
+    // command would land in a pane the operator cannot see).
+    if (host) host.onRequestExpand();
+    else setOwnExpanded(true);
     openSession(seed.command);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [seed?.token, seed?.command, bridge, openSession]);
+  }, [seed?.token, seed?.command, bridge, openSession, host]);
 
   // ADR-0189 — on dock UNMOUNT (never a plain fold/unfold or a tab switch), dispose every tab's
   // RENDERER resources only (xterm + fit) and clear the session table (so a stale bridge callback
@@ -847,8 +884,13 @@ export function TerminalDock({
 
   if (!bridge) {
     // Studio-standalone: no desktop preload. Never spawn, never hang, never crash the surrounding
-    // studio — an honest disabled state instead.
-    return (
+    // studio — an honest disabled state instead. Hosted, the same honesty renders INSIDE the host's
+    // tab rather than as its own bottom overlay (contract 12).
+    return host ? (
+      <div className="terminal-dock terminal-dock-hosted terminal-dock-disabled">
+        <div className="terminal-dock-unavailable">Terminal unavailable here</div>
+      </div>
+    ) : (
       <aside className="terminal-dock terminal-dock-disabled">
         <div className="terminal-dock-unavailable">Terminal unavailable here</div>
       </aside>
@@ -858,19 +900,30 @@ export function TerminalDock({
   return (
     <aside
       ref={asideRef}
-      className="terminal-dock"
+      // Contract 12 — hosted, the host draws the frame and this is a plain filling block inside its
+      // tab. Un-hosted (the default), the class list and the inline geometry are byte-identical to
+      // what they have always been.
+      className={host ? 'terminal-dock terminal-dock-hosted' : 'terminal-dock'}
       // position:absolute → the dock overlays the MAP FRAME (its positioned offsetParent,
-      // .world-frame), matching ChatDock's overlay geometry.
-      style={{
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: 6,
-        ...(expanded ? { height: `${height}px` } : {}),
-      }}
+      // .world-frame), matching ChatDock's overlay geometry. Hosted, the host owns that geometry
+      // (and the dragged height with it), so the dock simply fills the pane it was given.
+      style={
+        host
+          ? { height: '100%', minHeight: 0 }
+          : {
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 6,
+              ...(expanded ? { height: `${height}px` } : {}),
+            }
+      }
     >
-      {expanded && (
+      {/* The fold chevron and the drag handle are the FRAME's, so a host that draws the frame draws
+          them too — rendering a second pair inside the pane would give the operator two controls for
+          one fold. */}
+      {!host && expanded && (
         <div
           role="separator"
           aria-orientation="horizontal"
@@ -880,17 +933,19 @@ export function TerminalDock({
         />
       )}
 
-      <button
-        type="button"
-        className={`terminal-dock-toggle${expanded ? ' terminal-dock-toggle-expanded' : ''}`}
-        aria-expanded={expanded}
-        aria-label={expanded ? 'collapse terminal' : 'expand terminal'}
-        onClick={toggleDock}
-      >
-        <span className="terminal-dock-toggle-chevron" aria-hidden="true">
-          {expanded ? '▾' : '▴'}
-        </span>
-      </button>
+      {!host && (
+        <button
+          type="button"
+          className={`terminal-dock-toggle${expanded ? ' terminal-dock-toggle-expanded' : ''}`}
+          aria-expanded={expanded}
+          aria-label={expanded ? 'collapse terminal' : 'expand terminal'}
+          onClick={toggleDock}
+        >
+          <span className="terminal-dock-toggle-chevron" aria-hidden="true">
+            {expanded ? '▾' : '▴'}
+          </span>
+        </button>
+      )}
 
       {/* Contract 7 — an optional passive render slot in the dock's own header, top-right. A
           SIBLING of the toggle button (never nested inside it — no nested interactive controls

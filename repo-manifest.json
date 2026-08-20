@@ -358,6 +358,8 @@
       "apps/studio/src/components/TerminalDock.tsx": "multi-session-tabs",
       "apps/studio/src/components/TerminalRepoGate.tsx": "terminal-repo-gate",
       "apps/studio/src/components/RepoPicker.tsx": "repo-picker-panel",
+      "apps/studio/src/components/BottomDock.tsx": "studio",
+      "apps/studio/src/components/TraversalTab.tsx": "studio",
       "apps/studio/src/components/BuildSection.tsx": "map-build-seeds-terminal",
       "apps/studio/src/components/SemanticGrowthDemo.tsx": "semantic-growth-studio-demo",
       "apps/studio/src/components/SceneView.tsx": "studio-app-surface-adapter",
@@ -409,6 +411,7 @@
       "apps/studio/src/lib/stressLayout.ts": "library-overview",
       "apps/studio/src/lib/trailReveal.ts": "studio",
       "apps/studio/src/lib/worldSettings.ts": "studio",
+      "apps/studio/src/lib/traversalIndex.ts": "studio",
       "apps/studio/src/lib/worldStatus.ts": "studio",
 
       "$section_studio_shell": "apps/studio — the SPA shell, the Playwright/Vitest configs and the story-UAT spec.",
@@ -552,7 +555,6 @@
       "terminal-repo-picker": "hosted in desktop (apps/desktop) + studio (apps/studio)",
       "terminal-tabs": "hosted in studio (apps/studio)",
       "uat-detail-studio": "hosted in studio (apps/studio)",
-      "model-uat-pilot": "hosted in library (packages/library) — KIND_SPECS glue for uat-criterion; harness package is story-owned",
       "website-experience": "hosted in cli (packages/cli)",
       "wisp-as-story-claim": "hosted in agent (packages/agent) + drive-machinery (packages/drive) + notice-board (packages/notice-board) + studio (apps/studio)"
     }
