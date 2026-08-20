@@ -50,7 +50,6 @@ import {
   type KnowledgeDepthModel,
 } from '../lib/knowledgeDepth';
 import { TRAVERSAL_MAX_DRAWN_DEPTH } from '../lib/traversalDepth';
-import type { TraversalLane } from '../lib/traversalLanes';
 import type { TraversalOffer } from '../lib/traversalOffers';
 import {
   formatTokens,
@@ -85,16 +84,12 @@ const MIN_PICTURE_PX = 96;
 /** Hysteresis: release compact only with real room to spare, so the two states cannot flap. */
 const RELEASE_COMPACT_PX = 132;
 
-/** How many distinct hues the type palette holds before it wraps. Colour identifies TYPE. */
-const LANE_HUES = 6;
-
 interface Geometry {
   readonly width: number;
   readonly height: number;
   readonly axisBand: number;
   readonly offerBand: number;
   readonly depthRows: number;
-  readonly laneRows: number;
   readonly step: number;
   readonly spineY: number;
   readonly sx: number;
@@ -102,7 +97,6 @@ interface Geometry {
   readonly axisY: number;
   readonly x: (axisUnits: number) => number;
   readonly depthY: (depth: number) => number;
-  readonly laneY: (column: number) => number;
 }
 
 export function TraversalSpine({
@@ -126,7 +120,7 @@ export function TraversalSpine({
   knowledge?: KnowledgeDepthModel;
 }): React.JSX.Element {
   const model = useMemo(() => buildTraversalSpine(replay), [replay]);
-  const { scale, marks, edges, occupancy, lanes, depth, offers } = model;
+  const { scale, marks, edges, occupancy, depth, offers } = model;
 
   // The playhead lives in AXIS UNITS — one source of truth for "where are we", from which the clock
   // and the occupancy reading are both derived. Mirrored in a ref so the animation frame reads it
@@ -213,18 +207,13 @@ export function TraversalSpine({
         totalPx: scale.totalPx,
         hasOffers: offers.offers.length > 0,
         maxDepth: depth.maxDepth,
-        laneColumns: lanes.columnCount,
       }),
-    [box, scale.totalPx, offers.offers.length, depth.maxDepth, lanes.columnCount],
+    [box, scale.totalPx, offers.offers.length, depth.maxDepth],
   );
 
-  const nothingToDraw = marks.length === 0 && lanes.lanes.length === 0 && offers.offers.length === 0;
+  const nothingToDraw = marks.length === 0 && offers.offers.length === 0;
   const atMs = timeAt(scale, playPos);
   const observed = occupancyAt(occupancy, atMs);
-  const hueByType = useMemo(
-    () => new Map(lanes.agentTypes.map((type, index) => [type, index % LANE_HUES])),
-    [lanes.agentTypes],
-  );
 
   return (
     <div
@@ -268,11 +257,14 @@ export function TraversalSpine({
             {marks.length} mark{marks.length === 1 ? '' : 's'} · {scale.folds.length} fold
             {scale.folds.length === 1 ? '' : 's'} · axis {Math.round(scale.totalPx)}px
           </span>
+          <KnowledgeChip replay={replay} knowledge={knowledge} />
         </div>
 
         {nothingToDraw ? (
           <p className="small muted traversal-spine-empty" data-testid="traversal-spine-empty">
-            nothing plottable in this trace — no context visit, search, subagent lane or recorded offer.
+            {/* Lanes are no longer drawn (ADR-0393 D2), so a trace holding ONLY spawn events now has
+                nothing plottable and must say so with the others rather than render an empty axis. */}
+            nothing plottable in this trace — no context visit, search or recorded offer.
           </p>
         ) : (
           <div className="traversal-plot-body">
@@ -285,7 +277,7 @@ export function TraversalSpine({
                 role="presentation"
                 data-testid="traversal-row-labels"
               >
-                <RowLabels geometry={geometry} lanes={lanes.lanes} hasOffers={offers.offers.length > 0} />
+                <RowLabels geometry={geometry} hasOffers={offers.offers.length > 0} />
               </svg>
             </div>
 
@@ -302,19 +294,14 @@ export function TraversalSpine({
               >
                 <Axis geometry={geometry} scale={scale} />
 
-                {/* Lanes sit UNDER the parent traversal in paint order: a child is a row the parent's
-                    own spine runs above, never something drawn over it. */}
-                {lanes.lanes.map((lane) => (
-                  <Lane
-                    key={lane.edgeId}
-                    lane={lane}
-                    geometry={geometry}
-                    playPos={playPos}
-                    axisEnd={scale.totalPx}
-                    hue={hueByType.get(lane.agentType) ?? 0}
-                    compact={isCompact}
-                  />
-                ))}
+                {/* NO SUBAGENT LANES (ADR-0393 D2). The parent/child lane rows and their agent-type
+                    + model chips are not drawn: this picture is the ORCHESTRATOR'S OWN WALK. The
+                    owner's words at the LOOK — "having builder and tester subagents on there isn't
+                    valuable, we can think how and if to show these later". Read "later" precisely:
+                    the TELEMETRY is untouched. `spawn_handoff` / `result_return` still carry their
+                    optional `model` / `runtime` (PR #1272), the replay route still serves them, and
+                    `lib/traversalLanes.ts` still folds them — so whoever brings lanes back finds the
+                    data waiting rather than a capture to rebuild. Only the drawing stopped. */}
 
                 {offers.offers.map((offer) => (
                   <OfferFan
@@ -359,16 +346,15 @@ export function TraversalSpine({
           </div>
         )}
 
+        {/* THE FOOT IS THE LEGEND AND NOTHING ELSE (ADR-0393 D1). Six explanatory paragraphs used to
+            sit here — occupancy, lanes, session depth, knowledge depth, offers, unplaced events. The
+            owner deleted them at the LOOK, asked directly whether to collapse them behind a
+            disclosure instead and chose deletion. What they said is still ANSWERABLE, just not by
+            this panel: `storytree traversal show <sessionId>` states partial traces, unobserved
+            occupancy and the offer denominators, and the per-mark hover carries read strength and
+            knowledge depth. Do not restore them here without the owner. */}
         <div className="traversal-plot-foot">
           <Legend />
-          <div className="traversal-gaps">
-            <OccupancyNote model={model} />
-            <LaneNote model={model} />
-            <DepthNote model={model} />
-            <KnowledgeDepthNote replay={replay} knowledge={knowledge} />
-            <OfferNote model={model} />
-            <DeferredNote model={model} />
-          </div>
         </div>
       </div>
 
@@ -389,36 +375,88 @@ export function TraversalSpine({
  * keeps its floor and the plot scrolls instead. Squeezing eleven lane rows into 97px would make the
  * picture unreadable in order to preserve a container size nobody promised.
  */
+/**
+ * The knowledge-depth reading, as a COUNTS CHIP beside the mark and fold counts (ADR-0393 D1).
+ *
+ * It is here because the paragraph that carried it was deleted with the rest of the prose, and a
+ * measure landed the same morning would otherwise have no surface at all but a per-mark hover. It is
+ * NOT a restored note: it sits ABOVE the picture, on the line that already states counts, and it
+ * states counts.
+ *
+ * THE ANCHOR FIGURE TRAVELS WITH IT — that is the whole reason the chip is worth its width. `3/52`
+ * alone reads as an indictment of the session that was looked at. `3/52 on-chain` beside
+ * `44/1620 anchored` reads as what it is: a fact about how little of the corpus names any work.
+ *
+ * The three readings stay three (`lib/knowledgeDepth.ts`): an artifact NOTHING reaches is never
+ * rendered as a deep one, and an UNMEASURED corpus says so rather than reporting nothing reached.
+ */
+function KnowledgeChip({
+  replay,
+  knowledge,
+}: {
+  replay: TraversalReplayPayload;
+  knowledge?: KnowledgeDepthModel | undefined;
+}): React.JSX.Element | null {
+  if (!knowledge) return null;
+  if (knowledge.status !== 'measured') {
+    return (
+      <span className="traversal-axis-note small muted" data-testid="traversal-knowledge-chip">
+        knowledge not measured
+      </span>
+    );
+  }
+  const report = reportKnowledgeDepth(replay.events, knowledge);
+  if (report === null || report.visited === 0) return null;
+  const anchors = anchorSummary(knowledge);
+  return (
+    <span
+      className="traversal-axis-note small muted"
+      data-testid="traversal-knowledge-chip"
+      data-reached={report.reached}
+      data-visited={report.visited}
+      data-unreachable={report.unreachable}
+      data-absent={report.absent}
+      title={`${report.reached} of ${report.visited} artifacts read here sit on an authored chain from a work anchor${
+        report.reached > 0 ? `, deepest ${report.maxDepth}` : ''
+      }; ${report.unreachable} in the corpus with no chain reaching them — unmeasured, NOT deep; ${
+        report.absent
+      } not Library artifacts. ${anchors ?? ''}. Nothing enforces this join, so the two graphs can drift — a derived reading, never a guarantee.`}
+    >
+      knowledge {report.reached}/{report.visited} on-chain
+      {report.reached > 0 ? ` · deepest ${report.maxDepth}` : ''} · {knowledge.verdict.anchors}/
+      {knowledge.verdict.artifactsScanned} anchored
+    </span>
+  );
+}
+
 function computeGeometry({
   box,
   totalPx,
   hasOffers,
   maxDepth,
-  laneColumns,
 }: {
   box: { width: number; height: number };
   totalPx: number;
   hasOffers: boolean;
   maxDepth: number;
-  laneColumns: number;
 }): Geometry {
   const available = Math.max(240, box.width);
   const axisBand = box.height < 120 ? 20 : 26;
   const depthRows = Math.min(TRAVERSAL_MAX_DRAWN_DEPTH, maxDepth);
-  const laneRows = laneColumns;
 
   const height0 = Math.max(56, box.height);
   const offerBand = hasOffers ? Math.min(52, Math.max(14, (height0 - axisBand) * 0.24)) : 6;
   const body = height0 - axisBand - offerBand;
-  // 1 spine row + depth rows + a gutter before the lanes + lane rows.
-  const slots = 1 + depthRows + (laneRows > 0 ? laneRows + 0.6 : 0);
+  // 1 spine row + depth rows. The lane rows are GONE (ADR-0393 D2), and the vertical they used to
+  // take is the whole point of removing them: on a ten-lane trace they were 10 of 12 rows, so the
+  // orchestrator's own walk — the subject of the picture — was squeezed into a sixth of the height.
+  const slots = 1 + depthRows;
   const step = Math.max(11, Math.min(40, body / (slots + 0.7)));
 
   const contentHeight = offerBand + step * (slots + 0.7) + axisBand;
   const height = contentHeight > height0 ? Math.ceil(contentHeight) : height0;
 
   const spineY = offerBand + step * 0.55;
-  const laneTop = spineY + step * (depthRows + (laneRows > 0 ? 0.9 : 0));
 
   // "THE AXIS MAY STRETCH" (ADR-0354 D3), and this is where it does. The density-weighted budget is
   // computed in axis units; when a trace's whole walk is SHORTER than the panel is wide, the axis
@@ -433,7 +471,6 @@ function computeGeometry({
     axisBand,
     offerBand,
     depthRows,
-    laneRows,
     step,
     spineY,
     sx,
@@ -441,7 +478,6 @@ function computeGeometry({
     axisY: height - axisBand + 6,
     x: (axisUnits: number) => AXIS_HEAD + axisUnits * sx,
     depthY: (d: number) => spineY + step * Math.min(TRAVERSAL_MAX_DRAWN_DEPTH, Math.max(0, d)),
-    laneY: (column: number) => laneTop + step * (column + 0.5),
   };
 }
 
@@ -522,11 +558,9 @@ function Axis({
 /** The gutter: what each row IS, so the picture itself needs no in-band prose. */
 function RowLabels({
   geometry,
-  lanes,
   hasOffers,
 }: {
   geometry: Geometry;
-  lanes: readonly TraversalLane[];
   hasOffers: boolean;
 }): React.JSX.Element {
   const rows: { y: number; text: string; strong?: boolean }[] = [];
@@ -534,10 +568,6 @@ function RowLabels({
   rows.push({ y: geometry.spineY, text: 'spine', strong: true });
   for (let d = 1; d <= geometry.depthRows; d += 1) {
     rows.push({ y: geometry.depthY(d), text: `depth ${d}` });
-  }
-  for (let column = 0; column < geometry.laneRows; column += 1) {
-    const lane = lanes.find((item) => item.column === column);
-    rows.push({ y: geometry.laneY(column), text: lane ? lane.agentType : `lane ${column + 1}` });
   }
   rows.push({ y: geometry.height - geometry.axisBand + 15, text: 'time →' });
 
@@ -572,7 +602,8 @@ function RowLabels({
  * layout preference: ADR-0354 clause 5 keeps marks plain with no per-node gauge, so a drawn depth
  * readout on every circle is exactly what may not be added. The reading is identity metadata — it
  * joins the label an operator already hovers for, and rides `data-knowledge-depth` so it is
- * assertable. The distribution an operator actually reads is `KnowledgeDepthNote`, below the picture.
+ * assertable. The distribution an operator reads is the tab strip's meta chip (ADR-0393 D1 deleted
+ * every paragraph that used to sit below the picture).
  */
 function Mark({
   mark,
@@ -618,130 +649,25 @@ function Mark({
 }
 
 /**
- * One subagent lane, now a ROW rather than a column.
+ * The branches a visit PRINTED, fanning UPWARD from the spine now that depth hangs below it.
  *
- * ★ INSTANT IS DECIDED FROM THE TIMESTAMPS, NEVER FROM THE PIXELS, and that distinction is
- * load-bearing rather than pedantic — the composition reference found it before this was built.
- * `library-cli-0c7bf8` holds a lane whose handoff and return are ONE MILLISECOND apart but fall
- * either side of a folded idle span, so the density axis maps them 32px apart. Deciding from the
- * pixel gap would draw that millisecond as a 32px bar: a duration nobody recorded, produced by the
- * FOLD rather than by the trace. All 115 paired lanes on this machine span 0 or 1 ms, so this is the
- * ordinary case and not an edge case.
- */
-function Lane({
-  lane,
-  geometry,
-  playPos,
-  axisEnd,
-  hue,
-  compact,
-}: {
-  lane: TraversalLane;
-  geometry: Geometry;
-  playPos: number;
-  axisEnd: number;
-  hue: number;
-  compact: boolean;
-}): React.JSX.Element {
-  const y = geometry.laneY(lane.column);
-  const started = playPos >= lane.y0;
-  const open = lane.endMs === null;
-  const instant = lane.endMs !== null && lane.endMs - lane.startMs <= 1;
-  const x0 = geometry.x(lane.y0);
-  const x1 = instant ? x0 : geometry.x(open ? axisEnd : lane.y1);
-  const height = Math.max(6, geometry.step * 0.5);
-  // The band GROWS with the playhead — the design's "two branches advance at the same time only when
-  // work genuinely ran in parallel" made visible.
-  const grownX = Math.min(geometry.x(playPos), x1);
-  const returned = !open && playPos >= lane.y1;
-
-  // The chip carries the MODEL. On a crowded packing the agent TYPE drops — the row gutter already
-  // names it — because clause 7 is that every rendered lane names the model it ran on, and the type
-  // is redundant with the row label while the model is redundant with nothing.
-  const chipText = compact
-    ? lane.model ?? 'no model'
-    : `${lane.agentType} · ${lane.model ?? 'model not recorded'}`;
-  const chipW = chipText.length * 4.6 + 10;
-  const rightOf = x0 + Math.max(instant ? 0 : x1 - x0, height / 2) + 6;
-  const flip = (instant && !compact) || rightOf + chipW > geometry.width - 4;
-  const chipX = flip ? Math.max(2, x0 - height / 2 - 6 - chipW) : rightOf;
-
-  return (
-    <g
-      className={`traversal-lane hue-${hue}${started ? ' is-visible' : ''}${open ? ' is-open' : ''}`}
-      data-testid="traversal-lane"
-      data-agent-type={lane.agentType}
-      data-model={lane.model ?? 'not-recorded'}
-      data-open={open ? 'true' : 'false'}
-      data-instant={instant ? 'true' : 'false'}
-    >
-      <title>{laneLabel(lane, instant)}</title>
-      {instant ? (
-        // A zero/one-millisecond pair is a POINT, drawn as one. A band here would assert a duration
-        // the trace does not record.
-        <path
-          className="traversal-lane-body"
-          d={`M ${x0} ${y - height / 2} L ${x0 + height / 2} ${y} L ${x0} ${y + height / 2} L ${x0 - height / 2} ${y} Z`}
-        />
-      ) : (
-        <rect
-          className={`traversal-lane-body${open ? ' traversal-lane-open-cap' : ''}`}
-          x={x0 - 1.5}
-          y={y - height / 2}
-          width={Math.max(0, (started ? grownX : x0) - x0) + 3}
-          height={height}
-          rx={Math.min(6, height / 2)}
-        />
-      )}
-
-      <path
-        className={`traversal-lane-handoff${started ? ' is-visible' : ''}`}
-        data-testid="traversal-lane-handoff"
-        d={`M ${x0} ${geometry.spineY} L ${x0} ${y}`}
-      />
-      {/* Drawn only once the return was RECORDED and reached. An open lane has no return edge at all,
-          because closing it would draw a result nobody observed. */}
-      {!open && (
-        <path
-          className={`traversal-lane-return${returned ? ' is-visible' : ''}${lane.ok === false ? ' is-failed' : ''}`}
-          data-testid="traversal-lane-return"
-          d={`M ${x1} ${y} L ${x1} ${geometry.spineY}`}
-        />
-      )}
-
-      <g className="traversal-lane-chip" data-testid="traversal-lane-chip">
-        <rect className="traversal-lane-chip-bg" x={chipX} y={y - 6} width={chipW} height={12} rx={6} />
-        <text
-          className={`traversal-lane-chip-text${lane.model === null ? ' is-unrecorded' : ''}`}
-          x={chipX + 5}
-          y={y + 2.6}
-        >
-          {chipText}
-        </text>
-      </g>
-    </g>
-  );
-}
-
-/** The hover identity of a lane — including, in as many words, when its model was never recorded. */
-function laneLabel(lane: TraversalLane, instant: boolean): string {
-  const model = lane.model ?? 'model not recorded';
-  const span =
-    lane.endMs === null
-      ? 'no result_return recorded — the lane is open'
-      : instant
-        ? 'observed at one instant'
-        : `ran ${formatDuration(lane.endMs - lane.startMs)}${lane.ok === false ? ' · returned not-ok' : ''}`;
-  return `${lane.agentType} · ${model} · ${span} · ${lane.childSessionId}`;
-}
-
-/**
- * The branches a visit PRINTED, fanning UPWARD from the spine now that depth and lanes hang below it.
+ * UNOBSERVABLE CANDIDATES ARE NOT DRAWN (ADR-0393 D3). The owner named these specifically at the
+ * LOOK, offered against the other dotted element in the picture. They are the branches an agent was
+ * shown that no CLI read could ever have followed — an ADR file pointer — so they were drawn as faint
+ * dashed rays meaning "never available", never as a declined branch. Measured on the trace the owner
+ * looked at: 373 branches offered, 261 followable, so 112 of the rays were dashes for roads that do
+ * not exist. Removing them leaves the fan showing only what the agent could actually have taken.
  *
- * One ray per recorded candidate, in RECORDED ORDER (ADR-0318 D3 — the set is authoritative on which
- * ids were offered and never on their order, so sorting would draw a stable-looking sequence that is
- * not what the agent saw). Every ray is drawn: no top-N and no truncation, because a fan that quietly
- * showed some of an offer would be exactly the over-report the denominator exists to prevent.
+ * ADR-0312 D6's RAW `M of N` DENOMINATOR IS NOT REPEALED BY THIS, and the distinction matters: the
+ * fan still carries `offered N, observable M of N` on hover and on `data-offered`/`data-observable`,
+ * and no percentage or ratio is introduced anywhere. What narrowed is the DENOMINATOR'S SURFACE, from
+ * drawn-plus-stated to stated. A later change that drops the hover too WOULD repeal it.
+ *
+ * The rest of the rule stands. One ray per drawn candidate in RECORDED ORDER (ADR-0318 D3 — the set
+ * is authoritative on which ids were offered and never on their order, so sorting would draw a
+ * stable-looking sequence that is not what the agent saw), and no top-N and no truncation among the
+ * ones drawn: a fan that quietly showed SOME of the followable branches would be exactly the
+ * over-report the denominator exists to prevent.
  */
 function OfferFan({
   offer,
@@ -753,7 +679,10 @@ function OfferFan({
   visible: boolean;
 }): React.JSX.Element {
   const ox = geometry.x(offer.y);
-  const count = offer.candidates.length;
+  // The recorded order is preserved by FILTERING rather than re-indexing: `candidates` keeps its
+  // order, the unobservable entries drop out, and the survivors fan in the order the agent saw them.
+  const drawn = offer.candidates.filter((candidate) => candidate.status !== 'unobservable');
+  const count = drawn.length;
   const spread = Math.min(26, 5 + count * 1.6);
   const height = Math.max(10, geometry.offerBand - 12);
   return (
@@ -763,13 +692,16 @@ function OfferFan({
       data-offered={offer.offered}
       data-observable={offer.observable}
       data-followed={offer.followed}
+      data-drawn={count}
     >
+      {/* The raw denominator survives HERE (ADR-0312 D6) now that the offer note below the picture is
+          gone — `offered N, observable M of N`, never a ratio. */}
       <title>{`${offer.surfaceId} · ${offer.denominator}`}</title>
-      {offer.candidates.map((candidate, index) => {
+      {drawn.map((candidate, index) => {
         const ratio = count === 1 ? 0.5 : index / (count - 1);
         return (
           <line
-            key={`${offer.candidateSetId}#${index}`}
+            key={`${offer.candidateSetId}#${candidate.nodeId}#${index}`}
             className={`traversal-offer-ray status-${candidate.status}`}
             data-testid="traversal-offer-ray"
             data-status={candidate.status}
@@ -807,9 +739,9 @@ function OccupancyTrack({
     // The track keeps its column and goes DASHED rather than disappearing, so the picture's geometry
     // does not change shape depending on whether a session happened to be ingested. It draws no fill
     // at all — a flat zero bar would say the window was empty, which is a claim about the session
-    // rather than about the observation. The sentence naming the absence AND its remedy is too long
-    // for a 58px column, so it renders with the other honest gaps under the picture; see
-    // `OccupancyNote`.
+    // rather than about the observation. The sentence naming the absence AND its remedy no longer
+    // renders anywhere in the panel (ADR-0393 D1 deleted the notes); the caption below and the
+    // `aria-label` are what is left, and `storytree traversal show` states the remedy in full.
     return (
       <div className="traversal-occupancy is-unobserved">
         <span className="traversal-occupancy-cap">resident</span>
@@ -899,7 +831,7 @@ function Legend(): React.JSX.Element {
       </span>
       <span className="traversal-legend-key">⌕ search</span>
       <span className="traversal-legend-key">
-        offer fan — solid ray not followed, faint dashed unobservable
+        offer fan — one solid ray per branch the read could have taken
       </span>
       <span className="traversal-legend-key">
         <span className="traversal-legend-bar" aria-hidden="true">
@@ -913,210 +845,21 @@ function Legend(): React.JSX.Element {
   );
 }
 
-/**
- * The occupancy absence, named where the 58px track cannot name it — with its REMEDY.
- *
- * This is the ordinary case rather than an edge case: `residentInputTokens` is populated only by the
- * host-transcript adapter, which is NOT ambient (it needs an explicit `storytree traversal ingest`).
- * Saying only "none observed" in the column would leave an operator with no idea the reading is
- * obtainable at all, which is how an honest absence turns into an apparent dead end.
- */
-function OccupancyNote({
-  model,
-}: {
-  model: ReturnType<typeof buildTraversalSpine>;
-}): React.JSX.Element | null {
-  if (model.occupancy.observationCount > 0) return null;
-  return (
-    <p className="small muted traversal-occupancy-note" data-testid="traversal-occupancy-absent">
-      no occupancy series to plot — this session&rsquo;s context window was never observed, which is
-      not the same as an empty one. Reading one from this machine&rsquo;s host transcript is{' '}
-      <code>storytree traversal ingest {'<sessionId>'}</code>.
-    </p>
-  );
-}
-
-/**
- * Said out loud, because an empty row is the one thing here a reader could take for a claim: a lane
- * is drawn from the PARENT'S handoff/return pair, and the child's own steps live in its own trace
- * file under its own session id.
- */
-function LaneNote({ model }: { model: ReturnType<typeof buildTraversalSpine> }): React.JSX.Element | null {
-  if (model.lanes.lanes.length === 0) return null;
-  return (
-    <p className="small muted traversal-lane-note" data-testid="traversal-lane-note">
-      a lane is the span the parent observed, drawn from its own <code>spawn_handoff</code> /{' '}
-      <code>result_return</code> pair — each child&rsquo;s own steps are in its own trace and are not
-      read here.
-    </p>
-  );
-}
-
-/**
- * The trace-level denominator, in ADR-0312 D6's own raw form.
- *
- * NEVER A PERCENTAGE, and the reason is measured rather than stylistic: `doc:` refs are 36.7% of the
- * corpus's references and can never be followed by any read, so a follow RATE over the offered count
- * systematically over-reports how often a session stayed inside the asset graph.
- *
- * IT ALSO NAMES THE PATHWAY, which ADR-0360 D6 requires and the counts alone cannot convey: every
- * recorded surface is a `storytree` CLI surface, because `observeCliInvocation` is an allowlist over
- * argv and no hook observes a file read. An agent that greps to an artifact and opens the file emits
- * nothing at all, so these counts describe ONE pathway.
- */
-function OfferNote({ model }: { model: ReturnType<typeof buildTraversalSpine> }): React.JSX.Element | null {
-  const { offers } = model;
-  if (offers.offers.length === 0 && offers.unplaced === 0) return null;
-  return (
-    <p className="small muted traversal-offer-note" data-testid="traversal-offer-note">
-      {offers.offers.length} offer set{offers.offers.length === 1 ? '' : 's'} drawn — offered{' '}
-      {offers.totalOffered}, observable {offers.totalObservable} of {offers.totalOffered}, followed{' '}
-      {offers.totalFollowed} of {offers.totalObservable} observable. An unobservable branch is one no
-      read could ever follow, never a declined one
-      {offers.unplaced > 0
-        ? `; ${offers.unplaced} offer set${offers.unplaced === 1 ? '' : 's'} carried no readable instant and ${offers.unplaced === 1 ? 'is' : 'are'} not placed`
-        : ''}
-      . Offers are recorded only where a storytree read renders them — file reads are not observed —
-      so these counts cover one pathway, not all of this session&rsquo;s navigation.
-    </p>
-  );
-}
-
-/**
- * Whether depth was drawn, and — when it was not — that this is a SINGLE ROW by evidence.
- *
- * Rendered on purpose, because the flat case is the one a reader is most likely to misread as a bug.
- * The design's honesty clause makes it the correct picture wherever parent links are absent, and a
- * panel that just looked flat without saying why invites someone to "fix" it by inferring a tree.
- */
-function DepthNote({ model }: { model: ReturnType<typeof buildTraversalSpine> }): React.JSX.Element | null {
-  const { depth, marks } = model;
-  if (marks.length === 0) return null;
-  if (depth.maxDepth === 0) {
-    return (
-      <p className="small muted traversal-depth-note" data-testid="traversal-depth-note">
-        single row: no visit in this trace carries a <code>parentVisitId</code> resolving onto another
-        recorded visit, so there is no depth to draw
-        {depth.unresolvedParents > 0
-          ? ` (${depth.unresolvedParents} parent link${depth.unresolvedParents === 1 ? '' : 's'} named a visit this trace does not contain)`
-          : ''}
-        . Depth is never inferred from order, time or the node graph.
-      </p>
-    );
-  }
-  return (
-    <p className="small muted traversal-depth-note" data-testid="traversal-depth-note">
-      {depth.linkedVisits} visit{depth.linkedVisits === 1 ? '' : 's'} indented from a recorded{' '}
-      <code>parentVisitId</code>, {depth.maxDepth} level{depth.maxDepth === 1 ? '' : 's'} deep
-      {depth.maxDepth > TRAVERSAL_MAX_DRAWN_DEPTH ? ` (drawn to ${TRAVERSAL_MAX_DRAWN_DEPTH})` : ''}
-      {depth.unresolvedParents > 0
-        ? `; ${depth.unresolvedParents} link${depth.unresolvedParents === 1 ? '' : 's'} named a visit this trace does not contain and ${depth.unresolvedParents === 1 ? 'was' : 'were'} not indented`
-        : ''}
-      .
-    </p>
-  );
-}
-
-/**
- * KNOWLEDGE depth from the work (ADR-0363 D2) — the SECOND depth on this panel, and a different
- * quantity from its neighbour above.
- *
- * `DepthNote` reports SESSION-traversal depth: how deep in this one context walk a visit sat, from
- * `parentVisitId`. This reports how far the ARTIFACTS that were read sit from the actual work, over
- * the authored `standsOn` graph. The two are two axes on one picture and are deliberately rendered as
- * two sentences — one number claiming to be both would mean nothing in either system.
- *
- * WHAT IT IS FOR: in a healthy system an agent should not need to reach far from the work to find its
- * answer. A traversal whose reads skew deep says the near-work layer is under-serving.
- *
- * THREE THINGS IT REFUSES TO DO, each of which would report the opposite of that signal:
- *   • it never renders an UNREACHABLE artifact as a deep one — no chain reaches it, which is an
- *     absence of measurement rather than a measurement of distance;
- *   • it never files a non-artifact id (a story id, a retired artifact, a CLI token) under the
- *     corpus's unreachable count;
- *   • it never prints a per-trace figure without the corpus-wide anchor line beside it. A trace
- *     annotating 3 of its 306 reads is a fact about how thinly the corpus is anchored, not about the
- *     session — and measured on the live corpus, only 42 of 1,612 artifacts anchor the walk at all.
- *
- * And the accepted risk is on the surface rather than in a comment: nothing enforces this join, so
- * the work graph and the knowledge graph can drift and only this panel would notice.
- */
-function KnowledgeDepthNote({
-  replay,
-  knowledge,
-}: {
-  replay: TraversalReplayPayload;
-  knowledge?: KnowledgeDepthModel | undefined;
-}): React.JSX.Element | null {
-  if (!knowledge) return null;
-
-  if (knowledge.status !== 'measured') {
-    // NEVER "0 artifacts annotated": a corpus that was not read is not a corpus that reached nothing.
-    return (
-      <p className="small muted traversal-knowledge-note" data-testid="traversal-knowledge-note">
-        knowledge depth from the work: not measured — {knowledge.reason}.
-      </p>
-    );
-  }
-
-  const report = reportKnowledgeDepth(replay.events, knowledge);
-  if (report === null || report.visited === 0) return null;
-
-  const spread = report.buckets.map((bucket) => `${bucket.count} at ${bucket.depth}`).join(', ');
-  return (
-    <p className="small muted traversal-knowledge-note" data-testid="traversal-knowledge-note">
-      knowledge depth from the work (a different axis from the indentation above):{' '}
-      <strong>{report.reached}</strong> of {report.visited} artifact
-      {report.visited === 1 ? '' : 's'} read here sit on an authored chain from a work anchor
-      {report.reached > 0 ? `, deepest ${report.maxDepth} (${spread})` : ''}
-      {report.unreachable > 0
-        ? `; ${report.unreachable} ${report.unreachable === 1 ? 'is in the corpus with no chain reaching it' : 'are in the corpus with no chain reaching them'} — unmeasured, NOT deep`
-        : ''}
-      {report.absent > 0
-        ? `; ${report.absent} ${report.absent === 1 ? 'is not a Library artifact' : 'are not Library artifacts'} at all`
-        : ''}
-      . {anchorSummary(knowledge)}. Nothing enforces this join, so the work graph and the knowledge
-      graph can drift — read the depth as a derived reading of the corpus, never as a guarantee.
-    </p>
-  );
-}
-
-/**
- * The honest gaps left over — what the picture could NOT place, rather than what it declines to draw.
- * Counted rather than swallowed: a picture that quietly omits part of a trace invites the reading
- * that the trace contains only what was drawn.
- */
-function DeferredNote({ model }: { model: ReturnType<typeof buildTraversalSpine> }): React.JSX.Element | null {
-  const parts: string[] = [];
-  if (model.undatable > 0) {
-    parts.push(`${model.undatable} event${model.undatable === 1 ? '' : 's'} with no readable timestamp`);
-  }
-  if (model.lanes.undatable > 0) {
-    parts.push(`${model.lanes.undatable} lane event${model.lanes.undatable === 1 ? '' : 's'} with no readable timestamp`);
-  }
-  if (model.lanes.unpairedReturns > 0) {
-    parts.push(
-      `${model.lanes.unpairedReturns} result_return${model.lanes.unpairedReturns === 1 ? '' : 's'} naming an edge no handoff in this trace opened`,
-    );
-  }
-  if (model.lanes.openLanes > 0) {
-    parts.push(
-      `${model.lanes.openLanes} lane${model.lanes.openLanes === 1 ? '' : 's'} left open — no result_return was recorded, so ${model.lanes.openLanes === 1 ? 'it runs' : 'they run'} to the end of the axis rather than closing at a guess`,
-    );
-  }
-  if (model.depth.cyclicParents > 0) {
-    parts.push(
-      `${model.depth.cyclicParents} parent chain${model.depth.cyclicParents === 1 ? '' : 's'} closed on itself and ${model.depth.cyclicParents === 1 ? 'was' : 'were'} not indented`,
-    );
-  }
-  if (parts.length === 0) return null;
-
-  return (
-    <p className="small muted traversal-spine-deferred" data-testid="traversal-spine-deferred">
-      not placed: {parts.join('; ')}.
-    </p>
-  );
-}
+// THE SIX EXPLANATORY NOTES USED TO LIVE HERE (ADR-0393 D1) — the occupancy absence and its remedy,
+// the lane-span caveat, the session-depth reading, the knowledge-depth distribution, the offer
+// denominator, and the unplaced-events count. The owner deleted them at the LOOK, having been asked
+// directly whether to collapse them behind a disclosure instead. They are DELETED rather than hidden
+// behind a flag, because a hidden component is a component the next reader restores by accident.
+//
+// WHAT EACH OF THEM SAID IS STILL ANSWERABLE, and that is what makes the deletion affordable rather
+// than a loss of honesty. `storytree traversal show <sessionId>` states the partial-trace count, the
+// occupancy absence and its ingest remedy, and the raw `M of N` offer denominators; every fan still
+// carries its own denominator on hover; every mark still carries read strength and knowledge depth on
+// hover; and the knowledge-depth reading is re-homed as a compact chip in the tab strip's meta line.
+//
+// THE ONE THING THAT IS GENUINELY GONE FROM THE SURFACE is the at-a-glance PARTIAL warning. A trace
+// with unreadable lines now looks like a complete one until an operator asks the CLI. That cost was
+// put to the owner in those words and accepted.
 
 /**
  * A step along the axis. A descent or a return is an ELBOW near its target, not a full-width sweep:
