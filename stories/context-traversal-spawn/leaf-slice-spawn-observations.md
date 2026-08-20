@@ -94,8 +94,11 @@ the return so the lanes link by id alone.
 **A session id is also a FILENAME, so it must be legal as one.** The sink names one file per
 session, `<sessionId>.jsonl`, and it swallows a failed write (`catch { return false }`). A child id
 carrying a character that is illegal in a path segment on any supported platform therefore makes
-that child's lane silently unpersistable — no file, no events, no error — and story UAT leg 2
-unsatisfiable. This was MEASURED, not theorised: a `:`-separated child id returned `false` from
+that child's lane silently unpersistable — no file, no events, no error — and
+`build-spawn-capture`'s contract 1 `parent-and-child-lanes-land-in-their-own-files` unsatisfiable.
+*(This read "story UAT leg 2 unsatisfiable" until 2026-08-21, when that leg was deleted under
+ADR-0294 D2 as a restatement of the same contract; the hazard and the regression are unchanged, only
+the node named as its victim.)* This was MEASURED, not theorised: a `:`-separated child id returned `false` from
 `appendTraversalEvents` and left zero files on disk under Windows, while the same id without colons
 wrote normally. **The separator choice is free** — any character legal in a path segment on every
 supported platform (`-`, `_`, `__`) — provided the id stays derived from declared build identity
@@ -329,7 +332,10 @@ Files: `packages/context-traversal-spawn/src/observe-leaf-slices.ts` and
       proof the test is not reading the observer's output, not proof the code is safe.
     - Permanent regression case for a MEASURED defect — a `:`-separated child id made
       `appendTraversalEvents` return `false` and write nothing on Windows, silently, because the sink
-      swallows the failure — and it is what makes story UAT leg 2 satisfiable at all.
+      swallows the failure — and it is what makes `build-spawn-capture`'s contract 1
+      `parent-and-child-lanes-land-in-their-own-files` satisfiable at all. *(Named as "story UAT
+      leg 2" until 2026-08-21; that leg was deleted under ADR-0294 D2 as a restatement of this same
+      contract.)*
 12. **`a-single-declared-window-is-carried-verbatim-onto-the-child-context`**
     - **asserts —** CALL `observeLeafSlices(...)` over a slice whose `byModel` declares exactly ONE
       distinct positive `contextWindow`, then read `contextWindowCapacity` OFF the returned

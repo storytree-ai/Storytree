@@ -243,9 +243,9 @@
     },
     {
       "legacyTestId": "ci-cd#uat-1",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-21",
+      "rationale": "ADR-0294 D2 (2026-08-21): deleted because the CLAIM IS WITHDRAWN, not because the proof moved — there is no lower-tier node to name and citing one would be false. The leg exercised runGate / openLandingPr / pollPrChecks, the contributor-side landing dependency composition that ADR-0175 retired with the interactive in-app orchestrator (ADR-0174); packages/drive/src/landing-deps.ts and landing-deps.test.ts no longer exist, and apps/desktop/src/backend/landing-surface-retired.test.ts (`lsr-modules-deleted`) asserts they stay deleted. Measured 2026-08-21: the bound gate command exits non-zero with \"Could not find 'src/landing-deps.test.ts'\". proven=- at deletion; ordinal 1 burned, legs 2-7 keep their ordinals and reliability gate 1 is left in place unclaimed so no later gate is renumbered.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "ci-cd#uat-2",
@@ -357,39 +357,39 @@
     },
     {
       "legacyTestId": "context-traversal-spawn#uat-1",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-21",
+      "rationale": "ADR-0294 D2 (2026-08-21): deleted, not re-pointed. The linked parent/child lane triple is proven by the capability `leaf-slice-spawn-observations` — contracts `one-slice-emits-handoff-context-return-in-order`, `payload-token-count-is-always-absent`, `child-session-id-is-explicit-and-deterministic` and `zero-slices-emit-nothing-and-every-event-parses`, asserted in packages/context-traversal-spawn/src/observe-leaf-slices.test.ts, whose first test checks the exact spawn_handoff/model_context/result_return kind order, both edge events on the parent session, the model_context on the composed child session, spawn.edgeId === result.edgeId, and a strict ContextTraversalEvent.parse of every emitted event. Checked against those assertions, not file existence. proven=- at deletion; no signed verdict lost.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "context-traversal-spawn#uat-2",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-21",
+      "rationale": "ADR-0294 D2 (2026-08-21): deleted, not re-pointed. Both lanes surviving as separate on-disk per-session traces is proven by the capability `build-spawn-capture` contract `parent-and-child-lanes-land-in-their-own-files` (packages/context-traversal-spawn/src/build-capture.test.ts writes to a temp directory and reads the files back), and the path-legality precondition is proven by the capability `leaf-slice-spawn-observations` contract `child-session-id-is-a-legal-filename-segment`. proven=- at deletion; no signed verdict lost.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "context-traversal-spawn#uat-3",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-21",
+      "rationale": "ADR-0294 D2 (2026-08-21): deleted, not re-pointed. The metadata-only and no-side-effect claims are proven by the capability `build-spawn-capture` contracts `no-canary-text-ever-reaches-the-bytes`, `an-absent-parent-session-is-a-total-no-op`, `traversal-off-is-a-total-no-op`, `capture-never-throws-and-never-changes-an-exit-code` and `written-bytes-carry-no-field-outside-the-closed-vocabulary`, each a named test in packages/context-traversal-spawn/src/build-capture.test.ts covering the canary sweep, both opt-out runs, the unwritable target and the closed-vocabulary parse. proven=- at deletion.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "context-traversal-spawn#uat-4",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-21",
+      "rationale": "ADR-0294 D2 (2026-08-21): deleted, not re-pointed. The one-aggregate-observation and capacity-is-a-pass-through claims are proven by the capability `leaf-slice-spawn-observations` contracts `context-window-capacity-is-never-inferred`, `a-single-declared-window-is-carried-verbatim-onto-the-child-context`, `an-undeclared-ambiguous-or-non-positive-window-yields-absent-capacity`, `child-window-is-one-aggregate-observation` and `a-slice-without-usage-emits-no-model-context` (one test in observe-leaf-slices.test.ts carries the first four contract names in its own title); the on-disk halves by `build-spawn-capture` contracts 6 and 7; and the replay half by `multi-adapter-replay` contract `capacity-still-renders-honestly-unknown`. proven=- at deletion.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "context-traversal-spawn#uat-5",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-21",
+      "rationale": "ADR-0294 D2 (2026-08-21): deleted, not re-pointed. The coverage-declaration claim is proven by the capability `multi-adapter-replay` contracts `every-rendered-event-kind-is-supported-by-a-declared-adapter`, `both-adapter-declarations-render-supported-and-omitted`, `capacity-still-renders-honestly-unknown` and `a-corrupt-line-renders-a-partial-notice-without-throwing` in packages/context-traversal-spawn/src/replay-adapters.test.ts, plus the capability `leaf-slice-spawn-observations` contract `coverage-is-exhaustive-over-the-closed-feature-enum` for the exhaustive-over-the-closed-domain half. proven=- at deletion.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "context-traversal-spawn#uat-6",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-21",
+      "rationale": "ADR-0294 D2 (2026-08-21): deleted, not re-pointed. That a build's spawn boundary actually calls an installed observer is proven by the capability `leaf-slices-observer-activation` (story drive-machinery) in packages/drive/src/leaf-slices-activation.test.ts, whose five tests carry the leg's clauses one for one: `the-leaf-slices-observer-fires-with-the-canned-run-accounting` and `each-chained-node-reports-its-own-slices` (called once per built node with that node's own accounting), `no-live-author-override-leaves-the-observer-silent` (the omitted-option falsifier), `a-canned-live-author-cannot-move-a-verdict` (reachability buys no authority) and `the-canned-accounting-dies-in-the-injected-store` (never reaches events.usage_event or events.verdict). A capability in a sibling story is still one rung DOWN. proven=- at deletion.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "context-traversal-telemetry#uat-1",
@@ -531,9 +531,9 @@
     },
     {
       "legacyTestId": "desktop-build-mount#uat-2",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-21",
+      "rationale": "ADR-0294 D2 (2026-08-21): deleted, not re-pointed. The desktop build route is proven by the capability `desktop-build-route`, whose four contracts are asserted in apps/desktop/src/backend/build-route.test.ts by tests named for them and checked clause for clause: `dbr-post-dispatches-buildable-id` (buildable POST mints and runs over the REAL relocated worker, 202 + runId, GET poll reaching passed), `dbr-refuses-unbuildable-id` (404, worker never invoked), `dbr-typed-answers-and-fall-through` (409 concurrent, 405 wrong method, false fall-through) and `dbr-imports-worker-by-package-not-app` (imports by package name, nothing from apps/studio/server). Reliability gate 2 already runs that suite and already carries (covers: desktop-build-route). proven=- at deletion; ordinal 2 burned, leg 1 keeps ordinal 1.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "drive-machinery#uat-1",

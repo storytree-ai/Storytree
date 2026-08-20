@@ -109,6 +109,33 @@ the accumulated signal warrants.
 > judgment gap; a schema or generated-agent check can prove wiring but cannot honestly prove that
 > judgment.
 
+> **ADR-0294 D2 pass — 2026-08-21: legs 1, 2 and 3 were examined and KEPT. Nothing here was deleted,
+> and a later pass should not re-open them without new evidence.** They were candidates only because
+> their gate command names one package (`pnpm --filter @storytree/cli exec node --import tsx --test
+> src/friction.test.ts`) and `packages/cli` carries no story-rung `*.uat.test.ts`. Applying the
+> discriminator D2 actually requires — *read the suite; the binding is not the proof* — the premise
+> fails: **there is no capability rung signing this story rung, because no capability proves this
+> behaviour at all.** This story's three capabilities were authored against the `events.cite` design
+> ADR-0168 records as never built, and every one of their contracts is a would-be pointed at files
+> that do not exist: [`cite-event`](cite-event.md) contracts 1–3 name
+> `packages/core/src/cite.test.ts` and `packages/store/src/cite-store.test.ts` — both in packages
+> ADR-0068 DISSOLVED — and [`archive-with-reason`](archive-with-reason.md) is the same shape;
+> [`signal-synthesis`](signal-synthesis.md) is explicitly headed "Contracts (would-be)". Meanwhile
+> `packages/cli/src/friction.test.ts` is owned at STORY grain — `repo-manifest.json` →
+> `sourceOwnership.subtrees` maps `packages/cli/src/*friction*.ts` to `feedback-graduation`, not to
+> any capability. So these legs are the ONLY assertion of the landed friction seam anywhere in the
+> hierarchy; deleting them would delete the claim, not relocate it, which is exactly the case
+> ADR-0294 D2 reserves ("a criterion with no such node is NOT a duplicate").
+>
+> **What IS true, and is a D1 observation rather than a D2 one:** three legs each asserting one
+> command's behaviour read as a specification, not a walkthrough, and they already share one gate and
+> one test file. Folding them into a single journey step — file an item carrying a resolvable
+> reference, reinforce it with recurrence evidence, route it to `nothing` with a reason, then
+> reinforce the archived item — is the honest D1 shape. That is a re-authoring, not a deletion, and it
+> is deliberately NOT done here: this increment's mandate is D2, and merging criteria mints a new
+> criterion identity and would be the corpus's first use of the `(lineage: merged-from …)` tag. Left
+> for whoever executes D1 on this story.
+
 1. **Cite (reinforce)** _(witness: machine)_ _(proof-gate: feedback-graduation#gate-1)_: reinforce an _(criterion-id: uatc_a37bd1982dbf19f121cdfff0)_ _(revision-id: uatr1:90dc464b4a920069)_
    existing friction item with concrete recurrence evidence. **Success —** the command appends an
    attributable `{ branch, date, evidence }` entry to `reinforcedBy`, re-filing

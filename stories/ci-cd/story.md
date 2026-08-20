@@ -143,26 +143,69 @@ cycle" ADR-0058 §1 dissolves.
 
 ## UAT Test Criteria
 
-The adopted acceptance walkthrough keeps the original seven positions and their semantic roles, but
-binds each one to the exact standing seam that exists today. All seven are machine-observable:
+The adopted acceptance walkthrough keeps the surviving original positions and their semantic roles, but
+binds each one to the exact standing seam that exists today. All are machine-observable:
 none asks for an aesthetic or owner-value judgment, so none is labelled `human` merely because the
 faithful live run would be expensive or external (ADR-0106 / ADR-0184). The commands below prove the
 repository-owned mechanics and workflow posture. They do not pretend to audit GitHub branch-protection
-settings or to perform a fresh Cloud Run rollout.
+settings or to perform a fresh Cloud Run rollout. *(This paragraph read "the original seven positions"
+and "All seven" until 2026-08-21; leg 1 was deleted that day, so six remain and the list below starts
+at 2 — a burned ordinal is never reused and no survivor is ever renumbered.)*
+
+> **ADR-0294 D2 pass — 2026-08-21.** Two legs were examined against the discriminator D2 actually
+> requires — *read the suite; the binding is not the proof* — and what the reading found was not
+> duplication but a DEAD SUBJECT. Both `ci-cd#gate-1` and `ci-cd#gate-7` invoke
+> `pnpm --filter @storytree/drive exec node --import tsx --test src/landing-deps.test.ts`, and **that
+> file does not exist.** Measured on this tree: the command exits non-zero with
+> `Could not find 'src/landing-deps.test.ts'`. It is not missing by accident —
+> `apps/desktop/src/backend/landing-surface-retired.test.ts`, test `lsr-modules-deleted`, ASSERTS that
+> `packages/drive/src/landing-deps.ts` and `packages/drive/src/landing-deps.test.ts` stay deleted,
+> because [ADR-0175](../../docs/decisions/0175-repurpose-don-t-delete-the-in-app-orchestrator-chat-infrastr.md)
+> retired the landing surface along with the interactive in-app orchestrator (ADR-0174). The census
+> that scoped this pass reported `bound-but-gate-missing: 0`, and that stays true — every binding
+> resolves to a DECLARED gate. What it did not check, and what this pass did, is whether the declared
+> gate's COMMAND can run.
+>
+> - **Leg 1 ("Open non-draft") was DELETED, and its claim is WITHDRAWN rather than relocated.** It
+>   exercised `runGate` / `openLandingPr` / `pollPrChecks` — the contributor-side landing dependency
+>   composition — which ADR-0175 retired and which no longer exists in any package. There is no
+>   lower-tier node to name because there is no subject left to prove: a criterion asserting the
+>   behaviour of deleted code is satisfied by nothing and falsified by nothing. Its ordinal
+>   `ci-cd#uat-1` is BURNED and recorded `superseded` in
+>   [`stories/uat-legacy-dispositions.json`](../uat-legacy-dispositions.json). It carried `proven=–`
+>   (no signed verdict) and no `(detail:)` pointer, so nothing was destroyed or orphaned. **Reliability
+>   gate 1 STAYS** — gate ids are positional and deleting one silently re-points signed verdicts and
+>   surviving bindings — and is now both unclaimed AND un-runnable; its entry below says so in place of
+>   pretending otherwise.
+> - **Leg 7 was NOT deleted — it was NARROWED to the half that is still true.** Its first clause
+>   ("contributor-side landing code opens and observes a PR but cannot merge it") died with the same
+>   retirement and was vacuous, not merely unproven. Its second clause — that the repository-owned
+>   `gh pr merge` occurs EXACTLY ONCE and that occurrence is in `automerge`, downstream of `verify` —
+>   is live, is asserted by gate 7's own inline audit, and is proven NOWHERE else: gate 4 checks that
+>   the automerge seam CONTAINS `gh pr merge`, never that no SECOND merge door exists. Deleting the leg
+>   would have deleted a live claim to reach a number, which ADR-0294 D5 forbids. Gate 7's dead first
+>   half (the `landing-deps.test.ts` invocation) was removed from its command so the binding can
+>   actually run; its ordinal, its criterion identity and the gate itself are untouched. **Making it
+>   runnable immediately exposed a SECOND red the first was hiding** — the live half counted raw
+>   substring occurrences of `gh pr merge` in `ci.yml` and found FOUR, three of them in comments
+>   ABOUT the command. That is a defect in the assertion, not a finding about the workflow, and it
+>   was fixed in the same change by stripping whole-line YAML comments before counting. Recorded
+>   here because a short-circuiting `&&` is how a live assertion goes years without ever executing.
+>
+> **The other five legs were not D2 candidates and were not touched.** Legs 2, 3, 4 and 6 are bespoke
+> inline `node --input-type=module -e` audits of `.github/workflows/ci.yml`,
+> `.github/workflows/deploy-studio.yml` and the `GATE_PLAN` literal — repository-owned evidence no
+> capability test asserts. Leg 5 is a compound command: a focused notice-board suite AND an inline
+> workflow-wiring audit, so the capability rung proves only half of it.
 
 **Goal —** A contributor finishes a green, studio-affecting unit and hands it to the repository-owned
-landing path; that path opens a ready PR, proves the merge candidate, lands only after green, clears
-the branch's coordination claim, and dispatches the keyless Studio deployment.
+landing path; that path proves the merge candidate, lands only after green, clears
+the branch's coordination claim, and dispatches the keyless Studio deployment. *(The goal read "…
+that path opens a ready PR, proves the merge candidate …" until 2026-08-21. The repository no longer
+owns any PR-OPENING code — ADR-0175 retired it — so that clause named a step this story cannot
+witness. Opening the PR is now the session's own ceremony, not a repository seam.)*
 
-1. **Open non-draft.** _(witness: machine)_ _(proof-gate: ci-cd#gate-1)_ Exercise the real landing _(criterion-id: uatc_0cd3b083f869648d3517ecec)_ _(revision-id: uatr1:2c028fda14d0f5bc)_
-   dependency composition's three independent surfaces in the required procedure: observe
-   `runGate`, proceed to `openLandingPr` only after that result is green, then use `pollPrChecks`.
-   **Success —** `runGate` maps the local gate's real exit code without rewriting red; the PR-opening
-   surface commits and pushes the branch, invokes `gh pr create` without `--draft`, returns the PR
-   URL, and stops its own command sequence on a failing commit/push/create step; the polling surface
-   classifies the `verify` rollup without ever invoking `gh pr merge`. The composition exposes these
-   tools independently: gate-before-PR is the required caller procedure, not a state machine that
-   makes `openLandingPr` unreachable after a red gate.
+
 2. **Prove the merge candidate.** _(witness: machine)_ _(proof-gate: ci-cd#gate-2)_ Audit the real _(criterion-id: uatc_012819fb72fb3003e1873509)_ _(revision-id: uatr1:102ad02d7c173346)_
    `verify` job definition. **Success —** PRs into `main` use checkout's merge candidate and the job
    retains the collision/merged-branch guards, manifest/boundary/generated-view/web checks, conservative
@@ -187,22 +230,35 @@ the branch's coordination claim, and dispatches the keyless Studio deployment.
    loudly dispatches `deploy-studio.yml` on `main` for the declared Studio-affecting path set, and the
    deploy workflow retains keyless WIF, Cloud Build with a short-SHA tag, the full runtime-SA/IAP/env
    posture, serialized rollouts, and the newest-created-equals-newest-ready smoke assertion.
-7. **The repository-owned path has no unproven merge door.** _(witness: machine)_ _(criterion-id: uatc_411c12c77343632e71b22770)_ _(revision-id: uatr1:a18801a48f50864c)_
-   _(proof-gate: ci-cd#gate-7)_ Audit the landing seam together with the workflow's only merge command.
-   **Success —** contributor-side landing code opens and observes a PR but cannot merge it; the sole
-   repository-owned `gh pr merge` occurrence is in `automerge`, which is downstream of `verify`.
-   This proves the in-repo rail; GitHub administrator settings remain an external operational control,
-   not a fact this repository can honestly attest.
+7. **The repository-owned path has no unproven merge door.** _(witness: machine)_ _(criterion-id: uatc_411c12c77343632e71b22770)_ _(revision-id: uatr1:c73722a2587b8c0e)_ _(previous-revision-id: uatr1:a18801a48f50864c)_
+   _(proof-gate: ci-cd#gate-7)_ Audit the workflow's only merge command. **Success —** the
+   repository-owned `gh pr merge` occurrence count in `.github/workflows/ci.yml` is EXACTLY ONE, that
+   one is in `automerge`, and `automerge` still declares `needs: verify` — so no second merge door can
+   be added anywhere in the repository-owned path without failing this leg. This proves the in-repo
+   rail; GitHub administrator settings remain an external operational control, not a fact this
+   repository can honestly attest.
 
 ## Reliability Gates
 
-1. **The ready-PR landing seam is green** _(gate: observe)_
+1. **~~The ready-PR landing seam is green~~ — DEAD COMMAND, kept only so no later gate is renumbered**
+   _(gate: observe)_
    `pnpm --filter @storytree/drive exec node --import tsx --test src/landing-deps.test.ts`.
-   This dedicated integration file proves the independent surfaces: real gate exit-code mapping; the
-   PR-opening call's internal commit → push → non-draft PR sequence and fail-closed step exits; PR URL
-   parsing; and non-blocking `verify` rollup classification. It does not claim stateful coupling
-   between `runGate` and `openLandingPr`; invoking them in gate-before-PR order is the required
-   landing procedure.
+   **This command CANNOT RUN and must not be believed.** Measured 2026-08-21: it exits non-zero with
+   `Could not find 'src/landing-deps.test.ts'`, because
+   [ADR-0175](../../docs/decisions/0175-repurpose-don-t-delete-the-in-app-orchestrator-chat-infrastr.md)
+   retired the contributor-side landing surface with the interactive in-app orchestrator (ADR-0174) and
+   `apps/desktop/src/backend/landing-surface-retired.test.ts` (`lsr-modules-deleted`) now ASSERTS that
+   `packages/drive/src/landing-deps.ts` and `landing-deps.test.ts` stay deleted. Its criterion (story
+   UAT leg 1) was deleted on 2026-08-21 under ADR-0294 D2 as a withdrawn claim, and this gate is now
+   UNCLAIMED. It is left in place — and left un-repaired — for one reason only: `reliabilityGateId`
+   mints `<story>#gate-<n>` from POSITION, so removing it would renumber gates 2–7 and silently
+   re-point every already-signed verdict and every surviving `(proof-gate:)` binding onto a different
+   gate, with nothing reporting the change. *(It previously read "This dedicated integration file
+   proves the independent surfaces: real gate exit-code mapping; the PR-opening call's internal
+   commit → push → non-draft PR sequence and fail-closed step exits; PR URL parsing; and non-blocking
+   `verify` rollup classification." Every one of those surfaces is gone.)* **Do not mint a replacement
+   gate here** (ADR-0097 §2): if the repository ever grows a new repository-owned landing seam, that
+   seam earns proof at its own capability first.
 2. **The verify workflow keeps its hard merge-candidate floor** _(gate: observe)_
    `node --input-type=module -e "import fs from 'node:fs';const c=fs.readFileSync('.github/workflows/ci.yml','utf8');for(const s of ['pull_request:','branches: [main]','uses: actions/checkout@v6','ADR number collision (open PRs)','Merged-branch guard (a branch dies on merge)','run: pnpm check:boundaries','run: pnpm check:mirror-conformance','run: pnpm check:web-grounding','run: pnpm check:web-engine','Affected scope (PRs only)','- name: Typecheck','- name: Test','run: pnpm -r build','run: pnpm check:guidance','run: pnpm check:agents','needs: verify'])if(!c.includes(s))throw new Error('missing verify seam: '+s)"`.
    The command reads the landed workflow itself and fails on removal of any named standing seam. The
@@ -233,9 +289,24 @@ the branch's coordination claim, and dispatches the keyless Studio deployment.
    `node --input-type=module -e "import fs from 'node:fs';const c=fs.readFileSync('.github/workflows/ci.yml','utf8'),d=fs.readFileSync('.github/workflows/deploy-studio.yml','utf8');for(const s of ['actions: write','gh workflow run deploy-studio.yml --ref main','apps/studio/','packages/','docs/','stories/'])if(!c.includes(s))throw new Error('deploy dispatch drifted: '+s);for(const s of ['workflow_dispatch:','cancel-in-progress: false','google-github-actions/auth@v3','storytree-studio-deployer@','gcloud builds submit','git rev-parse --short HEAD','gcloud run deploy','--service-account','--set-env-vars','--no-allow-unauthenticated --iap','latestReadyRevisionName','latestCreatedRevisionName'])if(!d.includes(s))throw new Error('deploy posture drifted: '+s)"`.
    This is a standing workflow/posture proof, not a fabricated fresh deployment.
 7. **Only verified CI owns the merge command** _(gate: observe)_
-   `pnpm --filter @storytree/drive exec node --import tsx --test src/landing-deps.test.ts && node --input-type=module -e "import fs from 'node:fs';const c=fs.readFileSync('.github/workflows/ci.yml','utf8');if((c.match(/gh pr merge/g)||[]).length!==1)throw new Error('workflow merge-command count drifted');if(!c.includes('needs: verify'))throw new Error('automerge lost verify dependency')"`.
+   `node --input-type=module -e "import fs from 'node:fs';const code=fs.readFileSync('.github/workflows/ci.yml','utf8').replace(/^[^\n\S]*#.*$/gm,'');if((code.match(/gh pr merge/g)||[]).length!==1)throw new Error('repository-owned merge-command count drifted');if(!code.includes('needs: verify'))throw new Error('automerge lost verify dependency')"`.
    This deliberately proves only the repository-owned path; external branch-policy configuration is
-   a residual live control.
+   a residual live control. **The command was REPAIRED TWICE on 2026-08-21, and the second repair
+   uncovered a red that the first was hiding.**
+   (1) It opened
+   `pnpm --filter @storytree/drive exec node --import tsx --test src/landing-deps.test.ts && …`, and
+   that file has not existed since ADR-0175 retired the landing surface, so the whole gate exited
+   non-zero on `Could not find 'src/landing-deps.test.ts'` before its live half ever ran.
+   (2) With the dead half removed, the live half went RED on its first honest execution: the raw
+   substring count of `gh pr merge` in `ci.yml` is **four**, not one — line 316 is the real command,
+   and lines 34, 303 and 325 are COMMENTS discussing it. The assertion was counting prose. It now
+   strips whole-line YAML comments before counting, the same move
+   `apps/desktop/src/backend/landing-surface-retired.test.ts` already makes with its `code()` helper
+   for exactly this reason ("a PROSE mention … never counts as live wiring"). Verified on this tree:
+   4 raw occurrences, 1 after stripping, and `needs: verify` still present. The CLAIM is unchanged —
+   exactly one repository-owned merge command, in `automerge`, downstream of `verify`. Both are
+   REPAIRS of a binding that could not honestly run, not a new gate (ADR-0097 §2): the gate's
+   ordinal, its kind and its criterion are untouched.
 
 ## Open modeling calls (for the owner)
 
