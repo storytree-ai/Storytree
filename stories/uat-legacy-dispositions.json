@@ -585,15 +585,15 @@
     },
     {
       "legacyTestId": "embedded-terminal#uat-2",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-20",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-20), the D4 unbound-machine-leg pass: it restated proof that already exists one rung down, and named that node in its own success clause. `uatc_d19150c1c780f2bdd9e556be` (\"the pty lifecycle is honest over the whole spawn → I/O → resize → dispose cycle\") is proven by the capability `pty-session-manager`, at `apps/desktop/src/backend/pty-session-manager.test.ts` — `psm-spawns-and-routes-data` (create spawns via the injected port and routes pty output to the session sink), `psm-forwards-input-and-resize`, `psm-disposes-and-tears-down`, `psm-isolates-multiple-sessions` (concurrent sessions targeted independently) and `psm-fails-closed-on-unknown-session` (write/resize/dispose on an unknown or disposed id is a typed no-op, never a throw). Checked against that test file's ACTUAL assertions, not its file existence (ADR-0294 D2's honesty wall). The ordinal is BURNED, not reused, so this positional key denotes no other criterion. No `uat-criterion` detail artifact was orphaned — this leg carried no `(detail:` pointer. The leg's `(witness:)` tag was line-broken across two lines, so `parseUatTestCriteria` read it as the undecided `either` rather than the authored `machine` — one of only four such legs in the corpus, all four in this story cluster.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "embedded-terminal#uat-3",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-20",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-20), the D4 unbound-machine-leg pass: it restated proof that already exists one rung down, and named that node in its own success clause. `uatc_624d374c52bba0e2bd7ce5d7` (\"the renderer terminal dock wires to the bridge and degrades honestly\") is proven by the capability `terminal-dock-panel`, at `apps/studio/src/components/TerminalDock.test.tsx` — `tdp-spawns-on-open-and-writes-data`, `tdp-forwards-input-to-bridge`, `tdp-resizes-with-the-dock`, `tdp-toggles-visibility-keeping-terminal-mounted` and `tdp-degrades-when-bridge-absent` (an absent bridge renders an honest disabled state, never spawns or hangs). Checked against that test file's ACTUAL assertions, not its file existence (ADR-0294 D2's honesty wall). The ordinal is BURNED, not reused, so this positional key denotes no other criterion. No `uat-criterion` detail artifact was orphaned — this leg carried no `(detail:` pointer.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "embedded-terminal#uat-4",
@@ -813,21 +813,21 @@
     },
     {
       "legacyTestId": "map-terminal-build#uat-1",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-20",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-20), the D4 unbound-machine-leg pass: it restated proof that already exists one rung down, and named that node in its own success clause. `uatc_b07259986f069bd596907ee9` (\"the Build command composes correctly for the unit's scope\") is proven by the capability `compose-build-command`, at `apps/studio/src/lib/buildCommand.test.ts` — `cbc-composes-story-real-build`, `cbc-composes-node-real-build` and `cbc-embeds-the-unit-id-verbatim` (the CLICKED unit id is interpolated, not a hardcoded stand-in). Checked against that test file's ACTUAL assertions, not its file existence (ADR-0294 D2's honesty wall). The ordinal is BURNED, not reused, so this positional key denotes no other criterion. No `uat-criterion` detail artifact was orphaned — this leg carried no `(detail:` pointer.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "map-terminal-build#uat-2",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-20",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-20), the D4 unbound-machine-leg pass: it restated proof that already exists one rung down, and named that node in its own success clause. `uatc_a70068a45105d3afc6f8255a` (\"the terminal dock accepts the seed and pre-fills it without running it\") is proven by the capability `seed-opens-new-tab`, which this story CONSUMES from `terminal-tabs` (originally this story's own `terminal-dock-seed`, superseded by the ADR-0186 re-decision), at `apps/studio/src/components/TerminalDock.test.tsx` — `son-seed-opens-a-fresh-tab`, `son-prefills-without-trailing-newline`, `son-pre-spawn-seed-writes-on-resolve`, `son-token-bump-opens-another-fresh-tab` and `son-absent-seed-is-a-no-op`. Checked against that test file's ACTUAL assertions, not its file existence (ADR-0294 D2's honesty wall). The ordinal is BURNED, not reused, so this positional key denotes no other criterion. No `uat-criterion` detail artifact was orphaned — this leg carried no `(detail:` pointer.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "map-terminal-build#uat-3",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-20",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-20), the D4 unbound-machine-leg pass: it restated proof that already exists one rung down, and named that node in its own success clause. `uatc_130790b19621b3789ac8e97e` (\"on the desktop, the Build button seeds the terminal instead of dispatching in-app\") is proven by the capability `map-build-seeds-terminal`, at `apps/studio/src/components/BuildSection.test.tsx` — `mbt-desktop-build-seeds-not-dispatches` (bridge present plus an `onSeedTerminal` callback: a Build click seeds and SUPPRESSES the POST), `mbt-seeds-scoped-command`, `mbt-without-bridge-dispatches-as-today` and `mbt-adopt-path-unaffected`. Checked against that test file's ACTUAL assertions, not its file existence (ADR-0294 D2's honesty wall). The ordinal is BURNED, not reused, so this positional key denotes no other criterion. No `uat-criterion` detail artifact was orphaned — this leg carried no `(detail:` pointer. The leg's `(witness:)` tag was line-broken across two lines, so `parseUatTestCriteria` read it as the undecided `either` rather than the authored `machine` — one of only four such legs in the corpus, all four in this story cluster.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "map-terminal-build#uat-4",
@@ -837,9 +837,9 @@
     },
     {
       "legacyTestId": "map-terminal-build#uat-5",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-20",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-20), the D4 unbound-machine-leg pass: it restated proof that already exists one rung down, and named that node in its own success clause. `uatc_1a746f62e0b216cf0850e273` (\"where the terminal is absent, clicking Build is unchanged\") is proven by the capability `map-build-seeds-terminal`, at `apps/studio/src/components/BuildSection.test.tsx` — `mbt-without-bridge-dispatches-as-today` (no desktop bridge: a Build click POSTs `api.build` as today and never seeds). The leg's own text already said so, calling itself \"the same assertion leg 3 already carries … not a second obligation\", which made it a restatement of a restatement — deleted alongside the leg it restated. Checked against that test file's ACTUAL assertions, not its file existence (ADR-0294 D2's honesty wall). The ordinal is BURNED, not reused, so this positional key denotes no other criterion. No `uat-criterion` detail artifact was orphaned — this leg carried no `(detail:` pointer.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "map-terminal-build#uat-6",
@@ -1353,15 +1353,15 @@
     },
     {
       "legacyTestId": "terminal-repo-picker#uat-1",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-20",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-20), the D4 unbound-machine-leg pass: it restated proof that already exists one rung down, and named that node in its own success clause. `uatc_0d1b120243f0c67745b1b371` (\"the repo selection lifecycle is honest over validate → persist → resolve\") is proven by the capability `repo-selection`, at `apps/desktop/src/backend/repo-selection.test.ts`, whose eleven `node:test` cases assert each of its five clauses: a valid git dir is accepted and persisted; a missing path, a non-directory and a non-git directory are each rejected with a typed reason and never persisted; `select` never throws on a bad path; `current()` reads the persisted selection back and returns null when nothing was persisted; and `resolveCwd(fallback)` returns the selected directory when valid, else the fallback, including when a previously-valid selection has gone away. NOTE: the built tests do NOT carry the `rsel-*` contract ids the capability spec declares, so this citation names the assertions rather than the spec — a citation trusting the spec alone would have named tests that do not exist. Checked against that test file's ACTUAL assertions, not its file existence (ADR-0294 D2's honesty wall). The ordinal is BURNED, not reused, so this positional key denotes no other criterion. No `uat-criterion` detail artifact was orphaned — this leg carried no `(detail:` pointer.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "terminal-repo-picker#uat-2",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-20",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-20), the D4 unbound-machine-leg pass: it restated proof that already exists one rung down, and named that node in its own success clause. `uatc_3559ea6c62ac371f65e8a886` (\"the renderer picker reflects, picks, cancels, and degrades honestly\") is proven by the capability `repo-picker-panel`, at `apps/studio/src/components/RepoPicker.test.tsx` — `rpp-reflects-current-selection-on-mount`, `rpp-opens-picker-and-updates-on-resolve`, `rpp-leaves-selection-unchanged-on-cancel` and `rpp-degrades-when-bridge-absent` (an absent `desktopRepo` bridge renders an honest disabled state and never calls pick/get). Checked against that test file's ACTUAL assertions, not its file existence (ADR-0294 D2's honesty wall). The ordinal is BURNED, not reused, so this positional key denotes no other criterion. No `uat-criterion` detail artifact was orphaned — this leg carried no `(detail:` pointer.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "terminal-repo-picker#uat-3",
@@ -1383,9 +1383,9 @@
     },
     {
       "legacyTestId": "terminal-repo-picker#uat-6",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-20",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-20), the D4 unbound-machine-leg pass: it restated proof that already exists one rung down, and named that node in its own success clause. `uatc_f6d1cb710dabeb5c800f5674` (\"the studio-standalone build degrades honestly\") is proven in two places, by the capabilities `repo-picker-panel` and `terminal-repo-gate` — `rpp-degrades-when-bridge-absent` at `apps/studio/src/components/RepoPicker.test.tsx` and `trg-degrades-when-bridge-absent` at `apps/studio/src/components/TerminalRepoGate.test.tsx` (with no `desktopRepo` bridge the gate renders the terminal directly, never touching ready/onChanged). The leg's own success clause named both. Checked against that test file's ACTUAL assertions, not its file existence (ADR-0294 D2's honesty wall). The ordinal is BURNED, not reused, so this positional key denotes no other criterion. No `uat-criterion` detail artifact was orphaned — this leg carried no `(detail:` pointer.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "terminal-repo-picker#uat-7",
@@ -1407,15 +1407,15 @@
     },
     {
       "legacyTestId": "terminal-tabs#uat-2",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-20",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-20), the D4 unbound-machine-leg pass: it restated proof that already exists one rung down, and named that node in its own success clause. `uatc_77d4915cf9dbe8402433cdbb` (\"the multi-session tab lifecycle is honest over create / switch / close / dispose\") is proven by the capability `multi-session-tabs`, at `apps/studio/src/components/TerminalDock.test.tsx` — `mst-new-tab-spawns-independent-session`, `mst-switch-shows-selected-tab-pane`, `mst-scopes-io-per-tab` (a bridge data chunk for one session writes ONLY into that session's pane), `mst-close-tab-disposes-its-session`, `mst-chrome-stays-per-dock` and `mst-unmount-preserves-sessions` (unmount disposes renderer resources only, sessions preserved, ADR-0189). Checked against that test file's ACTUAL assertions, not its file existence (ADR-0294 D2's honesty wall). The ordinal is BURNED, not reused, so this positional key denotes no other criterion. No `uat-criterion` detail artifact was orphaned — this leg carried no `(detail:` pointer.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "terminal-tabs#uat-3",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-20",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-20), the D4 unbound-machine-leg pass: it restated proof that already exists one rung down, and named that node in its own success clause. `uatc_198a39009b09f8b3b1220923` (\"a seed opens a FRESH tab and never touches the active session\") is proven by the capability `seed-opens-new-tab`, at `apps/studio/src/components/TerminalDock.test.tsx` — `son-seed-opens-a-fresh-tab`, `son-seed-never-touches-active-session` (the previously-active session receives no write — the load-bearing ADR-0186 safety wall), `son-pre-spawn-seed-writes-on-resolve`, `son-token-bump-opens-another-fresh-tab`, `son-prefills-without-trailing-newline` and `son-absent-seed-is-a-no-op`. Checked against that test file's ACTUAL assertions, not its file existence (ADR-0294 D2's honesty wall). The ordinal is BURNED, not reused, so this positional key denotes no other criterion. No `uat-criterion` detail artifact was orphaned — this leg carried no `(detail:` pointer.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "terminal-tabs#uat-4",

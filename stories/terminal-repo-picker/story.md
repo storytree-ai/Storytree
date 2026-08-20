@@ -165,7 +165,11 @@ The intent stands and is recorded here — **the repo picker should read and sit
 terminal dock, and the gate's "Select a repository to start the terminal" message should read right in
 its place.** Where a bullet below says the LOOK is witnessed under UAT leg 8, read that as: the look is
 this design intent, answered by the owner in use, and still never a machine visual verdict. The
-BEHAVIOUR those bullets describe is untouched and stays machine-witnessed at legs 2, 4 and 6.
+BEHAVIOUR those bullets describe is untouched: leg 4 still witnesses it at the story tier, and what old
+legs 2 and 6 asserted is proven one rung down by the capabilities `repo-picker-panel` and
+`terminal-repo-gate`. *(That sentence read "stays machine-witnessed at legs 2, 4 and 6"; legs 2 and 6 were
+deleted by the ADR-0294 D2 pass on 2026-08-20 as restatements of those capabilities — corrected in place
+per ADR-0139.)*
 
 - **The real adapters + the pty-cwd thread in the Electron main** (`apps/desktop/electron/main.ts`): the
   concrete `DirProbe` (a `node:fs` implementation of `exists` / `isDirectory` / `isGitRepo`) and
@@ -291,9 +295,38 @@ speculative breadth).
 > `(proof-gate:)` binding is silently re-pointed. The one surviving human leg (7) is a genuine
 > ACCEPTANCE claim: an OS-level modal that sits outside every harness the proof spine owns.
 >
-> The wiring legs (1, 2, 6) are covered by the three capabilities' signed `--real` verdicts (the
-> validate/persist/resolve lifecycle over fake ports; the picker reflect/pick/cancel/degrade and the
-> gate's gate/show/reopen/degrade/forward-seed LOGIC over a mocked bridge + a mocked TerminalDock).
+> **ADR-0294 D2/D4 pass, 2026-08-20 — the three wiring legs are DELETED, and the three survivors are
+> declared UNBOUND.** Old legs **1**, **2** and **6** restated proof that already exists one rung down and
+> named it in their own success clauses. Leg 1's validate → persist → resolve lifecycle is proven by the
+> capability [`repo-selection`](repo-selection.md) at `apps/desktop/src/backend/repo-selection.test.ts`,
+> whose eleven `node:test` cases assert exactly its five clauses — a valid git dir is accepted and
+> persisted; a missing path, a non-directory and a non-git directory are each rejected with a typed reason
+> and never persisted; `select` never throws on a bad path; `current()` reads the persisted selection back
+> (and returns null when nothing was persisted); and `resolveCwd(fallback)` returns the selected directory
+> when valid, else the fallback, including when a previously-valid selection has gone away. Leg 2's picker
+> is proven by the capability [`repo-picker-panel`](repo-picker-panel.md) at
+> `apps/studio/src/components/RepoPicker.test.tsx` — `rpp-reflects-current-selection-on-mount`,
+> `rpp-opens-picker-and-updates-on-resolve`, `rpp-leaves-selection-unchanged-on-cancel`,
+> `rpp-degrades-when-bridge-absent`. Leg 6's standalone degradation is proven twice over, by that same
+> `rpp-degrades-when-bridge-absent` and by [`terminal-repo-gate`](terminal-repo-gate.md)'s
+> `trg-degrades-when-bridge-absent` at `apps/studio/src/components/TerminalRepoGate.test.tsx`. All three
+> were checked against those tests' ACTUAL assertions, not their file existence (ADR-0294 D2's honesty
+> wall) — and the check mattered: the contract IDs those capability specs declare (`rsel-*`, `rpp-*`) are
+> NOT the ids the built tests carry, so a citation trusting the spec alone would have named tests that do
+> not exist. Ordinals **1**, **2** and **6** are BURNED, not renumbered. This story now carries **THREE**
+> `machine` legs (3, 4, 5) and ONE `human` leg (7). *(This paragraph read "The wiring legs (1, 2, 6) are
+> covered by the three capabilities' signed `--real` verdicts …" — the deletion criterion stated and then
+> not acted on; corrected in place per ADR-0139.)*
+>
+> **The three surviving machine legs stay unbound, and that is the honest state rather than an omission.**
+> Legs 3, 4 and 5 are genuine journey steps nobody can witness yet: this story declares **no reliability
+> gate at all**, the `_electron` specs that would observe them have no spec at HEAD, and nothing they
+> could run persists an artifact an `observe` gate could read. So `resolveWitness` refuses each one
+> (`coverage: "refused"`) and no adopt pass can sign them. **No gate is minted for any of them** —
+> answering an unbound leg with a freshly minted check is the rubber stamp ADR-0097 §2 forbids and the
+> exact reflex ADR-0294's end state point 4 names. What binds them is a real instrument: those specs
+> landing AND being run by a standing `observe` gate that reads what they persist, or ADR-0295 D1's
+> model-driven executor.
 >
 > Legs 3, 4 and 5 are `machine` through the **existing** Electron `_electron` Playwright harness
 > (`apps/desktop/e2e/`, the `session-survival.e2e.mjs` precedent), which already launches the app
@@ -316,51 +349,48 @@ speculative breadth).
 > **Nothing here is green.** Per ADR-0209 §6 a substantive criterion change invalidates the old green, so
 > every leg below is UNSTAMPED and earns green only under its newly-declared witness. Legs 3, 4 and 5
 > carry seed-canonical `uat-criterion` detail artifacts (ADR-0209 §5) because their one-line titles
-> cannot convey the stub boundary or the observable; the remaining legs are fully specified by their
-> capability contracts or by short, self-contained attestation prose, so per the owner's 2026-07-25
-> narrower bar they get no artifact.
+> cannot convey the stub boundary or the observable; leg 7 is fully specified by its own
+> `(witness-basis:)` and attestation prose, so per the owner's 2026-07-25 narrower bar it gets no
+> artifact. *(This read "the remaining legs are fully specified by their capability contracts…". The
+> capability-specified legs were 1, 2 and 6, which the ADR-0294 D2 pass deleted on 2026-08-20; corrected
+> in place per ADR-0139. No detail artifact was orphaned — none of the three carried a `(detail:`
+> pointer.)*
 
 **Goal —** A desktop user opens the app, picks their `storytree` checkout in a native dialog, and the
 embedded terminal opens in that repo — the terminal refusing to run until they pick, the selection
 surviving a relaunch, the studio-standalone build degrading honestly, and the picker reading right.
 
-1. **The repo selection lifecycle is honest over validate → persist → resolve.** _(witness: machine)_ _(criterion-id: uatc_0d1b120243f0c67745b1b371)_ _(revision-id: uatr1:8b4ec3f81c086d7f)_
-   Over injected fake `DirProbe` + `SelectionStore` ports, `repo-selection` accepts a valid git dir,
-   rejects a missing/non-dir/non-git path with a typed reason (no throw), persists a valid selection and
-   not an invalid one, reads it back via `current()`, and `resolveCwd(fallback)` returns the selected dir
-   when valid else the fallback. **Success —** [`repo-selection`](repo-selection.md)'s signed verdict (the
-   backend lifecycle, no real fs).
-2. **The renderer picker reflects, picks, cancels, and degrades honestly.** _(witness: machine)_ Over a _(criterion-id: uatc_3559ea6c62ac371f65e8a886)_ _(revision-id: uatr1:b9099d9a96be27b5)_
-   mocked `desktopRepo` bridge, the picker reflects the current selection on mount, calls `pick()` on
-   click and updates the shown selection on a resolved path, leaves it unchanged on a cancelled (null)
-   pick, and renders a disabled "repo picker unavailable" state where the bridge is absent — never calling
-   the bridge, never hanging, never crashing. **Success —** [`repo-picker-panel`](repo-picker-panel.md)'s
-   signed verdict (geometry + wiring, the bridge mocked).
-3. **The embedded terminal spawns in the picked repo.** _(witness: machine)(detail: terminal-repo-picker#uat-3)_ In the Electron _(criterion-id: uatc_74b4d2149f15ed9ae409ac6c)_ _(revision-id: uatr1:ae2a5c0999123b9c)_
+3. **The embedded terminal spawns in the picked repo.** _(witness: machine)(detail: terminal-repo-picker#uat-3)_ In the Electron _(criterion-id: uatc_74b4d2149f15ed9ae409ac6c)_ _(revision-id: uatr1:ae9d368155dcf8bb)_ _(previous-revision-id: uatr1:ae2a5c0999123b9c)_
    `_electron` harness with `dialog.showOpenDialog` stubbed in the main to return a known git checkout,
    `desktopRepo.pick()` validates and persists it through the REAL `node:fs` probe and the REAL userData
    store; expanding the terminal spawns a REAL node-pty, and `pwd` echoed through that shell reports the
    picked directory — not the serve root. **Success —** the real pty's `cwd` is the picked directory,
    read back from the main-held scrollback (`desktopTerminal.snapshot`), the renderer-independent
-   observable.
-4. **The fail-closed gate holds end-to-end.** _(witness: machine)(detail: terminal-repo-picker#uat-4)_ With NO valid selection the gate _(criterion-id: uatc_9a9874898ed0a4bcd63ef842)_ _(revision-id: uatr1:d06ab87fa68e51f9)_
+   observable. **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20).** No `(proof-gate:)`: this story
+   declares no reliability gate at all, and the `_electron` spec that would witness this has no spec at
+   HEAD and would persist no artifact an `observe` gate could read, so `resolveWitness` refuses and
+   nothing can sign it. No gate is minted to host it (ADR-0097 §2).
+4. **The fail-closed gate holds end-to-end.** _(witness: machine)(detail: terminal-repo-picker#uat-4)_ With NO valid selection the gate _(criterion-id: uatc_9a9874898ed0a4bcd63ef842)_ _(revision-id: uatr1:07cec5fa66aa433f)_ _(previous-revision-id: uatr1:d06ab87fa68e51f9)_
    renders `.terminal-gate-message` ("Select a repository to start the terminal") and
    `desktopTerminal.list()` stays EMPTY — no pty is spawned at all; after a stubbed pick the dock renders
    and a pty spawns in that repo; a stubbed pick of a DIFFERENT repo remounts the cwd-keyed dock and a
    FRESH session id appears with the new cwd. **Success —** the real terminal is genuinely refused until
    a valid repo exists and reopens on a change, observed across the real bridge and a real pty (not the
-   mocked-bridge wiring capability 3 signs).
-5. **The selection survives an app relaunch.** _(witness: machine)(detail: terminal-repo-picker#uat-5)_ Launch against a clean userData, pick _(criterion-id: uatc_603f610cc0366abbb554227d)_ _(revision-id: uatr1:373affe900ba50f7)_
+   mocked-bridge wiring the capability [`terminal-repo-gate`](terminal-repo-gate.md) signs at
+   `apps/studio/src/components/TerminalRepoGate.test.tsx`). *(That parenthesis read "capability 3"; the
+   capability is named directly here because the ADR-0294 D2 pass deleted the story leg that carried the
+   same ordinal — corrected in place per ADR-0139.)* **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20).**
+   No `(proof-gate:)`: this story declares no reliability gate, and the `_electron` spec that would witness
+   this has no spec at HEAD and would persist no artifact an `observe` gate could read, so
+   `resolveWitness` refuses and nothing can sign it. No gate is minted to host it (ADR-0097 §2).
+5. **The selection survives an app relaunch.** _(witness: machine)(detail: terminal-repo-picker#uat-5)_ Launch against a clean userData, pick _(criterion-id: uatc_603f610cc0366abbb554227d)_ _(revision-id: uatr1:4326e3f5d158368e)_ _(previous-revision-id: uatr1:373affe900ba50f7)_
    (stubbed dialog), assert the selection persisted to `repo-selection.json`; close the app; relaunch
    against the SAME userData; `repo:get` returns the same path with no second pick, and the terminal
    reopens there. **Success —** the selection is durable across a real process restart, proven by two
-   sequential real app launches.
-6. **The studio-standalone build degrades honestly.** _(witness: machine)_ Where `window.desktopRepo` is _(criterion-id: uatc_f6d1cb710dabeb5c800f5674)_ _(revision-id: uatr1:3d9e2306fc42b067)_
-   absent — the hosted/dev studio in a plain browser, since only the Electron preload defines the bridge
-   — the picker renders a disabled "repo picker unavailable" state and the gate renders `TerminalDock`
-   directly, never calling the bridge, never hanging, never crashing. **Success —**
-   [`repo-picker-panel`](repo-picker-panel.md)'s and [`terminal-repo-gate`](terminal-repo-gate.md)'s
-   signed absent-bridge verdicts.
+   sequential real app launches. **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20).** No `(proof-gate:)`:
+   this story declares no reliability gate, and the two-launch `_electron` spec that would witness this
+   has no spec at HEAD and would persist no artifact an `observe` gate could read, so `resolveWitness`
+   refuses and nothing can sign it. No gate is minted to host it (ADR-0097 §2).
 7. **The native OS directory dialog opens and is usable.** _(witness: human)_
    _(witness-basis: "Choose repo…" reaches dialog.showOpenDialog in the Electron MAIN process at
    apps/desktop/electron/main.ts:594, and Playwright drives the RENDERER — a main-process native OS
