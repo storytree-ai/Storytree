@@ -592,16 +592,22 @@ none is orphaned.
    deliberate: a leg that must currently FAIL may not be bound at all, because the only suite observing
    this shape pins the OPPOSITE wall and binding to it would manufacture a green over a known gap.
    `resolveWitness` refuses it (`coverage: "refused"`) and no gate is minted for it (ADR-0097 §2).
-9. **A real subscription-billed `--real` node run drives the loop to a genuinely signed, persisted verdict.** _(criterion-id: uatc_4e688a6e4149741b5dd0a736)_ _(revision-id: uatr1:374f40689b49037d)_ _(previous-revision-id: uatr1:5418a7aa38bfbe79)_
-   _(witness: machine)_ _(proof-gate: studio-build#gate-2)_ The driver triggers ONE real build from the studio UI and lets it run: the
-   click routes through `routedBuildRunner` to `nodeBuild(unitId, { real: true, dryRun: false,
-   verdictStore: 'pg' })` (ADR-0144), a real subscription-funded Claude Agent SDK leaf genuinely authors
-   THE NODE'S OWN test and implementation at their real repo paths in a fresh git worktree under
-   phase-enforced write scope, the real prove-it-gate observes a genuine RED then GREEN from real exit
-   codes, and the spine SIGNS. **Success —** a `pass` drive record whose walk reports the run reached a
-   spine-signed verdict PERSISTED to `events.verdict`, that the verdict legs 6 and 7 inspect came from
-   it, and that a PASS parked the proven commit on a `claude/real/<unit>-<run>` branch without opening a
-   PR (ADR-0031/ADR-0136 — only a STORY route lands, which is leg 10). *(`machine` since 2026-08-12
+9. **A real subscription-billed `--real` node run drives the loop to a genuinely signed, persisted verdict.** _(criterion-id: uatc_4e688a6e4149741b5dd0a736)_ _(revision-id: uatr1:1967d31ed84f6bce)_ _(previous-revision-id: uatr1:374f40689b49037d)_
+   _(witness: machine)_ _(proof-gate: studio-build#gate-2)_ In the running Studio, select the
+   `drive-machinery` story, drill into the real-buildable `studio-build-uat-seed` node, and click
+   its **Build** control exactly once. The click routes through `routedBuildRunner` to
+   `nodeBuild("studio-build-uat-seed", { real: true, dryRun: false, verdictStore: 'pg' })`
+   (ADR-0144). In a fresh git worktree, a real subscription-funded Codex leaf first authors
+   `packages/drive/src/studio-build-uat-seed.test.ts`; its import of the still-absent
+   `./studio-build-uat-seed.js` is the genuine AUTHOR_TEST missing-module RED. The leaf then authors
+   `packages/drive/src/studio-build-uat-seed.ts` inside the phase-enforced write scope, the real
+   prove-it-gate observes GREEN from the real exit code, and the spine SIGNS. **Success —** a `pass`
+   drive record whose walk reports the run reached a spine-signed verdict PERSISTED to
+   `events.verdict`, that the verdict legs 6 and 7 inspect came from it, and that PASS parked the
+   proven commit on a `claude/real/studio-build-uat-seed-<run>` branch without opening a PR
+   (ADR-0031/ADR-0136 — only a STORY route lands, which is leg 10). Because the node route parks
+   rather than lands, both files remain absent on fresh `main`, so a later drive starts from the same
+   honest RED premise. *(`machine` since 2026-08-12
    under ADR-0348 D2. It was `human` on a SPEND basis — "a subscription-billed build is REAL SPEND; an
    agent may never burn it unattended" — and D2 retires exactly that basis: the spend is a routine
    factory action, not a judgment gap (`asset:human-witness-is-a-judgment-gap-not-cost`). Nothing here
