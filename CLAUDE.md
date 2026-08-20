@@ -397,6 +397,30 @@ kind owes a seed export any more.
   from a 5-minute run why your gate did or didn't narrow. `pnpm gate --full` (or
   `STORYTREE_GATE_FULL=1`) forces the full run. Nothing about *whether* a red blocks changed: every
   step still runs and the gate is green only if all pass.
+- **`pnpm gate --help` prints the flags and does nothing else** (since 2026-08-20, ADR-0394's arc). It
+  used to match no branch in the runner and therefore ran the WHOLE PLAN — you asked what the flags
+  were and were charged the most expensive command in the repo. It now returns in ~6 s and lists
+  `--scope` / `--full` / `--fail-fast` / `--only` / `--rerun-failed`, the three `STORYTREE_GATE_*`
+  env vars, and how to read the result.
+- **"Is this box busy?" is a VERB — `storytree own --all` — not a process walk.** It lists every
+  registered background run on this machine grouped by OWNING SESSION, each with pid, age, command,
+  and whether it is live or `[gone — died without de-registering]`. Ask it before starting an
+  expensive run, and ask it instead of hand-rolling `Get-CimInstance Win32_Process`. **The
+  hand-rolled walk is not merely tedious, it is wrong in a measured direction:** a `*gate-run*`
+  substring filter also matches each gate's pnpm `exec` WRAPPER, so it counts roughly **2x** the real
+  roots — and reading the process list and the ledger minutes apart compares two different
+  populations. Both errors push the same way, toward a false BUSY, and a false busy reading is a
+  self-imposed throttle — the remedy the owner explicitly refused on `session-decoupling-arc`.
+  Verified 2026-08-20 with both readings taken in ONE command: two live gate roots, two rows, pids
+  matching, the stale row correctly labelled a corpse.
+  **Its floor is real and knowable, so don't over-read it either.** Registration is identity-gated
+  through `deriveIdentity()` (`packages/drive/src/noticeboard.ts`): rule 3 returns null for the
+  **primary checkout**, so work run in the shared lobby registers nothing — deliberately, since the
+  lobby has no isolated identity. Linked worktrees are covered (rules 1 and 2). Harness background
+  shells and hand-launched servers register nothing. So it is a FLOOR on what the box is doing, and
+  the things it cannot see are named rather than unknown. `storytree own` is the same view scoped to
+  YOUR session — that is the one the closing leg asks for, and it answers a different question
+  ("am I inert?").
 - **Credentials auto-hydrate:** the CLI fills `CLAUDE_CODE_OAUTH_TOKEN` (Claude SDK leaf),
   `STORYTREE_DB_USER` (live `--pg` store) from `~/.storytree/secrets.json` when unset — env always
   wins (`packages/drive/src/secrets.ts`; the old `packages/cli/src/secrets.ts` is a re-export shim,
