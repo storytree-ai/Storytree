@@ -10,7 +10,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test \"src/**/*.test.ts\""
+    "test": "node --import ../../scripts/tsx-cache-off.mjs --import tsx --test \"src/**/*.test.ts\""
   },
   "dependencies": {
     "@google-cloud/cloud-sql-connector": "^1.4.0",

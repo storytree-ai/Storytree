@@ -28,6 +28,18 @@ try {
   // Older node, or the cache is disabled by policy — proceed uncached.
 }
 
+// Turn OFF tsx's on-disk transform cache before tsx is imported (`the-gate-costs-what-the-change-
+// risks-arc` inc 4). tsx caches every transform as one file in a FLAT `os.tmpdir()` directory and
+// never evicts; at the 232,254 files / 4.18 GB this box had reached, a cache LOOKUP costs more than
+// the transform it saves. Median of 7 runs of `storytree not-a-real-storytree-command` on a quiet
+// box: 3703 ms CPU with that cache, 2078 ms without — every CLI process, including the ~60 the test
+// suite spawns. Full measurement and the escape hatch: scripts/tsx-cache-off.mjs.
+//
+// ORDER IS LOAD-BEARING: tsx reads this variable once, when its module graph is evaluated, so the
+// assignment must precede the `tsx/esm/api` import below. Moved after it, this line still runs and
+// still reads correctly — it just buys nothing.
+process.env["TSX_DISABLE_CACHE"] ??= "1";
+
 // Register the tsx ESM loader from THIS package's tsx (resolved relative to launch.mjs, not the
 // caller's cwd) so a fresh worktree that has run `pnpm install` works from any directory. A
 // worktree with no node_modules of its own fails here loudly rather than silently borrowing the
