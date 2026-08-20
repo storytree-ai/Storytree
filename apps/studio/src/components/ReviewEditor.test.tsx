@@ -17,7 +17,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act, cleanup } from '@testing-library/react';
 
-const apiMock = vi.hoisted(() => ({ updateAsset: vi.fn() }));
+const apiMock = vi.hoisted(() => ({ updateAsset: vi.fn(), reviewFeed: vi.fn() }));
 vi.mock('../api', () => ({ api: apiMock }));
 
 vi.mock('../lib/appData', () => ({
@@ -33,6 +33,7 @@ vi.mock('./Markdown', () => ({
 
 import { ReviewEditor } from './ReviewEditor';
 import { ReviewModeContext, SetReviewModeContext } from './ReviewToggle';
+import { SLOW_POLL_MS } from '../lib/poll';
 
 const BODY = 'First paragraph.\n\nSecond paragraph.';
 
@@ -63,8 +64,16 @@ function renderEditor(
 
 beforeEach(() => {
   apiMock.updateAsset.mockReset().mockResolvedValue({});
+  apiMock.reviewFeed.mockReset().mockResolvedValue({
+    topicId: 'oq-x',
+    comments: [],
+    suggestions: [],
+  });
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 describe('ReviewEditor', () => {
   it('re-view-mode-is-read-only: View mode renders prose with no source textarea', () => {
@@ -125,6 +134,36 @@ describe('ReviewEditor', () => {
     const del = container.querySelector('del.cm-del');
     expect(del).toBeTruthy();
     expect(del?.textContent).toBe('gone');
+  });
+
+  it('re-live-refreshes-peer-comments: the open Review document shows a peer comment on the next poll without reload', async () => {
+    vi.useFakeTimers();
+    const peerComment = {
+      id: 'comment-from-peer',
+      topicKind: 'asset',
+      topicId: 'oq-x',
+      anchor: { kind: 'block', blockId: 'intro' },
+      body: 'A peer comment posted out of band',
+      author: 'peer@example.com',
+      createdAt: '2026-08-21T00:00:00.000Z',
+      resolved: false,
+      resolvedAt: null,
+    };
+    apiMock.reviewFeed
+      .mockResolvedValueOnce({ topicId: 'oq-x', comments: [], suggestions: [] })
+      .mockResolvedValueOnce({ topicId: 'oq-x', comments: [peerComment], suggestions: [] });
+
+    renderEditor('review');
+    await flush();
+    expect(apiMock.reviewFeed).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(peerComment.body)).toBeNull();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SLOW_POLL_MS);
+    });
+
+    expect(apiMock.reviewFeed).toHaveBeenCalledTimes(2);
+    expect(screen.getByText(peerComment.body)).toBeTruthy();
   });
 
   it('re-toolbar-preserves-caret: a toolbar insert restores focus + selection to the wrapped text (the same path that restores scroll)', async () => {
