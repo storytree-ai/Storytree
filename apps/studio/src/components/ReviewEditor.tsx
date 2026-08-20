@@ -24,10 +24,11 @@
 import { useContext, useLayoutEffect, useMemo, useRef, useState, useEffect } from 'react';
 import { api } from '../api';
 import { useAppData } from '../lib/appData';
+import { SLOW_POLL_MS } from '../lib/poll';
 import { Markdown } from './Markdown';
 import { ReviewModeContext, SetReviewModeContext } from './ReviewToggle';
 import { parseCriticMarkup, type CriticSegment } from '../lib/criticmarkup';
-import type { GuidanceAsset } from '../types';
+import type { GuidanceAsset, ReviewFeedPayload } from '../types';
 
 interface ReviewEditorProps {
   /** The asset whose markdown body seeds the editor. Optional metadata (category, fields …)
@@ -154,6 +155,44 @@ export function ReviewEditor({ asset }: ReviewEditorProps): React.JSX.Element {
     const id = window.setTimeout(() => setPreviewSource(source), 120);
     return () => window.clearTimeout(id);
   }, [source]);
+
+  // The mounted editor owns the live Review feed. ReviewBlocks used to poll this endpoint, but
+  // ReviewEditor replaced that component, so leaving the poll there made persisted peer comments
+  // invisible until reload. Fetch immediately on entering Review, then keep the open document
+  // current on the authored slow cadence. Hidden tabs skip interval reads; a failed advisory read
+  // keeps the last-known comments.
+  const [reviewFeed, setReviewFeed] = useState<ReviewFeedPayload | null>(null);
+  useEffect(() => {
+    if (!inEdit) return;
+
+    let active = true;
+    let inFlight = false;
+    const poll = async (): Promise<void> => {
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        const next = await api.reviewFeed(topicId);
+        if (active) setReviewFeed(next);
+      } catch {
+        // Advisory: retain the last-known feed if the studio or store is temporarily unavailable.
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    void poll();
+    const id = window.setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      void poll();
+    }, SLOW_POLL_MS);
+
+    return () => {
+      active = false;
+      window.clearInterval(id);
+    };
+  }, [inEdit, topicId]);
+
+  const peerComments = reviewFeed?.topicId === topicId ? reviewFeed.comments : [];
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'local' | 'error'>('idle');
@@ -288,6 +327,19 @@ export function ReviewEditor({ asset }: ReviewEditorProps): React.JSX.Element {
             'Kept locally — this is a structured artifact (its fields are authoritative), so the annotated body is not written back in this shell. Per-change accept/reject persistence is the follow-on.'}
           {saveState === 'error' && 'Save failed (admin write required) — your edits are still here; try again.'}
         </div>
+      )}
+
+      {peerComments.length > 0 && (
+        <section className="inline-comment-thread review-feed-comments" aria-label="Peer comments">
+          <ul>
+            {peerComments.map((comment) => (
+              <li key={comment.id}>
+                <span className="muted small">{comment.author}</span>
+                <div>{comment.body}</div>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       <div className="review-split">
