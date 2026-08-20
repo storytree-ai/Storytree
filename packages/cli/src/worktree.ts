@@ -599,8 +599,29 @@ export function worktreeDirty(io: WorktreeIo, dir: string): boolean {
 
 /**
  * Build the full snapshot set: every registered worktree UNDER the worktrees dir, plus every on-disk
- * dir absent from the registry (the orphans). Worktrees outside `.claude/worktrees/` (the primary
- * itself, ad-hoc temp checkouts) are ignored — this command only ever touches the managed dir.
+ * dir absent from the registry (the orphans). Worktrees outside `.claude/worktrees/` are ignored —
+ * this command only ever touches the managed dir.
+ *
+ * WHAT THAT LEAVES OUT, AND WHY EACH IS DELIBERATE (arc worktree-reaper-eligibility, increment 2 —
+ * censused 2026-08-20, so the next reader does not have to re-derive the surprise). `underManaged`
+ * excluded 4 classes; three stay excluded on purpose and one was a genuine hole:
+ *
+ *   - `%TEMP%/storytree-real-*` — THE HOLE, now closed elsewhere. 241 trees, oldest 2026-07-04,
+ *     6.6 GB across 188,043 files: the residue of REAL-build worktrees whose best-effort teardown
+ *     lost a race with a Windows file lock, plus the drive real-chain fixtures. They are not
+ *     reaped HERE, because merged/clean/claimed are all meaningless for a detached temp tree and
+ *     the only liveness signal it has is its git registration. Their creator owns them instead:
+ *     `sweepStaleBuildWorktrees` in `@storytree/orchestrator`, which every build-worktree mint runs.
+ *   - `~/.codex/worktrees/*` — the Codex CLI's own working area, created and named by a tool this
+ *     repo does not drive. Reaping another tool's workspace on our threshold would be us guessing
+ *     about liveness we cannot observe. Codex owns its own hygiene.
+ *   - `C:\code\storytree-*` (and any sibling checkout) — deliberate operator checkouts, not farm.
+ *     `storytree-runtime` is load-bearing: it is the checkout the desktop app serves from, and
+ *     reaping it breaks the app. An operator's own directory is never ours to remove.
+ *   - the primary checkout itself — structural, and already an `anchor` keep.
+ *
+ * So the rule this filter encodes is ownership, not location: the reaper drains the farm the
+ * harness mints, and every other temp tree is drained by whoever mints it.
  */
 export function gatherSnapshots(io: WorktreeIo, ctx: GatherContext): WorktreeSnapshot[] {
   const registered = parseWorktreeList(io.runGit(["worktree", "list", "--porcelain"]));
