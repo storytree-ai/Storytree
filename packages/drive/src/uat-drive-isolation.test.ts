@@ -36,16 +36,22 @@ import {
 } from "./noticeboard.js";
 import {
   assertDriveIsolated,
+  auditDrivePrompt,
   classifyDriveEnd,
   classifyDriveResidue,
   driveChildEnv,
   driveIdentityOverride,
   driveScratchDir,
   driveSurfacePorts,
+  driveSurfaceUrl,
   isDriveSessionId,
   judgeDriveSurface,
   mintDriveSessionId,
   parsePorcelain,
+  parseSurfaceAttestations,
+  requireOwnSurface,
+  uatDriveTaskPrompt,
+  UAT_DRIVE_COMMIT_ENV,
   UAT_DRIVE_PORT_BASE,
   UAT_DRIVE_PORT_SPAN,
   UAT_DRIVE_SCRATCH_ENV,
@@ -53,7 +59,34 @@ import {
   UAT_DRIVE_SESSION_PREFIX,
   UAT_DRIVE_SURFACE_PORT_ENV,
   type DriveIsolation,
+  type DriveSurfaceAttestation,
+  type UatDriveSpec,
 } from "./uat-drive.js";
+
+/**
+ * A minimal but REAL drive spec — the prompt tests below run against `uatDriveTaskPrompt` itself,
+ * not a paraphrase, so an edit that drops the surface contract reds here rather than degrading every
+ * later drive silently.
+ */
+function driveSpec(): UatDriveSpec {
+  return {
+    storyId: "demo",
+    storyTitle: "The demo story",
+    storyOutcome: "A reader can walk from the map into a story.",
+    criterionId: "uatc_0123456789abcdef01234567",
+    journey: [
+      "1. **The map shows the story** _(witness: machine)_: open the studio at `/`, find the story's",
+      "   flower, click it. **Success —** the traversal panel opens on that story.",
+    ].join("\n"),
+    isolation: {
+      sessionId: "uat-drive~uatc_0123456789abcdef01234567~4242",
+      surfacePort: 5312,
+      commitSha: COMMIT,
+      scratchDir: "/tmp/storytree-uat-drive/demo",
+      ceilingMinutes: 30,
+    },
+  };
+}
 
 const PARENT_SESSION = "uat-drive-runs-i-5f31b2";
 const PARENT_BRANCH = "claude/uat-drive-runs-i-5f31b2";
@@ -306,6 +339,125 @@ test("SURFACE: the reserved band avoids every port this box was measured holding
   }
   // Seeded, so two concurrent drives start at different candidates rather than racing for one.
   assert.notEqual(driveSurfacePorts(1)[0], driveSurfacePorts(2)[0]);
+});
+
+// ---------------------------------------------------------------------------
+// 2b. SURFACE, ENFORCED — the judgement above has to actually RUN
+//
+// `judgeDriveSurface` was landed, fully tested, and called by NOTHING: the rule lived only as a
+// sentence in the drive prompt, which `auditDrivePrompt` checked for PRESENCE and never for
+// EXECUTION. These are the tests for the half that makes it mechanical.
+// ---------------------------------------------------------------------------
+
+const RESERVED = driveSurfaceUrl(5312);
+const okAttestation = (url: string): DriveSurfaceAttestation => ({
+  url,
+  ok: true,
+  detail: "the surface is this drive's own",
+  at: "2026-08-20T00:00:00.000Z",
+});
+
+test("ENFORCED: a report that never names a surface is REFUSED — omission is the silence being closed", () => {
+  const verdict = requireOwnSurface({
+    reportedSurface: undefined,
+    reservedUrl: RESERVED,
+    attestations: [okAttestation(RESERVED)],
+  });
+  assert.equal(verdict.ok, false, "the OLD report shape must not pass — it is how every driver would opt out");
+  assert.match(verdict.reason, /named no `surface`/);
+  // Even a perfectly good attestation cannot rescue it: the report still does not say what it drove.
+});
+
+test("ENFORCED: the ORIGINAL failure — a report naming a sibling's studio is REFUSED", () => {
+  // The measured failure: drive 2 pointed itself at localhost:5180, a JSON-backed sibling, and
+  // reported on the criterion as though it were this checkout's studio.
+  const verdict = requireOwnSurface({
+    reportedSurface: "http://localhost:5180",
+    reservedUrl: RESERVED,
+    attestations: [okAttestation("http://localhost:5180")],
+  });
+  assert.equal(verdict.ok, false);
+  assert.match(verdict.reason, /5180/, "the refusal names what it drove");
+  assert.match(verdict.reason, /5312/, "and what it was given, so the reader can see the swap");
+  // Note the attestation SAYS ok — a driver that ran the check against the wrong surface still fails,
+  // because the reserved URL is the standard and the driver does not get to choose it.
+});
+
+test("ENFORCED: a report naming the reserved surface with NO attestation is REFUSED — the check never ran", () => {
+  const verdict = requireOwnSurface({ reportedSurface: RESERVED, reservedUrl: RESERVED, attestations: [] });
+  assert.equal(verdict.ok, false, "this is the whole point: an instructed check that was skipped must not pass");
+  assert.match(verdict.reason, /never RAN/);
+  assert.match(verdict.reason, /uat-drive-surface\.check\.ts/, "and the refusal says how to satisfy it");
+});
+
+test("ENFORCED: a REFUSING attestation is carried through, quoted, rather than being averaged away", () => {
+  const verdict = requireOwnSurface({
+    reportedSurface: RESERVED,
+    reservedUrl: RESERVED,
+    attestations: [
+      okAttestation(RESERVED),
+      { url: RESERVED, ok: false, detail: 'backed by the "json" store', at: "2026-08-20T00:01:00.000Z" },
+    ],
+  });
+  assert.equal(verdict.ok, false, "ONE refusal against the surface is enough — passes do not outvote it");
+  assert.match(verdict.reason, /json/, "and the original reason survives to the runner's output");
+});
+
+test("ENFORCED: the honest CLI-only journey passes without an attestation, and says why", () => {
+  // Several criteria are pure CLI walks. Demanding an attestation from them would refuse correct
+  // drives, so `null` is a first-class answer — a DECLARATION on the record, not a loophole.
+  const verdict = requireOwnSurface({ reportedSurface: null, reservedUrl: RESERVED, attestations: [] });
+  assert.equal(verdict.ok, true);
+  assert.match(verdict.note, /no HTTP surface/);
+});
+
+test("ENFORCED: the honest drive passes — reserved URL, attested, trailing slash and case forgiven", () => {
+  const verdict = requireOwnSurface({
+    reportedSurface: `${RESERVED}/`,
+    reservedUrl: RESERVED,
+    attestations: [okAttestation(RESERVED.toUpperCase())],
+  });
+  assert.equal(verdict.ok, true, "a trailing slash and host case are noise; refusing them would tax the honest case");
+  assert.match(verdict.note, /ownership proven/);
+});
+
+test("ENFORCED: a half-written attestation line is dropped, and dropping it REFUSES rather than passes", () => {
+  // A killed child can leave a torn line. It proves nothing, so it is not read as evidence — and the
+  // absence it leaves behind then lands on the fail-closed side rather than being ignored.
+  const parsed = parseSurfaceAttestations(
+    `${JSON.stringify(okAttestation(RESERVED))}\n{"url":"http://localhost:5312","ok":tr\n\n`,
+  );
+  assert.equal(parsed.length, 1, "the torn line is dropped, the good one survives");
+
+  const onlyTorn = parseSurfaceAttestations('{"url":"http://localhost:5312","ok":tr');
+  assert.deepEqual(onlyTorn, []);
+  const verdict = requireOwnSurface({ reportedSurface: RESERVED, reservedUrl: RESERVED, attestations: onlyTorn });
+  assert.equal(verdict.ok, false, "an unreadable attestation must never be counted as a passing one");
+});
+
+test("ENFORCED: the drive prompt ASKS for the surface field, and the audit fails when it stops asking", () => {
+  // The quiet half of the failure: `requireOwnSurface` refuses a report with no `surface`, so a
+  // prompt that stopped ASKING for one would turn every drive into a harness refusal — a whole
+  // population of paid spend wasted, for a reason that looks like the driver's fault.
+  const spec = driveSpec();
+  const prompt = uatDriveTaskPrompt(spec);
+  assert.ok(prompt.includes(`"surface": "${driveSurfaceUrl(spec.isolation.surfacePort)}" | null`));
+  assert.equal(auditDrivePrompt(prompt, spec).ok, true);
+
+  const weakened = prompt.replace(`  "surface": "${driveSurfaceUrl(spec.isolation.surfacePort)}" | null`, "");
+  const audit = auditDrivePrompt(weakened, spec);
+  assert.equal(audit.ok, false);
+  assert.ok(audit.missing.some((m) => m.includes("surface")));
+});
+
+test("ENFORCED: the child is told which commit to hold the surface to — it never supplies its own standard", () => {
+  const iso = driveSpec().isolation;
+  const env = driveChildEnv({}, iso);
+  assert.equal(
+    env[UAT_DRIVE_COMMIT_ENV],
+    iso.commitSha,
+    "a check whose standard the caller supplies proves whatever the caller wanted",
+  );
 });
 
 // ---------------------------------------------------------------------------

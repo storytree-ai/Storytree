@@ -203,6 +203,7 @@
       "packages/drive/src/tree-attestations.ts": "attestation-surface",
       "packages/drive/src/wisp-smoke.ts": "render-claim-as-wisp",
       "packages/drive/src/witnessable-verdict*.ts": "witnessable-verdict",
+      "packages/drive/src/uat-drive*.ts": "drive-machinery",
       "packages/drive/src/coupling-churn*.ts": "drive-machinery",
       "packages/drive/src/curate.ts": "post-build-curation-pass",
       "packages/drive/src/db-control.ts": "live-build-db-preflight",
