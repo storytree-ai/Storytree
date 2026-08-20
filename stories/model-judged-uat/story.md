@@ -3,10 +3,21 @@ id: "model-judged-uat"
 tier: story
 title: "An eligible model judge returns structured PASS/FAIL/INCONCLUSIVE — the spine validates, escalates, and signs"
 outcome: "An independent fresh read-only model judge returns structured PASS, FAIL, or INCONCLUSIVE for a model-witness criterion; the spine validates shape, eligibility, tier, clean detail-hash anchor, and evidence, then either signs or escalates by the declared ladder — never laundering a FAIL into human green."
-status: proposed
+# RETIRED 2026-08-20 — ADR-0247 D5 names this story on its retirement worklist by id. The thing it
+# exists to build is gone: ADR-0247 D1 retired the independent rubric-bound model JUDGE, its eligibility
+# registry and its escalation ladder outright, and ADR-0295 settled the same question the other way —
+# the model that DROVE a journey may witness it, yielding a `machine` outcome, "reviving NO ADR-0209
+# rubric-judge machinery". Body kept as history (the spawn-visibility / chat-drive-bridge precedent);
+# the four capability files flip to `status: retired` with it.
+# `packages/model-judged-uat` is NOT deleted here. ADR-0247 D5 lists the package retirement separately
+# from the story retirement and calls each "its own provable unit"; that unit is still OPEN. Unlike
+# `packages/model-uat`, nothing outside this organism imports it, so it is genuinely dead code rather
+# than a live residue — but deleting it is still not this increment's move.
+status: retired
 proof_mode: UAT
-# Every UAT leg below is deterministic and machine-witnessed. Absence defaults the story node to
-# human (ADR-0040), which would make `story build --real` withhold it dishonestly.
+# UAT criteria: NONE (deleted 2026-08-20). A story may declare zero criteria and still green honestly
+# through the ADR-0085 own-proof union, so `uat_witness` below is now inert rather than load-bearing —
+# it is retained only so a reader of the history sees what the legs were declared as.
 uat_witness: machine
 # Immutable arc provenance (ADR-0183): the THIRD landable increment of the `model-uat-promotion` arc
 # (ADR-0209, owner-directed 2026-07-17). Increment 1 (`model-uat-witness`) landed the tiered-witness
@@ -184,24 +195,27 @@ Runtime dependencies (honest `depends_on`):
 
 ## UAT Test Criteria
 
-The integrated **acceptance walkthrough** proving the foundation end-to-end against the real public
-`@storytree/model-judged-uat` barrel. Minimal-first (one coherent judge→validate→escalate/sign
-journey), defect-driven thereafter. Every leg is **`(witness: machine)`** — deterministic, offline,
-spine-observable code (scripted judge; no live model in these legs).
+**None — this story is retired (ADR-0247 D5).** Its six criteria were deleted on 2026-08-20 and each is
+recorded `superseded`, with its rationale, in `stories/uat-legacy-dispositions.json`. Nothing is silently
+dropped: the ledger still carries all 282 keys reviewed at the ADR-0253 cutover.
 
-**Goal —** An eligible scripted judge returns structured PASS/FAIL/INCONCLUSIVE for a model-witness
-criterion whose detail hash is fresh; the spine admits only honest payloads and escalates by the
-locked ladder; every malformed result, ineligible judge, stale hash, and FAIL→human laundering
-attempt is refused.
+A story may declare zero UAT criteria (ADR-0294 D4) and still green honestly through the ADR-0085
+own-proof union, so an empty section here is a statement rather than a gap.
 
-1. **The judge-result shape validates through the public port.** _(witness: machine)_ _(proof-gate: model-judged-uat#gate-1)_ Import the structured result schema and constructors from the `@storytree/model-judged-uat` ROOT barrel. Author well-formed PASS, FAIL, and INCONCLUSIVE results (each with evidence refs + rationale) and one malformed / self-signing payload. **Success —** the three outcomes round-trip; malformed and self-signing payloads are refused at the schema boundary; the public barrel exports the result API (an empty barrel fails this leg). _(criterion-id: uatc_010060fe733dc6996ddd16c8)_ _(revision-id: uatr1:d552f02b4b9ff516)_
-2. **The judge seam is independent, fresh, and read-only.** _(witness: machine)_ _(proof-gate: model-judged-uat#gate-1)_ Drive the judge port with a scripted read-only impl that returns a structured result for a criterion+detail context. **Success —** the seam returns only a structured result; it exposes no write tool surface; a second call with fresh context does not reuse builder/session mutable state (independence observable in the seam contract). _(criterion-id: uatc_039e21f109f2b5f8b4cb4a4d)_ _(revision-id: uatr1:92354d270bf9c8b5)_
-3. **The spine admits only eligible, hash-fresh, well-shaped results.** _(witness: machine)_ _(proof-gate: model-judged-uat#gate-1)_ Present (a) an eligible advanced/frontier judge + fresh detail hash + well-shaped PASS, and (b) each refusal case: bad shape, ineligible/unregistered judge, tier HOLD, stale detail hash, missing evidence. **Success —** (a) yields a spine-admitted signable model-UAT payload that records judge id, tier, detail hash, and structured outcome; (b) every refusal case is rejected — never signed (ADR-0209 D3/D6). _(criterion-id: uatc_c625f997d29d761b797a580d)_ _(revision-id: uatr1:c334ae178b37ff39)_
-4. **Escalation follows the locked ladder.** _(witness: machine)_ _(proof-gate: model-judged-uat#gate-1)_ Feed PASS, FAIL, advanced INCONCLUSIVE, and frontier INCONCLUSIVE into the escalation classifier (with an available frontier judge for the advanced case). **Success —** PASS → sign; FAIL → build (not human); advanced INCONCLUSIVE → frontier; frontier INCONCLUSIVE → human exception (ADR-0209 D4). _(criterion-id: uatc_4693262e1a12aadf02903858)_ _(revision-id: uatr1:8231ce263aaf091f)_
-5. **A FAIL cannot be laundered into human green.** _(witness: machine)_ _(proof-gate: model-judged-uat#gate-1)_ Attempt to route a model FAIL through a human-override / exceptional-human path. **Success —** the ladder refuses; FAIL remains build-bound red; no signable human-green payload is produced from a model FAIL (ADR-0209 D4). _(criterion-id: uatc_8909ac49d7fd7c9691388eca)_ _(revision-id: uatr1:e550da5d3a99bdb4)_
-6. **Offline scripted end-to-end matches the public contract.** _(witness: machine)_ _(proof-gate: model-judged-uat#gate-1)_ Run one criterion through scripted judge → spine validation → escalation using `@storytree/model-uat` eligibility and `@storytree/uat-criterion` hash freshness. **Success —** the same structured outcome, admission/refusal, and next-action are observable without a live SDK or DB — the CI/offline reproducibility prior increments established. _(criterion-id: uatc_119b9a4ba60e2d1561c4e740)_ _(revision-id: uatr1:d95dba1f7ffee0de)_
+**Why these six were deleted rather than adjudicated.** ADR-0294 D2's honesty wall asks the deleting
+author to name the lower-tier node that already proves each claim. There is none to name here, and the
+reason is that **the claim is gone, not the proof**. All six asserted properties of the independent
+rubric-bound model JUDGE — the structured PASS/FAIL/INCONCLUSIVE result shape, the read-only judge seam,
+the spine's eligibility/tier/hash admission, and the advanced→frontier→human escalation ladder — and
+**ADR-0247 D1 retired that machinery outright**. ADR-0295 then answered the same question a different
+way: the model that DROVE a journey may witness it, producing a `machine` outcome, and it *"revives NO
+ADR-0209 rubric-judge machinery"* — no independent judge, no eligibility registry, no ladder. So there
+is no surviving claim to re-home, which is the second of the two honest accountings
+`packages/library/src/corpus-criterion-migration.test.ts` allows: the claim itself was withdrawn.
 
-End state — a model-witness criterion can be judged by an independent read-only eligible model, validated and signed by the spine, or escalated honestly; every self-green, ineligible judge, stale-hash, and FAIL-laundering path is refused.
+They were also, independently, the exact shape ADR-0294 D1 says a story criterion is not — six legs all
+bound to one `pnpm --filter @storytree/model-judged-uat test` gate, i.e. a single package's own suite
+signing the story rung.
 
 ## Reliability Gates
 

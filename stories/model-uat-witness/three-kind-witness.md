@@ -5,7 +5,10 @@ story: model-uat-witness
 arc: model-uat-promotion
 title: "A classified UAT criterion uses machine, model, or human while legacy either remains unresolved"
 outcome: "A new or migrated UAT criterion explicitly classifies as machine, model, or human while an existing untagged criterion remains parseable only as legacy-unresolved either until migration and can never default into model judgment."
-status: proposed
+# RETIRED 2026-08-20 with its parent story (ADR-0247 D5, which names that story on its retirement
+# worklist by id). The code is NOT unmounted by this flip — ADR-0247 D5 makes each package retirement
+# its own provable unit, and that unit is still open.
+status: retired
 proof_mode: integration-test
 depends_on: []
 decisions: [209, 192, 82, 106]

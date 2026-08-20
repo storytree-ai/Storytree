@@ -855,111 +855,111 @@
     },
     {
       "legacyTestId": "model-judged-uat#uat-1",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-20",
+      "rationale": "Deleted by ADR-0294 D1/D2 (2026-08-20) as part of retiring the story itself under ADR-0247 D5, which names it on the retirement worklist by id. No lower-tier node is named because the CLAIM is withdrawn, not relocated: the leg asserted the structured PASS/FAIL/INCONCLUSIVE judge-result shape; ADR-0247 D1 retired the independent model judge that produced it, and ADR-0295 revives no rubric-judge machinery.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "model-judged-uat#uat-2",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-20",
+      "rationale": "Deleted by ADR-0294 D1/D2 (2026-08-20) as part of retiring the story itself under ADR-0247 D5, which names it on the retirement worklist by id. No lower-tier node is named because the CLAIM is withdrawn, not relocated: the leg asserted that the judge seam is independent, fresh and read-only; the seam is retired with the judge (ADR-0247 D1) — under ADR-0295 the witness is the model that DROVE the journey, not a separate reader.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "model-judged-uat#uat-3",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-20",
+      "rationale": "Deleted by ADR-0294 D1/D2 (2026-08-20) as part of retiring the story itself under ADR-0247 D5, which names it on the retirement worklist by id. No lower-tier node is named because the CLAIM is withdrawn, not relocated: the leg asserted that the spine admits only eligible, hash-fresh, well-shaped judge results; there are no judge results to admit once ADR-0247 D1 retired the judge and its eligibility registry.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "model-judged-uat#uat-4",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-20",
+      "rationale": "Deleted by ADR-0294 D1/D2 (2026-08-20) as part of retiring the story itself under ADR-0247 D5, which names it on the retirement worklist by id. No lower-tier node is named because the CLAIM is withdrawn, not relocated: the leg asserted the advanced → frontier → human escalation ladder; ADR-0247 D1 retired the ladder explicitly, and the witness split is binary with no rung to escalate between.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "model-judged-uat#uat-5",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-20",
+      "rationale": "Deleted by ADR-0294 D1/D2 (2026-08-20) as part of retiring the story itself under ADR-0247 D5, which names it on the retirement worklist by id. No lower-tier node is named because the CLAIM is withdrawn, not relocated: the leg asserted that a model FAIL cannot be laundered into human green; with the model witness kind retired by ADR-0247 D1 there is no model FAIL to launder.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "model-judged-uat#uat-6",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-20",
+      "rationale": "Deleted by ADR-0294 D1/D2 (2026-08-20) as part of retiring the story itself under ADR-0247 D5, which names it on the retirement worklist by id. No lower-tier node is named because the CLAIM is withdrawn, not relocated: the leg asserted an offline scripted end-to-end run through judge → spine validation → escalation; every stage of that path is retired by ADR-0247 D1.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "model-uat-pilot#uat-1",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-20",
+      "rationale": "Deleted by ADR-0294 D1/D2 (2026-08-20) as part of retiring the story itself under ADR-0247 D5. Unlike its siblings this leg's claim SURVIVES and is proven by the capability `library`: the `uat-criterion` detail kind is registered in `KIND_SPECS` and `KNOWLEDGE_TIERS` (`packages/library/src/knowledge.ts`), asserted directly in `packages/library/src/standson-bootstrap.test.ts` (it resolves at tier 6 and its refs seed), and `buildKindSchema(\"uat-criterion\")` would throw at module load were the entry absent. Checked against those assertions, not against file existence.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "model-uat-pilot#uat-2",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-20",
+      "rationale": "Deleted by ADR-0294 D1/D2 (2026-08-20) as part of retiring the story itself under ADR-0247 D5, which names it on the retirement worklist by id. No lower-tier node is named because the CLAIM is withdrawn, not relocated: the leg asserted zero legacy-unresolved `either` on the three pilot stories once every criterion declares `machine`/`model`/`human` with a model tier; ADR-0247 D1 retired the `model` kind and the tier, so the migration target it measured no longer exists.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "model-uat-pilot#uat-3",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-20",
+      "rationale": "Deleted by ADR-0294 D1/D2 (2026-08-20) as part of retiring the story itself under ADR-0247 D5. Unlike its siblings this leg's claim SURVIVES: that a criterion points at a detail artifact without ceding its one-line title (`displayTitle` stays the story's) is proven by the capability `criterion-detail-pointer` at `packages/uat-criterion/src/criterion-pointer.test.ts`, and re-asserted at the story rung by the LIVE story `uat-criterion-detail`, whose leg 3 makes the display-canonical claim directly. Checked against those assertions, not against file existence.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "model-uat-pilot#uat-4",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-20",
+      "rationale": "Deleted by ADR-0294 D1/D2 (2026-08-20) as part of retiring the story itself under ADR-0247 D5, which names it on the retirement worklist by id. No lower-tier node is named because the CLAIM is withdrawn, not relocated: the leg asserted that an untagged criterion cannot silently default into model judgment; ADR-0247 D1 retired model judgment, so there is no path to default into.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "model-uat-pilot#uat-5",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-20",
+      "rationale": "Deleted by ADR-0294 D1/D2 (2026-08-20) as part of retiring the story itself under ADR-0247 D5, which names it on the retirement worklist by id. No lower-tier node is named because the CLAIM is withdrawn, not relocated: the leg asserted that the harness reports migration counts by witness kind AND model tier; the tier is retired by ADR-0247 D1, and the corpus-wide witness census that replaced this harness is the live `storytree uat census` (`packages/library/src/uat-witness-census.ts`).",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "model-uat-pilot#uat-6",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-20",
+      "rationale": "Deleted by ADR-0294 D1/D2 (2026-08-20) as part of retiring the story itself under ADR-0247 D5, which names it on the retirement worklist by id. No lower-tier node is named because the CLAIM is withdrawn, not relocated: the leg asserted that the public `@storytree/model-uat-pilot` barrel exports the migration harness; the harness is retired with the story, and nothing outside the organism imports it.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "model-uat-witness#uat-1",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-20",
+      "rationale": "Deleted by ADR-0294 D1/D2 (2026-08-20) as part of retiring the story itself under ADR-0247 D5, which names it on the retirement worklist by id. No lower-tier node is named because the CLAIM is withdrawn, not relocated: the leg asserted that the three witness KINDS (`machine`, `model`, `human`) round-trip through the public `@storytree/model-uat` barrel, and ADR-0247 D1 retired the `model` kind, leaving a binary split.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "model-uat-witness#uat-2",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-20",
+      "rationale": "Deleted by ADR-0294 D1/D2 (2026-08-20) as part of retiring the story itself under ADR-0247 D5, which names it on the retirement worklist by id. No lower-tier node is named because the CLAIM is withdrawn, not relocated: the leg asserted that an untagged criterion parses as legacy-unresolved `either` pending migration into the three-kind vocabulary; that vocabulary is retired, and ADR-0247 D4 replaced the fail-open `either` default with a parse-time refusal.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "model-uat-witness#uat-3",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-20",
+      "rationale": "Deleted by ADR-0294 D1/D2 (2026-08-20) as part of retiring the story itself under ADR-0247 D5, which names it on the retirement worklist by id. No lower-tier node is named because the CLAIM is withdrawn, not relocated: the leg asserted that a `model` criterion declares an `advanced`/`frontier` capability tier; ADR-0247 D1 retired the model tier outright, so there is no tier for a criterion to declare.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "model-uat-witness#uat-4",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-20",
+      "rationale": "Deleted by ADR-0294 D1/D2 (2026-08-20) as part of retiring the story itself under ADR-0247 D5, which names it on the retirement worklist by id. No lower-tier node is named because the CLAIM is withdrawn, not relocated: the leg asserted which concrete judges satisfy which admitted rung of the eligibility registry; ADR-0247 D1 retired the registry, and ADR-0295 explicitly revives no ADR-0209 rubric-judge machinery.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "model-uat-witness#uat-5",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-20",
+      "rationale": "Deleted by ADR-0294 D1/D2 (2026-08-20) as part of retiring the story itself under ADR-0247 D5, which names it on the retirement worklist by id. No lower-tier node is named because the CLAIM is withdrawn, not relocated: the leg asserted that an unavailable tier resolves to a distinct HOLD rather than a downgrade; with the tier and registry retired by ADR-0247 D1 there is no tier to be unavailable.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "model-uat-witness#uat-6",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-20",
+      "rationale": "Deleted by ADR-0294 D1/D2 (2026-08-20) as part of retiring the story itself under ADR-0247 D5, which names it on the retirement worklist by id. No lower-tier node is named because the CLAIM is withdrawn, not relocated: the leg asserted that only a curated concrete allowlist confers judge eligibility; ADR-0247 D1 retired the eligibility registry that allowlist belonged to.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "notice-board#uat-1",

@@ -5,7 +5,10 @@ story: model-uat-pilot
 arc: model-uat-promotion
 title: "Every pilot-story UAT criterion is explicitly classified"
 outcome: "Every UAT criterion on the three pilot stories carries an explicit `machine` / `model`(+tier) / `human` tag — zero `either` on those three."
-status: proposed
+# RETIRED 2026-08-20 with its parent story (ADR-0247 D5, which names that story on its retirement
+# worklist by id). The code is NOT unmounted by this flip — ADR-0247 D5 makes each package retirement
+# its own provable unit, and that unit is still open.
+status: retired
 proof_mode: integration-test
 depends_on: []
 decisions: [209, 184, 70, 82]

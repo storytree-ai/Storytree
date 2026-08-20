@@ -5,7 +5,10 @@ story: model-judged-uat
 arc: model-uat-promotion
 title: "The model judge runs as an independent fresh read-only seam"
 outcome: "A judge port runs separately from the builder as a fresh read-only call that returns only a structured result; a scripted impl proves the seam offline with no write surface."
-status: proposed
+# RETIRED 2026-08-20 with its parent story (ADR-0247 D5, which names that story on its retirement
+# worklist by id). The code is NOT unmounted by this flip — ADR-0247 D5 makes each package retirement
+# its own provable unit, and that unit is still open.
+status: retired
 proof_mode: integration-test
 depends_on: [judge-result-shape]
 decisions: [209, 20, 192]

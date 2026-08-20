@@ -5,7 +5,10 @@ story: model-judged-uat
 arc: model-uat-promotion
 title: "A model-judge result is structured PASS, FAIL, or INCONCLUSIVE"
 outcome: "A model-judge result validates as structured PASS, FAIL, or INCONCLUSIVE with per-criterion evidence refs and rationale — and refuses a malformed or self-signing payload."
-status: proposed
+# RETIRED 2026-08-20 with its parent story (ADR-0247 D5, which names that story on its retirement
+# worklist by id). The code is NOT unmounted by this flip — ADR-0247 D5 makes each package retirement
+# its own provable unit, and that unit is still open.
+status: retired
 proof_mode: integration-test
 depends_on: []
 decisions: [209, 20, 192]
