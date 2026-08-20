@@ -358,7 +358,15 @@ function renderIsland(canvas: HTMLCanvasElement, props: IslandViewProps): void {
   const cz = (bounds.minY + bounds.maxY) / 2;
   // Vertical centring follows the SCENE's screen extent, so a tall crown pushes the island down
   // in frame rather than off the top of it.
-  const cyScreen = (screenTop + screenBottom) / 2;
+  //
+  // ⚠ IT IS MEASURED RELATIVE TO WHAT THE CAMERA LOOKS AT, not to the world origin. `screenTop`
+  // and `screenBottom` are absolute screen heights, while the frustum's top/bottom are offsets
+  // from the camera's own centre — which is the point `(cx, 0, cz)`, itself at screen height
+  // `-cz * sin(elev)`. Subtracting that is the whole correction. It is invisible on THIS island,
+  // whose ground bounds are symmetric so `cz` is 0, which is exactly why it is written down: an
+  // island whose ground box is off-centre would frame wrong and look like a composition choice.
+  const cameraCentreScreenY = -cz * Math.sin(elev);
+  const cyScreen = (screenTop + screenBottom) / 2 - cameraCentreScreenY;
   const camera = new THREE.OrthographicCamera(
     -(screenW + pad * 2) / 2,
     (screenW + pad * 2) / 2,
