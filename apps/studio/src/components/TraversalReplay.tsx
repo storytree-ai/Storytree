@@ -20,9 +20,16 @@
 //     Note that `occupancy.declared` reads false even on a trace that really carries the field — the
 //     producing adapter's coverage is genuinely not in the replay composition yet, and both halves
 //     of that are printed. Hard-coding either one true is the one thing this must not do.
+//
+// IT IS ALSO WHERE THE KNOWLEDGE-DEPTH JOIN IS BUILT (ADR-0363 D2, increment
+// `standson-depth-from-work-join`): the app-wide corpus meets this component's replay here, and the
+// derived model is handed to the picture. A read-only join at render time — nothing is recorded and
+// no gate enforces it. See `lib/knowledgeDepth.ts`.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
+import { useAppData } from '../lib/appData';
+import { buildKnowledgeDepth } from '../lib/knowledgeDepth';
 import type { TraversalReplayPayload } from '../types';
 import { TraversalSpine } from './TraversalSpine';
 
@@ -44,6 +51,20 @@ export function TraversalReplay({
   compact?: boolean;
 }): React.JSX.Element {
   const [state, setState] = useState<ReplayState>({ status: 'reading' });
+
+  // ADR-0363 D2's read-only depth-from-work join, built HERE because this is where both halves meet:
+  // the app already holds the whole corpus (`/api/assets`, one fetch for the whole studio), and this
+  // component holds the replay. No new route, no second budget on `api.ts`, and no corpus read on the
+  // map's own load path — the tab is lazy, so this runs only once an operator has opened a trace.
+  //
+  // `assetsStatus` is passed through rather than inferred from `assets.length`: an in-flight fetch and
+  // a genuinely empty corpus are different facts, and judging the first would render a confident
+  // verdict about a corpus that was never read (ADR-0240 decision 3).
+  const { assets, assetsStatus, assetsError } = useAppData();
+  const knowledge = useMemo(
+    () => buildKnowledgeDepth({ assets, assetsStatus, assetsError }),
+    [assets, assetsStatus, assetsError],
+  );
 
   useEffect(() => {
     let live = true;
@@ -84,7 +105,7 @@ export function TraversalReplay({
     <div className="traversal-replay" data-testid="traversal-replay" data-replay-state="read">
       {/* The picture. It goes FIRST because the design's second acceptance clause is that the
           traversal — not the bar, not a metric, not a line of prose — dominates the first glance. */}
-      <TraversalSpine replay={replay} compact={compact} />
+      <TraversalSpine replay={replay} compact={compact} knowledge={knowledge} />
 
       <ul className="traversal-replay-facts small">
         <li>
