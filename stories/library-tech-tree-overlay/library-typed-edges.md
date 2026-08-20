@@ -34,8 +34,9 @@ decisions: [187, 185, 161, 122]
 # library-adr-wire-signals; the block-position-comment-anchor precedent).
 #
 # MACHINE-ONLY: this cap is pure DATA on the wire — NO look leg, NO operator-attested UAT leg (contrast
-# the sibling library-overview whose appearance is UAT leg 5; this one has NONE, exactly like inc-6
-# library-adr-wire-signals). The `toGuidanceAsset` carry-through (apps/studio/server/libraryBackend.ts),
+# the sibling library-overview, whose appearance is recorded LOOK INTENT in story.md — design intent, not
+# a UAT leg, since ADR-0348 D6 and the 2026-08-21 deletion of story leg 5; this one has NONE of either,
+# exactly like inc-6 library-adr-wire-signals). The `toGuidanceAsset` carry-through (apps/studio/server/libraryBackend.ts),
 # the GuidanceAsset type additions (apps/studio/src/types.ts), and the node-build.test.ts snapshot insert
 # are AFTER-PASS SUPPLEMENT GLUE, explicitly OUT of the leaf's `real:` scope (which is render-doc.ts +
 # render-doc.test.ts ONLY) — the leaf must NOT edit libraryBackend.ts, types.ts, or any signed inc-1..6
@@ -97,9 +98,22 @@ only.
 > fields are `undefined`, not surfaced), GREEN once `render-doc.ts` reads them off `knowledge` in the
 > structured branch and spreads them when present. The whole cap is machine-witnessed — there is NO look
 > leg and NO operator-attested UAT leg this increment (contrast the sibling `library-overview`, whose
-> appearance is the story's UAT leg 5; this one has none — it is invisible plumbing, exactly like inc-6
-> `library-adr-wire-signals`). Status stays `proposed` — `healthy` is only ever DERIVED from signed
-> verdicts (ADR-0020), never authored.
+> appearance is recorded LOOK INTENT in `story.md`; this one has no appearance at all — it is invisible
+> plumbing, exactly like inc-6 `library-adr-wire-signals`). Status stays `proposed` — `healthy` is only ever
+> DERIVED from signed verdicts (ADR-0020), never authored.
+
+> **ADR-0294 D2/D4 pass correction, 2026-08-21 (ADR-0139).** The sentences above and below used
+> `library-overview`'s appearance as a CONTRAST — "unlike the sibling whose appearance is the story's
+> operator-attested UAT leg 5, this one has none". **That contrast's other half no longer exists**, so
+> every mention of it is corrected in place: the ADR-0294 D2/D4 pass deleted story leg 5 on 2026-08-21
+> (burning the ordinal), and **ADR-0348 D6** had already ruled on 2026-08-11 that a user EXPERIENCE
+> property is not a user ACCEPTANCE criterion at all — so the sibling's appearance is now design intent
+> recorded under **"The Library's LOOK"** in [`story.md`](story.md), not a leg. **The point being made is
+> UNCHANGED and still correct:** this capability is pure data on the wire, has no appearance to witness,
+> and must carry no visual / colour / stroke / pixel / animation assertion. What changed is only that the
+> sibling it was contrasted with no longer has a look LEG either — the difference is now that the sibling
+> has recorded look INTENT and this capability has none at all.
+
 
 ## Guidance
 
@@ -112,7 +126,8 @@ single adapter read, not a single assertion. The `toGuidanceAsset` carry-through
 make these edges VISIBLE are a later increment's / the after-pass glue's job, gated on this surfacing.
 
 MACHINE-ONLY — THERE IS NO LOOK LEG. This capability puts pure DATA on the wire. Unlike the sibling
-`library-overview` (whose appearance is the story's operator-attested UAT leg 5), this increment has
+`library-overview` (whose appearance is the story's recorded LOOK INTENT — design intent, not a UAT leg,
+ADR-0348 D6), this increment has
 **NO appearance to witness and NO operator-attested UAT leg** — exactly like inc-6
 `library-adr-wire-signals`. Nothing renders differently when it lands: the typed edges sit on the
 `RenderedAsset` waiting for inc-9 to draw the tech-tree lineage lines with them (per ADR-0187). Do NOT
@@ -338,8 +353,8 @@ Rules:
 - **Machine-only — no look leg, no operator-attested UAT leg** — this capability is pure data on the
   wire; nothing renders differently until inc-9 draws with the edges. Do NOT author a visual / colour /
   stroke / pixel / animation assertion, and do NOT frame any part of it as owner-witnessed (contrast the
-  sibling `library-overview`, whose appearance is UAT leg 5 — this one has none, exactly like inc-6
-  `library-adr-wire-signals`). The whole proof is machine-witnessed pure logic.
+  sibling `library-overview`, whose appearance is recorded LOOK INTENT rather than a leg — this one has
+  neither, exactly like inc-6 `library-adr-wire-signals`). The whole proof is machine-witnessed pure logic.
 - **The carry-through + the draw are after-pass glue, out of the `real:` scope** — the leaf edits
   `render-doc.ts` + `render-doc.test.ts` ONLY; the `libraryBackend.ts` `toGuidanceAsset` carry-through,
   the `types.ts` `GuidanceAsset` additions, and the `node-build.test.ts` snapshot insert are the

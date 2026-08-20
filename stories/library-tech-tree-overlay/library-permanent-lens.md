@@ -24,9 +24,10 @@ decisions: [187, 185, 70, 23]
 # The lens's APPEARANCE (does it read as a forest-cozy permanent lens with no × chrome; the bottom
 # selection-preview description styling; the polished "like opening a Word doc" framing of the sibling Open
 # overlay) and its real MOUNTING into TreeView (the bodySlot composition + `selection`/`onOpen` wiring, and
-# the removal of the retired `diveSlot={<LibraryDiveBody …/>}`) are the story's operator-attested UAT leg 1
-# (the look is witnessed, never a machine visual verdict; do NOT add a visual/colour/pixel/animation assertion
-# here, and do NOT edit TreeView.tsx in this `real:` scope — the lens is proven in isolation, driven by props,
+# the removal of the retired `diveSlot={<LibraryDiveBody …/>}`) are the story's recorded LOOK INTENT
+# (design intent, NOT a UAT leg — ADR-0348 D6; story leg 1 was deleted 2026-08-21 and the intent moved
+# to "The Library's LOOK" in story.md). The INSTRUCTION is unchanged: never a machine visual verdict, do
+# NOT add a visual/colour/pixel/animation assertion here, and do NOT edit TreeView.tsx in this `real:` scope — the lens is proven in isolation, driven by props,
 # and the mount is the orchestrator's supplement glue after PASS — plan §G).
 #
 # CRITICAL — apps/studio is VITEST + jsdom (@testing-library/react), NOT node:test (apps/studio/vitest.config.ts,
@@ -98,8 +99,21 @@ opener the glue wires to the Open overlay (plan §G).
 > bottom Open→`onOpen` wiring — RED at HEAD as a FAILING-ASSERTION red (the reworked behaviour is absent, NOT
 > module-not-found), GREEN once the component is reworked. Its GEOMETRY/BEHAVIOUR is machine-witnessed; its
 > APPEARANCE (the forest-cozy permanent lens without × chrome, the bottom selection-preview description styling)
-> and its real MOUNTING into `TreeView.tsx` are the story's operator-attested UAT leg 1 (ADR-0070). Status
-> stays `proposed` — `healthy` is only ever DERIVED from signed verdicts (ADR-0020), never authored.
+> and its real MOUNTING into `TreeView.tsx` are the story's recorded LOOK INTENT (design intent, NOT a UAT leg — ADR-0348 D6) and are asserted
+> nowhere. Status stays `proposed` — `healthy` is only ever DERIVED from signed verdicts (ADR-0020),
+> never authored.
+
+> **ADR-0294 D2/D4 pass correction, 2026-08-21 (ADR-0139).** Every sentence in this file that
+> called the lens's appearance and its real mounting "the story's operator-attested UAT leg 1" has been corrected in
+> place. There is no such leg: **ADR-0348 D6** (2026-08-11) ruled a user EXPERIENCE property is not a
+> user ACCEPTANCE criterion, and the ADR-0294 D2/D4 pass of 2026-08-21 deleted story leg 1,
+> burning the ordinal. The appearance intent it carried is preserved under **"The Library's LOOK"**
+> in [`story.md`](story.md), where it is design intent gathered as continuous owner feedback — no
+> owner signature is owed for it and none is withheld. **What is UNCHANGED is the instruction:** do
+> NOT author a visual / colour / pixel / animation assertion in this capability's tests. ADR-0070's
+> two-stage posture still governs where an appearance verdict lives WHEN one is worth carrying; it is
+> the "this story owes an operator-attested UAT signature" reading that is withdrawn.
+
 
 ## Guidance
 
@@ -166,7 +180,8 @@ APPEARANCE IS OPERATOR-ATTESTED, NOT ASSERTED (ADR-0185 dec 5 + ADR-0187 + ADR-0
 map's forest-cozy palette (the world's CSS variables, as the shell/finder/subgraph/dive/overview do), NOT
 neutral-admin white and NEVER the black-terminal look. The permanent lens's appearance (no × chrome, the
 bottom selection-preview description section, the "like opening a Word doc" framing of the sibling Open
-overlay) is WITNESSED by the owner (UAT leg 1), never a machine visual verdict — do NOT author a
+overlay) is the story's recorded LOOK INTENT (design intent, NOT a UAT leg — ADR-0348 D6) — never a machine visual verdict, and since ADR-0348 D6 not
+an owner signature either. Do NOT author a
 visual/colour/pixel/animation assertion in this cap's tests (assert the flag gate, the retired-affordance
 ABSENCE, the no-scrim posture, the body-slot render, and the bottom Open→`onOpen` wiring, never their styling).
 Witness the look at `?overlay=library#/tree`.
@@ -244,7 +259,7 @@ The test-proven leaf behaviours — each **one isolated automated test** in the 
 `apps/studio/src/components/LibraryPermanentLens.test.tsx`). Per ADR-0122 (`storytree coverage`) each contract
 id is the lead of a distinctly-named test; after the inc-9 then inc-12 reconciliations the coverage check reports
 **3/3** against the ONE `real.testFile`. None of these is an APPEARANCE assertion — the look (the forest-cozy
-permanent lens, the no-× chrome) is the story's operator-attested UAT leg 1 (ADR-0070).
+permanent lens, the no-× chrome) is the story's recorded LOOK INTENT (design intent, NOT a UAT leg — ADR-0348 D6).
 
 1. **`lpl-flag-gates-permanent-lens`** — *(RETIRED at inc 12, ADR-0191 — the flag no longer gates presence: absent renders the collapsed top drawer handle; flag semantics re-homed to `library-top-drawer`'s `ltd-collapsed-handle-by-default` + `ltd-flag-renders-expanded` + `ltd-flag-reader-survives`; struck history, not a live contract)* — the `?overlay=library` flag gates the permanent lens; absent → nothing
    - **asserts —** with `search="?overlay=library"` the permanent lens renders (a stable lens testid is
@@ -309,7 +324,7 @@ permanent lens, test-first.
   prop (the body slot, `selection`, and `onOpen` optional) so the trimmed `LibraryDrawer.test.tsx`'s
   `ldw-closed-without-flag` render stays green. WIRING it into `TreeView.tsx` (the body-slot composition, the
   `selection`/`onOpen` wiring, and REMOVING the retired `diveSlot={<LibraryDiveBody …/>}`) and the forest-cozy
-  appearance are witnessed under UAT leg 1 (operator-attested, ADR-0070), NOT asserted in CI and NOT in this
+  appearance are the story's recorded LOOK INTENT (design intent, NOT a UAT leg — ADR-0348 D6), NOT asserted in CI and NOT in this
   `real:` scope. After it, the new test's assertions hold and `pnpm --filter studio test` +
   `pnpm --filter studio typecheck` stay green.
 - **KEEP `onCommitSearch?` as an OPTIONAL prop on the reworked lens (do NOT remove it).** The permanent
@@ -358,9 +373,9 @@ Rules:
   dec 2). Non-null selection → summary + `Open` button → `onOpen(selection)`; null → empty state, no Open.
 - **Reuse the existing `SearchResult`, touch no `types.ts`/`server`** (inc-7 fence). The `selection` prop uses
   `SearchResult` from `../lib/librarySearch`; define no new type.
-- **Appearance is operator-attested, not asserted here** (ADR-0070) — prove the flag gate, the
+- **Appearance is design intent, not asserted here** (ADR-0348 D6) — prove the flag gate, the
   retired-affordance absence, the no-scrim posture, the body-slot render, and the bottom Open→`onOpen` wiring;
-  the forest-cozy look is UAT leg 1. Do NOT author a visual verdict, and do NOT edit `TreeView.tsx` in the
+  the forest-cozy look is the story's recorded LOOK INTENT (design intent, NOT a UAT leg — ADR-0348 D6). Do NOT author a visual verdict, and do NOT edit `TreeView.tsx` in the
   `real:` scope (the mount is the orchestrator's supplement glue after PASS — plan §G).
 - **Every `lpl-` contract test TITLE carries its unique id** or `storytree coverage` silently drops coverage
   (`sdk-leaf-drops-contract-id-test-names`, a 4th-occurrence class risk — the fix if it happens is

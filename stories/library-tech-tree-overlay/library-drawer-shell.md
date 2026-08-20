@@ -3,7 +3,7 @@ id: "library-drawer-shell"
 tier: capability
 story: library-tech-tree-overlay
 title: "The `?overlay=library` invocation gate — a pure `readLibraryOverlay` flag reader that gates the Library overlay's presence (its closed→peek→dive state machine RETIRED into the permanent lens by ADR-0187 dec 1)"
-outcome: "The Library overlay's presence is gated behind `?overlay=library` by a pure `readLibraryOverlay(search)` reader (the `?overlay` value `=== 'library'`), and absent the flag nothing renders — machine-witnessed. Its original closed↔peek↔dive state machine (ADR-0185 dec 1) was RETIRED by ADR-0187 dec 1 (the permanent lens): the reworked geometry is proven by the sibling `library-permanent-lens`; this cap keeps only the SURVIVING pure flag-reader + absent-renders-nothing invariant, its appearance operator-attested at the story's UAT leg 1."
+outcome: "The Library overlay's presence is gated behind `?overlay=library` by a pure `readLibraryOverlay(search)` reader (the `?overlay` value `=== 'library'`), and absent the flag nothing renders — machine-witnessed. Its original closed↔peek↔dive state machine (ADR-0185 dec 1) was RETIRED by ADR-0187 dec 1 (the permanent lens): the reworked geometry is proven by the sibling `library-permanent-lens`; this cap keeps only the SURVIVING pure flag-reader + absent-renders-nothing invariant. Its appearance is DESIGN INTENT recorded in the story ('The Library's LOOK' in story.md), not a UAT leg — ADR-0348 D6 ruled an experience property is not an acceptance criterion, and the ADR-0294 D2/D4 pass of 2026-08-21 deleted story leg 1."
 status: proposed
 proof_mode: integration-test
 depends_on: []
@@ -16,9 +16,11 @@ decisions: [187, 185, 70, 171, 23]
 # collapses the drawer to a bar and reserves an EMPTY body-panel region; Esc unwinds dive→peek→closed.
 # The drawer's APPEARANCE (does it read as a forest-cozy lens over the world; the slide animation; the
 # z-layering against the map chrome) and its real MOUNTING into TreeView.tsx's `.world-frame` are the
-# story's operator-attested UAT leg 1 (the look is witnessed, never a machine visual verdict; do NOT add
-# a visual assertion here, and do NOT edit TreeView.tsx in this `real:` scope — the component is proven
-# in isolation, the placement is attested).
+# story's recorded LOOK INTENT (design intent, NOT a UAT leg — ADR-0348 D6 deleted the look as a
+# criterion and the ADR-0294 D2/D4 pass of 2026-08-21 deleted story leg 1; the intent is preserved
+# under "The Library's LOOK" in story.md). The INSTRUCTION is unchanged: do NOT add a visual assertion
+# here, and do NOT edit TreeView.tsx in this `real:` scope — the component is proven in isolation, the
+# placement is not asserted anywhere.
 #
 # CRITICAL — apps/studio is VITEST + jsdom (@testing-library/react), NOT node:test (apps/studio/vitest.config.ts,
 # include src/**/*.test.{ts,tsx}). The default `node --test` real proof cannot run a `.test.tsx`. So this
@@ -71,9 +73,21 @@ backend seam.
 > test-first: a new vitest jsdom test drives the drawer's flag-open / peek / dive / close state machine,
 > RED at HEAD (module-not-found), GREEN once the component is written. Its GEOMETRY/BEHAVIOUR is
 > machine-witnessed; its APPEARANCE inside the real map (the forest-cozy look, the slide, the z-layering)
-> and its real mounting into `TreeView.tsx`'s `.world-frame` are the story's operator-attested UAT leg 1
-> (ADR-0070). Status stays `proposed` — `healthy` is only ever DERIVED from signed verdicts (ADR-0020),
-> never authored.
+> and its real mounting into `TreeView.tsx`'s `.world-frame` are the story's recorded LOOK INTENT (design intent, NOT a UAT leg — ADR-0348 D6) and are
+> asserted nowhere. Status stays `proposed` — `healthy` is only ever DERIVED from signed verdicts
+> (ADR-0020), never authored.
+
+> **ADR-0294 D2/D4 pass correction, 2026-08-21 (ADR-0139).** Every sentence in this file that
+> called the drawer's appearance and its real mounting "the story's operator-attested UAT leg 1" has been corrected in place. There is no
+> such leg: **ADR-0348 D6** (2026-08-11) ruled a user EXPERIENCE property is not a user ACCEPTANCE
+> criterion, and the ADR-0294 D2/D4 pass of 2026-08-21 deleted story leg 1 outright, burning the
+> ordinal. The appearance intent it carried is preserved verbatim under **"The Library's LOOK"** in
+> [`story.md`](story.md), where it is design intent gathered as continuous owner feedback — no owner
+> signature is owed for it and none is withheld. **What is UNCHANGED is the instruction:** do NOT author
+> a visual / colour / pixel / animation assertion in this capability's tests. ADR-0070's two-stage
+> posture still governs where an appearance verdict lives WHEN one is worth carrying; it is the "this
+> story owes an operator-attested UAT signature" reading that is withdrawn.
+
 
 > **RECONCILED for ADR-0187 dec 1 (increment 8, executing settled dec 1 — NOT a re-decision).** The overlay
 > became a PERMANENT LENS (ADR-0187 dec 1): the `closed→peek→dive` state machine, the `×` `Close library`
@@ -131,8 +145,9 @@ map's forest-cozy palette (the world's CSS variables — `var(--board-1)`/`var(-
 black-terminal look (reserved for the session-orchestrator terminal, ADR-0174/0175). The overlay sits at
 `z-index: 4` — above the side-panel/legend layer (z:3, `index.css:1707`), below the flyout (z:5,
 `index.css:1869`), the stress-layout layer (z:6, `index.css:4109`), and the chat dock (z:20, `index.css:3287`).
-That palette, the slide animation, and the z-layering are WITNESSED by the owner (UAT leg 1), never a machine
-visual verdict — do NOT author a visual/appearance assertion in this cap's tests.
+That palette, the slide animation, and the z-layering are the story's recorded LOOK INTENT (design intent, NOT a UAT leg — ADR-0348 D6) — never a machine
+visual verdict, and since ADR-0348 D6 not an owner signature either. Do NOT author a visual/appearance
+assertion in this cap's tests.
 
 OFFLINE-TESTABLE IN JSDOM (the `ReviewToggle.test.tsx` / chat-panel discipline). `@vitest-environment jsdom`,
 `@testing-library/react` for render / `fireEvent` (Esc keydown, toggle/dive clicks). No backend seam to mock
@@ -177,8 +192,7 @@ behaviours of the original shell that survive the retirement of the closed→pee
 ADR-0191 retirement of "absent renders nothing". The reworked geometry (the permanent lens, the body slot) is
 proven by [`library-permanent-lens`](library-permanent-lens.md); the URL-derived collapsed/expanded state and the
 default top drawer handle are proven by [`library-top-drawer`](library-top-drawer.md) in
-`LibraryTopDrawer.test.tsx`. None of these is an APPEARANCE assertion — the look is the story's operator-attested
-UAT leg 1 (ADR-0070).
+`LibraryTopDrawer.test.tsx`. None of these is an APPEARANCE assertion — the look is the story's recorded LOOK INTENT (design intent, NOT a UAT leg — ADR-0348 D6).
 
 > **RETIRED** (now-false, deleted from `LibraryDrawer.test.tsx` — they asserted the retired ×/Dive/mode
 > machine): `lds-flag-opens-drawer-to-peek` (re-homed as `lpl-flag-gates-permanent-lens`),
@@ -243,8 +257,8 @@ test-first.
   (closed / peek / dive), renders the slide-down overlay + the peek body slot + (in dive) the collapsed bar
   and an EMPTY reserved body region, and walks the state machine (flag→peek, dive, Esc-unwind, toggle-close,
   flag-clear on close). WIRING it into `TreeView.tsx`'s `.world-frame` (as a sibling of `WorldSettingsPanel`
-  / `ChatDock`, `TreeView.tsx:2137-2141`) and the forest-cozy appearance are witnessed under the story's
-  UAT leg 1 (operator-attested, ADR-0070), NOT asserted in CI and NOT in this `real:` scope. After it, the
+  / `ChatDock`, `TreeView.tsx:2137-2141`) and the forest-cozy appearance are the story's recorded LOOK INTENT (design intent, NOT a UAT leg — ADR-0348 D6),
+  NOT asserted in CI and NOT in this `real:` scope. After it, the
   import resolves, the assertions hold, and `pnpm --filter studio test` + `pnpm --filter studio typecheck`
   stay green.
 
@@ -259,7 +273,7 @@ Rules:
   (`lds-dive-collapses-to-bar-and-reserves-body`); the finder (inc 2) and the dive body (inc 4) fill them.
   Do not build them here (minimum to green).
 - **Esc unwinds one level** — dive→peek→closed, one Esc per level (`lds-esc-unwinds-dive-to-peek`).
-- **Appearance is operator-attested, not asserted here** (ADR-0070) — prove the flag/state machine/reserved
-  slots; the forest-cozy look, the slide, and the z-layering are the story's UAT leg 1. Do not author a
-  visual verdict, and do not edit `TreeView.tsx` in the `real:` scope (the mounting is attested, the
-  component proven in isolation).
+- **Appearance is design intent, not asserted here** (ADR-0348 D6) — prove the flag/state machine/reserved
+  slots; the forest-cozy look, the slide, and the z-layering are the story's recorded LOOK INTENT (design intent, NOT a UAT leg — ADR-0348 D6). Do not author
+  a visual verdict, and do not edit `TreeView.tsx` in the `real:` scope (the component is proven in
+  isolation; the mounting is asserted nowhere).

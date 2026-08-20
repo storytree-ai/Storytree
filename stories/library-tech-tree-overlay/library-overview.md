@@ -30,8 +30,9 @@ decisions: [185, 171, 122, 23, 70]
 # onSelect(SearchResult) into the SHARED librarySelection (source 'asset' for an artifact, source 'doc' +
 # category 'adr' for an ADR — finder parity). The dot field's APPEARANCE (the tier sizes, the band transitions,
 # the glow pulse, the plaque styling, the forest-cozy palette) and its real MOUNTING into TreeView's empty-state
-# slot are the story's operator-attested UAT leg 5 (the look is witnessed, never a machine visual verdict; do
-# NOT add a visual/colour/stroke/pixel/animation assertion here, and do NOT edit TreeView.tsx or LibraryDrawer.tsx
+# slot are the story's recorded LOOK INTENT (design intent, NOT a UAT leg — ADR-0348 D6; story leg 5 was
+# deleted 2026-08-21 and the intent moved to "The Library's LOOK" in story.md). The INSTRUCTION is
+# unchanged: never a machine visual verdict, do NOT add a visual/colour/stroke/pixel/animation assertion here, and do NOT edit TreeView.tsx or LibraryDrawer.tsx
 # in this `real:` scope — the overview is proven in isolation and takes assets/docs/onSelect as PROPS, holding
 # its OWN internal query+zoom state; the peekSlot conditional mount is the orchestrator's supplement glue after
 # PASS, exactly as the finder's / subgraph's / dive's mount was — trap k).
@@ -111,9 +112,37 @@ component is deterministically drivable in jsdom.
 > / no-fetch behaviour, RED at HEAD (module-not-found), GREEN once both modules are written. Its
 > GEOMETRY/BEHAVIOUR is machine-witnessed; its APPEARANCE inside the real drawer (the tier sizes, the band
 > transitions, the glow pulse, the plaque styling, the forest-cozy palette) and its real mounting into the
-> shell's empty-state slot are the story's operator-attested UAT leg 5 (ADR-0070), witnessed at
-> `?overlay=library#/tree`. Status stays `proposed` — `healthy` is only ever DERIVED from signed verdicts
-> (ADR-0020), never authored.
+> shell's empty-state slot are the story's recorded LOOK INTENT (design intent, NOT a UAT leg — ADR-0348 D6) and are asserted nowhere. ⚠ The
+> "witnessed at `?overlay=library#/tree`" half is doubly overtaken: ADR-0188 dec 4 removed this component's
+> mount and nothing has re-mounted it, so the surface is not reachable there at all. Status stays
+> `proposed` — `healthy` is only ever DERIVED from signed verdicts (ADR-0020), never authored.
+
+> **ADR-0294 D2/D4 pass correction, 2026-08-21 (ADR-0139).** Every sentence in this file that called the
+> dot field's appearance and its empty-state mounting "the story's operator-attested UAT leg 5" has been
+> corrected in place. **Story leg 5 no longer exists.** The ADR-0294 D2/D4 pass deleted it on 2026-08-21
+> and burned the ordinal: its behavioural clauses are proven right here (`lov-far-band-one-element-per-node`,
+> `lov-size-tier-buckets-by-importance`, `lov-importance-degree-over-references`, `lov-lod-band-by-zoom`,
+> `lov-close-band-arc-plaque-reads-epic`, `lov-search-glow-matched-set-via-searchcorpus`), and its
+> `Look (operator-attested)` clause fell to **ADR-0348 D6** (2026-08-11), which ruled a user EXPERIENCE
+> property is not a user ACCEPTANCE criterion. The appearance intent is preserved under **"The Library's
+> LOOK"** in [`story.md`](story.md) — design intent gathered through continuous owner feedback, with no
+> owner signature owed and none withheld.
+>
+> **Two honest gaps that story.md now records, repeated here because they are about THIS capability.**
+> (a) "A search match pulses INDEPENDENT OF ZOOM" is asserted at no band but the component's default:
+> `data-glow` is applied per node regardless of `band` in the source, but every glow assertion runs at the
+> default zoom, so the independence itself is untested. This is a statement of proof posture, NOT a brief to
+> go build or assert something — do not add a contract for it here without an increment that authors one.
+> (b) The unbudgeted "stays smooth toward ~2000 nodes" claim that rode leg 5's Look clause was NOT converted
+> into a machine leg: it names no threshold and this component is mounted by no non-test source (ADR-0188
+> dec 4 removed the mount and nothing has re-mounted it), so nothing could discharge it. It is recorded as
+> UNDISCHARGED under "The Library's LOOK", and **no gate is minted for it** (ADR-0097 §2). What IS proven of
+> it is its stated mechanism: `lov-far-band-one-element-per-node` (one element per node at FAR, no ambient
+> labels) and `lov-lod-band-by-zoom` (the ladder is monotonic).
+>
+> **What is UNCHANGED is the instruction:** do NOT author a visual / colour / stroke / pixel / animation /
+> layout assertion in this capability's tests.
+
 
 ## Guidance
 
@@ -212,8 +241,9 @@ APPEARANCE IS OPERATOR-ATTESTED, NOT ASSERTED (ADR-0185 dec 5/6 + ADR-0070). The
 forest-cozy palette (the world's CSS variables, as the shell / finder / subgraph / dive do), NOT
 neutral-admin white and NEVER the black-terminal look. The dot field appearance, the 3-tier size sizing, the
 band transitions (FAR↔MID↔CLOSE), the glow pulse, the plaque styling, the circle/square node shapes, and the
-whole-corpus layout aesthetics are WITNESSED by the owner (UAT leg 5), never a machine visual verdict — do
-NOT author a visual/colour/stroke/pixel/animation/layout assertion in this cap's tests (assert the DEGREE
+whole-corpus layout aesthetics are the story's recorded LOOK INTENT (design intent, NOT a UAT leg — ADR-0348 D6) — never a machine visual
+verdict, and since ADR-0348 D6 not an owner signature either. Do NOT author a
+visual/colour/stroke/pixel/animation/layout assertion in this cap's tests (assert the DEGREE
 scoring, the size TIERS, the LOD BAND function, the layout TOTALITY + determinism, the FAR ELEMENT-COUNT, the
 glow MARKER, the select RESULT, and the no-fetch invariant — never their styling or coordinates). Surface the
 STILL-UNSIGNED shell / finder / subgraph / dive look legs at the SAME attestation (trap l), rather than
@@ -274,7 +304,7 @@ The test-proven leaf behaviours — each **one isolated automated test** in the 
 distinctly-named test, so the coverage check reports 8/8 against the ONE `real.testFile` — the pure-module
 contracts live in THIS one file too, since coverage scans only `real.testFile`. None of these is an
 APPEARANCE assertion — the look (the dot field, the tier sizes, the band transitions, the glow pulse, the
-plaque styling, the forest-cozy palette) is the story's operator-attested UAT leg 5 (ADR-0070).
+plaque styling, the forest-cozy palette) is the story's recorded LOOK INTENT (design intent, NOT a UAT leg — ADR-0348 D6).
 
 1. **`lov-importance-degree-over-references`** — `importanceOf` scores in+out reference DEGREE; `load_bearing` not read (degree-only); an ADR out-degree 0 → in-degree only
    - **asserts —** `importanceOf(assets, docs)` scores each node's importance as its in+out DEGREE over the
@@ -359,7 +389,7 @@ degree/tier/band/layout/glow module + a new SVG dot-field render component, test
   an `arc` reads "epic"), marking matched nodes with `data-glow`, and on a node click invoking
   `onSelect(toSearchResult(node))` with finder parity. MOUNTING it into TreeView's empty-state `peekSlot`
   composition (the conditional mount when there is no selection) and the forest-cozy appearance are witnessed
-  under the story's UAT leg 5 (operator-attested, ADR-0070), NOT asserted in CI and NOT in this `real:` scope.
+  the story's recorded LOOK INTENT (design intent, NOT a UAT leg — ADR-0348 D6), NOT asserted in CI and NOT in this `real:` scope.
   After it, the imports resolve, the assertions hold, and `pnpm --filter studio test` +
   `pnpm --filter studio typecheck` stay green.
 
@@ -391,11 +421,12 @@ Rules:
   (`lov-node-select-yields-searchresult-asset-and-doc`).
 - **No fetch beyond the loaded corpus** — the empty-state field reads only the loaded `assets`/`docs`; no
   `docContent`/fetch/socket (`lov-empty-state-renders-constellation-no-fetch`, the inc-3-crash-class guard).
-- **Appearance is operator-attested, not asserted here** (ADR-0070) — prove the degree scoring, the size
+- **Appearance is design intent, not asserted here** (ADR-0348 D6) — prove the degree scoring, the size
   tiers, the LOD band function, the layout totality + determinism, the FAR element-count, the glow MARKER, the
   select RESULT, and the no-fetch invariant; the dot field look, the tier sizes, the band transitions, the
-  glow pulse, the plaque styling, and the forest-cozy palette are the story's UAT leg 5 (surface the
-  still-unsigned shell/finder/subgraph/dive look legs at the same attestation — trap l). Do NOT author a
+  glow pulse, the plaque styling, and the forest-cozy palette are the story's recorded LOOK INTENT (design intent, NOT a UAT leg — ADR-0348 D6) — there is
+  no look leg left to surface them at, and the "same attestation" this bullet used to point at no longer
+  exists. Do NOT author a
   visual/colour/stroke/pixel/animation assertion, and do NOT edit `TreeView.tsx` or `LibraryDrawer.tsx` in the
   `real:` scope (the peekSlot conditional mount is the orchestrator's supplement glue after PASS; the overview
   is proven in isolation, driven by props — trap k). `LibraryDrawer.test.tsx` (`lds-*`/`ldw-*`),

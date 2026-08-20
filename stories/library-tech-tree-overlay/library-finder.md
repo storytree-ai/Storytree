@@ -19,8 +19,10 @@ decisions: [185, 70, 161, 23]
 # reads "epic", never the raw key — trap j), an ADR result also shows its status, and clicking a result
 # invokes onSelect and marks the selection. The finder's APPEARANCE (does the results list read as a
 # forest-cozy lens over the world; the muted sub-line styling; the selected-row highlight colour) and its
-# real MOUNTING into LibraryDrawer's `library-drawer-peek-slot` are the story's operator-attested UAT leg 2
-# (the look is witnessed, never a machine visual verdict; do NOT add a visual/colour assertion here, and do
+# real MOUNTING into LibraryDrawer's `library-drawer-peek-slot` are the story's recorded LOOK INTENT
+# (design intent, NOT a UAT leg — story leg 2 was deleted 2026-08-08 and ADR-0348 D6 withdrew the look as
+# a criterion; the intent lives under "The Library's LOOK" in story.md). The INSTRUCTION is unchanged:
+# never a machine visual verdict, do NOT add a visual/colour assertion here, and do
 # NOT edit LibraryDrawer.tsx / TreeView.tsx in this `real:` scope — the finder is proven in isolation and
 # takes assets/docs/onSelect as PROPS, the placement is the orchestrator's supplement glue after PASS).
 #
@@ -85,8 +87,20 @@ library backend), taken as `assets`/`docs` props so the component is determinist
 > selection behaviour, RED at HEAD (module-not-found), GREEN once both modules are written. Its
 > RANKING/BEHAVIOUR is machine-witnessed; its APPEARANCE inside the real drawer (the forest-cozy look, the
 > muted sub-line, the selected-row highlight) and its real mounting into the shell's peek slot are the
-> story's operator-attested UAT leg 2 (ADR-0070). Status stays `proposed` — `healthy` is only ever DERIVED
-> from signed verdicts (ADR-0020), never authored.
+> story's recorded LOOK INTENT (design intent, NOT a UAT leg — ADR-0348 D6) and are asserted nowhere.
+> Status stays `proposed` — `healthy` is only ever DERIVED from signed verdicts (ADR-0020), never authored.
+
+> **ADR-0294 D2/D4 pass correction, 2026-08-21 (ADR-0139).** Every sentence in this file that
+> called the finder's appearance and its real mounting "the story's operator-attested UAT leg 2" has been corrected in
+> place. There is no such leg: story leg 2 was deleted as an ADR-0294 D2 duplicate on 2026-08-08, burning the ordinal, and
+> **ADR-0348 D6** (2026-08-11) separately ruled that a user EXPERIENCE property is not a user
+> ACCEPTANCE criterion at all. The appearance intent is preserved under **"The Library's LOOK"** in
+> [`story.md`](story.md), as design intent gathered through continuous owner feedback — no owner
+> signature is owed for it and none is withheld. **What is UNCHANGED is the instruction:** do NOT
+> author a visual / colour / pixel / animation assertion in this capability's tests. ADR-0070's
+> two-stage posture still governs where an appearance verdict lives WHEN one is worth carrying; it is
+> the "this story owes an operator-attested UAT signature" reading that is withdrawn.
+
 
 ## Guidance
 
@@ -144,8 +158,8 @@ dec 4) — do NOT render it here. Minimum to green: no query → no rows.
 APPEARANCE IS OPERATOR-ATTESTED, NOT ASSERTED (ADR-0185 dec 5 + ADR-0070). The finder follows the map's
 forest-cozy palette (the world's CSS variables, as the shell does), NOT neutral-admin white and NEVER the
 black-terminal look. The muted sub-line styling, the selected-row highlight colour, and how the list reads
-as part of the world are WITNESSED by the owner (UAT leg 2), never a machine visual verdict — do NOT author
-a visual/colour/appearance assertion in this cap's tests (assert the sub-line TEXT and the selection MARKER,
+as part of the world are the story's recorded LOOK INTENT (design intent, NOT a UAT leg — ADR-0348 D6) — never a machine visual verdict, and since
+ADR-0348 D6 not an owner signature either. Do NOT author a visual/colour/appearance assertion in this cap's tests (assert the sub-line TEXT and the selection MARKER,
 never their styling).
 
 OFFLINE-TESTABLE IN JSDOM (the `ReviewToggle.test.tsx` / `LibraryDrawer.test.tsx` discipline).
@@ -190,7 +204,7 @@ The test-proven leaf behaviours — each **one isolated automated test** in the 
 `../lib/librarySearch`). Per ADR-0122 (`storytree coverage`) each contract id is the lead of a
 distinctly-named test, so the coverage check reports 6/6 against the ONE `real.testFile`. None of these is
 an APPEARANCE assertion — the look (forest-cozy palette, the muted sub-line styling, the selected-row
-highlight) is the story's operator-attested UAT leg 2 (ADR-0070).
+highlight) is the story's recorded LOOK INTENT (design intent, NOT a UAT leg — ADR-0348 D6).
 
 > **ADR-0197 reconciliation (2026-07-15, D5 — executes the decision, not a re-decision).** ADR-0197 (amends
 > ADR-0196 D3) makes the Library panel's ONE three-state selector (`open | active | archived`, DEFAULT `open`)
@@ -288,8 +302,8 @@ component, test-first.
   box + results list taking `assets`/`docs`/`onSelect`/`selectedId` as PROPS, rendering each result as a
   title over a `kindLabel(category, arcDisplay)` sub-line (via `useArcDisplay()`), showing an ADR result's
   status, and invoking `onSelect` + marking the selected row on click. MOUNTING it into the shell's
-  `library-drawer-peek-slot` and the forest-cozy appearance are witnessed under the story's UAT leg 2
-  (operator-attested, ADR-0070), NOT asserted in CI and NOT in this `real:` scope. After it, the imports
+  `library-drawer-peek-slot` and the forest-cozy appearance are the story's recorded LOOK INTENT (design intent, NOT a UAT leg — ADR-0348 D6),
+  NOT asserted in CI and NOT in this `real:` scope. After it, the imports
   resolve, the assertions hold, and `pnpm --filter studio test` + `pnpm --filter studio typecheck` stay green.
 
 Rules:
@@ -306,8 +320,8 @@ Rules:
   selection state lives with the caller for increment 3 (`lf-click-invokes-onselect-and-marks-selection`).
 - **Empty state is increment 5** — a short/empty query renders nothing here
   (`lf-short-or-empty-query-yields-no-results`); do NOT render the dot constellation (minimum to green).
-- **Appearance is operator-attested, not asserted here** (ADR-0070) — prove the ranking, the sub-line TEXT,
+- **Appearance is design intent, not asserted here** (ADR-0348 D6) — prove the ranking, the sub-line TEXT,
   the status, and the selection MARKER; the forest-cozy look, the muted styling, and the highlight colour are
-  the story's UAT leg 2. Do not author a visual verdict, and do NOT edit `LibraryDrawer.tsx` or `TreeView.tsx`
+  the story's recorded LOOK INTENT (design intent, NOT a UAT leg — ADR-0348 D6). Do not author a visual verdict, and do NOT edit `LibraryDrawer.tsx` or `TreeView.tsx`
   in the `real:` scope (the mount into the peek slot is the orchestrator's supplement glue after PASS; the
   component is proven in isolation, driven by props).
