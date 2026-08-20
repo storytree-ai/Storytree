@@ -1,7 +1,7 @@
-// Presentation rules: retired never renders, building wears proposed
-// (ADR-0038), and hue derives from the signed verdict — authored status can
-// never paint green (ADR-0040). Display-level — the payload/schema keep the
-// full vocabulary, so these tests pin the prune/fold seam every world surface
+// Presentation rules: retired never renders, signed pass is the sole source of
+// green, and brown is reserved for genuine mapped brownfield provenance
+// (ADR-0395). Display-level only: the payload/schema keep the full authored and
+// proof vocabulary, so these tests pin the prune/fold seam every world surface
 // sits behind.
 
 import { describe, it, expect } from 'vitest';
@@ -49,66 +49,47 @@ const story = (
 });
 
 describe('worldStatus', () => {
-  it('folds building into proposed and passes everything else through', () => {
+  it('keeps authored greenfield work proposed and genuine mapped provenance brown', () => {
+    expect(worldStatus('proposed')).toBe('proposed');
     expect(worldStatus('building')).toBe('proposed');
-    for (const st of ['proposed', 'mapped', 'healthy', 'retired', null] as const) {
-      expect(worldStatus(st)).toBe(st);
-    }
-  });
-
-  it('folds unhealthy into mapped — the world draws no withered form (ADR-0296)', () => {
-    expect(worldStatus('unhealthy')).toBe('mapped');
+    expect(worldStatus('mapped')).toBe('mapped');
+    expect(worldStatus('healthy')).toBe('proposed');
+    expect(worldStatus('unhealthy')).toBe('proposed');
+    expect(worldStatus('retired')).toBe('retired');
+    expect(worldStatus(null)).toBeNull();
   });
 });
 
-describe('provenStatus (ADR-0040: hue is the verdict)', () => {
-  it('a signed pass is the ONLY green source — it overrides any authored rung', () => {
-    // `unhealthy` is in this list since ADR-0296: with the state withdrawn from the
-    // picture, the authored-unhealthy-beats-a-pass override went with it.
-    for (const st of ['proposed', 'building', 'mapped', 'healthy', 'unhealthy', null] as const) {
-      expect(provenStatus(st, pass)).toBe('healthy');
-    }
-  });
+describe('provenStatus (ADR-0395: provenance before proof)', () => {
+  const matrix: Array<{
+    authored: WorkStatus | null;
+    pass: WorkStatus | null;
+    fail: WorkStatus | null;
+    missing: WorkStatus | null;
+  }> = [
+    { authored: 'proposed', pass: 'healthy', fail: 'proposed', missing: 'proposed' },
+    { authored: 'building', pass: 'healthy', fail: 'proposed', missing: 'proposed' },
+    { authored: 'mapped', pass: 'healthy', fail: 'mapped', missing: 'mapped' },
+    { authored: 'healthy', pass: 'healthy', fail: 'proposed', missing: 'proposed' },
+    { authored: 'unhealthy', pass: 'healthy', fail: 'proposed', missing: 'proposed' },
+    { authored: null, pass: 'healthy', fail: null, missing: null },
+  ];
 
-  it('authored healthy without a signed pass under-claims to mapped', () => {
-    expect(provenStatus('healthy', undefined)).toBe('mapped');
-  });
+  it.each(matrix)(
+    'folds authored=$authored across pass, fail, and missing proof',
+    ({ authored, pass: passed, fail: failed, missing }) => {
+      expect(provenStatus(authored, pass)).toBe(passed);
+      expect(provenStatus(authored, fail)).toBe(failed);
+      expect(provenStatus(authored, undefined)).toBe(missing);
+    },
+  );
 
-  // ADR-0296 withdrew `unhealthy` from the world's rendered vocabulary. These pin the
-  // replacement contract: nothing the fold emits is ever `unhealthy`, and a signed fail
-  // UNDER-claims to an unproven rung rather than painting a withered form. ADR-0040's
-  // invariant is preserved in the conservative direction — a fail still never greens.
-  it('a signed fail never renders unhealthy — it under-claims to the authored ladder', () => {
-    expect(provenStatus('healthy', fail)).toBe('mapped');
-    expect(provenStatus('mapped', fail)).toBe('mapped');
-    expect(provenStatus('proposed', fail)).toBe('proposed');
-    expect(provenStatus('building', fail)).toBe('proposed');
-    expect(provenStatus(null, fail)).toBeNull();
-  });
-
-  it('a signed fail still never paints green (ADR-0040 holds)', () => {
-    for (const st of ['proposed', 'building', 'mapped', 'healthy', 'unhealthy', null] as const) {
-      expect(provenStatus(st, fail)).not.toBe('healthy');
-    }
-  });
-
-  it('authored unhealthy folds to mapped — real, but not proven green', () => {
-    expect(provenStatus('unhealthy', undefined)).toBe('mapped');
-  });
-
-  it('the fold NEVER emits unhealthy, whatever it is handed', () => {
-    for (const st of ['proposed', 'building', 'mapped', 'healthy', 'unhealthy', null] as const) {
-      for (const v of [pass, fail, undefined]) {
-        expect(provenStatus(st, v)).not.toBe('unhealthy');
+  it('never emits unhealthy', () => {
+    for (const row of matrix) {
+      for (const verdict of [pass, fail, undefined]) {
+        expect(provenStatus(row.authored, verdict)).not.toBe('unhealthy');
       }
     }
-  });
-
-  it('offline (no verdict) falls back to the authored ladder — never over-claims', () => {
-    expect(provenStatus('proposed', undefined)).toBe('proposed');
-    expect(provenStatus('building', undefined)).toBe('proposed');
-    expect(provenStatus('mapped', undefined)).toBe('mapped');
-    expect(provenStatus(null, undefined)).toBeNull();
   });
 });
 
@@ -147,10 +128,41 @@ describe('presentStories', () => {
     expect(presentStories([story('s', 'proposed', [], fail)])[0]?.status).toBe('proposed');
   });
 
-  it('authored healthy stops painting green on both tiers (the hand-painting door stays shut)', () => {
-    const out = presentStories([story('s', 'healthy', [cap('c', 'healthy')])]);
-    expect(out[0]?.status).toBe('mapped');
-    expect(out[0]?.capabilities[0]?.status).toBe('mapped');
+  it('applies provenance-before-proof to both tiers', () => {
+    const scenarios: Array<{
+      authored: WorkStatus | null;
+      verdict: TreeVerdict | undefined;
+      expected: WorkStatus | null;
+    }> = [
+      { authored: 'proposed', verdict: pass, expected: 'healthy' },
+      { authored: 'proposed', verdict: fail, expected: 'proposed' },
+      { authored: 'proposed', verdict: undefined, expected: 'proposed' },
+      { authored: 'building', verdict: pass, expected: 'healthy' },
+      { authored: 'building', verdict: fail, expected: 'proposed' },
+      { authored: 'building', verdict: undefined, expected: 'proposed' },
+      { authored: 'mapped', verdict: pass, expected: 'healthy' },
+      { authored: 'mapped', verdict: fail, expected: 'mapped' },
+      { authored: 'mapped', verdict: undefined, expected: 'mapped' },
+      { authored: 'healthy', verdict: pass, expected: 'healthy' },
+      { authored: 'healthy', verdict: fail, expected: 'proposed' },
+      { authored: 'healthy', verdict: undefined, expected: 'proposed' },
+      { authored: 'unhealthy', verdict: pass, expected: 'healthy' },
+      { authored: 'unhealthy', verdict: fail, expected: 'proposed' },
+      { authored: 'unhealthy', verdict: undefined, expected: 'proposed' },
+      { authored: null, verdict: pass, expected: 'healthy' },
+      { authored: null, verdict: fail, expected: null },
+      { authored: null, verdict: undefined, expected: null },
+    ];
+    const out = presentStories(
+      scenarios.map(({ authored, verdict }, index) =>
+        story(`story-${index}`, authored, [cap(`cap-${index}`, authored, verdict)], verdict),
+      ),
+    );
+
+    expect(out.map((s) => s.status)).toEqual(scenarios.map((s) => s.expected));
+    expect(out.map((s) => s.capabilities[0]?.status)).toEqual(
+      scenarios.map((s) => s.expected),
+    );
   });
 
   it('leaves null status (spec error) and the rest of the shape untouched', () => {

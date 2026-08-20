@@ -10,17 +10,13 @@
 //   freedom to iterate — a separate hue bought nothing.
 // - GREEN derives from the signed verdict, never from authored paint (ADR-0040,
 //   completing ADR-0031's health-is-a-projection): a signed pass renders the
-//   unit healthy; authored `healthy` with no signed pass under-claims to
-//   `mapped` (brownfield — real, but unproven here and now). A story's verdict
-//   is its OWN UAT node's, never a child roll-up (ADR-0033 d.4).
-// - `unhealthy` is NOT part of the world's rendered vocabulary (ADR-0296,
-//   owner-directed): a signed fail and an authored `unhealthy` both fold to
-//   `mapped` — real, but not proven green. Withdrawn from the PICTURE only:
-//   the schema enum, the proof-protocol shape and the `rollupStatus` fail→
-//   unhealthy demotion are all UNCHANGED, and the failure stays legible on the
-//   node panel's verdict line. ADR-0040's invariant is preserved in the
-//   conservative direction — a fail still can never paint green, it now
-//   under-claims to unproven instead of painting a withered form.
+//   unit healthy. A story's verdict is its OWN UAT node's, never a child roll-up
+//   (ADR-0033 d.4).
+// - BROWN exclusively means genuine inherited brownfield provenance (ADR-0395):
+//   only authored `mapped` can fall through to mapped without a current pass.
+//   Defensive authored `healthy`/`unhealthy` and greenfield `proposed`/`building`
+//   fall through to proposed amber when proof is missing or failing. A signed
+//   failure stays legible on the node panel's verdict line.
 // - Offline (DB down, verdicts absent) everything falls back to the authored
 //   ladder, so a proven world UNDER-claims — the StoreBanner is the global
 //   "proof layer absent" signal.
@@ -31,25 +27,21 @@ import type { DriftState, TreeCapability, TreeStory, TreeVerdict, WorkStatus } f
 export type DriftBadge = Exclude<DriftState, 'fresh'>;
 
 /**
- * The authored-ladder fold alone (ADR-0038): building reads as proposed, and
- * (ADR-0296) `unhealthy` reads as mapped — the world draws no withered form.
- *
- * THE ONE PLACE the withdrawal is expressed. Every world surface sits behind
- * this fold, so restoring the state later is this line plus the legend entry —
- * the withered/dead-flora render machinery downstream is deliberately LEFT IN
- * PLACE (ADR-0226/0227's art), unreachable rather than deleted.
+ * The authored provenance fold alone (ADR-0395): `mapped` is the sole brown
+ * source; greenfield and defensive proof-derived authored states read as
+ * proposed until a current signed pass proves them green.
  */
 export function worldStatus(status: WorkStatus | null): WorkStatus | null {
-  if (status === 'building') return 'proposed';
-  if (status === 'unhealthy') return 'mapped';
+  if (status === 'building' || status === 'healthy' || status === 'unhealthy') {
+    return 'proposed';
+  }
   return status;
 }
 
 /**
- * The status a unit WEARS once proof is folded in (ADR-0040) — hue is the
- * verdict's, the authored ladder keeps only its unproven rungs:
- * signed pass → healthy (the ONLY green source); authored healthy without a
- * signed pass → mapped; building → proposed; everything else as authored.
+ * The status a unit WEARS once proof is folded in (ADR-0040 + ADR-0395):
+ * signed pass → healthy (the ONLY green source); otherwise the authored
+ * provenance fold supplies mapped brownfield or proposed greenfield.
  *
  * A signed FAIL no longer withers (ADR-0296) — it falls through to the authored
  * ladder, which under-claims it to an unproven rung. ADR-0040's invariant is
@@ -61,7 +53,6 @@ export function provenStatus(
   verdict: TreeVerdict | undefined,
 ): WorkStatus | null {
   if (verdict?.outcome === 'pass') return 'healthy';
-  if (status === 'healthy') return 'mapped';
   return worldStatus(status);
 }
 
