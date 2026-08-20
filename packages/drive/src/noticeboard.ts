@@ -135,8 +135,10 @@ export const IDENTITY_REFUSAL_BODY =
   "linked worktree, whatever its parent path (`.claude/worktrees/<name>`, " +
   "`.codex/worktrees/<n>/storytree`, or your own convention; `git worktree list` shows them). " +
   "The PRIMARY CHECKOUT is deliberately refused: the shared lobby has no isolated identity to " +
-  "claim under. Run this command from inside a worktree — there is deliberately no flag to " +
-  "supply an identity manually.";
+  "claim under. The required bootstrap order is: create a Git-registered linked worktree " +
+  "(`git worktree add -b <branch> <path>`), enter that linked worktree, then run " +
+  "`storytree noticeboard declare` from there. There is deliberately no flag to supply an " +
+  "identity manually.";
 
 /** Trailing-separator-tolerant last path component, for paths git hands back in either separator. */
 function basename(p: string): string {
