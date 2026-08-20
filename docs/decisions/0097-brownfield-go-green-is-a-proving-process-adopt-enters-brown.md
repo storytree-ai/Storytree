@@ -84,6 +84,11 @@ work the proposed state holds is complete and signed. `mapped` stays *never self
 ("untouched brownfield") and `healthy` ("proven in the fold"); a stalled adoption honestly reads amber,
 not green.
 
+**Scope correction (ADR-0395).** This ladder begins only for genuinely inherited brownfield work.
+Greenfield code does not become `mapped` merely because its story/capability spec was registered after
+its implementation or tests landed; without a current signed pass that work is `proposed`. Registration
+order is not provenance, and an Adopt ceremony must never be used to hide a classification error.
+
 **2. The honest split is the gate KIND (re-affirming ADR-0085; answering "must we refactor?").**
 Already-tested code is **adopted**: an `observe` gate's declared suite is observed green at a clean
 committed HEAD and signed to an `adopted` verdict — no manufactured red. Genuinely-untested code is

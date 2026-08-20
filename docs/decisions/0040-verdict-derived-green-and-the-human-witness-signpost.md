@@ -55,8 +55,8 @@ Seven owner calls, one coherent reshape of how proof is displayed and witnessed:
    A capability whose latest signed verdict in `events.verdict` is a `pass` renders GREEN
    (healthy foliage). Authored `status: healthy` **stops painting capabilities green** — the
    verdict is the only green source at that tier (otherwise the hand-painting door reopens); an
-   authored `healthy` with no signed pass under-claims to **mapped** (brownfield: real, not yet
-   proven). The authored ladder keeps its other jobs (proposed = amber, mapped = brown,
+   authored `healthy` with no signed pass under-claims to **proposed** (greenfield, not currently
+   proven), never to a fabricated brownfield provenance (ADR-0395). The authored ladder keeps its other jobs (proposed = amber, mapped = brown,
    retired = absent, building wears proposed — ADR-0038). ~~**Wither semantics are unchanged**:
    last signed run failed OR authored unhealthy — and authored `unhealthy` wins even over a
    signed pass.~~ **WITHDRAWN by [ADR-0296](0296-the-world-renders-no-unhealthy-state-withdrawn-from-the-pict.md):**
@@ -73,7 +73,8 @@ Seven owner calls, one coherent reshape of how proof is displayed and witnessed:
    on the story's UAT node, never from child verdicts — six green plants do not make a green
    crown. ~~A signed UAT *fail* withers the crown (same `provenStatus` fold).~~ Since
    [ADR-0296](0296-the-world-renders-no-unhealthy-state-withdrawn-from-the-pict.md) a fail simply
-   fails to green the crown, leaving it on its authored rung.
+   fails to green the crown, leaving it on its authored rung. ADR-0395 narrows that fallback:
+   greenfield is authored `proposed`; only genuine brownfield provenance is authored `mapped`.
 
 3. **Story writers declare who witnesses the UAT.** New optional story-frontmatter field
    `uat_witness: human | machine` (`UatWitness` on the `Story` tier in
@@ -107,9 +108,10 @@ Seven owner calls, one coherent reshape of how proof is displayed and witnessed:
    [ADR-0296](0296-the-world-renders-no-unhealthy-state-withdrawn-from-the-pict.md) there is no
    withered crown; the seal is what distinguishes a signed fail from an unsigned story.
 
-6. **Offline under-claims.** With the DB down / verdicts absent, hues fall back to the authored
-   ladder — a proven world reads amber/brown, never green: the world under-claims, never
-   over-claims. The StoreBanner is the global "proof layer absent" signal; the legend's proof
+6. **Offline under-claims without rewriting provenance.** With the DB down / verdicts absent, hues
+   fall back to the authored ladder — greenfield reads amber and genuine brownfield reads brown,
+   never green: the world under-claims, never over-claims and never invents brownfield from missing
+   proof (ADR-0395). The StoreBanner is the global "proof layer absent" signal; the legend's proof
    row states this.
 
 7. **Named later work — recorded, deliberately NOT implemented:**
