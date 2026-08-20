@@ -25,8 +25,11 @@ decisions: [137, 70, 4]
 # because ChatDock takes no callback prop and does not observe the frame → the spy never fires (a
 # RUNTIME red, never type-only). FRONTEND-BUILDER TWO-STAGE (ADR-0070): this `real:` arm proves the
 # GEOMETRY/BEHAVIOUR ONLY (the callback fires on the right event, and NOT on a builder finish / a
-# started frame) — the island APPEARING LIVE on the map is the story's operator-attested UAT leg 6 (do
-# NOT assert map geometry / the island's look here). RUNNER: the studio suite is VITEST + jsdom, so the
+# started frame) — the island APPEARING LIVE on the map is carried by NO UAT leg. It stood as a
+# story-UAT leg re-adjudicated `machine` on 2026-07-26 (a DOM/data presence claim), unharnessed and
+# bound to no gate, and ADR-0396 deleted it with this retired story's other criteria on 2026-08-21; the
+# island's LOOK was never this story's at all (it is the map stories' appearance UAT). The instruction
+# is UNCHANGED and now unconditional (do NOT assert map geometry / the island's look here). RUNNER: the studio suite is VITEST + jsdom, so the
 # real arm declares an explicit proofCommand running the ONE test file under vitest. `install: true`
 # (fresh worktree, ADR-0031 §2). SCOPE = apps/studio/src. The thin-client wall holds: ChatDock imports
 # only React + ChatPanel (no drive/agent); the reload is a plain callback prop, TreeView owns reloadTree.
@@ -60,8 +63,9 @@ stream/wire logic.
 > no way to signal the map. This capability threads a plain callback: a spawn-finished-for-a-story-author
 > signal from the panel, up through `ChatDock`, to the `reloadTree` `TreeView` already owns (passed down
 > at the `<ChatDock/>` mount, `TreeView.tsx:2069`). Its GEOMETRY/BEHAVIOUR (the callback fires on the
-> right event) is machine-witnessed; the island APPEARING LIVE on the map is the story's operator-attested
-> UAT leg 6 (ADR-0070). Status stays `proposed` — `healthy` is only ever DERIVED from signed verdicts
+> right event) is machine-witnessed; the island APPEARING LIVE on the map is carried by no UAT leg
+> (re-adjudicated `machine` 2026-07-26, then deleted by ADR-0396 on 2026-08-21) and its LOOK is the map
+> stories' appearance UAT (ADR-0070), never asserted here. Status stays `proposed` — `healthy` is only ever DERIVED from signed verdicts
 > (ADR-0020), never authored.
 
 ## Guidance
@@ -89,11 +93,13 @@ it down. The signal from `ChatPanel` up to `ChatDock` is a plain React callback 
 `spawn` frame (capability 3's wire shape), never a drive import. The `modelPathBoundary.test.ts` wall
 stays green.
 
-GEOMETRY/BEHAVIOUR HERE, THE LIVE ISLAND OPERATOR-ATTESTED (ADR-0070 two-stage): this `real:` arm proves
+GEOMETRY/BEHAVIOUR HERE, THE LIVE ISLAND CARRIED BY NO LEG (ADR-0070 two-stage; the second stage was
+re-adjudicated `machine` in 2026-07 and deleted by ADR-0396 in 2026-08): this `real:` arm proves
 the callback FIRES on the right event (a story-author finish) and NOT on the wrong ones (a builder
 finish, a started frame) — a spy callback over a scripted spawn frame in jsdom. Whether the island
-actually APPEARS on the forest map, live, when the reload runs is the story's operator-attested UAT
-leg 6 — witnessed by the owner, NEVER a machine map-geometry verdict here. Do NOT assert the island's
+actually APPEARS on the forest map, live, when the reload runs is carried by no UAT leg (it was one,
+re-adjudicated `machine` and unharnessed, until ADR-0396 deleted it) — and is NEVER a machine
+map-geometry verdict here. Do NOT assert the island's
 presence / position / look in this capability's tests (the tree render is `TreeView`'s, exercised live).
 
 OFFLINE-TESTABLE BY A SPY CALLBACK (the component discipline): `@vitest-environment jsdom`,
@@ -130,8 +136,8 @@ The integration test would:
 The test-proven leaf behaviours — each **one isolated automated test** in the `studio` suite (vitest
 jsdom, `apps/studio/src/components/ChatDock.reload.test.tsx`), the `api` chat-stream seam mocked/scripted
 + a spy callback. Per ADR-0122, each contract id is the lead of a distinctly-named test (3/3). None is a
-map-geometry / appearance assertion — the live island is the story's operator-attested UAT leg 6
-(ADR-0070).
+map-geometry / appearance assertion — the live island is carried by no UAT leg since ADR-0396, and its
+look is the map stories' appearance UAT (ADR-0070).
 
 1. **`lsr-story-author-finish-triggers-reload`** — a story-author finish invokes reloadTree once
    - **asserts —** a `spawn` `phase: "finished"` frame with a story-author role causes `ChatDock` to
@@ -175,8 +181,8 @@ the existing `reloadTree`, test-first.
   the spawn-finished signal up), and pass `reloadTree` down at `TreeView.tsx:2069`'s `<ChatDock/>` mount.
   NO drive/agent/model import. After it, the story-author-finish-fires + no-reload-on-builder-or-started
   + plain-callback assertions hold, and `pnpm --filter studio test` + typecheck stay green. The island
-  APPEARING LIVE on the map is witnessed under the story's UAT leg 6 (operator-attested, ADR-0070), not
-  asserted in CI.
+  APPEARING LIVE on the map is witnessed by nothing — it stood as an unharnessed, gate-less machine UAT
+  leg until ADR-0396 deleted it (2026-08-21) — and is not asserted in CI (ADR-0070).
 
 Rules:
 
@@ -186,7 +192,8 @@ Rules:
   builder finish, not a started frame (`lsr-no-reload-on-builder-or-started`).
 - **Plain callback, no drive import** — `ChatDock` imports only React + `ChatPanel`
   (`lsr-reload-is-a-plain-callback-no-drive-import`, ADR-0004); `modelPathBoundary.test.ts` stays green.
-- **The live island is operator-attested, not asserted here** (ADR-0070) — prove the callback fires;
-  the island appearing on the map is the story's UAT leg 6. Do not assert map geometry.
+- **The live island is not asserted here** (ADR-0070) — prove the callback fires; the island appearing
+  on the map is carried by no UAT leg since ADR-0396, and its look is the map stories'. Do not assert
+  map geometry.
 - **Edit, don't fork** — the dock's existing chrome + the panel's existing render are untouched except
   for the additive callback prop + the finish observer.

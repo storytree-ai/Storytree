@@ -29,18 +29,28 @@ outcome: "From a desktop chat conversation the session-orchestrator spawns the r
 # (`spawn-claim.ts`), which belongs to the LIVE `wisp-as-story-claim` story.
 status: retired
 proof_mode: UAT
+# UAT CRITERIA: NONE since 2026-08-21 (ADR-0396 — a retired story's criteria are an obligation against
+# a withdrawn journey, so they are deleted and their ordinals burned; the body keeps the history).
+# Ordinals 1–7 are all burned. None held proof credit (all read `proven=–`), so ADR-0396 D8's
+# keep-the-proven fence did not bite; each key is `superseded` in stories/uat-legacy-dispositions.json
+# and the detail artifacts chat-subagent-spawn#uat-5/6/7 are retired in the live store. ADR-0396 is also
+# the answer to the disposition question the legs at ordinals 5 and 6 were explicitly holding open.
+# Everything below this line is DATED HISTORY of how the list stood, not anything current.
 # Per-leg witness (ADR-0106; RE-ADJUDICATED 2026-07-26 under ADR-0209 D8 — see the UAT section):
 # the mechanics legs (the fenced story-author spawn session, the builder dispatch through the existing
 # routed worker, the claim-before-spawn gate, the composed spawn tool surface, and the scope-wall
 # ABSENCE audit) are machine-witnessed by the package suites over an injected queryFn + scripted
-# doubles + the in-memory seed. Only the two LIVE legs stay human, on named bases: leg 5 on SPEND (a
-# real `query()` story-author spawn is subscription-billed, ADR-0030/ADR-0010 §5) and leg 6 on SPEND
-# PLUS a genuine judgment gap (decision 4's consultative routing has no mechanical classifier, by
-# design — "was that the right route?" has no oracle). Leg 7 was human for neither reason: its success
-# conditions are shapes and absences over the constructed tool surface, all of which compile — it is
-# now `machine` (and per ADR-0209 §6 it is UNSTAMPED until a spec judges it; no owner signs anything).
+# doubles + the in-memory seed. Only the two LIVE legs stayed human, on named bases: the leg at ordinal
+# 5 on SPEND (a real `query()` story-author spawn is subscription-billed, ADR-0030/ADR-0010 §5) and the
+# leg at ordinal 6 on SPEND PLUS a genuine judgment gap (decision 4's consultative routing has no
+# mechanical classifier, by design — "was that the right route?" has no oracle). The leg at ordinal 7
+# was human for neither reason: its success conditions are shapes and absences over the constructed tool
+# surface, all of which compile — it became `machine` (and per ADR-0209 §6 UNSTAMPED until a spec judged
+# it; no owner signed anything). ADR-0348 D2 later withdrew the SPEND basis outright and the ADR-0357
+# triage recorded both live legs MOOT rather than un-harnessable.
 # The story-level uat_witness is absent → human (the ADR-0040 fail-closed signpost), so the
-# machine-driven whole-story UAT node stays withheld; the crown derives from the per-leg roll-up.
+# machine-driven whole-story UAT node stayed withheld; the crown derived from the per-leg roll-up and
+# now derives from the ADR-0085 own-proof union over a story that declares no criteria (ADR-0294 D5).
 capabilities: [story-author-spawn, builder-spawn-dispatch, claim-gated-spawn, spawn-tool-surface, spawn-deps-composition]
 # WHY A NEW STORY, NOT AN EDIT TO headless-orchestrator OR chat-drive-bridge:
 #   - headless-orchestrator is ADR-0108 Phases 1–2 and is read/propose ONLY — its proof posture
@@ -167,8 +177,9 @@ capabilities below are green under signed `--real` verdicts — the agent-side m
 composition included: `packages/drive/src/spawn-deps.ts` assembles the real spawn deps and
 `orchestrate()` threads them through to the runtime. What keeps the DESKTOP chat propose-only today is
 only the sidecar glue — `apps/desktop/electron/backend-entry.ts` does not yet compose real spawn deps
-into the chat mount (operator-attested wiring) — plus the operator-attested UAT legs 5–6 (leg 7
-re-adjudicated to `machine` 2026-07-26; the scope walls are absences, not an attestation).)*
+into the chat mount (operator-attested wiring) — plus the two operator-attested UAT legs then at
+ordinals 5–6 (the leg at 7 was re-adjudicated to `machine` on 2026-07-26; the scope walls are absences,
+not an attestation). Since ADR-0396 (2026-08-21) this story carries no criteria at all.)*
 
 The build shape ADR-0137 decision 1 pins, verbatim:
 
@@ -249,9 +260,11 @@ Listed roots-first (a capability appears after everything it depends on). All fi
 (ADR-0057 — each carries a `proof:` block with a `real:` arm), so they form a dependency-closed,
 acyclic set in which every member resolves a `real:` arm — what makes the WHOLE story
 story-`real`-buildable (`isStoryBuildable`). The live spawn walk is NOT a sixth capability (it has no
-separate code — it is the composed surface run live); it is the human-witness Story UAT legs 5–6, the
-slow-growth-minimal choice (the headless-orchestrator leg-4 pattern). (Leg 7 — the scope-wall
-audit — is `machine`: it inspects the constructed surface and needs no live walk.)
+separate code — it is the composed surface run live); it was carried by the two human-witness Story UAT
+legs at ordinals 5–6, the slow-growth-minimal choice (the same pattern `headless-orchestrator` used for
+its own live leg). (The leg at ordinal 7 — the scope-wall audit — was `machine`: it inspects the
+constructed surface and needs no live walk.) *(All seven were deleted by ADR-0396 on 2026-08-21, so the
+composed surface run live is carried by no leg; the UAT section holds the record.)*
 
 | # | capability | outcome | depends on |
 |---|---|---|---|
@@ -296,7 +309,8 @@ seam, the claim store, the build worker, the loop definitions, or the chat chain
   [is] consumed unchanged" — falsified by **ADR-0155**, which retired `propose_unit` outright. The
   orchestrator now DRIVES via its spawn + landing tools rather than proposing a unit for a human's
   accept click, so there is no propose surface left to consume; the dep-less baseline this story's
-  spawn tools scale down to is ORIENTATION-only. See leg 4's scope note.)*
+  spawn tools scale down to is ORIENTATION-only. The scope note that recorded this sat on the leg at
+  ordinal 4 and is carried forward in the UAT section's history block, ADR-0396.)*
 - **`wisp-as-story-claim`** — the claim layer. The gate consumes the E1 acquire-or-wait seam
   (`resolveSpawnClaim`, `packages/agent/src/spawn-claim.ts`) and the work-time claim-store deltas
   (`PgClaimStore.claim()` / `bumpHeartbeat`), and REALISES that story's deferred E2 contract
@@ -333,162 +347,119 @@ seam, the claim store, the build worker, the loop definitions, or the chat chain
 
 ## UAT Test Criteria
 
-The integrated **acceptance walkthrough** that proves the whole spawn authority — converse → claim →
-spawn → observe → the human lands — meets its outcome end-to-end. Minimal-first (one coherent journey),
-defect-driven thereafter. Mocks are forbidden in the consumed seams that CAN run offline: the claim
-gate runs the real E1 seam over the real `ClaimResult` shape; the composition renders the REAL
-`story-author` library agent over the real seed; the dispatch routes to the real worker registry. Only
-the SDK `query()` is scripted offline, and the claim store / build runner are injected doubles
-(ADR-0010 §5 — a live SDK-billed spawn is never run on a gate pass); the live spawns are the
-operator-attested legs.
-
-> **HONEST status — `proposed`, part-scripted / part-attested.** Legs 1–4 and 7 are automatable by
-> the package suites (`@storytree/agent` + `@storytree/drive`) over an injected `queryFn` + scripted
-> doubles + the in-memory seed. Legs 5–6 — a REAL desktop conversation in which the orchestrator
-> claims and actually spawns (real files authored by the spawned story-author; a real spine-signed
-> drive) — are **operator-attested**, NOT standing tests.
+> **DELETED — all seven criteria, 2026-08-21, under
+> [ADR-0396](../../docs/decisions/0396-a-retired-story-s-uat-criteria-are-deleted-with-their-ordina.md).**
+> A UAT criterion is a standing acceptance OBLIGATION against a story's outcome, not a record of one.
+> This story has been `status: retired` since ADR-0174 + ADR-0175, so its outcome is withdrawn and every
+> criterion under it was an obligation against a journey nobody will run. The seven legs that stood here
+> — ordinals 1 through 7 — are deleted, and **every one of those ordinals is BURNED, never reused**
+> (ADR-0396 D2): no `chat-subagent-spawn#uat-<n>` key can ever denote a second criterion.
 >
-> **Per-leg witness (ADR-0106; RE-ADJUDICATED 2026-07-26, ADR-0209 D8).** Legs 1–4 and 7 are
-> `witness: machine`; legs 5–6 are `witness: human`. No leg rests `either`.
+> **THE TWO PROMISSORY NOTES THIS STORY WAS CARRYING ARE NOW DISCHARGED — this is the answer they were
+> waiting for.** The leg at ordinal 5 recorded, in its ADR-0357 triage: *"Whether a retired story's UAT
+> legs should be DELETED (ordinals burned, as ADR-0348 D6 did for experience legs) or kept verbatim as
+> history is a story-author / librarian disposition call, deliberately not made here — and it reaches
+> leg 6 the same way, whose no-compiler routing judgment is equally unwalkable now."* The leg at ordinal
+> 6 said the same in its `witness-basis`: *"Retires by DELETION with leg 5, once a story-author pass
+> settles the disposition of a retired story's legs."* ADR-0396 is that pass. Both legs retire by
+> deletion, exactly as they said they would, and no reader is left pointed at an open question.
 >
-> **What the re-adjudication changed and why.** Leg 7 ("the scope walls held throughout") was tagged
-> `human` because it read as the retrospective companion to the live walk. But **being *about* a live
-> walk is not the same as needing one**: every condition it states is a SHAPE or an ABSENCE on the
-> constructed tool surface — `tools: []`, the claim gate wrapped at construction, no PR/merge verb on
-> the spawn server, no ADR-write tool anywhere, the typed `single-session` refusal — and all of those
-> compile. It is now `machine`. Per **ADR-0209 §6** a re-adjudicated leg returns to UNSTAMPED until a
-> spec judges it: tagging it `machine` records which witness is RIGHT, not that a proof exists, and
-> the owner signs nothing here.
+> **Nothing signed was destroyed.** All seven read `proven=–` at deletion — no `events.verdict` row and
+> no `events.attestation` row named any of their `criterionId`s (`events.attestation` held 8 rows
+> corpus-wide when last probed and not one was a `chat-subagent-spawn#uat-*` id). ADR-0396 D8 keeps a
+> proof-bearing criterion in place when its story retires; none here was one.
 >
-> Legs 5 and 6 stay `human` on **explicitly different bases**, because the bases behave differently:
-> - **Leg 5 — SPEND only.** A live `query()` story-author spawn is subscription-billed (ADR-0030), so
->   it can never run on a gate pass (ADR-0010 §5). Nobody judges anything: every shape the walk
->   touches is proven by a machine leg. If that spawn ever became free to run, leg 5 would become
->   machine.
-> - **Leg 6 — NO COMPILER, plus spend.** Decision 4's routing (*under-specified story, or
->   right-contract-wrong-impl?*) is a **consultative judgment this story deliberately does not ship a
->   classifier for**. "Was that the right route for this defect?" has no oracle — only a reader can
->   grade it. That basis survives even if the spend vanished.
->
-> The story-level `uat_witness` is absent → human (the ADR-0040 fail-closed signpost), so the
-> machine-driven whole-story UAT node stays withheld; the crown derives from the per-leg roll-up.
+> **Where the history is.** Each of the seven positional keys is recorded `superseded` in
+> `stories/uat-legacy-dispositions.json` with its rationale (the ledger still totals 282 keys), the legs
+> themselves are in `git log -p` verbatim, and the three detail artifacts they pointed at —
+> `chat-subagent-spawn#uat-5`, `#uat-6`, `#uat-7` — are retired in the live store with the same
+> rationale. The body of this story is the narrative history and is kept in place; what is gone is the
+> obligation, not the record.
 
-**Goal —** A desktop chat conversation makes work HAPPEN by spawning: the orchestrator claims the
-story, spawns the story-author to author it (or the missing contract), spawns the builder leaf to
-drive a change red→green, watches the spine sign — having itself written nothing, signed nothing, and
-landed nothing.
+**Goal (kept — what the journey was FOR) —** A desktop chat conversation makes work HAPPEN by spawning:
+the orchestrator claims the story, spawns the story-author to author it (or the missing contract),
+spawns the builder leaf to drive a change red→green, watches the spine sign — having itself written
+nothing, signed nothing, and landed nothing. Converse → claim → spawn → observe → the human lands.
 
-1. **A spawned story-author session is write-fenced and returns a typed result.** _(criterion-id: uatc_a6adc168580b6f517d56f0a9)_ _(revision-id: uatr1:37cbdb285b825091)_
-   _(witness: machine)_ Drive the story-author spawn runner with an injected scripted `queryFn` whose
-   session writes inside `stories/<id>/` and attempts one write outside it. **Success —** the inside
-   write is allowed, the outside write is DENIED fail-closed before it lands (the violation recorded
-   on the typed result), `Bash` is never in the session's tool surface, and the runner returns
-   `{ ok: true, summary }` — a result shape with no verdict/signing field; a dead/empty session
-   returns `{ ok: false, error }`, never a forged success.
-2. **The builder dispatch routes through the existing worker and refuses garbage.** _(criterion-id: uatc_44fb5fc2ef8339fe5e1fcebb)_ _(revision-id: uatr1:d39bdafa567014dd)_
-   _(witness: machine)_ Call the builder spawn dispatch with a buildable unit id over an injected
-   scripted routed runner + the real registry/discovery/seed. **Success —** the unit is validated
-   buildable and dispatched to the SAME routed worker the accept click uses (a typed `{ runId }`
-   back), the worker's coarse progress folds back as conversation TEXT, an unknown/unbuildable id is a
-   typed refusal (never dispatched), and no verdict object exists anywhere on the dispatch's surface.
-3. **No claim, no subagent — and a live spawn never ages out.** _(witness: machine)_ Run the claim _(criterion-id: uatc_4656da28bd2ddfe3f5c9d464)_ _(revision-id: uatr1:aa8acbc99f59d11b)_
-   gate over both `ClaimResult` arms with an injected claim store and a recording spawn fn.
-   **Success —** the claim (work-kind intent stamped) is acquired BEFORE the spawn fn runs; a refused
-   claim returns a typed wait decision naming the holder (`sessionId`/`branch`/`intent`) and the spawn
-   fn is NEVER invoked; trace signals during the spawned run bump the claim heartbeat (ADR-0138 §4);
-   a blank story id is a fail-closed refusal, never a claim-free spawn.
-4. **The composed surface holds every wall.** _(witness: machine)_ Drive the spawn-capable session _(criterion-id: uatc_bebc9b04ff1a0c4c0e5b99ba)_ _(revision-id: uatr1:d516f67eb2fb2b66)_
-   with a scripted `queryFn` whose session invokes `spawn_story_author`. **Success —** the two spawn
-   tools are advertised only when spawn deps are present (a dep-less session is byte-identical to the
-   ORIENTATION-ONLY baseline — `tools: []` plus the read-only orientation tools, and nothing else);
-   the tool call runs claim→handler in order and a refused claim returns the holder-naming refusal to
-   the model with no handler run; the chat session's own tool surface carries NO `Write`/`Edit`/`Bash`;
-   a second concurrent orchestration is still refused; and the text returned to the model from a
-   builder spawn carries progress, never a verdict payload.
-   > **SCOPE NOTE (corrected 2026-07-26, alongside the ADR-0209 D8 re-adjudication).** This leg was
-   > authored as "byte-identical to today's **propose-only** surface". **ADR-0155** retired
-   > `propose_unit`: the session carries no propose/accept declaration surface any more
-   > (`packages/agent/src/headless-orchestrator.ts:270` — "the orchestrator DRIVES via its spawn +
-   > landing tools … there is no `propose_unit` declaration surface"), so the dep-less baseline is
-   > ORIENTATION-only. The scale-down claim itself is unchanged and still compiles — absent spawn
-   > deps, no spawn tool is advertised — only the NAME of the baseline was stale, and a spec written
-   > from the old wording would have gone RED against correct code (the same failure shape as the
-   > ADR-0152 landing-wall claim corrected on leg 7). The leg's id, position, and `machine` witness
-   > are unchanged; only the factually wrong description moved.
-5. **Live: the chat brings a story in by spawning the story-author.** _(criterion-id: uatc_65f364261f271dee7271115d)_ _(revision-id: uatr1:24bd66de0e93c5be)_ _(previous-revision-id: uatr1:8bea84cea74f0bd2)_
-   _(witness: human)(detail: chat-subagent-spawn#uat-5)_
-   _(witness-basis: MOOT rather than un-harnessable — the spawn tool surface this walk needs was
-   DELETED on 2026-07-31, held gone by apps/desktop/src/backend/spawn-surface-retired.test.ts, which
-   is why this story is `status: retired`. No harness reaches the journey because the journey no
-   longer exists. The old SPEND basis is withdrawn by ADR-0348 D2, but the leg does not flip: binding
-   a `machine` gate here would mint one that can never go green for a reason that is neither a harness
-   limit nor a product defect. Retires by DELETION, once a story-author pass settles the disposition
-   of a retired story's legs.)_ In the desktop app, converse until the
-   orchestrator decides a story should exist. **Success —** the orchestrator takes the story-claim
-   (visible as the story's wisp — authoring colour, witnessed properly in wisp-as-story-claim's
-   appearance UAT), spawns the story-author, and `stories/<id>/story.md` (+ capability files) appear
-   authored by the SPAWNED agent. *(HUMAN on the **SPEND** basis, and on that basis alone: a live
-   `query()` story-author session is subscription-billed (ADR-0030), so ADR-0010 §5 forbids it on a
-   gate pass. Nothing here is a judgment call. The SHAPES this walk touches are each proven by a
-   machine leg and are deliberately NOT restated as human conditions: the write fence + typed
-   non-verdict result by leg 1, the claim-before-spawn ordering and the holder-naming refusal of a
-   concurrent claimant by leg 3, and "the chat itself wrote no file" by leg 7's absence audit.
-   **TRIAGED 2026-08-13 (ADR-0357) — this leg is MOOT, and that is neither of ADR-0348's two answers.**
-   It is one of the nine the ADR-0357 triage was told to resolve to either `machine`-with-a-gate or
-   `human`-with-a-stated-basis. Reading the source gives a third answer. **The SPEND basis above is
-   withdrawn** by ADR-0348 D2, and this leg's own words — *"on that basis alone… Nothing here is a
-   judgment call"* — pre-authorised that. **But it does not flip**, because the journey cannot be walked:
-   ADR-0174 retired the in-app INTERACTIVE orchestrator chat (the interactive seat is now
-   `embedded-terminal`), and the spawn tool surface itself was DELETED on 2026-07-31 — held gone by
-   `apps/desktop/src/backend/spawn-surface-retired.test.ts` — which is why this story is
-   `status: retired`. Binding a `machine` gate here would mint one that can never go green for a reason
-   that is neither a harness limit nor a product defect, the indistinguishable-red failure ADR-0357
-   exists to control. The tag is left as it stands and this record is the correction: the leg is retired
-   history and is on nobody's attestation queue. Whether a retired story's UAT legs should be DELETED
-   (ordinals burned, as ADR-0348 D6 did for experience legs) or kept verbatim as history is a
-   story-author / librarian disposition call, deliberately not made here — and it reaches leg 6 the same
-   way, whose no-compiler routing judgment is equally unwalkable now.)*
-6. **Live: a bug becomes a contract and is driven through the gate.** _(criterion-id: uatc_10e4514e1271034569a02b50)_ _(revision-id: uatr1:def0dee3b5d18725)_ _(previous-revision-id: uatr1:e00526bb66704d7e)_
-   _(witness: human)(detail: chat-subagent-spawn#uat-6)_
-   _(witness-basis: two bases, and the second now governs. The NO-COMPILER half is real — the
-   consultative routing verdict is explicitly not a mechanical classifier, so it has no oracle and
-   would hold even if the run were free. But the leg is MOOT: the spawn tool surface the judgment
-   routes through was DELETED on 2026-07-31 and this story is `status: retired`, so the routing
-   judgment is equally unwalkable now — this leg's own triage note says the mootness reaches it the
-   same way as leg 5. Retires by DELETION with leg 5, once a story-author pass settles the disposition
-   of a retired story's legs.)_ Raise a real defect in conversation.
-   **Success —** the orchestrator makes decision 4's consultative judgment (under-specified story →
-   spawn the story-author to add the missing contract, then spawn the builder to drive it;
-   right-contract-wrong-impl → straight to the builder) **and a competent reader agrees that was the
-   right route for this defect**; the dispatched drive runs on the REAL worker; and the spine
-   observes RED→GREEN and SIGNS, the chat having handed in nothing. *(HUMAN on TWO bases, named
-   separately. **(a) NO COMPILER** — this story ships the spawn MECHANISMS the judgment routes
-   through, explicitly "not a mechanical classifier", so the routing verdict has no oracle; this
-   basis holds even if the run were free. **(b) SPEND** — the conversation and the drive it
-   dispatches are both subscription-billed. NOTE: the node→`--real` routing landed as ADR-0144 before
-   this story was built, so a node-tier dispatch runs the node's REAL persisted proof — this leg
-   carries its full force. LANDING SCOPE (ADR-0152): as authored this leg ended "and the work reaches
-   the trunk only through the existing human-gated ceremony" — that clause is REMOVED because
-   ADR-0152 lifted the landing wall for the desktop orchestrator; the surviving, still-true claim is
-   that CI independently re-proves before the trunk (ADR-0022) and the spine remains the sole signer.)*
-7. **The scope walls are ABSENCES on the composed surface — no live walk required.** _(criterion-id: uatc_388554633704363c1a1cb308)_ _(revision-id: uatr1:496aeea5ebfe3ae4)_
-   _(witness: machine)(detail: chat-subagent-spawn#uat-7)_ Audit the assembled
-   `runHeadlessOrchestrator` session and the spawn tool definitions it mounts, with and without spawn
-   deps. **Success —** the session's own `tools` is `[]` and its `allowedTools` names ONLY in-process
-   MCP tools, so no `Write`/`Edit`/`Bash` is reachable at any point; BOTH spawn tools are claim-gated
-   by CONSTRUCTION (`buildSpawnTools` wraps every handler, so there is no constructor path that
-   mounts an ungated spawn); the spawn server advertises exactly `spawn_story_author` +
-   `spawn_builder`, and neither carries a PR, merge, or land verb; NO tool on ANY mounted server
-   writes an ADR (ADR-authoring, the sole claim-free act, is a deliberately-unshipped follow-on —
-   Open modeling call 1); and a second concurrent orchestration is still refused with the typed
-   `single-session` reason. **SCOPE — read before asserting (ADR-0152):** this leg asserts that THIS
-   STORY'S spawn path adds no landing verb. It must NOT assert that the session as a whole cannot
-   land: ADR-0152 mounts `run_gate` / `open_landing_pr` / `poll_pr_checks` on the same session when
-   landing deps are present, so the wider assertion would go RED against correct code.
+### What the deleted legs established, carried up so it is not lost with them
 
-End state — the desktop chat is the SAME orchestrator the terminal session is (spawn subagents,
-delegate red→green), with every wall held: claim before spawn, fenced writes in the spawned agent
-only, the spine the sole signer, the human the sole lander.
+These are the facts the per-leg scope notes had recorded and that the rest of this body does not
+otherwise carry (ADR-0396 D3), each dated to when it was written:
+
+- **The dep-less baseline is ORIENTATION-only, not "propose-only"** (corrected 2026-07-26). The leg at
+  ordinal 4 was authored as *"byte-identical to today's propose-only surface"*; **ADR-0155** retired
+  `propose_unit`, so the session carries no propose/accept declaration surface any more
+  (`packages/agent/src/headless-orchestrator.ts:270` — *"the orchestrator DRIVES via its spawn +
+  landing tools … there is no `propose_unit` declaration surface"*). The scale-down claim itself was
+  unchanged and still compiled — absent spawn deps, no spawn tool is advertised — only the NAME of the
+  baseline was stale, and a spec written from the old wording would have gone RED against correct code.
+- **The scope-walls leg asserted only THIS STORY'S spawn path, never the session as a whole**
+  (ADR-0152). The leg at ordinal 7 held that the spawn path adds no landing verb. It must NOT be read
+  as holding that the session cannot land: ADR-0152 mounts `run_gate` / `open_landing_pr` /
+  `poll_pr_checks` on the same session when landing deps are present, so the wider assertion would go
+  RED against correct code. Anyone re-authoring a walls claim for the surviving surfaces must keep that
+  scoping.
+- **The `--real` node routing landed BEFORE this story was built** (ADR-0144, 2026-07-02), so the
+  builder dispatch consumed the worker's routing verbatim and inherited the `--real` node drive free.
+  The live fix-drive leg therefore carried its full force rather than a cheap variant.
+- **The landing wall clause was REMOVED as factually false, not merely re-worded** (ADR-0152). The leg
+  at ordinal 6 was authored ending *"and the work reaches the trunk only through the existing
+  human-gated ceremony"*; ADR-0152 lifted the landing wall for the desktop orchestrator. The surviving,
+  still-true claim is that CI independently re-proves before the trunk (ADR-0022) and the spine remains
+  the sole signer.
+- **The two live legs were MOOT rather than un-harnessable, and that is a third answer ADR-0348 does
+  not offer** (ADR-0357 triage, 2026-08-13). Their spend basis was withdrawn by ADR-0348 D2, and the
+  legs' own words — *"on that basis alone… Nothing here is a judgment call"* — pre-authorised the
+  withdrawal. But they did not flip to `machine`, because the journey cannot be walked: ADR-0174
+  retired the in-app INTERACTIVE orchestrator chat (the interactive seat is now `embedded-terminal`),
+  and the spawn tool surface itself was DELETED on 2026-07-31, held gone by
+  `apps/desktop/src/backend/spawn-surface-retired.test.ts`. Binding a `machine` gate would have minted
+  one that can never go green for a reason that is neither a harness limit nor a product defect — the
+  indistinguishable-red failure ADR-0357 exists to control.
+- **The consultative routing judgment genuinely had no oracle, and that basis outlived the spend.**
+  Decision 4's routing (*under-specified story, or right-contract-wrong-impl?*) is a judgment this
+  story deliberately shipped no classifier for. "Was that the right route for this defect?" has no
+  oracle — only a reader could grade it. That basis would have survived even if the run were free; what
+  ended it was that the surface it routed through no longer exists.
+
+### The per-leg witness record, as it stood at deletion — history, describing a list that no longer exists
+
+Read every sentence below as dated: it describes how the seven legs stood on 2026-08-13, not how
+anything stands now.
+
+As authored, the legs at ordinals 1–4 and 7 were automatable by the package suites
+(`@storytree/agent` + `@storytree/drive`) over an injected `queryFn` + scripted doubles + the in-memory
+seed, and the two at 5–6 — a REAL desktop conversation in which the orchestrator claims and actually
+spawns — were operator-attested rather than standing tests. The 2026-07-26 re-adjudication (ADR-0209
+D8) left ordinals 1–4 and 7 `witness: machine` and 5–6 `witness: human`, with no leg resting `either`.
+
+**What that pass changed, and why.** The leg at ordinal 7 (*"the scope walls held throughout"*) had
+been tagged `human` because it read as the retrospective companion to the live walk. But **being
+*about* a live walk is not the same as needing one**: every condition it stated is a SHAPE or an
+ABSENCE on the constructed tool surface — `tools: []`, the claim gate wrapped at construction, no
+PR/merge verb on the spawn server, no ADR-write tool anywhere, the typed `single-session` refusal — and
+all of those compile. It became `machine`. Per ADR-0209 §6 a re-adjudicated leg returns to UNSTAMPED
+until a spec judges it: tagging it `machine` records which witness is RIGHT, not that a proof exists,
+and the owner signed nothing.
+
+**The two live legs stayed `human` on explicitly DIFFERENT bases, because the bases behave
+differently.** The leg at ordinal 5 was SPEND only — a live `query()` story-author spawn is
+subscription-billed (ADR-0030), so it could never run on a gate pass (ADR-0010 §5); nobody judged
+anything, and every shape the walk touched was proven by a machine leg. The leg at ordinal 6 was
+NO-COMPILER **plus** spend — the consultative routing verdict has no oracle, and that basis would have
+survived even if the spend vanished. Recording them apart was the point: folding a cost argument into
+an "unobservable" claim hides the first inside the second. ADR-0348 D2 then withdrew the spend basis
+outright, and the ADR-0357 triage recorded both legs MOOT (above).
+
+The story-level `uat_witness` is absent → human (the ADR-0040 fail-closed signpost), so the
+machine-driven whole-story UAT node stayed withheld; the crown derived from the per-leg roll-up, and
+now derives from the ADR-0085 own-proof union over a story that declares no criteria (ADR-0294 D5).
+
+**End state, as authored —** the desktop chat is the SAME orchestrator the terminal session is (spawn
+subagents, delegate red→green), with every wall held: claim before spawn, fenced writes in the spawned
+agent only, the spine the sole signer, the human the sole lander. *(Authored goal, never a record of
+achievement: the story is retired, its spawn surface deleted on 2026-07-31, and it now carries no
+criteria at all.)*
 
 ## Proof
 
@@ -508,11 +479,12 @@ PASS verdicts (`story-author-spawn`, `builder-spawn-dispatch`, `claim-gated-spaw
 and `spawn-deps-composition` — the drive-side composition, `packages/drive/src/spawn-deps.ts`,
 threaded through `orchestrate()`). What keeps the desktop chat propose-only today is only the sidecar
 glue (`backend-entry.ts` does not yet compose real spawn deps into the chat mount — operator-attested
-wiring) plus the operator-attested legs 5–6. The five capabilities are proof-wired so the spine can drive their offline suites
+wiring) plus the two operator-attested legs then at ordinals 5–6. The five capabilities are proof-wired so the spine can drive their offline suites
 red→green (`pnpm storytree story build chat-subagent-spawn --real`); the story's own machine-driven
-UAT node is WITHHELD (`uat_witness` absent → human, ADR-0040), and the crown additionally awaits the
-operator's live-spawn attestation (legs 5–6; leg 7 is `machine` and UNSTAMPED until a spec judges
-it, ADR-0209 §6). *(Corrected 2026-08-08: the paragraph above is AUTHORING-TIME history and its
+UAT node is WITHHELD (`uat_witness` absent → human, ADR-0040), and the crown additionally awaited the
+operator's live-spawn attestation on those two legs (the leg at ordinal 7 was `machine` and UNSTAMPED
+until a spec judged it, ADR-0209 §6). Since ADR-0396 the crown awaits nothing here: the story declares
+no criteria. *(Corrected 2026-08-08: the paragraph above is AUTHORING-TIME history and its
 present tense no longer describes anything live — the story and all five capabilities are `retired`,
 not `proposed`; the caps' `real:` arms are dropped, so the `story build --real` command quoted just
 above cannot run; and the modules it names — `packages/drive/src/spawn-deps.ts` among them — were
@@ -533,7 +505,9 @@ disagreement between the two.)*
    RESOLVED).** The sibling ("route chat-accepted node builds to `node build --real`", resolving
    `oq-fix-drive-build-shape` / OQ-A) landed as ADR-0144 (2026-07-02) BEFORE `builder-spawn-dispatch`
    was built, so the dispatch consumed the worker's routing verbatim and inherited the `--real` node
-   drive free — UAT leg 6 carries its full force. The routing was built once, in the worker.
+   drive free — so the live fix-drive UAT leg (ordinal 6, deleted with the rest by ADR-0396 on
+   2026-08-21) carried its full force rather than a cheap variant. The routing was built once, in the
+   worker.
 3. **The spawned story-author's LIVE-store knowledge writes are out of the minimal journey.** The
    work hierarchy is disk-canonical (`stories/` frontmatter-md, ADR-0039), so the fenced `stories/**`
    write scope covers the bring-a-story-in journey. Live `--pg` Library artifact writes from the

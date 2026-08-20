@@ -41,7 +41,9 @@ unit id and renders the run's progress. It owns no dispatch/validation logic.
 > `proposedUnitId`, whose click ACCEPTS the proposed unit and dispatches the build — the human's
 > deliberate gesture, NEVER a free-text "yes" the agent parses (ADR-0108 d.3). This capability EDITS the
 > panel to add that affordance. Its GEOMETRY/BEHAVIOUR is machine-witnessed; its APPEARANCE inside the
-> native shell is the story's operator-attested UAT leg 6 (ADR-0070).
+> native shell is carried by NO UAT leg — ADR-0348 D6 deleted the appearance leg on 2026-08-11 and
+> ADR-0396 deleted this retired story's remaining criteria on 2026-08-21; the intent survives as design
+> intent under "The accept-and-watch feel" in story.md, and is never asserted here (ADR-0070).
 
 ## Guidance
 
@@ -96,7 +98,8 @@ THE TWO-STAGE PROOF (frontend-builder, ADR-0070): this `real:` arm proves the GE
 the button appears only on a `proposedUnitId`-bearing frame, clicking it POSTs the accepted id through
 the seam exactly once, and the run's progress renders — over a scripted seam on fake timers. The
 affordance's APPEARANCE inside the native shell (does the gate read as a deliberate, legible accept; does
-the progress feel alive; ADR-0113 §9) is the story's operator-attested UAT leg 6 — witnessed by the
+the progress feel alive; ADR-0113 §9) is carried by no UAT leg since ADR-0348 D6 / ADR-0396 — never
+witnessed here and formerly by the
 owner, NEVER a machine visual verdict here. Do NOT author a visual/appearance assertion in this
 capability's tests; the panel author does not sign a visual verdict.
 
@@ -147,7 +150,8 @@ The test-proven leaf behaviours — each **one isolated automated test** in the 
 jsdom, `apps/studio/src/components/ChatPanel.accept.test.tsx`), the `api` dispatch/progress seam
 mocked/scripted. Per ADR-0122 (`storytree coverage`), each contract id is the lead of a distinctly-named
 test, so the coverage check reports 4/4. None of these is an APPEARANCE assertion — the look is the
-story's operator-attested UAT leg 6 (ADR-0070).
+story's design intent under "The accept-and-watch feel", carried by no UAT leg (ADR-0070; ADR-0348 D6,
+then ADR-0396).
 
 1. **`atl-build-button-on-proposed-id`** — a `done` frame carrying a `proposedUnitId` surfaces a Build button
    - **asserts —** when the chat stream terminates with a `done` frame carrying a `proposedUnitId`, the
@@ -201,11 +205,12 @@ EDITS it to add the accept-to-land Build affordance, test-first.
   `modelPathBoundary.test.ts` wall must stay green). After it, the button-present + click-dispatches +
   no-button-without-id + no-free-text-path assertions hold, and `pnpm --filter studio test` +
   `pnpm --filter studio typecheck` stay green. WIRING the dispatched build's live run to a real signed
-  verdict + opened PR, and the affordance's appearance, are witnessed under the story's UAT legs 5–6
-  (operator-attested, ADR-0070), not asserted in CI. *(Clarified 2026-07-26, ADR-0209 D8: "not asserted
+  verdict + opened PR, and the affordance's appearance, were witnessed under the story's UAT legs at
+  ordinals 5–6 (both deleted — the appearance leg by ADR-0348 D6, the live leg by ADR-0396), and are
+  not asserted in CI (ADR-0070). *(Clarified 2026-07-26, ADR-0209 D8: "not asserted
   in CI" is a COVERAGE fact and is NOT why those legs are human — a harness gap would put them on the
-  machine rung (`human-witness-is-a-judgment-gap-not-cost`). Leg 5 is human on real metered subscription
-  spend plus an outward-facing trunk write; leg 6 is human because an ADR-0070 stage-2 appearance verdict
+  machine rung (`human-witness-is-a-judgment-gap-not-cost`). The leg at ordinal 5 was human on real
+  metered subscription spend plus an outward-facing trunk write; the leg at ordinal 6 was human because an ADR-0070 stage-2 appearance verdict
   has no compiler. The bases are stated on the legs themselves.)*
 
 Rules:
@@ -222,8 +227,9 @@ Rules:
 - **Button only on a structural signal** — render Build ONLY when `proposedUnitId` is present
   (`atl-build-button-on-proposed-id` / `atl-no-button-without-proposed-id`); never a button that would
   POST an empty/unknown id.
-- **Appearance is operator-attested, not asserted here** (ADR-0070) — prove geometry/behaviour only; the
-  look + the legibility of the gate inside the native shell is the story's UAT leg 6. Do not author a
+- **Appearance is NOT asserted here** (ADR-0070) — prove geometry/behaviour only; the
+  look + the legibility of the gate inside the native shell is design intent in story.md, carried by no
+  UAT leg. Do not author a
   visual verdict.
 - **Edit, don't fork** — the existing `done`/`error`/`refused`/`unavailable` rendering is untouched
   except for the additive `proposedUnitId` carry + the conditional Build affordance + the progress
