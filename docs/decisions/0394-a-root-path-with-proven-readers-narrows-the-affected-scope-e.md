@@ -102,11 +102,26 @@ locally and on every PR, because the classifier is shared. Proven on this ADR's 
 carries a decision file and now reports:
 `scope: AFFECTED — @storytree/cli, @storytree/drive plus dependents (all 4 changed file(s) map to workspace projects (1 via the root-path reader map))`.
 
-**Honest about the size of the win.** 9 of 25 is not 1 of 25, and the heaviest suites — `cli`,
-`studio`, `desktop` — are all inside the narrowed set, because `@storytree/drive` sits low in the
-graph and drags its dependents in. The remaining 16 projects are the cheap leaves. Anyone reading
-this as "an ADR edit is now nearly free" has read it wrong; what it removes is the 16 projects that
-were never going to observe the change, not the cost of the ones that might.
+**Honest about the size of the win, which is SMALL — and the measurement says so.** Counting
+projects flatters this change badly. Summing each project's own reported test duration from the same
+instrumented run (a work measure, not a wall-clock one, so contention does not distort it):
+
+| | test work |
+|---|---|
+| all 25 projects | **18.8 min** |
+| the narrowed 9 | **16.8 min** — **89%** |
+
+So the narrowing removes roughly **2 minutes of ~19**, about **11%** — not the ~64% "9 of 25"
+implies. The reason is that gate cost is not spread across the workspace, it is CONCENTRATED:
+`packages/cli` alone is **492.6s (44%)** of all test work and `packages/context-traversal-capture`
+is **225.5s (20%)**, so two projects are 64% of the bill. `cli` is a reader by construction — it owns
+`adr-health` — so a decision-only diff can never drop the single most expensive suite, and `capture`
+rides in as a dependent of `@storytree/drive`. The 16 projects this removes are the cheap leaves.
+
+That is a real saving and it is paid on every decision-bearing branch and every PR, so it is worth
+landing. But anyone reading this as "an ADR edit is now nearly free" has read it wrong, and anyone
+planning further work off the project COUNT will aim at the wrong target. The arc's remaining cost is
+in `packages/cli`'s own suite, not in the breadth of the selection.
 
 **Bad, and accepted.** The map is measured evidence with a shelf life. A future test that reads
 `docs/decisions` from a package outside the map would be under-selected, silently, until something
