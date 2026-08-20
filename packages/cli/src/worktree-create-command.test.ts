@@ -778,9 +778,9 @@ test("checkpoint: the path, branch and claims are emitted BEFORE install, so a k
 });
 
 test("checkpoint: the DEFAULT sink really writes to stderr — stdout stays the envelope's alone", async () => {
-  // `codex-worktree-create-entry.ts` writes JSON to stdout and parses the envelope out of it, so a
-  // checkpoint that leaked onto stdout would corrupt that payload. Only the real default can show
-  // which stream it picked; an injected sink proves nothing about it.
+  // The command's stdout is its machine-readable envelope, so a checkpoint that leaked there would
+  // corrupt every caller. Only the real default can show which stream it picked; an injected sink
+  // proves nothing about it.
   const err: string[] = [];
   const out: string[] = [];
   const stderrWrite = process.stderr.write;

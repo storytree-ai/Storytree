@@ -21,6 +21,12 @@ This ADR is the re-decision. It **amends** ADR-0257 rather than superseding it: 
 decisions (D2/D3/D7) and its diagnosis of the lobby hazard survive intact and become the only live
 thread. What changes is D1's composition, D5, and D9's bar.
 
+**Corrected 2026-08-20 by
+[ADR-0390](0390-codex-runs-at-claude-parity-and-the-managed-containment-boun.md), which amends this
+ADR:** the statement that Codex containment is the only live thread is retired. ADR-0390 withdraws
+that containment at Claude parity after direct exercise. D1–D5 and D7 remain current for Claude's
+static, claim-blind file-tool wall; D6/D8's Codex profile, hook and lifecycle work are historical.
+
 ## Context
 
 ADR-0257 decided a two-layer wall: a static `permissions.deny` block (the lobby floor) and a
@@ -116,35 +122,21 @@ re-proposed: it fails open on any failure to run, and its integrity depends on a
 moving. It is a legitimate *guardrail* against accidents. It must not again be specified as the
 mechanism satisfying an agent-inescapability requirement.
 
-**D6. Codex containment is the only live thread, and it is an owner scope-and-spend decision.**
-ADR-0257 D2/D3/D7 — managed `requirements.toml` plus an administrator-defined filesystem permission
-profile — remain the work that addresses the observed incidents, and it is the one place a managed
-hook has real teeth because it pairs with an OS-level profile that also contains the shell. **Amended
-2026-08-12 by [ADR-0355](0355-interactive-codex-writes-only-in-its-current-claimed-worktre.md):** the
-owner funded the strict current-claimed-worktree scope and the repository now generates and dry-runs
-the managed policy bundle. **Corrected in place 2026-08-13, then RE-corrected 2026-08-14 per
-ADR-0139:** the administrator-owned installation, trusted actuator, and live-claim reader are
-installed on the supported Windows host, and the three-write writer-scope attestation appears
-genuine. What the earlier "now complete" claim overstated is the **lifecycle**: a fresh Codex desktop
-session on 2026-08-13 could not reach a claimed worktree from the lobby at all (see ADR-0355 §
-Delivery status — a credential circularity in the bootstrap). Attesting a writer already sitting in a
-worktree does not attest how it got there. Re-attestation remains operator-owned; a first
-lobby-to-write lifecycle attestation is still outstanding.
+**D6. RETIRED 2026-08-20 by ADR-0390 — Codex containment is no longer a live thread.** The managed
+`requirements.toml` profiles, administrator-defined filesystem scope, live-claim hook, broker and
+trusted actuator named by the former clause are withdrawn rather than awaiting lifecycle
+attestation. Interactive Codex now runs with broad repository, credential and network access at
+Claude parity. The surviving rule is evidential: a new restriction requires an observed hazard and
+must explain why the gate and CI are insufficient.
 
 **D7. ADR-0257 D9's two-surface concurrent-load proof bar is retired along with what it was proving.**
 With no semantic layer to prove, the bar has no subject. The static block's conformance test against
 the installed user-level file stands as the proof that remains.
 
-**D8. The residual gap is stated plainly rather than implied covered.** ADR-0355 narrowed the gap to
-privileged deployment and evidence; the deployment leg landed and the writer-scope evidence leg
-appears genuine, but the **lifecycle** leg has NOT (corrected in place 2026-08-14 per ADR-0139 — this
-clause previously read "then closed that delivery leg on 2026-08-13: interactive Codex is installed
-and attested", which a fresh Codex desktop session that same day falsified). Interactive Codex is
-installed, and a writer already inside a claimed worktree is contained as designed; what is unproven
-is that a task can REACH one — the lobby bootstrap hits a credential circularity (ADR-0355 § Delivery
-status). The remaining boundary is therefore still unfinished delivery, not merely lifecycle churn: a
-first lobby-to-write attestation is outstanding, and a changed managed payload, Codex version, or
-Windows sandbox will require a fresh one after that.
+**D8. RETIRED 2026-08-20 by ADR-0390 — the Codex containment lifecycle has no outstanding delivery
+leg.** Direct parity exercise replaced the profile/bootstrap attestation this clause tracked. Any
+remaining concrete Codex/Claude differences are parked as evidence-backed increments on
+`codex-factory-parity-arc`, not as a reason to restore this wall.
 
 ## Consequences
 
@@ -156,10 +148,9 @@ need no reaping, because nothing refuses them any more. Sessions keep their scra
 remaining statement of risk is small, true, and priceable.
 
 **Bad, and accepted.** A session can still write into a sibling's worktree with a file tool; nothing
-refuses it on the Claude static wall. We are betting on zero observed Claude instances continuing to
-be zero, and the bet is revisited by evidence, not by argument. ADR-0355 makes the opposite choice for
-interactive Codex: its installed profile admits only the current claimed worktree on the supported
-Windows host.
+refuses it on the Claude static wall. We are betting on zero observed instances continuing to be
+zero, and the bet is revisited by evidence, not by argument. ADR-0390 applies that same discipline to
+interactive Codex and withdraws its former opposite choice.
 
 **Known holes in what remains — the list is now FULLY DISCHARGED.** Three were named on acceptance as
 follow-ups against the layer that stays, not as reasons to keep the layer that goes. All three closed

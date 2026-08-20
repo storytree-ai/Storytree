@@ -642,18 +642,9 @@ importers:
 
   packages/notice-board:
     dependencies:
-      '@google-cloud/cloud-sql-connector':
-        specifier: ^1.4.0
-        version: 1.11.1
       '@storytree/library':
         specifier: workspace:*
         version: link:../library
-      google-auth-library:
-        specifier: ^10.7.0
-        version: 10.7.0
-      pg:
-        specifier: ^8.13.1
-        version: 8.21.0
       zod:
         specifier: ^3.24.1
         version: 3.25.76
