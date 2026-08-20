@@ -451,8 +451,11 @@ never speculative breadth).
 > positions 9 and 11 are simply absent, so every surviving leg keeps the number it has always had and
 > no signed verdict or `(proof-gate:)` binding is silently re-pointed.
 >
-> **RE-TRIAGED 2026-08-13 (ADR-0357), so the story now carries SEVEN `machine` legs and TWO `human`
-> legs.** This paragraph previously ended by calling legs 3, 7 and 8 "genuine no-compiler ACCEPTANCE
+> **RE-TRIAGED 2026-08-13 (ADR-0357), so the story carried SEVEN `machine` legs and TWO `human`
+> legs from that date.** *(This read "so the story NOW carries SEVEN `machine` legs"; the ADR-0294
+> D2/D4 pass below then deleted leg 6, leaving SIX machine legs and the same two human ones. Corrected
+> in place 2026-08-20 per ADR-0139 — the 2026-08-13 re-triage itself is unchanged.)* This paragraph
+> previously ended by calling legs 3, 7 and 8 "genuine no-compiler ACCEPTANCE
 > claims: a real OS-keychain round-trip, a subscription-billed real build, and the owner's own in-app
 > privilege grant" — corrected in place per ADR-0139, because none of those three descriptions survives
 > its own decision. Leg 3's basis was a CI statement, not a harness statement, and it is now `machine`
@@ -471,7 +474,7 @@ never speculative breadth).
 > | old leg | machine half | human half |
 > | --- | --- | --- |
 > | 2 (credentials) | 2 — the panel/bridge surface holds no read-back and the renderer stores nothing | 3 — the REAL OS-keychain round-trip surviving a restart |
-> | 6 (brokered forest) | 6 — the fail-closed probe + its guidance | 8 — the owner's in-app `builder` grant opening the write path |
+> | 6 (brokered forest) | ~~6 — the fail-closed probe + its guidance~~ (deleted 2026-08-20, ADR-0294 D2) | 8 — the owner's in-app `builder` grant opening the write path |
 > | 8 (launch refusal) | 10 — git-first refusal, the never-wake fence, the DB-reason passthrough | ~~11 — the splash → refuse+retry window's appearance~~ (deleted, ADR-0348 D6) |
 >
 > Legs **1, 4, 5** moved wholesale `human` → `machine`: nothing in "the compiled studio renders", "the
@@ -497,13 +500,53 @@ never speculative breadth).
 > artifacts (ADR-0209 §5, under the owner's 2026-07-25 narrower bar: a detail ONLY where the one-line
 > title is too thin to judge against, never one per leg) because their observables and their
 > stub/fake boundaries cannot survive compression to a sentence.
+>
+> **ADR-0294 D2/D4 pass, 2026-08-20 — leg 6 is DELETED; legs 1, 2, 4, 5 and 10 are declared UNBOUND.**
+> The third and final slice of the D4 pass over live stories (predecessors: PR #1444, the desktop
+> terminal cluster; PR #1448, the studio/claim cluster). This story is unusually easy to adjudicate,
+> because five of its six unbound legs SAY where their proof already lives and then name what they add
+> on top — and under ADR-0294 D2 a partial duplicate is not a duplicate, so a named residual is what
+> KEEPS a leg.
+>
+> **Leg 6 (the brokered-forest probe fails closed) is DELETED.** Its success clause was literally
+> *"[`shared-forest-connection`](shared-forest-connection.md)'s signed verdict over its injected
+> broker-POST seam"* — it pointed at the capability rather than at an observable, which is the exact
+> shape ADR-0294 D2 exists to remove. That capability's declared `proof.real.testFile`,
+> `apps/desktop/src/backend/forest-readiness.test.ts`, carries both of the leg's named branches and its
+> never-hang clause verbatim: "forest-readiness: a 403-forbidden broker fails closed with builder-role
+> guidance" (not-a-builder, with guidance), "forest-readiness: an unreachable broker fails closed with
+> studio-reachability guidance" (broker down, with guidance) and "forest-readiness: a hanging broker
+> fails closed within the supplied timeout" (never hangs), alongside the write client's matching
+> fail-closed arms. Checked against that file's ACTUAL assertions, not its file existence (ADR-0294
+> D2's honesty wall). CITATION CAVEAT: the capability's four declared contract ids (`fr-…`) appear in
+> NO test title — the file names its tests "forest-readiness: …" and "write client: …" — so the
+> assertions are cited directly rather than through a contract id, the same discipline PR #1444 reached
+> on `repo-selection`. The proof runs on every `pnpm -r test` either way. The capability's own prose
+> already recorded the discharge from its side ("this test's fail-closed assertions discharge machine
+> Story UAT leg 6"), which is now re-pointed in place per ADR-0139.
+>
+> **The five survivors stay unbound, and each clause below names the node that covers its duplicated
+> half.** Legs 2, 4, 5 and 10 each carry a real capability suite plus an explicit *"this leg adds …"*
+> residual that no component test can reach (the REAL `contextBridge`, the REAL spawned sidecar, the
+> REAL Electron main's wiring, the REAL launch honouring the gate). Leg 1 has no lower-tier node at all:
+> [`electron-shell`](electron-shell.md) is `operator-attested` with no `proof:` block, and the
+> `apps/desktop/e2e/` harness that drives the launch is declared by no capability, is not a `pnpm gate`
+> step, and asserts nothing about the carries-no-source guard the leg actually turns on. **No gate is
+> minted for any of the five** — answering an unbound leg with a freshly minted check is the rubber
+> stamp ADR-0097 §2 forbids and the reflex ADR-0294's end state point 4 names. Gate 2 stays bound to leg
+> 3, unchanged.
+>
+> Ordinal **6** is BURNED, not renumbered; no surviving ordinal collides with a `superseded` key for
+> this story in `stories/uat-legacy-dispositions.json` (the burned set is now 6, 9, 11). Verified on the
+> live store before deleting: leg 6 read `proven=–`, so no signed verdict was destroyed, and it carried
+> no `(detail:)` pointer, so no `uat-criterion` artifact was orphaned.
 
 **Goal —** A trusted member launches the native app, signs in with their Claude subscription (held in
 the OS keychain), drives a real build through the local backend, and watches it reach a signed verdict
 that blooms in the shared forest — the renderer never holding the credential or importing the agent, the
 credential never leaving the machine.
 
-1. **Launch — the native shell renders the COMPILED studio, no Vite, no source.** _(witness: machine)_ _(criterion-id: uatc_9e9d308422ea6863a6bcee98)_ _(revision-id: uatr1:4694ad452c83f892)_ _(previous-revision-id: uatr1:b0f743aed28f0eb6)_
+1. **Launch — the native shell renders the COMPILED studio, no Vite, no source.** _(witness: machine)_ _(criterion-id: uatc_9e9d308422ea6863a6bcee98)_ _(revision-id: uatr1:c2880a7567541903)_ _(previous-revision-id: uatr1:4694ad452c83f892)_
    The packaged app opens; the Electron main serves the compiled studio dist over `127.0.0.1` and
    navigates the window there off its launch page, and the renderer mounts the real studio SPA.
    **Success —** in the `_electron` harness the window reaches an `http://127.0.0.1:<port>` origin with
@@ -513,7 +556,19 @@ credential never leaving the machine.
    studio renders" is a DOM/URL/network observable, and the existing harness already drives exactly this
    launch. Whether the result LOOKS like one coherent app is no longer a leg at all — ADR-0348 D6
    deleted that experience criterion; the intent lives in "Design floor".)*
-2. **The credentials surface is one-way — nothing reads back, the renderer stores nothing.** _(criterion-id: uatc_47241898f5714f414284c9f0)_ _(revision-id: uatr1:0d70140121ce0e78)_
+   **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20).** No `(proof-gate:)`, and no lower-tier node
+   proves it. [`electron-shell`](electron-shell.md) is `proof_mode: operator-attested` and registers no
+   `proof.real.testFile`, so there is no capability test to name. The harness the leg names does drive
+   the launch — `apps/desktop/e2e/harness.mjs` reaches the served `http://127.0.0.1:<port>` origin and
+   evaluates `document.readyState === 'complete'` — but that is a HARNESS, not a spec: no capability
+   declares `apps/desktop/e2e/**` as its `proof.real.testFile` (the one corpus reference to that
+   directory is `studio`'s `map-route-retention` testGlobs, for a different claim), the suite is not a
+   `pnpm gate` step, and grepping it for the carries-no-source guard the leg actually turns on —
+   `/@vite/client`, a `/src/**` request, the hashed `/assets/*.js` bundle — returns nothing. So
+   `resolveWitness` refuses it (`coverage: "refused"`) and no gate is minted (ADR-0097 §2). What binds
+   it is a real instrument: an `_electron` spec asserting the ADR-0090 d.4 guard, plus a standing
+   command that runs it.
+2. **The credentials surface is one-way — nothing reads back, the renderer stores nothing.** _(criterion-id: uatc_47241898f5714f414284c9f0)_ _(revision-id: uatr1:0ba7c113921fd4f1)_ _(previous-revision-id: uatr1:0d70140121ce0e78)_
    _(witness: machine)(detail: desktop#uat-2)_ In the running Electron app the member's credential surface exposes no recovery
    path: `window.desktopAuth` offers `status`/`store`/`signOut` and NO getter, `status(kind)` resolves a
    BOOLEAN, the panel's inputs never pre-fill from a stored value, and after a store attempt no raw
@@ -523,6 +578,15 @@ credential never leaving the machine.
    two-kind broker independence, typed IPC, operation-bridge lifetime, and the panel's one-way store /
    feature gate — is `credential-broker`'s contracts 1–9; this leg adds the integrated claim that the
    REAL bridge exposes no read-back.
+   **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20), and it is a PARTIAL duplicate that is therefore
+   KEPT.** The component core IS proven one rung down by
+   [`credential-broker`](credential-broker.md) at `apps/studio/src/components/CredentialsPanel.test.tsx`
+   — the leg names those nine contracts itself — but the sentence beginning *"this leg adds"* is the
+   whole of the residual: the REAL `contextBridge` exposing no getter, and the renderer's real storage
+   being clean after a store attempt, are not what a jsdom component test can observe. A partial
+   duplicate is not a duplicate (ADR-0294 D2), so the leg stands; `resolveWitness` refuses it
+   (`coverage: "refused"`), and no gate is minted (ADR-0097 §2) — binding it to the panel suite would
+   sign the covered half and silently claim the half the leg exists to add.
 3. **A credential survives a real restart in the OS keychain, then removes cleanly.** _(witness: machine)_ _(proof-gate: desktop#gate-2)_ _(criterion-id: uatc_f017c21eae754d091713d18f)_ _(revision-id: uatr1:02a892cce2db6189)_ _(previous-revision-id: uatr1:a8bb3332f308b058)_
    On a real desktop app the operator stores each kind independently (Claude subscription `oauth`,
    Anthropic `api-key`), REPLACES one, quits and relaunches, confirms the replacement is still held, and
@@ -547,14 +611,25 @@ credential never leaving the machine.
    `main.ts:131` takes the default `storytree-desktop` service namespace, so a drive ends with the
    operator's real desktop credentials cleared and needing re-entry. That is what the authored journey
    asks for; it is the same end state the operator reaches performing it by hand.)*
-4. **The local backend is live (no 503).** _(witness: machine)(detail: desktop#uat-4)_ With the desktop main process running _(criterion-id: uatc_c41cb0d4c1bf3a45c39312a6)_ _(revision-id: uatr1:057291595a474651)_
+4. **The local backend is live (no 503).** _(witness: machine)(detail: desktop#uat-4)_ With the desktop main process running _(criterion-id: uatc_c41cb0d4c1bf3a45c39312a6)_ _(revision-id: uatr1:88f5c3bb4158daee)_ _(previous-revision-id: uatr1:057291595a474651)_
    for real — the sidecar spawned, NOT the harness's e2e mode — a `GET /api/*` read route
    (`tree`/`docs`/`activity`) returns a real envelope body. **Success —** the response is the composed
    organism drivers' envelope and NOT `static-server.ts`'s `503 {"error":"no backend in the desktop
    shell …"}` fallback. *(Machine, not human: a 503 stub versus a real envelope is a byte comparison with
    no judgment in it. It is live-gated — the sidecar's fail-closed boot needs a git checkout and a
    reachable store — which makes it expensive, not irreducible.)*
-5. **The credential reaches the in-process backend; the renderer never holds the raw token.** _(criterion-id: uatc_eb82eaac877cccb9a9beea4f)_ _(revision-id: uatr1:92c090fcf68e68ce)_
+   **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20), and it is a PARTIAL duplicate that is therefore
+   KEPT.** The envelope-not-503 comparison IS proven one rung down by
+   [`local-backend-boot`](local-backend-boot.md) at `apps/desktop/src/backend/local-backend.test.ts` —
+   "local-backend: GET /api/health returns a real { store, db } envelope — not a 503", "GET /api/tree
+   returns { stories: [] } from real discovery over empty dir", "GET /api/activity returns the
+   in-flight-build overlay { builds } from the seam" — and the sibling read routes by
+   [`boot-read-routes`](boot-read-routes.md) at `apps/desktop/src/backend/boot-read-routes.test.ts`.
+   What neither reaches is this leg's own precondition: *"with the desktop main process running for
+   real — the sidecar SPAWNED, not the harness's e2e mode"*. Both suites compose the drivers in-process;
+   nothing observes the real spawn. A partial duplicate is not a duplicate (ADR-0294 D2), so the leg
+   stands; `resolveWitness` refuses it (`coverage: "refused"`), and no gate is minted (ADR-0097 §2).
+5. **The credential reaches the in-process backend; the renderer never holds the raw token.** _(criterion-id: uatc_eb82eaac877cccb9a9beea4f)_ _(revision-id: uatr1:d430d0b031982283)_ _(previous-revision-id: uatr1:92c090fcf68e68ce)_
    _(witness: machine)(detail: desktop#uat-5)_ A build/orchestrate driver invocation in the running local backend receives the
    brokered credential in-process — no TLS hop — while no `/api/*` response body and no
    renderer-reachable surface ever carries that value. **Success —** with a FAKE credential held for the
@@ -563,14 +638,14 @@ credential never leaving the machine.
    boundary; this leg adds that the real Electron main actually wired it.) *(Machine, not human: "the
    token appears in this byte stream" is decidable, and a FAKE credential means no spend and no live
    studio.)*
-6. **The brokered-forest probe fails CLOSED when the broker is unreachable or the member is not a builder.** _(criterion-id: uatc_4875477c492273d4088adf87)_ _(revision-id: uatr1:04897584f5417812)_
-   _(witness: machine)_ Before the member is marked a `builder`, or when the broker is down,
-   the readiness probe refuses with clear guidance (you are not yet an authorized builder — ask the
-   owner / the broker is unreachable — is the studio up?) rather than hanging or forging success.
-   **Success —** [`shared-forest-connection`](shared-forest-connection.md)'s signed verdict over its
-   injected broker-POST seam (a reachable/authorized double and an unreachable/forbidden double drive
-   both paths). *(Machine: the fail-closed branch needs no live broker at all — it is exactly what an
-   injected seam proves. Only the AUTHORIZED path needs the live grant, and that is leg 8.)*
+   **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20), and it is a PARTIAL duplicate that is therefore
+   KEPT.** The hand-off and the isolation ARE proven one rung down by
+   [`local-credential-wiring`](local-credential-wiring.md) at
+   `apps/desktop/src/backend/credential-bridge.test.ts` — the leg's own parenthesis says exactly that —
+   and the clause immediately after it, *"this leg adds that the real Electron main actually wired
+   it"*, is the residual a component test cannot reach. A partial duplicate is not a duplicate
+   (ADR-0294 D2), so the leg stands; `resolveWitness` refuses it (`coverage: "refused"`), and no gate is
+   minted (ADR-0097 §2).
 7. **A real build reaches a signed verdict locally and blooms in the shared forest VIA THE BROKER.** _(criterion-id: uatc_da3559fd2874e2df93362733)_ _(revision-id: uatr1:61042eb66b4e4a06)_ _(previous-revision-id: uatr1:1903082aec93aac0)_
    _(witness: human)_
    _(witness-basis: the brokered POST is gated on ensureHostedIdentity at
@@ -630,7 +705,7 @@ credential never leaving the machine.
    fork as leg 7 (`remote-session-access-arc`). The leg is otherwise mechanical — `writeBroker.test.ts`
    already compiles the `mayBrokerWrite` role predicate over admin/builder/member — so it flips to
    `machine` the day a harness can authenticate as a member.)*
-10. **Launch refuses cleanly when a precondition is unmet — no half-wired shell (ADR-0176).** _(criterion-id: uatc_ed15427cfebc9e03b298775e)_ _(revision-id: uatr1:bda598cbcb4d97cd)_ _(previous-revision-id: uatr1:3506081c43f4188c)_
+10. **Launch refuses cleanly when a precondition is unmet — no half-wired shell (ADR-0176).** _(criterion-id: uatc_ed15427cfebc9e03b298775e)_ _(revision-id: uatr1:d4a292539af93266)_ _(previous-revision-id: uatr1:bda598cbcb4d97cd)_
     _(witness: machine)(detail: desktop#uat-10)_ Before the sidecar wires any backend, the launch-precondition gate runs: with no
     git checkout it refuses IMMEDIATELY naming the unmet precondition and NEVER wakes the DB; with a
     checkout it reuses `ensureLiveDb` to probe and bounded-auto-wake the live store, proceeding to the ONE
@@ -646,12 +721,26 @@ credential never leaving the machine.
     "Design floor" (b) records the intent.)* *(This is the defect-driven regression case ADR-0176 was
     root-caused from — the Story UAT grows by appending a permanent case per real failure, never
     speculative breadth.)*
+    **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20), and it is a PARTIAL duplicate that is therefore
+    KEPT.** All three branches ARE proven one rung down by
+    [`desktop-launch-preconditions`](desktop-launch-preconditions.md) at
+    `apps/desktop/src/backend/launch-preconditions.test.ts` — "ensureLaunchPreconditions: no git
+    checkout refuses immediately and NEVER calls ensureDb" (including the never-wake fence), "git
+    present + db reachable (no cold start) resolves ok with startedDb=false", "git present + db had to
+    cold-start resolves ok with startedDb=true", "git present + db unreachable carries the drive refusal
+    reason through unchanged", plus the two `describeLaunchRefusal` copy assertions. What that suite
+    never reaches is the clause the leg names as its own addition: *"this leg adds that the real
+    Electron launch honours them"*, over injected doubles rather than the real sidecar. A partial
+    duplicate is not a duplicate (ADR-0294 D2), so the leg stands; `resolveWitness` refuses it
+    (`coverage: "refused"`), and no gate is minted (ADR-0097 §2).
 End state — a trusted member ran the whole storytree loop on their own machine through a native app,
 their credential held in the OS keychain and never leaving the machine, their builds signed locally from
 real exit codes and BROKERED to the shared forest (POSTed to the studio's members-gated write-broker under
 their in-app `builder` role, no DB identity on their machine; ADR-0117), the renderer never crossing the
 agent boundary — the launch, the one-way credential surface, the live backend, the in-process credential
-hand-off, the fail-closed broker probe and the clean launch refusal all machine-witnessed, and only the
+hand-off and the clean launch refusal all machine-witnessed at the story tier (the fail-closed broker
+probe is witnessed one rung down, by [`shared-forest-connection`](shared-forest-connection.md); the story
+leg that restated it was deleted 2026-08-20 by the ADR-0294 D2/D4 pass), and only the
 real keychain round-trip, the billed build and the owner's `builder` grant attested by the operator. How
 the result LOOKS and FEELS is no longer an acceptance obligation here (ADR-0348 D6) — that intent is
 recorded in "Design floor" and answered by the owner using the app.
@@ -726,16 +815,18 @@ the newest record is older than 90 days (the ADR-0016 ageing floor).
 
 Adopting gate 1 greens ONLY `credential-broker` — its DERIVED crown, via the `(covers:)` above. It
 does NOT green the story and does NOT touch the authored `status:` (which stays `proposed`): the desktop
-crown still awaits its OTHER capabilities and all NINE surviving Story UAT legs, in the two kinds the
-2026-08-13 ADR-0357 triage resolved them into: **seven machine legs** awaiting signed verdicts (the
+crown still awaits its OTHER capabilities and all EIGHT surviving Story UAT legs, in the two kinds the
+2026-08-13 ADR-0357 triage resolved them into: **six machine legs** awaiting signed verdicts (the
 compiled-studio launch, the one-way credential surface, the real OS-keychain round-trip, the
-Electron-main backend boot, the in-process credential hand-off, the fail-closed broker probe, and the
+Electron-main backend boot, the in-process credential hand-off, and the
 clean launch refusal) and **two human legs** (the subscription-billed brokered build, and the in-app
 `builder` grant) — both of the latter on ADR-0357 D1's second basis, the interactive IAP sign-in
 `ensureHostedIdentity` performs, and neither an agent can authenticate as. *(This paragraph said
 ELEVEN legs, six machine and five operator-attested — the 2026-07-25 counts. ADR-0348 D6 deleted the
 one-app-feel and refuse+retry-window legs, and ADR-0348 D1's triage flipped the keychain round-trip;
-corrected in place per ADR-0139.)* `healthy` stays non-authorable
+corrected in place per ADR-0139. It then said NINE legs, seven machine — corrected again 2026-08-20 for
+the same reason: the ADR-0294 D2/D4 pass deleted the fail-closed-broker-probe leg as a restatement of
+`shared-forest-connection`'s own assertions.)* `healthy` stays non-authorable
 ([ADR-0020](../../docs/decisions/0020-red-green-enforcement-on-the-owned-loop.md)) — the authored
 `status:` is never `healthy`; the world's crown DERIVES green from the signed verdict
 ([ADR-0040](../../docs/decisions/0040-verdict-derived-green-and-the-human-witness-signpost.md)), and only
@@ -944,7 +1035,9 @@ The only **owner-level** item is operational, not modeling, and ADR-0117 SIMPLIF
 an attended Cloud SQL IAM `gcloud` grant but an **in-app `builder` mark in the Members panel** (ADR-0117
 d.2 — the friend holds no DB identity; the server is the single DB authority). A privileged action the
 human performs, now fully in-app, surfaced in `shared-forest-connection` and UAT leg 8 (the grant leg the
-2026-07-25 re-adjudication split out of old leg 6, whose fail-closed half is now machine leg 6). *(A third item is
+2026-07-25 re-adjudication split out of old leg 6; that split's other half stood as machine leg 6 until
+the ADR-0294 D2/D4 pass deleted it on 2026-08-20 — it restated `shared-forest-connection`'s own
+fail-closed assertions — so the capability is now the single home of that claim). *(A third item is
 RECORDED as decided-and-surfaced, forced by ADR-0117, reversible, internal — not re-litigated:* **the
 friend's forest writes are brokered to studio-cloud's `write-broker`, not direct** *— the local backend
 opens no DB connection. The cross-story edge desktop → studio-cloud is a runtime HTTP edge, declared in

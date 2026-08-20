@@ -20,6 +20,8 @@ proof_mode: UAT
 # cross-repo and not-yet-harnessed are COSTS, not
 # judgment gaps (`human-witness-is-a-judgment-gap-not-cost`). Eight machine legs, zero human legs;
 # each Story-UAT leg below marks its own witness (the split table is in "UAT Test Criteria").
+# ADR-0294 D2/D4 pass 2026-08-20: none of the eight is deleted — no lower-tier node proves any of them
+# — and all eight are declared UNBOUND and fail closed. See the dated block in "UAT Test Criteria".
 capabilities: [r3f-world-spike, experience-rollout-guardrails, web-experience-sync, act2-beat-director, act1-terminal-storm, storm-to-forest-inflection, act2-guided-walkthrough, act2-guided-forest, info-pages-triage]
 # Consumer-side outbound edges (the ADR-0058 delivered-outcome test, run both ways):
 #  - forest-world: the R3F mapper (`packages/forest-world-r3f`, this story's parent-side package —
@@ -471,14 +473,75 @@ case. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 §1).
 >
 > **Nothing here is green.** Per ADR-0209 §6 a re-adjudicated leg returns to UNSTAMPED and earns green
 > only under its newly-declared witness. The machine legs below are **declared, not proven** — no spec
-> discharges legs 1, 4, 6, 8, 10 or 13 today; the prior owner attestations recorded against the OLD
+> discharges legs 1, 4, 6 or 13 today, and legs 8 and 10 are only PARTIALLY discharged (the ADR-0294
+> D2/D4 block below names exactly which halves [`act2-beat-director`](act2-beat-director.md)'s suite
+> reaches and which it never touches). *(This read "no spec discharges legs 1, 4, 6, 8, 10 or 13
+> today", which overstated the gap for 8 and 10 — that suite was already leaf-proven when the sentence
+> was written. Corrected in place 2026-08-20 per ADR-0139; the 2026-07-25 re-adjudication itself is
+> unchanged.)* The prior owner attestations recorded against the OLD
 > fused legs stand as true history (copy-on-write) but discharge nothing here; and the owner signs
 > nothing as a result of this re-adjudication. Legs 1, 6, 8, 10 and 13 carry seed-canonical
 > `uat-criterion` detail artifacts (ADR-0209 §5, under the owner's 2026-07-25 narrower bar: a detail
 > ONLY where the one-line title is too thin to judge against, never one per leg) because their
 > observables, thresholds and cross-repo boundaries cannot survive compression to a sentence.
+>
+> **ADR-0294 D2/D4 pass, 2026-08-20 — NOTHING is deleted, and all EIGHT machine legs are declared
+> UNBOUND.** This is the third and final slice of the D4 pass over live stories (predecessors: PR
+> #1444, the desktop terminal cluster; PR #1448, the studio/claim cluster). D2 deletes a criterion only
+> when its proof already exists ONE RUNG DOWN — a capability or contract in THIS corpus whose real test
+> asserts the same claim, checked against that test's ACTUAL assertions rather than its file existence
+> — and no leg here meets that condition. The eight fall into three groups, for three different
+> reasons:
+>
+> - **Legs 1, 4, 6 and 13 — no machine proof at any tier here.** Their owning capabilities
+>   ([`act1-terminal-storm`](act1-terminal-storm.md),
+>   [`storm-to-forest-inflection`](storm-to-forest-inflection.md) and
+>   [`info-pages-triage`](info-pages-triage.md)) are `proof_mode: operator-attested` and register NO
+>   `proof.real.testFile` at all, so there is no lower-tier test to name — D2's two-part test disposes
+>   of them before a leg is read. Leg 4's own capability,
+>   [`experience-rollout-guardrails`](experience-rollout-guardrails.md), DOES have a suite but
+>   deliberately declines this claim in its own words ("presence, not adequacy"). The owner
+>   attestations and the web repo's Playwright runs recorded on those caps are not a discharge either,
+>   which `## Proof` below already states in so many words: *"PRECEDENT that these observables are
+>   reachable — not a discharge of these legs."*
+> - **Legs 8 and 10 — PARTIAL duplicates, therefore KEPT.**
+>   [`act2-beat-director`](act2-beat-director.md)'s suite
+>   (`packages/forest-world-r3f/src/act2-director.test.ts`) genuinely proves the pure-director half of
+>   each, and each leg's clause below names which assertions reach it; what that suite never reaches is
+>   the SITE half. A partial duplicate is not a duplicate (ADR-0294 D2) — five of
+>   `wisp-as-story-claim`'s seven were kept for the same reason in PR #1448.
+> - **Legs 2 and 12 — a BINDING gap, not a proof gap.** Both name a live gate rung
+>   (`check:web-experience-closure`, `check:web-engine`) that runs in `pnpm gate` and in CI on every
+>   merge over the real `web/` tree, so both claims ARE machine-enforced today. But a gate RUNG is not
+>   a lower TIER: the capabilities behind those rungs prove the JUDGES over fixture trees, which is a
+>   different proposition from THIS site or THIS tree being clean — so neither leg is a D2 duplicate
+>   and neither is deleted. What they lack is a `(proof-gate:)`: this story declares no
+>   `## Reliability Gates` section at all, so `resolveWitness` refuses both and they cannot go green
+>   however often the rung runs.
+>
+> **What would bind legs 2 and 12 — recorded here rather than acted on.** Two `observe` reliability
+> gates on this story whose proof commands are `pnpm check:web-experience-closure` and
+> `pnpm check:web-engine`, with each leg carrying the matching
+> `(proof-gate: website-experience#gate-n)`. This pass deliberately did NOT mint them, for three
+> stated reasons. ADR-0294 end state point 4 mints only where a real PERSISTED artifact exists to
+> witness, and a rung's pass is a CI exit code, not an artifact. Authoring a story's FIRST
+> reliability-gate floor sets its own-proof obligations (ADR-0083 / ADR-0085 crown semantics), which is
+> story-shape scope rather than leg dissolution. And operationally both commands declare a SKIP
+> (`GATE_SKIP_EXIT_CODE`) on a checkout without the `web/` submodule, so the observation could only be
+> taken on a submodule-carrying checkout — a real constraint a later author should not have to discover
+> at the gate. The other six legs are NOT in this position: nothing they could run persists an artifact
+> an `observe` gate could read, and answering them with a freshly minted check is the rubber stamp
+> ADR-0097 §2 forbids and ADR-0294's end state point 4 names.
+>
+> **No ordinal moved, and the ledger is untouched.** The burned positions stay burned (3, 5, 7, 9 and
+> 11, deleted 2026-08-11 by ADR-0348 D6); no surviving ordinal collides with a `superseded` key for
+> this story in `stories/uat-legacy-dispositions.json` (checked — the collision PR #1174 made on
+> `studio-cloud` and PR #1448 repaired); and because nothing was deleted, all eight of this story's
+> live keys stay `unresolved`, which is the honest record for a leg that earns no proof credit.
+> Verified on the live store before the pass: all eight read `proven=–`, so no signed verdict was at
+> risk either way.
 
-1. **One prompt breeds the storm — the choreography.** _(witness: machine)(detail: website-experience#uat-1)_ Load the live experience _(criterion-id: uatc_68cd01077dad6f1b0140fa41)_ _(revision-id: uatr1:486812d3699f08e1)_
+1. **One prompt breeds the storm — the choreography.** _(witness: machine)(detail: website-experience#uat-1)_ Load the live experience _(criterion-id: uatc_68cd01077dad6f1b0140fa41)_ _(revision-id: uatr1:2c1c0565a7159cf4)_ _(previous-revision-id: uatr1:486812d3699f08e1)_
    entry, assert the opening surface, send ONE prompt, then drive NOTHING further. **Success —** ONE
    terminal at rest, offering suggested chips and a prompt line leading with **"build me a shopping
    website"** (the prompt reused across both acts, ADR-0148); audio unlocks on that gesture (silent
@@ -487,8 +550,18 @@ case. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 §1).
    cap); every terminal streams activity and parks on an unanswerable demand; the HUD reads
    `AGENTS: n ▲` rising to that peak; and NOT ONE further visitor input is required between the send and
    the peak.
-2. **Act 1 ships no WebGL bytes — the static-import-closure wall.** _(witness: machine)_ `pnpm _(criterion-id: uatc_e77db3011f6e5364be4fc12a)_ _(revision-id: uatr1:38bb65e56c09a92f)_
-   check:web-experience-closure` at a clean HEAD with the `web/` submodule checked out. _(previous-revision-id: uatr1:07854f144ae59d82)_
+   **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20).** No `(proof-gate:)`, and no lower-tier node
+   proves it: [`act1-terminal-storm`](act1-terminal-storm.md) is `operator-attested` and registers no
+   `proof.real.testFile`, so there is no test to name. Its four owner-attested capability legs
+   (HuaMick, 2026-07-02, web main `3e53f14`) witnessed most of these observables — but a HUMAN
+   attestation of a surface that has since been REWORKED (the finale, web main `281b1e6`) is not a
+   machine discharge of a machine leg, and `## Proof` below already declines the web repo's 23/23
+   Playwright run as precedent rather than a discharge. `resolveWitness` refuses it
+   (`coverage: "refused"`); no gate is minted to host it (ADR-0097 §2). What binds it is a real
+   instrument: a `storytree-web` behaviour spec PLUS a route by which its verdict reaches this spine
+   (open call 6), or ADR-0295 D1's model-driven executor.
+2. **Act 1 ships no WebGL bytes — the static-import-closure wall.** _(witness: machine)_ `pnpm _(criterion-id: uatc_e77db3011f6e5364be4fc12a)_ _(revision-id: uatr1:70df0d02a0e06069)_
+   check:web-experience-closure` at a clean HEAD with the `web/` submodule checked out. _(previous-revision-id: uatr1:38bb65e56c09a92f)_
    **Success —** green: no module reachable from the Act 1 entry statically imports the R3F island /
    `three` / `@react-three/*` — Act 1 ships no WebGL bytes. *(NARROWED by ADR-0336, 2026-08-09. This
    leg named `pnpm check:web-experience` — which also asserted the `data-experience-skip` /
@@ -498,7 +571,19 @@ case. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 §1).
    DELIBERATELY left out of this leg's scope: they remain unguarded by any machine today — a known,
    accepted gap (ADR-0336 D2) — though `experience-rollout-guardrails`'s intact judge can still
    assert them on a direct invocation.)*
-4. **The exits actually work.** _(witness: machine)_ From a mid-storm moment take whatever exit the _(criterion-id: uatc_1e7f30dc9fb4d5fe0f1ba144)_ _(revision-id: uatr1:11f25eddad8521a2)_
+   **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20), and this one is a BINDING gap rather than a
+   proof gap.** The named command is a live gate rung: `check:web-experience-closure` runs in
+   `pnpm gate` and in CI on every merge (`.github/workflows/ci.yml`) over the real `web/` tree, so the
+   claim IS machine-enforced today. But a gate RUNG is not a lower TIER — the capability
+   [`experience-rollout-guardrails`](experience-rollout-guardrails.md)'s contract
+   `erg-act1-static-closure-is-webgl-free` (`packages/cli/src/web-experience-check.test.ts:353`)
+   proves the JUDGE over fixture trees: a static chain from the entry to `three` reds naming the leak,
+   the same target behind a dynamic `import()` is green. That the judge is CORRECT is a different
+   proposition from THIS SITE being clean, so the leg is not a D2 duplicate and is not deleted. It
+   carries no `(proof-gate:)`, so `resolveWitness` refuses it (`coverage: "refused"`) and it cannot go
+   green however often the rung runs. No gate is minted here — see the pass block above for what would
+   bind it and why this pass declined to.
+4. **The exits actually work.** _(witness: machine)_ From a mid-storm moment take whatever exit the _(criterion-id: uatc_1e7f30dc9fb4d5fe0f1ba144)_ _(revision-id: uatr1:f0fa8aafd2bf8785)_ _(previous-revision-id: uatr1:11f25eddad8521a2)_
    current decided surface offers; separately, load the entry with `prefers-reduced-motion`, again with
    WebGL unavailable, and again with JS off. **Success —** the exit RESOLVES to the calm view, and the
    reduced-motion / no-WebGL / no-JS visitor gets that calm view directly and is NEVER played the storm
@@ -509,7 +594,14 @@ case. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 §1).
    call 7: ADR-0153 removed the capable-visitor skip, leaving the a11y fallback as the floor, so the
    spec's first half cannot be written until the owner settles whether a skip CONTROL survives on the
    current surface.)*
-6. **One tap transforms — IN PLACE.** _(witness: machine)(detail: website-experience#uat-6)_ At peak overload, click the single calm _(criterion-id: uatc_bcce19e9d65b441a1a74d61b)_ _(revision-id: uatr1:5cbb389789e07a35)_
+   **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20).** No `(proof-gate:)`, and nothing proves it one
+   rung down: [`experience-rollout-guardrails`](experience-rollout-guardrails.md) is the only
+   capability here with a suite that touches this territory and it declines this exact claim in its own
+   words ("presence, not adequacy"), while the leg itself already rules the marker assertion out as a
+   FALSE pass. Half the spec cannot even be WRITTEN until open call 7 settles whether a skip control
+   survives. So `resolveWitness` refuses it (`coverage: "refused"`), and no gate is minted (ADR-0097
+   §2) — a gate over the marker check would sign precisely the thing this leg says is not its claim.
+6. **One tap transforms — IN PLACE.** _(witness: machine)(detail: website-experience#uat-6)_ At peak overload, click the single calm _(criterion-id: uatc_bcce19e9d65b441a1a74d61b)_ _(revision-id: uatr1:21cbf3a8f3b144be)_ _(previous-revision-id: uatr1:5cbb389789e07a35)_
    storytree affordance once, instrumented. **Success —** exactly ONE such affordance is present at
    peak and one click discharges it; the document is NEVER navigated — no URL change, no unload/load,
    the same DOM session carries through, so the change is a TRANSFORM and not a page swap — and the
@@ -517,7 +609,13 @@ case. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 §1).
    (the runtime companion to leg 2's static-import wall). *(Scope note — open call 8: the historical
    observable was the R3F island's chunks; ADR-0148 retired that island, so WHICH deferred module the
    inflection lazy-loads on the current 2.5D surface is a build-time call the spec must name.)*
-8. **The same request, done right — the website-first walk's MECHANICS (increment G).** _(criterion-id: uatc_bbcbc39b8e8010cd76bdd490)_ _(revision-id: uatr1:c9e571594348cccb)_ _(previous-revision-id: uatr1:3c7c1a83ebcfd2c3)_
+   **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20).** No `(proof-gate:)`.
+   [`storm-to-forest-inflection`](storm-to-forest-inflection.md) is `operator-attested` and registers
+   no `proof.real.testFile`, so there is no lower-tier test to name; the web repo's 10/10 lazy-load
+   wall run is precedent, not a discharge; and open call 8 leaves the leg's central observable — WHICH
+   deferred module the current 2.5D inflection loads — unnamed, so even the instrument is not yet
+   specifiable. `resolveWitness` refuses it (`coverage: "refused"`); no gate is minted (ADR-0097 §2).
+8. **The same request, done right — the website-first walk's MECHANICS (increment G).** _(criterion-id: uatc_bbcbc39b8e8010cd76bdd490)_ _(revision-id: uatr1:2a595f6cbdc94e1d)_ _(previous-revision-id: uatr1:c9e571594348cccb)_
    _(witness: machine)(detail: website-experience#uat-8)_ Reshaped by ADR-0153, then ADR-0165. From the calm land carrying the SAME
    "build me a shopping website" request, advance the whole walk to its end, one advance at a time.
    **Success —** the session orchestrator's chat surface is the REAL app's, AT THE BOTTOM, and it
@@ -532,7 +630,24 @@ case. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 §1).
    flagged" teach anywhere (retired per ADR-0150 §4 — the dependency-layer-as-advantage is increment
    H's, machine leg 10 and felt thesis 5); and the arc ENDS on a CTA that CONTINUES into "what's next" rather than
    terminating.
-10. **The ONE continuous walk grows upstream — the BaaS dependency layers, MECHANICALLY.** _(criterion-id: uatc_3a7e33e63e173c566f9dd1e5)_ _(revision-id: uatr1:c10c803cfc5b4aa8)_
+   **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20), and it is a PARTIAL duplicate that is therefore
+   KEPT.** The pure-director half IS proven one rung down by
+   [`act2-beat-director`](act2-beat-director.md) at
+   `packages/forest-world-r3f/src/act2-director.test.ts` —
+   `abd-advance-is-visitor-paced-and-deterministic` ("beatIndex increments by exactly 1 (visitor tap =
+   one beat)", two walks deep-equal, past-done parks), `abd-green-only-on-signed-proof` (every green
+   limb carries a non-empty `signedProof`; a green-without-marker delta is refused by `advance()` at
+   runtime AND by `BeatScript.safeParse`), and `abd-default-script-is-the-one-continuous-arc` (the six
+   delta kinds in order, `add-roads` asserted absent so the wrong-way-road teach is retired, the walk
+   ending `done: true` on the pull-back CTA). Checked against those tests' ACTUAL assertions, not their
+   file existence. What that suite never reaches is everything this leg says about the SITE: the real
+   app's chat surface AT THE BOTTOM, the outcome-brief-with-an-example proposal of a mock local
+   website, progressive disclosure (un-walked elements stay HIDDEN), and the absence of a "skip the
+   intro" or any reachable escape to a static page. A partial duplicate is not a duplicate (ADR-0294
+   D2), so the leg stands; `resolveWitness` refuses it (`coverage: "refused"`), and no gate is minted
+   (ADR-0097 §2) — binding it to the director suite would sign exactly the half the leg does not turn
+   on.
+10. **The ONE continuous walk grows upstream — the BaaS dependency layers, MECHANICALLY.** _(criterion-id: uatc_3a7e33e63e173c566f9dd1e5)_ _(revision-id: uatr1:a8da833f2f6de82a)_ _(previous-revision-id: uatr1:c10c803cfc5b4aa8)_
     _(witness: machine)(detail: website-experience#uat-10)_ Increment H (ADR-0150; re-specced by ADR-0153 then ADR-0157). From the mock
     website's completion, keep advancing, instrumented. **Success —** the SAME session continues — no
     navigation to a new page, no separate CTA-gated phase ("it shouldnt be separate") — still on the
@@ -548,11 +663,38 @@ case. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 §1).
     INSPECTABLE (its what AND its why-proposed both present) and is walked green progressively on demand,
     green again only on a signed-proof marker; not-yet-walked complexity stays HIDDEN and is revealed as
     the walk continues; and NO antipattern flag is presented as the teach.
-12. **The artifact edge is live.** _(witness: machine)_ `pnpm check:web-engine` (extended) at a clean _(criterion-id: uatc_0b3f09d58d2eb85f3a7dabc8)_ _(revision-id: uatr1:bd510a05369840d6)_
+    **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20), and it is a PARTIAL duplicate that is therefore
+    KEPT.** The dependency-DATA half — the defect-driven regression case this leg says must never recur
+    — IS proven one rung down by [`act2-beat-director`](act2-beat-director.md) at
+    `packages/forest-world-r3f/src/act2-director.test.ts`,
+    `abd-upstream-stories-carry-dependsOn-and-honest-status`: it walks the REAL default script through
+    the REAL `advance()` and asserts the BaaS diamond against the rendered edge DATA —
+    `website.dependsOn=[backend, database]`, `backend.dependsOn=[database]`, `database.dependsOn=[]` —
+    plus the honest tri-state mix at the pull-back (the website resolves `proven`, both upstream layers
+    stay `building`, so the legend is backed by real statuses). Checked against that test's ACTUAL
+    assertions, not its file existence. What it never reaches is the rest of the leg: the SAME session
+    continuing with no navigation, the REAL app's UI, the render placing the frontend HIGH and the
+    foundation BELOW, each upstream story being INSPECTABLE (its what AND its why-proposed), and
+    complexity staying HIDDEN until the walk reveals it. A partial duplicate is not a duplicate
+    (ADR-0294 D2), so the leg stands; `resolveWitness` refuses it (`coverage: "refused"`), and no gate
+    is minted (ADR-0097 §2).
+12. **The artifact edge is live.** _(witness: machine)_ `pnpm check:web-engine` (extended) at a clean _(criterion-id: uatc_0b3f09d58d2eb85f3a7dabc8)_ _(revision-id: uatr1:e1c18145b6a3bf04)_ _(previous-revision-id: uatr1:bd510a05369840d6)_
     HEAD. **Success —** green: the site's synced copies of the render core AND the R3F mapper are
     byte-fresh from their parent packages (`@generated`, no drift, no stale leftovers) — the 3D look
     flows from the parent, never hand-ported.
-13. **The surrounding pages' disposition is EXECUTED.** _(witness: machine)(detail: website-experience#uat-13)_ Crawl the built site over _(criterion-id: uatc_2f671b7b270d364f3a2a3744)_ _(revision-id: uatr1:695a0eb83aced0ed)_
+    **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20), and this one is a BINDING gap rather than a
+    proof gap.** `check:web-engine` has run continuously in `pnpm gate` and in CI
+    (`.github/workflows/ci.yml`) over the real `web/` tree, so the claim IS machine-enforced on every
+    merge. But a gate RUNG is not a lower TIER — [`web-experience-sync`](web-experience-sync.md)'s four
+    contracts prove the drift JUDGE over fixtures at `packages/cli/src/web-engine-sync.test.ts`
+    (`wes-drift-covers-both-dirs`, `wes-core-import-rewrites-to-sibling`,
+    `wes-second-package-plans-beside-the-core`, `wes-tsx-is-engine-source`, all four verified present
+    in that file by name). That the judge is CORRECT is a different proposition from THIS tree being
+    byte-fresh, so the leg is not a D2 duplicate and is not deleted. It carries no `(proof-gate:)`, so
+    `resolveWitness` refuses it (`coverage: "refused"`) and it cannot go green however often the rung
+    runs. No gate is minted here — see the pass block above for what would bind it and why this pass
+    declined to.
+13. **The surrounding pages' disposition is EXECUTED.** _(witness: machine)(detail: website-experience#uat-13)_ Crawl the built site over _(criterion-id: uatc_2f671b7b270d364f3a2a3744)_ _(revision-id: uatr1:23c4ad98d5329b35)_ _(previous-revision-id: uatr1:695a0eb83aced0ed)_
     every legacy page (how-it-works, roadmap, landscape, constitution, contact, get-involved, the 404).
     **Success —** every page's live state matches the SIGNED ADR-0167 disposition set exactly — the KEEP
     set reachable as plain static pages that mount no experience engine, the DISCARD set (`/roadmap/`,
@@ -561,6 +703,15 @@ case. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 §1).
     `check:web-grounding` green over every surviving claim. The editorial JUDGMENT of which page gets
     which disposition was the owner's and is already SIGNED (ADR-0167 / open call 4); this leg verifies
     only that the EXECUTION matches it.
+    **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20).** No `(proof-gate:)`.
+    [`info-pages-triage`](info-pages-triage.md) is `operator-attested` and registers no
+    `proof.real.testFile`, so there is no lower-tier test to name. ONE clause — `check:web-grounding`
+    green over the surviving claims — is carried by a standing gate rung, but the crawl this leg
+    actually specifies is not: no machine here asserts that every page's live state matches the signed
+    ADR-0167 disposition set, that both DISCARD stubs resolve through their redirects, or that zero
+    orphan hrefs remain in the site graph. That partial coverage is what KEEPS the leg rather than
+    deleting it (ADR-0294 D2). `resolveWitness` refuses it (`coverage: "refused"`); no gate is minted
+    (ADR-0097 §2) — a gate over `check:web-grounding` alone would sign one clause of six.
 
 ## Proof
 
@@ -610,8 +761,15 @@ are PRECEDENT that these observables are reachable — not a discharge of these 
 is not a workspace member, the parent prove-it-gate cannot sign those runs today; the route by which a
 web-repo machine verdict reaches the proof spine is open call 6.
 
-The story goes green only when the two parent-side legs (2, 12) run green at a clean HEAD AND the six
-site-behaviour legs are green through a route the proof spine can honour. There is no longer a
+The story goes green only when the two parent-side legs (2, 12) are BOUND to a declared `observe`
+reliability gate and observed green at a clean HEAD, AND the six
+site-behaviour legs are green through a route the proof spine can honour. *(This read "run green at a
+clean HEAD", which named a path that cannot execute: this story declares no `## Reliability Gates`
+section at all, so neither leg carries a `(proof-gate:)` and `resolveWitness` refuses both — running
+the rung green greens nothing. The ADR-0294 D2/D4 pass of 2026-08-20 established that, and deliberately
+left the binding un-minted rather than authoring a story's first gate floor inside a leg-dissolution
+pass; the pass block in `## UAT Test Criteria` records exactly what would bind them. Corrected in place
+per ADR-0139.)* There is no longer a
 story-tier attestation in that condition: ADR-0348 D6 deleted all five human legs, so the crown turns
 entirely on machine verdicts. Where an attestation IS still owed — the capability tier's ADR-0070
 stage-2 nodes — it is recorded, never presumed (ADR-0044).
