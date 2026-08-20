@@ -115,9 +115,17 @@ test('pty sessions survive a route change: away to Members and back restores the
     await win.reload();
     await waitForForestSettled(win);
 
-    // Expand the terminal (the dock renders once the gate sees the valid repo) and wait for the first
-    // session to spawn — the bridge's repo-scoped list() turning non-empty is the spawn observable.
-    const toggle = win.locator('[aria-label="expand terminal"]');
+    // Expand the BOTTOM PANEL (the dock renders once the gate sees the valid repo) and wait for the
+    // first session to spawn — the bridge's repo-scoped list() turning non-empty is the spawn
+    // observable.
+    //
+    // The control is the PANEL's, not the dock's, since ADR-0354 D1 made the bottom panel a tab host
+    // holding the terminal beside the context-traversal replay: there is one chevron for one fold,
+    // and the hosted dock deliberately draws none of its own. This harness must reach the terminal
+    // exactly the way an operator does — through the app's real affordance — or it would be asserting
+    // session survival against a control the app no longer has. The Terminal tab is the one that
+    // opens by default, so expanding the panel is still what puts a terminal on screen.
+    const toggle = win.locator('[aria-label="expand bottom panel"]');
     await toggle.waitFor({ state: 'visible', timeout: 120_000 });
     await toggle.click();
     const before = await pollFor(async () => {
@@ -205,7 +213,8 @@ test('pty sessions survive a route change: away to Members and back restores the
       state: 'attached',
       timeout: 20_000,
     });
-    await win.locator('[aria-label="collapse terminal"]').waitFor({ state: 'visible', timeout: 10_000 });
+    // Still EXPANDED, read off the panel's own chevron (ADR-0354 D1 — see the expand above).
+    await win.locator('[aria-label="collapse bottom panel"]').waitFor({ state: 'visible', timeout: 10_000 });
 
     const after = await pollFor(async () => {
       const sessions = await listSessions(win);
