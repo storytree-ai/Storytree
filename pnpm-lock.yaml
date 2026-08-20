@@ -441,6 +441,9 @@ importers:
 
   packages/drive:
     dependencies:
+      '@openai/codex':
+        specifier: ^0.145.0
+        version: 0.145.0
       '@storytree/agent':
         specifier: workspace:*
         version: link:../agent

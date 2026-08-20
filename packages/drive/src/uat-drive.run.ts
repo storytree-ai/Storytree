@@ -42,6 +42,7 @@
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { createRequire } from "node:module";
 import net from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -155,17 +156,29 @@ interface DriverRuntime {
   readonly provider: UatDriveProvider;
   readonly driver: string;
   readonly executable: string;
+  readonly executableArgs: readonly string[];
+}
+
+/** The pinned official wrapper keeps its matching code-mode host alongside its native binary. */
+function resolvePinnedCodexEntrypoint(): string {
+  const require = createRequire(import.meta.url);
+  const packageJson = require.resolve("@openai/codex/package.json");
+  return path.join(path.dirname(packageJson), "bin", "codex.js");
 }
 
 /** Resolve and prove the runtime once, before a drive can spend subscription time. */
 function verifyCodexRuntime(): DriverRuntime | null {
   const explicit = process.env[STORYTREE_CODEX_EXECUTABLE_ENV]?.trim();
-  const desktopCli = process.env["CODEX_CLI_PATH"]?.trim();
-  const sandboxCli = path.join(process.env["USERPROFILE"] ?? "", ".codex", ".sandbox-bin", "codex.exe");
+  if (explicit !== undefined && !path.isAbsolute(explicit)) {
+    console.error(`[uat-drive] REFUSED: ${STORYTREE_CODEX_EXECUTABLE_ENV} must name an absolute executable.`);
+    return null;
+  }
+  // The project-pinned official wrapper has the code-mode host that the Desktop sandbox copy lacks.
+  const executableArgs = explicit === undefined ? [resolvePinnedCodexEntrypoint()] : [];
   // The Desktop app's delegated shell exposes this copied CLI while its app-alias executable is
   // deliberately not invokable by the sandbox. Outside that host, ordinary PATH resolution remains
   // the default. An explicit override is only a locator — authentication is still checked below.
-  const executable = explicit || desktopCli || (existsSync(sandboxCli) ? sandboxCli : "codex");
+  const executable = explicit ?? process.execPath;
   const authIsolation: DriveIsolation = {
     sessionId: "uat-drive~auth~0",
     surfacePort: 0,
@@ -175,7 +188,7 @@ function verifyCodexRuntime(): DriverRuntime | null {
   };
   const env = codexSubscriptionChildEnv(process.env, authIsolation);
   try {
-    const login = spawnSync(executable, ["login", "status"], {
+    const login = spawnSync(executable, [...executableArgs, "login", "status"], {
       encoding: "utf8",
       env,
     });
@@ -192,7 +205,7 @@ function verifyCodexRuntime(): DriverRuntime | null {
       return null;
     }
     log(`provider: ${CODEX_DRIVER} — ${verified.detail} (${executable})`);
-    return { provider: "codex", driver: CODEX_DRIVER, executable };
+    return { provider: "codex", driver: CODEX_DRIVER, executable, executableArgs };
   } catch (e) {
     const detail = (e as { stderr?: string }).stderr?.trim() || (e as Error).message;
     console.error(
@@ -212,7 +225,7 @@ function verifyClaudeRuntime(): DriverRuntime | null {
     return null;
   }
   log(`provider: ${CLAUDE_DRIVER} — explicit ${STORYTREE_UAT_DRIVE_PROVIDER_ENV}=claude selection`);
-  return { provider: "claude", driver: CLAUDE_DRIVER, executable: "claude" };
+  return { provider: "claude", driver: CLAUDE_DRIVER, executable: "claude", executableArgs: [] };
 }
 
 /** The Codex CLI's final-answer file is the report; stdout is only a diagnostic fallback. */
@@ -518,7 +531,7 @@ interface DriveContext {
   pool: { query(text: string, values?: unknown[]): Promise<unknown> };
   /** This drive's separation from the launching session — the only thing the child inherits ON PURPOSE. */
   isolation: DriveIsolation;
-  /** A ChatGPT-authenticated Codex executable, checked before any model time is spent. */
+  /** A subscription-authenticated provider executable, checked before any model time is spent. */
   runtime: DriverRuntime;
 }
 
@@ -537,7 +550,7 @@ async function driveOne(target: DriveTarget, prompt: string, ctx: DriveContext):
   const finalMessagePath = path.join(ctx.isolation.scratchDir, `${target.criterionId}.codex-final.md`);
   const res =
     ctx.runtime.provider === "codex"
-      ? spawnSync(ctx.runtime.executable, codexExecArguments(finalMessagePath), {
+      ? spawnSync(ctx.runtime.executable, [...ctx.runtime.executableArgs, ...codexExecArguments(finalMessagePath)], {
           cwd: ctx.cwd,
           input: prompt,
           encoding: "utf8",
