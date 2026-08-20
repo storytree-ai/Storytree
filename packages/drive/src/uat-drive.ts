@@ -158,6 +158,16 @@ export const UatDriveReport = z
     escalated: z.boolean().default(false),
     /** The `open-question` artifact id, when `escalated`. */
     openQuestionId: z.string().min(1).optional(),
+    /**
+     * The HTTP surface this walk observed — the reserved URL, or `null` for a pure-CLI journey that
+     * observed none. {@link requireOwnSurface} is what enforces it.
+     *
+     * OPTIONAL in the schema and REQUIRED by the runner, deliberately. Optional keeps every
+     * already-persisted record parsing (the four green Electron legs among them), so closing this
+     * hole cannot un-green landed proof. Required at drive time is where the rule belongs anyway:
+     * a refusal there can name the reserved URL and say what to do, which a schema error cannot.
+     */
+    surface: z.string().min(1).nullable().optional(),
   })
   .strict();
 export type UatDriveReport = z.infer<typeof UatDriveReport>;
@@ -184,6 +194,13 @@ export const UatDriveRecord = z
     steps: z.array(UatDriveStep).default([]),
     escalated: z.boolean().default(false),
     openQuestionId: z.string().min(1).optional(),
+    /**
+     * The surface the walk observed, carried onto the record so a later reader can see WHICH server
+     * a green was earned against. Optional so records written before surface ownership was enforced
+     * still parse — the witness gate reads this schema, and a required field here would refuse the
+     * drives that are already green.
+     */
+    surface: z.string().min(1).nullable().optional(),
     at: z.string().min(1),
   })
   .strict();
@@ -339,13 +356,20 @@ export function uatDriveTaskPrompt(spec: UatDriveSpec): string {
     '  "steps": [',
     '    { "step": "what you attempted", "outcome": "pass" | "fail" | "skipped", "note": "what you saw" }',
     "  ],",
-    '  "escalated": false',
+    '  "escalated": false,',
+    `  "surface": "${driveSurfaceUrl(spec.isolation.surfacePort)}" | null`,
     "}",
     "```",
     "",
     "`outcome` is `pass` only when every step of the authored journey above actually happened and the",
     "success condition it states was observed. Anything else — a step you skipped, a surface that did",
     "not come up, an assertion you could not check — is `fail`. There is no partial pass.",
+    "",
+    `\`surface\` is REQUIRED. It is ${driveSurfaceUrl(spec.isolation.surfacePort)} if this walk observed an`,
+    "HTTP surface at all, and `null` if it was a pure-CLI journey that observed none. Those are the only",
+    "two answers: reporting any other URL is refused, because another port is another checkout's studio.",
+    "Omitting the field is refused too — a report that does not say what it drove cannot be believed",
+    "about what it saw.",
   ].join("\n");
 }
 
@@ -400,6 +424,14 @@ export function auditDrivePrompt(prompt: string, spec: UatDriveSpec): DrivePromp
   if (!prompt.includes("```" + UAT_DRIVE_REPORT_FENCE)) missing.push("the report contract fence");
   if (!prompt.includes(UAT_DRIVE_TOOLING_CLAUSE)) missing.push("the tooling clause");
   if (!prompt.includes(uatDriveIsolationClause(spec.isolation))) missing.push("the isolation clause");
+  // The `surface` field lives in the REPORT CONTRACT, not the isolation clause, so the clause check
+  // above does not reach it. Guarded separately because losing it is the quiet half of the failure:
+  // `requireOwnSurface` refuses a report with no `surface`, so a prompt that stopped ASKING for one
+  // would turn every drive into a harness refusal — a whole population of spend, wasted, for a
+  // reason that looks like the driver's fault. It is a CAPABILITY property in the sense above.
+  if (!prompt.includes(`"surface": "${driveSurfaceUrl(spec.isolation.surfacePort)}" | null`)) {
+    missing.push("the report contract's `surface` field, naming this drive's reserved URL");
+  }
   return { ok: missing.length === 0, missing };
 }
 
@@ -806,10 +838,167 @@ export function judgeDriveSurface(health: unknown, expect: SurfaceExpectation): 
   };
 }
 
+// -- 2b. SURFACE OWNERSHIP, ENFORCED: the judgement above has to actually RUN --
+
+/**
+ * The file, inside the drive's scratch directory, that `uat-drive-surface.check.ts` appends its
+ * judgements to and the runner reads back.
+ *
+ * The scratch directory is the only channel that survives the child, and it has to be: the runner
+ * spawns the driver with `spawnSync`, so it is BLOCKED for the whole walk and cannot observe the
+ * surface while a surface exists. By the time the runner reads the report, the studio the child
+ * started has died with it. So the proof has to be left behind rather than taken.
+ */
+export const UAT_DRIVE_SURFACE_ATTESTATION_FILE = "surface-attestations.jsonl";
+
+/** One recorded answer to "was the thing at `url` this drive's own surface?", written by the child. */
+export const DriveSurfaceAttestation = z
+  .object({
+    /** The base URL that was probed, exactly as the driver named it. */
+    url: z.string().min(1),
+    /** The verdict {@link judgeDriveSurface} returned for it. */
+    ok: z.boolean(),
+    /** Its note (ok) or refusal reason (not ok) — carried so the runner can quote it. */
+    detail: z.string().min(1),
+    at: z.string().min(1),
+  })
+  .strict();
+export type DriveSurfaceAttestation = z.infer<typeof DriveSurfaceAttestation>;
+
+/**
+ * PURE: read the attestation log the child left behind, discarding lines that do not parse.
+ *
+ * Lenient about MALFORMED lines and strict about MISSING ones, which is the right way round: a
+ * corrupt line proves nothing and is dropped, but {@link requireOwnSurface} then finds no matching
+ * attestation and refuses. A drive is never passed on the strength of a line nobody could read.
+ */
+export function parseSurfaceAttestations(raw: string): DriveSurfaceAttestation[] {
+  const out: DriveSurfaceAttestation[] = [];
+  for (const line of raw.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed.length === 0) continue;
+    try {
+      const parsed = DriveSurfaceAttestation.safeParse(JSON.parse(trimmed));
+      if (parsed.success) out.push(parsed.data);
+    } catch {
+      // a half-written line from a killed child is not evidence, and is not an error either
+    }
+  }
+  return out;
+}
+
+/** PURE: the loopback URL the runner reserved for this drive — the ONLY surface it may report. */
+export function driveSurfaceUrl(port: number): string {
+  return `http://localhost:${port}`;
+}
+
+/** Trailing slashes and case in the host half are noise; comparing them would refuse honest drives. */
+function normaliseSurfaceUrl(url: string): string {
+  return url.trim().replace(/\/+$/, "").toLowerCase();
+}
+
+export interface OwnSurfaceInput {
+  /** What the driver's report says it drove: a URL, `null` for "no HTTP surface", or absent. */
+  readonly reportedSurface: string | null | undefined;
+  /** The URL the runner reserved and told the child about. */
+  readonly reservedUrl: string;
+  /** Every attestation the child left in its scratch directory. */
+  readonly attestations: readonly DriveSurfaceAttestation[];
+}
+
+export type OwnSurfaceVerdict = { ok: true; note: string } | { ok: false; reason: string };
+
+/**
+ * PURE + FAIL-CLOSED: may this drive's report be believed about the surface it says it walked?
+ *
+ * {@link judgeDriveSurface} was landed, tested against the measured `localhost:5180` failure, and
+ * then called by NOTHING. The ownership rule lived only as a sentence in the drive prompt, audited
+ * for PRESENCE and never for EXECUTION — so a driver that simply did not do it walked a sibling
+ * worktree's studio and reported on the criterion as though it were its own, which is the original
+ * failure this closes. An audited prompt clause is the same class of assurance that already failed.
+ *
+ * The rule has two halves, and BOTH are mechanical:
+ *
+ *  1. **The reported surface must be the RESERVED one.** The runner probes a port free and hands the
+ *     child that exact URL, so there is a single right answer and comparing against it needs no
+ *     cooperation. A driver that walks somebody else's studio must either report that URL — and be
+ *     refused here — or lie outright, which is a different class this cannot and does not claim to
+ *     stop (a lying driver can misreport anything, including the outcome).
+ *  2. **An `ok` attestation for it must exist**, written by `uat-drive-surface.check.ts` while the
+ *     surface was still up. That is what makes the check RUN rather than be instructed.
+ *
+ * `reportedSurface: null` is the honest "this journey observed no HTTP surface" — several criteria
+ * are pure CLI walks, and demanding an attestation from them would refuse correct drives. It is a
+ * DECLARATION, not a loophole: it is the driver stating on the record that it observed no surface,
+ * so a green that later turns out to have walked one is a lie in the report rather than a silence.
+ *
+ * `undefined` — the field absent altogether — REFUSES. That is the old report shape, and accepting
+ * it would let every pre-existing driver skip the whole rule by omission, which is exactly the
+ * silence being closed. The schema keeps the field optional so already-persisted records still
+ * parse; the requirement is enforced HERE, at drive time, where the refusal can explain itself.
+ */
+export function requireOwnSurface(input: OwnSurfaceInput): OwnSurfaceVerdict {
+  const { reportedSurface, reservedUrl, attestations } = input;
+
+  if (reportedSurface === undefined) {
+    return {
+      ok: false,
+      reason:
+        'the report named no `surface` field, so it does not say what it drove. Report the reserved URL, ' +
+        'or `null` if the journey observed no HTTP surface — an omission is refused because it is ' +
+        "indistinguishable from a driver that walked somebody else's studio and did not mention it.",
+    };
+  }
+
+  if (reportedSurface === null) {
+    return {
+      ok: true,
+      note: "the report declares it observed no HTTP surface, so there is no ownership to prove.",
+    };
+  }
+
+  const reported = normaliseSurfaceUrl(reportedSurface);
+  const reserved = normaliseSurfaceUrl(reservedUrl);
+  if (reported !== reserved) {
+    return {
+      ok: false,
+      reason:
+        `the report says it drove ${reportedSurface}, but this drive reserved ${reservedUrl}. A drive ` +
+        "may only report on the surface it was given: another port is another checkout's studio, and " +
+        "anything observed there is a finding about somebody else's tree.",
+    };
+  }
+
+  const matching = attestations.filter((a) => normaliseSurfaceUrl(a.url) === reserved);
+  if (matching.length === 0) {
+    return {
+      ok: false,
+      reason:
+        `the report claims ${reportedSurface} but no surface attestation for it was left in the scratch ` +
+        "directory, so the ownership check never RAN. Run `uat-drive-surface.check.ts <url>` against the " +
+        "surface before observing it — the check is what turns the prompt's instruction into evidence.",
+    };
+  }
+  const refused = matching.find((a) => !a.ok);
+  if (refused !== undefined) {
+    return {
+      ok: false,
+      reason: `the surface at ${refused.url} was REFUSED by the ownership check: ${refused.detail}`,
+    };
+  }
+  return {
+    ok: true,
+    note: `surface ownership proven by ${matching.length} attestation(s) against ${reservedUrl}.`,
+  };
+}
+
 // -- 3. LIFETIME: a cut-off walk is not a MISS, and its residue is attributed --
 
 /** The env var naming the out-of-tree directory a drive writes screenshots, traces and scratch into. */
 export const UAT_DRIVE_SCRATCH_ENV = "STORYTREE_DRIVE_SCRATCH";
+
+/** The env var carrying the commit this drive is pinned to — the standard the surface check holds to. */
+export const UAT_DRIVE_COMMIT_ENV = "STORYTREE_DRIVE_COMMIT";
 
 /**
  * PURE: the out-of-tree scratch directory for one run.
@@ -983,6 +1172,11 @@ export function driveChildEnv(
   env[UAT_DRIVE_SESSION_ENV] = iso.sessionId;
   env[UAT_DRIVE_SURFACE_PORT_ENV] = String(iso.surfacePort);
   env[UAT_DRIVE_SCRATCH_ENV] = iso.scratchDir;
+  // The pinned commit, so `uat-drive-surface.check.ts` knows what `code.startedAt` must equal without
+  // being TOLD it on the command line. Passing it through the env rather than as an argument is what
+  // keeps the driver from choosing its own expectation: a check whose standard the caller supplies
+  // proves whatever the caller wanted, which is the instructed-not-enforced shape being closed here.
+  env[UAT_DRIVE_COMMIT_ENV] = iso.commitSha;
   return env;
 }
 
@@ -1005,11 +1199,19 @@ export function uatDriveIsolationClause(iso: DriveIsolation): string {
     `  - Your surface is http://localhost:${iso.surfacePort} and NOTHING is listening there yet — the port`,
     "    was probed free for you. START your own studio on it (`--strictPort`). Other worktrees run their",
     "    own studios on the well-known ports; those are not yours.",
-    "  - Before you trust ANY surface, GET /api/health on it and check two fields: `store` is \"pg\", and",
-    `    \`code.startedAt\` is ${iso.commitSha.slice(0, 10)} — the commit this drive is pinned to. If either`,
-    "    disagrees, or the payload carries neither field, you are looking at a DIFFERENT checkout: do not",
-    "    walk it. Report `fail` naming what you found instead. A drive that reaches no surface is honest;",
-    "    a drive that walks somebody else's is not.",
+    "  - Before you observe ANY surface, prove it is yours by RUNNING the ownership check — do not do",
+    "    this by eye:",
+    "",
+    `      pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-surface.check.ts ${driveSurfaceUrl(iso.surfacePort)}`,
+    "",
+    "    It GETs /api/health for you, requires `store` to be \"pg\" and `code.startedAt` to be",
+    `    ${iso.commitSha.slice(0, 10)} — the commit this drive is pinned to — and writes the result where the`,
+    "    harness reads it. It exits non-zero if the surface is not yours. THE HARNESS REQUIRES THIS",
+    "    EVIDENCE: a report claiming a surface with no passing attestation for it is refused, so skipping",
+    "    the check does not save you time, it throws the whole drive away. Run it after your studio comes",
+    "    up and BEFORE you observe anything, while the surface is still live — it cannot be run afterwards.",
+    "    If it refuses, do not walk that surface: report `fail` naming what you found. A drive that reaches",
+    "    no surface is honest; a drive that walks somebody else's is not.",
     `  - Write every screenshot, trace, log and scratch file under ${iso.scratchDir} — it is outside the`,
     "    repository and already exists. Anything you leave in the tree REFUSES the next drive.",
     `  - You have ${iso.ceilingMinutes} minutes of wall clock, total, and the harness KILLS you at it. Budget`,
