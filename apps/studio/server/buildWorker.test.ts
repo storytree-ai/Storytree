@@ -6,6 +6,11 @@
 // inside no gate/spine/leaf internals.
 
 import { describe, it, expect, vi } from 'vitest';
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+import { parseUatTestCriterionSources } from '@storytree/library';
+import { findNodeSpecFile, loadNodeSpec, resolveBuildConfig } from '@storytree/orchestrator';
+import { realConfigRefusal, repoRoot, staleExistenceClaimRefusal } from '@storytree/drive';
 // The worker machinery relocated into @storytree/drive (ADR-0133 d.3); this suite proves the parity.
 import {
   BuildRegistry,
@@ -168,5 +173,38 @@ describe('routedBuildRunner', () => {
     });
     await runner('notice-board', () => {});
     expect(storyBuild.mock.calls[0]![1]).toMatchObject({ actor: 'op@example.com' });
+  });
+});
+
+describe('Studio real-node UAT premise', () => {
+  it('names a real-buildable seed whose test and implementation are absent on fresh main', () => {
+    const root = repoRoot();
+    const storiesDir = path.join(root, 'stories');
+    const seedFile = findNodeSpecFile(storiesDir, 'studio-build-uat-seed');
+    expect(seedFile).not.toBeNull();
+
+    const seed = loadNodeSpec(seedFile!);
+    expect(seed.story).toBe('drive-machinery');
+    const config = resolveBuildConfig(seed)?.config ?? null;
+    expect(config?.real).toBeDefined();
+    expect(realConfigRefusal(seed, config, storiesDir)).toBeNull();
+    expect(staleExistenceClaimRefusal(seed, root)).toBeNull();
+
+    const testFile = config!.real!.testFile;
+    const sourceFile = config!.real!.sourceFile;
+    expect(testFile).toBe('packages/drive/src/studio-build-uat-seed.test.ts');
+    expect(sourceFile).toBe('packages/drive/src/studio-build-uat-seed.ts');
+    expect(existsSync(path.join(root, testFile))).toBe(false);
+    expect(existsSync(path.join(root, sourceFile))).toBe(false);
+
+    const storyBody = readFileSync(path.join(storiesDir, 'studio-build', 'story.md'), 'utf8').replace(
+      /\r\n/g,
+      '\n',
+    );
+    const criterion = parseUatTestCriterionSources('studio-build', storyBody).find(
+      ({ criterion: candidate }) => candidate.criterionId === 'uatc_4e688a6e4149741b5dd0a736',
+    );
+    expect(criterion).toBeDefined();
+    expect(criterion!.source).toMatch(/\bstudio-build-uat-seed\b/);
   });
 });

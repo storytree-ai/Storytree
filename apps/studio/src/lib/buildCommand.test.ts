@@ -34,4 +34,13 @@ describe('composeBuildCommand — the CLI command a Build click seeds into the t
       'pnpm storytree node build map-build-seeds-terminal --real --store pg --runtime codex',
     );
   });
+
+  it('cbc-selects-the-requested-runtime: preserves claude or codex as the final runtime selector', () => {
+    expect(composeBuildCommand({ unitId: 'story-alpha', scope: 'story', runtime: 'claude' })).toBe(
+      'pnpm storytree story build story-alpha --real --store pg --runtime claude',
+    );
+    expect(composeBuildCommand({ unitId: 'story-alpha', scope: 'story', runtime: 'codex' })).toBe(
+      'pnpm storytree story build story-alpha --real --store pg --runtime codex',
+    );
+  });
 });
