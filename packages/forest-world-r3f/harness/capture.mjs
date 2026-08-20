@@ -438,10 +438,11 @@ const report = {
         terrainOnly: stats('zoom-terrain'),
         canopy: stats('zoom-shadow'),
       },
-      // BARE LAND, same shadow. The gap between this and the dressed panel is how much of
-      // its own shadow the vegetation stands in front of — the shadow falls up-screen, away
-      // from the light, and the plant that threw it is drawn on top of where it lands.
-      bare: { lit: stats('bare-lit'), shadowed: stats('bare-shadow') },
+      // THE PLANTS REMOVED, same shadow — the tree and the flowers stay, so the long cast is
+      // unobstructed and the ground under the canopy can be seen. Deliberately NOT called
+      // "bare": `plants={false}` leaves the two other props standing, and a panel labelled
+      // bare that is not bare is how a measurement ends up comparing the wrong two things.
+      plantsRemoved: { lit: stats('bare-lit'), shadowed: stats('bare-shadow') },
       pctOfIslandReached:
         shadowed.bodyPx > 0
           ? Number(((shadowed.shadowRungPx / shadowed.bodyPx) * 100).toFixed(2))
@@ -519,11 +520,11 @@ console.log(
     `${report.whatTheShadowBuys.pctOfGroundReached?.groundPx})`,
 );
 console.log(
-  `bare land  : shadow on ${(
-    (report.whatTheShadowBuys.bare.shadowed.shadowRungPx /
-      report.whatTheShadowBuys.bare.shadowed.bodyPx) *
+  `no plants  : shadow on ${(
+    (report.whatTheShadowBuys.plantsRemoved.shadowed.shadowRungPx /
+      report.whatTheShadowBuys.plantsRemoved.shadowed.bodyPx) *
     100
-  ).toFixed(2)}% of delivered px (dressed: ${(
+  ).toFixed(2)}% of delivered px (with plants: ${(
     (report.whatTheShadowBuys.atEightPxPerUnit.canopy.shadowRungPx /
       report.whatTheShadowBuys.atEightPxPerUnit.canopy.bodyPx) *
     100

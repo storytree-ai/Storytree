@@ -330,7 +330,7 @@ pnpm --filter @storytree/forest-world-r3f dev
 Then `http://localhost:5184/island.html`. The capture is:
 
 ```bash
-ST_HARNESS_URL=http://localhost:5184/island.html ST_OUT_DIR=docs/research/chapter2-shadow-ladder-2026-08-20 ST_FULL_PAGE_NAME=live-island.png ST_PANEL_NAMES=delivered,zoom,swirls-fork,bare-before,definition,definition-delivered,amplitude,mixed,shadow-casters,shadow-delivered,shadow-ladder pnpm --filter @storytree/forest-world-r3f run capture
+ST_HARNESS_URL=http://localhost:5184/island.html ST_OUT_DIR=docs/research/chapter2-shadow-ladder-2026-08-20 ST_FULL_PAGE_NAME=live-island.png ST_PANEL_NAMES=delivered,zoom,swirls-fork,bare-before,definition,definition-delivered,amplitude,mixed,what-they-add,verdict-forms,shadow-casters,shadow-delivered,shadow-ladder pnpm --filter @storytree/forest-world-r3f run capture
 ```
 
 ⚠ If port 5184 is held by another worktree's harness, Vite refuses to start but the existing

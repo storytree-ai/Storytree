@@ -592,7 +592,7 @@
         "shadowRungPx": 103482
       }
     },
-    "bare": {
+    "plantsRemoved": {
       "lit": {
         "tag": "bare-lit",
         "bodyPx": 1348048,
@@ -624,8 +624,8 @@
   },
   "frameTiming": {
     "samples": 39,
-    "p50Ms": 16.5,
-    "meanMs": 16.34,
+    "p50Ms": 16.8,
+    "meanMs": 16.39,
     "interpretation": "RELATIVE ONLY. Software rasteriser, static scene — this is the headless compositor present cadence, not a GPU-bound frame cost. Do not quote it as a D2 verdict."
   }
 }
