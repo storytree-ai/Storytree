@@ -9,7 +9,8 @@
 //   `undefined`      nothing has answered yet — genuinely still loading.
 //   `'unreachable'`  the read did not answer at all: no such route here, or the request failed.
 //   `null`           the backend answered and has NO document store (the offline json backend).
-//   `ArcRollup[]`    the store answered.
+//   `ArcRollupSummary[]`  the store answered — the LANE projection, not the whole rollup (see the
+//                    list/detail note below `useArcRollups`, and `ArcRollupSummary` in ../types).
 //
 // The third and fourth are the distinction the server's own handler insists on — "the store isn't
 // here" and "there are no arcs" are different facts, and a surface built to restore context must
@@ -42,7 +43,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
-import type { ArcRollup } from '../types';
+import type { ArcRollup, ArcRollupSummary } from '../types';
 import { SLOW_POLL_MS } from './poll';
 
 /** The read did not answer — no such route on this backend, or the request failed outright. */
@@ -52,7 +53,7 @@ export const ARCS_UNREACHABLE = 'unreachable';
  * `undefined` before anything answers · `'unreachable'` when the read did not answer · `null` when
  * the backend has no document store · the rollups.
  */
-export type ArcRollupsState = ArcRollup[] | null | typeof ARCS_UNREACHABLE | undefined;
+export type ArcRollupsState = ArcRollupSummary[] | null | typeof ARCS_UNREACHABLE | undefined;
 
 /**
  * Fetch + poll the arc rollups while `open` is true. Stops polling the instant `open` flips false;
@@ -83,4 +84,84 @@ export function useArcRollups(open: boolean): ArcRollupsState {
   }, [open]);
 
   return arcs;
+}
+
+// ---------- the OTHER half: one arc's WHOLE rollup, for the briefing panel ----------
+//
+// THE LIST/DETAIL SPLIT, AND WHY IT IS TWO READS AND NOT ONE. `GET /api/arcs` used to ship every
+// arc's whole rollup, and the briefing panel simply read the selected lane's copy — no second
+// fetch, no loading state, instant switching. What that cost was measured against the live store
+// on 2026-08-20: 1,364,425 bytes over 76 arcs, re-polled every 30 s while the lens is open. Nearly
+// all of it was narrative prose the LANES never draw — an arc's `intent` and `endState`, every
+// increment's `objective` and outcome note — and the panel renders that prose for exactly ONE arc.
+//
+// So the list narrowed to `ArcRollupSummary` (226,836 bytes over the same 76 arcs) and the panel
+// reads the arc it is open on through `GET /api/arcs/<id>`, which has served the whole rollup since
+// #1195. The panel pays a fetch per SELECTION (5-90 KB) instead of the strip paying for every arc's
+// prose on every poll.
+//
+// IT DOES NOT POLL, and that is a decision rather than an omission. The list poll is what keeps the
+// lanes live; the panel re-reads when the SELECTION changes. Polling the detail too would put a
+// second 30 s timer on the same drawer for content that changes when an agent lands work, not
+// second to second — and an arc whose briefing silently re-rendered underneath a reader mid-sentence
+// is a worse surface than one that shows what it read when they opened it.
+
+/** The per-arc read did not answer — the request failed, the route is absent, or the id is gone. */
+export const ARC_DETAIL_UNREACHABLE = 'unreachable';
+
+/**
+ * `null` when no lane is selected · `undefined` while the read is in flight ·
+ * `'unreachable'` when it did not answer · the rollup.
+ */
+export type ArcRollupState = ArcRollup | typeof ARC_DETAIL_UNREACHABLE | undefined | null;
+
+/**
+ * Fetch ONE arc's whole rollup through `read`, re-reading whenever `id` changes. `null` in, `null`
+ * out — no selection is not a failed read and must not render as one.
+ *
+ * THE READER IS INJECTED, not reached for. `ArcSurface` is prop-driven and holds no backend seam of
+ * its own (the same posture that lets it prove standalone, and that `arcs`/`claims`/`onOpen` already
+ * follow); the composition root hands it `api.arc`. `read` is expected to be stable — it is a module
+ * function at the one production call site — and is deliberately NOT in the dependency list, so a
+ * caller passing an inline lambda re-reads on `id` alone rather than on every render.
+ *
+ * THE STALE-ANSWER GUARD IS LOAD-BEARING, not defensive tidiness. Selections change faster than a
+ * 30 s-budgeted fetch resolves — a reader arrowing down the lane list can have three reads in
+ * flight — and without the generation check the SLOWEST would win and pin the panel to an arc the
+ * reader has already left. It is checked on the success path AND the failure path, because a stale
+ * REJECTION would flip a perfectly good briefing to "didn't answer" just as loudly.
+ *
+ * Unlike its list sibling this keeps NO last-known value across a change of id: two different arcs'
+ * briefings are not two readings of one thing, and showing arc A's questions under arc B's title
+ * while B loads would be the confidently-wrong state the whole surface is built to avoid.
+ */
+export function useArcRollup(
+  id: string | null,
+  read: (id: string) => Promise<ArcRollup>,
+): ArcRollupState {
+  const [state, setState] = useState<ArcRollupState>(id === null ? null : undefined);
+  // Bumped per requested id, so an answer that arrives after the selection moved is discarded.
+  const generation = useRef(0);
+
+  useEffect(() => {
+    generation.current += 1;
+    const mine = generation.current;
+    if (id === null) {
+      setState(null);
+      return;
+    }
+    setState(undefined);
+    void (async () => {
+      try {
+        const rollup = await read(id);
+        if (generation.current === mine) setState(rollup);
+      } catch {
+        if (generation.current === mine) setState(ARC_DETAIL_UNREACHABLE);
+      }
+    })();
+    // `read` is intentionally omitted — see the note above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  return state;
 }

@@ -343,11 +343,21 @@ export function createLocalBackend(
           });
         }
       } else if (url.pathname === "/api/arcs" || url.pathname.startsWith("/api/arcs/")) {
-        // The ARC SURFACE's read (ADR-0267 / ADR-0314): `{ arcs: ArcRollup[] }` for the list, one
-        // `ArcRollup` for `/api/arcs/<id>`. Re-composes the studio's handleArcs (apiRouter.ts) — no
-        // apps/studio/server import (ADR-0100 / ADR-0176) — but the COMPUTE is genuinely shared:
-        // `@storytree/arc`'s `loadArcRollup`/`loadArcRollups` is the same join `storytree arc show` renders, so
-        // nothing is derived here and the three surfaces cannot disagree about an arc's contents.
+        // The ARC SURFACE's read (ADR-0267 / ADR-0314): `{ arcs: ArcRollupSummary[] }` for the list,
+        // one full `ArcRollup` for `/api/arcs/<id>`. Re-composes the studio's handleArcs
+        // (apiRouter.ts) — no apps/studio/server import (ADR-0100 / ADR-0176) — but the COMPUTE is
+        // genuinely shared: `@storytree/arc`'s `loadArcRollup`/`loadArcRollupSummaries` is the same
+        // join `storytree arc show` renders, so nothing is derived here and the three surfaces
+        // cannot disagree about an arc's contents.
+        //
+        // THE TWO READS SERVE DIFFERENT WIDTHS OF THAT ONE JOIN, and the NARROWING is shared code
+        // too — `loadArcRollupSummaries` is `loadArcRollups` projected through `summariseArcRollup`
+        // in @storytree/arc, never a field list re-picked here. The list drops the narrative prose
+        // no lane draws — measured 2026-08-20 against the live store, that took it from 1,364,425
+        // bytes over 76 arcs to 226,836 — while the per-id read keeps the whole rollup, because the
+        // briefing panel renders one arc's `intent`, its questions' `stakes` and every increment's
+        // outcome prose. A desktop copy that re-picked the fields would be exactly the ENVELOPE
+        // drift the MIRRORS row below exists to catch, so it does not re-pick them.
         //
         // WHY THE DESKTOP NEEDS IT AT ALL: the Electron app loads the COMPILED STUDIO BUNDLE against
         // this backend, so it already ships the arc lens the studio gained — a lens that 404'd here
@@ -379,14 +389,14 @@ export function createLocalBackend(
           }
           sendJson(res, 200, { arcs: null });
         } else {
-          const { loadArcRollup, loadArcRollups } = await loadArc();
+          const { loadArcRollup, loadArcRollupSummaries } = await loadArc();
           const arcDeps = {
             store,
             decisionsDir: path.join(deps.docsDir, "decisions"),
             storiesDir: deps.storiesDir,
           };
           if (id === null) {
-            sendJson(res, 200, { arcs: await loadArcRollups(arcDeps) });
+            sendJson(res, 200, { arcs: await loadArcRollupSummaries(arcDeps) });
           } else {
             const rollup = await loadArcRollup(arcDeps, id);
             if (rollup === null) throw new HttpError(404, `no arc "${id}"`);

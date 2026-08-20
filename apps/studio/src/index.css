@@ -6145,17 +6145,33 @@ button.legend-tile:hover {
 .arc-lanes-note {
   padding: 14px 16px;
 }
+/* The briefing panel's own non-answer line. It takes only VERTICAL space: unlike the lane strip's
+   note this sits inside `.arc-briefing`, which already pads its own gutters, so borrowing the
+   lane-strip rule would double the inset against the header directly above it. */
+.arc-briefing-note {
+  padding: 10px 0 2px;
+}
 /* "Reading arcs…" carries a MOVING part, because it is the one lane state that can honestly last
    tens of seconds (the read retries on a 30 s budget, api.ts `arcs`) and prose alone cannot tell a
    working surface from a stalled one. Same idiom as .load-screen / .store-banner — the neutral hue,
    not an accent: reading is progress, not an alarm — reusing @keyframes spin, tinted to the library
-   panel's own palette rather than the app-shell greys the drawer does not use. */
-.arc-lanes-reading {
+   panel's own palette rather than the app-shell greys the drawer does not use.
+
+   THE BRIEFING PANEL SHARES IT, and shares it rather than copying it because it is the same fact
+   in a second place: the panel reads the selected arc off `GET /api/arcs/<id>` (api.ts `arc`) on
+   the same 30 s budget and the same three attempts, so its wait can last exactly as long and a
+   static line would mislead in exactly the same way. */
+.arc-lanes-reading,
+.arc-briefing-reading {
   display: flex;
   align-items: center;
   gap: 8px;
 }
-.arc-lanes-reading .spinner {
+.arc-briefing-reading {
+  padding: 4px 0 2px;
+}
+.arc-lanes-reading .spinner,
+.arc-briefing-reading .spinner {
   width: 12px;
   height: 12px;
   flex: 0 0 auto;
@@ -6167,7 +6183,8 @@ button.legend-tile:hover {
 /* Under reduced motion the ring stays, static — the label still reads "Reading arcs…", so the state
    survives losing its animation (the .build-spinner rule's standing bargain, ADR-0070 §3). */
 @media (prefers-reduced-motion: reduce) {
-  .arc-lanes-reading .spinner {
+  .arc-lanes-reading .spinner,
+  .arc-briefing-reading .spinner {
     animation: none;
   }
 }

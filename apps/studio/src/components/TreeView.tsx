@@ -3655,9 +3655,18 @@ export function TreeView({
             onSelectLens={selectDrawerLens}
             /* ADR-0267 D1's PRIMARY slot: the momentum-lanes arc surface (ADR-0314). Supplement
                glue — the surface itself is proven in isolation (ArcSurface.test.tsx); this mount
-               hands it the polled rollups and the world's clock and nothing else. */
+               hands it the polled lane rows, the world's clock, and the one-arc reader its briefing
+               panel needs (`api.arc` → `GET /api/arcs/<id>`, the whole rollup for the selection —
+               the list carries only what a LANE draws). `api.arc` is a stable module function, which
+               is what `readArc` requires. */
             arcsSlot={
-              <ArcSurface arcs={arcRollups} now={now} claims={claimGroups} onOpen={setOpenSelection} />
+              <ArcSurface
+                arcs={arcRollups}
+                now={now}
+                claims={claimGroups}
+                onOpen={setOpenSelection}
+                readArc={api.arc}
+              />
             }
             bodySlot={
               <div className="library-lens-panes">

@@ -19,22 +19,41 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, cleanup } from '@testing-library/react';
-import type { ArcRollup, ArcsPayload } from '../types';
+import type { ArcRollup, ArcRollupSummary, ArcsPayload } from '../types';
 
 const apiMock = vi.hoisted(() => ({
   arcs: vi.fn<() => Promise<ArcsPayload>>(),
+  // Declared so the mocked module keeps the real one's shape. `useArcRollup` takes its reader
+  // INJECTED (the surface holds no backend seam), so nothing below actually routes through this.
+  arc: vi.fn<(id: string) => Promise<ArcRollup>>(),
 }));
 vi.mock('../api', () => ({ api: apiMock }));
 
-import { useArcRollups, ARCS_UNREACHABLE } from './arcRollups';
+import {
+  useArcRollup,
+  useArcRollups,
+  ARC_DETAIL_UNREACHABLE,
+  ARCS_UNREACHABLE,
+} from './arcRollups';
 import { SLOW_POLL_MS } from './poll';
 
-const arc = (id: string): ArcRollup => ({
+/** One LANE ROW as `GET /api/arcs` now serves it — the narrowed projection, not the whole rollup. */
+const arc = (id: string): ArcRollupSummary => ({
+  id,
+  title: `The ${id}`,
+  lifecycle: 'active',
+  waiting: false,
+  openQuestions: 0,
+  increments: [],
+});
+
+/** One WHOLE rollup as `GET /api/arcs/<id>` serves it — the briefing panel's half of the split. */
+const arcRollup = (id: string): ArcRollup => ({
   id,
   title: `The ${id}`,
   description: '',
   lifecycle: 'active',
-  intent: '',
+  intent: `intent of ${id}`,
   endState: '',
   increments: [],
   adrs: [],
@@ -153,5 +172,121 @@ describe('useArcRollups — a transient blip keeps what is already known', () =>
 
     await tick(SLOW_POLL_MS);
     expect(result.current).toBeNull();
+  });
+});
+
+// ---------- useArcRollup — the briefing panel's per-selection read ----------
+//
+// THE SPLIT THIS PROVES. `GET /api/arcs` carries what a LANE draws; the panel reads the WHOLE
+// rollup for the arc it is open on off `GET /api/arcs/<id>`. Measured against the live store on
+// 2026-08-20, shipping every arc's prose on the list was 1,364,425 bytes over 76 arcs against
+// 226,836 for the lane rows — on a read that re-polls every 30 s. What that trade costs is this
+// hook, and the cases below are the ones it would be easy to get wrong.
+
+describe('useArcRollup — one arc, re-read per selection', () => {
+  it('reads nothing with no selection, and `null` in is `null` out', async () => {
+    const read = vi.fn<(id: string) => Promise<ArcRollup>>();
+    const { result } = renderHook(({ id }: { id: string | null }) => useArcRollup(id, read), {
+      initialProps: { id: null },
+    });
+    await act(async () => {});
+    // NOT `undefined` and NOT unreachable: "no lane is selected" is a third fact, and the panel
+    // renders it as "pick an arc" rather than as a spinner or as a failure.
+    expect(result.current).toBeNull();
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it('reads the selected arc, and re-reads when the selection moves', async () => {
+    const read = vi.fn(async (id: string) => arcRollup(id));
+    const { result, rerender } = renderHook(
+      ({ id }: { id: string | null }) => useArcRollup(id, read),
+      { initialProps: { id: 'first-arc' as string | null } },
+    );
+    await act(async () => {});
+    expect(result.current).toMatchObject({ id: 'first-arc' });
+
+    rerender({ id: 'second-arc' });
+    await act(async () => {});
+    expect(result.current).toMatchObject({ id: 'second-arc' });
+    expect(read.mock.calls.map(([id]) => id)).toEqual(['first-arc', 'second-arc']);
+  });
+
+  it('THE STALE-ANSWER GUARD: a slow read for an abandoned selection never lands', async () => {
+    // Selections move faster than a 30 s-budgeted fetch resolves — a reader arrowing down the lane
+    // list can have several in flight. Without the guard the SLOWEST wins and pins the panel to an
+    // arc the reader has already left, which is the confidently-wrong state this surface exists to
+    // avoid: one arc's title over another arc's questions.
+    const gates = new Map<string, (rollup: ArcRollup) => void>();
+    const read = (id: string): Promise<ArcRollup> =>
+      new Promise((resolve) => gates.set(id, resolve));
+
+    const { result, rerender } = renderHook(
+      ({ id }: { id: string | null }) => useArcRollup(id, read),
+      { initialProps: { id: 'slow-arc' as string | null } },
+    );
+    rerender({ id: 'quick-arc' });
+    await act(async () => {});
+
+    // The SECOND selection answers first and is shown.
+    await act(async () => {
+      gates.get('quick-arc')?.(arcRollup('quick-arc'));
+    });
+    expect(result.current).toMatchObject({ id: 'quick-arc' });
+
+    // The FIRST answers late. It must be dropped, not rendered under the current title.
+    await act(async () => {
+      gates.get('slow-arc')?.(arcRollup('slow-arc'));
+    });
+    expect(result.current).toMatchObject({ id: 'quick-arc' });
+  });
+
+  it('a stale FAILURE is dropped too — it would flip a good briefing to "did not answer"', async () => {
+    const rejects = new Map<string, (err: Error) => void>();
+    const read = (id: string): Promise<ArcRollup> =>
+      id === 'doomed-arc'
+        ? new Promise((_resolve, reject) => rejects.set(id, reject))
+        : Promise.resolve(arcRollup(id));
+
+    const { result, rerender } = renderHook(
+      ({ id }: { id: string | null }) => useArcRollup(id, read),
+      { initialProps: { id: 'doomed-arc' as string | null } },
+    );
+    rerender({ id: 'good-arc' });
+    await act(async () => {});
+    expect(result.current).toMatchObject({ id: 'good-arc' });
+
+    await act(async () => {
+      rejects.get('doomed-arc')?.(new Error('too late'));
+    });
+    expect(result.current).toMatchObject({ id: 'good-arc' });
+  });
+
+  it('reports a read that did not answer, rather than an empty briefing', async () => {
+    // A 404 is a real answer here (the list re-polls, so an arc can close between a poll and a
+    // click) and so is a dead route. Either way the panel holds no rollup, and saying so beats
+    // rendering a briefing that looks complete because every list in it is empty.
+    const read = vi.fn<(id: string) => Promise<ArcRollup>>().mockRejectedValue(new Error('404'));
+    const { result } = renderHook(({ id }: { id: string | null }) => useArcRollup(id, read), {
+      initialProps: { id: 'gone-arc' as string | null },
+    });
+    await act(async () => {});
+    expect(result.current).toBe(ARC_DETAIL_UNREACHABLE);
+  });
+
+  it('drops back to reading when the selection moves off a failed arc — no stuck error', async () => {
+    const read = vi.fn(async (id: string) => {
+      if (id === 'gone-arc') throw new Error('404');
+      return arcRollup(id);
+    });
+    const { result, rerender } = renderHook(
+      ({ id }: { id: string | null }) => useArcRollup(id, read),
+      { initialProps: { id: 'gone-arc' as string | null } },
+    );
+    await act(async () => {});
+    expect(result.current).toBe(ARC_DETAIL_UNREACHABLE);
+
+    rerender({ id: 'live-arc' });
+    await act(async () => {});
+    expect(result.current).toMatchObject({ id: 'live-arc' });
   });
 });

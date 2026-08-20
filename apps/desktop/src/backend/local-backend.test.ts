@@ -735,6 +735,56 @@ test("local-backend: GET /api/arcs serves the arc rollups — not a 404 fall-thr
   }
 });
 
+// THE LIST IS THE SUMMARY PROJECTION OF THAT SAME JOIN — the desktop's half of the two-width
+// contract, asserted against `summariseArcRollup` itself rather than a hand-shaped literal. The
+// narrowing is SHARED code (`loadArcRollupSummaries` in @storytree/arc); a desktop copy that
+// re-picked the fields would be exactly the envelope drift the MIRRORS row exists to catch, and
+// this is where it goes red first.
+test("local-backend: GET /api/arcs serves the SUMMARY projection, not the whole rollup", async () => {
+  const { store, docsDir, storiesDir, cleanup } = await seedArcFixture();
+  try {
+    const backend = overlayBackend({ docStore: async () => store });
+    const handler = createLocalBackend({ storiesDir, docsDir, backend, store: "pg" });
+    await withServer(handler, async (base) => {
+      const body = (await (await fetch(`${base}/api/arcs`)).json()) as {
+        arcs: Array<Record<string, unknown>>;
+      };
+
+      const { loadArcRollup, summariseArcRollup } = await import("@storytree/arc");
+      const rollup = await loadArcRollup(
+        {
+          store: store as unknown as Parameters<typeof loadArcRollup>[0]["store"],
+          decisionsDir: path.join(docsDir, "decisions"),
+          storiesDir,
+        },
+        "surface-arc",
+      );
+      assert.deepEqual(body.arcs, JSON.parse(JSON.stringify([summariseArcRollup(rollup!)])));
+
+      // AND THE NARRATIVE PROSE IS ABSENT, asserted on the real response rather than on the
+      // projection function, because what this route ships is the whole point. Measured against the
+      // live store on 2026-08-20, the un-narrowed list was 1,364,425 bytes over 76 arcs — 75.5% of
+      // it in four fields no lane draws (increment `outcome` 39.4%, arc `intent` 14.8%, arc
+      // `endState` 11.1%, increment `objective` 10.2%) — against 226,836 narrowed. Each is one
+      // property away from returning, and nothing else would notice.
+      const [arc] = body.arcs;
+      assert.deepEqual(Object.keys(arc!).sort(), [
+        "id",
+        "increments",
+        "lifecycle",
+        "openQuestions",
+        "title",
+        "waiting",
+      ]);
+      // The question COUNT crosses; the questions and their cold-answerable `stakes` prose do not.
+      assert.equal(arc!["openQuestions"], 1);
+      assert.equal(Object.hasOwn(arc!, "questions"), false);
+    });
+  } finally {
+    await cleanup();
+  }
+});
+
 // The payload is THE ARC PACKAGE'S JOIN, with nothing derived locally — asserted against `loadArcRollup`
 // itself rather than a hand-shaped literal, so a handler that ever started deriving its own view
 // (or a desktop copy that drifted from the studio's) goes red HERE.

@@ -29,6 +29,7 @@ import type {
   ArcRollup,
   ArcRollupIncrement,
   ArcRollupQuestion,
+  ArcRollupSummary,
   SessionClaimGroup,
 } from '../types';
 
@@ -79,13 +80,49 @@ function arc(over: Partial<ArcRollup> & { id: string }): ArcRollup {
   };
 }
 
+/**
+ * THE LANE ROW THE WIRE ACTUALLY DELIVERS — `arc()` above, narrowed exactly the way the server's
+ * `summariseArcRollup` narrows it (`packages/arc/src/arc-rollup.ts`).
+ *
+ * The lane half of this module takes `ArcRollupSummary`, not `ArcRollup`, because `GET /api/arcs`
+ * stopped shipping every arc's prose to draw green and grey bars. Building the fixtures through
+ * this rather than handing the lane functions a full rollup is what keeps these tests honest: a
+ * lane function that started reading `intent`, a question's `stakes` or an increment's outcome
+ * would not compile here, which is the same fence the production types carry.
+ *
+ * IT IS A FIXTURE, NOT THE CONTRACT. That the SERVER narrows this way is proven where it can be
+ * proven against the producer — `apps/studio/server/arcsApi.integration.test.ts` asserts the served
+ * list against `summariseArcRollup(loadArcRollup(...))` from @storytree/arc, and
+ * `packages/arc/src/arc-rollup.test.ts` fences which fields the projection may carry. This module
+ * cannot import either (the frontend rides the wire with locally-declared mirrors), so it declares
+ * the shape it expects and those two prove the shape is what arrives.
+ */
+function lane(over: Partial<ArcRollup> & { id: string }): ArcRollupSummary {
+  const rollup = arc(over);
+  return {
+    id: rollup.id,
+    title: rollup.title,
+    lifecycle: rollup.lifecycle,
+    waiting: rollup.questions.length > 0,
+    openQuestions: rollup.questions.length,
+    increments: rollup.increments.map((inc) => ({
+      id: inc.id,
+      title: inc.title,
+      status: inc.status,
+      ...(inc.parked !== undefined ? { parked: inc.parked } : {}),
+      ...(inc.cites !== undefined ? { cites: inc.cites } : {}),
+      ...(typeof inc.outcome?.date === 'string' ? { landedOn: inc.outcome.date } : {}),
+    })),
+  };
+}
+
 function question(id: string): ArcRollupQuestion {
   return { id, title: `Q ${id}`, description: `description ${id}`, stakes: `stakes ${id}` };
 }
 
 describe('laneBars — bars are UNITS, green landed / grey queued (ADR-0314 D2)', () => {
   it('draws one bar per increment, landed green and everything-else grey', () => {
-    const rollup = arc({
+    const rollup = lane({
       id: 'a',
       increments: [
         parked('p1', '2026-08-01'),
@@ -108,7 +145,7 @@ describe('laneBars — bars are UNITS, green landed / grey queued (ADR-0314 D2)'
     // Drive hands increments forward-looking FIRST; the lane re-reads them as history-then-future,
     // and the two runs must never interleave — a reader who saw them merged would take an unbuilt
     // intention for something that happened.
-    const rollup = arc({
+    const rollup = lane({
       id: 'a',
       increments: [parked('p1', '2026-08-01'), landed('c1', '2026-07-01'), parked('p2', '2026-08-02')],
     });
@@ -116,14 +153,14 @@ describe('laneBars — bars are UNITS, green landed / grey queued (ADR-0314 D2)'
   });
 
   it('an unrecognised status is grey, not landed — an unknown row is not a landing', () => {
-    const rollup = arc({ id: 'a', increments: [increment({ id: 'weird', status: '?' })] });
+    const rollup = lane({ id: 'a', increments: [increment({ id: 'weird', status: '?' })] });
     expect(laneBars(rollup)[0]?.tone).toBe('queued');
   });
 });
 
 describe('laneCounts — counts, never a ratio (ADR-0314 D2)', () => {
   it('reports landed and queued as counts', () => {
-    const rollup = arc({
+    const rollup = lane({
       id: 'a',
       increments: [landed('c1', '2026-07-01'), landed('c2', '2026-07-02'), parked('p1', '2026-08-01')],
     });
@@ -133,7 +170,7 @@ describe('laneCounts — counts, never a ratio (ADR-0314 D2)', () => {
   it('exposes NO percentage / ratio / denominator field — an arc has none', () => {
     // The fence ADR-0314 D2 asks for: "This is not the progress bar ADR-0267's Context rules out".
     // 2 landed of 3 known units is NOT "67% done" — the surface never asserts that 3 is all of them.
-    const rollup = arc({
+    const rollup = lane({
       id: 'a',
       increments: [landed('c1', '2026-07-01'), landed('c2', '2026-07-02'), parked('p1', '2026-08-01')],
     });
@@ -147,7 +184,7 @@ describe('laneCounts — counts, never a ratio (ADR-0314 D2)', () => {
 
 describe('lastActivityAt — landings AND parkings both count as activity', () => {
   it('takes the latest of every landing date and parking stamp', () => {
-    const rollup = arc({
+    const rollup = lane({
       id: 'a',
       increments: [landed('c1', '2026-07-01'), parked('p1', '2026-08-04T09:00:00Z')],
     });
@@ -157,13 +194,13 @@ describe('lastActivityAt — landings AND parkings both count as activity', () =
   it('counts a PARKING even when no landing followed it', () => {
     // An arc that gained four parked entries yesterday is not untouched. Reading landings alone
     // would report it as such.
-    const rollup = arc({ id: 'a', increments: [parked('p1', '2026-08-05T00:00:00Z')] });
+    const rollup = lane({ id: 'a', increments: [parked('p1', '2026-08-05T00:00:00Z')] });
     expect(lastActivityAt(rollup)).toBe(Date.parse('2026-08-05T00:00:00Z'));
   });
 
   it('is null with no dated increment, and skips an unparseable date rather than reading epoch 0', () => {
-    expect(lastActivityAt(arc({ id: 'a' }))).toBeNull();
-    const messy = arc({
+    expect(lastActivityAt(lane({ id: 'a' }))).toBeNull();
+    const messy = lane({
       id: 'a',
       increments: [increment({ id: 'x', status: 'closed', outcome: { date: 'not-a-date' } }), landed('c1', '2026-08-05')],
     });
@@ -174,7 +211,7 @@ describe('lastActivityAt — landings AND parkings both count as activity', () =
 
 describe('arcState — waiting / claimed / quiet, and NEVER blocked (ADR-0314 D4, ADR-0374 D4)', () => {
   it('an arc with an authored open question is `waiting` — answerable right now', () => {
-    const rollup = arc({ id: 'a', questions: [question('q1')], increments: [landed('c1', '2026-01-01')] });
+    const rollup = lane({ id: 'a', questions: [question('q1')], increments: [landed('c1', '2026-01-01')] });
     // `waiting` outranks everything below it: an arc the owner can unblock by replying is exactly
     // what this surface exists to surface, so it never hides behind a judgement about activity.
     expect(arcState(rollup, NOW)).toBe('waiting');
@@ -185,28 +222,28 @@ describe('arcState — waiting / claimed / quiet, and NEVER blocked (ADR-0314 D4
     // IDENTICALLY, which is the decision rather than a rounding: an arc nobody is claiming, with
     // nothing waiting on the owner, is quiet whatever landed on it last week. A test that allowed
     // these two to differ would let a recency predicate back in under another name.
-    expect(arcState(arc({ id: 'a', increments: [landed('c1', '2026-08-14')] }), NOW)).toBe('quiet');
-    expect(arcState(arc({ id: 'b', increments: [landed('c1', '2026-07-01')] }), NOW)).toBe('quiet');
-    expect(arcState(arc({ id: 'c', increments: [parked('p1', '2026-08-14T00:00:00Z')] }), NOW)).toBe('quiet');
+    expect(arcState(lane({ id: 'a', increments: [landed('c1', '2026-08-14')] }), NOW)).toBe('quiet');
+    expect(arcState(lane({ id: 'b', increments: [landed('c1', '2026-07-01')] }), NOW)).toBe('quiet');
+    expect(arcState(lane({ id: 'c', increments: [parked('p1', '2026-08-14T00:00:00Z')] }), NOW)).toBe('quiet');
   });
 
   it('the injected clock changes NO state — `now` orders lanes, it never labels one', () => {
     // `arcState` still takes `now` (published shape, every caller passes it), so the guarantee worth
     // holding is that moving the clock cannot move a verdict.
-    const rollup = arc({ id: 'a', increments: [landed('c1', '2026-08-14')] });
+    const rollup = lane({ id: 'a', increments: [landed('c1', '2026-08-14')] });
     expect(arcState(rollup, new Date('2027-06-01T00:00:00Z'))).toBe('quiet');
     expect(arcState(rollup, new Date('2026-08-14T00:00:00Z'))).toBe('quiet');
   });
 
   it('a live claim on the arc id lights `claimed`, outranking the quiet fall-through', () => {
-    const rollup = arc({ id: 'held-arc', increments: [landed('c1', '2026-08-04')] });
+    const rollup = lane({ id: 'held-arc', increments: [landed('c1', '2026-08-04')] });
     expect(arcState(rollup, NOW, [claimGroup('s1', 'held-arc')])).toBe('claimed');
     // and without the ledger the very same arc reads `quiet` — the state is ADDITIVE
     expect(arcState(rollup, NOW)).toBe('quiet');
   });
 
   it('`waiting` outranks `claimed`: the owner-actionable state is never hidden by a busy session', () => {
-    const rollup = arc({ id: 'a', questions: [question('q')], increments: [landed('c1', '2026-08-04')] });
+    const rollup = lane({ id: 'a', questions: [question('q')], increments: [landed('c1', '2026-08-04')] });
     expect(arcState(rollup, NOW, [claimGroup('s1', 'a')])).toBe('waiting');
   });
 
@@ -214,7 +251,7 @@ describe('arcState — waiting / claimed / quiet, and NEVER blocked (ADR-0314 D4
     // The join covers a measured minority of increments (5 of 613 carry a `capability:` cite), so a
     // non-match cannot support "nobody is working on this". It falls through to `quiet` instead,
     // which claims less: quiet says nothing is PROVEN to be happening, never that nothing is.
-    const rollup = arc({ id: 'a', increments: [landed('c1', '2026-08-04')] });
+    const rollup = lane({ id: 'a', increments: [landed('c1', '2026-08-04')] });
     expect(arcState(rollup, NOW, [claimGroup('s1', 'a-totally-different-unit')])).toBe('quiet');
     expect(arcState(rollup, NOW, null)).toBe('quiet');
     expect(arcState(rollup, NOW, [])).toBe('quiet');
@@ -223,7 +260,7 @@ describe('arcState — waiting / claimed / quiet, and NEVER blocked (ADR-0314 D4
   it('a parked arc reads `parked`, outranking `waiting` and `claimed` (ADR-0374 D1)', () => {
     // The two STORED lifecycles win over everything: an arc off the worklist is off it whatever else
     // is true of it, and `waiting` promises "answerable right now, IN FLIGHT".
-    const rollup = arc({
+    const rollup = lane({
       id: 'shelved',
       lifecycle: 'parked',
       questions: [question('q')],
@@ -237,7 +274,7 @@ describe('arcState — waiting / claimed / quiet, and NEVER blocked (ADR-0314 D4
     // The whole point: the mechanical rule reads open work as `active` (ADR-0335), and this surface
     // must not re-derive it. It reads the STORED lifecycle, so a parked arc full of open work stays
     // parked rather than being quietly promoted back onto the worklist.
-    const rollup = arc({
+    const rollup = lane({
       id: 'shelved',
       lifecycle: 'parked',
       increments: [parked('p1', '2026-08-04T00:00:00Z'), parked('p2', '2026-08-05T00:00:00Z')],
@@ -249,21 +286,21 @@ describe('arcState — waiting / claimed / quiet, and NEVER blocked (ADR-0314 D4
 
 describe('arcClaimants — three real join paths, unioned, asserted positively only', () => {
   it('matches a claim taken directly on the arc id', () => {
-    const rollup = arc({ id: 'my-arc' });
+    const rollup = lane({ id: 'my-arc' });
     expect(arcClaimants(rollup, [claimGroup('s1', 'my-arc')])).toEqual([
       { sessionId: 's1', branch: 'claude/s1', unitId: 'my-arc' },
     ]);
   });
 
   it('matches a claim on one of the arc’s own increment ids', () => {
-    const rollup = arc({ id: 'my-arc', increments: [parked('some-increment', '2026-08-01')] });
+    const rollup = lane({ id: 'my-arc', increments: [parked('some-increment', '2026-08-01')] });
     expect(arcClaimants(rollup, [claimGroup('s1', 'some-increment')]).map((c) => c.unitId)).toEqual([
       'some-increment',
     ]);
   });
 
   it('matches `<arc-id>-inc-NN` as a MEMBER of the rollup, not as a string prefix', () => {
-    const rollup = arc({ id: 'my-arc', increments: [parked('my-arc-inc-04', '2026-08-01')] });
+    const rollup = lane({ id: 'my-arc', increments: [parked('my-arc-inc-04', '2026-08-01')] });
     expect(arcClaimants(rollup, [claimGroup('s1', 'my-arc-inc-04')]).map((c) => c.unitId)).toEqual([
       'my-arc-inc-04',
     ]);
@@ -272,7 +309,7 @@ describe('arcClaimants — three real join paths, unioned, asserted positively o
   it('matches a unit an increment CITES, with the ref scheme stripped', () => {
     // Claims are taken on BARE unit ids, while `cites` carries `story:` / `capability:` / `asset:`
     // (ADR-0306 D2) — so the scheme has to come off before comparing, or this path never fires.
-    const rollup = arc({
+    const rollup = lane({
       id: 'my-arc',
       increments: [{ ...parked('i1', '2026-08-01'), cites: ['capability:arc-orientation-lens', 'story:studio'] }],
     });
@@ -283,7 +320,7 @@ describe('arcClaimants — three real join paths, unioned, asserted positively o
   });
 
   it('returns [] for a null ledger and for a genuine no-match — the SAME not-proven answer', () => {
-    const rollup = arc({ id: 'my-arc' });
+    const rollup = lane({ id: 'my-arc' });
     expect(arcClaimants(rollup, null)).toEqual([]);
     expect(arcClaimants(rollup, [])).toEqual([]);
     expect(arcClaimants(rollup, [claimGroup('s1', 'unrelated')])).toEqual([]);
@@ -294,18 +331,18 @@ describe('arcClaimants — three real join paths, unioned, asserted positively o
     // cover, and it silently absorbed any unit whose id merely began with the arc's, reporting a
     // session onto an arc it had never touched. `claimed` asserts only the positive, so a false
     // positive corrupts the only thing it says.
-    const rollup = arc({ id: 'a' });
+    const rollup = lane({ id: 'a' });
     expect(arcClaimants(rollup, [claimGroup('s1', 'a-totally-different-unit')])).toEqual([]);
-    expect(arcClaimants(arc({ id: 'my-arc' }), [claimGroup('s1', 'my-arc-two-inc-01')])).toEqual([]);
+    expect(arcClaimants(lane({ id: 'my-arc' }), [claimGroup('s1', 'my-arc-two-inc-01')])).toEqual([]);
   });
 
   it('an arc that never landed anything is `quiet`, NOT blocked (B2 is rejected by name)', () => {
     // ADR-0314 D4 rejects B2 "never started" as a `blocked` predicate: it measures the symptom.
-    expect(arcState(arc({ id: 'fresh' }), NOW)).toBe('quiet');
+    expect(arcState(lane({ id: 'fresh' }), NOW)).toBe('quiet');
   });
 
   it('an arc with a `proposed` ADR is not blocked either (B1 is rejected by name)', () => {
-    const rollup = arc({
+    const rollup = lane({
       id: 'a',
       adrs: [{ number: 316, status: 'proposed', title: 'undecided' }],
       increments: [landed('c1', '2026-08-05')],
@@ -317,27 +354,27 @@ describe('arcClaimants — three real join paths, unioned, asserted positively o
     // At 2026-08-05 density B3 lit 8 arcs and collapsed `blocked` and `quiet` into near-synonyms.
     // Since ADR-0374 D4 `quiet` is the fall-through for everything not stored, waiting or claimed —
     // which makes B3's predicate not merely rejected but unrepresentable here.
-    const rollup = arc({ id: 'a', increments: [landed('c1', '2026-06-01')] });
+    const rollup = lane({ id: 'a', increments: [landed('c1', '2026-06-01')] });
     expect(arcState(rollup, NOW)).toBe('quiet');
   });
 
   it('a closed arc reads `closed`, even over a stray unanswered question (ADR-0335)', () => {
     // `closed` wins over everything: `waiting` promises "answerable right now, in flight", and a
     // closed arc is not in flight even if it happens to still carry an unresolved question.
-    const rollup = arc({ id: 'a', lifecycle: 'closed', questions: [question('q1')] });
+    const rollup = lane({ id: 'a', lifecycle: 'closed', questions: [question('q1')] });
     expect(arcState(rollup, NOW)).toBe('closed');
   });
 
   it('NO input produces `blocked` — the refusal is declared, and holds across every shape', () => {
     expect(BLOCKED_IS_DERIVABLE).toBe(false);
-    const shapes: ArcRollup[] = [
-      arc({ id: 'empty' }),
-      arc({ id: 'questions', questions: [question('q')] }),
-      arc({ id: 'stale', increments: [landed('c', '2020-01-01')] }),
-      arc({ id: 'fresh', increments: [landed('c', '2026-08-06')] }),
-      arc({ id: 'parked-only', increments: [parked('p', '2026-08-01')] }),
-      arc({ id: 'proposed-adr', adrs: [{ number: 1, status: 'proposed', title: 't' }] }),
-      arc({ id: 'no-stories', stories: [] }),
+    const shapes: ArcRollupSummary[] = [
+      lane({ id: 'empty' }),
+      lane({ id: 'questions', questions: [question('q')] }),
+      lane({ id: 'stale', increments: [landed('c', '2020-01-01')] }),
+      lane({ id: 'fresh', increments: [landed('c', '2026-08-06')] }),
+      lane({ id: 'parked-only', increments: [parked('p', '2026-08-01')] }),
+      lane({ id: 'proposed-adr', adrs: [{ number: 1, status: 'proposed', title: 't' }] }),
+      lane({ id: 'no-stories', stories: [] }),
     ];
     const seen: ArcSurfaceState[] = shapes.map((s) => arcState(s, NOW));
     expect(seen).not.toContain('blocked');
@@ -348,12 +385,12 @@ describe('arcLanes — active arcs only, waiting first (ADR-0239 D3 / ADR-0314 D
   it('drops closed and parked arcs, orders waiting > claimed > quiet, most-recent first within a state', () => {
     const lanes = arcLanes(
       [
-        arc({ id: 'quiet-old', increments: [landed('c', '2026-06-01')] }),
-        arc({ id: 'closed-one', lifecycle: 'closed', increments: [landed('c', '2026-08-05')] }),
-        arc({ id: 'parked-one', lifecycle: 'parked', increments: [parked('p', '2026-08-05T00:00:00Z')] }),
-        arc({ id: 'claimed-one', increments: [landed('c', '2026-08-02')] }),
-        arc({ id: 'waiting-one', questions: [question('q')], increments: [landed('c', '2026-01-01')] }),
-        arc({ id: 'quiet-new', increments: [landed('c', '2026-08-05')] }),
+        lane({ id: 'quiet-old', increments: [landed('c', '2026-06-01')] }),
+        lane({ id: 'closed-one', lifecycle: 'closed', increments: [landed('c', '2026-08-05')] }),
+        lane({ id: 'parked-one', lifecycle: 'parked', increments: [parked('p', '2026-08-05T00:00:00Z')] }),
+        lane({ id: 'claimed-one', increments: [landed('c', '2026-08-02')] }),
+        lane({ id: 'waiting-one', questions: [question('q')], increments: [landed('c', '2026-01-01')] }),
+        lane({ id: 'quiet-new', increments: [landed('c', '2026-08-05')] }),
       ],
       NOW,
       'active',
@@ -370,7 +407,7 @@ describe('arcLanes — active arcs only, waiting first (ADR-0239 D3 / ADR-0314 D
   });
 
   it('carries each lane its bars, counts and state', () => {
-    const lanes = arcLanes([arc({ id: 'a', increments: [landed('c', '2026-08-05'), parked('p', '2026-08-01')] })], NOW);
+    const lanes = arcLanes([lane({ id: 'a', increments: [landed('c', '2026-08-05'), parked('p', '2026-08-01')] })], NOW);
     expect(lanes[0]?.bars.map((b) => b.tone)).toEqual(['landed', 'queued']);
     expect(lanes[0]?.counts).toEqual({ landed: 1, queued: 1 });
     expect(lanes[0]?.state).toBe('quiet');
@@ -379,8 +416,8 @@ describe('arcLanes — active arcs only, waiting first (ADR-0239 D3 / ADR-0314 D
   it('orders deterministically when two lanes share a state and an activity moment', () => {
     const lanes = arcLanes(
       [
-        arc({ id: 'zulu', increments: [landed('c', '2026-08-05')] }),
-        arc({ id: 'alpha', increments: [landed('c', '2026-08-05')] }),
+        lane({ id: 'zulu', increments: [landed('c', '2026-08-05')] }),
+        lane({ id: 'alpha', increments: [landed('c', '2026-08-05')] }),
       ],
       NOW,
     );
@@ -388,9 +425,9 @@ describe('arcLanes — active arcs only, waiting first (ADR-0239 D3 / ADR-0314 D
   });
 
   describe('scope (ADR-0335, ADR-0374 D5) — three scopes, one per lifecycle, and no `all`', () => {
-    const LIVE = arc({ id: 'live-one', increments: [landed('c', '2026-08-05')] });
-    const DONE = arc({ id: 'done-one', lifecycle: 'closed', increments: [landed('c', '2026-07-01')] });
-    const SHELVED = arc({
+    const LIVE = lane({ id: 'live-one', increments: [landed('c', '2026-08-05')] });
+    const DONE = lane({ id: 'done-one', lifecycle: 'closed', increments: [landed('c', '2026-07-01')] });
+    const SHELVED = lane({
       id: 'shelved-one',
       lifecycle: 'parked',
       increments: [parked('p', '2026-08-04T00:00:00Z')],
@@ -430,8 +467,8 @@ describe('defaultLaneId — the panel opens where the owner is needed', () => {
   it('opens on the first waiting lane when there is one', () => {
     const lanes = arcLanes(
       [
-        arc({ id: 'running', increments: [landed('c', '2026-08-05')] }),
-        arc({ id: 'waiting', questions: [question('q')] }),
+        lane({ id: 'running', increments: [landed('c', '2026-08-05')] }),
+        lane({ id: 'waiting', questions: [question('q')] }),
       ],
       NOW,
     );
@@ -439,7 +476,7 @@ describe('defaultLaneId — the panel opens where the owner is needed', () => {
   });
 
   it('falls back to the first lane, and is null with no lanes at all', () => {
-    const lanes = arcLanes([arc({ id: 'only', increments: [landed('c', '2026-08-05')] })], NOW);
+    const lanes = arcLanes([lane({ id: 'only', increments: [landed('c', '2026-08-05')] })], NOW);
     expect(defaultLaneId(lanes)).toBe('only');
     expect(defaultLaneId([])).toBeNull();
   });
@@ -538,13 +575,13 @@ describe('arcBriefing — parked PROPOSALS are something waiting on the owner (A
     // from proposals would recreate that degeneracy exactly. The panel shows them; the lane
     // does not. If this assertion is ever "fixed", read ADR-0359 D4 first — the divergence is
     // the design, and the honest widening is a DISTINCT chip, never `waiting`.
-    const proposalsOnly = arc({
-      id: 'a',
-      increments: [parked('p1', '2026-08-05')],
-    });
-    expect(arcBriefing(proposalsOnly).proposals).toHaveLength(1);
-    expect(arcState(proposalsOnly, NOW)).toBe('quiet');
-    expect(arcState(proposalsOnly, new Date('2026-09-30T00:00:00Z'))).toBe('quiet');
+    // BOTH WIDTHS OF THE SAME ARC, which is what makes this a fence rather than two assertions:
+    // the panel reads the whole rollup off `/api/arcs/<id>` and the lane reads the summary row off
+    // `/api/arcs`, so the divergence has to be asserted across the same fixture at both widths.
+    const fixture = { id: 'a', increments: [parked('p1', '2026-08-05')] };
+    expect(arcBriefing(arc(fixture)).proposals).toHaveLength(1);
+    expect(arcState(lane(fixture), NOW)).toBe('quiet');
+    expect(arcState(lane(fixture), new Date('2026-09-30T00:00:00Z'))).toBe('quiet');
   });
 });
 

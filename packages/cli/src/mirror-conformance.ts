@@ -195,6 +195,14 @@ export const MIRRORS: readonly MirrorTarget[] = [
     // different SHAPE from the other two. The arc → children JOIN is genuinely shared code:
     // `loadArcRollup`/`loadArcRollups` live in @storytree/arc and BOTH surfaces call them, so the
     // rollup's CONTENT carries no re-composition risk (that is `deriveArcRollup`'s own suites' job).
+    //
+    // THE TWO WIDTHS ARE SHARED CODE TOO, and deliberately so. The list serves the narrowed
+    // `ArcRollupSummary` (what a lane draws) and the per-id read serves the whole rollup, but the
+    // NARROWING is `loadArcRollupSummaries` in @storytree/arc — one projection both surfaces call,
+    // never a field list each re-picks. Had the desktop re-picked them, the drift would have been
+    // invisible in exactly the way this registry exists to prevent: both payloads would still be
+    // well-formed `{ arcs: [...] }`, and the lane strip would simply lose a bar tone or a claim
+    // join on one surface. The `list` request below compares them field by field regardless.
     // What is hand-copied is the ENVELOPE — the method guard, the two "no document store" answers,
     // the unknown-id answer, the id decode, and the `{ arcs }` key itself — and every one of those
     // is a DECISION the desktop copy could silently lose. It matters more here than the shape of the
@@ -207,7 +215,7 @@ export const MIRRORS: readonly MirrorTarget[] = [
     // dispatcher and its own central error mapping, not the arcs handler in isolation, so the status
     // codes and error bodies are inside the assertion rather than re-implemented beside it.
     spec: {
-      surface: "GET /api/arcs ({arcs} list · one ArcRollup)",
+      surface: "GET /api/arcs ({arcs} summary list · one full ArcRollup)",
       route: "/api/arcs",
       reference: "studio",
       mirror: "desktop",

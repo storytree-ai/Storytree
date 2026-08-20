@@ -15,8 +15,10 @@ import {
   isCuratedLifecycle,
   loadArcRollup,
   loadArcRollups,
+  loadArcRollupSummaries,
   reconcileArcLifecycles,
   storyArcStamps,
+  summariseArcRollup,
   type ArcRollup,
   type ArcRollupDeps,
 } from "./arc-rollup.js";
@@ -379,13 +381,229 @@ test("loadArcRollups returns every arc id-sorted, closed ones included (filterin
       all.map((a) => a.id),
       ["done-arc", "map-arc"],
     );
-    // Each carries its own derived children — the list read is not a degraded summary.
+    // Each carries its own derived children. `loadArcRollups` is the WHOLE rollup for every arc —
+    // the narrowed list `GET /api/arcs` serves is `loadArcRollupSummaries`, tested below.
     assert.deepEqual(
       all[1]?.increments.map((i) => i.id),
       ["map-arc-parked", "map-arc-plan-1", "map-arc-inc-01", "map-arc-inc-02"],
     );
     assert.equal(all[0]?.increments.length, 0);
     assert.equal(all[0]?.lifecycle, "closed");
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// THE LIST PROJECTION (`summariseArcRollup` / `loadArcRollupSummaries`)
+//
+// `GET /api/arcs` serves this, `GET /api/arcs/<id>` serves the whole rollup. What is being fenced
+// is an ABSENCE, so the tests below assert absence directly rather than only asserting the fields
+// that are present: measured against the live store on 2026-08-20 the un-narrowed list was
+// 1,364,425 bytes over 76 arcs on a read the arcs lens re-polls every 30 s, and 75.5% of it sat in
+// four narrative fields no lane draws — increment `outcome` 39.4%, arc `intent` 14.8%, arc
+// `endState` 11.1%, increment `objective` 10.2%. Narrowed and served, the same list is 226,836
+// bytes. Every one of those fields is a single property away from coming back, and nothing but the
+// wire would notice.
+// ---------------------------------------------------------------------------
+
+/**
+ * Every key a lane row may carry. Pinned here so the two tests below read the same list and a
+ * widening costs a deliberate edit — the payload got to 1.36 MB one convenient field at a time.
+ */
+const SUMMARY_INCREMENT_KEYS = ["cites", "id", "landedOn", "parked", "status", "title"];
+
+test("the lane row's key set is EXACTLY those six — over an increment carrying every field", () => {
+  // Driven through `deriveArcRollup` rather than the loader so the source increment populates every
+  // optional field at once, including the four the projection must DROP (`objective`,
+  // `frictionRefs`, `anchorSha`, `danglingCites`) and the whole `outcome`. Against the seeded
+  // fixture this could only ever assert which optionals that fixture happens to set.
+  const rollup = deriveArcRollup({
+    arc: {
+      id: "everything-arc",
+      kind: "arc",
+      doc: { kind: "arc", id: "everything-arc", title: "T", intent: "i", endState: "e" },
+      createdAt: "",
+      updatedAt: "",
+    },
+    incrementDocs: [
+      {
+        id: "everything-arc-inc-01",
+        kind: "increment",
+        doc: {
+          kind: "increment",
+          id: "everything-arc-inc-01",
+          title: "the row that has everything",
+          objective: "an objective long enough to be searched for",
+          arcRef: "asset:everything-arc",
+          status: "closed",
+          parked: "2026-08-01",
+          frictionRefs: ["some-friction"],
+          anchor: { sha: "abcdef1234567" },
+          cites: ["story:some-story", "capability:some-capability"],
+          outcome: { date: "2026-08-19", pr: "#1400", note: "a note nobody on a lane reads" },
+        },
+        createdAt: "",
+        updatedAt: "",
+      },
+    ],
+    questionDocs: [],
+    adrs: [],
+    storyStamps: [],
+    // An EMPTY hierarchy index, so both `cites` resolve to nothing and `danglingCites` is populated
+    // — the report field has to exist upstream for the projection to be proven to drop it.
+    workUnits: new Map(),
+  });
+
+  // Every optional really is populated upstream, or the assertion below proves nothing.
+  const source = rollup.increments[0]!;
+  for (const key of ["objective", "frictionRefs", "anchorSha", "danglingCites", "outcome"]) {
+    assert.ok(Object.hasOwn(source, key), `the source row must carry "${key}" for this to fence it`);
+  }
+
+  const row = summariseArcRollup(rollup).increments[0]!;
+  assert.deepEqual(Object.keys(row).sort(), SUMMARY_INCREMENT_KEYS);
+  assert.deepEqual(row, {
+    id: "everything-arc-inc-01",
+    title: "the row that has everything",
+    status: "closed",
+    parked: "2026-08-01",
+    cites: ["story:some-story", "capability:some-capability"],
+    landedOn: "2026-08-19",
+  });
+});
+
+test("summariseArcRollup carries exactly the lane's fields — the narrative prose is ABSENT", async () => {
+  const fx = diskFixture();
+  try {
+    const rollup = await loadArcRollup(depsFor(await seededStore(), fx), "map-arc");
+    assert.ok(rollup);
+    const summary = summariseArcRollup(rollup);
+
+    // The KEY SET, asserted whole rather than field by field: a `deepEqual` on the sorted keys is
+    // what makes an ADDITION red too. Checking only that the prose is gone would let the next
+    // "while we're here" field ride the list unnoticed, which is how the payload got here.
+    assert.deepEqual(Object.keys(summary).sort(), [
+      "id",
+      "increments",
+      "lifecycle",
+      "openQuestions",
+      "title",
+      "waiting",
+    ]);
+    // Per-row keys: every increment row of a REAL join stays inside the allowed set. The set
+    // itself is pinned exactly in the next test, over a row that carries all six — a fixture-wide
+    // `deepEqual` here would only assert which optional fields THIS fixture happens to populate.
+    for (const inc of summary.increments) {
+      for (const key of Object.keys(inc)) {
+        assert.ok(
+          SUMMARY_INCREMENT_KEYS.includes(key),
+          `the lane row must not carry "${key}" — widen SUMMARY_INCREMENT_KEYS deliberately, or drop it`,
+        );
+      }
+    }
+
+    // The identity and the two lane predicates survive.
+    assert.equal(summary.id, "map-arc");
+    assert.equal(summary.title, "Map pathways");
+    assert.equal(summary.lifecycle, "active");
+    assert.equal(summary.waiting, true);
+    assert.equal(summary.openQuestions, rollup.questions.length);
+
+    // THE ROLLUP ITSELF IS UNTOUCHED — the projection reads, it does not narrow in place. A caller
+    // that summarised for the list and then served `rollup` for the per-id read must get the whole
+    // thing back.
+    assert.equal(rollup.intent, "Pathways on the map.");
+    assert.equal(rollup.questions.length, 2);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("NO prose VALUE survives anywhere in the projection — asserted by walking it, not by field name", async () => {
+  // A key-set assertion catches a field re-added at the top level. This catches the other shape: a
+  // field re-added NESTED, or a rename that carried the same text through under a new name. Every
+  // string the fixture puts on the prose fields is searched for across the whole serialised
+  // payload, so any path back onto the wire is red.
+  const fx = diskFixture();
+  try {
+    const rollup = await loadArcRollup(depsFor(await seededStore(), fx), "map-arc");
+    assert.ok(rollup);
+    const wire = JSON.stringify(summariseArcRollup(rollup));
+
+    const prose = [
+      rollup.intent, // arc intent — 14.8% of the un-narrowed payload
+      rollup.endState, // arc end state — 11.1%
+      ...rollup.increments.map((i) => i.objective), // 10.2%
+      ...rollup.increments.map((i) => i.outcome?.note), // part of `outcome`, 39.4% together
+      ...rollup.increments.map((i) => i.outcome?.pr),
+      ...rollup.questions.map((q) => q.stakes), // authored to be cold-answerable; runs long
+      ...rollup.questions.map((q) => q.title),
+      ...rollup.adrs.map((a) => a.title),
+      // NOT increment titles and NOT arc `description`: a lane DRAWS the first, and the fixture
+      // spells the second `"d"`, which would match any payload by accident. A search term short
+      // enough to hit by chance proves nothing and would make this test lie in the safe direction.
+    ].filter((s): s is string => typeof s === "string" && s.length >= 8);
+    assert.ok(prose.length >= 5, `the fixture must carry real prose to search for (got ${prose.length})`);
+
+    for (const text of prose) {
+      assert.ok(!wire.includes(text), `the list payload must not carry "${text}"`);
+    }
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("the landing DATE rides as `landedOn`; the rest of `outcome` does not, and a dateless row omits it", async () => {
+  const fx = diskFixture();
+  try {
+    const rollup = await loadArcRollup(depsFor(await seededStore(), fx), "map-arc");
+    assert.ok(rollup);
+    const summary = summariseArcRollup(rollup);
+
+    // ORDER IS PART OF THE PAYLOAD (the status-rank sort, forward-looking first), so the projection
+    // must not re-order: the lane strip draws bars in this order and separates the two runs by it.
+    assert.deepEqual(
+      summary.increments.map((i) => i.id),
+      ["map-arc-parked", "map-arc-plan-1", "map-arc-inc-01", "map-arc-inc-02"],
+    );
+    assert.deepEqual(
+      summary.increments.map((i) => i.landedOn),
+      [undefined, undefined, "2026-07-01", "2026-07-05"],
+    );
+    // A RENAME, not a truncation. `outcome: { date }` would let a reader take the absent `pr` for a
+    // landing that had none; a differently-named field cannot be mistaken for a shortened `outcome`.
+    for (const inc of summary.increments) {
+      assert.equal(Object.hasOwn(inc, "outcome"), false);
+    }
+    // The forward-looking rows keep what the lane sorts and joins on.
+    assert.equal(summary.increments[0]?.parked, "2026-07-20T00:00:00.000Z");
+    assert.equal(summary.increments[1]?.parked, undefined);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("loadArcRollupSummaries is loadArcRollups narrowed — same arcs, same order, one projection", async () => {
+  // The anti-fork assertion for the LOADER, matching the one the join itself carries. Both HTTP
+  // surfaces call this rather than mapping the rollup list themselves, so the narrowing cannot
+  // become the second thing the studio and the desktop drift on.
+  const fx = diskFixture();
+  try {
+    const deps = depsFor(await seededStore(), fx);
+    const summaries = await loadArcRollupSummaries(deps);
+    const rollups = await loadArcRollups(deps);
+    assert.deepEqual(summaries, rollups.map(summariseArcRollup));
+    assert.deepEqual(
+      summaries.map((a) => a.id),
+      ["done-arc", "map-arc"],
+    );
+    // A childless arc summarises to an EMPTY list, never to a missing key — the lane strip counts
+    // bars off this and must not have to tell absent from empty.
+    assert.deepEqual(summaries[0]?.increments, []);
+    assert.equal(summaries[0]?.openQuestions, 0);
+    assert.equal(summaries[0]?.waiting, false);
+    assert.equal(summaries[0]?.lifecycle, "closed");
   } finally {
     rmSync(fx.root, { recursive: true, force: true });
   }
