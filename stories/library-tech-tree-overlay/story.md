@@ -380,12 +380,15 @@ ADR-0139.)*
 > [`library-open-overlay`](library-open-overlay.md)'s
 > "loo-open-overlay-mounts-full-detail-over-map" and "loo-dismiss-fires-ondismiss". What KEEPS the leg
 > is the parent-glue COMPOSITION, which no component suite reaches: `TreeView`'s
-> `onOpen={setOpenSelection}` wiring from the DAG canvas, the overview and the selection card into
-> `<LibraryOpenOverlay selection={openSelection} …/>`, mounted as a `.world-frame` sibling over the
-> live map. Every capability suite renders its component directly with props, and three `TreeView`
-> test files deliberately stub `./LibraryDrawer.js` down to `{ LibraryDrawer: () => null }` to keep
-> the pan/camera suites light (`apps/studio/src/lib/drawerLens.ts` records why), so the composition is
-> exercised nowhere. **Its ORIGINAL wording was substantially overtaken and is corrected in place**
+> `onOpen={setOpenSelection}` wiring into `<LibraryOpenOverlay selection={openSelection} …/>`, mounted
+> as a `.world-frame` sibling over the live map. **The originating surfaces were MEASURED, not
+> assumed** — `onOpen={setOpenSelection}` appears at exactly three call sites in `TreeView.tsx`:
+> `ArcSurface`, `LibraryFocusGraph` (the DAG canvas) and `LibrarySelectionCard`. `LibraryFinder` is
+> handed `onSelect` only and fires no `onOpen`, and `LibraryOverview` accepts one but is mounted by no
+> non-test source, so neither originates an open today. Every capability suite renders its component
+> directly with props, and three `TreeView` test files deliberately stub `./LibraryDrawer.js` down to
+> `{ LibraryDrawer: () => null }` to keep the pan/camera suites light
+> (`apps/studio/src/lib/drawerLens.ts` records why), so the composition is exercised nowhere. **Its ORIGINAL wording was substantially overtaken and is corrected in place**
 > (ADR-0139): it read "the drawer collapses to a bar and the artifact's full body + Sources render
 > over the rest of the map (ADR bodies fetched via `docContent()`); the route syncs to `#/asset/<id>`;
 > Esc unwinds dive → peek → map." Of that, "the drawer collapses to a bar" and "Esc unwinds dive →
@@ -493,11 +496,11 @@ would have to exist before it could honestly become a leg again: the overview re
 running surface, and a recorded budget with a number in it. Until then this paragraph is the record
 that the claim was made and never discharged.
 
-4. **Open the selected artifact over the map.** _(witness: machine)(detail: library-tech-tree-overlay#uat-4)_ From a selection made in the lens — the finder, the DAG canvas, the overview or the selection card — open the artifact. **Success (machine) —** a _(criterion-id: uatc_2539bfd0b1c1c04c2adf77c7)_ _(revision-id: uatr1:1286e1be718ce91a)_ _(previous-revision-id: uatr1:d44edbb8ee4ca285)_
+4. **Open the selected artifact over the map.** _(witness: machine)(detail: library-tech-tree-overlay#uat-4)_ Select an artifact in the drawer, then open it from each of the THREE mounted surfaces that fire `onOpen` — the arc surface, the DAG canvas, and the selection card. **Success (machine) —** a _(criterion-id: uatc_2539bfd0b1c1c04c2adf77c7)_ _(revision-id: uatr1:8334f2aed9035ca2)_ _(previous-revision-id: uatr1:d44edbb8ee4ca285)_
    distinct full-detail overlay mounts OVER the live forest map as a `.world-frame` sibling, rendering
    the artifact's full body + Sources (an ADR body fetched on demand via `docContent()`), with the map
-   and the lens both still mounted beneath it; dismissing it — the close control or Esc — returns to
-   the lens and the live map in ONE hop, clearing the open selection.
+   and the drawer both still mounted beneath it; dismissing it — the close control or Esc — returns to
+   the drawer and the live map in ONE hop, clearing the open selection.
    **UNBOUND — fails closed (ADR-0294 D4, 2026-08-21).** No `(proof-gate:)`: this story declares no
    reliability gate at all, and none is minted here — answering an unbound leg with a freshly minted
    check is the rubber stamp ADR-0097 §2 forbids. The leg's two HALVES are proven one rung down —
@@ -506,10 +509,14 @@ that the claim was made and never discharged.
    ADR fetch, and [`library-open-overlay`](library-open-overlay.md)'s
    `loo-open-overlay-mounts-full-detail-over-map` and `loo-dismiss-fires-ondismiss` for the distinct
    overlay container and the one-hop dismiss. What the leg ADDS, and what nothing reaches, is the
-   COMPOSITION: that `TreeView`'s `onOpen={setOpenSelection}` wiring actually carries a selection from
-   each of those four surfaces into `<LibraryOpenOverlay selection={openSelection} …/>`, and that the
-   overlay lands over a map and lens that stay mounted. Every capability suite renders its component
-   directly with props, and three `TreeView` test files stub `./LibraryDrawer.js` down to
+   COMPOSITION: that `TreeView`'s `onOpen={setOpenSelection}` wiring actually carries a selection into
+   `<LibraryOpenOverlay selection={openSelection} …/>` from each of the three surfaces that fire it —
+   `ArcSurface` (the drawer's primary arcs lens), `LibraryFocusGraph` (the DAG canvas) and
+   `LibrarySelectionCard` — and that the overlay lands over a map and drawer that stay mounted. Read
+   that list as measured, not as the obvious one: `LibraryFinder` is handed `onSelect` only and fires
+   no `onOpen` at all, and `LibraryOverview` — which DOES accept an `onOpen` — is mounted by no
+   non-test source, so neither is a live originating surface. Every capability suite renders its
+   component directly with props, and three `TreeView` test files stub `./LibraryDrawer.js` down to
    `{ LibraryDrawer: () => null }` to keep the pan/camera suites light, so the composed path is
    exercised nowhere. The instrument that WOULD bind it is a mounted-composition test over `TreeView`
    (or the desktop `_electron` harness) driving select → Open → dismiss against the real mount; none
