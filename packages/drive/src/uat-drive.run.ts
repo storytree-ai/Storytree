@@ -175,11 +175,14 @@ function verifyCodexRuntime(): DriverRuntime | null {
   };
   const env = codexSubscriptionChildEnv(process.env, authIsolation);
   try {
-    const status = execFileSync(executable, ["login", "status"], {
+    const login = spawnSync(executable, ["login", "status"], {
       encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
       env,
     });
+    if (login.status !== 0 || login.error !== undefined) {
+      throw login.error ?? new Error(login.stderr || `Codex login status exited ${login.status}`);
+    }
+    const status = `${login.stdout ?? ""}\n${login.stderr ?? ""}`;
     const verified = verifyCodexSubscriptionAuth(status, env);
     if (!verified.ok) {
       console.error(
