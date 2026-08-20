@@ -552,7 +552,6 @@
       "terminal-repo-picker": "hosted in desktop (apps/desktop) + studio (apps/studio)",
       "terminal-tabs": "hosted in studio (apps/studio)",
       "uat-detail-studio": "hosted in studio (apps/studio)",
-      "model-uat-pilot": "hosted in library (packages/library) — KIND_SPECS glue for uat-criterion; harness package is story-owned",
       "website-experience": "hosted in cli (packages/cli)",
       "wisp-as-story-claim": "hosted in agent (packages/agent) + drive-machinery (packages/drive) + notice-board (packages/notice-board) + studio (apps/studio)"
     }
