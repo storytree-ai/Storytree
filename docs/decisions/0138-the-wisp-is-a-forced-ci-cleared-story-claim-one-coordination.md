@@ -78,7 +78,7 @@ rows, never `node_claim`). So the lock the design needs is built; what is missin
    one-worktree-per-story build model ([ADR-0031](0031-real-pass-promotion-and-worktree-deps.md)). The
    accepted cost is that same-story work **serialises** (a second session on a sibling capability
    waits); capability grain is the named scale-up path.
-   *[Amended twice. [ADR-0200](0200-the-noticeboard-is-the-claim-ledger-forced-session-claims-pr.md) D2
+   *[Amended three times. [ADR-0200](0200-the-noticeboard-is-the-claim-ledger-forced-session-claims-pr.md) D2
    narrows the hard refusal to the **`work` grade**: the claim gained shared `exploring` and `waiting`
    grades, so only the work mutex hard-refuses, and a refused session takes an ordered `waiting` row
    instead of simply waiting or picking other work.
@@ -88,7 +88,16 @@ rows, never `node_claim`). So the lock the design needs is built; what is missin
    legitimate for cross-capability work and for a session that does not yet know its unit — and there it
    still means exactly what this decision says. Every "per story" gloss in this ADR (including Decision
    1's "one wisp per claimed story") therefore reads "per claimed unit"; how capability-grain wisps
-   render is expressly left open by ADR-0270.]*
+   render is expressly left open by ADR-0270.
+   [ADR-0346](0346-the-capability-claim-becomes-a-real-fence-waiting-binds-stor.md) D2 then **retires the
+   story-grain fallback the sentence above preserved**: a `work` claim is no longer taken on a story id as
+   a fence around unscoped work, and `declare` REFUSES one at work grade — so *"for a session that does
+   not yet know its unit"* is DEAD, and work with no capability to name claims the **increment** it is
+   driving (ADR-0308 D5). Two things survive: the story TIER stays claimable where it names real work (a
+   `uat_witness: machine` story's UAT node, which `story build` claims alongside its members), and the
+   shared `exploring` grade on a story is untouched. ADR-0346 D1 additionally hardens what a refusal
+   MEANS — it BINDS, and the refused session stops working that unit rather than proceeding on its own
+   judgment.]*
 
 3. **Forced by the outer loop, via guidance — not a hard session-start gate.** The session-orchestrator
    (ADR-0137) is instructed in its **guidance prose** to hold a story-claim before it spawns any
