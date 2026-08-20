@@ -35,7 +35,14 @@ type ReplayState =
  * Read and mount one session's replay. Re-reads when `sessionId` changes; a read that lands after
  * the operator has moved on is discarded rather than painted over the newer selection.
  */
-export function TraversalReplay({ sessionId }: { sessionId: string }): React.JSX.Element {
+export function TraversalReplay({
+  sessionId,
+  compact = false,
+}: {
+  sessionId: string;
+  /** The panel is dragged small — forwarded to the picture, which folds chrome rather than shrink. */
+  compact?: boolean;
+}): React.JSX.Element {
   const [state, setState] = useState<ReplayState>({ status: 'reading' });
 
   useEffect(() => {
@@ -77,7 +84,7 @@ export function TraversalReplay({ sessionId }: { sessionId: string }): React.JSX
     <div className="traversal-replay" data-testid="traversal-replay" data-replay-state="read">
       {/* The picture. It goes FIRST because the design's second acceptance clause is that the
           traversal — not the bar, not a metric, not a line of prose — dominates the first glance. */}
-      <TraversalSpine replay={replay} />
+      <TraversalSpine replay={replay} compact={compact} />
 
       <ul className="traversal-replay-facts small">
         <li>

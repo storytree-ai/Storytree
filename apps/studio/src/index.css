@@ -4237,12 +4237,15 @@ button.legend-tile:hover {
   font-size: 10px;
   opacity: 0.78;
 }
+/* `overflow: hidden`, not `auto`: the picture owns its own panning inside `.traversal-plot-scroll`,
+   and a second scroller here would let the whole traversal grow past the dock and scroll as a block
+   instead of re-flowing into it. */
 .traversal-tab-plot {
   display: flex;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
 }
 .traversal-tab-idle {
   margin: 0;
@@ -4260,41 +4263,162 @@ button.legend-tile:hover {
   margin: 8px 0 0;
   overflow-wrap: anywhere;
 }
+/* The replay mount inside the bottom-panel tab. It was a CARD in the 360px story panel — margin,
+   border, its own background — and in a dock that is 160px tall at its floor every one of those is
+   height the picture does not get. It is now a plain filling column, and the `min-height: 0` is
+   load-bearing rather than defensive: without it a flex/grid child refuses to shrink below its
+   content and the whole traversal overflows the dock instead of re-flowing inside it (measured:
+   a 208px spine inside a 160px panel). */
 .traversal-replay {
-  margin-top: 10px;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface-2);
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
 }
 .traversal-replay-facts {
-  margin: 6px 0 0;
-  padding-left: 18px;
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 10.5px;
   overflow-wrap: anywhere;
 }
-.traversal-replay-facts > li {
-  margin: 3px 0;
+/* Dragged small the facts fold with the other prose — they are restated by the route's own note and
+   by the honest-gap lines, and the arc's clause is that the traversal keeps the room. */
+.bottom-dock-compact .traversal-replay-facts {
+  display: none;
 }
 .traversal-replay-partial {
   color: var(--warn);
   font-weight: 600;
 }
 
-/* ── the traversal spine (increment `traversal-panel-spine-render`) ──────────────
-   The owner-signed grammar in docs/design/context-traversal/README.md, drawn hand-rolled:
+/* ── the traversal picture, RE-FLOWED (increment `traversal-panel-wide-reflow`) ───────────────────
+   The owner-signed GRAMMAR (docs/design/context-traversal/README.md) drawn hand-rolled against the
+   LAYOUT the owner accepted in bottom-panel-traversal-composition.html: time left→right, depth
+   indenting downward, lanes as rows, and the one occupancy bar a vertical track at the right.
    apps/studio carries no charting or animation dependency and none was added for one panel.
-   Everything is width-relative or lives inside the SVG's viewBox, so the whole picture
-   survives PANEL_MIN=360 and the minimized min(340px, 66%) cap — the constraint Option A
-   was chosen for. The owner's LOOK is a separate increment; nothing here is self-signed. */
+   The row template is what makes the picture RE-FLOW into a dragged dock rather than overflow it:
+   without it the implicit row is `auto`, the SVG sizes the row, and the row sizes the SVG.
+   APPEARANCE IS OPERATOR-ATTESTED (ADR-0070) — nothing here is self-signed. */
 .traversal-spine {
-  margin: 2px 0 8px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 58px;
   min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+.traversal-plot-column {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-width: 0;
+  min-height: 0;
+}
+.traversal-plot-body {
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+}
+/* The row gutter is its own SVG so a horizontally panned trace never carries its labels away. */
+.traversal-row-labels {
+  position: relative;
+  min-height: 0;
+  border-right: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+}
+.traversal-row-labels svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.traversal-row-label {
+  fill: var(--muted);
+  font-family: inherit;
+  font-size: 9.5px;
+}
+.traversal-row-label.is-strong {
+  fill: var(--text);
+}
+.traversal-row-rule {
+  stroke: color-mix(in srgb, var(--border) 55%, transparent);
+  stroke-width: 1;
+}
+/* A trace longer than the panel keeps its pixels and PANS; it is never squeezed to fit. */
+.traversal-plot-scroll {
+  overflow: auto;
+  min-width: 0;
+  min-height: 0;
+}
+.traversal-plot-foot {
+  display: grid;
+  gap: 4px;
+  padding: 4px 0 2px;
+  border-top: 1px solid var(--border);
+}
+.traversal-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  color: var(--muted);
+  font-size: 10.5px;
+}
+.traversal-legend-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.traversal-legend-bar {
+  display: inline-flex;
+  width: 30px;
+  height: 7px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.traversal-legend-bar-safe {
+  width: 62%;
+  background: var(--accent);
+}
+.traversal-legend-bar-over {
+  width: 20%;
+  background: var(--danger);
+}
+.traversal-gaps {
+  display: grid;
+  gap: 2px;
+}
+/* Dragged toward the dock's minimum the CHROME yields and the PICTURE keeps the room — the bottom
+   panel's analogue of the retired PANEL_MIN=360 rule, asked of height instead of width. Both the
+   blurb and the gap prose stay reachable in the notes below the panel. */
+.traversal-spine.is-compact .traversal-gaps {
+  display: none;
+}
+.traversal-spine.is-compact .traversal-legend {
+  font-size: 9.5px;
+  gap: 3px 10px;
+}
+.traversal-spine.is-compact .traversal-plot-foot {
+  padding: 2px 0 1px;
 }
 .traversal-transport {
   display: flex;
   align-items: center;
   gap: 6px;
   min-width: 0;
+  padding-bottom: 4px;
+}
+.traversal-axis-note {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.traversal-spine.is-compact .traversal-axis-note {
+  display: none;
 }
 .traversal-transport-button {
   flex: 0 0 auto;
@@ -4326,25 +4450,43 @@ button.legend-tile:hover {
   white-space: nowrap;
 }
 
+/* THE ONE PLAYHEAD OCCUPANCY BAR — vertical now, so the time axis owns the horizontal and the bar
+   stops competing with the picture for area. It keeps its column even when unobserved (dashed, no
+   fill) so the picture's geometry does not change shape depending on whether a session was ingested. */
 .traversal-occupancy {
-  margin-top: 6px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 4px;
+  justify-items: center;
+  padding: 8px 6px 4px 4px;
+  border-left: 1px solid var(--border);
+  min-height: 0;
+}
+.traversal-occupancy-cap {
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 0.04em;
 }
 .traversal-occupancy-track {
   position: relative;
-  height: 8px;
+  width: 13px;
+  min-height: 0;
   border: 1px solid var(--border);
-  border-radius: 5px;
+  border-radius: 6px;
   background: var(--bg);
   overflow: hidden;
 }
+.traversal-occupancy-track.is-unobserved {
+  border-style: dashed;
+}
 .traversal-occupancy-fill {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 0;
+  left: 0;
+  right: 0;
+  height: 0;
 }
 .traversal-occupancy-fill.is-safe {
-  left: 0;
+  bottom: 0;
   background: var(--accent);
 }
 /* The over-threshold portion of the FILL is the whole threshold signal: no marker, tick or
@@ -4353,31 +4495,47 @@ button.legend-tile:hover {
   background: var(--danger);
 }
 .traversal-occupancy-readout {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 4px;
-  margin: 3px 0 0;
-  font-variant-numeric: tabular-nums;
-}
-.traversal-occupancy-value {
   color: var(--text);
+  font-size: 9.5px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  line-height: 1.2;
 }
-.traversal-occupancy-value.is-over {
+.traversal-occupancy-readout.is-over {
   color: var(--danger);
 }
+.traversal-occupancy-readout.is-unobserved {
+  color: var(--muted);
+}
+.traversal-occupancy-threshold {
+  color: var(--muted);
+  font-size: 8.5px;
+}
+.traversal-occupancy-note,
 .traversal-occupancy-absent,
 .traversal-spine-empty,
 .traversal-spine-deferred {
-  margin: 6px 0 0;
+  margin: 0;
   overflow-wrap: anywhere;
 }
 
 .traversal-spine-map {
   display: block;
-  width: 100%;
-  height: auto;
-  margin-top: 8px;
+}
+/* The time baseline, its run ticks, and the folded idle spans. A fold is a BAND with the duration
+   written down it — a 16-hour gap and a 6-minute gap occupy identical pixels. */
+.traversal-time-baseline,
+.traversal-time-tick {
+  stroke: var(--border-strong);
+  stroke-width: 1;
+}
+.traversal-time-label {
+  fill: var(--muted);
+  font-family: inherit;
+  font-size: 9px;
+}
+.traversal-fold-band {
+  fill: color-mix(in srgb, var(--border) 40%, transparent);
 }
 .traversal-axis {
   stroke: var(--border-strong);
@@ -4482,26 +4640,37 @@ button.legend-tile:hover {
 .traversal-lane.is-visible {
   opacity: 1;
 }
-.traversal-lane-band {
+/* A lane is a ROW since the rotation. Its body is a bar for a lane with real duration and a DIAMOND
+   for one whose handoff and return share an instant — decided from the TIMESTAMPS, never from the
+   pixels the two ends map to, since a fold can place a one-millisecond pair 32px apart. */
+.traversal-lane-body {
   fill: var(--lane-color);
-  opacity: 0.32;
+  opacity: 0.55;
 }
-/* An OPEN lane — no result_return was recorded — is hatched rather than solid, so a band running to
-   the end of the axis never reads as an observed close. */
-.traversal-lane.is-open .traversal-lane-band {
-  opacity: 0.18;
+/* An OPEN lane — no result_return was recorded — is fainter and dashed, so a bar running to the end
+   of the axis never reads as an observed close. */
+.traversal-lane.is-open .traversal-lane-body {
+  opacity: 0.28;
 }
-.traversal-lane-icon-disc {
+.traversal-lane-open-cap {
+  stroke: var(--lane-color);
+  stroke-dasharray: 2 2;
+}
+/* The chip carries the MODEL (clause 7). On a crowded packing the agent type drops — the row gutter
+   already names it — and the chip keeps the model, which is redundant with nothing. */
+.traversal-lane-chip-bg {
   fill: var(--lane-color);
-  stroke: var(--surface-2);
-  stroke-width: 1;
+  stroke: var(--surface);
+  stroke-width: 0.8;
 }
-.traversal-lane-icon-mark {
-  fill: none;
-  stroke: var(--surface-2);
-  stroke-width: 1.2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+.traversal-lane-chip-text {
+  fill: var(--surface);
+  font-family: inherit;
+  font-size: 8.5px;
+  font-weight: 600;
+}
+.traversal-lane-chip-text.is-unrecorded {
+  font-style: italic;
 }
 .traversal-lane-handoff,
 .traversal-lane-return {
@@ -4523,52 +4692,10 @@ button.legend-tile:hover {
   stroke: var(--danger);
 }
 
-/* The per-lane badge: agent type AND the model it ran on. Wraps, and scrolls past a few lanes, so a
-   trace with many children still fits the panel's 340px minimized cap. */
-.traversal-lane-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin: 8px 0 0;
-  padding: 0;
-  list-style: none;
-  max-height: 132px;
-  overflow-y: auto;
-}
-.traversal-lane-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 2px 7px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface);
-  font-size: 11px;
-  line-height: 1.5;
-  max-width: 100%;
-  overflow-wrap: anywhere;
-}
-.traversal-lane-swatch {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--lane-color);
-}
-.traversal-lane-type {
-  font-weight: 600;
-}
-.traversal-lane-model {
-  color: var(--muted);
-}
-/* The absence is styled AS an absence — never as a model name a reader might take for one. */
-.traversal-lane-model.is-unrecorded {
-  color: var(--warn);
-  font-style: italic;
-}
-.traversal-lane-span {
-  color: var(--muted);
-}
+/* The wrapping badge LIST below the picture is retired: the bottom panel is wide and SHORT, so a
+   list that grew downward spent the picture's own scarce dimension. Its one load-bearing job —
+   clause 7, every rendered lane names the model it ran on, and an unrecorded one says so — moved
+   into the in-band `.traversal-lane-chip*` above, which travels with the lane it describes. */
 
 /* An offer fan: one ray per recorded candidate, never sorted and never truncated. */
 .traversal-offer {
