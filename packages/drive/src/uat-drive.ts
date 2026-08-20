@@ -51,6 +51,106 @@ import { z } from "zod";
  */
 export const UAT_DRIVE_WITNESS_ENTRY = "uat-drive-witness.check.ts";
 
+/** The only live UAT runtime: the owner's ChatGPT-authenticated Codex subscription. */
+export const CODEX_CHATGPT_SUBSCRIPTION_DRIVER = "codex-chatgpt-subscription";
+
+/** An explicit local executable is useful where the Desktop app keeps its CLI outside PATH. */
+export const STORYTREE_CODEX_EXECUTABLE_ENV = "STORYTREE_CODEX_EXECUTABLE";
+
+/** UAT drives default to Codex, while a member may explicitly select their Claude subscription. */
+export const STORYTREE_UAT_DRIVE_PROVIDER_ENV = "STORYTREE_UAT_DRIVE_PROVIDER";
+export const UAT_DRIVE_PROVIDERS = ["codex", "claude"] as const;
+export type UatDriveProvider = (typeof UAT_DRIVE_PROVIDERS)[number];
+
+/** A blank setting is the default; any other typo refuses before either subscription is used. */
+export function resolveUatDriveProvider(raw: string | undefined):
+  | { ok: true; provider: UatDriveProvider }
+  | { ok: false; reason: string } {
+  const normalized = raw?.trim().toLowerCase();
+  if (normalized === undefined || normalized === "") return { ok: true, provider: "codex" };
+  if (normalized === "codex" || normalized === "claude") return { ok: true, provider: normalized };
+  return {
+    ok: false,
+    reason: `${STORYTREE_UAT_DRIVE_PROVIDER_ENV} must be "codex" or "claude", not ${JSON.stringify(raw)}`,
+  };
+}
+
+/** The Codex final message is the report contract, not a provider-specific event stream. */
+export function codexExecArguments(finalMessagePath: string): string[] {
+  return [
+    "exec",
+    "--sandbox",
+    "danger-full-access",
+    "--ask-for-approval",
+    "never",
+    "--output-last-message",
+    finalMessagePath,
+    "-",
+  ];
+}
+
+/**
+ * Give a drive its usual Storytree isolation, but never pass another provider's credential or an
+ * API key through its process boundary. Codex must establish its own ChatGPT-authenticated session.
+ */
+export function codexSubscriptionChildEnv(
+  parent: NodeJS.ProcessEnv,
+  isolation: DriveIsolation,
+): NodeJS.ProcessEnv {
+  const child = driveChildEnv(parent, isolation);
+  for (const key of Object.keys(child)) {
+    if (
+      key === "OPENAI_API_KEY" ||
+      key === "OPENAI_BASE_URL" ||
+      key === "OPENAI_ORG_ID" ||
+      key.startsWith("ANTHROPIC_") ||
+      key.startsWith("CLAUDE_")
+    ) {
+      delete child[key];
+    }
+  }
+  return child;
+}
+
+/** Claude's subscription route receives only its OAuth token, never either provider's metered key. */
+export function claudeSubscriptionChildEnv(
+  parent: NodeJS.ProcessEnv,
+  isolation: DriveIsolation,
+): NodeJS.ProcessEnv {
+  const child = driveChildEnv(parent, isolation);
+  for (const key of Object.keys(child)) {
+    if (
+      key === "OPENAI_API_KEY" ||
+      key === "OPENAI_BASE_URL" ||
+      key === "OPENAI_ORG_ID" ||
+      key === "ANTHROPIC_API_KEY"
+    ) {
+      delete child[key];
+    }
+  }
+  return child;
+}
+
+export interface CodexSubscriptionAuth {
+  readonly ok: boolean;
+  readonly detail: string;
+}
+
+/** Parse local CLI status without accepting an API-key or anonymous session. */
+export function verifyCodexSubscriptionAuth(status: string, env: NodeJS.ProcessEnv): CodexSubscriptionAuth {
+  if (env["OPENAI_API_KEY"] !== undefined) {
+    return { ok: false, detail: "the child environment still carries OPENAI_API_KEY" };
+  }
+  if (/logged in using chatgpt/i.test(status)) {
+    return { ok: true, detail: "Codex is logged in using ChatGPT" };
+  }
+  const received = status.trim().replace(/\s+/g, " ");
+  return {
+    ok: false,
+    detail: received.length > 0 ? `Codex login status was not ChatGPT: ${received}` : "Codex produced no login status",
+  };
+}
+
 /** The gate fields the target selector reads. */
 export type DriveGate = Pick<ReliabilityGate, "id" | "kind" | "proofCommand">;
 

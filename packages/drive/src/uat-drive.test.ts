@@ -5,9 +5,14 @@ import type { UatTestCriterionSource } from "@storytree/library";
 
 import {
   auditDrivePrompt,
+  CODEX_CHATGPT_SUBSCRIPTION_DRIVER,
+  claudeSubscriptionChildEnv,
+  codexExecArguments,
+  codexSubscriptionChildEnv,
   driveSurfaceUrl,
   isModelDrivenGate,
   parseDriveReport,
+  resolveUatDriveProvider,
   selectDriveTargets,
   selectWitnessableDrive,
   uatDriveIsolationClause,
@@ -18,6 +23,7 @@ import {
   UAT_DRIVE_TOOLING_CLAUSE,
   UAT_DRIVE_WITNESS_ENTRY,
   UatDriveRecord,
+  verifyCodexSubscriptionAuth,
   type DriveGate,
   type DriveIsolation,
   type DriveRow,
@@ -89,6 +95,67 @@ test("isModelDrivenGate: only a command-bearing observe gate running the witness
   assert.equal(isModelDrivenGate(SUITE_GATE), false);
   assert.equal(isModelDrivenGate({ id: "demo#gate-3", kind: "build-tests" }), false);
   assert.equal(isModelDrivenGate({ id: "demo#gate-4", kind: "observe" }), false, "no command → not ours");
+});
+
+test("Codex subscription boundary: only the non-interactive Codex exec path is invoked", () => {
+  assert.deepEqual(codexExecArguments("C:/tmp/report.md"), [
+    "exec",
+    "--sandbox",
+    "danger-full-access",
+    "--ask-for-approval",
+    "never",
+    "--output-last-message",
+    "C:/tmp/report.md",
+    "-",
+  ]);
+  assert.equal(CODEX_CHATGPT_SUBSCRIPTION_DRIVER, "codex-chatgpt-subscription");
+});
+
+test("Codex subscription boundary: API and Anthropic credentials cannot reach a drive", () => {
+  const child = codexSubscriptionChildEnv(
+    {
+      OPENAI_API_KEY: "api-key",
+      OPENAI_BASE_URL: "https://example.test",
+      ANTHROPIC_API_KEY: "anthropic-key",
+      CLAUDE_CODE_OAUTH_TOKEN: "claude-token",
+      KEEP: "yes",
+    },
+    ISOLATION,
+  );
+  assert.equal(child.OPENAI_API_KEY, undefined);
+  assert.equal(child.OPENAI_BASE_URL, undefined);
+  assert.equal(child.ANTHROPIC_API_KEY, undefined);
+  assert.equal(child.CLAUDE_CODE_OAUTH_TOKEN, undefined);
+  assert.equal(child.KEEP, "yes");
+});
+
+test("Codex subscription boundary: only ChatGPT login status is accepted", () => {
+  assert.equal(verifyCodexSubscriptionAuth("Logged in using ChatGPT\n", {}).ok, true);
+  assert.equal(verifyCodexSubscriptionAuth("Logged in using an API key\n", {}).ok, false);
+  assert.equal(verifyCodexSubscriptionAuth("Logged in using ChatGPT\n", { OPENAI_API_KEY: "present" }).ok, false);
+});
+
+test("UAT provider setting: Codex is the default and Claude is explicit", () => {
+  assert.deepEqual(resolveUatDriveProvider(undefined), { ok: true, provider: "codex" });
+  assert.deepEqual(resolveUatDriveProvider("  "), { ok: true, provider: "codex" });
+  assert.deepEqual(resolveUatDriveProvider("claude"), { ok: true, provider: "claude" });
+  assert.equal(resolveUatDriveProvider("api").ok, false);
+});
+
+test("Claude subscription boundary: its explicit route never inherits metered API credentials", () => {
+  const child = claudeSubscriptionChildEnv(
+    {
+      CLAUDE_CODE_OAUTH_TOKEN: "subscription-token",
+      ANTHROPIC_API_KEY: "anthropic-key",
+      OPENAI_API_KEY: "openai-key",
+      KEEP: "yes",
+    },
+    ISOLATION,
+  );
+  assert.equal(child.CLAUDE_CODE_OAUTH_TOKEN, "subscription-token");
+  assert.equal(child.ANTHROPIC_API_KEY, undefined);
+  assert.equal(child.OPENAI_API_KEY, undefined);
+  assert.equal(child.KEEP, "yes");
 });
 
 test("selectDriveTargets: with nothing named, drives exactly the bound model-driven machine legs", () => {

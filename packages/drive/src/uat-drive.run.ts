@@ -3,9 +3,9 @@
  * live-only run that PRODUCES the artifact `uat-drive-witness.check.ts` witnesses.
  *
  * It is NOT a `*.test.ts` and never runs on a gate pass: each criterion spawns a fresh,
- * subscription-funded Claude Code session in the repo root, so ADR-0010 §5 keeps it out-of-band —
- * exactly as `dogfood-probe.run.ts` is. The driving session inherits whatever tools the local Claude
- * Code install actually has (shell and the storytree CLI always; browser / headless control only
+ * subscription-funded Codex session in the repo root, so ADR-0010 §5 keeps it out-of-band —
+ * exactly as `dogfood-probe.run.ts` is. The driving session inherits whatever tools the local Codex
+ * install actually has (shell and the storytree CLI always; browser / headless control only
  * where that MCP is configured), which is a property of the machine, not of this harness — a journey
  * through a surface the local session cannot reach is a `fail` with that named as the reason, not a
  * silent pass.
@@ -58,7 +58,10 @@ import {
   auditDrivePrompt,
   classifyDriveEnd,
   classifyDriveResidue,
-  driveChildEnv,
+  CODEX_CHATGPT_SUBSCRIPTION_DRIVER,
+  claudeSubscriptionChildEnv,
+  codexExecArguments,
+  codexSubscriptionChildEnv,
   driveScratchDir,
   driveSurfacePorts,
   driveSurfaceUrl,
@@ -75,6 +78,11 @@ import {
   type DriveSurfaceAttestation,
   type DriveTarget,
   type UatDriveSpec,
+  resolveUatDriveProvider,
+  STORYTREE_UAT_DRIVE_PROVIDER_ENV,
+  STORYTREE_CODEX_EXECUTABLE_ENV,
+  type UatDriveProvider,
+  verifyCodexSubscriptionAuth,
 } from "./uat-drive.js";
 
 /**
@@ -109,7 +117,8 @@ function readTimeoutMinutes(): number {
 }
 
 /** Provenance stamped on the record — which runtime drove it. Never authority; the spine still signs. */
-const DRIVER = "claude-code";
+const CODEX_DRIVER = CODEX_CHATGPT_SUBSCRIPTION_DRIVER;
+const CLAUDE_DRIVER = "claude-code-subscription";
 
 /** How much of an unreadable run's final text to echo for diagnosis. Never persisted, never evidence. */
 const UNREADABLE_TAIL_CHARS = 4000;
@@ -142,6 +151,76 @@ function finalText(stdout: string): string {
   return stdout;
 }
 
+interface DriverRuntime {
+  readonly provider: UatDriveProvider;
+  readonly driver: string;
+  readonly executable: string;
+}
+
+/** Resolve and prove the runtime once, before a drive can spend subscription time. */
+function verifyCodexRuntime(): DriverRuntime | null {
+  const explicit = process.env[STORYTREE_CODEX_EXECUTABLE_ENV]?.trim();
+  const desktopCli = process.env["CODEX_CLI_PATH"]?.trim();
+  const sandboxCli = path.join(process.env["USERPROFILE"] ?? "", ".codex", ".sandbox-bin", "codex.exe");
+  // The Desktop app's delegated shell exposes this copied CLI while its app-alias executable is
+  // deliberately not invokable by the sandbox. Outside that host, ordinary PATH resolution remains
+  // the default. An explicit override is only a locator — authentication is still checked below.
+  const executable = explicit || desktopCli || (existsSync(sandboxCli) ? sandboxCli : "codex");
+  const authIsolation: DriveIsolation = {
+    sessionId: "uat-drive~auth~0",
+    surfacePort: 0,
+    commitSha: "auth-check",
+    scratchDir: tmpdir(),
+    ceilingMinutes: DRIVE_TIMEOUT_MIN,
+  };
+  const env = codexSubscriptionChildEnv(process.env, authIsolation);
+  try {
+    const status = execFileSync(executable, ["login", "status"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      env,
+    });
+    const verified = verifyCodexSubscriptionAuth(status, env);
+    if (!verified.ok) {
+      console.error(
+        `[uat-drive] REFUSED: ${verified.detail}. Log in to Codex with the owner's ChatGPT subscription; ` +
+          "API-key and Anthropic fallback are disabled.",
+      );
+      return null;
+    }
+    log(`provider: ${CODEX_DRIVER} — ${verified.detail} (${executable})`);
+    return { provider: "codex", driver: CODEX_DRIVER, executable };
+  } catch (e) {
+    const detail = (e as { stderr?: string }).stderr?.trim() || (e as Error).message;
+    console.error(
+      `[uat-drive] REFUSED: could not verify the Codex ChatGPT subscription with ${executable}: ${detail}\n` +
+        `  Set ${STORYTREE_CODEX_EXECUTABLE_ENV} only when the Desktop runtime is outside PATH. ` +
+        "No API-key or Anthropic fallback exists.",
+    );
+    return null;
+  }
+}
+
+/** Claude remains an explicit subscription choice; API-key credentials never satisfy this check. */
+function verifyClaudeRuntime(): DriverRuntime | null {
+  const token = process.env["CLAUDE_CODE_OAUTH_TOKEN"]?.trim();
+  if (token === undefined || token.length === 0) {
+    console.error("[uat-drive] REFUSED: Claude was selected but no Claude subscription token is available.");
+    return null;
+  }
+  log(`provider: ${CLAUDE_DRIVER} — explicit ${STORYTREE_UAT_DRIVE_PROVIDER_ENV}=claude selection`);
+  return { provider: "claude", driver: CLAUDE_DRIVER, executable: "claude" };
+}
+
+/** The Codex CLI's final-answer file is the report; stdout is only a diagnostic fallback. */
+function readCodexFinalMessage(finalMessagePath: string, stdout: string): string {
+  try {
+    return readFileSync(finalMessagePath, "utf8");
+  } catch {
+    return finalText(stdout);
+  }
+}
+
 async function main(): Promise<number> {
   const [storyId, ...only] = process.argv.slice(2);
   if (storyId === undefined || storyId.trim().length === 0) {
@@ -149,7 +228,9 @@ async function main(): Promise<number> {
     return 2;
   }
 
-  loadLocalSecrets(); // CLAUDE_CODE_OAUTH_TOKEN (the driver) + STORYTREE_DB_USER (the record store)
+  // The driver authenticates through the owner's Codex subscription. Do not hydrate an Anthropic
+  // credential merely because the record store needs its own user credential.
+  loadLocalSecrets(process.env, ["STORYTREE_DB_USER"]);
 
   const toplevel = git(["rev-parse", "--show-toplevel"], process.cwd());
   const storyFile = path.join(toplevel, "stories", storyId, "story.md");
@@ -192,6 +273,15 @@ async function main(): Promise<number> {
     );
     return 1;
   }
+
+  const preference = resolveUatDriveProvider(process.env[STORYTREE_UAT_DRIVE_PROVIDER_ENV]);
+  if (!preference.ok) {
+    console.error(`[uat-drive] REFUSED: ${preference.reason}`);
+    return 1;
+  }
+  if (preference.provider === "claude") loadLocalSecrets(process.env, ["CLAUDE_CODE_OAUTH_TOKEN"]);
+  const runtime = preference.provider === "codex" ? verifyCodexRuntime() : verifyClaudeRuntime();
+  if (runtime === null) return 1;
 
   const runId = `uat-drive:${storyId}:${commitSha.slice(0, 10)}:${process.pid}`;
 
@@ -280,6 +370,7 @@ async function main(): Promise<number> {
         cwd: toplevel,
         pool: handle.pool,
         isolation: isolations.get(t.criterionId)!,
+        runtime,
       });
       if (outcome !== null) (outcome.harness ? harnessEnds : findings).push(outcome.line);
     }
@@ -424,6 +515,8 @@ interface DriveContext {
   pool: { query(text: string, values?: unknown[]): Promise<unknown> };
   /** This drive's separation from the launching session — the only thing the child inherits ON PURPOSE. */
   isolation: DriveIsolation;
+  /** A ChatGPT-authenticated Codex executable, checked before any model time is spent. */
+  runtime: DriverRuntime;
 }
 
 /** A drive that did not pass, and whether it says anything about the PRODUCT at all. */
@@ -438,21 +531,33 @@ async function driveOne(target: DriveTarget, prompt: string, ctx: DriveContext):
   log(`— ${target.criterionId}: ${target.title}`);
   log(`  as session "${ctx.isolation.sessionId}" on port ${ctx.isolation.surfacePort}`);
   const t0 = Date.now();
-  const res = spawnSync("claude", ["-p", "--permission-mode", "bypassPermissions", "--output-format", "json"], {
-    cwd: ctx.cwd,
-    input: prompt,
-    encoding: "utf8",
-    shell: true,
-    timeout: DRIVE_TIMEOUT_MS,
-    maxBuffer: 256 * 1024 * 1024,
-    // The ONE seam the isolation travels through. An in-process test cannot answer a spawnSync
-    // child, so `driveChildEnv` is where the property is proved and this line is all that can drift.
-    env: driveChildEnv(process.env, ctx.isolation),
-  });
+  const finalMessagePath = path.join(ctx.isolation.scratchDir, `${target.criterionId}.codex-final.md`);
+  const res =
+    ctx.runtime.provider === "codex"
+      ? spawnSync(ctx.runtime.executable, codexExecArguments(finalMessagePath), {
+          cwd: ctx.cwd,
+          input: prompt,
+          encoding: "utf8",
+          timeout: DRIVE_TIMEOUT_MS,
+          maxBuffer: 256 * 1024 * 1024,
+          env: codexSubscriptionChildEnv(process.env, ctx.isolation),
+        })
+      : spawnSync("claude", ["-p", "--permission-mode", "bypassPermissions", "--output-format", "json"], {
+          cwd: ctx.cwd,
+          input: prompt,
+          encoding: "utf8",
+          shell: true,
+          timeout: DRIVE_TIMEOUT_MS,
+          maxBuffer: 256 * 1024 * 1024,
+          env: claudeSubscriptionChildEnv(process.env, ctx.isolation),
+        });
   const elapsedMinutes = (Date.now() - t0) / 60_000;
   const timedOut = res.error !== undefined && (res.error as NodeJS.ErrnoException).code === "ETIMEDOUT";
 
-  const text = finalText(res.stdout ?? "");
+  const text =
+    ctx.runtime.provider === "codex"
+      ? readCodexFinalMessage(finalMessagePath, res.stdout ?? "")
+      : finalText(res.stdout ?? "");
   const parsed = parseDriveReport(text);
   const end = classifyDriveEnd({
     timedOut,
@@ -511,7 +616,7 @@ async function driveOne(target: DriveTarget, prompt: string, ctx: DriveContext):
     outcome: report.outcome,
     commitSha: ctx.commitSha,
     runId: ctx.runId,
-    driver: DRIVER,
+    driver: ctx.runtime.driver,
     summary: report.summary,
     steps: report.steps,
     escalated: report.escalated,
