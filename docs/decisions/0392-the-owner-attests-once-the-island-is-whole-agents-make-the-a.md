@@ -76,32 +76,66 @@ the increment that made it.** The owner is not being asked to trust a black box 
 to review once, at the end, with the trail available. An unrecorded art call is a violation of this
 decision, not an exercise of it.
 
-**D3 — WHAT "FULL POTENTIAL ON AN ISLAND" MEANS, AS A WORKING DEFINITION.** The owner named the bar
-without enumerating it, and agents cannot execute against an unstated one. This is the
-session's READING of it, assembled from what he has actually said across the arc — *"we still dont
-have flowers etc"* (2026-08-16), *"focus on getting a healthy island looking right"* (2026-08-16),
-shadows as the stated payoff of going 3D (2026-08-16), and *"full potential"* (2026-08-20). It is
-explicitly CORRECTABLE by him and is not a claim about what he meant:
+**D3 — WHAT "FULL POTENTIAL" MEANS: NO KNOWN UNBUILT LEVER REMAINS.** Corrected in place on
+2026-08-20 after the owner read the first version of this section and said what he actually meant:
 
-A single healthy island, rendered live, is at the bar when it carries all of:
+> we have been through many iterations and each time I ask why we can't replicate some of the
+> results we see online its because of something we havn't build or done, each time we make
+> incremental improvements, so rather then me attest each time i think what i'm asking for is make
+> sure what we have done is what we belive to be the fullest possible version of what we trying to
+> achieve before i attest
 
-1. **Land with interior definition.** Today the bare island is a single flat green field with no
-   seams, no variation and no texture — the composition of three separately-correct owner
-   directives. Whatever supplies definition (ground relief, terracing, coast shell, shadow) it can
-   no longer be nothing, because ALL the island's visual interest currently rests on vegetation.
-2. **Shadow.** The stated reason author-time 3D was reopened, and still absent from every island.
-3. **Vegetation** at a settled silhouette, massed as it actually places.
-4. **Flowers** — the UAT criteria markers, named as missing since 2026-08-16 and still missing.
-5. **The hero story tree standing on the land.** It exists, it is signed, and it has never been
-   composited into a live island.
-6. **The coast / shoreline**, so the island has an edge rather than ending.
-7. All of it **at the size it is actually delivered**, on a REAL story's data, not a fixture.
+The first version of D3 was a CHECKLIST OF COMPONENTS — land, shadow, vegetation, flowers, tree,
+coast, real data — inferred from things he had said across the arc. That was the wrong shape, and it
+is worth being precise about why, because the error is instructive: a checklist asks *is everything
+PRESENT?*, and every one of the rejected passes could have answered yes to its own checklist. What
+he is describing is a test on OUR OWN KNOWLEDGE, not on the artefact's inventory.
+
+**THE BAR, STATED AS THE TEST HE ACTUALLY APPLIES.** The attestation may be called only when the
+answer to *"why doesn't this look like &lt;reference&gt;?"* is **NOT** *"because we haven't built X
+yet"*. Every lever the team knows about is either BUILT, or explicitly PRICED OUT and recorded with
+the reason it is not worth its cost. A lever that is merely *unattempted* means the bar is not met,
+and the owner is not asked.
+
+The components in the old list are still needed — but as CONSEQUENCES of this test rather than as
+the test. A missing flower fails the bar because "we haven't built the flowers" is exactly the
+sentence that must not be available, not because a box is unticked.
+
+**WHY THIS IS THE EXPENSIVE FAILURE AND NOT A PEDANTIC ONE.** The pattern the owner named is that
+the agent ALREADY KNEW the work was incomplete at the moment it asked him to look. The verdict he
+gives is therefore spent on a version nobody believed was finished — which makes his look
+worthless as evidence AND wastes the one thing this arc most needs to conserve. The fragment problem
+D1 fixes is about the wrong OBJECT; this is about the wrong MATURITY of the right object. Both
+produce a verdict that cannot be acted on, by different routes.
+
+**WHAT THIS OBLIGES, MECHANICALLY.** Two things, because a bar phrased as a belief is otherwise
+unfalsifiable:
+
+1. **A REFERENCE BOARD.** The arc has never named what it is trying to match. "Results we see
+   online" has been an unstated standard the whole time, which is precisely why "known levers" has
+   meant *whatever the last session happened to think of*. Name the references, and derive the
+   levers from the gap between them and ours.
+2. **A LEVER REGISTER, DISCHARGED BEFORE THE ATTESTATION IS CALLED.** Every known lever, its state —
+   BUILT / PRICED OUT (with the reason) / NOT ATTEMPTED — maintained as the work proceeds. If any
+   entry reads NOT ATTEMPTED, the bar is not met. This is the artefact that makes "the fullest
+   version we believe possible" a claim someone can check rather than a feeling.
+
+**WHAT IT DOES NOT MEAN.** It is not a demand for perfection or for parity with a AAA reference —
+"priced out with the reason" is a first-class, honourable outcome, and the arc has already used it
+correctly several times (hair techniques measured out on delivered pixels, the shadow ladder
+measured inadmissible on a mixed island, grass-as-carpet refused on a number). A lever we have
+LOOKED AT and rejected is DISCHARGED. What is forbidden is the unexamined one, still sitting there,
+known about, while the owner is asked to judge.
 
 **D4 — THE REMAINING INCREMENTS ARE SEQUENCED AGAINST THAT BAR, AND THE HYGIENE ONES ARE NOT
-BLOCKERS.** Of the arc's ten open increments, four serve D3 directly (the island shell/coast, the
-shadow ladder, the ground-displacement sweep, the camera value). Six are correctness or tooling
-work — real, worth doing, and NOT on the path to the attestation. They do not gate it, and a session
-should not treat draining them as progress toward the bar.
+BLOCKERS.** Of the arc's ten pre-existing open increments, four serve the bar directly (the island
+shell/coast, the shadow ladder, the ground-displacement sweep, the camera value). Six are
+correctness or tooling work — real, worth doing, and NOT on the path to the attestation. They do not
+gate it, and a session should not treat draining them as progress toward the bar.
+
+The reference board and lever register D3 obliges come FIRST, not last: they are what turns "known
+levers" from whatever a session happens to recall into a list anyone can audit, and every later
+increment discharges entries from it.
 
 **D5 — THE OWNER IS STILL REACHABLE, FOR EVERYTHING THAT IS NOT AN APPEARANCE VERDICT.** Scope
 questions, semantic changes (anything touching what the art ASSERTS, ADR-0226 / ADR-0367 D5), spend,
@@ -130,10 +164,16 @@ defence, and it is discipline rather than a gate rung (ADR-0168 D1's finding tha
 prices a ceremony toward theater applies here as it does elsewhere). If art calls start landing
 unrecorded, the remedy is to say so loudly, not to reinstate the fragment loop.
 
-**A second risk.** D3 is one session's reading of an unenumerated phrase. If it is wrong, work gets
-spent on the wrong seven things. It is written here explicitly as a working definition precisely so
-that it can be read and corrected cheaply, rather than living implicitly in whatever the next
-session assumes.
+**A second risk, and it already materialised once — which is the argument for having written D3 down
+at all.** The first version of D3 was a component checklist inferred from the owner's past remarks.
+He read it and corrected it the same day: the bar is exhausting known LEVERS, not ticking off
+COMPONENTS. Writing the inference down explicitly, labelled as an inference, is what made that
+correction cost one conversation turn instead of an arc's worth of work aimed at the wrong target.
+The residual risk is the same in kind — the lever register can be incomplete, and a lever nobody
+thought of is invisible to a rule about levers we know about. The reference board is the defence:
+deriving levers from a NAMED gap is harder to fool than deriving them from memory. It is not
+airtight, and the honest statement of the bar is "the fullest version we BELIEVE possible", which is
+what the owner asked for and no more.
 
 **What does NOT change.** The gate, the proof discipline, ADR-0367 D5 (art never asserts a proof
 state the work does not hold), ADR-0226's vocabulary, the four ADR-0380 D6 fences, and the rule that
