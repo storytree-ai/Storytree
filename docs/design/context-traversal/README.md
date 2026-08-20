@@ -64,6 +64,24 @@ This is **not a dashboard**.
 > crowding onto the bottom panel's scarce vertical. Until the LOOK lands, no wide layout may be built —
 > against that proposal or any other.
 
+> **TRIMMED 2026-08-20 by [ADR-0393](../../decisions/0393-the-replay-draws-the-orchestrator-s-own-walk-only-no-prose-n.md)
+> — owner-directed, at the LOOK.** Three things this file describes are no longer drawn, and the
+> paragraph above's "still binds exactly as signed" must be read through them:
+>
+> - **No prose under the picture.** Every explanatory paragraph below the plot is deleted. The panel
+>   stops stating the partial-trace warning, the occupancy remedy, and the offer denominator in
+>   words; `storytree traversal show <sessionId>` still states all three.
+> - **No subagent lanes.** "Parent and subagents occupy linked lanes" below, and acceptance clause 7,
+>   describe a surface that is no longer drawn. The picture is the ORCHESTRATOR'S OWN WALK. The
+>   telemetry is untouched and whether lanes return is deliberately left open.
+> - **No dotted rays in the offer fans, and no dashes in a fan at all.** The unobservable rays are not
+>   drawn; not-followed and ambiguous are SOLID. That last part is this file being ENFORCED rather
+>   than amended — "solid ray not followed" is what it always said, and the stylesheet was drawing a
+>   dash.
+>
+> **The dotted SPINE edge survives unchanged** — a grey dotted edge still means front matter was read
+> without pulling the full body. Offered both dotted elements, the owner named the fan rays only.
+
 The traversal opens from the existing forest:
 
 1. The owner selects a story-node island. *(superseded — ADR-0354 D1)*
