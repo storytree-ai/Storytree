@@ -169,9 +169,17 @@ export interface LocalBackendBackend {
 }
 
 /**
- * The build seam injected into the local backend factory. Wired over the real
- * `routedBuildRunner` (from @storytree/drive) in production; the test passes a stub that
- * returns `isBuildable: false` to pin the 404 path. Optional — when absent, /api/build → 404.
+ * The build seam injected into the local backend factory; the test passes a stub that returns
+ * `isBuildable: false` to pin the 404 path. Optional — when absent, /api/build → 404.
+ *
+ * NOTHING WIRES IT. This was documented as wired over the real `routedBuildRunner` in production, and
+ * that was never true of this seam: `electron/backend-entry.ts` composes the local backend without a
+ * `build` key, so `/api/build` here has always answered 404 outside its own test. ADR-0404 then retired
+ * the desktop's REAL build mount (`createBuildRouteMount`, deleted 2026-08-22) — a different seam from
+ * this one, which the ADR does not name. This branch is therefore inert rather than a live dispatch
+ * surface, and it is left in place because the capability `local-backend-boot` declares a contract over
+ * it (`lb-build-route-reaches-the-injected-runner`); removing it is a work-hierarchy edit, not a
+ * mechanical consequence of ADR-0404.
  */
 export interface LocalBackendBuild {
   isBuildable: (unitId: string) => Promise<boolean>;

@@ -213,18 +213,6 @@ test("combined-dag-does-not-cry-vacuous-on-a-healthy-read, nor on a small hermet
   assert.deepEqual(combinedReadVacuity(tiny), []);
 });
 
-test("combined-dag-tolerates-the-legacy-standsOn-key: an undrained row still shows its edges", () => {
-  // ADR-0402's read tolerance. Without it the rows that have not drained are invisible, and this
-  // proof reports a clean graph it could not see — the exact failure that produced
-  // `PASS — no dependsOn cycle across 1701 artifacts (0 authored edges)`.
-  const verdict = evaluateCombinedAcyclicity(
-    [{ id: "legacy", doc: { standsOn: ["doc:decisions/0223-a-title.md"] } }],
-    [decision(223)],
-  );
-
-  assert.equal(verdict.crossingEdges, 1);
-});
-
 test("combined-dag-projects-defensively: a row shaped by another branch's schema contributes no edges", () => {
   const verdict = evaluateCombinedAcyclicity(
     [

@@ -33,7 +33,6 @@ import {
   readTreeWithCaps,
   foldVerdicts,
   applyCapCoverage,
-  applyStoryGoGreenProof,
   type DTStory,
   type DTVerdictEvent,
 } from "./tree-verdicts.js";
@@ -160,14 +159,17 @@ test("tree-verdicts: readTreeWithCaps reads full capabilities + the per-story UA
   }
 });
 
-// A missing stories dir returns an empty tree gracefully (never throws) — the offline/empty path.
-// The EXEMPLAR is `terminal-tabs`, not `map-terminal-build`, since ADR-0404 (2026-08-21). What this
-// test pins is the desktop mirror's AGREEMENT with the studio resolver on a real corpus story —
-// `isStoryBuildable` / `storyGoGreen` computed server-side — and any proposed story whose every
-// capability carries a `real:` arm exercises that identically. `map-terminal-build` was retired with
-// the Build affordance it described, and a retired story is exactly the wrong shape here: it derives
-// `storyBuildable: false`, so it would assert the fallback rather than the canonical path.
-test("tree-verdicts: a proposed all-real story exposes the canonical real-build affordance", async () => {
+// The desktop mirror reads a REAL corpus story off disk — id, status and the loaded capability list —
+// so a resolver change that silently stopped loading capabilities is caught against live data rather
+// than a fixture. The EXEMPLAR is `terminal-tabs`, moved here from `map-terminal-build` by ADR-0404
+// (2026-08-21) when that story was retired with the Build affordance it described.
+//
+// This test also asserted the mirror's AGREEMENT with the studio resolver on `storyBuildable` /
+// `goGreen`. ADR-0404 D4 removed both fields from the tree payload along with the Build/Adopt panel
+// that was their only consumer, so there is no affordance left to agree on; the predicates themselves
+// (`isStoryBuildable` / `storyGoGreen`) are untouched in @storytree/orchestrator and keep their tests
+// there.
+test("tree-verdicts: a real corpus story loads with its capabilities over the desktop mirror", async () => {
   const here = path.dirname(fileURLToPath(import.meta.url));
   const storiesDir = path.resolve(here, "../../../../stories");
   const { stories } = await readTreeWithCaps(storiesDir);
@@ -178,40 +180,8 @@ test("tree-verdicts: a proposed all-real story exposes the canonical real-build 
   assert.deepEqual(
     exemplar.capabilities.map((capability) => capability.id),
     ["multi-session-tabs", "seed-opens-new-tab"],
-    "the exact two-capability story is loaded before deriving story buildability",
+    "the exact two-capability story is loaded off disk by the desktop mirror",
   );
-  assert.equal(
-    exemplar.storyBuildable,
-    true,
-    "the desktop mirror agrees that story build --real has work to drive",
-  );
-  assert.equal(
-    exemplar.goGreen,
-    "build",
-    "the desktop mirror surfaces the canonical Build affordance for this proposed story",
-  );
-});
-
-test("tree-verdicts: a signed green crown clears the file-derived story affordance", () => {
-  const story = {
-    id: "proven-proposal",
-    title: "Proven proposal",
-    outcome: "done",
-    status: "proposed",
-    proofMode: "UAT",
-    uatWitness: "machine",
-    dependsOn: [],
-    consumedBy: [],
-    storyBuildable: true,
-    goGreen: "build",
-    verdict: { outcome: "pass", at: TS },
-    capabilities: [],
-  } satisfies DTStory;
-
-  applyStoryGoGreenProof([story]);
-
-  assert.equal(story.goGreen, "none", "a proven story does not keep offering Build");
-  assert.equal(story.storyBuildable, true, "proof does not rewrite the build mechanism predicate");
 });
 
 test("tree-verdicts: readTreeWithCaps over a missing dir returns an empty tree", async () => {

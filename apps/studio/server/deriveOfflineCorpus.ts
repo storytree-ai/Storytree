@@ -66,7 +66,6 @@ export async function deriveOfflineAssets(units: KnowledgeUnitLike[]): Promise<G
     references: doc.references ?? [],
     // Absent-by-default, never `?? []` — an empty array would claim "authored, and it stands on
     // nothing", which is a different fact from "carries no authored edge" (ADR-0223's optional rule).
-    // ADR-0402 read tolerance, TEMPORARY — remove after the batch drain (depends-on-compat.ts).
     ...(hasDependsOnKey(doc) ? { dependsOn: readDependsOnPointers(doc) } : {}),
     ...(doc.provenance !== undefined ? { provenance: doc.provenance } : {}),
     createdAt: doc.createdAt ?? '',

@@ -1,6 +1,6 @@
 // devServerResilience — a last-resort process guard for the OPEN localhost dev front (devApi.ts).
 //
-// THE BUG IT FIXES (the "Adopt kills localhost" incident, 2026-06-26): the dev server runs the
+// THE BUG IT FIXED (the "Adopt kills localhost" incident, 2026-06-26): the dev server RAN the
 // build/adopt worker IN-PROCESS, fire-and-forget (apiRouter `handleAdopt`/`handleBuild` → `runBuildJob`).
 // `runBuildJob` is careful to never *throw* — but a try/catch around `await runner(...)` only catches the
 // AWAITED rejection. A worker job, by design, spawns test subprocesses, holds pg pools/connectors, and
@@ -11,11 +11,18 @@
 // down with it: localhost dies mid-run, the in-memory run registry is lost, the UI "clears."
 //
 // The fix: install process-level handlers so such a fault LOGS (loudly, with its stack) and the dev
-// server SURVIVES. This is a deliberate DEV-ONLY posture — the in-process worker exists only on this open
-// localhost front; the hosted server (serve.ts) wires no worker and keeps crash-on-fault semantics. For a
-// dev tool the alternative (the whole server dying, the operator losing their session) is strictly worse
-// than surviving-and-logging, even though an uncaught exception leaves the faulting JOB in an undefined
-// state — the job already terminalises as `failed`, and the loud log keeps the underlying bug visible.
+// server SURVIVES. For a dev tool the alternative (the whole server dying, the operator losing their
+// session) is strictly worse than surviving-and-logging, and the loud log keeps the underlying bug
+// visible.
+//
+// ADR-0404 (2026-08-22) RETIRED THE ORIGINATING CAUSE and this guard is deliberately KEPT. The
+// build/adopt routes and the in-process worker described above are gone — dispatching a build is a CLI
+// verb — so the specific fault that motivated this can no longer arise here. What has NOT changed is the
+// shape of the risk: the dev front still does long-lived in-process async work (pg pools and connectors
+// through the library backend, the traversal-index prime), and any of it can still surface a
+// process-level `unhandledRejection` that no surrounding try/catch can reach. So the posture stands on
+// its own merits rather than on the worker, and this note exists so the next reader does not delete the
+// guard on the strength of a rationale that names a retired route.
 
 /** The narrow logger seam this needs — satisfied by Vite's `server.config.logger` and by `console`. */
 export interface ResilienceLogger {

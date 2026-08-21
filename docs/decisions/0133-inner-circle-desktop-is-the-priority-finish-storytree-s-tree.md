@@ -72,8 +72,14 @@ Two groundings shape the decision:
    (`electron/backend-entry.ts`), reusing the `BuildContext` wiring `devApi.ts` already uses (lazy
    `@storytree/drive/build`; `@storytree/orchestrator` discovery for `isBuildable`). ADR-0155 later
    retired the separate chat accept→dispatch route while leaving the shared worker and `/api/build`
-   route intact. This build-mount mechanism remains local; its proof writes follow ADR-0180's
-   brokered path. Owner first-party CLI/store tooling remains direct under ADR-0117.
+   route intact. **The MOUNT half is now retired too (ADR-0404, 2026-08-22): dispatching a build is a
+   CLI verb, so `createBuildRouteMount` and the desktop `POST`/`GET /api/build` were deleted along with
+   the studio's route pair and `devApi.ts`'s wiring.** The RELOCATION half of this decision STANDS and
+   is what survives: `BuildRegistry` / `runBuildJob` / `routedBuildRunner` and the `BuildContext` type
+   live in `@storytree/drive` exactly as decided here, importing nothing from `apps/*` — the CLI drives
+   that worker, and ADR-0404 D6 fences it explicitly. (`dispatchAcceptedBuild`, named in the relocation
+   list above, was separately deleted by ADR-0404 d.5 — caller-less since ADR-0175.) Its proof writes
+   follow ADR-0180's brokered path. Owner first-party CLI/store tooling remains direct under ADR-0117.
 
 4. **De-prioritize the hosted Cloud Run studio (ADR-0042) — not removed.** It remains the read/comment
    members surface, but the **desktop** is where the build-capable inner-circle work happens. The

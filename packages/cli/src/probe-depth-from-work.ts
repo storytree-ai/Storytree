@@ -81,7 +81,6 @@ async function main(): Promise<void> {
       const payload = stored.doc as { cites?: unknown } | null | undefined;
       return {
         id: stored.id,
-        // ADR-0402 read tolerance, TEMPORARY — remove after the batch drain (depends-on-compat.ts).
         // THE TOLERANCE BELONGS ON BOTH SIDES, and that does not make them agree by construction:
         // each side exists to MIRROR a real reader — this one `dependsOnNodes` (the gate rung), the
         // other `renderStoredDoc` (the browser wire) — and both of those are now tolerant. Making
