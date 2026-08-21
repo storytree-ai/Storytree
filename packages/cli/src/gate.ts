@@ -319,7 +319,12 @@ async function gateRun(
     `  kind: ${gate.kind}`,
     `  command: ${gate.proofCommand}`,
     `  signer: ${result.verdict.signer} (the spine principal — the machine that witnessed the green)`,
-    `  approvedBy: ${resolved.signer} (who decided to adopt it)`,
+    // Printed from what was actually SIGNED, never from the resolved chain — so this line can never
+    // name an approver the verdict does not carry. A reliability gate always carries one (ADR-0097
+    // d.4); a machine UAT leg never does (ADR-0408), and this path stays honest either way.
+    result.verdict.approvedBy === undefined
+      ? "  approvedBy: none — machine-witnessed only; no human approval was required (ADR-0408)"
+      : `  approvedBy: ${result.verdict.approvedBy} (who decided to adopt it)`,
     `  commit: ${git.commitSha.slice(0, 7)}`,
     `  proof mode: adopted (a real machine verdict in events.verdict — observed green, no prior red)`,
     "",

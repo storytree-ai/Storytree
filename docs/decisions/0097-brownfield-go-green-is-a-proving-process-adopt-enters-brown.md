@@ -132,6 +132,14 @@ only an author-declared human UAT ([ADR-0040](0040-verdict-derived-green-and-the
 / [ADR-0082](0082-per-test-uat-tests-earn-green-by-declared-witness-story-uat.md)). The adoption
 **decision** is a separate human act, always required to enter the process.
 
+> **Scope, narrowed by [ADR-0408](0408-a-machine-witnessed-acceptance-leg-carries-no-human-approver.md)
+> (2026-08-21, owner-directed).** *"Always required"* binds the BROWNFIELD adoption decision — judging
+> an unproven suite good enough to trust, which is risk being accepted on work the system did not
+> produce, and which stays fail-closed. It does **not** bind the recording of a machine-witnessed
+> acceptance leg on a story already in the fold: that leg's check was already declared and already
+> bound to that journey, so its verdict carries NO `approvedBy` at all. The witness clause above is
+> untouched — the spine signs both, never the clicker and never a model.
+
 **5. A brownfield capability greens via the adopted gate that COVERS it; an uncovered/untested cap keeps
 the story `proposed`.** `rollupStoryGreen` requires every capability `healthy`, but a brownfield cap has
 no per-cap driven verdict. A `mapped` story's capability clause is satisfied per-cap by EITHER the cap's

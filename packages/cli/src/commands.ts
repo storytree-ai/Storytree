@@ -3699,7 +3699,8 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
   if (area === "adopt") {
     // ADR-0097 / ADR-0106 — the brownfield ADOPTION surface. `adopt <story> --pg` RUNS the adoption
     // (observe-and-sign the `observe` reliability gates + machine UAT legs → `adopted` verdicts, then
-    // flip `mapped → proposed`) — the SAME engine the studio's Adopt button drives (adoptStory). `adopt
+    // flip `mapped → proposed`) via `adoptStory` — since ADR-0404 retired the SPA's Adopt dispatch
+    // surface, this is the only caller. `adopt
     // plan <story>` is the offline adoption-plan classification (ADR-0097 Layer 2). The store / git /
     // observe / signer / status-flip seams mirror `gate` (the verdict store is the same PgWorkStore under
     // --pg). ADR-0118: the OBSERVE gate primitive now nests here as `adopt gate <story>#gate-<n>`
