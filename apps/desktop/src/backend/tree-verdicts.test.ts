@@ -33,6 +33,7 @@ import {
   readTreeWithCaps,
   foldVerdicts,
   applyCapCoverage,
+  applyStoryGoGreenProof,
   type DTStory,
   type DTVerdictEvent,
 } from "./tree-verdicts.js";
@@ -160,6 +161,53 @@ test("tree-verdicts: readTreeWithCaps reads full capabilities + the per-story UA
 });
 
 // A missing stories dir returns an empty tree gracefully (never throws) — the offline/empty path.
+test("tree-verdicts: the proposed map-terminal-build story exposes the canonical real-build affordance", async () => {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const storiesDir = path.resolve(here, "../../../../stories");
+  const { stories } = await readTreeWithCaps(storiesDir);
+  const mapTerminalBuild = stories.find((story) => story.id === "map-terminal-build");
+
+  assert.ok(mapTerminalBuild, "the current map-terminal-build story is present");
+  assert.equal(mapTerminalBuild.status, "proposed", "the exact UAT-red story shape remains proposed");
+  assert.deepEqual(
+    mapTerminalBuild.capabilities.map((capability) => capability.id),
+    ["compose-build-command", "map-build-seeds-terminal"],
+    "the exact two-capability story is loaded before deriving story buildability",
+  );
+  assert.equal(
+    mapTerminalBuild.storyBuildable,
+    true,
+    "the desktop mirror agrees that story build --real has work to drive",
+  );
+  assert.equal(
+    mapTerminalBuild.goGreen,
+    "build",
+    "the desktop mirror surfaces the canonical Build affordance for this proposed story",
+  );
+});
+
+test("tree-verdicts: a signed green crown clears the file-derived story affordance", () => {
+  const story = {
+    id: "proven-proposal",
+    title: "Proven proposal",
+    outcome: "done",
+    status: "proposed",
+    proofMode: "UAT",
+    uatWitness: "machine",
+    dependsOn: [],
+    consumedBy: [],
+    storyBuildable: true,
+    goGreen: "build",
+    verdict: { outcome: "pass", at: TS },
+    capabilities: [],
+  } satisfies DTStory;
+
+  applyStoryGoGreenProof([story]);
+
+  assert.equal(story.goGreen, "none", "a proven story does not keep offering Build");
+  assert.equal(story.storyBuildable, true, "proof does not rewrite the build mechanism predicate");
+});
+
 test("tree-verdicts: readTreeWithCaps over a missing dir returns an empty tree", async () => {
   const { stories, uatTestCriteriaByStory } = await readTreeWithCaps("/tmp/tree-verdicts-no-such-dir-xyzzy");
   assert.deepEqual(stories, [], "no stories");
