@@ -412,6 +412,86 @@ export const UAT_DRIVE_BACKGROUND_RESULT_RECONCILIATION_CLAUSE = [
   "    the tool outcome is unresolved rather than inventing a cutoff.",
 ].join("\n");
 
+/**
+ * Terminal display churn is not execution evidence. A seeded command can be echoed while cursor and
+ * control sequences change around it without any process ever starting; the Map Terminal trace that
+ * prompted this rule contained 43 such snapshots. Keep the rule separately auditable so a prompt
+ * cannot silently regress to treating raw text inequality as progress.
+ */
+export const UAT_DRIVE_PROGRESS_EVIDENCE_CLAUSE = [
+  "Execution-progress evidence - a changed terminal picture is not a started process:",
+  "",
+  "  - Input echo, cursor movement, selection, focus, and terminal control-sequence changes are",
+  "    diagnostics only. Even repeated changed snapshots do NOT prove execution began.",
+  "  - Say execution began only after durable semantic terminal output appears, or after evidence",
+  "    naming the exact process/tool identity shows it running or ended, or its exact result artifact",
+  "    is complete. Evidence about a later probe or another process does not count.",
+  "  - When none of those exists, report the start as unresolved/not-started. Do not convert display",
+  "    churn into a product duration, hang, host termination, pass, or fail.",
+].join("\n");
+
+export interface DriveExecutionProgressEvidence {
+  /** The process/tool identity whose start is being classified. */
+  readonly expectedProcessId: string;
+  /** Raw display inequality is diagnostic only: input/cursor/control churn commonly sets this. */
+  readonly rawTerminalChanged: boolean;
+  /** Durable semantic output, with input echo and terminal control sequences already excluded. */
+  readonly semanticTerminalOutput: string;
+  /** Exact process evidence, when the runtime exposes it. */
+  readonly process?: {
+    readonly processId: string;
+    readonly outcome: "running" | "completed" | "failed" | "host-terminated" | "unknown";
+  };
+  /** Exact persisted result evidence, when the tool authors one. */
+  readonly result?: { readonly processId: string; readonly complete: boolean };
+}
+
+export type DriveExecutionProgress =
+  | { readonly kind: "started"; readonly executionBegan: true; readonly reason: string }
+  | { readonly kind: "unresolved" | "not-started"; readonly executionBegan: false; readonly reason: string };
+
+/** PURE: only semantic output or exact process/result identity can prove that execution began. */
+export function classifyDriveExecutionProgress(
+  evidence: DriveExecutionProgressEvidence,
+): DriveExecutionProgress {
+  if (evidence.semanticTerminalOutput.trim().length > 0) {
+    return {
+      kind: "started",
+      executionBegan: true,
+      reason: "durable semantic terminal output proves execution began",
+    };
+  }
+  if (
+    evidence.process?.processId === evidence.expectedProcessId &&
+    evidence.process.outcome !== "unknown"
+  ) {
+    return {
+      kind: "started",
+      executionBegan: true,
+      reason: "exact process identity evidence proves execution began",
+    };
+  }
+  if (evidence.result?.processId === evidence.expectedProcessId && evidence.result.complete) {
+    return {
+      kind: "started",
+      executionBegan: true,
+      reason: "an exact completed result artifact proves execution began",
+    };
+  }
+  if (evidence.rawTerminalChanged) {
+    return {
+      kind: "unresolved",
+      executionBegan: false,
+      reason: "input, cursor, or control-only terminal change does not prove execution began",
+    };
+  }
+  return {
+    kind: "not-started",
+    executionBegan: false,
+    reason: "no semantic terminal output or exact process/result evidence proves execution began",
+  };
+}
+
 export type BackgroundToolResultState = "absent" | "complete";
 export type BackgroundToolProcessOutcome = "completed" | "failed" | "host-terminated" | "unknown";
 
@@ -545,6 +625,8 @@ export function uatDriveTaskPrompt(spec: UatDriveSpec): string {
     "",
     UAT_DRIVE_BACKGROUND_RESULT_RECONCILIATION_CLAUSE,
     "",
+    UAT_DRIVE_PROGRESS_EVIDENCE_CLAUSE,
+    "",
     uatDriveIsolationClause(spec.isolation),
     "",
     UAT_DRIVE_AUTONOMY_CLAUSE,
@@ -630,6 +712,9 @@ export function auditDrivePrompt(prompt: string, spec: UatDriveSpec): DrivePromp
   if (!prompt.includes(UAT_DRIVE_TOOLING_CLAUSE)) missing.push("the tooling clause");
   if (!prompt.includes(UAT_DRIVE_BACKGROUND_RESULT_RECONCILIATION_CLAUSE)) {
     missing.push("the background-tool result reconciliation clause");
+  }
+  if (!prompt.includes(UAT_DRIVE_PROGRESS_EVIDENCE_CLAUSE)) {
+    missing.push("the execution-progress evidence clause");
   }
   if (!prompt.includes(uatDriveIsolationClause(spec.isolation))) missing.push("the isolation clause");
   // The `surface` field lives in the REPORT CONTRACT, not the isolation clause, so the clause check
@@ -1208,6 +1293,40 @@ export const UAT_DRIVE_SCRATCH_ENV = "STORYTREE_DRIVE_SCRATCH";
 /** The env var carrying the commit this drive is pinned to — the standard the surface check holds to. */
 export const UAT_DRIVE_COMMIT_ENV = "STORYTREE_DRIVE_COMMIT";
 
+/** Absolute runner-owned drive timing, exported so child tools cannot invent a smaller budget. */
+export const UAT_DRIVE_START_AT_ENV = "STORYTREE_DRIVE_START_AT";
+export const UAT_DRIVE_REPORT_BY_ENV = "STORYTREE_DRIVE_REPORT_BY";
+export const UAT_DRIVE_DEADLINE_AT_ENV = "STORYTREE_DRIVE_DEADLINE_AT";
+
+/** The normal combined report/cleanup reserve; short custom ceilings reserve 20% instead. */
+export const UAT_DRIVE_REPORT_CLEANUP_BUFFER_MINUTES = 2;
+
+export interface DriveTiming {
+  readonly startAt: string;
+  readonly reportBy: string;
+  readonly deadlineAt: string;
+  readonly reportCleanupBufferMinutes: number;
+}
+
+/** PURE: stamp one authoritative absolute timeline from the runner's clock. */
+export function createDriveTiming(startMs: number, ceilingMinutes: number): DriveTiming {
+  if (!Number.isFinite(startMs) || !Number.isFinite(ceilingMinutes) || ceilingMinutes <= 0) {
+    throw new Error("drive timing requires a finite start and a positive wall-clock ceiling");
+  }
+  const reportCleanupBufferMinutes = Math.min(
+    UAT_DRIVE_REPORT_CLEANUP_BUFFER_MINUTES,
+    ceilingMinutes * 0.2,
+  );
+  const deadlineMs = startMs + ceilingMinutes * 60_000;
+  const reportByMs = deadlineMs - reportCleanupBufferMinutes * 60_000;
+  return {
+    startAt: new Date(startMs).toISOString(),
+    reportBy: new Date(reportByMs).toISOString(),
+    deadlineAt: new Date(deadlineMs).toISOString(),
+    reportCleanupBufferMinutes,
+  };
+}
+
 /**
  * PURE: the out-of-tree scratch directory for one run.
  *
@@ -1357,6 +1476,12 @@ export interface DriveIsolation {
   readonly scratchDir: string;
   /** The wall-clock ceiling, in minutes, after which the harness kills the walk. */
   readonly ceilingMinutes: number;
+  /** Absolute runner clock: product work and child waits are bounded by reportBy, not a guessed timer. */
+  readonly startAt: string;
+  readonly reportBy: string;
+  readonly deadlineAt: string;
+  /** Time reserved after reportBy for authoring the report and cleaning up child resources. */
+  readonly reportCleanupBufferMinutes: number;
 }
 
 /**
@@ -1385,6 +1510,9 @@ export function driveChildEnv(
   // keeps the driver from choosing its own expectation: a check whose standard the caller supplies
   // proves whatever the caller wanted, which is the instructed-not-enforced shape being closed here.
   env[UAT_DRIVE_COMMIT_ENV] = iso.commitSha;
+  env[UAT_DRIVE_START_AT_ENV] = iso.startAt;
+  env[UAT_DRIVE_REPORT_BY_ENV] = iso.reportBy;
+  env[UAT_DRIVE_DEADLINE_AT_ENV] = iso.deadlineAt;
   return env;
 }
 
@@ -1422,9 +1550,14 @@ export function uatDriveIsolationClause(iso: DriveIsolation): string {
     "    no surface is honest; a drive that walks somebody else's is not.",
     `  - Write every screenshot, trace, log and scratch file under ${iso.scratchDir} — it is outside the`,
     "    repository and already exists. Anything you leave in the tree REFUSES the next drive.",
-    `  - You have ${iso.ceilingMinutes} minutes of wall clock, total, and the harness KILLS you at it. Budget`,
-    "    against that: a walk that outlives its own session reports nothing at all, which is a harness",
-    "    failure that teaches nobody anything. If the journey cannot fit, stop early and report `fail`",
-    "    naming the ceiling.",
+    "  - The runner owns this absolute timeline; do not replace it with a self-chosen duration:",
+    `    - startAt: ${iso.startAt}`,
+    `    - reportBy: ${iso.reportBy} - stop product work here; every wait and tool timeout must end by reportBy.`,
+    `    - deadlineAt: ${iso.deadlineAt} - the harness kills the whole drive here.`,
+    `  - The ${iso.ceilingMinutes}-minute ceiling reserves ${iso.reportCleanupBufferMinutes} minutes for report and cleanup`,
+    "    after reportBy. At reportBy, stop waiting, reconcile exact process/result evidence, clean up",
+    "    child resources, and emit the report. A walk that reaches deadlineAt reports nothing at all,",
+    "    which is a harness failure that teaches nobody anything. If the journey cannot fit before",
+    "    reportBy, stop early and report `fail` naming the authoritative boundary.",
   ].join("\n");
 }
