@@ -126,8 +126,13 @@ const MAX_SCAN_DEPTH = 6;
  * Every `*.jsonl` at or below `dir`, to {@link MAX_SCAN_DEPTH} directory levels, never following
  * anything that is not a real directory. Unreadable directories degrade to "no files found there"
  * rather than throwing, so one unreadable project cannot blind the whole scan.
+ *
+ * EXPORTED so the decision-read ingest (`ingest-decision-reads.ts`) walks the SAME tree at the SAME
+ * bound rather than growing a second walk beside it — a duplicate walk is how one of them ends up
+ * fixed and the other left at the depth-1 bound that once hid every subagent transcript. The depth
+ * rule itself belongs to {@link MAX_SCAN_DEPTH} above and is not this export's to vary.
  */
-function collectTranscriptFiles(dir: string, maxDepth: number = MAX_SCAN_DEPTH): string[] {
+export function collectTranscriptFiles(dir: string, maxDepth: number = MAX_SCAN_DEPTH): string[] {
   const files: string[] = [];
 
   const visit = (current: string, depth: number): void => {
