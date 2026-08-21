@@ -48,10 +48,21 @@ const JOB_SECONDS = 4;
 /** The launcher must return well inside this. It does no work beyond one spawn. */
 const LAUNCH_CEILING_MS = 3000;
 
-function withTempDir<T>(fn: (dir: string) => T): T {
+/**
+ * AWAITS the body before cleaning up, and that `await` is load-bearing rather than tidy.
+ *
+ * The sync version of this helper (`try { return fn(dir) } finally { rmSync(dir) }`) returns the
+ * body's PROMISE and then deletes the directory immediately — while a detached child is still
+ * writing into it. On Windows the child usually won this race; on Linux it lost, and CI failed with
+ * `null !== '3'`: `tee` had already created the log, `rmSync` removed the whole directory out from
+ * under it, and the `printf > "$exit_file"` four seconds later had nowhere to land. The job had run
+ * perfectly; the test had deleted the evidence. Exactly the shape these tests exist to catch — work
+ * that outlives the thing that started it — reproduced by accident in the harness.
+ */
+async function withTempDir<T>(fn: (dir: string) => Promise<T> | T): Promise<T> {
   const dir = mkdtempSync(path.join(os.tmpdir(), "st-gate-bg-launch-"));
   try {
-    return fn(dir);
+    return await fn(dir);
   } finally {
     rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   }
@@ -95,10 +106,10 @@ test("the launcher returns before the job does, and the job survives its exit", 
   });
 });
 
-test("the launcher's exit code reports the LAUNCH, never the job's verdict", () => {
+test("the launcher's exit code reports the LAUNCH, never the job's verdict", async () => {
   // It cannot report a verdict it returns before hearing. 0 = dispatched. The job's real status is
   // in `<log>.exit`, and the assertion above shows a job that exits 7 still leaves a 7 there.
-  withTempDir((dir) => {
+  await withTempDir((dir) => {
     const log = path.join(dir, "run.log");
     const res = spawnSync(process.execPath, [launcher, "sh", "-c", "exit 7"], {
       encoding: "utf8",
@@ -135,7 +146,14 @@ test("a PIPE on the launcher's stdout no longer holds the run — the measured r
       elapsed < LAUNCH_CEILING_MS,
       `a piped launch must still return at once; it took ${String(elapsed)}ms`,
     );
-    assert.equal(await awaitSentinel(`${log}.exit`), "3", "and the piped-launch job still completed");
+    assert.equal(
+      await awaitSentinel(`${log}.exit`),
+      "3",
+      // The pipeline's own output is carried into the message: a bare `null !== '3'` says only that
+      // no sentinel appeared, which is true of a launcher that failed to start, a job that was
+      // killed, and a directory that vanished underneath it. They need different fixes.
+      `and the piped-launch job still completed — pipeline said: ${res.stdout}${res.stderr}`,
+    );
   });
 });
 
