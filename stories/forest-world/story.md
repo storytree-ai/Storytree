@@ -13,7 +13,7 @@ uat_witness: machine
 # `forest-world-capability-floor` proposal): ONE capability standing for the render core — the geometry
 # KERNEL (mesh / coast / ranking / hex / sizing) plus the deterministic trail router and the
 # framework-agnostic SCENE-GRAPH (`scene.ts`, buildScene over the core's own SceneInput contract), all
-# BUILT in this core — with a separately observed 122-test suite, while its seven declared leaf
+# BUILT in this core — with a separately observed 122-test suite, while its eight declared leaf
 # contracts drive the map's algorithmically compressed flora density (an empty contract list painted
 # forest-world a bare sapling despite its real suite). The three thin mappers (studio React;
 # website string-SVG, synced; R3F, packages/forest-world-r3f) live with their surfaces/packages, proven
@@ -149,7 +149,7 @@ from signed proof (ADR-0020 / ADR-0040 / ADR-0395).
    capability, [`render-core`](render-core.md), standing for the whole core (the geometry kernel + the
    deterministic trail router + the framework-agnostic scene-graph, `scene.ts` — `buildScene` over the
    core's own `SceneInput` contract → typed drawables), with a separately observed 122-test suite,
-   while its seven declared leaf contracts drive the algorithmically compressed flora density. The
+   while its eight declared leaf contracts drive the algorithmically compressed flora density. The
    three thin mappers still live OUTSIDE it,
    proven with their surfaces/packages: the **studio** React mapper (`worldToScene`,
    `apps/studio/src/components/TreeView.tsx`), the **website** string-SVG mapper (over the synced

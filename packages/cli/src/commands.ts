@@ -45,6 +45,7 @@ import type {
   UatWitnessCensusStory,
 } from "@storytree/library";
 import {
+  analyzeObservedTests,
   loadNodeSpec,
   findNodeSpecFile,
   readTestSurface,
@@ -133,12 +134,15 @@ import {
 import { factoryHealth, factoryHelp } from "./factory.js";
 import type { CommitRec, DetachedSpawn } from "@storytree/drive";
 import type { AdoptPlanStory } from "./adopt-plan.js";
+import { contractlessCommand, type BehaviourClaimUnit } from "./coverage-claims.js";
 import { coverageCommand, coverageTotalsCommand, type CoverageUnit } from "./coverage.js";
 import { evaluateCoverageDrain } from "./coverage-drain.js";
 import {
   classifyGateCoverage,
   projectCoverageGaps,
+  sweepCapabilitySurfaces,
   sweepRealBuildCoverage,
+  toRepoRelative,
 } from "./coverage-gate.js";
 // ADR-0317 D2 — the subtree-grain ownership map + its disk-walk totality report (report-only).
 import { gatherFromDisk, ownershipCommand, ownershipHelp } from "./ownership.js";
@@ -1566,7 +1570,7 @@ async function topHelp(store: Store): Promise<Envelope> {
       "  noticeboard      the claim ledger (ADR-0200/0033) — view | declare | done | claim | upgrade | downgrade | release | claims",
       "  branch next      a branch dies on merge (ADR-0142) — succeed a dead branch: fresh cut + re-declare",
       "  worktree         create (the claim-gated workspace ceremony, ADR-0200 D3) | prune (reap dead worktrees, ADR-0142/0033)",
-      "  coverage         does every declared contract have an observed test? the coverage-honesty check (ADR-0020); --totals for the whole corpus",
+      "  coverage         does every declared contract have an observed test? the coverage-honesty check (ADR-0020); --totals for the whole corpus, --contractless for the inverse (which node claims this test?)",
       "  drift            is a proof's bound code still fresh? the binding-staleness flag (ADR-0016)",
       "  adr              search the decision log (adr list) + allocate numbers (ADR-0050/0086)",
       "  arc              the initiative overlay (ADR-0183) — an arc reveals its increments/stories/ADRs by query",
@@ -1703,8 +1707,22 @@ function coverageHelp(): Envelope {
       "inside `pnpm -r test`, which names these numbers only when it REDS; this is how you ask on a",
       "green run without hand-rolling a sweep script (two of whose traps return a false CLEAN).",
       "NEVER SUM THE TWO: uncovered counts CONTRACTS, unbound counts CAPABILITIES.",
+      "",
+      "--contractless answers the OTHER DIRECTION, and it is a different question again: not 'is this",
+      "spec under-covered?' but 'which node CLAIMS this running assertion?' — what an ADR-0294 D2",
+      "deletion has to answer, since a story-UAT criterion may be deleted only by NAMING the lower-tier",
+      "node that already proves it. Pass a TEST PATH and it reports every capability whose proof surface",
+      "includes that file; pass a capability id for its whole surface; pass neither for the corpus.",
+      "A CONTRACTLESS behaviour is NOT a defect and NOT a worklist row — most unit tests are steps",
+      "inside a contract, and draining the list would mean one contract per test. It means only that a",
+      "citation resting on that behaviour has no node to name and must quote a test title. Exits 0.",
     ].join("\n"),
-    next: ["storytree tree", "storytree coverage --totals", "storytree coverage <capability-id>"],
+    next: [
+      "storytree tree",
+      "storytree coverage --totals",
+      "storytree coverage --contractless",
+      "storytree coverage <capability-id>",
+    ],
   };
 }
 
@@ -2079,6 +2097,35 @@ function walkTestFiles(absDir: string): string[] {
     // A missing / unreadable directory yields no test files.
   }
   return out;
+}
+
+/**
+ * Every scanned capability's proof surface parsed for the INVERSE report (`coverage --contractless`):
+ * the declared contract ids plus, per test file, the observed tests in it.
+ *
+ * It walks `sweepCapabilitySurfaces` — the SAME resolution `check:coverage`'s sweep uses — on purpose.
+ * An inverse report over a different file set would answer a different question from the one the
+ * coverage report answers while appearing to be its mirror, and the two disagreeing about what they
+ * are looking at is the fault this instrument exists to make visible, not one to reproduce.
+ *
+ * Per-FILE rather than one flat list, because the useful form of the question is asked of a file: an
+ * ADR-0294 D2 author holds a running test and needs the node that claims it. An unreadable file
+ * contributes no tests (fail-closed — silence about a file is never a claim about it).
+ */
+function loadBehaviourClaimUnits(storiesDir: string, root: string): BehaviourClaimUnit[] {
+  const toRel = toRepoRelative(root);
+  return sweepCapabilitySurfaces(storiesDir, root).surfaces.map((surface) => ({
+    unitId: surface.unitId,
+    tier: surface.tier,
+    contractIds: surface.contractIds,
+    files: surface.absTestFiles.map((abs) => {
+      try {
+        return { file: toRel(abs), observed: analyzeObservedTests(readFileSync(abs, "utf8")) };
+      } catch {
+        return { file: toRel(abs), observed: [] };
+      }
+    }),
+  }));
 }
 
 /**
@@ -2527,6 +2574,9 @@ export const CLI_OPTIONS = {
   fix: { type: "boolean", default: false },
   // `storytree coverage --totals` — the whole-corpus backlog against both ceilings, on any run.
   totals: { type: "boolean", default: false },
+  // `storytree coverage --contractless` — the INVERSE report (test => contract): which asserted
+  // behaviours does a declared contract claim? The direction ADR-0294 D2's honesty wall needs.
+  contractless: { type: "boolean", default: false },
   live: { type: "boolean", default: false },
   real: { type: "boolean", default: false },
   "emit-wisp": { type: "boolean", default: false },
@@ -3781,6 +3831,14 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
           const context = { specFilesWalked, scanned };
           return { verdict: evaluateCoverageDrain({ uncovered, unbound }, context), context };
         },
+      });
+    }
+    // `--contractless` is the same surface read the OTHER way (test => contract): which asserted
+    // behaviour does a declared contract claim? Composed here for the same import-cycle reason as
+    // `--totals` — the report module must not reach back into the sweep.
+    if (values.contractless === true) {
+      return contractlessCommand(sub, {
+        loadUnits: () => loadBehaviourClaimUnits(storiesDir, root),
       });
     }
     return coverageCommand(sub, {
