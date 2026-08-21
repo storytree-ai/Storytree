@@ -2,7 +2,7 @@
 id: "desktop-build-mount"
 tier: story
 title: "The desktop build mount — relocate the build worker into @storytree/drive, mount build + accept→dispatch on the desktop, so the thick-local app drives a build (ADR-0133 / ADR-0108 Phase 3+4)"
-outcome: "The build worker machinery (BuildRegistry / runBuildJob / dispatchAcceptedBuild + the BuildContext type) moves out of apps/studio/server into the shared @storytree/drive package, where the desktop local backend may legally reuse it; the desktop sidecar then mounts POST /api/build (202 + runId, fire-and-forget) over a BuildContext wired from the relocated worker, and the chat accept click reaches dispatchAcceptedBuild on that same backend — so the desktop becomes a complete propose→accept→drive→land surface on the shared forest, with the worker's coarse progress streamed back."
+outcome: "The build worker machinery (BuildRegistry / runBuildJob / routedBuildRunner + the BuildContext type) moves out of apps/studio/server into the shared @storytree/drive package, where the desktop local backend may legally reuse it; the desktop sidecar then mounts POST /api/build (202 + runId, fire-and-forget) over a BuildContext wired from the relocated worker — so the desktop becomes a build-capable surface on the shared forest, with the worker's coarse progress streamed back. (Two clauses were corrected: the machinery list also named dispatchAcceptedBuild, and a third clause promised the chat accept click reaching it on that same backend. The accept-click front RETIRED with desktop-accept-dispatch under ADR-0155, and ADR-0404 d.5 then DELETED the function itself — caller-less since ADR-0175 removed spawn-builder.ts. The relocation and the desktop mount both stand; the engine is untouched.)"
 status: proposed
 proof_mode: UAT
 # Per-leg witness (ADR-0106): the offline mechanics legs (the worker exports from its new drive home with
@@ -40,7 +40,7 @@ capabilities: [worker-relocation, desktop-build-route, routed-node-real-dispatch
 # Story-level edges (ADR-0010 §4 — consumed cross-story seams, encoded here as frontmatter depends_on;
 # the import/consumption evidence at file:line is in "Cross-story boundary" below):
 #   - drive-machinery — the PACKAGE HOME the worker moves INTO, and the build ENTRIES the worker drives. The
-#                       relocated BuildRegistry / runBuildJob / dispatchAcceptedBuild / BuildContext land in a
+#                       relocated BuildRegistry / runBuildJob / routedBuildRunner / BuildContext land in a
 #                       NEW @storytree/drive subpath (@storytree/drive/build-worker), beside the existing
 #                       @storytree/drive/build entries (nodeBuild/storyBuild/adoptStory) the routedBuildRunner
 #                       drives. This is the studio-build precedent inverted: code that USED to live in a
@@ -57,10 +57,17 @@ capabilities: [worker-relocation, desktop-build-route, routed-node-real-dispatch
 #   - chat-drive-bridge — LINEAGE ONLY, edge dropped (2026-07-05 map audit): chat-drive-bridge authored
 #                       dispatchAcceptedBuild (apps/studio/server/chat-build-dispatch.ts) + the accept
 #                       affordance this story relocated/wired, but that story is RETIRED (ADR-0155 — the
-#                       chat accept front was removed; dispatchAcceptedBuild lives on in the drive worker
-#                       subpath, consumed by chat-subagent-spawn's builder-spawn-dispatch). A depends_on
+#                       chat accept front was removed). A depends_on
 #                       edge to a retired story can never render and is corpus rot — the history stays
 #                       here, the edge is gone.
+#                       CORRECTED (ADR-0404 d.5): this note used to close "dispatchAcceptedBuild lives on
+#                       in the drive worker subpath, consumed by chat-subagent-spawn's
+#                       builder-spawn-dispatch". Both halves are dead. ADR-0175 retired
+#                       builder-spawn-dispatch and deleted its packages/drive/src/spawn-builder.ts, which
+#                       was the function's only caller; ADR-0404 d.5 then deleted dispatchAcceptedBuild
+#                       and its DispatchResult type outright. The function no longer exists anywhere. The
+#                       ENGINE it wrapped is untouched — BuildRegistry / runBuildJob / routedBuildRunner /
+#                       BuildContext all still ship on @storytree/drive/build-worker with live callers.
 #   - desktop         — the SURFACE the build route + accept→dispatch mount ON. The desktop local backend
 #                       (apps/desktop/electron/backend-entry.ts) already mounts the boot-read routes + the chat
 #                       SSE mount, re-composing drivers from PACKAGES (never importing apps/studio/server,
@@ -113,12 +120,30 @@ decisions: [133, 108, 113, 117, 180, 91, 4, 100, 176, 90, 22, 144]
 
 # The desktop build mount — relocate the build worker into @storytree/drive, mount build + accept→dispatch on the desktop
 
-**Outcome —** The build worker machinery (`BuildRegistry` / `runBuildJob` / `dispatchAcceptedBuild` + the
+**Outcome —** The build worker machinery (`BuildRegistry` / `runBuildJob` / `routedBuildRunner` + the
 `BuildContext` type) moves out of `apps/studio/server` into the shared `@storytree/drive` package, where
 the desktop local backend may legally reuse it; the desktop sidecar then mounts `POST /api/build` (202 +
-runId, fire-and-forget) over a `BuildContext` wired from the relocated worker, and the chat accept click
-reaches `dispatchAcceptedBuild` on that same backend — so the desktop becomes a complete
-propose→accept→drive→land surface on the shared forest, with the worker's coarse progress streamed back.
+runId, fire-and-forget) over a `BuildContext` wired from the relocated worker — so the desktop becomes a
+build-capable surface on the shared forest, with the worker's coarse progress streamed back.
+
+> **Two clauses corrected — the accept-click step and the function it called are both gone.** This outcome
+> read "`BuildRegistry` / `runBuildJob` / `dispatchAcceptedBuild` + the `BuildContext` type", and closed
+> "…and the chat accept click reaches `dispatchAcceptedBuild` on that same backend — so the desktop becomes
+> a complete propose→accept→drive→land surface". Neither half stands:
+> - the **accept-click third step RETIRED** with the `desktop-accept-dispatch` capability
+>   ([ADR-0155](../../docs/decisions/0155-orchestrator-drives-retire-the-chat-propose-unit-accept-to-b.md),
+>   2026-07-04) — its `/api/chat/accept` route was removed in PR #587, and it was already dropped from
+>   `capabilities:`, the dependency graph, UAT leg 3 and gate 2;
+> - the **function itself was DELETED** by
+>   [ADR-0404 d.5](../../docs/decisions/0404-dispatching-a-build-is-a-cli-verb-retire-the-in-app-build-an.md)
+>   — [ADR-0175](../../docs/decisions/0175-repurpose-don-t-delete-the-in-app-orchestrator-chat-infrastr.md)
+>   had removed its only caller (`packages/drive/src/spawn-builder.ts`) and retired the
+>   `builder-spawn-dispatch` capability, leaving it exercised by nothing but its own test.
+>
+> **The build ENGINE is untouched by either.** `BuildRegistry`, `runBuildJob`, `routedBuildRunner` and the
+> `BuildContext` type all still exist on `@storytree/drive/build-worker` and still have callers — the
+> studio's `handleBuild` and the desktop's `build-route.ts`. What this story delivered — the relocation and
+> the desktop build mount — both stand; what is withdrawn is the accept-click front on top of them.
 
 ## What this is
 
@@ -145,7 +170,10 @@ tree fast. ADR-0133 decision 3 names this story's mechanism exactly: *relocate t
   apiRouter.ts`) is `POST /api/build {unitId} → 202 {runId}` + `GET /api/build?runId`, behind the injected
   `BuildContext { registry, runner, isBuildable }` wired by `devApi.ts`. And `dispatchAcceptedBuild`
   (`apps/studio/server/chat-build-dispatch.ts`, the chat-drive-bridge dispatch CORE) reuses that worker —
-  but is route-mounted NOWHERE.
+  but is route-mounted NOWHERE. *(That was the world at authoring time and is kept as the record of what
+  this story faced. `dispatchAcceptedBuild` was relocated by capability 1, then DELETED by ADR-0404 d.5
+  once ADR-0175 removed its only caller — it never did get route-mounted. The worker it wrapped did, and
+  still is.)*
 - **THE WALL (ADR-0100 / ADR-0119).** An app may not import another app's server — `backend-entry.ts`
   RE-COMPOSES drivers from PACKAGES; it does not import `apps/studio/server`. So the desktop cannot reach
   the studio-server-resident worker as-is. **Build is explicitly DISABLED on the desktop**
@@ -166,21 +194,31 @@ that can drive a build. This story delivers that mechanism. Those legs stay owne
 
 Bounded to ONE journey: *the desktop can drive a build*. Roots-first, the journey is three capabilities,
 each an isolatable red→green leaf proven OFFLINE (a scripted build runner — ADR-0010 §5, never a live
-SDK-billed build on a gate pass):
+SDK-billed build on a gate pass). *(As authored, step 3 below was the accept-click wiring. It was
+withdrawn — see the strikethrough — and the story's third live capability is now the ADR-0144 increment
+`routed-node-real-dispatch`; the delivered journey is steps 1–2.)*
 
 1. **Relocate the worker into `@storytree/drive`.** Move `BuildRegistry`, the `runBuildJob` /
-   `routedBuildRunner` / `buildRunnerFromNodeBuild` / `adoptRunnerFromAdoptStory` family, the
-   `dispatchAcceptedBuild` dispatch, and the `BuildContext` type into a new `@storytree/drive/build-worker`
+   `routedBuildRunner` / `buildRunnerFromNodeBuild` / `adoptRunnerFromAdoptStory` family and the
+   `BuildContext` type into a new `@storytree/drive/build-worker`
    subpath — and re-point the studio importers (`apiRouter.ts`, `devApi.ts`, the server suites) at the
    package, all still green. The desktop may now import the worker legally (a package, not another app's
-   server).
+   server). *(This step also moved the `dispatchAcceptedBuild` dispatch. It did move, and then ADR-0404 d.5
+   deleted it — caller-less once ADR-0175 removed `spawn-builder.ts`. Everything else in this list still
+   lives on the subpath.)*
 2. **Mount the build route on the desktop.** Mount `POST /api/build` (202 + runId, fire-and-forget) +
    `GET /api/build?runId` on the desktop sidecar, wired with a `BuildContext` over the relocated worker
    (the `devApi.ts` recipe: lazy `@storytree/drive/build` runner, `@storytree/orchestrator` discovery for
    `isBuildable`), beside the existing chat mount.
-3. **Wire the accept click to the mounted dispatch.** The accept click's POST reaches
+3. ~~**Wire the accept click to the mounted dispatch.** The accept click's POST reaches
    `dispatchAcceptedBuild` on the desktop backend, so a `proposedUnitId`-bearing proposal → click →
-   dispatch → `runBuildJob` → coarse progress streamed back, all on the desktop surface.
+   dispatch → `runBuildJob` → coarse progress streamed back, all on the desktop surface.~~
+   **WITHDRAWN — this third step was never delivered and can no longer be.** Its capability
+   `desktop-accept-dispatch` was RETIRED by ADR-0155 (the `/api/chat/accept` route removed in PR #587,
+   the session-orchestrator driving via its spawn + landing tools instead), and ADR-0404 d.5 has since
+   DELETED `dispatchAcceptedBuild` itself. The journey this story actually completes is steps 1–2: the
+   worker is reachable from a shared package, and the desktop mounts a build route over it. The
+   ADR-0144 increment `routed-node-real-dispatch` took the third capability slot.
 
 ## Honest proof posture — `proposed`, multi-increment, slow-growth
 
@@ -237,8 +275,15 @@ legs that belong to chat-drive-bridge, the operator's attestation); it is never 
 > built was removed in PR #587 (the session-orchestrator drives via its spawn + landing tools rather than
 > accepting a chat proposal into a build). It is dropped from the capability list, the dependency graph,
 > Story UAT leg 3, and Reliability Gate 2's `(covers:)`; its spec is kept as `status: retired` history. The
-> three remaining caps below are unaffected — the `/api/build` route and the relocated
-> `dispatchAcceptedBuild` worker call (still used by `builder-spawn-dispatch`) are UNCHANGED.
+> three remaining caps below are unaffected — the `/api/build` route is UNCHANGED.
+>
+> **CORRECTED (ADR-0404 d.5).** That last sentence also protected "the relocated `dispatchAcceptedBuild`
+> worker call (still used by `builder-spawn-dispatch`)" as UNCHANGED. It is no longer true in either half:
+> ADR-0175 retired `builder-spawn-dispatch` and deleted its `packages/drive/src/spawn-builder.ts` — the
+> function's only caller — and ADR-0404 d.5 then deleted `dispatchAcceptedBuild` and its `DispatchResult`
+> type. The three live caps are still unaffected, because none of them called it: the `/api/build` route
+> and the relocated `BuildRegistry` / `runBuildJob` / `routedBuildRunner` / `BuildContext` engine all
+> stand.
 
 Listed roots-first (a capability appears after everything it depends on). All three live caps are **proof-wired**
 (ADR-0057 — each carries a `proof:` block with a `real:` arm describing a genuine additive net-new
@@ -248,7 +293,7 @@ every member resolves a `real:` arm** — what makes the WHOLE story story-`real
 
 | # | capability | outcome | depends on |
 |---|---|---|---|
-| 1 | [`worker-relocation`](worker-relocation.md) | The build worker machinery (`BuildRegistry`, the `runBuildJob`/`routedBuildRunner`/runner family, `dispatchAcceptedBuild`, the `BuildContext` type) lives in a new `@storytree/drive/build-worker` subpath, importing nothing from `apps/*`; the studio importers (`apiRouter.ts`, `devApi.ts`, the server suites) re-point at the package and stay green. | — |
+| 1 | [`worker-relocation`](worker-relocation.md) | The build worker machinery (`BuildRegistry`, the `runBuildJob`/`routedBuildRunner`/runner family, the `BuildContext` type) lives in a new `@storytree/drive/build-worker` subpath, importing nothing from `apps/*`; the studio importers (`apiRouter.ts`, `devApi.ts`, the server suites) re-point at the package and stay green. *(Also carried `dispatchAcceptedBuild`, deleted by ADR-0404 d.5 — caller-less since ADR-0175.)* | — |
 | 2 | [`desktop-build-route`](desktop-build-route.md) | The desktop local backend mounts `POST /api/build` (202 + runId, fire-and-forget) + `GET /api/build?runId`, wired with a `BuildContext` over the relocated worker (lazy `@storytree/drive/build` runner + `@storytree/orchestrator` discovery for `isBuildable`); a scripted runner proves the route without SDK spend. | `worker-relocation` |
 | ~~3~~ | ~~[`desktop-accept-dispatch`](desktop-accept-dispatch.md)~~ | **RETIRED by ADR-0155** — the desktop `/api/chat/accept` route was removed (PR #587); spec kept as history. | ~~`desktop-build-route`~~ |
 | 3 | [`routed-node-real-dispatch`](routed-node-real-dispatch.md) | A NODE-classified unit dispatched through `routedBuildRunner` drives the node's REAL proof with persist semantics — `nodeBuild(unitId, { real: true, dryRun: false, verdictStore: 'pg' })`, never the synthetic non-persisting `--live` smoke — with a mode line naming the real red→green, the persisted verdict, and the parked `claude/real/<unit>-<run>` branch the human lands (story branch unchanged). Post-landing increment, ADR-0144. | `worker-relocation` |
@@ -270,9 +315,12 @@ and the ADR-0144 routing flip hangs off it directly.
 - `routed-node-real-dispatch` → `worker-relocation`
   - The ADR-0144 flip EDITS the node arm of `routedBuildRunner` inside the relocated
     `packages/drive/src/build-worker.ts` — the file capability 1 created. It couples to the relocated
-    worker's routing composition and to nothing else in-story (the accept path that CALLS the routed
-    runner is the relocated dispatch itself — its chat-drive-bridge lineage is history, see the
-    frontmatter note; that story is retired and the edge dropped).
+    worker's routing composition and to nothing else in-story. *(This parenthetical read "the accept path
+    that CALLS the routed runner is the relocated dispatch itself". That path is gone twice over —
+    ADR-0155 retired the accept front and ADR-0404 d.5 deleted `dispatchAcceptedBuild`. The routed runner's
+    live callers are the studio's `handleBuild` and the desktop's `build-route.ts`, both of which construct
+    a `BuildContext` over it directly. The chat-drive-bridge lineage remains history — see the frontmatter
+    note; that story is retired and the edge dropped.)*
 
 ## Cross-story boundary (ADR-0010 §4)
 
@@ -302,19 +350,27 @@ shared package both surfaces import.
   WITH the worker), and the server suites (`buildRegistry.test.ts`, `buildWorker.test.ts`,
   `buildApi.integration.test.ts`, `adoptApi.integration.test.ts`). They must
   stay green (parity). (`chat-build-dispatch.test.ts`, the studio parity test of the relocated dispatch,
-  was removed with ADR-0155's retirement of the `chat-build-dispatch` cap — the dispatch's behaviour is
-  covered by `@storytree/drive`'s `build-worker-relocation.test.ts`.) This story OWNS the relocation; studio-build owns the original site + its
+  was removed with ADR-0155's retirement of the `chat-build-dispatch` cap. Its coverage then sat in
+  `@storytree/drive`'s `build-worker-relocation.test.ts` — **until ADR-0404 d.5**, which deleted
+  `dispatchAcceptedBuild` and removed those assertions with it. **No suite covers the dispatch's behaviour
+  now, because there is no dispatch**; the relocation suite still carries all four `wr-*` contracts over
+  the engine that remains.) This story OWNS the relocation; studio-build owns the original site + its
   surface-resident `handleBuild` HTTP wrapper (which stays a thin wrapper over the relocated `runBuildJob`).
 - **`chat-drive-bridge`** *(RETIRED, ADR-0155 — lineage record; the `depends_on` edge was dropped in the
   2026-07-05 map audit since an edge to a retired story can never render)* — the **dispatch that was
   relocated, and the live legs it once unblocked**. chat-drive-bridge
   authored `dispatchAcceptedBuild` (`apps/studio/server/chat-build-dispatch.ts`) + the accept-to-land Build
-  affordance (the studio `ChatPanel`). The dispatch moves into the drive worker subpath WITH the rest of the
-  worker (it imported `runBuildJob` + the `BuildContext` type — both relocating). The accept click (already
-  built in the renderer the desktop hosts) is wired through the desktop's mounted dispatch by capability 3.
+  affordance (the studio `ChatPanel`). The dispatch moved into the drive worker subpath WITH the rest of the
+  worker (it imported `runBuildJob` + the `BuildContext` type — both relocating).
   This story DELIVERS the mechanism chat-drive-bridge's operator-attested legs 5–6 need (the live driven
   desktop walk + appearance); those legs stay owned by chat-drive-bridge (ADR-0070). CONSUMED — this story
-  re-homes the dispatch + mounts it; it does not own the affordance or the live attestation.
+  re-homed the dispatch; it does not own the affordance or the live attestation.
+  *(CORRECTED: this entry said "the accept click … is wired through the desktop's mounted dispatch by
+  capability 3", and closed "this story re-homes the dispatch + mounts it". Neither happened. Capability 3
+  — `desktop-accept-dispatch` — was RETIRED by ADR-0155 before that wiring landed, so the dispatch was
+  re-homed but never mounted; ADR-0404 d.5 has since DELETED `dispatchAcceptedBuild` and its
+  `DispatchResult` type, ADR-0175 having removed its only caller. The re-homing is kept in the record
+  because it is what this story did.)*
 - **`desktop`** — the **surface the build route + accept→dispatch mount ON**. The desktop local backend
   (`apps/desktop/electron/backend-entry.ts`) already mounts the boot-read routes (`createBootReadRoutes`) +
   the chat SSE mount (`createChatSseMount`), re-composing drivers from PACKAGES and chaining each dispatcher
@@ -410,14 +466,27 @@ what keeps leg 1's `(revision-id:)` binding intact now that it is the last item.
 > RETIRED by ADR-0155 (2026-07-04).** This leg proved the `desktop-accept-dispatch` cap — the desktop
 > `/api/chat/accept` route reaching `dispatchAcceptedBuild`. That route + its `accept-dispatch.test.ts` were
 > removed in PR #587 (the session-orchestrator drives via its spawn + landing tools rather than accepting a
-> chat proposal into a build), so this leg has nothing left to witness and is dropped. The relocated
-> `dispatchAcceptedBuild` worker call itself REMAINS live under `builder-spawn-dispatch`; only the desktop
-> chat ACCEPT front retired. (Deliberately left as a non-numbered note so it no longer parses as a `#uat-n`
-> obligation.)
+> chat proposal into a build), so this leg has nothing left to witness and is dropped.
+> (Deliberately left as a non-numbered note so it no longer parses as a `#uat-n` obligation.)
+>
+> **CORRECTED (ADR-0404 d.5).** This note closed with "the relocated `dispatchAcceptedBuild` worker call
+> itself REMAINS live under `builder-spawn-dispatch`; only the desktop chat ACCEPT front retired." Both
+> halves have since fallen: ADR-0175 retired `builder-spawn-dispatch` and deleted its only caller
+> (`packages/drive/src/spawn-builder.ts`), and ADR-0404 d.5 deleted `dispatchAcceptedBuild` and its
+> `DispatchResult` type. The leg's retirement is unaffected — it was already dropped for its own reason.
+
+> **ADR-0404 d.5 pass — 2026-08-21, leg 1 re-worded.** Leg 1's walkthrough named
+> `dispatchAcceptedBuild` as one of the four symbols to import from `@storytree/drive/build-worker`. That
+> export no longer exists, so the leg as written could not be executed as described. It now names
+> `routedBuildRunner` — which `build-worker-relocation.test.ts` imports and asserts — leaving the leg's
+> claim (the subpath resolves, the worker imports nothing from `apps/*`, the studio importers stay green)
+> intact. The criterion is NOT deleted and its `uatc_` id is unchanged; only the prose moved, so its
+> `(revision-id:)` was recomputed with `storytree uat rerevision` and the superseded value recorded as
+> `(previous-revision-id:)`. No ordinal was renumbered and no reliability gate was touched.
 
 
-1. **The worker lives in a shared package, importing nothing from `apps/*`, and the studio still builds.** _(criterion-id: uatc_4840168f18bf2c73f3a547b8)_ _(revision-id: uatr1:244dfa46ad675ff3)_
-   _(witness: machine)_ _(proof-gate: desktop-build-mount#gate-3)_ Import the worker trio (`BuildRegistry`, `runBuildJob`, `dispatchAcceptedBuild`,
+1. **The worker lives in a shared package, importing nothing from `apps/*`, and the studio still builds.** _(criterion-id: uatc_4840168f18bf2c73f3a547b8)_ _(revision-id: uatr1:50ed86368b85d445)_ _(previous-revision-id: uatr1:244dfa46ad675ff3)_
+   _(witness: machine)_ _(proof-gate: desktop-build-mount#gate-3)_ Import the worker trio (`BuildRegistry`, `runBuildJob`, `routedBuildRunner`,
    the `BuildContext` type) from `@storytree/drive/build-worker`, and run the relocated worker's own suite +
    the re-pointed studio server suite. **Success —** the subpath resolves and the trio is exported (it does
    NOT resolve at HEAD — the right-kind module-not-found red); the relocated worker imports nothing from
@@ -458,10 +527,14 @@ re-pointed studio importer parity, and neither owning-suite gate proves that ful
 1. **The relocated worker's `@storytree/drive` suite is green** _(gate: observe)_ _(covers: worker-relocation)_ `pnpm --filter @storytree/drive test`. The
    spine runs it at a clean committed HEAD and OBSERVES it green — the worker-relocation package-boundary
    contract (**worker-relocation**: `build-worker-relocation.test.ts` — the `@storytree/drive/build-worker`
-   subpath exports the `BuildRegistry` / `runBuildJob` / `dispatchAcceptedBuild` / `routedBuildRunner` trio;
+   subpath exports the `BuildRegistry` / `runBuildJob` / `routedBuildRunner` trio + the `BuildContext` type;
    over the REAL relocated `BuildRegistry` a scripted runner mints + drives to a terminal `passed` with its
    progress on the transcript; `build-worker.ts` imports nothing from `apps/*` (the ADR-0100 wall the
-   relocation exists to satisfy); and the un-buildable / single-build typed refusals moved intact) passes
+   relocation exists to satisfy); and the single-build typed refusal moved intact — *this description named
+   `dispatchAcceptedBuild` as a fourth export and "the un-buildable / single-build typed refusals" until
+   ADR-0404 d.5 deleted that function; the un-buildable arm was its guard and is now pinned at the callers
+   (`build-route.test.ts`'s 404 branch, the studio `buildApi` suite), and the gate's ordinal, command and
+   `(covers:)` are all unchanged*) passes
    offline (no DB, no API key, no SDK) — then signs an `adopted` verdict. This observes the whole
    `@storytree/drive` suite, which carries the relocation behaviour this leaf owns; `worker-relocation`
    greens via this gate's `(covers:)` (ADR-0097 §5). The wider cross-package PARITY claim (the studio
@@ -518,9 +591,13 @@ suites" until 2026-08-21, when leg 2 was deleted under ADR-0294 D2 as a restatem
 `desktop-build-route` contracts the desktop suite already proves.)* The capability/contract obligations are minimal-to-green (slow growth): the
 relocation's net-new assertion is the package-boundary contract (the worker exports from its new home,
 imports nothing from `apps/*`, the studio importers re-pointed + green); the desktop route is an
-integration test against the real relocated registry + a scripted runner on a real `node:http` server; the
-accept→dispatch is an integration test against the real relocated dispatch + registry with the runner
-injected (a scripted double — ADR-0010 §5, so a live SDK-billed build is never run on a gate pass).
+integration test against the real relocated registry + a scripted runner on a real `node:http` server —
+in both cases with the build runner injected as a scripted double (ADR-0010 §5, so a live SDK-billed build
+is never run on a gate pass). *(A third clause promised "the accept→dispatch is an integration test against
+the real relocated dispatch + registry with the runner injected". No such obligation survives: its
+capability `desktop-accept-dispatch` was RETIRED by ADR-0155, and ADR-0404 d.5 then deleted
+`dispatchAcceptedBuild`, so there is no dispatch left to integration-test. The two obligations above are
+the story's whole proof surface.)*
 
 **Honest status — `proposed`.** Nothing here is `healthy`: per ADR-0020, `healthy` is only ever DERIVED
 from signed verdicts, and this story has none yet. The three capabilities are proof-wired so the spine can

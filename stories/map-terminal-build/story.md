@@ -3,8 +3,24 @@ id: "map-terminal-build"
 tier: story
 title: "Clicking Build on the forest map seeds a runnable command into the embedded terminal — on the desktop, instead of an in-app dispatch"
 outcome: "Clicking Build on a node or story on the forest map — on the desktop, where the embedded terminal exists — composes the corresponding `storytree … build <id> --real --store pg` command and SEEDS it pre-filled (never auto-run) into the embedded terminal, ready for the user to run as their own real Claude Code — instead of dispatching an in-app SDK-driven build; where the terminal bridge is absent (hosted/dev studio, a plain browser) the existing dispatch is unchanged."
-status: proposed
+status: retired
 proof_mode: UAT
+# RETIRED by ADR-0404 (2026-08-21), in the arc `retire-ui-build-dispatch-arc`. This whole story is a
+# behaviour of the forest map's **Build** button, and that button is gone: dispatching a build is a
+# CLI verb now (`storytree node build` / `storytree story build`), so there is no click left to
+# re-point at the terminal. The seed was only ever a nicer way to reach the command line — you now
+# start there, which is the same destination by a shorter road.
+#
+# Both capabilities retired with it, and their `real:` proof arms were REMOVED rather than repointed:
+# `compose-build-command` was proven by `apps/studio/src/lib/buildCommand.ts` and
+# `map-build-seeds-terminal` by `apps/studio/src/components/BuildSection.tsx`, and ADR-0404 D4 deleted
+# both files. A proof binding naming a deleted target is exactly what `contract-binding-drift` and the
+# coverage drain's `unbound` axis fire on, so retiring is the sanctioned drain (ADR-0252 D3 forbids
+# raising a ceiling instead). Contracts and prose are kept as authored history.
+#
+# NOT retired with it — the dock still does its half. `TerminalDock` still ACCEPTS a `seed` and opens
+# a fresh tab for one (`terminal-tabs` / `seed-opens-new-tab`, ADR-0186); only the map-side PRODUCER
+# is gone. Anything that wants to pre-fill the terminal can still do so.
 # uat_witness ABSENT → human (ADR-0040 fail-closed signpost): the story-level crown still rests on an
 # owner judgment, so the machine-driven story UAT node stays WITHHELD. Re-adjudicated 2026-07-25
 # (ADR-0209 D8): the human residue is NARROWER than first authored. It is NOT "the pre-fill lands in the

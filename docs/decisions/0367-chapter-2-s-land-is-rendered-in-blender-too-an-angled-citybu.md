@@ -123,10 +123,16 @@ the hero tree's do, against the island's existing palette. A raw Blender render 
 the ADR-0145 failure reproduced, and the fact that this land is bigger than a tree makes that worse,
 not more forgivable.
 
-**D5 — THE LAND'S STATUS TINT SURVIVES, AND IT OUTRANKS THE ART.** Whatever the render delivers, a
-cell must still be able to show its capability's status. A treatment that can only be shipped by
-giving up per-cell status colour is refused under this ADR without a further owner decision, because
-the tint is semantic state and this ADR is about appearance.
+**D5 — THE LAND'S STATUS TINT SURVIVES, AND IT OUTRANKS THE ART. ⚠ SCOPED BY
+[ADR-0406](0406-the-experiment-island-represents-nothing-so-props-materials.md) (2026-08-21) — the
+rule binds art that REPRESENTS WORK; it has nothing to bite on a surface that asserts no proof
+state.** What stands here in full, unchanged, on the shipped product map: whatever the render
+delivers, a cell must still be able to show its capability's status, and a treatment that can only be
+shipped by giving up per-cell status colour is refused under this ADR without a further owner
+decision, because the tint is semantic state and this ADR is about appearance. What is scoped:
+`packages/forest-world-r3f/harness/`, an experiment surface built after this ADR was decided,
+asserts no cell, no capability and no proof state, so there is no status colour for it to give up —
+see ADR-0406 D1/D2.
 
 ## Consequences
 
@@ -172,6 +178,9 @@ verdict conditional — that verdict is signed and independent of whether this l
 
 ## References
 
+- [ADR-0406](0406-the-experiment-island-represents-nothing-so-props-materials.md) — amends D5's
+  status-tint rule above, scoping it to art that represents work; the current authority on whether
+  D5 binds on a given rendering surface. D5 still binds in full on the shipped product map.
 - [ADR-0280](0280-chapter-2-organic-art-is-code-generated-code-owns-skeleton-c.md) — code owns
   skeleton, camera and growth; D2a admits headless Blender; D4 makes an honest "not good enough" an
   accepted outcome. Amended here on the land-substrate clause only.

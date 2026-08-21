@@ -130,6 +130,91 @@ export const SHARED_TOKENS = {
   storyTrunk: '#6e533d',
 } as const;
 
+/**
+ * THE PROP MATERIALS — stone, wood, fired clay, water, and the vegetation accents (ADR-0406).
+ *
+ * WHY THEY EXIST AT ALL, because it is a scope decision rather than a palette expansion for its
+ * own sake. The arc counted its island against the owner's four references and found FOUR kinds
+ * of object against eight to fifteen, and exactly ONE material — matte green — against stone AND
+ * wood AND brick AND paving AND water. Every reference image reads as a place; ours reads as a
+ * field. The gap the count names is CONTENT and MATERIALS, not rendering: the simplest reference
+ * has no cast shadow, no ambient occlusion, no relief and no bevels, and still reads better than
+ * an island carrying all three.
+ *
+ * WHY THEY ARE ALLOWED, which is the half a later reader will want. ADR-0406 D1: the harness
+ * island REPRESENTS NOTHING. It asserts no capability's proof state and no UAT verdict, so there
+ * is no state a decorative material can misreport and ADR-0367 D5 has nothing to bite on. That
+ * licence is scoped to this surface — ADR-0406 D2 leaves the product map exactly as it was, and
+ * the shipped half of `oq-may-the-island-carry-things-that-mean-nothing-and-may-veg` is still
+ * open.
+ *
+ * WHY THIS DOES NOT BREACH THE LOCKED-PALETTE FENCE (ADR-0380 D6 fence 3, read by ADR-0406 D3).
+ * The fence's property is that every delivered pixel is an authored `(token x level)` closure
+ * entry — which is what lets `capture.mjs` REFUSE rather than merely report. That property is
+ * indifferent to how many tokens the vocabulary holds; the shadow rung already grew the closure
+ * by 39 entries inside it. So a prop material is added by AUTHORING ITS TOKEN and letting the
+ * same banded shader select among the same authored ladder. What stays forbidden is unchanged:
+ * free continuous shading, a gradient, a texture, a nearest-entry snap, or an exception in the
+ * checker.
+ *
+ * ⚠ THEY ARE FAMILY-LESS BY CONSTRUCTION AND MUST STAY THAT WAY (ADR-0406 D4). A stone belongs
+ * to no status, exactly as a flower's petal material belongs to none (ADR-0226 D4) — so they
+ * join {@link familylessTokens}, and `prop-tokens.test.ts` asserts that NO delivered colour of
+ * any prop token equals a delivered colour of any status family, on the shadow ladder as well as
+ * the lit one. That test is the load-bearing one: a paving slab that delivered `healthy` green
+ * would be an ornament indistinguishable from a status read, which is the one thing this licence
+ * must not produce even on a surface that asserts nothing — because a human judges this island
+ * and carries what he learns to the map.
+ *
+ * THE COLOURS ARE CHOSEN AGAINST THE REFERENCES, and the two rules behind them are worth stating
+ * because they are what makes the set read as materials rather than as a swatch card. FIRST,
+ * every one is well off the green/ochre/brown axis the status families occupy — stone is
+ * deliberately COOL and desaturated, water is the only teal on the island, and the accents are
+ * the reference's own pink/orange rather than a hue picked to be far away. SECOND, each material
+ * that has a lit top and a shaded flank gets TWO tokens rather than relying on the ladder: at
+ * `LIGHT_DIRECTION` every vertical face lands on rung 0 and every horizontal one on rung 2, so a
+ * one-token wall delivers exactly two colours and reads as a silhouette. A separate `-Light`
+ * coping or `-Dark` base is what gives built things their edge.
+ */
+export const PROP_TOKENS = {
+  /** Wall coping and the sunlit top course — the lightest built colour on the island. */
+  stoneLight: '#c9c2b4',
+  /** The body of a dry-stone wall, a well drum, a step. Cool and desaturated on purpose. */
+  stone: '#a29a8c',
+  /** A wall's footing and the joints between blocks — the built palette's dark end. */
+  stoneDark: '#6b675e',
+  /** A laid slab. Warmer than `stone` so a path and a wall separate in the same picture. */
+  paving: '#bdae97',
+  /** Loose gravel and a raked court — a path that is a surface rather than a set of slabs. */
+  gravel: '#cbbfa8',
+  /** Sawn timber in shade: fence posts, a pergola's uprights, a bridge's deck. */
+  wood: '#8b5e39',
+  /** The same timber lit — rails, planks, a lit beam. */
+  woodLight: '#c08b52',
+  /** Fired clay: pots, planters, a chimney pot. The reference's warmest accent. */
+  terracotta: '#c8714b',
+  /** Roof tile — a deeper clay, so a roof reads as a roof rather than as a large pot. */
+  roofTile: '#a94f38',
+  /** Still water, lit. The only teal on the island; nothing else can be mistaken for it. */
+  water: '#5eb0c4',
+  /** Water in shadow, and the depth under a rim. */
+  waterDeep: '#37788f',
+  /** A shore apron — where the grass stops and the island's edge begins. */
+  sand: '#e0d3ac',
+  /** A lantern's lit pane. The brightest entry in the whole palette, used sparingly. */
+  lantern: '#f5e2a4',
+  /** A doorway, a window, the inside of an arch — a void rather than a surface. */
+  doorway: '#3c3a47',
+  /** A clipped hedge: a deeper, cooler green than any status family's vegetation. */
+  hedge: '#4d7a45',
+  /** Blossom. An accent colour, not a status (ADR-0406 D1 — this island represents nothing). */
+  blossom: '#e493b0',
+  /** Marigold — the orange the owner's well-garden reference scatters through its beds. */
+  marigold: '#f0a03c',
+  /** Thatch and dry reed, for a roof that is not tiled. */
+  thatch: '#cba15c',
+} as const;
+
 /** The authored shade ladder — the ONLY multipliers a surface may wear, from the
  *  compositor's `KEY_SHADE` plus its flat/seam levels. A live material quantises its
  *  continuous lighting term ONTO this ladder; nothing else is representable.
@@ -276,15 +361,25 @@ export function landTokens(): string[] {
   for (const st of Object.keys(TREE_TOKENS).sort()) push(TREE_TOKENS[st]!.crown);
   for (const t of Object.values(SHARED_TOKENS)) push(t);
   for (const t of Object.values(MARKER_TOKENS)) push(t);
+  // The prop materials close over the same ladder as everything else (ADR-0406 D3). They are
+  // last so the pre-prop prefix of this list is unchanged, which is what lets the palette tests
+  // assert a STRICT SUPERSET rather than a new set of the same size.
+  for (const t of Object.values(PROP_TOKENS)) push(t);
   return out;
 }
 
-/** The tokens that belong to no single status: the shared overrides and every flower material.
- *  {@link statusFamilyOf} reports `null` for their delivered colours BY DESIGN, so a caller
- *  auditing foreign-status reads needs this set to tell "family-less on purpose" from "in the
- *  palette and unaccounted for". Without it a wheat cell or a daisy petal reads as a defect. */
+/** The tokens that belong to no single status: the shared overrides, every flower material, and
+ *  every PROP material (ADR-0406 D4). {@link statusFamilyOf} reports `null` for their delivered
+ *  colours BY DESIGN, so a caller auditing foreign-status reads needs this set to tell
+ *  "family-less on purpose" from "in the palette and unaccounted for". Without it a wheat cell,
+ *  a daisy petal or a paving slab reads as a defect — an instrument failing for a reason other
+ *  than the one it names, which is a failure this track has paid for repeatedly. */
 export function familylessTokens(): string[] {
-  return [...Object.values(SHARED_TOKENS), ...Object.values(MARKER_TOKENS)];
+  return [
+    ...Object.values(SHARED_TOKENS),
+    ...Object.values(MARKER_TOKENS),
+    ...Object.values(PROP_TOKENS),
+  ];
 }
 
 /** Every colour the family-less tokens can deliver — the set a foreign-status audit subtracts
