@@ -110,8 +110,10 @@ export const GATE_SKIP_EXIT_CODE = 3;
  * WHY 4. 0 is a whole-gate pass, 1 is failure, 2 is shell misuse, 3 is {@link GATE_SKIP_EXIT_CODE}.
  * 4 is the first value no path here already means.
  *
- * IT IS NOT A GREEN, AND NOTHING READS IT AS ONE. It is non-zero, so `scripts/gate-bg.mjs`, every
- * `&&` chain and every caller reading only the exit code still sees "not green" — deliberately.
+ * IT IS NOT A GREEN, AND NOTHING READS IT AS ONE. It is non-zero, so `scripts/gate-bg.sh`'s sentinel
+ * (and through it `storytree dispatch`), every `&&` chain and every caller reading only the exit code
+ * still sees "not green" — deliberately. (`scripts/gate-bg.mjs` no longer reads the gate's status at
+ * all: it detaches the run and returns, so what carries the 4 is the `.exit` file the shell writes.)
  * CI never runs a partial gate, so no CI step can observe it; the trap recorded against the skip
  * protocol (exit 3 is a contract with `gate-run.ts`, while `.github/workflows/ci.yml` reads ANY
  * non-zero as a hard red) does not reach here, and must not be re-opened by wiring `--only` into CI.
