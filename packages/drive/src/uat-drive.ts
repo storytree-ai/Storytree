@@ -160,12 +160,31 @@ export function isModelDrivenGate(gate: DriveGate): boolean {
   return gate.kind === "observe" && (gate.proofCommand ?? "").includes(UAT_DRIVE_WITNESS_ENTRY);
 }
 
+/** The two platform contracts the prompt can carry. The authored criterion prose is the source. */
+export type UatDrivePlatform = "web-or-cli" | "electron-native-shell";
+
+/**
+ * PURE: derive the drive platform from explicit tooling words in the authored criterion.
+ *
+ * UAT criteria do not carry a separate platform field today. Native criteria do, however, name
+ * either Playwright's `_electron` harness or the `native shell` in the prose whose revision is bound
+ * into the evidence record. Keeping the derivation here avoids a story-id registry (which would drift
+ * as criteria move) while making that already-authored platform instruction executable by the driver.
+ */
+export function classifyUatDrivePlatform(journey: string): UatDrivePlatform {
+  return /(?:`?_electron`?|\bnative[ -]shell\b)/i.test(journey)
+    ? "electron-native-shell"
+    : "web-or-cli";
+}
+
 /** One criterion the run will drive, with the journey text and the gate (if any) that will witness it. */
 export interface DriveTarget {
   readonly criterionId: string;
   readonly revisionId: string;
   readonly title: string;
   readonly journey: string;
+  /** Derived from the criterion's authored prose; never from the story id. */
+  readonly platform: UatDrivePlatform;
   /** The observe gate that will witness this drive, or `undefined` when the leg is not yet bound. */
   readonly gateId: string | undefined;
 }
@@ -199,6 +218,7 @@ export function selectDriveTargets(
     revisionId: s.criterion.revisionId,
     title: s.criterion.title,
     journey: s.source,
+    platform: classifyUatDrivePlatform(s.source),
     gateId: s.criterion.proofGateId,
   });
 
@@ -356,25 +376,24 @@ export const UAT_DRIVE_AUTONOMY_CLAUSE =
  *     starting one. Ports 5173–5178/5190/5199 were all held by other worktrees.
  *  3. Artifacts landed in the working tree instead of an ignored path.
  *
+ * The web-platform clause below points at `apps/studio`'s existing Playwright config, while the
+ * native-shell clause points at the installed Desktop Electron harness. Both share the isolation,
+ * lifetime and residue rules in this common clause.
+ *
  * `apps/studio` already carries `@playwright/test` with a config that solves all three by
  * construction: a `webServer` block that starts its OWN vite on a `--strictPort` port, a 60s default
  * timeout, and `trace: 'retain-on-failure'` — which is precisely the retention ADR-0295 D4 calls
  * "available, not required … recommended where it is cheap". It is cheap here because it already
  * exists.
  *
- * This clause does NOT mandate Playwright: plenty of journeys are pure CLI, and a driver that needs
+ * The combined clauses do NOT mandate browser Playwright for every journey: plenty of journeys are
+ * pure CLI, and a driver that needs
  * something else may reach for it. What it forbids is the specific shape that failed — an unbounded
  * wait, an inherited server, and output in the tree.
  */
 export const UAT_DRIVE_TOOLING_CLAUSE = [
   "Tooling — use what is installed; do not invent a harness:",
   "",
-  "  - For a journey through a WEB UI, drive it with Playwright. `@playwright/test` is already a",
-  "    dependency of `apps/studio`, configured at `apps/studio/playwright.config.ts` with a real",
-  "    chromium, and `pnpm --filter studio uat` runs the existing suite in `apps/studio/uat/`. Read",
-  "    that config and that suite before writing anything — reuse its shape. It already sets",
-  "    `trace: 'retain-on-failure'`, which is how a failed drive leaves something auditable instead",
-  "    of a paragraph. (`pnpm exec playwright install chromium` once, if the browser is missing.)",
   "  - START the surface you are testing; do NOT attach to whatever is already listening. Other",
   "    worktrees run their own studios on neighbouring ports, and a drive that talks to a sibling's",
   "    server is measuring somebody else's checkout. Use a `webServer` block with `--strictPort`, or",
@@ -387,6 +406,47 @@ export const UAT_DRIVE_TOOLING_CLAUSE = [
   "    already-ignored path. A drive refuses to run against a dirty tree, so anything you leave",
   "    behind blocks the NEXT drive.",
 ].join("\n");
+
+/** Browser tooling, used only when the authored criterion does not require the native shell. */
+export const UAT_DRIVE_WEB_TOOLING_CLAUSE = [
+  "Web-platform tooling:",
+  "",
+  "  - For a journey through a WEB UI, drive it with Playwright. `@playwright/test` is already a",
+  "    dependency of `apps/studio`, configured at `apps/studio/playwright.config.ts` with a real",
+  "    Chromium, and `pnpm --filter studio uat` runs the existing suite in `apps/studio/uat/`. Read",
+  "    that config and that suite before writing anything — reuse its shape. It already sets",
+  "    `trace: 'retain-on-failure'`, which is how a failed drive leaves something auditable instead",
+  "    of a paragraph. (`pnpm exec playwright install chromium` once, if the browser is missing.)",
+].join("\n");
+
+/**
+ * Native-shell tooling, written from the existing Desktop Electron regression harness.
+ *
+ * The forest pointer path is not equivalent to a renderer locator click: Electron retargets a
+ * pointer-captured click, which is why the standing regression suite calculates screen coordinates
+ * and drives `win.mouse`. A plain Chromium page cannot exercise the Electron main/preload/PTY seams.
+ */
+export const UAT_DRIVE_NATIVE_SHELL_TOOLING_CLAUSE = [
+  "Native-shell platform — use the installed Electron harness, never a browser substitute:",
+  "",
+  "  - Launch `apps/desktop` with Playwright's `_electron`; read and reuse",
+  "    `apps/desktop/e2e/harness.mjs` and `apps/desktop/e2e/node-click.e2e.mjs`. Plain Chromium",
+  "    is NOT this product surface: it omits the Electron main process, preload bridges and native",
+  "    terminal. Do not fall back to a browser page if Electron cannot launch.",
+  "  - For forest/map pointer selection, calculate a point with the existing harness helpers and use",
+  "    real window input through `win.mouse`. Never use `locator.click()`, `scrollIntoViewIfNeeded()`,",
+  "    DOM `dispatchEvent`, or another renderer-synthetic click for that path: Electron pointer capture",
+  "    retargets it, and the existing regression wall is explicitly real-input-only.",
+  "  - If the installed Electron harness or real window input cannot perform the step, stop and report",
+  "    a HARNESS failure. Do not substitute Chromium/locator input and report a product finding.",
+].join("\n");
+
+/** The exact platform-specific tooling clause this drive must carry. */
+export function uatDrivePlatformToolingClause(platform: UatDrivePlatform): string {
+  return platform === "electron-native-shell"
+    ? UAT_DRIVE_NATIVE_SHELL_TOOLING_CLAUSE
+    : UAT_DRIVE_WEB_TOOLING_CLAUSE;
+}
 
 /**
  * A background tool can finish the product work and then deliberately close the app/control channel
@@ -618,6 +678,8 @@ export interface UatDriveSpec {
    * and judge its own assertions is that the claim being tested stays human-authored.
    */
   readonly journey: string;
+  /** Platform derived from that authored journey by {@link classifyUatDrivePlatform}. */
+  readonly platform: UatDrivePlatform;
   /**
    * How this drive is separated from the session that launched it. REQUIRED, so that a prompt
    * carrying no isolation is not a shape this builder can produce: the three measured failures were
@@ -640,7 +702,9 @@ export function uatDriveTaskPrompt(spec: UatDriveSpec): string {
     "",
     "Below is ONE acceptance criterion, exactly as a human authored it. It is a journey through a real",
     "surface, not a specification. Your job is to WALK IT, for real, end to end, against the real",
-    "system — the real CLI, the real store, the real UI in a real browser — and then report what",
+    spec.platform === "electron-native-shell"
+      ? "system — the real CLI, the real store, the real UI in the real Electron native shell — and then report what"
+      : "system — the real CLI, the real store, the real UI in a real browser — and then report what",
     "actually happened.",
     "",
     "--- THE JOURNEY (authored; do not reinterpret its claim) ---",
@@ -657,6 +721,8 @@ export function uatDriveTaskPrompt(spec: UatDriveSpec): string {
     "    building what is missing. If the surface is broken, that is a FAIL and it is the finding.",
     "",
     UAT_DRIVE_TOOLING_CLAUSE,
+    "",
+    uatDrivePlatformToolingClause(spec.platform),
     "",
     UAT_DRIVE_BACKGROUND_RESULT_RECONCILIATION_CLAUSE,
     "",
@@ -739,6 +805,9 @@ export interface DrivePromptAudit {
  */
 export function auditDrivePrompt(prompt: string, spec: UatDriveSpec): DrivePromptAudit {
   const missing: string[] = [];
+  if (spec.platform !== classifyUatDrivePlatform(spec.journey)) {
+    missing.push("the criterion-derived platform binding");
+  }
   if (!prompt.includes(spec.journey.trim())) missing.push("the authored journey prose, verbatim");
   if (!prompt.includes(UAT_DRIVE_HONESTY_CLAUSE)) missing.push("the honesty clause");
   // The OPENER, not the bare token. The token alone is a substring an unrelated line can satisfy by
@@ -747,6 +816,17 @@ export function auditDrivePrompt(prompt: string, spec: UatDriveSpec): DrivePromp
   // contract actually requires is the fenced block, so that is what is checked.
   if (!prompt.includes("```" + UAT_DRIVE_REPORT_FENCE)) missing.push("the report contract fence");
   if (!prompt.includes(UAT_DRIVE_TOOLING_CLAUSE)) missing.push("the tooling clause");
+  const platformClause = uatDrivePlatformToolingClause(spec.platform);
+  if (!prompt.includes(platformClause)) {
+    missing.push(
+      spec.platform === "electron-native-shell"
+        ? "the native-shell Electron tooling clause"
+        : "the web-platform tooling clause",
+    );
+  }
+  if (spec.platform === "electron-native-shell" && prompt.includes(UAT_DRIVE_WEB_TOOLING_CLAUSE)) {
+    missing.push("the native-shell platform boundary (Chromium substitution)");
+  }
   if (!prompt.includes(UAT_DRIVE_BACKGROUND_RESULT_RECONCILIATION_CLAUSE)) {
     missing.push("the background-tool result reconciliation clause");
   }

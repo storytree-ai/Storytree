@@ -82,6 +82,7 @@ function driveSpec(): UatDriveSpec {
       "1. **The map shows the story** _(witness: machine)_: open the studio at `/`, find the story's",
       "   flower, click it. **Success —** the traversal panel opens on that story.",
     ].join("\n"),
+    platform: "web-or-cli",
     isolation: {
       sessionId: "uat-drive~uatc_0123456789abcdef01234567~4242",
       surfacePort: 5312,
