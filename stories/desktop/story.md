@@ -547,7 +547,7 @@ the OS keychain), drives a real build through the local backend, and watches it 
 that blooms in the shared forest — the renderer never holding the credential or importing the agent, the
 credential never leaving the machine.
 
-1. **Launch — the native shell renders the COMPILED studio, no Vite, no source.** _(witness: machine)_ _(criterion-id: uatc_9e9d308422ea6863a6bcee98)_ _(revision-id: uatr1:c2880a7567541903)_ _(previous-revision-id: uatr1:4694ad452c83f892)_
+1. **Launch — the native shell renders the COMPILED studio, no Vite, no source.** _(witness: machine)_ _(proof-gate: desktop#gate-3)_ _(criterion-id: uatc_9e9d308422ea6863a6bcee98)_ _(revision-id: uatr1:dd8cc25c6b753513)_ _(previous-revision-id: uatr1:c2880a7567541903)_
    The packaged app opens; the Electron main serves the compiled studio dist over `127.0.0.1` and
    navigates the window there off its launch page, and the renderer mounts the real studio SPA.
    **Success —** in the `_electron` harness the window reaches an `http://127.0.0.1:<port>` origin with
@@ -557,8 +557,8 @@ credential never leaving the machine.
    studio renders" is a DOM/URL/network observable, and the existing harness already drives exactly this
    launch. Whether the result LOOKS like one coherent app is no longer a leg at all — ADR-0348 D6
    deleted that experience criterion; the intent lives in "Design floor".)*
-   **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20).** No `(proof-gate:)`, and no lower-tier node
-   proves it. [`electron-shell`](electron-shell.md) is `proof_mode: operator-attested` and registers no
+   **No lower-tier node proves it** (ADR-0294 D4, 2026-08-20).
+   [`electron-shell`](electron-shell.md) is `proof_mode: operator-attested` and registers no
    `proof.real.testFile`, so there is no capability test to name. The harness the leg names does drive
    the launch — `apps/desktop/e2e/harness.mjs` reaches the served `http://127.0.0.1:<port>` origin and
    evaluates `document.readyState === 'complete'` — but that is a HARNESS, not a spec: no capability
@@ -566,11 +566,19 @@ credential never leaving the machine.
    directory is `studio`'s `map-route-retention` testGlobs, for a different claim), the suite is not a
    `pnpm gate` step, and grepping it for the carries-no-source guard the leg actually turns on —
    `/@vite/client`, a `/src/**` request, the hashed `/assets/*.js` bundle — returns nothing. So
-   `resolveWitness` refuses it (`coverage: "refused"`) and no gate is minted (ADR-0097 §2). What binds
-   it is a real instrument: an `_electron` spec asserting the ADR-0090 d.4 guard, plus a standing
-   command that runs it.
-2. **The credentials surface is one-way — nothing reads back, the renderer stores nothing.** _(criterion-id: uatc_47241898f5714f414284c9f0)_ _(revision-id: uatr1:0ba7c113921fd4f1)_ _(previous-revision-id: uatr1:0d70140121ce0e78)_
-   _(witness: machine)(detail: desktop#uat-2)_ In the running Electron app the member's credential surface exposes no recovery
+   `resolveWitness` refused it, and this paragraph closed *"no gate is minted (ADR-0097 §2). What binds
+   it is a real instrument: an `_electron` spec asserting the ADR-0090 d.4 guard, plus a standing command
+   that runs it."* That spec still does not exist, and no gate points at the harness.
+
+   **BOUND to `desktop#gate-3` (2026-08-22) — RED until driven.** Every fact above still holds; what
+   changed is only that the leg now has somewhere to earn green. Gate 3 is ADR-0295 D1's model-driven
+   executor — the shape gate 2 already uses for leg 3 — which hands a model this leg's authored journey
+   VERBATIM against the real running app and cannot exit 0 without a recorded `pass` drive for the
+   criterion's CURRENT revision. That is why it is not the minted rubber stamp ADR-0097 §2 bans: it is
+   honestly RED, not passing, and it signs no covered half. **Binding is not driving** — no drive has been
+   run for this leg and ADR-0405 D4 leaves a red check red. Corrected in place (ADR-0139).
+2. **The credentials surface is one-way — nothing reads back, the renderer stores nothing.** _(criterion-id: uatc_47241898f5714f414284c9f0)_ _(revision-id: uatr1:248e349ab12b8378)_ _(previous-revision-id: uatr1:0ba7c113921fd4f1)_
+   _(witness: machine)(detail: desktop#uat-2)_ _(proof-gate: desktop#gate-4)_ In the running Electron app the member's credential surface exposes no recovery
    path: `window.desktopAuth` offers `status`/`store`/`signOut` and NO getter, `status(kind)` resolves a
    BOOLEAN, the panel's inputs never pre-fill from a stored value, and after a store attempt no raw
    credential byte is reachable from the renderer — nothing in `localStorage`, `sessionStorage`, or any
@@ -579,15 +587,22 @@ credential never leaving the machine.
    two-kind broker independence, typed IPC, operation-bridge lifetime, and the panel's one-way store /
    feature gate — is `credential-broker`'s contracts 1–9; this leg adds the integrated claim that the
    REAL bridge exposes no read-back.
-   **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20), and it is a PARTIAL duplicate that is therefore
-   KEPT.** The component core IS proven one rung down by
+   **A PARTIAL duplicate that is therefore KEPT** (ADR-0294 D4, 2026-08-20). The component core IS proven one rung down by
    [`credential-broker`](credential-broker.md) at `apps/studio/src/components/CredentialsPanel.test.tsx`
    — the leg names those nine contracts itself — but the sentence beginning *"this leg adds"* is the
    whole of the residual: the REAL `contextBridge` exposing no getter, and the renderer's real storage
    being clean after a store attempt, are not what a jsdom component test can observe. A partial
-   duplicate is not a duplicate (ADR-0294 D2), so the leg stands; `resolveWitness` refuses it
-   (`coverage: "refused"`), and no gate is minted (ADR-0097 §2) — binding it to the panel suite would
-   sign the covered half and silently claim the half the leg exists to add.
+   duplicate is not a duplicate (ADR-0294 D2), so the leg stands — and binding it to the panel suite would
+   sign the covered half while silently claiming the half the leg exists to add, which is why nothing here
+   does that.
+
+   **BOUND to `desktop#gate-4` (2026-08-22) — RED until driven.** Every fact above still holds; what
+   changed is only that the leg now has somewhere to earn green. Gate 4 is ADR-0295 D1's model-driven
+   executor — the shape gate 2 already uses for leg 3 — which hands a model this leg's authored journey
+   VERBATIM against the real running app and cannot exit 0 without a recorded `pass` drive for the
+   criterion's CURRENT revision. That is why it is not the minted rubber stamp ADR-0097 §2 bans: it is
+   honestly RED, not passing, and it signs no covered half. **Binding is not driving** — no drive has been
+   run for this leg and ADR-0405 D4 leaves a red check red. Corrected in place (ADR-0139).
 3. **A credential survives a real restart in the OS keychain, then removes cleanly.** _(witness: machine)_ _(proof-gate: desktop#gate-2)_ _(criterion-id: uatc_f017c21eae754d091713d18f)_ _(revision-id: uatr1:02a892cce2db6189)_ _(previous-revision-id: uatr1:a8bb3332f308b058)_
    On a real desktop app the operator stores each kind independently (Claude subscription `oauth`,
    Anthropic `api-key`), REPLACES one, quits and relaunches, confirms the replacement is still held, and
@@ -612,15 +627,14 @@ credential never leaving the machine.
    `main.ts:131` takes the default `storytree-desktop` service namespace, so a drive ends with the
    operator's real desktop credentials cleared and needing re-entry. That is what the authored journey
    asks for; it is the same end state the operator reaches performing it by hand.)*
-4. **The local backend is live (no 503).** _(witness: machine)(detail: desktop#uat-4)_ With the desktop main process running _(criterion-id: uatc_c41cb0d4c1bf3a45c39312a6)_ _(revision-id: uatr1:88f5c3bb4158daee)_ _(previous-revision-id: uatr1:057291595a474651)_
+4. **The local backend is live (no 503).** _(witness: machine)(detail: desktop#uat-4)_ _(proof-gate: desktop#gate-5)_ With the desktop main process running _(criterion-id: uatc_c41cb0d4c1bf3a45c39312a6)_ _(revision-id: uatr1:5c303f59a7dce6d7)_ _(previous-revision-id: uatr1:88f5c3bb4158daee)_
    for real — the sidecar spawned, NOT the harness's e2e mode — a `GET /api/*` read route
    (`tree`/`docs`/`activity`) returns a real envelope body. **Success —** the response is the composed
    organism drivers' envelope and NOT `static-server.ts`'s `503 {"error":"no backend in the desktop
    shell …"}` fallback. *(Machine, not human: a 503 stub versus a real envelope is a byte comparison with
    no judgment in it. It is live-gated — the sidecar's fail-closed boot needs a git checkout and a
    reachable store — which makes it expensive, not irreducible.)*
-   **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20), and it is a PARTIAL duplicate that is therefore
-   KEPT.** The envelope-not-503 comparison IS proven one rung down by
+   **A PARTIAL duplicate that is therefore KEPT** (ADR-0294 D4, 2026-08-20). The envelope-not-503 comparison IS proven one rung down by
    [`local-backend-boot`](local-backend-boot.md) at `apps/desktop/src/backend/local-backend.test.ts` —
    "local-backend: GET /api/health returns a real { store, db } envelope — not a 503", "GET /api/tree
    returns { stories: [] } from real discovery over empty dir", "GET /api/activity returns the
@@ -629,9 +643,17 @@ credential never leaving the machine.
    What neither reaches is this leg's own precondition: *"with the desktop main process running for
    real — the sidecar SPAWNED, not the harness's e2e mode"*. Both suites compose the drivers in-process;
    nothing observes the real spawn. A partial duplicate is not a duplicate (ADR-0294 D2), so the leg
-   stands; `resolveWitness` refuses it (`coverage: "refused"`), and no gate is minted (ADR-0097 §2).
-5. **The credential reaches the in-process backend; the renderer never holds the raw token.** _(criterion-id: uatc_eb82eaac877cccb9a9beea4f)_ _(revision-id: uatr1:d430d0b031982283)_ _(previous-revision-id: uatr1:92c090fcf68e68ce)_
-   _(witness: machine)(detail: desktop#uat-5)_ A build/orchestrate driver invocation in the running local backend receives the
+   stands.
+
+   **BOUND to `desktop#gate-5` (2026-08-22) — RED until driven.** Every fact above still holds; what
+   changed is only that the leg now has somewhere to earn green. Gate 5 is ADR-0295 D1's model-driven
+   executor — the shape gate 2 already uses for leg 3 — which hands a model this leg's authored journey
+   VERBATIM against the real running app and cannot exit 0 without a recorded `pass` drive for the
+   criterion's CURRENT revision. That is why it is not the minted rubber stamp ADR-0097 §2 bans: it is
+   honestly RED, not passing, and it signs no covered half. **Binding is not driving** — no drive has been
+   run for this leg and ADR-0405 D4 leaves a red check red. Corrected in place (ADR-0139).
+5. **The credential reaches the in-process backend; the renderer never holds the raw token.** _(criterion-id: uatc_eb82eaac877cccb9a9beea4f)_ _(revision-id: uatr1:d4a035f8b0978b91)_ _(previous-revision-id: uatr1:d430d0b031982283)_
+   _(witness: machine)(detail: desktop#uat-5)_ _(proof-gate: desktop#gate-6)_ A build/orchestrate driver invocation in the running local backend receives the
    brokered credential in-process — no TLS hop — while no `/api/*` response body and no
    renderer-reachable surface ever carries that value. **Success —** with a FAKE credential held for the
    run, the driver invocation observes it and every renderer-visible byte stream does not.
@@ -639,14 +661,20 @@ credential never leaving the machine.
    boundary; this leg adds that the real Electron main actually wired it.) *(Machine, not human: "the
    token appears in this byte stream" is decidable, and a FAKE credential means no spend and no live
    studio.)*
-   **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20), and it is a PARTIAL duplicate that is therefore
-   KEPT.** The hand-off and the isolation ARE proven one rung down by
+   **A PARTIAL duplicate that is therefore KEPT** (ADR-0294 D4, 2026-08-20). The hand-off and the isolation ARE proven one rung down by
    [`local-credential-wiring`](local-credential-wiring.md) at
    `apps/desktop/src/backend/credential-bridge.test.ts` — the leg's own parenthesis says exactly that —
    and the clause immediately after it, *"this leg adds that the real Electron main actually wired
    it"*, is the residual a component test cannot reach. A partial duplicate is not a duplicate
-   (ADR-0294 D2), so the leg stands; `resolveWitness` refuses it (`coverage: "refused"`), and no gate is
-   minted (ADR-0097 §2).
+   (ADR-0294 D2), so the leg stands.
+
+   **BOUND to `desktop#gate-6` (2026-08-22) — RED until driven.** Every fact above still holds; what
+   changed is only that the leg now has somewhere to earn green. Gate 6 is ADR-0295 D1's model-driven
+   executor — the shape gate 2 already uses for leg 3 — which hands a model this leg's authored journey
+   VERBATIM against the real running app and cannot exit 0 without a recorded `pass` drive for the
+   criterion's CURRENT revision. That is why it is not the minted rubber stamp ADR-0097 §2 bans: it is
+   honestly RED, not passing, and it signs no covered half. **Binding is not driving** — no drive has been
+   run for this leg and ADR-0405 D4 leaves a red check red. Corrected in place (ADR-0139).
 7. **A real build reaches a signed verdict locally and blooms in the shared forest VIA THE BROKER.** _(criterion-id: uatc_da3559fd2874e2df93362733)_ _(revision-id: uatr1:61042eb66b4e4a06)_ _(previous-revision-id: uatr1:1903082aec93aac0)_
    _(witness: human)_
    _(witness-basis: the brokered POST is gated on ensureHostedIdentity at
@@ -706,8 +734,8 @@ credential never leaving the machine.
    fork as leg 7 (`remote-session-access-arc`). The leg is otherwise mechanical — `writeBroker.test.ts`
    already compiles the `mayBrokerWrite` role predicate over admin/builder/member — so it flips to
    `machine` the day a harness can authenticate as a member.)*
-10. **Launch refuses cleanly when a precondition is unmet — no half-wired shell (ADR-0176).** _(criterion-id: uatc_ed15427cfebc9e03b298775e)_ _(revision-id: uatr1:d4a292539af93266)_ _(previous-revision-id: uatr1:bda598cbcb4d97cd)_
-    _(witness: machine)(detail: desktop#uat-10)_ Before the sidecar wires any backend, the launch-precondition gate runs: with no
+10. **Launch refuses cleanly when a precondition is unmet — no half-wired shell (ADR-0176).** _(criterion-id: uatc_ed15427cfebc9e03b298775e)_ _(revision-id: uatr1:ca27943f619cee59)_ _(previous-revision-id: uatr1:d4a292539af93266)_
+    _(witness: machine)(detail: desktop#uat-10)_ _(proof-gate: desktop#gate-7)_ Before the sidecar wires any backend, the launch-precondition gate runs: with no
     git checkout it refuses IMMEDIATELY naming the unmet precondition and NEVER wakes the DB; with a
     checkout it reuses `ensureLiveDb` to probe and bounded-auto-wake the live store, proceeding to the ONE
     fully-wired backend only when both hold, else refusing with the DB reason surfaced UNCHANGED.
@@ -722,8 +750,7 @@ credential never leaving the machine.
     "Design floor" (b) records the intent.)* *(This is the defect-driven regression case ADR-0176 was
     root-caused from — the Story UAT grows by appending a permanent case per real failure, never
     speculative breadth.)*
-    **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20), and it is a PARTIAL duplicate that is therefore
-    KEPT.** All three branches ARE proven one rung down by
+    **A PARTIAL duplicate that is therefore KEPT** (ADR-0294 D4, 2026-08-20). All three branches ARE proven one rung down by
     [`desktop-launch-preconditions`](desktop-launch-preconditions.md) at
     `apps/desktop/src/backend/launch-preconditions.test.ts` — "ensureLaunchPreconditions: no git
     checkout refuses immediately and NEVER calls ensureDb" (including the never-wake fence), "git
@@ -732,8 +759,15 @@ credential never leaving the machine.
     reason through unchanged", plus the two `describeLaunchRefusal` copy assertions. What that suite
     never reaches is the clause the leg names as its own addition: *"this leg adds that the real
     Electron launch honours them"*, over injected doubles rather than the real sidecar. A partial
-    duplicate is not a duplicate (ADR-0294 D2), so the leg stands; `resolveWitness` refuses it
-    (`coverage: "refused"`), and no gate is minted (ADR-0097 §2).
+    duplicate is not a duplicate (ADR-0294 D2), so the leg stands.
+
+    **BOUND to `desktop#gate-7` (2026-08-22) — RED until driven.** Every fact above still holds; what
+    changed is only that the leg now has somewhere to earn green. Gate 7 is ADR-0295 D1's model-driven
+    executor — the shape gate 2 already uses for leg 3 — which hands a model this leg's authored journey
+    VERBATIM against the real running app and cannot exit 0 without a recorded `pass` drive for the
+    criterion's CURRENT revision. That is why it is not the minted rubber stamp ADR-0097 §2 bans: it is
+    honestly RED, not passing, and it signs no covered half. **Binding is not driving** — no drive has been
+    run for this leg and ADR-0405 D4 leaves a red check red. Corrected in place (ADR-0139).
 End state — a trusted member ran the whole storytree loop on their own machine through a native app,
 their credential held in the OS keychain and never leaving the machine, their builds signed locally from
 real exit codes and BROKERED to the shared forest (POSTed to the studio's members-gated write-broker under
@@ -833,6 +867,51 @@ the same reason: the ADR-0294 D2/D4 pass deleted the fail-closed-broker-probe le
 ([ADR-0040](../../docs/decisions/0040-verdict-derived-green-and-the-human-witness-signpost.md)), and only
 when every capability is `healthy` AND every own-proof obligation is signed. This gate adds ONE honest
 signed verdict toward that roll-up; it is not the crown.
+
+**Gates 3–7 are NEW (2026-08-22, `machine-uat-signing-gap-arc-inc-02`) and were APPENDED — gates 1 and 2
+kept their ordinals.** Gate ids are positional (`asset:edit-story-uat-criteria` step 2), so inserting or
+renumbering would silently re-point already-signed verdicts and surviving `(proof-gate:)` bindings. None
+carries a `(covers:)`: each proves a JOURNEY, not a capability, and adding one to a `(covers:)` list would
+let an observe-and-sign `adopt` pass green a capability that never went red (ADR-0085 / ADR-0097). They
+are the same neither-drives-nor-spends witnesses gate 2 is, on the same honesty terms, and all five are
+RED until a drive is run — which is the point, not a defect.
+
+**Why they exist, since each leg's own prose had ruled a minted gate out.** That ruling was against
+binding a leg to a SUITE that reaches only part of it, and it still stands — none of these gates does
+that. What it could not see from inside one leg is that the unbound state was never local to the leg:
+`runAdopt` resolves EVERY real machine leg before signing any, with no partial verdict set, so five
+unbound legs refused this story's whole UAT-signing pass and stranded bound leg 3, which HAS a gate and
+could otherwise be signed. A drive-witness gate exits the trap without weakening anything, because it
+cannot pass a leg nobody walked.
+
+3. **UAT leg 1 — "launch: the native shell renders the COMPILED studio, no Vite, no source" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts desktop uatc_9e9d308422ea6863a6bcee98`.
+   Witnesses that a model launched the REAL packaged app and observed the studio render from the COMPILED
+   bundle — ADR-0090 d.4's carries-no-source guard observably held: no `/@vite/client`, no `/src/**`
+   request, the hashed `/assets/*.js` bundle served. `electron-shell` is `operator-attested` and registers
+   no `proof.real.testFile`, so there is no capability test this could have restated.
+4. **UAT leg 2 — "the credentials surface is one-way — nothing reads back, the renderer stores nothing" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts desktop uatc_47241898f5714f414284c9f0`.
+   Witnesses the RESIDUAL half no jsdom component test can reach: that the REAL `contextBridge` exposes
+   `status`/`store`/`signOut` and NO getter, that `status(kind)` resolves a BOOLEAN, and that after a store
+   attempt no raw credential byte is reachable from the renderer — nothing in `localStorage`,
+   `sessionStorage`, or any IPC reply. The component core stays `credential-broker`'s contracts 1–9.
+5. **UAT leg 4 — "the local backend is live (no 503)" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts desktop uatc_c41cb0d4c1bf3a45c39312a6`.
+   Witnesses the leg's own precondition, which both owning suites compose past: the desktop main process
+   running FOR REAL with the sidecar SPAWNED — not the harness's e2e mode — and a `GET /api/*` read route
+   returning the composed organism drivers' envelope rather than `static-server.ts`'s 503 fallback.
+   **Live-gated:** the sidecar's fail-closed boot needs a git checkout and a reachable store, so a drive
+   without them reports a fail naming that, never a pass.
+6. **UAT leg 5 — "the credential reaches the in-process backend; the renderer never holds the raw token" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts desktop uatc_eb82eaac877cccb9a9beea4f`.
+   Witnesses the residual the component boundary cannot: that the REAL Electron main actually wired the
+   hand-off — with a FAKE credential held for the run, a build/orchestrate driver invocation in the running
+   local backend observes it in-process with no TLS hop, while no `/api/*` response body and no
+   renderer-reachable surface carries that value. A fake credential means no spend and no live studio.
+7. **UAT leg 10 — "launch refuses cleanly when a precondition is unmet — no half-wired shell (ADR-0176)" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts desktop uatc_ed15427cfebc9e03b298775e`.
+   Witnesses that the REAL Electron launch honours the three branches its capability proves over injected
+   doubles: no git checkout refuses IMMEDIATELY naming the unmet precondition and NEVER wakes the DB; with
+   a checkout it probes and bounded-auto-wakes the live store, proceeding to the ONE fully-wired backend
+   only when both hold, else refusing with the DB reason surfaced UNCHANGED — and it never serves the
+   retired degraded read shell, so the "UAT test criteria unavailable: unknown endpoint" half-wired failure
+   ADR-0176 was root-caused from cannot recur.
 
 ## Proof
 

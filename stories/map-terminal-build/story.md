@@ -303,14 +303,20 @@ thereafter (each real failure earns a permanent regression case, never speculati
 > and **5** are BURNED, not renumbered. This story now carries **TWO** `machine` legs (4, 7) and ONE
 > `human` leg (6).
 >
-> **Leg 4 stays unbound, and that is the honest state rather than an omission.** It is a genuine journey
-> step nobody can witness yet: gate 1 below is bound to leg 7, the `_electron` spec that would observe leg
-> 4 has no spec at HEAD, and nothing it could run persists an artifact an `observe` gate could read. So
-> `resolveWitness` refuses it (`coverage: "refused"`) and no adopt pass can sign it. **No gate is minted
-> for it** — answering an unbound leg with a freshly minted check is the rubber stamp ADR-0097 §2 forbids
-> and the exact reflex ADR-0294's end state point 4 names. What binds it is a real instrument: that spec
-> landing AND a standing `observe` gate reading what it persists, or ADR-0295 D1's model-driven executor,
-> already the shape of gate 1.
+> **Leg 4 is BOUND to `map-terminal-build#gate-2` (2026-08-22), and RED until it is driven.** Until then
+> it stood unbound, and this paragraph read: *"**No gate is minted for it** — answering an unbound leg with
+> a freshly minted check is the rubber stamp ADR-0097 §2 forbids and the exact reflex ADR-0294's end state
+> point 4 names. What binds it is a real instrument: that spec landing AND a standing `observe` gate
+> reading what it persists, or ADR-0295 D1's model-driven executor, already the shape of gate 1."* That
+> sentence named the two honest instruments and then took NEITHER; gate 2 below takes the second. It is
+> not the minted rubber stamp the same sentence forbids, and the difference is decidable rather than a
+> matter of taste: a drive-witness gate cannot exit 0 without a `pass` drive record for THIS criterion's
+> CURRENT revision, at a commit in HEAD's ancestry, inside 90 days. So the leg is now honestly RED rather
+> than unprovable — and the unbound state it left behind was never local to leg 4, because `runAdopt`
+> resolves EVERY real machine leg before signing any, so this one leg refused the story's whole
+> UAT-signing pass, bound sibling leg 7 included. **Binding is not driving.** No drive has been run for
+> leg 4 and none is implied here; ADR-0405 D4 leaves a red check red rather than re-driving to chase a
+> pass.
 >
 > **Legs 3 and 4's `(witness:)` tags were LINE-BROKEN and therefore parsed as `either`, not `machine`.**
 > `_(witness:` ended one line and `machine)_` began the next, so `parseUatTestCriteria` fell back to the
@@ -324,7 +330,7 @@ the user reviews it and presses Enter to run a real build as their own Claude Co
 SDK-driven dispatch. Where the terminal is absent, clicking Build dispatches the in-app build exactly as
 before.
 
-4. **Clicking Build drops a runnable command into the REAL terminal, pre-filled and NOT run.** _(witness: machine)(detail: map-terminal-build#uat-4)_ _(criterion-id: uatc_865913dcc84077215e5b7175)_ _(revision-id: uatr1:0dc173ed9bf34455)_ _(previous-revision-id: uatr1:bebdddf8150ee479)_
+4. **Clicking Build drops a runnable command into the REAL terminal, pre-filled and NOT run.** _(witness: machine)(detail: map-terminal-build#uat-4)_ _(proof-gate: map-terminal-build#gate-2)_ _(criterion-id: uatc_865913dcc84077215e5b7175)_ _(revision-id: uatr1:157ce994a1e53f12)_ _(previous-revision-id: uatr1:0dc173ed9bf34455)_
    The INTEGRATED walk over the real seam rather than a mocked
    one: in the desktop app the member clicks Build on a node/story; the composed command travels the
    TreeView `seed` glue to the real `window.desktopTerminal` bridge, lands in a fresh tab, and sits there
@@ -341,12 +347,15 @@ before.
    restatements of them, so citing the ordinals would point at nothing — corrected in place per
    ADR-0139. The line-broken `_(witness:` / `machine)(detail: …)_` tag was joined in the same change:
    split across lines it parsed as `either`, so a leg authored `machine` was silently invisible to every
-   machine-leg census.)* **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20).** No `(proof-gate:)`: gate 1
-   below is bound to leg 7, the `_electron` spec that would witness THIS walk has no spec at HEAD, and
-   nothing it could run persists an artifact an `observe` gate could read — so `resolveWitness` refuses
-   (`coverage: "refused"`) and nothing can sign it. No gate is minted to host it; binding it to a package
-   suite that never opens the app is the rubber stamp ADR-0097 §2 bans. That gap is PRE-EXISTING — this
-   leg has never been bound.
+   machine-leg census.)* **BOUND to `map-terminal-build#gate-2` (2026-08-22) — RED until driven.** This paragraph read
+   *"**UNBOUND — fails closed (ADR-0294 D4, 2026-08-20)** … No gate is minted to host it; binding it to a
+   package suite that never opens the app is the rubber stamp ADR-0097 §2 bans"*, and that objection is
+   against binding to a SUITE. It still holds, and nothing here does that: the `_electron` spec still has
+   no spec at HEAD. What gate 2 binds is the other instrument this story already named — ADR-0295 D1's
+   model-driven executor, the shape of gate 1 — which hands the model this leg's authored journey verbatim
+   against the real packaged app and cannot exit 0 without a drive record for the criterion's current
+   revision. The gate is therefore honestly RED today, not a manufactured green. Corrected in place
+   (ADR-0139) rather than left standing false.
 6. **The seeded command is the invocation the owner actually wants.** _(witness: human)(detail: map-terminal-build#uat-6)_
    _(witness-basis: whether the emitted `pnpm ` prefix is the invocation FORM the owner wants on their
    own shell is an owner value call no code decides — that the composed command actually RUNS is
@@ -416,6 +425,22 @@ unchanged. It goes red — honestly — when no `pass` record exists for the cri
    wants is a value call with no compiler and stays `human`.
    **The walk IS a real build**, so the driver needs `STORYTREE_UAT_DRIVE_TIMEOUT_MIN` raised well past
    its 30-minute default; a cut-off run emits no report and is recorded as a MISS.
+
+**Gate 2 is NEW (2026-08-22, `machine-uat-signing-gap-arc-inc-02`) and was APPENDED — gate 1 kept its
+ordinal.** Gate ids are positional (`asset:edit-story-uat-criteria` step 2), so inserting or renumbering
+would silently re-point already-signed verdicts and surviving `(proof-gate:)` bindings. It carries no
+`(covers:)`: it proves a JOURNEY, not a capability. It is the same neither-drives-nor-spends witness gate 1
+is, on the same honesty terms, and it is RED until a drive is run — which is the point rather than a
+defect. It exists because leg 4's unbound state was never local to leg 4: `runAdopt` resolves EVERY real
+machine leg before signing any, so one unbound leg refused this story's whole UAT-signing pass, bound leg 7
+included.
+
+2. **UAT leg 4 — "clicking Build drops a runnable command into the REAL terminal, pre-filled and NOT run" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts map-terminal-build uatc_865913dcc84077215e5b7175`.
+   Witnesses that a model clicked Build on a node or story in the REAL desktop app and observed the
+   composed command travel the TreeView `seed` glue to the real `window.desktopTerminal` bridge, land in a
+   fresh tab, and sit there UN-EXECUTED — the integrated walk over the real seam that the three capability
+   verdicts all stop short of. It does NOT witness leg 6 (the invocation FORM is a value call with no
+   compiler and stays `human`), and it does not witness leg 7, which has gate 1 above.
 
 ## Proof
 
