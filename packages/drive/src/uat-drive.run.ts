@@ -372,6 +372,7 @@ async function main(): Promise<number> {
         storyOutcome: spec.outcome,
         criterionId: t.criterionId,
         journey: t.journey,
+        platform: t.platform,
         isolation,
       };
       const prompt = uatDriveTaskPrompt(driveSpec);

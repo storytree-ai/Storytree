@@ -5,6 +5,7 @@ import type { UatTestCriterionSource } from "@storytree/library";
 
 import {
   auditDrivePrompt,
+  classifyUatDrivePlatform,
   classifyBackgroundToolEnd,
   classifyDriveExecutionProgress,
   CODEX_CHATGPT_SUBSCRIPTION_DRIVER,
@@ -23,10 +24,12 @@ import {
   UAT_DRIVE_AUTONOMY_CLAUSE,
   UAT_DRIVE_BACKGROUND_RESULT_RECONCILIATION_CLAUSE,
   UAT_DRIVE_HONESTY_CLAUSE,
+  UAT_DRIVE_NATIVE_SHELL_TOOLING_CLAUSE,
   UAT_DRIVE_PROGRESS_EVIDENCE_CLAUSE,
   UAT_DRIVE_REPORT_FENCE,
   UAT_DRIVE_TERMINAL_VISIBLE_TEXT_CLAUSE,
   UAT_DRIVE_TOOLING_CLAUSE,
+  UAT_DRIVE_WEB_TOOLING_CLAUSE,
   UAT_DRIVE_WITNESS_ENTRY,
   UatDriveRecord,
   verifyCodexSubscriptionAuth,
@@ -66,7 +69,19 @@ const SPEC: UatDriveSpec = {
   storyOutcome: "A reader can walk from the map into a story.",
   criterionId: "uatc_0123456789abcdef01234567",
   journey: JOURNEY,
+  platform: "web-or-cli",
   isolation: ISOLATION,
+};
+
+const NATIVE_JOURNEY = [
+  "7. **Pressing Enter runs the seeded command.** The member presses Enter in the native shell,",
+  "   unmodified, and observes the real build reach its end state.",
+].join("\n");
+
+const NATIVE_SPEC: UatDriveSpec = {
+  ...SPEC,
+  journey: NATIVE_JOURNEY,
+  platform: "electron-native-shell",
 };
 
 // ── which legs this driver owns ──────────────────────────────────────────────
@@ -201,6 +216,24 @@ test("selectDriveTargets: a criterion id the story does not declare is reported,
   assert.deepEqual(sel.unknown, ["uatc_000000000000000000000000"]);
 });
 
+test("native-shell platform is derived from authored criterion prose, never a story-id registry", () => {
+  assert.equal(classifyUatDrivePlatform(NATIVE_JOURNEY), "electron-native-shell");
+  assert.equal(
+    classifyUatDrivePlatform("Launch the real app with Playwright's `_electron` harness."),
+    "electron-native-shell",
+  );
+  assert.equal(classifyUatDrivePlatform("Launch with the _electron harness."), "electron-native-shell");
+  assert.equal(classifyUatDrivePlatform(JOURNEY), "web-or-cli");
+
+  const source = src({
+    id: "uatc_999999999999999999999999",
+    witness: "machine",
+    proofGateId: "demo#gate-2",
+  });
+  const selection = selectDriveTargets([{ ...source, source: NATIVE_JOURNEY }], [DRIVE_GATE]);
+  assert.equal(selection.targets[0]?.platform, "electron-native-shell");
+});
+
 // ── the prompt ───────────────────────────────────────────────────────────────
 
 test("uatDriveTaskPrompt: carries the authored journey VERBATIM (never a paraphrase)", () => {
@@ -211,6 +244,16 @@ test("uatDriveTaskPrompt: carries the authored journey VERBATIM (never a paraphr
   );
   assert.match(prompt, /demo/);
   assert.match(prompt, /A reader can walk from the map into a story\./);
+});
+
+test("uatDriveTaskPrompt: native-shell criteria require installed Electron and real window pointer input", () => {
+  const prompt = uatDriveTaskPrompt(NATIVE_SPEC);
+  assert.ok(prompt.includes(UAT_DRIVE_NATIVE_SHELL_TOOLING_CLAUSE));
+  assert.ok(!prompt.includes(UAT_DRIVE_WEB_TOOLING_CLAUSE));
+  assert.match(prompt, /Playwright's `_electron`/);
+  assert.match(prompt, /apps\/desktop\/e2e\/harness\.mjs/);
+  assert.match(prompt, /`win\.mouse`/);
+  assert.match(prompt, /never.*(?:locator.*click|`locator\.click\(\)`)/i);
 });
 
 test("uatDriveTaskPrompt: carries ADR-0348 D4's autonomy clause (no per-step authorization)", () => {
@@ -407,6 +450,7 @@ function promptWithout(...omit: readonly string[]): string {
     UAT_DRIVE_HONESTY_CLAUSE,
     "```" + UAT_DRIVE_REPORT_FENCE,
     UAT_DRIVE_TOOLING_CLAUSE,
+    UAT_DRIVE_WEB_TOOLING_CLAUSE,
     UAT_DRIVE_BACKGROUND_RESULT_RECONCILIATION_CLAUSE,
     UAT_DRIVE_PROGRESS_EVIDENCE_CLAUSE,
     UAT_DRIVE_TERMINAL_VISIBLE_TEXT_CLAUSE,
@@ -456,6 +500,35 @@ test("auditDrivePrompt: dropping an honesty or harness clause fails", () => {
   assert.deepEqual(auditDrivePrompt(promptWithout(SURFACE_CONTRACT), SPEC).missing, [
     "the report contract's `surface` field, naming this drive's reserved URL",
   ]);
+});
+
+test("auditDrivePrompt: a native-shell prompt refuses Chromium or renderer-locator substitution", () => {
+  const prompt = uatDriveTaskPrompt(NATIVE_SPEC);
+  assert.equal(auditDrivePrompt(prompt, NATIVE_SPEC).ok, true);
+
+  const chromiumOnly = prompt.replace(
+    UAT_DRIVE_NATIVE_SHELL_TOOLING_CLAUSE,
+    UAT_DRIVE_WEB_TOOLING_CLAUSE,
+  );
+  const audit = auditDrivePrompt(chromiumOnly, NATIVE_SPEC);
+  assert.equal(audit.ok, false);
+  assert.ok(audit.missing.includes("the native-shell Electron tooling clause"));
+  assert.ok(audit.missing.includes("the native-shell platform boundary (Chromium substitution)"));
+
+  const locatorOnly = prompt.replace(
+    UAT_DRIVE_NATIVE_SHELL_TOOLING_CLAUSE,
+    "Use plain Chromium; call scrollIntoViewIfNeeded() and locator.click() on the renderer node.",
+  );
+  assert.ok(
+    auditDrivePrompt(locatorOnly, NATIVE_SPEC).missing.includes("the native-shell Electron tooling clause"),
+  );
+
+  const mismatchedPlatform: UatDriveSpec = { ...NATIVE_SPEC, platform: "web-or-cli" };
+  assert.ok(
+    auditDrivePrompt(uatDriveTaskPrompt(mismatchedPlatform), mismatchedPlatform).missing.includes(
+      "the criterion-derived platform binding",
+    ),
+  );
 });
 
 test("auditDrivePrompt: a prompt built for a DIFFERENT drive fails its own audit", () => {
