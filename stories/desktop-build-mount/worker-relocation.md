@@ -3,7 +3,7 @@ id: "worker-relocation"
 tier: capability
 story: desktop-build-mount
 title: "The worker relocation — the build worker machinery moves into @storytree/drive/build-worker, importing nothing from apps/*, the studio importers re-pointed and green"
-outcome: "The build worker machinery (`BuildRegistry`, the `runBuildJob`/`routedBuildRunner`/runner family, `dispatchAcceptedBuild`, the `BuildContext` type) lives in a new `@storytree/drive/build-worker` subpath, importing nothing from `apps/*`; the studio importers (`apiRouter.ts`, `devApi.ts`, the server suites) re-point at the package and stay green."
+outcome: "The build worker machinery (`BuildRegistry`, the `runBuildJob`/`routedBuildRunner`/runner family, the `BuildContext` type) lives in a new `@storytree/drive/build-worker` subpath, importing nothing from `apps/*`; the studio importers (`apiRouter.ts`, `devApi.ts`, the server suites) re-point at the package and stay green. (The relocation also carried `dispatchAcceptedBuild` + its `DispatchResult` type; ADR-0404 d.5 DELETED both — caller-less since ADR-0175 removed `spawn-builder.ts` — so the subpath no longer holds them. The engine it moved is untouched.)"
 status: proposed
 proof_mode: integration-test
 depends_on: []
@@ -12,12 +12,12 @@ depends_on: []
 # pure cut-and-paste relocation is REFACTOR-PARITY, not an isolatable red→green — so the net-new,
 # spine-observable assertion is the PACKAGE-BOUNDARY CONTRACT. NET-NEW (no editsExisting): the leaf authors
 # a NEW node:test (build-worker-relocation.test.ts) in packages/drive/src that imports the worker trio
-# (BuildRegistry, runBuildJob, dispatchAcceptedBuild, the BuildContext type) from a NOT-YET-EXISTING module
+# (BuildRegistry, runBuildJob, routedBuildRunner, the BuildContext type) from a NOT-YET-EXISTING module
 # "./build-worker.js" — RED at HEAD because that module does not exist (module-not-found, the right-kind
 # red) — then writes packages/drive/src/build-worker.ts (moving the machinery in from apps/studio/server)
 # + adds the "./build-worker" subpath to packages/drive/package.json exports (GREEN). The test asserts (a)
-# the trio is exported and behaves (a buildable id mints + runs a scripted runner to a terminal passed),
-# and (b) build-worker.ts imports NOTHING from apps/* (the ADR-0100 wall — a structural source read,
+# the trio is exported and behaves (the REAL relocated registry mints a run and runBuildJob drives a
+# scripted runner to a terminal passed), and (b) build-worker.ts imports NOTHING from apps/* (the ADR-0100 wall — a structural source read,
 # mirroring the modelPathBoundary precedent). RUNNER: @storytree/drive is node:test (node --import tsx
 # --test "src/**/*.test.ts") — the SAME runner proposal-id-threading.test.ts uses in this package; the new
 # test is a node:test file. A SINGLE LITERAL test file (no `*`), so the default node:test proof on the one
@@ -65,9 +65,20 @@ proof:
 # The worker relocation — the build worker machinery moves into @storytree/drive/build-worker
 
 **Outcome —** The build worker machinery (`BuildRegistry`, the `runBuildJob` / `routedBuildRunner` / runner
-family, `dispatchAcceptedBuild`, the `BuildContext` type) lives in a new `@storytree/drive/build-worker`
+family, the `BuildContext` type) lives in a new `@storytree/drive/build-worker`
 subpath, importing nothing from `apps/*`; the studio importers (`apiRouter.ts`, `devApi.ts`, the server
 suites) re-point at the package and stay green.
+
+> **The relocation's fourth export is GONE (ADR-0404 d.5, 2026-08-21).** This outcome named
+> `dispatchAcceptedBuild` (and its `DispatchResult` type) as a fourth thing the new subpath holds. It was
+> relocated here and it did work — but **ADR-0175** deleted its only caller
+> (`packages/drive/src/spawn-builder.ts`) and retired the `builder-spawn-dispatch` capability, after which
+> the function was exercised by nothing but its own test, so **ADR-0404 d.5** deleted the function and the
+> type. The claim is corrected rather than erased so the record of what this capability moved stays legible.
+> **The build ENGINE is untouched by that deletion:** `BuildRegistry`, `runBuildJob`, `routedBuildRunner`
+> and the `BuildContext` type all still exist, still ship on this subpath, and still have callers (the
+> studio's `handleBuild` and the desktop's `build-route.ts`). The four `wr-*` contracts below are all still
+> asserted; two of them had a clause re-pointed, not removed.
 
 **Depends on —** nothing in-story. This is the ROOT leaf — the relocation everything downstream needs. The
 desktop cannot mount a build route until the worker is reachable from a package (it may not import
@@ -93,10 +104,12 @@ this a re-tier?* The answer is YES, there is a genuine net-new leaf — but it i
 behaviour tests"; it is the **package-boundary contract the relocation creates**:
 
 - **The net-new RED is real and module-not-found.** `@storytree/drive/build-worker` does NOT exist at HEAD.
-  A test that imports `{ BuildRegistry, runBuildJob, dispatchAcceptedBuild }` and the `BuildContext` type
+  A test that imports `{ BuildRegistry, runBuildJob, routedBuildRunner }` and the `BuildContext` type
   from `"./build-worker.js"` fails module-not-found at HEAD — the right-kind net-new red (the same shape
-  chat-build-dispatch used for `dispatchAcceptedBuild`, re-homed). It goes green ONLY when the relocation
-  lands the new module + the subpath export.
+  chat-build-dispatch used for its own dispatch, re-homed). It goes green ONLY when the relocation
+  lands the new module + the subpath export. *(The import list read `{ BuildRegistry, runBuildJob,
+  dispatchAcceptedBuild }` until ADR-0404 d.5 deleted that export; the red's SHAPE is unchanged — the
+  module is still missing at HEAD — only which symbols the import names.)*
 - **The net-new GREEN asserts the WALL, not just the move.** The relocated module's reason-to-exist is that
   the desktop can import it WITHOUT importing `apps/studio/server` (ADR-0100). So the contract asserts
   STRUCTURALLY that `build-worker.ts` imports nothing from `apps/*` — a source read, exactly the
@@ -124,7 +137,7 @@ package-boundary test.
 
 - **NET-NEW, missing-symbol red.** Author `packages/drive/src/build-worker-relocation.test.ts` (a
   `node:test` file — `import { test } from "node:test"; import assert from "node:assert/strict"`, the
-  `@storytree/drive` convention) importing `{ BuildRegistry, runBuildJob, dispatchAcceptedBuild }` + the
+  `@storytree/drive` convention) importing `{ BuildRegistry, runBuildJob, routedBuildRunner }` + the
   `BuildContext` type from `"./build-worker.js"` — which does NOT exist at HEAD, so the test fails
   module-not-found (the net-new red). Then write the one new source file + the subpath export (green).
 - **MOVE the machinery, do not rewrite it.** `packages/drive/src/build-worker.ts` receives the EXACT
@@ -132,11 +145,17 @@ package-boundary test.
   `runBuildJob` / `failureReason` / `buildRunnerFromNodeBuild` / `adoptRunnerFromAdoptStory` / `BuildKind` /
   `StoryBuildLike` / `RoutedBuildDeps` / `routedBuildRunner`), `apps/studio/server/buildRegistry.ts`
   (`BuildRegistry` + its types — imports only `node:crypto`), `apps/studio/server/chat-build-dispatch.ts`
-  (`dispatchAcceptedBuild` + `DispatchResult`), and the `BuildContext` interface lifted out of
+  (`dispatchAcceptedBuild` + `DispatchResult` — moved here by this relocation, then DELETED by ADR-0404 d.5
+  once ADR-0175 removed its only caller; the move is recorded because it happened, not because the symbol
+  survives), and the `BuildContext` interface lifted out of
   `apiRouter.ts`. Whether `BuildRegistry` stays its own `build-registry.ts` module in the package or folds
   into one `build-worker.ts` is an implementation choice — the SUBPATH exports the trio either way. Behaviour
-  is unchanged: a buildable id still mints + runs; an un-buildable id is still a typed refusal; the
-  single-build guard still surfaces. Get this wrong — "improving" the worker while moving it — and the
+  is unchanged: a buildable id still mints + runs and the single-build guard still surfaces. *(This
+  sentence also promised "an un-buildable id is still a typed refusal". That refusal was
+  `dispatchAcceptedBuild`'s, and it went with the function: validating the `BuildContext.isBuildable`
+  seam is the CALLER's guard, now pinned where the callers live —
+  `apps/desktop/src/backend/build-route.test.ts` (the 404 branch) and the studio's `buildApi` integration
+  suite.)* Get this wrong — "improving" the worker while moving it — and the
   parity verdict (the studio suites) will catch the drift, but the move is no longer a clean relocation.
 - **EXPORT the new subpath.** Add `"./build-worker": "./src/build-worker.ts"` to
   `packages/drive/package.json` `exports` (beside `"./build"` and `"./secrets"`). This is what makes
@@ -177,7 +196,7 @@ the routed node dispatch now drives `node build --real` with persist semantics; 
 capability [`routed-node-real-dispatch`](routed-node-real-dispatch.md), not part of this relocation.)* The studio Build button and (after capabilities 2–3) the desktop both drive the SAME
 relocated worker — one worker, two surfaces.
 
-PROOF INTEGRITY (ADR-0091): the relocated dispatch + worker hold no signing key and no verdict path; the
+PROOF INTEGRITY (ADR-0091): the relocated worker holds no signing key and no verdict path; the
 spine inside `runBuildJob` observes RED→GREEN from real exit codes and SIGNS; CI re-proves green before the
 trunk (ADR-0022). The relocation moves this property to the package level unchanged — the worker was never a
 forge pathway in `apps/studio/server`, and it is not one in `@storytree/drive`.
@@ -200,21 +219,32 @@ suite `proofCommand` (the studio server suite). No stubs of the registry/worker 
 
 The integration test would:
 
-1. Import `{ BuildRegistry, runBuildJob, dispatchAcceptedBuild }` + the `BuildContext` type from
+1. Import `{ BuildRegistry, runBuildJob, routedBuildRunner }` + the `BuildContext` type from
    `"./build-worker.js"` — at HEAD this fails module-not-found (the net-new red); after the relocation the
    import resolves.
-2. Build a REAL relocated `BuildRegistry`, an injected `isBuildable` returning true, and a scripted
-   `BuildRunner` that emits coarse lines then a passing envelope; call `dispatchAcceptedBuild(unitId, {
-   registry, runner, isBuildable })` and assert `{ ok: true, runId }`, and once the fire-and-forget job
+2. Build a REAL relocated `BuildRegistry`, a `BuildContext` carrying an injected `isBuildable`, and a
+   scripted `BuildRunner` that emits coarse lines then a passing envelope; drive the composition
+   DIRECTLY — `registry.createRun(unitId)` mints and returns `{ ok: true, run }`, `runBuildJob(registry,
+   runId, unitId, runner)` fires the job — and once the fire-and-forget job
    drains, the run is terminal `passed` with the scripted progress lines on its `transcript` — proving the
-   moved machinery behaves identically from its new home.
+   moved machinery behaves identically from its new home. *(This step drove the same composition through
+   `dispatchAcceptedBuild(unitId, { registry, runner, isBuildable })` until ADR-0404 d.5 deleted that
+   function. The composition being proven is unchanged — it is exactly what `handleBuild`'s POST branch
+   performs in `apps/studio/server/apiRouter.ts` and `apps/desktop/src/backend/build-route.ts` — only the
+   now-deleted convenience wrapper around it is gone.)*
 3. Assert `routedBuildRunner` is exported from the subpath and routes by kind unchanged (a `classify`
    returning `'story'` selects the story branch; `'node'` the node branch) — the routing moved intact.
 4. Assert (STRUCTURALLY) that `packages/drive/src/build-worker.ts` imports NOTHING from `apps/*` — read the
    source, scan its import specifiers; none resolves into a surface package (the ADR-0100 wall the
    relocation exists to satisfy, mirroring the `modelPathBoundary.test.ts` precedent).
-5. Assert an un-buildable id (`isBuildable` false) returns a typed `{ ok: false, reason }` and the worker
-   is NEVER invoked (the typed-refusal behaviour moved intact).
+5. Assert a second concurrent `registry.createRun` returns the typed `{ ok: false, reason: 'a build is
+   already running' }` with no `verdict` field, and leaves the live run untouched (the single-build
+   guard's typed-refusal behaviour moved intact). *(This step also asserted that an un-buildable id
+   (`isBuildable` false) returns a typed refusal with the worker never invoked. That arm belonged to
+   `dispatchAcceptedBuild` and went with it under ADR-0404 d.5 — validating the `BuildContext.isBuildable`
+   seam is the CALLER's guard, and it stays pinned where the callers live:
+   `apps/desktop/src/backend/build-route.test.ts` (the 404 branch) and the studio's `buildApi` integration
+   suite. The seam itself is untouched — `BuildContext` still carries `isBuildable`.)*
 6. PARITY (observed by the suite proofCommand, not this test file): the re-pointed studio server suite
    (`buildWorker.test.ts`, `buildRegistry.test.ts`, `chat-build-dispatch.test.ts`,
    `buildApi.integration.test.ts`, `adoptApi.integration.test.ts`) stays green from the new home — the
@@ -235,27 +265,43 @@ The test-proven leaf behaviours — each **one named, substantive test** in the 
 
 1. **`wr-subpath-exports-the-worker-trio`** — the new home resolves and exports the machinery
    - **asserts —** `@storytree/drive/build-worker` (`./build-worker.js`) exports `BuildRegistry`,
-     `runBuildJob`, `dispatchAcceptedBuild`, `routedBuildRunner`, and the `BuildContext` type; importing
+     `runBuildJob`, `routedBuildRunner`, and the `BuildContext` type (proven by composing a real
+     `BuildContext` value); importing
      them resolves (it does NOT at HEAD — the net-new module-not-found red). The relocation's existence
-     proof.
+     proof. *(This clause also named `dispatchAcceptedBuild` as a fourth export until ADR-0404 d.5
+     deleted it — caller-less since ADR-0175. The contract id is unchanged and the test still asserts
+     the export surface; it is one symbol shorter.)*
    - **covers —** `packages/drive/src/build-worker.ts` (the relocated module + its exports) *(provisional path)*
 2. **`wr-relocated-worker-behaves`** — the moved machinery runs identically
    - **asserts —** over the REAL relocated `BuildRegistry` + a scripted `BuildRunner`,
-     `dispatchAcceptedBuild` validates `isBuildable`, mints a run, fires `runBuildJob`, returns `{ ok: true,
-     runId }`, and once drained the run is terminal `passed` with the scripted progress on its `transcript`
-     — identical behaviour from the new home (parity at the unit level).
-   - **covers —** `packages/drive/src/build-worker.ts` (the relocated dispatch + worker composition)
+     `registry.createRun` mints a run and `runBuildJob` fires it, and once drained the run is terminal
+     `passed` with the scripted progress on its `transcript` and the single-build slot released; AND
+     `routedBuildRunner` routes by kind unchanged from the new home (a `story` classification selects the
+     story branch, `node` the node branch) — identical behaviour from the new home (parity at the unit
+     level). *(This clause read "`dispatchAcceptedBuild` validates `isBuildable`, mints a run, fires
+     `runBuildJob`, returns `{ ok: true, runId }`" until ADR-0404 d.5 deleted that function. The test now
+     drives the SAME composition directly — the one `handleBuild`'s POST branch performs — so the
+     behaviour under contract is unchanged, minus the deleted wrapper.)*
+   - **covers —** `packages/drive/src/build-worker.ts` (the relocated registry + worker + router composition)
 3. **`wr-imports-nothing-from-apps`** — the ADR-0100 wall the relocation satisfies
    - **asserts —** `packages/drive/src/build-worker.ts` imports NOTHING from `apps/*` (a structural source
      read of its import specifiers) — the property that makes the desktop mount legal (the desktop may not
      import `apps/studio/server`, so the worker must be importable WITHOUT one). FALSE before the relocation,
      TRUE after — the boundary contract, mirroring `modelPathBoundary.test.ts`.
    - **covers —** `packages/drive/src/build-worker.ts` (the import surface)
-4. **`wr-typed-refusal-moved-intact`** — the safe-write refusals survive the move
-   - **asserts —** an un-buildable id (`isBuildable` false) returns a typed `{ ok: false, reason }` and the
-     worker is NEVER invoked; a second concurrent dispatch returns the single-build refusal — the
-     typed-refusal + intent-not-verdict behaviour (no signing key, no verdict path) moved intact (ADR-0091).
-   - **covers —** `packages/drive/src/build-worker.ts` (the validation + single-build guard + construction)
+4. **`wr-typed-refusal-moved-intact`** — the safe-write refusal survives the move
+   - **asserts —** a second concurrent `registry.createRun` returns the typed
+     `{ ok: false, reason: 'a build is already running' }`, carries NO `verdict` field, and leaves the live
+     run untouched with the guard still holding exactly one active build — the typed-refusal +
+     intent-not-verdict behaviour (no signing key, no verdict path) moved intact (ADR-0091).
+     *(This clause also claimed the un-buildable arm — "an un-buildable id (`isBuildable` false) returns a
+     typed `{ ok: false, reason }` and the worker is NEVER invoked". That guard was
+     `dispatchAcceptedBuild`'s and went with it under ADR-0404 d.5; validating the
+     `BuildContext.isBuildable` seam is the CALLER's responsibility and stays pinned where the callers
+     live — `apps/desktop/src/backend/build-route.test.ts` (the 404 branch) and the studio's `buildApi`
+     integration suite. The contract id is unchanged and still substantively asserted; it now covers one
+     refusal rather than two.)*
+   - **covers —** `packages/drive/src/build-worker.ts` (the single-build guard + the registry's refusal shape)
 
 ## Guidance — the net-new slice that earns the signed verdict
 
@@ -271,7 +317,7 @@ in `@storytree/drive`, test-first, beside the build entries it already drives.
 - **The RED the spine observes (before IMPLEMENT) —** the import resolves NOTHING — `build-worker.ts` does
   not exist at HEAD and the subpath is not in `package.json` exports, so the test fails module-not-found (the
   net-new missing-symbol red). It asserts the export surface, the relocated behaviour, the no-`apps/*` wall,
-  and the typed refusals.
+  and the single-build typed refusal.
 - **The GREEN —** `packages/drive/src/build-worker.ts` (the machinery moved in from `apps/studio/server`) +
   the `"./build-worker"` subpath in `packages/drive/package.json`; the studio importers re-pointed at the
   package. The import resolves, the assertions hold, the drive suite + the studio server suite + both
@@ -287,8 +333,11 @@ Rules:
 - **Re-point AND keep green** — the studio importers (`apiRouter.ts`, `devApi.ts`) import from the package;
   the five server suites stay green from the new home (parity). The studio's `handleBuild` HTTP wrapper stays
   in `apps/studio/server`, now a thin wrapper over the relocated `runBuildJob`.
-- **Intent, never a verdict** — the relocated dispatch holds no signing key, no verdict writer
-  (`wr-typed-refusal-moved-intact`, ADR-0091). The spine signs; CI lands. The property moves unchanged.
+- **Intent, never a verdict** — the relocated worker holds no signing key, no verdict writer, and its
+  refusals carry no `verdict` field (`wr-typed-refusal-moved-intact`, ADR-0091). The spine signs; CI
+  lands. The property moves unchanged. *(This rule said "the relocated dispatch" while
+  `dispatchAcceptedBuild` was the thing carrying it; ADR-0404 d.5 deleted that function, and the property
+  is now carried by the registry + worker the callers drive directly.)*
 - **Name every test for its contract (coverage convention)** — each contract gets one substantive test
   whose name begins with the contract id, so the ADR-0122/0126 classifier reads 4/4.
 - **Stay in `@storytree/drive` (+ the studio re-point)** — the write scope is the new drive module + the

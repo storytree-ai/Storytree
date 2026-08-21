@@ -11,10 +11,12 @@ depends_on: [proposal-id-threading]
 # (PR #587): the ChatPanel Build button + the /api/chat/accept route are gone, so nothing accepts a
 # chat proposal into a build any more. The `real:` arm is dropped; its named source
 # apps/studio/server/chat-build-dispatch.ts was already relocated into @storytree/drive/build-worker
-# (worker-relocation, ADR-0133), so this capability is no longer REAL-buildable. NOTE: the relocated
-# `dispatchAcceptedBuild` function itself REMAINS live — it is the SAME worker call the orchestrator's
-# builder-spawn-dispatch (spawn-builder.ts, ADR-0137) still uses; only the chat ACCEPT front retired.
-# Its behaviour is covered by packages/drive/src/build-worker-relocation.test.ts. Body kept as history.
+# (worker-relocation, ADR-0133), so this capability is no longer REAL-buildable. THE FUNCTION IS GONE
+# TOO (ADR-0404 d.5, 2026-08-21). This note used to read that the relocated `dispatchAcceptedBuild`
+# "REMAINS live — the SAME worker call the orchestrator's builder-spawn-dispatch (spawn-builder.ts,
+# ADR-0137) still uses"; both halves were overtaken. ADR-0175 deleted packages/drive/src/spawn-builder.ts
+# and retired builder-spawn-dispatch, leaving the function with no caller at all; ADR-0404 d.5 then
+# deleted the function and its relocation-test coverage. Nothing here is live. Body kept as history.
 proof:
   command:
     file: pnpm

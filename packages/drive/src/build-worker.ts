@@ -1,8 +1,10 @@
 // The build worker — relocated from apps/studio/server into @storytree/drive (ADR-0133 d.3,
 // capability worker-relocation). It holds the run-lifecycle + worker machinery a UI-driven build needs:
 // the BuildRegistry (the in-memory run lifecycle), runBuildJob + the routed/adopt runner family (the
-// fire-and-forget worker boundary), the BuildContext seam, and dispatchAcceptedBuild (the chat accept→
-// dispatch). This used to live in apps/studio/server; ADR-0100 forbids an app importing another app's
+// fire-and-forget worker boundary), and the BuildContext seam. It also carried dispatchAcceptedBuild
+// (the chat accept→dispatch) until ADR-0404 d.5 deleted it: ADR-0175 had already removed its only
+// caller (packages/drive/src/spawn-builder.ts), leaving it exercised by nothing but its own test.
+// This used to live in apps/studio/server; ADR-0100 forbids an app importing another app's
 // server, so the desktop (where chat ships) could not reach it. Moving it DOWN into this shared package —
 // which both the studio server AND the desktop local backend may import — is what makes the desktop build
 // mount legal (capability 2). The move is byte-for-byte the existing worker; behaviour is unchanged.
@@ -12,7 +14,7 @@
 // (the RoutedBuildDeps / BuildContext shape), never imported from a surface. That is the property the
 // whole desktop-build-mount story rests on.
 //
-// PROOF INTEGRITY (ADR-0091): the registry/worker/dispatch hold NO signing key and NO verdict path. The
+// PROOF INTEGRITY (ADR-0091): the registry/worker hold NO signing key and NO verdict path. The
 // spine inside the dispatched build (nodeBuild/storyBuild → proveUnit) observes RED→GREEN from real exit
 // codes and SIGNS; CI re-proves green before trunk (ADR-0022). Duplicating any gate logic here would be a
 // second, unproven proof path — the forge risk ADR-0091's "no verdict is ever handed in" forbids.
@@ -376,23 +378,10 @@ export function routedBuildRunner(deps: RoutedBuildDeps): BuildRunner {
   };
 }
 
-// ── The chat-surface build dispatch (capability chat-build-dispatch, ADR-0108 d.3) ───────────────────
-//
-// `dispatchAcceptedBuild` is the mechanism the human's UI click drives after accepting a proposed unit
-// id from the chat agent. It reuses the EXISTING worker machinery (`createRun` → `runBuildJob`) exactly
-// as `handleBuild`'s POST branch does — the DIFFERENCE is shape, not behaviour: a plain function
-// returning a typed result the chat surface folds into its stream, rather than an HTTP handler.
-//
-// SAFE WRITE — INTENT, NEVER A VERDICT (ADR-0091): the dispatch hands the worker a unit id; it never
-// accepts, signs, or persists a verdict. The worker inside `runBuildJob` observes RED→GREEN from real
-// exit codes and signs; CI re-proves green before trunk (ADR-0022). It holds no signing key and no DB
-// connection.
-
 /**
- * The build seam injected into the studio's `handleBuild` HTTP handler AND drivable directly by
- * `dispatchAcceptedBuild` (the chat surface). Lifted here from apps/studio/server/apiRouter.ts in the
- * worker relocation (ADR-0133 d.3) so both the studio server and the desktop local backend share ONE
- * BuildContext shape over the relocated worker.
+ * The build seam injected into the studio's `handleBuild` HTTP handler. Lifted here from
+ * apps/studio/server/apiRouter.ts in the worker relocation (ADR-0133 d.3) so both the studio server
+ * and the desktop local backend share ONE BuildContext shape over the relocated worker.
  */
 export interface BuildContext {
   registry: BuildRegistry;
@@ -400,47 +389,4 @@ export interface BuildContext {
   runner: BuildRunner;
   /** Whether `unitId` is a real buildable node — validated against the SAME discovery `node build` uses. */
   isBuildable(unitId: string): Promise<boolean>;
-}
-
-/** The typed result `dispatchAcceptedBuild` returns — folded into the chat stream by the caller. */
-export type DispatchResult =
-  | { ok: true; runId: string }
-  | { ok: false; reason: string };
-
-/**
- * Dispatch a human-ACCEPTED unit id to the existing build worker, returning a typed result the
- * chat surface folds into its stream.
- *
- * - Validates `unitId` is buildable via `build.isBuildable` (typed `not buildable` refusal if not).
- * - Mints a run via `build.registry.createRun` (typed `a build is already running` refusal on
- *   the single-build guard).
- * - Fires `runBuildJob` fire-and-forget — progress streams into the registry run; the chat surface
- *   reads it back via the run's transcript / the shared GET /api/build?runId poll.
- * - Returns `{ ok: true, runId }` so the caller can track the build.
- *
- * Never throws on a known outcome (mirrors `handleBuild`'s typed-result discipline).
- */
-export async function dispatchAcceptedBuild(
-  unitId: string,
-  build: BuildContext,
-): Promise<DispatchResult> {
-  // Validate — a non-buildable / unknown unit id is a typed refusal; the worker is never spawned
-  // against nothing (mirrors handleBuild's isBuildable guard / its 404 surfaced as a typed result).
-  if (!(await build.isBuildable(unitId))) {
-    return { ok: false, reason: 'not buildable' };
-  }
-
-  // Mint a run — the single-build-at-a-time guard surfaces as a typed refusal (mirrors the 409).
-  const created = build.registry.createRun(unitId);
-  if (!created.ok) {
-    return { ok: false, reason: created.reason };
-  }
-
-  const { runId } = created.run;
-
-  // Fire-and-forget: the worker streams coarse progress into the registry run; runBuildJob never
-  // throws (it records a failed terminal state), so the floating promise can't reject.
-  void runBuildJob(build.registry, runId, unitId, build.runner);
-
-  return { ok: true, runId };
 }

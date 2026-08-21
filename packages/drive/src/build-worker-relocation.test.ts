@@ -1,8 +1,8 @@
 // The worker-relocation package-boundary contract (capability worker-relocation, ADR-0133 d.3).
 //
-// The build worker machinery (BuildRegistry / runBuildJob / routedBuildRunner / dispatchAcceptedBuild +
-// the BuildContext type) used to live in apps/studio/server. An app may not import another app's server
-// (ADR-0100), so the desktop (where chat ships) could not reach it. This capability MOVES the machinery
+// The build worker machinery (BuildRegistry / runBuildJob / routedBuildRunner + the BuildContext type)
+// used to live in apps/studio/server. An app may not import another app's server (ADR-0100), so the
+// desktop (where chat ships) could not reach it. This capability MOVES the machinery
 // DOWN into @storytree/drive/build-worker — a package both surfaces may import — and this test is the
 // NET-NEW package-boundary contract that proves the move:
 //   - the new subpath resolves and exports the trio (module-not-found RED at HEAD — the module did not
@@ -25,7 +25,6 @@ import { fileURLToPath } from "node:url";
 import {
   BuildRegistry,
   runBuildJob,
-  dispatchAcceptedBuild,
   routedBuildRunner,
   type BuildContext,
   type BuildRunner,
@@ -49,10 +48,13 @@ async function waitTerminal(registry: BuildRegistry, runId: string, tries = 100)
 // @storytree/drive/build-worker (./build-worker.js) resolves and exports the worker trio. The IMPORT at
 // the top of this file is the existence proof — it is module-not-found at HEAD (the net-new RED); here we
 // assert the runtime values are the real machinery, not stubs.
-test("wr-subpath-exports-the-worker-trio: the relocated subpath exports BuildRegistry / runBuildJob / dispatchAcceptedBuild / routedBuildRunner", () => {
+//
+// The relocation also carried a fourth export, `dispatchAcceptedBuild` (the chat accept→dispatch). ADR-0404
+// d.5 DELETED it: ADR-0175 had already removed its only caller (packages/drive/src/spawn-builder.ts), so it
+// was exercised by nothing but this file. Its assertions are gone with it; the trio below is what remains.
+test("wr-subpath-exports-the-worker-trio: the relocated subpath exports BuildRegistry / runBuildJob / routedBuildRunner", () => {
   assert.equal(typeof BuildRegistry, "function", "BuildRegistry (the run registry) is exported from the new home");
   assert.equal(typeof runBuildJob, "function", "runBuildJob (the fire-and-forget worker) is exported");
-  assert.equal(typeof dispatchAcceptedBuild, "function", "dispatchAcceptedBuild (the chat accept→dispatch) is exported");
   assert.equal(typeof routedBuildRunner, "function", "routedBuildRunner (the kind router) is exported");
   // The BuildContext TYPE is type-only (erased at runtime); using it to type a value proves it is exported.
   const ctx: BuildContext = {
@@ -67,10 +69,12 @@ test("wr-subpath-exports-the-worker-trio: the relocated subpath exports BuildReg
 // Contract 2 — wr-relocated-worker-behaves
 // ---------------------------------------------------------------------------
 
-// Over the REAL relocated BuildRegistry + a scripted runner, dispatchAcceptedBuild validates isBuildable,
-// mints a run, fires runBuildJob, returns { ok: true, runId }, and once drained the run is terminal
-// `passed` with the scripted progress on its transcript — identical behaviour from the new home.
-test("wr-relocated-worker-behaves: dispatchAcceptedBuild mints + runs over the real relocated registry to a terminal passed", async () => {
+// Over the REAL relocated BuildRegistry + a scripted runner, createRun mints a run and runBuildJob drives
+// it: fire-and-forget, and once drained the run is terminal `passed` with the scripted progress on its
+// transcript — identical behaviour from the new home. This is the composition `handleBuild`'s POST branch
+// performs (apps/studio/server/apiRouter.ts, apps/desktop/src/backend/build-route.ts); it used to be driven
+// here through `dispatchAcceptedBuild`, deleted by ADR-0404 d.5 (caller-less since ADR-0175).
+test("wr-relocated-worker-behaves: the relocated registry mints + runs a scripted runner to a terminal passed", async () => {
   const registry = new BuildRegistry();
   const runner: BuildRunner = async (_unitId, sink): Promise<BuildEnvelope> => {
     sink("phase: AUTHOR_TEST");
@@ -79,13 +83,16 @@ test("wr-relocated-worker-behaves: dispatchAcceptedBuild mints + runs over the r
   };
   const build: BuildContext = { registry, runner, isBuildable: async (id) => id === "chat-drive-bridge" };
 
-  const result = await dispatchAcceptedBuild("chat-drive-bridge", build);
-  assert.equal(result.ok, true, "a buildable id is dispatched");
-  if (!result.ok) return;
-  assert.ok(result.runId.length > 0, "the dispatch returns a tracked runId");
+  assert.equal(await build.isBuildable("chat-drive-bridge"), true, "the injected isBuildable seam admits a buildable id");
+  const created = registry.createRun("chat-drive-bridge");
+  assert.equal(created.ok, true, "a buildable id mints a run on the real relocated registry");
+  if (!created.ok) return;
+  const { runId } = created.run;
+  assert.ok(runId.length > 0, "the minted run carries a tracked runId");
+  void runBuildJob(registry, runId, "chat-drive-bridge", build.runner);
 
-  await waitTerminal(registry, result.runId);
-  const run = registry.getRun(result.runId);
+  await waitTerminal(registry, runId);
+  const run = registry.getRun(runId);
   assert.equal(run?.status, "passed", "the relocated worker drives the scripted runner to a terminal passed");
   assert.ok(run?.transcript.includes("phase: AUTHOR_TEST"), "the scripted coarse progress lands on the transcript");
   assert.ok(run?.transcript.includes("phase: GATE"), "every scripted line is folded onto the transcript");
@@ -134,36 +141,24 @@ test("wr-imports-nothing-from-apps: the relocated build-worker imports nothing f
 // Contract 4 — wr-typed-refusal-moved-intact
 // ---------------------------------------------------------------------------
 
-// The safe-write refusals survive the move: an un-buildable id returns a typed { ok: false, reason } and
-// the worker is NEVER invoked; a second concurrent dispatch returns the single-build refusal. No signing
-// key, no verdict path — intent in, progress out (ADR-0091).
-test("wr-typed-refusal-moved-intact: un-buildable + single-build refusals (and intent-not-verdict) moved intact", async () => {
-  // Un-buildable → typed refusal, worker never invoked.
-  let invoked = 0;
-  const registryA = new BuildRegistry();
-  const refused = await dispatchAcceptedBuild("no-such-unit", {
-    registry: registryA,
-    runner: async () => {
-      invoked += 1;
-      return { ok: true, body: "unreached" };
-    },
-    isBuildable: async () => false,
-  });
-  assert.equal(refused.ok, false, "an un-buildable id is refused");
-  if (!refused.ok) assert.equal(refused.reason, "not buildable", "the typed refusal reason moved intact");
-  assert.equal(invoked, 0, "the worker is never invoked against an un-buildable id (no run against nothing)");
-  assert.equal(registryA.hasActiveBuild(), false, "no run is minted on a refusal");
-
-  // Single-build guard → a concurrent dispatch is refused, the running run untouched; result is intent only.
-  const registryB = new BuildRegistry();
-  const occupied = registryB.createRun("occupied-unit");
+// The safe-write refusals survive the move: a second concurrent mint returns the typed single-build refusal
+// and leaves the running run untouched, and the result carries no verdict — intent in, progress out
+// (ADR-0091). The un-buildable arm went with `dispatchAcceptedBuild` (ADR-0404 d.5): validating the
+// `BuildContext.isBuildable` seam is the CALLER's guard, and it is pinned where the callers live —
+// apps/desktop/src/backend/build-route.test.ts (the 404 branch) and the studio's buildApi suite.
+test("wr-typed-refusal-moved-intact: the single-build refusal (and intent-not-verdict) moved intact", async () => {
+  // Single-build guard → a concurrent mint is refused, the running run untouched; the result is intent only.
+  const registry = new BuildRegistry();
+  const occupied = registry.createRun("occupied-unit");
   assert.equal(occupied.ok, true, "the slot is occupied by a live run");
-  const concurrent = await dispatchAcceptedBuild("chat-drive-bridge", {
-    registry: registryB,
-    runner: async () => ({ ok: true, body: "unreached" }),
-    isBuildable: async () => true,
-  });
-  assert.equal(concurrent.ok, false, "a concurrent dispatch is refused by the single-build guard");
+  if (!occupied.ok) return;
+
+  const concurrent = registry.createRun("chat-drive-bridge");
+  assert.equal(concurrent.ok, false, "a concurrent mint is refused by the single-build guard");
   if (!concurrent.ok) assert.equal(concurrent.reason, "a build is already running", "the single-build guard reason moved intact");
-  assert.ok(!Object.prototype.hasOwnProperty.call(concurrent, "verdict"), "the dispatch returns intent, never a verdict (ADR-0091)");
+  assert.ok(!Object.prototype.hasOwnProperty.call(concurrent, "verdict"), "the refusal is typed intent, never a verdict (ADR-0091)");
+
+  // The refusal mints nothing: the live run is untouched and still the one holding the slot.
+  assert.equal(registry.getRun(occupied.run.runId)?.status, "building", "the live run is untouched by the refusal");
+  assert.equal(registry.hasActiveBuild(), true, "the guard still holds exactly one active build");
 });

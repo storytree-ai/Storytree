@@ -199,8 +199,13 @@ test('THE PALETTE COST, as a number: one rung, one entry per land token, nothing
   // (It did, mid-flight: the story tree's crown and bole and the UAT flower materials landed
   // on `main` while this pass was measuring, taking the closure from 104 to 156.)
   assert.equal(after.length - before.length, landTokens().length);
-  assert.equal(before.length, 156);
-  assert.equal(after.length, 195);
+  // 2026-08-21: the land grew props (ADR-0406), which is the case the comment above
+  // anticipated. The eighteen `PROP_TOKENS` took the closure from 156 to 228 and the shadowed
+  // closure from 195 to 285. The IDENTITY above is what actually holds the cost; these two
+  // literals are the witness that the growth was the one we authored and not a colour that
+  // arrived by another route.
+  assert.equal(before.length, 228);
+  assert.equal(after.length, 285);
   // A STRICT SUPERSET WITH AN IDENTITY ON EVERY OLD ENTRY — the same property PR #1385
   // asserted of its 506-entry closure over the shipped 132. Without it, "we added 26
   // entries" could hide "and moved four of the ones already there".

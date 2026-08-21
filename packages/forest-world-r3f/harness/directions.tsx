@@ -1,32 +1,67 @@
-// directions.tsx — SIX DIRECTIONS FOR THE ISLAND, MADE TO LOOK GOOD (dev-only evidence page).
+// directions.tsx — FIVE ISLANDS BUILT TO LOOK GOOD, WITH PROPS UNFENCED (dev-only evidence page).
 //
-// Seven whole islands: six directions and the island as it ships today, as the control.
+// Six whole islands: five directions and the island as it ships today, as the control.
 //
-// The arc this belongs to inverts its predecessor's order: `chapter2-code-generated-organic-
-// art-arc` proved one component at a time and reached 58 landed increments without anyone
-// being able to say whether the island was any good. This page starts at the other end —
-// make islands that look good, then work backwards to what is actually needed.
+// ============================================================================
+// WHY THIS PAGE LOOKS NOTHING LIKE THE ONE IT REPLACES
+// ============================================================================
 //
-// THE RULES IT IS BUILT UNDER, because they decide the page's shape rather than decorate it:
+// The previous version of this file showed six islands that differed by a flag each — light on,
+// edge material, ground regional, bevel off. The owner rejected all six:
 //
-//   - ADR-0392 D1 (unchanged by ADR-0398 D2): the owner's look is taken ONCE, on a WHOLE
-//     island at DELIVERED size, on real data. Every canvas on this page is therefore a
-//     complete island at 2 px/unit. There is no contact sheet, no technique row, no
-//     fragment, and no ladder of one idea at four settings.
-//   - ADR-0392 D2 (strengthened by ADR-0398 D3): every appearance call here is this
-//     session's, and every one is RECORDED WITH ITS REASON. The `calls` list under each
-//     direction is that record, and the research README carries the long form.
-//   - ADR-0380 D6: the four fences are not this arc's to move. Accessibility stays in the
-//     DOM/SVG layer, determinism stays on the scene graph, the palette stays LOCKED (every
-//     colour below is an authored `(token x level)` entry — nothing here widens it), and the
-//     projection does not move (2.5D isometric, the declared 50-degree camera as a
-//     parameter).
+//   "these islands dont look nice at all, they all look the same/worse and look as if we havn't
+//    really broken any new ground. If i look online there are lots of much better looking items,
+//    what are we missing here"
 //
-// WHY THE DIRECTIONS DIFFER IN WHERE THE INTEREST LIVES, rather than in a setting. Four
-// settings of one idea is a ladder, not a choice. These differ in what carries the picture:
-// the LIGHT, the ISLAND'S EDGE, the GROUND ITSELF, the SILHOUETTE, or all of them together.
-// That is a structural difference, and it is the axis the owner's own hypothesis runs along —
-// if the land's colour is the bigger signal, the ground directions should be the ones that read.
+// He was right, and the reason is countable. Our island draws FOUR kinds of object — ground,
+// shrub, flower, tree. His four reference images draw EIGHT TO FIFTEEN, and every one of them
+// has a hard boundary, a path with its own material, and stone AND wood AND paving AND water
+// where we had exactly one material, matte green, in slightly different shapes.
+//
+// The observation that settles which half of the stack was short: his simplest reference is flat
+// pixel art with NO cast shadows, NO ambient occlusion, NO terrain relief and NO bevels, and it
+// reads as a place while ours did not. Our island already carried more rendering technique than
+// that picture carries. So another pass of shadow, palette or bevel work could not have closed
+// it — the gap was CONTENT and MATERIALS.
+//
+// He then lifted the fence that had kept every session working on rendering:
+//
+//   "for this experiement props are fine, its meant to show me what's possible so the whole point
+//    of this experiement was to allow you to just build me a good looking island without worrying
+//    about it representing the code"
+//
+// That is recorded as ADR-0406: the harness island represents nothing, so it asserts no state
+// that a decoration could misreport, and props, colour and new material tokens are unfenced on
+// it. The product map is untouched (ADR-0406 D2).
+//
+// ============================================================================
+// THE RULES THIS PAGE IS STILL BUILT UNDER — none of them moved
+// ============================================================================
+//
+//   - ADR-0392 D1 / ADR-0398 D2: the owner's look is taken ONCE, on a WHOLE island at DELIVERED
+//     size, on real data. Every canvas here is a complete island at 2 px/unit on the real
+//     13-hex `context-traversal-capture` surface. No contact sheet, no fragment, no prop swatch,
+//     no ladder of one idea at four settings.
+//   - ADR-0392 D2 / ADR-0398 D3: every appearance call is this session's and every one is
+//     RECORDED WITH ITS REASON. The `calls` list under each direction is that record; the long
+//     form is in `island-dressing.ts` beside the code that makes each choice, and in the
+//     research README.
+//   - ADR-0380 D6: three of the four fences do not move — accessibility stays in the DOM/SVG
+//     layer, determinism stays on the scene graph, the projection does not move. The fourth, the
+//     LOCKED PALETTE, is read by ADR-0406 D3 as a vocabulary fence rather than a size fence:
+//     eighteen prop material tokens were AUTHORED, the banded shader is unchanged, and every
+//     colour on this page is still an authored `(token x level)` closure entry.
+//
+// ============================================================================
+// WHY THESE FIVE DIFFER, AND WHY THAT IS THE WHOLE DESIGN
+// ============================================================================
+//
+// A flag can only vary a QUANTITY, which is why six flags read as one idea. These five vary what
+// the island IS: an enclosed garden, a settlement, worked ground, a monument, an unbuilt shore.
+// Each brings its own props, its own path material, its own vegetation density and its own
+// relationship to the coast. Two of them deliberately have no buildings and two deliberately
+// have no hero tree, so the page answers "what is actually carrying this?" rather than only
+// "which do you like?".
 
 import { createRoot } from 'react-dom/client';
 
@@ -38,13 +73,13 @@ declare global {
   }
 }
 
-/** The shipped map's real scale on a 2880x1920 display: 1x sprites are already upscaled
- *  about 2x before anyone sees them (ADR-0380 D2). EVERY canvas on this page is here. */
+/** The shipped map's real scale on a 2880x1920 display: 1x sprites are already upscaled about
+ *  2x before anyone sees them (ADR-0380 D2). EVERY canvas on this page is here. */
 const DELIVERED = 2;
 
-/** One island, whole, at the size it is actually delivered. The only panel shape this page
- *  has — a deliberate constraint rather than a convenience, because the shapes this page
- *  does NOT offer are exactly the ones ADR-0392 D1 exists to prevent. */
+/** One island, whole, at the size it is actually delivered. The only panel shape this page has
+ *  — a deliberate constraint rather than a convenience, because the shapes this page does NOT
+ *  offer are exactly the ones ADR-0392 D1 exists to prevent. */
 function Island({
   label,
   note,
@@ -64,128 +99,163 @@ function Island({
   );
 }
 
+type Dir = Omit<IslandViewProps, 'pxPerUnit' | 'displayPxPerUnit'>;
+
+/** The control: what ships now. Flat pale ground, a rim the same green as the top face, no
+ *  occlusion anywhere, 144 plants, one very large tree. */
+const TODAY: Dir = {};
+
 /**
- * How far the island's flank hangs below its coast, for the directions that give it one.
+ * A — THE WALLED GARDEN. A stone retaining wall containing the whole plot, a paved path ring
+ * inside it, a court with a well, potted plants, rail fences and hedges.
  *
- * NINE GROUND UNITS, AND THE NUMBER IS DERIVED FROM DELIVERY RATHER THAN CHOSEN. At the
- * 50-degree camera an UPRIGHT height foreshortens by `cos(50) = 0.643`, so at 2 px/unit the
- * island's thickness on screen is `depth * 1.286` pixels. The shipped depth is
- * `LAND_CELL_DEPTH = 2.2`, which is **2.8 delivered pixels** — under one percent of the
- * island's on-screen height, which is why every island this arc has rendered reads as a flat
- * cut-out however its rim is coloured.
- *
- * The floor that makes an edge part of a silhouette is that it be at least as tall as the
- * things standing on the land: the median plant is 6.2 ground units, delivering 8.0 px. Nine
- * units delivers 11.6 px — about one and a half times the vegetation, which puts the flank
- * in the picture without turning the island into a floating column. It costs the palette
- * NOTHING: it is geometry, and every pixel it adds is the same `(token x level)` entry the
- * rim already wore.
+ * `edge: 'material'` with a 5-unit flank: the land's own rim is now mostly BEHIND the stone
+ * wall, so it needs to read as the ground the wall stands on rather than as the island's edge.
+ * Five units delivers about 6.4 px of earth under the coping, which is a footing; the nine units
+ * the previous round used would read as a plinth and put the wall on a pedestal.
  */
-const DEEP = 9;
-
-/** The directions plus the island as it ships, as data — so the headline row and each
- *  direction's own section can never drift apart into showing two different things. */
-const TODAY: Omit<IslandViewProps, 'pxPerUnit' | 'displayPxPerUnit'> = {};
-
-const AFTERNOON: Omit<IslandViewProps, 'pxPerUnit' | 'displayPxPerUnit'> = {
+const WALLED: Dir = {
+  dressing: 'walled',
   contact: true,
-  shadow: 'both',
-};
-
-const SLAB: Omit<IslandViewProps, 'pxPerUnit' | 'displayPxPerUnit'> = {
-  contact: true,
+  shadow: 'canopy',
   edge: 'material',
-  wallDepth: DEEP,
+  wallDepth: 5,
+  ground: 'regional',
 };
 
-const GARDEN: Omit<IslandViewProps, 'pxPerUnit' | 'displayPxPerUnit'> = {
+/**
+ * B — THE HAMLET. Three cottages on three parcels, gravel paths worn between them, fenced yards,
+ * a well, clutter, and a rocky unwalled coast.
+ *
+ * `wallDepth: 9` and `edge: 'material'`: this is the one direction whose boundary is the LAND
+ * rather than something built on it, so the flank has to be thick enough to be part of the
+ * silhouette. Nine units delivers 11.6 px, about one and a half times the vegetation's height —
+ * the number the previous round derived and the one thing from it worth keeping.
+ */
+const HAMLET: Dir = {
+  dressing: 'hamlet',
   contact: true,
+  shadow: 'canopy',
+  edge: 'material',
+  wallDepth: 9,
+  ground: 'regional',
+};
+
+/**
+ * C — THE TERRACES. The island's own parcel boundaries become low retaining walls, with steps
+ * between them, a stone water channel along the long axis, and planting in rows.
+ *
+ * `tree: false`: a terraced hillside with one enormous tree in the middle reads as a tree with
+ * terraces behind it. This direction is about the ground, so the ground gets the frame.
+ */
+const TERRACE: Dir = {
+  dressing: 'terrace',
+  contact: true,
+  shadow: 'canopy',
+  edge: 'material',
+  wallDepth: 7,
+  ground: 'regional',
+  tree: false,
+};
+
+/**
+ * D — THE SHRINE COURT. A raised stone platform carrying a timber pavilion, approached by
+ * stepping stones from a gate at the shore, lit by lanterns, on raked gravel.
+ *
+ * `tree: false` because the pavilion IS the focal mass — that is the direction's whole
+ * proposition, and leaving the tree in would leave the question unasked.
+ *
+ * `flowers: false` is the one call on this page that removes something from the fixture rather
+ * than adding to it. Ten white wildflowers scattered across a swept gravel court is two ideas
+ * arguing; a raked court is defined by what is NOT growing on it. It is recorded here rather
+ * than hidden because it is the only place on the page where a direction drops real data.
+ */
+const SHRINE: Dir = {
+  dressing: 'shrine',
+  contact: true,
+  shadow: 'canopy',
+  edge: 'material',
+  wallDepth: 6,
+  ground: 'single',
+  tree: false,
+  flowers: false,
+};
+
+/**
+ * E — THE WILD SHORE. No architecture at all: a sand shore rounding the coast, rock outcrops, a
+ * stone-rimmed pool, a beached boat, flowering thickets.
+ *
+ * `style: 'foliage'`: with no built object to lead the eye, the vegetation carries more of the
+ * picture, and the two silhouettes distribute their mass differently. Every other direction
+ * holds `mound` so that they differ only in the ways their sections name.
+ */
+const WILD: Dir = {
+  dressing: 'wild',
+  contact: true,
+  shadow: 'canopy',
+  edge: 'material',
+  wallDepth: 8,
   ground: 'regional',
   style: 'foliage',
-  tree: false,
-};
-
-const LANDMASS: Omit<IslandViewProps, 'pxPerUnit' | 'displayPxPerUnit'> = {
-  contact: true,
-  land: 'relief',
-  edge: 'material',
-  wallDepth: DEEP,
-  ground: 'regional',
-  tree: false,
-};
-
-const COMPOSED: Omit<IslandViewProps, 'pxPerUnit' | 'displayPxPerUnit'> = {
-  contact: true,
-  shadow: 'both',
-  edge: 'material',
-  wallDepth: DEEP,
-  ground: 'regional',
-};
-
-/** ⚠ GATED — see section 8. Everything COMPOSED has, plus the one ground token the closed
- *  palette holds that would actually change the picture, and that this session may not decide
- *  to use. */
-const DEEPGROUND: Omit<IslandViewProps, 'pxPerUnit' | 'displayPxPerUnit'> = {
-  ...COMPOSED,
-  ground: 'regional-deep',
 };
 
 function App() {
   return (
     <main>
       <header>
-        <h1>Six directions for the island</h1>
+        <h1>Five islands, built to look good</h1>
         <p>
           Every picture on this page is a <strong>whole island at the size it is actually
           delivered</strong> &mdash; 2 px per ground unit, the real 13-hex research surface
-          (<code>context-traversal-capture</code>), its eleven capabilities, its real test
-          spread, its own ten UAT criteria. Nothing here is a fragment, a swatch, or a
-          technique survey.
+          (<code>context-traversal-capture</code>), its eleven capabilities, its own ten UAT
+          criteria. Nothing here is a fragment, a swatch, or a technique survey.
         </p>
         <p>
-          They differ in <strong>where the interest lives</strong>: in the light, in the
-          island&rsquo;s edge, in the ground itself, in the silhouette, or in all of them. That
-          is the choice being offered &mdash; not a setting to tune.
+          Last time you saw six islands that differed by a setting each, and you said they all
+          looked the same. They did. The countable reason: <strong>our island draws four kinds of
+          object &mdash; ground, shrub, flower, tree. Your reference images draw eight to
+          fifteen</strong>, and every one of them has a wall or a fence, a path with its own
+          material, and stone <em>and</em> wood <em>and</em> paving <em>and</em> water where we
+          had one matte green.
+        </p>
+        <p>
+          So this round spends nothing on rendering. It spends everything on{' '}
+          <strong>what is on the island</strong>. These five differ in what the place <em>is</em>
+          {' '}&mdash; an enclosed garden, a settlement, worked ground, a monument, an unbuilt
+          shore &mdash; not in how brightly it is lit.
         </p>
         <p className="numbers">
-          13 hexes &middot; 11 capabilities &middot; all healthy &middot; 10 UAT flowers
-          &middot; 144 plants &middot; locked palette, every colour an authored{' '}
-          <code>token &times; level</code> entry &middot; 2.5D isometric at 50&deg; &middot;
-          one authored light at 55.2&deg; &middot; nothing is animated (ADR-0045)
+          13 hexes &middot; 11 capabilities &middot; 18 new authored material tokens &middot;
+          locked palette, every colour still an authored <code>token &times; level</code> entry
+          &middot; 2.5D isometric at 50&deg; &middot; one authored light at 55.2&deg; &middot;
+          nothing is animated (ADR-0045) &middot; nothing here is adopted into the app
         </p>
       </header>
 
       <section>
         <h2>1 &mdash; the choice, side by side</h2>
         <p className="lede">
-          The six directions and the island as it ships today, all whole, all at delivered
-          size. This is the row the decision is made on; the sections below are the same
-          islands again, larger on the page but rendered at exactly the same 2 px/unit, with
-          the appearance calls that made each one. <strong>F is not on the menu yet</strong> —
-          it needs an answer from you first, and section 8 says why.
+          The five directions and the island as it ships today, all whole, all at delivered size.
+          This is the row the decision is made on; the sections below are the same islands again,
+          larger on the page but rendered at exactly the same 2 px/unit, with the appearance
+          calls that made each one.
         </p>
         <div className="row">
           <Island label="TODAY" note="what ships now" tag="row-today" {...TODAY} />
-          <Island label="A &mdash; AFTERNOON" note="the light carries it" tag="row-a" {...AFTERNOON} />
-          <Island label="B &mdash; THE SLAB" note="the edge carries it" tag="row-b" {...SLAB} />
-          <Island label="C &mdash; THE GARDEN" note="the ground carries it" tag="row-c" {...GARDEN} />
-          <Island label="D &mdash; ONE LANDMASS" note="the silhouette carries it" tag="row-d" {...LANDMASS} />
-          <Island label="E &mdash; COMPOSED" note="all of them" tag="row-e" {...COMPOSED} />
-          <Island
-            label="F &mdash; DEEPER GROUND ⚠"
-            note="needs your answer first"
-            tag="row-f"
-            {...DEEPGROUND}
-          />
+          <Island label="A &mdash; WALLED GARDEN" note="an enclosed plot" tag="row-walled" {...WALLED} />
+          <Island label="B &mdash; THE HAMLET" note="a place people live" tag="row-hamlet" {...HAMLET} />
+          <Island label="C &mdash; THE TERRACES" note="worked ground" tag="row-terrace" {...TERRACE} />
+          <Island label="D &mdash; THE SHRINE COURT" note="a monument, approached" tag="row-shrine" {...SHRINE} />
+          <Island label="E &mdash; THE WILD SHORE" note="nothing built" tag="row-wild" {...WILD} />
         </div>
       </section>
 
       <section>
         <h2>2 &mdash; where we start: the island as it ships</h2>
         <p className="lede">
-          The control. Flat pale ground, a rim that is the same green as the top face, no
-          shadow anywhere, and one very large tree in the middle. Everything below is measured
-          against this.
+          The control, and the thing you rejected. Flat pale ground, a rim the same green as the
+          top face, no occlusion anywhere, 144 plants each about fifteen delivered pixels across,
+          and one very large tree. Everything below is measured against this.
         </p>
         <div className="row">
           <Island label="TODAY" note="2 px/unit &middot; the control" tag="today" {...TODAY} />
@@ -193,260 +263,228 @@ function App() {
       </section>
 
       <section>
-        <h2>3 &mdash; A: AFTERNOON, where the light carries it</h2>
+        <h2>3 &mdash; A: THE WALLED GARDEN</h2>
         <p className="lede">
-          The island as a place at a time of day. Every upright thing casts, and every upright
-          thing now also sits in a pool of its own contact shade, so the props are IN the land
-          rather than ON it.
+          Your well-garden reference, translated to our island rather than copied from it. A
+          stone retaining wall contains the whole plot, a paved path follows it round, a court
+          off to one side holds a well, and pots, fences and hedges fill the ground between.
         </p>
         <ul className="calls">
           <li>
-            <strong>Contact darkening, on.</strong> The reference board&rsquo;s highest-value
-            unattempted lever &mdash; in all three of the owner&rsquo;s references every object
-            darkens the ground where it meets it, and ours had none. The pool size is DERIVED
-            from each prop&rsquo;s own radius and height (the fraction of sky it hides), not
-            dialled, so the hero tree pools far more ground than a shrub because it hides far
-            more sky.
+            <strong>The wall follows a SMOOTHED coast, and that is the biggest single change on
+            this page.</strong> The island&rsquo;s outline is a cluster of thirteen hexagons and
+            it reads as a board &mdash; the last round said so and could not fix it, because
+            fixing it looked like moving the land. It is not: the wall is built along the rim
+            polyline with its corners rounded, so the eye traces a plot while the land keeps its
+            cells, its parcels and its bevel exactly as they were.
           </li>
           <li>
-            <strong>Cast shadow, on, both terms.</strong> Built and measured admissible at one
-            rung (0.84) by the previous arc and never yet shown on an island anyone was asked
-            to look at. The terrain term delivers identically zero &mdash; the land cannot
-            shadow itself at any relief amplitude this project accepts &mdash; so what is drawn
-            here is the canopy, and most of it is the tree.
+            <strong>The wall is battered, not vertical, and the number is arithmetic.</strong> At
+            this light every vertical face lands on the darkest rung whichever way it points, so
+            a plain wall delivers two colours and reads as a silhouette with a lid. Leaning the
+            sides at slope 0.45 lifts the light-facing side two rungs while the away side stays
+            at the bottom &mdash; which is what turns it into a solid.
           </li>
           <li>
-            <strong>What the two controls measure, and it is not what we expected.</strong> Same
-            island, 85,145 delivered pixels each: contact darkening alone occludes{' '}
-            <strong>16.4%</strong>, the full cast shadow alone <strong>7.6%</strong>, both together{' '}
-            <strong>18.6%</strong>. So <strong>72% of the cast shadow&rsquo;s pixels are already
-            darkened by the contact pools</strong>, and the cast shadow&rsquo;s own marginal
-            contribution is 2.1% of the island &mdash; and it is the most expensive lever this arc
-            ever built.
+            <strong>The coping is a lighter stone.</strong> A wall&rsquo;s top is horizontal, so
+            no lighting choice can separate it from the body; only a second authored token can.
           </li>
           <li>
-            <strong>Everything else held at today&rsquo;s values</strong>, so this direction is
-            the light and nothing else.
+            <strong>The court is off-centre, to the east.</strong> The hero tree stands near the
+            middle with a 75-unit crown, so a court at the centre would sit under it and both
+            would be illegible. Off-centre gives the island TWO centres of interest, which every
+            one of your references has and a single tree on a green field never did.
+          </li>
+          <li>
+            <strong>The vegetation is thinned to 45%</strong>, and the weight goes into hedges and
+            pots. 144 plants at fifteen delivered pixels each read as speckle; your references
+            carry between ten and thirty plant masses with actual shapes.
           </li>
         </ul>
-        <p className="lede caveat">
-          <strong>The two islands after it are controls, not directions, and they are here to make
-          one number honest.</strong> A is built from two separate mechanisms; on their own they
-          say how much of the occlusion each is actually doing. Same island, same size, same
-          everything else &mdash; only the mechanism differs. They are not on the menu.
+        <div className="row">
+          <Island label="A &mdash; WALLED GARDEN" note="wall, path, court, well, pots" tag="walled" {...WALLED} />
+        </div>
+      </section>
+
+      <section>
+        <h2>4 &mdash; B: THE HAMLET</h2>
+        <p className="lede">
+          A place people live. Three cottages on three different parcels, gravel paths worn
+          between them, fenced yards, a village well, and a coast left rocky rather than walled.
+        </p>
+        <ul className="calls">
+          <li>
+            <strong>No perimeter wall, on purpose.</strong> This is the direction that answers
+            &ldquo;does the island need to be enclosed to read as a place?&rdquo; If A and B both
+            read and only A has a wall, the wall is not what did it. Keeping one variable
+            genuinely absent is the only way that stays answerable.
+          </li>
+          <li>
+            <strong>Three buildings, not one.</strong> A single house on an island this size
+            reads as a marker; three read as a relationship, and the paths between them carry it.
+            Your cottage reference is mostly path and fence &mdash; the house occupies about a
+            fifth of the frame.
+          </li>
+          <li>
+            <strong>The roofs are pitched with their ridges running one specific way, and it is
+            worth saying why.</strong> A surface tilted toward the light is the ONLY thing on this
+            island that reaches full-strength colour &mdash; the ground&rsquo;s top faces never
+            do. So a pitched roof is simultaneously the brightest and the highest-contrast object
+            available, and these are oriented to collect that.
+          </li>
+          <li>
+            <strong>The paths wander.</strong> A dead-straight line between two points reads as
+            drawn; a walked path bends once, smoothly, around eight units &mdash; about a cottage
+            width, enough to read as a curve at this size and not so much that it stops looking
+            like the shortest way there.
+          </li>
+          <li>
+            <strong>The island&rsquo;s flank is nine units deep.</strong> With no wall, the coast
+            IS the boundary, so it has to be part of the silhouette. Nine units delivers 11.6 px
+            &mdash; about one and a half times the vegetation.
+          </li>
+        </ul>
+        <div className="row">
+          <Island label="B &mdash; THE HAMLET" note="cottages, paths, yards, well" tag="hamlet" {...HAMLET} />
+        </div>
+      </section>
+
+      <section>
+        <h2>5 &mdash; C: THE TERRACES</h2>
+        <p className="lede">
+          Worked ground. The island&rsquo;s own capability boundaries become low retaining walls,
+          so the structure that is currently a faint bevel becomes architecture. Steps cross the
+          walls, a stone channel carries water along the long axis, and the planting runs in rows.
+        </p>
+        <ul className="calls">
+          <li>
+            <strong>This is the only direction that uses the island&rsquo;s own structure.</strong>
+            {' '}A, B, D and E could be built on any landmass. This one is made of where the
+            capabilities meet &mdash; which makes it the most interesting if it reads and the most
+            instructive if it does not.
+          </li>
+          <li>
+            <strong>The walls are low &mdash; 3.5 units.</strong> A terrace front is a step in the
+            ground, not an enclosure. That delivers about 4.5 px of face, which is enough to read
+            as an edge and not enough to cut the island into compartments.
+          </li>
+          <li>
+            <strong>⚠ It draws boundaries, and on the real map that would mean something.</strong>
+            {' '}A drawn seam between two capabilities is exactly the treatment you removed on
+            16 August. Here it asserts nothing, because this island represents nothing. But if you
+            pick this direction, that is one of the things it <em>costs</em>, and we would rather
+            say so now than discover it when someone tries to bring it into the app.
+          </li>
+          <li>
+            <strong>No hero tree.</strong> A terraced hillside with one enormous tree in the
+            middle reads as a tree with terraces behind it.
+          </li>
+        </ul>
+        <div className="row">
+          <Island label="C &mdash; THE TERRACES" note="retaining walls, steps, channel, rows" tag="terrace" {...TERRACE} />
+        </div>
+      </section>
+
+      <section>
+        <h2>6 &mdash; D: THE SHRINE COURT</h2>
+        <p className="lede">
+          A monument, approached. A raised stone platform carries a timber pavilion; stepping
+          stones run to it from a gate at the shore, lit by lanterns; the ground around it is
+          raked gravel rather than grass.
+        </p>
+        <ul className="calls">
+          <li>
+            <strong>The pavilion replaces the hero tree as the focal mass</strong>, which puts the
+            arc&rsquo;s live question as a picture. The last round found that removing the tree
+            left the island &ldquo;emptier rather than cleaner&rdquo;, because nothing else was
+            tall or dark. A pavilion is both &mdash; and its roof is the one surface here big
+            enough for full-strength colour to be an area rather than a highlight.
+          </li>
+          <li>
+            <strong>The ground is mostly empty, and that is the risk this direction takes.</strong>
+            {' '}Every other direction answers the reference count by ADDING kinds of object. This
+            one answers it by subtraction: few objects, all large, on a swept surface. If it
+            reads, the count was never the whole story and composition was. If it does not, that
+            is worth knowing, and this is the cheapest way to find out.
+          </li>
+          <li>
+            <strong>The lanterns are the only things wearing the palette&rsquo;s brightest
+            token.</strong> Five of them, small, on a dark court. A bright token used anywhere
+            else stops being an accent.
+          </li>
+          <li>
+            <strong>The UAT wildflowers are off here, and it is the only place on this page that
+            removes real data.</strong> Ten white wildflowers scattered across a swept gravel
+            court is two ideas arguing; a raked court is defined by what is not growing on it.
+          </li>
+          <li>
+            <strong>It gets the rounded outline by its own means &mdash; a swept gravel margin, not
+            a wall.</strong> Without one it read as a house on a hexagon board, which is the
+            complaint this whole round answers surviving inside one of its own directions. It is
+            deliberately narrow and flat: an earlier, chunkier version read at a glance like A&rsquo;s
+            retaining wall, and two directions arriving at the same silhouette is a failure here
+            even when each is defensible on its own.
+          </li>
+        </ul>
+        <div className="row">
+          <Island label="D &mdash; THE SHRINE COURT" note="platform, pavilion, gate, lanterns" tag="shrine" {...SHRINE} />
+        </div>
+      </section>
+
+      <section>
+        <h2>7 &mdash; E: THE WILD SHORE</h2>
+        <p className="lede">
+          Nothing built. A sand shore rounding the coast, rock outcrops, a stone-rimmed pool, a
+          beached boat, and flowering thickets.
+        </p>
+        <ul className="calls">
+          <li>
+            <strong>This is the control for the whole idea.</strong> If the diagnosis is right, an
+            island given materials and masses but no architecture should still read far better
+            than the round you rejected &mdash; it gains sand, stone, water and blossom, which is
+            five materials against one. If it reads no better, the finding is that BUILDINGS were
+            what those references were carrying, and that is a genuinely different worklist.
+          </li>
+          <li>
+            <strong>Colour comes from flowering thickets rather than from pots</strong>, because a
+            pot is a built object and this island has none. A mass of blossom or marigold has a
+            silhouette; a scattered wildflower does not, at this size.
+          </li>
+          <li>
+            <strong>The shore is a wide run of sand slabs following the smoothed coast.</strong> A
+            ring of shore is not a convex shape, so it cannot be one extruded outline &mdash; but
+            a three-wide run of slabs is a ring made of convex pieces, and it drapes over the
+            land&rsquo;s relief for free because each slab sits at its own ground height.
+          </li>
+          <li>
+            <strong>The vegetation keeps 70%</strong>, the most of any direction, and uses the
+            other plant silhouette. A wild shore is the one place where density is the point.
+          </li>
+        </ul>
+        <div className="row">
+          <Island label="E &mdash; THE WILD SHORE" note="sand, rocks, pool, boat, thickets" tag="wild" {...WILD} />
+        </div>
+      </section>
+
+      <section>
+        <h2>8 &mdash; the tree, still on trial</h2>
+        <p className="lede">
+          Your hypothesis was that the hero tree is redundant because the land&rsquo;s colour is
+          the bigger signal. The last round found it is not <em>merely</em> aesthetic in the
+          picture &mdash; it is the island&rsquo;s only dark mass and its only vertical, and the
+          versions without it looked emptier rather than cleaner. The interesting question now is
+          whether that is still true once the island has walls, paths and buildings on it. Here is
+          the same walled island twice, identical in every other respect.
         </p>
         <div className="row">
-          <Island label="A &mdash; AFTERNOON" note="contact + cast shadow" tag="a-afternoon" {...AFTERNOON} />
+          <Island label="A &mdash; with the tree" note="the walled garden" tag="tree-with" {...WALLED} />
           <Island
-            label="A&#8320; &mdash; cast shadow only"
-            note="no contact darkening &middot; a control, not a direction"
-            tag="a-cast-only"
-            {...AFTERNOON}
-            contact={false}
+            label="A &mdash; no tree"
+            note="identical otherwise"
+            tag="tree-without"
+            {...WALLED}
+            tree={false}
           />
-          <Island
-            label="A&#8321; &mdash; contact only"
-            note="no cast shadow &middot; a control, not a direction"
-            tag="a-contact-only"
-            {...AFTERNOON}
-            shadow="off"
-          />
-        </div>
-      </section>
-
-      <section>
-        <h2>4 &mdash; B: THE SLAB, where the edge carries it</h2>
-        <p className="lede">
-          The island as a solid object you could pick up. Its rim becomes its own material
-          rather than a shaded lip of the same green, which is what gives the references their
-          thickness &mdash; R1&rsquo;s wall of stone blocks, R3&rsquo;s kerb over a soil slab.
-        </p>
-        <ul className="calls">
-          <li>
-            <strong>The rim wears the family&rsquo;s authored <code>side</code> token.</strong>{' '}
-            Not a new colour: <code>side</code> is the token the shipped map already puts on a
-            territory&rsquo;s side faces, already in the closed palette. The island stops
-            reading as a coloured plane with a dark lip and starts reading as a top surface on
-            a flank.
-          </li>
-          <li>
-            <strong>The flank is 9 ground units deep rather than 2.2.</strong> Colouring the
-            rim was not enough on its own and the reason is arithmetic: at the 50&deg; camera
-            the shipped 2.2-unit skirt delivers <strong>2.8 pixels</strong> of island
-            thickness &mdash; under one percent of the island&rsquo;s on-screen height, so
-            whatever colour it wears it cannot be part of the silhouette. Nine units delivers
-            11.6 px, about 1.5&times; the median plant&rsquo;s delivered height. It is
-            geometry, so it costs the palette nothing.
-          </li>
-          <li>
-            <strong>The RIM only &mdash; capability boundaries are untouched.</strong> A parcel
-            boundary drawn in a different colour is a drawn SEAM, which is the treatment the
-            owner removed on 2026-08-16. The outer rim is not a boundary between two parcels;
-            it is where the land stops.
-          </li>
-          <li>
-            <strong>No cast shadow.</strong> Deliberate, so this direction is the silhouette
-            and not the light. Contact darkening stays, because without it the props float
-            against a now-more-solid island and the mismatch is worse than either alone.
-          </li>
-        </ul>
-        <div className="row">
-          <Island label="B &mdash; THE SLAB" note="deep material flank + contact" tag="b-slab" {...SLAB} />
-        </div>
-      </section>
-
-      <section>
-        <h2>5 &mdash; C: THE GARDEN, where the ground carries it</h2>
-        <p className="lede">
-          The direct test of the owner&rsquo;s own hypothesis &mdash; that the land&rsquo;s
-          colour is the bigger signal and the tree is aesthetic. So this island has no tree at
-          all, and everything that would have been focal is spread across the ground instead.
-        </p>
-        <ul className="calls">
-          <li>
-            <strong>Regional ground variation.</strong> The land selects among its status
-            family&rsquo;s THREE authored ground tokens by a low-frequency field over ground
-            space, on wavelengths of 96 and 61 units against a 16.5-unit cell pitch &mdash; so
-            neighbouring cells almost always agree and the variation reads as patches rather
-            than as noise. ⚠ This sits next to a decision the owner made against: the PER-CELL
-            hash variants were removed on 2026-08-16. The distinction is measured, not
-            asserted &mdash; the seam rate is in the README.
-          </li>
-          <li>
-            <strong>No hero tree.</strong> Not a verdict on the tree; a direction that has to
-            find its interest somewhere else, which is the only way to see whether it can.
-          </li>
-          <li>
-            <strong>The <code>foliage</code> plant silhouette</strong> rather than{' '}
-            <code>mound</code>, because with nothing focal the vegetation is carrying more of
-            the picture and the two silhouettes distribute their mass differently.
-          </li>
-        </ul>
-        <div className="row">
-          <Island label="C &mdash; THE GARDEN" note="regional ground, no tree" tag="c-garden" {...GARDEN} />
-        </div>
-      </section>
-
-      <section>
-        <h2>6 &mdash; D: ONE LANDMASS, where the silhouette carries it</h2>
-        <p className="lede">
-          Every island above reads as a cluster of hexagons &mdash; a board rather than a
-          place &mdash; and that read gets stronger, not weaker, when the tree comes off,
-          because the silhouette is then the whole picture. This direction stops drawing the
-          parcels and lets the land be one continuous mass with a thick flank.
-        </p>
-        <ul className="calls">
-          <li>
-            <strong>No parcel bevel.</strong> The bevel is what draws the capability
-            boundaries &mdash; a V-groove per boundary, in the land&rsquo;s own colour. It is
-            the single thing making the island read as tiles. Turned off, cells share exact
-            edges and the ground is one surface riding one relief field.
-          </li>
-          <li>
-            ⚠ <strong>The trade-off, named rather than buried:</strong> the parcel read GOES.
-            You can no longer see where one capability ends and the next begins. Nothing false
-            is asserted &mdash; a boundary that is not drawn claims nothing &mdash; but a
-            signal is lost, and whether the island needs that signal is one of the things this
-            arc is here to find out by looking.
-          </li>
-          <li>
-            <strong>Deep material flank, regional ground, contact darkening, no tree.</strong>{' '}
-            The composition that gives the silhouette the most to do.
-          </li>
-        </ul>
-        <div className="row">
-          <Island label="D &mdash; ONE LANDMASS" note="no parcel bevel, deep flank" tag="d-landmass" {...LANDMASS} />
-        </div>
-      </section>
-
-      <section>
-        <h2>7 &mdash; E: COMPOSED</h2>
-        <p className="lede">
-          Everything at once, with the parcels kept and the tree kept. If the directions
-          compose rather than fight, this is the one that says so; if they fight, this is where
-          it shows.
-        </p>
-        <ul className="calls">
-          <li>
-            <strong>Contact + cast shadow + deep material flank + regional ground.</strong> The{' '}
-            <code>mound</code> plant silhouette rather than the garden&rsquo;s{' '}
-            <code>foliage</code>, so the only differences from A and B are the ones named.
-          </li>
-        </ul>
-        <div className="row">
-          <Island label="E &mdash; COMPOSED" note="everything, tree kept" tag="e-composed" {...COMPOSED} />
-        </div>
-      </section>
-
-      <section>
-        <h2>8 &mdash; F: DEEPER GROUND, and why you have to decide it rather than us</h2>
-        <p className="lede">
-          Everything E has, plus the one thing that would actually change the picture: the
-          ground is allowed to reach for a FOURTH authored token in its deepest hollows. It is
-          the same status family and it is already in the closed palette &mdash; it is the
-          colour the vegetation and the island&rsquo;s flank already wear.
-        </p>
-        <p className="lede">
-          <strong>The size of the prize, measured.</strong> Flat ground is delivered at
-          luminance 145. The occlusion rung &mdash; the deepest shadow the palette currently
-          permits, and the thing directions A and E spend most of their machinery on &mdash;
-          takes it to 135: a <strong>6.6% darkening</strong>. The fourth token takes it to 103:
-          a <strong>29.2% darkening</strong>, four and a half times as much. Every other lever
-          on this page is working inside a range narrower than this one token.
-        </p>
-        <p className="lede caveat">
-          <strong>⚠ Why this session will not simply take it.</strong> The land&rsquo;s colour
-          is what says whether a capability is proven. Under the renderer&rsquo;s own reader
-          &mdash; one reference colour per status &mdash; that fourth token on lit ground reads
-          as <code>mapped</code> rather than <code>healthy</code>. Under a reader that knows all
-          three of the family&rsquo;s ground colours it reads as <code>healthy</code>. Both
-          readers are defensible and they disagree, which is exactly the question already
-          waiting on you: <em>the land&rsquo;s status colours differ mainly in brightness, and
-          lighting moves brightness.</em> An appearance pass may not settle what the art
-          asserts, so this island exists to price that question rather than to answer it. If
-          the answer is that the statuses get separated by HUE rather than by brightness, this
-          direction is available and so is a great deal more.
-        </p>
-        <div className="row">
-          <Island
-            label="E &mdash; COMPOSED"
-            note="the same island, permitted today"
-            tag="f-before"
-            {...COMPOSED}
-          />
-          <Island
-            label="F &mdash; DEEPER GROUND ⚠"
-            note="gated on the open question"
-            tag="f-after"
-            {...DEEPGROUND}
-          />
-        </div>
-      </section>
-
-      <section>
-        <h2>9 &mdash; the tree, on trial</h2>
-        <p className="lede">
-          The same island twice, identical in every other respect, with and without the hero
-          tree, at delivered size. Two pairs: the island as it ships today, and the composed
-          direction &mdash; because the question is worth asking both about the island the
-          owner knows and about the one he might choose.
-        </p>
-        <p className="lede caveat">
-          <strong>Two things that follow from removing it, and neither is an argument against
-          doing so.</strong> The tree throws MORE ground shadow than all 144 plants combined
-          (16.58% of the island&rsquo;s ground against 14.63%), so without it the shadow work
-          drops back to roughly the 3% of delivered pixels it reached before the tree landed
-          &mdash; close to not worth its palette cost. And it is the island&rsquo;s only focal
-          point, so an island without one needs its interest somewhere else. Directions C and D
-          are what that looks like.
-        </p>
-        <div className="row">
-          <Island label="TODAY &mdash; with tree" note="the control" tag="tree-today-with" {...TODAY} />
-          <Island label="TODAY &mdash; no tree" note="identical otherwise" tag="tree-today-without" {...TODAY} tree={false} />
-        </div>
-        <div className="row" style={{ marginTop: 26 }}>
-          <Island label="E &mdash; with tree" note="composed" tag="tree-composed-with" {...COMPOSED} />
-          <Island label="E &mdash; no tree" note="identical otherwise" tag="tree-composed-without" {...COMPOSED} tree={false} />
         </div>
       </section>
     </main>
