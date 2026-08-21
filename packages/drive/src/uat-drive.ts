@@ -38,6 +38,7 @@
  */
 
 import type { ReliabilityGate, UatTestCriterionSource } from "@storytree/library";
+import stripAnsi from "strip-ansi";
 import { z } from "zod";
 
 // ---------------------------------------------------------------------------
@@ -430,6 +431,40 @@ export const UAT_DRIVE_PROGRESS_EVIDENCE_CLAUSE = [
   "    churn into a product duration, hang, host termination, pass, or fail.",
 ].join("\n");
 
+/**
+ * The desktop's terminal snapshot is an xterm screen serialization, not a plain-text transcript.
+ * Keeping its colour and cursor state is a product contract. A UAT walker asserting what a user can
+ * read needs a separate printable projection, otherwise PSReadLine's SGR between command tokens turns
+ * an exact seeded command into a false negative under raw `String.includes`.
+ */
+export const UAT_DRIVE_TERMINAL_VISIBLE_TEXT_CLAUSE = [
+  "Terminal visible-text evidence - compare what the user can read, not colour-preserving bytes:",
+  "",
+  "  - A terminal snapshot is an xterm screen serialization. It deliberately retains ANSI colour,",
+  "    cursor, title, and other control sequences, including controls inserted between command tokens.",
+  "  - Before asserting that printable text such as an exact seeded command appears, project the raw",
+  "    snapshot with `projectTerminalVisibleText` from `packages/drive/src/uat-drive.ts`. Never compare",
+  "    the colour-preserving raw snapshot with `.includes(exactCommand)`; that is diagnostic bytes, not",
+  "    the visible text a user reads.",
+  "  - Keep the raw snapshot as diagnostic evidence. Apply this projection only to visible-text",
+  "    comparisons: do not erase semantic output, and do not replace exact process/tool/result identity",
+  "    with a text inference. The execution-progress rule still decides whether a process started.",
+].join("\n");
+
+/**
+ * PURE: project an xterm serialization to the printable text a UAT observer can compare.
+ *
+ * ANSI/OSC controls express colour, cursor and title state, not user-readable characters. Remaining
+ * C0 controls are likewise non-printing; line breaks and tabs survive because they carry text layout.
+ * The caller retains the original snapshot separately, so product serialization and diagnostics stay
+ * byte-for-byte untouched.
+ */
+export function projectTerminalVisibleText(serializedScreen: string): string {
+  return stripAnsi(serializedScreen)
+    .replace(/\r\n?/g, "\n")
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "");
+}
+
 export interface DriveExecutionProgressEvidence {
   /** The process/tool identity whose start is being classified. */
   readonly expectedProcessId: string;
@@ -627,6 +662,8 @@ export function uatDriveTaskPrompt(spec: UatDriveSpec): string {
     "",
     UAT_DRIVE_PROGRESS_EVIDENCE_CLAUSE,
     "",
+    UAT_DRIVE_TERMINAL_VISIBLE_TEXT_CLAUSE,
+    "",
     uatDriveIsolationClause(spec.isolation),
     "",
     UAT_DRIVE_AUTONOMY_CLAUSE,
@@ -715,6 +752,9 @@ export function auditDrivePrompt(prompt: string, spec: UatDriveSpec): DrivePromp
   }
   if (!prompt.includes(UAT_DRIVE_PROGRESS_EVIDENCE_CLAUSE)) {
     missing.push("the execution-progress evidence clause");
+  }
+  if (!prompt.includes(UAT_DRIVE_TERMINAL_VISIBLE_TEXT_CLAUSE)) {
+    missing.push("the terminal visible-text evidence clause");
   }
   if (!prompt.includes(uatDriveIsolationClause(spec.isolation))) missing.push("the isolation clause");
   // The `surface` field lives in the REPORT CONTRACT, not the isolation clause, so the clause check
