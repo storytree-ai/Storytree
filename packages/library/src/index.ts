@@ -66,12 +66,12 @@ export * from "./decision-pointer.js";
 // actually be walked rather than over either half alone. `pnpm probe:combined-dag` is a thin read
 // around this; no gate rung enforces it.
 export * from "./combined-dag.js";
-// ADR-0402 READ TOLERANCE, TEMPORARY: `readDependsOnPointers` lets every reader of the authored
-// dependency edge accept the pre-rename `standsOn` key until the corpus drains. Migration #7 runs
-// at the WRITE boundary only, so without it a stored row's edges are invisible to the acyclicity
-// rung, the depth walk, the studio wire and both probes. Delete the module and its call sites once
-// no row can still carry the old key (see depends-on-compat.ts).
-export * from "./depends-on-compat.js";
+// The TOTAL defensive read of the authored dependency edge off a stored payload. It was ADR-0402's
+// temporary read tolerance; `adrs-into-the-dag-arc-inc-06` drained the corpus on 2026-08-22 and the
+// legacy `standsOn` branch is GONE. What remains is permanent: eight readers project an untrusted
+// live row, and a surprise row must read as "no edges" rather than take a fail-closed gate down.
+// Migration #7 stays forever — the registry is append-only (see depends-on.ts).
+export * from "./depends-on.js";
 
 // ADR-0363 D2 (`traversal-panel-arc` increment `standson-depth-from-work-join`): the READ-ONLY
 // depth-from-work join — the same `dependsOn` substrate seeded at the artifacts whose `cites` names a

@@ -716,64 +716,6 @@ test("buildLibraryDoc preserves dependsOn across a body-bearing write it cannot 
   assert.deepEqual(doc["dependsOn"], ["asset:bedrock"], "the authored edge survives a studio save");
 });
 
-test("buildLibraryDoc carries a LEGACY `standsOn` across too, so the rename deletes no edge (ADR-0402)", () => {
-  // Migration #7 runs at the WRITE boundary, on the doc this function hands back — so an edge only
-  // survives the rename window if it REACHES that boundary. The structured branch starts from
-  // `{...existingDoc}` and carries the legacy key for free; this branch builds a fresh doc, so
-  // reading only the new key would silently delete the edge of every row not yet migrated.
-  const existing: StoredDoc = {
-    id: "unmigrated-unit",
-    kind: "pattern",
-    doc: {
-      id: "unmigrated-unit",
-      category: "pattern",
-      title: "old",
-      description: "old",
-      body: "old body",
-      references: [],
-      standsOn: ["asset:bedrock"],
-      createdAt: "2026-07-01T00:00:00Z",
-    },
-    createdAt: "2026-07-01T00:00:00Z",
-    updatedAt: "2026-07-01T00:00:00Z",
-  };
-
-  const doc = buildLibraryDoc(
-    {
-      id: "unmigrated-unit",
-      category: "pattern",
-      title: "new",
-      description: "new",
-      body: "new body",
-      references: [],
-    },
-    existing,
-  );
-
-  assert.deepEqual(
-    doc["dependsOn"],
-    ["asset:bedrock"],
-    "an un-migrated row's edge arrives under the NEW key, not on the floor",
-  );
-
-  // An already-migrated row wins outright — the legacy read is a fallback, never an override.
-  const both = buildLibraryDoc(
-    {
-      id: "unmigrated-unit",
-      category: "pattern",
-      title: "new",
-      description: "new",
-      body: "new body",
-      references: [],
-    },
-    {
-      ...existing,
-      doc: { ...(existing.doc as Record<string, unknown>), dependsOn: ["asset:current"] },
-    },
-  );
-  assert.deepEqual(both["dependsOn"], ["asset:current"]);
-});
-
 /**
  * THE `increment` MISCLASSIFICATION (ADR-0363 D2's blocker, measured against the live store
  * 2026-08-14: 703 of 703 increments took the pass-through branch).
