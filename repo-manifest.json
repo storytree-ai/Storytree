@@ -433,8 +433,6 @@
       "apps/desktop/src/oauth": "credential-broker",
       "apps/desktop/src/apply": "pinned-runtime-apply",
       "apps/desktop/src/backend/boot-read-routes.ts": "boot-read-routes",
-      "apps/desktop/src/backend/build-route.ts": "desktop-build-route",
-      "apps/desktop/src/backend/adopt-route.ts": "desktop-accept-dispatch",
       "apps/desktop/src/backend/chat-sse-mount.ts": "chat-sse-mount",
       "apps/desktop/src/backend/credential*.ts": "local-credential-wiring",
       "apps/desktop/src/backend/forest-readiness.ts": "shared-forest-connection",
