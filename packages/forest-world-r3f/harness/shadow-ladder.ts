@@ -39,6 +39,7 @@ import {
   SHADE_LEVELS,
   STATUS_TOKENS,
   TREE_TOKENS,
+  deliveredForLevel,
   familylessTokens,
   landTokens,
   parseHex,
@@ -111,7 +112,10 @@ export function scale(c: Rgb255, m: number): Rgb255 {
  * construction NOT a member of `SHADE_LEVELS`, so it must never be quantised on the way in.
  */
 export function deliveredColour(token: string, level: number): Rgb255 {
-  return scale(parseHex(token), level);
+  // Delegated rather than reimplemented: a token with a SHADE_KEYS entry mixes toward its key
+  // instead of scaling, and the shadow ladder has to deliver the SAME pixel the lit ladder's
+  // `bandedColour` would for a shared level or the palette closure splits in two.
+  return deliveredForLevel(token, level);
 }
 
 /** The colours a READER could take for a status, per status — the port of

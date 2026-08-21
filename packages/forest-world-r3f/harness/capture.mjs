@@ -614,4 +614,21 @@ console.log(
     'canvases (REPORTED, not a rung — the flat control reads 0)',
 );
 console.log(`frame p50  : ${report.frameTiming.p50Ms} ms (RELATIVE — software rasteriser)`);
-console.log(offPalette === 0 ? 'PALETTE CLOSED ON THE GPU' : 'PALETTE BREACHED');
+if (offPalette > 0) {
+  // AN OFF-PALETTE PIXEL NOW EXITS NON-ZERO, AND UNTIL 2026-08-22 IT DID NOT.
+  //
+  // This script's exit code already covered console errors, a blank canvas, a duplicated
+  // `data-st-tag` and the settle timeout — every failure of the HARNESS — while the one thing
+  // it exists to prove printed `PALETTE BREACHED` and returned 0. So the palette fence, the
+  // property ADR-0380 D6 fence 3 rests on and the reason `capture.mjs` can REFUSE rather than
+  // merely report, was the single claim on this page that no caller could check without reading
+  // the prose. Filed as friction `capture-palette-check-reports-a-breach-and-exits-zero`; the
+  // last three research READMEs each carried a paragraph warning readers not to trust the exit
+  // code, which is a documented workaround standing in for a one-line fix.
+  //
+  // It comes LAST on purpose: the pictures and the report are already written by this point, so
+  // a breach still leaves the full evidence on disk to diagnose from. Refusing earlier would
+  // destroy exactly the artefact needed to find out what went off-palette.
+  fail(`PALETTE BREACHED — ${offPalette} delivered px outside the authored closure`);
+}
+console.log('PALETTE CLOSED ON THE GPU');

@@ -1,28 +1,52 @@
-// directions.tsx — FIVE ISLANDS BUILT TO LOOK GOOD, WITH PROPS UNFENCED (dev-only evidence page).
+// directions.tsx — FIVE ISLANDS WITH MANY SMALL TREES, GROUNDED IN ISLANDERS (dev-only evidence).
 //
 // Six whole islands: five directions and the island as it ships today, as the control.
 //
 // ============================================================================
-// WHY THIS PAGE LOOKS NOTHING LIKE THE ONE IT REPLACES
+// WHAT CHANGED THIS ROUND, AND WHY
 // ============================================================================
 //
-// The previous version of this file showed six islands that differed by a flag each — light on,
-// edge material, ground regional, bevel off. The owner rejected all six:
+// The owner looked at the five dressed islands this page carried on 2026-08-21 and answered:
 //
-//   "these islands dont look nice at all, they all look the same/worse and look as if we havn't
-//    really broken any new ground. If i look online there are lots of much better looking items,
-//    what are we missing here"
+//   "these look okay, i think i'm confident now we ditch the middle tree, and instead opt for many
+//    small trees so it actually looks like a forrest/garden. I want to do another session to do
+//    further experiments, this time the session first grounds in a research pass in the islanders
+//    game https://allmenroeder.com/islanders. Looking at the symplistic art style of this game, it
+//    achieves quite a lot without much complexity, i think we can take inspiration for this art
+//    style."
 //
-// He was right, and the reason is countable. Our island draws FOUR kinds of object — ground,
-// shrub, flower, tree. His four reference images draw EIGHT TO FIFTEEN, and every one of them
-// has a hard boundary, a path with its own material, and stone AND wood AND paving AND water
-// where we had exactly one material, matte green, in slightly different shapes.
+// TWO DECISIONS, BOTH SETTLED, AND THEY ARE DIFFERENT IN KIND.
 //
-// The observation that settles which half of the stack was short: his simplest reference is flat
-// pixel art with NO cast shadows, NO ambient occlusion, NO terrain relief and NO bevels, and it
-// reads as a place while ours did not. Our island already carried more rendering technique than
-// that picture carries. So another pass of shadow, palette or bevel work could not have closed
-// it — the gap was CONTENT and MATERIALS.
+// 1. THE HERO TREE IS OUT — not permitted-to-remove, REPLACED. Every dressed island now carries
+//    `tree: false` and a CANOPY of 19 to 58 small trees. The arc's end-state item 2 is discharged;
+//    the with/without pair this page used to carry is GONE, because the question is answered and
+//    re-asking it would spend the owner's look on something already decided.
+//
+// 2. THE ART STYLE HAS A NAMED REFERENCE FOR THE FIRST TIME. ADR-0392 D3 obliged a reference board
+//    precisely because "results we see online" had been an unstated standard. The research pass is
+//    `docs/research/chapter2-islanders-canopy-2026-08-22/`, and its central finding is not about
+//    trees: in ISLANDERS a shaded face has ROTATED IN HUE rather than merely darkened (measured on
+//    its own trees: +22 to +61 degrees at 0.59-0.72x the value). Our `bandedColour` is
+//    `token x level` — one scalar on R, G and B — so it CANNOT rotate at all, which is why more
+//    shadow depth was never going to close the gap. `SHADE_KEYS` is that lever, built this round,
+//    and scoped to the three canopy tokens because keying a STATUS family would change what the
+//    land's colour asserts (ADR-0392 D5 / ADR-0398 D7).
+//
+// ⚠ SCOPE. This is the EXPERIMENT island. On the shipped map a story's tree crown carries a
+// status-bearing token (`TREE_TOKENS`, ADR-0226), so removing or multiplying it THERE changes what
+// the map ASSERTS. Nothing here licenses that, and the story tree's fate on the product map is a
+// separate owner question.
+//
+// ============================================================================
+// WHY THE ROUND BEFORE THIS ONE EXISTS — the props, still standing
+// ============================================================================
+//
+// Two rounds ago this page showed six islands that differed by a FLAG each. The owner rejected all
+// six: "they all look the same/worse and look as if we havn't really broken any new ground". The
+// reason was countable — our island drew FOUR kinds of object where his references drew eight to
+// fifteen — and the observation that settled which half of the stack was short is that his simplest
+// reference has NO cast shadows, NO ambient occlusion, NO relief and NO bevels and reads as a place
+// anyway. Our island already carried more rendering technique than that picture carries.
 //
 // He then lifted the fence that had kept every session working on rendering:
 //
@@ -32,7 +56,10 @@
 //
 // That is recorded as ADR-0406: the harness island represents nothing, so it asserts no state
 // that a decoration could misreport, and props, colour and new material tokens are unfenced on
-// it. The product map is untouched (ADR-0406 D2).
+// it. The product map is untouched (ADR-0406 D2). The ISLANDERS pass CONFIRMS that diagnosis from
+// a second direction: an individual tree there carries LESS detail than our shrubs already do, and
+// all of its richness is composition — how many objects, how they clump, how much bare ground is
+// left between the clumps.
 //
 // ============================================================================
 // THE RULES THIS PAGE IS STILL BUILT UNDER — none of them moved
@@ -49,8 +76,11 @@
 //   - ADR-0380 D6: three of the four fences do not move — accessibility stays in the DOM/SVG
 //     layer, determinism stays on the scene graph, the projection does not move. The fourth, the
 //     LOCKED PALETTE, is read by ADR-0406 D3 as a vocabulary fence rather than a size fence:
-//     eighteen prop material tokens were AUTHORED, the banded shader is unchanged, and every
-//     colour on this page is still an authored `(token x level)` closure entry.
+//     twenty-one prop material tokens are AUTHORED, and every colour on this page is still an
+//     authored closure entry — 0 off-palette pixels, measured on the GPU. A SHADE-KEYED token
+//     computes its entry as a mix of two authored colours rather than as `token x level`, which
+//     leaves the closure exactly as enumerable and as refusable as it was; the argument is in
+//     `palette-band.ts` beside the constant and in the research README section 7.
 //
 // ============================================================================
 // WHY THESE FIVE DIFFER, AND WHY THAT IS THE WHOLE DESIGN
@@ -58,10 +88,11 @@
 //
 // A flag can only vary a QUANTITY, which is why six flags read as one idea. These five vary what
 // the island IS: an enclosed garden, a settlement, worked ground, a monument, an unbuilt shore.
-// Each brings its own props, its own path material, its own vegetation density and its own
-// relationship to the coast. Two of them deliberately have no buildings and two deliberately
-// have no hero tree, so the page answers "what is actually carrying this?" rather than only
-// "which do you like?".
+// Each brings its own props, its own path material, its own vegetation density, its own
+// relationship to the coast — and now its own PLANTING, because where a place puts its trees is
+// one of the loudest things it says about what kind of place it is. Two of them deliberately have
+// no buildings, so the page answers "what is actually carrying this?" rather than only "which do
+// you like?".
 
 import { createRoot } from 'react-dom/client';
 
@@ -121,6 +152,7 @@ const WALLED: Dir = {
   edge: 'material',
   wallDepth: 5,
   ground: 'regional',
+  tree: false,
 };
 
 /**
@@ -139,6 +171,7 @@ const HAMLET: Dir = {
   edge: 'material',
   wallDepth: 9,
   ground: 'regional',
+  tree: false,
 };
 
 /**
@@ -197,13 +230,14 @@ const WILD: Dir = {
   wallDepth: 8,
   ground: 'regional',
   style: 'foliage',
+  tree: false,
 };
 
 function App() {
   return (
     <main>
       <header>
-        <h1>Five islands, built to look good</h1>
+        <h1>The middle tree is gone. These are woods.</h1>
         <p>
           Every picture on this page is a <strong>whole island at the size it is actually
           delivered</strong> &mdash; 2 px per ground unit, the real 13-hex research surface
@@ -211,22 +245,32 @@ function App() {
           criteria. Nothing here is a fragment, a swatch, or a technique survey.
         </p>
         <p>
-          Last time you saw six islands that differed by a setting each, and you said they all
-          looked the same. They did. The countable reason: <strong>our island draws four kinds of
-          object &mdash; ground, shrub, flower, tree. Your reference images draw eight to
-          fifteen</strong>, and every one of them has a wall or a fence, a path with its own
-          material, and stone <em>and</em> wood <em>and</em> paving <em>and</em> water where we
-          had one matte green.
+          You asked for two things: ditch the one big tree in favour of many small ones so the
+          island reads as a forest or a garden, and look at <strong>ISLANDERS</strong> first,
+          because it &ldquo;achieves quite a lot without much complexity&rdquo;. Both are done.
+          Each island now carries <strong>19 to 58 small trees</strong> instead of one large one,
+          and the shapes they are cut from were measured off that game rather than invented here.
         </p>
         <p>
-          So this round spends nothing on rendering. It spends everything on{' '}
-          <strong>what is on the island</strong>. These five differ in what the place <em>is</em>
-          {' '}&mdash; an enclosed garden, a settlement, worked ground, a monument, an unbuilt
-          shore &mdash; not in how brightly it is lit.
+          The most useful thing that measurement turned up is not about trees at all. In ISLANDERS,
+          <strong> the shaded side of something is not the lit side made darker &mdash; it has
+          changed colour</strong>: a green tree&rsquo;s shadow side goes teal, and the winter
+          island&rsquo;s snow goes blue in shade. Our shading could only ever make a colour
+          <em> dimmer</em>, never <em>different</em>, so no amount of deepening shadows was going
+          to get us there. The trees on this page are the first thing we have drawn that can do it.
+        </p>
+        <p>
+          One thing it will not close, said plainly: their picture is <strong>continuously
+          shaded</strong> and ours is locked to a fixed set of colours &mdash; roughly 20 to 1 in
+          how many shades cover a frame. That is the rule we set ourselves so this never ships
+          looking like a generic 3D render, it is now a number rather than a hunch, and it is the
+          honest answer to &ldquo;why doesn&rsquo;t this look exactly like that&rdquo; for that one
+          property. The full working is in{' '}
+          <code>docs/research/chapter2-islanders-canopy-2026-08-22/</code>.
         </p>
         <p className="numbers">
-          13 hexes &middot; 11 capabilities &middot; 18 new authored material tokens &middot;
-          locked palette, every colour still an authored <code>token &times; level</code> entry
+          13 hexes &middot; 11 capabilities &middot; 21 authored material tokens &middot; locked
+          palette, 0 off-palette pixels &middot; the frame is 21% shorter without the big tree
           &middot; 2.5D isometric at 50&deg; &middot; one authored light at 55.2&deg; &middot;
           nothing is animated (ADR-0045) &middot; nothing here is adopted into the app
         </p>
@@ -255,7 +299,9 @@ function App() {
         <p className="lede">
           The control, and the thing you rejected. Flat pale ground, a rim the same green as the
           top face, no occlusion anywhere, 144 plants each about fifteen delivered pixels across,
-          and one very large tree. Everything below is measured against this.
+          and one very large tree. It is the only picture on this page that still has that tree,
+          and it renders exactly the pixels it rendered a day ago &mdash; checked, not assumed.
+          Everything below is measured against it.
         </p>
         <div className="row">
           <Island label="TODAY" note="2 px/unit &middot; the control" tag="today" {...TODAY} />
@@ -290,10 +336,10 @@ function App() {
             no lighting choice can separate it from the body; only a second authored token can.
           </li>
           <li>
-            <strong>The court is off-centre, to the east.</strong> The hero tree stands near the
-            middle with a 75-unit crown, so a court at the centre would sit under it and both
-            would be illegible. Off-centre gives the island TWO centres of interest, which every
-            one of your references has and a single tree on a green field never did.
+            <strong>The court is off-centre, to the east.</strong> It was put there to stay out
+            from under the big tree&rsquo;s crown; with the tree gone the reason has changed but
+            the answer has not, because two centres of interest is what every one of your
+            references has and a single object on a green field never did.
           </li>
           <li>
             <strong>The vegetation is thinned to 45%</strong>, and the weight goes into hedges and
@@ -376,8 +422,11 @@ function App() {
             say so now than discover it when someone tries to bring it into the app.
           </li>
           <li>
-            <strong>No hero tree.</strong> A terraced hillside with one enormous tree in the
-            middle reads as a tree with terraces behind it.
+            <strong>Six stands of cypress, and they were made bigger after the first render.</strong>
+            {' '}With the big tree gone, the darkest thing left on the terraces was nothing at all,
+            and the ten white flowers took over the picture. Bigger, more numerous trees put the
+            dark end back without touching the flowers, which are the one thing here that is still
+            real data.
           </li>
         </ul>
         <div className="row">
@@ -394,11 +443,13 @@ function App() {
         </p>
         <ul className="calls">
           <li>
-            <strong>The pavilion replaces the hero tree as the focal mass</strong>, which puts the
-            arc&rsquo;s live question as a picture. The last round found that removing the tree
-            left the island &ldquo;emptier rather than cleaner&rdquo;, because nothing else was
-            tall or dark. A pavilion is both &mdash; and its roof is the one surface here big
-            enough for full-strength colour to be an area rather than a highlight.
+            <strong>The pavilion is the focal mass, and the trees are the dark one.</strong> The
+            older worry was that taking the big tree out would leave an island &ldquo;emptier
+            rather than cleaner&rdquo;, because nothing else was tall or dark. A pavilion is tall;
+            these trees are the darkest green on the page, and this is the only island whose range
+            of light-to-dark got WIDER when the big tree left rather than narrower. Its roof is
+            still the one surface big enough for full-strength colour to be an area rather than a
+            highlight.
           </li>
           <li>
             <strong>The ground is mostly empty, and that is the risk this direction takes.</strong>
@@ -466,27 +517,6 @@ function App() {
         </div>
       </section>
 
-      <section>
-        <h2>8 &mdash; the tree, still on trial</h2>
-        <p className="lede">
-          Your hypothesis was that the hero tree is redundant because the land&rsquo;s colour is
-          the bigger signal. The last round found it is not <em>merely</em> aesthetic in the
-          picture &mdash; it is the island&rsquo;s only dark mass and its only vertical, and the
-          versions without it looked emptier rather than cleaner. The interesting question now is
-          whether that is still true once the island has walls, paths and buildings on it. Here is
-          the same walled island twice, identical in every other respect.
-        </p>
-        <div className="row">
-          <Island label="A &mdash; with the tree" note="the walled garden" tag="tree-with" {...WALLED} />
-          <Island
-            label="A &mdash; no tree"
-            note="identical otherwise"
-            tag="tree-without"
-            {...WALLED}
-            tree={false}
-          />
-        </div>
-      </section>
     </main>
   );
 }

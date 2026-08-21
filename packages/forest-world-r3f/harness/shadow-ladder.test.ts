@@ -204,8 +204,15 @@ test('THE PALETTE COST, as a number: one rung, one entry per land token, nothing
   // closure from 195 to 285. The IDENTITY above is what actually holds the cost; these two
   // literals are the witness that the growth was the one we authored and not a colour that
   // arrived by another route.
-  assert.equal(before.length, 228);
-  assert.equal(after.length, 285);
+  //
+  // 2026-08-22: the hero tree was replaced by MANY SMALL TREES, which brought three canopy
+  // tokens — 228 -> 240 lit, 285 -> 300 shadowed. Those three are the first SHADE-KEYED tokens
+  // (`SHADE_KEYS`), and the identity above still holds for them: a keyed token delivers exactly
+  // one colour per rung just as a multiplied one does, so the shadow still costs one entry per
+  // land token. That is the property worth having, and it is why the identity is the assertion
+  // and these two literals are only the witness.
+  assert.equal(before.length, 240);
+  assert.equal(after.length, 300);
   // A STRICT SUPERSET WITH AN IDENTITY ON EVERY OLD ENTRY — the same property PR #1385
   // asserted of its 506-entry closure over the shipped 132. Without it, "we added 26
   // entries" could hide "and moved four of the ones already there".

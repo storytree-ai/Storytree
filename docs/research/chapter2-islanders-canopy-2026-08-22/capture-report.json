@@ -1,0 +1,528 @@
+{
+  "capturedFrom": "http://localhost:5187/directions.html",
+  "webgl": {
+    "version": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+    "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+    "isSoftware": true,
+    "note": "Headless Chromium on this box rasterises WebGL through SwiftShader (software). Delivered COLOURS are therefore trustworthy and frame COSTS are not — the ADR-0380 D2 hardware-floor question is NOT answered by this run and needs the owner on real hardware."
+  },
+  "perPanel": [
+    {
+      "i": 0,
+      "w": 480,
+      "h": 359,
+      "opaque": 85145,
+      "holes": 0
+    },
+    {
+      "i": 1,
+      "w": 487,
+      "h": 284,
+      "opaque": 84627,
+      "holes": 13
+    },
+    {
+      "i": 2,
+      "w": 480,
+      "h": 294,
+      "opaque": 81896,
+      "holes": 2
+    },
+    {
+      "i": 3,
+      "w": 486,
+      "h": 279,
+      "opaque": 80726,
+      "holes": 3
+    },
+    {
+      "i": 4,
+      "w": 480,
+      "h": 292,
+      "opaque": 79598,
+      "holes": 0
+    },
+    {
+      "i": 5,
+      "w": 487,
+      "h": 296,
+      "opaque": 83202,
+      "holes": 7
+    },
+    {
+      "i": 6,
+      "w": 480,
+      "h": 359,
+      "opaque": 85145,
+      "holes": 0
+    },
+    {
+      "i": 7,
+      "w": 487,
+      "h": 284,
+      "opaque": 84627,
+      "holes": 13
+    },
+    {
+      "i": 8,
+      "w": 480,
+      "h": 294,
+      "opaque": 81896,
+      "holes": 2
+    },
+    {
+      "i": 9,
+      "w": 486,
+      "h": 279,
+      "opaque": 80726,
+      "holes": 3
+    },
+    {
+      "i": 10,
+      "w": 480,
+      "h": 292,
+      "opaque": 79598,
+      "holes": 0
+    },
+    {
+      "i": 11,
+      "w": 487,
+      "h": 296,
+      "opaque": 83202,
+      "holes": 7
+    }
+  ],
+  "perIsland": [
+    {
+      "tag": "row-today",
+      "w": 480,
+      "h": 359,
+      "opaque": 85145,
+      "distinctColours": 27,
+      "occludedPixels": 0,
+      "occludedShare": 0,
+      "luma": {
+        "p2": 65.5,
+        "p50": 145.1,
+        "p98": 160.9
+      },
+      "lumaSpread": 95.4
+    },
+    {
+      "tag": "row-walled",
+      "w": 487,
+      "h": 284,
+      "opaque": 84627,
+      "distinctColours": 74,
+      "occludedPixels": 8901,
+      "occludedShare": 10.5,
+      "luma": {
+        "p2": 78.4,
+        "p50": 139.7,
+        "p98": 175.4
+      },
+      "lumaSpread": 97
+    },
+    {
+      "tag": "row-hamlet",
+      "w": 480,
+      "h": 294,
+      "opaque": 81896,
+      "distinctColours": 75,
+      "occludedPixels": 11589,
+      "occludedShare": 14.2,
+      "luma": {
+        "p2": 78.4,
+        "p50": 132.7,
+        "p98": 174.7
+      },
+      "lumaSpread": 96.3
+    },
+    {
+      "tag": "row-terrace",
+      "w": 486,
+      "h": 279,
+      "opaque": 80726,
+      "distinctColours": 71,
+      "occludedPixels": 7794,
+      "occludedShare": 9.7,
+      "luma": {
+        "p2": 78.4,
+        "p50": 138.4,
+        "p98": 175.4
+      },
+      "lumaSpread": 97
+    },
+    {
+      "tag": "row-shrine",
+      "w": 480,
+      "h": 292,
+      "opaque": 79598,
+      "distinctColours": 38,
+      "occludedPixels": 5732,
+      "occludedShare": 7.2,
+      "luma": {
+        "p2": 62.1,
+        "p50": 145.1,
+        "p98": 173
+      },
+      "lumaSpread": 110.9
+    },
+    {
+      "tag": "row-wild",
+      "w": 487,
+      "h": 296,
+      "opaque": 83202,
+      "distinctColours": 67,
+      "occludedPixels": 8858,
+      "occludedShare": 10.6,
+      "luma": {
+        "p2": 76.4,
+        "p50": 135.5,
+        "p98": 189.8
+      },
+      "lumaSpread": 113.4
+    },
+    {
+      "tag": "today",
+      "w": 480,
+      "h": 359,
+      "opaque": 85145,
+      "distinctColours": 27,
+      "occludedPixels": 0,
+      "occludedShare": 0,
+      "luma": {
+        "p2": 65.5,
+        "p50": 145.1,
+        "p98": 160.9
+      },
+      "lumaSpread": 95.4
+    },
+    {
+      "tag": "walled",
+      "w": 487,
+      "h": 284,
+      "opaque": 84627,
+      "distinctColours": 74,
+      "occludedPixels": 8901,
+      "occludedShare": 10.5,
+      "luma": {
+        "p2": 78.4,
+        "p50": 139.7,
+        "p98": 175.4
+      },
+      "lumaSpread": 97
+    },
+    {
+      "tag": "hamlet",
+      "w": 480,
+      "h": 294,
+      "opaque": 81896,
+      "distinctColours": 75,
+      "occludedPixels": 11589,
+      "occludedShare": 14.2,
+      "luma": {
+        "p2": 78.4,
+        "p50": 132.7,
+        "p98": 174.7
+      },
+      "lumaSpread": 96.3
+    },
+    {
+      "tag": "terrace",
+      "w": 486,
+      "h": 279,
+      "opaque": 80726,
+      "distinctColours": 71,
+      "occludedPixels": 7794,
+      "occludedShare": 9.7,
+      "luma": {
+        "p2": 78.4,
+        "p50": 138.4,
+        "p98": 175.4
+      },
+      "lumaSpread": 97
+    },
+    {
+      "tag": "shrine",
+      "w": 480,
+      "h": 292,
+      "opaque": 79598,
+      "distinctColours": 38,
+      "occludedPixels": 5732,
+      "occludedShare": 7.2,
+      "luma": {
+        "p2": 62.1,
+        "p50": 145.1,
+        "p98": 173
+      },
+      "lumaSpread": 110.9
+    },
+    {
+      "tag": "wild",
+      "w": 487,
+      "h": 296,
+      "opaque": 83202,
+      "distinctColours": 67,
+      "occludedPixels": 8858,
+      "occludedShare": 10.6,
+      "luma": {
+        "p2": 76.4,
+        "p50": 135.5,
+        "p98": 189.8
+      },
+      "lumaSpread": 113.4
+    }
+  ],
+  "watertight": {
+    "totalInteriorHoles": 50,
+    "worstPanels": [
+      {
+        "i": 1,
+        "holes": 13,
+        "opaque": 84627
+      },
+      {
+        "i": 7,
+        "holes": 13,
+        "opaque": 84627
+      },
+      {
+        "i": 5,
+        "holes": 7,
+        "opaque": 83202
+      },
+      {
+        "i": 11,
+        "holes": 7,
+        "opaque": 83202
+      },
+      {
+        "i": 3,
+        "holes": 3,
+        "opaque": 80726
+      },
+      {
+        "i": 9,
+        "holes": 3,
+        "opaque": 80726
+      }
+    ]
+  },
+  "palette": {
+    "authoredEntries": 300,
+    "canvases": 12,
+    "opaquePixels": 990388,
+    "distinctDeliveredColours": 99,
+    "offPalettePixels": 0,
+    "offPaletteColours": [],
+    "foreignStatusReads": 0,
+    "familylessDeliveredColours": 76,
+    "shadowRung": 0.84,
+    "shadowRungPixels": 85748,
+    "shadowRungColoursDelivered": 3,
+    "shadowRungColoursAuthored": 60,
+    "shadowLadder": [
+      0.78,
+      0.8,
+      0.84,
+      0.9,
+      1
+    ],
+    "entriesWithoutShadow": 240,
+    "shadowPaletteCost": 60,
+    "everyPreShadowEntrySurvives": true
+  },
+  "confusability": {
+    "reader": "port of shadow.py's reader_status_table/nearest_status/safe_depth, re-based to the level flat ground is actually delivered at (0.90) rather than to full light",
+    "ceilings": [
+      {
+        "status": "healthy",
+        "relative": 0.72,
+        "absolute": 0.648,
+        "readsAs": "healthy"
+      },
+      {
+        "status": "mapped",
+        "relative": 0.3,
+        "absolute": 0.27,
+        "readsAs": "mapped"
+      },
+      {
+        "status": "proposed",
+        "relative": 0.9,
+        "absolute": 0.81,
+        "readsAs": "proposed"
+      },
+      {
+        "status": "unknown",
+        "relative": 0.94,
+        "absolute": 0.846,
+        "readsAs": "unknown"
+      }
+    ],
+    "inadmissible": [
+      {
+        "status": "healthy",
+        "level": 1,
+        "hex": "#8cb85e",
+        "readsAs": "unknown"
+      },
+      {
+        "status": "proposed",
+        "level": 0.78,
+        "hex": "#a89652",
+        "readsAs": "mapped"
+      },
+      {
+        "status": "proposed",
+        "level": 0.8,
+        "hex": "#ad9a54",
+        "readsAs": "mapped"
+      },
+      {
+        "status": "unknown",
+        "level": 0.78,
+        "hex": "#849c63",
+        "readsAs": "healthy"
+      },
+      {
+        "status": "unknown",
+        "level": 0.8,
+        "hex": "#87a066",
+        "readsAs": "healthy"
+      }
+    ],
+    "statuses": [
+      "healthy",
+      "mapped",
+      "proposed",
+      "unknown"
+    ],
+    "robust": [
+      {
+        "status": "proposed",
+        "level": 0.78,
+        "hex": "#a89652",
+        "readsAs": "mapped"
+      },
+      {
+        "status": "unknown",
+        "level": 0.78,
+        "hex": "#849c63",
+        "readsAs": "healthy"
+      },
+      {
+        "status": "unknown",
+        "level": 0.8,
+        "hex": "#87a066",
+        "readsAs": "healthy"
+      }
+    ],
+    "luminanceOverlap": {
+      "ranges": [
+        {
+          "status": "healthy",
+          "min": 125.69,
+          "max": 160.9
+        },
+        {
+          "status": "mapped",
+          "min": 118.97999999999999,
+          "max": 152.67999999999998
+        },
+        {
+          "status": "proposed",
+          "min": 147.92000000000002,
+          "max": 189.63
+        },
+        {
+          "status": "unknown",
+          "min": 142.52999999999997,
+          "max": 182.67
+        }
+      ],
+      "overlaps": [
+        {
+          "a": "healthy",
+          "b": "mapped",
+          "luma": 27
+        },
+        {
+          "a": "healthy",
+          "b": "proposed",
+          "luma": 13
+        },
+        {
+          "a": "healthy",
+          "b": "unknown",
+          "luma": 18.4
+        },
+        {
+          "a": "mapped",
+          "b": "proposed",
+          "luma": 4.8
+        },
+        {
+          "a": "mapped",
+          "b": "unknown",
+          "luma": 10.2
+        },
+        {
+          "a": "proposed",
+          "b": "unknown",
+          "luma": 34.7
+        }
+      ]
+    },
+    "deliveredForeignPixels": {
+      "total": 0,
+      "byColour": []
+    }
+  },
+  "whatTheShadowBuys": {
+    "atDeliveredSize": {
+      "lit": {
+        "tag": "delivered-lit",
+        "missing": true
+      },
+      "shadowed": {
+        "tag": "delivered-shadow",
+        "missing": true
+      }
+    },
+    "atEightPxPerUnit": {
+      "lit": {
+        "tag": "zoom-lit",
+        "missing": true
+      },
+      "terrainOnly": {
+        "tag": "zoom-terrain",
+        "missing": true
+      },
+      "canopy": {
+        "tag": "zoom-shadow",
+        "missing": true
+      }
+    },
+    "plantsRemoved": {
+      "lit": {
+        "tag": "bare-lit",
+        "missing": true
+      },
+      "shadowed": {
+        "tag": "bare-shadow",
+        "missing": true
+      }
+    },
+    "pctOfIslandReached": null,
+    "pctOfGroundReached": null,
+    "terrainCastIsIdenticallyZero": null
+  },
+  "frameTiming": {
+    "samples": 39,
+    "p50Ms": 16.6,
+    "meanMs": 16.51,
+    "interpretation": "RELATIVE ONLY. Software rasteriser, static scene — this is the headless compositor present cadence, not a GPU-bound frame cost. Do not quote it as a D2 verdict."
+  }
+}
