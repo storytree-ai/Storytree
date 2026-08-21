@@ -216,12 +216,41 @@ function App() {
             here is the canopy, and most of it is the tree.
           </li>
           <li>
+            <strong>What the two controls measure, and it is not what we expected.</strong> Same
+            island, 85,145 delivered pixels each: contact darkening alone occludes{' '}
+            <strong>16.4%</strong>, the full cast shadow alone <strong>7.6%</strong>, both together{' '}
+            <strong>18.6%</strong>. So <strong>72% of the cast shadow&rsquo;s pixels are already
+            darkened by the contact pools</strong>, and the cast shadow&rsquo;s own marginal
+            contribution is 2.1% of the island &mdash; and it is the most expensive lever this arc
+            ever built.
+          </li>
+          <li>
             <strong>Everything else held at today&rsquo;s values</strong>, so this direction is
             the light and nothing else.
           </li>
         </ul>
+        <p className="lede caveat">
+          <strong>The two islands after it are controls, not directions, and they are here to make
+          one number honest.</strong> A is built from two separate mechanisms; on their own they
+          say how much of the occlusion each is actually doing. Same island, same size, same
+          everything else &mdash; only the mechanism differs. They are not on the menu.
+        </p>
         <div className="row">
           <Island label="A &mdash; AFTERNOON" note="contact + cast shadow" tag="a-afternoon" {...AFTERNOON} />
+          <Island
+            label="A&#8320; &mdash; cast shadow only"
+            note="no contact darkening &middot; a control, not a direction"
+            tag="a-cast-only"
+            {...AFTERNOON}
+            contact={false}
+          />
+          <Island
+            label="A&#8321; &mdash; contact only"
+            note="no cast shadow &middot; a control, not a direction"
+            tag="a-contact-only"
+            {...AFTERNOON}
+            shadow="off"
+          />
         </div>
       </section>
 

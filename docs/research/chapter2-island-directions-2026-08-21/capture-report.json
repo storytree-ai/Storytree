@@ -73,37 +73,37 @@
     {
       "i": 9,
       "w": 480,
+      "h": 359,
+      "opaque": 85145,
+      "holes": 0
+    },
+    {
+      "i": 10,
+      "w": 480,
+      "h": 359,
+      "opaque": 85145,
+      "holes": 0
+    },
+    {
+      "i": 11,
+      "w": 480,
       "h": 368,
       "opaque": 89005,
       "holes": 0
     },
     {
-      "i": 10,
+      "i": 12,
       "w": 480,
       "h": 272,
       "opaque": 78191,
       "holes": 7
     },
     {
-      "i": 11,
+      "i": 13,
       "w": 480,
       "h": 279,
       "opaque": 82087,
       "holes": 3
-    },
-    {
-      "i": 12,
-      "w": 480,
-      "h": 368,
-      "opaque": 89005,
-      "holes": 0
-    },
-    {
-      "i": 13,
-      "w": 480,
-      "h": 368,
-      "opaque": 89005,
-      "holes": 0
     },
     {
       "i": 14,
@@ -115,26 +115,40 @@
     {
       "i": 15,
       "w": 480,
-      "h": 359,
-      "opaque": 85145,
+      "h": 368,
+      "opaque": 89005,
       "holes": 0
     },
     {
       "i": 16,
-      "w": 480,
-      "h": 271,
-      "opaque": 78040,
-      "holes": 3
-    },
-    {
-      "i": 17,
       "w": 480,
       "h": 368,
       "opaque": 89005,
       "holes": 0
     },
     {
+      "i": 17,
+      "w": 480,
+      "h": 359,
+      "opaque": 85145,
+      "holes": 0
+    },
+    {
       "i": 18,
+      "w": 480,
+      "h": 271,
+      "opaque": 78040,
+      "holes": 3
+    },
+    {
+      "i": 19,
+      "w": 480,
+      "h": 368,
+      "opaque": 89005,
+      "holes": 0
+    },
+    {
+      "i": 20,
       "w": 480,
       "h": 280,
       "opaque": 81909,
@@ -270,6 +284,36 @@
       "distinctColours": 28,
       "occludedPixels": 15797,
       "occludedShare": 18.6,
+      "luma": {
+        "p2": 65.5,
+        "p50": 135.5,
+        "p98": 160.9
+      },
+      "lumaSpread": 95.4
+    },
+    {
+      "tag": "a-cast-only",
+      "w": 480,
+      "h": 359,
+      "opaque": 85145,
+      "distinctColours": 28,
+      "occludedPixels": 6465,
+      "occludedShare": 7.6,
+      "luma": {
+        "p2": 65.5,
+        "p50": 135.5,
+        "p98": 160.9
+      },
+      "lumaSpread": 95.4
+    },
+    {
+      "tag": "a-contact-only",
+      "w": 480,
+      "h": 359,
+      "opaque": 85145,
+      "distinctColours": 28,
+      "occludedPixels": 13967,
+      "occludedShare": 16.4,
       "luma": {
         "p2": 65.5,
         "p50": 135.5,
@@ -437,7 +481,7 @@
         "opaque": 78191
       },
       {
-        "i": 10,
+        "i": 12,
         "holes": 7,
         "opaque": 78191
       },
@@ -447,17 +491,17 @@
         "opaque": 82087
       },
       {
-        "i": 11,
+        "i": 13,
         "holes": 3,
         "opaque": 82087
       },
       {
-        "i": 16,
+        "i": 18,
         "holes": 3,
         "opaque": 78040
       },
       {
-        "i": 18,
+        "i": 20,
         "holes": 3,
         "opaque": 81909
       }
@@ -465,15 +509,15 @@
   },
   "palette": {
     "authoredEntries": 195,
-    "canvases": 19,
-    "opaquePixels": 1618270,
+    "canvases": 21,
+    "opaquePixels": 1788560,
     "distinctDeliveredColours": 39,
     "offPalettePixels": 0,
     "offPaletteColours": [],
     "foreignStatusReads": 0,
     "familylessDeliveredColours": 15,
     "shadowRung": 0.84,
-    "shadowRungPixels": 187871,
+    "shadowRungPixels": 208303,
     "shadowRungColoursDelivered": 4,
     "shadowRungColoursAuthored": 39,
     "shadowLadder": [
@@ -676,7 +720,7 @@
   "frameTiming": {
     "samples": 39,
     "p50Ms": 16.7,
-    "meanMs": 16.61,
+    "meanMs": 16.45,
     "interpretation": "RELATIVE ONLY. Software rasteriser, static scene — this is the headless compositor present cadence, not a GPU-bound frame cost. Do not quote it as a D2 verdict."
   }
 }

@@ -23,9 +23,10 @@ capabilities, its real test spread, its own ten UAT criteria.
 
 **THE HEADLINE, AND IT WAS NOT THE QUESTION WE SET OUT ON.** The island's problem is not that it
 lacks shadow, contact darkening or a coloured rim. It is that **it spends its whole picture inside a
-narrow slice of a palette that is nearly twice as wide as the slice it uses.** The `healthy` ground
-family holds four authored tokens; the island renders exactly one of them. Across the ladder those
-four span delivered luminance **88.8 → 174.7, a 1.97× range**. The single most expensive lever this
+narrow slice of a palette that is nearly twice as wide as the slice it uses.** The `healthy` family
+holds four authored ground-capable tokens; the island's GROUND renders exactly one of them, `top[0]`.
+(The fourth, `side`, is on the island already — it is what the vegetation wears — just never on the
+ground.) Across the ladder those four span delivered luminance **88.8 → 174.7, a 1.97× range**. The single most expensive lever this
 arc has built — the cast shadow, measured admissible at one rung and shipped behind a flag — moves a
 ground pixel **6.6%**. Simply letting the ground reach for another token of its own family moves it
 **29.2%**. That is **4.4× more contrast, for zero palette cost and almost no code.**
@@ -46,10 +47,15 @@ decide it (ADR-0392 D5 — an art call may never settle what the art asserts).
    skirt delivers **2.8 pixels** of island thickness — under 1% of the island's on-screen height. No
    colour choice can rescue an edge that thin, which is why "give the rim its own material" did
    almost nothing on its own. At 9 units it delivers 11.6 px and the island reads as a solid.
-2. **Contact darkening does 5× the work of the cast shadow, and it was never built.** On direction B
-   contact darkening alone occludes **15.7%** of delivered pixels; adding the full cast shadow on
-   top of it (direction A) takes that to **18.6%** — the shadow adds 2.9 points to contact's 15.7.
-   The reference board ranked contact darkening first among the unattempted levers and it was right.
+2. **Contact darkening was never built, and it makes the cast shadow nearly redundant.** Measured
+   on ONE island, identical in every respect but the mechanism, 85,145 delivered pixels each:
+   contact darkening alone occludes **16.4%** (13,967 px); the full cast shadow alone occludes
+   **7.6%** (6,465 px); both together **18.6%** (15,797 px). So contact darkening is **2.2×** the
+   cast shadow on its own — and, far more consequentially, **72% of the cast shadow's pixels are
+   already darkened by contact darkening**, leaving it a marginal contribution of **1,830 px, 2.1%
+   of the island**. The cast shadow is the most expensive lever this arc ever built; on an island
+   that has contact darkening it is close to free of effect. The reference board ranked contact
+   darkening first among the unattempted levers and it was right.
 3. **The hero tree is over half of all the occlusion on the island.** Composed with the tree:
    **17.8%** of delivered pixels occluded. The identical island without it: **8.4%**. The tree
    accounts for **53%** of every occluded pixel — which corroborates the inherited finding that it
@@ -81,8 +87,8 @@ not a choice, and this arc's predecessor produced several of those.
 
 ### The numbers each one delivers
 
-Measured off the raster by `capture.mjs`, not off the TypeScript that fed it. 19 canvases,
-1,618,270 opaque pixels, 39 distinct delivered colours against 195 authored entries, **0
+Measured off the raster by `capture.mjs`, not off the TypeScript that fed it. 21 canvases,
+1,788,560 opaque pixels, 39 distinct delivered colours against 195 authored entries, **0
 off-palette**.
 
 | island | opaque px | colours | occluded | luma p2 | p50 | p98 | spread |
@@ -94,6 +100,14 @@ off-palette**.
 | `d-landmass` | 82,087 | 32 | 8.2% | 88.8 | 135.5 | 174.7 | 85.9 |
 | `e-composed` | 89,005 | 38 | 17.8% | 65.5 | 132.7 | 174.7 | **109.2** |
 | `f-after` ⚠ | 89,005 | 39 | 17.8% | 65.5 | **117.9** | 174.7 | **109.2** |
+
+The two occlusion controls, not directions — the same island as `a-afternoon`, one mechanism each:
+
+| control | opaque px | occluded | occluded px |
+| --- | --- | --- | --- |
+| `a-contact-only` (no cast shadow) | 85,145 | **16.4%** | 13,967 |
+| `a-cast-only` (no contact darkening) | 85,145 | **7.6%** | 6,465 |
+| `a-afternoon` (both) | 85,145 | 18.6% | 15,797 |
 
 **How to read it.** `spread` is the delivered p2–p98 luminance range — how much of the palette the
 picture actually occupies. `occluded` is the share of delivered pixels on the occlusion rung.
@@ -235,7 +249,7 @@ flower counts are unchanged — they are ADR-0226 semantics, not appearance.
 ## 5. What this costs and what it does not
 
 **The palette is untouched, and that is asserted rather than claimed.** 0 off-palette pixels across
-1,618,270 delivered. `landPalette()` is unchanged. Every colour on every island is an authored
+1,788,560 delivered. `landPalette()` is unchanged. Every colour on every island is an authored
 `(token × level)` entry — the regional ground and the material rim SELECT among entries the fence
 already held; they do not widen it. The occlusion rung is the one the previous increment already
 priced (+39 entries, off by default).
