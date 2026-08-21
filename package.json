@@ -44,5 +44,10 @@
     "studio:down": "node scripts/studio.mjs down",
     "studio:status": "node scripts/studio.mjs status",
     "desktop:start": "pnpm --filter desktop start"
+  },
+  "pnpm": {
+    "patchedDependencies": {
+      "node-pty@1.1.0": "patches/node-pty@1.1.0.patch"
+    }
   }
 }

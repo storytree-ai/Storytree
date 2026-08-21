@@ -1,0 +1,43 @@
+diff --git a/lib/conpty_console_list_agent.js b/lib/conpty_console_list_agent.js
+index 8c4fca9022a6d6f015bca87f61625cde2278f428..077da3516a12a00132b16e46ce2b9574e240eeb8 100644
+--- a/lib/conpty_console_list_agent.js
++++ b/lib/conpty_console_list_agent.js
+@@ -10,7 +10,17 @@ Object.defineProperty(exports, "__esModule", { value: true });
+ var utils_1 = require("./utils");
+ var getConsoleProcessList = utils_1.loadNativeModule('conpty_console_list').module.getConsoleProcessList;
+ var shellPid = parseInt(process.argv[2], 10);
+-var consoleProcessList = getConsoleProcessList(shellPid);
++// The parent starts this helper and then immediately closes the ConPTY. On Windows the shell can
++// disappear before AttachConsole reaches it; that teardown race means there is no process tree left
++// to enumerate, not that the host application failed. Fall back to the shell pid just like the
++// parent's timeout path does (a later process.kill already ignores an absent pid).
++var consoleProcessList;
++try {
++    consoleProcessList = getConsoleProcessList(shellPid);
++}
++catch (_a) {
++    consoleProcessList = [shellPid];
++}
+ process.send({ consoleProcessList: consoleProcessList });
+ process.exit(0);
+ //# sourceMappingURL=conpty_console_list_agent.js.map
+diff --git a/src/conpty_console_list_agent.ts b/src/conpty_console_list_agent.ts
+index 181ccabbbe9c4948a9725fb1db907a68e9de01fc..78540187325114a3ac27421d66918614b56441b2 100644
+--- a/src/conpty_console_list_agent.ts
++++ b/src/conpty_console_list_agent.ts
+@@ -12,5 +12,14 @@ import { loadNativeModule } from './utils';
+ const getConsoleProcessList = loadNativeModule('conpty_console_list').module.getConsoleProcessList;
+ const shellPid = parseInt(process.argv[2], 10);
+-const consoleProcessList = getConsoleProcessList(shellPid);
++// The parent starts this helper and then immediately closes the ConPTY. On Windows the shell can
++// disappear before AttachConsole reaches it; that teardown race means there is no process tree left
++// to enumerate, not that the host application failed. Fall back to the shell pid just like the
++// parent's timeout path does (a later process.kill already ignores an absent pid).
++let consoleProcessList: number[];
++try {
++  consoleProcessList = getConsoleProcessList(shellPid);
++} catch {
++  consoleProcessList = [shellPid];
++}
+ process.send!({ consoleProcessList });
+ process.exit(0);
