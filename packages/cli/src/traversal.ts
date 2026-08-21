@@ -67,6 +67,10 @@ function traversalIngest(sessionId: string): Envelope {
     "",
     `appended ${result.appended} occupancy event(s)`,
     `skipped ${result.skippedLines} unusable transcript line(s); excluded ${result.sidechainRequests} sidechain request(s)`,
+    // Reached-but-unobserved, stated separately from the two counts above: those describe lines
+    // inside windows this adapter DID observe, while this one sizes the windows it reached and did
+    // not observe at all. Left unsaid, a subagent-heavy session reads as fully ingested.
+    `reached ${result.sidechainFiles} subagent window(s) this adapter does not observe`,
     "",
     // ADR-0235 clause 6 — an adapter publishes what it can observe AT ITS OWN BOUNDARY. The replay
     // renderer in `context-traversal-spawn` does not yet know this adapter; until it does, this is

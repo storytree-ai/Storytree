@@ -304,6 +304,28 @@ test("LIFETIME: the runner owns an absolute deadline and reserves report/cleanup
   assert.ok(audit.missing.includes("the isolation clause"));
 });
 
+test("SURFACE LAUNCH: the prompt requires Studio's canonical live-store launcher on the reserved port", () => {
+  const spec = driveSpec();
+  const prompt = uatDriveTaskPrompt(spec);
+  const canonical =
+    "$env:STORYTREE_STUDIO_STORE='pg'; pnpm --filter studio dev -- --port 5312 --strictPort --host 127.0.0.1";
+
+  assert.ok(prompt.includes(canonical), "the walker receives one exact, runnable Studio launch command");
+  assert.equal(auditDrivePrompt(prompt, spec).ok, true);
+
+  for (const weakened of [
+    prompt.replace(canonical, ""),
+    prompt.replace(
+      canonical,
+      "$env:STORYTREE_STUDIO_STORE='pg'; pnpm exec vite --port 5312 --strictPort --host 127.0.0.1",
+    ),
+  ]) {
+    const audit = auditDrivePrompt(weakened, spec);
+    assert.equal(audit.ok, false, "removing or bypassing the supported package script must refuse before spend");
+    assert.ok(audit.missing.includes("the isolation clause"));
+  }
+});
+
 // ---------------------------------------------------------------------------
 // 2. SURFACE — a drive refuses a surface it cannot prove is its own
 // ---------------------------------------------------------------------------
