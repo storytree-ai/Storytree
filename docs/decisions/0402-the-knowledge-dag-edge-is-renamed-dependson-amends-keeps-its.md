@@ -183,10 +183,15 @@ someone reading a success message carefully. **A green check over an empty read 
 is the absence of evidence wearing evidence's clothes.**
 
 **Neutral, and explicitly NOT decided here.** Whether the depth walk continues past an ADR at all —
-ADR-0223 D4's sink rule — is untouched. That is a live owner question
-(`oq-what-does-backing-adrs-into-the-dag-mean`) on `adrs-into-the-dag-arc`, and this ADR must not be
-read as having moved it. Likewise the tier order, the acyclicity gate, and the exclusion of
-`definition` from the DAG (ADR-0363 D1) are all unchanged.
+ADR-0223 D4's sink rule — is untouched *by this ADR*. Likewise the tier order, the acyclicity gate,
+and the exclusion of `definition` from the DAG (ADR-0363 D1) are all unchanged here.
+
+*(This paragraph originally called the sink-rule question "a live owner question
+(`oq-what-does-backing-adrs-into-the-dag-mean`)" and said this ADR "must not be read as having moved
+it." Both are now false: ADR-0403, decided later the same day, settled that question by construction
+— D4's sink rule does not survive it — and the question itself was retired. Corrected in place under
+ADR-0139: this ADR's own decision (the rename) never moved the sink rule and still does not; only the
+claim that the question remained open has been overtaken, by a different ADR.)*
 
 ## References
 
