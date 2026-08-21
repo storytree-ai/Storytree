@@ -10,7 +10,7 @@
 // panel's claim rows. The visual result (the map actually filling the window edge-to-edge) is the
 // owner-attested look leg (ADR-0070 stage 2).
 
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, render, cleanup } from '@testing-library/react';
 import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -21,7 +21,7 @@ import {
   type OrganicPoseTrack,
 } from '@storytree/app-surface';
 import { AppDataContext, type AppData } from '../lib/appData';
-import { api } from '../api';
+import { HttpDouble, installHttpDouble } from '../test/httpDouble';
 import {
   TreeView,
   readChapter2Round3Lab,
@@ -32,28 +32,38 @@ import {
 import { SemanticGrowthDemo } from './SemanticGrowthDemo.js';
 import type { SpriteStyleSheet } from '../lib/sprite-sheet.js';
 
-vi.mock('../api', () => ({
-  api: {
-    tree: vi.fn(async () => ({
-      stories: [
-        {
-          id: 'studio',
-          title: 'Studio',
-          outcome: 'the studio serves',
-          status: 'healthy',
-          proofMode: 'UAT',
-          uatWitness: 'machine',
-          dependsOn: [],
-          consumedBy: [],
-          capabilities: [],
-        },
-      ],
-    })),
-    activity: vi.fn(async () => ({ builds: null, claims: null })),
-  },
-}));
+// The TRANSPORT is doubled rather than the `../api` module (anti-slop-adoption-arc inc-06,
+// `no-module-mocking`) — the real client builds the URLs and parses the payloads, and the double
+// fails closed, so a shell that started reaching for another route goes red instead of quietly
+// receiving `undefined`.
+const TREE_PAYLOAD = {
+  stories: [
+    {
+      id: 'studio',
+      title: 'Studio',
+      outcome: 'the studio serves',
+      status: 'healthy',
+      proofMode: 'UAT',
+      uatWitness: 'machine',
+      dependsOn: [],
+      consumedBy: [],
+      capabilities: [],
+    },
+  ],
+};
 
-afterEach(cleanup);
+let http: HttpDouble;
+
+beforeEach(() => {
+  http = installHttpDouble();
+  http.get('/api/tree', () => TREE_PAYLOAD);
+  http.get('/api/activity', () => ({ builds: null, claims: null }));
+});
+
+afterEach(() => {
+  cleanup();
+  http.uninstall();
+});
 
 const appData: AppData = {
   docs: [],
@@ -68,7 +78,18 @@ const appData: AppData = {
   refreshAssets: async () => {},
 };
 
-async function renderTree(): Promise<HTMLElement> {
+interface RenderTreeOptions {
+  /**
+   * Whether to assert the shell reached `GET /api/tree` through the installed transport double.
+   * The RUNTIME AUDIT below installs its OWN blocking `fetch` to record every outbound request, so
+   * there the tree read lands in that spy instead — the audit's own `requested` list is what proves
+   * the attempt happened, and asserting on the double there would be asserting on a seam the test
+   * has deliberately taken over.
+   */
+  readonly assertTreeRead?: boolean;
+}
+
+async function renderTree(options: RenderTreeOptions = {}): Promise<HTMLElement> {
   const { container } = render(
     <AppDataContext.Provider value={appData}>
       <TreeView focus={null} />
@@ -76,7 +97,9 @@ async function renderTree(): Promise<HTMLElement> {
   );
   // Flush the one-shot /api/tree load so the world has landed before asserting.
   await act(async () => {});
-  expect(api.tree).toHaveBeenCalled();
+  if (options.assertTreeRead !== false) {
+    expect(http.countTo('/api/tree')).toBeGreaterThan(0);
+  }
   return container;
 }
 
@@ -2015,7 +2038,9 @@ describe('Chapter 2 round-3 comparison lab (`?organicGrowth=r3-lab`)', () => {
     }) as typeof fetch;
     try {
       window.history.pushState({}, '', '/?organicGrowth=r3-lab#/tree');
-      const lab = await renderTree();
+      // The blocking spy above owns the transport for this test — the tree read lands in
+      // `requested`, not in the double, and is audited there like every other outbound request.
+      const lab = await renderTree({ assertTreeRead: false });
       const { next } = controls(lab);
       for (const candidate of CHAPTER2_ROUND3_TREE_CANDIDATES) {
         await act(async () =>

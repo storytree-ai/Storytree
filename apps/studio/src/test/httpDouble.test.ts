@@ -22,6 +22,7 @@ import {
   UnroutedRequestError,
   errorReply,
   installHttpDouble,
+  sseChannel,
   sseChunkedReply,
 } from './httpDouble';
 
@@ -130,6 +131,47 @@ describe('httpDouble — the real api client runs through it', () => {
       { type: 'delta', text: 'hello' },
       { type: 'done', proposal: 'done!' },
     ]);
+  });
+
+  it('streams a HELD-OPEN channel frame by frame, resolving only when it closes', async () => {
+    double = installHttpDouble();
+    const channel = sseChannel();
+    double.post('/api/chat', () => channel.response);
+
+    const events: ChatEvent[] = [];
+    let resolved = false;
+    const streaming = api.chatStream('hi', (event) => events.push(event)).then(() => {
+      resolved = true;
+    });
+
+    channel.push({ type: 'delta', text: 'thinking' });
+    // Let the fetch, the reader and the frame splitter all run — a couple of microtask turns is
+    // not enough, because the transport hop is itself async.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(events).toEqual([{ type: 'delta', text: 'thinking' }]);
+    // Still open — the client must NOT have resolved while the agent is mid-answer.
+    expect(resolved).toBe(false);
+
+    channel.push({ type: 'done', proposal: 'here' });
+    channel.close();
+    await streaming;
+    expect(resolved).toBe(true);
+    expect(events.at(-1)).toEqual({ type: 'done', proposal: 'here' });
+  });
+
+  it('ignores a malformed frame without killing the stream', async () => {
+    double = installHttpDouble();
+    const channel = sseChannel();
+    double.post('/api/chat', () => channel.response);
+
+    const events: ChatEvent[] = [];
+    const streaming = api.chatStream('hi', (event) => events.push(event));
+    channel.pushRaw('data: {not json\n\n');
+    channel.push({ type: 'done', proposal: 'survived' });
+    channel.close();
+    await streaming;
+
+    expect(events).toEqual([{ type: 'done', proposal: 'survived' }]);
   });
 
   it('rejects the chat stream on a non-OK status, as the absent-route case does', async () => {

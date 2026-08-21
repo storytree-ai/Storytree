@@ -95,6 +95,53 @@ export function sseChunkedReply(chunks: readonly string[]): Response {
   });
 }
 
+/** A HELD-OPEN SSE response a test drives frame by frame. See {@link sseChannel}. */
+export interface SseChannel {
+  /** Hand this back from a route handler. */
+  readonly response: Response;
+  /** Emit one `data:` frame into the live stream. */
+  push(frame: unknown): void;
+  /** Emit a raw chunk — for a deliberately malformed or partial frame. */
+  pushRaw(chunk: string): void;
+  /** End the stream, which is what resolves `api.chatStream`'s promise. */
+  close(): void;
+}
+
+/**
+ * An SSE response the test holds OPEN and pushes into, the way `/api/chat` streams while an agent
+ * is still thinking. This is the faithful stand-in for a scripted `onEvent` callback: the frames
+ * travel as bytes through the client's real reader and frame splitter, so "the panel rendered a
+ * delta" means the panel rendered a delta it PARSED, not one it was handed.
+ */
+export function sseChannel(): SseChannel {
+  const encoder = new TextEncoder();
+  let controller: ReadableStreamDefaultController<Uint8Array> | null = null;
+  let closed = false;
+  const stream = new ReadableStream<Uint8Array>({
+    start(c) {
+      controller = c;
+    },
+  });
+  const response = new Response(stream, {
+    status: 200,
+    headers: { 'Content-Type': 'text/event-stream' },
+  });
+  const pushRaw = (chunk: string): void => {
+    if (closed) throw new Error('sseChannel: pushed into a closed stream');
+    controller?.enqueue(encoder.encode(chunk));
+  };
+  return {
+    response,
+    push: (frame) => pushRaw(`data: ${JSON.stringify(frame)}\n\n`),
+    pushRaw,
+    close: () => {
+      if (closed) return;
+      closed = true;
+      controller?.close();
+    },
+  };
+}
+
 /** A response that never settles until `signal` aborts — for the abort/timeout backstops. */
 export function neverReply(signal: AbortSignal | undefined): Promise<Response> {
   return new Promise<Response>((_resolve, reject) => {
