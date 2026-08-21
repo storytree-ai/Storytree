@@ -477,6 +477,9 @@ importers:
       '@storytree/storage-protocol':
         specifier: workspace:*
         version: link:../storage-protocol
+      strip-ansi:
+        specifier: ^7.2.0
+        version: 7.2.0
       yaml:
         specifier: ^2.6.1
         version: 2.9.0

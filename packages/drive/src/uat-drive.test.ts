@@ -14,6 +14,7 @@ import {
   driveSurfaceUrl,
   isModelDrivenGate,
   parseDriveReport,
+  projectTerminalVisibleText,
   resolveUatDriveProvider,
   selectDriveTargets,
   selectWitnessableDrive,
@@ -24,6 +25,7 @@ import {
   UAT_DRIVE_HONESTY_CLAUSE,
   UAT_DRIVE_PROGRESS_EVIDENCE_CLAUSE,
   UAT_DRIVE_REPORT_FENCE,
+  UAT_DRIVE_TERMINAL_VISIBLE_TEXT_CLAUSE,
   UAT_DRIVE_TOOLING_CLAUSE,
   UAT_DRIVE_WITNESS_ENTRY,
   UatDriveRecord,
@@ -347,6 +349,40 @@ test("classifyDriveExecutionProgress: only semantic output or exact process/resu
   assert.equal(exactResult.kind, "started");
 });
 
+test("projectTerminalVisibleText: PSReadLine colour controls cannot hide an exactly seeded command", () => {
+  const exactCommand =
+    "pnpm storytree story build map-terminal-build --real --store pg --runtime claude";
+  const rawSnapshot = [
+    "\u001b]0;PowerShell\u0007\u001b[?25l",
+    "\u001b[93mpnpm\u001b[37m storytree story build map-terminal-build ",
+    "\u001b[90m--real\u001b[37m \u001b[90m--store\u001b[37m pg ",
+    "\u001b[90m--runtime\u001b[37m claude\u001b[0m",
+    "\r\nsemantic output: build queued for process terminal-build-42\r\n",
+    "\u001b[?25h",
+  ].join("");
+
+  assert.equal(
+    rawSnapshot.includes(exactCommand),
+    false,
+    "the measured false negative: colour-preserving product bytes are not printable text",
+  );
+
+  const visible = projectTerminalVisibleText(rawSnapshot);
+  assert.ok(visible.includes(exactCommand), "the printable command is compared through visible text");
+  assert.match(visible, /semantic output: build queued for process terminal-build-42/);
+  assert.doesNotMatch(visible, /[\u001b\u0007]/, "terminal controls are not printable evidence");
+  assert.match(rawSnapshot, /\u001b\[93m/, "the projector does not alter the raw diagnostic snapshot");
+});
+
+test("uatDriveTaskPrompt: terminal snapshots are asserted through visible text, never raw bytes", () => {
+  const prompt = uatDriveTaskPrompt(SPEC);
+  assert.ok(prompt.includes(UAT_DRIVE_TERMINAL_VISIBLE_TEXT_CLAUSE));
+  assert.match(prompt, /projectTerminalVisibleText/);
+  assert.match(prompt, /never compare/i);
+  assert.match(prompt, /colour-preserving raw snapshot with `\.includes\(exactCommand\)`/i);
+  assert.match(prompt, /exact process.*result identity/i);
+});
+
 test("uatDriveTaskPrompt: reconciles the exact background tool before claiming host termination", () => {
   const prompt = uatDriveTaskPrompt(SPEC);
   assert.ok(prompt.includes(UAT_DRIVE_BACKGROUND_RESULT_RECONCILIATION_CLAUSE));
@@ -373,6 +409,7 @@ function promptWithout(...omit: readonly string[]): string {
     UAT_DRIVE_TOOLING_CLAUSE,
     UAT_DRIVE_BACKGROUND_RESULT_RECONCILIATION_CLAUSE,
     UAT_DRIVE_PROGRESS_EVIDENCE_CLAUSE,
+    UAT_DRIVE_TERMINAL_VISIBLE_TEXT_CLAUSE,
     uatDriveIsolationClause(ISOLATION),
     SURFACE_CONTRACT,
   ]
@@ -408,6 +445,10 @@ test("auditDrivePrompt: dropping an honesty or harness clause fails", () => {
   assert.deepEqual(
     auditDrivePrompt(promptWithout(UAT_DRIVE_PROGRESS_EVIDENCE_CLAUSE), SPEC).missing,
     ["the execution-progress evidence clause"],
+  );
+  assert.deepEqual(
+    auditDrivePrompt(promptWithout(UAT_DRIVE_TERMINAL_VISIBLE_TEXT_CLAUSE), SPEC).missing,
+    ["the terminal visible-text evidence clause"],
   );
   assert.deepEqual(auditDrivePrompt(promptWithout(uatDriveIsolationClause(ISOLATION)), SPEC).missing, [
     "the isolation clause",
