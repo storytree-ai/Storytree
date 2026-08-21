@@ -89,7 +89,8 @@ test that VOUCHES for it — a test that **(a)** runs (is not `.skip`/`.todo`, n
   `expect(x).toBe(5)`, `await assert.rejects(connect(hangs))` are.
 - Implemented as `analyzeObservedTests` + `extractVouchingTestNames` in
   [`contract-coverage.ts`](../../packages/orchestrator/src/proof/contract-coverage.ts), parsing the test
-  source with the **TypeScript compiler AST** (already a devDependency of the package; the proof module
+  source with the **TypeScript compiler AST** (a devDependency of the package — the `typescript5`
+  parser alias since ADR-0400, TypeScript 7 having moved this API to unstable subpaths; the proof module
   is node-only; an AST is robust against the strings / comments / templates a hand-rolled brace-scanner
   would misread — correctness matters for an honesty mechanism). The pure name-matching classifier
   `classifyContractCoverage` is UNCHANGED — it simply receives only the vouching names. The two
@@ -206,8 +207,8 @@ re-runs it.
   `extractVouchingTestNames`'s output, so a different spelling makes the join miss and the
   `vacuous-proof` instrument "under-report while still looking healthy". Teaching this classifier to
   fold concatenated titles would have realised exactly that. The copy now delegates to the exported
-  `readTestCallTitle` (both packages resolve the same `typescript`), so the agreement is structural
-  rather than remembered, and a test pins it.
+  `readTestCallTitle` (both packages resolve the same parser — the `typescript5` alias since
+  ADR-0400), so the agreement is structural rather than remembered, and a test pins it.
 - **It reads only the `.skip`/`.todo` MODIFIER, so the OPTIONS form of skip is invisible — added
   2026-07-27, MEASURED not predicted.** `analyzeObservedTests` derives `skipped` from
   `test.skip(name, fn)`; `node:test` equally accepts `test(name, { skip: !DB }, fn)`, a second

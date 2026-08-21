@@ -1,4 +1,12 @@
-import ts from "typescript";
+// THE PARSER, NOT THE COMPILER — and the reason the alias exists (ADR-0400).
+//
+// `typescript@7` is the Go-native compiler and its package entry point exports only a version
+// stub: the AST surface used below (`createSourceFile`, `forEachChild`, `SyntaxKind`, the `is*`
+// guards) moved to explicitly UNSTABLE subpaths (`typescript/unstable/ast`). This module does not
+// COMPILE anything — it parses our own test sources to read their call titles — so it pins
+// TypeScript 5.7's stable compiler API as a parsing library under the `typescript5` alias rather
+// than taking a dependency on an API upstream labels unstable. Typechecking is native `tsc@7`.
+import ts from "typescript5";
 
 import type { ContractDecl } from "@storytree/library";
 
