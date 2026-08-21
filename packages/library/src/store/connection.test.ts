@@ -7,7 +7,10 @@ import { fileURLToPath } from "node:url";
 
 import type { Connector } from "@google-cloud/cloud-sql-connector";
 import type { Pool, PoolConfig } from "pg";
-import ts from "typescript";
+// The PARSER, not the compiler — `typescript@7`'s entry point exports only a version stub and its
+// AST surface moved to explicitly unstable subpaths, so this assertion pins TypeScript 5.7's stable
+// compiler API as a parsing library under the `typescript5` alias (ADR-0400).
+import ts from "typescript5";
 
 import { createPool } from "./connection.js";
 
