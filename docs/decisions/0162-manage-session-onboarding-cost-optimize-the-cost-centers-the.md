@@ -157,26 +157,36 @@ the landing PR. `[ ]` = open · `[~]` = in progress · `[x]` = landed.
   so the ordering is healthy cache < no cache << rotted cache, and CI (whose runner is fresh per job)
   therefore opts back in.
 
-  **RE-MEASURED 2026-08-21 (inc 7), AND THE ROTTED ROW DID NOT REPRODUCE — read the figures above as
-  one day's readings, not as a standing property of a full cache directory.** Same protocol (median
-  of 7 spawned `storytree <unknown-command>`, quiet box), run TWICE hours apart from two different
-  worktrees, against the SAME 235k-file directory:
+  **RE-MEASURED TWICE MORE, AND THE ROTTED ROW STANDS — SETTLED BY [ADR-0401](0401-tsx-s-on-disk-transform-cache-stays-off-on-a-long-lived-box.md).**
+  Increment 7 (2026-08-21) re-ran the same protocol (median of 7 spawned `storytree <unknown-command>`)
+  TWICE hours apart from two worktrees against the same directory and got the OPPOSITE result — cache
+  OFF 1735/1802 ms against cache ON 1192/1361 ms, the "rotted" directory measuring ~25% FASTER than no
+  cache — while naming its own confound: that directory had been listed minutes earlier, so its NTFS
+  index was warm. That left the disable standing on a record which said its own founding row had
+  failed to reproduce.
 
-  | arm | first run | second run |
-  |---|---|---|
-  | cache OFF (today's default) | 1735 ms | 1802 ms |
-  | cache ON, fresh directory | 1288 ms | 1344 ms |
-  | cache ON, **the 235k-file directory** | **1192 ms** | **1361 ms** |
+  **A third measurement the same day resolved it in the founding row's favour**, by changing the
+  INSTRUMENT rather than adding a fourth point estimate: arms INTERLEAVED round-robin inside one run
+  (so box drift hits every arm equally), a fresh-directory third arm to isolate the mechanism, and
+  every repetition reported rather than only the median. Wall ms, against the real directory, by then
+  215,377 files / 3.60 GB:
 
-  So the "rotted" directory measured as fast as a fresh one and ~25% FASTER than no cache — the
-  opposite of the 3703 ms above, reproduced twice. One confound is named rather than hidden: that
-  directory had been listed minutes earlier, so its NTFS index was warm, and the second run does not
-  fully clear that. What survives unchanged is the generalisable lesson — **a "practical floor" read
-  off a cache is a floor only while that cache is healthy** — and it now cuts both ways: a MEASUREMENT
-  of a cache is likewise only good while the conditions it was taken under hold. The disable stands
-  (it is the state that cannot rot, and no evidence here says it is expensive enough to reverse on),
-  but nobody should plan work off the 3703 ms figure, and the bounded-cache mechanism inc 7 was parked
-  to build is NOT needed for a rot that cannot currently be observed.
+  | run | conditions | fresh dir | cache OFF | the 215k dir | big ÷ off |
+  |---|---|---|---|---|---|
+  | 1 | index **COLD**, loaded, 7 reps | — | 1852 ms | **2966 ms** | 1.60x |
+  | 2 | index **WARMED** by full enumeration, 7 reps | — | 2457 ms | **3533 ms** | 1.44x |
+  | 3 | 3-arm, loaded, 7 reps | 1823 ms | 2490 ms | **4045 ms** | 1.63x |
+  | 4 | 3-arm, **quiet box**, 9 reps | 1539 ms | 2185 ms | **3738 ms** | 1.71x |
+
+  The big directory is slower than no cache in **29 of 30 individual repetitions**, and run 2 tested
+  inc 7's named confound head-on: index warmth does not produce its numbers. So the ordering this
+  item asserts — healthy cache < no cache << rotted cache — is confirmed, **re-enabling the cache
+  would COST ~1.1–1.6 s per spawned CLI process**, and the disable stands on reproduced evidence
+  rather than on caution. Two lessons survive, and they now cut in both directions: **a "practical
+  floor" read off a cache is a floor only while that cache is healthy**, and **a measurement of a
+  cache is only good while the conditions it was taken under hold** — which is why the settling
+  instrument compares arms *within* a run instead of across days. ADR-0401 carries the controls, the
+  disproven explanations, and why the bounded-cache follow-up stays closed on a replaced reason.
 - [ ] **2b. Lazy-pg — offline pg-free (deferred, cold-start-only)** — dynamic-`import()` the Postgres
   store graph so offline read commands never pull `pg` / the Cloud SQL connector / `google-auth-library`.
   Deferred because item 2's measurement showed it saves only **~100 ms warm** (warm is already at the
