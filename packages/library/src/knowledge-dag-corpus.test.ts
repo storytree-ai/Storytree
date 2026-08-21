@@ -111,54 +111,28 @@ test("library-dag-corpus-reports-every-distinct-cycle: each is a closed, rendere
   );
 });
 
-// ---------------------------------------------------------------------------
-// ADR-0402 READ TOLERANCE — the rename must not blind the reader (TEMPORARY:
-// delete with `depends-on-compat.ts` once no stored row can carry `standsOn`).
-// ---------------------------------------------------------------------------
-
-/** A stored row in the PRE-rename shape: the raw payload carries `standsOn` and was never upcast. */
-function legacyRow(id: string, standsOn: unknown): DependsOnSource {
-  return { id, doc: { kind: "definition", id, standsOn } };
-}
-
-test("library-dag-corpus-projects-pointers-to-node-ids: an un-upcast `standsOn` row still yields its edges (ADR-0402)", () => {
-  // THE DEFECT THIS PINS, measured against the live store on the rename branch: migration #7 runs at
-  // the WRITE boundary, nothing upcasts on READ, so every stored row still spelling the edge
-  // `standsOn` went invisible — `PASS — no dependsOn cycle across 1701 artifacts (0 authored edges)`.
-  const nodes = dependsOnNodes([legacyRow("a", ["asset:b"]), legacyRow("b", [])]);
-  assert.deepEqual(nodes, [
-    { id: "a", dependsOn: ["b"] },
-    { id: "b", dependsOn: [] },
+test("library-dag-corpus-projects-pointers-to-node-ids: a surprise row projects as no edges, never a throw", () => {
+  // TOTAL over untrusted input. This runs over the LIVE corpus, so a row written by an older schema
+  // — or by a branch carrying a field this checkout does not — must project as "no edges" rather
+  // than throw: the read side of a fail-closed gate is not where a surprise row should take the gate
+  // down, because that failure looks identical to a real cycle.
+  //
+  // (These assertions outlived ADR-0402's read tolerance, which stood here until
+  // `adrs-into-the-dag-arc-inc-06` drained the corpus on 2026-08-22. The tolerance's own tests went
+  // with it; the defensive contract they sat beside is permanent. Migration #7 stays forever —
+  // `migrations.test.ts` is where the pre-rename shape is still pinned.)
+  assert.deepEqual(dependsOnNodes([{ id: "a", doc: { kind: "definition", id: "a", dependsOn: "asset:b" } }]), [
+    { id: "a", dependsOn: [] },
   ]);
-
-  // And the gate can SEE a cycle authored under the old spelling — the whole point of the tolerance,
-  // since a blind reader reports every cycle as clean.
-  const cyclic = evaluateDependsOnAcyclicity([legacyRow("a", ["asset:b"]), legacyRow("b", ["asset:a"])]);
-  assert.equal(cyclic.acyclic, false);
-  assert.deepEqual(cyclic.cycles.map((c) => c.line), ["a → b → a"]);
-  assert.equal(cyclic.edgesScanned, 2, "the legacy edges are COUNTED, not merely traversed");
-
-  // A MIXED corpus is the real transition state — one row migrated, one not — and a cycle spanning
-  // the two spellings is exactly what a half-tolerant reader would miss.
-  const mixed = evaluateDependsOnAcyclicity([
-    { id: "a", doc: { kind: "definition", id: "a", dependsOn: ["asset:b"] } },
-    legacyRow("b", ["asset:a"]),
-  ]);
-  assert.equal(mixed.acyclic, false);
-  assert.deepEqual(mixed.cycles.map((c) => c.line), ["a → b → a"]);
-});
-
-test("library-dag-corpus-projects-pointers-to-node-ids: the NEW key wins outright when a row carries both", () => {
-  // The legacy read is a fallback, never an override: a migrated row is authoritative even if a
-  // stray old key survived beside it.
-  const nodes = dependsOnNodes([
-    { id: "a", doc: { kind: "definition", id: "a", dependsOn: ["asset:current"], standsOn: ["asset:stale"] } },
-  ]);
-  assert.deepEqual(nodes, [{ id: "a", dependsOn: ["current"] }]);
-
-  // A non-array under either key is still "no edges" rather than a throw (TOTAL over untrusted input).
-  assert.deepEqual(dependsOnNodes([legacyRow("a", "asset:b")]), [{ id: "a", dependsOn: [] }]);
   assert.deepEqual(dependsOnNodes([{ id: "a", doc: null }]), [{ id: "a", dependsOn: [] }]);
+  assert.deepEqual(dependsOnNodes([{ id: "a", doc: { kind: "definition", id: "a" } }]), [
+    { id: "a", dependsOn: [] },
+  ]);
+  // A row still spelling the edge the pre-rename way is now simply a row with no authored edge —
+  // the drain means no such row exists, and a reader must not resurrect the old key to find one.
+  assert.deepEqual(dependsOnNodes([{ id: "a", doc: { kind: "definition", id: "a", standsOn: ["asset:b"] } }]), [
+    { id: "a", dependsOn: [] },
+  ]);
 });
 
 test("library-dag-corpus-projects-pointers-to-node-ids: a big corpus with ZERO edges is UNVERIFIED, not clean", () => {

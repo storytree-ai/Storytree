@@ -494,7 +494,6 @@ function censusPointers(
   let adrPointersResolving = 0;
 
   for (const row of docs) {
-    // ADR-0402 read tolerance, TEMPORARY — remove after the batch drain (depends-on-compat.ts).
     for (const pointer of readDependsOnPointers(row.doc)) {
       dependsOnTotal += 1;
       if (pointer.startsWith(ASSET_PREFIX)) {

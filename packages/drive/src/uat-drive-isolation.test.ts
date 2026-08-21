@@ -304,17 +304,26 @@ test("LIFETIME: the runner owns an absolute deadline and reserves report/cleanup
   assert.ok(audit.missing.includes("the isolation clause"));
 });
 
-test("SURFACE LAUNCH: the prompt requires Studio's canonical live-store launcher on the reserved port", () => {
+test("SURFACE LAUNCH: the prompt forwards Studio's reserved port through the canonical package script", () => {
   const spec = driveSpec();
   const prompt = uatDriveTaskPrompt(spec);
   const canonical =
-    "$env:STORYTREE_STUDIO_STORE='pg'; pnpm --filter studio dev -- --port 5312 --strictPort --host 127.0.0.1";
+    "$env:STORYTREE_STUDIO_STORE='pg'; pnpm --filter studio dev --port 5312 --strictPort --host 127.0.0.1";
 
   assert.ok(prompt.includes(canonical), "the walker receives one exact, runnable Studio launch command");
+  assert.doesNotMatch(
+    prompt,
+    /pnpm --filter studio dev -- --port/,
+    "a literal separator reaches Vite when pnpm.cmd is launched via Start-Process, so the reserved port is ignored",
+  );
   assert.equal(auditDrivePrompt(prompt, spec).ok, true);
 
   for (const weakened of [
     prompt.replace(canonical, ""),
+    prompt.replace(
+      canonical,
+      "$env:STORYTREE_STUDIO_STORE='pg'; pnpm --filter studio dev -- --port 5312 --strictPort --host 127.0.0.1",
+    ),
     prompt.replace(
       canonical,
       "$env:STORYTREE_STUDIO_STORE='pg'; pnpm exec vite --port 5312 --strictPort --host 127.0.0.1",

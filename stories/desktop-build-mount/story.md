@@ -15,11 +15,18 @@ proof_mode: UAT
 # OFFLINE (scripted build runner, ADR-0010 §5 — never a live SDK build on a gate pass). The story-level
 # uat_witness is absent → human (the ADR-0040 fail-closed signpost), so the machine-driven whole-story UAT
 # node stays withheld; the crown derives from the per-leg roll-up.
+# desktop-build-route RETIRED by ADR-0404 (2026-08-22) — dispatching a build is a CLI verb, so the
+# desktop's POST/GET /api/build mount was removed: createBuildRouteMount + build-route.ts +
+# build-route.test.ts DELETED, with the wiring in electron/backend-entry.ts. Its `real:` arm bound those
+# exact paths and is dropped, so it is no longer REAL-buildable and nothing implements it; it leaves this
+# list and gate 2's (covers:). The relocated worker it mounted over is UNTOUCHED (ADR-0404 D6) — only the
+# HTTP transport is gone — so `worker-relocation` stands, as does routed-node-real-dispatch (its own
+# --real verdict). See desktop-build-route.md (retired).
 # desktop-accept-dispatch RETIRED by ADR-0155 (2026-07-04) — the chat /api/chat/accept route it built was
-# removed (PR #587); dropped from this list so the crown rolls over the three live caps only. The story
-# keeps worker-relocation, desktop-build-route (both green via the observe gates below) and
-# routed-node-real-dispatch (green via its own --real verdict). See desktop-accept-dispatch.md (retired).
-capabilities: [worker-relocation, desktop-build-route, routed-node-real-dispatch]
+# removed (PR #587); dropped from this list so the crown rolls over the live caps only. Since ADR-0404
+# the story keeps TWO: worker-relocation (green via gate 1) and routed-node-real-dispatch (green via its
+# own --real verdict). See desktop-accept-dispatch.md and desktop-build-route.md (both retired).
+capabilities: [worker-relocation, routed-node-real-dispatch]
 # WHY A NEW STORY, NOT AN EDIT TO chat-drive-bridge OR desktop OR studio-build:
 #   - chat-drive-bridge is ADR-0108 Phase 3+4's BRIDGE (the proposed-unit signal, the id threading, the
 #     dispatch CORE, the accept affordance). Its four machine-provable capabilities are landed + green; its
@@ -294,7 +301,7 @@ every member resolves a `real:` arm** — what makes the WHOLE story story-`real
 | # | capability | outcome | depends on |
 |---|---|---|---|
 | 1 | [`worker-relocation`](worker-relocation.md) | The build worker machinery (`BuildRegistry`, the `runBuildJob`/`routedBuildRunner`/runner family, the `BuildContext` type) lives in a new `@storytree/drive/build-worker` subpath, importing nothing from `apps/*`; the studio importers (`apiRouter.ts`, `devApi.ts`, the server suites) re-point at the package and stay green. *(Also carried `dispatchAcceptedBuild`, deleted by ADR-0404 d.5 — caller-less since ADR-0175.)* | — |
-| 2 | [`desktop-build-route`](desktop-build-route.md) | The desktop local backend mounts `POST /api/build` (202 + runId, fire-and-forget) + `GET /api/build?runId`, wired with a `BuildContext` over the relocated worker (lazy `@storytree/drive/build` runner + `@storytree/orchestrator` discovery for `isBuildable`); a scripted runner proves the route without SDK spend. | `worker-relocation` |
+| ~~2~~ | ~~[`desktop-build-route`](desktop-build-route.md)~~ | **RETIRED by ADR-0404 (2026-08-22)** — dispatching a build is a CLI verb, so the desktop `POST`/`GET /api/build` mount was removed: `createBuildRouteMount`, `build-route.ts` and `build-route.test.ts` deleted with their wiring in `electron/backend-entry.ts`. Spec kept as history; the relocated worker it mounted over is untouched (D6). | ~~`worker-relocation`~~ |
 | ~~3~~ | ~~[`desktop-accept-dispatch`](desktop-accept-dispatch.md)~~ | **RETIRED by ADR-0155** — the desktop `/api/chat/accept` route was removed (PR #587); spec kept as history. | ~~`desktop-build-route`~~ |
 | 3 | [`routed-node-real-dispatch`](routed-node-real-dispatch.md) | A NODE-classified unit dispatched through `routedBuildRunner` drives the node's REAL proof with persist semantics — `nodeBuild(unitId, { real: true, dryRun: false, verdictStore: 'pg' })`, never the synthetic non-persisting `--live` smoke — with a mode line naming the real red→green, the persisted verdict, and the parked `claude/real/<unit>-<run>` branch the human lands (story branch unchanged). Post-landing increment, ADR-0144. | `worker-relocation` |
 
@@ -306,11 +313,10 @@ analysis, ADR-0010 §3) and corrected if the code disagrees. The graph is a tree
 `worker-relocation` (the package-home leaf, no in-story upstream): the desktop mount chain hangs off it,
 and the ADR-0144 routing flip hangs off it directly.
 
-- `desktop-build-route` → `worker-relocation`
-  - The route mounts a `BuildContext` over the relocated worker — it imports `BuildRegistry` /
-    `runBuildJob` / the `BuildContext` type from `@storytree/drive/build-worker`, the NEW home capability 1
-    creates. It cannot be mounted until the worker is reachable from a package (the desktop may not import
-    `apps/studio/server`, ADR-0100). It couples directly to the relocated worker's exported surface.
+- ~~`desktop-build-route` → `worker-relocation`~~ (RETIRED by ADR-0404 — the mount is deleted, so the
+  edge has no code left to derive from. It read: the route mounted a `BuildContext` over the relocated
+  worker, importing `BuildRegistry` / `runBuildJob` / the `BuildContext` type from
+  `@storytree/drive/build-worker`, and could not be mounted until the worker was reachable from a package.)
 - ~~`desktop-accept-dispatch` → `desktop-build-route`~~ (RETIRED by ADR-0155 — the accept-click front is gone)
 - `routed-node-real-dispatch` → `worker-relocation`
   - The ADR-0144 flip EDITS the node arm of `routedBuildRunner` inside the relocated
@@ -435,6 +441,12 @@ walk is exercised in chat-drive-bridge's operator-attested legs, NOT here.
 > that suite and already carries `(covers: desktop-build-route)`, so the leg was a second signature
 > over a capability the same command greens.
 >
+> **Correction, 2026-08-22 (ADR-0404).** That `(covers: desktop-build-route)` clause was true when this
+> pass ran and is not now: the capability has since been RETIRED with the route it proved, so the
+> `(covers:)` was dropped from gate 2 and `build-route.test.ts` no longer exists. Nothing above is
+> re-decided by that — the leg deletion stands on its own reasoning, and gate 2 stays in place (ids are
+> positional) now covering no capability, exactly as it already stood for `desktop-accept-dispatch`.
+>
 > Its ordinal `desktop-build-mount#uat-2` is BURNED and recorded `superseded` in
 > [`stories/uat-legacy-dispositions.json`](../uat-legacy-dispositions.json); leg 1 KEEPS ordinal 1
 > and no survivor may ever be renumbered onto 2. The leg carried `proven=–` (no signed verdict) at
@@ -497,11 +509,10 @@ what keeps leg 1's `(revision-id:)` binding intact now that it is the last item.
 
 ## Reliability Gates
 
-The two unregistered capabilities — `worker-relocation`, `desktop-build-route` (the third,
-`desktop-accept-dispatch`, was RETIRED by ADR-0155)
-— are **brownfield-by-outcome** (`status: mapped`): each LANDED with a real, passing, OFFLINE automated
-test that genuinely exercises it (the relocation's package-boundary contract; the desktop route
-driven over the REAL relocated worker on a real `node:http` server), but storytree's own
+The unregistered capability `worker-relocation` (of the three this section was written for,
+`desktop-accept-dispatch` was RETIRED by ADR-0155 and `desktop-build-route` by ADR-0404)
+is **brownfield-by-outcome** (`status: mapped`): it LANDED with a real, passing, OFFLINE automated
+test that genuinely exercises it (the relocation's package-boundary contract), but storytree's own
 prove-it-gate never DROVE those proofs to a persisted verdict — the `--real --store pg` signing was skipped
 at build time, so the code is tested-but-UNREGISTERED. On a GREEN base a fresh `--real` Build HALTS (there
 is no red→green left to earn, and *halt is never a pass*, ADR-0130), so the honest path off `mapped` is
@@ -542,22 +553,19 @@ re-pointed studio importer parity, and neither owning-suite gate proves that ful
    inferred from this drive-only suite. (`routed-node-real-dispatch`
    already carries its own signed `--real` verdict from a genuine edit-existing red→green — the ADR-0144
    node-branch flip — so it is not re-adopted here.)
-2. **The desktop backend suite is green** _(gate: observe)_ _(covers: desktop-build-route)_ `pnpm --filter desktop test`. The
-   spine runs it at a clean committed HEAD and OBSERVES it green — the desktop build route
-   (**desktop-build-route**: `build-route.test.ts` — `createBuildRouteMount` serves `POST /api/build` → 202
-   + runId fire-and-forget + `GET /api/build?runId` → status + coarse transcript, the 404 / 409 / 405 typed
-   answers and the chain fall-through, driven over the REAL relocated `BuildRegistry` + `runBuildJob` on a
-   real `node:http` server, importing the worker by package name never `apps/studio/server`) passes offline
-   (no DB, no API key, no SDK, no Electron) — then signs an `adopted` verdict. This observes the whole desktop
-   `src/**` suite; the cap greens via this gate's `(covers:)` (ADR-0097 §5). The one production-wiring
-   edit to `apps/desktop/electron/backend-entry.ts` (chaining the dispatchers + constructing the real
-   `BuildContext`) is the desktop story's operator-attested sidecar glue, not a leg of this gate.
-   (The `desktop-accept-dispatch` cap this gate ALSO covered was RETIRED by ADR-0155 — its
-   `/api/chat/accept` route + `accept-dispatch.test.ts` were removed in PR #587; it is dropped from this
-   gate's `(covers:)` and from the story's capability list.) **Since 2026-08-21 no CRITERION binds to
-   this gate** — story UAT leg 2 restated exactly the `desktop-build-route` contracts this same
-   command already greens, so ADR-0294 D2 deleted it. The gate itself stays (ids are positional) and
-   its `(covers:)` is untouched: it is how `desktop-build-route` greens, which was never the leg's job.
+2. **The desktop backend suite is green** _(gate: observe)_ `pnpm --filter desktop test`. The
+   spine runs it at a clean committed HEAD and OBSERVES the whole desktop `src/**` suite green offline
+   (no DB, no API key, no SDK, no Electron) — then signs an `adopted` verdict.
+   **This gate now covers NO capability, and carries no `(covers:)`.** It covered two, and both were
+   retired with the routes they proved: `desktop-accept-dispatch` by ADR-0155 (the `/api/chat/accept`
+   route + `accept-dispatch.test.ts` removed in PR #587), and `desktop-build-route` by ADR-0404
+   (2026-08-22) — `createBuildRouteMount` and `build-route.test.ts` deleted along with the wiring in
+   `electron/backend-entry.ts`, because dispatching a build is a CLI verb and no UI dispatches one.
+   The gate itself is LEFT IN PLACE: gate ids are positional, so deleting one would silently re-point
+   signed verdicts. It is also unclaimed by any CRITERION — story UAT leg 2 restated exactly the
+   `desktop-build-route` contracts this same command greened, so ADR-0294 D2 deleted it on 2026-08-21,
+   one day before the capability itself went. So the gate today observes a real suite and greens
+   nothing through `(covers:)`, which is honest rather than broken.
 3. **The relocation and studio-importer parity are green together** _(gate: observe)_ `pnpm --filter @storytree/drive --filter studio test`.
    The spine OBSERVES both suites through one executable pnpm command at a clean HEAD. The drive suite
    proves the relocated worker's exports, real registry/worker behaviour, and no-`apps/*` boundary;
@@ -570,8 +578,9 @@ Adopting these three gates flips the story off `mapped`. `healthy` stays non-aut
 ([ADR-0020](../../docs/decisions/0020-red-green-enforcement-on-the-owned-loop.md)) — the authored `status:`
 is never `healthy`; the world's crown DERIVES green from the signed verdicts
 ([ADR-0040](../../docs/decisions/0040-verdict-derived-green-and-the-human-witness-signpost.md)) and only when
-every capability is `healthy` (`worker-relocation` and `desktop-build-route` via gates 1–2;
-`routed-node-real-dispatch` via its own `--real` verdict) AND every own-proof obligation (the ONE
+every capability is `healthy` (`worker-relocation` via gate 1; `routed-node-real-dispatch` via its own
+`--real` verdict — `desktop-build-route`, which greened via gate 2, was retired by ADR-0404 and no
+longer rolls into the crown) AND every own-proof obligation (the ONE
 machine-witnessed Story UAT leg above)
 is signed
 ([ADR-0082](../../docs/decisions/0082-per-test-uat-test-criteria-earn-green-by-declared-witness-story-uat.md) /
@@ -588,9 +597,10 @@ The story carries the UAT (above); it is proven when that walkthrough passes —
 the combined drive + studio suite — with the capabilities' integration tests and
 contracts green underneath. *(This read "the two remaining legs green under the package + desktop
 suites" until 2026-08-21, when leg 2 was deleted under ADR-0294 D2 as a restatement of the
-`desktop-build-route` contracts the desktop suite already proves.)* The capability/contract obligations are minimal-to-green (slow growth): the
+`desktop-build-route` contracts the desktop suite already proved — and that capability was itself
+retired by ADR-0404 the next day.)* The capability/contract obligations are minimal-to-green (slow growth): the
 relocation's net-new assertion is the package-boundary contract (the worker exports from its new home,
-imports nothing from `apps/*`, the studio importers re-pointed + green); the desktop route is an
+imports nothing from `apps/*`, the studio importers re-pointed + green); the desktop route WAS an
 integration test against the real relocated registry + a scripted runner on a real `node:http` server —
 in both cases with the build runner injected as a scripted double (ADR-0010 §5, so a live SDK-billed build
 is never run on a gate pass). *(A third clause promised "the accept→dispatch is an integration test against

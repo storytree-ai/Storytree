@@ -107,7 +107,7 @@
 
 import { decisionNodeId, parseDecisionPointer } from "./decision-pointer.js";
 import { type DecisionAmendsResolver } from "./decision-amends-seam.js";
-import { readDependsOnPointers } from "./depends-on-compat.js";
+import { readDependsOnPointers } from "./depends-on.js";
 
 import { parseCiteRef } from "./knowledge.js";
 
@@ -216,7 +216,6 @@ export function depthFromWorkNodes(docs: readonly DepthFromWorkSource[]): DepthF
     const payload = row.doc as { cites?: unknown } | null | undefined;
     return {
       id: row.id,
-      // ADR-0402 read tolerance, TEMPORARY — remove after the batch drain (depends-on-compat.ts).
       dependsOn: readDependsOnPointers(row.doc),
       cites: stringsOf(payload?.cites),
     };

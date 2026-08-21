@@ -53,6 +53,9 @@ pure-by-injection DISPATCHER (`packages/cli/src/adopt.ts`) over `runAdopt` + `ad
 mirroring `gate`/`uat` so the routing is offline-testable; `commands.ts` wires the live seams (the
 verdict store is the same `PgWorkStore` the sibling proof commands use under `--pg`). The studio's
 `POST /api/adopt` is unchanged — it still imports `adoptStory` from `@storytree/drive/build`.
+*(Overtaken 2026-08-22: ADR-0404 RETIRED `POST /api/adopt` entirely — dispatching an adoption is a CLI
+verb, and no UI dispatches one. Nothing here is re-decided: `storytree adopt` and the `runAdopt` engine
+this ADR is about are untouched; what is gone is the studio route that was the other caller.)*
 
 As part of the same unit, the CLI proof surface was swept for coherence: `adopt` (and the previously
 missing `drift`) added to the top-help and unknown-area rosters; `story adopt-plan` removed and

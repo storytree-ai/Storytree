@@ -16,9 +16,10 @@
 // until that real red→green work is done. The crown stays non-authorable (ADR-0020) — `adoptStory`
 // signs verdicts, it never writes `status: healthy`.
 //
-// The studio's UI-driven Adopt button drives THIS entry (the server-process worker calls it, the same
-// way the build worker calls `nodeBuild`/`storyBuild`) — re-exported from `@storytree/drive/build`
-// (and from `@storytree/cli/build` for back-compat). The frontend imports none of it (ADR-0004).
+// `storytree adopt <story> --pg` drives THIS entry — re-exported from `@storytree/drive/build` (and
+// from `@storytree/cli/build` for back-compat). The studio's UI-driven Adopt button used to drive it
+// too, through the server-process worker; ADR-0404 retired that dispatch surface, so the CLI is the
+// live caller. The frontend imports none of it (ADR-0004).
 //
 // Two layers, like the build entries: a PURE-by-injection {@link runAdopt} core (every seam injected,
 // offline-testable with no DB / git / subprocess) and a self-wiring {@link adoptStory} that resolves

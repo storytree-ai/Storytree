@@ -107,11 +107,14 @@ approver still refuses without running the suite. The leg path skips that step a
 `approvedBy` line from `result.verdict.approvedBy`, so it can never name an approver the verdict does
 not carry. `storytree adopt` scopes its header line to the observe-gate verdicts and states, where the
 run signed machine legs, that those legs carry none and why. Header comments in
-`observe-and-sign.ts`, `drive/src/adopt.ts`, `cli/src/adopt.ts`, `spine-principal.ts`,
-`proof-protocol/src/proof.ts` and the studio's `/api/adopt` note that asserted "human-approved" as an
-invariant of every adopted verdict are corrected in the same change. ADR-0405's own friction item
-exists because a doc comment that narrowed what the code did was believed over the code for weeks;
-leaving these disagreeing would reproduce it.
+`observe-and-sign.ts`, `drive/src/adopt.ts`, `cli/src/adopt.ts`, `spine-principal.ts` and
+`proof-protocol/src/proof.ts` that asserted "human-approved" as an invariant of every adopted verdict
+are corrected in the same change. ADR-0405's own friction item exists because a doc comment that
+narrowed what the code did was believed over the code for weeks; leaving these disagreeing would
+reproduce it. *(The studio's `/api/adopt` route note carried the same claim and was corrected too,
+but ADR-0404's retirement of the SPA's Build and Adopt dispatch surface deleted the route while this
+change was in flight, so that correction is not in the landed diff — the surface it described is
+gone. `adoptStory` / `runAdopt` themselves are untouched by that retirement.)*
 
 **D7 — What is NOT changing, stated explicitly because the neighbouring rules look similar.**
 `signer` stays the spine principal on every adopted verdict. A model still never signs its own verdict
