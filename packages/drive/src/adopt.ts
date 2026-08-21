@@ -4,6 +4,13 @@
 // `adopted` verdicts — machine-witnessed (signed by the spine principal), human-approved (`approvedBy`
 // = the operator who decided) — and flips the story `mapped → proposed` ("adoption underway").
 //
+// The command signs TWO classes of obligation and only the first carries that human (ADR-0408). The
+// `observe` RELIABILITY GATES above are the adoption decision itself — an unproven suite judged good
+// enough to trust — so they keep `approvedBy` and stay fail-closed on a blank approver. The story's
+// MACHINE UAT LEGS are not: the check was already declared and already bound to that exact journey,
+// the spine merely watched it exit green, and their verdicts carry NO `approvedBy` at all. The two
+// are told apart structurally, by the criterion binding a leg call carries and a gate call cannot.
+//
 // It GREENS NOTHING on its own: adopting the observe gates greens the capabilities they `(covers:)`,
 // but any capability covered by no honest gate (a `build-tests` pocket) holds the crown at `proposed`
 // until that real red→green work is done. The crown stays non-authorable (ADR-0020) — `adoptStory`
@@ -100,7 +107,12 @@ export interface AdoptDeps {
   gitState: () => { commitSha: string; clean: boolean } | null;
   /** The spine's out-of-band observation of a declared command (exit code as data). */
   observe: (command: string) => Promise<{ code: number | null }>;
-  /** Resolve the human APPROVER (who is adopting); fail-closed (ADR-0097 d.4 — always a human act). */
+  /**
+   * Resolve the human APPROVER of the ADOPTION DECISION — who is judging this unproven suite good
+   * enough to trust; fail-closed (ADR-0097 d.4). It is required to run `adopt` at all and is recorded
+   * on the observe-GATE verdicts. It is NOT recorded on the story's machine UAT legs: those carry no
+   * approver at all (ADR-0408), and their signing does not consult this chain.
+   */
   resolveApprover: (flag?: string) => SignerResult;
   /** Flip the story's authored status mapped→proposed (the adoption decision); side-effecting writer. */
   flipStatusToProposed: (storyId: string) => FlipResult;
@@ -195,6 +207,8 @@ export async function runAdopt(
     clean: git.clean,
   });
   const now = (): string => deps.now().toISOString();
+  // The adoption decision's approver, carried onto the observe-GATE verdicts only (ADR-0097 d.4).
+  // The machine UAT-leg loop below deliberately does not pass it (ADR-0408).
   const approverInputs = { flag: approver.signer };
 
   const gateLines: string[] = [];
@@ -276,6 +290,9 @@ export async function runAdopt(
       );
       continue;
     }
+    // ADR-0408: a MACHINE UAT LEG signs with NO `approvedBy`. The criterion binding below is what
+    // selects that class inside `observeAndSign` — `approverInputs` is not passed (and cannot be:
+    // the leg spec types it `never`), so the signer chain is never consulted on this path.
     const res = await observeAndSign({
       gate: {
         id: leg.criterionId,
@@ -286,7 +303,6 @@ export async function runAdopt(
       },
       gitState,
       observe,
-      approverInputs,
       store,
       runId,
       now,
@@ -312,7 +328,7 @@ export async function runAdopt(
   const body = [
     `Adopt "${id}": ${signedGates}/${observeGates.length} observe gate(s) signed an \`adopted\` verdict.`,
     `  signer:     ${SPINE_PRINCIPAL} (the spine principal — the machine that witnessed the green)`,
-    `  approvedBy: ${approver.signer} (who decided to adopt it)`,
+    `  approvedBy: ${approver.signer} (who decided to adopt it — recorded on the observe-gate verdicts)`,
     `  commit:     ${git.commitSha.slice(0, 7)}`,
     "",
     ...gateLines,
@@ -320,6 +336,12 @@ export async function runAdopt(
       ? [
           "",
           `UAT legs (ADR-0106): ${signedLegs}/${realMachineLegs.length} machine observe-signed · ${humanLegs} await your witness · ${buildTestsLegs} deferred to Build.`,
+          ...(realMachineLegs.length > 0
+            ? [
+                `  (machine legs carry NO approvedBy: the spine observed each leg's already-declared check —`,
+                `   no human approval was required, and none is recorded, ADR-0408.)`,
+              ]
+            : []),
           ...legLines,
         ]
       : []),

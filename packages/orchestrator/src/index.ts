@@ -182,11 +182,15 @@ export {
   rollupCapStatus,
   gateStoryGreenOnOpenQuestions,
 } from "./proof/uat-proof.js";
-// ADR-0085 (resolving ADR-0083 Fork B): the brownfield OBSERVE-AND-SIGN compute — an `observe`
-// reliability gate earns an `adopted` machine verdict when the spine observes its declared command
-// green at a clean committed HEAD (no prior red; job 2 supplied by author review).
+// ADR-0085 (resolving ADR-0083 Fork B): the OBSERVE-AND-SIGN compute — an `observe` obligation earns
+// an `adopted` machine verdict when the spine observes its declared command green at a clean
+// committed HEAD (no prior red; job 2 supplied by author review). ADR-0408 splits the spec into its
+// two structural classes: a MACHINE UAT LEG (carries a criterion binding, no `approvedBy`) and a
+// BROWNFIELD OBSERVE GATE (no binding, `approvedBy` required and fail-closed).
 export type {
   ObserveAndSignSpec,
+  ObserveMachineLegSpec,
+  ObserveBrownfieldGateSpec,
   ObserveAndSignResult,
   ObserveGitState,
   ObserveOutcome,

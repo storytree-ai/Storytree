@@ -324,3 +324,78 @@ test("uat-bound-command-adoption: a machine leg with NO explicit proof-gate bind
   assert.ok(!ids.includes(leg(1, "machine").criterionId));
   assert.match(env.body, /uatc_000000000000000000000001 \(machine\) — no proof-gate binding/);
 });
+
+// ---------------------------------------------------------------------------
+// ADR-0408: through `runAdopt`, the two classes of obligation get different approver records
+// ---------------------------------------------------------------------------
+
+test("ADR-0408: one adopt run — the observe GATE carries approvedBy, the machine LEG carries none", async () => {
+  // The DONE-WHEN condition, end to end: the approver chain resolves the owner's address (exactly
+  // what git email gives on this box), and the machine leg's verdict still records no human. The
+  // gate signed in the SAME run is the control — if the split did nothing, both rows would match.
+  const store = recordingStore();
+  const story: AdoptStory = {
+    status: "mapped",
+    reliabilityGates: [gate(1)],
+    uatTestCriteria: [leg(1, "machine", { proofGateId: "library#gate-1" })],
+  };
+  const env = await runAdopt(
+    "library",
+    {},
+    deps({
+      store: store as unknown as AdoptDeps["store"],
+      loadStory: () => story,
+      resolveApprover: () => ({ ok: true, signer: "hua.mick@gmail.com" }),
+    }),
+  );
+  assert.equal(env.ok, true);
+  assert.equal(store.appended.length, 2);
+
+  const byId = new Map(
+    store.appended.map((e) => [(e.doc as unknown as { unitId: string }).unitId, e.doc] as const),
+  );
+  const gateVerdict = byId.get("library#gate-1");
+  const legVerdict = byId.get(leg(1, "machine").criterionId);
+  assert.ok(gateVerdict !== undefined && legVerdict !== undefined);
+
+  // The witness axis is identical on both — the machine signed each (ADR-0295 D2 is untouched).
+  assert.equal(gateVerdict.signer, SPINE_PRINCIPAL);
+  assert.equal(legVerdict.signer, SPINE_PRINCIPAL);
+  // The approver axis is where they differ, and that difference is the whole decision.
+  assert.equal(gateVerdict.approvedBy, "hua.mick@gmail.com");
+  assert.equal(legVerdict.approvedBy, undefined);
+  assert.equal("approvedBy" in legVerdict, false);
+
+  // ...and the SURFACE says so rather than printing a name the leg's verdict does not carry.
+  assert.match(env.body, /approvedBy: hua\.mick@gmail\.com \(who decided to adopt it — recorded on the observe-gate verdicts\)/);
+  assert.match(env.body, /machine legs carry NO approvedBy/);
+});
+
+test("ADR-0408: a story with only machine legs still needs an approver to RUN adopt (the decision stands)", async () => {
+  // Narrow reading guard: the ruling removed the approver from the LEG VERDICT, not the human from
+  // the adoption decision. A blank chain still refuses the whole command, before any spend.
+  const store = recordingStore();
+  let observed = 0;
+  const story: AdoptStory = {
+    status: "mapped",
+    reliabilityGates: [gate(1)],
+    uatTestCriteria: [leg(1, "machine", { proofGateId: "library#gate-1" })],
+  };
+  const env = await runAdopt(
+    "library",
+    {},
+    deps({
+      store: store as unknown as AdoptDeps["store"],
+      loadStory: () => story,
+      observe: async () => {
+        observed += 1;
+        return { code: 0 };
+      },
+      resolveApprover: () => ({ ok: false, error: "no signer" }),
+    }),
+  );
+  assert.equal(env.ok, false);
+  assert.match(env.body, /no signer/);
+  assert.equal(store.appended.length, 0);
+  assert.equal(observed, 0); // refused before any spend
+});

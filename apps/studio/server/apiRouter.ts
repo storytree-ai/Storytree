@@ -1859,7 +1859,8 @@ export async function handleBuild(
 // POST /api/adopt { storyId } enters the ADOPTION proving process for a brownfield (`mapped`) story:
 // it asks the server-process worker to run the EXISTING `adoptStory` entry — observe-and-sign the
 // story's `observe` reliability gates (ADR-0085) to `adopted` verdicts (machine-witnessed by the spine
-// principal, human-approved via `approvedBy`) and flip the story `mapped → proposed`. Like /api/build
+// principal, human-approved via `approvedBy` — the gates only; the story's machine UAT legs are signed
+// with no approver at all, ADR-0408) and flip the story `mapped → proposed`. Like /api/build
 // it is a SAFE write (it never accepts or persists a verdict from the client — the gate inside the
 // worker signs; ADR-0091). It REUSES the build run registry: the adoption run is tracked exactly like
 // a build, so the client polls its coarse transcript + status via the SAME GET /api/build?runId.
