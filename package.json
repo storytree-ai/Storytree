@@ -12,6 +12,7 @@
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
+    "lint": "oxlint",
     "storytree": "node packages/cli/launch.mjs",
     "check:boundaries": "pnpm --filter @storytree/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-boundaries.ts",
     "check:ownership-totality": "pnpm --filter @storytree/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-ownership-totality.ts",
@@ -50,5 +51,9 @@
     "patchedDependencies": {
       "node-pty@1.1.0": "patches/node-pty@1.1.0.patch"
     }
+  },
+  "devDependencies": {
+    "@oxlint/plugins": "1.79.0",
+    "oxlint": "1.79.0"
   }
 }

@@ -252,14 +252,14 @@ const report = {
     plantsAtWhichOneFrameIsSpent: plantsAtFullFrame,
     cadenceNoiseFloorMs: cadenceNoiseFloor,
     cadenceIsUninformative:
-      'Every rung's rafP50 is the display interval, and the 0-plant rung's rafP95 is HIGHER ' +
-      'than the 171-plant rung's. Read gpuMsPerFrame, not the cadence: the cadence can only ' +
-      'ever show 60 Hz being MISSED, never how much room is left.',
+      "Every rung's rafP50 is the display interval, and the 0-plant rung's rafP95 is HIGHER " +
+      "than the 171-plant rung's. Read gpuMsPerFrame, not the cadence: the cadence can only " +
+      "ever show 60 Hz being MISSED, never how much room is left.",
     caveats: [
       'MEASUREMENT FLOOR: the 0-plant rung costs about as much as the 50-plant rung, so ' +
-        'readings below ~0.5 ms/frame are at this instrument's noise floor and should not be ' +
+        "readings below ~0.5 ms/frame are at this instrument's noise floor and should not be " +
         'compared with each other.',
-      'THIS IS THE NAIVE DRAW PATH — one draw call per plant, confirmed by the sweep's own ' +
+      "THIS IS THE NAIVE DRAW PATH — one draw call per plant, confirmed by the sweep's own " +
         'call counts. So the numbers are a FLOOR on achievable performance, not a ceiling: ' +
         'instancing the plants, which a real renderer would do, moves them a long way down.',
       'THIS IS THE HARNESS LAND — procedural shrubs on a ground plane under the banded ' +
