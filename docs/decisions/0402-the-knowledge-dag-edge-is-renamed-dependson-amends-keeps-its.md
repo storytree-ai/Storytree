@@ -84,7 +84,9 @@ each for its own reason:
    - `docs/research/**` (dated historical captures) and `stories/uat-legacy-dispositions.json`.
 
 **4b. The exported SYMBOLS built on the field are renamed with it** — `StandsOnRef` → `DependsOnRef`,
-`findStandsOnCycles` → `findDependsOnCycles`, and nine more. They are the field's own type and
+`findStandsOnCycles` → `findDependsOnCycles`, and seven more (nine total: `StandsOnSource`,
+`standsOnNodes`, `StandsOnCycleReport`, `StandsOnAcyclicityVerdict`, `evaluateStandsOnAcyclicity`,
+`StandsOnBootstrapPlan`, `projectStandsOnFromCitations`). They are the field's own type and
 function vocabulary, not names of other objects, and leaving them would create a fourth residue class
 that reads as exactly the oversight decision 4 exists to make deliberate. Accepted cost: three lines
 of story prose that reference the old symbol names go stale
@@ -94,9 +96,14 @@ decision 4 rules out for stronger reasons.
 
 **5. The ADR bodies that name the field are CORRECTED IN PLACE, and that correction runs AFTER this
 lands, not with it.** Under ADR-0139 the decision did not change — the edge exists and means what it
-always meant, only its name moved — so ADR-0223, 0363, 0365, 0373, 0185, 0188 and 0310 are corrected
+always meant, only its name moved — so **ADR-0223, 0363, 0365, 0373, 0185 and 0188** are corrected
 rather than superseded. The ordering is deliberate: correcting them to name `dependsOn` before the
 field exists would make each of them false in the interval.
+
+ADR-0310 also names the field and wants the same fix, but is listed separately here because it is
+`proposed` rather than `accepted` — ADR-0139's true-in-full mandate binds the accepted set, so 0310
+is housekeeping rather than an obligation. Recorded distinctly so a later pass does not infer that
+proposed ADRs carry the same duty.
 
 **6. READERS ARE LEGACY-TOLERANT UNTIL THE DATA DRAINS, and this is not optional.** Migrate-on-write
 upcasts at the WRITE boundary only; every reader — the acyclicity gate, the depth walk, the studio's
