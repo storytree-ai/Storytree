@@ -17,6 +17,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { api } from '../api';
 import type { ChatEvent } from '../api';
+import type { CommentAnchor } from '../types';
 import {
   HttpDouble,
   UnroutedRequestError,
@@ -25,6 +26,18 @@ import {
   sseChannel,
   sseChunkedReply,
 } from './httpDouble';
+
+/** A minimal, COMPLETE `CommentAnchor` — the real client posts this shape verbatim. */
+const SECTION_ANCHOR: CommentAnchor = {
+  kind: 'section',
+  headingSlug: 'intro',
+  headingText: 'Intro',
+  quote: null,
+  prefix: null,
+  suffix: null,
+  startOffset: null,
+  color: null,
+};
 
 let double: HttpDouble | null = null;
 
@@ -54,7 +67,13 @@ describe('httpDouble — fail-closed', () => {
     double.get('/api/comments', () => []);
 
     await expect(
-      api.createComment({ topicKind: 'doc', topicId: 'd1', body: 'hello', author: 'a@b.c' }),
+      api.createComment({
+        topicKind: 'doc',
+        topicId: 'd1',
+        anchor: SECTION_ANCHOR,
+        body: 'hello',
+        author: 'a@b.c',
+      }),
     ).rejects.toBeInstanceOf(UnroutedRequestError);
   });
 
@@ -107,7 +126,13 @@ describe('httpDouble — the real api client runs through it', () => {
     double = installHttpDouble();
     double.post('/api/comments', (request) => ({ id: 'c1', ...(request.body as object) }));
 
-    await api.createComment({ topicKind: 'doc', topicId: 'd1', body: 'hi', author: 'a@b.c' });
+    await api.createComment({
+      topicKind: 'doc',
+      topicId: 'd1',
+      anchor: SECTION_ANCHOR,
+      body: 'hi',
+      author: 'a@b.c',
+    });
     const sent = double.requestsTo('/api/comments')[0];
     expect(sent?.method).toBe('POST');
     expect(sent?.headers.get('Content-Type')).toBe('application/json');

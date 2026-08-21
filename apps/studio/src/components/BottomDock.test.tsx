@@ -27,68 +27,74 @@ import { render, screen, cleanup, fireEvent, act } from '@testing-library/react'
 
 import { useEffect, useState } from 'react';
 
-// ── the TerminalRepoGate stub — records MOUNT/UNMOUNT so the test can prove the terminal pane is
-//    HIDDEN rather than unmounted on a tab switch (the difference between preserving a live pty's
-//    scrollback and paying a snapshot replay for every switch). ────────────────────────────────────
-const gateMock = vi.hoisted(() => ({
+import { BottomDock, type BottomDockPanes } from './BottomDock';
+
+// ── the two pane PROBES — mount/unmount logged so the test can prove the terminal pane is HIDDEN
+//    rather than unmounted on a tab switch (the difference between preserving a live pty's
+//    scrollback and paying a snapshot replay for every switch), plus a control that pushes a meta
+//    line up into the host's tab strip.
+//
+//    HANDED IN THROUGH THE `panes` SLOT, not mocked over the modules (anti-slop-adoption-arc
+//    inc-06, `no-module-mocking`). What is under test here is the PANEL — its tab strip, its
+//    retention, its host seam — and the real pane bodies would each stand up a pty and a trace read
+//    to prove none of it. The slots default to the real components, so production is unchanged.
+const gateMock = {
   counter: 0,
   log: [] as Array<{ type: 'mount' | 'unmount'; id: number }>,
   lastHost: null as { expanded: boolean; onRequestExpand: () => void } | null,
-}));
-
-vi.mock('./TerminalRepoGate.js', () => ({
-  TerminalRepoGate: (props: {
-    seed?: { command: string; token: number };
-    host?: { expanded: boolean; onRequestExpand: () => void };
-  }) => {
-    const [id] = useState(() => ++gateMock.counter);
-    gateMock.lastHost = props.host ?? null;
-    useEffect(() => {
-      gateMock.log.push({ type: 'mount', id });
-      return () => {
-        gateMock.log.push({ type: 'unmount', id });
-      };
-    }, [id]);
-    return (
-      <div
-        data-testid="terminal-gate-mock"
-        data-gate-id={id}
-        data-host-expanded={props.host ? String(props.host.expanded) : 'no-host'}
-        data-seed={props.seed ? JSON.stringify(props.seed) : ''}
-      />
-    );
-  },
-}));
-
-// ── the traversal tab stub — mount/unmount logged for the same reason, plus a control that pushes a
-//    meta line up into the host's tab strip. ────────────────────────────────────────────────────
-const tabMock = vi.hoisted(() => ({
+};
+const tabMock = {
   counter: 0,
   log: [] as Array<{ type: 'mount' | 'unmount'; id: number }>,
-}));
+};
 
-vi.mock('./TraversalTab.js', () => ({
-  TraversalTab: (props: { active: boolean; onMeta: (meta: string | null) => void }) => {
-    const [id] = useState(() => ++tabMock.counter);
-    useEffect(() => {
-      tabMock.log.push({ type: 'mount', id });
-      return () => {
-        tabMock.log.push({ type: 'unmount', id });
-      };
-    }, [id]);
-    return (
-      <div data-testid="traversal-tab-mock" data-tab-id={id} data-active={String(props.active)}>
-        <button type="button" onClick={() => props.onMeta('trace-a · 42 events')}>
-          report meta
-        </button>
-      </div>
-    );
-  },
-}));
+function TerminalPaneProbe(props: {
+  seed?: { command: string; token: number };
+  host?: { expanded: boolean; onRequestExpand: () => void };
+}): React.JSX.Element {
+  const [id] = useState(() => ++gateMock.counter);
+  gateMock.lastHost = props.host ?? null;
+  useEffect(() => {
+    gateMock.log.push({ type: 'mount', id });
+    return () => {
+      gateMock.log.push({ type: 'unmount', id });
+    };
+  }, [id]);
+  return (
+    <div
+      data-testid="terminal-gate-mock"
+      data-gate-id={id}
+      data-host-expanded={props.host ? String(props.host.expanded) : 'no-host'}
+      data-seed={props.seed ? JSON.stringify(props.seed) : ''}
+    />
+  );
+}
 
-vi.mock('./RepoPicker.js', () => ({ RepoPicker: () => <div data-testid="repo-picker-mock" /> }));
+function TraversalPaneProbe(props: {
+  active: boolean;
+  onMeta: (meta: string | null) => void;
+}): React.JSX.Element {
+  const [id] = useState(() => ++tabMock.counter);
+  useEffect(() => {
+    tabMock.log.push({ type: 'mount', id });
+    return () => {
+      tabMock.log.push({ type: 'unmount', id });
+    };
+  }, [id]);
+  return (
+    <div data-testid="traversal-tab-mock" data-tab-id={id} data-active={String(props.active)}>
+      <button type="button" onClick={() => props.onMeta('trace-a · 42 events')}>
+        report meta
+      </button>
+    </div>
+  );
+}
 
-import { BottomDock } from './BottomDock';
+/** The slot value every render below passes. */
+const PANES: BottomDockPanes = {
+  terminal: (props) => <TerminalPaneProbe {...props} />,
+  traversal: (props) => <TraversalPaneProbe {...props} />,
+};
 
 /** The panes are hidden via `hidden`, so "visible" means the pane wrapper is not hidden. */
 function paneHidden(testId: string): boolean {
@@ -108,26 +114,26 @@ afterEach(() => cleanup());
 
 describe('BottomDock — the panel offers both tabs (bdh-renders-both-tabs)', () => {
   it('renders a Terminal tab and a Traversal tab in one tablist', () => {
-    render(<BottomDock />);
+    render(<BottomDock panes={PANES} />);
     const tabs = screen.getAllByRole('tab');
     expect(tabs.map((tab) => tab.textContent)).toEqual(['›_Terminal', '⌁Traversal']);
   });
 
   it('opens on the TERMINAL — the traversal is the new sibling, not the new default', () => {
-    render(<BottomDock />);
+    render(<BottomDock panes={PANES} />);
     expect(screen.getByRole('tab', { name: /terminal/i }).getAttribute('aria-selected')).toBe('true');
     expect(screen.getByRole('tab', { name: /traversal/i }).getAttribute('aria-selected')).toBe('false');
   });
 
   it('keeps the terminal available — ADR-0354 D1 adds a tab and never replaces the CLI', () => {
-    render(<BottomDock />);
+    render(<BottomDock panes={PANES} />);
     expect(screen.getByTestId('terminal-gate-mock')).toBeTruthy();
   });
 });
 
 describe('BottomDock — one fold for the whole panel (bdh-one-fold-for-the-panel)', () => {
   it('starts folded, so the panel does not cover the map until it is asked for', () => {
-    render(<BottomDock />);
+    render(<BottomDock panes={PANES} />);
     expect(screen.getByRole('button', { name: /expand bottom panel/i })).toBeTruthy();
     // Folded: neither pane is showing, though both are mounted.
     expect(paneHidden('terminal-gate-mock')).toBe(true);
@@ -135,7 +141,7 @@ describe('BottomDock — one fold for the whole panel (bdh-one-fold-for-the-pane
   });
 
   it('unfolds from the ONE chevron — never one per tab', () => {
-    render(<BottomDock />);
+    render(<BottomDock panes={PANES} />);
     expect(screen.getAllByRole('button', { name: /bottom panel$/i })).toHaveLength(1);
     fireEvent.click(screen.getByRole('button', { name: /expand bottom panel/i }));
     expect(paneHidden('terminal-gate-mock')).toBe(false);
@@ -143,7 +149,7 @@ describe('BottomDock — one fold for the whole panel (bdh-one-fold-for-the-pane
   });
 
   it('opens ON the tab that was clicked when the panel was folded', () => {
-    render(<BottomDock />);
+    render(<BottomDock panes={PANES} />);
     // An operator clicking "Traversal" on a folded panel means "show me the traversal", not "note
     // my preference and stay shut".
     fireEvent.click(screen.getByRole('tab', { name: /traversal/i }));
@@ -152,7 +158,7 @@ describe('BottomDock — one fold for the whole panel (bdh-one-fold-for-the-pane
   });
 
   it('folds again when the tab already forward is clicked', () => {
-    render(<BottomDock />);
+    render(<BottomDock panes={PANES} />);
     fireEvent.click(screen.getByRole('button', { name: /expand bottom panel/i }));
     fireEvent.click(screen.getByRole('tab', { name: /terminal/i }));
     expect(paneHidden('terminal-gate-mock')).toBe(true);
@@ -161,14 +167,14 @@ describe('BottomDock — one fold for the whole panel (bdh-one-fold-for-the-pane
 
 describe('BottomDock — switching preserves each tab’s state (bdh-switch-preserves-tab-state)', () => {
   it('mounts the traversal tab’s child when its tab is selected', () => {
-    render(<BottomDock />);
+    render(<BottomDock panes={PANES} />);
     fireEvent.click(screen.getByRole('tab', { name: /traversal/i }));
     expect(screen.getByTestId('traversal-tab-mock')).toBeTruthy();
     expect(screen.getByTestId('traversal-tab-mock').dataset['active']).toBe('true');
   });
 
   it('HIDES rather than unmounts the pane left behind, and the same instance comes back', () => {
-    render(<BottomDock />);
+    render(<BottomDock panes={PANES} />);
     fireEvent.click(screen.getByRole('button', { name: /expand bottom panel/i }));
     const firstGateId = screen.getByTestId('terminal-gate-mock').dataset['gateId'];
 
@@ -184,7 +190,7 @@ describe('BottomDock — switching preserves each tab’s state (bdh-switch-pres
   });
 
   it('tells the traversal tab when it is NOT the forward one, so it does not read while unseen', () => {
-    render(<BottomDock />);
+    render(<BottomDock panes={PANES} />);
     fireEvent.click(screen.getByRole('button', { name: /expand bottom panel/i }));
     expect(screen.getByTestId('traversal-tab-mock').dataset['active']).toBe('false');
     fireEvent.click(screen.getByRole('tab', { name: /traversal/i }));
@@ -194,7 +200,7 @@ describe('BottomDock — switching preserves each tab’s state (bdh-switch-pres
 
 describe('BottomDock — the dock is HOSTED, not nested (bdh-hosts-the-terminal-dock)', () => {
   it('passes the contract-12 host seam down, so the dock draws no second frame', () => {
-    render(<BottomDock />);
+    render(<BottomDock panes={PANES} />);
     expect(gateMock.lastHost).not.toBeNull();
     // The dock's fold state is the HOST's: true only while the panel is open on the terminal tab.
     expect(screen.getByTestId('terminal-gate-mock').dataset['hostExpanded']).toBe('false');
@@ -207,12 +213,12 @@ describe('BottomDock — the dock is HOSTED, not nested (bdh-hosts-the-terminal-
   });
 
   it('forwards a map Build seed straight through to the terminal', () => {
-    render(<BottomDock seed={{ command: 'pnpm storytree node build x', token: 3 }} />);
+    render(<BottomDock seed={{ command: 'pnpm storytree node build x', token: 3 }} panes={PANES} />);
     expect(screen.getByTestId('terminal-gate-mock').dataset['seed']).toContain('node build x');
   });
 
   it('REVEALS the terminal when the dock asks — a seeded command never lands in a hidden pane', () => {
-    render(<BottomDock />);
+    render(<BottomDock panes={PANES} />);
     fireEvent.click(screen.getByRole('tab', { name: /traversal/i }));
     expect(paneHidden('terminal-gate-mock')).toBe(true);
 
@@ -228,13 +234,13 @@ describe('BottomDock — the dock is HOSTED, not nested (bdh-hosts-the-terminal-
 
 describe('BottomDock — the tab strip names the selected trace', () => {
   it('renders no meta container at all until a trace is chosen', () => {
-    render(<BottomDock />);
+    render(<BottomDock panes={PANES} />);
     fireEvent.click(screen.getByRole('tab', { name: /traversal/i }));
     expect(screen.queryByTestId('bottom-dock-meta')).toBeNull();
   });
 
   it('shows what the traversal tab reports, and clears it on the way out of that tab', () => {
-    render(<BottomDock />);
+    render(<BottomDock panes={PANES} />);
     fireEvent.click(screen.getByRole('tab', { name: /traversal/i }));
     fireEvent.click(screen.getByRole('button', { name: 'report meta' }));
     expect(screen.getByTestId('bottom-dock-meta').textContent).toBe('trace-a · 42 events');
