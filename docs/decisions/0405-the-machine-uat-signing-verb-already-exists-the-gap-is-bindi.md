@@ -124,11 +124,23 @@ not this ADR.
   stories are signable by an existing command; the charter scoped 18. No signing code is written.
 - **Two of the seven charter stories are unblocked immediately** — `agent` (1 leg) and
   `library-review` (5 legs) carry no unbound machine leg, and all six legs pass their witness check
-  at HEAD. The other five wait on D3's authoring work.
-- **A cost accepted knowingly:** D3 leaves 9 provable legs unsigned until 47 unbound legs are bound
-  or retired, and some of those 47 may not deserve a binding at all. Paying it keeps a signed
-  contract honest; the alternative bought 9 verdicts by weakening the rule that stops a story from
-  carrying a partial, misleading verdict set.
+  at HEAD. *(This bullet ended "The other five wait on D3's authoring work." That authoring work
+  LANDED on 2026-08-22 as `machine-uat-signing-gap-arc-inc-02`, so the five no longer wait —
+  corrected in place per ADR-0139. The decision is unchanged; only its pending status was.)*
+- **A cost accepted knowingly, and it has since been PAID.** D3 left 9 provable legs unsigned until
+  their unbound siblings were bound or retired, and warned that some of the 47 might not deserve a
+  binding at all. *(That was the state until 2026-08-22. `machine-uat-signing-gap-arc-inc-02` bound
+  the 21 unbound legs in the six poisoned stories — `desktop` 5, `embedded-terminal` 4,
+  `studio-build` 7, `terminal-tabs` 3, `map-terminal-build` 1, `studio-members` 1 — each to a newly
+  APPENDED per-criterion `uat-drive-witness.check.ts` observe gate, the ADR-0295 D1 model-driven
+  instrument every one of those stories already named as its honest binder. None was retired: all 21
+  are genuine integrated journey claims. Zero refused machine legs remain in the six, so the 9 are
+  signable; corpus-wide the count moved 74 bound / 47 unbound → 95 / 26, and the 26 that remain sit
+  in nine stories that hold NO bound leg, so they strand nothing and each states its own reason for
+  staying unbound. Binding is not driving — no drive was run, so all 21 gates are honestly RED, which
+  is D4's "a red check is left red" and not a signing gap. Corrected in place per ADR-0139.)* Paying
+  it kept a signed contract honest; the alternative bought 9 verdicts by weakening the rule that
+  stops a story from carrying a partial, misleading verdict set.
 - **The measurement instruments are recorded so nobody re-derives them by grep:** `storytree uat
   census` for the witness population, `resolveWitness` for binding, and `runAdopt`'s
   pure-by-injection core (a recording store plus a stubbed observe) for control flow — the last of

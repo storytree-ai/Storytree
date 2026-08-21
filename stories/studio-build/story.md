@@ -456,26 +456,36 @@ holds. ADR-0294 D5 counts this story's criteria among the 28 it calls untouchabl
 reason, so a later pass arriving here looking for deletions should stop at this paragraph rather than
 re-derive it.
 
-**Nothing is BOUND either, and that is the deliberate half.** Each of the seven already records IN ITS
-OWN TEXT how the existing suites fall short of it — *"No spec discharges this at HEAD"*, *"Partly
-covered at HEAD"* — and every one of those shortfalls is a missing INSTRUMENT, not a missing binding:
-a live-gated studio spec that reaches a real store (legs 1 and 7), a composite-panel render (leg 2), a
-spec coupling an accepted intent to a lit wisp (leg 3), a real double-poll of `GET /api/build` (leg
-4), a repaint assertion (leg 6), and for leg 8 a CODE change, since it must currently FAIL against the
-known implementation gap. Binding any of them to a suite that stops short would be the rubber stamp
-ADR-0097 §2 forbids and the exact reflex ADR-0294's end state point 4 names. So each carries a compact
-**UNBOUND — fails closed** clause instead: it declares no `(proof-gate:)`, `resolveWitness` refuses it
-(`coverage: "refused"`), no adopt pass can sign it, and **no gate is minted for it**. `library` leg 6
-and `proof-binding-integrity` leg 1 are the precedent this follows; PR #1444's desktop terminal
-cluster is the worked example at scale.
+**The seven are BOUND as of 2026-08-22 (gates 4–10), and all seven are RED until driven.** Until then
+none was, and this paragraph read: *"**Nothing is BOUND either, and that is the deliberate half.** … Binding
+any of them to a suite that stops short would be the rubber stamp ADR-0097 §2 forbids and the exact reflex
+ADR-0294's end state point 4 names. So each carries a compact **UNBOUND — fails closed** clause instead …
+and **no gate is minted for it**."*
+
+**That reasoning is kept, not overridden — it argues against binding to a SUITE, and none of gates 4–10 is
+one.** Each of the seven still records IN ITS OWN TEXT how the existing suites fall short — *"No spec
+discharges this at HEAD"*, *"Partly covered at HEAD"* — and every shortfall is still a missing INSTRUMENT:
+a live-gated studio spec that reaches a real store (legs 1 and 7), a composite-panel render (leg 2), a spec
+coupling an accepted intent to a lit wisp (leg 3), a real double-poll of `GET /api/build` (leg 4), a
+repaint assertion (leg 6), and for leg 8 a CODE change, since it must currently FAIL against the known
+implementation gap. What changed is that the OTHER instrument this story already uses for legs 9 and 10 —
+ADR-0295 D1's model-driven executor — reaches all seven, and a drive-witness gate cannot exit 0 without a
+recorded `pass` walk of that criterion at its current revision. So the rubber-stamp test is SATISFIED
+rather than waived: nothing greens, and every one of the seven is honestly red.
+
+**What forced the question.** The unbound state was never local to these legs. `runAdopt` resolves EVERY
+real machine leg before signing any, with no partial verdict set (ADR-0405 D3), so seven unbound legs
+refused this story's whole UAT-signing pass and stranded bound legs 5, 9 and 10 — which HAVE gates and
+could otherwise be signed. **Binding is not driving:** no drive has been run for any of the seven, and
+ADR-0405 D4 leaves a red check red rather than re-driving to chase a pass.
 
 **Ordinals are untouched.** No leg is deleted, so nothing is burned, nothing is renumbered, and
-`studio-build#gate-1` / `#gate-2` / `#gate-3` keep their positions. The five live `uat-criterion`
+`studio-build#gate-1` / `#gate-2` / `#gate-3` keep their positions — gates 4–10 were APPENDED after them. The five live `uat-criterion`
 detail artifacts (`#uat-1`, `#uat-4`, `#uat-6`, `#uat-7`, `#uat-8`) all point at surviving legs, so
 none is orphaned.
 
-1. **The studio is running against the live store, so the worker can persist a verdict.** _(criterion-id: uatc_84e580bdf4115de90e35b68e)_ _(revision-id: uatr1:9d61fb1696f7277e)_ _(previous-revision-id: uatr1:282cf28df059352b)_
-   _(witness: machine)(detail: studio-build#uat-1)_ Start the studio with the live store up: `pnpm db:up`, then
+1. **The studio is running against the live store, so the worker can persist a verdict.** _(criterion-id: uatc_84e580bdf4115de90e35b68e)_ _(revision-id: uatr1:6ac0e503e389370a)_ _(previous-revision-id: uatr1:9d61fb1696f7277e)_
+   _(witness: machine)(detail: studio-build#uat-1)_ _(proof-gate: studio-build#gate-4)_ Start the studio with the live store up: `pnpm db:up`, then
    `pnpm --filter studio dev` (the live backend is the default). **Success —** the data-api line logs
    `library/comments → Cloud SQL Postgres`, and `GET /api/health` reports the live store reachable
    (`store: 'pg'`, `db: 'ok'`) from a REAL connection, not an injected probe. *(Machine, not human: a
@@ -484,12 +494,18 @@ none is orphaned.
    **No spec discharges this at HEAD:** `healthApi.integration.test.ts` asserts the payload SHAPE over a
    fully injected `HealthDeps` whose `db: 'ok'` is a literal the test supplied, so it structurally cannot
    witness reachability.
-   **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20).** No `(proof-gate:)`: what is missing is a live-gated
-   studio spec that opens a REAL connection, and nothing persisted today records this precondition, so
-   `resolveWitness` refuses it (`coverage: "refused"`). No gate is minted to host it (ADR-0097 §2) —
-   binding it to the injected-deps suite would assert the opposite of what the leg claims.
-2. **The island panel composes the node's surface and gates the Build control on buildability.** _(criterion-id: uatc_4cc7aac36abad3cdf3033b46)_ _(revision-id: uatr1:4a5d1acc65a310d2)_ _(previous-revision-id: uatr1:54ff1a49e5ceb3c8)_
-   _(witness: machine)_ Open `#/tree`, click a buildable node (e.g. a `drive-machinery` node) to open the
+   What is missing is still a live-gated studio spec that opens a REAL connection; binding this leg to the
+   injected-deps suite would assert the opposite of what it claims, and nothing here does that.
+
+   **BOUND to `studio-build#gate-4` (2026-08-22) — RED until driven.** Every shortfall named above is
+   still real, and nothing here binds this leg to a suite that stops short of it. Gate 4 is ADR-0295 D1's
+   model-driven executor — the shape gates 2 and 3 already use — which hands a model this leg's authored
+   journey VERBATIM against the real running studio and cannot exit 0 without a recorded `pass` drive for
+   the criterion's CURRENT revision. That is the line between it and the minted rubber stamp ADR-0097 §2
+   bans: it is honestly RED, not passing. **Binding is not driving** — no drive has been run for this leg
+   and ADR-0405 D4 leaves a red check red. Corrected in place (ADR-0139).
+2. **The island panel composes the node's surface and gates the Build control on buildability.** _(criterion-id: uatc_4cc7aac36abad3cdf3033b46)_ _(revision-id: uatr1:7a3ec2b93ffdeb3a)_ _(previous-revision-id: uatr1:4a5d1acc65a310d2)_
+   _(witness: machine)_ _(proof-gate: studio-build#gate-5)_ Open `#/tree`, click a buildable node (e.g. a `drive-machinery` node) to open the
    island side panel. **Success —** the `<aside className="tree-detail">` panel renders the node's status
    badge, UAT verdict line, and capability sub-DAG, AND a **Build** control is present — present ONLY for
    a buildable node: a non-buildable node shows no button, or a disabled one, WITH the reason. Observed
@@ -500,11 +516,18 @@ none is orphaned.
    absence-with-a-reason, and `treeBuildable.test.ts` pins the `buildable`/`goGreen` flags the panel
    branches on — but NO test renders the composite `aside.tree-detail`, so the badge + verdict line +
    sub-DAG half is undischarged.
-   **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20).** No `(proof-gate:)`: the undischarged half IS the
-   composite this leg names, so `resolveWitness` refuses it (`coverage: "refused"`). No gate is minted
-   to host it (ADR-0097 §2) — the partial suites green their own targets, never this journey step.
-3. **The Build click dispatches an accepted intent and the world marks the node in flight.** _(criterion-id: uatc_6ee9d656d0101a623bab3e57)_ _(revision-id: uatr1:2d380672ffd29632)_ _(previous-revision-id: uatr1:b37a2a2b477666a1)_
-   _(witness: machine)_ Click **Build**. **Success —** the client POSTs `/api/build { unitId }`, the
+   The undischarged half IS the composite this leg names; the partial suites green their own targets,
+   never this journey step.
+
+   **BOUND to `studio-build#gate-5` (2026-08-22) — RED until driven.** Every shortfall named above is
+   still real, and nothing here binds this leg to a suite that stops short of it. Gate 5 is ADR-0295 D1's
+   model-driven executor — the shape gates 2 and 3 already use — which hands a model this leg's authored
+   journey VERBATIM against the real running studio and cannot exit 0 without a recorded `pass` drive for
+   the criterion's CURRENT revision. That is the line between it and the minted rubber stamp ADR-0097 §2
+   bans: it is honestly RED, not passing. **Binding is not driving** — no drive has been run for this leg
+   and ADR-0405 D4 leaves a red check red. Corrected in place (ADR-0139).
+3. **The Build click dispatches an accepted intent and the world marks the node in flight.** _(criterion-id: uatc_6ee9d656d0101a623bab3e57)_ _(revision-id: uatr1:0c4443ca8b1db6d2)_ _(previous-revision-id: uatr1:2d380672ffd29632)_
+   _(witness: machine)_ _(proof-gate: studio-build#gate-6)_ Click **Build**. **Success —** the client POSTs `/api/build { unitId }`, the
    server answers `202` with a `runId`, the panel flips into a "building…" state showing the transcript
    region, and the node's in-flight `building` work-event surfaces through the existing `/api/activity`
    pipeline so the teal wisp lights on it in the world (ADR-0048) — proving the intent was accepted and
@@ -516,11 +539,18 @@ none is orphaned.
    `BuildSection.test.tsx:69-83` pins the click → single POST → "building…" flip — but nothing couples an
    accepted intent to a lit wisp: `inFlightBuilds.test.ts` folds rows only (its own header defers the
    live SQL) and `activityApi.integration.test.ts` stubs `inFlightBuilds` outright.
-   **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20).** No `(proof-gate:)`: the coupling this leg turns on —
-   an accepted intent reaching the map as a lit wisp — is exactly what both suites stub out, so
-   `resolveWitness` refuses it (`coverage: "refused"`). No gate is minted to host it (ADR-0097 §2).
-4. **The panel polls, and the coarse transcript accumulates the phase trail in order.** _(criterion-id: uatc_b668fc727a5fc8bf95b9b474)_ _(revision-id: uatr1:fdcc7bda60545265)_ _(previous-revision-id: uatr1:cf16cc9443cf90a6)_
-   _(witness: machine)(detail: studio-build#uat-4)_ Watch the transcript. **Success —** the panel POLLS `GET /api/build?runId=…`
+   The coupling this leg turns on — an accepted intent reaching the map as a lit wisp — is exactly what
+   both suites stub out.
+
+   **BOUND to `studio-build#gate-6` (2026-08-22) — RED until driven.** Every shortfall named above is
+   still real, and nothing here binds this leg to a suite that stops short of it. Gate 6 is ADR-0295 D1's
+   model-driven executor — the shape gates 2 and 3 already use — which hands a model this leg's authored
+   journey VERBATIM against the real running studio and cannot exit 0 without a recorded `pass` drive for
+   the criterion's CURRENT revision. That is the line between it and the minted rubber stamp ADR-0097 §2
+   bans: it is honestly RED, not passing. **Binding is not driving** — no drive has been run for this leg
+   and ADR-0405 D4 leaves a red check red. Corrected in place (ADR-0139).
+4. **The panel polls, and the coarse transcript accumulates the phase trail in order.** _(criterion-id: uatc_b668fc727a5fc8bf95b9b474)_ _(revision-id: uatr1:a28488f2ceb4acaf)_ _(previous-revision-id: uatr1:fdcc7bda60545265)_
+   _(witness: machine)(detail: studio-build#uat-4)_ _(proof-gate: studio-build#gate-7)_ Watch the transcript. **Success —** the panel POLLS `GET /api/build?runId=…`
    repeatedly and the coarse transcript GROWS line by line across successive REAL polls — the phase trail
    (AUTHOR_TEST → … → GATE) and progress lines, in order — then the loop stops at the terminal poll and
    never polls again. (The transcript is COARSE by design, not a raw model log.) *(Machine, not human:
@@ -531,18 +561,24 @@ none is orphaned.
    and `buildRegistry.test.ts:52-68` proves ordered accumulation inside the registry — but no test polls
    the real `GET /api/build` endpoint twice (`buildApi.integration.test.ts:89-94` GETs once), and the
    phase TRAIL is seeded into a fixture at `:110` yet asserted nowhere.
-   **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20).** No `(proof-gate:)`: a single GET cannot witness
-   accumulation ACROSS polls, which is the claim, so `resolveWitness` refuses it
-   (`coverage: "refused"`). No gate is minted to host it (ADR-0097 §2) — the instrument is a real
+   A single GET cannot witness accumulation ACROSS polls, which is the claim; the instrument is a real
    double-poll, and a mocked client is not one.
+
+   **BOUND to `studio-build#gate-7` (2026-08-22) — RED until driven.** Every shortfall named above is
+   still real, and nothing here binds this leg to a suite that stops short of it. Gate 7 is ADR-0295 D1's
+   model-driven executor — the shape gates 2 and 3 already use — which hands a model this leg's authored
+   journey VERBATIM against the real running studio and cannot exit 0 without a recorded `pass` drive for
+   the criterion's CURRENT revision. That is the line between it and the minted rubber stamp ADR-0097 §2
+   bans: it is honestly RED, not passing. **Binding is not driving** — no drive has been run for this leg
+   and ADR-0405 D4 leaves a red check red. Corrected in place (ADR-0139).
 5. **A second build while one is running is refused.** _(witness: machine)_ _(criterion-id: uatc_e561d5c581c5ea3374ec5e07)_ _(revision-id: uatr1:4b5ab3273c013e40)_
    _(proof-gate: studio-build#gate-1)_ Attempt a second build while the first is running (click Build
    again, or POST a second intent). **Success —** the server REFUSES the concurrent build (`409`, "a
    build is already running") — the single-build-at-a-time guard holds; the running build is unaffected.
    *(Unchanged by the 2026-07-25 re-adjudication — already machine, and still the one leg bound to the
    observe gate below.)*
-6. **The run reaches a terminal envelope and the world repaints in place, with no manual reload.** _(criterion-id: uatc_db68af6799a98ffdcfa7e9d5)_ _(revision-id: uatr1:26e046252dad4c51)_ _(previous-revision-id: uatr1:60706e2d853964bc)_
-   _(witness: machine)(detail: studio-build#uat-6)_ Let the build finish. **Success —** `GET /api/build?runId=…` reports a TERMINAL
+6. **The run reaches a terminal envelope and the world repaints in place, with no manual reload.** _(criterion-id: uatc_db68af6799a98ffdcfa7e9d5)_ _(revision-id: uatr1:7d6ae4827f51071a)_ _(previous-revision-id: uatr1:26e046252dad4c51)_
+   _(witness: machine)(detail: studio-build#uat-6)_ _(proof-gate: studio-build#gate-8)_ Let the build finish. **Success —** `GET /api/build?runId=…` reports a TERMINAL
    status carrying the final build envelope (verdict line, signer, cost, phase trail); the panel shows
    that verdict; and the node's hue in the world updates to reflect the freshly signed `events.verdict`
    through the existing `/api/tree` `latestVerdicts` path — WITHOUT a manual reload, i.e. the terminal
@@ -554,12 +590,18 @@ none is orphaned.
    the `phase trail` line sit in fixtures and are asserted NOWHERE, and the repaint is entirely
    undischarged: only `onTerminal` firing exactly once is pinned (`BuildSection.test.tsx:232-257`), never
    that the callback re-pulls `/api/tree` or that a hue changed.
-   **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20).** No `(proof-gate:)`: the in-place repaint is
-   undischarged end to end and nothing persists a record of it, so `resolveWitness` refuses it
-   (`coverage: "refused"`). No gate is minted to host it (ADR-0097 §2) — binding it to the
-   `onTerminal`-fires-once assertion would sign a callback, not a repaint.
-7. **The verdict's provenance is the spine's, and the frontend never touched it.** _(criterion-id: uatc_82ff49ccf66f8dacce8affee)_ _(revision-id: uatr1:3167f3d198d9bc9f)_ _(previous-revision-id: uatr1:842a0495fc3f4630)_
-   _(witness: machine)(detail: studio-build#uat-7)_ Confirm the verdict is real and persisted. **Success —** `storytree tree
+   The in-place repaint is undischarged end to end; binding this leg to the `onTerminal`-fires-once
+   assertion would sign a callback, not a repaint, and nothing here does that.
+
+   **BOUND to `studio-build#gate-8` (2026-08-22) — RED until driven.** Every shortfall named above is
+   still real, and nothing here binds this leg to a suite that stops short of it. Gate 8 is ADR-0295 D1's
+   model-driven executor — the shape gates 2 and 3 already use — which hands a model this leg's authored
+   journey VERBATIM against the real running studio and cannot exit 0 without a recorded `pass` drive for
+   the criterion's CURRENT revision. That is the line between it and the minted rubber stamp ADR-0097 §2
+   bans: it is honestly RED, not passing. **Binding is not driving** — no drive has been run for this leg
+   and ADR-0405 D4 leaves a red check red. Corrected in place (ADR-0139).
+7. **The verdict's provenance is the spine's, and the frontend never touched it.** _(criterion-id: uatc_82ff49ccf66f8dacce8affee)_ _(revision-id: uatr1:8890c19b323f79a0)_ _(previous-revision-id: uatr1:3167f3d198d9bc9f)_
+   _(witness: machine)(detail: studio-build#uat-7)_ _(proof-gate: studio-build#gate-9)_ Confirm the verdict is real and persisted. **Success —** `storytree tree
    <unitId>` (or the DB directly) shows the new signed verdict in `events.verdict` carrying a SPINE
    signer — a gate verdict produced by the spine's observed red→green (ADR-0091's "the verdict is
    produced by the gate, never handed in"), not a hue handed in by the UI — and no `apps/studio/src` path
@@ -571,13 +613,18 @@ none is orphaned.
    unresolved acceptance question** — the accepted node route is declared NON-persisting under "Known
    implementation gap", which this leg's `events.verdict` row would contradict; see "Open modeling calls"
    item 3, which this re-adjudication surfaces rather than settles.
-   **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20).** No `(proof-gate:)`. `drive-machinery`'s
-   `witnessable-verdict.check.ts` reads `events.verdict` rows directly, so a check of that shape is the
-   instrument this leg eventually wants — but a persisted verdict alone cannot say the run was
-   STUDIO-dispatched, which is the claim, and item 3 has not settled whether such a row should exist on
-   this route at all. So it stays refused (`coverage: "refused"`) and no gate is minted for it
-   (ADR-0097 §2).
-8. **The NODE route's no-land walls hold.** _(witness: machine)(detail: studio-build#uat-8)_ Confirm the scope-routed walls on the _(criterion-id: uatc_b4173ad8a474d2938b6022b5)_ _(revision-id: uatr1:7484251c58a3db62)_ _(previous-revision-id: uatr1:0452675ea9918025)_
+   `drive-machinery`'s `witnessable-verdict.check.ts` reads `events.verdict` rows directly, but a persisted
+   verdict alone cannot say the run was STUDIO-dispatched, which is the claim — so this leg is NOT bound to
+   a check of that shape.
+
+   **BOUND to `studio-build#gate-9` (2026-08-22) — RED until driven, and the open call is untouched.**
+   Gate 9 is ADR-0295 D1's model-driven executor: it witnesses the dispatched RUN, which is the half a
+   row-reading check structurally cannot supply. **It settles nothing about open modeling call item 3** —
+   whether a persisted `events.verdict` row should exist on the node route at all is still the owner's,
+   and this binding neither answers it nor pre-empts it. If item 3 resolves against persistence, this
+   leg's own claim changes and its prose is re-authored, which invalidates any drive record by design.
+   **Binding is not driving** — no drive has been run and ADR-0405 D4 leaves a red check red.
+8. **The NODE route's no-land walls hold.** _(witness: machine)(detail: studio-build#uat-8)_ _(proof-gate: studio-build#gate-10)_ Confirm the scope-routed walls on the _(criterion-id: uatc_b4173ad8a474d2938b6022b5)_ _(revision-id: uatr1:ded5adf3e7702503)_ _(previous-revision-id: uatr1:7484251c58a3db62)_
    node path (this walkthrough's steps 1–7). **Success —** the node build was the single-node `--live`
    local smoke: it opened NO git worktree, pushed NO branch, and landed nothing — and the remaining walls
    hold: no hosted run, no `--real` toggle on a single node, no manual `gh pr merge`. *(Machine, not
@@ -588,10 +635,15 @@ none is orphaned.
    that `--real`, persisting, parked-branch shape — the OPPOSITE of the accepted wall. No test observes
    git at all; the `park` claim there is only that a transcript LINE mentions parking. Making this leg
    pass is a CODE obligation, not a re-tag.
-   **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20).** No `(proof-gate:)`, and here that is doubly
-   deliberate: a leg that must currently FAIL may not be bound at all, because the only suite observing
-   this shape pins the OPPOSITE wall and binding to it would manufacture a green over a known gap.
-   `resolveWitness` refuses it (`coverage: "refused"`) and no gate is minted for it (ADR-0097 §2).
+   **BOUND to `studio-build#gate-10` (2026-08-22) — RED, and EXPECTED to stay red until the code gap is
+   closed.** This read *"a leg that must currently FAIL may not be bound at all, because the only suite
+   observing this shape pins the OPPOSITE wall and binding to it would manufacture a green over a known
+   gap"*. The reasoning is right about a SUITE and gate 10 is not one: a drive witness reports what a model
+   actually observed, so a walk against today's `routedBuildRunner` — which sends a node through
+   `nodeBuild(..., { real: true, verdictStore: 'pg' })` — reports a FAIL, and the gate stays red. Nothing is
+   manufactured; the known gap is now stated as a FAILING obligation rather than an absent one, which is
+   the stronger record. Making this leg pass is still a CODE obligation, not a re-tag. **Binding is not
+   driving** — no drive has been run and ADR-0405 D4 leaves a red check red.
 9. **A real subscription-billed `--real` node run drives the loop to a genuinely signed, persisted verdict.** _(criterion-id: uatc_4e688a6e4149741b5dd0a736)_ _(revision-id: uatr1:1967d31ed84f6bce)_ _(previous-revision-id: uatr1:374f40689b49037d)_
    _(witness: machine)_ _(proof-gate: studio-build#gate-2)_ In the running Studio, select the
    `drive-machinery` story, drill into the real-buildable `studio-build-uat-seed` node, and click
@@ -703,6 +755,55 @@ older than 90 days (the ADR-0016 ageing floor).
 3. **UAT leg 10 — "the STORY route's approve-to-land opens a non-draft auto-merging PR" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts studio-build uatc_891f34bd18df9ce452617b82`.
    Witnesses that a model selected a real-buildable STORY, clicked Build, and observed the worker route
    to `story build <id> --real` and open a NON-DRAFT PR for CI to auto-merge to trunk.
+
+**Gates 4–10 are NEW (2026-08-22, `machine-uat-signing-gap-arc-inc-02`) and were APPENDED — gates 1, 2 and
+3 kept their ordinals.** Gate ids are positional (`asset:edit-story-uat-criteria` step 2), so inserting or
+renumbering would silently re-point already-signed verdicts and surviving `(proof-gate:)` bindings. None
+carries a `(covers:)`: each proves a JOURNEY, not a capability. They are the same neither-drives-nor-spends
+witnesses gates 2 and 3 are, on the same honesty terms — red when no `pass` record exists for the
+criterion's CURRENT `revision-id`, when the drive's commit is not in HEAD's ancestry, or when the newest
+record is older than 90 days. **All seven are RED today** and none has been driven; see "The seven are
+BOUND" above for why that is the point rather than a defect, and gate 10 for the one that is expected to
+stay red until a code gap closes.
+
+4. **UAT leg 1 — "the studio is running against the live store, so the worker can persist a verdict" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts studio-build uatc_84e580bdf4115de90e35b68e`.
+   Witnesses that a model brought the studio up against the live store and observed the data-api line log
+   `library/comments → Cloud SQL Postgres` and `GET /api/health` report `store: 'pg'`, `db: 'ok'` from a REAL
+   connection — the reachability `healthApi.integration.test.ts` structurally cannot witness, because its
+   `db: 'ok'` is a literal the test supplied.
+5. **UAT leg 2 — "the island panel composes the node's surface and gates the Build control on buildability" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts studio-build uatc_4cc7aac36abad3cdf3033b46`.
+   Witnesses that a model opened `#/tree`, clicked a buildable node, and observed the composite
+   `aside.tree-detail` panel render the node's status badge, UAT verdict line AND capability sub-DAG with a
+   Build control present — present ONLY for a buildable node, absent or disabled WITH the reason otherwise.
+   The composite render is the half no existing test performs.
+6. **UAT leg 3 — "the Build click dispatches an accepted intent and the world marks the node in flight" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts studio-build uatc_6ee9d656d0101a623bab3e57`.
+   Witnesses the COUPLING both existing suites stub out: that an accepted intent (`202` + `runId`, panel
+   flipped to "building…") surfaces as an in-flight `building` work-event through the real `/api/activity`
+   pipeline and lights the teal wisp on that node in the world (ADR-0048), with the frontend importing no
+   build code.
+7. **UAT leg 4 — "the panel polls, and the coarse transcript accumulates the phase trail in order" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts studio-build uatc_b668fc727a5fc8bf95b9b474`.
+   Witnesses accumulation ACROSS successive REAL polls of `GET /api/build?runId=…` — the coarse transcript
+   growing line by line with the phase trail in order, then the loop stopping at the terminal poll and never
+   polling again. A single GET cannot witness this, and a mocked client is not a real double-poll. It needs
+   a run of the right SHAPE, not a billed one; the real billed leaf is leg 9.
+8. **UAT leg 6 — "the run reaches a terminal envelope and the world repaints in place, with no manual reload" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts studio-build uatc_db68af6799a98ffdcfa7e9d5`.
+   Witnesses the repaint that is undischarged end to end: a TERMINAL `GET /api/build?runId=…` carrying the
+   final envelope (verdict line, signer, cost, phase trail), the panel showing that verdict, and the node's
+   hue in the world updating from the freshly signed `events.verdict` through `/api/tree`'s `latestVerdicts`
+   — WITHOUT a manual reload, i.e. the terminal poll itself triggering the re-pull.
+9. **UAT leg 7 — "the verdict's provenance is the spine's, and the frontend never touched it" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts studio-build uatc_82ff49ccf66f8dacce8affee`.
+   Witnesses that the verdict in `events.verdict` came from a STUDIO-DISPATCHED run and carries a SPINE
+   signer — the half a row-reading check cannot supply — and that no `apps/studio/src` path can write a
+   verdict at all. **It settles nothing about open modeling call item 3:** whether such a row should exist
+   on the node route remains the owner's call, and if it resolves against persistence the leg's claim
+   changes and its prose is re-authored, invalidating any drive record by design.
+10. **UAT leg 8 — "the NODE route's no-land walls hold" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts studio-build uatc_b4173ad8a474d2938b6022b5`.
+    Witnesses that the node build opened NO git worktree, pushed NO branch and landed nothing, and that the
+    remaining walls hold — no hosted run, no `--real` toggle on a single node, no manual `gh pr merge`.
+    **This gate is EXPECTED RED** against the "Known implementation gap": `routedBuildRunner` sends a node
+    through `nodeBuild(..., { real: true, verdictStore: 'pg' })`, the OPPOSITE of the accepted wall, so a
+    drive reports a FAIL. That is the gap stated as a failing obligation, not a manufactured green; making
+    it pass is a CODE obligation.
 
 ## Proof
 
