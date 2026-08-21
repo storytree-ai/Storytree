@@ -41,7 +41,7 @@
  * 30-min default, for a journey that CONTAINS a long operation (see {@link DRIVE_TIMEOUT_MIN}).
  */
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import net from "node:net";
 import { tmpdir } from "node:os";
@@ -56,6 +56,7 @@ import { deriveIdentity } from "./noticeboard.js";
 import { loadLocalSecrets } from "./secrets.js";
 import {
   assertDriveIsolated,
+  auditDriveReportTiming,
   auditDrivePrompt,
   classifyDriveEnd,
   classifyDriveResidue,
@@ -65,6 +66,7 @@ import {
   codexSubscriptionChildEnv,
   createDriveTiming,
   driveScratchDir,
+  driveReportObservedAt,
   driveSurfacePorts,
   driveSurfaceUrl,
   mintDriveSessionId,
@@ -572,7 +574,13 @@ async function driveOne(target: DriveTarget, prompt: string, ctx: DriveContext):
           maxBuffer: 256 * 1024 * 1024,
           env: claudeSubscriptionChildEnv(process.env, ctx.isolation),
         });
-  const elapsedMinutes = (Date.now() - t0) / 60_000;
+  const receivedAtMs = Date.now();
+  const finalMessageMtimeMs =
+    ctx.runtime.provider === "codex" && existsSync(finalMessagePath)
+      ? statSync(finalMessagePath).mtimeMs
+      : undefined;
+  const reportObservedAt = driveReportObservedAt(receivedAtMs, finalMessageMtimeMs);
+  const elapsedMinutes = (receivedAtMs - t0) / 60_000;
   const timedOut = res.error !== undefined && (res.error as NodeJS.ErrnoException).code === "ETIMEDOUT";
 
   const text =
@@ -607,6 +615,23 @@ async function driveOne(target: DriveTarget, prompt: string, ctx: DriveContext):
   }
   const report = parsed.report;
 
+  // The typed report says WHY a fail stopped. A deadline reason is admissible only after the
+  // runner-owned UTC boundary. Codex's final-message mtime is used instead of provider return time,
+  // because the wrapper can remain alive after the report was already authored. Refusal persists
+  // nothing: an objectively premature stop is a harness end, never a red the product earned.
+  const timingAudit = auditDriveReportTiming(report, {
+    reportBy: ctx.isolation.reportBy,
+    reportObservedAt,
+  });
+  if (!timingAudit.ok) {
+    console.error(`  ~ ${target.criterionId}: deadline timing REFUSED — ${timingAudit.reason}`);
+    console.error(
+      "  Nothing was persisted. The runner's UTC lease was still live, so this is a harness refusal,\n" +
+        "  not a product finding.",
+    );
+    return { line: `${target.criterionId} — deadline timing refused: ${timingAudit.reason}`, harness: true };
+  }
+
   // SURFACE OWNERSHIP, enforced rather than instructed. `judgeDriveSurface` ran inside the child (the
   // runner is blocked in `spawnSync` for the whole walk and cannot probe a live surface itself), and
   // left its answer in the scratch directory. This is where a drive that never ran the check, or ran
@@ -635,6 +660,7 @@ async function driveOne(target: DriveTarget, prompt: string, ctx: DriveContext):
     criterionId: target.criterionId,
     revisionId: target.revisionId,
     outcome: report.outcome,
+    ...(report.failureCause !== undefined ? { failureCause: report.failureCause } : {}),
     commitSha: ctx.commitSha,
     runId: ctx.runId,
     driver: ctx.runtime.driver,
@@ -646,6 +672,8 @@ async function driveOne(target: DriveTarget, prompt: string, ctx: DriveContext):
     // Only reached once `requireOwnSurface` has already accepted it, so the record never stores a
     // surface the harness refused.
     ...(report.surface !== undefined ? { surface: report.surface } : {}),
+    reportBy: ctx.isolation.reportBy,
+    reportObservedAt,
     at: new Date().toISOString(),
   });
 

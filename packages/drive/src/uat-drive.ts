@@ -261,6 +261,11 @@ export const UAT_DRIVE_STEP_OUTCOMES = ["pass", "fail", "skipped"] as const;
 export const UatDriveStepOutcome = z.enum(UAT_DRIVE_STEP_OUTCOMES);
 export type UatDriveStepOutcome = z.infer<typeof UatDriveStepOutcome>;
 
+/** A typed cause for every model-reported fail; prose is never used to infer harness timing. */
+export const UAT_DRIVE_FAILURE_CAUSES = ["journey-failed", "report-by-reached"] as const;
+export const UatDriveFailureCause = z.enum(UAT_DRIVE_FAILURE_CAUSES);
+export type UatDriveFailureCause = z.infer<typeof UatDriveFailureCause>;
+
 /**
  * One step of the driven journey. The per-step log is ADR-0295 D4's "available, not required"
  * evidence retention taken at its cheapest: it costs the driver nothing to enumerate what it did,
@@ -284,6 +289,8 @@ export type UatDriveStep = z.infer<typeof UatDriveStep>;
 export const UatDriveReport = z
   .object({
     outcome: z.enum(["pass", "fail"]),
+    /** Required on a fail so runner-owned timing can audit deadline exhaustion without prose matching. */
+    failureCause: UatDriveFailureCause.optional(),
     summary: z.string().min(1),
     steps: z.array(UatDriveStep).default([]),
     /** ADR-0348 D4: the driver was itself unsure and raised an `open-question` rather than deciding. */
@@ -301,7 +308,23 @@ export const UatDriveReport = z
      */
     surface: z.string().min(1).nullable().optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((report, ctx) => {
+    if (report.outcome === "fail" && report.failureCause === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["failureCause"],
+        message: "a fail must classify its cause",
+      });
+    }
+    if (report.outcome === "pass" && report.failureCause !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["failureCause"],
+        message: "a pass must not carry a failure cause",
+      });
+    }
+  });
 export type UatDriveReport = z.infer<typeof UatDriveReport>;
 
 /**
@@ -317,6 +340,8 @@ export const UatDriveRecord = z
     criterionId: z.string().min(1),
     revisionId: z.string().min(1),
     outcome: z.enum(["pass", "fail"]),
+    /** Optional for compatibility with records persisted before typed fail causes were introduced. */
+    failureCause: UatDriveFailureCause.optional(),
     /** The clean, committed HEAD the journey was driven against. */
     commitSha: z.string().min(1),
     runId: z.string().min(1),
@@ -333,6 +358,9 @@ export const UatDriveRecord = z
      * drives that are already green.
      */
     surface: z.string().min(1).nullable().optional(),
+    /** Runner-stamped timing evidence; optional so historical records remain readable. */
+    reportBy: z.string().min(1).optional(),
+    reportObservedAt: z.string().min(1).optional(),
     at: z.string().min(1),
   })
   .strict();
@@ -354,6 +382,23 @@ export const UAT_DRIVE_REPORT_FENCE = "storytree-uat-drive";
 export const UAT_DRIVE_HONESTY_CLAUSE =
   "A step you could not actually perform is a FAIL, never a pass. Do not report a pass for anything " +
   "you skipped, simulated, inferred, or assumed would work — report what happened.";
+
+/**
+ * A deadline is an absolute UTC instant, not a date-shaped string for the model to eyeball. The
+ * runner later checks the typed failure cause against its own observation clock; this clause keeps
+ * the child from stopping before that mechanical refusal has to discard the whole run.
+ */
+export const UAT_DRIVE_REPORT_BY_CLOCK_CLAUSE = [
+  "Deadline comparison — the runner's UTC clock is authoritative:",
+  "",
+  '  - Before stopping because `reportBy` was reached, run `node -p "new Date().toISOString()"` to',
+  "    read the current system UTC instant. Parse that result and reportBy as UTC instants and compare",
+  "    their epoch values; do not infer from the displayed date, local timezone, or elapsed intuition.",
+  "  - If current UTC is earlier than reportBy, the lease is still live: continue the journey. Only",
+  "    use failureCause `report-by-reached` when current UTC is equal to or later than reportBy.",
+  "  - The runner compares that typed cause with the host-clock time at which it observed your report.",
+  "    A premature deadline claim is refused as a harness end and is never persisted as a product fail.",
+].join("\n");
 
 /**
  * ADR-0348 D4, verbatim in the prompt: the driver proceeds on its own judgment through spend and
@@ -741,6 +786,8 @@ export function uatDriveTaskPrompt(spec: UatDriveSpec): string {
     "",
     UAT_DRIVE_TERMINAL_VISIBLE_TEXT_CLAUSE,
     "",
+    UAT_DRIVE_REPORT_BY_CLOCK_CLAUSE,
+    "",
     uatDriveIsolationClause(spec.isolation),
     "",
     UAT_DRIVE_AUTONOMY_CLAUSE,
@@ -753,6 +800,7 @@ export function uatDriveTaskPrompt(spec: UatDriveSpec): string {
     "```" + UAT_DRIVE_REPORT_FENCE,
     "{",
     '  "outcome": "pass" | "fail",',
+    '  "failureCause": "journey-failed" | "report-by-reached",',
     '  "summary": "one paragraph: what you did and what you observed",',
     '  "steps": [',
     '    { "step": "what you attempted", "outcome": "pass" | "fail" | "skipped", "note": "what you saw" }',
@@ -765,6 +813,11 @@ export function uatDriveTaskPrompt(spec: UatDriveSpec): string {
     "`outcome` is `pass` only when every step of the authored journey above actually happened and the",
     "success condition it states was observed. Anything else — a step you skipped, a surface that did",
     "not come up, an assertion you could not check — is `fail`. There is no partial pass.",
+    "",
+    "`failureCause` is REQUIRED when outcome is `fail` and MUST be omitted when outcome is `pass`.",
+    "Use `journey-failed` for an ordinary early product/journey failure. Use `report-by-reached` only",
+    "after the exact system-UTC comparison above proves current UTC is not earlier than reportBy.",
+    "The runner checks that timing mechanically; a premature deadline claim persists nothing.",
     "",
     `\`surface\` is REQUIRED. It is ${driveSurfaceUrl(spec.isolation.surfacePort)} if this walk observed an`,
     "HTTP surface at all, and `null` if it was a pure-CLI journey that observed none. Those are the only",
@@ -847,6 +900,9 @@ export function auditDrivePrompt(prompt: string, spec: UatDriveSpec): DrivePromp
   if (!prompt.includes(UAT_DRIVE_TERMINAL_VISIBLE_TEXT_CLAUSE)) {
     missing.push("the terminal visible-text evidence clause");
   }
+  if (!prompt.includes(UAT_DRIVE_REPORT_BY_CLOCK_CLAUSE)) {
+    missing.push("the runner-authoritative UTC reportBy comparison clause");
+  }
   if (!prompt.includes(uatDriveIsolationClause(spec.isolation))) missing.push("the isolation clause");
   // The `surface` field lives in the REPORT CONTRACT, not the isolation clause, so the clause check
   // above does not reach it. Guarded separately because losing it is the quiet half of the failure:
@@ -855,6 +911,9 @@ export function auditDrivePrompt(prompt: string, spec: UatDriveSpec): DrivePromp
   // reason that looks like the driver's fault. It is a CAPABILITY property in the sense above.
   if (!prompt.includes(`"surface": "${driveSurfaceUrl(spec.isolation.surfacePort)}" | null`)) {
     missing.push("the report contract's `surface` field, naming this drive's reserved URL");
+  }
+  if (!prompt.includes('"failureCause": "journey-failed" | "report-by-reached"')) {
+    missing.push("the report contract's typed failure cause");
   }
   return { ok: missing.length === 0, missing };
 }
@@ -902,6 +961,51 @@ export function parseDriveReport(text: string): DriveReportParse {
     };
   }
   return { ok: true, report: parsed.data };
+}
+
+export type DriveReportTimingAudit = { ok: true } | { ok: false; reason: string };
+
+/**
+ * PURE + FAIL-CLOSED: a model may classify a fail as deadline exhaustion, but only the runner's UTC
+ * clock decides whether that boundary had actually arrived. Other fails are deliberately untouched.
+ */
+export function auditDriveReportTiming(
+  report: UatDriveReport,
+  evidence: { readonly reportBy: string; readonly reportObservedAt: string },
+): DriveReportTimingAudit {
+  if (report.failureCause !== "report-by-reached") return { ok: true };
+
+  const reportByMs = Date.parse(evidence.reportBy);
+  const observedAtMs = Date.parse(evidence.reportObservedAt);
+  if (!Number.isFinite(reportByMs) || !Number.isFinite(observedAtMs)) {
+    return {
+      ok: false,
+      reason: `deadline timing is unreadable (reportBy ${JSON.stringify(evidence.reportBy)}, report observed ${JSON.stringify(evidence.reportObservedAt)})`,
+    };
+  }
+  if (observedAtMs < reportByMs) {
+    return {
+      ok: false,
+      reason:
+        `the driver classified its fail as reportBy exhaustion, but the runner observed the report at ` +
+        `${evidence.reportObservedAt}, before reportBy ${evidence.reportBy}`,
+    };
+  }
+  return { ok: true };
+}
+
+/**
+ * PURE: prefer the Codex final-message file's host-clock mtime over provider-process return time.
+ * Codex can leave a completed final message behind while its wrapper remains alive; using that later
+ * return would make a premature report look timely. Other providers use the runner receipt instant.
+ */
+export function driveReportObservedAt(receivedAtMs: number, finalMessageMtimeMs?: number): string {
+  if (!Number.isFinite(receivedAtMs)) throw new Error("report receipt time must be finite");
+  const observedAtMs =
+    finalMessageMtimeMs !== undefined && Number.isFinite(finalMessageMtimeMs) && finalMessageMtimeMs <= receivedAtMs
+      ? finalMessageMtimeMs
+      : receivedAtMs;
+  return new Date(observedAtMs).toISOString();
 }
 
 // ---------------------------------------------------------------------------
