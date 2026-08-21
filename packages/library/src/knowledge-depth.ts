@@ -68,8 +68,46 @@
 // The consequence is that the instrument is, today, nearly blind — and it says so out loud rather
 // than rendering blindness as health. That is the honest reading of a corpus where the near-work
 // layer is barely wired to the knowledge graph at all, and it is itself the finding.
+//
+// ## THE WALK CONTINUES PAST A DECISION NOW — ON `amends` ONLY, BEHIND A SEAM (ADR-0403)
+//
+// `adrs-into-the-dag-arc` increment 09. Until 2026-08-22 every `doc:` pointer was a SINK: ADR-0223
+// D4 made decisions tier-0 bedrock so the knowledge tree could not contain a loop, and this walk
+// halted there. That is why the measure could only ever return 0, 1 or 2 — measured on the live
+// corpus, 390 of 754 authored pointers terminate at a decision, which is precisely where it stopped.
+// A ceiling that can never rise can never fail and can never warn.
+//
+// ADR-0403 dec 1 makes decisions ORDINARY Library artifacts, dec 4 retires the sink rule, and dec 5
+// replaces D4's structural no-loop guarantee with a PROOF over the joined graph — discharged by
+// `pnpm probe:combined-dag` (`adrs-into-the-dag-arc-inc-08`, ACYCLIC across 1,734 artifacts and 399
+// decisions on 2026-08-22). So the walk may continue, and three things bind it:
+//
+//   • `amends` ONLY, NEVER SUMMED WITH `supersedes`, and the exclusion lives in the SHAPE of the
+//     code — see `decision-amends-seam.ts`, which is the only door a decision's edges come through
+//     and which has no `supersedesOf` and no edge-type parameter to get wrong.
+//   • BOTH POINTER SPELLINGS RESOLVE (ADR-0403 dec 7), through the one parser in
+//     `decision-pointer.ts`. A walk that resolved `doc:decisions/…` and not `doc:docs/decisions/…`
+//     would silently drop 19 of 390 pointers and return a confident, plausible, wrong number.
+//   • THE RESOLVER IS A SEAM (ADR-0403 dec 3), so the storage migration replaces the file-backed
+//     half without touching this walk.
+//
+// **THE DECISION-AWARE READING IS OPT-IN, AND THAT IS THE FENCE, NOT AN OVERSIGHT.** Passing no
+// resolver reproduces the pre-ADR-0403 behaviour exactly, byte for byte: every `doc:` pointer is
+// bedrock and the ceiling reads 2. The studio's traversal panel takes that path deliberately —
+// `traversal-panel-arc` is PARKED and its remaining owner LOOK is fenced, so carrying the new figure
+// onto the panel is that arc's work when it unparks, not this one's.
+//
+// ## AND THE NUMBER IS A FLOOR, NOT A CEILING — SAY SO WHEREVER IT IS PRINTED
+//
+// Only 17 of the 390 decision-terminating pointers hang off an artifact reachable from the work at
+// all; the other 373 are unmeasured and cannot move anything. The deepest landed-on decision
+// (ADR-0348, 11 `amends` hops down) is reached only by unmeasured artifacts, so widening the anchor
+// pushes the figure toward *that artifact's depth + 12*. A reader handed the bare number will quote
+// the sample as the population — which is the same "unreachable is not shallow" error one layer up.
 
-import { readDependsOnPointers } from "./depends-on-compat.js";
+import { decisionNodeId, parseDecisionPointer } from "./decision-pointer.js";
+import { type DecisionAmendsResolver } from "./decision-amends-seam.js";
+import { readDependsOnPointers } from "./depends-on.js";
 
 import { parseCiteRef } from "./knowledge.js";
 
@@ -108,7 +146,12 @@ export interface DepthFromWorkVerdict {
   readonly anchorEdges: number;
   /** Artifact → artifact edges the walk could resolve (`dependsOn` + `cites` asset pointers). */
   readonly edgesScanned: number;
-  /** `doc:` pointers — ADR bedrock (ADR-0223 D4). Not artifacts, so never given a depth. */
+  /**
+   * `doc:` pointers the walk did NOT continue through — bedrock.
+   *
+   * Before ADR-0403 that was every one of them (ADR-0223 D4). It now means: a `doc:` pointer at some
+   * other repository file, plus — when no resolver was supplied — every decision pointer too.
+   */
   readonly bedrockTargets: number;
   /** `asset:` pointers naming no artifact in this corpus. Counted, never silently dropped. */
   readonly danglingTargets: number;
@@ -116,10 +159,35 @@ export interface DepthFromWorkVerdict {
   readonly reached: number;
   /** How many do not. The other half of the denominator pair — see the header. */
   readonly unreachable: number;
-  /** The deepest reached artifact. `0` means only the anchors themselves were reached. */
+  /**
+   * THE ONE NUMBER (ADR-0403 dec 4): the deepest thing reached, artifact or decision.
+   *
+   * `0` means only the anchors themselves were reached. With no resolver supplied this is
+   * identical to {@link maxArtifactDepth}, which is what keeps every pre-ADR-0403 caller's reading
+   * unchanged. Read it as a FLOOR — see the header.
+   */
   readonly maxDepth: number;
-  /** The reached distribution, ascending by depth. Empty iff nothing was reached. */
+  /** The deepest reached node's id, or `null` when nothing was reached past the anchors. */
+  readonly deepestId: string | null;
+  /** The reached ARTIFACT distribution, ascending by depth. Empty iff no artifact was reached. */
   readonly histogram: readonly DepthFromWorkBucket[];
+
+  // --- The decision half. All zero, and the histogram empty, when no resolver was supplied. ------
+
+  /** The deepest reached ARTIFACT. Kept apart from {@link maxDepth} so neither can hide the other. */
+  readonly maxArtifactDepth: number;
+  /** How many decisions the resolver could see — the denominator, so a thin read can never hide. */
+  readonly decisionsScanned: number;
+  /** THE JOIN: `doc:` pointers the walk resolved onto a decision and continued through. */
+  readonly decisionEdges: number;
+  /** `amends` edges between decisions the walk could resolve. NEVER summed with `supersedes`. */
+  readonly amendsEdges: number;
+  /** Decision pointers, and `amends` targets, naming a decision the resolver does not hold. */
+  readonly decisionDanglingTargets: number;
+  /** How many decisions have a depth — reachable from the work through some artifact. */
+  readonly decisionsReached: number;
+  /** The reached DECISION distribution, ascending by depth. */
+  readonly decisionHistogram: readonly DepthFromWorkBucket[];
 }
 
 /** What one id's depth reading came to. Three states, and collapsing any two of them is the bug. */
@@ -148,7 +216,6 @@ export function depthFromWorkNodes(docs: readonly DepthFromWorkSource[]): DepthF
     const payload = row.doc as { cites?: unknown } | null | undefined;
     return {
       id: row.id,
-      // ADR-0402 read tolerance, TEMPORARY — remove after the batch drain (depends-on-compat.ts).
       dependsOn: readDependsOnPointers(row.doc),
       cites: stringsOf(payload?.cites),
     };
@@ -173,14 +240,22 @@ function stringsOf(value: unknown): string[] {
  */
 export function evaluateDepthFromWork(
   nodes: readonly DepthFromWorkNode[],
+  decisions?: DecisionAmendsResolver,
 ): DepthFromWorkVerdict {
   const byId = new Map<string, DepthFromWorkNode>();
   for (const node of nodes) if (!byId.has(node.id)) byId.set(node.id, node);
+
+  // Held by NUMBER, because that is what a pointer and an `amends` target both name. Absent when no
+  // resolver was supplied, which is what makes every `doc:` pointer bedrock again — see the header.
+  const heldDecisions = new Set(decisions?.decisions ?? []);
 
   let anchorEdges = 0;
   let edgesScanned = 0;
   let bedrockTargets = 0;
   let danglingTargets = 0;
+  let decisionEdges = 0;
+  let amendsEdges = 0;
+  let decisionDanglingTargets = 0;
 
   // The outbound edge set per node, resolved once: `dependsOn` plus the `asset:` half of `cites`
   // (see the header — an increment's dependency edge lives in `cites`, and 0 of the anchors carry
@@ -195,17 +270,32 @@ export function evaluateDepthFromWork(
 
     for (const pointer of node.dependsOn) {
       const parsed = parseCiteRef(pointer);
-      // `doc:` and anything else parseCiteRef refuses is bedrock or noise — a sink either way, and
-      // ADR-0223 D4 says so of ADRs explicitly: they carry no `dependsOn` and cannot be walked past.
-      if (parsed === null || parsed.scheme !== ASSET_SCHEME) {
-        bedrockTargets += 1;
+      if (parsed !== null && parsed.scheme === ASSET_SCHEME) {
+        if (!byId.has(parsed.id)) {
+          danglingTargets += 1;
+          continue;
+        }
+        targets.push(parsed.id);
         continue;
       }
-      if (!byId.has(parsed.id)) {
-        danglingTargets += 1;
-        continue;
+      // Not an artifact pointer. Before ADR-0403 every one of these was bedrock, which is exactly
+      // where 390 of the corpus's 754 authored pointers stopped. With a resolver in hand, the ones
+      // naming a DECISION are walked through instead — both spellings, through the single parser.
+      if (decisions !== undefined) {
+        const decision = parseDecisionPointer(pointer);
+        if (decision !== null) {
+          if (!heldDecisions.has(decision.number)) {
+            decisionDanglingTargets += 1;
+            continue;
+          }
+          decisionEdges += 1;
+          targets.push(decisionNodeId(decision.number));
+          continue;
+        }
       }
-      targets.push(parsed.id);
+      // A `doc:` pointer at some other repository file, a scheme parseCiteRef refuses, or any
+      // decision pointer when no resolver was supplied: a sink either way.
+      bedrockTargets += 1;
     }
 
     for (const pointer of node.cites) {
@@ -234,6 +324,32 @@ export function evaluateDepthFromWork(
     }
   }
 
+  // The decision half of the adjacency, added only when a resolver was supplied. `amendsOf` is the
+  // ONLY door — there is no `supersedesOf` to call and no edge-type flag to get wrong, which is how
+  // ADR-0403 dec 6's never-sum rule is held by the shape of the code rather than by a comment.
+  const decisionIds: string[] = [];
+  for (const decisionNumber of heldDecisions) {
+    const id = decisionNodeId(decisionNumber);
+    // A decision node id carries a colon and an artifact id cannot (`asset:` pointers admit
+    // `[A-Za-z0-9_-]+`), so the two id spaces are disjoint by construction — and `probe:combined-dag`
+    // REFUSES over the live corpus if that ever stops being true, measured at 0 collisions on
+    // 2026-08-22. This guard is the belt to that ADR-0403 dec 5 brace: on a collision the ARTIFACT's
+    // own edges win rather than being silently re-parented onto a decision's, which keeps the
+    // conservative pre-ADR-0403 reading instead of a plausible wrong one.
+    if (outbound.has(id)) continue;
+    decisionIds.push(id);
+    const targets: string[] = [];
+    for (const target of decisions?.amendsOf(decisionNumber) ?? []) {
+      if (!heldDecisions.has(target)) {
+        decisionDanglingTargets += 1;
+        continue;
+      }
+      amendsEdges += 1;
+      targets.push(decisionNodeId(target));
+    }
+    outbound.set(id, targets);
+  }
+
   const depthById = new Map<string, number>();
   let frontier: string[] = [];
   for (const id of anchorIds) {
@@ -256,29 +372,104 @@ export function evaluateDepthFromWork(
     frontier = next;
   }
 
-  const counts = new Map<number, number>();
+  // THE TWO POPULATIONS ARE COUNTED APART. `reached` / `unreachable` / `histogram` stay
+  // ARTIFACT-scoped so the "unreachable is not deep" reading the studio panel depends on is
+  // untouched — folding 399 mostly-unreached decisions into `unreachable` would swamp exactly the
+  // denominator that exists to say "nothing was measured". `maxDepth` is the one number over both.
+  const artifactCounts = new Map<number, number>();
+  const decisionCounts = new Map<number, number>();
   let maxDepth = 0;
-  for (const value of depthById.values()) {
-    counts.set(value, (counts.get(value) ?? 0) + 1);
-    if (value > maxDepth) maxDepth = value;
+  let maxArtifactDepth = 0;
+  let deepestId: string | null = null;
+  let reached = 0;
+  let decisionsReached = 0;
+
+  for (const [id, value] of depthById) {
+    const isArtifact = byId.has(id);
+    if (isArtifact) {
+      reached += 1;
+      artifactCounts.set(value, (artifactCounts.get(value) ?? 0) + 1);
+      if (value > maxArtifactDepth) maxArtifactDepth = value;
+    } else {
+      decisionsReached += 1;
+      decisionCounts.set(value, (decisionCounts.get(value) ?? 0) + 1);
+    }
+    // Ties break toward the FIRST id seen so the named witness is stable run to run.
+    if (value > maxDepth) {
+      maxDepth = value;
+      deepestId = id;
+    }
   }
+
+  const ascending = (counts: ReadonlyMap<number, number>): DepthFromWorkBucket[] =>
+    [...counts.entries()]
+      .sort((left, right) => left[0] - right[0])
+      .map(([bucketDepth, count]) => ({ depth: bucketDepth, count }));
 
   return {
     depthById,
-    knownIds: new Set(byId.keys()),
+    // Decision node ids join `knownIds` so `depthFromWorkOf` can tell an UNREACHABLE decision from
+    // one that is not in this graph at all — the same three-state distinction it draws for
+    // artifacts, and for the same reason: collapsing any two of them is the bug.
+    knownIds: new Set([...byId.keys(), ...decisionIds]),
     artifactsScanned: byId.size,
     anchors: anchorIds.length,
     anchorEdges,
     edgesScanned,
     bedrockTargets,
     danglingTargets,
-    reached: depthById.size,
-    unreachable: byId.size - depthById.size,
+    reached,
+    unreachable: byId.size - reached,
     maxDepth,
-    histogram: [...counts.entries()]
-      .sort((left, right) => left[0] - right[0])
-      .map(([bucketDepth, count]) => ({ depth: bucketDepth, count })),
+    deepestId,
+    histogram: ascending(artifactCounts),
+    maxArtifactDepth,
+    decisionsScanned: heldDecisions.size,
+    decisionEdges,
+    amendsEdges,
+    decisionDanglingTargets,
+    decisionsReached,
+    decisionHistogram: ascending(decisionCounts),
   };
+}
+
+/**
+ * The corpus size at or above which a decision-aware walk that resolved NO crossing pointer can only
+ * mean the READER is blind. Calibrated with `VACUOUS_DEPENDS_ON_READ_FLOOR`, for its reason.
+ */
+export const VACUOUS_DECISION_WALK_FLOOR = 100;
+
+/**
+ * PURE: the ways a DECISION-AWARE reading could be a number that measured nothing. EMPTY means the
+ * walk saw its subject; each entry names one thing it could not see.
+ *
+ * **ASK WHAT INPUT WOULD MAKE THIS RED.** A walk handed a resolver that resolves nothing returns
+ * depth 2 — the same number the sink rule returned — and reads as "the ceiling did not move" rather
+ * than as "the join was invisible". That is precisely the failure `check:library-dag-acyclic` shipped
+ * as `PASS — no dependsOn cycle across 1701 artifacts (0 authored edges)`: an instrument reporting
+ * success over a subject it could not see. The likeliest cause here is a pointer-spelling
+ * regression, which is why `decision-pointer.ts` is the single resolution point.
+ *
+ * Returns reasons rather than a boolean because the causes have different remedies. It says nothing
+ * about a walk given NO resolver: that is the deliberate pre-ADR-0403 reading, not a blind one.
+ */
+export function decisionWalkVacuity(verdict: DepthFromWorkVerdict): readonly string[] {
+  if (verdict.decisionsScanned === 0) return [];
+  const reasons: string[] = [];
+  if (verdict.decisionEdges === 0 && verdict.artifactsScanned >= VACUOUS_DECISION_WALK_FLOOR) {
+    reasons.push(
+      `${verdict.artifactsScanned} artifacts resolved 0 pointers onto any of the ` +
+        `${verdict.decisionsScanned} decisions, so the join was invisible and this depth is the ` +
+        "pre-ADR-0403 sink reading wearing a new name",
+    );
+  }
+  if (verdict.amendsEdges === 0 && verdict.decisionsScanned >= VACUOUS_DECISION_WALK_FLOOR) {
+    reasons.push(
+      `${verdict.decisionsScanned} decisions carry 0 resolvable \`amends\` edges, so the walk could ` +
+        "not move past the first decision it reached",
+    );
+  }
+  return reasons;
 }
 
 /**

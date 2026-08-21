@@ -64,19 +64,6 @@ import { handleDb } from './dbControl';
 import { handleDbWake, type DbWaker } from './dbWake';
 import type { CodeStamp } from './codeStamp';
 import type { InviteMailer } from './inviteMailer';
-// The build worker machinery now lives in the shared @storytree/drive package (ADR-0133 d.3 — relocated
-// out of apps/studio/server so the desktop local backend may import it too; an app may not import another
-// app's server, ADR-0100). handleBuild/handleAdopt stay here as thin HTTP wrappers over the relocated
-// runBuildJob + BuildContext.
-import {
-  runBuildJob,
-  type BuildRegistry,
-  type BuildRunner,
-  type BuildContext,
-  type BuildRuntime,
-} from '@storytree/drive/build-worker';
-// Re-export the relocated BuildContext so devApi.ts (and any other studio consumer) keeps importing it from here.
-export type { BuildContext };
 // writeBroker.ts is config-load-safe (it type-imports the raw-TS zod packages and loads their runtime
 // values lazily), so it can be statically imported here without pulling proof-protocol's enums.js into
 // vite's config-load graph — the same way libraryBackend.ts is statically imported.
@@ -1112,9 +1099,6 @@ export async function handleUatAttest(
 
 type OrchestratorModule = typeof import('@storytree/orchestrator');
 type LoadNodeSpec = OrchestratorModule['loadNodeSpec'];
-type ResolveBuildConfig = OrchestratorModule['resolveBuildConfig'];
-/** The loader's spec shape — used for the story-level build predicate without a value import. */
-type NodeSpecLike = ReturnType<LoadNodeSpec>;
 
 let orchestratorModulePromise: Promise<OrchestratorModule> | null = null;
 
@@ -1162,15 +1146,12 @@ function loadArc(): Promise<ArcModule> {
 const isWorkStatus = (s: string): s is WorkStatus =>
   ['proposed', 'building', 'healthy', 'unhealthy', 'mapped', 'retired'].includes(s);
 
-// Returns the view node AND the loaded spec (null on a missing/malformed file): the spec is needed
-// for the story-level build predicate (isStoryBuildable reads the cap specs), so loading it once
-// here avoids a second read in readTree.
+// Returns the view node (a missing/malformed spec file becomes an `error` node, never a throw).
 function loadTreeCapability(
   loadNodeSpec: LoadNodeSpec,
-  resolveBuildConfig: ResolveBuildConfig,
   storyDir: string,
   capId: string,
-): { node: TreeCapability; spec: NodeSpecLike | null } {
+): TreeCapability {
   const node: TreeCapability = {
     id: capId,
     title: capId,
@@ -1181,28 +1162,22 @@ function loadTreeCapability(
     testCount: 0,
   };
   const file = path.join(storyDir, `${capId}.md`);
-  if (!existsSync(file)) return { node: { ...node, error: 'spec file missing' }, spec: null };
+  if (!existsSync(file)) return { ...node, error: 'spec file missing' };
   try {
     const spec = loadNodeSpec(file);
     return {
-      node: {
-        ...node,
-        title: spec.title,
-        outcome: spec.outcome,
-        status: isWorkStatus(spec.status) ? spec.status : null,
-        proofMode: spec.proofMode,
-        dependsOn: spec.dependsOn,
-        // ADR-0090 Phase 1: a node is buildable when it carries a proof config (spec-borne or
-        // registry) — the SAME determination `node build`/`node resolve` make.
-        buildable: resolveBuildConfig(spec) != null,
-        // The declared leaf-contract count (the spec's `## Contracts` section, parsed via
-        // `parseContracts` — already folded into `spec.contracts` by `loadNodeSpec`).
-        testCount: spec.contracts.length,
-      },
-      spec,
+      ...node,
+      title: spec.title,
+      outcome: spec.outcome,
+      status: isWorkStatus(spec.status) ? spec.status : null,
+      proofMode: spec.proofMode,
+      dependsOn: spec.dependsOn,
+      // The declared leaf-contract count (the spec's `## Contracts` section, parsed via
+      // `parseContracts` — already folded into `spec.contracts` by `loadNodeSpec`).
+      testCount: spec.contracts.length,
     };
   } catch (err) {
-    return { node: { ...node, error: err instanceof Error ? err.message : String(err) }, spec: null };
+    return { ...node, error: err instanceof Error ? err.message : String(err) };
   }
 }
 
@@ -1236,14 +1211,7 @@ export async function readTree(
   const coverageByStory = new Map<string, { id: string; covers?: readonly string[] }[]>();
   if (!existsSync(storiesDir))
     return { payload: { stories }, uatTestCriteriaByStory, uatCriteriaByStory, coverageByStory };
-  const {
-    loadNodeSpec,
-    effectiveUatWitness,
-    resolveBuildConfig,
-    isStoryBuildable,
-    storyGoGreen,
-    classifyAdoption,
-  } = await loadOrchestrator();
+  const { loadNodeSpec, effectiveUatWitness } = await loadOrchestrator();
   for (const ent of await fs.readdir(storiesDir, { withFileTypes: true })) {
     if (!ent.isDirectory()) continue;
     const dir = path.join(storiesDir, ent.name);
@@ -1276,53 +1244,9 @@ export async function readTree(
       story.decisions = spec.decisions;
       // Studio render hint (ADR-0076): `render: building` ⇒ drawn as a de-connected building.
       story.building = spec.render === 'building';
-      // ADR-0090 Phase 1: gate-buildability for the UI-driven Build control (same discovery as the CLI).
-      story.buildable = resolveBuildConfig(spec) != null;
-      const capSpecs: NodeSpecLike[] = [];
       story.capabilities = spec.capabilities.map((capId) => {
-        const loaded = loadTreeCapability(loadNodeSpec, resolveBuildConfig, dir, capId);
-        if (loaded.spec !== null) capSpecs.push(loaded.spec);
-        return loaded.node;
+        return loadTreeCapability(loadNodeSpec, dir, capId);
       });
-      // ADR-0090 Phase 2 increment: whether pressing Build on the STORY runs a whole-story
-      // `story build <id> --real` — the SAME fail-closed predicate the CLI prechecks with, so the
-      // affordance never offers a chain the gate would refuse (e.g. capless `agent`, all-live-only
-      // `library`). The studio's story-level Build mode is `--real` (the honest "really build this").
-      // This stays the build MECHANISM precheck (the build POST validates against it); the go-green
-      // AFFORDANCE the panel renders is status-aware (`goGreen` below, ADR-0094).
-      story.storyBuildable = isStoryBuildable(spec, capSpecs, 'real');
-      // ADR-0094: the go-green affordance is a function of the story's STATUS, not a status-blind
-      // Build. `proposed → healthy` lights Build (a real drive); `mapped → healthy` lights Adopt (its
-      // `## Reliability Gates`, observe-and-signed to an `adopted` verdict, ADR-0085) — NEVER a
-      // fail-closed Build over a mature brownfield artifact; `healthy`/etc. light nothing. Same
-      // `storyGoGreen` predicate the orchestrator owns, so the panel can never over-promise.
-      story.goGreen = storyGoGreen(spec, capSpecs);
-      if (story.goGreen === 'adopt') {
-        // The reliability gates the operator Adopts — id + kind + (for `observe`) the command the
-        // spine observe-and-signs via `storytree gate run <id> --pg` (a live DB action, surfaced).
-        story.adoptGates = spec.reliabilityGates.map((g) => ({
-          id: g.id,
-          kind: g.kind,
-          ...(g.proofCommand !== undefined ? { command: g.proofCommand } : {}),
-        }));
-        // ADR-0097 Layer 2: the adoption plan — the structural covers-diff of which capabilities are
-        // covered by a declared `(covers:)` gate vs uncovered ("what still owes real work"). Computed
-        // here via the orchestrator's pure `classifyAdoption`; the studio never imports the spine.
-        const proposal = classifyAdoption({
-          storyId: ent.name,
-          capabilityIds: spec.capabilities,
-          gates: spec.reliabilityGates,
-        });
-        story.adoption = {
-          capabilities: proposal.capabilities.map((c) => ({
-            capId: c.capId,
-            covered: c.covered,
-            coveredBy: c.coveredBy.map((g) => g.gateId),
-          })),
-          covered: proposal.covered,
-          uncovered: proposal.uncovered,
-        };
-      }
       // ADR-0085 + ADR-0097: the crown rolls up the UNION of the WITNESSABLE UAT test criteria (would-be legs
       // filtered out — aspirational, not green-blocking) + reliability gates (a pure port greens from
       // its reliability gates alone). Both are addressable `{ id }` obligation units.
@@ -1521,36 +1445,6 @@ export function applyOpenQuestionGate(
   }
 }
 
-/**
- * Apply ADR-0040 / ADR-0094 d.1 to the go-green affordance: a story PROVEN green (a signed `pass` crown
- * verdict) offers NO go-green action, regardless of its authored `status:`. A sibling pass to the crown
- * passes above, run AFTER {@link applyUatCrowns} / {@link applyCapCoverage} (so the crown verdict it
- * reads is settled) and BEFORE {@link applyOpenQuestionGate} (so it reads the CROWN's pass, matching the
- * adopt-POST worker which gates on the same `rollupStoryGreen` crown — the panel and the worker can't
- * diverge on what "proven" means).
- *
- * This is the panel-side reading of the SAME rule the spine predicate `storyGoGreen(spec, caps, proven)`
- * enforces for the worker (its `proven` clause): a brownfield port keeps its authored `mapped` forever
- * (`healthy` is non-authorable, ADR-0020) while its crown derives green from a signed `adopted` verdict,
- * so without this it would keep offering **Adopt** on an already-green tree (the storage-protocol bug).
- * It is computed as a separate pass — not inside the file-only assembly that first set `goGreen` — only
- * because the crown verdict isn't known until the verdict events are folded in here.
- *
- * Conservative + one-directional: it ONLY ever DOWNGRADES a `build`/`adopt` affordance to `none` when the
- * story is proven; it never invents an affordance the predicate wouldn't, and never touches an unproven
- * story (offline / no crown ⇒ the assembly's status-only `goGreen` stands, under-claiming like the world
- * hue). When it clears the affordance it also drops `adoptGates`/`adoption`, preserving the lean-wire
- * invariant that those ride ONLY with `goGreen === 'adopt'`. Mutates `stories` in place.
- */
-export function applyStoryGoGreenProof(stories: TreeStory[]): void {
-  for (const story of stories) {
-    if (story.verdict?.outcome !== 'pass') continue; // unproven ⇒ leave the status-only affordance.
-    if (story.goGreen === undefined || story.goGreen === 'none') continue;
-    story.goGreen = 'none';
-    delete story.adoptGates;
-    delete story.adoption;
-  }
-}
 
 /** The ids of the gates that `(covers:)` a capability — the covered cap's synthetic verdict draws its `at` from these. */
 function coveringGateIds(
@@ -1786,126 +1680,7 @@ export async function handleClaims(
   sendJson(res, 200, { sessions: groupClaimsBySession(claims, new Date()) });
 }
 
-// ---------- UI-driven build (intent + status, ADR-0090 Phase 1 "the local loop") ----------
-//
-// POST /api/build { unitId } writes a build INTENT — a SAFE write that asks the server-process
-// worker to run the existing `--live` build path; it never accepts or persists a verdict (the gate
-// inside the worker signs; ADR-0090 d.2 / ADR-0091). There is deliberately NO endpoint that takes a
-// verdict as input — that is the forge pathway ADR-0091 forbids. GET /api/build?runId reads the
-// run's coarse transcript + status. Both hang off the SINGLE route table; the worker (registry +
-// runner + discovery) is injected via {@link ApiContext.build}, like dbWake/invites — absent (the
-// hosted server in Phase 1) → 404.
 
-// `BuildContext` is now defined in @storytree/drive/build-worker (relocated with the worker, ADR-0133 d.3)
-// and re-exported above; handleBuild below takes it as a parameter.
-
-/**
- * POST /api/build — dispatch a build intent (202 + runId; fire-and-forget worker, the client polls);
- * GET /api/build?runId — read a run's status + coarse transcript (+ the terminal envelope/reason).
- * Every known outcome is a typed HTTP answer (400 bad body, 404 unknown id/run, 409 a build already
- * running, 405 wrong method) — never a 500 (the central catch maps HttpError → its status).
- */
-export async function handleBuild(
-  req: IncomingMessage,
-  res: ServerResponse,
-  url: URL,
-  build: BuildContext,
-): Promise<void> {
-  const method = req.method ?? 'GET';
-
-  if (method === 'POST') {
-    const input = await readJsonBody<Record<string, unknown>>(req);
-    const unitId = asString(input.unitId).trim();
-    if (!unitId) throw new HttpError(400, 'unitId is required');
-    const runtimeRaw = asString(input.runtime).trim().toLowerCase();
-    if (runtimeRaw !== '' && runtimeRaw !== 'claude' && runtimeRaw !== 'codex') {
-      throw new HttpError(400, 'runtime must be "claude" or "codex"');
-    }
-    const runtime: BuildRuntime = runtimeRaw === 'codex' ? 'codex' : 'claude';
-    // Validate against real discovery — a typo'd / non-buildable id is a clean 404, never a worker
-    // that spawns against nothing.
-    if (!(await build.isBuildable(unitId))) {
-      throw new HttpError(404, `no buildable node "${unitId}"`);
-    }
-    const created = build.registry.createRun(unitId);
-    // The single-build-at-a-time guard surfaces as 409 (a typed refusal, not a thrown 500).
-    if (!created.ok) throw new HttpError(409, created.reason);
-    const { runId } = created.run;
-    // Fire-and-forget: the build runs after the 202; the client polls GET for progress. runBuildJob
-    // never throws (it records a failed terminal state), so the floating promise can't reject.
-    void runBuildJob(build.registry, runId, unitId, build.runner, runtime);
-    return sendJson(res, 202, { runId });
-  }
-
-  if (method === 'GET') {
-    const runId = url.searchParams.get('runId') ?? '';
-    const run = build.registry.getRun(runId);
-    if (!run) throw new HttpError(404, 'build run not found');
-    return sendJson(res, 200, {
-      runId: run.runId,
-      unitId: run.unitId,
-      status: run.status,
-      transcript: run.transcript,
-      ...(run.envelope !== undefined ? { envelope: run.envelope } : {}),
-      ...(run.reason !== undefined ? { reason: run.reason } : {}),
-    });
-  }
-
-  throw new HttpError(405, `method ${method} not allowed`);
-}
-
-// ---------- UI-driven ADOPT (ADR-0097 — brownfield go-green is a proving process) ----------
-//
-// POST /api/adopt { storyId } enters the ADOPTION proving process for a brownfield (`mapped`) story:
-// it asks the server-process worker to run the EXISTING `adoptStory` entry — observe-and-sign the
-// story's `observe` reliability gates (ADR-0085) to `adopted` verdicts (machine-witnessed by the spine
-// principal, human-approved via `approvedBy`) and flip the story `mapped → proposed`. Like /api/build
-// it is a SAFE write (it never accepts or persists a verdict from the client — the gate inside the
-// worker signs; ADR-0091). It REUSES the build run registry: the adoption run is tracked exactly like
-// a build, so the client polls its coarse transcript + status via the SAME GET /api/build?runId.
-// Adopt GREENS NOTHING on its own (ADR-0097): it greens the capabilities its gates `(covers:)`, but an
-// uncovered `build-tests` pocket holds the crown at `proposed`.
-
-/** The adopt seam injected into the route table: the (shared) run registry, the runner, and discovery. */
-export interface AdoptContext {
-  /** The run registry — SHARED with the build seam so polling rides GET /api/build?runId and the
-   *  single-in-flight guard spans build + adopt (you can't adopt and build at once). */
-  registry: BuildRegistry;
-  /** Drives one adoption (the worker); wired over the real `adoptStory` in the dev front. */
-  runner: BuildRunner;
-  /** Whether `storyId` is an adoptable brownfield story (mapped + observe gates), validated against
-   *  the SAME discovery the CLI/`storyGoGreen` uses; a reason on refusal (a typed 409, never a 500). */
-  isAdoptable(storyId: string): Promise<{ ok: true } | { ok: false; reason: string }>;
-}
-
-/**
- * POST /api/adopt — dispatch an adoption intent (202 + runId; fire-and-forget worker, the client polls
- * GET /api/build?runId). Every known outcome is a typed HTTP answer (400 bad body, 409 not adoptable /
- * a run already in flight, 405 wrong method) — never a 500 (the central catch maps HttpError).
- */
-export async function handleAdopt(
-  req: IncomingMessage,
-  res: ServerResponse,
-  adopt: AdoptContext,
-): Promise<void> {
-  const method = req.method ?? 'GET';
-  if (method !== 'POST') throw new HttpError(405, `method ${method} not allowed`);
-  const input = await readJsonBody<Record<string, unknown>>(req);
-  const storyId = asString(input.storyId).trim();
-  if (!storyId) throw new HttpError(400, 'storyId is required');
-  // Validate against real discovery — a non-brownfield / gateless / typo'd id is a clean 409, never a
-  // worker that adopts nothing.
-  const adoptable = await adopt.isAdoptable(storyId);
-  if (!adoptable.ok) throw new HttpError(409, adoptable.reason);
-  const created = adopt.registry.createRun(storyId);
-  // The single-run-at-a-time guard surfaces as 409 (a typed refusal, not a thrown 500).
-  if (!created.ok) throw new HttpError(409, created.reason);
-  const { runId } = created.run;
-  // Fire-and-forget (runBuildJob never throws — a failed adoption is a `failed` terminal state); the
-  // client polls GET /api/build?runId for progress, the SAME registry run a build uses.
-  void runBuildJob(adopt.registry, runId, storyId, adopt.runner);
-  sendJson(res, 202, { runId });
-}
 
 async function handleDocs(
   req: IncomingMessage,
@@ -2182,17 +1957,6 @@ export interface ApiContext {
   policy?: ApiPolicy | undefined;
   /** Invite-email sender for POST /api/users; absent = no email (the invite still writes its row). */
   invites?: InviteMailer | undefined;
-  /**
-   * UI-driven build seam (ADR-0090 Phase 1): the run registry + worker + discovery behind
-   * /api/build. Wired by the dev front (the local loop); absent on the hosted server (Phase 1) →
-   * /api/build answers 404.
-   */
-  build?: BuildContext | undefined;
-  /**
-   * UI-driven ADOPT seam (ADR-0097): the run registry (SHARED with `build`) + worker + discovery
-   * behind /api/adopt. Wired by the dev front; absent on the hosted server → /api/adopt answers 404.
-   */
-  adopt?: AdoptContext | undefined;
 }
 
 /**
@@ -2296,12 +2060,6 @@ export async function handleApiRequest(
         if (uatTestCriteriaByStory.size > 0) {
           applyUatCrowns(payload.stories, uatTestCriteriaByStory, coverageByStory, verdictEvents, rollupStoryGreen);
         }
-        // ADR-0040 / ADR-0094 d.1: a story now PROVEN green (a signed pass crown, just settled above)
-        // offers NO go-green action — drop a stale Adopt/Build the file-only assembly set from authored
-        // status (a brownfield port keeps `mapped` forever though its crown is green). Run AFTER the
-        // crown passes and BEFORE the OQ gate so it reads the CROWN's pass — the same `rollupStoryGreen`
-        // crown the adopt-POST precheck gates on, so the panel affordance and the worker can't diverge.
-        applyStoryGoGreenProof(payload.stories);
         // ADR-0107 (generalising ADR-0106 d4): an OPEN question raised during a story's proving process
         // — attached via a `node:<id>` reference — WITHHOLDS that story's green until it is resolved
         // (retired). Run AFTER the crown passes (it only ever drops a `pass` crown to no-verdict, never
@@ -2337,16 +2095,6 @@ export async function handleApiRequest(
       // decision. Local by the owner's 2026-08-10 call — the hosted container holds no operator
       // traces, so hosted answers an honest empty list rather than inventing one. See traversalApi.ts.
       await handleTraversal(req, res, url);
-    } else if (url.pathname === '/api/build') {
-      // UI-driven build (ADR-0090 Phase 1): dispatch an intent / read a run's status. The worker
-      // seam is wired by the dev front only; absent (hosted, Phase 1) → 404.
-      if (ctx.build === undefined) throw new HttpError(404, 'build is not enabled');
-      await handleBuild(req, res, url, ctx.build);
-    } else if (url.pathname === '/api/adopt') {
-      // UI-driven adopt (ADR-0097): enter the brownfield proving process. Wired by the dev front only;
-      // absent (hosted) → 404. The run rides the shared build registry, so progress polls GET /api/build.
-      if (ctx.adopt === undefined) throw new HttpError(404, 'adopt is not enabled');
-      await handleAdopt(req, res, ctx.adopt);
     } else if (url.pathname.startsWith(`${STORE_DOOR_BASE_PATH}/`)) {
       // ADR-0259 D1 — the store door: the raw `Store` seam over HTTPS, for a client that cannot open
       // a Cloud SQL connector. READ-ONLY (writes 403 by name — ADR-0259 D5's gate is not lifted), and

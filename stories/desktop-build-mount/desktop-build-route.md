@@ -4,28 +4,20 @@ tier: capability
 story: desktop-build-mount
 title: "The desktop build route — POST /api/build (202 + runId) + GET /api/build?runId mounted on the desktop backend over the relocated worker"
 outcome: "The desktop local backend mounts `POST /api/build` (202 + runId, fire-and-forget) + `GET /api/build?runId`, wired with a `BuildContext` over the relocated worker (lazy `@storytree/drive/build` runner + `@storytree/orchestrator` discovery for `isBuildable`); a scripted runner proves the route without SDK spend."
-status: proposed
+status: retired
 proof_mode: integration-test
 depends_on: [worker-relocation]
-# Node-borne proof config (ADR-0057 keystone): authoring THIS block is what makes the capability
-# inner-loop buildable — no NODE_BUILD_REGISTRY edit. NET-NEW (no editsExisting): the leaf authors a NEW
-# node:test (build-route.test.ts) in apps/desktop/src/backend that imports a NOT-YET-EXISTING factory
-# (createBuildRouteMount) from a NEW source file (build-route.ts) — RED at HEAD because the module does not
-# exist (module-not-found, the right-kind red) — then writes that one new source file (green). The new
-# module is the desktop build-route MOUNT — a (req, res, pathname) => Promise<boolean> chain-dispatcher that
-# handles POST /api/build (validate buildable → createRun → void runBuildJob → 202 {runId}) + GET
-# /api/build?runId (run status + transcript), mirroring apps/studio/server/apiRouter.ts's handleBuild but as
-# a desktop-resident factory over an INJECTED BuildContext (from @storytree/drive/build-worker, capability
-# 1). It mirrors chat-sse-mount.ts (local HTTP helpers reproduced, not imported from studio; an injectable
-# dep; a fall-through chain handler). The test drives it on a REAL node:http server with a scripted runner +
-# an injected isBuildable (no SDK spend, ADR-0010 §5). RUNNER: apps/desktop is node:test (node --import tsx
-# --test "src/**/*.test.ts") — the SAME runner chat-sse-mount.test.ts / boot-read-routes.test.ts use; the
-# new test is a node:test file. A SINGLE LITERAL test file (no `*`), so the default node:test proof on the
-# one test file is legal — no proofCommand. `install: true` + a typecheck wall because the new module imports
-# the relocated worker + BuildContext from @storytree/drive/build-worker across the package boundary (the
-# proof runs in a fresh worktree — tsx + tsc need the lockfile-only install, ADR-0031 §2). The scope stays
-# within apps/desktop/src (ADR-0087: one concrete write scope) — the production wiring of this mount into
-# electron/backend-entry.ts is the desktop story's operator-attested sidecar glue, a separate increment.
+# RETIRED by ADR-0404 (2026-08-22). Dispatching a build is a CLI verb, so the desktop's POST/GET
+# /api/build mount was removed: `createBuildRouteMount` and its whole source + test surface
+# (apps/desktop/src/backend/build-route.ts and build-route.test.ts) are DELETED, along with the
+# production wiring in electron/backend-entry.ts. The `real:` arm is dropped with them — it bound
+# those two exact paths, so this capability is no longer REAL-buildable and nothing implements it.
+# `storytree node build` / `storytree story build` are the surviving dispatch surface, and the build
+# ENGINE the route drove (BuildRegistry / runBuildJob / routedBuildRunner in @storytree/drive) is
+# UNTOUCHED (ADR-0404 D6) — what was withdrawn is one HTTP transport over it, not the worker.
+# This retirement is scoped to desktop-build-route ONLY: the desktop-build-mount story keeps
+# `worker-relocation` (the relocation itself stands, and the CLI still drives that worker) and
+# `routed-node-real-dispatch` (green via its own --real verdict). Body kept as history.
 proof:
   command:
     file: pnpm
@@ -33,19 +25,15 @@ proof:
   scope:
     testGlobs: ["apps/desktop/src/**/*.test.ts"]
     sourceGlobs: ["apps/desktop/src/**/*.ts"]
-  real:
-    testFile: "apps/desktop/src/backend/build-route.test.ts"
-    sourceFile: "apps/desktop/src/backend/build-route.ts"
-    scope:
-      testGlobs: ["apps/desktop/src/backend/build-route.test.ts"]
-      sourceGlobs: ["apps/desktop/src/backend/build-route.ts"]
-    install: true
-    typecheck:
-      file: pnpm
-      args: ["--filter", "desktop", "typecheck"]
 ---
 
 # The desktop build route — POST /api/build + GET /api/build?runId on the desktop backend
+
+> **RETIRED by ADR-0404 (2026-08-22).** The mount this capability built — `createBuildRouteMount`,
+> `apps/desktop/src/backend/build-route.ts` and its `build-route.test.ts` suite — was DELETED, together
+> with its wiring in `electron/backend-entry.ts`: dispatching a build is a CLI verb, and no UI
+> dispatches one. Everything below is kept as history. The relocated worker it mounted over is
+> untouched (ADR-0404 D6); only this HTTP transport over it is gone.
 
 **Outcome —** The desktop local backend mounts `POST /api/build` (202 + runId, fire-and-forget) + `GET
 /api/build?runId`, wired with a `BuildContext` over the relocated worker (lazy `@storytree/drive/build`

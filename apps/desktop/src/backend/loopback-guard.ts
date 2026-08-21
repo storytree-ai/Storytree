@@ -5,7 +5,8 @@
 // port-scan localhost and fire a CORS-"simple" (text/plain) POST at a side-effecting route with no
 // preflight, and DNS rebinding lets a remote page reach a same-origin-looking Host. The side-effecting
 // routes (POST /api/chat starts an autonomous session-orchestrator that writes files, runs bash, and
-// opens auto-merging PRs; POST /api/build, /api/adopt, /api/uat/attest, /api/forest/write) MUST be gated.
+// opens auto-merging PRs; POST /api/uat/attest, /api/forest/write) MUST be gated. (POST/GET /api/build
+// and POST /api/adopt were retired by ADR-0404 — dispatching a build or an adoption is a CLI verb.)
 //
 // THE WALL (applied to every STATE-MUTATING request; read-only GET/HEAD stay lenient):
 //   1. Origin — a present `Origin` must be a loopback origin (the renderer's own origin is

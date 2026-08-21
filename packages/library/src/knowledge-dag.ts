@@ -1,4 +1,4 @@
-import { readDependsOnPointers } from "./depends-on-compat.js";
+import { readDependsOnPointers } from "./depends-on.js";
 
 /** The complete input surface for Library dependency-cycle detection. */
 export interface KnowledgeDagNode {
@@ -104,7 +104,6 @@ export interface DependsOnSource {
  */
 export function dependsOnNodes(docs: readonly DependsOnSource[]): KnowledgeDagNode[] {
   return docs.map((row) => {
-    // ADR-0402 read tolerance, TEMPORARY — remove after the batch drain (depends-on-compat.ts).
     const dependsOn = readDependsOnPointers(row.doc)
       .map((entry) => (entry.startsWith(ASSET_PREFIX) ? entry.slice(ASSET_PREFIX.length) : entry))
       .filter((entry) => entry !== "");

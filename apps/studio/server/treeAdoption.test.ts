@@ -1,9 +1,11 @@
-// readTree plumbs two ADR-0097 Layer-2 surfaces onto each story (proven against a TEMP fixture stories
-// dir, isolated from corpus churn, through the REAL readTree → real orchestrator loader + classifier):
-//   • `decisions` — the story's `decisions:` ADR numbers (the panel's "Relevant ADRs"), previously
-//     parsed by the loader but never set on the payload.
-//   • `adoption` — the covered/uncovered capability classification (the `classifyAdoption` covers-diff),
-//     present only for a `mapped` story whose `goGreen === 'adopt'`.
+// readTree plumbs the story's `decisions:` ADR numbers (the panel's "Relevant ADRs") onto each story
+// — proven against a TEMP fixture stories dir (isolated from corpus churn) through the REAL readTree →
+// real orchestrator loader path.
+//
+// The second ADR-0097 Layer-2 surface this file also covered — `adoption`, the covered/uncovered
+// `classifyAdoption` covers-diff that rode with `goGreen === 'adopt'` — was REMOVED from the tree
+// payload by ADR-0404 D4 along with the Adopt panel that was its only consumer. The classifier itself
+// is untouched in @storytree/orchestrator and keeps its own tests there.
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { mkdtemp, writeFile, mkdir, rm } from 'node:fs/promises';
@@ -54,23 +56,11 @@ afterAll(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
-describe('readTree ADR-0097 Layer 2 wiring (decisions + adoption)', () => {
+describe('readTree ADR-0097 Layer 2 wiring (decisions)', () => {
   it('plumbs the deciding ADR numbers onto the story (Relevant ADRs)', async () => {
     const { payload } = await readTree(dir);
     const demo = payload.stories.find((s) => s.id === 'demo');
     expect(demo?.decisions).toEqual([85, 97]);
   });
 
-  it('classifies covered vs uncovered capabilities on a mapped/adopt story', async () => {
-    const { payload } = await readTree(dir);
-    const demo = payload.stories.find((s) => s.id === 'demo');
-    expect(demo?.goGreen).toBe('adopt');
-    expect(demo?.adoption?.covered).toEqual(['cap-a']);
-    expect(demo?.adoption?.uncovered).toEqual(['cap-b']);
-    // cap-a carries its covering gate id; cap-b carries none.
-    const byCap = new Map(demo?.adoption?.capabilities.map((c) => [c.capId, c]));
-    expect(byCap.get('cap-a')?.coveredBy).toEqual(['demo#gate-1']);
-    expect(byCap.get('cap-b')?.covered).toBe(false);
-    expect(byCap.get('cap-b')?.coveredBy).toEqual([]);
-  });
 });

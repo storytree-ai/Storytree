@@ -493,13 +493,6 @@ export interface TreeCapability {
    * `parseContracts` from `@storytree/library`) — 0 when the spec declares no `## Contracts` section.
    */
   testCount: number;
-  /**
-   * Whether this node can be driven through the prove-it-gate (it carries a proof config — spec-borne
-   * or registry), i.e. `storytree node build <id>` would resolve. Drives the studio's UI-driven Build
-   * control (ADR-0090 Phase 1): the Build button is offered only for a buildable node. Computed
-   * server-side via the SAME `resolveBuildConfig` discovery `node build`/`node resolve` use.
-   */
-  buildable?: boolean;
   verdict?: TreeVerdict;
   /**
    * Binding-staleness drift of the code this unit's proof was signed against (ADR-0016 §3), present
@@ -511,54 +504,6 @@ export interface TreeCapability {
   error?: string;
 }
 
-/**
- * The status-aware go-green AFFORDANCE (ADR-0094, mirrors `@storytree/orchestrator`'s `StoryGoGreen`
- * locally — the studio is browser-bundled and must not import the node-only orchestrator):
- * - `build` — a `proposed` story with a real build to drive (`story build --real`): drive its
- *   author-declared obligations red→green through the gate.
- * - `adopt` — a `mapped` brownfield story with declared `## Reliability Gates`: observe-and-sign each
- *   to an `adopted` verdict (`storytree gate run <id> --pg`, ADR-0085). Never a fail-closed Build.
- * - `none` — `healthy` (re-verification aside), a `mapped` story with no gates yet, a `proposed` story
- *   with no real path, or `unhealthy` (red-recovery is the agent loop, not a user button — ADR-0094 d.2).
- */
-export type StoryGoGreen = 'build' | 'adopt' | 'none';
-
-/** One reliability gate to Adopt — its id + kind + (for an `observe` gate) the command the spine
- * observe-and-signs (ADR-0085). The studio surfaces these as the `storytree gate run <id> --pg` path. */
-export interface AdoptGate {
-  id: string;
-  kind: 'observe' | 'build-tests' | 'integrate';
-  /** The declared command the spine OBSERVES (present for `observe` gates; absent for build-tests/integrate). */
-  command?: string;
-}
-
-/**
- * One capability's covered/uncovered classification in the adoption plan (ADR-0097 Layer 2). Mirrors
- * the orchestrator's `CapAdoption` locally — the studio is browser-bundled and must NOT import the
- * node-only orchestrator (computed server-side, shipped on {@link TreeStory.adoption}).
- */
-export interface AdoptionCap {
-  /** The capability id. */
-  capId: string;
-  /** Structural (Fork-1) verdict: covered iff a declared `(covers:)` reliability gate names it. */
-  covered: boolean;
-  /** The covering gate ids (empty when uncovered) — surfaced so the panel shows HOW it's covered. */
-  coveredBy: string[];
-}
-
-/**
- * The adoption plan for a brownfield story (ADR-0097 Layer 2): the per-capability covered/uncovered
- * classification (the structural covers-diff, Fork 1) — "what still owes real work." Present only when
- * `goGreen === 'adopt'`. The finer observe/R1/R2 call of the uncovered set is the story-author's
- * analysis (ADR-0098, proposed), not surfaced here.
- */
-export interface AdoptionPlan {
-  capabilities: AdoptionCap[];
-  /** The covered cap ids (a declared `(covers:)` gate names each). */
-  covered: string[];
-  /** The uncovered cap ids — the set that still owes real `build-tests` work (holds the crown `proposed`). */
-  uncovered: string[];
-}
 
 /**
  * One WITNESSABLE UAT test criterion's proof-state summary (the marker walk arc, forest-parcels inc-2):
@@ -602,36 +547,6 @@ export interface TreeStory {
    * review), never derived. `library` is the first tagged building. Absent/false = a normal island.
    */
   building?: boolean;
-  /** Whether this story node is gate-buildable (see {@link TreeCapability.buildable}, ADR-0090 Phase 1). */
-  buildable?: boolean;
-  /**
-   * Whether pressing Build on the STORY itself runs a whole-story build (`storytree story build <id>
-   * --real`): a non-empty drive order whose every driven capability (and the story's own UAT node,
-   * unless human-witnessed and withheld) is REAL-buildable. Computed server-side via the SAME
-   * `isStoryBuildable` predicate `story build` prechecks with, so the studio's story-level Build
-   * affordance never offers a chain the gate would refuse. Distinct from `buildable` (the story
-   * NODE's own single-node buildability): a story can be story-buildable while its UAT node is not a
-   * single buildable node, and vice versa. Honest by absence — `agent` (capless) and
-   * `drive-machinery` (no real-buildable caps) are not story-buildable.
-   */
-  storyBuildable?: boolean;
-  /**
-   * The status-aware go-green AFFORDANCE the panel renders (ADR-0094): `build` (drive a `proposed`
-   * story), `adopt` (observe-and-sign a `mapped` story's reliability gates), or `none`. Computed
-   * server-side via the SAME `storyGoGreen` predicate the orchestrator owns, so the studio surfaces
-   * the affordance that can actually green the story — never a fail-closed Build over a mature
-   * brownfield artifact. Supersedes `storyBuildable` for the go-green control's framing (the latter
-   * stays the build-POST MECHANISM precheck). Absent when the spec failed to load.
-   */
-  goGreen?: StoryGoGreen;
-  /** The reliability gates to Adopt — present only when `goGreen === 'adopt'` (ADR-0094 / ADR-0085). */
-  adoptGates?: AdoptGate[];
-  /**
-   * The Layer-2 adoption plan (ADR-0097): the per-capability covered/uncovered classification —
-   * "what still owes real work." Present only when `goGreen === 'adopt'`; computed server-side via the
-   * orchestrator's `classifyAdoption` covers-diff so the studio never imports the node-only spine.
-   */
-  adoption?: AdoptionPlan;
   /**
    * The story's deciding ADR numbers (`decisions:` frontmatter, ADR-0037 §2) — the "Relevant ADRs" the
    * panel links to the Decisions-group Library docs. `[]` when the story declares none / the spec failed
@@ -1458,30 +1373,3 @@ export interface FloorHealthPayload {
   reading: FloorHealthReading | null;
 }
 
-// ---------- UI-driven build (POST/GET /api/build, ADR-0090 Phase 1) ----------
-
-/** A build run's lifecycle state (mirrors the server's `BuildRunStatus`). */
-export type BuildRunStatus = 'building' | 'passed' | 'failed';
-
-/** The live author selected by a desktop build intent. */
-export type BuildRuntime = 'claude' | 'codex';
-
-/** POST /api/build response: the accepted run's id (the client then polls GET for progress). */
-export interface BuildIntentResult {
-  runId: string;
-}
-
-/**
- * GET /api/build?runId — a run's live status + COARSE transcript. `envelope` (the final build body)
- * is present only on a `passed` run; `reason` only on a `failed` run. The transcript is ephemeral
- * progress (in-memory, gone on a dev-server restart); the DURABLE artifact is the signed verdict the
- * build persists to events.verdict, which the world reads via /api/tree.
- */
-export interface BuildStatus {
-  runId: string;
-  unitId: string;
-  status: BuildRunStatus;
-  transcript: string[];
-  envelope?: string;
-  reason?: string;
-}

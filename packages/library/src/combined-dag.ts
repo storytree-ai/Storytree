@@ -75,7 +75,7 @@ import {
   parseDecisionPointer,
   renderCombinedNodeId,
 } from "./decision-pointer.js";
-import { readDependsOnPointers } from "./depends-on-compat.js";
+import { readDependsOnPointers } from "./depends-on.js";
 import { findDependsOnCycles, type DependsOnSource } from "./knowledge-dag.js";
 
 /** The `asset:<id>` prefix a stored `dependsOn` entry carries; stripped to reach the node id. */
@@ -271,7 +271,6 @@ export function evaluateCombinedAcyclicity(
     seenArtifacts.add(row.id);
 
     const targets: string[] = [];
-    // ADR-0402 read tolerance, TEMPORARY — remove after the batch drain (depends-on-compat.ts).
     for (const pointer of readDependsOnPointers(row.doc)) {
       if (pointer.startsWith(ASSET_PREFIX)) {
         const target = pointer.slice(ASSET_PREFIX.length);
