@@ -279,6 +279,7 @@
       "packages/library/src/library-doc.ts": "library-schema-and-write-validation",
       "packages/library/src/contracts.ts": "library-schema-and-write-validation",
       "packages/library/src/migrations.ts": "migrate-on-write-upcaster",
+      "packages/library/src/depends-on-compat.ts": "migrate-on-write-upcaster",
       "packages/library/src/knowledge-render.ts": "eager-batch-migrate",
       "packages/library/src/knowledge-sources.ts": "library-cli",
       "packages/library/src/loader.ts": "library-cli",

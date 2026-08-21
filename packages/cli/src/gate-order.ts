@@ -262,7 +262,7 @@ export const GATE_PLAN: readonly GatePlanStep[] = [
     check: "check:library-dag-acyclic",
     subject: "shared-environment",
     cost: "seconds",
-    why: "a standsOn cycle is authored by a live artifact write, so ANY session's edit can red it — the corpus it judges is shared even when this branch touched none of it (ADR-0223 D3)",
+    why: "a dependsOn cycle is authored by a live artifact write, so ANY session's edit can red it — the corpus it judges is shared even when this branch touched none of it (ADR-0223 D3)",
   },
 ];
 

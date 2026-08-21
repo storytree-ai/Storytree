@@ -48,24 +48,24 @@ function selectionFor(a: GuidanceAsset): SearchResult {
 
 afterEach(cleanup);
 
-describe('buildFocusGraph — one level each way, over the authored standsOn edge', () => {
+describe('buildFocusGraph — one level each way, over the authored dependsOn edge', () => {
   // ── ldag-adjacency-one-level-each-way ────────────────────────────────────────────
-  it('ldag-adjacency-one-level-each-way: walks standsOn BOTH ways to ONE level only in each direction (full transitive walk retired, ADR-0193 dec 3)', () => {
+  it('ldag-adjacency-one-level-each-way: walks dependsOn BOTH ways to ONE level only in each direction (full transitive walk retired, ADR-0193 dec 3)', () => {
     const a = asset({ id: 'chain-a', category: 'definition', title: 'Chain A' });
-    const b = asset({ id: 'chain-b', category: 'pattern', title: 'Chain B', standsOn: ['asset:chain-a'] });
+    const b = asset({ id: 'chain-b', category: 'pattern', title: 'Chain B', dependsOn: ['asset:chain-a'] });
     const centre = asset({
       id: 'chain-centre',
       category: 'principle',
       title: 'Chain Centre',
-      standsOn: ['asset:chain-b'],
+      dependsOn: ['asset:chain-b'],
     });
     const d = asset({
       id: 'chain-d',
       category: 'pattern',
       title: 'Chain D',
-      standsOn: ['asset:chain-centre'],
+      dependsOn: ['asset:chain-centre'],
     });
-    const e = asset({ id: 'chain-e', category: 'definition', title: 'Chain E', standsOn: ['asset:chain-d'] });
+    const e = asset({ id: 'chain-e', category: 'definition', title: 'Chain E', dependsOn: ['asset:chain-d'] });
 
     // NOTE: no `depth` argument — the walk is fixed at one level each way, not a caller-set cap.
     const graph = buildFocusGraph({
@@ -84,25 +84,25 @@ describe('buildFocusGraph — one level each way, over the authored standsOn edg
   });
 
   // ── ldag-edge-list-over-standson ─────────────────────────────────────────────────
-  it('ldag-edge-list-over-standson: returns one {from,to} edge (stood-on -> stander) per in-scope standsOn entry', () => {
+  it('ldag-edge-list-over-standson: returns one {from,to} edge (stood-on -> stander) per in-scope dependsOn entry', () => {
     const a = asset({ id: 'edgelist-a', category: 'definition', title: 'Edgelist A' });
     const b = asset({
       id: 'edgelist-b',
       category: 'pattern',
       title: 'Edgelist B',
-      standsOn: ['asset:edgelist-a'],
+      dependsOn: ['asset:edgelist-a'],
     });
     const centre = asset({
       id: 'edgelist-centre',
       category: 'principle',
       title: 'Edgelist Centre',
-      standsOn: ['asset:edgelist-b'],
+      dependsOn: ['asset:edgelist-b'],
     });
     const d = asset({
       id: 'edgelist-d',
       category: 'pattern',
       title: 'Edgelist D',
-      standsOn: ['asset:edgelist-centre'],
+      dependsOn: ['asset:edgelist-centre'],
     });
 
     const graph = buildFocusGraph({
@@ -129,7 +129,7 @@ describe('buildFocusGraph — one level each way, over the authored standsOn edg
   // ── ldag-citations-are-demoted-out-of-the-dag ────────────────────────────────────
   it('ldag-citations-are-demoted-out-of-the-dag: a references[] citation contributes NO node and NO edge, and a mutual citation pair cannot close a cycle', () => {
     // The exact shape that forced ADR-0223: two artifacts that CITE each other. Under the retired
-    // references[] walk this drew a 2-cycle the layout could not orient. Neither carries standsOn.
+    // references[] walk this drew a 2-cycle the layout could not orient. Neither carries dependsOn.
     const left = asset({
       id: 'demote-left',
       category: 'definition',
@@ -149,7 +149,7 @@ describe('buildFocusGraph — one level each way, over the authored standsOn edg
       category: 'pattern',
       title: 'Demote Centre',
       references: ['asset:demote-left', 'asset:demote-right'],
-      standsOn: ['asset:demote-bedrock'],
+      dependsOn: ['asset:demote-bedrock'],
     });
 
     const graph = buildFocusGraph({
@@ -179,19 +179,19 @@ describe('buildFocusGraph — one level each way, over the authored standsOn edg
   });
 
   // ── ldag-stood-on-by-is-the-literal-reverse-edge ─────────────────────────────────
-  it('ldag-stood-on-by-is-the-literal-reverse-edge: the downstream fan is exactly the set of assets whose standsOn names the centre, and an ADR centre stands on nothing', () => {
+  it('ldag-stood-on-by-is-the-literal-reverse-edge: the downstream fan is exactly the set of assets whose dependsOn names the centre, and an ADR centre stands on nothing', () => {
     const centre = asset({ id: 'rev-centre', category: 'principle', title: 'Rev Centre' });
     const standerA = asset({
       id: 'rev-stander-a',
       category: 'pattern',
       title: 'Rev Stander A',
-      standsOn: ['asset:rev-centre'],
+      dependsOn: ['asset:rev-centre'],
     });
     const standerB = asset({
       id: 'rev-stander-b',
       category: 'process',
       title: 'Rev Stander B',
-      standsOn: ['asset:rev-centre'],
+      dependsOn: ['asset:rev-centre'],
     });
     // Cites the centre but does NOT stand on it — must not appear on the "stood on by" side.
     const citer = asset({
@@ -211,7 +211,7 @@ describe('buildFocusGraph — one level each way, over the authored standsOn edg
     expect(downstream.sort()).toEqual(['rev-stander-a', 'rev-stander-b'].sort());
     expect(downstream).not.toContain('rev-citer');
     // "stands on" is empty here, and that is the DESIGN for a bedrock-ward node, not a gap:
-    // standsOn is optional and never defaulted, so an artifact with no authored edge has no fan.
+    // dependsOn is optional and never defaulted, so an artifact with no authored edge has no fan.
     expect(graph.nodes.filter((n) => n.side === 'upstream')).toHaveLength(0);
   });
 
@@ -222,13 +222,13 @@ describe('buildFocusGraph — one level each way, over the authored standsOn edg
       id: 'rank-centre',
       category: 'principle',
       title: 'Rank Centre',
-      standsOn: ['asset:rank-b'],
+      dependsOn: ['asset:rank-b'],
     });
     const d = asset({
       id: 'rank-d',
       category: 'pattern',
       title: 'Rank D',
-      standsOn: ['asset:rank-centre'],
+      dependsOn: ['asset:rank-centre'],
     });
 
     const graph = buildFocusGraph({
@@ -259,7 +259,7 @@ describe('buildFocusGraph — one level each way, over the authored standsOn edg
       id: 'fancap-centre',
       category: 'principle',
       title: 'Fancap Centre',
-      standsOn: fillers.map((f) => `asset:${f.id}`),
+      dependsOn: fillers.map((f) => `asset:${f.id}`),
     });
 
     const collapsedGraph = buildFocusGraph({
@@ -296,13 +296,13 @@ describe('LibraryFocusGraph — SVG DAG canvas', () => {
       id: 'edge-centre',
       category: 'principle',
       title: 'Edge Centre',
-      standsOn: ['asset:edge-b'],
+      dependsOn: ['asset:edge-b'],
     });
     const d = asset({
       id: 'edge-d',
       category: 'pattern',
       title: 'Edge D',
-      standsOn: ['asset:edge-centre'],
+      dependsOn: ['asset:edge-centre'],
     });
 
     render(
@@ -325,13 +325,13 @@ describe('LibraryFocusGraph — SVG DAG canvas', () => {
       id: 'viewbox-downstream',
       category: 'pattern',
       title: 'Viewbox Downstream',
-      standsOn: ['asset:viewbox-centre'],
+      dependsOn: ['asset:viewbox-centre'],
     });
     const centre = asset({
       id: 'viewbox-centre',
       category: 'definition',
       title: 'Viewbox Centre',
-      standsOn: ['asset:viewbox-upstream'],
+      dependsOn: ['asset:viewbox-upstream'],
     });
 
     render(
@@ -374,7 +374,7 @@ describe('LibraryFocusGraph — SVG DAG canvas', () => {
       id: 'kind-arc-neighbour',
       category: 'arc',
       title: 'Kind Arc Neighbour',
-      standsOn: ['asset:kind-centre'],
+      dependsOn: ['asset:kind-centre'],
     });
 
     render(
@@ -396,7 +396,7 @@ describe('LibraryFocusGraph — SVG DAG canvas', () => {
       id: 'marker-plan',
       category: 'increment',
       title: 'Marker Plan',
-      standsOn: ['asset:marker-centre'],
+      dependsOn: ['asset:marker-centre'],
     });
 
     render(
@@ -423,7 +423,7 @@ describe('LibraryFocusGraph — SVG DAG canvas', () => {
       id: 'expander-centre',
       category: 'principle',
       title: 'Expander Centre',
-      standsOn: fillers.map((f) => `asset:${f.id}`),
+      dependsOn: fillers.map((f) => `asset:${f.id}`),
     });
 
     render(
@@ -453,7 +453,7 @@ describe('LibraryFocusGraph — SVG DAG canvas', () => {
       id: 'nav-neighbour',
       category: 'pattern',
       title: 'Nav Neighbour',
-      standsOn: ['asset:nav-centre'],
+      dependsOn: ['asset:nav-centre'],
     });
 
     render(
@@ -498,7 +498,7 @@ describe('LibraryFocusGraph — SVG DAG canvas', () => {
       id: 'focus-neighbour',
       category: 'pattern',
       title: 'Focus Neighbour',
-      standsOn: ['asset:focus-centre'],
+      dependsOn: ['asset:focus-centre'],
     });
 
     render(
@@ -534,7 +534,7 @@ describe('LibraryFocusGraph — SVG DAG canvas', () => {
         id: 'nofetch-neighbour',
         category: 'pattern',
         title: 'Nofetch Neighbour',
-        standsOn: ['asset:nofetch-centre'],
+        dependsOn: ['asset:nofetch-centre'],
       });
 
       render(

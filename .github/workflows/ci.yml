@@ -271,10 +271,10 @@ jobs:
           STORYTREE_DB_USER: storytree-ci-presence@storytree-498613.iam
         run: pnpm check:agents
 
-      # ADR-0223 D3: the authored `standsOn` dependency edge must stay acyclic. Live-store like its
+      # ADR-0223 D3: the authored `dependsOn` dependency edge must stay acyclic. Live-store like its
       # two neighbours above, and here for the same reason — the corpus is the shared thing a branch
       # can break without touching a file, so a branch-local gate would never see it. ONE bulk read.
-      - name: Library standsOn DAG is acyclic
+      - name: Library dependsOn DAG is acyclic
         env:
           STORYTREE_DB_USER: storytree-ci-presence@storytree-498613.iam
         run: pnpm check:library-dag-acyclic

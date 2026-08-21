@@ -18,7 +18,7 @@
 //
 // Story nodes do NOT become tier 0, the two graphs are NOT merged, nothing in the corpus records the
 // result, and NO GATE ENFORCES IT. The work graph (`depends_on` over `stories/**`) and the knowledge
-// graph (`standsOn` over the corpus) keep their own authors, write paths and gates. This function
+// graph (`dependsOn` over the corpus) keep their own authors, write paths and gates. This function
 // projects one onto the other for a reader and stops there.
 //
 // **The accepted risk is stated rather than papered over:** because nothing enforces the join, the two
@@ -31,7 +31,7 @@
 // Measured against the live corpus on 2026-08-20 — re-measure rather than inherit these, they moved
 // once already when ADR-0373 widened the seed:
 //
-//   • 1,612 artifacts, 778 authored `standsOn` pointers (390 `doc:` ADR sinks + 388 `asset:`,
+//   • 1,612 artifacts, 778 authored `dependsOn` pointers (390 `doc:` ADR sinks + 388 `asset:`,
 //     all resolving). RAW stored rows and the RENDERED studio wire AGREED exactly on both — the
 //     660-vs-554 disagreement that produced this increment's warning is not present today.
 //   • 49 artifacts carry `cites` at all — 38 `story:`, 24 `capability:`, 14 `asset:` pointers.
@@ -40,24 +40,24 @@
 // An artifact that is UNREACHABLE from any anchor is NOT the same as one that is VERY DEEP, and a
 // surface that rendered the two alike would report the exact opposite of the health signal this
 // exists to give. Hence {@link DepthFromWorkVerdict} reports both denominators, the way
-// `evaluateStandsOnAcyclicity` does: "nothing was deep" and "nothing was measured" can never print
+// `evaluateDependsOnAcyclicity` does: "nothing was deep" and "nothing was measured" can never print
 // the same way.
 //
 // ## WHY AN INCREMENT'S `asset:` CITES ARE AN OUTBOUND EDGE
 //
-// Measured, not assumed: **0 of the 42 anchors carry a literal `standsOn` entry.** Seeded at the
-// anchors and walked over `standsOn` alone, the walk cannot move at all — 42 of 1,612 reached, every
+// Measured, not assumed: **0 of the 42 anchors carry a literal `dependsOn` entry.** Seeded at the
+// anchors and walked over `dependsOn` alone, the walk cannot move at all — 42 of 1,612 reached, every
 // one of them at depth 0. That is not a thin signal, it is no signal.
 //
 // The `cites` field is where an increment's dependency edge actually lives. Its own schema says so
 // verbatim: `cites` carries "the stories/capabilities this touches AND THE GUIDANCE IT STANDS ON"
-// (ADR-0306 D2). So an `asset:` entry in `cites` IS a `standsOn` edge wearing the increment tier's
+// (ADR-0306 D2). So an `asset:` entry in `cites` IS a `dependsOn` edge wearing the increment tier's
 // name, and it is walked as one. Both fields are read through {@link parseCiteRef} — the one place
 // the pointer layout is defined — and never split on `:` by hand.
 //
 // ## THE WALK RUNS DOWN-TIER ONLY, AND THAT IS A DECISION WITH A MEASUREMENT BEHIND IT
 //
-// `standsOn` points from the stander to the stood-on, i.e. toward the foundations. This walks it in
+// `dependsOn` points from the stander to the stood-on, i.e. toward the foundations. This walks it in
 // that direction and never in reverse. Walking it in BOTH directions reaches far more of the corpus
 // (measured 2026-08-20: 232 artifacts against 46, and 118 of a real trace's 306 in-corpus reads
 // against 3) — but it would make an `agent` artifact that STANDS ON a work-touching pattern read as
@@ -69,13 +69,15 @@
 // than rendering blindness as health. That is the honest reading of a corpus where the near-work
 // layer is barely wired to the knowledge graph at all, and it is itself the finding.
 
+import { readDependsOnPointers } from "./depends-on-compat.js";
+
 import { parseCiteRef } from "./knowledge.js";
 
 /** The complete input surface for the depth-from-work projection. */
 export interface DepthFromWorkNode {
   readonly id: string;
-  /** Authored `standsOn` pointers, exactly as stored (`asset:<id>` / `doc:<relpath>`). */
-  readonly standsOn: readonly string[];
+  /** Authored `dependsOn` pointers, exactly as stored (`asset:<id>` / `doc:<relpath>`). */
+  readonly dependsOn: readonly string[];
   /** Authored `cites` pointers, exactly as stored (`story:` / `capability:` / `asset:`). */
   readonly cites: readonly string[];
 }
@@ -104,7 +106,7 @@ export interface DepthFromWorkVerdict {
   readonly anchors: number;
   /** The `asset:` pointers those anchors carry — the walk's only way out of the seed. */
   readonly anchorEdges: number;
-  /** Artifact → artifact edges the walk could resolve (`standsOn` + `cites` asset pointers). */
+  /** Artifact → artifact edges the walk could resolve (`dependsOn` + `cites` asset pointers). */
   readonly edgesScanned: number;
   /** `doc:` pointers — ADR bedrock (ADR-0223 D4). Not artifacts, so never given a depth. */
   readonly bedrockTargets: number;
@@ -129,13 +131,13 @@ export type DepthFromWorkReading =
   /** Not a Library artifact at all — a story/capability id, a retired artifact, a CLI token. */
   | { readonly state: "absent" };
 
-/** The `asset:` scheme is the only `standsOn`/`cites` pointer that names a Library artifact. */
+/** The `asset:` scheme is the only `dependsOn`/`cites` pointer that names a Library artifact. */
 const ASSET_SCHEME = "asset";
 
 /**
  * PURE: project stored corpus docs onto the {@link DepthFromWorkNode} graph the walk reads.
  *
- * TOTAL over untrusted input, for `standsOnNodes`' reason: this runs over the LIVE corpus, so a row
+ * TOTAL over untrusted input, for `dependsOnNodes`' reason: this runs over the LIVE corpus, so a row
  * written by an older schema — or by a branch that has a field this checkout does not — must project
  * as "no edges" rather than throw. Malformed docs are refused at the WRITE boundary
  * (`validateLibraryDoc`); a read-side projection is not where a surprise row should take a surface
@@ -143,10 +145,11 @@ const ASSET_SCHEME = "asset";
  */
 export function depthFromWorkNodes(docs: readonly DepthFromWorkSource[]): DepthFromWorkNode[] {
   return docs.map((row) => {
-    const payload = row.doc as { standsOn?: unknown; cites?: unknown } | null | undefined;
+    const payload = row.doc as { cites?: unknown } | null | undefined;
     return {
       id: row.id,
-      standsOn: stringsOf(payload?.standsOn),
+      // ADR-0402 read tolerance, TEMPORARY — remove after the batch drain (depends-on-compat.ts).
+      dependsOn: readDependsOnPointers(row.doc),
       cites: stringsOf(payload?.cites),
     };
   });
@@ -165,7 +168,7 @@ function stringsOf(value: unknown): string[] {
  * SHORTEST — depth is "how far away is this", and the long way round is not the distance. A cycle
  * terminates by construction: an id keeps the first depth assigned to it and is never re-queued.
  *
- * The first id wins on a duplicate, matching `findStandsOnCycles`: re-pointing an id at a later row
+ * The first id wins on a duplicate, matching `findDependsOnCycles`: re-pointing an id at a later row
  * would silently re-parent everything below it.
  */
 export function evaluateDepthFromWork(
@@ -179,9 +182,9 @@ export function evaluateDepthFromWork(
   let bedrockTargets = 0;
   let danglingTargets = 0;
 
-  // The outbound edge set per node, resolved once: `standsOn` plus the `asset:` half of `cites`
+  // The outbound edge set per node, resolved once: `dependsOn` plus the `asset:` half of `cites`
   // (see the header — an increment's dependency edge lives in `cites`, and 0 of the anchors carry
-  // a literal `standsOn`). Unresolvable targets are counted here rather than skipped silently.
+  // a literal `dependsOn`). Unresolvable targets are counted here rather than skipped silently.
   const outbound = new Map<string, string[]>();
   const anchorIds: string[] = [];
 
@@ -190,10 +193,10 @@ export function evaluateDepthFromWork(
     let isAnchor = false;
     let assetCites = 0;
 
-    for (const pointer of node.standsOn) {
+    for (const pointer of node.dependsOn) {
       const parsed = parseCiteRef(pointer);
       // `doc:` and anything else parseCiteRef refuses is bedrock or noise — a sink either way, and
-      // ADR-0223 D4 says so of ADRs explicitly: they carry no `standsOn` and cannot be walked past.
+      // ADR-0223 D4 says so of ADRs explicitly: they carry no `dependsOn` and cannot be walked past.
       if (parsed === null || parsed.scheme !== ASSET_SCHEME) {
         bedrockTargets += 1;
         continue;

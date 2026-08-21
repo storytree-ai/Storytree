@@ -15,7 +15,7 @@ import { KIND_SPECS } from "./knowledge.js";
  */
 
 /** The schema version every freshly-written structured Knowledge doc conforms to. */
-export const CURRENT_SCHEMA_VERSION = 6;
+export const CURRENT_SCHEMA_VERSION = 7;
 
 /** One forward, version-numbered transform on a JSONB document. */
 export interface Migration {
@@ -278,6 +278,45 @@ export const MIGRATIONS: readonly Migration[] = [
       if (bag["pr"] === undefined && doc["parked"] !== undefined) return doc;
       const { note: _note, ...restOutcome } = bag;
       return { ...doc, outcome: restOutcome };
+    },
+  },
+  {
+    version: 7,
+    name: "standson-to-dependson",
+    up(doc) {
+      // ADR-0402 D1/D3 — the authored dependency edge is renamed `standsOn` -> `dependsOn`. Same
+      // meaning, same direction, same tier order; only the field's NAME moves (D1 amends ADR-0223
+      // dec 1's name and nothing else about it). `amends` / `supersedes` are the decision log's own
+      // typed edges and are deliberately NOT renamed (D2) — they are not this field and never pass
+      // through here.
+      //
+      // A WRITABILITY fix, in migrations 4 and 5's class rather than 3 and 6's: every kind schema is
+      // `.strict()`, so the instant `buildKindSchema` declares `dependsOn` instead of `standsOn`,
+      // every stored row still carrying the old key is REFUSED at its next write. `upcast` folds
+      // this in at the write boundary, so an old-shape row is forward-migrated rather than bricked —
+      // which is what makes the rename need no bulk update of the ~1,660 live rows, and therefore no
+      // quiescence window and no coordination with the sessions concurrently writing this corpus.
+      //
+      // NOT kind-scoped, unlike migrations 4/5/6. The edge is carried by every kind OUTSIDE
+      // `EDGE_FREE_KINDS` (ADR-0223 D1), and a per-doc transform cannot see that set without
+      // importing the exclusion it would then have to keep in step; the presence of the key is the
+      // honest test, and it is also the more forgiving one — a stray edge authored on an edge-free
+      // kind is carried across under its new name and refused by the SAME validator that refused it
+      // before, rather than being silently left behind under a key nothing reads.
+      //
+      // ABSENCE IS PRESERVED. The field is `.optional()`, never `.default([])` (ADR-0223 D1) — so a
+      // doc that authored no edge must come out still carrying no key. Synthesising `dependsOn: []`
+      // here would stamp the absence of an edge onto every one of those rows on its next write,
+      // which is the corpus-wide shape change the optionality exists to avoid.
+      //
+      // Pure and idempotent: a second pass finds no `standsOn` to rename.
+      if (!Object.hasOwn(doc, "standsOn")) return doc;
+      const { standsOn, ...rest } = doc;
+      // A doc carrying BOTH keys is already new-shape with a stray legacy residue — it can only come
+      // from hand-authoring, never from a stored row. Keep the new-shape value and drop the residue,
+      // migration #1's `seeAlso` posture, rather than letting the old key overwrite the new one.
+      if (Object.hasOwn(rest, "dependsOn")) return rest;
+      return { ...rest, dependsOn: standsOn };
     },
   },
 ];

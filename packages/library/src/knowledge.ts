@@ -572,7 +572,7 @@ export const KIND_SPECS: Readonly<Record<KnowledgeKind, readonly KindFieldSpec[]
 export const EPHEMERAL_KINDS: ReadonlySet<string> = new Set<KnowledgeKind>(["increment"]);
 
 /**
- * The kinds that carry NO `standsOn` dependency edge (ADR-0223 D1, D4 third bullet) — the transient
+ * The kinds that carry NO `dependsOn` dependency edge (ADR-0223 D1, D4 third bullet) — the transient
  * signal tier. Signal is captured, adjudicated, then drained or graduated and DELETED (ADR-0168 /
  * ADR-0095), so it has no durable foundational dependency and would be pure DAG noise. If it is ever
  * shown on the tech-tree it is a separate "signal" overlay, never this edge.
@@ -599,7 +599,7 @@ export const EPHEMERAL_KINDS: ReadonlySet<string> = new Set<KnowledgeKind>(["inc
  * choice, and this is the tier where that cost would have been paid for nothing.
  *
  * This enforces only the OUTGOING half. A per-doc zod schema cannot see target kinds, so nothing here
- * stops another artifact naming a definition in its own `standsOn`. That is left legal deliberately:
+ * stops another artifact naming a definition in its own `dependsOn`. That is left legal deliberately:
  * a kind that carries no outgoing edge is a sink and cannot close a cycle, so a stray inbound edge is
  * harmless. The bootstrap projection declines to create them (`standson-bootstrap.ts`).
  */
@@ -610,25 +610,25 @@ export const EDGE_FREE_KINDS: ReadonlySet<string> = new Set<KnowledgeKind>([
 ]);
 
 /**
- * One authored `standsOn` target: an `asset:<id>` Library artifact or a `doc:<relpath>` ADR.
+ * One authored `dependsOn` target: an `asset:<id>` Library artifact or a `doc:<relpath>` ADR.
  *
  * ONE regex rather than a union, for {@link CiteRef}'s reason — a malformed entry gets one message
  * naming both legal schemes instead of zod's two-branch dump.
  *
  * **`doc:` IS ADMITTED HERE, WHERE {@link AssetRef} BANS IT, AND THAT IS NOT AN INCONSISTENCY.**
  * `AssetRef`'s ban implements ADR-0029: a `refList` field is a CONTEXT DOOR, and ADRs are searched
- * just-in-time rather than preloaded into an agent's assembled context. `standsOn` is not a context
+ * just-in-time rather than preloaded into an agent's assembled context. `dependsOn` is not a context
  * door — nothing assembles it into a prompt; it is the DAG substrate. And ADR-0223 D3/D4 make ADRs
  * tier 0, the bedrock an artifact stands on when it names the decision that ratified it. Banning
  * `doc:` here would make the bedrock tier unreachable by the only edge that can reach it.
  *
- * An ADR target is a NATURAL SINK for free: `DocMeta` carries no `standsOn`, ADRs are not Library
+ * An ADR target is a NATURAL SINK for free: `DocMeta` carries no `dependsOn`, ADRs are not Library
  * artifacts, and the detector treats a target absent from the graph as a leaf. So tier 0 cannot
  * participate in a cycle by construction, exactly as ADR-0223 D4 says.
  */
-export const StandsOnRef = z.string().regex(/^(?:asset:[A-Za-z0-9_-]+|doc:[A-Za-z0-9_./-]+)$/, {
+export const DependsOnRef = z.string().regex(/^(?:asset:[A-Za-z0-9_-]+|doc:[A-Za-z0-9_./-]+)$/, {
   message:
-    "a `standsOn` entry must be an `asset:<id>` Library pointer or a `doc:<relpath>` ADR pointer",
+    "a `dependsOn` entry must be an `asset:<id>` Library pointer or a `doc:<relpath>` ADR pointer",
 });
 
 /*
@@ -994,7 +994,7 @@ export type ArcLifecycle = z.infer<typeof ArcLifecycle>;
  * optional fields are `Markdown.optional()`; `refList` fields are `asset:` ref arrays
  * (required => non-empty). The `kind` literal discriminates the union.
  *
- * Every kind outside {@link EDGE_FREE_KINDS} also gains `standsOn`, the authored dependency edge
+ * Every kind outside {@link EDGE_FREE_KINDS} also gains `dependsOn`, the authored dependency edge
  * (ADR-0223 D1). It sits HERE rather than in {@link commonShape} because the transient signal tier
  * must not carry it, and here rather than on a per-kind `.extend()` because the answer is a property
  * of the kind CLASS — spelling it out eleven times would be eleven chances to forget one.
@@ -1002,7 +1002,7 @@ export type ArcLifecycle = z.infer<typeof ArcLifecycle>;
  * OPTIONAL, not `.default([])` like `references`. An absent field stays absent, so every existing
  * doc validates and re-serialises byte-identically: NO `CURRENT_SCHEMA_VERSION` bump and zero
  * migration (the `Agent.stepRefs` / `OpenQuestion.arcRef` precedent). A default would instead stamp
- * `standsOn: []` onto every doc on its next write — a corpus-wide shape change to record the absence
+ * `dependsOn: []` onto every doc on its next write — a corpus-wide shape change to record the absence
  * of an edge nobody authored.
  *
  * Like `references` it is schema-level and never a KIND_SPECS body section, so it does not
@@ -1021,7 +1021,7 @@ function buildKindSchema(kind: KnowledgeKind) {
   }
   const edgeShape: Record<string, z.ZodTypeAny> = EDGE_FREE_KINDS.has(kind)
     ? {}
-    : { standsOn: z.array(StandsOnRef).optional() };
+    : { dependsOn: z.array(DependsOnRef).optional() };
   return z
     .object({
       kind: z.literal(kind),

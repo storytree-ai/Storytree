@@ -783,7 +783,7 @@ describe('knowledge depth from the work is a SECOND axis, joined read-only at re
       description: '',
       body: '',
       references: [],
-      standsOn: ['asset:principle'],
+      dependsOn: ['asset:principle'],
       createdAt: '2026-08-20T00:00:00.000Z',
       updatedAt: '2026-08-20T00:00:00.000Z',
     },

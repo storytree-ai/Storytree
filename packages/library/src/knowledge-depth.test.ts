@@ -18,7 +18,7 @@ import {
 
 function row(
   id: string,
-  fields: { standsOn?: unknown; cites?: unknown } = {},
+  fields: { dependsOn?: unknown; cites?: unknown } = {},
 ): DepthFromWorkSource {
   return { id, doc: { kind: "principle", id, ...fields } };
 }
@@ -47,8 +47,8 @@ test("depth-from-work-seeds-on-work-pointers-only: a `story:`/`capability:` cite
 test("depth-from-work-walks-standson-down-tier: each authored hop away from the work is one level deeper", () => {
   const verdict = verdictOf([
     row("anchor", { cites: ["story:studio", "asset:ceremony"] }),
-    row("ceremony", { standsOn: ["asset:principle"] }),
-    row("principle", { standsOn: ["asset:bedrock-idea"] }),
+    row("ceremony", { dependsOn: ["asset:principle"] }),
+    row("principle", { dependsOn: ["asset:bedrock-idea"] }),
     row("bedrock-idea"),
   ]);
 
@@ -72,7 +72,7 @@ test("depth-from-work-never-walks-standson-in-reverse: a stander on a reached ar
     // `session-agent` STANDS ON the ceremony — it is the surface layer an operator meets first, not a
     // foundation the agent had to dig for. Walking the edge in reverse would render it "deeper than
     // the work", inverting the very signal the depth exists to give.
-    row("session-agent", { standsOn: ["asset:ceremony"] }),
+    row("session-agent", { dependsOn: ["asset:ceremony"] }),
   ]);
 
   assert.equal(verdict.depthById.get("ceremony"), 1);
@@ -82,9 +82,9 @@ test("depth-from-work-never-walks-standson-in-reverse: a stander on a reached ar
 test("depth-from-work-takes-the-shortest-chain: several routes in, and the distance is the nearest one", () => {
   const verdict = verdictOf([
     row("anchor", { cites: ["story:studio", "asset:near", "asset:long-way"] }),
-    row("near", { standsOn: ["asset:target"] }),
-    row("long-way", { standsOn: ["asset:middle"] }),
-    row("middle", { standsOn: ["asset:target"] }),
+    row("near", { dependsOn: ["asset:target"] }),
+    row("long-way", { dependsOn: ["asset:middle"] }),
+    row("middle", { dependsOn: ["asset:target"] }),
     row("target"),
   ]);
 
@@ -96,8 +96,8 @@ test("depth-from-work-takes-the-shortest-chain: several routes in, and the dista
 test("depth-from-work-terminates-on-a-cycle: a ring keeps its first depth and is never re-queued", () => {
   const verdict = verdictOf([
     row("anchor", { cites: ["story:studio", "asset:a"] }),
-    row("a", { standsOn: ["asset:b"] }),
-    row("b", { standsOn: ["asset:a"] }),
+    row("a", { dependsOn: ["asset:b"] }),
+    row("b", { dependsOn: ["asset:a"] }),
   ]);
 
   assert.equal(verdict.depthById.get("a"), 1);
@@ -133,7 +133,7 @@ test("depth-from-work-reports-its-denominators: nothing-was-deep and nothing-was
   assert.deepEqual(empty.histogram, []);
 
   // A corpus that WAS read and holds no anchor: same zero reached, and every other number differs.
-  const anchorless = verdictOf([row("a", { standsOn: ["asset:b"] }), row("b")]);
+  const anchorless = verdictOf([row("a", { dependsOn: ["asset:b"] }), row("b")]);
   assert.equal(anchorless.artifactsScanned, 2);
   assert.equal(anchorless.anchors, 0);
   assert.equal(anchorless.reached, 0);
@@ -142,7 +142,7 @@ test("depth-from-work-reports-its-denominators: nothing-was-deep and nothing-was
 });
 
 test("depth-from-work-counts-the-anchors-own-way-out: `asset:` cites are the seed's only outbound edge", () => {
-  // Measured on the live corpus 2026-08-20: 0 of 42 anchors carry a literal `standsOn`, so without
+  // Measured on the live corpus 2026-08-20: 0 of 42 anchors carry a literal `dependsOn`, so without
   // this the walk cannot move — 42 reached, all at depth 0, forever.
   const verdict = verdictOf([
     row("anchor", { cites: ["story:studio", "capability:library-dag-canvas", "asset:guidance"] }),
@@ -155,10 +155,10 @@ test("depth-from-work-counts-the-anchors-own-way-out: `asset:` cites are the see
 });
 
 test("depth-from-work-treats-a-doc-target-as-bedrock: an ADR pointer is a sink, counted not walked", () => {
-  // ADR-0223 D4: ADRs are tier 0 — not Library artifacts, carrying no `standsOn` of their own.
+  // ADR-0223 D4: ADRs are tier 0 — not Library artifacts, carrying no `dependsOn` of their own.
   const verdict = verdictOf([
     row("anchor", { cites: ["story:studio", "asset:principle"] }),
-    row("principle", { standsOn: ["doc:decisions/0363-the-knowledge-dag.md"] }),
+    row("principle", { dependsOn: ["doc:decisions/0363-the-knowledge-dag.md"] }),
   ]);
 
   assert.equal(verdict.bedrockTargets, 1);
@@ -170,7 +170,7 @@ test("depth-from-work-treats-a-doc-target-as-bedrock: an ADR pointer is a sink, 
 test("depth-from-work-counts-a-dangling-pointer: a target no artifact answers is reported, never dropped", () => {
   const verdict = verdictOf([
     row("anchor", { cites: ["story:studio", "asset:gone"] }),
-    row("present", { standsOn: ["asset:also-gone"] }),
+    row("present", { dependsOn: ["asset:also-gone"] }),
   ]);
 
   assert.equal(verdict.danglingTargets, 2);
@@ -183,13 +183,13 @@ test("depth-from-work-projects-defensively: a row shaped by another branch's sch
   const nodes = depthFromWorkNodes([
     { id: "null-doc", doc: null },
     { id: "string-doc", doc: "not an object" },
-    { id: "wrong-types", doc: { standsOn: "asset:a", cites: [42, null, "story:studio"] } },
+    { id: "wrong-types", doc: { dependsOn: "asset:a", cites: [42, null, "story:studio"] } },
   ]);
 
   assert.deepEqual(nodes, [
-    { id: "null-doc", standsOn: [], cites: [] },
-    { id: "string-doc", standsOn: [], cites: [] },
-    { id: "wrong-types", standsOn: [], cites: ["story:studio"] },
+    { id: "null-doc", dependsOn: [], cites: [] },
+    { id: "string-doc", dependsOn: [], cites: [] },
+    { id: "wrong-types", dependsOn: [], cites: ["story:studio"] },
   ]);
   assert.equal(evaluateDepthFromWork(nodes).anchors, 1);
 });
@@ -198,7 +198,7 @@ test("depth-from-work-parses-through-parseCiteRef: an unprefixed or unknown-sche
   const verdict = verdictOf([
     row("anchor", { cites: ["story:studio", "asset:real"] }),
     // Bare ids and unknown schemes are what a hand-rolled `split(':')` would happily resolve.
-    row("real", { standsOn: ["real-target", "node:real-target", "asset:real-target"] }),
+    row("real", { dependsOn: ["real-target", "node:real-target", "asset:real-target"] }),
     row("real-target"),
   ]);
 
