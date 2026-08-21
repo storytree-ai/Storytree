@@ -94,7 +94,7 @@ story rung, not the evidence. The surviving criterion is the only one whose surf
 why it survived.
 
 
-1. **A reader inspects a machine claim and gets a chain or a refusal — never a verdict.** _(witness: machine)_ Open the runtime's proof-binding surface on a real corpus story, pick a machine UAT leg that names a command-bearing observe gate, and then pick one that names none. **Success —** the bound leg shows its literal chain (full gate id, `observe` kind, command argv, and the matching `storytree gate run <full-gate-id> --pg` invocation) and the unbound leg shows only its specific refusal reason; neither presentation offers a green verdict, executes a command, or hides the refusal. _(criterion-id: uatc_f85178cd919eb5ade194592b)_ _(revision-id: uatr1:1772402dbb12c117)_ _(previous-revision-id: uatr1:4cfe9a386a43c56a)_
+4. **A reader inspects a machine claim and gets a chain or a refusal — never a verdict.** _(witness: machine)_ Open the runtime's proof-binding surface on a real corpus story, pick a machine UAT leg that names a command-bearing observe gate, and then pick one that names none. **Success —** the bound leg shows its literal chain (full gate id, `observe` kind, command argv, and the matching `storytree gate run <full-gate-id> --pg` invocation) and the unbound leg shows only its specific refusal reason; neither presentation offers a green verdict, executes a command, or hides the refusal. _(criterion-id: uatc_f85178cd919eb5ade194592b)_ _(revision-id: uatr1:1772402dbb12c117)_ _(previous-revision-id: uatr1:4cfe9a386a43c56a)_
 
 > **Deliberately UNBOUND, and it must stay that way until the runtime lands.** The surface this leg
 > walks is [`runtime-proof-binding-projection`](runtime-proof-binding-projection.md), whose lane is
