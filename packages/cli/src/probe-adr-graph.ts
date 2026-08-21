@@ -53,9 +53,12 @@ import { fileURLToPath } from "node:url";
 
 import { loadAdrMetas, openCorpusStore, type AdrMeta } from "@storytree/drive";
 import {
+  decisionLabel,
   depthFromWorkNodes,
+  DOC_REF_PREFIX,
   evaluateDepthFromWork,
   findDependsOnCycles,
+  parseDecisionPointer,
   readDependsOnPointers,
   REPO_ROOT_ENV,
   resolveRepoRoot,
@@ -71,9 +74,15 @@ const repoRoot = resolveRepoRoot({
 
 const DECISIONS_DIR = path.join(repoRoot, "docs", "decisions");
 
-/** How an ADR number renders in every line and every cycle path this probe prints. */
+/**
+ * How an ADR number renders in every line and every cycle path this probe prints.
+ *
+ * Delegates to `@storytree/library`'s `decisionLabel` rather than re-deriving the padding: the label
+ * and the graph NODE ID it accompanies (`decision:NNNN`) are minted in one place, so a probe and a
+ * walk can never disagree about which decision they are naming.
+ */
 function label(adr: number): string {
-  return `ADR-${String(adr).padStart(4, "0")}`;
+  return decisionLabel(adr);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -419,38 +428,19 @@ function assertChainIsReal(ladder: AmendsLadder | SupersedesLadder, walk: Ladder
 // WHAT A LIBRARY POINTER TERMINATING AT AN ADR RESOLVES TO
 // ---------------------------------------------------------------------------------------------
 
-/** The `dependsOn` scheme that names an ADR (`DependsOnRef`: `doc:<relpath>`). */
-const DOC_PREFIX = "doc:";
 /** The `dependsOn` scheme that names a Library artifact. */
 const ASSET_PREFIX = "asset:";
 
-/**
- * PURE: the ADR number a `doc:` pointer lands on, or null when the pointer is not ADR-shaped.
+/*
+ * THE POINTER PARSER MOVED DOWN TO `@storytree/library` (`decision-pointer.ts`), 2026-08-22.
  *
- * **BOTH PREFIX SPELLINGS ARE LIVE IN THE CORPUS AND BOTH ARE ACCEPTED HERE** — measured, not
- * assumed: authors write `doc:decisions/NNNN-….md` overwhelmingly and `doc:docs/decisions/NNNN-….md`
- * in a minority of rows, and the two name the same file. A parser matching only the repo-relative
- * spelling silently reclassifies the majority as "not an ADR" and reports a censured graph as a
- * sparse one — which is exactly the shape of failure this increment exists to avoid. The split is
- * counted and reported rather than normalised away, because an inconsistent pointer spelling is
- * itself a finding for whoever settles the sink rule.
- *
- * Total and non-throwing. A `doc:` pointer at some other file is a real thing an author may write,
- * so it is returned as null and COUNTED separately rather than coerced into an ADR number.
+ * It lived here as `adrNumberOfDocPointer` until `adrs-into-the-dag-arc-inc-08` needed the SAME
+ * resolution for the combined acyclicity proof, and inc-09's depth walk needs it a third time.
+ * ADR-0403 dec 7 makes both live spellings — `doc:decisions/…` (371) and `doc:docs/decisions/…`
+ * (19) — a correctness requirement rather than a nicety, and three copies of a correctness
+ * requirement is a drift surface where two get fixed and one does not. The rule now lives once,
+ * beside the node-id minter that has to agree with it, and this file resolves through it.
  */
-export function adrNumberOfDocPointer(pointer: string): number | null {
-  if (!pointer.startsWith(DOC_PREFIX)) return null;
-  const rel = pointer.slice(DOC_PREFIX.length).replace(/\\/g, "/");
-  const match = /(?:^|\/)decisions\/(\d{4})-[^/]*\.md$/.exec(rel);
-  return match ? Number(match[1]) : null;
-}
-
-/** Which of the two live spellings a `doc:` ADR pointer used. Reported, never normalised silently. */
-function docPointerSpelling(pointer: string): "docs/decisions" | "decisions" {
-  return pointer.slice(DOC_PREFIX.length).replace(/\\/g, "/").startsWith("docs/")
-    ? "docs/decisions"
-    : "decisions";
-}
 
 /** Cap a listing so one malformed field cannot bury the census in its own output. */
 function capped(lines: readonly string[], limit = 8): string[] {
@@ -511,16 +501,16 @@ function censusPointers(
         assetPointers += 1;
         continue;
       }
-      if (!pointer.startsWith(DOC_PREFIX)) continue;
+      if (!pointer.startsWith(DOC_REF_PREFIX)) continue;
       docPointers += 1;
-      const adr = adrNumberOfDocPointer(pointer);
-      if (adr === null) {
+      const decision = parseDecisionPointer(pointer);
+      if (decision === null) {
         nonAdrDocPointers.push(`${row.id} → ${pointer}`);
         continue;
       }
+      const adr = decision.number;
       adrPointers += 1;
-      const spelling = docPointerSpelling(pointer);
-      spellings.set(spelling, (spellings.get(spelling) ?? 0) + 1);
+      spellings.set(decision.spelling, (spellings.get(decision.spelling) ?? 0) + 1);
       if (!adrsOnDisk.has(adr)) {
         adrPointersDangling.push(`${row.id} → ${pointer}`);
         continue;
