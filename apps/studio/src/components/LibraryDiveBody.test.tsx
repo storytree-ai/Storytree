@@ -23,7 +23,7 @@
 // rendered here carries no ```mermaid fence and the routing/fetch behaviour is what this file
 // pins, not diagram rendering. No real fetch/socket/DB/Electron beyond the stubbed docContent.
 
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, waitFor } from '@testing-library/react';
 import { planDive } from '../lib/diveBody';
 import { LibraryDiveBody } from './LibraryDiveBody';
@@ -31,20 +31,23 @@ import { AppDataContext, type AppData } from '../lib/appData';
 import type { SearchResult } from '../lib/librarySearch';
 import type { GuidanceAsset, DocMeta } from '../types';
 
-const docContentMock = vi.hoisted(() => vi.fn());
-vi.mock('../api', () => ({
-  api: {
-    docContent: docContentMock,
-    deleteAsset: vi.fn(),
-    updateAsset: vi.fn(),
-  },
-}));
+import { HttpDouble, errorReply, installHttpDouble } from '../test/httpDouble';
+import { DiagramRendererContext } from '../lib/diagram';
+import { diagramDouble, type DiagramDouble } from '../test/diagramDouble';
 
-const mermaidMock = vi.hoisted(() => ({
-  initialize: vi.fn(),
-  render: vi.fn(async (_id: string, chart: string) => ({ svg: `<svg>${chart}</svg>` })),
-}));
-vi.mock('mermaid', () => ({ default: mermaidMock }));
+// The TRANSPORT and the DIAGRAM ENGINE are substituted at their own seams rather than by rewriting
+// modules (anti-slop-adoption-arc inc-06, `no-module-mocking`): the real `api.docContent` builds and
+// encodes the URL below, and the diagram engine is the component's own `DiagramRenderer` seam
+// (lib/diagram.ts). The double fails closed, so a surface that started fetching something else
+// goes red instead of quietly receiving `undefined`.
+const DOC_CONTENT = '/api/docs/content';
+
+let http: HttpDouble;
+let diagrams: DiagramDouble;
+
+/** The doc ids the surface actually asked the server for, oldest first. */
+const requestedDocIds = (): Array<string | null> =>
+  http.requestsTo(DOC_CONTENT).map((request) => request.query.get('id'));
 
 const NOW = '2026-01-01T00:00:00.000Z';
 
@@ -86,12 +89,21 @@ function appData(overrides: Partial<AppData> = {}): AppData {
 }
 
 function renderWithAppData(ui: React.ReactElement, data: AppData) {
-  return render(<AppDataContext.Provider value={data}>{ui}</AppDataContext.Provider>);
+  return render(
+    <DiagramRendererContext.Provider value={diagrams}>
+      <AppDataContext.Provider value={data}>{ui}</AppDataContext.Provider>
+    </DiagramRendererContext.Provider>,
+  );
 }
+
+beforeEach(() => {
+  http = installHttpDouble();
+  diagrams = diagramDouble();
+});
 
 afterEach(() => {
   cleanup();
-  docContentMock.mockReset();
+  http.uninstall();
 });
 
 // ---------- the pure routing heart ----------
@@ -137,7 +149,7 @@ describe('LibraryDiveBody — empty/prompt state', () => {
     expect(screen.queryByText('Sources')).toBeNull();
     expect(panel.querySelector('.asset-detail')).toBeNull();
     expect(panel.querySelector('.doc-layout')).toBeNull();
-    expect(docContentMock).not.toHaveBeenCalled();
+    expect(http.countTo(DOC_CONTENT)).toBe(0);
   });
 });
 
@@ -173,17 +185,17 @@ describe('LibraryDiveBody — asset selection reuses AssetView', () => {
     expect(screen.getByText(target.title)).toBeTruthy();
 
     // The asset dive path is fetch-free (AssetView reads only the loaded corpus).
-    expect(docContentMock).not.toHaveBeenCalled();
+    expect(http.countTo(DOC_CONTENT)).toBe(0);
   });
 });
 
 describe('LibraryDiveBody — doc selection reuses DocView and fetches on demand', () => {
   it('ldb-doc-selection-fetches-and-renders-markdown: a doc (ADR) selection mounts DocView, which calls the stubbed docContent with the id and renders its returned markdown', async () => {
-    docContentMock.mockResolvedValue({
+    http.get(DOC_CONTENT, () => ({
       id: 'decisions/0002-dive-doc-decision.md',
       title: 'Dive Doc Decision',
       markdown: '# Dive Doc Heading\n\nDive doc body prose.',
-    });
+    }));
     const adrDoc = doc({
       id: 'decisions/0002-dive-doc-decision.md',
       title: 'Dive Doc Decision',
@@ -197,7 +209,7 @@ describe('LibraryDiveBody — doc selection reuses DocView and fetches on demand
 
     renderWithAppData(<LibraryDiveBody selection={selection} />, appData({ docs: [adrDoc] }));
 
-    await waitFor(() => expect(docContentMock).toHaveBeenCalledWith(adrDoc.id));
+    await waitFor(() => expect(requestedDocIds()).toEqual([adrDoc.id]));
     await waitFor(() => expect(screen.getByText('Dive Doc Heading')).toBeTruthy());
     expect(screen.getByText('Dive doc body prose.')).toBeTruthy();
   });
@@ -205,7 +217,7 @@ describe('LibraryDiveBody — doc selection reuses DocView and fetches on demand
 
 describe('LibraryDiveBody — doc fetch-error guard', () => {
   it('ldb-doc-fetch-error-surfaces-error-not-crash: when docContent rejects, DocView\'s error state renders and the panel does not throw', async () => {
-    docContentMock.mockRejectedValue(new Error('dive fetch boom'));
+    http.get(DOC_CONTENT, () => errorReply('dive fetch boom', 500));
     const adrDoc = doc({
       id: 'decisions/0003-dive-doc-error.md',
       title: 'Dive Doc Error Decision',

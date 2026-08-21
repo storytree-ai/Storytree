@@ -6,6 +6,7 @@ import { useAppData } from '../lib/appData';
 import { unresolvedDocReason } from '../lib/docsIndex';
 import { docHref } from '../lib/route';
 import { isInCorpusDocHref, mermaidSource, resolveDocHref, slugify } from '../lib/markdown';
+import { useDiagramRendererOverride, type DiagramRenderer } from '../lib/diagram';
 
 interface MarkdownProps {
   children: string;
@@ -29,16 +30,28 @@ function ensureMermaid(): void {
 // in-flight renders on the same DOM id.
 let mermaidSeq = 0;
 
+/**
+ * THE REAL ENGINE — the default behind the `DiagramRenderer` seam (lib/diagram.ts). Production
+ * always takes this path; a test may provide its own through `DiagramRendererContext` rather than
+ * rewriting the `mermaid` module (anti-slop-adoption-arc inc-06, `no-module-mocking`).
+ */
+const mermaidRenderer: DiagramRenderer = {
+  render: (id, chart) => {
+    ensureMermaid();
+    return mermaid.render(id, chart);
+  },
+};
+
 /** Render one ```mermaid block to an inline SVG; on a parse error fall back to the source text. */
 function MermaidDiagram({ chart }: { chart: string }): React.JSX.Element {
   const hostRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
+  const renderer = useDiagramRendererOverride() ?? mermaidRenderer;
 
   useEffect(() => {
     let cancelled = false;
-    ensureMermaid();
     const id = `mermaid-${(mermaidSeq += 1)}`;
-    mermaid
+    renderer
       .render(id, chart)
       .then(({ svg }) => {
         if (cancelled) return;
@@ -51,7 +64,7 @@ function MermaidDiagram({ chart }: { chart: string }): React.JSX.Element {
     return () => {
       cancelled = true;
     };
-  }, [chart]);
+  }, [chart, renderer]);
 
   // Fail soft: a broken diagram shows its source (as a normal code block would) so the author
   // can see and fix it, rather than vanishing or throwing.
