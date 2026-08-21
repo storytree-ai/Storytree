@@ -79,6 +79,8 @@ export interface TranscriptIngestResult {
   readonly skippedLines: number;
   /** Sidechain requests excluded across every window. */
   readonly sidechainRequests: number;
+  /** Correlated files naming only SUBAGENT windows — reached, and not observed by this adapter. */
+  readonly sidechainFiles: number;
 }
 
 export function ingestTranscriptOccupancy(input: {

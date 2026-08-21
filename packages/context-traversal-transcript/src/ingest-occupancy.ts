@@ -40,6 +40,12 @@ export interface TranscriptIngestResult {
   readonly skippedLines: number;
   /** Sidechain requests excluded across every window. */
   readonly sidechainRequests: number;
+  /**
+   * Transcript files that correlated to this session but named only subagent windows, so no
+   * occupancy event was produced from them. Carried through from the correlation verbatim: this
+   * adapter observes parent windows, and this is how many windows it reached and did not observe.
+   */
+  readonly sidechainFiles: number;
 }
 
 export interface IngestTranscriptOccupancyArgs {
@@ -119,6 +125,7 @@ export function ingestTranscriptOccupancy(input: IngestTranscriptOccupancyArgs):
     appended: appendedCount,
     skippedLines,
     sidechainRequests,
+    sidechainFiles: correlation.sidechainFiles,
   };
 }
 
