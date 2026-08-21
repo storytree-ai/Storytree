@@ -412,7 +412,10 @@ export async function main(): Promise<void> {
     } else {
       // ADR-0200 D4: the cursor-once delta footer rides the render the agent already reads.
       process.stdout.write(formatEnvelope(await attachDeltaFooter(env, pullDeltas)));
-      process.exitCode = env.ok ? 0 : 1;
+      // `ok` maps to 0/1 for every command whose exit code is its OWN. `exitCode` is the narrow
+      // exception for a command REPORTING ANOTHER PROCESS'S status (`dispatch --wait`), where
+      // collapsing to 0/1 would destroy the gate's reserved 3 (SKIP) and 4 (PARTIAL RUN).
+      process.exitCode = env.exitCode ?? (env.ok ? 0 : 1);
     }
     await captureInvocation(argv, readArgv, env.ok, store, captureSessionId, offer?.visitId);
   } finally {

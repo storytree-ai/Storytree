@@ -347,9 +347,10 @@ kind owes a seed export any more.
   there say `NOTHING TO COMPARE` and exit 0 rather than emitting a 3 the runner would read as red.
   A skip does **not** red the gate, but the
   summary says **GATE GREEN, NARROWED** and names every skipped step, so green-with-skips can no
-  longer read as unqualified green. Any step failing still exits non-zero, so `pnpm gate:bg` and every
-  exit-code caller are unchanged. Two consequences worth knowing: a FAILING run now takes the full
-  wall clock instead of stopping early, so **background it** (`pnpm gate:bg`, merge-ceremony step 2);
+  longer read as unqualified green. Any step failing still exits non-zero, so the `.exit` sentinel
+  `pnpm gate:bg` writes, and every exit-code caller, are unchanged. Two consequences worth knowing:
+  a FAILING run now takes the full wall clock instead of stopping early, so **background it**
+  (`pnpm gate:bg`, merge-ceremony step 2);
   and the steps are ordered *own-work first* — five branch-local checks and both `-r` proof legs run
   ahead of the three retained checks that can observe shared live state. `STORYTREE_GATE_FAIL_FAST=1 pnpm gate`
   (or `pnpm gate --fail-fast`) restores the old stop-at-first-red for a fast inner loop.
@@ -402,6 +403,20 @@ kind owes a seed export any more.
   were and were charged the most expensive command in the repo. It now returns in ~6 s and lists
   `--scope` / `--full` / `--fail-fast` / `--only` / `--rerun-failed`, the three `STORYTREE_GATE_*`
   env vars, and how to read the result.
+- **`pnpm gate:bg` now DETACHES ITSELF, and PIPING IT IS FINE (since 2026-08-21).** It returns in
+  ~1 s with a **dispatch handle** (log path + `<log>.exit` path + pid) and the gate runs on without
+  it. The old shape relied on the CALLER backgrounding it, so `pnpm gate:bg 2>&1 | tail` — the
+  natural way to read its banner — held the whole run in the foreground until the 600 s tool ceiling
+  killed it. That trap is **gone, not documented**: there is no pipe detector and nothing to
+  override. ⚠ Its exit code now reports **the LAUNCH** (0 = dispatched), never the gate — it returns
+  before the gate has a verdict. **The verdict is a verb:**
+  `storytree dispatch <handle> --wait` blocks on the `.exit` sentinel and exits with **the gate's
+  own status**, so 3 (SKIP) and 4 (PARTIAL) survive; bounded at 8 min by default (`--timeout
+  <seconds>`, ceiling 540 s — over it REFUSES rather than silently clamping), and an expired bound
+  exits **75** = UNVERIFIED, a code the gate itself never returns. `storytree dispatch <handle>`
+  without `--wait` is still the one-shot read (ADR-0328 D3). **Never hand-roll
+  `until ls *.exit; do sleep 45; done`, and never grep the log for `GATE GREEN`/`GATE RED`** —
+  those strings appear inside TEST NAMES, so that reads a verdict the gate never gave.
 - **"Is this box busy?" is a VERB — `storytree own --all` — not a process walk.** It lists every
   registered background run on this machine grouped by OWNING SESSION, each with pid, age, command,
   and whether it is live or `[gone — died without de-registering]`. Ask it before starting an

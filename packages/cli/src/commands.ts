@@ -89,7 +89,7 @@ import { traversalCommand, traversalHelp } from "./traversal.js";
 // `session-cost` — the repeatable session-cost measurement over host transcripts (ADR-0323 D4).
 import { sessionCostCommand, sessionCostHelp } from "./session-cost.js";
 import { CLI_AREAS } from "./cli-areas.js";
-import { dispatchCommand, dispatchHelp } from "./dispatch-command.js";
+import { dispatchCommand, dispatchHelp, dispatchWaitCommand } from "./dispatch-command.js";
 // ADR-0290: a live library write records WHICH BRANCH made it, so `check:corpus-content` can charge a
 // seed↔live drift to the session that must reconcile it instead of to whoever gates next.
 import { currentGitBranch, defaultCliActor, inFlightBranches } from "./cli-actor.js";
@@ -2677,6 +2677,12 @@ export const CLI_OPTIONS = {
   where: { type: "string", multiple: true },
   count: { type: "boolean", default: false },
   kind: { type: "string" },
+  // `storytree dispatch <handle> --wait [--timeout <seconds>]` — the BOUNDED block on a
+  // backgrounded job's sentinel (`the-gate-costs-what-the-change-risks-arc` inc 6). Without it a
+  // session that must not proceed until a gate lands hand-rolls a poll loop, or scrapes the log
+  // for a verdict string that also appears inside test names.
+  wait: { type: "boolean", default: false },
+  timeout: { type: "string" },
 } as const;
 
 /**
@@ -3947,6 +3953,12 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     // told the truth, including when the truth is "not yet". Offline, read-only, no store — a
     // handle must stay readable by whoever inherits it, long after the dispatching agent is gone.
     if (help) return dispatchHelp();
+    // `--wait` is the same read, held open until the sentinel settles (ADR-0328 D2 permits a
+    // foreground call to WAIT on work it does not HOLD — `pnpm gate:bg` detaches, so this holds
+    // nothing). It reports the JOB's exit code, which is why its envelope carries `exitCode`.
+    if (values["wait"] === true) {
+      return dispatchWaitCommand(positionals.slice(1), values["timeout"]);
+    }
     return dispatchCommand(positionals.slice(1));
   }
 
