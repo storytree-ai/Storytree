@@ -23,6 +23,19 @@ export interface Envelope {
    * true for every command that never sets one.
    */
   readonly note?: readonly string[];
+  /**
+   * The process exit status this envelope must leave behind, when `ok` alone cannot express it.
+   *
+   * NORMALLY ABSENT, and deliberately so — `ok` maps to 0/1 and that is the contract for every
+   * command whose exit code is its OWN. This exists for the one shape where it is not: a command
+   * that REPORTS ANOTHER PROCESS'S RESULT (`storytree dispatch <handle> --wait`, which returns the
+   * status of a gate it did not run). Collapsing that to 0/1 would destroy the gate's own reserved
+   * codes — 3 SKIP, 4 PARTIAL RUN — which CLAUDE.md tells every session to read as distinct.
+   *
+   * It is NOT a general escape hatch for signalling severity. If a command's own failure needs more
+   * than `ok: false`, that is a body-text problem, not an exit-code one.
+   */
+  readonly exitCode?: number;
 }
 
 /** Render an {@link Envelope} to the text the agent reads on stdout. */
