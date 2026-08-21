@@ -1,9 +1,12 @@
 // ADR-0004 / ADR-0090 d.2 boundary guard (capability ui-build-trigger): the studio FRONTEND holds
 // NO model-invocation path. The browser bundle (apps/studio/src) must never import the agent (the
-// SDK leaf) or the CLI build entry (`nodeBuild`) — its ONLY path to a build is the /api/build
-// endpoints (api.ts). A build runs exclusively in the server/worker process; the worker is the
-// single orchestrator boundary. A static OR dynamic import of either package here is the regression
-// this guard fails on.
+// SDK leaf) or the CLI build entry (`nodeBuild`). A static OR dynamic import of either package here
+// is the regression this guard fails on.
+//
+// ADR-0404 STRENGTHENED what this pins rather than weakening it: the frontend's only path to a build
+// used to be the /api/build endpoints in api.ts, and those are now retired too — dispatching a build
+// is a CLI verb, so the browser bundle has no path to a build AT ALL. This guard still earns its keep
+// as the wall against the import ever reappearing.
 
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';

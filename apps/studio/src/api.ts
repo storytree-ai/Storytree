@@ -349,8 +349,8 @@ export const api = {
   // NO build() / buildStatus() / adopt() here (ADR-0404 D2/D3): dispatching a build or an adoption
   // is a CLI verb — `storytree node build` / `storytree story build` / `storytree adopt` — and the
   // SPA carries no dispatch surface over either engine. These three were the SPA's only path to
-  // POST/GET /api/build and POST /api/adopt; the routes themselves are still mounted and now
-  // uncalled, and inc-03 removes them (client first, so no live control ever points at a gone route).
+  // POST/GET /api/build and POST /api/adopt; those routes are now gone from the studio route table
+  // and the desktop backend too, so there is nothing left to dial.
 
   dbStatus: (): Promise<DbStatus> => http('/api/db/status'),
   dbStart: (): Promise<{ ok: true }> => http('/api/db/start', { method: 'POST' }),

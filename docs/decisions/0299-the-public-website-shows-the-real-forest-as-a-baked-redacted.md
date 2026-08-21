@@ -64,10 +64,14 @@ email), `/api/users` (every member's email), and `/api/activity` + `/api/claims`
 branch names, free-text intent). A public deployment is therefore not "the studio with panels
 switched off"; it is a different artifact.
 
-**The map surface carries write paths.** Three of them sit inside the story detail panel: Build and
-Adopt (`POST /api/build`, `POST /api/adopt`,
-[`BuildSection.tsx:208`](../../apps/studio/src/components/BuildSection.tsx)) and UAT signing
-(`api.signUat`, [`TreeView.tsx:4891`](../../apps/studio/src/components/TreeView.tsx)). The terminal
+**The map surface carries write paths.** Three of them sat inside the story detail panel when this was
+decided: Build and Adopt (`POST /api/build`, `POST /api/adopt`, `BuildSection.tsx:208`) and UAT signing
+(`api.signUat`, [`TreeView.tsx:4891`](../../apps/studio/src/components/TreeView.tsx)).
+*(Overtaken 2026-08-22: ADR-0404 retired the Build and Adopt affordances outright — `BuildSection.tsx`
+is deleted and both route pairs are gone from the studio and desktop backends — so only UAT signing
+remains of the three. This STRENGTHENS the decision below rather than weakening it: the write surface a
+public deployment would have to strip is smaller, and the reasoning that a public site is a different
+artifact is unchanged.)* The terminal
 dock, which the owner named first, turns out to be inert in any browser build by construction — it
 runs over an Electron `contextBridge` and renders a disabled panel without one
 ([`TerminalDock`](../../apps/studio/src/components/TerminalDock.tsx)) — so it was never the
