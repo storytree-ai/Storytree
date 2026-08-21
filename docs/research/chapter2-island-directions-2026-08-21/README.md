@@ -1,4 +1,4 @@
-# Six whole islands, made to look good — 2026-08-21
+# Six directions for the island, made to look good first — 2026-08-21
 
 Increment: `chapter2-island-that-looks-good-first-arc-inc-01`.
 Governed by **ADR-0392** as amended by **ADR-0398**: the owner's look/feel verdict is taken ONCE,
@@ -13,7 +13,7 @@ technique row.** Every picture is a complete island at 2 px per ground unit — 
 actually delivered — on the real `context-traversal-capture` research surface: 13 hexes, 11
 capabilities, its real test spread, its own ten UAT criteria.
 
-**Read the six island files, not this document.** `island-today.png`, `island-a-afternoon.png`,
+**Read the seven island files, not this document** — six directions and the control. `island-today.png`, `island-a-afternoon.png`,
 `island-b-slab.png`, `island-c-garden.png`, `island-d-landmass.png`, `island-e-composed.png`,
 `island-f-after.png`. The tree pairs are `island-tree-*`.
 
@@ -64,7 +64,7 @@ owner's rather than an agent's: plant colour variety and non-vegetation props.
 
 ---
 
-## 2. The six islands
+## 2. The six directions, and the control
 
 | | direction | what carries the picture | what it is |
 | --- | --- | --- | --- |

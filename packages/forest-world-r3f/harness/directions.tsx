@@ -1,4 +1,6 @@
-// directions.tsx — FIVE WHOLE ISLANDS, MADE TO LOOK GOOD (dev-only evidence page).
+// directions.tsx — SIX DIRECTIONS FOR THE ISLAND, MADE TO LOOK GOOD (dev-only evidence page).
+//
+// Seven whole islands: six directions and the island as it ships today, as the control.
 //
 // The arc this belongs to inverts its predecessor's order: `chapter2-code-generated-organic-
 // art-arc` proved one component at a time and reached 58 landed increments without anyone
@@ -21,10 +23,10 @@
 //     parameter).
 //
 // WHY THE DIRECTIONS DIFFER IN WHERE THE INTEREST LIVES, rather than in a setting. Four
-// settings of one idea is a ladder, not a choice. These four differ in what carries the
-// picture: the LIGHT, the ISLAND'S EDGE, the GROUND ITSELF, or all three together. That is a
-// structural difference, and it is the axis the owner's own hypothesis runs along — if the
-// land's colour is the bigger signal, the ground direction should be the one that reads.
+// settings of one idea is a ladder, not a choice. These differ in what carries the picture:
+// the LIGHT, the ISLAND'S EDGE, the GROUND ITSELF, the SILHOUETTE, or all of them together.
+// That is a structural difference, and it is the axis the owner's own hypothesis runs along —
+// if the land's colour is the bigger signal, the ground directions should be the ones that read.
 
 import { createRoot } from 'react-dom/client';
 
@@ -81,7 +83,7 @@ function Island({
  */
 const DEEP = 9;
 
-/** The five directions plus the island as it ships, as data — so the headline row and each
+/** The directions plus the island as it ships, as data — so the headline row and each
  *  direction's own section can never drift apart into showing two different things. */
 const TODAY: Omit<IslandViewProps, 'pxPerUnit' | 'displayPxPerUnit'> = {};
 
@@ -132,7 +134,7 @@ function App() {
   return (
     <main>
       <header>
-        <h1>Five islands, made to look good</h1>
+        <h1>Six directions for the island</h1>
         <p>
           Every picture on this page is a <strong>whole island at the size it is actually
           delivered</strong> &mdash; 2 px per ground unit, the real 13-hex research surface
@@ -142,8 +144,8 @@ function App() {
         </p>
         <p>
           They differ in <strong>where the interest lives</strong>: in the light, in the
-          island&rsquo;s edge, in the ground itself, or in all three. That is the choice being
-          offered &mdash; not a setting to tune.
+          island&rsquo;s edge, in the ground itself, in the silhouette, or in all of them. That
+          is the choice being offered &mdash; not a setting to tune.
         </p>
         <p className="numbers">
           13 hexes &middot; 11 capabilities &middot; all healthy &middot; 10 UAT flowers
@@ -156,10 +158,11 @@ function App() {
       <section>
         <h2>1 &mdash; the choice, side by side</h2>
         <p className="lede">
-          The four directions and the island as it ships today, all whole, all at delivered
+          The six directions and the island as it ships today, all whole, all at delivered
           size. This is the row the decision is made on; the sections below are the same
           islands again, larger on the page but rendered at exactly the same 2 px/unit, with
-          the appearance calls that made each one.
+          the appearance calls that made each one. <strong>F is not on the menu yet</strong> —
+          it needs an answer from you first, and section 8 says why.
         </p>
         <div className="row">
           <Island label="TODAY" note="what ships now" tag="row-today" {...TODAY} />
