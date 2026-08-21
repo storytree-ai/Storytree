@@ -33,9 +33,9 @@ export interface KnowledgeUnitLike {
   title: string;
   description: string;
   references?: string[];
-  /** The authored `standsOn` dependency edge (ADR-0223) — absent for an edge-free kind or an
+  /** The authored `dependsOn` dependency edge (ADR-0223) — absent for an edge-free kind or an
    *  un-curated doc; carried so the offline focus graph walks the same substrate as the live one. */
-  standsOn?: string[];
+  dependsOn?: string[];
   provenance?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -54,7 +54,7 @@ export interface KnowledgeUnitLike {
  * follows and bundles instead), so this keeps `vite build` green while tsx resolves it at runtime.
  */
 export async function deriveOfflineAssets(units: KnowledgeUnitLike[]): Promise<GuidanceAsset[]> {
-  const { renderBody, libraryTemplates } = await import('@storytree/library');
+  const { renderBody, libraryTemplates, hasDependsOnKey, readDependsOnPointers } = await import('@storytree/library');
 
   // renderBody is driven by KIND_SPECS off the structured fields — the same render build-corpus used.
   const renderKnowledgeAsset = (doc: KnowledgeUnitLike): GuidanceAsset => ({
@@ -66,7 +66,8 @@ export async function deriveOfflineAssets(units: KnowledgeUnitLike[]): Promise<G
     references: doc.references ?? [],
     // Absent-by-default, never `?? []` — an empty array would claim "authored, and it stands on
     // nothing", which is a different fact from "carries no authored edge" (ADR-0223's optional rule).
-    ...(doc.standsOn !== undefined ? { standsOn: doc.standsOn } : {}),
+    // ADR-0402 read tolerance, TEMPORARY — remove after the batch drain (depends-on-compat.ts).
+    ...(hasDependsOnKey(doc) ? { dependsOn: readDependsOnPointers(doc) } : {}),
     ...(doc.provenance !== undefined ? { provenance: doc.provenance } : {}),
     createdAt: doc.createdAt ?? '',
     updatedAt: doc.updatedAt ?? '',

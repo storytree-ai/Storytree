@@ -30,7 +30,7 @@
  * loop. Walking INTO them re-opens that question, and the ADR graph has never been checked. A depth
  * walk over a cyclic graph hangs or silently truncates, and a silently truncated depth is worse than
  * the flat number it replaced because it looks like an answer. So: acyclicity is judged first, by the
- * corpus's EXISTING detector (`findStandsOnCycles`, artifact `library-dag-acyclic-core`) rather than
+ * corpus's EXISTING detector (`findDependsOnCycles`, artifact `library-dag-acyclic-core`) rather than
  * a second implementation — and {@link longestPathOver} is independently incapable of hanging
  * (explicit `visiting` colour marking) and THROWS rather than truncating if it ever meets a loop.
  *
@@ -40,7 +40,7 @@
  * ## WHAT A LIBRARY POINTER TERMINATING AT AN ADR WOULD COST
  *
  * The last section reads the live corpus and characterises the `doc:` pointers that land on an ADR
- * (390 of 778 authored `standsOn` pointers, measured 2026-08-20). It reports the ceiling under BOTH
+ * (390 of 778 authored `dependsOn` pointers, measured 2026-08-20). It reports the ceiling under BOTH
  * candidate resolutions of the owner's open question and RECOMMENDS NEITHER — the choice is the
  * owner's, and this increment only supplies the arithmetic.
  *
@@ -55,7 +55,8 @@ import { loadAdrMetas, openCorpusStore, type AdrMeta } from "@storytree/drive";
 import {
   depthFromWorkNodes,
   evaluateDepthFromWork,
-  findStandsOnCycles,
+  findDependsOnCycles,
+  readDependsOnPointers,
   REPO_ROOT_ENV,
   resolveRepoRoot,
 } from "@storytree/library";
@@ -146,7 +147,7 @@ export function buildAmendsLadder(rows: readonly AmendsRow[]): AmendsLadder {
   for (const row of rows) {
     if (out.has(row.number)) {
       duplicateNumbers.push(row.number);
-      continue; // First row wins, matching `findStandsOnCycles`' duplicate rule.
+      continue; // First row wins, matching `findDependsOnCycles`' duplicate rule.
     }
     if (row.amends.length > 0) filesCarrying += 1;
     edgesTotal += row.amends.length;
@@ -219,16 +220,16 @@ export type CyclePath = readonly string[];
 /**
  * Cycles over one ladder, judged by the corpus's existing detector rather than a second one.
  *
- * `findStandsOnCycles` (`packages/library/src/knowledge-dag.ts`, artifact `library-dag-acyclic-core`)
+ * `findDependsOnCycles` (`packages/library/src/knowledge-dag.ts`, artifact `library-dag-acyclic-core`)
  * already answers exactly this question with the three-colour walk and the rotation-canonical dedupe;
  * ADR numbers are simply rendered as ids so its output reads as ADR labels.
  */
 function cyclesOver(ladder: AmendsLadder | SupersedesLadder): CyclePath[] {
   const nodes = [...ladder.out.entries()].map(([adr, targets]) => ({
     id: label(adr),
-    standsOn: targets.map(label),
+    dependsOn: targets.map(label),
   }));
-  return findStandsOnCycles(nodes);
+  return findDependsOnCycles(nodes);
 }
 
 /** Is the `amends` graph ALONE acyclic? Typed so a supersedes ladder cannot be asked this. */
@@ -253,16 +254,16 @@ export function supersedesCycles(ladder: SupersedesLadder): CyclePath[] {
 export function unionCycles(rows: readonly AdrMeta[]): CyclePath[] {
   const known = new Set(rows.map((row) => row.number));
   const seen = new Set<number>();
-  const nodes: { id: string; standsOn: string[] }[] = [];
+  const nodes: { id: string; dependsOn: string[] }[] = [];
   for (const row of rows) {
     if (seen.has(row.number)) continue;
     seen.add(row.number);
     nodes.push({
       id: label(row.number),
-      standsOn: [...row.amends, ...row.supersedes].filter((t) => known.has(t)).map(label),
+      dependsOn: [...row.amends, ...row.supersedes].filter((t) => known.has(t)).map(label),
     });
   }
-  return findStandsOnCycles(nodes);
+  return findDependsOnCycles(nodes);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -418,9 +419,9 @@ function assertChainIsReal(ladder: AmendsLadder | SupersedesLadder, walk: Ladder
 // WHAT A LIBRARY POINTER TERMINATING AT AN ADR RESOLVES TO
 // ---------------------------------------------------------------------------------------------
 
-/** The `standsOn` scheme that names an ADR (`StandsOnRef`: `doc:<relpath>`). */
+/** The `dependsOn` scheme that names an ADR (`DependsOnRef`: `doc:<relpath>`). */
 const DOC_PREFIX = "doc:";
-/** The `standsOn` scheme that names a Library artifact. */
+/** The `dependsOn` scheme that names a Library artifact. */
 const ASSET_PREFIX = "asset:";
 
 /**
@@ -460,7 +461,7 @@ function capped(lines: readonly string[], limit = 8): string[] {
 /** The corpus-side census of pointers that terminate at an ADR. */
 interface PointerCensus {
   readonly artifactsScanned: number;
-  readonly standsOnTotal: number;
+  readonly dependsOnTotal: number;
   readonly assetPointers: number;
   readonly docPointers: number;
   readonly adrPointers: number;
@@ -496,16 +497,16 @@ function censusPointers(
   const spellings = new Map<string, number>();
   const landedOn = new Map<number, number>();
   const edges: { artifact: string; adr: number; libraryDepth: number | null }[] = [];
-  let standsOnTotal = 0;
+  let dependsOnTotal = 0;
   let assetPointers = 0;
   let docPointers = 0;
   let adrPointers = 0;
   let adrPointersResolving = 0;
 
   for (const row of docs) {
-    const payload = row.doc as { standsOn?: unknown } | null | undefined;
-    for (const pointer of stringsOf(payload?.standsOn)) {
-      standsOnTotal += 1;
+    // ADR-0402 read tolerance, TEMPORARY — remove after the batch drain (depends-on-compat.ts).
+    for (const pointer of readDependsOnPointers(row.doc)) {
+      dependsOnTotal += 1;
       if (pointer.startsWith(ASSET_PREFIX)) {
         assetPointers += 1;
         continue;
@@ -532,7 +533,7 @@ function censusPointers(
 
   return {
     artifactsScanned: docs.length,
-    standsOnTotal,
+    dependsOnTotal,
     assetPointers,
     docPointers,
     adrPointers,
@@ -603,7 +604,7 @@ async function censusCorpus(
     console.log("");
     console.log(`  5. LIBRARY POINTERS THAT TERMINATE AT AN ADR — a FINDING, not a decision`);
     console.log(
-      `    corpus: ${census.artifactsScanned} artifacts, ${census.standsOnTotal} authored \`standsOn\` ` +
+      `    corpus: ${census.artifactsScanned} artifacts, ${census.dependsOnTotal} authored \`dependsOn\` ` +
         `pointers (${census.assetPointers} \`asset:\`, ${census.docPointers} \`doc:\`)`,
     );
     console.log(

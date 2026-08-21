@@ -1,8 +1,8 @@
 /**
- * `pnpm standson:bootstrap [--write]` — ADR-0223 dec 5's one-time seed of the authored `standsOn`
+ * `pnpm standson:bootstrap [--write]` — ADR-0223 dec 5's one-time seed of the authored `dependsOn`
  * DAG from existing down-tier citations, as amended by ADR-0363 D1.
  *
- * THE THIN HALF. Every rule lives in the pure projection (`projectStandsOnFromCitations` in
+ * THE THIN HALF. Every rule lives in the pure projection (`projectDependsOnFromCitations` in
  * `@storytree/library`); this file reads the corpus, prints the plan, and — only when told to —
  * applies it. It decides nothing.
  *
@@ -13,7 +13,7 @@
  * IT PATCHES, IT NEVER UPSERTS (ADR-0352). A whole-doc write here would replace the doc as this
  * process read it seconds-to-minutes earlier and silently revert anything a sibling session landed in
  * between — the measured lost update, and a migration touching ~169 docs is the worst possible place
- * to reintroduce it. `patchDoc` merges the single `standsOn` key onto CURRENT state inside the
+ * to reintroduce it. `patchDoc` merges the single `dependsOn` key onto CURRENT state inside the
  * store's own write, so a concurrent edit to any other field survives, and `validate` runs on the
  * MERGED doc so migrate-on-write is not skipped.
  *
@@ -23,7 +23,7 @@
  */
 
 import { openCorpusStore } from "@storytree/drive";
-import { projectStandsOnFromCitations, upcastAndValidate } from "@storytree/library";
+import { projectDependsOnFromCitations, upcastAndValidate } from "@storytree/library";
 
 const TAG = "standson:bootstrap";
 
@@ -33,7 +33,7 @@ async function main(): Promise<void> {
 
   try {
     const docs = await corpus.store.queryDocs();
-    const plan = projectStandsOnFromCitations(docs);
+    const plan = projectDependsOnFromCitations(docs);
 
     console.log(`${TAG} — corpus: ${docs.length} artifacts, ${plan.docsScanned} of them in the DAG.`);
     console.log(
@@ -69,7 +69,7 @@ async function main(): Promise<void> {
       try {
         const saved = await corpus.store.patchDoc({
           id: edge.id,
-          fields: { standsOn: [...edge.standsOn] },
+          fields: { dependsOn: [...edge.dependsOn] },
           actor: `${TAG} (ADR-0223 dec 5, ADR-0373)`,
           validate: (merged) => upcastAndValidate(merged),
         });

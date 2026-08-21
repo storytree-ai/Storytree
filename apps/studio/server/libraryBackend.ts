@@ -690,7 +690,7 @@ function toGuidanceAsset(rendered: {
   arcRef?: string;
   status?: string;
   lifecycle?: string;
-  standsOn?: string[];
+  dependsOn?: string[];
   cites?: string[];
   createdAt: string;
   updatedAt: string;
@@ -718,9 +718,9 @@ function toGuidanceAsset(rendered: {
     ...(rendered.lifecycle ? { lifecycle: rendered.lifecycle } : {}),
     // The authored dependency edge (ADR-0223) — the substrate buildFocusGraph walks. Array-shaped,
     // so the guard is `Array.isArray`, matching stepRefs/branchEdges above.
-    ...(Array.isArray(rendered.standsOn) ? { standsOn: rendered.standsOn } : {}),
+    ...(Array.isArray(rendered.dependsOn) ? { dependsOn: rendered.dependsOn } : {}),
     // An increment's work-hierarchy join (ADR-0306 D2) — the signal ADR-0363 D2's read-only
-    // depth-from-work projection joins against. Same array-shaped guard as standsOn.
+    // depth-from-work projection joins against. Same array-shaped guard as dependsOn.
     ...(Array.isArray(rendered.cites) ? { cites: rendered.cites } : {}),
     createdAt: rendered.createdAt,
     updatedAt: rendered.updatedAt,

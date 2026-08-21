@@ -4,16 +4,16 @@
  * **A DIAGNOSTIC, NOT A GATE RUNG, and deliberately so.** ADR-0363 D2's fence says the join is
  * read-only at render time: nothing in the corpus records the result and NO GATE ENFORCES IT. This is
  * not wired into `pnpm gate` and never should be. It exists to be run by hand after a change to the
- * join, the wire, or the `standsOn` / `cites` fields — which is the one instruction the increment
+ * join, the wire, or the `dependsOn` / `cites` fields — which is the one instruction the increment
  * that built this leaves behind.
  *
  * ## THE TRAP IT EXISTS FOR
  *
  * A gate rung reading RAW stored rows and a UI reading the RENDERED wire can BOTH report honestly and
- * still disagree, with nothing to tell you: `check:library-dag-acyclic` once counted 660 `standsOn`
+ * still disagree, with nothing to tell you: `check:library-dag-acyclic` once counted 660 `dependsOn`
  * edges where the studio would have drawn 554. Only a probe measuring both IN THE SAME RUN and
  * diffing them surfaces that. So this reads each stored doc twice — straight off the payload the way
- * `standsOnNodes` does, and through `renderStoredDoc` the way `toGuidanceAsset` does for the browser —
+ * `dependsOnNodes` does, and through `renderStoredDoc` the way `toGuidanceAsset` does for the browser —
  * and reports any doc where the two disagree.
  *
  * ## AND THE ANCHOR, WHICH IS HALF THE ANSWER
@@ -29,14 +29,14 @@
  */
 
 import { openCorpusStore } from "@storytree/drive";
-import { depthFromWorkNodes, evaluateDepthFromWork } from "@storytree/library";
+import { depthFromWorkNodes, evaluateDepthFromWork, readDependsOnPointers } from "@storytree/library";
 import { renderStoredDoc } from "@storytree/library/store";
 
 const TAG = "probe:depth-from-work";
 
 /** The two pointer fields, per doc, as one comparable string. */
-function signature(standsOn: readonly string[], cites: readonly string[]): string {
-  return JSON.stringify({ standsOn, cites });
+function signature(dependsOn: readonly string[], cites: readonly string[]): string {
+  return JSON.stringify({ dependsOn, cites });
 }
 
 function strings(value: unknown): string[] {
@@ -52,23 +52,29 @@ async function main(): Promise<void> {
     const docs = await corpus.store.queryDocs();
 
     const rawRows = docs.map((stored) => {
-      const payload = stored.doc as { standsOn?: unknown; cites?: unknown } | null | undefined;
+      const payload = stored.doc as { cites?: unknown } | null | undefined;
       return {
         id: stored.id,
-        doc: { standsOn: strings(payload?.standsOn), cites: strings(payload?.cites) },
+        // ADR-0402 read tolerance, TEMPORARY — remove after the batch drain (depends-on-compat.ts).
+        // THE TOLERANCE BELONGS ON BOTH SIDES, and that does not make them agree by construction:
+        // each side exists to MIRROR a real reader — this one `dependsOnNodes` (the gate rung), the
+        // other `renderStoredDoc` (the browser wire) — and both of those are now tolerant. Making
+        // only this side tolerant would report ~778 disagreements that are real but say nothing
+        // about the wire; making neither tolerant is what let both sides agree, at zero, on a lie.
+        doc: { dependsOn: readDependsOnPointers(stored.doc), cites: strings(payload?.cites) },
       };
     });
 
     const renderedRows = docs.map((stored) => {
       const rendered = renderStoredDoc(stored) as unknown as {
-        standsOn?: unknown;
+        dependsOn?: unknown;
         cites?: unknown;
         degraded?: unknown;
       };
       return {
         id: stored.id,
         degraded: typeof rendered.degraded === "string",
-        doc: { standsOn: strings(rendered.standsOn), cites: strings(rendered.cites) },
+        doc: { dependsOn: strings(rendered.dependsOn), cites: strings(rendered.cites) },
       };
     });
 
@@ -76,12 +82,12 @@ async function main(): Promise<void> {
     for (let index = 0; index < rawRows.length; index += 1) {
       const raw = rawRows[index]!;
       const rendered = renderedRows[index]!;
-      if (signature(raw.doc.standsOn, raw.doc.cites) === signature(rendered.doc.standsOn, rendered.doc.cites)) {
+      if (signature(raw.doc.dependsOn, raw.doc.cites) === signature(rendered.doc.dependsOn, rendered.doc.cites)) {
         continue;
       }
       disagreements.push(
-        `  ${raw.id}: raw standsOn=${raw.doc.standsOn.length}/cites=${raw.doc.cites.length} ` +
-          `vs rendered standsOn=${rendered.doc.standsOn.length}/cites=${rendered.doc.cites.length}` +
+        `  ${raw.id}: raw dependsOn=${raw.doc.dependsOn.length}/cites=${raw.doc.cites.length} ` +
+          `vs rendered dependsOn=${rendered.doc.dependsOn.length}/cites=${rendered.doc.cites.length}` +
           (rendered.degraded ? " (rendered DEGRADED)" : ""),
       );
     }
@@ -125,7 +131,7 @@ async function main(): Promise<void> {
       console.error("");
       console.error(
         `${TAG} FAIL — ${disagreements.length} artifact(s) whose RAW rows and RENDERED wire disagree ` +
-          `on standsOn/cites. A rung reading one and a surface reading the other would both report ` +
+          `on dependsOn/cites. A rung reading one and a surface reading the other would both report ` +
           `honestly and still describe different graphs:`,
       );
       for (const line of disagreements) console.error(line);

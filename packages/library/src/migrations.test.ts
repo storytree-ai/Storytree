@@ -48,7 +48,7 @@ test("upcast: v0 structured unit drops seeAlso, stamps schemaVersion, and valida
   const out = upcast(v0DefinitionWithSeeAlso());
   assert.equal("seeAlso" in out, false, "retired seeAlso dropped");
   assert.equal(out["schemaVersion"], CURRENT_SCHEMA_VERSION, "stamped to current version");
-  assert.equal(CURRENT_SCHEMA_VERSION, 6, "current version is 6 (increment-outcome-note-deduplication)");
+  assert.equal(CURRENT_SCHEMA_VERSION, 7, "current version is 7 (standson-to-dependson)");
   // The forwarded doc passes the strict validator (it would have been rejected un-upcast).
   const validated = validateLibraryDoc(out);
   assert.equal((validated as { schemaVersion?: number }).schemaVersion, CURRENT_SCHEMA_VERSION);
@@ -462,6 +462,108 @@ test("upcast: migration #4 no-ops on every other kind, and synthesises a body fr
   for (const f of ["decomposition", "lanes", "budgets", "traps"]) delete bare[f];
   const out = upcast(bare);
   assert.equal(out["body"], "Prove the collapse folds the body without losing a path.");
+  assert.doesNotThrow(() => validateLibraryDoc(out));
+});
+
+// ---------------------------------------------------------------------------
+// Migration #7 — ADR-0402: the authored dependency edge is renamed `dependsOn`.
+// ---------------------------------------------------------------------------
+
+/** A v6 principle carrying the OLD `standsOn` key — the shape every live row was authored in. */
+function v6PrincipleWithStandsOn(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    kind: "principle",
+    id: "red-green",
+    title: "Red-green",
+    description: "prove it",
+    schemaVersion: 6,
+    references: ["doc:decisions/0223-the-knowledge-dag-is-an-authored-standson-edge-not-the-citat.md"],
+    standsOn: ["asset:proof-mode", "doc:decisions/0020-the-prove-it-gate.md"],
+    statement: "Red, then green.",
+    why: "Evidence over assertion.",
+    howToApply: "Write the failing test first.",
+    createdAt: "2026-06-01T00:00:00.000Z",
+    updatedAt: "2026-06-09T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+test("upcast: migration #7 renames `standsOn` -> `dependsOn`, keeping an old-shape doc writable (ADR-0402)", () => {
+  const old = v6PrincipleWithStandsOn();
+  // Un-upcast it is REFUSED: every kind schema is `.strict()` and no longer declares `standsOn`, so
+  // this is a WRITABILITY fix in migrations 4/5's class, not a cleanup in 3/6's. Without it every
+  // live row carrying an authored edge would hard-refuse at its next write.
+  assert.throws(() => validateLibraryDoc({ ...old }));
+
+  const out = upcast({ ...old });
+  assert.equal("standsOn" in out, false, "the old key is gone");
+  assert.deepEqual(
+    out["dependsOn"],
+    ["asset:proof-mode", "doc:decisions/0020-the-prove-it-gate.md"],
+    "the same pointers in the SAME authored order — a rename moves no data",
+  );
+  assert.equal(out["schemaVersion"], CURRENT_SCHEMA_VERSION);
+  assert.doesNotThrow(() => validateLibraryDoc(out));
+
+  // Scoped to the ONE key. The citation web is a DIFFERENT edge (ADR-0223) and the body fields are
+  // not this transform's business — a rename that quietly touched either would be a data change.
+  assert.deepEqual(out["references"], old["references"]);
+  assert.equal(out["statement"], "Red, then green.");
+
+  // The real write boundary, not just the transform: `upcastAndValidate` is what the store calls.
+  const written = upcastAndValidate(v6PrincipleWithStandsOn()) as { dependsOn?: string[] };
+  assert.deepEqual(written.dependsOn, ["asset:proof-mode", "doc:decisions/0020-the-prove-it-gate.md"]);
+
+  // Idempotent — a second pass finds no `standsOn` to rename.
+  assert.deepEqual(upcast(out), out);
+});
+
+test("upcast: migration #7 forward-migrates a doc carrying NO schemaVersion at all", () => {
+  // The pin is per-ROW and an absent one reads as 0, so a doc authored before the registry existed
+  // folds every transform in order and still arrives at the new key rather than being rejected.
+  const ancient = v6PrincipleWithStandsOn();
+  delete ancient["schemaVersion"];
+  const out = upcast(ancient);
+  assert.equal("standsOn" in out, false);
+  assert.deepEqual(out["dependsOn"], ["asset:proof-mode", "doc:decisions/0020-the-prove-it-gate.md"]);
+  assert.equal(out["schemaVersion"], CURRENT_SCHEMA_VERSION);
+  assert.doesNotThrow(() => validateLibraryDoc(out));
+});
+
+test("upcast: migration #7 preserves ABSENCE — it never stamps an empty edge (ADR-0223 D1)", () => {
+  // The field is `.optional()`, never `.default([])`. Synthesising `dependsOn: []` here would stamp
+  // the ABSENCE of an edge onto every unedged row on its next write — the corpus-wide shape change
+  // the optionality exists to avoid.
+  const noEdge = v6PrincipleWithStandsOn();
+  delete noEdge["standsOn"];
+  const out = upcast(noEdge);
+  assert.equal("dependsOn" in out, false, "an absent edge stays absent");
+  assert.deepEqual(out, { ...noEdge, schemaVersion: CURRENT_SCHEMA_VERSION });
+  assert.doesNotThrow(() => validateLibraryDoc(out));
+});
+
+test("upcast: migration #7 tests the KEY not the kind, so an edge-free kind stays fail-closed", () => {
+  // A stray edge authored on an edge-free kind (`friction` / `open-question` / `definition` —
+  // ADR-0223 D1, ADR-0363 D1) is carried across under the NEW name and refused by the SAME validator
+  // that refused it before, rather than being silently left behind under a key nothing reads.
+  const { seeAlso: _seeAlso, ...definition } = v0DefinitionWithSeeAlso();
+  const stray = { ...definition, schemaVersion: 6, standsOn: ["asset:proof-mode"] };
+  const out = upcast(stray);
+  assert.equal("standsOn" in out, false);
+  assert.deepEqual(out["dependsOn"], ["asset:proof-mode"]);
+  assert.throws(() => validateLibraryDoc(out), "an edge on an edge-free kind is still refused");
+});
+
+test("upcast: migration #7 drops a stray legacy `standsOn` sitting beside a `dependsOn`", () => {
+  // Only hand-authoring can produce both keys; a stored row never can. Migration #1's `seeAlso`
+  // posture applies — keep the new-shape value and drop the residue, never let the old key
+  // overwrite the new one.
+  const both = v6PrincipleWithStandsOn({ dependsOn: ["asset:prove-it-gate"] });
+  const out = upcast(both);
+  assert.equal("standsOn" in out, false);
+  assert.deepEqual(out["dependsOn"], ["asset:prove-it-gate"], "the new-shape value wins");
   assert.doesNotThrow(() => validateLibraryDoc(out));
 });
 
