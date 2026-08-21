@@ -15,11 +15,35 @@ export {
 } from "./transcript-occupancy.js";
 
 export {
+  collectTranscriptFiles,
   correlateTranscripts,
   resolveTranscriptDir,
   type CorrelatedWindow,
   type TranscriptCorrelation,
 } from "./correlate-transcripts.js";
+
+export {
+  DECISION_READ_SURFACES,
+  decisionNodeIdsInPath,
+  scanTranscriptDecisionReads,
+  scrapeShellDecisionReads,
+  sessionIdFromCwd,
+  type DecisionRead,
+  type DecisionReadScan,
+  type DecisionReadShape,
+  type DeclinedShellVerb,
+  type ShellScrape,
+} from "./decision-reads.js";
+
+export {
+  DECISION_READ_COVERAGE,
+  DECISION_READ_OMISSIONS,
+  ingestDecisionReads,
+  renderDecisionReadIngest,
+  type DecisionReadIngestResult,
+  type IngestDecisionReadsArgs,
+  type IngestedDecisionSession,
+} from "./ingest-decision-reads.js";
 
 export {
   ingestTranscriptOccupancy,

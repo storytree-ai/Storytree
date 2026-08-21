@@ -79,6 +79,11 @@ export * from "./depends-on-compat.js";
 // browser-safe like its sibling; it reports its own denominators because an UNREACHABLE artifact and
 // a VERY DEEP one must never print alike. Nothing records the result and no gate enforces it.
 export * from "./knowledge-depth.js";
+// ADR-0403 dec 3 (`adrs-into-the-dag-arc` inc 09): the EDGE-RESOLUTION SEAM. The owner sequenced the
+// decisions into the graph BEFORE the storage migration, so the depth walk is built while decisions
+// are still files — and it must not learn that. One verb, `amendsOf`; no `supersedesOf` and no
+// edge-type parameter, so ADR-0403 dec 6's never-sum rule is held by the shape of the interface.
+export * from "./decision-amends-seam.js";
 // ADR-0223 dec 5's one-time seed, as a pure function: the tier order (dec 3, amended by ADR-0363 D1)
 // and the down-tier citation projection the migration applies. Pure and browser-safe apart from the
 // zod pointer check it borrows from the schema.
