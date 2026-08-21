@@ -180,6 +180,18 @@ function renderPointLine(point: PointObservability): string {
 }
 
 /**
+ * THE fact both pathway statements below rest on, extracted so there is exactly one of it.
+ *
+ * `PATHWAY_CAVEAT` and {@link REPLAY_PATHWAY_NOTE} make DIFFERENT claims — one bounds a ratio's
+ * denominator, the other bounds the whole replay — so they are legitimately worded differently. What
+ * must never drift between them is this clause, which is why it is a shared constant they both
+ * compose rather than a sentence written twice. `offer-observability-share.test.ts` asserts both
+ * carry it, so a re-wording that drops it from one reds rather than silently leaving the surfaces
+ * disagreeing about what the capture can see.
+ */
+export const FILE_READS_OBSERVE_NOTHING = "file reads observe nothing";
+
+/**
  * The pathway this whole denominator is scoped to (ADR-0360 D6), stated on the surface rather than
  * left to a reader's assumption.
  *
@@ -189,10 +201,41 @@ function renderPointLine(point: PointObservability): string {
  * surfaces, because `observeCliInvocation` is an allowlist over argv and no hook observes a file
  * read — so an agent that greps to an artifact and opens the file contributes nothing to either
  * side of this ratio. Same class of over-read as a percentage, which is why it sits here.
+ *
+ * SCOPED TO THIS BLOCK, deliberately. It qualifies "these counts", so it says nothing on a replay
+ * that recorded no offer at all and therefore renders no block — see {@link REPLAY_PATHWAY_NOTE},
+ * which is the whole-replay statement and is unconditional.
  */
 export const PATHWAY_CAVEAT =
-  "pathway — offers are recorded only where a storytree read renders them; file reads observe " +
-  "nothing, so these counts cover one pathway, not all of this session's navigation";
+  `pathway — offers are recorded only where a storytree read renders them; ${FILE_READS_OBSERVE_NOTHING}, ` +
+  "so these counts cover one pathway, not all of this session's navigation";
+
+/**
+ * What the REPLAY AS A WHOLE observes and does not — `adrs-into-the-dag-arc-inc-03`.
+ *
+ * WHY THIS EXISTS SEPARATELY FROM `PATHWAY_CAVEAT`. That caveat is the only place the codebase
+ * admits file reads are unobserved, and it is printed on the offer-observability block ALONE. Two
+ * consequences a reader cannot see: it qualifies a ratio rather than the picture, and
+ * `renderOfferObservability` returns the empty string for a replay that recorded no offer — so on
+ * exactly the sparse traces most likely to be misread as "this session read lightly", the admission
+ * is not printed at all. The replay's worst property is not that it under-reports; it is that it
+ * under-reports SILENTLY while looking complete.
+ *
+ * NO STATISTIC IS CARRIED HERE, deliberately, and this departs from the increment's own body, which
+ * asked for the measured scale (29.1% of offers being decision-record pointers; thousands of such
+ * reads sitting in host transcripts). Those are dated corpus measurements and a renderer that
+ * hard-codes one starts rotting the day it ships, which is the class of staleness this repo already
+ * pays for elsewhere. The FACT is durable and belongs here; the NUMBERS belong on the arc and its
+ * open questions, where they carry their date and population. Recorded so the deviation reads as a
+ * decision rather than an omission.
+ *
+ * Under-reporting is the accepted failure mode for this capture — which is only acceptable while it
+ * is declared, and declaring it is this constant's whole job.
+ */
+export const REPLAY_PATHWAY_NOTE =
+  "observes: storytree CLI reads only, by an allowlist whose default answer is no event; " +
+  `${FILE_READS_OBSERVE_NOTHING}, so a decision record opened from docs/decisions/ leaves no trace ` +
+  "here — this replay covers one pathway, not all of this session's navigation";
 
 /**
  * Render an `ObservabilityReport` as a plain-text block, or `""` when there are no points — no

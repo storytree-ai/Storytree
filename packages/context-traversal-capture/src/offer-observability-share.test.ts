@@ -40,7 +40,9 @@ import {
   classifyOfferObservability,
   computeOfferObservability,
   followArgvFor,
+  FILE_READS_OBSERVE_NOTHING,
   PATHWAY_CAVEAT,
+  REPLAY_PATHWAY_NOTE,
   renderOfferObservability,
 } from "./offer-observability-share.js";
 import type { OfferObservability } from "./offer-observability-share.js";
@@ -385,4 +387,34 @@ test("the-denominator-covers-exactly-the-recorded-offers-with-none-dropped-or-ad
     decisionOfferedTotal,
     "the trace-level denominator must cover exactly the offers the decision view renders",
   );
+});
+
+test("both-pathway-statements-share-one-clause: the offer caveat and the whole-replay note make different claims but cannot drift on the fact underneath them", () => {
+  // `adrs-into-the-dag-arc-inc-03`. Two surfaces state the capture's pathway limit — one bounds the
+  // offer ratio's denominator, one bounds the whole replay — so they are deliberately worded
+  // differently. The FACT under both is a single shared constant, and this test is the binding: a
+  // re-wording that drops it from either reds here rather than leaving the two surfaces quietly
+  // disagreeing about what the capture can see.
+  assert.ok(
+    PATHWAY_CAVEAT.includes(FILE_READS_OBSERVE_NOTHING),
+    "the offer-block caveat composes the shared clause",
+  );
+  assert.ok(
+    REPLAY_PATHWAY_NOTE.includes(FILE_READS_OBSERVE_NOTHING),
+    "the whole-replay note composes the same shared clause",
+  );
+
+  // They are NOT the same sentence — the whole-replay note must not be the offer caveat reprinted,
+  // because "these counts" means nothing outside the block it qualifies.
+  assert.notEqual(REPLAY_PATHWAY_NOTE, PATHWAY_CAVEAT);
+
+  // The whole-replay note carries NO statistic, deliberately: a renderer that hard-codes a dated
+  // corpus measurement starts rotting the day it ships. The numbers live on the arc, with their
+  // date and population attached.
+  assert.doesNotMatch(REPLAY_PATHWAY_NOTE, /\d/, "no figure is baked into the render");
+
+  // It says what IS observed and what is NOT — a note that named only the gap would read as a
+  // disclaimer rather than a scope.
+  assert.match(REPLAY_PATHWAY_NOTE, /storytree/i);
+  assert.match(REPLAY_PATHWAY_NOTE, /docs\/decisions/);
 });

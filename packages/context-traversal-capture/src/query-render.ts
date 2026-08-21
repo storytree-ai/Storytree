@@ -16,7 +16,11 @@ import type {
 } from "@storytree/context-traversal-telemetry";
 
 import { computeDecisionPoints, renderDecisionPoints } from "./decision-point-playback.js";
-import { computeOfferObservability, renderOfferObservability } from "./offer-observability-share.js";
+import {
+  computeOfferObservability,
+  renderOfferObservability,
+  REPLAY_PATHWAY_NOTE,
+} from "./offer-observability-share.js";
 import type { TraversalSessionSummary } from "./sink.js";
 
 /** The local envelope shape (ADR-0023): a body plus optional `next:` pointers. */
@@ -180,6 +184,23 @@ export function renderTraversalSession(
 
   lines.push(renderCapacityLine(replay.events));
   lines.push(renderCoverageBlock(replay.coverage));
+
+  // WHAT THIS PICTURE DOES AND DOES NOT OBSERVE, stated on the picture itself
+  // (`adrs-into-the-dag-arc-inc-03`). It sits beside `capacity:` and `coverage:` because those are
+  // the render's other honesty lines: what it knows about the window, what the adapter declared,
+  // and now which pathway it can see at all.
+  //
+  // UNCONDITIONAL, which is the whole point. Until now the only statement of this fact anywhere in
+  // the codebase was `PATHWAY_CAVEAT`, printed on the offer-observability block alone — so it
+  // qualified a ratio rather than the picture, AND it vanished entirely on a replay that recorded no
+  // offer, i.e. on exactly the sparse traces a reader is most likely to mistake for "this session
+  // read lightly". A picture that shows one pathway while looking complete is worse than one that
+  // shows nothing, and the accepted failure mode here is under-reporting ONLY while it is declared.
+  //
+  // Note what this does NOT do: it states what the replay observes, it does not redraw it. The
+  // drawn grammar (ADR-0354) and every verbatim-pinned event line are untouched — this is a header
+  // line, appended for the same reason the decision and observability blocks are appended.
+  lines.push(REPLAY_PATHWAY_NOTE);
 
   lines.push("");
   lines.push("visits:");

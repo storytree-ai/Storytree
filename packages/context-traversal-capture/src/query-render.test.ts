@@ -20,6 +20,7 @@ import { test } from "node:test";
 import { createContextTraversalTrace, CoverageFeature } from "@storytree/context-traversal-telemetry";
 
 import type { TraversalSessionSummary } from "./sink.js";
+import { REPLAY_PATHWAY_NOTE } from "./offer-observability-share.js";
 import { renderTraversalSessions, renderTraversalSession } from "./query-render.js";
 
 test("session-list-is-newest-first-with-counts: the session index orders newest-observed first with counts, and an empty index renders without error", () => {
@@ -252,4 +253,58 @@ test("a-partial-replay-states-its-skipped-count: a non-zero skipped count render
   const noSkips = renderTraversalSession(replay, { skipped: 0 });
   assert.equal(noSkips.ok, true);
   assert.doesNotMatch(noSkips.body, /skip/i);
+});
+
+test("the-replay-states-its-own-pathway-even-with-no-offers: the whole-picture observability note renders unconditionally, including on the sparse traces the old block-scoped caveat went silent on", () => {
+  // `adrs-into-the-dag-arc-inc-03`. Before this, the only statement anywhere that file reads are
+  // unobserved was `PATHWAY_CAVEAT`, printed on the offer-observability block — and
+  // `renderOfferObservability` returns the empty string when a replay recorded no offer. So on
+  // exactly the sparse traces most likely to be misread as "this session read lightly", the
+  // admission was absent. This fixture is that trace: one visit, zero offers.
+  const sessionId = "session-no-offers";
+  const trace = createContextTraversalTrace();
+  trace.declareCoverage({
+    adapterId: "pathway-fixture-adapter",
+    supported: [],
+    omitted: CoverageFeature.options,
+  });
+  trace.append({
+    kind: "front_matter_read",
+    eventId: "event:pathway-visit",
+    sessionId,
+    at: "2026-08-21T00:00:00.000Z",
+    visitId: "pathway-visit",
+    nodeId: "node-pathway",
+    surfaceId: "surface-pathway",
+  });
+
+  const replay = trace.replay(sessionId);
+  const result = renderTraversalSession(replay, { skipped: 0 });
+  assert.equal(result.ok, true);
+
+  // the precondition this test exists for: no offer block renders at all
+  assert.equal(
+    result.body.includes("pathway — offers are recorded"),
+    false,
+    "the block-scoped caveat is genuinely absent on this replay",
+  );
+
+  // ...and the whole-picture note is present anyway
+  assert.ok(
+    result.body.includes(REPLAY_PATHWAY_NOTE),
+    "the replay states what it does and does not observe, with no offer block to carry it",
+  );
+
+  // it sits with the render's other honesty lines rather than trailing the event list, so a reader
+  // meets the scope before the contents
+  const lines = result.body.split("\n");
+  const noteLine = lines.findIndex((line) => line === REPLAY_PATHWAY_NOTE);
+  const visitsLine = lines.findIndex((line) => line === "visits:");
+  assert.ok(noteLine >= 0 && visitsLine >= 0);
+  assert.ok(noteLine < visitsLine, "the pathway note precedes the event list");
+
+  // and it never displaces what was already there
+  assert.ok(result.body.includes("node-pathway"), "the events still render");
+  assert.match(result.body, /capacity:/);
+  assert.match(result.body, /coverage:/);
 });
