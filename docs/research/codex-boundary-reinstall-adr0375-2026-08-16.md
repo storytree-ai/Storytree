@@ -1,5 +1,12 @@
 # Re-installing the Codex boundary so ADR-0375 is in force, and re-measuring the fence
 
+> **HISTORICAL RECORD — not instruction.** ADR-0390 (2026-08-20) withdrew the managed Codex
+> containment boundary, and the `codex-retire-the-containment-machinery` increment deleted the
+> code this document describes. Its §8 install commands drive a generator that no longer exists — running them installs nothing.
+> Kept as the record of how the boundary was built and measured. Do not follow its procedures.
+> Current state: `storytree arc show codex-factory-parity-arc --pg`, and the journey survey at
+> `docs/research/codex-onboarding-journey-survey-2026-08-22.md`.
+
 **Date:** 2026-08-16 · **Arc:** `codex-factory-parity-arc` ·
 **Increment:** `codex-reinstall-the-boundary-so-adr0375-is-in-force` ·
 **Decisions:** ADR-0355, ADR-0364, ADR-0368, ADR-0375
