@@ -9,10 +9,16 @@
 // gate launch of the day, which is why the remedy is code (ADR-0352: fix the write, do not detect
 // the outcome — there is no pipe detector here and nothing for an honest caller to override).
 //
+// NOTHING HERE MEASURES SPEED, AND THAT IS DELIBERATE (see the constants below). The first version
+// of this file asserted the launcher returned inside 3s for a 4s job; on a box carrying a sibling's
+// gate it took 3409 ms and redded the whole test leg for a launcher that was working correctly. The
+// job now blocks on a release file the test writes only after the launcher has returned, so the
+// claim "it returned while the job was still running" is true or false regardless of load.
+//
 // WHAT THESE TESTS PIN, AND WHY EACH ONE IS NEEDED.
-//  - The launcher returns BEFORE the job does, and the job SURVIVES its exit. That pair is the
-//    detach; either half alone is satisfiable by a broken implementation (a launcher that returns
-//    early having killed the child, or one that waits and reports faithfully).
+//  - The launcher returns WHILE THE JOB IS STILL RUNNING, and the job SURVIVES its exit. That pair
+//    is the detach; either half alone is satisfiable by a broken implementation (a launcher that
+//    returns early having killed the child, or one that waits and reports faithfully).
 //  - A PIPE on the launcher's stdout changes neither half. This is the regression that actually
 //    happened, so it is asserted directly rather than inferred from the spawn options.
 //  - The exit code is the LAUNCH's, not the job's. A launcher cannot report a verdict it returns
@@ -31,7 +37,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -43,10 +49,47 @@ const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
 const launcher = path.join(repoRoot, "scripts", "gate-bg.mjs");
 const bash = resolveRepoBash();
 
-/** How long the dispatched job sleeps before exiting. Long enough that "returned first" is not luck. */
-const JOB_SECONDS = 4;
-/** The launcher must return well inside this. It does no work beyond one spawn. */
-const LAUNCH_CEILING_MS = 3000;
+/**
+ * THE DISPATCHED JOB BLOCKS ON A FILE, IT DOES NOT SLEEP — and that is the whole point.
+ *
+ * This test's claim is "the launcher returned while the job was STILL RUNNING". Expressed as a
+ * clock — the job sleeps 4s, the launcher must return inside 3s — that claim is a statement about
+ * how loaded the box is, not about the launcher. It failed exactly that way: a sibling's gate was
+ * running, the launcher took **3409 ms**, and the assertion redded the whole `pnpm -r --no-bail
+ * test` leg with `the launcher must return at once; it took 3409ms for a 4s job`. Re-run under the
+ * same load it failed again; re-run once the box was quiet it passed. A test that reports the box's
+ * load as a defect in the code is worse than no test, because the false red costs a session a
+ * diagnosis and a full re-run.
+ *
+ * So the job now waits for a RELEASE FILE the test writes only AFTER the launcher has returned.
+ * The job therefore cannot finish first, whatever the box is doing, and "the sentinel does not
+ * exist yet" becomes a load-independent proof rather than a race the fast machine happens to win.
+ * Raising the constant was the obvious move and the wrong one: it re-tunes a threshold that drifts
+ * again under heavier load, and every raise makes the test prove less.
+ */
+const RELEASE_POLL_TICKS = 100; // 100 x 0.2s = a 20s self-release, so a deadlock FAILS on the
+// meaningful assertion (the sentinel already exists) rather than on the backstop clock.
+
+/**
+ * The one remaining clock, and it is a DEADLOCK BACKSTOP rather than a performance assertion.
+ *
+ * The pre-change launcher blocked until its child exited; against a release-gated job that is a
+ * deadlock, and a hanging test is a worse red anchor than a failing one. 30s is two orders of
+ * magnitude above the ~1s the launcher takes and ~10x the worst figure ever observed under load,
+ * so it cannot fire on a busy box — it fires only when the launcher genuinely waits for the job.
+ */
+const DEADLOCK_BACKSTOP_MS = 30_000;
+
+/** The job: block until the release file appears, then exit with `code`. Never a sleep. */
+function releaseGatedJob(releasePath: string, code: number): string[] {
+  // Forward slashes: this string is read by `sh`, which does not want Windows separators.
+  const release = releasePath.split(path.sep).join("/");
+  return [
+    "sh",
+    "-c",
+    `i=0; while [ ! -f "${release}" ] && [ $i -lt ${String(RELEASE_POLL_TICKS)} ]; do i=$((i+1)); sleep 0.2; done; exit ${String(code)}`,
+  ];
+}
 
 /**
  * AWAITS the body before cleaning up, and that `await` is load-bearing rather than tidy.
@@ -78,30 +121,36 @@ async function awaitSentinel(exitFile: string, budgetMs = 30_000): Promise<strin
   return null;
 }
 
-test("the launcher returns before the job does, and the job survives its exit", async () => {
+test("the launcher returns WHILE THE JOB IS STILL RUNNING, and the job survives its exit", async () => {
   await withTempDir(async (dir) => {
     const log = path.join(dir, "run.log");
+    const release = path.join(dir, "release");
     const started = Date.now();
-    const res = spawnSync(
-      process.execPath,
-      [launcher, "sh", "-c", `sleep ${String(JOB_SECONDS)}; exit 7`],
-      { encoding: "utf8", env: { ...process.env, GATE_BG_LOG: log }, cwd: repoRoot },
-    );
+    const res = spawnSync(process.execPath, [launcher, ...releaseGatedJob(release, 7)], {
+      encoding: "utf8",
+      env: { ...process.env, GATE_BG_LOG: log },
+      cwd: repoRoot,
+    });
     const elapsed = Date.now() - started;
 
     assert.equal(res.error, undefined, `spawning the launcher failed: ${String(res.error)}`);
     assert.ok(
-      elapsed < LAUNCH_CEILING_MS,
-      `the launcher must return at once; it took ${String(elapsed)}ms for a ${String(JOB_SECONDS)}s job`,
+      elapsed < DEADLOCK_BACKSTOP_MS,
+      `the launcher waited for its child rather than detaching (${String(elapsed)}ms)`,
     );
-    // The other half of the same claim: it returned early because it DETACHED, not because it
-    // killed the child. A launcher that returned early having killed the job would pass the line
-    // above and fail here.
+
+    // THE LOAD-INDEPENDENT CLAIM. The job cannot have finished, because nothing has released it
+    // yet — so a sentinel here means the launcher blocked until its child exited. No clock is
+    // involved, and a busy box cannot change the answer.
     assert.equal(
       existsSync(`${log}.exit`),
       false,
-      "the job cannot already be finished — the launcher returned first",
+      "the launcher returned while the job was still running",
     );
+
+    // …and it returned early because it DETACHED, not because it killed the child: released now,
+    // the job runs to completion and writes its own status.
+    writeFileSync(release, "");
     assert.equal(await awaitSentinel(`${log}.exit`), "7", "the detached job ran to completion");
   });
 });
@@ -130,22 +179,27 @@ test("a PIPE on the launcher's stdout no longer holds the run — the measured r
   // in the foreground for the full job (measured: the whole 600s tool ceiling for a real gate).
   await withTempDir(async (dir) => {
     const log = path.join(dir, "run.log");
+    const release = path.join(dir, "release");
+    const [, , jobScript] = releaseGatedJob(release, 3);
     const started = Date.now();
     const res = spawnSync(
       bash,
-      [
-        "-c",
-        `"${process.execPath}" "${launcher}" sh -c "sleep ${String(JOB_SECONDS)}; exit 3" 2>&1 | tail -2`,
-      ],
+      ["-c", `"${process.execPath}" "${launcher}" sh -c '${String(jobScript)}' 2>&1 | tail -2`],
       { encoding: "utf8", env: { ...process.env, GATE_BG_LOG: log }, cwd: repoRoot },
     );
     const elapsed = Date.now() - started;
 
     assert.equal(res.error, undefined, `spawning bash failed: ${String(res.error)}`);
     assert.ok(
-      elapsed < LAUNCH_CEILING_MS,
-      `a piped launch must still return at once; it took ${String(elapsed)}ms`,
+      elapsed < DEADLOCK_BACKSTOP_MS,
+      `a piped launch held the run until its child exited (${String(elapsed)}ms)`,
     );
+    assert.equal(
+      existsSync(`${log}.exit`),
+      false,
+      "the piped launch returned while the job was still running",
+    );
+    writeFileSync(release, "");
     assert.equal(
       await awaitSentinel(`${log}.exit`),
       "3",
