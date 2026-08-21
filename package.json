@@ -26,6 +26,7 @@
     "check:verification-decay": "pnpm --filter @storytree/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-verification-decay.ts",
     "check:library-dag-acyclic": "pnpm --filter @storytree/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-library-dag-acyclic.ts",
     "probe:depth-from-work": "pnpm --filter @storytree/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/probe-depth-from-work.ts",
+    "probe:adr-graph": "pnpm --filter @storytree/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/probe-adr-graph.ts",
     "standson:bootstrap": "pnpm --filter @storytree/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/standson-bootstrap.ts",
     "check:web-grounding": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-web-grounding.ts",
     "check:web-experience-closure": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-web-experience-closure.ts",
@@ -44,5 +45,10 @@
     "studio:down": "node scripts/studio.mjs down",
     "studio:status": "node scripts/studio.mjs status",
     "desktop:start": "pnpm --filter desktop start"
+  },
+  "pnpm": {
+    "patchedDependencies": {
+      "node-pty@1.1.0": "patches/node-pty@1.1.0.patch"
+    }
   }
 }

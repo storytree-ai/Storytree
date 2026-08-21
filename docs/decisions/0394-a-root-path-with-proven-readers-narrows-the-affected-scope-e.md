@@ -66,10 +66,13 @@ re-probe was necessary rather than tidy.
 `ROOT_PATH_READERS`, an explicit list of root-path prefixes mapped to the workspace projects whose
 test suites read them. A changed file outside the workspace graph that matches an entry selects that
 entry's projects (plus their dependents, which is pnpm's `--filter ...<name>` job) instead of forcing
-the full run. It carries one entry today: `docs/decisions/` → `@storytree/cli`, `@storytree/drive`.
+the full run. It carried ONE entry when this ADR landed, `docs/decisions/` → `@storytree/cli`, `@storytree/drive`; ADR-0399 widened it to eleven on the same evidence standard, including the guidance projections (`CLAUDE.md`, `AGENTS.md` and the five harness agent directories), which select `@storytree/cli` alone.
 
 **D2 — everything else is unchanged, and that is most of the classifier.** A root path with no
-measured reader set is not in the map and still forces `mode=full`: `stories/**`, `scripts/**`,
+measured reader set is not in the map and still forces `mode=full`. (`stories/**` was among the
+examples here until ADR-0399 measured it and added it; the rule it illustrates is unchanged, and
+`scripts/**` is now the better example — it WAS measured, and it is read by 25 of 25 projects, so it
+stays wide on evidence rather than for want of it.) `scripts/**`,
 `.github/**`, `docs/` outside `docs/decisions/`, the lockfile, root tsconfig, `CLAUDE.md`, the `web`
 gitlink. So do any `package.json`, `apps/studio/data/**`, a file under `packages/`/`apps/` owned by
 no project, an empty change set, and an unreadable `origin/main`. This is an exception to the ANSWER
@@ -89,7 +92,7 @@ the one path that now narrows, and a local gate that runs MORE than CI is the fa
 because it never reds anything.
 
 **D5 — adding an entry costs a measurement, not an argument.** Extending the map to another root path
-(`stories/**` is the obvious candidate, and is NOT done here) is an amendment to this ADR and
+(`stories/**` was the obvious candidate named here, and ADR-0399 did it) is an amendment to this ADR and
 requires re-running the fs-level probe for that path. If a path's readers cannot be established
 mechanically, it stays fail-wide — that is a result, not a failure.
 
@@ -117,6 +120,13 @@ implies. The reason is that gate cost is not spread across the workspace, it is 
 is **225.5s (20%)**, so two projects are 64% of the bill. `cli` is a reader by construction — it owns
 `adr-health` — so a decision-only diff can never drop the single most expensive suite, and `capture`
 rides in as a dependent of `@storytree/drive`. The 16 projects this removes are the cheap leaves.
+
+**The per-project shares above were RE-MEASURED and moved — the concentration claim survives, the
+numbers do not.** On 2026-08-21, after this arc's increment 4 landed: `packages/cli` 34.7% (not 44%),
+`packages/drive` 18.6% (not named here at all), `apps/studio` 19.0%, `context-traversal-capture`
+10.2% (not 20%). Read the shape, never these figures — a reader planning work off the stale pair
+would aim at the wrong target, which is exactly what this section warns against one paragraph up.
+ADR-0399 carries the current table.
 
 That is a real saving and it is paid on every decision-bearing branch and every PR, so it is worth
 landing. But anyone reading this as "an ADR edit is now nearly free" has read it wrong, and anyone

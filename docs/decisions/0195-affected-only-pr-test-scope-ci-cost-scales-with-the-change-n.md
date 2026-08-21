@@ -59,12 +59,16 @@ declared dependency edge, which pnpm's graph cannot see —
    filtering is deliberately NOT used, so the classifier and the selection can never disagree
    about what changed.
 3. **Conservative classification — the FULL `-r` run fires when ANY changed file is:**
-   (a) outside `packages/*` / `apps/*` — `stories/**`, `scripts/**`, `.github/**`,
-   `pnpm-lock.yaml`, root `package.json`/tsconfig, `CLAUDE.md`, `.claude/**`, the `web` gitlink —
-   the paths the trap suites read. **`docs/decisions/**` is NO LONGER in this list**: ADR-0394 took
-   the amendment rule below and narrowed that one path to its MEASURED readers (`@storytree/cli`
-   and `@storytree/drive`, plus dependents). Every other root path here is unchanged and still
-   fires FULL;
+   (a) outside `packages/*` / `apps/*` — `scripts/**`, `.github/**`, `infra/**`, `pnpm-lock.yaml`,
+   root `package.json`/tsconfig, `tsconfig.base.json`, the `web` gitlink — the paths the trap suites
+   read. **The MEASURED reader map is carved out of this clause and is now eleven paths, not one**:
+   ADR-0394 took the amendment rule below and narrowed `docs/decisions/**` to `@storytree/cli` +
+   `@storytree/drive`; ADR-0399 widened it with the same probe to `docs/`, `stories/**`, and the
+   guidance-projection group (`CLAUDE.md`, `AGENTS.md`, `.claude/agents/**`, `.claude/**`,
+   `.codex/**`, `.cursor/**`, `.gemini/**`, `.opencode/**`), which selects `@storytree/cli` alone.
+   Every root path still listed here is unchanged and still fires FULL — `scripts/**` notably so ON
+   EVIDENCE rather than for want of it: it was measured, and all 25 test scripts preload
+   `scripts/tsx-cache-off.mjs`;
    (b) under `apps/studio/data/**` — the corpus seed read across package boundaries;
    (c) any `package.json` — workspace manifests are the selection graph's own inputs;
    (d) inside `packages/`/`apps/` but mapping to no known workspace project (conservative
@@ -73,7 +77,12 @@ declared dependency edge, which pnpm's graph cannot see —
    this ADR, never a quiet edit — every FULL trigger is pinned red→green in `ci-affected.test.ts`.
    [ADR-0394](0394-a-root-path-with-proven-readers-narrows-the-affected-scope-e.md) is the first
    such amendment, and it adds one condition this clause did not state: the refinement costs a
-   MEASUREMENT, not an argument. The reader set is established by instrumenting `node:fs` across a
+   MEASUREMENT, not an argument.
+   [ADR-0399](0399-the-reader-map-covers-the-guidance-projections-and-a-zero-re.md) is the second,
+   and it adds a second condition: the measurement must be read as WORK, not as project count — its
+   own census found that narrowing `stories/**` to its seven measured readers still buys 95.6% of
+   the test work, while the guidance projections buy 34.7%. An entry is worth adding when it removes
+   work or removes unrelated ways to go red, never because the reader count looks small. The reader set is established by instrumenting `node:fs` across a
    full `-r` test run, because the guess in this ADR's own Context — that `docs/decisions/**` is
    read by the adr-health gates — was incomplete, and a grep would have under-selected.
 4. **Fail-open to FULL, fail-visible otherwise:** not a PR event, HEAD not a merge commit, git

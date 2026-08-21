@@ -164,8 +164,12 @@ not silently delete a policy check.
 - ADR-0195 §5 — the dispatched full-suite backstop that ADR-0362 D1 read to decide D3.
 - ADR-0394 — amends this ADR: D1 still scopes to the changed packages plus dependents, but a root
   path whose test-time readers have been MEASURED now narrows to those readers instead of forcing
-  the full run (`docs/decisions/` is the first and, so far, only such path). D2 is untouched and is
-  what makes that narrowing land on both surfaces at once.
+  the full run (`docs/decisions/` was the first such path). D2 is untouched and is what makes that
+  narrowing land on both surfaces at once.
+- ADR-0399 — amends ADR-0394 in turn, widening the map from one path to eleven on the same probe.
+  The entry that matters most here is the guidance-projection group, which selects `@storytree/cli`
+  alone — and D2 is why the LOCAL gate narrows with CI rather than staying wide, quietly costing more
+  than CI while proving the same thing.
 - `merge-queue-release-claims-then-flip` — the increment that carried D3's prerequisite and the flip;
   closed unflipped by ADR-0362 D1.
 - `package.json` — `gate` and `ci:affected`; the asymmetry D1/D2 close.

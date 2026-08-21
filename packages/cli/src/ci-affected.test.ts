@@ -16,10 +16,14 @@ import {
 
 /** A representative workspace slice — names/dirs mirror the real repo shape. */
 const PROJECTS: WorkspaceProject[] = [
+  { name: "@storytree/app-surface", dir: "packages/app-surface" },
   { name: "@storytree/cli", dir: "packages/cli" },
+  { name: "@storytree/context-traversal-capture", dir: "packages/context-traversal-capture" },
   { name: "@storytree/drive", dir: "packages/drive" },
   { name: "@storytree/forest-world", dir: "packages/forest-world" },
   { name: "@storytree/library", dir: "packages/library" },
+  { name: "@storytree/model-uat-pilot", dir: "packages/model-uat-pilot" },
+  { name: "@storytree/orchestrator", dir: "packages/orchestrator" },
   { name: "desktop", dir: "apps/desktop" },
   { name: "studio", dir: "apps/studio" },
 ];
@@ -53,15 +57,14 @@ test("windows separators and ./ prefixes normalise before mapping", () => {
 // ── FULL triggers: everything the pnpm graph cannot see ─────────────────────
 
 for (const [file, why] of [
-  ["stories/approval-gated-trunk/story.md", "stories/** feeds cli's validate-corpus + drive's node-build tests"],
-  ["docs/research/agentic-foundation-survey.md", "docs/** outside the reader map is unmapped"],
   ["pnpm-lock.yaml", "the lockfile is a repo-wide input"],
   ["pnpm-workspace.yaml", "the workspace globs define the graph"],
   [".github/workflows/ci.yml", "the workflow defines the gate itself"],
   ["scripts/check-manifest.mjs", "root scripts are repo-wide inputs"],
   ["tsconfig.base.json", "shared tsconfig is a repo-wide input"],
-  ["CLAUDE.md", "root docs are outside the graph"],
   ["web", "the web submodule gitlink is outside the graph"],
+  ["README.md", "a root file with no measured reader stays wide — the map is opt-in, never a default"],
+  ["infra/install.ps1", "infra/** WAS measured (cli + library) and deliberately left unmapped — 13 touches in 800 commits does not earn the staleness risk"],
 ] as const) {
   test(`root-path change → FULL (${why})`, () => {
     const scope = classifyChangedFiles([file, "packages/library/src/schema.ts"], PROJECTS);
@@ -158,11 +161,135 @@ test("a decision file mixed with package files unions both — narrowing never d
   assert.match(scope.reason, /via the root-path reader map/);
 });
 
-test("the map matches a DIRECTORY, not a string prefix — every other docs path still fails wide", () => {
+test("LONGEST prefix wins: docs/decisions/ keeps its own two readers, and its NEIGHBOURS do not inherit them", () => {
+  // `docs/` is mapped too now, so the old "everything else under docs fails wide" assertion no
+  // longer states the property that matters. What still must hold is that `docs/decisions/` is a
+  // DIRECTORY match and that the DEEPER entry wins: `docs/decisions-archive/` is a different
+  // directory whose name merely starts the same way, and it must take the wider `docs/` reader set
+  // — never the ADR one, which would be an under-selection dressed up as a narrowing.
+  const adr = classifyChangedFiles(["docs/decisions/0394-x.md"], PROJECTS);
+  assert.deepEqual(adr.mode === "affected" ? adr.projects : [], [
+    "@storytree/cli",
+    "@storytree/drive",
+  ]);
   for (const file of ["docs/decisions-archive/x.md", "docs/research/survey.md", "docs/glossary.md"]) {
+    const scope = classifyChangedFiles([file], PROJECTS);
+    assert.equal(scope.mode, "affected", file);
+    assert.deepEqual(
+      scope.mode === "affected" ? scope.projects : [],
+      ["@storytree/app-surface", "@storytree/cli", "@storytree/drive"],
+      `${file} must take the docs/ reader set, not the docs/decisions/ one`,
+    );
+  }
+});
+
+// ── ADR-0399: the widened map ────────────────────────────────────────────────
+
+test("THE PRIZE: a guidance-regeneration diff selects ONE project", () => {
+  // CLAUDE.md + AGENTS.md + all five harness agent directories move together every time an agent
+  // artifact is edited — 611 path-touches across 800 commits, the commonest non-package change
+  // shape in the repo — and every one of them bought all 26 projects until these entries existed.
+  // cli alone is 34.7% of the summed test work, so this is roughly 65% off the leg.
+  const scope = classifyChangedFiles(
+    [
+      "CLAUDE.md",
+      "AGENTS.md",
+      ".claude/agents/planner.md",
+      ".codex/agents/planner.toml",
+      ".cursor/agents/planner.md",
+      ".gemini/agents/planner.md",
+      ".opencode/agent/planner.md",
+      "packages/cli/definitions.generated.json",
+    ],
+    PROJECTS,
+  );
+  assert.equal(scope.mode, "affected");
+  assert.deepEqual(scope.mode === "affected" ? scope.projects : [], ["@storytree/cli"]);
+  assert.equal(pnpmArgsFor(scope), "--filter ...@storytree/cli");
+});
+
+test("an EXACT-file entry is not a string prefix — CLAUDE.md.bak inherits nothing", () => {
+  // `CLAUDE.md` carries no trailing slash, so it must match that path and no other. A `startsWith`
+  // would hand any `CLAUDE.md*` sibling a reader set nobody measured for it.
+  const mapped = classifyChangedFiles(["CLAUDE.md"], PROJECTS);
+  assert.deepEqual(mapped.mode === "affected" ? mapped.projects : [], ["@storytree/cli"]);
+  for (const file of ["CLAUDE.md.bak", "CLAUDE.md.orig", "AGENTS.md.rej"]) {
     const scope = classifyChangedFiles([file], PROJECTS);
     assert.equal(scope.mode, "full", file);
     assert.match(scope.reason, /outside the workspace dependency graph/);
+  }
+});
+
+test(".claude/agents/ is narrower than .claude/, and the deeper entry wins", () => {
+  const agents = classifyChangedFiles([".claude/agents/explorer.md"], PROJECTS);
+  assert.deepEqual(agents.mode === "affected" ? agents.projects : [], ["@storytree/cli"]);
+  // …while settings.json takes the wider set, because drive's suites read it too.
+  const settings = classifyChangedFiles([".claude/settings.json"], PROJECTS);
+  assert.deepEqual(settings.mode === "affected" ? settings.projects : [], [
+    "@storytree/cli",
+    "@storytree/drive",
+  ]);
+});
+
+test("a story-only diff narrows to the seven measured readers — and still runs validate-corpus's owner", () => {
+  // The negative that matters here is the mirror of the ADR one: `stories/**` is guarded by cli's
+  // validate-corpus, so cli must be selected AND must survive into the real filter chain.
+  const scope = classifyChangedFiles(["stories/ci-cd/green-gate.md"], PROJECTS);
+  assert.equal(scope.mode, "affected");
+  assert.deepEqual(scope.mode === "affected" ? scope.projects : [], [
+    "@storytree/cli",
+    "@storytree/context-traversal-capture",
+    "@storytree/drive",
+    "@storytree/library",
+    "@storytree/model-uat-pilot",
+    "@storytree/orchestrator",
+    "studio",
+  ]);
+  assert.match(pnpmArgsFor(scope), /--filter \.\.\.@storytree\/cli(\s|$)/);
+});
+
+test("EVERY map entry fails WIDE when one of its readers is absent, not just the ADR one", () => {
+  // The stale-map hazard applies to all eleven entries, and a test pinning only the first would let
+  // a later entry narrow to a ghost. Each entry is exercised through a file it governs.
+  const governed: readonly (readonly [file: string, missing: string])[] = [
+    ["docs/decisions/0394-x.md", "@storytree/drive"],
+    ["docs/research/x.md", "@storytree/app-surface"],
+    ["stories/x/story.md", "@storytree/orchestrator"],
+    ["CLAUDE.md", "@storytree/cli"],
+    [".claude/agents/x.md", "@storytree/cli"],
+    [".claude/settings.json", "@storytree/drive"],
+    [".codex/agents/x.toml", "@storytree/cli"],
+  ];
+  for (const [file, missing] of governed) {
+    const shrunk = PROJECTS.filter((p) => p.name !== missing);
+    const scope = classifyChangedFiles([file], shrunk);
+    assert.equal(scope.mode, "full", `${file} must fail wide when ${missing} is gone`);
+    assert.match(scope.reason, /absent from this workspace/);
+  }
+});
+
+test("no entry can render an EMPTY scope — the map only ever selects at least one project", () => {
+  // A path measured to have zero readers is mapped UP to its writer, never down to an empty list.
+  // An empty scope would be a SECOND terminal state that runs nothing, and its failure mode is a
+  // branch gating green having tested nothing. This asserts the property rather than the policy, so
+  // a future entry written with `projects: []` reds right here.
+  for (const file of [
+    "docs/decisions/x.md",
+    "docs/x.md",
+    "stories/x/story.md",
+    "CLAUDE.md",
+    "AGENTS.md",
+    ".claude/agents/x.md",
+    ".claude/settings.json",
+    ".codex/x.toml",
+    ".cursor/x.md",
+    ".gemini/x.md",
+    ".opencode/agent/x.md",
+  ]) {
+    const scope = classifyChangedFiles([file], PROJECTS);
+    assert.equal(scope.mode, "affected", file);
+    assert.ok(scope.mode === "affected" && scope.projects.length > 0, `${file} selected nothing`);
+    assert.notEqual(pnpmArgsFor(scope), "-r", `${file} fell back to the full run`);
   }
 });
 
