@@ -172,6 +172,10 @@ export const LITERAL_FLAGS: ReadonlySet<string> = new Set([
   "min-turns",
   "started-after",
   "started-before",
+  // `dispatch <handle> --wait --timeout <seconds>` — a whole-second bound on how long the wait
+  // blocks (ADR-0397 D4). A number the waiter parses and refuses if malformed; never stored into
+  // an artifact, so it cannot corrupt a durable record.
+  "timeout",
 ]);
 
 /** A `@path` value that could not be read — the refusal the boundary returns instead of storing it. */

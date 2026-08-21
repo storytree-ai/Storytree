@@ -310,9 +310,16 @@ correction it licenses must be reverted with it. The probes are cheap and the pr
 - `scripts/gate-bg.sh` (l.50-55, l.70) · `scripts/gate-bg.mjs` · `packages/cli/src/gate-bg.test.ts` —
   the DISPATCH half: an arbitrary command backgrounded, a pre-choosable log path, and the gate-tested
   `.exit` sentinel carrying the command's own status.
+- **ADR-0397 amends this one on the dispatch half.** `scripts/gate-bg.mjs` now DETACHES the run and
+  returns at once, so D2's "dispatch it with the background affordance first" holds without the
+  caller arranging it — and its own exit code reports the LAUNCH rather than the job. Everything this
+  ADR rests on is unchanged: `gate-bg.sh`, `GATE_BG_LOG`, and the `${PIPESTATUS[0]}` sentinel are
+  untouched, and the handle is still the printed (log, exit-file) pair.
 - `packages/cli/src/dispatch-handle.ts` (+ `.test.ts`) · `packages/cli/src/dispatch-command.ts` — the
   READ half, `storytree dispatch <handle>`: the D3 handback made first-class, with `isVerdict` as the
   single predicate that keeps `RUNNING` / `UNVERIFIED` from ever being cited as an outcome.
+  `packages/cli/src/dispatch-wait.ts` (ADR-0397) adds the BOUNDED wait D2 permits but named no verb
+  for — the same reader, held open on the sentinel, exiting with the job's own status.
 - `friction-background-subagent-reports-route-to-main` · `friction-builder-agents-stall-awaiting-background-gate`
   · `friction-subagent-parks-awaiting-dead-subspawn` — the July-2026 evidence, re-explained rather
   than refuted by D1.
