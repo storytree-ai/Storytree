@@ -28,6 +28,7 @@
 
 import type { StoreEvent } from "@storytree/storage-protocol";
 import type {
+  ReliabilityGate,
   UatTestCriterion,
   UatTestCriterionWitness,
   UatWitnessCensusStory,
@@ -36,6 +37,7 @@ import {
   UAT_TEST_CRITERION_WITNESSES,
   censusUatWitnesses,
   recomputeUatRevisionIds,
+  resolveWitness,
 } from "@storytree/library";
 import {
   checkUatProof,
@@ -75,6 +77,12 @@ export interface UatDeps {
   store: UatVerdictStoreLike | null;
   /** A story's declared UAT test criteria (parsed from its `## UAT Test Criteria` prose). Injected for tests. */
   loadUatTestCriteria: (storyId: string) => UatTestCriterion[];
+  /**
+   * A story's declared `## Reliability Gates` — read ONLY to resolve which verb actually proves a
+   * given leg (ADR-0405 D5), never to sign anything. Without it this surface offered `uat attest`
+   * for a machine leg, a command its own witness guard refuses by construction (ADR-0082 d.2).
+   */
+  loadReliabilityGates: (storyId: string) => ReliabilityGate[];
   /** The session repo's HEAD + clean-tree state; null when git can't answer (attest then refuses). */
   gitState: () => GitState | null;
   /** The session/agent identity, fed to {@link checkUatProof} as the no-self-attest guard. */
@@ -123,6 +131,48 @@ function provenGlyph(
   if (status === "healthy") return "✓";
   if (status === "unhealthy") return "✗";
   return "–";
+}
+
+/**
+ * What actually PROVES this leg (ADR-0405 D5) — the verb to point a reader at, resolved from the
+ * leg's own witness and its exact `(proof-gate:)` binding, never assumed.
+ *
+ * The surface used to end every `uat list` with `uat attest <first criterion>` whatever its witness,
+ * and to answer a machine refusal with `node build --real`. Both are wrong for the commonest leg in
+ * the corpus: an observe-bound machine leg is signed by the ADOPT run (`runAdopt`'s machine-leg
+ * loop is the only code that mints a criterion verdict), and `uat attest` refuses it by construction
+ * (ADR-0082 d.2). A leg with no usable binding gets NO signing command at all — naming one would
+ * send the reader at a command that cannot succeed until the story is re-authored.
+ */
+export type UatProvingRoute =
+  | { kind: "human"; command: string }
+  | { kind: "adopt"; command: string }
+  | { kind: "build-gate"; command: string }
+  | { kind: "unprovable"; reason: string };
+
+export function resolveProvingRoute(
+  storyId: string,
+  leg: UatTestCriterion,
+  gates: readonly ReliabilityGate[],
+): UatProvingRoute {
+  const resolved = resolveWitness(leg, gates);
+  if (resolved.witness === "human") {
+    return {
+      kind: "human",
+      command: `storytree uat attest ${storyId} ${leg.criterionId} --outcome pass --pg`,
+    };
+  }
+  if (resolved.coverage === "observe") {
+    // The adopt RUN is the only path that signs a machine leg's criterion verdict, and it accepts
+    // any `mapped`/`proposed` story — no separate verb, and no brownfield precondition beyond that.
+    return { kind: "adopt", command: `storytree adopt ${storyId} --pg` };
+  }
+  // A `build-tests` binding is earned by a genuine red→green through the gate, never observe-and-sign.
+  const bound = leg.proofGateId === undefined ? undefined : gates.find((g) => g.id === leg.proofGateId);
+  if (bound !== undefined && bound.kind === "build-tests") {
+    return { kind: "build-gate", command: `storytree build gate ${bound.id} --real --pg` };
+  }
+  return { kind: "unprovable", reason: resolved.reason };
 }
 
 /** Render the story's own UAT roll-up as a human line (ADR-0082 d.3 — the AND over per-test verdicts). */
@@ -384,20 +434,36 @@ async function uatList(storyId: string | undefined, deps: UatDeps): Promise<Enve
       ? "story UAT: (proven state needs the live store — re-run with --pg)"
       : `story UAT: ${rollupLine(tests, events)}`,
   );
+  // ADR-0405 D5: resolve what actually proves each leg before offering ANY next step. The old
+  // unconditional `uat attest <tests[0]>` was refused by construction whenever leg 1 was `machine`.
+  const gates = deps.loadReliabilityGates(storyId);
+  const routes = tests.map((t) => ({ leg: t, route: resolveProvingRoute(storyId, t, gates) }));
+  const unprovable = routes.filter((r) => r.route.kind === "unprovable");
+  if (unprovable.length > 0) {
+    lines.push(
+      "",
+      `${unprovable.length} machine leg(s) have no usable proof-gate binding, so NO command can sign them yet`,
+      "(and one unbound leg refuses the whole story's UAT-signing pass — adopt signs no partial set):",
+    );
+    for (const u of unprovable) lines.push(`  ✗ ${u.leg.criterionId} — ${(u.route as { reason: string }).reason}`);
+  }
   lines.push(
     "",
     "PROVEN (✓/✗/–) is the SIGNED verdict (events.verdict), distinct from the ADR-0044 attestation",
-    "marks (◉/▣, a relayed vouch). A human-witness test is proven via `storytree uat attest`; a",
-    "machine-witness test via its machine proof (the gate).",
+    "marks (◉/▣, a relayed vouch). A human-witness leg is proven via `storytree uat attest`; a",
+    "machine-witness leg bound to an `observe` gate by the ADOPT run (`storytree adopt <story> --pg`,",
+    "the only path that signs a criterion verdict), and one bound to a `build-tests` gate by a real",
+    "red→green through that gate. `uat attest` REFUSES a machine leg (ADR-0082 d.2).",
   );
-  return {
-    ok: true,
-    body: lines.join("\n"),
-    next: [
-      `storytree uat attest ${storyId} ${tests[0]!.criterionId} --outcome pass --pg`,
-      `storytree tree ${storyId} --pg`,
-    ],
-  };
+  // Offer one next step per distinct route the story actually has — never a command its own guard
+  // would refuse, and nothing at all for a leg that cannot be proven until it is re-authored.
+  const next: string[] = [];
+  for (const kind of ["adopt", "build-gate", "human"] as const) {
+    const hit = routes.find((r) => r.route.kind === kind);
+    if (hit !== undefined && "command" in hit.route) next.push(hit.route.command);
+  }
+  next.push(`storytree tree ${storyId} --pg`);
+  return { ok: true, body: lines.join("\n"), next };
 }
 
 // ── attest ───────────────────────────────────────────────────────────────────
@@ -464,12 +530,29 @@ async function uatAttest(
     ...(deps.identity !== null ? { agentIdentity: deps.identity.sessionId } : {}),
   });
   if (!guard.ok) {
+    // ADR-0405 D5: a machine refusal must name the verb that actually proves THIS leg, resolved from
+    // its own binding. It used to say `node build --real` for every machine leg, which is the wrong
+    // path for the observe-bound ones — those are signed by the adopt run, not by a build.
+    const route =
+      test.witness === "machine"
+        ? resolveProvingRoute(story, test, deps.loadReliabilityGates(story))
+        : null;
+    const machineNext =
+      route === null
+        ? []
+        : route.kind === "adopt"
+          ? [`${route.command}   (its bound observe gate is signed by the adopt run — the only path that mints a criterion verdict)`]
+          : route.kind === "build-gate"
+            ? [`${route.command}   (a build-tests gate is earned by a genuine red→green, never observe-and-sign)`]
+            : route.kind === "human"
+              ? [route.command]
+              : [`storytree uat list ${story} --pg   (this leg has no usable proof-gate binding: ${route.reason})`];
     return {
       ok: false,
       body: `refused — ${guard.reason}`,
       next:
         test.witness === "machine"
-          ? [`storytree node build ${story} --real   (a machine-witness test is proven by its machine proof)`]
+          ? machineNext
           : [`storytree uat attest ${story} ${id} --outcome ${outcome} --signer <a real operator email> --pg`],
     };
   }

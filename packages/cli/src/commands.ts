@@ -2406,6 +2406,7 @@ function makeUatDeps(deps: RunDeps, identity: SessionIdentity | null, storiesDir
   return {
     store: deps.uatStore ?? null,
     loadUatTestCriteria: (storyId) => loadStoryUatTestCriteria(storiesDir, storyId),
+    loadReliabilityGates: (storyId) => loadStoryReliabilityGates(storiesDir, storyId),
     gitState: readGitState,
     identity,
     resolveSigner: (flag?: string) => resolveSignerFromEnv(flag !== undefined ? { flag } : undefined),
