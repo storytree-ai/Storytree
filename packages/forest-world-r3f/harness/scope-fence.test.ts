@@ -41,6 +41,21 @@ const EXPERIMENT = [
   'tree-geometry.ts',
   'shadow-ladder.ts',
   'land-shadow.ts',
+  // The occlusion and ground-variation modules landed in PR #1480 and were never added here, so
+  // the sweeps below have been passing OVER them — which is the exact decay this file's header
+  // warns about, arriving by omission rather than by rename. Added while extending the list for
+  // the props, because a fence with holes in it reads as more coverage than it has.
+  'contact-shade.ts',
+  'ground-variation.ts',
+  // The prop vocabulary (ADR-0406). All four are pure: the three generators author geometry and
+  // placement in world units, and the dressing module composes them. None of them may reach for
+  // three or react — a prop that needed a browser to be generated could not be proved in node,
+  // and the whole point of `island-dressing.ts` being pure is that "the same island renders
+  // identically in a capture, in a test and in a browser" is a claim a test can make.
+  'prop-linear.ts',
+  'prop-structures.ts',
+  'prop-layout.ts',
+  'island-dressing.ts',
   'banded-material.ts',
 ];
 

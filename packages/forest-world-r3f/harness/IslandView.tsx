@@ -43,6 +43,7 @@ import {
   wallFootY,
 } from './land-definition.js';
 import { islandScene, type IslandOptions } from './island-fixture.js';
+import { buildDressing, type DressingName } from './island-dressing.js';
 import type { GeneratedMesh } from './mesh-kit.js';
 import { plantsFrom, type PlantInstance } from './plant-descriptors.js';
 import { growPlant } from './plant-geometry.js';
@@ -157,6 +158,34 @@ export interface IslandViewProps {
   wallDepth?: number;
   /** How many authored ground tokens the land wears. Defaults to `single`. */
   ground?: GroundVariation;
+  /**
+   * WHAT IS BUILT ON THE ISLAND — walls, paths, water, pots, buildings (ADR-0406).
+   *
+   * Absent means the island as this arc has always drawn it: ground, shrubs, flowers, tree, and
+   * nothing else. Named means a whole DRESSING — a coherent set of props with its own placement
+   * rules, authored in `island-dressing.ts` and recorded there with its reasons.
+   *
+   * IT IS A NAME RATHER THAN A BAG OF TOGGLES, and that is the lesson of the round the owner
+   * rejected. Six islands that differed by a flag each read as one idea at six settings, because
+   * a flag can only vary a quantity. A dressing varies what the place IS, which is the axis a
+   * direction has to differ along to constitute a choice.
+   */
+  dressing?: DressingName;
+  /**
+   * Keep this FRACTION of the scene's plants (0..1). Defaults to 1 — every plant, as before.
+   *
+   * AN APPEARANCE CALL WITH AN ARITHMETIC REASON. The fixture carries 144 plants over an island
+   * 233 units wide, and at the delivered 2 px per ground unit a median plant is 7.4 x 6 units,
+   * so about 15 x 12 delivered pixels. A hundred and forty-four marks that size do not read as a
+   * hundred and forty-four plants; they read as speckle, which is most of why the rejected round
+   * looked like textured ground rather than like a place. Every one of the owner's references
+   * carries between ten and thirty DISCRETE plant masses, each big enough to have a shape.
+   *
+   * The thinning is a stable stride rather than a random cull, so the same plants survive across
+   * every island on the page — otherwise two directions would differ by which shrubs happened to
+   * be drawn, and that difference would be read as the direction.
+   */
+  plantFraction?: number;
   /** A stable NAME for this canvas, stamped onto the element as `data-st-tag`.
    *
    *  It exists so the capture can find a specific panel by name rather than by position.
@@ -762,7 +791,26 @@ function renderIsland(canvas: HTMLCanvasElement, props: IslandViewProps): void {
   const amplitude = props.amplitude ?? LAND_RELIEF_AMPLITUDE;
   const relief = land === 'relief' || land === 'full' ? amplitude : 0;
 
-  const plants = plantsFrom(scene);
+  // WHAT IS BUILT ON THE ISLAND, if anything (ADR-0406). Computed BEFORE the shadow field
+  // because the props have to be in it: an object that darkens no ground under itself is the
+  // one artefact that reads as a rendering bug rather than as a choice, and it is exactly what
+  // `contact-shade.ts` was built to prevent for the plants.
+  const dressing = props.dressing ? buildDressing(props.dressing, { cells, relief }) : null;
+
+  // A STABLE STRIDE, NOT A RANDOM CULL — see `plantFraction`. Two islands that differed by
+  // WHICH shrubs were drawn would present that difference as the direction.
+  //
+  // The DRESSING owns the default, because how much vegetation a place carries is part of what
+  // kind of place it is: a raked shrine court and a wild shore want opposite answers, and making
+  // the page restate the number per island is how the two drift apart from the composition that
+  // chose them. An explicit prop still overrides, for the one case that needs it — holding
+  // everything constant while a single variable moves.
+  const allPlants = plantsFrom(scene);
+  const keep = Math.min(1, Math.max(0, props.plantFraction ?? dressing?.plantFraction ?? 1));
+  const plants =
+    keep >= 1
+      ? allPlants
+      : allPlants.filter((_, i) => Math.floor(i * keep) > Math.floor((i - 1) * keep));
 
   // THE SHADOW FIELD — built in ground space, before any mesh, because the ground meshes and
   // the wall skirts all sample the SAME field and a per-mesh field would let them disagree
@@ -783,7 +831,20 @@ function renderIsland(canvas: HTMLCanvasElement, props: IslandViewProps): void {
       flowers: props.flowers !== false,
       tree: props.tree !== false,
     };
-    const key = JSON.stringify([mode, wantContact, relief, land, props.island ?? {}, include]);
+    const key = JSON.stringify([
+      mode,
+      wantContact,
+      relief,
+      land,
+      props.island ?? {},
+      include,
+      // The dressing and the thinning both change WHAT CASTS, so both belong in the key. A
+      // cache keyed on less than the field depends on is the quiet failure this map's own
+      // header warns about — it would hand a walled island the bare island's occlusion and
+      // every pool would sit under nothing.
+      props.dressing ?? null,
+      keep,
+    ]);
     let cached = shadowFieldCache.get(key);
     if (!cached) {
       const groundFlat = groundFlattening(LAND_CAMERA_ELEVATION_DEG);
@@ -794,7 +855,10 @@ function renderIsland(canvas: HTMLCanvasElement, props: IslandViewProps): void {
         minZ: bounds.minY,
         maxZ: bounds.maxY,
       };
-      const casters = castersFrom(scene, plants, groundFlat, up, include);
+      const casters = [
+        ...castersFrom(scene, plants, groundFlat, up, include),
+        ...(dressing?.casters ?? []),
+      ];
       // ONE occlusion field, two contributions, merged by `mergeOcclusion` — because the
       // material has exactly one occlusion rung and therefore one texture. Building them
       // separately and merging keeps the two arguments apart (a cast shadow is directional,
@@ -838,6 +902,11 @@ function renderIsland(canvas: HTMLCanvasElement, props: IslandViewProps): void {
   }
   if (props.flowers !== false) for (const m of flowerMeshes(scene, relief)) scene3.add(m);
   if (props.tree !== false) for (const m of treeMeshes(scene, relief)) scene3.add(m);
+  // The dressing merges through exactly the same path the flowers and the tree take, so a wall
+  // and a daisy are the same kind of object to this renderer: one mesh per authored token, no
+  // per-instance matrix, world normals baked. That is what keeps "every delivered pixel is an
+  // authored (token x level) entry" true of props without a second argument.
+  if (dressing) for (const m of mergeParts(dressing.groups)) scene3.add(m);
 
   // The island's on-screen size at this camera: the ground's depth foreshortens by
   // sin(RENDER_ELEV), and its width does not.
@@ -935,6 +1004,8 @@ export function IslandPanel({
     props.edge,
     props.ground,
     props.wallDepth,
+    props.dressing,
+    props.plantFraction,
   ]);
   return (
     <figure className="panel">
