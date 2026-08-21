@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import type { UatTestCriterionSource } from "@storytree/library";
 
 import {
+  auditDriveReportTiming,
   auditDrivePrompt,
   classifyUatDrivePlatform,
   classifyBackgroundToolEnd,
@@ -12,6 +13,7 @@ import {
   claudeSubscriptionChildEnv,
   codexExecArguments,
   codexSubscriptionChildEnv,
+  driveReportObservedAt,
   driveSurfaceUrl,
   isModelDrivenGate,
   parseDriveReport,
@@ -26,6 +28,7 @@ import {
   UAT_DRIVE_HONESTY_CLAUSE,
   UAT_DRIVE_NATIVE_SHELL_TOOLING_CLAUSE,
   UAT_DRIVE_PROGRESS_EVIDENCE_CLAUSE,
+  UAT_DRIVE_REPORT_BY_CLOCK_CLAUSE,
   UAT_DRIVE_REPORT_FENCE,
   UAT_DRIVE_TERMINAL_VISIBLE_TEXT_CLAUSE,
   UAT_DRIVE_TOOLING_CLAUSE,
@@ -509,6 +512,7 @@ test("auditDrivePrompt: the REAL prompt keeps every guarded property", () => {
 /** A prompt carrying every guarded property EXCEPT the ones a case deliberately omits. */
 /** The report contract's `surface` line, as `auditDrivePrompt` looks for it — parameterized by port. */
 const SURFACE_CONTRACT = `"surface": "${driveSurfaceUrl(ISOLATION.surfacePort)}" | null`;
+const FAILURE_CAUSE_CONTRACT = '"failureCause": "journey-failed" | "report-by-reached"';
 
 function promptWithout(...omit: readonly string[]): string {
   return [
@@ -520,8 +524,10 @@ function promptWithout(...omit: readonly string[]): string {
     UAT_DRIVE_BACKGROUND_RESULT_RECONCILIATION_CLAUSE,
     UAT_DRIVE_PROGRESS_EVIDENCE_CLAUSE,
     UAT_DRIVE_TERMINAL_VISIBLE_TEXT_CLAUSE,
+    UAT_DRIVE_REPORT_BY_CLOCK_CLAUSE,
     uatDriveIsolationClause(ISOLATION),
     SURFACE_CONTRACT,
+    FAILURE_CAUSE_CONTRACT,
   ]
     .filter((part) => !omit.includes(part))
     .join("\n");
@@ -560,11 +566,18 @@ test("auditDrivePrompt: dropping an honesty or harness clause fails", () => {
     auditDrivePrompt(promptWithout(UAT_DRIVE_TERMINAL_VISIBLE_TEXT_CLAUSE), SPEC).missing,
     ["the terminal visible-text evidence clause"],
   );
+  assert.deepEqual(
+    auditDrivePrompt(promptWithout(UAT_DRIVE_REPORT_BY_CLOCK_CLAUSE), SPEC).missing,
+    ["the runner-authoritative UTC reportBy comparison clause"],
+  );
   assert.deepEqual(auditDrivePrompt(promptWithout(uatDriveIsolationClause(ISOLATION)), SPEC).missing, [
     "the isolation clause",
   ]);
   assert.deepEqual(auditDrivePrompt(promptWithout(SURFACE_CONTRACT), SPEC).missing, [
     "the report contract's `surface` field, naming this drive's reserved URL",
+  ]);
+  assert.deepEqual(auditDrivePrompt(promptWithout(FAILURE_CAUSE_CONTRACT), SPEC).missing, [
+    "the report contract's typed failure cause",
   ]);
 });
 
@@ -643,12 +656,61 @@ test("parseDriveReport: reads a well-formed report", () => {
 test("parseDriveReport: takes the LAST block (a driver that redrafts mid-run)", () => {
   const text = [
     fenced(JSON.stringify({ outcome: "pass", summary: "first draft" })),
-    fenced(JSON.stringify({ outcome: "fail", summary: "on re-reading, step 2 never happened" })),
+    fenced(
+      JSON.stringify({
+        outcome: "fail",
+        failureCause: "journey-failed",
+        summary: "on re-reading, step 2 never happened",
+      }),
+    ),
   ].join("\n\n");
   const res = parseDriveReport(text);
   assert.ok(res.ok);
   assert.equal(res.report.outcome, "fail");
   assert.equal(res.report.summary, "on re-reading, step 2 never happened");
+});
+
+test("deadline report timing: runner UTC refuses the measured premature exhaustion without touching ordinary fails", () => {
+  const deadlineFail = {
+    outcome: "fail" as const,
+    failureCause: "report-by-reached" as const,
+    summary: "Stopped because reportBy had elapsed.",
+    steps: [],
+    escalated: false,
+  };
+  const timing = {
+    reportBy: "2026-08-21T19:21:50.000Z",
+    reportObservedAt: "2026-08-21T18:54:18.589Z",
+  };
+
+  const premature = auditDriveReportTiming(deadlineFail, timing);
+  assert.equal(premature.ok, false);
+  assert.ok(!premature.ok);
+  assert.match(premature.reason, /before reportBy/i);
+
+  assert.deepEqual(
+    auditDriveReportTiming(deadlineFail, {
+      ...timing,
+      reportObservedAt: "2026-08-21T19:21:50.001Z",
+    }),
+    { ok: true },
+  );
+  assert.deepEqual(
+    auditDriveReportTiming(
+      { ...deadlineFail, failureCause: "journey-failed", summary: "The product assertion failed." },
+      timing,
+    ),
+    { ok: true },
+    "an ordinary product fail remains admissible before reportBy",
+  );
+  assert.equal(
+    driveReportObservedAt(
+      Date.parse("2026-08-21T19:30:00.000Z"),
+      Date.parse("2026-08-21T18:54:18.589Z"),
+    ),
+    "2026-08-21T18:54:18.589Z",
+    "Codex final-message host mtime wins over a wrapper that returns late",
+  );
 });
 
 test("parseDriveReport: NO report is a refusal, never an implied pass", () => {
@@ -669,6 +731,11 @@ test("parseDriveReport: unreadable JSON and an off-contract shape both refuse", 
 
   const noSummary = parseDriveReport(fenced(JSON.stringify({ outcome: "pass" })));
   assert.ok(!noSummary.ok, "a report with no summary is off-contract");
+
+  const unclassifiedFail = parseDriveReport(
+    fenced(JSON.stringify({ outcome: "fail", summary: "stopped without a typed cause" })),
+  );
+  assert.ok(!unclassifiedFail.ok, "a fail without a typed cause cannot bypass timing audit");
 });
 
 test("parseDriveReport: an escalation (ADR-0348 D4) round-trips with its question id", () => {
@@ -676,6 +743,7 @@ test("parseDriveReport: an escalation (ADR-0348 D4) round-trips with its questio
     fenced(
       JSON.stringify({
         outcome: "fail",
+        failureCause: "journey-failed",
         summary: "unsure whether to merge the PR the journey asks for; asked the owner",
         escalated: true,
         openQuestionId: "oq-should-the-drive-merge",
