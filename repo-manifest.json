@@ -135,6 +135,7 @@
       "packages/cli/src/check-dist-drift.ts": "cli",
       "packages/cli/src/check-node-version.ts": "cli",
       "packages/cli/src/probe-depth-from-work.ts": "cli",
+      "packages/cli/src/probe-adr-graph.ts": "cli",
       "packages/cli/src/claude-region.ts": "cli",
       "packages/cli/src/*coverage*.ts": "cli",
       "packages/cli/src/db-cli.ts": "cli",

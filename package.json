@@ -26,6 +26,7 @@
     "check:verification-decay": "pnpm --filter @storytree/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-verification-decay.ts",
     "check:library-dag-acyclic": "pnpm --filter @storytree/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-library-dag-acyclic.ts",
     "probe:depth-from-work": "pnpm --filter @storytree/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/probe-depth-from-work.ts",
+    "probe:adr-graph": "pnpm --filter @storytree/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/probe-adr-graph.ts",
     "standson:bootstrap": "pnpm --filter @storytree/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/standson-bootstrap.ts",
     "check:web-grounding": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-web-grounding.ts",
     "check:web-experience-closure": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-web-experience-closure.ts",
