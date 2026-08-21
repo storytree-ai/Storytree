@@ -56,9 +56,11 @@ The forces:
    `X.standsOn = [B, C]` means *X is built on the more-foundational B and C.* It is an authored/curated
    relationship, optional, carried on the schema like `references` (not in the markdown body). Its
    entries are `asset:<id>` Library pointers or `doc:<relpath>` ADR pointers — `doc:` is admitted here,
-   where a `refList` field bans it, because dec 4 makes ADRs the bedrock an artifact stands on, and
-   because this edge is the DAG substrate rather than an agent context door (the ADR-0029 ban's
-   subject). The transient signal kinds stay edge-free: `friction` and `open-question` today, and
+   where a `refList` field bans it, because an artifact genuinely stands on the decision that ratified
+   it, and because this edge is the DAG substrate rather than an agent context door (the ADR-0029
+   ban's subject). *(That admission originally rested on dec 4's bedrock rule, which ADR-0403 dec 4
+   retires; the admission itself is unaffected and stands on the reason given here. Corrected in place
+   under ADR-0139.)* The transient signal kinds stay edge-free: `friction` and `open-question` today, and
    `proposal` when it existed — that kind was retired by ADR-0298 and folded onto `increment` by
    ADR-0305 D1, so the exclusion list has two members, not three. `increment` itself is IN the DAG,
    as the successor of the tier-6 `plan` dec 3 placed as standing on its arc.
@@ -78,7 +80,7 @@ The forces:
 
    | Tier | Kinds | Role |
    |---|---|---|
-   | 0 · decisions | ADRs | **bedrock** — stand on nothing (`DocMeta` has no `references`; natural sinks), stood-on by whatever they ratify |
+   | 0 · decisions | ADRs | ~~**bedrock** — stand on nothing, natural sinks~~ — RETIRED by ADR-0403 dec 4; decisions are ordinary artifacts in the same graph, walked past on `amends` (see dec 4 below) |
    | 1 · reference | ~~definition~~, techstack | `definition` was REMOVED from the DAG by ADR-0363 D1 — read this row through that ADR |
    | 2 · rules | principle, pattern, guardrail | |
    | 3 · process | process | |
@@ -110,10 +112,28 @@ The forces:
    ADR-0139 — the RULE this decided is unchanged, only where it runs.)*
 
 4. **The three tricky placements are settled:**
-   - **ADRs are the bedrock (tier 0).** An artifact may stand on the decision that ratified it; ADRs
-     stand on nothing, so they are natural sinks that cannot form a cycle. (Their own
-     `supersedes`/`amends` chain is a separate ADR-internal graph, governed by `adr-health`, not
-     `standsOn`.)
+   - ~~**ADRs are the bedrock (tier 0).**~~ **RETIRED — the sink rule does not survive ADR-0403**
+     (dec 4), and the guarantee it existed to provide has been re-earned by proof rather than by
+     structure. It read: *an artifact may stand on the decision that ratified it; ADRs stand on
+     nothing, so they are natural sinks that cannot form a cycle,* their own `supersedes`/`amends`
+     chain being a separate ADR-internal graph governed by `adr-health`.
+
+     Three things overtook it. ADR-0403 dec 1 makes decisions **ordinary Library artifacts in the
+     same store and the same graph**, so there is no second tier to be bedrock *of*. ADR-0403 dec 5
+     required the structural no-loop guarantee to be replaced by a proof over the joined graph
+     before anything walked it, and `pnpm probe:combined-dag` discharged that on 2026-08-22:
+     **ACYCLIC** across 1,734 artifacts and 399 decisions judged as one graph, joined at all 390
+     crossing pointers. And the sink rule was the reason the depth-from-work measure could only ever
+     return 0, 1 or 2 — 390 of the corpus's 754 authored pointers terminate at a decision, which is
+     precisely where the walk halted, so a ceiling that could never rise could never warn. The walk
+     now continues past a decision on **`amends` only** (`adrs-into-the-dag-arc-inc-09`).
+
+     What SURVIVES, and is not weakened: `amends` and `supersedes` are still two graphs with two
+     meanings and are **never summed** (ADR-0403 dec 6) — `amends` means "still standing, and rests
+     on this" and carries the depth; `supersedes` means "this replaced that" and is archaeology.
+     `adr-health` still governs the decision log's own edges. Corrected in place under ADR-0139: the
+     decision that changed is recorded in ADR-0403, and this body must not keep asserting a rule the
+     project no longer follows.
    - **Arcs/epics are a composite overlay (tier 5), NOT under ADRs.** The library defines an arc as
      "upstream of stories and ADRs **by provenance**" — a *causal/provenance* edge (the arc spawned
      them), which is NOT a `standsOn` (foundational-dependency) edge. In the dependency DAG an arc
