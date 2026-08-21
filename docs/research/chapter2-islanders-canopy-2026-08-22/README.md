@@ -42,10 +42,11 @@ was searched and found empty, so the next session does not spend the same day.
    colours carrying area** (theirs 168–276, ours 30–52) and what is 21x apart is **how many colour
    bins it takes to cover 90% of the frame** (theirs 327–782, ours 13–28). The second of those is
    the banded palette refusing continuous shading, and the fence forbids closing it.
-4. **THE HERO TREE WAS A QUARTER OF THE FRAME, AND THE WHOLE CANOPY COSTS 4% OF IT.** The island's
-   delivered canvas is 487 x 358 px with the hero tree and 487 x 270 without it — **88 px of frame
-   height, 24.6% of the picture, existed to hold one tree**. Thirty-three small trees add **16 px**.
-   The island is now a fifth shorter in frame and carries thirty-three trees instead of one.
+4. **THE HERO TREE COST 88 PX OF FRAME HEIGHT AND A WHOLE CANOPY COSTS 16.** The island's delivered
+   canvas is 487 x 358 px with the hero tree and 487 x 270 without it, so **24.6% of the picture
+   existed to hold one tree**. A stand of nineteen to thirty-three adds sixteen or seventeen px,
+   because a small tree sits on ground the island was already showing rather than extending its
+   outline upward. The islands are now about a fifth shorter in frame and carry a wood.
 
 **What is NOT in here.** No look verdict — that is the owner's, once, and it is not being asked for
 mid-flight (ADR-0392 D1). No adoption: everything lives in `packages/forest-world-r3f/harness/`,
@@ -357,8 +358,11 @@ Five properties, each measured rather than asserted:
    `prop-layout.test.ts`: a grove's mean nearest-neighbour distance is under 0.8x a uniform
    scatter's at the same count, and the 90th-percentile distance from open ground to the nearest
    tree is over 1.25x — closer together AND emptier between, which is what a stand is.
-5. **A stand carries a RANGE of heights** (asserted > 1.6x tallest-to-shortest). A stand of equal
-   trees delivers a hedge, because the silhouette's top edge is a line.
+5. **A stand carries a RANGE of heights.** A stand of equal trees delivers a hedge, because the
+   silhouette's top edge is a line. Asserted twice — on the generator (`canopy-geometry.test.ts`,
+   > 1.6x tallest-to-shortest) and on every one of the five built dressings
+   (`island-dressing.test.ts`, > 1.5x), because a range the generator can produce and a range the
+   island actually got are different claims.
 
 ---
 
@@ -379,9 +383,10 @@ the aliasing floor and no less.
 **(b) TWO SILHOUETTES, NOT FIVE.** The reference carries a spire and a dome and nothing else. A
 grove of identical cones reads as a manufactured row, so one silhouette is too few; every silhouette
 past two is one more thing to defend without a measurement behind it. They are authored to separate
-**at delivered size** rather than only in the source — a spire delivers 2.19 : 1 and a dome 1.44 : 1
-at the same requested aspect, asserted in the test, because two shapes that differ only under
-magnification are one shape as far as the island is concerned. That is this arc's own inherited
+**at delivered size** rather than only in the source: at the walled garden's requested aspect a
+spire delivers 2.19 : 1 and a dome 1.44 : 1, and the test asserts the SEPARATION (the two means
+more than 0.5 apart, and no dome ever wider than tall) rather than either literal, because two
+shapes that differ only under magnification are one shape as far as the island is concerned. That is this arc's own inherited
 lesson about the sprite path.
 
 **(c) VARIATION IS SIZE, NEVER COLOUR.** §1.3. One canopy token per island, heights ranging better

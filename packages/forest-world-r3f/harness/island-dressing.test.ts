@@ -128,6 +128,14 @@ for (const name of ['hamlet', 'shrine', 'terrace', 'walled', 'wild'] as const) {
     assert.notEqual(plain, odd, 'the two builds collapsed into one cache entry — see above');
     assert.equal(triangles(plain), triangles(odd));
     assert.deepEqual([...tokensOf(plain)].sort(), [...tokensOf(odd)].sort());
+
+    // ⚠ AND THE CANOPY, WHICH `triangles` AND `tokensOf` BOTH WALK `groups` AND SO CANNOT SEE.
+    // The trees are the newest thing on the island and the most tempting to key off status — a
+    // dead capability with dead trees on it is the obvious idea, and it is precisely the idea
+    // ADR-0392 D5 forbids an art module from having. Without this the claim "the canopy is placed
+    // by geometry, never by status" would rest on a test structurally unable to check it, which is
+    // this repo's commonest fault class rather than an unlikely one.
+    assert.deepEqual(plain.canopy, odd.canopy, `${name}: the canopy moved when a status changed`);
   });
 
   test(`${name}: puts real CONTENT on the island, which is what this increment is for`, () => {
@@ -146,6 +154,32 @@ for (const name of ['hamlet', 'shrine', 'terrace', 'walled', 'wild'] as const) {
     );
     assert.ok(d.groups.length >= 5, `${name} places only ${d.groups.length} prop groups`);
     assert.ok(triangles(d) > 500, `${name} emits ${triangles(d)} triangles — that is not a place`);
+
+    // AND IT IS WOODED. "Many small trees so it actually looks like a forrest/garden" is the
+    // owner's own instruction, and a dressing that silently planted nothing — a stand count the
+    // rejection filters ate, an avoid-gap widened past what the plot allows — would still pass
+    // every other assertion in this file. Fifteen is a floor, not a target: the sparsest direction
+    // on the page plants nineteen.
+    assert.ok(
+      d.canopy.length >= 15,
+      `${name} plants only ${d.canopy.length} trees — that is not a wood`,
+    );
+    // Every stand carries a RANGE of heights. A stand of equal trees delivers a hedge, because the
+    // silhouette's top edge stops being a line only when the heights differ (measured off the
+    // reference's own groves at roughly 1 : 2.5).
+    const hs = d.canopy.map((t) => t.spec.height);
+    assert.ok(
+      Math.max(...hs) / Math.min(...hs) > 1.5,
+      `${name}'s tallest tree is only ${(Math.max(...hs) / Math.min(...hs)).toFixed(2)}x its shortest`,
+    );
+    // ONE canopy colour across the island. The reference recolours a whole island's trees together
+    // and never tints one against its neighbour; a grove of individually-coloured trees is
+    // confetti, and it is the half of that finding easiest to get backwards.
+    assert.equal(
+      new Set(d.canopy.map((t) => t.spec.token)).size,
+      1,
+      `${name} plants more than one canopy colour`,
+    );
   });
 
   test(`${name}: every prop CASTS, so nothing on it looks pasted on`, () => {
