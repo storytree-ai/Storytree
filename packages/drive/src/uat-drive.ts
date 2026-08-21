@@ -1610,7 +1610,7 @@ export function uatDriveIsolationClause(iso: DriveIsolation): string {
 /** The one supported Studio launch command for this drive's reserved, live-store surface. */
 function uatDriveStudioLaunchCommand(iso: DriveIsolation): string {
   return (
-    "$env:STORYTREE_STUDIO_STORE='pg'; pnpm --filter studio dev -- --port " +
+    "$env:STORYTREE_STUDIO_STORE='pg'; pnpm --filter studio dev --port " +
     `${iso.surfacePort} --strictPort --host 127.0.0.1`
   );
 }
