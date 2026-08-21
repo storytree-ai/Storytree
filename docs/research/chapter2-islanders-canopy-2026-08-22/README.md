@@ -42,10 +42,10 @@ was searched and found empty, so the next session does not spend the same day.
    colours carrying area** (theirs 168–276, ours 30–52) and what is 21x apart is **how many colour
    bins it takes to cover 90% of the frame** (theirs 327–782, ours 13–28). The second of those is
    the banded palette refusing continuous shading, and the fence forbids closing it.
-4. **THE HERO TREE WAS 24% OF THE FRAME, AND THE WHOLE CANOPY COSTS 4%.** The island's delivered
-   canvas is 487 x 358 px with the hero tree and 487 x 271 without it — **88 px of frame height
-   existed to hold one tree**. Thirty-three small trees add **16 px**. The island is now 21%
-   shorter in frame and carries thirty-three trees instead of one.
+4. **THE HERO TREE WAS A QUARTER OF THE FRAME, AND THE WHOLE CANOPY COSTS 4% OF IT.** The island's
+   delivered canvas is 487 x 358 px with the hero tree and 487 x 270 without it — **88 px of frame
+   height, 24.6% of the picture, existed to hold one tree**. Thirty-three small trees add **16 px**.
+   The island is now a fifth shorter in frame and carries thirty-three trees instead of one.
 
 **What is NOT in here.** No look verdict — that is the owner's, once, and it is not being asked for
 mid-flight (ADR-0392 D1). No adoption: everything lives in `packages/forest-world-r3f/harness/`,
