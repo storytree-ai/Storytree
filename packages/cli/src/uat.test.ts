@@ -100,6 +100,11 @@ const UNBOUND_LEG: UatTestCriterion = {
 };
 const WITH_UNBOUND: UatTestCriterion[] = [...DEMO_TESTS, UNBOUND_LEG];
 
+/** An envelope's offered next steps. `Envelope.next` is optional, so normalise before asserting. */
+function nextOf(r: { readonly next?: readonly string[] | undefined }): readonly string[] {
+  return r.next ?? [];
+}
+
 /** The story's declared gates — `demo#gate-1` is the observe gate C2 binds to. */
 const DEMO_GATES = [
   {
@@ -193,12 +198,12 @@ test("list: offers ADOPT for an observe-bound machine leg, never `uat attest`", 
   );
   assert.equal(r.ok, true);
   assert.ok(
-    r.next.includes("storytree adopt demo --pg"),
-    `the adopt run is the only path that signs a machine leg's criterion verdict; got ${JSON.stringify(r.next)}`,
+    nextOf(r).includes("storytree adopt demo --pg"),
+    `the adopt run is the only path that signs a machine leg's criterion verdict; got ${JSON.stringify(nextOf(r))}`,
   );
   // The bug this replaces: `uat attest <machine leg>` was offered unconditionally and is REFUSED
   // by the witness guard (ADR-0082 d.2). No offered command may name a machine criterion id.
-  for (const cmd of r.next) {
+  for (const cmd of nextOf(r)) {
     assert.ok(
       !(cmd.includes("uat attest") && (cmd.includes(C2) || cmd.includes(C4))),
       `offered a command its own guard refuses: ${cmd}`,
@@ -209,8 +214,8 @@ test("list: offers ADOPT for an observe-bound machine leg, never `uat attest`", 
 test("list: still offers `uat attest` for the human leg, naming that leg", async () => {
   const r = await uatCommand({ mode: "list", target: "demo" }, {}, baseDeps());
   assert.ok(
-    r.next.some((c) => c.includes("uat attest") && c.includes(C1)),
-    `the human leg keeps its operator path; got ${JSON.stringify(r.next)}`,
+    nextOf(r).some((c) => c.includes("uat attest") && c.includes(C1)),
+    `the human leg keeps its operator path; got ${JSON.stringify(nextOf(r))}`,
   );
 });
 
@@ -221,7 +226,7 @@ test("list: an UNBOUND machine leg is named as unprovable and gets no signing co
     baseDeps({ loadUatTestCriteria: () => WITH_UNBOUND }),
   );
   assert.match(r.body, new RegExp(`✗ ${C4} — .*proof-gate binding`));
-  for (const cmd of r.next) {
+  for (const cmd of nextOf(r)) {
     assert.ok(!cmd.includes(C4), `an unbound leg cannot be signed by anything, yet was offered: ${cmd}`);
   }
 });
@@ -236,10 +241,10 @@ test("list: a build-tests-bound machine leg routes to the build gate, not adopt"
     baseDeps({ loadUatTestCriteria: () => buildBound }),
   );
   assert.ok(
-    r.next.includes("storytree build gate demo#gate-2 --real --pg"),
-    `a build-tests gate is earned by a red→green, never observe-and-sign; got ${JSON.stringify(r.next)}`,
+    nextOf(r).includes("storytree build gate demo#gate-2 --real --pg"),
+    `a build-tests gate is earned by a red→green, never observe-and-sign; got ${JSON.stringify(nextOf(r))}`,
   );
-  assert.ok(!r.next.some((c) => c.startsWith("storytree adopt")), "must not offer the adopt run");
+  assert.ok(!nextOf(r).some((c) => c.startsWith("storytree adopt")), "must not offer the adopt run");
 });
 
 test("list: NON-VACUITY — the route genuinely varies with the binding", async () => {
@@ -247,7 +252,7 @@ test("list: NON-VACUITY — the route genuinely varies with the binding", async 
   // every assertion above would pass while verifying nothing.
   const only = async (tests: UatTestCriterion[]): Promise<string[]> =>
     (await uatCommand({ mode: "list", target: "demo" }, {}, baseDeps({ loadUatTestCriteria: () => tests })))
-      .next.filter((c) => !c.startsWith("storytree tree"));
+      .next?.filter((c) => !c.startsWith("storytree tree")) ?? [];
   const human = await only([DEMO_TESTS[0]!]);
   const observe = await only([DEMO_TESTS[1]!]);
   const unbound = await only([UNBOUND_LEG]);
@@ -261,11 +266,11 @@ test("attest: a refused observe-bound machine leg points at ADOPT, not at a buil
   assert.equal(r.ok, false);
   assert.match(r.body, /refused/);
   assert.ok(
-    r.next.some((c) => c.startsWith("storytree adopt demo --pg")),
-    `got ${JSON.stringify(r.next)}`,
+    nextOf(r).some((c) => c.startsWith("storytree adopt demo --pg")),
+    `got ${JSON.stringify(nextOf(r))}`,
   );
   assert.ok(
-    !r.next.some((c) => c.includes("node build")),
+    !nextOf(r).some((c) => c.includes("node build")),
     "the old pointer sent observe-bound legs down the build path, which cannot sign them",
   );
 });
@@ -278,10 +283,10 @@ test("attest: a refused UNBOUND machine leg names the missing binding and offers
   );
   assert.equal(r.ok, false);
   assert.ok(
-    r.next.some((c) => c.includes("no usable proof-gate binding")),
-    `got ${JSON.stringify(r.next)}`,
+    nextOf(r).some((c) => c.includes("no usable proof-gate binding")),
+    `got ${JSON.stringify(nextOf(r))}`,
   );
-  assert.ok(!r.next.some((c) => c.startsWith("storytree adopt")), "nothing can sign an unbound leg");
+  assert.ok(!nextOf(r).some((c) => c.startsWith("storytree adopt")), "nothing can sign an unbound leg");
 });
 
 // ── uat attest: refusals (the honesty walls) ─────────────────────────────────────
