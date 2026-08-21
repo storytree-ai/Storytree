@@ -38,7 +38,7 @@ decisions: [183, 305, 369]
 # a MOVE rather than a re-proof. ADR-0395 classifies the unsigned greenfield unit as `proposed`;
 # registration order does not make it brownfield or Adopt-bound. (This note also used to warn that a `real:` arm
 # "would enter the pinned REAL-buildable snapshot in `packages/cli/src/node-build.test.ts`". Corrected
-# in place 2026-08-14, ADR-0139: ADR-0340 replaced that hardcoded catalogue with a DERIVED assertion,
+# in place 2026-08-14, ADR-0139: ADR-0341 D4 replaced that hardcoded catalogue with a DERIVED assertion,
 # and the test now states "this file keeps no list to append to". There is nothing to enter and
 # nothing to edit; the ADR-0085/0094 reason is the whole reason.) Both files are in `packages/arc`,
 # this story's OWN building, so the
