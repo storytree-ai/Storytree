@@ -24,6 +24,14 @@ Storytree's `library` story as the concrete brownfield example is withdrawn: tha
 and retrospective registration does not make it an Adopt target. The example's test-coverage gaps
 remain historical evidence about proof, not evidence of provenance.
 
+> **Amended by [ADR-0404](0404-dispatching-a-build-is-a-cli-verb-retire-the-in-app-build-an.md)**
+> (accepted, 2026-08-21) — **Layer 1's Adopt BUTTON is retired; the proving process stands in full.**
+> brown → proposed → green, earned by real work and entered by a deliberate human adoption decision,
+> is untouched — as is its engine (`runAdopt` in `@storytree/drive`) and its Layer-2 adoption plan.
+> What is withdrawn is one dispatch surface over it: the studio's `AdoptPanel`, `POST /api/adopt`, and
+> the desktop's adopt mount. The deliberate human decision is now made by invoking
+> `storytree adopt <story-id> --pg`, which drives the same engine the button drove.
+
 It **amends [ADR-0085](0085-resolve-adr-0083-fork-b-brownfield-reliability-gates-author.md)** (observe-and-sign
 becomes the cheap first step of a human-entered proving process — machine-witnessed and human-approved —
 not a deliberate human-invoked `gate run`, and never a one-click green), **amends

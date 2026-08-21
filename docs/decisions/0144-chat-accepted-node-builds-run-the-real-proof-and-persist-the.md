@@ -19,7 +19,18 @@ accepted (2026-07-02) — decided/directed by the owner in conversation on 2026-
 > proven branch for the human to land (the green `routed-node-real-dispatch` capability). Only the
 > **trigger** changed (the orchestrator's own drive, not a human accept-click on a chat proposal); the
 > node-`--real`-persist behaviour, the "landing stays the human gate" rule, and `dispatchAcceptedBuild`
-> (still called by `builder-spawn-dispatch`, ADR-0137) are unchanged.
+> are unchanged. *(Corrected in place per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md):
+> this note originally read "`dispatchAcceptedBuild` (still called by `builder-spawn-dispatch`,
+> ADR-0137)". That caller is gone — ADR-0175 deleted `packages/drive/src/spawn-builder.ts` and retired
+> the spawn surface, leaving the function with no production caller at all.)*
+
+> **Amended by [ADR-0404](0404-dispatching-a-build-is-a-cli-verb-retire-the-in-app-build-an.md)**
+> (accepted, 2026-08-21) — **the UI-dispatch clause is retired and `dispatchAcceptedBuild` is deleted;
+> this ADR's decision stands and is the REASON for the reversal.** That a routed node build drives the
+> real proof, signs, and persists to `events.verdict` is exactly what made the studio's Build button
+> unsafe to keep: its operator-facing copy still described the pre-ADR-0144 synthetic smoke while the
+> click spent the owner's subscription on a genuine drive. The dispatch surface goes; the node-`--real`
+> semantics this ADR decided are untouched and remain what `storytree node build --real` does.
 
 ## Context
 
