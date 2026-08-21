@@ -43,6 +43,7 @@ import {
   ladderAdmissibility,
   landPaletteWithShadow,
   liveCeilings,
+  luma,
   luminanceOverlap,
   robustlyInadmissible,
   shadowRungEntries,
@@ -261,6 +262,29 @@ for (let i = 0; i < sections.length && i < names.length; i++) {
   await sections[i].screenshot({ path: join(OUT, `panel-${names[i]}.png`) });
 }
 
+// ONE FILE PER NAMED CANVAS, found by `data-st-tag` rather than by position.
+//
+// SECTION FILENAMES BIND TO SECTION ORDER, which is a live trap rather than a theoretical
+// one (friction `capture-panel-names-bind-to-section-order`): inserting a section silently
+// re-points every later filename at a different picture and the run still exits 0. A TAG
+// cannot do that, because the name travels with the canvas that carries it — so a page whose
+// islands are tagged gets a set of files that stay correct however the page is reordered.
+//
+// It is also what makes a WHOLE ISLAND its own artefact. A section shot is an island plus the
+// prose around it, cropped to whatever the section happens to be; ADR-0392 D1 asks the owner
+// to look at the island, and this is the file that is only that.
+const tagged = await page.$$('canvas[data-st-tag]');
+const seenTags = new Set();
+for (const el of tagged) {
+  const tag = await el.getAttribute('data-st-tag');
+  if (!tag) continue;
+  // A duplicated tag would have one file silently overwrite the other — the same class of
+  // error as the positional names, arriving by a different route. Refuse instead.
+  if (seenTags.has(tag)) fail(`two canvases share the tag ${JSON.stringify(tag)}`);
+  seenTags.add(tag);
+  await el.screenshot({ path: join(OUT, `island-${tag}.png`) });
+}
+
 // --- the report ---------------------------------------------------------------------------
 
 const report = {
@@ -281,6 +305,50 @@ const report = {
   // predicts, because the tilt foreshortens the height and a mound does not fill its box.
   // Both numbers are reported; neither is quietly replaced by the other.
   perPanel: delivered.map((c, i) => ({ i, w: c.w, h: c.h, opaque: c.opaque, holes: c.holes })),
+  // PER NAMED ISLAND — the evidence that two directions differ in more than their captions.
+  //
+  // A page that offers a CHOICE has to be able to show that the things being chosen between
+  // are actually different, and "they look different" is the claim under test rather than the
+  // evidence for it. Distinct delivered colours and the delivered luminance spread are two
+  // numbers a reader can check against the pictures: a direction that moves neither has moved
+  // nothing, whatever its section says it does.
+  //
+  // Keyed by `data-st-tag`, never by position — see the tag-named screenshots above.
+  perIsland: delivered
+    .filter((c) => c.tag)
+    .map((c) => {
+      const onRung = new Set(shadowRungEntries());
+      const px = [];
+      let occluded = 0;
+      for (const [hex, n] of c.colours) {
+        if (onRung.has(hex)) occluded += n;
+        const y = luma({
+          r: parseInt(hex.slice(1, 3), 16),
+          g: parseInt(hex.slice(3, 5), 16),
+          b: parseInt(hex.slice(5, 7), 16),
+        });
+        for (let k = 0; k < n; k++) px.push(y);
+      }
+      px.sort((a, b) => a - b);
+      const q = (f) => (px.length ? Math.round(px[Math.floor(f * (px.length - 1))] * 10) / 10 : null);
+      return {
+        tag: c.tag,
+        w: c.w,
+        h: c.h,
+        opaque: c.opaque,
+        distinctColours: c.colours.length,
+        // WHAT SHARE OF THE ISLAND IS ON THE OCCLUSION RUNG. A shadow reads because it sits
+        // NEXT TO something lit; an island where most pixels are occluded has not gained a
+        // shadow, it has been dimmed. So this is the number that tells the two apart, and it
+        // is the one an eye is worst at estimating.
+        occludedPixels: occluded,
+        occludedShare: c.opaque ? Math.round((1000 * occluded) / c.opaque) / 10 : 0,
+        luma: { p2: q(0.02), p50: q(0.5), p98: q(0.98) },
+        // The spread is the number that says whether a direction gave the picture more to
+        // work with. It is reported, not thresholded: a direction may legitimately narrow it.
+        lumaSpread: px.length ? Math.round((q(0.98) - q(0.02)) * 10) / 10 : null,
+      };
+    }),
   // Watertightness, REPORTED not judged — see the flood fill above for why there is no
   // threshold. Read it against the flat control panels on the same page, which read 0.
   watertight: {

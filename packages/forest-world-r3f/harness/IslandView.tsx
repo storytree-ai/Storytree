@@ -22,7 +22,9 @@ import {
   shadowFieldTexture,
   type ShadowTexture,
 } from './banded-material.js';
-import { buildShadowField, type ShadowCaster } from './land-shadow.js';
+import { buildContactField, mergeOcclusion } from './contact-shade.js';
+import { variantAt } from './ground-variation.js';
+import { buildShadowField, type ShadowCaster, type ShadowField } from './land-shadow.js';
 import {
   groundBounds,
   groundCellsFrom,
@@ -80,6 +82,43 @@ export type LandDefinition = 'flat' | 'relief' | 'bevel' | 'full';
  */
 export type LandShadow = 'off' | 'terrain' | 'canopy' | 'both';
 
+/**
+ * What the island's RIM is made of.
+ *
+ * `flush` is every island this arc has rendered: the wall skirt wears the ground's own token
+ * and differs from the top face only by the rung its vertical normal lands on. `material`
+ * gives it the family's authored `side` token — the same token the shipped map already puts
+ * on a territory's side faces — so the island's edge becomes its own material and the whole
+ * thing reads as a solid with a top and a flank rather than as a coloured plane with a
+ * shaded lip. It is the reference board's lever 3 ("a thick, material island edge"), which
+ * the board measured as one of the three strongest separations from the references.
+ *
+ * IT DOES NOT TOUCH THE BEVEL, and that separation is deliberate. A capability boundary in a
+ * different colour is a drawn SEAM, which is the treatment the owner removed on 2026-08-16;
+ * the island's OUTER rim is not a boundary between two parcels, it is where the land stops.
+ */
+export type LandEdge = 'flush' | 'material';
+
+/**
+ * How many of a status family's authored ground tokens the land wears.
+ *
+ * `single` is every island this arc has rendered — `top[0]` everywhere. `regional` selects
+ * among `top[0..2]` by a low-frequency field over ground space (`ground-variation.ts`),
+ * which is the reference board's lever 7 and the one it flagged as sitting next to the
+ * owner's 2026-08-16 removal of the PER-CELL hash variants. The distinction is measured
+ * rather than asserted — see `variantSeamFraction`.
+ *
+ * ⚠ `regional-deep` adds a fourth band wearing the family's `side` token. It is the largest
+ * contrast the closed palette can put on the ground — 29% against the three `top` variants'
+ * 8% — and it is GATED ON AN OPEN OWNER QUESTION rather than available: `side x 0.9` reads
+ * as `mapped` under the live renderer's own one-token-per-status reader and as `healthy`
+ * under a three-variant one, and which reader is right is the subject of
+ * `oq-the-land-s-status-colours-differ-mainly-in-brightness-and`. It exists so the owner can
+ * answer that against a picture of what the answer buys (ADR-0392 D5: an art call may never
+ * decide a semantic question).
+ */
+export type GroundVariation = 'single' | 'regional' | 'regional-deep';
+
 export interface IslandViewProps {
   /** Rasterise at this many device pixels per ground unit. 1 = the sprite convention. */
   pxPerUnit: number;
@@ -103,6 +142,21 @@ export interface IslandViewProps {
   /** Which shadow terms the LAND receives. Defaults to `off`, so every panel that predates
    *  the shadow delivers exactly the pixels it delivered before. */
   shadow?: LandShadow;
+  /** CONTACT DARKENING — an occlusion pool where each prop meets the ground. Defaults off
+   *  for the same reason the shadow does: a panel that predates it delivers bit-identical
+   *  pixels. It shares the shadow's single occlusion rung, so the two merge into one field
+   *  and one texture (`mergeOcclusion`). */
+  contact?: boolean;
+  /** What the island's rim is made of. Defaults to `flush` — the pre-existing island. */
+  edge?: LandEdge;
+  /** How far the rim wall hangs below the coast, in ground units. Defaults to
+   *  `LAND_CELL_DEPTH` (2.2), which is what every island this arc has rendered wears — and
+   *  which delivers 2.8 pixels of island thickness at 2 px/unit under the 50-degree camera.
+   *  The reference board's lever 3 asks for an edge that is a significant fraction of the
+   *  silhouette; this is the number that decides whether it is. */
+  wallDepth?: number;
+  /** How many authored ground tokens the land wears. Defaults to `single`. */
+  ground?: GroundVariation;
   /** A stable NAME for this canvas, stamped onto the element as `data-st-tag`.
    *
    *  It exists so the capture can find a specific panel by name rather than by position.
@@ -245,6 +299,9 @@ function groundMeshes(
   land: LandDefinition,
   amplitude: number,
   shadow: ShadowTexture | undefined,
+  edge: LandEdge,
+  ground: GroundVariation,
+  wallDepth: number,
 ): THREE.Mesh[] {
   const relief = land === 'relief' || land === 'full' ? amplitude : 0;
   const bevel = land === 'bevel' || land === 'full';
@@ -266,9 +323,24 @@ function groundMeshes(
     };
   };
 
+  /** Which authored `top` variant a cell wears. A cell gets ONE token — the mesh is merged
+   *  per material — so the variant is sampled once, at the cell's own centroid, which is
+   *  what `variantSeamFraction` measures the seam rate of. */
+  const bands: 3 | 4 = ground === 'regional-deep' ? 4 : 3;
+  const variantOf = (c: GroundCell): 0 | 1 | 2 | 3 => {
+    if (ground === 'single') return 0;
+    let x = 0;
+    let y = 0;
+    for (const p of c.points) {
+      x += p.x;
+      y += p.y;
+    }
+    return variantAt(x / c.points.length, y / c.points.length, bands);
+  };
+
   const byStatus = new Map<string, number[]>();
   cells.forEach((c, i) => {
-    const key = c.wheat ? `${c.status}::wheat` : c.status;
+    const key = `${c.status}::${c.wheat ? 'wheat' : ''}::${variantOf(c)}`;
     const list = byStatus.get(key) ?? [];
     list.push(i);
     byStatus.set(key, list);
@@ -276,14 +348,31 @@ function groundMeshes(
 
   const meshes: THREE.Mesh[] = [];
   for (const [key, group] of byStatus) {
-    const [status, wheat] = key.split('::');
+    const [status, wheat, variant] = key.split('::');
     const fam = STATUS_TOKENS[status!] ?? STATUS_TOKENS['unknown']!;
     const positions: number[] = [];
     const normals: number[] = [];
+    // The RIM's own buffer. It stays empty under `edge: 'flush'`, in which case the wall
+    // triangles go into the body buffer exactly as they always did and the panel delivers
+    // bit-identical pixels — the same fail-quiet property the shadow toggle has.
+    const wallPositions: number[] = [];
+    const wallNormals: number[] = [];
 
-    const tri = (a: V3, b: V3, c: V3): void => {
-      positions.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
-      normals.push(a.nx, a.ny, a.nz, b.nx, b.ny, b.nz, c.nx, c.ny, c.nz);
+    /** Where triangles land. Two buffers rather than one so the rim can wear its own token
+     *  without a second pass over the geometry. */
+    interface Sink {
+      pos: number[];
+      nrm: number[];
+    }
+    const body: Sink = { pos: positions, nrm: normals };
+    // Under `flush` the rim writes into the BODY buffer, so there is one mesh and one token
+    // exactly as before. The alternative — always splitting and giving both meshes the same
+    // token — would double the ground's draw calls to express a difference of none.
+    const rim: Sink = edge === 'material' ? { pos: wallPositions, nrm: wallNormals } : body;
+
+    const tri = (a: V3, b: V3, c: V3, into: Sink = body): void => {
+      into.pos.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
+      into.nrm.push(a.nx, a.ny, a.nz, b.nx, b.ny, b.nz, c.nx, c.ny, c.nz);
     };
     /**
      * A flat quad `a-b-c-d`, wound so that the face the camera can see is the one pointing
@@ -305,6 +394,7 @@ function groundMeshes(
       c: V3,
       d: V3,
       want: { x: number; y: number; z: number },
+      into: Sink = body,
     ): void => {
       const ux = b.x - a.x;
       const uy = b.y - a.y;
@@ -317,11 +407,11 @@ function groundMeshes(
       const gz = ux * vy - uy * vx;
       const f = (p: V3): V3 => ({ ...p, nx: want.x, ny: want.y, nz: want.z });
       if (gx * want.x + gy * want.y + gz * want.z >= 0) {
-        tri(f(a), f(b), f(c));
-        tri(f(a), f(c), f(d));
+        tri(f(a), f(b), f(c), into);
+        tri(f(a), f(c), f(d), into);
       } else {
-        tri(f(a), f(c), f(b));
-        tri(f(a), f(d), f(c));
+        tri(f(a), f(c), f(b), into);
+        tri(f(a), f(d), f(c), into);
       }
     };
 
@@ -410,8 +500,8 @@ function groundMeshes(
         const drop = bevel ? PARCEL_BEVEL_DROP : 0;
         const ta = onLand(oa, drop);
         const tb = onLand(ob, drop);
-        const footA = wallFootY(ta.y);
-        const footB = wallFootY(tb.y);
+        const footA = wallFootY(ta.y, wallDepth);
+        const footB = wallFootY(tb.y, wallDepth);
         // Outward horizontal normal, oriented AWAY from the cell's own centroid rather
         // than taken from the edge direction, which the handedness flip makes unreliable.
         const ex = ob.x - oa.x;
@@ -423,19 +513,29 @@ function groundMeshes(
           nx = -nx;
           nz = -nz;
         }
-        quad(ta, tb, { ...tb, y: footB }, { ...ta, y: footA }, { x: nx, y: 0, z: nz });
+        quad(ta, tb, { ...tb, y: footB }, { ...ta, y: footA }, { x: nx, y: 0, z: nz }, rim);
       }
     }
 
     const geom = new THREE.BufferGeometry();
     geom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
     geom.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(normals), 3));
-    // ONE token for the whole family — ground, bevel and wall alike. The bevel deliberately
-    // does NOT take the darker `side` token: a boundary drawn in a different colour is a
-    // drawn SEAM, which is the treatment the owner removed. Wearing the ground's own token
-    // and differing only by rung makes it a fold in the land instead. Colour is per-mesh,
-    // so a cell can never emit a colour from another status's family.
-    const token = wheat ? fam.wheat : fam.top[0]!;
+    // ONE token for the ground and its bevel. The bevel deliberately does NOT take the
+    // darker `side` token: a boundary drawn in a different colour is a drawn SEAM, which is
+    // the treatment the owner removed. Wearing the ground's own token and differing only by
+    // rung makes it a fold in the land instead. Colour is per-mesh, so a cell can never emit
+    // a colour from another status's family.
+    //
+    // WHICH `top` VARIANT is the one thing that moved. Under `single` it is `top[0]` for
+    // every cell, exactly as before; under `regional` it is whichever variant the
+    // low-frequency field selects at this cell's centroid. All three belong to the same
+    // status family, so the land asserts precisely what it asserted before.
+    // Index 3 is the four-band form's deep token — the family's `side`, not a fourth member
+    // of `top`. Mapped here rather than in `ground-variation.ts` because that module bands a
+    // field and knows nothing about tokens, which is what keeps it node-provable.
+    const variantIndex = Number(variant ?? '0');
+    const groundToken = variantIndex === 3 ? fam.side : (fam.top[variantIndex] ?? fam.top[0]!);
+    const token = wheat ? fam.wheat : groundToken;
     meshes.push(
       new THREE.Mesh(
         geom,
@@ -446,6 +546,34 @@ function groundMeshes(
         }),
       ),
     );
+
+    if (wallPositions.length) {
+      const wallGeom = new THREE.BufferGeometry();
+      wallGeom.setAttribute(
+        'position',
+        new THREE.BufferAttribute(new Float32Array(wallPositions), 3),
+      );
+      wallGeom.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(wallNormals), 3));
+      // The rim's own material: the family's authored `side` token, which is the token the
+      // shipped map already puts on a territory's side faces. It is NOT a new colour and it
+      // is NOT a foreign one — `side` is a member of the same family, already in
+      // `landTokens()` and already closed over by `landPalette()`, so this costs the palette
+      // nothing and reads as the same status.
+      //
+      // ⚠ The RIM only. The wall is emitted at `role === 'rim'` and nowhere else, so a
+      // capability boundary is untouched by this and stays a fold in one colour.
+      const wallToken = wheat ? fam.wheat : fam.side;
+      meshes.push(
+        new THREE.Mesh(
+          wallGeom,
+          createBandedMaterial({
+            token: wallToken,
+            doubleSided: false,
+            ...(shadow ? { shadow } : {}),
+          }),
+        ),
+      );
+    }
   }
   return meshes;
 }
@@ -645,36 +773,66 @@ function renderIsland(canvas: HTMLCanvasElement, props: IslandViewProps): void {
   // shadow ON one has nowhere to land, while the shadow it THROWS is 8.6 px long and is most
   // of what the eye reads. Shadowing the plants would spend the one available rung on the
   // element that cannot show it.
-  const wantShadow = (props.shadow ?? 'off') !== 'off';
+  const mode = props.shadow ?? 'off';
+  const wantShadow = mode !== 'off';
+  const wantContact = props.contact === true;
   let shadowTex: ShadowTexture | undefined;
-  if (wantShadow) {
-    const mode = props.shadow!;
+  if (wantShadow || wantContact) {
     const include = {
       plants: props.plants !== false,
       flowers: props.flowers !== false,
       tree: props.tree !== false,
     };
-    const key = JSON.stringify([mode, relief, land, props.island ?? {}, include]);
+    const key = JSON.stringify([mode, wantContact, relief, land, props.island ?? {}, include]);
     let cached = shadowFieldCache.get(key);
     if (!cached) {
       const groundFlat = groundFlattening(LAND_CAMERA_ELEVATION_DEG);
       const up = uprightForeshortening(LAND_CAMERA_ELEVATION_DEG);
-      cached = shadowFieldTexture(
-        buildShadowField({
-          bounds: { minX: bounds.minX, maxX: bounds.maxX, minZ: bounds.minY, maxZ: bounds.maxY },
-          relief,
-          casters:
-            mode === 'terrain' ? [] : castersFrom(scene, plants, groundFlat, up, include),
-          terrain: mode !== 'canopy',
-          canopy: mode !== 'terrain',
-        }),
-      );
+      const fieldBounds = {
+        minX: bounds.minX,
+        maxX: bounds.maxX,
+        minZ: bounds.minY,
+        maxZ: bounds.maxY,
+      };
+      const casters = castersFrom(scene, plants, groundFlat, up, include);
+      // ONE occlusion field, two contributions, merged by `mergeOcclusion` — because the
+      // material has exactly one occlusion rung and therefore one texture. Building them
+      // separately and merging keeps the two arguments apart (a cast shadow is directional,
+      // a contact pool is not) while delivering the single scalar the fragment stage
+      // thresholds.
+      const fields: ShadowField[] = [];
+      if (wantShadow) {
+        fields.push(
+          buildShadowField({
+            bounds: fieldBounds,
+            relief,
+            casters: mode === 'terrain' ? [] : casters,
+            terrain: mode !== 'canopy',
+            canopy: mode !== 'terrain',
+          }),
+        );
+      }
+      if (wantContact) {
+        fields.push(buildContactField({ bounds: fieldBounds, casters }));
+      }
+      const merged = fields.length === 1 ? fields[0]! : mergeOcclusion(fields[0]!, fields[1]!);
+      cached = shadowFieldTexture(merged);
       shadowFieldCache.set(key, cached);
     }
     shadowTex = cached;
   }
 
-  for (const m of groundMeshes(cells, land, amplitude, shadowTex)) scene3.add(m);
+  for (const m of groundMeshes(
+    cells,
+    land,
+    amplitude,
+    shadowTex,
+    props.edge ?? 'flush',
+    props.ground ?? 'single',
+    props.wallDepth ?? CELL_DEPTH,
+  )) {
+    scene3.add(m);
+  }
   if (props.plants !== false) {
     for (const m of plantMesh(plants, props.style ?? 'mound', relief)) scene3.add(m);
   }
@@ -773,6 +931,10 @@ export function IslandPanel({
     props.land,
     props.amplitude,
     props.shadow,
+    props.contact,
+    props.edge,
+    props.ground,
+    props.wallDepth,
   ]);
   return (
     <figure className="panel">
