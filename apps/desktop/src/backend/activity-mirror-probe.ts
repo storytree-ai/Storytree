@@ -37,7 +37,8 @@
  */
 
 import { readFileSync } from "node:fs";
-import type { IncomingMessage, ServerResponse } from "node:http";
+import { IncomingMessage, ServerResponse } from "node:http";
+import { Socket } from "node:net";
 
 import { claimRowsToActivity, type DesktopClaimRow } from "./claim-activity.js";
 import { createLocalBackend } from "./local-backend.js";
@@ -63,14 +64,16 @@ function offPath(name: string): () => never {
 
 /** Capture the JSON body a handler sends, without a socket. */
 function captureBody(run: (res: ServerResponse) => Promise<void>): Promise<string> {
+  // A REAL ServerResponse over an unconnected socket, with only `end` swapped for a capture. This
+  // was a three-property object literal reached through an `as unknown as` chain — a fake claiming
+  // to be something it shares nothing with (anti-slop-adoption-arc inc-03). Nothing writes to the
+  // socket: the route sets `statusCode`, calls `setHeader`, then ends.
   let body = "";
-  const res = {
-    statusCode: 0,
-    setHeader(): void {},
-    end(chunk?: string): void {
-      body = chunk ?? "";
-    },
-  } as unknown as ServerResponse;
+  const res = new ServerResponse(new IncomingMessage(new Socket()));
+  res.end = ((chunk?: unknown): ServerResponse => {
+    body = typeof chunk === "string" ? chunk : "";
+    return res;
+  }) as ServerResponse["end"];
   return run(res).then(() => body);
 }
 

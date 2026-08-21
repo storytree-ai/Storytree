@@ -246,7 +246,7 @@ function degradeReason(doc: Record<string, unknown>, kind: string): string | nul
 function extractFields(doc: Knowledge): Record<string, string> {
   const specs = KIND_SPECS[doc.kind as KnowledgeKind] ?? [];
   const fields: Record<string, string> = {};
-  const bag = doc as unknown as Record<string, unknown>;
+  const bag = doc as Record<string, unknown>;
   for (const spec of specs) {
     const value = bag[spec.field];
     if (typeof value === "string") fields[spec.field] = value;
@@ -321,7 +321,7 @@ export function renderStoredDoc(stored: StoredDoc): RenderedAsset {
   // Structured Knowledge unit: derive the body from its per-kind fields; category = the kind; and
   // carry the structured fields on the wire so the studio editor can edit them directly (option C).
   const knowledge = doc as Knowledge;
-  const typedEdges = knowledge as unknown as {
+  const typedEdges = knowledge as {
     stepRefs?: AgentStepRef[];
     branchEdges?: ProcessBranchEdge[];
     arcRef?: string;

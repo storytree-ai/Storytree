@@ -58,7 +58,7 @@ interface SuggestionSeam {
   }) => Promise<{ id: string; status: 'accepted' | 'rejected' }>;
 }
 
-const suggApi = api as unknown as SuggestionSeam;
+const suggApi = api as SuggestionSeam;
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 

@@ -96,7 +96,7 @@ export function desktopLaunch(deps: DesktopLaunchDeps): Envelope {
   const logFile = path.join(desktopDir, ".desktop.log");
   const logFd = openSync(logFile, "a");
   writeSync(logFd, `\n--- desktop launch ${new Date().toISOString()} — ${[file, ...args].join(" ")} ---\n`);
-  const spawnFn = deps.spawn ?? (nodeSpawn as unknown as DesktopSpawnFn);
+  const spawnFn = deps.spawn ?? (nodeSpawn as DesktopSpawnFn);
   const child = spawnFn(file, args, {
     cwd,
     detached: true,

@@ -119,24 +119,17 @@ const isWorkStatus = (s: string): boolean =>
 
 // ---------- tree read with full capabilities (re-composes the studio's readTree) ----------
 
-type LoadNodeSpec = (file: string) => {
-  title: string;
-  outcome: string;
-  status: string;
-  proofMode: string;
-  uatWitness?: "human" | "machine" | "either" | undefined;
-  dependsOn: string[];
-  consumedBy: string[];
-  capabilities: string[];
-  decisions: number[];
-  render?: string | undefined;
-  uatTestCriteria: { criterionId: string; revisionId: string; wouldBe?: boolean }[];
-  reliabilityGates: { id: string; covers?: readonly string[] }[];
-  // ADR-0020 coverage-honesty follow-on: the capability's declared `## Contracts`, parsed via
-  // `parseContracts` and already folded in by `loadNodeSpec` — the count feeds `DTCapability.testCount`.
-  contracts: { id: string; title: string }[];
-};
-type ResolveBuildConfig = (spec: unknown) => unknown;
+// The orchestrator's OWN types for the two loaders this file drives. These were hand-written mirrors
+// reached through an `as unknown as` chain until anti-slop-adoption-arc inc-03 removed it; the chain
+// was hiding a real mismatch — the mirror declared `loadNodeSpec` returning a shape MISSING `id`,
+// `tier`, `story`, `artifactEdges` and three more fields of the real `NodeSpec`, and `resolveBuildConfig`
+// as `(spec: unknown) => unknown`, so nothing here was ever checked against the module it calls.
+// Derive them instead: a type-only reference to a package this file already imports, which cannot
+// drift. NOT the studio wire types above — those stay hand-mirrored, deliberately (ADR-0176).
+type OrchestratorModule = typeof import("@storytree/orchestrator");
+type LoadNodeSpec = OrchestratorModule["loadNodeSpec"];
+type NodeSpec = ReturnType<LoadNodeSpec>;
+type ResolveBuildConfig = OrchestratorModule["resolveBuildConfig"];
 
 /** Load one capability spec into a {@link DTCapability} (re-composes the studio's `loadTreeCapability`).
  *  Tolerant: a missing/malformed spec still renders the node with `error` (like `storytree tree`). */
@@ -145,7 +138,7 @@ function loadCapability(
   resolveBuildConfig: ResolveBuildConfig,
   storyDir: string,
   capId: string,
-): { node: DTCapability; spec: ReturnType<LoadNodeSpec> | null } {
+): { node: DTCapability; spec: NodeSpec | null } {
   const node: DTCapability = {
     id: capId,
     title: capId,
@@ -214,20 +207,8 @@ export async function readTreeWithCaps(storiesDir: string): Promise<{
   if (!existsSync(storiesDir))
     return { stories, uatTestCriteriaByStory, uatCriteriaByStory, coverageByStory };
 
-  const { loadNodeSpec, effectiveUatWitness, resolveBuildConfig, isStoryBuildable, storyGoGreen } = (await loadOrchestrator()) as unknown as {
-    loadNodeSpec: LoadNodeSpec;
-    effectiveUatWitness: (declared: "human" | "machine" | "either" | undefined) => "human" | "machine";
-    resolveBuildConfig: ResolveBuildConfig;
-    isStoryBuildable: (
-      story: ReturnType<LoadNodeSpec>,
-      capabilities: readonly ReturnType<LoadNodeSpec>[],
-      mode: "live" | "real",
-    ) => boolean;
-    storyGoGreen: (
-      story: ReturnType<LoadNodeSpec>,
-      capabilities: readonly ReturnType<LoadNodeSpec>[],
-    ) => "build" | "adopt" | "none";
-  };
+  const { loadNodeSpec, effectiveUatWitness, resolveBuildConfig, isStoryBuildable, storyGoGreen } =
+    await loadOrchestrator();
 
   for (const ent of await fs.readdir(storiesDir, { withFileTypes: true })) {
     if (!ent.isDirectory()) continue;
@@ -257,7 +238,7 @@ export async function readTreeWithCaps(storiesDir: string): Promise<{
       story.consumedBy = spec.consumedBy;
       story.decisions = spec.decisions;
       if (spec.render === "building") story.building = true;
-      const capSpecs: ReturnType<LoadNodeSpec>[] = [];
+      const capSpecs: NodeSpec[] = [];
       story.capabilities = spec.capabilities.map((capId) => {
         const loaded = loadCapability(loadNodeSpec, resolveBuildConfig, dir, capId);
         if (loaded.spec !== null) capSpecs.push(loaded.spec);
@@ -515,12 +496,7 @@ export async function foldVerdicts(
   // forest-parcels inc-2: the lantern-walk summary — ALWAYS folded (even with no verdict events / a
   // down DB, when every entry reads 'pending'), so `uatCriteria` is never silently missing on the wire.
   if (uatCriteriaByStory) {
-    const { rollupCriterionStatus } = (await loadOrchestrator()) as unknown as {
-      rollupCriterionStatus: (
-        criterion: { criterionId: string; revisionId: string },
-        events: readonly DTVerdictEvent[],
-      ) => string | null;
-    };
+    const { rollupCriterionStatus } = await loadOrchestrator();
     applyUatCriteria(
       stories,
       uatCriteriaByStory,
@@ -533,20 +509,8 @@ export async function foldVerdicts(
   // backend / a down DB), so the tree renders the own-verdict layer alone rather than failing.
   const events = overlay.verdictEvents;
   if (events) {
-    const { rollupStoryGreen, rollupCapStatus, gateStoryGreenOnOpenQuestions } = (await loadOrchestrator()) as unknown as {
-      rollupStoryGreen: (
-        capabilityIds: readonly string[],
-        tests: readonly ({ criterionId: string; revisionId: string } | { id: string })[],
-        events: readonly DTVerdictEvent[],
-        coverage?: readonly { id: string; covers?: readonly string[] }[],
-      ) => string | null;
-      rollupCapStatus: (
-        capId: string,
-        events: readonly DTVerdictEvent[],
-        coverage?: readonly { id: string; covers?: readonly string[] }[],
-      ) => string | null;
-      gateStoryGreenOnOpenQuestions: (base: "healthy" | "unhealthy" | null, count: number) => string | null;
-    };
+    const { rollupStoryGreen, rollupCapStatus, gateStoryGreenOnOpenQuestions } =
+      await loadOrchestrator();
 
     // ADR-0097: covered brownfield plants greens BEFORE the crown so plants and crown agree.
     applyCapCoverage(stories, coverageByStory, events, rollupCapStatus);
@@ -558,12 +522,7 @@ export async function foldVerdicts(
     applyStoryGoGreenProof(stories);
     // ADR-0107: an open gating question WITHHOLDS a would-be green crown — run AFTER the crown.
     if (overlay.openQuestions.length > 0) {
-      const { openQuestionsGatingNode } = (await loadLibrary()) as unknown as {
-        openQuestionsGatingNode: (
-          openQuestions: readonly { id: string; references?: readonly string[] }[],
-          nodeId: string,
-        ) => readonly unknown[];
-      };
+      const { openQuestionsGatingNode } = await loadLibrary();
       const gatingCountByStory = new Map<string, number>();
       for (const story of stories) {
         const n = openQuestionsGatingNode(overlay.openQuestions, story.id).length;

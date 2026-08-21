@@ -27,6 +27,15 @@ import { useCallback, useEffect, useState } from 'react';
 export interface DesktopRepoBridge {
   pick(): Promise<string | null>;
   get(): Promise<string | null>;
+  /** The fail-closed GATE slice `TerminalRepoGate` consumes off the SAME bridge object: `ready` reads
+   *  the current VALID repo cwd (or `null` when none is selected), and `onChanged` fires when the user
+   *  picks a new repo so the gate reopens the terminal there. Declared HERE, on the one augmentation,
+   *  because the preload exposes all four together (apps/desktop/electron/preload.ts) — the gate used
+   *  to reach them through a local `as unknown as` chain asserting a shape that CONTRADICTED this
+   *  interface, which is exactly the evidence-discarding the chain hides (anti-slop-adoption-arc
+   *  inc-03). A consumer that wants only one slice narrows structurally; it does not re-declare. */
+  ready(): Promise<string | null>;
+  onChanged(cb: (cwd: string | null) => void): void;
 }
 
 declare global {

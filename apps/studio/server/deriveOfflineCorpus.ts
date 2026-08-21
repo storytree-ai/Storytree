@@ -23,7 +23,7 @@ import type { GuidanceAsset } from '../src/types';
  */
 export async function loadFixtureSeedUnits(): Promise<KnowledgeUnitLike[]> {
   const { FIXTURE_CORPUS_UNITS } = await import('@storytree/library/fixture');
-  return FIXTURE_CORPUS_UNITS as unknown as KnowledgeUnitLike[];
+  return FIXTURE_CORPUS_UNITS as KnowledgeUnitLike[];
 }
 
 /** A raw structured knowledge unit (validated downstream at the render boundary). */
@@ -62,7 +62,7 @@ export async function deriveOfflineAssets(units: KnowledgeUnitLike[]): Promise<G
     category: doc.kind as GuidanceAsset['category'],
     title: doc.title,
     description: doc.description,
-    body: renderBody(doc as unknown as Parameters<typeof renderBody>[0]),
+    body: renderBody(doc as Parameters<typeof renderBody>[0]),
     references: doc.references ?? [],
     // Absent-by-default, never `?? []` — an empty array would claim "authored, and it stands on
     // nothing", which is a different fact from "carries no authored edge" (ADR-0223's optional rule).
