@@ -124,10 +124,17 @@ while a product-managed one announces itself as `storytree7`. See §6, S-5.
 
 **The leaf hydrates no secrets, deliberately.** Unlike the Claude leaf — which auto-fills
 `CLAUDE_CODE_OAUTH_TOKEN` from `~/.storytree/secrets.json` — the Codex leaf reads the official saved
-login and strips every key variable. The consequence is B2: **the leaf cannot be set up
-independently of the interactive product.** `pnpm install` gives you the binary; only Journey A
-gives you the credential. Verified on this host: the pinned wrapper answers `Logged in using
-ChatGPT`, which it can only do because someone logged into Codex Desktop.
+login and strips every key variable. The consequence is B2: **`pnpm install` gives you the binary
+and never the credential.** The credential is `~/.codex/auth.json`, and only a Codex sign-in writes
+it — journey step A5.
+
+Verified on this host: the pinned wrapper at `packages/agent/node_modules/@openai/codex` is version
+0.145.0 and answers `Logged in using ChatGPT`, reading an `auth.json` that the interactive product
+wrote. **Not verified, and worth settling in the journey document:** that wrapper also exposes
+`codex login`, so it may be able to establish the credential itself without a separate product
+install — which would make the leaf independently set up. Nobody has tried it, and the leaf's own
+status check cannot tell which client wrote the file, so today's honest statement is the
+conservative one: on this host the credential came from the interactive product.
 
 **The leaf runs `--sandbox danger-full-access`** (`codex-author.ts:256`) — deliberate under ADR-0390,
 which withdrew the managed profiles. The phase boundary is now the disposable replica plus the exact
