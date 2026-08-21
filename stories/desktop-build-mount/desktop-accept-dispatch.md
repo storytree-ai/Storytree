@@ -14,7 +14,9 @@ depends_on: [desktop-build-route]
 # was deleted with the feature), so this capability is no longer REAL-buildable. This retirement is
 # scoped to desktop-accept-dispatch ONLY — the desktop-build-mount story keeps its other three caps
 # (worker-relocation, desktop-build-route, routed-node-real-dispatch); the /api/build route and the
-# relocated dispatchAcceptedBuild worker call are UNCHANGED. Body kept as history.
+# relocated dispatchAcceptedBuild worker call were UNCHANGED BY THIS RETIREMENT. The dispatch call has
+# since been DELETED: ADR-0175 removed its only caller (packages/drive/src/spawn-builder.ts), and
+# ADR-0404 d.5 then deleted the function and its DispatchResult type. Body kept as history.
 proof:
   command:
     file: pnpm

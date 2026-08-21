@@ -18,11 +18,12 @@ accepted (2026-07-02) — decided/directed by the owner in conversation on 2026-
 > `packages/drive/src/build-worker.ts`) drives `node build --real` with persist semantics and parks the
 > proven branch for the human to land (the green `routed-node-real-dispatch` capability). Only the
 > **trigger** changed (the orchestrator's own drive, not a human accept-click on a chat proposal); the
-> node-`--real`-persist behaviour, the "landing stays the human gate" rule, and `dispatchAcceptedBuild`
-> are unchanged. *(Corrected in place per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md):
-> this note originally read "`dispatchAcceptedBuild` (still called by `builder-spawn-dispatch`,
-> ADR-0137)". That caller is gone — ADR-0175 deleted `packages/drive/src/spawn-builder.ts` and retired
-> the spawn surface, leaving the function with no production caller at all.)*
+> node-`--real`-persist behaviour and the "landing stays the human gate" rule are unchanged.
+> *(Corrected in place per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md),
+> twice: this note originally read "`dispatchAcceptedBuild` (still called by `builder-spawn-dispatch`,
+> ADR-0137)", then "and `dispatchAcceptedBuild` are unchanged" once ADR-0175 had retired that caller.
+> `dispatchAcceptedBuild` itself is now deleted — see the ADR-0404 amendment note directly below, which
+> is the authoritative record of its fate.)*
 
 > **Amended by [ADR-0404](0404-dispatching-a-build-is-a-cli-verb-retire-the-in-app-build-an.md)**
 > (accepted, 2026-08-21) — **the UI-dispatch clause is retired and `dispatchAcceptedBuild` is deleted;
