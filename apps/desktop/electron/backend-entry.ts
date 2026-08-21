@@ -60,19 +60,10 @@ import {
 import { createBootReadRoutes } from "../src/backend/boot-read-routes.js";
 import { guardHttpRequest } from "../src/backend/loopback-guard.js";
 import { createChatSseMount } from "../src/backend/chat-sse-mount.js";
-import { createBuildRouteMount } from "../src/backend/build-route.js";
-import { createAdoptRouteMount } from "../src/backend/adopt-route.js";
-import type { AdoptContext } from "../src/backend/adopt-route.js";
-import { credentialedBuildRunner } from "../src/backend/credentialed-build-runner.js";
 import { resolveOrchestratorMaxTurns } from "../src/backend/orchestrator-turns.js";
 import { CredentialBroker } from "../src/credential/broker.js";
 import { CREDENTIAL_ENV_VAR } from "../src/credential/kinds.js";
 import { NapiKeychain } from "../src/keychain/napi-adapter.js";
-// The build worker REGISTRY + routedBuildRunner come from the shared @storytree/drive package (ADR-0133
-// d.3 — never apps/studio/server, ADR-0100). build-worker imports only node:crypto, so it is safe to
-// import statically here (the build ENTRIES nodeBuild/storyBuild are lazily imported inside the runner).
-import { BuildRegistry, routedBuildRunner, adoptRunnerFromAdoptStory } from "@storytree/drive/build-worker";
-import type { BuildContext } from "@storytree/drive/build-worker";
 import { PgAttestationStore } from "@storytree/orchestrator/store";
 
 // ---------- repo paths (real `import.meta.url`, the reason this is a sidecar) ----------
@@ -565,164 +556,6 @@ async function main(): Promise<void> {
     storiesDir,
     verdicts: { readEvents: readVerdictEventRows },
   });
-  // The chat mount is composed AFTER the build context below — its OPTIONAL spawn surface
-  // (ADR-0137 Phase 3) needs the live BuildContext (the builder spawn's caller of the routed
-  // worker). See the `chatMount` composition below.
-
-  // The desktop BUILD seam (ADR-0133 d.3 — the desktop story's operator-attested sidecar glue): the
-  // relocated worker's BuildContext, over which createBuildRouteMount (POST/GET /api/build) drives a
-  // real build from the human's click on the story detail panel's Build/Adopt affordance. (The chat
-  // accept-to-Build route was retired by ADR-0155 — the orchestrator DRIVES via its spawn
-  // tools, so there is no /api/chat/accept dispatch anymore.) The routedBuildRunner ROUTES by tier
-  // (a story → `story build --real` that persists verdicts + opens the auto-merging PR; a node →
-  // `node build --real` that persists the signed verdict and parks a claude/real/<unit>-<run> branch
-  // the human lands — ADR-0144/0031/0136); the build ENTRIES + discovery are imported LAZILY inside
-  // the closures (the raw-TS `.js` re-export trap, exactly the devApi.ts recipe). This wiring is
-  // OPERATOR-ATTESTED (verified by the live walk, ADR-0070), NOT a CI assertion — a node:test over the
-  // real routedBuildRunner would spawn a subscription-billed `--real` build on a gate pass (the live
-  // spend ADR-0010 §5 forbids); the CI-proven core is the mount factory over an INJECTED BuildContext
-  // (build-route.test.ts). A SAFE write — the spend is the human's click, not
-  // this wiring; the spine signs, CI re-proves green before trunk (ADR-0091 / ADR-0022).
-  const loadBuildUnit = async (
-    unitId: string,
-  ): Promise<
-    | { kind: "node"; spec: import("@storytree/orchestrator").NodeSpec }
-    | {
-        kind: "story";
-        spec: import("@storytree/orchestrator").NodeSpec;
-        caps: import("@storytree/orchestrator").NodeSpec[];
-      }
-    | null
-  > => {
-    const { findNodeSpecFile, loadNodeSpec } = await import("@storytree/orchestrator");
-    const file = findNodeSpecFile(storiesDir, unitId);
-    if (file === null) return null;
-    let spec: import("@storytree/orchestrator").NodeSpec;
-    try {
-      spec = loadNodeSpec(file);
-    } catch {
-      return null; // a malformed spec is not buildable, never a crash
-    }
-    if (spec.tier !== "story") return { kind: "node", spec };
-    const caps = spec.capabilities
-      .map((id) => {
-        const f = findNodeSpecFile(storiesDir, id);
-        if (f === null) return null;
-        try {
-          return loadNodeSpec(f);
-        } catch {
-          return null;
-        }
-      })
-      .filter((s): s is import("@storytree/orchestrator").NodeSpec => s !== null);
-    return { kind: "story", spec, caps };
-  };
-  // The credential bridge wired into the build path (ADR-0109 Step 2 / ADR-0113 §5, the
-  // local-credential-wiring glue): the keychain-held credential is read PER BUILD — in this
-  // main-owned sidecar, through the SAME CredentialBroker over the SAME OS keychain the Electron
-  // main writes (the sidecar IS the Electron binary in Node mode, so the keychain entry is
-  // reachable and, on macOS, ACL-matched) — and made ambient for exactly the build's duration
-  // (the SDK leaf's auth is ambient; nodeBuild/storyBuild take no env), then scrubbed.
-  // Per-build reads mean sign-in-after-launch works without a restart and sign-out fails the
-  // next build closed (the bridge's typed rejection → an honest failed run, never an empty
-  // token). The raw token never rides the spawn env, an HTTP hop, a sink line, or any
-  // renderer-reachable surface (ADR-0109 d.4). Precedence: explicit env (recorded above) >
-  // keychain > the secrets file loadLocalSecrets hydrated. Proven offline by
-  // credentialed-build-runner.test.ts over an injected env; this composition over the real
-  // NapiKeychain is sidecar glue, operator-attested like the rest of this file.
-  const build: BuildContext = {
-    registry: new BuildRegistry(),
-    runner: credentialedBuildRunner({
-      broker: new CredentialBroker(new NapiKeychain()),
-      explicitEnvVars: explicitCredentialEnv,
-      runner: routedBuildRunner({
-        classify: async (unitId) =>
-          (await loadBuildUnit(unitId))?.kind === "story" ? "story" : "node",
-        nodeBuild: async (unitId, opts) => {
-          const { nodeBuild } = await import("@storytree/drive/build");
-          return nodeBuild(unitId, { dryRun: false, real: false, ...opts });
-        },
-        storyBuild: async (unitId, opts) => {
-          const { storyBuild } = await import("@storytree/drive/build");
-          return storyBuild(unitId, opts);
-        },
-      }),
-    }),
-    isBuildable: async (unitId) => {
-      const unit = await loadBuildUnit(unitId);
-      if (unit === null) return false;
-      const { resolveBuildConfig, isStoryBuildable } = await import("@storytree/orchestrator");
-      // A story is buildable when `story build <id> --real` has real work; a node when it carries a proof
-      // config (the SAME discovery the CLI prechecks with) — exactly devApi.ts's isBuildable.
-      return unit.kind === "story"
-        ? isStoryBuildable(unit.spec, unit.caps, "real")
-        : resolveBuildConfig(unit.spec) != null;
-    },
-  };
-  const buildRouteMount = createBuildRouteMount(build);
-
-  // ---------- the desktop ADOPT seam (ADR-0097 — the unmounted sibling of the build route) ----------
-  //
-  // Compose the REAL adopt context and mount POST /api/adopt so the desktop AdoptPanel's Adopt click on a
-  // brownfield (`mapped`) story drives a real adoption — observe-and-sign its `observe` reliability gates
-  // to `adopted` verdicts + flip it `mapped → proposed` (ADR-0097). Without this route the studio SPA's
-  // Adopt button (api.adopt → POST /api/adopt) 404'd on the desktop while the sibling POST /api/build was
-  // served — the split-pair gap this closes. It SHARES the build registry (one in-flight run; progress
-  // polls the EXISTING GET /api/build?runId), and drives the EXISTING `adoptStory` drive entry lazily
-  // (the raw-TS `.js` re-export trap). isAdoptable reuses the SAME `storyGoGreen === 'adopt'` predicate
-  // the go-green affordance is computed from, fed the SAME `rollupStoryGreen` crown, so the worker never
-  // adopts a story the panel would not offer. Re-composed from devApi.ts's adopt wiring, NOT imported
-  // from apps/studio/server (ADR-0100).
-  //
-  // NO CREDENTIAL BROKER (unlike the build path): adoptStory observe-and-signs shell reliability gates +
-  // resolves the live pg verdict store — it invokes NO SDK/model, so it needs the DB (STORYTREE_DB_USER,
-  // hydrated by loadLocalSecrets) + a git-email signer, not the keychain SDK token. Matches devApi's bare
-  // adopt runner (a build INTENT-shaped SAFE write; the spine signs, CI re-proves green before trunk).
-  //
-  // OPERATOR-ATTESTED GLUE (like the build path above): a node:test over this composition would spawn a
-  // subscription-billed live adoption on a gate pass (ADR-0010 §5 forbids the live spend); the CI-proven
-  // core is createAdoptRouteMount over an INJECTED AdoptContext (adopt-route.test.ts). The spend is the
-  // human's Adopt click, not this wiring.
-  const adopt: AdoptContext = {
-    registry: build.registry,
-    runner: adoptRunnerFromAdoptStory(async (storyId, opts) => {
-      // Hydrate STORYTREE_DB_USER (env always wins) so adoptStory resolves the live verdict store; the
-      // adopt entry + its self-wiring are lazily imported inside the closure (the raw-TS `.js` trap).
-      loadLocalSecrets();
-      const { adoptStory } = await import("@storytree/drive/build");
-      return adoptStory(storyId, opts);
-    }),
-    isAdoptable: async (storyId) => {
-      const unit = await loadBuildUnit(storyId);
-      if (unit === null || unit.kind !== "story") {
-        return { ok: false, reason: `no story "${storyId}" (or its spec did not load)` };
-      }
-      const { storyGoGreen, rollupStoryGreen } = await import("@storytree/orchestrator");
-      // ADR-0040 / ADR-0094 d.1: a story already PROVEN green has nothing to adopt — refuse it here just
-      // as the /api/tree panel hides the Adopt button, fed the SAME rollupStoryGreen crown (reconstructed
-      // from the live verdict events). Offline (no verdict events) ⇒ proven=false: the status-only reading
-      // matching the panel. Exactly devApi.ts's isAdoptable, re-composed here (the surface boundary).
-      const events = (await backend.verdictEvents?.()) ?? null;
-      const proven =
-        events !== null &&
-        rollupStoryGreen(
-          unit.spec.capabilities,
-          [...unit.spec.uatTestCriteria.filter((t) => !t.wouldBe), ...unit.spec.reliabilityGates],
-          events as Parameters<typeof rollupStoryGreen>[2],
-          unit.spec.reliabilityGates.map((g) => ({ id: g.id, covers: g.covers })),
-        ) === "healthy";
-      if (storyGoGreen(unit.spec, unit.caps, proven) !== "adopt") {
-        return {
-          ok: false,
-          reason: proven
-            ? `story "${storyId}" is already proven green — its reliability gates carry a signed pass, so there is nothing to adopt (ADR-0040 / ADR-0094 d.1).`
-            : `story "${storyId}" is not adoptable — Adopt is the mapped→proposed entry for a brownfield story with \`## Reliability Gates\` (ADR-0097).`,
-        };
-      }
-      return { ok: true };
-    },
-  };
-  const adoptRouteMount = createAdoptRouteMount(adopt);
 
   // ---------- /api/uat/attest (POST — local human proof, persisted through IAP broker) ----------
   const uatAttestMount = async (
@@ -818,8 +651,8 @@ async function main(): Promise<void> {
       res.end(JSON.stringify({ error: "storyId query param is required" }));
       return true;
     }
-    // Lazily imported — the raw-TS `.js` re-export discipline (same as loadBuildUnit above
-    // and tree-verdicts.ts). All compute in @storytree/orchestrator; no apps/studio/server.
+    // Lazily imported — the raw-TS `.js` re-export discipline (same as tree-verdicts.ts).
+    // All compute in @storytree/orchestrator; no apps/studio/server.
     const {
       findNodeSpecFile, loadNodeSpec,
       deriveAttestations,
@@ -998,7 +831,7 @@ async function main(): Promise<void> {
   // The auth / CSRF / DNS-rebinding wall (loopback-guard, ADR-0119 §1 hardening). The sidecar binds an
   // ephemeral 127.0.0.1 port, which stops LAN reach but is NOT an auth boundary: any web page the user
   // visits can port-scan localhost and fire a CORS-simple POST at a side-effecting route (POST /api/chat
-  // starts an autonomous session-orchestrator; /api/build|adopt|uat/attest all mutate). So EVERY
+  // starts an autonomous session-orchestrator; POST /api/uat/attest mutates). So EVERY
   // state-mutating request must be same-origin (loopback Origin), loopback-Host (defeats DNS rebinding),
   // AND carry the per-launch secret the trusted static-server proxy injects (STORYTREE_SIDECAR_TOKEN) —
   // a request reaching this port by any path other than our proxy is refused. Read-only GET/HEAD stay
@@ -1018,8 +851,6 @@ async function main(): Promise<void> {
         }
         if (await bootRoutes(req, res, pathname)) return;
         if (await chatMount(req, res, pathname)) return;
-        if (await buildRouteMount(req, res, pathname)) return;
-        if (await adoptRouteMount(req, res, pathname)) return;
         if (await uatAttestMount(req, res, pathname)) return;
         if (await attestationsMount(req, res, pathname)) return;
         await localHandler(req, res);

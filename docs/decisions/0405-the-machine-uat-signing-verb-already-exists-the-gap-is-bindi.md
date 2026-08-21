@@ -105,14 +105,31 @@ the verb that actually applies to that leg's binding: an observe-bound machine l
 `storytree adopt <story> --pg`, a `build-tests`-bound one at the build path, and an unbound one
 says the binding is missing rather than naming any signing command. A human leg is unchanged.
 
-**D6 — Who APPROVES is escalated, not decided here.** An `adopted` verdict is signed by the spine
-principal but carries `approvedBy` — the human who decided to bring the unit into the fold
-(ADR-0097 d.4), resolved fail-closed from `--signer` → `STORYTREE_SIGNER` → git email. On this box
-that chain resolves to the owner's address for any session that runs the command. Signing 65 legs
-across 12 stories would therefore record the owner as having approved 65 adoptions he never saw.
-That is the false-attribution shape ADR-0007 exists to prevent, and it is not an agent's call to
-make. It is authored as an `open-question` on this arc and blocks the backlog leg (D4's execution),
-not this ADR.
+**D6 — Who APPROVES was escalated, not decided here. ANSWERED 2026-08-21; see
+[ADR-0408](0408-a-machine-witnessed-acceptance-leg-carries-no-human-approver.md).** An `adopted`
+verdict is signed by the spine principal but carries `approvedBy` — the human who decided to bring
+the unit into the fold (ADR-0097 d.4), resolved fail-closed from `--signer` → `STORYTREE_SIGNER` →
+git email. On this box that chain resolves to the owner's address for any session that runs the
+command. Signing 65 legs across 12 stories would therefore have recorded the owner as approving 65
+adoptions he never saw. It was authored as an `open-question` on this arc.
+
+*Corrected in place under [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md),
+because two claims here are overtaken and one of them was wrong when written.*
+
+**(a) The backlog leg is NOT blocked.** The owner ruled on 2026-08-21, the question is retired, and
+ADR-0408 D2 removes the demand: a machine UAT leg now signs with no `approvedBy` at all. D4's
+execution (`machine-uat-signing-gap-arc-inc-03`) is free to proceed, and the 65 legs will carry an
+honest record rather than 65 approvals nobody gave. Brownfield adoption keeps its human, fail-closed
+(ADR-0408 D3).
+
+**(b) The ADR-0007 framing above was wrong, and the distinction is worth keeping.** The owner
+rejected it: *"this whole system has been designed by me and coded by AI using my intent, I've been
+telling AI agents to stamp ADRs as approved along the way."* His name on a verdict is **standing
+delegated authority** — the same basis on which an agent stamps an ADR `accepted` under ADR-0110 —
+not an act he never performed. ADR-0007 governs an agent VOUCHING FOR ITS OWN WORK; it does not
+govern an agent recording a decision the owner has already delegated. The change ADR-0408 makes
+therefore rests on his ruling that the field should not DEMAND a human at all, **not** on any claim
+that his name there was false attribution.
 
 ## Consequences
 
@@ -124,11 +141,23 @@ not this ADR.
   stories are signable by an existing command; the charter scoped 18. No signing code is written.
 - **Two of the seven charter stories are unblocked immediately** — `agent` (1 leg) and
   `library-review` (5 legs) carry no unbound machine leg, and all six legs pass their witness check
-  at HEAD. The other five wait on D3's authoring work.
-- **A cost accepted knowingly:** D3 leaves 9 provable legs unsigned until 47 unbound legs are bound
-  or retired, and some of those 47 may not deserve a binding at all. Paying it keeps a signed
-  contract honest; the alternative bought 9 verdicts by weakening the rule that stops a story from
-  carrying a partial, misleading verdict set.
+  at HEAD. *(This bullet ended "The other five wait on D3's authoring work." That authoring work
+  LANDED on 2026-08-22 as `machine-uat-signing-gap-arc-inc-02`, so the five no longer wait —
+  corrected in place per ADR-0139. The decision is unchanged; only its pending status was.)*
+- **A cost accepted knowingly, and it has since been PAID.** D3 left 9 provable legs unsigned until
+  their unbound siblings were bound or retired, and warned that some of the 47 might not deserve a
+  binding at all. *(That was the state until 2026-08-22. `machine-uat-signing-gap-arc-inc-02` bound
+  the 21 unbound legs in the six poisoned stories — `desktop` 5, `embedded-terminal` 4,
+  `studio-build` 7, `terminal-tabs` 3, `map-terminal-build` 1, `studio-members` 1 — each to a newly
+  APPENDED per-criterion `uat-drive-witness.check.ts` observe gate, the ADR-0295 D1 model-driven
+  instrument every one of those stories already named as its honest binder. None was retired: all 21
+  are genuine integrated journey claims. Zero refused machine legs remain in the six, so the 9 are
+  signable; corpus-wide the count moved 74 bound / 47 unbound → 95 / 26, and the 26 that remain sit
+  in nine stories that hold NO bound leg, so they strand nothing and each states its own reason for
+  staying unbound. Binding is not driving — no drive was run, so all 21 gates are honestly RED, which
+  is D4's "a red check is left red" and not a signing gap. Corrected in place per ADR-0139.)* Paying
+  it kept a signed contract honest; the alternative bought 9 verdicts by weakening the rule that
+  stops a story from carrying a partial, misleading verdict set.
 - **The measurement instruments are recorded so nobody re-derives them by grep:** `storytree uat
   census` for the witness population, `resolveWitness` for binding, and `runAdopt`'s
   pure-by-injection core (a recording store plus a stubbed observe) for control flow — the last of

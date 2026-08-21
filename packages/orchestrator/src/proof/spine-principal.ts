@@ -8,6 +8,11 @@
  * decision (*"do we bring it in?"*) is recorded separately as the verdict's `approvedBy`. Attributing
  * the signature to the clicker would be false witness provenance (ADR-0097 d.4).
  *
+ * The SIGNER axis is invariant; the APPROVER axis is not. A machine-witnessed UAT leg on a story
+ * already in the fold carries no `approvedBy` at all — there was no adoption decision to record
+ * (ADR-0408) — while a brownfield adoption still requires one, fail-closed. Either way this principal
+ * is who signed.
+ *
  * Owner-confirmed name (2026-06-23): email-shaped, so it sits naturally alongside human git-email
  * signers in the verdict log while clearly reading as a machine, not a person.
  */

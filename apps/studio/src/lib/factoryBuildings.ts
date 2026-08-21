@@ -84,7 +84,7 @@ let kitPromise: Promise<FactoryBuilding[]> | null = null;
  */
 export function loadFactoryKit(): Promise<FactoryBuilding[]> {
   kitPromise ??= import('@storytree/procedural-architecture/kit.json').then(
-    (m) => ((m as { default: KitAsset }).default ?? (m as unknown as KitAsset)).entries,
+    (m) => ((m as { default: KitAsset }).default ?? (m as KitAsset)).entries,
   );
   return kitPromise;
 }
@@ -128,7 +128,7 @@ let heroesPromise: Promise<Record<GardenHeroId, SceneGardenHero>> | null = null;
  */
 export function loadGardenHeroes(): Promise<Record<GardenHeroId, SceneGardenHero>> {
   heroesPromise ??= import('@storytree/procedural-architecture/kit.json').then((m) => {
-    const kit = (m as { default?: KitAssetWithHeroes }).default ?? (m as unknown as KitAssetWithHeroes);
+    const kit = (m as { default?: KitAssetWithHeroes }).default ?? (m as KitAssetWithHeroes);
     const byId = {} as Record<GardenHeroId, SceneGardenHero>;
     for (const h of kit.heroes) byId[h.id] = { nodes: h.nodes, width: h.width, height: h.height };
     return byId;
@@ -147,7 +147,7 @@ let heroTreesPromise: Promise<SceneVegHeroTrees> | null = null;
  */
 export function loadHeroTreeVariants(): Promise<SceneVegHeroTrees> {
   heroTreesPromise ??= import('@storytree/procedural-architecture/kit.json').then((m) => {
-    const kit = (m as { default?: KitAssetWithHeroes }).default ?? (m as unknown as KitAssetWithHeroes);
+    const kit = (m as { default?: KitAssetWithHeroes }).default ?? (m as KitAssetWithHeroes);
     const byStatus: SceneVegHeroTrees = {};
     for (const v of kit.heroTreeVariants ?? []) {
       byStatus[v.status as keyof SceneVegHeroTrees] = { nodes: v.nodes, width: v.width, height: v.height };
@@ -212,7 +212,7 @@ let stonePromise: Promise<BakedStoneAsset> | null = null;
  */
 export function loadBakedStone(): Promise<BakedStoneAsset> {
   stonePromise ??= import('@storytree/procedural-architecture/stone.json').then((m) => {
-    const asset = (m as { default?: { stone: BakedStoneAsset } }).default ?? (m as unknown as { stone: BakedStoneAsset });
+    const asset = (m as { default?: { stone: BakedStoneAsset } }).default ?? (m as { stone: BakedStoneAsset });
     const s = asset.stone;
     return { nodes: s.nodes, width: s.width, height: s.height };
   });

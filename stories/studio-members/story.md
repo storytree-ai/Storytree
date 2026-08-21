@@ -106,7 +106,7 @@ positional, and moving one silently re-points already-signed verdicts (`asset:ed
 | 5. **Stranger** | `uatc_f71ee15e9dc5d4ae8deac1a2` | **Delete as duplicate — all three clauses.** API halves: `serveApi.integration.test.ts` **“a stranger gets 403 + requestAccess on the whole corpus; only /api/me answers”**. Frontend half: `apps/studio/src/App.boot-independence.test.tsx` renders the real `<App/>` with a NON_MEMBER `/api/me` under “Ceiling 2: a NON-member never reaches the corpus at all (ADR-0043)” and asserts the *Request access* wall renders while `api.tree` and `api.listAssets` are never called — which is precisely this leg's “the frontend load-state projects that result to the request-access wall”. |
 | 6. **No lockout** | `uatc_4c2ed36bb3a1e59d5d9a2344` | **Delete as duplicate — proven in two places, as the gate itself already recorded.** `serveApi.integration.test.ts` **“the last admin cannot be removed or down-roled (409)”** asserts the status; `packages/studio-members/src/users.test.ts` **“last-admin guard: cannot remove or downgrade the only admin”** asserts the guarded mutation does not occur at the store. |
 | 7. **Remove** | `uatc_caeb6702bd8022ab71349e27` | **Delete as duplicate.** [`user-directory`](user-directory.md), `apps/studio/server/serveApi.integration.test.ts` **“an admin lists, invites, re-roles and removes …”** ends with the exact walk this leg claims — `DELETE /api/users?email=…` returns `200`, then a fresh `/api/me` from that account returns `member: false` (`// remove → gone; a request from that account then hits the wall`). The leg's comment-history clause was already declared STRUCTURAL rather than asserted, so nothing proven is lost. |
-| 8. **Mark a builder (ADR-0117)** | `uatc_226051427c57b95a23dd2e01` | **Keep.** Not a duplicate: no node proves it, because the in-app `builder` grant does not exist — the panel offers only member/admin and the `/api/users` role validator 400s a `builder`. Deliberately UNBOUND (see open modeling call B); binding it to gate-1 would let a passing run read as proof of a path that does not exist. |
+| 8. **Mark a builder (ADR-0117)** | `uatc_226051427c57b95a23dd2e01` | **Keep.** Not a duplicate: no node proves it, because the in-app `builder` grant does not exist — the panel offers only member/admin and the `/api/users` role validator 400s a `builder`. Bound 2026-08-22 to `studio-members#gate-2`, a model-driven drive witness that is RED until the grant exists (see open modeling call B); it is still NOT bound to gate-1, because that command exercises no in-app `builder` grant and a passing run of it would read as proof of a path that does not exist. |
 
 2. **Invite:** _(witness: machine)_ _(proof-gate: studio-members#gate-1)_ the admin POSTs _(criterion-id: uatc_90b7f952124f26e6eaa46b3a)_ _(revision-id: uatr1:adb1d912ba4bb75d)_
    `dev@example.com` as a member through the shared `/api/users` route the Members panel calls.
@@ -116,7 +116,7 @@ positional, and moving one silently re-points already-signed verdicts (`asset:ed
    `/api/me` with its verified identity header. **Success —** its row is persisted `active`; the
    resolved member can read corpus APIs, and a resolved member's comment write is stamped from the
    verified identity rather than from the client-supplied author field.
-8. **Mark a builder (ADR-0117):** _(witness: machine)(detail: studio-members#uat-8)_ an admin grants _(criterion-id: uatc_226051427c57b95a23dd2e01)_ _(revision-id: uatr1:98636a68354a32fa)_
+8. **Mark a builder (ADR-0117):** _(witness: machine)(detail: studio-members#uat-8)_ _(proof-gate: studio-members#gate-2)_ an admin grants _(criterion-id: uatc_226051427c57b95a23dd2e01)_ _(revision-id: uatr1:607b770b5d469792)_ _(previous-revision-id: uatr1:98636a68354a32fa)_
    `friend@example.com` the **builder** role through the same in-app `/api/users` route the Members
    panel calls — no gcloud, no Cloud SQL IAM grant. **Success —** the grant is accepted and the user
    projection holds a `builder` row for that email; that identity then reads and comments with the
@@ -145,8 +145,33 @@ positional, and moving one silently re-points already-signed verdicts (`asset:ed
    handed only the user-store methods, a narrowing the typecheck enforces and this command does not.
    And this offline command drives no Members-panel UI, no live Google/IAP exchange, no real invite
    email (the suite injects no mailer, so every invite reports its notification skipped), and no
-   Cloud SQL. Leg 8 is deliberately NOT bound to this gate: the command exercises no in-app `builder`
-   grant, and binding it here would let a passing run read as proof of a path that does not exist.
+   Cloud SQL. Leg 8 is deliberately NOT bound to THIS gate: the command exercises no in-app `builder`
+   grant, and binding it here would let a passing run read as proof of a path that does not exist. That
+   wall is unchanged. Leg 8 is bound instead to gate 2 below, a model-driven drive witness that cannot
+   exit 0 without a recorded walk of the grant itself — so it is honestly RED while the path is missing,
+   which is the opposite of a passing run that proves nothing.
+
+**Gate 2 is NEW (2026-08-22, `machine-uat-signing-gap-arc-inc-02`) and was APPENDED — gate 1 kept its
+ordinal.** Gate ids are positional (`asset:edit-story-uat-criteria` step 2), so inserting or renumbering
+would silently re-point already-signed verdicts and surviving `(proof-gate:)` bindings. It carries no
+`(covers:)`: it proves a JOURNEY, not a capability, and adding it to a `(covers:)` list would let an
+observe-and-sign `adopt` pass green a capability that never went red (ADR-0085 / ADR-0097). It neither
+drives nor spends — the drive is deliberately out-of-band
+(`pnpm --filter @storytree/drive exec node --import tsx src/uat-drive.run.ts studio-members <criterion-id>`,
+ADR-0010 §5) and this gate is the cheap standing WITNESS of the record that drive persists, so the spine
+still mints the verdict over an exit code IT watched and ADR-0295 D2 holds unchanged. It goes red —
+honestly — when no `pass` record exists for the criterion's CURRENT `revision-id`, when the driven commit
+is not in HEAD's ancestry, or when the newest record is older than 90 days (the ADR-0016 ageing floor).
+**It is RED today and expected to stay red until the in-app grant exists** (open modeling call B): that is
+the recorded gap holding this story short of green, stated as a failing obligation rather than as an
+absent one.
+
+2. **UAT leg 8 — "an admin marks a builder through the in-app `/api/users` route (ADR-0117)" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts studio-members uatc_226051427c57b95a23dd2e01`.
+   Witnesses that a model, as an admin in the running studio, granted `friend@example.com` the **builder**
+   role through the same in-app `/api/users` route the Members panel calls — no gcloud, no Cloud SQL IAM
+   grant — and observed the grant accepted with a `builder` row in the user projection for that email.
+   The role-resolution half of the brokered-write predicate is proven by [`builder-role`](builder-role.md)'s
+   own contracts and is REFERENCED by the leg, never re-witnessed here.
 
 ## Open modeling calls (for the owner)
 
@@ -167,17 +192,30 @@ what the signatures key off). The owner decides whether to accept the machine le
 signatures as history of a superseded condition, or to restore a live-journey leg — noting that an
 appended leg takes a NEW id, so the existing signatures would not follow it.
 
-**B. Leg 8's in-app `builder` grant does not exist yet (recorded gap, no gate minted).** ADR-0117 d.2
+**B. Leg 8's in-app `builder` grant does not exist yet (recorded gap; bound to a RED drive witness since 2026-08-22).** ADR-0117 d.2
 decided the Members panel marks a `builder` exactly as it does an admin or member. Neither layer
 implements it: the panel's invite select offers only `member` and `admin` and its row action is a
 binary admin/member toggle, and beneath it the `/api/users` role validator admits only `admin` or
 `member`, so a `builder` grant is a 400. A `builder` row can therefore only arrive by a direct store
 write — the very out-of-band path ADR-0117 existed to remove. Leg 8 is consequently CURRENTLY
-UNWALKABLE by human or machine, and it is left with no proof binding rather than pointed at a gate
-that would pass without exercising it. Its basis is a BUILD gap, not a judgment gap: it dissolves the
-moment the validator and the panel admit the role and an assertion is written. What ADR-0117 also
-names as operator-attested — the look of that panel affordance, and the end-to-end "invite a builder
-→ their local build blooms in the shared forest" walk — is not this leg: the first has no subject
+UNWALKABLE by human or machine. Its basis is a BUILD gap, not a judgment gap: it dissolves the
+moment the validator and the panel admit the role and an assertion is written.
+
+**Corrected in place 2026-08-22 (ADR-0139), `machine-uat-signing-gap-arc-inc-02`.** This paragraph read
+*"and it is left with no proof binding rather than pointed at a gate that would pass without exercising
+it"*. The objection is to a gate that PASSES without exercising the leg, and it is right; what it did not
+weigh is that the leg's unbound state was never local to the leg. `runAdopt` resolves EVERY real machine
+leg before signing any, with no partial verdict set, so this one leg refused this story's whole
+UAT-signing pass and stranded bound legs 2 and 3 — collateral the recorded gap never intended and could
+not see from here. Leg 8 is now bound to `studio-members#gate-2` (above), a model-driven drive witness
+that exits 0 only for a recorded `pass` walk of THIS criterion at its current revision: while the grant
+400s the gate is RED, so nothing passes without exercising the leg and the objection is satisfied rather
+than overridden. **Binding is not driving** — no drive has been run for leg 8, none is implied by the
+binding, and ADR-0405 D4 leaves a red check red rather than re-driving to chase a pass. The gate is
+expected to stay red until this recorded gap is built.
+
+What ADR-0117 also names as operator-attested — the look of that panel affordance, and the end-to-end
+"invite a builder → their local build blooms in the shared forest" walk — is not this leg: the first has no subject
 until the affordance is built (ADR-0070 stage 2 applies then, via the frontend two-stage flow), and
 the second is the desktop's cross-machine journey
 ([`shared-forest-connection`](../desktop/shared-forest-connection.md)), not a membership condition.

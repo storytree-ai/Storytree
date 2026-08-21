@@ -1,6 +1,6 @@
 import type { StoredDoc } from "@storytree/storage-protocol";
 import { CURRENT_SCHEMA_VERSION } from "../migrations.js";
-import { hasDependsOnKey, readDependsOnPointers } from "../depends-on-compat.js";
+import { hasDependsOnKey, readDependsOnPointers } from "../depends-on.js";
 import {
   KIND_SPECS,
   type Knowledge,
@@ -246,7 +246,7 @@ function degradeReason(doc: Record<string, unknown>, kind: string): string | nul
 function extractFields(doc: Knowledge): Record<string, string> {
   const specs = KIND_SPECS[doc.kind as KnowledgeKind] ?? [];
   const fields: Record<string, string> = {};
-  const bag = doc as unknown as Record<string, unknown>;
+  const bag = doc as Record<string, unknown>;
   for (const spec of specs) {
     const value = bag[spec.field];
     if (typeof value === "string") fields[spec.field] = value;
@@ -287,7 +287,6 @@ export function renderStoredDoc(stored: StoredDoc): RenderedAsset {
       // recover 106 of 660 edges that `hasStringBody` was dropping by routing every increment here.
       // `bodyIsContentField` fixed that at the root — an increment renders structurally now — so
       // this branch is no longer load-bearing for the DAG. It stays on the merits above.)
-      // ADR-0402 read tolerance, TEMPORARY — remove after the batch drain (depends-on-compat.ts).
       // This is the reader the WHOLE studio chain hangs off (renderStoredDoc -> toGuidanceAsset ->
       // buildFocusGraph / the depth panel), so without it the canvas draws an empty DAG.
       ...(hasDependsOnKey(doc) ? { dependsOn: readDependsOnPointers(doc) } : {}),
@@ -321,7 +320,7 @@ export function renderStoredDoc(stored: StoredDoc): RenderedAsset {
   // Structured Knowledge unit: derive the body from its per-kind fields; category = the kind; and
   // carry the structured fields on the wire so the studio editor can edit them directly (option C).
   const knowledge = doc as Knowledge;
-  const typedEdges = knowledge as unknown as {
+  const typedEdges = knowledge as {
     stepRefs?: AgentStepRef[];
     branchEdges?: ProcessBranchEdge[];
     arcRef?: string;
@@ -354,7 +353,6 @@ export function renderStoredDoc(stored: StoredDoc): RenderedAsset {
       : {}),
     // The authored dependency edge (ADR-0223) crosses like the other typed edges: array-shaped, so
     // the guard is `Array.isArray` (matching stepRefs/branchEdges) rather than a truthiness test.
-    // ADR-0402 read tolerance, TEMPORARY — remove after the batch drain (depends-on-compat.ts).
     ...(hasDependsOnKey(doc) ? { dependsOn: readDependsOnPointers(doc) } : {}),
     // An increment's `cites` — the work-hierarchy join (ADR-0306 D2), array-shaped like the two
     // above. Absent-by-default rather than `[]`, because ADR-0306 D2 makes an increment citing
@@ -453,13 +451,10 @@ export function buildLibraryDoc(
   // never in `AssetWriteInput`: it is curated through the CLI, not the studio editor, so the only
   // honest thing a write that cannot express it can do is leave it exactly as it found it.
   //
-  // THE LEGACY KEY IS READ TOO, and this is the one place the ADR-0402 rename needs it. Migration #7
-  // runs at the WRITE boundary on the doc this function hands back — so a stored row still carrying
-  // `standsOn` is only migrated if the edge reaches that boundary at all. The structured branch
-  // above starts from `{...existingDoc}` and carries it for free; this branch builds a FRESH doc, so
-  // reading only the new key would silently DELETE the edge of every un-migrated row edited through
-  // this path. TEMPORARY, and it removes with `depends-on-compat.ts` — a `batch-migrate` run closes
-  // the window; nothing enforces it, which is why the removal is a decision and not a tidy.
+  // (This branch also read the pre-rename `standsOn` key until 2026-08-22, because reading only the
+  // new key would have silently DELETED the edge of every un-migrated row edited through this path.
+  // `adrs-into-the-dag-arc-inc-06` drained the corpus, so no stored row can carry it and the
+  // fallback is gone. The PRESERVATION above is not part of that removal and is permanent.)
   if (hasDependsOnKey(existingDoc)) doc["dependsOn"] = readDependsOnPointers(existingDoc);
   return doc;
 }

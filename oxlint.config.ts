@@ -22,12 +22,13 @@ import { defineConfig } from "oxlint";
  * tree with no type information, so a firing is evidence to be adjudicated, not a verdict. False
  * positives are expected and are what the arc's judge panels exist to settle.
  *
- * TESTS GET A LAXER BAR than production source (owner-decided 2026-08-21) — roughly 60% of the
- * total violation volume sits in test files, and a test faking a dependency is doing something
- * categorically different from production code lying about a type. No `overrides` block exists
- * yet because every rule that would need one is still "off"; the first lane to enable such a rule
- * adds it, keyed on the test-file globs (dot-test dot-ts and dot-test dot-tsx). Do not write those
- * globs literally in a block comment — the star-slash inside one terminates the comment early.
+ * TESTS GET A LAXER BAR than production source (owner-decided 2026-08-21, ADR-0407 D4) — roughly
+ * 60% of the total violation volume sits in test files, and a test faking a dependency is doing
+ * something categorically different from production code lying about a type. The `overrides` block
+ * at the bottom of this file is where that bar lives; `no-chained-type-assertions` is its first
+ * entry. A laxer bar is still a DECIDED bar, so each entry carries its reason like any "off" does.
+ * Do not write test globs literally in a block comment — the star-slash inside one terminates the
+ * comment early.
  */
 export default defineConfig({
   ignorePatterns: [
@@ -58,6 +59,14 @@ export default defineConfig({
     // expected to be non-zero from grep estimates and turned out clean — the tool disagreed with
     // the grep and the tool wins.
     // ---------------------------------------------------------------------------------------
+    // ADOPTED BY MIGRATION, not by luck — anti-slop-adoption-arc inc-03 drove production source from
+    // 33 sites in 18 files to ZERO. Three of those chains were hiding a claim that was FALSE: a
+    // hand-written module mirror in the desktop tree fold that was missing seven fields of the real
+    // `NodeSpec`, a `Record` value type the doc provably violated in the library's body renderer, and
+    // a `window.desktopRepo` shape in the studio that CONTRADICTED the ambient global declaration of
+    // the same object. See the increment for the full harvest. TESTS ARE ON THE LAXER BAR — see the
+    // `overrides` block at the bottom of this file.
+    "anti-slop/no-chained-type-assertions": "error",
     "anti-slop/no-object-parameters": "error",
     "anti-slop/no-reflect-apply": "error",
     "anti-slop/no-reflect-get": "error",
@@ -85,14 +94,23 @@ export default defineConfig({
     // avoid. Each rule leaves "off" via its own increment on the arc, carrying either a zero
     // count or a panel-backed reason. Counts below are from this increment's inventory.
     // ---------------------------------------------------------------------------------------
-    // 162 (33 source / 129 test, 71 files) — inc-03, the uncontested lane. No panel needed.
-    "anti-slop/no-chained-type-assertions": "off",
     // 646 (564 / 82, 168 files) — COLLIDES WITH A DELIBERATE COMPILER SETTING. `...(x !== undefined
     // ? { x } : {})` is the idiom `exactOptionalPropertyTypes: true` (tsconfig.base.json) forces on
     // us for conditionally-present optional properties. This is the clearest "our codebase fights
     // the rule" case in the set and goes to the arc's REFACTOR panel, not the rule panel.
     "anti-slop/no-conditional-empty-object-spread": "off",
-    // 497 (300 / 197, 248 files) — the `satisfies` idiom. inc-03, expected to be pure profit.
+    // 513 (312 source / 201 test, 253 files) — RE-SORTED OUT OF inc-03 AND CONTESTED, on that lane's
+    // own instruction to remove a rule that turns out not to be cheap rather than let the lane sprawl.
+    // The arc predicted "pure profit": the `satisfies` idiom, `const x: Record<string, H> = { start }`
+    // throwing away the knowledge that `start` exists. That family is real but is only 110 of the 513
+    // (open dictionary on a binding). The DOMINANT family, 290 of 513 (57%), is something else
+    // entirely — an inline anonymous object RETURN annotation over a returned object literal, e.g.
+    // `function f(): { adrs: AdrMeta[]; parseErrors: string[] }`. Satisfying it means either deleting
+    // the annotation (making a package's public return types inferred) or naming a type per site, at
+    // ~290 sites across 134 source files. That is a house-style position on whether this codebase may
+    // write inline object return types at all — defensible, but a genuine disagreement, and the arc's
+    // rule is that a disagreement goes to the RULE PANEL and never to one session's preference. Its
+    // own lane; see the arc.
     "anti-slop/no-known-value-widening": "off",
     // 111 (0 / 111, 32 files) — entirely test files. inc-06, a test-architecture lane.
     "anti-slop/no-module-mocking": "off",
@@ -112,4 +130,24 @@ export default defineConfig({
     // parsed, which is the seam's whole point. inc-04, where the judge panels get built.
     "anti-slop/no-unsafe-dictionary-type": "off",
   },
+  overrides: [
+    {
+      // THE LAXER TEST BAR (ADR-0407 D4, owner-decided 2026-08-21). Not a weakening of the ratchet
+      // and not a `warn`: a decided scope, recorded with its reason like every other "off".
+      //
+      // `no-chained-type-assertions` is at "error" in production source, where inc-03 drove it to
+      // zero. The 126 remaining sites are all in tests, and they are a different kind of thing. The
+      // compiler was asked, not guessed at: reducing each chain to a single assertion left ~71 of
+      // them compiling — pure noise — but ~55 genuinely rejected, because they are PARTIAL FAKES of
+      // real contracts. A `FixtureStore` standing in for `Store` (20 sites in one file), object
+      // literals standing in for `ServerResponse`, `Pool`, `Connector`, `HexWorld`, and the desktop
+      // preload's `window` bridges. Each one wants a real double, which is a test-architecture
+      // change rather than a type change — the same class of work the arc already gave its own lane
+      // for `no-module-mocking`, and parked as its own increment here rather than folded into inc-03.
+      files: ["**/*.test.ts", "**/*.test.tsx", "**/*.test.mts", "**/e2e/**"],
+      rules: {
+        "anti-slop/no-chained-type-assertions": "off",
+      },
+    },
+  ],
 });

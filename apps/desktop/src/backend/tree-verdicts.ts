@@ -56,7 +56,6 @@ export interface DTCapability {
    * declares no `## Contracts` section. Mirrors the studio's `TreeCapability.testCount`.
    */
   testCount: number;
-  buildable?: boolean;
   verdict?: DTVerdict;
   error?: string;
 }
@@ -82,10 +81,6 @@ export interface DTStory {
   consumedBy: string[];
   building?: boolean;
   decisions?: number[];
-  /** Whether a whole-story `story build --real` has a non-empty, fully real-buildable drive. */
-  storyBuildable?: boolean;
-  /** The canonical status-aware story affordance consumed by the shared renderer. */
-  goGreen?: "build" | "adopt" | "none";
   verdict?: DTVerdict;
   /** The story's WITNESSABLE UAT test criteria summary — see {@link DTUatCriterion}, mirrors the
    *  studio's `TreeStory.uatCriteria`. Set by {@link foldVerdicts} (via `applyUatCriteria`); absent
@@ -119,30 +114,20 @@ const isWorkStatus = (s: string): boolean =>
 
 // ---------- tree read with full capabilities (re-composes the studio's readTree) ----------
 
-type LoadNodeSpec = (file: string) => {
-  title: string;
-  outcome: string;
-  status: string;
-  proofMode: string;
-  uatWitness?: "human" | "machine" | "either" | undefined;
-  dependsOn: string[];
-  consumedBy: string[];
-  capabilities: string[];
-  decisions: number[];
-  render?: string | undefined;
-  uatTestCriteria: { criterionId: string; revisionId: string; wouldBe?: boolean }[];
-  reliabilityGates: { id: string; covers?: readonly string[] }[];
-  // ADR-0020 coverage-honesty follow-on: the capability's declared `## Contracts`, parsed via
-  // `parseContracts` and already folded in by `loadNodeSpec` — the count feeds `DTCapability.testCount`.
-  contracts: { id: string; title: string }[];
-};
-type ResolveBuildConfig = (spec: unknown) => unknown;
+// The orchestrator's OWN type for the loader this file drives. It was a hand-written mirror reached
+// through an `as unknown as` chain until anti-slop-adoption-arc inc-03 removed the chain — and the
+// chain was hiding a real mismatch: the mirror declared `loadNodeSpec` returning a shape MISSING
+// `id`, `tier`, `story`, `artifactEdges` and three more fields of the real `NodeSpec`, so nothing
+// here was ever checked against the module it calls. Derived instead, from a type-only reference to
+// a package this file already imports, so it cannot drift. NOT the studio wire types above — those
+// stay hand-mirrored, deliberately (ADR-0176).
+type OrchestratorModule = typeof import("@storytree/orchestrator");
+type LoadNodeSpec = OrchestratorModule["loadNodeSpec"];
 
 /** Load one capability spec into a {@link DTCapability} (re-composes the studio's `loadTreeCapability`).
  *  Tolerant: a missing/malformed spec still renders the node with `error` (like `storytree tree`). */
 function loadCapability(
   loadNodeSpec: LoadNodeSpec,
-  resolveBuildConfig: ResolveBuildConfig,
   storyDir: string,
   capId: string,
 ): { node: DTCapability; spec: ReturnType<LoadNodeSpec> | null } {
@@ -167,7 +152,6 @@ function loadCapability(
         status: isWorkStatus(spec.status) ? spec.status : null,
         proofMode: spec.proofMode,
         dependsOn: spec.dependsOn,
-        buildable: resolveBuildConfig(spec) != null,
         // The declared leaf-contract count (already parsed by `loadNodeSpec` via `parseContracts`).
         testCount: spec.contracts.length,
       },
@@ -214,20 +198,7 @@ export async function readTreeWithCaps(storiesDir: string): Promise<{
   if (!existsSync(storiesDir))
     return { stories, uatTestCriteriaByStory, uatCriteriaByStory, coverageByStory };
 
-  const { loadNodeSpec, effectiveUatWitness, resolveBuildConfig, isStoryBuildable, storyGoGreen } = (await loadOrchestrator()) as unknown as {
-    loadNodeSpec: LoadNodeSpec;
-    effectiveUatWitness: (declared: "human" | "machine" | "either" | undefined) => "human" | "machine";
-    resolveBuildConfig: ResolveBuildConfig;
-    isStoryBuildable: (
-      story: ReturnType<LoadNodeSpec>,
-      capabilities: readonly ReturnType<LoadNodeSpec>[],
-      mode: "live" | "real",
-    ) => boolean;
-    storyGoGreen: (
-      story: ReturnType<LoadNodeSpec>,
-      capabilities: readonly ReturnType<LoadNodeSpec>[],
-    ) => "build" | "adopt" | "none";
-  };
+  const { loadNodeSpec, effectiveUatWitness } = await loadOrchestrator();
 
   for (const ent of await fs.readdir(storiesDir, { withFileTypes: true })) {
     if (!ent.isDirectory()) continue;
@@ -257,17 +228,9 @@ export async function readTreeWithCaps(storiesDir: string): Promise<{
       story.consumedBy = spec.consumedBy;
       story.decisions = spec.decisions;
       if (spec.render === "building") story.building = true;
-      const capSpecs: ReturnType<LoadNodeSpec>[] = [];
-      story.capabilities = spec.capabilities.map((capId) => {
-        const loaded = loadCapability(loadNodeSpec, resolveBuildConfig, dir, capId);
-        if (loaded.spec !== null) capSpecs.push(loaded.spec);
-        return loaded.node;
-      });
-      // Keep the desktop mirror on the same pure predicates as the canonical Studio resolver. The
-      // renderer requires `goGreen === "build"` for a proposed story; omitting these fields silently
-      // hid a valid whole-story build even though every driven capability carried a real proof arm.
-      story.storyBuildable = isStoryBuildable(spec, capSpecs, "real");
-      story.goGreen = storyGoGreen(spec, capSpecs);
+      story.capabilities = spec.capabilities.map(
+        (capId) => loadCapability(loadNodeSpec, dir, capId).node,
+      );
       // The per-story OWN-PROOF obligations: the WITNESSABLE per-test UAT test criteria (would-be legs filtered
       // out, ADR-0097) UNION the `## Reliability Gates` — both addressable `{ id }` units the crown
       // rolls up (ADR-0085 / ADR-0082). Mirrors the studio's readTree collection verbatim.
@@ -464,15 +427,6 @@ export function applyOpenQuestionGate(
   }
 }
 
-/** Clear a file-derived Build/Adopt affordance once a signed pass proves the story green. */
-export function applyStoryGoGreenProof(stories: DTStory[]): void {
-  for (const story of stories) {
-    if (story.verdict?.outcome !== "pass") continue;
-    if (story.goGreen === undefined || story.goGreen === "none") continue;
-    story.goGreen = "none";
-  }
-}
-
 /**
  * Fold the signed-verdict overlay into the bare authored tree — the desktop's re-composition of the
  * studio tree-handler's enrichment block (apiRouter.ts ~1659-1707), in the SAME order so the desktop
@@ -515,12 +469,7 @@ export async function foldVerdicts(
   // forest-parcels inc-2: the lantern-walk summary — ALWAYS folded (even with no verdict events / a
   // down DB, when every entry reads 'pending'), so `uatCriteria` is never silently missing on the wire.
   if (uatCriteriaByStory) {
-    const { rollupCriterionStatus } = (await loadOrchestrator()) as unknown as {
-      rollupCriterionStatus: (
-        criterion: { criterionId: string; revisionId: string },
-        events: readonly DTVerdictEvent[],
-      ) => string | null;
-    };
+    const { rollupCriterionStatus } = await loadOrchestrator();
     applyUatCriteria(
       stories,
       uatCriteriaByStory,
@@ -533,37 +482,17 @@ export async function foldVerdicts(
   // backend / a down DB), so the tree renders the own-verdict layer alone rather than failing.
   const events = overlay.verdictEvents;
   if (events) {
-    const { rollupStoryGreen, rollupCapStatus, gateStoryGreenOnOpenQuestions } = (await loadOrchestrator()) as unknown as {
-      rollupStoryGreen: (
-        capabilityIds: readonly string[],
-        tests: readonly ({ criterionId: string; revisionId: string } | { id: string })[],
-        events: readonly DTVerdictEvent[],
-        coverage?: readonly { id: string; covers?: readonly string[] }[],
-      ) => string | null;
-      rollupCapStatus: (
-        capId: string,
-        events: readonly DTVerdictEvent[],
-        coverage?: readonly { id: string; covers?: readonly string[] }[],
-      ) => string | null;
-      gateStoryGreenOnOpenQuestions: (base: "healthy" | "unhealthy" | null, count: number) => string | null;
-    };
+    const { rollupStoryGreen, rollupCapStatus, gateStoryGreenOnOpenQuestions } =
+      await loadOrchestrator();
 
     // ADR-0097: covered brownfield plants greens BEFORE the crown so plants and crown agree.
     applyCapCoverage(stories, coverageByStory, events, rollupCapStatus);
     if (uatTestCriteriaByStory.size > 0) {
       applyUatCrowns(stories, uatTestCriteriaByStory, coverageByStory, events, rollupStoryGreen);
     }
-    // Proof wins over the authored-status affordance. Match the canonical resolver's ordering: after
-    // the crown settles, before an open question may withhold the crown's green hue.
-    applyStoryGoGreenProof(stories);
     // ADR-0107: an open gating question WITHHOLDS a would-be green crown — run AFTER the crown.
     if (overlay.openQuestions.length > 0) {
-      const { openQuestionsGatingNode } = (await loadLibrary()) as unknown as {
-        openQuestionsGatingNode: (
-          openQuestions: readonly { id: string; references?: readonly string[] }[],
-          nodeId: string,
-        ) => readonly unknown[];
-      };
+      const { openQuestionsGatingNode } = await loadLibrary();
       const gatingCountByStory = new Map<string, number>();
       for (const story of stories) {
         const n = openQuestionsGatingNode(overlay.openQuestions, story.id).length;

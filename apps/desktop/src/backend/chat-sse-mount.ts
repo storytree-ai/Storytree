@@ -176,7 +176,7 @@ type BridgedStartStream = (args: {
   maxTurns?: number;
 }) => AsyncGenerator<ChatStreamEvent>;
 
-const bridgedStart = startChatStream as unknown as BridgedStartStream;
+const bridgedStart = startChatStream as BridgedStartStream;
 
 // ---------- Factory ----------
 

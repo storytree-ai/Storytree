@@ -334,14 +334,20 @@ thereafter (each real failure earns a permanent regression case, never speculati
 > leg. *(This paragraph read "The wiring legs (2, 3) are covered by the two capabilities' signed `--real`
 > verdicts …" — the deletion criterion stated and then not acted on; corrected in place per ADR-0139.)*
 >
-> **The three unbound survivors stay unbound, and that is the honest state rather than an omission.** Legs
-> 6, 7 and 8 are genuine journey steps nobody can witness yet: the Electron `_electron` walk that would
-> observe them has no spec at HEAD and persists no artifact an `observe` gate could read, so
-> `resolveWitness` refuses each one (`coverage: "refused"`) and no adopt pass can sign them. **No gate is
-> minted for any of them** — answering an unbound leg with a freshly minted check is the rubber stamp
-> ADR-0097 §2 forbids and the exact reflex ADR-0294's end state point 4 names. What binds them is a real
-> instrument: the `_electron` walk persisting a signed verdict, or ADR-0295 D1's model-driven executor,
-> already the shape of gate 1 below, which is how leg 4 is bound.
+> **The three survivors are BOUND as of 2026-08-22 (gates 2–4), and all three are RED until driven.**
+> Until then they stood unbound, and this paragraph read: *"**No gate is minted for any of them** —
+> answering an unbound leg with a freshly minted check is the rubber stamp ADR-0097 §2 forbids and the
+> exact reflex ADR-0294's end state point 4 names. What binds them is a real instrument: the `_electron`
+> walk persisting a signed verdict, or ADR-0295 D1's model-driven executor, already the shape of gate 1
+> below, which is how leg 4 is bound."* It named the two honest instruments and took neither; gates 2–4
+> take the second, one per leg. The `_electron` walk still has no spec at HEAD, so nothing here binds a
+> leg to a suite. The rubber-stamp objection is SATISFIED rather than overridden, on a decidable test: a
+> drive-witness gate cannot exit 0 without a `pass` drive record for that criterion's CURRENT revision, at
+> a commit in HEAD's ancestry, inside 90 days. **Why now:** the unbound state was never local to these
+> three. `runAdopt` resolves EVERY real machine leg before signing any, with no partial verdict set, so
+> three unbound legs refused this story's whole UAT-signing pass and stranded bound leg 4, which has a
+> gate and could otherwise be signed. **Binding is not driving** — no drive has been run for legs 6, 7 or
+> 8, and ADR-0405 D4 leaves a red check red rather than re-driving to chase a pass.
 >
 > **Leg 6's `(witness:)` tag was LINE-BROKEN and therefore parsed as `either`, not `machine`** — repaired
 > in the same 2026-08-20 change. `_(witness:` ended one line and `machine)(detail: …)_` began the next, so
@@ -415,7 +421,7 @@ with the composed `pnpm storytree … build <id> --real --store pg` command — 
    `--real --store pg` build, so the driver needs `STORYTREE_UAT_DRIVE_TIMEOUT_MIN` raised well past its
    30-minute default or the run is cut off mid-walk and recorded as a MISS — a harness red, not a
    finding about the product.)*
-6. **The session panel creates, switches and closes REAL sessions in the native shell.** _(witness: machine)(detail: terminal-tabs#uat-6)_ _(criterion-id: uatc_d79072069efa32c40f89ee29)_ _(revision-id: uatr1:bad0dae27929a76e)_ _(previous-revision-id: uatr1:aa8510036eb64c63)_
+6. **The session panel creates, switches and closes REAL sessions in the native shell.** _(witness: machine)(detail: terminal-tabs#uat-6)_ _(proof-gate: terminal-tabs#gate-2)_ _(criterion-id: uatc_d79072069efa32c40f89ee29)_ _(revision-id: uatr1:60bacffaf38753df)_ _(previous-revision-id: uatr1:bad0dae27929a76e)_
    In the Electron `_electron` harness with `userData/repo-selection.json` pre-written to a real
    checkout (the `session-survival.e2e.mjs` precedent) and `/api/*` Playwright-routed to fixtures,
    expanding the dock spawns ONE real node-pty and renders one panel row; the panel's `+` spawns a SECOND
@@ -428,11 +434,16 @@ with the composed `pnpm storytree … build <id> --real --store pg` command — 
    capability, so the citation now names the capability directly — corrected in place per ADR-0139. The
    line-broken `_(witness:` / `machine)_` tag on this leg was joined in the same change: split across
    lines it parsed as `either`, so a leg authored `machine` was silently invisible to every machine-leg
-   census.)* **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20).** No `(proof-gate:)`: the `_electron`
-   walk that would witness this has no spec at HEAD and persists no artifact an `observe` gate can read,
-   so `resolveWitness` refuses and nothing can sign it. No gate is minted to host it (ADR-0097 §2).
-7. **A Build click opens a FRESH tab pre-filled and leaves the running session's screen untouched.** _(criterion-id: uatc_abc366dff450e75d3ab91e60)_ _(revision-id: uatr1:75dd43647be8960b)_ _(previous-revision-id: uatr1:d0d321dfbbe2c07e)_
-   _(witness: machine)(detail: terminal-tabs#uat-7)_ In the same harness, with a real pty in tab 1 carrying typed, un-submitted input,
+   census.)* **BOUND to `terminal-tabs#gate-2` (2026-08-22) — RED until driven.** This read *"**UNBOUND — fails
+   closed (ADR-0294 D4, 2026-08-20)** … No gate is minted to host it (ADR-0097 §2)"*, and the `_electron`
+   walk it named still has no spec at HEAD. What gate 2 binds is the OTHER real instrument this story
+   already uses — ADR-0295 D1's model-driven executor, the shape of gate 1 — which hands a model this
+   leg's authored journey VERBATIM against the real packaged app and cannot exit 0 without a recorded
+   `pass` drive for the criterion's CURRENT revision. That is the line between it and the minted rubber
+   stamp ADR-0097 §2 bans: this gate is honestly RED, not passing. **Binding is not driving** — no drive
+   has been run for this leg and ADR-0405 D4 leaves a red check red. Corrected in place (ADR-0139).
+7. **A Build click opens a FRESH tab pre-filled and leaves the running session's screen untouched.** _(criterion-id: uatc_abc366dff450e75d3ab91e60)_ _(revision-id: uatr1:c42afbbd5c4adc37)_ _(previous-revision-id: uatr1:75dd43647be8960b)_
+   _(witness: machine)(detail: terminal-tabs#uat-7)_ _(proof-gate: terminal-tabs#gate-3)_ In the same harness, with a real pty in tab 1 carrying typed, un-submitted input,
    open the fixture's `proposed` story panel and click Build — with the bridge present the dock **seeds
    instead of POSTing** `/api/build` (the desktop re-point). **Success —** a SECOND session appears, its
    `desktopTerminal.snapshot` shows the composed `storytree … build … --real --store pg` sitting at a
@@ -441,20 +452,29 @@ with the composed `pnpm storytree … build <id> --real --store pg` command — 
    over the mocked bridge the capability [`seed-opens-new-tab`](seed-opens-new-tab.md) signs. *(That clause
    read "not over the mocked bridge leg 3 signs"; the ADR-0294 D2 pass deleted leg 3 on 2026-08-20 as a
    restatement of that same capability, so the citation now names the capability directly — corrected in
-   place per ADR-0139.)* **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20).** No `(proof-gate:)`: the
-   `_electron` walk that would witness this has no spec at HEAD and persists no artifact an `observe` gate
-   can read, so `resolveWitness` refuses and nothing can sign it. No gate is minted to host it
-   (ADR-0097 §2).
-8. **Per-tab scrollback, colour, resize and focus survive switching and closing.** _(witness: machine)(detail: terminal-tabs#uat-8)_ _(criterion-id: uatc_811ce13a1c65a2644a7f2a2b)_ _(revision-id: uatr1:ce250b2eef349f7e)_ _(previous-revision-id: uatr1:58169711cc24cc29)_
+   place per ADR-0139.)* **BOUND to `terminal-tabs#gate-3` (2026-08-22) — RED until driven.** This read *"**UNBOUND — fails
+   closed (ADR-0294 D4, 2026-08-20)** … No gate is minted to host it (ADR-0097 §2)"*, and the `_electron`
+   walk it named still has no spec at HEAD. What gate 3 binds is the OTHER real instrument this story
+   already uses — ADR-0295 D1's model-driven executor, the shape of gate 1 — which hands a model this
+   leg's authored journey VERBATIM against the real packaged app and cannot exit 0 without a recorded
+   `pass` drive for the criterion's CURRENT revision. That is the line between it and the minted rubber
+   stamp ADR-0097 §2 bans: this gate is honestly RED, not passing. **Binding is not driving** — no drive
+   has been run for this leg and ADR-0405 D4 leaves a red check red. Corrected in place (ADR-0139).
+8. **Per-tab scrollback, colour, resize and focus survive switching and closing.** _(witness: machine)(detail: terminal-tabs#uat-8)_ _(proof-gate: terminal-tabs#gate-4)_ _(criterion-id: uatc_811ce13a1c65a2644a7f2a2b)_ _(revision-id: uatr1:4f1302e1fba7ca4f)_ _(previous-revision-id: uatr1:ce250b2eef349f7e)_
    Over two real ptys in the same harness: write a distinct marker into each, switch rows and read both
    back; emit ANSI colour into one; resize the dock; type after a switch; close one row. **Success —** each
    session's `desktopTerminal.snapshot` retains only its OWN marker across switches, the colour bytes
    appear only in the emitting session, a resize forwards new `cols`/`rows` to the ACTIVE session's pty and
    only it, post-switch keystrokes reach the newly-active pty, and closing a row leaves the surviving
    session's screen intact — the per-tab state the surface's coherence rests on, machine-observed.
-   **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20).** No `(proof-gate:)`: the `_electron` walk that
-   would witness this has no spec at HEAD and persists no artifact an `observe` gate can read, so
-   `resolveWitness` refuses and nothing can sign it. No gate is minted to host it (ADR-0097 §2).
+   **BOUND to `terminal-tabs#gate-4` (2026-08-22) — RED until driven.** This read *"**UNBOUND — fails
+   closed (ADR-0294 D4, 2026-08-20)** … No gate is minted to host it (ADR-0097 §2)"*, and the `_electron`
+   walk it named still has no spec at HEAD. What gate 4 binds is the OTHER real instrument this story
+   already uses — ADR-0295 D1's model-driven executor, the shape of gate 1 — which hands a model this
+   leg's authored journey VERBATIM against the real packaged app and cannot exit 0 without a recorded
+   `pass` drive for the criterion's CURRENT revision. That is the line between it and the minted rubber
+   stamp ADR-0097 §2 bans: this gate is honestly RED, not passing. **Binding is not driving** — no drive
+   has been run for this leg and ADR-0405 D4 leaves a red check red. Corrected in place (ADR-0139).
 
 End state — the embedded terminal is a tabbed multi-session terminal: N pty sessions in a session panel,
 per-session behaviours signed under the studio suite, the chrome per-dock, each session killed only by its
@@ -493,6 +513,36 @@ unchanged. It goes red — honestly — when no `pass` record exists for the cri
    nothing sent as a message to Claude), and pressed Enter to run a real `--real --store pg` build.
    **The walk contains a real build**, so the driver needs `STORYTREE_UAT_DRIVE_TIMEOUT_MIN` raised well
    past its 30-minute default; a cut-off run emits no report and is recorded as a MISS.
+
+**Gates 2–4 are NEW (2026-08-22, `machine-uat-signing-gap-arc-inc-02`) and were APPENDED — gate 1 kept
+its ordinal.** Gate ids are positional (`asset:edit-story-uat-criteria` step 2), so inserting or
+renumbering would silently re-point already-signed verdicts and surviving `(proof-gate:)` bindings. None
+carries a `(covers:)`: each proves a JOURNEY, not a capability. They are the same neither-drives-nor-spends
+witness gate 1 is, on the same honesty terms, and all three are RED until a drive is run — which is the
+point. **Why they exist:** legs 6, 7 and 8 were left unbound as the honest state, but that state was never
+local to them. `runAdopt` resolves EVERY real machine leg before signing any, with no partial verdict set,
+so three unbound legs refused this story's whole UAT-signing pass and stranded bound leg 4 — which HAS a
+gate and could otherwise be signed. Binding them exits that trap without weakening anything: a drive
+witness cannot pass a leg nobody walked.
+
+2. **UAT leg 6 — "the session panel creates, switches and closes REAL sessions in the native shell" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts terminal-tabs uatc_d79072069efa32c40f89ee29`.
+   Witnesses that a model expanded the dock in the REAL packaged app and observed `desktopTerminal.list()`
+   go 1 → 2 → 1 across the walk — one real pty and one panel row on expand, a second real pty and row from
+   the panel's `+`, the visible pane switching back on clicking row 1, and row 2's `×` disposing exactly
+   that pty — with the surviving id row 1's (never a re-spawn) and the toggle + `headerRight` rendering
+   exactly once throughout. The mocked-bridge jsdom half is [`multi-session-tabs`](multi-session-tabs.md)'s
+   own verdict and is not re-witnessed here.
+3. **UAT leg 7 — "a Build click opens a FRESH tab pre-filled and leaves the running session's screen untouched" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts terminal-tabs uatc_abc366dff450e75d3ab91e60`.
+   Witnesses that a model held a real pty in tab 1 carrying typed, UN-SUBMITTED input, clicked Build on a
+   `proposed` story, and observed the dock SEED instead of POSTing `/api/build`: a second session appears
+   whose `desktopTerminal.snapshot` shows the composed `storytree … build … --real --store pg` at a prompt
+   with no trailing newline and no execution, while tab 1's snapshot is IDENTICAL to the one taken before
+   the click — the load-bearing ADR-0186 safety wall over REAL ptys end to end.
+4. **UAT leg 8 — "per-tab scrollback, colour, resize and focus survive switching and closing" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts terminal-tabs uatc_811ce13a1c65a2644a7f2a2b`.
+   Witnesses that a model, over two real ptys, observed each session's `desktopTerminal.snapshot` retain
+   only its OWN marker across switches, ANSI colour bytes appear only in the emitting session, a dock
+   resize forward new `cols`/`rows` to the ACTIVE session's pty and only it, post-switch keystrokes reach
+   the newly-active pty, and closing a row leave the surviving session's screen intact.
 
 ## Proof
 

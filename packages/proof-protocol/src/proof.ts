@@ -103,8 +103,14 @@ const VerdictData = z
      * into the fold — the operator who pressed Adopt — distinct from `signer` (the MACHINE that
      * witnessed the green out-of-band, the spine principal for an `adopted` verdict). The two are
      * different axes: *"did it work?"* is a machine fact (`signer`), *"do we bring it in?"* is the
-     * human's decision (`approvedBy`). OPTIONAL/additive: only `adopted` verdicts carry it today, and
-     * every prior verdict (and every non-adoption producer) round-trips unchanged without it.
+     * human's decision (`approvedBy`). OPTIONAL/additive: every prior verdict (and every
+     * non-adoption producer) round-trips unchanged without it.
+     *
+     * ADR-0408: absent is a MEANING here, not just a legacy gap. Of the `adopted` verdicts, only a
+     * BROWNFIELD adoption carries an approver (there a human is accepting risk on work the system did
+     * not produce, and resolution is fail-closed). A machine-witnessed UAT leg on a story already in
+     * the fold carries NONE — the check was already declared and already bound to that journey, so
+     * there is no human decision to record and recording one would be a name nobody supplied.
      */
     approvedBy: z.string().optional(),
     runId: z.string(),

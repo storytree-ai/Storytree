@@ -291,15 +291,19 @@ permanent regression case, never speculative breadth).
 > unchanged" — which was the deletion criterion being stated and then not acted on; corrected in place per
 > ADR-0139.)*
 >
-> **The four survivors stay unbound, and that is the honest state rather than an omission.** Legs 1, 4, 6
-> and 8 are genuine journey steps nobody can witness yet. The Electron `_electron` walk that observes legs
-> 1, 4 and 6 runs under no reliability gate and persists no artifact an `observe` gate could read; leg 8
-> additionally needs a live sidecar and a reachable store. So `resolveWitness` refuses each one
-> (`coverage: "refused"`) and no adopt pass can sign them. **No gate is minted for any of them.** Answering
-> an unbound leg with a freshly minted check is the rubber stamp ADR-0097 §2 forbids, and it is the exact
-> reflex ADR-0294's end state point 4 names. What binds them is a real instrument: the `_electron` walk
-> persisting a signed verdict, or ADR-0295 D1's model-driven executor — already the shape of gate 1 below,
-> which is how leg 5 is bound.
+> **The four survivors are BOUND as of 2026-08-22 (gates 2–5), and all four are RED until driven.** Until
+> then they stood unbound, and this paragraph read: *"**No gate is minted for any of them.** Answering an
+> unbound leg with a freshly minted check is the rubber stamp ADR-0097 §2 forbids … What binds them is a
+> real instrument: the `_electron` walk persisting a signed verdict, or ADR-0295 D1's model-driven
+> executor — already the shape of gate 1 below, which is how leg 5 is bound."* It named the two honest
+> instruments and took neither; gates 2–5 take the second, one per leg. The rubber-stamp objection is
+> SATISFIED rather than overridden, and the test is decidable rather than a matter of taste: a
+> drive-witness gate cannot exit 0 without a `pass` drive record for that criterion's CURRENT revision, at
+> a commit in HEAD's ancestry, inside 90 days. **Why now:** the unbound state was never local to these
+> four. `runAdopt` resolves EVERY real machine leg before signing any, with no partial verdict set, so
+> four unbound legs refused this story's whole UAT-signing pass and stranded bound leg 5, which has a gate
+> and could otherwise be signed. **Binding is not driving** — no drive has been run for legs 1, 4, 6 or 8,
+> and ADR-0405 D4 leaves a red check red rather than re-driving to chase a pass.
 >
 > Legs **1, 4 and 6** are `machine` through the **existing** Electron `_electron` Playwright harness
 > (`apps/desktop/e2e/`), which already launches the app offline, satisfies the repo gate by pre-writing
@@ -392,7 +396,7 @@ permanent regression case, never speculative breadth).
 and watches a wisp light on the forest map for that Claude Code session — the interactive surface being
 the real tool, the observability layer watching it through the existing seams with no new code.
 
-1. **A terminal sits in the dock.** _(witness: machine)(detail: embedded-terminal#uat-1)_ The member opens the desktop app; with a valid _(criterion-id: uatc_a311ba8bd853bebf8a1eb587)_ _(revision-id: uatr1:99c3e2908980147a)_ _(previous-revision-id: uatr1:13b9763209fd4a21)_
+1. **A terminal sits in the dock.** _(witness: machine)(detail: embedded-terminal#uat-1)_ _(proof-gate: embedded-terminal#gate-2)_ The member opens the desktop app; with a valid _(criterion-id: uatc_a311ba8bd853bebf8a1eb587)_ _(revision-id: uatr1:31b9806fe0957578)_ _(previous-revision-id: uatr1:99c3e2908980147a)_
    repo selected (the `terminal-repo-picker` gate — satisfied in the harness by pre-writing the userData
    `repo-selection.json`, as `session-survival.e2e.mjs` already does), a terminal panel sits in the same
    `.world-frame` dock slot the chat occupied. **Success —** in the real Electron renderer the forest page
@@ -402,13 +406,17 @@ the real tool, the observability layer watching it through the existing seams wi
    tree (ADR-0175). *(Presence, placement and the single-interactive-surface property are DOM-structural
    observables in the integrated harness. Mounting the dock stays glue at the capability tier — no
    isolatable red→green in swapping which already-proven component mounts — but that is a tiering call,
-   not a witness kind.)* **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20).** This leg names no
-   `(proof-gate:)`. Its observable is driven today by `apps/desktop/e2e/session-survival.e2e.mjs`, but
-   that suite runs under no reliability gate and persists no artifact an `observe` gate could read, so
-   `resolveWitness` refuses it (`coverage: "refused"`) and no adopt pass can sign it. No gate is minted to
-   host it — that is the rubber stamp ADR-0097 §2 bans. See "The four survivors stay unbound" above for
-   what would bind it.
-4. **A REAL pty hosts a real interactive shell in the member's checkout.** _(witness: machine)(detail: embedded-terminal#uat-4)_ The dock _(criterion-id: uatc_4a73475c396b1635baf9f5d1)_ _(revision-id: uatr1:071685e9396e7687)_ _(previous-revision-id: uatr1:d5928c87db3d120b)_
+   not a witness kind.)* **BOUND to `embedded-terminal#gate-2` (2026-08-22) — RED until driven.** This read *"**UNBOUND —
+   fails closed (ADR-0294 D4, 2026-08-20)** … No gate is minted to host it — that is the rubber stamp
+   ADR-0097 §2 bans"*, and every fact it stated still holds: the `_electron` walk persists no artifact an
+   `observe` gate can read. `session-survival.e2e.mjs` still runs under no reliability gate, and a
+   gate pointed at it would sign only the half it reaches. What gate 2 binds is the OTHER instrument "The four survivors" names —
+   ADR-0295 D1's model-driven executor, the shape of gate 1 — which hands a model this leg's authored
+   journey VERBATIM against the real packaged app and cannot exit 0 without a recorded `pass` drive for the
+   criterion's CURRENT revision. That is the line between it and a minted rubber stamp: this gate is
+   honestly RED, not passing. **Binding is not driving** — no drive has been run for this leg and ADR-0405
+   D4 leaves a red check red. Corrected in place (ADR-0139).
+4. **A REAL pty hosts a real interactive shell in the member's checkout.** _(witness: machine)(detail: embedded-terminal#uat-4)_ _(proof-gate: embedded-terminal#gate-3)_ The dock _(criterion-id: uatc_4a73475c396b1635baf9f5d1)_ _(revision-id: uatr1:48f17b365ad85672)_ _(previous-revision-id: uatr1:071685e9396e7687)_
    spawns a REAL node-pty in the selected repo; typed input reaches the real shell and its output comes
    back, and a full-screen interactive program (alternate screen buffer, redraw on keypress) drives the
    same session — the property that makes an interactive TUI work at all. **Success —** a line command
@@ -419,9 +427,15 @@ the real tool, the observability layer watching it through the existing seams wi
    native-module half of this leg is harnessed today; only the interactive-program assertion is net-new.
    This sentence read "the mocked xterm/mocked bridge capability 3 signs"; the capability is named
    directly here because the ADR-0294 D2 pass deleted the story leg that carried the same ordinal.)*
-   **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20).** No `(proof-gate:)`: the `_electron` walk that
-   witnesses this persists no artifact an `observe` gate can read, so `resolveWitness` refuses and nothing
-   can sign it. No gate is minted to host it (ADR-0097 §2).
+   **BOUND to `embedded-terminal#gate-3` (2026-08-22) — RED until driven.** This read *"**UNBOUND —
+   fails closed (ADR-0294 D4, 2026-08-20)** … No gate is minted to host it — that is the rubber stamp
+   ADR-0097 §2 bans"*, and every fact it stated still holds: the `_electron` walk persists no artifact an
+   `observe` gate can read. The interactive-program assertion is still net-new. What gate 3 binds is the OTHER instrument "The four survivors" names —
+   ADR-0295 D1's model-driven executor, the shape of gate 1 — which hands a model this leg's authored
+   journey VERBATIM against the real packaged app and cannot exit 0 without a recorded `pass` drive for the
+   criterion's CURRENT revision. That is the line between it and a minted rubber stamp: this gate is
+   honestly RED, not passing. **Binding is not driving** — no drive has been run for this leg and ADR-0405
+   D4 leaves a red check red. Corrected in place (ADR-0139).
 5. **Real Claude Code runs interactively in the embedded terminal.** _(witness: machine)_ _(proof-gate: embedded-terminal#gate-1)_ The member types _(criterion-id: uatc_855b0712c20d7cf71a4cc78a)_ _(revision-id: uatr1:9aa066aeebca3ef6)_ _(previous-revision-id: uatr1:8dc44ae2214f9202)_
    `claude` and drives a real session in-app — its own turn knobs, slash commands, permission modes, plan
    mode, MCP and skills all working (ADR-0174: the terminal's Claude Code has all of it for free).
@@ -440,7 +454,7 @@ the real tool, the observability layer watching it through the existing seams wi
    **Read the `#uat-5` attestation note above before reading this leg** — that 2026-07-16 row is a
    `witness: human` row against the LEGACY POSITIONAL id and already did not vouch for the claim here;
    this flip changes the claim's witness and decides nothing about the owner's open remedy call.)*
-6. **Scrollback, reflow and keys behave like a real terminal.** _(witness: machine)(detail: embedded-terminal#uat-6)_ Over the REAL xterm _(criterion-id: uatc_43d8956b3d08b704da13ce47)_ _(revision-id: uatr1:5a434910bdd51343)_ _(previous-revision-id: uatr1:4b9fc94f98a35707)_
+6. **Scrollback, reflow and keys behave like a real terminal.** _(witness: machine)(detail: embedded-terminal#uat-6)_ _(proof-gate: embedded-terminal#gate-4)_ Over the REAL xterm _(criterion-id: uatc_43d8956b3d08b704da13ce47)_ _(revision-id: uatr1:550e90f662dc2ef8)_ _(previous-revision-id: uatr1:5a434910bdd51343)_
    and REAL pty in the integrated harness: output beyond the viewport is retained in scrollback (the dock
    constructs xterm at scrollback 5000, aligned with the main-held headless screen model, ADR-0190);
    resizing the dock RESIZES the pty and reflows the session (the serialized screen returns at the new
@@ -451,12 +465,17 @@ the real tool, the observability layer watching it through the existing seams wi
    `tdp-toggles-visibility-keeping-terminal-mounted`, `tdp-constructs-with-aligned-scrollback` — but a mock
    cannot exhibit reflow or scrollback retention, so this leg is the real-renderer half, not a
    restatement. That is also why the ADR-0294 D2 pass did NOT delete it: the duplication is partial, and
-   the un-duplicated half is the whole point.)* **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20).** No
-   `(proof-gate:)`, and no spec at HEAD either: the `_electron` walk that would witness this persists no
-   artifact an `observe` gate can read, so `resolveWitness` refuses and nothing can sign it. No gate is
-   minted to host it (ADR-0097 §2).
-8. **The existing observability seams watch a session started in the terminal — a wisp lights.** _(criterion-id: uatc_bdc148e9f00088bac6269e04)_ _(revision-id: uatr1:93edaa00c3f34bd6)_ _(previous-revision-id: uatr1:bc313477c63c7629)_
-   _(witness: machine)(detail: embedded-terminal#uat-8)_ A session started in the embedded terminal takes its claim through the EXISTING
+   the un-duplicated half is the whole point.)* **BOUND to `embedded-terminal#gate-4` (2026-08-22) — RED until driven.** This read *"**UNBOUND —
+   fails closed (ADR-0294 D4, 2026-08-20)** … No gate is minted to host it — that is the rubber stamp
+   ADR-0097 §2 bans"*, and every fact it stated still holds: the `_electron` walk persists no artifact an
+   `observe` gate can read. There is still no spec at HEAD. What gate 4 binds is the OTHER instrument "The four survivors" names —
+   ADR-0295 D1's model-driven executor, the shape of gate 1 — which hands a model this leg's authored
+   journey VERBATIM against the real packaged app and cannot exit 0 without a recorded `pass` drive for the
+   criterion's CURRENT revision. That is the line between it and a minted rubber stamp: this gate is
+   honestly RED, not passing. **Binding is not driving** — no drive has been run for this leg and ADR-0405
+   D4 leaves a red check red. Corrected in place (ADR-0139).
+8. **The existing observability seams watch a session started in the terminal — a wisp lights.** _(criterion-id: uatc_bdc148e9f00088bac6269e04)_ _(revision-id: uatr1:5da09670b1ee88c2)_ _(previous-revision-id: uatr1:93edaa00c3f34bd6)_
+   _(witness: machine)(detail: embedded-terminal#uat-8)_ _(proof-gate: embedded-terminal#gate-5)_ A session started in the embedded terminal takes its claim through the EXISTING
    CLI seam — `storytree noticeboard declare --node embedded-terminal --pg`, run in the terminal's real
    pty (ADR-0142) — and the map paints a wisp for it with NO new observer code, proving the ADR-0174
    premise end-to-end. **Success —** the declare writes a `work`-grade row to `events.node_claim` for that
@@ -472,10 +491,17 @@ the real tool, the observability layer watching it through the existing seams wi
    store (`packages/cli/src/ambient-presence-entry.ts`); the claim is taken by the explicit `declare`
    (or `storytree worktree create --node`), and the statusline only heartbeats an existing claim. A
    machine leg written from the old prose would have asserted a write that correctly no longer happens.
-   **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20).** No `(proof-gate:)`: the live-gated spec described
-   above does not exist, and nothing persisted today records this walk, so `resolveWitness` refuses and
-   nothing can sign it. No gate is minted to host it (ADR-0097 §2) — binding this to an offline suite that
-   never reaches a store would assert the opposite of what the leg claims.
+   **BOUND to `embedded-terminal#gate-5` (2026-08-22) — RED until driven.** This read *"**UNBOUND —
+   fails closed (ADR-0294 D4, 2026-08-20)** … No gate is minted to host it — that is the rubber stamp
+   ADR-0097 §2 bans"*, and every fact it stated still holds: the `_electron` walk persists no artifact an
+   `observe` gate can read. The live-gated spec described above still does not exist, and binding this to an
+   offline suite that never reaches a store would still assert the opposite of what the leg claims — gate 5
+   is not that: the drive runs against a real sidecar and a reachable store, or it reports a fail. What gate 5 binds is the OTHER instrument "The four survivors" names —
+   ADR-0295 D1's model-driven executor, the shape of gate 1 — which hands a model this leg's authored
+   journey VERBATIM against the real packaged app and cannot exit 0 without a recorded `pass` drive for the
+   criterion's CURRENT revision. That is the line between it and a minted rubber stamp: this gate is
+   honestly RED, not passing. **Binding is not driving** — no drive has been run for this leg and ADR-0405
+   D4 leaves a red check red. Corrected in place (ADR-0139).
 
 End state — the desktop app embeds a real local terminal that runs real Claude Code in-app as the
 interactive build surface: the pty lifecycle and the renderer dock signed under their suites, the dock
@@ -515,6 +541,39 @@ floor).
    REAL pty, and observed a genuine interactive Claude Code session — its own turn knobs, slash
    commands, permission modes, plan mode, MCP and skills — through the main-held serialized screen
    (`desktopTerminal.snapshot`), the same renderer-independent observable legs 1, 4 and 6 read.
+
+**Gates 2–5 are NEW (2026-08-22, `machine-uat-signing-gap-arc-inc-02`) and were APPENDED — gate 1 kept its
+ordinal.** Gate ids are positional (`asset:edit-story-uat-criteria` step 2), so inserting or renumbering
+would silently re-point already-signed verdicts and surviving `(proof-gate:)` bindings. None carries a
+`(covers:)`: each proves a JOURNEY, not a capability. They are the same neither-drives-nor-spends witness
+gate 1 is, on the same honesty terms, and all four are RED until a drive is run — which is the point, not
+a defect. See "The four survivors" above for why binding them was the honest move rather than the rubber
+stamp ADR-0097 §2 bans.
+
+2. **UAT leg 1 — "a terminal sits in the dock" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts embedded-terminal uatc_a311ba8bd853bebf8a1eb587`.
+   Witnesses that a model opened the REAL packaged app with a valid repo selected and observed the forest
+   page expose the expand-terminal toggle, expanding it render a live `.terminal-dock` with its session
+   panel in the `.world-frame` dock slot the chat occupied, and NO `.chat-dock` rendered anywhere in the
+   app — the single-interactive-surface property, not merely the dock's presence.
+3. **UAT leg 4 — "a REAL pty hosts a real interactive shell in the member's checkout" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts embedded-terminal uatc_4a73475c396b1635baf9f5d1`.
+   Witnesses that a model observed the dock spawn a REAL node-pty in the selected repo, a line command
+   round-trip through the real shell, AND a full-screen interactive program (alternate screen buffer,
+   redraw on keypress) render and respond in the same session — read back from the main-held serialized
+   screen (`desktopTerminal.snapshot`), never the mocked xterm [`terminal-dock-panel`](terminal-dock-panel.md)
+   signs. The interactive-program half is the part no existing harness reaches.
+4. **UAT leg 6 — "scrollback, reflow and keys behave like a real terminal" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts embedded-terminal uatc_43d8956b3d08b704da13ce47`.
+   Witnesses that a model observed, over a REAL xterm and a REAL pty: output beyond the viewport retained
+   in scrollback, a dock resize RESIZING the pty and reflowing the session (content rewrapped at the new
+   geometry, not truncated), Ctrl+C reaching the shell and interrupting a running command, and
+   collapse/expand keeping the SAME session live. A mock cannot exhibit reflow or scrollback retention,
+   which is why this is not a restatement of the capability's suite.
+5. **UAT leg 8 — "the existing observability seams watch a session started in the terminal — a wisp lights" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts embedded-terminal uatc_bdc148e9f00088bac6269e04`.
+   Witnesses that a model ran `storytree noticeboard declare --node embedded-terminal --pg` in the
+   terminal's real pty and observed a `work`-grade row written to `events.node_claim` for that session, the
+   desktop's own `/api/activity` read report it (`claimsToActivity`), and the rendered scene carry exactly
+   ONE claim-wisp keyed to that session (ADR-0212). **Live-gated:** the walk needs the REAL backend sidecar
+   and a reachable store, so a drive attempted without them reports a fail naming that — never a pass. The
+   wisp's LOOK is `wisp-as-story-claim`'s own leg and is not re-judged here.
 
 ## Proof
 
