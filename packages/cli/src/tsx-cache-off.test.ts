@@ -4,8 +4,11 @@
  *
  * WHAT IS BEING PINNED, AND WHY THE OBVIOUS ASSERTION WOULD NOT PIN IT. tsx writes every esbuild
  * transform into a FLAT directory under `os.tmpdir()` and never evicts it; on the dev box that
- * directory had reached 232,254 files / 4.18 GB, at which point a cache LOOKUP costs more than the
- * transform it saves. Measured by running the WHOLE `pnpm -r --no-bail test` suite twice per arm,
+ * directory had reached 232,254 files / 4.18 GB, at which point a cache LOOKUP measured as costing
+ * more than the transform it saves. (⚠ Re-measured on 2026-08-21 that difference did not reproduce —
+ * see `scripts/tsx-cache-off.mjs`. What THIS file pins is unaffected: it asserts the preload is
+ * arranged so the variable is set BEFORE tsx reads it, which is a question about ORDER, not about
+ * how much the cache costs.) Measured by running the WHOLE `pnpm -r --no-bail test` suite twice per arm,
  * interleaved on a quiet box: 745 s / 621 s of wall with the cache against 444 s / 424 s without —
  * about 36% off the whole monorepo's test leg, and every one of the 23 reporting projects got
  * faster. The same 5,446 tests ran in every arm. No test was deleted, skipped, sampled or moved off

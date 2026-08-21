@@ -155,8 +155,28 @@ the landing PR. `[ ]` = open · `[~]` = in progress · `[x]` = landed.
   `pnpm -r --no-bail test` leg from 745 s / 621 s of wall to 444 s / 424 s, two interleaved runs per
   arm, the same 5,446 tests in each. A FRESH cache is faster still — 273-296 s on the same harness —
   so the ordering is healthy cache < no cache << rotted cache, and CI (whose runner is fresh per job)
-  therefore opts back in. The lesson generalises past this ADR: **a "practical floor" read off a cache
-  is a floor only while that cache is healthy**, and a cache with no eviction is not.
+  therefore opts back in.
+
+  **RE-MEASURED 2026-08-21 (inc 7), AND THE ROTTED ROW DID NOT REPRODUCE — read the figures above as
+  one day's readings, not as a standing property of a full cache directory.** Same protocol (median
+  of 7 spawned `storytree <unknown-command>`, quiet box), run TWICE hours apart from two different
+  worktrees, against the SAME 235k-file directory:
+
+  | arm | first run | second run |
+  |---|---|---|
+  | cache OFF (today's default) | 1735 ms | 1802 ms |
+  | cache ON, fresh directory | 1288 ms | 1344 ms |
+  | cache ON, **the 235k-file directory** | **1192 ms** | **1361 ms** |
+
+  So the "rotted" directory measured as fast as a fresh one and ~25% FASTER than no cache — the
+  opposite of the 3703 ms above, reproduced twice. One confound is named rather than hidden: that
+  directory had been listed minutes earlier, so its NTFS index was warm, and the second run does not
+  fully clear that. What survives unchanged is the generalisable lesson — **a "practical floor" read
+  off a cache is a floor only while that cache is healthy** — and it now cuts both ways: a MEASUREMENT
+  of a cache is likewise only good while the conditions it was taken under hold. The disable stands
+  (it is the state that cannot rot, and no evidence here says it is expensive enough to reverse on),
+  but nobody should plan work off the 3703 ms figure, and the bounded-cache mechanism inc 7 was parked
+  to build is NOT needed for a rot that cannot currently be observed.
 - [ ] **2b. Lazy-pg — offline pg-free (deferred, cold-start-only)** — dynamic-`import()` the Postgres
   store graph so offline read commands never pull `pg` / the Cloud SQL connector / `google-auth-library`.
   Deferred because item 2's measurement showed it saves only **~100 ms warm** (warm is already at the
