@@ -93,6 +93,12 @@ const AUTHORED_REAL_ELECTRON_BOUNDARY_JOURNEY = [
   "   **Success —** the real preload bridge is asserted over the real `contextBridge`, not a jsdom fake.",
 ].join("\n");
 
+const AUTHORED_REAL_DESKTOP_SIDECAR_JOURNEY = [
+  "4. **The local backend is live (no 503).** With the desktop main process running",
+  "   for real — the sidecar spawned, NOT the harness's e2e mode — a GET /api/tree read route",
+  "   returns the composed organism envelope and not the static-server 503 fallback.",
+].join("\n");
+
 // ── which legs this driver owns ──────────────────────────────────────────────
 
 function src(over: {
@@ -281,6 +287,61 @@ test("authored real-Electron boundary receives native tooling and audit rejects 
     ...SPEC,
     journey: AUTHORED_REAL_ELECTRON_BOUNDARY_JOURNEY,
     platform: classifyUatDrivePlatform(AUTHORED_REAL_ELECTRON_BOUNDARY_JOURNEY),
+  };
+  assert.equal(spec.platform, "electron-native-shell");
+
+  const prompt = uatDriveTaskPrompt(spec);
+  assert.ok(prompt.includes(UAT_DRIVE_NATIVE_SHELL_TOOLING_CLAUSE));
+  assert.ok(!prompt.includes(UAT_DRIVE_WEB_TOOLING_CLAUSE));
+  assert.match(prompt, /Playwright's `_electron`/);
+  assert.match(prompt, /apps\/desktop\/e2e\/harness\.mjs/);
+  assert.match(prompt, /`win\.mouse`/);
+  assert.equal(auditDrivePrompt(prompt, spec).ok, true);
+
+  const chromiumOnly = prompt.replace(
+    UAT_DRIVE_NATIVE_SHELL_TOOLING_CLAUSE,
+    UAT_DRIVE_WEB_TOOLING_CLAUSE,
+  );
+  assert.ok(
+    auditDrivePrompt(chromiumOnly, spec).missing.includes(
+      "the native-shell platform boundary (Chromium substitution)",
+    ),
+  );
+});
+
+test("authored real desktop-main plus sidecar/no-e2e boundary selects native-shell without loose desktop false positives", () => {
+  for (const nativeBoundary of [
+    AUTHORED_REAL_DESKTOP_SIDECAR_JOURNEY,
+    "Launch the real desktop main process and prove that its local sidecar was spawned.",
+    "With the desktop main process running, launch without STORYTREE_DESKTOP_E2E and read the local backend.",
+  ]) {
+    assert.equal(
+      classifyUatDrivePlatform(nativeBoundary),
+      "electron-native-shell",
+      `an authored native desktop execution boundary must select Electron: ${nativeBoundary}`,
+    );
+  }
+
+  for (const incidental of [
+    "The desktop main process implementation and sidecar architecture are documented below.",
+    "The desktop main process is running; inspect an ordinary web route.",
+    "The sidecar spawned while a browser renders the responsive desktop layout.",
+    "Spawn the web sidecar, then check the desktop main content region.",
+    "The web sidecar runs without e2e mode; no desktop main process is involved.",
+  ]) {
+    assert.equal(
+      classifyUatDrivePlatform(incidental),
+      "web-or-cli",
+      `incidental or one-sided desktop markers must not select native-shell: ${incidental}`,
+    );
+  }
+});
+
+test("authored real desktop-sidecar boundary receives native tooling and audit rejects Chromium substitution", () => {
+  const spec: UatDriveSpec = {
+    ...SPEC,
+    journey: AUTHORED_REAL_DESKTOP_SIDECAR_JOURNEY,
+    platform: classifyUatDrivePlatform(AUTHORED_REAL_DESKTOP_SIDECAR_JOURNEY),
   };
   assert.equal(spec.platform, "electron-native-shell");
 

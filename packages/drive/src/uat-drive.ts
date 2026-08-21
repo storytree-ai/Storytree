@@ -168,9 +168,10 @@ export type UatDrivePlatform = "web-or-cli" | "electron-native-shell";
  *
  * UAT criteria do not carry a separate platform field today. Native criteria do, however, name
  * either the harness directly (`_electron` / `native shell`) or the product boundary explicitly: a
- * running/installed Electron app plus the real preload/contextBridge seam, or the real Electron main
- * itself. Keeping the derivation here avoids a story-id registry (which would drift as criteria move)
- * while making that already-authored platform instruction executable by the driver.
+ * running/installed Electron app plus the real preload/contextBridge seam, the real Electron main,
+ * or a running real desktop main whose spawned sidecar / explicit non-e2e mode makes the native launch
+ * boundary unambiguous. Keeping the derivation here avoids a story-id registry (which would drift as
+ * criteria move) while making that already-authored platform instruction executable by the driver.
  */
 export function classifyUatDrivePlatform(journey: string): UatDrivePlatform {
   const namesNativeHarness = /(?:`?_electron`?|\bnative[ -]shell\b)/i.test(journey);
@@ -181,9 +182,22 @@ export function classifyUatDrivePlatform(journey: string): UatDrivePlatform {
     /\b(?:real|actual)\s+(?:preload(?:\s+(?:bridge|boundary))?|`?contextBridge`?|context\s+bridge|IPC\s+bridge)\b/i.test(
       journey,
     );
+  const namesRunningDesktopMain =
+    /\b(?:real|actual)\s+desktop\s+main(?:\s+process)?\b/i.test(journey) ||
+    /\bdesktop\s+main(?:\s+process)?\s+(?:is\s+|was\s+)?(?:running|launched|started)\b/i.test(journey) ||
+    /\b(?:running|launched|started)\s+(?:the\s+)?desktop\s+main(?:\s+process)?\b/i.test(journey);
+  const namesSpawnedSidecar =
+    !/\bweb\s+sidecar\b/i.test(journey) &&
+    /\b(?:spawn(?:ed|s|ing)\s+(?:the\s+)?(?:(?:local|desktop|backend)\s+)?sidecar|(?:(?:local|desktop|backend)\s+)?sidecar\s+(?:(?:was|is)\s+)?spawned)\b/i.test(
+      journey,
+    );
+  const namesNonE2eLaunch =
+    /\b(?:not|without)\b[^.!?\n]{0,48}\b(?:the\s+)?(?:harness(?:'s)?\s+)?e2e\s+mode\b/i.test(journey) ||
+    /\bwithout\s+`?STORYTREE_DESKTOP_E2E`?\b/i.test(journey);
   return namesNativeHarness ||
     namesRealElectronMain ||
-    (namesRunningElectronApp && namesRealPreloadBoundary)
+    (namesRunningElectronApp && namesRealPreloadBoundary) ||
+    (namesRunningDesktopMain && (namesSpawnedSidecar || namesNonE2eLaunch))
     ? "electron-native-shell"
     : "web-or-cli";
 }
