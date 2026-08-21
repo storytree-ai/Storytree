@@ -26,6 +26,14 @@ status-aware split in decisions 1–3 stands for genuinely greenfield versus inh
 The `library`-specific application in decisions 4–5 does not: Storytree's `library` story is
 greenfield, and retrospective registration does not turn it into a `mapped` Adopt target.
 
+> **Amended by [ADR-0404](0404-dispatching-a-build-is-a-cli-verb-retire-the-in-app-build-an.md)**
+> (accepted, 2026-08-21) — **the status-aware AFFORDANCE is retired; the status MODEL stands.** The
+> transitions this ADR named — `proposed → healthy` by build, `mapped → healthy` by adopt — are
+> unchanged, and remain how go-green works. What is withdrawn is the UI that offered them: the
+> status-aware Build/Adopt control in `BuildSection`, and with it the `goGreen` / `adoptGates` /
+> `adoption` fields the tree payload computed to drive it. Both transitions are dispatched from the
+> CLI (`storytree story build`, `storytree adopt`).
+
 ## Context
 
 The studio's story-level **Build** button ([ADR-0090](0090-ui-driven-orchestration-hosted-build-capable-backend-thin-cl.md) /

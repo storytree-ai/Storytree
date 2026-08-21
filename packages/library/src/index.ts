@@ -50,13 +50,20 @@ export * from "./repo-root.js";
 // (re-exported here AND via the `/knowledge`, `/knowledge-render`, `/sources` subpaths the studio
 // browser imports directly so it never pulls a node:-laden root barrel).
 export * from "./knowledge.js";
-// ADR-0223: the authored `standsOn` dependency DAG — the pure cycle detector (`directional-dag-arc`
+// ADR-0223: the authored `dependsOn` dependency DAG — the pure cycle detector (`directional-dag-arc`
 // increment 1) and the corpus-wide acyclicity judge the `check:library-dag-acyclic` rung is a thin
-// store read around. Pure, browser-safe: no zod, no store, no node: — it reads `standsOn` and
+// store read around. Pure, browser-safe: no zod, no store, no node: — it reads `dependsOn` and
 // nothing else, so the citation web is structurally outside the dependency relation.
 export * from "./knowledge-dag.js";
+// ADR-0402 READ TOLERANCE, TEMPORARY: `readDependsOnPointers` lets every reader of the authored
+// dependency edge accept the pre-rename `standsOn` key until the corpus drains. Migration #7 runs
+// at the WRITE boundary only, so without it a stored row's edges are invisible to the acyclicity
+// rung, the depth walk, the studio wire and both probes. Delete the module and its call sites once
+// no row can still carry the old key (see depends-on-compat.ts).
+export * from "./depends-on-compat.js";
+
 // ADR-0363 D2 (`traversal-panel-arc` increment `standson-depth-from-work-join`): the READ-ONLY
-// depth-from-work join — the same `standsOn` substrate seeded at the artifacts whose `cites` names a
+// depth-from-work join — the same `dependsOn` substrate seeded at the artifacts whose `cites` names a
 // work unit, so a reader can ask "how far is this knowledge from the actual work". Pure and
 // browser-safe like its sibling; it reports its own denominators because an UNREACHABLE artifact and
 // a VERY DEEP one must never print alike. Nothing records the result and no gate enforces it.

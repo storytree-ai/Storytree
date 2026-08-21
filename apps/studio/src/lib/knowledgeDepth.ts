@@ -10,7 +10,7 @@
 //
 // `lib/traversalDepth.ts` is SESSION-TRAVERSAL depth: how deep in one context walk a visit sits,
 // resolved from `parentVisitId` and nothing else. THIS is KNOWLEDGE depth: how far the artifact that
-// was read sits from the actual work, over the authored `standsOn` graph. Two axes on one picture,
+// was read sits from the actual work, over the authored `dependsOn` graph. Two axes on one picture,
 // never one number — collapsing them would produce a figure that means nothing in either system.
 //
 // ## THE FENCE (ADR-0363 D2)
@@ -74,7 +74,7 @@ export function buildKnowledgeDepth(input: {
     verdict: evaluateDepthFromWork(
       input.assets.map((asset) => ({
         id: asset.id,
-        standsOn: asset.standsOn ?? [],
+        dependsOn: asset.dependsOn ?? [],
         cites: asset.cites ?? [],
       })),
     ),

@@ -1,8 +1,8 @@
 /**
  * `pnpm check:library-dag-acyclic` — ADR-0223 D3's fail-closed acyclicity gate over the authored
- * `standsOn` dependency edge.
+ * `dependsOn` dependency edge.
  *
- * THE THIN HALF. Every rule lives in the pure judge (`evaluateStandsOnAcyclicity` in
+ * THE THIN HALF. Every rule lives in the pure judge (`evaluateDependsOnAcyclicity` in
  * `@storytree/library`, over the cycle detector shipped by `directional-dag-arc` increment 1); this
  * file reads the corpus, hands it over, prints, and sets an exit code. It decides nothing.
  *
@@ -24,7 +24,11 @@
  */
 
 import { openCorpusStore } from "@storytree/drive";
-import { evaluateStandsOnAcyclicity } from "@storytree/library";
+import {
+  evaluateDependsOnAcyclicity,
+  isVacuousDependsOnRead,
+  VACUOUS_DEPENDS_ON_READ_FLOOR,
+} from "@storytree/library";
 
 const TAG = "check:library-dag-acyclic";
 
@@ -35,11 +39,36 @@ async function main(): Promise<void> {
     // the corpus. `queryDocs()` unfiltered is a single round trip — the shape ADR-0345 measured as
     // ~10x cheaper in CI than repeated `getDoc`s over the same set.
     const docs = await corpus.store.queryDocs();
-    const verdict = evaluateStandsOnAcyclicity(docs);
+    const verdict = evaluateDependsOnAcyclicity(docs);
+
+    // AN INSTRUMENT THAT CANNOT SEE ITS SUBJECT MUST NOT REPORT SUCCESS. A corpus this size with
+    // zero authored edges is not a clean graph, it is a blind read — and until 2026-08-21 this rung
+    // PRINTED the zero and exited 0 anyway, which is how ADR-0402's rename produced
+    // `PASS — no dependsOn cycle across 1701 artifacts (0 authored edges)` from a reader that had
+    // just stopped recognising the field. UNVERIFIED, never PASS and never FAIL: there is no cycle
+    // to name and no repair to prescribe, so the remedy is aimed at the reader, not the corpus.
+    // The floor lives with the rule in `@storytree/library` (this file decides nothing).
+    if (isVacuousDependsOnRead(verdict)) {
+      console.error(
+        `${TAG} UNVERIFIED — ${verdict.docsScanned} artifacts scanned and 0 authored dependsOn ` +
+          `edges found, so this run verified NOTHING about the knowledge DAG's acyclicity.`,
+      );
+      console.error("");
+      console.error(
+        `A corpus of ${VACUOUS_DEPENDS_ON_READ_FLOOR}+ artifacts carrying no authored edge at all ` +
+          "means the READER is blind, not that the graph is clean. The usual cause is a field " +
+          "rename whose stored rows have not been forward-migrated yet (ADR-0402 renamed this edge " +
+          "`standsOn` -> `dependsOn`; migration #7 runs at the WRITE boundary only). Check that the " +
+          "read path tolerates every spelling still in the store, then drain the corpus:",
+      );
+      console.error("  npx tsx packages/library/src/store/batch-migrate.ts");
+      process.exitCode = 1;
+      return;
+    }
 
     if (verdict.acyclic) {
       console.log(
-        `${TAG} PASS — no standsOn cycle across ${verdict.docsScanned} artifacts ` +
+        `${TAG} PASS — no dependsOn cycle across ${verdict.docsScanned} artifacts ` +
           `(${verdict.edgesScanned} authored edges).`,
       );
       return;
@@ -48,15 +77,15 @@ async function main(): Promise<void> {
     // Print the CONCRETE closed paths, never a count. A cycle is repaired by dropping one authored
     // edge, and the operator cannot choose which without seeing the ring.
     console.error(
-      `${TAG} FAIL — ${verdict.cycles.length} standsOn cycle(s) across ` +
+      `${TAG} FAIL — ${verdict.cycles.length} dependsOn cycle(s) across ` +
         `${verdict.docsScanned} artifacts (${verdict.edgesScanned} authored edges).`,
     );
     for (const cycle of verdict.cycles) console.error(`  ${cycle.line}`);
     console.error(
-      "\nThe knowledge DAG must stay acyclic (ADR-0223 D3). Drop one authored `standsOn` edge from " +
+      "\nThe knowledge DAG must stay acyclic (ADR-0223 D3). Drop one authored `dependsOn` edge from " +
         "each ring — the citation web is unconstrained, so a mutual relationship that is not a " +
         "foundational dependency belongs in `references` instead:\n" +
-        "  storytree library artifact edit <id> --set standsOn='[\"asset:...\"]' --pg",
+        "  storytree library artifact edit <id> --set dependsOn='[\"asset:...\"]' --pg",
     );
     process.exitCode = 1;
   } finally {

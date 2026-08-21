@@ -1,5 +1,5 @@
 /**
- * ADR-0223 dec 5's one-time bootstrap: project existing DOWN-TIER citations into authored `standsOn`
+ * ADR-0223 dec 5's one-time bootstrap: project existing DOWN-TIER citations into authored `dependsOn`
  * edges, as a pure function over stored corpus docs.
  *
  * PURE and total. It decides what the migration WOULD write; `packages/cli/src/standson-bootstrap.ts`
@@ -13,16 +13,16 @@
  * still judges the result, because curators author edges this function never saw.
  *
  * It does NOT make citations "build the DAG" going forward (ADR-0223 dec 5): after the migration
- * `standsOn` is authored independently and may diverge from `references` freely.
+ * `dependsOn` is authored independently and may diverge from `references` freely.
  */
 
-import { StandsOnRef } from "./knowledge.js";
+import { DependsOnRef } from "./knowledge.js";
 
 /**
  * The tier order, bedrock → composite (ADR-0223 dec 3, as amended by ADR-0363 D1).
  *
  * TIER 0 IS NOT IN THIS MAP because it is not a kind: it is the ADR set, reached by a `doc:<relpath>`
- * pointer (ADR-0223 dec 4). ADRs are not Library artifacts, carry no `standsOn` of their own, and are
+ * pointer (ADR-0223 dec 4). ADRs are not Library artifacts, carry no `dependsOn` of their own, and are
  * therefore natural sinks — strictly below every kind here and incapable of closing a cycle.
  *
  * A kind ABSENT from this map is outside the DAG: it emits no edge and is never pointed at by a
@@ -73,7 +73,7 @@ export interface CitationSource {
 /** One artifact's seeded edge set, in STORED pointer form (`asset:<id>` / `doc:<relpath>`). */
 export interface BootstrapEdge {
   readonly id: string;
-  readonly standsOn: readonly string[];
+  readonly dependsOn: readonly string[];
 }
 
 /** Why a citation did not become an edge — reported so a small yield can be explained, not guessed. */
@@ -87,20 +87,20 @@ export interface BootstrapSkips {
   readonly targetOutsideDag: number;
   /** Target id is not in the corpus at all — a stale citation. */
   readonly targetAbsent: number;
-  /** Pointer is malformed: a `doc:` that is not a relpath, or a ref no {@link StandsOnRef} accepts. */
+  /** Pointer is malformed: a `doc:` that is not a relpath, or a ref no {@link DependsOnRef} accepts. */
   readonly malformed: number;
   /**
-   * Source already carried an authored `standsOn` AND the pass found nothing to add — so it is
+   * Source already carried an authored `dependsOn` AND the pass found nothing to add — so it is
    * untouched. Since ADR-0373 an artifact that already carries edges is EXTENDED rather than skipped
-   * whole (see {@link StandsOnBootstrapPlan.extended}), so this counts only the genuine no-ops.
+   * whole (see {@link DependsOnBootstrapPlan.extended}), so this counts only the genuine no-ops.
    */
   readonly alreadyAuthored: number;
 }
 
 /** The whole migration, decided. */
-export interface StandsOnBootstrapPlan {
+export interface DependsOnBootstrapPlan {
   /**
-   * Only artifacts that GAIN at least one edge. Since ADR-0373 an entry's `standsOn` is the artifact's
+   * Only artifacts that GAIN at least one edge. Since ADR-0373 an entry's `dependsOn` is the artifact's
    * FULL intended set — any pre-existing authored edges first, in their authored order, then the new
    * ones — because the applier patches the whole field. Never a delta.
    */
@@ -162,11 +162,11 @@ function citationsOf(doc: unknown): string[] {
   return out;
 }
 
-/** A doc's already-authored `standsOn`, in authored order. */
+/** A doc's already-authored `dependsOn`, in authored order. */
 function authoredEdgesOf(doc: unknown): string[] {
-  const payload = doc as { standsOn?: unknown } | null | undefined;
-  return Array.isArray(payload?.standsOn)
-    ? payload.standsOn.filter((entry): entry is string => typeof entry === "string")
+  const payload = doc as { dependsOn?: unknown } | null | undefined;
+  return Array.isArray(payload?.dependsOn)
+    ? payload.dependsOn.filter((entry): entry is string => typeof entry === "string")
     : [];
 }
 
@@ -183,13 +183,13 @@ function kindOf(doc: unknown): string {
  * {@link KNOWLEDGE_TIERS} tier. Same-tier and up-tier citations are dropped — the former ARE the
  * curation tail, and inferring them is exactly the arbitrary-winner problem ADR-0363 D1 refused.
  *
- * Every emitted entry is checked against {@link StandsOnRef}. The migration writes into a validated
+ * Every emitted entry is checked against {@link DependsOnRef}. The migration writes into a validated
  * field, so a pointer the schema would reject must be dropped HERE, where it can be counted and
  * reported, rather than at the write, where it would fail one artifact for reasons the operator
  * cannot see. A bare `doc:0241` is the real instance: it satisfies the regex but is not a relpath, so
  * it is caught by the separate relpath rule below.
  *
- * An artifact that already carries `standsOn` is EXTENDED, not skipped whole (ADR-0373). The seed had
+ * An artifact that already carries `dependsOn` is EXTENDED, not skipped whole (ADR-0373). The seed had
  * to change here or the decision could not land at all: all 13 agents were already seeded from their
  * envelope `references` by ADR-0223 dec 5's first pass, so a skip-whole rule would have read every new
  * `rules` / `context` / `antiPatterns` field and written none of them.
@@ -202,7 +202,7 @@ function kindOf(doc: unknown): string {
  * curation tail it handed to curators is untouched, so there is no deletion history to lose yet. If
  * curation deletions ever become common, the fix is to record them, not to restore the skip.
  */
-export function projectStandsOnFromCitations(docs: readonly CitationSource[]): StandsOnBootstrapPlan {
+export function projectDependsOnFromCitations(docs: readonly CitationSource[]): DependsOnBootstrapPlan {
   const tierById = new Map<string, number | undefined>();
   const knownIds = new Set<string>();
   for (const row of docs) {
@@ -230,7 +230,7 @@ export function projectStandsOnFromCitations(docs: readonly CitationSource[]): S
     // head of the emitted set so authored order survives the patch (ADR-0373).
     const authored = authoredEdgesOf(row.doc);
     const seen = new Set<string>(authored);
-    const standsOn: string[] = [];
+    const dependsOn: string[] = [];
 
     for (const entry of citationsOf(row.doc)) {
       let pointer: string;
@@ -238,7 +238,7 @@ export function projectStandsOnFromCitations(docs: readonly CitationSource[]): S
       if (entry.startsWith(DOC_PREFIX)) {
         // Tier 0. A real `doc:` target is a repo-relative PATH; the corpus also holds a handful of
         // bare `doc:0241` / `doc:0235-....md` citations that name an ADR without locating one. They
-        // pass StandsOnRef (digits and dots are legal) and would land as permanently dangling
+        // pass DependsOnRef (digits and dots are legal) and would land as permanently dangling
         // pointers in an authored field, so the relpath rule is what actually rejects them.
         if (!entry.slice(DOC_PREFIX.length).includes("/")) {
           malformed += 1;
@@ -267,24 +267,24 @@ export function projectStandsOnFromCitations(docs: readonly CitationSource[]): S
         pointer = `${ASSET_PREFIX}${target}`;
       }
 
-      if (!StandsOnRef.safeParse(pointer).success) {
+      if (!DependsOnRef.safeParse(pointer).success) {
         malformed += 1;
         continue;
       }
       if (seen.has(pointer)) continue;
       seen.add(pointer);
-      standsOn.push(pointer);
+      dependsOn.push(pointer);
     }
 
-    if (standsOn.length === 0) {
+    if (dependsOn.length === 0) {
       // Nothing new. An artifact that already had edges is a genuine no-op; one that had none simply
       // cites nothing seedable.
       if (authored.length > 0) alreadyAuthored += 1;
       continue;
     }
     if (authored.length > 0) extended += 1;
-    edges.push({ id: row.id, standsOn: [...authored, ...standsOn] });
-    edgesPlanned += standsOn.length;
+    edges.push({ id: row.id, dependsOn: [...authored, ...dependsOn] });
+    edgesPlanned += dependsOn.length;
   }
 
   return {

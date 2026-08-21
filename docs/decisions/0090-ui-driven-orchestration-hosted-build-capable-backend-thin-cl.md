@@ -15,6 +15,13 @@ with the cloud and integrity decisions deferred to the hosting phase (ADR-0091 s
 proof-bearing worker; the exact Phase-3 auth/cost wiring is settled when built). The orchestration
 surface's APPEARANCE is operator-attested under ADR-0070's two-stage proof when built.
 
+> **Amended by [ADR-0404](0404-dispatching-a-build-is-a-cli-verb-retire-the-in-app-build-an.md)**
+> (accepted, 2026-08-21) — **Phase 1's in-panel Build CONTROL is retired; this ADR's architecture
+> stands.** The owner's call: the coding harnesses drive builds from the CLI, so the UI needs no
+> Build button. The `BuildSection` control, the `/api/build` route pair and the build registry mount
+> described below are removed. Everything else this ADR decided — the build-capable backend, the thin
+> client, the frontend importing no build code — is untouched, as is the build engine itself.
+
 ## Context
 
 Today orchestration is a human at a terminal: `pnpm storytree node build <id> --live` /

@@ -688,7 +688,10 @@ test("open-question template (ADR-0359 D5): an OPTIONAL analogy sits beside the 
   // still validates and renders unchanged (the `arcRef` precedent, re-verified rather than assumed).
   const without = validateLibraryDoc(minimalDoc("open-question")) as { analogy?: string };
   assert.equal(without.analogy, undefined, "an existing question needs no analogy");
-  assert.equal(CURRENT_SCHEMA_VERSION, 6, "an optional body field bumps nothing");
+  // The pin has since moved for an unrelated reason (ADR-0402's `standsOn` -> `dependsOn` rename,
+  // migration #7 — a field RENAME, which cannot be a zero-migration change). What this still guards
+  // is that ADR-0359's own optional field did not move it.
+  assert.equal(CURRENT_SCHEMA_VERSION, 7, "an optional body field bumps nothing");
 
   // And it round-trips through the body renderer + parser, like every other KIND_SPECS field.
   const withAnalogy = validateLibraryDoc({
@@ -704,9 +707,9 @@ test("ADR-0267 D4 is a ZERO-migration change: every registered migration no-ops 
   // stamped question must survive the upcaster with its edge intact.
   // ADR-0267's own change added an OPTIONAL field and bumped nothing. The pin has since moved on
   // for unrelated reasons (ADR-0305 D2/D4's increment reshape, then ADR-0322's outcome-note
-  // de-duplication — both REMOVE fields and so cannot be zero-migration changes) — what this guards
-  // is that no migration strips the edge.
-  assert.equal(CURRENT_SCHEMA_VERSION, 6, "the pin tracks migrations.ts, not this ADR's change");
+  // de-duplication — both REMOVE fields and so cannot be zero-migration changes, then ADR-0402's
+  // `standsOn` -> `dependsOn` RENAME) — what this guards is that no migration strips the edge.
+  assert.equal(CURRENT_SCHEMA_VERSION, 7, "the pin tracks migrations.ts, not this ADR's change");
   const stamped = {
     ...minimalDoc("open-question"),
     schemaVersion: CURRENT_SCHEMA_VERSION,
