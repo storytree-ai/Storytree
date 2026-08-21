@@ -15,17 +15,33 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act, cleanup, fireEvent } from '@testing-library/react';
 import type { AttestationsPayload, UatTestCriterionRow } from '../types';
 
-const apiMock = vi.hoisted(() => ({
-  attestations: vi.fn<(storyId: string) => Promise<AttestationsPayload>>(),
-  signUat: vi.fn(),
-}));
-const appDataMock = vi.hoisted(() => ({
-  me: { role: 'member', canAttestUat: true } as { role: 'admin' | 'member'; canAttestUat?: boolean },
-}));
-vi.mock('../api', () => ({ api: apiMock }));
-vi.mock('../lib/appData', () => ({
-  useAppData: () => ({ me: appDataMock.me }),
-}));
+import { HttpDouble, installHttpDouble } from '../test/httpDouble';
+import { WithAppData } from '../test/appData';
+import type { MeInfo } from '../types';
+
+// THE SEAMS ARE REAL, NOT MOCKED MODULES (anti-slop-adoption-arc inc-06, `no-module-mocking`): the
+// TRANSPORT is doubled and the caller arrives through the app's own `AppDataContext`. The mocked
+// hook returned a TWO-FIELD `me` ({role, canAttestUat}) where `MeInfo` carries five, so a gate that
+// started reading `member` or `status` saw `undefined`; the real context is complete by construction.
+const ATTESTATIONS = '/api/attestations';
+const ATTEST = '/api/uat/attest';
+
+let http: HttpDouble;
+
+/** A member who may sign a human leg — the default caller for this section. */
+const SIGNER: MeInfo = {
+  email: 'signer@example.com',
+  role: 'member',
+  status: 'active',
+  member: true,
+  canAttestUat: true,
+};
+/** The same member WITHOUT the narrow signing permission. */
+const NON_SIGNER: MeInfo = { ...SIGNER, canAttestUat: false };
+
+/** The sign requests that reached the wire, oldest first. */
+const signed = (): unknown[] =>
+  http.requestsTo(ATTEST).filter((request) => request.method === 'POST').map((r) => r.body);
 
 import { UatTestCriteriaSection } from './TreeView';
 
@@ -46,22 +62,36 @@ function payload(tests: RowFixture[], over: Partial<AttestationsPayload> = {}): 
   };
 }
 
+/** Render the section for `storyId` as `me` (a signer by default). */
+function renderSection(
+  storyId: string,
+  onCrownRefresh: () => void = () => {},
+  me: MeInfo = SIGNER,
+) {
+  return render(
+    <WithAppData me={me}>
+      <UatTestCriteriaSection storyId={storyId} onCrownRefresh={onCrownRefresh} />
+    </WithAppData>,
+  );
+}
+
 beforeEach(() => {
-  apiMock.attestations.mockReset();
-  apiMock.signUat.mockReset();
-  appDataMock.me = { role: 'member', canAttestUat: true };
+  http = installHttpDouble();
 });
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  http.uninstall();
+});
 
 describe('UatTestCriteriaSection — witness-icon row (ADR-0082 redesign)', () => {
   it('shows a clickable confirm for a `human` leg and NONE for a `machine` leg', async () => {
-    apiMock.attestations.mockResolvedValue(
+    http.get(ATTESTATIONS, () =>
       payload([
         { id: 'agent#uat-1', title: 'machine leg', witness: 'machine' },
         { id: 'agent#uat-2', title: 'human leg', witness: 'human' },
       ]),
     );
-    render(<UatTestCriteriaSection storyId="agent" onCrownRefresh={() => {}} />);
+    renderSection('agent');
     await flush();
 
     // the human leg's icon IS the clickable "I saw it work" affordance…
@@ -77,11 +107,10 @@ describe('UatTestCriteriaSection — witness-icon row (ADR-0082 redesign)', () =
   });
 
   it('keeps a plain member without the narrow UAT permission non-signable', async () => {
-    appDataMock.me = { role: 'member' };
-    apiMock.attestations.mockResolvedValue(
+    http.get(ATTESTATIONS, () =>
       payload([{ id: 'agent#uat-2', title: 'human leg', witness: 'human' }]),
     );
-    render(<UatTestCriteriaSection storyId="agent" onCrownRefresh={() => {}} />);
+    renderSection('agent', () => {}, NON_SIGNER);
     await flush();
     expect(
       screen.getByRole('button', { name: /human leg: human-witnessed, not yet proven/i }).hasAttribute('disabled'),
@@ -89,13 +118,13 @@ describe('UatTestCriteriaSection — witness-icon row (ADR-0082 redesign)', () =
   });
 
   it('renders a person icon for a human leg and a robot icon for a machine leg', async () => {
-    apiMock.attestations.mockResolvedValue(
+    http.get(ATTESTATIONS, () =>
       payload([
         { id: 'agent#uat-1', title: 'machine leg', witness: 'machine' },
         { id: 'agent#uat-2', title: 'human leg', witness: 'human' },
       ]),
     );
-    const { container } = render(<UatTestCriteriaSection storyId="agent" onCrownRefresh={() => {}} />);
+    const { container } = renderSection('agent');
     await flush();
 
     // SHAPE ↔ witness: a robot under the machine-witnessed button, a person under the human one.
@@ -106,17 +135,17 @@ describe('UatTestCriteriaSection — witness-icon row (ADR-0082 redesign)', () =
   });
 
   it('an unproven human icon SIGNS a real verdict; a machine/proven icon is inert', async () => {
-    apiMock.attestations.mockResolvedValue(
+    http.get(ATTESTATIONS, () =>
       payload([
         { id: 'agent#uat-1', title: 'gate leg', witness: 'machine', proven: 'pass' },
         { id: 'agent#uat-2', title: 'saw-it leg', witness: 'human' },
       ]),
     );
-    apiMock.signUat.mockResolvedValue({
+    http.post(ATTEST, () => ({
       verdict: { unitId: 'agent#uat-2', outcome: 'pass', signer: 'admin', at: '2026-01-01' },
-    });
+    }));
     const onCrownRefresh = vi.fn();
-    render(<UatTestCriteriaSection storyId="agent" onCrownRefresh={onCrownRefresh} />);
+    renderSection('agent', onCrownRefresh);
     await flush();
 
     // the machine + proven leg: a non-actionable status icon (passed), never the sign affordance.
@@ -137,27 +166,18 @@ describe('UatTestCriteriaSection — witness-icon row (ADR-0082 redesign)', () =
     });
     await flush();
 
-    expect(apiMock.signUat).toHaveBeenCalledTimes(1);
-    expect(apiMock.signUat).toHaveBeenCalledWith({
-      storyId: 'agent',
-      criterionId: 'agent#uat-2',
-      outcome: 'pass',
-    });
-    // clicking the machine icon does nothing (no onClick) — signUat fired exactly once, from the human.
-    expect(apiMock.signUat).not.toHaveBeenCalledWith({
-      storyId: 'agent',
-      criterionId: 'agent#uat-1',
-      outcome: 'pass',
-    });
+    // The signing REQUEST BODY, exactly once, naming the human leg and never the machine one —
+    // clicking the machine icon does nothing (it carries no onClick).
+    expect(signed()).toEqual([{ storyId: 'agent', criterionId: 'agent#uat-2', outcome: 'pass' }]);
     // signing a per-test verdict re-pulls the panel AND repaints the world crown.
     expect(onCrownRefresh).toHaveBeenCalledTimes(1);
   });
 
   it('a proven human leg shows a passed, non-clickable person icon (already signed)', async () => {
-    apiMock.attestations.mockResolvedValue(
+    http.get(ATTESTATIONS, () =>
       payload([{ id: 'agent#uat-1', title: 'done leg', witness: 'human', proven: 'pass' }]),
     );
-    const { container } = render(<UatTestCriteriaSection storyId="agent" onCrownRefresh={() => {}} />);
+    const { container } = renderSection('agent');
     await flush();
     const btn = screen.getByRole('button', { name: /done leg: human-witnessed, proven/i });
     expect(btn.hasAttribute('disabled')).toBe(true);
@@ -166,10 +186,10 @@ describe('UatTestCriteriaSection — witness-icon row (ADR-0082 redesign)', () =
   });
 
   it('never renders the witness as a TEXT label (the robot/person icon carries it)', async () => {
-    apiMock.attestations.mockResolvedValue(
+    http.get(ATTESTATIONS, () =>
       payload([{ id: 'agent#uat-1', title: 'a leg', witness: 'human' }]),
     );
-    const { container } = render(<UatTestCriteriaSection storyId="agent" onCrownRefresh={() => {}} />);
+    const { container } = renderSection('agent');
     await flush();
     // the word `either` is never shown (ADR-0106 d.5)…
     expect(container.textContent ?? '').not.toMatch(/either/i);
@@ -178,12 +198,12 @@ describe('UatTestCriteriaSection — witness-icon row (ADR-0082 redesign)', () =
   });
 
   it('surfaces the no-`either`-at-rest guard when the server flags unresolved legs', async () => {
-    apiMock.attestations.mockResolvedValue(
+    http.get(ATTESTATIONS, () =>
       payload([{ id: 'agent#uat-1', title: 'a leg', witness: 'human' }], {
         unresolvedWitnesses: ['agent#uat-3', 'agent#uat-5'],
       }),
     );
-    render(<UatTestCriteriaSection storyId="agent" onCrownRefresh={() => {}} />);
+    renderSection('agent');
     await flush();
     expect(screen.getByText(/2 UAT legs on this adopted story are still undecided/i)).toBeTruthy();
   });
@@ -194,7 +214,7 @@ describe('UatTestCriteriaSection — ADR-0209 D7 one-liner + Library detail open
     const oneLiner = 'Reader can open the pointed detail';
     const detailProse =
       'Action: open the Library artifact and verify the action/success/evidence sections render.';
-    apiMock.attestations.mockResolvedValue(
+    http.get(ATTESTATIONS, () =>
       payload([
         {
           id: 'uat-detail-studio#uat-1',
@@ -204,9 +224,7 @@ describe('UatTestCriteriaSection — ADR-0209 D7 one-liner + Library detail open
         },
       ]),
     );
-    const { container } = render(
-      <UatTestCriteriaSection storyId="uat-detail-studio" onCrownRefresh={() => {}} />,
-    );
+    const { container } = renderSection('uat-detail-studio');
     await flush();
 
     expect(container.querySelector('.uat-test-criterion-title')?.textContent).toBe(oneLiner);
@@ -215,7 +233,7 @@ describe('UatTestCriteriaSection — ADR-0209 D7 one-liner + Library detail open
   });
 
   it('a pointed row links to the Library detail asset; the one-liner stays the label', async () => {
-    apiMock.attestations.mockResolvedValue(
+    http.get(ATTESTATIONS, () =>
       payload([
         {
           id: 'uat-detail-studio#uat-2',
@@ -225,7 +243,7 @@ describe('UatTestCriteriaSection — ADR-0209 D7 one-liner + Library detail open
         },
       ]),
     );
-    render(<UatTestCriteriaSection storyId="uat-detail-studio" onCrownRefresh={() => {}} />);
+    renderSection('uat-detail-studio');
     await flush();
 
     const link = screen.getByRole('link', { name: /Open reaches the detail: open Library detail/i });
@@ -234,12 +252,10 @@ describe('UatTestCriteriaSection — ADR-0209 D7 one-liner + Library detail open
   });
 
   it('a row without a detail pointer has no fake open link', async () => {
-    apiMock.attestations.mockResolvedValue(
+    http.get(ATTESTATIONS, () =>
       payload([{ id: 'legacy#uat-1', title: 'Legacy one-liner', witness: 'human' }]),
     );
-    const { container } = render(
-      <UatTestCriteriaSection storyId="legacy" onCrownRefresh={() => {}} />,
-    );
+    const { container } = renderSection('legacy');
     await flush();
 
     expect(container.querySelector('.uat-test-criterion-detail-link')).toBeNull();
@@ -254,7 +270,7 @@ describe('UatTestCriteriaSection — ADR-0209 D7 one-liner + Library detail open
   });
 
   it('concision does not steal the witness sign glyph (human signable, machine inert)', async () => {
-    apiMock.attestations.mockResolvedValue(
+    http.get(ATTESTATIONS, () =>
       payload([
         {
           id: 'uat-detail-studio#uat-m',
@@ -270,7 +286,7 @@ describe('UatTestCriteriaSection — ADR-0209 D7 one-liner + Library detail open
         },
       ]),
     );
-    render(<UatTestCriteriaSection storyId="uat-detail-studio" onCrownRefresh={() => {}} />);
+    renderSection('uat-detail-studio');
     await flush();
 
     expect(screen.getAllByRole('link', { name: /open Library detail/i })).toHaveLength(2);
@@ -295,10 +311,10 @@ describe('UatTestCriteriaSection — the human leg states WHY it needs a person 
     'retired when the spine owns OS-level automation.';
 
   it('carries the leg\u2019s own basis on the hover title, not the generic human string', async () => {
-    apiMock.attestations.mockResolvedValue(
+    http.get(ATTESTATIONS, () =>
       payload([{ id: 'agent#uat-1', title: 'native picker', witness: 'human', witnessBasis: BASIS }]),
     );
-    render(<UatTestCriteriaSection storyId="agent" onCrownRefresh={() => {}} />);
+    renderSection('agent');
     await flush();
 
     const btn = screen.getByRole('button', { name: /native picker/i });
@@ -307,13 +323,13 @@ describe('UatTestCriteriaSection — the human leg states WHY it needs a person 
   });
 
   it('distinguishes two human legs from each other — the defect was one identical string', async () => {
-    apiMock.attestations.mockResolvedValue(
+    http.get(ATTESTATIONS, () =>
       payload([
         { id: 'agent#uat-1', title: 'leg one', witness: 'human', witnessBasis: 'first basis.' },
         { id: 'agent#uat-2', title: 'leg two', witness: 'human', witnessBasis: 'second basis.' },
       ]),
     );
-    render(<UatTestCriteriaSection storyId="agent" onCrownRefresh={() => {}} />);
+    renderSection('agent');
     await flush();
 
     const one = screen.getByRole('button', { name: /leg one/i }).getAttribute('title');
@@ -324,25 +340,25 @@ describe('UatTestCriteriaSection — the human leg states WHY it needs a person 
   });
 
   it('keeps the basis once the leg is PROVEN — it is why the leg is human at all', async () => {
-    apiMock.attestations.mockResolvedValue(
+    http.get(ATTESTATIONS, () =>
       payload([
         { id: 'agent#uat-1', title: 'proven leg', witness: 'human', witnessBasis: BASIS, proven: 'pass' },
       ]),
     );
-    render(<UatTestCriteriaSection storyId="agent" onCrownRefresh={() => {}} />);
+    renderSection('agent');
     await flush();
 
     expect(screen.getByRole('button', { name: /proven leg/i }).getAttribute('title')).toContain(BASIS);
   });
 
   it('adds nothing to a machine leg, and falls back cleanly on a human leg with no basis yet', async () => {
-    apiMock.attestations.mockResolvedValue(
+    http.get(ATTESTATIONS, () =>
       payload([
         { id: 'agent#uat-1', title: 'machine leg', witness: 'machine' },
         { id: 'agent#uat-2', title: 'bare human leg', witness: 'human' },
       ]),
     );
-    render(<UatTestCriteriaSection storyId="agent" onCrownRefresh={() => {}} />);
+    renderSection('agent');
     await flush();
 
     expect(screen.getByRole('button', { name: /machine leg/i }).getAttribute('title')).not.toContain(
