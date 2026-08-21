@@ -483,9 +483,9 @@
     },
     {
       "legacyTestId": "desktop#uat-5",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-22",
+      "rationale": "Deleted under accepted ADR-0404 after events.uat_drive seq 37 proved the criterion asserted a retired production path. Criterion uatc_eb82eaac877cccb9a9beea4f required a keychain credential to reach a build/orchestrate driver through the running desktop backend, but ADR-0404 deleted the in-app Build route and its backend-entry composition; the owned live app correctly returned 404 build is not enabled. The remaining credential-bridge and credentialed-build-runner modules/tests are component evidence already declared by credential-broker, not a live application path and not a replacement criterion. The criterion's detail artifact desktop#uat-5 was retired in the live Library. Ordinal 5 is burned and no survivor is renumbered onto it; positional reliability gate desktop#gate-6 remains in place, explicitly unclaimed, so later gate ids do not shift.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "desktop#uat-6",
@@ -495,9 +495,9 @@
     },
     {
       "legacyTestId": "desktop#uat-7",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-22",
+      "rationale": "Deleted under accepted ADR-0404 because criterion uatc_da3559fd2874e2df93362733 named the same retired dispatch explicitly: the member triggers a build from the UI and the local backend drives it. ADR-0404 made the CLI the only build-dispatch surface and deleted the desktop route/composition; repointing this leg to a CLI build would invent a different Desktop journey and would not prove the criterion's brokered desktop-build claim. It carried no detail pointer. Ordinal 7 is burned and no survivor is renumbered onto it.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "desktop#uat-8",
