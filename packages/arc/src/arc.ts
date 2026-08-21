@@ -1,4 +1,4 @@
-import type { Store, StoredDoc } from "@storytree/storage-protocol";
+import type { Store, StoreEvent, StoredDoc } from "@storytree/storage-protocol";
 // `kebabSlug` is the ADR scaffolder's kebab-caser, reused rather than copied: `arc new` derives an id
 // slug from a title exactly as `adr new` derives a filename slug, and a second implementation would
 // be a drift seam for no gain. It sits in `@storytree/library` (with `ASSET_REF_PREFIX`) because the
@@ -34,6 +34,13 @@ import {
 // ADR-0358 Option 2D — the shared staleness-line renderer, so `arc show` and `question check` never
 // say the same thing two different ways.
 import { questionStalenessLine } from "./question.js";
+// The arc NARRATIVE staleness signal — the same "is this surface still true?" question one tier up,
+// asked of the arc's own authored prose rather than of a question's park lease.
+import {
+  deriveArcNarrativeStaleness,
+  renderNarrativeStaleness,
+  type ArcNarrativeStaleness,
+} from "./narrative-staleness.js";
 
 export { arcIsClosed, storyArcStamps };
 
@@ -232,9 +239,33 @@ async function arcShow(
   const rollup = await loadArcRollup(deps, id);
   /* c8 ignore next */
   if (rollup === null) return { ok: false, body: `no arc "${id}".`, next: ["storytree arc list --pg"] };
+
+  // THE NARRATIVE STALENESS SIGNAL (`arc-narrative-staleness-signal`) — the ONE read this surface
+  // makes that the rollup does not. The arc's own append-only history dates its `intent`/`endState`
+  // prose, which nothing else can: the arc DOC's `updatedAt` is refreshed by every lifecycle
+  // recompute (ADR-0335), i.e. by the very landings the signal is looking for. See
+  // `narrative-staleness.ts` for why that makes the cheap answer a false-negative machine.
+  //
+  // It is read HERE and not in `loadArcRollup` on purpose: one history read per arc is right for
+  // `arc show` and wrong for `loadArcRollups`, which serves every arc at once. A store that cannot
+  // answer is treated as an UNREADABLE history (the `undatable` third state), never as a clean one —
+  // the signal's own rule applied to its own loader.
+  let events: StoreEvent[] = [];
+  try {
+    events = await deps.store.readEvents({ id });
+  } catch {
+    events = [];
+  }
+  const staleness = deriveArcNarrativeStaleness({
+    intent: rollup.intent,
+    endState: rollup.endState,
+    increments: rollup.increments,
+    events,
+  });
+
   return {
     ok: true,
-    body: renderArcRollup(rollup, deps.pg, deps.now ?? new Date().toISOString(), opts).join("\n"),
+    body: renderArcRollup(rollup, deps.pg, deps.now ?? new Date().toISOString(), opts, staleness).join("\n"),
     next: arcShowNext(rollup, deps.pg),
   };
 }
@@ -244,12 +275,18 @@ async function arcShow(
  * testable without a store, and so the join above it stays I/O-only. `nowIso` is injected (not
  * `Date.now()`) so the render stays deterministic under test — the one clock read lives at the
  * `arcShow` call site above.
+ *
+ * `staleness` is likewise computed by the caller (it needs a history read this renderer must not
+ * make). OMITTING IT RENDERS NOTHING, which is deliberate but is the one silence in here worth
+ * naming: an omitted signal reads as a clean one, so `arcShow` always passes it — including the
+ * `undatable` verdict when the history could not be read at all.
  */
 export function renderArcRollup(
   rollup: ArcRollup,
   pg: boolean,
   nowIso: string,
   opts: ArcShowOptions = {},
+  staleness?: ArcNarrativeStaleness,
 ): string[] {
   // `arc show` renders ANY arc regardless of lifecycle (ADR-0239 D3 — only the LIST filters) and
   // states which it is, so a closed initiative is readable without being mistaken for live work.
@@ -267,6 +304,12 @@ export function renderArcRollup(
     `lifecycle: ${lifecycleNote}`,
     "",
   ];
+  // BEFORE the prose, not after. The friction this closes turns on the intent being "confident and
+  // specific enough to be believed" — a caveat printed underneath it arrives after the reader has
+  // already formed the belief, which is the position that failed.
+  if (staleness !== undefined) {
+    lines.push(...renderNarrativeStaleness(staleness, rollup.id, { noLog: opts.noLog === true }));
+  }
   if (rollup.intent) lines.push(`**The intent.** ${rollup.intent}`, "");
   if (rollup.endState) lines.push("## End state", "", rollup.endState, "");
 

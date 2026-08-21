@@ -10,6 +10,9 @@
 //     containment edge lives on the CHILD, so an arc's children are always a query. ONE join, shared
 //     by the CLI render, the studio server and the desktop backend, so they cannot disagree.
 //   - `arc.ts` — the arc / increment write verbs plus the ADR-0023 render of the rollup above.
+//   - `narrative-staleness.ts` — the arc's authored prose dated against its OWN increment log
+//     (`arc-narrative-staleness-signal`). The log half keeps itself honest; `intent`/`endState` have
+//     no producer and no reader that could notice, so this is the reader.
 //   - `increment.ts` — `increment check`, the mechanical freshness gate consumption begins with.
 //   - `question.ts` — the `open-question` authoring surface (ADR-0314 D5).
 //
@@ -24,4 +27,5 @@
 export * from "./arc-rollup.js";
 export * from "./arc.js";
 export * from "./increment.js";
+export * from "./narrative-staleness.js";
 export * from "./question.js";
