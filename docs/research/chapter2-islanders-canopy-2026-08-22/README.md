@@ -136,7 +136,10 @@ separated from their ground.
 
 **How big, and how many.** On s02, the cleanest single-island case: the island spans ~1680 px of a
 1920-px frame; one tree is ~14 px wide and ~38 px tall. So **a tree is 0.83% of its island's
-width**. Density varies enormously and deliberately: s02's fields carry a sparse scatter at roughly
+width**. ⚠ Those three figures are read off the raster at 3x-8x by eye, not segmented — its trees
+overlap into merged blobs, which defeated an automatic count and is itself finding §1.5. The
+conclusion drawn from them in §3.1 survives a wide error band: even at a 1200-px island the tree
+would be 1.2% of it, which at our delivery is 5.5 px and still under the object floor. Density varies enormously and deliberately: s02's fields carry a sparse scatter at roughly
 2% canopy coverage, while s07's small plateau packs about twenty trees at nearer 35%. **The bare
 ground between stands is doing as much compositional work as the stands.**
 
