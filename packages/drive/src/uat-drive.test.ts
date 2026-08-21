@@ -6,6 +6,7 @@ import type { UatTestCriterionSource } from "@storytree/library";
 import {
   auditDrivePrompt,
   classifyBackgroundToolEnd,
+  classifyDriveExecutionProgress,
   CODEX_CHATGPT_SUBSCRIPTION_DRIVER,
   claudeSubscriptionChildEnv,
   codexExecArguments,
@@ -21,6 +22,7 @@ import {
   UAT_DRIVE_AUTONOMY_CLAUSE,
   UAT_DRIVE_BACKGROUND_RESULT_RECONCILIATION_CLAUSE,
   UAT_DRIVE_HONESTY_CLAUSE,
+  UAT_DRIVE_PROGRESS_EVIDENCE_CLAUSE,
   UAT_DRIVE_REPORT_FENCE,
   UAT_DRIVE_TOOLING_CLAUSE,
   UAT_DRIVE_WITNESS_ENTRY,
@@ -50,6 +52,10 @@ const ISOLATION: DriveIsolation = {
   commitSha: "0123456789abcdef0123456789abcdef01234567",
   scratchDir: "/tmp/storytree-uat-drive/demo",
   ceilingMinutes: 30,
+  startAt: "2026-08-21T00:00:00.000Z",
+  reportBy: "2026-08-21T00:28:00.000Z",
+  deadlineAt: "2026-08-21T00:30:00.000Z",
+  reportCleanupBufferMinutes: 2,
 };
 
 const SPEC: UatDriveSpec = {
@@ -295,6 +301,52 @@ test("classifyBackgroundToolEnd: host termination requires exact-tool process ev
   assert.equal(wrongTool.mayClaimHostTermination, false);
 });
 
+test("classifyDriveExecutionProgress: input/cursor/control-only churn does not prove execution began", () => {
+  const progress = classifyDriveExecutionProgress({
+    expectedProcessId: "terminal-build-42",
+    rawTerminalChanged: true,
+    semanticTerminalOutput: "",
+  });
+  assert.equal(progress.kind, "unresolved");
+  assert.equal(progress.executionBegan, false);
+  assert.match(progress.reason, /input, cursor, or control/i);
+});
+
+test("classifyDriveExecutionProgress: only semantic output or exact process/result evidence proves a start", () => {
+  const semantic = classifyDriveExecutionProgress({
+    expectedProcessId: "terminal-build-42",
+    rawTerminalChanged: true,
+    semanticTerminalOutput: "Building capability compose-build-command…",
+  });
+  assert.equal(semantic.kind, "started");
+  assert.equal(semantic.executionBegan, true);
+
+  const exactProcess = classifyDriveExecutionProgress({
+    expectedProcessId: "terminal-build-42",
+    rawTerminalChanged: false,
+    semanticTerminalOutput: "",
+    process: { processId: "terminal-build-42", outcome: "running" },
+  });
+  assert.equal(exactProcess.kind, "started");
+
+  const wrongProcess = classifyDriveExecutionProgress({
+    expectedProcessId: "terminal-build-42",
+    rawTerminalChanged: true,
+    semanticTerminalOutput: "",
+    process: { processId: "cursor-probe-99", outcome: "completed" },
+  });
+  assert.equal(wrongProcess.kind, "unresolved");
+  assert.equal(wrongProcess.executionBegan, false);
+
+  const exactResult = classifyDriveExecutionProgress({
+    expectedProcessId: "terminal-build-42",
+    rawTerminalChanged: false,
+    semanticTerminalOutput: "",
+    result: { processId: "terminal-build-42", complete: true },
+  });
+  assert.equal(exactResult.kind, "started");
+});
+
 test("uatDriveTaskPrompt: reconciles the exact background tool before claiming host termination", () => {
   const prompt = uatDriveTaskPrompt(SPEC);
   assert.ok(prompt.includes(UAT_DRIVE_BACKGROUND_RESULT_RECONCILIATION_CLAUSE));
@@ -320,6 +372,7 @@ function promptWithout(...omit: readonly string[]): string {
     "```" + UAT_DRIVE_REPORT_FENCE,
     UAT_DRIVE_TOOLING_CLAUSE,
     UAT_DRIVE_BACKGROUND_RESULT_RECONCILIATION_CLAUSE,
+    UAT_DRIVE_PROGRESS_EVIDENCE_CLAUSE,
     uatDriveIsolationClause(ISOLATION),
     SURFACE_CONTRACT,
   ]
@@ -351,6 +404,10 @@ test("auditDrivePrompt: dropping an honesty or harness clause fails", () => {
   assert.deepEqual(
     auditDrivePrompt(promptWithout(UAT_DRIVE_BACKGROUND_RESULT_RECONCILIATION_CLAUSE), SPEC).missing,
     ["the background-tool result reconciliation clause"],
+  );
+  assert.deepEqual(
+    auditDrivePrompt(promptWithout(UAT_DRIVE_PROGRESS_EVIDENCE_CLAUSE), SPEC).missing,
+    ["the execution-progress evidence clause"],
   );
   assert.deepEqual(auditDrivePrompt(promptWithout(uatDriveIsolationClause(ISOLATION)), SPEC).missing, [
     "the isolation clause",
