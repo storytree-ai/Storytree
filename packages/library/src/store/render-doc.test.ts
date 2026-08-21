@@ -606,7 +606,7 @@ test("lte-passthrough-and-degraded-carry-no-typed-edges: the pass-through and de
 });
 
 /**
- * ADR-0223's `standsOn` crosses on the PASS-THROUGH branch too — deliberately NOT the same rule as
+ * ADR-0223's `dependsOn` crosses on the PASS-THROUGH branch too — deliberately NOT the same rule as
  * the three typed NAVIGATION edges above, and the boundary is worth stating because the two look
  * alike.
  *
@@ -615,7 +615,7 @@ test("lte-passthrough-and-degraded-carry-no-typed-edges: the pass-through and de
  * this branch cannot tell current data from residue, so it reads only the known AssetDocLike keys.
  * That contract is untouched here and still holds.
  *
- * `standsOn` on a body-bearing doc is not residue: `buildLibraryDoc` deliberately PRESERVES an
+ * `dependsOn` on a body-bearing doc is not residue: `buildLibraryDoc` deliberately PRESERVES an
  * authored edge across a body-bearing studio save (the test below), so a collapsed structured unit
  * can legitimately arrive here carrying a current one.
  *
@@ -626,7 +626,7 @@ test("lte-passthrough-and-degraded-carry-no-typed-edges: the pass-through and de
  * an increment now renders structurally and its edge crosses there. This branch's crossing survives
  * on its own merits, above, and is no longer load-bearing for the DAG.
  */
-test("standsOn crosses the pass-through branch — a body-bearing doc keeps its authored dependency edge", () => {
+test("dependsOn crosses the pass-through branch — a body-bearing doc keeps its authored dependency edge", () => {
   const stored: StoredDoc = {
     id: "collapsed-pattern",
     kind: "pattern",
@@ -637,7 +637,7 @@ test("standsOn crosses the pass-through branch — a body-bearing doc keeps its 
       description: "d",
       body: "a pre-rendered body",
       references: [],
-      standsOn: ["asset:some-arc", "doc:decisions/0223-....md"],
+      dependsOn: ["asset:some-arc", "doc:decisions/0223-....md"],
       createdAt: "2026-08-01T00:00:00Z",
       updatedAt: "2026-08-01T00:00:00Z",
     },
@@ -650,7 +650,7 @@ test("standsOn crosses the pass-through branch — a body-bearing doc keeps its 
   assert.equal(rendered.body, "a pre-rendered body", "still the pass-through branch");
   assert.equal(rendered.fields, undefined);
   assert.deepEqual(
-    rendered.standsOn,
+    rendered.dependsOn,
     ["asset:some-arc", "doc:decisions/0223-....md"],
     "the authored dependency edge survives the pass-through branch, order preserved",
   );
@@ -659,7 +659,7 @@ test("standsOn crosses the pass-through branch — a body-bearing doc keeps its 
   assert.equal(rendered.branchEdges, undefined);
 });
 
-test("standsOn is absent (never []) on a pass-through doc that carries no authored edge", () => {
+test("dependsOn is absent (never []) on a pass-through doc that carries no authored edge", () => {
   const stored: StoredDoc = {
     id: "plain-template",
     kind: "template",
@@ -677,11 +677,11 @@ test("standsOn is absent (never []) on a pass-through doc that carries no author
 
   // Absent, not `[]` — "carries no authored edge" and "authored, and stands on nothing" are
   // different facts, and ADR-0223 keeps the field `.optional()` precisely to tell them apart.
-  assert.equal(renderStoredDoc(stored).standsOn, undefined);
+  assert.equal(renderStoredDoc(stored).dependsOn, undefined);
 });
 
-test("buildLibraryDoc preserves standsOn across a body-bearing write it cannot express", () => {
-  // The studio editor's AssetWriteInput has no `standsOn` field (curation is a CLI concern), and
+test("buildLibraryDoc preserves dependsOn across a body-bearing write it cannot express", () => {
+  // The studio editor's AssetWriteInput has no `dependsOn` field (curation is a CLI concern), and
   // this branch rebuilds the doc from scratch — so without an explicit carry, one save through the
   // studio would silently wipe an artifact's authored edges.
   const existing: StoredDoc = {
@@ -694,7 +694,7 @@ test("buildLibraryDoc preserves standsOn across a body-bearing write it cannot e
       description: "old",
       body: "old body",
       references: [],
-      standsOn: ["asset:bedrock"],
+      dependsOn: ["asset:bedrock"],
       createdAt: "2026-07-01T00:00:00Z",
     },
     createdAt: "2026-07-01T00:00:00Z",
@@ -713,7 +713,65 @@ test("buildLibraryDoc preserves standsOn across a body-bearing write it cannot e
     existing,
   );
 
-  assert.deepEqual(doc["standsOn"], ["asset:bedrock"], "the authored edge survives a studio save");
+  assert.deepEqual(doc["dependsOn"], ["asset:bedrock"], "the authored edge survives a studio save");
+});
+
+test("buildLibraryDoc carries a LEGACY `standsOn` across too, so the rename deletes no edge (ADR-0402)", () => {
+  // Migration #7 runs at the WRITE boundary, on the doc this function hands back — so an edge only
+  // survives the rename window if it REACHES that boundary. The structured branch starts from
+  // `{...existingDoc}` and carries the legacy key for free; this branch builds a fresh doc, so
+  // reading only the new key would silently delete the edge of every row not yet migrated.
+  const existing: StoredDoc = {
+    id: "unmigrated-unit",
+    kind: "pattern",
+    doc: {
+      id: "unmigrated-unit",
+      category: "pattern",
+      title: "old",
+      description: "old",
+      body: "old body",
+      references: [],
+      standsOn: ["asset:bedrock"],
+      createdAt: "2026-07-01T00:00:00Z",
+    },
+    createdAt: "2026-07-01T00:00:00Z",
+    updatedAt: "2026-07-01T00:00:00Z",
+  };
+
+  const doc = buildLibraryDoc(
+    {
+      id: "unmigrated-unit",
+      category: "pattern",
+      title: "new",
+      description: "new",
+      body: "new body",
+      references: [],
+    },
+    existing,
+  );
+
+  assert.deepEqual(
+    doc["dependsOn"],
+    ["asset:bedrock"],
+    "an un-migrated row's edge arrives under the NEW key, not on the floor",
+  );
+
+  // An already-migrated row wins outright — the legacy read is a fallback, never an override.
+  const both = buildLibraryDoc(
+    {
+      id: "unmigrated-unit",
+      category: "pattern",
+      title: "new",
+      description: "new",
+      body: "new body",
+      references: [],
+    },
+    {
+      ...existing,
+      doc: { ...(existing.doc as Record<string, unknown>), dependsOn: ["asset:current"] },
+    },
+  );
+  assert.deepEqual(both["dependsOn"], ["asset:current"]);
 });
 
 /**
@@ -745,7 +803,7 @@ test("an increment renders on the STRUCTURED branch: fields, arcRef, status and 
     status: "proposal",
     parked: "2026-08-01T00:00:00Z",
     cites: ["story:studio", "capability:library-dag-canvas", "asset:some-guidance"],
-    standsOn: ["asset:some-arc"],
+    dependsOn: ["asset:some-arc"],
     createdAt: "2026-08-01T00:00:00Z",
     updatedAt: "2026-08-01T00:00:00Z",
   });
@@ -782,7 +840,7 @@ test("an increment renders on the STRUCTURED branch: fields, arcRef, status and 
 
   assert.equal(rendered.arcRef, "asset:some-arc");
   assert.equal(rendered.status, "proposal");
-  assert.deepEqual(rendered.standsOn, ["asset:some-arc"]);
+  assert.deepEqual(rendered.dependsOn, ["asset:some-arc"]);
   // The work-hierarchy join (ADR-0306 D2). Order preserved, all three CiteRef schemes.
   assert.deepEqual(rendered.cites, [
     "story:studio",

@@ -3,16 +3,16 @@
  * dec 5, the library-dag-canvas capability — the brownfield rework of the inc-3 focus subgraph,
  * ADR-0185 dec 3).
  *
- * `buildFocusGraph({ centre, assets, docs, expanded })` walks the authored `GuidanceAsset.standsOn`
+ * `buildFocusGraph({ centre, assets, docs, expanded })` walks the authored `GuidanceAsset.dependsOn`
  * DEPENDENCY edge (ADR-0223) BOTH ways over the already-loaded corpus, centred on the finder's
  * lifted selection, to ONE level in each direction only (ADR-0193 dec 3, reversing ADR-0188 dec 5's
  * full transitive walk; no `depth` param — deeper nodes are reached by click-through re-centring,
  * not by this walk):
  *
- *   - **upstream** ("stands on") of a node = that node's OWN `standsOn` (asset-only — `DocMeta`
- *     carries no `standsOn`, so an ADR centre's upstream fan is always empty, trap m). ADRs are
+ *   - **upstream** ("stands on") of a node = that node's OWN `dependsOn` (asset-only — `DocMeta`
+ *     carries no `dependsOn`, so an ADR centre's upstream fan is always empty, trap m). ADRs are
  *     tier-0 bedrock and stand on nothing, so that emptiness is now the DESIGN rather than a gap.
- *   - **downstream** ("stood on by") of a node = the reverse index — every asset whose `standsOn`
+ *   - **downstream** ("stood on by") of a node = the reverse index — every asset whose `dependsOn`
  *     points AT that node's id.
  *
  * WHY NOT `references` (the walk this replaces, ADR-0223 / standson-studio-projection): the citation
@@ -20,7 +20,7 @@
  * `dag ↔ node` are mutually constitutive by meaning, and 114 of 300 knowledge artifacts sat in at
  * least one citation cycle when it was measured. A cyclic relation cannot be topologically oriented,
  * so "stands on" / "stood on by" over `references` were two restatements of one undirected "see
- * also", and the layout had no honest left/right to lay out. `standsOn` is authored, acyclic, and
+ * also", and the layout had no honest left/right to lay out. `dependsOn` is authored, acyclic, and
  * held closed by the `check:library-dag-acyclic` gate, so the two sides are now LITERALLY the edge
  * and its reverse. Citations are DEMOTED OUT OF THE DAG, not deleted — they keep their own home in
  * the artifact view's grouped "Sources" pane, which this walk never touched.
@@ -29,7 +29,7 @@
  * before resolving the target id. The walk starts fresh from the centre each time (no fetch — reads
  * only the `assets`/`docs` handed in).
  *
- * A node with no authored edge simply has no fan — expected, not a defect: `standsOn` is optional
+ * A node with no authored edge simply has no fan — expected, not a defect: `dependsOn` is optional
  * and never defaulted, the edge-free kinds (`friction` / `open-question` / `definition`) carry none
  * by construction (ADR-0223 D1, ADR-0363 D1), and a same-tier citation the one-time seed could not
  * orient is left for curation rather than guessed at.
@@ -70,7 +70,7 @@ export interface FocusNode {
   y: number;
 }
 
-/** One directed dependency edge (`standsOn`), already resolved to in-scope (visible) node ids. */
+/** One directed dependency edge (`dependsOn`), already resolved to in-scope (visible) node ids. */
 export interface FocusEdge {
   from: string;
   to: string;
@@ -79,7 +79,7 @@ export interface FocusEdge {
   label?: string;
   /** Present + `'branch'` for an edge derived from a `process` asset's `branchEdges` (library-typed-
    *  edges / ADR-0266, the library-process-flow capability) — distinguishes it from an ordinary
-   *  `standsOn` dependency edge, which never carries a `kind`. */
+   *  `dependsOn` dependency edge, which never carries a `kind`. */
   kind?: 'branch';
 }
 
@@ -133,7 +133,7 @@ export const FOCUS_NODE_HEIGHT = 66;
  *  paired with `preserveAspectRatio="xMinYMid meet"` in the component to anchor the DAG left. */
 export const RIGHT_GUTTER = 56;
 
-/** Builds the dagre rankdir-LR one-level-each-way DAG over the authored `standsOn` dependency edge
+/** Builds the dagre rankdir-LR one-level-each-way DAG over the authored `dependsOn` dependency edge
  *  (ADR-0223), centred on `centre`. */
 export function buildFocusGraph({
   centre,
@@ -145,17 +145,17 @@ export function buildFocusGraph({
   const docById = new Map(docs.map((d) => [d.id, d]));
 
   /** What `id` STANDS ON — its own authored edge. Absent (never `[]`) on a doc carrying none. */
-  function standsOnOf(id: string): string[] {
+  function dependsOnOf(id: string): string[] {
     const asset = assetById.get(id);
-    return asset?.standsOn ? asset.standsOn.map(resolveRef) : [];
+    return asset?.dependsOn ? asset.dependsOn.map(resolveRef) : [];
   }
 
   // Reverse index: target id -> the asset ids that STAND ON it ("stood on by"). Built over
-  // `standsOn`, so this is literally the edge reversed rather than a second undirected reading of
+  // `dependsOn`, so this is literally the edge reversed rather than a second undirected reading of
   // the citation web.
   const downstreamOf = new Map<string, string[]>();
   for (const a of assets) {
-    for (const ref of a.standsOn ?? []) {
+    for (const ref of a.dependsOn ?? []) {
       const target = resolveRef(ref);
       const existing = downstreamOf.get(target);
       if (existing) existing.push(a.id);
@@ -222,7 +222,7 @@ export function buildFocusGraph({
   // ONE level each way only (ADR-0193 dec 3, reversing ADR-0188 dec 5's full transitive walk):
   // a single hop from the centre in each direction, never a further BFS iteration. Deeper nodes
   // are reached by click-through re-centring, not by this walk.
-  expandFrontier([centre.id], standsOnOf, 'upstream');
+  expandFrontier([centre.id], dependsOnOf, 'upstream');
   expandFrontier([centre.id], (id) => downstreamOf.get(id) ?? [], 'downstream');
 
   // A `process` centre's authored branchEdges become downstream flow edges (library-process-flow,
@@ -255,7 +255,7 @@ export function buildFocusGraph({
 
   const edges: FocusEdge[] = [];
   for (const id of includedIds) {
-    for (const ref of standsOnOf(id)) {
+    for (const ref of dependsOnOf(id)) {
       if (!includedIds.has(ref) || ref === id) continue;
       // The stood-on node ranks left of the node standing on it (upstream left, downstream right).
       graph.setEdge(ref, id);

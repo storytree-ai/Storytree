@@ -1,5 +1,6 @@
 import type { StoredDoc } from "@storytree/storage-protocol";
 import { CURRENT_SCHEMA_VERSION } from "../migrations.js";
+import { hasDependsOnKey, readDependsOnPointers } from "../depends-on-compat.js";
 import {
   KIND_SPECS,
   type Knowledge,
@@ -85,29 +86,29 @@ export interface RenderedAsset {
    */
   lifecycle?: string;
   /**
-   * The authored `standsOn` dependency edge (ADR-0223) — the same `.extend()` schema-metadata
+   * The authored `dependsOn` dependency edge (ADR-0223) — the same `.extend()` schema-metadata
    * crossing as {@link status} / {@link lifecycle}, and for the same reason: it sits OUTSIDE the
    * KIND_SPECS body table, so `extractFields` never surfaces it and it would fall on the floor at
    * the wire boundary. Without it the studio's focus graph has no dependency edge to walk and can
    * only fall back to the citation web — which is the cyclic thing ADR-0223 exists to stop drawing.
    *
    * Present only when the stored doc carries it — never an empty array, so a doc with no authored
-   * edge is indistinguishable on the wire from one predating the field (`standsOn` is `.optional()`,
+   * edge is indistinguishable on the wire from one predating the field (`dependsOn` is `.optional()`,
    * never `.default([])`; ADR-0223's zero-migration rule). Absent for every EDGE_FREE_KINDS doc
    * (`friction` / `open-question` / `definition`) by construction. Unlike the navigation edges above
    * this crosses on the PASS-THROUGH branch as well — see the comment at that branch.
    */
-  standsOn?: string[];
+  dependsOn?: string[];
   /**
    * An `increment`'s `cites` (ADR-0306 D2) — the mixed `story:` / `capability:` / `asset:` list
    * naming the work-hierarchy units it touches and the guidance it stands on. Crosses by the same
-   * `.extend()` schema-metadata idiom as {@link standsOn}.
+   * `.extend()` schema-metadata idiom as {@link dependsOn}.
    *
    * It is the ONLY join between the knowledge graph and the work graph, which is what makes it worth
-   * crossing: `standsOn` is enforced over the library corpus and `depends_on` over `stories/**`, and
-   * ADR-0363 D2 keeps those two graphs separately enforced, joining them as a read-only projection at
-   * RENDER time rather than merging them. Without `cites` on the wire there is nothing on the studio
-   * side to project against.
+   * crossing: `dependsOn` over the library corpus and `depends_on` over `stories/**` are ONE relation
+   * at two altitudes, and ADR-0363 D2 keeps them separately enforced — joining them as a read-only
+   * projection at RENDER time rather than merging them. Without `cites` on the wire there is nothing
+   * on the studio side to project against.
    *
    * Structured branch only, absent-by-default. An increment citing nothing is CORRECT rather than
    * under-specified (ADR-0306 D2 — greenfield work creates the capability, planning and ADR authoring
@@ -129,7 +130,7 @@ interface AssetDocLike {
   provenance?: unknown;
   /** ADR-0223's authored dependency edge. Declared here — rather than reached by a cast — because
    *  the `increment` kind is body-bearing AND in the DAG, so this branch genuinely carries it. */
-  standsOn?: unknown;
+  dependsOn?: unknown;
 }
 
 function asString(value: unknown): string {
@@ -280,13 +281,16 @@ export function renderStoredDoc(stored: StoredDoc): RenderedAsset {
         : {}),
       // The authored dependency edge crosses on the PASS-THROUGH branch too (ADR-0223), unlike the
       // typed NAVIGATION edges: a `stepRefs`-shaped property here is residue this branch cannot
-      // tell from current data, whereas `buildLibraryDoc` deliberately PRESERVES `standsOn` across
+      // tell from current data, whereas `buildLibraryDoc` deliberately PRESERVES `dependsOn` across
       // a body-bearing save, so a collapsed unit can legitimately arrive here carrying a live one.
       // (History, since the original reason is now false: this crossing was added by PR #1330 to
       // recover 106 of 660 edges that `hasStringBody` was dropping by routing every increment here.
       // `bodyIsContentField` fixed that at the root — an increment renders structurally now — so
       // this branch is no longer load-bearing for the DAG. It stays on the merits above.)
-      ...(Array.isArray(doc.standsOn) ? { standsOn: asStringArray(doc.standsOn) } : {}),
+      // ADR-0402 read tolerance, TEMPORARY — remove after the batch drain (depends-on-compat.ts).
+      // This is the reader the WHOLE studio chain hangs off (renderStoredDoc -> toGuidanceAsset ->
+      // buildFocusGraph / the depth panel), so without it the canvas draws an empty DAG.
+      ...(hasDependsOnKey(doc) ? { dependsOn: readDependsOnPointers(doc) } : {}),
       createdAt: stored.createdAt,
       updatedAt: stored.updatedAt,
     };
@@ -323,7 +327,7 @@ export function renderStoredDoc(stored: StoredDoc): RenderedAsset {
     arcRef?: string;
     status?: string;
     lifecycle?: string;
-    standsOn?: string[];
+    dependsOn?: string[];
     cites?: string[];
   };
   return {
@@ -350,7 +354,8 @@ export function renderStoredDoc(stored: StoredDoc): RenderedAsset {
       : {}),
     // The authored dependency edge (ADR-0223) crosses like the other typed edges: array-shaped, so
     // the guard is `Array.isArray` (matching stepRefs/branchEdges) rather than a truthiness test.
-    ...(Array.isArray(typedEdges.standsOn) ? { standsOn: typedEdges.standsOn } : {}),
+    // ADR-0402 read tolerance, TEMPORARY — remove after the batch drain (depends-on-compat.ts).
+    ...(hasDependsOnKey(doc) ? { dependsOn: readDependsOnPointers(doc) } : {}),
     // An increment's `cites` — the work-hierarchy join (ADR-0306 D2), array-shaped like the two
     // above. Absent-by-default rather than `[]`, because ADR-0306 D2 makes an increment citing
     // nothing CORRECT rather than under-specified (greenfield work, planning, ADR authoring), so
@@ -444,9 +449,17 @@ export function buildLibraryDoc(
   if (typeof existingDoc["createdAt"] === "string") doc["createdAt"] = existingDoc["createdAt"];
   // Carry the authored dependency edge across a body-bearing write (ADR-0223). Unlike the
   // structured branch above — which starts from `{...existingDoc}` and therefore preserves it for
-  // free — this branch builds a FRESH doc, so an edge would be silently dropped. `standsOn` is
+  // free — this branch builds a FRESH doc, so an edge would be silently dropped. `dependsOn` is
   // never in `AssetWriteInput`: it is curated through the CLI, not the studio editor, so the only
   // honest thing a write that cannot express it can do is leave it exactly as it found it.
-  if (Array.isArray(existingDoc["standsOn"])) doc["standsOn"] = existingDoc["standsOn"];
+  //
+  // THE LEGACY KEY IS READ TOO, and this is the one place the ADR-0402 rename needs it. Migration #7
+  // runs at the WRITE boundary on the doc this function hands back — so a stored row still carrying
+  // `standsOn` is only migrated if the edge reaches that boundary at all. The structured branch
+  // above starts from `{...existingDoc}` and carries it for free; this branch builds a FRESH doc, so
+  // reading only the new key would silently DELETE the edge of every un-migrated row edited through
+  // this path. TEMPORARY, and it removes with `depends-on-compat.ts` — a `batch-migrate` run closes
+  // the window; nothing enforces it, which is why the removal is a decision and not a tidy.
+  if (hasDependsOnKey(existingDoc)) doc["dependsOn"] = readDependsOnPointers(existingDoc);
   return doc;
 }

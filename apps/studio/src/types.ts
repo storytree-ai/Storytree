@@ -189,12 +189,12 @@ export interface GuidanceAsset {
    */
   lifecycle?: string;
   /**
-   * The authored `standsOn` dependency edge (ADR-0223) — a prefixed pointer list (`asset:<id>` /
+   * The authored `dependsOn` dependency edge (ADR-0223) — a prefixed pointer list (`asset:<id>` /
    * `doc:<relpath>`), crossing the wire by the same {@link GuidanceAsset.stepRefs} idiom.
    *
    * This is the DAG substrate, and it is deliberately NOT {@link GuidanceAsset.references}: the
    * citation web is many-to-many and legitimately cyclic (a definition pair like story ↔ capability
-   * is mutually constitutive by meaning), so it can never be topologically oriented. `standsOn` is
+   * is mutually constitutive by meaning), so it can never be topologically oriented. `dependsOn` is
    * authored, acyclic, and gated closed by `check:library-dag-acyclic`. `buildFocusGraph`
    * (`./lib/focusGraph`) walks THIS; citations survive as the free "see also" affordance.
    *
@@ -203,14 +203,14 @@ export interface GuidanceAsset {
    * migration. Absent by construction for the edge-free kinds (`friction` / `open-question` /
    * `definition` — ADR-0363 D1 excluded definitions, whose depth buys a reader nothing).
    */
-  standsOn?: string[];
+  dependsOn?: string[];
   /**
    * An `increment`'s `cites` (ADR-0306 D2) — the mixed `story:<id>` / `capability:<id>` /
    * `asset:<id>` list naming the work-hierarchy units it touches and the guidance it stands on.
-   * Crosses the wire by the same idiom as {@link GuidanceAsset.standsOn}.
+   * Crosses the wire by the same idiom as {@link GuidanceAsset.dependsOn}.
    *
    * This is the ONLY join between the knowledge graph and the work graph, and it is the reason it
-   * belongs on the wire at all: ADR-0363 D2 keeps the two graphs separately enforced — `standsOn`
+   * belongs on the wire at all: ADR-0363 D2 keeps the two graphs separately enforced — `dependsOn`
    * over the library corpus, `depends_on` over `stories/**` — and computes "depth from the work" as
    * a READ-ONLY join at render time rather than merging them. A studio-side projection has nothing
    * to join against without this field.

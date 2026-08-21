@@ -95,12 +95,12 @@ describe('LibraryFocusGraph — node double-click opens', () => {
       id: 'trigger-walk-neighbour',
       title: 'Trigger Walk Neighbour',
       category: 'pattern',
-      // FIXTURE ONLY (ADR-0223): the focus walk moved from `references` to the authored `standsOn`
+      // FIXTURE ONLY (ADR-0223): the focus walk moved from `references` to the authored `dependsOn`
       // dependency edge, so a neighbour is now made by standing ON the centre. The graph shape this
       // produces — one downstream neighbour of the centre — is IDENTICAL to what the citation
       // fixture produced, and this contract (double-click a neighbour fires onOpen with its
       // finder-parity SearchResult) is untouched, as is the `lfg-node-<id>` testid it clicks.
-      standsOn: ['asset:trigger-walk-centre'],
+      dependsOn: ['asset:trigger-walk-centre'],
     });
 
     render(

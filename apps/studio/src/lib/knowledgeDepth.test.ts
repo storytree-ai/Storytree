@@ -25,7 +25,7 @@ const T0 = Date.parse('2026-08-20T09:00:00.000Z');
 
 function asset(
   id: string,
-  extra: { standsOn?: string[]; cites?: string[] } = {},
+  extra: { dependsOn?: string[]; cites?: string[] } = {},
 ): GuidanceAsset {
   return {
     id,
@@ -36,7 +36,7 @@ function asset(
     references: [],
     createdAt: '2026-08-20T00:00:00.000Z',
     updatedAt: '2026-08-20T00:00:00.000Z',
-    ...(extra.standsOn ? { standsOn: extra.standsOn } : {}),
+    ...(extra.dependsOn ? { dependsOn: extra.dependsOn } : {}),
     ...(extra.cites ? { cites: extra.cites } : {}),
   } as GuidanceAsset;
 }
@@ -55,8 +55,8 @@ function visit(nodeId: string, offsetMs: number): TraversalEventEnvelope {
 /** anchor → ceremony → principle, plus an artifact no chain reaches. */
 const CORPUS: GuidanceAsset[] = [
   asset('inc-one', { cites: ['story:studio', 'asset:ceremony'] }),
-  asset('ceremony', { standsOn: ['asset:principle'] }),
-  asset('principle', { standsOn: ['doc:decisions/0363-the-knowledge-dag.md'] }),
+  asset('ceremony', { dependsOn: ['asset:principle'] }),
+  asset('principle', { dependsOn: ['doc:decisions/0363-the-knowledge-dag.md'] }),
   asset('orphan'),
 ];
 
@@ -204,7 +204,7 @@ describe('the anchor line travels with every per-trace figure', () => {
 
   it('separates a corpus with no anchors from one that was never read', () => {
     const anchorless = buildKnowledgeDepth({
-      assets: [asset('a', { standsOn: ['asset:b'] }), asset('b')],
+      assets: [asset('a', { dependsOn: ['asset:b'] }), asset('b')],
       assetsStatus: 'ready',
       assetsError: '',
     });

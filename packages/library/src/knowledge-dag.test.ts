@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  findStandsOnCycles,
+  findDependsOnCycles,
   type KnowledgeDagNode,
 } from "./knowledge-dag.js";
 
@@ -16,43 +16,43 @@ function assertClosedAuthoredPath(
   const byId = new Map(nodes.map((node) => [node.id, node]));
   for (let index = 0; index < path.length - 1; index += 1) {
     assert.ok(
-      byId.get(path[index]!)?.standsOn.includes(path[index + 1]!),
-      `${path[index]} -> ${path[index + 1]} is an authored standsOn edge`,
+      byId.get(path[index]!)?.dependsOn.includes(path[index + 1]!),
+      `${path[index]} -> ${path[index + 1]} is an authored dependsOn edge`,
     );
   }
 }
 
 test("library-dag-accepts-acyclic-standson — empty, isolated, and branching graphs have no cycles and remain unchanged", () => {
   const isolated = Object.freeze([
-    Object.freeze({ id: "isolated", standsOn: Object.freeze([] as string[]) }),
+    Object.freeze({ id: "isolated", dependsOn: Object.freeze([] as string[]) }),
   ]);
   const branching = Object.freeze([
-    Object.freeze({ id: "top", standsOn: Object.freeze(["left", "right"]) }),
-    Object.freeze({ id: "left", standsOn: Object.freeze(["foundation"]) }),
-    Object.freeze({ id: "right", standsOn: Object.freeze(["foundation"]) }),
-    Object.freeze({ id: "foundation", standsOn: Object.freeze([] as string[]) }),
+    Object.freeze({ id: "top", dependsOn: Object.freeze(["left", "right"]) }),
+    Object.freeze({ id: "left", dependsOn: Object.freeze(["foundation"]) }),
+    Object.freeze({ id: "right", dependsOn: Object.freeze(["foundation"]) }),
+    Object.freeze({ id: "foundation", dependsOn: Object.freeze([] as string[]) }),
   ]);
   const before = JSON.stringify(branching);
 
-  assert.deepEqual(findStandsOnCycles([]), []);
-  assert.deepEqual(findStandsOnCycles(isolated), []);
-  assert.deepEqual(findStandsOnCycles(branching), []);
+  assert.deepEqual(findDependsOnCycles([]), []);
+  assert.deepEqual(findDependsOnCycles(isolated), []);
+  assert.deepEqual(findDependsOnCycles(branching), []);
   assert.equal(JSON.stringify(branching), before, "node order and authored edge arrays are unchanged");
 });
 
 test("library-dag-rejects-standson-cycle-with-path — self, two-node, and longer reachable cycles return concrete closed paths once", () => {
   const nodes: readonly KnowledgeDagNode[] = [
-    { id: "self", standsOn: ["self"] },
-    { id: "entry-one", standsOn: ["long-a"] },
-    { id: "entry-two", standsOn: ["long-b"] },
-    { id: "two-a", standsOn: ["two-b"] },
-    { id: "two-b", standsOn: ["two-a"] },
-    { id: "long-a", standsOn: ["long-b"] },
-    { id: "long-b", standsOn: ["long-c"] },
-    { id: "long-c", standsOn: ["long-a"] },
+    { id: "self", dependsOn: ["self"] },
+    { id: "entry-one", dependsOn: ["long-a"] },
+    { id: "entry-two", dependsOn: ["long-b"] },
+    { id: "two-a", dependsOn: ["two-b"] },
+    { id: "two-b", dependsOn: ["two-a"] },
+    { id: "long-a", dependsOn: ["long-b"] },
+    { id: "long-b", dependsOn: ["long-c"] },
+    { id: "long-c", dependsOn: ["long-a"] },
   ];
 
-  const cycles = findStandsOnCycles(nodes);
+  const cycles = findDependsOnCycles(nodes);
 
   assert.deepEqual(cycles, [
     ["self", "self"],
@@ -63,17 +63,17 @@ test("library-dag-rejects-standson-cycle-with-path — self, two-node, and longe
   for (const cycle of cycles) assertClosedAuthoredPath(nodes, cycle);
 });
 
-test("library-dag-references-are-not-dependencies — citation cycles are ignored unless authored in standsOn", () => {
+test("library-dag-references-are-not-dependencies — citation cycles are ignored unless authored in dependsOn", () => {
   const citationCycle = [
-    { id: "alpha", standsOn: [] as string[], references: ["beta"] },
-    { id: "beta", standsOn: [] as string[], references: ["alpha"] },
+    { id: "alpha", dependsOn: [] as string[], references: ["beta"] },
+    { id: "beta", dependsOn: [] as string[], references: ["alpha"] },
   ];
 
-  assert.deepEqual(findStandsOnCycles(citationCycle), []);
+  assert.deepEqual(findDependsOnCycles(citationCycle), []);
   assert.deepEqual(
-    findStandsOnCycles([
-      { ...citationCycle[0]!, standsOn: ["beta"] },
-      { ...citationCycle[1]!, standsOn: ["alpha"] },
+    findDependsOnCycles([
+      { ...citationCycle[0]!, dependsOn: ["beta"] },
+      { ...citationCycle[1]!, dependsOn: ["alpha"] },
     ]),
     [["alpha", "beta", "alpha"]],
   );

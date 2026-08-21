@@ -721,7 +721,9 @@ test("artifact edit --set still REFUSES an arc's increments wholesale — the lo
   // muscle memory reaches for the folded array.
   assert.match(env.body, /unknown field "increments" for a arc artifact/);
   assert.match(env.body, /arc increment add/, "…and points at the first-class verb");
-  assert.match(env.body, /editable fields: description, endState, id, intent, lifecycle/);
+  // The list is alphabetical, so ADR-0402's `standsOn` -> `dependsOn` rename moved the edge from the
+  // tail of it to the head — same fields, same strictness, one different first token.
+  assert.match(env.body, /editable fields: dependsOn, description, endState, id, intent, lifecycle/);
 });
 
 /** Seed a minimal live-shaped arc into a store (arcs are live-only, absent from the offline seed). */
