@@ -14,19 +14,36 @@
 // it off trades that best case for a floor that CANNOT rot. tsx still memoises transforms in-process
 // (it swaps its FileSystemCache for a plain `Map`), so a single run loses nothing.
 //
-// ⚠ THE BLOATED ROW DID NOT REPRODUCE, AND THAT IS RECORDED HERE BECAUSE THIS HEADER IS WHERE A
-// READER MEETS IT. Re-measured 2026-08-21 (inc 7), same protocol, TWICE, hours apart, from two
-// different worktrees, against the SAME 235k-file directory:
+// A SECOND MEASUREMENT (inc 7) CONTRADICTED THAT ROW; A THIRD (ADR-0401) REPRODUCED IT, AND THE
+// DISABLE IS RE-AFFIRMED. ⚠ DO NOT REMOVE THIS PRELOAD: re-enabling the cache COSTS roughly
+// 1.1-1.6 s per spawned CLI process. That is the settled reading — the sequence is recorded because
+// this header is where a reader meets it, and because the middle reading is the one that invites a
+// session to delete the file.
 //
-//   cache OFF                                 1735 ms   /  1802 ms
-//   cache ON, fresh directory                 1288 ms   /  1344 ms
-//   cache ON, the 235k-file directory         1192 ms   /  1361 ms     <- as fast as fresh
+// inc 7 re-ran the protocol TWICE, hours apart, from two worktrees, against the same directory, and
+// got cache OFF 1735/1802 ms against cache ON 1192/1361 ms — the "rotted" directory measuring ~25%
+// FASTER than no cache. It named its own confound (the directory had been listed shortly before, so
+// its NTFS index was warm) and left the disable standing, but recorded the founding row as having
+// failed to reproduce.
 //
-// i.e. the "rotted" directory measured ~25% FASTER than no cache, not 1.8x slower. One confound is
-// named rather than hidden: that directory had been listed shortly before, so its NTFS index was
-// warm. This preload is KEPT — it is still the state that cannot rot, and nothing here is strong
-// enough to reverse a decision on — but do not plan work off the 3703/1600 ms figures, and do not
-// build a bounded-cache mechanism to fence a rot that cannot currently be observed.
+// ADR-0401 (2026-08-21) settled it with a different INSTRUMENT rather than a third point estimate:
+// arms INTERLEAVED round-robin inside one run (so box drift hits every arm equally — this box varies
+// 2.6x across a day), a fresh-directory third arm to isolate the mechanism, and every repetition
+// reported instead of only the median. Wall ms against the real directory, then 215,377 files:
+//
+//   run                                  fresh dir     cache OFF     the 215k dir     big / off
+//   1  index COLD, loaded, 7 reps            -           1852 ms       2966 ms          1.60x
+//   2  index WARMED by enumeration           -           2457 ms       3533 ms          1.44x
+//   3  3-arm, loaded, 7 reps               1823 ms       2490 ms       4045 ms          1.63x
+//   4  3-arm, QUIET box, 9 reps            1539 ms       2185 ms       3738 ms          1.71x
+//
+// The big directory is slower than no cache in 29 of 30 individual repetitions. Run 1 is the cold
+// shot (nothing had read the directory since this preload landed); run 2 tested inc 7's named
+// confound directly — index warmth does NOT produce its numbers. Controls: the cache-ON arm was
+// genuinely on (the fresh directory populated to 246 files); the big-directory runs were pure HITS,
+// not writes (215,377 files before AND after); and inc 7 did address the real directory, since tsx
+// nests `tsx-<user>` inside $TMPDIR and no nested `tsx-mickh\tsx-mickh` exists. Why inc 7 measured
+// what it did is not recoverable. The ordering inc 4 claimed is confirmed: healthy < off << rotted.
 //
 // AT THE SCALE THAT MATTERS — the whole `pnpm -r --no-bail test` leg, two runs per arm interleaved
 // on a quiet box, the same 5,446 tests in every arm:
@@ -60,13 +77,20 @@
 // cache and nothing else, it captured 100% of a full suite run's transforms (the user temp directory
 // gained nothing), it costs ~4% per process against the default location, and a whole
 // `pnpm -r --no-bail test` fills a partition with just 1,478 files / 30 MB — genuinely bounded per
-// worktree. It is closed anyway, for two reasons. (1) The ROT it exists to bound did not reproduce,
-// twice (see the table above), so it would fence a hazard nobody can currently observe. (2) The
-// benefit is not resolvable on this box: interleaved arms measured cache-OFF at 548 s and 820 s and
-// cache-ON at 514 s / 609 s / 635 s — a 122 s mean difference favouring ON, inside a 272 s
-// within-arm spread. The same leg was separately measured at 318 s, 512 s and 749 s the same day.
-// The honest reading is that the per-process saving is real and the suite-scale figure is not
-// measurable here without far more repeats than the answer is worth.
+// worktree. It STAYS closed under ADR-0401, but on a REPLACED reason, because the one inc 7 gave
+// has since been falsified. inc 7's reason was "(1) the ROT it exists to bound did not reproduce,
+// so it would fence a hazard nobody can currently observe" — the rot DOES reproduce (the table
+// above), so that reason is dead. What holds instead: `bun-runtime-migration-arc` (chartered
+// 2026-08-21) is migrating packages off `node --import tsx` one at a time and names this very
+// script string as its migration path, so tsx-specific cache machinery is investment in a component
+// with a chartered exit. Revisit only if that direction stalls. inc 7's second reason survives
+// intact: the benefit is not resolvable on this box — interleaved arms measured cache-OFF at 548 s
+// and 820 s and cache-ON at 514 s / 609 s / 635 s, a 122 s mean difference favouring ON inside a
+// 272 s within-arm spread, and the same leg was separately measured at 318 s, 512 s and 749 s the
+// same day. The per-process saving is real; the suite-scale figure is not measurable here without
+// far more repeats than the answer is worth. ⚠ A bounded cache is the ONLY way to capture the
+// ~650 ms/process a healthy cache is worth — simply deleting this preload does the OPPOSITE, and
+// costs 1.1-1.6 s/process.
 //
 // This buys the SAME proof more cheaply — no test is skipped, sampled or moved off the gate, which
 // is the one direction this arc forbids.

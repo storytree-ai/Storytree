@@ -63,6 +63,7 @@ import {
   claudeSubscriptionChildEnv,
   codexExecArguments,
   codexSubscriptionChildEnv,
+  createDriveTiming,
   driveScratchDir,
   driveSurfacePorts,
   driveSurfaceUrl,
@@ -101,7 +102,6 @@ import {
  * one is telling you its journey is long, not that the limit is wrong to have.
  */
 const DRIVE_TIMEOUT_MIN = readTimeoutMinutes();
-const DRIVE_TIMEOUT_MS = DRIVE_TIMEOUT_MIN * 60_000;
 
 /** `STORYTREE_UAT_DRIVE_TIMEOUT_MIN`, when it is a positive finite number; else the 30-min default. */
 function readTimeoutMinutes(): number {
@@ -185,6 +185,7 @@ function verifyCodexRuntime(): DriverRuntime | null {
     commitSha: "auth-check",
     scratchDir: tmpdir(),
     ceilingMinutes: DRIVE_TIMEOUT_MIN,
+    ...createDriveTiming(Date.now(), DRIVE_TIMEOUT_MIN),
   };
   const env = codexSubscriptionChildEnv(process.env, authIsolation);
   try {
@@ -318,41 +319,16 @@ async function main(): Promise<number> {
   const scratchDir = driveScratchDir(tmpdir().replace(/\\/g, "/"), runId);
   mkdirSync(scratchDir, { recursive: true });
 
-  // Fail-closed BEFORE any spend: every prompt must still carry the authored journey verbatim, the
-  // honesty clause, the report contract, the tooling clause and this drive's own isolation. The
-  // standing test (`uat-drive.test.ts`) proves this of the builder; asserting it per run means a
-  // drive can never spend against a weakened prompt.
-  const prompts = new Map<string, string>();
-  const isolations = new Map<string, DriveIsolation>();
-  for (const [i, t] of selection.targets.entries()) {
-    const isolation: DriveIsolation = {
-      sessionId: mintDriveSessionId({ criterionId: t.criterionId, pid: process.pid }),
-      surfacePort: ports[i]!,
-      commitSha,
-      scratchDir,
-      ceilingMinutes: DRIVE_TIMEOUT_MIN,
-    };
-    const refusal = assertDriveIsolated(launching, isolation.sessionId);
+  // Fail-closed before any model spend: every drive identity must be distinct. Absolute time is
+  // intentionally NOT stamped in this preflight: criteria run one at a time, so stamping them all
+  // here would make a later criterion spend the earlier criterion's ceiling while it waited.
+  for (const t of selection.targets) {
+    const sessionId = mintDriveSessionId({ criterionId: t.criterionId, pid: process.pid });
+    const refusal = assertDriveIsolated(launching, sessionId);
     if (refusal !== null) {
       console.error(`[uat-drive] ${refusal}`);
       return 1;
     }
-    const driveSpec: UatDriveSpec = {
-      storyId,
-      storyTitle: spec.title,
-      storyOutcome: spec.outcome,
-      criterionId: t.criterionId,
-      journey: t.journey,
-      isolation,
-    };
-    const prompt = uatDriveTaskPrompt(driveSpec);
-    const audit = auditDrivePrompt(prompt, driveSpec);
-    if (!audit.ok) {
-      console.error(`[uat-drive] REFUSED: the drive prompt for ${t.criterionId} lost ${audit.missing.join(", ")}`);
-      return 1;
-    }
-    prompts.set(t.criterionId, prompt);
-    isolations.set(t.criterionId, isolation);
   }
   log(
     `isolated — each drive gets its own notice-board session, its own port (${ports.join(", ")}) and\n` +
@@ -378,14 +354,41 @@ async function main(): Promise<number> {
   try {
     await applySchema(handle.pool);
 
-    for (const t of selection.targets) {
-      const outcome = await driveOne(t, prompts.get(t.criterionId)!, {
+    for (const [i, t] of selection.targets.entries()) {
+      // Stamp THIS criterion's runner-owned clock immediately before its prompt is created. The
+      // prompt audit then refuses before this criterion can spend, and the next criterion receives
+      // a fresh full ceiling only after this synchronous one has ended.
+      const isolation: DriveIsolation = {
+        sessionId: mintDriveSessionId({ criterionId: t.criterionId, pid: process.pid }),
+        surfacePort: ports[i]!,
+        commitSha,
+        scratchDir,
+        ceilingMinutes: DRIVE_TIMEOUT_MIN,
+        ...createDriveTiming(Date.now(), DRIVE_TIMEOUT_MIN),
+      };
+      const driveSpec: UatDriveSpec = {
+        storyId,
+        storyTitle: spec.title,
+        storyOutcome: spec.outcome,
+        criterionId: t.criterionId,
+        journey: t.journey,
+        isolation,
+      };
+      const prompt = uatDriveTaskPrompt(driveSpec);
+      const audit = auditDrivePrompt(prompt, driveSpec);
+      if (!audit.ok) {
+        const line = `${t.criterionId} — prompt audit refused: lost ${audit.missing.join(", ")}`;
+        console.error(`[uat-drive] REFUSED: ${line}`);
+        harnessEnds.push(line);
+        continue;
+      }
+      const outcome = await driveOne(t, prompt, {
         storyId,
         commitSha,
         runId,
         cwd: toplevel,
         pool: handle.pool,
-        isolation: isolations.get(t.criterionId)!,
+        isolation,
         runtime,
       });
       if (outcome !== null) (outcome.harness ? harnessEnds : findings).push(outcome.line);
@@ -547,6 +550,7 @@ async function driveOne(target: DriveTarget, prompt: string, ctx: DriveContext):
   log(`— ${target.criterionId}: ${target.title}`);
   log(`  as session "${ctx.isolation.sessionId}" on port ${ctx.isolation.surfacePort}`);
   const t0 = Date.now();
+  const remainingMs = Math.max(1, Date.parse(ctx.isolation.deadlineAt) - t0);
   const finalMessagePath = path.join(ctx.isolation.scratchDir, `${target.criterionId}.codex-final.md`);
   const res =
     ctx.runtime.provider === "codex"
@@ -554,7 +558,7 @@ async function driveOne(target: DriveTarget, prompt: string, ctx: DriveContext):
           cwd: ctx.cwd,
           input: prompt,
           encoding: "utf8",
-          timeout: DRIVE_TIMEOUT_MS,
+          timeout: remainingMs,
           maxBuffer: 256 * 1024 * 1024,
           env: codexSubscriptionChildEnv(process.env, ctx.isolation),
         })
@@ -563,7 +567,7 @@ async function driveOne(target: DriveTarget, prompt: string, ctx: DriveContext):
           input: prompt,
           encoding: "utf8",
           shell: true,
-          timeout: DRIVE_TIMEOUT_MS,
+          timeout: remainingMs,
           maxBuffer: 256 * 1024 * 1024,
           env: claudeSubscriptionChildEnv(process.env, ctx.isolation),
         });
