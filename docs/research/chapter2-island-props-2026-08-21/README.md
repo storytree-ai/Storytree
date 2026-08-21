@@ -27,8 +27,12 @@ separated by lighting looks like in the delivered pixels. Nothing in the shader 
    planting.
 
 **And the thing that did NOT need to change: the renderer.** Not one lever was added to the shader.
-The banded material, the ladder, the light and the camera are exactly what they were when the
-owner rejected the previous round.
+The banded material, the ladder, the light and the camera are exactly what they were when the owner
+rejected the previous round — and that is **asserted rather than claimed**: `island-today.png` in
+this directory is **byte-identical** (27,357 bytes) to `island-today.png` in
+`chapter2-island-directions-2026-08-21/`. An undressed island renders exactly the pixels it rendered
+before eighteen tokens, four modules and a corrected roof normal landed. So every difference on this
+page is content, and none of it is a rendering change wearing content's clothes.
 
 **The tree question got sharper.** On a dressed island the hero tree still accounts for **66% of
 all occlusion** and still owns the palette's dark end — but the previous round's finding that
