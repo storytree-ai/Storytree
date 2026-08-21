@@ -91,7 +91,7 @@ async function main(): Promise<void> {
     });
 
     const renderedRows = docs.map((stored) => {
-      const rendered = renderStoredDoc(stored) as unknown as {
+      const rendered = renderStoredDoc(stored) as {
         dependsOn?: unknown;
         cites?: unknown;
         degraded?: unknown;

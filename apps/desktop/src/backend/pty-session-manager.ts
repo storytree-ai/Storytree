@@ -33,11 +33,11 @@ import xtermUnicode11 from "@xterm/addon-unicode11";
 // bundle (import.meta.url is undefined there, thrown at apps/desktop/dist/main.cjs load);
 // the default-import-then-destructure form is the only one green in BOTH runtimes. Static
 // types come from `import type` above (elided at runtime by verbatimModuleSyntax).
-const { Terminal } = xtermHeadless as unknown as { Terminal: typeof HeadlessTerminal };
-const { SerializeAddon } = xtermSerialize as unknown as {
+const { Terminal } = xtermHeadless as { Terminal: typeof HeadlessTerminal };
+const { SerializeAddon } = xtermSerialize as {
   SerializeAddon: typeof XtermSerializeAddon;
 };
-const { Unicode11Addon } = xtermUnicode11 as unknown as {
+const { Unicode11Addon } = xtermUnicode11 as {
   Unicode11Addon: typeof XtermUnicode11Addon;
 };
 
@@ -170,13 +170,13 @@ export class PtySessionManager {
     // Both packages expose the same runtime terminal shape; the addon's public types
     // target @xterm/xterm, not @xterm/headless — a narrow cast at this seam is the
     // sanctioned escape (ADR-0190).
-    term.loadAddon(serializeAddon as unknown as HeadlessTerminalAddon);
+    term.loadAddon(serializeAddon as HeadlessTerminalAddon);
     // Unicode 11 width tables, in PARITY with the renderer's TerminalDock terminal (its
     // own vitest contract): xterm defaults to Unicode 6 widths, which mis-measure
     // emoji/spinner glyphs — one-sided tables would make a re-attach replay re-wrap
     // differently than the live rendering did. Term-owned after loadAddon (term.dispose()
     // reaps it with the session).
-    term.loadAddon(new Unicode11Addon() as unknown as HeadlessTerminalAddon);
+    term.loadAddon(new Unicode11Addon() as HeadlessTerminalAddon);
     term.unicode.activeVersion = "11";
 
     this.#sessions.set(sessionId, {

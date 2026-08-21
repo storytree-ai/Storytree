@@ -60,10 +60,18 @@ export class ScriptedJudge implements JudgePort {
  * Runtime/type fence: a value claiming to be a JudgePort must expose `judge` and
  * must NOT expose write-shaped methods. Used by tests to pin the read-only seam.
  */
+const BANNED_WRITE_METHODS = ["write", "edit", "delete", "exec", "runTool", "applyPatch"] as const;
+
 export function assertReadOnlyJudgePort(port: JudgePort): void {
-  const record = port as unknown as Record<string, unknown>;
-  for (const banned of ["write", "edit", "delete", "exec", "runTool", "applyPatch"] as const) {
-    if (typeof record[banned] === "function") {
+  // Probed through an OPTIONAL view of just the banned names, not an `as unknown as Record<string,
+  // unknown>` chain (anti-slop-adoption-arc inc-03). A JudgePort is assignable to this without any
+  // assertion — it declares none of these keys — and property access still walks the prototype
+  // chain, which `Object.entries` would not: a class-based port carrying `write()` on its prototype
+  // has to stay catchable, since that is the whole fence.
+  const probe: Pick<JudgePort, "judge"> &
+    Partial<Record<(typeof BANNED_WRITE_METHODS)[number], unknown>> = port;
+  for (const banned of BANNED_WRITE_METHODS) {
+    if (typeof probe[banned] === "function") {
       throw new Error(`judge port refuses write surface method "${banned}" (ADR-0209 D3)`);
     }
   }

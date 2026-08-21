@@ -8,10 +8,12 @@
 // THIN CLIENT — no `@storytree/agent` / `@storytree/drive` import, no model path (ADR-0004 / ADR-0108
 // d.1; modelPathBoundary.test.ts). The gate's only route to the selection is `window.desktopRepo`.
 //
-// LOCAL CAST, NOT A GLOBAL AUGMENTATION — `RepoPicker.tsx` already augments the global
-// `Window.desktopRepo` with the `pick`/`get` shape; a second global augmentation with a different
-// (`ready`/`onChanged`) shape would conflict. So this file reads the bridge through a LOCAL interface
-// + a local cast, never `declare global`.
+// ONE GLOBAL AUGMENTATION, A LOCAL SLICE — `RepoPicker.tsx` owns the single `Window.desktopRepo`
+// augmentation and declares all four methods the preload actually exposes. This file narrows to the
+// `ready`/`onChanged` slice STRUCTURALLY and never re-declares the global. It used to read the bridge
+// through a local `as unknown as` chain instead, asserting a shape that contradicted that augmentation
+// outright — the compiler could not see the conflict, and the two would have drifted silently
+// (anti-slop-adoption-arc inc-03).
 //
 // KEYED REMOUNT — the dock is rendered `<TerminalDock key={cwd} .../>`: when the cwd changes, React's
 // key change unmounts the old dock (disposing its pty) and mounts a fresh one in the new repo. This is
@@ -33,7 +35,7 @@ interface DesktopRepoGateBridge {
 
 function getDesktopRepoGateBridge(): DesktopRepoGateBridge | undefined {
   if (typeof window === 'undefined') return undefined;
-  return (window as unknown as { desktopRepo?: DesktopRepoGateBridge }).desktopRepo;
+  return window.desktopRepo;
 }
 
 export interface TerminalRepoGateProps {

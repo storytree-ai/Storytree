@@ -30,13 +30,20 @@ export function renderBody(doc: Knowledge): string {
         `The running code is likely older than the stored doc; pull the latest and restart.`,
     );
   }
-  const fields = doc as unknown as Record<string, string | readonly string[] | undefined>;
+  // `unknown` values, NOT `string | readonly string[] | undefined`: this read used to reach through an
+  // `as unknown as` chain declaring the narrower value type, which the doc provably violates
+  // (`schemaVersion` is a number). KIND_SPECS only ever names prose fields, so the narrow claim was
+  // never falsified at runtime — but it was false, and the chain is what stopped the compiler from
+  // saying so (anti-slop-adoption-arc inc-03). Narrow per value instead, and skip anything that is
+  // neither prose nor a ref-list, since no such field can render as a block.
+  const fields = doc as Record<string, unknown>;
   const blocks: string[] = [];
   for (const spec of specs) {
     const value = fields[spec.field];
     if (value == null) continue; // optional + absent -> emit nothing
     if (Array.isArray(value) && value.length === 0) continue; // empty ref-list -> emit nothing
-    const text = Array.isArray(value) ? value.map((ref) => `- ${ref}`).join("\n") : value;
+    if (!Array.isArray(value) && typeof value !== "string") continue; // non-prose field -> nothing
+    const text = Array.isArray(value) ? value.map((ref) => `- ${String(ref)}`).join("\n") : value;
     if (spec.lead) {
       blocks.push(`${spec.heading} ${text}`);
     } else {

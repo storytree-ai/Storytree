@@ -47,7 +47,8 @@
  */
 
 import { readFileSync } from 'node:fs';
-import type { IncomingMessage, ServerResponse } from 'node:http';
+import { IncomingMessage, ServerResponse } from 'node:http';
+import { Socket } from 'node:net';
 
 import { handleApiRequest, type ApiContext } from './apiRouter.js';
 
@@ -95,15 +96,17 @@ function fixtureStore(fixture: FloorHealthFixture) {
 async function capture(
   run: (res: ServerResponse) => Promise<void>,
 ): Promise<{ status: number; body: unknown }> {
+  // A REAL ServerResponse over an unconnected socket, with only `end` swapped for a capture. This
+  // was a three-property object literal reached through an `as unknown as` chain — a fake claiming
+  // to be something it shares nothing with (anti-slop-adoption-arc inc-03). Nothing writes to the
+  // socket: the route sets `statusCode`, calls `setHeader`, then ends.
   let body = '';
-  const sink = {
-    statusCode: 0,
-    setHeader(): void {},
-    end(chunk?: string): void {
-      body = chunk ?? '';
-    },
-  };
-  await run(sink as unknown as ServerResponse);
+  const sink = new ServerResponse(new IncomingMessage(new Socket()));
+  sink.end = ((chunk?: unknown): ServerResponse => {
+    body = typeof chunk === 'string' ? chunk : '';
+    return sink;
+  }) as ServerResponse['end'];
+  await run(sink);
   return { status: sink.statusCode, body: body === '' ? null : JSON.parse(body) };
 }
 
@@ -121,7 +124,7 @@ for (const file of files) {
   // Only `backend.docStore` is on the /api/floor-health path; the rest of the ApiContext is
   // deliberately absent (an open dev posture with NO policy gate, so a non-GET reaches the handler
   // and its 405 rather than being refused upstream), so it is cast rather than faked.
-  const ctx = { backend: { docStore: async () => store } } as unknown as ApiContext;
+  const ctx = { backend: { docStore: async () => store } } as ApiContext;
 
   const answers: Record<string, unknown> = {};
   for (const request of fixture.requests) {
