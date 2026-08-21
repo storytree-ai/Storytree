@@ -43,7 +43,8 @@ import {
   wallFootY,
 } from './land-definition.js';
 import { islandScene, type IslandOptions } from './island-fixture.js';
-import { buildDressing, type DressingName } from './island-dressing.js';
+import { growCanopy } from './canopy-geometry.js';
+import { buildDressing, type CanopyPlacement, type DressingName } from './island-dressing.js';
 import type { GeneratedMesh } from './mesh-kit.js';
 import { plantsFrom, type PlantInstance } from './plant-descriptors.js';
 import { growPlant } from './plant-geometry.js';
@@ -704,6 +705,30 @@ function treeMeshes(scene: SceneG, relief: number): THREE.Mesh[] {
   );
 }
 
+/**
+ * THE SMALL TREES — the canopy that replaces the hero tree (owner, 2026-08-21).
+ *
+ * ⚠ IT TAKES ONE FORESHORTENING WHERE `treeMeshes` TAKES TWO, and the asymmetry is the point
+ * rather than an oversight. A canopy tree's GROUND POSITION comes out of the layout in the
+ * scene's projected space and so unprojects by `sin(elev)` exactly like every other prop — but
+ * its HEIGHT is authored in `canopy-geometry.ts` in world units, so there is nothing to recover.
+ * The hero tree's height comes out of a 20-degree SVG drawing and must be un-projected; applying
+ * that same correction here would stretch every tree by 6%, which is precisely the size of error
+ * that never looks wrong and quietly makes a grove too tall.
+ */
+function canopyMeshes(canopy: readonly CanopyPlacement[], relief: number): THREE.Mesh[] {
+  return mergeParts(
+    canopy.map((tree) => ({
+      parts: growCanopy(tree.spec),
+      offset: [tree.at.x, landHeight(tree.at.x, tree.at.z, relief), tree.at.z] as [
+        number,
+        number,
+        number,
+      ],
+    })),
+  );
+}
+
 /** One merged mesh per (status, style) for the vegetation — same merging rationale.
  *
  *  `relief` is the ground's amplitude, and passing it is not optional dressing: a plant is
@@ -907,6 +932,7 @@ function renderIsland(canvas: HTMLCanvasElement, props: IslandViewProps): void {
   // per-instance matrix, world normals baked. That is what keeps "every delivered pixel is an
   // authored (token x level) entry" true of props without a second argument.
   if (dressing) for (const m of mergeParts(dressing.groups)) scene3.add(m);
+  if (dressing) for (const m of canopyMeshes(dressing.canopy, relief)) scene3.add(m);
 
   // The island's on-screen size at this camera: the ground's depth foreshortens by
   // sin(RENDER_ELEV), and its width does not.

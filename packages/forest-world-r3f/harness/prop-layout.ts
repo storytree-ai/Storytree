@@ -930,6 +930,103 @@ export function scatter(opts: {
   return out;
 }
 
+/**
+ * A CLUMPED scatter: stands of points with bare ground between them, rather than points spread
+ * evenly over the whole plot.
+ *
+ * THIS IS A SEPARATE FUNCTION FROM {@link scatter} BECAUSE THE DIFFERENCE IS THE WHOLE POINT,
+ * and it is the finding the ISLANDERS research pass returned
+ * (`docs/research/chapter2-islanders-canopy-2026-08-22/`). Its islands do not sprinkle trees at
+ * a uniform density; they pack them into groves — twenty on one small plateau, none at all on
+ * the next — and the empty ground is doing as much work as the trees. A uniform scatter of the
+ * same COUNT reads as a green rash on the ground, which is exactly what this arc's 144 evenly
+ * dispersed plants already delivered and every dressing had to thin away.
+ *
+ * Two stages, both deterministic from `seed`: the stand CENTRES are a `scatter` at a large
+ * minimum gap, and each stand's members are rejection-sampled inside `spread` of its centre. The
+ * island's own filters — inside the loop, off the rim, clear of the avoid-paths — apply to the
+ * members, so a stand near the coast simply comes back smaller rather than hanging off the edge.
+ *
+ * ⚠ IT RETURNS FEWER POINTS THAN ASKED FOR RATHER THAN LOOPING, exactly as `scatter` does, and
+ * for the same reason: an over-constrained request has no solution and a harness page that hangs
+ * is indistinguishable from one that crashed.
+ */
+export function grove(opts: {
+  loop: readonly GPoint[];
+  /** How many stands. */
+  clusters: number;
+  /** Trees per stand. The actual count varies per stand across this inclusive range. */
+  perCluster: readonly [number, number];
+  /** A stand's radius, in ground units. */
+  spread: number;
+  /** Minimum tree-to-tree distance WITHIN and BETWEEN stands. */
+  minGap: number;
+  /** Minimum distance from the rim. */
+  edgeGap?: number;
+  /** Minimum distance between two stands' centres. Defaults to three spreads, which leaves a
+   *  stand's width of bare ground between neighbours — the gap is the composition. */
+  clusterGap?: number;
+  avoid?: readonly (readonly GPoint[])[];
+  avoidGap?: number;
+  seed?: number;
+}): GPoint[] {
+  const seed = opts.seed ?? 3;
+  const spread = Math.max(0.1, opts.spread);
+  const centres = scatter({
+    loop: opts.loop,
+    count: Math.max(0, Math.round(opts.clusters)),
+    seed,
+    minGap: opts.clusterGap ?? spread * 3,
+    edgeGap: opts.edgeGap ?? 0,
+    ...(opts.avoid ? { avoid: opts.avoid } : {}),
+    ...(opts.avoidGap === undefined ? {} : { avoidGap: opts.avoidGap }),
+  });
+
+  const rnd = mulberry32(seed + 977);
+  const edgeGap = opts.edgeGap ?? 0;
+  const avoid = opts.avoid ?? [];
+  const avoidGap = opts.avoidGap ?? 0;
+  const [lo, hi] = opts.perCluster;
+  const out: GPoint[] = [];
+  for (const centre of centres) {
+    const want = Math.round(lo + (hi - lo) * rnd());
+    const budget = Math.max(SCATTER_ATTEMPT_FLOOR, want * SCATTER_ATTEMPTS_PER_POINT);
+    let got = 0;
+    for (let attempt = 0; attempt < budget && got < want; attempt++) {
+      // Drawn in a fixed order before any rejection, so the stream cannot depend on which
+      // filter a candidate failed — the trap `scatter` documents, and it bites harder here
+      // because a stand near the coast rejects far more candidates than one inland.
+      const ra = rnd() * Math.PI * 2;
+      // sqrt so the stand is uniform over its AREA rather than piling up at the centre, which
+      // would deliver a bullseye of overlapping crowns with a thin fringe.
+      const rr = Math.sqrt(rnd()) * spread;
+      const p = { x: centre.x + Math.cos(ra) * rr, z: centre.z + Math.sin(ra) * rr };
+      if (!insideLoop(opts.loop, p)) continue;
+      if (edgeGap > 0 && distanceToPath(opts.loop, p, true) < edgeGap) continue;
+      let ok = true;
+      for (const other of out) {
+        if (dist(other, p) < opts.minGap) {
+          ok = false;
+          break;
+        }
+      }
+      if (!ok) continue;
+      if (avoidGap > 0) {
+        for (const path of avoid) {
+          if (distanceToPath(path, p, false) < avoidGap) {
+            ok = false;
+            break;
+          }
+        }
+        if (!ok) continue;
+      }
+      out.push(p);
+      got++;
+    }
+  }
+  return out;
+}
+
 /** How many segments a meander is drawn with, and how far it may stray, by default. 12
  *  segments over a typical cross-parcel route puts a bend every ~5-15 units — 10 to 30
  *  delivered pixels, so the wander reads as a walked line rather than as a jagged one. */

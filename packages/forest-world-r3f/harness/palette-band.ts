@@ -213,7 +213,85 @@ export const PROP_TOKENS = {
   marigold: '#f0a03c',
   /** Thatch and dry reed, for a roof that is not tiled. */
   thatch: '#cba15c',
+  /** A SMALL TREE's canopy — the ordinary green one, and the island's commonest object once
+   *  the hero tree is gone. Deeper than any status ground family, so a grove reads as a mass
+   *  standing ON the land rather than as a patch OF it. */
+  canopy: '#5c9147',
+  /** The second species in a mixed grove: a deeper, cooler tree. Two silhouettes in one grove
+   *  is what the reference does; two COLOURS is not (see `SHADE_KEYS`). */
+  canopyDark: '#3d6b3f',
+  /** A warm-scheme canopy — the reference's autumn island recolours its trees rather than
+   *  adding a species. ADR-0406 D1 makes a tree any colour on this surface. */
+  canopyRust: '#a8622f',
 } as const;
+
+/**
+ * SHADE KEYS — the ONE new rendering lever this arc has added, and it comes from a measurement
+ * of the named reference rather than from taste (`docs/research/chapter2-islanders-canopy-2026-08-22/`).
+ *
+ * WHAT WAS MEASURED, on its TREES specifically — the lit and shaded deciles of each tree's own
+ * pixels, so no hand-picked pixel decided the answer:
+ *
+ *   green spire     lit H74  S64 V80  ->  shade H135 S37 V47   dH +61   V x0.59
+ *   teal cypress    lit H95  S58 V51  ->  shade H117 S46 V31   dH +22   V x0.61
+ *   winter conifer  lit H183 S43 V99  ->  shade H218 S68 V71   dH +35   V x0.72
+ *   rust spindle    lit H41  S41 V73  ->  shade H30  S32 V56   dH -11   V x0.77
+ *
+ * A shaded face there is NOT its lit face darkened. It has ROTATED, and always toward the cool
+ * side of ITS OWN ISLAND'S scheme — the greens go teal, the blue conifer goes further blue, and
+ * the one WARM tree on a warm island barely moves at all and stays warm. That last row is the
+ * half of the finding easiest to get backwards: the key is per-scheme, not a universal teal.
+ *
+ * WHAT OUR LADDER COULD DO BEFORE THIS. `bandedColour` is `token x level` — a pure multiply, so
+ * R:G:B is invariant and HSV hue and saturation CANNOT change by construction. Every shaded
+ * face we have ever delivered was its lit face at lower value, exactly. That is the gap, it is
+ * arithmetic rather than opinion, and it is why "add another shadow rung" never closed it.
+ *
+ * WHAT THIS ADDS. A token MAY declare a shade key. Its delivered colour at level `L` is then a
+ * linear mix from the key (at {@link SHADE_KEY_FLOOR}) to the token itself (at 1.0), instead of
+ * `token x L`. One authored colour per token buys the hue rotation.
+ *
+ * WHY THE FENCE IS UNMOVED (ADR-0380 D6 fence 3, read by ADR-0406 D3). The property the fence
+ * carries is that every delivered pixel is an enumerable AUTHORED closure entry, which is what
+ * lets `capture.mjs` REFUSE rather than report. A keyed token still delivers exactly one colour
+ * per ladder rung, `tokenRamp`/`shadowRamp` still enumerate them, and `landPalette` still closes
+ * over them. What changed is how an entry is COMPUTED, not whether the set is closed. No free
+ * shading, no gradient, no nearest-entry snap, no checker exception.
+ *
+ * ⚠ IT IS DELIBERATELY EMPTY FOR EVERY PRE-EXISTING TOKEN, AND THAT IS A DECISION RATHER THAN
+ * CAUTION. Keying the STATUS families would change what the LAND's colour asserts — and
+ * `shadow-ladder-is-admissible-and-affordable` already measured that the four status colours
+ * are separated mainly by BRIGHTNESS with all six pairs overlapping, so rotating a shaded
+ * ground's hue could as easily fix that as break it. That is a semantic question, and ADR-0392
+ * D5 / ADR-0398 D7 forbid an art call settling one. The keys here are on FAMILY-LESS prop
+ * tokens (ADR-0406 D4), which assert nothing. Pricing the status half is the research artefact's
+ * job, not this constant's.
+ */
+export const SHADE_KEYS: Readonly<Record<string, string>> = {
+  // A cool deep teal. Delivers rung 0 at H141 S45 V37 against the token's H103 S51 V57 —
+  // dH +38, V x0.65, which sits between the reference's two green trees (+22 and +61, x0.59
+  // and x0.61) rather than chasing either one exactly.
+  [PROP_TOKENS.canopy]: '#143440',
+  // The same rotation on an already-deep green: rung 0 lands H158 S51 V29, V x0.69.
+  [PROP_TOKENS.canopyDark]: '#12303c',
+  // ⚠ A WARM KEY, AND IT IS A CORRECTION MADE BY MEASURING RATHER THAN A DEFAULT. The first
+  // version pointed this token at the same cool teal as the greens, on the reasoning that the
+  // reference's ochre island has TEAL cliffs. That is true of its cliffs and false of its
+  // TREES — measured, the rust spindle's shade rotates -11 degrees and stays warm. Mixing a
+  // saturated orange toward a desaturated teal passes straight through grey: the cool key
+  // delivered rung 0 at S29 against the token's S72, a muddy brown that read as a dead tree.
+  // A dark warm brown holds the hue (dH -0.5) and the saturation (S65) while still dropping
+  // the value to x0.65.
+  [PROP_TOKENS.canopyRust]: '#3d2a1e',
+};
+
+/** The level a shade-keyed token delivers its KEY at, unmixed.
+ *
+ *  Chosen BELOW every ladder member — the lit ladder floors at 0.78 and the shadow rung sits
+ *  under that — so both ladders land strictly inside the mix and neither extrapolates past the
+ *  key. At 0.6 the lit ladder's darkest rung delivers 45% token / 55% key, which reproduces the
+ *  measured 0.70x value drop within a couple of points while carrying the hue rotation with it. */
+export const SHADE_KEY_FLOOR = 0.6;
 
 /** The authored shade ladder — the ONLY multipliers a surface may wear, from the
  *  compositor's `KEY_SHADE` plus its flat/seam levels. A live material quantises its
@@ -296,10 +374,40 @@ export function bandShade(lambert: number): number {
  *  bandShade(lambert)`, rounded to integer channels the same way the compositor's
  *  `shade()` plus palette rounding do. This is the whole material, in one line. */
 export function bandedColour(token: string, lambert: number): Rgb255 {
+  return deliveredForLevel(token, bandShade(lambert));
+}
+
+/**
+ * THE PIXEL A TOKEN DELIVERS AT ONE LADDER LEVEL — the single place the arithmetic lives, so
+ * the lit ladder and the shadow ladder cannot disagree about it.
+ *
+ * `token x level` for an ordinary token, exactly as before. For a token with a {@link SHADE_KEYS}
+ * entry, a linear mix from its key at {@link SHADE_KEY_FLOOR} to the token itself at 1.0.
+ *
+ * ⚠ IT TAKES A LEVEL, NOT A LAMBERT, AND THAT DISTINCTION HAS COST A FALSE ANSWER HERE BEFORE.
+ * `bandedColour` quantises its argument onto `SHADE_LEVELS` first; this does not, because the
+ * shadow rung is by construction not a ladder member and quantising it on the way in would snap
+ * it to 0.78 and report the shadow as delivering the same pixel as full shade.
+ *
+ * The rounding is done ONCE, here, in specified arithmetic — the same reason `bandLevelIndex`
+ * exists: the GPU is handed finished colours to select between and never multiplies a colour.
+ */
+export function deliveredForLevel(token: string, level: number): Rgb255 {
   const t = parseHex(token);
-  const m = bandShade(lambert);
-  const q = (v: number) => Math.min(255, Math.max(0, Math.round(v * m)));
-  return { r: q(t.r), g: q(t.g), b: q(t.b) };
+  const q = (v: number) => Math.min(255, Math.max(0, Math.round(v)));
+  const key = SHADE_KEYS[token];
+  if (key === undefined) return { r: q(t.r * level), g: q(t.g * level), b: q(t.b * level) };
+  const k = parseHex(key);
+  // Clamped so a level outside [floor, 1] cannot extrapolate past either end into a colour
+  // neither authored entry names. Both ladders sit strictly inside, so the clamp never fires
+  // today; it exists so that a later rung added below the floor fails SAFE rather than quietly
+  // inventing a colour.
+  const f = Math.min(1, Math.max(0, (level - SHADE_KEY_FLOOR) / (1 - SHADE_KEY_FLOOR)));
+  return {
+    r: q(k.r + (t.r - k.r) * f),
+    g: q(k.g + (t.g - k.g) * f),
+    b: q(k.b + (t.b - k.b) * f),
+  };
 }
 
 /** The ladder INDEX a lighting scalar falls on — the same decision as `bandShade`, returned

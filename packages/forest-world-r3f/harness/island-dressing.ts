@@ -101,6 +101,7 @@ import {
 } from './prop-linear.js';
 import {
   centroidOf,
+  grove,
   heightField,
   insetLoop,
   insideLoop,
@@ -126,6 +127,7 @@ import {
   growRock,
   growWell,
 } from './prop-structures.js';
+import { canopyCaster, groveSpecs, type CanopySpec } from './canopy-geometry.js';
 
 export type DressingName = 'walled' | 'hamlet' | 'terrace' | 'shrine' | 'wild';
 
@@ -138,6 +140,12 @@ export interface DressingGroup {
   offset: [number, number, number];
 }
 
+/** One small tree: what to grow, and the ground point it stands on. */
+export interface CanopyPlacement {
+  spec: CanopySpec;
+  at: GPoint;
+}
+
 export interface Dressing {
   groups: DressingGroup[];
   /** What the props contribute to the occlusion field. Props that do not cast look pasted on,
@@ -145,6 +153,20 @@ export interface Dressing {
   casters: ShadowCaster[];
   /** How much of the fixture's vegetation this dressing keeps — see call (3). */
   plantFraction: number;
+  /**
+   * THE ISLAND'S TREES — many small ones, in stands, replacing the hero tree (owner, 2026-08-21:
+   * "we ditch the middle tree, and instead opt for many small trees so it actually looks like a
+   * forrest/garden").
+   *
+   * IT IS PER-DRESSING RATHER THAN ONE RULE FOR THE ISLAND, and that is the same argument the
+   * dressings themselves rest on. Where a place puts its trees is one of the loudest things it
+   * says about what kind of place it is: an enclosed garden plants an orchard in its quarters,
+   * a hamlet plants shelter round its yards, a worked hillside keeps its trees off the terraces
+   * and at the margins, a monument plants an avenue, and a wild shore has thickets where nothing
+   * cleared them. A single scatter applied to all five would hand the five directions back the
+   * uniformity the owner rejected in the round before last.
+   */
+  canopy: CanopyPlacement[];
 }
 
 export interface DressingOptions {
@@ -217,6 +239,79 @@ function run(parts: PropParts): DressingGroup {
 function runCasters(points: readonly GPoint[], radius: number, height: number): ShadowCaster[] {
   const sampled = resample(points, Math.max(2, radius * 1.6), false);
   return sampled.map((p) => ({ x: p.x, z: p.z, radius, height }));
+}
+
+/**
+ * PLANT A DRESSING'S TREES — the one place the canopy's arithmetic lives, so five dressings can
+ * differ in WHERE they plant without five copies of how.
+ *
+ * THE CALLS THAT GOVERN EVERY DRESSING'S PLANTING, made once here rather than five times:
+ *
+ * - **TREES COME IN STANDS, WITH BARE GROUND BETWEEN.** {@link grove} rather than {@link scatter},
+ *   and the difference is the research pass's central transferable finding: the reference packs
+ *   twenty trees onto one small plateau and leaves the next one empty. A uniform scatter at the
+ *   same count reads as a green rash — which is exactly what this island's 144 evenly dispersed
+ *   plants already delivered, and why every dressing had to thin them.
+ * - **A STAND CARRIES A RANGE OF HEIGHTS, NOT ONE HEIGHT.** Measured off the reference's groves
+ *   at roughly 1 : 2.5. A stand of equal trees delivers a hedge; a stand with a range delivers
+ *   a canopy, because the silhouette's top edge stops being a line.
+ * - **ONE CANOPY COLOUR PER ISLAND.** The reference recolours EVERY tree on an island together
+ *   and never tints one against its neighbour. A grove of individually-coloured trees is
+ *   confetti, and it is the easiest half of the finding to get backwards.
+ * - **EVERY TREE CASTS.** A prop that does not cast looks pasted on, and for a tree it is worse
+ *   than that: the cast shadow is half of what separates a standing object from a mark painted
+ *   on the ground. The pool is the CANOPY's radius, not the trunk's footprint.
+ * - **TREES YIELD TO WHAT IS BUILT.** Every caller passes its paths, walls and courts as
+ *   `avoid`, because a tree growing through a path says nobody walks it.
+ */
+function plantCanopy(
+  ctx: Ctx,
+  opts: {
+    /** How far inside the smoothed coast trees may stand. */
+    inset: number;
+    clusters: number;
+    perCluster: readonly [number, number];
+    spread: number;
+    minGap: number;
+    clusterGap?: number;
+    avoid?: readonly (readonly GPoint[])[];
+    avoidGap?: number;
+    minWidth?: number;
+    maxWidth?: number;
+    aspect?: number;
+    domeFraction?: number;
+    token?: string;
+    /** Added to the dressing's seed, so two dressings never plant the same stand. */
+    seedOffset?: number;
+  },
+): { canopy: CanopyPlacement[]; casters: ShadowCaster[] } {
+  const seed = ctx.seed + (opts.seedOffset ?? 0);
+  const points = grove({
+    loop: insetLoop(ctx.coast, opts.inset),
+    clusters: opts.clusters,
+    perCluster: opts.perCluster,
+    spread: opts.spread,
+    minGap: opts.minGap,
+    // The rim inset already holds trees off the coast, so this is the second-order guard: a
+    // canopy whose CENTRE clears the edge can still overhang it, and a tree hanging over the
+    // water reads as a rendering fault rather than as a windswept one.
+    edgeGap: 3,
+    ...(opts.clusterGap === undefined ? {} : { clusterGap: opts.clusterGap }),
+    ...(opts.avoid ? { avoid: opts.avoid } : {}),
+    ...(opts.avoidGap === undefined ? {} : { avoidGap: opts.avoidGap }),
+    seed,
+  });
+  const specs = groveSpecs({
+    count: points.length,
+    seed,
+    ...(opts.minWidth === undefined ? {} : { minWidth: opts.minWidth }),
+    ...(opts.maxWidth === undefined ? {} : { maxWidth: opts.maxWidth }),
+    ...(opts.aspect === undefined ? {} : { aspect: opts.aspect }),
+    ...(opts.domeFraction === undefined ? {} : { domeFraction: opts.domeFraction }),
+    ...(opts.token === undefined ? {} : { token: opts.token }),
+  });
+  const canopy = points.map((at, i) => ({ spec: specs[i]!, at }));
+  return { canopy, casters: canopy.map((t) => canopyCaster(t.spec, t.at)) };
 }
 
 // ---------------------------------------------------------------------------
@@ -352,21 +447,54 @@ function walled(ctx: Ctx): Dressing {
     casters.push(...runCasters(line, 1.2, 5));
   });
 
-  // Hedges inside the path ring: a green mass with a silhouette, standing in for the plants the
-  // thinning removed (call 3).
-  const hedgeLine = insetLoop(ctx.coast, 26);
-  groups.push(
-    run(
-      growHedgeRun(resample(hedgeLine, 5, true).slice(0, 26), {
-        height: 4,
-        width: 5,
-        heightAt,
-        seed: ctx.seed + 4,
-      }),
-    ),
-  );
+  // THE HEDGE RUN IS GONE, AND ITS OWN STATED REASON IS WHY. It was here as "a green mass with
+  // a silhouette, standing in for the plants the thinning removed" — a stand-in for vegetation
+  // this island did not have. It has vegetation now. Rendered together, a 4-unit hedge and a
+  // 5-unit dome are the same object at delivered size: rows of small dark-green blobs beside
+  // stands of small dark-green blobs, and the walled garden came out the busiest and least
+  // legible island on the page because of it. Removing the stand-in is what lets the thing it
+  // stood in for be read. The path ring keeps its own line without it, and the trees are planted
+  // across the whole plot rather than being held off a hedge that is no longer there.
 
-  return { groups, casters, plantFraction: 0.45 };
+  // THE ORCHARD. A walled garden's trees are PLANTED, so they come in a few tight, even stands
+  // in the quarters between the path ring and the wall, not scattered over the plot. More domes
+  // than anywhere else on the page — a garden grows fruit, not cypress.
+  //
+  // ⚠ THE ASPECT AND THE DOME FRACTION ARE BOTH CORRECTIONS MADE BY LOOKING. The first version
+  // asked for aspect 3.0 with three-quarters domes, and a dome is authored at 0.66 of the
+  // spire's aspect: 3.0 x 0.66 = 1.98, which is under the floor, so the clamp fired and every
+  // dome came out at exactly 2.0 world — 1.29 : 1 delivered. Barely on the tall side of square,
+  // in a stand of mostly domes, next to a hedge run of similar blobs. It delivered the exact
+  // failure this whole increment exists to avoid: the trees read as the shrub speckle wearing a
+  // different name. At 3.4 a dome delivers 1.44 : 1 and a spire 2.19 : 1, and half of each
+  // means the stand has a top edge rather than a line.
+  //
+  // SEVEN STANDS TO PLANT FIVE. The path ring, the court and the 8-unit rim inset between them
+  // reject most of the plot, so five stands delivered eighteen trees at 5.0% canopy — the
+  // thinnest island on the page, in the direction whose whole subject is CULTIVATED ground.
+  // Asking for more stands rather than for a smaller avoid-gap is deliberate: a tree nine units
+  // from a path is what makes the path read as walked, and buying trees by crowding it would
+  // spend the thing this direction is actually about.
+  const walledTrees = plantCanopy(ctx, {
+    inset: 8,
+    clusters: 7,
+    perCluster: [4, 8],
+    spread: 15,
+    // The default stand separation is three spreads, which on this plot fits five centres and
+    // no more — asking for seven changed nothing at all until this came down with it.
+    clusterGap: 30,
+    minGap: 9,
+    avoid: [closed(pathRing), closed(court)],
+    avoidGap: 9,
+    minWidth: 5.5,
+    maxWidth: 9,
+    aspect: 3.4,
+    domeFraction: 0.5,
+    seedOffset: 40,
+  });
+  casters.push(...walledTrees.casters);
+
+  return { groups, casters, plantFraction: 0.45, canopy: walledTrees.canopy };
 }
 
 // ---------------------------------------------------------------------------
@@ -482,7 +610,26 @@ function hamlet(ctx: Ctx): Dressing {
     casters.push({ x: p.x, z: p.z, radius: 4, height: 4 });
   });
 
-  return { groups, casters, plantFraction: 0.5 };
+  // SHELTER. A hamlet's trees are what people left standing and what they planted for wind:
+  // stands between the cottages and out toward the shore, kept off the worn routes. The widest
+  // size range on the page, because a lived-in place accumulates trees of every age.
+  const hamletTrees = plantCanopy(ctx, {
+    inset: 9,
+    clusters: 6,
+    perCluster: [4, 9],
+    spread: 19,
+    minGap: 8.5,
+    avoid: [...routes, ...sites.map((site) => ring(site, 20, 8))],
+    avoidGap: 10,
+    minWidth: 5,
+    maxWidth: 10,
+    aspect: 3.4,
+    domeFraction: 0.45,
+    seedOffset: 60,
+  });
+  casters.push(...hamletTrees.casters);
+
+  return { groups, casters, plantFraction: 0.5, canopy: hamletTrees.canopy };
 }
 
 // ---------------------------------------------------------------------------
@@ -522,6 +669,10 @@ function terrace(ctx: Ctx): Dressing {
   // concentric blobs have no legible order. Three leaves grass between them, which is what makes
   // each one read as the edge of a level rather than as a partition.
   const big = [...ctx.parcels].sort((a, b) => b.area - a.area).slice(0, 3);
+  // The retaining fronts, kept as they are built so the planting below can stand OFF them
+  // rather than recompute them — `parcelLoop` throws for a parcel that is not one simple loop
+  // (two of the eleven are not), and a second call would have to repeat that handling.
+  const terraceFronts: GPoint[][] = [];
   big.forEach((parcel, i) => {
     // THE REAL PARCEL BOUNDARY, not a circle fitted to its area. That distinction is the whole
     // direction: a ring around a centroid would be five circles on a green field, and any island
@@ -537,6 +688,7 @@ function terrace(ctx: Ctx): Dressing {
       return;
     }
     const front = insetLoop(smoothLoop(outline, 1, true), 5);
+    terraceFronts.push(closed(front));
     groups.push(
       run(
         growWallRun(closed(front), {
@@ -657,7 +809,35 @@ function terrace(ctx: Ctx): Dressing {
   groups.push(at(ctx, growPot({ radius: 3, height: 4.4, contents: 'marigold', seed: 12 }), offset(yardHead, -7, -6)));
   groups.push(at(ctx, growPot({ radius: 2.6, height: 3.8, contents: 'shrub', seed: 13 }), offset(yardHead, -1, -12)));
 
-  return { groups, casters, plantFraction: 0.3 };
+  // WORKED GROUND KEEPS ITS TREES AT THE MARGINS. Nothing grows on a terrace that is being
+  // cropped, so the stands sit outside the retaining fronts, on the ground the terracing left
+  // over. All spires and NO domes: a narrow cypress against a worked hillside is exactly what
+  // the reference's own ochre island does, and it is the one silhouette that reads at all
+  // against a horizontal-banded slope.
+  //
+  // ⚠ THE COUNT AND THE SIZE ARE A CORRECTION MADE BY LOOKING. The first version planted five
+  // small stands of narrow spires, and against six near-white UAT daisies the terraces came out
+  // the one island whose brightest objects were the flowers. Removing the hero tree took away
+  // the picture's dark end everywhere, and it is the CANOPY that has to put it back — on every
+  // other direction it does, and here it did not because there were too few trees and each was
+  // too thin. Six stands of larger spires restores the range without touching the data.
+  const terraceTrees = plantCanopy(ctx, {
+    inset: 7,
+    clusters: 6,
+    perCluster: [4, 8],
+    spread: 15,
+    minGap: 8,
+    avoid: [track, ...terraceFronts],
+    avoidGap: 11,
+    minWidth: 5.5,
+    maxWidth: 8.5,
+    aspect: 4,
+    domeFraction: 0,
+    seedOffset: 80,
+  });
+  casters.push(...terraceTrees.casters);
+
+  return { groups, casters, plantFraction: 0.3, canopy: terraceTrees.canopy };
 }
 
 // ---------------------------------------------------------------------------
@@ -834,7 +1014,28 @@ function shrine(ctx: Ctx): Dressing {
 
   // 0.30 rather than 0.18. At 0.18 the island outside the court was bare green, and "swept" needs
   // something to be swept CLEAR OF — an empty field reads as unfinished, not as disciplined.
-  return { groups, casters, plantFraction: 0.3 };
+  // AN AVENUE AND A DARK GROVE — the only planting on the page that is a COMPOSITION rather
+  // than a habitat. Two tight stands flanking the approach and one behind the court, all
+  // spires, all tall, in the deeper `canopyDark`: this is the direction whose thesis is
+  // subtraction, and thirty scattered trees would refute it. Fewest trees, biggest each.
+  const shrineTrees = plantCanopy(ctx, {
+    inset: 10,
+    clusters: 3,
+    perCluster: [5, 8],
+    spread: 16,
+    minGap: 10,
+    avoid: [approach, closed(ring(SHRINE_CENTRE, 44, 12))],
+    avoidGap: 13,
+    minWidth: 6.5,
+    maxWidth: 10,
+    aspect: 4.2,
+    domeFraction: 0,
+    token: PROP_TOKENS.canopyDark,
+    seedOffset: 100,
+  });
+  casters.push(...shrineTrees.casters);
+
+  return { groups, casters, plantFraction: 0.3, canopy: shrineTrees.canopy };
 }
 
 // ---------------------------------------------------------------------------
@@ -926,7 +1127,30 @@ function wild(ctx: Ctx): Dressing {
     casters.push(...runCasters(t.line, 3.4, t.height));
   });
 
-  return { groups, casters, plantFraction: 0.7 };
+  // THICKETS. Nothing cleared this island, so it carries the most trees, in the loosest and
+  // most overlapping stands — the only dressing where crowns are meant to merge into one mass.
+  // It also takes the page's ONE warm canopy: the reference recolours a whole island's trees
+  // together rather than adding a species, and a rust shore against teal water is the clearest
+  // demonstration of that available. The pool and the beach are kept clear.
+  const wildTrees = plantCanopy(ctx, {
+    inset: 6,
+    clusters: 7,
+    perCluster: [5, 11],
+    spread: 21,
+    minGap: 7.5,
+    clusterGap: 44,
+    avoid: [closed(ring(pool, 22, 10)), closed(ring(beach, 26, 10))],
+    avoidGap: 6,
+    minWidth: 5,
+    maxWidth: 9.5,
+    aspect: 3.6,
+    domeFraction: 0.5,
+    token: PROP_TOKENS.canopyRust,
+    seedOffset: 120,
+  });
+  casters.push(...wildTrees.casters);
+
+  return { groups, casters, plantFraction: 0.7, canopy: wildTrees.canopy };
 }
 
 // ---------------------------------------------------------------------------

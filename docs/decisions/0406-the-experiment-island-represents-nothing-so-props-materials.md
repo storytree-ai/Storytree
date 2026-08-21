@@ -100,13 +100,35 @@ someone answering that question first.
 
 **D3 — THE LOCKED PALETTE IS A VOCABULARY FENCE, NOT A SIZE FENCE, AND PROPS GROW THE VOCABULARY.**
 ADR-0380 D6 fence 3 requires that a live render stay BANDED to an authored palette rather than
-shipping as a generic 3D render. The property that carries the fence is that every delivered pixel is
-an authored `(token x level)` closure entry, which is what lets `capture.mjs` REFUSE rather than
-merely report. That property is indifferent to how many tokens the vocabulary holds — the shadow
-increment already grew it by 39 entries inside this fence. So a prop material is added by **authoring
-its token**, keeping the banded shader, and keeping the capture green. Free continuous shading,
-gradients, textures, a nearest-entry snap, or an "ignore these pixels" exception in the checker are
-all still refused: an exception is how a closed palette stops being closed.
+shipping as a generic 3D render. The property that carries the fence is that **every delivered pixel
+is an entry in a finite, enumerable, AUTHORED closure**, which is what lets `capture.mjs` REFUSE
+rather than merely report. That property is indifferent to how many tokens the vocabulary holds —
+the shadow increment already grew it by 39 entries inside this fence. So a prop material is added by
+**authoring its token**, keeping the banded shader, and keeping the capture green. Free continuous
+shading, gradients, textures, a nearest-entry snap, or an "ignore these pixels" exception in the
+checker are all still refused: an exception is how a closed palette stops being closed.
+
+⚠ **THE PROPERTY IS ENUMERABLE AUTHORSHIP, NOT THE MULTIPLICATION** — corrected in place on
+2026-08-22 (ADR-0139: the decision did not change, its description had been overtaken). This clause
+originally read "an authored `(token x level)` closure entry", which named the arithmetic that
+happened to compute an entry at the time rather than the property being fenced. That reading would
+forbid a legitimate move for the wrong reason, which is the exact failure this ADR was written
+FIRST to prevent. The move it would have forbidden, and which is now taken on the experiment
+surface: a token may declare a **shade key** and compute its rung entries as a mix between two
+authored colours instead of as `token x level`, so that a shaded face can ROTATE IN HUE rather than
+only darken. It is not a loosening — a keyed token still delivers exactly one colour per ladder
+rung, the ramp is still enumerated by `tokenRamp` / `shadowRamp`, `landPalette` still closes over
+it, and the capture still refuses an off-palette pixel. What is fenced is the closed, authored,
+refusable set; how an entry inside it is computed is not.
+
+The measurement that forced the correction, and the reason it could not be reached by deepening the
+shadow: in the owner's named reference a shaded face has rotated 22 to 61 degrees of hue at roughly
+0.6x its value, and a multiply by one scalar leaves hue and saturation exactly where they were, so
+the old form **could not express the reference's shading at all**
+(`docs/research/chapter2-islanders-canopy-2026-08-22/`). Shade keys are scoped to family-less prop
+tokens; keying a STATUS family would change what the land's colour asserts and is a SEMANTIC
+question ADR-0392 D5 / ADR-0398 D7 put beyond an art call — it is priced in that research artefact
+and deliberately not decided.
 
 **D4 — PROP TOKENS ARE FAMILY-LESS BY CONSTRUCTION, AND MUST BE DECLARED SO.** `statusFamilyOf`
 answers "which status does this delivered colour belong to". A stone or water token belongs to none,
@@ -174,5 +196,8 @@ live-render experiment and adopting it.
 - `oq-may-the-island-carry-things-that-mean-nothing-and-may-veg` — the question. Its EXPERIMENT half
   is answered `yes` and is what D1 records; its SHIPPED half stays open and is what D2 protects.
 - `the-island-is-built-to-look-good-with-props-unfenced` — the increment this was written first for.
+- `docs/research/chapter2-islanders-canopy-2026-08-22/` — the ISLANDERS pass. Its section 7 carries
+  the full argument that a shade-keyed ramp leaves D3's fence exactly where it was, and its section
+  5.3 prices the status-family half that D3 does NOT license.
 - `docs/research/chapter2-island-directions-2026-08-21/` — the six rejected islands and the measured
   results this arc inherits rather than re-derives.

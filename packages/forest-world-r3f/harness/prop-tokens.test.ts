@@ -29,6 +29,8 @@ import test from 'node:test';
 import {
   MARKER_TOKENS,
   PROP_TOKENS,
+  SHADE_KEYS,
+  SHADE_KEY_FLOOR,
   SHARED_TOKENS,
   STATUS_TOKENS,
   TREE_TOKENS,
@@ -39,7 +41,12 @@ import {
   parseHex,
   toHex,
 } from './palette-band.js';
-import { SHADOW_LADDER, landPaletteWithShadow, shadowRamp } from './shadow-ladder.js';
+import {
+  SHADOW_LADDER,
+  deliveredColour,
+  landPaletteWithShadow,
+  shadowRamp,
+} from './shadow-ladder.js';
 
 /** Every delivered colour a STATUS-BEARING token can put on the island, on the full ladder
  *  including the occlusion rung, mapped back to what produced it so a failure names the
@@ -123,8 +130,9 @@ test('D3: the palette GREW rather than moved — every pre-prop entry survives',
   assert.ok(after.size > before.size, 'the prop materials added nothing at all');
 });
 
-test('the prop materials are still (authored token x authored level) — nothing is free-shaded', () => {
+test('an UNKEYED prop material is still (authored token x authored level) — nothing is free-shaded', () => {
   for (const [name, token] of Object.entries(PROP_TOKENS)) {
+    if (SHADE_KEYS[token]) continue; // the keyed ones are the next test's subject
     const base = parseHex(token);
     const ramp = shadowRamp(token);
     assert.equal(ramp.length, SHADOW_LADDER.length, `${name} does not wear the whole ladder`);
@@ -144,6 +152,128 @@ test('the prop materials are still (authored token x authored level) — nothing
     });
   }
 });
+
+test('a SHADE-KEYED material is a mix of exactly TWO authored colours — still not free-shaded', () => {
+  const keyed = Object.entries(PROP_TOKENS).filter(([, t]) => SHADE_KEYS[t]);
+  // A guard rather than a formality: if the keys are ever emptied, every assertion below would
+  // pass vacuously over an empty list and this file would go green having checked nothing.
+  assert.ok(keyed.length >= 3, 'no shade-keyed tokens to check');
+  for (const [name, token] of keyed) {
+    const base = parseHex(token);
+    const key = parseHex(SHADE_KEYS[token]!);
+    const ramp = shadowRamp(token);
+    assert.equal(ramp.length, SHADOW_LADDER.length, `${name} does not wear the whole ladder`);
+    ramp.forEach((c, i) => {
+      const level = SHADOW_LADDER[i]!;
+      const f = Math.min(1, Math.max(0, (level - SHADE_KEY_FLOOR) / (1 - SHADE_KEY_FLOOR)));
+      // The delivered colour is a lerp between TWO AUTHORED COLOURS at an AUTHORED level. The
+      // property ADR-0380 D6 fence 3 carries is that the delivered set is enumerable and
+      // authored, not that it is computed by multiplying — so this is the same fence, spelled
+      // differently, and `landPalette` still closes over it entry for entry.
+      assert.deepEqual(
+        c,
+        {
+          r: Math.min(255, Math.max(0, Math.round(key.r + (base.r - key.r) * f))),
+          g: Math.min(255, Math.max(0, Math.round(key.g + (base.g - key.g) * f))),
+          b: Math.min(255, Math.max(0, Math.round(key.b + (base.b - key.b) * f))),
+        },
+        `${name} at level ${level} is not its key mixed toward its token`,
+      );
+    });
+    // MONOTONE IN LUMINANCE, which a mix does not guarantee on its own: a key brighter than its
+    // token would deliver a "shadow" lighter than the lit face, and the island would read as a
+    // rendering fault rather than as a colour choice.
+    const lumas = ramp.map((c) => 0.3 * c.r + 0.59 * c.g + 0.11 * c.b);
+    for (let i = 1; i < lumas.length; i++) {
+      assert.ok(lumas[i]! > lumas[i - 1]!, `${name} ramp is not monotone at rung ${i}`);
+    }
+  }
+});
+
+test('THE POINT OF A SHADE KEY: the shaded rung ROTATES rather than only darkening', () => {
+  // The measurement this mechanism exists to reproduce — ISLANDERS' own trees, read off the lit
+  // and shaded deciles of each tree's own pixels: a shaded face rotates 22 to 61 degrees of hue
+  // on the green trees while dropping to about 0.6 of its value. A pure multiply CANNOT rotate
+  // at all, because scaling R, G and B by one scalar leaves the hue exactly where it was. So
+  // this assertion is the difference between the new lever and the old one, stated as a number.
+  for (const name of ['canopy', 'canopyDark'] as const) {
+    const ramp = shadowRamp(PROP_TOKENS[name]);
+    const lit = ramp[ramp.length - 1]!;
+    const shade = ramp[0]!;
+    const dh = hueDelta(hueOf(lit), hueOf(shade));
+    assert.ok(dh >= 20, `${name} rotates only ${dh.toFixed(1)} degrees into shade`);
+    const ratio = valueOf(shade) / valueOf(lit);
+    assert.ok(ratio > 0.5 && ratio < 0.8, `${name} shade is ${ratio.toFixed(2)}x its lit value`);
+  }
+
+  // ⚠ AND THE ROW THAT IS EASIEST TO GET BACKWARDS. The reference's ONE warm tree rotates by
+  // -11 degrees and STAYS WARM. Pointing it at the greens' cool key mixed a saturated orange
+  // through grey and delivered a muddy brown at S29 against the token's S72 — measured, and
+  // corrected. So the warm canopy is asserted to HOLD its hue and its chroma, not to rotate.
+  const rust = shadowRamp(PROP_TOKENS.canopyRust);
+  const rl = rust[rust.length - 1]!;
+  const rs = rust[0]!;
+  assert.ok(
+    Math.abs(hueDelta(hueOf(rl), hueOf(rs))) < 12,
+    'the warm canopy rotated into shade — its key is on the wrong side of the wheel',
+  );
+  assert.ok(satOf(rs) > 0.5, `the warm canopy shade went muddy at S${(satOf(rs) * 100) | 0}`);
+});
+
+test('SHADE KEYS ARE OPT-IN — every pre-canopy token delivers exactly what it did before', () => {
+  // The regression guard on the whole mechanism. Routing `deliveredColour` through the mix
+  // touched the ONE function every palette entry on this island goes through, so the cheapest
+  // way for this change to have gone wrong is silently, somewhere else.
+  for (const token of landTokens()) {
+    if (SHADE_KEYS[token]) continue;
+    const base = parseHex(token);
+    for (const level of SHADOW_LADDER) {
+      assert.deepEqual(deliveredColour(token, level), {
+        r: Math.min(255, Math.round(base.r * level)),
+        g: Math.min(255, Math.round(base.g * level)),
+        b: Math.min(255, Math.round(base.b * level)),
+      });
+    }
+  }
+  // And no STATUS family may ever be keyed: a rotated shadowed ground would change what the
+  // land's colour asserts, and ADR-0392 D5 / ADR-0398 D7 put that beyond an art call. The
+  // question is priced in `docs/research/chapter2-islanders-canopy-2026-08-22/`, not decided.
+  for (const fam of Object.values(STATUS_TOKENS)) {
+    for (const t of [...fam.top, fam.wheat, fam.side]) {
+      assert.equal(SHADE_KEYS[t], undefined, `${t} is a status token and must not be shade-keyed`);
+    }
+  }
+});
+
+/** HSV hue in degrees, for the rotation assertions above. */
+function hueOf(c: { r: number; g: number; b: number }): number {
+  const mx = Math.max(c.r, c.g, c.b);
+  const mn = Math.min(c.r, c.g, c.b);
+  const d = mx - mn;
+  if (d === 0) return 0;
+  let h: number;
+  if (mx === c.r) h = ((((c.g - c.b) / d) % 6) + 6) % 6;
+  else if (mx === c.g) h = (c.b - c.r) / d + 2;
+  else h = (c.r - c.g) / d + 4;
+  return h * 60;
+}
+
+/** Signed shortest rotation from `a` to `b`, so 350 -> 10 reads as +20 rather than -340. */
+function hueDelta(a: number, b: number): number {
+  let d = b - a;
+  if (d > 180) d -= 360;
+  if (d < -180) d += 360;
+  return d;
+}
+
+function valueOf(c: { r: number; g: number; b: number }): number {
+  return Math.max(c.r, c.g, c.b);
+}
+
+function satOf(c: { r: number; g: number; b: number }): number {
+  const mx = valueOf(c);
+  return mx === 0 ? 0 : (mx - Math.min(c.r, c.g, c.b)) / mx;
+}
 
 test('the prop vocabulary is what ADR-0406 D1 licensed — stone, wood, clay, water, and accents', () => {
   // Named rather than counted, because the interesting failure is a token QUIETLY DISAPPEARING

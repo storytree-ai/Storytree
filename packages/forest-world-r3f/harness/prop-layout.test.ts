@@ -22,6 +22,7 @@ import {
   centroidOf,
   deepestPoint,
   distanceToPath,
+  grove,
   heightField,
   insetLoop,
   insideLoop,
@@ -796,4 +797,135 @@ test('NO NaN ESCAPES — every function, over the real island and over degenerat
   ]) {
     assert.ok(Number.isFinite(n), `a non-finite scalar escaped: ${n}`);
   }
+});
+
+// ---------------------------------------------------------------------------
+// GROVE — the clumped scatter the canopy is planted with
+// ---------------------------------------------------------------------------
+//
+// The whole reason `grove` exists rather than a second call to `scatter` is that ISLANDERS
+// packs its trees into stands and leaves the ground between them EMPTY, and a uniform scatter
+// of the same count reads as a green rash instead. That claim has to be a number, or the next
+// edit can quietly turn the grove back into a scatter and every test here still passes.
+
+/** Mean distance from each point to its nearest neighbour. */
+function meanNearest(points: readonly GPoint[]): number {
+  let total = 0;
+  for (const a of points) {
+    let best = Infinity;
+    for (const b of points) {
+      if (a === b) continue;
+      const d = Math.hypot(a.x - b.x, a.z - b.z);
+      if (d < best) best = d;
+    }
+    total += best;
+  }
+  return total / points.length;
+}
+
+/** How far the EMPTIEST ground is from the nearest point — sampled on a grid inside the loop,
+ *  reported at the 90th percentile so one awkward corner cannot carry the answer. */
+function emptinessP90(loop: readonly GPoint[], points: readonly GPoint[]): number {
+  const xs: number[] = [];
+  for (let x = -110; x <= 110; x += 4) {
+    for (let z = -60; z <= 60; z += 4) {
+      const p = { x, z };
+      if (!insideLoop(loop, p)) continue;
+      let best = Infinity;
+      for (const q of points) {
+        const d = Math.hypot(q.x - p.x, q.z - p.z);
+        if (d < best) best = d;
+      }
+      xs.push(best);
+    }
+  }
+  xs.sort((a, b) => a - b);
+  return xs[Math.floor(xs.length * 0.9)] ?? 0;
+}
+
+test('GROVE IS CLUMPED AND SCATTER IS NOT — the difference, as two numbers', () => {
+  const loop = insetLoop(RIM, 8);
+  const grouped = grove({
+    loop,
+    clusters: 6,
+    perCluster: [5, 9],
+    spread: 18,
+    minGap: 8,
+    edgeGap: 3,
+    seed: 5,
+  });
+  assert.ok(grouped.length >= 24, `only ${grouped.length} trees planted`);
+  const spread = scatter({ loop, count: grouped.length, minGap: 8, edgeGap: 3, seed: 5 });
+  assert.equal(spread.length, grouped.length, 'the comparison is not like-for-like');
+
+  // CLOSER TOGETHER: a stand's members sit nearer each other than the same number of points
+  // spread evenly over the same plot. This is the "trees come in stands" half.
+  const nnGrove = meanNearest(grouped);
+  const nnScatter = meanNearest(spread);
+  assert.ok(
+    nnGrove < nnScatter * 0.8,
+    `grove mean nearest ${nnGrove.toFixed(1)} vs scatter ${nnScatter.toFixed(1)} — not clumped`,
+  );
+
+  // AND THE GROUND BETWEEN THEM IS EMPTIER, which is the half that actually shows in the
+  // picture: the composition is as much the bare ground as the trees.
+  const emptyGrove = emptinessP90(loop, grouped);
+  const emptyScatter = emptinessP90(loop, spread);
+  assert.ok(
+    emptyGrove > emptyScatter * 1.25,
+    `grove leaves ${emptyGrove.toFixed(1)} units of open ground vs scatter's ` +
+      `${emptyScatter.toFixed(1)} — the stands are not leaving gaps`,
+  );
+});
+
+test('grove honours the island, the gaps and the avoid-paths it is given', () => {
+  const loop = insetLoop(RIM, 8);
+  const path = resample(insetLoop(RIM, 30), 6, true);
+  const trees = grove({
+    loop,
+    clusters: 6,
+    perCluster: [4, 8],
+    spread: 20,
+    minGap: 9,
+    edgeGap: 4,
+    avoid: [path],
+    avoidGap: 12,
+    seed: 3,
+  });
+  assert.ok(trees.length > 10);
+  for (const t of trees) {
+    assert.ok(insideLoop(loop, t), `a tree at ${t.x},${t.z} is off the island`);
+    assert.ok(distanceToPath(loop, t, true) >= 4 - 1e-6, 'a tree stands on the rim');
+    assert.ok(distanceToPath(path, t, false) >= 12 - 1e-6, 'a tree grows through the path');
+  }
+  for (let i = 0; i < trees.length; i++) {
+    for (let j = i + 1; j < trees.length; j++) {
+      const d = Math.hypot(trees[i]!.x - trees[j]!.x, trees[i]!.z - trees[j]!.z);
+      assert.ok(d >= 9 - 1e-6, `two trees ${d.toFixed(2)} units apart`);
+    }
+  }
+});
+
+test('grove is deterministic, and a different seed plants a different wood', () => {
+  const loop = insetLoop(RIM, 8);
+  const opts = { loop, clusters: 5, perCluster: [4, 7] as const, spread: 16, minGap: 8 };
+  assert.deepEqual(grove({ ...opts, seed: 12 }), grove({ ...opts, seed: 12 }));
+  assert.notDeepEqual(grove({ ...opts, seed: 12 }), grove({ ...opts, seed: 13 }));
+});
+
+test('grove REFUSES rather than hangs when the request has no solution', () => {
+  const loop = insetLoop(RIM, 8);
+  // Two hundred trees nine units apart inside one 6-unit stand is unsatisfiable. The contract
+  // is FEWER POINTS, returned promptly — a harness page that hangs is indistinguishable from
+  // one that crashed, and costs more to diagnose.
+  const trees = grove({
+    loop,
+    clusters: 2,
+    perCluster: [200, 200],
+    spread: 6,
+    minGap: 9,
+    seed: 1,
+  });
+  assert.ok(trees.length < 20, `${trees.length} trees fitted where far fewer can`);
+  assert.equal(grove({ loop, clusters: 0, perCluster: [5, 5], spread: 10, minGap: 4 }).length, 0);
 });
