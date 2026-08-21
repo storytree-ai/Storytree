@@ -122,7 +122,12 @@ ADR-0144 the node branch must instead drive the node's REAL proof with persist s
   (`storyBuild(unitId, { real: true, dryRun: false, verdictStore: 'pg', openPr: true, ...actorOpt })`
   + its mode line) is UNCHANGED. `buildRunnerFromNodeBuild` (the standalone `--live` smoke adapter)
   and `adoptRunnerFromAdoptStory` are UNTOUCHED — ADR-0144 changes what an ACCEPT dispatches, not
-  whether the smoke exists. The registry, `runBuildJob`, and `dispatchAcceptedBuild` are untouched.
+  whether the smoke exists. The registry and `runBuildJob` are untouched. *(This sentence also named
+  `dispatchAcceptedBuild` until **ADR-0404 d.5** DELETED that function and its `DispatchResult` type —
+  **ADR-0175** had already removed its only caller, `packages/drive/src/spawn-builder.ts`, leaving it
+  exercised by nothing but its own test. There is no longer such a symbol in this file to leave
+  untouched. The build ENGINE is unaffected: `BuildRegistry`, `runBuildJob`, `routedBuildRunner` and the
+  `BuildContext` type all still exist and still have callers.)*
 - **The RED the spine observes:** the new test's node-branch assertions fail — `nodeBuild` receives
   `{ live: true, dryRun: false, real: false }` with `verdictStore` undefined, and the mode line names
   the synthetic task. **The GREEN:** the node branch dispatches
@@ -257,8 +262,9 @@ current node-branch opts → the one-file flip that makes it pass.
 Rules:
 
 - **Flip the node arm, nothing else** — the story arm, `buildRunnerFromNodeBuild`,
-  `adoptRunnerFromAdoptStory`, the registry, `runBuildJob`, and `dispatchAcceptedBuild` all stay
-  byte-identical (`rnrd-story-routing-unchanged` pins the story arm).
+  `adoptRunnerFromAdoptStory`, the registry, and `runBuildJob` all stay byte-identical
+  (`rnrd-story-routing-unchanged` pins the story arm). *(`dispatchAcceptedBuild` stood on this list
+  until ADR-0404 d.5 deleted it — see the "EVERYTHING ELSE" bullet above.)*
 - **No node-level auto-PR** — never pass `openPr` on the node branch; landing is the human's non-squash
   merge of the parked branch (`rnrd-mode-line-names-real-and-parked-branch`, ADR-0136/ADR-0031).
 - **Persist is correct BECAUSE it is real** — `verdictStore: 'pg'` on a real drive is the honest
