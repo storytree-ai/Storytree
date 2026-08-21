@@ -55,6 +55,17 @@ export * from "./knowledge.js";
 // store read around. Pure, browser-safe: no zod, no store, no node: — it reads `dependsOn` and
 // nothing else, so the citation web is structurally outside the dependency relation.
 export * from "./knowledge-dag.js";
+// ADR-0403 dec 7 (`adrs-into-the-dag-arc` inc 08): the decision-record POINTER, resolved in exactly
+// one place. The corpus carries two live `doc:` spellings of the same file and a parser that
+// accepts one silently reclassifies the majority as "not a decision" — a confident, plausible,
+// wrong answer that has already been shipped once. Pure and browser-safe.
+export * from "./decision-pointer.js";
+// ADR-0403 dec 5 (`adrs-into-the-dag-arc` inc 08): the COMBINED decisions-plus-Library acyclicity
+// proof. ADR-0223 D4's no-loop guarantee was STRUCTURAL — decisions were sinks, so nothing could
+// come back — and dec 4 retires it, which means proving the property over the graph that will
+// actually be walked rather than over either half alone. `pnpm probe:combined-dag` is a thin read
+// around this; no gate rung enforces it.
+export * from "./combined-dag.js";
 // ADR-0402 READ TOLERANCE, TEMPORARY: `readDependsOnPointers` lets every reader of the authored
 // dependency edge accept the pre-rename `standsOn` key until the corpus drains. Migration #7 runs
 // at the WRITE boundary only, so without it a stored row's edges are invisible to the acyclicity
