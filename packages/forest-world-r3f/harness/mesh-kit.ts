@@ -695,8 +695,22 @@ export function addGableRoof(
   const e3 = put(hx, 0, -hz);
   const r0 = put(0, rise, -hz);
   const r1 = put(0, rise, hz);
-  addQuad(raw, e0, e1, r1, r0, nrm([-hx, rise, 0]));
-  addQuad(raw, e2, e3, r0, r1, nrm([hx, rise, 0]));
+  // ⚠ THE SLOPE NORMAL IS THE PERPENDICULAR OF THE SLOPE, WHICH IS NOT (half, rise). The slope
+  // runs from the eave `(-hx, 0)` to the ridge `(0, rise)`, so its direction is `(hx, rise)` and
+  // its outward normal is `(-rise, hx)` — the two components SWAP. Writing `(-hx, rise)` looks
+  // right and is the shape's own complement: it shades a roof as if its pitch were `90 - pitch`.
+  //
+  // This shipped once and was caught by measurement rather than by reading. At the 34.8-degree
+  // pitch a cottage wears, the swapped normal delivers `dot = 0.839` (rung 2) where the true one
+  // delivers `0.931` — RUNG 3. The error vanishes at 45 degrees, where the swap is the identity,
+  // and grows without bound toward flat, so a shallow roof shades as a near-vertical WALL. Since
+  // a pitched roof is the only surface on this island that can reach the ladder's top rung, the
+  // bug quietly gave away the strongest lever in the whole vocabulary while looking like a
+  // deliberately muted roof. The `ridgeAlongX` branch above was written correctly and this one
+  // was not, which is exactly why the two are stated as perpendiculars now rather than as
+  // remembered tuples.
+  addQuad(raw, e0, e1, r1, r0, nrm([-rise, hx, 0]));
+  addQuad(raw, e2, e3, r0, r1, nrm([rise, hx, 0]));
   addTri(raw, e0, r0, e3, nrm([0, 0, -1]));
   addTri(raw, e1, e2, r1, nrm([0, 0, 1]));
 }
