@@ -453,8 +453,8 @@ function walled(ctx: Ctx): Dressing {
   // 5-unit dome are the same object at delivered size: rows of small dark-green blobs beside
   // stands of small dark-green blobs, and the walled garden came out the busiest and least
   // legible island on the page because of it. Removing the stand-in is what lets the thing it
-  // stood in for be read. The path ring keeps its own line without it.
-  const hedgeLine = insetLoop(ctx.coast, 26);
+  // stood in for be read. The path ring keeps its own line without it, and the trees are planted
+  // across the whole plot rather than being held off a hedge that is no longer there.
 
   // THE ORCHARD. A walled garden's trees are PLANTED, so they come in a few tight, even stands
   // in the quarters between the path ring and the wall, not scattered over the plot. More domes
