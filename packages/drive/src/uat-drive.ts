@@ -169,9 +169,10 @@ export type UatDrivePlatform = "web-or-cli" | "electron-native-shell";
  * UAT criteria do not carry a separate platform field today. Native criteria do, however, name
  * either the harness directly (`_electron` / `native shell`) or the product boundary explicitly: a
  * running/installed Electron app plus the real preload/contextBridge seam, the real Electron main,
- * or a running real desktop main whose spawned sidecar / explicit non-e2e mode makes the native launch
- * boundary unambiguous. Keeping the derivation here avoids a story-id registry (which would drift as
- * criteria move) while making that already-authored platform instruction executable by the driver.
+ * an affirmative assertion that the actual Electron launch is exercised, or a running real desktop
+ * main whose spawned sidecar / explicit non-e2e mode makes the native launch boundary unambiguous.
+ * Keeping the derivation here avoids a story-id registry (which would drift as criteria move) while
+ * making that already-authored platform instruction executable by the driver.
  */
 export function classifyUatDrivePlatform(journey: string): UatDrivePlatform {
   const namesNativeHarness = /(?:`?_electron`?|\bnative[ -]shell\b)/i.test(journey);
@@ -194,8 +195,27 @@ export function classifyUatDrivePlatform(journey: string): UatDrivePlatform {
   const namesNonE2eLaunch =
     /\b(?:not|without)\b[^.!?\n]{0,48}\b(?:the\s+)?(?:harness(?:'s)?\s+)?e2e\s+mode\b/i.test(journey) ||
     /\bwithout\s+`?STORYTREE_DESKTOP_E2E`?\b/i.test(journey);
+  const namesActualElectronLaunch = journey.split(/\r?\n|[.!?]+\s+/).some((clause) => {
+    const assertsActualLaunch =
+      /\b(?:the\s+)?(?:real|actual)\s+Electron\s+launch\s+(?:(?:must|does|did|will|should|actually)\s+)?(?:honou?rs?|refuses?|wires?|runs?|uses?|opens?|starts?|serves?|loads?|reaches?|proceeds?|enforces?|observes?)\b/i.test(
+        clause,
+      ) ||
+      /\b(?:real|actual)\s+(?:running|launched|started)\s+Electron\s+app(?:lication)?\b/i.test(clause) ||
+      /\b(?:launch|start|run)\s+(?:the\s+)?(?:real|actual)\s+Electron\s+app(?:lication)?\b/i.test(clause);
+    const negatesActualLaunch =
+      /\b(?:no|without)\s+(?:the\s+)?(?:real|actual)\s+Electron\s+(?:launch|app(?:lication)?)\b/i.test(
+        clause,
+      ) ||
+      /\b(?:do\s+not|never|avoid|skip)\s+(?:launch|start|run)\s+(?:the\s+)?(?:real|actual)\s+Electron\s+app(?:lication)?\b/i.test(
+        clause,
+      );
+    const describesLaunchOnly =
+      /\b(?:architecture|documentation|docs?|documented|planned|proposal)\b/i.test(clause);
+    return assertsActualLaunch && !negatesActualLaunch && !describesLaunchOnly;
+  });
   return namesNativeHarness ||
     namesRealElectronMain ||
+    namesActualElectronLaunch ||
     (namesRunningElectronApp && namesRealPreloadBoundary) ||
     (namesRunningDesktopMain && (namesSpawnedSidecar || namesNonE2eLaunch))
     ? "electron-native-shell"

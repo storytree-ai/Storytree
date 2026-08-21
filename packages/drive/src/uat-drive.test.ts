@@ -99,6 +99,12 @@ const AUTHORED_REAL_DESKTOP_SIDECAR_JOURNEY = [
   "   returns the composed organism envelope and not the static-server 503 fallback.",
 ].join("\n");
 
+const AUTHORED_REAL_ELECTRON_LAUNCH_JOURNEY = [
+  "10. **Launch refuses cleanly when a precondition is unmet — no half-wired shell.**",
+  "    The launch-precondition gate either wires the full backend or refuses naming the reason.",
+  "    This leg adds that the real Electron launch honours those branches, not merely injected doubles.",
+].join("\n");
+
 // ── which legs this driver owns ──────────────────────────────────────────────
 
 function src(over: {
@@ -342,6 +348,64 @@ test("authored real desktop-sidecar boundary receives native tooling and audit r
     ...SPEC,
     journey: AUTHORED_REAL_DESKTOP_SIDECAR_JOURNEY,
     platform: classifyUatDrivePlatform(AUTHORED_REAL_DESKTOP_SIDECAR_JOURNEY),
+  };
+  assert.equal(spec.platform, "electron-native-shell");
+
+  const prompt = uatDriveTaskPrompt(spec);
+  assert.ok(prompt.includes(UAT_DRIVE_NATIVE_SHELL_TOOLING_CLAUSE));
+  assert.ok(!prompt.includes(UAT_DRIVE_WEB_TOOLING_CLAUSE));
+  assert.match(prompt, /Playwright's `_electron`/);
+  assert.match(prompt, /apps\/desktop\/e2e\/harness\.mjs/);
+  assert.match(prompt, /`win\.mouse`/);
+  assert.equal(auditDrivePrompt(prompt, spec).ok, true);
+
+  const chromiumOnly = prompt.replace(
+    UAT_DRIVE_NATIVE_SHELL_TOOLING_CLAUSE,
+    UAT_DRIVE_WEB_TOOLING_CLAUSE,
+  );
+  assert.ok(
+    auditDrivePrompt(chromiumOnly, spec).missing.includes(
+      "the native-shell platform boundary (Chromium substitution)",
+    ),
+  );
+});
+
+test("authored actual Electron-launch assertions select native-shell without launch-planning false positives", () => {
+  for (const nativeBoundary of [
+    AUTHORED_REAL_ELECTRON_LAUNCH_JOURNEY,
+    "The actual Electron launch must refuse before wiring a half-configured backend.",
+    "Drive the real running Electron app and confirm its main process enforces the gate.",
+    "Launch the real Electron application and observe the refusal window.",
+  ]) {
+    assert.equal(
+      classifyUatDrivePlatform(nativeBoundary),
+      "electron-native-shell",
+      `an authored actual Electron execution boundary must select native-shell: ${nativeBoundary}`,
+    );
+  }
+
+  for (const incidental of [
+    "The Electron launch architecture is documented below.",
+    "The real Electron launch architecture is documented below.",
+    "A real Electron launch is planned for later; drive the web page today.",
+    "No real Electron launch is required; use Chromium.",
+    "Do not launch the real Electron app; inspect the documentation instead.",
+    "The docs describe how an actual Electron launch will work after the web pilot.",
+    "Open the ordinary web page and assert the responsive desktop layout.",
+  ]) {
+    assert.equal(
+      classifyUatDrivePlatform(incidental),
+      "web-or-cli",
+      `documentation, planning, negation, and web prose must not select native-shell: ${incidental}`,
+    );
+  }
+});
+
+test("authored actual Electron-launch assertion receives native tooling and audit rejects Chromium substitution", () => {
+  const spec: UatDriveSpec = {
+    ...SPEC,
+    journey: AUTHORED_REAL_ELECTRON_LAUNCH_JOURNEY,
+    platform: classifyUatDrivePlatform(AUTHORED_REAL_ELECTRON_LAUNCH_JOURNEY),
   };
   assert.equal(spec.platform, "electron-native-shell");
 
