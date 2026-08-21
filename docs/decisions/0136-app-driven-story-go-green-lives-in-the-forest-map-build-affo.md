@@ -13,6 +13,15 @@ the "chat smoke loop" framing in this title/body is the *pre-ADR-0137* understan
 The open fork in §Decision is resolved (see the inline note). Surfaced by the 2026-06-28 desktop-drive
 live walk (ADR-0108 Phase 3/4 + ADR-0133 d.3).
 
+> **REVERSED ON THE SURFACE by
+> [ADR-0404](0404-dispatching-a-build-is-a-cli-verb-retire-the-in-app-build-an.md)**
+> (accepted, 2026-08-21) — **this ADR's title no longer describes where app-driven go-green lives.**
+> The owner's call: the coding harnesses drive builds from the CLI, so there is no Build affordance in
+> the forest map to host it. App-driven whole-story go-green is `storytree story build <id> --real`.
+> What this ADR got RIGHT and what still stands is the wall it drew: a node build is not a story
+> go-green, and only a story `--real` opens the auto-merging PR. That routing is untouched — it simply
+> has one caller now instead of two.
+
 ## Context
 
 On 2026-06-28 the desktop app drove a real Claude Agent SDK leaf through the prove-it-gate to a signed
