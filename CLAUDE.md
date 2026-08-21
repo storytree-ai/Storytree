@@ -391,11 +391,19 @@ kind owes a seed export any more.
   moved" into "you must re-sync NOW" (`packages/**` is 47.6% of re-sync churn, `stories/` 5.2%).
   **It is the SAME classifier CI runs** (`packages/cli/src/ci-affected.ts`, ADR-0195/ADR-0304 D2) —
   never write a second one, or a local pass stops predicting a CI pass. **It only ever fails WIDE:**
-  any root-path file (`stories/**`, `docs/**`, `scripts/**`, `.github/**`, the lockfile), any
-  `package.json`, the corpus seed, an unmapped path, or an unreadable `origin/main` forces the full
-  `-r` run — so *most* branches still run everything, and a narrow scope is the exception you should
-  see stated. **`pnpm gate --scope` prints the decision and exits** — ask it rather than inferring
-  from a 5-minute run why your gate did or didn't narrow. `pnpm gate --full` (or
+  any root-path file (`scripts/**`, `.github/**`, `infra/**`, `tsconfig.base.json`, the lockfile),
+  any `package.json`, the corpus seed, an unmapped path, or an unreadable `origin/main` forces the
+  full `-r` run. **The exception is the MEASURED reader map (ADR-0394, widened by ADR-0399):** eleven
+  root paths whose test-time readers were established with an fs-level probe narrow instead —
+  `docs/decisions/` and `docs/` to cli+drive(+app-surface), `stories/` to its seven readers, and
+  **the whole guidance-projection group (`CLAUDE.md`, `AGENTS.md`, `.claude/agents/`, `.codex/`,
+  `.cursor/`, `.gemini/`, `.opencode/`) to `@storytree/cli` ALONE** — one project of 26, ~65% off
+  the test leg, on the commonest non-package change shape in the repo. Read the saving as WORK, not
+  as project count: cli is 34.7% of the summed test work, cli+drive 86.3%, the `stories/` seven
+  95.6%, so narrowing `stories/` is worth ~4% and is kept mainly because it removes 12 projects that
+  could red a story-only branch. `scripts/**` is read by all 25 projects (the tsx preload) and is
+  deliberately NOT mapped. **`pnpm gate --scope` prints the decision and exits** — ask it rather than
+  inferring from a 5-minute run why your gate did or didn't narrow. `pnpm gate --full` (or
   `STORYTREE_GATE_FULL=1`) forces the full run. Nothing about *whether* a red blocks changed: every
   step still runs and the gate is green only if all pass.
 - **`pnpm gate --help` prints the flags and does nothing else** (since 2026-08-20, ADR-0394's arc). It

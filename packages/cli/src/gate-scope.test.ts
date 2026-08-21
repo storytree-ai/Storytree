@@ -53,9 +53,9 @@ test("the LOCAL gate honours CI's FULL triggers — one classifier, or a local p
   // is precisely a second local implementation that agrees today and drifts tomorrow: if this module
   // ever stopped delegating, these are the cases a hand-rolled local rule would get wrong.
   for (const [file, why] of [
-    ["stories/approval-gated-trunk/story.md", "stories/** is read by tests no dependency edge declares"],
-    ["docs/research/agentic-foundation-survey.md", "docs/** outside the ADR-0394 reader map is unmapped"],
     ["pnpm-lock.yaml", "the lockfile is a repo-wide input"],
+    ["scripts/check-manifest.mjs", "scripts/** is read by all 25 projects (the tsx preload)"],
+    ["README.md", "a root file with no measured reader stays wide"],
     ["package.json", "a manifest is an input of the selection graph itself"],
     ["packages/cli/package.json", "a workspace manifest, likewise"],
     ["apps/studio/data/comments.json", "the studio data dir is read across package boundaries"],
@@ -78,6 +78,17 @@ test("the LOCAL gate honours CI's reader-map NARROWING too — D2 cuts both ways
     scope.mode === "affected" ? scope.projects : [],
     ["@storytree/cli", "@storytree/drive"],
   );
+
+  // ADR-0399 widened the map, and the widening has to cut both ways here too: a guidance
+  // regeneration is the commonest non-package diff in the repo, and if the LOCAL gate kept running
+  // 26 projects for it while CI ran one, the local gate would be strictly slower AND stop
+  // predicting CI — the same D2 failure, in the direction that never reds and so never gets noticed.
+  const guidance = localAffectedScope(
+    { ok: true, files: ["CLAUDE.md", "AGENTS.md", ".claude/agents/planner.md"] },
+    PROJECTS,
+  );
+  assert.equal(guidance.mode, "affected");
+  assert.deepEqual(guidance.mode === "affected" ? guidance.projects : [], ["@storytree/cli"]);
   assert.match(renderScopeNotice(scope), /^scope: AFFECTED — @storytree\/cli, @storytree\/drive /);
 });
 

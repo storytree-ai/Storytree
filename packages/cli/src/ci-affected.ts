@@ -6,14 +6,16 @@
 //
 // The rules are deliberately CONSERVATIVE — anything the pnpm dependency graph cannot see forces the
 // full run:
-//  - A file outside `packages/*` / `apps/*` (stories/**, scripts/**, .github/**, pnpm-lock.yaml,
-//    root tsconfig/package.json, CLAUDE.md, the `web` gitlink, …) → FULL. Several package test
-//    suites read these root paths directly (cli's validate-corpus over stories/**, drive's
-//    node-build tests over stories/**), and the pnpm graph cannot see any of it.
+//  - A file outside `packages/*` / `apps/*` (scripts/**, .github/**, infra/**, pnpm-lock.yaml,
+//    root tsconfig/package.json, the `web` gitlink, …) → FULL. Several package test suites read
+//    these root paths directly, and the pnpm graph cannot see any of it.
 //    THE ONE EXCEPTION is {@link ROOT_PATH_READERS} (ADR-0394): a root path whose test-time readers
 //    have been established MECHANICALLY narrows to those readers plus their dependents instead of
 //    to everything. It is an exception to the ANSWER, never to the burden of proof — a root path
-//    with no measured reader set is not in the map and still fails wide.
+//    with no measured reader set is not in the map and still fails wide. `scripts/**` and
+//    `tsconfig.base.json` are the instructive non-entries: both WERE measured, and both are read by
+//    every project at test time (`scripts/tsx-cache-off.mjs` is preloaded by all 25 test scripts),
+//    so mapping them would express the full run in a longer form.
 //  - `apps/studio/data/**` (the studio's shared data dir) → FULL, even though it sits inside an app:
 //    its files are read across package boundaries by no declared dependency edge — `comments.json` by
 //    library's `loadComments`, `unit-status.json` by the studio off a cli generator. It held the
@@ -49,7 +51,15 @@ const WORKSPACE_ROOTS = ["packages", "apps"] as const;
 
 /** One root path whose test-time readers are known: the prefix, who reads it, and the evidence. */
 interface RootPathReaders {
-  /** Repo-root-relative posix prefix. The trailing slash makes it a DIRECTORY match, never a string one. */
+  /**
+   * Repo-root-relative posix path. A TRAILING SLASH means a directory prefix; without one the entry
+   * matches that file EXACTLY.
+   *
+   * The exact form is load-bearing, not tidiness: a bare `startsWith("CLAUDE.md")` would also claim
+   * `CLAUDE.md.bak` or `CLAUDE.md.orig`, silently narrowing a path nobody measured. Matching is
+   * LONGEST-FIRST, so `docs/decisions/` wins over `docs/` and `.claude/agents/` over `.claude/`
+   * regardless of the order entries are written in.
+   */
   readonly prefix: string;
   /** The workspace projects whose suites read it. Dependents are pnpm's job (`--filter ...<name>`). */
   readonly projects: readonly string[];
@@ -83,9 +93,32 @@ interface RootPathReaders {
  * (149 and 20 test files, all green) and read the tree zero times. studio is selected anyway as a
  * dependent of drive.
  *
+ * THE MAP WAS WIDENED 2026-08-21 (ADR-0399) BY THE SAME PROBE, run once over EVERY root path rather
+ * than over one guessed prefix: all 25 projects ran green (both vitest suites included — a suite that
+ * short-circuits reads zero and is UNOBSERVED, not clean), and every read outside `packages/`/`apps/`
+ * was attributed to its owning project. The entries below are that measurement. Two root paths were
+ * measured and deliberately NOT added, which is the more instructive half: `scripts/**` is read by 25
+ * of 25 projects (every test script preloads `scripts/tsx-cache-off.mjs`) and `tsconfig.base.json` by
+ * 26 of 26, so an entry would express the full run in a longer form.
+ *
+ * COUNT WORK, NEVER PROJECTS — the correction inc-01 had to make to itself, and it decides which of
+ * these entries is worth anything. Summed per-project test durations from the same instrumented run
+ * (618.0s across 25 reporting projects; a work measure, so box contention cannot distort it):
+ *
+ *   `@storytree/cli` alone            1 of 26 projects   214.4s   34.7%   <- the guidance projections
+ *   cli + drive                       9 of 26            533.5s   86.3%   <- docs/, docs/decisions/
+ *   the seven `stories/` readers     14 of 26            591.0s   95.6%
+ *
+ * So the guidance-projection entries are the prize: `CLAUDE.md`, `AGENTS.md` and the five harness
+ * agent directories select ONE project and cut ~65% of the test leg, on the most common non-package
+ * change shape in the repo (611 path-touches across 800 commits). The `stories/` entry saves ~4.4% of
+ * work and is kept for a different reason — it removes 12 projects from the set that can red a
+ * story-only branch, and a narrowing makes a verdict MEAN more as well as cost less.
+ *
  * WHAT THIS DOES NOT COVER, deliberately. The `check:*` rungs are not scoped by this classifier at
  * all — they run unconditionally in both `gate-order.ts` and `ci.yml` — so `check:web-grounding`,
- * which also reads `docs/decisions`, is unaffected by the map and needs no entry in it.
+ * which also reads `docs/decisions`, is unaffected by the map and needs no entry in it. That is also
+ * why `.cursor/`, `.gemini/` and `.opencode/` measured ZERO readers: `check:agents` covers them.
  *
  * ADDING AN ENTRY IS AN ADR-0394 AMENDMENT, and it costs a measurement, not an argument.
  */
@@ -96,7 +129,103 @@ const ROOT_PATH_READERS: readonly RootPathReaders[] = [
     reason:
       "docs/decisions/** is read at test time by cli (the adr-health gates) and drive (story-build's ADR scan), and by no other project",
   },
+  {
+    prefix: "docs/",
+    projects: ["@storytree/cli", "@storytree/drive", "@storytree/app-surface"],
+    reason:
+      "docs/ outside docs/decisions is read at test time by cli (a friction-inbox scan) and app-surface (a chapter-2 render-registration fixture); drive is carried because it stats the docs tree on the same path",
+  },
+  {
+    prefix: "stories/",
+    projects: [
+      "studio",
+      "@storytree/cli",
+      "@storytree/context-traversal-capture",
+      "@storytree/drive",
+      "@storytree/library",
+      "@storytree/model-uat-pilot",
+      "@storytree/orchestrator",
+    ],
+    reason:
+      "stories/** is read at test time by seven projects — cli's validate-corpus and the story readers, drive/orchestrator's build paths, library, capture, model-uat-pilot, and studio — and by no other",
+  },
+  // THE GENERATED GUIDANCE PROJECTIONS. These move together, whenever an agent artifact is edited
+  // and `build:guidance` / `build:agents` are re-run — 611 path-touches across 800 commits, the
+  // single most common non-package change shape in the repo — and every one of them bought the
+  // whole monorepo until now.
+  {
+    prefix: "CLAUDE.md",
+    projects: ["@storytree/cli"],
+    reason: "CLAUDE.md is read at test time by cli alone (the guidance-projection suites)",
+  },
+  {
+    prefix: "AGENTS.md",
+    projects: ["@storytree/cli"],
+    reason: "AGENTS.md is read at test time by cli alone (the guidance-projection suites)",
+  },
+  {
+    prefix: ".claude/agents/",
+    projects: ["@storytree/cli"],
+    reason:
+      ".claude/agents/** — the Claude harness projection — is read at test time by cli alone (build-agents, guidance-verb-ordering, projection-drift-diagnosis)",
+  },
+  {
+    prefix: ".codex/",
+    projects: ["@storytree/cli"],
+    reason: ".codex/agents/** — the Codex harness projection — is read at test time by cli alone",
+  },
+  // ZERO MEASURED READERS, MAPPED UP RATHER THAN DOWN. The probe recorded no test-time read of these
+  // three at all — `check:agents` covers them, and it is an unconditional gate step this classifier
+  // never scopes. They are mapped to cli anyway, which is OVER-selection and therefore safe, rather
+  // than to an empty project list. That choice is the answer to the "a path with no readers cannot
+  // be expressed" gap, and it is deliberate: an empty scope would be a SECOND terminal state that
+  // runs nothing, whose failure mode is a branch gating green having tested nothing, and the measured
+  // payoff for it is nil — every root path with genuinely zero test readers (README.md,
+  // .editorconfig, .env.example, .nvmrc, .gitattributes) changed at most ONCE in 800 commits, and
+  // these three never appear in a commit without `.claude/` or CLAUDE.md beside them anyway.
+  {
+    prefix: ".cursor/",
+    projects: ["@storytree/cli"],
+    reason:
+      ".cursor/agents/** is written by cli's build-agents and read by no test; mapped to its writer rather than to an empty scope",
+  },
+  {
+    prefix: ".gemini/",
+    projects: ["@storytree/cli"],
+    reason:
+      ".gemini/agents/** is written by cli's build-agents and read by no test; mapped to its writer rather than to an empty scope",
+  },
+  {
+    prefix: ".opencode/",
+    projects: ["@storytree/cli"],
+    reason:
+      ".opencode/agent/** is written by cli's build-agents and read by no test; mapped to its writer rather than to an empty scope",
+  },
+  {
+    prefix: ".claude/",
+    projects: ["@storytree/cli", "@storytree/drive"],
+    reason:
+      ".claude/settings*.json is read at test time by cli and by drive (the write-authority and noticeboard suites); the agents subtree is narrower and matches first",
+  },
 ];
+
+/**
+ * The map entry that governs `file`, or undefined when none does (→ the fail-wide default).
+ *
+ * LONGEST MATCH WINS, computed rather than relying on the order entries happen to be written in.
+ * `docs/decisions/` and `docs/` name different reader sets, as do `.claude/agents/` and `.claude/`,
+ * and a first-match-wins scan would silently hand a decision file the wider `docs/` set the day
+ * someone re-sorted the array. An entry WITHOUT a trailing slash matches its path exactly — never
+ * as a string prefix, which would let `CLAUDE.md.bak` inherit `CLAUDE.md`'s measured readers.
+ */
+function readerMapEntryFor(file: string): RootPathReaders | undefined {
+  let best: RootPathReaders | undefined;
+  for (const entry of ROOT_PATH_READERS) {
+    const hit = entry.prefix.endsWith("/") ? file.startsWith(entry.prefix) : file === entry.prefix;
+    if (hit && (best === undefined || entry.prefix.length > best.prefix.length)) best = entry;
+  }
+  return best;
+}
 
 /**
  * Scan the workspace for projects: every `<root>/<dir>/package.json` under {@link WORKSPACE_ROOTS}
@@ -153,7 +282,7 @@ export function classifyChangedFiles(
     if (owner === undefined) {
       // A root path the pnpm graph cannot see. It narrows only if its readers were MEASURED
       // (ADR-0394); otherwise the fail-wide default stands, unchanged.
-      const readers = ROOT_PATH_READERS.find((r) => file.startsWith(r.prefix));
+      const readers = readerMapEntryFor(file);
       if (readers === undefined) {
         return { mode: "full", reason: `${file}: outside the workspace dependency graph` };
       }
