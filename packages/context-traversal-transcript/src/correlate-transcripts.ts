@@ -8,6 +8,14 @@
  * the one fact both records carry: the working directory. Every transcript line records the `cwd`
  * it was written under, so a transcript belongs to storytree session `S` exactly when it was written
  * inside `S`'s worktree.
+ *
+ * That join is cwd-based, and the cwd is what makes it safe to scan the whole transcript root rather
+ * than a session's own project directory. Measured across 631 project directories on 2026-08-21:
+ * of 1,074 subagent transcripts, ZERO record a cwd inside a real storytree worktree other than the
+ * one their parent transcript ran in, so widening the scan cannot attribute a window to the wrong
+ * session. Two shapes correlate to nobody and are omitted rather than guessed at: a subagent whose
+ * cwd pinned to the main checkout at spawn (176 files), and a worktree-ISOLATED subagent, which gets
+ * its own `.claude/worktrees/agent-<id>` and therefore derives its own identity (57 files).
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -29,6 +37,17 @@ export interface TranscriptCorrelation {
   readonly windows: readonly CorrelatedWindow[];
   /** Every `*.jsonl` file considered — the honest denominator for "0 correlated". */
   readonly scannedFiles: number;
+  /**
+   * Files that correlated to this session but spoke ONLY for subagent windows, so they named no
+   * host window of their own and are absent from {@link windows}.
+   *
+   * This is the size of a real blind spot, reported rather than left silent: a subagent burns
+   * context inside this session's worktree, and 58-63% of decision-record reads across this repo's
+   * transcripts are subagent reads. Whether those windows should become occupancy events, and under
+   * which identity, is a separate open decision — this count is what makes the omission visible
+   * while it stands.
+   */
+  readonly sidechainFiles: number;
 }
 
 const TRANSCRIPT_DIR_ENV = "STORYTREE_TRANSCRIPT_DIR";
@@ -74,34 +93,62 @@ function correlatesTo(cwd: string, sessionId: string): boolean {
   return false;
 }
 
-function listJsonlFiles(dirPath: string): string[] {
-  let entries: fs.Dirent[];
-  try {
-    entries = fs.readdirSync(dirPath, { withFileTypes: true });
-  } catch {
-    return [];
-  }
-  return entries.filter((entry) => entry.isFile() && entry.name.endsWith(".jsonl")).map((entry) => path.join(dirPath, entry.name));
-}
+/**
+ * How many directory levels below the transcript root the scan descends.
+ *
+ * The host writes transcripts at THREE different depths, measured on disk 2026-08-21 across 631
+ * project directories (4,044 `*.jsonl` files); depth is counted as directories descended below the
+ * root:
+ *
+ * | depth | shape                                                       | files |
+ * | ----- | ----------------------------------------------------------- | ----- |
+ * | 1     | `<project>/<window>.jsonl`                                   | 2,970 |
+ * | 3     | `<project>/<window>/subagents/<agent>.jsonl`                 |   771 |
+ * | 5     | `<project>/<window>/subagents/workflows/<wf>/<agent>.jsonl`  |   303 |
+ *
+ * A scan bounded at depth 1 therefore reached the parent windows and NONE of the 1,074 subagent
+ * windows — it spent its one level on `<window>/`, an intermediate directory holding no transcript
+ * at all, and stopped exactly one short of `subagents/`. Bounding at 3 would still have missed the
+ * 303 workflow-subagent files, so this constant is deliberately set one level BELOW nothing and one
+ * level ABOVE the deepest shape observed: the headroom is what keeps a further nesting level from
+ * silently re-blinding the scan the way the depth-1 bound did.
+ *
+ * The bound is kept rather than removed because an unbounded walk of the transcript root is a real
+ * cost — the scan already reads every file it finds — and because a bound is the cheap guard
+ * against a pathological tree. The two protections the original bound carried are unchanged and do
+ * NOT depend on the depth: recursion happens only for `entry.isDirectory()`, which is false for a
+ * symlink or a Windows junction, so the walk still never follows anything that is not a real
+ * directory; and a session is still never inferred from a directory NAME, only from a recorded `cwd`.
+ */
+const MAX_SCAN_DEPTH = 6;
 
-/** Walks `dir` itself plus one level of sub-directories, never deeper, never following anything
- * that is not a regular file. Unreadable directories degrade to "no files found there". */
-function collectTranscriptFiles(dir: string): string[] {
-  let topEntries: fs.Dirent[];
-  try {
-    topEntries = fs.readdirSync(dir, { withFileTypes: true });
-  } catch {
-    return [];
-  }
-
+/**
+ * Every `*.jsonl` at or below `dir`, to {@link MAX_SCAN_DEPTH} directory levels, never following
+ * anything that is not a real directory. Unreadable directories degrade to "no files found there"
+ * rather than throwing, so one unreadable project cannot blind the whole scan.
+ */
+function collectTranscriptFiles(dir: string, maxDepth: number = MAX_SCAN_DEPTH): string[] {
   const files: string[] = [];
-  for (const entry of topEntries) {
-    if (entry.isFile() && entry.name.endsWith(".jsonl")) {
-      files.push(path.join(dir, entry.name));
-    } else if (entry.isDirectory()) {
-      files.push(...listJsonlFiles(path.join(dir, entry.name)));
+
+  const visit = (current: string, depth: number): void => {
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(current, { withFileTypes: true });
+    } catch {
+      return;
     }
-  }
+
+    for (const entry of entries) {
+      const full = path.join(current, entry.name);
+      if (entry.isFile()) {
+        if (entry.name.endsWith(".jsonl")) files.push(full);
+      } else if (entry.isDirectory() && depth < maxDepth) {
+        visit(full, depth + 1);
+      }
+    }
+  };
+
+  visit(dir, 0);
   return files;
 }
 
@@ -110,17 +157,36 @@ interface CorrelatingLine {
   readonly timestamp: string;
 }
 
-/** Every line in `filePath` whose `cwd` correlates to `sessionId`. Never throws: an unreadable
- * file, a non-JSON line, or a line missing `cwd`/`sessionId`/`timestamp` simply contributes nothing. */
-function readCorrelatingLines(filePath: string, sessionId: string): CorrelatingLine[] {
+interface FileCorrelation {
+  /** Correlating lines that speak for the host window itself — the only ones a window is built from. */
+  readonly windowLines: CorrelatingLine[];
+  /** Correlating lines a SUBAGENT wrote: real context, but not this file's own window identity. */
+  readonly sidechainLines: number;
+}
+
+/**
+ * Every line in `filePath` whose `cwd` correlates to `sessionId`, split by who wrote it.
+ *
+ * The split exists because a subagent transcript stamps its PARENT's `sessionId` on every line
+ * (measured 2026-08-21: 188/188 subagent files under `~/.claude/projects` record the parent window's
+ * id, carrying their own identity in `agentId` instead). Admitting those lines as window lines would
+ * therefore mint a SECOND `CorrelatedWindow` bearing an id the parent's own transcript already
+ * claims — turning one host window into several and making `windows.length` count transcript files
+ * rather than windows. They are counted instead, so the omission is reported rather than silent.
+ *
+ * Never throws: an unreadable file, a non-JSON line, or a line missing `cwd`/`sessionId`/`timestamp`
+ * simply contributes nothing.
+ */
+function readCorrelatingLines(filePath: string, sessionId: string): FileCorrelation {
   let raw: string;
   try {
     raw = fs.readFileSync(filePath, "utf8");
   } catch {
-    return [];
+    return { windowLines: [], sidechainLines: 0 };
   }
 
-  const lines: CorrelatingLine[] = [];
+  const windowLines: CorrelatingLine[] = [];
+  let sidechainLines = 0;
   for (const rawLine of raw.split(/\r?\n/)) {
     if (rawLine.trim() === "") continue;
 
@@ -138,9 +204,14 @@ function readCorrelatingLines(filePath: string, sessionId: string): CorrelatingL
     if (typeof cwd !== "string" || typeof windowId !== "string" || typeof timestamp !== "string") continue;
     if (!correlatesTo(cwd, sessionId)) continue;
 
-    lines.push({ windowId, timestamp });
+    if (parsed.isSidechain === true) {
+      sidechainLines++;
+      continue;
+    }
+
+    windowLines.push({ windowId, timestamp });
   }
-  return lines;
+  return { windowLines, sidechainLines };
 }
 
 /** A file correlates when at least one of its lines does; a file whose correlating lines disagree
@@ -171,13 +242,20 @@ export function correlateTranscripts(
   const files = collectTranscriptFiles(location.dir);
 
   const windows: CorrelatedWindow[] = [];
+  let sidechainFiles = 0;
   for (const file of files) {
-    const lines = readCorrelatingLines(file, sessionId);
-    const window = windowFromLines(file, lines);
-    if (window !== undefined) windows.push(window);
+    const { windowLines, sidechainLines } = readCorrelatingLines(file, sessionId);
+    const window = windowFromLines(file, windowLines);
+    if (window !== undefined) {
+      windows.push(window);
+    } else if (sidechainLines > 0) {
+      // Correlated by cwd, but every correlating line was a subagent's: a real window this scan
+      // reaches and cannot yet name, counted so "0 correlated" and "reached but omitted" differ.
+      sidechainFiles++;
+    }
   }
 
   windows.sort((a, b) => Date.parse(a.firstObservedAt) - Date.parse(b.firstObservedAt));
 
-  return { sessionId, windows, scannedFiles: files.length };
+  return { sessionId, windows, scannedFiles: files.length, sidechainFiles };
 }

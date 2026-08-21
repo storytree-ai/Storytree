@@ -69,6 +69,8 @@ export interface TranscriptCorrelation {
   readonly windows: readonly CorrelatedWindow[];
   /** Every `*.jsonl` file considered — the honest denominator for "0 correlated". */
   readonly scannedFiles: number;
+  /** Files that correlated but named only SUBAGENT windows, so they are absent from `windows`. */
+  readonly sidechainFiles: number;
 }
 
 /** The host transcript root: `STORYTREE_TRANSCRIPT_DIR` when set, else `~/.claude/projects`. */
@@ -85,11 +87,38 @@ exactly — env always wins, a blank or whitespace-only override is ignored — 
 `correlateTranscripts`, which takes an explicit `dir`. That split is what keeps every test in this
 package HOME-independent.
 
-**The scan.** `dir` holds one sub-directory per project; each holds `*.jsonl` transcripts. Walk one
-level of sub-directories plus `dir` itself, and consider every `*.jsonl` in them. Do not walk
-deeper, do not follow anything that is not a regular file, and never infer a session from the
-sub-directory NAME: the harness mangles a path into that name, and a mangled string is a convention
-we do not own. The recorded `cwd` is the data; the directory name is decoration.
+**The scan.** `dir` holds one sub-directory per project, and a project holds transcripts at THREE
+depths, not one — measured on disk 2026-08-21 across 631 project directories and 4,044 `*.jsonl`
+files, counting directories descended below `dir`:
+
+| depth | shape                                                      | files |
+| ----- | ---------------------------------------------------------- | ----- |
+| 1     | `<project>/<window>.jsonl`                                 | 2,970 |
+| 3     | `<project>/<window>/subagents/<agent>.jsonl`               |   771 |
+| 5     | `<project>/<window>/subagents/workflows/<wf>/<agent>.jsonl` |   303 |
+
+Walk `dir` itself and its sub-directories to a bounded depth set ABOVE the deepest shape above, and
+consider every `*.jsonl` found. A bound at one level reached the parent windows and none of the
+1,074 subagent transcripts — it spent its level on `<window>/`, which holds no transcript at all,
+and stopped one short of `subagents/`; a bound at three would still have missed the 303 workflow
+files. Keep a bound (an unbounded walk of the transcript root is a real cost, and the scan reads
+every file it finds), but keep it with headroom, so one further nesting level cannot silently
+re-blind the scan. Do not follow anything that is not a real directory — recursing only on a true
+directory entry already excludes a symlink or a Windows junction — and never infer a session from
+the sub-directory NAME: the harness mangles a path into that name, and a mangled string is a
+convention we do not own. The recorded `cwd` is the data; the directory name is decoration.
+
+**Subagent transcripts are reached, counted, and never promoted to windows.** A subagent stamps its
+PARENT's `sessionId` on every line (188/188 measured), carrying its own identity in `agentId` — which
+is neither the filename nor reliably single-valued, so it is a marker and not an id. Admitting those
+lines as window lines would mint a SECOND `CorrelatedWindow` bearing an id the parent's transcript
+already claims, making `windows.length` count transcript FILES rather than windows. Build windows
+from non-sidechain lines only, and report the rest in `sidechainFiles` so the omission is visible
+rather than silent. Widening the scan is safe for attribution: of 1,074 subagent transcripts, ZERO
+record a cwd inside a real storytree worktree other than their parent's. Two shapes correlate to
+nobody and are omitted rather than guessed at — a subagent whose cwd pinned to the main checkout at
+spawn (176 files), and a worktree-ISOLATED subagent, which gets its own `.claude/worktrees/agent-<id>`
+and derives its own identity (57 files).
 
 **The match rule, exactly.** A line correlates when its `cwd` is, or is inside, a directory whose
 path ends with the segments `.claude`, `worktrees`, `<sessionId>` — accepting `/` and `\`
@@ -149,10 +178,12 @@ no clock, no id generation, no retention or pruning.
      failure this capability has.
 3. **`an-uncorrelated-session-is-empty-and-says-so`**
    - **asserts —** a session id with no matching transcript returns `windows: []` with
-     `scannedFiles` equal to the real number of `*.jsonl` files present and `sessionId` echoed back —
-     without throwing; a transcript root that does not exist at all returns `windows: []` and
-     `scannedFiles: 0` — also without throwing; a directory containing a non-`.jsonl` file and a
-     nested sub-sub-directory neither throws nor counts them.
+     `scannedFiles` equal to the real number of `*.jsonl` files present AT EVERY DEPTH THE HOST
+     WRITES — including a file nested at the deepest `subagents/workflows/<wf>/` shape — and
+     `sessionId` echoed back, without throwing; `sidechainFiles` is 0, so "nothing correlated" and
+     "reached but omitted" stay distinguishable; a transcript root that does not exist at all
+     returns `windows: []` and `scannedFiles: 0` — also without throwing; a DIRECTORY named like a
+     transcript file is neither followed nor counted.
    - **falsifiability —** a first run that comes back green is the diagnosis, not the result: this
      assertion must fail against an implementation that throws on a missing root, against one that
      falls back to the newest or the largest transcript when nothing matches (a fallback would make
@@ -164,12 +195,16 @@ no clock, no id generation, no retention or pruning.
      host `sessionId`s and different first timestamps, return TWO `CorrelatedWindow` entries with
      distinct `windowId`s, oldest `firstObservedAt` first; and `JSON.stringify` of the whole
      `TranscriptCorrelation` contains no `cwd` value and no canary prose placed in the fixtures'
-     message content.
+     message content; and a SUBAGENT transcript nested at the real `<window>/subagents/` depth, whose
+     every line is a sidechain line stamped with the parent's session id, is scanned and counted in
+     `sidechainFiles` while contributing NO second window bearing that parent's id.
    - **falsifiability —** a first run that comes back green is the diagnosis, not the result: this
      assertion must fail against an implementation that returns one merged entry, that de-duplicates
      by worktree instead of by host session, that returns them in readdir order (assert the ordering
-     with fixtures whose FILENAMES sort opposite to their timestamps), and against one that carries
-     the recorded `cwd` out in the result. A storytree session id is worktree-derived and outlives any
+     with fixtures whose FILENAMES sort opposite to their timestamps), against one that carries
+     the recorded `cwd` out in the result, and against one that widens the scan WITHOUT excluding
+     sidechain lines from window identity — which would surface the parent's id twice and inflate
+     `windows.length` into a count of files. A storytree session id is worktree-derived and outlives any
      single runtime window, so merging two windows into one series would draw a bar that resets
      without explanation.
 

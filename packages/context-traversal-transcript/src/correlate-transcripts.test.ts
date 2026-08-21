@@ -32,6 +32,8 @@ interface FixtureLine {
   readonly cwd?: string;
   readonly sessionId?: string;
   readonly timestamp: string;
+  /** Present on lines a SUBAGENT wrote; those record the PARENT window's `sessionId`, never their own. */
+  readonly isSidechain?: boolean;
 }
 
 function transcriptLine(fields: FixtureLine): string {
@@ -125,7 +127,7 @@ test("a-prefix-or-a-parent-checkout-never-correlates: a longer or shorter worktr
   assert.deepEqual(result.windows, []);
 });
 
-test("an-uncorrelated-session-is-empty-and-says-so: no correlating line anywhere yields an empty windows list alongside the honest count of every *.jsonl file considered, one level deep, and the walk never throws", () => {
+test("an-uncorrelated-session-is-empty-and-says-so: no correlating line anywhere yields an empty windows list alongside the honest count of every *.jsonl file considered at every depth the host writes, and the walk never throws", () => {
   const dir = freshDir("empty");
 
   // A file directly in the root: unrelated cwd, plus lines that can never correlate to anything
@@ -137,18 +139,20 @@ test("an-uncorrelated-session-is-empty-and-says-so: no correlating line anywhere
     "not even json",
   ]);
 
-  // A file one level down, in an immediate sub-directory: still scanned.
+  // A file one level down, in an immediate sub-directory: the parent-window shape.
   const subPath = path.join(dir, "sub-a", "in-sub.jsonl");
   writeFile(subPath, [
     transcriptLine({ cwd: "/home/dev/other-checkout-2", sessionId: "host-c", timestamp: "2026-04-01T00:00:02.000Z" }),
   ]);
 
-  // A file TWO levels down must never be scanned, even though its lines would otherwise correlate —
-  // the walk goes one level of sub-directories plus the root, and no deeper.
-  const deepPath = path.join(dir, "sub-a", "sub-b", "deep.jsonl");
+  // The deepest shape the host actually writes — `<project>/<window>/subagents/workflows/<wf>/`, five
+  // directory levels below the root. It is SCANNED (a bound that stopped shallower reported a
+  // denominator that silently excluded it), and it still fails to correlate here because its cwd
+  // names a different worktree: reaching a file and correlating to it are separate questions.
+  const deepPath = path.join(dir, "sub-a", "window-1", "subagents", "workflows", "wf-1", "deep.jsonl");
   writeFile(deepPath, [
     transcriptLine({
-      cwd: "/home/dev/code/storytree/.claude/worktrees/ghost-session",
+      cwd: "/home/dev/code/storytree/.claude/worktrees/a-different-session",
       sessionId: "host-deep",
       timestamp: "2026-04-01T00:00:03.000Z",
     }),
@@ -162,9 +166,12 @@ test("an-uncorrelated-session-is-empty-and-says-so: no correlating line anywhere
 
   assert.equal(result.sessionId, "ghost-session");
   assert.deepEqual(result.windows, []);
-  // Only direct.jsonl and sub-a/in-sub.jsonl are within one level; deep.jsonl and the phantom
-  // directory are excluded from the honest denominator.
-  assert.equal(result.scannedFiles, 2);
+  // All three real files count toward the honest denominator regardless of depth; the phantom
+  // directory is not a file and never does.
+  assert.equal(result.scannedFiles, 3);
+  // Nothing correlated at all, so nothing was reached-but-omitted either — the two ways of finding
+  // no window stay distinguishable.
+  assert.equal(result.sidechainFiles, 0);
 });
 
 test("every-correlated-window-is-named-and-ordered-separately: several distinct host windows that ran inside the same worktree are each reported once, oldest first, and a window whose own lines disagree about their identity is excluded rather than guessed at", () => {
@@ -197,12 +204,45 @@ test("every-correlated-window-is-named-and-ordered-separately: several distinct 
     transcriptLine({ cwd: worktreeCwd, sessionId: "host-y", timestamp: "2026-05-01T12:00:01.000Z" }),
   ]);
 
+  // A SUBAGENT transcript, at the real on-disk depth (`<project>/<window>/subagents/`) and inside
+  // the same worktree. Every line is a sidechain line stamped with the PARENT's session id —
+  // exactly what the host writes — so admitting it as a window would mint a second entry bearing
+  // "host-later", an id w1-later.jsonl already claims, and turn one window into two.
+  const subagentPath = path.join(dir, "sub", "host-later", "subagents", "agent-a1.jsonl");
+  writeFile(subagentPath, [
+    transcriptLine({
+      cwd: `${worktreeCwd}/packages/baz`,
+      sessionId: "host-later",
+      timestamp: "2026-05-02T02:00:00.000Z",
+      isSidechain: true,
+    }),
+    transcriptLine({
+      cwd: worktreeCwd,
+      sessionId: "host-later",
+      timestamp: "2026-05-02T02:00:01.000Z",
+      isSidechain: true,
+    }),
+  ]);
+
   const result = correlateTranscripts("multi-session", { dir });
 
   assert.equal(result.sessionId, "multi-session");
-  // All three files were considered, even though the ambiguous one contributes no window.
-  assert.equal(result.scannedFiles, 3);
+  // All four files were considered — the ambiguous one and the subagent one contribute no window,
+  // but both are reached and both count toward the denominator.
+  assert.equal(result.scannedFiles, 4);
   assert.equal(result.windows.length, 2);
+
+  // The subagent transcript is reached and counted, never promoted to a window of its own.
+  assert.equal(result.sidechainFiles, 1);
+  assert.equal(
+    result.windows.filter((w) => w.windowId === "host-later").length,
+    1,
+    "a subagent transcript must not mint a second window bearing its parent's id",
+  );
+  assert.ok(
+    result.windows.every((w) => w.file !== subagentPath),
+    "a subagent transcript must never surface as a window",
+  );
 
   const [first, second] = result.windows;
   assert.equal(first?.windowId, "host-earlier");
