@@ -8,9 +8,11 @@ outcome: "From a chat conversation the orchestrator proposes a machine-actionabl
 # DRIVES via its spawn (ADR-0137) + landing (ADR-0152) tools rather than proposing a unit for a human to
 # click "Build". All four capabilities (proposed-unit-signal, proposal-id-threading, chat-build-dispatch,
 # accept-to-land-affordance) are retired with ADR-0155 as their deciding record; their deleted-feature
-# tests went with PR #587. The relocated `dispatchAcceptedBuild` worker call REMAINS live under
-# desktop-build-mount / builder-spawn-dispatch — only the chat propose/accept front retired. Body kept as
-# history. The two live legs (operator-attested) were moot: the accept-to-land experience they attested
+# tests went with PR #587. At that point only the chat propose/accept front retired, and the relocated
+# `dispatchAcceptedBuild` worker call outlived it under desktop-build-mount. THAT IS NO LONGER TRUE: this
+# note used to close "REMAINS live under desktop-build-mount / builder-spawn-dispatch", and both halves
+# are dead — ADR-0175 retired builder-spawn-dispatch and deleted its packages/drive/src/spawn-builder.ts,
+# the function's only caller, and ADR-0404 d.5 then DELETED the function itself. Body kept as history. The two live legs (operator-attested) were moot: the accept-to-land experience they attested
 # no longer exists. NARROWED 2026-08-11 (ADR-0348 D6): the APPEARANCE leg at ordinal 6 was DELETED as a
 # user EXPERIENCE rather than a user ACCEPTANCE claim — intent carried in "The accept-and-watch feel".
 # CLOSED 2026-08-21 (ADR-0396): ALL FIVE remaining criteria are DELETED and their ordinals burned,

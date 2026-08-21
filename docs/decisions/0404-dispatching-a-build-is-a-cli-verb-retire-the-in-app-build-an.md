@@ -151,6 +151,26 @@ desktop's `tree-verdicts.ts:269` computes `storyBuildable` server-side and is pa
 has none, so the E2E suite is not a blocker — but no gate rung reads those files, so any future
 coupling would merge red.
 
+**D4 FORCES A STORY RETIREMENT — found while implementing, 2026-08-22, and not anticipated above.**
+`BuildSection.tsx` and `apps/studio/src/lib/buildCommand.ts` are the ONLY source of two declared
+capabilities — `map-build-seeds-terminal` and `compose-build-command`, the whole of
+`stories/map-terminal-build/` — and each capability's `real:` proof arm binds those exact paths.
+Deleting the files therefore breaches TWO ceiling-bound rungs at once:
+`check:verification-decay`'s `contract-binding-drift` (ceiling 0) and `coverage-drain.test.ts`'s
+`unbound` axis inside `pnpm -r test` (ceiling 1, taken to 3). Neither is escapable by narrowing the
+edit: keeping `buildCommand.ts` still leaves the other capability breaching at a ceiling of zero. The
+sanctioned drains are author-a-test / split-or-retire / repair-the-binding, never a raised ceiling
+(ADR-0252 D3), and with the code deleted for good only RETIRE is available. So the story and both
+capabilities were retired and their dead `real:` arms removed, which in turn moved the live-corpus
+exemplar in `apps/desktop/src/backend/tree-verdicts.test.ts` — that test pinned `map-terminal-build`
+as `proposed` / `storyBuildable: true` / `goGreen: "build"`, and a retired story derives
+`storyBuildable: false`. It now pins `terminal-tabs`, asserting the same fields.
+
+The consequence for anyone re-cutting this work: **the SPA deletion cannot be landed independently of
+the work hierarchy**, which is what the first implementation increment assumed. What is NOT taken with
+it is the terminal seed itself — `TerminalDock` still accepts a `seed` and opens a fresh tab for one
+(`terminal-tabs` / `seed-opens-new-tab`, ADR-0186); only the map-side producer is gone.
+
 ## References
 
 - ADR-0090 (UI-driven orchestration, Phase 1: the in-panel Build control) — amended, dispatch surface only.
