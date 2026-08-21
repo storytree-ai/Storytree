@@ -1533,8 +1533,13 @@ export function uatDriveIsolationClause(iso: DriveIsolation): string {
     "    tidy a claim you did not take: the launching session is still working, and its claims are what",
     "    stop a sibling from writing the same capability underneath it.",
     `  - Your surface is http://localhost:${iso.surfacePort} and NOTHING is listening there yet — the port`,
-    "    was probed free for you. START your own studio on it (`--strictPort`). Other worktrees run their",
-    "    own studios on the well-known ports; those are not yours.",
+    "    was probed free for you. START your own live-store Studio with EXACTLY this PowerShell command:",
+    "",
+    `      ${uatDriveStudioLaunchCommand(iso)}`,
+    "",
+    "    This supported package script preloads Studio's TypeScript runtime. Do not replace it with bare",
+    "    `pnpm exec vite`: that bypasses the preload and is not the product launcher. Other worktrees run",
+    "    their own studios on the well-known ports; those are not yours.",
     "  - Before you observe ANY surface, prove it is yours by RUNNING the ownership check — do not do",
     "    this by eye:",
     "",
@@ -1560,4 +1565,12 @@ export function uatDriveIsolationClause(iso: DriveIsolation): string {
     "    which is a harness failure that teaches nobody anything. If the journey cannot fit before",
     "    reportBy, stop early and report `fail` naming the authoritative boundary.",
   ].join("\n");
+}
+
+/** The one supported Studio launch command for this drive's reserved, live-store surface. */
+function uatDriveStudioLaunchCommand(iso: DriveIsolation): string {
+  return (
+    "$env:STORYTREE_STUDIO_STORE='pg'; pnpm --filter studio dev -- --port " +
+    `${iso.surfacePort} --strictPort --host 127.0.0.1`
+  );
 }
