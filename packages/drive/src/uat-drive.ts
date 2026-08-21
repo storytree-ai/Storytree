@@ -167,12 +167,23 @@ export type UatDrivePlatform = "web-or-cli" | "electron-native-shell";
  * PURE: derive the drive platform from explicit tooling words in the authored criterion.
  *
  * UAT criteria do not carry a separate platform field today. Native criteria do, however, name
- * either Playwright's `_electron` harness or the `native shell` in the prose whose revision is bound
- * into the evidence record. Keeping the derivation here avoids a story-id registry (which would drift
- * as criteria move) while making that already-authored platform instruction executable by the driver.
+ * either the harness directly (`_electron` / `native shell`) or the product boundary explicitly: a
+ * running/installed Electron app plus the real preload/contextBridge seam, or the real Electron main
+ * itself. Keeping the derivation here avoids a story-id registry (which would drift as criteria move)
+ * while making that already-authored platform instruction executable by the driver.
  */
 export function classifyUatDrivePlatform(journey: string): UatDrivePlatform {
-  return /(?:`?_electron`?|\bnative[ -]shell\b)/i.test(journey)
+  const namesNativeHarness = /(?:`?_electron`?|\bnative[ -]shell\b)/i.test(journey);
+  const namesRealElectronMain = /\b(?:real|actual)\s+Electron\s+main\b/i.test(journey);
+  const namesRunningElectronApp =
+    /\b(?:running|installed|packaged|real)\s+Electron\s+app(?:lication)?\b/i.test(journey);
+  const namesRealPreloadBoundary =
+    /\b(?:real|actual)\s+(?:preload(?:\s+(?:bridge|boundary))?|`?contextBridge`?|context\s+bridge|IPC\s+bridge)\b/i.test(
+      journey,
+    );
+  return namesNativeHarness ||
+    namesRealElectronMain ||
+    (namesRunningElectronApp && namesRealPreloadBoundary)
     ? "electron-native-shell"
     : "web-or-cli";
 }

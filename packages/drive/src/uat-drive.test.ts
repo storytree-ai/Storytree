@@ -84,6 +84,12 @@ const NATIVE_SPEC: UatDriveSpec = {
   platform: "electron-native-shell",
 };
 
+const AUTHORED_REAL_ELECTRON_BOUNDARY_JOURNEY = [
+  "2. **The credentials surface is one-way — nothing reads back.**",
+  "   In the running Electron app the member stores a credential through the desktop surface.",
+  "   **Success —** the real preload bridge is asserted over the real `contextBridge`, not a jsdom fake.",
+].join("\n");
+
 // ── which legs this driver owns ──────────────────────────────────────────────
 
 function src(over: {
@@ -232,6 +238,66 @@ test("native-shell platform is derived from authored criterion prose, never a st
   });
   const selection = selectDriveTargets([{ ...source, source: NATIVE_JOURNEY }], [DRIVE_GATE]);
   assert.equal(selection.targets[0]?.platform, "electron-native-shell");
+});
+
+test("authored real-Electron boundary language selects native-shell without loose Electron false positives", () => {
+  assert.equal(
+    classifyUatDrivePlatform(AUTHORED_REAL_ELECTRON_BOUNDARY_JOURNEY),
+    "electron-native-shell",
+  );
+  assert.equal(
+    classifyUatDrivePlatform(
+      "In the installed Electron application, assert the actual preload bridge over the actual contextBridge.",
+    ),
+    "electron-native-shell",
+    "equivalent explicit runtime + real bridge language carries the same platform contract",
+  );
+  assert.equal(
+    classifyUatDrivePlatform("The running local backend proves that the real Electron main wired the bridge."),
+    "electron-native-shell",
+    "the explicitly real Electron main is itself a native product boundary",
+  );
+
+  for (const incidental of [
+    "The browser documentation mentions Electron and contextBridge, but this journey drives Chromium.",
+    "No Electron or preload is needed; drive the web page.",
+    "The Electron main implementation is described below.",
+    "In the running Electron app, inspect an ordinary DOM heading.",
+    "Assert the real contextBridge shape in an isolated component test.",
+  ]) {
+    assert.equal(
+      classifyUatDrivePlatform(incidental),
+      "web-or-cli",
+      `incidental or one-sided marker must not select native-shell: ${incidental}`,
+    );
+  }
+});
+
+test("authored real-Electron boundary receives native tooling and audit rejects Chromium substitution", () => {
+  const spec: UatDriveSpec = {
+    ...SPEC,
+    journey: AUTHORED_REAL_ELECTRON_BOUNDARY_JOURNEY,
+    platform: classifyUatDrivePlatform(AUTHORED_REAL_ELECTRON_BOUNDARY_JOURNEY),
+  };
+  assert.equal(spec.platform, "electron-native-shell");
+
+  const prompt = uatDriveTaskPrompt(spec);
+  assert.ok(prompt.includes(UAT_DRIVE_NATIVE_SHELL_TOOLING_CLAUSE));
+  assert.ok(!prompt.includes(UAT_DRIVE_WEB_TOOLING_CLAUSE));
+  assert.match(prompt, /Playwright's `_electron`/);
+  assert.match(prompt, /apps\/desktop\/e2e\/harness\.mjs/);
+  assert.match(prompt, /`win\.mouse`/);
+  assert.equal(auditDrivePrompt(prompt, spec).ok, true);
+
+  const chromiumOnly = prompt.replace(
+    UAT_DRIVE_NATIVE_SHELL_TOOLING_CLAUSE,
+    UAT_DRIVE_WEB_TOOLING_CLAUSE,
+  );
+  assert.ok(
+    auditDrivePrompt(chromiumOnly, spec).missing.includes(
+      "the native-shell platform boundary (Chromium substitution)",
+    ),
+  );
 });
 
 // ── the prompt ───────────────────────────────────────────────────────────────
