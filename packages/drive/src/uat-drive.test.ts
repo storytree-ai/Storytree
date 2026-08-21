@@ -5,6 +5,7 @@ import type { UatTestCriterionSource } from "@storytree/library";
 
 import {
   auditDrivePrompt,
+  classifyBackgroundToolEnd,
   CODEX_CHATGPT_SUBSCRIPTION_DRIVER,
   claudeSubscriptionChildEnv,
   codexExecArguments,
@@ -18,6 +19,7 @@ import {
   uatDriveIsolationClause,
   uatDriveTaskPrompt,
   UAT_DRIVE_AUTONOMY_CLAUSE,
+  UAT_DRIVE_BACKGROUND_RESULT_RECONCILIATION_CLAUSE,
   UAT_DRIVE_HONESTY_CLAUSE,
   UAT_DRIVE_REPORT_FENCE,
   UAT_DRIVE_TOOLING_CLAUSE,
@@ -242,7 +244,66 @@ test("uatDriveTaskPrompt: forbids an unbounded wait, an inherited server, and ar
   assert.match(prompt, /OUTSIDE the repository, or under an\s+already-ignored path/);
 });
 
-test("auditDrivePrompt: the REAL prompt keeps all five guarded properties", () => {
+test("classifyBackgroundToolEnd: a completed exact-tool result outranks a later control-channel loss", () => {
+  assert.deepEqual(
+    classifyBackgroundToolEnd("playwright-42", {
+      toolId: "playwright-42",
+      terminalResult: "complete",
+      persistedResultArtifact: "complete",
+      processOutcome: "failed",
+      controlChannel: "lost",
+    }),
+    {
+      kind: "tool-ended",
+      mayClaimHostTermination: false,
+      reason: "the exact background tool reached a terminal product end",
+    },
+  );
+});
+
+test("classifyBackgroundToolEnd: a persisted exact-tool result survives expected app teardown", () => {
+  const result = classifyBackgroundToolEnd("playwright-42", {
+    toolId: "playwright-42",
+    terminalResult: "absent",
+    persistedResultArtifact: "complete",
+    processOutcome: "unknown",
+    controlChannel: "lost",
+  });
+  assert.equal(result.kind, "tool-ended");
+  assert.equal(result.mayClaimHostTermination, false);
+});
+
+test("classifyBackgroundToolEnd: host termination requires exact-tool process evidence and no completed result", () => {
+  const terminated = classifyBackgroundToolEnd("playwright-42", {
+    toolId: "playwright-42",
+    terminalResult: "absent",
+    persistedResultArtifact: "absent",
+    processOutcome: "host-terminated",
+    controlChannel: "lost",
+  });
+  assert.equal(terminated.kind, "host-terminated");
+  assert.equal(terminated.mayClaimHostTermination, true);
+
+  const wrongTool = classifyBackgroundToolEnd("playwright-42", {
+    toolId: "cdp-probe-99",
+    terminalResult: "absent",
+    persistedResultArtifact: "absent",
+    processOutcome: "host-terminated",
+    controlChannel: "lost",
+  });
+  assert.equal(wrongTool.kind, "unresolved");
+  assert.equal(wrongTool.mayClaimHostTermination, false);
+});
+
+test("uatDriveTaskPrompt: reconciles the exact background tool before claiming host termination", () => {
+  const prompt = uatDriveTaskPrompt(SPEC);
+  assert.ok(prompt.includes(UAT_DRIVE_BACKGROUND_RESULT_RECONCILIATION_CLAUSE));
+  assert.match(prompt, /exact tool's terminal result/i);
+  assert.match(prompt, /lost CDP or control channel/i);
+  assert.match(prompt, /cannot override an already-complete product end/i);
+});
+
+test("auditDrivePrompt: the REAL prompt keeps every guarded property", () => {
   const audit = auditDrivePrompt(uatDriveTaskPrompt(SPEC), SPEC);
   assert.equal(audit.ok, true, `drive prompt lost: ${audit.missing.join(", ")}`);
   assert.deepEqual(audit.missing, []);
@@ -258,6 +319,7 @@ function promptWithout(...omit: readonly string[]): string {
     UAT_DRIVE_HONESTY_CLAUSE,
     "```" + UAT_DRIVE_REPORT_FENCE,
     UAT_DRIVE_TOOLING_CLAUSE,
+    UAT_DRIVE_BACKGROUND_RESULT_RECONCILIATION_CLAUSE,
     uatDriveIsolationClause(ISOLATION),
     SURFACE_CONTRACT,
   ]
@@ -275,7 +337,7 @@ test("auditDrivePrompt: a prompt that PARAPHRASES the journey fails the audit (t
   assert.deepEqual(audit.missing, ["the authored journey prose, verbatim"]);
 });
 
-test("auditDrivePrompt: dropping the honesty clause, the fence, the tooling or the isolation clause each fails", () => {
+test("auditDrivePrompt: dropping an honesty or harness clause fails", () => {
   assert.deepEqual(auditDrivePrompt(promptWithout(UAT_DRIVE_HONESTY_CLAUSE), SPEC).missing, [
     "the honesty clause",
   ]);
@@ -286,6 +348,10 @@ test("auditDrivePrompt: dropping the honesty clause, the fence, the tooling or t
   assert.deepEqual(auditDrivePrompt(promptWithout(UAT_DRIVE_TOOLING_CLAUSE), SPEC).missing, [
     "the tooling clause",
   ]);
+  assert.deepEqual(
+    auditDrivePrompt(promptWithout(UAT_DRIVE_BACKGROUND_RESULT_RECONCILIATION_CLAUSE), SPEC).missing,
+    ["the background-tool result reconciliation clause"],
+  );
   assert.deepEqual(auditDrivePrompt(promptWithout(uatDriveIsolationClause(ISOLATION)), SPEC).missing, [
     "the isolation clause",
   ]);

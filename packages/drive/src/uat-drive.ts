@@ -387,6 +387,109 @@ export const UAT_DRIVE_TOOLING_CLAUSE = [
   "    behind blocks the NEXT drive.",
 ].join("\n");
 
+/**
+ * A background tool can finish the product work and then deliberately close the app/control channel
+ * it used. A later CDP probe will see a refused connection in that case, but that is teardown after a
+ * terminal result, not evidence that the execution host killed the tool.
+ *
+ * This clause makes the evidence precedence explicit in the live driver's contract. It is separate
+ * from {@link UAT_DRIVE_TOOLING_CLAUSE} so {@link auditDrivePrompt} can name this recurrence precisely
+ * if a later prompt edit drops it.
+ */
+export const UAT_DRIVE_BACKGROUND_RESULT_RECONCILIATION_CLAUSE = [
+  "Background-tool result reconciliation - finish reading the tool you started:",
+  "",
+  "  - If you start or resume a background tool, keep its exact tool/process identity. Before claiming",
+  "    that the execution host terminated it, reconcile that exact tool's terminal result, its",
+  "    persisted result artifact (when it wrote one), and its process outcome/exit status.",
+  "  - A complete terminal result or persisted result artifact is the product end. Read and report it.",
+  "    A later lost CDP or control channel - including ECONNREFUSED after the tool deliberately closes",
+  "    the app in cleanup - cannot override an already-complete product end.",
+  "  - Claim host termination only when the exact tool has no complete terminal result, has no complete",
+  "    persisted result artifact, AND its own process outcome says the host terminated it. Turn-budget",
+  "    exhaustion, an inner build HALT, an ordinary non-zero exit, and expected app teardown are terminal",
+  "    tool/product outcomes, not host termination. If the three sources do not reconcile, report that",
+  "    the tool outcome is unresolved rather than inventing a cutoff.",
+].join("\n");
+
+export type BackgroundToolResultState = "absent" | "complete";
+export type BackgroundToolProcessOutcome = "completed" | "failed" | "host-terminated" | "unknown";
+
+/** Evidence about one background tool after the driver reconciled all three result sources. */
+export interface BackgroundToolEndEvidence {
+  /** The exact identity returned when the tool was started or resumed. */
+  readonly toolId: string;
+  readonly terminalResult: BackgroundToolResultState;
+  readonly persistedResultArtifact: BackgroundToolResultState;
+  readonly processOutcome: BackgroundToolProcessOutcome;
+  /** Diagnostic only: losing control is not itself an execution outcome. */
+  readonly controlChannel: "available" | "lost";
+}
+
+export type BackgroundToolEndClassification =
+  | {
+      readonly kind: "tool-ended";
+      readonly mayClaimHostTermination: false;
+      readonly reason: "the exact background tool reached a terminal product end";
+    }
+  | {
+      readonly kind: "host-terminated";
+      readonly mayClaimHostTermination: true;
+      readonly reason: "the exact background tool has no completed result and its process was host-terminated";
+    }
+  | {
+      readonly kind: "unresolved";
+      readonly mayClaimHostTermination: false;
+      readonly reason: "the evidence does not establish what ended the exact background tool";
+    };
+
+/**
+ * PURE: apply the prompt contract's precedence to reconciled background-tool evidence.
+ *
+ * A complete result wins even if the tool process later reports failure or its control channel is
+ * gone: those signals commonly describe cleanup after the product end. Conversely, host termination
+ * is a positive classification, never an inference from silence or from evidence about a later probe.
+ */
+export function classifyBackgroundToolEnd(
+  startedToolId: string,
+  evidence: BackgroundToolEndEvidence,
+): BackgroundToolEndClassification {
+  if (evidence.toolId !== startedToolId) {
+    return {
+      kind: "unresolved",
+      mayClaimHostTermination: false,
+      reason: "the evidence does not establish what ended the exact background tool",
+    };
+  }
+
+  if (
+    evidence.terminalResult === "complete" ||
+    evidence.persistedResultArtifact === "complete" ||
+    evidence.processOutcome === "completed" ||
+    evidence.processOutcome === "failed"
+  ) {
+    return {
+      kind: "tool-ended",
+      mayClaimHostTermination: false,
+      reason: "the exact background tool reached a terminal product end",
+    };
+  }
+
+  if (evidence.processOutcome === "host-terminated") {
+    return {
+      kind: "host-terminated",
+      mayClaimHostTermination: true,
+      reason: "the exact background tool has no completed result and its process was host-terminated",
+    };
+  }
+
+  return {
+    kind: "unresolved",
+    mayClaimHostTermination: false,
+    reason: "the evidence does not establish what ended the exact background tool",
+  };
+}
+
 /** Everything the prompt builder needs about the criterion being driven. */
 export interface UatDriveSpec {
   readonly storyId: string;
@@ -439,6 +542,8 @@ export function uatDriveTaskPrompt(spec: UatDriveSpec): string {
     "    building what is missing. If the surface is broken, that is a FAIL and it is the finding.",
     "",
     UAT_DRIVE_TOOLING_CLAUSE,
+    "",
+    UAT_DRIVE_BACKGROUND_RESULT_RECONCILIATION_CLAUSE,
     "",
     uatDriveIsolationClause(spec.isolation),
     "",
@@ -496,14 +601,14 @@ export interface DrivePromptAudit {
  *  2. the honesty clause is present (without it a summarised run and a driven run are the same text);
  *  3. the report contract is named, so an absent report is a MISS rather than an implied pass.
  *
- * TWO ARE CAPABILITY properties, and the distinction is worth keeping. Losing
- * {@link UAT_DRIVE_TOOLING_CLAUSE} or the isolation clause cannot make a green untrue — it makes a
- * MISS likelier, which is a red for a harness reason rather than a finding about the product. Both
- * are guarded here anyway because both were learned the expensive way (three drives spent and
- * nothing persisted for the first; four drives silently clearing the launching session's claims for
- * the second) and because each failure looks identical to a slow or unlucky journey. A reader
+ * THREE ARE CAPABILITY properties, and the distinction is worth keeping. Losing
+ * {@link UAT_DRIVE_TOOLING_CLAUSE}, the background-result reconciliation clause, or the isolation
+ * clause cannot make a green untrue — it makes a MISS or a false harness red likelier rather than a
+ * finding about the product. They are guarded here because each was learned through live-drive
+ * failure, and because each failure looks identical to a slow, unlucky, or killed journey. A reader
  * deciding what a refusal MEANS should read the class: the first three mean *this drive could lie*;
- * the last two mean *this drive will probably waste its spend, or damage the session that launched it*.
+ * the last three mean *this drive will probably waste its spend, invent a harness red, or damage the
+ * session that launched it*.
  *
  * It takes the whole {@link UatDriveSpec} rather than the journey alone, because the isolation clause
  * is PARAMETERIZED by the drive: there is no constant to compare against, only the clause this exact
@@ -523,6 +628,9 @@ export function auditDrivePrompt(prompt: string, spec: UatDriveSpec): DrivePromp
   // contract actually requires is the fenced block, so that is what is checked.
   if (!prompt.includes("```" + UAT_DRIVE_REPORT_FENCE)) missing.push("the report contract fence");
   if (!prompt.includes(UAT_DRIVE_TOOLING_CLAUSE)) missing.push("the tooling clause");
+  if (!prompt.includes(UAT_DRIVE_BACKGROUND_RESULT_RECONCILIATION_CLAUSE)) {
+    missing.push("the background-tool result reconciliation clause");
+  }
   if (!prompt.includes(uatDriveIsolationClause(spec.isolation))) missing.push("the isolation clause");
   // The `surface` field lives in the REPORT CONTRACT, not the isolation clause, so the clause check
   // above does not reach it. Guarded separately because losing it is the quiet half of the failure:
