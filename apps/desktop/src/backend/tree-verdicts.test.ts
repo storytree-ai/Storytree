@@ -161,26 +161,32 @@ test("tree-verdicts: readTreeWithCaps reads full capabilities + the per-story UA
 });
 
 // A missing stories dir returns an empty tree gracefully (never throws) — the offline/empty path.
-test("tree-verdicts: the proposed map-terminal-build story exposes the canonical real-build affordance", async () => {
+// The EXEMPLAR is `terminal-tabs`, not `map-terminal-build`, since ADR-0404 (2026-08-21). What this
+// test pins is the desktop mirror's AGREEMENT with the studio resolver on a real corpus story —
+// `isStoryBuildable` / `storyGoGreen` computed server-side — and any proposed story whose every
+// capability carries a `real:` arm exercises that identically. `map-terminal-build` was retired with
+// the Build affordance it described, and a retired story is exactly the wrong shape here: it derives
+// `storyBuildable: false`, so it would assert the fallback rather than the canonical path.
+test("tree-verdicts: a proposed all-real story exposes the canonical real-build affordance", async () => {
   const here = path.dirname(fileURLToPath(import.meta.url));
   const storiesDir = path.resolve(here, "../../../../stories");
   const { stories } = await readTreeWithCaps(storiesDir);
-  const mapTerminalBuild = stories.find((story) => story.id === "map-terminal-build");
+  const exemplar = stories.find((story) => story.id === "terminal-tabs");
 
-  assert.ok(mapTerminalBuild, "the current map-terminal-build story is present");
-  assert.equal(mapTerminalBuild.status, "proposed", "the exact UAT-red story shape remains proposed");
+  assert.ok(exemplar, "the current terminal-tabs story is present");
+  assert.equal(exemplar.status, "proposed", "the exact UAT-red story shape remains proposed");
   assert.deepEqual(
-    mapTerminalBuild.capabilities.map((capability) => capability.id),
-    ["compose-build-command", "map-build-seeds-terminal"],
+    exemplar.capabilities.map((capability) => capability.id),
+    ["multi-session-tabs", "seed-opens-new-tab"],
     "the exact two-capability story is loaded before deriving story buildability",
   );
   assert.equal(
-    mapTerminalBuild.storyBuildable,
+    exemplar.storyBuildable,
     true,
     "the desktop mirror agrees that story build --real has work to drive",
   );
   assert.equal(
-    mapTerminalBuild.goGreen,
+    exemplar.goGreen,
     "build",
     "the desktop mirror surfaces the canonical Build affordance for this proposed story",
   );

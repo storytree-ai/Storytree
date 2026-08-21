@@ -2384,53 +2384,16 @@ a.stat:hover {
   border: 1px solid color-mix(in srgb, var(--warning, #9a6700) 35%, transparent);
 }
 
-/* The UI-driven Build control (ADR-0090 Phase 1 "the local loop"): trigger a single-node
-   `--live` build from the island panel and watch a COARSE transcript run to a verdict. The
-   transcript is progress lines (a phase trail), NOT a raw log — rendered as an ordered list. */
-.tree-build {
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
-}
-.tree-build .build-btn {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
-}
-.tree-build .build-btn:hover {
-  background: #4338ca;
-}
-.tree-build .build-btn:disabled {
-  opacity: 0.55;
-  cursor: default;
-}
-.build-hint {
-  margin: 6px 0 0;
-}
-.build-error {
-  margin: 8px 0 0;
-}
-.build-run {
-  margin-top: 8px;
-}
-.build-run-status {
-  margin: 0 0 6px;
-  font-weight: 500;
-}
+/* The "thinking" affordance for a long-running, non-terminal operation (ADR-0070 Stage 2 —
+   pronounced, accent-hued "the system is working", NOT the muted grey it was). A spinner says
+   ALIVE; the indeterminate bar beneath says STILL WORKING across a multi-minute run. All animated
+   parts are decorative (aria-hidden); the text label carries the meaning.
 
-/* The "thinking" affordance for a non-terminal Build/Adopt run (ADR-0070 Stage 2 — pronounced,
-   accent-hued "the system is working", NOT the muted grey it was). A spinner + bold accent label
-   say ALIVE; the indeterminate bar beneath says STILL WORKING across the multi-minute run. All
-   animated parts are decorative (aria-hidden); the text label carries the meaning. */
-.build-working {
-  margin: 0 0 6px;
-}
-.build-run-status-working {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0;
-}
+   ITS ONLY CONSUMER IS NOW `ChatPanel` (.build-spinner / .build-spinner-inline / .build-progress).
+   The Build/Adopt panel these were authored for is gone (ADR-0404 D2/D3/D4) and the rules that
+   dressed it went with it — `.tree-build`, `.build-btn`, `.build-hint`, `.build-error`,
+   `.build-run`, `.build-run-status`, `.build-working*`. The `build-` prefix is kept rather than
+   renamed: these are load-bearing for the chat surface and a rename is a separate, testable edit. */
 /* The accent spinner — same idiom as .store-banner / .load-screen, reusing @keyframes spin. */
 .build-spinner {
   width: 13px;
@@ -2440,16 +2403,6 @@ a.stat:hover {
   border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
-}
-/* The bold accent label — this is the "more pronounced, clearly working" part (not muted). */
-.build-working-label {
-  font-weight: 600;
-  color: var(--accent);
-}
-/* "(polling for progress)" demoted to a softer secondary note. */
-.build-working-note {
-  font-size: 11px;
-  font-weight: 400;
 }
 /* The indeterminate progress bar: a thin --accent-weak track with a sliding accent segment on a
    ~1.5s loop. Communicates "still working" across the whole run far better than a spinner alone. */
@@ -3352,105 +3305,11 @@ a.stat:hover {
   font-size: 11px;
 }
 
-.build-transcript {
-  margin: 0;
-  padding: 8px 10px 8px 26px;
-  list-style: decimal;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  max-height: 220px;
-  overflow-y: auto;
-  font-family: var(--mono);
-  font-size: 11.5px;
-  line-height: 1.55;
-  color: var(--text);
-}
-.build-transcript-line {
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-.build-verdict {
-  margin: 8px 0 0;
-  padding: 6px 9px;
-  border-radius: 7px;
-  font-family: var(--mono);
-  font-size: 11.5px;
-  word-break: break-word;
-}
-.build-verdict.verdict-pass {
-  background: var(--good-weak);
-}
-.build-verdict.verdict-fail {
-  background: var(--warn-weak);
-}
-
-/* The Adopt affordance (ADR-0094 `mapped → healthy`): a brownfield story's reliability gates and the
-   `storytree gate run --pg` path the operator runs to observe-and-sign each into an `adopted` verdict
-   (ADR-0085). The studio SURFACES the commands (a live DB action is the operator's), never auto-runs. */
-.adopt-gates {
-  margin: 8px 0;
-  padding: 8px 10px;
-  list-style: none;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 7px;
-}
-.adopt-gate {
-  margin: 0;
-  padding: 4px 0;
-  line-height: 1.55;
-  word-break: break-word;
-}
-.adopt-gate + .adopt-gate {
-  border-top: 1px solid var(--border);
-}
-.adopt-gate code {
-  font-family: var(--mono);
-  font-size: 11px;
-}
-.adopt-gate-cmd {
-  background: var(--good-weak);
-  padding: 1px 4px;
-  border-radius: 4px;
-}
-
-/* ADR-0097 Layer 2: the covered/uncovered capability classification ("what still owes real work") —
-   the structural covers-diff surfaced under the Adopt action. Covered caps tint green (adopt-able as
-   is); uncovered caps tint amber (owe a real build-tests red→green, holding the crown at proposed). */
-.adopt-coverage {
-  margin: 8px 0;
-}
-.adopt-coverage-caps {
-  margin: 6px 0;
-  padding: 6px 10px;
-  list-style: none;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 7px;
-}
-.adopt-cap {
-  margin: 0;
-  padding: 3px 0;
-  line-height: 1.5;
-  word-break: break-word;
-}
-.adopt-cap + .adopt-cap {
-  border-top: 1px solid var(--border);
-}
-.adopt-cap code {
-  font-family: var(--mono);
-  font-size: 11px;
-  padding: 1px 4px;
-  border-radius: 4px;
-}
-.adopt-cap-covered code {
-  background: var(--good-weak);
-}
-.adopt-cap-uncovered code {
-  background: var(--warn-weak);
-}
-
+/* The in-app build TRANSCRIPT (`.build-transcript*`), its verdict chip (`.build-verdict*`) and the
+   whole Adopt affordance (`.adopt-*` — a brownfield story's reliability gates and adoption plan,
+   ADR-0094/ADR-0097 Layer 1) are GONE with the dispatch surface they dressed (ADR-0404 D2/D3/D4).
+   A build's progress is now read where a build is now started: the terminal running the CLI verb.
+   `storytree adopt plan <story-id>` prints the same Layer-2 classification the plan block rendered. */
 /* The story's "Architectural Decision Records" (ADR-0037 §2 / ADR-0097 Layer 2): the deciding ADRs
    linked to the Decisions-group Library docs, with the at-a-glance frontmatter status chip. A
    <details> disclosure collapsed by default (owner steer 2026-06-24) — the <summary> is the section
@@ -5299,31 +5158,10 @@ button.legend-tile:hover {
   color: var(--muted);
 }
 
-/* Keep the idle primary action reachable without making a running transcript
-   or a large adoption plan sticky. BuildSection adds is-actionable only while
-   the compact button + explanation surface is present. */
-.tree-detail > .tree-build.is-actionable {
-  position: sticky;
-  bottom: 34px; /* clear the folded terminal dock overlay */
-  z-index: 2;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 12px;
-  margin: 0 -16px -14px -20px;
-  padding: 12px 16px 14px 20px;
-  border-top: 1px solid var(--border);
-  background: color-mix(in srgb, var(--surface) 96%, transparent);
-  box-shadow: 0 -8px 20px color-mix(in srgb, var(--text) 7%, transparent);
-  backdrop-filter: blur(8px);
-}
-.tree-detail > .tree-build.is-actionable .build-hint {
-  margin: 0;
-  line-height: 1.45;
-}
-.tree-detail > .tree-build.is-actionable .build-error {
-  grid-column: 1 / -1;
-}
+/* The sticky footer that kept the panel's primary ACTION reachable while you scrolled
+   (`.tree-detail > .tree-build.is-actionable`) is removed with the action itself (ADR-0404 D4). The
+   detail panel has no action at its foot any more — it is a read surface, so there is nothing to
+   pin. */
 
 @media (max-width: 1080px) {
   /* small screens: the panel stacks below the world instead of overlaying it */
@@ -5335,9 +5173,6 @@ button.legend-tile:hover {
   }
   .tree-detail-grip {
     display: none;
-  }
-  .tree-detail > .tree-build.is-actionable {
-    bottom: 34px;
   }
 }
 

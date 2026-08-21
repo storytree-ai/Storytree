@@ -4,7 +4,7 @@ tier: capability
 story: map-terminal-build
 title: "Compose the storytree build command from a unit id + scope + runtime — the pure string the map click seeds into the terminal"
 outcome: "A pure `composeBuildCommand({ unitId, scope, runtime })` function returns the exact `storytree` CLI command a forest-map Build click should run: `scope: 'story'` → `pnpm storytree story build <unitId> --real --store pg --runtime <runtime>`, `scope: 'node'` → `pnpm storytree node build <unitId> --real --store pg --runtime <runtime>` — the CLI equivalents of what the selected Claude or Codex in-app dispatch drives, so the seeded command targets the clicked unit and runtime with no build engine, no @storytree/agent, no model path."
-status: proposed
+status: retired
 proof_mode: integration-test
 depends_on: []
 # Node-borne proof config (ADR-0057 keystone): authoring THIS block is what makes the capability
@@ -28,6 +28,17 @@ depends_on: []
 # `install: true` + a typecheck wall because the --real proof runs in a FRESH worktree (tsx + tsc +
 # vitest need the lockfile-only install, ADR-0031 §2). `install:true` requires `real.typecheck`; a pnpm
 # proofCommand requires `install:true`.
+# RETIRED by ADR-0404 (2026-08-21), landed with the arc `retire-ui-build-dispatch-arc`. The forest
+# map's Build affordance is gone — dispatching a build is a CLI verb now (`storytree node build` /
+# `storytree story build`) — so the control this capability described no longer exists, and the
+# source and test it was proven by were deleted in the same change.
+#
+# The `real:` proof arm is REMOVED rather than repointed. There is nothing to repoint it to: its
+# `testFile`/`sourceFile` named files that are deleted for good, and a binding that names a missing
+# target is what `check:verification-decay`'s `contract-binding-drift` and the coverage drain's
+# `unbound` axis both fire on. Removing the arm is the sanctioned "retire it" drain, never a raised
+# ceiling (ADR-0252 D3). The contracts below are kept as authored history — they record what was
+# once proven, and no sweep reads a capability that declares no real arm.
 proof:
   command:
     file: pnpm
@@ -35,28 +46,6 @@ proof:
   scope:
     testGlobs: ["apps/studio/src/**/*.test.tsx", "apps/studio/src/**/*.test.ts"]
     sourceGlobs: ["apps/studio/src/**/*.ts", "apps/studio/src/**/*.tsx"]
-  real:
-    testFile: "apps/studio/src/lib/buildCommand.test.ts"
-    sourceFile: "apps/studio/src/lib/buildCommand.ts"
-    editsExisting: true
-    scope:
-      testGlobs: ["apps/studio/src/lib/buildCommand.test.ts"]
-      sourceGlobs: ["apps/studio/src/lib/buildCommand.ts"]
-    install: true
-    typecheck:
-      file: pnpm
-      args: ["--filter", "studio", "typecheck"]
-    # The studio suite is vitest, not node:test — so the default `node --test` real proof cannot run
-    # this vitest `.test.ts`. Run the ONE test file under vitest (`--filter studio exec` → cwd apps/studio).
-    proofCommand:
-      file: pnpm
-      args:
-        - "--filter"
-        - "studio"
-        - "exec"
-        - "vitest"
-        - "run"
-        - "src/lib/buildCommand.test.ts"
 ---
 
 # Compose the storytree build command from a unit id + scope + runtime

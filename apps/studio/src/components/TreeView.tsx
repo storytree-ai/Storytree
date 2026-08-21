@@ -105,7 +105,6 @@ import {
 } from '../lib/factoryBuildings.js';
 import { ConnectionsSection } from './ConnectionsSection.js';
 import { DetailDisclosure } from './DetailDisclosure.js';
-import { BuildSection } from './BuildSection.js';
 import { BottomDock } from './BottomDock.js';
 import { WorldSettingsPanel } from './WorldSettingsPanel.js';
 import { LibraryDrawer } from './LibraryDrawer.js';
@@ -119,7 +118,6 @@ import { LibraryFocusGraph } from './LibraryFocusGraph.js';
 import { LibraryOpenOverlay } from './LibraryOpenOverlay.js';
 import { LibrarySelectionCard } from './LibrarySelectionCard.js';
 import type { SearchResult } from '../lib/librarySearch.js';
-import type { TerminalDockSeed } from './TerminalDock.js';
 import type { BuildActivity, ClaimActivity, DepartedClaim, DocMeta, SessionClaimGroup, TreeCapability, TreeStory, TreeVerdict, UatTestCriterionRow } from '../types';
 import {
   hash,
@@ -1800,14 +1798,11 @@ export function TreeView({
   // uses in the left panel (and the panel scrolls it into view). One building today (library),
   // so a stamp highlights it; cleared on the next world click.
   const [highlightShared, setHighlightShared] = useState<string | null>(null);
-  // The embedded-terminal seed (map-terminal-build glue, ADR-0158): the composed
-  // `pnpm storytree … build … --real --store pg` command a forest-map Build click drops into the
-  // terminal. Held HERE — the common parent of the TerminalDock (map overlay, below) and the
-  // BuildSection (detail panel, in StoryPanel) — and passed to both: `seed` into the dock, a
-  // `seedTerminal` setter down to the Build button. `token` is a monotonic nonce so a repeat Build of
-  // the same node re-fires; undefined until the first desktop Build click, and inert where no
-  // `desktopTerminal` bridge exists (hosted/dev studio — the dock ignores a seed with no bridge).
-  const [terminalSeed, setTerminalSeed] = useState<TerminalDockSeed | undefined>(undefined);
+  // NO terminal seed state here (ADR-0404 D2/D4). The map's only seed PRODUCER was the Build button
+  // (map-terminal-build glue, ADR-0158), which is retired along with the rest of the in-app dispatch
+  // surface — so nothing on the map can compose a command to drop into the terminal any more. The
+  // dock's own seed HANDLING is untouched: `TerminalDock` still accepts a `seed` and opens a fresh
+  // tab for it (`terminal-tabs` / `seed-opens-new-tab`, ADR-0186); it simply has no caller here.
 
   // The one-shot tree load, extracted so a per-test UAT verdict signature (UatTestCriteriaSection) can
   // RE-PULL it — the crown greens from the per-test roll-up server-side (ADR-0082), so after a
@@ -1837,13 +1832,6 @@ export function TreeView({
           setLoadError(e instanceof Error ? e.message : String(e));
         }
       });
-  }, []);
-
-  // A desktop forest-map Build click seeds the terminal (map-build-seeds-terminal → this glue →
-  // terminal-dock-seed): bump the nonce so an identical command on a repeat click still re-fires (the
-  // dock keys its write on `token`, never the command string).
-  const seedTerminal = useCallback((command: string): void => {
-    setTerminalSeed((prev) => ({ command, token: (prev?.token ?? 0) + 1 }));
   }, []);
 
   useEffect(() => {
@@ -3726,10 +3714,11 @@ export function TreeView({
               and the repo control (terminal-repo-picker, ADR-0174 follow-on) is still INJECTED into the
               gate rather than mounted as a floating sibling over the map (owner UX refinement
               2026-07-12) — the prominent SELECT affordance while no repo is chosen, the compact repo GEAR
-              in the dock header once one is ready. The seed (a map Build's pre-filled command, ADR-0137)
-              is forwarded through the host, which also brings the terminal tab forward so a seeded
-              command can never land in a pane hidden behind the traversal. */}
-          <BottomDock {...(terminalSeed ? { seed: terminalSeed } : {})} />
+              in the dock header once one is ready. The dock still ACCEPTS a `seed` (a pre-filled
+              command, ADR-0137/ADR-0186) and its host still brings the terminal tab forward for one —
+              but the map no longer produces any: the Build click that composed them is retired
+              (ADR-0404), and a build is dispatched by typing the CLI verb in this very terminal. */}
+          <BottomDock />
         </div>
 
         {selected && (
@@ -3747,7 +3736,6 @@ export function TreeView({
             onShowSessions={() => setSessionDock(true)}
             onCrownRefresh={reloadTree}
             onClose={clearSelection}
-            onSeedTerminal={seedTerminal}
           />
         )}
       </div>
@@ -5741,7 +5729,6 @@ function StoryPanel({
   onShowSessions,
   onCrownRefresh,
   onClose,
-  onSeedTerminal,
 }: {
   story: TreeStory;
   stories: TreeStory[];
@@ -5760,9 +5747,6 @@ function StoryPanel({
   /** Re-pull the world tree after a per-test UAT verdict is signed, so the crown repaints. */
   onCrownRefresh: () => void;
   onClose: () => void;
-  /** A forest-map Build click on the desktop seeds this composed command into the embedded terminal
-   *  (map-terminal-build glue): threaded straight down to the Build button's `onSeedTerminal`. */
-  onSeedTerminal: (command: string) => void;
 }): React.JSX.Element {
   const layout = useMemo(() => layoutSubdag(story), [story]);
   // The node's FULL declared connection set (ADR-0074 §4): outbound depends_on AND
@@ -6073,33 +6057,13 @@ function StoryPanel({
       <UatTestCriteriaSection storyId={story.id} onCrownRefresh={onCrownRefresh} />
       <RelevantAdrs decisions={story.decisions ?? []} />
 
-      {/* The UI-driven go-green control (ADR-0090 / ADR-0094) is the last ACTION in the panel (owner
-          placement, 2026-06-22): a single affordance at the foot. A drilled-in capability targets a
-          single-node `--live` build (its `buildable`). A story shows a STATUS-AWARE go-green
-          affordance (ADR-0094): `proposed → Build` (whole-story `--real` drive), `mapped → Adopt`
-          (observe-and-sign its `## Reliability Gates`, ADR-0085), or a reason when neither applies —
-          never a fail-closed Build over a mature brownfield artifact. The control stays in the SAME
-          spot whether you're viewing a story or a capability, and a no-affordance selection shows WHY
-          in place rather than vanishing. */}
-      <BuildSection
-        unitId={cap ? cap.id : story.id}
-        buildable={cap ? cap.buildable : story.storyBuildable}
-        scope={cap ? 'node' : 'story'}
-        goGreen={cap ? undefined : story.goGreen}
-        adoptGates={cap ? undefined : story.adoptGates}
-        adoption={cap ? undefined : story.adoption}
-        status={cap ? undefined : story.status}
-        // A finished Build/Adopt flips the story's status + go-green affordance server-side; re-pull the
-        // tree so the panel refreshes IN PLACE (a passed adopt → the Build button, not the stale Adopt
-        // one) instead of waiting for a manual reload. Same re-pull the per-test UAT signature uses.
-        onTerminal={onCrownRefresh}
-        // Desktop map-spawn re-point (map-terminal-build): a Build click on the desktop seeds the
-        // composed `pnpm storytree … build … --real --store pg` into the embedded terminal instead of
-        // dispatching in-app. Bridge-absent (hosted/dev studio) → BuildSection ignores this and keeps
-        // the existing api.build dispatch (mbt-without-bridge-dispatches-as-today).
-        onSeedTerminal={onSeedTerminal}
-      />
-
+      {/* NO go-green control here (ADR-0404 D2/D3/D4). The panel's last ACTION used to be a
+          status-aware Build/Adopt affordance (ADR-0090 Phase 1 / ADR-0094 / ADR-0097 Layer 1); the
+          whole of it — button, Claude/Codex runtime picker, poll hook, transcript, AdoptPanel — is
+          retired, because dispatching a build or an adoption is a CLI verb: `storytree node build`,
+          `storytree story build`, `storytree adopt`. The panel is a READ surface now; the tree
+          payload still carries buildable/storyBuildable/goGreen/adoptGates/adoption with no consumer
+          until inc-03 removes them. */}
     </aside>
   );
 }

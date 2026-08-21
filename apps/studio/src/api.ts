@@ -7,8 +7,6 @@ import type {
   ArcsPayload,
   AssetInput,
   AttestationsPayload,
-  BuildIntentResult,
-  BuildStatus,
   Member,
   ClaimsPayload,
   Comment,
@@ -348,21 +346,11 @@ export const api = {
   // offering only sessions the index named, and the mount still reports honestly if it happens.
   traversal: (sessionId: string): Promise<TraversalReplayPayload> =>
     http(`/api/traversal?session=${q(sessionId)}`, { signal: AbortSignal.timeout(30_000) }),
-  // UI-driven build (ADR-0090 Phase 1 "the local loop"). build() posts a build INTENT (a safe
-  // write — never a verdict); buildStatus() polls the run's coarse transcript + status. The frontend
-  // imports NO build code (ADR-0004) — its only path to a build is these two endpoints.
-  build: (unitId: string, runtime?: 'claude' | 'codex'): Promise<BuildIntentResult> =>
-    http('/api/build', jsonInit('POST', { unitId, ...(runtime !== undefined ? { runtime } : {}) })),
-  buildStatus: (runId: string): Promise<BuildStatus> =>
-    http(`/api/build?runId=${q(runId)}`),
-  // Adopt a brownfield (`mapped`) story (ADR-0097 Layer 1). adopt() posts an adoption INTENT that
-  // mirrors build() exactly: it returns a `runId` and the spine runs the adoption fire-and-forget in
-  // the SAME build registry (flips the story `mapped → proposed` + observe-and-signs its `observe`
-  // gates). Progress is polled with the EXISTING buildStatus() above (one registry, one poll path) —
-  // terminal `passed` (all observe gates adopted + status flipped) or `failed` (a gate refused). The
-  // frontend imports NO spine code (ADR-0004) — this endpoint is its only seam to the proving process.
-  adopt: (storyId: string): Promise<BuildIntentResult> =>
-    http('/api/adopt', jsonInit('POST', { storyId })),
+  // NO build() / buildStatus() / adopt() here (ADR-0404 D2/D3): dispatching a build or an adoption
+  // is a CLI verb — `storytree node build` / `storytree story build` / `storytree adopt` — and the
+  // SPA carries no dispatch surface over either engine. These three were the SPA's only path to
+  // POST/GET /api/build and POST /api/adopt; the routes themselves are still mounted and now
+  // uncalled, and inc-03 removes them (client first, so no live control ever points at a gone route).
 
   dbStatus: (): Promise<DbStatus> => http('/api/db/status'),
   dbStart: (): Promise<{ ok: true }> => http('/api/db/start', { method: 'POST' }),

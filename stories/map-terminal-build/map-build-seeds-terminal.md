@@ -4,7 +4,7 @@ tier: capability
 story: map-terminal-build
 title: "On the desktop, the map Build button SEEDS the terminal instead of dispatching in-app — bridge-absent keeps the existing dispatch"
 outcome: "`BuildSection`'s Build control gains an optional `onSeedTerminal?: (command: string) => void` callback and feature-detects `window.desktopTerminal` exactly as TerminalDock does. When the bridge is PRESENT and `onSeedTerminal` is provided, clicking Build calls `onSeedTerminal(composeBuildCommand({ unitId, scope }))` and does NOT POST `api.build` (no in-app dispatch, no poll). When the bridge is ABSENT or no callback is wired, Build is UNCHANGED — the existing `api.build` → build-registry → poll path. Scoped to the Build button only; the Adopt path (mapped stories) is untouched."
-status: proposed
+status: retired
 proof_mode: integration-test
 depends_on: [compose-build-command]
 # Node-borne proof config (ADR-0057 keystone): authoring THIS block is what makes the capability
@@ -26,6 +26,17 @@ depends_on: [compose-build-command]
 # ADR-0031 §2). editsExisting + a single literal sourceFile === the one sourceGlob (no wildcard), so the
 # multi-file refine is satisfied; the explicit vitest proofCommand is required regardless (runner
 # mismatch).
+# RETIRED by ADR-0404 (2026-08-21), landed with the arc `retire-ui-build-dispatch-arc`. The forest
+# map's Build affordance is gone — dispatching a build is a CLI verb now (`storytree node build` /
+# `storytree story build`) — so the control this capability described no longer exists, and the
+# source and test it was proven by were deleted in the same change.
+#
+# The `real:` proof arm is REMOVED rather than repointed. There is nothing to repoint it to: its
+# `testFile`/`sourceFile` named files that are deleted for good, and a binding that names a missing
+# target is what `check:verification-decay`'s `contract-binding-drift` and the coverage drain's
+# `unbound` axis both fire on. Removing the arm is the sanctioned "retire it" drain, never a raised
+# ceiling (ADR-0252 D3). The contracts below are kept as authored history — they record what was
+# once proven, and no sweep reads a capability that declares no real arm.
 proof:
   command:
     file: pnpm
@@ -33,28 +44,6 @@ proof:
   scope:
     testGlobs: ["apps/studio/src/**/*.test.tsx", "apps/studio/src/**/*.test.ts"]
     sourceGlobs: ["apps/studio/src/**/*.ts", "apps/studio/src/**/*.tsx"]
-  real:
-    testFile: "apps/studio/src/components/BuildSection.test.tsx"
-    sourceFile: "apps/studio/src/components/BuildSection.tsx"
-    editsExisting: true
-    scope:
-      testGlobs: ["apps/studio/src/components/BuildSection.test.tsx"]
-      sourceGlobs: ["apps/studio/src/components/BuildSection.tsx"]
-    install: true
-    typecheck:
-      file: pnpm
-      args: ["--filter", "studio", "typecheck"]
-    # The studio suite is vitest (jsdom), not node:test — so the default `node --test` real proof cannot
-    # run this `.test.tsx`. Run the ONE test file under vitest (`--filter studio exec` → cwd apps/studio).
-    proofCommand:
-      file: pnpm
-      args:
-        - "--filter"
-        - "studio"
-        - "exec"
-        - "vitest"
-        - "run"
-        - "src/components/BuildSection.test.tsx"
 ---
 
 # On the desktop, the map Build button SEEDS the terminal instead of dispatching in-app
