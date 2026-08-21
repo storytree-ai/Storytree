@@ -10,10 +10,23 @@
 //   tsx cache OFF (this preload)             2078 ms CPU / 2173 ms wall     <- 44% cheaper
 //   tsx cache ON, a FRESH empty directory    1796 ms CPU / 2071 ms wall
 //
-// So the cache is worth ~280 ms/process while it is small, and costs ~1600 ms/process once it has
-// bloated — and it always bloats, because tsx has no eviction and this repo runs many worktrees.
-// Turning it off trades that best case for a floor that CANNOT rot. tsx still memoises transforms
-// in-process (it swaps its FileSystemCache for a plain `Map`), so a single run loses nothing.
+// So the cache read as worth ~280 ms/process while small and ~1600 ms/process once bloated. Turning
+// it off trades that best case for a floor that CANNOT rot. tsx still memoises transforms in-process
+// (it swaps its FileSystemCache for a plain `Map`), so a single run loses nothing.
+//
+// ⚠ THE BLOATED ROW DID NOT REPRODUCE, AND THAT IS RECORDED HERE BECAUSE THIS HEADER IS WHERE A
+// READER MEETS IT. Re-measured 2026-08-21 (inc 7), same protocol, TWICE, hours apart, from two
+// different worktrees, against the SAME 235k-file directory:
+//
+//   cache OFF                                 1735 ms   /  1802 ms
+//   cache ON, fresh directory                 1288 ms   /  1344 ms
+//   cache ON, the 235k-file directory         1192 ms   /  1361 ms     <- as fast as fresh
+//
+// i.e. the "rotted" directory measured ~25% FASTER than no cache, not 1.8x slower. One confound is
+// named rather than hidden: that directory had been listed shortly before, so its NTFS index was
+// warm. This preload is KEPT — it is still the state that cannot rot, and nothing here is strong
+// enough to reverse a decision on — but do not plan work off the 3703/1600 ms figures, and do not
+// build a bounded-cache mechanism to fence a rot that cannot currently be observed.
 //
 // AT THE SCALE THAT MATTERS — the whole `pnpm -r --no-bail test` leg, two runs per arm interleaved
 // on a quiet box, the same 5,446 tests in every arm:
@@ -40,9 +53,20 @@
 // WHICH IS WHY CI OPTS BACK IN. A hosted runner gets a fresh VM per job, so its cache is healthy BY
 // CONSTRUCTION and can never reach the third row; `.github/workflows/ci.yml` sets
 // `TSX_DISABLE_CACHE: ""` for exactly that reason. Nothing on a long-lived dev box has that
-// guarantee, and tsx offers no eviction and no cache-directory knob, so here the floor is the right
-// trade. The BETTER answer — bound the cache and keep it everywhere — is real and unbuilt; it is
-// parked on `the-gate-costs-what-the-change-risks-arc`, and it is worth roughly the 30% above.
+// guarantee, and tsx offers no eviction and no cache-directory knob.
+//
+// THE "BOUND THE CACHE" FOLLOW-UP IS CLOSED, NOT PENDING (inc 7). The mechanism was built and
+// proven: setting TMPDIR/TEMP/TMP before `--import tsx` and restoring them after redirects tsx's
+// cache and nothing else, it captured 100% of a full suite run's transforms (the user temp directory
+// gained nothing), it costs ~4% per process against the default location, and a whole
+// `pnpm -r --no-bail test` fills a partition with just 1,478 files / 30 MB — genuinely bounded per
+// worktree. It is closed anyway, for two reasons. (1) The ROT it exists to bound did not reproduce,
+// twice (see the table above), so it would fence a hazard nobody can currently observe. (2) The
+// benefit is not resolvable on this box: interleaved arms measured cache-OFF at 548 s and 820 s and
+// cache-ON at 514 s / 609 s / 635 s — a 122 s mean difference favouring ON, inside a 272 s
+// within-arm spread. The same leg was separately measured at 318 s, 512 s and 749 s the same day.
+// The honest reading is that the per-process saving is real and the suite-scale figure is not
+// measurable here without far more repeats than the answer is worth.
 //
 // This buys the SAME proof more cheaply — no test is skipped, sampled or moved off the gate, which
 // is the one direction this arc forbids.

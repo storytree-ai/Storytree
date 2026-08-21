@@ -30,10 +30,13 @@ try {
 
 // Turn OFF tsx's on-disk transform cache before tsx is imported (`the-gate-costs-what-the-change-
 // risks-arc` inc 4). tsx caches every transform as one file in a FLAT `os.tmpdir()` directory and
-// never evicts; at the 232,254 files / 4.18 GB this box had reached, a cache LOOKUP costs more than
-// the transform it saves. Median of 7 runs of `storytree not-a-real-storytree-command` on a quiet
-// box: 3703 ms CPU with that cache, 2078 ms without — every CLI process, including the ~60 the test
-// suite spawns. Full measurement and the escape hatch: scripts/tsx-cache-off.mjs.
+// never evicts; at the 232,254 files / 4.18 GB this box had reached, a cache LOOKUP measured as
+// costing more than the transform it saves — 3703 ms CPU against 2078 ms without, median of 7 runs
+// of `storytree not-a-real-storytree-command` on a quiet box. ⚠ THAT READING DID NOT REPRODUCE:
+// re-measured twice on 2026-08-21 (inc 7) against the SAME directory, the cache arm came back FASTER
+// than the disabled one (1192/1361 ms against 1735/1802 ms). The preload stays — it is the state
+// that cannot rot — but the figure above is one day's reading, not a property. Both measurements,
+// and why the bounded-cache follow-up is closed rather than pending: scripts/tsx-cache-off.mjs.
 //
 // ORDER IS LOAD-BEARING: tsx reads this variable once, when its module graph is evaluated, so the
 // assignment must precede the `tsx/esm/api` import below. Moved after it, this line still runs and
