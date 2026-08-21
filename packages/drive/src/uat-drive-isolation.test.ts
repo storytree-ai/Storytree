@@ -38,6 +38,7 @@ import {
   assertDriveIsolated,
   auditDrivePrompt,
   classifyDriveEnd,
+  createDriveTiming,
   classifyDriveResidue,
   driveChildEnv,
   driveIdentityOverride,
@@ -52,12 +53,15 @@ import {
   requireOwnSurface,
   uatDriveTaskPrompt,
   UAT_DRIVE_COMMIT_ENV,
+  UAT_DRIVE_DEADLINE_AT_ENV,
   UAT_DRIVE_PORT_BASE,
   UAT_DRIVE_PORT_SPAN,
   UAT_DRIVE_SCRATCH_ENV,
+  UAT_DRIVE_REPORT_BY_ENV,
   UAT_DRIVE_SESSION_ENV,
   UAT_DRIVE_SESSION_PREFIX,
   UAT_DRIVE_SURFACE_PORT_ENV,
+  UAT_DRIVE_START_AT_ENV,
   type DriveIsolation,
   type DriveSurfaceAttestation,
   type UatDriveSpec,
@@ -84,6 +88,10 @@ function driveSpec(): UatDriveSpec {
       commitSha: COMMIT,
       scratchDir: "/tmp/storytree-uat-drive/demo",
       ceilingMinutes: 30,
+      startAt: "2026-08-21T00:00:00.000Z",
+      reportBy: "2026-08-21T00:28:00.000Z",
+      deadlineAt: "2026-08-21T00:30:00.000Z",
+      reportCleanupBufferMinutes: 2,
     },
   };
 }
@@ -98,6 +106,10 @@ const ISOLATION: DriveIsolation = {
   commitSha: COMMIT,
   scratchDir: "/tmp/storytree-uat-drive/run-1",
   ceilingMinutes: 30,
+  startAt: "2026-08-21T00:00:00.000Z",
+  reportBy: "2026-08-21T00:28:00.000Z",
+  deadlineAt: "2026-08-21T00:30:00.000Z",
+  reportCleanupBufferMinutes: 2,
 };
 
 // ---------------------------------------------------------------------------
@@ -262,12 +274,34 @@ test("CLAIMS: the child env is the ONLY seam, and it carries the whole isolation
   assert.equal(env[UAT_DRIVE_SESSION_ENV], ISOLATION.sessionId);
   assert.equal(env[UAT_DRIVE_SURFACE_PORT_ENV], "5311");
   assert.equal(env[UAT_DRIVE_SCRATCH_ENV], ISOLATION.scratchDir);
+  assert.equal(env[UAT_DRIVE_START_AT_ENV], ISOLATION.startAt);
+  assert.equal(env[UAT_DRIVE_REPORT_BY_ENV], ISOLATION.reportBy);
+  assert.equal(env[UAT_DRIVE_DEADLINE_AT_ENV], ISOLATION.deadlineAt);
   assert.equal(env["PATH"], "/usr/bin", "the rest of the environment is inherited");
   assert.equal(
     "STORYTREE_SESSION_ID" in env,
     false,
     "STORYTREE_SESSION_ID means 'inherit the parent session' — leaving it set re-collapses the two identities through the other door",
   );
+});
+
+test("LIFETIME: the runner owns an absolute deadline and reserves report/cleanup time before it", () => {
+  assert.deepEqual(createDriveTiming(Date.parse("2026-08-21T00:00:00.000Z"), 30), {
+    startAt: "2026-08-21T00:00:00.000Z",
+    reportBy: "2026-08-21T00:28:00.000Z",
+    deadlineAt: "2026-08-21T00:30:00.000Z",
+    reportCleanupBufferMinutes: 2,
+  });
+
+  const prompt = uatDriveTaskPrompt(driveSpec());
+  assert.match(prompt, /reportBy.*2026-08-21T00:28:00\.000Z/i);
+  assert.match(prompt, /every wait and tool timeout.*end by reportBy/i);
+  assert.match(prompt, /2 minutes.*report and cleanup/i);
+
+  const weakened = prompt.replace(/\s*- reportBy: 2026-08-21T00:28:00\.000Z[^\n]*\n/i, "\n");
+  const audit = auditDrivePrompt(weakened, driveSpec());
+  assert.equal(audit.ok, false, "an absolute boundary missing from the prompt must refuse before spend");
+  assert.ok(audit.missing.includes("the isolation clause"));
 });
 
 // ---------------------------------------------------------------------------
