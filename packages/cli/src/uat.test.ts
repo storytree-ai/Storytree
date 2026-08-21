@@ -69,16 +69,59 @@ const R1 = "uatr1:0000000000000001";
 const R2 = "uatr1:0000000000000002";
 const R3 = "uatr1:0000000000000003";
 
+const C4 = "uatc_000000000000000000000004";
+const R4 = "uatr1:0000000000000004";
+
 const DEMO_TESTS: UatTestCriterion[] = [
   { criterionId: C1, revisionId: R1, title: "Human relay", witness: "human", wouldBe: false },
-  { criterionId: C2, revisionId: R2, title: "Machine run", witness: "machine", wouldBe: false },
+  {
+    criterionId: C2,
+    revisionId: R2,
+    title: "Machine run",
+    witness: "machine",
+    wouldBe: false,
+    proofGateId: "demo#gate-1",
+  },
   { criterionId: C3, revisionId: R3, title: "Either", witness: "either", wouldBe: false },
+];
+
+/**
+ * Deliberately UNBOUND: no command can sign it, so the surface must offer none (ADR-0405 D5). Kept
+ * OUT of {@link DEMO_TESTS} — a story's UAT greens only when EVERY declared leg has a signed pass,
+ * so adding a permanently-unsignable leg to the shared fixture would silently un-green the roll-up
+ * tests rather than testing anything.
+ */
+const UNBOUND_LEG: UatTestCriterion = {
+  criterionId: C4,
+  revisionId: R4,
+  title: "Machine, unbound",
+  witness: "machine",
+  wouldBe: false,
+};
+const WITH_UNBOUND: UatTestCriterion[] = [...DEMO_TESTS, UNBOUND_LEG];
+
+/** The story's declared gates — `demo#gate-1` is the observe gate C2 binds to. */
+const DEMO_GATES = [
+  {
+    id: "demo#gate-1",
+    title: "The demo suite is green",
+    kind: "observe" as const,
+    proofCommand: "pnpm --filter demo test",
+    covers: [],
+  },
+  {
+    id: "demo#gate-2",
+    title: "A regression leg",
+    kind: "build-tests" as const,
+    covers: [],
+  },
 ];
 
 function baseDeps(over: Partial<UatDeps> = {}): UatDeps {
   return {
     store: fakeStore().store,
     loadUatTestCriteria: (storyId) => (storyId === "demo" ? DEMO_TESTS : []),
+    loadReliabilityGates: (storyId) => (storyId === "demo" ? DEMO_GATES : []),
     gitState: (): GitState | null => ({ commitSha: "cafebabe0123", clean: true }),
     identity: { sessionId: "goofy-aryabhata", branch: "claude/x" },
     resolveSigner: (flag) => ({ ok: true, signer: flag ?? "owner@example.com" }),
@@ -138,6 +181,107 @@ test("list: with the store shows per-test PROVEN glyphs and the story roll-up", 
   assert.match(r.body, new RegExp(`${C1}.*proven=✓`));
   assert.match(r.body, new RegExp(`${C2}.*proven=–`));
   assert.match(r.body, /story UAT: unproven/);
+});
+
+// ── the proving route: never point at a command this leg's own guard refuses (ADR-0405 D5) ──────
+
+test("list: offers ADOPT for an observe-bound machine leg, never `uat attest`", async () => {
+  const r = await uatCommand(
+    { mode: "list", target: "demo" },
+    {},
+    baseDeps({ loadUatTestCriteria: () => WITH_UNBOUND }),
+  );
+  assert.equal(r.ok, true);
+  assert.ok(
+    r.next.includes("storytree adopt demo --pg"),
+    `the adopt run is the only path that signs a machine leg's criterion verdict; got ${JSON.stringify(r.next)}`,
+  );
+  // The bug this replaces: `uat attest <machine leg>` was offered unconditionally and is REFUSED
+  // by the witness guard (ADR-0082 d.2). No offered command may name a machine criterion id.
+  for (const cmd of r.next) {
+    assert.ok(
+      !(cmd.includes("uat attest") && (cmd.includes(C2) || cmd.includes(C4))),
+      `offered a command its own guard refuses: ${cmd}`,
+    );
+  }
+});
+
+test("list: still offers `uat attest` for the human leg, naming that leg", async () => {
+  const r = await uatCommand({ mode: "list", target: "demo" }, {}, baseDeps());
+  assert.ok(
+    r.next.some((c) => c.includes("uat attest") && c.includes(C1)),
+    `the human leg keeps its operator path; got ${JSON.stringify(r.next)}`,
+  );
+});
+
+test("list: an UNBOUND machine leg is named as unprovable and gets no signing command", async () => {
+  const r = await uatCommand(
+    { mode: "list", target: "demo" },
+    {},
+    baseDeps({ loadUatTestCriteria: () => WITH_UNBOUND }),
+  );
+  assert.match(r.body, new RegExp(`✗ ${C4} — .*proof-gate binding`));
+  for (const cmd of r.next) {
+    assert.ok(!cmd.includes(C4), `an unbound leg cannot be signed by anything, yet was offered: ${cmd}`);
+  }
+});
+
+test("list: a build-tests-bound machine leg routes to the build gate, not adopt", async () => {
+  const buildBound: UatTestCriterion[] = [
+    { criterionId: C2, revisionId: R2, title: "Regression", witness: "machine", wouldBe: false, proofGateId: "demo#gate-2" },
+  ];
+  const r = await uatCommand(
+    { mode: "list", target: "demo" },
+    {},
+    baseDeps({ loadUatTestCriteria: () => buildBound }),
+  );
+  assert.ok(
+    r.next.includes("storytree build gate demo#gate-2 --real --pg"),
+    `a build-tests gate is earned by a red→green, never observe-and-sign; got ${JSON.stringify(r.next)}`,
+  );
+  assert.ok(!r.next.some((c) => c.startsWith("storytree adopt")), "must not offer the adopt run");
+});
+
+test("list: NON-VACUITY — the route genuinely varies with the binding", async () => {
+  // If `resolveProvingRoute` ever collapsed to one answer these three would stop disagreeing, and
+  // every assertion above would pass while verifying nothing.
+  const only = async (tests: UatTestCriterion[]): Promise<string[]> =>
+    (await uatCommand({ mode: "list", target: "demo" }, {}, baseDeps({ loadUatTestCriteria: () => tests })))
+      .next.filter((c) => !c.startsWith("storytree tree"));
+  const human = await only([DEMO_TESTS[0]!]);
+  const observe = await only([DEMO_TESTS[1]!]);
+  const unbound = await only([UNBOUND_LEG]);
+  assert.notDeepEqual(human, observe);
+  assert.notDeepEqual(observe, unbound);
+  assert.deepEqual(unbound, [], "an unbound leg offers no signing command at all");
+});
+
+test("attest: a refused observe-bound machine leg points at ADOPT, not at a build", async () => {
+  const r = await uatCommand({ mode: "attest", storyId: "demo", target: C2 }, {}, baseDeps());
+  assert.equal(r.ok, false);
+  assert.match(r.body, /refused/);
+  assert.ok(
+    r.next.some((c) => c.startsWith("storytree adopt demo --pg")),
+    `got ${JSON.stringify(r.next)}`,
+  );
+  assert.ok(
+    !r.next.some((c) => c.includes("node build")),
+    "the old pointer sent observe-bound legs down the build path, which cannot sign them",
+  );
+});
+
+test("attest: a refused UNBOUND machine leg names the missing binding and offers no signing verb", async () => {
+  const r = await uatCommand(
+    { mode: "attest", storyId: "demo", target: C4 },
+    {},
+    baseDeps({ loadUatTestCriteria: () => WITH_UNBOUND }),
+  );
+  assert.equal(r.ok, false);
+  assert.ok(
+    r.next.some((c) => c.includes("no usable proof-gate binding")),
+    `got ${JSON.stringify(r.next)}`,
+  );
+  assert.ok(!r.next.some((c) => c.startsWith("storytree adopt")), "nothing can sign an unbound leg");
 });
 
 // ── uat attest: refusals (the honesty walls) ─────────────────────────────────────
