@@ -91,10 +91,19 @@ in the SHAPE of the code rather than in a comment — no edge-type parameter, wh
 called with the wrong one. ADR-0402 dec 2 kept both names for this reason; this ADR does not disturb
 it.
 
-**7. BOTH POINTER SPELLINGS MUST RESOLVE.** The corpus carries `doc:decisions/…` (371) and
-`doc:docs/decisions/…` (19) naming the same files. The cycle census's own first parser accepted one
+**7. BOTH POINTER SPELLINGS MUST RESOLVE.** The corpus carries `doc:decisions/…` and
+`doc:docs/decisions/…` naming the same files. The cycle census's own first parser accepted one
 form and silently reclassified 371 of 390 pointers as "not an ADR", producing a plausible wrong
 answer. Any migration or walk that resolves one spelling and not the other fails the same way.
+
+**The count is 997 / 38 across 1,035 pointers, not 371 / 19** — corrected in place 2026-08-22 from
+the `-inc-02` reader census, which measured every string field of `events.library_artifact` rather
+than one. 371 / 19 is the `dependsOn` row alone, which is the correct denominator for the cycle
+census that produced it and 38% of the migration's real exposure. The bulk sits in `references`
+(624 / 19), the field `referential-integrity` reads — and that reader was carrying this exact bug
+when the census found it. **Size the migration off 1,035, and take the number from a query rather
+than from this paragraph**; the per-field table is in
+[the census](../research/decision-log-readers-census-2026-08-22.md).
 
 **8. THE ARCHIVE GETS A CLEAN SEAM AT MIGRATION DAY. No history is imported.** The files are removed
 from `docs/decisions/`; git retains every prior revision up to that commit, so `git log -p` and
