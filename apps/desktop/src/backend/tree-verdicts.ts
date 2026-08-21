@@ -82,6 +82,10 @@ export interface DTStory {
   consumedBy: string[];
   building?: boolean;
   decisions?: number[];
+  /** Whether a whole-story `story build --real` has a non-empty, fully real-buildable drive. */
+  storyBuildable?: boolean;
+  /** The canonical status-aware story affordance consumed by the shared renderer. */
+  goGreen?: "build" | "adopt" | "none";
   verdict?: DTVerdict;
   /** The story's WITNESSABLE UAT test criteria summary — see {@link DTUatCriterion}, mirrors the
    *  studio's `TreeStory.uatCriteria`. Set by {@link foldVerdicts} (via `applyUatCriteria`); absent
@@ -141,7 +145,7 @@ function loadCapability(
   resolveBuildConfig: ResolveBuildConfig,
   storyDir: string,
   capId: string,
-): DTCapability {
+): { node: DTCapability; spec: ReturnType<LoadNodeSpec> | null } {
   const node: DTCapability = {
     id: capId,
     title: capId,
@@ -152,22 +156,28 @@ function loadCapability(
     testCount: 0,
   };
   const file = path.join(storyDir, `${capId}.md`);
-  if (!existsSync(file)) return { ...node, error: "spec file missing" };
+  if (!existsSync(file)) return { node: { ...node, error: "spec file missing" }, spec: null };
   try {
     const spec = loadNodeSpec(file);
     return {
-      ...node,
-      title: spec.title,
-      outcome: spec.outcome,
-      status: isWorkStatus(spec.status) ? spec.status : null,
-      proofMode: spec.proofMode,
-      dependsOn: spec.dependsOn,
-      buildable: resolveBuildConfig(spec) != null,
-      // The declared leaf-contract count (already parsed by `loadNodeSpec` via `parseContracts`).
-      testCount: spec.contracts.length,
+      node: {
+        ...node,
+        title: spec.title,
+        outcome: spec.outcome,
+        status: isWorkStatus(spec.status) ? spec.status : null,
+        proofMode: spec.proofMode,
+        dependsOn: spec.dependsOn,
+        buildable: resolveBuildConfig(spec) != null,
+        // The declared leaf-contract count (already parsed by `loadNodeSpec` via `parseContracts`).
+        testCount: spec.contracts.length,
+      },
+      spec,
     };
   } catch (err) {
-    return { ...node, error: err instanceof Error ? err.message : String(err) };
+    return {
+      node: { ...node, error: err instanceof Error ? err.message : String(err) },
+      spec: null,
+    };
   }
 }
 
@@ -204,10 +214,19 @@ export async function readTreeWithCaps(storiesDir: string): Promise<{
   if (!existsSync(storiesDir))
     return { stories, uatTestCriteriaByStory, uatCriteriaByStory, coverageByStory };
 
-  const { loadNodeSpec, effectiveUatWitness, resolveBuildConfig } = (await loadOrchestrator()) as unknown as {
+  const { loadNodeSpec, effectiveUatWitness, resolveBuildConfig, isStoryBuildable, storyGoGreen } = (await loadOrchestrator()) as unknown as {
     loadNodeSpec: LoadNodeSpec;
     effectiveUatWitness: (declared: "human" | "machine" | "either" | undefined) => "human" | "machine";
     resolveBuildConfig: ResolveBuildConfig;
+    isStoryBuildable: (
+      story: ReturnType<LoadNodeSpec>,
+      capabilities: readonly ReturnType<LoadNodeSpec>[],
+      mode: "live" | "real",
+    ) => boolean;
+    storyGoGreen: (
+      story: ReturnType<LoadNodeSpec>,
+      capabilities: readonly ReturnType<LoadNodeSpec>[],
+    ) => "build" | "adopt" | "none";
   };
 
   for (const ent of await fs.readdir(storiesDir, { withFileTypes: true })) {
@@ -238,9 +257,17 @@ export async function readTreeWithCaps(storiesDir: string): Promise<{
       story.consumedBy = spec.consumedBy;
       story.decisions = spec.decisions;
       if (spec.render === "building") story.building = true;
-      story.capabilities = spec.capabilities.map((capId) =>
-        loadCapability(loadNodeSpec, resolveBuildConfig, dir, capId),
-      );
+      const capSpecs: ReturnType<LoadNodeSpec>[] = [];
+      story.capabilities = spec.capabilities.map((capId) => {
+        const loaded = loadCapability(loadNodeSpec, resolveBuildConfig, dir, capId);
+        if (loaded.spec !== null) capSpecs.push(loaded.spec);
+        return loaded.node;
+      });
+      // Keep the desktop mirror on the same pure predicates as the canonical Studio resolver. The
+      // renderer requires `goGreen === "build"` for a proposed story; omitting these fields silently
+      // hid a valid whole-story build even though every driven capability carried a real proof arm.
+      story.storyBuildable = isStoryBuildable(spec, capSpecs, "real");
+      story.goGreen = storyGoGreen(spec, capSpecs);
       // The per-story OWN-PROOF obligations: the WITNESSABLE per-test UAT test criteria (would-be legs filtered
       // out, ADR-0097) UNION the `## Reliability Gates` — both addressable `{ id }` units the crown
       // rolls up (ADR-0085 / ADR-0082). Mirrors the studio's readTree collection verbatim.
@@ -437,6 +464,15 @@ export function applyOpenQuestionGate(
   }
 }
 
+/** Clear a file-derived Build/Adopt affordance once a signed pass proves the story green. */
+export function applyStoryGoGreenProof(stories: DTStory[]): void {
+  for (const story of stories) {
+    if (story.verdict?.outcome !== "pass") continue;
+    if (story.goGreen === undefined || story.goGreen === "none") continue;
+    story.goGreen = "none";
+  }
+}
+
 /**
  * Fold the signed-verdict overlay into the bare authored tree — the desktop's re-composition of the
  * studio tree-handler's enrichment block (apiRouter.ts ~1659-1707), in the SAME order so the desktop
@@ -444,10 +480,10 @@ export function applyOpenQuestionGate(
  *   1. attach each unit's OWN latest verdict (`latestVerdicts[id]` → story/cap `.verdict`),
  *   2. ADR-0097 cap coverage (a covered brownfield plant greens via its gate),
  *   3. ADR-0083 per-test crown roll-up (a UAT story's island greens from the AND of its per-test verdicts),
- *   4. ADR-0107 OQ gate (an open fork WITHHOLDS a would-be green).
- * Skips the go-green AFFORDANCE pass (apiRouter's `applyStoryGoGreenProof`) — that drives Build/Adopt
- * buttons, not the read-overlay hue this increment owns. Every leg is advisory: a `null` verdict source
- * leaves the authored hue (under-claims), per the presence-block discipline (ADR-0033). Mutates `stories`.
+ *   4. clear a stale Build/Adopt affordance after the crown proves the story green,
+ *   5. ADR-0107 OQ gate (an open fork WITHHOLDS a would-be green).
+ * Every leg is advisory: a `null` verdict source leaves the authored hue and file-derived affordance
+ * (under-claims), per the presence-block discipline (ADR-0033). Mutates `stories`.
  */
 export async function foldVerdicts(
   stories: DTStory[],
@@ -517,6 +553,9 @@ export async function foldVerdicts(
     if (uatTestCriteriaByStory.size > 0) {
       applyUatCrowns(stories, uatTestCriteriaByStory, coverageByStory, events, rollupStoryGreen);
     }
+    // Proof wins over the authored-status affordance. Match the canonical resolver's ordering: after
+    // the crown settles, before an open question may withhold the crown's green hue.
+    applyStoryGoGreenProof(stories);
     // ADR-0107: an open gating question WITHHOLDS a would-be green crown — run AFTER the crown.
     if (overlay.openQuestions.length > 0) {
       const { openQuestionsGatingNode } = (await loadLibrary()) as unknown as {
