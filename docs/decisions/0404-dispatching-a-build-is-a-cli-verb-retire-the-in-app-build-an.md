@@ -2,7 +2,7 @@
 status: accepted
 arc: retire-ui-build-dispatch-arc
 decided: 2026-08-21
-amends: [90, 94, 97, 136, 144]
+amends: [90, 94, 97, 133, 136, 144]
 load_bearing: true
 ---
 # ADR-0404: Dispatching a build is a CLI verb — retire the in-app Build and Adopt affordances
@@ -112,10 +112,11 @@ both routes gone they are expected to be orphaned, and that is a finding for the
 increment, not a licence to touch the drivers.
 
 **7. The reversal is on the DISPATCH SURFACE only.** ADR-0090 Phase 1 (the in-panel Build control),
-ADR-0094 (the status-aware go-green affordance), ADR-0097 Layer 1 (the Adopt button), ADR-0136
-(app-driven story go-green lives in the forest-map Build affordance) and ADR-0144's UI-dispatch
-clause are amended to that extent and no further. What a build DOES, what it signs, where verdicts
-persist, and the brown→proposed→green proving process itself are all untouched.
+ADR-0094 (the status-aware go-green affordance), ADR-0097 Layer 1 (the Adopt button), ADR-0133
+decision 3 (the desktop `/api/build` MOUNT — its RELOCATION half stands), ADR-0136 (app-driven story
+go-green lives in the forest-map Build affordance) and ADR-0144's UI-dispatch clause are amended to
+that extent and no further. What a build DOES, what it signs, where verdicts persist, and the
+brown→proposed→green proving process itself are all untouched.
 
 **8. If the copy fix lands alone, it is still worth landing.** Should this arc stall, correcting the
 two false hint strings at `BuildSection.tsx:283` and `:166` is an independently valuable change,
@@ -176,6 +177,7 @@ it is the terminal seed itself — `TerminalDock` still accepts a `seed` and ope
 - ADR-0090 (UI-driven orchestration, Phase 1: the in-panel Build control) — amended, dispatch surface only.
 - ADR-0094 (go-green is a status transition: proposed builds, mapped adopts) — amended, affordance only.
 - ADR-0097 (brownfield go-green is a proving process) — amended, Layer-1 button only; the process and engine stand.
+- ADR-0133 (inner-circle desktop is the priority; the desktop build-mount) — amended, decision 3's MOUNT half only; the RELOCATION half (`BuildRegistry`/`runBuildJob`/`routedBuildRunner` in `@storytree/drive`) stands and is now driven by the CLI.
 - ADR-0136 (app-driven story go-green lives in the forest-map Build affordance) — amended, reversed on the surface.
 - ADR-0144 (chat-accepted node builds run the real proof and persist the verdict) — amended, UI-dispatch clause only; the real-proof behaviour stands and is the reason the hint copy is false.
 - ADR-0175 (repurpose, don't delete, the in-app orchestrator chat infrastructure) — retired the spawn surface that called `dispatchAcceptedBuild`.

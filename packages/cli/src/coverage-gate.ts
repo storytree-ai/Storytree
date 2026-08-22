@@ -267,7 +267,71 @@ export function sweepRealBuildCoverage(
   storiesDir: string,
   repoRoot: string,
 ): { units: GateCoverageUnit[]; specFilesWalked: number } {
-  const units: GateCoverageUnit[] = [];
+  const { surfaces, specFilesWalked } = sweepCapabilitySurfaces(storiesDir, repoRoot);
+  const units = surfaces.map((surface) => {
+    const testNames: string[] = [];
+    for (const testPath of surface.absTestFiles) {
+      try {
+        // VOUCHING names only (ADR-0126): a hollow / skipped test contributes nothing, so a contract
+        // named only by an `assert(true)` reads uncovered (not falsely covered).
+        testNames.push(...extractVouchingTestNames(readFileSync(testPath, "utf8")));
+      } catch {
+        // An unreadable test file contributes no names (fail-closed toward uncovered).
+      }
+    }
+    return {
+      unitId: surface.unitId,
+      tier: surface.tier,
+      contractIds: surface.contractIds,
+      testNames,
+      testFiles: surface.testFiles,
+      testFilePresent: surface.testFilePresent,
+    };
+  });
+  return { units, specFilesWalked };
+}
+
+/**
+ * One scanned capability's PROOF SURFACE, before any classifier reads it — the shared substrate of
+ * the two directions. `check:coverage` folds it contract⇒test ({@link sweepRealBuildCoverage});
+ * `storytree coverage --contractless` folds the same surface test⇒contract
+ * (`coverage-claims.ts`). Extracted so the two can never disagree about WHAT they are looking at:
+ * an inverse report over a different file set would answer a different question from the one the
+ * coverage report answers, while appearing to be its mirror.
+ */
+export interface CapabilitySurface {
+  /** The capability id (the spec's frontmatter id). */
+  unitId: string;
+  /** The unit's tier (always `capability` in practice — the filter is the `real:` arm, not the tier). */
+  tier: string;
+  /** The declared contract ids, in declared order. */
+  contractIds: string[];
+  /** Absolute paths of every EXISTING test file in the surface (the readable set). */
+  absTestFiles: string[];
+  /** The same surface as repo-relative POSIX paths, INCLUDING any that do not exist — honest provenance. */
+  testFiles: string[];
+  /** Whether the registered `real.testFile` exists on disk ({@link GateCoverageUnit.testFilePresent}). */
+  testFilePresent: boolean;
+}
+
+/**
+ * Resolve every capability carrying a registered real-build test surface (`proof.real.testFile`) AND
+ * ≥1 declared `## Contracts` to its proof surface. The surface unions that exact signed
+ * `real.testFile` with the real arm's declared test globs AND the read-only `proof.coverage.testGlobs`
+ * surface (ADR-0353 — where the contract tests actually live, which on a BORROWED build-tests arm is
+ * NOT the arm's own test file), deduplicated. A spec that throws (malformed) or carries no real block
+ * / no contracts is skipped — this is the FILTER that keeps unbuilt `proposed` capabilities out of the
+ * sweep. Paths are resolved against `repoRoot`.
+ *
+ * `specFilesWalked` is carried out rather than reconstructed: zero walked and zero scanned are
+ * different states that a "nothing to check" OK cannot distinguish (measured — an absent `stories/`
+ * tree and an empty one both reach it).
+ */
+export function sweepCapabilitySurfaces(
+  storiesDir: string,
+  repoRoot: string,
+): { surfaces: CapabilitySurface[]; specFilesWalked: number } {
+  const surfaces: CapabilitySurface[] = [];
   const specFiles = walkSpecFiles(storiesDir);
   for (const file of specFiles) {
     let spec: ReturnType<typeof loadNodeSpec>;
@@ -278,41 +342,29 @@ export function sweepRealBuildCoverage(
     }
     const real = spec.buildConfig?.real;
     if (real === undefined || spec.contracts.length === 0) continue;
-    const testFile = real.testFile;
-    const abs = path.join(repoRoot, testFile);
-    const testFilePresent = existsSync(abs);
+    const abs = path.join(repoRoot, real.testFile);
     const resolveGlob = (glob: string): string[] =>
       glob.includes("*")
         ? walkTestFiles(path.join(repoRoot, globBaseDir(glob)))
         : [path.join(repoRoot, glob)];
     const scopedFiles = real.scope.testGlobs.flatMap(resolveGlob);
-    // ADR-0353: the declared READ-ONLY coverage surface — where this capability's contract tests
-    // actually live, which on a BORROWED `real:` arm is a different place from what that arm may
-    // write. Resolved exactly like a scope glob (a literal path is taken as-is, so a shared suite
-    // module that is not itself a `*.test.ts` file can be named), then unioned in. Absent = the
-    // pre-ADR-0353 behaviour, so no existing spec changes.
     const coverageFiles = (spec.buildConfig?.coverage?.testGlobs ?? []).flatMap(resolveGlob);
     const absFiles = [abs, ...scopedFiles, ...coverageFiles].filter(
       (candidate, index, files) => files.indexOf(candidate) === index,
     );
-    const testNames: string[] = [];
-    for (const testPath of absFiles.filter((candidate) => existsSync(candidate))) {
-      try {
-        // VOUCHING names only (ADR-0126): a hollow / skipped test contributes nothing, so a contract
-        // named only by an `assert(true)` reads uncovered (not falsely covered).
-        testNames.push(...extractVouchingTestNames(readFileSync(testPath, "utf8")));
-      } catch {
-        // An unreadable test file contributes no names (fail-closed toward uncovered).
-      }
-    }
-    units.push({
+    surfaces.push({
       unitId: spec.id,
       tier: spec.tier,
       contractIds: spec.contracts.map((c) => c.id),
-      testNames,
-      testFiles: absFiles.map((candidate) => path.relative(repoRoot, candidate).replace(/\\/g, "/")),
-      testFilePresent,
+      absTestFiles: absFiles.filter((candidate) => existsSync(candidate)),
+      testFiles: absFiles.map(toRepoRelative(repoRoot)),
+      testFilePresent: existsSync(abs),
     });
   }
-  return { units, specFilesWalked: specFiles.length };
+  return { surfaces, specFilesWalked: specFiles.length };
+}
+
+/** Repo-relative POSIX rendering of an absolute path (Windows separators normalised). */
+export function toRepoRelative(repoRoot: string): (abs: string) => string {
+  return (abs) => path.relative(repoRoot, abs).split(path.sep).join("/");
 }

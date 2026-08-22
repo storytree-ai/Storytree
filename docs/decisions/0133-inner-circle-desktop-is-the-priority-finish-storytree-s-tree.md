@@ -24,6 +24,13 @@ and the desktop build mount's live appearance are operator-attested under ADR-00
 > (accepted, 2026-07-10) — the temporary d.2 "secure later" deferral is LIFTED for desktop verdict,
 > UAT-attestation, and presence writes. Those proof writes now follow ADR-0117's brokered target;
 > the desktop-priority call and the remaining decisions here stand.
+>
+> **Amended by [ADR-0404](0404-dispatching-a-build-is-a-cli-verb-retire-the-in-app-build-an.md)**
+> (accepted, 2026-08-22) — decision 3's MOUNT half is retired: dispatching a build is now a CLI verb,
+> so `createBuildRouteMount` and the desktop `POST`/`GET /api/build` route are gone. The RELOCATION
+> half of decision 3 — `BuildRegistry` / `runBuildJob` / `routedBuildRunner` and the `BuildContext`
+> type living in `@storytree/drive`, importing nothing from `apps/*` — stands and is what survives;
+> the CLI drives that worker now. Decisions 1, 2, 4 and 5 here are untouched.
 
 ## Context
 

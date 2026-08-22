@@ -307,5 +307,16 @@ sleep — the pattern the desktop E2E harness already established.
 - `hardware-floor-report.json` — **question 2's answer** (section 2): the Adreno renderer string, the
   two idle controls that show the `HardwareHud` reading carries no scene, the plant-count sweep, and
   a verdict computed against those controls rather than against a chosen tolerance.
+  ⚠ **This is the 2026-08-19 record and is kept, not regenerated** — it is the artifact the
+  write-ups cite, and a re-run measures a different box-load rather than a different hardware
+  floor. Two things follow. **(a)** Its `verdict.cadenceIsUninformative` was corrected on
+  2026-08-22. It had been the file's one hand-typed sentence, and it claimed the 0-plant rung's p95
+  was *higher* than the island rung's when the table above shows the two are equal at 18.1. It is
+  now **derived from those same rows** by `harness/cadence-verdict.ts`, and a test re-derives it
+  from this very file, so the prose can no longer drift from the data the way a typed sentence
+  could. No measured value changed; nothing about D2's answer changed. **(b)** Re-running the
+  harness still rewrites two of the `caveats` strings, because the committed text spells their
+  possessives with a backtick and the repaired source spells them with an apostrophe. That is
+  2026-08-21 typography, **not drift** — restore with `git checkout -- docs/research/chapter2-live-render-2026-08-19/`.
 - `hardware-floor-page.png` — the continuously-drawn land the sweep timed. It is a benchmark surface,
   **not an art panel**: nothing about how it looks is a finding, and it is not the shipped island.

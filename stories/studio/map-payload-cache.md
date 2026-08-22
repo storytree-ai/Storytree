@@ -138,10 +138,13 @@ boot's serialisation order is untouched (stage 4). Sharing a file with a sibling
   chrome may be stubbed. Its test titles carry every contract id below, each as ONE plain string
   literal with the declared id leading it — never a concatenation and never a locally-invented id.
   The coverage scan is a static AST scan (ADR-0126), so a title assembled with `+` reads as UNCOVERED
-  even when the id is the first thing in it. Keep the generic real-build
-  catalog companion `packages/cli/src/node-build.test.ts` in lockstep so its exact
-  buildable-capability catalog includes `map-payload-cache`; that catalog assertion is discoverability
-  regression evidence, not another implementation surface.
+  even when the id is the first thing in it. *(This read: keep the generic real-build catalog companion
+  `packages/cli/src/node-build.test.ts` in lockstep so its exact buildable-capability catalog includes
+  `map-payload-cache`, calling that catalog assertion discoverability regression evidence. That is now
+  false: ADR-0341 D4 replaced the hand-maintained catalogue with one DERIVED from the specs on disk, so
+  authoring this spec IS the registration and there is no list to append to. The file stays in
+  `scope.testGlobs`/`real.scope.testGlobs` for the derivation test itself, which is unaffected. Corrected
+  in place per ADR-0139.)*
 
 ## Integration test
 

@@ -387,7 +387,7 @@ test("take (shared): the typed role rides through the upsert too", async () => {
   assert.ok(upsert?.text.includes("role = EXCLUDED.role"), "a re-take refreshes the role like the prose");
 });
 
-test("claim (REFUSED — the red→green): a different session's live claim → acquired:false, holder named, 'conflict-refused' event, NO write to node_claim", async () => {
+test("claim-contention-refuses-or-queues-naming-the-holder: claim (REFUSED — the red→green): a different session's live claim → acquired:false, holder named, 'conflict-refused' event, NO write to node_claim", async () => {
   const client = new FakeClaimClient();
   client.existingForUpdate = heldRow(); // session-A holds it, heartbeat = now (fresh)
   const res = await storeWith(client).claim(REQ_B, { now: NOW });
@@ -566,7 +566,7 @@ test("upgrade (slot free, prior exploring row): the session's row becomes the wo
   assert.ok(client.released);
 });
 
-test("upgrade (held by a LIVE other session): the session QUEUES → waiting upsert, 'queued' event, queued arm names the holder", async () => {
+test("claim-contention-refuses-or-queues-naming-the-holder: upgrade (held by a LIVE other session): the session QUEUES → waiting upsert, 'queued' event, queued arm names the holder", async () => {
   const client = new FakeClaimClient();
   client.ownRowForUpdate = heldRow({ session_id: "session-B", grade: "exploring", branch: "claude/b" });
   client.existingForUpdate = heldRow(); // session-A, heartbeat fresh
