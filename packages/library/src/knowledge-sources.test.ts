@@ -36,6 +36,43 @@ test("groups asset: refs by their category and doc: refs by decisions/ vs other"
   assert.deepEqual(docs?.items, [{ ref: "doc:open-questions.md", label: "open-questions.md" }]);
 });
 
+/**
+ * BOTH LIVE SPELLINGS GROUP THE SAME (ADR-0403 dec 7). This arm used to ask
+ * `rel.startsWith("decisions/")` — the bare spelling only — so a decision cited as
+ * `doc:docs/decisions/…` rendered under "Docs & references" as though it were a research note.
+ * The third assertion is what keeps the fix from over-reaching: `doc:` is the scheme for ANY
+ * repository file, and a pointer that is not a decision must still land under docs.
+ */
+test("BOTH live doc: spellings group under Decisions (ADRs); other doc: refs still do not", () => {
+  const groups = groupSources(
+    [
+      "doc:decisions/0007-proof-model.md",
+      "doc:docs/decisions/0403-adrs-into-the-dag.md",
+      "doc:research/decision-log-readers-census-2026-08-22.md",
+    ],
+    resolve,
+  );
+  const adrs = groups.find((g) => g.group === "Decisions (ADRs)");
+  assert.deepEqual(
+    adrs?.items,
+    [
+      { ref: "doc:decisions/0007-proof-model.md", label: "decisions/0007-proof-model.md" },
+      {
+        ref: "doc:docs/decisions/0403-adrs-into-the-dag.md",
+        label: "docs/decisions/0403-adrs-into-the-dag.md",
+      },
+    ],
+    "the spelling is reported in the label, never what decides the group",
+  );
+  const docs = groups.find((g) => g.group === "Docs & references");
+  assert.deepEqual(docs?.items, [
+    {
+      ref: "doc:research/decision-log-readers-census-2026-08-22.md",
+      label: "research/decision-log-readers-census-2026-08-22.md",
+    },
+  ]);
+});
+
 test("keeps reference order within a group", () => {
   const [adrs] = groupSources(
     ["doc:decisions/0008-ui.md", "doc:decisions/0001-stack.md"],

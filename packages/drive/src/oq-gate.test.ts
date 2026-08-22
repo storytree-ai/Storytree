@@ -70,12 +70,57 @@ function story(decisions: number[]): NodeSpec {
 }
 
 const REF_17 = "doc:decisions/0017-cross-cutting-knowledge-tier.md";
+/** The SAME decision, in the corpus's other live spelling (ADR-0403 dec 7). */
+const REF_17_REPO_RELATIVE = "doc:docs/decisions/0017-cross-cutting-knowledge-tier.md";
 
 // --- classifyOpenQuestions -----------------------------------------------------------------------
 
 test("an OQ with no reference to a deciding ADR is excluded", () => {
   const rows = classifyOpenQuestions([oq("a", ["doc:decisions/0013-x.md", "asset:b"])], [], [17]);
   assert.deepEqual(rows, []);
+});
+
+/**
+ * THE FAIL-OPEN REGRESSION GUARD (ADR-0403 dec 7). This gate used to carry its own
+ * `/^doc:decisions\/(\d{4})-/`, so an OQ authored with the repo-relative spelling was silently not
+ * pulled into the intersection: the gate reported a clean story while having checked less than it
+ * claimed. Both spellings must reach the SAME row, and the non-decision `doc:` must still be
+ * excluded — a test covering only the majority spelling reproduces the bug it exists to prevent.
+ */
+test("BOTH live doc: spellings pull the same OQ in, and a non-decision doc: pulls in nothing", () => {
+  const bare = classifyOpenQuestions([oq("a", [REF_17])], [], [17]);
+  const repoRelative = classifyOpenQuestions([oq("a", [REF_17_REPO_RELATIVE])], [], [17]);
+  assert.deepEqual(repoRelative, bare, "the spelling is not what decides whether the gate looks");
+  assert.deepEqual(repoRelative[0]?.adrs, [17]);
+
+  const notADecision = classifyOpenQuestions(
+    [oq("a", ["doc:research/decision-log-readers-census-2026-08-22.md", "doc:docs/glossary.md"])],
+    [],
+    [17],
+  );
+  assert.deepEqual(notADecision, [], "a `doc:` pointer at any other file is not a deciding ADR");
+});
+
+test("an OQ citing a deciding ADR repo-relatively is classified, not skipped", () => {
+  const rows = classifyOpenQuestions(
+    [oq("a", [REF_17_REPO_RELATIVE])],
+    [comment("a", "operator", false, "2026-06-12T01:00:00.000Z")],
+    [17],
+  );
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0]?.state, "unprocessed-answer");
+});
+
+test("live + an unprocessed answer on a repo-relatively-cited OQ still REFUSES", async () => {
+  const out = await oqHygieneGate(story([17]), true, {
+    load: () =>
+      Promise.resolve({
+        openQuestions: [oq("oq-x", [REF_17_REPO_RELATIVE])],
+        comments: [comment("oq-x", "operator", false, "2026-06-12T01:00:00.000Z")],
+      }),
+  });
+  assert.notEqual(out.refusal, null, "the gate must not fail open on the other live spelling");
+  assert.match(out.refusal!.body, /oq-x/);
 });
 
 test("no operator comment -> awaiting-answer", () => {
