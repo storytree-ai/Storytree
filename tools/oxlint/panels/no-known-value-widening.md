@@ -2,7 +2,7 @@
 
 `anti-slop-adoption-arc` increment **inc-08**. Adjudicated 2026-08-22.
 
-**The rule is ADOPTED. It is NOT yet terminal:** `off` still, with 102 of 518 firings remaining, and
+**The rule is ADOPTED. It is NOT yet terminal:** `off` still, with 129 of 518 firings remaining, and
 it reaches `error` only at zero. That is a migration in progress rather than an open question — the
 adjudication below is complete and the rule is not in doubt. What is left, and the one place a
 compliant shape was *not* found, is set out under "The residue is a shape, not a backlog".
@@ -243,16 +243,16 @@ they gave:
 
 ## The migration, and what the compiler said about the panel's answer
 
-**518 → 102.** Every step below was verified by `pnpm -r typecheck`, and the compiler is the arbiter
+**518 → 129.** Every step below was verified by `pnpm -r typecheck`, and the compiler is the arbiter
 throughout — the same method inc-03 used, and the reason two of the panel's shapes were refined
 rather than applied as stated.
 
 | Family | Before | After | Shape applied |
 |---|---:|---:|---|
-| anonymous object :: return value | 291 | **0** | 83 named `<Fn>Result`, 138 inference |
+| anonymous object :: return value | 291 | 25 | 83 named `<Fn>Result`, 138 inference — the 25 are the website-mirrored files, see the fence |
 | open dictionary :: return value | 63 | **0** | annotation dropped, `satisfies` at the return |
 | anonymous object :: binding | 16 | **0** | named interface (NOT `satisfies` — see below) |
-| open dictionary :: binding | 114 | 68 | 46 to `satisfies`; the rest is the residue |
+| open dictionary :: binding | 114 | 70 | 46 to `satisfies`; the rest is the residue |
 | the small tail (assertions, `unknown`, property) | 34 | 34 | untouched |
 
 ### Three corrections the compiler made to the panel's answer
@@ -317,3 +317,23 @@ the code writes to it with a computed key or reads it with one:
 
 - **OTHER — 3**, plus 34 in the small tail (9 `open dictionary :: assertion`, 9 `unknown :: return`,
   7 `anonymous object :: assertion`, 5 `unknown :: binding`, 2 property, 2 `object`).
+
+### The website-mirror fence — and the one class a local gate cannot see
+
+25 of the remaining firings sit in FIVE files under `packages/forest-world/src` and
+`packages/forest-world-r3f/src`. They were migrated with everything else; CI's `check:web-engine`
+refused the resulting drift, and the change was **reverted rather than pushed through**.
+
+That is a fence, not an oversight. The website vendors those two packages' `src/` wholesale
+(ADR-0093), so closing the drift means `pnpm sync:web-engine`, a PR on the separate `storytree-web`
+repo, and MERGING it — and that merge republishes the live site through its own `deploy.yml`.
+Publishing is an owner decision. The alternative "no-deploy" route (pin the parent at an unmerged web
+branch) works, but it re-strands a lineage an owner-authorised drain deliberately cleaned up on
+2026-08-17, so it is not a lane's to take unasked either.
+
+**Read this as the general lesson about the gate, not just about this lane.** `check:web-engine`
+declares SKIP without the `web/` submodule checked out, so a laptop `pnpm gate` reads
+**GREEN, NARROWED** and CI is the first honest verdict for anything touching those packages. This
+lane's gate was green at `scope: FULL (every package)` and still missed it. The summary naming its
+three skipped steps is exactly the qualification that mattered — a skip is UNVERIFIED, not passed,
+and this is what that costs when the skipped step was the relevant one.

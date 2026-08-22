@@ -633,7 +633,7 @@ function meanderSpline(
   others: readonly ResampledSeg[],
   seed: string,
   t: TrailTuning,
-) {
+): { points: Pt[]; d: string } {
   const pts: Pt[] = base.pts.map((p) => ({ x: p.x, y: p.y }));
   if (!hidden && pts.length > 2) {
     const s = base.cum;

@@ -185,15 +185,13 @@ export function smoothLoopPath(loop: Pt[]): string {
   return `${d} Z`;
 }
 
-export interface SmoothCoastResult { loops: Pt[][]; paths: string[] }
-
 /**
  * Turn a territory's raw hex-edge boundary loops into smooth organic coastlines:
  * outset a beach margin, Chaikin-round the corners, emit cusp-free `d` strings.
  * Returns the smoothed point loop(s) (for river docking / panel use) alongside
  * the paths.
  */
-export function smoothCoast(segs: BoundarySeg[], storyId: string): SmoothCoastResult {
+export function smoothCoast(segs: BoundarySeg[], storyId: string): { loops: Pt[][]; paths: string[] } {
   const loops = boundaryRingLoops(segs).map((l) =>
     chaikinClosed(
       outsetLoop(l, (i) => jitteredOutset(storyId, i, l.length)),

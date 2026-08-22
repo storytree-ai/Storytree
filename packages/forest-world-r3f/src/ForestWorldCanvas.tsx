@@ -126,12 +126,10 @@ export interface ForestWorldCanvasProps {
 
 /** Frame the whole world on load: the instance centroid is the MapControls target
  *  and the camera backs off proportionally to the world's spread. */
-interface WorldFraming {
+function frameWorld(instances: InstanceDescriptor[]): {
   target: [number, number, number];
   position: [number, number, number];
-}
-
-function frameWorld(instances: InstanceDescriptor[]): WorldFraming {
+} {
   if (instances.length === 0) return { target: [0, 0, 0], position: [0, 260, 260] };
   let sx = 0;
   let sz = 0;

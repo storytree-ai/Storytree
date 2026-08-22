@@ -95,7 +95,7 @@ export type Descriptor3D = InstanceDescriptor | SkippedDescriptor;
 
 /** Parse a `translate(x y)` string (the format buildScene emits for transforms).
  *  Returns { x: 0, y: 0 } when the string is absent or unrecognised. */
-function parseTranslate(t: string) {
+function parseTranslate(t: string): { x: number; y: number } {
   const m = /translate\(\s*([-\d.]+)\s+([-\d.]+)/.exec(t);
   if (!m) return { x: 0, y: 0 };
   return { x: parseFloat(m[1]!), y: parseFloat(m[2]!) };
@@ -117,7 +117,7 @@ function pathPoints(d: string): { x: number; y: number }[] {
 
 /** The mean of a point set — the exact centre of a regular polygon's vertices
  *  (the hex tile centre), the midpoint-ish anchor of a trail polyline. */
-function centroidOf(pts: { x: number; y: number }[]) {
+function centroidOf(pts: { x: number; y: number }[]): { x: number; y: number } {
   if (pts.length === 0) return { x: 0, y: 0 };
   let sx = 0;
   let sy = 0;

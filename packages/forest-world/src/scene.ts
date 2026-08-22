@@ -301,12 +301,6 @@ export interface SceneNodeBase {
 
 /** The wisp's three visual bands (ADR-0048 §3 v2) — the mapper's `band-red`/`band-green`/
  *  `band-building` class suffix. */
-/** What one shrub stamp yields: the ground y it settled at, and the marks it drew. */
-interface ShrubResult {
-  y: number;
-  marks: SceneNode[];
-}
-
 export type WispPhaseBand = 'red' | 'green' | 'building';
 
 /** The three ADR-0138 §5 subagent colour-states a story-CLAIM wisp wears — what the orchestrator is
@@ -1767,7 +1761,7 @@ function meadowSurface(
   tests: number,
   rand: () => number,
   unifiedVeg = false,
-) {
+): { ground: SceneNode[]; flora: ParcelFloraMark[] } {
   const ground = parcelGround(cells, status, rand);
   const flora: ParcelFloraMark[] = [];
   if (!cells.length) return { ground, flora };
@@ -1960,7 +1954,7 @@ function woodlandSurface(
   tests: number,
   rand: () => number,
   unifiedVeg = false,
-) {
+): { ground: SceneNode[]; flora: ParcelFloraMark[] } {
   const ground = parcelGround(cells, status, rand);
   const flora: ParcelFloraMark[] = [];
   if (!cells.length) return { ground, flora };
@@ -1986,7 +1980,7 @@ function woodlandSurface(
   const spot = driftSpot(cells, tests, rand);
 
   // mark: fern tuft — each blade a dark back-half (v1) under a narrower light front-half (v0).
-  const fern = (x: number, y: number) => {
+  const fern = (x: number, y: number): { y: number; marks: SceneNode[] } => {
     const s = 1.05 + rand() * 0.4;
     if (distressed) {
       const marks: SceneNode[] = [];
@@ -2020,8 +2014,8 @@ function woodlandSurface(
     return { y, marks };
   };
 
-    // mark: undershrub — side lump + main dome (dark v1) + upper-left highlight lobe (light v0).
-  const shrub = (x: number, y: number): ShrubResult => {
+  // mark: undershrub — side lump + main dome (dark v1) + upper-left highlight lobe (light v0).
+  const shrub = (x: number, y: number): { y: number; marks: SceneNode[] } => {
     const s = 0.85 + rand() * 0.35;
     if (distressed) {
       const marks: SceneNode[] = [];
@@ -2066,7 +2060,7 @@ function woodlandSurface(
   };
 
   // mark: sapling — trunk (parcel-stem v2) + crown facet pair on its OWN variants (dark v3 / light v2).
-  const sapling = (x: number, y: number) => {
+  const sapling = (x: number, y: number): { y: number; marks: SceneNode[] } => {
     const s = 0.8 + rand() * 0.3;
     if (distressed) {
       const marks: SceneNode[] = [];
@@ -2162,7 +2156,7 @@ function heathSurface(
   tests: number,
   rand: () => number,
   unifiedVeg = false,
-) {
+): { ground: SceneNode[]; flora: ParcelFloraMark[] } {
   const ground = parcelGround(cells, status, rand);
   const flora: ParcelFloraMark[] = [];
   const conf = heathConf(status);
@@ -2202,7 +2196,7 @@ function heathSurface(
   };
 
   // tier 1: long wiry moor-grass tufts (stroked blades, grassA dark v1 / grassB light v0 alternating).
-  const grassTuft = (x: number, y: number) => {
+  const grassTuft = (x: number, y: number): { y: number; marks: SceneNode[] } => {
     const s = conf.scale * (0.85 + rand() * 0.35);
     const n = 3 + Math.floor(rand() * 3);
     const marks: SceneNode[] = [];
@@ -2223,7 +2217,7 @@ function heathSurface(
 
   // tier 2: heather/gorse scrub mounds (density driver). A hero is a clump (companion + main mound);
   // distressed goes to bare wiry twigs + dead flecks.
-  const shrub = (x: number, y: number, hero: boolean): ShrubResult => {
+  const shrub = (x: number, y: number, hero: boolean): { y: number; marks: SceneNode[] } => {
     const s = conf.scale * (hero ? 1.05 + rand() * 0.25 : 0.75 + rand() * 0.28);
     const useAlt = conf.altShrubChance > 0 && rand() < conf.altShrubChance;
     const bodyV = useAlt ? 3 : 1;
@@ -2272,11 +2266,9 @@ function heathSurface(
     return { y: y + 3.0 * s, marks };
   };
 
-    interface BellClusterResult { y: number; marks: SceneNode[] }
-
-    // tier 3: heather-bell raceme — a stem (parcel-stem v0) up which bells (dark back v1/v5, light face
+  // tier 3: heather-bell raceme — a stem (parcel-stem v0) up which bells (dark back v1/v5, light face
   // v0/v4, tiny core v2) climb.
-  const bellCluster = (x: number, y: number): BellClusterResult => {
+  const bellCluster = (x: number, y: number): { y: number; marks: SceneNode[] } => {
     if (!conf.bellLight) return { y, marks: [] };
     const s = conf.scale * (1.0 + rand() * 0.3);
     const n = 3 + Math.floor(rand() * 3);
@@ -2331,11 +2323,11 @@ function heathSurface(
 /** THE SURFACE REGISTRY (ADR-0208) — the splice point: theme → its `SurfaceFn`. These are the
  *  designer-authored surfaces (meadow / woodland / heath), spliced over the initial in-repo ports
  *  behind the frozen seam (the `SurfaceFn` shape + the kinds vocabulary are frozen; the craft is not). */
-export const SURFACES = {
+export const SURFACES: Record<SurfaceTheme, SurfaceFn> = {
   meadow: meadowSurface,
   woodland: woodlandSurface,
   heath: heathSurface,
-} satisfies Record<SurfaceTheme, SurfaceFn>;
+};
 
 // --- Voronoi assignment + the once-computed per-territory surface ---
 
@@ -2422,12 +2414,12 @@ const GARDEN_DEFINED_HEROES: GardenHeroId[] = ['autumn-tree', 'cottage', 'gazebo
 
 /** A hero's on-island target HEIGHT in map units, as a multiple of the island's crown radius so it
  *  scales with the story like the procedural tree it stands beside. Tuned against the concept render. */
-const GARDEN_HERO_TARGET = {
+const GARDEN_HERO_TARGET: Record<GardenHeroId, number> = {
   'autumn-tree': 2.6, // the central tree — matches the ~2.65·R procedural tree it replaces (ADR-0221)
   cottage: 1.7,
   gazebo: 1.5,
   'stepping-stone': 0.28, // small flat path stones — enough of them read as a path, not a few slabs
-} satisfies Record<GardenHeroId, number>;
+};
 
 /** The island-size FIT bound (grounded-art inc 11 unit 2 — the owner's "buildings dont fully land within
  *  the island" fix). `crownRadius` saturates at 32 regardless of tile quota, so on a SMALL island the

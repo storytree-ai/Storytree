@@ -148,12 +148,13 @@ export default defineConfig({
     // excess-property checking silently disappears — that a mechanical fixer would get wrong.
     "anti-slop/no-conditional-empty-object-spread": "off",
     // ADJUDICATED AND ADOPTED (inc-08) — but still `off`, because it reaches `error` only at ZERO
-    // and 102 firings remain. This is a MIGRATION IN PROGRESS, not an open question: the rule is
+    // and 129 firings remain. This is a MIGRATION IN PROGRESS, not an open question: the rule is
     // agreed correct, and what is left is work rather than doubt. Record:
     // `tools/oxlint/panels/no-known-value-widening.md`.
     //
-    // 518 measured; 416 driven out. Both RETURN-position families are at zero, as is
-    // `anonymous object :: binding`. No rule panel was needed — a panel justifies a REJECTION, and
+    // 518 measured; 389 driven out. `anonymous object :: binding` is at zero, and so is every
+    // return-position site OUTSIDE the website-mirrored packages — see the fence below.
+    // No rule panel was needed — a panel justifies a REJECTION, and
     // the owner's narrowed bar admits only functionality loss or a genuine exceptional set, neither
     // of which describes "we prefer inline object return types". A REFACTOR panel settled the one
     // live fork (delete the annotation vs name the type) 3-0: NAME it, because with no build step
@@ -175,6 +176,16 @@ export default defineConfig({
     //     take unilaterally, and it must never be taken by quietly exploiting the classifier's
     //     interface/alias asymmetry.
     // Plus 34 in the small tail (assertions, `unknown` targets, one property).
+    //
+    // ⚠ A FENCE, NOT A BACKLOG ITEM: 25 of the remaining firings sit in the FIVE files under
+    // `packages/forest-world/src` and `packages/forest-world-r3f/src` that the website mirrors
+    // (ADR-0093). They were migrated, CI's `check:web-engine` correctly refused the drift, and the
+    // change was REVERTED rather than pushed through — because closing that drift means
+    // `pnpm sync:web-engine`, a PR on the separate `storytree-web` repo, and MERGING it, and that
+    // merge republishes the live site through its own `deploy.yml`. Publishing is the owner's call,
+    // not a lane's. Note this is also the one class a local gate cannot see: `check:web-engine`
+    // SKIPs without the `web/` submodule, so the laptop reads GREEN, NARROWED and CI is the first
+    // honest verdict. Whoever takes these does the cross-repo ceremony deliberately and asks first.
     "anti-slop/no-known-value-widening": "off",
     // 111 (0 / 111, 32 files) — entirely test files. inc-06, a test-architecture lane.
     "anti-slop/no-module-mocking": "off",
