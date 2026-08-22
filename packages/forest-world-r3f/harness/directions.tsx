@@ -276,7 +276,7 @@ function App() {
         </p>
       </header>
 
-      <section>
+      <section data-st-panel="choice">
         <h2>1 &mdash; the choice, side by side</h2>
         <p className="lede">
           The five directions and the island as it ships today, all whole, all at delivered size.
@@ -294,7 +294,7 @@ function App() {
         </div>
       </section>
 
-      <section>
+      <section data-st-panel="today">
         <h2>2 &mdash; where we start: the island as it ships</h2>
         <p className="lede">
           The control, and the thing you rejected. Flat pale ground, a rim the same green as the
@@ -308,7 +308,7 @@ function App() {
         </div>
       </section>
 
-      <section>
+      <section data-st-panel="walled">
         <h2>3 &mdash; A: THE WALLED GARDEN</h2>
         <p className="lede">
           Your well-garden reference, translated to our island rather than copied from it. A
@@ -352,7 +352,7 @@ function App() {
         </div>
       </section>
 
-      <section>
+      <section data-st-panel="hamlet">
         <h2>4 &mdash; B: THE HAMLET</h2>
         <p className="lede">
           A place people live. Three cottages on three different parcels, gravel paths worn
@@ -395,7 +395,7 @@ function App() {
         </div>
       </section>
 
-      <section>
+      <section data-st-panel="terrace">
         <h2>5 &mdash; C: THE TERRACES</h2>
         <p className="lede">
           Worked ground. The island&rsquo;s own capability boundaries become low retaining walls,
@@ -434,7 +434,7 @@ function App() {
         </div>
       </section>
 
-      <section>
+      <section data-st-panel="shrine">
         <h2>6 &mdash; D: THE SHRINE COURT</h2>
         <p className="lede">
           A monument, approached. A raised stone platform carries a timber pavilion; stepping
@@ -482,7 +482,7 @@ function App() {
         </div>
       </section>
 
-      <section>
+      <section data-st-panel="wild">
         <h2>7 &mdash; E: THE WILD SHORE</h2>
         <p className="lede">
           Nothing built. A sand shore rounding the coast, rock outcrops, a stone-rimmed pool, a

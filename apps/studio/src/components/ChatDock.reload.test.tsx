@@ -32,16 +32,27 @@ type ChatEvent =
   | { type: 'refused'; reason: string }
   | { type: 'spawn'; phase: 'started' | 'finished'; role: string; unitId: string; ok?: boolean };
 
-// Mock the api streaming seam so we can script the spawn frames the panel/dock observe.
-const apiMock = vi.hoisted(() => ({
-  chatStream: vi.fn<(intent: string, onEvent: (event: ChatEvent) => void) => Promise<void>>(),
-}));
-vi.mock('../api', () => ({ api: apiMock }));
+import { HttpDouble, installHttpDouble, sseReply } from '../test/httpDouble';
+
+// The TRANSPORT is doubled rather than the `../api` module (anti-slop-adoption-arc inc-06,
+// `no-module-mocking`): the spawn frames below are scripted as the SSE bytes the route actually
+// emits, so the panel observes frames it PARSED rather than frames it was handed.
+const CHAT = '/api/chat';
+
+let http: HttpDouble;
+
+/** Script the SSE frames `POST /api/chat` streams back, in order. */
+const scriptChat = (...frames: ChatEvent[]): void => {
+  http.post(CHAT, () => sseReply(frames));
+};
 
 import { ChatDock } from './ChatDock';
 
-/** Flush the async chain a submit/timer kicked off. */
-const flush = (): Promise<void> => act(async () => {});
+/** Flush the async chain a submit/timer kicked off — including the streamed response body. */
+const flush = (): Promise<void> =>
+  act(async () => {
+    await vi.advanceTimersByTimeAsync(0);
+  });
 
 /** Expand the dock (folded by default) and submit an intent so the scripted stream runs. */
 function expandAndSubmit(intent: string): void {
@@ -64,22 +75,23 @@ function importsModule(src: string, mod: string): boolean {
 
 beforeEach(() => {
   vi.useFakeTimers();
-  apiMock.chatStream.mockReset();
+  http = installHttpDouble();
 });
 
 afterEach(() => {
   cleanup();
+  http.uninstall();
   vi.useRealTimers();
 });
 
 describe('ChatDock — live story island refresh (live-story-island-refresh)', () => {
   // ── lsr-story-author-finish-triggers-reload ─────────────────────────────────
   it('lsr-story-author-finish-triggers-reload: a story-author phase:"finished" frame fires the injected reloadTree callback EXACTLY once', async () => {
-    apiMock.chatStream.mockImplementation(async (_intent, onEvent) => {
-      onEvent({ type: 'spawn', phase: 'started', role: 'story-author', unitId: 'fresh-story' });
-      onEvent({ type: 'spawn', phase: 'finished', role: 'story-author', unitId: 'fresh-story' });
-      onEvent({ type: 'done', proposal: 'authored a story', turns: 1 });
-    });
+    scriptChat(
+      { type: 'spawn', phase: 'started', role: 'story-author', unitId: 'fresh-story' },
+      { type: 'spawn', phase: 'finished', role: 'story-author', unitId: 'fresh-story' },
+      { type: 'done', proposal: 'authored a story', turns: 1 },
+    );
 
     const spy = vi.fn();
     render(<ChatDock onReloadTree={spy} />);
@@ -92,14 +104,14 @@ describe('ChatDock — live story island refresh (live-story-island-refresh)', (
 
   // ── lsr-no-reload-on-builder-or-started ─────────────────────────────────────
   it('lsr-no-reload-on-builder-or-started: a builder finish and a started frame do NOT fire reloadTree — the reload is earned only by a real tree change', async () => {
-    apiMock.chatStream.mockImplementation(async (_intent, onEvent) => {
+    scriptChat(
       // A story-author STARTED frame — nothing authored yet.
-      onEvent({ type: 'spawn', phase: 'started', role: 'story-author', unitId: 'not-yet' });
+      { type: 'spawn', phase: 'started', role: 'story-author', unitId: 'not-yet' },
       // A BUILDER finish — it drove an existing node, authored no new story.
-      onEvent({ type: 'spawn', phase: 'started', role: 'builder', unitId: 'some-cap' });
-      onEvent({ type: 'spawn', phase: 'finished', role: 'builder', unitId: 'some-cap' });
-      onEvent({ type: 'done', proposal: 'built the cap', turns: 1 });
-    });
+      { type: 'spawn', phase: 'started', role: 'builder', unitId: 'some-cap' },
+      { type: 'spawn', phase: 'finished', role: 'builder', unitId: 'some-cap' },
+      { type: 'done', proposal: 'built the cap', turns: 1 },
+    );
 
     const spy = vi.fn();
     render(<ChatDock onReloadTree={spy} />);
@@ -123,7 +135,7 @@ describe('ChatDock — live story island refresh (live-story-island-refresh)', (
 
     // And behaviourally: rendering the dock WITHOUT the prop does not throw — the prop is optional, a
     // plain callback the parent (TreeView) injects. (No stream is scripted here, so no reload fires.)
-    apiMock.chatStream.mockResolvedValue(undefined);
+    scriptChat();
     expect(() => render(<ChatDock />)).not.toThrow();
   });
 });

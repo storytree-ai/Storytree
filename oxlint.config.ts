@@ -67,6 +67,37 @@ export default defineConfig({
     // the same object. See the increment for the full harvest. TESTS ARE ON THE LAXER BAR — see the
     // `overrides` block at the bottom of this file.
     "anti-slop/no-chained-type-assertions": "error",
+    // ADOPTED BY MIGRATION — anti-slop-adoption-arc inc-06 drove 110 sites across 31 files to ZERO.
+    // Every one was a test file; production source never had any.
+    //
+    // THE RULE'S ARGUMENT WAS ALREADY THIS REPO'S ARGUMENT EVERYWHERE ELSE, and the migration bore
+    // that out: `storage-protocol` exists precisely so a caller can be handed `InMemoryStore`
+    // instead of `PgLibraryStore`, and the studio's 110 module mocks were the same problem solved
+    // the other way — by rewriting the module system at runtime instead of admitting a seam. Most
+    // of them turned out to need no new seam at all: `AppDataContext` and the platform `fetch` were
+    // already there, unused by the tests that were mocking around them.
+    //
+    // FOUR SEAMS WERE ADDED, each a narrow value + context + REAL DEFAULT, so no production caller
+    // passes anything: `DiagramRenderer` (lib/diagram.ts), `TerminalToolkit`
+    // (lib/terminalToolkit.ts), and `StudioSurfaces` + `Act2Choreography` (components/TreeView.tsx).
+    // Two components gained ordinary slot props (`App.surfaces`, `BottomDock.panes`,
+    // `TerminalRepoGate.renderDock`) beside the injection those files already used.
+    //
+    // WHAT IT CAUGHT (end-state FOUR evidence, harvested from the migration itself):
+    //   1. ChatPanel.spawn.test.tsx exists to prove `isChatEvent` accepts a `spawn` frame. Under
+    //      the mock the guard NEVER RAN — the file said so in its own header and fell back to
+    //      grepping api.ts for the string. Deleting the clause left every render test GREEN; it now
+    //      turns all five RED.
+    //   2. TreeViewShell's "the tree was read" assertion was VACUOUS after its first test: one
+    //      un-reset `vi.fn()` for the whole file.
+    //   3. `api.arcs()` retries three times with a backoff. Every "the read failed" case in
+    //      arcRollups.test.ts described a one-shot client that does not exist.
+    //   4. Mocking `@storytree/app-surface` for its one un-renderable component took four PURE
+    //      functions down with it, so the map's presentation model was never computed under test.
+    //   5. Partial `useAppData` / `me` mocks let components read fields the tests never supplied.
+    //   6. The real TreeView fetches `/art-sheets/…`, which no suite knew about until a fail-closed
+    //      transport double refused it.
+    "anti-slop/no-module-mocking": "error",
     "anti-slop/no-object-parameters": "error",
     "anti-slop/no-reflect-apply": "error",
     "anti-slop/no-reflect-get": "error",
@@ -88,16 +119,64 @@ export default defineConfig({
     // panel; anyone wanting to revisit it takes it to a panel like every other rule.
     "anti-slop/require-safety-comment-for-type-assertion": "off",
 
+    // REJECTED BY A JUDGE PANEL, 2026-08-22 (anti-slop-adoption-arc inc-04). Five blind judges,
+    // five REJECT verdicts, all at high confidence, no dissent on the verdict. Full record with
+    // every judge's reasoning: `tools/oxlint/panels/no-unsafe-dictionary-type.md`.
+    //
+    // THE GROUND IS FUNCTIONALITY LOSS, which is one of the two the arc admits — not volume, and
+    // the judges were never told the count. `Record<string, unknown>` is the only expressible
+    // return type of a plain-object type guard, and this codebase has one:
+    // `isPlainObject(value: unknown): value is Record<string, unknown>`
+    // (`packages/context-traversal-transcript/src/correlate-transcripts.ts:67`). Under the rule
+    // that predicate cannot be written at all — any narrower value type would be an unproven claim
+    // made by the function whose whole job is to avoid unproven claims. Three judges reached that
+    // site independently and called it decisive on its own.
+    //
+    // The same holds structurally at the seam this arc predicted would carry the argument:
+    // `storage-protocol` persists documents WITHOUT knowing their shapes, and readers `.safeParse()`
+    // on the far side (ADR-0068 §3). A store that declared a value type would not be that seam, and
+    // `store-parity.ts` — the suite every backend is held to — could not be written.
+    //
+    // AND THE RULE'S OWN REMEDY IS CIRCULAR HERE. It says to "parse external payloads into that type
+    // before putting them in the dictionary", but every flagged site IS the parse: an HTTP body
+    // reader shared across routes with different schemas, a foreign CLI's JSON event stream, a
+    // third-party `settings.json`. You cannot parse a value you have not yet given a type to, and
+    // `unknown` is the only honest one. The rule also lumps `unknown` with `any`, which inverts the
+    // safety ordering it is reaching for: `any` erases checking, `unknown` FORCES it, and under this
+    // repo's `noUncheckedIndexedAccess` every read out of such a dictionary is already narrowed
+    // before use. Banning it pushes authors toward `any` or toward a fabricated value type asserted
+    // over unvalidated input — which is the harm `no-chained-type-assertions` exists to catch.
+    //
+    // ⚠ DO NOT "FIX" THIS BY NARROWING IT TO `any`/`object`/`{}` AND TURNING IT ON. That was built
+    // and reverted in this increment. All 613 findings carry the `unknown` tag — zero `any`, zero
+    // `object`, zero `{}` — so the narrowed rule fires on NOTHING here, and three judges named that
+    // move unprompted and refused it: it would be a different rule adopted on no evidence, passing
+    // under this panel's authority. A ban on `Record<string, any>` may well be right, and several
+    // judges said they would support one; it needs its own proposal and its own evidence.
+    "anti-slop/no-unsafe-dictionary-type": "off",
+
     // ---------------------------------------------------------------------------------------
     // NOT YET ADJUDICATED — off, not "warn", deliberately. A wall of warnings nobody must clear
     // trains sessions to ignore the linter, which is the precise habit this adoption exists to
     // avoid. Each rule leaves "off" via its own increment on the arc, carrying either a zero
     // count or a panel-backed reason. Counts below are from this increment's inventory.
     // ---------------------------------------------------------------------------------------
-    // 646 (564 / 82, 168 files) — COLLIDES WITH A DELIBERATE COMPILER SETTING. `...(x !== undefined
-    // ? { x } : {})` is the idiom `exactOptionalPropertyTypes: true` (tsconfig.base.json) forces on
-    // us for conditionally-present optional properties. This is the clearest "our codebase fights
-    // the rule" case in the set and goes to the arc's REFACTOR panel, not the rule panel.
+    // 646 (564 / 82, 168 files); re-measured 654 at HEAD 2026-08-22. Still `off`, but the reason
+    // this comment used to give is WRONG and is corrected here rather than carried forward.
+    //
+    // It said the rule COLLIDES with `exactOptionalPropertyTypes` — that
+    // `...(x !== undefined ? { x } : {})` is the idiom that setting forces on us. A three-judge
+    // REFACTOR panel put it to the test on 2026-08-22 and returned `refactor-found` 3-0: a
+    // compliant shape exists for every sampled site and typechecks under EOPT, because EOPT
+    // forbids ASSIGNING `undefined`, and a guarded assignment has already narrowed the value to a
+    // defined type before it runs. So there is no collision — an annotated local plus one guarded
+    // assignment per optional property satisfies both.
+    //
+    // The lane is `inc-05`, and it is expected to ADOPT AND REFACTOR rather than adjudicate. Read
+    // `tools/oxlint/panels/no-conditional-empty-object-spread.md` first: the panel named five costs,
+    // two of which would manufacture a `no-chained-type-assertions` violation if the migration takes
+    // the obvious shortcut, and one — the hoisted local MUST carry an explicit type annotation, or
+    // excess-property checking silently disappears — that a mechanical fixer would get wrong.
     "anti-slop/no-conditional-empty-object-spread": "off",
     // 513 (312 source / 201 test, 253 files) — RE-SORTED OUT OF inc-03 AND CONTESTED, on that lane's
     // own instruction to remove a rule that turns out not to be cheap rather than let the lane sprawl.
@@ -112,8 +191,6 @@ export default defineConfig({
     // rule is that a disagreement goes to the RULE PANEL and never to one session's preference. Its
     // own lane; see the arc.
     "anti-slop/no-known-value-widening": "off",
-    // 111 (0 / 111, 32 files) — entirely test files. inc-06, a test-architecture lane.
-    "anti-slop/no-module-mocking": "off",
     // 727 (585 / 142, 221 files) — the rules cannot see types, so this flags EVERY `typeof`
     // expression: environment guards and validator internals fire identically to lazy narrowing.
     // Ships an `allowInTypeGuards` option (default false). inc-05.
@@ -126,9 +203,6 @@ export default defineConfig({
     "anti-slop/no-unknown-parameters": "off",
     // 40 (15 / 25, 31 files) — the smallest contested rule. inc-05.
     "anti-slop/no-unknown-returns": "off",
-    // 612 (345 / 267, 157 files) — the store seam's document values are genuinely unknown until
-    // parsed, which is the seam's whole point. inc-04, where the judge panels get built.
-    "anti-slop/no-unsafe-dictionary-type": "off",
   },
   overrides: [
     {

@@ -18,32 +18,51 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 
-const apiMock = vi.hoisted(() => ({
-  me: vi.fn(),
-  listDocs: vi.fn(),
-  listAssets: vi.fn(),
-  listComments: vi.fn(),
-  tree: vi.fn(),
-  health: vi.fn(),
-  activity: vi.fn(),
-  dbStatus: vi.fn(),
-  dbStart: vi.fn(),
-  dbWake: vi.fn(),
-}));
-
-vi.mock('./api', () => ({ api: apiMock }));
-vi.mock('./lib/devStoreOverride', () => ({ useDevStoreOverride: () => null }));
-vi.mock('./lib/desktopAuth', () => ({ getDesktopAuth: () => undefined }));
 // Non-participating global chrome only — never TreeView, never StoreBanner (it owns the single
 // /api/health poll the server-code-stamp guard rides), never lib/poll (TreeView's own now-ticker).
-vi.mock('./components/Sidebar', () => ({ Sidebar: () => null }));
-vi.mock('./components/Hud', () => ({ Hud: () => null }));
-vi.mock('./components/DocView', () => ({ DocView: () => null }));
-vi.mock('./components/AssetView', () => ({ AssetView: () => null }));
-vi.mock('./components/AssetEditor', () => ({ AssetEditor: () => null }));
-vi.mock('./components/MembersPanel', () => ({ MembersPanel: () => null }));
 
-import { App } from './App';
+import { App, type AppSurfaces } from './App';
+import { api } from './api';
+
+import { HttpDouble, errorReply, installHttpDouble } from './test/httpDouble';
+
+// THE TRANSPORT IS DOUBLED AND THE SURFACES ARE HANDED IN (anti-slop-adoption-arc inc-06,
+// `no-module-mocking`). The real `api` client runs — it builds every URL below and parses every
+// payload — and the child components arrive through `App`'s own `surfaces` slot, whose defaults
+// are the real ones. Two module mocks were dropped outright rather than replaced, because the REAL
+// modules already answer what the mocks asserted: `useDevStoreOverride()` returns null with no
+// `?devLoadState` in the URL, and `getDesktopAuth()` returns undefined with no `window.desktopAuth`.
+const ME = '/api/me';
+const DOCS = '/api/docs';
+const ASSETS = '/api/assets';
+const COMMENTS = '/api/comments';
+const TREE = '/api/tree';
+const HEALTH = '/api/health';
+const ACTIVITY = '/api/activity';
+const DB_STATUS = '/api/db/status';
+const DB_START = '/api/db/start';
+const DB_WAKE = '/api/db/wake';
+
+// The map's optional art-style sheet. NOT an api route, and NOT what any suite here is about — but
+// the real `TreeView` asks for it, and the double fails closed, so it has to be DECLARED rather
+// than left to surface as an unrouted-request refusal. It answers 404, which is the studio's
+// tolerated case: "art-style sheet failed to load; keeping the current render". Under module
+// mocking this fetch went out to jsdom and nothing in the suite ever knew it existed.
+const ART_SHEET = '/art-sheets/storybook/manifest.json';
+
+let http: HttpDouble;
+
+// Non-participating global chrome only — never TreeView, never StoreBanner (it owns the single
+// /api/health poll the server-code-stamp guard rides), never lib/poll (TreeView's own now-ticker).
+const SURFACES: AppSurfaces = {
+  Sidebar: () => null,
+  Hud: () => null,
+  DocView: () => null,
+  AssetView: () => null,
+  AssetEditor: () => null,
+  MembersPanel: () => null,
+};
+
 import type {
   ActivityPayload,
   ClaimActivity,
@@ -176,14 +195,14 @@ function baseHealth(head: string): StoreHealth {
 /** Fast, non-deferred defaults for everything EXCEPT `tree`/`listDocs`, which each scenario below
  *  configures itself (deferred or immediate, per the contract under test). */
 function armFastDefaults(head = 'HEAD-A'): void {
-  apiMock.me.mockResolvedValue(MEMBER);
-  apiMock.listAssets.mockResolvedValue([]);
-  apiMock.listComments.mockResolvedValue([]);
-  apiMock.activity.mockResolvedValue({ builds: [], claims: [], departures: [] } satisfies ActivityPayload);
-  apiMock.health.mockResolvedValue(baseHealth(head));
-  apiMock.dbStatus.mockResolvedValue({ state: 'RUNNABLE', activationPolicy: 'ALWAYS' });
-  apiMock.dbStart.mockResolvedValue({ ok: true });
-  apiMock.dbWake.mockResolvedValue({ ok: true });
+  http.get(ME, () => MEMBER);
+  http.get(ASSETS, () => []);
+  http.get(COMMENTS, () => []);
+  http.get(ACTIVITY, () => ({ builds: [], claims: [], departures: [] } satisfies ActivityPayload));
+  http.get(HEALTH, () => baseHealth(head));
+  http.get(DB_STATUS, () => ({ state: 'RUNNABLE', activationPolicy: 'ALWAYS' }));
+  http.post(DB_START, () => ({ ok: true }));
+  http.post(DB_WAKE, () => ({ ok: true }));
 }
 
 function localStorageKeys(): string[] {
@@ -229,12 +248,12 @@ async function runColdBootAndCaptureEntry(scenario: {
 }): Promise<{ key: string; raw: string }> {
   window.localStorage.clear();
   armFastDefaults(scenario.head ?? 'HEAD-A');
-  apiMock.tree.mockResolvedValue(
+  http.get(TREE, () => 
     makeTreePayload(scenario.storyIds, { builds: scenario.builds, claims: scenario.claims }),
   );
-  apiMock.listDocs.mockResolvedValue(makeDocs(scenario.docIds));
+  http.get(DOCS, () => makeDocs(scenario.docIds));
 
-  render(<App />);
+  render(<App surfaces={SURFACES} />);
   await waitFor(() => {
     expectTerritories(scenario.storyIds);
   });
@@ -288,22 +307,25 @@ function scopedThrowingStorage(
 
 beforeEach(() => {
   window.localStorage.clear();
+  http = installHttpDouble();
+  http.get(ART_SHEET, () => new Response('', { status: 404 }));
 });
 
 afterEach(() => {
   cleanup();
+  http.uninstall();
   window.localStorage.clear();
 });
 
 describe('map-payload-cache', () => {
   it('map-payload-cache-persists-only-read-only-payloads: a completed cold boot writes one entry holding the tree+docs payloads only, never the mutable asset/comment reads', async () => {
     armFastDefaults();
-    apiMock.tree.mockResolvedValue(makeTreePayload(['alpha']));
-    apiMock.listDocs.mockResolvedValue(makeDocs(['doc-a']));
-    apiMock.listAssets.mockResolvedValue(sentinelAssets());
-    apiMock.listComments.mockResolvedValue(sentinelComments());
+    http.get(TREE, () => makeTreePayload(['alpha']));
+    http.get(DOCS, () => makeDocs(['doc-a']));
+    http.get(ASSETS, () => sentinelAssets());
+    http.get(COMMENTS, () => sentinelComments());
 
-    render(<App />);
+    render(<App surfaces={SURFACES} />);
 
     await waitFor(() => {
       expectTerritories(['alpha']);
@@ -328,19 +350,19 @@ describe('map-payload-cache', () => {
     armFastDefaults();
     const treeDeferred = deferred<TreePayload>();
     const docsDeferred = deferred<DocMeta[]>();
-    apiMock.tree.mockClear();
-    apiMock.listDocs.mockClear();
-    apiMock.tree.mockImplementation(() => treeDeferred.promise);
-    apiMock.listDocs.mockImplementation(() => docsDeferred.promise);
+    http.clearRequests(TREE);
+    http.clearRequests(DOCS);
+    http.get(TREE, () => treeDeferred.promise);
+    http.get(DOCS, () => docsDeferred.promise);
 
-    render(<App />);
+    render(<App surfaces={SURFACES} />);
 
     await waitFor(() => {
       expectTerritories(['alpha', 'beta']);
     });
     expect(isShowingGrowingWorld()).toBe(false);
-    expect(apiMock.tree).toHaveBeenCalled();
-    expect(apiMock.listDocs).toHaveBeenCalled();
+    expect(http.countTo(TREE)).toBeGreaterThan(0);
+    expect(http.countTo(DOCS)).toBeGreaterThan(0);
 
     await act(async () => {
       treeDeferred.resolve(makeTreePayload(['alpha', 'gamma']));
@@ -366,11 +388,11 @@ describe('map-payload-cache', () => {
     const treeDeferred = deferred<TreePayload>();
     const docsDeferred = deferred<DocMeta[]>();
     const activityDeferred = deferred<ActivityPayload>();
-    apiMock.tree.mockImplementation(() => treeDeferred.promise);
-    apiMock.listDocs.mockImplementation(() => docsDeferred.promise);
-    apiMock.activity.mockImplementation(() => activityDeferred.promise);
+    http.get(TREE, () => treeDeferred.promise);
+    http.get(DOCS, () => docsDeferred.promise);
+    http.get(ACTIVITY, () => activityDeferred.promise);
 
-    render(<App />);
+    render(<App surfaces={SURFACES} />);
     await waitFor(() => {
       expectTerritories(['alpha']);
     });
@@ -398,10 +420,10 @@ describe('map-payload-cache', () => {
     armFastDefaults();
     let treeDeferred = deferred<TreePayload>();
     let docsDeferred = deferred<DocMeta[]>();
-    apiMock.tree.mockImplementation(() => treeDeferred.promise);
-    apiMock.listDocs.mockImplementation(() => docsDeferred.promise);
+    http.get(TREE, () => treeDeferred.promise);
+    http.get(DOCS, () => docsDeferred.promise);
 
-    const successRun = render(<App />);
+    const successRun = render(<App surfaces={SURFACES} />);
     await waitFor(() => {
       expectTerritories(['alpha']);
     });
@@ -425,10 +447,10 @@ describe('map-payload-cache', () => {
     armFastDefaults();
     treeDeferred = deferred<TreePayload>();
     docsDeferred = deferred<DocMeta[]>();
-    apiMock.tree.mockImplementation(() => treeDeferred.promise);
-    apiMock.listDocs.mockImplementation(() => docsDeferred.promise);
+    http.get(TREE, () => treeDeferred.promise);
+    http.get(DOCS, () => docsDeferred.promise);
 
-    render(<App />);
+    render(<App surfaces={SURFACES} />);
     await waitFor(() => {
       expectTerritories(['alpha']);
     });
@@ -461,10 +483,10 @@ describe('map-payload-cache', () => {
     armFastDefaults();
     let treeDeferred = deferred<TreePayload>();
     let docsDeferred = deferred<DocMeta[]>();
-    apiMock.tree.mockImplementation(() => treeDeferred.promise);
-    apiMock.listDocs.mockImplementation(() => docsDeferred.promise);
+    http.get(TREE, () => treeDeferred.promise);
+    http.get(DOCS, () => docsDeferred.promise);
 
-    const foreignRun = render(<App />);
+    const foreignRun = render(<App surfaces={SURFACES} />);
     await screen.findByTestId('tree-route');
     expect(isShowingGrowingWorld()).toBe(true);
     expectTerritories([]);
@@ -485,10 +507,10 @@ describe('map-payload-cache', () => {
     armFastDefaults();
     treeDeferred = deferred<TreePayload>();
     docsDeferred = deferred<DocMeta[]>();
-    apiMock.tree.mockImplementation(() => treeDeferred.promise);
-    apiMock.listDocs.mockImplementation(() => docsDeferred.promise);
+    http.get(TREE, () => treeDeferred.promise);
+    http.get(DOCS, () => docsDeferred.promise);
 
-    render(<App />);
+    render(<App surfaces={SURFACES} />);
     await screen.findByTestId('tree-route');
     expect(isShowingGrowingWorld()).toBe(true);
     expectTerritories([]);
@@ -507,11 +529,11 @@ describe('map-payload-cache', () => {
 
     // Boot #2: health now reports a DIFFERENT code.head — must evict the stale entry.
     armFastDefaults('HEAD-B');
-    apiMock.tree.mockResolvedValue(makeTreePayload(['alpha']));
-    apiMock.listDocs.mockResolvedValue(makeDocs(['doc-a']));
-    const evictRun = render(<App />);
+    http.get(TREE, () => makeTreePayload(['alpha']));
+    http.get(DOCS, () => makeDocs(['doc-a']));
+    const evictRun = render(<App surfaces={SURFACES} />);
     await waitFor(() => {
-      expect(apiMock.health).toHaveBeenCalled();
+      expect(http.countTo(HEALTH)).toBeGreaterThan(0);
     });
     await waitFor(() => {
       expectTerritories(['alpha']);
@@ -524,10 +546,10 @@ describe('map-payload-cache', () => {
     armFastDefaults('HEAD-B');
     const treeDeferred = deferred<TreePayload>();
     const docsDeferred = deferred<DocMeta[]>();
-    apiMock.tree.mockImplementation(() => treeDeferred.promise);
-    apiMock.listDocs.mockImplementation(() => docsDeferred.promise);
+    http.get(TREE, () => treeDeferred.promise);
+    http.get(DOCS, () => docsDeferred.promise);
 
-    render(<App />);
+    render(<App surfaces={SURFACES} />);
     await screen.findByTestId('tree-route');
     expect(isShowingGrowingWorld()).toBe(true);
     expectTerritories([]);
@@ -549,16 +571,16 @@ describe('map-payload-cache', () => {
     // (e.g. the existing panel-width / arc-display preferences) keeps working normally.
     let restore = scopedThrowingStorage(primed.key, { get: true, set: true });
     armFastDefaults();
-    apiMock.tree.mockResolvedValue(makeTreePayload(['alpha']));
-    apiMock.listDocs.mockResolvedValue(makeDocs(['doc-a']));
-    apiMock.tree.mockClear();
-    apiMock.listDocs.mockClear();
-    const runA = render(<App />);
+    http.get(TREE, () => makeTreePayload(['alpha']));
+    http.get(DOCS, () => makeDocs(['doc-a']));
+    http.clearRequests(TREE);
+    http.clearRequests(DOCS);
+    const runA = render(<App surfaces={SURFACES} />);
     await waitFor(() => {
       expectTerritories(['alpha']);
     });
-    expect(apiMock.tree).toHaveBeenCalled();
-    expect(apiMock.listDocs).toHaveBeenCalled();
+    expect(http.countTo(TREE)).toBeGreaterThan(0);
+    expect(http.countTo(DOCS)).toBeGreaterThan(0);
     runA.unmount();
     cleanup();
     restore();
@@ -569,9 +591,9 @@ describe('map-payload-cache', () => {
       setError: new DOMException('quota exceeded', 'QuotaExceededError'),
     });
     armFastDefaults();
-    apiMock.tree.mockResolvedValue(makeTreePayload(['alpha']));
-    apiMock.listDocs.mockResolvedValue(makeDocs(['doc-a']));
-    const runB = render(<App />);
+    http.get(TREE, () => makeTreePayload(['alpha']));
+    http.get(DOCS, () => makeDocs(['doc-a']));
+    const runB = render(<App surfaces={SURFACES} />);
     await waitFor(() => {
       expectTerritories(['alpha']);
     });
@@ -582,9 +604,9 @@ describe('map-payload-cache', () => {
     // (c) an unparseable entry already on disk, at the cache's own key.
     window.localStorage.setItem(primed.key, 'not json{{{');
     armFastDefaults();
-    apiMock.tree.mockResolvedValue(makeTreePayload(['alpha']));
-    apiMock.listDocs.mockResolvedValue(makeDocs(['doc-a']));
-    const runC = render(<App />);
+    http.get(TREE, () => makeTreePayload(['alpha']));
+    http.get(DOCS, () => makeDocs(['doc-a']));
+    const runC = render(<App surfaces={SURFACES} />);
     await waitFor(() => {
       expectTerritories(['alpha']);
     });

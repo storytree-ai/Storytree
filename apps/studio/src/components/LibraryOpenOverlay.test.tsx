@@ -23,27 +23,30 @@
 // doc selection can be exercised without a real fetch. No real fetch/socket/DB/Electron beyond the
 // stubbed docContent.
 
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import { LibraryOpenOverlay } from './LibraryOpenOverlay';
 import { AppDataContext, type AppData } from '../lib/appData';
 import type { SearchResult } from '../lib/librarySearch';
 import type { GuidanceAsset, DocMeta } from '../types';
 
-const docContentMock = vi.hoisted(() => vi.fn());
-vi.mock('../api', () => ({
-  api: {
-    docContent: docContentMock,
-    deleteAsset: vi.fn(),
-    updateAsset: vi.fn(),
-  },
-}));
+import { HttpDouble, errorReply, installHttpDouble } from '../test/httpDouble';
+import { DiagramRendererContext } from '../lib/diagram';
+import { diagramDouble, type DiagramDouble } from '../test/diagramDouble';
 
-const mermaidMock = vi.hoisted(() => ({
-  initialize: vi.fn(),
-  render: vi.fn(async (_id: string, chart: string) => ({ svg: `<svg>${chart}</svg>` })),
-}));
-vi.mock('mermaid', () => ({ default: mermaidMock }));
+// The TRANSPORT and the DIAGRAM ENGINE are substituted at their own seams rather than by rewriting
+// modules (anti-slop-adoption-arc inc-06, `no-module-mocking`): the real `api.docContent` builds and
+// encodes the URL below, and the diagram engine is the component's own `DiagramRenderer` seam
+// (lib/diagram.ts). The double fails closed, so a surface that started fetching something else
+// goes red instead of quietly receiving `undefined`.
+const DOC_CONTENT = '/api/docs/content';
+
+let http: HttpDouble;
+let diagrams: DiagramDouble;
+
+/** The doc ids the surface actually asked the server for, oldest first. */
+const requestedDocIds = (): Array<string | null> =>
+  http.requestsTo(DOC_CONTENT).map((request) => request.query.get('id'));
 
 const NOW = '2026-01-01T00:00:00.000Z';
 
@@ -85,12 +88,21 @@ function appData(overrides: Partial<AppData> = {}): AppData {
 }
 
 function renderWithAppData(ui: React.ReactElement, data: AppData) {
-  return render(<AppDataContext.Provider value={data}>{ui}</AppDataContext.Provider>);
+  return render(
+    <DiagramRendererContext.Provider value={diagrams}>
+      <AppDataContext.Provider value={data}>{ui}</AppDataContext.Provider>
+    </DiagramRendererContext.Provider>,
+  );
 }
+
+beforeEach(() => {
+  http = installHttpDouble();
+  diagrams = diagramDouble();
+});
 
 afterEach(() => {
   cleanup();
-  docContentMock.mockReset();
+  http.uninstall();
 });
 
 describe('LibraryOpenOverlay — null selection renders nothing', () => {
@@ -135,15 +147,15 @@ describe('LibraryOpenOverlay — mounts the full-detail body over the map', () =
     expect(overlay.contains(diveBody)).toBe(true);
     expect(screen.getByText(target.title)).toBeTruthy();
     expect(screen.getByText(/the open overlay target body prose/)).toBeTruthy();
-    expect(docContentMock).not.toHaveBeenCalled();
+    expect(http.countTo(DOC_CONTENT)).toBe(0);
   });
 
   it('loo-open-overlay-routes-doc-selection: a doc selection nested inside the overlay fetches and renders through the reused DocView, unchanged', async () => {
-    docContentMock.mockResolvedValue({
+    http.get(DOC_CONTENT, () => ({
       id: 'decisions/0004-open-overlay-doc.md',
       title: 'Open Overlay Doc Decision',
       markdown: '# Open Overlay Doc Heading\n\nOpen overlay doc body prose.',
-    });
+    }));
     const adrDoc = doc({
       id: 'decisions/0004-open-overlay-doc.md',
       title: 'Open Overlay Doc Decision',
@@ -164,7 +176,7 @@ describe('LibraryOpenOverlay — mounts the full-detail body over the map', () =
     const diveBody = screen.getByTestId('library-dive-body');
     expect(overlay.contains(diveBody)).toBe(true);
 
-    await waitFor(() => expect(docContentMock).toHaveBeenCalledWith(adrDoc.id));
+    await waitFor(() => expect(requestedDocIds()).toEqual([adrDoc.id]));
     await waitFor(() => expect(screen.getByText('Open Overlay Doc Heading')).toBeTruthy());
   });
 });

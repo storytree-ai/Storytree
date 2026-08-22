@@ -57,7 +57,7 @@ decisions: [183, 267, 305, 314, 369]
 #      it said a `real:` arm "would also enter the pinned REAL-buildable snapshot in
 #      `packages/cli/src/node-build.test.ts`, where this id sorts BETWEEN `app-surface-world-view` and
 #      `arc-explicit-id-fidelity` — exactly the adjacency `:627` pins." THERE IS NO SUCH PIN ANY MORE.
-#      ADR-0340 replaced the hardcoded catalogue with a DERIVED assertion (`specDeclaredRealIds` walks
+#      ADR-0341 D4 replaced the hardcoded catalogue with a DERIVED assertion (`specDeclaredRealIds` walks
 #      `stories/` and is compared against the in-code registry), and the test now says in its own
 #      words: "this file keeps no list to append to … adding a node must never mean editing this
 #      file." Adding a `real:` arm here would therefore cost no snapshot edit at all. Verified at

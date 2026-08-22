@@ -1,5 +1,12 @@
 # The scoped claim-writer identity, minted and proven narrow
 
+> **HISTORICAL RECORD — not instruction.** ADR-0390 (2026-08-20) withdrew the managed Codex
+> containment boundary, and the `codex-retire-the-containment-machinery` increment deleted the
+> code this document describes. The identity it mints still exists in GCP but nothing reads it; revoking it is outstanding owner cloud-IAM work.
+> Kept as the record of how the boundary was built and measured. Do not follow its procedures.
+> Current state: `storytree arc show codex-factory-parity-arc --pg`, and the journey survey at
+> `docs/research/codex-onboarding-journey-survey-2026-08-22.md`.
+
 **Date:** 2026-08-14
 **Increment:** `codex-claim-writer-scoped-identity` (arc `codex-factory-parity-arc`)
 **Nature:** infrastructure only — no repository behaviour changed. This file is the evidence.

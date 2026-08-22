@@ -24,45 +24,65 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 
-const apiMock = vi.hoisted(() => ({
-  me: vi.fn(),
-  listDocs: vi.fn(),
-  listAssets: vi.fn(),
-  listComments: vi.fn(),
-  tree: vi.fn(),
-  health: vi.fn(),
-  activity: vi.fn(),
-  dbStatus: vi.fn(),
-  dbStart: vi.fn(),
-  dbWake: vi.fn(),
-  deleteAsset: vi.fn(),
-}));
-
-vi.mock('./api', () => ({ api: apiMock }));
-vi.mock('./lib/devStoreOverride', () => ({ useDevStoreOverride: () => null }));
-vi.mock('./lib/desktopAuth', () => ({ getDesktopAuth: () => undefined }));
 // Non-participating global chrome only — never TreeView or AssetView (both under test here).
-vi.mock('./components/Sidebar', () => ({ Sidebar: () => null }));
-vi.mock('./components/DocView', () => ({ DocView: () => null }));
-vi.mock('./components/MembersPanel', () => ({ MembersPanel: () => null }));
-vi.mock('./components/Hud', async () => {
-  const { useAppData } = await import('./lib/appData');
-  return {
-    Hud: (): React.JSX.Element => {
-      const data = useAppData();
-      return (
-        <div
-          data-testid="appdata-probe"
-          data-keys={Object.keys(data).sort().join(',')}
-          data-docs-status={data.docsStatus}
-          data-docs-error={data.docsError}
-        />
-      );
-    },
-  };
-});
 
-import { App } from './App';
+import { App, type AppSurfaces } from './App';
+import { api } from './api';
+import { useAppData } from './lib/appData';
+
+import { HttpDouble, errorReply, installHttpDouble } from './test/httpDouble';
+
+// THE TRANSPORT IS DOUBLED AND THE SURFACES ARE HANDED IN (anti-slop-adoption-arc inc-06,
+// `no-module-mocking`). The real `api` client runs — it builds every URL below and parses every
+// payload — and the child components arrive through `App`'s own `surfaces` slot, whose defaults
+// are the real ones. Two module mocks were dropped outright rather than replaced, because the REAL
+// modules already answer what the mocks asserted: `useDevStoreOverride()` returns null with no
+// `?devLoadState` in the URL, and `getDesktopAuth()` returns undefined with no `window.desktopAuth`.
+const ME = '/api/me';
+const DOCS = '/api/docs';
+const ASSETS = '/api/assets';
+const COMMENTS = '/api/comments';
+const TREE = '/api/tree';
+const HEALTH = '/api/health';
+const ACTIVITY = '/api/activity';
+const DB_STATUS = '/api/db/status';
+const DB_START = '/api/db/start';
+const DB_WAKE = '/api/db/wake';
+
+// The map's optional art-style sheet. NOT an api route, and NOT what any suite here is about — but
+// the real `TreeView` asks for it, and the double fails closed, so it has to be DECLARED rather
+// than left to surface as an unrouted-request refusal. It answers 404, which is the studio's
+// tolerated case: "art-style sheet failed to load; keeping the current render". Under module
+// mocking this fetch went out to jsdom and nothing in the suite ever knew it existed.
+const ART_SHEET = '/art-sheets/storybook/manifest.json';
+
+let http: HttpDouble;
+
+/**
+ * The AppData shape probe — reads the REAL context and projects its key set into the DOM, so the
+ * context's shape is assertable at runtime rather than only at compile time. Handed in as the Hud
+ * surface rather than mocked over the module.
+ */
+function AppDataProbe(): React.JSX.Element {
+  const data = useAppData();
+  return (
+    <div
+      data-testid="appdata-probe"
+      data-keys={Object.keys(data).sort().join(',')}
+      data-docs-status={data.docsStatus}
+      data-docs-error={data.docsError}
+    />
+  );
+}
+
+// Non-participating global chrome only — never TreeView or AssetView (both under test here).
+const SURFACES: AppSurfaces = {
+  Sidebar: () => null,
+  DocView: () => null,
+  MembersPanel: () => null,
+  Hud: AppDataProbe,
+};
+
 import type {
   ActivityPayload,
   DocMeta,
@@ -141,20 +161,20 @@ function baseHealth(): StoreHealth {
 }
 
 function armFastDefaults(): void {
-  apiMock.me.mockResolvedValue(MEMBER);
-  apiMock.listDocs.mockResolvedValue([]);
-  apiMock.listAssets.mockResolvedValue([]);
-  apiMock.listComments.mockResolvedValue([]);
-  apiMock.tree.mockResolvedValue(makeTreePayload([]));
-  apiMock.health.mockResolvedValue(baseHealth());
-  apiMock.activity.mockResolvedValue({
+  http.get(ME, () => MEMBER);
+  http.get(DOCS, () => []);
+  http.get(ASSETS, () => []);
+  http.get(COMMENTS, () => []);
+  http.get(TREE, () => makeTreePayload([]));
+  http.get(HEALTH, () => baseHealth());
+  http.get(ACTIVITY, () => ({
     builds: [],
     claims: [],
     departures: [],
-  } satisfies ActivityPayload);
-  apiMock.dbStatus.mockResolvedValue({ state: 'RUNNABLE', activationPolicy: 'ALWAYS' });
-  apiMock.dbStart.mockResolvedValue({ ok: true });
-  apiMock.dbWake.mockResolvedValue({ ok: true });
+  } satisfies ActivityPayload));
+  http.get(DB_STATUS, () => ({ state: 'RUNNABLE', activationPolicy: 'ALWAYS' }));
+  http.post(DB_START, () => ({ ok: true }));
+  http.post(DB_WAKE, () => ({ ok: true }));
 }
 
 function uniqueTerritoryIds(): string[] {
@@ -180,10 +200,13 @@ function navigate(hash: string): void {
 beforeEach(() => {
   window.localStorage.clear();
   navigate('#/tree');
+  http = installHttpDouble();
+  http.get(ART_SHEET, () => new Response('', { status: 404 }));
 });
 
 afterEach(() => {
   cleanup();
+  http.uninstall();
   vi.clearAllMocks();
   window.localStorage.clear();
 });
@@ -191,10 +214,10 @@ afterEach(() => {
 describe('a failed doc index is reported, and never blanks the map', () => {
   it('keeps the map mounted and painting through a rejected /api/docs, and records the failure on the context', async () => {
     armFastDefaults();
-    apiMock.tree.mockResolvedValue(makeTreePayload(['alpha']));
-    apiMock.listDocs.mockRejectedValue(new Error('docs unavailable'));
+    http.get(TREE, () => makeTreePayload(['alpha']));
+    http.get(DOCS, () => errorReply('docs unavailable'));
 
-    render(<App />);
+    render(<App surfaces={SURFACES} />);
 
     // The fence (stage 4's contract): the map reads nothing from this payload and must paint anyway.
     await waitFor(() => {
@@ -214,7 +237,7 @@ describe('a failed doc index is reported, and never blanks the map', () => {
   it('carries docsStatus/docsError as REQUIRED context fields, alongside the assets pair', async () => {
     armFastDefaults();
 
-    render(<App />);
+    render(<App surfaces={SURFACES} />);
 
     await waitFor(() => {
       expect(probe().getAttribute('data-docs-status')).toBe('ready');
@@ -234,10 +257,10 @@ describe('a doc reference is only called unknown once the index can answer', () 
   it('reports the index failure instead of calling a cited doc unknown', async () => {
     navigate('#/asset/pattern-x');
     armFastDefaults();
-    apiMock.listAssets.mockResolvedValue([assetCiting('pattern-x', ['doc:decisions/0240-map.md'])]);
-    apiMock.listDocs.mockRejectedValue(new Error('docs unavailable'));
+    http.get(ASSETS, () => [assetCiting('pattern-x', ['doc:decisions/0240-map.md'])]);
+    http.get(DOCS, () => errorReply('docs unavailable'));
 
-    render(<App />);
+    render(<App surfaces={SURFACES} />);
 
     const route = await screen.findByTestId('library-route');
     await waitFor(() => {
@@ -251,10 +274,10 @@ describe('a doc reference is only called unknown once the index can answer', () 
     navigate('#/asset/pattern-x');
     const docsDeferred = deferred<DocMeta[]>();
     armFastDefaults();
-    apiMock.listAssets.mockResolvedValue([assetCiting('pattern-x', ['doc:decisions/0240-map.md'])]);
-    apiMock.listDocs.mockImplementation(() => docsDeferred.promise);
+    http.get(ASSETS, () => [assetCiting('pattern-x', ['doc:decisions/0240-map.md'])]);
+    http.get(DOCS, () => docsDeferred.promise);
 
-    render(<App />);
+    render(<App surfaces={SURFACES} />);
 
     const route = await screen.findByTestId('library-route');
     await waitFor(() => {
@@ -277,10 +300,10 @@ describe('a doc reference is only called unknown once the index can answer', () 
   it('links a cited doc normally once the index resolves and holds it', async () => {
     navigate('#/asset/pattern-x');
     armFastDefaults();
-    apiMock.listAssets.mockResolvedValue([assetCiting('pattern-x', ['doc:decisions/0240-map.md'])]);
-    apiMock.listDocs.mockResolvedValue(makeDocs(['decisions/0240-map.md']));
+    http.get(ASSETS, () => [assetCiting('pattern-x', ['doc:decisions/0240-map.md'])]);
+    http.get(DOCS, () => makeDocs(['decisions/0240-map.md']));
 
-    render(<App />);
+    render(<App surfaces={SURFACES} />);
 
     const route = await screen.findByTestId('library-route');
     await waitFor(() => {

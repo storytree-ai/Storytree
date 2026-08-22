@@ -92,10 +92,13 @@ Shared use or sequencing alone creates no `depends_on` edge.
   where its old expectation requires TreeView/dock detachment, while retaining its proof that the same
   pty session and scrollback survive the route change. In that Electron walk, record the live terminal
   body's nonzero dimensions before parking and require exactly stable nonzero dimensions while parked,
-  so a hidden route cannot silently refit the live pty to 2×1. Keep the generic real-build catalog companion
-  `packages/cli/src/node-build.test.ts` in lockstep so its exact buildable-capability catalog includes
-  `map-route-retention`; that catalog assertion is discoverability regression evidence, not another
-  implementation surface.
+  so a hidden route cannot silently refit the live pty to 2×1. *(This read: keep the generic real-build
+  catalog companion `packages/cli/src/node-build.test.ts` in lockstep so its exact buildable-capability
+  catalog includes `map-route-retention`, calling that catalog assertion discoverability regression
+  evidence. That is now false: ADR-0341 D4 replaced the hand-maintained catalogue with one DERIVED from the
+  specs on disk, so authoring this spec IS the registration and there is no list to append to. The file
+  stays in `scope.testGlobs`/`real.scope.testGlobs` for the derivation test itself, which is unaffected.
+  Corrected in place per ADR-0139.)*
 
 ## Integration test
 

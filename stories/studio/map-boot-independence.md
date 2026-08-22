@@ -178,14 +178,16 @@ transform onto a compositor-only wrapper.
   test with a real assertion: stage 3 signed PASS while printing `coverage 0/9`, six of its nine
   contracts having no test at all, so the contract list here is deliberately tight and each one is
   provable from this single file.
-- **Do not skip the catalog companion again — it was declared and skipped on BOTH prior stages.**
-  `packages/cli/src/node-build.test.ts` (~line 506) holds an alphabetical REAL-buildable capability
-  catalog that must name `map-boot-independence` (it sorts FIRST among the `map-*` entries, ahead of
-  `map-build-seeds-terminal`). It is listed in BOTH `scope.testGlobs` and `real.scope.testGlobs`
-  here — and it was listed in both globs on stage 2 and again on stage 3, and skipped both times.
-  The reason it keeps being missed is structural, not careless: the real build observes only the
-  TARGET package's suite, so nothing in the green it signs can see this assertion. It is
-  discoverability regression evidence, not another implementation surface; add the id and move on.
+- **There is no catalog companion left to skip — this obligation is retired.** *(This read: do not skip
+  the companion again, because `packages/cli/src/node-build.test.ts` (~line 506) holds an alphabetical
+  REAL-buildable capability catalog that must name `map-boot-independence`, sorting FIRST among the
+  `map-*` entries ahead of `map-build-seeds-terminal` — declared and skipped on BOTH prior stages. Both
+  halves are now false. ADR-0341 D4 replaced that hardcoded catalogue with one DERIVED from the specs on
+  disk, and the test states outright that adding a node must never mean editing that file: authoring this
+  spec IS the registration, so there is nothing to add and nothing left to skip. And the named neighbour
+  `map-build-seeds-terminal` was retired by ADR-0404 with the forest-map Build button, so it is no longer
+  in the catalogue to sort against. The file stays in BOTH `scope.testGlobs` and `real.scope.testGlobs`,
+  which is unaffected. Corrected in place per ADR-0139.)*
 
 ## Integration test
 

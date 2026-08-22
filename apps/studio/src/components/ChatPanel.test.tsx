@@ -35,28 +35,66 @@ type ChatEvent =
   | { type: 'error'; error: string }
   | { type: 'refused'; reason: string };
 
-// The streaming seam: api.chatStream(intent, onEvent) POSTs /api/chat, parses each SSE frame, and
-// calls onEvent per typed event. It resolves when the stream ends and rejects when the route is
-// absent (404 / fetch error). The mock lets each test script the frames (and the rejection) across
-// MULTIPLE sends (the transcript model). `resume` is the continuity handle (ADR-0170): the panel
-// threads the last done frame's sessionId back so the follow-up send continues the conversation.
-const apiMock = vi.hoisted(() => ({
-  chatStream:
-    vi.fn<
-      (
-        intent: string,
-        onEvent: (event: ChatEvent) => void,
-        signal?: AbortSignal,
-        resume?: string,
-      ) => Promise<void>
-    >(),
-}));
-vi.mock('../api', () => ({ api: apiMock }));
+import { HttpDouble, installHttpDouble, sseChannel, type SseChannel } from '../test/httpDouble';
+
+// THE SEAM IS THE TRANSPORT, NOT THE MODULE (anti-slop-adoption-arc inc-06, `no-module-mocking`).
+// `api.chatStream(intent, onEvent, signal, resume)` POSTs /api/chat and parses each SSE frame. Under
+// module mocking the frames were HANDED to the panel and the client never ran, so the request body
+// api.ts builds — `{ intent, resume? }` — was asserted nowhere and the frame splitter was never
+// exercised. Here each send answers a real `text/event-stream` response, so a rendered delta is one
+// the panel PARSED, and the continuity handle (ADR-0170) is checked on the wire where the route
+// reads it.
+const CHAT = '/api/chat';
+
+let http: HttpDouble;
+/** One channel per send, in order — a test drives a held-open stream through these. */
+let channels: SseChannel[];
+
+/** Marks a send whose stream is HELD OPEN for the test to drive and close. */
+const HOLD = null;
+
+/**
+ * Script what each successive `POST /api/chat` streams back. Pass an array of frames for a send
+ * that streams and ends, or {@link HOLD} for one the test drives itself. The last entry repeats.
+ */
+const scriptSends = (...sends: Array<readonly ChatEvent[] | typeof HOLD>): void => {
+  let n = 0;
+  http.post(CHAT, () => {
+    const script = sends.length === 0 ? HOLD : sends[Math.min(n, sends.length - 1)];
+    n += 1;
+    const channel = sseChannel();
+    channels.push(channel);
+    if (script !== HOLD && script !== undefined) {
+      for (const frame of script) channel.push(frame);
+      channel.close();
+    }
+    return channel.response;
+  });
+};
+
+/** The nth send's live stream (0-based). */
+const channelFor = (index: number): SseChannel => {
+  const channel = channels[index];
+  if (channel === undefined) throw new Error(`no send #${index} yet (${channels.length} so far)`);
+  return channel;
+};
+
+/** How many times the panel actually POSTed the chat route. */
+const sendCount = (): number => http.countTo(CHAT);
+
+/** The nth send's REQUEST BODY — what api.ts put on the wire. */
+const sentBody = (index: number): { intent?: string; resume?: string } => {
+  const body = http.requestsTo(CHAT)[index]?.body;
+  return (body ?? {}) as { intent?: string; resume?: string };
+};
 
 import { ChatPanel } from './ChatPanel';
 
-/** Flush the async chain a submit/timer kicked off. */
-const flush = (): Promise<void> => act(async () => {});
+/** Flush the async chain a submit/timer kicked off — including the streamed response body. */
+const flush = (): Promise<void> =>
+  act(async () => {
+    await vi.advanceTimersByTimeAsync(0);
+  });
 
 /** Type the intent into the panel's input and submit it via the icon send button (Enter-to-send is
  *  covered separately; the button is stable). The input clears on submit (the prompt moves into the
@@ -69,11 +107,15 @@ function typeAndSubmit(intent: string): void {
 
 beforeEach(() => {
   vi.useFakeTimers();
-  apiMock.chatStream.mockReset();
+  http = installHttpDouble();
+  channels = [];
 });
 
 afterEach(() => {
   cleanup();
+  // Close anything a test left open so no stream outlives its suite.
+  for (const channel of channels) channel.close();
+  http.uninstall();
   vi.useRealTimers();
 });
 
@@ -81,13 +123,10 @@ describe('ChatPanel — multi-turn transcript', () => {
   // ── mtt-appends-not-replaces ────────────────────────────────────────────────
   it('mtt-appends-not-replaces: a second send appends a new exchange without discarding the first — both present, in order, newest last', async () => {
     // First send settles to a done proposal; second send settles to an error. Both must remain.
-    apiMock.chatStream
-      .mockImplementationOnce(async (_intent, onEvent) => {
-        onEvent({ type: 'done', proposal: 'first plan', turns: 1 });
-      })
-      .mockImplementationOnce(async (_intent, onEvent) => {
-        onEvent({ type: 'error', error: 'second failed' });
-      });
+    scriptSends(
+      [{ type: 'done', proposal: 'first plan', turns: 1 }],
+      [{ type: 'error', error: 'second failed' }],
+    );
 
     const { container } = render(<ChatPanel />);
 
@@ -117,9 +156,7 @@ describe('ChatPanel — multi-turn transcript', () => {
 
   // ── mtt-echoes-each-prompt ──────────────────────────────────────────────────
   it('mtt-echoes-each-prompt: each send appends its `› <prompt>` echo line above its reply, per turn', async () => {
-    apiMock.chatStream.mockImplementation(async (_intent, onEvent) => {
-      onEvent({ type: 'done', proposal: 'a plan', turns: 1 });
-    });
+    scriptSends([{ type: 'done', proposal: 'a plan', turns: 1 }]);
 
     const { container } = render(<ChatPanel />);
 
@@ -147,16 +184,11 @@ describe('ChatPanel — multi-turn transcript', () => {
 
   // ── mtt-renders-each-terminal-kind-as-an-entry ──────────────────────────────
   it('mtt-renders-each-terminal-kind-as-an-entry: done / error / refused each settle their own entry, all surviving later sends', async () => {
-    apiMock.chatStream
-      .mockImplementationOnce(async (_intent, onEvent) => {
-        onEvent({ type: 'done', proposal: 'the proposal', turns: 2 });
-      })
-      .mockImplementationOnce(async (_intent, onEvent) => {
-        onEvent({ type: 'error', error: 'the session died' });
-      })
-      .mockImplementationOnce(async (_intent, onEvent) => {
-        onEvent({ type: 'refused', reason: 'already in flight' });
-      });
+    scriptSends(
+      [{ type: 'done', proposal: 'the proposal', turns: 2 }],
+      [{ type: 'error', error: 'the session died' }],
+      [{ type: 'refused', reason: 'already in flight' }],
+    );
 
     const { container } = render(<ChatPanel />);
 
@@ -187,18 +219,12 @@ describe('ChatPanel — multi-turn transcript', () => {
   // ── mtt-streams-delta-into-the-tail-entry ───────────────────────────────────
   it('mtt-streams-delta-into-the-tail-entry: delta frames render live in the newest (tail) entry while prior settled entries are untouched, then settle', async () => {
     // First send settles to a done. Second send streams deltas (held open), then settles.
-    let release: () => void = () => {};
-    const gate = new Promise<void>((r) => { release = r; });
-    apiMock.chatStream
-      .mockImplementationOnce(async (_intent, onEvent) => {
-        onEvent({ type: 'done', proposal: 'prior settled reply', turns: 1 });
-      })
-      .mockImplementationOnce(async (_intent, onEvent) => {
-        onEvent({ type: 'delta', text: 'Orienting' });
-        onEvent({ type: 'delta', text: ' on the tree…' });
-        await gate; // hold the tail entry mid-stream
-        onEvent({ type: 'done', proposal: 'the newest settled reply', turns: 2 });
-      });
+    // The second send is HELD OPEN mid-stream: two deltas travel, then the test releases the rest.
+    scriptSends([{ type: 'done', proposal: 'prior settled reply', turns: 1 }], HOLD);
+    const release = (): void => {
+      channelFor(1).push({ type: 'done', proposal: 'the newest settled reply', turns: 2 });
+      channelFor(1).close();
+    };
 
     const { container } = render(<ChatPanel />);
 
@@ -207,6 +233,9 @@ describe('ChatPanel — multi-turn transcript', () => {
     expect(screen.getByText(/prior settled reply/)).toBeTruthy();
 
     typeAndSubmit('second');
+    await flush();
+    channelFor(1).push({ type: 'delta', text: 'Orienting' });
+    channelFor(1).push({ type: 'delta', text: ' on the tree…' });
     await flush();
 
     // Mid-stream: the accumulating delta text renders in the TAIL (newest) entry, live.
@@ -247,18 +276,18 @@ describe('ChatPanel — multi-turn transcript', () => {
     });
 
     try {
-      let release: () => void = () => {};
-      const gate = new Promise<void>((r) => { release = r; });
-      apiMock.chatStream.mockImplementation(async (_intent, onEvent) => {
-        onEvent({ type: 'delta', text: 'streaming token' });
-        await gate;
-        onEvent({ type: 'done', proposal: 'done', turns: 1 });
-      });
+      scriptSends(HOLD);
+      const release = (): void => {
+        channelFor(0).push({ type: 'done', proposal: 'done', turns: 1 });
+        channelFor(0).close();
+      };
 
       render(<ChatPanel />);
 
       const before = scrollTopSets.length;
       typeAndSubmit('a prompt');
+      await flush();
+      channelFor(0).push({ type: 'delta', text: 'streaming token' });
       await flush();
       // Appending the exchange (and the delta streaming into it) fired the scroll-to-newest recompute
       // — scrollTop was set to the (scripted) scrollHeight.
@@ -279,27 +308,27 @@ describe('ChatPanel — multi-turn transcript', () => {
   });
 
   it('mtt-auto-scrolls-to-newest (sibling: empty-intent guard): a blank / whitespace-only intent fires NO seam call and appends NO transcript entry', async () => {
-    apiMock.chatStream.mockResolvedValue(undefined);
+    scriptSends([]);
     const { container } = render(<ChatPanel />);
 
     // Empty submit.
     fireEvent.click(screen.getByRole('button', { name: /send/i }));
     await flush();
-    expect(apiMock.chatStream).not.toHaveBeenCalled();
+    expect(sendCount()).toBe(0);
     expect(container.querySelectorAll('.chat-exchange').length).toBe(0);
 
     // Whitespace-only submit.
     fireEvent.change(screen.getByRole('textbox'), { target: { value: '   \n  ' } });
     fireEvent.click(screen.getByRole('button', { name: /send/i }));
     await flush();
-    expect(apiMock.chatStream).not.toHaveBeenCalled();
+    expect(sendCount()).toBe(0);
     expect(container.querySelectorAll('.chat-exchange').length).toBe(0);
   });
 
   // ── cp-posts-intent-once-and-shows-busy (retained: single-POST + busy, now over the transcript) ──
   it('cp-posts-intent-once-and-shows-busy: submitting POSTs to the seam once with the intent and flips to busy (input disabled), and a double-submit cannot fire a second POST', async () => {
-    let settle: () => void = () => {};
-    apiMock.chatStream.mockReturnValue(new Promise<void>((res) => { settle = res; }));
+    scriptSends(HOLD);
+    const settle = (): void => channelFor(0).close();
 
     render(<ChatPanel />);
 
@@ -311,15 +340,15 @@ describe('ChatPanel — multi-turn transcript', () => {
     await flush();
 
     // POSTed exactly once, with the typed intent.
-    expect(apiMock.chatStream).toHaveBeenCalledTimes(1);
-    expect(apiMock.chatStream.mock.calls[0]?.[0]).toBe('add a chat panel');
+    expect(sendCount()).toBe(1);
+    expect(sentBody(0).intent).toBe('add a chat panel');
 
     // The panel is busy/streaming: the input is disabled until the tail exchange terminates.
     expect((screen.getByRole('textbox') as HTMLTextAreaElement).disabled).toBe(true);
     // A third click while busy still cannot fire a second POST.
     fireEvent.click(screen.getByRole('button', { name: /send/i }));
     await flush();
-    expect(apiMock.chatStream).toHaveBeenCalledTimes(1);
+    expect(sendCount()).toBe(1);
 
     settle();
     await flush();
@@ -327,8 +356,8 @@ describe('ChatPanel — multi-turn transcript', () => {
 
   // ── cp-enter-submits (terminal keybindings, retained) ───────────────────────
   it('cp-enter-submits: plain Enter in the input submits (fires the seam once); Shift+Enter does NOT submit', async () => {
-    let settle: () => void = () => {};
-    apiMock.chatStream.mockReturnValue(new Promise<void>((res) => { settle = res; }));
+    scriptSends(HOLD);
+    const settle = (): void => channelFor(0).close();
 
     render(<ChatPanel />);
     const input = screen.getByRole('textbox');
@@ -337,32 +366,30 @@ describe('ChatPanel — multi-turn transcript', () => {
     fireEvent.change(input, { target: { value: 'multi' } });
     fireEvent.keyDown(input, { key: 'Enter', shiftKey: true });
     await flush();
-    expect(apiMock.chatStream).not.toHaveBeenCalled();
+    expect(sendCount()).toBe(0);
 
     // Plain Enter submits — fires the seam exactly once with the typed intent.
     fireEvent.keyDown(input, { key: 'Enter' });
     await flush();
-    expect(apiMock.chatStream).toHaveBeenCalledTimes(1);
-    expect(apiMock.chatStream.mock.calls[0]?.[0]).toBe('multi');
+    expect(sendCount()).toBe(1);
+    expect(sentBody(0).intent).toBe('multi');
 
     settle();
     await flush();
   });
 
   it('cp-enter-submits (sibling: empty-intent guard holds for Enter): plain Enter on a blank input fires NO seam call', async () => {
-    apiMock.chatStream.mockResolvedValue(undefined);
+    scriptSends([]);
     render(<ChatPanel />);
 
     fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' });
     await flush();
-    expect(apiMock.chatStream).not.toHaveBeenCalled();
+    expect(sendCount()).toBe(0);
   });
 
   // ── cp-renders-the-done-proposal (retained chat-panel contract, now a transcript entry) ─────────
   it('cp-renders-the-done-proposal: a terminal done frame renders the proposal text in its entry and ends the busy state', async () => {
-    apiMock.chatStream.mockImplementation(async (_intent, onEvent) => {
-      onEvent({ type: 'done', proposal: 'Here is the plan: build it.', costUsd: 0.02, turns: 3 });
-    });
+    scriptSends([{ type: 'done', proposal: 'Here is the plan: build it.', costUsd: 0.02, turns: 3 }]);
 
     const { container } = render(<ChatPanel />);
     typeAndSubmit('what should I build?');
@@ -376,9 +403,7 @@ describe('ChatPanel — multi-turn transcript', () => {
 
   // ── cp-renders-error-distinctly (retained chat-panel contract, now a transcript entry) ──────────
   it('cp-renders-error-distinctly: a terminal error frame renders a distinct failure state carrying the error (not a proposal)', async () => {
-    apiMock.chatStream.mockImplementation(async (_intent, onEvent) => {
-      onEvent({ type: 'error', error: 'the session died unexpectedly' });
-    });
+    scriptSends([{ type: 'error', error: 'the session died unexpectedly' }]);
 
     const { container } = render(<ChatPanel />);
     typeAndSubmit('do the thing');
@@ -394,9 +419,7 @@ describe('ChatPanel — multi-turn transcript', () => {
 
   // ── cp-renders-refused-as-busy-retry (retained chat-panel contract, now a transcript entry) ─────
   it('cp-renders-refused-as-busy-retry: a terminal refused frame renders a distinct "busy — try again" state carrying the reason (≠ error)', async () => {
-    apiMock.chatStream.mockImplementation(async (_intent, onEvent) => {
-      onEvent({ type: 'refused', reason: 'a session is already in flight' });
-    });
+    scriptSends([{ type: 'refused', reason: 'a session is already in flight' }]);
 
     const { container } = render(<ChatPanel />);
     typeAndSubmit('start a session');
@@ -423,7 +446,8 @@ describe('ChatPanel — multi-turn transcript', () => {
 
   // ── cp-degrades-when-route-absent (retained: now settles the tail entry) ────
   it('cp-degrades-when-route-absent: a rejected seam (404 / fetch error) settles the entry to an honest "chat unavailable" state, never hangs, never crashes', async () => {
-    apiMock.chatStream.mockRejectedValue(new Error('404 Not Found'));
+    // A real 404 from the route, which is what the studio-standalone case actually serves.
+    http.post(CHAT, () => new Response('', { status: 404, statusText: 'Not Found' }));
 
     const { container } = render(<ChatPanel />);
     typeAndSubmit('anything');
@@ -432,7 +456,7 @@ describe('ChatPanel — multi-turn transcript', () => {
     // An honest, distinct "unavailable" render on the exchange — not a generic error, not a hung spinner.
     expect(container.querySelector('.chat-unavailable')).toBeTruthy();
     expect(screen.getByText(/chat is unavailable/i)).toBeTruthy();
-    expect(apiMock.chatStream).toHaveBeenCalledTimes(1);
+    expect(sendCount()).toBe(1);
     // The tail settled (no longer busy) so the input is usable again — never a perpetual spinner.
     expect((screen.getByRole('textbox') as HTMLTextAreaElement).disabled).toBe(false);
     expect(container.querySelector('.chat-busy')).toBeNull();
@@ -456,7 +480,7 @@ describe('ChatPanel — auto-grow input', () => {
 
   // ── agi-recomputes-height-from-content ──────────────────────────────────────
   it('agi-recomputes-height-from-content: onChange grows the textarea height to fit its (scripted-scrollHeight) content, and shrinks back when content is deleted', async () => {
-    apiMock.chatStream.mockResolvedValue(undefined);
+    scriptSends([]);
     render(<ChatPanel />);
     const input = screen.getByRole('textbox') as HTMLTextAreaElement;
 
@@ -476,7 +500,7 @@ describe('ChatPanel — auto-grow input', () => {
 
   // ── agi-caps-height-and-scrolls-internally ──────────────────────────────────
   it('agi-caps-height-and-scrolls-internally: past a max height the textarea clamps at the cap and scrolls inside itself', async () => {
-    apiMock.chatStream.mockResolvedValue(undefined);
+    scriptSends([]);
     render(<ChatPanel />);
     const input = screen.getByRole('textbox') as HTMLTextAreaElement;
 
@@ -497,8 +521,8 @@ describe('ChatPanel — auto-grow input', () => {
 
   // ── agi-keeps-enter-send-shift-enter-newline ────────────────────────────────
   it('agi-keeps-enter-send-shift-enter-newline: plain Enter sends (seam fires once), Shift+Enter does NOT submit — the terminal keybindings kept through the grow change', async () => {
-    let settle: () => void = () => {};
-    apiMock.chatStream.mockReturnValue(new Promise<void>((res) => { settle = res; }));
+    scriptSends(HOLD);
+    const settle = (): void => channelFor(0).close();
 
     render(<ChatPanel />);
     const input = screen.getByRole('textbox');
@@ -507,25 +531,25 @@ describe('ChatPanel — auto-grow input', () => {
     // Shift+Enter → newline, no submit.
     fireEvent.keyDown(input, { key: 'Enter', shiftKey: true });
     await flush();
-    expect(apiMock.chatStream).not.toHaveBeenCalled();
+    expect(sendCount()).toBe(0);
 
     // Plain Enter → submit once.
     fireEvent.keyDown(input, { key: 'Enter' });
     await flush();
-    expect(apiMock.chatStream).toHaveBeenCalledTimes(1);
-    expect(apiMock.chatStream.mock.calls[0]?.[0]).toBe('grow then send');
+    expect(sendCount()).toBe(1);
+    expect(sentBody(0).intent).toBe('grow then send');
 
     settle();
     await flush();
   });
 
   it('agi-keeps-enter-send-shift-enter-newline (sibling: empty-intent guard): plain Enter on a blank input fires NO seam call', async () => {
-    apiMock.chatStream.mockResolvedValue(undefined);
+    scriptSends([]);
     render(<ChatPanel />);
 
     fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' });
     await flush();
-    expect(apiMock.chatStream).not.toHaveBeenCalled();
+    expect(sendCount()).toBe(0);
   });
 });
 
@@ -535,13 +559,10 @@ describe('ChatPanel — transcript reset', () => {
 
   // ── tr-clears-transcript-to-idle ────────────────────────────────────────────
   it('tr-clears-transcript-to-idle: clicking reset empties the transcript back to the idle empty state (input cleared + re-enabled + resting height)', async () => {
-    apiMock.chatStream
-      .mockImplementationOnce(async (_intent, onEvent) => {
-        onEvent({ type: 'done', proposal: 'first plan', turns: 1 });
-      })
-      .mockImplementationOnce(async (_intent, onEvent) => {
-        onEvent({ type: 'error', error: 'second failed' });
-      });
+    scriptSends(
+      [{ type: 'done', proposal: 'first plan', turns: 1 }],
+      [{ type: 'error', error: 'second failed' }],
+    );
 
     const { container } = render(<ChatPanel />);
     typeAndSubmit('one');
@@ -571,34 +592,32 @@ describe('ChatPanel — transcript reset', () => {
   it('tr-aborts-in-flight-stream: clicking reset mid-stream aborts the in-flight stream (the passed signal is aborted) and leaves no ghost reply in the cleared transcript', async () => {
     // Capture the signal and hold the stream open; deliver a terminal frame only AFTER reset, to prove
     // the aborted stream cannot settle a ghost reply into the cleared panel.
-    let capturedSignal: AbortSignal | undefined;
-    let deliverTerminal: () => void = () => {};
-    apiMock.chatStream.mockImplementation(async (_intent, onEvent, signal) => {
-      capturedSignal = signal;
-      onEvent({ type: 'delta', text: 'partial…' });
-      await new Promise<void>((resolve) => {
-        // The seam tries to deliver a terminal frame when released — but the panel must ignore it
-        // because the signal was aborted.
-        deliverTerminal = () => {
-          onEvent({ type: 'done', proposal: 'GHOST REPLY should not render', turns: 1 });
-          resolve();
-        };
-      });
-    });
+    // The double records the signal the client forwarded to `fetch` — one hop further down than
+    // the mocked method's third argument, so this now proves the signal reached the TRANSPORT.
+    scriptSends(HOLD);
+    const capturedSignal = (): AbortSignal | undefined => http.requestsTo(CHAT)[0]?.signal;
+    // A stream that has not yet noticed the abort still delivers its terminal frame; the panel must
+    // ignore it rather than settle a ghost reply into a cleared transcript.
+    const deliverTerminal = (): void => {
+      channelFor(0).push({ type: 'done', proposal: 'GHOST REPLY should not render', turns: 1 });
+      channelFor(0).close();
+    };
 
     const { container } = render(<ChatPanel />);
     typeAndSubmit('start a stream');
     await flush();
+    channelFor(0).push({ type: 'delta', text: 'partial…' });
+    await flush();
 
     // Mid-stream: the tail entry exists and is streaming; the signal was passed and not yet aborted.
     expect(container.querySelectorAll('.chat-exchange').length).toBe(1);
-    expect(capturedSignal).toBeDefined();
-    expect(capturedSignal?.aborted).toBe(false);
+    expect(capturedSignal()).toBeDefined();
+    expect(capturedSignal()?.aborted).toBe(false);
 
     // Click reset mid-stream → the signal is aborted and the transcript clears.
     fireEvent.click(resetButton());
     await flush();
-    expect(capturedSignal?.aborted).toBe(true);
+    expect(capturedSignal()?.aborted).toBe(true);
     expect(container.querySelectorAll('.chat-exchange').length).toBe(0);
 
     // The aborted seam now tries to deliver its terminal frame — it must NOT render into the cleared
@@ -611,19 +630,20 @@ describe('ChatPanel — transcript reset', () => {
 
   // ── tr-threads-abort-signal-through-api ─────────────────────────────────────
   it('tr-threads-abort-signal-through-api: api.chatStream is called WITH an AbortSignal (the third arg) on a normal send — the abort is threaded even when reset is never clicked', async () => {
-    let settle: () => void = () => {};
-    apiMock.chatStream.mockReturnValue(new Promise<void>((res) => { settle = res; }));
+    scriptSends(HOLD);
+    const settle = (): void => channelFor(0).close();
 
     render(<ChatPanel />);
     typeAndSubmit('a normal send');
     await flush();
 
-    // The seam was called with a third argument that is an AbortSignal — the panel threads its
-    // controller's signal into api.chatStream (which forwards it to fetch), so abort is always available.
-    expect(apiMock.chatStream).toHaveBeenCalledTimes(1);
-    const thirdArg = apiMock.chatStream.mock.calls[0]?.[2];
-    expect(thirdArg).toBeInstanceOf(AbortSignal);
-    expect((thirdArg as AbortSignal).aborted).toBe(false);
+    // The signal reached FETCH — the panel threads its controller's signal into api.chatStream,
+    // which forwards it to the request. Asserting it here proves the whole thread, not just the
+    // panel's half of it.
+    expect(sendCount()).toBe(1);
+    const forwarded = http.requestsTo(CHAT)[0]?.signal;
+    expect(forwarded).toBeInstanceOf(AbortSignal);
+    expect(forwarded?.aborted).toBe(false);
 
     settle();
     await flush();
@@ -636,53 +656,46 @@ describe('ChatPanel — session continuity (ADR-0170, the ADR-0163 gap-D fix)', 
 
   // ── cc-threads-resume-across-sends ──────────────────────────────────────────
   it('cc-threads-resume-across-sends: the first send carries no resume; each later send threads the last done frame\'s sessionId back as resume — the conversation continues', async () => {
-    apiMock.chatStream
-      .mockImplementationOnce(async (_intent, onEvent) => {
-        onEvent({ type: 'done', proposal: 'first answer', turns: 2, sessionId: 'sess-1' });
-      })
-      .mockImplementationOnce(async (_intent, onEvent) => {
-        onEvent({ type: 'done', proposal: 'second answer', turns: 3, sessionId: 'sess-2' });
-      })
-      .mockImplementationOnce(async (_intent, onEvent) => {
-        // A done frame WITHOUT a sessionId — the panel keeps the last KNOWN handle in place.
-        onEvent({ type: 'done', proposal: 'third answer', turns: 1 });
-      })
-      .mockImplementationOnce(async (_intent, onEvent) => {
-        onEvent({ type: 'done', proposal: 'fourth answer', turns: 1 });
-      });
+    scriptSends(
+      [{ type: 'done', proposal: 'first answer', turns: 2, sessionId: 'sess-1' }],
+      [{ type: 'done', proposal: 'second answer', turns: 3, sessionId: 'sess-2' }],
+      // A done frame WITHOUT a sessionId — the panel keeps the last KNOWN handle in place.
+      [{ type: 'done', proposal: 'third answer', turns: 1 }],
+      [{ type: 'done', proposal: 'fourth answer', turns: 1 }],
+    );
 
     render(<ChatPanel />);
 
     // First send: a fresh conversation — NO resume (4th arg undefined).
     typeAndSubmit('what is the plan?');
     await flush();
-    expect(apiMock.chatStream.mock.calls[0]?.[3]).toBeUndefined();
+    // `resume` is ABSENT from the body, not merely undefined as an argument — api.ts spreads it in
+    // only when it has one, and that is the shape the route reads.
+    expect(sentBody(0).resume).toBeUndefined();
+    expect(sentBody(0).intent).toBe('what is the plan?');
 
     // Second send: threads the first exchange's sessionId back — the follow-up continues it.
     typeAndSubmit('can you proceed to reauthor it?');
     await flush();
-    expect(apiMock.chatStream.mock.calls[1]?.[3]).toBe('sess-1');
+    expect(sentBody(1).resume).toBe('sess-1');
 
     // Third send: the handle advanced to the latest settled session.
     typeAndSubmit('and then?');
     await flush();
-    expect(apiMock.chatStream.mock.calls[2]?.[3]).toBe('sess-2');
+    expect(sentBody(2).resume).toBe('sess-2');
 
     // Fourth send: the third done carried NO sessionId → the last known handle is kept, not dropped.
     typeAndSubmit('keep going');
     await flush();
-    expect(apiMock.chatStream.mock.calls[3]?.[3]).toBe('sess-2');
+    expect(sentBody(3).resume).toBe('sess-2');
   });
 
   // ── cc-reset-is-the-context-boundary ────────────────────────────────────────
   it('cc-reset-is-the-context-boundary: clicking reset ("new chat") drops the continuity handle — the next send starts a brand-new session (no resume)', async () => {
-    apiMock.chatStream
-      .mockImplementationOnce(async (_intent, onEvent) => {
-        onEvent({ type: 'done', proposal: 'settled with a session', turns: 2, sessionId: 'sess-old' });
-      })
-      .mockImplementationOnce(async (_intent, onEvent) => {
-        onEvent({ type: 'done', proposal: 'a fresh conversation', turns: 1, sessionId: 'sess-new' });
-      });
+    scriptSends(
+      [{ type: 'done', proposal: 'settled with a session', turns: 2, sessionId: 'sess-old' }],
+      [{ type: 'done', proposal: 'a fresh conversation', turns: 1, sessionId: 'sess-new' }],
+    );
 
     render(<ChatPanel />);
 
@@ -695,7 +708,7 @@ describe('ChatPanel — session continuity (ADR-0170, the ADR-0163 gap-D fix)', 
 
     typeAndSubmit('a brand new topic');
     await flush();
-    expect(apiMock.chatStream).toHaveBeenCalledTimes(2);
-    expect(apiMock.chatStream.mock.calls[1]?.[3]).toBeUndefined();
+    expect(sendCount()).toBe(2);
+    expect(sentBody(1).resume).toBeUndefined();
   });
 });

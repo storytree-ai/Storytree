@@ -408,7 +408,7 @@ describe('SceneView — the studio scene mapper', () => {
     ).toBeTruthy();
   });
 
-  it('§5 HONESTY WALL: a claim wisp is NEVER painted as the proven-green bloom (class-level)', () => {
+  it('aswv-claim-wisp-never-painted-as-proven-green: §5 HONESTY WALL: a claim wisp is NEVER painted as the proven-green bloom (class-level)', () => {
     // The at-risk state is "proving" (the in-flight hue that must NOT read as the proven-green bloom):
     // the claim wisp must wear world-claim-wisp, and NOTHING on the claim layer may carry the bloom /
     // verdict-pass classes that ONLY a signed verdict earns (ADR-0045).
@@ -474,7 +474,7 @@ describe('SceneView — the studio scene mapper', () => {
     expect(idleClaim?.querySelector('animateTransform')?.getAttribute('dur')).toBe('9s');
   });
 
-  it('ADR-0212 honesty wall: a GREEN build band never paints the claim body as a proof', () => {
+  it('aswv-claim-wisp-never-painted-as-proven-green: ADR-0212 honesty wall: a GREEN build band never paints the claim body as a proof', () => {
     // GATE → the green band, the case ADR-0138 §5 is most at risk from under the merge.
     const { root } = renderScene({}, undefined, 'proving', 'work', undefined, 'GATE');
     const claim = root.querySelector('.world-claim-wisp.band-green');
@@ -510,7 +510,7 @@ describe('SceneView — the studio scene mapper', () => {
     expect(root.querySelector('.world-departing-wisp-hit')?.getAttribute('fill')).toBe('transparent');
   });
 
-  it('§5 HONESTY WALL extended: hover / queue / departing wisps never carry bloom/verdict classes (ADR-0200 D7)', () => {
+  it('aswv-claim-wisp-never-painted-as-proven-green: §5 HONESTY WALL extended: hover / queue / departing wisps never carry bloom/verdict classes (ADR-0200 D7)', () => {
     const hover = renderScene({}, undefined, 'proving', 'exploring').root.querySelector('.world-hover-wisp')!;
     expect(hover.classList.contains('world-bloom')).toBe(false);
     expect(hover.classList.contains('verdict-pass')).toBe(false);

@@ -87,11 +87,14 @@ source remains `apps/studio/src/components/TreeView.tsx`, which the `studio` sur
   Its test titles must carry every contract id below so the coverage scan can bind them. jsdom can prove
   scheduling, final transform and chrome render isolation; it cannot honestly prove FPS, browser paint
   time or an owner-visible feel, so none are asserted here.
-- **Keep the real-build catalog in lockstep.** Alongside the focused `TreeView.pan.test.tsx` proof, update
-  `packages/cli/src/node-build.test.ts` so its exact REAL-buildable capability catalog includes
-  `coalesced-camera-pan`. This required regression companion keeps the capability discoverable by the
-  real-build path; it does not add another implementation surface or expand the one `TreeView` hot-path
-  boundary.
+- **The real-build catalog needs no companion edit — this obligation is retired.** *(This read: alongside
+  the focused `TreeView.pan.test.tsx` proof, update `packages/cli/src/node-build.test.ts` so its exact
+  REAL-buildable capability catalog includes `coalesced-camera-pan`, as a required regression companion
+  keeping the capability discoverable by the real-build path. That is now false: ADR-0341 D4 replaced the
+  hand-maintained catalogue with one DERIVED from the specs on disk — the test states outright that
+  adding a node must never mean editing that file, so authoring this spec IS the registration. The file
+  stays in `scope.testGlobs`/`real.scope.testGlobs` for the derivation test itself, which is unaffected
+  and does not expand the one `TreeView` hot-path boundary. Corrected in place per ADR-0139.)*
 
 ## Integration test
 

@@ -34,7 +34,18 @@
 // live store answers. All "randomness" (tile growth, crown-blob jitter, road
 // bows) is hashed from ids so the world renders identically every time.
 
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
+import {
+  createContext,
+  memo,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from 'react';
 import dagre from '@dagrejs/dagre';
 import { api } from '../api';
 import { useAppData } from '../lib/appData';
@@ -1710,6 +1721,76 @@ const DRAG_SLOP = 10;
 // the band is background either way and the gesture is pixel-identical to the old path.
 const PAN_FOLD_THRESHOLD_PX = 4000;
 
+// ── the studio surfaces seam ─────────────────────────────────────────────────────────────────
+//
+// WHY IT EXISTS (anti-slop-adoption-arc inc-06, `no-module-mocking`). The map's own suites need to
+// substitute exactly SIX things: the world RENDERER (an SVG scene jsdom cannot lay out) and five
+// heavy overlays that have nothing to do with panning, camera commits or route retention. Doing
+// that used to mean `vi.mock`-ing `@storytree/app-surface` wholesale — which took the module's PURE
+// functions down with it, so `laneLayout`, `neighbourHighlightPlan`,
+// `normalizeWorldPresentationModel` and `deriveIslandVegetationPlans` were replaced by
+// `null`/`{}`/an empty Map and never ran under test at all. Substituting the COMPONENTS alone
+// leaves every one of those computations real.
+//
+// A context rather than a prop because two of the six render inside nested panels in this file; the
+// same shape `AppDataContext`, `DiagramRendererContext` and `TerminalToolkitContext` already use,
+// and with the same REAL DEFAULTS, so no production caller passes anything.
+export interface StudioSurfaces {
+  WorldSceneView: React.ComponentType<React.ComponentProps<typeof WorldSceneView>>;
+  WorldSettingsPanel: React.ComponentType<React.ComponentProps<typeof WorldSettingsPanel>>;
+  LibraryDrawer: React.ComponentType<React.ComponentProps<typeof LibraryDrawer>>;
+  BottomDock: React.ComponentType<React.ComponentProps<typeof BottomDock>>;
+  WorldLegend: React.ComponentType<React.ComponentProps<typeof WorldLegend>>;
+  LegendDrawerBody: React.ComponentType<React.ComponentProps<typeof LegendDrawerBody>>;
+}
+
+const REAL_SURFACES: StudioSurfaces = {
+  WorldSceneView,
+  WorldSettingsPanel,
+  LibraryDrawer,
+  BottomDock,
+  WorldLegend,
+  LegendDrawerBody,
+};
+
+/** Override any subset; anything absent stays the real component. */
+export const StudioSurfacesContext = createContext<Partial<StudioSurfaces> | null>(null);
+
+/**
+ * The Act 2 regrow choreography — the four hooks that turn "the map is arriving" into a camera and
+ * two animated layers (`act2Intro.ts`).
+ *
+ * SUBSTITUTED AS A SET, and through a context for the same reason the surfaces are: they share one
+ * player state machine, and `act2-camera-choreography-arc`'s suite drives that machine directly —
+ * scripting a player, then asserting what the map renders for it and what it ASKED the choreography
+ * for. Under `vi.mock('./act2Intro.js', …)` that meant rewriting the module; here it is a slot with
+ * a real default, so nothing about a production mount changes.
+ *
+ * Calling hooks through this object is safe: both the default and any override are module
+ * constants, so the four calls below happen in the same order on every render.
+ */
+export interface Act2Choreography {
+  useReducedMotion: typeof useReducedMotion;
+  useAct2Intro: typeof useAct2Intro;
+  useStableForestRegrowLayer: typeof useStableForestRegrowLayer;
+  useStableVegetationLayer: typeof useStableVegetationLayer;
+}
+
+const REAL_ACT2_CHOREOGRAPHY: Act2Choreography = {
+  useReducedMotion,
+  useAct2Intro,
+  useStableForestRegrowLayer,
+  useStableVegetationLayer,
+};
+
+/** `null` means "use the real choreography". */
+export const Act2ChoreographyContext = createContext<Act2Choreography | null>(null);
+
+function useStudioSurfaces(): StudioSurfaces {
+  const override = useContext(StudioSurfacesContext);
+  return useMemo(() => ({ ...REAL_SURFACES, ...(override ?? {}) }), [override]);
+}
+
 export function TreeView({
   focus,
   active = true,
@@ -1741,6 +1822,10 @@ export function TreeView({
    */
   cacheWriteSuppressedRef?: { current: boolean };
 }): React.JSX.Element {
+  // The renderer + heavy overlays, real unless a caller substituted one (see StudioSurfacesContext).
+  const surfaces = useStudioSurfaces();
+  // The Act 2 regrow choreography, real unless a caller substituted it.
+  const act2 = useContext(Act2ChoreographyContext) ?? REAL_ACT2_CHOREOGRAPHY;
   // map-payload-cache: seed the FIRST paint from a validated cache entry (guards 1 + 3, decided
   // synchronously here, before any network response — see payloadCache.ts) rather than starting
   // blank and showing "Growing the world…" while /api/tree is in flight. Read exactly once, up
@@ -2566,7 +2651,7 @@ export function TreeView({
     () => readCameraRasterisationRoute(search),
     [search],
   );
-  const act2ReducedMotion = useReducedMotion();
+  const act2ReducedMotion = act2.useReducedMotion();
   const act2Speed = useMemo(() => readRegrowSpeed(search), [search]);
   // ADR-0286: the regrow plays on the FIRST arrival at the map in a browser session, and the map is
   // static for the rest of it. Read once at mount (a ref, so React's double-invoked render in dev
@@ -2613,7 +2698,7 @@ export function TreeView({
     }
     return lengths;
   }, [world]);
-  const act2Player = useAct2Intro({
+  const act2Player = act2.useAct2Intro({
     enabled: active && act2Enabled,
     stories,
     reducedMotion: act2ReducedMotion,
@@ -2755,7 +2840,7 @@ export function TreeView({
   // Held STABLE across frames that would paint an identical picture — a forest-map frame's cost is
   // rasterisation (ADR-0272), so an unchanged layer object is what keeps `SceneView`'s memo bail-out
   // intact and those frames free.
-  const act2RegrowLayer = useStableForestRegrowLayer(
+  const act2RegrowLayer = act2.useStableForestRegrowLayer(
     act2Player.state,
     act2AccretionPlans,
     act2Player.regrowing,
@@ -2802,7 +2887,7 @@ export function TreeView({
   );
   // The per-frame half. `null` state (no run in flight) holds every island at 1, so the settled map
   // gets ONE layer object for the whole session and `SceneView`'s memo bail-out survives every pan.
-  const vegetationLayer = useStableVegetationLayer(
+  const vegetationLayer = act2.useStableVegetationLayer(
     vegetationPlans,
     act2Player.regrowing ? act2Player.state : null,
     vegetationStoryIds,
@@ -3508,7 +3593,7 @@ export function TreeView({
               // Shared-Islands panel / session dock / settings gear are React `<div>`s outside this
               // `<svg>` and are untouched.
               <>
-                <WorldSceneView
+                <surfaces.WorldSceneView
                   // The key only needs to change for the `?arrive=` DEMO replay (its button bumps
                   // `arriveRun` to remount the subtree so the CSS keyframes run again). In normal
                   // operation (no demo) it stays constant so a re-render NEVER remounts the whole map —
@@ -3625,7 +3710,7 @@ export function TreeView({
           {/* The world-tuning gear (bottom-right): sliders/toggles/selects bound to
               the URL dials. Closed by default ⇒ no params written ⇒ today's world is
               byte-identical. */}
-          <WorldSettingsPanel search={search} onCommit={commitSearch} actions={act2GearActions} />
+          <surfaces.WorldSettingsPanel search={search} onCommit={commitSearch} actions={act2GearActions} />
           {/* The Library lens (ADR-0188 inc 9): the two-pane panel remold behind `?overlay=library`
               — an overlay within .world-frame, never a route away. A constant SIDE panel (the
               finder's shelf/scope/search + the pinned selection card) over a single-job CANVAS
@@ -3637,7 +3722,7 @@ export function TreeView({
               Supplement glue after the leaf PASS — the proven lens + signed components stay
               byte-untouched; this mounting + the seed-packet look are the story's operator-attested
               UAT leg (ADR-0070, the shared inc-9+10 sitting). */}
-          <LibraryDrawer
+          <surfaces.LibraryDrawer
             search={search}
             onToggle={toggleLibrary}
             onSelectLens={selectDrawerLens}
@@ -3718,7 +3803,7 @@ export function TreeView({
               command, ADR-0137/ADR-0186) and its host still brings the terminal tab forward for one —
               but the map no longer produces any: the Build click that composed them is retired
               (ADR-0404), and a build is dispatched by typing the CLI verb in this very terminal. */}
-          <BottomDock />
+          <surfaces.BottomDock />
         </div>
 
         {selected && (
@@ -4576,6 +4661,8 @@ function SharedIslandsPanel({
   onResetHidden: () => void;
   onSelectIsland: (id: string) => void;
 }): React.JSX.Element {
+  // The legend surfaces, real unless a caller substituted one (see StudioSurfacesContext).
+  const surfaces = useStudioSurfaces();
   const [flyout, dispatch] = useReducer(flyoutReducer, FLYOUT_CLOSED);
   const panelRef = useRef<HTMLDivElement>(null);
   const islandRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -4638,7 +4725,7 @@ function SharedIslandsPanel({
             flyout still renders to the RIGHT, so expanding a chip never shoves the panel content down. */}
         <details className="panel-drawer panel-legend">
           <summary className="panel-drawer-head">Legend</summary>
-          <WorldLegend
+          <surfaces.WorldLegend
             stories={stories}
             builds={builds}
             claims={panelClaims}
@@ -4711,7 +4798,7 @@ function SharedIslandsPanel({
           {legendOpen ? (
             <>
               <div className="panel-flyout-head">{legendRowLabel(legendOpen)}</div>
-              <LegendDrawerBody
+              <surfaces.LegendDrawerBody
                 rowKey={legendOpen}
                 model={model}
                 hidden={hidden}

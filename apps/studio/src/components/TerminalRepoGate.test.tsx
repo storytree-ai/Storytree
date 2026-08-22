@@ -30,39 +30,37 @@ import { render, screen, act, cleanup } from '@testing-library/react';
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 
-// ── the TerminalDock stub — records MOUNT/UNMOUNT (not re-render) via a lazy `useState` id
-//    (assigned once per instance, bumping on every fresh mount) paired with an `useEffect([id])`
+// ── the terminal-surface PROBE — records MOUNT/UNMOUNT (not re-render) via a lazy `useState` id
+//    (assigned once per instance, bumping on every fresh mount) paired with a `useEffect([id])`
 //    mount/unmount log. This is how the test observes the gate's `key={cwd}` remount (a fresh pty
-//    on a repo change) without reaching into TerminalDock's real xterm/session internals — exactly
-//    the discipline ReviewBlocks.test.tsx uses stubbing `./Markdown`. ──────────────────────────────
-const dockMock = vi.hoisted(() => ({
-  counter: 0,
-  log: [] as Array<{ type: 'mount' | 'unmount'; id: number }>,
-}));
+//    on a repo change) without reaching into TerminalDock's real xterm/session internals.
+//
+//    IT IS HANDED IN, NOT MOCKED OVER (anti-slop-adoption-arc inc-06, `no-module-mocking`): the
+//    gate takes its surface through the `renderDock` slot, whose default is the real
+//    `TerminalDock` — the same injection its own `repoControl` prop already used. ─────────────────
+const dockMock = { counter: 0, log: [] as Array<{ type: 'mount' | 'unmount'; id: number }> };
 
-vi.mock('./TerminalDock', () => ({
-  TerminalDock: (props: {
-    seed?: { command: string; token: number };
-    headerRight?: ReactNode;
-  }) => {
-    const [id] = useState(() => ++dockMock.counter);
-    useEffect(() => {
-      dockMock.log.push({ type: 'mount', id });
-      return () => {
-        dockMock.log.push({ type: 'unmount', id });
-      };
-    }, [id]);
-    return (
-      <div
-        data-testid="terminal-dock-mock"
-        data-dock-id={id}
-        data-seed={props.seed ? JSON.stringify(props.seed) : ''}
-      >
-        {props.headerRight}
-      </div>
-    );
-  },
-}));
+function DockProbe(props: TerminalSurfaceProps): React.JSX.Element {
+  const [id] = useState(() => ++dockMock.counter);
+  useEffect(() => {
+    dockMock.log.push({ type: 'mount', id });
+    return () => {
+      dockMock.log.push({ type: 'unmount', id });
+    };
+  }, [id]);
+  return (
+    <div
+      data-testid="terminal-dock-mock"
+      data-dock-id={id}
+      data-seed={props.seed ? JSON.stringify(props.seed) : ''}
+    >
+      {props.headerRight}
+    </div>
+  );
+}
+
+/** The slot value every render below passes — the probe standing in for the real dock. */
+const renderDock = (props: TerminalSurfaceProps): React.JSX.Element => <DockProbe {...props} />;
 
 // ── the desktopRepo bridge's `ready`/`onChanged` slice — installed on `window` per test (deleted
 //    for the absent-bridge case). `onChanged` captures its callback so a test can fire a simulated
@@ -73,7 +71,7 @@ const bridgeMock = vi.hoisted(() => ({
   changeHandler: undefined as ((cwd: string | null) => void) | undefined,
 }));
 
-import { TerminalRepoGate } from './TerminalRepoGate';
+import { TerminalRepoGate, type TerminalSurfaceProps } from './TerminalRepoGate';
 import type { TerminalRepoGateProps } from './TerminalRepoGate';
 
 /** Flush the microtask queue the bridge's `ready()` promise resolves on. */
@@ -102,7 +100,7 @@ describe('TerminalRepoGate', () => {
   // ── trg-gates-when-no-repo ───────────────────────────────────────────────────
   it('trg-gates-when-no-repo: renders a fail-closed gate when no valid repo is selected', async () => {
     bridgeMock.ready.mockResolvedValue(null);
-    const { container } = render(<TerminalRepoGate />);
+    const { container } = render(<TerminalRepoGate renderDock={renderDock} />);
 
     await flush();
 
@@ -115,7 +113,7 @@ describe('TerminalRepoGate', () => {
   // ── trg-shows-terminal-when-ready ────────────────────────────────────────────
   it('trg-shows-terminal-when-ready: swaps to the terminal once a valid repo cwd resolves', async () => {
     bridgeMock.ready.mockResolvedValue('/Users/dev/repos/storytree');
-    render(<TerminalRepoGate />);
+    render(<TerminalRepoGate renderDock={renderDock} />);
 
     await flush();
 
@@ -126,7 +124,7 @@ describe('TerminalRepoGate', () => {
   // ── trg-reopens-on-repo-change ────────────────────────────────────────────────
   it('trg-reopens-on-repo-change: a repo change re-keys the dock (fresh pty) and reverts to the gate on deselect', async () => {
     bridgeMock.ready.mockResolvedValue('/Users/dev/repos/storytree');
-    render(<TerminalRepoGate />);
+    render(<TerminalRepoGate renderDock={renderDock} />);
     await flush();
 
     expect(bridgeMock.onChanged).toHaveBeenCalledTimes(1);
@@ -167,7 +165,7 @@ describe('TerminalRepoGate', () => {
   it('trg-forwards-seed-to-terminal: forwards the seed prop straight through to the terminal once ready', async () => {
     bridgeMock.ready.mockResolvedValue('/Users/dev/repos/storytree');
     const seed = { command: 'pnpm storytree node build x --real --store pg', token: 1 };
-    render(<TerminalRepoGate seed={seed} />);
+    render(<TerminalRepoGate seed={seed} renderDock={renderDock} />);
 
     await flush();
 
@@ -179,7 +177,7 @@ describe('TerminalRepoGate', () => {
   it('trg-degrades-when-bridge-absent: with no desktopRepo bridge renders the terminal directly, never touching ready/onChanged', async () => {
     delete (window as unknown as { desktopRepo?: typeof bridgeMock }).desktopRepo;
 
-    expect(() => render(<TerminalRepoGate />)).not.toThrow();
+    expect(() => render(<TerminalRepoGate renderDock={renderDock} />)).not.toThrow();
     await flush();
 
     expect(screen.getByTestId('terminal-dock-mock')).toBeTruthy();
@@ -196,7 +194,7 @@ describe('TerminalRepoGate', () => {
     // phase) so this compiles ahead of that — the runtime object still carries the extra key,
     // which is what this test pins: the CURRENT implementation ignores it.
     const props = { repoControl } as unknown as TerminalRepoGateProps;
-    const { container } = render(<TerminalRepoGate {...props} />);
+    const { container } = render(<TerminalRepoGate {...props} renderDock={renderDock} />);
 
     await flush();
 
@@ -213,7 +211,7 @@ describe('TerminalRepoGate', () => {
     bridgeMock.ready.mockResolvedValue('/Users/dev/repos/storytree');
     const repoControl = <button data-testid="repo-control-marker">Choose a repository</button>;
     const props = { repoControl } as unknown as TerminalRepoGateProps;
-    render(<TerminalRepoGate {...props} />);
+    render(<TerminalRepoGate {...props} renderDock={renderDock} />);
 
     await flush();
 

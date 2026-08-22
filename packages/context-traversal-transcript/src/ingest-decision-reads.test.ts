@@ -118,7 +118,7 @@ function twoWindowFixture(): { transcriptDir: string; traceDir: string } {
   return { transcriptDir, traceDir };
 }
 
-test("the sweep writes validated full_payload_read events, keyed on doc:decisions/NNNN-slug.md, into EACH session's own trace — subagent reads included, under the parent's identity", () => {
+test("the-sweep-writes-validated-events-into-each-sessions-own-trace: the sweep writes validated full_payload_read events, keyed on doc:decisions/NNNN-slug.md, into EACH session's own trace — subagent reads included, under the parent's identity", () => {
   const { transcriptDir, traceDir } = twoWindowFixture();
 
   const result = ingestDecisionReads({ traceDir, transcriptDir });
@@ -158,7 +158,7 @@ test("the sweep writes validated full_payload_read events, keyed on doc:decision
   assert.equal(beta.replay.events.length, 1);
 });
 
-test("re-ingesting appends NOTHING and does not double the bytes on disk — idempotence is a property of the ids, not of run order", () => {
+test("re-ingesting-appends-nothing-to-the-bytes-on-disk: re-ingesting appends NOTHING and does not double the bytes on disk — idempotence is a property of the ids, not of run order", () => {
   const { transcriptDir, traceDir } = twoWindowFixture();
 
   const first = ingestDecisionReads({ traceDir, transcriptDir });
@@ -174,7 +174,7 @@ test("re-ingesting appends NOTHING and does not double the bytes on disk — ide
   assert.equal(readTraversalSession({ dir: traceDir, sessionId: "agent-alpha" }).replay.events.length, 3);
 });
 
-test("a tool call that appears in TWO transcript files — the shape a resumed or forked session produces — is counted and written ONCE", () => {
+test("a-tool-call-seen-in-two-transcripts-is-written-once: a tool call that appears in TWO transcript files — the shape a resumed or forked session produces — is counted and written ONCE", () => {
   const transcriptDir = freshDir("forked");
   const traceDir = freshDir("forked-trace");
   const line = toolUseLine({
@@ -193,7 +193,7 @@ test("a tool call that appears in TWO transcript files — the shape a resumed o
   assert.equal(result.appended, 1);
 });
 
-test("a dry run reports the same extraction and writes not one byte", () => {
+test("a-dry-run-writes-not-one-byte: a dry run reports the same extraction and writes not one byte", () => {
   const { transcriptDir, traceDir } = twoWindowFixture();
 
   const dry = ingestDecisionReads({ traceDir, transcriptDir, dryRun: true });
@@ -203,7 +203,7 @@ test("a dry run reports the same extraction and writes not one byte", () => {
   assert.equal(fs.existsSync(path.join(traceDir, "agent-alpha.jsonl")), false, "no trace file was created");
 });
 
-test("a sweep that finds no decision read at all is an honest empty answer, not a crash and not a trace file", () => {
+test("a-sweep-that-finds-nothing-is-an-honest-empty-answer: a sweep that finds no decision read at all is an honest empty answer, not a crash and not a trace file", () => {
   const transcriptDir = freshDir("empty");
   const traceDir = freshDir("empty-trace");
   writeTranscript(path.join(transcriptDir, "proj", "w.jsonl"), [
@@ -223,7 +223,7 @@ test("a sweep that finds no decision read at all is an honest empty answer, not 
   assert.equal(result.earliestAt, undefined);
 });
 
-test("the blind spots the sweep REACHED are sized on the result, so a lobby-heavy or git-heavy history cannot read as a complete one", () => {
+test("the-reached-blind-spots-are-sized-on-the-result: the blind spots the sweep REACHED are sized on the result, so a lobby-heavy or git-heavy history cannot read as a complete one", () => {
   const transcriptDir = freshDir("blind");
   const traceDir = freshDir("blind-trace");
   writeTranscript(path.join(transcriptDir, "proj", "w.jsonl"), [
@@ -255,7 +255,7 @@ test("the blind spots the sweep REACHED are sized on the result, so a lobby-heav
 // THE REPORT — bounding the claim is half its job
 // ---------------------------------------------------------------------------------------------
 
-test("the report states, on its own face, that the count is a FLOOR, that the record is only as fresh as this run, and that a read count is not a sufficiency measure", () => {
+test("the-report-bounds-its-own-claim-as-a-floor: the report states, on its own face, that the count is a FLOOR, that the record is only as fresh as this run, and that a read count is not a sufficiency measure", () => {
   const { transcriptDir, traceDir } = twoWindowFixture();
   const rendered = renderDecisionReadIngest(ingestDecisionReads({ traceDir, transcriptDir }));
 
@@ -272,13 +272,13 @@ test("the report states, on its own face, that the count is a FLOOR, that the re
   assert.match(rendered, /doc:decisions\/NNNN-slug\.md/);
 });
 
-test("a dry run says so in its own first line, so a report cannot be mistaken for a record that was written", () => {
+test("a-dry-run-says-so-in-its-first-line: a dry run says so in its own first line, so a report cannot be mistaken for a record that was written", () => {
   const { transcriptDir, traceDir } = twoWindowFixture();
   const rendered = renderDecisionReadIngest(ingestDecisionReads({ traceDir, transcriptDir, dryRun: true }));
   assert.match(rendered.split("\n")[0] ?? "", /DRY RUN, nothing written/);
 });
 
-test("the adapter declares its own exhaustive coverage under an id distinct from the occupancy adapter's, since a trace refuses a duplicate adapterId", () => {
+test("the-adapter-declares-exhaustive-coverage-under-a-distinct-adapter-id: the adapter declares its own exhaustive coverage under an id distinct from the occupancy adapter's, since a trace refuses a duplicate adapterId", () => {
   // Re-parsing proves exhaustiveness the same way the module's own load-time parse does, and would
   // go red if a future CoverageFeature member were added without being named here.
   ContextTraversalCoverage.parse(DECISION_READ_COVERAGE);

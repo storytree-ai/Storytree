@@ -22,7 +22,7 @@
 // WRAPS THE BYTE-LOCKED TERMINALDOCK — imports it, never edits it. This file's own CSS lives in a
 // separate `.terminal-gate*` namespace, never touching `.terminal-dock*`.
 
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { TerminalDock, type TerminalDockHost, type TerminalDockSeed } from './TerminalDock';
 
@@ -49,12 +49,33 @@ export interface TerminalRepoGateProps {
    *  The gate does not interpret it — it neither folds nor unfolds anything itself; it only decides
    *  whether a dock exists to be hosted. Absent by default, so a gate with no host is unchanged. */
   host?: TerminalDockHost;
+  /**
+   * The terminal surface the gate wraps. Defaults to the real {@link TerminalDock}.
+   *
+   * INJECTED FOR THE SAME REASON `repoControl` IS (anti-slop-adoption-arc inc-06,
+   * `no-module-mocking`): the gate's own wiring — the keyed remount, the `headerRight` forwarding,
+   * the standalone path — is what a test of this file is about, and observing it used to mean
+   * rewriting the `./TerminalDock` module out from under the component. A slot with a real default
+   * changes nothing for any caller and gives the test somewhere honest to stand.
+   */
+  renderDock?: (props: TerminalSurfaceProps) => React.JSX.Element;
 }
+
+/** What the gate hands its terminal surface — the same three props `TerminalDock` accepts. */
+export interface TerminalSurfaceProps {
+  seed?: TerminalDockSeed;
+  host?: TerminalDockHost;
+  headerRight?: ReactNode;
+}
+
+/** The real surface — every production mount takes this path. */
+const realDock = (props: TerminalSurfaceProps): React.JSX.Element => <TerminalDock {...props} />;
 
 export function TerminalRepoGate({
   seed,
   repoControl,
   host,
+  renderDock = realDock,
 }: TerminalRepoGateProps = {}): React.JSX.Element {
   const bridge = getDesktopRepoGateBridge();
   const [cwd, setCwd] = useState<string | null>(null);
@@ -79,7 +100,7 @@ export function TerminalRepoGate({
   if (!bridge) {
     // Studio-standalone: no desktop preload, no repo concept to gate on. Render the dock directly —
     // it has no `desktopTerminal` bridge either and shows its own honest disabled state.
-    return <TerminalDock {...(seed ? { seed } : {})} {...(host ? { host } : {})} />;
+    return renderDock({ ...(seed ? { seed } : {}), ...(host ? { host } : {}) });
   }
 
   if (!cwd) {
@@ -96,12 +117,15 @@ export function TerminalRepoGate({
 
   // Keyed on the cwd: a repo change swaps the key, unmounting the old dock (disposing its pty) and
   // mounting a fresh one in the new repo.
+  // `key` lives on a Fragment around the surface, so the keyed remount holds whatever the slot
+  // renders — a substituted surface remounts exactly as the real dock does.
   return (
-    <TerminalDock
-      key={cwd}
-      {...(repoControl != null ? { headerRight: repoControl } : {})}
-      {...(seed ? { seed } : {})}
-      {...(host ? { host } : {})}
-    />
+    <Fragment key={cwd}>
+      {renderDock({
+        ...(repoControl != null ? { headerRight: repoControl } : {}),
+        ...(seed ? { seed } : {}),
+        ...(host ? { host } : {}),
+      })}
+    </Fragment>
   );
 }

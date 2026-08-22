@@ -35,7 +35,9 @@
 //
 // ── THE PRIMARY TELL (unchanged in spirit — it survived all three retracted diagnoses) ───────────
 // A start that PROCEEDED logs `Starting local session <id> in <cwd>` after `LocalSessions.start:`
-// in %APPDATA%\Claude\logs\main.log — normally within ~5s. A start that did NOT proceed logs the
+// in the desktop's LIVE main.log — see `defaultLogDirCandidates`, which resolves it by mtime
+// because the file moved to %LOCALAPPDATA% on 2026-08-22 and the %APPDATA% copy still reads
+// plausibly — normally within ~5s. A start that did NOT proceed logs the
 // marker and never reaches that line. That CORRELATION is the whole primary signal, and it is the
 // one thing that has not had to be retracted. Everything below it is SECONDARY: it names the fault
 // shape once the primary tell has already said a start did not proceed.
@@ -109,7 +111,8 @@
 //
 // ── SCOPE ───────────────────────────────────────────────────────────────────────────────────────
 // Deliberately NOT wired into `pnpm gate` — it reads Windows/Electron-desktop-local state
-// (%APPDATA%\Claude) that CI cannot see. It stays a standalone operator tool (same spirit as
+// (session records under %APPDATA%\Claude, logs under %LOCALAPPDATA%\Claude since 2026-08-22)
+// that CI cannot see. It stays a standalone operator tool (same spirit as
 // provision-worktree.mjs / worktree-health.mjs, but in scripts/ since nothing invokes it as a hook).
 // The correlation + classification is factored into the pure, exported `classifySessionStarts` /
 // `formatCheckReport` so it is testable off synthetic log lines with no machine-local state:
@@ -539,6 +542,67 @@ function defaultClaudeDir() {
   return join(homedir(), ".config", "Claude");
 }
 
+// ── THE LOG DIRECTORY IS NOT THE DATA DIRECTORY, AND IT MOVES ───────────────────────────────────
+// Measured 2026-08-22, after a desktop reinstall: `main.log` is written under `%LOCALAPPDATA%`,
+// while the DATA root (`claude-code-sessions`) stayed under `%APPDATA%`. Both directories survive
+// the move and both hold a same-named `main.log` / `mcp.log` / `ssh.log`, so the abandoned one
+// reads perfectly plausibly — it returns a real-looking `willQuit` shutdown sequence and nothing
+// about the running app. This script read the `%APPDATA%` copy, so after the move it would have
+// classified a LIVE machine off a DEAD log and reported that confidently. That is worse than
+// failing: the primary tell is "did `Starting local session` appear AT ALL", and it never appears
+// in a frozen file, so every start would have read BROKEN.
+//
+// The fix is deliberately NOT a re-pointed constant — that just re-arms the same trap the next
+// time the vendor moves it. Candidates are ranked by their `main.log` MTIME and the newest wins,
+// which is the same "ls -lt BOTH and read the newer" rule CLAUDE.md now gives a human, and it
+// self-heals if the file moves again or moves back. An explicit `--claude-dir` still wins outright.
+function defaultLogDirCandidates() {
+  if (process.platform === "win32") {
+    const roaming = process.env.APPDATA ?? join(homedir(), "AppData", "Roaming");
+    const local = process.env.LOCALAPPDATA ?? join(homedir(), "AppData", "Local");
+    return [join(local, "Claude", "logs"), join(roaming, "Claude", "logs")];
+  }
+  return [join(defaultClaudeDir(), "logs")];
+}
+
+/**
+ * The freshest `main.log` among `candidates` — the one the running app is actually writing.
+ *
+ * Pure over its injected `mtimeOf` so the choice is testable without machine-local logs (this
+ * suite may never read them: rotation destroyed the Aug 3-9 file mid-investigation, ADR-0389).
+ *
+ * @param {readonly string[]} candidates Directories that may contain a `main.log`, best-guess first.
+ * @param {(path: string) => number | null} mtimeOf Epoch-ms mtime, or null when absent/unreadable.
+ * @returns {{ path: string, mtimeMs: number, shadowed: readonly string[] } | null}
+ *   `shadowed` names the live-looking rejects, so the report can say what it did NOT read.
+ */
+export function pickNewestLog(candidates, mtimeOf) {
+  /** @type {{ path: string, mtimeMs: number }[]} */
+  const found = [];
+  for (const dir of candidates) {
+    const p = join(dir, "main.log");
+    const mtimeMs = mtimeOf(p);
+    if (mtimeMs !== null) found.push({ path: p, mtimeMs });
+  }
+  if (found.length === 0) return null;
+  // Ties keep candidate order, so the platform's best guess still wins a dead heat.
+  found.sort((a, b) => b.mtimeMs - a.mtimeMs);
+  const [winner, ...rest] = found;
+  return { path: winner.path, mtimeMs: winner.mtimeMs, shadowed: rest.map((r) => r.path) };
+}
+
+/** Resolve which `main.log` to read: an explicit `--claude-dir` wins, else newest candidate. */
+function resolveMainLog(args) {
+  const candidates = args.claudeDir ? [join(args.claudeDir, "logs")] : defaultLogDirCandidates();
+  return pickNewestLog(candidates, (p) => {
+    try {
+      return existsSync(p) ? statSync(p).mtimeMs : null;
+    } catch {
+      return null;
+    }
+  });
+}
+
 function parseArgs(argv) {
   const args = { _: [] };
   for (let i = 0; i < argv.length; i++) {
@@ -593,10 +657,20 @@ function scanWorktreeDirs(repoRoot) {
   return { count, dir, exists: true };
 }
 
-function readMainLogLines(claudeDir) {
-  const p = join(claudeDir, "logs", "main.log");
-  if (!existsSync(p)) return [];
-  return readFileSync(p, "utf8").split(/\r?\n/);
+/** @param {string | null} logPath The resolved `main.log`, or null when no candidate exists. */
+function readMainLogLines(logPath) {
+  if (!logPath || !existsSync(logPath)) return [];
+  return readFileSync(logPath, "utf8").split(/\r?\n/);
+}
+
+/** One line naming the log actually read, and any live-looking copy deliberately skipped. */
+function describeLog(log) {
+  if (!log) return [`  main.log:          NONE FOUND — no candidate directory holds one`];
+  const lines = [`  main.log:          ${log.path}`];
+  for (const s of log.shadowed) {
+    lines.push(`    (not read: ${s} — older, so it is not the running app's log)`);
+  }
+  return lines;
 }
 
 function findRepoRoot() {
@@ -628,7 +702,8 @@ function cmdBaseline(args) {
   const repoRoot = findRepoRoot();
   const records = scanSessionRecords(claudeDir);
   const worktrees = scanWorktreeDirs(repoRoot);
-  const logLines = readMainLogLines(claudeDir);
+  const log = resolveMainLog(args);
+  const logLines = readMainLogLines(log?.path ?? null);
 
   if (!records.exists) {
     console.error(
@@ -646,6 +721,9 @@ function cmdBaseline(args) {
     newestRecordMtimeMs: records.newestMs,
     worktreeDirCount: worktrees.count,
     mainLogLineCount: logLines.length,
+    // Recorded so `check` can notice the resolution moved between the two halves of a probe —
+    // a line-count comparison across two DIFFERENT files is meaningless, not merely imprecise.
+    mainLogPath: log?.path ?? null,
   };
   mkdirSync(tmpdir(), { recursive: true });
   writeFileSync(STATE_PATH, JSON.stringify(snapshot, null, 2));
@@ -656,6 +734,7 @@ function cmdBaseline(args) {
   );
   console.log(`  worktree dirs:    ${snapshot.worktreeDirCount}  (${worktrees.dir})`);
   console.log(`  main.log lines:   ${snapshot.mainLogLineCount}`);
+  for (const l of describeLog(log)) console.log(l);
   console.log(``);
   console.log(`Now fire the thing you want to check — a background-task chip, or a new desktop`);
   console.log(`session with "create a fresh worktree" ticked — then run:`);
@@ -672,7 +751,8 @@ function cmdCheck(args) {
   const baseline = JSON.parse(readFileSync(STATE_PATH, "utf8"));
   const records = scanSessionRecords(claudeDir);
   const worktrees = scanWorktreeDirs(baseline.repoRoot);
-  const logLines = readMainLogLines(claudeDir);
+  const log = resolveMainLog(args);
+  const logLines = readMainLogLines(log?.path ?? null);
 
   const recordDelta = records.count - baseline.sessionRecordCount;
   const worktreeDelta = worktrees.count - baseline.worktreeDirCount;
@@ -694,6 +774,25 @@ function cmdCheck(args) {
   );
   console.log(`    so a non-zero delta neither proves health nor rules the fault out.`);
   console.log(``);
+
+  for (const l of describeLog(log)) console.log(l);
+  console.log(``);
+
+  // A baseline taken against one file and a check taken against another compares nothing. This is
+  // reachable in practice: the desktop moved `main.log` from %APPDATA% to %LOCALAPPDATA% on
+  // 2026-08-22 mid-day, so a probe straddling a reinstall resolves differently in its two halves.
+  // Say so and stop, rather than reporting a line delta computed across two unrelated files.
+  const baselineLogPath = baseline.mainLogPath ?? null;
+  const currentLogPath = log?.path ?? null;
+  if (baselineLogPath !== null && baselineLogPath !== currentLogPath) {
+    console.log(`⚠ THE LOG MOVED between baseline and check — this comparison is VOID.`);
+    console.log(`    baseline read: ${baselineLogPath}`);
+    console.log(`    check reads:   ${currentLogPath ?? "no candidate found"}`);
+    console.log(`  Re-run "baseline" and fire the probe again. A line-count delta across two`);
+    console.log(`  different files says nothing about whether the session start proceeded.`);
+    process.exitCode = 1;
+    return;
+  }
 
   if (logLines.length < baseline.mainLogLineCount) {
     console.log(`⚠ main.log is SHORTER than the baseline (it rotated) — re-run "baseline" and fire`);

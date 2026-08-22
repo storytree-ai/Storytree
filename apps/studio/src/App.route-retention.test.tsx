@@ -9,78 +9,86 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const treeProbe = vi.hoisted(() => ({
+import { useEffect, useRef, useState } from 'react';
+
+import { api } from './api';
+import { App, type AppSurfaces } from './App';
+import { HttpDouble, installHttpDouble } from './test/httpDouble';
+
+// THE SURFACES ARE HANDED IN, NOT MOCKED OVER (anti-slop-adoption-arc inc-06, `no-module-mocking`).
+// What this file is about is the SHELL's route lifetime — one live tree instance, parked rather
+// than unmounted, reactivated in place. Proving that needs a child whose mounts and unmounts are
+// COUNTABLE, and the real `TreeView` cannot render here at all (it wants WebGL). So the probe
+// stays; it now arrives through `App`'s own `surfaces` slot, whose defaults are the real
+// components. The TRANSPORT is doubled too, so the real api client builds the reads below.
+const TREE = '/api/tree';
+
+let http: HttpDouble;
+
+const treeProbe = {
   mounts: 0,
   unmounts: 0,
   nextWorld: 1,
   focuses: [] as Array<string | null>,
   activeStates: [] as boolean[],
-  load: vi.fn<() => Promise<unknown>>(),
-}));
+  /** The map's own read — the REAL client, so this hits `GET /api/tree` like the shipped one. */
+  load: (): Promise<unknown> => api.tree(),
+};
 
-vi.mock('./api', () => ({
-  api: {
-    me: vi.fn(),
-    listDocs: vi.fn(),
-    listAssets: vi.fn(),
-    listComments: vi.fn(),
-    tree: vi.fn(),
-  },
-}));
-vi.mock('./lib/devStoreOverride', () => ({ useDevStoreOverride: () => null }));
-vi.mock('./lib/desktopAuth', () => ({ getDesktopAuth: () => undefined }));
-vi.mock('./lib/poll', () => ({ notifyStoreRecovered: vi.fn() }));
-vi.mock('./components/StoreBanner', () => ({ StoreBanner: () => null }));
-vi.mock('./components/Hud', () => ({ Hud: () => null }));
-vi.mock('./components/Sidebar', () => ({ Sidebar: () => <aside data-testid="sidebar" /> }));
-vi.mock('./components/DocView', () => ({ DocView: ({ id }: { id: string }) => <section data-testid="doc-surface">{id}</section> }));
-vi.mock('./components/AssetView', () => ({ AssetView: () => <section data-testid="asset-surface" /> }));
-vi.mock('./components/AssetEditor', () => ({ AssetEditor: () => <section data-testid="asset-editor-surface" /> }));
-vi.mock('./components/MembersPanel', () => ({
+function TreeProbe({
+  focus,
+  active = true,
+}: {
+  focus: string | null;
+  active?: boolean;
+}): React.JSX.Element {
+  const [camera, setCamera] = useState(0);
+  const worldId = useRef('');
+  if (!worldId.current) worldId.current = `world-${treeProbe.nextWorld++}`;
+  treeProbe.focuses.push(focus);
+  treeProbe.activeStates.push(active);
+  useEffect(() => {
+    treeProbe.mounts += 1;
+    void treeProbe.load();
+    return () => {
+      treeProbe.unmounts += 1;
+    };
+  }, []);
+
+  return (
+    <section
+      className="tree-wrap"
+      data-testid="retained-tree-view"
+      data-world-id={worldId.current}
+      data-camera={camera}
+      data-focus={focus ?? ''}
+      data-active={active}
+    >
+      <button type="button" onClick={() => setCamera((value) => value + 1)}>
+        move forest camera
+      </button>
+      <output data-testid="retained-terminal">session-1: retained scrollback</output>
+    </section>
+  );
+}
+
+const SURFACES: AppSurfaces = {
+  StoreBanner: () => null,
+  Hud: () => null,
+  Sidebar: () => <aside data-testid="sidebar" />,
+  DocView: ({ id }) => <section data-testid="doc-surface">{id}</section>,
+  AssetView: () => <section data-testid="asset-surface" />,
+  AssetEditor: () => <section data-testid="asset-editor-surface" />,
   MembersPanel: () => (
     <section data-testid="members-surface">
       <button type="button">manage members</button>
     </section>
   ),
-}));
-vi.mock('./components/TreeView', async () => {
-  const React = await import('react');
-  return {
-    TreeView: ({ focus, active = true }: { focus: string | null; active?: boolean }) => {
-      const [camera, setCamera] = React.useState(0);
-      const worldId = React.useRef('');
-      if (!worldId.current) worldId.current = `world-${treeProbe.nextWorld++}`;
-      treeProbe.focuses.push(focus);
-      treeProbe.activeStates.push(active);
-      React.useEffect(() => {
-        treeProbe.mounts += 1;
-        void treeProbe.load();
-        return () => {
-          treeProbe.unmounts += 1;
-        };
-      }, []);
+  TreeView: TreeProbe,
+};
 
-      return (
-        <section
-          className="tree-wrap"
-          data-testid="retained-tree-view"
-          data-world-id={worldId.current}
-          data-camera={camera}
-          data-focus={focus ?? ''}
-          data-active={active}
-        >
-          <button type="button" onClick={() => setCamera((value) => value + 1)}>
-            move forest camera
-          </button>
-          <output data-testid="retained-terminal">session-1: retained scrollback</output>
-        </section>
-      );
-    },
-  };
-});
-
-import { api } from './api';
-import { App } from './App';
+/** How many times the map's read actually reached the wire. */
+const treeReads = (): number => http.countTo(TREE);
 
 const MEMBER = { email: 'operator@example.com', role: 'admin', status: 'active', member: true } as const;
 
@@ -92,14 +100,14 @@ function navigate(hash: string): void {
 }
 
 async function renderReadyApp(): Promise<void> {
-  render(<App />);
+  render(<App surfaces={SURFACES} />);
   await screen.findByTestId(/members-surface|retained-tree-view|doc-surface/);
 }
 
 async function enterTree(hash = '#/tree'): Promise<HTMLElement> {
   navigate(hash);
   const tree = await screen.findByTestId('retained-tree-view');
-  await waitFor(() => expect(vi.mocked(api.tree)).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(treeReads()).toBe(1));
   return tree;
 }
 
@@ -110,17 +118,17 @@ beforeEach(() => {
   treeProbe.nextWorld = 1;
   treeProbe.focuses = [];
   treeProbe.activeStates = [];
-  treeProbe.load.mockReset();
-  vi.mocked(api.me).mockResolvedValue(MEMBER);
-  vi.mocked(api.listDocs).mockResolvedValue([]);
-  vi.mocked(api.listAssets).mockResolvedValue([]);
-  vi.mocked(api.listComments).mockResolvedValue([]);
-  vi.mocked(api.tree).mockResolvedValue({ stories: [], builds: [], claims: [] });
-  treeProbe.load.mockImplementation(() => api.tree());
+  http = installHttpDouble();
+  http.get('/api/me', () => MEMBER);
+  http.get('/api/docs', () => []);
+  http.get('/api/assets', () => []);
+  http.get('/api/comments', () => []);
+  http.get(TREE, () => ({ stories: [], builds: [], claims: [] }));
 });
 
 afterEach(() => {
   cleanup();
+  http.uninstall();
   vi.clearAllMocks();
   window.history.replaceState(null, '', '#/');
 });
@@ -132,7 +140,7 @@ describe('App forest route retention', () => {
     expect(screen.getByTestId('members-surface').isConnected).toBe(true);
     expect(screen.queryByTestId('retained-tree-view')).toBeNull();
     expect(treeProbe.mounts).toBe(0);
-    expect(api.tree).not.toHaveBeenCalled();
+    expect(treeReads()).toBe(0);
 
     const tree = await enterTree('#/tree/focused-story');
     expect(treeProbe.mounts).toBe(1);
@@ -144,7 +152,7 @@ describe('App forest route retention', () => {
     await renderReadyApp();
     const originalTree = screen.getByTestId('retained-tree-view');
     const originalWrapper = screen.getByTestId('tree-route');
-    await waitFor(() => expect(api.tree).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(treeReads()).toBe(1));
 
     navigate('#/members');
     await screen.findByTestId('members-surface');
@@ -157,7 +165,7 @@ describe('App forest route retention', () => {
     expect(screen.getByTestId('tree-route')).toBe(originalWrapper);
     expect(treeProbe.mounts).toBe(1);
     expect(treeProbe.unmounts).toBe(0);
-    expect(api.tree).toHaveBeenCalledTimes(1);
+    expect(treeReads()).toBe(1);
   });
 
   it('map-route-retention-tells-the-live-tree-when-it-is-parked and active again', async () => {
@@ -180,7 +188,7 @@ describe('App forest route retention', () => {
     window.history.replaceState(null, '', '#/tree');
     await renderReadyApp();
     const tree = screen.getByTestId('retained-tree-view');
-    await waitFor(() => expect(api.tree).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(treeReads()).toBe(1));
     fireEvent.click(screen.getByRole('button', { name: 'move forest camera' }));
     expect(tree.getAttribute('data-camera')).toBe('1');
     const terminal = screen.getByTestId('retained-terminal');
@@ -201,7 +209,7 @@ describe('App forest route retention', () => {
     await renderReadyApp();
     const tree = screen.getByTestId('retained-tree-view');
     const wrapper = screen.getByTestId('tree-route');
-    await waitFor(() => expect(api.tree).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(treeReads()).toBe(1));
 
     navigate('#/members');
     const members = await screen.findByTestId('members-surface');

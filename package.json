@@ -30,6 +30,7 @@
     "probe:adr-graph": "pnpm --filter @storytree/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/probe-adr-graph.ts",
     "probe:combined-dag": "pnpm --filter @storytree/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/probe-combined-dag.ts",
     "probe:decision-reads": "pnpm --filter @storytree/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/probe-decision-reads.ts",
+    "probe:re-reads": "pnpm --filter @storytree/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/probe-re-reads.ts",
     "standson:bootstrap": "pnpm --filter @storytree/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/standson-bootstrap.ts",
     "check:web-grounding": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-web-grounding.ts",
     "check:web-experience-closure": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-web-experience-closure.ts",
