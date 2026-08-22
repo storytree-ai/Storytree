@@ -396,12 +396,13 @@ permanent regression case, never speculative breadth).
 and watches a wisp light on the forest map for that Claude Code session — the interactive surface being
 the real tool, the observability layer watching it through the existing seams with no new code.
 
-1. **A terminal sits in the dock.** _(witness: machine)(detail: embedded-terminal#uat-1)_ _(proof-gate: embedded-terminal#gate-2)_ The member opens the desktop app; with a valid _(criterion-id: uatc_a311ba8bd853bebf8a1eb587)_ _(revision-id: uatr1:31b9806fe0957578)_ _(previous-revision-id: uatr1:99c3e2908980147a)_
+1. **A terminal sits in the dock.** _(witness: machine)(detail: embedded-terminal#uat-1)_ _(proof-gate: embedded-terminal#gate-2)_ The member opens the desktop app; with a valid _(criterion-id: uatc_a311ba8bd853bebf8a1eb587)_ _(revision-id: uatr1:408ffa9b4ece425f)_ _(previous-revision-id: uatr1:31b9806fe0957578)_
    repo selected (the `terminal-repo-picker` gate — satisfied in the harness by pre-writing the userData
    `repo-selection.json`, as `session-survival.e2e.mjs` already does), a terminal panel sits in the same
    `.world-frame` dock slot the chat occupied. **Success —** in the real Electron renderer the forest page
-   exposes the `[aria-label="expand terminal"]` toggle, expanding it renders a live `.terminal-dock` with
-   its session panel, and NO chat dock (`.chat-dock`) is rendered anywhere in the app — the dormant chat
+   exposes the shared `[aria-label="expand bottom panel"]` toggle; expanding it and selecting its Terminal
+   tab renders a live `.terminal-dock` with its session panel, and NO chat dock (`.chat-dock`) is rendered
+   anywhere in the app — the dormant chat
    is not a second interactive surface, while `ChatDock`/`ChatPanel` and their vitest suites stay in the
    tree (ADR-0175). *(Presence, placement and the single-interactive-surface property are DOM-structural
    observables in the integrated harness. Mounting the dock stays glue at the capability tier — no
@@ -552,9 +553,10 @@ stamp ADR-0097 §2 bans.
 
 2. **UAT leg 1 — "a terminal sits in the dock" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts embedded-terminal uatc_a311ba8bd853bebf8a1eb587`.
    Witnesses that a model opened the REAL packaged app with a valid repo selected and observed the forest
-   page expose the expand-terminal toggle, expanding it render a live `.terminal-dock` with its session
-   panel in the `.world-frame` dock slot the chat occupied, and NO `.chat-dock` rendered anywhere in the
-   app — the single-interactive-surface property, not merely the dock's presence.
+   page expose the shared expand-bottom-panel control; expanding it and selecting its Terminal tab render
+   a live `.terminal-dock` with its session panel in the `.world-frame` dock slot the chat occupied, and
+   NO `.chat-dock` rendered anywhere in the app — the single-interactive-surface property, not merely the
+   dock's presence.
 3. **UAT leg 4 — "a REAL pty hosts a real interactive shell in the member's checkout" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts embedded-terminal uatc_4a73475c396b1635baf9f5d1`.
    Witnesses that a model observed the dock spawn a REAL node-pty in the selected repo, a line command
    round-trip through the real shell, AND a full-screen interactive program (alternate screen buffer,
