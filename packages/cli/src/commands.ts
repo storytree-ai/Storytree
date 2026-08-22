@@ -2312,7 +2312,7 @@ function flipStatusToProposedFile(storiesDir: string, storyId: string): FlipResu
  * code. No shell (`execFile` of file+args, injection-safe); a non-zero exit is data, not a throw.
  */
 async function observeCommand(command: string): Promise<{ code: number | null }> {
-  // ADR-0420 D1: run the AUTHORED command line through the platform shell, as written. The old shape
+  // ADR-0421 D1: run the AUTHORED command line through the platform shell, as written. The old shape
   // whitespace-split it into an execFile vector, which shredded quoted arguments and passed `&&` to
   // the first command as a literal — so a gate written as `node -e "…"` could never exit 0, and the
   // spine reported it as an ordinary red. Same builder as `adopt`'s copy in `@storytree/drive`.

@@ -56,7 +56,7 @@ export interface ShellCommand {
    * as a file with an argument vector. When set, `file` carries the WHOLE command line and `args` is
    * empty, so quoting and shell operators (`&&`, a pipe, a redirect) behave as the author wrote them.
    *
-   * SPINE-INTERNAL, and deliberately narrow (ADR-0420). It exists for ONE caller: the OBSERVE path,
+   * SPINE-INTERNAL, and deliberately narrow (ADR-0421). It exists for ONE caller: the OBSERVE path,
    * where the command is committed story prose in `stories/<id>/story.md`, reviewed on a PR, and
    * already able to run arbitrary code — see {@link shellObserveCommand}. It is NOT part of
    * `ShellCommandSchema` (the parser for a spec-borne `proof:` command, which accepts file/args/cwd
@@ -67,7 +67,7 @@ export interface ShellCommand {
 }
 
 /**
- * The OBSERVE path's command builder (ADR-0420 D1): run a story's declared `proofCommand` STRING
+ * The OBSERVE path's command builder (ADR-0421 D1): run a story's declared `proofCommand` STRING
  * through the platform shell, AS WRITTEN.
  *
  * The old shape whitespace-split the string into an `execFile` vector, which silently shredded any
@@ -333,7 +333,7 @@ interface ShellExecOptions {
   env: NodeJS.ProcessEnv;
   timeout: number;
   killSignal: "SIGKILL";
-  /** Set only for {@link ShellCommand.shell} — the OBSERVE path (ADR-0420 D2), never the leaf's proof. */
+  /** Set only for {@link ShellCommand.shell} — the OBSERVE path (ADR-0421 D2), never the leaf's proof. */
   shell?: boolean;
 }
 
@@ -354,7 +354,7 @@ export function runShellCommand(cmd: ShellCommand): Promise<ShellRunResult> {
     if (cmd.cwd !== undefined) {
       options.cwd = cmd.cwd;
     }
-    // ADR-0420: the OBSERVE path carries its whole command line in `file` and asks for a shell, so
+    // ADR-0421: the OBSERVE path carries its whole command line in `file` and asks for a shell, so
     // quoting and `&&` survive. Every other caller leaves `shell` absent and keeps the execFile vector.
     if (cmd.shell === true) {
       options.shell = true;

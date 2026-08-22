@@ -391,7 +391,7 @@ test("a vetoed green is still a fail-closed RED carrying the veto reason (ADR-02
   assert.equal(obs.note, "0 assertions executed");
 });
 
-// ── shellObserveCommand: the OBSERVE path runs the AUTHORED command line (ADR-0420) ──
+// ── shellObserveCommand: the OBSERVE path runs the AUTHORED command line (ADR-0421) ──
 //
 // These are the two shapes the old whitespace-split-into-execFile runner could NEVER observe green,
 // and they are the reason six `ci-cd` gates sat unobservable from the day they were authored: a

@@ -416,7 +416,7 @@ function readGitState(): { commitSha: string; clean: boolean } | null {
 
 /** The spine's out-of-band observation of a gate's declared command (exit code only; mirrors `gate`). */
 async function observeCommand(command: string): Promise<{ code: number | null }> {
-  // ADR-0420 D1: the AUTHORED command line, run through the platform shell exactly as written — so a
+  // ADR-0421 D1: the AUTHORED command line, run through the platform shell exactly as written — so a
   // gate declared as `node -e "…"` or joined with `&&` is observable at all. Mirrors the `cli` copy.
   if (command.trim().length === 0) return { code: null };
   try {
