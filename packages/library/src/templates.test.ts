@@ -61,8 +61,8 @@ test("schema-derived template bodies are generated from KIND_SPECS (never a froz
 test("template-adr is the bespoke doc scaffold, not a schema-derived body", () => {
   const adr = libraryTemplates().find((t) => t.id === "template-adr");
   assert.ok(adr, "template-adr is present");
-  // It scaffolds a doc under docs/decisions/, so it carries the canonical ADR section shape rather
-  // than a knowledge-unit lead marker.
+  // It scaffolds a decision document — a row since ADR-0403 dec 1 — so it carries the canonical ADR
+  // section shape rather than a knowledge-unit lead marker.
   for (const marker of [
     "# ADR-NNNN",
     "## Status",

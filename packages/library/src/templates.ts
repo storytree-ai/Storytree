@@ -9,8 +9,11 @@
 // {@link KIND_SPECS} via {@link generateTemplate} at call time — the ADR-0017 invariant that a
 // template is a generated view of the schema, so it can never drift from the field set. Only their
 // editorial metadata (title / description / timestamps — none of which derive from the schema) is
-// embedded. `template-adr` is the one bespoke literal: it scaffolds a doc under `docs/decisions/`,
-// not a knowledge-unit kind, so it has no `KIND_SPECS` entry to generate from.
+// embedded. `template-adr` is the one bespoke literal, and since ADR-0403 dec 1 the reason is no
+// longer "it has no `KIND_SPECS` entry": `adr` IS a kind now, but its entry is a single raw `body`
+// field (`heading: ""`, so a decision's own `# ADR-NNNN:` H1 leads the render). Generating from it
+// would yield one placeholder paragraph, not the Status / Context / Decision / Consequences /
+// Alternatives considered / References shape an author actually needs — so this one stays authored.
 //
 // Order matches the historical assets.json (template-adr sits between techstack and open-question).
 
@@ -50,8 +53,8 @@ const TEMPLATE_ADR: LibraryTemplateAsset = {
   id: "template-adr",
   category: "template",
   title: "Template — adr",
-  description: "Scaffold for a new ADR under docs/decisions/ — the source layer the knowledge tier derives from (ADR-0017), not a knowledge-unit kind. Section shape: Status / Date / Context / Decision / Consequences / Alternatives considered / References.",
-  body: "_Use this to author a new ADR under `docs/decisions/`. ADRs are the **source layer** the knowledge tier derives from (ADR-0017), not a Library knowledge-unit kind — this is the only `template` whose output is a doc, not a `definition` / `principle` / `pattern` / `guardrail` / `techstack` unit._\n\n# ADR-NNNN: <short imperative title>\n\n## Status\n\n_proposed · accepted · superseded by ADR-XXXX_\n\n## Date\n\n_YYYY-MM-DD_\n\n## Context\n\n_The forces at play — what makes this decision necessary now, and the constraints it must satisfy._\n\n## Decision\n\n_What we are doing, stated plainly in the present tense._\n\n## Consequences\n\n_What follows — the trade-offs accepted, the new constraints, what gets easier or harder._\n\n## Alternatives considered\n\n_What else was on the table and why it lost (name both sides of each trade)._\n\n## References\n\n_Source / related ADRs, glossary terms, and Library artifacts._",
+  description: "The section shape of a decision record — an `adr` artifact row in the live store (ADR-0403 dec 1), minted by `storytree adr new` and edited through the `adr pull` / `adr push` round trip. ADRs are the source layer the knowledge tier derives from (ADR-0017). Section shape: Status / Context / Decision / Consequences / Alternatives considered / References.",
+  body: "_**Do not author a decision by hand — there is no file to create and no number to pick.** A decision record is an ordinary `adr` artifact ROW in the live store (ADR-0403 dec 1). Mint it with `storytree adr new --title \"<short imperative title>\" --pg`, which reserves the next number transactionally (ADR-0050) and writes the row already carrying the shape below; add `--decided` when the owner directed the decision in conversation, so it is born `accepted` (ADR-0110). To change the body afterwards, round-trip the WHOLE document — `storytree adr pull <n> --out adr-NNNN.md`, edit it with ordinary tools, then `storytree adr push <n> --file <path> --pg` — never a `>` redirect, which captures the run banner as the document's first bytes (ADR-0361). ADRs are the **source layer** the knowledge tier derives from (ADR-0017); this is the one `template` whose output is a decision document rather than a `definition` / `principle` / `pattern` / `guardrail` / `techstack` unit._\n\n_The document opens with a frontmatter fence carrying the typed fields — `status`, and `decided` / `supersedes` / `amends` / `arc` / `load_bearing` when they apply — which is why there is no `## Date` section: the date is the `decided:` key. The verbs write and re-read that fence for you._\n\n# ADR-NNNN: <short imperative title>\n\n## Status\n\n_proposed · accepted · superseded by ADR-XXXX. This prose is the source and the `status` field is a PROJECTION of it (ADR-0139) — never write the field independently of what this section says._\n\n## Context\n\n_The forces at play — what makes this decision necessary now, and the constraints it must satisfy._\n\n## Decision\n\n_What we are doing, stated plainly in the present tense._\n\n## Consequences\n\n_What follows — the trade-offs accepted, the new constraints, what gets easier or harder._\n\n## Alternatives considered\n\n_What else was on the table and why it lost (name both sides of each trade)._\n\n## References\n\n_Related ADRs, definitions, and Library artifacts._",
   references: [],
   createdAt: "2026-06-05T00:00:00.000Z",
   updatedAt: "2026-06-07T00:00:00.000Z",

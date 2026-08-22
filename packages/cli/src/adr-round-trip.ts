@@ -74,12 +74,12 @@ function noSuchDecision(id: string, number: number): Envelope {
     body: [
       `no decision row "${id}" in the store.`,
       "",
-      "either the number is wrong, or this checkout's store has not had the decision load run",
-      "against it (`decision-log-home-arc` inc 03). `storytree adr list` reads the FILES and will",
-      `still show ADR-${String(number).padStart(4, "0")} if it exists on disk — the two sources`,
-      "are deliberately both live until the files are removed.",
+      "the store IS the decision log (ADR-0403 dec 1) — there is no second source to fall back to,",
+      "so this is not a checkout that needs reconciling. Either the number is wrong, or this",
+      `connection is pointed at a database that does not hold ADR-${String(number).padStart(4, "0")}.`,
+      "`storytree adr list --current` reads the same store and shows what it actually has.",
     ].join("\n"),
-    next: ["storytree adr list --current", "npx tsx packages/library/src/store/load-decisions.ts"],
+    next: ["storytree adr list --current", 'storytree adr new --title "..." --pg'],
   };
 }
 

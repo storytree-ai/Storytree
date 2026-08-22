@@ -535,18 +535,19 @@ export function renderAdrList(listings: readonly AdrListing[], filter: AdrListFi
 }
 
 /**
- * Write the freshly-scaffolded decision as a ROW as well as a file — the dual-source window.
+ * Write the freshly-scaffolded decision as a ROW — the ONLY write, since ADR-0403 dec 1. The file
+ * half of the old dual-source window went with `docs/decisions/`; see the call site.
  *
  * Returns the lines to append to the envelope, so the caller reports what actually happened rather
  * than assuming. THREE outcomes and each is said out loud:
  *
- *   - written — both sources carry it, `adr list` will show it;
- *   - NOT written because the invocation is read-only (no `--pg`) — a LOUD warning, because the file
- *     now exists and the orientation surface will not show it until someone reconciles;
+ *   - written — the row is there and `adr list` will show it;
+ *   - NOT written because the invocation is read-only (no `--pg`) — a LOUD warning, because the
+ *     NUMBER is already spent and nothing carries the decision;
  *   - NOT written because the write FAILED — the same warning with the cause.
  *
  * Silence on the second and third would be the bad kind: the command would report success and the
- * decision would be missing from the only surface anyone reads.
+ * decision would exist nowhere at all — there is no second source left to recover it from.
  */
 async function scaffoldRow(
   n: number,
