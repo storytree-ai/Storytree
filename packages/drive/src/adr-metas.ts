@@ -30,9 +30,17 @@ export function loadAdrMetas(decisionsDir: string): LoadAdrMetasResult {
   return { adrs, parseErrors };
 }
 
-/** PURE: the text after `# ADR-NNNN:` (the decision's H1 title); "" when there is no such heading. */
+/**
+ * PURE: the text after `# ADR-NNNN:` (the decision's H1 title); "" when there is no such heading.
+ *
+ * The TWIN of `extractAdrTitle` in `@storytree/library/adr-doc`, kept trivially identical rather than
+ * shared (drive depends on library and never the reverse). **Change both together** — that module's
+ * copy carries the full rationale, including why fenced code must be stripped before the scan: a
+ * decision quoting another decision's `# ADR-NNNN:` heading inside a ``` block would otherwise take
+ * the quoted heading as its own title.
+ */
 export function extractAdrTitle(content: string): string {
-  const m = /^#\s+ADR-\d{4}:\s*(.+?)\s*$/m.exec(content);
+  const m = /^#\s+ADR-\d{4}:\s*(.+?)\s*$/m.exec(content.replace(/```[\s\S]*?```/g, ""));
   return m && m[1] !== undefined ? m[1] : "";
 }
 
