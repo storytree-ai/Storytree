@@ -24,19 +24,19 @@ governs (ADR-0217 stations 1–3). That hand-off is a real within-story code edg
 > **Proof status (honest) — `proposed`, greenfield, UNBUILT.** This organ does not exist yet: there is
 > no adapter package, no backend, no test. It is authored here as the provable journey and its contract
 > set; it greens by BUILD, not by adoption — the greenfield `proposed → healthy` transition
-> ([ADR-0094](../../docs/decisions/0094-go-green-is-a-status-transition-proposed-builds-mapped-adopt.md):
+> (ADR-0094:
 > *proposed builds*), driven red→green by the prove-it-gate. The build increment authors the spec-borne
-> proof-config ([ADR-0057](../../docs/decisions/0057-node-spec-borne-proof-config.md), the `proof:`
+> proof-config (ADR-0057, the `proof:`
 > block) against the real package + test file it creates; it is deliberately absent now so the spec
 > claims no build it cannot back. Do **not** call any contract below proven, `healthy`, or green —
-> `healthy` is DERIVED from a signed verdict ([ADR-0020](../../docs/decisions/0020-red-green-enforcement-on-the-owned-loop.md)
-> / [ADR-0040](../../docs/decisions/0040-verdict-derived-green-and-the-human-witness-signpost.md)), never
+> `healthy` is DERIVED from a signed verdict (ADR-0020
+> / ADR-0040), never
 > authored.
 
 ## Guidance
 
-This capability is the "net-new authoring tooling" [ADR-0219](../../docs/decisions/0219-generative-image-models-enter-the-art-pipeline-author-time-o.md)
-D2 flagged and deferred, decided by [ADR-0225](../../docs/decisions/0225-generative-3d-produces-the-bridge-blocking-substrate-via-a-v.md):
+This capability is the "net-new authoring tooling" ADR-0219
+D2 flagged and deferred, decided by ADR-0225:
 a generative-3D model **produces the bridge's blocking substrate** (the LIGHT ortho/parametric maquette
 that buys correct iso projection, occlusion and one consistent light) instead of an author hand-building
 the rig. The organ is a **`(prompt, concept image) → block` adapter** with three load-bearing shapes:

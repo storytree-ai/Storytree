@@ -88,6 +88,17 @@ function twoWindowFixture() {
       name: "Bash",
       input: { command: "cd /repo && cat docs/decisions/0139-c.md" },
     }),
+    // THE STORE ROUTE, and the reason this fixture is not written wholly in the old shape: every
+    // read above names a file, and `docs/decisions/` was deleted on 2026-08-22. A fixture carrying
+    // only those keeps passing forever over an extractor that can no longer see a real read — which
+    // is exactly how this module's own defect survived the migration that caused it.
+    toolUseLine({
+      cwd,
+      timestamp: "2026-06-08T01:26:00.000Z",
+      toolUseId: "toolu_p3",
+      name: "Bash",
+      input: { command: "pnpm storytree library artifact adr-0405 --pg 2>&1 | head -30" },
+    }),
   ]);
 
   writeTranscript(
@@ -123,16 +134,16 @@ test("the-sweep-writes-validated-events-into-each-sessions-own-trace: the sweep 
 
   const result = ingestDecisionReads({ traceDir, transcriptDir });
 
-  assert.equal(result.extracted, 4);
-  assert.deepEqual(result.byShape, { read: 2, grep: 1, shell: 1 });
-  assert.equal(result.appended, 4);
+  assert.equal(result.extracted, 5);
+  assert.deepEqual(result.byShape, { read: 2, grep: 1, shell: 1, cli: 1 });
+  assert.equal(result.appended, 5);
   assert.equal(result.sidechainReads, 1, "the subagent read is kept, not dropped");
-  assert.equal(result.distinctDecisions, 3);
+  assert.equal(result.distinctDecisions, 4);
   assert.equal(result.earliestAt, "2026-06-08T01:20:23.863Z");
   assert.deepEqual(
     result.sessions.map((session) => [session.sessionId, session.extracted, session.appended]),
     [
-      ["agent-alpha", 3, 3],
+      ["agent-alpha", 4, 4],
       ["agent-beta", 1, 1],
     ],
   );
@@ -150,6 +161,10 @@ test("the-sweep-writes-validated-events-into-each-sessions-own-trace: the sweep 
       ["full_payload_read", "doc:decisions/0403-a.md", "host-transcript-file-read"],
       ["full_payload_read", "doc:decisions/0223-b.md", "host-transcript-grep"],
       ["full_payload_read", "doc:decisions/0139-c.md", "host-transcript-shell"],
+      // The store route mints the ARTIFACT id, on its own surface. Both spellings are the corpus's
+      // own pointer form for the route that reached it: `offerIdOf()` passes a `doc:` ref through
+      // and prints `asset:adr-0405` with the scheme stripped, so each joins to the offer it answers.
+      ["full_payload_read", "adr-0405", "host-transcript-cli-read"],
     ],
     "the id form is the corpus's own pointer form — anything else joins to no offer and closes nothing",
   );
@@ -162,16 +177,16 @@ test("re-ingesting-appends-nothing-to-the-bytes-on-disk: re-ingesting appends NO
   const { transcriptDir, traceDir } = twoWindowFixture();
 
   const first = ingestDecisionReads({ traceDir, transcriptDir });
-  assert.equal(first.appended, 4);
+  assert.equal(first.appended, 5);
   const afterFirst = fs.readFileSync(path.join(traceDir, "agent-alpha.jsonl"), "utf8");
 
   const second = ingestDecisionReads({ traceDir, transcriptDir });
-  assert.equal(second.extracted, 4, "the same reads are still EXTRACTED — nothing is forgotten");
+  assert.equal(second.extracted, 5, "the same reads are still EXTRACTED — nothing is forgotten");
   assert.equal(second.appended, 0, "and none of them is written a second time");
 
   const afterSecond = fs.readFileSync(path.join(traceDir, "agent-alpha.jsonl"), "utf8");
   assert.equal(afterSecond, afterFirst, "the file is byte-identical after the second run");
-  assert.equal(readTraversalSession({ dir: traceDir, sessionId: "agent-alpha" }).replay.events.length, 3);
+  assert.equal(readTraversalSession({ dir: traceDir, sessionId: "agent-alpha" }).replay.events.length, 4);
 });
 
 test("a-tool-call-seen-in-two-transcripts-is-written-once: a tool call that appears in TWO transcript files — the shape a resumed or forked session produces — is counted and written ONCE", () => {
@@ -197,7 +212,7 @@ test("a-dry-run-writes-not-one-byte: a dry run reports the same extraction and w
   const { transcriptDir, traceDir } = twoWindowFixture();
 
   const dry = ingestDecisionReads({ traceDir, transcriptDir, dryRun: true });
-  assert.equal(dry.extracted, 4);
+  assert.equal(dry.extracted, 5);
   assert.equal(dry.appended, 0);
   assert.equal(dry.dryRun, true);
   assert.equal(fs.existsSync(path.join(traceDir, "agent-alpha.jsonl")), false, "no trace file was created");
@@ -268,7 +283,10 @@ test("the-report-bounds-its-own-claim-as-a-floor: the report states, on its own 
   }
   // And the sized, reached-but-unrecorded block is present alongside the headline figures.
   assert.match(rendered, /REACHED AND NOT RECORDED, sized:/);
-  assert.match(rendered, /extracted 4 read\(s\) — 2 Read \(exact path\), 1 Grep \(exact path\), 1 shell/);
+  assert.match(
+    rendered,
+    /extracted 5 read\(s\) — 1 cli \(the STORE route[^)]*\), 2 Read \(exact path, HISTORICAL\), 1 Grep/,
+  );
   assert.match(rendered, /doc:decisions\/NNNN-slug\.md/);
 });
 
@@ -285,11 +303,115 @@ test("the-adapter-declares-exhaustive-coverage-under-a-distinct-adapter-id: the 
   assert.notEqual(DECISION_READ_COVERAGE.adapterId, HOST_TRANSCRIPT_COVERAGE.adapterId);
   assert.deepEqual(
     [...DECISION_READ_COVERAGE.supported].sort(),
-    ["event:full_payload_read", "field:surface_id", "surface:host_transcript"],
+    [
+      // `event:front_matter_read` is here because the store route can emit it: a
+      // `library artifact adr-NNNN --raw <field>` read hands back ONE field, and declaring it
+      // omitted while emitting it would make this declaration state the opposite of the truth.
+      "event:front_matter_read",
+      "event:full_payload_read",
+      "field:surface_id",
+      "surface:host_transcript",
+    ],
   );
   // This adapter sees a READ and can say nothing about which offer it answered — so these stay
   // omitted, and a later increment that starts claiming causality has to change this line first.
   assert.ok(DECISION_READ_COVERAGE.omitted.includes("event:candidate_set"));
   assert.ok(DECISION_READ_COVERAGE.omitted.includes("event:followed_edge"));
   assert.ok(DECISION_READ_COVERAGE.omitted.includes("field:candidate_follow_causality"));
+});
+
+// ---------------------------------------------------------------------------------------------
+// THE ZERO — the property whose absence let this ingest report a dead extractor as a clean answer
+// ---------------------------------------------------------------------------------------------
+
+test("a-zero-against-mentions-is-reported-as-BLINDNESS: a sweep that reads every file and recovers nothing from transcripts full of decision talk is a verdict, not an empty result", () => {
+  const transcriptDir = freshDir("blind-sweep");
+  const traceDir = freshDir("blind-sweep-trace");
+  writeTranscript(path.join(transcriptDir, "proj", "w.jsonl"), [
+    toolUseLine({
+      cwd: worktreeCwd("agent-blind"),
+      timestamp: "2026-08-22T10:00:00.000Z",
+      toolUseId: "toolu_m1",
+      name: "Bash",
+      input: { command: 'echo "=== ADR-0404 ==="; pnpm storytree adr list --load-bearing' },
+    }),
+    toolUseLine({
+      cwd: worktreeCwd("agent-blind"),
+      timestamp: "2026-08-22T10:01:00.000Z",
+      toolUseId: "toolu_m2",
+      name: "Bash",
+      input: { command: "pnpm storytree adr new --title 'a fork' --pg" },
+    }),
+  ]);
+
+  const result = ingestDecisionReads({ traceDir, transcriptDir });
+  assert.equal(result.scannedFiles, 1, "the walk itself succeeded — this is not the empty-root failure");
+  assert.equal(result.extracted, 0);
+  assert.equal(result.decisionMentions, 2);
+  assert.equal(result.blind, true, "zero reads against real decision traffic is an instrument out of date");
+
+  // And the report SAYS SO, in place of the quiet zero that hid this for the whole migration.
+  const rendered = renderDecisionReadIngest(result);
+  assert.match(rendered, /THE EXTRACTOR MAY BE BLIND/);
+  assert.match(rendered, /UNVERIFIED/);
+});
+
+test("a-zero-against-no-mentions-is-an-honest-quiet-answer: the other zero — nothing read AND nothing named — stays a real answer, because a machine with no decision traffic is not a broken instrument", () => {
+  const transcriptDir = freshDir("quiet-sweep");
+  const traceDir = freshDir("quiet-sweep-trace");
+  writeTranscript(path.join(transcriptDir, "proj", "w.jsonl"), [
+    toolUseLine({
+      cwd: worktreeCwd("agent-quiet"),
+      timestamp: "2026-08-22T10:00:00.000Z",
+      toolUseId: "toolu_q1",
+      name: "Read",
+      input: { file_path: "packages/library/src/knowledge.ts" },
+    }),
+  ]);
+
+  const result = ingestDecisionReads({ traceDir, transcriptDir });
+  assert.equal(result.extracted, 0);
+  assert.equal(result.decisionMentions, 0);
+  assert.equal(result.blind, false, "no reads and nothing named is a quiet machine, not a blind one");
+  assert.doesNotMatch(renderDecisionReadIngest(result), /THE EXTRACTOR MAY BE BLIND/);
+});
+
+test("a-recovered-read-clears-the-blind-verdict-without-certifying-completeness: one recovered read is enough to rule out total blindness, and the report says explicitly that it certifies nothing more", () => {
+  const { transcriptDir, traceDir } = twoWindowFixture();
+  const result = ingestDecisionReads({ traceDir, transcriptDir });
+  assert.equal(result.blind, false);
+
+  const rendered = renderDecisionReadIngest(result);
+  assert.match(rendered, /not blind: 5 read\(s\) recovered/);
+  // The floor language survives beside it — "not blind" must never be read as "complete".
+  assert.match(rendered, /FLOOR, NOT A CENSUS/);
+  assert.match(rendered, /never a\ntarget to drive to zero/);
+});
+
+test("the-store-route-declines-are-sized-apart-from-the-shell-declines: a storytree invocation that reached the log and minted no read is counted on its OWN line, because most of them named no single decision", () => {
+  const transcriptDir = freshDir("declines");
+  const traceDir = freshDir("declines-trace");
+  writeTranscript(path.join(transcriptDir, "proj", "w.jsonl"), [
+    toolUseLine({
+      cwd: worktreeCwd("agent-declines"),
+      timestamp: "2026-08-22T10:00:00.000Z",
+      toolUseId: "toolu_d1",
+      name: "Bash",
+      input: { command: "pnpm storytree adr list --current" },
+    }),
+    toolUseLine({
+      cwd: worktreeCwd("agent-declines"),
+      timestamp: "2026-08-22T10:01:00.000Z",
+      toolUseId: "toolu_d2",
+      name: "Bash",
+      input: { command: "git show origin/main:docs/decisions/0403-a.md" },
+    }),
+  ]);
+
+  const result = ingestDecisionReads({ traceDir, transcriptDir });
+  assert.deepEqual(result.declinedShellVerbs, [{ verb: "git", segments: 1 }]);
+  assert.deepEqual(result.declinedCliVerbs, [{ verb: "adr list", segments: 1 }]);
+  // Folding the two together would report `adr list` under "NAMED a decision record", which it did
+  // not — a small false claim, and exactly the kind this module exists to stop making.
+  assert.match(renderDecisionReadIngest(result), /1 storytree invocation\(s\) that reached the decision log/);
 });

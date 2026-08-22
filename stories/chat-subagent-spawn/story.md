@@ -229,7 +229,7 @@ walkthrough that proves the whole spawn authority.
   reaches the trunk only through a gate this story does not own, and CI is the independent judge
   (ADR-0022). Asserted structurally — an ABSENCE on the spawn tools.
   > **SCOPE NOTE (corrected 2026-07-26).** This bullet was authored as "accept-to-land stays the human
-  > gate … nothing merged without the human's ceremony". **[ADR-0152](../../docs/decisions/0152-lift-the-phase-2-landing-wall-the-desktop-orchestrator-runs.md)**
+  > gate … nothing merged without the human's ceremony". **ADR-0152**
   > (accepted 2026-07-04, *amends* ADR-0137) LIFTED that wall for the desktop orchestrator: the SAME
   > session now mounts `run_gate` / `open_landing_pr` / `poll_pr_checks` when landing deps are present,
   > so it runs the merge ceremony itself and CI auto-merges. The narrow claim above (this story's spawn
@@ -242,7 +242,7 @@ walkthrough that proves the whole spawn authority.
   `sts-single-session-guard-holds`.
 
 **Sequencing note — the fix-drive build shape (OQ-A, `oq-fix-drive-build-shape` — RESOLVED by
-[ADR-0144](../../docs/decisions/0144-chat-accepted-node-builds-run-the-real-proof-and-persist-the.md),
+ADR-0144,
 2026-07-02, which landed BEFORE `builder-spawn-dispatch` was built).** The routed node dispatch drives
 `node build --real` with persist semantics (the node's real proof, a real-proof `building` event →
 the wisp, signed verdict to `events.verdict`, PASS parked on a `claude/real/*` branch); the synthetic
@@ -348,7 +348,7 @@ seam, the claim store, the build worker, the loop definitions, or the chat chain
 ## UAT Test Criteria
 
 > **DELETED — all seven criteria, 2026-08-21, under
-> [ADR-0396](../../docs/decisions/0396-a-retired-story-s-uat-criteria-are-deleted-with-their-ordina.md).**
+> ADR-0396.**
 > A UAT criterion is a standing acceptance OBLIGATION against a story's outcome, not a record of one.
 > This story has been `status: retired` since ADR-0174 + ADR-0175, so its outcome is withdrawn and every
 > criterion under it was an obligation against a journey nobody will run. The seven legs that stood here

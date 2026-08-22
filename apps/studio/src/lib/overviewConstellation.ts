@@ -2,42 +2,40 @@
  * overviewConstellation — the pure heart of the Library OVERVIEW (ADR-0185 dec 4, increment 5 of
  * the library-tech-tree-overlay story): the empty-state, whole-corpus dot field.
  *
- * Five pure functions, none of which fetch (they read only the `assets`/`docs` handed in):
+ * Five pure functions, none of which fetch (they read only the `assets` handed in):
  *
- *   - `importanceOf(assets, docs)` — the in+out DEGREE of each node over the `references[]`
- *     graph. Degree-only, and it stays that way: the weighted (load-bearing) enrichment this
- *     comment once deferred to "increment 6" was RETIRED before being built (ADR-0188 retires
- *     ADR-0187 dec 3's overview information design; the zoomed-out weighted field is not
- *     mounted). The wire signals it needed did land and are read ELSEWHERE — `DocMeta.loadBearing`
- *     feeds the Library selection card via `resolveSelectionDetail` (`./selectionDetail`), not
- *     this module.
+ *   - `importanceOf(assets)` — the in+out DEGREE of each node over the `references[]` graph.
+ *     Degree-only, and it stays that way: the weighted (load-bearing) enrichment this comment once
+ *     deferred to "increment 6" was RETIRED before being built (ADR-0188 retires ADR-0187 dec 3's
+ *     overview information design; the zoomed-out weighted field is not mounted). The load-bearing
+ *     signal did land and is read ELSEWHERE — `GuidanceAsset.loadBearing` feeds the Library
+ *     selection card via `resolveSelectionDetail` (`./selectionDetail`), not this module.
  *
- *     Two facts here are easy to get backwards, so state them exactly (ADR-0251 corrected the
- *     stale version of this comment):
- *       · `DocMeta` DOES carry `loadBearing?` and `references?` (ADR-0187 dec 3, incs 6–7).
- *         `GuidanceAsset` carries neither. `importanceOf` reads NEITHER field on a doc.
- *       · An ADR's out-degree is therefore always 0 because THIS FUNCTION walks only `assets`'
- *         references — docs are seeded at 0 and their own `references` are never traversed — NOT
- *         because the wire lacks the data. `DocMeta.references` has no reader in either surface
- *         today (`./focusGraph`'s `buildFocusGraph` also walks `GuidanceAsset.references` only),
- *         which is a studio-side gap, not missing data. An ADR's importance is its in-degree only.
- *   - `sizeTiers(assets, docs)` — buckets importance into exactly 3 monotonic size tiers (0..2).
+ *     ★ THE CONSTELLATION IS ASSETS-ONLY NOW (ADR-0403 dec 1). It drew a node per doc too, as a
+ *     SQUARE labelled `category: 'adr'`, because the decision log was the `docs/decisions/`
+ *     subtree; PR #1546 deleted that subtree, so those squares became the 113 surviving REFERENCE
+ *     documents wearing a decision's shape. Decisions are ordinary `adr` artifacts and were
+ *     ALREADY drawn as circles out of `assets` — so the doc fold had stopped adding decisions and
+ *     was only adding mislabelled ones. The stale ADR-0251 note that used to sit here is gone with
+ *     it: `DocMeta` no longer carries `loadBearing?`/`references?` at all, and an `adr` artifact's
+ *     out-degree is now its real reference count like any other node's.
+ *   - `sizeTiers(assets)` — buckets importance into exactly 3 monotonic size tiers (0..2).
  *   - `lodBand(zoom)` — maps a zoom level to one of `'far' | 'mid' | 'close'` at settled,
  *     monotonic thresholds (more zoom never reverses to a farther band).
- *   - `constellationLayout(assets, docs, seed)` — a total, deterministic, cycle-tolerant position
+ *   - `constellationLayout(assets, seed)` — a total, deterministic, cycle-tolerant position
  *     for every corpus node, wrapping `stressSeeds` (`./stressLayout`) the same way the map's
  *     stress layout mode does: a per-node dependency RANK (0 = foundation, cycle-tolerant —
  *     terminates on a reference cycle via a visiting-guard rather than looping or throwing) seeds
  *     the soft y-hierarchy anchor, and an edge is added `(referenced -> referencer)` for every
  *     resolvable reference (mirrors `focusGraph.ts`'s dagre convention). The exact rank/position
  *     is NOT a contract — only totality and determinism are.
- *   - `glowIds(query, assets, docs)` — the ids `searchCorpus` (`./librarySearch`) matches for the
+ *   - `glowIds(query, assets)` — the ids `searchCorpus` (`./librarySearch`) matches for the
  *     live query; the `MIN_QUERY_LENGTH` floor lives in `searchCorpus` itself.
  */
 
 import { searchCorpus } from './librarySearch';
 import { stressSeeds, type Pt, type StressEdge, type StressNode } from './stressLayout';
-import type { DocMeta, GuidanceAsset } from '../types';
+import type { GuidanceAsset } from '../types';
 
 export type { Pt };
 
@@ -58,13 +56,12 @@ function resolveRef(ref: string): string {
 }
 
 /**
- * The in+out DEGREE of each corpus node over the `references[]` graph. Every asset and doc id is
- * present in the returned map (totality), including isolated (degree-0) nodes.
+ * The in+out DEGREE of each corpus node over the `references[]` graph. Every asset id is present in
+ * the returned map (totality), including isolated (degree-0) nodes.
  */
-export function importanceOf(assets: GuidanceAsset[], docs: DocMeta[]): Map<string, number> {
+export function importanceOf(assets: GuidanceAsset[]): Map<string, number> {
   const importance = new Map<string, number>();
   for (const a of assets) importance.set(a.id, 0);
-  for (const d of docs) importance.set(d.id, 0);
 
   for (const a of assets) {
     // Out-degree: the count of this node's own references (regardless of whether the target
@@ -85,11 +82,10 @@ export function importanceOf(assets: GuidanceAsset[], docs: DocMeta[]): Map<stri
 /**
  * Buckets `importanceOf`'s degree score into exactly 3 monotonic size tiers (0 = smallest, 2 =
  * largest): a min-max normalised position split into thirds. A totally flat corpus (every node
- * equally important) lands everyone in the middle tier. Every asset and doc id is present
- * (totality).
+ * equally important) lands everyone in the middle tier. Every asset id is present (totality).
  */
-export function sizeTiers(assets: GuidanceAsset[], docs: DocMeta[]): Map<string, SizeTier> {
-  const importance = importanceOf(assets, docs);
+export function sizeTiers(assets: GuidanceAsset[]): Map<string, SizeTier> {
+  const importance = importanceOf(assets);
   const values = [...importance.values()];
   const tiers = new Map<string, SizeTier>();
   if (values.length === 0) return tiers;
@@ -157,13 +153,12 @@ function rankOf(
 }
 
 /**
- * Assigns a position to EVERY corpus node (assets + docs), wrapping `stressSeeds`. Totality
- * (every node gets a position) and determinism (same corpus + seed -> identical positions) are
- * the contract; the exact coordinates are not.
+ * Assigns a position to EVERY corpus node, wrapping `stressSeeds`. Totality (every node gets a
+ * position) and determinism (same corpus + seed -> identical positions) are the contract; the
+ * exact coordinates are not.
  */
 export function constellationLayout(
   assets: GuidanceAsset[],
-  docs: DocMeta[],
   seed: string,
 ): Map<string, Pt> {
   const assetById = new Map(assets.map((a) => [a.id, a]));
@@ -172,7 +167,7 @@ export function constellationLayout(
     return asset ? asset.references.map(resolveRef) : [];
   }
 
-  const nodeIds = [...assets.map((a) => a.id), ...docs.map((d) => d.id)].sort();
+  const nodeIds = assets.map((a) => a.id).sort();
   const known = new Set(nodeIds);
   const rank = rankOf(nodeIds, referencesOf, known);
 
@@ -200,6 +195,6 @@ export function constellationLayout(
 }
 
 /** The ids `searchCorpus` matches for `query` over the loaded corpus (the search-glow set). */
-export function glowIds(query: string, assets: GuidanceAsset[], docs: DocMeta[]): Set<string> {
-  return new Set(searchCorpus(query, assets, docs).map((r) => r.id));
+export function glowIds(query: string, assets: GuidanceAsset[]): Set<string> {
+  return new Set(searchCorpus(query, assets).map((r) => r.id));
 }

@@ -69,7 +69,7 @@ moment the storm exists.
 > **Re-wiring is an owner decision, not a wiring change** (ADR-0311 D5: fresh production-catch
 > evidence AND an ADR, never merely the wiring). It is surfaced as the story's open modeling call 9.
 >
-> **UPDATE 2026-08-09 ([ADR-0336](../../docs/decisions/0336-re-wire-the-act-1-static-import-closure-check-as-a-new-narro.md)):**
+> **UPDATE 2026-08-09 (ADR-0336):**
 > call 9 closed NARROWLY. Only the no-WebGL static-import-closure THIRD of this judge is re-wired, as
 > a NEW, distinct gate rung — `check:web-experience-closure`
 > ([`packages/cli/src/check-web-experience-closure.ts`](../../packages/cli/src/check-web-experience-closure.ts)),
@@ -122,7 +122,7 @@ adds all THREE markers when it flips home; the closure walk is seeded at the ent
 storm's script graph hangs off its imports, resolved extensionless-tolerant via
 `withExtensionFallback`, `web-experience-check.ts:215`).
 
-THE NO-WEBGL-IN-ACT-1 WALL ([ADR-0216](../../docs/decisions/0216-act-1-experience-attested-overwhelm-finale-transform-frozen.md) D2/D4 — tech split + "the exhale buys the load"). Act 1 is
+THE NO-WEBGL-IN-ACT-1 WALL (ADR-0216 D2/D4 — tech split + "the exhale buys the load"). Act 1 is
 plain DOM/CSS + canvas + Web Audio; the R3F bundle may load ONLY at the inflection. The judge walks
 static import edges from the Act 1 entry module (the storm's script entry) and reds if the closure
 reaches `three`, `@react-three/*`, or the synced `forest-world-r3f` dir. Dynamic `import()` behind

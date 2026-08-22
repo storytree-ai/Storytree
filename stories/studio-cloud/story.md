@@ -38,7 +38,7 @@ decisions: [42, 49, 117, 311] # deciding ADRs (ADR-0037 §2): 0042 stood it up, 
 interacts with the live studio — world, library, docs — leaving comments under their verified
 identity; nothing else about the system is exposed.
 
-The deciding ADR is [ADR-0042](../../docs/decisions/0042-hosted-studio-demo-cloud-run-iap.md)
+The deciding ADR is ADR-0042
 (owner decisions 2026-06-14: Cloud Run + IAP exposure; read+comment guest scope). The story turns
 the studio from a laptop-bound Vite dev process into a deployable artifact without forking it:
 ONE `/api/*` route table serves both the dev plugin and the hosted server, and the hosted
@@ -63,7 +63,7 @@ differences are a policy layer, not a second backend.
 
 ## The write-broker (ADR-0117)
 
-[ADR-0117](../../docs/decisions/0117-broker-the-inner-circle-s-builds-a-members-gated-write-endpo.md)
+ADR-0117
 adds a **members-gated write-broker** on this served studio's `/api/*` table: a thick-local co-builder
 (the `desktop` story) POSTs his **already-signed** verdict / presence to the broker, and the SERVER — under
 its one service-account DB identity — validates SHAPE + ATTRIBUTION and persists it, so his local build
@@ -275,7 +275,7 @@ three duplicate criteria.
 
 ## Open modeling calls (for the owner)
 
-ADR-0042 resolved exposure and guest scope; [ADR-0117](../../docs/decisions/0117-broker-the-inner-circle-s-builds-a-members-gated-write-endpo.md)
+ADR-0042 resolved exposure and guest scope; ADR-0117
 added the members-gated write-broker + the `builder` scope (a settled owner-directed decision, born
 accepted per ADR-0110). Cost detail (direct IAP integration vs classic LB ~US$20/mo) is recorded in
 ADR-0042 and lands with `cloud-run-iap`. One call is open:

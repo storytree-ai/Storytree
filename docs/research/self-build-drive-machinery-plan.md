@@ -14,7 +14,7 @@ that spend money or commit a schema.
 ## Addendum — 2026-06-10: ADR-0030 overtakes the Phase 0/D wording (recorded, not rewritten)
 
 The plan below is preserved as written; the same day,
-[ADR-0030](../decisions/0030-all-in-on-claude-agent-sdk.md) went **all-in on the Claude Agent SDK
+ADR-0030 went **all-in on the Claude Agent SDK
 as the live runtime**, and Phase D landed on it (PR #26: first live signed PASS through the gate,
 write wall held live). Read the stale spots against this ledger:
 

@@ -18,7 +18,7 @@ work red→green from a spec-borne command.
 **Depends on —** [`spec-borne-proof-config`](spec-borne-proof-config.md)
 
 > **Proof status (honest) — `proposed`, built outer-loop (the bootstrap).** This is ADR-0057 §3's
-> expansion B (no new ADR — it ships under the already-decided §3 plan + [ADR-0020](../../docs/decisions/0020-red-green-enforcement-on-the-owned-loop.md)'s
+> expansion B (no new ADR — it ships under the already-decided §3 plan + ADR-0020's
 > honesty walls). The change is BUILT and its dominant behaviour is observationally verified by a
 > real, passing, OFFLINE suite (`proof-config.test.ts` schema legs + `resolve-prove-spec.test.ts`
 > resolution/prompt/forge legs). Like the keystone it extends, B is a MULTI-FILE change the

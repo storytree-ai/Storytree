@@ -1,6 +1,6 @@
 # Cross-story interface: `oq-proposal-authoring`
 
-A declared cross-story interface per [ADR-0010 §4](../../docs/decisions/0010-organism-model-story-bounded-context.md)
+A declared cross-story interface per ADR-0010 §4
 (declared 2026-06-11, resolving `feedback-graduation` owner call #3). ADR-0010 leaves the schema
 term provisional (`boundary` / `port`) and names no canonical location, so this one-pager lives
 with the owning story; ratify shape and home when `packages/library` formalises the entity.
@@ -9,7 +9,7 @@ with the owning story; ratify shape and home when `packages/library` formalises 
 
 `oq-proposal-authoring` — the open-question / proposal authoring path: how new decision-bearing
 signal enters the Library and flows to an ADR (the
-[ADR-0018](../../docs/decisions/0018-knowledge-tier-phase1-structured-source.md) §6 OQ lifecycle:
+ADR-0018 §6 OQ lifecycle:
 owner decisions park as `open-question` units, the owner comments, an agent records the resolution
 in an ADR and retires the unit).
 

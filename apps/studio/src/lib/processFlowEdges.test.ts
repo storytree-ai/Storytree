@@ -55,7 +55,7 @@ describe('lpf — process branchEdges become downstream flow edges', () => {
     ]);
     const assets = [centreAsset, stationA, stationB];
 
-    const result = buildFocusGraph({ centre: centreOf(centreAsset), assets, docs: [] });
+    const result = buildFocusGraph({ centre: centreOf(centreAsset), assets });
 
     const nodeA = result.nodes.find((n) => n.id === 'station-a');
     const nodeB = result.nodes.find((n) => n.id === 'station-b');
@@ -79,7 +79,7 @@ describe('lpf — process branchEdges become downstream flow edges', () => {
     ]);
     const assets = [centreAsset, stationA, stationC];
 
-    const result = buildFocusGraph({ centre: centreOf(centreAsset), assets, docs: [] });
+    const result = buildFocusGraph({ centre: centreOf(centreAsset), assets });
 
     const edgeA = result.edges.find((e) => e.from === 'software-factory-line-fixture' && e.to === 'station-a');
     expect(edgeA?.label).toBe('station A — the labelled one');
@@ -101,7 +101,7 @@ describe('lpf — process branchEdges become downstream flow edges', () => {
     const centreWithRef: GuidanceAsset = { ...centreAsset, dependsOn: ['asset:upstream-ref'] };
     const assets = [centreWithRef, stationA, upstreamRef];
 
-    const result = buildFocusGraph({ centre: centreOf(centreWithRef), assets, docs: [] });
+    const result = buildFocusGraph({ centre: centreOf(centreWithRef), assets });
 
     const branchEdge = result.edges.find(
       (e) => e.from === 'software-factory-line-fixture' && e.to === 'station-a',
@@ -119,7 +119,7 @@ describe('lpf — process branchEdges become downstream flow edges', () => {
     const unrelated = principle('unrelated-asset');
     const assets = [otherProcess, unrelated];
 
-    const result = buildFocusGraph({ centre: centreOf(otherProcess), assets, docs: [] });
+    const result = buildFocusGraph({ centre: centreOf(otherProcess), assets });
 
     expect(result.nodes.some((n) => n.id === 'unrelated-asset')).toBe(false);
     expect(result.edges).toHaveLength(0);

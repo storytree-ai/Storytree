@@ -44,9 +44,9 @@ machinery that today lives in `.github/workflows/` (the `verify` + `automerge` j
 [`ci.yml`](../../.github/workflows/ci.yml), the deploy in
 [`deploy-studio.yml`](../../.github/workflows/deploy-studio.yml)), the root-surface and ADR-number
 gates in [`scripts/`](../../scripts), and the keyless CD infra in [`infra/`](../../infra). The
-deciding ADRs are [ADR-0022](../../docs/decisions/0022-ci-green-gate-auto-merge.md) (the green gate +
+deciding ADRs are ADR-0022 (the green gate +
 auto-merge-on-green, inside free Actions because GitHub-native auto-merge is paywalled on private
-repos) and [ADR-0046](../../docs/decisions/0046-studio-merge-deploy-cd.md) (merge→deploy CD).
+repos) and ADR-0046 (merge→deploy CD).
 
 > **This story is the first WORK-TRACKED home for two things that currently live only in CLAUDE.md
 > prose + session memory:** (1) the **gate↔CI parity** invariant — that `pnpm gate` locally and the
@@ -160,7 +160,7 @@ at 2 — a burned ordinal is never reused and no survivor is ever renumbered.)*
 > `Could not find 'src/landing-deps.test.ts'`. It is not missing by accident —
 > `apps/desktop/src/backend/landing-surface-retired.test.ts`, test `lsr-modules-deleted`, ASSERTS that
 > `packages/drive/src/landing-deps.ts` and `packages/drive/src/landing-deps.test.ts` stay deleted,
-> because [ADR-0175](../../docs/decisions/0175-repurpose-don-t-delete-the-in-app-orchestrator-chat-infrastr.md)
+> because ADR-0175
 > retired the landing surface along with the interactive in-app orchestrator (ADR-0174). The census
 > that scoped this pass reported `bound-but-gate-missing: 0`, and that stays true — every binding
 > resolves to a DECLARED gate. What it did not check, and what this pass did, is whether the declared
@@ -245,7 +245,7 @@ witness. Opening the PR is now the session's own ceremony, not a repository seam
    `pnpm --filter @storytree/drive exec node --import tsx --test src/landing-deps.test.ts`.
    **This command CANNOT RUN and must not be believed.** Measured 2026-08-21: it exits non-zero with
    `Could not find 'src/landing-deps.test.ts'`, because
-   [ADR-0175](../../docs/decisions/0175-repurpose-don-t-delete-the-in-app-orchestrator-chat-infrastr.md)
+   ADR-0175
    retired the contributor-side landing surface with the interactive in-app orchestrator (ADR-0174) and
    `apps/desktop/src/backend/landing-surface-retired.test.ts` (`lsr-modules-deleted`) now ASSERTS that
    `packages/drive/src/landing-deps.ts` and `landing-deps.test.ts` stay deleted. Its criterion (story
@@ -330,7 +330,7 @@ Surfaced rather than guessed — plain files, cheap to revise.
    gate↔CI parity as an ADR (and add it to this story's `decisions:`), or leave it as a
    capability-level contract. I did not pick a number (no `storytree adr new` from this authoring
    role); flagging for the owner / orchestrator.
-2. **RESOLVED (owner, 2026-06-15 — [ADR-0058](../../docs/decisions/0058-cross-story-dependency-direction-the-no-cycle-rule-and-the-b.md)).**
+2. **RESOLVED (owner, 2026-06-15 — ADR-0058).**
    The earlier "trunk with two forward leaf edges" framing was a modelling error. By the
    dependency-direction rule (ADR-0058 §1) ci-cd needs both sibling surfaces delivered to pass its own
    UAT, so it **depends on** them — `depends_on` is now `[studio-cloud, notice-board]`, and ci-cd is

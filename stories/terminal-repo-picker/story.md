@@ -79,7 +79,7 @@ selection is **validated**, **persisted** across relaunches, and **resolved** in
 the Electron **main** process, so the byte-locked `TerminalDock` renderer stays arg-free and the terminal
 simply opens where the user chose.
 
-This story is a follow-on of **[ADR-0174](../../docs/decisions/0174-interactive-builds-run-in-an-in-app-terminal-not-the-in-app.md)**
+This story is a follow-on of **ADR-0174**
 and the delivered **[`embedded-terminal`](../embedded-terminal/story.md)** story (owner-directed
 2026-07-11): the app already embeds a real local terminal (xterm.js in the renderer over a node-pty in the
 Electron main), but it always opens in the app's serve root. The owner's ask is small and concrete —

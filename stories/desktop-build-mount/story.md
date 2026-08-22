@@ -138,12 +138,12 @@ build-capable surface on the shared forest, with the worker's coarse progress st
 > "…and the chat accept click reaches `dispatchAcceptedBuild` on that same backend — so the desktop becomes
 > a complete propose→accept→drive→land surface". Neither half stands:
 > - the **accept-click third step RETIRED** with the `desktop-accept-dispatch` capability
->   ([ADR-0155](../../docs/decisions/0155-orchestrator-drives-retire-the-chat-propose-unit-accept-to-b.md),
+>   (ADR-0155,
 >   2026-07-04) — its `/api/chat/accept` route was removed in PR #587, and it was already dropped from
 >   `capabilities:`, the dependency graph, UAT leg 3 and gate 2;
 > - the **function itself was DELETED** by
->   [ADR-0404 d.5](../../docs/decisions/0404-dispatching-a-build-is-a-cli-verb-retire-the-in-app-build-an.md)
->   — [ADR-0175](../../docs/decisions/0175-repurpose-don-t-delete-the-in-app-orchestrator-chat-infrastr.md)
+>   ADR-0404 d.5
+>   — ADR-0175
 >   had removed its only caller (`packages/drive/src/spawn-builder.ts`) and retired the
 >   `builder-spawn-dispatch` capability, leaving it exercised by nothing but its own test.
 >
@@ -518,10 +518,10 @@ at build time, so the code is tested-but-UNREGISTERED. On a GREEN base a fresh `
 is no red→green left to earn, and *halt is never a pass*, ADR-0130), so the honest path off `mapped` is
 **not** a manufactured Build over mature tested code — it is the author-declared **reliability gates** below,
 observe-and-signed to an `adopted` verdict
-([ADR-0085](../../docs/decisions/0085-resolve-adr-0083-fork-b-brownfield-reliability-gates-author.md),
-resolving [ADR-0083](../../docs/decisions/0083-author-defined-story-green-declared-obligations-machine-per.md)
+(ADR-0085,
+resolving ADR-0083
 Fork B). This is the `mapped → healthy` = **Adopt** transition
-[ADR-0094](../../docs/decisions/0094-go-green-is-a-status-transition-proposed-builds-mapped-adopt.md) names
+ADR-0094 names
 (d.3 retired the status-blind Build for `mapped` stories), greening each covered capability via the
 `(covers:)` coverage ADR-0097 §5/§2 defines. Distinct from `## UAT Test Criteria` above (the integrated, offline
 acceptance journey): the gates are the author's **expandable reliability floor** — they start by adopting
@@ -575,15 +575,15 @@ re-pointed studio importer parity, and neither owning-suite gate proves that ful
    `worker-relocation`; this combined command exists only to bind the wider UAT leg honestly.
 
 Adopting these three gates flips the story off `mapped`. `healthy` stays non-authorable
-([ADR-0020](../../docs/decisions/0020-red-green-enforcement-on-the-owned-loop.md)) — the authored `status:`
+(ADR-0020) — the authored `status:`
 is never `healthy`; the world's crown DERIVES green from the signed verdicts
-([ADR-0040](../../docs/decisions/0040-verdict-derived-green-and-the-human-witness-signpost.md)) and only when
+(ADR-0040) and only when
 every capability is `healthy` (`worker-relocation` via gate 1; `routed-node-real-dispatch` via its own
 `--real` verdict — `desktop-build-route`, which greened via gate 2, was retired by ADR-0404 and no
 longer rolls into the crown) AND every own-proof obligation (the ONE
 machine-witnessed Story UAT leg above)
 is signed
-([ADR-0082](../../docs/decisions/0082-per-test-uat-test-criteria-earn-green-by-declared-witness-story-uat.md) /
+(ADR-0082 /
 ADR-0083 Fork A + ADR-0085). No single gate greens the story; there are no `human` UAT legs here
 (`uat-1` is `witness: machine`; `uat-2` was deleted 2026-08-21 under ADR-0294 D2 and its ordinal is
 burned; the former leg 3 is retired and non-numbered), so it

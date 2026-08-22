@@ -18,6 +18,16 @@
  * ingest, and {@link renderDecisionReadIngest} says so on its own face rather than letting a reader
  * take the count for a live one.
  *
+ * ## AND A ZERO FROM IT IS NOW A VERDICT, NOT A SILENCE
+ *
+ * The extractor beneath this one matched a FILE PATH, and `docs/decisions/` was deleted whole on
+ * 2026-08-22 (ADR-0403 dec 1). From that commit it could only ever return zero, and it returned it
+ * the same way it would have reported a genuinely quiet machine — the third instance of one fault
+ * class on that migration. {@link DecisionReadIngestResult.blind} is the repair: the sweep now also
+ * counts the tool calls that NAMED a decision and yielded nothing, so zero-reads-with-many-mentions
+ * is reported as an instrument out of date with its subject, and `probe:decision-reads` exits
+ * non-zero on it rather than printing an empty table under a success banner.
+ *
  * ## WHY IT SWEEPS EVERY SESSION AT ONCE
  *
  * `ingestTranscriptOccupancy` takes ONE session id, because occupancy is something a live session
@@ -42,7 +52,7 @@ import {
   scanTranscriptDecisionReads,
   type DecisionRead,
   type DecisionReadShape,
-  type DeclinedShellVerb,
+  type DeclinedVerb,
 } from "./decision-reads.js";
 
 /** One session's slice of the sweep. */
@@ -73,8 +83,26 @@ export interface DecisionReadIngestResult {
   /** Named blind spots, sized — see {@link renderDecisionReadIngest}. */
   readonly uncorrelatedReads: number;
   readonly unidentifiedCalls: number;
-  readonly declinedShellVerbs: readonly DeclinedShellVerb[];
+  readonly declinedShellVerbs: readonly DeclinedVerb[];
+  /** `storytree` invocations that reached the decision log and minted no read — see the scan field
+   * of the same name. Reported on its own line because most of them named NO single decision. */
+  readonly declinedCliVerbs: readonly DeclinedVerb[];
   readonly redirectTargets: number;
+  /** Tool calls that NAMED a decision and yielded no read — see {@link DecisionReadScan.decisionMentions}. */
+  readonly decisionMentions: number;
+  /**
+   * THE VERDICT ON A ZERO, and the reason this module can no longer hide the failure that produced it.
+   *
+   * True when the sweep recovered NOTHING from a corpus that talks about decisions constantly — which
+   * is not a session that consulted none, it is an extractor that has stopped matching the world.
+   * That is exactly the state this module sat in from the moment `docs/decisions/` was deleted, and
+   * it reported it as a clean zero because a clean zero was all it could say.
+   *
+   * FALSE IS NOT A CERTIFICATE. It says the instrument recovered something, not that it recovered
+   * everything: under-reporting remains this arc's accepted failure mode and every figure here is
+   * still a floor. What it rules out is the total blindness that a single read disproves.
+   */
+  readonly blind: boolean;
   /** True when the caller asked for a scan with no writes. */
   readonly dryRun: boolean;
 }
@@ -116,12 +144,14 @@ export function ingestDecisionReads(input: IngestDecisionReadsArgs): DecisionRea
   const bySession = new Map<string, DecisionRead[]>();
   const seenEventIds = new Set<string>();
   const declinedByVerb = new Map<string, number>();
+  const declinedByCliVerb = new Map<string, number>();
   const distinctDecisions = new Set<string>();
-  const byShape = { read: 0, grep: 0, shell: 0 } satisfies Record<DecisionReadShape, number>;
+  const byShape = { read: 0, grep: 0, shell: 0, cli: 0 } satisfies Record<DecisionReadShape, number>;
   let uncorrelatedReads = 0;
   let unidentifiedCalls = 0;
   let redirectTargets = 0;
   let sidechainReads = 0;
+  let decisionMentions = 0;
   let earliestAt: string | undefined;
 
   for (const file of files) {
@@ -129,8 +159,12 @@ export function ingestDecisionReads(input: IngestDecisionReadsArgs): DecisionRea
     uncorrelatedReads += scan.uncorrelatedReads;
     unidentifiedCalls += scan.unidentifiedCalls;
     redirectTargets += scan.redirectTargets;
+    decisionMentions += scan.decisionMentions;
     for (const declined of scan.declinedShellVerbs) {
       declinedByVerb.set(declined.verb, (declinedByVerb.get(declined.verb) ?? 0) + declined.segments);
+    }
+    for (const declined of scan.declinedCliVerbs) {
+      declinedByCliVerb.set(declined.verb, (declinedByCliVerb.get(declined.verb) ?? 0) + declined.segments);
     }
 
     for (const read of scan.reads) {
@@ -165,7 +199,9 @@ export function ingestDecisionReads(input: IngestDecisionReadsArgs): DecisionRea
       const eventId = eventIdFor(read);
       if (alreadyPresent.has(eventId)) continue;
       toAppend.push({
-        kind: "full_payload_read",
+        // The strength the READ actually had, never a blanket full payload: a `--raw <field>` read
+        // recorded as a whole-document one inflates every re-read ratio taken from this trace.
+        kind: read.strength,
         eventId,
         sessionId,
         at: read.at,
@@ -185,14 +221,19 @@ export function ingestDecisionReads(input: IngestDecisionReadsArgs): DecisionRea
     sessions.push({ sessionId, extracted: reads.length, appended: appendedForSession });
   }
 
-  const declinedShellVerbs = [...declinedByVerb.entries()]
-    .map(([verb, segments]) => ({ verb, segments }))
-    .sort((a, b) => b.segments - a.segments || a.verb.localeCompare(b.verb));
+  const bySize = (counts: Map<string, number>): DeclinedVerb[] =>
+    [...counts.entries()]
+      .map(([verb, segments]) => ({ verb, segments }))
+      .sort((a, b) => b.segments - a.segments || a.verb.localeCompare(b.verb));
+  const declinedShellVerbs = bySize(declinedByVerb);
+  const declinedCliVerbs = bySize(declinedByCliVerb);
+
+  const extracted = byShape.read + byShape.grep + byShape.shell + byShape.cli;
 
   return {
     scannedFiles: files.length,
     byShape,
-    extracted: byShape.read + byShape.grep + byShape.shell,
+    extracted,
     appended,
     sessions,
     distinctDecisions: distinctDecisions.size,
@@ -201,7 +242,13 @@ export function ingestDecisionReads(input: IngestDecisionReadsArgs): DecisionRea
     uncorrelatedReads,
     unidentifiedCalls,
     declinedShellVerbs,
+    declinedCliVerbs,
     redirectTargets,
+    decisionMentions,
+    // A sweep that recovered nothing from transcripts that name decisions constantly is an
+    // instrument reporting on a world it no longer matches. Zero reads AND zero mentions is the
+    // other, honest zero: a machine with no decision traffic at all.
+    blind: extracted === 0 && decisionMentions > 0,
     dryRun,
   };
 }
@@ -212,12 +259,20 @@ export function ingestDecisionReads(input: IngestDecisionReadsArgs): DecisionRea
  * and, more to the point, the two observe genuinely different things at the same boundary: one
  * reads `usage` off assistant lines, this one reads `tool_use` blocks.
  *
- * `supported` names the three features this floor observes and nothing else — notably NOT
+ * `supported` names the features this floor observes and nothing else — notably NOT
  * `event:candidate_set` or `event:followed_edge`: this adapter sees a read and can say nothing
  * whatever about which offer, if any, that read was answering.
+ *
+ * `event:front_matter_read` JOINED THE LIST when the store route did, and the two had to move
+ * together: a `library artifact adr-NNNN --raw <field>` read emits that kind, so leaving it under
+ * `omitted` would have made this declaration state the opposite of what the adapter does. An
+ * exhaustive coverage declaration is only worth having while it is exhaustively true (ADR-0235
+ * clause 6) — and a declaration that quietly disagrees with its own emitter is the same class of
+ * silent-wrong-answer this increment exists to remove.
  */
 const SUPPORTED_FEATURES = [
   "surface:host_transcript",
+  "event:front_matter_read",
   "event:full_payload_read",
   "field:surface_id",
 ] as const;
@@ -250,6 +305,11 @@ export const DECISION_READ_OMISSIONS: readonly string[] = [
   "`Grep` over a DIRECTORY, which names no file and therefore no decision record.",
   "Non-tool reads — the CLAUDE.md / AGENTS.md auto-load, `@file` mentions, the UserPromptSubmit " +
     "injection, Skill-loaded files. UNTESTED here: declared unknown rather than absent.",
+  "`adr list` — a SEARCH over the log, which names no single decision. 391 invocations on this " +
+    "disk name no decision to record, and minting one read apiece would manufacture history.",
+  "`library artifact history adr-NNNN` — a read of the CHANGE LOG rather than of the document.",
+  "A decision reached through the STORE by any route other than the two recognised verbs — the " +
+    "studio, a direct `psql`, a script holding its own pool. None of those is a transcript tool call.",
   "Worktree-ISOLATED subagents, which derive their own session id and land on a separate trace. " +
     "Not empirically tested.",
   "Reads made outside any agent at all.",
@@ -277,9 +337,15 @@ export function renderDecisionReadIngest(result: DecisionReadIngestResult): stri
   lines.push(`scanned ${result.scannedFiles} transcript file(s)`);
   lines.push(
     `extracted ${result.extracted} read(s) — ` +
-      `${result.byShape.read} Read (exact path), ` +
-      `${result.byShape.grep} Grep (exact path), ` +
-      `${result.byShape.shell} shell (SCRAPED from an opaque command string)`,
+      `${result.byShape.cli} cli (the STORE route: library artifact adr-NNNN / adr pull), ` +
+      `${result.byShape.read} Read (exact path, HISTORICAL), ` +
+      `${result.byShape.grep} Grep (exact path, HISTORICAL), ` +
+      `${result.byShape.shell} shell (SCRAPED from an opaque command string, HISTORICAL)`,
+  );
+  lines.push(
+    "The three path shapes are HISTORICAL by construction: `docs/decisions/` was deleted whole on " +
+      "2026-08-22 (ADR-0403 dec 1), so only a replay of a pre-migration session can produce one, and " +
+      "a session recorded after that date can only ever read a decision through the cli shape.",
   );
   lines.push(
     `across ${result.sessions.length} session(s), reaching ${result.distinctDecisions} distinct decision record(s)`,
@@ -293,11 +359,28 @@ export function renderDecisionReadIngest(result: DecisionReadIngestResult): stri
   lines.push(
     result.dryRun
       ? `would append ${result.sessions.reduce((sum, s) => sum + s.extracted, 0)} event(s) (before de-duplication against existing traces)`
-      : `appended ${result.appended} full_payload_read event(s), node id form doc:decisions/NNNN-slug.md`,
+      : `appended ${result.appended} read event(s) — node id form doc:decisions/NNNN-slug.md for a ` +
+        "file read, adr-NNNN for a store read (the corpus's own pointer form for each route, so both " +
+        "join to the offer that led there)",
   );
   lines.push(
     "0 appended on a re-run is the IDEMPOTENCE property, not a failure: each event is keyed on the " +
       "host tool-call id plus the node it names.",
+  );
+  lines.push("");
+  lines.push(
+    result.blind
+      ? "⚠ THIS ZERO IS NOT AN ANSWER — THE EXTRACTOR MAY BE BLIND.\n" +
+          `  ${result.decisionMentions} tool call(s) NAMED a decision and not one of them yielded a read. A corpus ` +
+          "that\n  talks about decisions this much and reads none is far likelier to be an instrument whose " +
+          "subject\n  moved than a run of sessions that consulted nothing — which is precisely what happened " +
+          "when\n  `docs/decisions/` was deleted and this module went on reporting a clean zero. Treat the " +
+          "count\n  above as UNVERIFIED and check how a decision is reached today before believing it."
+      : `not blind: ${result.extracted} read(s) recovered against ${result.decisionMentions} decision-naming ` +
+          "tool call(s) that yielded none.\n" +
+          "A mention is usually prose — an `echo`, a note, a commit message — so this is a denominator, " +
+          "never a\ntarget to drive to zero. It is here so a ZERO can be told apart from a BLIND SPOT: this " +
+          "extractor\nreported zero for the whole `docs/decisions/` migration and nothing in its output said so.",
   );
   lines.push("");
   lines.push("THIS IS A FLOOR, NOT A CENSUS.");
@@ -313,6 +396,14 @@ export function renderDecisionReadIngest(result: DecisionReadIngestResult): stri
     "And a READ COUNT IS NOT A SUFFICIENCY MEASURE — models given insufficient context answer " +
       "confidently rather than abstaining, so nothing here supports a conclusion that agents are " +
       "reading the decision log and getting on fine.",
+  );
+  lines.push(
+    "THE ONE DIRECTION IT CAN OVER-COUNT: a transcript records that a command was ISSUED, never " +
+      "that it succeeded. A `cat` of a missing file, an `adr pull` that failed on a stopped " +
+      "database, a `library artifact` read that errored — each is counted here as a read. The live " +
+      "observer gates on the invocation's own exit status; a batch sweep of the transcript has no " +
+      "such signal, and is stating intent rather than delivery. Unbounded in principle, and named " +
+      "because everything else here is a floor and this single item is not.",
   );
   lines.push("");
   lines.push("REACHED AND NOT RECORDED, sized:");
@@ -331,6 +422,21 @@ export function renderDecisionReadIngest(result: DecisionReadIngestResult): stri
             .slice(0, 8)
             .map((entry) => `${entry.verb}=${entry.segments}`)
             .join(", ")}`),
+  );
+  const declinedCliTotal = result.declinedCliVerbs.reduce((sum, entry) => sum + entry.segments, 0);
+  lines.push(
+    `  ${declinedCliTotal} storytree invocation(s) that reached the decision log and minted no read` +
+      (result.declinedCliVerbs.length === 0
+        ? ""
+        : `: ${result.declinedCliVerbs
+            .slice(0, 8)
+            .map((entry) => `${entry.verb}=${entry.segments}`)
+            .join(", ")}`),
+  );
+  lines.push(
+    "    — counted apart from the shell line above because MOST OF THESE NAMED NO SINGLE DECISION: " +
+      "`adr list` is a search over the log, and folding it in would claim a decision record was " +
+      "named when none was.",
   );
   lines.push("");
   lines.push("NOT COVERED AT ALL:");

@@ -86,6 +86,25 @@ export interface RenderedAsset {
    */
   lifecycle?: string;
   /**
+   * An `adr` doc's ADR-0086 `loadBearing` tag — the same `.extend()` schema-metadata crossing as
+   * {@link status} / {@link lifecycle}, and now the ONLY route it has to a browser surface.
+   *
+   * It used to reach the studio on `DocMeta.loadBearing`, folded in by the docs file-walker from
+   * `docs/decisions/*.md` frontmatter. ADR-0403 dec 1 moved decisions into the store and PR #1546
+   * deleted that walker's ADR half, so the Library selection card's load-bearing badge had no
+   * producer left and became unreachable. This crossing is what makes it readable again — from the
+   * row, where the tag now lives.
+   *
+   * Present ONLY when the stored tag is `true`, never as an explicit `false`. That is deliberate
+   * and matches the retired producer's semantics exactly ("true only when the tag is explicitly
+   * `load_bearing: true`"): the field is a MARKER for the ADR-0139 consolidation worklist, so
+   * absent and false say the same thing, and absent-by-default keeps every existing reader
+   * validating with no migration (the {@link cites} idiom). Nothing writes it back through this
+   * seam — `AssetWriteInput` cannot express it and `buildLibraryDoc`'s structured branch preserves
+   * the stored doc's own key — so the lossy `false` is unreachable rather than merely unlikely.
+   */
+  loadBearing?: boolean;
+  /**
    * The authored `dependsOn` dependency edge (ADR-0223) — the same `.extend()` schema-metadata
    * crossing as {@link status} / {@link lifecycle}, and for the same reason: it sits OUTSIDE the
    * KIND_SPECS body table, so `extractFields` never surfaces it and it would fall on the floor at
@@ -325,6 +344,7 @@ export function renderStoredDoc(stored: StoredDoc): RenderedAsset {
     arcRef?: string;
     status?: string;
     lifecycle?: string;
+    loadBearing?: boolean;
     dependsOn?: string[];
     cites?: string[];
   };
@@ -349,6 +369,9 @@ export function renderStoredDoc(stored: StoredDoc): RenderedAsset {
   if (typeof typedEdges.lifecycle === "string" && typedEdges.lifecycle) {
     asset.lifecycle = typedEdges.lifecycle;
   }
+  // An `adr`'s load-bearing tag — crossed ONLY when true (see the field's doc comment): the tag is
+  // a worklist marker, so a stored `false` and an absent tag are the same fact.
+  if (typedEdges.loadBearing === true) asset.loadBearing = true;
   // The authored dependency edge (ADR-0223) crosses like the other typed edges: array-shaped, so
   // the guard is `Array.isArray` (matching stepRefs/branchEdges) rather than a truthiness test.
   if (hasDependsOnKey(doc)) asset.dependsOn = readDependsOnPointers(doc);

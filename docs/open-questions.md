@@ -35,8 +35,8 @@ capabilities/contracts under the owned loop, what "observational-green" means op
 and how fixtures/models are version-pinned.
 → ADR-0007 reaffirmed this stayed open while distinguishing **operator-attested**
 (earned, reaches `healthy`) from **mapped** (observational, never `healthy`).
-→ **ANSWERED ([ADR-0083](decisions/0083-author-defined-story-green-declared-obligations-machine-per.md)
-+ [ADR-0085](decisions/0085-resolve-adr-0083-fork-b-brownfield-reliability-gates-author.md), 2026-06-21):**
+→ **ANSWERED (ADR-0083
++ ADR-0085, 2026-06-21):**
 `mapped` is a transient bootstrap state whose EXIT is an author-declared obligation set earning a
 signed verdict. A brownfield story declares a `## Reliability Gates` section — gates of kind
 `observe` (the existing suite, **observe-and-signed** into an `adopted` verdict — operational
@@ -71,22 +71,22 @@ v1's two-0021 / gap-0009 collisions). **As originally posed, four sub-questions 
 granularity / **write-ownership** scope shape; (c) the conflict-resolution ceremony on refusal;
 (d) the concurrency-safe scheme for v2's own ADR-number namespace. **Only (d) is still open** — see
 the arrows below.
-→ **(a) reframed by [ADR-0012](decisions/0012-tool-execution-pluggable-sandbox.md)**: tool
+→ **(a) reframed by ADR-0012**: tool
 execution (the owned loop's `bash`/edits — pi is dropped, ADR-0011) runs behind a pluggable
 `ToolExecutor` **sandbox seam** — a *borrowed* backend (virtual / git worktree / container),
 distinct from ADR-0009's DBOS coordination isolation; the concrete backend stays deferred to
 need.
 → **(b) and (c) RESOLVED by
-[ADR-0121](decisions/0121-per-unit-write-claim-refuses-a-second-concurrent-build-of-on.md)**, which
+ADR-0121**, which
 answers both by name: **granularity is per-unit** (a claim on the node being built) and the
 **ceremony on refusal is a hard refusal** of the second concurrent build — ADR-0009's typed claim
 *enacted* on plain Postgres (`events.node_claim` / `events.claim_event`) rather than on the DBOS
 substrate ADR-0019 deferred. ADR-0121 scopes that answer to the **build surface**; two later ADRs
 widen it without re-opening the question:
-[ADR-0200](decisions/0200-the-noticeboard-is-the-claim-ledger-forced-session-claims-pr.md) makes the
+ADR-0200 makes the
 noticeboard **itself** the deterministic claim ledger (graded exploring / waiting / work; advisory
 session-presence retired), and
-[ADR-0255](decisions/0255-the-primary-checkout-is-a-read-only-agent-lobby-write-author.md) generalises
+ADR-0255 generalises
 claim-bound write authority past the build surface to **every agent source write**, making the primary
 checkout a read-only lobby. Do not read this section as recording a live gap in claim scope or in the
 refusal ceremony — it does not.
@@ -210,18 +210,18 @@ as a structured, zod-validated **corpus tier** in the shared event store (*not* 
 re-instated `asset` system), named **`library`** (ADR-0019; the studio Library grid
 and the tier share one name). Work units **consume** library units; a library unit
 **`derives_from`** ADRs / other units (ADR-0017's ADR-rooted provenance DAG). The
-[ADR-0014](decisions/0014-notice-board-feedback-graduates-into-durable-guidance.md)
+ADR-0014
 notice-board's posts **graduate into** this tier (operator-gated; **no separate
 `forum/`** — that resolves conflict C2). *(ADR-0014 itself has since been **superseded
 by ADR-0017 / ADR-0018**, recorded in
-[ADR-0027](decisions/0027-supersede-adr-0014-notice-board.md), 2026-06-10 — graduation's
+ADR-0027, 2026-06-10 — graduation's
 home and the open-question → ADR flow are now owned by 0017/0018; the C2 reading above
 stands.)* **Residual — now an ADR-0017 deferred item,
 not a parked §9 question:** the **citing / reference / reciprocity** mechanism (how
 `derives_from` / `consumes` are kept mutual) and the **comments / human-input** layer
 (the notice board itself) were consciously deferred in ADR-0017 and then tracked as the
 first-class open-question `oq-feedback-graduation-mechanism` (ADR-0027). **That question is
-now DECIDED and retired by [ADR-0032](decisions/0032-cite-graduation-mechanism.md)
+now DECIDED and retired by ADR-0032
 (2026-06-10):** a cite is a typed *link* (composing into a signal-graph across the system),
 graduation is a future *synthesis agent* that emits open-questions / proposals, and the
 anti-gaming/cite-density machinery is a deliberate non-goal. The build is tracked by the

@@ -1,7 +1,7 @@
 # Notice-board mechanics review — presence vs claims vs what the map renders
 
 *2026-07-16, the ADR-0199 fix session. Commissioned by the owner after two wisp-death interrupts
-(2026-07-15/16). Companion to [ADR-0199](../decisions/0199-a-build-run-never-writes-session-presence.md);
+(2026-07-15/16). Companion to ADR-0199;
 the render-layer facts were verified against the live code (file:line refs below).*
 
 ## 1. The three stores and who writes them

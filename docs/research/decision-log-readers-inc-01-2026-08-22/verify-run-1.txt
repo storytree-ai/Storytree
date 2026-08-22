@@ -1,0 +1,31 @@
+served code.head = f43f32ab291801cc4ccf74d35a2f9b52bd9dd328 (stale=false), store=pg
+stories declaring >=3 decisions: 42
+target story: desktop (decisions: 109, 111, 113, 117, 176, 90, 91, 4, 108, 175, 21, 70, 179, 180, 232)
+story panel: 15 decision rows, 15 resolved as links, 0 unresolved
+  link -> #/asset/adr-0109  |  ADR-0109 A native credential-host desktop client (Electron) for BYO-credential d
+  link -> #/asset/adr-0111  |  ADR-0111 Desktop client Step 1 lands as the apps/desktop surface and stories/des
+  link -> #/asset/adr-0113  |  ADR-0113 Thick-local desktop for the inner circle — the drive machinery runs on 
+  link -> #/asset/adr-0117  |  ADR-0117 Broker the inner circle's builds: a members-gated write endpoint and a 
+  link -> #/asset/adr-0176  |  ADR-0176 The desktop app requires a reachable DB and a git checkout to launch — 
+  link -> #/asset/adr-0090  |  ADR-0090 UI-driven orchestration: hosted build-capable backend, thin clients, so
+status chips: 15 (accepted)
+wrote story-panel-decisions.png
+library lens mounted
+shelf rendered
+shelf rows under the default 'open' state (3):
+  library-shelf-row-friction :: friction27
+  library-shelf-row-increment :: increment40
+  library-shelf-decisions-row :: Decisions10
+Decisions shelf rows rendered: 1  text: "Decisions10"
+scope chip: "Decisions×" — 10 rows listed
+  library-finder-row-adr-0089 :: Live DB access from 443-only remote sessions: the bridge is the only p
+  library-finder-row-adr-0129 :: Inner-loop adoption target — ratio and goal (open question)adrproposed
+  library-finder-row-adr-0201 :: Prompt-keyed definition injection — a capped push at the moment of use
+  library-finder-row-adr-0203 :: Per-slice token-usage capture and the token-analytics surfaceadrpropos
+  library-finder-row-adr-0265 :: Per-contract falsifiability at CONFIRM_RED: the spine observes one red
+  library-finder-row-adr-0279 :: A corpus-mandated ceremony that only an agent's discretion enforces is
+  library-finder-row-adr-0297 :: The Library friction routes get a delivery backstop or an explicit exe
+  library-finder-row-adr-0310 :: The claim namespace is typed and resolvable, and which object becomes 
+rows whose id is NOT adr-NNNN: 0
+selection card: "Live DB access from 443-only remote sessions: the bridge is the only path, scope it or use a laptopadrproposedADR-0089 — Live DB access from 443-only remote ses"
+wrote library-decisions-shelf.png

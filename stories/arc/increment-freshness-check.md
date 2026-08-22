@@ -62,7 +62,7 @@ proof:
 moved under it since the increment was anchored.
 
 **Depends on —** nothing. This is an independent root within [`arc`](story.md), and it became one in
-the extraction ([ADR-0369](../../docs/decisions/0369-the-arc-domain-owns-its-own-package-and-the-arrow-runs-arc-t.md)).
+the extraction (ADR-0369).
 It used to declare `unified-command-dispatch`, because `increment check` is reached through the one
 dispatcher and returns that capability's `Envelope`. Both halves are now wrong:
 

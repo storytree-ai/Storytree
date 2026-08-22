@@ -913,3 +913,90 @@ test("a body-bearing doc of a kind that does NOT declare `body` as content still
   assert.equal(rendered.body, "## Rule\n\nthe one and only copy of this prose");
   assert.equal(rendered.fields, undefined, "not re-shaped as a structured doc");
 });
+
+/**
+ * ADR-0403 dec 1 — a decision is an ORDINARY artifact, and the studio reads it off this wire.
+ *
+ * These two tests are the PRODUCER half of the fence that PR #1546 crossed without going red. The
+ * studio's Library surfaces recognised a decision by `DocMeta.group === 'Decisions'`, stamped by
+ * the `docs/` file-walker; that walker's ADR half was deleted with the directory, and every
+ * consumer kept reading the field. Nothing failed, because the consumer suites hand-built the
+ * deleted shape. So pin the crossing here, where the real producer is: the two signals the studio
+ * needs off an `adr` row — its ADR-0037 `status` and its ADR-0086 `loadBearing` tag — must reach
+ * `RenderedAsset`, and `loadBearing` must be absent rather than `false` when the tag is off.
+ */
+test("an adr renders on the STRUCTURED branch: its raw body, its status, and a true loadBearing all cross", () => {
+  const adr = upcastAndValidate({
+    kind: "adr",
+    id: "adr-0403",
+    number: 403,
+    title: "The decision log becomes ordinary artifacts in Postgres",
+    description: "ADR-0403 — the decision log moves into the store",
+    body: "# ADR-0403: The decision log becomes ordinary artifacts in Postgres\n\n## Status\n\naccepted (2026-08-21)\n",
+    references: ["asset:adr-0302"],
+    status: "accepted",
+    decided: "2026-08-21",
+    amends: [139],
+    supersedes: [],
+    loadBearing: true,
+    arcRef: "asset:decision-log-home-arc",
+    createdAt: "2026-08-22T00:00:00Z",
+    updatedAt: "2026-08-22T00:00:00Z",
+  });
+  const stored: StoredDoc = {
+    id: "adr-0403",
+    kind: "adr",
+    doc: adr as unknown as Record<string, unknown>,
+    createdAt: "2026-08-22T00:00:00Z",
+    updatedAt: "2026-08-22T00:00:00Z",
+  };
+
+  const rendered = renderStoredDoc(stored);
+
+  assert.equal(rendered.category, "adr");
+  assert.equal(rendered.degraded, undefined);
+  // The `adr` KIND_SPECS table is one RAW-rendered `body` field, so the render is the decision
+  // document itself — no wrapper heading, byte-identical round trip (ADR-0403 dec 9).
+  assert.equal(rendered.body, renderBody(adr as never));
+  assert.match(rendered.body, /^# ADR-0403: /);
+  assert.deepEqual(rendered.fields, {
+    body: "# ADR-0403: The decision log becomes ordinary artifacts in Postgres\n\n## Status\n\naccepted (2026-08-21)\n",
+  });
+
+  // The two signals the studio's Library surfaces read off a decision.
+  assert.equal(rendered.status, "accepted", "the status chip and the lifecycle projection read this");
+  assert.equal(rendered.loadBearing, true, "the selection card's load-bearing badge reads this");
+  assert.equal(rendered.arcRef, "asset:decision-log-home-arc");
+});
+
+test("an adr's loadBearing is ABSENT (never false) when the tag is off", () => {
+  // `loadBearing` is `.default(false)` on the schema, so EVERY stored decision carries an explicit
+  // boolean — but the tag is a worklist marker (ADR-0139), so absent and false say the same thing.
+  // Crossing only `true` keeps the wire absent-by-default, matching the retired producer's own
+  // semantics ("true only when the tag is explicitly `load_bearing: true`") and keeping the badge's
+  // `=== true` test the whole contract.
+  const adr = upcastAndValidate({
+    kind: "adr",
+    id: "adr-0404",
+    number: 404,
+    title: "A decision nobody calibrates to",
+    description: "d",
+    body: "# ADR-0404: A decision nobody calibrates to\n\n## Status\n\nproposed\n",
+    references: [],
+    status: "proposed",
+    loadBearing: false,
+    createdAt: "2026-08-22T00:00:00Z",
+    updatedAt: "2026-08-22T00:00:00Z",
+  });
+  const rendered = renderStoredDoc({
+    id: "adr-0404",
+    kind: "adr",
+    doc: adr as unknown as Record<string, unknown>,
+    createdAt: "2026-08-22T00:00:00Z",
+    updatedAt: "2026-08-22T00:00:00Z",
+  });
+
+  assert.equal(rendered.status, "proposed");
+  assert.equal(rendered.loadBearing, undefined, "an off tag is absent on the wire, not `false`");
+  assert.ok(!("loadBearing" in rendered), "the key itself is absent");
+});

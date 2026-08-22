@@ -4,45 +4,46 @@
  *
  * A `SearchResult` (`../lib/librarySearch`) carries only `{ id, title, category, source, status? }`
  * — no description, no load-bearing flag. The selection card needs both, so this helper resolves
- * them from the already-loaded corpus (`assets` / `docs`) by id. TOLERANT by construction: an id
- * absent from the corpus (a stale pick, a corpus that reloaded) resolves to `undefined` fields
- * rather than throwing — the inc-3 real-data crash-class guard. Pure input → output, no React, no
- * DOM, so it proves directly in a plain unit test.
+ * them from the already-loaded corpus (`assets`) by id. TOLERANT by construction: an id absent from
+ * the corpus (a stale pick, a corpus that reloaded) resolves to `undefined` fields rather than
+ * throwing — the inc-3 real-data crash-class guard. Pure input → output, no React, no DOM, so it
+ * proves directly in a plain unit test.
+ *
+ * ★ THE LOAD-BEARING FLAG COMES FROM THE ASSET NOW (ADR-0403 dec 1). It was read off
+ * `DocMeta.loadBearing`, folded in by the docs file-walker from `docs/decisions/*.md` frontmatter;
+ * PR #1546 deleted that half of the walker, which left the badge with no producer at all — an
+ * always-`undefined` lookup rendering an always-absent badge, green in every test because the
+ * fixtures hand-built the deleted shape. Decisions are `adr` artifacts, so both the status and the
+ * tag ride `GuidanceAsset` (`status` / `loadBearing`) and are resolved from `assets` here.
  */
 
-import type { DocMeta, GuidanceAsset } from '../types';
+import type { AdrDocStatus, GuidanceAsset } from '../types';
+import { adrStatusOf } from './librarySearch';
 import type { SearchResult } from './librarySearch';
 
 /** The extra detail a `SearchResult` can't carry, resolved from the loaded corpus by id. */
 export interface SelectionDetail {
-  /** The matching `GuidanceAsset.description` (asset selections only); `undefined` if none matches. */
+  /** The matching `GuidanceAsset.description`; `undefined` if no asset matches. */
   description?: string;
-  /** The matching `DocMeta.status` (ADR selections only); `undefined` if none matches. */
-  status?: DocMeta['status'];
-  /** The matching `DocMeta.loadBearing` (ADR selections only); `undefined` if none matches. */
+  /** The matching decision's lifecycle status (`adr` selections only); `undefined` otherwise. */
+  status?: AdrDocStatus;
+  /** The matching decision's ADR-0086 load-bearing tag; `undefined` unless the tag is `true`. */
   loadBearing?: boolean;
 }
 
 /**
- * Resolve `selection`'s extra display detail from the loaded corpus. An asset selection
- * (`source: 'asset'`) is looked up in `assets` by id; an ADR selection (`source: 'doc'`) is looked
- * up in `docs` by id. A stale id absent from the relevant corpus yields `{}` — every field
- * `undefined` — never a throw.
+ * Resolve `selection`'s extra display detail from the loaded corpus, looked up in `assets` by id.
+ * A stale id absent from the corpus yields `{}` — every field `undefined` — never a throw.
  */
 export function resolveSelectionDetail(
   selection: SearchResult,
   assets: GuidanceAsset[],
-  docs: DocMeta[],
 ): SelectionDetail {
-  if (selection.source === 'asset') {
-    const match = assets.find((a) => a.id === selection.id);
-    return match ? { description: match.description } : {};
-  }
-  const match = docs.find((d) => d.id === selection.id);
+  const match = assets.find((a) => a.id === selection.id);
   if (!match) return {};
-  const detail: SelectionDetail = { status: match.status };
-  if (match.loadBearing !== undefined) {
-    detail.loadBearing = match.loadBearing;
-  }
+  const detail: SelectionDetail = { description: match.description };
+  const status = adrStatusOf(match);
+  if (status !== undefined) detail.status = status;
+  if (match.loadBearing === true) detail.loadBearing = true;
   return detail;
 }

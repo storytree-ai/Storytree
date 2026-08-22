@@ -30,10 +30,10 @@ a human's "I saw it work" operator attestation — and the story's own UAT green
 those per-test verdicts. A separate, lower-rigor vouch ("I also eyeballed it") stays in the detail
 view, distinct from a gate-proven pass, and never greens the story. No path ever forges a green.
 
-The deciding ADRs are [ADR-0044](../../docs/decisions/0044-per-uat-test-human-attestation.md) — which
+The deciding ADRs are ADR-0044 — which
 refines ADR-0040's story-level human-witness signpost down to the individual UAT test (a story has one
 tree but many UAT test criteria, and "always allow both" human and machine) — and
-[ADR-0082](../../docs/decisions/0082-per-test-uat-test-criteria-earn-green-by-declared-witness-story-uat.md),
+ADR-0082,
 which **supersedes-in-part ADR-0044 §2/§3**: a human stamp on a declared-human test is now a *real
 signed verdict* that greens it (ADR-0007's `operator-attested` mode), not only a never-green signal,
 and a story's own UAT greens as the AND-roll-up of its per-test verdicts. The honesty rule is

@@ -4,22 +4,29 @@
  *
  * With no selection, the whole loaded corpus renders as a constellation of dots laid out by the
  * pure `overviewConstellation` module (`../lib/overviewConstellation`), one element per node at
- * the FAR level of detail: a circle for an artifact, a square for an ADR, sized by its 3-tier
- * importance bucket, with NO ambient labels (the perf/LOD contract — the whole corpus stays one
- * element per node at FAR). Zooming in walks the LOD ladder: MID surfaces top-tier labels, CLOSE
- * renders a two-line kind-in-node plaque (title + `kindLabel`, never a hand-rolled category-label
- * map — ADR-0183 D1).
+ * the FAR level of detail: one circle per artifact, sized by its 3-tier importance bucket, with NO
+ * ambient labels (the perf/LOD contract — the whole corpus stays one element per node at FAR).
+ * Zooming in walks the LOD ladder: MID surfaces top-tier labels, CLOSE renders a two-line
+ * kind-in-node plaque (title + `kindLabel`, never a hand-rolled category-label map — ADR-0183 D1).
+ *
+ * ★ IT DRAWS ARTIFACTS ONLY (ADR-0403 dec 1). It used to add a SQUARE per `/api/docs` entry,
+ * lifting `source: 'doc'` + `category: 'adr'`, because a decision was a file under
+ * `docs/decisions/`. PR #1546 deleted that subtree, which left those squares standing for the 113
+ * surviving REFERENCE documents while every real decision was ALREADY drawn as a circle out of
+ * `assets` — so the square was no longer a decision and the label was no longer true. The `shape`
+ * branch is kept: `source` still discriminates, and a doc reached by cross-link would still draw
+ * as a square if one were ever handed in.
  *
  * The component owns its OWN search input (search-glow option A — it does NOT lift the finder's
  * byte-locked internal query): as the query changes, `glowIds` marks each matched node with a
  * `data-glow` marker (never a hand-rolled highlight — the pulse animation is the operator-attested
- * look, ADR-0070). Clicking a node lifts an `onSelect(result)` call built with finder parity — an
- * artifact lifts `source: 'asset'`, an ADR lifts `source: 'doc'` + `category: 'adr'` — seeding the
- * SAME shared `librarySelection` the finder/subgraph/dive lift into.
+ * look, ADR-0070). Clicking a node lifts an `onSelect(result)` call built with finder parity —
+ * `source: 'asset'` and the artifact's own `category` — seeding the SAME shared `librarySelection`
+ * the finder/subgraph/dive lift into.
  *
- * No fetch: this is the empty-state entry surface, reading only the `assets`/`docs` already
- * loaded via `useAppData()` and handed in as props — never `docContent`, `fetch`, or a socket (the
- * same data-boundary discipline whose real-data crash the increment-3 staging walk caught).
+ * No fetch: this is the empty-state entry surface, reading only the `assets` already loaded via
+ * `useAppData()` and handed in as props — never `docContent`, `fetch`, or a socket (the same
+ * data-boundary discipline whose real-data crash the increment-3 staging walk caught).
  *
  * The dot field's palette, size sizing, band-transition animation, glow pulse, plaque styling, and
  * whole-corpus layout aesthetics are the story's operator-attested UAT leg (ADR-0185 dec 5/6,
@@ -36,12 +43,11 @@ import {
   type SizeTier,
 } from '../lib/overviewConstellation';
 import { kindLabel, useArcDisplay } from '../lib/kindDisplay';
-import type { SearchResult } from '../lib/librarySearch';
-import type { DocMeta, GuidanceAsset } from '../types';
+import { assetResult, type SearchResult } from '../lib/librarySearch';
+import type { GuidanceAsset } from '../types';
 
 export interface LibraryOverviewProps {
   assets: GuidanceAsset[];
-  docs: DocMeta[];
   /** Invoked with the clicked node's finder-parity result — the overview lifts, never owns. */
   onSelect: (result: SearchResult) => void;
   /** Invoked with a double-clicked node's finder-parity result — additive to `onSelect`. */
@@ -61,26 +67,17 @@ function radiusFor(tier: SizeTier): number {
 }
 
 /** The Library overview: the whole-corpus, empty-state constellation dot field. */
-export function LibraryOverview({ assets, docs, onSelect, onOpen }: LibraryOverviewProps): React.JSX.Element {
+export function LibraryOverview({ assets, onSelect, onOpen }: LibraryOverviewProps): React.JSX.Element {
   const [query, setQuery] = useState('');
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
   const arcDisplay = useArcDisplay();
 
-  const layout = useMemo(
-    () => constellationLayout(assets, docs, LAYOUT_SEED),
-    [assets, docs],
-  );
-  const tiers = useMemo(() => sizeTiers(assets, docs), [assets, docs]);
-  const glow = useMemo(() => glowIds(query, assets, docs), [query, assets, docs]);
+  const layout = useMemo(() => constellationLayout(assets, LAYOUT_SEED), [assets]);
+  const tiers = useMemo(() => sizeTiers(assets), [assets]);
+  const glow = useMemo(() => glowIds(query, assets), [query, assets]);
   const band = lodBand(zoom);
 
-  const nodes: SearchResult[] = useMemo(
-    () => [
-      ...assets.map((a): SearchResult => ({ id: a.id, title: a.title, category: a.category, source: 'asset' })),
-      ...docs.map((d): SearchResult => ({ id: d.id, title: d.title, category: 'adr', source: 'doc' })),
-    ],
-    [assets, docs],
-  );
+  const nodes: SearchResult[] = useMemo(() => assets.map(assetResult), [assets]);
 
   function renderNode(node: SearchResult): React.JSX.Element {
     const pos = layout.get(node.id) ?? { x: 0, y: 0 };

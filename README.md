@@ -73,8 +73,7 @@ store and render in our own UI. No external trace SaaS.
 | Tree UI | **SVG** hex-forest world (ADR-0036/0069; PixiJS was rejected) | procedural SVG scenes, no engine dependency; R3F/WebGL stays a far-future website target (ADR-0145) |
 | Models | via `PhaseAuthor` | Claude subscription by default; opt-in Codex reuses saved ChatGPT auth; owned loop stays offline/pivot-out |
 
-See [docs/decisions/0001-foundational-stack.md](docs/decisions/0001-foundational-stack.md)
-for how this was chosen (and what was rejected — Mastra, LangGraph/LangSmith,
+See ADR-0001 — `storytree library artifact adr-0001` — for how this was chosen (and what was rejected — Mastra, LangGraph/LangSmith,
 Google ADK; the Claude Agent SDK, initially passed over, later became the default **live**
 runtime per ADR-0030, with the owned loop demoted to the offline executor; ADR-0232 adds an
 opt-in ChatGPT-subscription Codex leaf through the same proof boundary).
@@ -100,8 +99,10 @@ packages/library       library schema + node-pg store subpath over Cloud SQL Pos
 packages/cli           the choose-your-own-adventure Library CLI (ADR-0023)
 apps/studio            web IDE: React + SVG forest world, and the Library browser
 apps/studio/data       comments + the gitignored offline runtime store (the Library lives in the DB)
-docs/decisions         ADRs (0001–0023) — also the source-of-record for the Library `adr` category
+docs/research          long-form decision-provenance behind specific ADRs
 ```
+
+The decisions are not in this tree: they are `adr` rows in the shared store (ADR-0403).
 
 ## Documentation & the Library
 
@@ -118,16 +119,33 @@ retired the old generated `docs/glossary.md`; ADR-0210 retired the generated
 committed mirror). To change the Library, use the CLI against the live DB
 (`pnpm storytree library artifact edit <id> --pg`) or the studio.
 
+**The decision log is in the store too, and is no longer a directory** (ADR-0403). The ADRs were
+`docs/decisions/*.md` until 2026-08-22; all 403 are now ordinary `adr` artifacts alongside the rest
+of the Library. A decision's address is its NUMBER, not a path — read one, or list the current set,
+with a verb:
+
+```
+storytree library artifact adr-0001      # one decision
+storytree adr list --current             # every accepted, non-superseded decision
+storytree adr list --load-bearing        # the calibrate-to-these set
+```
+
 What remains under `docs/` is therefore intentionally lean — everything else durable has
 folded into the Library:
 
-- **`docs/decisions/`** — the ADRs. Immutable, dated decision records; also
-  the source-of-record the studio folds in as the Library's read-only `adr` category.
 - **`docs/open-questions.md`** — the deferred-decisions backlog, cited by section number
   (`§n`) from the ADRs and Library units.
 - **`docs/research/`** — long-form decision-provenance behind specific ADRs.
 
-The one-read orientation for a fresh agent session is [CLAUDE.md](CLAUDE.md).
+The one-read orientation for a fresh agent session is [CLAUDE.md](CLAUDE.md) — it assumes the
+machine is already provisioned. Two onboarding guides sit upstream of it, and they answer different
+questions:
+
+- **[`docs/machine-onboarding.md`](docs/machine-onboarding.md)** — a computer that has never run
+  storytree becomes a working dev box (toolchain, the three sign-ins, the secrets file, worktrees,
+  write-authority, and how to prove each).
+- **[`docs/model-onboarding.md`](docs/model-onboarding.md)** — a new model or harness is brought onto
+  a checkout that already works.
 
 ## Development (bootstrap phase)
 
@@ -139,6 +157,12 @@ storytree is built via Claude Code during bootstrap. The v1 tree is vendored as 
 corepack enable pnpm   # Node 24 ships corepack; no global install needed
 pnpm install
 ```
+
+That is the short form, and it assumes git, Node 24 and the GitHub CLI are already present and
+authenticated. **Provisioning a machine from nothing is
+[`docs/machine-onboarding.md`](docs/machine-onboarding.md)** — it covers the toolchain, the three
+browser sign-ins, `~/.storytree/secrets.json`, worktree discipline and the write-authority wall,
+with a proof for each step.
 
 The runtime store is **Cloud SQL Postgres with keyless IAM auth** (ADR-0021) — no
 local Docker Postgres, no `DATABASE_URL`, no password. Bring the store up/down

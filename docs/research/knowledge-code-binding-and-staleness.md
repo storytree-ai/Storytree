@@ -1,6 +1,6 @@
 # Research note — binding a knowledge layer to code versions, and detecting staleness
 
-**Date:** 2026-06-07 · **Informs:** [ADR-0016](../decisions/0016-knowledge-code-binding-and-staleness.md) (binding/staleness model), [ADR-0017](../decisions/0017-cross-cutting-knowledge-tier.md) (knowledge tier).
+**Date:** 2026-06-07 · **Informs:** ADR-0016 (binding/staleness model), ADR-0017 (knowledge tier).
 **Method:** multi-source web research, 6 angles, 26 sources fetched, 25 falsifiable claims extracted and 3-vote adversarially verified (25/25 confirmed, 0 killed).
 
 ## Question

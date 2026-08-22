@@ -440,6 +440,9 @@ importers:
       '@storytree/context-traversal-telemetry':
         specifier: workspace:*
         version: link:../context-traversal-telemetry
+      '@storytree/library':
+        specifier: workspace:*
+        version: link:../library
       zod:
         specifier: ^3.24.1
         version: 3.25.76
