@@ -157,6 +157,19 @@ export interface ObservedTest {
    * coverage classifier (so a hollow test's contract reads UNCOVERED).
    */
   vouches: boolean;
+  /**
+   * The ENCLOSING test/suite titles, outermost first — `[]` at the top level. Read as source, with
+   * the same partial/unread semantics as {@link name}.
+   *
+   * Why the coverage direction never needed this and the INVERSE direction does. Coverage asks "does
+   * some observed test name this contract?", and an outer `describe("<contract-id>: …")` answers it
+   * on its own — the describe is itself an observed test, vouching whenever anything under it
+   * asserts. The inverse question ("which contract claims THIS behaviour?") is asked of the leaf
+   * `it`, whose own title routinely carries no id while its enclosing describe does; matching that
+   * leaf against contract ids in isolation would report a claimed behaviour as contractless. See
+   * {@link classifyBehaviourClaims}, which matches over the ancestry-joined title.
+   */
+  ancestors: readonly string[];
 }
 
 /** The test-runner call roots whose first string arg names a test/suite (mirrors `extractTestNames`). */
@@ -363,14 +376,16 @@ export function analyzeObservedTests(testSource: string): ObservedTest[] {
   const sf = ts.createSourceFile("__coverage__.ts", testSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
   const collected: { test: ObservedTest; pos: number }[] = [];
   /** Post-order: returns whether `node`'s subtree holds a substantive assertion. Skip flows top-down. */
-  function visit(node: ts.Node, ancestorSkipped: boolean): boolean {
+  function visit(node: ts.Node, ancestorSkipped: boolean, ancestorTitles: readonly string[]): boolean {
     const test = matchTestCall(node);
     const skippedHere = ancestorSkipped || (test !== null && test.ownSkip);
+    // The ancestry every DESCENDANT sees — this node's own title appended once it is a test call.
+    const childTitles = test !== null ? [...ancestorTitles, test.name] : ancestorTitles;
     // A test-call node is not itself an assertion; otherwise check this node directly.
     let subtreeSubstantive = test === null && isSubstantiveAssertion(node);
     ts.forEachChild(node, (child) => {
       // NB: forEachChild short-circuits on a TRUTHY return — keep this callback returning void.
-      if (visit(child, skippedHere)) subtreeSubstantive = true;
+      if (visit(child, skippedHere, childTitles)) subtreeSubstantive = true;
     });
     if (test !== null) {
       collected.push({
@@ -379,6 +394,7 @@ export function analyzeObservedTests(testSource: string): ObservedTest[] {
           titleFullyStatic: test.titleFullyStatic,
           skipped: skippedHere,
           vouches: subtreeSubstantive && !skippedHere,
+          ancestors: ancestorTitles,
         },
         pos: node.getStart(sf),
       });
@@ -386,7 +402,7 @@ export function analyzeObservedTests(testSource: string): ObservedTest[] {
     return subtreeSubstantive;
   }
   ts.forEachChild(sf, (child) => {
-    visit(child, false);
+    visit(child, false, []);
   });
   collected.sort((a, b) => a.pos - b.pos);
   return collected.map((c) => c.test);
@@ -515,4 +531,137 @@ export function classifyDeclaredCoverage(
     contractIds: declared.map((c) => c.id),
     testNames,
   });
+}
+
+// ---------------------------------------------------------------------------
+// The INVERSE classifier: which contract claims this asserted behaviour?
+// ---------------------------------------------------------------------------
+
+/**
+ * The INVERSE of {@link classifyContractCoverage}, and the question that had no instrument.
+ *
+ * Coverage walks DECLARED CONTRACT then TEST: "does some observed test name this contract?" That
+ * answers whether a spec is under-covered. It cannot answer the other direction, which is the one an
+ * ADR-0294 D2 deletion has to answer: a story-UAT criterion is deleted only when its author NAMES the
+ * lower-tier node that already proves it, so the author starts from a RUNNING ASSERTION and needs the
+ * node. When no contract claims that assertion the honest citation collapses to a test TITLE, and a
+ * rationale citing a capability whose contracts do not actually claim the behaviour is
+ * indistinguishable from one that does (the phrasing check in
+ * `packages/library/src/corpus-criterion-migration.test.ts` matches on words, never on truth).
+ *
+ * This walks TEST then DECLARED CONTRACT over the same surface the coverage sweep reads, and splits a
+ * capability's asserted behaviours into the ones a contract claims and the ones nothing claims.
+ * Read-only and advisory: a contractless behaviour is NOT a defect — most unit tests are steps inside
+ * a contract rather than contracts of their own. What it establishes is whether a CITATION is
+ * available, which is the only thing ADR-0294 D2's honesty wall needs to know.
+ */
+
+/** One asserted behaviour observed in a proof surface — the unit the inverse question is asked of. */
+export interface AssertedBehaviour {
+  /** The test's own title, as read from source. */
+  title: string;
+  /**
+   * The ancestry-joined title — enclosing suite titles then the test's own, `" / "`-separated. This
+   * is what contract ids are matched against, because the convention `describe("<id>: …")` puts the
+   * id on the SUITE while the behaviour is asserted by the leaf `it` beneath it.
+   */
+  effectiveTitle: string;
+}
+
+/** An asserted behaviour together with the declared contract that claims it. */
+export interface ClaimedBehaviour extends AssertedBehaviour {
+  /** The first declared contract id named by {@link AssertedBehaviour.effectiveTitle}. */
+  contractId: string;
+}
+
+/**
+ * A unit's behaviour-claim report — the inverse projection of {@link ContractCoverageReport}.
+ * Live-derivable, deterministic, source-ordered.
+ */
+export interface BehaviourClaimReport {
+  /** The unit (capability) this report is for. */
+  unitId: string;
+  /** Asserted behaviours a declared contract claims. */
+  claimed: ClaimedBehaviour[];
+  /** Asserted behaviours NO declared contract claims — the citation gap. */
+  contractless: AssertedBehaviour[];
+  /**
+   * Behaviours whose title this checker could not read in full AND whose ancestry named no contract.
+   * Kept OUT of {@link contractless} deliberately: "no contract claims this" and "I could not read
+   * the title" are different claims, and this module's two folds point in opposite directions (see
+   * the header). A report that merged them would over-state the gap by the size of its own blind
+   * spot.
+   */
+  unreadable: AssertedBehaviour[];
+}
+
+/** Everything {@link classifyBehaviourClaims} reads, injected for determinism (pure — no I/O). */
+export interface BehaviourClaimSpec {
+  /** The unit id (carried onto the report). */
+  unitId: string;
+  /** The unit's declared contract ids (from `parseContracts`), in declared order. */
+  contractIds: readonly string[];
+  /** Every observed test across the unit's proof surface (from {@link analyzeObservedTests}). */
+  observed: readonly ObservedTest[];
+}
+
+/** The `" / "`-joined ancestry-plus-own title a contract id is matched against. */
+function effectiveTitleOf(test: ObservedTest): string {
+  return [...test.ancestors, test.name].filter((part) => part.length > 0).join(" / ");
+}
+
+/**
+ * A test's own path key (its ancestry plus itself), used to spot the suites that only GROUP.
+ *
+ * Length-prefixed per segment rather than joined on a separator, so the key is INJECTIVE: no title
+ * can forge another path's key by containing the separator. A control character would buy the same
+ * property and cost more than it is worth — a NUL in a `.ts` source makes git and grep treat the
+ * whole file as binary, which hides every later diff of it behind a tool that will not print text.
+ */
+function pathKeyOf(test: ObservedTest): string {
+  return encodePath([...test.ancestors, test.name]);
+}
+
+/** The injective encoding both path keys are built from: each segment as `<length>:<text>`. */
+function encodePath(segments: readonly string[]): string {
+  return segments.map((segment) => `${String(segment.length)}:${segment}`).join("|");
+}
+
+/**
+ * PURE: split a unit's asserted behaviours into claimed / contractless / unreadable.
+ *
+ * Only LEAF tests count as behaviours. A `describe` that merely groups other observed tests is not
+ * itself an asserted behaviour, and counting it would inflate the gap with grouping titles
+ * (`"SceneView — the studio scene mapper"` claims nothing and is not meant to). Leafness is read off
+ * the ancestry: a test is a container iff some other observed test's ancestry is exactly its own
+ * path. Two sibling suites sharing a title collapse to one container — conservative, so the gap is
+ * never over-stated.
+ *
+ * Only VOUCHING tests count (ADR-0126): a skipped or hollow test asserts nothing, so it is not a
+ * behaviour any citation could rest on. A duplicate contract id collapses to its first occurrence,
+ * and a behaviour matched by several contracts is attributed to the FIRST in declared order.
+ */
+export function classifyBehaviourClaims(spec: BehaviourClaimSpec): BehaviourClaimReport {
+  const contractIds: string[] = [];
+  const seen = new Set<string>();
+  for (const id of spec.contractIds) {
+    if (id.length === 0 || seen.has(id)) continue;
+    seen.add(id);
+    contractIds.push(id);
+  }
+  const containers = new Set(spec.observed.map((t) => encodePath(t.ancestors)));
+  const claimed: ClaimedBehaviour[] = [];
+  const contractless: AssertedBehaviour[] = [];
+  const unreadable: AssertedBehaviour[] = [];
+  for (const test of spec.observed) {
+    if (!test.vouches) continue;
+    if (containers.has(pathKeyOf(test))) continue; // a grouping suite, not an asserted behaviour
+    const effectiveTitle = effectiveTitleOf(test);
+    const behaviour: AssertedBehaviour = { title: test.name, effectiveTitle };
+    const contractId = contractIds.find((id) => testNameCoversContract(effectiveTitle, id));
+    if (contractId !== undefined) claimed.push({ ...behaviour, contractId });
+    else if (!test.titleFullyStatic) unreadable.push(behaviour);
+    else contractless.push(behaviour);
+  }
+  return { unitId: spec.unitId, claimed, contractless, unreadable };
 }

@@ -182,6 +182,20 @@ exists to make visible; it is not a number to delete toward.
   go wrong. A deletion justified by a node that does not actually prove the claim is a silent coverage
   loss, and no mechanical check can catch it — the lower-tier node's own test set is not indexed by
   claim. This is the one part of the pass that must not be done in bulk.
+
+  **Narrowed 2026-08-22 (ADR-0139), by the `uat-contractless-tested-behaviour-claims` increment.**
+  "Not indexed by claim" is no longer true of the EXISTENCE half of this bullet: `storytree coverage
+  --contractless <test-path>` (`classifyBehaviourClaims`,
+  `packages/orchestrator/src/proof/contract-coverage.ts`) walks a unit's own test set the inverse
+  direction — test ⇒ declared contract — so a deleting author can now ask, mechanically, whether ANY
+  contract claims a given running assertion, rather than reaching straight for a free-form test title.
+  What the instrument still cannot do, and what this bullet is really warning about, is unchanged: it
+  matches the SAME naming convention (`describe("<contract-id>: …")`, ADR-0122) the coverage sweep
+  already trusts the other way, so a contract that NAMES a behaviour it does not actually exercise
+  reads identically to one that does. A deletion citing such a contract is still a silent coverage
+  loss no mechanical check can catch — the failure mode moves from "no node to cite" to "a
+  well-named node that lies," and it is the same semantic-reviewer gap ADR-0122's Consequences leaves
+  open. This is still the one part of the pass that must not be done in bulk.
 - Six residual human criteria are classified `OTHER` by the sweep and genuinely need individual
   adjudication; they are not covered by any rule here.
 - The 17/13/5/6 split of the human legs came from reading all 41 and bucketing them; the boundaries
@@ -205,6 +219,11 @@ exists to make visible; it is not a number to delete toward.
   the disposition ledger; why nothing currently holds proof credit.
 - [ADR-0295](0295-the-uat-driver-s-own-verdict-is-the-witness-model-driven-uat.md) — the witness half
   of the same conversation.
+- [ADR-0122](0122-per-contract-coverage-check-map-each-declared-contract-to-an.md) /
+  [ADR-0353](0353-a-capability-declares-where-its-contract-tests-live-separate.md) — the
+  declared-contract ⇒ test coverage sweep this decision's honesty wall runs the OTHER direction from;
+  `storytree coverage --contractless` (2026-08-22) is the inverse instrument the Cost/watch correction
+  above cites.
 - `asset:uat`, `asset:contract`, `asset:human-witness-is-a-judgment-gap-not-cost` — the definitions
   and the labelling rule this realigns to.
 - `stories/wisp-as-story-claim/appearance-uat.md`, `stories/website-experience/act1-terminal-storm.md`

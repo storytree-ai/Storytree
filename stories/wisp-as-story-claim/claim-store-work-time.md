@@ -32,10 +32,15 @@ proof:
   # The `real:` arm below is the DB-backed A1 leg (`releaseClaimsByBranch`, live-gated against the
   # disposable `storytree_test` DB). Contracts A2/A3 are PURE and the spec routes them to the offline
   # package suite `claim.test.ts` — outside the arm's write fence by design, since a db-backed leaf
-  # has no business writing the pure suite.
+  # has no business writing the pure suite. Contract A4 (the contention arms) is likewise offline —
+  # `store/claim-store.test.ts` drives the real `PgClaimStore` over a fake transactional client — and
+  # is equally outside that write fence: it is the EXISTING store suite, not a leaf deliverable. Both
+  # files already run under this capability's declared `proof.command`
+  # (`pnpm --filter @storytree/notice-board test`); this block is only what lets the sweep LOOK there.
   coverage:
     testGlobs:
       - "packages/notice-board/src/claim.test.ts"
+      - "packages/notice-board/src/store/claim-store.test.ts"
   real:
     testFile: "packages/notice-board/src/store/claim-store-release-by-branch.live.test.ts"
     sourceFile: "packages/notice-board/src/store/claim-store.ts"
@@ -89,7 +94,7 @@ proof:
 > ledger); this capability remains the render story's hosted-seam entry point onto the claim store
 > (ADR-0192 landlord rule). A1's `releaseClaimsByBranch` releases every grade for the branch.
 
-> **Proof status (honest) — BUILT, with all three contracts covered.** Every delta exists at HEAD.
+> **Proof status (honest) — BUILT, with all four contracts covered.** Every delta exists at HEAD.
 > A1 `releaseClaimsByBranch` and the store-side heartbeat write `PgClaimStore.bumpHeartbeat` live on
 > the DB-backed store (`packages/notice-board/src/store/claim-store.ts`); A2's pure `bumpHeartbeat`
 > (the shape the store method mirrors) and A3's
@@ -97,8 +102,12 @@ proof:
 > never by line). A1 was spine-built — the `--real` arm authored
 > `claim-store-release-by-branch.live.test.ts` against an isolated `storytree_test` — and A2/A3 are
 > covered by the offline `@storytree/notice-board` suite (`claim.test.ts`), reached via the ADR-0353
-> `coverage.testGlobs` surface. The ADR-0353 sweep credits all three: this capability contributes ZERO
-> uncovered contracts.
+> `coverage.testGlobs` surface. A4 (the contention arms, declared 2026-08-22) is covered by the same
+> package's existing `store/claim-store.test.ts`, reached the same way; its CREDIT rides the test
+> titles carrying the contract id, landed alongside this declaration — until those titles are
+> prefixed the sweep reads A4 uncovered, which is a binding gap and not a proof gap, since the two
+> tests have run green on every `pnpm -r test` since they were authored. With the titles bound, the
+> ADR-0353 sweep credits all four: this capability contributes ZERO uncovered contracts.
 >
 > **The frontmatter `status: proposed` is NOT a builtness claim, and is correct as it stands — do not
 > read it as "unbuilt" and do not reflexively flip it.** `healthy` is DERIVED from signed verdicts and
@@ -163,10 +172,11 @@ real `events.node_claim` / `events.claim_event` tables (ADR-0010 §2/§5), via t
 (ADR-0064): the spine cuts a worktree, installs deps, provisions a disposable `storytree_test`, forces
 `STORYTREE_DB_NAME`, and runs the authored live test against it — never production.
 
-## Contracts (3)
+## Contracts (4)
 
 The test-proven leaf behaviours — each one isolated automated test (ADR-0002). The `--real` arm drives
-contract A1 (the load-bearing db method); A2/A3 are pure and covered by the offline suite.
+contract A1 (the load-bearing db method); A2/A3 are pure and covered by the offline suite; A4 is the
+acquisition path's CONTENTION arm, covered by the store's existing offline suite.
 
 1. **`release-claims-by-branch-clears-the-branch`** — `releaseClaimsByBranch` bulk-releases every
    `events.node_claim` row for one git branch and returns the count, leaving other branches untouched.
@@ -212,3 +222,44 @@ contract A1 (the load-bearing db method); A2/A3 are pure and covered by the offl
      per half: the role stamp with attribution preserved, the caller's prose passing through, and the
      omitted-prose empty case. Reached via the ADR-0353 `coverage.testGlobs` surface, since the `real:`
      arm's write fence is the db-backed A1 leg.
+4. **`claim-contention-refuses-or-queues-naming-the-holder`** — a work-time acquisition that meets
+   ANOTHER session's live claim resolves deterministically and names the holder: a `work`-grade
+   contender is REFUSED, an `upgrade` behind a live holder QUEUES, and neither arm ever takes the slot.
+   - **asserts —** with a different session's LIVE (fresh-heartbeat) claim standing on the unit:
+     **(refuse)** `claim()` returns `acquired: false` carrying `heldBy` (the holder's `sessionId` AND
+     `branch`), appends exactly one `conflict-refused` `events.claim_event` row, issues NO
+     `INSERT`/`UPDATE`/`DELETE` against `events.node_claim` at all, and still COMMITS (the audit must
+     persist even though the claim did not) and releases the client; **(queue)** `upgrade()` returns
+     the QUEUED arm — `acquired: false` with `queued: true`, `heldBy` naming the holder and `waiting`
+     naming the contender at `waiting` grade — issues no work-grade insert while the live holder
+     stands, joins the queue as a `waiting` upsert (`ON CONFLICT (unit_id, session_id)`), appends
+     exactly one `queued` event, and commits. Offline: the real `PgClaimStore` over a fake
+     transactional client, no DB.
+   - **covers —** `packages/notice-board/src/store/claim-store.ts`
+   - **proven by —** `packages/notice-board/src/store/claim-store.test.ts` (offline package suite) —
+     two tests, one per arm: *"claim (REFUSED — the red→green): a different session's live claim →
+     acquired:false, holder named, 'conflict-refused' event, NO write to node_claim"* and *"upgrade
+     (held by a LIVE other session): the session QUEUES → waiting upsert, 'queued' event, queued arm
+     names the holder"*. Both already run under this capability's declared proof command
+     (`pnpm --filter @storytree/notice-board test`); they are reached by the sweep via the ADR-0353
+     `coverage.testGlobs` surface, since the `real:` arm's write fence is the db-backed A1 leg. The
+     live-gated concurrency round-trip in `claim-store-grades.live.test.ts` is corroborating evidence
+     at the real-DB tier, not this contract's registered proof.
+   - **note — why the contention arms are declared HERE, and what would move them.** This capability's
+     three original contracts are A1/A2/A3, none of them contention; the arms belong to the SAME
+     work-time acquisition path A3 builds the request for, which is why they land as its fourth
+     contract rather than a new node. The honest caveat, recorded because a later reader will re-ask
+     it: the graded `take` / `upgrade` / `downgrade` machinery is by this capability's own ADR-0200
+     re-aim note the [`notice-board`](../notice-board/story.md) story's living shape, and
+     `wisp-as-story-claim` reaches it through the ADR-0192 hosted seam (the landlord edge is already
+     declared — this story's `depends_on` carries `notice-board`, and this capability's
+     `real.sourceFile` is already `claim-store.ts`). It is declared here and not there because
+     `notice-board` has NO live capability that could hold it: its four live capabilities
+     (`noticeboard-cli`, `tree-view`, `ambient-integration`, `verdict-glyphs`) are surfaces proven in
+     `@storytree/drive` / `@storytree/cli`, and the one capability that owned the notice-board store,
+     [`presence-store`](../notice-board/presence-store.md), is `status: retired` and dropped from that
+     story's frontmatter list. Homing it there would mean AUTHORING a new buildable ledger-core
+     capability, which is a story-shape call and not this declaration's business. **If `notice-board`
+     ever grows that ledger-core capability, this contract is the first thing to re-home** — and a
+     re-home is a NEW id there plus a retirement here, never a rename, because ids are the handle
+     proof binds to (the house precedent is contract 3's own note above).

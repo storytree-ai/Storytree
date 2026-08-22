@@ -1,5 +1,12 @@
 # Probe: can the actuator reach a running Codex task's app-server on Windows?
 
+> **HISTORICAL RECORD — not instruction.** ADR-0390 (2026-08-20) withdrew the managed Codex
+> containment boundary, and the `codex-retire-the-containment-machinery` increment deleted the
+> code this document describes. The actuator and the nested-launch design this probe serves are gone; its findings about Windows app-server reachability remain true.
+> Kept as the record of how the boundary was built and measured. Do not follow its procedures.
+> Current state: `storytree arc show codex-factory-parity-arc --pg`, and the journey survey at
+> `docs/research/codex-onboarding-journey-survey-2026-08-22.md`.
+
 **Date:** 2026-08-14
 **Increment:** `codex-rebind-the-desktop-task` (arc `codex-factory-parity-arc`) — its blocking half
 **Follows:** `docs/research/codex-desktop-task-rebinding-probe-2026-08-14.md`, which proved the

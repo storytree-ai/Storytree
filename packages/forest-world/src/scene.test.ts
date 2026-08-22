@@ -585,7 +585,7 @@ test('ADR-0212: a work claim with a live build phase folds it to a phaseBand on 
   assert.equal(claimWith().phaseBand, undefined);
 });
 
-test('ADR-0212: folding a GREEN build band never turns the claim body into a proof (the §5 wall holds)', () => {
+test('rc-claim-layer-never-folds-bloom-vocabulary: ADR-0212: folding a GREEN build band never turns the claim body into a proof (the §5 wall holds)', () => {
   const wisp = mustByKind(
     buildScene(
       mkInput({
@@ -606,7 +606,7 @@ test('ADR-0212: folding a GREEN build band never turns the claim body into a pro
   assert.equal(firstByKind(wisp, 'bloom'), null);
 });
 
-test('§5 honesty wall: a claim wisp is NEVER a bloom — no bloom/outcome token anywhere on the claim layer', () => {
+test('rc-claim-layer-never-folds-bloom-vocabulary: §5 honesty wall: a claim wisp is NEVER a bloom — no bloom/outcome token anywhere on the claim layer', () => {
   // A claim in EVERY colour-state, including the at-risk "proving" (the in-flight hue that must NOT
   // read as the proven-green bloom): the claim layer must emit no bloom drawable and no `outcome`.
   for (const colourState of ['authoring', 'proving', 'supplementing'] as const) {
@@ -808,7 +808,7 @@ test('departures emit a stationary departing-wisp family carrying ageRatio; abse
   assert.equal(firstByKind(empty, 'departing-wisps'), null);
 });
 
-test('§5 honesty wall holds for EVERY grade + the departure layer: no bloom kind, no verdict outcome', () => {
+test('rc-claim-layer-never-folds-bloom-vocabulary: §5 honesty wall holds for EVERY grade + the departure layer: no bloom kind, no verdict outcome', () => {
   const scene = buildScene(
     mkInput({
       territories: [
