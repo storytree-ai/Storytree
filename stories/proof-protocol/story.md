@@ -5,8 +5,8 @@ title: "The proof-protocol port — the shared verdict vocabulary at the root of
 outcome: "Every organism that reads or writes a verdict speaks one zod-validated, browser-safe verdict SHAPE — the foundational root node the whole graph points at, depending on nothing."
 status: proposed
 proof_mode: UAT
-# Machine-judged: a pure SHAPE has no UAT journey. Its offline suite is evidence, not brownfield
-# provenance or a current signed pass (ADR-0395). No DB, no API key.
+# Machine-judged: a pure SHAPE has no UAT journey. Its author-declared observe reliability gate runs
+# the offline suite through the deterministic spine; the suite alone is not a current signed pass.
 uat_witness: machine
 # Lightweight + expandable (ADR-0074 §3, the hub/port shape): the port IS the unit — a single
 # published shape — so it carries no sub-capabilities yet; the list grows one case per real defect.
@@ -54,24 +54,29 @@ it by construction. (Belt-and-suspenders over two backstops: it is the bottom si
 to a real organism would close a cycle the gate already rejects (ADR-0058); and the studio browser
 build catches an external node-only npm import the gate cannot see.)
 
-## Existing machine check
+## Reliability Gates
 
 A pure protocol is a published SHAPE — there is no integrated user JOURNEY to walk; a schema port is
 a machine's job, not a human attestation. This port was extracted and named inside the Storytree
 initiative, so its passing suite and foundational position do not make it brownfield or Adopt-bound
 ([ADR-0395](../../docs/decisions/0395-brown-records-provenance-missing-proof-stays-on-the-greenfie.md)).
-The check below remains the current executable coverage inventory; it is evidence, not a signed verdict.
+The author-declared observe gate below is therefore the port's one proof obligation: the suite is the
+evidence surface, while only the deterministic spine observing it green at a clean committed HEAD and
+persisting an `adopted` verdict signs `proof-protocol#gate-1` (ADR-0085).
 
-1. **The port's own suite** `pnpm --filter @storytree/proof-protocol test` exercises the zod shapes,
-   validators, and cross-boundary parity guard offline (no DB, no API key). It does not by itself sign
-   or adopt this greenfield story.
+1. **The port's own suite is green** _(gate: observe)_
+   `pnpm --filter @storytree/proof-protocol test`. It exercises the zod shapes, validators, and
+   cross-boundary parity guard offline (no DB, no API key). From a clean committed HEAD,
+   `storytree gate run proof-protocol#gate-1 --pg` makes the spine observe this exact command and sign
+   only when it exits green.
 
 ## Proof
 
-**Green remains earned, not authored.** `packages/proof-protocol` has a real, passing offline suite,
-but that evidence neither changes its greenfield provenance nor substitutes for a current signed pass.
-The authored rung remains `proposed`; the world crown derives green only from signed proof
-(ADR-0020 / ADR-0040 / ADR-0395).
+**Green remains earned, not authored.** `packages/proof-protocol` has a real, passing offline suite and
+now declares the suite as `proof-protocol#gate-1`; neither the command nor its authored gate is itself
+a pass. The authored rung remains `proposed` until the deterministic spine observes the command green
+at a clean committed HEAD and persists the signed gate verdict. The world crown derives green only
+from that signed proof (ADR-0020 / ADR-0040 / ADR-0085 / ADR-0395).
 
 ## Open modeling calls (for the owner)
 
