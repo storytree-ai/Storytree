@@ -230,7 +230,14 @@ export {
 // declared `## Contracts` behaviour to an observed test by the naming convention, flagging the
 // uncovered (the gap a signed `--real` green leaves open: it attests ONE authored test, ADR-0020 §3).
 // Mirrors classifyAdoption one tier DOWN (capability→gate ⇒ contract→test). Offline, no store/git/clock.
+// The INVERSE direction (test⇒contract) rides the same module: `classifyBehaviourClaims` answers
+// "which declared contract claims this asserted behaviour?", the question an ADR-0294 D2 deletion has
+// to answer and which contract-coverage structurally cannot.
 export type {
+  AssertedBehaviour,
+  BehaviourClaimReport,
+  BehaviourClaimSpec,
+  ClaimedBehaviour,
   ContractCoverage,
   ContractCoverageReport,
   ContractCoverageSpec,
@@ -239,6 +246,7 @@ export type {
   TestSurfaceRead,
 } from "./proof/contract-coverage.js";
 export {
+  classifyBehaviourClaims,
   classifyContractCoverage,
   classifyDeclaredCoverage,
   extractTestNames,
