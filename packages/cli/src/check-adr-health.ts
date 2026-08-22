@@ -96,6 +96,33 @@ async function main(): Promise<number> {
       }
     }
 
+    // The SAME floor the decision count gets above, for the other two populations this rung judges.
+    // `story-decisions` and `green-flip` both iterate `stories`, and `enforced-by-anchors` iterates
+    // `guardrails` — so an empty list makes those rungs report PASS having examined nothing. A
+    // MISSING `stories/` already throws out of `readdirSync`; an empty or unrecognised one did not,
+    // which is the reachable half (a renamed layout, a moved `story.md`, a STORYTREE_REPO_ROOT
+    // pointing at a foreign checkout). The decision floor was kept when this rung moved off
+    // `pnpm -r test`; these two were dropped, and nothing noticed because the real corpus is never
+    // empty — which is exactly the shape that only fails on the day it matters.
+    if (stories.length === 0) {
+      process.stdout.write(
+        "✗ check:adr-health — NO stories were read.\n\n" +
+          "  `story-decisions` and `green-flip` judge stories, so zero of them is two gate rungs\n" +
+          "  passing over an empty list rather than a corpus in good health. Expected to read\n" +
+          `  them from ${path.join(root, "stories")}.\n`,
+      );
+      return EXIT_FAIL;
+    }
+    if (guardrails.length === 0) {
+      process.stdout.write(
+        "✗ check:adr-health — the store holds NO guardrails carrying `enforcedBy`.\n\n" +
+          "  `enforced-by-anchors` judges those anchors, so zero of them is a rung examining an\n" +
+          "  empty list. Zero is never the real corpus; it means the wrong database, or a kind\n" +
+          "  filter that no longer matches.\n",
+      );
+      return EXIT_FAIL;
+    }
+
     const results = adrHealth({
       adrs,
       parseErrors,

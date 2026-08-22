@@ -1,0 +1,952 @@
+{
+  "engine": "CYCLES",
+  "objects": [
+    {
+      "name": "Fern_01",
+      "tris": 128,
+      "dims": [
+        0.947,
+        1.032,
+        0.356
+      ],
+      "materials": [
+        "Pine_Forest_Foliage"
+      ],
+      "collections": [
+        "Foliage"
+      ]
+    },
+    {
+      "name": "Fern_02",
+      "tris": 128,
+      "dims": [
+        1.071,
+        0.96,
+        0.308
+      ],
+      "materials": [
+        "Pine_Forest_Foliage"
+      ],
+      "collections": [
+        "Foliage"
+      ]
+    },
+    {
+      "name": "Fern_03",
+      "tris": 144,
+      "dims": [
+        1.134,
+        1.186,
+        0.398
+      ],
+      "materials": [
+        "Pine_Forest_Foliage"
+      ],
+      "collections": [
+        "Foliage"
+      ]
+    },
+    {
+      "name": "Grass_01",
+      "tris": 45,
+      "dims": [
+        0.522,
+        0.534,
+        0.63
+      ],
+      "materials": [
+        "Pine_Forest_Foliage"
+      ],
+      "collections": [
+        "Foliage"
+      ]
+    },
+    {
+      "name": "Grass_02",
+      "tris": 27,
+      "dims": [
+        0.485,
+        0.516,
+        0.584
+      ],
+      "materials": [
+        "Pine_Forest_Foliage"
+      ],
+      "collections": [
+        "Foliage"
+      ]
+    },
+    {
+      "name": "Grass_Clump_01",
+      "tris": 114,
+      "dims": [
+        0.77,
+        0.81,
+        0.681
+      ],
+      "materials": [
+        "Pine_Forest_Foliage"
+      ],
+      "collections": [
+        "Foliage"
+      ]
+    },
+    {
+      "name": "Grass_Clump_02",
+      "tris": 114,
+      "dims": [
+        0.565,
+        0.63,
+        0.576
+      ],
+      "materials": [
+        "Pine_Forest_Foliage"
+      ],
+      "collections": [
+        "Foliage"
+      ]
+    },
+    {
+      "name": "Grass_Clump_03",
+      "tris": 132,
+      "dims": [
+        0.583,
+        0.676,
+        0.481
+      ],
+      "materials": [
+        "Pine_Forest_Foliage"
+      ],
+      "collections": [
+        "Foliage"
+      ]
+    },
+    {
+      "name": "Leafy_Bush_01",
+      "tris": 1416,
+      "dims": [
+        1.446,
+        1.206,
+        0.904
+      ],
+      "materials": [
+        "Pine_Foliage_02"
+      ],
+      "collections": [
+        "Foliage"
+      ]
+    },
+    {
+      "name": "Leafy_Bush_02",
+      "tris": 1152,
+      "dims": [
+        1.382,
+        1.188,
+        1.105
+      ],
+      "materials": [
+        "Pine_Foliage_02"
+      ],
+      "collections": [
+        "Foliage"
+      ]
+    },
+    {
+      "name": "Leafy_Bush_03",
+      "tris": 1728,
+      "dims": [
+        1.625,
+        1.091,
+        0.908
+      ],
+      "materials": [
+        "Pine_Foliage_02"
+      ],
+      "collections": [
+        "Foliage"
+      ]
+    },
+    {
+      "name": "Leafy_Plant_01",
+      "tris": 518,
+      "dims": [
+        0.967,
+        1.027,
+        0.475
+      ],
+      "materials": [
+        "Pine_Forest_Foliage"
+      ],
+      "collections": [
+        "Foliage"
+      ]
+    },
+    {
+      "name": "Leafy_Plant_02",
+      "tris": 514,
+      "dims": [
+        0.847,
+        0.954,
+        0.541
+      ],
+      "materials": [
+        "Pine_Forest_Foliage"
+      ],
+      "collections": [
+        "Foliage"
+      ]
+    },
+    {
+      "name": "Log_01",
+      "tris": 764,
+      "dims": [
+        1.441,
+        0.389,
+        0.402
+      ],
+      "materials": [
+        "Logs"
+      ],
+      "collections": [
+        "Pine_Trees"
+      ]
+    },
+    {
+      "name": "Log_02",
+      "tris": 770,
+      "dims": [
+        1.152,
+        0.341,
+        0.34
+      ],
+      "materials": [
+        "Logs"
+      ],
+      "collections": [
+        "Pine_Trees"
+      ]
+    },
+    {
+      "name": "Pine-Leaves_02",
+      "tris": 796,
+      "dims": [
+        2.081,
+        2.249,
+        3.353
+      ],
+      "materials": [
+        "Pine_Branches_Var_01"
+      ],
+      "collections": [
+        "Pine_Trees"
+      ]
+    },
+    {
+      "name": "Pine_Leaves_01",
+      "tris": 550,
+      "dims": [
+        1.982,
+        2.08,
+        3.303
+      ],
+      "materials": [
+        "Pine_Branches"
+      ],
+      "collections": [
+        "Pine_Trees"
+      ]
+    },
+    {
+      "name": "Pine_Leaves_03",
+      "tris": 464,
+      "dims": [
+        2.561,
+        2.613,
+        3.505
+      ],
+      "materials": [
+        "Pine_Branches_Var_01"
+      ],
+      "collections": [
+        "Pine_Trees"
+      ]
+    },
+    {
+      "name": "Pine_Leaves_04",
+      "tris": 418,
+      "dims": [
+        2.001,
+        2.073,
+        2.948
+      ],
+      "materials": [
+        "Pine_Branches"
+      ],
+      "collections": [
+        "Pine_Trees"
+      ]
+    },
+    {
+      "name": "Pine_Trunk_01",
+      "tris": 230,
+      "dims": [
+        0.667,
+        0.636,
+        3.973
+      ],
+      "materials": [
+        "Pine_Trunks"
+      ],
+      "collections": [
+        "Pine_Trees"
+      ]
+    },
+    {
+      "name": "Pine_Trunk_02",
+      "tris": 198,
+      "dims": [
+        0.575,
+        0.746,
+        3.99
+      ],
+      "materials": [
+        "Pine_Trunks"
+      ],
+      "collections": [
+        "Pine_Trees"
+      ]
+    },
+    {
+      "name": "Pine_Trunk_03",
+      "tris": 198,
+      "dims": [
+        0.436,
+        0.56,
+        3.916
+      ],
+      "materials": [
+        "Pine_Trunks"
+      ],
+      "collections": [
+        "Pine_Trees"
+      ]
+    },
+    {
+      "name": "Pine_Trunk_04",
+      "tris": 856,
+      "dims": [
+        1.139,
+        0.557,
+        3.629
+      ],
+      "materials": [
+        "Pine_Trunks"
+      ],
+      "collections": [
+        "Pine_Trees"
+      ]
+    },
+    {
+      "name": "Pine_Trunk_No_Leaves_01",
+      "tris": 1450,
+      "dims": [
+        1.487,
+        1.844,
+        3.771
+      ],
+      "materials": [
+        "Pine_Trunks",
+        "Pine_Branches"
+      ],
+      "collections": [
+        "Pine_Trees"
+      ]
+    },
+    {
+      "name": "Pine_Trunk_No_Leaves_02",
+      "tris": 1478,
+      "dims": [
+        1.301,
+        1.236,
+        3.353
+      ],
+      "materials": [
+        "Pine_Trunks",
+        "Pine_Branches"
+      ],
+      "collections": [
+        "Pine_Trees"
+      ]
+    },
+    {
+      "name": "Red_Flower_01",
+      "tris": 548,
+      "dims": [
+        0.98,
+        0.837,
+        0.599
+      ],
+      "materials": [
+        "Pine_Forest_Foliage"
+      ],
+      "collections": [
+        "Foliage"
+      ]
+    },
+    {
+      "name": "Red_Flower_02",
+      "tris": 710,
+      "dims": [
+        0.756,
+        0.818,
+        0.521
+      ],
+      "materials": [
+        "Pine_Forest_Foliage"
+      ],
+      "collections": [
+        "Foliage"
+      ]
+    },
+    {
+      "name": "Rock_01",
+      "tris": 472,
+      "dims": [
+        1.301,
+        0.91,
+        0.809
+      ],
+      "materials": [
+        "Pine_Rocks_01"
+      ],
+      "collections": [
+        "Rocks"
+      ]
+    },
+    {
+      "name": "Rock_02",
+      "tris": 466,
+      "dims": [
+        1.327,
+        1.041,
+        1.033
+      ],
+      "materials": [
+        "Pine_Rocks_01"
+      ],
+      "collections": [
+        "Rocks"
+      ]
+    },
+    {
+      "name": "Rock_03",
+      "tris": 422,
+      "dims": [
+        1.126,
+        0.958,
+        0.956
+      ],
+      "materials": [
+        "Pine_Rocks_01"
+      ],
+      "collections": [
+        "Rocks"
+      ]
+    },
+    {
+      "name": "Rock_04",
+      "tris": 658,
+      "dims": [
+        1.638,
+        1.665,
+        1.27
+      ],
+      "materials": [
+        "Pine_Rocks_01"
+      ],
+      "collections": [
+        "Rocks"
+      ]
+    },
+    {
+      "name": "Rock_05",
+      "tris": 1274,
+      "dims": [
+        1.826,
+        1.537,
+        0.99
+      ],
+      "materials": [
+        "Pine_Rocks_02"
+      ],
+      "collections": [
+        "Rocks"
+      ]
+    },
+    {
+      "name": "Rock_06",
+      "tris": 1046,
+      "dims": [
+        2.263,
+        1.529,
+        1.404
+      ],
+      "materials": [
+        "Pine_Rocks_02"
+      ],
+      "collections": [
+        "Rocks"
+      ]
+    },
+    {
+      "name": "Rock_07",
+      "tris": 796,
+      "dims": [
+        2.012,
+        1.517,
+        1.367
+      ],
+      "materials": [
+        "Pine_Rocks_01"
+      ],
+      "collections": [
+        "Rocks"
+      ]
+    },
+    {
+      "name": "Rock_08",
+      "tris": 1220,
+      "dims": [
+        1.28,
+        1.427,
+        1.659
+      ],
+      "materials": [
+        "Pine_Rocks_02"
+      ],
+      "collections": [
+        "Rocks"
+      ]
+    },
+    {
+      "name": "Rock_09",
+      "tris": 1092,
+      "dims": [
+        1.558,
+        1.46,
+        1.161
+      ],
+      "materials": [
+        "Pine_Rocks_02"
+      ],
+      "collections": [
+        "Rocks"
+      ]
+    },
+    {
+      "name": "Rock_Cliff",
+      "tris": 8266,
+      "dims": [
+        6.896,
+        4.647,
+        5.388
+      ],
+      "materials": [
+        "Cliff"
+      ],
+      "collections": [
+        "Rocks"
+      ]
+    },
+    {
+      "name": "White_Flower_01",
+      "tris": 556,
+      "dims": [
+        0.816,
+        0.702,
+        0.504
+      ],
+      "materials": [
+        "Pine_Forest_Foliage"
+      ],
+      "collections": [
+        "Foliage"
+      ]
+    },
+    {
+      "name": "White_Flower_02",
+      "tris": 716,
+      "dims": [
+        0.791,
+        0.671,
+        0.522
+      ],
+      "materials": [
+        "Pine_Forest_Foliage"
+      ],
+      "collections": [
+        "Foliage"
+      ]
+    },
+    {
+      "name": "Yellow_Flowers_01",
+      "tris": 300,
+      "dims": [
+        0.853,
+        0.838,
+        0.979
+      ],
+      "materials": [
+        "Pine_Foliage_02"
+      ],
+      "collections": [
+        "Foliage"
+      ]
+    },
+    {
+      "name": "Yellow_Flowers_02",
+      "tris": 467,
+      "dims": [
+        1.013,
+        0.943,
+        0.896
+      ],
+      "materials": [
+        "Pine_Foliage_02"
+      ],
+      "collections": [
+        "Foliage"
+      ]
+    },
+    {
+      "name": "Yellow_Flowers_03",
+      "tris": 350,
+      "dims": [
+        1.024,
+        0.961,
+        0.891
+      ],
+      "materials": [
+        "Pine_Foliage_02"
+      ],
+      "collections": [
+        "Foliage"
+      ]
+    }
+  ],
+  "total_tris": 33691,
+  "materials": [
+    "Cliff",
+    "Dots Stroke",
+    "Logs",
+    "Pine_Branches",
+    "Pine_Branches_Var_01",
+    "Pine_Branches_Var_02",
+    "Pine_Foliage_02",
+    "Pine_Forest_Foliage",
+    "Pine_Rocks_01",
+    "Pine_Rocks_02",
+    "Pine_Trunks"
+  ],
+  "images": [
+    {
+      "name": "Logs_AO.tga",
+      "w": 2048,
+      "h": 2048,
+      "packed": true
+    },
+    {
+      "name": "Logs_BaseColor.tga",
+      "w": 2048,
+      "h": 2048,
+      "packed": true
+    },
+    {
+      "name": "Logs_Normal.tga",
+      "w": 2048,
+      "h": 2048,
+      "packed": true
+    },
+    {
+      "name": "Logs_Roughness.tga",
+      "w": 2048,
+      "h": 2048,
+      "packed": true
+    },
+    {
+      "name": "Pine_Branches_Alt_01_BaseColor.tga",
+      "w": 2048,
+      "h": 2048,
+      "packed": true
+    },
+    {
+      "name": "Pine_Branches_Alt_01_Subsurface.tga",
+      "w": 2048,
+      "h": 2048,
+      "packed": true
+    },
+    {
+      "name": "Pine_Branches_Alt_02_BaseColor.tga",
+      "w": 2048,
+      "h": 2048,
+      "packed": true
+    },
+    {
+      "name": "Pine_Branches_Alt_02_Subsurface.tga",
+      "w": 2048,
+      "h": 2048,
+      "packed": true
+    },
+    {
+      "name": "Pine_Branches_AO.tga",
+      "w": 2048,
+      "h": 2048,
+      "packed": true
+    },
+    {
+      "name": "Pine_Branches_BaseColor.tga",
+      "w": 2048,
+      "h": 2048,
+      "packed": true
+    },
+    {
+      "name": "Pine_Branches_Normal.tga",
+      "w": 2048,
+      "h": 2048,
+      "packed": true
+    },
+    {
+      "name": "Pine_Branches_Roughness.tga",
+      "w": 2048,
+      "h": 2048,
+      "packed": true
+    },
+    {
+      "name": "Pine_Branches_Subsurface.tga",
+      "w": 2048,
+      "h": 2048,
+      "packed": true
+    },
+    {
+      "name": "Pine_Cliff_AO.tga",
+      "w": 2048,
+      "h": 2048,
+      "packed": true
+    },
+    {
+      "name": "Pine_Cliff_BaseColor.tga",
+      "w": 2048,
+      "h": 2048,
+      "packed": true
+    },
+    {
+      "name": "Pine_Cliff_Normal.tga",
+      "w": 2048,
+      "h": 2048,
+      "packed": true
+    },
+    {
+      "name": "Pine_Cliff_Roughness.tga",
+      "w": 2048,
+      "h": 2048,
+      "packed": true
+    },
+    {
+      "name": "Pine_Foliage_02_AO.tga",
+      "w": 2048,
+      "h": 2048,
+      "packed": true
+    },
+    {
+      "name": "Pine_Foliage_02_BaseColor.tga",
+      "w": 2048,
+      "h": 2048,
+      "packed": true
+    },
+    {
+      "name": "Pine_Foliage_02_Normal.tga",
+      "w": 2048,
+      "h": 2048,
+      "packed": true
+    },
+    {
+      "name": "Pine_Foliage_02_Roughness.tga",
+      "w": 2048,
+      "h": 2048,
+      "packed": true
+    },
+    {
+      "name": "Pine_Foliage_02_Subsurface.tga",
+      "w": 2048,
+      "h": 2048,
+      "packed": true
+    },
+    {
+      "name": "Pine_Forest_Foliage_AO.tga",
+      "w": 2048,
+      "h": 2048,
+      "packed": true
+    },
+    {
+      "name": "Pine_Forest_Foliage_BaseColor.tga",
+      "w": 2048,
+      "h": 2048,
+      "packed": true
+    },
+    {
+      "name": "Pine_Forest_Foliage_Normal.tga",
+      "w": 2048,
+      "h": 2048,
+      "packed": true
+    },
+    {
+      "name": "Pine_Forest_Foliage_Roughness.tga",
+      "w": 2048,
+      "h": 2048,
+      "packed": true
+    },
+    {
+      "name": "Pine_Forest_Foliage_Subsurface.tga",
+      "w": 2048,
+      "h": 2048,
+      "packed": true
+    },
+    {
+      "name": "Pine_Rocks_01_AO.tga",
+      "w": 2048,
+      "h": 2048,
+      "packed": true
+    },
+    {
+      "name": "Pine_Rocks_01_BaseColor.tga",
+      "w": 2048,
+      "h": 2048,
+      "packed": true
+    },
+    {
+      "name": "Pine_Rocks_01_Normal.tga",
+      "w": 2048,
+      "h": 2048,
+      "packed": true
+    },
+    {
+      "name": "Pine_Rocks_01_Roughness.tga",
+      "w": 2048,
+      "h": 2048,
+      "packed": true
+    },
+    {
+      "name": "Pine_Rocks_02_AO.tga",
+      "w": 2048,
+      "h": 2048,
+      "packed": true
+    },
+    {
+      "name": "Pine_Rocks_02_BaseColor.tga",
+      "w": 2048,
+      "h": 2048,
+      "packed": true
+    },
+    {
+      "name": "Pine_Rocks_02_Normal.tga",
+      "w": 2048,
+      "h": 2048,
+      "packed": true
+    },
+    {
+      "name": "Pine_Rocks_02_Roughness.tga",
+      "w": 2048,
+      "h": 2048,
+      "packed": true
+    },
+    {
+      "name": "Pine_Trunks_AO.tga",
+      "w": 2048,
+      "h": 2048,
+      "packed": true
+    },
+    {
+      "name": "Pine_Trunks_BaseColor.tga",
+      "w": 2048,
+      "h": 2048,
+      "packed": true
+    },
+    {
+      "name": "Pine_Trunks_Normal.tga",
+      "w": 2048,
+      "h": 2048,
+      "packed": true
+    },
+    {
+      "name": "Pine_Trunks_Roughness.tga",
+      "w": 2048,
+      "h": 2048,
+      "packed": true
+    },
+    {
+      "name": "Render Result",
+      "w": 0,
+      "h": 0,
+      "packed": false
+    }
+  ],
+  "collections": [
+    {
+      "name": "Foliage",
+      "objects": [
+        "Fern_01",
+        "Grass_01",
+        "Grass_02",
+        "Grass_Clump_01",
+        "Grass_Clump_02",
+        "Grass_Clump_03",
+        "Fern_02",
+        "Fern_03",
+        "Leafy_Plant_01",
+        "Leafy_Plant_02",
+        "White_Flower_01",
+        "White_Flower_02",
+        "Red_Flower_02",
+        "Red_Flower_01",
+        "Leafy_Bush_01",
+        "Leafy_Bush_02",
+        "Leafy_Bush_03",
+        "Yellow_Flowers_03",
+        "Yellow_Flowers_01",
+        "Yellow_Flowers_02"
+      ]
+    },
+    {
+      "name": "Pine_Trees",
+      "objects": [
+        "Pine_Trunk_04",
+        "Pine_Trunk_No_Leaves_01",
+        "Pine_Trunk_01",
+        "Pine_Trunk_02",
+        "Pine-Leaves_02",
+        "Pine_Leaves_01",
+        "Pine_Trunk_03",
+        "Pine_Leaves_03",
+        "Pine_Leaves_04",
+        "Pine_Trunk_No_Leaves_02",
+        "Log_01",
+        "Log_02"
+      ]
+    },
+    {
+      "name": "Rocks",
+      "objects": [
+        "Rock_05",
+        "Rock_08",
+        "Rock_09",
+        "Rock_06",
+        "Rock_03",
+        "Rock_01",
+        "Rock_02",
+        "Rock_07",
+        "Rock_04",
+        "Rock_Cliff"
+      ]
+    }
+  ]
+}
