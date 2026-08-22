@@ -44,11 +44,20 @@ The end state of this section is a **cloned, installed checkout** — nothing ab
 | Platform | Script | State |
 |---|---|---|
 | Windows | `infra/install.ps1` | Built. Eight idempotent steps, `-Step <name>` repairs one. |
-| Linux | `infra/install.sh` | **`[UNVERIFIED]`** — may not exist yet in your checkout. |
+| Linux | `infra/install.sh` | Built — same eight steps, `--step <name>` repairs one. Its install actions are **`[UNVERIFIED]`** (see below). |
 
 Both are **idempotent per step**: a step no-ops when its check already passes, so re-running the
-whole installer is both the retry story and the repair story. If the Linux script is absent, do the
-steps by hand below and say so — its absence is itself worth reporting.
+whole installer is both the retry story and the repair story.
+
+**`[UNVERIFIED]`** `infra/install.sh` EXISTS, but it was authored on the Windows box and its install
+actions have never been executed — apt-get, the NodeSource setup script, GitHub's apt repo,
+`corepack enable pnpm`, `gh auth login`, `git clone`, `pnpm install` and the Claude CLI installer are
+all unrun, and every one is marked `UNVERIFIED` inline in the script. What IS verified is that it
+parses as POSIX sh, that `--help` works, that an unknown `--step` fails loudly without running
+anything, and that a satisfied `--step` is a genuine no-op. **So run it, and report what happens** —
+you are the first execution. If it fails, prefer the by-hand steps below over debugging it in place,
+and say which step broke and how; that is the finding, not a detour. `infra/install.md` carries the
+full verified-vs-assumed split.
 
 ### The steps, if you are doing it by hand
 
