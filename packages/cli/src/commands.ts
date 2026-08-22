@@ -2706,6 +2706,10 @@ export const CLI_OPTIONS = {
   description: { type: "string" },
   supersedes: { type: "string" },
   amends: { type: "string" },
+  // `storytree adr new --depends-on 42,43` (ADR-0419 D2): the PLAIN support edge, the default for
+  // "this decision rests on that one". Its sibling `--amends` is reserved for the narrower claim
+  // that something in the target moved.
+  "depends-on": { type: "string" },
   arc: { type: "string" },
   // `storytree arc new` / `arc edit` / `arc increment add` / `arc close` — the first-class arc
   // write verbs (long prose via @path).
@@ -3491,6 +3495,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     if (values.arc !== undefined) adrOpts.arc = values.arc;
     if (values.supersedes !== undefined) adrOpts.supersedes = values.supersedes;
     if (values.amends !== undefined) adrOpts.amends = values.amends;
+    if (values["depends-on"] !== undefined) adrOpts.dependsOn = values["depends-on"];
     if (values.decided === true) adrOpts.decided = true;
     if (values.current === true) adrOpts.current = true;
     if (values["load-bearing"] === true) adrOpts.loadBearing = true;

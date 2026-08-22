@@ -334,3 +334,87 @@ test("adr-round-trip-push-does-not-take-a-quoted-heading-as-the-title", async ()
   assert.equal(after["title"], "A decision under test", "the decision keeps its OWN name");
   assert.notEqual(after["title"], "Allocate decision numbers atomically");
 });
+
+// ---- ADR-0419: the plain support edge through the round trip --------------------------------
+
+test("push writes a depends_on line onto the row, and deletes one the author removed", async () => {
+  // The round trip is how a decision's prose is edited (ADR-0403 dec 9), so it is the surface an
+  // author meets when adding support to an EXISTING decision — the common case, since most edges are
+  // added long after the decision was minted.
+  const { store, deps } = await seeded();
+  const out = await tmpFile("adr-0403.md");
+  await adrPull("403", out, deps);
+
+  const pulled = await readFile(out, "utf8");
+  await writeFile(out, pulled.replace("amends: [139]", 'depends_on: ["asset:adr-0223"]\namends: [139]'), "utf8");
+  const added = await adrPush("403", out, deps);
+  assert.equal(added.ok, true, added.body);
+  assert.match(added.body, /depends_on: \(no key\) -> asset:adr-0223/);
+  const withEdge = (await store.getDoc("adr-0403"))?.doc as Record<string, unknown>;
+  assert.deepEqual(withEdge["dependsOn"], ["asset:adr-0223"]);
+  assert.deepEqual(withEdge["amends"], [139], "the two support edges stay apart on the row");
+
+  // Absent keys are DELETED, on the same rule as `decided:` and `arc:` — the document is the whole
+  // truth of the row, so a line the author removed must come off it.
+  await adrPull("403", out, deps);
+  const withLine = await readFile(out, "utf8");
+  await writeFile(out, withLine.replace('depends_on: ["asset:adr-0223"]\n', ""), "utf8");
+  const removed = await adrPush("403", out, deps);
+  assert.equal(removed.ok, true, removed.body);
+  assert.match(removed.body, /depends_on: asset:adr-0223 -> \(no key\)/);
+  const after = (await store.getDoc("adr-0403"))?.doc as Record<string, unknown>;
+  assert.equal("dependsOn" in after, false, "the key is gone, not left standing as an empty list");
+});
+
+test("a no-op push over a decision carrying depends_on stays byte-identical and writes nothing", async () => {
+  // The property that makes the verb trustworthy (ADR-0403 dec 9). Adding a frontmatter key is
+  // exactly how it gets lost: a field the render omits or the push drops shows up here as a
+  // spurious change — or, worse, as a silent deletion reported as success.
+  const { store, deps } = await seeded();
+  await store.upsertDoc({
+    id: "adr-0403",
+    kind: "adr",
+    doc: {
+      ...((await store.getDoc("adr-0403"))?.doc as Record<string, unknown>),
+      dependsOn: ["asset:adr-0223", "asset:adr-0139"],
+    },
+  });
+  const out = await tmpFile("adr-0403-noop.md");
+  await adrPull("403", out, deps);
+  const pulled = await readFile(out, "utf8");
+  assert.match(pulled, /depends_on: \["asset:adr-0223", "asset:adr-0139"\]/);
+
+  const env = await adrPush("403", out, deps);
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /unchanged — nothing written/);
+  const after = (await store.getDoc("adr-0403"))?.doc as Record<string, unknown>;
+  assert.deepEqual(after["dependsOn"], ["asset:adr-0223", "asset:adr-0139"]);
+});
+
+test("push states the annotation obligation for amends targets it ADDED, and stays silent otherwise", async () => {
+  // ADR-0139 D4's floor is not holding — 174 of 446 accepted `amends` edges have a target whose body
+  // does not so much as mention the amender — and the remedy at this phase is to state the rule where
+  // the edge is written, not in a decision body nobody retrieves.
+  const { store, deps } = await seeded();
+  const out = await tmpFile("adr-0403-amends.md");
+  await adrPull("403", out, deps);
+
+  // A push that changes only prose must NOT nag: the pre-existing `amends: [139]` was discharged (or
+  // not) long ago, and a note that fires on every push is one the next author learns to skip.
+  const pulled = await readFile(out, "utf8");
+  await writeFile(out, `${pulled}\nsome new prose\n`, "utf8");
+  const prose = await adrPush("403", out, deps);
+  assert.equal(prose.ok, true, prose.body);
+  assert.doesNotMatch(prose.body, /ANNOTATE EACH TARGET/, "an untouched edge owes nothing new");
+
+  // Adding one DOES fire, naming the new target only.
+  await adrPull("403", out, deps);
+  const again = await readFile(out, "utf8");
+  await writeFile(out, again.replace("amends: [139]", "amends: [139, 223]"), "utf8");
+  const grown = await adrPush("403", out, deps);
+  assert.equal(grown.ok, true, grown.body);
+  assert.match(grown.body, /ANNOTATE EACH TARGET IN PLACE, in THIS landing/);
+  assert.match(grown.body, /storytree adr pull 223 --out adr-0223\.md/);
+  assert.doesNotMatch(grown.body, /adr pull 139/, "only the target this push added is owed a pass");
+  assert.equal(((await store.getDoc("adr-0403"))?.doc as Record<string, unknown>)["amends"]?.toString(), "139,223");
+});

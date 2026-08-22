@@ -140,6 +140,8 @@ export const LITERAL_FLAGS: ReadonlySet<string> = new Set([
   "title",
   "supersedes",
   "amends",
+  // `adr new --depends-on 42,43` — a decision-number list, never prose from a file.
+  "depends-on",
   "arc",
   "date",
   "pr",
