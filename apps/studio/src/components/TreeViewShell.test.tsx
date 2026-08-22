@@ -113,7 +113,13 @@ describe('TreeView shell — full-bleed map, no session counter (owner feedback 
     expect(source).toMatch(
       /import\s*\{[\s\S]*?\bWorldSceneView\b[\s\S]*?\}\s*from '@storytree\/app-surface'/,
     );
-    expect(source).toMatch(/<WorldSceneView\b/);
+    // Mounted through the studio-surfaces seam (`<surfaces.WorldSceneView …>`), whose default IS
+    // the imported `WorldSceneView` — the claim is still "ONE shared world view", and the seam is
+    // how anti-slop-adoption-arc inc-06 lets a test substitute the renderer without rewriting the
+    // module. Both spellings satisfy this; a DIFFERENT component would satisfy neither.
+    expect(source).toMatch(/<(?:surfaces\.)?WorldSceneView\b/);
+    // …and the seam's default really is the shared one, not something else wearing the name.
+    expect(source).toMatch(/const REAL_SURFACES: StudioSurfaces = \{\s*WorldSceneView,/);
     expect(source).not.toMatch(
       /import\s*\{[\s\S]*?\bSceneView\b[\s\S]*?\}\s*from '\.\/SceneView\.js'/,
     );
