@@ -235,10 +235,7 @@ interface BrokerCall {
 }
 
 /** A broker double that records every POST and returns a fixed response. */
-function recordingBroker(response: { status: number; body: unknown }): {
-  post: BrokerPostFn;
-  calls: BrokerCall[];
-} {
+function recordingBroker(response: { status: number; body: unknown }) {
   const calls: BrokerCall[] = [];
   const post: BrokerPostFn = async (p, b) => {
     calls.push({ path: p, body: b });

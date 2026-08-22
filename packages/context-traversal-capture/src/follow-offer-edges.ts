@@ -52,16 +52,18 @@ export interface OfferIdentity {
 /** The identity + clock this producer needs to stamp a followed-edge event. */
 export type FollowDeps = Pick<ObserveCliDeps, "sessionId" | "now">;
 
+export interface ParseOfferFollowResult {
+  readonly argv: readonly string[];
+  readonly followed: FollowedOffer | null;
+}
+
 /**
  * Decompose `--from-offer` from `argv`, purely from the string — no lookup, no history, no trace.
  * The flag and its value are stripped from the returned argv in every case, including a malformed
  * or missing value, because the underlying read still happened and the remainder must still present
  * the bare shape `observeCliInvocation` allowlists.
  */
-export function parseOfferFollow(argv: readonly string[]): {
-  readonly argv: readonly string[];
-  readonly followed: FollowedOffer | null;
-} {
+export function parseOfferFollow(argv: readonly string[]): ParseOfferFollowResult {
   const remaining: string[] = [];
   let matched = false;
   let rawValue: string | null = null;

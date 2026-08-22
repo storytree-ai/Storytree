@@ -24,7 +24,7 @@ import { validateLibraryDoc } from "./library-doc.js";
 const KINDS = Object.keys(KIND_SPECS) as KnowledgeKind[];
 
 /** A minimal valid doc for a kind: common fields + every REQUIRED spec field. */
-function minimalDoc(kind: KnowledgeKind): Record<string, unknown> {
+function minimalDoc(kind: KnowledgeKind) {
   const doc: Record<string, unknown> = {
     kind,
     id: `standson-${kind}`,
@@ -44,7 +44,7 @@ function minimalDoc(kind: KnowledgeKind): Record<string, unknown> {
     doc["arcRef"] = "asset:standson-arc";
     doc["parked"] = "2026-08-14T00:00:00.000Z";
   }
-  return doc;
+  return doc satisfies Record<string, unknown>;
 }
 
 test("library-standson-admitted-on-dag-kinds: every kind outside the transient signal tier carries the edge", () => {

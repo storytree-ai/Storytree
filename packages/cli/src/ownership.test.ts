@@ -75,7 +75,7 @@ test("gatherSourceFiles widens to .mts/.cts/.mjs/.cjs, excludes their .test. var
   try {
     const srcDir = path.join(repoRoot, "packages", "widget", "src");
     mkdirSync(srcDir, { recursive: true });
-    const files: Record<string, string> = {
+    const files = {
       "index.ts": "export {};",
       "index.tsx": "export {};",
       "index.test.ts": "export {};",
@@ -92,7 +92,7 @@ test("gatherSourceFiles widens to .mts/.cts/.mjs/.cjs, excludes their .test. var
       "types.d.mts": "export {};",
       "types.d.cts": "export {};",
       "notes.md": "not source",
-    };
+    } satisfies Record<string, string>;
     for (const [name, contents] of Object.entries(files)) {
       writeFileSync(path.join(srcDir, name), contents);
     }

@@ -173,7 +173,7 @@ export const HERO_ROSTER: readonly SpriteImageJob[] = FULL_ROSTER.filter((j) =>
 );
 
 /** The full key→file map (covers exactly {@link STUB_SHEET_KEYS}). */
-export const FULL_KEY_TO_FILE: Readonly<Record<string, string>> = {
+export const FULL_KEY_TO_FILE = {
   'tree:healthy': 'tree-healthy',
   'autumn-tree:healthy': 'tree-healthy',
   'autumn-tree': 'tree-healthy',
@@ -193,10 +193,10 @@ export const FULL_KEY_TO_FILE: Readonly<Record<string, string>> = {
   'tall-flower-failing': 'flower-failing',
   cottage: 'cottage',
   gazebo: 'gazebo',
-};
+} satisfies Readonly<Record<string, string>>;
 
 /** The hero-subset key→file map — only the keys the hero roster covers. */
-export const HERO_KEY_TO_FILE: Readonly<Record<string, string>> = {
+export const HERO_KEY_TO_FILE = {
   'tree:healthy': 'tree-healthy',
   'autumn-tree:healthy': 'tree-healthy',
   'autumn-tree': 'tree-healthy',
@@ -211,7 +211,9 @@ export const HERO_KEY_TO_FILE: Readonly<Record<string, string>> = {
   flora: 'flora',
   cottage: 'cottage',
   gazebo: 'gazebo',
-};
+} satisfies Readonly<Record<string, string>>;
+
+export interface BuildManifestResult { name: string; label: string; sprites: Record<string, { href: string; w: number; h: number; anchorX: number; anchorY: number }> }
 
 /**
  * Assemble the final `manifest.json` object once every image has been cut out and measured. The on-map
@@ -222,7 +224,7 @@ export const HERO_KEY_TO_FILE: Readonly<Record<string, string>> = {
 export function buildManifest(
   plan: SheetPlan,
   measured: readonly MeasuredImage[],
-): { name: string; label: string; sprites: Record<string, { href: string; w: number; h: number; anchorX: number; anchorY: number }> } {
+): BuildManifestResult {
   const byFile = new Map(measured.map((m) => [m.file, m]));
   const jobByFile = new Map(plan.jobs.map((j) => [j.file, j]));
   const sprites: Record<string, { href: string; w: number; h: number; anchorX: number; anchorY: number }> = {};

@@ -445,9 +445,11 @@ function groundMeshes(
       }
     };
 
-    /** The unit normal of the plane through three points, flipped to point upward — the
+        interface FaceUpResult { x: number; y: number; z: number }
+
+        /** The unit normal of the plane through three points, flipped to point upward — the
      *  bevel's own slope, which is what gives its two sides different rungs. */
-    const faceUp = (a: V3, b: V3, c: V3): { x: number; y: number; z: number } => {
+    const faceUp = (a: V3, b: V3, c: V3): FaceUpResult => {
       const ux = b.x - a.x;
       const uy = b.y - a.y;
       const uz = b.z - a.z;

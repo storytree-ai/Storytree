@@ -203,7 +203,7 @@ export function routeSpansOf(events: readonly StoreEvent[]): Array<Omit<RouteSpa
 function attribute(
   spans: Array<Omit<RouteSpan, "postRoute" | "sameDay">>,
   dates: readonly string[],
-): { spans: RouteSpan[]; preRoute: number } {
+) {
   const filled: RouteSpan[] = spans.map((s) => ({ ...s, postRoute: 0, sameDay: 0 }));
   let preRoute = 0;
   for (const date of dates) {

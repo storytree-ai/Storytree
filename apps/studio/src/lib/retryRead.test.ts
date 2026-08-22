@@ -11,7 +11,7 @@ import { describe, it, expect } from 'vitest';
 import { retryRead, realSleep } from './retryRead';
 
 /** Records what was waited for without spending it — the retry is proved, not timed. */
-function recordingSleep(): { sleep: (ms: number) => Promise<void>; waited: number[] } {
+function recordingSleep() {
   const waited: number[] = [];
   return {
     waited,

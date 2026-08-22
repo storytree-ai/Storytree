@@ -81,7 +81,7 @@ export const DEFAULTS: WindmillParams = {
  * Both directions come from the blade's own rotation angle, so this is the
  * relation restated — not a coordinate typed by hand.
  */
-function inBladeFrame(thetaRad: number, along: number, across: number): { at: { dx: number; dy: number }; dz: number } {
+function inBladeFrame(thetaRad: number, along: number, across: number) {
   const s = Math.sin(thetaRad);
   const c = Math.cos(thetaRad);
   return {

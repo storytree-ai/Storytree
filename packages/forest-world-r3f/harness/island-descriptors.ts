@@ -63,7 +63,7 @@ function pathPoints(d: string): { x: number; y: number }[] {
   return pts;
 }
 
-function parseTranslate(t: string | undefined): { x: number; y: number } {
+function parseTranslate(t: string | undefined) {
   if (!t) return { x: 0, y: 0 };
   const m = /translate\(\s*([-\d.]+)[\s,]+([-\d.]+)/.exec(t);
   if (!m) return { x: 0, y: 0 };
@@ -126,15 +126,17 @@ export function groundCellsFrom(
   return out;
 }
 
-/** The island's ground-space bounding box — what a camera frames on. */
-export function groundBounds(cells: readonly GroundCell[]): {
+export interface GroundBoundsResult {
   minX: number;
   maxX: number;
   minY: number;
   maxY: number;
   w: number;
   h: number;
-} {
+}
+
+/** The island's ground-space bounding box — what a camera frames on. */
+export function groundBounds(cells: readonly GroundCell[]): GroundBoundsResult {
   let minX = Infinity;
   let maxX = -Infinity;
   let minY = Infinity;

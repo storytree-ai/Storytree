@@ -128,6 +128,11 @@ export function gatherSourceFiles(repoRoot: string): string[] {
   return out.sort();
 }
 
+export interface GatherDeclarationsResult {
+  declarations: SubtreeDeclaration[];
+  baseline: OwnershipBaseline | undefined;
+}
+
 /**
  * The declared map, read from `repo-manifest.json` `sourceOwnership.subtrees`.
  *
@@ -148,15 +153,23 @@ export function gatherSourceFiles(repoRoot: string): string[] {
  * unowned" — loud, and the right answer for an instrument whose job is naming what is undeclared.
  * The claim namespace reads the same failure the opposite way and stands down; see that module.
  */
-export function gatherDeclarations(repoRoot: string): {
-  declarations: SubtreeDeclaration[];
-  baseline: OwnershipBaseline | undefined;
-} {
+export function gatherDeclarations(repoRoot: string): GatherDeclarationsResult {
   const map = readSourceOwnershipMap(join(repoRoot, "repo-manifest.json"));
   return {
     declarations: map.subtrees.map((d) => ({ subtree: d.subtree, owner: d.owner })),
     baseline: map.baseline,
   };
+}
+
+export interface GatherUnitIdsResult {
+  knownUnitIds: string[];
+  storyIds: string[];
+  /**
+   * Story id → the unit ids it declares. What lets the report say WHY a story-grain declaration is
+   * at story grain: a story declaring NO units has nothing finer to name (the root-port case), while
+   * one that declares capabilities may have a finer owner already sitting there.
+   */
+  unitsByStory: Map<string, string[]>;
 }
 
 /**
@@ -169,16 +182,7 @@ export function gatherDeclarations(repoRoot: string): {
  * "does this declared owner name anything at all", which is what makes a phantom owner visible
  * without asserting the stronger property increment 2 will own.
  */
-export function gatherUnitIds(repoRoot: string): {
-  knownUnitIds: string[];
-  storyIds: string[];
-  /**
-   * Story id → the unit ids it declares. What lets the report say WHY a story-grain declaration is
-   * at story grain: a story declaring NO units has nothing finer to name (the root-port case), while
-   * one that declares capabilities may have a finer owner already sitting there.
-   */
-  unitsByStory: Map<string, string[]>;
-} {
+export function gatherUnitIds(repoRoot: string): GatherUnitIdsResult {
   const storiesDir = join(repoRoot, "stories");
   const knownUnitIds = new Set<string>();
   const storyIds: string[] = [];

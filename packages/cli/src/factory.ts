@@ -98,7 +98,7 @@ function windowLine(window: { from?: string | undefined; to?: string | undefined
  * constraint — "an instrument that reports one blended rate has not answered the question" — and the
  * two non-tripwire routes mean DIFFERENT things, so they do not share a line.
  */
-function routeReading(route: string, tripwire: boolean): { mark: string; note?: string } {
+function routeReading(route: string, tripwire: boolean) {
   if (tripwire) {
     return {
       mark: "TRIPWIRE",
@@ -266,7 +266,7 @@ function renderChurn(report: ChurnReport): string[] {
 // ---------------------------------------------------------------------------
 
 /** Default churn window: the last 7 days, so a bare invocation reports something honest. */
-function defaultChurnWindow(now: string): { from: string; to: string } {
+function defaultChurnWindow(now: string) {
   const to = new Date(now);
   const from = new Date(to.getTime() - 7 * 86_400_000);
   return { from: from.toISOString(), to: to.toISOString() };

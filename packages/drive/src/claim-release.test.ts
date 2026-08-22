@@ -31,10 +31,7 @@ function claimDoc(over: Partial<ClaimDocT> = {}): ClaimDocT {
 }
 
 /** A release spy: records the calls and reports whether a row was actually deleted. */
-function releaseSpy(released = true): {
-  release: (unitId: string, sessionId: string) => Promise<boolean>;
-  calls: () => { unitId: string; sessionId: string }[];
-} {
+function releaseSpy(released = true) {
   const calls: { unitId: string; sessionId: string }[] = [];
   return {
     release: async (unitId: string, sessionId: string) => {

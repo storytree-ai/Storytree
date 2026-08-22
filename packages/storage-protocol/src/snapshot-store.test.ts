@@ -5,7 +5,7 @@ import { InMemoryStore } from "./store.js";
 import { snapshotReads } from "./snapshot-store.js";
 
 /** An InMemoryStore that counts the reads actually reaching it. */
-function counting(): { store: InMemoryStore; reads: () => number } {
+function counting() {
   const inner = new InMemoryStore();
   let reads = 0;
   const original = { getDoc: inner.getDoc.bind(inner), queryDocs: inner.queryDocs.bind(inner) };

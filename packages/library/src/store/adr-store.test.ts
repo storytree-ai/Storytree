@@ -19,10 +19,7 @@ function uniqueViolation(): Error {
 }
 
 /** A fake client whose `query` runs a scripted sequence of behaviours, one per call. */
-function scriptedClient(steps: Array<() => { rows: unknown[] }>): {
-  client: AdrAllocatorClient;
-  calls: { text: string; values?: unknown[] }[];
-} {
+function scriptedClient(steps: Array<() => { rows: unknown[] }>) {
   const calls: { text: string; values?: unknown[] }[] = [];
   let i = 0;
   const client: AdrAllocatorClient = {
@@ -37,7 +34,7 @@ function scriptedClient(steps: Array<() => { rows: unknown[] }>): {
   return { client, calls };
 }
 
-const ok = (number: number) => (): { rows: unknown[] } => ({
+const ok = (number: number) => () => ({
   rows: [{ number, at: "2026-06-14T00:00:00.000Z" }],
 });
 const fail = (err: Error) => (): { rows: unknown[] } => {

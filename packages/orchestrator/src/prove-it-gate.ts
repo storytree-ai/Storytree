@@ -385,7 +385,9 @@ export function gitTreeState(cwd?: string): () => Promise<TreeState> {
 /** Run a git command, resolving its stdout. Rejects on a genuine spawn/exec failure. */
 function runGit(args: string[], cwd?: string): Promise<string> {
   return new Promise<string>((resolve, reject) => {
-    const options: { cwd?: string; maxBuffer: number } = { maxBuffer: 16 * 1024 * 1024 };
+    interface OptionsShape { cwd?: string; maxBuffer: number }
+
+    const options: OptionsShape = { maxBuffer: 16 * 1024 * 1024 };
     if (cwd !== undefined) {
       options.cwd = cwd;
     }

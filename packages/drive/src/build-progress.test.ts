@@ -9,12 +9,7 @@ import {
   type ProgressDeps,
 } from "./build-progress.js";
 
-/**
- * A hand-driven harness: the clock only moves when a test moves it, and the heartbeat only ticks
- * when a test ticks it. No timer, no wall clock — the same reason `ensureDbUp` takes injected
- * effects, since a 30s cadence is not assertable against real time.
- */
-function harness(): {
+interface HarnessResult {
   deps: ProgressDeps;
   logs: string[];
   advance: (ms: number) => void;
@@ -22,7 +17,14 @@ function harness(): {
   intervals: number[];
   cancels: () => number;
   liveTicks: () => number;
-} {
+}
+
+/**
+ * A hand-driven harness: the clock only moves when a test moves it, and the heartbeat only ticks
+ * when a test ticks it. No timer, no wall clock — the same reason `ensureDbUp` takes injected
+ * effects, since a 30s cadence is not assertable against real time.
+ */
+function harness(): HarnessResult {
   let t = 0;
   const logs: string[] = [];
   const intervals: number[] = [];

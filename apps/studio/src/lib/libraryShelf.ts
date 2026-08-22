@@ -32,8 +32,8 @@ import type { SearchResult } from './librarySearch';
 /** The universal lifecycle triad's per-state counts (ADR-0196 D1 / ADR-0197 D2). */
 export type LifecycleCounts = Record<Lifecycle, number>;
 
-function emptyLifecycleCounts(): LifecycleCounts {
-  return { open: 0, active: 0, archived: 0 };
+function emptyLifecycleCounts() {
+  return { open: 0, active: 0, archived: 0 } satisfies LifecycleCounts;
 }
 
 /** One category-shelf row: the category, its TOTAL corpus count, and its per-state counts. */

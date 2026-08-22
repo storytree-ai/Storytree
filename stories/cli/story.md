@@ -228,7 +228,7 @@ Every assertion above still runs under `pnpm --filter @storytree/cli test` and b
 green on it — the deletion removed a second signature at the story rung, not the evidence.
 
 
-1. **Credential hydration + live pull:** _(witness: machine)_ with `pnpm db:up`, run `pnpm storytree _(criterion-id: uatc_dba01a60e8f19040a6732eea)_ _(revision-id: uatr1:b9554fd833374c8c)_ _(previous-revision-id: uatr1:a6be2db1ea9b6a79)_
+4. **Credential hydration + live pull:** _(witness: machine)_ with `pnpm db:up`, run `pnpm storytree _(criterion-id: uatc_dba01a60e8f19040a6732eea)_ _(revision-id: uatr1:b9554fd833374c8c)_ _(previous-revision-id: uatr1:a6be2db1ea9b6a79)_
    library artifact <id> --pg` (no env prefix). **Success —** `secrets.ts` hydrated
    `STORYTREE_DB_USER`, the live read returned `ok:true` — the shim wired the live store in.
    > **Witness re-adjudicated `human` → `machine` 2026-07-25 (ADR-0209 D8), deliberately UNBOUND.**

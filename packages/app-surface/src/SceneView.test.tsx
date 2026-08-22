@@ -144,7 +144,7 @@ function mkCtx(over: Partial<SceneCtx> = {}): SceneCtx {
   });
 }
 
-function mountScene(input: SceneInput, ctx: SceneCtx): { root: HTMLElement; ctx: SceneCtx } {
+function mountScene(input: SceneInput, ctx: SceneCtx) {
   const { container } = render(
     <svg>
       <SceneView scene={buildScene(input)} ctx={ctx} />

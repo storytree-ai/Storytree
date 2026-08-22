@@ -83,7 +83,7 @@ function variantDir(root: string, label: string, codeSha: string | null): string
   return dir;
 }
 
-function compose(root: string, out: string, cells: readonly string[]): { code: number | null; text: string } {
+function compose(root: string, out: string, cells: readonly string[]) {
   const res = spawnSync(
     PY as string,
     [SHEET, out, ...cells, "--frames", "18", "--zoom", "1"],

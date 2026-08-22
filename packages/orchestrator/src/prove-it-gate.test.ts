@@ -74,7 +74,7 @@ function freshSpec(args: {
   observations: TestObservation[];
   tree: TreeState;
   signerInputs: SignerInputs;
-}): { spec: ProveSpec; executor: RecordingTestExecutor; store: InMemoryStore } {
+}) {
   const store = new InMemoryStore();
   const executor = new RecordingTestExecutor(args.observations);
   const spec: ProveSpec = {
@@ -125,7 +125,7 @@ function specWithAuthor(args: {
   observations: TestObservation[];
   tree?: TreeState;
   signerInputs?: SignerInputs;
-}): { spec: ProveSpec; executor: RecordingTestExecutor; store: InMemoryStore } {
+}) {
   const store = new InMemoryStore();
   const executor = new RecordingTestExecutor(args.observations);
   const spec: ProveSpec = {

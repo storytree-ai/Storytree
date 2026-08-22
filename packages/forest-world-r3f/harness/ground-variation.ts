@@ -146,6 +146,8 @@ export function bandCoverage(
   return counts.slice(0, bands).map((k) => k / n);
 }
 
+export interface VariantSeamFractionResult { seams: number; boundaries: number; fraction: number }
+
 /**
  * The fraction of a cell set's SHARED boundaries across which the variant changes — the
  * measurement that decides whether "regional" is a real distinction from "per-cell hash" or
@@ -160,7 +162,7 @@ export function bandCoverage(
 export function variantSeamFraction(
   cells: readonly { points: readonly { x: number; y: number }[] }[],
   bands: 3 | 4 = 3,
-): { seams: number; boundaries: number; fraction: number } {
+): VariantSeamFractionResult {
   const key = (p: { x: number; y: number }): string => `${p.x.toFixed(3)},${p.y.toFixed(3)}`;
   const centroids = cells.map((c) => {
     let x = 0;

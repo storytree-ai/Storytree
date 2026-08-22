@@ -40,7 +40,7 @@ import { explainDocValidationError, upcastAndValidate } from "./library-doc.js";
 const FUTURE_FIELD = "cadenceLog";
 
 /** A valid arc as the live store would hand it back, plus whatever extra keys the case needs. */
-function storedArc(extra: Record<string, unknown> = {}): Record<string, unknown> {
+function storedArc(extra: Record<string, unknown> = {}) {
   return {
     kind: "arc",
     id: "verification-integrity-arc",
@@ -53,7 +53,7 @@ function storedArc(extra: Record<string, unknown> = {}): Record<string, unknown>
     createdAt: "2026-07-01T00:00:00.000Z",
     updatedAt: "2026-08-03T00:00:00.000Z",
     ...extra,
-  };
+  } satisfies Record<string, unknown>;
 }
 
 /** Push a doc through the real write boundary and hand the thrown error to the explainer. */

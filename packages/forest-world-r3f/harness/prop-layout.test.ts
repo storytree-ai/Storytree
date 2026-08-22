@@ -63,7 +63,7 @@ function areaOf(loop: readonly GPoint[]): number {
 }
 
 /** Total absolute turning, and the sharpest single corner, in degrees. */
-function turningOf(loop: readonly GPoint[]): { total: number; max: number } {
+function turningOf(loop: readonly GPoint[]) {
   let total = 0;
   let max = 0;
   const n = loop.length;

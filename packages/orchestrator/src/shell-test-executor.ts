@@ -298,15 +298,18 @@ export const DEFAULT_PROOF_TIMEOUT_MS = 10 * 60_000;
  * `run_typecheck`) spawns the SAME command the same way — one oracle, two consumers, so the timeout
  * protects BOTH paths with one change.
  */
+/** The `execFile` options this executor builds — `cwd` is added below only when the command names one. */
+interface ShellExecOptions {
+  cwd?: string;
+  maxBuffer: number;
+  env: NodeJS.ProcessEnv;
+  timeout: number;
+  killSignal: "SIGKILL";
+}
+
 export function runShellCommand(cmd: ShellCommand): Promise<ShellRunResult> {
   return new Promise<ShellRunResult>((resolve, reject) => {
-    const options: {
-      cwd?: string;
-      maxBuffer: number;
-      env: NodeJS.ProcessEnv;
-      timeout: number;
-      killSignal: "SIGKILL";
-    } = {
+    const options: ShellExecOptions = {
       maxBuffer: 64 * 1024 * 1024,
       // Per-command env overrides are merged LAST so they WIN over both the inherited env and the
       // scrub list (ADR-0064 DB-backed proof: force STORYTREE_DB_NAME to the disposable test DB).

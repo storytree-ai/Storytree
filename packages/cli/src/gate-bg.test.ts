@@ -65,7 +65,7 @@ const bash = resolveRepoBash();
 function runWrapper(
   inner: string,
   env: Record<string, string> & { GATE_BG_LOG: string },
-): { status: number; stdout: string } {
+) {
   assert.ok(
     env.GATE_BG_LOG,
     "runWrapper must be given a GATE_BG_LOG under a temp dir — the real script's default path is " +
@@ -95,7 +95,7 @@ function runWrapper(
  * copy. A regression to a cwd-derived or repo-derived root would put them somewhere else and red
  * the default-path test, where a run of the real script in place could not tell the two apart.
  */
-function runScriptCopy(dir: string, inner: string): { status: number; stdout: string } {
+function runScriptCopy(dir: string, inner: string) {
   const scriptDir = path.join(dir, "scripts");
   mkdirSync(scriptDir, { recursive: true });
   const copy = path.join(scriptDir, "gate-bg.sh");

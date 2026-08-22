@@ -117,7 +117,7 @@ export function ingestDecisionReads(input: IngestDecisionReadsArgs): DecisionRea
   const seenEventIds = new Set<string>();
   const declinedByVerb = new Map<string, number>();
   const distinctDecisions = new Set<string>();
-  const byShape: Record<DecisionReadShape, number> = { read: 0, grep: 0, shell: 0 };
+  const byShape = { read: 0, grep: 0, shell: 0 } satisfies Record<DecisionReadShape, number>;
   let uncorrelatedReads = 0;
   let unidentifiedCalls = 0;
   let redirectTargets = 0;

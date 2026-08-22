@@ -24,7 +24,6 @@ import {
 } from "@storytree/context-traversal-capture";
 import type {
   CoverageCaveat,
-  TraceIdentityKind,
   TraversalRenderEnvelope,
   TraversalQueryOptions,
 } from "@storytree/context-traversal-capture";
@@ -85,12 +84,7 @@ export function showTraversalSessionAllAdapters(
 function composeReplay(
   sessionId: string,
   opts: TraversalQueryOptions | undefined,
-): {
-  readonly replay: ContextTraversalReplay;
-  readonly skipped: number;
-  readonly identity: TraceIdentityKind;
-  readonly slots: readonly string[];
-} {
+) {
   const dir = opts?.dir ?? resolveTraversalDir();
   // The identity classification is carried THROUGH rather than recomputed here: it is a property of
   // the bytes the reader walked (`linked-session-context-arc-inc-30`), and this composition widens

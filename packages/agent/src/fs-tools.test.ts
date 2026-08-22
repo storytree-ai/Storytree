@@ -171,7 +171,9 @@ test("FILE_WRITE_TOOLS extracts paths for write/edit and omits non-writes", () =
   assert.equal(FILE_WRITE_TOOLS.edit_file?.({ path: "q.txt", old_str: "a", new_str: "b" }), "q.txt");
   // No path on input -> null (passes through the scope check as "no scoped path").
   assert.equal(FILE_WRITE_TOOLS.write_file?.({ content: "c" }), null);
-  // Read/list/run are not write tools.
-  assert.equal(FILE_WRITE_TOOLS.read_file, undefined);
-  assert.equal(FILE_WRITE_TOOLS.run_command, undefined);
+  // Read/list/run are not write tools. Absence is now a TYPE-level fact (the table `satisfies`
+  // WriteToolSpec instead of being annotated as one), so probe the key rather than the property —
+  // `FILE_WRITE_TOOLS.read_file` no longer compiles, which is the fence working.
+  assert.equal(Object.hasOwn(FILE_WRITE_TOOLS, "read_file"), false);
+  assert.equal(Object.hasOwn(FILE_WRITE_TOOLS, "run_command"), false);
 });

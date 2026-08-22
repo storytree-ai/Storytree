@@ -57,7 +57,7 @@ function queryYielding(messages: unknown[]): SdkQueryFn {
     })();
 }
 
-function capturingQuery(messages: unknown[]): { fn: SdkQueryFn; opts: () => unknown } {
+function capturingQuery(messages: unknown[]) {
   let last: unknown;
   const fn: SdkQueryFn = (q) => {
     last = q.options;
@@ -121,6 +121,8 @@ function resultText(result: { content: Array<{ type: string; text?: string }> })
   return result.content.map((c) => c.text ?? "").join("\n");
 }
 
+interface FullArgsResult { runId: string; logFailed: boolean; pr: string; verb: string; args: string[] }
+
 /**
  * A superset of every inspect tool's args. The heterogeneous tool array types `.handler`'s param as
  * the INTERSECTION of the three arg shapes, so a call must supply every field — each handler ignores
@@ -128,7 +130,7 @@ function resultText(result: { content: Array<{ type: string; text?: string }> })
  */
 function fullArgs(
   over?: Partial<{ runId: string; logFailed: boolean; pr: string; verb: string; args: string[] }>,
-): { runId: string; logFailed: boolean; pr: string; verb: string; args: string[] } {
+): FullArgsResult {
   return { runId: "123", logFailed: false, pr: "650", verb: "status", args: [], ...over };
 }
 

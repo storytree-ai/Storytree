@@ -190,7 +190,7 @@ const ASSERTION_NAMES = new Set(["assert", "expect"]);
  * root `assert`, members `["ok"]`; `expect(x).toBe(y)` → root `expect`, members `["toBe"]`;
  * `t.assert.ok(x)` → root `t`, members `["ok", "assert"]`. Unwraps call/paren/non-null wrappers.
  */
-function calleeParts(expr: ts.Expression): { root: string | undefined; members: string[] } {
+function calleeParts(expr: ts.Expression) {
   const members: string[] = [];
   let node: ts.Expression = expr;
   for (;;) {

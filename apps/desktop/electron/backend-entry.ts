@@ -288,7 +288,7 @@ function readJsonObject(req: IncomingMessage): Promise<Record<string, unknown>> 
   });
 }
 
-function currentGitState(): { commitSha: string; clean: boolean } {
+function currentGitState() {
   const commitSha = execFileSync("git", ["rev-parse", "HEAD"], {
     cwd: repoRoot,
     encoding: "utf8",
@@ -526,7 +526,9 @@ async function main(): Promise<void> {
   const bootRoutes = createBootReadRoutes({
     docsDir,
     listComments: async (filter) => {
-      const f: { topicId?: string; topicKind?: "doc" | "asset" } = {};
+      interface FShape { topicId?: string; topicKind?: "doc" | "asset" }
+
+      const f: FShape = {};
       if (filter?.topicId) f.topicId = filter.topicId;
       if (filter?.topicKind === "doc" || filter?.topicKind === "asset") f.topicKind = filter.topicKind;
       return comments.list(f);
@@ -671,13 +673,13 @@ async function main(): Promise<void> {
     // Attestation marks and verdict events in parallel (both advisory).
     const [marksMap, events] = await Promise.all([
       // Derive the latest-per-(testId,witness) marks and filter to this story's tests.
-      attestations.readEvents().then((evts): Record<string, Record<string, unknown>> => {
+      attestations.readEvents().then((evts) => {
         const derived = deriveAttestations(evts);
         const out: Record<string, Record<string, unknown>> = {};
         for (const [testId, entry] of derived) {
           out[testId] = entry as Record<string, unknown>;
         }
-        return out;
+        return out satisfies Record<string, Record<string, unknown>>;
       }).catch((): Record<string, Record<string, unknown>> => ({})),
       // Verdict events — advisory, same contract as /api/tree (null on any failure).
       advisory("attestations-verdicts", readVerdictEventRows),

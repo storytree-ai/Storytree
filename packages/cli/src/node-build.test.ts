@@ -24,6 +24,8 @@ import {
 } from "@storytree/drive";
 import type { BuildProgress, ClaimStoreLike, SessionIdentity, WispSmokeStore } from "@storytree/drive";
 
+interface RecordingProgressResult { progress: BuildProgress; stages: string[]; notes: string[] }
+
 /**
  * A recording {@link BuildProgress}: proves the DRIVER actually reports its legs. The progress
  * module's own behaviour (cadence, elapsed, cancellation) is proven next door in
@@ -31,7 +33,7 @@ import type { BuildProgress, ClaimStoreLike, SessionIdentity, WispSmokeStore } f
  * i.e. that `nodeBuild` opens a named stage around each leg that can sit for minutes and feeds it
  * the gate's phase walk. Without this, the module could be perfect and the build still silent.
  */
-function recordingProgress(): { progress: BuildProgress; stages: string[]; notes: string[] } {
+function recordingProgress(): RecordingProgressResult {
   const stages: string[] = [];
   const notes: string[] = [];
   return {
@@ -607,8 +609,10 @@ test("resolveAddDepsGroup REFUSES when the target package can't be derived (sour
 
 // ── --emit-wisp: the dry-run wisp SMOKE (ADR-0080) ────────────────────────────
 
+interface FakeWispStoreResult { store: WispSmokeStore; kinds: string[]; deleted: Array<[string, string]> }
+
 /** A minimal fake work store for the emit-wisp wiring tests (records appends + the smoke delete). */
-function fakeWispStore(): { store: WispSmokeStore; kinds: string[]; deleted: Array<[string, string]> } {
+function fakeWispStore(): FakeWispStoreResult {
   const kinds: string[] = [];
   const deleted: Array<[string, string]> = [];
   const store: WispSmokeStore = {
@@ -736,12 +740,14 @@ test("the phase report is ADVISORY: a throwing progress sink cannot fail the bui
 
 // ── ADR-0121: the per-unit write-claim wired into the build (refuse a second concurrent builder) ──
 
-/** A fake claim store recording every claim/release; `acquired` decides the claim outcome. */
-function fakeClaimStore(acquired: boolean): {
+interface FakeClaimStoreResult {
   store: ClaimStoreLike;
   claims: string[];
   releases: Array<[string, string]>;
-} {
+}
+
+/** A fake claim store recording every claim/release; `acquired` decides the claim outcome. */
+function fakeClaimStore(acquired: boolean): FakeClaimStoreResult {
   const claims: string[] = [];
   const releases: Array<[string, string]> = [];
   const at = "2026-06-27T00:00:00.000Z";

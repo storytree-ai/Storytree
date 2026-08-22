@@ -78,8 +78,10 @@ export function shadowOffsetPerUnitHeight(): number {
   return ground / LIGHT_DIRECTION.y;
 }
 
+export interface ShadowDirectionResult { x: number; z: number }
+
 /** The unit ground vector a shadow is thrown ALONG — away from the light. */
-export function shadowDirection(): { x: number; z: number } {
+export function shadowDirection(): ShadowDirectionResult {
   const ground = Math.hypot(LIGHT_DIRECTION.x, LIGHT_DIRECTION.z) || 1;
   return { x: -LIGHT_DIRECTION.x / ground, z: -LIGHT_DIRECTION.z / ground };
 }

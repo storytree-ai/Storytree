@@ -33,11 +33,13 @@ import type { StoreEvent } from "@storytree/storage-protocol";
  */
 export type RollupEvent = Pick<StoreEvent, "kind" | "seq" | "doc">;
 
+export interface WorkEventResult { id: string; kind: string; type: "created"; doc: WorkEventDoc; actor: string }
+
 /** Build the appendEvent payload for one lifecycle work event (validated before it is shaped). */
 export function workEvent(
   doc: WorkEventDoc,
   actor: string,
-): { id: string; kind: string; type: "created"; doc: WorkEventDoc; actor: string } {
+): WorkEventResult {
   const valid = WorkEventDoc.parse(doc);
   const id = valid.runId !== undefined ? `${valid.runId}:${valid.unitId}` : valid.unitId;
   return { id, kind: WORK_EVENT_KIND, type: "created", doc: valid, actor };

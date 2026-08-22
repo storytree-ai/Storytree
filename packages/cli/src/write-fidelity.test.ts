@@ -31,7 +31,7 @@ const PNPM_BANNER = [
   "",
 ].join("\n");
 
-function tmp(): { dir: string; cleanup: () => void } {
+function tmp() {
   const dir = mkdtempSync(path.join(tmpdir(), "storytree-fidelity-"));
   return { dir, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
 }

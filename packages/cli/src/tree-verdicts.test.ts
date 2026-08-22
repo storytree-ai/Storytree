@@ -35,7 +35,7 @@ function signingEvent(
   seq: number,
   unitId: string,
   outcome: "pass" | "fail",
-): { kind: string; seq: number; doc: unknown } {
+) {
   const doc: Verdict = {
     unitId,
     proofMode: "contract",

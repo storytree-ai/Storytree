@@ -277,13 +277,13 @@ interface ScoredSuggestion extends ClaimSuggestion {
  * refusal message that reorders between runs is a refusal a reader cannot trust or test.
  */
 function rank(scored: readonly ScoredSuggestion[]): readonly ClaimSuggestion[] {
-  const precedence: Record<SuggestionReason, number> = {
+  const precedence = {
     path: 0,
     "owning-subtree": 1,
     "not-claimable": 2,
     typo: 3,
     related: 4,
-  };
+  } satisfies Record<SuggestionReason, number>;
   const seen = new Set<string>();
   return [...scored]
     .sort(

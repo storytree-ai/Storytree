@@ -26,12 +26,7 @@ const FAKE_HANDLE = { pool: "fake-pool", connector: "fake-connector" } as unknow
 >;
 
 /** A budget that never expires unless `fire()` is called; records whether it was cancelled. */
-function manualBudget(): {
-  budget: ProbeDeps["budget"];
-  fire: () => void;
-  cancelled: () => boolean;
-  startedWith: () => number | null;
-} {
+function manualBudget() {
   let release: (() => void) | null = null;
   let wasCancelled = false;
   let ms: number | null = null;
@@ -52,10 +47,7 @@ function manualBudget(): {
 }
 
 /** A pool whose `open()` resolves only when the test says so — for the late-arrival teardown case. */
-function deferredHandle(): {
-  promise: Promise<typeof FAKE_HANDLE>;
-  resolve: (h: typeof FAKE_HANDLE) => void;
-} {
+function deferredHandle() {
   let resolve!: (h: typeof FAKE_HANDLE) => void;
   const promise = new Promise<typeof FAKE_HANDLE>((r) => {
     resolve = r;

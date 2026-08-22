@@ -35,11 +35,13 @@ const EDGES: readonly ForestRegrowTrailEdge[] = [
  */
 const MAX_FRAME_MS = 250;
 
-function manualClock(): {
+interface ManualClockResult {
   clock: Act2IntroClock;
   advance: (ms: number) => void;
   elapse: (ms: number) => void;
-} {
+}
+
+function manualClock(): ManualClockResult {
   let next: ((t: number) => void) | null = null;
   let now = 0;
   const advance = (ms: number): void => {

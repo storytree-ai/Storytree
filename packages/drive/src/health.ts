@@ -342,8 +342,10 @@ export function gateFailures(results: readonly CheckResult[]): CheckResult[] {
   return results.filter((r) => r.level === "FAIL" && GATE_CHECKS.has(r.name));
 }
 
+export interface LevelCountsResult { fail: number; warn: number; pass: number }
+
 /** Count results at each level, for a one-line summary. */
-export function levelCounts(results: readonly CheckResult[]): { fail: number; warn: number; pass: number } {
+export function levelCounts(results: readonly CheckResult[]): LevelCountsResult {
   let fail = 0;
   let warn = 0;
   let pass = 0;

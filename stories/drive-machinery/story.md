@@ -367,7 +367,7 @@ deletion removed a second signature at the story rung, not the evidence (ADR-029
 > 2 and 3 — redundant, not dishonest. Retiring it is a separate, id-aware change.
 
 
-1. **The REAL build** _(witness: machine)(detail: drive-machinery#uat-3)_ _(proof-gate: drive-machinery#gate-6)_: `pnpm storytree node build <id> --real --store pg`. **Success —** a fresh _(criterion-id: uatc_c0f650ea4c3035ae8f7e5b1c)_ _(revision-id: uatr1:48ac587ee38977f9)_
+3. **The REAL build** _(witness: machine)(detail: drive-machinery#uat-3)_ _(proof-gate: drive-machinery#gate-6)_: `pnpm storytree node build <id> --real --store pg`. **Success —** a fresh _(criterion-id: uatc_c0f650ea4c3035ae8f7e5b1c)_ _(revision-id: uatr1:48ac587ee38977f9)_
    detached worktree; the live leaf authors the REAL test under the write wall; the spine observes
    the genuine red, the leaf implements, the spine observes the genuine green, commits the
    authored files, signs on the genuinely clean tree; the verdict persists to `events.verdict`;
@@ -380,14 +380,14 @@ deletion removed a second signature at the story rung, not the evidence (ADR-029
    — minted for this conversion via `witnessable-verdict` itself: run `real-mrftf7c3`, commit
    `69590a6`, a genuine red→green; the earlier `verdict-line` run `real-mq7ky4ck` is the historical
    first.)*
-2. **Land it** _(witness: machine)(detail: drive-machinery#uat-4)_ _(proof-gate: drive-machinery#gate-5)_: open the PR from the promotion branch; CI auto-merges on green, NON-SQUASH, so the _(criterion-id: uatc_3e86045325b8284e156fe886)_ _(revision-id: uatr1:3a583901a5d86eb2)_
+4. **Land it** _(witness: machine)(detail: drive-machinery#uat-4)_ _(proof-gate: drive-machinery#gate-5)_: open the PR from the promotion branch; CI auto-merges on green, NON-SQUASH, so the _(criterion-id: uatc_3e86045325b8284e156fe886)_ _(revision-id: uatr1:3a583901a5d86eb2)_
    verdict's `commitSha` stays an ancestor of `main` (ADR-0031/0022). **Success —** the proven
    commit is reachable from `main`. *(proven: `drive-machinery#gate-5` —
    `promotion-ancestry.check.ts` asserts every attested REAL-proof commit (`0e8f4ba` verdict-line,
    `47c9e43` node-resolve-report, and the three uat-machine binding proofs) is an ancestor of HEAD, so
    a squash that orphaned the original SHA would fail it; the live residue — a real PR auto-merged into
    the real `main` — is the CI auto-merge/non-squash rail's standing guarantee, ADR-0022/0031.)*
-3. **An agent actually USES it end to end (the dogfood acceptance)** _(witness: machine)(detail: drive-machinery#uat-7)_ _(proof-gate: drive-machinery#gate-7)_: a fresh orchestrator agent, _(criterion-id: uatc_5e54367bd5f458a7ef3d2b09)_ _(revision-id: uatr1:30344311ad98c613)_
+7. **An agent actually USES it end to end (the dogfood acceptance)** _(witness: machine)(detail: drive-machinery#uat-7)_ _(proof-gate: drive-machinery#gate-7)_: a fresh orchestrator agent, _(criterion-id: uatc_5e54367bd5f458a7ef3d2b09)_ _(revision-id: uatr1:30344311ad98c613)_
    onboarding from CLAUDE.md alone (the inner loop never named for it), drives a unit through steps
    1–4 to a genuine signed verdict — proving the machinery is not just correct but *usable without
    coaching*, the load-bearing question behind ADR-0057. **Success —** the agent discovers the inner

@@ -130,7 +130,7 @@ function loadCapability(
   loadNodeSpec: LoadNodeSpec,
   storyDir: string,
   capId: string,
-): { node: DTCapability; spec: ReturnType<LoadNodeSpec> | null } {
+) {
   const node: DTCapability = {
     id: capId,
     title: capId,

@@ -89,7 +89,7 @@ async function seededStore(): Promise<InMemoryStore> {
 }
 
 /** A disk fixture: decisions dir with one stamped + one unstamped ADR, stories dir with stamps. */
-function diskFixture(): { root: string; decisionsDir: string; storiesDir: string } {
+function diskFixture() {
   const root = mkdtempSync(path.join(tmpdir(), "arc-view-"));
   const decisionsDir = path.join(root, "decisions");
   const storiesDir = path.join(root, "stories");

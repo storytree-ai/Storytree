@@ -109,12 +109,12 @@ const CRITERIA = Array.from({ length: 8 }, (_, i) => ({
 }));
 
 const hero = (width: number, height: number): SceneGardenHero => ({ width, height, nodes: [] });
-const HEROES: Record<GardenHeroId, SceneGardenHero> = {
+const HEROES = {
   cottage: hero(40, 34),
   gazebo: hero(30, 30),
   'autumn-tree': hero(56, 70),
   'stepping-stone': hero(12, 4),
-};
+} satisfies Record<GardenHeroId, SceneGardenHero>;
 
 function territory(isl: Island): SceneTerritoryInput {
   return {
@@ -169,12 +169,7 @@ function anchorOf(node: SceneNode): Pt | null {
  *  mark rather than by painter order. Markers key on their criterion id, stones and heroes on their
  *  `baked-use` id, and the two accent families on a synthetic key naming the family + its ordinal
  *  (they carry no id of their own). */
-function placements(input: SceneInput): {
-  markers: Map<string, Pt>;
-  stones: Map<string, Pt>;
-  heroes: Map<string, Pt>;
-  accents: Map<string, Pt>;
-} {
+function placements(input: SceneInput) {
   const markers = new Map<string, Pt>();
   const stones = new Map<string, Pt>();
   const heroes = new Map<string, Pt>();

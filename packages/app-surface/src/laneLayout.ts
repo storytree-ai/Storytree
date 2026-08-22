@@ -91,6 +91,8 @@ const ROAD_SHARE = 0.8;
 /** Moving-average half-window for the offset smoothing, in world units of arc length. */
 const SMOOTH_SPAN = 16;
 
+export interface LaneGeometryResult { width: number; offset: number }
+
 /**
  * How wide one lane may be on this segment, and how far off the centreline it may sit.
  *
@@ -100,7 +102,7 @@ const SMOOTH_SPAN = 16;
  * is left, which means a thin road (where a lane already fills it) centres its lane and only
  * a fat trunk pushes it to one side.
  */
-export function laneGeometry(usage: number, twoWay: boolean): { width: number; offset: number } {
+export function laneGeometry(usage: number, twoWay: boolean): LaneGeometryResult {
   const road = trailFillWidth(usage);
   const budget = road * ROAD_SHARE;
   const full = Math.min(trailFillWidth(1), budget);
@@ -155,7 +157,7 @@ function routeCentre(
   route: NeighbourRoute,
   byId: ReadonlyMap<string, TrailSegment>,
   step: number,
-): { pts: LanePoint[]; owner: string[] } {
+) {
   const pts: LanePoint[] = [];
   const owner: string[] = [];
   for (const s of route.steps) {

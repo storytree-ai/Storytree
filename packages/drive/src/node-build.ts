@@ -278,6 +278,8 @@ export type LeafSlicesObserver = (args: {
   readonly runs: readonly LiveRunInfo[];
 }) => void;
 
+export interface BuildableNodeIdsResult { buildable: string[]; realBuildable: string[] }
+
 /**
  * The buildable node ids for CLI discovery: the registry ids UNION the SPEC-BORNE ids scanned from
  * `storiesDir` (ADR-0057 keystone A). A node whose own spec carries a `proof:` block is buildable by
@@ -287,7 +289,7 @@ export type LeafSlicesObserver = (args: {
  * just buildable. Best-effort: a malformed spec is SKIPPED in the listing (it fails LOUD when you
  * actually build it), so one bad spec never blanks the list.
  */
-export function buildableNodeIds(storiesDir: string): { buildable: string[]; realBuildable: string[] } {
+export function buildableNodeIds(storiesDir: string): BuildableNodeIdsResult {
   const buildable = new Set(registeredNodeIds());
   const realBuildable = new Set(realBuildableNodeIds());
   if (existsSync(storiesDir)) {

@@ -1182,7 +1182,9 @@ export class PgBackend implements LibraryBackend {
   async updateComment(id: string, patch: CommentPatch): Promise<Comment | null> {
     const { comments } = await this.#ready();
     // resolvedAt is derived here (mirroring the JSON backend) so the stored doc matches the wire shape.
-    const merge: { body?: string; resolved?: boolean; resolvedAt?: string | null } = {};
+    interface MergeShape { body?: string; resolved?: boolean; resolvedAt?: string | null }
+
+    const merge: MergeShape = {};
     if (patch.body !== undefined) merge.body = patch.body;
     if (patch.resolved !== undefined) {
       merge.resolved = patch.resolved;

@@ -325,7 +325,7 @@ export async function questionNew(
   const analogy = opts.analogy?.trim() ?? "";
   const diagram = opts.diagram?.trim() ?? "";
   const recommendation = opts.recommendation?.trim() ?? "";
-  const doc: Record<string, unknown> = {
+  const doc = {
     kind: "open-question",
     id: questionId,
     title,
@@ -346,7 +346,7 @@ export async function questionNew(
     // guess which default a given row was authored under.
     verifiedAt: deps.now,
     leaseDays,
-  };
+  } satisfies Record<string, unknown>;
 
   let valid: unknown;
   try {

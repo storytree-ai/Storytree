@@ -270,10 +270,10 @@ export const FILE_TOOLS: ModelTool[] = [
  * their target path, so the orchestrator's WriteScopedToolExecutor can gate them by phase. Read/list/
  * run tools are absent (non-writes) and bypass scope-checking.
  */
-export const FILE_WRITE_TOOLS: WriteToolSpec = {
+export const FILE_WRITE_TOOLS = {
   write_file: (input) => extractPath(input),
   edit_file: (input) => extractPath(input),
-};
+} satisfies WriteToolSpec;
 
 function extractPath(input: unknown): string | null {
   if (typeof input === "object" && input !== null && "path" in input) {

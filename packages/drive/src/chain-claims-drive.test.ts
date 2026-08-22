@@ -100,12 +100,7 @@ function stageStory(opts: { uatWitness?: "machine" | "human" } = {}): string {
 }
 
 /** A ledger keyed `(unitId, sessionId)`, like `events.node_claim`. */
-function fakeLedger(seed: { unitId: string; sessionId: string }[] = []): {
-  claim(req: ClaimRequest): Promise<ClaimResult>;
-  release(unitId: string, sessionId: string): Promise<boolean>;
-  claimed: () => string[];
-  live: () => string[];
-} {
+function fakeLedger(seed: { unitId: string; sessionId: string }[] = []) {
   const rows = new Map<string, ClaimDocT>();
   const doc = (unitId: string, sessionId: string, branch = "claude/x", intent = ""): ClaimDocT =>
     ({

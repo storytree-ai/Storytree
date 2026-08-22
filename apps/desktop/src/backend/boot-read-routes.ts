@@ -174,7 +174,7 @@ function extractEdgeNumbers(block: string, field: string): number[] {
 function parseAdrWireSignals(
   filename: string,
   raw: string,
-): { loadBearing: boolean; edges: number[] } {
+) {
   const empty = { loadBearing: false, edges: [] };
   if (!/^\d{4}-.*\.md$/.test(filename)) return empty;
   if (!raw.startsWith("---\n")) return empty;

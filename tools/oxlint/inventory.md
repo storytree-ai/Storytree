@@ -16,22 +16,26 @@ combination silently reports a near-empty run rather than failing.
 | Rule | Total | Source | Test | Files | Lane |
 |---|---:|---:|---:|---:|---|
 | `require-safety-comment-for-type-assertion` | 2007 | 836 | 1171 | 438 | **rejected** (owner) |
-| `no-runtime-typeof` | 727 | 585 | 142 | 221 | inc-05 |
-| `no-conditional-empty-object-spread` | 646 | 564 | 82 | 168 | inc-05 — refactor panel says a shape EXISTS |
+| `no-runtime-typeof` | 748 | 606 | 142 | 229 | **rejected** (panel, inc-05) |
+| `no-conditional-empty-object-spread` | 663 | 581 | 82 | 174 | **adopt-and-refactor**, own lane — refactor panel says a shape EXISTS |
 | `no-unsafe-dictionary-type` | 612 | 345 | 267 | 157 | **rejected** (panel, inc-04) |
 | `no-known-value-widening` | 497 | 300 | 197 | 248 | inc-08 |
-| `no-unknown-parameters` | 318 | 228 | 90 | 179 | inc-05 |
-| `no-shape-in-symbol-names` | 263 | 163 | 100 | 47 | inc-05 |
+| `no-shape-in-symbol-names` | 391 | 225 | 166 | 69 | **rejected** (panel, inc-05) |
+| `no-unknown-parameters` | 322 | 236 | 86 | 183 | **rejected** (panel, inc-05 — 4–1) |
 | `no-chained-type-assertions` | 162 | 33 | 129 | 71 | **adopted** (source) · inc-09 (tests) |
 | `no-module-mocking` | 111 | 0 | 111 | 32 | **adopted** (inc-06, driven to 0) |
-| `no-unknown-returns` | 40 | 15 | 25 | 31 | inc-05 |
+| `no-unknown-returns` | 38 | 16 | 22 | 29 | **rejected** (panel, inc-05) |
 | `no-object-parameters` | **0** | 0 | 0 | 0 | **adopted** |
 | `no-reflect-apply` | **0** | 0 | 0 | 0 | **adopted** |
 | `no-reflect-get` | **0** | 0 | 0 | 0 | **adopted** |
 | `no-unknown-type-aliases` | **0** | 0 | 0 | 0 | **adopted** |
 | `no-widen-then-assert` | **0** | 0 | 0 | 0 | **adopted** |
 
-**Total: 5,383 violations across 10 rules. Five rules are already clean.**
+**inc-01 measured 5,383 violations across 10 rules, with five rules already clean.** The five rows
+marked `inc-05` above were **RE-MEASURED at HEAD on 2026-08-22** and have moved (`no-shape-in-symbol-names`
+most, 263 → 391), so this table now mixes two measurement dates and the 5,383 figure is inc-01's,
+not a current sum. Re-measure with the documented `-c <copy>` command before sizing anything from it;
+do not add the column up.
 
 > **Since this table was measured.** `no-chained-type-assertions` was adopted at `error` in
 > production source (inc-03). `no-unsafe-dictionary-type` was **rejected** by a five-judge blind panel
@@ -58,6 +62,41 @@ studio map's presentation model was never computed under test at all. The same s
 throughout: a partial `useAppData` mock let components read fields no test supplied; a mocked
 `api` module meant the real client — URL building, query encoding, the `{error}` unwrap, the SSE
 frame splitter, the `/api/arcs` retry — never ran.
+
+## What inc-05 changed — four rules rejected in ONE batched panel
+
+Five judges, six specimens (four targets + the two controls `inc-04` proved), one packet. Record:
+`panels/inc-05-contested-type-rules.md`. **`no-runtime-typeof`, `no-shape-in-symbol-names`,
+`no-unknown-parameters` and `no-unknown-returns` are terminal at `off`**, each on the arc's closed
+list of two — functionality loss or a genuine exceptional set. No judge was shown a count; the
+builder refuses a packet that states one.
+
+**The batching arithmetic is now measured, not projected.** 551,160 judge tokens for FOUR
+adjudications, against `inc-04`'s ~480k for one — so 1.15x the cost of a single-target panel, and
+~29% of what four separate panels would have cost. Doubling the specimens cost 15% more per seat
+(96k → 110k), not 100%, and the blinding did not weaken: the uphold control returned
+`adopt-narrowed` ×5 with the same convergent narrowing `inc-04` got, on a different packet.
+
+**Two measurements a later lane should not have to re-take.**
+
+- **`allowInTypeGuards` is not the escape hatch the arc predicted for `no-runtime-typeof`.** Turning
+  the shipped option on removes **64 of 748** (748 → 684; source 606 → 543) — 8.5%. It exempts only a
+  `typeof` lexically inside a function whose return type is a `TSTypePredicate`, and most of this
+  repo's narrowing is in plain validators, `asserts` functions and inline guards.
+- **`no-shape-in-symbol-names` moved most of any rule in this table, 263 → 391**, because inc-01's
+  figure predated files that have landed since. Classified across all 225 SOURCE sites: 73 (32%) in
+  the geometry/rendering packages where the word is the domain term, 39 closed classification unions,
+  **2 naming `z.ZodRawShape` — a type zod exports and we cannot rename** — and a residue of 111
+  firings that reduces to just 15 distinct identifiers.
+
+**And the one rule that is NOT rejected.** `no-conditional-empty-object-spread` stays
+adopt-and-refactor on its own lane (`anti-slop-adoption-arc-inc-11`), deliberately not folded into an adjudication diff. Sized by the
+typing context of the enclosing object literal across all 581 source sites: 299 (51%) sit in inline
+ARGUMENT position typed only contextually by the callee, 140 (24%) are bare `return {` literals whose
+type is inferred, 54 + 15 already have an annotated type available, 47 are un-annotated locals, 26
+unclassified. **~439 of 581 (76%) need a named type authored that does not exist today; only ~69 are
+mechanical.** 150 of the 581 are in `packages/cli/src/commands.ts` alone. That prices the lane far
+above its count — and it is a scoping fact, never a ground for rejection.
 
 ## What the real numbers changed
 

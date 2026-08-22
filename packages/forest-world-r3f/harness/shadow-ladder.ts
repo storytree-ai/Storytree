@@ -122,7 +122,7 @@ export function deliveredColour(token: string, level: number): Rgb255 {
  *  `reader_status_table`. WHEAT IS EXCLUDED and that is not a convenience: five of the six
  *  statuses share the identical wheat hex, so a wheat cell reports no status by colour at
  *  all, and including it would make every status equidistant from every shadowed pixel. */
-export function readerStatusTable(opts: ReaderTableOptions = {}): Record<string, Rgb255[]> {
+export function readerStatusTable(opts: ReaderTableOptions = {}) {
   const statuses = opts.statuses ?? Object.keys(STATUS_TOKENS).sort();
   const rung = opts.rung ?? 1.0;
   const table: Record<string, Rgb255[]> = {};
@@ -133,7 +133,7 @@ export function readerStatusTable(opts: ReaderTableOptions = {}): Record<string,
     if (opts.faces === 'all') tokens.push(fam.side);
     table[st] = tokens.map((t) => (rung === 1.0 ? parseHex(t) : scale(parseHex(t), rung)));
   }
-  return table;
+  return table satisfies Record<string, Rgb255[]>;
 }
 
 /** Which status a delivered colour reads as: nearest entry in the weighted space. Ties go
@@ -154,6 +154,8 @@ export function nearestStatus(colour: Rgb255, table: Record<string, Rgb255[]>): 
   return best;
 }
 
+export interface SafeDepthResult { deepest: number; readsAs: string }
+
 /**
  * The deepest light multiplier at which `rgb` still reads as the status it reads at full
  * strength — the port of `safe_depth`, floor and step included.
@@ -166,7 +168,7 @@ export function safeDepth(
   table: Record<string, Rgb255[]>,
   floor = 0.3,
   step = 0.01,
-): { deepest: number; readsAs: string } {
+): SafeDepthResult {
   const readsAs = nearestStatus(rgb, table);
   let m = 1.0;
   let last = 1.0;
@@ -416,6 +418,11 @@ export function robustlyInadmissible(
   });
 }
 
+export interface LuminanceOverlapResult {
+  ranges: { status: string; min: number; max: number }[];
+  overlaps: { a: string; b: string; luma: number }[];
+}
+
 /**
  * THE PARAMETER-FREE CORE, and the one statement in this file that no reader model can
  * argue with: the delivered LUMINANCE RANGES of the rendered statuses, and which pairs
@@ -428,10 +435,7 @@ export function robustlyInadmissible(
  * would have to buy is hue/chroma separation between the status tokens — an owner art call
  * to price rather than an art call to make.
  */
-export function luminanceOverlap(statuses: readonly string[] = RENDERED_STATUSES): {
-  ranges: { status: string; min: number; max: number }[];
-  overlaps: { a: string; b: string; luma: number }[];
-} {
+export function luminanceOverlap(statuses: readonly string[] = RENDERED_STATUSES): LuminanceOverlapResult {
   const ranges = statuses.map((status) => {
     const ls = SHADE_LEVELS.map((l) => luma(deliveredColour(STATUS_TOKENS[status]!.top[0]!, l)));
     return { status, min: Math.min(...ls), max: Math.max(...ls) };

@@ -162,7 +162,7 @@ describe('lodBand', () => {
     expect(lodBand(4)).toBe('close');
     expect(lodBand(10)).toBe('close');
 
-    const rank: Record<string, number> = { far: 0, mid: 1, close: 2 };
+    const rank = { far: 0, mid: 1, close: 2 } satisfies Record<string, number>;
     const zooms = [0.1, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 6, 10];
     let prevRank = -1;
     for (const z of zooms) {

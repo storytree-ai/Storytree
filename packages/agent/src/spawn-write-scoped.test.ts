@@ -54,8 +54,10 @@ const SUCCESS_RESULT = {
 };
 
 /** Capture the whole query request (options + prompt), then stream the given messages. */
-function capturingQuery(messages: unknown[]): { fn: SdkQueryFn; req: () => { options: unknown; prompt: unknown } } {
-  let last: { options: unknown; prompt: unknown } = { options: undefined, prompt: undefined };
+function capturingQuery(messages: unknown[]) {
+  interface LastShape { options: unknown; prompt: unknown }
+
+  let last: LastShape = { options: undefined, prompt: undefined };
   const fn: SdkQueryFn = (q) => {
     last = { options: q.options, prompt: q.prompt };
     return queryYielding(messages)(q);
@@ -101,7 +103,7 @@ function preToolUseInput(toolName: string, filePath: string) {
   };
 }
 
-function denyOf(out: unknown): { decision: string | undefined; reason: string | undefined } {
+function denyOf(out: unknown) {
   const hso = (
     out as { hookSpecificOutput?: { permissionDecision?: string; permissionDecisionReason?: string } }
   ).hookSpecificOutput;
@@ -114,7 +116,7 @@ function denyOf(out: unknown): { decision: string | undefined; reason: string | 
  */
 function sessionAttemptingWrites(
   writes: Array<{ tool: string; filePath: string }>,
-): { fn: SdkQueryFn; hookOutputs: unknown[]; capturedOptions: () => unknown } {
+) {
   const hookOutputs: unknown[] = [];
   let capturedOptions: unknown;
   const fn: SdkQueryFn = (q) =>

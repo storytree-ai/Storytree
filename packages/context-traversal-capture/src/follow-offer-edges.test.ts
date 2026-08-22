@@ -146,7 +146,7 @@ function harnessFollowDeps(overrides: { sessionId?: string } = {}): FollowDeps {
 }
 
 /** A counting `mintVisitId` fixture, so a test can assert it was (or was not) called. */
-function countingMint(): { mint: () => string; count: () => number } {
+function countingMint() {
   let counter = 0;
   return {
     mint: () => {

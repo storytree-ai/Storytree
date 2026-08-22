@@ -258,8 +258,10 @@ test("renderAdrList dedupes + sorts both derived back-edges (two amenders, one t
 
 // ---- adr new / next ------------------------------------------------------------------------
 
+interface FakeAllocatorResult { allocator: AdrAllocatorLike; seen: Parameters<AdrAllocatorLike["allocate"]>[0][] }
+
 /** A fake allocator that always returns a fixed number and records what it was asked. */
-function fakeAllocator(number: number): { allocator: AdrAllocatorLike; seen: Parameters<AdrAllocatorLike["allocate"]>[0][] } {
+function fakeAllocator(number: number): FakeAllocatorResult {
   const seen: Parameters<AdrAllocatorLike["allocate"]>[0][] = [];
   return {
     allocator: {

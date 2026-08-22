@@ -745,7 +745,7 @@ const SCRIPT_ENTRY = /(scripts\/[\w-]+\.mjs)\b/;
 const LOCAL_IMPORT = /from\s+"\.\/([\w-]+)\.js"/g;
 
 /** The npm scripts table, read once. An unreadable/!object `scripts` yields none. */
-function loadScripts(root: string): Record<string, string> {
+function loadScripts(root: string) {
   const parsed: unknown = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8"));
   const scripts = (parsed as { scripts?: unknown }).scripts;
   if (typeof scripts !== "object" || scripts === null) return {};
@@ -753,7 +753,7 @@ function loadScripts(root: string): Record<string, string> {
   for (const [key, value] of Object.entries(scripts as Record<string, unknown>)) {
     if (typeof value === "string") out[key] = value;
   }
-  return out;
+  return out satisfies Record<string, string>;
 }
 
 /** The repo-relative entry file a check's command runs, or `undefined` for a shape not recognised. */
