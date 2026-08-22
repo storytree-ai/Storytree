@@ -86,7 +86,7 @@ export interface AdrCommandOpts {
 // `question new` derive their ids with the same function `adr new` derives a filename slug with, and
 // they no longer share a building. Re-exported here so every existing `./adr.js` importer is
 // unchanged.
-import { adrDocId, kebabSlug } from "@storytree/library";
+import { adrDocId, kebabSlug, type AdrDraft } from "@storytree/library";
 export { kebabSlug };
 
 /*
@@ -604,7 +604,12 @@ async function scaffoldRow(
     const fields = parseAdrDocument(n, scaffolded);
     const id = adrDocId(n);
     const now = new Date().toISOString();
-    const doc = upcastAndValidate({
+    // ANNOTATED local, then one guarded assignment per optional — the shape
+    // `anti-slop/no-conditional-empty-object-spread` requires. The annotation is doing real work
+    // beyond satisfying the rule: `upcastAndValidate` takes `unknown`, so no excess-property check
+    // has ever run on this literal. Naming the type restores one at the construction site, which is
+    // the only place a typo in a key could be caught before zod turns it into a runtime refusal.
+    const draft: AdrDraft = {
       kind: "adr",
       id,
       title: fields.title === "" ? id : fields.title,
@@ -618,9 +623,10 @@ async function scaffoldRow(
       references: [],
       createdAt: fields.decided === undefined ? now : `${fields.decided}T00:00:00.000Z`,
       updatedAt: now,
-      ...(fields.decided === undefined ? {} : { decided: fields.decided }),
-      ...(fields.arc === undefined ? {} : { arcRef: `asset:${fields.arc}` }),
-    });
+    };
+    if (fields.decided !== undefined) draft.decided = fields.decided;
+    if (fields.arc !== undefined) draft.arcRef = `asset:${fields.arc}`;
+    const doc = upcastAndValidate(draft);
     // REFUSE rather than upsert over an occupied id. `newArtifact` (the generic verb) has always
     // done this; `adr new` used to get it from `existsSync(file)`, and that guard went with the
     // files. Without it the write is an UPSERT onto a number the allocator believes is free — and

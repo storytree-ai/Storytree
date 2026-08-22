@@ -1436,6 +1436,34 @@ export type UatCriterion = z.infer<typeof UatCriterion>;
 export type Adr = z.infer<typeof Adr>;
 
 /**
+ * An `adr` document as a CONSTRUCTOR must write it — the schema's INPUT shape plus the `body` the
+ * inferred type cannot see.
+ *
+ * `z.input` rather than `z.infer`, because this types a literal on its way INTO the validator: the
+ * defaulted fields (`schemaVersion`, `references`, `amends`, `supersedes`, `loadBearing`) are
+ * optional to supply and present on the way out, and only the input side says so.
+ *
+ * ⚠ THIS IS A TYPE-LEVEL HOLE IN {@link buildKindSchema}, NOT AN EXTRA FIELD. That builder spreads
+ * its per-kind KIND_SPECS fields from a `Record<string, z.ZodTypeAny>`, and a `Record` spread
+ * carries NO statically-known keys — so `z.infer` erases every body field (`body` here) and the
+ * `dependsOn` edge from all fourteen kind types. The RUNTIME schema is unaffected and still requires
+ * `body`: `.strict()` refuses a decision without one. So `Adr` alone cannot annotate a literal any
+ * caller actually writes, which is why every construction site had been an un-annotated literal
+ * handed to `upcastAndValidate(input: unknown)` — no excess-property check anywhere on the path.
+ *
+ * An INTERFACE rather than an intersection alias, deliberately: `anti-slop/no-known-value-widening`
+ * classifies a type-literal alias as a widening target and an interface reference as not one.
+ *
+ * The general fix is to make `buildKindSchema` generic in its kind so the field shapes survive
+ * inference, which would retire this type and give the other thirteen kinds the same check. That is
+ * a schema-wide change and is deliberately not folded into a lint repair.
+ */
+export interface AdrDraft extends z.input<typeof Adr> {
+  /** The decision document itself — required by `KIND_SPECS.adr`, invisible to `z.input`. */
+  body: string;
+}
+
+/**
  * The known top-level field names of a structured Knowledge kind, read straight from that kind's
  * (strict) schema shape via the discriminated union's `optionsMap`. Includes both KIND_SPECS body
  * fields and the schema-level extras (`increments`, `route`, `stepRefs`, …). Returns null for a kind

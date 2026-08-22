@@ -146,6 +146,22 @@ export default defineConfig({
     //   3. `apps/studio/src/lib/knowledgeDepth.test.ts` carried a trailing `as GuidanceAsset` that
     //      the annotated-local shape made unnecessary — a cast REMOVED by adopting this rule, which
     //      is the opposite of the trade inc-04's panel warned the migration might have to make.
+    //   4. ⚠ THE RULE REGRESSED ON `main` WITHIN A DAY, AND THAT IS THE ARC'S SHARPEST D6 EVIDENCE.
+    //      Measured 2026-08-23 at `089ab013`: SEVEN fresh violations across four files
+    //      (`packages/drive/src/adr-metas.ts` ×3, `packages/cli/src/adr.ts` ×2,
+    //      `packages/cli/src/adr.test.ts`, `packages/arc/src/decision.test-helpers.ts`), landed by
+    //      the ADR-Postgres work between inc-11's merge and the next morning. `pnpm lint` was
+    //      EXIT 1 ON `main` and nothing said so, because ADR-0407 D6 defers the gate rung to the end
+    //      of this arc — so the rule was at `error` with no reader. This is exactly the D6 bar's
+    //      three questions answered against the arc itself: WHAT IT CAUGHT (seven), WHEN
+    //      (within 24h of adoption), and WHAT WOULD SHIP WITHOUT IT (it already had). The rung is
+    //      still inc-07's to take — a lane does not self-exempt from a decided deferral — but the
+    //      evidence is recorded here, at the rule, rather than only in a session transcript.
+    //      Repairing them also restored an excess-property check that had never run: the two
+    //      `packages/cli/src/adr.ts` sites fed `upcastAndValidate(input: unknown)`, so a typo'd key
+    //      in a decision row was uncatchable until the annotated-local shape forced a named type
+    //      (`AdrDraft`, `packages/library/src/knowledge.ts` — which is where naming it exposed a
+    //      type-level hole in `buildKindSchema` that erases every kind's body fields from `z.infer`).
     //
     // A NARROWING WAS NOT NEEDED AND NONE WAS TAKEN. The one thing this rule cannot see is worth
     // recording, because the rule's zero is not the whole truth in one file:
