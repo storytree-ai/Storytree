@@ -8,7 +8,6 @@ import {
   adrCommand,
   kebabSlug,
   parseEdges,
-  maxAdrNumber,
   parallelAllocations,
   parallelAllocationNote,
   scaffold,
@@ -38,20 +37,6 @@ test("parseEdges parses comma/space lists of positive ints, dropping junk", () =
   assert.deepEqual(parseEdges("42, 43 7"), [42, 43, 7]);
   assert.deepEqual(parseEdges("0, -1, abc, 5"), [5]); // 0 and negatives and non-numbers dropped
   assert.deepEqual(parseEdges(undefined), []);
-});
-
-test("maxAdrNumber reads the highest NNNN- on disk (0 when none/missing)", () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "adr-max-"));
-  try {
-    assert.equal(maxAdrNumber(dir), 0);
-    writeFileSync(path.join(dir, "0042-a.md"), "x");
-    writeFileSync(path.join(dir, "0046-b.md"), "x");
-    writeFileSync(path.join(dir, "notes.md"), "x"); // not an ADR — ignored
-    assert.equal(maxAdrNumber(dir), 46);
-    assert.equal(maxAdrNumber(path.join(dir, "nope")), 0); // missing dir → 0
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
 });
 
 test("scaffold emits proposed frontmatter + H1 + sections, with optional edges", () => {
@@ -291,7 +276,6 @@ const depsFor = (
   store?: InMemoryStore,
 ): AdrCommandDeps => ({
   allocator,
-  decisionsDir: dir,
   branch: "claude/test",
   actor: "tester",
   today: "2026-06-26",
@@ -330,43 +314,37 @@ async function seedDecision(
 
 test("adr new --pg: reserves from the allocator, scaffolds NNNN-slug.md, no offline warning", async () => {
   await withDecisionsDir(async (dir) => {
-    writeFileSync(path.join(dir, "0046-prior.md"), "x");
+    const store = new InMemoryStore();
+    await seedDecision(store, 46, "A prior decision");
     const { allocator, seen } = fakeAllocator(50);
-    const env = await adrCommand("new", { title: "Wake the DB" }, depsFor(dir, allocator));
+    const env = await adrCommand("new", { title: "Wake the DB" }, depsFor(dir, allocator, store));
     assert.equal(env.ok, true);
-    // localMax (46) + slug + branch + actor were passed to the allocator.
+    // `localMax` is the STORE's highest decision now, not the highest filename — same role, same
+    // guarantee (the allocator reserves max+1, so a stale value costs a gap, never a collision).
     assert.deepEqual(seen[0], { localMax: 46, slug: "wake-the-db", branch: "claude/test", actor: "tester" });
-    const file = path.join(dir, "0050-wake-the-db.md");
-    assert.ok(existsSync(file), "the scaffold file was written");
-    assert.match(readFileSync(file, "utf8"), /# ADR-0050: Wake the DB/);
-    assert.match(env.body, /reserved in the DB/);
-    assert.doesNotMatch(env.body, /OFFLINE/);
-  });
-});
-
-test("adr new offline (no allocator): falls back to max+1 and warns it is NOT reserved", async () => {
-  await withDecisionsDir(async (dir) => {
-    writeFileSync(path.join(dir, "0049-prior.md"), "x");
-    const env = await adrCommand("new", { title: "Some Title" }, depsFor(dir, null));
-    assert.equal(env.ok, true);
-    assert.ok(existsSync(path.join(dir, "0050-some-title.md")), "max+1 = 0050 scaffolded");
-    assert.match(env.body, /OFFLINE/);
-    assert.match(env.body, /NOT reserved/);
+    const row = (await store.getDoc("adr-0050"))?.doc as Record<string, unknown>;
+    assert.equal(row["title"], "Wake the DB");
+    assert.equal(row["status"], "proposed");
+    assert.match(String(row["body"]), /# ADR-0050: Wake the DB/);
+    assert.equal(readdirSync(dir).length, 0, "no file is written any more — the row IS the decision");
+    assert.match(env.body, /reserved in the DB and written as adr-0050/);
   });
 });
 
 test("adr new --decided: owner-directed scaffold is born accepted with today's decided date (ADR-0110)", async () => {
   await withDecisionsDir(async (dir) => {
     const { allocator } = fakeAllocator(110);
+    const store = new InMemoryStore();
     const env = await adrCommand(
       "new",
       { title: "Collapse the ratification ask", decided: true },
-      depsFor(dir, allocator), // depsFor injects today = 2026-06-26
+      depsFor(dir, allocator, store), // depsFor injects today = 2026-06-26
     );
     assert.equal(env.ok, true);
-    const file = readFileSync(path.join(dir, "0110-collapse-the-ratification-ask.md"), "utf8");
-    assert.match(file, /^---\nstatus: accepted\ndecided: 2026-06-26\n---\n/);
-    assert.match(file, /decided\/directed by the owner in conversation on 2026-06-26/);
+    const row = (await store.getDoc("adr-0110"))?.doc as Record<string, unknown>;
+    assert.equal(row["status"], "accepted");
+    assert.equal(row["decided"], "2026-06-26");
+    assert.match(String(row["body"]), /decided\/directed by the owner in conversation on 2026-06-26/);
     // The success message reflects the born-accepted, owner-directed status (not "proposed status").
     assert.match(env.body, /ACCEPTED \(owner-directed, decided 2026-06-26 — ADR-0110\)/);
     assert.doesNotMatch(env.body, /Scaffolded with proposed status/);
@@ -375,12 +353,13 @@ test("adr new --decided: owner-directed scaffold is born accepted with today's d
 
 test("adr new without --decided stays born-proposed (the still-thinking default, ADR-0050)", async () => {
   await withDecisionsDir(async (dir) => {
+    const store = new InMemoryStore();
     const { allocator } = fakeAllocator(111);
-    const env = await adrCommand("new", { title: "Still exploring" }, depsFor(dir, allocator));
+    const env = await adrCommand("new", { title: "Still exploring" }, depsFor(dir, allocator, store));
     assert.equal(env.ok, true);
-    const file = readFileSync(path.join(dir, "0111-still-exploring.md"), "utf8");
-    assert.match(file, /^---\nstatus: proposed\n---\n/);
-    assert.doesNotMatch(file, /decided:/);
+    const row = (await store.getDoc("adr-0111"))?.doc as Record<string, unknown>;
+    assert.equal(row["status"], "proposed");
+    assert.equal(row["decided"], undefined);
     assert.match(env.body, /Scaffolded with proposed status/);
   });
 });
@@ -391,17 +370,6 @@ test("adr new refuses without a title", async () => {
     assert.equal(env.ok, false);
     assert.match(env.body, /needs a title/);
     assert.equal(readdirSync(dir).length, 0, "no file written");
-  });
-});
-
-test("adr new refuses to overwrite an existing file", async () => {
-  await withDecisionsDir(async (dir) => {
-    const { allocator } = fakeAllocator(50);
-    writeFileSync(path.join(dir, "0050-wake-the-db.md"), "already here");
-    const env = await adrCommand("new", { title: "Wake the DB" }, depsFor(dir, allocator));
-    assert.equal(env.ok, false);
-    assert.match(env.body, /already exists/);
-    assert.equal(readFileSync(path.join(dir, "0050-wake-the-db.md"), "utf8"), "already here");
   });
 });
 
@@ -420,18 +388,21 @@ test("adr new surfaces an allocator failure as a clear error (db down)", async (
   });
 });
 
-test("adr next --pg reserves a number; offline it only peeks with a warning", async () => {
+test("adr next --pg reserves a number; without it there is nothing left to peek AT", async () => {
   await withDecisionsDir(async (dir) => {
-    writeFileSync(path.join(dir, "0046-p.md"), "x");
+    const store = new InMemoryStore();
+    await seedDecision(store, 46, "A prior decision");
     const { allocator } = fakeAllocator(47);
-    const reserved = await adrCommand("next", {}, depsFor(dir, allocator));
+    const reserved = await adrCommand("next", {}, depsFor(dir, allocator, store));
     assert.equal(reserved.ok, true);
     assert.match(reserved.body, /ADR-0047 reserved/);
 
+    // The offline `max-on-disk + 1` peek went with the directory it read (ADR-0403 dec 1), and is
+    // NOT replaced: a session that cannot write the decision must not burn a number reserving one.
     const peek = await adrCommand("next", {}, depsFor(dir, null));
     assert.equal(peek.ok, false);
-    assert.match(peek.body, /0047/);
-    assert.match(peek.body, /NOT reserved/);
+    assert.match(peek.body, /needs --pg/);
+    assert.match(peek.body, /reserving a number a session cannot then write would burn it/);
   });
 });
 
@@ -461,7 +432,7 @@ test("parallelAllocationNote is empty for an empty gap and caps a very stale che
 
   // Singular reads as singular — one number is "another session", not "other sessions".
   const one = parallelAllocationNote([335]).lines.join("\n");
-  assert.match(one, /ADR-0335 was allocated by another session and is NOT in this checkout/);
+  assert.match(one, /ADR-0335 was allocated by another session/);
   assert.match(one, /If it touches your area/);
 
   const many = parallelAllocationNote([301, 302, 303, 304, 305, 306, 307, 308, 309, 310]);
@@ -472,54 +443,48 @@ test("parallelAllocationNote is empty for an empty gap and caps a very stale che
 
 test("adr new --pg names the numbers other sessions allocated, and points across ALL refs", async () => {
   await withDecisionsDir(async (dir) => {
-    writeFileSync(path.join(dir, "0334-prior.md"), "x");
+    const store = new InMemoryStore();
+    await seedDecision(store, 334, "A prior decision");
     const { allocator } = fakeAllocator(337);
-    const env = await adrCommand("new", { title: "Arc reopen verb" }, depsFor(dir, allocator));
+    const env = await adrCommand("new", { title: "Arc reopen verb" }, depsFor(dir, allocator, store));
     assert.equal(env.ok, true);
 
-    // It is a HEADS-UP, not a gate: the scaffold was still written and the envelope is still ok.
-    assert.ok(existsSync(path.join(dir, "0337-arc-reopen-verb.md")), "the ADR was still scaffolded");
-    assert.match(env.body, /ADR-0335, 0336 were allocated by other sessions and are NOT in this checkout/);
+    // It is a HEADS-UP, not a gate: the decision was still written and the envelope is still ok.
+    assert.ok(await store.getDoc("adr-0337"), "the decision was still scaffolded");
+    assert.match(env.body, /ADR-0335, 0336 were allocated by other sessions/);
     assert.match(env.body, /can CONTRADICT yours/);
 
-    // The contradicting ADR is typically NOT on origin/main yet — that is exactly why the ordinary
-    // pre-PR merge missed it — so the offered next step looks across every fetched ref.
+    // The offered step is a READ of the row, not git archaeology across every fetched ref: a
+    // sibling's decision is visible the moment they write it now (ADR-0403 dec 1). What survives is
+    // the GAP the note is really about — a number reserved and not yet written.
     const next = (env.next ?? []).join("\n");
-    assert.match(next, /git fetch origin/);
-    assert.match(next, /git log --all --oneline -- "docs\/decisions\/0335-\*"/);
+    assert.match(next, /storytree library artifact adr-0335/);
+    assert.doesNotMatch(next, /git fetch/);
   });
 });
 
 test("adr new --pg says NOTHING when the checkout is current (fail quiet)", async () => {
   await withDecisionsDir(async (dir) => {
-    writeFileSync(path.join(dir, "0338-prior.md"), "x");
+    const store = new InMemoryStore();
+    await seedDecision(store, 338, "A prior decision");
     const { allocator } = fakeAllocator(339);
-    const env = await adrCommand("new", { title: "Next in line" }, depsFor(dir, allocator));
+    const env = await adrCommand("new", { title: "Next in line" }, depsFor(dir, allocator, store));
     assert.equal(env.ok, true);
-    assert.doesNotMatch(env.body, /NOT in this checkout/);
-    assert.doesNotMatch((env.next ?? []).join("\n"), /git fetch/);
-  });
-});
-
-test("adr new offline never claims a parallel allocation (max+1 leaves no gap)", async () => {
-  await withDecisionsDir(async (dir) => {
-    writeFileSync(path.join(dir, "0334-prior.md"), "x");
-    const env = await adrCommand("new", { title: "Offline one" }, depsFor(dir, null));
-    assert.equal(env.ok, true);
-    assert.match(env.body, /OFFLINE/); // the existing not-reserved warning still fires...
-    assert.doesNotMatch(env.body, /NOT in this checkout/); // ...and never doubles up with this one
+    assert.doesNotMatch(env.body, /allocated by other sessions/);
+    assert.doesNotMatch((env.next ?? []).join("\n"), /library artifact adr-/);
   });
 });
 
 test("adr next --pg carries the same heads-up (its author writes prose too)", async () => {
   await withDecisionsDir(async (dir) => {
-    writeFileSync(path.join(dir, "0334-prior.md"), "x");
+    const store = new InMemoryStore();
+    await seedDecision(store, 334, "A prior decision");
     const { allocator } = fakeAllocator(337);
-    const env = await adrCommand("next", {}, depsFor(dir, allocator));
+    const env = await adrCommand("next", {}, depsFor(dir, allocator, store));
     assert.equal(env.ok, true);
     assert.match(env.body, /ADR-0337 reserved/);
     assert.match(env.body, /ADR-0335, 0336 were allocated by other sessions/);
-    assert.match((env.next ?? []).join("\n"), /git fetch origin/);
+    assert.match((env.next ?? []).join("\n"), /storytree library artifact adr-0335/);
   });
 });
 
@@ -569,7 +534,7 @@ test("adr new DUAL-WRITES the row, so the scaffold is visible to `adr list`", as
     const { allocator } = fakeAllocator(77);
     const env = await adrCommand("new", { title: "A dual written decision" }, depsFor(dir, allocator, store));
     assert.equal(env.ok, true);
-    assert.match(env.body, /also written to the store as adr-0077/);
+    assert.match(env.body, /reserved in the DB and written as adr-0077/);
 
     const row = (await store.getDoc("adr-0077"))?.doc as Record<string, unknown>;
     assert.equal(row["number"], 77);
@@ -579,18 +544,6 @@ test("adr new DUAL-WRITES the row, so the scaffold is visible to `adr list`", as
     const listed = await adrCommand("list", {}, depsFor(dir, null, store));
     assert.match(listed.body, /0077/);
     assert.match(listed.body, /A dual written decision/);
-  });
-});
-
-test("adr new WARNS LOUDLY when it wrote the file and could not write the row", async () => {
-  // Silence here is the bad kind: the command would report success while the decision stayed
-  // invisible on the only surface anyone reads.
-  await withDecisionsDir(async (dir) => {
-    const { allocator } = fakeAllocator(78);
-    const env = await adrCommand("new", { title: "A file only decision" }, depsFor(dir, allocator));
-    assert.equal(env.ok, true, "the FILE was still written — this is a warning, not a refusal");
-    assert.match(env.body, /the FILE was written but the STORE ROW was not/);
-    assert.match(env.body, /load-decisions/, "and it names the reconcile command");
   });
 });
 
@@ -633,43 +586,49 @@ async function adrNewThroughRun(
   number: number,
   extraArgv: string[],
   now: Date,
-): Promise<{ env: Awaited<ReturnType<typeof run>>; file: string }> {
+): Promise<{ env: Awaited<ReturnType<typeof run>>; decided: string; body: string }> {
   const { allocator } = fakeAllocator(number);
+  const store = new InMemoryStore();
   const env = await run(["adr", "new", "--title", "A decided thing", "--decided", ...extraArgv], {
-    store: new InMemoryStore(),
+    store,
     adr: allocator,
     adrDecisionsDir: dir,
+    writable: true,
     now: () => now,
   });
-  const scaffolded = readdirSync(dir).find((f) => f.endsWith(".md")) ?? "";
-  return { env, file: scaffolded === "" ? "" : readFileSync(path.join(dir, scaffolded), "utf8") };
+  // The ROW is the only copy now (ADR-0403 dec 1), so the pair this test exists for — the typed
+  // `decided` field and the `## Status` prose — is read from one document rather than one file.
+  const row = (await store.getDoc(`adr-${String(number).padStart(4, "0")}`))?.doc as
+    | Record<string, unknown>
+    | undefined;
+  return {
+    env,
+    decided: typeof row?.["decided"] === "string" ? (row["decided"] as string) : "",
+    body: typeof row?.["body"] === "string" ? (row["body"] as string) : "",
+  };
 }
 
 test("adr new --decided stamps the OWNER-LOCAL date, not the UTC one — in BOTH places", async () => {
   await withDecisionsDir(async (dir) => {
-    const { file } = await adrNewThroughRun(dir, 300, [], ACROSS_THE_DATE_LINE);
-    // The frontmatter stamp.
-    assert.match(file, /^---\nstatus: accepted\ndecided: 2026-07-11\n---\n/, "frontmatter decided:");
+    const { decided, body } = await adrNewThroughRun(dir, 300, [], ACROSS_THE_DATE_LINE);
+    // The typed field.
+    assert.equal(decided, "2026-07-11", "the `decided` field");
     // AND the Status prose — the defect surfaced in two places, so a fix correcting one is a half-fix.
-    assert.match(
-      file,
-      /decided\/directed by the owner in conversation on 2026-07-11/,
-      "## Status prose",
-    );
-    assert.doesNotMatch(file, /2026-07-10/, "the UTC date appears nowhere in the scaffold");
+    assert.match(body, /decided\/directed by the owner in conversation on 2026-07-11/, "## Status prose");
+    assert.doesNotMatch(body, /2026-07-10/, "the UTC date appears nowhere in the decision");
   });
 });
 
 test("adr new --decided-date <YYYY-MM-DD> overrides the derived date", async () => {
   await withDecisionsDir(async (dir) => {
-    const { file } = await adrNewThroughRun(
+    const { decided, body } = await adrNewThroughRun(
       dir,
       301,
       ["--decided-date", "2026-06-01"],
       ACROSS_THE_DATE_LINE,
     );
-    assert.match(file, /^---\nstatus: accepted\ndecided: 2026-06-01\n---\n/);
-    assert.match(file, /decided\/directed by the owner in conversation on 2026-06-01/);
+    assert.equal(decided, "2026-06-01");
+    assert.match(body, /decided\/directed by the owner in conversation on 2026-06-01/);
   });
 });
 

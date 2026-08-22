@@ -402,7 +402,9 @@ kind owes a seed export any more.
   any `package.json`, the corpus seed, an unmapped path, or an unreadable `origin/main` forces the
   full `-r` run. **The exception is the MEASURED reader map (ADR-0394, widened by ADR-0399):** eleven
   root paths whose test-time readers were established with an fs-level probe narrow instead —
-  `docs/decisions/` and `docs/` to cli+drive(+app-surface), `stories/` to its seven readers, and
+  `docs/` to cli+drive+app-surface (its `docs/decisions/` sibling retired with the directory,
+  ADR-0403 — a decision is a row, so editing one is not a file change and affects no scope at all),
+  `stories/` to its seven readers, and
   **the whole guidance-projection group (`CLAUDE.md`, `AGENTS.md`, `.claude/agents/`, `.codex/`,
   `.cursor/`, `.gemini/`, `.opencode/`) to `@storytree/cli` ALONE** — one project of 26, ~65% off
   the test leg, on the commonest non-package change shape in the repo. Read the saving as WORK, not
@@ -582,7 +584,7 @@ whole document out to a file with `storytree adr pull <n> --out <path>`, edit it
 and `storytree adr push <n> --file <path> --pg` it back. Every decision carries the same **structured
 state** the markdown frontmatter used to (`status` proposed/accepted/superseded · `decided` · outgoing
 `supersedes`/`amends` edges · the `load_bearing` current-state tag; ADR-0037, and ADR-0086 as
-superseded history — **the live decision is [ADR-0139](docs/decisions/0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)**;
+superseded history — **the live decision is ADR-0139** (`storytree library artifact adr-0139`);
 `supersedes_in_part` was RETIRED by ADR-0139 — a partial redefinition/reversal is an `amends`
 edge, and the `adr` schema has no such field at all now, so the state is unreachable rather than
 merely refused) — the gate validates it as **`pnpm check:adr-health`**, a declared rung that reads
@@ -594,9 +596,9 @@ filters on.
 
 **The current-state / load-bearing set is a CLI query, not a list hand-kept here (ADR-0139, restating
 ADR-0086 §A):** `storytree adr list --load-bearing` (the calibrate-to-these set) ·
-`--current` (every accepted, non-superseded ADR + edges) · `--status <s>`. It reads `docs/decisions/`
-on disk — offline, no DB — so it can never drift from the files. When you land or overtake a decision,
-**spawn the `librarian-curator`** to keep status / edges / the `load_bearing` set honest.
+`--current` (every accepted, non-superseded ADR + edges) · `--status <s>`. It reads the LIVE STORE,
+so it can never drift — and it needs the DB up. When you land or overtake a decision, **spawn the
+`librarian-curator`** to keep status / edges / the `load_bearing` set honest.
 
 **`--load-bearing` follows `amends` edges — the tag alone under-reported it.** The set is the curated
 `load_bearing: true` ★ seed CLOSED over accepted `amends` edges: an accepted ADR that amends anything
@@ -629,19 +631,24 @@ Status flips, edge fixes, typos, and the `load_bearing` tag also stay in-place. 
 it as a re-decision (copy-on-write) or surface it — never silently rewrite what was decided.
 
 **New ADR? Don't hand-pick the number — allocate it: `pnpm storytree adr new --title "..." --pg`**
-(ADR-0050; `pnpm db:up` first). It reserves the next number ATOMICALLY from the store and scaffolds
-`docs/decisions/NNNN-slug.md`, so parallel sessions can't collide. Offline it falls back to `max+1`
-with a loud "not reserved" warning. ⚠ **`adr-number-unique` is GONE, and its absence is not a hole**
+(ADR-0050; `pnpm db:up` first). It reserves the next number ATOMICALLY from the store and writes the
+decision as the row `adr-NNNN`, so parallel sessions can't collide. **There is no offline path any
+more** — the old `max-on-disk + 1` fallback read `docs/decisions/`, which no longer exists, and a
+session that cannot write the decision must not burn a number reserving one; `adr new` / `adr next`
+refuse without `--pg` and say so. ⚠ **`adr-number-unique` is GONE, and its absence is not a hole**
 — two rows cannot share a number, because the id is the primary key, so the question it asked is
 structurally unanswerable and a check asking it would be a permanent vacuous green.
 `check:adr-health` asks the reachable one instead (**`adr-number-identity`**: a row's stored `number`
 must agree with its id, which is what the allocator reserved).
 
-**`adr new` DUAL-WRITES while the files are still there** — it scaffolds `docs/decisions/NNNN-slug.md`
-AND writes the row, because `adr list` reads rows: a scaffold that wrote only the file would exist
-and not appear on the surface every session orients on. Without `--pg` it writes the file and WARNS
-loudly that the row is missing, naming the reconcile command. Both halves go when
-`decision-log-home-arc` finishes the move.
+**AUTHOR A DECISION AS A WHOLE DOCUMENT, not field by field.** `storytree adr pull <n> --out <path>`
+writes it out as ordinary markdown, you edit it with ordinary tools, and `storytree adr push <n>
+--file <path> --pg` reads it back. Both legs are CLI-owned writes — never a `>` redirect, which
+captures pnpm's run banner as the document's first bytes (ADR-0361). A no-op round trip is
+byte-identical, which is what keeps `status` a projection of the `## Status` prose (ADR-0139) rather
+than something that can drift from it inside one edit. A push is a whole-document REPLACE, so two
+sessions pushing the SAME decision are last-write-wins with no detector; for a targeted change
+prefer the field-scoped `library artifact adr-NNNN --set <field>=<value> --pg` (ADR-0352).
 
 ## Your operating discipline — the `session-orchestrator` agent (generated)
 

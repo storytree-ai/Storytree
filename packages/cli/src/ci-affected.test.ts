@@ -125,60 +125,64 @@ test("pnpmArgsFor: an unsafe or empty project list falls back to -r (full is alw
 
 // ── the root-path reader map (ADR-0394): narrow ONLY where the readers were measured ─────────
 
-test("a decision-only diff narrows to the packages that READ decision files — not everything, not nothing", () => {
+test("a path under the RETIRED docs/decisions/ prefix takes the wider docs/ reader set", () => {
+  // The `docs/decisions/` entry retired with the directory (ADR-0403 dec 1): decisions are rows, so
+  // a decision edit is not a file change at all. A path shaped like the old one can still be typed —
+  // in a stale branch, a rescued patch, an archive — and it must fall through to `docs/`, which is a
+  // WIDENING. That direction is the safe one; the failure this file exists to prevent is the other.
   const scope = classifyChangedFiles(["docs/decisions/0394-a-root-path.md"], PROJECTS);
   assert.equal(scope.mode, "affected");
   assert.deepEqual(
     scope.mode === "affected" ? scope.projects : [],
-    ["@storytree/cli", "@storytree/drive"],
+    ["@storytree/app-surface", "@storytree/cli", "@storytree/drive"],
   );
 });
 
-test("THE NEGATIVE THAT MATTERS: a branch adding an ADR still runs the suite that owns adr-number-unique", () => {
-  // The narrowing has exactly one unacceptable failure — a duplicate ADR number reaching `main`
-  // because the suite that catches it was filtered out. `adr-health.test.ts` lives in
-  // @storytree/cli, so cli must be selected AND must survive into the real filter chain; asserting
-  // the scope object alone would pass even if `pnpmArgsFor` dropped it.
-  const scope = classifyChangedFiles(["docs/decisions/0999-duplicate-number.md"], PROJECTS);
+test("THE NEGATIVE THAT MATTERS is now about the docs tree, and it still selects the suite that owns the gate", () => {
+  // The narrowing has one unacceptable failure: filtering out the suite that catches what the diff
+  // broke. It used to be spelled "a duplicate ADR number reaching main"; that gate now runs as
+  // `check:adr-health`, a rung outside the `-r` legs entirely, so the affected-scope map cannot
+  // filter it out at all. What this still guards is that `docs/` selection survives into the REAL
+  // filter chain — asserting the scope object alone would pass even if `pnpmArgsFor` dropped it.
+  const scope = classifyChangedFiles(["docs/research/a-note.md"], PROJECTS);
   assert.equal(scope.mode, "affected");
   assert.ok(
     scope.mode === "affected" && scope.projects.includes("@storytree/cli"),
-    "the adr-health owner must be selected",
+    "a docs reader must be selected",
   );
   assert.match(pnpmArgsFor(scope), /--filter \.\.\.@storytree\/cli(\s|$)/);
 });
 
-test("a decision file mixed with package files unions both — narrowing never drops the package's own suite", () => {
+test("a docs file mixed with package files unions both — narrowing never drops the package's own suite", () => {
   const scope = classifyChangedFiles(
-    ["docs/decisions/0394-x.md", "packages/library/src/schema.ts"],
+    ["docs/research/a-note.md", "packages/library/src/schema.ts"],
     PROJECTS,
   );
   assert.equal(scope.mode, "affected");
   assert.deepEqual(
     scope.mode === "affected" ? scope.projects : [],
-    ["@storytree/cli", "@storytree/drive", "@storytree/library"],
+    ["@storytree/app-surface", "@storytree/cli", "@storytree/drive", "@storytree/library"],
   );
   assert.match(scope.reason, /via the root-path reader map/);
 });
 
-test("LONGEST prefix wins: docs/decisions/ keeps its own two readers, and its NEIGHBOURS do not inherit them", () => {
-  // `docs/` is mapped too now, so the old "everything else under docs fails wide" assertion no
-  // longer states the property that matters. What still must hold is that `docs/decisions/` is a
-  // DIRECTORY match and that the DEEPER entry wins: `docs/decisions-archive/` is a different
-  // directory whose name merely starts the same way, and it must take the wider `docs/` reader set
-  // — never the ADR one, which would be an under-selection dressed up as a narrowing.
-  const adr = classifyChangedFiles(["docs/decisions/0394-x.md"], PROJECTS);
-  assert.deepEqual(adr.mode === "affected" ? adr.projects : [], [
-    "@storytree/cli",
-    "@storytree/drive",
-  ]);
-  for (const file of ["docs/decisions-archive/x.md", "docs/research/survey.md", "docs/glossary.md"]) {
+test("LONGEST prefix wins, proved on a pair that still HAS two depths", () => {
+  // The `docs/decisions/` vs `docs/` pair used to prove this and no longer can — the deeper entry
+  // retired with its directory (ADR-0403 dec 1). The RULE it demonstrated is untouched and still
+  // load-bearing, so it is re-proved where two depths remain: `.claude/agents/` must win over
+  // `.claude/`, regardless of the order the entries are written in.
+  const agents = classifyChangedFiles([".claude/agents/session-orchestrator.md"], PROJECTS);
+  assert.deepEqual(agents.mode === "affected" ? agents.projects : [], ["@storytree/cli"]);
+
+  // And every path under `docs/` — including one shaped like the retired prefix — takes the one
+  // remaining docs entry. A DIRECTORY match, so `docs/decisions-archive/` is not `docs/decisions/`.
+  for (const file of ["docs/decisions/0394-x.md", "docs/decisions-archive/x.md", "docs/research/survey.md", "docs/glossary.md"]) {
     const scope = classifyChangedFiles([file], PROJECTS);
     assert.equal(scope.mode, "affected", file);
     assert.deepEqual(
       scope.mode === "affected" ? scope.projects : [],
       ["@storytree/app-surface", "@storytree/cli", "@storytree/drive"],
-      `${file} must take the docs/ reader set, not the docs/decisions/ one`,
+      `${file} must take the docs/ reader set`,
     );
   }
 });
@@ -322,15 +326,15 @@ test("discoverWorkspaceProjects finds the real workspace (packages/* + apps/*)",
 
 test("real repo: every project the reader map names still exists, so the map cannot narrow to a ghost", () => {
   // The map is measured evidence with a shelf life: a package rename would leave it naming a project
-  // pnpm cannot select. Against the REAL workspace it must still resolve to exactly its two readers.
+  // pnpm cannot select. Against the REAL workspace it must still resolve to exactly its readers.
   const scope = classifyChangedFiles(
-    ["docs/decisions/0394-a-root-path.md"],
+    ["docs/research/a-note.md"],
     discoverWorkspaceProjects(repoRoot),
   );
   assert.equal(scope.mode, "affected", `the reader map has gone stale: ${scope.reason}`);
   assert.deepEqual(
     scope.mode === "affected" ? scope.projects : [],
-    ["@storytree/cli", "@storytree/drive"],
+    ["@storytree/app-surface", "@storytree/cli", "@storytree/drive"],
   );
 });
 

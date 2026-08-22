@@ -164,14 +164,15 @@ test("the REAL gate plan is exactly the nine ADR-0311 survivors plus the ADR-033
       "pnpm check:boundaries",
       "pnpm check:ownership-totality",
       "pnpm check:mirror-conformance",
-      "pnpm check:web-grounding",
       "pnpm check:web-engine",
       "pnpm check:web-experience-closure",
       "pnpm -r --no-bail typecheck",
       "pnpm -r --no-bail test",
-      // ADR-0403 dec 1 — the decision-binding gate, which was a case inside `pnpm -r test` until the
-      // decision log became a database. It is an ADDITION to the plan and a MOVE overall: the same
-      // checks, run where a store connection is permitted (ADR-0307 D4).
+      // Both of these read the DECISION LOG, which is shared live state since ADR-0403 dec 1, so both
+      // sit in block C. `check:adr-health` is an ADDITION to the plan and a MOVE overall (it was a
+      // case inside `pnpm -r test`); `check:web-grounding` did not move in or out of the plan — its
+      // SUBJECT moved, from files in this diff to a shared store, and its position followed.
+      "pnpm check:web-grounding",
       "pnpm check:adr-health",
       "pnpm check:guidance",
       "pnpm check:agents",
@@ -181,11 +182,12 @@ test("the REAL gate plan is exactly the nine ADR-0311 survivors plus the ADR-033
   );
 });
 
-test("the five live/shared checks are pinned LATE", () => {
+test("the six live/shared checks are pinned LATE", () => {
   for (const check of [
-    // `check:adr-health` is shared-environment for the same reason as its neighbours: another
-    // session's `adr new` or status flip can red it, so it must never run ahead of this branch's
+    // Both of these are shared-environment for the same reason as their neighbours: another
+    // session's `adr new` or status flip can red them, so neither may run ahead of this branch's
     // own work (ADR-0311's ordering axis).
+    "check:web-grounding",
     "check:adr-health",
     "check:guidance",
     "check:agents",

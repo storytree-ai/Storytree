@@ -113,84 +113,6 @@ function deriveTitle(markdown: string, filename: string): string {
   return m !== null && m[1] !== undefined ? m[1] : filename.replace(/\.md$/, "");
 }
 
-/** Map a relId to its display group. */
-function deriveGroup(relId: string): "Decisions" | "Reference" {
-  return relId.startsWith("decisions/") ? "Decisions" : "Reference";
-}
-
-type AdrDocStatus = "proposed" | "accepted" | "superseded";
-const ADR_STATUSES = new Set<AdrDocStatus>(["proposed", "accepted", "superseded"]);
-
-/**
- * Parse ADR frontmatter status and optional decided date from a raw markdown string.
- * Returns null when the file is not a recognized ADR (4-digit prefix) or has no valid status.
- * Tolerant — a malformed or missing block yields null, never throws.
- */
-function parseDocStatus(
-  filename: string,
-  raw: string,
-): { status: AdrDocStatus; decided?: string } | null {
-  if (!/^\d{4}-.*\.md$/.test(filename)) return null;
-  if (!raw.startsWith("---\n")) return null;
-  const end = raw.indexOf("\n---", 4);
-  if (end === -1) return null;
-  const block = raw.slice(4, end);
-  const statusMatch = block.match(
-    /^status:[ \t]*["']?(proposed|accepted|superseded)["']?[ \t]*$/m,
-  );
-  const status = statusMatch?.[1] as AdrDocStatus | undefined;
-  if (status === undefined || !ADR_STATUSES.has(status)) return null;
-  const decidedMatch = block.match(/^decided:[ \t]*["']?(\d{4}-\d{2}-\d{2})["']?/m);
-  return decidedMatch?.[1] !== undefined
-    ? { status, decided: decidedMatch[1] }
-    : { status };
-}
-
-/** Pull the ADR numbers out of a `field: [n, m, ...]` frontmatter array line; `[]` if absent/empty. */
-function extractEdgeNumbers(block: string, field: string): number[] {
-  const re = new RegExp(`^${field}:[ \\t]*\\[([^\\]]*)\\]`, "m");
-  const list = block.match(re)?.[1];
-  if (list === undefined || list === "") return [];
-  return list
-    .split(",")
-    .map((s) => Number(s.trim()))
-    .filter((n) => Number.isFinite(n));
-}
-
-/**
- * The studio-wire ADR signals: `loadBearing` reads the frontmatter's `load_bearing: true` tag
- * (a missing tag or an explicit `false` both read as `false`), and `edges` is the deduped UNION of
- * the ADR NUMBERS listed in `supersedes` / `supersedes_in_part` / `amends`. TOLERANT: a non-ADR
- * filename, a missing or unterminated frontmatter block, or absent fields all yield the empty
- * result, and this never throws.
- *
- * Reproduces apps/studio/server/adrWireSignals.ts `parseAdrWireSignals` verbatim — do NOT import
- * from studio (ADR-0176's one-wired-backend rule). The two copies are held equal by
- * `pnpm check:mirror-conformance`, which diffs this backend's `/api/docs` payload against the
- * studio's over the same tree; that gate exists because this exact fold landed studio-side
- * (commit 71f68d2b) and never reached here, dropping `loadBearing` from 88 ADRs and `references`
- * from 168 with nothing anywhere going red.
- */
-function parseAdrWireSignals(
-  filename: string,
-  raw: string,
-) {
-  const empty = { loadBearing: false, edges: [] };
-  if (!/^\d{4}-.*\.md$/.test(filename)) return empty;
-  if (!raw.startsWith("---\n")) return empty;
-  const end = raw.indexOf("\n---", 4);
-  if (end === -1) return empty;
-  const block = raw.slice(4, end);
-
-  const loadBearing = block.match(/^load_bearing:[ \t]*["']?(true|false)["']?[ \t]*$/m)?.[1] === "true";
-
-  const edgeSet = new Set<number>();
-  for (const field of ["supersedes", "supersedes_in_part", "amends"]) {
-    for (const n of extractEdgeNumbers(block, field)) edgeSet.add(n);
-  }
-  return { loadBearing, edges: [...edgeSet] };
-}
-
 /**
  * The first prose sentence after the H1 title — the one-line description shown on docs cards.
  * Reproduces apiRouter.ts deriveExcerpt verbatim. Empty if no sentence found.
@@ -210,17 +132,18 @@ function deriveExcerpt(markdown: string): string {
 }
 
 /**
- * Recursively walk `docsDir` and return a `DocMeta[]`. Returns `[]` gracefully when the dir
- * does not exist — the studio boots fine with an empty docs list.
+ * Every `.md` under `docsDir`, as `DocMeta[]`. Returns `[]` when the dir does not exist.
+ *
+ * ★ IT NO LONGER PRODUCES A `Decisions` GROUP (ADR-0403 dec 1). Decisions are ordinary Library
+ * artifacts of kind `adr` — the Library surface already serves all of them, with their structured
+ * state, their comments and the whole artifact envelope — so this walker is back to being exactly
+ * what its name says: the `docs/` tree. The ADR-specific machinery it carried (a frontmatter status
+ * read, the load-bearing + lineage wire-signal fold, and the number→id map that resolved lineage
+ * edges to `doc:` pointers) is DELETED rather than left unreachable: `docs/decisions/` does not
+ * exist, so that code could only ever have looked live.
  */
 export async function listDocs(docsDir: string): Promise<DocMeta[]> {
   const out: DocMeta[] = [];
-  // ADR number → its doc id (`decisions/NNNN-slug.md`), built during the walk so the wire-signal
-  // fold below can resolve each ADR's lineage-edge NUMBERS to `doc:` pointers (ADR-0187 dec 3).
-  const adrNumToId = new Map<number, string>();
-  // Per-Decisions-doc outbound edge NUMBERS, stashed during the walk and resolved after it — the
-  // number→id map is only complete once every ADR on disk has been walked.
-  const edgeNumbersById = new Map<string, number[]>();
   async function walk(dir: string): Promise<void> {
     if (!existsSync(dir)) return;
     for (const ent of await fs.readdir(dir, { withFileTypes: true })) {
@@ -228,56 +151,19 @@ export async function listDocs(docsDir: string): Promise<DocMeta[]> {
       if (ent.isDirectory()) {
         await walk(full);
       } else if (ent.isFile() && ent.name.endsWith(".md")) {
-        const relId = path
-          .relative(docsDir, full)
-          .split(path.sep)
-          .join("/");
-        const raw = await fs.readFile(full, "utf8");
-        const content = stripFrontmatter(raw);
-        const group = deriveGroup(relId);
-        const meta: DocMeta = {
+        const relId = path.relative(docsDir, full).split(path.sep).join("/");
+        const content = stripFrontmatter(await fs.readFile(full, "utf8"));
+        out.push({
           id: relId,
           title: deriveTitle(content, ent.name),
-          group,
+          group: "Reference",
           excerpt: deriveExcerpt(content),
-        };
-        // Only Decisions docs carry frontmatter signals (ADR-0037).
-        if (group === "Decisions") {
-          const fm = parseDocStatus(ent.name, raw);
-          if (fm !== null) {
-            meta.status = fm.status;
-            if (fm.decided !== undefined) meta.decided = fm.decided;
-          }
-          // The overview's load-bearing + lineage-edge wire signals (ADR-0187 dec 3).
-          // `loadBearing` folds in now; the edge NUMBERS are stashed and resolved to `doc:`
-          // pointers after the walk (once every ADR number is known).
-          const wire = parseAdrWireSignals(ent.name, raw);
-          if (wire.loadBearing) meta.loadBearing = true;
-          if (wire.edges.length > 0) edgeNumbersById.set(relId, wire.edges);
-          const num = Number.parseInt(ent.name.slice(0, 4), 10);
-          if (Number.isFinite(num)) adrNumToId.set(num, relId);
-        }
-        out.push(meta);
+        });
       }
     }
   }
   await walk(docsDir);
-  // Resolve each ADR's outbound lineage-edge NUMBERS to `doc:decisions/NNNN-slug.md` pointers now
-  // that the full number→id map is known; drop any number that names no ADR on disk (tolerant).
-  for (const meta of out) {
-    const nums = edgeNumbersById.get(meta.id);
-    if (nums === undefined) continue;
-    const refs = nums
-      .map((n) => adrNumToId.get(n))
-      .filter((id): id is string => id !== undefined)
-      .map((id) => `doc:${id}`);
-    if (refs.length > 0) meta.references = refs;
-  }
-  // Decisions first (ADR order by filename), then reference docs alphabetically.
-  return out.sort((a, b) => {
-    if (a.group !== b.group) return a.group === "Decisions" ? -1 : 1;
-    return a.id.localeCompare(b.id);
-  });
+  return out.sort((a, b) => a.id.localeCompare(b.id));
 }
 
 /**

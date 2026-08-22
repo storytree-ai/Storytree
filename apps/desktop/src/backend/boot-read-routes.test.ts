@@ -232,26 +232,29 @@ test("boot-read-routes: GET /api/docs returns a bare DocMeta array from the real
       // Both seeded files must appear.
       assert.equal(docs.length, 2, "both seeded docs must be returned by the real FS walk");
 
-      // --- ADR doc (Decisions group) ---
-      const adr = docs.find(
-        (d) => typeof d["id"] === "string" && (d["id"] as string).startsWith("decisions/"),
+      // --- a NESTED doc, which is what the recursive walk is for ---
+      //
+      // This used to be "the ADR doc (Decisions group)": the walker special-cased anything under
+      // `decisions/` into its own group and parsed its frontmatter for status and lineage signals.
+      // Decisions are Library artifacts now (ADR-0403 dec 1), that directory does not exist, and the
+      // walker is back to being exactly the `docs/` tree. What it still has to prove is unchanged —
+      // it RECURSES, it ids by POSIX relpath, and it reads the H1 through the frontmatter — so the
+      // same assertions are made against a nested file that is not a decision.
+      const nested = docs.find(
+        (d) => typeof d["id"] === "string" && (d["id"] as string).includes("/"),
       );
-      assert.ok(adr !== undefined, "the ADR doc under decisions/ must appear in the result");
-      assert.equal(adr["id"], "decisions/0001-some-decision.md", "id must be the POSIX relpath under docsDir");
-      assert.equal(adr["group"], "Decisions", "a doc under decisions/ must have group='Decisions'");
-      assert.equal(adr["title"], "Some Decision", "title must be extracted from the H1 (after stripping frontmatter)");
-      assert.ok(typeof adr["excerpt"] === "string", "excerpt must be a string");
-      // Frontmatter status and decided must be parsed for Decisions docs.
-      assert.equal(
-        adr["status"],
-        "accepted",
-        "the ADR frontmatter status must be parsed and surfaced on the DocMeta",
-      );
-      assert.equal(
-        adr["decided"],
-        "2024-01-15",
-        "the ADR frontmatter decided date must be parsed and surfaced on the DocMeta",
-      );
+      assert.ok(nested !== undefined, "a NESTED doc must appear — the walk is recursive");
+      assert.equal(nested["id"], "decisions/0001-some-decision.md", "id must be the POSIX relpath under docsDir");
+      assert.equal(nested["group"], "Reference", "every doc is Reference now — the Decisions group went with the files");
+      assert.equal(nested["title"], "Some Decision", "title must be extracted from the H1 (after stripping frontmatter)");
+      assert.ok(typeof nested["excerpt"] === "string", "excerpt must be a string");
+      // NO frontmatter is parsed any more, for any doc. The status / decided chips were an
+      // ADR-only read of `docs/decisions/**`, and both the read and its subject went with the
+      // directory (ADR-0403 dec 1) — a decision's status is a typed field on its `adr` row now.
+      // Asserted as an ABSENCE rather than deleted, so a walker that quietly started parsing
+      // frontmatter again would go red rather than pass unnoticed.
+      assert.equal(nested["status"], undefined, "no doc carries a parsed frontmatter status");
+      assert.equal(nested["decided"], undefined, "no doc carries a parsed frontmatter date");
 
       // --- Reference doc ---
       const ref = docs.find((d) => d["id"] === "open-questions.md");
@@ -261,7 +264,7 @@ test("boot-read-routes: GET /api/docs returns a bare DocMeta array from the real
       assert.equal(
         ref["status"],
         undefined,
-        "a non-ADR doc must NOT carry a status field (only Decisions docs carry frontmatter status)",
+        "no doc carries a status field — the ADR-only frontmatter read went with docs/decisions/",
       );
       assert.equal(
         ref["decided"],
@@ -284,65 +287,6 @@ test("boot-read-routes: GET /api/docs returns a bare DocMeta array from the real
 // This is the desktop-side half of the proof. The cross-surface half — that this copy and the
 // studio's original agree over the real docs/ tree, which is what actually fences the drift class —
 // is `pnpm check:mirror-conformance` (packages/cli/src/check-mirror-conformance.ts).
-test("boot-read-routes: /api/docs folds the ADR wire signals (load_bearing + resolved lineage edges)", async () => {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "boot-read-routes-wire-"));
-  try {
-    await fs.mkdir(path.join(dir, "decisions"));
-    // Load-bearing, with edges reaching BOTH other ADRs (one via amends, one via supersedes) plus
-    // an edge number naming no ADR on disk — which must be dropped, not rendered broken.
-    await fs.writeFile(
-      path.join(dir, "decisions", "0187-permanent-lens.md"),
-      "---\nstatus: accepted\nload_bearing: true\namends: [185]\nsupersedes: [10, 9999]\n---\n# ADR-0187: Permanent lens\n\nThe overlay is a permanent lens.\n",
-      "utf8",
-    );
-    await fs.writeFile(
-      path.join(dir, "decisions", "0185-tech-tree-overlay.md"),
-      "---\nstatus: accepted\nload_bearing: true\n---\n# ADR-0185: Overlay\n\nThe library as a tech-tree overlay.\n",
-      "utf8",
-    );
-    // Explicit `load_bearing: false` must read the same as an absent tag: the key is OMITTED.
-    await fs.writeFile(
-      path.join(dir, "decisions", "0010-old-decision.md"),
-      "---\nstatus: superseded\nload_bearing: false\n---\n# ADR-0010: Old\n\nAn early decision.\n",
-      "utf8",
-    );
-    await fs.writeFile(path.join(dir, "open-questions.md"), "# Open questions\n\nDeferred.\n", "utf8");
-
-    const handler = createBootReadRoutes({ docsDir: dir, listComments: async () => [] });
-    await withServer(handler, async (base) => {
-      const docs = (await (await fetch(`${base}/api/docs`)).json()) as Array<Record<string, unknown>>;
-      const byId = Object.fromEntries(docs.map((d) => [d["id"] as string, d]));
-
-      const adr187 = byId["decisions/0187-permanent-lens.md"];
-      assert.equal(adr187?.["loadBearing"], true, "load_bearing: true must surface as loadBearing");
-      assert.deepEqual(
-        new Set(adr187?.["references"] as string[]),
-        new Set(["doc:decisions/0185-tech-tree-overlay.md", "doc:decisions/0010-old-decision.md"]),
-        "lineage edge NUMBERS must resolve to doc: pointers — and 9999, naming no ADR on disk, must be dropped",
-      );
-
-      assert.equal(byId["decisions/0185-tech-tree-overlay.md"]?.["loadBearing"], true);
-      assert.equal(
-        byId["decisions/0185-tech-tree-overlay.md"]?.["references"],
-        undefined,
-        "an ADR with no lineage fields must carry no references key at all",
-      );
-
-      assert.equal(
-        byId["decisions/0010-old-decision.md"]?.["loadBearing"],
-        undefined,
-        "an explicit load_bearing: false must OMIT the key, not emit false",
-      );
-
-      const ref = byId["open-questions.md"];
-      assert.equal(ref?.["loadBearing"], undefined, "a Reference doc never carries wire signals");
-      assert.equal(ref?.["references"], undefined);
-    });
-  } finally {
-    await fs.rm(dir, { recursive: true, force: true });
-  }
-});
-
 // Pins the missing-docsDir path: a non-existent docsDir must return [] gracefully (never throws,
 // never 500). The studio boots fine with no docs; the frontend simply renders an empty list.
 test("boot-read-routes: GET /api/docs with a missing docsDir returns an empty array", async () => {

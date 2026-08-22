@@ -3458,7 +3458,6 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       adrOpts,
       {
         allocator: deps.adr ?? null,
-        decisionsDir: deps.adrDecisionsDir ?? path.join(repoRoot(), "docs", "decisions"),
         // Branch is audit-only and only used on the live (--pg) path; skip the git spawn offline.
         branch: deps.adr ? currentBranch() : "offline",
         actor: deps.actor ?? defaultCliActor(),

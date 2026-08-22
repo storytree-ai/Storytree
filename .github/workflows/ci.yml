@@ -115,16 +115,13 @@ jobs:
         with:
           fetch-depth: 2
 
-      # ADR-number collision check across OPEN PRs (ADR-0050, Layer 2). The adr-health
-      # `adr-number-unique` gate (in `pnpm -r test` below) catches a number already on main / on this
-      # merge ref; this fast PR-only step additionally catches a truly-concurrent pair before either
-      # merges. Fail-OPEN on gh/network errors, fail-CLOSED only on a real clash (the script's contract).
-      - name: ADR number collision (open PRs)
-        if: github.event_name == 'pull_request'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: bash scripts/adr-pr-collision-check.sh
+      # (The cross-PR ADR-number collision step stood here until ADR-0403 dec 1. It greped open PRs'
+      # file lists for an ADDED `docs/decisions/NNNN-`, closing the truly-concurrent gap that existed
+      # ONLY because a number was claimed by adding a FILE on a branch. A number claimed
+      # transactionally in the store is never claimed on a branch, so the gap it covered cannot open:
+      # two sessions calling `adr new --pg` get different numbers from the same transaction, before
+      # either has a branch. Deleted rather than kept as a no-op — a step that can never fire reads
+      # as a live guard.)
 
       # A branch is ONE landed unit — it dies on merge (ADR-0142). The merge job below clears the
       # merged branch's claim-ledger state (node_claim, ADR-0200) keyed on the head ref, so
@@ -195,11 +192,10 @@ jobs:
           git clone --quiet https://github.com/storytree-ai/storytree-web.git web
           git -C web checkout --quiet "$sha"
 
-      # The public site's load-bearing claims carry data-grounds="ADR-…" refs; fail if any cites a
-      # missing or superseded ADR — the doctrine-drift guard (ADR-0056). storytree-web can't
-      # self-check; only this repo sees the ADR corpus.
-      - name: web claims grounded
-        run: pnpm check:web-grounding
+      # (`web claims grounded` stood here until ADR-0403 dec 1. It reads the DECISION LOG, which is
+      # in the store now, so it moved down to the live-store block below — it needs the WIF auth step
+      # that has not run yet at this point. The web/ submodule it also needs is cloned above and
+      # stays cloned, so only the ordering changed.)
 
       # The site consumes the shared forest-world render core as a SYNCED @generated artifact
       # (web/src/lib/forest-world/), not as private source — ADR-0093 Decision 3. Fail if that copy
@@ -270,6 +266,25 @@ jobs:
         env:
           STORYTREE_DB_USER: storytree-ci-presence@storytree-498613.iam
         run: pnpm check:agents
+
+      # The decision-binding gate (ADR-0037 §3–4): every decision parses, its edges resolve, the
+      # supersedes relation holds both ways, no healthy story rests on a proposed decision, and the
+      # load-bearing tag sits only on accepted ones. It ran as a case inside `pnpm -r test` until
+      # ADR-0403 dec 1 made its subject a database — that suite is credential-free by ADR-0302 D3, so
+      # a real-corpus assertion belongs on a rung permitted to hold a connection (ADR-0307 D4).
+      - name: Decision log health
+        env:
+          STORYTREE_DB_USER: storytree-ci-presence@storytree-498613.iam
+        run: pnpm check:adr-health
+
+      # The public site's load-bearing claims carry data-grounds="ADR-…" refs; fail if any cites a
+      # missing or superseded decision — the doctrine-drift guard (ADR-0056). storytree-web can't
+      # self-check; only this repo reads the decision log. Down here rather than beside its two web/
+      # siblings because that log is in the store now and this step needs the auth above.
+      - name: web claims grounded
+        env:
+          STORYTREE_DB_USER: storytree-ci-presence@storytree-498613.iam
+        run: pnpm check:web-grounding
 
       # ADR-0223 D3: the authored `dependsOn` dependency edge must stay acyclic. Live-store like its
       # two neighbours above, and here for the same reason — the corpus is the shared thing a branch
