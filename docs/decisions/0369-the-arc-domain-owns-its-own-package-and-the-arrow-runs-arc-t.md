@@ -132,7 +132,7 @@ always was (`CURATOR_ACTOR`, a deliberate non-branch identity), not by omission.
 what ADR-0085/0094 forbid. But the BLOCKER is gone: every source file they name is now in their own
 story's building, so a future `real:` arm trips no landlord rule. The honesty note in
 `arc-derived-initiative-view` that stated the residual plainly is discharged rather than deleted. Nor
-does a later `real:` arm cost a snapshot edit: ADR-0340 replaced `node-build.test.ts`'s hardcoded
+does a later `real:` arm cost a snapshot edit: ADR-0341 D4 replaced `node-build.test.ts`'s hardcoded
 REAL-buildable catalogue with an assertion derived from `stories/`, so the old warning that such an
 arm "enters the pinned snapshot" was already stale and is corrected in place on both specs.
 

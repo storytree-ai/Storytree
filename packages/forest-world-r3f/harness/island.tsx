@@ -75,7 +75,7 @@ function App() {
         </p>
       </header>
 
-      <section>
+      <section data-st-panel="delivered">
         <h2>1 &mdash; at the size it is actually delivered</h2>
         <p className="lede">
           The unflattering pair, life size on a 2880&times;1920 display.
@@ -96,7 +96,7 @@ function App() {
         </div>
       </section>
 
-      <section>
+      <section data-st-panel="zoom">
         <h2>2 &mdash; the same island, zoomed in</h2>
         <p className="lede">
           Where the two conventions part. Same island, bigger map scale each time.
@@ -115,7 +115,7 @@ function App() {
         ))}
       </section>
 
-      <section>
+      <section data-st-panel="swirls-fork">
         <h2>3 &mdash; the swirls fork: mound vs foliage</h2>
         <p className="lede">
           The owner&rsquo;s read of the first pass was &ldquo;circular swirls&rdquo;, and that is a
@@ -150,7 +150,7 @@ function App() {
         </div>
       </section>
 
-      <section>
+      <section data-st-panel="bare-before">
         <h2>
           4 &mdash; the land without vegetation, and one unhealthy capability{' '}
           <em>(the 2026-08-19 state, kept as the control)</em>
@@ -185,7 +185,7 @@ function App() {
         </div>
       </section>
 
-      <section>
+      <section data-st-panel="definition">
         <h2>5 &mdash; the land carries its own definition</h2>
         <p className="lede">
           The bare panel above is the finding this section answers:{' '}
@@ -253,7 +253,7 @@ function App() {
         </div>
       </section>
 
-      <section>
+      <section data-st-panel="definition-delivered">
         <h2>6 &mdash; at the size it is actually delivered, which is the only size that counts</h2>
         <p className="lede">
           Everything above is at 8&nbsp;px/unit. This is the pair that decides it: the bare land
@@ -300,7 +300,7 @@ function App() {
         </div>
       </section>
 
-      <section>
+      <section data-st-panel="amplitude">
         <h2>7 &mdash; the amplitude the relief was set at, and the ones it was set against</h2>
         <p className="lede">
           The number that matters is not the height &mdash; it is the <em>slope</em>, because the
@@ -333,7 +333,7 @@ function App() {
         </div>
       </section>
 
-      <section>
+      <section data-st-panel="mixed">
         <h2>8 &mdash; the mixed island keeps its palette closure</h2>
         <p className="lede">
           The treatment moves positions and normals and never names a colour, so a parcel still
@@ -363,7 +363,7 @@ function App() {
         </div>
       </section>
 
-      <section>
+      <section data-st-panel="what-they-add">
         <h2>9 &mdash; what the two new components actually add</h2>
         <p className="lede">
           The control on the left is this island with its vegetation and <em>nothing else</em>
@@ -410,7 +410,7 @@ function App() {
         </div>
       </section>
 
-      <section>
+      <section data-st-panel="verdict-forms">
         <h2>10 &mdash; the three verdict forms, read off the island</h2>
         <p className="lede">
           ADR-0226 D4 puts the UAT verdict in the flower&rsquo;s FORM rather than in a glow or a
@@ -465,7 +465,7 @@ function App() {
           />
         </div>
       </section>
-      <section>
+      <section data-st-panel="shadow-casters">
         <h2>11 &mdash; the shadow, and which caster actually throws it</h2>
         <p className="lede">
           Shadow was the stated reason author-time 3D was reopened, and no island had ever carried
@@ -542,7 +542,7 @@ function App() {
         </div>
       </section>
 
-      <section>
+      <section data-st-panel="shadow-delivered">
         <h2>12 &mdash; the shadow at the size it is actually delivered</h2>
         <p className="lede">
           The pair that decides it, and the hero tree is what makes it decidable: it throws 65
@@ -570,7 +570,7 @@ function App() {
         </div>
       </section>
 
-      <section>
+      <section data-st-panel="shadow-ladder">
         <h2>13 &mdash; the ladder, and the status whose ceiling binds it</h2>
         <p className="lede">
           The shadow rung is <code>{SHADOW_RUNG}</code>, and it was DERIVED rather than chosen: it

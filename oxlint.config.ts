@@ -88,16 +88,64 @@ export default defineConfig({
     // panel; anyone wanting to revisit it takes it to a panel like every other rule.
     "anti-slop/require-safety-comment-for-type-assertion": "off",
 
+    // REJECTED BY A JUDGE PANEL, 2026-08-22 (anti-slop-adoption-arc inc-04). Five blind judges,
+    // five REJECT verdicts, all at high confidence, no dissent on the verdict. Full record with
+    // every judge's reasoning: `tools/oxlint/panels/no-unsafe-dictionary-type.md`.
+    //
+    // THE GROUND IS FUNCTIONALITY LOSS, which is one of the two the arc admits — not volume, and
+    // the judges were never told the count. `Record<string, unknown>` is the only expressible
+    // return type of a plain-object type guard, and this codebase has one:
+    // `isPlainObject(value: unknown): value is Record<string, unknown>`
+    // (`packages/context-traversal-transcript/src/correlate-transcripts.ts:67`). Under the rule
+    // that predicate cannot be written at all — any narrower value type would be an unproven claim
+    // made by the function whose whole job is to avoid unproven claims. Three judges reached that
+    // site independently and called it decisive on its own.
+    //
+    // The same holds structurally at the seam this arc predicted would carry the argument:
+    // `storage-protocol` persists documents WITHOUT knowing their shapes, and readers `.safeParse()`
+    // on the far side (ADR-0068 §3). A store that declared a value type would not be that seam, and
+    // `store-parity.ts` — the suite every backend is held to — could not be written.
+    //
+    // AND THE RULE'S OWN REMEDY IS CIRCULAR HERE. It says to "parse external payloads into that type
+    // before putting them in the dictionary", but every flagged site IS the parse: an HTTP body
+    // reader shared across routes with different schemas, a foreign CLI's JSON event stream, a
+    // third-party `settings.json`. You cannot parse a value you have not yet given a type to, and
+    // `unknown` is the only honest one. The rule also lumps `unknown` with `any`, which inverts the
+    // safety ordering it is reaching for: `any` erases checking, `unknown` FORCES it, and under this
+    // repo's `noUncheckedIndexedAccess` every read out of such a dictionary is already narrowed
+    // before use. Banning it pushes authors toward `any` or toward a fabricated value type asserted
+    // over unvalidated input — which is the harm `no-chained-type-assertions` exists to catch.
+    //
+    // ⚠ DO NOT "FIX" THIS BY NARROWING IT TO `any`/`object`/`{}` AND TURNING IT ON. That was built
+    // and reverted in this increment. All 613 findings carry the `unknown` tag — zero `any`, zero
+    // `object`, zero `{}` — so the narrowed rule fires on NOTHING here, and three judges named that
+    // move unprompted and refused it: it would be a different rule adopted on no evidence, passing
+    // under this panel's authority. A ban on `Record<string, any>` may well be right, and several
+    // judges said they would support one; it needs its own proposal and its own evidence.
+    "anti-slop/no-unsafe-dictionary-type": "off",
+
     // ---------------------------------------------------------------------------------------
     // NOT YET ADJUDICATED — off, not "warn", deliberately. A wall of warnings nobody must clear
     // trains sessions to ignore the linter, which is the precise habit this adoption exists to
     // avoid. Each rule leaves "off" via its own increment on the arc, carrying either a zero
     // count or a panel-backed reason. Counts below are from this increment's inventory.
     // ---------------------------------------------------------------------------------------
-    // 646 (564 / 82, 168 files) — COLLIDES WITH A DELIBERATE COMPILER SETTING. `...(x !== undefined
-    // ? { x } : {})` is the idiom `exactOptionalPropertyTypes: true` (tsconfig.base.json) forces on
-    // us for conditionally-present optional properties. This is the clearest "our codebase fights
-    // the rule" case in the set and goes to the arc's REFACTOR panel, not the rule panel.
+    // 646 (564 / 82, 168 files); re-measured 654 at HEAD 2026-08-22. Still `off`, but the reason
+    // this comment used to give is WRONG and is corrected here rather than carried forward.
+    //
+    // It said the rule COLLIDES with `exactOptionalPropertyTypes` — that
+    // `...(x !== undefined ? { x } : {})` is the idiom that setting forces on us. A three-judge
+    // REFACTOR panel put it to the test on 2026-08-22 and returned `refactor-found` 3-0: a
+    // compliant shape exists for every sampled site and typechecks under EOPT, because EOPT
+    // forbids ASSIGNING `undefined`, and a guarded assignment has already narrowed the value to a
+    // defined type before it runs. So there is no collision — an annotated local plus one guarded
+    // assignment per optional property satisfies both.
+    //
+    // The lane is `inc-05`, and it is expected to ADOPT AND REFACTOR rather than adjudicate. Read
+    // `tools/oxlint/panels/no-conditional-empty-object-spread.md` first: the panel named five costs,
+    // two of which would manufacture a `no-chained-type-assertions` violation if the migration takes
+    // the obvious shortcut, and one — the hoisted local MUST carry an explicit type annotation, or
+    // excess-property checking silently disappears — that a mechanical fixer would get wrong.
     "anti-slop/no-conditional-empty-object-spread": "off",
     // 513 (312 source / 201 test, 253 files) — RE-SORTED OUT OF inc-03 AND CONTESTED, on that lane's
     // own instruction to remove a rule that turns out not to be cheap rather than let the lane sprawl.
@@ -126,9 +174,6 @@ export default defineConfig({
     "anti-slop/no-unknown-parameters": "off",
     // 40 (15 / 25, 31 files) — the smallest contested rule. inc-05.
     "anti-slop/no-unknown-returns": "off",
-    // 612 (345 / 267, 157 files) — the store seam's document values are genuinely unknown until
-    // parsed, which is the seam's whole point. inc-04, where the judge panels get built.
-    "anti-slop/no-unsafe-dictionary-type": "off",
   },
   overrides: [
     {
