@@ -3462,7 +3462,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       // once, for every prose flag, before any verb saw the value (cli-write-fidelity-arc). This is
       // now a plain rename from flag names to the write path's field names; `--change` is repeatable
       // and its (expanded) values join into paragraphs.
-      const resolved: {
+      interface ResolvedShape {
         intent?: string;
         endState?: string;
         outcome?: string;
@@ -3470,7 +3470,9 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         objective?: string;
         body?: string;
         note?: string;
-      } = {
+      }
+
+      const resolved: ResolvedShape = {
         ...(values.intent !== undefined ? { intent: values.intent } : {}),
         ...(values["end-state"] !== undefined ? { endState: values["end-state"] } : {}),
         ...(values.outcome !== undefined ? { outcome: values.outcome } : {}),

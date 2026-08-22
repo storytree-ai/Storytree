@@ -16,7 +16,7 @@ import {
 // anchor; drift past threshold means re-plan, not repair. The git seam is injected, so the whole
 // verdict surface is provable offline — the source-drift move applied to intentions.
 
-function incrementDoc(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+function incrementDoc(overrides: Record<string, unknown> = {}) {
   return {
     kind: "increment",
     id: "p1",
@@ -34,7 +34,7 @@ function incrementDoc(overrides: Record<string, unknown> = {}): Record<string, u
     createdAt: "2026-07-10",
     updatedAt: "2026-07-10",
     ...overrides,
-  };
+  } satisfies Record<string, unknown>;
 }
 
 async function seeded(overrides: Record<string, unknown> = {}): Promise<InMemoryStore> {
@@ -170,7 +170,7 @@ test("increment help and unknown-sub are envelopes", async () => {
 // that had landed three weeks earlier (`explorer-onboarding-plan-1`, 89 commits, 7/7 paths, PR #775).
 // ---------------------------------------------------------------------------
 
-function closedSibling(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+function closedSibling(overrides: Record<string, unknown> = {}) {
   return {
     kind: "increment",
     id: "sib-1",
@@ -185,7 +185,7 @@ function closedSibling(overrides: Record<string, unknown> = {}): Record<string, 
     createdAt: "2026-07-17",
     updatedAt: "2026-07-17",
     ...overrides,
-  };
+  } satisfies Record<string, unknown>;
 }
 
 /** Seed `p1` plus a sibling increment. */

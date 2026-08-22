@@ -360,7 +360,7 @@ const PocketReadingsInput = z.record(PocketReadingInput);
  * half-read map. Reconstructs each object explicitly so the optional fields satisfy
  * `exactOptionalPropertyTypes`.
  */
-export function parsePocketReadings(raw: unknown): Readonly<Record<string, PocketReading>> {
+export function parsePocketReadings(raw: unknown) {
   const parsed = PocketReadingsInput.parse(raw);
   const out: Record<string, PocketReading> = {};
   for (const [capId, r] of Object.entries(parsed)) {
@@ -380,5 +380,5 @@ export function parsePocketReadings(raw: unknown): Readonly<Record<string, Pocke
       ...(forks !== undefined ? { forks } : {}),
     };
   }
-  return out;
+  return out satisfies Readonly<Record<string, PocketReading>>;
 }

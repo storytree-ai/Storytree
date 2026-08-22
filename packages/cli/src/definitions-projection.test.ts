@@ -20,8 +20,8 @@ import {
 import { selectDefinitions } from "../definition-injection.mjs";
 
 /** The StoredDoc envelope shape `store.queryDocs()` returns. */
-function stored(id: string, doc: Record<string, unknown>): Record<string, unknown> {
-  return { id, kind: "definition", doc, createdAt: "t", updatedAt: "t" };
+function stored(id: string, doc: Record<string, unknown>) {
+  return { id, kind: "definition", doc, createdAt: "t", updatedAt: "t" } satisfies Record<string, unknown>;
 }
 
 test("projects id/title/oneLine from the StoredDoc envelope", () => {

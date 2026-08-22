@@ -266,7 +266,9 @@ function renderOrphanLine(entry: UnresolvedFollow): string {
 }
 
 function renderSummaryLine(point: DecisionPoint): string {
-  const counts: { followed: number; "not-followed": number; unobservable: number; ambiguous: number } = {
+  interface CountsShape { followed: number; "not-followed": number; unobservable: number; ambiguous: number }
+
+  const counts: CountsShape = {
     followed: 0,
     "not-followed": 0,
     unobservable: 0,

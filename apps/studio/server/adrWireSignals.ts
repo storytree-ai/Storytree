@@ -10,7 +10,9 @@
 
 const ADR_FILENAME = /^\d{4}-.*\.md$/;
 
-const EMPTY_RESULT: { loadBearing: boolean; edges: number[] } = { loadBearing: false, edges: [] };
+interface EMPTYRESULTShape { loadBearing: boolean; edges: number[] }
+
+const EMPTY_RESULT: EMPTYRESULTShape = { loadBearing: false, edges: [] };
 
 interface EmptyResultResult { loadBearing: boolean; edges: number[] }
 

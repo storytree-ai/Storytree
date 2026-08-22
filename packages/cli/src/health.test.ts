@@ -16,6 +16,17 @@ import {
 } from "./health.js";
 
 /**
+ * A fixture document, deliberately OPEN and mutable. These tests build a well-formed doc and then
+ * delete or overwrite fields to reach the malformed shapes the migration has to survive, so the
+ * fixture cannot carry a fixed key set: an annotated literal is the widening
+ * `no-known-value-widening` rejects, and `satisfies` would pin exactly the keys the tests break.
+ * Routing the literal through a call keeps it open and says why.
+ */
+function openDoc(fields: Record<string, unknown>): Record<string, unknown> {
+  return fields;
+}
+
+/**
  * Health-check tests (design §4: docs/research/library-schema-migrations-and-health-checks.md).
  * OFFLINE — no DB, no API key. Two parts:
  *  (a) pure-function tests with stubbed docs for each level of each check;
@@ -43,8 +54,8 @@ import {
 const BASE_OPTS = { currentSchemaVersion: CURRENT_SCHEMA_VERSION, retiredFields: ["seeAlso"] };
 
 /** A valid, current-version structured definition unit (the body that lives in StoredDoc.doc). */
-function validDefinitionBody(over: Record<string, unknown> = {}): Record<string, unknown> {
-  return {
+function validDefinitionBody(over: Record<string, unknown> = {}) {
+  return openDoc({
     kind: "definition",
     id: "good-term",
     title: "Good term",
@@ -56,7 +67,7 @@ function validDefinitionBody(over: Record<string, unknown> = {}): Record<string,
     createdAt: "2026-06-05T00:00:00.000Z",
     updatedAt: "2026-06-09T00:00:00.000Z",
     ...over,
-  };
+  });
 }
 
 /** Wrap a doc body as a StoredDoc (kind mirrors the body's kind/category). */

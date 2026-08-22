@@ -11,6 +11,17 @@ import { cliActorFor } from "./cli-actor.js";
 import { run } from "./commands.js";
 import { hasConcreteEvidence, lifecycleOf, standingRouteSetter, validateInboxDir } from "./friction.js";
 
+/**
+ * A fixture document, deliberately OPEN and mutable. These tests build a well-formed doc and then
+ * delete or overwrite fields to reach the malformed shapes the migration has to survive, so the
+ * fixture cannot carry a fixed key set: an annotated literal is the widening
+ * `no-known-value-widening` rejects, and `satisfies` would pin exactly the keys the tests break.
+ * Routing the literal through a call keeps it open and says why.
+ */
+function openDoc(fields: Record<string, unknown>): Record<string, unknown> {
+  return fields;
+}
+
 // ---------------------------------------------------------------------------
 // fixtures
 // ---------------------------------------------------------------------------
@@ -35,8 +46,8 @@ function frictionDeps(dirs: { inboxDir: string; docsDir: string }, over: Record<
 }
 
 /** The substance an author supplies; the CLI stamps kind/provenance/timestamps. */
-function frictionDoc(id: string, over: Record<string, unknown> = {}): Record<string, unknown> {
-  return {
+function frictionDoc(id: string, over: Record<string, unknown> = {}) {
+  return openDoc({
     id,
     title: `Friction ${id}`,
     description: "one-line description",
@@ -44,7 +55,7 @@ function frictionDoc(id: string, over: Record<string, unknown> = {}): Record<str
     evidence: "`pnpm storytree friction new --pg` hung; PR #635 shows the write path",
     impact: "cost ~20 min; the next agent to run it hits the same wall",
     ...over,
-  };
+  });
 }
 
 /** File a friction item through the real dispatch (`--json` avoids temp doc files). */
@@ -391,7 +402,7 @@ function stageForeign(
   dirs: { inboxDir: string },
   id: string,
   over: Record<string, unknown> = {},
-): Record<string, unknown> {
+) {
   const doc = {
     ...frictionDoc(id),
     kind: "friction",
@@ -402,7 +413,7 @@ function stageForeign(
   };
   mkdirSync(dirs.inboxDir, { recursive: true });
   writeFileSync(path.join(dirs.inboxDir, `${id}.json`), JSON.stringify(doc, null, 2) + "\n", "utf8");
-  return doc;
+  return doc satisfies Record<string, unknown>;
 }
 
 /** Run `friction migrate` through the real dispatch. */

@@ -1768,7 +1768,7 @@ export interface DriveIsolation {
 export function driveChildEnv(
   parentEnv: Readonly<Record<string, string | undefined>>,
   iso: DriveIsolation,
-): Record<string, string | undefined> {
+) {
   const env = { ...parentEnv } satisfies Record<string, string | undefined>;
   delete env["STORYTREE_SESSION_ID"];
   env[UAT_DRIVE_SESSION_ENV] = iso.sessionId;
@@ -1782,7 +1782,7 @@ export function driveChildEnv(
   env[UAT_DRIVE_START_AT_ENV] = iso.startAt;
   env[UAT_DRIVE_REPORT_BY_ENV] = iso.reportBy;
   env[UAT_DRIVE_DEADLINE_AT_ENV] = iso.deadlineAt;
-  return env;
+  return env satisfies Record<string, string | undefined>;
 }
 
 /**

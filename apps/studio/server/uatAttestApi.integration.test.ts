@@ -33,9 +33,9 @@ const P2 = '**Machine check** _(witness: machine)_: a machine checks it. **Succe
 const R1 = criterionRevisionId(canonicalUatCriterionContent(`1. ${P1}`));
 const R2 = criterionRevisionId(canonicalUatCriterionContent(`2. ${P2}`));
 
-const iap = (email: string): Record<string, string> => ({
+const iap = (email: string) => ({
   [IAP_EMAIL_HEADER]: `accounts.google.com:${email}`,
-});
+} satisfies Record<string, string>);
 
 // The story fixture: one human-witness test (attestable by a click) and one machine-witness test
 // (which a click must NOT be able to green). loadNodeSpec parses the `## Story UAT` prose into

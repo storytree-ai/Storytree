@@ -122,7 +122,7 @@ export function deliveredColour(token: string, level: number): Rgb255 {
  *  `reader_status_table`. WHEAT IS EXCLUDED and that is not a convenience: five of the six
  *  statuses share the identical wheat hex, so a wheat cell reports no status by colour at
  *  all, and including it would make every status equidistant from every shadowed pixel. */
-export function readerStatusTable(opts: ReaderTableOptions = {}): Record<string, Rgb255[]> {
+export function readerStatusTable(opts: ReaderTableOptions = {}) {
   const statuses = opts.statuses ?? Object.keys(STATUS_TOKENS).sort();
   const rung = opts.rung ?? 1.0;
   const table: Record<string, Rgb255[]> = {};
@@ -133,7 +133,7 @@ export function readerStatusTable(opts: ReaderTableOptions = {}): Record<string,
     if (opts.faces === 'all') tokens.push(fam.side);
     table[st] = tokens.map((t) => (rung === 1.0 ? parseHex(t) : scale(parseHex(t), rung)));
   }
-  return table;
+  return table satisfies Record<string, Rgb255[]>;
 }
 
 /** Which status a delivered colour reads as: nearest entry in the weighted space. Ties go

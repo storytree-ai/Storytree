@@ -55,7 +55,9 @@ const SUCCESS_RESULT = {
 
 /** Capture the whole query request (options + prompt), then stream the given messages. */
 function capturingQuery(messages: unknown[]) {
-  let last: { options: unknown; prompt: unknown } = { options: undefined, prompt: undefined };
+  interface LastShape { options: unknown; prompt: unknown }
+
+  let last: LastShape = { options: undefined, prompt: undefined };
   const fn: SdkQueryFn = (q) => {
     last = { options: q.options, prompt: q.prompt };
     return queryYielding(messages)(q);

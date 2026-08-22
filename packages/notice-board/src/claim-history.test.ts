@@ -43,8 +43,8 @@ function claimDoc(
   grade: string,
   branch = "claude/x",
   intent = "",
-): Record<string, unknown> {
-  return { unitId: "u", sessionId, grade, branch, intent, claimedAt: "", heartbeatAt: "" };
+) {
+  return { unitId: "u", sessionId, grade, branch, intent, claimedAt: "", heartbeatAt: "" } satisfies Record<string, unknown>;
 }
 
 // ---------------------------------------------------------------------------

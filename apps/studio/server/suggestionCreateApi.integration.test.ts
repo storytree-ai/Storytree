@@ -29,9 +29,9 @@ import type { LibraryBackend } from './libraryBackend';
 const ADMIN = 'admin@example.com';
 const MEMBER = 'member@example.com';
 
-const iap = (email: string): Record<string, string> => ({
+const iap = (email: string) => ({
   [IAP_EMAIL_HEADER]: `accounts.google.com:${email}`,
-});
+} satisfies Record<string, string>);
 
 const userRow = (over: Partial<UserDoc> & { email: string; role: UserDoc['role'] }): UserDoc => ({
   status: 'active',
@@ -133,13 +133,13 @@ beforeEach(() => {
 });
 
 /** A well-formed create body (the api.ts createSuggestion contract); override per test. */
-const goodBody = (): Record<string, unknown> => ({
+const goodBody = () => ({
   blockId: 'b-12345678',
   proposedText: 'the proposed replacement prose',
   topicKind: 'asset',
   topicId: 'asset-1',
   originalText: 'the original prose',
-});
+} satisfies Record<string, unknown>);
 
 const post = (
   body: Record<string, unknown>,

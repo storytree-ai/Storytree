@@ -9,7 +9,9 @@ test("decision-amends-seam-never-reads-supersedes: the parameter type performs t
   // consequence, since the type-level guard cannot be asserted at runtime.
   // Declared as its own variable rather than inline, so this is a genuine ASSIGNABILITY check —
   // an inline literal would trip TypeScript's excess-property rule and prove something narrower.
-  const adrShaped: { number: number; amends: readonly number[]; supersedes: readonly number[] } = {
+  interface AdrShapedShape { number: number; amends: readonly number[]; supersedes: readonly number[] }
+
+  const adrShaped: AdrShapedShape = {
     number: 403,
     amends: [139, 223],
     supersedes: [86],

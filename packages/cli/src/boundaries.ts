@@ -177,7 +177,7 @@ export function isFoundational(pkg: string, o: Ownership): boolean {
 export function mergeDeclaredGraph(
   storyGraph: Record<string, string[]>,
   consumedBy: Record<string, string[]>,
-): Record<string, string[]> {
+) {
   const merged: Record<string, Set<string>> = {};
   const add = (a: string, b: string): void => {
     (merged[a] ??= new Set<string>()).add(b);
@@ -188,7 +188,7 @@ export function mergeDeclaredGraph(
   for (const [b, consumers] of Object.entries(consumedBy)) for (const a of consumers) add(a, b);
   const out: Record<string, string[]> = {};
   for (const [a, set] of Object.entries(merged)) out[a] = [...set].sort();
-  return out;
+  return out satisfies Record<string, string[]>;
 }
 
 /** Run every boundary rule over the gathered inputs and return the (possibly empty) violation list. */
@@ -785,7 +785,7 @@ function ownedStorySet(ownership: Ownership): Set<string> {
  * projected through ownership for a package-owning story; the `@storytree/*` RUNTIME imports of its
  * units' `sourceFile` text for a VIRTUAL one (skipping type-only imports and test scaffolding).
  */
-function realEdges(input: DriftReportInput, ownedStories: Set<string>): Record<string, Set<string>> {
+function realEdges(input: DriftReportInput, ownedStories: Set<string>) {
   const { ownership, packageDeps } = input;
   const real: Record<string, Set<string>> = {};
   const addReal = (from: string, to: string): void => {
@@ -815,7 +815,7 @@ function realEdges(input: DriftReportInput, ownedStories: Set<string>): Record<s
       if (to !== undefined) addReal(story, to);
     }
   }
-  return real;
+  return real satisfies Record<string, Set<string>>;
 }
 
 /**
@@ -827,7 +827,7 @@ function realEdges(input: DriftReportInput, ownedStories: Set<string>): Record<s
  * are the "layer-jumping" roads of the 2026-07-05 map audit — an authoring smell, never a failure:
  * a WARN nudges the author to either drop the edge or annotate the deliberate seam.
  */
-export function redundantDeclaredEdges(input: DriftReportInput): Record<string, string[]> {
+export function redundantDeclaredEdges(input: DriftReportInput) {
   const ownedStories = ownedStorySet(input.ownership);
   const real = realEdges(input, ownedStories);
   const artifactEdges = input.artifactEdges ?? {};
@@ -858,7 +858,7 @@ export function redundantDeclaredEdges(input: DriftReportInput): Record<string, 
       .sort();
     if (redundant.length > 0) out[story] = redundant;
   }
-  return out;
+  return out satisfies Record<string, string[]>;
 }
 
 /** Render {@link redundantDeclaredEdges} as the advisory WARN text (PURE; the gatherer prints it). */

@@ -176,7 +176,7 @@ export function mergeFields(
   doc: unknown,
   fields: Readonly<Record<string, unknown>>,
   id: string,
-): Record<string, unknown> {
+) {
   if (typeof doc !== "object" || doc === null || Array.isArray(doc)) {
     throw new Error(
       `patchDoc("${id}"): the stored doc is not a JSON object, so there are no fields to patch — use upsertDoc to replace it.`,
@@ -187,7 +187,7 @@ export function mergeFields(
     if (value === undefined) delete merged[key];
     else merged[key] = value;
   }
-  return merged;
+  return merged satisfies Record<string, unknown>;
 }
 
 /**

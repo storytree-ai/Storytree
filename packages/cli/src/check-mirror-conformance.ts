@@ -235,13 +235,13 @@ function buildArcFixtures() {
     { label: "write", method: "POST", path: "/api/arcs/surface-arc" },
   ];
 
-  const doc = (id: string, kind: string, body: Record<string, unknown>): Record<string, unknown> => ({
+  const doc = (id: string, kind: string, body: Record<string, unknown>) => ({
     id,
     kind,
     doc: { kind, id, references: [], createdAt: "2026-07-29", updatedAt: "2026-07-30", ...body },
     createdAt: "2026-07-29",
     updatedAt: "2026-07-30",
-  });
+  } satisfies Record<string, unknown>);
 
   const docs = [
     doc("surface-arc", "arc", {
@@ -382,16 +382,16 @@ function buildFloorHealthFixtures() {
   const friction = (
     id: string,
     body: Record<string, unknown>,
-  ): Record<string, unknown> => ({
+  ) => ({
     id,
     kind: "friction",
     doc: { title: id, ...body },
     createdAt: "2026-07-11T00:00:00.000Z",
     updatedAt: "2026-08-08T00:00:00.000Z",
-  });
+  } satisfies Record<string, unknown>);
 
   /** One route-setting event — the timestamp IS the fixture (see the header). */
-  const routeEvent = (seq: number, id: string, route: string, at: string): Record<string, unknown> => ({
+  const routeEvent = (seq: number, id: string, route: string, at: string) => ({
     seq,
     id,
     kind: "friction",
@@ -399,7 +399,7 @@ function buildFloorHealthFixtures() {
     doc: { route },
     actor: "cli",
     at,
-  });
+  } satisfies Record<string, unknown>);
 
   const reinforcedBy = (...dates: string[]): Array<Record<string, unknown>> =>
     dates.map((date) => ({ branch: "claude/x", date, evidence: "`e`" }));
@@ -563,7 +563,7 @@ function decodePayload(probe: Probe, inputs: MirrorInputSet, payload: unknown, a
  * Run one surface's probe over every input, in that surface's own app dir so its bare
  * specifiers resolve through its own `node_modules`. Returns the decoded `{ input: Entry[] }` map.
  */
-function runProbe(probe: Probe, inputs: MirrorInputSet, args: string[]): Record<string, Entry[]> {
+function runProbe(probe: Probe, inputs: MirrorInputSet, args: string[]) {
   const file = join(repoRoot, probe.file);
   if (!existsSync(file)) throw new ProbeError(`probe module not found: ${probe.file}`);
 
@@ -597,7 +597,7 @@ function runProbe(probe: Probe, inputs: MirrorInputSet, args: string[]): Record<
     }
     out[arg] = decodePayload(probe, inputs, (parsed as Record<string, unknown>)[arg], arg);
   }
-  return out;
+  return out satisfies Record<string, Entry[]>;
 }
 
 // ---------- the check ----------

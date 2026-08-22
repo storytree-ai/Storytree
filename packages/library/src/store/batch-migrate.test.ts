@@ -13,7 +13,7 @@ import { batchMigrate } from "./batch-migrate.js";
 
 // A v0 structured definition unit (no schemaVersion, carries the retired `seeAlso`) — the
 // concurrently-authored old-shape doc from the incident (§1b pain-point #2).
-function v0Definition(): Record<string, unknown> {
+function v0Definition() {
   return {
     kind: "definition",
     id: "test-term",
@@ -25,7 +25,7 @@ function v0Definition(): Record<string, unknown> {
     whatItIs: "The exact meaning, stated precisely for the test.",
     createdAt: "2026-06-05T00:00:00.000Z",
     updatedAt: "2026-06-09T00:00:00.000Z",
-  };
+  } satisfies Record<string, unknown>;
 }
 
 test("batchMigrate: upgrades a v0 structured doc to CURRENT_SCHEMA_VERSION in place", async () => {

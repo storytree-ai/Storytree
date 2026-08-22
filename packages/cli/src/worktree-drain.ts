@@ -89,12 +89,12 @@ export interface DrainRecord {
 }
 
 /** Tally the keeps in a verdict set by bucket. */
-export function tallyHolds(verdicts: readonly WorktreeVerdict[]): DrainHoldCounts {
+export function tallyHolds(verdicts: readonly WorktreeVerdict[]) {
   const held = { ...ZERO_HOLDS } satisfies Record<HoldReason, number>;
   for (const v of verdicts) {
     if (v.hold !== null) held[v.hold] += 1;
   }
-  return held;
+  return held satisfies DrainHoldCounts;
 }
 
 export interface DrainRunOutcome {

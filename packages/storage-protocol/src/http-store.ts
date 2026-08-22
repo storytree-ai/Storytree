@@ -198,8 +198,8 @@ export class HttpStore implements Store {
     });
   }
 
-  #requestHeaders(): Record<string, string> {
-    return { accept: "application/json", ...this.#headers };
+  #requestHeaders() {
+    return { accept: "application/json", ...this.#headers } satisfies Record<string, string>;
   }
 
   /**

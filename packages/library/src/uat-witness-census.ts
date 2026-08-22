@@ -70,8 +70,8 @@ export interface UatWitnessCensus {
   readonly humanWithoutBasis: readonly UatWitnessCensusRow[];
 }
 
-function emptyTally(): Record<UatTestCriterionWitness, number> {
-  return { human: 0, machine: 0, either: 0 };
+function emptyTally() {
+  return { human: 0, machine: 0, either: 0 } satisfies Record<UatTestCriterionWitness, number>;
 }
 
 /**
