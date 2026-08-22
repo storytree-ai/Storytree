@@ -92,6 +92,17 @@ remains the closed, certified set; the gate's actual current rung count keeps gr
 freshly-justified ADR at a time, exactly as this correction's previous paragraph already
 anticipated.)*
 
+*(Updated 2026-08-22 — [ADR-0403](0403-the-decision-log-becomes-ordinary-artifacts-in-postgres-and.md)
+amends this ADR to add `check:adr-health`, and it is the first addition that is a MOVE rather than a
+new rung. The decision-binding checks (ADR-0037 §3–4) were already gating; they simply ran as a case
+inside `pnpm -r test`, firing `adrHealth` against the real `docs/decisions` tree. ADR-0403 dec 1 makes
+the decision log a database, and `pnpm -r test` is credential-free by ADR-0302 D3 — so the check could
+not stay there, and ADR-0307 D4 puts real-corpus assertions on a rung permitted to hold a connection.
+It is `shared-environment` for the same reason as its block-C neighbours: another session's `adr new`
+or status flip can red it. No predicate was weakened; three of its ten sub-checks retired with the
+files, each for a stated reason, and one was REPLACED rather than dropped — `RETIRED_ADR_CHECKS` in
+`adr-health.ts` carries the record. Not a readmission of any of D2's sixteen.)*
+
 **D2 — the tombstone is complete: sixteen original rungs are retired.** ADR-0302 already removed
 `check:agents-sync`, `check:corpus-sync` and `check:corpus-content`. This decision additionally
 removes `check:manifest`, `check:process-graph`, `check:test-timing`, `check:web-experience`,

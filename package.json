@@ -25,6 +25,7 @@
     "build:status": "pnpm --filter @storytree/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/build-unit-status.ts",
     "check:agents": "pnpm --filter @storytree/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/build-agents.ts --check",
     "check:verification-decay": "pnpm --filter @storytree/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-verification-decay.ts",
+    "check:adr-health": "pnpm --filter @storytree/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-adr-health.ts",
     "check:library-dag-acyclic": "pnpm --filter @storytree/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-library-dag-acyclic.ts",
     "probe:depth-from-work": "pnpm --filter @storytree/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/probe-depth-from-work.ts",
     "probe:adr-graph": "pnpm --filter @storytree/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/probe-adr-graph.ts",
