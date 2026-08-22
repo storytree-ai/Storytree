@@ -28,29 +28,23 @@
  * is reported and is never a failure.
  */
 
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 
-import { loadAdrMetas, openCorpusStore } from "@storytree/drive";
+import { openCorpusStore } from "@storytree/drive";
+
+import { loadProbeDecisions } from "./probe-decisions.js";
 import {
   decisionAmendsResolver,
   decisionWalkVacuity,
   depthFromWorkNodes,
   evaluateDepthFromWork,
   readDependsOnPointers,
-  REPO_ROOT_ENV,
   renderCombinedNodeId,
-  resolveRepoRoot,
 } from "@storytree/library";
 import { renderStoredDoc } from "@storytree/library/store";
 
 const TAG = "probe:depth-from-work";
 
 /** The repo root — a PARAMETER (ADR-0246), not a derivation from this file's own location. */
-const repoRoot = resolveRepoRoot({
-  env: process.env[REPO_ROOT_ENV],
-  derived: path.resolve(fileURLToPath(import.meta.url), "..", "..", "..", ".."),
-}).root;
 
 /**
  * Where the decision half comes from TODAY. It is read here rather than inside the walk precisely
@@ -58,7 +52,6 @@ const repoRoot = resolveRepoRoot({
  * never learns that this one was built from files, so `decision-log-home-arc`'s migration replaces
  * these two lines and nothing else.
  */
-const DECISIONS_DIR = path.join(repoRoot, "docs", "decisions");
 
 /** The two pointer fields, per doc, as one comparable string. */
 function signature(dependsOn: readonly string[], cites: readonly string[]): string {
@@ -159,12 +152,12 @@ async function main(): Promise<void> {
     // a decision on `amends` alone. Printed BESIDE the sink reading rather than replacing it: the
     // studio panel still takes the resolver-less path (`traversal-panel-arc` is parked and its owner
     // LOOK is fenced), so a reader must be able to see both numbers and which one the panel draws.
-    const { adrs, parseErrors } = loadAdrMetas(DECISIONS_DIR);
+    const { adrs, parseErrors } = await loadProbeDecisions(TAG);
     if (parseErrors.length > 0) {
-      // Fail-closed: a depth over a decision log that did not fully parse is a depth over an unknown
+      // Fail-closed: a depth over a decision log that did not fully read is a depth over an unknown
       // population, and a confident number there is worse than no number.
       console.error("");
-      console.error(`${TAG} — ${parseErrors.length} decision file(s) failed to parse:`);
+      console.error(`${TAG} — ${parseErrors.length} problem(s) reading the decision log:`);
       for (const line of parseErrors) console.error(`  ${line}`);
       process.exitCode = 1;
       return;

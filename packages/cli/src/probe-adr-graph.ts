@@ -48,10 +48,10 @@
  * could not be read. `--adrs-only` skips the corpus half (the disk census needs no database).
  */
 
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 
-import { loadAdrMetas, openCorpusStore, type AdrMeta } from "@storytree/drive";
+import { openCorpusStore, type AdrMeta } from "@storytree/drive";
+
+import { loadProbeDecisions } from "./probe-decisions.js";
 import {
   decisionLabel,
   depthFromWorkNodes,
@@ -60,19 +60,12 @@ import {
   findDependsOnCycles,
   parseDecisionPointer,
   readDependsOnPointers,
-  REPO_ROOT_ENV,
-  resolveRepoRoot,
 } from "@storytree/library";
 
 const TAG = "probe:adr-graph";
 
 /** The repo root — a PARAMETER (ADR-0246), not a derivation from this file's own location. */
-const repoRoot = resolveRepoRoot({
-  env: process.env[REPO_ROOT_ENV],
-  derived: path.resolve(fileURLToPath(import.meta.url), "..", "..", "..", ".."),
-}).root;
 
-const DECISIONS_DIR = path.join(repoRoot, "docs", "decisions");
 
 /**
  * How an ADR number renders in every line and every cycle path this probe prints.
@@ -116,7 +109,7 @@ export interface SupersedesRow {
 interface Ladder<E extends "amends" | "supersedes"> {
   /** The brand. Its literal type is what makes {@link AmendsLadder} unassignable to a supersedes walk. */
   readonly edge: E;
-  /** Adjacency over RESOLVABLE targets only (a target with no file on disk cannot be walked into). */
+  /** Adjacency over RESOLVABLE targets only (a target the log does not hold cannot be walked into). */
   readonly out: ReadonlyMap<number, readonly number[]>;
   /** How many ADR files were judged — the denominator, so a clean verdict can never hide an empty read. */
   readonly nodes: number;
@@ -124,7 +117,7 @@ interface Ladder<E extends "amends" | "supersedes"> {
   readonly filesCarrying: number;
   /** How many EDGES of this type exist in total, dangling ones included. */
   readonly edgesTotal: number;
-  /** How many of those name an ADR that is actually on disk. */
+  /** How many of those name a decision the log actually holds. */
   readonly edgesResolvable: number;
   /** Targets naming no ADR file here. Counted and named, never silently dropped. */
   readonly danglingTargets: readonly { readonly from: number; readonly to: number }[];
@@ -551,7 +544,7 @@ function reportLadder(
   );
   console.log(
     `    \`${ladder.edge}\` EDGES: ${ladder.edgesTotal} total ` +
-      `(${ladder.edgesResolvable} resolving to an ADR on disk, ${ladder.danglingTargets.length} dangling)`,
+      `(${ladder.edgesResolvable} resolving to a decision in the log, ${ladder.danglingTargets.length} dangling)`,
   );
   for (const line of capped(
     ladder.danglingTargets.map(({ from, to }) => `${label(from)} ${ladder.edge} ${label(to)} — no such file`),
@@ -598,7 +591,7 @@ async function censusCorpus(
     );
     console.log(
       `    of the \`doc:\` pointers, ${census.adrPointers} are ADR-shaped — ` +
-        `${census.adrPointersResolving} land on an ADR on disk, ` +
+        `${census.adrPointersResolving} land on a decision in the log, ` +
         `${census.adrPointersDangling.length} dangle; ` +
         `${census.nonAdrDocPointers.length} \`doc:\` pointer(s) name something other than an ADR`,
     );
@@ -611,7 +604,7 @@ async function censusCorpus(
     for (const line of capped(census.adrPointersDangling)) console.log(`      dangling: ${line}`);
     for (const line of capped(census.nonAdrDocPointers)) console.log(`      non-ADR doc: ${line}`);
     console.log(
-      `    distinct ADRs landed on: ${census.landedOn.size} of ${adrsOnDisk.size} on disk`,
+      `    distinct decisions landed on: ${census.landedOn.size} of ${adrsOnDisk.size} in the log`,
     );
     const topTargets = [...census.landedOn.entries()]
       .sort((left, right) => right[1] - left[1] || left[0] - right[0])
@@ -713,17 +706,17 @@ async function censusCorpus(
 async function main(): Promise<void> {
   const adrsOnly = process.argv.slice(2).includes("--adrs-only");
 
-  const { adrs, parseErrors } = loadAdrMetas(DECISIONS_DIR);
+  const { adrs, parseErrors } = await loadProbeDecisions(TAG);
   if (parseErrors.length > 0) {
-    // Fail-closed: a census over a decision log that did not fully parse is a census of an unknown
+    // Fail-closed: a census over a decision log that did not fully read is a census of an unknown
     // population, and reporting it as a clean count would understate every figure below.
-    console.error(`${TAG} — ${parseErrors.length} ADR file(s) failed to parse:`);
+    console.error(`${TAG} — ${parseErrors.length} problem(s) reading the decision log:`);
     for (const line of parseErrors) console.error(`  ${line}`);
     process.exitCode = 1;
     return;
   }
 
-  console.log(`${TAG} — ${adrs.length} ADR files under ${path.relative(repoRoot, DECISIONS_DIR)}`);
+  console.log(`${TAG} — ${adrs.length} decisions in the live store`);
   const byStatus = new Map<string, number>();
   for (const adr of adrs) byStatus.set(adr.status, (byStatus.get(adr.status) ?? 0) + 1);
   console.log(
@@ -789,8 +782,8 @@ async function main(): Promise<void> {
     return;
   }
 
-  const onDisk = new Set(adrs.map((adr) => adr.number));
-  await censusCorpus(amendsWalk, onDisk);
+  const known = new Set(adrs.map((adr) => adr.number));
+  await censusCorpus(amendsWalk, known);
 
   console.log("");
   console.log(`${TAG} — census complete. Nothing was written; no gate reads this.`);

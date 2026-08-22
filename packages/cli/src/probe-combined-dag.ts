@@ -29,8 +29,8 @@
  *
  * ## IT RUNS TODAY, AGAINST FILES
  *
- * Decisions are still on disk and the migration is sequenced after this arc (ADR-0403 dec 3), so the
- * decision half is read with `loadAdrMetas` and the Library half from the live store. The judge takes
+ * Decisions are ordinary `adr` rows now (ADR-0403 dec 1), so both halves come from the same store; the
+ * decision half and the Library half are both read from the live store. The judge takes
  * both as plain rows and knows nothing about either source, which is the seam that lets the
  * store-backed resolver replace the file-backed one later without touching the proof.
  *
@@ -40,27 +40,20 @@
  * make a walk succeed.
  */
 
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 
-import { loadAdrMetas, openCorpusStore } from "@storytree/drive";
+import { openCorpusStore } from "@storytree/drive";
+
+import { loadProbeDecisions } from "./probe-decisions.js";
 import {
   combinedReadVacuity,
   evaluateCombinedAcyclicity,
-  REPO_ROOT_ENV,
-  resolveRepoRoot,
   VACUOUS_COMBINED_READ_FLOOR,
 } from "@storytree/library";
 
 const TAG = "probe:combined-dag";
 
 /** The repo root — a PARAMETER (ADR-0246), not a derivation from this file's own location. */
-const repoRoot = resolveRepoRoot({
-  env: process.env[REPO_ROOT_ENV],
-  derived: path.resolve(fileURLToPath(import.meta.url), "..", "..", "..", ".."),
-}).root;
 
-const DECISIONS_DIR = path.join(repoRoot, "docs", "decisions");
 
 /** Cap a listing so one malformed field cannot bury the probe in its own output. */
 function capped(lines: readonly string[], limit = 8): string[] {
@@ -69,11 +62,11 @@ function capped(lines: readonly string[], limit = 8): string[] {
 }
 
 async function main(): Promise<void> {
-  const { adrs, parseErrors } = loadAdrMetas(DECISIONS_DIR);
+  const { adrs, parseErrors } = await loadProbeDecisions(TAG);
   if (parseErrors.length > 0) {
-    // Fail-closed: a proof over a decision log that did not fully parse is a proof over an unknown
+    // Fail-closed: a proof over a decision log that did not fully read is a proof over an unknown
     // population, and a clean verdict there would be a claim about a graph nobody read.
-    console.error(`${TAG} — ${parseErrors.length} decision file(s) failed to parse:`);
+    console.error(`${TAG} — ${parseErrors.length} problem(s) reading the decision log:`);
     for (const line of parseErrors) console.error(`  ${line}`);
     process.exitCode = 1;
     return;
@@ -105,7 +98,7 @@ async function main(): Promise<void> {
     console.log(`  THE JOIN — the ~390 pointers nothing has ever walked`);
     console.log(
       `    ${verdict.crossingEdges} \`doc:\` pointer(s) resolve onto a decision ` +
-        `(${verdict.crossingDanglingEdges} name a decision that is not on disk; ` +
+        `(${verdict.crossingDanglingEdges} name a decision the log does not hold; ` +
         `${verdict.nonDecisionDocPointers} \`doc:\` pointer(s) name some other file)`,
     );
     console.log(
