@@ -4,7 +4,7 @@ tier: capability
 story: library-tech-tree-overlay
 title: "Each ADR's load_bearing boolean + its outbound decision-lineage edge NUMBERS onto the studio wire — a pure, tolerant flat-scan frontmatter parser mirroring parseDocStatus; MACHINE-ONLY, no look leg"
 outcome: "Every ADR's `load_bearing` frontmatter boolean and its outbound decision-lineage edges (the ADR numbers in `supersedes` / `supersedes_in_part` / `amends`) land on the studio wire via a new pure module `apps/studio/server/adrWireSignals.ts` exporting `parseAdrWireSignals(filename, raw) -> { loadBearing, edges }` — a tiny, dependency-free, TOLERANT flat line-scan of the leading YAML frontmatter block (mirroring the existing `parseDocStatus` precedent), emitting ADR NUMBERS ONLY and returning the safe empty result `{loadBearing:false, edges:[]}` on a non-ADR filename / missing / unterminated block / absent fields, NEVER throwing. This is INVISIBLE PLUMBING — pure data on the wire with NO look leg and NO operator-attested UAT leg; nothing renders differently until a later increment consumes it. Its load_bearing read, its edge-set union, its leaf-ADR emptiness, and its tolerance are all machine-witnessed."
-status: proposed
+status: retired
 proof_mode: integration-test
 depends_on: [library-finder]
 decisions: [187, 185, 86, 161, 122]
@@ -39,23 +39,24 @@ proof:
   scope:
     testGlobs: ["apps/studio/server/**/*.test.ts", "apps/studio/src/**/*.test.ts"]
     sourceGlobs: ["apps/studio/server/**/*.ts", "apps/studio/src/**/*.ts"]
-  real:
-    testFile: "apps/studio/server/adrWireSignals.test.ts"
-    sourceFile: "apps/studio/server/adrWireSignals.ts"
-    scope:
-      testGlobs: ["apps/studio/server/adrWireSignals.test.ts"]
-      sourceGlobs: ["apps/studio/server/adrWireSignals.ts"]
-    install: true
-    typecheck:
-      file: pnpm
-      args: ["--filter", "studio", "typecheck"]
-    # The studio suite is vitest, not node:test — run the ONE test file under vitest (cwd = apps/studio).
-    proofCommand:
-      file: pnpm
-      args: ["--filter", "studio", "exec", "vitest", "run", "server/adrWireSignals.test.ts"]
 ---
 
 # The ADR wire signals — load_bearing + decision-lineage edges onto the wire (machine-only plumbing)
+
+> **RETIRED 2026-08-22 — its subject no longer exists (ADR-0403 dec 1).** This capability parsed an
+> ADR's leading YAML FRONTMATTER (`load_bearing`, and the lineage numbers in `supersedes` /
+> `supersedes_in_part` / `amends`) out of a file under `docs/decisions/`, so the studio wire could
+> carry those signals on each `DocMeta`. Decisions are ordinary Library artifacts now: there is no
+> frontmatter to scan, no file to scan it in, and every one of those signals is a TYPED FIELD on the
+> `adr` row that any reader gets without parsing anything. `apps/studio/server/adrWireSignals.ts`
+> and its test were deleted with the directory they read, and the `real:` build binding went with
+> them — a registered test surface that does not exist is exactly what `check:coverage`'s drain
+> counts, and leaving it would have been a dangling claim rather than a record.
+>
+> **Nothing it proved is unproven now**, which is why this is a retirement and not a gap: the five
+> `laws-` contracts below all assert properties of a PARSER, and the thing they guarded against —
+> a frontmatter shape read wrongly or intolerantly — cannot occur where there is no frontmatter.
+> The spec is kept below as the record of what was built (#707) and why it stopped being needed.
 
 **Outcome —** Every ADR's `load_bearing` frontmatter boolean and its outbound decision-lineage edges (the ADR
 NUMBERS in `supersedes` / `supersedes_in_part` / `amends`) land on the studio wire via a new pure module

@@ -41,7 +41,7 @@ test("validateGrounding flags a missing ADR", () => {
   const problems = validateGrounding([{ file: "a.astro", ids: ["ADR-9999"] }], STATUS);
   assert.equal(problems.length, 1);
   assert.equal(problems[0]?.id, "ADR-9999");
-  assert.match(problems[0]?.reason ?? "", /not in docs\/decisions/);
+  assert.match(problems[0]?.reason ?? "", /not in the decision log/);
 });
 
 test("validateGrounding flags a SUPERSEDED ADR (the drift this gate exists for)", () => {

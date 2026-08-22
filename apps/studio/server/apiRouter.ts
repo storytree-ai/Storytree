@@ -59,7 +59,6 @@ import {
 } from './libraryBackend';
 import { HttpError, sendJson, sendJsonValidated } from './httpUtil';
 import { memoizeCorpusWalk } from './corpusMemo';
-import { parseAdrWireSignals } from './adrWireSignals';
 import { handleDb } from './dbControl';
 import { handleDbWake, type DbWaker } from './dbWake';
 import type { CodeStamp } from './codeStamp';
@@ -186,36 +185,9 @@ function stripFrontmatter(markdown: string): string {
   return markdown.slice(end + 4).replace(/^\s*\n/, '');
 }
 
-function deriveGroup(relId: string): string {
-  return relId.startsWith('decisions/') ? 'Decisions' : 'Reference';
-}
 
 const ADR_STATUSES = new Set<AdrDocStatus>(['proposed', 'accepted', 'superseded']);
 
-/**
- * The ADR frontmatter `status` (+ optional `decided`) surfaced on the Library/docs cards (ADR-0037
- * §1) — the observability "catch" a green flip leans on (ADR-0084). A tiny, dependency-free read of
- * the leading YAML block (the studio is browser-bundled and must not import the CLI's
- * `parseAdrFrontmatter`, which pulls in `yaml`/`zod`); the frontmatter format is CI-validated
- * (`adr-health`), so a flat line scan is sufficient. TOLERANT, unlike the CLI parser: a non-ADR
- * filename, a missing/unterminated block, or an unknown status yields `null` (the card shows no chip)
- * — a malformed record must never blank the whole docs list. Pure, exported for the wiring test.
- */
-export function parseDocStatus(
-  filename: string,
-  raw: string,
-): { status: AdrDocStatus; decided?: string } | null {
-  if (!/^\d{4}-.*\.md$/.test(filename)) return null;
-  if (!raw.startsWith('---\n')) return null;
-  const end = raw.indexOf('\n---', 4);
-  if (end === -1) return null;
-  const block = raw.slice(4, end);
-  const statusMatch = block.match(/^status:[ \t]*["']?(proposed|accepted|superseded)["']?[ \t]*$/m);
-  const status = statusMatch?.[1] as AdrDocStatus | undefined;
-  if (!status || !ADR_STATUSES.has(status)) return null;
-  const decidedMatch = block.match(/^decided:[ \t]*["']?(\d{4}-\d{2}-\d{2})["']?/m);
-  return decidedMatch?.[1] ? { status, decided: decidedMatch[1] } : { status };
-}
 
 /**
  * The first prose sentence after the H1 title — the one-line description shown
@@ -237,14 +209,19 @@ function deriveExcerpt(markdown: string): string {
   return '';
 }
 
+/**
+ * Every `.md` under `docsDir`, as `DocMeta[]`. Returns `[]` when the dir does not exist.
+ *
+ * ★ IT NO LONGER PRODUCES A `Decisions` GROUP (ADR-0403 dec 1). Decisions are ordinary Library
+ * artifacts of kind `adr` — the Library surface already serves all of them, with their structured
+ * state, their comments and the whole artifact envelope — so this walker is back to being exactly
+ * what its name says: the `docs/` tree. The ADR-specific machinery it carried (a frontmatter status
+ * read, the load-bearing + lineage wire-signal fold, and the number→id map that resolved lineage
+ * edges to `doc:` pointers) is DELETED rather than left unreachable: `docs/decisions/` does not
+ * exist, so that code could only ever have looked live.
+ */
 export async function listDocs(docsDir: string): Promise<DocMeta[]> {
   const out: DocMeta[] = [];
-  // ADR number → its doc id (`decisions/NNNN-slug.md`), built during the walk so the wire-signal
-  // fold below can resolve each ADR's lineage-edge NUMBERS to `doc:` pointers (ADR-0187 dec 3).
-  const adrNumToId = new Map<number, string>();
-  // Per-Decisions-doc outbound edge NUMBERS, stashed during the walk and resolved after it — the
-  // number→id map is only complete once every ADR on disk has been walked.
-  const edgeNumbersById = new Map<string, number[]>();
   async function walk(dir: string): Promise<void> {
     if (!existsSync(dir)) return;
     for (const ent of await fs.readdir(dir, { withFileTypes: true })) {
@@ -253,55 +230,18 @@ export async function listDocs(docsDir: string): Promise<DocMeta[]> {
         await walk(full);
       } else if (ent.isFile() && ent.name.endsWith('.md')) {
         const relId = path.relative(docsDir, full).split(path.sep).join('/');
-        const raw = await fs.readFile(full, 'utf8');
-        const content = stripFrontmatter(raw);
-        const group = deriveGroup(relId);
-        const meta: DocMeta = {
+        const content = stripFrontmatter(await fs.readFile(full, 'utf8'));
+        out.push({
           id: relId,
           title: deriveTitle(content, ent.name),
-          group,
+          group: 'Reference',
           excerpt: deriveExcerpt(content),
-        };
-        // Only Decisions docs carry frontmatter signals.
-        if (group === 'Decisions') {
-          // The ADR status chip (ADR-0037), surfaced for the card.
-          const fm = parseDocStatus(ent.name, raw);
-          if (fm) {
-            meta.status = fm.status;
-            if (fm.decided) meta.decided = fm.decided;
-          }
-          // The overview's load-bearing + lineage-edge wire signals (ADR-0187 dec 3,
-          // library-adr-wire-signals). `loadBearing` folds in now; the edge NUMBERS are stashed and
-          // resolved to `doc:` pointers after the walk (once every ADR number is known).
-          const wire = parseAdrWireSignals(ent.name, raw);
-          if (wire.loadBearing) meta.loadBearing = true;
-          if (wire.edges.length) edgeNumbersById.set(relId, wire.edges);
-          const num = Number.parseInt(ent.name.slice(0, 4), 10);
-          if (Number.isFinite(num)) adrNumToId.set(num, relId);
-        }
-        out.push(meta);
+        });
       }
     }
   }
   await walk(docsDir);
-  // Resolve each ADR's outbound lineage-edge NUMBERS to `doc:decisions/NNNN-slug.md` pointers now
-  // that the full number→id map is known; drop any number that names no ADR on disk (tolerant). The
-  // overview's `resolveRef` strips the `doc:` prefix and matches the bare id, so this pointer shape
-  // resolves against the corpus node ids (ADR-0187 dec 3).
-  for (const meta of out) {
-    const nums = edgeNumbersById.get(meta.id);
-    if (!nums) continue;
-    const refs = nums
-      .map((n) => adrNumToId.get(n))
-      .filter((id): id is string => id !== undefined)
-      .map((id) => `doc:${id}`);
-    if (refs.length) meta.references = refs;
-  }
-  // Decisions first (ADR order by filename), then reference docs alphabetically.
-  return out.sort((a, b) => {
-    if (a.group !== b.group) return a.group === 'Decisions' ? -1 : 1;
-    return a.id.localeCompare(b.id);
-  });
+  return out.sort((a, b) => a.id.localeCompare(b.id));
 }
 
 /**

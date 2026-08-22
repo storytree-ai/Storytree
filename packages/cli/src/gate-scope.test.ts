@@ -28,6 +28,10 @@ import { gitLines, localAffectedScope, renderScopeNotice, scopeGatePlan } from "
 
 /** A representative workspace slice — names/dirs mirror the real repo shape. */
 const PROJECTS: WorkspaceProject[] = [
+  // `@storytree/app-surface` is here because the `docs/` reader map names it; the map fails WIDE on
+  // a project the workspace does not hold, so omitting it would make this fixture read `full` for a
+  // reason that has nothing to do with what each case is testing.
+  { name: "@storytree/app-surface", dir: "packages/app-surface" },
   { name: "@storytree/cli", dir: "packages/cli" },
   { name: "@storytree/drive", dir: "packages/drive" },
   { name: "@storytree/library", dir: "packages/library" },
@@ -72,11 +76,14 @@ test("the LOCAL gate honours CI's reader-map NARROWING too — D2 cuts both ways
   // would still pass every assertion above while quietly disagreeing with CI about the one path
   // ADR-0394 narrows — and a local gate that runs MORE than CI is the failure that hides, because
   // it never reds anything. So the narrowing is pinned here, not only in `ci-affected.test.ts`.
-  const scope = localAffectedScope({ ok: true, files: ["docs/decisions/0394-a-root-path.md"] }, PROJECTS);
+  // The path this pins used to be `docs/decisions/**`; that entry retired with the directory
+  // (ADR-0403 dec 1), so the narrowing is pinned on the entry that survived it — `docs/`, which is
+  // where a decision-shaped path now falls through to anyway.
+  const scope = localAffectedScope({ ok: true, files: ["docs/research/a-note.md"] }, PROJECTS);
   assert.equal(scope.mode, "affected");
   assert.deepEqual(
     scope.mode === "affected" ? scope.projects : [],
-    ["@storytree/cli", "@storytree/drive"],
+    ["@storytree/app-surface", "@storytree/cli", "@storytree/drive"],
   );
 
   // ADR-0399 widened the map, and the widening has to cut both ways here too: a guidance
@@ -89,7 +96,7 @@ test("the LOCAL gate honours CI's reader-map NARROWING too — D2 cuts both ways
   );
   assert.equal(guidance.mode, "affected");
   assert.deepEqual(guidance.mode === "affected" ? guidance.projects : [], ["@storytree/cli"]);
-  assert.match(renderScopeNotice(scope), /^scope: AFFECTED — @storytree\/cli, @storytree\/drive /);
+  assert.match(renderScopeNotice(scope), /^scope: AFFECTED — @storytree\/app-surface, @storytree\/cli, @storytree\/drive /);
 });
 
 test("an untracked file counts as changed — a session gates mid-flight, before it commits", () => {

@@ -3,7 +3,7 @@
     "kind": "definition",
     "id": "adr",
     "title": "ADR",
-    "oneLine": "An Architecture Decision Record under `docs/decisions/`, capturing a cross-cutting decision."
+    "oneLine": "An Architecture Decision Record — one cross-cutting decision, recorded as an ordinary Library artifact of kind `adr` (id `adr-NNNN`)."
   },
   {
     "kind": "definition",

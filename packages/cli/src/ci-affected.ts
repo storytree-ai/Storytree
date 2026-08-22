@@ -79,11 +79,17 @@ interface RootPathReaders {
  * which UNDER-SELECT here — an under-selection merges untested code, so it is the one direction that
  * must not be guessed. The reader set was measured at the FILESYSTEM layer: every `node:fs` read was
  * wrapped via `NODE_OPTIONS=--import`, `pnpm -r --no-bail test` was run across all 25 projects, and
- * every read resolving inside the real `docs/decisions` tree was logged with its owning process.
- * Two packages appeared and no others:
+ * every read resolving inside the real docs tree was logged with its owning process.
  *
- *   - `@storytree/cli`   — `adr-health.test.ts` (the `adr-number-unique` gate and the frontmatter
- *                          scans), `cli.test.ts`, and `story-build.test.ts`.
+ * ⚠ THE `docs/decisions/` ENTRY IS GONE, and its absence is the decision rather than an omission
+ * (ADR-0403 dec 1, whose Consequences named this). The directory no longer exists: decisions are rows,
+ * so a decision edit is not a file change and affects no test scope at all. What remains mapped is
+ * `docs/`, which now covers the whole tree — the measurement below is that tree's, and the two
+ * projects it names still read it. Historical, kept because it is what a re-measurement is compared
+ * against: the decisions entry named `@storytree/cli` and `@storytree/drive`.
+ *
+ *   - `@storytree/cli`   — `cli.test.ts`, `story-build.test.ts` (and, until the decision log moved,
+ *                          `adr-health.test.ts`'s real-tree gate).
  *   - `@storytree/drive` — `chain-claims-drive.test.ts`, which never names the path: it calls
  *                          `storyBuild` over a tmp fixture, and `story-build.ts` resolves
  *                          `loadAdrMetas(rootDir/docs/decisions)` against the REAL repo root.
@@ -123,12 +129,6 @@ interface RootPathReaders {
  * ADDING AN ENTRY IS AN ADR-0394 AMENDMENT, and it costs a measurement, not an argument.
  */
 const ROOT_PATH_READERS: readonly RootPathReaders[] = [
-  {
-    prefix: "docs/decisions/",
-    projects: ["@storytree/cli", "@storytree/drive"],
-    reason:
-      "docs/decisions/** is read at test time by cli (the adr-health gates) and drive (story-build's ADR scan), and by no other project",
-  },
   {
     prefix: "docs/",
     projects: ["@storytree/cli", "@storytree/drive", "@storytree/app-surface"],

@@ -88,22 +88,18 @@ export interface AdrCommandOpts {
 // `question new` derive their ids with the same function `adr new` derives a filename slug with, and
 // they no longer share a building. Re-exported here so every existing `./adr.js` importer is
 // unchanged.
-import { kebabSlug } from "@storytree/library";
+import { adrDocId, kebabSlug } from "@storytree/library";
 export { kebabSlug };
 
-/** The highest ADR number on disk (0 if none/unreadable) — the reconciliation floor for the allocator. */
-export function maxAdrNumber(decisionsDir: string): number {
-  let max = 0;
-  try {
-    for (const f of readdirSync(decisionsDir)) {
-      const m = /^(\d{4})-.*\.md$/.exec(f);
-      if (m && m[1] !== undefined) max = Math.max(max, Number(m[1]));
-    }
-  } catch {
-    /* dir missing → 0 */
-  }
-  return max;
-}
+/*
+ * `maxAdrNumber` stood here: a `readdirSync` of `docs/decisions` behind the offline `max + 1`
+ * allocation fallback. It went with the directory (ADR-0403 dec 1). The fallback went with it and
+ * is NOT replaced by a store-backed equivalent, deliberately — it existed to unblock a session with
+ * no database, and under ADR-0302 D2's online-or-nothing posture a session with no database cannot
+ * write the decision either. Reserving a number it could not then use would be a number burned for
+ * nothing. `adr new` / `adr next` refuse without `--pg` and say so.
+ */
+
 
 /** PURE: parse a `--supersedes 42,43` / `--amends 7` value into a positive-int list (drops junk). */
 export function parseEdges(raw: string | undefined): number[] {
@@ -181,15 +177,18 @@ export function parallelAllocationNote(missing: readonly number[]): ParallelAllo
     lines: [
       "",
       one
-        ? `⚠️  ADR-${listed} was allocated by another session and is NOT in this checkout.`
-        : `⚠️  ADR-${listed}${more} were allocated by other sessions and are NOT in this checkout.`,
+        ? `⚠️  ADR-${listed} was allocated by another session.`
+        : `⚠️  ADR-${listed}${more} were allocated by other sessions.`,
       `    A decision written in parallel can CONTRADICT yours. If ${one ? "it touches" : "any of them touches"} your area,`,
-      "    READ it BEFORE you write your Decision — this same overlap surfaces later as a CI merge",
-      "    conflict, where resolving the hunks silently overrides an accepted decision.",
+      "    READ it BEFORE you write your Decision.",
+      "",
+      "    Since ADR-0403 dec 1 they are ROWS, so reading one is immediate and needs no archaeology —",
+      "    a sibling's decision is visible the moment they write it, where it used to sit on their",
+      "    branch until merge and surface as a conflict whose hunks silently overrode an accepted",
+      "    decision. What survives is the GAP: a number can be reserved and not yet written.",
     ],
     next: [
-      "git fetch origin   (the contradicting ADR is often still on its own branch, not yet on main)",
-      `git log --all --oneline -- "docs/decisions/${pad(first)}-*"   then   git show <sha>:<path>`,
+      `storytree library artifact ${adrDocId(first)}   (an empty answer means reserved, not yet written)`,
     ],
   };
 }
@@ -261,12 +260,32 @@ export function scaffold(
   return fm.join("\n") + body.join("\n");
 }
 
-/** Display path for the scaffolded file (conventional location, regardless of the temp dir in tests). */
-function displayPath(decisionsDir: string, base: string): string {
-  // Show docs/decisions/<file> when the dir ends in that; otherwise the dir + file (tests).
-  return /[\\/]docs[\\/]decisions$/.test(decisionsDir)
-    ? `docs/decisions/${base}`
-    : path.join(decisionsDir, base);
+/**
+ * The highest decision number the STORE holds — the allocator's `localMax` input.
+ *
+ * It used to be the highest number on disk. Same role, same guarantee: the allocator reserves
+ * `max(stored, localMax) + 1`, so passing a stale or zero value can only ever cost a gap, never a
+ * collision. Zero when the log cannot be read, which is safe for exactly that reason.
+ */
+async function storeMaxAdrNumber(deps: AdrCommandDeps): Promise<number> {
+  if (deps.roundTrip === undefined) return 0;
+  const { adrs } = await loadTitledAdrMetasFromStore(deps.roundTrip.store);
+  return adrs.reduce((max, a) => (a.number > max ? a.number : max), 0);
+}
+
+/** The refusal both allocating verbs share once there is no offline path left to fall back to. */
+function needsPg(verb: string): Envelope {
+  return {
+    ok: false,
+    body: [
+      `storytree adr ${verb} needs --pg.`,
+      "",
+      "The number is reserved transactionally from the store (ADR-0050) and the decision itself is a",
+      "ROW there (ADR-0403 dec 1). The old offline `max-on-disk + 1` fallback read `docs/decisions/`,",
+      "which no longer exists — and reserving a number a session cannot then write would burn it.",
+    ].join("\n"),
+    next: ["pnpm db:up", `storytree adr ${verb} --title "..." --pg`],
+  };
 }
 
 async function adrNew(opts: AdrCommandOpts, deps: AdrCommandDeps): Promise<Envelope> {
@@ -282,94 +301,74 @@ async function adrNew(opts: AdrCommandOpts, deps: AdrCommandDeps): Promise<Envel
   if (!slug) {
     return { ok: false, body: `could not derive a slug from "${title}" — use letters/numbers.`, next: [] };
   }
-  const localMax = maxAdrNumber(deps.decisionsDir);
+  if (!deps.allocator) return needsPg("new");
+  const localMax = await storeMaxAdrNumber(deps);
   const edges = { supersedes: parseEdges(opts.supersedes), amends: parseEdges(opts.amends) };
 
   let n: number;
-  let reserved: boolean;
-  if (deps.allocator) {
+  const reserved = true;
+  {
     try {
       const r = await deps.allocator.allocate({ localMax, slug, branch: deps.branch, actor: deps.actor });
       n = r.number;
-      reserved = true;
     } catch (e) {
       return {
         ok: false,
         body:
           `couldn't reserve an ADR number from the DB: ${(e as Error).message}\n` +
-          "bring the store up (pnpm db:up), or omit --pg to use the offline max+1 fallback.",
+          "bring the store up (pnpm db:up) and try again.",
         next: ["pnpm db:up", 'storytree adr new --title "..." --pg'],
       };
     }
-  } else {
-    n = localMax + 1;
-    reserved = false;
   }
 
-  const base = `${pad(n)}-${slug}.md`;
-  const file = path.join(deps.decisionsDir, base);
-  if (existsSync(file)) {
-    return {
-      ok: false,
-      body: `${base} already exists — pick a different title, or edit the existing file.`,
-      next: [`open ${displayPath(deps.decisionsDir, base)}`],
-    };
-  }
   // --decided (ADR-0110): the owner directed this in conversation → born accepted with today's date.
   const decided = opts.decided === true ? deps.today : undefined;
   const scaffolded = scaffold(n, title, edges, decided, opts.arc?.trim() || undefined);
-  writeFileSync(file, scaffolded, "utf8");
 
-  // DUAL-WRITE, and it is temporary by construction (`decision-log-home-arc` inc 05 removes the file
-  // half). Decisions are rows now (ADR-0403 dec 1) and `adr list` reads the store, so a scaffold that
-  // wrote only the file would be INVISIBLE to the surface every session orients on — the new decision
-  // would exist and not appear, which is worse than either source alone.
+  // ONE WRITE NOW, and the dual-write that stood here is gone with the files (ADR-0403 dec 1). It
+  // scaffolded `docs/decisions/NNNN-slug.md` AND the row, because `adr list` read rows while the
+  // files were still canonical for other readers; there is no second source left to keep in step.
+  const id = adrDocId(n);
   const rowWrite = await scaffoldRow(n, scaffolded, deps);
+  if (rowWrite.failed) {
+    return {
+      ok: false,
+      body: [
+        `ADR-${pad(n)} was RESERVED but the decision was not written: ${rowWrite.reason}`,
+        "",
+        "The number is spent either way — reservation is transactional and does not roll back — so",
+        "re-running `adr new` takes the NEXT number and leaves a gap. Fix the store and author the",
+        `decision at ${id} instead, or accept the gap.`,
+      ].join("\n"),
+      next: ["pnpm db:up", `storytree library artifact ${id} --pg`],
+    };
+  }
 
-  const rel = displayPath(deps.decisionsDir, base);
   const lines = [
-    `ADR-${pad(n)} ${reserved ? "reserved in the DB" : "allocated OFFLINE (max+1)"} → ${rel}`,
+    `ADR-${pad(n)} reserved in the DB and written as ${id}`,
     "",
     `# ADR-${pad(n)}: ${title}`,
     decided !== undefined
-      ? `Scaffolded ACCEPTED (owner-directed, decided ${decided} — ADR-0110) — fill in Context / Decision / Consequences, then commit.`
-      : "Scaffolded with proposed status — fill in Status / Context / Decision / Consequences, then commit.",
+      ? `Scaffolded ACCEPTED (owner-directed, decided ${decided} — ADR-0110) — fill in Context / Decision / Consequences.`
+      : "Scaffolded with proposed status — fill in Status / Context / Decision / Consequences.",
+    "",
+    "Author it as a whole document — pull it to a file, edit it with ordinary tools, push it back:",
+    `  storytree adr pull ${String(n)} --out ${id}.md`,
+    `  storytree adr push ${String(n)} --file ${id}.md --pg`,
   ];
-  if (!reserved) {
-    lines.push(
-      "",
-      "⚠️  OFFLINE: this number was NOT reserved — a parallel session could pick the same one.",
-      "    Re-run with --pg when the DB is up (pnpm db:up), or rely on the CI dup-number gate to",
-      "    catch a collision before merge (it will fail the PR; just bump the number).",
-    );
-  }
-  // The parallel-allocation heads-up. Only ever non-empty on the RESERVED path — offline takes
-  // `localMax + 1`, which leaves no gap by construction, so the two warnings never both fire.
   const parallel = parallelAllocationNote(parallelAllocations(localMax, n));
   lines.push(...parallel.lines);
-  lines.push(...rowWrite);
   return {
     ok: true,
     body: lines.join("\n"),
-    next: [
-      `open ${rel}`,
-      ...parallel.next,
-      ...(reserved ? [] : ['pnpm db:up   then   storytree adr next --pg   (reserve atomically next time)']),
-    ],
+    next: [`storytree adr pull ${String(n)} --out ${id}.md`, ...parallel.next],
   };
 }
 
 async function adrNext(deps: AdrCommandDeps): Promise<Envelope> {
-  const localMax = maxAdrNumber(deps.decisionsDir);
-  if (!deps.allocator) {
-    return {
-      ok: false,
-      body:
-        `${pad(localMax + 1)}  — OFFLINE peek (max-on-disk + 1), NOT reserved.\n` +
-        "another session could take it. Run with --pg (after pnpm db:up) to reserve it atomically.",
-      next: ["pnpm db:up", "storytree adr next --pg"],
-    };
-  }
+  if (!deps.allocator) return needsPg("next");
+  const localMax = await storeMaxAdrNumber(deps);
   try {
     const r = await deps.allocator.allocate({
       localMax,
@@ -383,7 +382,8 @@ async function adrNext(deps: AdrCommandDeps): Promise<Envelope> {
     return {
       ok: true,
       body: [
-        `ADR-${pad(r.number)} reserved. Author docs/decisions/${pad(r.number)}-<slug>.md (or use \`adr new --title\`).`,
+        `ADR-${pad(r.number)} reserved — nothing is written yet. \`adr new --title\` scaffolds the ` +
+          `decision at ${adrDocId(r.number)}; this verb only holds the number.`,
         ...parallel.lines,
       ].join("\n"),
       next: ['storytree adr new --title "..." --pg', ...parallel.next],
@@ -557,15 +557,9 @@ async function scaffoldRow(
   n: number,
   scaffolded: string,
   deps: AdrCommandDeps,
-): Promise<string[]> {
-  const reconcile = "npx tsx packages/library/src/store/load-decisions.ts";
+): Promise<{ failed: false } | { failed: true; reason: string }> {
   if (deps.roundTrip === undefined || !deps.roundTrip.writable) {
-    return [
-      "",
-      "⚠️  the FILE was written but the STORE ROW was not (no --pg). Decisions are rows since",
-      "    ADR-0403, and `storytree adr list` reads the store — so this decision will not appear",
-      `    there until it is reconciled:  ${reconcile}`,
-    ];
+    return { failed: true, reason: "this invocation is read-only (no --pg)" };
   }
   try {
     const { parseAdrDocument, adrDocId, adrDescriptionOf } = await import("@storytree/library/adr-doc");
@@ -596,13 +590,9 @@ async function scaffoldRow(
       doc: doc as Record<string, unknown>,
       actor: deps.actor ?? defaultCliActor(),
     });
-    return ["", `also written to the store as ${id} — \`storytree adr list\` will show it.`];
+    return { failed: false };
   } catch (e) {
-    return [
-      "",
-      `⚠️  the FILE was written but the STORE ROW FAILED: ${(e as Error).message}`,
-      `    \`storytree adr list\` reads the store, so reconcile before relying on it:  ${reconcile}`,
-    ];
+    return { failed: true, reason: (e as Error).message };
   }
 }
 

@@ -328,7 +328,6 @@
       "apps/studio/server/dev*.ts": "dev-server-persistence-backbone",
       "apps/studio/server/deriveOfflineCorpus.ts": "seed-library-corpus",
       "apps/studio/server/libraryBackend.ts": "browse-library",
-      "apps/studio/server/adrWireSignals.ts": "library-adr-wire-signals",
       "apps/studio/server/storeDoorApi.ts": "event-sourced-store-seam",
       "apps/studio/server/writeBroker.ts": "write-broker",
       "apps/studio/server/guestPolicy.ts": "member-suggest-write-policy",

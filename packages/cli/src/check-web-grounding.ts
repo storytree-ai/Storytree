@@ -17,7 +17,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { loadAdrMetas } from "@storytree/drive";
+import { loadTitledAdrMetasFromStore } from "@storytree/drive";
 
 import { GATE_SKIP_EXIT_CODE } from "./gate-runner.js";
 
@@ -79,7 +79,7 @@ export function validateGrounding(
       const num = Number(m[1]);
       const status = adrStatusByNumber.get(num);
       if (status === undefined) {
-        problems.push({ file: ref.file, id, reason: `references ADR-${pad(num)}, which is not in docs/decisions/` });
+        problems.push({ file: ref.file, id, reason: `references ADR-${pad(num)}, which is not in the decision log` });
       } else if (status === "superseded") {
         problems.push({
           file: ref.file,
@@ -106,7 +106,10 @@ function walkTextFiles(dir: string, base: string, out: string[] = []): string[] 
   return out;
 }
 
-function main(): void {
+// ASYNC since ADR-0403 dec 1: the decision index is a store read now. The skip branch still
+// decides and prints BEFORE any connection is opened, so an absent `web/` submodule can never
+// be reported as a database failure, or the reverse.
+async function main(): Promise<void> {
   // packages/cli/src/check-web-grounding.ts → four dirs up (the build-claude-md.ts pattern).
   const repoRoot = path.resolve(fileURLToPath(import.meta.url), "..", "..", "..", "..");
   const webRoot = path.join(repoRoot, "web");
@@ -133,16 +136,51 @@ function main(): void {
     process.exit(GATE_SKIP_EXIT_CODE);
   }
 
-  const { adrs, parseErrors } = loadAdrMetas(path.join(repoRoot, "docs", "decisions"));
-  if (parseErrors.length > 0) {
-    // adr-health owns ADR-frontmatter health; here a parse failure just means we can't trust the index.
+  // ★ THE DECISION INDEX COMES FROM THE STORE (ADR-0403 dec 1), which makes this the first gate rung
+  // with BOTH a legitimate skip and a hard DB dependency — and the two must stay distinguishable.
+  // The skip above fires on an absent `web/` submodule and is a real local state; an unreachable
+  // store is a FAILURE and says so. Collapsing them would make a DB outage read as the familiar
+  // submodule skip, which is the one confusion this ordering exists to prevent: the skip is decided
+  // and printed BEFORE the store is dialled, so a skip can never be a disguised connection failure.
+  const { createPool, closePool, PgLibraryStore } = await import("@storytree/library/store");
+  let handle: Awaited<ReturnType<typeof createPool>>;
+  try {
+    handle = await createPool();
+  } catch (err) {
     console.error(
-      "check:web-grounding — could not parse the ADR index (fix adr-frontmatter first):\n  " +
-        parseErrors.join("\n  "),
+      "check:web-grounding — could not open the decision log, which lives in the store since " +
+        `ADR-0403: ${err instanceof Error ? err.message : String(err)}\n` +
+        "  This is a FAILURE, not the submodule skip above: the references were never checked.\n" +
+        "  Bring the DB up (pnpm db:up) and re-run.",
     );
     process.exit(1);
   }
-  const statusByNumber = new Map(adrs.map((a) => [a.number, a.status]));
+  let statusByNumber: Map<number, string>;
+  try {
+    const { adrs, parseErrors, unreadable } = await loadTitledAdrMetasFromStore(
+      new PgLibraryStore(handle.pool),
+    );
+    if (unreadable || adrs.length === 0) {
+      // Zero decisions is never a clean index: it means an unmigrated or wrong database, and
+      // validating every web reference against an empty index would pass nothing and fail everything.
+      console.error(
+        "check:web-grounding — the decision index is empty or unreadable, so no reference could be " +
+          `checked:\n  ${parseErrors.join("\n  ")}`,
+      );
+      process.exit(1);
+    }
+    if (parseErrors.length > 0) {
+      // adr-health owns decision health; here a parse failure just means we can't trust the index.
+      console.error(
+        "check:web-grounding — could not read the whole decision index (fix adr-health first):\n  " +
+          parseErrors.join("\n  "),
+      );
+      process.exit(1);
+    }
+    statusByNumber = new Map(adrs.map((a) => [a.number, a.status]));
+  } finally {
+    await closePool(handle.pool, handle.connector);
+  }
 
   const refs: GroundingRef[] = [];
   for (const rel of walkTextFiles(webSrc, webRoot)) {
@@ -175,4 +213,4 @@ function main(): void {
 // pure functions above.
 const invokedDirectly =
   process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
-if (invokedDirectly) main();
+if (invokedDirectly) await main();
