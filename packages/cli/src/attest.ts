@@ -193,9 +193,9 @@ export async function attestCommand(
     witness,
     signer: resolved.signer,
     at: deps.now().toISOString(),
-    ...(opts.note !== undefined ? { note: opts.note } : {}),
-    ...(relayedBy !== undefined ? { relayedBy } : {}),
   };
+  if (opts.note !== undefined) doc.note = opts.note;
+  if (relayedBy !== undefined) doc.relayedBy = relayedBy;
 
   const saved = await deps.store.record(doc);
   const signerRole = saved.witness === "human" ? "the operator who observed" : "the machine runner";

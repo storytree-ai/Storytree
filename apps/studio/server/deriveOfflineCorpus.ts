@@ -57,20 +57,23 @@ export async function deriveOfflineAssets(units: KnowledgeUnitLike[]): Promise<G
   const { renderBody, libraryTemplates, hasDependsOnKey, readDependsOnPointers } = await import('@storytree/library');
 
   // renderBody is driven by KIND_SPECS off the structured fields — the same render build-corpus used.
-  const renderKnowledgeAsset = (doc: KnowledgeUnitLike): GuidanceAsset => ({
-    id: doc.id,
-    category: doc.kind as GuidanceAsset['category'],
-    title: doc.title,
-    description: doc.description,
-    body: renderBody(doc as Parameters<typeof renderBody>[0]),
-    references: doc.references ?? [],
+  const renderKnowledgeAsset = (doc: KnowledgeUnitLike): GuidanceAsset => {
+    const asset: GuidanceAsset = {
+      id: doc.id,
+      category: doc.kind as GuidanceAsset['category'],
+      title: doc.title,
+      description: doc.description,
+      body: renderBody(doc as Parameters<typeof renderBody>[0]),
+      references: doc.references ?? [],
+      createdAt: doc.createdAt ?? '',
+      updatedAt: doc.updatedAt ?? '',
+    };
     // Absent-by-default, never `?? []` — an empty array would claim "authored, and it stands on
     // nothing", which is a different fact from "carries no authored edge" (ADR-0223's optional rule).
-    ...(hasDependsOnKey(doc) ? { dependsOn: readDependsOnPointers(doc) } : {}),
-    ...(doc.provenance !== undefined ? { provenance: doc.provenance } : {}),
-    createdAt: doc.createdAt ?? '',
-    updatedAt: doc.updatedAt ?? '',
-  });
+    if (hasDependsOnKey(doc)) asset.dependsOn = readDependsOnPointers(doc);
+    if (doc.provenance !== undefined) asset.provenance = doc.provenance;
+    return asset;
+  };
 
   const knowledge = units.map(renderKnowledgeAsset);
   const templates: GuidanceAsset[] = libraryTemplates().map((t) => ({

@@ -30,18 +30,21 @@ const cap = (id: string, dependsOn: string[] = []) => ({
 const story = (
   id: string,
   opts: { building?: boolean; dependsOn?: string[]; consumedBy?: string[] } = {},
-): TreeStory => ({
-  id,
-  title: id,
-  outcome: '',
-  status: 'mapped',
-  proofMode: 'red-green',
-  uatWitness: 'machine',
-  dependsOn: opts.dependsOn ?? [],
-  consumedBy: opts.consumedBy ?? [],
-  ...(opts.building ? { building: true } : {}),
-  capabilities: [cap(`${id}-a`), cap(`${id}-b`)],
-});
+): TreeStory => {
+  const s: TreeStory = {
+    id,
+    title: id,
+    outcome: '',
+    status: 'mapped',
+    proofMode: 'red-green',
+    uatWitness: 'machine',
+    dependsOn: opts.dependsOn ?? [],
+    consumedBy: opts.consumedBy ?? [],
+    capabilities: [cap(`${id}-a`), cap(`${id}-b`)],
+  };
+  if (opts.building) s.building = true;
+  return s;
+};
 
 // A small graph: `library` is a building hub; `cli` and `alpha` both depend on it, and
 // `beta` depends on `alpha` (a NON-building edge between two normal islands). This lets us

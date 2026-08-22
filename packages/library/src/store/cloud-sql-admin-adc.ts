@@ -9,6 +9,7 @@ import { GoogleAuth } from "google-auth-library";
 import {
   createCloudSqlAdmin,
   type CloudSqlAdmin,
+  type CloudSqlAdminDeps,
   type HttpResponse,
 } from "./cloud-sql-admin.js";
 
@@ -37,15 +38,16 @@ async function httpRequest(
   token: string,
   body: string,
 ): Promise<HttpResponse> {
-  const res = await fetch(url, {
+  const init: RequestInit = {
     method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      ...(method === "PATCH" ? { "Content-Type": "application/json" } : {}),
-    },
-    ...(method === "PATCH" && body !== "" ? { body } : {}),
+    headers:
+      method === "PATCH"
+        ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }
+        : { Authorization: `Bearer ${token}` },
     signal: AbortSignal.timeout(15_000),
-  });
+  };
+  if (method === "PATCH" && body !== "") init.body = body;
+  const res = await fetch(url, init);
   return { status: res.status, body: await res.text() };
 }
 
@@ -63,11 +65,12 @@ export interface AdcCloudSqlAdminOptions {
  * just injects the real effects. Replaces the gcloud subprocess on the db-control hot path (ADR-0063).
  */
 export function createAdcCloudSqlAdmin(opts: AdcCloudSqlAdminOptions): CloudSqlAdmin {
-  return createCloudSqlAdmin({
+  const deps: CloudSqlAdminDeps = {
     fetchToken: adcTokenFetcher(),
     request: httpRequest,
     project: opts.project,
     instance: opts.instance,
-    ...(opts.baseUrl !== undefined ? { baseUrl: opts.baseUrl } : {}),
-  });
+  };
+  if (opts.baseUrl !== undefined) deps.baseUrl = opts.baseUrl;
+  return createCloudSqlAdmin(deps);
 }

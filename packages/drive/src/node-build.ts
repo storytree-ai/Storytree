@@ -30,11 +30,14 @@ import type {
   AddDepsGroup,
   BackstopOutcome,
   BuildWorktree,
+  CreateBuildWorktreeOptions,
+  LiveSmokeResolveOptions,
   NodeBuildConfig,
   NodeSpec,
   PromotionResult,
   ProveResult,
   RealProofConfig,
+  RealResolveOptions,
   ResolveOptions,
 } from "@storytree/orchestrator";
 import type { LeafPhasePrompts } from "@storytree/orchestrator";
@@ -56,6 +59,7 @@ import { openCorpusStore } from "./corpus-store.js";
 import { liveBuildProgress, silentBuildProgress } from "./build-progress.js";
 import type { BuildProgress } from "./build-progress.js";
 import { phaseActivityWriter, withPhaseReport } from "./phase-activity.js";
+import type { PhaseActivityTarget } from "./phase-activity.js";
 import {
   decideClaimExit,
   displacedClaimNotice,
@@ -65,12 +69,12 @@ import { effectiveVerdictStore, ensureLiveDb } from "./db-control.js";
 import type { EnsureDbResult } from "./db-control.js";
 import type { Envelope } from "./envelope.js";
 import { emitWisp, gateEmitWisp } from "./wisp-smoke.js";
-import type { EmitWispDeps } from "./wisp-smoke.js";
+import type { EmitWispArgs, EmitWispDeps, GateEmitWispOpts } from "./wisp-smoke.js";
 import { resolveReport } from "./resolve-report.js";
 import { deriveIdentity } from "./noticeboard.js";
 import type { SessionIdentity } from "./noticeboard.js";
 import { appendSliceUsage } from "./usage.js";
-import type { LiveRunInfo } from "./usage.js";
+import type { LiveRunInfo, UsageRunIds } from "./usage.js";
 import { staleExistenceClaimRefusal } from "./stale-existence-claim.js";
 
 /**
@@ -682,6 +686,19 @@ export type DriveNodeResult =
   | { resolved: true; result: ProveResult; liveAuthor?: LiveAuthor }
   | { resolved: false; reason: string; registered: string[] };
 
+/**
+ * The live-leaf knobs {@link driveNode} threads into whichever {@link ResolveOptions} arm it
+ * resolves — the common subset of `LiveSmokeResolveOptions` and `RealResolveOptions`. Built once
+ * and spread LAST into the arm, so a knob the caller set overrides the arm's own defaults.
+ * Each field is present only when the caller supplied it (omission, never `undefined`).
+ */
+interface SdkLeafOptions {
+  runtime?: LiveRuntime;
+  model?: string;
+  maxBudgetUsd?: number;
+  maxTurns?: number;
+}
+
 function scriptedMultifileAuthor(workspace: string): PhaseAuthor {
   return {
     async author(phase) {
@@ -721,61 +738,65 @@ export async function driveNode(spec: NodeSpec, args: DriveNodeArgs): Promise<Dr
         fs.writeFile(path.join(workspace, MULTIFILE_FORMAT_REL), MULTIFILE_BASE_FORMAT, "utf8"),
       ]);
     }
-    await args.store.appendEvent({
-      ...workEvent(
-        { unitId: spec.id, event: "building", runId: args.runId, tier: spec.tier },
-        args.signer,
-      ),
-      // ADR-0350 D1/D2: the claim that authorised this write, named at emission or not at all.
-      ...(args.claimEventSeq !== undefined
-        ? { causedBy: { stream: "claim_event", seq: args.claimEventSeq } }
-        : {}),
-    });
-    const sdkOpts = {
-      ...(args.runtime !== undefined ? { runtime: args.runtime } : {}),
-      ...(args.model !== undefined ? { model: args.model } : {}),
-      ...(args.budgetUsd !== undefined ? { maxBudgetUsd: args.budgetUsd } : {}),
-      ...(args.maxTurns !== undefined ? { maxTurns: args.maxTurns } : {}),
-    };
-    const resolveOptions: ResolveOptions = multifileSmoke
-      ? {
-          // This is intentionally the REAL resolver over a disposable temp workspace: unlike the
-          // ordinary add(2,3) live smoke, IMPLEMENT therefore carries the fixture's two literal
-          // source paths into Codex's exact promotion manifest. The synthetic tree seam prevents a
-          // smoke from committing or promoting anything beyond this temp directory.
-          mode: "real",
-          workspace,
-          store: args.store,
-          runId: args.runId,
-          signerInputs: { flag: args.signer },
-          treeState: async () => ({
-            commitSha: `${args.mode}-synthetic-multifile-tree`,
-            clean: true,
-          }),
-          ...(args.mode === "dry-run" ? { authorOverride: scriptedMultifileAuthor(workspace) } : {}),
-          ...(args.mode === "live-smoke" && args.runtime !== undefined
-            ? { runtime: args.runtime }
-            : {}),
-          ...(args.phasePrompts !== undefined ? { phasePrompts: args.phasePrompts } : {}),
-          ...sdkOpts,
-        }
-      : args.mode === "live-smoke"
-        ? {
-            mode: "live-smoke",
-            workspace,
-            store: args.store,
-            runId: args.runId,
-            signerInputs: { flag: args.signer },
-            ...(args.phasePrompts !== undefined ? { phasePrompts: args.phasePrompts } : {}),
-            ...sdkOpts,
-          }
-        : {
-            mode: "dry-run",
-            workspace,
-            store: args.store,
-            runId: args.runId,
-            signerInputs: { flag: args.signer },
-          };
+    const buildingEvent: Parameters<Store["appendEvent"]>[0] = workEvent(
+      { unitId: spec.id, event: "building", runId: args.runId, tier: spec.tier },
+      args.signer,
+    );
+    // ADR-0350 D1/D2: the claim that authorised this write, named at emission or not at all.
+    if (args.claimEventSeq !== undefined) {
+      buildingEvent.causedBy = { stream: "claim_event", seq: args.claimEventSeq };
+    }
+    await args.store.appendEvent(buildingEvent);
+    const sdkOpts: SdkLeafOptions = {};
+    if (args.runtime !== undefined) sdkOpts.runtime = args.runtime;
+    if (args.model !== undefined) sdkOpts.model = args.model;
+    if (args.budgetUsd !== undefined) sdkOpts.maxBudgetUsd = args.budgetUsd;
+    if (args.maxTurns !== undefined) sdkOpts.maxTurns = args.maxTurns;
+    let resolveOptions: ResolveOptions;
+    if (multifileSmoke) {
+      // This is intentionally the REAL resolver over a disposable temp workspace: unlike the
+      // ordinary add(2,3) live smoke, IMPLEMENT therefore carries the fixture's two literal
+      // source paths into Codex's exact promotion manifest. The synthetic tree seam prevents a
+      // smoke from committing or promoting anything beyond this temp directory.
+      const multifileOptions: RealResolveOptions = {
+        mode: "real",
+        workspace,
+        store: args.store,
+        runId: args.runId,
+        signerInputs: { flag: args.signer },
+        treeState: async () => ({
+          commitSha: `${args.mode}-synthetic-multifile-tree`,
+          clean: true,
+        }),
+      };
+      if (args.mode === "dry-run") {
+        multifileOptions.authorOverride = scriptedMultifileAuthor(workspace);
+      }
+      if (args.mode === "live-smoke" && args.runtime !== undefined) {
+        multifileOptions.runtime = args.runtime;
+      }
+      if (args.phasePrompts !== undefined) multifileOptions.phasePrompts = args.phasePrompts;
+      // `sdkOpts` still lands LAST, so its knobs keep overriding the conditionals above.
+      resolveOptions = { ...multifileOptions, ...sdkOpts };
+    } else if (args.mode === "live-smoke") {
+      const liveOptions: LiveSmokeResolveOptions = {
+        mode: "live-smoke",
+        workspace,
+        store: args.store,
+        runId: args.runId,
+        signerInputs: { flag: args.signer },
+      };
+      if (args.phasePrompts !== undefined) liveOptions.phasePrompts = args.phasePrompts;
+      resolveOptions = { ...liveOptions, ...sdkOpts };
+    } else {
+      resolveOptions = {
+        mode: "dry-run",
+        workspace,
+        store: args.store,
+        runId: args.runId,
+        signerInputs: { flag: args.signer },
+      };
+    }
     const resolved = resolveProveSpec(spec, resolveOptions);
     if (!resolved.ok) {
       return { resolved: false, reason: resolved.reason, registered: resolved.registered };
@@ -784,13 +805,14 @@ export async function driveNode(spec: NodeSpec, args: DriveNodeArgs): Promise<Dr
     // the WRITE (a fresh phase-stamped `building` mark per transition) lives HERE in the drive,
     // exactly where the initial `building` mark above was written. Advisory: a store failure is
     // swallowed, so it can never fail the build.
+    const phaseTarget: PhaseActivityTarget = {
+      unitId: spec.id,
+      runId: args.runId,
+      signer: args.signer,
+    };
+    if (spec.tier !== undefined) phaseTarget.tier = spec.tier;
     resolved.spec.onPhase = withPhaseReport(
-      phaseActivityWriter(args.store, {
-        unitId: spec.id,
-        runId: args.runId,
-        signer: args.signer,
-        ...(spec.tier !== undefined ? { tier: spec.tier } : {}),
-      }),
+      phaseActivityWriter(args.store, phaseTarget),
       args.onPhase,
     );
     // A build run never writes session presence (ADR-0199): its footprint on the shared store is
@@ -799,18 +821,13 @@ export async function driveNode(spec: NodeSpec, args: DriveNodeArgs): Promise<Dr
     // Per-slice token accounting: advisory append to the same store the run's events land in
     // (in-memory for a dry-run/live smoke, so a synthetic walk's accounting honestly dies here).
     if (resolved.liveAuthor !== undefined) {
-      await appendSliceUsage(
-        args.store,
-        { unitId: spec.id, runId: args.runId, ...(args.model !== undefined ? { model: args.model } : {}) },
-        resolved.liveAuthor.runs,
-        args.signer,
-      );
+      const usageIds: UsageRunIds = { unitId: spec.id, runId: args.runId };
+      if (args.model !== undefined) usageIds.model = args.model;
+      await appendSliceUsage(args.store, usageIds, resolved.liveAuthor.runs, args.signer);
     }
-    return {
-      resolved: true,
-      result,
-      ...(resolved.liveAuthor !== undefined ? { liveAuthor: resolved.liveAuthor } : {}),
-    };
+    return resolved.liveAuthor !== undefined
+      ? { resolved: true, result, liveAuthor: resolved.liveAuthor }
+      : { resolved: true, result };
   } finally {
     await fs.rm(workspace, { recursive: true, force: true });
   }
@@ -995,21 +1012,23 @@ export async function buildNodeReal(args: RealBuildArgs): Promise<RealBuildResul
   await store.appendEvent(
     workEvent({ unitId: spec.id, event: "building", runId, tier: spec.tier }, signer),
   );
-  const resolveOptions: ResolveOptions = {
+  const resolveOptions: RealResolveOptions = {
     mode: "real",
     workspace: worktree.root,
     store,
     runId,
     signerInputs: { flag: signer },
     phasePrompts: args.phasePrompts,
-    ...(args.authorOverride !== undefined ? { authorOverride: args.authorOverride } : {}),
-    ...(args.liveAuthorOverride !== undefined ? { liveAuthorOverride: args.liveAuthorOverride } : {}),
-    ...(args.dbProofEnv !== undefined ? { dbProofEnv: args.dbProofEnv } : {}),
-    ...(args.runtime !== undefined ? { runtime: args.runtime } : {}),
-    ...(args.model !== undefined ? { model: args.model } : {}),
-    ...(args.budgetUsd !== undefined ? { maxBudgetUsd: args.budgetUsd } : {}),
-    ...(args.maxTurns !== undefined ? { maxTurns: args.maxTurns } : {}),
   };
+  if (args.authorOverride !== undefined) resolveOptions.authorOverride = args.authorOverride;
+  if (args.liveAuthorOverride !== undefined) {
+    resolveOptions.liveAuthorOverride = args.liveAuthorOverride;
+  }
+  if (args.dbProofEnv !== undefined) resolveOptions.dbProofEnv = args.dbProofEnv;
+  if (args.runtime !== undefined) resolveOptions.runtime = args.runtime;
+  if (args.model !== undefined) resolveOptions.model = args.model;
+  if (args.budgetUsd !== undefined) resolveOptions.maxBudgetUsd = args.budgetUsd;
+  if (args.maxTurns !== undefined) resolveOptions.maxTurns = args.maxTurns;
   const resolved = resolveProveSpec(spec, resolveOptions);
   if (!resolved.ok) {
     // The caller prechecked real-buildability, so this is belt-and-braces; surface it as a
@@ -1020,15 +1039,9 @@ export async function buildNodeReal(args: RealBuildArgs): Promise<RealBuildResul
   }
   // ADR-0048 §3 v2: colour the wisp by the live red→green phase. The gate only INVOKES this; the
   // WRITE lives here in the drive (the same place the `building` mark above is written). Advisory.
-  resolved.spec.onPhase = withPhaseReport(
-    phaseActivityWriter(store, {
-      unitId: spec.id,
-      runId,
-      signer,
-      ...(spec.tier !== undefined ? { tier: spec.tier } : {}),
-    }),
-    args.onPhase,
-  );
+  const phaseTarget: PhaseActivityTarget = { unitId: spec.id, runId, signer };
+  if (spec.tier !== undefined) phaseTarget.tier = spec.tier;
+  resolved.spec.onPhase = withPhaseReport(phaseActivityWriter(store, phaseTarget), args.onPhase);
   // `sign-after-typecheck`: the ADR-0031 backstop moves AHEAD of the signature. It is injected as
   // the gate's `backstop` seam (run inside GATE, after the clean-tree + signer refusals, before the
   // signing append), so a red package typecheck or suite refuses the VERDICT rather than only
@@ -1078,21 +1091,16 @@ export async function buildNodeReal(args: RealBuildArgs): Promise<RealBuildResul
   // run's store — events.usage_event under --store pg. Appended for PASS and FAIL alike (a red
   // slice billed too); never proof, and a failed write never fails the build.
   if (resolved.liveAuthor !== undefined) {
-    await appendSliceUsage(
-      store,
-      { unitId: spec.id, runId, ...(args.model !== undefined ? { model: args.model } : {}) },
-      resolved.liveAuthor.runs,
-      signer,
-    );
+    const usageIds: UsageRunIds = { unitId: spec.id, runId };
+    if (args.model !== undefined) usageIds.model = args.model;
+    await appendSliceUsage(store, usageIds, resolved.liveAuthor.runs, signer);
   }
-  const out: RealBuildResult = {
-    result,
-    ...(resolved.liveAuthor !== undefined ? { liveAuthor: resolved.liveAuthor } : {}),
-    // Whatever the backstop observed before the gate ruled — reported for a PASS and a refusal
-    // alike, so the report can say WHICH observation refused the verdict.
-    ...(typecheck !== undefined ? { typecheck } : {}),
-    ...(regression !== undefined ? { regression } : {}),
-  };
+  const out: RealBuildResult = { result };
+  if (resolved.liveAuthor !== undefined) out.liveAuthor = resolved.liveAuthor;
+  // Whatever the backstop observed before the gate ruled — reported for a PASS and a refusal
+  // alike, so the report can say WHICH observation refused the verdict.
+  if (typecheck !== undefined) out.typecheck = typecheck;
+  if (regression !== undefined) out.regression = regression;
   if (!result.ok) return out;
   out.commitSha = result.verdict.commitSha;
 
@@ -1344,23 +1352,22 @@ export async function nodeBuild(
   // instead lights a transient `building` mark for the REAL unit in the live store, dwells, then
   // hard-deletes it (never a verdict). It is a DRY-RUN-only smoke that REQUIRES the live DB.
   if (opts.emitWisp === true) {
-    const gate = gateEmitWisp({
+    const wispGateOpts: GateEmitWispOpts = {
       dryRun: opts.dryRun,
-      ...(opts.dwellSec !== undefined ? { dwellSec: opts.dwellSec } : {}),
       retryCmd: `storytree node build ${spec.id} --dry-run --emit-wisp`,
-    });
+    };
+    if (opts.dwellSec !== undefined) wispGateOpts.dwellSec = opts.dwellSec;
+    const gate = gateEmitWisp(wispGateOpts);
     if (!gate.ok) return gate.refusal;
-    return emitWisp(
-      {
-        unitId: spec.id,
-        ...(spec.tier !== undefined ? { tier: spec.tier } : {}),
-        runId: `wisp-smoke-${Date.now().toString(36)}`,
-        signer: signer.signer,
-        dwellSec: gate.dwellSec,
-        retryCmd: `storytree node build ${spec.id} --dry-run --emit-wisp`,
-      },
-      opts.wispDeps ?? {},
-    );
+    const wispArgs: EmitWispArgs = {
+      unitId: spec.id,
+      runId: `wisp-smoke-${Date.now().toString(36)}`,
+      signer: signer.signer,
+      dwellSec: gate.dwellSec,
+      retryCmd: `storytree node build ${spec.id} --dry-run --emit-wisp`,
+    };
+    if (spec.tier !== undefined) wispArgs.tier = spec.tier;
+    return emitWisp(wispArgs, opts.wispDeps ?? {});
   }
 
   // REAL mode fail-closed precheck BEFORE any worktree is cut: the node must carry a real-proof
@@ -1522,13 +1529,12 @@ export async function nodeBuild(
       // real paths); the spine commits the authored files before the GATE reads the real tree.
       // The install-bearing cut is minutes of `pnpm install` on its own, and it was the single
       // longest unattributed silence in the measured run — name it.
+      const worktreeOptions: CreateBuildWorktreeOptions = {};
+      if (realConfig?.install === true) worktreeOptions.install = true;
+      if (addDepsGroup !== null) worktreeOptions.addDeps = [addDepsGroup];
       worktree = await progress.stage(
         `worktree (fresh detached checkout${realConfig?.install === true ? " + pnpm install" : ""})`,
-        () =>
-          createBuildWorktree(rootDir, {
-            ...(realConfig?.install === true ? { install: true } : {}),
-            ...(addDepsGroup !== null ? { addDeps: [addDepsGroup] } : {}),
-          }),
+        () => createBuildWorktree(rootDir, worktreeOptions),
       );
       const cut = worktree;
       try {
@@ -1539,29 +1545,29 @@ export async function nodeBuild(
           // Unreachable past realConfigRefusal + the live/real prompt assembly, but fail-closed.
           return { ok: false, body: `internal: real build prerequisites missing for "${spec.id}"`, next: [] };
         }
+        const realArgs: RealBuildArgs = {
+          spec,
+          worktree: cut,
+          baseSha: cut.headSha,
+          buildConfig,
+          realConfig,
+          store,
+          runId,
+          signer: signer.signer,
+          phasePrompts,
+          repoRoot: rootDir,
+          runtime,
+          // The gate is the long leg; its phase walk is what makes the heartbeat diagnostic
+          // rather than merely reassuring.
+          onPhase: (phase) => progress.note(phase),
+        };
+        if (dbProofEnv !== undefined) realArgs.dbProofEnv = dbProofEnv;
+        if (opts.model !== undefined) realArgs.model = opts.model;
+        if (opts.budgetUsd !== undefined) realArgs.budgetUsd = opts.budgetUsd;
+        if (opts.maxTurns !== undefined) realArgs.maxTurns = opts.maxTurns;
         const built = await progress.stage(
           "gate (the leaf authors, the spine observes red -> green)",
-          () =>
-            buildNodeReal({
-              spec,
-              worktree: cut,
-              baseSha: cut.headSha,
-              buildConfig,
-              realConfig,
-              store,
-              runId,
-              signer: signer.signer,
-              phasePrompts,
-              repoRoot: rootDir,
-              runtime,
-              // The gate is the long leg; its phase walk is what makes the heartbeat diagnostic
-              // rather than merely reassuring.
-              onPhase: (phase) => progress.note(phase),
-              ...(dbProofEnv !== undefined ? { dbProofEnv } : {}),
-              ...(opts.model !== undefined ? { model: opts.model } : {}),
-              ...(opts.budgetUsd !== undefined ? { budgetUsd: opts.budgetUsd } : {}),
-              ...(opts.maxTurns !== undefined ? { maxTurns: opts.maxTurns } : {}),
-            }),
+          () => buildNodeReal(realArgs),
         );
         result = built.result;
         liveAuthor = built.liveAuthor;
@@ -1573,22 +1579,22 @@ export async function nodeBuild(
         await worktree.remove();
       }
     } else {
+      const driveArgs: DriveNodeArgs = {
+        mode: live ? "live-smoke" : "dry-run",
+        store,
+        runId,
+        signer: signer.signer,
+        onPhase: (phase) => progress.note(phase),
+      };
+      if (live) driveArgs.runtime = runtime;
+      if (phasePrompts !== undefined) driveArgs.phasePrompts = phasePrompts;
+      if (opts.model !== undefined) driveArgs.model = opts.model;
+      if (opts.budgetUsd !== undefined) driveArgs.budgetUsd = opts.budgetUsd;
+      if (opts.maxTurns !== undefined) driveArgs.maxTurns = opts.maxTurns;
+      if (claimEventSeq !== undefined) driveArgs.claimEventSeq = claimEventSeq;
       const drive = await progress.stage(
         "gate (temp workspace; the leaf authors the synthetic pair)",
-        () =>
-          driveNode(spec, {
-            mode: live ? "live-smoke" : "dry-run",
-            store,
-            runId,
-            signer: signer.signer,
-            onPhase: (phase) => progress.note(phase),
-            ...(live ? { runtime } : {}),
-            ...(phasePrompts !== undefined ? { phasePrompts } : {}),
-            ...(opts.model !== undefined ? { model: opts.model } : {}),
-            ...(opts.budgetUsd !== undefined ? { budgetUsd: opts.budgetUsd } : {}),
-            ...(opts.maxTurns !== undefined ? { maxTurns: opts.maxTurns } : {}),
-            ...(claimEventSeq !== undefined ? { claimEventSeq } : {}),
-          }),
+        () => driveNode(spec, driveArgs),
       );
       if (!drive.resolved) {
         return {

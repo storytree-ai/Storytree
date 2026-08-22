@@ -145,9 +145,8 @@ export function sweepDecisions(spec: DecisionSweepSpec): DecisionSweep {
   const routine = decisions.filter((d) => d.disposition === "leaf");
   const blocked = escalated.filter((d) => !d.resolved);
   const resolved = escalated.filter((d) => d.resolved);
-  return {
+  const sweep: DecisionSweep = {
     gateId: spec.gateId,
-    ...(spec.pocket !== undefined ? { pocket: spec.pocket } : {}),
     decisions,
     escalated,
     routine,
@@ -155,6 +154,8 @@ export function sweepDecisions(spec: DecisionSweepSpec): DecisionSweep {
     resolved,
     clear: blocked.length === 0,
   };
+  if (spec.pocket !== undefined) sweep.pocket = spec.pocket;
+  return sweep;
 }
 
 /** The d.5 clauses a fork tripped — the plain "why it's the owner's call" lines for the halt report. */

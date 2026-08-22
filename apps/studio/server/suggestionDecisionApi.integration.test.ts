@@ -179,7 +179,9 @@ const post = (
 ): Promise<Response> =>
   fetch(at, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', ...(who ? iap(who) : {}) },
+    headers: who
+      ? { 'content-type': 'application/json', ...iap(who) }
+      : { 'content-type': 'application/json' },
     body: JSON.stringify(body),
   });
 

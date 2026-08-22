@@ -197,6 +197,33 @@ const USAGE =
   'storytree question new [<id>] --arc <arc-id> --title "…" --stakes <text|@file> --statement <text|@file> --context <text|@file> --options <text|@file> --pg';
 
 /**
+ * The `open-question` document {@link questionNew} assembles, before `upcastAndValidate` stamps the
+ * schema version. Named rather than inferred so the three OPTIONAL body halves — `analogy`,
+ * `diagram`, `recommendation` — can be attached only when the author supplied them: each is ABSENT
+ * from the stored row when omitted, never present-and-undefined, which is the distinction
+ * `renderBody` and the `.strict()` schema both read.
+ */
+interface AuthoredQuestionDoc {
+  kind: "open-question";
+  id: string;
+  title: string;
+  description: string;
+  stakes: string;
+  statement: string;
+  context: string;
+  options: string;
+  analogy?: string;
+  diagram?: string;
+  recommendation?: string;
+  arcRef: string;
+  references: string[];
+  createdAt: string;
+  updatedAt: string;
+  verifiedAt: string;
+  leaseDays: number;
+}
+
+/**
  * `storytree question new` — SCAFFOLD an open question through the validated write path.
  *
  * The author supplies the arc, the title, and the four required body fields. The CLI owns `kind`;
@@ -325,7 +352,7 @@ export async function questionNew(
   const analogy = opts.analogy?.trim() ?? "";
   const diagram = opts.diagram?.trim() ?? "";
   const recommendation = opts.recommendation?.trim() ?? "";
-  const doc = {
+  const doc: AuthoredQuestionDoc = {
     kind: "open-question",
     id: questionId,
     title,
@@ -334,9 +361,6 @@ export async function questionNew(
     statement,
     context,
     options,
-    ...(analogy !== "" ? { analogy } : {}),
-    ...(diagram !== "" ? { diagram } : {}),
-    ...(recommendation !== "" ? { recommendation } : {}),
     arcRef: `asset:${arc}`,
     references: [],
     createdAt: deps.now,
@@ -346,7 +370,10 @@ export async function questionNew(
     // guess which default a given row was authored under.
     verifiedAt: deps.now,
     leaseDays,
-  } satisfies Record<string, unknown>;
+  };
+  if (analogy !== "") doc.analogy = analogy;
+  if (diagram !== "") doc.diagram = diagram;
+  if (recommendation !== "") doc.recommendation = recommendation;
 
   let valid: unknown;
   try {

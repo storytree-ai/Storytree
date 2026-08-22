@@ -476,13 +476,14 @@ export async function promoteRealPass(args: {
         args.repoRoot,
       );
       const prUrl = out.trim().split(/\s+/).filter(Boolean).pop();
-      return {
+      const opened: PromotionResult = {
         branch,
         commitSha: args.commitSha,
         pushed: true,
         detail: `pushed to ${origin}; PR opened (auto-merges to trunk on green CI)`,
-        ...(prUrl !== undefined && prUrl.length > 0 ? { prUrl } : {}),
       };
+      if (prUrl !== undefined && prUrl.length > 0) opened.prUrl = prUrl;
+      return opened;
     } catch (e) {
       const firstLine = (e as Error).message.split("\n")[0] ?? "gh pr create failed";
       return {
@@ -549,13 +550,14 @@ export function platformShellCommand(
   platform: NodeJS.Platform = process.platform,
 ): ShellCommand {
   if (platform !== "win32" || cmd.file !== "pnpm") return cmd;
-  return {
+  const wrapped: ShellCommand = {
     file: process.env["ComSpec"] ?? "cmd.exe",
     args: ["/d", "/s", "/c", "pnpm", ...cmd.args],
-    ...(cmd.cwd !== undefined ? { cwd: cmd.cwd } : {}),
-    // Preserve any per-command env overrides through the win32 rewrap (ADR-0064 DB-backed proof).
-    ...(cmd.env !== undefined ? { env: cmd.env } : {}),
   };
+  if (cmd.cwd !== undefined) wrapped.cwd = cmd.cwd;
+  // Preserve any per-command env overrides through the win32 rewrap (ADR-0064 DB-backed proof).
+  if (cmd.env !== undefined) wrapped.env = cmd.env;
+  return wrapped;
 }
 
 /**

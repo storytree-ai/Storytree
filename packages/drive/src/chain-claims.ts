@@ -160,7 +160,9 @@ export async function acquireChainClaims(
       });
       return { ok: false, refusedUnit: unitId, heldBy: res.heldBy, requested: order };
     }
-    held.push({ unitId, ...(res.displaced !== undefined ? { displaced: res.displaced } : {}) });
+    const heldClaim: HeldClaim = { unitId };
+    if (res.displaced !== undefined) heldClaim.displaced = res.displaced;
+    held.push(heldClaim);
   }
   return { ok: true, held };
 }

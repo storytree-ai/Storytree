@@ -35,6 +35,7 @@ import {
   type ClassifiedSpawn,
   type OwnershipSummary,
   type StopResult,
+  type StopSpawnDeps,
   type StopTiming,
   type Terminator,
   clearExitedRecords,
@@ -268,14 +269,19 @@ function stop(deps: OwnDeps, sessionId: string, args: readonly string[]): Envelo
     .map((id) => inventory(deps, id));
   const { targets, unowned } = resolveStopTargets(mine, requested, others);
 
-  const results = stopSpawns(targets, {
+  // `StopSpawnDeps`' fields are readonly, so the optional `timing` rides a ternary over the WHOLE
+  // bag rather than a guarded assignment.
+  const stopDeps: Omit<StopSpawnDeps, "timing"> = {
     terminate: deps.terminate,
     probe: deps.probe,
     sleep: deps.sleep,
-    ...(deps.stopTiming === undefined ? {} : { timing: deps.stopTiming }),
     io: deps.io,
     root: deps.root,
-  });
+  };
+  const results = stopSpawns(
+    targets,
+    deps.stopTiming === undefined ? stopDeps : { ...stopDeps, timing: deps.stopTiming },
+  );
 
   const lines: string[] = [`storytree own stop — session "${sessionId}"`, ""];
   for (const result of results) lines.push(stopRow(result));

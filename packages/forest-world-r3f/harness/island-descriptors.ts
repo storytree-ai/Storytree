@@ -112,14 +112,17 @@ export function groundCellsFrom(
     );
     if (pts.length < 3) return;
 
-    out.push({
+    // Drafted rather than spread: an unattributed cell carries NO `parcel` key and an
+    // unstamped one NO `cellId`, exactly as the conditional spreads expressed.
+    const cell: GroundCell = {
       points: pts,
       status: node.status ?? status ?? 'unknown',
       variant: node.variant ?? 0,
       wheat: node.kind === 'cell-wheat',
-      ...(parcel !== undefined ? { parcel } : {}),
-      ...(node.cellId !== undefined ? { cellId: node.cellId } : {}),
-    });
+    };
+    if (parcel !== undefined) cell.parcel = parcel;
+    if (node.cellId !== undefined) cell.cellId = node.cellId;
+    out.push(cell);
   };
 
   walk(scene, { x: 0, y: 0 }, undefined, undefined);

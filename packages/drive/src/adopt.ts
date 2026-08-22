@@ -463,9 +463,11 @@ export async function adoptStory(
   const storeChoice = await resolveVerdictStore("pg", false, retryCmd);
   if (!storeChoice.ok) return storeChoice.refusal;
   try {
+    const adoptOpts: AdoptOpts = {};
+    if (opts.actor !== undefined) adoptOpts.signer = opts.actor;
     return await runAdopt(
       storyId,
-      { ...(opts.actor !== undefined ? { signer: opts.actor } : {}) },
+      adoptOpts,
       {
         // PgWorkStore satisfies AdoptedVerdictStore (appendEvent); resolveVerdictStore('pg') returns it.
         store: storeChoice.store,

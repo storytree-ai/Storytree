@@ -51,6 +51,30 @@ const windowsBuildNumber: number | undefined = (() => {
   return Number.isFinite(build) && build > 0 ? build : undefined;
 })();
 
+/**
+ * The `window.desktopTerminal` contract this preload exposes. Declared here (rather than shared with
+ * the renderer's own mirror) because the desktop must not import across the surface boundary; it is
+ * named so `windowsBuildNumber` can be OMITTED on a non-win32 host — its very presence is the
+ * renderer's platform signal — while the rest of the bridge stays checked.
+ */
+interface DesktopTerminalBridge {
+  spawn: (opts?: unknown) => Promise<{ sessionId: string }>;
+  write: (sessionId: string, data: string) => void;
+  resize: (sessionId: string, cols: number, rows: number) => void;
+  dispose: (sessionId: string) => void;
+  onData: (cb: (sessionId: string, chunk: string) => void) => void;
+  onExit: (cb: (sessionId: string, e: { exitCode: number }) => void) => void;
+  list: () => Promise<Array<{ sessionId: string }>>;
+  snapshot: (
+    sessionId: string,
+  ) => Promise<string | { data: string; cols: number; rows: number }>;
+  ack: (sessionId: string, charCount: number) => void;
+  clear: (sessionId: string) => void;
+  openLink: (url: string) => void;
+  /** win32-only — omitted entirely on any other OS or when the build can't be parsed. */
+  windowsBuildNumber?: number;
+}
+
 let terminalDataCb: ((sessionId: string, chunk: string) => void) | null = null;
 let terminalExitCb: ((sessionId: string, e: { exitCode: number }) => void) | null = null;
 ipcRenderer.on("terminal:data", (_e, sessionId: string, chunk: string) => {
@@ -59,7 +83,7 @@ ipcRenderer.on("terminal:data", (_e, sessionId: string, chunk: string) => {
 ipcRenderer.on("terminal:exit", (_e, sessionId: string, exit: { exitCode: number }) => {
   terminalExitCb?.(sessionId, exit);
 });
-contextBridge.exposeInMainWorld("desktopTerminal", {
+const desktopTerminal: DesktopTerminalBridge = {
   spawn: (opts?: unknown): Promise<{ sessionId: string }> => ipcRenderer.invoke("terminal:spawn", opts),
   write: (sessionId: string, data: string): void => {
     ipcRenderer.send("terminal:write", sessionId, data);
@@ -106,8 +130,9 @@ contextBridge.exposeInMainWorld("desktopTerminal", {
   openLink: (url: string): void => {
     ipcRenderer.send("terminal:open-link", url);
   },
-  ...(windowsBuildNumber === undefined ? {} : { windowsBuildNumber }),
-});
+};
+if (windowsBuildNumber !== undefined) desktopTerminal.windowsBuildNumber = windowsBuildNumber;
+contextBridge.exposeInMainWorld("desktopTerminal", desktopTerminal);
 
 // The repo-picker bridge (terminal-repo-picker story, ADR-0174 follow-on). Its mere PRESENCE
 // (`window.desktopRepo`) is how the renderer's RepoPicker feature-detects the desktop host (the hosted/dev

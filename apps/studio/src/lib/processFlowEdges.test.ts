@@ -14,7 +14,7 @@ function process(
   id: string,
   branchEdges?: { ref: string; label?: string }[],
 ): GuidanceAsset {
-  return {
+  const doc: GuidanceAsset = {
     id,
     category: 'process',
     title: id,
@@ -23,8 +23,9 @@ function process(
     references: [],
     createdAt: '2026-07-29T00:00:00.000Z',
     updatedAt: '2026-07-29T00:00:00.000Z',
-    ...(branchEdges ? { branchEdges } : {}),
   };
+  if (branchEdges) doc.branchEdges = branchEdges;
+  return doc;
 }
 
 function principle(id: string): GuidanceAsset {

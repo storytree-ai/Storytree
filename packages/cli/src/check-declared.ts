@@ -62,6 +62,7 @@
 // Read-only against the ledger and the working tree; only the two FAIL arms set a non-zero exit.
 
 import { execFileSync } from "node:child_process";
+import type { ExecFileSyncOptionsWithStringEncoding } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -191,13 +192,12 @@ export function evaluateLobby(input: {
  */
 function git(args: readonly string[], cwd?: string): string | null {
   try {
-    return (
-      execFileSync("git", [...args], {
-        encoding: "utf8",
-        stdio: ["ignore", "pipe", "ignore"],
-        ...(cwd !== undefined ? { cwd } : {}),
-      }) as string
-    ).trim();
+    const options: ExecFileSyncOptionsWithStringEncoding = {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    };
+    if (cwd !== undefined) options.cwd = cwd;
+    return (execFileSync("git", [...args], options) as string).trim();
   } catch {
     return null;
   }

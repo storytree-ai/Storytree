@@ -9,7 +9,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import type { ClaimDocT, ClaimRequest, ClaimResult } from "@storytree/notice-board";
+import type { ClaimAcquired, ClaimDocT, ClaimRequest, ClaimResult } from "@storytree/notice-board";
 
 import {
   acquireChainClaims,
@@ -65,12 +65,9 @@ function fakeLedger(seed: ClaimDocT[] = []): ChainClaimDeps & {
         intent: req.intent ?? "",
       });
       rows.set(`${req.unitId}::${req.sessionId}`, fresh);
-      return {
-        acquired: true,
-        claim: fresh,
-        reclaimed: false,
-        ...(mine !== undefined ? { displaced: mine } : {}),
-      };
+      const acquired: ClaimAcquired = { acquired: true, claim: fresh, reclaimed: false };
+      if (mine !== undefined) acquired.displaced = mine;
+      return acquired;
     },
     release: async (unitId: string, sessionId: string): Promise<boolean> => {
       releases.push(unitId);

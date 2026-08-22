@@ -162,16 +162,31 @@ function passEvent(
   return {
     kind: "signing",
     seq,
-    doc: Verdict.parse({
-      unitId,
-      proofMode,
-      outcome: "pass",
-      commitSha: "ca".repeat(20),
-      signer: "ci@example.com",
-      runId: `run-${unitId}`,
-      at: TS,
-      ...(revisionId === undefined ? {} : { criterionId: unitId, revisionId }),
-    }),
+    // `Verdict.parse` takes `unknown`, so the criterion pair is chosen by a ternary on the WHOLE
+    // candidate — a criterion verdict carries BOTH criterionId and revisionId, a plain one NEITHER.
+    doc: Verdict.parse(
+      revisionId === undefined
+        ? {
+            unitId,
+            proofMode,
+            outcome: "pass",
+            commitSha: "ca".repeat(20),
+            signer: "ci@example.com",
+            runId: `run-${unitId}`,
+            at: TS,
+          }
+        : {
+            unitId,
+            proofMode,
+            outcome: "pass",
+            commitSha: "ca".repeat(20),
+            signer: "ci@example.com",
+            runId: `run-${unitId}`,
+            at: TS,
+            criterionId: unitId,
+            revisionId,
+          },
+    ),
   };
 }
 

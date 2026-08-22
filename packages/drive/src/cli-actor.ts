@@ -20,6 +20,7 @@
 // pure so the write side and the read side cannot drift apart — they are the same two functions.
 
 import { execFileSync } from "node:child_process";
+import type { ExecFileSyncOptionsWithStringEncoding } from "node:child_process";
 
 /** Separates the tool from the branch in a stamped actor: `cli@claude/some-branch`. */
 export const CLI_ACTOR_PREFIX = "cli@";
@@ -45,11 +46,12 @@ export function branchOfActor(actor: string): string | null {
 /** The current git branch, or `null` when git cannot say (detached HEAD, no repo). Never throws. */
 export function currentGitBranch(cwd?: string): string | null {
   try {
-    const out = execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
+    const options: ExecFileSyncOptionsWithStringEncoding = {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
-      ...(cwd === undefined ? {} : { cwd }),
-    }).trim();
+    };
+    if (cwd !== undefined) options.cwd = cwd;
+    const out = execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], options).trim();
     return out.length > 0 && out !== "HEAD" ? out : null;
   } catch {
     return null;
@@ -123,6 +125,11 @@ export function selectInFlightBranches(
  */
 export function inFlightBranches(currentDate: string, cwd?: string): ReadonlySet<string> {
   try {
+    const options: ExecFileSyncOptionsWithStringEncoding = {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    };
+    if (cwd !== undefined) options.cwd = cwd;
     const out = execFileSync(
       "git",
       [
@@ -133,7 +140,7 @@ export function inFlightBranches(currentDate: string, cwd?: string): ReadonlySet
         "--format=%(committerdate:short) %(refname:short)",
         "refs/heads",
       ],
-      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], ...(cwd === undefined ? {} : { cwd }) },
+      options,
     );
     const refs: BranchRef[] = [];
     for (const line of out.split("\n")) {

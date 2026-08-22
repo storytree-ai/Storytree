@@ -30,7 +30,13 @@ import type { Server } from 'node:http';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { HttpStore, HttpStoreError, InMemoryStore, type Store } from '@storytree/storage-protocol';
+import {
+  HttpStore,
+  HttpStoreError,
+  InMemoryStore,
+  type HttpStoreOptions,
+  type Store,
+} from '@storytree/storage-protocol';
 import type { UserDoc } from '@storytree/studio-members';
 import { createStudioServer } from './serve';
 import { parseSeedAdmins } from './guestPolicy';
@@ -94,11 +100,11 @@ let distDir: string;
  * surface a session without a Cloud SQL connector has, so every assertion below runs through it
  * rather than through a raw `fetch` on the route.
  */
-const doorAs = (who?: string): HttpStore =>
-  new HttpStore({
-    baseUrl: `${base}${STORE_DOOR_BASE_PATH}`,
-    ...(who ? { headers: iap(who) } : {}),
-  });
+const doorAs = (who?: string): HttpStore => {
+  const options: HttpStoreOptions = { baseUrl: `${base}${STORE_DOOR_BASE_PATH}` };
+  if (who) options.headers = iap(who);
+  return new HttpStore(options);
+};
 
 beforeAll(async () => {
   await docs.upsertDoc({

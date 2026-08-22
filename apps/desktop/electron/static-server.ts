@@ -1,4 +1,4 @@
-import { createServer, request as httpRequest, type Server } from "node:http";
+import { createServer, request as httpRequest, type OutgoingHttpHeaders, type Server } from "node:http";
 import { createReadStream, existsSync, statSync } from "node:fs";
 import { extname, join, normalize } from "node:path";
 import type { AddressInfo } from "node:net";
@@ -89,10 +89,8 @@ export function serveStudio(
       }
       // Inject the per-launch shared secret so the sidecar can distinguish a proxied request from any
       // other local client hitting its port directly (defense-in-depth over the Origin/Host checks).
-      const headers = {
-        ...req.headers,
-        ...(backend.sidecarToken ? { [SIDECAR_TOKEN_HEADER]: backend.sidecarToken } : {}),
-      };
+      const headers: OutgoingHttpHeaders = { ...req.headers };
+      if (backend.sidecarToken) headers[SIDECAR_TOKEN_HEADER] = backend.sidecarToken;
       // Pipe the full request (method + path + query + headers + body) to the sidecar and stream its
       // response back. A connection error becomes a 502 JSON envelope (never HTML for a JSON fetch).
       const proxyReq = httpRequest(

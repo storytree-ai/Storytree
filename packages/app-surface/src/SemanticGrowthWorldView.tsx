@@ -5,6 +5,7 @@ import {
   type WorldPresentationEvents,
   type WorldPresentationModel,
 } from './WorldSceneView.js';
+import type { OrganicPoseRenderLayer } from './SceneView.js';
 import {
   collectDefBounds,
   parseSimpleTransform,
@@ -360,6 +361,24 @@ function validateOrganicPoseLayer(
   }
 }
 
+/** The `data-*` attributes the section publishes while an organic pose layer is mounted — this
+ *  view's own intermediate bag, drafted before the JSX and spread onto the `<section>`. An ABSENT
+ *  key emits no attribute at all, which is what the conditional spreads here used to express. */
+interface OrganicGrowthAttributes {
+  'data-organic-technique': 'pose-to-pose';
+  'data-organic-pose-progress': string;
+  /** Present but possibly `undefined` — React omits an undefined attribute, and the pre-migration
+   *  literal always carried this key, so it stays required rather than becoming optional. */
+  'data-native-island-progress': string | undefined;
+  'data-organic-pose-frames': string;
+  'data-organic-projection'?: string;
+  'data-island-technique'?: 'connected-accretion';
+  'data-svg-island-accretion-progress'?: string;
+  'data-svg-island-accretion-cells'?: string;
+  'data-svg-island-accretion-duration-ms'?: string;
+  'data-svg-island-accretion-waves'?: string;
+}
+
 export function SemanticGrowthWorldView({
   frames,
   reducedMotion,
@@ -413,21 +432,24 @@ export function SemanticGrowthWorldView({
         );
         if (localProgress === null) return [];
         const selected = organicPoseFrameAtProgress(track, localProgress);
-        return [
-          {
-            trackId: track.id,
-            src: selected.src,
-            frameIndex: selected.index,
-            canvas: track.canvas,
-            assetAnchor: track.groundAnchor,
-            worldAnchor: instance.worldAnchor,
-            scale: instance.scale,
-            depthSlot: track.depthSlot,
-            ...(organicPoseGrowth.projection === undefined
-              ? {}
-              : { projection: organicPoseGrowth.projection }),
-          },
-        ];
+        // `projection` is `readonly` and OPTIONAL on the layer, so the layer is chosen as a whole
+        // rather than accumulated: absent projection ⇒ the key is absent, exactly as before, and
+        // when present it still sits last in insertion order.
+        const base: Omit<OrganicPoseRenderLayer, 'projection'> = {
+          trackId: track.id,
+          src: selected.src,
+          frameIndex: selected.index,
+          canvas: track.canvas,
+          assetAnchor: track.groundAnchor,
+          worldAnchor: instance.worldAnchor,
+          scale: instance.scale,
+          depthSlot: track.depthSlot,
+        };
+        const layer: OrganicPoseRenderLayer =
+          organicPoseGrowth.projection === undefined
+            ? base
+            : { ...base, projection: organicPoseGrowth.projection };
+        return [layer];
       });
     },
     [organicPlayback.progress, organicPoseGrowth, registry],
@@ -543,42 +565,41 @@ export function SemanticGrowthWorldView({
     callback?.(frames[bounded]!.key);
   };
 
+  // Drafted before the JSX so each optional attribute is ADDED only when it is present, in the
+  // same textual order the conditional spreads held: projection first, then the accretion block.
+  let organicAttributes: OrganicGrowthAttributes | null = null;
+  if (organicPoseGrowth) {
+    const attributes: OrganicGrowthAttributes = {
+      'data-organic-technique': 'pose-to-pose',
+      'data-organic-pose-progress': organicPlayback.progress.toFixed(4),
+      'data-native-island-progress': nativeLandProgress?.toFixed(4),
+      'data-organic-pose-frames':
+        organicLayers?.map((layer) => `${layer.trackId}:${layer.frameIndex}`).join(',') ?? '',
+    };
+    if (organicPoseGrowth.projection !== undefined) {
+      attributes['data-organic-projection'] = organicPoseGrowth.projection.toFixed(2);
+    }
+    if (islandAccretionState) {
+      attributes['data-island-technique'] = 'connected-accretion';
+      attributes['data-svg-island-accretion-progress'] = islandAccretionState.progress.toFixed(4);
+      attributes['data-svg-island-accretion-cells'] = String(islandAccretionPlan?.cells.length ?? 0);
+      attributes['data-svg-island-accretion-duration-ms'] = String(
+        svgIslandAccretion?.growthDurationMs ?? 0,
+      );
+      attributes['data-svg-island-accretion-waves'] = islandAccretionPlan
+        ? [...new Set(islandAccretionPlan.cells.map((cell) => cell.wave))]
+            .map((wave) => islandAccretionPlan.cells.filter((cell) => cell.wave === wave).length)
+            .join(',')
+        : '';
+    }
+    organicAttributes = attributes;
+  }
+
   return (
     <section
       data-semantic-growth-frame={frame.key}
       data-motion={reduce ? 'reduced' : 'full'}
-      {...(organicPoseGrowth
-        ? {
-            'data-organic-technique': 'pose-to-pose',
-            'data-organic-pose-progress': organicPlayback.progress.toFixed(4),
-            'data-native-island-progress': nativeLandProgress?.toFixed(4),
-            'data-organic-pose-frames':
-              organicLayers?.map((layer) => `${layer.trackId}:${layer.frameIndex}`).join(',') ?? '',
-            ...(organicPoseGrowth.projection === undefined
-              ? {}
-              : { 'data-organic-projection': organicPoseGrowth.projection.toFixed(2) }),
-            ...(islandAccretionState
-              ? {
-                  'data-island-technique': 'connected-accretion',
-                  'data-svg-island-accretion-progress':
-                    islandAccretionState.progress.toFixed(4),
-                  'data-svg-island-accretion-cells':
-                    String(islandAccretionPlan?.cells.length ?? 0),
-                  'data-svg-island-accretion-duration-ms':
-                    String(svgIslandAccretion?.growthDurationMs ?? 0),
-                  'data-svg-island-accretion-waves':
-                    islandAccretionPlan
-                      ? [...new Set(islandAccretionPlan.cells.map((cell) => cell.wave))]
-                          .map(
-                            (wave) =>
-                              islandAccretionPlan.cells.filter((cell) => cell.wave === wave).length,
-                          )
-                          .join(',')
-                      : '',
-                }
-              : {}),
-          }
-        : {})}
+      {...(organicAttributes ?? {})}
     >
       <svg viewBox={viewBox} aria-label={`Semantic growth: ${frame.key}`}>
         {revealMasks.length > 0 ? <defs>{revealMasks}</defs> : null}

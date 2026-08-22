@@ -141,7 +141,7 @@ function territory(isl: Island): SceneTerritoryInput {
 
 function sceneAt(elevationDeg: number, withGarden: boolean): SceneInput {
   const isl = island(elevationDeg);
-  return {
+  const input: SceneInput = {
     offset: { x: 0, y: 0 },
     width: 900,
     height: 900,
@@ -152,8 +152,10 @@ function sceneAt(elevationDeg: number, withGarden: boolean): SceneInput {
     trails: routeTrails([{ id: 'studio', x: isl.centroid.x, y: isl.centroid.y, r: isl.radius }], [], 'scatter'),
     territories: [territory(isl)],
     cameraElevationDeg: elevationDeg,
-    ...(withGarden ? { garden: { islandId: 'studio', heroes: HEROES } } : {}),
   };
+  // No garden ⇒ `garden` stays ABSENT, which is the non-garden composition.
+  if (withGarden) input.garden = { islandId: 'studio', heroes: HEROES };
+  return input;
 }
 
 // ---------- reading placements back out of the built scene ----------

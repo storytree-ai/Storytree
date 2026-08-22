@@ -126,15 +126,6 @@ export function islandScene(opts: IslandOptions = {}): SceneG {
     coastPaths: [],
     decor: [],
     plants: [],
-    // ADR-0226 D4: one flower per UAT criterion, 1:1, verdict read from the FORM.
-    ...(opts.flowers === false
-      ? {}
-      : {
-          uatCriteria: CRITERIA.map((id, i) => ({
-            id,
-            state: opts.criteriaStates?.[i] ?? ('proven' as CriterionState),
-          })),
-        }),
     treeTitle: 'context-traversal-capture',
     wisps: [],
     parcels,
@@ -149,6 +140,14 @@ export function islandScene(opts: IslandOptions = {}): SceneG {
       title: 'context-traversal-capture',
     },
   };
+  // ADR-0226 D4: one flower per UAT criterion, 1:1, verdict read from the FORM. `flowers: false`
+  // leaves `uatCriteria` ABSENT, which is what suppresses the markers entirely.
+  if (opts.flowers !== false) {
+    territory.uatCriteria = CRITERIA.map((id, i) => ({
+      id,
+      state: opts.criteriaStates?.[i] ?? ('proven' as CriterionState),
+    }));
+  }
 
   const input: SceneInput = {
     offset: { x: 0, y: 0 },

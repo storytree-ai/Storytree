@@ -22,15 +22,16 @@ const NOW = new Date("2026-07-27T12:00:00.000Z");
 
 /** A live row (heartbeat now) at `grade`, with `grade` omitted entirely when undefined. */
 function row(unitId: string, sessionId: string, grade?: string | null): DesktopClaimRow {
-  return {
+  const claimRow: DesktopClaimRow = {
     unit_id: unitId,
     session_id: sessionId,
-    ...(grade === undefined ? {} : { grade }),
     branch: `claude/${sessionId}`,
     intent: "orchestrate",
     claimed_at: new Date(NOW.getTime() - 60_000),
     heartbeat_at: new Date(NOW.getTime() - 60_000),
   };
+  if (grade !== undefined) claimRow.grade = grade;
+  return claimRow;
 }
 
 test("the SQL selects every column the fold reads — including the grade", () => {

@@ -190,12 +190,13 @@ export function evaluateTestTimingDrain(
       ? "warn"
       : "ok";
 
-  return {
+  const verdict: TestTimingDrainVerdict = {
     level,
     unsanctionedCount,
     ungatedSanctionedCount,
     breaches,
-    ...(suppressed === undefined ? {} : { suppressed }),
     config,
   };
+  if (suppressed !== undefined) verdict.suppressed = suppressed;
+  return verdict;
 }

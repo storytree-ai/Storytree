@@ -190,6 +190,43 @@ export interface ClaimRequest {
 }
 
 /**
+ * The ACQUIRED arm of {@link ClaimResult} — named so a store building it can annotate the local it
+ * assembles (the two optional fields below are set only when the take actually has them).
+ */
+export interface ClaimAcquired {
+  acquired: true;
+  claim: ClaimDocT;
+  reclaimed: boolean;
+  /**
+   * The caller's OWN pre-existing row that this take absorbed — the re-entrant work row, or the
+   * shared exploring/waiting row a work take folds. Absent when the take genuinely created a row
+   * that did not exist for this session.
+   *
+   * Exists because `events.node_claim` is keyed `(unit_id, session_id)`: a build claiming under
+   * its LAUNCHING session's identity does not add a row, it OVERWRITES that session's own — so a
+   * caller that releases on the way out destroys a claim it never took. Without this field the
+   * caller cannot tell the two apart (`acquired: true` covers both), which is how a session's
+   * declaration silently vanished across its own `--real` builds. Consumed by
+   * `decideClaimExit` in `@storytree/drive` (a run releases only what its own take created).
+   *
+   * NOT the same question as `reclaimed`, which is about taking over ANOTHER session's stale
+   * claim. Both can be true at once: reclaiming a stale holder while folding our own shared row.
+   */
+  displaced?: ClaimDocT;
+  /**
+   * The `events.claim_event` seq of the audit row this take appended — the take's own event
+   * IDENTITY, so a caller that goes on to emit a further event can name THIS one as its cause
+   * (ADR-0350 D1's `(stream, seq)` qualified reference).
+   *
+   * OPTIONAL, and absent is honest rather than lazy: only the Postgres claim store has an
+   * append-only audit log to be positioned in, so every other implementation legitimately has
+   * no identity to offer. A caller that finds it absent stamps NO causal edge (ADR-0350 D2:
+   * absent, never inferred) rather than substituting something adjacent.
+   */
+  eventSeq?: number;
+}
+
+/**
  * The outcome of a claim attempt — a discriminated union, the way the spine reads it:
  * `acquired: true` means this session now holds the unit (freshly, re-entrantly, or by reclaiming a
  * stale holder); `acquired: false` carries the live holder so the refusal can name who has it.
@@ -201,38 +238,7 @@ export interface ClaimRequest {
  * grade-aware callers discriminate the queue with `"queued" in result`.
  */
 export type ClaimResult =
-  | {
-      acquired: true;
-      claim: ClaimDocT;
-      reclaimed: boolean;
-      /**
-       * The caller's OWN pre-existing row that this take absorbed — the re-entrant work row, or the
-       * shared exploring/waiting row a work take folds. Absent when the take genuinely created a row
-       * that did not exist for this session.
-       *
-       * Exists because `events.node_claim` is keyed `(unit_id, session_id)`: a build claiming under
-       * its LAUNCHING session's identity does not add a row, it OVERWRITES that session's own — so a
-       * caller that releases on the way out destroys a claim it never took. Without this field the
-       * caller cannot tell the two apart (`acquired: true` covers both), which is how a session's
-       * declaration silently vanished across its own `--real` builds. Consumed by
-       * `decideClaimExit` in `@storytree/drive` (a run releases only what its own take created).
-       *
-       * NOT the same question as `reclaimed`, which is about taking over ANOTHER session's stale
-       * claim. Both can be true at once: reclaiming a stale holder while folding our own shared row.
-       */
-      displaced?: ClaimDocT;
-      /**
-       * The `events.claim_event` seq of the audit row this take appended — the take's own event
-       * IDENTITY, so a caller that goes on to emit a further event can name THIS one as its cause
-       * (ADR-0350 D1's `(stream, seq)` qualified reference).
-       *
-       * OPTIONAL, and absent is honest rather than lazy: only the Postgres claim store has an
-       * append-only audit log to be positioned in, so every other implementation legitimately has
-       * no identity to offer. A caller that finds it absent stamps NO causal edge (ADR-0350 D2:
-       * absent, never inferred) rather than substituting something adjacent.
-       */
-      eventSeq?: number;
-    }
+  | ClaimAcquired
   | { acquired: false; heldBy: ClaimDocT }
   | { acquired: false; queued: true; waiting: ClaimDocT; heldBy: ClaimDocT };
 

@@ -26,7 +26,7 @@
 // (the `RepoPicker` namespace rule). This file signs no visual verdict; the look is judged against
 // `docs/design/context-traversal/bottom-panel-traversal-composition.html` by the owner.
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import type { TerminalDockSeed } from './TerminalDock.js';
 import { TerminalRepoGate } from './TerminalRepoGate.js';
 import { TraversalTab } from './TraversalTab.js';
@@ -152,21 +152,28 @@ export function BottomDock({
 
   const compact = expanded && height < COMPACT_BELOW;
 
+  // position:absolute → the panel overlays the MAP FRAME (its positioned offsetParent,
+  // .world-frame), the geometry the terminal dock has always had here.
+  const overlayStyle: CSSProperties = {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 6,
+  };
+  if (expanded) overlayStyle.height = `${height}px`;
+
+  const terminalPaneProps: Parameters<typeof renderTerminalPane>[0] = {
+    host: { expanded: expanded && tab === 'terminal', onRequestExpand: revealTerminal },
+  };
+  if (seed) terminalPaneProps.seed = seed;
+
   return (
     <aside
       ref={asideRef}
       className={`bottom-dock${compact ? ' bottom-dock-compact' : ''}`}
       aria-label="Bottom panel"
-      // position:absolute → the panel overlays the MAP FRAME (its positioned offsetParent,
-      // .world-frame), the geometry the terminal dock has always had here.
-      style={{
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: 6,
-        ...(expanded ? { height: `${height}px` } : {}),
-      }}
+      style={overlayStyle}
     >
       {expanded && (
         <div
@@ -231,10 +238,7 @@ export function BottomDock({
         aria-labelledby="bottom-dock-tab-terminal"
         hidden={!expanded || tab !== 'terminal'}
       >
-        {renderTerminalPane({
-          ...(seed ? { seed } : {}),
-          host: { expanded: expanded && tab === 'terminal', onRequestExpand: revealTerminal },
-        })}
+        {renderTerminalPane(terminalPaneProps)}
       </div>
 
       <div

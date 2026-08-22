@@ -19,7 +19,8 @@ import { FIXTURE_CORPUS_UNITS } from "./fixture/corpus.js";
  */
 
 function row(id: string, dependsOn?: unknown, extra?: Record<string, unknown>): DependsOnSource {
-  return { id, doc: { kind: "definition", id, ...extra, ...(dependsOn === undefined ? {} : { dependsOn }) } };
+  const doc = { kind: "definition", id, ...extra };
+  return { id, doc: dependsOn === undefined ? doc : { ...doc, dependsOn } };
 }
 
 test("library-dag-corpus-projects-pointers-to-node-ids: an `asset:` pointer resolves onto the node it names", () => {

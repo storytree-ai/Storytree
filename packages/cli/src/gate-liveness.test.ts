@@ -20,11 +20,10 @@ const tree = (count: number, cpuSeconds: number, firstPid = 100): Map<number, nu
   return map;
 };
 
-const sample = (at: number, processes: Map<number, number> | null, note?: string): CpuSample => ({
-  at,
-  processes,
-  ...(note !== undefined ? { note } : {}),
-});
+const sample = (at: number, processes: Map<number, number> | null, note?: string): CpuSample => {
+  const base: Omit<CpuSample, "note"> = { at, processes };
+  return note !== undefined ? { ...base, note } : base;
+};
 
 const MINUTE = 60_000;
 

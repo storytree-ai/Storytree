@@ -47,8 +47,8 @@ function recordingExec(script?: (call: ExecCall, index: number) => ExecResult) {
     const call: ExecCall = {
       cmd,
       args: [...args],
-      ...(opts?.cwd !== undefined ? { cwd: opts.cwd } : {}),
     };
+    if (opts?.cwd !== undefined) call.cwd = opts.cwd;
     calls.push(call);
     return script?.(call, calls.length - 1) ?? { code: 0, stdout: "", stderr: "" };
   };

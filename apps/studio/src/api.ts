@@ -140,16 +140,23 @@ function isChatEvent(value: unknown): value is ChatEvent {
  * frame carried, sent in the POST body so this exchange CONTINUES that conversation instead of
  * spawning a memoryless fresh session (the ADR-0163 gap-D fix). Omitted → a fresh session.
  */
+/** The POST /api/chat request body: the operator's intent, plus an optional prior session to resume. */
+interface ChatRequestBody {
+  intent: string;
+  resume?: string;
+}
+
 async function chatStream(
   intent: string,
   onEvent: (event: ChatEvent) => void,
   signal?: AbortSignal,
   resume?: string,
 ): Promise<void> {
-  const res = await fetch('/api/chat', {
-    ...jsonInit('POST', { intent, ...(resume !== undefined ? { resume } : {}) }),
-    ...(signal ? { signal } : {}),
-  });
+  const chatBody: ChatRequestBody = { intent };
+  if (resume !== undefined) chatBody.resume = resume;
+  const init: RequestInit = { ...jsonInit('POST', chatBody) };
+  if (signal) init.signal = signal;
+  const res = await fetch('/api/chat', init);
   if (!res.ok || res.body === null) {
     // Absent route / fail-closed backend (e.g. studio-standalone 404, or the intent guard's 400).
     throw new Error(`chat unavailable (${res.status} ${res.statusText})`);

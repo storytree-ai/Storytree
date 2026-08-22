@@ -225,13 +225,14 @@ export function parseReliabilityGates(storyId: string, body: string): Reliabilit
     const id = reliabilityGateId(storyId, index + 1);
     const proofCommand = itemCommand(item);
     const buildNode = itemBuildNode(item);
-    return ReliabilityGate.parse({
+    const draft: z.input<typeof ReliabilityGate> = {
       id,
       title: itemTitle(item),
       kind: itemKind(item, id),
       covers: itemCovers(item),
-      ...(proofCommand !== undefined ? { proofCommand } : {}),
-      ...(buildNode !== undefined ? { buildNode } : {}),
-    });
+    };
+    if (proofCommand !== undefined) draft.proofCommand = proofCommand;
+    if (buildNode !== undefined) draft.buildNode = buildNode;
+    return ReliabilityGate.parse(draft);
   });
 }

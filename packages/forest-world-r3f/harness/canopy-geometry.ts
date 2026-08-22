@@ -230,18 +230,10 @@ export function canopyCaster(spec: CanopySpec, at: { x: number; z: number }): Ca
   };
 }
 
-/**
- * A grove's worth of specs from one seed: the SIZE variation that carries the whole look.
- *
- * THE VARIATION IS IN SIZE AND NOTHING ELSE, and that is the reference's own discipline. Its
- * groves hold trees ranging roughly 1 : 2.5 in height with one canopy colour between them; the
- * range is what makes a cluster read as a stand of trees rather than as a fence of identical
- * cones, and the single colour is what keeps it reading as one mass.
- *
- * `domeFraction` is how many of them take the rounder silhouette. Passing 0 or 1 gives a pure
- * stand, which is what a formal planting looks like; the middle is a wild one.
- */
-export function groveSpecs(opts: {
+/** {@link groveSpecs}'s request. Named so a caller can DRAFT one — an optional field is assigned
+ *  only when it is present, and an absent field still means "the default", exactly as omitting it
+ *  from the literal did. */
+export interface GroveSpecOptions {
   count: number;
   seed?: number;
   /** Widest diameter at the SMALLEST tree, in ground units. */
@@ -254,7 +246,20 @@ export function groveSpecs(opts: {
   aspect?: number;
   domeFraction?: number;
   token?: string;
-}): CanopySpec[] {
+}
+
+/**
+ * A grove's worth of specs from one seed: the SIZE variation that carries the whole look.
+ *
+ * THE VARIATION IS IN SIZE AND NOTHING ELSE, and that is the reference's own discipline. Its
+ * groves hold trees ranging roughly 1 : 2.5 in height with one canopy colour between them; the
+ * range is what makes a cluster read as a stand of trees rather than as a fence of identical
+ * cones, and the single colour is what keeps it reading as one mass.
+ *
+ * `domeFraction` is how many of them take the rounder silhouette. Passing 0 or 1 gives a pure
+ * stand, which is what a formal planting looks like; the middle is a wild one.
+ */
+export function groveSpecs(opts: GroveSpecOptions): CanopySpec[] {
   const rnd = mulberry32(opts.seed ?? 11);
   const minW = Math.max(CANOPY_WIDTH_FLOOR, opts.minWidth ?? CANOPY_WIDTH_FLOOR);
   const maxW = Math.max(minW, opts.maxWidth ?? minW * 1.8);
@@ -268,7 +273,7 @@ export function groveSpecs(opts: {
     const rs = rnd();
     const width = minW + (maxW - minW) * rw;
     const shape: CanopyShape = rs < domeFraction ? 'dome' : 'spire';
-    out.push({
+    const spec: CanopySpec = {
       width,
       // A dome is authored SHORTER FOR ITS WIDTH than a spire — 0.66 of the spire's aspect,
       // floored so the clamp inside `growCanopy` can never silently fire. That is what makes it
@@ -277,9 +282,12 @@ export function groveSpecs(opts: {
       // delivered size rather than only in the source.
       height: width * Math.max(CANOPY_ASPECT_FLOOR, aspect * (shape === 'dome' ? 0.66 : 1)),
       shape,
-      ...(opts.token === undefined ? {} : { token: opts.token }),
       seed: (opts.seed ?? 11) + i,
-    });
+    };
+    // An untokened request leaves `token` ABSENT, so `growCanopy` still falls back to
+    // `PROP_TOKENS.canopy` — the same behaviour the conditional spread expressed.
+    if (opts.token !== undefined) spec.token = opts.token;
+    out.push(spec);
   }
   return out;
 }

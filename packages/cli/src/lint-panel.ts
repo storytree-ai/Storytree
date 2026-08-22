@@ -384,12 +384,12 @@ export function buildPanelPacket(
     if (specimen === undefined) return;
     const label = `Rule ${LABEL_ALPHABET[position] ?? String(position + 1)}`;
     labelled.push({ label, statement: specimen.statement, sites: specimen.sites });
-    key.push({
+    const keyRow: Omit<PanelKeyRow, "expected"> = {
       label,
       ruleId: specimen.ruleId,
       role: specimen.role,
-      ...(specimen.expected !== undefined ? { expected: specimen.expected } : {}),
-    });
+    };
+    key.push(specimen.expected !== undefined ? { ...keyRow, expected: specimen.expected } : keyRow);
   });
 
   return {

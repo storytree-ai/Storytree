@@ -39,21 +39,37 @@ interface LineOpts {
   readonly omitMessage?: boolean;
 }
 
+/** The assistant record's `message` member, as this fixture builds it. An ABSENT `model` / `usage`
+ *  is the omission each leg drives — never the key present with an empty or null value. */
+interface FixtureMessage {
+  id: string;
+  model?: string;
+  usage?: Record<string, unknown>;
+}
+
+/** The record's own fields, before `rootExtra` is layered over them and `message` after it. */
+interface FixtureRoot {
+  type: string;
+  sessionId: string;
+  timestamp: string;
+  isSidechain: boolean;
+}
+
 function assistantLine(opts: LineOpts): string {
-  const message = {
-    id: opts.id,
-    ...(opts.model !== undefined ? { model: opts.model } : {}),
-    ...(opts.omitUsage === true ? {} : { usage: opts.usage ?? {} }),
-    ...(opts.messageExtra ?? {}),
-  } satisfies Record<string, unknown>;
-  return JSON.stringify({
+  const draft: FixtureMessage = { id: opts.id };
+  if (opts.model !== undefined) draft.model = opts.model;
+  if (opts.omitUsage !== true) draft.usage = opts.usage ?? {};
+  const message = { ...draft, ...(opts.messageExtra ?? {}) } satisfies Record<string, unknown>;
+  const root: FixtureRoot = {
     type: opts.type ?? "assistant",
     sessionId: opts.sessionId,
     timestamp: opts.timestamp,
     isSidechain: opts.isSidechain ?? false,
-    ...(opts.rootExtra ?? {}),
-    ...(opts.omitMessage === true ? {} : { message }),
-  });
+  };
+  // `rootExtra` still layers OVER the record's own fields and UNDER `message`, the order the two
+  // spreads had — so a `message` key inside `rootExtra` still loses to the real one.
+  if (opts.omitMessage === true) return JSON.stringify({ ...root, ...(opts.rootExtra ?? {}) });
+  return JSON.stringify({ ...root, ...(opts.rootExtra ?? {}), message });
 }
 
 test("occupancy-is-the-per-request-resident-total: the observation sums input + cache-read + cache-creation for that one request, and a missing axis reads as 0", () => {

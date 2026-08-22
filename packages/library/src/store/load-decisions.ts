@@ -113,6 +113,14 @@ export function crossLinkedDecisionRefs(body: string, selfNumber: number): strin
  * second pass during the dual-source window does not rewrite the tier's birth dates. `updatedAt`
  * moves, which is honest: the row WAS written again.
  */
+/** The optional half of the `adr` row, built under guards and spread in whole — see
+ *  {@link AdrOptionalFields} in `adr-doc.ts` for why this is a named interface rather than a draft
+ *  of the row type or an inline type literal. */
+interface AdrRowOptionalFields {
+  decided?: string;
+  arcRef?: string;
+}
+
 export async function loadDecisions(store: Store, dir = decisionsDir()): Promise<LoadDecisionsResult> {
   const files = (await readdir(dir)).filter((f) => DECISION_FILE.test(f)).sort();
 
@@ -148,6 +156,12 @@ export async function loadDecisions(store: Store, dir = decisionsDir()): Promise
           ? `${fields.decided}T00:00:00.000Z`
           : now;
 
+    const optional: AdrRowOptionalFields = {};
+    if (fields.decided !== undefined) optional.decided = fields.decided;
+    // The frontmatter carries a BARE arc id; the row carries the `asset:` pointer every other
+    // containment stamp in the corpus uses (`Increment.arcRef` / `OpenQuestion.arcRef`), so the
+    // arc surface's ADR leg becomes an ordinary pointer query.
+    if (fields.arc !== undefined) optional.arcRef = `asset:${fields.arc}`;
     const doc = upcastAndValidate({
       kind: "adr",
       id,
@@ -165,11 +179,7 @@ export async function loadDecisions(store: Store, dir = decisionsDir()): Promise
       references: crossLinkedDecisionRefs(fields.body, number),
       createdAt,
       updatedAt: now,
-      ...(fields.decided === undefined ? {} : { decided: fields.decided }),
-      // The frontmatter carries a BARE arc id; the row carries the `asset:` pointer every other
-      // containment stamp in the corpus uses (`Increment.arcRef` / `OpenQuestion.arcRef`), so the
-      // arc surface's ADR leg becomes an ordinary pointer query.
-      ...(fields.arc === undefined ? {} : { arcRef: `asset:${fields.arc}` }),
+      ...optional,
     });
 
     await store.upsertDoc({ id, kind: "adr", doc: doc as Record<string, unknown> });

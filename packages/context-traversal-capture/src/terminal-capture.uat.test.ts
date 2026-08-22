@@ -27,7 +27,7 @@
  */
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import type { ChildProcess } from "node:child_process";
+import type { ChildProcess, SpawnSyncOptionsWithStringEncoding } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -57,11 +57,11 @@ interface CliResult {
  * an identity exists. Defaults to this process's cwd.
  */
 function runCli(args: readonly string[], env: NodeJS.ProcessEnv, cwd?: string): CliResult {
-  const res = spawnSync(process.execPath, [LAUNCHER, ...args], {
-    encoding: "utf8",
-    env,
-    ...(cwd !== undefined ? { cwd } : {}),
-  });
+  // No `cwd` leaves the key ABSENT, so the child inherits THIS process's directory — which is what
+  // the unresolved-identity leg depends on.
+  const options: SpawnSyncOptionsWithStringEncoding = { encoding: "utf8", env };
+  if (cwd !== undefined) options.cwd = cwd;
+  const res = spawnSync(process.execPath, [LAUNCHER, ...args], options);
   return { status: res.status, stdout: res.stdout ?? "", stderr: res.stderr ?? "" };
 }
 

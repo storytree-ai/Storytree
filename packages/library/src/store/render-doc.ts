@@ -269,30 +269,29 @@ export function renderStoredDoc(stored: StoredDoc): RenderedAsset {
   if (hasStringBody(doc) && !bodyIsContentField(kind)) {
     // Pass-through: the body is authoritative; category is the doc's own, else the stored kind.
     const category = typeof doc.category === "string" ? doc.category : stored.kind;
-    return {
+    const asset: RenderedAsset = {
       id: asString(doc.id) || stored.id,
       category,
       title: asString(doc.title),
       description: asString(doc.description),
       body: doc.body,
       references: asStringArray(doc.references),
-      ...(typeof doc.provenance === "string" && doc.provenance
-        ? { provenance: doc.provenance }
-        : {}),
-      // The authored dependency edge crosses on the PASS-THROUGH branch too (ADR-0223), unlike the
-      // typed NAVIGATION edges: a `stepRefs`-shaped property here is residue this branch cannot
-      // tell from current data, whereas `buildLibraryDoc` deliberately PRESERVES `dependsOn` across
-      // a body-bearing save, so a collapsed unit can legitimately arrive here carrying a live one.
-      // (History, since the original reason is now false: this crossing was added by PR #1330 to
-      // recover 106 of 660 edges that `hasStringBody` was dropping by routing every increment here.
-      // `bodyIsContentField` fixed that at the root — an increment renders structurally now — so
-      // this branch is no longer load-bearing for the DAG. It stays on the merits above.)
-      // This is the reader the WHOLE studio chain hangs off (renderStoredDoc -> toGuidanceAsset ->
-      // buildFocusGraph / the depth panel), so without it the canvas draws an empty DAG.
-      ...(hasDependsOnKey(doc) ? { dependsOn: readDependsOnPointers(doc) } : {}),
       createdAt: stored.createdAt,
       updatedAt: stored.updatedAt,
     };
+    if (typeof doc.provenance === "string" && doc.provenance) asset.provenance = doc.provenance;
+    // The authored dependency edge crosses on the PASS-THROUGH branch too (ADR-0223), unlike the
+    // typed NAVIGATION edges: a `stepRefs`-shaped property here is residue this branch cannot
+    // tell from current data, whereas `buildLibraryDoc` deliberately PRESERVES `dependsOn` across
+    // a body-bearing save, so a collapsed unit can legitimately arrive here carrying a live one.
+    // (History, since the original reason is now false: this crossing was added by PR #1330 to
+    // recover 106 of 660 edges that `hasStringBody` was dropping by routing every increment here.
+    // `bodyIsContentField` fixed that at the root — an increment renders structurally now — so
+    // this branch is no longer load-bearing for the DAG. It stays on the merits above.)
+    // This is the reader the WHOLE studio chain hangs off (renderStoredDoc -> toGuidanceAsset ->
+    // buildFocusGraph / the depth panel), so without it the canvas draws an empty DAG.
+    if (hasDependsOnKey(doc)) asset.dependsOn = readDependsOnPointers(doc);
+    return asset;
   }
 
   // A doc this code can't faithfully parse (unknown kind / newer schemaVersion) degrades to a
@@ -301,20 +300,20 @@ export function renderStoredDoc(stored: StoredDoc): RenderedAsset {
   const bag = doc as Record<string, unknown>;
   const reason = degradeReason(bag, kind);
   if (reason !== null) {
-    return {
+    const asset: RenderedAsset = {
       id: asString(bag["id"]) || stored.id,
       category: stored.kind,
       title: asString(bag["title"]),
       description: asString(bag["description"]),
       body: renderDegradedBody(bag, reason),
       references: asStringArray(bag["references"]),
-      ...(typeof bag["provenance"] === "string" && bag["provenance"]
-        ? { provenance: bag["provenance"] }
-        : {}),
       degraded: reason,
       createdAt: stored.createdAt,
       updatedAt: stored.updatedAt,
     };
+    const provenance = bag["provenance"];
+    if (typeof provenance === "string" && provenance) asset.provenance = provenance;
+    return asset;
   }
 
   // Structured Knowledge unit: derive the body from its per-kind fields; category = the kind; and
@@ -329,39 +328,36 @@ export function renderStoredDoc(stored: StoredDoc): RenderedAsset {
     dependsOn?: string[];
     cites?: string[];
   };
-  return {
+  const asset: RenderedAsset = {
     id: knowledge.id ?? stored.id,
     category: stored.kind,
     title: asString(knowledge.title),
     description: asString(knowledge.description),
     body: renderBody(knowledge),
     references: asStringArray(knowledge.references),
-    ...(typeof knowledge.provenance === "string" && knowledge.provenance
-      ? { provenance: knowledge.provenance }
-      : {}),
     fields: extractFields(knowledge),
-    ...(Array.isArray(typedEdges.stepRefs) ? { stepRefs: typedEdges.stepRefs } : {}),
-    ...(Array.isArray(typedEdges.branchEdges) ? { branchEdges: typedEdges.branchEdges } : {}),
-    ...(typeof typedEdges.arcRef === "string" && typedEdges.arcRef
-      ? { arcRef: typedEdges.arcRef }
-      : {}),
-    ...(typeof typedEdges.status === "string" && typedEdges.status
-      ? { status: typedEdges.status }
-      : {}),
-    ...(typeof typedEdges.lifecycle === "string" && typedEdges.lifecycle
-      ? { lifecycle: typedEdges.lifecycle }
-      : {}),
-    // The authored dependency edge (ADR-0223) crosses like the other typed edges: array-shaped, so
-    // the guard is `Array.isArray` (matching stepRefs/branchEdges) rather than a truthiness test.
-    ...(hasDependsOnKey(doc) ? { dependsOn: readDependsOnPointers(doc) } : {}),
-    // An increment's `cites` — the work-hierarchy join (ADR-0306 D2), array-shaped like the two
-    // above. Absent-by-default rather than `[]`, because ADR-0306 D2 makes an increment citing
-    // nothing CORRECT rather than under-specified (greenfield work, planning, ADR authoring), so
-    // no reader may treat an absent `cites` as a defect — a distinction `[]` would erase.
-    ...(Array.isArray(typedEdges.cites) ? { cites: typedEdges.cites } : {}),
     createdAt: stored.createdAt,
     updatedAt: stored.updatedAt,
   };
+  if (typeof knowledge.provenance === "string" && knowledge.provenance) {
+    asset.provenance = knowledge.provenance;
+  }
+  if (Array.isArray(typedEdges.stepRefs)) asset.stepRefs = typedEdges.stepRefs;
+  if (Array.isArray(typedEdges.branchEdges)) asset.branchEdges = typedEdges.branchEdges;
+  if (typeof typedEdges.arcRef === "string" && typedEdges.arcRef) asset.arcRef = typedEdges.arcRef;
+  if (typeof typedEdges.status === "string" && typedEdges.status) asset.status = typedEdges.status;
+  if (typeof typedEdges.lifecycle === "string" && typedEdges.lifecycle) {
+    asset.lifecycle = typedEdges.lifecycle;
+  }
+  // The authored dependency edge (ADR-0223) crosses like the other typed edges: array-shaped, so
+  // the guard is `Array.isArray` (matching stepRefs/branchEdges) rather than a truthiness test.
+  if (hasDependsOnKey(doc)) asset.dependsOn = readDependsOnPointers(doc);
+  // An increment's `cites` — the work-hierarchy join (ADR-0306 D2), array-shaped like the two
+  // above. Absent-by-default rather than `[]`, because ADR-0306 D2 makes an increment citing
+  // nothing CORRECT rather than under-specified (greenfield work, planning, ADR authoring), so
+  // no reader may treat an absent `cites` as a defect — a distinction `[]` would erase.
+  if (Array.isArray(typedEdges.cites)) asset.cites = typedEdges.cites;
+  return asset;
 }
 
 /** The fields a Library write supplies (the validated `/api/assets` body; no store timestamps). */

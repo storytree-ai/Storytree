@@ -44,6 +44,7 @@ import { recolorCrown, TREE_STATUS_PALETTE } from '../src/sprite/crown-recolor.j
 import {
   renderContactSheet,
   wrapContactSheetDoc,
+  type ContactSheetInput,
   type ContactSheetSlice,
   type ContactStatusTree,
 } from '../src/sprite/contact-sheet.js';
@@ -234,7 +235,9 @@ async function authorStyle(style: WholeSheetStyle, styleRef: { data: string; mim
   const witheredSlice = slices.find((s) => s.name === 'tree-withered');
   const unhealthyTree = statusTrees.find((t) => t.status === 'unhealthy');
   const preview = raw.width > 1400 ? downscaleRgba(raw, 1400) : raw;
-  const body = renderContactSheet({
+  // A missing withered slice / unhealthy tree leaves its key ABSENT, which is what suppresses the
+  // comparison block in the sheet — not an empty `src`.
+  const contact: ContactSheetInput = {
     styleName: style.name,
     styleLabel: style.label,
     rawDataUri: rgbaToJpegDataUri(preview),
@@ -242,10 +245,11 @@ async function authorStyle(style: WholeSheetStyle, styleRef: { data: string; mim
     rosterCount: roster.length,
     slices,
     statusTrees,
-    ...(witheredSlice ? { witheredDataUri: witheredSlice.dataUri } : {}),
-    ...(unhealthyTree ? { unhealthyRecolorDataUri: unhealthyTree.dataUri } : {}),
     generatedNote: `${GEMINI_NANO_BANANA_MODEL} · ${opts.size}/${opts.aspect}`,
-  });
+  };
+  if (witheredSlice) contact.witheredDataUri = witheredSlice.dataUri;
+  if (unhealthyTree) contact.unhealthyRecolorDataUri = unhealthyTree.dataUri;
+  const body = renderContactSheet(contact);
   await mkdir(opts.contactDir, { recursive: true });
   await writeFile(join(opts.contactDir, `${style.name}.contact.html`), body);
   await writeFile(join(opts.contactDir, `${style.name}.standalone.html`), wrapContactSheetDoc(body, `${style.label} — sprite sheet review`));
@@ -279,15 +283,18 @@ async function main(): Promise<void> {
     return;
   }
 
+  // No `--raw-dir` leaves `rawDir` ABSENT, which is what selects the generated raw rather than a
+  // supplied one.
+  const rawDir = arg('raw-dir');
   const opts: RunOpts = {
     size: arg('size') ?? '2K',
     aspect: arg('aspect') ?? '16:9',
-    ...(arg('raw-dir') ? { rawDir: arg('raw-dir')! } : {}),
     outRoot,
     contactDir: arg('contact-dir') ?? DEFAULT_CONTACT_DIR,
     mergeGap: Number(arg('merge-gap') ?? '8'),
     minArea: Number(arg('min-area') ?? '200'),
   };
+  if (rawDir) opts.rawDir = rawDir;
 
   const styleBytes = await readFile(STYLE_REF);
   const styleRef = { data: styleBytes.toString('base64'), mimeType: 'image/png' };

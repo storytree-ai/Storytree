@@ -34,7 +34,7 @@ export function sliceUsageDocs(ids: UsageRunIds, runs: readonly LiveRunInfo[]): 
   const docs: UsageEventDoc[] = [];
   for (const run of runs) {
     if (run.usage === undefined) continue;
-    docs.push({
+    const doc: UsageEventDoc = {
       unitId: ids.unitId,
       runId: ids.runId,
       phase: run.phase,
@@ -45,17 +45,15 @@ export function sliceUsageDocs(ids: UsageRunIds, runs: readonly LiveRunInfo[]): 
       source: run.source,
       usage: run.usage,
       turns: run.turns,
-      ...("costUsd" in run ? { costUsd: run.costUsd } : {}),
-      ...("reasoningOutputTokens" in run && run.reasoningOutputTokens !== undefined
-        ? { reasoningOutputTokens: run.reasoningOutputTokens }
-        : {}),
-      ...(ids.model !== undefined
-        ? { model: ids.model }
-        : "model" in run
-          ? { model: run.model }
-          : {}),
-      ...("byModel" in run && run.byModel !== undefined ? { byModel: run.byModel } : {}),
-    });
+    };
+    if ("costUsd" in run) doc.costUsd = run.costUsd;
+    if ("reasoningOutputTokens" in run && run.reasoningOutputTokens !== undefined) {
+      doc.reasoningOutputTokens = run.reasoningOutputTokens;
+    }
+    if (ids.model !== undefined) doc.model = ids.model;
+    else if ("model" in run) doc.model = run.model;
+    if ("byModel" in run && run.byModel !== undefined) doc.byModel = run.byModel;
+    docs.push(doc);
   }
   return docs;
 }

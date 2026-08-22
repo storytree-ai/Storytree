@@ -16,17 +16,20 @@ const cap = (
   status: WorkStatus | null,
   verdict?: TreeVerdict,
   drift?: DriftState,
-): TreeCapability => ({
-  id,
-  title: id,
-  outcome: '',
-  status,
-  proofMode: 'red-green',
-  dependsOn: [],
-  testCount: 0,
-  ...(verdict ? { verdict } : {}),
-  ...(drift ? { drift } : {}),
-});
+): TreeCapability => {
+  const c: TreeCapability = {
+    id,
+    title: id,
+    outcome: '',
+    status,
+    proofMode: 'red-green',
+    dependsOn: [],
+    testCount: 0,
+  };
+  if (verdict) c.verdict = verdict;
+  if (drift) c.drift = drift;
+  return c;
+};
 
 const story = (
   id: string,
@@ -34,19 +37,22 @@ const story = (
   capabilities: TreeCapability[] = [],
   verdict?: TreeVerdict,
   drift?: DriftState,
-): TreeStory => ({
-  id,
-  title: id,
-  outcome: '',
-  status,
-  proofMode: 'UAT',
-  uatWitness: 'human',
-  dependsOn: [],
-  consumedBy: [],
-  capabilities,
-  ...(verdict ? { verdict } : {}),
-  ...(drift ? { drift } : {}),
-});
+): TreeStory => {
+  const s: TreeStory = {
+    id,
+    title: id,
+    outcome: '',
+    status,
+    proofMode: 'UAT',
+    uatWitness: 'human',
+    dependsOn: [],
+    consumedBy: [],
+    capabilities,
+  };
+  if (verdict) s.verdict = verdict;
+  if (drift) s.drift = drift;
+  return s;
+};
 
 describe('worldStatus', () => {
   it('keeps authored greenfield work proposed and genuine mapped provenance brown', () => {

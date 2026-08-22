@@ -113,11 +113,12 @@ export async function attestLocalUat(input: AttestLocalUatInput): Promise<Attest
   //    cannot be greened by a human click; a blank/`sandbox:`/agent-equal signer can never self-attest
   //    a human-witness (or `either`-resolved-human) leg.
   const signer = input.signer.trim();
-  const guard = checkUatProof({
+  const guardInput: Parameters<typeof checkUatProof>[0] = {
     witness: test.witness,
     verdict: { proofMode: "operator-attested", signer },
-    ...(input.agentIdentity !== undefined ? { agentIdentity: input.agentIdentity } : {}),
-  });
+  };
+  if (input.agentIdentity !== undefined) guardInput.agentIdentity = input.agentIdentity;
+  const guard = checkUatProof(guardInput);
   if (!guard.ok) {
     return { ok: false, reason: guard.reason };
   }
@@ -160,11 +161,10 @@ export async function attestLocalUat(input: AttestLocalUatInput): Promise<Attest
     runId,
     outputVersion: "v1",
     evidence: [
-      {
-        kind: "operator-attested",
-        ref: signer,
-        ...(note !== undefined && note.length > 0 ? { note } : {}),
-      },
+      // The note rides as evidence only when it is a real, non-blank note — absent, never `undefined`.
+      note !== undefined && note.length > 0
+        ? { kind: "operator-attested", ref: signer, note }
+        : { kind: "operator-attested", ref: signer },
     ],
     at: input.at,
   };

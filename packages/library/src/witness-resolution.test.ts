@@ -16,24 +16,26 @@ import {
 // ---------------------------------------------------------------------------
 
 function leg(witness: UatTestCriterionWitness, n = 1, proofGateId?: string): UatTestCriterion {
-  return {
+  const criterion: UatTestCriterion = {
     criterionId: `uatc_${n.toString(16).padStart(24, "0")}`,
     revisionId: `uatr1:${n.toString(16).padStart(16, "0")}`,
     title: `leg ${n}`,
     witness,
     wouldBe: false,
-    ...(proofGateId !== undefined ? { proofGateId } : {}),
   };
+  if (proofGateId !== undefined) criterion.proofGateId = proofGateId;
+  return criterion;
 }
 
 function gate(kind: ReliabilityGate["kind"], n = 1, proofCommand?: string): ReliabilityGate {
-  return {
+  const row: ReliabilityGate = {
     id: `story#gate-${n}`,
     title: `gate ${n}`,
     kind,
     covers: [],
-    ...(proofCommand !== undefined ? { proofCommand } : {}),
   };
+  if (proofCommand !== undefined) row.proofCommand = proofCommand;
+  return row;
 }
 
 /**

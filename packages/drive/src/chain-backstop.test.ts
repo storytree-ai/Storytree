@@ -1,7 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import type { NodeBuildConfig, NodeSpec, ShellCommand } from "@storytree/orchestrator";
+import type {
+  NodeBuildConfig,
+  NodeSpec,
+  RealProofConfig,
+  ShellCommand,
+} from "@storytree/orchestrator";
 
 import {
   backstopJobs,
@@ -179,18 +184,19 @@ function mkSpec(id: string, buildConfig: NodeBuildConfig | undefined): NodeSpec 
 
 function installCfg(pkg: string, opts: { typecheck?: boolean } = {}): NodeBuildConfig {
   const scope = { testGlobs: [`packages/${pkg}/x.test.ts`], sourceGlobs: [`packages/${pkg}/x.ts`] };
+  const real: RealProofConfig = {
+    testFile: `packages/${pkg}/x.test.ts`,
+    sourceFile: `packages/${pkg}/x.ts`,
+    scope,
+    install: true,
+  };
+  if (opts.typecheck !== false) {
+    real.typecheck = { file: "pnpm", args: ["--filter", `@storytree/${pkg}`, "typecheck"] };
+  }
   return {
     command: { file: "pnpm", args: ["--filter", `@storytree/${pkg}`, "test"] },
     scope,
-    real: {
-      testFile: `packages/${pkg}/x.test.ts`,
-      sourceFile: `packages/${pkg}/x.ts`,
-      scope,
-      install: true,
-      ...(opts.typecheck === false
-        ? {}
-        : { typecheck: { file: "pnpm", args: ["--filter", `@storytree/${pkg}`, "typecheck"] } }),
-    },
+    real,
   };
 }
 

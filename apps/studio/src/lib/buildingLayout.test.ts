@@ -23,18 +23,21 @@ const node = (id: string, dependsOn: string[] = [], consumedBy: string[] = []): 
   consumedBy,
 });
 
-const story = (id: string, building?: boolean): TreeStory => ({
-  id,
-  title: id,
-  outcome: '',
-  status: 'mapped',
-  proofMode: 'red-green',
-  uatWitness: 'machine',
-  dependsOn: [],
-  consumedBy: [],
-  ...(building ? { building: true } : {}),
-  capabilities: [],
-});
+const story = (id: string, building?: boolean): TreeStory => {
+  const s: TreeStory = {
+    id,
+    title: id,
+    outcome: '',
+    status: 'mapped',
+    proofMode: 'red-green',
+    uatWitness: 'machine',
+    dependsOn: [],
+    consumedBy: [],
+    capabilities: [],
+  };
+  if (building) s.building = true;
+  return s;
+};
 
 // A faithful subgraph of the REAL corpus (stories/*/story.md, 2026-06-25): `library` and `cli`
 // are both `render: building`. cli's edges are declared PROVIDER-SIDE on each spoke

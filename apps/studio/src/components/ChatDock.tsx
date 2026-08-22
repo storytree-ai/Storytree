@@ -22,7 +22,7 @@
 // index.css and is the `desktop` story's operator-attested UAT leg 7 — this file signs no visual
 // verdict and asserts no appearance.
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState, type CSSProperties } from 'react';
 import { ChatPanel } from './ChatPanel.js';
 
 /** Drag bounds for the expanded dock height (px). MIN keeps the conversation usable; MAX leaves a
@@ -106,21 +106,23 @@ export function ChatDock({ onReloadTree }: ChatDockProps = {}): React.JSX.Elemen
     [height],
   );
 
+  // position:absolute → the dock overlays the MAP FRAME (its positioned offsetParent,
+  // .world-frame), not the whole app; z 6 sits above the in-frame map overlays (z 2–5) and
+  // below the transient tooltips (z 55–60).
+  const overlayStyle: CSSProperties = {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 6,
+  };
+  if (expanded) overlayStyle.height = `${height}px`;
+
   return (
     <aside
       ref={asideRef}
       className="chat-dock"
-      // position:absolute → the dock overlays the MAP FRAME (its positioned offsetParent,
-      // .world-frame), not the whole app; z 6 sits above the in-frame map overlays (z 2–5) and
-      // below the transient tooltips (z 55–60).
-      style={{
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: 6,
-        ...(expanded ? { height: `${height}px` } : {}),
-      }}
+      style={overlayStyle}
     >
       {/* The resize grabber lives on the dock's TOP edge, only while expanded — a thin drag handle,
           paired below with the collapse chevron in the minimal top strip (no title text). */}

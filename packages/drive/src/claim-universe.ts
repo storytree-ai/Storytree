@@ -103,13 +103,10 @@ export function parseNodeFrontmatter(
   const id = /^id:\s*["']?([^"'\n\r]+?)["']?\s*$/m.exec(fm)?.[1];
   if (id === undefined || id.trim().length === 0) return { unreadable: true };
   const witness = /^uat_witness:\s*["']?([^"'\n\r]+?)["']?\s*$/m.exec(fm)?.[1]?.trim();
-  return {
-    id: id.trim(),
-    kind: tier as ClaimKind,
-    ...(tier === "story" && witness !== undefined && witness.length > 0
-      ? { uatWitness: witness }
-      : {}),
-  };
+  const uatWitness =
+    tier === "story" && witness !== undefined && witness.length > 0 ? witness : undefined;
+  const base = { id: id.trim(), kind: tier as ClaimKind };
+  return uatWitness !== undefined ? { ...base, uatWitness } : base;
 }
 
 /** What one source contributed, and what it failed to contribute. */

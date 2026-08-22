@@ -22,7 +22,10 @@ import {
   type SceneNode,
   type SceneTrailsInput,
 } from '@storytree/forest-world';
-import { normalizeWorldPresentationModel } from './WorldSceneView.js';
+import {
+  normalizeWorldPresentationModel,
+  type WorldPresentationModelInput,
+} from './WorldSceneView.js';
 import {
   SemanticGrowthWorldView,
   type SemanticGrowthFrame,
@@ -144,13 +147,14 @@ function framesWithRevealOn(
   revealKey: SemanticGrowthFrameKey,
 ): readonly SemanticGrowthFrame[] {
   const plan = growPlan();
-  return ORDERED_KEYS.map((key) => ({
-    key,
-    model: normalizeWorldPresentationModel({
-      scene: sceneFor(key),
-      ...(key === revealKey ? { reveal: plan } : {}),
-    }),
-  }));
+  return ORDERED_KEYS.map((key) => {
+    // The input's fields are `readonly`, so the whole object is chosen rather than accumulated:
+    // a non-arrival frame carries NO `reveal` key at all, exactly as before.
+    const scene = sceneFor(key);
+    const input: WorldPresentationModelInput =
+      key === revealKey ? { scene, reveal: plan } : { scene };
+    return { key, model: normalizeWorldPresentationModel(input) };
+  });
 }
 
 function masks(container: HTMLElement): HTMLElement[] {
