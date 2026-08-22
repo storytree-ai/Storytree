@@ -329,7 +329,7 @@ fence machinery's origin, the claim store, the loop definitions, or the chat cha
 ## UAT Test Criteria
 
 > **DELETED — all six criteria, 2026-08-21, under
-> [ADR-0396](../../docs/decisions/0396-a-retired-story-s-uat-criteria-are-deleted-with-their-ordina.md).**
+> ADR-0396.**
 > A UAT criterion is a standing acceptance OBLIGATION against a story's outcome, not a record of one.
 > This story is `status: retired` (ADR-0175), so its outcome is withdrawn and every criterion under it
 > was an obligation against a journey nobody will run. The six legs that stood here — ordinals 1 through

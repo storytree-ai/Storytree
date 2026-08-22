@@ -260,9 +260,12 @@ const ShellCommandSchema = z
 const CODE_ROOTS = ["packages", "apps"] as const;
 /**
  * The AUTHORING-DOC roots a gate-as-proof node may target (ADR-0092 amends ADR-0087): a story's own
- * spec dir (`stories/<story>/`) and the decision log (`docs/decisions/`). A gate-as-proof authoring
- * node's "source" is a DOC outside `packages/` — an ADR (`docs/decisions/NNNN-slug.md`) or a story
- * spec (`stories/<story>/story.md`) it edits to structural completeness (ADR-0059, expansion E). The
+ * spec dir (`stories/<story>/`) and `docs/`. A gate-as-proof authoring node's "source" is a DOC
+ * outside `packages/` — a story spec (`stories/<story>/story.md`) or a doc under `docs/` — which it
+ * edits to structural completeness (ADR-0059, expansion E). ⚠ The `docs/` root was admitted for the
+ * DECISION LOG, and decisions left the tree: ADR-0403 dec 1 made them `adr` rows and deleted
+ * `docs/decisions/`, so an ADR is no longer a file any node can declare a scope over. The root
+ * stays for the docs that remain (research notes, open-questions). The
  * SAME structural bound still applies — one CONCRETE doc dir, no wildcard/`..`/absolute escape — so a
  * gate-as-proof node can no more declare a repo-wide doc scope than a code node can.
  */

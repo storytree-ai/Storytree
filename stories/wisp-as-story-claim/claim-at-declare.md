@@ -21,7 +21,7 @@ decisions: [142, 138, 121, 33, 175]
 **Outcome —** `storytree noticeboard declare --node <story> --pg` **also takes the work-time claim** on
 each declared node — one ceremony step = presence **+ wisp**. This is the **cheap acquisition wiring**
 for ADR-0138 §3's work-time claim, decided and landed by
-[ADR-0142](../../docs/decisions/0142-branch-dies-on-merge-the-wisp-survives-via-claim-at-declare.md)
+ADR-0142
 (PR #535): a session that anchors itself on the board now has a durable claim-wisp on the map, so
 visibility no longer depends on a `--real` build being mid-flight — the gap ADR-0142's context observed
 live (every active session under "(no node)", zero claims, between builds).
@@ -78,7 +78,7 @@ landed branch's claims, never live work); and the merge ceremony gains the post-
 
 > **ADR-0271 note (leg 3's continuation half is retired).** Leg 3's original shape — fetch main, cut a
 > fresh branch, re-declare, keep working — was amended by
-> [ADR-0271](../../docs/decisions/0271-sessions-end-at-merge-land-debrief-go-inert-work-re-enters-t.md)
+> ADR-0271
 > (2026-07-30): a session's working life ends where its PR merges, so the post-merge leg is now the
 > **closing leg** — residue, release claims, owner debrief, then inert — and new work re-enters through a
 > **fresh session**, not a fresh branch in this one. The wisp lifecycle across a landing is therefore an
@@ -92,7 +92,7 @@ seam is built, proven, and deliberately kept (`packages/agent/src/spawn-claim.ts
 E2's GATE did land cross-story as chat-subagent-spawn's
 [`claim-gated-spawn`](../chat-subagent-spawn/claim-gated-spawn.md) under a signed `--real` PASS, and its
 runtime mount landed after it — but **all of it then retired with that whole story under
-[ADR-0175](../../docs/decisions/0175-repurpose-don-t-delete-the-in-app-orchestrator-chat-infrastr.md)**
+ADR-0175**
 (execution status *SPAWN — DONE (2026-07-31)*): the spawn tool surface, the gate and the deps composition
 are deleted, held gone by `apps/desktop/src/backend/spawn-surface-retired.test.ts`, and that story plus
 all five of its capabilities are `status: retired` — so the link above points at retired work whose code

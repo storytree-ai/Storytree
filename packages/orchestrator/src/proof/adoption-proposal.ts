@@ -20,8 +20,7 @@ import { sweepDecisions, type DecisionFork, type DecisionSweep } from "./decisio
  *
  * **The Layer-2 ↔ Layer-3 contract (the extensibility slot).** The FINER sub-classification of the
  * UNCOVERED set — does an uncovered cap need a behavioural red→green, or a refactor-for-testability? —
- * is agent analysis (the story-author's batch-sweep, ADR-0098 §5), and
- * [ADR-0098](../../../../docs/decisions/0098-a-build-tests-capable-inner-loop-refactor-for-testability-ea.md)
+ * is agent analysis (the story-author's batch-sweep, ADR-0098 §5), and ADR-0098
  * (proposed, under owner review) FINALIZES that taxonomy. So {@link PocketClass} is a deliberately
  * EXTENSIBLE slot, NOT a baked-in commitment to any `observe` / `R1` / `R2` words: the only value the
  * structural compute emits today is `unclassified` (an uncovered cap awaiting the agent's call). Layer 3

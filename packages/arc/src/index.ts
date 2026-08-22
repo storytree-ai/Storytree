@@ -20,7 +20,8 @@
 // work-hierarchy scanners and every verb returns drive's `Envelope`, so drive cannot import this
 // package back. `@storytree/cli`, `apps/studio` and `apps/desktop` consume it directly.
 //
-// Node-only, deliberately: the rollup loaders scan a checkout (`docs/decisions/`, `stories/`). The
+// Node-only, deliberately: the rollup loaders scan a checkout (`stories/`) — the decisions are rows
+// read through the store since ADR-0403 dec 1, not part of that scan. The
 // browser's view of an arc is the studio's wire mirror of `ArcRollup` in `apps/studio/src/types.ts`,
 // never this package.
 

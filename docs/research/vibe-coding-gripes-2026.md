@@ -1,6 +1,6 @@
 # Vibe-coding gripes (2025–2026) — the pain the website's two-act experience dramatizes
 
-Research synthesis for [ADR-0134](../decisions/0134-public-website-as-a-two-act-vibe-coding-experience-terminal.md)
+Research synthesis for ADR-0134
 (the two-act website experience). Two parallel research passes (2026-06-28) over real developer venues —
 Hacker News, the Cursor forum, Indie Hackers, engineering blogs, the Stack Overflow 2025 Developer
 Survey, vendor postmortems, and named studies — into what developers actually complain about with AI /

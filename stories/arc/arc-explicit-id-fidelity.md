@@ -86,7 +86,7 @@ refines the explicit-id selection inside that capability's `arcNew`, so it build
 reverse. The edge was already argued, from the other end: that capability's spec has long said the
 arrow runs from this one to it, "never back. Declaring the reverse would put a cycle in the story
 graph." It could not be AUTHORED until 2026-08-14, because until
-[ADR-0369](../../docs/decisions/0369-the-arc-domain-owns-its-own-package-and-the-arrow-runs-arc-t.md)
+ADR-0369
 the two lived in different stories and a capability's `depends_on` names siblings only. It formerly
 read `unified-command-dispatch` — a `cli` capability, now neither a sibling nor a real dependency:
 `@storytree/cli` depends on `@storytree/arc` and not the reverse, and the `Envelope` this verb returns

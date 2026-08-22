@@ -4,12 +4,16 @@ This directory is the **seed of the self-building tree**. storytree's north star
 build itself — agents author, test, and UAT-prove stories on a DAG. There is no
 orchestrator or store yet (`packages/core` is a stub), so this first tree is authored
 **by hand** — the bootstrap "midwife" step — by decomposing what was really built into
-the [ADR-0002](../docs/decisions/0002-work-hierarchy-story-capability-contract.md)
+the ADR-0002
 work hierarchy. It is a hand-authored **specification of already-built code**, not the
 output of a real orchestrator run.
 
 The first story authored was **[`studio/`](studio/story.md)** —
 `apps/studio`, decomposed into 7 capabilities and 80 contracts.
+
+> **Reading an ADR referenced here.** Decisions are rows in the shared store, not files (ADR-0403) —
+> a bare `ADR-NNNN` is the whole address. Read one with `storytree library artifact adr-NNNN`, or
+> list the current set with `storytree adr list --current`.
 
 ## The representation
 
@@ -34,7 +38,7 @@ ontology-aligned; promoting a contract to its own file later is a mechanical cha
 
 Dependencies are **capability → capability** edges, stored inline as each capability's
 `depends_on:` list (the story file also renders the whole graph). Per
-[ADR-0010](../docs/decisions/0010-organism-model-story-bounded-context.md) these
+ADR-0010 these
 within-story edges are **code-derived** — read off the imports/calls between
 capabilities (static analysis), not hand-authored from a UAT. A *story* depends on
 another only through a **declared, documented cross-story interface** (provisionally
@@ -43,7 +47,7 @@ is acyclic.
 
 ### Field → ADR / glossary mapping
 
-The proof ladder follows [ADR-0010](../docs/decisions/0010-organism-model-story-bounded-context.md)
+The proof ladder follows ADR-0010
 (which amends ADR-0002/0007): UAT at the **story**, integration tests at the
 **capability**, the isolated unit test at the **contract**.
 
@@ -54,7 +58,7 @@ The proof ladder follows [ADR-0010](../docs/decisions/0010-organism-model-story-
 | `title` | frontmatter | all | short human label (not load-bearing for proof) | glossary *title* |
 | `outcome` | frontmatter | story, capability | one-sentence value statement, **no conjunctions** | glossary *outcome* |
 | `status` | frontmatter | story, capability | lifecycle state (enum unchanged — ADR-0010 §Consequences) | glossary *Lifecycle* |
-| `proof_mode` | frontmatter | story, capability | the tier's proof: story = `UAT`; capability = `integration-test`; contract = `contract-test` | [ADR-0010](../docs/decisions/0010-organism-model-story-bounded-context.md) (amends [ADR-0007](../docs/decisions/0007-proof-model.md)) |
+| `proof_mode` | frontmatter | story, capability | the tier's proof: story = `UAT`; capability = `integration-test`; contract = `contract-test` | ADR-0010 (amends ADR-0007) |
 | `capabilities` | frontmatter | story | the story's composition (the map grain) | ADR-0002 |
 | `depends_on` | frontmatter | capability | **code-derived** within-story upstream edges (static analysis); cross-story coupling is interface-only | ADR-0010 §3, glossary *dependency* |
 | **Guidance** | body | capability | non-obvious context to rebuild the unit | glossary *guidance* |

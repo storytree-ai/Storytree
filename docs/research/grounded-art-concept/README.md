@@ -17,7 +17,7 @@ someone lives*, not a field of markers.
 ## Why this exists — the standing-stone verdict (increment 6, #832)
 
 Increment 6 drove the UAT-marker standing-stones through the factory as baked isometric solids
-([ADR-0218](../../decisions/0218-baked-art-carries-resolved-paint-into-the-shared-scene-via-a.md)),
+(ADR-0218),
 behind `?factoryart=on`. The owner looked (2026-07-20) and gave a **negative verdict**:
 
 > "the stones glue well to the island but they collide with the buildings, i also think stones is not

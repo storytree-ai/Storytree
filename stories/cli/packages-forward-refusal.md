@@ -59,7 +59,7 @@ proof:
 inside **another story's building** (a foreign `packages/<x>` or `apps/<x>` dir) when that story is NOT
 named in the **frozen grandfather register** (`hostedStories`) — **regardless of any declared edge**
 between the two — so a NEW story can no longer squat in a foreign building at all (packages-forward,
-[ADR-0192](../../docs/decisions/0192-hosted-story-boundary-honesty-the-landlord-rule-now-packages.md)
+ADR-0192
 decision 2); the register grandfathers exactly the existing hosted stories, and a register entry that no
 longer claims any foreign-hosted file is itself a violation, making the register a self-pruning migration
 worklist.
@@ -69,7 +69,7 @@ worklist.
 > it DECLARES a host edge either way. That is the right end-state for the ~18 stories already hosted — but
 > it would also silently bless a BRAND-NEW story that squats in a foreign building, as long as it
 > remembered to declare the edge. ADR-0192 decision 2 is stricter GOING FORWARD: a new story's code lives
-> in its OWN workspace package (an organism, [ADR-0068](../../docs/decisions/0068-dissolve-core-into-organisms-the-organism-rebuild.md))
+> in its OWN workspace package (an organism, ADR-0068)
 > where the compiler and the package-granular gate enforce every edge for free — a new story must not host
 > in a neighbour's building **at all**, edge or no edge. The existing hosted stories are GRANDFATHERED in a
 > register in `repo-manifest.json`, frozen at adoption in the sense that matters: adding a name is a loud,

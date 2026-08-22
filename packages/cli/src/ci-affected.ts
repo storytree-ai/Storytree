@@ -57,8 +57,8 @@ interface RootPathReaders {
    *
    * The exact form is load-bearing, not tidiness: a bare `startsWith("CLAUDE.md")` would also claim
    * `CLAUDE.md.bak` or `CLAUDE.md.orig`, silently narrowing a path nobody measured. Matching is
-   * LONGEST-FIRST, so `docs/decisions/` wins over `docs/` and `.claude/agents/` over `.claude/`
-   * regardless of the order entries are written in.
+   * LONGEST-FIRST, so `.claude/agents/` wins over `.claude/` regardless of the order entries are
+   * written in.
    */
   readonly prefix: string;
   /** The workspace projects whose suites read it. Dependents are pnpm's job (`--filter ...<name>`). */
@@ -91,9 +91,11 @@ interface RootPathReaders {
  *   - `@storytree/cli`   — `cli.test.ts`, `story-build.test.ts` (and, until the decision log moved,
  *                          `adr-health.test.ts`'s real-tree gate).
  *   - `@storytree/drive` — `chain-claims-drive.test.ts`, which never names the path: it calls
- *                          `storyBuild` over a tmp fixture, and `story-build.ts` resolves
+ *                          `storyBuild` over a tmp fixture, and `story-build.ts` resolved
  *                          `loadAdrMetas(rootDir/docs/decisions)` against the REAL repo root.
- *                          A grep for the literal path does not find this. The probe did.
+ *                          A grep for the literal path did not find this. The probe did.
+ *                          (That call is now a store read; drive stays selected for `docs/`
+ *                          because it stats the docs tree on the same path.)
  *
  * `apps/studio` and `packages/app-surface` are the two vitest suites; both were re-probed separately
  * (149 and 20 test files, all green) and read the tree zero times. studio is selected anyway as a
@@ -123,7 +125,7 @@ interface RootPathReaders {
  *
  * WHAT THIS DOES NOT COVER, deliberately. The `check:*` rungs are not scoped by this classifier at
  * all — they run unconditionally in both `gate-order.ts` and `ci.yml` — so `check:web-grounding`,
- * which also reads `docs/decisions`, is unaffected by the map and needs no entry in it. That is also
+ * which also reads the decision log, is unaffected by the map and needs no entry in it. That is also
  * why `.cursor/`, `.gemini/` and `.opencode/` measured ZERO readers: `check:agents` covers them.
  *
  * ADDING AN ENTRY IS AN ADR-0394 AMENDMENT, and it costs a measurement, not an argument.
@@ -213,9 +215,11 @@ const ROOT_PATH_READERS: readonly RootPathReaders[] = [
  * The map entry that governs `file`, or undefined when none does (→ the fail-wide default).
  *
  * LONGEST MATCH WINS, computed rather than relying on the order entries happen to be written in.
- * `docs/decisions/` and `docs/` name different reader sets, as do `.claude/agents/` and `.claude/`,
- * and a first-match-wins scan would silently hand a decision file the wider `docs/` set the day
- * someone re-sorted the array. An entry WITHOUT a trailing slash matches its path exactly — never
+ * `.claude/agents/` and `.claude/` name different reader sets, and a first-match-wins scan would
+ * silently hand a file the wider set the day someone re-sorted the array. (`docs/decisions/` over
+ * `docs/` was the original worked example; it stopped being one when that entry went, but the rule
+ * it illustrated is unchanged and any future nested pair depends on it.) An entry WITHOUT a
+ * trailing slash matches its path exactly — never
  * as a string prefix, which would let `CLAUDE.md.bak` inherit `CLAUDE.md`'s measured readers.
  */
 function readerMapEntryFor(file: string): RootPathReaders | undefined {

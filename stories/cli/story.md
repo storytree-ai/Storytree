@@ -60,7 +60,7 @@ decisions: [23, 50, 74, 102, 112]
 dispatches by verb to the owning organism, and returns a typed envelope/exit code — the composition
 root that wires the system into one command.
 
-This is storytree's **command hub** ([ADR-0023](../../docs/decisions/0023-library-cli-choose-your-own-adventure.md)
+This is storytree's **command hub** (ADR-0023
 the choose-your-own-adventure surface). `packages/cli` is the thin shim every agent talks to:
 `main.ts` parses args, hydrates credentials (`secrets.ts`), dispatches by verb, and maps the result
 to a typed `Envelope` + exit code. It imports **every** organism to surface it — library explore/edit,
@@ -70,7 +70,7 @@ is the wiring hub. `cli`'s `secrets.ts` / `build.ts` / `envelope.ts` are now thi
 re-exporting `@storytree/drive` (so `@storytree/cli/build` and `@storytree/cli/secrets` are unchanged
 for any existing importer).
 
-**Why this is its own (hub) story now ([ADR-0074](../../docs/decisions/0074-enforce-the-organism-boundary-gate-the-cross-story-dependenc.md) §2).**
+**Why this is its own (hub) story now (ADR-0074 §2).**
 The CLI is the single most-connected package in the workspace. The v1 boundary gate classed it a
 "composition root" and **exempted** its edges; ADR-0074 §2 rejects that — hiding the most-connected
 node hides the most architecturally important relationships. The CLI is a **first-class hub
@@ -130,7 +130,7 @@ outside this file cites a capability by row number, and the prose here now names
 than positions, so a future departure cannot silently re-point a sentence.)*
 
 **Three capabilities left this table on 2026-08-14, and where they went is the point
-([ADR-0369](../../docs/decisions/0369-the-arc-domain-owns-its-own-package-and-the-arrow-runs-arc-t.md)).**
+(ADR-0369).**
 
 `arc-derived-initiative-view` and `increment-freshness-check` were added here on 2026-08-08 by
 `capability-layer-coverage-arc` increment 6, over already-implemented code, and they were always a
@@ -301,12 +301,12 @@ defect slips through, or the live `--pg` credential-hydration leg earns a standi
 The historical Adopt run signed this gate — **this already happened** (`studio-adopt`, 2026-07-04
 at `c79fe948`; the status edit landed in `98dc73e6`). ADR-0395 now makes the frontmatter's
 `status: proposed` the correct greenfield baseline independent of that ceremony. `healthy` stays non-authorable
-([ADR-0020](../../docs/decisions/0020-red-green-enforcement-on-the-owned-loop.md)) — the authored
+(ADR-0020) — the authored
 frontmatter `status:` is never `healthy`; the world's crown DERIVES green from the signed verdicts
-([ADR-0040](../../docs/decisions/0040-verdict-derived-green-and-the-human-witness-signpost.md)) and only
+(ADR-0040) and only
 when every capability is `healthy` AND every own-proof obligation (the three machine UAT legs bound to
 `cli#gate-1`, the fourth machine leg once a real harness binds it, and this reliability gate) is signed
-([ADR-0082](../../docs/decisions/0082-per-test-uat-test-criteria-earn-green-by-declared-witness-story-uat.md) /
+(ADR-0082 /
 ADR-0083 Fork A + ADR-0085). No single gate greens the story.
 
 ## Proof
@@ -390,7 +390,7 @@ entries despite these five verdicts, so the generated offline status view is sta
 
    **How it was answered.** The owner directed **(b)** on 2026-08-09, answering the since-retired open
    question `oq-where-should-the-arc-tier-live-the-cli-shim-its-own-packa`;
-   [ADR-0369](../../docs/decisions/0369-the-arc-domain-owns-its-own-package-and-the-arrow-runs-arc-t.md)
+   ADR-0369
    records the decision and `arc-tier-extraction-arc` increment 1 delivered it. `packages/arc` is the
    building, [`arc`](../arc/story.md) is the story, both capabilities moved with all of their code,
    and ADR-0192 D2 is satisfied rather than excepted. Option (b)'s stated bonus landed too:

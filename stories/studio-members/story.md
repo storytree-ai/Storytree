@@ -26,7 +26,7 @@ decisions: [43, 100, 117]
 become a tracked user with a role; the API enforces what each role may do, and non-members see
 nothing but a request-access wall.
 
-The deciding ADR is [ADR-0043](../../docs/decisions/0043-app-owned-users-roles-and-ui-invitations.md):
+The deciding ADR is ADR-0043:
 identity becomes app-owned (IAP authenticates, the studio authorizes), roles are Admin + Member,
 and invitations are a self-contained UI action. This supersedes the hosted studio's first access
 model (ADR-0042's IAP allowlist + env admin list).
@@ -49,7 +49,7 @@ model (ADR-0042's IAP allowlist + env admin list).
 
 ## The builder role (ADR-0117)
 
-[ADR-0117](../../docs/decisions/0117-broker-the-inner-circle-s-builds-a-members-gated-write-endpo.md)
+ADR-0117
 adds a **third role, `builder`**, so a trusted co-builder may contribute brokered builds/writes to the
 shared forest as an in-app grant (no per-friend Cloud SQL IAM grant). A `builder` reads + comments like a
 `member` **plus** holds the brokered-write scope, is resolved by the same `resolveAccess`, and holds **no
@@ -223,7 +223,7 @@ Note for a follow-up pass: [`builder-role`](builder-role.md)'s Guidance and proo
 describe leg 8 as operator-attested, which this re-adjudication supersedes.
 
 **C. Settled, not open.** ADR-0043 fixed the base model and
-[ADR-0117](../../docs/decisions/0117-broker-the-inner-circle-s-builds-a-members-gated-write-endpo.md)
+ADR-0117
 added the `builder` role (a settled owner-directed decision, born accepted per ADR-0110 — not
 re-litigated). Inviting also emails the invitee ([`invite-notify`](invite-notify.md)). Per-story or
 per-artifact roles, and self-serve "request access" notifications to *admins* (the inbound direction — a

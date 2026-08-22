@@ -373,7 +373,7 @@ tree schema.
 ## UAT Test Criteria
 
 > **DELETED — all six criteria, 2026-08-21, under
-> [ADR-0396](../../docs/decisions/0396-a-retired-story-s-uat-criteria-are-deleted-with-their-ordina.md).**
+> ADR-0396.**
 > A UAT criterion is a standing acceptance OBLIGATION against a story's outcome, not a record of one.
 > This story is `status: retired` (ADR-0174 + ADR-0175), so its outcome is withdrawn and every
 > criterion under it was an obligation against a journey nobody will run. The six legs that stood here
@@ -641,7 +641,7 @@ command quoted just above no longer applies either — kept as history.)*
    2026-07-26 during the re-adjudication; closed in place 2026-08-20, ADR-0139.)* The call asked the
    owner to settle "once and generally" why `@storytree/model-uat`'s prose parser accepted
    `(witness: model)` while the story-side enum (`UAT_TEST_CRITERION_WITNESSES`) and `proof-protocol`'s
-   `UatWitness` both refused it. **[ADR-0247](../../docs/decisions/0247-retire-the-model-uat-witness-tier-the-witness-split-is-human.md)
+   `UatWitness` both refused it. **ADR-0247
    answered it on the very day it was raised** — owner-directed 2026-07-26, decision 1: the witness
    split is **binary**, `human` | `machine`, with no `model` witness kind, no capability tier, no
    eligibility registry and no escalation ladder. So the divergence resolves in favour of the two

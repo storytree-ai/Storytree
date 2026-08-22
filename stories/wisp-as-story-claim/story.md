@@ -104,9 +104,9 @@ supplementing), **visibly distinct** from a proven-green bloom, **taken at works
 and **cleared on the CI merge**. Parallel sessions never stomp each other and the map reads the **one
 claim ledger**, never a presence row.
 
-This story realises [ADR-0138](../../docs/decisions/0138-the-wisp-is-a-forced-ci-cleared-story-claim-one-coordination.md)
+This story realises ADR-0138
 as generalised by
-[ADR-0200](../../docs/decisions/0200-the-noticeboard-is-the-claim-ledger-forced-session-claims-pr.md):
+ADR-0200:
 the `events.node_claim` lock (ADR-0121 / ADR-0009) is the single **coordination + observability** ledger,
 and the claim now carries three **grades** (exploring / waiting / work). The wisp is the render of the
 **graded claim**, not of the build; the build stays a *colour state* of the work-grade claim-wisp
@@ -146,8 +146,8 @@ ADR-0137 / ADR-0030), cleared on the CI merge, staleness as one trace-driven bac
 
 **The honesty wall (ADR-0138 §5, non-negotiable):** a claim's presence or colour is **never** a proof.
 Only a real build's `CONFIRM_GREEN` + signed verdict paints the green **bloom**
-([ADR-0045](../../docs/decisions/0045-live-activity-layer-is-verdict-blooms.md) /
-[ADR-0099](../../docs/decisions/0099-synthetic-smoke-verdicts-must-not-derive-a-green-unit.md)). A
+(ADR-0045 /
+ADR-0099). A
 claimed-but-not-proven story must look **visibly different** from a proven-green one, or the map silently
 inflates proof. This wall is the load-bearing constraint on capabilities B, C, and the appearance UAT F.
 
@@ -158,7 +158,7 @@ appearance UAT) is the human-eyes leg, last, depending on B, C, D, E.
 
 **Post-delivery: the acquisition landed at declare-time (ADR-0142).** E's spawn-path wiring (E2) was
 deferred behind ADR-0137 Phase 3, which left the delivered layer with **no live acquisition path** — a
-well-behaved session showed no wisp between builds. [ADR-0142](../../docs/decisions/0142-branch-dies-on-merge-the-wisp-survives-via-claim-at-declare.md)
+well-behaved session showed no wisp between builds. ADR-0142
 (amends 0138/0033) closed that gap the cheap way: `noticeboard declare --node <story> --pg` now also
 takes the work-time claim ([`claim-at-declare`](claim-at-declare.md), landed PR #535), `done`
 bulk-releases, the statusline heartbeat keeps claims out of stale-reclaim, and CI refuses a PR from an
@@ -170,7 +170,7 @@ point.** Its GATE half graduated as chat-subagent-spawn's
 [`claim-gated-spawn`](../chat-subagent-spawn/claim-gated-spawn.md) under a signed `--real` PASS, and the
 runtime mount followed (that story's `spawn-tool-surface` / `spawn-deps-composition` caps, also signed
 `--real` PASSes). Then
-[ADR-0175](../../docs/decisions/0175-repurpose-don-t-delete-the-in-app-orchestrator-chat-infrastr.md)
+ADR-0175
 retired the in-app orchestrator's spawn surface outright — neither the spawn nor the landing surface had a
 reachable caller — and its execution status records *SPAWN — DONE (2026-07-31)*:
 `packages/agent/src/{spawn-tool-surface,claim-gated-spawn}.ts`,
