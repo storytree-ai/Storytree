@@ -5,8 +5,8 @@ title: "The storage-protocol port — the universal document-event storage seam 
 outcome: "Every organism that persists state speaks ONE narrow, browser-safe Store/ChangeStore contract — the same event-sourced grammar (append an event AND update the projection, atomically) over any backend — so WHAT an organism stores is decoupled from WHERE it is stored. A foundational root the whole graph rests on, depending only on the proof-protocol root."
 status: proposed
 proof_mode: UAT
-# Machine-judged: a pure SEAM has no UAT journey. Its parity suite is evidence, not brownfield
-# provenance or a current signed pass (ADR-0395). No DB, no API key.
+# Machine-judged: a pure SEAM has no UAT journey. Its author-declared observe reliability gate runs
+# the parity suite through the deterministic spine; the suite alone is not a current signed pass.
 uat_witness: machine
 # Lightweight + expandable (ADR-0074 §3, the port shape): the narrow seam, its in-memory reference,
 # and the seam's own HTTP transport (ADR-0259) are ONE unit; no sub-capabilities yet. The list grows
@@ -108,28 +108,34 @@ a browser never needs is quarantined behind a subpath, and there are now **two**
 `node:test` parity machinery at `./parity`, and the door's server half (`handleStoreRequest`) at
 `./http-server`. The main entry still imports no `node:*`.
 
-## Existing machine check
+## Reliability Gates
 
 A pure seam is a published CONTRACT (verbs + a reference impl) — there is no integrated user JOURNEY
 to walk; a seam and its parity suite are a machine's job, not a human attestation. This port was
 extracted and named inside the Storytree initiative, so its passing suite and foundational position do
 not make it brownfield or Adopt-bound
 ([ADR-0395](../../docs/decisions/0395-brown-records-provenance-missing-proof-stays-on-the-greenfie.md)).
-The check below remains the current executable coverage inventory; it is evidence, not a signed verdict.
+The author-declared observe gate below is therefore the port's one proof obligation: the suite is the
+evidence surface, while only the deterministic spine observing it green at a clean committed HEAD and
+persisting an `adopted` verdict signs `storage-protocol#gate-1` (ADR-0085).
 
-1. **The seam, its `InMemoryStore` reference, and the HTTP transport parity suite**
-   `pnpm --filter @storytree/storage-protocol test` exercises the `Store`/`ChangeStore` seam, the
-   `InMemoryStore` reference, AND the ADR-0259
+1. **The seam, its `InMemoryStore` reference, and the HTTP transport parity suite are green**
+   _(gate: observe)_ `pnpm --filter @storytree/storage-protocol test`. It exercises the
+   `Store`/`ChangeStore` seam, the `InMemoryStore` reference, AND the ADR-0259
    transport (`HttpStore` driven over a real loopback socket with `handleStoreRequest` behind it, so
    both halves of the wire contract are covered at once) against the shared `./parity` contract
-   offline (no DB, no API key, no deployed door). It does not by itself sign or adopt this greenfield story.
+   offline (no DB, no API key, no deployed door). From a clean committed HEAD,
+   `storytree gate run storage-protocol#gate-1 --pg` makes the spine observe this exact command and
+   sign only when it exits green.
 
 ## Proof
 
 **Green remains earned, not authored.** `packages/storage-protocol` has a real, passing offline suite
-over the seam, its `InMemoryStore` reference, and the ADR-0259 HTTP transport, but that evidence neither
-changes its greenfield provenance nor substitutes for a current signed pass. The authored rung remains
-`proposed`; the world crown derives green only from signed proof (ADR-0020 / ADR-0040 / ADR-0395).
+over the seam, its `InMemoryStore` reference, and the ADR-0259 HTTP transport, and now declares that
+suite as `storage-protocol#gate-1`; neither the command nor its authored gate is itself a pass. The
+authored rung remains `proposed` until the deterministic spine observes the command green at a clean
+committed HEAD and persists the signed gate verdict. The world crown derives green only from that
+signed proof (ADR-0020 / ADR-0040 / ADR-0085 / ADR-0395).
 
 ## Open modeling calls (for the owner)
 

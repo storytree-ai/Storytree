@@ -17,7 +17,9 @@ applied by this session per [ADR-0084](0084-agents-may-flip-an-adr-green.md). It
 [ADR-0083](0083-author-defined-story-green-declared-obligations-machine-per.md)** (resolving Fork B,
 refining decisions 4–5) and **[ADR-0007](0007-proof-model.md)** (the `mapped` exit). It overturns no
 honesty wall — `green = a signed verdict` ([ADR-0020](0020-red-green-enforcement-on-the-owned-loop.md))
-stands.
+stands. [ADR-0395](0395-brown-records-provenance-missing-proof-stays-on-the-greenfie.md) later
+narrowed `mapped` to genuine brownfield provenance: the reliability-gate mechanism here stands, while
+the two foundational ports named in decision 6 are greenfield `proposed`, not brownfield `mapped`.
 
 ## Context
 
@@ -113,13 +115,17 @@ gate) greens **entirely** from its reliability gates.
 gates.** `proof-protocol` and `storage-protocol` declared `_(witness: machine)_` "run the suite" /
 cross-boundary legs under `## Story UAT`; UAT-as-journey does not fit a port, so those become `observe`
 reliability gates carrying their inline `proofCommand`. `storytree gate run <port>#gate-<n> --pg`
-observe-and-signs each, and the port flips off `mapped` to a signed-`adopted` green.
+observe-and-signs each. Per ADR-0395's later provenance correction, these two greenfield ports remain
+authored `proposed` until the signed-`adopted` verdict paints them green; they do not pass through the
+brownfield `mapped` rung.
 
 ## Consequences
 
 **Good.**
-- Brownfield / foundational stories reach an **honest signed green** without faking a red, at a
-  **deliberate author-chosen moment** — `mapped` is neither a rubber-stamp away nor a dead end.
+- Brownfield and foundational stories reach an **honest signed green** without faking a red, at a
+  **deliberate author-chosen moment** — genuine brownfield can leave `mapped`, while ADR-0395's
+  greenfield foundational ports leave their authored `proposed` presentation only when proof paints
+  them green.
 - The **author owns the brownfield bar** and the owner gets **honest observability**: `## Reliability
   Gates` shows, per brownfield story, exactly what is assumed (`observe`) versus what reliability work
   is still owed (`build-tests` / `integrate`).
@@ -157,6 +163,9 @@ observe-and-signs each, and the port flips off `mapped` to a signed-`adopted` gr
   reliability-gate parser mirrors.
 - [ADR-0020](0020-red-green-enforcement-on-the-owned-loop.md) — `green = a signed gate verdict`,
   preserved (observe-and-sign keeps every wall except prior-red).
+- [ADR-0395](0395-brown-records-provenance-missing-proof-stays-on-the-greenfie.md) — later narrows
+  `mapped` to genuine brownfield provenance; the two foundational ports are greenfield `proposed`,
+  while this ADR's author-declared reliability-gate mechanism remains their proof path.
 - [ADR-0084](0084-agents-may-flip-an-adr-green.md) — the policy under which this ADR's `status:` flip
   was applied.
 - [open-questions.md §2](../open-questions.md) — the brownfield mapping mechanism (this, with ADR-0083,
