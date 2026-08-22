@@ -391,6 +391,13 @@ async function adrNext(deps: AdrCommandDeps): Promise<Envelope> {
   if (!deps.allocator) return needsPg("next");
   const localMax = await storeMaxAdrNumber(deps);
   if (localMax === null) return unreadableLog("next");
+
+  // THE TRY COVERS `allocate` AND NOTHING ELSE, matching `adrNew`. It used to wrap the note-building
+  // and the success return as well, while the catch said flatly "couldn't reserve an ADR number" — so
+  // a throw from anything AFTER a successful reservation would have reported a number that WAS
+  // reserved as not reserved, and the reader would take the next one and burn this one for nothing.
+  // No input is known that reaches it; this is the two sibling verbs agreeing, not a demonstrated bug.
+  let reserved: number;
   try {
     const r = await deps.allocator.allocate({
       localMax,
@@ -398,18 +405,7 @@ async function adrNext(deps: AdrCommandDeps): Promise<Envelope> {
       branch: deps.branch,
       actor: deps.actor,
     });
-    // Same heads-up as `adr new` — `adr next` reserves for a hand-authored file, so its author is in
-    // exactly the position the note is for: about to write prose against numbers it cannot see.
-    const parallel = parallelAllocationNote(parallelAllocations(localMax, r.number));
-    return {
-      ok: true,
-      body: [
-        `ADR-${pad(r.number)} reserved — nothing is written yet. \`adr new --title\` scaffolds the ` +
-          `decision at ${adrDocId(r.number)}; this verb only holds the number.`,
-        ...parallel.lines,
-      ].join("\n"),
-      next: ['storytree adr new --title "..." --pg', ...parallel.next],
-    };
+    reserved = r.number;
   } catch (e) {
     return {
       ok: false,
@@ -417,6 +413,19 @@ async function adrNext(deps: AdrCommandDeps): Promise<Envelope> {
       next: ["pnpm db:up", "storytree adr next --pg"],
     };
   }
+
+  // Same heads-up as `adr new` — `adr next` reserves for a hand-authored file, so its author is in
+  // exactly the position the note is for: about to write prose against numbers it cannot see.
+  const parallel = parallelAllocationNote(parallelAllocations(localMax, reserved));
+  return {
+    ok: true,
+    body: [
+      `ADR-${pad(reserved)} reserved — nothing is written yet. \`adr new --title\` scaffolds the ` +
+        `decision at ${adrDocId(reserved)}; this verb only holds the number.`,
+      ...parallel.lines,
+    ].join("\n"),
+    next: ['storytree adr new --title "..." --pg', ...parallel.next],
+  };
 }
 
 // ---------------------------------------------------------------------------

@@ -310,6 +310,24 @@ export function ownerLocalDate(now: Date): string {
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
+ * The shape `adr new --arc <id>` must take — validated HERE, before dispatch, because everything
+ * downstream of dispatch happens AFTER the ADR number has been reserved.
+ *
+ * This is the same predicate `AssetRef` applies to the `asset:<id>` pointer the value ends up in
+ * (`packages/library/src/knowledge.ts`), hoisted earlier rather than a second, narrower rule — an id
+ * this accepts is an id the row's schema accepts, and vice versa.
+ *
+ * WHY THE POSITION IS THE FIX. The value goes into the scaffold's frontmatter as a bare `arc: <id>`
+ * line, and the first thing that validated it was the YAML parse inside `scaffoldRow` — by which
+ * point `allocate` has already run. `adr new --arc "oops: not a scalar" --pg` therefore reported
+ * "ADR-0404 was RESERVED but the decision was not written: Nested mappings are not allowed…": an
+ * accurate message about a number that is now permanently spent on a typo, since reservation is
+ * transactional and does not roll back. `--decided-date` directly above has always been checked
+ * here for the same reason.
+ */
+const ARC_ID = /^[A-Za-z0-9_-]+$/;
+
+/**
  * The Library commands (ADR-0023). Read-only walking skeleton: `library` (dashboard), `artifact <id>`
  * (view), `artifact list <category>` (the interim search). Each returns an {@link Envelope} — the
  * result plus choose-your-own-adventure guidance. `run` parses argv and dispatches; it NEVER throws
@@ -3436,6 +3454,23 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         ok: false,
         body: `--decided-date must be YYYY-MM-DD (got ${JSON.stringify(explicitDecided)}).`,
         next: ['storytree adr new --title "..." --decided --decided-date 2026-07-11 --pg'],
+      };
+    }
+    // Checked BEFORE dispatch — see {@link ARC_ID}. Downstream of here a number has been reserved,
+    // and a number refused for a typo after reservation is a number burned.
+    const explicitArc = values.arc;
+    if (explicitArc !== undefined && !ARC_ID.test(explicitArc)) {
+      return {
+        ok: false,
+        body: [
+          `--arc must be a bare arc id — letters, digits, '-' and '_' only (got ${JSON.stringify(explicitArc)}).`,
+          "",
+          "Refused BEFORE any ADR number was reserved. The value is stamped into the decision's",
+          "frontmatter as a plain `arc:` scalar and stored as an `asset:<id>` pointer, so anything",
+          "outside that set could not be written — and finding that out after the allocator had run",
+          "would have spent a decision number on the typo.",
+        ].join("\n"),
+        next: ["storytree arc list --pg", 'storytree adr new --title "..." --arc my-thing-arc --pg'],
       };
     }
     const adrOpts: AdrCommandOpts = {};

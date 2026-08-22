@@ -136,7 +136,14 @@ function parseNumberList(value: unknown, key: string): number[] {
  * which would erase the very edge the retirement was supposed to force someone to re-express.
  */
 export function parseAdrDocument(decisionNumber: number, content: string): AdrDocumentFields {
-  const normalised = content.replace(/\r\n/g, "\n");
+  // A UTF-8 BOM is STRIPPED, not refused. It is invisible, it carries no information here, and an
+  // editor adds it without being asked — most often on Windows, which is this repo's dev platform.
+  // Left in place it pushes the `---` off byte 0 and the document is refused as having "no
+  // frontmatter block", whose diagnosis then offers the `>`-redirect remedy (ADR-0361) — the one
+  // remedy that cannot help, because re-capturing with `adr pull --out` reproduces nothing about a
+  // BOM the author's editor put there. This is the same class of normalisation as the CRLF fold on
+  // the next line: an invisible encoding difference the document's MEANING does not depend on.
+  const normalised = content.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n");
   if (!normalised.startsWith(`${FENCE}\n`)) {
     throw new Error(`${decisionLabel(decisionNumber)}: no frontmatter block (the text must start with '---')`);
   }
@@ -162,14 +169,33 @@ export function parseAdrDocument(decisionNumber: number, content: string): AdrDo
   }
 
   const status = AdrDocStatus.parse(bag["status"]);
-  // yaml resolves a bare ISO date to a Date; both spellings are live in the committed files.
+  // THROWS on a mistyped `decided:`, like its two siblings below — it used to fall through to
+  // `undefined`, which the round-trip push turns into a field DELETION on the row. That contradicted
+  // this function's own stated posture at the top of the docstring ("a mistyped value never becomes a
+  // default"), and it was silent in the one direction that matters: `decided: 20260821` (an ISO date
+  // with the dashes dropped) is a valid YAML NUMBER, so the parse succeeded, the push reported
+  // success, and the decision quietly lost the date it was decided on.
+  //
+  // A `Date` branch stood here, guarded by the comment "yaml resolves a bare ISO date to a Date".
+  // It is GONE because it was dead: under YAML 1.2 core — what the `yaml` package implements —
+  // a bare `2026-08-22` resolves to a STRING, and `decided: 2026-08-22T00:00:00Z` does too.
+  // Measured against yaml 2.9.0, not inferred. Do not restore it hunting a timezone hazard that
+  // this parser cannot produce.
+  //
+  // A TYPE check, exactly like its two siblings — NOT a format check, and the message says so. All
+  // 397 live decisions carrying a `decided` are already plain YYYY-MM-DD (measured 2026-08-22), so
+  // tightening to the format would refuse nothing today; it is left out because it is a wider rule
+  // than "fail like your siblings", and a guard that refuses more than it was asked to is how a
+  // historical value nobody anticipated becomes an un-pushable decision.
   const decidedRaw = bag["decided"];
-  const decided =
-    decidedRaw instanceof Date
-      ? decidedRaw.toISOString().slice(0, 10)
-      : typeof decidedRaw === "string"
-        ? decidedRaw
-        : undefined;
+  if (decidedRaw !== undefined && (typeof decidedRaw !== "string" || decidedRaw === "")) {
+    throw new Error(
+      `${decisionLabel(decisionNumber)}: frontmatter \`decided\` must be a non-empty string ` +
+        `(got ${JSON.stringify(decidedRaw)}) — an unquoted date with the dashes dropped parses as a ` +
+        `NUMBER, so write it as YYYY-MM-DD or quote it`,
+    );
+  }
+  const decided = decidedRaw;
   const arcRaw = bag["arc"];
   if (arcRaw !== undefined && (typeof arcRaw !== "string" || arcRaw === "")) {
     throw new Error(`${decisionLabel(decisionNumber)}: frontmatter \`arc\` must be a non-empty string`);
@@ -237,11 +263,32 @@ export function renderAdrDocument(fields: AdrDocumentFields): string {
  * one committed decision's H1 disagrees with its filename (see the header) and this function's job is
  * to recover the TITLE, not to adjudicate the number. Mirrors `extractAdrTitle` in
  * `@storytree/drive`, which reads the same heading off a file; the two are kept trivially identical
- * rather than shared, since drive depends on library and never the reverse.
+ * rather than shared, since drive depends on library and never the reverse. **Change both**, or the
+ * two directions disagree about what a decision is called.
+ *
+ * FENCED CODE IS STRIPPED FIRST, and that is not cosmetic. A decision that QUOTES another decision's
+ * heading inside a ``` block — which the decision log does constantly, since decisions cite decisions
+ * — otherwise has the quoted heading become its own title, because the regex is line-anchored and a
+ * fenced line starts at column 0 like any other. The round-trip push writes `title` from this
+ * function, so the mis-read title lands on the row and is reported only as `body: +N characters`.
+ * `adr-completeness.ts` strips fences ahead of its own scan for the same reason.
+ *
+ * Only FENCED blocks need stripping: an inline `` `# ADR-0050: x` `` span cannot put a `#` at a line
+ * start (the backtick is there), and an indented code block is by definition not at column 0.
  */
 export function extractAdrTitle(body: string): string {
-  const m = /^#\s+ADR-\d{4}:\s*(.+?)\s*$/m.exec(body);
+  const m = /^#\s+ADR-\d{4}:\s*(.+?)\s*$/m.exec(stripFencedCode(body));
   return m && m[1] !== undefined ? m[1] : "";
+}
+
+/**
+ * PURE: the text with ``` fenced blocks removed, so a line-anchored scan cannot match quoted markup.
+ *
+ * Removal cannot destroy a real heading's line start: a fence match ends at its closing ``` and never
+ * consumes the newline that follows, so the `\n` in front of a following H1 survives.
+ */
+function stripFencedCode(text: string): string {
+  return text.replace(/```[\s\S]*?```/g, "");
 }
 
 /**

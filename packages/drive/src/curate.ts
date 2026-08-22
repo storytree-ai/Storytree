@@ -459,7 +459,10 @@ export function serializeCurationContext(ctx: CurationContext): string {
   const byNumber = new Map(ctx.adrs.map((a) => [a.number, a]));
   const decisionLines = ctx.decisions.map((n) => {
     const a = byNumber.get(n);
-    return `  - ADR-${String(n).padStart(4, "0")}: ${a ? a.status : "(not found on disk)"}`;
+    // "(not found)" — not "on disk". Decisions are ROWS since ADR-0403 dec 1, and the curator this
+    // prompt addresses is the agent whose job is keeping the decision log honest; telling it to look
+    // on disk points it at a directory that no longer exists.
+    return `  - ADR-${String(n).padStart(4, "0")}: ${a ? a.status : "(not found)"}`;
   });
   lines.push(
     "deciding ADRs (current status):",
