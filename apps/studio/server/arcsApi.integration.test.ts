@@ -43,10 +43,6 @@ beforeAll(async () => {
   mkdirSync(path.join(docsDir, 'decisions'), { recursive: true });
   mkdirSync(path.join(storiesDir, 'surface-story'), { recursive: true });
   writeFileSync(
-    path.join(docsDir, 'decisions', '0267-arcs-take-the-slot.md'),
-    '---\nstatus: accepted\narc: surface-arc\n---\n\n# ADR-0267: Arcs take the slot\n',
-  );
-  writeFileSync(
     path.join(storiesDir, 'surface-story', 'story.md'),
     '---\nid: "surface-story"\ntier: story\narc: surface-arc\n---\n\n# Surface story\n',
   );
@@ -61,6 +57,28 @@ beforeAll(async () => {
     attestationsFile: path.join(root, 'at.json'),
   };
 
+  // The decision is a ROW, not a file (ADR-0403 dec 1). The arc's ADR leg joins on `arcRef`, so the
+  // `decisions/` directory above survives only because `listDocs` still walks the whole `docs/` tree.
+  await store.upsertDoc({
+    id: 'adr-0267',
+    kind: 'adr',
+    doc: {
+      kind: 'adr',
+      id: 'adr-0267',
+      title: 'Arcs take the slot',
+      description: 'ADR-0267 — Arcs take the slot',
+      body: '# ADR-0267: Arcs take the slot\n',
+      number: 267,
+      status: 'accepted',
+      amends: [],
+      supersedes: [],
+      loadBearing: false,
+      arcRef: 'asset:surface-arc',
+      references: [],
+      createdAt: '2026-07-20T00:00:00.000Z',
+      updatedAt: '2026-07-20T00:00:00.000Z',
+    },
+  });
   await store.upsertDoc({
     id: 'surface-arc',
     kind: 'arc',
@@ -144,7 +162,7 @@ describe('/api/arcs', () => {
     // The authority: drive's own join, run here directly. Any divergence between what the studio
     // serves and what `storytree arc show` renders shows up as a failure of THIS assertion.
     const expected = await loadArcRollup(
-      { store, decisionsDir: path.join(paths.docsDir, 'decisions'), storiesDir: paths.storiesDir },
+      { store, storiesDir: paths.storiesDir },
       'surface-arc',
     );
     expect(body).toEqual(JSON.parse(JSON.stringify(expected)));
@@ -187,7 +205,7 @@ describe('/api/arcs', () => {
     storeResult = store;
     const body = (await (await fetch(`${base}/api/arcs`)).json()) as unknown;
     const rollup = await loadArcRollup(
-      { store, decisionsDir: path.join(paths.docsDir, 'decisions'), storiesDir: paths.storiesDir },
+      { store, storiesDir: paths.storiesDir },
       'surface-arc',
     );
     expect(body).toEqual(

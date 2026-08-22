@@ -642,17 +642,34 @@ async function seedArcFixture(): Promise<{
   await fsp.mkdir(path.join(docsDir, "decisions"), { recursive: true });
   await fsp.mkdir(path.join(storiesDir, "surface-story"), { recursive: true });
   await fsp.writeFile(
-    path.join(docsDir, "decisions", "0267-arcs-take-the-slot.md"),
-    "---\nstatus: accepted\narc: surface-arc\n---\n\n# ADR-0267: Arcs take the slot\n",
-    "utf8",
-  );
-  await fsp.writeFile(
     path.join(storiesDir, "surface-story", "story.md"),
     '---\nid: "surface-story"\ntier: story\narc: surface-arc\n---\n\n# Surface story\n',
     "utf8",
   );
 
   const store = new ArcFixtureStore();
+  // The decision is a ROW, not a file (ADR-0403 dec 1). The arc's ADR leg joins on `arcRef`, so the
+  // `decisions/` directory above survives only because `listDocs` still walks the whole `docs/` tree.
+  await store.upsertDoc({
+    id: "adr-0267",
+    kind: "adr",
+    doc: {
+      kind: "adr",
+      id: "adr-0267",
+      title: "Arcs take the slot",
+      description: "ADR-0267 — Arcs take the slot",
+      body: "# ADR-0267: Arcs take the slot\n",
+      number: 267,
+      status: "accepted",
+      amends: [],
+      supersedes: [],
+      loadBearing: false,
+      arcRef: "asset:surface-arc",
+      references: [],
+      createdAt: "2026-07-20T00:00:00.000Z",
+      updatedAt: "2026-07-20T00:00:00.000Z",
+    },
+  });
   await store.upsertDoc({
     id: "surface-arc",
     kind: "arc",
@@ -754,7 +771,6 @@ test("local-backend: GET /api/arcs serves the SUMMARY projection, not the whole 
       const rollup = await loadArcRollup(
         {
           store: store as unknown as Parameters<typeof loadArcRollup>[0]["store"],
-          decisionsDir: path.join(docsDir, "decisions"),
           storiesDir,
         },
         "surface-arc",
@@ -802,7 +818,6 @@ test("local-backend: GET /api/arcs/<id> serves the SAME rollup drive's join prod
       const expected = await loadArcRollup(
         {
           store: store as unknown as Parameters<typeof loadArcRollup>[0]["store"],
-          decisionsDir: path.join(docsDir, "decisions"),
           storiesDir,
         },
         "surface-arc",

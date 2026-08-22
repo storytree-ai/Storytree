@@ -1617,7 +1617,6 @@ export async function handleArcs(
   const { loadArcRollup, loadArcRollupSummaries } = await loadArc();
   const deps = {
     store,
-    decisionsDir: path.join(ctx.paths.docsDir, 'decisions'),
     storiesDir: ctx.paths.storiesDir,
   };
   if (id === null) {

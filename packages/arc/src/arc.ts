@@ -63,8 +63,6 @@ export { arcIsClosed, storyArcStamps };
 export interface ArcViewDeps {
   /** The doc store — the live store under --pg (arcs/plans live only there), the seed offline. */
   store: Store;
-  /** `docs/decisions` — scanned for frontmatter `arc:` stamps. Injectable for tests. */
-  decisionsDir: string;
   /** `stories/` — each `<id>/story.md` frontmatter scanned for an `arc:` stamp. Injectable. */
   storiesDir: string;
   /** True when the live store is attached (--pg) — used only for honest offline hints. */

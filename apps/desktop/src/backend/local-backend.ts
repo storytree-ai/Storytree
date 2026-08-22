@@ -400,7 +400,6 @@ export function createLocalBackend(
           const { loadArcRollup, loadArcRollupSummaries } = await loadArc();
           const arcDeps = {
             store,
-            decisionsDir: path.join(deps.docsDir, "decisions"),
             storiesDir: deps.storiesDir,
           };
           if (id === null) {

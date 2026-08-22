@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { InMemoryStore, type Store } from "@storytree/storage-protocol";
+import { seedDecisionRows } from "./decision.test-helpers.js";
 
 import {
   arcClose,
@@ -85,24 +86,18 @@ async function seededStore(): Promise<InMemoryStore> {
       updatedAt: "2026-07-10",
     },
   });
+  // The ADR leg's children, seeded like every other tier's — rows since ADR-0403 dec 1.
+  await seedDecisionRows(store);
   return store;
 }
 
 /** A disk fixture: decisions dir with one stamped + one unstamped ADR, stories dir with stamps. */
 function diskFixture() {
   const root = mkdtempSync(path.join(tmpdir(), "arc-view-"));
-  const decisionsDir = path.join(root, "decisions");
   const storiesDir = path.join(root, "stories");
-  mkdirSync(decisionsDir);
   mkdirSync(storiesDir);
-  writeFileSync(
-    path.join(decisionsDir, "0201-stamped.md"),
-    "---\nstatus: accepted\narc: map-arc\n---\n\n# ADR-0201: A stamped decision\n",
-  );
-  writeFileSync(
-    path.join(decisionsDir, "0202-unstamped.md"),
-    "---\nstatus: accepted\n---\n\n# ADR-0202: An arc-less decision\n",
-  );
+  // The two ADR files that stood here are ROWS now (ADR-0403 dec 1) — see `seedDecisionRows`. Only
+  // the story tier is still disk-canonical, so only it needs a directory.
   mkdirSync(path.join(storiesDir, "map-story"));
   writeFileSync(
     path.join(storiesDir, "map-story", "story.md"),
@@ -113,11 +108,11 @@ function diskFixture() {
     path.join(storiesDir, "plain-story", "story.md"),
     '---\nid: "plain-story"\ntier: story\n---\n\n# Plain story\n',
   );
-  return { root, decisionsDir, storiesDir };
+  return { root, storiesDir };
 }
 
-function depsFor(store: InMemoryStore, fx: { decisionsDir: string; storiesDir: string }, pg = true): ArcViewDeps {
-  return { store, decisionsDir: fx.decisionsDir, storiesDir: fx.storiesDir, pg };
+function depsFor(store: InMemoryStore, fx: { storiesDir: string }, pg = true): ArcViewDeps {
+  return { store, storiesDir: fx.storiesDir, pg };
 }
 
 test("storyArcStamps reads frontmatter arc: stamps and skips unstamped/missing stories", () => {
@@ -1988,10 +1983,10 @@ async function seedArc(
 
 function reconcileDeps(
   store: InMemoryStore,
-  fx: { decisionsDir: string; storiesDir: string },
+  fx: { storiesDir: string },
   writable = true,
 ): ArcViewDeps & ArcWriteDeps {
-  return { store, decisionsDir: fx.decisionsDir, storiesDir: fx.storiesDir, pg: true, writable, actor: "test", now: NOW };
+  return { store, storiesDir: fx.storiesDir, pg: true, writable, actor: "test", now: NOW };
 }
 
 /** How many increments the store holds — the sweep must never change this number. */
@@ -2294,7 +2289,7 @@ test("ADR-0352: arc reconcile --write repairs the flag alone, and a sibling's in
     const racy = staleReadStore(inner, "drained-arc", { intent: "the sibling's intent" });
 
     const out = await arcReconcile(
-      { ...staleWriteDeps(racy), decisionsDir: fx.decisionsDir, storiesDir: fx.storiesDir },
+      { ...staleWriteDeps(racy), storiesDir: fx.storiesDir },
       { write: true },
     );
 

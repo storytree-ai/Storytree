@@ -240,13 +240,11 @@ test("a question authored here is what arc show then reports as WAITING", async 
   // waiting set by querying `arcRef`, so authoring through this verb has to be sufficient on its own
   // to move an arc out of "not waiting on the owner".
   const root = mkdtempSync(path.join(tmpdir(), "question-arc-"));
-  const decisionsDir = path.join(root, "decisions");
   const storiesDir = path.join(root, "stories");
-  mkdirSync(decisionsDir);
   mkdirSync(storiesDir);
   try {
     const store = await storeWithArc();
-    const viewDeps: ArcViewDeps = { store, decisionsDir, storiesDir, pg: true, now: "2026-08-06T00:00:00.000Z" };
+    const viewDeps: ArcViewDeps = { store, storiesDir, pg: true, now: "2026-08-06T00:00:00.000Z" };
 
     const before = await arcCommand("show", ARC_ID, viewDeps);
     assert.match(before.body, /\(none — this arc is not waiting on the owner\)/);

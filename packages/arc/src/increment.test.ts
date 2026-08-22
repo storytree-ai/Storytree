@@ -327,26 +327,43 @@ function withPremise(
   d: IncrementCheckDeps,
   premise: {
     pathExists?: (p: string) => boolean;
-    decisionsSince?: (iso: string) => { number: number; title: string }[];
+    decisionsSince?: (iso: string) => Promise<{ number: number; title: string }[] | null>;
   },
 ): IncrementCheckDeps {
   return { ...d, ...premise };
 }
 
-test("premiseSignals reports vanished paths and later decisions, and skips absent seams", () => {
+test("premiseSignals reports vanished paths and later decisions, and skips absent seams", async () => {
   const paths = ["packages/a.ts", "packages/gone.ts"];
-  assert.deepEqual(premiseSignals(paths, "2026-07-10", {}), { vanished: [], decisions: [] });
+  assert.deepEqual(await premiseSignals(paths, "2026-07-10", {}), {
+    vanished: [],
+    decisions: [],
+    decisionsUnreadable: false,
+  });
 
-  const signals = premiseSignals(paths, "2026-07-10", {
+  const signals = await premiseSignals(paths, "2026-07-10", {
     pathExists: (p) => p !== "packages/gone.ts",
-    decisionsSince: () => [{ number: 311, title: "Nine rungs" }],
+    decisionsSince: () => Promise.resolve([{ number: 311, title: "Nine rungs" }]),
   });
   assert.deepEqual(signals.vanished, ["packages/gone.ts"]);
   assert.deepEqual(signals.decisions, [{ number: 311, title: "Nine rungs" }]);
+  assert.equal(signals.decisionsUnreadable, false);
 });
 
-test("a GLOB path is never called vanished — it names a set, not a file", () => {
-  const signals = premiseSignals(["stories/app-guide/**"], "2026-07-10", {
+test("premiseSignals distinguishes an UNREADABLE decision log from an empty one", async () => {
+  // The whole reason the seam is async and nullable (ADR-0403 dec 1 moved the log into the store).
+  // An unreadable log returning `[]` would read as "nothing landed since" — a freshness check
+  // failing toward FRESH, which blesses an increment nobody checked.
+  const unreadable = await premiseSignals([], "2026-07-10", { decisionsSince: () => Promise.resolve(null) });
+  assert.deepEqual(unreadable.decisions, []);
+  assert.equal(unreadable.decisionsUnreadable, true, "could not tell is NOT nothing to tell");
+
+  const empty = await premiseSignals([], "2026-07-10", { decisionsSince: () => Promise.resolve([]) });
+  assert.equal(empty.decisionsUnreadable, false, "an answered query saying zero is a real zero");
+});
+
+test("a GLOB path is never called vanished — it names a set, not a file", async () => {
+  const signals = await premiseSignals(["stories/app-guide/**"], "2026-07-10", {
     pathExists: () => false,
   });
   assert.deepEqual(signals.vanished, [], "a glob cannot be stat'd; reporting it would be noise");
@@ -361,7 +378,7 @@ test("the premise block fires on a FRESH increment — it is ORTHOGONAL to drift
     "p1",
     {},
     withPremise(depsFor(store, {}), {
-      decisionsSince: () => [{ number: 311, title: "Nine rungs, not ten" }],
+      decisionsSince: () => Promise.resolve([{ number: 311, title: "Nine rungs, not ten" }]),
     }),
   );
   assert.match(env.body, /FRESH/);
@@ -391,7 +408,7 @@ test("the decision list is CAPPED, most recent first, and says how many it withh
     "check",
     "p1",
     {},
-    withPremise(depsFor(store, {}), { decisionsSince: () => many }),
+    withPremise(depsFor(store, {}), { decisionsSince: () => Promise.resolve(many) }),
   );
   assert.match(env.body, /20 decision\(s\) landed since this was anchored/, "the COUNT is unbounded");
   assert.match(env.body, /ADR-0319/, "the most recent is shown");
@@ -406,7 +423,21 @@ test("NO premise signal prints NO premise block — a clean check stays clean", 
     "check",
     "p1",
     {},
-    withPremise(depsFor(store, {}), { pathExists: () => true, decisionsSince: () => [] }),
+    withPremise(depsFor(store, {}), { pathExists: () => true, decisionsSince: () => Promise.resolve([]) }),
   );
   assert.doesNotMatch(env.body, /PREMISE/);
+});
+
+test("an unreadable decision log prints the PREMISE block and names the signal as UNKNOWN", async () => {
+  // A clean check stays clean (the test above); a check that could not ASK must not look clean.
+  const store = await seeded();
+  const env = await incrementCommand(
+    "check",
+    "p1",
+    {},
+    withPremise(depsFor(store, {}), { pathExists: () => true, decisionsSince: () => Promise.resolve(null) }),
+  );
+  assert.match(env.body, /PREMISE/);
+  assert.match(env.body, /decision log could not be read/);
+  assert.match(env.body, /UNKNOWN, not clear/);
 });

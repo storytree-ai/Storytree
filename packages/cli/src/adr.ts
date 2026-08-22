@@ -1,7 +1,11 @@
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-import { extractAdrTitle, loadTitledAdrMetas, type AdrMeta, type AdrStatus } from "@storytree/drive";
+import { extractAdrTitle, loadTitledAdrMetasFromStore, type AdrMeta, type AdrStatus, type TitledAdrMeta } from "@storytree/drive";
+import type { Store } from "@storytree/storage-protocol";
+
+import { defaultCliActor } from "./cli-actor.js";
+
 import { adrPull, adrPush, type AdrRoundTripDeps } from "./adr-round-trip.js";
 import type { Envelope } from "./envelope.js";
 
@@ -313,7 +317,14 @@ async function adrNew(opts: AdrCommandOpts, deps: AdrCommandDeps): Promise<Envel
   }
   // --decided (ADR-0110): the owner directed this in conversation → born accepted with today's date.
   const decided = opts.decided === true ? deps.today : undefined;
-  writeFileSync(file, scaffold(n, title, edges, decided, opts.arc?.trim() || undefined), "utf8");
+  const scaffolded = scaffold(n, title, edges, decided, opts.arc?.trim() || undefined);
+  writeFileSync(file, scaffolded, "utf8");
+
+  // DUAL-WRITE, and it is temporary by construction (`decision-log-home-arc` inc 05 removes the file
+  // half). Decisions are rows now (ADR-0403 dec 1) and `adr list` reads the store, so a scaffold that
+  // wrote only the file would be INVISIBLE to the surface every session orients on — the new decision
+  // would exist and not appear, which is worse than either source alone.
+  const rowWrite = await scaffoldRow(n, scaffolded, deps);
 
   const rel = displayPath(deps.decisionsDir, base);
   const lines = [
@@ -336,6 +347,7 @@ async function adrNew(opts: AdrCommandOpts, deps: AdrCommandDeps): Promise<Envel
   // `localMax + 1`, which leaves no gap by construction, so the two warnings never both fire.
   const parallel = parallelAllocationNote(parallelAllocations(localMax, n));
   lines.push(...parallel.lines);
+  lines.push(...rowWrite);
   return {
     ok: true,
     body: lines.join("\n"),
@@ -527,26 +539,106 @@ export function renderAdrList(listings: readonly AdrListing[], filter: AdrListFi
   return rows;
 }
 
+/**
+ * Write the freshly-scaffolded decision as a ROW as well as a file — the dual-source window.
+ *
+ * Returns the lines to append to the envelope, so the caller reports what actually happened rather
+ * than assuming. THREE outcomes and each is said out loud:
+ *
+ *   - written — both sources carry it, `adr list` will show it;
+ *   - NOT written because the invocation is read-only (no `--pg`) — a LOUD warning, because the file
+ *     now exists and the orientation surface will not show it until someone reconciles;
+ *   - NOT written because the write FAILED — the same warning with the cause.
+ *
+ * Silence on the second and third would be the bad kind: the command would report success and the
+ * decision would be missing from the only surface anyone reads.
+ */
+async function scaffoldRow(
+  n: number,
+  scaffolded: string,
+  deps: AdrCommandDeps,
+): Promise<string[]> {
+  const reconcile = "npx tsx packages/library/src/store/load-decisions.ts";
+  if (deps.roundTrip === undefined || !deps.roundTrip.writable) {
+    return [
+      "",
+      "⚠️  the FILE was written but the STORE ROW was not (no --pg). Decisions are rows since",
+      "    ADR-0403, and `storytree adr list` reads the store — so this decision will not appear",
+      `    there until it is reconciled:  ${reconcile}`,
+    ];
+  }
+  try {
+    const { parseAdrDocument, adrDocId, adrDescriptionOf } = await import("@storytree/library/adr-doc");
+    const { upcastAndValidate } = await import("@storytree/library");
+    const fields = parseAdrDocument(n, scaffolded);
+    const id = adrDocId(n);
+    const now = new Date().toISOString();
+    const doc = upcastAndValidate({
+      kind: "adr",
+      id,
+      title: fields.title === "" ? id : fields.title,
+      description: adrDescriptionOf(n, fields.title),
+      body: fields.body,
+      number: n,
+      status: fields.status,
+      amends: [...fields.amends],
+      supersedes: [...fields.supersedes],
+      loadBearing: fields.loadBearing,
+      references: [],
+      createdAt: fields.decided === undefined ? now : `${fields.decided}T00:00:00.000Z`,
+      updatedAt: now,
+      ...(fields.decided === undefined ? {} : { decided: fields.decided }),
+      ...(fields.arc === undefined ? {} : { arcRef: `asset:${fields.arc}` }),
+    });
+    await deps.roundTrip.store.upsertDoc({
+      id,
+      kind: "adr",
+      doc: doc as Record<string, unknown>,
+      actor: deps.actor ?? defaultCliActor(),
+    });
+    return ["", `also written to the store as ${id} — \`storytree adr list\` will show it.`];
+  } catch (e) {
+    return [
+      "",
+      `⚠️  the FILE was written but the STORE ROW FAILED: ${(e as Error).message}`,
+      `    \`storytree adr list\` reads the store, so reconcile before relying on it:  ${reconcile}`,
+    ];
+  }
+}
+
 export interface LoadAdrListingsResult {
   listings: AdrListing[];
   parseErrors: string[];
 }
 
 /**
- * Read + parse every `NNNN-*.md` in the decisions dir into a listing; parse failures are collected.
+ * PURE: reshape decision metas into the nested `{meta, title}` listing {@link renderAdrList} expects.
  *
- * A thin RESHAPE over drive's {@link loadTitledAdrMetas} — the one fs scan of `docs/decisions`, which
- * the arc rollup shares (`@storytree/arc`'s `arc-rollup.ts`). This view keeps its nested
- * `{meta, title}` shape because {@link renderAdrList} is written against it.
+ * Split out from the loader when the source moved from files to rows (ADR-0403 dec 1), so the RESHAPE
+ * stays pure and testable and only the fetch is async.
  */
-export function loadAdrListings(decisionsDir: string): LoadAdrListingsResult {
-  const { adrs, parseErrors } = loadTitledAdrMetas(decisionsDir);
-  return { listings: adrs.map(({ title, ...meta }) => ({ meta, title })), parseErrors };
+export function adrListingsOf(adrs: readonly TitledAdrMeta[]): AdrListing[] {
+  return adrs.map(({ title, ...meta }) => ({ meta, title }));
+}
+
+/**
+ * Read every decision ROW into a listing; unreadable rows are collected rather than thrown.
+ *
+ * ★ THE OFFLINE PROPERTY THIS COMMAND ADVERTISED IS GONE, and that is the named accepted cost of
+ * ADR-0403, not a regression: `adr list` read `docs/decisions` from disk with no database, which is
+ * why it, `doctor` and the help surfaces touched no store. Session-start orientation on the decision
+ * log now needs the DB up. Accepted under ADR-0302 D2's online-or-nothing posture, with the instance
+ * running 24/7. The help text was corrected in the same change — a command that still advertised
+ * "read-only + offline" would be lying about itself.
+ */
+export async function loadAdrListings(store: Store): Promise<LoadAdrListingsResult> {
+  const { adrs, parseErrors } = await loadTitledAdrMetasFromStore(store);
+  return { listings: adrListingsOf(adrs), parseErrors };
 }
 
 const STATUS_WORDS: ReadonlySet<string> = new Set(["proposed", "accepted", "superseded"]);
 
-function adrList(opts: AdrCommandOpts, deps: AdrCommandDeps): Envelope {
+async function adrList(opts: AdrCommandOpts, deps: AdrCommandDeps): Promise<Envelope> {
   if (opts.status !== undefined && !STATUS_WORDS.has(opts.status)) {
     return {
       ok: false,
@@ -554,15 +646,22 @@ function adrList(opts: AdrCommandOpts, deps: AdrCommandDeps): Envelope {
       next: ["storytree adr list --current", "storytree adr list --load-bearing"],
     };
   }
-  const { listings, parseErrors } = loadAdrListings(deps.decisionsDir);
+  if (deps.roundTrip === undefined) {
+    return {
+      ok: false,
+      body: "adr list reads the decision log from the store, which this invocation was not given.",
+      next: ["pnpm db:up"],
+    };
+  }
+  const { listings, parseErrors } = await loadAdrListings(deps.roundTrip.store);
   if (listings.length === 0) {
     return {
       ok: false,
       body:
         parseErrors.length > 0
-          ? `no ADRs parsed:\n${parseErrors.join("\n")}`
-          : "no ADRs found in the decisions dir.",
-      next: ['storytree adr new --title "..." --pg'],
+          ? `no decisions read:\n${parseErrors.join("\n")}`
+          : "no decisions in the store. (they live there since ADR-0403 — is the DB up?)",
+      next: ["pnpm db:up", 'storytree adr new --title "..." --pg'],
     };
   }
   const filter: AdrListFilter = {
@@ -635,7 +734,8 @@ export function adrHelp(): Envelope {
       "              Immutable once scaffolded; the arc's ADR view derives from these child stamps",
       "              (storytree arc show <id>). Omit for arc-less work.",
       "",
-      "`list` is read-only + offline (it reads docs/decisions on disk):",
+      "`list` is read-only and reads the LIVE STORE (ADR-0403 dec 1 — decisions are rows now; the",
+      "offline read this used to advertise is the named accepted cost, so bring the DB up):",
       "  --current        every accepted, non-superseded ADR (the derived backbone)",
       "  --load-bearing   the calibrate-to-these set (the CLAUDE.md list, now live): the curated ★",
       "                   `load_bearing: true` seed CLOSED over accepted `amends` edges — an accepted",
@@ -665,7 +765,7 @@ export async function adrCommand(
   deps: AdrCommandDeps,
 ): Promise<Envelope> {
   if (sub === undefined || sub === "help") return adrHelp();
-  if (sub === "list") return adrList(opts, deps);
+  if (sub === "list") return await adrList(opts, deps);
   if (sub === "new") return adrNew(opts, deps);
   if (sub === "next") return adrNext(deps);
   // The round trip (ADR-0403 dec 9). Both legs need the STORE, which the file-reading subcommands

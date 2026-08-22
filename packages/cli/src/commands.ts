@@ -57,7 +57,7 @@ import { renderStoredDoc, renderProcessNode } from "@storytree/library/store";
 
 import { execFileSync } from "node:child_process";
 
-import { adrCommand, adrHelp, loadAdrListings, type AdrAllocatorLike } from "./adr.js";
+import { adrCommand, adrHelp, type AdrAllocatorLike } from "./adr.js";
 import { expandAtPathFlags, formatAtPathRefusal, PROSE_FLAGS } from "./at-path.js";
 import { libraryQuery, libraryQueryHelp } from "./library-query.js";
 // The arc domain owns its own package (`arc-tier-extraction-arc`): the arc / increment / question
@@ -177,7 +177,9 @@ import {
 import { lookupNodeBuildConfig, parsePocketReadings } from "@storytree/orchestrator";
 import type { PocketReading } from "@storytree/orchestrator";
 
-import { nodeBuild, nodeHelp, nodeResolve, specView } from "@storytree/drive";
+import { nodeBuild, nodeHelp, nodeResolve, specView,
+  loadTitledAdrMetasFromStore,
+} from "@storytree/drive";
 // The work-hierarchy ref index (ADR-0306 D1) — one scan per report, feeding health's tier-aware
 // `story:`/`capability:` resolver.
 import { loadWorkHierarchyIndex } from "@storytree/drive";
@@ -3442,7 +3444,6 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       return arcReconcile(
         {
           store: deps.store,
-          decisionsDir: deps.adrDecisionsDir ?? path.join(repoRoot(), "docs", "decisions"),
           storiesDir: deps.storiesDir ?? path.join(repoRoot(), "stories"),
           pg: values.pg === true,
           writable: deps.writable === true,
@@ -3630,7 +3631,6 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       third,
       {
         store: deps.store,
-        decisionsDir: deps.adrDecisionsDir ?? path.join(repoRoot(), "docs", "decisions"),
         storiesDir: deps.storiesDir ?? path.join(repoRoot(), "stories"),
         pg: values.pg === true,
       },
@@ -3697,15 +3697,21 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         return true; // unreadable is not evidence of absence
       }
     };
-    const decisionsSince = (isoDate: string): { number: number; title: string }[] => {
+    // NULL means "could not tell", never "nothing landed" (ADR-0403 dec 1 moved the log into the
+    // store, so this read can fail). The seam's own comment carries the reason: a freshness check
+    // that fails toward FRESH blesses an increment nobody checked.
+    const decisionsSince = async (
+      isoDate: string,
+    ): Promise<{ number: number; title: string }[] | null> => {
       try {
-        const { listings } = loadAdrListings(path.join(repoRoot(), "docs", "decisions"));
-        return listings
-          .filter((l) => l.meta.decided !== undefined && l.meta.decided > isoDate)
-          .sort((a, b) => a.meta.number - b.meta.number)
-          .map((l) => ({ number: l.meta.number, title: l.title }));
+        const { adrs, unreadable } = await loadTitledAdrMetasFromStore(deps.store);
+        if (unreadable) return null;
+        return adrs
+          .filter((a) => a.decided !== undefined && a.decided > isoDate)
+          .sort((a, b) => a.number - b.number)
+          .map((a) => ({ number: a.number, title: a.title }));
       } catch {
-        return [];
+        return null;
       }
     };
     return incrementCommand(

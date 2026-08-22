@@ -279,13 +279,54 @@ function withDecisionsDir(fn: (dir: string) => void | Promise<void>): Promise<vo
   return Promise.resolve(fn(dir)).finally(() => rmSync(dir, { recursive: true, force: true }));
 }
 
-const depsFor = (dir: string, allocator: AdrAllocatorLike | null): AdrCommandDeps => ({
+/**
+ * `store` is OPTIONAL because the two halves of this command now have different sources: `adr new`
+ * still scaffolds a FILE (and dual-writes a row when it can), while `adr list` reads the STORE only
+ * (ADR-0403 dec 1). Omitting it is therefore a real invocation shape — a read-only one — and the
+ * suite asserts what each half does with it missing rather than always wiring it.
+ */
+const depsFor = (
+  dir: string,
+  allocator: AdrAllocatorLike | null,
+  store?: InMemoryStore,
+): AdrCommandDeps => ({
   allocator,
   decisionsDir: dir,
   branch: "claude/test",
   actor: "tester",
   today: "2026-06-26",
+  ...(store === undefined ? {} : { roundTrip: { store, writable: true, actor: "tester" } }),
 });
+
+/** One decision ROW, as the store carries it since ADR-0403 dec 1. */
+async function seedDecision(
+  store: InMemoryStore,
+  number: number,
+  title: string,
+  extra: Record<string, unknown> = {},
+): Promise<void> {
+  const id = `adr-${String(number).padStart(4, "0")}`;
+  await store.upsertDoc({
+    id,
+    kind: "adr",
+    doc: {
+      kind: "adr",
+      id,
+      title,
+      description: `ADR-${String(number).padStart(4, "0")} — ${title}`,
+      body: `# ADR-${String(number).padStart(4, "0")}: ${title}\n`,
+      number,
+      status: "accepted",
+      amends: [],
+      supersedes: [],
+      loadBearing: false,
+      references: [],
+      createdAt: "2026-06-26T00:00:00.000Z",
+      updatedAt: "2026-06-26T00:00:00.000Z",
+      ...extra,
+    },
+  });
+}
 
 test("adr new --pg: reserves from the allocator, scaffolds NNNN-slug.md, no offline warning", async () => {
   await withDecisionsDir(async (dir) => {
@@ -482,25 +523,74 @@ test("adr next --pg carries the same heads-up (its author writes prose too)", as
   });
 });
 
-test("adr list reads the decisions dir and renders the rows (offline, no allocator)", async () => {
+test("adr list reads the decision ROWS and renders them (ADR-0403 dec 1)", async () => {
   await withDecisionsDir(async (dir) => {
-    writeFileSync(
-      path.join(dir, "0019-lib.md"),
-      "---\nstatus: accepted\nload_bearing: true\n---\n# ADR-0019: Library tier\n## Status\naccepted.\n",
-    );
-    writeFileSync(
-      path.join(dir, "0086-x.md"),
-      "---\nstatus: proposed\n---\n# ADR-0086: Lifecycle\n## Status\nproposed.\n",
-    );
-    const all = await adrCommand("list", {}, depsFor(dir, null));
+    const store = new InMemoryStore();
+    await seedDecision(store, 19, "Library tier", { loadBearing: true });
+    await seedDecision(store, 86, "Lifecycle", { status: "proposed" });
+
+    const all = await adrCommand("list", {}, depsFor(dir, null, store));
     assert.equal(all.ok, true);
     assert.match(all.body, /0019/);
     assert.match(all.body, /Library tier/);
     assert.match(all.body, /0086/);
 
-    const lb = await adrCommand("list", { loadBearing: true }, depsFor(dir, null));
+    const lb = await adrCommand("list", { loadBearing: true }, depsFor(dir, null, store));
     assert.match(lb.body, /0019/);
     assert.doesNotMatch(lb.body, /0086/); // proposed, not load-bearing
+  });
+});
+
+test("adr list REFUSES without a store rather than reporting an empty decision log", async () => {
+  // The offline read is the named accepted cost of ADR-0403, and the refusal has to SAY so: a
+  // command that answered "no decisions" when it simply had nowhere to look would report the corpus
+  // as empty — a confident wrong answer about the surface every session orients on.
+  await withDecisionsDir(async (dir) => {
+    const env = await adrCommand("list", {}, depsFor(dir, null));
+    assert.equal(env.ok, false);
+    assert.match(env.body, /store/);
+  });
+});
+
+test("adr list says the store is EMPTY rather than pretending the log is missing", async () => {
+  await withDecisionsDir(async (dir) => {
+    const env = await adrCommand("list", {}, depsFor(dir, null, new InMemoryStore()));
+    assert.equal(env.ok, false);
+    assert.match(env.body, /no decisions in the store/);
+    assert.match(env.body, /is the DB up/);
+  });
+});
+
+test("adr new DUAL-WRITES the row, so the scaffold is visible to `adr list`", async () => {
+  // The dual-source window (`decision-log-home-arc` inc 03→05): `adr new` writes a FILE and `adr
+  // list` reads ROWS, so a scaffold that wrote only the file would exist and not appear.
+  await withDecisionsDir(async (dir) => {
+    const store = new InMemoryStore();
+    const { allocator } = fakeAllocator(77);
+    const env = await adrCommand("new", { title: "A dual written decision" }, depsFor(dir, allocator, store));
+    assert.equal(env.ok, true);
+    assert.match(env.body, /also written to the store as adr-0077/);
+
+    const row = (await store.getDoc("adr-0077"))?.doc as Record<string, unknown>;
+    assert.equal(row["number"], 77);
+    assert.equal(row["status"], "proposed");
+    assert.equal(row["title"], "A dual written decision");
+
+    const listed = await adrCommand("list", {}, depsFor(dir, null, store));
+    assert.match(listed.body, /0077/);
+    assert.match(listed.body, /A dual written decision/);
+  });
+});
+
+test("adr new WARNS LOUDLY when it wrote the file and could not write the row", async () => {
+  // Silence here is the bad kind: the command would report success while the decision stayed
+  // invisible on the only surface anyone reads.
+  await withDecisionsDir(async (dir) => {
+    const { allocator } = fakeAllocator(78);
+    const env = await adrCommand("new", { title: "A file only decision" }, depsFor(dir, allocator));
+    assert.equal(env.ok, true, "the FILE was still written — this is a warning, not a refusal");
+    assert.match(env.body, /the FILE was written but the STORE ROW was not/);
+    assert.match(env.body, /load-decisions/, "and it names the reconcile command");
   });
 });
 
