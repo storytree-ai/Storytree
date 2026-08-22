@@ -25,9 +25,9 @@ import { renderTraversalSessions, renderTraversalSession } from "./query-render.
 
 test("session-list-is-newest-first-with-counts: the session index orders newest-observed first with counts, and an empty index renders without error", () => {
   const list: TraversalSessionSummary[] = [
-    { sessionId: "session-older", eventCount: 3, lastObservedAt: "2026-07-20T00:00:00.000Z" },
-    { sessionId: "session-newest", eventCount: 5, lastObservedAt: "2026-07-25T00:00:00.000Z" },
-    { sessionId: "session-unknown-time", eventCount: 1, lastObservedAt: undefined },
+    { sessionId: "session-older", eventCount: 3, lastObservedAt: "2026-07-20T00:00:00.000Z", identity: "window", slots: [] },
+    { sessionId: "session-newest", eventCount: 5, lastObservedAt: "2026-07-25T00:00:00.000Z", identity: "window", slots: [] },
+    { sessionId: "session-unknown-time", eventCount: 1, lastObservedAt: undefined, identity: "window", slots: [] },
   ];
 
   const result = renderTraversalSessions(list);
@@ -59,6 +59,45 @@ test("session-list-is-newest-first-with-counts: the session index orders newest-
   const empty = renderTraversalSessions([]);
   assert.equal(empty.ok, true, "an empty index is a valid, ok render, never a missing surface");
   assert.match(empty.body, /no captured sessions|no sessions/i);
+});
+
+test("session-list-is-newest-first-with-counts: every index row states what its session id NAMES, and a legacy slot-keyed row is labelled rather than merged with window-keyed ones", () => {
+  const withLegacy: TraversalSessionSummary[] = [
+    {
+      sessionId: "7d61a5bb-c2cb-466d-ab19-8165d9a1f936",
+      eventCount: 4,
+      lastObservedAt: "2026-08-22T00:00:00.000Z",
+      identity: "window",
+      slots: ["confident-brahmagupta-b5b8f2"],
+    },
+    {
+      sessionId: "clever-mestorf-1041a3",
+      eventCount: 137,
+      lastObservedAt: "2026-08-14T00:00:00.000Z",
+      identity: "slot",
+      slots: [],
+    },
+  ];
+
+  const result = renderTraversalSessions(withLegacy);
+  const rows = result.body.split("\n");
+  const windowRow = rows.find((line) => line.includes("7d61a5bb")) ?? "";
+  const slotRow = rows.find((line) => line.includes("clever-mestorf")) ?? "";
+
+  assert.match(windowRow, /identity: window/, "a window-keyed row says so on its own line");
+  assert.match(windowRow, /confident-brahmagupta-b5b8f2/, "and names the slot it ran in, as a grouping attribute");
+  assert.match(slotRow, /identity: slot/, "a legacy row is labelled, never left to be read as a session");
+
+  // The notice states the fact the label alone cannot: those rows cannot be repaired into window
+  // identity, so a count over them is not one session's.
+  assert.match(result.body, /not\s*\n?\s*retrofittable|not[\s\S]{0,40}retrofittable/i);
+  assert.ok(result.body.includes("1 of 2"), "the notice sizes the legacy rows rather than gesturing at them");
+
+  // ...and it is CONDITIONAL: a clean index grows no paragraph announcing an absence.
+  const cleanIndex = renderTraversalSessions([
+    { sessionId: "window-a", eventCount: 1, lastObservedAt: "2026-08-22T00:00:00.000Z", identity: "window", slots: [] },
+  ]);
+  assert.doesNotMatch(cleanIndex.body, /retrofittable/i);
 });
 
 test("replay-renders-chronological-visits-with-read-strength: each visit renders on its own chronological line, front-matter and full-payload stay visibly distinct, and a revisit links back only when priorVisitId is present", () => {
@@ -106,6 +145,10 @@ test("replay-renders-chronological-visits-with-read-strength: each visit renders
   const replay = trace.replay(sessionId);
   const result = renderTraversalSession(replay, { skipped: 0 });
   assert.equal(result.ok, true);
+
+  // The identity line is OMITTED when the reader supplied none, exactly as `capacity:` refuses to
+  // fabricate a window it never observed — an absent classification is not a slot-era one.
+  assert.doesNotMatch(result.body, /^identity:/m);
 
   const lines = result.body.split("\n");
   const visit1Line = lines.findIndex((l) => l.includes("visit-1") && l.includes("node-a") && l.includes("surface-a"));
@@ -222,6 +265,44 @@ test("capacity-renders-unknown-without-a-model-observation: an observed model_co
   assert.doesNotMatch(result.body, /500\s?[,]?000/);
   assert.doesNotMatch(result.body, /500\s?k/i);
   assert.doesNotMatch(capacityLine ?? "", /\d/);
+});
+
+test("replay-renders-chronological-visits-with-read-strength: the replay states what its session id NAMES, and a slot-keyed one says outright that its counts are not one session's", () => {
+  const sessionId = "clever-mestorf-1041a3";
+  const trace = createContextTraversalTrace();
+  trace.append({
+    kind: "full_payload_read",
+    eventId: "event:identity-1",
+    sessionId,
+    at: "2026-08-22T00:00:00.000Z",
+    visitId: "visit-identity-1",
+    nodeId: "plan",
+    surfaceId: "library-artifact",
+  });
+  const replay = trace.replay(sessionId);
+
+  const slotKeyed = renderTraversalSession(replay, { skipped: 0, identity: "slot", slots: [] });
+  assert.match(slotKeyed.body, /^identity: slot —/m, "the classification leads, then what it means");
+  assert.match(slotKeyed.body, /pools/i, "a slot pools every window that ran in it");
+  assert.match(slotKeyed.body, /retrofittable/i, "and no line records which window wrote it");
+
+  const windowKeyed = renderTraversalSession(replay, {
+    skipped: 0,
+    identity: "window",
+    slots: ["confident-brahmagupta-b5b8f2"],
+  });
+  assert.match(windowKeyed.body, /^identity: window —/m);
+  assert.doesNotMatch(windowKeyed.body, /retrofittable/i, "a window-keyed replay carries no legacy warning");
+  assert.match(
+    windowKeyed.body,
+    /^worktree slot: confident-brahmagupta-b5b8f2 \(a grouping attribute, never the identity\)$/m,
+    "the slot is rendered as what it is — a grouping attribute beside the identity, not the identity",
+  );
+
+  // An EMPTY replay has no lines to classify, so it is labelled with nothing rather than with an era.
+  const emptyTrace = createContextTraversalTrace();
+  const empty = renderTraversalSession(emptyTrace.replay("session-empty"), { skipped: 0, identity: "slot", slots: [] });
+  assert.doesNotMatch(empty.body, /^identity:/m);
 });
 
 test("a-partial-replay-states-its-skipped-count: a non-zero skipped count renders an explicit partial-read notice, and the render still returns a complete body rather than throwing", () => {

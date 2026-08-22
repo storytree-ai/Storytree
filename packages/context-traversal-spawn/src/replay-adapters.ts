@@ -24,6 +24,7 @@ import {
 } from "@storytree/context-traversal-capture";
 import type {
   CoverageCaveat,
+  TraceIdentityKind,
   TraversalRenderEnvelope,
   TraversalQueryOptions,
 } from "@storytree/context-traversal-capture";
@@ -68,8 +69,8 @@ export function showTraversalSessionAllAdapters(
   sessionId: string,
   opts?: TraversalQueryOptions,
 ): TraversalRenderEnvelope {
-  const { replay, skipped } = composeReplay(sessionId, opts);
-  const rendered = renderTraversalSession(replay, { skipped });
+  const { replay, skipped, identity, slots } = composeReplay(sessionId, opts);
+  const rendered = renderTraversalSession(replay, { skipped, identity, slots });
   const caveats = renderCoverageCaveats(FOLLOW_OFFER_EDGE_CAVEATS);
   return { ...rendered, body: `${rendered.body}\n\ncoverage-caveats:\n${caveats}` };
 }
@@ -84,12 +85,24 @@ export function showTraversalSessionAllAdapters(
 function composeReplay(
   sessionId: string,
   opts: TraversalQueryOptions | undefined,
-): { readonly replay: ContextTraversalReplay; readonly skipped: number } {
+): {
+  readonly replay: ContextTraversalReplay;
+  readonly skipped: number;
+  readonly identity: TraceIdentityKind;
+  readonly slots: readonly string[];
+} {
   const dir = opts?.dir ?? resolveTraversalDir();
-  const { replay, skipped } = readTraversalSession({ dir, sessionId });
+  // The identity classification is carried THROUGH rather than recomputed here: it is a property of
+  // the bytes the reader walked (`linked-session-context-arc-inc-30`), and this composition widens
+  // only which adapters' coverage is declared. Dropping it would leave the one render the CLI
+  // actually calls unable to say whether its session id names a context window or a pooled slot —
+  // which is the same outward-moving-composition trap the coverage constant above documents.
+  const { replay, skipped, identity, slots } = readTraversalSession({ dir, sessionId });
   return {
     replay: { ...replay, coverage: [FOLLOW_OFFER_EDGE_COVERAGE, BUILD_SPAWN_BOUNDARY_COVERAGE] },
     skipped,
+    identity,
+    slots,
   };
 }
 

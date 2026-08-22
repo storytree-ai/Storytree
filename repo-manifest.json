@@ -521,6 +521,7 @@
       "packages/context-traversal-capture/src/query-render.ts": "traversal-session-query",
       "packages/context-traversal-capture/src/revisit-links.ts": "revisit-link-metadata",
       "packages/context-traversal-capture/src/sink.ts": "traversal-trace-sink",
+      "packages/context-traversal-capture/src/session-identity.ts": "terminal-capture-activation",
       "packages/context-traversal-capture/src/terminal-capture.ts": "terminal-capture-activation",
       "packages/context-traversal-capture/src/index.ts": "context-traversal-capture",
       "packages/context-traversal-spawn/src/build-capture.ts": "build-spawn-capture",

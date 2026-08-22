@@ -72,6 +72,17 @@ function traversalIngest(sessionId: string): Envelope {
     // not observe at all. Left unsaid, a subagent-heavy session reads as fully ingested.
     `reached ${result.sidechainFiles} subagent window(s) this adapter does not observe`,
     "",
+    // THE TWO ADAPTERS NO LONGER AGREE ON WHAT A SESSION IS, and that is said here rather than left
+    // for a reader to discover as a missing capacity line (`linked-session-context-arc-inc-30`).
+    // Terminal-CLI reads are now keyed by the host context WINDOW; this ingest still keys occupancy
+    // by the correlated storytree session, which is the worktree SLOT — the identity the `cwd` join
+    // is built on (ADR-0248). So an ingested slot trace and a window's read trace are different
+    // files, and `traversal show <windowId>` reports capacity as unknown even after an ingest.
+    // Moving the ingest to window keying is transcript-story work, not something to infer here.
+    "note: occupancy is written under the storytree session id above (the worktree slot), while",
+    "terminal-CLI reads are keyed by the host context window — so a window's replay will not carry",
+    "this series. `storytree traversal show <this id>` is where the occupancy lands.",
+    "",
     // ADR-0235 clause 6 — an adapter publishes what it can observe AT ITS OWN BOUNDARY. The replay
     // renderer in `context-traversal-spawn` does not yet know this adapter; until it does, this is
     // where the declaration is honest rather than nowhere.

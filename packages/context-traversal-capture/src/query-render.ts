@@ -21,6 +21,8 @@ import {
   renderOfferObservability,
   REPLAY_PATHWAY_NOTE,
 } from "./offer-observability-share.js";
+import { describeTraceIdentity } from "./session-identity.js";
+import type { TraceIdentityKind } from "./session-identity.js";
 import type { TraversalSessionSummary } from "./sink.js";
 
 /** The local envelope shape (ADR-0023): a body plus optional `next:` pointers. */
@@ -150,10 +152,32 @@ export function renderTraversalSessions(list: readonly TraversalSessionSummary[]
 
   const lines = sorted.map((session) => {
     const observed = session.lastObservedAt ?? "unknown";
-    return `- ${session.sessionId} — ${session.eventCount} event(s) — last observed ${observed}`;
+    const slots = session.slots.length > 0 ? ` — slot ${session.slots.join(", ")}` : "";
+    return `- ${session.sessionId} — ${session.eventCount} event(s) — last observed ${observed} — identity: ${session.identity}${slots}`;
   });
 
-  const body = ["Captured sessions (newest observed first):", "", ...lines].join("\n");
+  // WHY EVERY ROW CARRIES ITS IDENTITY KIND, and why the legacy note is CONDITIONAL
+  // (`linked-session-context-arc-inc-30`). Before window identity existed, a session id here was the
+  // worktree SLOT — pooled across the parent session, its subagents, and every later session handed
+  // the same slot, at a measured median of 2 windows and a p90 of 8. Those traces still sit in this
+  // index and cannot be retrofitted: nothing on disk records which window wrote which line. Listing
+  // them unlabelled beside window-keyed ones is the silent mixing this label exists to prevent, and
+  // the note is printed only when at least one such row is actually present, so a clean index does
+  // not grow a paragraph announcing an absence.
+  const legacy = sorted.filter((session) => session.identity === "slot" || session.identity === "mixed");
+  const notice =
+    legacy.length === 0
+      ? []
+      : [
+          "",
+          `note: ${legacy.length} of ${sorted.length} session(s) above are keyed wholly or partly by the`,
+          "worktree SLOT rather than by one context window. A slot pools every window that ran in it,",
+          "so a per-session count taken over one of those is not one session's. They are NOT",
+          "retrofittable — no line records which window wrote it — so they are labelled here rather",
+          "than merged with the window-keyed ones.",
+        ];
+
+  const body = ["Captured sessions (newest observed first):", "", ...lines, ...notice].join("\n");
   const next = sorted.map(
     (session) => `storytree context-traversal session ${session.sessionId} — replay this session`,
   );
@@ -170,13 +194,39 @@ export function renderTraversalSessions(list: readonly TraversalSessionSummary[]
  */
 export function renderTraversalSession(
   replay: ContextTraversalReplay,
-  opts: { readonly skipped: number },
+  opts: {
+    readonly skipped: number;
+    /**
+     * What this session's id names, from the reader (`linked-session-context-arc-inc-30`). Optional
+     * so a caller holding only a replay still renders; absent means the identity line is omitted
+     * rather than guessed, which is the same posture `capacity:` takes toward an unobserved window.
+     */
+    readonly identity?: TraceIdentityKind;
+    /** The worktree slot(s) the session's lines recorded — a grouping attribute, not an identity. */
+    readonly slots?: readonly string[];
+  },
 ): TraversalRenderEnvelope {
   const lines: string[] = [];
 
   const sessionIds = [...new Set(replay.events.map((event) => event.sessionId))];
   const sessionLabel = sessionIds.length > 0 ? sessionIds.join(", ") : "unknown";
   lines.push(`session: ${sessionLabel}`);
+
+  // WHAT THE SESSION ID ABOVE ACTUALLY NAMES, said on the picture rather than left to the id's
+  // shape (`linked-session-context-arc-inc-30`). It sits directly under `session:` because it
+  // qualifies that line and nothing else: a `slot`-keyed replay is the union of every context
+  // window that ran in one pooled worktree — the parent session, its subagents, and every later
+  // session handed the same slot — so its repeat counts are not one session's, and it is not
+  // retrofittable to window identity because no line records which window wrote it.
+  //
+  // Printed only for a replay that HAS events: a session with nothing in it has no lines to
+  // classify, and labelling an empty trace would be asserting an era over a file that is not there.
+  if (opts.identity !== undefined && replay.events.length > 0) {
+    lines.push(`identity: ${opts.identity} — ${describeTraceIdentity(opts.identity)}`);
+  }
+  if (opts.slots !== undefined && opts.slots.length > 0) {
+    lines.push(`worktree slot: ${opts.slots.join(", ")} (a grouping attribute, never the identity)`);
+  }
 
   if (opts.skipped > 0) {
     lines.push(`partial replay: ${opts.skipped} event line(s) skipped (unreadable or corrupt)`);

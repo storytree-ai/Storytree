@@ -13,11 +13,24 @@ export {
   appendTraversalEvents,
   readTraversalSession,
   listTraversalSessions,
+  type TraversalLineIdentity,
   type TraversalSinkLocation,
   type TraversalListLocation,
   type TraversalReadResult,
   type TraversalSessionSummary,
 } from "./sink.js";
+
+export {
+  classifyTraceIdentity,
+  describeTraceIdentity,
+  resolveTraceIdentity,
+  DECLARED_SESSION_ID_ENV,
+  HOST_WINDOW_ID_ENV,
+  type TraceIdentity,
+  type TraceIdentityGrade,
+  type TraceIdentityInput,
+  type TraceIdentityKind,
+} from "./session-identity.js";
 
 export {
   observeCliInvocation,

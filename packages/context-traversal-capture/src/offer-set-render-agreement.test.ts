@@ -101,12 +101,15 @@ function freshDir(prefix: string): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), `offer-set-render-agreement-${prefix}-`));
 }
 
-/** The env every test starts from: ambient process.env with the traversal-only variables stripped. */
+/** The env every test starts from: ambient process.env with the traversal-only variables stripped —
+ * `CLAUDE_CODE_SESSION_ID` among them since it became an identity source
+ * (`linked-session-context-arc-inc-30`), so the host session cannot key a spawned child's trace. */
 function baseEnv(): NodeJS.ProcessEnv {
   const {
     STORYTREE_TRAVERSAL_DIR: _dir,
     STORYTREE_SESSION_ID: _session,
     STORYTREE_TRAVERSAL: _toggle,
+    CLAUDE_CODE_SESSION_ID: _window,
     ...rest
   } = process.env;
   return doorUrl === undefined ? rest : { ...rest, STORYTREE_STORE_URL: doorUrl };

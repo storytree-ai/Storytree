@@ -83,6 +83,20 @@ the UAT passes locally and fails in CI — the known "gate validates MAIN, not t
 wins over derivation (the secrets-hydration precedent), and the same seam is how a future
 spawned-agent adapter will inherit a parent session id (ADR-0241 D9).
 
+**A TRACE SESSION IS ONE CONTEXT WINDOW, AND THE WORKTREE SLOT IS NOT AN IDENTITY** (since
+2026-08-22, `linked-session-context-arc-inc-30`). The precedence lives in this story's own package —
+`resolveTraceIdentity(…)` in `packages/context-traversal-capture/src/session-identity.ts`, PURE, with
+the environment and the caller's slot injected — so the CLI edit stays glue: `main.ts` resolves
+`deriveIdentity()` ONCE (the ADR-0162 startup budget) and derives both identities from it, the
+worktree one for the spawn registry and the delta footer, and this one for capture. Order:
+`STORYTREE_SESSION_ID`, then the harness-reported window id (`CLAUDE_CODE_SESSION_ID`), then
+**nothing**. There is deliberately NO slot fallback: a slot is shared by the parent session, each
+subagent it spawns, and every later session the pool hands it — measured at a median of 2 windows,
+a p90 of 8, and one holding 137 — so keying a trace by it reports many windows' reads as one
+session's, which inflated the corpus-wide re-read share from 13.4% to 32.0% (x2.39). A run that
+cannot name its window records nothing, the same silent no-op a null identity has always been. The
+slot is still passed down and stamped beside the identity as a grouping attribute.
+
 **Prove it by spawning the real CLI.** The UAT test file
 `packages/context-traversal-capture/src/terminal-capture.uat.test.ts` spawns
 `node packages/cli/launch.mjs …` as a child process with `STORYTREE_TRAVERSAL_DIR` and

@@ -58,10 +58,15 @@ function loadTraversalSink(): Promise<CaptureModule> {
 async function readTraversalIndex(dir: string): Promise<TraversalSessionSummary[]> {
   const { readTraversalSession } = await loadTraversalSink();
   return listTraversalSessionsIncremental(dir, (sessionDir, sessionId) => {
-    const { replay } = readTraversalSession({ dir: sessionDir, sessionId });
+    const { replay, identity, slots } = readTraversalSession({ dir: sessionDir, sessionId });
     if (replay.events.length === 0) return null;
     const lastEvent = replay.events[replay.events.length - 1];
-    return { sessionId, eventCount: replay.events.length, lastObservedAt: lastEvent?.at };
+    // `identity` / `slots` are MIRRORED, never re-derived (`linked-session-context-arc-inc-30`): the
+    // sink classifies a session from the grades its own lines carry, and this fold is held to deep
+    // equality with `listTraversalSessions` by test. Computing them here from anything but the
+    // reader's answer is how the panel and `storytree traversal list` would start disagreeing about
+    // whether a session id names one context window or a pooled worktree slot.
+    return { sessionId, eventCount: replay.events.length, lastObservedAt: lastEvent?.at, identity, slots };
   });
 }
 

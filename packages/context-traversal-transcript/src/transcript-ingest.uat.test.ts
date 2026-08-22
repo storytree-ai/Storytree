@@ -54,13 +54,17 @@ function runCli(args: readonly string[], env: NodeJS.ProcessEnv): CliResult {
   return { status: res.status, stdout: res.stdout ?? "", stderr: res.stderr ?? "" };
 }
 
-/** Ambient env with every override this suite controls stripped, so the host machine cannot leak in. */
+/** Ambient env with every override this suite controls stripped, so the host machine cannot leak in.
+ * `CLAUDE_CODE_SESSION_ID` joined the list when trace identity became the host context WINDOW
+ * (`linked-session-context-arc-inc-30`): it is set on every process a Claude Code session spawns, so
+ * leaving it would let the RUNNING session's id key a child's trace. */
 function baseEnv(): NodeJS.ProcessEnv {
   const {
     STORYTREE_TRAVERSAL_DIR: _traceDir,
     STORYTREE_TRANSCRIPT_DIR: _transcriptDir,
     STORYTREE_SESSION_ID: _session,
     STORYTREE_TRAVERSAL: _toggle,
+    CLAUDE_CODE_SESSION_ID: _window,
     ...rest
   } = process.env;
   return rest;

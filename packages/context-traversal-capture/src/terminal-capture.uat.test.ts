@@ -110,13 +110,21 @@ function freshDir(prefix: string): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), `traversal-uat-${prefix}-`));
 }
 
-/** The env every OFFLINE test starts from: ambient process.env with the three traversal-only
- * variables stripped, so a prior test (or the host machine) can never leak into this one. */
+/** The env every OFFLINE test starts from: ambient process.env with the four traversal-only
+ * variables stripped, so a prior test (or the host machine) can never leak into this one.
+ *
+ * `CLAUDE_CODE_SESSION_ID` is the fourth (`linked-session-context-arc-inc-30`): since trace identity
+ * is the host CONTEXT WINDOW rather than the worktree slot, that variable is now an identity source,
+ * and it is set on every process a Claude Code session spawns — including this suite's. Left in
+ * place it would silently resolve an identity for the "no resolvable identity" leg below, which runs
+ * from a non-worktree cwd precisely so that leg is decided by the machine's shape rather than faked.
+ * Stripping it keeps that determinism intact for exactly the reason the other three are stripped. */
 function baseEnv(): NodeJS.ProcessEnv {
   const {
     STORYTREE_TRAVERSAL_DIR: _dir,
     STORYTREE_SESSION_ID: _session,
     STORYTREE_TRAVERSAL: _toggle,
+    CLAUDE_CODE_SESSION_ID: _window,
     ...rest
   } = process.env;
   // The door the spawned CLI reads its corpus through (see the `before` hook above). Set here so
@@ -522,6 +530,96 @@ test("capture-off-leaves-a-byte-identical-envelope: STORYTREE_TRAVERSAL=off and 
     "nor the ask that goes with one",
   );
   assert.deepEqual(listDir(noIdDir), [], "an unresolved identity must create no trace file");
+});
+
+// ---------------------------------------------------------------------------
+// 5b. THE TRACE'S SESSION IS ONE CONTEXT WINDOW, AND A FLAGGED READ IS A READ.
+//
+// `linked-session-context-arc-inc-30`, both defects on the REAL CLI in one leg because they are one
+// wiring: what the trace is keyed by, and what it records at all.
+//
+// Not a new UAT criterion — the same "strengthening a living criterion is safe" posture as the
+// repeat-read leg above, which is likewise unnumbered. The story's signed legs are untouched.
+// ---------------------------------------------------------------------------
+
+test("a real spawned read keys its trace by the CONTEXT WINDOW, not the pooled worktree slot, and records a flag-carrying read", () => {
+  const dir = freshDir("window-identity");
+  const windowId = "11111111-2222-3333-4444-555555555555";
+
+  // The HARNESS's own env var, and no `STORYTREE_SESSION_ID`: this is the resolution a real agent
+  // invocation takes. `deriveIdentity()` may or may not find a worktree slot depending on where the
+  // suite runs (a session worktree, CI, the spine's temp checkout) — and that is exactly the point.
+  // Whatever it finds, the slot must not name the file.
+  const env = { ...baseEnv(), STORYTREE_TRAVERSAL_DIR: dir, CLAUDE_CODE_SESSION_ID: windowId };
+
+  // A `--raw <field>` read: 72.3% of reads in the measured corpus carry a flag, and every one of
+  // them was invisible to the observer's old three-token fence.
+  const flagged = runCli(["library", "artifact", "plan", "--raw", "oneLine"], env);
+  assert.equal(flagged.status, 0, `expected the flagged read to exit 0: ${flagged.stderr}`);
+
+  assert.deepEqual(
+    listDir(dir),
+    [`${windowId}.jsonl`],
+    "the trace is named by the context window — a slot-named file here would be the pooling defect",
+  );
+
+  const { replay, skipped, identity, slots } = readTraversalSession({ dir, sessionId: windowId });
+  assert.equal(skipped, 0);
+  const visits = visitsOf(replay.events);
+  assert.equal(visits.length, 1, "a flag-carrying read is a READ — it was silently discarded before");
+  const visit = expectVisit(visits[0], "window-identity");
+  assert.equal(visit.nodeId, "plan");
+  assert.equal(visit.sessionId, windowId, "the event's own sessionId is the window, not the slot");
+  assert.equal(
+    visit.kind,
+    "front_matter_read",
+    "and a one-field read is recorded at the PARTIAL strength, not as a whole document",
+  );
+  assert.equal(
+    JSON.stringify(replay.events).includes("oneLine"),
+    false,
+    "the field name is a flag value and is never recorded (ADR-0235 clause 6)",
+  );
+
+  // The classification the render then states, and the slot demoted to a grouping attribute beside
+  // it. `slots` is whatever this machine's checkout actually is — asserted as "never the identity"
+  // rather than as a fixed value, so the leg holds in a session worktree and in CI alike.
+  assert.equal(identity, "window");
+  assert.equal(slots.includes(windowId), false, "the slot is recorded beside the identity, never as it");
+
+  const shown = runCli(["traversal", "show", windowId], env);
+  assert.equal(shown.status, 0, `expected traversal show to exit 0: ${shown.stderr}`);
+  assert.match(
+    shown.stdout,
+    /identity: window —/,
+    "the replay says what its session id names rather than leaving it to the id's shape",
+  );
+  assert.doesNotMatch(
+    shown.stdout,
+    /retrofittable/i,
+    "and a window-keyed replay carries no legacy slot warning",
+  );
+
+  // A second window in the SAME worktree writes a SEPARATE trace — the whole correction in one
+  // assertion. Under slot identity these two would have been one "session" with a repeat read.
+  const otherWindowId = "66666666-7777-8888-9999-000000000000";
+  const second = runCli(["library", "artifact", "plan", "--raw", "oneLine"], {
+    ...env,
+    CLAUDE_CODE_SESSION_ID: otherWindowId,
+  });
+  assert.equal(second.status, 0, `expected the second window's read to exit 0: ${second.stderr}`);
+  assert.deepEqual(
+    listDir(dir).sort(),
+    [`${otherWindowId}.jsonl`, `${windowId}.jsonl`].sort(),
+    "two context windows in one worktree are two sessions, not one session that read twice",
+  );
+  const secondReplay = readTraversalSession({ dir, sessionId: otherWindowId });
+  assert.equal(visitsOf(secondReplay.replay.events).length, 1);
+  assert.equal(
+    visitsOf(secondReplay.replay.events)[0]?.priorVisitId,
+    undefined,
+    "and neither window's read is a revisit of the other's — that link was the inflated count",
+  );
 });
 
 // ---------------------------------------------------------------------------

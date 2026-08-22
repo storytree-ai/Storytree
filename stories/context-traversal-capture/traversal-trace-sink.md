@@ -65,6 +65,17 @@ argument. It must NOT import `@storytree/drive` for `deriveIdentity()` — the c
 which keeps this package's runtime dependencies to zod plus increment 1's vocabulary and leaves a
 future spawned-agent adapter a seam to inherit a parent session id.
 
+**A line also carries WHAT ITS `sessionId` NAMES** (since 2026-08-22,
+`linked-session-context-arc-inc-30`). `appendTraversalEvents` accepts an optional `grade`
+(`window` | `declared`) and `slot`, and stamps them on EVERY line as additive siblings of `event` —
+`{"v":1,"event":{…},"grade":"window","slot":"<worktree>"}`. Siblings rather than a `v` bump on
+purpose: they describe the line's identity, not any event's shape, so the event vocabulary is
+untouched, existing traces stay fully readable, and an older reader still accepts a newer line. The
+reader returns the session's classification (`identity`) and the distinct `slots` it saw, computed
+only from lines it actually USED — a skipped line vouches for nothing. **An ungraded line is a
+LEGACY SLOT-ERA line and is labelled, never retrofitted**: nothing on disk records which window
+wrote it.
+
 **Fences.** No retention, rotation, eviction, compaction, pruning, or size cap — traces are
 deliberately unbounded (ADR-0241 D7); a "helpful" trim would destroy the long-session evidence this
 arc exists to gather. No shared-database path. No await on a network or DB call: this code runs on

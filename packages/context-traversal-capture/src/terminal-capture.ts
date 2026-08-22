@@ -27,6 +27,7 @@ import { observeCliInvocation } from "./observe-cli.js";
 import { emitCandidateSet, renderCoverageCaveats } from "./offer-candidate-sets.js";
 import { renderTraversalSession, renderTraversalSessions } from "./query-render.js";
 import { linkRevisits } from "./revisit-links.js";
+import type { TraceIdentityGrade } from "./session-identity.js";
 import {
   appendTraversalEvents,
   listTraversalSessions,
@@ -47,6 +48,19 @@ export interface CaptureCliInvocationInput {
    * Null must capture NOTHING — an absent identity is a normal, silent no-op, never an error.
    */
   readonly sessionId: string | null;
+  /**
+   * How well {@link sessionId} names ONE context window (`linked-session-context-arc-inc-30`).
+   * Stamped on every line this invocation writes, so a later reader can say what the trace's id
+   * IS rather than inferring it from the id's shape. Absent = unstated, which a reader treats as
+   * the legacy slot era.
+   */
+  readonly grade?: TraceIdentityGrade;
+  /**
+   * The worktree slot this invocation ran in — recorded beside the identity as a GROUPING
+   * attribute. It is genuinely useful (it says which worktree a window was working in); it is
+   * simply not an identity, which is the whole correction inc-30 makes.
+   */
+  readonly slot?: string | null;
   /** Overrides the resolved trace directory; defaults to {@link resolveTraversalDir}. */
   readonly dir?: string;
   /** Overrides the `STORYTREE_TRAVERSAL=off` opt-out check. */
@@ -188,7 +202,12 @@ export function captureCliInvocation(input: CaptureCliInvocationInput): void {
   // link, never the append. Ordering, never `at`: `readTraversalSession` returns append order, which
   // is the only "earlier" this producer is allowed to know (ADR-0235).
   const { replay } = readTraversalSession({ dir, sessionId });
-  appendTraversalEvents(linkRevisits(offered, replay.events), { dir, sessionId });
+  appendTraversalEvents(linkRevisits(offered, replay.events), {
+    dir,
+    sessionId,
+    ...(input.grade !== undefined ? { grade: input.grade } : {}),
+    ...(input.slot !== undefined ? { slot: input.slot } : {}),
+  });
 }
 
 /**
@@ -213,8 +232,11 @@ export function captureCliInvocation(input: CaptureCliInvocationInput): void {
  */
 export function showTraversalSession(sessionId: string, opts?: TraversalQueryOptions): RenderedEnvelope {
   const dir = opts?.dir ?? resolveTraversalDir();
-  const { replay, skipped } = readTraversalSession({ dir, sessionId });
-  const rendered = renderTraversalSession({ ...replay, coverage: [FOLLOW_OFFER_EDGE_COVERAGE] }, { skipped });
+  const { replay, skipped, identity, slots } = readTraversalSession({ dir, sessionId });
+  const rendered = renderTraversalSession(
+    { ...replay, coverage: [FOLLOW_OFFER_EDGE_COVERAGE] },
+    { skipped, identity, slots },
+  );
   const caveats = renderCoverageCaveats(FOLLOW_OFFER_EDGE_CAVEATS);
   return { ...rendered, body: `${rendered.body}\n\ncoverage-caveats:\n${caveats}` };
 }

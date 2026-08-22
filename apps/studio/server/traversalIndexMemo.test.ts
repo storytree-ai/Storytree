@@ -44,10 +44,13 @@ function freshDir(): string {
 
 /** The route's own per-file summary — the body of `listTraversalSessions`, which parity holds it to. */
 const summarizeThroughSink: SummarizeTraversalSession = (dir, sessionId) => {
-  const { replay } = readTraversalSession({ dir, sessionId });
+  const { replay, identity, slots } = readTraversalSession({ dir, sessionId });
   if (replay.events.length === 0) return null;
   const lastEvent = replay.events[replay.events.length - 1];
-  return { sessionId, eventCount: replay.events.length, lastObservedAt: lastEvent?.at };
+  // Every field the sink's summary carries is MIRRORED here, including the identity classification
+  // and slots (`linked-session-context-arc-inc-30`) — the deep-equality assertions below are what
+  // make a forgotten field a red rather than a panel that quietly disagrees with `traversal list`.
+  return { sessionId, eventCount: replay.events.length, lastObservedAt: lastEvent?.at, identity, slots };
 };
 
 /** Wraps the real summarizer and records which sessions it actually read. */
