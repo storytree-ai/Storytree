@@ -12,6 +12,16 @@
  * and D6's conversational guide WRAPS it (run doctor → explain a failure → propose the fix → dev
  * confirms → re-run the idempotent installer step → re-doctor).
  *
+ * TWO PERSONA GROUPS SINCE `second-box-absorbs-the-expensive-work-arc` inc-05. Everything above is
+ * the EXPLORER group and answers "can this machine READ?". The opt-in DEV group
+ * ({@link ./doctor-dev.ts}, `storytree doctor --dev`) answers "can it do the WORK?" — the database,
+ * `~/.storytree/secrets.json`, GitHub auth, the write-authority wall, worktree identity — none of
+ * which the explorer set says anything about, which is how doctor came to report "setup is healthy"
+ * on a machine that cannot open a PR or write an artifact. It is opt-in because ADR-0207's explorer
+ * legitimately has no `--pg` (D6's own words), so failing them by default would make doctor lie
+ * about the persona it was built for; the price is paid in {@link DEV_SCOPE_NOT_RUN}, which stops a
+ * bare sweep ever printing an unqualified green over a group it did not run.
+ *
  * A probe asserts EXACTLY what it observed, never a stronger-sounding neighbour. `checkout-provisioned`
  * and `dependencies-current` are split for this reason: the first sees a completed install, the second
  * sees WHICH lockfile it ran against, and a report that answered the second with the first would tell a
@@ -58,6 +68,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 import { lockfileAdvanced, lockfilePair, needsRelink } from "../provision-worktree.mjs";
+import { devProbes, gatherDevObservations, type DevObservations } from "./doctor-dev.js";
 import type { Envelope } from "./envelope.js";
 import {
   guidanceSurfacePaths,
@@ -87,6 +98,17 @@ export interface Probe {
   readonly fixHint?: string;
 }
 
+/**
+ * Which persona's invariants a sweep covered. `explorer` is ADR-0207's original set — can this
+ * machine READ? `dev` adds the group that answers can it WORK (ADR-0207 D6's set says nothing about
+ * the database, the secrets file, GitHub auth, the write-authority wall, or worktree identity).
+ *
+ * It is carried on the REPORT rather than left implicit because the summary line has to say it: a
+ * sweep that skipped a whole group may not print an unqualified "setup is healthy", for the same
+ * reason `pnpm gate` prints GREEN, NARROWED rather than GREEN when a step declared a skip.
+ */
+export type DoctorScope = "explorer" | "dev";
+
 /** The whole doctor sweep. `ok` is false IFF some probe FAILed (a genuinely unmet invariant). */
 export interface DoctorReport {
   readonly probes: Probe[];
@@ -95,6 +117,8 @@ export interface DoctorReport {
   readonly passing: number;
   /** True IFF no probe FAILed (WARNs do not break — they are undetermined/offline/freshness). */
   readonly ok: boolean;
+  /** Which probe groups actually ran — never inferred by a reader from the probe list. */
+  readonly scope: DoctorScope;
 }
 
 /**
@@ -173,8 +197,13 @@ export const HOSTED_READ_REFUSED_DETAIL =
 /**
  * PURE: resolve every setup-invariant probe from the raw observations. The level/fix-hint policy —
  * the valuable, testable core — lives entirely here; the shell only gathers observations and renders.
+ *
+ * `dev` is the OPT-IN second persona group ({@link ./doctor-dev.ts | devProbes}). Supplying the
+ * observations IS asking for the group — there is no separate scope flag to get out of step with
+ * them, and no way to request probes for which nothing was observed. Absent, the sweep is exactly
+ * ADR-0207's explorer set, byte for byte, so `storytree guide` and the repair planner are unmoved.
  */
-export function runDoctor(obs: DoctorObservations): DoctorReport {
+export function runDoctor(obs: DoctorObservations, dev?: DevObservations): DoctorReport {
   const probes: Probe[] = [];
 
   // 1. git — version control; the clone/fetch steps need it. Installer @step:git.
@@ -450,25 +479,40 @@ export function runDoctor(obs: DoctorObservations): DoctorReport {
     });
   }
 
+  // The dev-persona group, appended last so the explorer rows keep their order and their meaning.
+  if (dev !== undefined) probes.push(...devProbes(dev));
+
   const failing = probes.filter((p) => p.level === "FAIL").length;
   const warning = probes.filter((p) => p.level === "WARN").length;
   const passing = probes.filter((p) => p.level === "PASS").length;
-  return { probes, failing, warning, passing, ok: failing === 0 };
+  return { probes, failing, warning, passing, ok: failing === 0, scope: dev === undefined ? "explorer" : "dev" };
 }
+
+/**
+ * The line a bare sweep prints INSTEAD of an unqualified green. Exported as a constant because it is
+ * the whole defence against the fault this file's dev group was added to remove: an explorer-scoped
+ * "setup is healthy" on a machine that cannot open a PR or write an artifact is an authoritative
+ * green over an unverified machine. A reader (or a blind self-onboarding agent) must be able to see
+ * that a group was skipped, and a test must be able to assert it did not quietly disappear.
+ */
+export const DEV_SCOPE_NOT_RUN =
+  "the DEV-PERSONA probes (database, secrets, GitHub auth, write-authority, worktree identity) " +
+  "were NOT run — `storytree doctor --dev`";
 
 /** PURE: render a report as stable, greppable machine-readable lines + a fix hint under each non-PASS probe. */
 export function formatDoctorReport(report: DoctorReport): string {
   const glyph = { PASS: "ok  ", WARN: "warn", FAIL: "FAIL" } satisfies Record<ProbeLevel, string>;
-  const lines: string[] = ["storytree doctor — explorer setup check (ADR-0207 D6)", ""];
+  const scopeLabel = report.scope === "dev" ? "explorer + dev setup check" : "explorer setup check";
+  const lines: string[] = [`storytree doctor — ${scopeLabel} (ADR-0207 D6)`, ""];
   for (const p of report.probes) {
     lines.push(`  [${glyph[p.level]}] ${p.name.padEnd(22)} ${p.detail}`);
     if (p.fixHint !== undefined) lines.push(`         fix: ${p.fixHint}`);
   }
   lines.push("");
-  lines.push(
-    `${report.failing} failing, ${report.warning} warning, ${report.passing} passing` +
-      (report.ok ? " — setup is healthy." : "."),
-  );
+  const counts = `${report.failing} failing, ${report.warning} warning, ${report.passing} passing`;
+  const persona = report.scope === "dev" ? "dev" : "explorer";
+  lines.push(counts + (report.ok ? ` — ${persona} setup is healthy.` : "."));
+  if (report.scope === "explorer") lines.push(DEV_SCOPE_NOT_RUN + ".");
   return lines.join("\n");
 }
 
@@ -625,16 +669,29 @@ export function doctorHelp(): Envelope {
   return {
     ok: true,
     body: [
-      "storytree doctor — the explorer-onboarding setup check (ADR-0207 D6).",
+      "storytree doctor — the onboarding setup check (ADR-0207 D6).",
       "",
       "  storytree doctor",
-      "      probe each setup invariant (git/Node, checkout provisioned, dependencies current, repo",
-      "      fetchable, Claude CLI present + logged in, checkout current, the eagerly-loaded guidance",
-      "      surface against its byte budget, hosted read) and print a fix hint per",
-      "      failure. Read-only and offline-capable — it never writes, and never handles your",
-      "      Claude credential (it only detects a logged-in CLI). Exits non-zero on any failure.",
+      "      the EXPLORER group: probe each setup invariant (git/Node, checkout provisioned,",
+      "      dependencies current, repo fetchable, Claude CLI present + logged in, checkout current,",
+      "      the eagerly-loaded guidance surface against its byte budget, hosted read) and print a fix",
+      "      hint per failure. Exits non-zero on any failure.",
+      "",
+      "  storytree doctor --dev",
+      "      …plus the DEV group — can this machine do the WORK? gcloud ADC, the live store, the",
+      "      ~/.storytree/secrets.json credentials, GitHub auth, the write-authority wall, and whether",
+      "      this cwd has a claimable worktree identity. Slower: it makes one real SELECT 1 against",
+      "      the live store, the same probe `pnpm db:probe` runs.",
+      "",
+      "      A bare sweep says so rather than printing an unqualified green — an explorer-scoped",
+      "      \"setup is healthy\" on a machine that cannot open a PR is exactly the false green this",
+      "      group exists to remove.",
+      "",
+      "      Read-only in both scopes — it never writes, installs or repairs, and never handles a",
+      "      credential: it observes presence and non-blankness only, and no value is read into the",
+      "      report, logged or hashed (ADR-0207 D3).",
     ].join("\n"),
-    next: ["storytree doctor"],
+    next: ["storytree doctor", "storytree doctor --dev"],
   };
 }
 
@@ -647,7 +704,10 @@ export async function doctorCommand(
   argv: readonly string[],
   deps: {
     observe?: (checkoutDir: string) => DoctorObservations | Promise<DoctorObservations>;
+    observeDev?: () => DevObservations | Promise<DevObservations>;
     checkoutDir?: string;
+    /** `--dev`: also run the dev-persona group. Off by default (see {@link DoctorScope}). */
+    dev?: boolean;
   } = {},
 ): Promise<Envelope> {
   const [sub] = argv;
@@ -655,15 +715,20 @@ export async function doctorCommand(
 
   const checkoutDir = deps.checkoutDir ?? repoRoot();
   const observe = deps.observe ?? gatherObservations;
-  const report = runDoctor(await observe(checkoutDir));
+  const dev = deps.dev === true ? await (deps.observeDev ?? gatherDevObservations)() : undefined;
+  const report = runDoctor(await observe(checkoutDir), dev);
 
   return {
     ok: report.ok,
     body: formatDoctorReport(report),
     // A failing probe routes the reader to the installer (the repair vocabulary); a clean run points
     // onward to the guide's next step. The guide (D6 top layer) reads the report object, not this.
+    // An explorer-scoped clean run offers the dev sweep FIRST: it is the one thing this report
+    // provably did not check, and a `next` that stayed silent about it would undo the summary line.
     next: report.ok
-      ? ["storytree library", "storytree agents"]
+      ? report.scope === "dev"
+        ? ["storytree library", "storytree agents"]
+        : ["storytree doctor --dev", "storytree library", "storytree agents"]
       : ["storytree guide", "storytree guide --fix", "infra/install.md"],
   };
 }
