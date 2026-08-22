@@ -85,9 +85,12 @@
 //   • `amends` ONLY, NEVER SUMMED WITH `supersedes`, and the exclusion lives in the SHAPE of the
 //     code — see `decision-amends-seam.ts`, which is the only door a decision's edges come through
 //     and which has no `supersedesOf` and no edge-type parameter to get wrong.
-//   • BOTH POINTER SPELLINGS RESOLVE (ADR-0403 dec 7), through the one parser in
-//     `decision-pointer.ts`. A walk that resolved `doc:decisions/…` and not `doc:docs/decisions/…`
-//     would silently drop 19 of 390 pointers and return a confident, plausible, wrong number.
+//   • ALL THREE POINTER SPELLINGS RESOLVE (ADR-0403 dec 7), through the one parser in
+//     `decision-pointer.ts`, and DECISION RESOLUTION RUNS BEFORE `parseCiteRef` ON BOTH HALVES OF
+//     THE WALK. A walk that resolved `doc:decisions/…` and not `doc:docs/decisions/…` would
+//     silently drop 19 of 390 pointers; a walk that let `parseCiteRef` claim `asset:adr-NNNN` first
+//     dropped that spelling too — see `decisionTarget` for the two shapes that took and why both
+//     make chains read SHORTER than they are (`decision-read-measurement-arc-inc-08`).
 //   • THE RESOLVER IS A SEAM (ADR-0403 dec 3), so the storage migration replaces the file-backed
 //     half without touching this walk.
 //
@@ -118,8 +121,10 @@
 //     ({@link DepthFromWorkVerdict.amendsEdges} / {@link DepthFromWorkVerdict.decisionDependsOnEdges}).
 //     They are the same AXIS and different CLAIMS, and ADR-0419 D5 defers retiring the deprecated
 //     usage until the reach into amended decisions can be measured — which needs the two separable.
-//   • **BOTH POINTER SPELLINGS RESOLVE HERE TOO**, through `parseDecisionPointer` and never a hand
-//     split on `:` — the same rule the artifact half obeys, for the same measured reason.
+//   • **ALL THREE POINTER SPELLINGS RESOLVE HERE TOO**, through `parseDecisionPointer` and never a
+//     hand split on `:` — the same rule the artifact half obeys, for the same measured reason. This
+//     half was written that way from the start, and for a day it was the ONLY half that was: the
+//     disagreement is what `decision-read-measurement-arc-inc-08` closed.
 //
 // **THE DECISION-AWARE READING IS OPT-IN, AND THAT IS THE FENCE, NOT AN OVERSIGHT.** Passing no
 // resolver reproduces the pre-ADR-0403 behaviour exactly, byte for byte: every `doc:` pointer is
@@ -183,7 +188,14 @@ export interface DepthFromWorkVerdict {
    * other repository file, plus — when no resolver was supplied — every decision pointer too.
    */
   readonly bedrockTargets: number;
-  /** `asset:` pointers naming no artifact in this corpus. Counted, never silently dropped. */
+  /**
+   * `asset:` pointers naming no artifact in this corpus. Counted, never silently dropped.
+   *
+   * An `asset:adr-NNNN` is NOT counted here when a resolver was supplied — it is a decision pointer
+   * wearing the artifact spelling, so it resolves as one and any miss lands on
+   * {@link decisionDanglingTargets}. Reading this counter as "every unresolved pointer" is what the
+   * pre-`-inc-08` walk invited, and it inflated exactly the number `-inc-02` was about to freeze.
+   */
   readonly danglingTargets: number;
   /** How many artifacts have a depth. */
   readonly reached: number;
@@ -312,6 +324,38 @@ export function evaluateDepthFromWork(
   // resolver was supplied, which is what makes every `doc:` pointer bedrock again — see the header.
   const heldDecisions = new Set(decisions?.decisions ?? []);
 
+  /**
+   * A POINTER THAT NAMES A DECISION IS A DECISION EDGE WHATEVER SPELLING IT WEARS — the one rule
+   * both halves of the walk now obey, and the reason it is a function rather than two inline blocks
+   * (`decision-read-measurement-arc-inc-08`).
+   *
+   * The artifact half used to try {@link parseCiteRef} FIRST, so `asset:adr-NNNN` — the third live
+   * spelling, ADR-0403 dec 1's — was claimed as an ordinary artifact pointer and never reached
+   * {@link parseDecisionPointer}. The decision half, added by ADR-0419 D1, parses the decision
+   * pointer first and resolves all three. The two halves therefore disagreed about the SAME pointer,
+   * and it failed in whichever of two ways the caller's node set decided:
+   *
+   *   • Decision rows present in `nodes` (the probes, and the live corpus's 413 `adr-NNNN` rows):
+   *     the pointer resolved onto the decision's ARTIFACT TWIN, an id-space neighbour that carries
+   *     none of the decision's `amends`/`dependsOn` edges — 0 of 413 carry `dependsOn` at all — so
+   *     the chain stopped dead one hop in, silently and with no counter moving.
+   *   • Decision rows filtered out: the pointer counted as a {@link DepthFromWorkVerdict.danglingTargets}.
+   *
+   * Both push the SAME way — chains read SHORTER than they are — which is the direction that makes
+   * the near-work layer look better wired than it is. That is the bias `-inc-02` would have frozen.
+   *
+   * Returns null when the pointer names no decision, OR when no resolver was supplied. The second
+   * case is the fence, not an oversight: with no resolver there are no decision nodes to land on, so
+   * a `doc:` decision pointer stays bedrock and an `asset:adr-NNNN` stays an ordinary artifact
+   * pointer at an ordinary artifact row — which is what the studio panel still draws.
+   */
+  function decisionTarget(pointer: string): { number: number; held: boolean } | null {
+    if (decisions === undefined) return null;
+    const parsed = parseDecisionPointer(pointer);
+    if (parsed === null) return null;
+    return { number: parsed.number, held: heldDecisions.has(parsed.number) };
+  }
+
   let anchorEdges = 0;
   let edgesScanned = 0;
   let bedrockTargets = 0;
@@ -334,6 +378,20 @@ export function evaluateDepthFromWork(
     let assetCites = 0;
 
     for (const pointer of node.dependsOn) {
+      // DECISION RESOLUTION RUNS FIRST — see {@link decisionTarget}. Before ADR-0403 every
+      // non-artifact pointer here was bedrock, which is exactly where 390 of the corpus's 754
+      // authored pointers stopped. With a resolver in hand, the ones naming a DECISION are walked
+      // through instead — all three spellings, through the single parser.
+      const decision = decisionTarget(pointer);
+      if (decision !== null) {
+        if (decision.held) {
+          decisionEdges += 1;
+          targets.push(decisionNodeId(decision.number));
+        } else {
+          decisionDanglingTargets += 1;
+        }
+        continue;
+      }
       const parsed = parseCiteRef(pointer);
       if (parsed !== null && parsed.scheme === ASSET_SCHEME) {
         if (!byId.has(parsed.id)) {
@@ -342,21 +400,6 @@ export function evaluateDepthFromWork(
         }
         targets.push(parsed.id);
         continue;
-      }
-      // Not an artifact pointer. Before ADR-0403 every one of these was bedrock, which is exactly
-      // where 390 of the corpus's 754 authored pointers stopped. With a resolver in hand, the ones
-      // naming a DECISION are walked through instead — both spellings, through the single parser.
-      if (decisions !== undefined) {
-        const decision = parseDecisionPointer(pointer);
-        if (decision !== null) {
-          if (!heldDecisions.has(decision.number)) {
-            decisionDanglingTargets += 1;
-            continue;
-          }
-          decisionEdges += 1;
-          targets.push(decisionNodeId(decision.number));
-          continue;
-        }
       }
       // A `doc:` pointer at some other repository file, a scheme parseCiteRef refuses, or any
       // decision pointer when no resolver was supplied: a sink either way.
@@ -368,6 +411,29 @@ export function evaluateDepthFromWork(
       if (parsed === null) continue;
       if (parsed.scheme === ASSET_SCHEME) {
         assetCites += 1;
+        // THE SAME PRECEDENCE FIX, AND THIS IS WHERE THE CORPUS ACTUALLY CARRIES THE FORM: all 8
+        // live `asset:adr-NNNN` pointers sit in `cites`, where an increment names the decision that
+        // governs it (measured 2026-08-23; 0 sit in `dependsOn`). Fixing only the loop above would
+        // have left every live instance unfixed while the tests read green.
+        //
+        // It is nested INSIDE the `asset:` branch rather than run ahead of the whole loop, unlike
+        // the `dependsOn` half. `cites` admits only `story:` / `capability:` / `asset:` (`CiteRef`
+        // bans `doc:` outright, and the live corpus carries 129/84/30 of the three and nothing
+        // else), so `asset:` is the ONLY spelling that can name a decision here — and hoisting the
+        // check would newly count a stray `doc:decisions/…` as an anchor edge, changing a shape the
+        // schema forbids. `assetCites` therefore keeps meaning exactly "`asset:` pointers", and a
+        // decision pointer is still one of them: it is a way out of the seed whichever node it
+        // lands on.
+        const decision = decisionTarget(pointer);
+        if (decision !== null) {
+          if (decision.held) {
+            decisionEdges += 1;
+            targets.push(decisionNodeId(decision.number));
+          } else {
+            decisionDanglingTargets += 1;
+          }
+          continue;
+        }
         if (!byId.has(parsed.id)) {
           danglingTargets += 1;
           continue;
