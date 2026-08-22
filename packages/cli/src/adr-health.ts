@@ -4,6 +4,7 @@ import path from "node:path";
 import { type AdrMeta } from "@storytree/drive";
 import { loadNodeSpec } from "@storytree/orchestrator";
 
+import { findDecisionFileLinks } from "./adr-body-links.js";
 import type { CheckResult } from "./health.js";
 
 /**
@@ -36,8 +37,11 @@ import type { CheckResult } from "./health.js";
  *                            dead, so neither may carry the calibrate-to-these tag (GATE)
  *   7 enforced-by-anchors  — backtick path tokens in guardrail `enforcedBy` resolve on disk
  *                            (WARN — enforcedBy stays prose; oq-artifact-code-backing → B)
+ *   8 adr-body-links       — no decision body addresses a sibling by a `](NNNN-slug.md)` markdown
+ *                            link, since PR #1546 deleted every one of those files (GATE)
  *
- * Three rungs RETIRED with the files, each with its reason: {@link RETIRED_ADR_CHECKS}.
+ * Two rungs RETIRED with the files, each with its reason, and one REPLACED by rung 8:
+ * {@link RETIRED_ADR_CHECKS}.
  */
 
 export const ADR_GATE_CHECKS: ReadonlySet<string> = new Set([
@@ -48,12 +52,15 @@ export const ADR_GATE_CHECKS: ReadonlySet<string> = new Set([
   "story-decisions",
   "green-flip",
   "load-bearing-live",
+  "adr-body-links",
 ]);
 
 /**
- * THREE RUNGS RETIRED WHEN DECISIONS BECAME ROWS (ADR-0403 dec 1), each for a different reason, and
- * declared here rather than silently dropped — a retired check that leaves no record reads later as
- * a check nobody thought to write.
+ * THREE RUNGS LEFT THE PLAN WHEN DECISIONS BECAME ROWS (ADR-0403 dec 1), each for a different
+ * reason, and declared here rather than silently dropped — a retired check that leaves no record
+ * reads later as a check nobody thought to write. Two of the three have a SUCCESSOR asking the
+ * question that stayed answerable in the row world (`adr-number-identity`, `adr-body-links`); only
+ * `supersedes-in-part-retired` guards a state nothing can reach any more.
  *
  * - `adr-number-unique` — REPLACED, not deleted, by `adr-number-identity`. Two FILES could share a
  *   number; two ROWS cannot, because the id is the primary key, so the old question is now
@@ -64,17 +71,31 @@ export const ADR_GATE_CHECKS: ReadonlySet<string> = new Set([
  *   rung caught files still carrying the key in raw frontmatter. A row has no frontmatter, the `adr`
  *   schema declares no such field, and `parseAdrDocument` REFUSES the key outright — so the state it
  *   guarded cannot be reached at all, by anyone.
- * - `adr-link-integrity` — GONE, and this is the only one that was a real loss rather than a
- *   dissolved question. It guarded `](NNNN-slug.md)` cross-links between decision BODIES against
- *   rename rot (13 dead targets / 24 occurrences when it was added). A relative file link between
- *   two rows means nothing. Its ROT CLASS is rehomed rather than dropped: the migration loader lifts
- *   every body cross-link into `references` as `asset:adr-NNNN`, where `referential-integrity`
- *   already looks — and a number-based ref has no slug to rot, so the class cannot recur.
+ * - `adr-link-integrity` — REPLACED by `adr-body-links` (rung 8), after a spell as a genuine hole.
+ *   It guarded `](NNNN-slug.md)` cross-links between decision BODIES against rename rot (13 dead
+ *   targets / 24 occurrences when it was added). A relative file link between two rows means
+ *   nothing, so the rung could not survive as written.
+ *
+ *   ITS RETIREMENT NOTE CLAIMED MORE THAN WAS TRUE, and this is the correction (ADR-0139: an
+ *   accepted decision's prose is corrected in place). The note said the rot class was rehomed —
+ *   "the migration loader lifts every body cross-link into `references` as `asset:adr-NNNN`, where
+ *   `referential-integrity` already looks — and a number-based ref has no slug to rot, so the class
+ *   cannot recur." Two of those three clauses hold. Measured against the live store on 2026-08-22:
+ *   3,294 of 3,300 body cross-links did have their target present in `references`, so the POINTER
+ *   GRAPH was preserved exactly as claimed, and a number-based ref indeed has no slug to rot.
+ *
+ *   What the rehoming never covered was the BODY TEXT — 3,300 dead links across 318 of 412 rows,
+ *   still rendering as links to files deleted in PR #1546 — and the lifting was a ONE-SHOT rather
+ *   than an invariant: `store/load-decisions.ts` ran once and has since been deleted, so no body
+ *   cross-link authored after it has been lifted by anything. The remaining 6 hits are exactly that:
+ *   three edges (adr-0085 → adr-0395, adr-0222 → adr-0395, adr-0395 → adr-0085) written into bodies
+ *   by ADR-0395's own landing sessions AFTER the migration, absent from `references` for no other
+ *   reason. So "the class cannot recur" was false for the prose half, which is why rung 8 exists.
  */
 export const RETIRED_ADR_CHECKS: ReadonlyMap<string, string> = new Map([
   ["adr-number-unique", "replaced by adr-number-identity — a row id is a primary key (ADR-0403 dec 1)"],
   ["supersedes-in-part-retired", "unreachable — the `adr` schema refuses the key (ADR-0139 + ADR-0403 dec 1)"],
-  ["adr-link-integrity", "rehomed into `references` as `asset:adr-NNNN`, read by referential-integrity"],
+  ["adr-link-integrity", "replaced by adr-body-links — the pointer half rehomed into `references`, the prose half did not"],
 ]);
 
 /** The story view the checks need — id, declared status, deciding ADR numbers. */
@@ -82,6 +103,18 @@ export interface StoryDecisionsView {
   readonly id: string;
   readonly status: string;
   readonly decisions: number[];
+}
+
+/**
+ * The decision-body view for `adr-body-links` — number + the body prose.
+ *
+ * SEPARATE from {@link AdrMeta}, which carries only the queryable half (status / edges / tags) and
+ * is shared with the build drivers. The bodies are the largest field in the tier, so widening
+ * `AdrMeta` would charge every caller of it for a field only this rung reads.
+ */
+export interface DecisionBodyView {
+  readonly number: number;
+  readonly body: string;
 }
 
 /** The guardrail view for the anchor check — id + the `enforcedBy` prose. */
@@ -102,6 +135,13 @@ export interface AdrHealthInputs {
   readonly numberMismatches: string[];
   readonly stories: StoryDecisionsView[];
   readonly guardrails: GuardrailView[];
+  /**
+   * Every decision's body prose, for `adr-body-links`. REQUIRED rather than optional and defaulted:
+   * an optional view that falls back to `[]` makes the rung report PASS on a caller that forgot to
+   * pass it, which is the vacuous-green shape `RETIRED_CHECKS` exists to prevent. The rung carries
+   * its own blind-read floor besides (see rung 8).
+   */
+  readonly decisionBodies: DecisionBodyView[];
   /** Resolve a repo-relative path (file OR directory) on disk. */
   readonly pathExists: (relpath: string) => boolean;
 }
@@ -126,7 +166,8 @@ function result(name: string, failLines: string[], cleanNote: string, warn = fal
 }
 
 export function adrHealth(inputs: AdrHealthInputs): CheckResult[] {
-  const { adrs, parseErrors, numberMismatches, stories, guardrails, pathExists } = inputs;
+  const { adrs, parseErrors, numberMismatches, stories, guardrails, decisionBodies, pathExists } =
+    inputs;
   const byNumber = new Map(adrs.map((a) => [a.number, a]));
   const results: CheckResult[] = [];
 
@@ -240,6 +281,41 @@ export function adrHealth(inputs: AdrHealthInputs): CheckResult[] {
   }
   results.push(
     result("enforced-by-anchors", rotted, "every enforcedBy path anchor resolves", true),
+  );
+
+  // 8 adr-body-links — no decision body addresses a sibling by a markdown link to a decision FILE.
+  //
+  // The successor to `adr-link-integrity` (see {@link RETIRED_ADR_CHECKS} for what its retirement
+  // note got right and what it did not). The old rung asked whether a link's TARGET FILE existed;
+  // since PR #1546 none of them do, so the answerable question is whether the link exists at all.
+  //
+  // The finder is `findDecisionFileLinks`, the SAME function `delinkDecisionFileLinks` is built on,
+  // so a link the fixer would not touch cannot read as clean here.
+  const deadLinks: string[] = [];
+  for (const d of decisionBodies) {
+    for (const link of findDecisionFileLinks(d.body)) {
+      deadLinks.push(
+        `ADR-${pad(d.number)} body links to ADR-${pad(link.number)} as a FILE — ${link.raw} — ` +
+          "and docs/decisions/ was deleted by PR #1546 (ADR-0403 dec 1). De-link it: the number is " +
+          `the address now, and "storytree library artifact adr-${pad(link.number)}" opens it.`,
+      );
+    }
+  }
+  // A BLIND READ IS NOT A CLEAN ONE. Decisions always have bodies, so zero of them alongside a
+  // non-empty `adrs` means the caller wired no view — the shape that reports PASS having examined
+  // nothing. Named as a failure of the READER, since there is no corpus repair to prescribe.
+  if (decisionBodies.length === 0 && adrs.length > 0) {
+    deadLinks.push(
+      `adr-body-links read 0 decision bodies while ${String(adrs.length)} decisions were loaded — ` +
+        "this run verified NOTHING. The `decisionBodies` view is unwired, not the corpus clean.",
+    );
+  }
+  results.push(
+    result(
+      "adr-body-links",
+      deadLinks,
+      `${decisionBodies.length} decision bodies carry no link to a deleted decision file`,
+    ),
   );
 
   return results;

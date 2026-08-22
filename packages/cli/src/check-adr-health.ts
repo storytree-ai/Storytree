@@ -10,6 +10,7 @@ import {
   adrGateFailures,
   adrHealth,
   loadStoryDecisions,
+  type DecisionBodyView,
   type GuardrailView,
 } from "./adr-health.js";
 
@@ -123,12 +124,25 @@ async function main(): Promise<number> {
       return EXIT_FAIL;
     }
 
+    // The BODIES, for `adr-body-links`. `loadTitledAdrMetasFromStore` returns the queryable half
+    // only, so the prose comes off the same rows in a second pass rather than by widening `AdrMeta`
+    // — the bodies are the largest field in the tier and no other rung reads them.
+    const decisionBodies: DecisionBodyView[] = [];
+    for (const doc of await store.queryDocs({ kind: "adr" })) {
+      const body = (doc.doc as Record<string, unknown>)["body"];
+      const number = Number(String(doc.id).replace(/^adr-/, ""));
+      if (typeof body === "string" && Number.isInteger(number)) {
+        decisionBodies.push({ number, body });
+      }
+    }
+
     const results = adrHealth({
       adrs,
       parseErrors,
       numberMismatches,
       stories,
       guardrails,
+      decisionBodies,
       pathExists: (rel) => existsSync(path.join(root, rel)),
     });
 
