@@ -23,7 +23,7 @@ combination silently reports a near-empty run rather than failing.
 | `no-unknown-parameters` | 318 | 228 | 90 | 179 | inc-05 |
 | `no-shape-in-symbol-names` | 263 | 163 | 100 | 47 | inc-05 |
 | `no-chained-type-assertions` | 162 | 33 | 129 | 71 | **adopted** (source) · inc-09 (tests) |
-| `no-module-mocking` | 111 | 0 | 111 | 32 | inc-06 |
+| `no-module-mocking` | 111 | 0 | 111 | 32 | **adopted** (inc-06, driven to 0) |
 | `no-unknown-returns` | 40 | 15 | 25 | 31 | inc-05 |
 | `no-object-parameters` | **0** | 0 | 0 | 0 | **adopted** |
 | `no-reflect-apply` | **0** | 0 | 0 | 0 | **adopted** |
@@ -32,6 +32,26 @@ combination silently reports a near-empty run rather than failing.
 | `no-widen-then-assert` | **0** | 0 | 0 | 0 | **adopted** |
 
 **Total: 5,383 violations across 10 rules. Five rules are already clean.**
+
+## What inc-06 changed — `no-module-mocking` is adopted at `error`
+
+The 110 sites the tool measured (this table's 111 counted two mentions inside a source-file COMMENT)
+are at ZERO across all 31 files, and the rule is at `error` with **no override**, so it binds test
+files too. A `vi.mock` planted in a test file takes `pnpm lint` to exit 1 — verified, not assumed.
+
+**Most of the sites needed no new seam.** `AppDataContext` and the platform `fetch` were already
+there; the suites were mocking around seams the app itself uses. Four seams were added where one was
+genuinely missing, each a narrow value + a context + a REAL DEFAULT: `DiagramRenderer`,
+`TerminalToolkit`, `StudioSurfaces`, `Act2Choreography`. Three components gained ordinary slot props
+(`App.surfaces`, `BottomDock.panes`, `TerminalRepoGate.renderDock`).
+
+**The fidelity gain is larger than the compliance one, and it is worth stating in one line:
+`vi.mock` replaces a WHOLE module.** Stubbing the one component in `@storytree/app-surface` that
+jsdom cannot render also replaced four PURE functions with `null` / `{}` / an empty Map, so the
+studio map's presentation model was never computed under test at all. The same shape recurs
+throughout: a partial `useAppData` mock let components read fields no test supplied; a mocked
+`api` module meant the real client — URL building, query encoding, the `{error}` unwrap, the SSE
+frame splitter, the `/api/arcs` retry — never ran.
 
 ## What the real numbers changed
 
