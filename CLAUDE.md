@@ -641,6 +641,24 @@ structurally unanswerable and a check asking it would be a permanent vacuous gre
 `check:adr-health` asks the reachable one instead (**`adr-number-identity`**: a row's stored `number`
 must agree with its id, which is what the allocator reserved).
 
+**Pointing your new decision at an existing one? `--depends-on` is the default; `--amends` is the
+exception (ADR-0419 D1/D2, since 2026-08-23).** `adr new --depends-on 42,43` records PLAIN SUPPORT —
+this decision rests on those and changes nothing in them — and it is what the scaffold, the template
+and the round-trip document now steer you to (`depends_on: ["asset:adr-NNNN"]` in the frontmatter).
+`--amends 42` is RESERVED for the narrower claim that something in the target is narrowed, retired or
+extended, so that **reading the target alone is now insufficient** — which is why it, and only it,
+pulls its target into `adr list --load-bearing`. Writing `amends` OWES each target an in-place
+annotation naming the clause that moved, in the SAME landing (ADR-0139 D4); the CLI prints the
+obligation and the `adr pull` command for each target when you write the edge. ⚠ That obligation is
+**discipline, not a gate** at this phase: the presence check exists
+(`packages/library/src/amends-annotation.ts`) and is deliberately UNWIRED, because switching it on
+today reds on 174 pre-existing edges and would punish the honest new case hardest. Equally, this is
+deprecation and **not a flag day** — the `amends` field is not deleted (deleting it blinds
+`loadBearingReach`, the depth walk's only decision-edge door, and ADR-0402 D2's deliberate
+asymmetry, all at once), no existing edge is rewritten for consistency's sake, and every reader has
+read BOTH edges since #1563. Retiring the deprecated usage is a later, evidence-gated call
+(ADR-0419 D5).
+
 **AUTHOR A DECISION AS A WHOLE DOCUMENT, not field by field.** `storytree adr pull <n> --out <path>`
 writes it out as ordinary markdown, you edit it with ordinary tools, and `storytree adr push <n>
 --file <path> --pg` reads it back. Both legs are CLI-owned writes — never a `>` redirect, which

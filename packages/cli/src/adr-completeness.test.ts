@@ -47,7 +47,7 @@ const COMPLETE_PROPOSED = [
 ].join("\n");
 
 test("RED against the real scaffold: missing `decided:` and unfilled `<…>` placeholders", () => {
-  const fails = adrCompleteness(FILE, scaffold(59, "Gate-as-proof", { supersedes: [57], amends: [] }), {
+  const fails = adrCompleteness(FILE, scaffold(59, "Gate-as-proof", { supersedes: [57], amends: [], dependsOn: [] }), {
     supersedes: [57],
   });
   assert.ok(fails.length > 0, "the scaffold must be incomplete");
