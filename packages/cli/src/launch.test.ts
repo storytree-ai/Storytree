@@ -96,12 +96,17 @@ async function withStoreDoor(fn: (baseUrl: string) => void | Promise<void>): Pro
 }
 
 test("launcher forwards positionals + --flags to main.ts and returns a clean envelope", () => {
-  // `adr list --current` runs fully offline (reads docs/decisions from disk). If the launcher
-  // didn't forward argv, it wouldn't produce the current-view header — and if `--current` were
-  // demoted to a positional (the end-of-options-marker trap), the header wouldn't say "current".
-  const { status, stdout } = runLauncher(["adr", "list", "--current"]);
+  // `own --all` runs fully offline — it reads a local run registry and touches no store. It used to
+  // be `adr list --current`, chosen for the same property, until decisions moved into the store
+  // (ADR-0403 dec 1) and that command gained a DB dependency; a launcher test that dialled the live
+  // database would stop being hermetic and start reporting the DB's health as an argv-forwarding
+  // failure. What the assertion needs is unchanged: a positional AND a flag that visibly changes
+  // stdout, so a launcher that dropped either — or demoted `--all` to a positional, the
+  // end-of-options-marker trap — produces different text.
+  const { status, stdout } = runLauncher(["own", "--all"]);
   assert.equal(status, 0, `expected exit 0, got ${status}`);
-  assert.match(stdout, /current \(accepted, not superseded\)/, "positionals + --flag forwarded");
+  assert.match(stdout, /registered background work, by owning session/, "positionals + --flag forwarded");
+  assert.doesNotMatch(stdout, /session "/, "the bare form's header must NOT appear — the flag reached main");
   // Regression guard: prove we're on the direct launcher path, not the old double-pnpm path that
   // echoed two lifecycle-script headers into stdout.
   assert.doesNotMatch(stdout, /pnpm --filter/, "must not shell through the nested pnpm layers");

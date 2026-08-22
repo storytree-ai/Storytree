@@ -130,6 +130,16 @@ export const DECLARED_EXCEPTIONS: readonly DeclaredException[] = [
       "the lazy `--pg` store adapter forwards each write verb's arguments verbatim to the opened " +
       "store, so it authors no attribution — the verb that built the input already stamped it.",
   },
+  {
+    file: "packages/arc/src/decision.test-helpers.ts",
+    actor: "actor",
+    reason:
+      "a TEST FIXTURE, seeding two decision rows into an in-memory store for four suites. It is " +
+      "DECLARED rather than excluded by filename suffix, deliberately: widening the scan's " +
+      "`.test.ts` exclusion to cover `.test-helpers.ts` would make every future file with that " +
+      "suffix invisible to the fence, which is the silent-shrink failure this table's own header " +
+      "warns about. Named here, the site stays visible and the carve-out has a reason attached.",
+  },
 ];
 
 /** The result of scanning one or more files. */

@@ -166,6 +166,7 @@
 
       "$section_arc": "packages/arc — the arc organism (ADR-0369, `arc-tier-extraction-arc`). The arc domain was a TENANT of two buildings until 2026-08-14: the three write verbs in packages/cli, the derived join in packages/drive for reach. It now owns one, and every file here is capability grain except the barrel. This section is the reason the `stories/arc` story could exist at all — ADR-0192 D2 (packages-forward) refuses a new story whose code sits in another story's package, so the package had to be built first.",
       "packages/arc/src/arc-rollup.ts": "arc-derived-initiative-view",
+      "packages/arc/src/decision.test-helpers.ts": "arc-derived-initiative-view",
       "packages/arc/src/arc.ts": "arc-derived-initiative-view",
       "packages/arc/src/narrative-staleness.ts": "arc-derived-initiative-view",
       "packages/arc/src/question.ts": "arc-derived-initiative-view",

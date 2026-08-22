@@ -133,8 +133,16 @@ const PREMISE_DECISION_CAP = 8;
 export interface IncrementPremiseDeps {
   /** Does this repo path still exist? Absent = skip the vanished-path signal. */
   pathExists?: (p: string) => boolean;
-  /** ADRs decided strictly after `isoDate`. Absent = skip the later-decisions signal. */
-  decisionsSince?: (isoDate: string) => { number: number; title: string }[];
+  /**
+   * ADRs decided strictly after `isoDate`. Absent = skip the later-decisions signal.
+   *
+   * THREE ANSWERS, NOT TWO, and the third is why this is async now. The decision log moved into the
+   * store (ADR-0403 dec 1), so this read can FAIL — and a failure that returned `[]` would report
+   * "no decisions since", which reads as FRESH. A freshness check that fails toward fresh is the
+   * wrong direction: it blesses an increment nobody checked. `null` means the log could not be read
+   * and the signal is UNKNOWN, which the render says out loud.
+   */
+  decisionsSince?: (isoDate: string) => Promise<{ number: number; title: string }[] | null>;
 }
 
 export interface IncrementCheckDeps extends IncrementPremiseDeps {
@@ -144,7 +152,12 @@ export interface IncrementCheckDeps extends IncrementPremiseDeps {
   pg: boolean;
 }
 
-export interface PremiseSignalsResult { vanished: string[]; decisions: { number: number; title: string }[] }
+export interface PremiseSignalsResult {
+  vanished: string[];
+  decisions: { number: number; title: string }[];
+  /** True when the decision log could not be read at all — NOT the same as "no later decisions". */
+  decisionsUnreadable: boolean;
+}
 
 /**
  * PURE: the premise signals the ANCHOR cannot carry.
@@ -154,16 +167,18 @@ export interface PremiseSignalsResult { vanished: string[]; decisions: { number:
  * That asymmetry is the point: the cost of reading five ADR titles is minutes, and the cost of
  * building an overtaken instruction is the whole increment.
  */
-export function premiseSignals(
+export async function premiseSignals(
   paths: readonly string[],
   since: string,
   deps: IncrementPremiseDeps,
-): PremiseSignalsResult {
+): Promise<PremiseSignalsResult> {
   const vanished = deps.pathExists
     ? paths.filter((p) => !p.includes("*") && !deps.pathExists!(p))
     : [];
-  const decisions = deps.decisionsSince ? deps.decisionsSince(since) : [];
-  return { vanished, decisions };
+  const found = deps.decisionsSince ? await deps.decisionsSince(since) : [];
+  // An ABSENT seam and an UNREADABLE log are different states and are kept different: absent means
+  // this caller did not wire the signal, unreadable means it did and the answer did not come back.
+  return { vanished, decisions: found ?? [], decisionsUnreadable: found === null };
 }
 
 /** An increment's anchor/status read defensively off the untyped stored doc. */
@@ -268,8 +283,8 @@ export async function incrementCheck(
   // be perfectly FRESH by commit count and still be dead on arrival, which is precisely the case the
   // anchor check cannot see and the one that cost the most: the session had already picked the work
   // up before it found out.
-  const premise = premiseSignals(paths, date, deps);
-  if (premise.vanished.length > 0 || premise.decisions.length > 0) {
+  const premise = await premiseSignals(paths, date, deps);
+  if (premise.vanished.length > 0 || premise.decisions.length > 0 || premise.decisionsUnreadable) {
     lines.push(
       "",
       "PREMISE — what the anchor check cannot see (these are things to CHECK, not a verdict):",
@@ -279,6 +294,14 @@ export async function incrementCheck(
         `  · ${premise.vanished.length} named path(s) NO LONGER EXIST — the instruction targets files that are gone:`,
         ...premise.vanished.map((p) => `      ${p}`),
         "    (a move is as likely as a deletion; confirm before reading it as dead.)",
+      );
+    }
+    if (premise.decisionsUnreadable) {
+      // Said out loud rather than folded into silence: the caller ASKED for this signal and did not
+      // get it, so the absence of named decisions here is not evidence that none landed.
+      lines.push(
+        "  · the decision log could not be read — the later-decisions signal is UNKNOWN, not clear.",
+        "    (it lives in the store since ADR-0403; bring the DB up and re-run: pnpm db:up)",
       );
     }
     if (premise.decisions.length > 0) {

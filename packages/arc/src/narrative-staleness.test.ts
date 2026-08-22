@@ -337,7 +337,6 @@ async function showWith(history: readonly StoreEvent[]): Promise<string> {
     // A missing decisions/stories dir is the ordinary offline shape — the loaders report empty.
     const res = await arcCommand("show", "a1", {
       store,
-      decisionsDir: path.join(root, "decisions"),
       storiesDir: path.join(root, "stories"),
       pg: true,
     });
@@ -405,7 +404,6 @@ test("a store that cannot answer readEvents degrades to UNKNOWN rather than to a
     });
     const res = await arcCommand("show", "a1", {
       store,
-      decisionsDir: path.join(root, "decisions"),
       storiesDir: path.join(root, "stories"),
       pg: true,
     });

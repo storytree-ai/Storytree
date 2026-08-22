@@ -1,7 +1,10 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-import { parseAdrFrontmatter, type AdrMeta } from "./adr-frontmatter.js";
+import { adrNumberOfArtifactId } from "@storytree/library";
+import type { Store } from "@storytree/storage-protocol";
+
+import { AdrStatus, parseAdrFrontmatter, type AdrMeta } from "./adr-frontmatter.js";
 
 /**
  * The ADR-meta loader (split out of the cli `adr-health.ts` in the drive extraction): the thin
@@ -71,4 +74,93 @@ export function loadTitledAdrMetas(decisionsDir: string): LoadTitledAdrMetasResu
     }
   }
   return { adrs, parseErrors };
+}
+
+/**
+ * The STORE-BACKED half of the same view (ADR-0403 dec 1) — every `adr` row as an {@link AdrMeta}.
+ *
+ * `decision-log-home-arc` increment 07. Its whole point is that it returns the SAME shape as
+ * {@link loadTitledAdrMetas}, so a caller swaps the source and changes nothing else: the arc rollup's
+ * ADR leg, `storytree adr list` and its `--load-bearing` closure all read this result identically
+ * whether it came from files or from rows.
+ *
+ * ## `file` BECOMES THE ROW'S ID, AND NOTHING BREAKS BECAUSE ALMOST NOTHING READS IT
+ *
+ * A row has no filename. Checked before assuming: `AdrMeta.file` is read in exactly one production
+ * place — `adr-health`'s duplicate-number report, which lists the offenders. `renderAdrList` never
+ * touches it. So it carries `adr-NNNN`, the row's id, which is the decision's address now and is what
+ * a reader would need in order to go and look at it.
+ *
+ * ## PARSE ERRORS ARE COLLECTED, NOT THROWN — the same fail-soft posture as the fs scan
+ *
+ * A malformed row becomes a line rather than an exception, because both callers render a VIEW: an
+ * arc's ADR leg and the orientation listing must stay derivable when one row is broken. The loud
+ * boundary is the WRITE (`validateLibraryDoc`), which is where a malformed decision is actually
+ * prevented; refusing to render the other 402 would punish the reader for it.
+ *
+ * Sorted by number, matching the fs scan's `readdirSync().sort()` — the listing's order is part of
+ * what `adr list` shows, so a source swap that quietly reordered it would read as a data change.
+ */
+export interface StoreAdrMetasResult extends LoadTitledAdrMetasResult {
+  /**
+   * True when the store could not be READ at all — distinct from "it holds no decisions".
+   *
+   * A VIEW can ignore this and render nothing (an arc's ADR leg does). A CHECK cannot: the plan
+   * freshness probe reports "decisions landed since this was anchored", and an unreadable log
+   * returning zero would read as FRESH — a check failing toward the answer that blesses unread work.
+   */
+  unreadable: boolean;
+}
+
+export async function loadTitledAdrMetasFromStore(store: Store): Promise<StoreAdrMetasResult> {
+  const adrs: TitledAdrMeta[] = [];
+  const parseErrors: string[] = [];
+  let rows: readonly { id: string; doc: unknown }[];
+  try {
+    rows = await store.queryDocs({ kind: "adr" });
+  } catch (err) {
+    // A store that cannot be read is NOT an empty decision log. Reported as one line rather than
+    // silently yielding zero, because zero reads as "this corpus has no decisions" — a confident
+    // wrong answer, and the exact failure `decisionsDir`'s missing-directory branch used to make.
+    return {
+      adrs,
+      parseErrors: [`decision rows unreadable: ${err instanceof Error ? err.message : String(err)}`],
+      unreadable: true,
+    };
+  }
+  for (const row of rows) {
+    const bag = (typeof row.doc === "object" && row.doc !== null ? row.doc : {}) as Record<string, unknown>;
+    const number = adrNumberOfArtifactId(row.id);
+    if (number === null) {
+      parseErrors.push(`${row.id}: not a decision id (expected adr-NNNN)`);
+      continue;
+    }
+    const parsed = AdrStatus.safeParse(bag["status"]);
+    if (!parsed.success) {
+      parseErrors.push(`${row.id}: unreadable status ${JSON.stringify(bag["status"])}`);
+      continue;
+    }
+    const numbers = (value: unknown): number[] =>
+      Array.isArray(value) ? value.filter((n): n is number => typeof n === "number") : [];
+    const arcRef = bag["arcRef"];
+    const decided = bag["decided"];
+    const title = typeof bag["title"] === "string" ? bag["title"] : row.id;
+    adrs.push({
+      number,
+      file: row.id,
+      status: parsed.data,
+      supersedes: numbers(bag["supersedes"]),
+      amends: numbers(bag["amends"]),
+      loadBearing: bag["loadBearing"] === true,
+      title,
+      ...(typeof decided === "string" ? { decided } : {}),
+      // The row carries an `asset:` pointer where the frontmatter carried a bare id; this view is the
+      // frontmatter's, so it hands back the bare id its consumers already join on.
+      ...(typeof arcRef === "string" && arcRef.startsWith("asset:")
+        ? { arc: arcRef.slice("asset:".length) }
+        : {}),
+    });
+  }
+  adrs.sort((a, b) => a.number - b.number);
+  return { adrs, parseErrors, unreadable: false };
 }

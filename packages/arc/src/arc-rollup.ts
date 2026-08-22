@@ -6,7 +6,7 @@ import { STORY_REF_PREFIX } from "@storytree/library";
 
 // Use the narrow subpaths instead of the `@storytree/drive` barrel: this module needs only ADR metadata
 // and claim-universe helpers, not the drive package's build/orchestrate runtime.
-import { loadTitledAdrMetas, type TitledAdrMeta } from "@storytree/drive/adr-metas";
+import { loadTitledAdrMetasFromStore, type TitledAdrMeta } from "@storytree/drive/adr-metas";
 import type { AdrStatus } from "@storytree/drive/adr-frontmatter";
 import {
   danglingCiteReasons,
@@ -767,24 +767,30 @@ export function deriveArcRollup(input: ArcRollupInput): ArcRollup {
 
 /** What {@link loadArcRollup} / {@link loadArcRollups} need to read the children from. */
 export interface ArcRollupDeps {
-  /** The doc store — the live store under `--pg` (arcs/plans live only there), the seed offline. */
+  /**
+   * The doc store — the live store under `--pg` (arcs/plans live only there), the seed offline.
+   *
+   * It now carries the DECISIONS too (ADR-0403 dec 1). `decisionsDir` used to sit beside it, scanned
+   * for frontmatter `arc:` stamps; the stamp is a row field (`arcRef`) now, so the join is an
+   * ordinary query against the store this deps bag already held — and the path, its three production
+   * wiring sites and every test's `depsFor` helper went with it.
+   */
   store: Store;
-  /** `docs/decisions` — scanned for frontmatter `arc:` stamps. */
-  decisionsDir: string;
   /** `stories/` — each `<id>/story.md` frontmatter scanned for an `arc:` stamp. */
   storiesDir: string;
 }
 
 /** Load the three child sets once — so a multi-arc rollup does not re-scan per arc. */
 async function loadChildren(deps: ArcRollupDeps): Promise<Omit<ArcRollupInput, "arc">> {
-  const [incrementDocs, questionDocs] = await Promise.all([
+  const [incrementDocs, questionDocs, decisions] = await Promise.all([
     deps.store.queryDocs({ kind: "increment" }),
     deps.store.queryDocs({ kind: "open-question" }),
+    loadTitledAdrMetasFromStore(deps.store),
   ]);
   return {
     incrementDocs,
     questionDocs,
-    adrs: loadTitledAdrMetas(deps.decisionsDir).adrs,
+    adrs: decisions.adrs,
     storyStamps: storyArcStamps(deps.storiesDir),
     // Scanned ONCE per load alongside the stamps, and for the same reason: a multi-arc rollup must
     // not re-walk the tree per arc.
