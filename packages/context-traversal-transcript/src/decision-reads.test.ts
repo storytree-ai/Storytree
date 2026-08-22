@@ -66,7 +66,7 @@ function writeTranscript(filePath: string, lines: readonly string[]): void {
 // THE NODE ID FORM — get this wrong and every read recorded closes nothing
 // ---------------------------------------------------------------------------------------------
 
-test("the node id is exactly the corpus's own doc:decisions/NNNN-slug.md pointer form, from every spelling of the path that reaches a transcript", () => {
+test("node-id-is-the-corpus-doc-pointer-form: the node id is exactly the corpus's own doc:decisions/NNNN-slug.md pointer form, from every spelling of the path that reaches a transcript", () => {
   // A Windows absolute path inside a worktree — the commonest real shape on this platform.
   assert.deepEqual(
     decisionNodeIdsInPath(
@@ -84,7 +84,7 @@ test("the node id is exactly the corpus's own doc:decisions/NNNN-slug.md pointer
   ]);
 });
 
-test("a NON-decision file is not recorded as one, including the near-misses a looser pattern would swallow", () => {
+test("a-non-decision-path-is-never-recorded-as-a-decision-read: a NON-decision file is not recorded as one, including the near-misses a looser pattern would swallow", () => {
   // Ordinary source, and an ordinary markdown file that is not a decision record.
   assert.deepEqual(decisionNodeIdsInPath("packages/library/src/knowledge.ts"), []);
   assert.deepEqual(decisionNodeIdsInPath("C:\\Users\\dev\\.claude\\projects\\memory\\some-arc.md"), []);
@@ -99,7 +99,7 @@ test("a NON-decision file is not recorded as one, including the near-misses a lo
 // THE SHELL SCRAPER — a floor, and it must decline rather than guess
 // ---------------------------------------------------------------------------------------------
 
-test("a shell read is recovered from a LATER segment, so the `cd <worktree> && cat <adr>` shape (the commonest one on disk) is not lost to its leading verb", () => {
+test("a-shell-read-is-recovered-from-a-later-segment: a shell read is recovered from a LATER segment, so the `cd <worktree> && cat <adr>` shape (the commonest one on disk) is not lost to its leading verb", () => {
   const scrape = scrapeShellDecisionReads(
     "cd /home/dev/code/storytree && cat docs/decisions/0139-the-accepted-adr-set.md",
   );
@@ -107,7 +107,7 @@ test("a shell read is recovered from a LATER segment, so the `cd <worktree> && c
   assert.deepEqual(scrape.declinedVerbs, []);
 });
 
-test("every read verb the scraper claims actually yields its path, and one command naming two decision records yields both", () => {
+test("every-claimed-read-verb-yields-its-path: every read verb the scraper claims actually yields its path, and one command naming two decision records yields both", () => {
   assert.deepEqual(scrapeShellDecisionReads("sed -n '1,60p' docs/decisions/0001-foundational-stack.md").nodeIds, [
     "doc:decisions/0001-foundational-stack.md",
   ]);
@@ -120,7 +120,7 @@ test("every read verb the scraper claims actually yields its path, and one comma
   );
 });
 
-test("a shell segment that WRITES a decision record is declined, and the decline is counted BY VERB rather than swallowed", () => {
+test("a-shell-write-is-declined-and-counted-by-verb: a shell segment that WRITES a decision record is declined, and the decline is counted BY VERB rather than swallowed", () => {
   // `sed -i` rewrites the file it names — a read verb doing a write.
   const inPlace = scrapeShellDecisionReads("sed -i 's/a/b/' docs/decisions/0386-a-thing.md");
   assert.deepEqual(inPlace.nodeIds, [], "sed -i must record no read");
@@ -133,13 +133,13 @@ test("a shell segment that WRITES a decision record is declined, and the decline
   assert.deepEqual(staged.declinedVerbs, ["git"]);
 });
 
-test("a decision record that is a > redirect TARGET is a file being authored, and is never recorded as a read", () => {
+test("a-redirect-target-is-authoring-never-reading: a decision record that is a > redirect TARGET is a file being authored, and is never recorded as a read", () => {
   const authored = scrapeShellDecisionReads("cat > docs/decisions/0386-a-thing.md <<'ADREOF'\nstatus: accepted\nADREOF");
   assert.deepEqual(authored.nodeIds, [], "the ADR being written must not read as an ADR being read");
   assert.equal(authored.redirectTargets, 1, "and the drop must be counted, not silent");
 });
 
-test("a heredoc BODY is not scraped, so prose that merely mentions a decision record is not recorded as a read of one", () => {
+test("a-heredoc-body-is-never-scraped: a heredoc BODY is not scraped, so prose that merely mentions a decision record is not recorded as a read of one", () => {
   const prBody = [
     "gh pr create --body-file - <<'PRBODY'",
     "This lands the change described in docs/decisions/0403-the-decision-log.md",
@@ -154,7 +154,7 @@ test("a heredoc BODY is not scraped, so prose that merely mentions a decision re
 // SESSION IDENTITY — mirrors deriveIdentity() rule 1, and refuses the lobby exactly as it does
 // ---------------------------------------------------------------------------------------------
 
-test("the session id mirrors deriveIdentity() rule 1: a worktree cwd names its session, and the PRIMARY CHECKOUT names none", () => {
+test("session-identity-mirrors-derive-identity-rule-one: the session id mirrors deriveIdentity() rule 1: a worktree cwd names its session, and the PRIMARY CHECKOUT names none", () => {
   assert.equal(sessionIdFromCwd("C:\\code\\storytree\\.claude\\worktrees\\agent-abc\\packages"), "agent-abc");
   assert.equal(sessionIdFromCwd("/home/dev/code/storytree/.claude/worktrees/agent-abc"), "agent-abc");
   // Rule 3: the shared lobby has no isolated identity to claim under, and this must not invent one.
@@ -167,7 +167,7 @@ test("the session id mirrors deriveIdentity() rule 1: a worktree cwd names its s
 // THE WHOLE SCAN, over a realistic transcript
 // ---------------------------------------------------------------------------------------------
 
-test("a realistic transcript yields every read shape with its own surface, keeps SIDECHAIN reads under the parent session, and records nothing for the non-decision reads beside them", () => {
+test("each-read-shape-carries-its-own-surface-and-sidechain-reads-stay-under-the-parent: a realistic transcript yields every read shape with its own surface, keeps SIDECHAIN reads under the parent session, and records nothing for the non-decision reads beside them", () => {
   const dir = freshDir("scan");
   const file = path.join(dir, "window.jsonl");
   const cwd = worktreeCwd("agent-scan");
@@ -250,7 +250,7 @@ test("a realistic transcript yields every read shape with its own surface, keeps
   assert.equal(new Set(Object.values(DECISION_READ_SURFACES)).size, 3);
 });
 
-test("a tool call carrying no id is skipped and COUNTED, because an event keyed on nothing could never be de-duplicated on the next run", () => {
+test("a-tool-call-with-no-id-is-skipped-and-counted: a tool call carrying no id is skipped and COUNTED, because an event keyed on nothing could never be de-duplicated on the next run", () => {
   const dir = freshDir("noid");
   const file = path.join(dir, "window.jsonl");
   fs.writeFileSync(
@@ -269,7 +269,7 @@ test("a tool call carrying no id is skipped and COUNTED, because an event keyed 
   assert.equal(scan.unidentifiedCalls, 1);
 });
 
-test("the scan never throws: a missing file, an unparseable line, and a line with no cwd each contribute nothing rather than failing the sweep", () => {
+test("the-scan-never-throws-on-a-deficient-transcript: the scan never throws: a missing file, an unparseable line, and a line with no cwd each contribute nothing rather than failing the sweep", () => {
   const dir = freshDir("tolerant");
   assert.deepEqual(scanTranscriptDecisionReads(path.join(dir, "absent.jsonl")).reads, []);
 

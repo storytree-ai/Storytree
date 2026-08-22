@@ -17,6 +17,20 @@
 // not answered below. Frame timings are recorded as a RELATIVE instrument only and are
 // labelled as such in the report. Reporting a SwiftShader frame time as a D2 verdict would
 // be exactly the class of error this arc has had to correct five times.
+//
+// HOW IT IS CALLED. Every knob is an environment variable, because one script serves both
+// evidence pages and a second copy of the readback is how two instruments quietly diverge:
+//
+//   ST_HARNESS_URL           the page to photograph (default: the plant row on :5184)
+//   ST_OUT_DIR               where the pictures and the report go, REPO-ROOT-relative
+//   ST_FULL_PAGE_NAME        filename for the whole-page screenshot
+//   ST_PANEL_NAMES           comma-separated names zipped POSITIONALLY against <section>s
+//   ST_EXPECT_PROP_CANVASES  how many islands must have had their props verified (default 0)
+//
+// ⚠ START THE DEV SERVER FROM THE WORKTREE YOU ARE TESTING. A harness left running by another
+// worktree answers on the same port and this script will photograph ITS tree perfectly happily,
+// which is a green that says nothing about your change. `vite harness --port <free port>` and
+// point `ST_HARNESS_URL` at it.
 
 import { chromium } from '@playwright/test';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -27,6 +41,9 @@ import { fileURLToPath } from 'node:url';
 // from. A capture script holding its own copy of the palette would only ever prove that
 // the two copies agree.
 import { landPalette } from './palette-band.js';
+// Which section becomes which evidence file. Pure, and proved in `capture-panels.test.ts` —
+// a driver holding its own copy of that rule is how the positional zip survived unnoticed.
+import { PANEL_ID_ATTRIBUTE, parseRequestedPanels, planPanelCaptures } from './capture-panels.js';
 // ...and the SHADOW half from the module that derives the shadow rung, for the same reason.
 // The authored palette a shadowed land may emit is the closure over the shadow LADDER, so
 // checking delivered pixels against `landPalette()` alone would condemn every shadowed pixel
@@ -48,6 +65,12 @@ import {
   robustlyInadmissible,
   shadowRungEntries,
 } from './shadow-ladder.js';
+// THE PRESENCE FLOOR, imported for the same reason both of the above are: what an island is
+// DECLARED to be built from is resolved here, from the canvas tag, inside this script's own
+// module graph. An earlier sketch had the page stamp its own expectation onto the element in the
+// style of `data-st-tag`; that would let the layer being audited decide whether it is audited,
+// and a page that stopped drawing its props would very plausibly also stop declaring them.
+import { checkPropPresence, describePresenceFailure } from './prop-presence.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 // The output directory is overridable so one capture script serves both evidence pages
@@ -227,6 +250,34 @@ if (totalOpaque < 5000) {
   );
 }
 
+// --- NON-VACUITY, PER PROP ---------------------------------------------------------------
+//
+// THE TWO FLOORS ABOVE ARE BLIND TO A PROP THAT STOPPED DRAWING, and that was measured rather
+// than suspected. Two runs of this script either side of a real geometry change — every wilted
+// flower head visibly re-posed on three panels — both reported `opaque px : 11250412`, identical
+// to the digit, because every prop on this island is drawn over ground that is ALREADY OPAQUE.
+// A prop can shrink, break, or vanish entirely without moving a number either floor reads.
+//
+// So this asks the histogram a different question: did each thing the island is DECLARED to be
+// built from deliver any of its own colours. The palette is closed and every material is an
+// authored token, so that question has an exact answer. See `prop-presence.ts` for why the
+// declaration is hand-authored rather than read off the generator — a manifest derived from
+// `buildDressing` would stop expecting a wall at the same moment the wall stopped being built.
+//
+// It is computed HERE so the verdict reaches `capture-report.json` and the console, and REFUSED
+// at the very bottom of this file alongside the palette breach, for the reason recorded there:
+// the pictures and the report are on disk by then, so a refusal still leaves the evidence needed
+// to diagnose it.
+const presence = checkPropPresence(delivered);
+
+// AND THE INSTRUMENT'S OWN COVERAGE, which is the trap one level up. If the page's tags stopped
+// resolving — renamed, or a dressed island added without a declaration — every check above would
+// still run and find nothing to object to, and the run would go green having verified nothing
+// about any prop. That is the exact failure this whole block exists to repair, arriving one level
+// up. The caller declares how many islands must have been checked, the same way it already
+// declares its panel names; `presence.checked` is printed on every run either way.
+const expectPropCanvases = Number(process.env['ST_EXPECT_PROP_CANVASES'] ?? 0);
+
 // --- frame timing: RELATIVE ONLY (see the header) ---------------------------------------
 
 const frames = await page.evaluate(
@@ -256,19 +307,32 @@ await page.screenshot({
   fullPage: true,
 });
 
+// PANEL FILENAMES BIND TO THE SECTION'S AUTHORED `data-st-panel`, never to its position.
+//
+// This used to zip `ST_PANEL_NAMES` against `page.$$('section')` by index, so inserting a
+// section silently re-pointed every later filename at a different picture and the run still
+// exited 0 (friction `capture-panel-names-bind-to-section-order`, measured on the island page
+// 2026-08-20). The resolver lives in `capture-panels.ts` because it is pure and therefore
+// provable under `node:test` without a browser; all this block does is read the attribute off
+// the DOM and print the refusal. `ST_PANEL_NAMES` unset now means EVERY authored panel, which
+// is the shape that cannot go stale.
 const sections = await page.$$('section');
-const names = (process.env['ST_PANEL_NAMES'] ?? 'delivered-size,zoom-ladder,magnified,detail-ladder,status-tokens').split(',');
-for (let i = 0; i < sections.length && i < names.length; i++) {
-  await sections[i].screenshot({ path: join(OUT, `panel-${names[i]}.png`) });
+const sectionIds = [];
+for (const [index, section] of sections.entries()) {
+  sectionIds.push({ index, id: await section.getAttribute(PANEL_ID_ATTRIBUTE) });
+}
+const panelPlan = planPanelCaptures(sectionIds, parseRequestedPanels(process.env['ST_PANEL_NAMES']));
+if (!panelPlan.ok) fail(`panel capture: ${panelPlan.refusal}`);
+for (const capture of panelPlan.captures) {
+  await sections[capture.index].screenshot({ path: join(OUT, capture.file) });
 }
 
 // ONE FILE PER NAMED CANVAS, found by `data-st-tag` rather than by position.
 //
-// SECTION FILENAMES BIND TO SECTION ORDER, which is a live trap rather than a theoretical
-// one (friction `capture-panel-names-bind-to-section-order`): inserting a section silently
-// re-points every later filename at a different picture and the run still exits 0. A TAG
-// cannot do that, because the name travels with the canvas that carries it — so a page whose
-// islands are tagged gets a set of files that stay correct however the page is reordered.
+// The tag is what makes the name survive the page moving: it travels with the canvas that
+// carries it, so a page whose islands are tagged gets a set of files that stay correct however
+// the page is reordered. The section screenshots above now bind the same way, through
+// `data-st-panel` — this block was the pattern they were repaired to match.
 //
 // It is also what makes a WHOLE ISLAND its own artefact. A section shot is an island plus the
 // prose around it, cropped to whatever the section happens to be; ADR-0392 D1 asks the owner
@@ -305,6 +369,11 @@ const report = {
   // predicts, because the tilt foreshortens the height and a mound does not fill its box.
   // Both numbers are reported; neither is quietly replaced by the other.
   perPanel: delivered.map((c, i) => ({ i, w: c.w, h: c.h, opaque: c.opaque, holes: c.holes })),
+  // WHICH SECTION EACH PANEL FILE ACTUALLY CAME FROM. A README cites these files by name, and
+  // the whole point of the authored id is that the name keeps pointing at the same picture
+  // when the page grows — so the binding is recorded here rather than left to be inferred from
+  // the order the sections happened to be in on the day.
+  panelFiles: panelPlan.captures.map((c) => ({ file: c.file, id: c.id, sectionIndex: c.index })),
   // PER NAMED ISLAND — the evidence that two directions differ in more than their captions.
   //
   // A page that offers a CHOICE has to be able to show that the things being chosen between
@@ -349,6 +418,36 @@ const report = {
         lumaSpread: px.length ? Math.round((q(0.98) - q(0.02)) * 10) / 10 : null,
       };
     }),
+  // PER-PROP PRESENCE — the delivered pixel count for every token each island DECLARES it is
+  // built from, which is the number the opaque floors cannot see (see the block above).
+  //
+  // The counts are recorded and not only the verdict, and that is deliberate: the floor catches
+  // a prop that delivered ZERO, and a prop that has quietly shrunk from four hundred pixels to
+  // four is a question no floor should try to anticipate. Recorded, it is a diff between two
+  // reports; unrecorded, it is a number nobody has.
+  propPresence: {
+    floor: presence.floor,
+    islandsChecked: presence.checked,
+    islandsWithProps: presence.withProps,
+    islandsExpected: expectPropCanvases,
+    // Tagged canvases this module has no declaration for — every tag on the other evidence page,
+    // and the first thing to look at if `islandsChecked` is lower than it should be.
+    unresolvedTags: presence.unresolvedTags,
+    ok: presence.ok,
+    islands: presence.canvases.map((c) => ({
+      tag: c.tag,
+      opaque: c.opaque,
+      missing: c.missing.map((t) => t.name ?? t.token),
+      unprovable: c.unprovable,
+      tokens: c.tokens.map((t) => ({
+        name: t.name,
+        token: t.token,
+        provableBy: t.provableBy,
+        deliveredPx: t.deliveredPx,
+        present: t.present,
+      })),
+    })),
+  },
   // Watertightness, REPORTED not judged — see the flood fill above for why there is no
   // threshold. Read it against the flat control panels on the same page, which read 0.
   watertight: {
@@ -610,10 +709,47 @@ if (offPalette > 0) {
   }
 }
 console.log(
+  `props      : ${presence.withProps} islands verified (${presence.checked} declarations resolved)` +
+    (expectPropCanvases ? ` (caller expects ${expectPropCanvases})` : '') +
+    `, floor ${presence.floor} px/token, ${presence.failures.length} short` +
+    (presence.unresolvedTags.length
+      ? `; ${presence.unresolvedTags.length} tagged canvases carry no declaration`
+      : ''),
+);
+for (const c of presence.canvases) {
+  const worst = [...c.tokens].sort((a, b) => a.deliveredPx - b.deliveredPx).slice(0, 4);
+  console.log(
+    `   ${c.tag.padEnd(12)} ${worst.map((t) => `${t.name ?? t.token} ${t.deliveredPx}`).join('  ')}` +
+      (c.tokens.length > worst.length ? `  (+${c.tokens.length - worst.length} more)` : ''),
+  );
+}
+console.log(
   `holes      : ${report.watertight.totalInteriorHoles} interior px across ${delivered.length} ` +
     'canvases (REPORTED, not a rung — the flat control reads 0)',
 );
 console.log(`frame p50  : ${report.frameTiming.p50Ms} ms (RELATIVE — software rasteriser)`);
+// THE REFUSALS, COLLECTED RATHER THAN RACED. Each of these is a claim the page exists to prove,
+// and `fail()` exits, so a run with two faults used to name only whichever was checked first.
+// They are gathered and reported together.
+const refusals = [];
+
+if (!presence.ok) {
+  // A DECLARED PROP DELIVERED NOTHING. Not a palette question and not a blank-canvas question —
+  // both of those pass on this exact picture, which is why this check had to be added at all.
+  refusals.push(`PROP MISSING — ${describePresenceFailure(presence)}`);
+}
+if (presence.withProps < expectPropCanvases) {
+  // THE INSTRUMENT CHECKED FEWER ISLANDS THAN THE CALLER DECLARED. A run that quietly stops
+  // checking is indistinguishable from a run that checked and found nothing wrong, and that is
+  // the shape of every vacuous green this page has already produced once.
+  refusals.push(
+    `PROP FLOOR UNCOVERED — ${presence.withProps} islands carried a non-empty prop declaration ` +
+      `but the ` +
+      `caller declared ${expectPropCanvases}. Tagged canvases with no declaration: ` +
+      `${presence.unresolvedTags.join(', ') || '(none)'}.`,
+  );
+}
+
 if (offPalette > 0) {
   // AN OFF-PALETTE PIXEL NOW EXITS NON-ZERO, AND UNTIL 2026-08-22 IT DID NOT.
   //
@@ -628,7 +764,16 @@ if (offPalette > 0) {
   //
   // It comes LAST on purpose: the pictures and the report are already written by this point, so
   // a breach still leaves the full evidence on disk to diagnose from. Refusing earlier would
-  // destroy exactly the artefact needed to find out what went off-palette.
-  fail(`PALETTE BREACHED — ${offPalette} delivered px outside the authored closure`);
+  // destroy exactly the artefact needed to find out what went off-palette. The prop-presence
+  // refusals above are held to the same rule and for the same reason.
+  refusals.push(`PALETTE BREACHED — ${offPalette} delivered px outside the authored closure`);
 }
+
+if (refusals.length) fail(refusals.join('\n  AND '));
+
 console.log('PALETTE CLOSED ON THE GPU');
+console.log(
+  presence.checked
+    ? `EVERY DECLARED PROP DELIVERED (${presence.withProps} islands verified)`
+    : 'NO PROP DECLARATIONS ON THIS PAGE — the prop floor checked nothing',
+);

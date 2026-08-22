@@ -1,0 +1,184 @@
+{
+  "$comment": "Rule-panel spec for anti-slop-adoption-arc inc-04. The TARGET's sites are sampled live from an oxlint report; the two CONTROLS carry inline sites because neither can be sampled from a run at HEAD — one was driven to zero in source, the other is synthetic and no linter implements it. Build the packet with: storytree lint-panel packet --spec <this> --report <oxlint.json> --out-dir <dir>",
+  "panel": "rule",
+  "seed": "anti-slop-inc-04-rule-panel",
+  "sitesPerSpecimen": 12,
+  "contextLines": 6,
+  "codebaseContext": "The sites below are drawn from one TypeScript monorepo: roughly two dozen libraries under\n`packages/*` and three applications under `apps/*`, on Node with pnpm workspaces. What matters\nfor judging the rules:\n\n- **Compiler settings.** `strict` is on, and so are `exactOptionalPropertyTypes`,\n  `noUncheckedIndexedAccess`, and `verbatimModuleSyntax`. Module resolution is `NodeNext`, so\n  relative imports carry a `.js` extension. There is no build step — packages export raw\n  TypeScript, consumed through `tsx`.\n- **A document-store seam.** `packages/storage-protocol` declares a narrow document/event store\n  contract that several backends implement (in-memory, Postgres, and an HTTP front door). It is a\n  DOCUMENT store: it persists and returns documents without knowing their shapes. Readers on the\n  far side validate what they receive with zod schemas before using it.\n- **A schema-first domain tier.** `packages/library` and `packages/proof-protocol` declare zod\n  schemas for the domain objects — work-hierarchy nodes, knowledge documents, signed verdicts.\n  The intended discipline is that validation happens at boundaries and validated objects flow\n  inward.\n- **A large command surface.** `packages/cli` is a single CLI with many verbs, most of which front\n  another package's competence. `packages/drive` holds shared build/orchestration drivers.\n- **Two UI applications.** `apps/studio` is a React app with a Node backend serving a JSON API;\n  `apps/desktop` is an Electron app whose backend mirrors a subset of the studio's routes.\n- **Testing.** `node:test` with `node:assert/strict`. Test files sit beside their sources as\n  `*.test.ts` and are not shown below.\n\nThe codebase has no linter of any kind today. These rules are candidates for its first one, and\nwould be enforced as errors in continuous integration if adopted.",
+  "specimens": [
+    {
+      "ruleId": "anti-slop/no-unsafe-dictionary-type",
+      "role": "target",
+      "statement": "A dictionary type — an object whose keys are open and whose values all share one declared type — must not declare that value type as `unknown`, `any`, `object`, `{}`, or a union or alias containing one of those. A dictionary whose values are `unknown` hands every caller an obligation and no contract: it defers a decision that belongs where the data enters the program, and it pushes that decision onto readers who have less information than the author did. Derive the value type from the schema or the owner of the data, and parse external payloads into that type before putting them in the dictionary.",
+      "source": {
+        "kind": "report"
+      }
+    },
+    {
+      "ruleId": "anti-slop/no-chained-type-assertions",
+      "role": "control-uphold",
+      "statement": "A type assertion must not be routed through an intermediate widening — the shape written `x as unknown as T`, where the direct `x as T` would be rejected. The chain exists precisely to silence a rejection: the compiler declined the conversion because it could not see the two types as sufficiently related, and passing through a top type supplies none of the missing relationship — it only removes the question. Assert once, so the compiler still has to find the narrowing plausible, and change the types when it does not.",
+      "expected": "UPHOLD. Held independently of this panel by the compiler, before the panel ever sat: this codebase reduced all 33 of its production chains to single assertions, and THREE were then rejected outright as false — a hand-written module mirror missing seven fields of the real type it claimed to be, a declared dictionary value type the document provably violated (`schemaVersion` is a number), and a `window` shape that contradicted the ambient global declaration of the same object. That is ground truth from a checker, not an opinion, so a panel that rejects this rule has failed a control with a known answer.",
+      "source": {
+        "kind": "inline",
+        "sites": [
+          {
+            "file": "apps/desktop/src/backend/tree-verdicts.ts",
+            "line": 217,
+            "context": "    { criterionId: string; revisionId: string }[]\n  >();\n  const coverageByStory = new Map<string, { id: string; covers?: readonly string[] }[]>();\n  if (!existsSync(storiesDir))\n    return { stories, uatTestCriteriaByStory, uatCriteriaByStory, coverageByStory };\n\n  const { loadNodeSpec, effectiveUatWitness, resolveBuildConfig, isStoryBuildable, storyGoGreen } = (await loadOrchestrator()) as unknown as {\n    loadNodeSpec: LoadNodeSpec;\n    effectiveUatWitness: (declared: \"human\" | \"machine\" | \"either\" | undefined) => \"human\" | \"machine\";\n    resolveBuildConfig: ResolveBuildConfig;\n    isStoryBuildable: (\n      story: ReturnType<LoadNodeSpec>,\n      capabilities: readonly ReturnType<LoadNodeSpec>[],",
+            "flagged": ")) as unknown as {"
+          },
+          {
+            "file": "packages/library/src/knowledge-render.ts",
+            "line": 33,
+            "context": "    // the diagnosis in the message.\n    throw new Error(\n      `renderBody: unknown knowledge kind \"${doc.kind}\" — this code has no KIND_SPECS entry for it. ` +\n        `The running code is likely older than the stored doc; pull the latest and restart.`,\n    );\n  }\n  const fields = doc as unknown as Record<string, string | readonly string[] | undefined>;\n  const blocks: string[] = [];\n  for (const spec of specs) {\n    const value = fields[spec.field];\n    if (value == null) continue; // optional + absent -> emit nothing\n    if (Array.isArray(value) && value.length === 0) continue; // empty ref-list -> emit nothing\n    const text = Array.isArray(value) ? value.map((ref) => `- ${ref}`).join(\"\\n\") : value;",
+            "flagged": "doc as unknown as Record<string"
+          },
+          {
+            "file": "apps/studio/src/components/TerminalRepoGate.tsx",
+            "line": 36,
+            "context": "  ready(): Promise<string | null>;\n  onChanged(cb: (cwd: string | null) => void): void;\n}\n\nfunction getDesktopRepoGateBridge(): DesktopRepoGateBridge | undefined {\n  if (typeof window === 'undefined') return undefined;\n  return (window as unknown as { desktopRepo?: DesktopRepoGateBridge }).desktopRepo;\n}\n\nexport interface TerminalRepoGateProps {\n  seed?: TerminalDockSeed;\n  /** An injected (never imported) select affordance — the story wires `<RepoPicker/>` in here. Shown\n   *  as the prominent control inside the gated chrome while no repo is selected, and forwarded into",
+            "flagged": "window as unknown as { desktopRepo?: DesktopRepoGateBridge }"
+          },
+          {
+            "file": "packages/model-judged-uat/src/judge-seam.ts",
+            "line": 64,
+            "context": "\n/**\n * Runtime/type fence: a value claiming to be a JudgePort must expose `judge` and\n * must NOT expose write-shaped methods. Used by tests to pin the read-only seam.\n */\nexport function assertReadOnlyJudgePort(port: JudgePort): void {\n  const record = port as unknown as Record<string, unknown>;\n  for (const banned of [\"write\", \"edit\", \"delete\", \"exec\", \"runTool\", \"applyPatch\"] as const) {\n    if (typeof record[banned] === \"function\") {\n      throw new Error(`judge port refuses write surface method \"${banned}\" (ADR-0209 D3)`);\n    }\n  }\n  if (typeof port.judge !== \"function\") {",
+            "flagged": "port as unknown as Record<string"
+          },
+          {
+            "file": "packages/cli/src/probe-depth-from-work.ts",
+            "line": 69,
+            "context": "        // about the wire; making neither tolerant is what let both sides agree, at zero, on a lie.\n        doc: { dependsOn: readDependsOnPointers(stored.doc), cites: strings(payload?.cites) },\n      };\n    });\n\n    const renderedRows = docs.map((stored) => {\n      const rendered = renderStoredDoc(stored) as unknown as {\n        dependsOn?: unknown;\n        cites?: unknown;\n        degraded?: unknown;\n      };\n      return {\n        id: stored.id,",
+            "flagged": "stored) as unknown as {"
+          },
+          {
+            "file": "packages/library/src/store/render-doc.ts",
+            "line": 249,
+            "context": " * newline-joined string — the editor edits it as one-ref-per-line text and {@link buildLibraryDoc}\n * splits it back into the array on write.\n */\nfunction extractFields(doc: Knowledge): Record<string, string> {\n  const specs = KIND_SPECS[doc.kind as KnowledgeKind] ?? [];\n  const fields: Record<string, string> = {};\n  const bag = doc as unknown as Record<string, unknown>;\n  for (const spec of specs) {\n    const value = bag[spec.field];\n    if (typeof value === \"string\") fields[spec.field] = value;\n    else if (Array.isArray(value)) {\n      fields[spec.field] = value.filter((v): v is string => typeof v === \"string\").join(\"\\n\");\n    }",
+            "flagged": "doc as unknown as Record<string"
+          },
+          {
+            "file": "apps/studio/server/deriveOfflineCorpus.ts",
+            "line": 26,
+            "context": " * DYNAMIC import for the same reason {@link deriveOfflineAssets} uses one: `@storytree/library`'s\n * subpaths are raw TS with `.js` specifiers, which Node's ESM resolver cannot resolve at vite\n * CONFIG-LOAD time. esbuild leaves a dynamic import of an EXTERNAL package as a runtime `import()`.\n */\nexport async function loadFixtureSeedUnits(): Promise<KnowledgeUnitLike[]> {\n  const { FIXTURE_CORPUS_UNITS } = await import('@storytree/library/fixture');\n  return FIXTURE_CORPUS_UNITS as unknown as KnowledgeUnitLike[];\n}\n\n/** A raw structured knowledge unit (validated downstream at the render boundary). */\nexport interface KnowledgeUnitLike {\n  id: string;\n  kind: string;",
+            "flagged": "FIXTURE_CORPUS_UNITS as unknown as KnowledgeUnitLike[]"
+          },
+          {
+            "file": "apps/studio/src/lib/factoryBuildings.ts",
+            "line": 131,
+            "context": " * DYNAMIC for the same reason as the kit and the stone: the geometry (the autumn-tree hero alone is\n * ~480 nodes) rides in its own chunk fetched only when `?garden=on` asks for it, so a studio load with\n * the flag off pays nothing for it (the megabyte-chunk precedent, inc 5/10).\n */\nexport function loadGardenHeroes(): Promise<Record<GardenHeroId, SceneGardenHero>> {\n  heroesPromise ??= import('@storytree/procedural-architecture/kit.json').then((m) => {\n    const kit = (m as { default?: KitAssetWithHeroes }).default ?? (m as unknown as KitAssetWithHeroes);\n    const byId = {} as Record<GardenHeroId, SceneGardenHero>;\n    for (const h of kit.heroes) byId[h.id] = { nodes: h.nodes, width: h.width, height: h.height };\n    return byId;\n  });\n  return heroesPromise;\n}",
+            "flagged": "m as unknown as KitAssetWithHeroes"
+          },
+          {
+            "file": "apps/desktop/src/backend/pty-session-manager.ts",
+            "line": 36,
+            "context": "// from \"@xterm/headless\"` throws \"does not provide an export named 'Terminal'\" under\n// Node's native ESM loader. static default imports — named ESM imports fail on these UMD\n// bundles under node:test, and createRequire(import.meta.url) crashes the esbuild CJS\n// bundle (import.meta.url is undefined there, thrown at apps/desktop/dist/main.cjs load);\n// the default-import-then-destructure form is the only one green in BOTH runtimes. Static\n// types come from `import type` above (elided at runtime by verbatimModuleSyntax).\nconst { Terminal } = xtermHeadless as unknown as { Terminal: typeof HeadlessTerminal };\nconst { SerializeAddon } = xtermSerialize as unknown as {\n  SerializeAddon: typeof XtermSerializeAddon;\n};\nconst { Unicode11Addon } = xtermUnicode11 as unknown as {\n  Unicode11Addon: typeof XtermUnicode11Addon;\n};",
+            "flagged": "xtermHeadless as unknown as { Terminal: typeof HeadlessTerminal }"
+          },
+          {
+            "file": "apps/studio/src/components/SuggestionView.tsx",
+            "line": 61,
+            "context": "  decideSuggestion: (input: {\n    id: string;\n    decision: 'accept' | 'reject';\n  }) => Promise<{ id: string; status: 'accepted' | 'rejected' }>;\n}\n\nconst suggApi = api as unknown as SuggestionSeam;\n\n// ── Props ─────────────────────────────────────────────────────────────────────\n\nexport interface SuggestionViewProps {\n  suggestion: Suggestion;\n  me: MeInfo;",
+            "flagged": "api as unknown as SuggestionSeam"
+          },
+          {
+            "file": "packages/cli/src/desktop.ts",
+            "line": 99,
+            "context": "  const cmd: ShellCommand = { file: \"pnpm\", args: [\"--filter\", \"desktop\", \"start\"], cwd: deps.repoRoot };\n  const { file, args, cwd } = platformShellCommand(cmd, deps.platform ?? process.platform);\n\n  const logFile = path.join(desktopDir, \".desktop.log\");\n  const logFd = openSync(logFile, \"a\");\n  writeSync(logFd, `\\n--- desktop launch ${new Date().toISOString()} — ${[file, ...args].join(\" \")} ---\\n`);\n  const spawnFn = deps.spawn ?? (nodeSpawn as unknown as DesktopSpawnFn);\n  const child = spawnFn(file, args, {\n    cwd,\n    detached: true,\n    windowsHide: true,\n    stdio: [\"ignore\", logFd, logFd],\n  });",
+            "flagged": "nodeSpawn as unknown as DesktopSpawnFn"
+          },
+          {
+            "file": "apps/desktop/src/backend/chat-sse-mount.ts",
+            "line": 179,
+            "context": "  queryFn?: SseMountQueryFn;\n  runner?: SseOrientationRunner;\n  inspect?: InspectSurfaceDeps;\n  maxTurns?: number;\n}) => AsyncGenerator<ChatStreamEvent>;\n\nconst bridgedStart = startChatStream as unknown as BridgedStartStream;\n\n// ---------- Factory ----------\n\n/**\n * Create the POST /api/chat SSE dispatcher.\n *",
+            "flagged": "startChatStream as unknown as BridgedStartStream"
+          }
+        ]
+      }
+    },
+    {
+      "ruleId": "synthetic/no-separated-type-imports",
+      "role": "control-reject",
+      "statement": "Type-only bindings must not be imported through a statement separate from the value bindings they accompany. A module's dependency on another module is one fact, and splitting it across `import type { A } from './m'` and `import { b } from './m'` states that fact twice: a reader scanning the head of a file sees two entries for one relationship, and any tool that walks import statements has to reconcile them. Import every binding a module needs from a given module through a single `import { ... }` statement.",
+      "expected": "REJECT. This is a SYNTHETIC rule authored for this panel — no upstream tool implements it, and it is in the packet only to test whether the panel can refuse a plausibly-worded rule rather than agree with everything put in front of it. It should be rejected on FUNCTIONALITY grounds, which is the hardest available: the codebase context states that `verbatimModuleSyntax` is on, and under that setting a type-only binding imported through a value import is emitted as a runtime import of something that does not exist at runtime. Complying would break the build. A judge who upholds this has not read the codebase context against the rule; a judge who rejects it for style reasons alone has read it less carefully than a judge who names the compiler setting.",
+      "source": {
+        "kind": "inline",
+        "sites": [
+          {
+            "file": "apps/desktop/electron/backend-entry.ts",
+            "line": 17,
+            "context": "//   - chat-sse-mount   (POST /api/chat → SSE) — the chat-sse-mount dispatcher (read/propose only, ADR-0091)\n//   - local-backend     (health/tree/assets [+ build, disabled here]) — the local-backend-boot factory\n// READ/PROPOSE loop (ADR-0119 §2 + the chat-SSE increment): the chat surface is now mounted (orient +\n// propose via startChatStream); the build-trigger / adopt outer-loop paths are still later increments.\n\nimport { createServer } from \"node:http\";\nimport type { IncomingMessage, ServerResponse } from \"node:http\";\nimport type { AddressInfo } from \"node:net\";\nimport { execFileSync } from \"node:child_process\";\nimport { fileURLToPath } from \"node:url\";\nimport { dirname, resolve } from \"node:path\";\n\nimport {",
+            "flagged": "import type { IncomingMessage, ServerResponse } from \"node:http\";"
+          },
+          {
+            "file": "apps/studio/server/apiRouter.ts",
+            "line": 26,
+            "context": "//   • The Library is ALSO migrated into the shared Cloud SQL Postgres store\n//     (packages/library/store) — the pg backend is the default (oq-studio-store-default → B).\n\nimport { promises as fs, existsSync } from 'node:fs';\nimport path from 'node:path';\nimport { randomUUID } from 'node:crypto';\nimport type { IncomingMessage, ServerResponse } from 'node:http';\nimport type { ReliabilityGate, ResolvedWitnessKind, UatTestCriterion } from '@storytree/library';\n// A RUNTIME import, so it must survive the vite config-load trap: vite.config.ts loads devApi.ts →\n// this file through Node's plain ESM loader, where the root barrel's `./schema.js`-style specifiers\n// do not resolve (only the .ts files exist). Hence the dedicated `/repo-root` LEAF subpath — that\n// module imports nothing at all, so Node loads it directly. Do NOT collapse this to\n// `@storytree/library`: `pnpm gate` does not run `vite build`, so only CI Build catches the break.",
+            "flagged": "import type { IncomingMessage, ServerResponse } from 'node:http';"
+          },
+          {
+            "file": "packages/agent/src/codex-author.ts",
+            "line": 24,
+            "context": "import { createHash } from \"node:crypto\";\nimport * as fs from \"node:fs/promises\";\nimport { createRequire } from \"node:module\";\nimport * as os from \"node:os\";\nimport * as path from \"node:path\";\n\nimport type { AuthoringPhase, AuthorResult, PhaseAuthor } from \"./phase-author.js\";\nimport type { TokenUsage } from \"./model-events.js\";\n\nexport const DEFAULT_CODEX_MODEL = \"gpt-5.6-terra\";\nexport const CODEX_EXECUTABLE_ENV = \"STORYTREE_CODEX_EXECUTABLE\";\n\nconst CHATGPT_LOGIN_STATUS = \"Logged in using ChatGPT\";",
+            "flagged": "import type { AuthoringPhase, AuthorResult, PhaseAuthor } from \"./phase-author.js\";"
+          },
+          {
+            "file": "packages/app-surface/src/forest-regrow-render.ts",
+            "line": 12,
+            "context": "//\n// The expensive half — deriving one adjacency-wave accretion plan per island — happens ONCE per\n// scene (`deriveForestRegrowAccretionPlans`). The per-frame half (`forestRegrowRenderLayer`)\n// only re-selects each still-growing island's cell scales and merges them into two flat lookups,\n// so the scene walk stays O(1) per node no matter how many islands are in flight.\n\nimport type { SceneNode } from '@storytree/forest-world';\nimport type { ForestRegrowRenderLayer } from './SceneView.js';\nimport {\n  deriveSvgIslandAccretionPlan,\n  svgIslandAccretionAtProgress,\n  type SvgIslandAccretionCellReveal,\n  type SvgIslandAccretionPlan,",
+            "flagged": "import type { SceneNode } from '@storytree/forest-world';"
+          },
+          {
+            "file": "packages/arc/src/arc-rollup.ts",
+            "line": 4,
+            "context": "import { existsSync, readFileSync, readdirSync } from \"node:fs\";\nimport path from \"node:path\";\n\nimport type { Store, StoredDoc } from \"@storytree/storage-protocol\";\nimport { STORY_REF_PREFIX } from \"@storytree/library\";\n\n// Use the narrow subpaths instead of the `@storytree/drive` barrel: this module needs only ADR metadata\n// and claim-universe helpers, not the drive package's build/orchestrate runtime.\nimport { loadTitledAdrMetas, type TitledAdrMeta } from \"@storytree/drive/adr-metas\";\nimport type { AdrStatus } from \"@storytree/drive/adr-frontmatter\";",
+            "flagged": "import type { Store, StoredDoc } from \"@storytree/storage-protocol\";"
+          },
+          {
+            "file": "packages/art-authoring/src/backends/nvidia-trellis.ts",
+            "line": 32,
+            "context": "// Manager (projects/635716509357/secrets/nvidia-api-key). This package never reads Secret Manager and\n// never logs the key. Fail-closed: an absent key throws.\n\nimport { writeFile } from 'node:fs/promises';\nimport { tmpdir } from 'node:os';\nimport { join } from 'node:path';\nimport type { BlockRequest, GenerativeBackend, Maquette } from '../adapter.js';\n\nexport const NVIDIA_TRELLIS_BACKEND_ID = 'nvidia-trellis';\n\n/** The hosted TRELLIS invoke URL (build.nvidia.com/microsoft/trellis \"Try API\"). Overridable. */\nexport const DEFAULT_TRELLIS_URL = 'https://ai.api.nvidia.com/v1/genai/microsoft/trellis';\n",
+            "flagged": "import type { BlockRequest, GenerativeBackend, Maquette } from '../adapter.js';"
+          },
+          {
+            "file": "packages/cli/src/adopt-plan.ts",
+            "line": 34,
+            "context": "  type ClassifierGate,\n  type DecisionSweep,\n  type PocketReading,\n  type ProposedGate,\n} from \"@storytree/orchestrator\";\n\nimport type { Envelope } from \"./envelope.js\";\n\n/** A story's adoptable facts the plan classifies: its status + declared caps + reliability gates. */\nexport interface AdoptPlanStory {\n  /** The story's authored status (for the report's framing — `mapped` / `proposed` / …). */\n  status: string;\n  /** The story's declared capability ids (`NodeSpec.capabilities`), in declared order. */",
+            "flagged": "import type { Envelope } from \"./envelope.js\";"
+          },
+          {
+            "file": "packages/context-traversal-capture/src/decision-point-playback.ts",
+            "line": 31,
+            "context": " * An edge this batch cannot resolve onto any candidate in its own set (a dangling `toVisitId`, or one\n * answering a node the set never offered) is surfaced on that point's `unresolved` list; an edge\n * naming a set that was never offered at all in this batch is an ORPHAN on the report, never\n * discarded and never re-attached to some other set.\n */\nimport { isContextVisitEvent } from \"@storytree/context-traversal-telemetry\";\nimport type {\n  CandidateSetEvent,\n  ContextTraversalEvent,\n  ContextVisitEvent,\n  FollowedEdgeEvent,\n} from \"@storytree/context-traversal-telemetry\";\n",
+            "flagged": "import type {"
+          },
+          {
+            "file": "packages/context-traversal-spawn/src/build-capture.ts",
+            "line": 26,
+            "context": " * network, or touches a database — capture must never change a caller's exit code, envelope,\n * verdict, or control flow, the same advisory posture `appendSliceUsage` already holds.\n */\nimport { randomUUID } from \"node:crypto\";\n\nimport { appendTraversalEvents, resolveTraversalDir } from \"@storytree/context-traversal-capture\";\nimport type { ContextTraversalEvent } from \"@storytree/context-traversal-telemetry\";\n\nimport { observeLeafSlices } from \"./observe-leaf-slices.js\";\nimport type { LeafSliceRun } from \"./observe-leaf-slices.js\";\n\nconst TRAVERSAL_OFF_ENV = \"STORYTREE_TRAVERSAL\";\nconst TRAVERSAL_OFF_VALUE = \"off\";",
+            "flagged": "import type { ContextTraversalEvent } from \"@storytree/context-traversal-telemetry\";"
+          },
+          {
+            "file": "packages/context-traversal-telemetry/src/orientation-runner-adapter.ts",
+            "line": 34,
+            "context": " * loop, a spawned agent, `agents`, the noticeboard) — is structurally unobservable from this\n * runner-decorator boundary, and `ORIENTATION_RUNNER_ADAPTER_COVERAGE` declares them omitted\n * rather than silently absent.\n */\n\nimport { CoverageFeature, type ContextTraversalCoverage } from \"./traversal-events.js\";\nimport type { ContextTraversalTrace } from \"./traversal-trace.js\";\n\n// ---------------------------------------------------------------------------\n// Types — the published seam this adapter decorates\n// ---------------------------------------------------------------------------\n\n/** Minimal envelope shape the runner must return (structurally matches drive's `Envelope`). */",
+            "flagged": "import type { ContextTraversalTrace } from \"./traversal-trace.js\";"
+          },
+          {
+            "file": "packages/drive/src/adopt.ts",
+            "line": 33,
+            "context": "// writer, then calls the core.\n\nimport { execFileSync } from \"node:child_process\";\nimport { existsSync, readFileSync, writeFileSync } from \"node:fs\";\nimport path from \"node:path\";\n\nimport type { ReliabilityGate, UatTestCriterion } from \"@storytree/library\";\nimport { resolveWitness } from \"@storytree/library\";\nimport {\n  findNodeSpecFile,\n  loadNodeSpec,\n  observeAndSign,\n  platformShellCommand,",
+            "flagged": "import type { ReliabilityGate, UatTestCriterion } from \"@storytree/library\";"
+          },
+          {
+            "file": "packages/forest-world-r3f/harness/banded-material.ts",
+            "line": 26,
+            "context": "// renderer is configured for no conversion and the shader writes the token straight\n// through. `configureExactColour` is the one call that establishes it, and the capture\n// harness asserts the result on delivered pixels rather than trusting this comment.\n\nimport * as THREE from 'three';\n\nimport type { ShadowField } from './land-shadow.js';\nimport { LIGHT_DIRECTION, SHADE_LEVELS, bandGlsl, parseHex, tokenRamp } from './palette-band.js';\nimport {\n  SHADOW_LADDER,\n  SHADOW_RUNG_INDEX,\n  rungsAShadowDarkens,\n  shadowRamp,",
+            "flagged": "import type { ShadowField } from './land-shadow.js';"
+          }
+        ]
+      }
+    }
+  ]
+}

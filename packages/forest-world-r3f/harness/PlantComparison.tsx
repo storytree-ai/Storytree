@@ -221,7 +221,7 @@ export function PlantComparison() {
         </p>
       </header>
 
-      <section>
+      <section data-st-panel="delivered-size">
         <h2>1 &mdash; at the size they are actually delivered on screen</h2>
         <p className="lede">
           This is the honest, unflattering row: what each convention puts in front of a viewer on a
@@ -253,7 +253,7 @@ export function PlantComparison() {
         </div>
       </section>
 
-      <section>
+      <section data-st-panel="zoom-ladder">
         <h2>2 &mdash; the zoom ladder, which is where the two conventions actually part</h2>
         <p className="lede">
           Row 1 shows the two conventions nearly tying, and that is the honest result: at the size a
@@ -292,7 +292,7 @@ export function PlantComparison() {
         ))}
       </section>
 
-      <section>
+      <section data-st-panel="magnified">
         <h2>3 &mdash; the same two rows, magnified {MAGNIFY}&times; (the art call)</h2>
         <p className="lede">
           Nearest-neighbour on both sides, so the sprite row shows its actual pixels rather than a
@@ -324,7 +324,7 @@ export function PlantComparison() {
         </div>
       </section>
 
-      <section>
+      <section data-st-panel="detail-ladder">
         <h2>4 &mdash; the detail ladder the sprite path never had</h2>
         <p className="lede">
           Geodesic subdivision 0&rarr;3 at a fixed footprint: triangles multiply by four a rung
@@ -350,7 +350,7 @@ export function PlantComparison() {
         </div>
       </section>
 
-      <section>
+      <section data-st-panel="status-tokens">
         <h2>5 &mdash; every status, one shader</h2>
         <p className="lede">
           The same material with a different authored token per parcel status. Nothing is snapped to

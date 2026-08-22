@@ -148,6 +148,11 @@ import {
 import { gatherFromDisk, ownershipCommand, ownershipHelp } from "./ownership.js";
 // `shared-box-session-ownership-arc` inc 1 — the session's own background-work inventory.
 import { ownCommand, ownHelp } from "./own.js";
+import {
+  lintPanelHelp,
+  lintPanelPacketCommand,
+  nodePanelIo,
+} from "./lint-panel-command.js";
 import { agentsCommand, agentStepCommand, agentsHelp } from "./agents.js";
 import { attestCommand, attestHelp, type AttestationStoreLike, type AttestDeps } from "./attest.js";
 import { runDrift, driftHelp } from "./drift.js";
@@ -2567,6 +2572,15 @@ export const CLI_OPTIONS = {
   set: { type: "string", multiple: true },
   raw: { type: "string" },
   out: { type: "string" },
+  // `storytree lint-panel packet` — the panel spec, the oxlint report its target's sites are sampled
+  // from, and the directory the judges' briefs are written to. `--out-dir` rather than `--out`
+  // deliberately: `--out` is the output channel of the `--raw` bare-bytes read and is REFUSED
+  // without one (ADR-0361 D1), because an ignored `--out` is how an empty capture becomes a
+  // deletion at exit 0. Writing a second meaning into that flag would blunt the fence to save a
+  // hyphen.
+  spec: { type: "string" },
+  report: { type: "string" },
+  "out-dir": { type: "string" },
   field: { type: "string" },
   "decided-date": { type: "string" },
   "dry-run": { type: "boolean", default: false },
@@ -4020,6 +4034,19 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       return dispatchWaitCommand(positionals.slice(1), values["timeout"]);
     }
     return dispatchCommand(positionals.slice(1));
+  }
+
+  if (area === "lint-panel") {
+    // The judge-panel packet builder (`anti-slop-adoption-arc`, ADR-0407 D3). A contested lint rule
+    // is adjudicated by an independent panel rather than by the opinion of whichever session found
+    // the rule inconvenient — and the properties that make that a measurement (blind, controlled,
+    // perspective-diverse) are REFUSALS in `lint-panel.ts`, not advice in a runbook. Offline and
+    // disk-only: the spend is the judges, which the operator convenes and costs.
+    if (help || sub !== "packet") return lintPanelHelp();
+    return lintPanelPacketCommand(
+      { spec: values["spec"], report: values["report"], out: values["out-dir"] },
+      nodePanelIo(repoRoot()),
+    );
   }
 
   if (area === "own") {

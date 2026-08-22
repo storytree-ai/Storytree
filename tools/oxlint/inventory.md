@@ -17,8 +17,8 @@ combination silently reports a near-empty run rather than failing.
 |---|---:|---:|---:|---:|---|
 | `require-safety-comment-for-type-assertion` | 2007 | 836 | 1171 | 438 | **rejected** (owner) |
 | `no-runtime-typeof` | 727 | 585 | 142 | 221 | inc-05 |
-| `no-conditional-empty-object-spread` | 646 | 564 | 82 | 168 | inc-04/05 — compiler collision |
-| `no-unsafe-dictionary-type` | 612 | 345 | 267 | 157 | inc-04 |
+| `no-conditional-empty-object-spread` | 646 | 564 | 82 | 168 | inc-05 — refactor panel says a shape EXISTS |
+| `no-unsafe-dictionary-type` | 612 | 345 | 267 | 157 | **rejected** (panel, inc-04) |
 | `no-known-value-widening` | 497 | 300 | 197 | 248 | inc-08 |
 | `no-unknown-parameters` | 318 | 228 | 90 | 179 | inc-05 |
 | `no-shape-in-symbol-names` | 263 | 163 | 100 | 47 | inc-05 |
@@ -32,6 +32,12 @@ combination silently reports a near-empty run rather than failing.
 | `no-widen-then-assert` | **0** | 0 | 0 | 0 | **adopted** |
 
 **Total: 5,383 violations across 10 rules. Five rules are already clean.**
+
+> **Since this table was measured.** `no-chained-type-assertions` was adopted at `error` in
+> production source (inc-03). `no-unsafe-dictionary-type` was **rejected** by a five-judge blind panel
+> on 2026-08-22 (inc-04) — unanimous, on functionality loss, not on volume; the record is
+> `panels/no-unsafe-dictionary-type.md`. Re-measured at HEAD the same day it stood at **613**, and
+> every one of those carries the `unknown` tag: zero `any`, zero `object`, zero `{}`.
 
 ## What inc-06 changed — `no-module-mocking` is adopted at `error`
 

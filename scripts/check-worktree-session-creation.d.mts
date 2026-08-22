@@ -113,3 +113,27 @@ export const DEFAULT_EVIDENCE_WINDOW_MS: number;
 
 /** Evidence lines are truncated to this length. The reuse-scrub failure line is ~27 MB. */
 export const EVIDENCE_LINE_MAX: number;
+
+/** The `main.log` chosen to read, plus the live-looking copies deliberately passed over. */
+export interface ResolvedLog {
+  /** Absolute path to the `main.log` that will actually be read. */
+  path: string;
+  mtimeMs: number;
+  /** Rejected candidates, newest first — named in the report so a skip is never silent. */
+  shadowed: readonly string[];
+}
+
+/**
+ * The freshest `main.log` among `candidates` — the one the running app is actually writing.
+ *
+ * Exists because the desktop moved its log from %APPDATA% to %LOCALAPPDATA% on 2026-08-22 while
+ * leaving the old copy in place, frozen at the last `willQuit`. Both are same-named and both parse,
+ * so reading the wrong one yields a confident BROKEN for every start. Resolution is by mtime rather
+ * than a re-pointed constant, so it self-heals if the file moves again or moves back.
+ *
+ * Pure over the injected `mtimeOf`, which answers null for an absent or unreadable path.
+ */
+export function pickNewestLog(
+  candidates: readonly string[],
+  mtimeOf: (path: string) => number | null,
+): ResolvedLog | null;
