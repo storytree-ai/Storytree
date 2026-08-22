@@ -308,7 +308,6 @@ describe('LibraryFocusGraph — SVG DAG canvas', () => {
     render(
       <LibraryFocusGraph
         assets={[b, centre, d]}
-        docs={[]}
         selection={selectionFor(centre)}
         onFocus={vi.fn()}
       />,
@@ -337,7 +336,6 @@ describe('LibraryFocusGraph — SVG DAG canvas', () => {
     render(
       <LibraryFocusGraph
         assets={[centre, upstreamNode, downstreamNode]}
-        docs={[]}
         selection={selectionFor(centre)}
         onFocus={vi.fn()}
       />,
@@ -380,7 +378,6 @@ describe('LibraryFocusGraph — SVG DAG canvas', () => {
     render(
       <LibraryFocusGraph
         assets={[centre, arcNeighbour]}
-        docs={[]}
         selection={selectionFor(centre)}
         onFocus={vi.fn()}
       />,
@@ -402,7 +399,6 @@ describe('LibraryFocusGraph — SVG DAG canvas', () => {
     render(
       <LibraryFocusGraph
         assets={[centre, planNode]}
-        docs={[]}
         selection={selectionFor(centre)}
         onFocus={vi.fn()}
       />,
@@ -429,7 +425,6 @@ describe('LibraryFocusGraph — SVG DAG canvas', () => {
     render(
       <LibraryFocusGraph
         assets={[centre, ...fillers]}
-        docs={[]}
         selection={selectionFor(centre)}
         onFocus={vi.fn()}
       />,
@@ -459,7 +454,6 @@ describe('LibraryFocusGraph — SVG DAG canvas', () => {
     render(
       <LibraryFocusGraph
         assets={[centre, neighbour]}
-        docs={[]}
         selection={selectionFor(centre)}
         onFocus={vi.fn()}
       />,
@@ -479,7 +473,6 @@ describe('LibraryFocusGraph — SVG DAG canvas', () => {
     render(
       <LibraryFocusGraph
         assets={[centre, neighbour]}
-        docs={[]}
         selection={selectionFor(centre)}
         onFocus={onFocus}
       />,
@@ -504,7 +497,6 @@ describe('LibraryFocusGraph — SVG DAG canvas', () => {
     render(
       <LibraryFocusGraph
         assets={[centre, neighbour]}
-        docs={[]}
         selection={selectionFor(centre)}
         onFocus={onFocus}
       />,
@@ -540,7 +532,6 @@ describe('LibraryFocusGraph — SVG DAG canvas', () => {
       render(
         <LibraryFocusGraph
           assets={[centre, neighbour]}
-          docs={[]}
           selection={selectionFor(centre)}
           onFocus={vi.fn()}
         />,

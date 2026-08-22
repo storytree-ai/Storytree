@@ -18,6 +18,12 @@
 export type DocsStatus = 'loading' | 'ready' | 'error';
 
 /**
+ * Whether `assets` reflects a resolved `/api/assets` response yet — structurally the same triad as
+ * {@link DocsStatus}, over the OTHER boot payload. See {@link unresolvedAssetReason}.
+ */
+export type AssetsStatus = 'loading' | 'ready' | 'error';
+
+/**
  * Why an id that is absent from the doc index may not be genuinely absent — or `null` when the
  * index IS resolved and "not in the index" is itself the honest answer.
  *
@@ -31,6 +37,30 @@ export function unresolvedDocReason(status: DocsStatus): string | null {
       return 'the document index is still loading';
     case 'error':
       return 'the document index failed to load';
+    case 'ready':
+      return null;
+  }
+}
+
+/**
+ * The {@link unresolvedDocReason} sibling for the LIBRARY index — why an id absent from `assets`
+ * may not be genuinely absent, or `null` when the index IS resolved and "not in the corpus" is
+ * itself the honest answer.
+ *
+ * It exists because the distinction MOVED rather than disappeared. `RelevantAdrs` (TreeView)
+ * resolved a story's deciding ADRs against the doc index until ADR-0403 dec 1 made decisions
+ * ordinary Library artifacts; it resolves them against `assets` now, and it would be the same
+ * confidently-wrong surface — "(no decision found)" said over an index that never loaded — if the
+ * repoint had dropped the distinction on the way. Worded here rather than inline for the reason the
+ * doc sibling is: one place, so two surfaces cannot drift into saying different things about the
+ * same state.
+ */
+export function unresolvedAssetReason(status: AssetsStatus): string | null {
+  switch (status) {
+    case 'loading':
+      return 'the library index is still loading';
+    case 'error':
+      return 'the library index failed to load';
     case 'ready':
       return null;
   }

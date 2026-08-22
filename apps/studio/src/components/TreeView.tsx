@@ -49,7 +49,7 @@ import {
 import dagre from '@dagrejs/dagre';
 import { api } from '../api';
 import { useAppData } from '../lib/appData';
-import { unresolvedDocReason } from '../lib/docsIndex';
+import { unresolvedAssetReason, unresolvedDocReason } from '../lib/docsIndex';
 import { readPayloadCache, writeTreeCache } from '../lib/payloadCache';
 import { anyRecentLanding, isBuildInFlight, verdictBloom, type VerdictBloom } from '../lib/activity.js';
 import { useBuildActivity, useClaimActivity } from '../lib/buildActivity';
@@ -128,8 +128,8 @@ import { LibraryFinder } from './LibraryFinder.js';
 import { LibraryFocusGraph } from './LibraryFocusGraph.js';
 import { LibraryOpenOverlay } from './LibraryOpenOverlay.js';
 import { LibrarySelectionCard } from './LibrarySelectionCard.js';
-import type { SearchResult } from '../lib/librarySearch.js';
-import type { BuildActivity, ClaimActivity, DepartedClaim, DocMeta, SessionClaimGroup, TreeCapability, TreeStory, TreeVerdict, UatTestCriterionRow } from '../types';
+import { adrStatusOf, type SearchResult } from '../lib/librarySearch.js';
+import type { BuildActivity, ClaimActivity, DepartedClaim, DocMeta, GuidanceAsset, SessionClaimGroup, TreeCapability, TreeStory, TreeVerdict, UatTestCriterionRow } from '../types';
 import {
   hash,
   rand01,
@@ -3752,7 +3752,6 @@ export function TreeView({
                 <aside className="library-side">
                   <LibraryFinder
                     assets={assets}
-                    docs={docs}
                     onSelect={setLibrarySelection}
                     {...(librarySelection ? { selectedId: librarySelection.id } : {})}
                   />
@@ -3765,7 +3764,6 @@ export function TreeView({
                     <>
                       <LibraryFocusGraph
                         assets={libraryAssets}
-                        docs={docs}
                         selection={librarySelection}
                         onFocus={setLibrarySelection}
                         onOpen={setOpenSelection}
@@ -3773,7 +3771,6 @@ export function TreeView({
                       <LibrarySelectionCard
                         selection={librarySelection}
                         assets={libraryAssets}
-                        docs={docs}
                         onOpen={setOpenSelection}
                       />
                     </>
@@ -5739,34 +5736,43 @@ export function UatTestCriteriaSection({
   );
 }
 
-/** Extract the 1-based ADR number from a Decisions doc id (`decisions/0017-slug.md` → 17), or null. */
-export function adrNumberOf(docId: string): number | null {
-  const m = /(?:^|\/)(\d{4})-/.exec(docId);
+/** Extract the 1-based decision number from an `adr` artifact id (`adr-0017` → 17), or null. */
+export function adrNumberOf(assetId: string): number | null {
+  const m = /^adr-(\d{4})$/.exec(assetId);
   return m ? Number(m[1]) : null;
 }
 
 /**
  * The story's "Architectural Decision Records" (ADR-0037 §2 / ADR-0097 Layer 2): its `decisions:` ADR
- * numbers resolved against the loaded docs and LINKED to the Decisions-group Library docs. Tolerant — a
- * number with no matching doc renders as a plain `ADR-NNNN` label (never blanks the section). Renders
- * nothing when the story declares no decisions. A `<details>` disclosure COLLAPSED by default (owner
- * steer 2026-06-24): governance reference that sits quietly at the foot, opened on demand. Exported for
- * the jsdom render test.
+ * numbers resolved against the loaded LIBRARY CORPUS and linked to the `adr` artifacts. Tolerant — a
+ * number with no matching artifact renders as a plain `ADR-NNNN` label (never blanks the section).
+ * Renders nothing when the story declares no decisions. A `<details>` disclosure COLLAPSED by default
+ * (owner steer 2026-06-24): governance reference that sits quietly at the foot, opened on demand.
+ * Exported for the jsdom render test.
  *
- * The unresolved branch is `docsStatus`-aware (lib/docsIndex.ts). "(no doc found)" is an assertion
- * that the ADR does not exist, and it is only true once the index has RESOLVED — said over an index
- * that is still loading or that failed outright, it is the most confidently wrong thing on this
- * surface, since a genuine ADR reads as a missing one.
+ * ★ IT RESOLVES AGAINST `assets`, NOT `docs` (ADR-0403 dec 1). It used to key its lookup off
+ * `group === 'Decisions'` docs from the file-walker; PR #1546 rewrote that walker to stamp every doc
+ * `'Reference'`, so the lookup became permanently EMPTY and every deciding decision on every story
+ * panel rendered as "(no decision found)" — an index that had resolved perfectly well, asserting
+ * that 409 decisions which exist do not. Decisions are ordinary artifacts keyed `adr-NNNN`
+ * (ADR-0403 dec 1), so the number is parsed straight off the artifact id.
+ *
+ * The unresolved branch is `assetsStatus`-aware (lib/docsIndex.ts' `unresolvedAssetReason`). "(no
+ * decision found)" is an assertion that the decision does not exist, and it is only true once the
+ * corpus has RESOLVED — said over an index that is still loading or that failed outright, it is the
+ * most confidently wrong thing on this surface, since a genuine decision reads as a missing one.
+ * That distinction is the whole point of this branch: it must stay pointed at whichever index
+ * actually backs the lookup, which is why it moved with it.
  */
 export function RelevantAdrs({ decisions }: { decisions: number[] }): React.JSX.Element | null {
-  const { docs, docsStatus, docsError } = useAppData();
-  const unresolvedReason = unresolvedDocReason(docsStatus);
+  const { assets, assetsStatus, assetsError } = useAppData();
+  const unresolvedReason = unresolvedAssetReason(assetsStatus);
   if (decisions.length === 0) return null;
-  const byNum = new Map<number, DocMeta>();
-  for (const d of docs) {
-    if (d.group !== 'Decisions') continue;
-    const n = adrNumberOf(d.id);
-    if (n !== null) byNum.set(n, d);
+  const byNum = new Map<number, GuidanceAsset>();
+  for (const a of assets) {
+    if (a.category !== 'adr') continue;
+    const n = adrNumberOf(a.id);
+    if (n !== null) byNum.set(n, a);
   }
   return (
     <DetailDisclosure
@@ -5776,28 +5782,27 @@ export function RelevantAdrs({ decisions }: { decisions: number[] }): React.JSX.
     >
       <ul className="relevant-adrs small">
         {decisions.map((n) => {
-          const doc = byNum.get(n);
+          const decision = byNum.get(n);
+          const status = decision ? adrStatusOf(decision) : undefined;
           const label = `ADR-${String(n).padStart(4, '0')}`;
           return (
             <li key={n} className="relevant-adr">
-              {doc ? (
-                <a href={docHref(doc.id)}>
-                  <code>{label}</code> {doc.title}
-                  {doc.status && (
-                    <span className={`adr-status-chip adr-${doc.status}`}> {doc.status}</span>
-                  )}
+              {decision ? (
+                <a href={assetHref(decision.id)}>
+                  <code>{label}</code> {decision.title}
+                  {status && <span className={`adr-status-chip adr-${status}`}> {status}</span>}
                 </a>
               ) : unresolvedReason ? (
                 <span
                   className="muted doc-unresolved"
-                  data-docs-status={docsStatus}
-                  {...(docsError ? { title: docsError } : {})}
+                  data-docs-status={assetsStatus}
+                  {...(assetsError ? { title: assetsError } : {})}
                 >
                   <code>{label}</code> (unresolved — {unresolvedReason})
                 </span>
               ) : (
                 <span className="muted">
-                  <code>{label}</code> (no doc found)
+                  <code>{label}</code> (no decision found)
                 </span>
               )}
             </li>
