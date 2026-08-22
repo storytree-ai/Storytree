@@ -1,6 +1,7 @@
 import { parse as parseYaml } from "yaml";
 
 import { adrDocId, decisionLabel } from "./decision-pointer.js";
+import { hasDependsOnKey, readDependsOnPointers } from "./depends-on.js";
 import { AdrDocStatus } from "./knowledge.js";
 
 /**
@@ -85,6 +86,24 @@ export interface AdrDocumentFields {
   readonly loadBearing: boolean;
   /** The owning arc's BARE id (as `arc:` carries it in frontmatter), not an `asset:` pointer. */
   readonly arc?: string;
+  /**
+   * The decision's own `dependsOn` POINTERS — PLAIN SUPPORT (ADR-0419 D1), the edge new authoring
+   * records instead of overstating with `amends`.
+   *
+   * Pointers (`asset:adr-0139`, `asset:<artifact>`, `doc:<relpath>`) rather than decision numbers,
+   * because that is what the ROW carries: `dependsOn` arrives from `buildKindSchema` like every
+   * other kind's and may name any Library artifact or repository file, where `amends` is a list of
+   * decision numbers on the `adr` schema alone. The asymmetry is the storage's; this converter
+   * reports it rather than flattening it.
+   *
+   * ABSENT AND EMPTY ARE DIFFERENT, and unlike `amends` this one is NOT collapsed. `undefined` means
+   * the document carries no `depends_on:` key at all; `[]` means it carries one and the decision
+   * rests on nothing. That is ADR-0223's optional-not-defaulted rule, and it is load-bearing for the
+   * migration ADR-0419 D3 fixes as long: `DecisionAmendsResolver.decisionsCarryingDependsOn` counts
+   * KEY PRESENCE, so a round trip that folded `[]` into absent would silently decrement the very
+   * denominator that separates "this reader is blind to the edge" from "this decision has none".
+   */
+  readonly dependsOn?: readonly string[];
 }
 
 /** The optional half of {@link AdrDocumentFields}, built under guards and spread in whole.
@@ -97,6 +116,7 @@ export interface AdrDocumentFields {
 interface AdrOptionalFields {
   decided?: string;
   arc?: string;
+  dependsOn?: string[];
 }
 
 /**
@@ -105,11 +125,46 @@ interface AdrOptionalFields {
  * A fixed order is what makes the round trip provable: two orders would mean
  * `render(parse(render(x)))` could differ from `render(x)` depending on which order the input
  * happened to use. The committed files carry several orders; the load normalises to this one.
+ *
+ * The three edge keys sit in one run, plain support first: `depends_on` (rests on), then `amends`
+ * (rests on AND the target can no longer be read alone), then `supersedes` (replaced it, and never
+ * summed with either — ADR-0403 dec 6). Reading down the block is reading ADR-0419 D1's distinction
+ * in order of how much it obliges of the author.
+ *
+ * IT IS ALSO THE KNOWN-KEY SET: {@link parseAdrDocument} refuses any key outside this list and names
+ * the list in the refusal, so adding a key here is what makes it authorable at all.
  */
-const FRONTMATTER_ORDER = ["status", "decided", "arc", "amends", "supersedes", "load_bearing"] as const;
+const FRONTMATTER_ORDER = [
+  "status",
+  "decided",
+  "arc",
+  "depends_on",
+  "amends",
+  "supersedes",
+  "load_bearing",
+] as const;
 
 /** The delimiter a frontmatter block opens and closes with. */
 const FENCE = "---";
+
+/**
+ * PURE: the `depends_on:` list — pointer STRINGS, verbatim.
+ *
+ * FORMAT IS NOT CHECKED HERE, deliberately. `asset:<id>` / `doc:<relpath>` is the `DependsOnRef`
+ * refinement's rule and the row schema enforces it at the WRITE boundary, where a bad entry is
+ * refused with the expected shape named (`explainDocValidationError`). Re-checking it here would put
+ * a second, drifting copy of the rule in a parser whose job is to recover what the author wrote —
+ * and this parser also runs on documents pulled from rows that already validated.
+ */
+function parsePointerList(value: unknown, key: string): string[] {
+  if (!Array.isArray(value)) throw new Error(`frontmatter \`${key}\` must be a list of strings`);
+  return value.map((entry) => {
+    if (typeof entry !== "string" || entry === "") {
+      throw new Error(`frontmatter \`${key}\` must contain non-empty strings (got ${JSON.stringify(entry)})`);
+    }
+    return entry;
+  });
+}
 
 function parseNumberList(value: unknown, key: string): number[] {
   if (value === undefined || value === null) return [];
@@ -208,6 +263,11 @@ export function parseAdrDocument(decisionNumber: number, content: string): AdrDo
   const optional: AdrOptionalFields = {};
   if (decided !== undefined) optional.decided = decided;
   if (arcRaw !== undefined) optional.arc = arcRaw;
+  // PRESENCE, not non-emptiness — `depends_on: []` is a different fact from no key at all, and the
+  // field's docstring says why the two must not be folded. `Object.hasOwn` rather than an
+  // `!== undefined` test, so an explicit `depends_on:` with a null value fails loudly in
+  // `parsePointerList` instead of degrading to absent.
+  if (Object.hasOwn(bag, "depends_on")) optional.dependsOn = parsePointerList(bag["depends_on"], "depends_on");
   const fields: AdrDocumentFields = {
     number: decisionNumber,
     title: extractAdrTitle(body),
@@ -228,6 +288,14 @@ export function parseAdrDocument(decisionNumber: number, content: string): AdrDo
  * thing and the committed files write the former (107 of 403 carry no `amends` key at all), so
  * emitting the empty list would make every such document differ from its own source for no
  * information gained — and would then differ AGAIN from a hand-edited round trip that dropped it.
+ *
+ * `depends_on` IS THE ONE EXCEPTION, and it is an exception because for that field the two are NOT
+ * the same thing (ADR-0223's optional-not-defaulted rule; see the field's docstring). `[]` is
+ * emitted when the fields carry it, absent when they do not — otherwise a round trip would erase
+ * key presence, which is exactly what `decisionsCarryingDependsOn` measures.
+ *
+ * Entries are QUOTED. A pointer is `asset:adr-0139` — a plain scalar carrying a colon — and quoting
+ * removes any question of how a flow sequence resolves it, in this parser or the next one.
  */
 export function renderAdrDocument(fields: AdrDocumentFields): string {
   const lines: string[] = [];
@@ -241,6 +309,11 @@ export function renderAdrDocument(fields: AdrDocumentFields): string {
         break;
       case "arc":
         if (fields.arc !== undefined) lines.push(`arc: ${fields.arc}`);
+        break;
+      case "depends_on":
+        if (fields.dependsOn !== undefined) {
+          lines.push(`depends_on: [${fields.dependsOn.map((p) => JSON.stringify(p)).join(", ")}]`);
+        }
         break;
       case "amends":
         if (fields.amends.length > 0) lines.push(`amends: [${fields.amends.join(", ")}]`);
@@ -316,6 +389,10 @@ export function adrDocumentFieldsOf(row: Record<string, unknown>): AdrDocumentFi
   const optional: AdrOptionalFields = {};
   if (typeof decided === "string") optional.decided = decided;
   if (arc !== undefined) optional.arc = arc;
+  // KEY PRESENCE decides, not emptiness — the row's `dependsOn` is absent-by-default and never `[]`
+  // unless authored so (ADR-0223), and the document must carry that distinction across or a pull /
+  // push cycle would drop it. `hasDependsOnKey` is the shared reader for exactly this question.
+  if (hasDependsOnKey(row)) optional.dependsOn = readDependsOnPointers(row);
   const fields: AdrDocumentFields = {
     number: typeof row["number"] === "number" ? row["number"] : 0,
     title: typeof row["title"] === "string" ? row["title"] : extractAdrTitle(body),

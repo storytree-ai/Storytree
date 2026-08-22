@@ -46,7 +46,7 @@ async function fixtureWithScaffoldAdr(): Promise<{ root: string; adrFile: string
   const adrFile = "docs/decisions/0059-fixture.md";
   await fs.mkdir(path.join(root, "docs", "decisions"), { recursive: true });
   // The REAL scaffold: status:proposed, `<…>` placeholders, NO decided — a genuine on-disk red.
-  await fs.writeFile(path.join(root, adrFile), scaffold(59, "Fixture gate-as-proof", { supersedes: [], amends: [] }));
+  await fs.writeFile(path.join(root, adrFile), scaffold(59, "Fixture gate-as-proof", { supersedes: [], amends: [], dependsOn: [] }));
   await execFileP("git", ["add", "-A"], { cwd: root });
   await execFileP("git", ["-c", "commit.gpgsign=false", "commit", "-m", "fixture: scaffolded ADR"], {
     cwd: root,

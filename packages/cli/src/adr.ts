@@ -3,6 +3,7 @@ import type { Store } from "@storytree/storage-protocol";
 
 import { defaultCliActor } from "./cli-actor.js";
 
+import { amendsObligationNote } from "./adr-amends-obligation.js";
 import { adrPull, adrPush, type AdrRoundTripDeps } from "./adr-round-trip.js";
 import type { Envelope } from "./envelope.js";
 
@@ -64,6 +65,12 @@ export interface AdrCommandOpts {
   supersedes?: string | undefined;
   amends?: string | undefined;
   /**
+   * `--depends-on 42,43` (ADR-0419 D2): the decisions this one RESTS ON and changes nothing in —
+   * plain support, the edge that replaces an overstated `--amends`. Scaffolded as `depends_on:`
+   * pointers; see {@link AdrScaffoldEdges}.
+   */
+  dependsOn?: string | undefined;
+  /**
    * `--decided` (ADR-0110): the owner DIRECTED this decision in conversation, so scaffold it born
    * `accepted` + `decided: <today>` instead of `proposed` — design-time alignment IS ratification, no
    * second end-of-flow ask. Absent = the born-`proposed` default for a still-thinking ADR (ADR-0050).
@@ -86,7 +93,7 @@ export interface AdrCommandOpts {
 // `question new` derive their ids with the same function `adr new` derives a filename slug with, and
 // they no longer share a building. Re-exported here so every existing `./adr.js` importer is
 // unchanged.
-import { adrDocId, kebabSlug, type AdrDraft } from "@storytree/library";
+import { adrDocId, ASSET_REF_PREFIX, kebabSlug, type AdrDraft } from "@storytree/library";
 export { kebabSlug };
 
 /*
@@ -194,6 +201,21 @@ export function parallelAllocationNote(missing: readonly number[]): ParallelAllo
 }
 
 /**
+ * The edges `adr new` was asked to scaffold — every one a list of DECISION NUMBERS.
+ *
+ * `dependsOn` is numbers here and POINTERS on the row, and the conversion happens in
+ * {@link scaffold}. The flag names decisions because that is the ADR-0419 case: decision rests on
+ * decision. A `dependsOn` naming a non-decision artifact is authored with
+ * `library artifact adr-NNNN --set dependsOn=…` instead, which is the ordinary Library edge surface
+ * and needs no second copy of it here.
+ */
+export interface AdrScaffoldEdges {
+  supersedes: number[];
+  amends: number[];
+  dependsOn: number[];
+}
+
+/**
  * PURE: the scaffold body for a fresh ADR — frontmatter + H1 + the standard sections.
  *
  * Default (no `decided`): born `proposed` (ADR-0050) — the scaffold for a still-thinking ADR, left for
@@ -202,33 +224,70 @@ export function parallelAllocationNote(missing: readonly number[]): ParallelAllo
  * the OWNER-DIRECTED path of ADR-0110 (Option A) — when the owner explicitly directs a decision in a
  * design conversation, alignment IS ratification, so there is no second end-of-flow ratification ask.
  * Amends ADR-0050's unconditionally-born-`proposed` scaffold (the mechanical root of the double-ask).
+ *
+ * ## THE TWO SUPPORT EDGES, AND WHY THE SCAFFOLD IS WHERE THE DISTINCTION HAS TO LAND
+ *
+ * ADR-0419 D2 deprecates `amends` for PLAIN SUPPORT: a decision that rests on another records
+ * `depends_on`, and `amends` is reserved for the narrower claim that something in the target is
+ * narrowed, retired or extended — i.e. that reading the target ALONE is now insufficient. Until
+ * 2026-08-23 the authoring surface offered `--amends` and nothing else, so an author with a plain
+ * support edge either overstated it or wrote nothing; zero of 412 decision rows carried `dependsOn`
+ * while every `process`, `guardrail` and `agent` did. Deprecation is enforced HERE, at the surface
+ * an author actually meets, rather than in a decision body — a rule that lives only in a decision is
+ * subject to the same retrieval failure `decision-read-measurement-arc` exists to measure.
+ *
+ * The migration is by deprecation and never a flag day (ADR-0419 D3): this steers NEW authoring and
+ * touches no existing edge. `--amends` is not removed, not refused, and not gated — ADR-0419 D4's
+ * presence rung stays disabled while 174 pre-existing edges would red it, so the obligation the
+ * placeholder states is DISCIPLINE at this phase.
  */
 export function scaffold(
   n: number,
   title: string,
-  edges: { supersedes: number[]; amends: number[] },
+  edges: AdrScaffoldEdges,
   decided?: string,
   arc?: string,
 ): string {
   const ownerDirected = decided !== undefined && decided !== "";
   const fm = ["---", `status: ${ownerDirected ? "accepted" : "proposed"}`];
   if (ownerDirected) fm.push(`decided: ${decided}`);
+  // PLAIN SUPPORT FIRST (ADR-0419 D1/D2), as pointers — `dependsOn` is the ordinary Library edge and
+  // the row carries pointers, not decision numbers. `adr new --depends-on 403` names decisions, so
+  // this is where the number becomes the `asset:adr-NNNN` the row and the depth walk read.
+  if (edges.dependsOn.length > 0) {
+    // `ASSET_REF_PREFIX + adrDocId(n)`, never the bare id: `DependsOnRef` accepts only
+    // `asset:<id>` / `doc:<relpath>`, so a bare `adr-0403` would fail validation inside
+    // `scaffoldRow` — AFTER the allocator has already spent the number, which is the one failure
+    // shape this verb must not have.
+    const pointers = edges.dependsOn.map((e) => JSON.stringify(`${ASSET_REF_PREFIX}${adrDocId(e)}`));
+    fm.push(`depends_on: [${pointers.join(", ")}]`);
+  }
   if (edges.supersedes.length > 0) fm.push(`supersedes: [${edges.supersedes.join(", ")}]`);
   if (edges.amends.length > 0) fm.push(`amends: [${edges.amends.join(", ")}]`);
   // The ADR-0183 D3 provenance stamp: "arc X produced me" — set at creation, never edited.
   if (arc !== undefined && arc !== "") fm.push(`arc: ${arc}`);
   fm.push("---", "");
-  const edgeProse =
-    edges.supersedes.length > 0 || edges.amends.length > 0
-      ? [
-          edges.supersedes.length > 0
-            ? `**Supersedes** ${edges.supersedes.map((e) => `ADR-${pad(e)}`).join(", ")} — <why; flip their status to superseded>.`
-            : "",
-          edges.amends.length > 0
-            ? `**Amends** ${edges.amends.map((e) => `ADR-${pad(e)}`).join(", ")} — <what this extends/narrows, without overturning>.`
-            : "",
-        ].filter((s) => s !== "")
-      : [];
+  const edgeProse = [
+    edges.supersedes.length > 0
+      ? `**Supersedes** ${edges.supersedes.map((e) => `ADR-${pad(e)}`).join(", ")} — <why; flip their status to superseded>.`
+      : "",
+    // The `amends` placeholder ASKS FOR THE CLAUSE and states the obligation, because this is the
+    // moment the author is deciding which edge to write. ADR-0419 D2 reserves `amends` for the case
+    // where something in the target is narrowed, retired or extended — the case where reading the
+    // target alone becomes insufficient — and ADR-0139 D4 makes writing it owe the target an
+    // in-place annotation. A placeholder that said only "what this extends/narrows" is what let the
+    // edge become a general-purpose support edge in the first place.
+    edges.amends.length > 0
+      ? `**Amends** ${edges.amends.map((e) => `ADR-${pad(e)}`).join(", ")} — <WHICH CLAUSE this ` +
+        `narrows, retires or extends. If nothing in the target moves, this is plain support: use ` +
+        `\`depends_on\` instead (ADR-0419 D2). Writing this edge owes each target an in-place ` +
+        `annotation in the SAME landing (ADR-0139 D4).>`
+      : "",
+    edges.dependsOn.length > 0
+      ? `**Depends on** ${edges.dependsOn.map((e) => `ADR-${pad(e)}`).join(", ")} — <what this rests ` +
+        `on; the target is unchanged and stays readable on its own>.`
+      : "",
+  ].filter((s) => s !== "");
   const statusLine = ownerDirected
     ? `accepted (${decided}) — decided/directed by the owner in conversation on ${decided}. Design-time alignment IS the ratification (ADR-0110); no second end-of-flow ask.`
     : "proposed — <one line: who decided / when / why>.";
@@ -329,7 +388,11 @@ async function adrNew(opts: AdrCommandOpts, deps: AdrCommandDeps): Promise<Envel
   if (!deps.allocator) return needsPg("new");
   const localMax = await storeMaxAdrNumber(deps);
   if (localMax === null) return unreadableLog("new");
-  const edges = { supersedes: parseEdges(opts.supersedes), amends: parseEdges(opts.amends) };
+  const edges: AdrScaffoldEdges = {
+    supersedes: parseEdges(opts.supersedes),
+    amends: parseEdges(opts.amends),
+    dependsOn: parseEdges(opts.dependsOn),
+  };
 
   let n: number;
   {
@@ -381,6 +444,7 @@ async function adrNew(opts: AdrCommandOpts, deps: AdrCommandDeps): Promise<Envel
     "Author it as a whole document — pull it to a file, edit it with ordinary tools, push it back:",
     `  storytree adr pull ${String(n)} --out ${id}.md`,
     `  storytree adr push ${String(n)} --file ${id}.md --pg`,
+    ...amendsObligationNote(edges.amends),
   ];
   const parallel = parallelAllocationNote(parallelAllocations(localMax, n));
   lines.push(...parallel.lines);
@@ -626,6 +690,13 @@ async function scaffoldRow(
     };
     if (fields.decided !== undefined) draft.decided = fields.decided;
     if (fields.arc !== undefined) draft.arcRef = `asset:${fields.arc}`;
+    // ADR-0419 D1's plain support edge. This row is built FIELD BY FIELD rather than spread from
+    // the parsed document, so a field not named here is a field the scaffold silently drops — the
+    // command reports `ok: true` and the edge exists nowhere. Absent stays absent (the scaffold
+    // emits no key without `--depends-on`), which is what keeps "carries no authored edge"
+    // distinct from "authored, and rests on nothing" (ADR-0223) — and the guarded assignment
+    // preserves that distinction exactly as the conditional spread did.
+    if (fields.dependsOn !== undefined) draft.dependsOn = [...fields.dependsOn];
     const doc = upcastAndValidate(draft);
     // REFUSE rather than upsert over an occupied id. `newArtifact` (the generic verb) has always
     // done this; `adr new` used to get it from `existsSync(file)`, and that guard went with the
@@ -760,7 +831,8 @@ export function adrHelp(): Envelope {
       "storytree adr — search the decision log + allocate ADR numbers without collisions (ADR-0050/0086).",
       "",
       "  storytree adr list [--current | --load-bearing | --status <s>]   the searchable current-state view",
-      '  storytree adr new --title "..." [--decided] [--supersedes 42] [--amends 42,43] [--arc <id>] --pg   reserve + scaffold',
+      '  storytree adr new --title "..." [--decided] [--depends-on 42,43] [--amends 42] [--supersedes 42] [--arc <id>] --pg',
+      "                                                                          reserve + scaffold",
       "  storytree adr next --pg                                                  reserve a number only",
       "",
       "  storytree adr pull <n> --out <path>                the decision as an ordinary markdown document",
@@ -775,6 +847,23 @@ export function adrHelp(): Envelope {
       "  last-write-wins with no detector. For a targeted change prefer the field-scoped",
       "  `storytree library artifact adr-NNNN --set <field>=<value> --pg` (ADR-0352); reach for the round",
       "  trip when you are genuinely rewriting the prose.",
+      "",
+      "THE TWO SUPPORT EDGES (ADR-0419 D1/D2) — pick by asking whether anything in the TARGET moves:",
+      "  --depends-on <n,…>  this decision RESTS ON those and changes nothing in them. The DEFAULT for",
+      "                      support. Scaffolded as `depends_on: [\"asset:adr-NNNN\"]`; the depth walk",
+      "                      traverses it alongside `amends`, and it never promotes a target into the",
+      "                      `--load-bearing` set.",
+      "  --amends <n,…>      RESERVED for the narrower claim: something in the target is narrowed,",
+      "                      retired or extended, so reading the target ALONE is now insufficient.",
+      "                      Writing it owes each target an in-place annotation naming the clause that",
+      "                      moved, in the SAME landing (ADR-0139 D4). If nothing in the target moves,",
+      "                      this overstates the edge — use --depends-on.",
+      "  --supersedes <n,…>  this REPLACED them; flip their status to superseded. Not support at all,",
+      "                      and never summed with either edge above (ADR-0403 dec 6).",
+      "",
+      "  A `dependsOn` naming something other than a decision (a Library artifact, a repository file)",
+      "  is the ordinary Library edge — author it with",
+      "  `storytree library artifact adr-NNNN --set dependsOn='[\"asset:…\"]' --pg`.",
       "",
       "  --decided   the owner DIRECTED this in conversation → scaffold born `accepted` + `decided: <today>`",
       "              (design-time alignment IS ratification, no second end-of-flow ask; ADR-0110). Omit it",

@@ -1461,6 +1461,10 @@ export type Adr = z.infer<typeof Adr>;
 export interface AdrDraft extends z.input<typeof Adr> {
   /** The decision document itself — required by `KIND_SPECS.adr`, invisible to `z.input`. */
   body: string;
+  /** ADR-0419 D1's plain support edge. Erased by the SAME mechanism as `body`: `buildKindSchema`
+   *  spreads `edgeShape` from a `Record<string, z.ZodTypeAny>` too. Optional — absent stays absent,
+   *  which is what keeps "carries no authored edge" distinct from "authored, rests on nothing". */
+  dependsOn?: string[];
 }
 
 /**

@@ -444,3 +444,144 @@ test("decision-walk-vacuity-does-not-fire-once-dependsOn-carries-the-support-gra
   const stuck = withDecisions(reached, [adr(419), adr(403), ...padDecisions]);
   assert.match(decisionWalkVacuity(stuck).join(" "), /0 resolvable `amends` edges and 0 resolvable/);
 });
+
+// ---------------------------------------------------------------------------------------------
+// `-inc-08` — THE ARTIFACT HALF RESOLVES `asset:adr-NNNN` AS A DECISION POINTER TOO
+// ---------------------------------------------------------------------------------------------
+// `decision-read-measurement-arc` increment 08, fixing a defect ADR-0419 D1's increment found and
+// deliberately left alone. The artifact half tried `parseCiteRef` FIRST, so the third live spelling
+// — `asset:adr-NNNN`, ADR-0403 dec 1's — was claimed as an ordinary artifact pointer and never
+// reached `parseDecisionPointer`. The decision half parsed the decision pointer first and resolved
+// all three. The two halves disagreed about the SAME pointer.
+//
+// IT FAILED IN TWO SHAPES, AND BOTH ARE PINNED BELOW, because which one takes is decided by the
+// CALLER's node set rather than by anything in the walk:
+//
+//   • twin PRESENT — `probe:depth-from-work` passes every stored row, and the live corpus holds 413
+//     `adr-NNNN` artifact rows. The pointer resolved onto that twin, which carries none of the
+//     decision's edges (0 of 413 carry `dependsOn`), so the chain stopped one hop in with NO counter
+//     moving at all. This is the shape the live corpus was actually in, and the quiet one.
+//   • twin ABSENT — a caller that filters decisions out counted it as `danglingTargets`.
+//
+// Both make chains read SHORTER than they are. A test that cannot tell resolved from dangling is the
+// fault class this arc has already hit twice, so each test below asserts the POSITIVE (which node id
+// was reached, at what depth, on which counter) and not merely that a total moved.
+
+/** A decision's ARTIFACT twin — the `adr-NNNN` row ADR-0403 dec 1 mints, as the live corpus holds it. */
+function adrTwinRow(decisionNumber: number): DepthFromWorkSource {
+  const id = `adr-${String(decisionNumber).padStart(4, "0")}`;
+  // Deliberately edge-less: 0 of the live corpus's 413 decision rows carry `dependsOn`, which is
+  // exactly why landing on the twin is a dead end rather than a detour.
+  return { id, doc: { kind: "adr", id } };
+}
+
+test("depth-from-work-resolves-an-artifacts-asset-adr-pointer-as-a-decision: the twin is not the target", () => {
+  // THE LIVE SHAPE. The decision is present BOTH ways — as `decision:0419` through the resolver and
+  // as the `adr-0419` artifact row — and the pointer must land on the one carrying the edges.
+  const verdict = withDecisions(
+    [
+      row("anchor", { cites: ["story:library", "asset:guidance"] }),
+      row("guidance", { dependsOn: ["asset:adr-0419"] }),
+      adrTwinRow(419),
+    ],
+    [adrSupporting(419, ["doc:decisions/0403-a-title.md"]), adr(403, [223]), adr(223)],
+  );
+
+  assert.equal(verdict.depthById.get("guidance"), 1);
+  assert.equal(verdict.depthById.get("decision:0419"), 2, "the decision node, NOT the artifact twin");
+  assert.equal(verdict.depthById.get("decision:0403"), 3, "and the chain CONTINUES past it …");
+  assert.equal(verdict.depthById.get("decision:0223"), 4, "… on both support edges, as ever");
+  assert.equal(verdict.maxDepth, 4);
+  assert.equal(verdict.decisionEdges, 1, "counted as the artifact-to-decision join it is");
+  assert.equal(verdict.danglingTargets, 0, "and never as a dangling artifact pointer");
+  assert.equal(
+    verdict.depthById.has("adr-0419"),
+    false,
+    "the edge-less twin is not reached, and is honestly unreachable rather than a silent dead end",
+  );
+  // THE MUTATION GUARD. With `parseCiteRef` first the pointer lands on `adr-0419` at depth 1, the
+  // decision chain is never entered, and `danglingTargets` still reads a plausible zero — so the
+  // depth assertions are the only thing that can tell the two readings apart. Pinned as arithmetic
+  // so the failure names the bias rather than an opaque number: 4 hops against the pre-fix 1.
+  assert.ok(verdict.maxDepth > 1, "the pre-fix reading stopped at the twin, three hops short");
+});
+
+test("depth-from-work-counts-an-asset-adr-pointer-at-no-held-decision as decision-dangling, not artifact-dangling", () => {
+  // THE OTHER SHAPE: a caller that filters decision rows out of `nodes` — which the end-to-end tests
+  // in `@storytree/drive` do, and which is how the defect was first described. The pointer used to
+  // land on `danglingTargets`, inflating the one counter `-inc-02` reads as "pointers at nothing".
+  const verdict = withDecisions(
+    [
+      row("anchor", { cites: ["story:library", "asset:guidance"] }),
+      row("guidance", { dependsOn: ["asset:adr-9999", "asset:no-such-artifact"] }),
+    ],
+    [adr(419)],
+  );
+
+  assert.equal(verdict.decisionDanglingTargets, 1, "0-9999 IS a decision pointer, at nothing held");
+  assert.equal(verdict.danglingTargets, 1, "and ONLY the genuine artifact miss is counted here");
+  assert.equal(verdict.decisionEdges, 0);
+  assert.equal(verdict.bedrockTargets, 0, "neither is bedrock — both were parsed and classified");
+});
+
+test("depth-from-work-resolves-an-asset-adr-pointer-in-cites: where the corpus actually carries it", () => {
+  // ALL EIGHT live `asset:adr-NNNN` pointers sit in `cites`, not `dependsOn` — an increment naming
+  // the decision that governs it (measured against the live store, 2026-08-23). The `cites` loop had
+  // the identical precedence bug, and fixing only `dependsOn` would have left every live instance
+  // unfixed while the tests read green.
+  const verdict = withDecisions(
+    [row("increment", { cites: ["story:library", "asset:adr-0419"] }), adrTwinRow(419)],
+    [adrSupporting(419, ["doc:decisions/0403-a-title.md"]), adr(403)],
+  );
+
+  assert.equal(verdict.anchors, 1, "the story: cite still makes it an anchor");
+  assert.equal(verdict.anchorEdges, 1, "and the decision pointer is still a way OUT of the seed");
+  assert.equal(verdict.depthById.get("increment"), 0);
+  assert.equal(verdict.depthById.get("decision:0419"), 1, "reached from `cites`, not from the twin");
+  assert.equal(verdict.depthById.get("decision:0403"), 2, "and the chain continues");
+  assert.equal(verdict.decisionEdges, 1);
+  assert.equal(verdict.danglingTargets, 0);
+  assert.equal(verdict.depthById.has("adr-0419"), false, "the twin is still not the target");
+});
+
+test("depth-from-work-agrees-with-itself-across-all-three-spellings: the two halves cannot diverge again", () => {
+  // THE DISAGREEMENT ITSELF, AS AN ASSERTION. Three artifacts, one spelling each, at three
+  // decisions that are otherwise identical — so any spelling the artifact half stops resolving
+  // shows up as one missing depth rather than as a shifted total.
+  const verdict = withDecisions(
+    [
+      row("anchor", { cites: ["story:library", "asset:bare", "asset:prefixed", "asset:row"] }),
+      row("bare", { dependsOn: ["doc:decisions/0223-a-title.md"] }),
+      row("prefixed", { dependsOn: ["doc:docs/decisions/0139-a-title.md"] }),
+      row("row", { dependsOn: ["asset:adr-0403"] }),
+      adrTwinRow(403),
+    ],
+    [adr(223), adr(139), adr(403)],
+  );
+
+  assert.equal(verdict.decisionEdges, 3, "all three spellings, or the number is a lie");
+  assert.equal(verdict.depthById.get("decision:0223"), 2);
+  assert.equal(verdict.depthById.get("decision:0139"), 2);
+  assert.equal(verdict.depthById.get("decision:0403"), 2, "the spelling that used to be dropped");
+  assert.equal(verdict.decisionsReached, 3);
+  assert.equal(verdict.danglingTargets, 0);
+});
+
+test("depth-from-work-without-a-resolver-still-reads-an-asset-adr-pointer-as-an-ordinary-artifact-one", () => {
+  // THE FENCE, AND THE LIMIT OF THIS FIX. Passing no resolver mints no decision nodes, so there is
+  // nothing for the pointer to land on and it stays what it has always been: an `asset:` pointer at
+  // an ordinary artifact row. The studio panel takes this path (`traversal-panel-arc` is parked and
+  // its owner LOOK is fenced), so a change here would move a surface nobody decided to move.
+  const rows = [
+    row("anchor", { cites: ["story:library", "asset:guidance"] }),
+    row("guidance", { dependsOn: ["asset:adr-0419"] }),
+    adrTwinRow(419),
+  ];
+  const sink = evaluateDepthFromWork(depthFromWorkNodes(rows));
+
+  assert.equal(sink.depthById.get("adr-0419"), 2, "the twin IS the target when there is no other");
+  assert.equal(sink.depthById.has("decision:0419"), false);
+  assert.equal(sink.decisionEdges, 0);
+  assert.equal(sink.danglingTargets, 0);
+  assert.equal(sink.bedrockTargets, 0, "an `asset:` pointer at a row that exists is not bedrock");
+});

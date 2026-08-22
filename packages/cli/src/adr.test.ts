@@ -16,6 +16,7 @@ import {
   type AdrAllocatorLike,
   type AdrCommandDeps,
 } from "./adr.js";
+import { amendsObligationNote } from "./adr-amends-obligation.js";
 import type { AdrMeta } from "@storytree/drive";
 // The `decided:` date is stamped at the COMPOSITION ROOT, so its proof drives `run` end to end —
 // `adrCommand` only ever sees an already-injected `today`.
@@ -39,14 +40,14 @@ test("parseEdges parses comma/space lists of positive ints, dropping junk", () =
 });
 
 test("scaffold emits proposed frontmatter + H1 + sections, with optional edges", () => {
-  const plain = scaffold(50, "Do the thing", { supersedes: [], amends: [] });
+  const plain = scaffold(50, "Do the thing", { supersedes: [], amends: [], dependsOn: [] });
   assert.match(plain, /^---\nstatus: proposed\n---\n/);
   assert.match(plain, /# ADR-0050: Do the thing/);
   assert.match(plain, /## Status/);
   assert.match(plain, /## Decision/);
   assert.doesNotMatch(plain, /supersedes:/);
 
-  const edged = scaffold(51, "Edged", { supersedes: [42], amends: [7, 8] });
+  const edged = scaffold(51, "Edged", { supersedes: [42], amends: [7, 8], dependsOn: [] });
   assert.match(edged, /supersedes: \[42\]/);
   assert.match(edged, /amends: \[7, 8\]/);
   assert.match(edged, /\*\*Supersedes\*\* ADR-0042/);
@@ -54,7 +55,7 @@ test("scaffold emits proposed frontmatter + H1 + sections, with optional edges",
 });
 
 test("scaffold owner-directed (decided date) is born accepted with decided frontmatter + Status prose (ADR-0110)", () => {
-  const directed = scaffold(110, "Owner directed it", { supersedes: [], amends: [] }, "2026-06-26");
+  const directed = scaffold(110, "Owner directed it", { supersedes: [], amends: [], dependsOn: [] }, "2026-06-26");
   // Frontmatter: accepted + a decided date (NOT the proposed default).
   assert.match(directed, /^---\nstatus: accepted\ndecided: 2026-06-26\n---\n/);
   assert.doesNotMatch(directed, /status: proposed/);
@@ -64,15 +65,15 @@ test("scaffold owner-directed (decided date) is born accepted with decided front
   assert.doesNotMatch(directed, /<one line: who decided/); // the proposed placeholder is gone
 
   // Owner-directed still carries edges when present (the date is orthogonal to supersession).
-  const directedEdged = scaffold(111, "Directed + edged", { supersedes: [50], amends: [] }, "2026-06-26");
+  const directedEdged = scaffold(111, "Directed + edged", { supersedes: [50], amends: [], dependsOn: [] }, "2026-06-26");
   assert.match(directedEdged, /status: accepted\ndecided: 2026-06-26\nsupersedes: \[50\]/);
 
   // Default (no date) stays born-proposed with NO decided line — the still-thinking ADR (ADR-0050).
-  const proposed = scaffold(112, "Still thinking", { supersedes: [], amends: [] });
+  const proposed = scaffold(112, "Still thinking", { supersedes: [], amends: [], dependsOn: [] });
   assert.match(proposed, /^---\nstatus: proposed\n---\n/);
   assert.doesNotMatch(proposed, /decided:/);
   // An empty-string date is treated as absent (defensive) — still proposed.
-  assert.match(scaffold(113, "Empty", { supersedes: [], amends: [] }, ""), /^---\nstatus: proposed\n---\n/);
+  assert.match(scaffold(113, "Empty", { supersedes: [], amends: [], dependsOn: [] }, ""), /^---\nstatus: proposed\n---\n/);
 });
 
 // ---- adr list (the searchable current-state view, ADR-0086) --------------------------------
@@ -656,15 +657,15 @@ test("adr help (no sub) and an unknown sub both return guidance", async () => {
 });
 
 test("scaffold stamps arc provenance (ADR-0183 D3) only when given", () => {
-  const stamped = scaffold(183, "Arc-born decision", { supersedes: [], amends: [] }, undefined, "map-pathways-arc");
+  const stamped = scaffold(183, "Arc-born decision", { supersedes: [], amends: [], dependsOn: [] }, undefined, "map-pathways-arc");
   assert.match(stamped, /^---\nstatus: proposed\narc: map-pathways-arc\n---\n/);
 
   // Composes with --decided: the stamp rides after the edges, inside the frontmatter block.
-  const directed = scaffold(184, "Directed + arc", { supersedes: [], amends: [7] }, "2026-07-11", "map-pathways-arc");
+  const directed = scaffold(184, "Directed + arc", { supersedes: [], amends: [7], dependsOn: [] }, "2026-07-11", "map-pathways-arc");
   assert.match(directed, /status: accepted\ndecided: 2026-07-11\namends: \[7\]\narc: map-pathways-arc\n---\n/);
 
   // Unstamped stays exactly as before — no arc key at all.
-  assert.doesNotMatch(scaffold(185, "Arc-less", { supersedes: [], amends: [] }), /arc:/);
+  assert.doesNotMatch(scaffold(185, "Arc-less", { supersedes: [], amends: [], dependsOn: [] }), /arc:/);
 });
 
 // ---- the `decided:` stamp is the OWNER's local date (proposal
@@ -806,4 +807,96 @@ test("adr new --arc accepts a real arc id: the pre-flight guard is a guard, not 
   assert.equal(seen.length, 1, "a valid arc id still reserves");
   const row = (await store.getDoc("adr-0405"))?.doc as Record<string, unknown>;
   assert.equal(row["arcRef"], "asset:decision-log-readers-arc", "and the stamp lands on the row");
+});
+
+// ---- ADR-0419 D2: the authoring surface steers support to `depends_on` -----------------------
+
+test("scaffold records plain support as depends_on pointers, alongside amends (ADR-0419 D1/D2)", () => {
+  // The whole reason this flag exists: until 2026-08-23 the surface offered `--amends` and nothing
+  // else for support, so an author whose decision merely RESTED on another either overstated the
+  // claim or wrote no edge at all — zero of 412 decision rows carried `dependsOn` while every
+  // `process`, `guardrail` and `agent` did.
+  const supported = scaffold(419, "Support", { supersedes: [], amends: [], dependsOn: [403, 139] });
+  // POINTERS on the row, numbers on the flag — `dependsOn` is the ordinary Library edge and may name
+  // any artifact, where `amends` is a list of decision numbers on the `adr` schema alone.
+  assert.match(supported, /depends_on: \["asset:adr-0403", "asset:adr-0139"\]/);
+  assert.match(supported, /\*\*Depends on\*\* ADR-0403, ADR-0139/);
+  assert.doesNotMatch(supported, /amends:/, "plain support never writes the amends edge");
+
+  // Both edges on one decision are recorded APART, never summed (ADR-0403 dec 6, untouched by 0419).
+  const both = scaffold(420, "Both", { supersedes: [], amends: [7], dependsOn: [403] });
+  assert.match(both, /depends_on: \["asset:adr-0403"\]\namends: \[7\]/);
+
+  // Absent by default: a decision with no support edge carries no key, which is what
+  // `decisionsCarryingDependsOn` distinguishes from an authored empty one.
+  assert.doesNotMatch(scaffold(421, "None", { supersedes: [], amends: [], dependsOn: [] }), /depends_on/);
+});
+
+test("scaffold's amends placeholder asks for the CLAUSE and names the depends_on alternative", () => {
+  // The placeholder is the moment the author chooses the edge. The old wording ("what this
+  // extends/narrows") described the body text and never asked whether the edge was warranted at all,
+  // which is how `amends` became a general-purpose support edge.
+  const amended = scaffold(419, "Amender", { supersedes: [], amends: [139], dependsOn: [] });
+  assert.match(amended, /\*\*Amends\*\* ADR-0139 — <WHICH CLAUSE this narrows, retires or extends/);
+  assert.match(amended, /use `depends_on` instead \(ADR-0419 D2\)/);
+  assert.match(amended, /in-place annotation in the SAME landing \(ADR-0139 D4\)/);
+});
+
+test("amendsObligationNote fires only on an amends edge, and names both what is owed and the alternative", () => {
+  // Empty is SILENT: an author who wrote no `amends` edge owes nothing, and a note that always fired
+  // would be noise the next author learns to skip.
+  assert.deepEqual(amendsObligationNote([]), []);
+
+  const note = amendsObligationNote([139, 403]).join("\n");
+  assert.match(note, /ADR-0139, ADR-0403/);
+  // (1) the obligation, with the command for EACH target — annotation is partitioned by target.
+  assert.match(note, /ANNOTATE EACH TARGET IN PLACE, in THIS landing/);
+  assert.match(note, /storytree adr pull 139 --out adr-0139\.md/);
+  assert.match(note, /storytree adr pull 403 --out adr-0403\.md/);
+  // (2) the alternative — telling an author the edge is wrong without saying where the right one
+  // lives reproduces the silence that left the support graph undercounted in the first place.
+  assert.match(note, /record\s+it as `depends_on` instead/);
+  // It is a NOTE, not a refusal: ADR-0419 D4's presence rung is deliberately unwired while 174
+  // pre-existing edges would red it, so nothing here may read as a gate.
+  assert.doesNotMatch(note, /refus|REFUS|cannot|not allowed/);
+});
+
+test("adr new --depends-on lands a VALIDATED pointer on the row, all the way through the CLI", async () => {
+  // The end-to-end leg, and it is not ceremony. The scaffold emits frontmatter and the first thing
+  // that VALIDATES it is `upcastAndValidate` inside `scaffoldRow` — which runs AFTER `allocate`. A
+  // pointer the `adr` schema refuses therefore reports "ADR-NNNN was RESERVED but the decision was
+  // not written", and reservation is transactional and does not roll back: the number is spent
+  // forever. A unit test over `scaffold` alone cannot see that, because it never reaches the schema.
+  // This test caught exactly that shape — a bare `adr-0403` where `DependsOnRef` wants `asset:`.
+  const { allocator, seen } = fakeAllocator(419);
+  const store = new InMemoryStore();
+  const env = await run(
+    ["adr", "new", "--title", "Rests on others", "--depends-on", "403,139", "--pg"],
+    { store, adr: allocator, writable: true },
+  );
+
+  assert.equal(env.ok, true, env.body);
+  assert.doesNotMatch(env.body, /RESERVED but the decision was not written/);
+  assert.equal(seen.length, 1);
+  const row = (await store.getDoc("adr-0419"))?.doc as Record<string, unknown>;
+  assert.deepEqual(row["dependsOn"], ["asset:adr-0403", "asset:adr-0139"]);
+  assert.deepEqual(row["amends"], [], "plain support never becomes an amends edge");
+  // No `amends` edge was written, so the author is owed no annotation note.
+  assert.doesNotMatch(env.body, /ANNOTATE EACH TARGET/);
+});
+
+test("adr new --amends prints the annotation obligation at the moment the edge is written", async () => {
+  const { allocator } = fakeAllocator(420);
+  const store = new InMemoryStore();
+  const env = await run(
+    ["adr", "new", "--title", "Narrows a clause", "--amends", "139", "--pg"],
+    { store, adr: allocator, writable: true },
+  );
+
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /ANNOTATE EACH TARGET IN PLACE, in THIS landing/);
+  assert.match(env.body, /storytree adr pull 139 --out adr-0139\.md/);
+  assert.match(env.body, /record\s+it as `depends_on` instead/);
+  // It steers; it does not gate. The decision was written either way.
+  assert.deepEqual(((await store.getDoc("adr-0420"))?.doc as Record<string, unknown>)["amends"], [139]);
 });
