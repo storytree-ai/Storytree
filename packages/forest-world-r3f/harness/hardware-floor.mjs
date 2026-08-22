@@ -32,6 +32,8 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { cadenceNoiseFloorMs, describeCadence } from './cadence-verdict.js';
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = join(HERE, '../../../docs/research/chapter2-live-render-2026-08-19');
 const BASE = process.env['ST_HARNESS_BASE'] ?? 'http://localhost:5184';
@@ -211,11 +213,22 @@ await page.screenshot({ path: join(OUT, 'hardware-floor-page.png') });
 // picked to make the answer come out. The controls make that unnecessary: the empty-scene rung
 // and the blank page between them say what this metric reads when nothing is being drawn, and
 // that IS the noise floor. Anything under it is not a measurement of the scene.
+//
+// The PROSE that reports what the cadence did is derived the same way, in `cadence-verdict.ts`,
+// and that is a correction rather than a flourish: this field was once a hard-coded sentence
+// claiming the 0-plant rung's p95 was HIGHER than the island rung's, when in the very run that
+// wrote it the two were equal. Every computed number in this report held up; the only untrue
+// statement was the one typed by hand where no instrument could check it.
 const BUDGET_60HZ = 16.7;
-const emptyRung = readings.find((r) => r.plants === 0);
-const cadenceNoiseFloor = Math.max(controlBlank.p95, emptyRung ? emptyRung.rafP95 : 0);
+const ISLAND_PLANTS = 171;
+const cadenceInput = {
+  sweep: readings,
+  blankPage: controlBlank,
+  islandPlants: ISLAND_PLANTS,
+};
+const cadenceNoiseFloor = cadenceNoiseFloorMs(cadenceInput);
 
-const island = readings.find((r) => r.plants === 171);
+const island = readings.find((r) => r.plants === ISLAND_PLANTS);
 const headroomAtIsland = island ? BUDGET_60HZ / island.gpuMsPerFrame : null;
 
 // Where the GPU-bound cost would reach a whole frame, extrapolated from the heaviest rung.
@@ -246,15 +259,12 @@ const report = {
   },
   sweep: readings,
   verdict: {
-    realCorpusIslandPlants: 171,
+    realCorpusIslandPlants: ISLAND_PLANTS,
     gpuMsPerFrameAtIsland: island ? island.gpuMsPerFrame : null,
     headroomAtIslandVs60Hz: headroomAtIsland,
     plantsAtWhichOneFrameIsSpent: plantsAtFullFrame,
     cadenceNoiseFloorMs: cadenceNoiseFloor,
-    cadenceIsUninformative:
-      "Every rung's rafP50 is the display interval, and the 0-plant rung's rafP95 is HIGHER " +
-      "than the 171-plant rung's. Read gpuMsPerFrame, not the cadence: the cadence can only " +
-      "ever show 60 Hz being MISSED, never how much room is left.",
+    cadenceIsUninformative: describeCadence(cadenceInput),
     caveats: [
       'MEASUREMENT FLOOR: the 0-plant rung costs about as much as the 50-plant rung, so ' +
         "readings below ~0.5 ms/frame are at this instrument's noise floor and should not be " +

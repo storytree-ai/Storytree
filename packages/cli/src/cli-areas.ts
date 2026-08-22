@@ -81,6 +81,12 @@ export const CLI_AREAS = [
   // backgrounded job's verdict ONCE, and report RUNNING / UNVERIFIED as non-verdicts rather than
   // folding them into a pass. Read-only, offline, no store.
   "dispatch",
+  // `storytree lint-panel packet` — assemble a BLIND, CONTROLLED judge-panel packet for a contested
+  // lint rule (`anti-slop-adoption-arc`, ADR-0407 D3). Offline, disk only, no store: it renders
+  // briefs and an operator-only answer key, and refuses a packet missing any property that makes a
+  // panel an instrument rather than a ritual. Convening the judges is the operator's, and so is
+  // recording what it cost.
+  "lint-panel",
 ] as const;
 
 export type CliArea = (typeof CLI_AREAS)[number];

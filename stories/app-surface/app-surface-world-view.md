@@ -20,6 +20,15 @@ proof:
   scope:
     testGlobs: ["packages/app-surface/src/WorldSceneView.test.tsx"]
     sourceGlobs: ["packages/app-surface/src/WorldSceneView.tsx"]
+  # ADR-0353 — the READ-ONLY coverage surface: where THIS capability's contract tests actually live.
+  # The `real:` arm below is the WRITE fence for the one net-new wrapper leaf (WorldSceneView), which
+  # is why contract 4 — the §5 honesty wall on the ALREADY-RELOCATED shared `SceneView` this wrapper
+  # delegates to — cannot live inside it. `SceneView.test.tsx` is part of the 103 green package tests
+  # the `proofCommand` above already reruns as regression evidence; this block is only what lets the
+  # sweep LOOK there. Declaring it widens the aperture; it moves no write fence and adds no leaf.
+  coverage:
+    testGlobs:
+      - "packages/app-surface/src/SceneView.test.tsx"
   real:
     testFile: "packages/app-surface/src/WorldSceneView.test.tsx"
     sourceFile: "packages/app-surface/src/WorldSceneView.tsx"
@@ -91,7 +100,7 @@ One compact `WorldSceneView.test.tsx` proves the missing seam:
    import. The package proof command then observes the existing 103 renderer/sprite/sizing/trail
    tests still green.
 
-## Contracts
+## Contracts (4)
 
 1. **`aswv-equal-plain-inputs-normalize-deterministically`**
    - **asserts —** equal scene/model inputs normalize to deeply equal output; selected/emphasized
@@ -102,3 +111,41 @@ One compact `WorldSceneView.test.tsx` proves the missing seam:
 3. **`aswv-wrapper-has-no-private-or-live-authority`**
    - **asserts —** `WorldSceneView.tsx` imports no Studio-private module or network/store/
      subscription/clock authority and contains no duplicate scene/sprite/trail renderer.
+4. **`aswv-claim-wisp-never-painted-as-proven-green`** — the shared `SceneView` this wrapper delegates
+   to never paints a CLAIM as the proven-green bloom: no bloom or verdict class reaches any claim-family
+   wisp, in any grade, on departure, or under a green build band (the ADR-0138 §5 honesty wall, at the
+   rendered-DOM tier)
+   - **asserts —** rendering through the real `SceneView` and querying the produced DOM, in three
+     directions. **(a) Class-level:** a `proving` claim renders `.world-claim-wisp.state-proving` which
+     itself carries neither `world-bloom` nor `verdict-pass`, and whose subtree contains no
+     `.world-bloom`, no `.bloom-ring` / `.bloom-spark` / `.bloom-crown` / `.bloom-plant`, and no
+     `.verdict-pass` — `proving` being the at-risk in-flight hue that must not read as the proven-green
+     bloom (ADR-0045). **(b) Under a GREEN band (ADR-0212):** a `work` claim folded with phase `GATE`
+     renders `.world-claim-wisp.band-green` that STILL carries `state-proving` (the intent hue survives;
+     green is expressed as motion, never as colour), whose own class attribute matches neither `bloom`
+     nor `verdict`, and whose subtree holds no `.world-bloom` and no `[class*="verdict-"]`. **(c) Across
+     the whole claim family (ADR-0200 D7):** the hover (`exploring`), queue (`waiting`) and departing
+     wisps each carry neither `world-bloom` nor `verdict-pass`, and the hover and departing subtrees
+     hold no bloom-part class. One-directional by design: the CONVERSE (a bloom reaching for claim
+     styling) is not this contract's claim and remains uncovered here.
+   - **covers —** `packages/app-surface/src/SceneView.tsx` (the claim / hover / queue / departing wisp
+     renderers) — the already-relocated shared renderer this capability's wrapper delegates to, not the
+     wrapper itself.
+   - **proven by —** `packages/app-surface/src/SceneView.test.tsx` — three tests, one per direction:
+     *"§5 HONESTY WALL: a claim wisp is NEVER painted as the proven-green bloom (class-level)"*,
+     *"ADR-0212 honesty wall: a GREEN build band never paints the claim body as a proof"*, and
+     *"§5 HONESTY WALL extended: hover / queue / departing wisps never carry bloom/verdict classes
+     (ADR-0200 D7)"*. All three sit in the 103 already-green package tests the declared
+     `pnpm --filter @storytree/app-surface test` command reruns, and are reached by the ADR-0353 sweep
+     via the `proof.coverage.testGlobs` surface declared above, since the `real:` arm's write fence is
+     the net-new `WorldSceneView` leaf.
+   - **note — declared for CITATION, on the capability that already stands for the shared renderer.**
+     This contract exists so a lower-tier citation of the wall (the ADR-0294 D2 deletion of
+     `wisp-as-story-claim#uat-7`) can name a contract id instead of a free-form test title. It is
+     declared here because this story already treats `app-surface-world-view` as the node standing for
+     the relocated shared `SceneView` — the story's own legacy-UAT table routes `SceneView.test.tsx`
+     under this capability — and because no other `app-surface` capability owns the renderer (the three
+     that name `SceneView.test.tsx` in their globs own the organic-growth tracks and the SVG land, not
+     the claim layer). It adds no leaf and moves no write fence: the tests are standing, green, and
+     older than this declaration. Unlike contracts 1–3 it carries `covers —` / `proven by —` bullets,
+     the render-core house shape, because a citation is only resolvable if the binding is written down.

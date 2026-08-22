@@ -107,6 +107,14 @@ export const LITERAL_FLAGS: ReadonlySet<string> = new Set([
   // into an artifact, so neither can corrupt a durable record.
   "out",
   "field",
+  // `lint-panel packet --spec <path> --report <path> --out-dir <dir>` (anti-slop-adoption-arc
+  // inc-04): three filesystem paths the command reads or writes. None is stored into an artifact,
+  // a verdict or a ledger row, so none can corrupt a durable record — and the panel spec's own
+  // long prose (the rule statements, the controls' expected answers) already lives INSIDE the spec
+  // file, which is exactly the problem `@path` exists to solve, solved one level up.
+  "spec",
+  "report",
+  "out-dir",
   "decided-date",
   // `library query --kind <k> --where <field><op><value>` (`tool-signal-gaps-arc`) — a kind name and
   // a predicate EXPRESSION. Neither is ever stored into an artifact, and a `@` inside a `--where`

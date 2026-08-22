@@ -41,6 +41,9 @@ import { fileURLToPath } from 'node:url';
 // from. A capture script holding its own copy of the palette would only ever prove that
 // the two copies agree.
 import { landPalette } from './palette-band.js';
+// Which section becomes which evidence file. Pure, and proved in `capture-panels.test.ts` —
+// a driver holding its own copy of that rule is how the positional zip survived unnoticed.
+import { PANEL_ID_ATTRIBUTE, parseRequestedPanels, planPanelCaptures } from './capture-panels.js';
 // ...and the SHADOW half from the module that derives the shadow rung, for the same reason.
 // The authored palette a shadowed land may emit is the closure over the shadow LADDER, so
 // checking delivered pixels against `landPalette()` alone would condemn every shadowed pixel
@@ -304,19 +307,32 @@ await page.screenshot({
   fullPage: true,
 });
 
+// PANEL FILENAMES BIND TO THE SECTION'S AUTHORED `data-st-panel`, never to its position.
+//
+// This used to zip `ST_PANEL_NAMES` against `page.$$('section')` by index, so inserting a
+// section silently re-pointed every later filename at a different picture and the run still
+// exited 0 (friction `capture-panel-names-bind-to-section-order`, measured on the island page
+// 2026-08-20). The resolver lives in `capture-panels.ts` because it is pure and therefore
+// provable under `node:test` without a browser; all this block does is read the attribute off
+// the DOM and print the refusal. `ST_PANEL_NAMES` unset now means EVERY authored panel, which
+// is the shape that cannot go stale.
 const sections = await page.$$('section');
-const names = (process.env['ST_PANEL_NAMES'] ?? 'delivered-size,zoom-ladder,magnified,detail-ladder,status-tokens').split(',');
-for (let i = 0; i < sections.length && i < names.length; i++) {
-  await sections[i].screenshot({ path: join(OUT, `panel-${names[i]}.png`) });
+const sectionIds = [];
+for (const [index, section] of sections.entries()) {
+  sectionIds.push({ index, id: await section.getAttribute(PANEL_ID_ATTRIBUTE) });
+}
+const panelPlan = planPanelCaptures(sectionIds, parseRequestedPanels(process.env['ST_PANEL_NAMES']));
+if (!panelPlan.ok) fail(`panel capture: ${panelPlan.refusal}`);
+for (const capture of panelPlan.captures) {
+  await sections[capture.index].screenshot({ path: join(OUT, capture.file) });
 }
 
 // ONE FILE PER NAMED CANVAS, found by `data-st-tag` rather than by position.
 //
-// SECTION FILENAMES BIND TO SECTION ORDER, which is a live trap rather than a theoretical
-// one (friction `capture-panel-names-bind-to-section-order`): inserting a section silently
-// re-points every later filename at a different picture and the run still exits 0. A TAG
-// cannot do that, because the name travels with the canvas that carries it — so a page whose
-// islands are tagged gets a set of files that stay correct however the page is reordered.
+// The tag is what makes the name survive the page moving: it travels with the canvas that
+// carries it, so a page whose islands are tagged gets a set of files that stay correct however
+// the page is reordered. The section screenshots above now bind the same way, through
+// `data-st-panel` — this block was the pattern they were repaired to match.
 //
 // It is also what makes a WHOLE ISLAND its own artefact. A section shot is an island plus the
 // prose around it, cropped to whatever the section happens to be; ADR-0392 D1 asks the owner
@@ -353,6 +369,11 @@ const report = {
   // predicts, because the tilt foreshortens the height and a mound does not fill its box.
   // Both numbers are reported; neither is quietly replaced by the other.
   perPanel: delivered.map((c, i) => ({ i, w: c.w, h: c.h, opaque: c.opaque, holes: c.holes })),
+  // WHICH SECTION EACH PANEL FILE ACTUALLY CAME FROM. A README cites these files by name, and
+  // the whole point of the authored id is that the name keeps pointing at the same picture
+  // when the page grows — so the binding is recorded here rather than left to be inferred from
+  // the order the sections happened to be in on the day.
+  panelFiles: panelPlan.captures.map((c) => ({ file: c.file, id: c.id, sectionIndex: c.index })),
   // PER NAMED ISLAND — the evidence that two directions differ in more than their captions.
   //
   // A page that offers a CHOICE has to be able to show that the things being chosen between

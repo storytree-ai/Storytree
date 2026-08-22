@@ -1,5 +1,12 @@
 # Standing up the Codex containment boundary and the claim broker, and measuring the fence
 
+> **HISTORICAL RECORD — not instruction.** ADR-0390 (2026-08-20) withdrew the managed Codex
+> containment boundary, and the `codex-retire-the-containment-machinery` increment deleted the
+> code this document describes. ⚠ §4's conclusion that the hook "fails closed" was later FALSIFIED — the hook failed OPEN, which is why ADR-0390 exists.
+> Kept as the record of how the boundary was built and measured. Do not follow its procedures.
+> Current state: `storytree arc show codex-factory-parity-arc --pg`, and the journey survey at
+> `docs/research/codex-onboarding-journey-survey-2026-08-22.md`.
+
 **Date:** 2026-08-15 · **Arc:** `codex-factory-parity-arc` · **Decisions:** ADR-0355, ADR-0364, ADR-0368
 
 This records the first time the ADR-0364 boundary was actually **installed** on this host, the first
