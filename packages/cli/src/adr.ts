@@ -259,14 +259,39 @@ export function scaffold(
 /**
  * The highest decision number the STORE holds — the allocator's `localMax` input.
  *
- * It used to be the highest number on disk. Same role, same guarantee: the allocator reserves
- * `max(stored, localMax) + 1`, so passing a stale or zero value can only ever cost a gap, never a
- * collision. Zero when the log cannot be read, which is safe for exactly that reason.
+ * `null` when the log could not be READ, which is NOT the same as "the log holds nothing" and must
+ * not be flattened into 0. `loadTitledAdrMetasFromStore` returns `unreadable` for exactly this
+ * reason (see its docstring): a caller that ignores it turns an outage into a confident zero.
+ *
+ * Why it matters more here than the old "a stale value only ever costs a gap" note admitted. That
+ * is true of `PgAdrStore.allocate` ALONE — it reserves `GREATEST(localMax, MAX(number)) + 1`, so a
+ * low `localMax` can only widen a gap. But the allocator's `MAX` reads the NUMBER LEDGER while the
+ * decision it is about to write lives in the ARTIFACT table, and nothing backfilled the ledger for
+ * the migrated decisions. So a `localMax` that under-reads the artifact table can hand back a
+ * number a row already occupies, and `scaffoldRow` would then upsert straight over it. The gap is
+ * cheap; the collision is a destroyed decision. Refuse instead of guessing.
  */
-async function storeMaxAdrNumber(deps: AdrCommandDeps): Promise<number> {
+async function storeMaxAdrNumber(deps: AdrCommandDeps): Promise<number | null> {
   if (deps.roundTrip === undefined) return 0;
-  const { adrs } = await loadTitledAdrMetasFromStore(deps.roundTrip.store);
+  const { adrs, unreadable } = await loadTitledAdrMetasFromStore(deps.roundTrip.store);
+  if (unreadable) return null;
   return adrs.reduce((max, a) => (a.number > max ? a.number : max), 0);
+}
+
+/** The refusal shared by both allocating verbs when the decision log could not be read at all. */
+function unreadableLog(verb: string): Envelope {
+  return {
+    ok: false,
+    body: [
+      `storytree adr ${verb} cannot reserve a number: the decision log could not be READ.`,
+      "",
+      "That is not the same as an empty log, and it is not safe to treat it as one. The number is",
+      "reserved against the ledger, but the decision is written into the artifact table — so a",
+      "number chosen while that table is unreadable can land on a decision that already exists.",
+      "Bring the store up and try again.",
+    ].join("\n"),
+    next: ["pnpm db:up", `storytree adr ${verb} --pg`],
+  };
 }
 
 /** The refusal both allocating verbs share once there is no offline path left to fall back to. */
@@ -299,6 +324,7 @@ async function adrNew(opts: AdrCommandOpts, deps: AdrCommandDeps): Promise<Envel
   }
   if (!deps.allocator) return needsPg("new");
   const localMax = await storeMaxAdrNumber(deps);
+  if (localMax === null) return unreadableLog("new");
   const edges = { supersedes: parseEdges(opts.supersedes), amends: parseEdges(opts.amends) };
 
   let n: number;
@@ -364,6 +390,7 @@ async function adrNew(opts: AdrCommandOpts, deps: AdrCommandDeps): Promise<Envel
 async function adrNext(deps: AdrCommandDeps): Promise<Envelope> {
   if (!deps.allocator) return needsPg("next");
   const localMax = await storeMaxAdrNumber(deps);
+  if (localMax === null) return unreadableLog("next");
   try {
     const r = await deps.allocator.allocate({
       localMax,
@@ -579,6 +606,23 @@ async function scaffoldRow(
       ...(fields.decided === undefined ? {} : { decided: fields.decided }),
       ...(fields.arc === undefined ? {} : { arcRef: `asset:${fields.arc}` }),
     });
+    // REFUSE rather than upsert over an occupied id. `newArtifact` (the generic verb) has always
+    // done this; `adr new` used to get it from `existsSync(file)`, and that guard went with the
+    // files. Without it the write is an UPSERT onto a number the allocator believes is free — and
+    // the allocator's `MAX` reads the number LEDGER while the decision lives in the ARTIFACT table,
+    // which nothing backfilled for the migrated decisions. Any path that mints an `adr-NNNN` row
+    // without reserving (`library artifact new --file` accepts kind `adr` with a hand-chosen id)
+    // leaves the two disagreeing, and the loser of that disagreement was a destroyed decision
+    // reported as `ok: true`. Cheap to ask, and it fails the ONE way that cannot lose a decision.
+    if (await deps.roundTrip.store.getDoc(id)) {
+      return {
+        failed: true,
+        reason:
+          `${id} ALREADY EXISTS and was not overwritten. The allocator handed out a number the ` +
+          `decision log already holds, which means the number ledger and the stored decisions ` +
+          `disagree. Read ${id} before doing anything else — do not re-run to get past this.`,
+      };
+    }
     await deps.roundTrip.store.upsertDoc({
       id,
       kind: "adr",

@@ -1942,8 +1942,6 @@ export interface RunDeps {
    * adr new` then falls back to max+1 with a loud "not reserved" warning. Injectable for tests.
    */
   readonly adr?: AdrAllocatorLike | null;
-  /** The docs/decisions dir `storytree adr` scans + scaffolds into. Injectable for tests. */
-  readonly adrDecisionsDir?: string;
   /**
    * The composition-root clock, injectable so a DATE-stamping command is provable across a timezone
    * boundary — a fixed instant that falls on different days in UTC and in the owner's zone is the

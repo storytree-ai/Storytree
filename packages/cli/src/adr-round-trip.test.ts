@@ -190,3 +190,60 @@ test("adr-round-trip-push-keeps-the-labelled-description: the two directions can
   const row = (await store.getDoc("adr-0403"))?.doc as Record<string, unknown>;
   assert.equal(row["description"], "ADR-0403 — A decision under test");
 });
+
+test("adr-round-trip-push-refuses-a-document-for-a-different-decision: the one-character slip", async () => {
+  // `adr pull 403 --out adr-0403.md` then `adr push 402 --file adr-0403.md` — one character off, and
+  // the filename the pull itself suggested. Before the guard this REPLACED ADR-0402 with ADR-0403's
+  // title, body and edges and returned ok:true. Nothing downstream could catch it: `adr-number-
+  // identity` compares the stored `number` FIELD to the id, and the push sets that from argv, so the
+  // row stayed internally consistent while carrying another decision's content.
+  const { store, deps } = await seeded();
+  await store.upsertDoc({
+    id: "adr-0402",
+    kind: "adr",
+    doc: {
+      kind: "adr",
+      id: "adr-0402",
+      title: "The neighbour",
+      description: "ADR-0402 — The neighbour",
+      body: "# ADR-0402: The neighbour\n\n## Status\n\naccepted\n",
+      number: 402,
+      status: "accepted",
+      amends: [7],
+      supersedes: [],
+      loadBearing: true,
+      references: [],
+      schemaVersion: 7,
+      createdAt: "2026-08-20T00:00:00.000Z",
+      updatedAt: "2026-08-20T00:00:00.000Z",
+    },
+  });
+  const out = await tmpFile("adr-0403.md");
+  await adrPull("403", out, deps);
+
+  const env = await adrPush("402", out, deps);
+
+  assert.equal(env.ok, false, "pushing 403's document at 402 must be refused");
+  assert.match(env.body, /is ADR-0403, but you are pushing to ADR-0402/);
+  const row = (await store.getDoc("adr-0402"))?.doc as Record<string, unknown>;
+  assert.equal(row["title"], "The neighbour", "the target keeps its own title");
+  assert.equal(row["status"], "accepted", "and its own status");
+  assert.deepEqual(row["amends"], [7], "and its own edges — the drop was the silent half");
+  assert.equal(row["loadBearing"], true);
+});
+
+test("adr-round-trip-push-accepts-a-document-whose-heading-matches: the guard is not a wall", async () => {
+  // The mirror of the case above: the guard must not refuse the ordinary push, or it would make the
+  // verb unusable rather than safe. Same document, pushed at its OWN number.
+  const { store, deps } = await seeded();
+  const out = await tmpFile("adr-0403.md");
+  await adrPull("403", out, deps);
+  const text = await readFile(out, "utf8");
+  await writeFile(out, `${text}\nA new closing paragraph.\n`, "utf8");
+
+  const env = await adrPush("403", out, deps);
+
+  assert.equal(env.ok, true, "the matching push still goes through");
+  const row = (await store.getDoc("adr-0403"))?.doc as Record<string, unknown>;
+  assert.match(String(row["body"]), /A new closing paragraph\./);
+});

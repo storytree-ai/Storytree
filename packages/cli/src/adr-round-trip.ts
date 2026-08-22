@@ -13,6 +13,9 @@ import type { Store } from "@storytree/storage-protocol";
 import { defaultCliActor } from "./cli-actor.js";
 import type { Envelope } from "./envelope.js";
 
+/** PURE: a decision number as its four-digit display form. */
+const pad = (n: number): string => String(n).padStart(4, "0");
+
 /**
  * THE ROUND-TRIP EDIT VERB (ADR-0403 dec 9) — `storytree adr pull` / `storytree adr push`.
  *
@@ -74,12 +77,12 @@ function noSuchDecision(id: string, number: number): Envelope {
     body: [
       `no decision row "${id}" in the store.`,
       "",
-      "either the number is wrong, or this checkout's store has not had the decision load run",
-      "against it (`decision-log-home-arc` inc 03). `storytree adr list` reads the FILES and will",
-      `still show ADR-${String(number).padStart(4, "0")} if it exists on disk — the two sources`,
-      "are deliberately both live until the files are removed.",
+      `either the number is wrong, or ADR-${pad(number)} was RESERVED and never written — \`adr next\``,
+      "hands out a number without authoring anything. There is no second source to check: decisions",
+      "are rows and nothing mirrors them on disk (ADR-0403 dec 1), so an empty answer here is the",
+      "whole answer.",
     ].join("\n"),
-    next: ["storytree adr list --current", "npx tsx packages/library/src/store/load-decisions.ts"],
+    next: ["storytree adr list --current", 'storytree adr new --title "..." --pg'],
   };
 }
 
@@ -231,6 +234,34 @@ export async function adrPush(
       ok: false,
       body: `could not read --file ${file}: ${(e as Error).message}`,
       next: [`storytree adr pull ${String(number)} --out ${file}`],
+    };
+  }
+
+  // REFUSE a document that names a DIFFERENT decision than the one being pushed. The target number
+  // comes from argv and the document's identity comes from its `# ADR-NNNN:` heading, and until now
+  // nothing compared them — so `adr push 402 --file adr-0403.md` (one character off, and `adr pull`
+  // suggests exactly that filename) overwrote ADR-0402 with ADR-0403's title, body and edges and
+  // printed `ok: true`. Nothing downstream could catch it either: `adr-number-identity` compares the
+  // stored `number` FIELD to the id, and the push sets that field correctly from argv, so the row
+  // stays internally consistent while carrying another decision's content.
+  const heading = /^#\s+ADR-(\d{4}):/m.exec(text);
+  if (heading?.[1] !== undefined && Number(heading[1]) !== number) {
+    const found = Number(heading[1]);
+    return {
+      ok: false,
+      body: [
+        `${file} is ADR-${pad(found)}, but you are pushing to ADR-${pad(number)}.`,
+        "",
+        "Refused rather than written: this would have replaced one decision's content with",
+        "another's, and no gate rung can detect it afterwards.",
+        "",
+        `If you meant ADR-${pad(found)}, push that number. If you genuinely meant to move this`,
+        `content to ADR-${pad(number)}, change the document's own '# ADR-' heading first.`,
+      ].join("\n"),
+      next: [
+        `storytree adr push ${String(found)} --file ${file} --pg`,
+        `storytree adr pull ${String(number)} --out ${file}`,
+      ],
     };
   }
 
