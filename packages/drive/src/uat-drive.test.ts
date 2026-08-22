@@ -112,15 +112,16 @@ function src(over: {
   witness?: "human" | "machine" | "either";
   proofGateId?: string;
 }): UatTestCriterionSource {
+  const criterion: UatTestCriterionSource["criterion"] = {
+    criterionId: over.id,
+    revisionId: `uatr1:${over.id.slice(-16)}`,
+    title: `leg ${over.id}`,
+    witness: over.witness ?? "either",
+    wouldBe: false,
+  };
+  if (over.proofGateId !== undefined) criterion.proofGateId = over.proofGateId;
   return {
-    criterion: {
-      criterionId: over.id,
-      revisionId: `uatr1:${over.id.slice(-16)}`,
-      title: `leg ${over.id}`,
-      witness: over.witness ?? "either",
-      wouldBe: false,
-      ...(over.proofGateId !== undefined ? { proofGateId: over.proofGateId } : {}),
-    },
+    criterion,
     source: `1. **leg ${over.id}** journey prose`,
   };
 }

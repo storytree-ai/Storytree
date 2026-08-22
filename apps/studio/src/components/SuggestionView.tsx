@@ -97,15 +97,18 @@ export function SuggestionView({ suggestion, me, topicKind, topicId }: Suggestio
   }
 
   async function handleSubmit(): Promise<void> {
-    await suggApi.createSuggestion({
+    const input: Parameters<SuggestionSeam['createSuggestion']>[0] = {
       blockId: suggestion.blockId,
       proposedText: composeText,
-      // Topic identity + the drift witness ride along only when the mount supplies them —
-      // the bare payload stays the proven seam shape.
-      ...(topicKind !== undefined && topicId !== undefined
-        ? { topicKind, topicId, originalText: suggestion.originalText }
-        : {}),
-    });
+    };
+    // Topic identity + the drift witness ride along only when the mount supplies them —
+    // the bare payload stays the proven seam shape.
+    if (topicKind !== undefined && topicId !== undefined) {
+      input.topicKind = topicKind;
+      input.topicId = topicId;
+      input.originalText = suggestion.originalText;
+    }
+    await suggApi.createSuggestion(input);
   }
 
   return (

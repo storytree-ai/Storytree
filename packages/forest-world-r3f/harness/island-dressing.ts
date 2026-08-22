@@ -113,6 +113,7 @@ import {
   ring,
   scatter,
   smoothLoop,
+  type GroveOptions,
   type LayoutCell,
 } from './prop-layout.js';
 import {
@@ -127,7 +128,12 @@ import {
   growRock,
   growWell,
 } from './prop-structures.js';
-import { canopyCaster, groveSpecs, type CanopySpec } from './canopy-geometry.js';
+import {
+  canopyCaster,
+  groveSpecs,
+  type CanopySpec,
+  type GroveSpecOptions,
+} from './canopy-geometry.js';
 
 export type DressingName = 'walled' | 'hamlet' | 'terrace' | 'shrine' | 'wild';
 
@@ -286,7 +292,10 @@ function plantCanopy(
   },
 ) {
   const seed = ctx.seed + (opts.seedOffset ?? 0);
-  const points = grove({
+  // Both requests are DRAFTED rather than spread: an unsupplied dial leaves its key ABSENT, so
+  // `grove` / `groveSpecs` apply their own defaults exactly as before. Nothing here reads an
+  // options bag by position, so the drafts are render-identical.
+  const groveOpts: GroveOptions = {
     loop: insetLoop(ctx.coast, opts.inset),
     clusters: opts.clusters,
     perCluster: opts.perCluster,
@@ -296,20 +305,19 @@ function plantCanopy(
     // canopy whose CENTRE clears the edge can still overhang it, and a tree hanging over the
     // water reads as a rendering fault rather than as a windswept one.
     edgeGap: 3,
-    ...(opts.clusterGap === undefined ? {} : { clusterGap: opts.clusterGap }),
-    ...(opts.avoid ? { avoid: opts.avoid } : {}),
-    ...(opts.avoidGap === undefined ? {} : { avoidGap: opts.avoidGap }),
     seed,
-  });
-  const specs = groveSpecs({
-    count: points.length,
-    seed,
-    ...(opts.minWidth === undefined ? {} : { minWidth: opts.minWidth }),
-    ...(opts.maxWidth === undefined ? {} : { maxWidth: opts.maxWidth }),
-    ...(opts.aspect === undefined ? {} : { aspect: opts.aspect }),
-    ...(opts.domeFraction === undefined ? {} : { domeFraction: opts.domeFraction }),
-    ...(opts.token === undefined ? {} : { token: opts.token }),
-  });
+  };
+  if (opts.clusterGap !== undefined) groveOpts.clusterGap = opts.clusterGap;
+  if (opts.avoid) groveOpts.avoid = opts.avoid;
+  if (opts.avoidGap !== undefined) groveOpts.avoidGap = opts.avoidGap;
+  const points = grove(groveOpts);
+  const specOpts: GroveSpecOptions = { count: points.length, seed };
+  if (opts.minWidth !== undefined) specOpts.minWidth = opts.minWidth;
+  if (opts.maxWidth !== undefined) specOpts.maxWidth = opts.maxWidth;
+  if (opts.aspect !== undefined) specOpts.aspect = opts.aspect;
+  if (opts.domeFraction !== undefined) specOpts.domeFraction = opts.domeFraction;
+  if (opts.token !== undefined) specOpts.token = opts.token;
+  const specs = groveSpecs(specOpts);
   const canopy = points.map((at, i) => ({ spec: specs[i]!, at }));
   return { canopy, casters: canopy.map((t) => canopyCaster(t.spec, t.at)) };
 }

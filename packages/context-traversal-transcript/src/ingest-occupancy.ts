@@ -18,6 +18,7 @@ import {
   ContextTraversalCoverage,
   ContextTraversalEvent,
   CoverageFeature,
+  type ModelContextEvent,
 } from "@storytree/context-traversal-telemetry";
 
 import { correlateTranscripts } from "./correlate-transcripts.js";
@@ -89,13 +90,14 @@ export function ingestTranscriptOccupancy(input: IngestTranscriptOccupancyArgs):
       cumulativeInputTokens += observation.residentInputTokens;
       const eventId = eventIdFor(windowId, observation.requestId);
 
-      const event: ContextTraversalEvent = {
+      // An unattributed observation carries NO `modelId` key, exactly as before — the sink's
+      // schema parse is what fixes the wire key order, so drafting here changes no output.
+      const event: ModelContextEvent = {
         kind: "model_context",
         eventId,
         sessionId,
         at: observation.at,
         windowId,
-        ...(observation.modelId !== undefined ? { modelId: observation.modelId } : {}),
         residentInputTokens: observation.residentInputTokens,
         cumulativeInputTokens,
         // Deliberately duplicates cumulativeInputTokens: `addedInputTokens` is deprecated
@@ -105,6 +107,7 @@ export function ingestTranscriptOccupancy(input: IngestTranscriptOccupancyArgs):
         // to remove instead of one.
         addedInputTokens: cumulativeInputTokens,
       };
+      if (observation.modelId !== undefined) event.modelId = observation.modelId;
 
       if (!alreadyPresent.has(eventId)) {
         toAppend.push(event);

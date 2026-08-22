@@ -71,17 +71,14 @@ export function searchCorpus(
   for (const doc of docs) {
     const strong = doc.id.toLowerCase().includes(q) || doc.title.toLowerCase().includes(q);
     if (!strong) continue;
-    ranked.push({
-      result: {
-        id: doc.id,
-        title: doc.title,
-        category: 'adr',
-        source: 'doc',
-        ...(doc.status !== undefined ? { status: doc.status } : {}),
-      },
-      rank: 0,
-      order: order++,
-    });
+    const result: SearchResult = {
+      id: doc.id,
+      title: doc.title,
+      category: 'adr',
+      source: 'doc',
+    };
+    if (doc.status !== undefined) result.status = doc.status;
+    ranked.push({ result, rank: 0, order: order++ });
   }
 
   ranked.sort((a, b) => a.rank - b.rank || a.order - b.order);

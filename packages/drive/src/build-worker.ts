@@ -274,11 +274,11 @@ function failureReason(body: string): string {
  * routing node-Build to a real `--real` drive, are clean follow-ons, not honesty-wall work.)
  */
 export function buildRunnerFromNodeBuild(nodeBuild: NodeBuildLike, actor?: string): BuildRunner {
-  return async (unitId) =>
-    nodeBuild(unitId, {
-      live: true,
-      ...(actor !== undefined ? { actor } : {}),
-    });
+  return async (unitId) => {
+    const opts: NodeBuildLikeOpts = { live: true };
+    if (actor !== undefined) opts.actor = actor;
+    return nodeBuild(unitId, opts);
+  };
 }
 
 // ── UI-driven ADOPT (ADR-0097) ──────────────────────────────────────────────
@@ -296,7 +296,9 @@ export type AdoptStoryLike = (storyId: string, opts: { actor?: string }) => Prom
 export function adoptRunnerFromAdoptStory(adoptStory: AdoptStoryLike, actor?: string): BuildRunner {
   return async (storyId, sink) => {
     sink('▸ adopt: observe-and-sign the story\'s observe reliability gates, flip mapped → proposed (ADR-0097)');
-    return adoptStory(storyId, { ...(actor !== undefined ? { actor } : {}) });
+    const opts: Parameters<AdoptStoryLike>[1] = {};
+    if (actor !== undefined) opts.actor = actor;
+    return adoptStory(storyId, opts);
   };
 }
 

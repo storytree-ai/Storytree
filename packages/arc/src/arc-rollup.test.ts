@@ -192,22 +192,22 @@ async function seedQuestion(
   title: string,
   arcRef: string | undefined,
 ): Promise<void> {
+  const base = {
+    kind: "open-question",
+    id,
+    title,
+    description: "d",
+    stakes: "",
+    statement: "s",
+    context: "c",
+    references: [],
+    createdAt: "2026-07-20",
+    updatedAt: "2026-07-20",
+  };
   await store.upsertDoc({
     id,
     kind: "open-question",
-    doc: {
-      kind: "open-question",
-      id,
-      title,
-      description: "d",
-      stakes: "",
-      statement: "s",
-      context: "c",
-      ...(arcRef !== undefined ? { arcRef } : {}),
-      references: [],
-      createdAt: "2026-07-20",
-      updatedAt: "2026-07-20",
-    },
+    doc: arcRef !== undefined ? { ...base, arcRef } : base,
   });
 }
 

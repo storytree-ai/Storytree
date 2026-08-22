@@ -71,10 +71,41 @@ function sortedUnique<T extends string>(values: readonly T[] | undefined): reado
   return [...new Set(values ?? [])].sort();
 }
 
+/** The WRITABLE draft of {@link WorldPresentationModel}'s five optional render layers. The model's
+ *  own fields are `readonly`, so a layer that may or may not be present is collected here first and
+ *  spread into the model literal; assignability at that spread is what keeps the two in step. */
+interface WorldPresentationLayerDraft {
+  nativeIslandGrowthLayer?: NativeIslandGrowthRenderLayer | null;
+  svgIslandAccretionLayer?: SvgIslandAccretionState | null;
+  forestRegrowLayer?: ForestRegrowRenderLayer | null;
+  vegetationLayer?: VegetationRenderLayer | null;
+  organicPoseLayers?: readonly OrganicPoseRenderLayer[] | null;
+}
+
 /** Normalize a plain presentation input without consulting time, stores, or live authority. */
 export function normalizeWorldPresentationModel(
   input: WorldPresentationModelInput,
 ): WorldPresentationModel {
+  // The five render layers are OPTIONAL and `readonly` on the model, so they are drafted in one
+  // writable bag and assigned only when the input carries them — an absent layer stays ABSENT,
+  // exactly as the conditional spreads this replaced. The bag is spread at the same textual
+  // position those spreads held, so key insertion order is unchanged.
+  const layers: WorldPresentationLayerDraft = {};
+  if (input.nativeIslandGrowthLayer !== undefined) {
+    layers.nativeIslandGrowthLayer = input.nativeIslandGrowthLayer;
+  }
+  if (input.svgIslandAccretionLayer !== undefined) {
+    layers.svgIslandAccretionLayer = input.svgIslandAccretionLayer;
+  }
+  if (input.forestRegrowLayer !== undefined) {
+    layers.forestRegrowLayer = input.forestRegrowLayer;
+  }
+  if (input.vegetationLayer !== undefined) {
+    layers.vegetationLayer = input.vegetationLayer;
+  }
+  if (input.organicPoseLayers !== undefined) {
+    layers.organicPoseLayers = input.organicPoseLayers;
+  }
   return {
     scene: input.scene,
     selectedStoryId: input.selectedStoryId ?? null,
@@ -87,19 +118,7 @@ export function normalizeWorldPresentationModel(
     laneMotion: input.laneMotion ?? 'draw',
     spriteSheet: input.spriteSheet ?? null,
     artScale: input.artScale ?? 1,
-    ...(input.nativeIslandGrowthLayer !== undefined
-      ? { nativeIslandGrowthLayer: input.nativeIslandGrowthLayer }
-      : {}),
-    ...(input.svgIslandAccretionLayer !== undefined
-      ? { svgIslandAccretionLayer: input.svgIslandAccretionLayer }
-      : {}),
-    ...(input.forestRegrowLayer !== undefined
-      ? { forestRegrowLayer: input.forestRegrowLayer }
-      : {}),
-    ...(input.vegetationLayer !== undefined ? { vegetationLayer: input.vegetationLayer } : {}),
-    ...(input.organicPoseLayers !== undefined
-      ? { organicPoseLayers: input.organicPoseLayers }
-      : {}),
+    ...layers,
   };
 }
 
@@ -116,7 +135,7 @@ export function WorldSceneView({
   const ctx = React.useMemo<SceneCtx>(() => {
     const emphasized = new Set(model.emphasizedStoryIds);
 
-    return {
+    const next: SceneCtx = {
       territoryClassById: (id, status) => {
         const classes = ['hex-territory', `st-${status}`];
         if (id === model.selectedStoryId) classes.push('is-selected');
@@ -138,20 +157,23 @@ export function WorldSceneView({
       onSelectCap: events?.onSelectCapability ?? NOOP_SELECT_CAPABILITY,
       spriteSheet: model.spriteSheet,
       artScale: model.artScale,
-      ...(model.nativeIslandGrowthLayer !== undefined
-        ? { nativeIslandGrowthLayer: model.nativeIslandGrowthLayer }
-        : {}),
-      ...(model.svgIslandAccretionLayer !== undefined
-        ? { svgIslandAccretionLayer: model.svgIslandAccretionLayer }
-        : {}),
-      ...(model.forestRegrowLayer !== undefined
-        ? { forestRegrowLayer: model.forestRegrowLayer }
-        : {}),
-      ...(model.vegetationLayer !== undefined ? { vegetationLayer: model.vegetationLayer } : {}),
-      ...(model.organicPoseLayers !== undefined
-        ? { organicPoseLayers: model.organicPoseLayers }
-        : {}),
     };
+    if (model.nativeIslandGrowthLayer !== undefined) {
+      next.nativeIslandGrowthLayer = model.nativeIslandGrowthLayer;
+    }
+    if (model.svgIslandAccretionLayer !== undefined) {
+      next.svgIslandAccretionLayer = model.svgIslandAccretionLayer;
+    }
+    if (model.forestRegrowLayer !== undefined) {
+      next.forestRegrowLayer = model.forestRegrowLayer;
+    }
+    if (model.vegetationLayer !== undefined) {
+      next.vegetationLayer = model.vegetationLayer;
+    }
+    if (model.organicPoseLayers !== undefined) {
+      next.organicPoseLayers = model.organicPoseLayers;
+    }
+    return next;
   }, [model, events]);
 
   return <SceneView scene={model.scene} ctx={ctx} />;

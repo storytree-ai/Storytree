@@ -21,21 +21,30 @@ import { loadFloorHealthReading, type FloorHealthStore } from "./factory-health-
 
 const LOUD_ID = "a-live-guardrail-that-keeps-firing";
 
+/** The friction doc BODY these fixtures build — the fields the reading actually consumes. */
+interface FrictionDocBody {
+  title: string;
+  route: string;
+  dischargedBy?: string;
+  reinforcedBy: Array<{ branch: string; date: string; evidence: string }>;
+}
+
 function frictionDoc(input: {
   id: string;
   route: string;
   dischargedBy?: string;
   dates: string[];
 }): StoredDoc {
+  const body: FrictionDocBody = {
+    title: input.id,
+    route: input.route,
+    reinforcedBy: input.dates.map((date) => ({ branch: "claude/x", date, evidence: "`e`" })),
+  };
+  if (input.dischargedBy !== undefined) body.dischargedBy = input.dischargedBy;
   return {
     id: input.id,
     kind: "friction",
-    doc: {
-      title: input.id,
-      route: input.route,
-      ...(input.dischargedBy !== undefined ? { dischargedBy: input.dischargedBy } : {}),
-      reinforcedBy: input.dates.map((date) => ({ branch: "claude/x", date, evidence: "`e`" })),
-    },
+    doc: body,
     createdAt: "2026-07-11T00:00:00.000Z",
     updatedAt: "2026-08-08T00:00:00.000Z",
   };

@@ -14,7 +14,7 @@
 // ONLY board footprint besides the write-claim — a build run never writes session presence (ADR-0199).
 
 import { workEvent } from "@storytree/orchestrator";
-import type { BuildPhase, Tier } from "@storytree/proof-protocol";
+import type { BuildPhase, Tier, WorkEventDoc } from "@storytree/proof-protocol";
 
 import { subagentColourState } from "./subagent-colour.js";
 import type { SubagentRole, ClaimIntent } from "./subagent-colour.js";
@@ -91,19 +91,15 @@ export function phaseActivityWriter(
     target.subagentRole !== undefined ? subagentColourState(target.subagentRole) : undefined;
   return async (phase: BuildPhase): Promise<void> => {
     try {
-      await store.appendEvent(
-        workEvent(
-          {
-            unitId: target.unitId,
-            event: "building",
-            runId: target.runId,
-            phase,
-            ...(target.tier !== undefined ? { tier: target.tier } : {}),
-            ...(colourState !== undefined ? { colourState } : {}),
-          },
-          target.signer,
-        ),
-      );
+      const doc: WorkEventDoc = {
+        unitId: target.unitId,
+        event: "building",
+        runId: target.runId,
+        phase,
+      };
+      if (target.tier !== undefined) doc.tier = target.tier;
+      if (colourState !== undefined) doc.colourState = colourState;
+      await store.appendEvent(workEvent(doc, target.signer));
     } catch {
       // Advisory by construction (ADR-0048 / ADR-0033 Decision 3): the phase write must never fail
       // the build it observes. A dead DB just leaves the wisp on its coarse band.

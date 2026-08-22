@@ -31,7 +31,7 @@ import type { ReliabilityGate, ResolvedWitnessKind, UatTestCriterion } from '@st
 // module imports nothing at all, so Node loads it directly. Do NOT collapse this to
 // `@storytree/library`: `pnpm gate` does not run `vite build`, so only CI Build catches the break.
 import { REPO_ROOT_ENV, resolveRepoRoot } from '@storytree/library/repo-root';
-import type { Attestation, Verdict } from '@storytree/proof-protocol';
+import type { Attestation, EvidenceRef, StoredAttestation, Verdict } from '@storytree/proof-protocol';
 // Type-only (fully erased under verbatimModuleSyntax — no runtime import, so it never hits the
 // vite config-load trap the lazy `loadOrchestrator()` below avoids): the sign-time trust guard's
 // shapes, so `buildUatVerdict` can take the real `checkUatProof` as a precisely-typed injection.
@@ -362,9 +362,8 @@ function readAnchor(raw: Record<string, unknown>): CommentAnchor {
   // anchor now degrades to 'topic' (its span fields ride inert; the store strips them).
   if (kindRaw === 'block' && blockId) kind = 'block';
   else if (kindRaw === 'section' && headingSlug) kind = 'section';
-  return {
+  const anchor: CommentAnchor = {
     kind,
-    ...(kind === 'block' && blockId !== null ? { blockId } : {}),
     headingSlug,
     headingText: asString(raw.headingText).trim() || null,
     quote,
@@ -373,6 +372,8 @@ function readAnchor(raw: Record<string, unknown>): CommentAnchor {
     startOffset: asNumberOrNull(raw.startOffset),
     color: asString(raw.color).trim() || null,
   };
+  if (kind === 'block' && blockId !== null) anchor.blockId = blockId;
+  return anchor;
 }
 
 // ---------- guarded-mode policy seam (ADR-0042) ----------
@@ -538,16 +539,17 @@ function readAssetInput(input: Record<string, unknown>): AssetInput {
   // zod write boundary (mapped to 400 in handleAssets).
   if (!hasFields && !body) throw new HttpError(400, 'body is required');
   const provenance = asString(input.provenance).trim();
-  return {
+  const asset: AssetInput = {
     id,
     category,
     title,
     description,
     body,
     references: asStringArray(input.references),
-    ...(provenance ? { provenance } : {}),
-    ...(hasFields ? { fields } : {}),
   };
+  if (provenance) asset.provenance = provenance;
+  if (hasFields) asset.fields = fields;
+  return asset;
 }
 
 /** Map a store write-boundary error to an HTTP status: a zod failure is a 400, a conflict a 409. */
@@ -781,6 +783,24 @@ export type ResolvedUatLeg = Omit<UatTestCriterion, 'witness'> & { witness: Reso
 
 export interface ResolveUatRowWitnessesResult { tests: ResolvedUatLeg[]; unresolvedWitnesses: string[] }
 
+/** One row of GET /api/attestations: a resolved leg + its vouch marks, proven state and detail pointer. */
+interface UatAttestationRow extends ResolvedUatLeg {
+  human?: StoredAttestation;
+  machine?: StoredAttestation;
+  /** Latest SIGNED verdict outcome (ADR-0082); absent when no verdict stream answered. */
+  proven?: 'pass' | 'fail';
+  /** ADR-0209 D7 Library detail pointer; absent when the leg carries no `(detail: …)` tag. */
+  detailArtifactId?: string;
+}
+
+/** The GET /api/attestations response body. */
+interface UatAttestationsResponse {
+  storyId: string;
+  tests: UatAttestationRow[];
+  storyUat?: 'healthy' | 'unhealthy' | null;
+  unresolvedWitnesses?: string[];
+}
+
 /**
  * PURE (ADR-0106 d.5/d.1): resolve each UAT leg's declared witness into the BINARY one the owner
  * surface reads, and compute the "no `either` at rest" guard. The classifier is INJECTED (the library's
@@ -879,19 +899,21 @@ export async function handleAttestations(
     const rows = resolvedTests.map((t) => {
       const proven = provenOf?.(t);
       const detailArtifactId = detailByCriterionId.get(t.criterionId);
-      return {
+      const row: UatAttestationRow = {
         ...t,
         ...(marks[t.criterionId] ?? {}),
-        ...(proven ? { proven } : {}),
-        ...(detailArtifactId !== undefined ? { detailArtifactId } : {}),
       };
+      if (proven) row.proven = proven;
+      if (detailArtifactId !== undefined) row.detailArtifactId = detailArtifactId;
+      return row;
     });
-    return sendJson(res, 200, {
+    const payload: UatAttestationsResponse = {
       storyId,
       tests: rows,
-      ...(storyUat !== undefined ? { storyUat } : {}),
-      ...(unresolvedWitnesses.length > 0 ? { unresolvedWitnesses } : {}),
-    });
+    };
+    if (storyUat !== undefined) payload.storyUat = storyUat;
+    if (unresolvedWitnesses.length > 0) payload.unresolvedWitnesses = unresolvedWitnesses;
+    return sendJson(res, 200, payload);
   }
 
   if (method === 'POST') {
@@ -920,8 +942,8 @@ export async function handleAttestations(
       witness: 'human',
       signer,
       at: new Date().toISOString(),
-      ...(note ? { note } : {}),
     };
+    if (note) doc.note = note;
     try {
       return sendJson(res, 201, await ctx.backend.recordAttestation(doc, signer));
     } catch (err) {
@@ -960,6 +982,12 @@ function storyUatRollup(rolled: string | null): 'healthy' | 'unhealthy' | null {
   return rolled === 'healthy' || rolled === 'unhealthy' ? rolled : null;
 }
 
+/** The POST /api/uat/attest response body — the saved verdict echoed, plus the fresh story roll-up. */
+interface UatAttestResponse {
+  verdict: Pick<Verdict, 'unitId' | 'criterionId' | 'revisionId' | 'outcome' | 'signer' | 'at'>;
+  storyUat?: 'healthy' | 'unhealthy' | null;
+}
+
 /** The fields the verdict builder needs about the test + the observation being signed. */
 export interface UatVerdictInput {
   test: Pick<UatTestCriterion, 'criterionId' | 'revisionId' | 'witness'>;
@@ -988,6 +1016,8 @@ export function buildUatVerdict(
   const guard = check({ witness: input.test.witness, verdict: { proofMode: 'operator-attested', signer } });
   if (!guard.ok) return { ok: false, reason: guard.reason };
   const note = input.note?.trim();
+  const attestEvidence: EvidenceRef = { kind: 'operator-attested', ref: signer };
+  if (note) attestEvidence.note = note;
   const verdict: Verdict = {
     unitId: input.test.criterionId,
     criterionId: input.test.criterionId,
@@ -998,7 +1028,7 @@ export function buildUatVerdict(
     signer,
     runId: `studio-uat-attest:${input.at}`,
     outputVersion: 'v1',
-    evidence: [{ kind: 'operator-attested', ref: signer, ...(note ? { note } : {}) }],
+    evidence: [attestEvidence],
     at: input.at,
   };
   return { ok: true, verdict };
@@ -1056,10 +1086,9 @@ export async function handleUatAttest(
   // HONESTY WALL: the sign-time trust guard (checkUatProof) — refuse a machine-witness test / an
   // agent self-attestation BEFORE any write. The compute is the orchestrator's single source.
   const { checkUatProof, rollupStoryUat } = await loadOrchestrator();
-  const built = buildUatVerdict(
-    { test, outcome, signer, commitSha, ...(note ? { note } : {}), at: new Date().toISOString() },
-    checkUatProof,
-  );
+  const verdictInput: UatVerdictInput = { test, outcome, signer, commitSha, at: new Date().toISOString() };
+  if (note) verdictInput.note = note;
+  const built = buildUatVerdict(verdictInput, checkUatProof);
   if (!built.ok) throw new HttpError(422, `refused — ${built.reason}`);
 
   // HONESTY WALL: the write must persist (a verdict that evaporates greens nothing). The json backend
@@ -1074,7 +1103,7 @@ export async function handleUatAttest(
   // has no verdict-event read.
   const events = (await ctx.backend.verdictEvents?.()) ?? null;
   const storyUat = events ? storyUatRollup(rollupStoryUat(tests, events)) : undefined;
-  sendJson(res, 201, {
+  const body: UatAttestResponse = {
     verdict: {
       unitId: saved.unitId,
       criterionId: test.criterionId,
@@ -1083,8 +1112,9 @@ export async function handleUatAttest(
       signer: saved.signer,
       at: saved.at,
     },
-    ...(storyUat !== undefined ? { storyUat } : {}),
-  });
+  };
+  if (storyUat !== undefined) body.storyUat = storyUat;
+  sendJson(res, 201, body);
 }
 
 // ---------- story tree (read-only, live from <repo>/stories) ----------
@@ -1484,6 +1514,13 @@ function latestVerdictAt(
 }
 
 /** Everything GET /api/health needs, injectable so the integration test can stub each leg. */
+/** The GET /api/health response body: the store id, the probe fields, the code stamp and the serving pid. */
+interface HealthResponse extends HealthProbe {
+  store: StudioStore;
+  code?: CodeStamp;
+  pid: number;
+}
+
 export interface HealthDeps {
   store: StudioStore;
   /** backend.health() — contractually non-throwing ({db:'n/a'} for json). */
@@ -1525,8 +1562,11 @@ export async function handleHealth(
     deps.health(),
     deps.codeStamp().catch(() => null),
   ]);
-  // `pid` last so a future HealthProbe field can never shadow the identity stamp.
-  sendJson(res, 200, { store: deps.store, ...health, ...(code ? { code } : {}), pid: process.pid });
+  // `pid` after the spread so a future HealthProbe field can never shadow the identity stamp; the
+  // guarded `code` assignment lands after it too, so a probe field can never shadow the stamp either.
+  const payload: HealthResponse = { store: deps.store, ...health, pid: process.pid };
+  if (code) payload.code = code;
+  sendJson(res, 200, payload);
 }
 
 /**
@@ -1863,15 +1903,16 @@ function suggestionDecisionBackend(backend: LibraryBackend): SuggestionDecisionB
       }
       // Persist through the SAME admin asset-write path the editor uses — every field except the
       // body preserved from the current asset (updateAsset re-validates at the store's boundary).
-      const updated = await backend.updateAsset(topicId, {
+      const patch: AssetInput = {
         id: asset.id,
         category: asset.category,
         title: asset.title,
         description: asset.description,
         body: result.body,
         references: asset.references,
-        ...(asset.provenance ? { provenance: asset.provenance } : {}),
-      });
+      };
+      if (asset.provenance) patch.provenance = asset.provenance;
+      const updated = await backend.updateAsset(topicId, patch);
       if (!updated) {
         throw new HttpError(404, `asset "${topicId}" vanished mid-apply — the suggestion stays open`);
       }

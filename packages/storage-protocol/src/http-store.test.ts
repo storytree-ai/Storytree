@@ -5,7 +5,7 @@ import type { AddressInfo } from "node:net";
 import { InMemoryStore } from "./store.js";
 import type { Store } from "./store.js";
 import { HttpStore, HttpStoreError, type FetchLike, type FetchResponse } from "./http-store.js";
-import { handleStoreRequest } from "./http-store-server.js";
+import { handleStoreRequest, type StoreRequest } from "./http-store-server.js";
 import { StoreWireError } from "./store-wire.js";
 import { storeParitySuite } from "./store-parity.js";
 
@@ -41,15 +41,12 @@ async function startDoor(store: Store, basePath = ""): Promise<string> {
         }
       }
 
-      const out = await handleStoreRequest(
-        store,
-        {
-          method: req.method ?? "GET",
-          path: req.url ?? "/",
-          ...(body !== undefined ? { body } : {}),
-        },
-        { basePath },
-      );
+      const request: StoreRequest = {
+        method: req.method ?? "GET",
+        path: req.url ?? "/",
+      };
+      if (body !== undefined) request.body = body;
+      const out = await handleStoreRequest(store, request, { basePath });
       res.writeHead(out.status, { "content-type": "application/json" });
       res.end(JSON.stringify(out.body));
     })();

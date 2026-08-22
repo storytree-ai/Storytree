@@ -53,6 +53,7 @@ import type { ForestWriter, LocalBackendBackend } from "../src/backend/local-bac
 import { writeToForestBroker } from "../src/backend/forest-readiness.js";
 import type { BrokerPostFn } from "../src/backend/forest-readiness.js";
 import { attestLocalUat } from "../src/backend/local-uat-attest.js";
+import type { AttestLocalUatInput } from "../src/backend/local-uat-attest.js";
 import {
   describeLaunchRefusal,
   ensureLaunchPreconditions,
@@ -60,6 +61,7 @@ import {
 import { createBootReadRoutes } from "../src/backend/boot-read-routes.js";
 import { guardHttpRequest } from "../src/backend/loopback-guard.js";
 import { createChatSseMount } from "../src/backend/chat-sse-mount.js";
+import type { ChatSseMountDeps } from "../src/backend/chat-sse-mount.js";
 import { resolveOrchestratorMaxTurns } from "../src/backend/orchestrator-turns.js";
 import { CredentialBroker } from "../src/credential/broker.js";
 import { CREDENTIAL_ENV_VAR } from "../src/credential/kinds.js";
@@ -300,6 +302,19 @@ function currentGitState() {
   return { commitSha, clean: porcelain.trim() === "" };
 }
 
+/**
+ * The `GET /api/attestations` wire envelope. `storyUat` and `unresolvedWitnesses` are OMITTED (never
+ * `undefined`) when the rollup could not answer / the story resolves every witness — absence is the
+ * signal the renderer keys on. `tests` rows are assembled from three sources (the declared leg, its
+ * attestation marks, and the optional signed `proven`), so they are carried, not re-typed, here.
+ */
+interface UatTestsEnvelope {
+  storyId: string;
+  tests: readonly unknown[];
+  storyUat?: "healthy" | "unhealthy" | null;
+  unresolvedWitnesses?: string[];
+}
+
 // ---------- main ----------
 
 async function main(): Promise<void> {
@@ -377,16 +392,17 @@ async function main(): Promise<void> {
       // for the installed pinned-runtime app (where the rebuild PULLS), never the dev launch fallback.
       const runtime =
         rs.branch !== null || rs.behind !== null ? { ...rs, pinned: pinnedRuntime } : undefined;
-      const extra = {
-        ...(code !== undefined ? { code } : {}),
-        ...(runtime !== undefined ? { runtime } : {}),
-      };
+      let db: "ok" | "unreachable";
       try {
         await pool.query("select 1");
-        return { db: "ok" as const, ...extra };
+        db = "ok";
       } catch {
-        return { db: "unreachable" as const, ...extra };
+        db = "unreachable";
       }
+      const envelope: Awaited<ReturnType<LocalBackendBackend["health"]>> = { db };
+      if (code !== undefined) envelope.code = code;
+      if (runtime !== undefined) envelope.runtime = runtime;
+      return envelope;
     },
     // Latest signed verdict per unit (events.verdict DISTINCT ON unit_id) — the per-unit map the tree's
     // own-verdict layer attaches directly (story/cap `.verdict`).
@@ -455,14 +471,15 @@ async function main(): Promise<void> {
           const phase = row.phase != null && GATE_PHASES.has(row.phase) ? row.phase : undefined;
           const colourState =
             row.colour_state != null && COLOUR_STATES.has(row.colour_state) ? row.colour_state : undefined;
-          out.push({
+          const build: (typeof out)[number] = {
             unitId: row.unit_id,
             tier: row.tier,
             runId: row.run_id,
             at,
-            ...(phase !== undefined ? { phase } : {}),
-            ...(colourState !== undefined ? { colourState } : {}),
-          });
+          };
+          if (phase !== undefined) build.phase = phase;
+          if (colourState !== undefined) build.colourState = colourState;
+          out.push(build);
         }
         return out;
       }),
@@ -596,7 +613,7 @@ async function main(): Promise<void> {
 
     const signer = await requestElectronMain<string>({ type: "broker:identity" });
     const attestingSession = deriveChatIdentity(repoRoot);
-    const result = await attestLocalUat({
+    const attestInput: AttestLocalUatInput = {
       criterionId,
       outcome: body["outcome"] === "fail" ? "fail" : "pass",
       at: new Date().toISOString(),
@@ -606,11 +623,13 @@ async function main(): Promise<void> {
         witness: resolvedWitnessOf(test, spec.reliabilityGates),
       })),
       signer,
-      ...(typeof body["note"] === "string" ? { note: body["note"] } : {}),
-      ...(attestingSession !== null ? { agentIdentity: attestingSession.sessionId } : {}),
       git: currentGitState(),
       forestWriter: brokeredForestWriter,
-    });
+    };
+    const note = body["note"];
+    if (typeof note === "string") attestInput.note = note;
+    if (attestingSession !== null) attestInput.agentIdentity = attestingSession.sessionId;
+    const result = await attestLocalUat(attestInput);
 
     res.setHeader("Content-Type", "application/json; charset=utf-8");
     if (!result.ok) {
@@ -710,20 +729,17 @@ async function main(): Promise<void> {
     }
     const rows = resolved.map((t) => {
       const proven = provenOf?.(t);
-      return {
-        ...t,
-        ...(marksMap[t.criterionId] ?? {}),
-        ...(proven !== undefined ? { proven } : {}),
-      };
+      const marks = marksMap[t.criterionId] ?? {};
+      // `proven` rides only when a signed verdict answered — a ternary on the WHOLE row, so an
+      // unproven criterion carries no `proven` key at all rather than an explicit undefined.
+      return proven !== undefined ? { ...t, ...marks, proven } : { ...t, ...marks };
     });
     res.statusCode = 200;
     res.setHeader("Content-Type", "application/json; charset=utf-8");
-    res.end(JSON.stringify({
-      storyId,
-      tests: rows,
-      ...(storyUat !== undefined ? { storyUat } : {}),
-      ...(unresolvedWitnesses.length > 0 ? { unresolvedWitnesses } : {}),
-    }));
+    const testsEnvelope: UatTestsEnvelope = { storyId, tests: rows };
+    if (storyUat !== undefined) testsEnvelope.storyUat = storyUat;
+    if (unresolvedWitnesses.length > 0) testsEnvelope.unresolvedWitnesses = unresolvedWitnesses;
+    res.end(JSON.stringify(testsEnvelope));
     return true;
   };
 
@@ -822,11 +838,10 @@ async function main(): Promise<void> {
   // chat-spawned story-author's own ceiling retired with the spawn surface (ADR-0175), and the
   // inner-loop builder leaf keeps the generic 16-turn brake in its own runner (ADR-0130 unchanged).
   const orchestratorMaxTurns = resolveOrchestratorMaxTurns(process.env.STORYTREE_ORCHESTRATOR_MAX_TURNS);
-  const chatMount = createChatSseMount({
-    runner: orientationRunner,
-    ...(inspect !== undefined ? { inspect } : {}),
-    ...(orchestratorMaxTurns !== undefined ? { maxTurns: orchestratorMaxTurns } : {}),
-  });
+  const chatMountDeps: ChatSseMountDeps = { runner: orientationRunner };
+  if (inspect !== undefined) chatMountDeps.inspect = inspect;
+  if (orchestratorMaxTurns !== undefined) chatMountDeps.maxTurns = orchestratorMaxTurns;
+  const chatMount = createChatSseMount(chatMountDeps);
 
   const localHandler = createLocalBackend({ storiesDir, docsDir, backend, store: "pg" });
 

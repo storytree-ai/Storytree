@@ -105,14 +105,17 @@ function lane(over: Partial<ArcRollup> & { id: string }): ArcRollupSummary {
     lifecycle: rollup.lifecycle,
     waiting: rollup.questions.length > 0,
     openQuestions: rollup.questions.length,
-    increments: rollup.increments.map((inc) => ({
-      id: inc.id,
-      title: inc.title,
-      status: inc.status,
-      ...(inc.parked !== undefined ? { parked: inc.parked } : {}),
-      ...(inc.cites !== undefined ? { cites: inc.cites } : {}),
-      ...(typeof inc.outcome?.date === 'string' ? { landedOn: inc.outcome.date } : {}),
-    })),
+    increments: rollup.increments.map((inc) => {
+      const row: ArcRollupSummary['increments'][number] = {
+        id: inc.id,
+        title: inc.title,
+        status: inc.status,
+      };
+      if (inc.parked !== undefined) row.parked = inc.parked;
+      if (inc.cites !== undefined) row.cites = inc.cites;
+      if (typeof inc.outcome?.date === 'string') row.landedOn = inc.outcome.date;
+      return row;
+    }),
   };
 }
 

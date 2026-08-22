@@ -87,21 +87,23 @@ export function presentStories(stories: TreeStory[]): TreeStory[] {
     .map((s): TreeStory => {
       const { drift: _drift, ...rest } = s;
       const badge = driftBadge(s.drift);
-      return {
+      const story: TreeStory = {
         ...rest,
         status: provenStatus(s.status, s.verdict),
-        ...(badge !== undefined ? { drift: badge } : {}),
         capabilities: s.capabilities
           .filter((c) => c.status !== 'retired')
           .map((c): TreeCapability => {
             const { drift: _cDrift, ...cRest } = c;
             const cBadge = driftBadge(c.drift);
-            return {
+            const cap: TreeCapability = {
               ...cRest,
               status: provenStatus(c.status, c.verdict),
-              ...(cBadge !== undefined ? { drift: cBadge } : {}),
             };
+            if (cBadge !== undefined) cap.drift = cBadge;
+            return cap;
           }),
       };
+      if (badge !== undefined) story.drift = badge;
+      return story;
     });
 }

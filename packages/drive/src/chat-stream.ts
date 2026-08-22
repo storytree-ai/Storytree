@@ -32,7 +32,7 @@ import type {
   InspectSurfaceDeps,
 } from "@storytree/agent";
 
-import type { OrchestrateResult } from "./orchestrate.js";
+import type { OrchestrateArgs, OrchestrateResult } from "./orchestrate.js";
 import { orchestrate } from "./orchestrate.js";
 
 // ---------------------------------------------------------------------------
@@ -189,22 +189,23 @@ export async function* startChatStream(
   // rather than a closure-assigned variable (which TS control-flow cannot narrow across the bridge).
   // A plain `done` boolean drives the drain loop; it flips in the .finally closure.
   let done = false;
-  const session: Promise<SessionOutcome> = orchestrate({
+  const orchestrateArgs: OrchestrateArgs = {
     intent: args.intent,
     store: args.store,
-    ...(args.resume !== undefined ? { resume: args.resume } : {}),
     onDelta: (text: string) => {
       if (text.length === 0) return;
       queue.push(text);
       signal();
     },
-    ...(args.queryFn !== undefined ? { queryFn: args.queryFn } : {}),
-    ...(args.runner !== undefined ? { runner: args.runner } : {}),
-    ...(args.model !== undefined ? { model: args.model } : {}),
-    ...(args.maxTurns !== undefined ? { maxTurns: args.maxTurns } : {}),
-    ...(args.maxBudgetUsd !== undefined ? { maxBudgetUsd: args.maxBudgetUsd } : {}),
-    ...(args.inspect !== undefined ? { inspect: args.inspect } : {}),
-  })
+  };
+  if (args.resume !== undefined) orchestrateArgs.resume = args.resume;
+  if (args.queryFn !== undefined) orchestrateArgs.queryFn = args.queryFn;
+  if (args.runner !== undefined) orchestrateArgs.runner = args.runner;
+  if (args.model !== undefined) orchestrateArgs.model = args.model;
+  if (args.maxTurns !== undefined) orchestrateArgs.maxTurns = args.maxTurns;
+  if (args.maxBudgetUsd !== undefined) orchestrateArgs.maxBudgetUsd = args.maxBudgetUsd;
+  if (args.inspect !== undefined) orchestrateArgs.inspect = args.inspect;
+  const session: Promise<SessionOutcome> = orchestrate(orchestrateArgs)
     .then((result): SessionOutcome => ({ ok: true, result }))
     .catch((error: unknown): SessionOutcome => ({ ok: false, error }))
     .finally(() => {

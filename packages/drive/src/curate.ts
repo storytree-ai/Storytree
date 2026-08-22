@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { runSdkCurator } from "@storytree/agent";
 import type { SdkCuratorArgs, SdkCuratorResult } from "@storytree/agent";
 import type { AdrMeta } from "./adr-frontmatter.js";
-import type { Store, StoredDoc } from "@storytree/storage-protocol";
+import type { DeleteDocOpts, Store, StoredDoc } from "@storytree/storage-protocol";
 import { upcastAndValidate } from "@storytree/library";
 import type { Comment, CommentAnchor } from "@storytree/library/store";
 
@@ -177,11 +177,9 @@ export async function enactCuration(
             );
             break;
           }
-          await deps.store.deleteDoc(action.id, {
-            actor,
-            reason: action.reason,
-            ...(action.supersededBy !== undefined ? { supersededBy: action.supersededBy } : {}),
-          });
+          const opts: DeleteDocOpts = { actor, reason: action.reason };
+          if (action.supersededBy !== undefined) opts.supersededBy = action.supersededBy;
+          await deps.store.deleteDoc(action.id, opts);
           out.enacted.push(`retired open-question ${action.id} — ${action.reason}`);
           break;
         }
@@ -337,15 +335,10 @@ export async function runCurationPass(input: CurationPassInput): Promise<string[
       adrs: input.context.adrs,
     };
     const actions = await input.runner.run(ctx);
-    const outcome = await enactCuration(
-      {
-        store: library,
-        comments: input.comments ?? null,
-        ...(input.actor !== undefined ? { actor: input.actor } : {}),
-        ...(input.now !== undefined ? { now: input.now } : {}),
-      },
-      actions,
-    );
+    const deps: EnactDeps = { store: library, comments: input.comments ?? null };
+    if (input.actor !== undefined) deps.actor = input.actor;
+    if (input.now !== undefined) deps.now = input.now;
+    const outcome = await enactCuration(deps, actions);
     return outcome.lines;
   } catch (e) {
     return [
@@ -519,7 +512,7 @@ function coerceAction(raw: unknown): CurationAction | null {
       const reason = str(o.reason);
       if (id === null || reason === null) return null;
       const supersededBy = str(o.supersededBy);
-      return { type, id, reason, ...(supersededBy !== null ? { supersededBy } : {}) };
+      return supersededBy !== null ? { type, id, reason, supersededBy } : { type, id, reason };
     }
     case "raise-open-question": {
       const doc = obj(o.doc);
@@ -592,13 +585,14 @@ export class SdkCuratorRunner implements CuratorRunner {
     this.#runSdk = args.runSdk ?? runSdkCurator;
   }
   async run(ctx: CurationContext): Promise<CurationAction[]> {
-    const result = await this.#runSdk({
+    const sdkArgs: SdkCuratorArgs = {
       systemPrompt: this.#args.systemPrompt,
       userPrompt: serializeCurationContext(ctx),
-      ...(this.#args.model !== undefined ? { model: this.#args.model } : {}),
-      ...(this.#args.cwd !== undefined ? { cwd: this.#args.cwd } : {}),
-      ...(this.#args.maxBudgetUsd !== undefined ? { maxBudgetUsd: this.#args.maxBudgetUsd } : {}),
-    });
+    };
+    if (this.#args.model !== undefined) sdkArgs.model = this.#args.model;
+    if (this.#args.cwd !== undefined) sdkArgs.cwd = this.#args.cwd;
+    if (this.#args.maxBudgetUsd !== undefined) sdkArgs.maxBudgetUsd = this.#args.maxBudgetUsd;
+    const result = await this.#runSdk(sdkArgs);
     this.#args.onResult?.(result);
     return result.ok ? parseCuratorActions(result.text) : [];
   }

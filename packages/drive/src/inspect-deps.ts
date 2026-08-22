@@ -32,6 +32,7 @@
  */
 
 import { execFile } from "node:child_process";
+import type { ExecFileOptionsWithStringEncoding } from "node:child_process";
 
 import type { InspectSurfaceDeps, InspectResult } from "@storytree/agent";
 
@@ -103,16 +104,17 @@ const READ_ONLY_GIT_VERBS = new Set(["status", "log", "ls-tree", "rev-parse", "s
  */
 export const defaultInspectExec: ExecFn = (cmd, args, opts) =>
   new Promise<ExecResult>((resolve) => {
+    const execOpts: ExecFileOptionsWithStringEncoding = {
+      maxBuffer: MAX_EXEC_BUFFER,
+      timeout: INSPECT_TIMEOUT_MS,
+      killSignal: "SIGTERM",
+      encoding: "utf8" as const,
+    };
+    if (opts?.cwd !== undefined) execOpts.cwd = opts.cwd;
     execFile(
       cmd,
       [...args],
-      {
-        ...(opts?.cwd !== undefined ? { cwd: opts.cwd } : {}),
-        maxBuffer: MAX_EXEC_BUFFER,
-        timeout: INSPECT_TIMEOUT_MS,
-        killSignal: "SIGTERM",
-        encoding: "utf8" as const,
-      },
+      execOpts,
       (error, stdout, stderr) => {
         if (error === null) {
           resolve({ code: 0, stdout, stderr });

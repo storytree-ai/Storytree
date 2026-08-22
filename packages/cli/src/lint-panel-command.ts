@@ -207,13 +207,15 @@ export function lintPanelPacketCommand(args: PanelPacketArgs, io: PanelIo): Enve
         };
       }
     }
-    specimens.push({
+    const specimen: Omit<PanelSpecimen, "expected"> = {
       ruleId: declared.ruleId,
       role: declared.role,
       statement: declared.statement,
       sites,
-      ...(declared.expected !== undefined ? { expected: declared.expected } : {}),
-    });
+    };
+    specimens.push(
+      declared.expected !== undefined ? { ...specimen, expected: declared.expected } : specimen,
+    );
   }
 
   const built = buildPanelPacket(specimens, {

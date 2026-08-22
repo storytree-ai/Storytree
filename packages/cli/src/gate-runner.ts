@@ -238,13 +238,14 @@ export async function runGate(input: RunGateInput): Promise<GateStepResult[]> {
           : exec.exitCode === GATE_SKIP_EXIT_CODE
             ? "skip"
             : "fail";
-    const result: GateStepResult = {
+    const stepResult: Omit<GateStepResult, "note"> = {
       command: step.command,
       status,
       exitCode: status === "not-run" ? null : exec.exitCode,
       durationMs,
-      ...(exec.note !== undefined ? { note: exec.note } : {}),
     };
+    const result: GateStepResult =
+      exec.note !== undefined ? { ...stepResult, note: exec.note } : stepResult;
     results.push(result);
     input.onStepDone?.(result, index, total);
 

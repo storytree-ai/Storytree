@@ -109,14 +109,15 @@ export async function runStoryBuild(args: StoryBuildArgs): Promise<StoryBuildRun
   }, args.order.length);
 
   const passed = !run.halted && outcomes.length === args.order.length;
-  return {
+  const result: StoryBuildRun = {
     outcomes,
     passed,
     halted: run.halted,
-    ...(run.haltedAt !== undefined ? { haltedAt: run.haltedAt } : {}),
-    ...(run.failure !== undefined ? { reason: run.failure.detail ?? run.failure.error } : {}),
     totalCostUsd: spent,
   };
+  if (run.haltedAt !== undefined) result.haltedAt = run.haltedAt;
+  if (run.failure !== undefined) result.reason = run.failure.detail ?? run.failure.error;
+  return result;
 }
 
 /** The result of {@link topoOrderStoryNodes}: the drive order, or a fail-closed refusal. */

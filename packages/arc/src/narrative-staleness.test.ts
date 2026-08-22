@@ -38,7 +38,7 @@ function closed(id: string, date: string, extra: Record<string, unknown> = {}): 
     title: `${id} title`,
     objective: "o",
     status: "closed",
-    outcome: { date, ...(extra["pr"] !== undefined ? { pr: extra["pr"] as string } : {}) },
+    outcome: extra["pr"] !== undefined ? { date, pr: extra["pr"] as string } : { date },
   };
 }
 

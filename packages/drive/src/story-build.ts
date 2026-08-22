@@ -22,10 +22,12 @@ import {
 import type {
   AddDepsGroup,
   BuildWorktree,
+  CreateBuildWorktreeOptions,
   LeafPhasePrompts,
   NodeSpec,
   PromotionResult,
   ProveResult,
+  StoryBuildArgs,
 } from "@storytree/orchestrator";
 
 import { liveBuildProgress, silentBuildProgress } from "./build-progress.js";
@@ -53,7 +55,12 @@ import {
   resolveDbProofEnv,
   resolveVerdictStore,
 } from "./node-build.js";
-import type { ClaimStoreLike, LiveAuthor } from "./node-build.js";
+import type {
+  ClaimStoreLike,
+  DriveNodeArgs,
+  LiveAuthor,
+  RealBuildArgs,
+} from "./node-build.js";
 import { PgCommentStore, PgLibraryStore, closePool, createPool } from "@storytree/library/store";
 
 import { loadAdrMetas } from "./adr-metas.js";
@@ -64,12 +71,12 @@ import {
   renderCuratorPrompt,
   runCurationPass,
 } from "./curate.js";
-import type { CommentSink, CuratorRunner } from "./curate.js";
+import type { CommentSink, CuratorRunner, SdkCuratorRunnerArgs } from "./curate.js";
 import { deriveIdentity } from "./noticeboard.js";
 import type { SessionIdentity } from "./noticeboard.js";
 import { oqHygieneGate, type OqGateDeps } from "./oq-gate.js";
 import { emitWisp, gateEmitWisp } from "./wisp-smoke.js";
-import type { EmitWispDeps } from "./wisp-smoke.js";
+import type { EmitWispArgs, EmitWispDeps, GateEmitWispOpts } from "./wisp-smoke.js";
 import { staleExistenceClaimRefusal } from "./stale-existence-claim.js";
 
 /**
@@ -206,13 +213,14 @@ async function runLiveCuration(
   }
   try {
     let curatorCostUsd = 0;
-    const runner = new SdkCuratorRunner({
+    const curatorArgs: SdkCuratorRunnerArgs = {
       systemPrompt: prompt.systemPrompt,
-      ...(model !== undefined ? { model } : {}),
-      onResult: (r) => {
-        curatorCostUsd += r.costUsd;
-      },
-    });
+    };
+    if (model !== undefined) curatorArgs.model = model;
+    curatorArgs.onResult = (r) => {
+      curatorCostUsd += r.costUsd;
+    };
+    const runner = new SdkCuratorRunner(curatorArgs);
     let adrs: AdrMeta[] = [];
     try {
       adrs = loadAdrMetas(path.join(rootDir, "docs", "decisions")).adrs;
@@ -486,23 +494,22 @@ export async function storyBuild(
   // instead lights a transient `building` mark for the STORY unit in the live store, dwells, then
   // hard-deletes it (never a verdict). It is a DRY-RUN-only smoke that REQUIRES the live DB.
   if (opts.emitWisp === true) {
-    const gate = gateEmitWisp({
+    const wispGateOpts: GateEmitWispOpts = {
       dryRun: opts.dryRun,
-      ...(opts.dwellSec !== undefined ? { dwellSec: opts.dwellSec } : {}),
       retryCmd: `storytree story build ${story.id} --dry-run --emit-wisp`,
-    });
+    };
+    if (opts.dwellSec !== undefined) wispGateOpts.dwellSec = opts.dwellSec;
+    const gate = gateEmitWisp(wispGateOpts);
     if (!gate.ok) return gate.refusal;
-    return emitWisp(
-      {
-        unitId: story.id,
-        ...(story.tier !== undefined ? { tier: story.tier } : {}),
-        runId: `wisp-smoke-${Date.now().toString(36)}`,
-        signer: signer.signer,
-        dwellSec: gate.dwellSec,
-        retryCmd: `storytree story build ${story.id} --dry-run --emit-wisp`,
-      },
-      opts.wispDeps ?? {},
-    );
+    const wispArgs: EmitWispArgs = {
+      unitId: story.id,
+      runId: `wisp-smoke-${Date.now().toString(36)}`,
+      signer: signer.signer,
+      dwellSec: gate.dwellSec,
+      retryCmd: `storytree story build ${story.id} --dry-run --emit-wisp`,
+    };
+    if (story.tier !== undefined) wispArgs.tier = story.tier;
+    return emitWisp(wispArgs, opts.wispDeps ?? {});
   }
 
   const topo = topoOrderStoryNodes(story, capabilities);
@@ -716,13 +723,12 @@ export async function storyBuild(
       const anyInstall = driveOrder.some(
         (n) => resolveBuildConfig(n)?.config.real?.install === true,
       );
+      const worktreeOptions: CreateBuildWorktreeOptions = {};
+      if (anyInstall) worktreeOptions.install = true;
+      if (addDepsGroups.length > 0) worktreeOptions.addDeps = addDepsGroups;
       worktree = await progress.stage(
         `shared worktree (fresh detached checkout${anyInstall ? " + pnpm install" : ""})`,
-        () =>
-          createBuildWorktree(rootDir, {
-            ...(anyInstall ? { install: true } : {}),
-            ...(addDepsGroups.length > 0 ? { addDeps: addDepsGroups } : {}),
-          }),
+        () => createBuildWorktree(rootDir, worktreeOptions),
       );
     }
 
@@ -733,9 +739,8 @@ export async function storyBuild(
     // next node builds on top. Promotion at chain end points at THIS, not the stale worktree cut.
     let currentHead = worktree?.headSha ?? "";
 
-    const run = await runStoryBuild({
+    const storyBuildArgs: StoryBuildArgs = {
       order: driveOrder,
-      ...(budgetUsd !== undefined ? { budgetUsd } : {}),
       // Each node is its own NAMED leg of the chain. On a story this is the line that matters most:
       // "node 3/7: <id>" tells a watcher the chain is ADVANCING, where a single "still running"
       // could not distinguish a chain on its seventh node from one wedged on its first.
@@ -760,7 +765,7 @@ export async function storyBuild(
             // Resolve the test-only scripted leaf ONCE (a stateful factory must not be called twice).
             const override = opts.authorOverride?.(spec, worktree.root);
             const liveOverride = opts.liveAuthorOverride?.(spec, worktree.root);
-            const built = await buildNodeReal({
+            const realArgs: RealBuildArgs = {
               spec,
               worktree,
               baseSha: currentHead,
@@ -776,14 +781,15 @@ export async function storyBuild(
               // The phase walk rides the per-node stage, so a stalled chain reports the node AND the
               // phase it stalled in.
               onPhase: (phase) => progress.note(phase),
-              ...(dbProofEnv !== undefined ? { dbProofEnv } : {}),
-              ...(override !== undefined ? { authorOverride: override } : {}),
-              ...(liveOverride !== undefined ? { liveAuthorOverride: liveOverride } : {}),
-              ...(opts.model !== undefined ? { model: opts.model } : {}),
-              // ADR-0130: a slice draws the remaining total when `--budget` is set; unbounded otherwise.
-              ...(remainingUsd !== undefined ? { budgetUsd: remainingUsd } : {}),
-              ...(opts.maxTurns !== undefined ? { maxTurns: opts.maxTurns } : {}),
-            });
+            };
+            if (dbProofEnv !== undefined) realArgs.dbProofEnv = dbProofEnv;
+            if (override !== undefined) realArgs.authorOverride = override;
+            if (liveOverride !== undefined) realArgs.liveAuthorOverride = liveOverride;
+            if (opts.model !== undefined) realArgs.model = opts.model;
+            // ADR-0130: a slice draws the remaining total when `--budget` is set; unbounded otherwise.
+            if (remainingUsd !== undefined) realArgs.budgetUsd = remainingUsd;
+            if (opts.maxTurns !== undefined) realArgs.maxTurns = opts.maxTurns;
+            const built = await buildNodeReal(realArgs);
             if (built.liveAuthor !== undefined) {
               leaves.set(spec.id, built.liveAuthor);
               opts.onLeafSlices?.({ runId, unitId: spec.id, runs: built.liveAuthor.runs });
@@ -792,25 +798,23 @@ export async function storyBuild(
             // Advance the stacked HEAD only on a pass (commitSha is set iff result.ok; equals baseSha
             // when nothing was authored, which is a harmless no-op advance).
             if (built.commitSha !== undefined) currentHead = built.commitSha;
-            return {
-              result: built.result,
-              ...(built.liveAuthor?.runtime === "claude"
-                ? { costUsd: built.liveAuthor.totalCostUsd }
-                : {}),
-            };
+            return built.liveAuthor?.runtime === "claude"
+              ? { result: built.result, costUsd: built.liveAuthor.totalCostUsd }
+              : { result: built.result };
           }
-          const drive = await driveNode(spec, {
+          const driveArgs: DriveNodeArgs = {
             mode: live ? "live-smoke" : "dry-run",
             store,
             runId,
             signer: signer.signer,
             onPhase: (phase) => progress.note(phase),
-            ...(live ? { runtime } : {}),
-            ...(phasePrompts !== undefined ? { phasePrompts } : {}),
-            ...(opts.model !== undefined ? { model: opts.model } : {}),
-            // ADR-0130: a live slice draws the remaining total when `--budget` is set; unbounded otherwise.
-            ...(live && remainingUsd !== undefined ? { budgetUsd: remainingUsd } : {}),
-          });
+          };
+          if (live) driveArgs.runtime = runtime;
+          if (phasePrompts !== undefined) driveArgs.phasePrompts = phasePrompts;
+          if (opts.model !== undefined) driveArgs.model = opts.model;
+          // ADR-0130: a live slice draws the remaining total when `--budget` is set; unbounded otherwise.
+          if (live && remainingUsd !== undefined) driveArgs.budgetUsd = remainingUsd;
+          const drive = await driveNode(spec, driveArgs);
           if (!drive.resolved) {
             // Unreachable past the precheck, but stays fail-closed rather than trusting it.
             const result: ProveResult = {
@@ -826,14 +830,13 @@ export async function storyBuild(
             opts.onLeafSlices?.({ runId, unitId: spec.id, runs: drive.liveAuthor.runs });
           }
           if (!drive.result.ok) failures.set(spec.id, drive.result);
-          return {
-            result: drive.result,
-            ...(drive.liveAuthor?.runtime === "claude"
-              ? { costUsd: drive.liveAuthor.totalCostUsd }
-              : {}),
-          };
+          return drive.liveAuthor?.runtime === "claude"
+            ? { result: drive.result, costUsd: drive.liveAuthor.totalCostUsd }
+            : { result: drive.result };
         }),
-    });
+    };
+    if (budgetUsd !== undefined) storyBuildArgs.budgetUsd = budgetUsd;
+    const run = await runStoryBuild(storyBuildArgs);
 
     // REAL chain-end promotion (ADR-0031 at story grain): ONE branch at the stacked HEAD.
     let promotion: PromotionResult | undefined;
@@ -861,19 +864,20 @@ export async function storyBuild(
         );
         backstopLines.push(...backstop.lines);
         const anyRed = backstop.anyRed;
-        promotion = await promoteRealPass({
+        const promoteArgs: Parameters<typeof promoteRealPass>[0] = {
           repoRoot: rootDir,
           unitId: story.id,
           runId,
           commitSha: currentHead,
-          ...(anyRed ? { push: false } : {}),
-          // ADR-0090 (the local loop's land step): when the caller asks to land (the studio's
-          // UI-driven build), a GREEN, backstop-clean chain opens its own NON-DRAFT PR so CI
-          // auto-merges it to trunk (ADR-0022) — no manual `gh pr create`. A red backstop withholds
-          // the push, so openPr can't fire on it.
-          ...(opts.openPr === true && !anyRed ? { openPr: true } : {}),
-          ...(opts.prTitle !== undefined ? { prTitle: opts.prTitle } : {}),
-        });
+        };
+        if (anyRed) promoteArgs.push = false;
+        // ADR-0090 (the local loop's land step): when the caller asks to land (the studio's
+        // UI-driven build), a GREEN, backstop-clean chain opens its own NON-DRAFT PR so CI
+        // auto-merges it to trunk (ADR-0022) — no manual `gh pr create`. A red backstop withholds
+        // the push, so openPr can't fire on it.
+        if (opts.openPr === true && !anyRed) promoteArgs.openPr = true;
+        if (opts.prTitle !== undefined) promoteArgs.prTitle = opts.prTitle;
+        promotion = await promoteRealPass(promoteArgs);
       } else if (!run.passed) {
         // HALT with a proven prefix: park LOCAL-ONLY (preservation over loss, ADR-0031), NEVER
         // pushed — a partial story is never a landing candidate (no `gh pr create` next-line below).

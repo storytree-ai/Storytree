@@ -123,6 +123,14 @@ export function isTraversalCaptureEnabled(override?: boolean): boolean {
   return process.env[TRAVERSAL_TOGGLE_ENV] !== "off";
 }
 
+/** The WRITABLE draft of `TraversalSinkLocation`'s two identity attributes. The sink's own members
+ *  are `readonly`, so an attribute that is only sometimes declared is collected here and spread
+ *  into the location — an ABSENT key is what leaves the appended lines unlabelled. */
+interface SinkIdentityDraft {
+  grade?: TraceIdentityGrade;
+  slot?: string | null;
+}
+
 /**
  * Ambient capture of one terminal invocation's allowlisted READS.
  *
@@ -202,12 +210,13 @@ export function captureCliInvocation(input: CaptureCliInvocationInput): void {
   // link, never the append. Ordering, never `at`: `readTraversalSession` returns append order, which
   // is the only "earlier" this producer is allowed to know (ADR-0235).
   const { replay } = readTraversalSession({ dir, sessionId });
-  appendTraversalEvents(linkRevisits(offered, replay.events), {
-    dir,
-    sessionId,
-    ...(input.grade !== undefined ? { grade: input.grade } : {}),
-    ...(input.slot !== undefined ? { slot: input.slot } : {}),
-  });
+  // An undeclared grade / slot stays ABSENT: `appendTraversalEvents` stamps an identity attribute
+  // only for the keys it is given, so absence is what leaves the line unlabelled. Drafted in its
+  // own writable bag because `TraversalSinkLocation`'s members are `readonly`.
+  const identity: SinkIdentityDraft = {};
+  if (input.grade !== undefined) identity.grade = input.grade;
+  if (input.slot !== undefined) identity.slot = input.slot;
+  appendTraversalEvents(linkRevisits(offered, replay.events), { dir, sessionId, ...identity });
 }
 
 /**

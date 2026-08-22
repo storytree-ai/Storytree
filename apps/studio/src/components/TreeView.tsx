@@ -976,14 +976,15 @@ function capToScene(spot: CapSpot, now: Date): ScenePlantInput {
   const st = (cap.status ?? 'unknown') as SceneStatus;
   const bloom = st === 'unhealthy' ? null : verdictBloom(cap.verdict, now);
   const verdictNote = cap.verdict ? ` · ${verdictPhrase(cap.verdict)}` : '';
-  return {
+  const plant: ScenePlantInput = {
     id: cap.id,
     status: st,
     x: spot.x,
     y: spot.y,
     title: `${cap.id} — ${cap.error ? 'spec error' : st}${verdictNote}`,
-    ...(bloom ? { bloom: { ageRatio: bloom.ageRatio, outcome: bloom.outcome } } : {}),
   };
+  if (bloom) plant.bloom = { ageRatio: bloom.ageRatio, outcome: bloom.outcome };
+  return plant;
 }
 
 // The parcel input shape + its theme tag, DERIVED from the core's exported `SceneTerritoryInput`
@@ -1146,6 +1147,8 @@ export function nextSceneNow(
  *
  *  `claims` must already be in the core's waiting-order (see {@link orderClaimsForScene}); the
  *  manufactured body is appended, which never disturbs a waiter's queue index. */
+type SceneClaimInput = NonNullable<SceneInput['territories'][number]['claims']>[number];
+
 export function foldBuildOntoClaims(
   claims: ClaimActivity[],
   builds: BuildActivity[],
@@ -1169,13 +1172,14 @@ export function foldBuildOntoClaims(
     // only the WORK stage carries the band — window shopping and queueing are not building — and
     // only from the builds on THIS claim's own unit.
     const phase = grade === 'work' ? resolveBuildPhase(buildsByUnit.get(c.unitId) ?? []) : undefined;
-    return {
+    const body: SceneClaimInput = {
       key: c.sessionId,
       title: claimWispTitle(c, now),
       colourState: claimColourState(c.intent),
       grade,
-      ...(phase ? { phase } : {}),
     };
+    if (phase) body.phase = phase;
+    return body;
   });
 
   // The orphans keep ADR-0212's single manufactured body rather than one each: RED-WINS collapses
@@ -1219,7 +1223,7 @@ function territoryToScene(
   const plate = nameplateLayout(story.id.length, t.buildingGlyph);
   const verdictNote = story.verdict ? ` · UAT ${verdictPhrase(story.verdict)}` : '';
   const bloom = withered ? null : verdictBloom(story.verdict, now);
-  return {
+  const territory: SceneTerritoryInput = {
     id: story.id,
     status: st,
     caps,
@@ -1231,22 +1235,7 @@ function territoryToScene(
     coastPaths: t.coastPaths,
     decor: t.decor.map((d) => ({ x: d.x, y: d.y, seed: d.seed })),
     plants: t.caps.map((spot) => capToScene(spot, now)),
-    // forest-parcels inc 1: ONE parcel per capability (the land IS the capability). Every island WITH
-    // caps carries parcels; the core sub-partitions the island's mesh cells among them (Voronoi over
-    // each seed), tints each cell by its cap's status, grows themed flora with density ∝ testCount, and
-    // RETIRES the decorative conifers + the one-plant-per-cap ring for a parcels-present island. An
-    // empty-caps island stays parcels-ABSENT (no field) — the core's own back-compat semantics
-    // (absent/empty ⇒ today's ground + conifers + plant ring, byte-for-byte).
-    ...(t.caps.length ? { parcels: t.caps.map(capToParcel) } : {}),
-    // forest-parcels inc 2 (the UAT marker walk): a straight `{id, state}` pass-through of the
-    // story's declared UAT criteria — the core owns the walk geometry + marker placement entirely;
-    // the studio just threads the data through. OPTIONAL and back-compat: absent/empty ⇒ no walk
-    // (the core's `buildUatMarkers` absence lock), exactly like `parcels` above.
-    ...(story.uatCriteria?.length
-      ? { uatCriteria: story.uatCriteria.map((c) => ({ id: c.id, state: c.state })) }
-      : {}),
     treeTitle: `${story.id} — ${story.error ? 'story spec error' : st}${verdictNote}`,
-    ...(bloom ? { bloom: { ageRatio: bloom.ageRatio, outcome: bloom.outcome } } : {}),
     // ADR-0212: the separate build-wisp LAYER is no longer fed. Wisp count encodes SESSIONS, and a
     // session that both HOLDS and BUILDS a story used to draw two orbiting bodies 12px apart — an
     // unreachable state, since the work claim is an exclusive mutex (ADR-0200 D2). The build's only
@@ -1285,6 +1274,22 @@ function territoryToScene(
       title: story.error ? `${story.id} — ${story.error}` : story.title,
     },
   };
+  // forest-parcels inc 1: ONE parcel per capability (the land IS the capability). Every island WITH
+  // caps carries parcels; the core sub-partitions the island's mesh cells among them (Voronoi over
+  // each seed), tints each cell by its cap's status, grows themed flora with density ∝ testCount, and
+  // RETIRES the decorative conifers + the one-plant-per-cap ring for a parcels-present island. An
+  // empty-caps island stays parcels-ABSENT (no field) — the core's own back-compat semantics
+  // (absent/empty ⇒ today's ground + conifers + plant ring, byte-for-byte).
+  if (t.caps.length) territory.parcels = t.caps.map(capToParcel);
+  // forest-parcels inc 2 (the UAT marker walk): a straight `{id, state}` pass-through of the
+  // story's declared UAT criteria — the core owns the walk geometry + marker placement entirely;
+  // the studio just threads the data through. OPTIONAL and back-compat: absent/empty ⇒ no walk
+  // (the core's `buildUatMarkers` absence lock), exactly like `parcels` above.
+  if (story.uatCriteria?.length) {
+    territory.uatCriteria = story.uatCriteria.map((c) => ({ id: c.id, state: c.state }));
+  }
+  if (bloom) territory.bloom = { ageRatio: bloom.ageRatio, outcome: bloom.outcome };
+  return territory;
 }
 
 /** Fold a studio `HexWorld` into the core's `SceneInput`. The routed trail network
@@ -1302,7 +1307,7 @@ export function worldToScene(
   garden: SceneGardenInput | null = null,
   vegetation: SceneVegetationInput | null = null,
 ): SceneInput {
-  return {
+  const scene: SceneInput = {
     offset: world.offset,
     width: world.width,
     height: world.height,
@@ -1320,16 +1325,17 @@ export function worldToScene(
         departuresByStory.get(t.story.id) ?? [],
       ),
     ),
-    // ADR-0218: the baked standing-stone solid, supplied only when `?factoryart=on` fetched it. The
-    // core swaps each UAT marker's flat body for a `<use>` of this one def; absent ⇒ flat stones.
-    ...(bakedStone ? { bakedStone } : {}),
-    // ADR-0221 (grounded-art inc 11): the cosy-island garden, supplied only when `?garden=on` fetched
-    // the heroes. The core composes them onto `garden.islandId`; absent ⇒ every island byte-for-byte.
-    ...(garden ? { garden } : {}),
-    // ADR-0226 (grounded-art): the unified vegetation vocabulary, supplied only when `?veg=on`. The
-    // core reads its presence to flip the vocabulary on the non-garden islands; absent ⇒ byte-for-byte.
-    ...(vegetation ? { vegetation } : {}),
   };
+  // ADR-0218: the baked standing-stone solid, supplied only when `?factoryart=on` fetched it. The
+  // core swaps each UAT marker's flat body for a `<use>` of this one def; absent ⇒ flat stones.
+  if (bakedStone) scene.bakedStone = bakedStone;
+  // ADR-0221 (grounded-art inc 11): the cosy-island garden, supplied only when `?garden=on` fetched
+  // the heroes. The core composes them onto `garden.islandId`; absent ⇒ every island byte-for-byte.
+  if (garden) scene.garden = garden;
+  // ADR-0226 (grounded-art): the unified vegetation vocabulary, supplied only when `?veg=on`. The
+  // core reads its presence to flip the vocabulary on the non-garden islands; absent ⇒ byte-for-byte.
+  if (vegetation) scene.vegetation = vegetation;
+  return scene;
 }
 
 /**

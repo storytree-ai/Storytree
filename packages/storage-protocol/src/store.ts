@@ -145,6 +145,13 @@ export interface ChangeStore {
 
 const DEFAULT_ACTOR = "system";
 
+/** The body {@link retiredEventDoc} builds — the doc's own keys, plus the two folded retire keys. */
+interface RetiredEventDocBody {
+  [key: string]: unknown;
+  retiredReason?: string;
+  supersededBy?: string;
+}
+
 /**
  * The `doc` payload of a `deleted` event: the doc's last state verbatim, plus `retiredReason` /
  * `supersededBy` folded in WHEN a retire rationale was given and the body is an object — so the
@@ -155,11 +162,10 @@ const DEFAULT_ACTOR = "system";
 export function retiredEventDoc(doc: unknown, opts?: DeleteDocOpts): unknown {
   if (opts?.reason === undefined && opts?.supersededBy === undefined) return doc;
   if (typeof doc !== "object" || doc === null) return doc;
-  return {
-    ...(doc as Record<string, unknown>),
-    ...(opts.reason !== undefined ? { retiredReason: opts.reason } : {}),
-    ...(opts.supersededBy !== undefined ? { supersededBy: opts.supersededBy } : {}),
-  };
+  const retired: RetiredEventDocBody = { ...(doc as Record<string, unknown>) };
+  if (opts.reason !== undefined) retired.retiredReason = opts.reason;
+  if (opts.supersededBy !== undefined) retired.supersededBy = opts.supersededBy;
+  return retired;
 }
 
 /**
@@ -319,10 +325,10 @@ export class InMemoryStore implements Store, ChangeStore {
       doc: e.doc,
       actor: e.actor ?? DEFAULT_ACTOR,
       at: new Date().toISOString(),
-      // Carried only when the emitter stamped it — an absent cause stays absent (ADR-0350 D2),
-      // never widened to a null that a reader could mistake for "nothing caused this".
-      ...(e.causedBy !== undefined ? { causedBy: { ...e.causedBy } } : {}),
     };
+    // Carried only when the emitter stamped it — an absent cause stays absent (ADR-0350 D2),
+    // never widened to a null that a reader could mistake for "nothing caused this".
+    if (e.causedBy !== undefined) event.causedBy = { ...e.causedBy };
     this.#events.push(event);
     return event;
   }

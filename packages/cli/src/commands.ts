@@ -57,7 +57,13 @@ import { renderStoredDoc, renderProcessNode } from "@storytree/library/store";
 
 import { execFileSync } from "node:child_process";
 
-import { adrCommand, adrHelp, loadAdrListings, type AdrAllocatorLike } from "./adr.js";
+import {
+  adrCommand,
+  adrHelp,
+  loadAdrListings,
+  type AdrAllocatorLike,
+  type AdrCommandOpts,
+} from "./adr.js";
 import { expandAtPathFlags, formatAtPathRefusal, PROSE_FLAGS } from "./at-path.js";
 import { libraryQuery, libraryQueryHelp } from "./library-query.js";
 // The arc domain owns its own package (`arc-tier-extraction-arc`): the arc / increment / question
@@ -78,6 +84,7 @@ import {
   arcIncrementPromote,
   arcIncrementNew,
   arcScopeOf,
+  type ArcIncrementAddOpts,
   questionCommand,
   questionHelp,
   incrementCommand,
@@ -88,14 +95,19 @@ import {
 } from "@storytree/arc";
 import { traversalCommand, traversalHelp } from "./traversal.js";
 // `session-cost` — the repeatable session-cost measurement over host transcripts (ADR-0323 D4).
-import { sessionCostCommand, sessionCostHelp } from "./session-cost.js";
+import { sessionCostCommand, sessionCostHelp, type SessionCostOpts } from "./session-cost.js";
 import { CLI_AREAS } from "./cli-areas.js";
 import { dispatchCommand, dispatchHelp, dispatchWaitCommand } from "./dispatch-command.js";
 // ADR-0290: a live library write records WHICH BRANCH made it, so `check:corpus-content` can charge a
 // seed↔live drift to the session that must reconcile it instead of to whoever gates next.
 import { currentGitBranch, defaultCliActor, inFlightBranches } from "./cli-actor.js";
-import { adoptCommand, adoptHelp, type AdoptDispatchDeps } from "./adopt.js";
-import { branchNext, branchHelp } from "./branch.js";
+import {
+  adoptCommand,
+  adoptHelp,
+  type AdoptDispatchDeps,
+  type AdoptInvocation,
+} from "./adopt.js";
+import { branchNext, branchHelp, type BranchDeps } from "./branch.js";
 import {
   pruneWorktrees,
   worktreeDrainStatus,
@@ -104,21 +116,29 @@ import {
   DEFAULT_THRESHOLD_MS,
   type WorktreeIo,
   type IdleSignalReading,
+  type PruneDeps,
   type PruneOptions,
 } from "./worktree.js";
 import type { DrainLedgerIo } from "./worktree-drain.js";
 // `worktree create` — the claim-gated workspace ceremony (ADR-0200 D3).
-import { createWorktree, type WorktreeCreateIo } from "./worktree-create.js";
+import {
+  createWorktree,
+  type WorktreeCreateDeps,
+  type WorktreeCreateIo,
+  type WorktreeCreateOpts,
+} from "./worktree-create.js";
 import { writeAuthorityCommand } from "./write-authority-install.js";
 import {
   desktopHelp,
   desktopInstallShortcut,
   desktopLaunch,
   type CreateShortcutsFn,
+  type DesktopInstallShortcutDeps,
+  type DesktopLaunchDeps,
   type DesktopSpawnFn,
   type ResolveElectronFn,
 } from "./desktop.js";
-import { onboardingCommand, onboardingHelp } from "./onboarding.js";
+import { onboardingCommand, onboardingHelp, type OnboardingOpts } from "./onboarding.js";
 import { doctorCommand, doctorHelp } from "./doctor.js";
 import { guideCommand, guideHelp } from "./guide.js";
 import {
@@ -131,7 +151,7 @@ import {
   type FrictionContext,
 } from "./friction.js";
 // ADR-0316 — the report-only factory-floor health instrument (`factory-floor-health-arc`).
-import { factoryHealth, factoryHelp } from "./factory.js";
+import { factoryHealth, factoryHelp, type FactoryHealthOpts } from "./factory.js";
 import type { CommitRec, DetachedSpawn } from "@storytree/drive";
 import type { AdoptPlanStory } from "./adopt-plan.js";
 import { contractlessCommand, type BehaviourClaimUnit } from "./coverage-claims.js";
@@ -154,8 +174,14 @@ import {
   nodePanelIo,
 } from "./lint-panel-command.js";
 import { agentsCommand, agentStepCommand, agentsHelp } from "./agents.js";
-import { attestCommand, attestHelp, type AttestationStoreLike, type AttestDeps } from "./attest.js";
-import { runDrift, driftHelp } from "./drift.js";
+import {
+  attestCommand,
+  attestHelp,
+  type AttestationStoreLike,
+  type AttestDeps,
+  type AttestOpts,
+} from "./attest.js";
+import { runDrift, driftHelp, type DriftOpts } from "./drift.js";
 import { renderDoctrine } from "./doctrine.js";
 import {
   graduateCommand,
@@ -166,7 +192,7 @@ import {
   parseParkFile,
   type ParkItem,
 } from "./graduate.js";
-import { emitNodeEnvelope, type Envelope } from "./envelope.js";
+import { emitNodeEnvelope, type Envelope, type NodeEdge } from "./envelope.js";
 import {
   libraryHealth,
   worstLevel,
@@ -177,11 +203,11 @@ import {
 import { lookupNodeBuildConfig, parsePocketReadings } from "@storytree/orchestrator";
 import type { PocketReading } from "@storytree/orchestrator";
 
-import { nodeBuild, nodeHelp, nodeResolve, specView } from "@storytree/drive";
+import { nodeBuild, nodeHelp, nodeResolve, specView, type NodeBuildOpts } from "@storytree/drive";
 // The work-hierarchy ref index (ADR-0306 D1) — one scan per report, feeding health's tier-aware
 // `story:`/`capability:` resolver.
 import { loadWorkHierarchyIndex } from "@storytree/drive";
-import { orchestrate } from "@storytree/drive";
+import { orchestrate, type OrchestrateArgs } from "@storytree/drive";
 import type { SdkQueryFn } from "@storytree/agent";
 import { deriveIdentity, noticeboardCommand } from "@storytree/drive";
 import { renderOfferFollowUps, OFFER_FOLLOW_NOTE } from "@storytree/context-traversal-capture";
@@ -190,7 +216,12 @@ import type { LeafSliceRun } from "@storytree/context-traversal-spawn";
 // The graded claim-ledger verbs (ADR-0200 D2): claim / upgrade / downgrade / release / claims.
 import { claimLedgerCommand, isClaimLedgerVerb } from "@storytree/drive";
 import { claimHistoryCommand, isClaimHistoryVerb } from "@storytree/drive";
-import type { ClaimLedgerReadLike, ClaimLedgerStoreLike } from "@storytree/drive";
+import type {
+  ClaimHistoryOpts,
+  ClaimLedgerOpts,
+  ClaimLedgerReadLike,
+  ClaimLedgerStoreLike,
+} from "@storytree/drive";
 // The claim namespace (ADR-0310 D2) — supplied by main.ts under --pg, never defaulted here.
 import type { ClaimUniverseLoader } from "@storytree/drive";
 import type { ClaimHistoryStoreLike } from "@storytree/drive";
@@ -210,10 +241,11 @@ import {
   uatHelp,
   type GitState,
   type UatDeps,
+  type UatOpts,
   type UatVerdictStoreLike,
 } from "./uat.js";
 import { gateCommand, gateHelp, type GateDeps, type GateOpts } from "./gate.js";
-import { driveBuildTestsGate } from "./gate-build-driver.js";
+import { driveBuildTestsGate, type GateBuildDriverDeps } from "./gate-build-driver.js";
 
 // RETIRED_FIELDS (the retired-field denylist) moved to `@storytree/drive`'s health module with
 // the checks it feeds — re-imported via the ./health.js shim above.
@@ -225,6 +257,25 @@ import { driveBuildTestsGate } from "./gate-build-driver.js";
  * (reference-don't-restate, ADR-0029 §7). The old hand-copied literal lived here.
  */
 const EDIT_FIRST_ID = "edit-first-curation";
+
+/**
+ * A mutable DRAFT of an owner contract whose optional properties are `readonly`.
+ *
+ * The dispatch below builds its option/deps bags one guarded assignment at a time — the only shape
+ * that OMITS a property rather than setting it to `undefined`. A contract declaring its optionals
+ * `readonly` refuses that, so the draft is typed mutable and handed over by a CHECKED assignment at
+ * the call — never by `as`, which would trade one unchecked claim for another. Each `…Draft` below
+ * is DERIVED from its contract, so it cannot drift from it; none is a new contract of its own.
+ */
+type Mutable<T> = { -readonly [K in keyof T]: T[K] };
+
+type BranchDepsDraft = Mutable<BranchDeps>;
+type PruneDepsDraft = Mutable<PruneDeps>;
+type WorktreeCreateOptsDraft = Mutable<WorktreeCreateOpts>;
+type WorktreeCreateDepsDraft = Mutable<WorktreeCreateDeps>;
+type DesktopLaunchDepsDraft = Mutable<DesktopLaunchDeps>;
+type DesktopInstallShortcutDepsDraft = Mutable<DesktopInstallShortcutDeps>;
+type SessionCostOptsDraft = Mutable<SessionCostOpts>;
 
 /**
  * The OWNER's timezone, named ONCE as a repo constant.
@@ -522,10 +573,9 @@ export async function viewArtifact(store: Store, id: string, offerId?: string): 
       const derived = emitNodeEnvelope({
         id: node.id,
         headline: node.headline,
-        edges: node.edges.map((e) => ({
-          ref: e.ref,
-          ...(e.label !== undefined ? { label: e.label } : {}),
-        })),
+        edges: node.edges.map(
+          (e): NodeEdge => (e.label !== undefined ? { ref: e.ref, label: e.label } : { ref: e.ref }),
+        ),
       });
       if (derived.next && derived.next.length > 0) next = [...derived.next];
     }
@@ -1418,11 +1468,16 @@ export async function retireArtifact(
     };
   }
 
-  const dropped = await deps.store.deleteDoc(id, {
-    actor: deps.actor ?? defaultCliActor(),
-    reason,
-    ...(opts.supersededBy !== undefined ? { supersededBy: opts.supersededBy } : {}),
-  });
+  // The whole options object is chosen by ternary rather than grown by guarded assignment, because
+  // the ATTRIBUTION FENCE (`write-attribution.ts`) reads this call site's own argument text: a bag
+  // hoisted to a local reads as a forwarding adapter that stamps no actor, which is the one shape
+  // this write must never take.
+  const dropped = await deps.store.deleteDoc(
+    id,
+    opts.supersededBy !== undefined
+      ? { actor: deps.actor ?? defaultCliActor(), reason, supersededBy: opts.supersededBy }
+      : { actor: deps.actor ?? defaultCliActor(), reason },
+  );
   if (!dropped) {
     // getDoc saw it a moment ago; a false here means a concurrent retire won the race.
     return { ok: false, body: `"${id}" was already retired (no row to drop).`, next: ["storytree library"] };
@@ -2297,22 +2352,27 @@ interface BuildValues {
  * `node build`/`story build` back-compat aliases) take the SAME shape, so it is built once here — the
  * single source the dispatch routes into, never re-typed per area (ADR-0118: relocate the primitive,
  * don't fork it).
+ *
+ * Typed as drive's own {@link NodeBuildOpts} rather than a CLI-local restatement: every field below
+ * is declared identically on `StoryBuildOpts`, so one annotation serves both callees and cannot
+ * drift from either.
  */
-export function nodeStoryBuildOpts(values: BuildValues) {
-  return {
+export function nodeStoryBuildOpts(values: BuildValues): NodeBuildOpts {
+  const opts: NodeBuildOpts = {
     dryRun: values["dry-run"] === true,
     live: values.live === true,
     real: values.real === true,
     emitWisp: values["emit-wisp"] === true,
-    ...(values.dwell !== undefined ? { dwellSec: Number(values.dwell) } : {}),
-    ...(values.model !== undefined ? { model: values.model } : {}),
-    ...(values.runtime !== undefined ? { runtime: values.runtime } : {}),
-    ...(values.budget !== undefined ? { budgetUsd: Number(values.budget) } : {}),
-    ...(values["max-turns"] !== undefined ? { maxTurns: Number(values["max-turns"]) } : {}),
-    ...(values.actor !== undefined ? { actor: values.actor } : {}),
-    ...(values.store !== undefined ? { verdictStore: values.store } : {}),
-    onLeafSlices: captureBuildLeafSlices,
   };
+  if (values.dwell !== undefined) opts.dwellSec = Number(values.dwell);
+  if (values.model !== undefined) opts.model = values.model;
+  if (values.runtime !== undefined) opts.runtime = values.runtime;
+  if (values.budget !== undefined) opts.budgetUsd = Number(values.budget);
+  if (values["max-turns"] !== undefined) opts.maxTurns = Number(values["max-turns"]);
+  if (values.actor !== undefined) opts.actor = values.actor;
+  if (values.store !== undefined) opts.verdictStore = values.store;
+  opts.onLeafSlices = captureBuildLeafSlices;
+  return opts;
 }
 
 /**
@@ -2365,10 +2425,10 @@ export function classifyBuildTarget(id: string, storiesDir: string): "node" | "s
 
 /** The `gate` invocation opts (signer + the build-tests `--real` switch), shared by `gate` and `build gate`. */
 function makeGateOpts(values: BuildValues): GateOpts {
-  return {
-    ...(values.signer !== undefined ? { signer: values.signer } : {}),
-    ...(values.real === true ? { real: true } : {}),
-  };
+  const opts: GateOpts = {};
+  if (values.signer !== undefined) opts.signer = values.signer;
+  if (values.real === true) opts.real = true;
+  return opts;
 }
 
 /**
@@ -2384,16 +2444,15 @@ function makeGateDeps(deps: RunDeps, values: BuildValues, storiesDir: string): G
     gitState: readGitState,
     observe: observeCommand,
     resolveSigner: (flag?: string) => resolveSignerFromEnv(flag !== undefined ? { flag } : undefined),
-    driveBuildTestsGate: (gate, signer) =>
-      driveBuildTestsGate(gate, signer, {
-        storiesDir,
-        repoRoot: repoRoot(),
-        ...(values.store !== undefined ? { verdictStore: values.store } : {}),
-        ...(values.model !== undefined ? { model: values.model } : {}),
-        ...(values.runtime !== undefined ? { runtime: values.runtime } : {}),
-        ...(values.budget !== undefined ? { budgetUsd: Number(values.budget) } : {}),
-        ...(values["max-turns"] !== undefined ? { maxTurns: Number(values["max-turns"]) } : {}),
-      }),
+    driveBuildTestsGate: (gate, signer) => {
+      const driverDeps: GateBuildDriverDeps = { storiesDir, repoRoot: repoRoot() };
+      if (values.store !== undefined) driverDeps.verdictStore = values.store;
+      if (values.model !== undefined) driverDeps.model = values.model;
+      if (values.runtime !== undefined) driverDeps.runtime = values.runtime;
+      if (values.budget !== undefined) driverDeps.budgetUsd = Number(values.budget);
+      if (values["max-turns"] !== undefined) driverDeps.maxTurns = Number(values["max-turns"]);
+      return driveBuildTestsGate(gate, signer, driverDeps);
+    },
     now: () => new Date(),
   };
 }
@@ -2444,13 +2503,13 @@ function makeUatOpts(values: {
   signer?: string;
   note?: string;
   write?: boolean;
-}) {
-  return {
-    ...(values.outcome !== undefined ? { outcome: values.outcome } : {}),
-    ...(values.signer !== undefined ? { signer: values.signer } : {}),
-    ...(values.note !== undefined ? { note: values.note } : {}),
-    ...(values.write !== undefined ? { write: values.write } : {}),
-  };
+}): UatOpts {
+  const opts: UatOpts = {};
+  if (values.outcome !== undefined) opts.outcome = values.outcome;
+  if (values.signer !== undefined) opts.signer = values.signer;
+  if (values.note !== undefined) opts.note = values.note;
+  if (values.write !== undefined) opts.write = values.write;
+  return opts;
 }
 
 /** Wire the live UAT seams (verdict store, test loader, git state, identity, signer, clock). */
@@ -2501,14 +2560,14 @@ function makeAttestOpts(values: {
   signer?: string;
   "relayed-by"?: string;
   note?: string;
-}) {
-  return {
-    ...(values.outcome !== undefined ? { outcome: values.outcome } : {}),
-    ...(values.witness !== undefined ? { witness: values.witness } : {}),
-    ...(values.signer !== undefined ? { signer: values.signer } : {}),
-    ...(values["relayed-by"] !== undefined ? { relayedBy: values["relayed-by"] } : {}),
-    ...(values.note !== undefined ? { note: values.note } : {}),
-  };
+}): AttestOpts {
+  const opts: AttestOpts = {};
+  if (values.outcome !== undefined) opts.outcome = values.outcome;
+  if (values.witness !== undefined) opts.witness = values.witness;
+  if (values.signer !== undefined) opts.signer = values.signer;
+  if (values["relayed-by"] !== undefined) opts.relayedBy = values["relayed-by"];
+  if (values.note !== undefined) opts.note = values.note;
+  return opts;
 }
 
 /** Wire the live attestation seams (store, identity, signer, clock) — shared by `attest` and `witness vouch`. */
@@ -2993,47 +3052,40 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       // tested, and dormant in production. A dormant mechanism is indistinguishable from a
       // working one from the outside, which is the exact class this arc exists to fence.
       const claimsFor = auditStore?.claimsFor;
-      return claimHistoryCommand(
-        third,
-        {
-          ...(values.days !== undefined ? { days: values.days } : {}),
-          ...(values.session !== undefined ? { session: values.session } : {}),
-          ...(values.type !== undefined ? { type: values.type } : {}),
-          ...(values.limit !== undefined ? { limit: values.limit } : {}),
-          refusals: values.refusals === true,
-          holdings: values.holdings === true,
-        },
-        {
-          history:
-            auditHistory !== undefined
-              ? {
-                  auditHistory: (query) => auditHistory.call(auditStore, query),
-                  ...(claimsFor !== undefined
-                    ? { claimsFor: (unitId: string) => claimsFor.call(auditStore, unitId) }
-                    : {}),
-                }
-              : null,
-          now: () => new Date(),
-        },
-      );
+      const historyOpts: ClaimHistoryOpts = {};
+      if (values.days !== undefined) historyOpts.days = values.days;
+      if (values.session !== undefined) historyOpts.session = values.session;
+      if (values.type !== undefined) historyOpts.type = values.type;
+      if (values.limit !== undefined) historyOpts.limit = values.limit;
+      historyOpts.refusals = values.refusals === true;
+      historyOpts.holdings = values.holdings === true;
+      let historyStore: ClaimHistoryStoreLike | null = null;
+      if (auditHistory !== undefined) {
+        const bound: ClaimHistoryStoreLike = {
+          auditHistory: (query) => auditHistory.call(auditStore, query),
+        };
+        if (claimsFor !== undefined) {
+          bound.claimsFor = (unitId: string) => claimsFor.call(auditStore, unitId);
+        }
+        historyStore = bound;
+      }
+      return claimHistoryCommand(third, historyOpts, {
+        history: historyStore,
+        now: () => new Date(),
+      });
     }
     // The graded claim-ledger verbs (ADR-0200 D2) route to the leaf-proven claimLedgerCommand;
     // declare/done keep the exact noticeboardCommand path below (byte-compatible).
     if (isClaimLedgerVerb(sub)) {
-      return claimLedgerCommand(
-        sub,
-        third,
-        {
-          ...(values.grade !== undefined ? { grade: values.grade } : {}),
-          ...(values.intent !== undefined ? { intent: values.intent } : {}),
-        },
-        {
-          claims: deps.presence?.ledger ?? null,
-          identity,
-          now: () => new Date(),
-          universe: deps.claimUniverse ?? null,
-        },
-      );
+      const ledgerOpts: ClaimLedgerOpts = {};
+      if (values.grade !== undefined) ledgerOpts.grade = values.grade;
+      if (values.intent !== undefined) ledgerOpts.intent = values.intent;
+      return claimLedgerCommand(sub, third, ledgerOpts, {
+        claims: deps.presence?.ledger ?? null,
+        identity,
+        now: () => new Date(),
+        universe: deps.claimUniverse ?? null,
+      });
     }
     // (The write-authority receipt was stamped here until ADR-0284 D4 retired it with the hook that
     // was its only consumer. Its removal is what deletes the 12-hour TTL that would have refused a
@@ -3044,12 +3096,11 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     // ledger without the read half degrades the board to the empty offline render).
     const ledgerStore = deps.presence?.ledger ?? null;
     const listAllClaims = ledgerStore?.listAllClaims;
+    const boardOpts: Parameters<typeof noticeboardCommand>[1] = { nodes: values.node ?? [] };
+    if (values["working-on"] !== undefined) boardOpts.workingOn = values["working-on"];
     return noticeboardCommand(
       sub,
-      {
-        ...(values["working-on"] !== undefined ? { workingOn: values["working-on"] } : {}),
-        nodes: values.node ?? [],
-      },
+      boardOpts,
       {
         identity,
         now: () => new Date(),
@@ -3078,17 +3129,14 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         // increments on hands that were only tidying rows.
         onWorkClaimed: async ({ id, kind }) => {
           if (kind !== "increment") return null;
-          const res = await arcIncrementPromote(
-            {
-              store: deps.store,
-              writable: deps.writable === true,
-              ...(deps.actor !== undefined ? { actor: deps.actor } : {}),
-              now: new Date().toISOString(),
-              pg: values.pg === true,
-            },
-            id,
-            "active",
-          );
+          const promoteDeps: ArcWriteDeps = {
+            store: deps.store,
+            writable: deps.writable === true,
+            now: new Date().toISOString(),
+            pg: values.pg === true,
+          };
+          if (deps.actor !== undefined) promoteDeps.actor = deps.actor;
+          const res = await arcIncrementPromote(promoteDeps, id, "active");
           // A refusal is SILENT by design: the reachable ones are "already active" (a re-declare,
           // which is the common case and says nothing new) and "closed" (terminal, ADR-0305 D2).
           // Neither is news, and neither is this verb's business to argue with. A genuine store
@@ -3120,9 +3168,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     const ledgerStore = deps.presence?.ledger ?? null;
     const claimsBySession = ledgerStore?.claimsBySession;
     const claimStore = deps.presence?.claims ?? null;
-    return branchNext({
-      ...(deps.branch?.runGit !== undefined ? { runGit: deps.branch.runGit } : {}),
-      ...(deps.branch?.generateName !== undefined ? { generateName: deps.branch.generateName } : {}),
+    const branchDeps: BranchDepsDraft = {
       claims:
         claimsBySession !== undefined
           ? { claimsBySession: (sid) => claimsBySession.call(ledgerStore, sid) }
@@ -3142,7 +3188,10 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
                 deps,
               )
           : null,
-    });
+    };
+    if (deps.branch?.runGit !== undefined) branchDeps.runGit = deps.branch.runGit;
+    if (deps.branch?.generateName !== undefined) branchDeps.generateName = deps.branch.generateName;
+    return branchNext(branchDeps);
   }
 
   if (area === "worktree") {
@@ -3157,24 +3206,23 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       // ADR-0200 D3 — the claim-gated workspace ceremony: exploring claim(s) FIRST (no claim, no
       // workspace), then mint → cut off origin/main → synchronous install → the start payload.
       // The ledger is the SAME live claim store the noticeboard verbs drive (null offline → refuse).
-      return createWorktree(
-        {
-          nodes: values.node ?? [],
-          intent: values.intent ?? "",
-          ...(values.runtime !== undefined ? { runtime: values.runtime } : {}),
-        },
-        {
-          ledger: deps.presence?.ledger ?? null,
-          // The claim namespace (ADR-0310 D2) — this ceremony BORNS a session claimed, so a
-          // phantom id here mints a whole worktree around a claim on nothing.
-          universe: deps.claimUniverse ?? null,
-          ...(deps.worktree?.createIo !== undefined ? { io: deps.worktree.createIo } : {}),
-          ...(deps.worktree?.stamps !== undefined ? { stamps: deps.worktree.stamps } : {}),
-          ...(deps.worktree?.generateSuffix !== undefined
-            ? { generateSuffix: deps.worktree.generateSuffix }
-            : {}),
-        },
-      );
+      const createOpts: WorktreeCreateOptsDraft = {
+        nodes: values.node ?? [],
+        intent: values.intent ?? "",
+      };
+      if (values.runtime !== undefined) createOpts.runtime = values.runtime;
+      const createDeps: WorktreeCreateDepsDraft = {
+        ledger: deps.presence?.ledger ?? null,
+        // The claim namespace (ADR-0310 D2) — this ceremony BORNS a session claimed, so a
+        // phantom id here mints a whole worktree around a claim on nothing.
+        universe: deps.claimUniverse ?? null,
+      };
+      if (deps.worktree?.createIo !== undefined) createDeps.io = deps.worktree.createIo;
+      if (deps.worktree?.stamps !== undefined) createDeps.stamps = deps.worktree.stamps;
+      if (deps.worktree?.generateSuffix !== undefined) {
+        createDeps.generateSuffix = deps.worktree.generateSuffix;
+      }
+      return createWorktree(createOpts, createDeps);
     }
     if (sub !== "prune" && sub !== "drain" && sub !== "idle") {
       return {
@@ -3210,12 +3258,11 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       ? Math.max(0, thresholdHours) * 3_600_000
       : DEFAULT_THRESHOLD_MS;
     const wtIoShared: WorktreeIo | undefined = deps.worktree?.io;
-    const wtDeps = {
-      ...(wtIoShared !== undefined ? { io: wtIoShared } : {}),
-      ...(deps.worktree?.now !== undefined ? { now: deps.worktree.now } : {}),
-      ...(deps.worktree?.drain !== undefined ? { drain: deps.worktree.drain } : {}),
-      ...(deps.worktree?.idle !== undefined ? { idle: deps.worktree.idle } : {}),
-    };
+    const wtDeps: PruneDepsDraft = {};
+    if (wtIoShared !== undefined) wtDeps.io = wtIoShared;
+    if (deps.worktree?.now !== undefined) wtDeps.now = deps.worktree.now;
+    if (deps.worktree?.drain !== undefined) wtDeps.drain = deps.worktree.drain;
+    if (deps.worktree?.idle !== undefined) wtDeps.idle = deps.worktree.idle;
     if (sub === "idle") {
       // worktree-reaper-eligibility-arc — the clock's own evidence. `drain` says the reaper is not
       // draining; this says WHY each worktree is not ageing, and alarms when a bulk sweep is
@@ -3367,12 +3414,12 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
 
   if (area === "drift") {
     if (help) return driftHelp();
-    return runDrift({
-      ...(values.file !== undefined ? { file: values.file } : {}),
-      ...(values.bound !== undefined ? { bound: values.bound } : {}),
-      ...(values.change !== undefined ? { changes: values.change } : {}),
-      ...(sub !== undefined ? { label: sub } : {}),
-    });
+    const driftOpts: DriftOpts = {};
+    if (values.file !== undefined) driftOpts.file = values.file;
+    if (values.bound !== undefined) driftOpts.bound = values.bound;
+    if (values.change !== undefined) driftOpts.changes = values.change;
+    if (sub !== undefined) driftOpts.label = sub;
+    return runDrift(driftOpts);
   }
 
   if (area === "adr") {
@@ -3385,18 +3432,18 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         next: ['storytree adr new --title "..." --decided --decided-date 2026-07-11 --pg'],
       };
     }
+    const adrOpts: AdrCommandOpts = {};
+    if (values.title !== undefined) adrOpts.title = values.title;
+    if (values.arc !== undefined) adrOpts.arc = values.arc;
+    if (values.supersedes !== undefined) adrOpts.supersedes = values.supersedes;
+    if (values.amends !== undefined) adrOpts.amends = values.amends;
+    if (values.decided === true) adrOpts.decided = true;
+    if (values.current === true) adrOpts.current = true;
+    if (values["load-bearing"] === true) adrOpts.loadBearing = true;
+    if (values.status !== undefined) adrOpts.status = values.status;
     return adrCommand(
       sub,
-      {
-        ...(values.title !== undefined ? { title: values.title } : {}),
-        ...(values.arc !== undefined ? { arc: values.arc } : {}),
-        ...(values.supersedes !== undefined ? { supersedes: values.supersedes } : {}),
-        ...(values.amends !== undefined ? { amends: values.amends } : {}),
-        ...(values.decided === true ? { decided: true } : {}),
-        ...(values.current === true ? { current: true } : {}),
-        ...(values["load-bearing"] === true ? { loadBearing: true } : {}),
-        ...(values.status !== undefined ? { status: values.status } : {}),
-      },
+      adrOpts,
       {
         allocator: deps.adr ?? null,
         decisionsDir: deps.adrDecisionsDir ?? path.join(repoRoot(), "docs", "decisions"),
@@ -3420,21 +3467,18 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     // --write, flips `lifecycle` on the ones that drifted (the write). It is dispatched ahead of the
     // write block because it takes no id and none of that block's prose flags.
     if (sub === "reconcile") {
-      return arcReconcile(
-        {
-          store: deps.store,
-          decisionsDir: deps.adrDecisionsDir ?? path.join(repoRoot(), "docs", "decisions"),
-          storiesDir: deps.storiesDir ?? path.join(repoRoot(), "stories"),
-          pg: values.pg === true,
-          writable: deps.writable === true,
-          ...(deps.actor !== undefined ? { actor: deps.actor } : {}),
-          now: new Date().toISOString(),
-        },
-        {
-          write: values.write === true,
-          ...(values.only !== undefined ? { only: values.only } : {}),
-        },
-      );
+      const reconcileDeps: Parameters<typeof arcReconcile>[0] = {
+        store: deps.store,
+        decisionsDir: deps.adrDecisionsDir ?? path.join(repoRoot(), "docs", "decisions"),
+        storiesDir: deps.storiesDir ?? path.join(repoRoot(), "stories"),
+        pg: values.pg === true,
+        writable: deps.writable === true,
+        now: new Date().toISOString(),
+      };
+      if (deps.actor !== undefined) reconcileDeps.actor = deps.actor;
+      const reconcileOpts: Parameters<typeof arcReconcile>[1] = { write: values.write === true };
+      if (values.only !== undefined) reconcileOpts.only = values.only;
+      return arcReconcile(reconcileDeps, reconcileOpts);
     }
 
     // The WRITE verbs (arc new / arc edit / arc increment add / arc close) go through the validated
@@ -3454,10 +3498,10 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       const writeDeps: ArcWriteDeps = {
         store: deps.store,
         writable: deps.writable === true,
-        ...(deps.actor !== undefined ? { actor: deps.actor } : {}),
         now: new Date().toISOString(),
         pg: values.pg === true,
       };
+      if (deps.actor !== undefined) writeDeps.actor = deps.actor;
       // Every field here arrives ALREADY `@path`-expanded — the boundary at the top of `run` did it
       // once, for every prose flag, before any verb saw the value (cli-write-fidelity-arc). This is
       // now a plain rename from flag names to the write path's field names; `--change` is repeatable
@@ -3472,16 +3516,15 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         note?: string;
       }
 
-      const resolved: ResolvedShape = {
-        ...(values.intent !== undefined ? { intent: values.intent } : {}),
-        ...(values["end-state"] !== undefined ? { endState: values["end-state"] } : {}),
-        ...(values.outcome !== undefined ? { outcome: values.outcome } : {}),
-        ...(values.description !== undefined ? { description: values.description } : {}),
-        // The increment body (ADR-0305 D4) — two long-prose flags where the parked entry had seven.
-        ...(values.objective !== undefined ? { objective: values.objective } : {}),
-        ...(values.body !== undefined ? { body: values.body } : {}),
-        ...(values.note !== undefined ? { note: values.note } : {}),
-      };
+      const resolved: ResolvedShape = {};
+      if (values.intent !== undefined) resolved.intent = values.intent;
+      if (values["end-state"] !== undefined) resolved.endState = values["end-state"];
+      if (values.outcome !== undefined) resolved.outcome = values.outcome;
+      if (values.description !== undefined) resolved.description = values.description;
+      // The increment body (ADR-0305 D4) — two long-prose flags where the parked entry had seven.
+      if (values.objective !== undefined) resolved.objective = values.objective;
+      if (values.body !== undefined) resolved.body = values.body;
+      if (values.note !== undefined) resolved.note = values.note;
 
       // `arc increment new|add|close` — the three increment verbs (ADR-0305 D1). `--id` is declared
       // `multiple` (it is `export-corpus`'s repeatable scope flag), so an entry slug is its first value.
@@ -3508,21 +3551,21 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
           };
         }
         if (third === "new") {
-          return arcIncrementNew(writeDeps, fourth, {
-            ...(entryId !== undefined ? { id: entryId } : {}),
-            ...(values.title !== undefined ? { title: values.title } : {}),
-            ...(resolved.objective !== undefined ? { objective: resolved.objective } : {}),
-            ...(resolved.body !== undefined ? { body: resolved.body } : {}),
-            ...(Array.isArray(values.friction) ? { friction: values.friction } : {}),
-            ...(Array.isArray(values.cites) ? { cites: values.cites } : {}),
-          });
+          const incNewOpts: Parameters<typeof arcIncrementNew>[2] = {};
+          if (entryId !== undefined) incNewOpts.id = entryId;
+          if (values.title !== undefined) incNewOpts.title = values.title;
+          if (resolved.objective !== undefined) incNewOpts.objective = resolved.objective;
+          if (resolved.body !== undefined) incNewOpts.body = resolved.body;
+          if (Array.isArray(values.friction)) incNewOpts.friction = values.friction;
+          if (Array.isArray(values.cites)) incNewOpts.cites = values.cites;
+          return arcIncrementNew(writeDeps, fourth, incNewOpts);
         }
         if (third === "close") {
-          return arcIncrementClose(writeDeps, fourth, {
-            ...(values.pr !== undefined ? { pr: values.pr } : {}),
-            ...(values.date !== undefined ? { date: values.date } : {}),
-            ...(resolved.note !== undefined ? { note: resolved.note } : {}),
-          });
+          const incCloseOpts: Parameters<typeof arcIncrementClose>[2] = {};
+          if (values.pr !== undefined) incCloseOpts.pr = values.pr;
+          if (values.date !== undefined) incCloseOpts.date = values.date;
+          if (resolved.note !== undefined) incCloseOpts.note = resolved.note;
+          return arcIncrementClose(writeDeps, fourth, incCloseOpts);
         }
         // The lifecycle's MIDDLE two states, which had no write path before this. `ready` reads as a
         // state and `start` as an act, which is why the verbs are not spelled the same as the values.
@@ -3532,62 +3575,63 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       // The SCAFFOLDER (the missing first lifecycle step): the id is an optional positional, matching
       // every other arc verb — omitted, it is derived from --title.
       if (sub === "new") {
-        return arcNew(writeDeps, third, {
-          ...(values.title !== undefined ? { title: values.title } : {}),
-          ...(resolved.intent !== undefined ? { intent: resolved.intent } : {}),
-          ...(resolved.endState !== undefined ? { endState: resolved.endState } : {}),
-          ...(resolved.description !== undefined ? { description: resolved.description } : {}),
-          // The bundled first increment (ADR-0335) — the same two flags `arc increment new` reads,
-          // already `@path`-expanded by the boundary above.
-          ...(resolved.objective !== undefined ? { objective: resolved.objective } : {}),
-          ...(resolved.body !== undefined ? { body: resolved.body } : {}),
-        });
+        const arcNewOpts: Parameters<typeof arcNew>[2] = {};
+        if (values.title !== undefined) arcNewOpts.title = values.title;
+        if (resolved.intent !== undefined) arcNewOpts.intent = resolved.intent;
+        if (resolved.endState !== undefined) arcNewOpts.endState = resolved.endState;
+        if (resolved.description !== undefined) arcNewOpts.description = resolved.description;
+        // The bundled first increment (ADR-0335) — the same two flags `arc increment new` reads,
+        // already `@path`-expanded by the boundary above.
+        if (resolved.objective !== undefined) arcNewOpts.objective = resolved.objective;
+        if (resolved.body !== undefined) arcNewOpts.body = resolved.body;
+        return arcNew(writeDeps, third, arcNewOpts);
       }
       if (sub === "edit") {
-        return arcEdit(writeDeps, third, {
-          ...(resolved.intent !== undefined ? { intent: resolved.intent } : {}),
-          ...(resolved.endState !== undefined ? { endState: resolved.endState } : {}),
-        });
+        const arcEditOpts: Parameters<typeof arcEdit>[2] = {};
+        if (resolved.intent !== undefined) arcEditOpts.intent = resolved.intent;
+        if (resolved.endState !== undefined) arcEditOpts.endState = resolved.endState;
+        return arcEdit(writeDeps, third, arcEditOpts);
       }
       // The CLOSING write (ADR-0239 D2) shares every flag with `increment add`, and since the fold it
       // delegates to it: `close` is `increment add` followed by the `lifecycle: closed` flip.
       if (sub === "close") {
-        return arcClose(writeDeps, third, {
-          ...(values.date !== undefined ? { date: values.date } : {}),
-          ...(values.pr !== undefined ? { pr: values.pr } : {}),
-          ...(resolved.outcome !== undefined ? { outcome: resolved.outcome } : {}),
-        });
+        const arcCloseOpts: Parameters<typeof arcClose>[2] = {};
+        if (values.date !== undefined) arcCloseOpts.date = values.date;
+        if (values.pr !== undefined) arcCloseOpts.pr = values.pr;
+        if (resolved.outcome !== undefined) arcCloseOpts.outcome = resolved.outcome;
+        return arcClose(writeDeps, third, arcCloseOpts);
       }
       // The OPENING write (ADR-0337) — `close`'s mirror, and the missing half of the lifecycle that
       // ADR-0239 D2 reserved for the owner without ever giving them a way to reach it. `--reason` is
       // already a PROSE_FLAG, so it arrives `@path`-expanded from the boundary above like every
       // other long-prose flag; there is no new flag to declare.
       if (sub === "reopen") {
-        return arcReopen(writeDeps, third, {
-          ...(values.date !== undefined ? { date: values.date } : {}),
-          ...(values.pr !== undefined ? { pr: values.pr } : {}),
-          ...(values.reason !== undefined ? { reason: values.reason } : {}),
-        });
+        const arcReopenOpts: Parameters<typeof arcReopen>[2] = {};
+        if (values.date !== undefined) arcReopenOpts.date = values.date;
+        if (values.pr !== undefined) arcReopenOpts.pr = values.pr;
+        if (values.reason !== undefined) arcReopenOpts.reason = values.reason;
+        return arcReopen(writeDeps, third, arcReopenOpts);
       }
       // The SHELVING write (ADR-0374 D3) — the third lifecycle verb, reading the same already-expanded
       // `--reason` its mirror does. Unlike `close` it does not refuse over open increments: shelving an
       // initiative is exactly the case where the work stays open and wanted.
       if (sub === "park") {
-        return arcPark(writeDeps, third, {
-          ...(values.date !== undefined ? { date: values.date } : {}),
-          ...(values.pr !== undefined ? { pr: values.pr } : {}),
-          ...(values.reason !== undefined ? { reason: values.reason } : {}),
-        });
+        const arcParkOpts: Parameters<typeof arcPark>[2] = {};
+        if (values.date !== undefined) arcParkOpts.date = values.date;
+        if (values.pr !== undefined) arcParkOpts.pr = values.pr;
+        if (values.reason !== undefined) arcParkOpts.reason = values.reason;
+        return arcPark(writeDeps, third, arcParkOpts);
       }
       // `arc increment add <arc-id>` (canonical) or the shorthand `arc increment <arc-id>`.
       const incArcId = third === "add" ? fourth : third;
-      return arcIncrementAdd(writeDeps, incArcId, {
-        ...(values.date !== undefined ? { date: values.date } : {}),
-        ...(values.pr !== undefined ? { pr: values.pr } : {}),
-        ...(resolved.outcome !== undefined ? { outcome: resolved.outcome } : {}),
-        ...(Array.isArray(values.id) && values.id[0] !== undefined ? { id: values.id[0] } : {}),
-        ...(Array.isArray(values.cites) ? { cites: values.cites } : {}),
-      });
+      const incAddOpts: ArcIncrementAddOpts = {};
+      if (values.date !== undefined) incAddOpts.date = values.date;
+      if (values.pr !== undefined) incAddOpts.pr = values.pr;
+      if (resolved.outcome !== undefined) incAddOpts.outcome = resolved.outcome;
+      const incAddId = Array.isArray(values.id) ? values.id[0] : undefined;
+      if (incAddId !== undefined) incAddOpts.id = incAddId;
+      if (Array.isArray(values.cites)) incAddOpts.cites = values.cites;
+      return arcIncrementAdd(writeDeps, incArcId, incAddOpts);
     }
 
     // `arc show <id> --raw <field>` reads the SAME way `library artifact` does — the identical
@@ -3636,23 +3680,23 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     const writeDeps: QuestionWriteDeps = {
       store: deps.store,
       writable: deps.writable === true,
-      ...(deps.actor !== undefined ? { actor: deps.actor } : {}),
       now: new Date().toISOString(),
       pg: values.pg === true,
     };
-    return questionCommand(sub, third, writeDeps, {
-      ...(values.arc !== undefined ? { arc: values.arc } : {}),
-      ...(values.title !== undefined ? { title: values.title } : {}),
-      ...(values.stakes !== undefined ? { stakes: values.stakes } : {}),
-      ...(values.statement !== undefined ? { statement: values.statement } : {}),
-      ...(values.context !== undefined ? { context: values.context } : {}),
-      ...(values.options !== undefined ? { options: values.options } : {}),
-      ...(values.analogy !== undefined ? { analogy: values.analogy } : {}),
-      ...(values.diagram !== undefined ? { diagram: values.diagram } : {}),
-      ...(values.recommendation !== undefined ? { recommendation: values.recommendation } : {}),
-      ...(values.description !== undefined ? { description: values.description } : {}),
-      ...(values["lease-days"] !== undefined ? { leaseDays: values["lease-days"] } : {}),
-    });
+    if (deps.actor !== undefined) writeDeps.actor = deps.actor;
+    const questionOpts: Parameters<typeof questionCommand>[3] = {};
+    if (values.arc !== undefined) questionOpts.arc = values.arc;
+    if (values.title !== undefined) questionOpts.title = values.title;
+    if (values.stakes !== undefined) questionOpts.stakes = values.stakes;
+    if (values.statement !== undefined) questionOpts.statement = values.statement;
+    if (values.context !== undefined) questionOpts.context = values.context;
+    if (values.options !== undefined) questionOpts.options = values.options;
+    if (values.analogy !== undefined) questionOpts.analogy = values.analogy;
+    if (values.diagram !== undefined) questionOpts.diagram = values.diagram;
+    if (values.recommendation !== undefined) questionOpts.recommendation = values.recommendation;
+    if (values.description !== undefined) questionOpts.description = values.description;
+    if (values["lease-days"] !== undefined) questionOpts.leaseDays = values["lease-days"];
+    return questionCommand(sub, third, writeDeps, questionOpts);
   }
 
   if (area === "increment") {
@@ -3689,12 +3733,15 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         return [];
       }
     };
-    return incrementCommand(
-      sub,
-      third,
-      { ...(values.threshold !== undefined ? { threshold: values.threshold } : {}) },
-      { store: deps.store, countCommits, pg: values.pg === true, pathExists, decisionsSince },
-    );
+    const incrementOpts: Parameters<typeof incrementCommand>[2] = {};
+    if (values.threshold !== undefined) incrementOpts.threshold = values.threshold;
+    return incrementCommand(sub, third, incrementOpts, {
+      store: deps.store,
+      countCommits,
+      pg: values.pg === true,
+      pathExists,
+      decisionsSince,
+    });
   }
 
   if (area === "traversal") {
@@ -3733,15 +3780,16 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     // writable:false — the session's tools read tree/library/noticeboard and can never write. The
     // queryFn comes from the test seam when present (offline proof, no spend), else is omitted so
     // runHeadlessOrchestrator uses the real SDK query() (the live leg; subscription-billed).
-    const result = await orchestrate({
+    const orchestrateArgs: OrchestrateArgs = {
       intent,
       store: deps.store,
       runner: (toolArgv) => run([...toolArgv], { ...deps, writable: false }),
-      ...(deps.orchestrate?.queryFn !== undefined ? { queryFn: deps.orchestrate.queryFn } : {}),
-      ...(values.model !== undefined ? { model: values.model } : {}),
-      ...(values["max-turns"] !== undefined ? { maxTurns: Number(values["max-turns"]) } : {}),
-      ...(values.budget !== undefined ? { maxBudgetUsd: Number(values.budget) } : {}),
-    });
+    };
+    if (deps.orchestrate?.queryFn !== undefined) orchestrateArgs.queryFn = deps.orchestrate.queryFn;
+    if (values.model !== undefined) orchestrateArgs.model = values.model;
+    if (values["max-turns"] !== undefined) orchestrateArgs.maxTurns = Number(values["max-turns"]);
+    if (values.budget !== undefined) orchestrateArgs.maxBudgetUsd = Number(values.budget);
+    const result = await orchestrate(orchestrateArgs);
     if (!result.ok) {
       return {
         ok: false,
@@ -3807,11 +3855,9 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
           };
         }
       }
-      return adoptCommand(
-        { mode: "plan", target: third, ...(readings !== undefined ? { readings } : {}) },
-        adoptOpts,
-        adoptDeps,
-      );
+      const planInvocation: AdoptInvocation = { mode: "plan", target: third };
+      if (readings !== undefined) planInvocation.readings = readings;
+      return adoptCommand(planInvocation, adoptOpts, adoptDeps);
     }
     // `adopt gate <story>#gate-<n>` — observe-and-sign ONE observe gate (ADR-0118; was `gate run <g>`,
     // kept as a back-compat alias). The SAME gate code path as `gate run`; the gate's kind routes it (a
@@ -3870,10 +3916,9 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     // both stay untouched so the prove-it-gate carries no risk. Offline, read-only.
     if (help) return ownershipHelp();
     const root = repoRoot();
-    return ownershipCommand(
-      { gather: () => gatherFromDisk(root) },
-      { all: values.all === true, ...(sub !== undefined ? { pkg: sub } : {}) },
-    );
+    const ownershipOpts: Parameters<typeof ownershipCommand>[1] = { all: values.all === true };
+    if (sub !== undefined) ownershipOpts.pkg = sub;
+    return ownershipCommand({ gather: () => gatherFromDisk(root) }, ownershipOpts);
   }
 
   if (area === "desktop") {
@@ -3885,13 +3930,18 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     if (sub === "install-shortcut") {
       // A reproducible Windows .lnk (Desktop + Start Menu) that opens the app with no console window
       // and the storytree icon — the durable replacement for the vanished hand-made shortcut.
-      return desktopInstallShortcut({
+      const shortcutDeps: DesktopInstallShortcutDepsDraft = {
         repoRoot: deps.desktop?.repoRoot ?? repoRoot(),
-        ...(deps.desktop?.platform !== undefined ? { platform: deps.desktop.platform } : {}),
-        ...(deps.desktop?.createShortcuts !== undefined ? { createShortcuts: deps.desktop.createShortcuts } : {}),
-        ...(deps.desktop?.resolveElectron !== undefined ? { resolveElectron: deps.desktop.resolveElectron } : {}),
-        ...(values.runtime !== undefined ? { runtime: values.runtime } : {}),
-      });
+      };
+      if (deps.desktop?.platform !== undefined) shortcutDeps.platform = deps.desktop.platform;
+      if (deps.desktop?.createShortcuts !== undefined) {
+        shortcutDeps.createShortcuts = deps.desktop.createShortcuts;
+      }
+      if (deps.desktop?.resolveElectron !== undefined) {
+        shortcutDeps.resolveElectron = deps.desktop.resolveElectron;
+      }
+      if (values.runtime !== undefined) shortcutDeps.runtime = values.runtime;
+      return desktopInstallShortcut(shortcutDeps);
     }
     if (sub !== "launch") {
       return {
@@ -3900,12 +3950,11 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         next: ["storytree desktop launch", "storytree desktop install-shortcut", "storytree desktop --help"],
       };
     }
-    return desktopLaunch({
-      repoRoot: deps.desktop?.repoRoot ?? repoRoot(),
-      ...(deps.desktop?.spawn !== undefined ? { spawn: deps.desktop.spawn } : {}),
-      ...(deps.desktop?.platform !== undefined ? { platform: deps.desktop.platform } : {}),
-      ...(deps.desktop?.register !== undefined ? { register: deps.desktop.register } : {}),
-    });
+    const launchDeps: DesktopLaunchDepsDraft = { repoRoot: deps.desktop?.repoRoot ?? repoRoot() };
+    if (deps.desktop?.spawn !== undefined) launchDeps.spawn = deps.desktop.spawn;
+    if (deps.desktop?.platform !== undefined) launchDeps.platform = deps.desktop.platform;
+    if (deps.desktop?.register !== undefined) launchDeps.register = deps.desktop.register;
+    return desktopLaunch(launchDeps);
   }
 
   if (area === "friction") {
@@ -3916,16 +3965,16 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     if (sub === undefined || help) return frictionHelp();
     const ctx = makeFrictionContext(deps);
     if (sub === "new") {
-      return newFriction(deps, {
-        ...(values.json !== undefined ? { json: values.json } : {}),
-        ...(values.file !== undefined ? { file: values.file } : {}),
-        ...(values.source !== undefined ? { source: values.source } : {}),
-      }, ctx);
+      const newOpts: Parameters<typeof newFriction>[1] = {};
+      if (values.json !== undefined) newOpts.json = values.json;
+      if (values.file !== undefined) newOpts.file = values.file;
+      if (values.source !== undefined) newOpts.source = values.source;
+      return newFriction(deps, newOpts, ctx);
     }
     if (sub === "migrate") {
-      return migrateFriction(deps, {
-        ...(values.file !== undefined ? { file: values.file } : {}),
-      }, ctx);
+      const migrateOpts: Parameters<typeof migrateFriction>[1] = {};
+      if (values.file !== undefined) migrateOpts.file = values.file;
+      return migrateFriction(deps, migrateOpts, ctx);
     }
     // `--evidence` / `--reason` arrive already `@path`-expanded from the boundary at the top of
     // `run` (cli-write-fidelity-arc). Without that expansion a multi-line justification flattens to
@@ -3936,20 +3985,20 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       const evidence = values.evidence;
       const reason = values.reason;
       if (sub === "reinforce") {
-        return reinforceFriction(deps, third, {
-          ...(evidence !== undefined ? { evidence } : {}),
-        }, ctx);
+        const reinforceOpts: Parameters<typeof reinforceFriction>[2] = {};
+        if (evidence !== undefined) reinforceOpts.evidence = evidence;
+        return reinforceFriction(deps, third, reinforceOpts, ctx);
       }
-      return routeFriction(deps, third, {
-        ...(values.route !== undefined ? { route: values.route } : {}),
-        ...(reason !== undefined ? { reason } : {}),
-        ...(values["discharged-by"] !== undefined ? { dischargedBy: values["discharged-by"] } : {}),
-        // The deliberate foreign overwrite — see `routeFriction`'s compare-and-refuse guard.
-        ...(values["re-route"] === true ? { reRoute: true } : {}),
-        // The ADR-0298 D2 emission: the ARC carrying the parked entry the `tool` route produces,
-        // cited in `references`. The entry itself is written first by `arc proposal add --friction`.
-        ...(values.arc !== undefined ? { arc: values.arc } : {}),
-      }, ctx);
+      const routeOpts: Parameters<typeof routeFriction>[2] = {};
+      if (values.route !== undefined) routeOpts.route = values.route;
+      if (reason !== undefined) routeOpts.reason = reason;
+      if (values["discharged-by"] !== undefined) routeOpts.dischargedBy = values["discharged-by"];
+      // The deliberate foreign overwrite — see `routeFriction`'s compare-and-refuse guard.
+      if (values["re-route"] === true) routeOpts.reRoute = true;
+      // The ADR-0298 D2 emission: the ARC carrying the parked entry the `tool` route produces,
+      // cited in `references`. The entry itself is written first by `arc proposal add --friction`.
+      if (values.arc !== undefined) routeOpts.arc = values.arc;
+      return routeFriction(deps, third, routeOpts, ctx);
     }
     if (sub === "list") {
       return listFriction(deps.store, { now: ctx.now, inboxDir: ctx.inboxDir });
@@ -3973,17 +4022,20 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       };
     }
     if (help) return factoryHelp();
-    return factoryHealth(deps.store, {
-      ...(third !== undefined ? { question: third } : {}),
-      ...(values.from !== undefined ? { from: values.from } : {}),
-      ...(values.to !== undefined ? { to: values.to } : {}),
-      ...(values["landings-per-day"] !== undefined ? { landingsPerDay: values["landings-per-day"] } : {}),
-      ...(values.ref !== undefined ? { ref: values.ref } : {}),
+    const factoryOpts: FactoryHealthOpts = {
       repoRoot: deps.factory?.repoRoot ?? repoRoot(),
-      ...(deps.factory?.commits !== undefined ? { commits: deps.factory.commits } : {}),
-      ...(deps.factory?.absorbed !== undefined ? { absorbed: deps.factory.absorbed } : {}),
       now: deps.factory?.now ?? new Date().toISOString(),
-    });
+    };
+    if (third !== undefined) factoryOpts.question = third;
+    if (values.from !== undefined) factoryOpts.from = values.from;
+    if (values.to !== undefined) factoryOpts.to = values.to;
+    if (values["landings-per-day"] !== undefined) {
+      factoryOpts.landingsPerDay = values["landings-per-day"];
+    }
+    if (values.ref !== undefined) factoryOpts.ref = values.ref;
+    if (deps.factory?.commits !== undefined) factoryOpts.commits = deps.factory.commits;
+    if (deps.factory?.absorbed !== undefined) factoryOpts.absorbed = deps.factory.absorbed;
+    return factoryHealth(deps.store, factoryOpts);
   }
 
   if (area === "onboarding") {
@@ -3991,9 +4043,9 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     // transcript file, never the store — no --pg, nothing on any session's hot path. It FLAGS a
     // budget breach, never halts (ADR-0162 §Why-not-a-gate).
     if (help && sub === undefined) return onboardingHelp();
-    return onboardingCommand(positionals.slice(1), {
-      ...(values["agent-type"] !== undefined ? { agentType: values["agent-type"] } : {}),
-    });
+    const onboardingOpts: OnboardingOpts = {};
+    if (values["agent-type"] !== undefined) onboardingOpts.agentType = values["agent-type"];
+    return onboardingCommand(positionals.slice(1), onboardingOpts);
   }
 
   if (area === "session-cost") {
@@ -4002,18 +4054,19 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     // Report-only and deliberately NOT a gate rung (ADR-0323 Unresolved + ADR-0168 D1): a cost gate
     // would be gamed by splitting sessions.
     if (help) return sessionCostHelp();
-    return sessionCostCommand({
-      ...(values["limit"] !== undefined ? { limit: values["limit"] } : {}),
-      ...(values["from"] !== undefined ? { from: values["from"] } : {}),
-      ...(values["to"] !== undefined ? { to: values["to"] } : {}),
-      ...(values["project"] !== undefined ? { project: values["project"] } : {}),
-      ...(values["min-turns"] !== undefined ? { minTurns: values["min-turns"] } : {}),
-      ...(values["started-after"] !== undefined ? { startedAfter: values["started-after"] } : {}),
-      ...(values["started-before"] !== undefined ? { startedBefore: values["started-before"] } : {}),
+    const costOpts: SessionCostOptsDraft = {
       all: values["all"] === true,
       cwd: process.cwd(),
       nowMs: Date.now(),
-    });
+    };
+    if (values["limit"] !== undefined) costOpts.limit = values["limit"];
+    if (values["from"] !== undefined) costOpts.from = values["from"];
+    if (values["to"] !== undefined) costOpts.to = values["to"];
+    if (values["project"] !== undefined) costOpts.project = values["project"];
+    if (values["min-turns"] !== undefined) costOpts.minTurns = values["min-turns"];
+    if (values["started-after"] !== undefined) costOpts.startedAfter = values["started-after"];
+    if (values["started-before"] !== undefined) costOpts.startedBefore = values["started-before"];
+    return sessionCostCommand(costOpts);
   }
 
   if (area === "doctor") {
@@ -4131,13 +4184,9 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
             };
           }
         }
-        items = [
-          {
-            name: fourth,
-            reason: values.reason,
-            ...(leaseDays !== undefined ? { leaseDays } : {}),
-          },
-        ];
+        const parkItem: ParkItem = { name: fourth, reason: values.reason };
+        if (leaseDays !== undefined) parkItem.leaseDays = leaseDays;
+        items = [parkItem];
       }
       return parkCommand(items, { memoryDir, ledgerPath: defaultLedgerPath(memoryDir), now });
     }
@@ -4229,13 +4278,14 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         };
       }
       const events = await deps.store.readEvents({ id: fourth });
+      // `renderHistory`'s input declares `field` READONLY, so the optional half is chosen by
+      // ternary over the required base rather than assigned onto a draft.
+      const historyBase = { id: fourth, entries: foldHistory(events, values.field) };
       return {
         ok: true,
-        body: renderHistory({
-          id: fourth,
-          ...(values.field !== undefined ? { field: values.field } : {}),
-          entries: foldHistory(events, values.field),
-        }),
+        body: renderHistory(
+          values.field !== undefined ? { ...historyBase, field: values.field } : historyBase,
+        ),
         next: [
           `storytree library artifact ${fourth}`,
           `storytree library artifact ${fourth} --raw <field> --out field.txt --pg`,

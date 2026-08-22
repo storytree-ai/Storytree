@@ -218,14 +218,10 @@ export async function observeAndSign(spec: ObserveAndSignSpec): Promise<ObserveA
   //    reachable ONLY through this append (never authored); on any earlier refusal nothing was written.
   const verdict: Verdict = {
     unitId: gate.id,
-    ...(gate.criterionId === undefined
-      ? {}
-      : { criterionId: gate.criterionId, revisionId: gate.revisionId }),
     proofMode: "adopted",
     outcome: "pass",
     commitSha: tree.commitSha,
     signer: SPINE_PRINCIPAL,
-    ...(approvedBy === undefined ? {} : { approvedBy }),
     runId: spec.runId,
     outputVersion: "v1",
     evidence: [
@@ -240,6 +236,12 @@ export async function observeAndSign(spec: ObserveAndSignSpec): Promise<ObserveA
     ],
     at: spec.now(),
   };
+  // Both criterion keys or neither — the pair is what `Verdict`'s superRefine holds to.
+  if (gate.criterionId !== undefined) {
+    verdict.criterionId = gate.criterionId;
+    verdict.revisionId = gate.revisionId;
+  }
+  if (approvedBy !== undefined) verdict.approvedBy = approvedBy;
   await spec.store.appendEvent({
     id: `${spec.runId}:${gate.id}`,
     kind: SIGNING_EVENT_KIND,

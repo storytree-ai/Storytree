@@ -9,6 +9,8 @@ import {
   ScriptedModel,
 } from "@storytree/agent";
 import type {
+  ClaudeAgentAuthorArgs,
+  CodexPhaseAuthorArgs,
   CodexPromotionManifest,
   FeedbackCommand,
   LiveRuntime,
@@ -27,7 +29,7 @@ import { PathWriteScope } from "./phase-machine.js";
 import type { ExpectedRed } from "./phase-machine.js";
 import { OwnedLoopAuthor } from "./owned-loop-author.js";
 import { ShellTestExecutor, runShellCommand, unvettedGreenNote } from "./shell-test-executor.js";
-import type { ShellCommand, ShellRunResult } from "./shell-test-executor.js";
+import type { ShellCommand, ShellRunResult, ShellTestResolver } from "./shell-test-executor.js";
 import {
   PROOF_REPORT_ENV,
   assertOracleGuardUrl,
@@ -410,7 +412,7 @@ export function resolveProveSpec(
           registered: registeredNodeIds(),
         };
       }
-      liveAuthor = new CodexPhaseAuthor({
+      const codexArgs: CodexPhaseAuthorArgs = {
         cwd: opts.workspace,
         writeGlobs: {
           AUTHOR_TEST: ["*.test.cjs"],
@@ -421,19 +423,21 @@ export function resolveProveSpec(
           IMPLEMENT: codexPromotionManifest(DRY_RUN_IMPL_REL, [DRY_RUN_IMPL_REL]),
         },
         isWriteAllowed: (phase, relPath) => scope.isWriteAllowed(phase, relPath),
-        ...(opts.phasePrompts !== undefined ? { phasePrompts: opts.phasePrompts } : {}),
-        ...(opts.model !== undefined ? { model: opts.model } : {}),
-      });
+      };
+      if (opts.phasePrompts !== undefined) codexArgs.phasePrompts = opts.phasePrompts;
+      if (opts.model !== undefined) codexArgs.model = opts.model;
+      liveAuthor = new CodexPhaseAuthor(codexArgs);
     } else {
-      liveAuthor = new ClaudeAgentAuthor({
+      const claudeArgs: ClaudeAgentAuthorArgs = {
         cwd: opts.workspace,
         isWriteAllowed: (phase, relPath) => scope.isWriteAllowed(phase, relPath),
         feedbackCommands: feedbackCommandsFor(syntheticProofCmd, `node ${DRY_RUN_TEST_REL}`),
-        ...(opts.phasePrompts !== undefined ? { phasePrompts: opts.phasePrompts } : {}),
-        ...(opts.model !== undefined ? { model: opts.model } : {}),
-        ...(opts.maxBudgetUsd !== undefined ? { maxBudgetUsd: opts.maxBudgetUsd } : {}),
-        ...(opts.maxTurns !== undefined ? { maxTurns: opts.maxTurns } : {}),
-      });
+      };
+      if (opts.phasePrompts !== undefined) claudeArgs.phasePrompts = opts.phasePrompts;
+      if (opts.model !== undefined) claudeArgs.model = opts.model;
+      if (opts.maxBudgetUsd !== undefined) claudeArgs.maxBudgetUsd = opts.maxBudgetUsd;
+      if (opts.maxTurns !== undefined) claudeArgs.maxTurns = opts.maxTurns;
+      liveAuthor = new ClaudeAgentAuthor(claudeArgs);
     }
     author = liveAuthor;
     prompts = liveSmokePrompts(spec);
@@ -554,12 +558,10 @@ function resolveReal(
   // ALLOCATED ONCE HERE and closed over below — the allocator returns a path unique to this call, so no
   // concurrent proof of the same unit can clear the report this build is about to read (see its doc).
   const reportPath = base.accounted ? allocateOracleReportPath(opts.runId, spec.id) : undefined;
-  const proofEnv = {
-    ...(base.command.env ?? {}),
-    ...(reportPath !== undefined ? { [PROOF_REPORT_ENV]: reportPath } : {}),
-    // ADR-0064 db-backed proof env is merged LAST so it wins (the disposable test DB is forced).
-    ...(real.db === true && opts.dbProofEnv !== undefined ? opts.dbProofEnv : {}),
-  } satisfies Record<string, string>;
+  const proofEnv: NonNullable<ShellCommand["env"]> = { ...(base.command.env ?? {}) };
+  if (reportPath !== undefined) proofEnv[PROOF_REPORT_ENV] = reportPath;
+  // ADR-0064 db-backed proof env is merged LAST so it wins (the disposable test DB is forced).
+  if (real.db === true && opts.dbProofEnv !== undefined) Object.assign(proofEnv, opts.dbProofEnv);
   const realProofCmd: ShellCommand =
     Object.keys(proofEnv).length > 0 ? { ...base.command, env: proofEnv } : base.command;
   // ADR-0249: the cross-check is only fail-closed if the report it reads is attributable to the
@@ -583,23 +585,18 @@ function resolveReal(
   const redKindMeasurable =
     base.route.accounting === "oracle" &&
     (base.route.basis === "default-node-test" || base.route.basis === "custom-node-test-own-file");
-  const testExecutor = new ShellTestExecutor({
-    command: (): ShellCommand => realProofCmd,
-    ...(reportPath !== undefined
-      ? {
-          beforeRun: () => resetOracleReport(reportPath),
-          verifyGreen: (out: ShellRunResult) => verifyOracleExercised(reportPath, out),
-          ...(redKindMeasurable ? { measureRedKind: () => classifyRedByOracle(reportPath) } : {}),
-        }
-      : {
-          // `custom-proof-command-red-accounting`: an unaccounted route stamps the CLASSIFIER's own
-          // sentence on its green, not a standing disclaimer — so the verdict records which flavour of
-          // "no oracle" this was, and a reader can tell a suite from a foreign runner.
-          ...(base.route.accounting === "none"
-            ? { unvettedNote: unvettedGreenNote(base.route.disclosure) }
-            : {}),
-        }),
-  });
+  const resolver: ShellTestResolver = { command: (): ShellCommand => realProofCmd };
+  if (reportPath !== undefined) {
+    resolver.beforeRun = () => resetOracleReport(reportPath);
+    resolver.verifyGreen = (out: ShellRunResult) => verifyOracleExercised(reportPath, out);
+    if (redKindMeasurable) resolver.measureRedKind = () => classifyRedByOracle(reportPath);
+  } else if (base.route.accounting === "none") {
+    // `custom-proof-command-red-accounting`: an unaccounted route stamps the CLASSIFIER's own
+    // sentence on its green, not a standing disclaimer — so the verdict records which flavour of
+    // "no oracle" this was, and a reader can tell a suite from a foreign runner.
+    resolver.unvettedNote = unvettedGreenNote(base.route.disclosure);
+  }
+  const testExecutor = new ShellTestExecutor(resolver);
   const scope = new PathWriteScope(real.scope);
 
   // The leaf's bounded feedback tools (option A): run_proof spawns the SAME command object the
@@ -642,7 +639,7 @@ function resolveReal(
           registered: realBuildableNodeIds(),
         };
       }
-      liveAuthor = new CodexPhaseAuthor({
+      const codexArgs: CodexPhaseAuthorArgs = {
         cwd: opts.workspace,
         writeGlobs: {
           AUTHOR_TEST: real.scope.testGlobs,
@@ -653,19 +650,21 @@ function resolveReal(
           IMPLEMENT: codexPromotionManifest(real.sourceFile, real.scope.sourceGlobs),
         },
         isWriteAllowed: (phase, relPath) => scope.isWriteAllowed(phase, relPath),
-        ...(opts.phasePrompts !== undefined ? { phasePrompts: opts.phasePrompts } : {}),
-        ...(opts.model !== undefined ? { model: opts.model } : {}),
-      });
+      };
+      if (opts.phasePrompts !== undefined) codexArgs.phasePrompts = opts.phasePrompts;
+      if (opts.model !== undefined) codexArgs.model = opts.model;
+      liveAuthor = new CodexPhaseAuthor(codexArgs);
     } else {
-      liveAuthor = new ClaudeAgentAuthor({
+      const claudeArgs: ClaudeAgentAuthorArgs = {
         cwd: opts.workspace,
         isWriteAllowed: (phase, relPath) => scope.isWriteAllowed(phase, relPath),
         feedbackCommands,
-        ...(opts.phasePrompts !== undefined ? { phasePrompts: opts.phasePrompts } : {}),
-        ...(opts.model !== undefined ? { model: opts.model } : {}),
-        ...(opts.maxBudgetUsd !== undefined ? { maxBudgetUsd: opts.maxBudgetUsd } : {}),
-        ...(opts.maxTurns !== undefined ? { maxTurns: opts.maxTurns } : {}),
-      });
+      };
+      if (opts.phasePrompts !== undefined) claudeArgs.phasePrompts = opts.phasePrompts;
+      if (opts.model !== undefined) claudeArgs.model = opts.model;
+      if (opts.maxBudgetUsd !== undefined) claudeArgs.maxBudgetUsd = opts.maxBudgetUsd;
+      if (opts.maxTurns !== undefined) claudeArgs.maxTurns = opts.maxTurns;
+      liveAuthor = new ClaudeAgentAuthor(claudeArgs);
     }
     author = liveAuthor;
   }
@@ -685,10 +684,10 @@ function resolveReal(
   const commitAuthor = signer.ok ? signer.signer : "spine@storytree.invalid";
   const commitScope: CommitScope = {
     globs: [...real.scope.testGlobs, ...real.scope.sourceGlobs],
-    ...((real.addDeps ?? []).length > 0
-      ? { spineOutputGlobs: ["pnpm-lock.yaml", "**/package.json"] }
-      : {}),
   };
+  if ((real.addDeps ?? []).length > 0) {
+    commitScope.spineOutputGlobs = ["pnpm-lock.yaml", "**/package.json"];
+  }
   const treeState =
     opts.treeState ??
     (async (): Promise<TreeState> => {

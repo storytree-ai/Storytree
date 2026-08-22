@@ -20,6 +20,7 @@ import {
   configureExactColour,
   createBandedMaterial,
   shadowFieldTexture,
+  type BandedMaterialOptions,
   type ShadowTexture,
 } from './banded-material.js';
 import { buildContactField, mergeOcclusion } from './contact-shade.js';
@@ -568,16 +569,11 @@ function groundMeshes(
     const variantIndex = Number(variant ?? '0');
     const groundToken = variantIndex === 3 ? fam.side : (fam.top[variantIndex] ?? fam.top[0]!);
     const token = wheat ? fam.wheat : groundToken;
-    meshes.push(
-      new THREE.Mesh(
-        geom,
-        createBandedMaterial({
-          token,
-          doubleSided: false,
-          ...(shadow ? { shadow } : {}),
-        }),
-      ),
-    );
+    // Unshadowed ⇒ `shadow` stays ABSENT, which is what keeps the ramp at the four authored
+    // rungs (`createBandedMaterial` branches on `opts.shadow !== undefined`).
+    const groundMaterial: BandedMaterialOptions = { token, doubleSided: false };
+    if (shadow) groundMaterial.shadow = shadow;
+    meshes.push(new THREE.Mesh(geom, createBandedMaterial(groundMaterial)));
 
     if (wallPositions.length) {
       const wallGeom = new THREE.BufferGeometry();
@@ -595,16 +591,9 @@ function groundMeshes(
       // ⚠ The RIM only. The wall is emitted at `role === 'rim'` and nowhere else, so a
       // capability boundary is untouched by this and stays a fold in one colour.
       const wallToken = wheat ? fam.wheat : fam.side;
-      meshes.push(
-        new THREE.Mesh(
-          wallGeom,
-          createBandedMaterial({
-            token: wallToken,
-            doubleSided: false,
-            ...(shadow ? { shadow } : {}),
-          }),
-        ),
-      );
+      const wallMaterial: BandedMaterialOptions = { token: wallToken, doubleSided: false };
+      if (shadow) wallMaterial.shadow = shadow;
+      meshes.push(new THREE.Mesh(wallGeom, createBandedMaterial(wallMaterial)));
     }
   }
   return meshes;

@@ -13,6 +13,7 @@
 import type { Store } from "@storytree/storage-protocol";
 import type {
   SdkQueryFn,
+  HeadlessOrchestratorArgs,
   HeadlessOrchestratorResult,
   OrientationRunner,
   InspectSurfaceDeps,
@@ -175,19 +176,20 @@ export async function orchestrate({
     //    queryFn/runner are forwarded only when present (exactOptionalPropertyTypes): an offline caller
     //    injects a scripted queryFn; a live caller omits it (real SDK) and injects the real orientation
     //    runner so the agent reads the real three surfaces.
-    return await runHeadlessOrchestrator({
+    const headlessArgs: HeadlessOrchestratorArgs = {
       systemPrompt: renderResult.agent.prompt,
       userPrompt: intent,
-      ...(resume !== undefined ? { resume } : {}),
-      ...(queryFn !== undefined ? { queryFn } : {}),
-      ...(runner !== undefined ? { runner } : {}),
-      ...(model !== undefined ? { model } : {}),
-      ...(maxTurns !== undefined ? { maxTurns } : {}),
-      ...(maxBudgetUsd !== undefined ? { maxBudgetUsd } : {}),
-      ...(onDelta !== undefined ? { onDelta } : {}),
-      ...(onMessage !== undefined ? { onMessage } : {}),
-      ...(inspect !== undefined ? { inspect } : {}),
-    });
+    };
+    if (resume !== undefined) headlessArgs.resume = resume;
+    if (queryFn !== undefined) headlessArgs.queryFn = queryFn;
+    if (runner !== undefined) headlessArgs.runner = runner;
+    if (model !== undefined) headlessArgs.model = model;
+    if (maxTurns !== undefined) headlessArgs.maxTurns = maxTurns;
+    if (maxBudgetUsd !== undefined) headlessArgs.maxBudgetUsd = maxBudgetUsd;
+    if (onDelta !== undefined) headlessArgs.onDelta = onDelta;
+    if (onMessage !== undefined) headlessArgs.onMessage = onMessage;
+    if (inspect !== undefined) headlessArgs.inspect = inspect;
+    return await runHeadlessOrchestrator(headlessArgs);
   } finally {
     compositionInFlight = false;
   }

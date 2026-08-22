@@ -40,6 +40,15 @@ function ev(id: string, seq: number, at: string, route: string | null): StoreEve
   };
 }
 
+/** The friction doc BODY these fixtures build — the fields `computeRecurrence` actually reads. */
+interface FrictionDocBody {
+  title: string;
+  route?: string;
+  dischargedBy?: string;
+  references?: string[];
+  reinforcedBy: Array<{ branch: string; date: string; evidence: string }>;
+}
+
 function frictionDoc(input: {
   id: string;
   title?: string;
@@ -48,16 +57,17 @@ function frictionDoc(input: {
   dates?: string[];
   references?: string[];
 }): StoredDoc {
+  const body: FrictionDocBody = {
+    title: input.title ?? input.id,
+    reinforcedBy: (input.dates ?? []).map((date) => ({ branch: "claude/x", date, evidence: "`e`" })),
+  };
+  if (input.route !== undefined) body.route = input.route;
+  if (input.dischargedBy !== undefined) body.dischargedBy = input.dischargedBy;
+  if (input.references !== undefined) body.references = input.references;
   return {
     id: input.id,
     kind: "friction",
-    doc: {
-      title: input.title ?? input.id,
-      ...(input.route !== undefined ? { route: input.route } : {}),
-      ...(input.dischargedBy !== undefined ? { dischargedBy: input.dischargedBy } : {}),
-      ...(input.references !== undefined ? { references: input.references } : {}),
-      reinforcedBy: (input.dates ?? []).map((date) => ({ branch: "claude/x", date, evidence: "`e`" })),
-    },
+    doc: body,
     createdAt: "2026-07-11T00:00:00.000Z",
     updatedAt: "2026-08-08T00:00:00.000Z",
   };

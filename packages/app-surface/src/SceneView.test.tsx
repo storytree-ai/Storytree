@@ -16,6 +16,7 @@ import {
   type ClaimGrade,
   type SceneInput,
   type SceneNode,
+  type SceneTerritoryInput,
   type SceneTrailsInput,
 } from '@storytree/forest-world';
 import { arrivalGrowPlan } from './trailReveal.js';
@@ -82,6 +83,38 @@ function mkInput(
   /** ADR-0212: a live build folded onto the work claim — the merged band. */
   claimPhase?: BuildPhase,
 ): SceneInput {
+  // The wisp, the claim and the territory each carry OPTIONAL fields this fixture only sometimes
+  // supplies. Each is drafted against its own named field type and the optional key is assigned
+  // only when the argument is present — an omitted argument leaves the key ABSENT, as before.
+  // (`buildScene` reads these by name, so key insertion order here is inert.)
+  const wisp: SceneTerritoryInput['wisps'][number] = { runId: 'r1', title: 'building' };
+  if (wispPhase) wisp.phase = wispPhase;
+  const claim: NonNullable<SceneTerritoryInput['claims']>[number] = {
+    key: 's1',
+    title: 'a session is working lib',
+    colourState: claimState,
+  };
+  if (claimGrade) claim.grade = claimGrade;
+  if (claimPhase) claim.phase = claimPhase;
+  const territory: SceneTerritoryInput = {
+    id: 'lib',
+    status: 'healthy',
+    caps: 2,
+    centroid: { x: 50, y: 50 },
+    groundRadius: 30,
+    screenRadius: 30,
+    treeSpot: { x: 50, y: 45 },
+    labelY: 80,
+    coastPaths: ['M 0 0 L 1 0 Z'],
+    decor: [{ x: 40, y: 40, seed: 5 }],
+    plants: [{ id: 'lib#c', status: 'unhealthy', x: 45, y: 55, title: 'cap c' }],
+    treeTitle: 'lib — healthy',
+    signpost: { outcome: null },
+    wisps: [wisp],
+    claims: [claim],
+    plate: { w: 60, h: 33, rx: 7, idY: 14, subY: 27, idText: 'lib', subText: 'healthy · 2 caps', title: 'Library' },
+  };
+  if (departures) territory.departures = departures;
   return {
     offset: { x: 0, y: 0 },
     width: 100,
@@ -99,35 +132,7 @@ function mkInput(
     // gates must be open or this fixture renders the public WEBSITE's art — conifer decor + the
     // one-plant-per-cap ring — which the studio map has not drawn since forest-parcels inc 1.
     // `withoutParcels` is the named way back to that render.
-    territories: [
-      shippedTerritory({
-        id: 'lib',
-        status: 'healthy',
-        caps: 2,
-        centroid: { x: 50, y: 50 },
-        groundRadius: 30,
-        screenRadius: 30,
-        treeSpot: { x: 50, y: 45 },
-        labelY: 80,
-        coastPaths: ['M 0 0 L 1 0 Z'],
-        decor: [{ x: 40, y: 40, seed: 5 }],
-        plants: [{ id: 'lib#c', status: 'unhealthy', x: 45, y: 55, title: 'cap c' }],
-        treeTitle: 'lib — healthy',
-        signpost: { outcome: null },
-        wisps: [{ runId: 'r1', title: 'building', ...(wispPhase ? { phase: wispPhase } : {}) }],
-        claims: [
-          {
-            key: 's1',
-            title: 'a session is working lib',
-            colourState: claimState,
-            ...(claimGrade ? { grade: claimGrade } : {}),
-            ...(claimPhase ? { phase: claimPhase } : {}),
-          },
-        ],
-        ...(departures ? { departures } : {}),
-        plate: { w: 60, h: 33, rx: 7, idY: 14, subY: 27, idText: 'lib', subText: 'healthy · 2 caps', title: 'Library' },
-      }),
-    ],
+    territories: [shippedTerritory(territory)],
   };
 }
 
@@ -1000,14 +1005,15 @@ describe('SceneView — the UAT marker flowers (forest-parcels inc 2; grounded-a
 // to route through buildScene) keep each case isolated to exactly the wrapper kind under test.
 describe('SceneView — the sprite art-style render mode', () => {
   function baseCtx(spriteSheet?: SpriteStyleSheet | null): SceneCtx {
-    return {
+    const ctx: SceneCtx = {
       territoryClassById: (id, status) => `hex-territory st-${status}`,
       reveal: null,
       hidden: new Set(),
       onSelectStory: vi.fn(),
       onSelectCap: vi.fn(),
-      ...(spriteSheet !== undefined ? { spriteSheet } : {}),
     };
+    if (spriteSheet !== undefined) ctx.spriteSheet = spriteSheet;
+    return ctx;
   }
 
   /** A tree wrapper with a MEASURABLE vector body (sprite-sizing derives the sprite's size from it):

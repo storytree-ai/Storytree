@@ -136,7 +136,9 @@ const postAttest = (
 ): Promise<Response> =>
   fetch(`${base}/api/uat/attest`, {
     method: 'POST',
-    headers: { ...(who ? iap(who) : {}), 'content-type': 'application/json' },
+    headers: who
+      ? { ...iap(who), 'content-type': 'application/json' }
+      : { 'content-type': 'application/json' },
     body: JSON.stringify(body),
   });
 

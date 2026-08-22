@@ -98,6 +98,74 @@ export default defineConfig({
     //   6. The real TreeView fetches `/art-sheets/…`, which no suite knew about until a fail-closed
     //      transport double refused it.
     "anti-slop/no-module-mocking": "error",
+    // ADOPTED BY MIGRATION — anti-slop-adoption-arc inc-11 drove 666 findings (584 source / 82 test,
+    // across 175 files) to EIGHT, and those eight are a declared fence, not a residue: see the
+    // `overrides` block at the bottom of this file. Every production-source site outside that fence
+    // is gone, and so is every test site — the ADR-0407 D4 laxer bar was MEASURED and turned out not
+    // to be needed here, which is inc-03's precedent applied rather than assumed.
+    //
+    // THE RULE WAS NEVER CONTESTED. inc-04's three-judge REFACTOR panel returned `refactor-found`
+    // 3-0 and named two shapes; under the owner's narrowed bar adopting needs no panel, so this
+    // increment is a migration and not an adjudication. The panel also DISPROVED this config's own
+    // former claim that the rule collides with `exactOptionalPropertyTypes` — EOPT forbids ASSIGNING
+    // `undefined`, and a guarded assignment has already narrowed the value to a defined type, so an
+    // annotated local plus one guarded assignment per optional satisfies both. 173 files of evidence
+    // now stand behind that, with `-r typecheck` green.
+    //
+    // THE COMPLIANT SHAPES, both proved across nine parallel lanes:
+    //   - an ANNOTATED local, then one guarded assignment per optional property; or
+    //   - base-plus-ternary on the whole object, where the literal cannot be hoisted (a
+    //     discriminated union, a nested literal, a lazily-evaluated argument).
+    // The annotation is LOAD-BEARING and its absence is a SILENT regression, not a compile error:
+    // `const x = {…}` infers a type without the optional property, and where it happens to compile
+    // the literal is no longer fresh at the call, so excess-property checking disappears with
+    // nothing going red. Every lane was held to it and a diff-level audit confirmed zero
+    // un-annotated hoists, zero `as T` handovers, and zero ternaries merely relocated out of an
+    // object literal.
+    //
+    // THE COST WAS OVERWHELMINGLY NOT NEW TYPE SURFACE, and the estimate that said otherwise is
+    // corrected here rather than carried forward. inc-05 classified 439 of 581 source sites (76%) as
+    // needing "a named type AUTHORED that does not exist today". Measured by doing it: 658 sites
+    // migrated introduced NINE new exported types in total. The classification was of the enclosing
+    // literal's TYPING CONTEXT, which is real — but an inline argument position typed only
+    // contextually usually forwards into a callee whose parameter type is ALREADY NAMED, and where
+    // it is not, an indexed-access annotation (`Parameters<typeof f>[0]`, `Foo["bar"]`) is exact and
+    // adds no surface. `packages/cli/src/commands.ts` alone was 150 of the sites and needed zero.
+    //
+    // WHAT IT CAUGHT (end-state FOUR evidence, harvested from the migration itself):
+    //   1. `packages/agent/src/sdk-author.ts` was writing a field into a type that did not declare
+    //      it, and the compiler could not say so. The per-model accumulator was annotated
+    //      `Record<string, TokenUsage & { costUsd?: number }>` while `contextWindow` — which the real
+    //      contract `SdkRunInfo["byModel"]` DOES declare — arrived only through a conditional spread.
+    //      SPREADS BYPASS EXCESS-PROPERTY CHECKING, so the mismatch was invisible for as long as the
+    //      spread was there. Hoisting forced the annotation to the true contract.
+    //   2. `packages/drive/src/uat-drive.run.ts` built a record that went straight into
+    //      `UatDriveRecord.parse(...)`, i.e. into a `unknown`-typed parameter, so no excess-property
+    //      check ever ran on it. Annotating the draft restored one; it compiles clean, which is the
+    //      good outcome, but the check had been absent rather than passing.
+    //   3. `apps/studio/src/lib/knowledgeDepth.test.ts` carried a trailing `as GuidanceAsset` that
+    //      the annotated-local shape made unnecessary — a cast REMOVED by adopting this rule, which
+    //      is the opposite of the trade inc-04's panel warned the migration might have to make.
+    //
+    // A NARROWING WAS NOT NEEDED AND NONE WAS TAKEN. The one thing this rule cannot see is worth
+    // recording, because the rule's zero is not the whole truth in one file:
+    // `packages/storage-protocol/src/store-wire.ts` has an `optional(key, value)` helper returning
+    // `value === undefined ? {} : { [key]: value }`, spread at two sites. The rule matches a
+    // ConditionalExpression argument, and a CallExpression is not one — so this is exactly the
+    // laundering shape two panel judges named unprompted, sitting in the tree, invisible. It
+    // PREDATES this migration and was deliberately left rather than folded into a shape migration's
+    // diff; naming it here is what keeps the zero honest.
+    //
+    // ⚠ IF YOU HIT A `readonly` OPTIONAL, DO NOT REACH FOR `Mutable<T>`. inc-04's panel prescribed a
+    // `Mutable<T>` mapped-type draft and that prescription is WRONG in this repo — MEASURED, by three
+    // lanes independently. Annotating a binding with a same-file GENERIC alias over a mapped type
+    // fires `anti-slop/no-known-value-widening`, because that rule's classifier resolves such an
+    // alias through `resolvesToDictionary`, which any mapped type satisfies. Use `Omit<Named, "prop">`
+    // on the base plus a plain spread, base-plus-ternary, or a NON-GENERIC alias hop
+    // (`type XDraft = Mutable<Real>`), which routes through `classifyAliasBroadTarget` and correctly
+    // finds `keyof T` is not a broad key. The whole migration's net effect on that sibling rule was
+    // measured before and after and is ZERO: 133 findings either side.
+    "anti-slop/no-conditional-empty-object-spread": "error",
     "anti-slop/no-object-parameters": "error",
     "anti-slop/no-reflect-apply": "error",
     "anti-slop/no-reflect-get": "error",
@@ -308,48 +376,6 @@ export default defineConfig({
     // avoid. Each rule leaves "off" via its own increment on the arc, carrying either a zero
     // count or a panel-backed reason. Counts below are from this increment's inventory.
     // ---------------------------------------------------------------------------------------
-    // 646 (564 / 82, 168 files); re-measured 654 at HEAD 2026-08-22. Still `off`, but the reason
-    // this comment used to give is WRONG and is corrected here rather than carried forward.
-    //
-    // It said the rule COLLIDES with `exactOptionalPropertyTypes` — that
-    // `...(x !== undefined ? { x } : {})` is the idiom that setting forces on us. A three-judge
-    // REFACTOR panel put it to the test on 2026-08-22 and returned `refactor-found` 3-0: a
-    // compliant shape exists for every sampled site and typechecks under EOPT, because EOPT
-    // forbids ASSIGNING `undefined`, and a guarded assignment has already narrowed the value to a
-    // defined type before it runs. So there is no collision — an annotated local plus one guarded
-    // assignment per optional property satisfies both.
-    //
-    // IT IS NOT CONTESTED AND IT IS NOT REJECTED — it is the arc's one ADOPT-AND-REFACTOR lane, and
-    // under the owner's narrowed bar adopting needs no panel. It is `off` only because the migration
-    // has not been done. Read `tools/oxlint/panels/no-conditional-empty-object-spread.md` first: the
-    // panel named five costs, two of which would manufacture a `no-chained-type-assertions` violation
-    // if the migration takes the obvious shortcut, and one — the hoisted local MUST carry an explicit
-    // type annotation, or excess-property checking silently disappears — that a mechanical fixer
-    // would get wrong.
-    //
-    // inc-05 RE-HOMED THIS TO ITS OWN INCREMENT — `anti-slop-adoption-arc-inc-11` — rather than
-    // folding it into an adjudication diff,
-    // on that increment's own instruction ("batch the adjudication, NOT the migration — migrate one
-    // rule at a time; a mixed diff across three rules cannot be reverted per rule when one turns out
-    // wrong"), and on inc-03's precedent of re-sorting a rule out when the inventory disproves how it
-    // was sized. Re-measured at HEAD 2026-08-22: 663 (581 source / 82 test, 174 files).
-    //
-    // THE INVENTORY THE NEXT LANE NEEDS, and it prices the work far above the count. The panel's
-    // cost 5 predicted that the lane's real expense is anonymous shapes acquiring names; measured
-    // across all 581 SOURCE sites by the typing context of the enclosing object literal:
-    //     299 (51%)  inline ARGUMENT position — typed only contextually by the callee's parameter
-    //     140 (24%)  bare `return {` — the function's return type is INFERRED from the literal
-    //      54 (9%)   already an annotated local/const — the type exists, mechanical
-    //      47 (8%)   un-annotated local
-    //      15 (3%)   annotated function return — the type exists, mechanical
-    //      26 (4%)   unclassified
-    // So ~439 of 581 (76%) need a named type AUTHORED that does not exist today, and only ~69 are
-    // mechanical. That is not a reason to reject — volume and effort are explicitly not grounds
-    // (ADR-0407, the owner's narrowed bar) — it is the reason it is its own lane with its own diff.
-    // 150 of the 581 sit in `packages/cli/src/commands.ts` alone, all of it CLI option forwarding
-    // (`...(values.x !== undefined ? { k: v } : {})`) into functions whose parameter type is the
-    // only name available.
-    "anti-slop/no-conditional-empty-object-spread": "off",
     // ADJUDICATED AND ADOPTED (inc-08) — but still `off`, because it reaches `error` only at ZERO
     // and 129 firings remain. This is a MIGRATION IN PROGRESS, not an open question: the rule is
     // agreed correct, and what is left is work rather than doubt. Record:
@@ -408,6 +434,37 @@ export default defineConfig({
       files: ["**/*.test.ts", "**/*.test.tsx", "**/*.test.mts", "**/e2e/**"],
       rules: {
         "anti-slop/no-chained-type-assertions": "off",
+      },
+    },
+    {
+      // THE WEBSITE-MIRROR FENCE (ADR-0093). These three files are vendored WHOLESALE into the
+      // separate `storytree-web` repository by `pnpm sync:web-engine`, and CI's `check:web-engine`
+      // refuses any drift between the parent copy and the synced one. Editing them is therefore not
+      // a local change: closing the drift means a PR on that repo, and MERGING it republishes the
+      // live site through its own `deploy.yml`. Publishing is the owner's call, not a lane's.
+      //
+      // So this is a DECIDED SCOPE carrying its reason, like the test bar above — not a `warn`, and
+      // not the rule being weakened. The eight sites behind it are uniform one-liners already
+      // written out in full on `anti-slop-adoption-arc-inc-11`; they are work that is READY and
+      // GATED, not work that is unknown.
+      //
+      // ⚠ Note this is the one class a LOCAL gate cannot see: `check:web-engine` declares SKIP
+      // without the `web/` submodule checked out, so a laptop reads GREEN, NARROWED and CI is the
+      // first honest verdict. inc-08 migrated the same two packages, read its local gate as green,
+      // and had CI refuse the drift — the gate was honest, and proceeding past its named narrowing
+      // was the error.
+      //
+      // `no-known-value-widening` (inc-10) has 25 more sites behind this same fence, in these same
+      // files. Whoever clears the republish should clear BOTH rules in one deliberate cross-repo
+      // increment rather than each lane doing half a republish, and should delete this entry when
+      // they do.
+      files: [
+        "packages/forest-world/src/scene.ts",
+        "packages/forest-world/src/routing.ts",
+        "packages/forest-world-r3f/src/world-to-3d.ts",
+      ],
+      rules: {
+        "anti-slop/no-conditional-empty-object-spread": "off",
       },
     },
   ],

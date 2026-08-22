@@ -4,6 +4,7 @@ import {
   ClaimRole,
   isReclaimable,
   CLAIM_STALE_RECLAIM_MS,
+  type ClaimAcquired,
   type ClaimDeparture,
   type ClaimDocT,
   type ClaimGradeT,
@@ -228,16 +229,17 @@ export class PgClaimStore {
     const now = opts.now ?? new Date();
     const staleMs = opts.staleReclaimMs ?? CLAIM_STALE_RECLAIM_MS;
     // Fail-closed on attribution before any write (blank unitId/sessionId/branch is a refusal).
-    const candidate = ClaimDoc.parse({
+    const draft: ClaimDocT = {
       unitId: req.unitId,
       sessionId: req.sessionId,
       branch: req.branch,
       intent: req.intent ?? "",
       grade: "work",
-      ...(req.role !== undefined ? { role: req.role } : {}),
       claimedAt: now.toISOString(),
       heartbeatAt: now.toISOString(),
-    });
+    };
+    if (req.role !== undefined) draft.role = req.role;
+    const candidate = ClaimDoc.parse(draft);
     // NULL, not "": the column's absent state means "derive from intent" (ADR-0346 D3), and an
     // empty string is not a member of the role enum — it would fail-close rowToDoc on the next read.
     const role = candidate.role ?? null;
@@ -342,14 +344,11 @@ export class PgClaimStore {
         claim,
       );
       await client.query("COMMIT");
-      return {
-        acquired: true,
-        claim,
-        reclaimed,
-        ...(displaced !== undefined ? { displaced } : {}),
-        // The take's own audit-row identity, so the caller can name it as a cause (ADR-0350 D1).
-        ...(eventSeq !== undefined ? { eventSeq } : {}),
-      };
+      const result: ClaimAcquired = { acquired: true, claim, reclaimed };
+      if (displaced !== undefined) result.displaced = displaced;
+      // The take's own audit-row identity, so the caller can name it as a cause (ADR-0350 D1).
+      if (eventSeq !== undefined) result.eventSeq = eventSeq;
+      return result;
     } catch (err) {
       await client.query("ROLLBACK");
       throw err;
@@ -373,16 +372,17 @@ export class PgClaimStore {
 
     const now = opts.now ?? new Date();
     // Fail-closed on attribution before any write, exactly like claim().
-    const candidate = ClaimDoc.parse({
+    const draft: ClaimDocT = {
       unitId: req.unitId,
       sessionId: req.sessionId,
       branch: req.branch,
       intent: req.intent ?? "",
       grade,
-      ...(req.role !== undefined ? { role: req.role } : {}),
       claimedAt: now.toISOString(),
       heartbeatAt: now.toISOString(),
-    });
+    };
+    if (req.role !== undefined) draft.role = req.role;
+    const candidate = ClaimDoc.parse(draft);
 
     const client = await this.#pool.connect();
     try {
@@ -418,12 +418,9 @@ export class PgClaimStore {
         claim,
       );
       await client.query("COMMIT");
-      return {
-        acquired: true,
-        claim,
-        reclaimed: false,
-        ...(eventSeq !== undefined ? { eventSeq } : {}),
-      };
+      const result: ClaimAcquired = { acquired: true, claim, reclaimed: false };
+      if (eventSeq !== undefined) result.eventSeq = eventSeq;
+      return result;
     } catch (err) {
       await client.query("ROLLBACK");
       throw err;

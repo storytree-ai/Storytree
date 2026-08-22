@@ -127,22 +127,24 @@ test("context-window-capacity-is-never-inferred, a-single-declared-window-is-car
     phase: string,
     byModel?: Record<string, { contextWindow?: number }>,
   ): LeafSliceRun {
-    return {
+    // No `byModel` leaves the key ABSENT, which is the unattributed-run case these legs drive.
+    const run: LeafSliceRun = {
       phase,
       subtype: "success",
       turns: 1,
       usage: { ...BASE_USAGE },
-      ...(byModel === undefined
-        ? {}
-        : {
-            byModel: Object.fromEntries(
-              Object.entries(byModel).map(([modelId, override]) => [
-                modelId,
-                { ...BASE_USAGE, ...override },
-              ]),
-            ),
-          }),
-    } as LeafSliceRun;
+    };
+    if (byModel !== undefined) {
+      run.byModel = Object.fromEntries(
+        Object.entries(byModel).map(
+          ([modelId, override]): [string, NonNullable<LeafSliceRun["byModel"]>[string]] => [
+            modelId,
+            { ...BASE_USAGE, ...override },
+          ],
+        ),
+      );
+    }
+    return run;
   }
 
   const runs: LeafSliceRun[] = [
@@ -219,22 +221,24 @@ test("model-and-agent-type-come-from-the-runtime: a slice declaring exactly one 
     phase: string,
     byModel?: Record<string, { contextWindow?: number }>,
   ): LeafSliceRun {
-    return {
+    // No `byModel` leaves the key ABSENT, which is the unattributed-run case these legs drive.
+    const run: LeafSliceRun = {
       phase,
       subtype: "success",
       turns: 1,
       usage: { ...BASE_USAGE },
-      ...(byModel === undefined
-        ? {}
-        : {
-            byModel: Object.fromEntries(
-              Object.entries(byModel).map(([modelId, override]) => [
-                modelId,
-                { ...BASE_USAGE, ...override },
-              ]),
-            ),
-          }),
-    } as LeafSliceRun;
+    };
+    if (byModel !== undefined) {
+      run.byModel = Object.fromEntries(
+        Object.entries(byModel).map(
+          ([modelId, override]): [string, NonNullable<LeafSliceRun["byModel"]>[string]] => [
+            modelId,
+            { ...BASE_USAGE, ...override },
+          ],
+        ),
+      );
+    }
+    return run;
   }
 
   const runs: LeafSliceRun[] = [

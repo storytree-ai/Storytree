@@ -43,11 +43,20 @@ async function fixtureCorpus(): Promise<InMemoryStore> {
   return corpus;
 }
 
+/** What one fixture drive reports back — `failedAt`/`reason` only when the build actually failed. */
+interface FixtureNodeOutcome {
+  ok: boolean;
+  failedAt?: string;
+  reason?: string;
+  signingRows: number;
+  promoted: boolean;
+}
+
 /** Drive one fixture `cap-a` through `buildNodeReal` with an injected backstop configuration. */
 async function runFixtureNode(args: {
   typecheck: ShellCommand;
   promote: boolean;
-}): Promise<{ ok: boolean; failedAt?: string; reason?: string; signingRows: number; promoted: boolean }> {
+}): Promise<FixtureNodeOutcome> {
   const stories = await fixtureStories([{ id: "cap-a", dependsOn: [] }]);
   const repo = await fixtureRepo(false);
   const store = new InMemoryStore();
@@ -89,12 +98,16 @@ async function runFixtureNode(args: {
     });
 
     const signingRows = (await store.readEvents()).filter((e) => e.kind === "signing").length;
-    return {
+    const outcome: FixtureNodeOutcome = {
       ok: built.result.ok,
-      ...(built.result.ok ? {} : { failedAt: built.result.failedAt, reason: built.result.reason }),
       signingRows,
       promoted: built.promotion !== undefined,
     };
+    if (!built.result.ok) {
+      outcome.failedAt = built.result.failedAt;
+      outcome.reason = built.result.reason;
+    }
+    return outcome;
   } finally {
     await worktree.remove();
     await rm(stories, { recursive: true, force: true });

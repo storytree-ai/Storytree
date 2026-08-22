@@ -507,16 +507,17 @@ export const NodeBuildConfigSchema = z
 // Explicit construction (not a bare cast of `z.infer`): under exactOptionalPropertyTypes a
 // zod-inferred `field?: T | undefined` is NOT assignable to the canonical `field?: T`, and a parsed
 // object carrying explicit `undefined` keys would also break the parity `deepEqual` against the
-// registry literals. Rebuilding each object — spreading optionals only when present — yields a value
+// registry literals. Rebuilding each object — assigning optionals only when present — yields a value
 // byte-for-byte equal to a hand-written registry entry. These builders ARE the drift-lock: if the
 // schema's inferred shape ever stops fitting the canonical interface, they stop compiling.
 
 function buildShellCommand(raw: z.infer<typeof ShellCommandSchema>): ShellCommand {
-  return {
+  const command: ShellCommand = {
     file: raw.file,
     args: [...raw.args],
-    ...(raw.cwd !== undefined ? { cwd: raw.cwd } : {}),
   };
+  if (raw.cwd !== undefined) command.cwd = raw.cwd;
+  return command;
 }
 
 function buildScope(raw: z.infer<typeof PathWriteScopeConfigSchema>): PathWriteScopeConfig {
@@ -524,29 +525,30 @@ function buildScope(raw: z.infer<typeof PathWriteScopeConfigSchema>): PathWriteS
 }
 
 function buildReal(raw: z.infer<typeof RealProofConfigSchema>): RealProofConfig {
-  return {
+  const real: RealProofConfig = {
     testFile: raw.testFile,
     sourceFile: raw.sourceFile,
     scope: buildScope(raw.scope),
-    ...(raw.install !== undefined ? { install: raw.install } : {}),
-    ...(raw.typecheck !== undefined ? { typecheck: buildShellCommand(raw.typecheck) } : {}),
-    ...(raw.proofCommand !== undefined ? { proofCommand: buildShellCommand(raw.proofCommand) } : {}),
-    // C (ADR-0057 §3): spread ONLY when present — absent-not-undefined, so a net-new node's config
-    // stays byte-for-byte deepEqual to its registry twin (the established parity drift-lock idiom).
-    ...(raw.editsExisting !== undefined ? { editsExisting: raw.editsExisting } : {}),
-    // R2 (ADR-0098): same absent-not-undefined idiom — a non-R2 node's config stays byte-for-byte
-    // deepEqual to its registry twin (the parity drift-lock holds).
-    ...(raw.refactorForTests !== undefined ? { refactorForTests: raw.refactorForTests } : {}),
-    // ADR-0064: same absent-not-undefined idiom, so the 7 migrated nodes (no `db`) stay deepEqual
-    // to their registry twins (the contract-4 parity oracle holds byte-for-byte).
-    ...(raw.db !== undefined ? { db: raw.db } : {}),
-    // ADR-0064 §2: spread (a fresh copy) only when present — absent stays absent for the parity lock.
-    ...(raw.addDeps !== undefined ? { addDeps: [...raw.addDeps] } : {}),
-    // ADR-0104: same absent-not-undefined idiom — a node that declares no per-node budget keeps the
-    // key off the config, so its registry-vs-spec parity deepEqual holds byte-for-byte and it rides
-    // the spine-wide DEFAULT_PROOF_TIMEOUT_MS.
-    ...(raw.timeoutMs !== undefined ? { timeoutMs: raw.timeoutMs } : {}),
   };
+  if (raw.install !== undefined) real.install = raw.install;
+  if (raw.typecheck !== undefined) real.typecheck = buildShellCommand(raw.typecheck);
+  if (raw.proofCommand !== undefined) real.proofCommand = buildShellCommand(raw.proofCommand);
+  // C (ADR-0057 §3): set ONLY when present — absent-not-undefined, so a net-new node's config
+  // stays byte-for-byte deepEqual to its registry twin (the established parity drift-lock idiom).
+  if (raw.editsExisting !== undefined) real.editsExisting = raw.editsExisting;
+  // R2 (ADR-0098): same absent-not-undefined idiom — a non-R2 node's config stays byte-for-byte
+  // deepEqual to its registry twin (the parity drift-lock holds).
+  if (raw.refactorForTests !== undefined) real.refactorForTests = raw.refactorForTests;
+  // ADR-0064: same absent-not-undefined idiom, so the 7 migrated nodes (no `db`) stay deepEqual
+  // to their registry twins (the contract-4 parity oracle holds byte-for-byte).
+  if (raw.db !== undefined) real.db = raw.db;
+  // ADR-0064 §2: set (a fresh copy) only when present — absent stays absent for the parity lock.
+  if (raw.addDeps !== undefined) real.addDeps = [...raw.addDeps];
+  // ADR-0104: same absent-not-undefined idiom — a node that declares no per-node budget keeps the
+  // key off the config, so its registry-vs-spec parity deepEqual holds byte-for-byte and it rides
+  // the spine-wide DEFAULT_PROOF_TIMEOUT_MS.
+  if (raw.timeoutMs !== undefined) real.timeoutMs = raw.timeoutMs;
+  return real;
 }
 
 /**
@@ -557,15 +559,16 @@ function buildReal(raw: z.infer<typeof RealProofConfigSchema>): RealProofConfig 
  */
 export function parseNodeBuildConfig(raw: unknown): NodeBuildConfig {
   const parsed = NodeBuildConfigSchema.parse(raw);
-  return {
+  const config: NodeBuildConfig = {
     command: buildShellCommand(parsed.command),
     scope: buildScope(parsed.scope),
-    ...(parsed.real !== undefined ? { real: buildReal(parsed.real) } : {}),
-    // ADR-0353: same absent-not-undefined idiom as every optional above — a node declaring no
-    // coverage surface keeps the key OFF the config, so its registry-vs-spec parity deepEqual holds
-    // byte-for-byte and the drift-lock is undisturbed.
-    ...(parsed.coverage !== undefined
-      ? { coverage: { testGlobs: [...parsed.coverage.testGlobs] } }
-      : {}),
   };
+  if (parsed.real !== undefined) config.real = buildReal(parsed.real);
+  // ADR-0353: same absent-not-undefined idiom as every optional above — a node declaring no
+  // coverage surface keeps the key OFF the config, so its registry-vs-spec parity deepEqual holds
+  // byte-for-byte and the drift-lock is undisturbed.
+  if (parsed.coverage !== undefined) {
+    config.coverage = { testGlobs: [...parsed.coverage.testGlobs] };
+  }
+  return config;
 }

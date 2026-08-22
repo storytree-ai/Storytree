@@ -130,8 +130,15 @@ function ResetIcon(): React.JSX.Element {
  *  (live-story-island-refresh, ADR-0137) — a plain callback over the plain-JSON `spawn` frame, never a
  *  drive import. ChatDock fences it to a story-author finish and invokes reloadTree so the just-authored
  *  island appears live. Optional: ChatPanel renders standalone (no dock) with no callback. */
+/** The spawn-FINISHED frame ChatPanel relays up to its wrapping dock (ADR-0137) — plain JSON. */
+export interface SpawnFinishedFrame {
+  role: string;
+  unitId: string;
+  ok?: boolean;
+}
+
 export interface ChatPanelProps {
-  onSpawnFinished?: (frame: { role: string; unitId: string; ok?: boolean }) => void;
+  onSpawnFinished?: (frame: SpawnFinishedFrame) => void;
 }
 
 export function ChatPanel({ onSpawnFinished }: ChatPanelProps = {}): React.JSX.Element {
@@ -277,8 +284,8 @@ export function ChatPanel({ onSpawnFinished }: ChatPanelProps = {}): React.JSX.E
                   role: frame.role,
                   unitId: frame.unitId,
                   phase: 'finished',
-                  ...(frame.ok !== undefined ? { ok: frame.ok } : {}),
                 };
+                if (frame.ok !== undefined) resolved.ok = frame.ok;
                 if (idx === -1) return [...prev, resolved];
                 const next = prev.slice();
                 next[idx] = resolved;
@@ -291,11 +298,9 @@ export function ChatPanel({ onSpawnFinished }: ChatPanelProps = {}): React.JSX.E
             // callback over the plain-JSON frame; ChatPanel does NOT decide the fence (role-agnostic
             // here), it just relays the finish.
             if (frame.phase === 'finished') {
-              onSpawnFinishedRef.current?.({
-                role: frame.role,
-                unitId: frame.unitId,
-                ...(frame.ok !== undefined ? { ok: frame.ok } : {}),
-              });
+              const finished: SpawnFinishedFrame = { role: frame.role, unitId: frame.unitId };
+              if (frame.ok !== undefined) finished.ok = frame.ok;
+              onSpawnFinishedRef.current?.(finished);
             }
             return;
           }
@@ -319,12 +324,13 @@ export function ChatPanel({ onSpawnFinished }: ChatPanelProps = {}): React.JSX.E
             // (ADR-0170). A done frame without one leaves the prior handle in place — resuming the
             // last KNOWN session is still the honest continuation.
             if (terminal.sessionId !== undefined) sessionRef.current = terminal.sessionId;
-            patchTailReply({
+            const done: Extract<Reply, { kind: 'done' }> = {
               kind: 'done',
               proposal: terminal.proposal,
-              ...(terminal.costUsd !== undefined ? { costUsd: terminal.costUsd } : {}),
-              ...(terminal.turns !== undefined ? { turns: terminal.turns } : {}),
-            });
+            };
+            if (terminal.costUsd !== undefined) done.costUsd = terminal.costUsd;
+            if (terminal.turns !== undefined) done.turns = terminal.turns;
+            patchTailReply(done);
             break;
           }
           case 'error':

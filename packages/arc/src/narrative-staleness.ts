@@ -193,12 +193,11 @@ function landingsOf(increments: readonly ArcRollupIncrement[]): {
       undated.push(i.id);
       continue;
     }
-    dated.push({
-      id: i.id,
-      title: i.title,
-      date: day(date),
-      ...(i.outcome?.pr !== undefined && i.outcome.pr !== "" ? { pr: i.outcome.pr } : {}),
-    });
+    dated.push(
+      i.outcome?.pr !== undefined && i.outcome.pr !== ""
+        ? { id: i.id, title: i.title, date: day(date), pr: i.outcome.pr }
+        : { id: i.id, title: i.title, date: day(date) },
+    );
   }
   dated.sort((a, b) => (a.date === b.date ? a.id.localeCompare(b.id) : b.date.localeCompare(a.date)));
   undated.sort();
@@ -230,11 +229,7 @@ export function deriveArcNarrativeStaleness(input: {
     if (prose.trim() === "") continue;
     const lastWrittenAt = narrativeLastChangedAt(input.events, field);
     const unseen = lastWrittenAt === null ? [] : dated.filter((l) => l.date > day(lastWrittenAt));
-    fields.push({
-      field,
-      ...(lastWrittenAt !== null ? { lastWrittenAt } : {}),
-      unseen,
-    });
+    fields.push(lastWrittenAt !== null ? { field, lastWrittenAt, unseen } : { field, unseen });
   }
   const datable = fields.filter((f) => f.lastWrittenAt !== undefined);
   return {

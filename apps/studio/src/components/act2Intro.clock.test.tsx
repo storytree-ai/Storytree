@@ -75,15 +75,13 @@ function manualClock(): ManualClockResult {
 /** Play at `speed` for `elapsedMs` of wall clock and report where the cursor landed. */
 function runFor(speed: number | undefined, elapsedMs: number): number {
   const { clock, advance, elapse } = manualClock();
-  const { result } = renderHook(() =>
-    useAct2Intro({
-      enabled: true,
-      stories: GRAPH,
-      edges: EDGES,
-      ...(speed === undefined ? {} : { speed }),
-      clock,
-    }),
-  );
+  // `speed` is a READONLY optional on the hook's options, so it cannot be assigned after the fact —
+  // base-plus-ternary on the whole object keeps it omitted (never `undefined`) when unset.
+  const options: Parameters<typeof useAct2Intro>[0] =
+    speed === undefined
+      ? { enabled: true, stories: GRAPH, edges: EDGES, clock }
+      : { enabled: true, stories: GRAPH, edges: EDGES, speed, clock };
+  const { result } = renderHook(() => useAct2Intro(options));
   act(() => result.current.replay());
   // The first frame seeds `previous` (it cannot know an elapsed time yet), so it advances by the
   // 1/60 s the player assumes; every frame after it is real elapsed time.

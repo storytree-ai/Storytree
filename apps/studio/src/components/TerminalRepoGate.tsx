@@ -100,7 +100,10 @@ export function TerminalRepoGate({
   if (!bridge) {
     // Studio-standalone: no desktop preload, no repo concept to gate on. Render the dock directly —
     // it has no `desktopTerminal` bridge either and shows its own honest disabled state.
-    return renderDock({ ...(seed ? { seed } : {}), ...(host ? { host } : {}) });
+    const standaloneProps: TerminalSurfaceProps = {};
+    if (seed) standaloneProps.seed = seed;
+    if (host) standaloneProps.host = host;
+    return renderDock(standaloneProps);
   }
 
   if (!cwd) {
@@ -119,13 +122,13 @@ export function TerminalRepoGate({
   // mounting a fresh one in the new repo.
   // `key` lives on a Fragment around the surface, so the keyed remount holds whatever the slot
   // renders — a substituted surface remounts exactly as the real dock does.
+  const dockProps: TerminalSurfaceProps = {};
+  if (repoControl != null) dockProps.headerRight = repoControl;
+  if (seed) dockProps.seed = seed;
+  if (host) dockProps.host = host;
   return (
     <Fragment key={cwd}>
-      {renderDock({
-        ...(repoControl != null ? { headerRight: repoControl } : {}),
-        ...(seed ? { seed } : {}),
-        ...(host ? { host } : {}),
-      })}
+      {renderDock(dockProps)}
     </Fragment>
   );
 }

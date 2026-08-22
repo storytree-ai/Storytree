@@ -182,7 +182,7 @@ export class PgWorkStore implements Store {
       );
       const row = res.rows[0] as { seq: string | number; at: Date | string } | undefined;
       if (row === undefined) throw new Error("PgWorkStore.appendEvent: no work_event row returned");
-      return {
+      const event: StoreEvent = {
         seq: Number(row.seq),
         id: e.id,
         kind: e.kind,
@@ -190,8 +190,9 @@ export class PgWorkStore implements Store {
         doc,
         actor,
         at: toIso(row.at),
-        ...(e.causedBy !== undefined ? { causedBy: { ...e.causedBy } } : {}),
       };
+      if (e.causedBy !== undefined) event.causedBy = { ...e.causedBy };
+      return event;
     }
 
     if (e.kind === USAGE_EVENT_KIND) {

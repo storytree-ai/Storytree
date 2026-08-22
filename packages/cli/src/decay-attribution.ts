@@ -172,10 +172,12 @@ export function attributeDecayFindings(
     };
   });
 
-  return {
+  const attribution: Omit<DecayAttribution, "unattributable"> = {
     byId: new Map(all.map((a) => [a.id, a])),
     authored: all.filter((a) => a.owner === "authored"),
     inherited: all.filter((a) => a.owner === "inherited"),
-    ...(evidence.unattributable === undefined ? {} : { unattributable: evidence.unattributable }),
   };
+  return evidence.unattributable === undefined
+    ? attribution
+    : { ...attribution, unattributable: evidence.unattributable };
 }

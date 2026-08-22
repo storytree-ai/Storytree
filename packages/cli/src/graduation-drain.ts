@@ -403,7 +403,7 @@ export function evaluateGraduationDrain(
   const enforced = breaches.length > 0 && suppressed === undefined;
   const level: GraduationDrainVerdict["level"] = enforced ? "red" : liveCount > 0 ? "warn" : "ok";
 
-  return {
+  const verdict: GraduationDrainVerdict = {
     level,
     total: candidates.length,
     liveCount,
@@ -419,7 +419,8 @@ export function evaluateGraduationDrain(
     oldestOverdueDays,
     oldestOverdueName,
     breaches,
-    ...(suppressed === undefined ? {} : { suppressed }),
     config,
   };
+  if (suppressed !== undefined) verdict.suppressed = suppressed;
+  return verdict;
 }

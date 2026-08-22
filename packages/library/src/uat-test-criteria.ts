@@ -359,17 +359,18 @@ export function parseUatTestCriterionSources(
     const proofGateId = itemProofGateId(item, criterionId);
     const witness = itemWitness(item, criterionId);
     const witnessBasis = itemWitnessBasis(item, criterionId, witness);
-    const criterion = UatTestCriterion.parse({
+    const draft: z.input<typeof UatTestCriterion> = {
       criterionId,
       revisionId,
-      ...(previousRevisionId !== undefined ? { previousRevisionId } : {}),
-      ...(lineage !== undefined ? { lineage } : {}),
       title: itemTitle(item),
       witness,
-      ...(witnessBasis !== undefined ? { witnessBasis } : {}),
       wouldBe: parsed.wouldBe,
-      ...(proofGateId !== undefined ? { proofGateId } : {}),
-    });
+    };
+    if (previousRevisionId !== undefined) draft.previousRevisionId = previousRevisionId;
+    if (lineage !== undefined) draft.lineage = lineage;
+    if (witnessBasis !== undefined) draft.witnessBasis = witnessBasis;
+    if (proofGateId !== undefined) draft.proofGateId = proofGateId;
+    const criterion = UatTestCriterion.parse(draft);
     return { criterion, source: item };
   });
 

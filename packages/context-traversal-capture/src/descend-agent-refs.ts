@@ -24,6 +24,7 @@ import type {
   ContextTraversalCoverage,
   ContextTraversalEvent,
   ContextVisitEvent,
+  FrontMatterReadEvent,
 } from "@storytree/context-traversal-telemetry";
 
 import type { ObserveCliDeps } from "./observe-cli.js";
@@ -120,8 +121,8 @@ function findAgentVisit(observed: readonly ContextTraversalEvent[]): ContextVisi
  * A child inherits the agent visit's `surfaceId`: the ref was read THROUGH the agents surface, as
  * part of rendering that agent, so claiming any other surface (or none) would misreport where the
  * read happened — and `renderVisitLine` would print `surface=unknown-surface` for every child. It is
- * carried by a conditional spread, so when the parent has no `surfaceId` the key is absent on the
- * child rather than written as `undefined` (`exactOptionalPropertyTypes`, and the sink writes
+ * assigned only when the parent HAS one, so when the parent has no `surfaceId` the key is absent on
+ * the child rather than written as `undefined` (`exactOptionalPropertyTypes`, and the sink writes
  * `JSON.stringify`).
  */
 export function descendAgentRefs(
@@ -134,16 +135,19 @@ export function descendAgentRefs(
 
   const children: ContextTraversalEvent[] = refIds.map((nodeId) => {
     const visitId = deps.nextVisitId();
-    return {
+    // A surfaceless parent leaves `surfaceId` ABSENT on each child, exactly as before — the key is
+    // never present-and-undefined, which is what keeps it out of the serialised line.
+    const child: FrontMatterReadEvent = {
       kind: "front_matter_read",
       eventId: `event:${visitId}`,
       sessionId: deps.sessionId,
       at: deps.now().toISOString(),
       visitId,
       nodeId,
-      ...(agentVisit.surfaceId !== undefined ? { surfaceId: agentVisit.surfaceId } : {}),
       parentVisitId: agentVisit.visitId,
     };
+    if (agentVisit.surfaceId !== undefined) child.surfaceId = agentVisit.surfaceId;
+    return child;
   });
 
   return [...observed, ...children];
