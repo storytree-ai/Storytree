@@ -26,12 +26,17 @@ export {
   DECISION_READ_SURFACES,
   decisionNodeIdsInPath,
   scanTranscriptDecisionReads,
+  scrapeCliDecisionReads,
   scrapeShellDecisionReads,
   sessionIdFromCwd,
+  type CliDecisionRead,
+  type CliScrape,
   type DecisionRead,
   type DecisionReadScan,
   type DecisionReadShape,
+  type DecisionReadStrength,
   type DeclinedShellVerb,
+  type DeclinedVerb,
   type ShellScrape,
 } from "./decision-reads.js";
 

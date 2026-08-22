@@ -693,6 +693,7 @@ function toGuidanceAsset(rendered: {
   arcRef?: string;
   status?: string;
   lifecycle?: string;
+  loadBearing?: boolean;
   dependsOn?: string[];
   cites?: string[];
   createdAt: string;
@@ -722,6 +723,10 @@ function toGuidanceAsset(rendered: {
   // An arc doc's stored closure flag rides it the same way (ADR-0239 D1) — without this the
   // shelves' `archived` state is unreachable for arcs, which is the rot ADR-0239 exists to end.
   if (rendered.lifecycle) asset.lifecycle = rendered.lifecycle;
+  // An adr's ADR-0086 load-bearing tag, same crossing and same reason: without it the Library
+  // selection card's load-bearing badge is unreachable, which is exactly what PR #1546 left behind
+  // when it deleted the docs walker's ADR half (the badge's only previous producer).
+  if (rendered.loadBearing === true) asset.loadBearing = true;
   // The authored dependency edge (ADR-0223) — the substrate buildFocusGraph walks. Array-shaped,
   // so the guard is `Array.isArray`, matching stepRefs/branchEdges above.
   if (Array.isArray(rendered.dependsOn)) asset.dependsOn = rendered.dependsOn;

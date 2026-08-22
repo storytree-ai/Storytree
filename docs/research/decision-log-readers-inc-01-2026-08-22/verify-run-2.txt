@@ -1,0 +1,36 @@
+served code.head = f43f32ab291801cc4ccf74d35a2f9b52bd9dd328 (stale=false), store=pg
+wire: 412 decisions, 365 accepted, 125 accepted+load-bearing
+will select: adr-0002 — The work hierarchy — story, capability, contract
+shelf rows under 'active' (12):
+  library-shelf-row-principle :: principle91
+  library-shelf-row-pattern :: pattern28
+  library-shelf-row-definition :: definition52
+  library-shelf-row-guardrail :: guardrail17
+  library-shelf-row-techstack :: techstack7
+  library-shelf-row-template :: template13
+  library-shelf-row-process :: process21
+  library-shelf-row-agent :: agent13
+  library-shelf-row-arc :: epic13
+  library-shelf-row-increment :: increment12
+  library-shelf-row-uat-criterion :: uat-criterion42
+  library-shelf-decisions-row :: Decisions365
+Decisions rows rendered: 1  (must be exactly 1 — the docs-sourced duplicate is gone)
+wrote library-shelf-active.png
+scoped placeholder: "Search Decisions…"
+scoped+typed results (14):
+  library-finder-row-adr-0002 :: The work hierarchy — story, capability, contractadraccepted
+  library-finder-row-adr-0007 :: Proof modeladraccepted
+  library-finder-row-adr-0010 :: The organism model — story as bounded context, the proof lad
+  library-finder-row-adr-0013 :: A structured, schema-validated corpus; markdown as a generat
+  library-finder-row-adr-0020 :: Red-green is enforced spine-side on the owned loop (not by p
+  library-finder-row-adr-0024 :: A definition earns its place only if a cold agent can't reco
+  library-finder-row-adr-0036 :: The story world — the studio renders the work hierarchy as a
+  library-finder-row-adr-0058 :: Cross-story dependency direction, the no-cycle rule, and the
+  library-finder-row-adr-0068 :: Make the organism model physical: real story isolation and t
+  library-finder-row-adr-0135 :: Retire docs/glossary.md; the Library is the sole term author
+  library-finder-row-adr-0149 :: Security is a declared-obligation proof mode: SAST and depen
+  library-finder-row-adr-0183 :: Arcs contain plans: the initiative overlay upstream of stori
+  library-finder-row-adr-0306 :: Typed work-hierarchy refs: increments cite stories and capab
+  library-finder-row-adr-0396 :: A retired story's UAT criteria are deleted with their ordina
+selection card — kind: "adr", status: "accepted", load-bearing badge present: true
+wrote library-loadbearing-card.png

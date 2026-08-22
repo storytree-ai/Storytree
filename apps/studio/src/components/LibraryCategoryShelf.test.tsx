@@ -5,8 +5,10 @@
 //
 //   • the PURE grouping/listing heart `buildCategoryShelf` / `listCategoryResults`
 //     (`../lib/libraryShelf`, NET-NEW) — group `assets` by `category` into one shelf entry per
-//     category PRESENT (with its count), plus a Decisions entry from `docs`; and list ALL of a
-//     scoped category's artifacts as finder-parity `SearchResult`s with no query floor;
+//     category PRESENT (with its count); and list ALL of a scoped category's artifacts as
+//     finder-parity `SearchResult`s with no query floor. Decisions are the `adr` category like any
+//     other (ADR-0403 dec 1) — the separate Decisions-from-`docs` entry these functions used to
+//     push is gone, and so is the `docs` argument that fed it;
 //   • the `<LibraryFinder>` component (`./LibraryFinder`) — an IDLE state that renders the category
 //     shelf (no query, no scope), a category click that turns into a removable scope chip and
 //     browses all of that category's artifacts, typing while scoped that filters within the scope
@@ -27,7 +29,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { buildCategoryShelf, listCategoryResults } from '../lib/libraryShelf';
 import { LibraryFinder } from './LibraryFinder';
-import type { GuidanceAsset, DocMeta } from '../types';
+import type { GuidanceAsset } from '../types';
 
 const NOW = '2026-01-01T00:00:00.000Z';
 
@@ -42,14 +44,6 @@ function asset(overrides: Partial<GuidanceAsset> & Pick<GuidanceAsset, 'id' | 'c
   };
 }
 
-function doc(overrides: Partial<DocMeta> & Pick<DocMeta, 'id' | 'title'>): DocMeta {
-  return {
-    group: 'Decisions',
-    excerpt: 'unrelated excerpt text',
-    ...overrides,
-  };
-}
-
 // A shared small fixed corpus:
 //   - widgetA / widgetB: two `definition` assets (title carries "Migration" on widgetA only, so a
 //     scoped "migration" query can prove cross-category exclusion against arcY below).
@@ -57,17 +51,18 @@ function doc(overrides: Partial<DocMeta> & Pick<DocMeta, 'id' | 'title'>): DocMe
 //   - arcY:               a single `arc` asset whose title ALSO carries "Migration" — proves the
 //                          scoped filter keeps only the scope's own category, not every corpus hit.
 //   - `principle` has NO asset at all — proves an absent category gets no shelf row.
-//   - doc1 / doc2:        two ADRs (the Decisions pseudo-scope).
+//   - adr1 / adr2:        two decisions — `adr` ARTIFACTS, the shape `/api/assets` serves. They
+//                          were `DocMeta`s carrying `group: 'Decisions'` until ADR-0403 dec 1, a
+//                          shape no producer can emit since PR #1546.
 const widgetA = asset({ id: 'widget-a', category: 'definition', title: 'Widget Alpha Migration' });
 const widgetB = asset({ id: 'widget-b', category: 'definition', title: 'Widget Beta' });
 const patternX = asset({ id: 'pattern-x', category: 'pattern', title: 'Some Pattern' });
 const arcY = asset({ id: 'arc-y', category: 'arc', title: 'Big Migration Arc' });
 
-const doc1 = doc({ id: 'decisions/0001-a.md', title: 'Decision Alpha', status: 'accepted' });
-const doc2 = doc({ id: 'decisions/0002-b.md', title: 'Decision Beta', status: 'proposed' });
+const adr1 = asset({ id: 'adr-0001', category: 'adr', title: 'Decision Alpha', status: 'accepted' });
+const adr2 = asset({ id: 'adr-0002', category: 'adr', title: 'Decision Beta', status: 'proposed' });
 
-const ASSETS = [widgetA, widgetB, patternX, arcY];
-const DOCS = [doc1, doc2];
+const ASSETS = [widgetA, widgetB, patternX, arcY, adr1, adr2];
 
 afterEach(cleanup);
 
@@ -75,8 +70,8 @@ afterEach(cleanup);
 
 describe('libraryShelf', () => {
   // ── lcs-shelf-groups-corpus-by-category ─────────────────────────────────────────
-  it('lcs-shelf-groups-corpus-by-category: one entry per category PRESENT with its count; an absent category gets no entry; a Decisions entry counts the docs', () => {
-    const shelf = buildCategoryShelf(ASSETS, DOCS);
+  it('lcs-shelf-groups-corpus-by-category: one entry per category PRESENT with its count; an absent category gets no entry; Decisions is one such entry, counted from the assets', () => {
+    const shelf = buildCategoryShelf(ASSETS);
 
     const definitionEntry = shelf.find((e) => e.category === 'definition');
     expect(definitionEntry?.count).toBe(2);
@@ -94,15 +89,35 @@ describe('libraryShelf', () => {
     expect(decisionsEntry?.count).toBe(2);
   });
 
+  // THE DUPLICATE-ROW FENCE. `buildCategoryShelf` pushed a Decisions entry counted from `docs`
+  // ON TOP of the one its assets loop had already produced, so the shelf carried TWO entries with
+  // the same `category: 'adr'` — the same React key at LibraryFinder's `key={entry.category}`, one
+  // of them counted at 0 once `docs/decisions/` was deleted. One category, one row.
+  it('lcs-shelf-groups-corpus-by-category: emits exactly ONE entry per category, decisions included', () => {
+    const shelf = buildCategoryShelf(ASSETS);
+    const categories = shelf.map((e) => e.category);
+    expect(new Set(categories).size).toBe(categories.length);
+    expect(categories.filter((c) => c === 'adr')).toHaveLength(1);
+  });
+
   it('lcs-shelf-groups-corpus-by-category: listCategoryResults browses ALL of a scoped category with no query floor', () => {
-    const definitionResults = listCategoryResults('definition', ASSETS, DOCS);
+    const definitionResults = listCategoryResults('definition', ASSETS);
     expect(definitionResults.map((r) => r.id)).toEqual(['widget-a', 'widget-b']);
     expect(definitionResults.every((r) => r.source === 'asset' && r.category === 'definition')).toBe(true);
 
-    const adrResults = listCategoryResults('adr', ASSETS, DOCS);
-    expect(adrResults.map((r) => r.id)).toEqual([doc1.id, doc2.id]);
-    expect(adrResults.every((r) => r.source === 'doc' && r.category === 'adr')).toBe(true);
-    expect(adrResults.find((r) => r.id === doc1.id)?.status).toBe('accepted');
+    const adrResults = listCategoryResults('adr', ASSETS);
+    expect(adrResults.map((r) => r.id)).toEqual([adr1.id, adr2.id]);
+    expect(adrResults.every((r) => r.source === 'asset' && r.category === 'adr')).toBe(true);
+    expect(adrResults.find((r) => r.id === adr1.id)?.status).toBe('accepted');
+  });
+
+  // THE SCOPE FENCE. `listCategoryResults('adr', …)` special-cased the Decisions scope to list
+  // `docs`, so entering Decisions answered with the surviving REFERENCE documents relabelled as
+  // decisions, and with none of the real ones. It reads the same corpus as every other scope now.
+  it('lcs-shelf-groups-corpus-by-category: the Decisions scope lists decisions and nothing else', () => {
+    const results = listCategoryResults('adr', ASSETS);
+    expect(results.map((r) => r.id)).toEqual(['adr-0001', 'adr-0002']);
+    expect(listCategoryResults('adr', [widgetA, patternX])).toEqual([]);
   });
 });
 

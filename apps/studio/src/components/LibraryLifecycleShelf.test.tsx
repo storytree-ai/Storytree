@@ -6,15 +6,21 @@
 //
 //   • the reworked pure count heart `buildCategoryShelf` (`../lib/libraryShelf`) — ADDING a
 //     per-state `stateCounts` (open/active/archived, via `lifecycleOf` from `@storytree/library`)
-//     to each entry alongside the EXISTING total `count`, with the Decisions entry's per-state
-//     counts still scoped to `group === 'Decisions'` docs only;
+//     to each entry alongside the EXISTING total `count`, decisions counted from the `adr`
+//     artifacts like every other category (ADR-0403 dec 1);
 //   • the `<LibraryFinder>` component (`./LibraryFinder`) — ONE three-state `open | active |
 //     archived` selector (default `open`, component-local state) that REPLACES the retired
 //     Active|All toggle; the selected state governs the shelf (only categories with ≥1 item in
-//     the state render, each with a PLAIN per-state count — the "N of M" muted-total split is
+//     state render, each with a PLAIN per-state count — the "N of M" muted-total split is
 //     gone), the scoped browse (uniformly for every kind — the friction/Decisions chips-only
-//     exception is gone), and the typed search (assets + Decisions alike); the per-kind state
-//     chips retire outright; and empty states render one quiet line.
+//     exception is gone), and the typed search; the per-kind state chips retire outright; and
+//     empty states render one quiet line.
+//
+// ★ THE DECISIONS FIXTURES ARE `adr` ARTIFACTS NOW (ADR-0403 dec 1). They were `DocMeta`s carrying
+// `group: 'Decisions'` and a frontmatter `status` — a shape PR #1546's walker can no longer emit
+// and `DocMeta` can no longer express. That is why the old `lls-decisions-row-per-state-counts-
+// decisions-group-only` contract retires rather than being repointed: it pinned that a Reference
+// doc must not be counted into the Decisions row, and a doc cannot reach that row at all now.
 //
 // NOT pinned here (operator-attested, ADR-0197 D1 + ADR-0070): the forest-cozy palette, the
 // selector's segmented styling, the empty-state copy's look, and any typography. No visual/
@@ -30,7 +36,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup, within } from '@testing-library/react';
 import { buildCategoryShelf } from '../lib/libraryShelf';
 import { LibraryFinder } from './LibraryFinder';
-import type { GuidanceAsset, DocMeta } from '../types';
+import type { GuidanceAsset } from '../types';
 
 const NOW = '2026-01-01T00:00:00.000Z';
 
@@ -43,14 +49,6 @@ function asset(
     references: [],
     createdAt: NOW,
     updatedAt: NOW,
-    ...overrides,
-  };
-}
-
-function doc(overrides: Partial<DocMeta> & Pick<DocMeta, 'id' | 'title'>): DocMeta {
-  return {
-    group: 'Decisions',
-    excerpt: 'unrelated excerpt text',
     ...overrides,
   };
 }
@@ -117,35 +115,30 @@ const epicMigration = asset({
   title: 'The Great Migration',
 });
 
-const ASSETS: GuidanceAsset[] = [...FRICTION, ...PLAN, patternX, epicMigration];
 
-// Decisions (proposed/accepted/superseded -> open/active/archived): 3 in-group docs (one per
-// state) + 1 non-Decisions doc that must NOT count toward the Decisions row at all (the 223 -> 191
-// count-bug fix, still standing).
-const docAccepted = doc({
-  id: 'decisions/0001-accepted.md',
+// Decisions (proposed/accepted/superseded -> open/active/archived): 3 `adr` artifacts, one per
+// state. They join ASSETS, because that is the one corpus the shelf reads.
+const adrAccepted = asset({
+  id: 'adr-0001',
+  category: 'adr',
   title: 'An accepted decision',
-  group: 'Decisions',
   status: 'accepted',
 });
-const docProposed = doc({
-  id: 'decisions/0002-proposed.md',
+const adrProposed = asset({
+  id: 'adr-0002',
+  category: 'adr',
   title: 'A proposed decision',
-  group: 'Decisions',
   status: 'proposed',
 });
-const docSuperseded = doc({
-  id: 'decisions/0003-superseded.md',
+const adrSuperseded = asset({
+  id: 'adr-0003',
+  category: 'adr',
   title: 'A superseded decision',
-  group: 'Decisions',
   status: 'superseded',
 });
-const docReference = doc({
-  id: 'reference/glossary.md',
-  title: 'A non-decision reference doc',
-  group: 'Reference',
-});
-const DOCS: DocMeta[] = [docAccepted, docProposed, docSuperseded, docReference];
+const DECISIONS = [adrAccepted, adrProposed, adrSuperseded];
+
+const ASSETS: GuidanceAsset[] = [...FRICTION, ...PLAN, patternX, epicMigration, ...DECISIONS];
 
 afterEach(cleanup);
 
@@ -153,7 +146,7 @@ afterEach(cleanup);
 
 describe('libraryShelf (per-state count rework)', () => {
   it('lls-shelf-entry-per-state-counts: buildCategoryShelf adds a stateCounts (open/active/archived) alongside the existing total count', () => {
-    const shelf = buildCategoryShelf(ASSETS, DOCS);
+    const shelf = buildCategoryShelf(ASSETS);
 
     const frictionEntry = shelf.find((e) => e.category === 'friction');
     expect(frictionEntry?.count).toBe(3);
@@ -175,14 +168,22 @@ describe('libraryShelf (per-state count rework)', () => {
     expect(patternEntry?.stateCounts?.archived).toBe(0);
   });
 
-  it('lls-decisions-row-per-state-counts-decisions-group-only: the Decisions entry\'s stateCounts reflect only group === "Decisions" docs, not every loaded doc', () => {
-    const shelf = buildCategoryShelf(ASSETS, DOCS);
+  // v2 of `lls-decisions-row-per-state-counts-decisions-group-only` (ADR-0403 dec 1). The old
+  // contract fenced a Reference doc out of the Decisions row's counts; a doc cannot reach that row
+  // at all now, so the fence it needs is the opposite one — the row counts `adr` ARTIFACTS, and
+  // every state of the ADR-0037 lifecycle projects onto the triad.
+  it('lls-decisions-row-per-state-counts-decisions-group-only: the Decisions entry counts adr artifacts, projecting proposed/accepted/superseded onto open/active/archived', () => {
+    const shelf = buildCategoryShelf(ASSETS);
     const decisionsEntry = shelf.find((e) => e.category === 'adr');
-    // 4 docs total in the fixture, but only 3 carry group: 'Decisions' — the bug fix stands.
     expect(decisionsEntry?.count).toBe(3);
     expect(decisionsEntry?.stateCounts?.open).toBe(1);
     expect(decisionsEntry?.stateCounts?.active).toBe(1);
     expect(decisionsEntry?.stateCounts?.archived).toBe(1);
+
+    // No decision in the corpus means no Decisions row at all — never a row counted at 0 sitting
+    // beside a real one, which is what the docs-sourced entry became after PR #1546.
+    const noDecisions = buildCategoryShelf([patternX]);
+    expect(noDecisions.find((e) => e.category === 'adr')).toBeUndefined();
   });
 });
 
@@ -191,7 +192,7 @@ describe('libraryShelf (per-state count rework)', () => {
 describe('LibraryFinder — one three-state lifecycle selector governs the whole panel', () => {
   // ── lls-selector-defaults-open-and-hides-empty-categories ───────────────────────
   it('lls-selector-defaults-open-and-hides-empty-categories: the selector defaults to open; only categories with >=1 open item render, each with a plain count', () => {
-    render(<LibraryFinder assets={ASSETS} docs={DOCS} onSelect={vi.fn()} />);
+    render(<LibraryFinder assets={ASSETS} onSelect={vi.fn()} />);
 
     expect(screen.getByTestId('library-lifecycle-selector-open').getAttribute('aria-pressed')).toBe(
       'true',
@@ -226,7 +227,7 @@ describe('LibraryFinder — one three-state lifecycle selector governs the whole
 
   // ── lls-state-switch-rederives-shelf ─────────────────────────────────────────────
   it('lls-state-switch-rederives-shelf: switching the selector re-derives which categories render and their counts', () => {
-    render(<LibraryFinder assets={ASSETS} docs={DOCS} onSelect={vi.fn()} />);
+    render(<LibraryFinder assets={ASSETS} onSelect={vi.fn()} />);
 
     fireEvent.click(screen.getByTestId('library-lifecycle-selector-active'));
     expect(
@@ -261,7 +262,7 @@ describe('LibraryFinder — one three-state lifecycle selector governs the whole
   // ── lls-selector-filters-scoped-browse ───────────────────────────────────────────
   it('lls-selector-filters-scoped-browse: the selected state filters the scoped browse list uniformly, and a row click still lifts onSelect', () => {
     const onSelect = vi.fn();
-    render(<LibraryFinder assets={ASSETS} docs={DOCS} onSelect={onSelect} />);
+    render(<LibraryFinder assets={ASSETS} onSelect={onSelect} />);
 
     // scope into increment under the default open state (it has exactly 1 open item).
     fireEvent.click(screen.getByTestId('library-shelf-row-increment'));
@@ -289,9 +290,42 @@ describe('LibraryFinder — one three-state lifecycle selector governs the whole
     expect(screen.queryByTestId('library-finder-row-increment-active')).toBeNull();
   });
 
+  // ── lls-selector-filters-scoped-browse (typing WHILE scoped) ─────────────────────
+  //
+  // The one path in this panel with its own scope predicate: typing while a scope chip is up runs
+  // `searchCorpus` and filters the ranked results down to the scope. That predicate special-cased
+  // Decisions to `result.source === 'doc'` — the ONE branch that read the doc corpus rather than
+  // the artifact one — so a typed query under the Decisions chip matched documents and never a
+  // decision. It survived PR #1546 by being unreached: no contract typed anything while scoped, so
+  // a mutation restoring the special case still passed the whole suite. It is reached now.
+  it('lls-selector-filters-scoped-browse: typing while scoped to Decisions searches the decisions themselves, not the doc corpus', () => {
+    render(<LibraryFinder assets={ASSETS} onSelect={vi.fn()} />);
+
+    // `accepted` projects to `active`, so switch there before scoping — the shelf only shows a
+    // category with ≥1 item in the selected state.
+    fireEvent.click(screen.getByTestId('library-lifecycle-selector-active'));
+    fireEvent.click(screen.getByTestId('library-shelf-decisions-row'));
+    expect(screen.getByTestId('library-scope-chip').textContent).toContain('Decisions');
+
+    // The accessible name is fixed; the SCOPE shows in the placeholder.
+    const input = screen.getByLabelText('Search library');
+    expect(input.getAttribute('placeholder')).toContain('Decisions');
+
+    fireEvent.change(input, { target: { value: 'decision' } });
+
+    // The accepted decision is the only in-state Decisions match.
+    expect(screen.getByTestId(`library-finder-row-${adrAccepted.id}`)).toBeTruthy();
+    expect(screen.queryByTestId(`library-finder-row-${adrProposed.id}`)).toBeNull();
+    expect(screen.queryByTestId(`library-finder-row-${adrSuperseded.id}`)).toBeNull();
+
+    // …and the scope still excludes other categories that match the same query.
+    fireEvent.change(input, { target: { value: 'increment' } });
+    expect(screen.queryAllByTestId(/^library-finder-row-/)).toHaveLength(0);
+  });
+
   // ── lls-selector-filters-search ───────────────────────────────────────────────────
   it('lls-selector-filters-search: the selected state filters typed search results, for assets and Decisions alike', () => {
-    render(<LibraryFinder assets={ASSETS} docs={DOCS} onSelect={vi.fn()} />);
+    render(<LibraryFinder assets={ASSETS} onSelect={vi.fn()} />);
 
     const input = screen.getByLabelText('Search library');
 
@@ -304,13 +338,13 @@ describe('LibraryFinder — one three-state lifecycle selector governs the whole
     // the in-state result still renders its title + a kindLabel kind sub-line.
     expect(screen.getByTestId('library-finder-result-kind-increment-proposal').textContent).toBe('increment');
 
-    // a "decision" query matches all 3 Decisions docs by title, but only the open (proposed) one shows.
+    // a "decision" query matches all 3 decisions by title, but only the open (proposed) one shows.
     fireEvent.change(input, { target: { value: 'decision' } });
-    expect(screen.getByTestId(`library-finder-row-${docProposed.id}`)).toBeTruthy();
-    expect(screen.queryByTestId(`library-finder-row-${docAccepted.id}`)).toBeNull();
-    expect(screen.queryByTestId(`library-finder-row-${docSuperseded.id}`)).toBeNull();
-    // an in-state ADR result still shows its status.
-    expect(screen.getByTestId(`library-finder-result-status-${docProposed.id}`).textContent).toBe(
+    expect(screen.getByTestId(`library-finder-row-${adrProposed.id}`)).toBeTruthy();
+    expect(screen.queryByTestId(`library-finder-row-${adrAccepted.id}`)).toBeNull();
+    expect(screen.queryByTestId(`library-finder-row-${adrSuperseded.id}`)).toBeNull();
+    // an in-state decision result still shows its status, sourced from the artifact.
+    expect(screen.getByTestId(`library-finder-result-status-${adrProposed.id}`).textContent).toBe(
       'proposed',
     );
 
@@ -329,7 +363,7 @@ describe('LibraryFinder — one three-state lifecycle selector governs the whole
 
   // ── lls-state-chips-retired ───────────────────────────────────────────────────────
   it('lls-state-chips-retired: no per-kind state chips render for any scoped kind — the selector is the only state vocabulary', () => {
-    render(<LibraryFinder assets={ASSETS} docs={DOCS} onSelect={vi.fn()} />);
+    render(<LibraryFinder assets={ASSETS} onSelect={vi.fn()} />);
 
     fireEvent.click(screen.getByTestId('library-shelf-row-friction'));
     expect(screen.queryAllByTestId(/^library-state-chip-/)).toHaveLength(0);
@@ -345,17 +379,10 @@ describe('LibraryFinder — one three-state lifecycle selector governs the whole
   it('lls-quiet-empty-states: an all-empty open shelf renders one quiet line and no shelf rows', () => {
     const onlyActiveAssets: GuidanceAsset[] = [
       asset({ id: 'only-active-increment', category: 'increment', title: 'Only An Active Increment', status: 'ready' }),
-    ];
-    const onlyActiveDocs: DocMeta[] = [
-      doc({
-        id: 'decisions/0099-only-active.md',
-        title: 'Only An Active Decision',
-        group: 'Decisions',
-        status: 'accepted',
-      }),
+      asset({ id: 'adr-0099', category: 'adr', title: 'Only An Active Decision', status: 'accepted' }),
     ];
 
-    render(<LibraryFinder assets={onlyActiveAssets} docs={onlyActiveDocs} onSelect={vi.fn()} />);
+    render(<LibraryFinder assets={onlyActiveAssets} onSelect={vi.fn()} />);
 
     expect(screen.queryAllByTestId(/^library-shelf-row-/)).toHaveLength(0);
     expect(screen.queryByTestId('library-shelf-decisions-row')).toBeNull();
@@ -366,7 +393,7 @@ describe('LibraryFinder — one three-state lifecycle selector governs the whole
   });
 
   it('lls-quiet-empty-states: an empty scoped result names the selected state in one line', () => {
-    render(<LibraryFinder assets={ASSETS} docs={DOCS} onSelect={vi.fn()} />);
+    render(<LibraryFinder assets={ASSETS} onSelect={vi.fn()} />);
 
     // scope into friction under open (present), then switch to active — friction has ZERO active items.
     fireEvent.click(screen.getByTestId('library-shelf-row-friction'));
@@ -378,7 +405,7 @@ describe('LibraryFinder — one three-state lifecycle selector governs the whole
   });
 
   it('lls-quiet-empty-states: an empty search result (a state miss) names the selected state in one line', () => {
-    render(<LibraryFinder assets={ASSETS} docs={DOCS} onSelect={vi.fn()} />);
+    render(<LibraryFinder assets={ASSETS} onSelect={vi.fn()} />);
 
     // under default open, "consumed" matches only planConsumed by id/title, which is archived.
     fireEvent.change(screen.getByLabelText('Search library'), { target: { value: 'consumed' } });

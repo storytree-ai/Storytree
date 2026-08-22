@@ -16,14 +16,21 @@
  *   category's items filtered to the selected state (`listScopedBrowseResults`), uniformly for
  *   every kind (the old friction/Decisions chips-only exception is gone).
  * - SEARCH — a typed query with no scope runs `searchCorpus`, filtered to the selected state
- *   (`filterResultsByState`) before rendering, for assets and Decisions alike.
+ *   (`filterResultsByState`) before rendering.
  *
  * Each result still renders its title over a muted kind sub-line routed through `kindLabel`
- * (never a hand-rolled category -> label map, ADR-0183 D1), an ADR result additionally shows its
+ * (never a hand-rolled category -> label map, ADR-0183 D1), a decision additionally shows its
  * status, and clicking a result lifts the pick through `onSelect` — the finder holds no
  * cross-render selection state of its own; `selectedId` (a prop) drives which row reads as
  * currently selected. An all-empty shelf / an empty scoped or search result renders one quiet line
  * naming the selected state (ADR-0197 D4) instead of an empty list.
+ *
+ * ★ DECISIONS ARE AN ORDINARY CATEGORY, NOT A DOC PSEUDO-SCOPE (ADR-0403 dec 1). `'adr'` used to
+ * be the one scope answered out of `/api/docs` rather than `/api/assets`, because the decision log
+ * was the `docs/decisions/` subtree; PR #1546 deleted that subtree, and the special case survived
+ * it — so entering Decisions listed the 113 surviving REFERENCE documents and not one decision.
+ * The finder takes no `docs` at all now, which is what makes that shape unreachable rather than
+ * merely fixed: there is no second corpus here for a scope to be answered from.
  *
  * The forest-cozy palette / selector & chip styling / empty-state copy's look are the story's
  * operator-attested UAT leg (ADR-0197 D1 / ADR-0070) — not asserted here.
@@ -34,14 +41,13 @@ import type { Lifecycle } from '@storytree/library';
 import { searchCorpus, type SearchResult } from '../lib/librarySearch';
 import { buildCategoryShelf, filterResultsByState, listScopedBrowseResults } from '../lib/libraryShelf';
 import { kindLabel, useArcDisplay } from '../lib/kindDisplay';
-import type { AssetCategory, DocMeta, GuidanceAsset } from '../types';
+import type { AssetCategory, GuidanceAsset } from '../types';
 
 /** The three-state lifecycle selector's positions (ADR-0197 D2/D3; default `open`). */
 const LIFECYCLE_STATES: readonly Lifecycle[] = ['open', 'active', 'archived'];
 
 export interface LibraryFinderProps {
   assets: GuidanceAsset[];
-  docs: DocMeta[];
   /** Invoked with the picked result — the finder lifts selection, it never owns where it goes. */
   onSelect: (result: SearchResult) => void;
   /** The currently-selected result id (owned by the caller); marks that row `aria-current`. */
@@ -54,14 +60,14 @@ function scopeDisplayName(category: AssetCategory, arcDisplay: ReturnType<typeof
 }
 
 /** The idle category shelf + the scoped browse/search results over the loaded corpus. */
-export function LibraryFinder({ assets, docs, onSelect, selectedId }: LibraryFinderProps): React.JSX.Element {
+export function LibraryFinder({ assets, onSelect, selectedId }: LibraryFinderProps): React.JSX.Element {
   const [query, setQuery] = useState('');
   const [scope, setScope] = useState<AssetCategory | null>(null);
   const [lifecycleState, setLifecycleState] = useState<Lifecycle>('open');
   const arcDisplay = useArcDisplay();
 
   const trimmedQuery = query.trim();
-  const shelf = useMemo(() => buildCategoryShelf(assets, docs), [assets, docs]);
+  const shelf = useMemo(() => buildCategoryShelf(assets), [assets]);
   const visibleShelf = useMemo(
     () => shelf.filter((entry) => entry.stateCounts[lifecycleState] > 0),
     [shelf, lifecycleState],
@@ -77,15 +83,17 @@ export function LibraryFinder({ assets, docs, onSelect, selectedId }: LibraryFin
   const results = useMemo(() => {
     if (scope !== null) {
       if (trimmedQuery === '') {
-        return listScopedBrowseResults(scope, assets, docs, lifecycleState);
+        return listScopedBrowseResults(scope, assets, lifecycleState);
       }
-      const scoped = searchCorpus(query, assets, docs).filter((result) =>
-        scope === 'adr' ? result.source === 'doc' : result.source === 'asset' && result.category === scope,
+      // One uniform scope test for every category, Decisions included — the `'adr'` arm that used
+      // to select `source === 'doc'` here is what answered Decisions with reference documents.
+      const scoped = searchCorpus(query, assets).filter(
+        (result) => result.category === scope,
       );
-      return filterResultsByState(scoped, assets, docs, lifecycleState);
+      return filterResultsByState(scoped, assets, lifecycleState);
     }
-    return filterResultsByState(searchCorpus(query, assets, docs), assets, docs, lifecycleState);
-  }, [scope, query, trimmedQuery, assets, docs, lifecycleState]);
+    return filterResultsByState(searchCorpus(query, assets), assets, lifecycleState);
+  }, [scope, query, trimmedQuery, assets, lifecycleState]);
 
   const showShelf = scope === null && trimmedQuery === '';
   const placeholder = scope === null ? 'Search library…' : `Search ${scopeDisplayName(scope, arcDisplay)}…`;

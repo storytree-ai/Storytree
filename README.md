@@ -137,7 +137,15 @@ folded into the Library:
   (`§n`) from the ADRs and Library units.
 - **`docs/research/`** — long-form decision-provenance behind specific ADRs.
 
-The one-read orientation for a fresh agent session is [CLAUDE.md](CLAUDE.md).
+The one-read orientation for a fresh agent session is [CLAUDE.md](CLAUDE.md) — it assumes the
+machine is already provisioned. Two onboarding guides sit upstream of it, and they answer different
+questions:
+
+- **[`docs/machine-onboarding.md`](docs/machine-onboarding.md)** — a computer that has never run
+  storytree becomes a working dev box (toolchain, the three sign-ins, the secrets file, worktrees,
+  write-authority, and how to prove each).
+- **[`docs/model-onboarding.md`](docs/model-onboarding.md)** — a new model or harness is brought onto
+  a checkout that already works.
 
 ## Development (bootstrap phase)
 
@@ -149,6 +157,12 @@ storytree is built via Claude Code during bootstrap. The v1 tree is vendored as 
 corepack enable pnpm   # Node 24 ships corepack; no global install needed
 pnpm install
 ```
+
+That is the short form, and it assumes git, Node 24 and the GitHub CLI are already present and
+authenticated. **Provisioning a machine from nothing is
+[`docs/machine-onboarding.md`](docs/machine-onboarding.md)** — it covers the toolchain, the three
+browser sign-ins, `~/.storytree/secrets.json`, worktree discipline and the write-authority wall,
+with a proof for each step.
 
 The runtime store is **Cloud SQL Postgres with keyless IAM auth** (ADR-0021) — no
 local Docker Postgres, no `DATABASE_URL`, no password. Bring the store up/down

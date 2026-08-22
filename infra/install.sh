@@ -152,7 +152,7 @@ Environment:
   STORYTREE_REPO_URL      Same as --repo-url.
 
 This installer stops at a provisioned checkout. Dev credentials (gcloud ADC,
-~/.storytree/secrets.json, database access) are a separate step - see infra/install.md.
+~/.storytree/secrets.json, database access) are the next step - see docs/machine-onboarding.md.
 USAGE
 }
 
@@ -518,4 +518,5 @@ fi
 # No desktop-app launch here, by decision - see the header. This is a dev box, not an explorer's.
 ok "storytree bootstrap complete: cloned and provisioned at $CHECKOUT_DIR."
 info "NEXT - this installer stops at a provisioned checkout. Dev credentials (gcloud ADC,"
-info "       ~/.storytree/secrets.json, database access) are a separate step; see infra/install.md."
+info "       ~/.storytree/secrets.json, database access) are the next step, and they have their"
+info "       own guide: docs/machine-onboarding.md in the checkout you just cloned."

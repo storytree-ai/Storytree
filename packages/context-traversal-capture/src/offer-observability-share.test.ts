@@ -426,4 +426,15 @@ test("both-pathway-statements-share-one-clause: the offer caveat and the whole-r
   // capture cannot see. Keep this assertion pointed at a real, currently-readable path.
   assert.match(REPLAY_PATHWAY_NOTE, /storytree/i);
   assert.match(REPLAY_PATHWAY_NOTE, /stories\//);
+  // And the NEGATIVE half, added by `decision-log-readers-arc-inc-04` when it reached the same
+  // conclusion on the same day from the extractor side. A positive assertion alone cannot fail on
+  // the way this rotted: the old test asserted the example rather than the claim, so it stayed green
+  // while the note quietly began illustrating the OPPOSITE of the fact it exists to state — a
+  // decision is now read through `storytree library artifact`, which the allowlist DOES observe.
+  // This is the assertion that goes red if anyone reintroduces the deleted directory as the example.
+  assert.doesNotMatch(
+    REPLAY_PATHWAY_NOTE,
+    /docs\/decisions/,
+    "the note must not name a directory deleted on 2026-08-22, nor imply decision reads are unobserved",
+  );
 });

@@ -19,6 +19,15 @@ covered by neither.
 > **Owner:** the full invite ceremony — the two access grants plus this message —
 > is [`explorer-invite.md`](explorer-invite.md).
 
+> ⚠ **The EXPLORER persona is probably not what you want if you are provisioning a machine to do
+> WORK on.** An explorer gets a read-only checkout, their own Claude subscription and the desktop
+> app. It has no database access, no `~/.storytree/secrets.json`, no worktree setup and no
+> write-authority wall — so a machine set up this way can read the project and cannot build it.
+> Provisioning a full development box is
+> [`docs/machine-onboarding.md`](../docs/machine-onboarding.md), which uses one of these installers
+> for its bootstrap step and then keeps going. The distinction has misled at least one reader; if
+> you found this file first, follow that link before running anything.
+
 ## What `install.ps1` does (Windows)
 
 In dependency order, each step no-ops when already satisfied (see *Idempotency* below):
@@ -149,8 +158,10 @@ break the repair loop on the other.
 ### What it stops at
 
 A **cloned, provisioned checkout**, and no further. It does *not* provision dev credentials —
-`gcloud` ADC, `~/.storytree/secrets.json`, or database access — which have a different persona and a
-separate guide. It installs no Blender, no GPU backend, and no herdr.
+`gcloud` ADC, `~/.storytree/secrets.json`, or database access. Those have a different persona and
+their own guide: [`docs/machine-onboarding.md`](../docs/machine-onboarding.md), which uses this
+script as its bootstrap step and then keeps going. It installs no Blender, no GPU backend, and no
+herdr.
 
 ### Four decisions taken here rather than copied from Windows
 

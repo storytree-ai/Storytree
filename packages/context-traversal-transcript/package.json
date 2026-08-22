@@ -14,6 +14,7 @@
   "dependencies": {
     "@storytree/context-traversal-capture": "workspace:*",
     "@storytree/context-traversal-telemetry": "workspace:*",
+    "@storytree/library": "workspace:*",
     "zod": "^3.24.1"
   },
   "devDependencies": {

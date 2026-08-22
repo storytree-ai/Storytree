@@ -4,7 +4,7 @@
  * subgraph, ADR-0185 dec 3, into a true layered reference DAG).
  *
  * Renders the dagre rankdir-LR `buildFocusGraph` (`../lib/focusGraph`) computes over the
- * already-loaded `assets`/`docs`, walked BOTH ways to ONE level only (ADR-0193 dec 3): upstream
+ * already-loaded `assets`, walked BOTH ways to ONE level only (ADR-0193 dec 3): upstream
  * ("stands on") to the left of the centre, downstream ("stood on by") to the right — as an SVG
  * canvas of positioned nodes with DRAWN edges between rank-adjacent nodes, fit inside a bounded
  * `viewBox` computed from the laid-out bbox. Per-branch breadth is tamed by an in-place ⊕
@@ -24,8 +24,10 @@
  * HARD COMPAT: every node keeps the `lfg-node-<id>` testid and the `onDoubleClick` → `onOpen`
  * trigger the signed `LibraryOpenTrigger.test.tsx` (`lot-*`) depends on — untouched here.
  *
- * No fetch beyond the loaded corpus — no `docContent`, no socket, no DB; only `assets`/`docs`/
- * `selection` (all already in `useAppData()`), as props.
+ * No fetch beyond the loaded corpus — no `docContent`, no socket, no DB; only `assets` /
+ * `selection` (both already in `useAppData()`), as props. The `docs` prop went with ADR-0403 dec
+ * 1: decisions are `adr` artifacts and resolve through `assets`, so the walk has no second corpus
+ * to fall back to.
  */
 
 import { useMemo, useState } from 'react';
@@ -42,11 +44,10 @@ import {
 } from '../lib/focusGraph';
 import { kindLabel, useArcDisplay } from '../lib/kindDisplay';
 import type { SearchResult } from '../lib/librarySearch';
-import type { DocMeta, GuidanceAsset } from '../types';
+import type { GuidanceAsset } from '../types';
 
 export interface LibraryFocusGraphProps {
   assets: GuidanceAsset[];
-  docs: DocMeta[];
   /** The finder's lifted selection — the canvas's centre. `null` renders nothing. */
   selection: SearchResult | null;
   /** Invoked with a neighbour's result when the user click-through re-centres onto it. */
@@ -64,7 +65,6 @@ const EMPTY_BBOX = { minX: 0, minY: 0, width: 0, height: 0 };
 /** The Library focus DAG canvas: a dagre-laid-out, one-level-each-way neighbourhood over `references[]`. */
 export function LibraryFocusGraph({
   assets,
-  docs,
   selection,
   onFocus,
   onOpen,
@@ -75,9 +75,9 @@ export function LibraryFocusGraph({
   const graph = useMemo(
     () =>
       selection
-        ? buildFocusGraph({ centre: selection, assets, docs, expanded: expandedIds })
+        ? buildFocusGraph({ centre: selection, assets, expanded: expandedIds })
         : { nodes: [], edges: [], collapsed: [] as FocusCollapsedGroup[], bbox: EMPTY_BBOX },
-    [selection, assets, docs, expandedIds],
+    [selection, assets, expandedIds],
   );
 
   if (!selection) {

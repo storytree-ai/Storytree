@@ -30,27 +30,20 @@ export interface MeInfo {
 /**
  * A doc metadata entry from the docs/ walk. Mirrors the studio's DocMeta shape —
  * defined locally so this module has no studio import.
+ *
+ * ★ IT CANNOT DESCRIBE A DECISION. Decisions are ordinary Library artifacts of kind `adr`
+ * (ADR-0403 dec 1), served by `/api/assets`. The ADR half this shape used to carry — `status`,
+ * `decided`, `loadBearing` and resolved lineage `references` — is DELETED alongside the walker
+ * code that set it (PR #1546), rather than left optional-and-unfilled where a fixture could still
+ * hand-build it. The studio twin (`apps/studio/src/types.ts`) is held to the same four-field shape;
+ * `check:mirror-conformance` compares the two walks' PAYLOADS.
  */
 export interface DocMeta {
   id: string;
   title: string;
+  /** Always `"Reference"` — see the interface note above; the `"Decisions"` group has no producer. */
   group: string;
   excerpt: string;
-  status?: "proposed" | "accepted" | "superseded";
-  decided?: string;
-  /**
-   * The ADR's frontmatter `load_bearing` tag (ADR-0086) — present ONLY for Decisions docs, and
-   * true only when the tag is explicitly `load_bearing: true`. The studio SPA this backend serves
-   * reads it through `resolveSelectionDetail` to render the Library selection card's load-bearing
-   * badge, so a desktop that omits it silently renders a different card (ADR-0187 dec 3).
-   */
-  loadBearing?: boolean;
-  /**
-   * The ADR's outbound decision-lineage edges (`supersedes` / `supersedes_in_part` / `amends`)
-   * resolved to `doc:decisions/NNNN-slug.md` pointers — present ONLY for Decisions docs carrying
-   * at least one edge that names an ADR on disk (ADR-0187 dec 3).
-   */
-  references?: string[];
 }
 
 /**
