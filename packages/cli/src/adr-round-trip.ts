@@ -10,6 +10,7 @@ import {
 import { explainDocValidationError, upcastAndValidate } from "@storytree/library";
 import type { Store } from "@storytree/storage-protocol";
 
+import { amendsObligationNote } from "./adr-amends-obligation.js";
 import { defaultCliActor } from "./cli-actor.js";
 import type { Envelope } from "./envelope.js";
 
@@ -204,6 +205,15 @@ function changedFields(
   if (list(before.amends) !== list(after.amends)) {
     lines.push(`  amends: ${list(before.amends)} -> ${list(after.amends)}`);
   }
+  // ABSENT and EMPTY are reported differently, because on this field they ARE different (ADR-0223's
+  // optional-not-defaulted rule): `(no key)` is "this decision carries no authored support edge" and
+  // `(none)` is "it carries one, and rests on nothing". Folding them into a single "(none)" would
+  // make the one change that silently moves `decisionsCarryingDependsOn` invisible in the report.
+  const pointers = (ps: readonly string[] | undefined): string =>
+    ps === undefined ? "(no key)" : ps.length === 0 ? "(none)" : ps.join(", ");
+  if (pointers(before.dependsOn) !== pointers(after.dependsOn)) {
+    lines.push(`  depends_on: ${pointers(before.dependsOn)} -> ${pointers(after.dependsOn)}`);
+  }
   if (list(before.supersedes) !== list(after.supersedes)) {
     lines.push(`  supersedes: ${list(before.supersedes)} -> ${list(after.supersedes)}`);
   }
@@ -364,6 +374,11 @@ export async function adrPush(
     // them would make the file a partial view and the round trip a lie.
     ...(fields.decided === undefined ? { decided: undefined } : { decided: fields.decided }),
     ...(fields.arc === undefined ? { arcRef: undefined } : { arcRef: `asset:${fields.arc}` }),
+    // The plain support edge (ADR-0419 D1), on the same absent-keys-are-deleted rule as its two
+    // neighbours — a `depends_on:` line the author removed must come off the row too, or the
+    // document stops being the whole truth of it. An empty list is KEPT as an empty list rather
+    // than collapsed to a deletion; see `changedFields` for why the two are not the same fact.
+    ...(fields.dependsOn === undefined ? { dependsOn: undefined } : { dependsOn: [...fields.dependsOn] }),
   };
   let doc: ReturnType<typeof upcastAndValidate>;
   try {
@@ -389,9 +404,14 @@ export async function adrPush(
 
   await deps.store.upsertDoc({ id, kind: "adr", doc: cleaned, actor: deps.actor ?? defaultCliActor() });
 
+  // The SECOND moment an `amends` edge gets written (`adr new --amends` is the first), and the more
+  // common one — most amendments are added to a decision that already exists. It fires only on
+  // targets THIS push added, so re-pushing an unchanged decision does not nag about an obligation
+  // that was discharged long ago.
+  const addedAmends = fields.amends.filter((n) => !before.amends.includes(n));
   return {
     ok: true,
-    body: [`updated ${id} from ${file}:`, ...changes].join("\n"),
+    body: [`updated ${id} from ${file}:`, ...changes, ...amendsObligationNote(addedAmends)].join("\n"),
     next: [`storytree library artifact ${id}`, `storytree library artifact history ${id} --pg`],
   };
 }
