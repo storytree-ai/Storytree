@@ -95,9 +95,17 @@ needs no separate owner fork.
    control, retention policy, and migration questions nothing yet needs answered.
 
 9. **Session identity is supplied, never derived by the sink.** The sink takes `sessionId` as an
-   argument. The CLI resolves it (worktree-derived `deriveIdentity()`, with `STORYTREE_SESSION_ID`
-   overriding), which keeps the sink free of `@storytree/drive` and gives a future spawned-agent
-   adapter a seam to inherit a parent session id.
+   argument. The CLI resolves it, which keeps the sink free of `@storytree/drive` and gives a future
+   spawned-agent adapter a seam to inherit a parent session id. *(The parenthetical here originally
+   read "worktree-derived `deriveIdentity()`, with `STORYTREE_SESSION_ID` overriding" — corrected in
+   place 2026-08-22. That resolution was measurably wrong: a worktree SLOT is pooled across the
+   parent session, its subagents, and every later session handed the same slot, at a median of 2
+   context windows and a p90 of 8, which inflated the corpus-wide re-read share from 13.4% to 32.0%
+   (x2.39). `linked-session-context-arc-inc-30` made the trace's identity the host context WINDOW —
+   `STORYTREE_SESSION_ID`, then `CLAUDE_CODE_SESSION_ID`, then no capture at all — and demoted the
+   slot to a grouping attribute stamped beside it. D9's own decision is unchanged and is what made
+   the repair a one-line precedence change in the CLI: the sink never derived identity, so it never
+   had to learn a new one.)*
 
 ## Consequences
 

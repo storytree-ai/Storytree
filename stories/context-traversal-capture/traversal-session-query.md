@@ -66,6 +66,18 @@ boundary's permanent case. `capacity: unknown` leads either way. Never a default
 fabricated gauge, and never the owner-selected 500k threshold shown as a limit — it is display-only
 and out of scope for this increment (ADR-0235 clause 4/7).
 
+**A session says what its id NAMES.** Since 2026-08-22 (`linked-session-context-arc-inc-30`) the
+reader classifies each session's identity from the grades its own lines carry, and both renders
+state it: `window` (one host context window), `declared` (an id the caller supplied — as precise as
+its declarer), `slot` (the LEGACY era, when the id was the pooled worktree slot), or `mixed`. A
+`slot`-keyed trace is the union of every window that ran in one worktree — the parent session, its
+subagents, and every later session handed the same slot — so its repeat counts are not one
+session's, and it is NOT retrofittable, because no line records which window wrote it. The index
+labels every row and prints a sizing note when any legacy row is present; the replay prints the
+classification under `session:` and renders the worktree slot beside it as the grouping attribute it
+is. Same posture as `capacity:` on both edges: a reader that supplied no classification gets no
+identity line rather than a guessed one, and a replay with no events is labelled with nothing.
+
 **A partial replay says it is partial.** Print the reader's `skipped` count whenever it is non-zero.
 An honest partial is required; a silent one is forbidden (ADR-0241 D5). A render over a corrupt or
 crash-truncated trace still succeeds — the command that wraps it must exit 0 with an honest partial

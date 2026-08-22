@@ -48,7 +48,8 @@ invocation is zero events. Only these shapes observe anything:
 |---|---|---|
 | `tree <story-id>` | `front_matter_read` | canonical `nodeId` from argv |
 | `tree spec <node-id>` | `full_payload_read` | the full-payload strength |
-| `library artifact <id>` | `full_payload_read` | |
+| `library artifact <id> [--pg] [--json <v>]` | `full_payload_read` | `--json` is this verb's WRITE input and is ignored by the bare-id render, so the shape still reads the whole document |
+| `library artifact <id> --raw <field> [--out <path>] [--pg]` | `front_matter_read` | ONE stored field, so the PARTIAL strength — never the full-payload one |
 | `library artifact list [<category>]` | `search` | `operation: library_artifact_list`, `resultNodeIds: []` |
 | `agents <name> [--step <s>]` | `full_payload_read` | a distinct `surfaceId` for the agent surface |
 | `library` (bare dashboard) | `front_matter_read` | the dashboard surface only |
@@ -56,6 +57,17 @@ invocation is zero events. Only these shapes observe anything:
 `resultNodeIds` is deliberately EMPTY: the dispatch boundary sees an envelope, not the store, so an
 invented result list would be inferred data masquerading as an observation. `agents --step` emits no
 `candidate_set` for the same reason — the boundary cannot see the refs list without reading the body.
+
+> The `library artifact` rows carry their read flags since 2026-08-22
+> (`linked-session-context-arc-inc-30`). The observer had held a positional fence — zero events
+> whenever the invocation was longer than three tokens — whose comment read "a write or otherwise
+> non-read shape". That was TRUE while `--pg` was a write-only flag and stopped being true when a
+> bare read started dialling the live store (ADR-0302 D1), and the fence outlived the fact: it
+> discarded **72.3% of all reads** in the 2026-08-22 corpus. Widening it is still an ALLOWLIST and
+> not a length change — `--set`, `--file` and every unrecognised token still observe nothing, and
+> the sub-verbs (`new`, `edit`, `retire`, `comment`, `history`) are refused BY NAME rather than by
+> their trailing tokens, because `library artifact new --json <doc>` carries nothing but allowlisted
+> flags and would otherwise be observed as a read of an artifact called "new".
 
 **Never record argv verbatim.** Write and unknown commands carry owner prose and secrets:
 `noticeboard declare --working-on "…"`, `library artifact edit … --set body=@file`,

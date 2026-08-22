@@ -65,6 +65,81 @@ test("library artifact <id> observes a full_payload_read keyed on the artifact i
   assertValid(event);
 });
 
+test("library artifact <id> observes at full-payload strength when it carries --pg or --json, the flags a bare read now dials the live store with", () => {
+  for (const argv of [
+    ["library", "artifact", "artifact-1", "--pg"],
+    ["library", "artifact", "artifact-1", "--json", '{"ignored":true}'],
+    ["library", "artifact", "artifact-1", "--json={\"ignored\":true}"],
+    ["library", "artifact", "artifact-1", "--pg", "--json", "{}"],
+  ]) {
+    const { deps } = harness();
+    const events = observeCliInvocation(argv, deps);
+    assert.equal(events.length, 1, `expected one event for ${JSON.stringify(argv)}`);
+    const [event] = events;
+    assert.equal(event?.kind, "full_payload_read", `expected a full payload for ${JSON.stringify(argv)}`);
+    assert.equal(event && "nodeId" in event ? event.nodeId : undefined, "artifact-1");
+    assertValid(event);
+  }
+});
+
+test("library artifact <id> --raw <field> observes the PARTIAL strength, and never records the field name", () => {
+  for (const argv of [
+    ["library", "artifact", "artifact-1", "--raw", "body"],
+    ["library", "artifact", "artifact-1", "--raw=body"],
+    // Weakest strength wins: dialling the live store does not turn a one-field read into a document.
+    ["library", "artifact", "artifact-1", "--raw", "body", "--pg"],
+    // `--out` is `--raw`'s output channel; the bytes go to a file, and the path is not a node.
+    ["library", "artifact", "artifact-1", "--raw", "body", "--out", "body.txt", "--pg"],
+  ]) {
+    const { deps } = harness();
+    const events = observeCliInvocation(argv, deps);
+    assert.equal(events.length, 1, `expected one event for ${JSON.stringify(argv)}`);
+    const [event] = events;
+    assert.equal(
+      event?.kind,
+      "front_matter_read",
+      `a field read is a PARTIAL read, not a full payload: ${JSON.stringify(argv)}`,
+    );
+    assert.equal(event && "nodeId" in event ? event.nodeId : undefined, "artifact-1");
+    const serialized = JSON.stringify(event);
+    assert.equal(serialized.includes("body.txt"), false, "an --out path is never recorded");
+    assert.equal(
+      serialized.includes('"body"'),
+      false,
+      "a --raw field name is a flag value, and flag values are never recorded (ADR-0235 clause 6)",
+    );
+    assertValid(event);
+  }
+});
+
+test("a flag outside the read allowlist still observes nothing — the widening is an allowlist, not a length change", () => {
+  const { deps } = harness();
+  const unobserved: readonly (readonly string[])[] = [
+    // The write, and the shape that used to be indistinguishable from a read by token count alone.
+    ["library", "artifact", "artifact-1", "--set", "body=@file"],
+    ["library", "artifact", "artifact-1", "--file", "doc.json"],
+    ["library", "artifact", "artifact-1", "--not-a-flag"],
+    // A sub-verb carrying NOTHING BUT allowlisted flags — the shape a trailing-token scan alone
+    // would observe as a full-payload read of an artifact called "new".
+    ["library", "artifact", "new", "--json", '{"kind":"definition"}'],
+    ["library", "artifact", "new", "--file", "doc.json", "--pg"],
+    ["library", "artifact", "edit", "cap-77", "--set", "body=x", "--pg"],
+    ["library", "artifact", "history", "cap-77", "--pg"],
+    ["library", "artifact", "retire", "cap-77", "--pg"],
+    ["library", "artifact", "comment", "cap-77", "--pg"],
+    // A value-taking read flag with no value is a command the CLI itself refuses.
+    ["library", "artifact", "artifact-1", "--raw"],
+    ["library", "artifact", "artifact-1", "--pg=yes"],
+  ];
+  for (const argv of unobserved) {
+    assert.deepEqual(
+      observeCliInvocation(argv, deps),
+      [],
+      `expected zero events for ${JSON.stringify(argv)}`,
+    );
+  }
+});
+
 test("library artifact list [<category>] observes a search with an empty result list, never the category text", () => {
   const { deps } = harness();
   const bare = observeCliInvocation(["library", "artifact", "list"], deps);

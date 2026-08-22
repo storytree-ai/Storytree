@@ -18,7 +18,9 @@ import {
   planOfferIdentity,
   resolveAgentDescent,
   resolveArtifactOffers,
+  resolveTraceIdentity,
 } from "@storytree/context-traversal-capture";
+import type { TraceIdentity } from "@storytree/context-traversal-capture";
 import { digestOverlapDeltas, type OverlapDelta } from "@storytree/notice-board";
 import { PgClaimStore } from "@storytree/notice-board/store";
 import { PgWorkStore, PgAttestationStore } from "@storytree/orchestrator/store";
@@ -231,23 +233,51 @@ async function attachDeltaFooter(
  * what the command produced. It is SYNCHRONOUS and never awaits a network or DB path — `main` runs
  * on EVERY invocation, including the gate's own internal calls (ADR-0162 startup budget).
  *
- * Identity resolves in {@link resolveCaptureSessionId} and is passed in: `STORYTREE_SESSION_ID` wins
- * (the secrets-hydration precedent, and the seam a future spawned-agent adapter inherits a parent
- * session through), else the worktree derivation, which is null in the main checkout and in CI. A
- * null identity captures nothing — silently, since an uninstrumented run is a normal outcome, not an
- * error. It resolves in `main` rather than here because the offer-id plan (ADR-0260 D3) needs the
- * same answer BEFORE the render; it is still exactly ONE derivation per invocation.
+ * Identity resolves in {@link resolveInvocationIdentities} and is passed in. A null identity
+ * captures nothing — silently, since an uninstrumented run is a normal outcome, not an error. It
+ * resolves in `main` rather than here because the offer-id plan (ADR-0260 D3) needs the same answer
+ * BEFORE the render; it is still exactly ONE derivation per invocation.
  */
-function resolveCaptureSessionId(): { sessionId: string; branch: string } | null {
+interface InvocationIdentities {
+  /**
+   * The WORKTREE identity — the spawn registry's key and the delta footer's session (`storytree
+   * own`, ADR-0200 D4). Slot-grained on purpose: those two ask "which worktree is running this?",
+   * which is exactly what a slot answers.
+   */
+  readonly registry: { sessionId: string; branch: string } | null;
+  /**
+   * The TRACE identity — one context WINDOW, or null to capture nothing
+   * (`linked-session-context-arc-inc-30`). Deliberately NOT the registry identity above: a slot is
+   * pooled across the parent session, its subagents, and every later session handed the same slot,
+   * so keying a trace by it reports many windows' reads as one session's.
+   */
+  readonly trace: TraceIdentity | null;
+}
+
+/**
+ * Resolve BOTH identities from ONE `deriveIdentity()` call.
+ *
+ * One call is a budget constraint, not tidiness: `deriveIdentity()` shells out to git, `main` runs
+ * on every invocation including the gate's own internal calls, and ADR-0162's startup budget is
+ * what that pays for. Deriving once and deriving twice would be indistinguishable in behaviour and
+ * measurably different in cost.
+ */
+function resolveInvocationIdentities(): InvocationIdentities {
   try {
     const derived = deriveIdentity();
     const override = process.env["STORYTREE_SESSION_ID"];
-    if (override !== undefined && override.trim().length > 0) {
-      return { sessionId: override, branch: derived?.branch ?? "" };
-    }
-    return derived === null ? null : { sessionId: derived.sessionId, branch: derived.branch };
+    const registry =
+      override !== undefined && override.trim().length > 0
+        ? { sessionId: override, branch: derived?.branch ?? "" }
+        : derived === null
+          ? null
+          : { sessionId: derived.sessionId, branch: derived.branch };
+    return {
+      registry,
+      trace: resolveTraceIdentity({ env: process.env, slot: derived?.sessionId ?? null }),
+    };
   } catch {
-    return null;
+    return { registry: null, trace: null };
   }
 }
 
@@ -295,7 +325,7 @@ async function captureInvocation(
   readArgv: readonly string[],
   ok: boolean,
   store: Store,
-  sessionId: string | null,
+  trace: TraceIdentity | null,
   offerVisitId: string | undefined,
 ): Promise<void> {
   try {
@@ -317,7 +347,11 @@ async function captureInvocation(
     captureCliInvocation({
       argv,
       ok,
-      sessionId,
+      sessionId: trace?.sessionId ?? null,
+      // Stamped on every line this invocation writes: what the session id NAMES, and the worktree
+      // slot it ran in as a grouping attribute beside it — so a later reader states the trace's
+      // identity grade rather than inferring it from the id's shape.
+      ...(trace !== null ? { grade: trace.grade, slot: trace.slot } : {}),
       agentRefIds,
       offeredIds,
       ...(offerVisitId !== undefined ? { offerVisitId } : {}),
@@ -359,8 +393,8 @@ export async function main(): Promise<void> {
   // opt-out-clean envelope; D3's envelope clause is the narrower promise that no telemetry FAILURE
   // may alter one. ADR-0241's own Consequences make that split explicitly — don't cite D3 here.)
   const { argv: readArgv } = parseOfferFollow(argv);
-  const identity = resolveCaptureSessionId();
-  const captureSessionId = identity?.sessionId ?? null;
+  const { registry: identity, trace } = resolveInvocationIdentities();
+  const captureSessionId = trace?.sessionId ?? null;
   const offer =
     captureSessionId !== null && isTraversalCaptureEnabled()
       ? planOfferIdentity(readArgv, randomUUID)
@@ -417,7 +451,7 @@ export async function main(): Promise<void> {
       // collapsing to 0/1 would destroy the gate's reserved 3 (SKIP) and 4 (PARTIAL RUN).
       process.exitCode = env.exitCode ?? (env.ok ? 0 : 1);
     }
-    await captureInvocation(argv, readArgv, env.ok, store, captureSessionId, offer?.visitId);
+    await captureInvocation(argv, readArgv, env.ok, store, trace, offer?.visitId);
   } finally {
     await close();
     // LAST, and outside every other concern: the record must survive until the command genuinely

@@ -88,6 +88,79 @@ test("appended-events-replay-in-a-fresh-reader: events land and replay chronolog
   );
 });
 
+/**
+ * A minimal valid event, so the identity cases below vary only the thing they are about.
+ * `linked-session-context-arc-inc-30`.
+ */
+function visit(sessionId: string, n: number): Record<string, unknown> {
+  return {
+    kind: "full_payload_read",
+    eventId: `event:${sessionId}-${n}`,
+    sessionId,
+    at: `2026-08-22T00:0${n}:00.000Z`,
+    visitId: `visit-${sessionId}-${n}`,
+    nodeId: `node-${n}`,
+  };
+}
+
+test("appended-events-replay-in-a-fresh-reader: an append stamps its identity grade and worktree slot on every line, and a fresh reader classifies the session from them", () => {
+  const dir = freshDir("identity");
+  const sessionId = "7d61a5bb-c2cb-466d-ab19-8165d9a1f936";
+
+  appendTraversalEvents([visit(sessionId, 1), visit(sessionId, 2)], {
+    dir,
+    sessionId,
+    grade: "window",
+    slot: "confident-brahmagupta-b5b8f2",
+  });
+
+  // EVERY line, not a header: the file is append-only and a crash-truncated read replays whatever
+  // IS readable, so an identity that lived on one line could be the line that was lost.
+  const raw = fs.readFileSync(path.join(dir, `${sessionId}.jsonl`), "utf8").trim().split("\n");
+  assert.equal(raw.length, 2);
+  for (const line of raw) {
+    const parsed = JSON.parse(line) as { grade?: unknown; slot?: unknown; event?: unknown };
+    assert.equal(parsed.grade, "window");
+    assert.equal(parsed.slot, "confident-brahmagupta-b5b8f2");
+    assert.ok(parsed.event, "the event itself is untouched — identity rides BESIDE it, never inside it");
+  }
+
+  const read = readTraversalSession({ dir, sessionId });
+  assert.equal(read.replay.events.length, 2);
+  assert.equal(read.identity, "window");
+  assert.deepEqual(read.slots, ["confident-brahmagupta-b5b8f2"], "the slot is reported as a grouping attribute");
+});
+
+test("appended-events-replay-in-a-fresh-reader: ungraded LEGACY lines still replay and read back as SLOT-keyed, and a file carrying both reads as MIXED", () => {
+  const dir = freshDir("legacy");
+  const sessionId = "session-legacy";
+
+  // Exactly what the sink wrote before identity attributes existed: `{v, event}` and nothing else.
+  appendTraversalEvents([visit(sessionId, 1)], { dir, sessionId });
+  const legacy = readTraversalSession({ dir, sessionId });
+  assert.equal(
+    legacy.replay.events.length,
+    1,
+    "an ungraded line is fully readable — the attributes are additive siblings, never a schema bump",
+  );
+  assert.equal(
+    legacy.identity,
+    "slot",
+    "an ungraded line is the legacy slot era, stated rather than guessed into a window",
+  );
+  assert.deepEqual(legacy.slots, []);
+
+  // A slot-named trace that later takes a graded append: neither label is true of the whole file.
+  appendTraversalEvents([visit(sessionId, 2)], { dir, sessionId, grade: "window", slot: "slot-x" });
+  const mixed = readTraversalSession({ dir, sessionId });
+  assert.equal(mixed.replay.events.length, 2);
+  assert.equal(
+    mixed.identity,
+    "mixed",
+    "the silent mixing of slot-keyed and window-keyed lines is exactly what must be visible",
+  );
+});
+
 test("tolerant-read-skips-and-counts-bad-lines: duplicate identity, garbage, unknown-v, and a crash-truncated final line are all skipped and counted, never thrown", () => {
   const dir = freshDir("tolerant");
   const sessionId = "session-tolerant";
