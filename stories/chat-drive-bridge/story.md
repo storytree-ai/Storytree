@@ -122,7 +122,7 @@ signed verdict + opened PR.
 This is **ADR-0108 Phase 3 (drive authority) + Phase 4 (land with the human gate)** — *the
 propose→drive bridge*, named the highest-leverage lever for inner-loop adoption in
 [`docs/research/inner-loop-adoption-gap.md`](../../docs/research/inner-loop-adoption-gap.md) §5 and
-[ADR-0128](../../docs/decisions/0128-the-bare-forest-map-is-honest-by-absence-inner-loop-adoption.md)
+ADR-0128
 §4 (owner green-lit 2026-06-28). The research's TL;DR is exact: the conversational outer loop is wired
 into the studio **only as far as propose** — ADR-0108 Phase 3 is unbuilt, so making a session drive
 `--real` is still a manual CLI step almost every session skips ("**no path from a proposal to a signed
@@ -384,7 +384,7 @@ another story's package while declaring the `depends_on` edge" is the **studio-b
 ## UAT Test Criteria
 
 > **DELETED — all five criteria, 2026-08-21, under
-> [ADR-0396](../../docs/decisions/0396-a-retired-story-s-uat-criteria-are-deleted-with-their-ordina.md).**
+> ADR-0396.**
 > A UAT criterion is a standing acceptance OBLIGATION against a story's outcome, not a record of one.
 > This story has been `status: retired` since ADR-0155 / PR #587, so its outcome is withdrawn and every
 > criterion under it was an obligation against a journey nobody will run. The five legs that stood here

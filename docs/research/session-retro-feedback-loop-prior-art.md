@@ -3,7 +3,7 @@
 **Charter** (owner-directed 2026-07-06, `task_cfcc5788`): survey systems where an agent captures its
 own operational friction/failures/learnings and feeds them into a durable knowledge/skill/memory
 store so future runs improve — to inform the session-retro → friction → gated-graduation design
-([ADR-0168](../decisions/0168-session-retro-friction-every-session-feeds-friction-to-the-l.md)).
+(ADR-0168).
 Per the owner's requirement, **every source carries its publication date, the model(s) it used, and
 a predates-frontier flag** (frontier era here = GPT-4-class and later; Claude Opus 4.x / Fable 5 era
 = 2025–2026). The owner's hypothesis under test: *most prior art used weaker pre-frontier models,

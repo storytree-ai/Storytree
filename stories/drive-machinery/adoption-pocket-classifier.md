@@ -39,7 +39,7 @@ build drive resolves.
 
 ## Guidance
 
-This was the substantive new work [ADR-0097](../../docs/decisions/0097-brownfield-go-green-is-a-proving-process-adopt-enters-brown.md)
+This was the substantive new work ADR-0097
 named in its Consequences — *"The adoption proposal / feedback mechanism does not exist"* — now built.
 ADR-0098 §1 pins its job: *"Classifying each gap into observe / R1 / R2 is the adoption-proposal's job
 (Layer 2); Layer 3 consumes the classification."*

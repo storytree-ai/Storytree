@@ -45,7 +45,7 @@ proof:
 # The R3F spike — the real forest world rendered in 3D under map controls
 
 **Outcome —** `packages/forest-world-r3f` exists as the
-[ADR-0123](../../docs/decisions/0123-webgl-forest-world-renderer-via-react-three-fiber-website-fi.md)
+ADR-0123
 third mapper: a pure, deterministic **world-to-3D mapping** turns a real `@storytree/forest-world`
 `World` + scene-graph into typed 3D instance descriptors, and a minimal R3F canvas with drei
 `MapControls` renders a real `World` in 3D in the package's dev harness.

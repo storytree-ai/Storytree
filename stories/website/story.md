@@ -57,46 +57,46 @@ The public website is **`storytree-web`**, a separate *public* repo vendored as 
 [`web/`](../../.gitmodules) submodule — the system's front door. It renders the same forest-world look
 the studio shows, but as build-time **string SVG** over its own fictional "Cohoot" demo data, in a
 thin Astro page shell with its own here.now deploy rail (merge = publish). *(Since 2026-07-02 home
-first-paints [ADR-0134](../../docs/decisions/0134-public-website-as-a-two-act-vibe-coding-experience-terminal.md)'s
+first-paints ADR-0134's
 Act 1 terminal storm — storytree-web PR #18; the calm forest-world view survives on the same entry
 page as the storm's skip / reduced-motion fallback, `data-experience-fallback` — still rendered, no
-longer the unconditional first paint.)* [ADR-0066](../../docs/decisions/0066-wire-the-website-into-the-system-a-tracked-corpus-grounded-s.md)
-made it a tracked story so it stops being invisible; [ADR-0100](../../docs/decisions/0100-bring-consuming-surfaces-apps-and-the-public-website-subrepo.md)
+longer the unconditional first paint.)* ADR-0066
+made it a tracked story so it stops being invisible; ADR-0100
 brings it into the boundary graph as a first-class **consuming surface** — a node whose render-core
 edge is rendered and enforced, exactly like an organism's, by the gate that already runs.
 
 It draws the forest-world look from the shared render core
-([`packages/forest-world`](../forest-world/story.md), [ADR-0093](../../docs/decisions/0093-shared-forest-world-render-core-for-studio-and-the-public-we.md))
+([`packages/forest-world`](../forest-world/story.md), ADR-0093)
 as a **synced build artifact**: `pnpm sync:web-engine` copies the core's browser-safe sources into the
 site's `web/src/lib/forest-world/` (each stamped `@generated`), and the site's thin string-SVG mapper
 renders over that synced scene-graph. So a studio look change lands in the core and *flows* to the site
-through one sync — the last hand-port already happened ([ADR-0093](../../docs/decisions/0093-shared-forest-world-render-core-for-studio-and-the-public-we.md)
+through one sync — the last hand-port already happened (ADR-0093
 Consequences). The mechanism is [`packages/cli/src/web-engine-sync.ts`](../../packages/cli/src/web-engine-sync.ts)
 (pure; the CLI shell does the IO).
 
 ## Why it is a consuming surface — and why it ships no scanned package
 
 The site consumes the core's **built output, never its source**
-([ADR-0066](../../docs/decisions/0066-wire-the-website-into-the-system-a-tracked-corpus-grounded-s.md)
-Decision 3 / [ADR-0093](../../docs/decisions/0093-shared-forest-world-render-core-for-studio-and-the-public-we.md)
-§3 / [ADR-0056](../../docs/decisions/0056-ground-the-public-website-s-claims-to-the-corpus-via-data-gr.md)
+(ADR-0066
+Decision 3 / ADR-0093
+§3 / ADR-0056
 — the boundary that keeps the private corpus out of the public repo). It is a *separate repo*, not a
 workspace package, so there is **no `package.json` dependency to scan** and the site is **not** listed
 in `repo-manifest.json packageOwnership.surfaces` (which carries `apps/*` apps only — `studio` is the
 first). It is a **declared story node** instead, and the cross-repo analog of the package-import scan
 is the **drift gate**: `check:web-engine` is the mechanism that proves the `forest-world` edge is live
-([ADR-0100](../../docs/decisions/0100-bring-consuming-surfaces-apps-and-the-public-website-subrepo.md)
+(ADR-0100
 §3 / §"v2 — the website node"). This is the deliberate difference between the two surface kinds: an app
 surface's edge is a package import the boundary scan walks; this subrepo surface's edge is a synced
 artifact a drift gate guards.
 
-A surface is a **sink** ([ADR-0100](../../docs/decisions/0100-bring-consuming-surfaces-apps-and-the-public-website-subrepo.md)
+A surface is a **sink** (ADR-0100
 Decision): it is never `foundational`, draws no inbound edge, and cannot close a cycle. The
 `forest-world` it depends on is a foundational root that depends on nothing
-([ADR-0093](../../docs/decisions/0093-shared-forest-world-render-core-for-studio-and-the-public-we.md)
+(ADR-0093
 §1), so `website → forest-world` is acyclic by construction — `pnpm check:boundaries` is green with
 this (the website owns no package, so it draws no coverage obligation; the single edge points at a
-root that points nowhere). Since [ADR-0134](../../docs/decisions/0134-public-website-as-a-two-act-vibe-coding-experience-terminal.md)
+root that points nowhere). Since ADR-0134
 one refinement at the STORY grain: [`website-experience`](../website-experience/story.md) — the
 two-act front-door experience — `depends_on` this node, consuming its delivered sync + grounding
 mechanism (a story-graph edge, not a package import), so the surface stays a package-level sink
@@ -107,30 +107,30 @@ while `website-experience` sits above it as the story-level sink.
 The public site was built as Storytree's new public marketing site and registered as a node later.
 That registration order, its deployment, and its standing drift checks do not make it brownfield or
 Adopt-bound
-([ADR-0395](../../docs/decisions/0395-brown-records-provenance-missing-proof-stays-on-the-greenfie.md)).
+(ADR-0395).
 The two checks below already guard the site parent-side and run in `pnpm gate`; they remain useful
 evidence but do not by themselves sign this greenfield story. The visual appearance proof and the
-content/roadmap gates ([ADR-0066](../../docs/decisions/0066-wire-the-website-into-the-system-a-tracked-corpus-grounded-s.md)
+content/roadmap gates (ADR-0066
 Decision 4) land as their own capabilities below, not before. *(The roadmap half of that floor is
 OVERTAKEN since 2026-07-06 —
-[ADR-0167](../../docs/decisions/0167-info-page-triage-the-signed-disposition-set-and-the-keystati.md)
+ADR-0167
 discarded `/roadmap/`, so no `check:web-roadmap` gate is owed unless the page returns.)*
 
 1. **The synced render core matches its source** — `pnpm check:web-engine`. The drift guard checks the site's
    `web/src/lib/forest-world/` synced copy is byte-identical (EOL-insensitive) to
    `packages/forest-world`'s browser-safe sources, with no stale leftover. This is the cross-repo analog of the organism
-   import scan ([ADR-0100](../../docs/decisions/0100-bring-consuming-surfaces-apps-and-the-public-website-subrepo.md)
+   import scan (ADR-0100
    §3): the drift gate is the mechanism that proves the `forest-world` edge is LIVE — a studio look
    change can't silently leave the public site stale, because a submodule bump must carry a fresh sync
-   ([ADR-0093](../../docs/decisions/0093-shared-forest-world-render-core-for-studio-and-the-public-we.md)
+   (ADR-0093
    §3). Its pass is evidence, not an Adopt verdict.
 
 2. **The site's claims are grounded in current ADRs** — `pnpm check:web-grounding`. The grounding
    guard checks every load-bearing
    claim the site carries a `data-grounds="ADR-NNNN"` attribute for resolves to a live, non-superseded
    decision in the corpus. Its pass is evidence, not an Adopt verdict.
-   This is the existing [ADR-0056](../../docs/decisions/0056-ground-the-public-website-s-claims-to-the-corpus-via-data-gr.md)
-   wire ([ADR-0066](../../docs/decisions/0066-wire-the-website-into-the-system-a-tracked-corpus-grounded-s.md)
+   This is the existing ADR-0056
+   wire (ADR-0066
    Decision 4b): a cited ADR that goes missing or is fully superseded reddens the gate, so the public
    copy can't silently overclaim as the system moves.
 
@@ -146,9 +146,9 @@ authored rung remains `proposed`; the world crown derives green only from signed
 
 1. **The visual UAT is OUT OF SCOPE for this wiring node.** A website is fundamentally a **visual**
    artifact, and the full proof that the *rendered* public site looks right is the
-   [ADR-0070](../../docs/decisions/0070-frontend-as-an-inner-loop-role-the-two-stage-proof-for-visua.md)
+   ADR-0070
    two-stage appearance proof — geometry red→green plus an **operator-attested** screenshot nod against
-   the live deployed site. That is a human-witness job ([ADR-0066](../../docs/decisions/0066-wire-the-website-into-the-system-a-tracked-corpus-grounded-s.md)
+   the live deployed site. That is a human-witness job (ADR-0066
    Decision 5 — visual/copy/design stay human + orchestrator, fenced by design, not a gap). This thin
    node deliberately proves the **edge** is live (the synced core + grounded claims), not the pixels —
    the obvious next capability is the operator-attested visual UAT, authored when the
@@ -157,10 +157,10 @@ authored rung remains `proposed`; the world crown derives green only from signed
 2. **Capability granularity.** Kept to ZERO sub-capabilities for this first unit — wiring the surface
    in with its drift-gated render-core edge is one provable thing (ADR-0074 §3 lightweight-and-
    expandable). The obvious next capabilities are the site's **content/pages** as
-   corpus-grounded claims ([ADR-0066](../../docs/decisions/0066-wire-the-website-into-the-system-a-tracked-corpus-grounded-s.md)
+   corpus-grounded claims (ADR-0066
    Decision 4a/4b), the **generated roadmap** projected from the story tier behind a `check:web-roadmap`
    drift gate (Decision 4c, NOT built — and OVERTAKEN 2026-07-06:
-   [ADR-0167](../../docs/decisions/0167-info-page-triage-the-signed-disposition-set-and-the-keystati.md)
+   ADR-0167
    discarded `/roadmap/` (salvage: `docs/research/retired-web-roadmap-2026-07.md`), so this capability
    is owed only if the page ever returns, and generate-from-source is then its required shape), and the
    **visual appearance** proof (call 1) — author them as
@@ -168,6 +168,6 @@ authored rung remains `proposed`; the world crown derives green only from signed
 
 3. **Deploy stays on the web repo's here.now CD.** The public repo's `deploy.yml` (merge = publish)
    remains the deploy rail; folding web deploy into [`stories/ci-cd`](../ci-cd/story.md) is deferred
-   ([ADR-0066](../../docs/decisions/0066-wire-the-website-into-the-system-a-tracked-corpus-grounded-s.md)
+   (ADR-0066
    Open call #2). If it unifies, `website` would gain a `depends_on: [ci-cd]` edge — check the direction
-   is acyclic before adopting ([ADR-0058](../../docs/decisions/0058-cross-story-dependency-direction-the-no-cycle-rule-and-the-b.md)).
+   is acyclic before adopting (ADR-0058).

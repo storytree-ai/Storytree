@@ -52,7 +52,7 @@ the orchestrator waits or picks other work. ADR-0138 §3 intended the spawn as t
 (*no claim, no subagent*) — an intent the tree no longer realises, for the reason set out immediately
 below. The seam itself is **built and proven** — `packages/agent/src/spawn-claim.ts`
 (`resolveSpawnClaim`) and its spec are at HEAD, authored by the gated leaf under a signed `--real` PASS,
-and [ADR-0175](../../docs/decisions/0175-repurpose-don-t-delete-the-in-app-orchestrator-chat-infrastr.md)
+and ADR-0175
 deliberately **KEEPS** that file, naming it as belonging to this live story.
 
 **The spawn-path half was realised and has since been RETIRED — read this before citing it.** E2's gate

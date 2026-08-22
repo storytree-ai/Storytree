@@ -61,7 +61,7 @@ document flow beside the prose (never a side panel) — and the old text-selecti
 
 > **The promise was NARROWED on 2026-08-14 — read this before the model section below.** The outcome
 > sentence above used to end *"…and proposes a collapsed suggestion the owner accepts"*.
-> **[ADR-0388](../../docs/decisions/0388-suggestions-as-proposals-is-retired-on-the-review-surface-di.md)
+> **ADR-0388
 > retires suggestions-as-proposals on this surface** (owner-directed; it amends ADR-0140 and ADR-0146).
 > Direct CriticMarkup editing IS the answer, and it has been fine in use. So this story no longer
 > claims a propose→accept cycle: there is no suggestion record, no accept/reject control, and no

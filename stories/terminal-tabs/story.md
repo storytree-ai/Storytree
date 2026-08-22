@@ -113,9 +113,9 @@ corrupt the user's interactive Claude Code session** running in another row. (Th
 that originally produced the seed was retired by ADR-0404; the dock's half — accept a seed, open a fresh
 tab — is unchanged and still serves any producer.)
 
-This story is the build follow-on of **[ADR-0186](../../docs/decisions/0186-the-embedded-terminal-is-multi-session-with-tabs-a-map-build.md)**
+This story is the build follow-on of **ADR-0186**
 (owner-directed 2026-07-11, born accepted per ADR-0110 — design-time alignment IS the ratification), which
-**amends [ADR-0174](../../docs/decisions/0174-interactive-builds-run-in-an-in-app-terminal-not-the-in-app.md)**.
+**amends ADR-0174**.
 ADR-0174's map-spawn clause offered two delivery options — inject the composed build command into the
 embedded terminal, **or open a seeded tab pre-filled with it**. The [`map-terminal-build`](../map-terminal-build/story.md)
 build (PR #696) shipped the **first**: a Build click writes `pnpm storytree … build <id> --real --store

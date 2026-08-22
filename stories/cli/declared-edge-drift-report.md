@@ -54,8 +54,8 @@ proof:
 (the drift candidates) and the **backed-but-undeclared** edges — deriving a **virtual** story's real
 edges from its units' `proof.real.sourceFile` imports — as a NON-BLOCKING report, never a gate failure.
 
-> **The gap this closes ([ADR-0115](../../docs/decisions/0115-detect-declared-edge-drift-derive-virtual-story-edges-from-s.md)).**
-> The blocking boundary gate ([ADR-0074](../../docs/decisions/0074-enforce-the-organism-boundary-gate-the-cross-story-dependenc.md))
+> **The gap this closes (ADR-0115).**
+> The blocking boundary gate (ADR-0074)
 > maps packages→stories via `repo-manifest.json` `packageOwnership`, so it is BLIND to a **virtual
 > story** — one owning no package, its code physically hosted in packages owned by other stories — and
 > to IoC / build-artifact seams. A
@@ -63,7 +63,7 @@ edges from its units' `proof.real.sourceFile` imports — as a NON-BLOCKING repo
 > ADR-0112 moved the orchestrator composition into `packages/drive`: the code moved, the
 > `headless-orchestrator → cli` declaration did not, and a human had to notice and hand-correct it
 > (commit `57f4be8`). *(That motivating story, `headless-orchestrator`, has since been RETIRED —
-> [ADR-0175](../../docs/decisions/0175-repurpose-don-t-delete-the-in-app-orchestrator-chat-infrastr.md),
+> ADR-0175,
 > owner-directed 2026-07-17 — so it is history here, not a live example. The blind spot it illustrates
 > is unchanged and still applies to every current virtual story.)* This contract is the pure core of the non-blocking drift report that would have
 > flagged it the moment ADR-0112 landed. It is a SIBLING to the gate, not a change to it (the disk
@@ -146,7 +146,7 @@ data and NEVER appends to the gate's violation list / fails the gate.
        before the ownership lookup, so `@storytree/library/store` still resolves to the `library` story
        — so the report flags **`drive-machinery`** and **`notice-board`** in `declaredButUnbacked` and
        does NOT flag **`storage-protocol`** (type-only, skipped). *(Why synthetic: the real story was
-       RETIRED with [ADR-0175](../../docs/decisions/0175-repurpose-don-t-delete-the-in-app-orchestrator-chat-infrastr.md),
+       RETIRED with ADR-0175,
        and its `orchestrator-composition` capability had its `real:` arm dropped on retirement, so it
        now cites NO `proof.real.sourceFile` and derives nothing. An in-memory literal is a legitimate
        fixture and the suite is correct; what this bullet must not do is present it as a live worked

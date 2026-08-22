@@ -132,9 +132,9 @@ This story has **two layers, decided by two ADRs**:
    production credential hand-off into a desktop build route.
 
 The deciding ADRs are
-[ADR-0109](../../docs/decisions/0109-a-native-credential-host-desktop-client-electron-for-byo-cre.md)
+ADR-0109
 (the credential-host shell) and
-[ADR-0113](../../docs/decisions/0113-thick-local-desktop-for-the-inner-circle-the-drive-machinery.md)
+ADR-0113
 (owner-directed 2026-06-26, born accepted per ADR-0110 — design-time alignment IS the ratification),
 which chose **thick-local over thin-hosted** for the inner-circle step on the explicit premise that the
 source is shared with the trusted circle.
@@ -201,7 +201,7 @@ deleted).
 
 ## Local-backend boundary call (decided here — the dependency-graph/layout call is the story-author's, not the owner's)
 
-> **Update ([ADR-0119](../../docs/decisions/0119-thick-local-desktop-backend-a-tsx-sidecar-serving-the-studio.md),
+> **Update (ADR-0119,
 > 2026-06-27, owner-directed).** Wiring the proven `createLocalBackend` factory into the real Electron
 > shell surfaced two corrections: (1) the drivers run as a **tsx sidecar** the Electron main spawns and
 > proxies `/api/*` to — bundling raw-TS drivers into the CJS main breaks `import.meta` (corpus paths +
@@ -746,16 +746,16 @@ that green to a persisted verdict: the panel `real:` arm was **hand-landed** (co
 driven through the spine, so the `--real --store pg` signing was skipped and the code is
 **tested-but-UNREGISTERED** (crown `–`, `build=unregistered`). On a GREEN base a fresh `--real` build
 HALTS — there is no red→green left to earn, and *halt is never a pass*
-([ADR-0130](../../docs/decisions/0130-remove-the-inner-loop-usd-budget-ceilings-subscription-funde.md));
+(ADR-0130);
 forcing a red on already-built code is proof theater
-([ADR-0159](../../docs/decisions/0159-frontend-builder-proves-stage-1-through-the-inner-loop-visua.md)).
+(ADR-0159).
 So the honest path off unregistered is NOT a manufactured build over mature tested code — it is the
 author-declared **reliability gate** below, observe-and-signed to an `adopted` verdict
-([ADR-0085](../../docs/decisions/0085-resolve-adr-0083-fork-b-brownfield-reliability-gates-author.md),
-resolving [ADR-0083](../../docs/decisions/0083-author-defined-story-green-declared-obligations-machine-per.md)
+(ADR-0085,
+resolving ADR-0083
 Fork B). This is the `mapped → healthy` = **Adopt** transition
-[ADR-0094](../../docs/decisions/0094-go-green-is-a-status-transition-proposed-builds-mapped-adopt.md) /
-[ADR-0097](../../docs/decisions/0097-brownfield-go-green-is-a-proving-process-adopt-enters-brown.md)
+ADR-0094 /
+ADR-0097
 names — greening the covered capability via the `(covers:)` coverage ADR-0097 §5/§2 defines, WITHOUT a
 manufactured red. (The story stays `proposed`; this gate is a `proposed` story carrying an observe gate,
 exactly the desktop-build-mount precedent — the gate greens a capability, not the authored status.)
@@ -815,9 +815,9 @@ one-app-feel and refuse+retry-window legs, and ADR-0348 D1's triage flipped the 
 corrected in place per ADR-0139. It then said NINE legs, seven machine — corrected again 2026-08-20 for
 the same reason: the ADR-0294 D2/D4 pass deleted the fail-closed-broker-probe leg as a restatement of
 `shared-forest-connection`'s own assertions.)* `healthy` stays non-authorable
-([ADR-0020](../../docs/decisions/0020-red-green-enforcement-on-the-owned-loop.md)) — the authored
+(ADR-0020) — the authored
 `status:` is never `healthy`; the world's crown DERIVES green from the signed verdict
-([ADR-0040](../../docs/decisions/0040-verdict-derived-green-and-the-human-witness-signpost.md)), and only
+(ADR-0040), and only
 when every capability is `healthy` AND every own-proof obligation is signed. This gate adds ONE honest
 signed verdict toward that roll-up; it is not the crown.
 

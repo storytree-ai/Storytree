@@ -19,7 +19,7 @@ test-author ≠ code-author.
 **Depends on —** [`spec-borne-proof-config`](spec-borne-proof-config.md), [`proof-command-vocabulary`](proof-command-vocabulary.md)
 
 > **Proof status (honest) — `proposed`, built outer-loop (the bootstrap).** ADR-0057 §3's expansion C —
-> no new ADR (it ships under the already-decided §3 plan + [ADR-0020](../../docs/decisions/0020-red-green-enforcement-on-the-owned-loop.md)'s
+> no new ADR (it ships under the already-decided §3 plan + ADR-0020's
 > honesty walls, like B and D). The change is BUILT and its dominant behaviour is observationally
 > verified by a real, passing, OFFLINE suite: `proof-config.test.ts` (the `editsExisting` schema +
 > honesty-refine legs) and `resolve-prove-spec.test.ts` (the brief branch, the multi-file scope

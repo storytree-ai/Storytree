@@ -51,7 +51,7 @@ root the whole render rests on, depending on nothing.
 ## What this core is
 
 `packages/forest-world` is the shared forest-world render core decided by
-[ADR-0093](../../docs/decisions/0093-shared-forest-world-render-core-for-studio-and-the-public-we.md)
+ADR-0093
 (accepted, strategy C — share the geometry *plus* a framework-agnostic scene-graph with thin
 per-surface mappers). It holds BOTH pure layers: the **geometry kernel** — the relaxed Townscaper
 mesh substrate (`substrate.ts`), the Chaikin-smoothed coastline (`coast.ts`), longest-path
@@ -60,14 +60,14 @@ tree / territory sizing (`sizing.ts`) — and the **scene-graph** (`scene.ts`): 
 core's own minimal `SceneInput` contract into a tree of typed drawables (kind / variant /
 already-folded visual status) that every thin mapper walks — the studio's React mapper, the
 website's string-SVG mapper, and the R3F 3D mapper
-([ADR-0123](../../docs/decisions/0123-webgl-forest-world-renderer-via-react-three-fiber-website-fi.md)).
+(ADR-0123).
 Same input → byte-identical geometry; no store, no React, no live data, no `node:` imports.
 
 It owns its **own minimal input contract** — a story is just an id + its `depends_on` + its
 capabilities' deps — so it depends on **nothing**. Each surface adapts its own data (the studio's live
 store; the website's fictional Cohoot demo data) to that contract; the core never reaches for either.
 It defines the *look* and only the look — never the live data, the store, the corpus, or a surface's
-interactive chrome ([ADR-0093](../../docs/decisions/0093-shared-forest-world-render-core-for-studio-and-the-public-we.md)
+interactive chrome (ADR-0093
 §4, the precise line that keeps the public ↔ private decoupling intact).
 
 ## Consumers
@@ -75,10 +75,10 @@ interactive chrome ([ADR-0093](../../docs/decisions/0093-shared-forest-world-ren
 Three consumers, three different edge kinds. The studio app (`apps/studio`) renders from this core —
 a consuming SURFACE (ADR-0100), its edge declared in the studio story's own `depends_on`. The public
 website (a separate repo, the `web/` submodule) renders from the core's **synced artifact**
-([ADR-0093](../../docs/decisions/0093-shared-forest-world-render-core-for-studio-and-the-public-we.md)
+(ADR-0093
 §2–§3) — a built-output edge held by the `check:web-engine` drift gate, never a package import. And
 `packages/forest-world-r3f` — the R3F mapper the `website-experience` story owns
-([ADR-0123](../../docs/decisions/0123-webgl-forest-world-renderer-via-react-three-fiber-website-fi.md))
+(ADR-0123)
 — imports `@storytree/forest-world` directly: the first workspace **package** organism consumer, so
 the core now draws a real inbound package-graph edge. That edge is declared consumer-side
 (website-experience `depends_on: [forest-world]`) and provider-side (`consumed_by:
@@ -88,14 +88,14 @@ outbound edge — the core remains a foundational root.
 ## Why it is a foundational root organism
 
 forest-world is a **foundational root organism**
-([ADR-0093](../../docs/decisions/0093-shared-forest-world-render-core-for-studio-and-the-public-we.md)
-§1, standing on [ADR-0068](../../docs/decisions/0068-make-the-organism-model-physical-real-story-isolation-and-th.md)'s
-organism model and [ADR-0075](../../docs/decisions/0075-model-the-shared-ports-as-root-organisms-collapse-the-substr.md)'s
+(ADR-0093
+§1, standing on ADR-0068's
+organism model and ADR-0075's
 ports-as-root-organisms) — exactly like `proof-protocol` and `storage-protocol`: `depends_on: []`, the
 bottom of the dependency order, depending on nothing. It is shared *studio + web*, not web-only, which
 is why ADR-0093 named it `packages/forest-world` over the web-only-sounding `packages/web-engine`
-([ADR-0066](../../docs/decisions/0066-wire-the-website-into-the-system-a-tracked-corpus-grounded-s.md)
-Decision 2) — role-not-position ([ADR-0078](../../docs/decisions/0078-rename-root-ports-role-not-position.md)).
+(ADR-0066
+Decision 2) — role-not-position (ADR-0078).
 It is registered in `repo-manifest.json` `packageOwnership.organisms` (→ `forest-world`) and in the
 `foundational` subset that carries the minimality rule.
 
@@ -103,7 +103,7 @@ It is registered in `repo-manifest.json` `packageOwnership.organisms` (→ `fore
 
 forest-world MUST stay browser-bundleable (the studio bundles it; the website emits string SVG from
 its synced output), so it stays pure-geometry, zod/types-only, and **node-free** — no store, no React,
-no live data, no `node:*` import. [ADR-0075](../../docs/decisions/0075-model-the-shared-ports-as-root-organisms-collapse-the-substr.md)'s
+no live data, no `node:*` import. ADR-0075's
 **foundational-minimality rule** the gate enforces — a foundational organism may only depend on other
 foundational organisms — holds by construction here: forest-world depends on nothing. (Belt-and-
 suspenders over two backstops: it is a bottom root, so any back-edge to a real organism would close a
@@ -116,14 +116,14 @@ A pure render core is deterministic GEOMETRY — there is no integrated user JOU
 geometry kernel is a machine's job, not a human attestation. This core was designed and built inside
 the Storytree initiative, so its passing suite and later capability registration do not make it
 brownfield or Adopt-bound
-([ADR-0395](../../docs/decisions/0395-brown-records-provenance-missing-proof-stays-on-the-greenfie.md)).
+(ADR-0395).
 The author-declared observe gate below is the core's machine own-proof: the suite is the evidence
 surface, while only the deterministic spine observing it green at a clean committed HEAD and
 persisting an `adopted` verdict signs `forest-world#gate-1`. Its explicit `(covers:)` greens only the
 `render-core` capability when that verdict is current. (The scene-graph
-([ADR-0093](../../docs/decisions/0093-shared-forest-world-render-core-for-studio-and-the-public-we.md)
+(ADR-0093
 §1) has since LANDED inside this core — `scene.ts`, covered by the same observed suite — and the
-three mappers (§2–§3, [ADR-0123](../../docs/decisions/0123-webgl-forest-world-renderer-via-react-three-fiber-website-fi.md))
+three mappers (§2–§3, ADR-0123)
 live with their surfaces/packages, proven there; none of that growth has needed a new gate here yet.)
 
 1. **The core's own geometry suite is green** _(gate: observe)_ _(covers: render-core)_
@@ -131,9 +131,9 @@ live with their surfaces/packages, proven there; none of that growth has needed 
    byte-identical mesh, coast, trail network, and scene), longest-path ranking (a dependent ranks
    strictly above every dependency, cycle-safe), the mesh / coast invariants, and the scene-graph's
    drawable / status-folding correctness all pass offline (no DB, no API key, no browser). This is the
-   [ADR-0093](../../docs/decisions/0093-shared-forest-world-render-core-for-studio-and-the-public-we.md)
-   / [ADR-0020](../../docs/decisions/0020-red-green-enforcement-on-the-owned-loop.md) /
-   [ADR-0057](../../docs/decisions/0057-dogfood-the-inner-loop-as-the-default-node-borne-proof-confi.md)
+   ADR-0093
+   / ADR-0020 /
+   ADR-0057
    current coverage command, but it does not by itself sign or adopt this greenfield story/capability.
    From a clean committed HEAD, `storytree gate run forest-world#gate-1 --pg` makes the spine observe
    this exact command and sign only when it exits green.
@@ -158,9 +158,9 @@ expandable: a real defect or separable new layer can still earn a finer proof un
    three thin mappers still live OUTSIDE it,
    proven with their surfaces/packages: the **studio** React mapper (`worldToScene`,
    `apps/studio/src/components/TreeView.tsx`), the **website** string-SVG mapper (over the synced
-   engine, [ADR-0093](../../docs/decisions/0093-shared-forest-world-render-core-for-studio-and-the-public-we.md)
+   engine, ADR-0093
    §3), and the **R3F** 3D mapper (`packages/forest-world-r3f`,
-   [ADR-0123](../../docs/decisions/0123-webgl-forest-world-renderer-via-react-three-fiber-website-fi.md)
+   ADR-0123
    — proven in its own package under the `website-experience` story). Split finer than this floor only
    when an in-core unit earns its own red→green leg (a real defect, a new layer), not merely to mirror
    what landed; the thin-port empty-capabilities exemption is not reopened (ADR-0222 D2).

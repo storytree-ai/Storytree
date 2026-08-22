@@ -19,7 +19,7 @@ shared worktree, then the proven chain is promoted once. (A `--real` story's own
 **Depends on —** [`story-topo-build`](story-topo-build.md), [`real-build-worktree`](real-build-worktree.md), [`spec-borne-proof-config`](spec-borne-proof-config.md)
 
 > **Proof status (honest) — `proposed`, built outer-loop (the bootstrap).** ADR-0057 §3's expansion D —
-> no new ADR (it ships under §3 + [ADR-0031](../../docs/decisions/0031-real-pass-promotion-and-worktree-deps.md), which named "chaining promotion through `story build --real`"
+> no new ADR (it ships under §3 + ADR-0031, which named "chaining promotion through `story build --real`"
 > as future work; a one-sentence Consequences amendment to 0031 records that D landed). The chain
 > wiring (topo order over ONE worktree, intra-story dependency resolution, halt-is-never-a-pass,
 > promote-once at the stacked HEAD, halt-parks-the-prefix-local-only, the real-buildability precheck,
@@ -69,7 +69,7 @@ A `--real` story's UAT node has no `real:` arm (its proof is a UAT, not a test-f
 human-witnessed story WITHHOLDS it (the capabilities are still real-built + promoted — the main
 `--real` success shape); a machine-witnessed story whose UAT node lacks a `real:` arm is REFUSED
 before any worktree (a story UAT as a gate-as-proof node is expansion E, ADR-0057 §5).
-**(Expansion E for the STORY node landed in [ADR-0092](../../docs/decisions/0092-gate-as-proof-for-a-machine-witnessed-story-s-own-uat-node.md):** a machine-witnessed
+**(Expansion E for the STORY node landed in ADR-0092:** a machine-witnessed
 story's own UAT node now earns a gate-as-proof `real:` arm over its spec — edit-existing against
 `stories/<story>/story.md`, a structural-completeness check as the proof — so its whole chain is
 `--real`-buildable. `library` is the first; the refusal above now fires only for a machine-witnessed

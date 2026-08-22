@@ -2,16 +2,16 @@
 
 **Status:** findings + recommendation (analysis only — no process change, no build started).
 **Date:** 2026-06-28. **Owns:** the open question named in
-[ADR-0128](../decisions/0128-the-bare-forest-map-is-honest-by-absence-inner-loop-adoption.md) §4
+ADR-0128 §4
 ("*why ~92% of source changes bypass `node build --real` / `story build --real`, and what would make
-driving the default path*"). Builds on [ADR-0057](../decisions/0057-dogfood-the-inner-loop-as-the-default-node-borne-proof-confi.md)
+driving the default path*"). Builds on ADR-0057
 (inner loop is the default) and its envelope map
 ([inner-loop-capability-envelope.md](inner-loop-capability-envelope.md)).
 
 ## TL;DR
 
 The owner's leading hypothesis is **confirmed**: the conversational outer loop is wired into the
-studio only as far as **propose** — [ADR-0108](../decisions/0108-chat-driven-orchestration-a-server-side-session-orchestrator.md)
+studio only as far as **propose** — ADR-0108
 **Phase 3 (drive authority) is unbuilt**, so making a session drive `--real` is still a manual CLI
 step that almost every session skips. But the hypothesis is **not the whole story**: even with a
 perfectly wired studio, the *ratio* is capped, because **~83% of the bypass PRs are not a single
@@ -26,7 +26,7 @@ So the gap is **two layered facts**, and the levers differ:
 2. **Shape (the structural majority).** ~83% are not one drivable unit. The lever there is **decompose
    into provable sub-units and supplement the rest** — exactly the `session-orchestrator`'s job, which a
    server-side runtime would do mechanically; plus the still-unbuilt
-   [ADR-0057](../decisions/0057-dogfood-the-inner-loop-as-the-default-node-borne-proof-confi.md) **E**
+   ADR-0057 **E**
    (authoring-as-proof) for the docs/ADR/corpus tail that has no proof mode at all.
 
 **Highest-leverage recommendation (owner fork — green-light, do not start):** build **ADR-0108 Phase 3**
@@ -94,7 +94,7 @@ Collapsed into the question the owner asked — *genuinely non-buildable vs shou
 - **Has a drivable code core but lands fused with non-drivable work (~218 PRs, ~76%)** — UI (needs
   attestation), cross-package (needs chaining), or code + ADR/CLAUDE.md/corpus/infra. The *PR as landed*
   is not one leaf; the **code sub-unit** is drivable only if the orchestrator decomposes and routes it.
-  This is the [ADR-0057](../decisions/0057-dogfood-the-inner-loop-as-the-default-node-borne-proof-confi.md)
+  This is the ADR-0057
   gap-audit finding intact: of the last ~13 PRs at that time, *none* could go through the loop
   end-to-end because each carried wiring/ADR/CLAUDE.md/generated artifacts alongside its clean core.
 - **No proof mode at all (~18 source + 142 non-source PRs)** — test-only, pure glue, and everything
@@ -175,7 +175,7 @@ Why this over the alternatives:
 - Phase 3 is the keystone both depend on and the one ADR-0108 already designed and sequenced.
 
 **Pair it with an OQ-ADR to settle the target (genuine owner fork) —
-[ADR-0129](../decisions/0129-inner-loop-adoption-target-ratio-and-goal-open-question.md), proposed.**
+ADR-0129, proposed.**
 ADR-0128 §4 explicitly leaves open that *the current ratio may be acceptable for non-leaf work.* Before
 investing in Phase 3, the owner should pin: **what fraction of source work is it worth driving, and is
 the goal observability (a livelier map) or proof-integrity (dogfooding)?** The evidence says the honest
@@ -184,8 +184,8 @@ ceiling is roughly the **~50 clean + the code-cores of the ~218 mixed** — a la
 (OQ1 goal / OQ2 ratio / OQ3 the tail) as a copy-on-write record, not an implied mandate.
 
 > **Update 2026-06-28 (owner-directed, landed):** the inner-loop **USD budget ceilings are removed**
-> ([ADR-0130](../decisions/0130-remove-the-inner-loop-usd-budget-ceilings-subscription-funde.md)) — the
-> builds are subscription-funded ([ADR-0030](../decisions/0030-all-in-on-claude-agent-sdk.md)), so a
+> (ADR-0130) — the
+> builds are subscription-funded (ADR-0030), so a
 > `$`-budget caps against a *phantom* metered cost while the **turn cap** remains the real runaway brake.
 > No USD ceiling is enforced by default now; `--budget` is an opt-in cap. This removes the friction
 > lever's cost term for the clean units.

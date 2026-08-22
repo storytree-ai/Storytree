@@ -316,7 +316,7 @@ composition ROOT that drives this runtime and injects the read dispatch through 
 ## UAT Test Criteria
 
 > **DELETED — all five criteria, 2026-08-21, under
-> [ADR-0396](../../docs/decisions/0396-a-retired-story-s-uat-criteria-are-deleted-with-their-ordina.md).**
+> ADR-0396.**
 > A UAT criterion is a standing acceptance OBLIGATION against a story's outcome, not a record of one.
 > This story is `status: retired` — retirement moved OWNERSHIP of its substrate to
 > [`app-guide`](../app-guide/story.md) (ADR-0174 / ADR-0175) — so its outcome is withdrawn and every
@@ -565,7 +565,7 @@ owner-fork bar):
 
 The future-fork this section flagged — when the chat surface arrives, does the server-side runtime
 move to the ADR-0090 studio WORKER process (`apps/studio/server`), or stay a CLI-hosted core the
-worker calls? — is **RESOLVED by [ADR-0112](../../docs/decisions/0112-extract-the-build-orchestrate-drivers-into-packages-drive.md)**
+worker calls? — is **RESOLVED by ADR-0112**
 in favour of **a shared `@storytree/drive` core the worker calls**. ADR-0112 carved the
 build/orchestrate drivers (including this story's `orchestrate.ts` composition) out of `packages/cli`
 into `@storytree/drive` — a package owned by `drive-machinery` that BOTH the terminal `cli` and the

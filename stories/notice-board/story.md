@@ -54,8 +54,8 @@ coordination and observability can never disagree, because there is one record a
 structurally can't lie (PK-enforced, audited, machine-cleared, trace-aged).
 
 This is the **coordination** organ, re-decided by
-[ADR-0200](../../docs/decisions/0200-the-noticeboard-is-the-claim-ledger-forced-session-claims-pr.md)
-(the deciding ADR; it amends [ADR-0033](../../docs/decisions/0033-session-presence-notice-board.md),
+ADR-0200
+(the deciding ADR; it amends ADR-0033,
 the origin). ADR-0033's answer to "sessions can't see across worktrees" was a self-reported *presence
 declaration* (`events.session`: prose + derived staleness bands + a zombie reaper). ADR-0200 found that
 advisory layer *not useful* — every catalogued owner interrupt and false signal traced to it, none to
@@ -66,8 +66,8 @@ the deterministic lock. The board survives; its *data model* changed.
 
 - **RETIRED — the self-reported presence layer.** The presence declaration doc (`events.session` +
   `events.session_event`), its derived staleness bands, and the possibly-dead reaper
-  ([ADR-0079](../../docs/decisions/0079-possibly-dead-presence-rows-are-reaped-to-done-by-a-sweep.md) /
-  [ADR-0141](../../docs/decisions/0141-ambient-presence-heartbeat-never-resurrects-a-retired-sessio.md),
+  (ADR-0079 /
+  ADR-0141,
   both superseded by ADR-0200) are retired — no presence rows, no bands, no reaper. The two capabilities
   that built that layer — [`declare-presence`](declare-presence.md) and
   [`presence-store`](presence-store.md) — are **retired** (their spec files stay as history; see the
@@ -80,7 +80,7 @@ the deterministic lock. The board survives; its *data model* changed.
   hook (`Stop` / `PreToolUse` / `UserPromptSubmit`) and never fails the enclosing action; the store is
   live-DB only and degrades gracefully offline. These are the V1 hook-loop lessons, carried across.
 - **STANDS — a build run never writes session presence
-  ([ADR-0199](../../docs/decisions/0199-a-build-run-never-writes-session-presence.md)).** Generalised by
+  (ADR-0199).** Generalised by
   ADR-0200 into "presence rows are not written at all." A build's footprint on the ledger is exactly its
   `building`/phase work-events (observability) plus its per-unit claim (coordination).
 

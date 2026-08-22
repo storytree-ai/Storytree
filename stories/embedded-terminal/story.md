@@ -69,7 +69,7 @@ surface, and the observability layer watches that session through the **existing
 noticeboard-claim / store-verdict seams exactly as it watches any Claude Code session — **no new observer
 code required**.
 
-This story is the build follow-on of **[ADR-0174](../../docs/decisions/0174-interactive-builds-run-in-an-in-app-terminal-not-the-in-app.md)**
+This story is the build follow-on of **ADR-0174**
 (owner-directed 2026-07-09, born accepted per ADR-0110 — design-time alignment IS the ratification): the
 desktop's value is the **observability layer over Claude Code** (the forest map, the wisps, session
 presence, signed verdicts), **not** a re-implementation of Claude Code. The app grew a *second* in-app

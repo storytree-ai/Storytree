@@ -55,7 +55,7 @@ the arc alone, including whether the work parked there is still safe to act on.
 
 ## What this organism is
 
-`packages/arc` (`@storytree/arc`) is the **initiative overlay** ([ADR-0183](../../docs/decisions/0183-arcs-contain-plans-the-initiative-overlay-upstream-of-storie.md)):
+`packages/arc` (`@storytree/arc`) is the **initiative overlay** (ADR-0183):
 a named multi-story owner intent, tracked through an increment log, to a closed end-state. It is the
 tier a session's closing leg writes its residue to and the tier the next session orients from.
 
@@ -70,7 +70,9 @@ Four modules, one job:
   begins with.
 - `question.ts` — `question new`, the arc-stamped `open-question` authoring surface (ADR-0314 D5).
 
-It is **Node-only on purpose**: the rollup's loaders scan a checkout (`docs/decisions/`, `stories/`).
+It is **Node-only on purpose**: the rollup's loaders scan a checkout (`stories/`). The decisions are
+no longer part of that scan — they are rows read through the same store the deps bag already held
+(ADR-0403 dec 1), so the arc's ADR leg is an ordinary query.
 The browser's view of an arc is the studio's wire mirror of `ArcRollup` in `apps/studio/src/types.ts`,
 never this package.
 
@@ -101,10 +103,10 @@ who can SEE a file, not about whose job it is.
 hierarchy and confirmed mechanically that **no story covered the arc domain**. It homed the organ as
 two `cli` capabilities as a stopgap — beside a third, `arc-explicit-id-fidelity`, that had entered
 `stories/cli` earlier for the same want of a home — and recorded the compromise, because
-[ADR-0192](../../docs/decisions/0192-hosted-story-boundary-honesty-the-landlord-rule-now-packages.md)
+ADR-0192
 decision 2 — packages-forward — refuses a NEW story whose code would sit inside another story's
 package. That refusal is not waived here and no exception was carved:
-[ADR-0369](../../docs/decisions/0369-the-arc-domain-owns-its-own-package-and-the-arrow-runs-arc-t.md)
+ADR-0369
 satisfies the rule the way it asks to be satisfied — the package first, the story second.
 
 **The stopgap had a live cost, and that cost is what this story pays off.** `arc-derived-initiative-view`
@@ -141,7 +143,7 @@ cross-story capability edge is not a shape the model has. It is authored now.
 | 3 | [`arc-explicit-id-fidelity`](arc-explicit-id-fidelity.md) | An agent scaffolding an arc with an explicit id receives a refusal instead of creating an arc under a silently truncated id. | proposed | `arc-derived-initiative-view` |
 
 All three moved here from `stories/cli` with their code, unchanged in substance
-([ADR-0369](../../docs/decisions/0369-the-arc-domain-owns-its-own-package-and-the-arrow-runs-arc-t.md)
+(ADR-0369
 D1). **Rows 1 and 2** are greenfield `proposed` with **no `real:` arm**: this landing was a MOVE, not
 a re-proof, and registration after implementation does not turn them into inherited brownfield
 (ADR-0395).
@@ -212,7 +214,7 @@ consumer-side above:
   returns.
 - `arc → library` — `@storytree/library`. The kinds themselves (`arc`, `increment`, `open-question`
   live in the knowledge schema), plus the id-minting and citation tokens (`kebabSlug`,
-  `ASSET_REF_PREFIX`) that [ADR-0369](../../docs/decisions/0369-the-arc-domain-owns-its-own-package-and-the-arrow-runs-arc-t.md)
+  `ASSET_REF_PREFIX`) that ADR-0369
   D3 moved DOWN here specifically so this package need not import the CLI to derive an id.
 - `arc → storage-protocol` — `@storytree/storage-protocol`. The narrow `Store` seam every verb reads
   and writes through; the join is handed a store rather than opening one.
@@ -254,7 +256,7 @@ run `increment check` on the parked increment and witness the mechanical freshne
 consuming session acts on; close the increment and witness closure be terminal rather than a delete.
 
 **That walkthrough is authored here as prose and as ZERO numbered criteria, deliberately
-([ADR-0294](../../docs/decisions/0294-story-uat-is-a-journey-not-a-spec-criteria-that-duplicate-lo.md)
+(ADR-0294
 D2).** Every step of it is already driven end-to-end by `pnpm --filter @storytree/arc test` — the exact
 command that observes the two `proposed` capabilities above and the exact command this story's one
 reliability gate names. A criterion here would name that same command a third time and would therefore

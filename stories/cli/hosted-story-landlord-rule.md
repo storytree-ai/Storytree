@@ -58,7 +58,7 @@ declared story graph connects the two in either direction — so a story can no 
 neighbour's territory while declaring `depends_on: []` and rendering as an orphaned island.
 
 > **The gap this closes (ADR-0192).** The blocking boundary gate
-> ([ADR-0074](../../docs/decisions/0074-enforce-the-organism-boundary-gate-the-cross-story-dependenc.md))
+> (ADR-0074)
 > is PACKAGE-granular: it maps whole packages → stories and checks that every cross-package CODE import
 > is a declared cross-story edge. But a story's proof-bound sources can sit INSIDE another story's
 > package with no cross-package import crossing — a capability whose `proof.real.sourceFile` points at
@@ -102,7 +102,7 @@ How the rule computes, per story `S` in `unitSourceFiles`, for each of its files
 - Otherwise `S` is HOSTED in `T`'s territory. The merged declared story graph (the existing
   `mergeDeclaredGraph`: `depends_on` ∪ inverse(`consumed_by`)) must contain the edge `S → T` OR `T → S`
   — declared NEIGHBOURS in EITHER direction, the same either-endpoint philosophy
-  [ADR-0074 §4](../../docs/decisions/0074-enforce-the-organism-boundary-gate-the-cross-story-dependenc.md)
+  ADR-0074 §4
   already uses for code-edge coverage. The REVERSE direction (`T → S`) is what keeps the legitimate
   code-backed HUB pattern clean: e.g. `notice-board`'s tree-view sources physically live in
   `packages/cli`, and the real `cli → notice-board` edge (cli declaring notice-board) covers them without
@@ -117,7 +117,7 @@ How the rule computes, per story `S` in `unitSourceFiles`, for each of its files
 
 When `unitSourceFiles` is ABSENT the rule is SKIPPED entirely — narrow fixtures that populate only the
 dep-graph inputs are unaffected, the same insufficient-data posture rule 4 takes
-([ADR-0166](../../docs/decisions/0166-declared-edge-honesty-gates-blocking-unbacked-edges-for-pack.md),
+(ADR-0166,
 "skipped when insufficient data"; the real gatherer always passes the map). Keep the rule pure and
 dependency-light: `boundaries.ts` imports NOTHING today and must STAY import-free (no `@storytree/*`, no
 `node:` builtins) so `boundaries.test.ts` keeps proving OFFLINE with builtins + `./boundaries.js` only.

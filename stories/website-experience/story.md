@@ -67,11 +67,11 @@ retro terminal breeds an illegible agent storm, one calm tap collapses the noise
 same single gesture then grows a legible, proof-bearing forest beat by beat to the CTA — with the
 skip and reduced-motion/no-WebGL exits first-class from the first live increment.
 
-This is [ADR-0215](../../docs/decisions/0215-public-website-story-frame-two-act-experience-is-the-entire.md)'s
+This is ADR-0215's
 website-story frame made buildable, on the guiding idea the frame fixes: **one calm gesture per act —
 same input, opposite outcome.** In Act 1 the visitor's single tap (send a prompt) breeds chaos; in
 Act 2 the visitor's single tap (advance) grows order. Act 2 detail lives on
-[ADR-0213](../../docs/decisions/0213-act-2-experience-one-continuous-orchestrator-led-walk.md). The
+ADR-0213. The
 evidence base for what Act 1 dramatizes and what the forest answers is
 [docs/research/vibe-coding-gripes-2026.md](../../docs/research/vibe-coding-gripes-2026.md) — its
 five-row beat table is the ORIGIN of the Act 2 spine, carried into `act2-beat-director` and
@@ -314,7 +314,7 @@ whole (owner decision 6):
   land as an incremental step (storytree-web PR #25 → web main `8f4e166c`, CD green; parent verdict
   `deb235e` for the corrected-direction director grow, `web/` pin bumped `ff70222b` → `8f4e166c`
   @ `ff70222b`). The attestation carried FORWARD FEEDBACK the owner wants in the NEXT arc link, now
-  SETTLED as **[ADR-0157](../../docs/decisions/0157-act-2-reads-the-database-directly-and-teaches-plainly-retire.md)**
+  SETTLED as **ADR-0157**
   (born accepted, owner-directed at the H#2 gate 2026-07-05): **BaaS — the frontend reads the DATABASE
   DIRECTLY** (a direct `website → database` read edge added in the SAME corrected direction, giving the
   diamond `website.dependsOn=[backend, database]`; confirms ADR-0153's open 3-tier-vs-BaaS authoring
@@ -339,7 +339,7 @@ whole (owner decision 6):
   FOLLOW-ON REDESIGN (an orchestrator-led, diagram-first walkthrough; the wisp on an orbit; a
   zoom-to-studio reveal; an ADR → library-artifact flow; industry framing) — so the LOOK caps stay
   `building`/`proposed` for that reshaped surface, NOT terminally closed. That redesign is now SETTLED
-  as **[ADR-0165](../../docs/decisions/0165-act-2-redesign-one-growing-system-diagram-advanced-through-t.md)**
+  as **ADR-0165**
   (born accepted — the owner walked the interactive design proposal on 2026-07-05 and approved it AS
   PRESENTED: *"This looks many steps forward, please chip a fresh session to land this."*): after Act
   1's transform the visitor STAYS with the orchestrator while it explains the whole system on ONE
@@ -362,7 +362,7 @@ whole (owner decision 6):
   `contact` / `constitution` / the 404; DISCARD `/roadmap/` + `/landscape/` with redirect stubs
   (substance salvaged to `docs/research/retired-web-*-2026-07.md`); Keystatic RETIRED (the hosted
   editor decommissioned; ADR-0101 superseded) — recorded as
-  [ADR-0167](../../docs/decisions/0167-info-page-triage-the-signed-disposition-set-and-the-keystati.md)
+  ADR-0167
   (open call 4 CLOSED); see [`info-pages-triage`](info-pages-triage.md)'s proof status + As-built for
   the record.
 
@@ -797,7 +797,7 @@ Surfaced rather than guessed — none blocks the first increments:
    on every visit. Zero code change.
 2. **Act 2 replay / deep-link UX** (deferred by ADR-0134 §5) — **CLOSED (owner, 2026-07-03, at the
    walkthrough's attestation gate,
-   [ADR-0145](../../docs/decisions/0145-act-2-walks-the-real-2-5d-map-the-r3f-forest-retreats-to-far.md)):
+   ADR-0145):
    replay-only is FINAL — the experience replays every visit and Act 2 gets NO standalone
    deep-link.** The persistent skip control (call 1) stays the floor; no anchor URL is owed.
 3. **The asset / perf / mobile budget and LOD strategy** (ADR-0123 flags it as required before real
@@ -805,7 +805,7 @@ Surfaced rather than guessed — none blocks the first increments:
    devices; a formal budget (bundle size, texture compression, frame floor) is an owner call —
    candidate future reliability gate on this story once numbers exist.
 4. **Keystatic / CMS survival** — **CLOSED (owner, 2026-07-06, at the info-pages-triage disposition
-   gate, [ADR-0167](../../docs/decisions/0167-info-page-triage-the-signed-disposition-set-and-the-keystati.md)):
+   gate, ADR-0167):
    Keystatic RETIRES.** Every surviving page is low-churn reference edited as plain files; the
    hosted editor (Cloud Run `storytree-web-editor`, ADR-0101 — superseded) was decommissioned with
    owner approval at the same gate. The signed per-page disposition set (discard `/roadmap/` +
@@ -850,7 +850,7 @@ Surfaced rather than guessed — none blocks the first increments:
    claim; recorded rather than guessed.
 9. **Should the `check:web-experience` rung be re-wired, and if not, what carries owner decision 6?**
    Raised 2026-08-07 by the stale-claim sweep that corrected this story's prose. **CLOSED, NARROWLY
-   (owner, 2026-08-09, [ADR-0336](../../docs/decisions/0336-re-wire-the-act-1-static-import-closure-check-as-a-new-narro.md),
+   (owner, 2026-08-09, ADR-0336,
    Option D): re-wire ONLY the static-import-closure property as a NEW, narrower gate rung
    (`check:web-experience-closure`); the marker-presence properties stay retired.** Investigating
    option (b) below — the candidate that would have accepted the loss on the strength of the web

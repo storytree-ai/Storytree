@@ -48,12 +48,20 @@ export interface LoadTitledAdrMetasResult {
 }
 
 /**
- * {@link loadAdrMetas} plus each ADR's H1 title — the ONE fs scan of `docs/decisions` that every
- * ADR view is built on. Both readers of the decision log delegate here rather than each walking the
- * directory themselves: the cli's `loadAdrListings` (which reshapes it into `{meta, title}` for
- * `adr list`) and `deriveArcRollup`'s ADR leg (`@storytree/arc`'s `arc-rollup.ts`), which the CLI,
- * the studio server and the desktop backend share. A missing/unreadable dir yields an empty list
- * rather than throwing, so an arc view stays derivable on a partial checkout.
+ * {@link loadAdrMetas} plus each ADR's H1 title, read from a directory of `NNNN-*.md` files.
+ *
+ * ⚠ NO PRODUCTION READER CALLS THIS ANY MORE, and neither does {@link loadAdrMetas}. This was the
+ * ONE fs scan of `docs/decisions` every ADR view was built on — the cli's `loadAdrListings` (which
+ * reshapes it into `{meta, title}` for `adr list`) and `deriveArcRollup`'s ADR leg (`@storytree/arc`'s
+ * `arc-rollup.ts`, shared by the CLI, the studio server and the desktop backend) both delegated
+ * here rather than walking the directory themselves. ADR-0403 dec 1 made decisions rows and deleted
+ * that directory; both readers now call {@link loadTitledAdrMetasFromStore}, which is shape-identical
+ * so the swap changed nothing else. This fs pair is kept as the store form's twin — do not wire a
+ * new caller to it without a path that genuinely holds ADR FILES.
+ *
+ * A missing/unreadable dir yields an empty list rather than throwing. That fail-soft was what kept
+ * an arc view derivable on a partial checkout; it is also why the deletion of `docs/decisions/` was
+ * survivable but SILENT, which is the whole subject of `decision-log-readers-arc`.
  */
 export function loadTitledAdrMetas(decisionsDir: string): LoadTitledAdrMetasResult {
   const adrs: TitledAdrMeta[] = [];
