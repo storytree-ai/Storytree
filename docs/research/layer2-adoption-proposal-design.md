@@ -2,7 +2,7 @@
 
 > **Status: HISTORICAL — the design is realized; only empirical coverage measurement remains
 > follow-on.** The captured design for the named follow-on of
-> [ADR-0097](../decisions/0097-brownfield-go-green-is-a-proving-process-adopt-enters-brown.md) — the
+> ADR-0097 — the
 > middle of the three layers the brownfield proving process decomposes into. Settled with the owner in
 > a design conversation 2026-06-23. The **structural covers-diff classifier + the CLI report + the
 > studio surfaces** landed first (the "Fork 1, structural now" half — see *Build status* below); the
@@ -29,7 +29,7 @@
 >
 > **Calibration note (important):** this design was drafted assuming Layer 1 was unbuilt, but **Layer 1
 > landed on `main` while it was being written** (PR #324, "feat(adopt): ADR-0097 Layer 1"), and
-> **[ADR-0098](../decisions/0098-a-build-tests-capable-inner-loop-refactor-for-testability-ea.md)**
+> **ADR-0098**
 > (proposed at the time, since accepted) landed defining **Layer 3**. This doc has been reconciled to
 > that reality. The three layers, per ADR-0098 §7:
 >
@@ -131,16 +131,16 @@ mapped story
   green path. Once Adopt flips the story `proposed` (built), the classification routes each pocket: the
   `observe` ones are already signed `adopted`; the `R1`/`R2` ones become `build-tests` gates that
   Layer 3's `gate run --real` drives. The owner's instinct ("maybe then there is a build button")
-  lands on [ADR-0094](../decisions/0094-go-green-is-a-status-transition-proposed-builds-mapped-adopt.md)'s
+  lands on ADR-0094's
   `proposed → Build` + ADR-0098's `gate run --real`.
 - **Two kinds of work, cleanly separated.** *Proposals / OQs = the pre-work* (decisions that must
   clear before the build is well-defined). *The build = the real work* (the red→green producing the
   signed verdicts). Resolving every OQ is **necessary but not sufficient** — `green = a signed verdict`
-  ([ADR-0020](../decisions/0020-red-green-enforcement-on-the-owned-loop.md)) never bends.
+  (ADR-0020) never bends.
 - **Two surfaces, two actors.** The **studio** (hosted, read+comment; no agent runtime) does the
   *mechanical* part — the Adopt POST + rendering. The *deeper analysis + artifact authoring* (steps
   2–3) is a **Claude Code orchestrator / story-author session** task; the CLI report is the hand-off.
-  The human owns the outer loop ([ADR-0030](../decisions/0030-all-in-on-claude-agent-sdk.md)).
+  The human owns the outer loop (ADR-0030).
 - **Provenance stays honest** (ADR-0097 D4): the machine signs what it witnessed (spine principal on
   the `adopted` verdicts — built), the human owns what they decided (`approvedBy` + the escalated
   forks — `approvedBy` built).
@@ -190,15 +190,15 @@ Verified on `main` 2026-06-23 (PR #324):
 
 ## References
 
-- [ADR-0097](../decisions/0097-brownfield-go-green-is-a-proving-process-adopt-enters-brown.md) — the
+- ADR-0097 — the
   brown→proposed→green proving process; this is its named Layer 2.
-- [ADR-0098](../decisions/0098-a-build-tests-capable-inner-loop-refactor-for-testability-ea.md)
+- ADR-0098
   (accepted) — Layer 3, the `build-tests` inner loop; **pins Layer 2's job** (classify observe/R1/R2)
   and the batch decision-sweep this design's bucket (c) converges with.
-- [ADR-0085](../decisions/0085-resolve-adr-0083-fork-b-brownfield-reliability-gates-author.md) —
+- ADR-0085 —
   `observe` vs `build-tests` gate kinds; observe-and-sign → `adopted`.
-- [ADR-0094](../decisions/0094-go-green-is-a-status-transition-proposed-builds-mapped-adopt.md) —
+- ADR-0094 —
   `proposed → Build`, the path the build half feeds into.
-- [ADR-0050](../decisions/0050-adr-number-allocation.md) — atomic ADR allocation (`adr new --pg`).
+- ADR-0050 — atomic ADR allocation (`adr new --pg`).
 - `owner-fork-bar` principle (#318) — escalate ownership, not uncertainty (the bucket-(c) triage,
   shared with ADR-0098 §5).

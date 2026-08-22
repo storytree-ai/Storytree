@@ -60,7 +60,7 @@ merge 1 · obsolete 3** (`guidance-writer` is the merge; it folds into `library-
 | `memory-curator` | **evolve** | the **notice-board curation step** (ADR-0014) | Graduate-durable-rules-out-of-ephemeral-memory becomes ADR-0014's notice-board → Library graduation: the spine PROPOSES on a cite-threshold; the human APPROVES as a signed `actor=operator` event. Its stateless-vs-stateful discriminator + preservation-bias carry as the proposing heuristic; the V1 autonomous-direct-lift authority is REVOKED in favour of the operator-approval gate. |
 
 > **Supersession note (2026-06-10, post-merge):** ADR-0014 has since been **superseded by
-> ADR-0017/0018** — see [ADR-0027](../decisions/0027-supersede-adr-0014-notice-board.md). The two
+> ADR-0017/0018** — see ADR-0027. The two
 > rows above that cite it survive intact: ADR-0027 confirms the cite-threshold curation policy
 > ("spine proposes, operator approves") as *decided-but-unbuilt*, carried forward as the
 > `oq-feedback-graduation-mechanism` open-question in the Library. Read "ADR-0014" in this table as
@@ -69,7 +69,7 @@ merge 1 · obsolete 3** (`guidance-writer` is the merge; it folds into `library-
 > **Supersession note (2026-06-10, ADR-0030):** rows above that read the **owned loop** as *the*
 > per-node runtime (the `build-rust` / `test-builder` "owned-loop" surfaces, and any "ADR-0011" cited
 > as current runtime truth) should be read with
-> [ADR-0030](../decisions/0030-all-in-on-claude-agent-sdk.md): the **live** leaf runtime is now the
+> ADR-0030: the **live** leaf runtime is now the
 > Claude Agent SDK (`ClaudeAgentAuthor`), driven through the runtime-agnostic `PhaseAuthor` executor
 > seam; the owned loop remains the offline/deterministic executor and the pivot-out fallback. The
 > phase discipline the rows carry (write-scoping, spine-observed RED/GREEN, never-self-attest) is

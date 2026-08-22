@@ -150,7 +150,7 @@ live. Supersedes the calm-card details of the `3e53f14` section above:
 
 ## Guidance
 
-THE DRAMATURGY ([ADR-0216](../../docs/decisions/0216-act-1-experience-attested-overwhelm-finale-transform-frozen.md) D2 — the spec of the feel):
+THE DRAMATURGY (ADR-0216 D2 — the spec of the feel):
 
 - **One gesture, then the machine takes over.** The visitor sends ONE prompt and never works again
   in Act 1 — every subsequent terminal is an agent's doing (diegetic multiplication: agents spawning

@@ -69,7 +69,7 @@ trees** on real `dependsOn` edges that point **FROM the dependent TO its prerequ
 (`website.dependsOn=[backend]`, `backend.dependsOn=[database]`, `database.dependsOn=[]`; ADR-0058 /
 `cross-story-dependency`), with **stories at every level of the DAG** (not just leaves; it is correct
 that a backend and a database are what the website DEPENDS ON). *(The refused first build encoded this
-edge BACKWARDS — `backend dependsOn website`; [ADR-0153](../../docs/decisions/0153-act-2-uses-the-real-app-ui-hides-the-unwalked-and-grows-a-co.md)
+edge BACKWARDS — `backend dependsOn website`; ADR-0153
 corrects it to the library rule: A depends_on B iff A needs B's delivered outcome to pass A's own UAT.)*
 **Rendered with the FRONTEND HIGH and the dependency foundation BELOW** (owner spatial preference, a
 free render choice — ADR-0153): "upstream" (the dependency direction, toward what the website needs)
@@ -91,10 +91,10 @@ The visitor can:
   increment G established, the walk simply continuing upward.
 
 **Complexity is SCAFFOLDED** — revealed in the order a human can hold it, as the walk continues
-([ADR-0148](../../docs/decisions/0148-act-2-is-a-website-first-walk-that-grows-into-an-orchestrato.md)'s
+(ADR-0148's
 stated design obligation, sharpened by ADR-0150) — **never hidden, never dumped up front.**
 All on the real 2.5D map
-([ADR-0145](../../docs/decisions/0145-act-2-walks-the-real-2-5d-map-the-r3f-forest-retreats-to-far.md)),
+(ADR-0145),
 narrated by the same anchored callouts + scripted-orchestrator voice G established, over fictional
 data — a stylized teaching diorama, never the operable studio.
 
@@ -111,13 +111,13 @@ walk it grows from exists.
 > INCREMENTAL step WITH forward feedback that drives the next arc link (see "As built / attested" below);
 > the LOOK is NOT terminally closed.** History: this is the **extend-next** half of the Act 2
 > re-scope
-> ([ADR-0148](../../docs/decisions/0148-act-2-is-a-website-first-walk-that-grows-into-an-orchestrato.md),
+> (ADR-0148,
 > owner-directed 2026-07-03), **RE-SHAPED by ADR-0150** (owner-directed at the G attestation
 > gate 2026-07-04): increment G ships the website-first walk first, then H continues it as ONE walk
 > growing upstream, teaching the dependency layers as the advantage. A first build of H against ADR-0150
 > was taken to the owner's ADR-0070 stage-2 attestation gate on 2026-07-04 and **REFUSED** — the WHAT
 > changed substantially, so H is **RE-SPECCED by
-> [ADR-0153](../../docs/decisions/0153-act-2-uses-the-real-app-ui-hides-the-unwalked-and-grows-a-co.md)**
+> ADR-0153**
 > (born accepted, owner-directed at that gate): the dependency DIRECTION is corrected (the refused build
 > encoded it BACKWARDS — see "The re-spec" below), the walk uses the REAL app's UI components with
 > progressive disclosure, there are NO escape hatches to deprecated pages, and the deeper drive-machinery

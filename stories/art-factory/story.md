@@ -56,7 +56,7 @@ authored once, machine-checked for physical soundness, and never hand-placed per
 ## What this factory is
 
 `packages/procedural-architecture` is the art factory decided by
-[ADR-0217](../../docs/decisions/0217-art-factories-are-per-object-type-parametric-kit-explicit-dr.md)
+ADR-0217
 (accepted, `amends` ADR-0214): art is grown from **declared structural relations** rather than typed
 coordinates, so a building's parts derive their positions from each other and a pure checker can
 refuse a physically-unsound result before a human ever looks. It is pure math + string building —
@@ -80,15 +80,15 @@ On top of that pipeline sit the **per-object-type factories** — a building mod
 or a landscape hero (`./landscape/*`) composes the builder and is judged by the checker — and the
 **rosters** that bake the whole set to a build-time asset: `KIT` / `bakeKit` → `kit.json` (buildings),
 `HERO_KIT` / `bakeHeroKit` → `kit.json` `heroes` (landscape heroes), and `bakeStone` → `stone.json`.
-That baked output is exactly the *build-time DATA* ([ADR-0217](../../docs/decisions/0217-art-factories-are-per-object-type-parametric-kit-explicit-dr.md))
+That baked output is exactly the *build-time DATA* (ADR-0217)
 a surface composes, checked by drift-guard tests and pinned deterministically in git.
 
 ## The author-time blocking-substrate adapter (greenfield, unbuilt)
 
 Upstream of the factories sits one more organ, the fourth capability
 [`blocking-substrate-adapter`](blocking-substrate-adapter.md), decided by
-[ADR-0225](../../docs/decisions/0225-generative-3d-produces-the-bridge-blocking-substrate-via-a-v.md)
-(amending [ADR-0219](../../docs/decisions/0219-generative-image-models-enter-the-art-pipeline-author-time-o.md)
+ADR-0225
+(amending ADR-0219
 D2). It is the "net-new authoring tooling" ADR-0219 deferred: a **vendor-swappable, author-time
 `(prompt, concept image) → block` adapter** that has a generative-3D model PRODUCE the bridge's blocking
 substrate (the light ortho/parametric maquette) instead of an author hand-building the rig. NVIDIA Edify
@@ -107,7 +107,7 @@ author-tool package depending on the factory — see the capability spec.
 
 Unlike the three implemented factory organs, this adapter is **greenfield and unbuilt**: it is
 authored as the provable journey + contract set and greens by BUILD
-([ADR-0094](../../docs/decisions/0094-go-green-is-a-status-transition-proposed-builds-mapped-adopt.md):
+(ADR-0094:
 *proposed builds*), not by the observe gate. Its offline core (the vendor-swappable interface,
 author-selection, and the re-author hand-off to the real checker) is provable without any credential;
 only the live NVIDIA-Edify backend leg is credential-gated. The story-green crown therefore stays dark
@@ -116,7 +116,7 @@ until its capabilities earn current signed verdicts — the honest state today.
 ## Consumers
 
 The factory's real consumer is `apps/studio`, a consuming **SURFACE**
-([ADR-0100](../../docs/decisions/0100-bring-consuming-surfaces-apps-and-the-public-website-subrepo.md)):
+(ADR-0100):
 `apps/studio/src/lib/factoryBuildings.ts` imports the baked `@storytree/procedural-architecture/kit.json`
 and `/stone.json` and folds them onto the island (ADR-0221). That package edge is declared
 **consumer-side** in the studio story's own `depends_on` (per ADR-0100 / ADR-0222 D1), so it does not
@@ -131,9 +131,9 @@ root.
 
 ## Why it is a foundational root organism
 
-art-factory is a **foundational root organism** ([ADR-0222](../../docs/decisions/0222-split-the-art-factory-into-its-own-story-forest-world-gains.md)
-D1, standing on [ADR-0075](../../docs/decisions/0075-model-the-shared-ports-as-root-organisms-collapse-the-substr.md)'s
-ports-as-root-organisms and [ADR-0093](../../docs/decisions/0093-shared-forest-world-render-core-for-studio-and-the-public-we.md)'s
+art-factory is a **foundational root organism** (ADR-0222
+D1, standing on ADR-0075's
+ports-as-root-organisms and ADR-0093's
 foundational-root shape) — exactly like `proof-protocol`, `storage-protocol`, and `forest-world`:
 `depends_on: []`, the bottom of the dependency order, depending on nothing. `@storytree/procedural-architecture`
 is registered in `repo-manifest.json` `packageOwnership.organisms` (→ `art-factory`, moved off
@@ -143,7 +143,7 @@ is registered in `repo-manifest.json` `packageOwnership.organisms` (→ `art-fac
 
 The factory MUST stay browser-bundleable (the studio bundles the baked JSON and, through it, the pure
 kernel), so it stays pure-math / string-building and **node-free** — zero runtime dependencies, no
-`node:*` import. [ADR-0075](../../docs/decisions/0075-model-the-shared-ports-as-root-organisms-collapse-the-substr.md)'s
+`node:*` import. ADR-0075's
 **foundational-minimality rule** the gate enforces — a foundational organism may only depend on other
 foundational organisms — holds by construction here: art-factory depends on nothing.
 
@@ -153,7 +153,7 @@ The factory is **greenfield** (`status: proposed`): `packages/procedural-archite
 this initiative before its story/capability files were authored. Its real, passing OFFLINE automated
 suite is useful evidence, but implementation or test registration order does not establish brownfield
 provenance and an authored gate does not manufacture a current signed pass
-([ADR-0395](../../docs/decisions/0395-brown-records-provenance-missing-proof-stays-on-the-greenfie.md)).
+(ADR-0395).
 A pure deterministic machine has no integrated user JOURNEY to walk, so there is no `## UAT Test
 Criteria` section (the appearance is operator-attested separately, ADR-0070 stage 2 / ADR-0219). The
 author-declared observe gate below is the implemented organs' machine own-proof: the suite is the

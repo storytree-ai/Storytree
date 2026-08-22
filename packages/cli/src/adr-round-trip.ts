@@ -7,7 +7,7 @@ import {
   parseAdrDocument,
   renderAdrDocument,
 } from "@storytree/library/adr-doc";
-import { upcastAndValidate } from "@storytree/library";
+import { explainDocValidationError, upcastAndValidate } from "@storytree/library";
 import type { Store } from "@storytree/storage-protocol";
 
 import { defaultCliActor } from "./cli-actor.js";
@@ -160,13 +160,39 @@ export async function adrPull(
   };
 }
 
-/** One human-readable line per field the push is about to change. Empty when nothing moved. */
+/**
+ * One human-readable line per field the push is about to change. Empty when nothing moved.
+ *
+ * IT MUST REPORT EVERY FIELD THE PUSH WRITES, and for a while it did not: `title`, `description` and
+ * `number` were all rewritten and none of them appeared. The consequence was silent reversion — a
+ * `library artifact edit <id> --set title=…` edit is undone by the next body-only push, which
+ * re-derives `title` from the document's H1, and the report said only `body: +N characters`. A field
+ * this function omits is a field that can change without anyone being told, which is the whole class
+ * of defect this verb's guards exist to close.
+ *
+ * `description` is DERIVED rather than parsed ({@link adrDescriptionOf} of the title), so it is
+ * passed in from the caller's two sides rather than read off `AdrDocumentFields`, which has no such
+ * member.
+ */
 function changedFields(
   before: ReturnType<typeof adrDocumentFieldsOf>,
   after: ReturnType<typeof adrDocumentFieldsOf>,
+  description: { before: string; after: string },
 ): string[] {
   const lines: string[] = [];
   const list = (ns: readonly number[]) => (ns.length === 0 ? "(none)" : ns.join(", "));
+  if (before.title !== after.title) {
+    lines.push(`  title: ${JSON.stringify(before.title)} -> ${JSON.stringify(after.title)}`);
+  }
+  if (description.before !== description.after) {
+    lines.push(`  description: ${JSON.stringify(description.before)} -> ${JSON.stringify(description.after)}`);
+  }
+  // A disagreement here means the STORED `number` field did not match the id — the state
+  // `adr-number-identity` reds on. The push corrects it from argv; saying so is how the correction
+  // stops being invisible.
+  if (before.number !== after.number) {
+    lines.push(`  number: ${String(before.number)} -> ${String(after.number)}`);
+  }
   if (before.status !== after.status) lines.push(`  status: ${before.status} -> ${after.status}`);
   if (before.decided !== after.decided) {
     lines.push(`  decided: ${before.decided ?? "(none)"} -> ${after.decided ?? "(none)"}`);
@@ -289,7 +315,14 @@ export async function adrPush(
   }
 
   const before = adrDocumentFieldsOf(row);
-  const changes = changedFields(before, fields);
+  // The values the upsert below actually writes, so the report and the write cannot disagree: an
+  // empty H1 falls back to the id for `title`, and `description` is derived from the parsed title.
+  const nextTitle = fields.title === "" ? id : fields.title;
+  const nextDescription = adrDescriptionOf(number, fields.title);
+  const changes = changedFields(before, { ...fields, title: nextTitle }, {
+    before: typeof row["description"] === "string" ? row["description"] : "",
+    after: nextDescription,
+  });
   if (changes.length === 0) {
     return {
       ok: true,
@@ -298,10 +331,27 @@ export async function adrPush(
     };
   }
 
-  const doc = upcastAndValidate({
+  // VALIDATION IS CAUGHT, like every other failure in this function. It was the one call that could
+  // throw past the envelope: the kind schemas are `.strict()`, so any key on the STORED row outside
+  // the `Adr` schema throws a raw zod issue array through to `main().catch` — the verb crashes with a
+  // dump instead of refusing with a reason.
+  //
+  // The vector is SCHEMA SKEW, which this repo already names as a real state rather than a
+  // hypothetical: the library tier is live-canonical (ADR-0023), so a `--pg` write can add a doc
+  // field BEFORE the schema that validates it reaches this checkout, and every session on
+  // main-derived code is then hard-refused on an artifact it never touched.
+  // `explainDocValidationError` exists for exactly that — passing `storedKeys` charges an unknown key
+  // BY AUTHORSHIP, so the message distinguishes "you passed a bad field" from "this row already
+  // carried a field your checkout's schema does not know yet". `scaffoldRow` in `adr.ts` wraps the
+  // equivalent call correctly, which is what made this an omission rather than a design.
+  // Hoisted out of the call so the refusal below can diagnose THE DOC THAT FAILED. Passing the
+  // stored row instead would describe a different shape than the one that threw, which is the
+  // confident-wrong-answer class `explainDocValidationError` exists to avoid (its own docstring:
+  // "the doc that FAILED is the upcast one, so diagnose that shape").
+  const updated = {
     ...row,
-    title: fields.title === "" ? id : fields.title,
-    description: adrDescriptionOf(number, fields.title),
+    title: nextTitle,
+    description: nextDescription,
     body: fields.body,
     number: fields.number,
     status: fields.status,
@@ -314,7 +364,25 @@ export async function adrPush(
     // them would make the file a partial view and the round trip a lie.
     ...(fields.decided === undefined ? { decided: undefined } : { decided: fields.decided }),
     ...(fields.arc === undefined ? { arcRef: undefined } : { arcRef: `asset:${fields.arc}` }),
-  });
+  };
+  let doc: ReturnType<typeof upcastAndValidate>;
+  try {
+    doc = upcastAndValidate(updated);
+  } catch (e) {
+    return {
+      ok: false,
+      body: [
+        `${id} was NOT written — the updated row does not satisfy the \`adr\` schema:`,
+        "",
+        // `storedKeys` charges an unknown key BY AUTHORSHIP: a key already on the row is schema skew,
+        // not the caller's typo, and the message says which it is.
+        explainDocValidationError(updated, e, { storedKeys: Object.keys(row) }),
+        "",
+        `Nothing was written, so ${id} is exactly as it was. Your edits to ${file} are untouched.`,
+      ].join("\n"),
+      next: [`storytree library artifact ${id}`, `storytree adr pull ${String(number)} --out ${file}`],
+    };
+  }
   const cleaned = Object.fromEntries(
     Object.entries(doc as Record<string, unknown>).filter(([, v]) => v !== undefined),
   );

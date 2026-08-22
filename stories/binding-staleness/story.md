@@ -44,9 +44,9 @@ live units, never an explicit-args toy.
 
 **Depends on —** [`drive-machinery`](../drive-machinery/story.md), [`proof-protocol`](../proof-protocol/story.md), [`cli`](../cli/story.md), [`storage-protocol`](../storage-protocol/story.md)
 
-This is the story home for the offline-provable slices that wire [ADR-0016](../../docs/decisions/0016-knowledge-code-binding-and-staleness.md)'s
+This is the story home for the offline-provable slices that wire ADR-0016's
 **binding/staleness engine** into the proof + store path. The engine itself is LANDED — since
-[ADR-0068](../../docs/decisions/0068-make-the-organism-model-physical-real-story-isolation-and-th.md) dissolved `@storytree/core` it
+ADR-0068 dissolved `@storytree/core` it
 lives in two homes, not the one `packages/core/src/anchor.ts` this story was authored against:
 the DATA shapes in [`packages/proof-protocol/src/anchor.ts`](../../packages/proof-protocol/src/anchor.ts)
 (the re-anchorable `Anchor`, `ChangeEvent`, `DriftState`/`DriftFlag`) and the COMPUTE in
@@ -63,7 +63,7 @@ exported function with no command wired to it (see the recorded gap below).
 
 **`proposed` (greenfield without a current signed pass), NOT `healthy`.** Each capability is a single,
 offline-provable change to an existing file (plus one net-new pure classifier), each driveable through
-the **inner loop** — a spec-borne `proof:` block ([ADR-0057](../../docs/decisions/0057-dogfood-the-inner-loop-as-the-default-node-borne-proof-confi.md))
+the **inner loop** — a spec-borne `proof:` block (ADR-0057)
 makes the node buildable, and the prove-it-gate observes a genuine red→green and signs a verdict. The
 story flips toward `healthy` per-unit as each lands a signed verdict. The `proposed` pockets, recorded
 below, are the **DB-backed half** deliberately split to a parallel session.
@@ -108,7 +108,7 @@ Their status is now recorded inline (do not re-do them):
   [`change-store-pg`](change-store-pg.md)** (this follow-on session, ADR-0064 §1 DB-backed proof —
   proven by a real round-trip against an isolated `storytree_test`, never prod).
 - **The AST-fingerprint swap** behind `hashSpan()` (ADR-0016 Fork C) — needs the tree-sitter dependency.
-  **DEFERRED + designed in [ADR-0071](../../docs/decisions/0071-ast-fingerprint-binding-hash-behind-a-node-only-seam-adr-001.md)**:
+  **DEFERRED + designed in ADR-0071**:
   it cannot live in the browser-bundled core (tree-sitter is a native addon), so the design is a
   node-only seam + a versioned hash scheme; not built (no live anchors → no measured false-positive
   rate to justify it yet).
@@ -191,7 +191,7 @@ inside this initiative. They landed in four package suites because each slice ex
 contract owned there. Those real, passing OFFLINE checks remain useful evidence, but standing tests,
 implementation-before-registration, and the absence of a story-named red→green run do not establish
 brownfield provenance or license Adopt
-([ADR-0395](../../docs/decisions/0395-brown-records-provenance-missing-proof-stays-on-the-greenfie.md)).
+(ADR-0395).
 
 The current executable coverage inventory is:
 

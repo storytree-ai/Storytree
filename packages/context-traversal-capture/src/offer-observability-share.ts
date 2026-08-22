@@ -239,12 +239,17 @@ export const PATHWAY_CAVEAT =
  * now reached by `storytree library artifact adr-NNNN`, which the allowlist DOES observe. A caveat
  * illustrating its own opposite is worse than none, because a reader trusts the concrete half. The
  * shared clause it composes — {@link FILE_READS_OBSERVE_NOTHING} — is untouched and still true, so
- * only the example changed: any repository document opened with the file tool still leaves no trace.
+ * only the EXAMPLE changed: a story spec opened straight from `stories/` still leaves no trace.
+ *
+ * (Two branches reached that conclusion independently on the same day and collided here in a merge.
+ * The example above is the one that landed on `main` first, kept deliberately over this branch's own
+ * wording — reconcile forward from the sibling's text rather than re-applying your own, or the later
+ * merge silently reverts work that is already live.)
  */
 export const REPLAY_PATHWAY_NOTE =
   "observes: storytree CLI reads only, by an allowlist whose default answer is no event; " +
-  `${FILE_READS_OBSERVE_NOTHING}, so a repository document opened with the file tool leaves no ` +
-  "trace here — this replay covers one pathway, not all of this session's navigation";
+  `${FILE_READS_OBSERVE_NOTHING}, so a story spec opened straight from stories/ leaves no trace ` +
+  "here — this replay covers one pathway, not all of this session's navigation";
 
 /**
  * Render an `ObservabilityReport` as a plain-text block, or `""` when there are no points — no

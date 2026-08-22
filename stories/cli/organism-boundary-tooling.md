@@ -13,8 +13,8 @@ depends_on: []
 
 **Outcome —** The pure organism-boundary analyser the CLI's `check:boundaries` builds on: the BLOCKING
 subgraph judge (`packages/cli/src/boundaries.ts` — every real cross-organism CODE edge must be a
-declared cross-story edge, [ADR-0074](../../docs/decisions/0074-enforce-the-organism-boundary-gate-the-cross-story-dependenc.md))
-AND the NON-BLOCKING declared-edge **drift report** ([ADR-0115](../../docs/decisions/0115-detect-declared-edge-drift-derive-virtual-story-edges-from-s.md))
+declared cross-story edge, ADR-0074)
+AND the NON-BLOCKING declared-edge **drift report** (ADR-0115)
 — per story, the declared edges with no code backing (drift candidates) and the backed-but-undeclared
 edges, deriving a **virtual** story's real edges from its capabilities'/contracts' `proof.real.sourceFile`
 imports.
@@ -85,7 +85,7 @@ The integration test would:
    (a subpath specifier reduces to its bare package before the ownership lookup), flags `drive-machinery`
    + `notice-board` as declared-but-unbacked drift candidates, and does NOT flag `storage-protocol`
    (type-only, skipped). *(The story it is named for was RETIRED with
-   [ADR-0175](../../docs/decisions/0175-repurpose-don-t-delete-the-in-app-orchestrator-chat-infrastr.md)
+   ADR-0175
    and its `orchestrator-composition` capability had its `real:` arm dropped, so it cites no
    `proof.real.sourceFile` and derives nothing — the fixture keeps the name as the ADR-0115 case it was
    drawn from. `packages/drive/src/orchestrate.ts` itself still exists: ADR-0175's deliberately KEPT

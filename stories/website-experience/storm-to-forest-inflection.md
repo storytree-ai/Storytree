@@ -100,7 +100,7 @@ Real `file:line` into the pinned `web/` tree (paths relative to the submodule ro
 
 ## Guidance
 
-THE CHOREOGRAPHY ([ADR-0216](../../docs/decisions/0216-act-1-experience-attested-overwhelm-finale-transform-frozen.md) D3–D4 — the spec of the moment):
+THE CHOREOGRAPHY (ADR-0216 D3–D4 — the spec of the moment):
 
 - **The affordance appears AT peak, not before.** The storm must be fully felt first; the dimming +
   the single calm affordance are the reward for having been buried. One affordance only — amid ten

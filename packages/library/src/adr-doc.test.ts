@@ -219,3 +219,64 @@ test("adr-doc-normalises-crlf: a windows-authored record parses to the same fiel
   const fields: AdrDocumentFields = parseAdrDocument(403, crlf);
   assert.deepEqual(fields, parseAdrDocument(403, CANONICAL));
 });
+
+test("adr-doc-refuses-a-mistyped-decided-date: a dropped dash must never delete the field", () => {
+  // `decided` used to fall through a ternary to `undefined`, where its two siblings (`arc`,
+  // `load_bearing`) throw — and the round-trip push turns an absent `decided` into a field DELETION.
+  // So the whole failure was silent: the parse succeeded, the push reported success, and the decision
+  // lost the date it was decided on.
+  //
+  // The realistic input is the one below: an ISO date with the dashes dropped is a valid YAML NUMBER.
+  const mistyped = CANONICAL.replace("decided: 2026-08-21", "decided: 20260821");
+  assert.throws(() => parseAdrDocument(403, mistyped), /`decided` must be a non-empty string/);
+
+  // The other degrade-to-nothing shapes fail the same way.
+  assert.throws(() => parseAdrDocument(403, CANONICAL.replace("decided: 2026-08-21", "decided: true")), /`decided`/);
+  assert.throws(() => parseAdrDocument(403, CANONICAL.replace("decided: 2026-08-21", 'decided: ""')), /`decided`/);
+
+  // And a QUOTED date still parses — the guard is a guard, not a wall.
+  const quoted = CANONICAL.replace("decided: 2026-08-21", 'decided: "2026-08-21"');
+  assert.equal(parseAdrDocument(403, quoted).decided, "2026-08-21");
+});
+
+test("adr-doc-resolves-a-bare-date-to-a-string: the `Date` branch this parser cannot reach", () => {
+  // A `decidedRaw instanceof Date` branch stood in the parser under the comment "yaml resolves a bare
+  // ISO date to a Date". It never ran: under YAML 1.2 core — what the `yaml` package implements — a
+  // bare date resolves to a STRING. Asserted rather than deleted silently, so the dead branch cannot
+  // come back on the strength of the comment that justified it.
+  assert.equal(parseAdrDocument(403, CANONICAL).decided, "2026-08-21");
+  const stamped = CANONICAL.replace("decided: 2026-08-21", "decided: 2026-08-21T00:00:00Z");
+  assert.equal(parseAdrDocument(403, stamped).decided, "2026-08-21T00:00:00Z");
+});
+
+test("adr-doc-strips-a-utf8-bom: an invisible byte is normalised, not refused with an unusable remedy", () => {
+  // A BOM pushes the `---` off byte 0, so the document was refused as having "no frontmatter block" —
+  // whose diagnosis offers the `>`-redirect remedy (ADR-0361), the one remedy that cannot help,
+  // because re-capturing with `adr pull --out` reproduces nothing about a BOM an editor added. Same
+  // class of normalisation as the CRLF fold beside it, and most likely on this repo's dev platform.
+  const withBom = `﻿${CANONICAL}`;
+  assert.deepEqual(parseAdrDocument(403, withBom), parseAdrDocument(403, CANONICAL));
+
+  // A BOM on a CRLF file — the likeliest Windows shape of all — parses too.
+  assert.deepEqual(parseAdrDocument(403, `﻿${CANONICAL.replace(/\n/g, "\r\n")}`), parseAdrDocument(403, CANONICAL));
+});
+
+test("adr-doc-ignores-a-heading-quoted-in-fenced-code: a cited decision does not rename this one", () => {
+  // Decisions cite decisions, so a fenced block holding another decision's `# ADR-NNNN:` heading is
+  // ordinary content. The title regex is line-anchored and a fenced line sits at column 0, so the
+  // quoted heading matched exactly like a real H1 — and the round-trip push writes `title` from this
+  // function, so the wrong name landed on the row. `adr-completeness.ts` strips fences for the same
+  // reason.
+  const quotingFirst = ["```", "# ADR-0050: Some other decision", "```", "", "# ADR-0403: The real one", ""].join("\n");
+  assert.equal(extractAdrTitle(quotingFirst), "The real one");
+
+  // ...and when the fence comes AFTER the real heading, the real one still wins.
+  const quotingSecond = ["# ADR-0403: The real one", "", "```", "# ADR-0050: Some other decision", "```", ""].join("\n");
+  assert.equal(extractAdrTitle(quotingSecond), "The real one");
+
+  // A body with ONLY a quoted heading reports none, rather than borrowing the citation's name.
+  assert.equal(extractAdrTitle(["```", "# ADR-0050: Some other decision", "```"].join("\n")), "");
+
+  // Removing a fence never eats the newline in front of a following heading.
+  assert.equal(extractAdrTitle("```\nx\n```\n# ADR-0403: Still found\n"), "Still found");
+});

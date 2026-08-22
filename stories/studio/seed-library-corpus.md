@@ -26,6 +26,15 @@ depends_on: []
 > `@storytree/library/fixture` (ADR-0302 D1 deleted the `knowledge.json` that seed used to read, and the
 > fixture is a small sandbox seed, not a copy of the Library). This stays a retrospective spec of the
 > original JSON-store era — kept as history, not current code.
+>
+> **Both of the seeder's INPUTS are gone too, so read every path below as history.** `docs/glossary.md`
+> was retired at ADR-0135, and `docs/decisions/` — the directory this spec's `adr(n)` helper scanned,
+> and which the integration test and contracts 1 and 9 below assert against — was deleted at ADR-0403
+> dec 1, when decisions became ordinary `adr` Library rows. Nothing under `docs/decisions/` can be
+> scanned, and no assertion in this spec could be run today. Read a decision with
+> `storytree library artifact adr-NNNN`. The `doc:decisions/NNNN-slug.md` CITATION STRINGS the spec
+> describes are a different thing and do still exist in the corpus — they are pointer text, not a
+> path to a file.
 
 ## Guidance
 

@@ -34,12 +34,12 @@ the whole graph rests on, depending only on the proof-protocol root.
 ## What this port is
 
 `packages/storage-protocol` (formerly `base` — renamed for role-not-position by
-[ADR-0078](../../docs/decisions/0078-rename-root-ports-role-not-position.md)) is the universal,
+ADR-0078) is the universal,
 browser-safe **storage seam** (ADR-0068 step 5): the narrow `Store` / `ChangeStore` contract — the
 *verbs* any store must offer (`upsertDoc` / `getDoc` / `queryDocs` / `deleteDoc` / `appendEvent` /
 `readEvents`) — the `InMemoryStore` reference implementation, the `StoredDoc` / `StoreEvent` /
 `DeleteDocOpts` / `retiredEventDoc` shapes, and — since
-[ADR-0259](../../docs/decisions/0259-every-client-reaches-the-store-through-an-http-front-door-di.md) —
+ADR-0259 —
 the seam's own **HTTP transport**: the wire contract both halves share (`store-wire.ts`), the
 `HttpStore` client, and the pure `handleStoreRequest` server half. It defines what *storing* means; it
 never says where data lives.
@@ -87,7 +87,7 @@ proof-protocol.
 *domain*: library's job is knowledge management, and the library is itself one of the organisms that
 persist *through* this seam. If the seam lived inside `library`, every other organism that stores a row
 would have to depend on the whole knowledge tier — the exact god-package smell ADR-0068 dissolved.
-[ADR-0075](../../docs/decisions/0075-model-the-shared-ports-as-root-organisms-collapse-the-substr.md)
+ADR-0075
 made it an ordinary **root organism** every consumer declares `depends_on` against (the last
 `substrate` exemption removed), so a dependency on the persistence seam is a **visible declared +
 rendered edge**. (See the live-library open-question `oq-port-class-vs-root-node` for the A-vs-B
@@ -114,7 +114,7 @@ A pure seam is a published CONTRACT (verbs + a reference impl) — there is no i
 to walk; a seam and its parity suite are a machine's job, not a human attestation. This port was
 extracted and named inside the Storytree initiative, so its passing suite and foundational position do
 not make it brownfield or Adopt-bound
-([ADR-0395](../../docs/decisions/0395-brown-records-provenance-missing-proof-stays-on-the-greenfie.md)).
+(ADR-0395).
 The author-declared observe gate below is therefore the port's one proof obligation: the suite is the
 evidence surface, while only the deterministic spine observing it green at a clean committed HEAD and
 persisting an `adopted` verdict signs `storage-protocol#gate-1` (ADR-0085).

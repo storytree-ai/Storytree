@@ -44,7 +44,7 @@ proof:
 # The R3F mapper rides the sync — one artifact mechanism, two parent packages
 
 **Outcome —** The forest-world → website sync + drift-gate mechanism
-([ADR-0093](../../docs/decisions/0093-shared-forest-world-render-core-for-studio-and-the-public-we.md)
+(ADR-0093
 §3) generalises to carry a SECOND parent package: `sync:web-engine` copies
 `@storytree/forest-world-r3f`'s browser-safe sources (`.tsx` included) into
 `web/src/lib/forest-world-r3f/` with `@generated` banners and with its `@storytree/forest-world`

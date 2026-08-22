@@ -20,7 +20,7 @@ depends_on: [prove-spec-resolution]
 > (`packages/orchestrator/src/proof-config.test.ts` — the schema legs — plus the spec-borne
 > resolution/parity/wall legs in `resolve-prove-spec.test.ts`; `@storytree/orchestrator` 119/119,
 > ran 2026-06-14). Per the bootstrap caveat in
-> [ADR-0057](../../docs/decisions/0057-dogfood-the-inner-loop-as-the-default-node-borne-proof-confi.md)
+> ADR-0057
 > it had to be built **outer-loop first** (the loop cannot self-register until this exists) and is a
 > MULTI-FILE change (proof-config.ts + node-spec.ts + resolve-prove-spec.ts + the 7 specs + the CLI),
 > which the single-file inner loop cannot yet drive. That build order does not make this greenfield
@@ -77,7 +77,7 @@ buildable) is preserved — silence is never a green light.
 > (Option B): every write-scope glob must stay within one concrete `packages/<pkg>/` or `apps/<app>/`
 > (no bare `**/*`, no wildcard package segment, no `..` escape, no absolute path), enforced as a
 > fail-loud refine on `PathWriteScopeConfigSchema` (`scopeGlobBoundIssue`) so an over-broad scope can
-> never resolve. See [ADR-0087](../../docs/decisions/0087-spec-borne-write-scope-is-bounded-structurally-not-by-pr-dif.md).
+> never resolve. See ADR-0087.
 > The companion proof-command executable allow-list (the OQ's second sub-bound) is a named follow-on,
 > decided-in-principle but not yet built.
 

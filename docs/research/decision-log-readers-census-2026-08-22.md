@@ -233,8 +233,8 @@ The intent named five, correctly as a starting point. Measured against this cens
 
 ## References
 
-- [ADR-0403](../decisions/0403-the-decision-log-becomes-ordinary-artifacts-in-postgres-and.md) — the governing decision.
-- [ADR-0139](../decisions/0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md) — correct-in-place; the archive seam ADR-0403 dec 8 amends.
-- [ADR-0394](../decisions/0394-a-root-path-with-proven-readers-narrows-the-affected-scope-e.md) — the affected-scope reader map behind §3.4.
-- [ADR-0050](../decisions/0050-adr-number-allocation.md) — transactional number allocation; why §3.3 dies.
+- ADR-0403 — the governing decision.
+- ADR-0139 — correct-in-place; the archive seam ADR-0403 dec 8 amends.
+- ADR-0394 — the affected-scope reader map behind §3.4.
+- ADR-0050 — transactional number allocation; why §3.3 dies.
 - `decision-log-home-arc` — end-state item 1.

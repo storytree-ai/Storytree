@@ -170,6 +170,21 @@ export interface GatePlanStep extends GateStep {
  *   unproven-seam-default; without it vacuous filters, skipped tests credited as proof, and
  *   fake-only defaults can ship.
  *
+ * ★ THIS PLAN AND CI DIFFER BY EXACTLY ONE STEP, AND THE DIFFERENCE IS DECIDED, NOT DRIFT.
+ * `check:verification-decay` runs here and is deliberately absent from `.github/workflows/ci.yml`;
+ * every other step in this plan is a CI step too. It is not a wiring omission and adding it would
+ * REVERSE an accepted, load-bearing decision — ADR-0252 D3 makes the decay ceiling a DRAIN
+ * OBLIGATION on the session (the `check:friction-drain` shape, ADR-0168 D4) rather than a barrier on
+ * the trunk, because these instruments are heuristics with a measured ~75% false-positive rate and a
+ * CI step is a merge barrier. The rung's own module header states this at the source
+ * (`check-verification-decay.ts`), together with the cost accepted knowingly: a landing that never
+ * runs the local gate can grow the backlog unseen. Note the rung is OFFLINE and read-only, so
+ * "it could not run in CI" is NOT the reason and never was — it could; it is not asked to.
+ * Recorded here because this plan is where a reader compares the two lists, and a `why` line
+ * indistinguishable from its three CI-bound `shared-environment` neighbours is what made this look
+ * like a missing rung to a reviewer (`decision-log-readers-arc` inc-06 item 7). If the trade-off is
+ * ever to be revisited, that is a new decision superseding ADR-0252 D3, not an edit to a workflow.
+ *
  * TOMBSTONE (bounded). The complete 16 original deletions — three by ADR-0302 and thirteen by this
  * audit — are DECLARED in {@link RETIRED_CHECKS} below rather than recited here, because twelve of
  * them left source behind and prose cannot be held to that source. No surviving rung was weakened
@@ -262,7 +277,7 @@ export const GATE_PLAN: readonly GatePlanStep[] = [
     check: "check:verification-decay",
     subject: "shared-environment",
     cost: "seconds",
-    why: "reds every session the moment any instrument breaches on main — the measured case behind the parked entry `verification-decay-charges-by-authorship`",
+    why: "reds every session the moment any instrument breaches on main — the measured case behind the parked entry `verification-decay-charges-by-authorship`. LOCAL-ONLY BY DECISION: the one step in this plan `.github/workflows/ci.yml` deliberately does not run — see the note below, and do not 'fix' the difference by adding it",
   },
   {
     command: "pnpm check:library-dag-acyclic",

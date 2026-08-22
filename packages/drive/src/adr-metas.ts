@@ -30,9 +30,17 @@ export function loadAdrMetas(decisionsDir: string): LoadAdrMetasResult {
   return { adrs, parseErrors };
 }
 
-/** PURE: the text after `# ADR-NNNN:` (the decision's H1 title); "" when there is no such heading. */
+/**
+ * PURE: the text after `# ADR-NNNN:` (the decision's H1 title); "" when there is no such heading.
+ *
+ * The TWIN of `extractAdrTitle` in `@storytree/library/adr-doc`, kept trivially identical rather than
+ * shared (drive depends on library and never the reverse). **Change both together** — that module's
+ * copy carries the full rationale, including why fenced code must be stripped before the scan: a
+ * decision quoting another decision's `# ADR-NNNN:` heading inside a ``` block would otherwise take
+ * the quoted heading as its own title.
+ */
 export function extractAdrTitle(content: string): string {
-  const m = /^#\s+ADR-\d{4}:\s*(.+?)\s*$/m.exec(content);
+  const m = /^#\s+ADR-\d{4}:\s*(.+?)\s*$/m.exec(content.replace(/```[\s\S]*?```/g, ""));
   return m && m[1] !== undefined ? m[1] : "";
 }
 
@@ -48,12 +56,20 @@ export interface LoadTitledAdrMetasResult {
 }
 
 /**
- * {@link loadAdrMetas} plus each ADR's H1 title — the ONE fs scan of `docs/decisions` that every
- * ADR view is built on. Both readers of the decision log delegate here rather than each walking the
- * directory themselves: the cli's `loadAdrListings` (which reshapes it into `{meta, title}` for
- * `adr list`) and `deriveArcRollup`'s ADR leg (`@storytree/arc`'s `arc-rollup.ts`), which the CLI,
- * the studio server and the desktop backend share. A missing/unreadable dir yields an empty list
- * rather than throwing, so an arc view stays derivable on a partial checkout.
+ * {@link loadAdrMetas} plus each ADR's H1 title, read from a directory of `NNNN-*.md` files.
+ *
+ * ⚠ NO PRODUCTION READER CALLS THIS ANY MORE, and neither does {@link loadAdrMetas}. This was the
+ * ONE fs scan of `docs/decisions` every ADR view was built on — the cli's `loadAdrListings` (which
+ * reshapes it into `{meta, title}` for `adr list`) and `deriveArcRollup`'s ADR leg (`@storytree/arc`'s
+ * `arc-rollup.ts`, shared by the CLI, the studio server and the desktop backend) both delegated
+ * here rather than walking the directory themselves. ADR-0403 dec 1 made decisions rows and deleted
+ * that directory; both readers now call {@link loadTitledAdrMetasFromStore}, which is shape-identical
+ * so the swap changed nothing else. This fs pair is kept as the store form's twin — do not wire a
+ * new caller to it without a path that genuinely holds ADR FILES.
+ *
+ * A missing/unreadable dir yields an empty list rather than throwing. That fail-soft was what kept
+ * an arc view derivable on a partial checkout; it is also why the deletion of `docs/decisions/` was
+ * survivable but SILENT, which is the whole subject of `decision-log-readers-arc`.
  */
 export function loadTitledAdrMetas(decisionsDir: string): LoadTitledAdrMetasResult {
   const adrs: TitledAdrMeta[] = [];

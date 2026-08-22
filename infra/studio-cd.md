@@ -1,6 +1,6 @@
 # Hosted studio CD — keyless deploy-on-merge (ADR-0046)
 
-Closes the merge→deploy gap [ADR-0042](../docs/decisions/0042-hosted-studio-demo-cloud-run-iap.md)
+Closes the merge→deploy gap ADR-0042
 left open: merging a studio-affecting change to `main` now redeploys the Cloud Run studio
 automatically, instead of waiting for someone to re-run the manual runbook (`studio-cloud.md`
 §3–§4). The "Circle"→"Members" rename (PR #102) shipping to `main` but the live site serving the

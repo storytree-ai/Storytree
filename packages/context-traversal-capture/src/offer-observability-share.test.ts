@@ -414,15 +414,24 @@ test("both-pathway-statements-share-one-clause: the offer caveat and the whole-r
   assert.doesNotMatch(REPLAY_PATHWAY_NOTE, /\d/, "no figure is baked into the render");
 
   // It says what IS observed and what is NOT — a note that named only the gap would read as a
-  // disclaimer rather than a scope.
+  // disclaimer rather than a scope. The un-observed side must stay a CONCRETE place a reader
+  // recognises, not an abstraction: "file reads observe nothing" is the rule, and the example is
+  // what makes it land.
+  //
+  // THE EXAMPLE WAS `docs/decisions/` UNTIL 2026-08-22 (`decision-log-readers-arc` increment 5).
+  // ADR-0403 dec 1 made decisions rows and deleted that directory, so the note was naming a place
+  // nobody can read from — and reading a decision now goes through `storytree library artifact`,
+  // which IS on the allowlist, making it the one example that had stopped illustrating the gap at
+  // all. `stories/` is the successor: specs are read straight off disk constantly, by tools this
+  // capture cannot see. Keep this assertion pointed at a real, currently-readable path.
   assert.match(REPLAY_PATHWAY_NOTE, /storytree/i);
-  assert.match(REPLAY_PATHWAY_NOTE, /file tool/i);
-  // ⚠ THIS ASSERTION USED TO PIN `docs/decisions`, AND THAT IS WHY IT IS WORDED THIS WAY NOW. The
-  // note's example was a decision record opened from that directory; ADR-0403 dec 1 deleted it and
-  // made a decision an ordinary Library row that the allowlist DOES observe, so the sentence ended
-  // up illustrating the opposite of the fact it exists to state — and this test held it there,
-  // green, because it asserted the stale example rather than the durable claim. Assert the CLAIM (a
-  // file-tool read is unobserved), never one era's illustration of it.
+  assert.match(REPLAY_PATHWAY_NOTE, /stories\//);
+  // And the NEGATIVE half, added by `decision-log-readers-arc-inc-04` when it reached the same
+  // conclusion on the same day from the extractor side. A positive assertion alone cannot fail on
+  // the way this rotted: the old test asserted the example rather than the claim, so it stayed green
+  // while the note quietly began illustrating the OPPOSITE of the fact it exists to state — a
+  // decision is now read through `storytree library artifact`, which the allowlist DOES observe.
+  // This is the assertion that goes red if anyone reintroduces the deleted directory as the example.
   assert.doesNotMatch(
     REPLAY_PATHWAY_NOTE,
     /docs\/decisions/,

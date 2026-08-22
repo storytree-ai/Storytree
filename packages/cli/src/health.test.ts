@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { InMemoryStore, type StoredDoc } from "@storytree/storage-protocol";
-import { CURRENT_SCHEMA_VERSION } from "@storytree/library";
+import { CURRENT_SCHEMA_VERSION, adrDocId } from "@storytree/library";
 import { loadFixtureCorpus } from "@storytree/library/fixture";
 
 import {
@@ -172,57 +172,160 @@ test("referential-integrity skips doc: resolution when no docExists is injected"
   assert.equal(find(results, "referential-integrity").level, "PASS");
 });
 
-// --- doc: pointers at DECISION RECORDS, in both live spellings ---------------------------------
+// --- doc: pointers at DECISION RECORDS, resolved against the STORE ------------------------------
 /**
- * A FAKE `docs/` TREE, not a `() => true` stub — and that is the whole point of these four tests.
- * The resolver the CLI injects is docs-RELATIVE (`path.join(<repoRoot>/docs, rel)`), so a stub that
- * answers true for everything cannot tell a resolved pointer from a mis-built path, and a suite
- * built on one would go green on exactly the bug below. This set says which files exist; anything
- * else is genuinely absent, so a mis-built `docs/docs/decisions/…` reads as the WARN it is.
+ * A FAKE `docs/` TREE, not a `() => true` stub. The resolver the CLI injects is docs-RELATIVE
+ * (`path.join(<repoRoot>/docs, rel)`), so a stub that answers true for everything cannot tell a
+ * resolved pointer from a mis-built path, and a suite built on one goes green on a path bug. This
+ * set says which files exist; anything else is genuinely absent.
  *
- * The corpus carries two live spellings of the same decision file — `doc:decisions/NNNN-slug.md`
- * (371 pointers) and repo-relative `doc:docs/decisions/NNNN-slug.md` (19) — and both name the file
- * that lives here as `decisions/0209-…`. ADR-0403 dec 7: a reader accepting one spelling and not
- * the other returns a confident, plausible, wrong answer.
+ * IT DELIBERATELY HOLDS NO `decisions/…` ENTRY. A decision stopped being a file when ADR-0403 dec 1
+ * made it an `adr-NNNN` Library row and PR #1546 deleted `docs/decisions/`, so a decision pointer
+ * that resolved off this tree would be proving the removed behaviour still works. It resolves
+ * against {@link adrRow} rows in the projection instead, and the disk must never be consulted for
+ * one — asserted below rather than assumed.
  */
 const DOCS_TREE: ReadonlySet<string> = new Set([
-  "decisions/0209-tier-model-judged-uat-below-irreducible-human-witness.md",
   "research/library-schema-migrations-and-health-checks.md",
   // A foreign tree that merely CONTAINS a `decisions/` directory — see the anchoring test below.
   "vendor/decisions/0001-not-ours.md",
 ]);
 const FAKE_DOCS = { ...BASE_OPTS, docExists: (rel: string) => DOCS_TREE.has(rel) };
 
-/** The referential-integrity lines for one doc, resolved against {@link DOCS_TREE}. */
-function refLines(refs: string[]): CheckResult {
-  const a = stored(validDefinitionBody({ id: "a", references: refs }));
-  return find(libraryHealth([a], FAKE_DOCS), "referential-integrity");
+/** The slug of the one decision these tests hold a row for — the file spellings both name it. */
+const SLUG_0209 = "0209-tier-model-judged-uat-below-irreducible-human-witness.md";
+
+/**
+ * A decision ROW — what a `doc:decisions/NNNN-….md` pointer resolves against since ADR-0403 dec 1.
+ *
+ * A faithful `adr` body rather than a bare `{id}`, so the row is the kind of thing the live store
+ * actually returns: the resolver keys on the id today, and a fixture that only carried an id would
+ * still pass if it ever started keying on `kind` or `number` while the live corpus did not.
+ */
+function adrRow(number: number): StoredDoc {
+  const label = `ADR-${String(number).padStart(4, "0")}`;
+  return stored(
+    openDoc({
+      kind: "adr",
+      id: adrDocId(number),
+      title: `${label}: a decision this fixture holds`,
+      description: "A decision row, so a decision pointer at it has something to resolve against.",
+      schemaVersion: CURRENT_SCHEMA_VERSION,
+      references: [],
+      number,
+      status: "accepted",
+      body: `# ${label}\n\n## Status\n\naccepted\n`,
+      createdAt: "2026-06-05T00:00:00.000Z",
+      updatedAt: "2026-06-09T00:00:00.000Z",
+    }),
+  );
 }
 
-test("referential-integrity resolves BOTH live spellings of the same decision file", () => {
-  // The repo-relative spelling was the bug: `docs/` + `docs/decisions/…` = `docs/docs/decisions/…`,
-  // so nineteen pointers at a file plainly on disk were reported dangling — and the genuinely
-  // dangling refs in the same list hid among them. A test covering only the majority spelling
-  // reproduces the bug it is meant to prevent, so both are asserted against the same real file.
-  const slug = "0209-tier-model-judged-uat-below-irreducible-human-witness.md";
-  for (const ref of [`doc:decisions/${slug}`, `doc:docs/decisions/${slug}`]) {
+/**
+ * The referential-integrity result for one doc holding `refs`, against a projection that also holds
+ * `rows` — by default the single decision row ADR-0209. Pass `[]` for the no-decision-index case.
+ */
+function refLines(refs: string[], rows: readonly StoredDoc[] = [adrRow(209)]): CheckResult {
+  const a = stored(validDefinitionBody({ id: "a", references: refs }));
+  return find(libraryHealth([a, ...rows], FAKE_DOCS), "referential-integrity");
+}
+
+test("referential-integrity resolves ALL THREE spellings of a decision that exists as a ROW", () => {
+  // ADR-0403 dec 7 keeps all three live and rewrites none of them, so a reader accepting one and
+  // not another returns a confident, plausible, wrong answer. All three name ADR-0209 here.
+  for (const ref of [`doc:decisions/${SLUG_0209}`, `doc:docs/decisions/${SLUG_0209}`, "asset:adr-0209"]) {
     const r = refLines([ref]);
-    assert.equal(r.level, "PASS", `${ref} names a file that exists — it must resolve`);
+    assert.equal(r.level, "PASS", `${ref} names a decision the store holds — it must resolve`);
   }
 });
 
-test("referential-integrity still WARNs on a genuinely missing decision, in EITHER spelling", () => {
-  // The other half of the bar: the fix must not turn "is a decision pointer" into "resolves".
-  // 0000 is in neither the fake tree nor the real decision log.
+test("referential-integrity still REPORTS a decision the store does not hold, in EITHER spelling", () => {
+  // THE HONESTY BAR. Without this the fix degrades into "decision pointers are never checked" —
+  // green, and worthless. 0000 is in no projection these tests build, and must report as absent
+  // from the STORE (not as a missing file, which is the claim that stopped being true).
   for (const ref of ["doc:decisions/0000-no-such.md", "doc:docs/decisions/0000-no-such.md"]) {
     const r = refLines([ref]);
     assert.equal(r.level, "WARN", `${ref} names nothing — it must still be reported`);
     assert.ok(r.lines.some((l) => l.includes(ref)), "the report names the pointer as authored");
+    assert.ok(
+      r.lines.some((l) => l.includes("adr-0000") && l.includes("not in the store")),
+      "and names the row it looked for, so a reader can go and check",
+    );
   }
 });
 
+test("a decision pointer never reaches docExists — the filesystem is not a fallback", () => {
+  // The bug was a decision pointer being answered by the disk. Asserting only the VERDICT would
+  // stay green on a fix that asked the disk first and the store second, which reintroduces it the
+  // day someone restores a stray `docs/decisions/` file. So the resolver records what it was asked.
+  const asked: string[] = [];
+  const a = stored(validDefinitionBody({ id: "a", references: [`doc:decisions/${SLUG_0209}`] }));
+  const results = libraryHealth([a, adrRow(209)], {
+    ...BASE_OPTS,
+    docExists: (rel: string) => {
+      asked.push(rel);
+      return true;
+    },
+  });
+  assert.equal(find(results, "referential-integrity").level, "PASS");
+  assert.deepEqual(asked, [], "a decision pointer must be resolved by the store alone");
+});
+
+test("omitting docExists skips research notes but can NOT switch decision checking off", () => {
+  // `docExists` is optional and fail-OPEN, which is defensible for a tree this check does not own.
+  // Decisions live in the store this report is already reading, so an omittable resolver would be a
+  // way to make the whole tier go unchecked while the report still printed a clean line.
+  const a = stored(
+    validDefinitionBody({
+      id: "a",
+      references: ["doc:decisions/0000-no-such.md", "doc:research/no-such-note.md"],
+    }),
+  );
+  const r = find(libraryHealth([a, adrRow(209)], BASE_OPTS), "referential-integrity"); // no docExists
+  assert.equal(r.level, "WARN");
+  assert.ok(r.lines.some((l) => l.includes("doc:decisions/0000-no-such.md")), "decision still checked");
+  assert.ok(
+    !r.lines.some((l) => l.includes("doc:research/no-such-note.md")),
+    "the disk-backed half is skipped, as it always was",
+  );
+});
+
+test("referential-integrity FAILS CLOSED when there are decision pointers but no decision ROWS", () => {
+  // Zero decision rows is never a clean index — it means an unreadable, unmigrated or wrong store.
+  // Both available answers would be confidently wrong (all resolve = the silent zero this arc
+  // exists to clear; all dangle = the 645-line false alarm it just cleared), so it reports neither.
+  const r = refLines([`doc:decisions/${SLUG_0209}`, "doc:docs/decisions/0000-no-such.md"], []);
+  assert.equal(r.level, "FAIL", "a report that cannot read its subject must not read as clean");
+  assert.ok(r.lines.some((l) => l.includes("2 decision pointer(s) NOT CHECKED")));
+  assert.ok(
+    !r.lines.some((l) => l.includes("not in the store")),
+    "and it does not dress an unreadable index up as dangling pointers",
+  );
+});
+
+test("no decision pointer to check is not a failure — the fail-closed branch needs a subject", () => {
+  // A corpus that cites no decisions has nothing to be unable to check, so an empty decision index
+  // is unremarkable there. Without this the fail-closed branch would red every decision-free
+  // projection, including the frozen 13-artifact fixture.
+  const r = refLines(["doc:research/library-schema-migrations-and-health-checks.md"], []);
+  assert.equal(r.level, "PASS");
+  assert.ok(!r.lines.some((l) => l.includes("NOT CHECKED")));
+});
+
+test("referential-integrity reports how many decision pointers it checked, against how many rows", () => {
+  // A check that ran and a check that found nothing to do are indistinguishable in a report that
+  // only ever prints failures — which is how an instrument comes to read as clean after its subject
+  // has moved out from under it. The census rides every outcome, clean or not.
+  const r = refLines([`doc:decisions/${SLUG_0209}`, `doc:docs/decisions/${SLUG_0209}`]);
+  assert.equal(r.level, "PASS");
+  assert.ok(
+    r.lines.some((l) => /2 decision pointer\(s\) resolved against 1 adr-NNNN rows/.test(l)),
+    `expected a decision census line, got: ${r.lines.join(" | ")}`,
+  );
+});
+
 test("referential-integrity leaves NON-decision doc: pointers exactly as authored", () => {
-  // `doc:` is the scheme for ANY repository file, so research notes must keep resolving unchanged —
+  // `doc:` is the scheme for ANY repository file, so research notes must keep resolving on disk —
   // and a missing one must still WARN rather than be swept into the decision arm.
   assert.equal(refLines(["doc:research/library-schema-migrations-and-health-checks.md"]).level, "PASS");
   assert.equal(refLines(["doc:research/no-such-note.md"]).level, "WARN");
@@ -230,9 +333,8 @@ test("referential-integrity leaves NON-decision doc: pointers exactly as authore
 
 test("referential-integrity does not treat a FOREIGN decisions/ tree as ours", () => {
   // `parseDecisionPointer` anchors at the start of the relative path precisely so a `vendor/`
-  // directory's numbering cannot collide with the decision log's. This pointer is docs-relative
-  // already, so it must resolve AS WRITTEN — a resolver that stripped any leading path segment to
-  // find `decisions/` would ask for `decisions/0001-not-ours.md` and report a false dangle.
+  // directory's numbering cannot collide with the decision log's. It is therefore NOT a decision
+  // pointer, must resolve on DISK as written, and must never be looked up as `adr-0001`.
   assert.equal(refLines(["doc:vendor/decisions/0001-not-ours.md"]).level, "PASS");
 });
 

@@ -28,14 +28,14 @@ decisions: [68, 74, 75, 78, 83, 85]
 verdict SHAPE — the foundational root node the whole graph points at, depending on nothing.
 
 `packages/proof-protocol` (formerly `verdict-contract` — renamed for role-not-position by
-[ADR-0078](../../docs/decisions/0078-rename-root-ports-role-not-position.md)) is the published verdict SHAPE (ADR-0068 §3): the zod DATA shapes +
+ADR-0078) is the published verdict SHAPE (ADR-0068 §3): the zod DATA shapes +
 validators (`Verdict` / `ProofMode` / `SigningRow` / `EvidenceRef` / `ChangeEvent` / `DriftFlag` /
 `Attestation` / `anchor`, plus the duplicated `Tier` / `Status`). It is **browser-safe and zod-only**:
 readers `.safeParse()` verdict-DATA across the organism boundary and never import the proof machinery
 (which lives in `drive-machinery`'s `packages/orchestrator`). It depends on **nothing** — it is the
 true sink at the bottom of the dependency order, the node every other organism ultimately points at.
 
-**Why it is a root organism, not an exempt class ([ADR-0075](../../docs/decisions/0075-model-the-shared-ports-as-root-organisms-collapse-the-substr.md)).**
+**Why it is a root organism, not an exempt class (ADR-0075).**
 ADR-0074 §2 rejected exempting the most-connected nodes (cli/store) from the boundary gate, because
 hiding a connection hides the architecture. The shared ports were the last exemption: a `substrate`
 class anyone could depend on with **no declared edge**. ADR-0075 removes it — proof-protocol is an
@@ -59,7 +59,7 @@ build catches an external node-only npm import the gate cannot see.)
 A pure protocol is a published SHAPE — there is no integrated user JOURNEY to walk; a schema port is
 a machine's job, not a human attestation. This port was extracted and named inside the Storytree
 initiative, so its passing suite and foundational position do not make it brownfield or Adopt-bound
-([ADR-0395](../../docs/decisions/0395-brown-records-provenance-missing-proof-stays-on-the-greenfie.md)).
+(ADR-0395).
 The author-declared observe gate below is therefore the port's one proof obligation: the suite is the
 evidence surface, while only the deterministic spine observing it green at a clean committed HEAD and
 persisting an `adopted` verdict signs `proof-protocol#gate-1` (ADR-0085).
