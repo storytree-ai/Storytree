@@ -476,3 +476,13 @@ test("--no-log stops the overflow line pointing at a log that is not rendered", 
     /drop --no-log to read the full increment log below\./,
   );
 });
+
+test("the UNKNOWN block does not point at a log --no-log has collapsed either", () => {
+  const s = deriveArcNarrativeStaleness({
+    ...PROSE,
+    increments: [closed("inc-10", "2026-08-03")],
+    events: [],
+  });
+  assert.doesNotMatch(renderNarrativeStaleness(s, "a1").join("\n"), /drop --no-log/);
+  assert.match(renderNarrativeStaleness(s, "a1", { noLog: true }).join("\n"), /\(drop --no-log to see it\)\./);
+});

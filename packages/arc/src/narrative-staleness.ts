@@ -273,9 +273,10 @@ export function renderNarrativeStaleness(
   if (s.undatable) {
     const landings = s.landings.length + s.undatedLandings.length;
     return [
-      `⚠ NARRATIVE FRESHNESS UNKNOWN — this arc has ${landings} landing${landings === 1 ? "" : "s"} on the log below,`,
+      `⚠ NARRATIVE FRESHNESS UNKNOWN — this arc has ${landings} landing${landings === 1 ? "" : "s"} on its increment log,`,
       "  but its write history holds no record of when the prose was last written, so whether the prose",
-      "  predates them could not be established. UNKNOWN IS NOT FRESH — read the log before trusting it.",
+      "  predates them could not be established. UNKNOWN IS NOT FRESH — read the log before trusting it" +
+        (opts.noLog === true ? " (drop --no-log to see it)." : "."),
       "",
     ];
   }
