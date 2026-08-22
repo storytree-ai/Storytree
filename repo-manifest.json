@@ -295,6 +295,7 @@
       "packages/library/src/decision-pointer.ts": "library",
       "packages/library/src/adr-doc.ts": "library",
       "packages/library/src/decision-amends-seam.ts": "library",
+      "packages/library/src/amends-annotation.ts": "library",
       "packages/library/src/combined-dag.ts": "library",
       "packages/library/src/lifecycle.ts": "library-lifecycle-wire",
       "packages/library/src/templates.ts": "author-library-artifact",

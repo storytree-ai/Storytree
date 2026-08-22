@@ -85,6 +85,14 @@ export * from "./knowledge-depth.js";
 // are still files — and it must not learn that. One verb, `amendsOf`; no `supersedesOf` and no
 // edge-type parameter, so ADR-0403 dec 6's never-sum rule is held by the shape of the interface.
 export * from "./decision-amends-seam.js";
+// ADR-0419 Decision 4 (`decision-read-measurement-arc` inc 05): the IN-PLACE ANNOTATION floor — an
+// accepted `amends` edge obliges its TARGET's body to say which clause moved, so a reader never has
+// to follow the edge to learn what changed. The pure judge only: ⚠ NOTHING WIRES IT TO THE GATE, and
+// nothing should until the backlog is drained (174 live edges would red it on day one). It catches
+// ABSENCE, never THINNESS — a bare number mention passes and still fails ADR-0139 D4, so a green
+// here is never compliance. Pure, browser-safe, and `supersedes` is absent from its input type for
+// the same shape-of-the-code reason its `decision-amends-seam.js` sibling gives.
+export * from "./amends-annotation.js";
 // ADR-0223 dec 5's one-time seed, as a pure function: the tier order (dec 3, amended by ADR-0363 D1)
 // and the down-tier citation projection the migration applies. Pure and browser-safe apart from the
 // zod pointer check it borrows from the schema.
