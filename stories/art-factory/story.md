@@ -8,8 +8,9 @@ proof_mode: UAT
 # Machine-judged: the factory is a pure deterministic MACHINE — declared relations → math → an
 # invariant-checked model → a deterministic draw order → baked drawables. There is no integrated
 # user JOURNEY to walk (the LOOK is attested elsewhere, ADR-0070 stage 2 / ADR-0219), so its green
-# remains unsigned until its greenfield proof obligations earn a current verdict. The existing offline
-# suite is evidence, not brownfield provenance (ADR-0395). No DB, no API key, no browser.
+# remains unsigned until its greenfield proof obligations earn current verdicts. The author-declared
+# observe gate runs the implemented factory organs' offline suite through the deterministic spine;
+# the suite alone is not a current signed pass or brownfield provenance (ADR-0395).
 uat_witness: machine
 arc: grounded-art-machinery-arc
 # Four capabilities on the real organ boundaries (ADR-0217 D1 — art factories are per object type):
@@ -146,20 +147,23 @@ kernel), so it stays pure-math / string-building and **node-free** — zero runt
 **foundational-minimality rule** the gate enforces — a foundational organism may only depend on other
 foundational organisms — holds by construction here: art-factory depends on nothing.
 
-## Existing machine checks
+## Reliability Gates
 
 The factory is **greenfield** (`status: proposed`): `packages/procedural-architecture` was built inside
 this initiative before its story/capability files were authored. Its real, passing OFFLINE automated
-suite (152 tests today) is useful evidence, but implementation or test registration order does not
-establish brownfield provenance and an observation does not manufacture a current signed pass
+suite is useful evidence, but implementation or test registration order does not establish brownfield
+provenance and an authored gate does not manufacture a current signed pass
 ([ADR-0395](../../docs/decisions/0395-brown-records-provenance-missing-proof-stays-on-the-greenfie.md)).
 A pure deterministic machine has no integrated user JOURNEY to walk, so there is no `## UAT Test
 Criteria` section (the appearance is operator-attested separately, ADR-0070 stage 2 / ADR-0219). The
-check below remains the current executable coverage inventory; it is not an Adopt route for these
-greenfield units.
+author-declared observe gate below is the implemented organs' machine own-proof: the suite is the
+evidence surface, while only the deterministic spine observing it green at a clean committed HEAD and
+persisting an `adopted` verdict signs `art-factory#gate-1`. Its explicit `(covers:)` is deliberately
+limited to the three implemented factory organs. It does not cover or imply completion of the
+greenfield, unbuilt `blocking-substrate-adapter`.
 
-1. **The factory's own suite** `pnpm --filter @storytree/procedural-architecture test`.
-   All **152** offline tests exercise
+1. **The implemented factory organs' suite is green** _(gate: observe)_ _(covers: art-pipeline, building-factory, landscape-factory)_
+   `pnpm --filter @storytree/procedural-architecture test`. The offline suite exercises
    (no DB, no API key, no browser): the shared pipeline (**art-pipeline**: `core.test.ts`,
    `apertures.test.ts`, `draw-order.test.ts`, `bake.test.ts` — the builder/projection, the invariant
    checker, aperture cutting, the deterministic draw order, and the bake-to-drawables + byte-identical
@@ -168,15 +172,20 @@ greenfield units.
    deterministically), and the landscape factory (**landscape-factory**: `landscape/*.test.ts` +
    `hero-kit.test.ts` — each hero physically sound and cheap, the standing stone baking to a real
    isometric solid, and the hero-kit roster baking into `kit.json` `heroes`). One command covers the
-   package honestly; it does not by itself sign or adopt the three greenfield capabilities.
+   package honestly; it does not by itself sign or adopt the three greenfield capabilities. From a
+   clean committed HEAD, `storytree gate run art-factory#gate-1 --pg` makes the spine observe this
+   exact command and sign only when it exits green. The capability floor remains expandable when a
+   real defect or separable new organ earns its own red→green leg.
 
 ## Proof
 
-**Green remains earned, not authored.** `packages/procedural-architecture` has a real, passing,
-offline suite (152 tests today — the pipeline's determinism / invariants / draw order / bake, and every
-per-object-type factory sound across its parameter space), but that evidence neither changes its
-greenfield provenance nor substitutes for a current signed pass. The authored rung therefore stays
-`proposed`; the world crown can derive green only from signed proof (ADR-0020 / ADR-0040 / ADR-0395).
+**Green remains earned, not authored.** `packages/procedural-architecture` has a real, passing offline
+suite and now declares that suite as `art-factory#gate-1`; neither the command nor its authored gate is
+itself a pass. The authored rung remains `proposed` until the deterministic spine observes the command
+green at a clean committed HEAD and persists the signed gate verdict. That gate can green only
+`art-pipeline`, `building-factory`, and `landscape-factory`. The unbuilt
+`blocking-substrate-adapter` remains unproven and therefore still holds the story crown short of
+healthy (ADR-0020 / ADR-0040 / ADR-0085 / ADR-0395).
 
 ## Open modeling calls (for the owner)
 
