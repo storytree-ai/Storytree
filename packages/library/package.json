@@ -10,6 +10,7 @@
     "./knowledge": "./src/knowledge.ts",
     "./knowledge-depth": "./src/knowledge-depth.ts",
     "./knowledge-render": "./src/knowledge-render.ts",
+    "./adr-doc": "./src/adr-doc.ts",
     "./repo-root": "./src/repo-root.ts",
     "./store": "./src/store/index.ts",
     "./store/connection": "./src/store/connection.ts",
@@ -26,6 +27,7 @@
     "@storytree/proof-protocol": "workspace:*",
     "google-auth-library": "^10.7.0",
     "pg": "^8.13.1",
+    "yaml": "^2.6.1",
     "zod": "^3.24.1"
   },
   "devDependencies": {

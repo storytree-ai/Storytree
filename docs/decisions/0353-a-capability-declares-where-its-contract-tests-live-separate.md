@@ -1,11 +1,6 @@
 ---
 status: accepted
 decided: 2026-08-12
-# ADR-0122 established the binding this widens (the sweep read the `real:` arm alone), so it is no
-# longer wholly self-describing — that is an `amends` edge. ADR-0252 D3 and ADR-0269 are APPLIED
-# here, not amended: the ceiling moves DOWN (D3's own remedy) and the aperture enlargement is
-# measured exactly as ADR-0269 4(b) requires. Claiming amends on those would inflate the
-# load-bearing set with decisions this one obeys rather than changes.
 amends: [122]
 ---
 # ADR-0353: A capability declares where its contract tests live, separately from what its build may write
@@ -13,6 +8,12 @@ amends: [122]
 ## Status
 
 accepted (2026-08-12) — decided/directed by the owner in conversation on 2026-08-12. Design-time alignment IS the ratification (ADR-0110); no second end-of-flow ask.
+
+**Why the edges are what they are.** ADR-0122 established the binding this widens (the sweep read the
+`real:` arm alone), so it is no longer wholly self-describing — that is an `amends` edge. ADR-0252 D3
+and ADR-0269 are APPLIED here, not amended: the ceiling moves DOWN (D3's own remedy) and the aperture
+enlargement is measured exactly as ADR-0269 4(b) requires. Claiming amends on those would inflate the
+load-bearing set with decisions this one obeys rather than changes.
 
 ## Context
 

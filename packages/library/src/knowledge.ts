@@ -70,7 +70,12 @@ export type KnowledgeKind =
   | "friction"
   | "arc"
   | "increment"
-  | "uat-criterion";
+  | "uat-criterion"
+  // The decision log's own kind (ADR-0403 dec 1), added by `decision-log-home-arc`. A decision
+  // record is an ORDINARY Library artifact — same store, same graph, no special tier and no kind
+  // held outside the DAG. See {@link Adr} for why its whole document is ONE prose field rather than
+  // the section table every other kind carries.
+  | "adr";
 
 /**
  * The per-kind field tables. ORDER IS SIGNIFICANT: the renderer emits fields in this order
@@ -558,6 +563,34 @@ export const KIND_SPECS: Readonly<Record<KnowledgeKind, readonly KindFieldSpec[]
       placeholder: "_Optional `asset:<id>` refs to reusable Library principles/processes._",
     },
   ],
+  // A decision record (ADR-0403 dec 1) is ONE PROSE FIELD, and that is a measurement rather than a
+  // shortcut. Counted across the 403 committed decisions on 2026-08-22, only 311 (77%) carry the
+  // canonical `Status / Context / Decision / Consequences / References` five; the other 92 carry
+  // their own headings — `## What this does NOT decide`, `## Options weighed and rejected`,
+  // `## Owner decisions (2026-06-14)`, a dated `## Reaffirmation`. A fixed section table would have
+  // to drop those or force them into a field that does not mean them, and the tier this corpus
+  // rewrites most is the one that can least afford a lossy shape.
+  //
+  // So the body is carried whole and byte-exact, and the QUERYABLE state — status / decided /
+  // amends / supersedes / loadBearing / arcRef — lives in typed schema fields on {@link Adr},
+  // exactly where the markdown frontmatter carried it before (ADR-0037 §1). ADR-0139's rule is
+  // unchanged by the move: `status` stays a PROJECTION of the `## Status` prose, which is now a
+  // paragraph inside this field instead of a section of a file.
+  //
+  // `heading: ""` is what makes the render raw — see {@link renderBody}. A decision record has its
+  // own `# ADR-NNNN:` H1 as its first line, so any wrapper heading this table emitted would be a
+  // second title the author never wrote, and would break the byte-identical round trip
+  // (ADR-0403 dec 9) that makes the tier authorable at all.
+  adr: [
+    {
+      field: "body",
+      lead: true,
+      heading: "",
+      required: true,
+      placeholder:
+        "_The decision record, whole: its `# ADR-NNNN:` H1 and every section beneath it. Keep `## Status` — the `status` field is a projection of that prose (ADR-0139), never an independent write._",
+    },
+  ],
 } as const;
 
 /**
@@ -697,16 +730,15 @@ export const AssetRef = z.string().regex(/^asset:[A-Za-z0-9_-]+$/, {
 export const STORY_REF_PREFIX = "story:";
 export const CAPABILITY_REF_PREFIX = "capability:";
 
-/**
- * The `asset:<id>` Library pointer — the third {@link CiteScheme}, and the one `references` uses.
- *
- * It sits beside its two siblings rather than in a consumer package because the arc extraction
- * (`arc-tier-extraction-arc`) gave it a SECOND package of readers: `@storytree/arc` mints an
- * `asset:` citation when a friction route parks an increment, and `@storytree/cli`'s
- * `asset-citation.ts` resolves one. Two packages agreeing on a token by copying it is the drift seam
- * `parseCiteRef` exists to prevent — so the token is defined once, here, and re-exported there.
+/*
+ * `ASSET_REF_PREFIX` used to stand here beside its two siblings. It moved to `decision-pointer.ts`
+ * when a decision became an ordinary artifact (ADR-0403 dec 1): `parseDecisionPointer` resolves
+ * `asset:adr-NNNN` and had to have the token, and that module is the pure string-parsing bottom of
+ * this package — importing the whole zod schema module into it to get a five-character literal
+ * would invert the dependency for nothing. It is still exported from `@storytree/library`'s barrel,
+ * so `@storytree/arc` and `@storytree/cli` import it exactly as before; the "defined once,
+ * re-exported there" rule is unchanged, only the definition site moved.
  */
-export const ASSET_REF_PREFIX = "asset:";
 
 /**
  * PURE: kebab-case slug from a title (a-z0-9, hyphen-separated), capped so filenames stay sane.
@@ -1301,6 +1333,76 @@ export function assertIncrementInvariants(doc: Increment): void {
 // one-liners (`displayTitle` from `@storytree/uat-criterion`). NEW kind → no schemaVersion bump.
 export const UatCriterion = buildKindSchema("uat-criterion");
 
+/**
+ * A decision record's status (ADR-0037 §1) — the same closed triad the markdown frontmatter carried,
+ * moved onto the row unchanged by ADR-0403 dec 1.
+ *
+ * IT IS A PROJECTION, NOT AN INDEPENDENT WRITE (ADR-0139). The `## Status` prose inside the body is
+ * the evidence; this field transcribes it. Being a column now changes nothing about that — the whole
+ * reason the body is carried as one field is that the prose and its projection cannot drift apart
+ * inside a single edit.
+ */
+export const AdrDocStatus = z.enum(["proposed", "accepted", "superseded"]);
+export type AdrDocStatus = z.infer<typeof AdrDocStatus>;
+
+/** A decision number, as it appears in `amends` / `supersedes` and in the `adr-NNNN` id. */
+const AdrDocNumber = z.number().int().positive();
+
+/**
+ * The `adr` kind (ADR-0403 dec 1) — a decision record as an ORDINARY Library artifact.
+ *
+ * Its KIND_SPECS table is one raw-rendered `body` field (see the comment there for the measurement
+ * that forced it); everything the old markdown FRONTMATTER carried becomes a typed schema field
+ * here, because that is the half anything queries. `storytree adr list --load-bearing` /
+ * `--current` / `--status` are all reads of these six, and the arc surface derives its ADR leg from
+ * `arcRef`.
+ *
+ * ## `amends` AND `supersedes` ARE NUMBERS, AND THEY STAY SEPARATE FIELDS
+ *
+ * Numbers rather than `asset:` pointers, so a store row satisfies `AmendsOnlyDecision` — the
+ * edge-resolution seam ADR-0403 dec 3 required the depth walk to be built against
+ * (`decision-amends-seam.ts`) — with no adapter at all. That seam performs the never-sum rule
+ * (ADR-0403 dec 6) by the SHAPE of its parameter type: it cannot see `supersedes`. Keeping the two
+ * as distinct fields with distinct element types is what lets that keep working after the migration;
+ * folding them into one edge list with a type tag would put the summing mistake back within reach.
+ *
+ * `dependsOn` arrives from `buildKindSchema` like any non-edge-free kind, and that is ADR-0403 dec 4
+ * landing: ADR-0223 D4 made decisions tier-0 SINKS so the knowledge tree could not contain a loop,
+ * and one graph of ordinary artifacts has no boundary for that rule to guard. The loop question is
+ * answered by a proof over the combined graph instead (`combined-dag.ts`, ADR-0403 dec 5).
+ *
+ * Every field is `.default()`ed or `.optional()` except `number` and `status`, which no decision has
+ * ever lacked. A NEW kind touches no existing doc, so it needs NO `CURRENT_SCHEMA_VERSION` bump and
+ * no migration at all (the `uat-criterion` precedent, re-verified: every registered transform is a
+ * per-doc function that no-ops on a kind it does not name).
+ */
+export const Adr = buildKindSchema("adr").extend({
+  /** The decision's number — its identity, and the `NNNN` in its `adr-NNNN` id. */
+  number: AdrDocNumber,
+  status: AdrDocStatus,
+  /** The ISO date the decision was made (`decided:` in the old frontmatter). */
+  decided: z.string().optional(),
+  /** The decisions this one still rests on — THE DEPTH EDGE (ADR-0403 dec 6). Never summed below. */
+  amends: z.array(AdrDocNumber).default([]),
+  /** The decisions this one replaced — archaeology, never depth. Never summed with `amends`. */
+  supersedes: z.array(AdrDocNumber).default([]),
+  /**
+   * The ADR-0086 current-state tag: the curated set a new session calibrates to. TRANSITIONAL —
+   * ADR-0139 retires it at the end of the consolidation pass, until which it is that pass's
+   * worklist marker.
+   */
+  loadBearing: z.boolean().default(false),
+  /**
+   * The ADR-0183 D3 provenance stamp: the `arc` artifact that produced this decision.
+   *
+   * An `asset:` pointer where the markdown frontmatter carried a BARE id, so the arc's ADR leg is a
+   * pointer query like every other containment derivation in the corpus (`Increment.arcRef` /
+   * `OpenQuestion.arcRef` are the precedent it now matches). Optional: pre-0183 and arc-less
+   * decisions stay unstamped.
+   */
+  arcRef: AssetRef.optional(),
+});
+
 /** A knowledge unit at any kind. The discriminator is `kind` (ADR-0017). */
 export const Knowledge = z.discriminatedUnion("kind", [
   Definition,
@@ -1315,6 +1417,7 @@ export const Knowledge = z.discriminatedUnion("kind", [
   Arc,
   Increment,
   UatCriterion,
+  Adr,
 ]);
 
 export type Knowledge = z.infer<typeof Knowledge>;
@@ -1330,6 +1433,7 @@ export type Friction = z.infer<typeof Friction>;
 export type Arc = z.infer<typeof Arc>;
 export type Increment = z.infer<typeof Increment>;
 export type UatCriterion = z.infer<typeof UatCriterion>;
+export type Adr = z.infer<typeof Adr>;
 
 /**
  * The known top-level field names of a structured Knowledge kind, read straight from that kind's

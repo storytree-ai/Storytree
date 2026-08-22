@@ -223,7 +223,11 @@ function versionFloor(docs: readonly StoredDoc[], current: number): CheckResult 
 function docsRelativeTarget(ref: string): string {
   const rel = ref.slice(DOC_REF_PREFIX.length);
   const decision = parseDecisionPointer(ref);
-  if (decision === null || decision.spelling === "decisions") return rel;
+  // POSITIVE test on the one spelling that needs rewriting, never `!== "decisions"`. The spelling
+  // set grew an `asset` member when decisions became rows (ADR-0403 dec 1), and a negated test would
+  // have silently sent that one down the strip-`docs/` branch. Unreachable today — this function is
+  // only ever called for a `doc:` ref — which is exactly why it had to be closed before it was.
+  if (decision === null || decision.spelling !== "docs/decisions") return rel;
   // The repo-relative spelling, made docs-relative. Backslashes fold first for the same reason the
   // parser folds them: a pointer authored on Windows names the same file as one authored anywhere.
   return rel.replace(/\\/g, "/").slice("docs/".length);
