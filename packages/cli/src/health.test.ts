@@ -161,6 +161,70 @@ test("referential-integrity skips doc: resolution when no docExists is injected"
   assert.equal(find(results, "referential-integrity").level, "PASS");
 });
 
+// --- doc: pointers at DECISION RECORDS, in both live spellings ---------------------------------
+/**
+ * A FAKE `docs/` TREE, not a `() => true` stub — and that is the whole point of these four tests.
+ * The resolver the CLI injects is docs-RELATIVE (`path.join(<repoRoot>/docs, rel)`), so a stub that
+ * answers true for everything cannot tell a resolved pointer from a mis-built path, and a suite
+ * built on one would go green on exactly the bug below. This set says which files exist; anything
+ * else is genuinely absent, so a mis-built `docs/docs/decisions/…` reads as the WARN it is.
+ *
+ * The corpus carries two live spellings of the same decision file — `doc:decisions/NNNN-slug.md`
+ * (371 pointers) and repo-relative `doc:docs/decisions/NNNN-slug.md` (19) — and both name the file
+ * that lives here as `decisions/0209-…`. ADR-0403 dec 7: a reader accepting one spelling and not
+ * the other returns a confident, plausible, wrong answer.
+ */
+const DOCS_TREE: ReadonlySet<string> = new Set([
+  "decisions/0209-tier-model-judged-uat-below-irreducible-human-witness.md",
+  "research/library-schema-migrations-and-health-checks.md",
+  // A foreign tree that merely CONTAINS a `decisions/` directory — see the anchoring test below.
+  "vendor/decisions/0001-not-ours.md",
+]);
+const FAKE_DOCS = { ...BASE_OPTS, docExists: (rel: string) => DOCS_TREE.has(rel) };
+
+/** The referential-integrity lines for one doc, resolved against {@link DOCS_TREE}. */
+function refLines(refs: string[]): CheckResult {
+  const a = stored(validDefinitionBody({ id: "a", references: refs }));
+  return find(libraryHealth([a], FAKE_DOCS), "referential-integrity");
+}
+
+test("referential-integrity resolves BOTH live spellings of the same decision file", () => {
+  // The repo-relative spelling was the bug: `docs/` + `docs/decisions/…` = `docs/docs/decisions/…`,
+  // so nineteen pointers at a file plainly on disk were reported dangling — and the genuinely
+  // dangling refs in the same list hid among them. A test covering only the majority spelling
+  // reproduces the bug it is meant to prevent, so both are asserted against the same real file.
+  const slug = "0209-tier-model-judged-uat-below-irreducible-human-witness.md";
+  for (const ref of [`doc:decisions/${slug}`, `doc:docs/decisions/${slug}`]) {
+    const r = refLines([ref]);
+    assert.equal(r.level, "PASS", `${ref} names a file that exists — it must resolve`);
+  }
+});
+
+test("referential-integrity still WARNs on a genuinely missing decision, in EITHER spelling", () => {
+  // The other half of the bar: the fix must not turn "is a decision pointer" into "resolves".
+  // 0000 is in neither the fake tree nor the real decision log.
+  for (const ref of ["doc:decisions/0000-no-such.md", "doc:docs/decisions/0000-no-such.md"]) {
+    const r = refLines([ref]);
+    assert.equal(r.level, "WARN", `${ref} names nothing — it must still be reported`);
+    assert.ok(r.lines.some((l) => l.includes(ref)), "the report names the pointer as authored");
+  }
+});
+
+test("referential-integrity leaves NON-decision doc: pointers exactly as authored", () => {
+  // `doc:` is the scheme for ANY repository file, so research notes must keep resolving unchanged —
+  // and a missing one must still WARN rather than be swept into the decision arm.
+  assert.equal(refLines(["doc:research/library-schema-migrations-and-health-checks.md"]).level, "PASS");
+  assert.equal(refLines(["doc:research/no-such-note.md"]).level, "WARN");
+});
+
+test("referential-integrity does not treat a FOREIGN decisions/ tree as ours", () => {
+  // `parseDecisionPointer` anchors at the start of the relative path precisely so a `vendor/`
+  // directory's numbering cannot collide with the decision log's. This pointer is docs-relative
+  // already, so it must resolve AS WRITTEN — a resolver that stripped any leading path segment to
+  // find `decisions/` would ask for `decisions/0001-not-ours.md` and report a false dangle.
+  assert.equal(refLines(["doc:vendor/decisions/0001-not-ours.md"]).level, "PASS");
+});
+
 test("referential-integrity WARNs on a dangling node: pointer (ADR-0107 D2's third token)", () => {
   // A `node:<id>` ref used to fall through every arm and be silently ignored, so a citation of a
   // retired story dangled invisibly. WARN, not FAIL — like doc:, it points OUT of the library.

@@ -288,7 +288,12 @@ kind owes a seed export any more.
   workspace with a dev-dependency cycle on Windows, and the app keeps its worktrees inside the very
   directory that pathspec covers.
   - **The one surviving tell:** does `Starting local session <id> in <cwd>` follow `LocalSessions.start:`
-    in `%APPDATA%\Claude\logs\main.log` AT ALL. ⚠ **~5 s is the NORMAL latency, not a deadline** —
+    in the desktop log AT ALL — which since the 2026-08-22 reinstall is
+    `%LOCALAPPDATA%\Claude\logs\main.log`, NOT `%APPDATA%\Claude\logs\main.log`. The old directory
+    still exists, still holds a same-named `main.log`, and is FROZEN at the last pre-reinstall
+    `willQuit`, so tailing it answers about a DEAD process and manufactures the very false BROKEN
+    this bullet exists to prevent. `ls -lt` BOTH and read the newer. (Only `logs` moved — the app's
+    data root is still `%APPDATA%\Claude`.) ⚠ **~5 s is the NORMAL latency, not a deadline** —
     measured 2026-08-19, a worktree-backed start took **95 s and SUCCEEDED** (the pool scrubbed six
     reuse candidates first, gave up, and fell through to create-fresh, which finished in four), so a
     five-second cutoff manufactures a false BROKEN. **Both older tells are FALSE**, which is most of

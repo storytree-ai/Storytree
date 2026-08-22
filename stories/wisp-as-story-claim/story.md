@@ -276,7 +276,8 @@ the render. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 D1).
 > **ADR-0294 D2/D4 pass, 2026-08-20 — legs 3 and 7 are DELETED, and the five survivors are declared
 > UNBOUND.** Old legs **3** and **7** restated proof that already exists one rung down and named it in
 > their own success clauses. Leg 3's contention walk is proven by the capability
-> [`claim-store-work-time`](claim-store-work-time.md), whose declared proof command
+> [`claim-store-work-time`](claim-store-work-time.md), contract
+> `claim-contention-refuses-or-queues-naming-the-holder`, whose declared proof command
 > (`pnpm --filter @storytree/notice-board test`) runs
 > `packages/notice-board/src/store/claim-store.test.ts` — “claim (REFUSED — the red→green): a
 > different session's live claim → acquired:false, holder named, 'conflict-refused' event, NO write
@@ -288,13 +289,15 @@ the render. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 D1).
 > `claim-activity-is-visibly-distinct-from-proven-green` at
 > `apps/studio/server/inFlightActivity.test.ts`; the SCENE CORE by
 > [`forest-world`](../forest-world/render-core.md)'s `render-core` (greened by `forest-world#gate-1`
-> over `pnpm --filter @storytree/forest-world test`) at `packages/forest-world/src/scene.test.ts` —
+> over `pnpm --filter @storytree/forest-world test`), contract
+> `rc-claim-layer-never-folds-bloom-vocabulary`, at `packages/forest-world/src/scene.test.ts` —
 > “§5 honesty wall: a claim wisp is NEVER a bloom — no bloom/outcome token anywhere on the claim
 > layer”, “§5 honesty wall holds for EVERY grade + the departure layer: no bloom kind, no verdict
 > outcome” and “ADR-0212: folding a GREEN build band never turns the claim body into a proof (the §5
 > wall holds)”; and the RENDERED DOM by
 > [`app-surface`](../app-surface/app-surface-world-view.md)'s `app-surface-world-view` (greened by
-> `app-surface#gate-1` over `pnpm --filter @storytree/app-surface test`) at
+> `app-surface#gate-1` over `pnpm --filter @storytree/app-surface test`), contract
+> `aswv-claim-wisp-never-painted-as-proven-green`, at
 > `packages/app-surface/src/SceneView.test.tsx` — “§5 HONESTY WALL: a claim wisp is NEVER painted as
 > the proven-green bloom (class-level)”, “§5 HONESTY WALL extended: hover / queue / departing wisps
 > never carry bloom/verdict classes” and “ADR-0212 honesty wall: a GREEN build band never paints the
@@ -303,17 +306,33 @@ the render. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 D1).
 > surviving leg moves and no binding is re-pointed. This story now carries **FIVE** `machine` legs
 > (1, 2, 5, 9, 10) and no `human` leg.
 >
-> **A citation caveat worth reading before reusing these two.** Neither deletion could name a
-> CONTRACT, only a capability. `claim-store-work-time`'s three declared contracts are
-> `releaseClaimsByBranch`, the heartbeat-bump shape and the work-time `ClaimRequest` builder — none of
-> them the contention arms — and the graded `take` / `upgrade` / `downgrade` machinery is, by that
-> capability's own text, the [`notice-board`](../notice-board/story.md) story's living shape, consumed
-> here through the ADR-0192 hosted seam. `render-core` and `app-surface-world-view` likewise green a
-> whole package suite through an observe gate without declaring a contract per claim-family walk. So
-> both rationales cite the ASSERTIONS rather than a contract id — the same discipline PR #1444 arrived
-> at when `repo-selection`'s declared ids turned out to appear in no test file. The proof runs on
-> every `pnpm -r test` either way; what is missing is a contract NAMING it, which is a
-> capability-shape gap and not a reason to keep a story-tier duplicate standing.
+> **The citation caveat is DISCHARGED — both deletions now name a contract (corrected in place
+> 2026-08-22, ADR-0139).** This paragraph previously read "Neither deletion could name a CONTRACT,
+> only a capability", and that is no longer true: the arc increment
+> `uat-contractless-tested-behaviour-claims` authored the three missing contracts against the same,
+> unchanged assertions, and bound each by id in the test titles themselves. Leg 3's contention walk is
+> [`claim-store-work-time`](claim-store-work-time.md)'s
+> `claim-contention-refuses-or-queues-naming-the-holder`; leg 7's scene-core wall is `render-core`'s
+> `rc-claim-layer-never-folds-bloom-vocabulary` and its rendered-DOM wall is
+> `app-surface-world-view`'s `aswv-claim-wisp-never-painted-as-proven-green`. Nothing about what is
+> PROVEN moved — only what can be named.
+>
+> **What the caveat said, kept because the reasoning is the reusable part.** At deletion time
+> `claim-store-work-time` declared only `releaseClaimsByBranch`, the heartbeat-bump shape and the
+> work-time `ClaimRequest` builder — none of them the contention arms — while `render-core` and
+> `app-surface-world-view` greened a whole package suite through an observe gate without declaring a
+> contract per claim-family walk. Both rationales therefore cited the ASSERTIONS rather than a
+> contract id, the same discipline PR #1444 arrived at when `repo-selection`'s declared ids turned out
+> to appear in no test file. That is the general shape ADR-0294 D2's honesty wall keeps running into,
+> and it now has an instrument: `storytree coverage --contractless <test-path>` answers "which node
+> claims this test?" before a rationale is written. Two limits survive the repair. The graded `take` /
+> `upgrade` / `downgrade` machinery is still, by `claim-store-work-time`'s own text, the
+> [`notice-board`](../notice-board/story.md) story's living shape consumed here through the ADR-0192
+> hosted seam — the contract is homed on the consumer because that story holds no live capability for
+> the ledger core, and re-homing it is a story-shape call, not a citation one. And `render-core`
+> declares no `proof:` block at all, so its new contract is bound only by the id sitting in the test
+> title: ADR-0353's read-only coverage surface is reachable only from a `proof:` block, which a
+> capability with no `real:` arm cannot carry.
 >
 > **The five survivors stay unbound, and that is the honest state rather than an omission.** Legs 1,
 > 2, 5, 9 and 10 are genuine journey steps, and each is at most a PARTIAL duplicate — the

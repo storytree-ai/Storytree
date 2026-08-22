@@ -77,9 +77,12 @@ edge: (a) a proof-precondition — "opens a FRESH tab, the active session untouc
 the multi-tab substrate; (b) a shared-file sequencing edge — both caps `editsExisting` the SAME
 `TerminalDock.tsx`, so this builds AFTER `multi-session-tabs` commits the tab machinery, re-routing the seed
 onto the "+"-spawns-a-tab path it delivered. The dock still receives the command as an opaque `string` in
-its `seed` prop — it neither composes it (`compose-build-command`'s job, map-terminal-build) nor knows about
-the Build button (`map-build-seeds-terminal`'s job); those and the TreeView `seed` glue are UNCHANGED and
-FEED the seed. Only the dock's HANDLING of a seed changes.
+its `seed` prop — it neither composes it nor knows about any producer of one. *(This read: it neither
+composes it (`compose-build-command`'s job, map-terminal-build) nor knows about the Build button
+(`map-build-seeds-terminal`'s job); those and the TreeView `seed` glue are UNCHANGED and FEED the seed.
+ADR-0404 has since retired `map-terminal-build` and deleted the composer, the button and the TreeView
+glue — nothing produces a seed today, and the `seed` prop this capability re-routes has no live producer.
+Corrected in place per ADR-0139.)* Only the dock's HANDLING of a seed changes.
 
 > **Proof status (honest) — EDIT-EXISTING, `proposed`, RE-DECIDES `terminal-dock-seed`.** After
 > `multi-session-tabs` lands, `TerminalDock` is multi-session but a `seed` still writes the ACTIVE session

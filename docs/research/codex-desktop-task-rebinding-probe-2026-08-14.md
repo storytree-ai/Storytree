@@ -1,5 +1,12 @@
 # Probe: can the current Codex desktop task be rebound to a different worktree?
 
+> **HISTORICAL RECORD — not instruction.** ADR-0390 (2026-08-20) withdrew the managed Codex
+> containment boundary, and the `codex-retire-the-containment-machinery` increment deleted the
+> code this document describes. Its findings about the Codex app-server protocol remain true; the increment they served was dissolved before ADR-0390.
+> Kept as the record of how the boundary was built and measured. Do not follow its procedures.
+> Current state: `storytree arc show codex-factory-parity-arc --pg`, and the journey survey at
+> `docs/research/codex-onboarding-journey-survey-2026-08-22.md`.
+
 **Date:** 2026-08-14
 **Increment:** `codex-desktop-task-rebinding-probe` (arc `codex-factory-parity-arc`)
 **Product under probe:** the repository-pinned payload
