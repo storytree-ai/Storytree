@@ -10,6 +10,7 @@ import {
   isScrubbedEnvKey,
   nodeEvalExecutor,
   runShellCommand,
+  shellObserveCommand,
 } from "./shell-test-executor.js";
 
 // These spawn the SAME Node binary running this test — fully offline, no files, no network.
@@ -388,4 +389,47 @@ test("a vetoed green is still a fail-closed RED carrying the veto reason (ADR-02
 
   assert.equal(obs.result, "red");
   assert.equal(obs.note, "0 assertions executed");
+});
+
+// ── shellObserveCommand: the OBSERVE path runs the AUTHORED command line (ADR-0420) ──
+//
+// These are the two shapes the old whitespace-split-into-execFile runner could NEVER observe green,
+// and they are the reason six `ci-cd` gates sat unobservable from the day they were authored: a
+// quoted argument was shredded into stray argv entries, and `&&` was handed to the first command as
+// a literal. Both spawn the SAME Node binary running this test — offline, no files, no network.
+
+test("shellObserveCommand: an authored command with a QUOTED argument is observed green", async () => {
+  const command = `"${process.execPath}" -e "const s = 'a b c'; if (s !== 'a b c') process.exit(9)"`;
+  const out = await runShellCommand(shellObserveCommand(command, tmpdir()));
+  assert.equal(out.code, 0);
+});
+
+test("shellObserveCommand: an authored command joined with && is observed green", async () => {
+  const node = `"${process.execPath}"`;
+  const command = `${node} -e "process.exit(0)" && ${node} -e "process.exit(0)"`;
+  const out = await runShellCommand(shellObserveCommand(command, tmpdir()));
+  assert.equal(out.code, 0);
+});
+
+test("shellObserveCommand: a RED stays red — the shell reports the failing exit code as DATA", async () => {
+  const command = `"${process.execPath}" -e "process.exit(4)"`;
+  const out = await runShellCommand(shellObserveCommand(command, tmpdir()));
+  assert.equal(out.code, 4);
+});
+
+// NON-VACUITY CONTROL: the same two command strings through the OLD vector path (whitespace-split,
+// no shell) do NOT exit 0. Without this the tests above would pass even if `shell` were ignored.
+test("NON-VACUITY: the same commands through the no-shell vector path are NOT green", async () => {
+  const quoted = `"${process.execPath}" -e "const s = 'a b c'; if (s !== 'a b c') process.exit(9)"`;
+  const parts = quoted.trim().split(/\s+/);
+  const viaVector = await runShellCommand({ file: process.execPath, args: parts.slice(1), cwd: tmpdir() });
+  assert.notEqual(viaVector.code, 0);
+});
+
+test("shellObserveCommand builds a shell command carrying the WHOLE line, with no argument vector", () => {
+  const built = shellObserveCommand("pnpm --filter studio test", "/repo");
+  assert.equal(built.shell, true);
+  assert.equal(built.file, "pnpm --filter studio test");
+  assert.deepEqual(built.args, []);
+  assert.equal(built.cwd, "/repo");
 });

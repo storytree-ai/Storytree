@@ -50,7 +50,7 @@ import {
   findNodeSpecFile,
   readTestSurface,
   resolveSignerFromEnv,
-  platformShellCommand,
+  shellObserveCommand,
   runShellCommand,
 } from "@storytree/orchestrator";
 import { renderStoredDoc, renderProcessNode } from "@storytree/library/store";
@@ -2312,12 +2312,13 @@ function flipStatusToProposedFile(storiesDir: string, storyId: string): FlipResu
  * code. No shell (`execFile` of file+args, injection-safe); a non-zero exit is data, not a throw.
  */
 async function observeCommand(command: string): Promise<{ code: number | null }> {
-  const parts = command.trim().split(/\s+/);
-  const file = parts[0];
-  if (file === undefined) return { code: null };
-  const cmd = platformShellCommand({ file, args: parts.slice(1), cwd: repoRoot() });
+  // ADR-0420 D1: run the AUTHORED command line through the platform shell, as written. The old shape
+  // whitespace-split it into an execFile vector, which shredded quoted arguments and passed `&&` to
+  // the first command as a literal — so a gate written as `node -e "…"` could never exit 0, and the
+  // spine reported it as an ordinary red. Same builder as `adopt`'s copy in `@storytree/drive`.
+  if (command.trim().length === 0) return { code: null };
   try {
-    const out = await runShellCommand(cmd);
+    const out = await runShellCommand(shellObserveCommand(command.trim(), repoRoot()));
     return { code: out.code };
   } catch {
     // A genuine spawn failure (ENOENT) — the command did not run, so it did not pass (fail-closed).
