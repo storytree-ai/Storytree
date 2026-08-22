@@ -64,9 +64,36 @@ setting the arc expected to collide with the rule turns out not to.**
    consumers, and *not* inert for anything hashed or compared byte-wise. This repo signs verdicts and
    computes anchors over spans, and one sampled site builds an HTTP wire body
    (`storage-protocol/src/http-store.ts:143`). Check per site; the gate will not check it for you.
-3. **`readonly` optional properties cannot be conditionally assigned.** The compliant shape there is a
-   `Mutable<T>` mapped-type draft handed over by a checked assignment. ⚠ **Not** an `as T` — that
-   trades this rule's violation for a `no-chained-type-assertions` one.
+3. **`readonly` optional properties cannot be conditionally assigned.** ⚠ **CORRECTED IN PLACE by
+   `inc-11` (ADR-0139) — this cost originally prescribed a `Mutable<T>` mapped-type draft, and that
+   shape is wrong in this repo.** It trades this rule's violation for an
+   `anti-slop/no-known-value-widening` one, which is the rule `inc-10` is driving to zero:
+   `classifyWideningTarget` resolves a same-file **generic** alias over a mapped type through
+   `resolvesToDictionary` and returns `generic container`. Three of `inc-11`'s nine lanes hit this
+   INDEPENDENTLY — one read the classifier and avoided it, one wrote the code and backed it out, one
+   shipped it and it was caught centrally as a measured +1 against a 133 baseline.
+
+   The shapes that DO work, all measured over the 658-site migration:
+   - **`Omit<Named, "theOptionalProp">`** as the base's annotation, plus a plain (non-conditional)
+     spread of a small named bag carrying the optionals. `Omit` is not in `TRANSPARENT_WRAPPERS` and
+     is not a file-local alias, so it classifies to `null` and is invisible to the widening rule.
+   - **Base-plus-ternary** on the whole object (also the answer for cost 4).
+   - **A NON-GENERIC alias hop** — `type XDraft = Mutable<Real>` — which routes through
+     `classifyAliasBroadTarget` instead, where `keyof T` is correctly found not to be a broad key.
+
+   Measured-safe as annotations: imported or file-local `interface`s, `Omit<…>`, `Pick<…>`,
+   indexed-access types (`Foo["bar"]`, `Parameters<typeof f>[0]`, `(typeof xs)[number]`), and
+   `z.input<typeof Schema>` over a plain `z.object`. Measured-UNSAFE: a new `Record<…>` annotation,
+   a bare or generically-aliased mapped type, and a new file-local `type X = { … }` alias.
+
+   ⚠ And still **not** an `as T` — that trades this rule's violation for a
+   `no-chained-type-assertions` one, which is already at `error` in production source.
+
+   **The method here was right and its coverage was not**, which is the reusable part: this cost and
+   cost 4 both correctly checked the proposed remedy against `no-chained-type-assertions`, and
+   neither checked it against `no-known-value-widening`. A panel remedy is an instruction later lanes
+   follow without re-deriving, so it has to be checked against *every* rule already adopted. Filed as
+   friction `a-judge-panels-prescribed-remedy-is-never-checked-against-our-own-adopted-rules`.
 4. **Discriminated unions cannot be built incrementally**, so they need the base-plus-ternary shape.
    Same trap: reaching for a cast to make an incrementally-built object fit a union manufactures a
    violation of an already-adopted rule.
@@ -163,3 +190,44 @@ larger and not separable from the increment's other work.
   `inventory.md`. 564 of the original count were production source.
 - **The terminal state is still `off`.** This increment proved the instrument; it did not do the
   migration.
+
+---
+
+## What `inc-11` did with it — the migration, and what its zero does NOT cover
+
+**Landed 2026-08-22, PR #1541.** The verdict above held: 666 findings measured at HEAD (584 source /
+82 test, 175 files) driven to 8, and the 8 are a declared website-mirror fence (ADR-0093), not a
+residue. The rule is at `error`. Both shapes this panel named were sufficient — no site anywhere
+resisted, and no rule panel was needed.
+
+**Cost 1 was the one that mattered, and it was audited separately because `tsc` cannot see it.** A
+hoist without an annotation compiles; the regression is that excess-property checking silently
+disappears. A diff-level audit over all 173 changed files reported zero un-annotated hoists, zero
+`as T` handovers, zero chained assertions added, and zero relocated ternaries. The audit was
+mutation-tested before it was trusted — each detector shown to fire on the shape it exists for and
+stay clean on the compliant twin — and one detector was found broken (it missed a computed-key
+write) and fixed before use.
+
+**Cost 5 was wrong in its magnitude, and the correction is worth carrying.** It predicted the lane's
+expense would sit in anonymous shapes acquiring names, and `inc-05` put a number on that: ~439 of
+581 source sites (76%) would need a named type authored. The migration introduced **nine** new
+exported types across 658 sites, and `packages/cli/src/commands.ts` — 150 of them — needed zero. The
+classification was accurate; the inference was not. An inline argument position typed only
+contextually usually forwards into a callee whose parameter type **already has a name**, and where it
+does not, an indexed-access annotation is exact and adds no surface. The generalisation: no static
+property of a violation SITE predicts its migration cost, because the cost lives in the callee, one
+hop away.
+
+### ⚠ The zero is not the whole truth in one file
+
+`packages/storage-protocol/src/store-wire.ts:215` has an `optional(key, value)` helper returning
+`value === undefined ? {} : { [key]: value }`, spread at two sites in `decodePatchDocRequest`. **The
+rule structurally cannot see it** — it matches a `SpreadElement` whose argument is a
+`ConditionalExpression`, and a `CallExpression` is not one. So this is exactly the laundering
+evasion two of this panel's own judges named unprompted ("not fewer unchecked claims but fewer
+VISIBLE ones"), sitting in the tree, invisible to the count.
+
+It **predates** the migration and was deliberately left rather than folded into a shape migration's
+diff. It is recorded here rather than only on the increment because this record is what a later lane
+reads to learn what the zero means — and the honest answer is "zero conditional-empty spreads the
+rule can match", not "zero places this pattern occurs".
