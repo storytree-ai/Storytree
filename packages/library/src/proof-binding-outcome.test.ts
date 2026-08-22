@@ -11,14 +11,15 @@ import {
 import { resolveWitness } from "./witness-resolution.js";
 
 function criterion(proofGateId?: string): UatTestCriterion {
-  return {
+  const leg: UatTestCriterion = {
     criterionId: "uatc_0123456789abcdef01234567",
     revisionId: "uatr1:0123456789abcdef",
     title: "machine criterion",
     witness: "machine",
     wouldBe: false,
-    ...(proofGateId !== undefined ? { proofGateId } : {}),
   };
+  if (proofGateId !== undefined) leg.proofGateId = proofGateId;
+  return leg;
 }
 
 function gate(
@@ -26,13 +27,14 @@ function gate(
   id = "story#gate-2",
   proofCommand?: string,
 ): ReliabilityGate {
-  return {
+  const row: ReliabilityGate = {
     id,
     title: "gate",
     kind,
     covers: [],
-    ...(proofCommand !== undefined ? { proofCommand } : {}),
   };
+  if (proofCommand !== undefined) row.proofCommand = proofCommand;
+  return row;
 }
 
 function machineResolution(leg: UatTestCriterion, gates: readonly ReliabilityGate[]): MachineWitnessResolution {

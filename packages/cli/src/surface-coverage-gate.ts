@@ -659,11 +659,11 @@ export async function loadSurfaceCoverageInputs(opts: {
     }
     processes.push({ id: d.id, refs: parseSurfaceRefs(surfaces, knownScripts), prescribed });
   }
-  return {
-    processes,
-    entrypoints,
-    ...(opts.cliSrcDirs === undefined || opts.cliSrcDirs.length === 0
-      ? {}
-      : { register: deriveCommandRegister(readCliSources(...opts.cliSrcDirs)) }),
-  };
+  return opts.cliSrcDirs === undefined || opts.cliSrcDirs.length === 0
+    ? { processes, entrypoints }
+    : {
+        processes,
+        entrypoints,
+        register: deriveCommandRegister(readCliSources(...opts.cliSrcDirs)),
+      };
 }

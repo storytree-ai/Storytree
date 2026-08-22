@@ -28,7 +28,7 @@ import { SLOW_POLL_MS } from '../lib/poll';
 import { Markdown } from './Markdown';
 import { ReviewModeContext, SetReviewModeContext } from './ReviewToggle';
 import { parseCriticMarkup, type CriticSegment } from '../lib/criticmarkup';
-import type { GuidanceAsset, ReviewFeedPayload } from '../types';
+import type { AssetInput, GuidanceAsset, ReviewFeedPayload } from '../types';
 
 interface ReviewEditorProps {
   /** The asset whose markdown body seeds the editor. Optional metadata (category, fields …)
@@ -245,15 +245,16 @@ export function ReviewEditor({ asset }: ReviewEditorProps): React.JSX.Element {
     }
     setSaveState('saving');
     try {
-      await api.updateAsset(topicId, {
+      const input: AssetInput = {
         id: topicId,
         category: asset.category,
         title: asset.title,
         description: asset.description,
         body: source,
         references: asset.references,
-        ...(asset.provenance !== undefined ? { provenance: asset.provenance } : {}),
-      });
+      };
+      if (asset.provenance !== undefined) input.provenance = asset.provenance;
+      await api.updateAsset(topicId, input);
       setDirty(false);
       setSaveState('saved');
       await refreshAssets();

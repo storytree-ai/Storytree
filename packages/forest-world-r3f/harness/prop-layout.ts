@@ -868,11 +868,10 @@ export function deepestPoint(loop: readonly GPoint[], samples = 48): GPoint {
 const SCATTER_ATTEMPTS_PER_POINT = 40;
 const SCATTER_ATTEMPT_FLOOR = 800;
 
-/** A deterministic scatter of `count` points inside the island, at least `minGap` apart from
- *  each other, at least `edgeGap` from the rim, and at least `avoidGap` from any polyline in
- *  `avoid`. Poisson-ish by rejection with a bounded attempt budget; returns FEWER points
- *  rather than looping forever, and the caller can see how many it got. */
-export function scatter(opts: {
+/** {@link scatter}'s request. Named so a caller can DRAFT one — an optional field is assigned
+ *  only when it is present, and an absent field still means "the default", exactly as omitting
+ *  it from the literal did. */
+export interface ScatterOptions {
   loop: readonly GPoint[];
   count: number;
   seed?: number;
@@ -880,7 +879,13 @@ export function scatter(opts: {
   edgeGap?: number;
   avoid?: readonly (readonly GPoint[])[];
   avoidGap?: number;
-}): GPoint[] {
+}
+
+/** A deterministic scatter of `count` points inside the island, at least `minGap` apart from
+ *  each other, at least `edgeGap` from the rim, and at least `avoidGap` from any polyline in
+ *  `avoid`. Poisson-ish by rejection with a bounded attempt budget; returns FEWER points
+ *  rather than looping forever, and the caller can see how many it got. */
+export function scatter(opts: ScatterOptions): GPoint[] {
   const { loop } = opts;
   const count = Math.max(0, Math.round(opts.count));
   if (loop.length < 3 || count === 0) return [];
@@ -925,6 +930,29 @@ export function scatter(opts: {
   return out;
 }
 
+/** {@link grove}'s request. Named so a caller can DRAFT one — an optional field is assigned only
+ *  when it is present, and an absent field still means "the default", exactly as omitting it from
+ *  the literal did. */
+export interface GroveOptions {
+  loop: readonly GPoint[];
+  /** How many stands. */
+  clusters: number;
+  /** Trees per stand. The actual count varies per stand across this inclusive range. */
+  perCluster: readonly [number, number];
+  /** A stand's radius, in ground units. */
+  spread: number;
+  /** Minimum tree-to-tree distance WITHIN and BETWEEN stands. */
+  minGap: number;
+  /** Minimum distance from the rim. */
+  edgeGap?: number;
+  /** Minimum distance between two stands' centres. Defaults to three spreads, which leaves a
+   *  stand's width of bare ground between neighbours — the gap is the composition. */
+  clusterGap?: number;
+  avoid?: readonly (readonly GPoint[])[];
+  avoidGap?: number;
+  seed?: number;
+}
+
 /**
  * A CLUMPED scatter: stands of points with bare ground between them, rather than points spread
  * evenly over the whole plot.
@@ -946,36 +974,21 @@ export function scatter(opts: {
  * for the same reason: an over-constrained request has no solution and a harness page that hangs
  * is indistinguishable from one that crashed.
  */
-export function grove(opts: {
-  loop: readonly GPoint[];
-  /** How many stands. */
-  clusters: number;
-  /** Trees per stand. The actual count varies per stand across this inclusive range. */
-  perCluster: readonly [number, number];
-  /** A stand's radius, in ground units. */
-  spread: number;
-  /** Minimum tree-to-tree distance WITHIN and BETWEEN stands. */
-  minGap: number;
-  /** Minimum distance from the rim. */
-  edgeGap?: number;
-  /** Minimum distance between two stands' centres. Defaults to three spreads, which leaves a
-   *  stand's width of bare ground between neighbours — the gap is the composition. */
-  clusterGap?: number;
-  avoid?: readonly (readonly GPoint[])[];
-  avoidGap?: number;
-  seed?: number;
-}): GPoint[] {
+export function grove(opts: GroveOptions): GPoint[] {
   const seed = opts.seed ?? 3;
   const spread = Math.max(0.1, opts.spread);
-  const centres = scatter({
+  // Drafted rather than spread: an absent `avoid` / `avoidGap` leaves the key ABSENT so
+  // `scatter`'s own defaults still apply, exactly as the conditional spreads expressed.
+  const centreOpts: ScatterOptions = {
     loop: opts.loop,
     count: Math.max(0, Math.round(opts.clusters)),
     seed,
     minGap: opts.clusterGap ?? spread * 3,
     edgeGap: opts.edgeGap ?? 0,
-    ...(opts.avoid ? { avoid: opts.avoid } : {}),
-    ...(opts.avoidGap === undefined ? {} : { avoidGap: opts.avoidGap }),
-  });
+  };
+  if (opts.avoid) centreOpts.avoid = opts.avoid;
+  if (opts.avoidGap !== undefined) centreOpts.avoidGap = opts.avoidGap;
+  const centres = scatter(centreOpts);
 
   const rnd = mulberry32(seed + 977);
   const edgeGap = opts.edgeGap ?? 0;

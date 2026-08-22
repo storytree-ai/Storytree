@@ -52,20 +52,38 @@ interface FixtureLineOpts {
   readonly omitUsage?: boolean;
 }
 
+/** The assistant record's `message` member, as this fixture builds it. An ABSENT `model` / `usage`
+ *  is the omission each leg drives — never the key present with an empty or null value. */
+interface FixtureMessage {
+  id: string;
+  model?: string;
+  usage?: Record<string, number>;
+}
+
+/** One assistant record. `cwd` is ABSENT unless the leg declares one; the reader parses this back
+ *  out of JSON by key, so the drafting order below is not the record's meaning. */
+interface FixtureRecord {
+  type: string;
+  cwd?: string;
+  sessionId: string;
+  timestamp: string;
+  isSidechain: boolean;
+  message: FixtureMessage;
+}
+
 function assistantLine(opts: FixtureLineOpts): string {
-  const message = {
-    id: opts.id,
-    ...(opts.model !== undefined ? { model: opts.model } : {}),
-    ...(opts.omitUsage === true ? {} : { usage: opts.usage ?? {} }),
-  } satisfies Record<string, unknown>;
-  return JSON.stringify({
+  const message: FixtureMessage = { id: opts.id };
+  if (opts.model !== undefined) message.model = opts.model;
+  if (opts.omitUsage !== true) message.usage = opts.usage ?? {};
+  const record: FixtureRecord = {
     type: "assistant",
-    ...(opts.cwd !== undefined ? { cwd: opts.cwd } : {}),
     sessionId: opts.sessionId,
     timestamp: opts.timestamp,
     isSidechain: opts.isSidechain ?? false,
     message,
-  });
+  };
+  if (opts.cwd !== undefined) record.cwd = opts.cwd;
+  return JSON.stringify(record);
 }
 
 function writeFile(filePath: string, lines: readonly string[]): void {

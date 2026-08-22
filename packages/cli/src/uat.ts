@@ -44,8 +44,9 @@ import {
   rollupCriterionStatus,
   rollupStoryUat,
   type SignerResult,
+  type UatProofCheck,
 } from "@storytree/orchestrator";
-import { SIGNING_EVENT_KIND, type Verdict } from "@storytree/proof-protocol";
+import { SIGNING_EVENT_KIND, type EvidenceRef, type Verdict } from "@storytree/proof-protocol";
 
 import type { Envelope } from "./envelope.js";
 import type { SessionIdentity } from "@storytree/drive";
@@ -524,11 +525,12 @@ async function uatAttest(
   // HONESTY WALL 1 (ADR-0082 d.2): the sign-time trust guard. Refuse a machine-witness test (it needs
   // a machine proof, not a click), an agent self-attestation (sandbox: / the building session), or a
   // blank signer — BEFORE any write. The compute is the single source of this rule (uat-proof.ts).
-  const guard = checkUatProof({
+  const proofCheck: UatProofCheck = {
     witness: test.witness as UatTestCriterionWitness,
     verdict: { proofMode: "operator-attested", signer },
-    ...(deps.identity !== null ? { agentIdentity: deps.identity.sessionId } : {}),
-  });
+  };
+  if (deps.identity !== null) proofCheck.agentIdentity = deps.identity.sessionId;
+  const guard = checkUatProof(proofCheck);
   if (!guard.ok) {
     // ADR-0405 D5: a machine refusal must name the verb that actually proves THIS leg, resolved from
     // its own binding. It used to say `node build --real` for every machine leg, which is the wrong
@@ -589,6 +591,10 @@ async function uatAttest(
 
   const at = deps.now().toISOString();
   const runId = `uat-attest:${at}`;
+  // `note` is added LAST, exactly where the conditional spread sat: this evidence rides a SIGNED
+  // verdict, so the literal's key insertion order is load-bearing and must not move.
+  const evidenceRef: EvidenceRef = { kind: "operator-attested", ref: signer };
+  if (opts.note !== undefined && opts.note.trim().length > 0) evidenceRef.note = opts.note.trim();
   const verdict: Verdict = {
     unitId: id,
     criterionId: test.criterionId,
@@ -599,15 +605,7 @@ async function uatAttest(
     signer,
     runId,
     outputVersion: "v1",
-    evidence: [
-      {
-        kind: "operator-attested",
-        ref: signer,
-        ...(opts.note !== undefined && opts.note.trim().length > 0
-          ? { note: opts.note.trim() }
-          : {}),
-      },
-    ],
+    evidence: [evidenceRef],
     at,
   };
 

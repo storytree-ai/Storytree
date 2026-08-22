@@ -18,7 +18,7 @@
 import { workEvent } from "@storytree/orchestrator";
 import { PgWorkStore } from "@storytree/orchestrator/store";
 import { applySchema, closePool, createPool } from "@storytree/library/store";
-import type { Tier } from "@storytree/proof-protocol";
+import type { Tier, WorkEventDoc } from "@storytree/proof-protocol";
 
 import { ensureLiveDb } from "./db-control.js";
 import type { EnsureDbResult } from "./db-control.js";
@@ -80,11 +80,13 @@ export type WispGate = { ok: true; dwellSec: number } | { ok: false; refusal: En
  * building mark, ADR-0048/0060), and `--dwell` must be a positive number of seconds. Returns the
  * resolved dwell, or a fail-closed refusal Envelope.
  */
-export function gateEmitWisp(opts: {
+export interface GateEmitWispOpts {
   dryRun: boolean;
   dwellSec?: number;
   retryCmd: string;
-}): WispGate {
+}
+
+export function gateEmitWisp(opts: GateEmitWispOpts): WispGate {
   if (!opts.dryRun) {
     return {
       ok: false,
@@ -147,12 +149,9 @@ export async function runWispSmoke(args: RunWispSmokeArgs): Promise<WispSmokeRes
   let appended = false;
   let deleted = 0;
   try {
-    await store.appendEvent(
-      workEvent(
-        { unitId, event: "building", runId, ...(tier !== undefined ? { tier } : {}) },
-        signer,
-      ),
-    );
+    const buildingDoc: WorkEventDoc = { unitId, event: "building", runId };
+    if (tier !== undefined) buildingDoc.tier = tier;
+    await store.appendEvent(workEvent(buildingDoc, signer));
     appended = true;
     await dwell(dwellMs, args.sleep, args.log);
   } finally {
@@ -259,16 +258,17 @@ export async function emitWisp(args: EmitWispArgs, deps: EmitWispDeps = {}): Pro
 
   let result: WispSmokeResult;
   try {
-    result = await runWispSmoke({
+    const smokeArgs: RunWispSmokeArgs = {
       store,
       unitId: args.unitId,
-      ...(args.tier !== undefined ? { tier: args.tier } : {}),
       runId: args.runId,
       signer: args.signer,
       dwellMs,
       sleep,
       log,
-    });
+    };
+    if (args.tier !== undefined) smokeArgs.tier = args.tier;
+    result = await runWispSmoke(smokeArgs);
   } finally {
     uninstall();
     await close();

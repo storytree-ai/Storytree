@@ -35,6 +35,7 @@ import {
   scriptedWriterModel,
   codexPromotionManifest,
 } from "./resolve-prove-spec.js";
+import type { RealProofConfig } from "./proof-config.js";
 import { classifyProofRoute } from "./proof/proof-route.js";
 import { proveUnit, gitTreeState } from "./prove-it-gate.js";
 import { PathWriteScope } from "./phase-machine.js";
@@ -1928,13 +1929,12 @@ function dbBackedSpec(id: string, proofCommand?: { file: string; args: string[] 
   const base = loadById("verdict-line");
   const bc = base.buildConfig;
   assert.ok(bc?.real !== undefined);
+  const real: RealProofConfig = { ...bc.real, db: true };
+  if (proofCommand !== undefined) real.proofCommand = proofCommand;
   return {
     ...base,
     id,
-    buildConfig: {
-      ...bc,
-      real: { ...bc.real, db: true, ...(proofCommand !== undefined ? { proofCommand } : {}) },
-    },
+    buildConfig: { ...bc, real },
   };
 }
 

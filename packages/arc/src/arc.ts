@@ -9,6 +9,7 @@ import {
   kebabSlug,
   parseCiteRef,
   upcastAndValidate,
+  type IncrementOutcome,
 } from "@storytree/library";
 // The write STAMP (`cli@<branch>`) and the ADR-0023 envelope shape, both in `@storytree/drive` — the
 // package this one and the CLI have in common. A verb here must stamp exactly as its CLI siblings do.
@@ -1124,6 +1125,15 @@ async function recomputeArcLifecycle(deps: ArcWriteDeps, arcId: string): Promise
     : `arc ${arcId} reopened — open work is back on it (ADR-0335).`;
 }
 
+/** What {@link arcIncrementAdd} accepts — the landing it is being asked to record. */
+export interface ArcIncrementAddOpts {
+  date?: string | undefined;
+  pr?: string | undefined;
+  outcome?: string | undefined;
+  id?: string | undefined;
+  cites?: string[] | undefined;
+}
+
 /**
  * `storytree arc increment add <arc-id> --outcome <text|@file> [--pr <ref>] [--date <YYYY-MM-DD>]
  * [--id <slug>] --pg` — record one LANDING on the arc: the merge ceremony's residue step (ADR-0271).
@@ -1142,13 +1152,7 @@ async function recomputeArcLifecycle(deps: ArcWriteDeps, arcId: string): Promise
 export async function arcIncrementAdd(
   deps: ArcWriteDeps,
   arcId: string | undefined,
-  opts: {
-    date?: string | undefined;
-    pr?: string | undefined;
-    outcome?: string | undefined;
-    id?: string | undefined;
-    cites?: string[] | undefined;
-  },
+  opts: ArcIncrementAddOpts,
 ): Promise<Envelope> {
   if (!deps.writable) return arcNotWritable("increment add");
   if (arcId === undefined) {
@@ -1191,6 +1195,7 @@ export async function arcIncrementAdd(
   if (taken !== null) return taken;
 
   const lead = firstSentenceOf(outcomeText, DERIVED_TITLE_CAP);
+  const outcome: IncrementOutcome = pr !== undefined && pr !== "" ? { date, pr } : { date };
   const doc: Record<string, unknown> = {
     kind: "increment",
     id,
@@ -1208,16 +1213,16 @@ export async function arcIncrementAdd(
     // increment that was PARKED first, whose `body` is the intention rather than the outcome — and a
     // row minted here is born closed, carries no `parked`, and states what happened in `body` by
     // construction, because `--outcome` is required above.
-    outcome: { date, ...(pr !== undefined && pr !== "" ? { pr } : {}) },
-    // ADR-0306 D2, on a LANDING as well as on a parked entry: what this increment touched is worth
-    // recording after the fact, not only before it. A closed increment is permanent (ADR-0305 D3),
-    // so its citations are what make "which increments touched this capability" answerable over the
-    // arc's history rather than only over its open work.
-    ...(cited.cites.length > 0 ? { cites: cited.cites } : {}),
+    outcome,
     references: [],
     createdAt: deps.now,
     updatedAt: deps.now,
   };
+  // ADR-0306 D2, on a LANDING as well as on a parked entry: what this increment touched is worth
+  // recording after the fact, not only before it. A closed increment is permanent (ADR-0305 D3),
+  // so its citations are what make "which increments touched this capability" answerable over the
+  // arc's history rather than only over its open work.
+  if (cited.cites.length > 0) doc["cites"] = cited.cites;
   const result = await upsertIncrement(deps, doc, `increment "${id}"`, arcId);
   if ("ok" in result) return result;
 
@@ -1377,15 +1382,15 @@ export async function arcIncrementNew(
     arcRef: `asset:${arcId}`,
     status: "proposal",
     parked: deps.now,
-    ...(frictionRefs.length > 0 ? { frictionRefs } : {}),
-    // ADR-0306 D2. Omitted entirely when empty rather than written as `[]`: `cites` is optional and
-    // legitimately empty, and an absent field says "none named" where an empty array invites a
-    // reader to wonder whether something was removed.
-    ...(cited.cites.length > 0 ? { cites: cited.cites } : {}),
     references: [],
     createdAt: deps.now,
     updatedAt: deps.now,
   };
+  if (frictionRefs.length > 0) doc["frictionRefs"] = frictionRefs;
+  // ADR-0306 D2. Omitted entirely when empty rather than written as `[]`: `cites` is optional and
+  // legitimately empty, and an absent field says "none named" where an empty array invites a
+  // reader to wonder whether something was removed.
+  if (cited.cites.length > 0) doc["cites"] = cited.cites;
   const result = await upsertIncrement(deps, doc, `parking "${id}" on arc ${arcId}`, arcId);
   if ("ok" in result) return result;
 
@@ -1744,13 +1749,12 @@ export async function arcIncrementClose(
   // not this write's to carry back. {@link upsertIncrement} stays the CREATION path; the conditional
   // invariants it exists to funnel live in `upcastAndValidate` (`assertIncrementInvariants`), which
   // runs on the MERGED doc inside the write, so a patch is held to exactly the same boundary.
+  const outcome: IncrementOutcome = { date };
+  if (pr !== undefined && pr !== "") outcome.pr = pr;
+  if (note !== undefined && note !== "") outcome.note = note;
   const fields: Record<string, unknown> = {
     status: "closed",
-    outcome: {
-      date,
-      ...(pr !== undefined && pr !== "" ? { pr } : {}),
-      ...(note !== undefined && note !== "" ? { note } : {}),
-    },
+    outcome,
     updatedAt: deps.now,
   };
   Object.assign(doc, fields);
@@ -1910,11 +1914,10 @@ export async function arcClose(
   }
 
   // 1. The terminal increment FIRST — see the header for why this order is the mitigation.
-  const terminal = await arcIncrementAdd(deps, id, {
-    outcome,
-    ...(opts.pr !== undefined ? { pr: opts.pr } : {}),
-    ...(opts.date !== undefined ? { date: opts.date } : {}),
-  });
+  const terminalOpts: ArcIncrementAddOpts = { outcome };
+  if (opts.pr !== undefined) terminalOpts.pr = opts.pr;
+  if (opts.date !== undefined) terminalOpts.date = opts.date;
+  const terminal = await arcIncrementAdd(deps, id, terminalOpts);
   if (!terminal.ok) return terminal;
 
   // 2. Then the flip — FIELD-SCOPED (ADR-0352): the flag and the stamp. `arcIncrementAdd` above has
@@ -2035,11 +2038,10 @@ export async function arcReopen(
   const wasParked = base["lifecycle"] === "parked";
 
   // 1. The increment FIRST — see the header for why this order is the mitigation.
-  const entry = await arcIncrementAdd(deps, id, {
-    outcome: `${wasParked ? UNPARK_MARKER : REOPEN_MARKER} — ${reason}`,
-    ...(opts.pr !== undefined ? { pr: opts.pr } : {}),
-    ...(opts.date !== undefined ? { date: opts.date } : {}),
-  });
+  const entryOpts: ArcIncrementAddOpts = { outcome: `${wasParked ? UNPARK_MARKER : REOPEN_MARKER} — ${reason}` };
+  if (opts.pr !== undefined) entryOpts.pr = opts.pr;
+  if (opts.date !== undefined) entryOpts.date = opts.date;
+  const entry = await arcIncrementAdd(deps, id, entryOpts);
   if (!entry.ok) return entry;
 
   // 2. Then the flip. Written EXPLICITLY rather than by deleting the field: `lifecycleOf` reads
@@ -2174,11 +2176,10 @@ export async function arcPark(
   }
 
   // 1. The increment FIRST — see the header for why this order is the mitigation.
-  const entry = await arcIncrementAdd(deps, id, {
-    outcome: `${PARK_MARKER} — ${reason}`,
-    ...(opts.pr !== undefined ? { pr: opts.pr } : {}),
-    ...(opts.date !== undefined ? { date: opts.date } : {}),
-  });
+  const entryOpts: ArcIncrementAddOpts = { outcome: `${PARK_MARKER} — ${reason}` };
+  if (opts.pr !== undefined) entryOpts.pr = opts.pr;
+  if (opts.date !== undefined) entryOpts.date = opts.date;
+  const entry = await arcIncrementAdd(deps, id, entryOpts);
   if (!entry.ok) return entry;
 
   // 2. Then the flip — FIELD-SCOPED (ADR-0352), for the reason both siblings are: the increment

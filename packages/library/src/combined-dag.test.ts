@@ -19,12 +19,11 @@ function decision(
   decisionNumber: number,
   edges: Partial<Omit<DecisionEdgeSource, "number">> = {},
 ): DecisionEdgeSource {
-  return {
-    number: decisionNumber,
-    amends: edges.amends ?? [],
-    supersedes: edges.supersedes ?? [],
-    ...(edges.dependsOn === undefined ? {} : { dependsOn: edges.dependsOn }),
-  };
+  const amends = edges.amends ?? [];
+  const supersedes = edges.supersedes ?? [];
+  return edges.dependsOn === undefined
+    ? { number: decisionNumber, amends, supersedes }
+    : { number: decisionNumber, amends, supersedes, dependsOn: edges.dependsOn };
 }
 
 /** Enough artifacts to clear the vacuity floor, so a read can be judged as a real one. */

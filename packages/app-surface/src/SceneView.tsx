@@ -536,12 +536,22 @@ function hitsLayerToBack(children: readonly SceneNode[]): readonly SceneNode[] {
   return out;
 }
 
+/** The OPTIONAL projection stamp on an organic pose `<image>`. Absent ⇒ no attribute is emitted at
+ *  all, which is what {@link OrganicPoseRenderLayer.projection} being absent has always meant. */
+interface OrganicProjectionAttribute {
+  'data-organic-projection'?: string;
+}
+
 function organicPoseImage(layer: OrganicPoseRenderLayer): React.ReactNode {
   // Anchored AT the ground socket (see `OrganicPoseRenderLayer.projection`): the anchor offset is
   // squashed by the same factor as the box, so the root contact never moves as the factor changes.
   // The arithmetic lives in `./land-camera.js` so the land-camera composition suite can assert
   // against the placement this renderer actually uses rather than against a copy of it.
   const { x, y, width, height } = organicLayerBox(layer);
+  const projection: OrganicProjectionAttribute = {};
+  if (layer.projection !== undefined) {
+    projection['data-organic-projection'] = layer.projection.toFixed(2);
+  }
   return React.createElement('image', {
     key: `__organic-pose-${layer.trackId}`,
     href: layer.src,
@@ -558,9 +568,7 @@ function organicPoseImage(layer: OrganicPoseRenderLayer): React.ReactNode {
     'data-organic-frame': String(layer.frameIndex),
     'data-world-anchor-x': fmt(layer.worldAnchor.x),
     'data-world-anchor-y': fmt(layer.worldAnchor.y),
-    ...(layer.projection === undefined
-      ? {}
-      : { 'data-organic-projection': layer.projection.toFixed(2) }),
+    ...projection,
   });
 }
 

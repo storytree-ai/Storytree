@@ -655,27 +655,28 @@ async function driveOne(target: DriveTarget, prompt: string, ctx: DriveContext):
   }
   log(`  surface: ${surfaceOwnership.note}`);
 
-  const record = UatDriveRecord.parse({
+  const draft: UatDriveRecord = {
     storyId: ctx.storyId,
     criterionId: target.criterionId,
     revisionId: target.revisionId,
     outcome: report.outcome,
-    ...(report.failureCause !== undefined ? { failureCause: report.failureCause } : {}),
     commitSha: ctx.commitSha,
     runId: ctx.runId,
     driver: ctx.runtime.driver,
     summary: report.summary,
     steps: report.steps,
     escalated: report.escalated,
-    ...(report.openQuestionId !== undefined ? { openQuestionId: report.openQuestionId } : {}),
-    // Carried onto the record so a later reader can see WHICH server a green was earned against.
-    // Only reached once `requireOwnSurface` has already accepted it, so the record never stores a
-    // surface the harness refused.
-    ...(report.surface !== undefined ? { surface: report.surface } : {}),
     reportBy: ctx.isolation.reportBy,
     reportObservedAt,
     at: new Date().toISOString(),
-  });
+  };
+  if (report.failureCause !== undefined) draft.failureCause = report.failureCause;
+  if (report.openQuestionId !== undefined) draft.openQuestionId = report.openQuestionId;
+  // Carried onto the record so a later reader can see WHICH server a green was earned against.
+  // Only reached once `requireOwnSurface` has already accepted it, so the record never stores a
+  // surface the harness refused.
+  if (report.surface !== undefined) draft.surface = report.surface;
+  const record = UatDriveRecord.parse(draft);
 
   await ctx.pool.query(
     `INSERT INTO events.uat_drive (story_id, criterion_id, revision_id, outcome, commit_sha, run_id, driver, doc)

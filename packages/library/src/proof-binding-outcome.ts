@@ -60,10 +60,11 @@ export function proofBindingOutcome(
     };
   }
 
-  return {
+  const refusal: ProofBindingRefusal = {
     outcome: "refused",
     criterionId: criterion.criterionId,
     reason: resolution.refusal,
-    ...(criterion.proofGateId !== undefined ? { declaredGateId: criterion.proofGateId } : {}),
   };
+  if (criterion.proofGateId !== undefined) refusal.declaredGateId = criterion.proofGateId;
+  return refusal;
 }

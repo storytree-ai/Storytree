@@ -406,7 +406,7 @@ export function usageFromSdkResult(result: {
     }
   }
   if (typeof result.modelUsage === "object" && result.modelUsage !== null) {
-    const byModel: Record<string, TokenUsage & { costUsd?: number }> = {};
+    const byModel: NonNullable<SdkRunInfo["byModel"]> = {};
     for (const [model, raw] of Object.entries(result.modelUsage)) {
       if (typeof raw !== "object" || raw === null) continue;
       const m = raw as Record<string, unknown>;
@@ -415,14 +415,15 @@ export function usageFromSdkResult(result: {
       if (inputTokens === undefined || outputTokens === undefined) continue;
       const costUsd = finiteNumber(m["costUSD"]);
       const contextWindow = positiveNumber(m[CONTEXT_WINDOW_KEY]);
-      byModel[model] = {
+      const entry: NonNullable<SdkRunInfo["byModel"]>[string] = {
         inputTokens,
         cacheCreationInputTokens: finiteNumber(m["cacheCreationInputTokens"]) ?? 0,
         cacheReadInputTokens: finiteNumber(m["cacheReadInputTokens"]) ?? 0,
         outputTokens,
-        ...(costUsd !== undefined ? { costUsd } : {}),
-        ...(contextWindow !== undefined ? { contextWindow } : {}),
       };
+      if (costUsd !== undefined) entry.costUsd = costUsd;
+      if (contextWindow !== undefined) entry.contextWindow = contextWindow;
+      byModel[model] = entry;
     }
     if (Object.keys(byModel).length > 0) out.byModel = byModel;
   }
@@ -519,42 +520,10 @@ export class ClaudeAgentAuthor implements PhaseAuthor {
       cwd: this.#args.cwd,
       model: this.#args.model ?? "claude-sonnet-5",
       maxTurns: this.#args.maxTurns ?? 16,
-      // No USD ceiling by default (ADR-0130): the leaf is subscription-funded (ADR-0030), so a metered
-      // dollar cap is a phantom — maxTurns above is the runaway brake. Pass maxBudgetUsd ONLY when an
-      // operator explicitly opted into a cap (`--budget`); absent, the SDK runs with no budget wall.
-      ...(this.#args.maxBudgetUsd !== undefined ? { maxBudgetUsd: this.#args.maxBudgetUsd } : {}),
       tools: LEAF_TOOLS,
       allowedTools: [...LEAF_TOOLS, ...this.feedbackToolNames],
       permissionMode: "bypassPermissions",
       systemPrompt: composeLeafSystemPrompt(base.base, feedback.length > 0),
-      ...(feedback.length > 0
-        ? {
-            mcpServers: {
-              [FEEDBACK_SERVER]: createSdkMcpServer({
-                name: FEEDBACK_SERVER,
-                version: "1.0.0",
-                tools: feedback.map((command) =>
-                  tool(command.name, command.description, {}, async () => {
-                    const r = await executeFeedback({
-                      phase,
-                      command,
-                      used: feedbackUsed,
-                      max: maxFeedbackRuns,
-                      record: (run) => {
-                        feedbackUsed += 1;
-                        this.feedbackRuns.push(run);
-                      },
-                    });
-                    return {
-                      content: [{ type: "text" as const, text: r.text }],
-                      ...(r.isError ? { isError: true } : {}),
-                    };
-                  }),
-                ),
-              }),
-            },
-          }
-        : {}),
       hooks: {
         PreToolUse: [
           {
@@ -593,6 +562,35 @@ export class ClaudeAgentAuthor implements PhaseAuthor {
         ],
       },
     };
+    // No USD ceiling by default (ADR-0130): the leaf is subscription-funded (ADR-0030), so a metered
+    // dollar cap is a phantom — maxTurns above is the runaway brake. Pass maxBudgetUsd ONLY when an
+    // operator explicitly opted into a cap (`--budget`); absent, the SDK runs with no budget wall.
+    if (this.#args.maxBudgetUsd !== undefined) options.maxBudgetUsd = this.#args.maxBudgetUsd;
+    if (feedback.length > 0) {
+      options.mcpServers = {
+        [FEEDBACK_SERVER]: createSdkMcpServer({
+          name: FEEDBACK_SERVER,
+          version: "1.0.0",
+          tools: feedback.map((command) =>
+            tool(command.name, command.description, {}, async () => {
+              const r = await executeFeedback({
+                phase,
+                command,
+                used: feedbackUsed,
+                max: maxFeedbackRuns,
+                record: (run) => {
+                  feedbackUsed += 1;
+                  this.feedbackRuns.push(run);
+                },
+              });
+              return r.isError
+                ? { content: [{ type: "text" as const, text: r.text }], isError: true }
+                : { content: [{ type: "text" as const, text: r.text }] };
+            }),
+          ),
+        }),
+      };
+    }
 
     let result: ResultLike | undefined;
     try {

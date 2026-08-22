@@ -41,8 +41,8 @@ async function driveRouted(kind: BuildKind, unitId: string, actor?: string) {
       storyOpts = opts;
       return { ok: true, body: "story-envelope" };
     },
-    ...(actor !== undefined ? { actor } : {}),
   };
+  if (actor !== undefined) deps.actor = actor;
   await routedBuildRunner(deps)(unitId, (line) => sinkLines.push(line));
   return { nodeOpts, storyOpts, nodeCalls, storyCalls, sinkLines };
 }

@@ -117,16 +117,17 @@ async function main(): Promise<void> {
   // classifies `new`, which would turn a substrate failure into a queue breach.
   const candidates: GraduationCandidate[] = worklist.entries.map((e) => {
     const record = ledger.parks[e.memory.name];
-    return {
+    const candidate: GraduationCandidate = {
       name: e.memory.name,
       status: e.status,
-      ...(e.status === "expired" && record !== undefined
-        ? { leaseExpiredOn: leaseExpiresOn(record) }
-        : {}),
-      // Provenance (ADR-0301) — absent on every memory written before the stamp existed, and on every
-      // one written by a session that does not stamp. Absent is charged, never excused.
-      ...(e.memory.branch === undefined ? {} : { branch: e.memory.branch }),
     };
+    if (e.status === "expired" && record !== undefined) {
+      candidate.leaseExpiredOn = leaseExpiresOn(record);
+    }
+    // Provenance (ADR-0301) — absent on every memory written before the stamp existed, and on every
+    // one written by a session that does not stamp. Absent is charged, never excused.
+    if (e.memory.branch !== undefined) candidate.branch = e.memory.branch;
+    return candidate;
   });
   const drain = evaluateGraduationDrain(candidates, {
     currentBranch: currentGitBranch(),

@@ -83,15 +83,15 @@ export async function runSdkCurator(args: SdkCuratorArgs): Promise<SdkCuratorRes
     cwd: args.cwd ?? process.cwd(),
     model: args.model ?? "claude-sonnet-5",
     maxTurns: args.maxTurns ?? 6,
-    // No USD ceiling by default (ADR-0131, completing ADR-0130): subscription-funded (ADR-0030/0067), so
-    // a metered dollar cap is a phantom — maxTurns above is the brake. Pass maxBudgetUsd ONLY when set.
-    ...(args.maxBudgetUsd !== undefined ? { maxBudgetUsd: args.maxBudgetUsd } : {}),
     // Read-only by construction: the neighbourhood is in the prompt, the curator only emits JSON.
     tools: [],
     allowedTools: [],
     permissionMode: "bypassPermissions",
     systemPrompt: args.systemPrompt,
   };
+  // No USD ceiling by default (ADR-0131, completing ADR-0130): subscription-funded (ADR-0030/0067), so
+  // a metered dollar cap is a phantom — maxTurns above is the brake. Pass maxBudgetUsd ONLY when set.
+  if (args.maxBudgetUsd !== undefined) options.maxBudgetUsd = args.maxBudgetUsd;
 
   let result: ResultLike | undefined;
   try {

@@ -421,12 +421,13 @@ export const runPinnedCodexCli: CodexRunner = async (command) => {
     child.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
     child.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
     child.once("exit", (code, signal) => {
-      resolve({
+      const outcome: CodexCommandResult = {
         code,
         stdout: Buffer.concat(stdout).toString("utf8"),
         stderr: Buffer.concat(stderr).toString("utf8"),
-        ...(signal === null ? {} : { signal }),
-      });
+      };
+      if (signal !== null) outcome.signal = signal;
+      resolve(outcome);
     });
     child.stdin.end(command.stdin ?? "");
   });
@@ -550,11 +551,10 @@ function observedReplicaChanges(
     ) {
       continue;
     }
-    changes.push({
-      relPath,
-      ...(beforeState === undefined ? {} : { before: beforeState }),
-      ...(afterState === undefined ? {} : { after: afterState }),
-    });
+    const change: ReplicaChange = { relPath };
+    if (beforeState !== undefined) change.before = beforeState;
+    if (afterState !== undefined) change.after = afterState;
+    changes.push(change);
   }
   return changes;
 }
@@ -695,12 +695,16 @@ async function restoreRealTargets(
  * Stage every admitted replica result before touching the real workspace, then apply only that
  * observed subset. A preflight or verification failure leaves (or restores) every real target.
  */
-async function promoteReplicaChanges(args: {
+interface PromoteReplicaChangesArgs {
   replicaRoot: string;
   realRoot: string;
   changes: ReplicaChange[];
   faults?: CodexPromotionFaults;
-}): Promise<{ ok: true } | { ok: false; error: string }> {
+}
+
+async function promoteReplicaChanges(
+  args: PromoteReplicaChangesArgs,
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const staged: StagedReplicaChange[] = [];
   const backups = new Map<string, RealFileBackup>();
   try {
@@ -974,14 +978,14 @@ export class CodexPhaseAuthor implements PhaseAuthor {
             : "error",
         turns: 1,
         model,
-        ...(parsed.usage === undefined ? {} : { usage: parsed.usage }),
-        ...(parsed.reasoningOutputTokens === undefined
-          ? {}
-          : { reasoningOutputTokens: parsed.reasoningOutputTokens }),
-        ...(parsed.reasoning.length === 0 ? {} : { reasoning: parsed.reasoning }),
-        ...(parsed.messages.length === 0 ? {} : { messages: parsed.messages }),
         changedPaths: observedPaths,
       };
+      if (parsed.usage !== undefined) run.usage = parsed.usage;
+      if (parsed.reasoningOutputTokens !== undefined) {
+        run.reasoningOutputTokens = parsed.reasoningOutputTokens;
+      }
+      if (parsed.reasoning.length > 0) run.reasoning = parsed.reasoning;
+      if (parsed.messages.length > 0) run.messages = parsed.messages;
       this.runs.push(run);
       const failRun = (error: string): AuthorResult => {
         run.subtype = "error";
@@ -1029,14 +1033,15 @@ export class CodexPhaseAuthor implements PhaseAuthor {
       if (!observedPaths.some((observedPath) => manifest.required.has(targetKey(observedPath)))) {
         return failRun("Codex completed without an observed required target change");
       }
-      const promoted = await promoteReplicaChanges({
+      const promotionArgs: PromoteReplicaChangesArgs = {
         replicaRoot: replicaDir,
         realRoot: this.#args.cwd,
         changes,
-        ...(this.#args.promotionFaults === undefined
-          ? {}
-          : { faults: this.#args.promotionFaults }),
-      });
+      };
+      if (this.#args.promotionFaults !== undefined) {
+        promotionArgs.faults = this.#args.promotionFaults;
+      }
+      const promoted = await promoteReplicaChanges(promotionArgs);
       if (!promoted.ok) {
         return failRun(`Codex replica promotion failed: ${promoted.error}`);
       }

@@ -217,12 +217,13 @@ export function evaluateSurfaceCoverageDrain(
       ? "warn"
       : "ok";
 
-  return {
+  const verdict: SurfaceCoverageDrainVerdict = {
     level,
     unresolvedCount,
     orphanCount,
     breaches,
-    ...(suppressed === undefined ? {} : { suppressed }),
     config,
   };
+  if (suppressed !== undefined) verdict.suppressed = suppressed;
+  return verdict;
 }

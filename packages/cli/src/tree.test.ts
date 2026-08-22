@@ -29,6 +29,23 @@ const B2 = fixtureBinding(2, P2);
 const C1 = fixtureCriterionId(1);
 const C2 = fixtureCriterionId(2);
 
+/**
+ * The verdict-shaped doc {@link verdictEvent} mints. Named here because the reader seam types `doc`
+ * as `unknown`, so the fixture's own shape is the only statement of what these tests feed it — and
+ * the two criterion fields are carried ONLY for a per-test UAT id.
+ */
+interface FixtureVerdictDoc {
+  unitId: string;
+  proofMode: string;
+  outcome: "pass" | "fail";
+  commitSha: string;
+  signer: string;
+  runId: string;
+  at: string;
+  criterionId?: string;
+  revisionId?: string;
+}
+
 /** A signed-verdict event for a per-test UAT id, shaped for the verdict reader seam. */
 function verdictEvent(
   seq: number,
@@ -36,20 +53,20 @@ function verdictEvent(
   outcome: "pass" | "fail",
   revisionId?: string,
 ) {
-  return {
-    seq,
-    kind: SIGNING_EVENT_KIND,
-    doc: {
-      unitId,
-      proofMode: "operator-attested",
-      outcome,
-      commitSha: "cafebabe",
-      signer: "owner@example.com",
-      runId: `run-${seq}`,
-      at: "2026-06-20T00:00:00.000Z",
-      ...(revisionId === undefined ? {} : { criterionId: unitId, revisionId }),
-    },
+  const doc: FixtureVerdictDoc = {
+    unitId,
+    proofMode: "operator-attested",
+    outcome,
+    commitSha: "cafebabe",
+    signer: "owner@example.com",
+    runId: `run-${seq}`,
+    at: "2026-06-20T00:00:00.000Z",
   };
+  if (revisionId !== undefined) {
+    doc.criterionId = unitId;
+    doc.revisionId = revisionId;
+  }
+  return { seq, kind: SIGNING_EVENT_KIND, doc };
 }
 
 // ---------------------------------------------------------------------------

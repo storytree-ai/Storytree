@@ -201,14 +201,17 @@ export function changeStoreParitySuite(
   name: string,
   makeStore: () => ChangeStore | Promise<ChangeStore>,
 ): void {
-  const change = (unitId: string, why?: string): ChangeEvent => ({
-    unitId,
-    hashBefore: "aaaa",
-    hashAfter: "bbbb",
-    ...(why !== undefined ? { description: why } : {}),
-    author: "tester",
-    at: "2026-06-16T00:00:00.000Z",
-  });
+  const change = (unitId: string, why?: string): ChangeEvent => {
+    const event: ChangeEvent = {
+      unitId,
+      hashBefore: "aaaa",
+      hashAfter: "bbbb",
+      author: "tester",
+      at: "2026-06-16T00:00:00.000Z",
+    };
+    if (why !== undefined) event.description = why;
+    return event;
+  };
 
   test(`${name} change parity: empty store returns [] (never throws)`, async () => {
     const store = await makeStore();

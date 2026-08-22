@@ -370,6 +370,19 @@ export function parseTranscript(raw: string): TranscriptRead {
   return { turns, skipped, synthetic };
 }
 
+/**
+ * The Codex-only metadata block of a {@link TranscriptRead}, built MUTABLY here so an absent field
+ * stays absent (`TranscriptRead`'s own copies are readonly, so they cannot be assigned in place).
+ * A field whose type drifts from `TranscriptRead`'s is caught by the compiler at the spread site.
+ */
+interface CodexTranscriptMeta {
+  runtime?: TranscriptRuntime;
+  sessionId?: string;
+  parentSessionId?: string;
+  cwd?: string;
+  agentType?: string;
+}
+
 /** Reduce a recursively discovered Codex `~/.codex/sessions` rollout file to the same turn model. */
 function parseCodexTranscript(raw: string): TranscriptRead {
   let skipped = 0;
@@ -484,15 +497,17 @@ function parseCodexTranscript(raw: string): TranscriptRead {
   const runtime = Number.isFinite(firstStart) && Number.isFinite(lastEnd)
     ? { startMs: firstStart, endMs: Math.max(firstStart, lastEnd), durationMs }
     : undefined;
+  const meta: CodexTranscriptMeta = {};
+  if (runtime !== undefined) meta.runtime = runtime;
+  if (sessionId !== undefined) meta.sessionId = sessionId;
+  if (parentSessionId !== undefined) meta.parentSessionId = parentSessionId;
+  if (cwd !== undefined) meta.cwd = cwd;
+  if (agentType !== undefined) meta.agentType = agentType;
   return {
     turns,
     skipped,
     synthetic: 0,
-    ...(runtime !== undefined ? { runtime } : {}),
-    ...(sessionId !== undefined ? { sessionId } : {}),
-    ...(parentSessionId !== undefined ? { parentSessionId } : {}),
-    ...(cwd !== undefined ? { cwd } : {}),
-    ...(agentType !== undefined ? { agentType } : {}),
+    ...meta,
     active: openTurns.size > 0,
   };
 }
@@ -1086,7 +1101,11 @@ export function discoverCodexSessions(root: string, projectPrefix: string): Sess
     const rootId = rootOf(id);
     if (rootId === id) continue;
     const group = children.get(rootId) ?? [];
-    group.push({ file: node.file, metaFile: node.file, ...(node.read.agentType !== undefined ? { agentType: node.read.agentType } : {}) });
+    group.push(
+      node.read.agentType !== undefined
+        ? { file: node.file, metaFile: node.file, agentType: node.read.agentType }
+        : { file: node.file, metaFile: node.file },
+    );
     children.set(rootId, group);
   }
   return [...nodes.entries()]

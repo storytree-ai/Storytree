@@ -12,7 +12,7 @@
 // it runs in the package suite — the vitest-runner-mismatch learning.)
 
 import { describe, it, expect } from 'vitest';
-import { claimsToActivity } from './inFlightActivity';
+import { claimsToActivity, type ClaimRow } from './inFlightActivity';
 
 // Mirrors CLAIM_STALE_RECLAIM_MS from @storytree/notice-board (2 hours).
 // A claim whose heartbeatAt is past this threshold is stale: the holder crashed/was
@@ -139,15 +139,18 @@ describe('claim-rows-fold-to-one-wisp-per-claimed-story: claimsToActivity — th
 
   // ── grade rides the fold (ADR-0200 D2/D7): geometry comes from the grade, colour from the
   // intent, and no grade is ever a proof (ADR-0138 §5). ──────────────────────────────────────
-  const gradeRow = (grade?: string) => ({
-    unit_id: 'graded-unit',
-    session_id: 'sess-g',
-    branch: 'b',
-    intent: '',
-    ...(grade !== undefined ? { grade } : {}),
-    claimed_at: freshHb,
-    heartbeat_at: freshHb,
-  });
+  const gradeRow = (grade?: string): ClaimRow => {
+    const row: ClaimRow = {
+      unit_id: 'graded-unit',
+      session_id: 'sess-g',
+      branch: 'b',
+      intent: '',
+      claimed_at: freshHb,
+      heartbeat_at: freshHb,
+    };
+    if (grade !== undefined) row.grade = grade;
+    return row;
+  };
 
   it.each(['exploring', 'waiting', 'work'] as const)(
     'ADR-0200 D7: carries grade %s through the fold',

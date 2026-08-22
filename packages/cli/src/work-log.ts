@@ -92,18 +92,21 @@ export function foldWorkLog(
     if (!parsed.success) continue;
     const doc = parsed.data;
     if (unitId !== undefined && doc.unitId !== unitId) continue;
-    entries.push({
+    // `WorkLogEntry`'s optional fields are readonly, so each present one is added by rebuilding the
+    // row rather than by assigning into it.
+    let entry: WorkLogEntry = {
       seq: e.seq,
       at: e.at,
       actor: e.actor,
       event: doc.event,
       unitId: doc.unitId,
-      ...(doc.runId !== undefined ? { runId: doc.runId } : {}),
-      ...(doc.phase !== undefined ? { phase: doc.phase } : {}),
-      // Carried only when the emitter stamped it. Absent stays absent (ADR-0350 D2) — it is never
-      // widened to a null, and never filled from an adjacent row.
-      ...(e.causedBy !== undefined ? { causedBy: { ...e.causedBy } } : {}),
-    });
+    };
+    if (doc.runId !== undefined) entry = { ...entry, runId: doc.runId };
+    if (doc.phase !== undefined) entry = { ...entry, phase: doc.phase };
+    // Carried only when the emitter stamped it. Absent stays absent (ADR-0350 D2) — it is never
+    // widened to a null, and never filled from an adjacent row.
+    if (e.causedBy !== undefined) entry = { ...entry, causedBy: { ...e.causedBy } };
+    entries.push(entry);
   }
   return entries.sort((a, b) => a.seq - b.seq);
 }

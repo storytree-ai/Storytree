@@ -125,14 +125,15 @@ const ANCHORS = new Map([
 ]);
 
 function ctxFor(layer?: SceneCtx['forestRegrowLayer']): SceneCtx {
-  return {
+  const ctx: SceneCtx = {
     territoryClassById: (_id, status) => `hex-territory st-${status}`,
     reveal: null,
     hidden: new Set(),
     onSelectStory: vi.fn(),
     onSelectCap: vi.fn(),
-    ...(layer ? { forestRegrowLayer: layer } : {}),
   };
+  if (layer) ctx.forestRegrowLayer = layer;
+  return ctx;
 }
 
 function draw(

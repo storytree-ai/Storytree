@@ -62,7 +62,7 @@ function mkInput(opts: FixtureOpts = {}): SceneInput {
     { id: 'lib#b', x: 58, y: 56 },
     { id: 'lib#c', x: 46, y: 62 },
   ];
-  return {
+  const input: SceneInput = {
     offset: { x: 0, y: 0 },
     width: 100,
     height: 100,
@@ -103,8 +103,9 @@ function mkInput(opts: FixtureOpts = {}): SceneInput {
         },
       },
     ],
-    ...(opts.heroTrees === false ? {} : { vegetation: { heroTrees: HERO_TREES } }),
   };
+  if (opts.heroTrees !== false) input.vegetation = { heroTrees: HERO_TREES };
+  return input;
 }
 
 function territoryOf(scene: SceneNode, storyId: string): SceneNode {

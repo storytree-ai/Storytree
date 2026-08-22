@@ -21,7 +21,7 @@ import path from "node:path";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 
-import type { ClaimDocT, ClaimRequest, ClaimResult } from "@storytree/notice-board";
+import type { ClaimAcquired, ClaimDocT, ClaimRequest, ClaimResult } from "@storytree/notice-board";
 
 import { silentBuildProgress } from "./build-progress.js";
 import { storyBuild } from "./story-build.js";
@@ -124,12 +124,9 @@ function fakeLedger(seed: { unitId: string; sessionId: string }[] = []) {
       const mine = rows.get(`${req.unitId}::${req.sessionId}`);
       const fresh = doc(req.unitId, req.sessionId, req.branch, req.intent ?? "");
       rows.set(`${req.unitId}::${req.sessionId}`, fresh);
-      return {
-        acquired: true,
-        claim: fresh,
-        reclaimed: false,
-        ...(mine !== undefined ? { displaced: mine } : {}),
-      };
+      const acquired: ClaimAcquired = { acquired: true, claim: fresh, reclaimed: false };
+      if (mine !== undefined) acquired.displaced = mine;
+      return acquired;
     },
     release: async (unitId: string, sessionId: string): Promise<boolean> =>
       rows.delete(`${unitId}::${sessionId}`),

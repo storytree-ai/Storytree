@@ -105,13 +105,14 @@ export class AnthropicModel implements Model {
   }
 
   async createMessage(req: ModelRequest): Promise<ModelResponse> {
-    const message = await this.#client.messages.create({
+    const params: Anthropic.MessageCreateParamsNonStreaming = {
       model: req.model,
       max_tokens: req.maxTokens ?? DEFAULT_MAX_TOKENS,
-      ...(req.system !== undefined ? { system: req.system } : {}),
       messages: req.messages.map(toSdkMessage),
-      ...(req.tools !== undefined ? { tools: req.tools.map(toSdkTool) } : {}),
-    });
+    };
+    if (req.system !== undefined) params.system = req.system;
+    if (req.tools !== undefined) params.tools = req.tools.map(toSdkTool);
+    const message = await this.#client.messages.create(params);
 
     // Filter to the blocks core's vocabulary recognises (text / tool_use); thinking and
     // redacted_thinking blocks are not part of the owned-loop transcript vocabulary.
@@ -178,20 +179,23 @@ function toSdkBlock(block: ContentBlock): Anthropic.ContentBlockParam {
         name: block.name,
         input: block.input,
       };
-    case "tool_result":
-      return {
+    case "tool_result": {
+      const param: Anthropic.ToolResultBlockParam = {
         type: "tool_result",
         tool_use_id: block.tool_use_id,
         content: block.content,
-        ...(block.is_error !== undefined ? { is_error: block.is_error } : {}),
       };
+      if (block.is_error !== undefined) param.is_error = block.is_error;
+      return param;
+    }
   }
 }
 
 function toSdkTool(tool: ModelTool): Anthropic.Tool {
-  return {
+  const sdkTool: Anthropic.Tool = {
     name: tool.name,
-    ...(tool.description !== undefined ? { description: tool.description } : {}),
     input_schema: tool.inputSchema as Anthropic.Tool.InputSchema,
   };
+  if (tool.description !== undefined) sdkTool.description = tool.description;
+  return sdkTool;
 }

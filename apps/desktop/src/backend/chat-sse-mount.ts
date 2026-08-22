@@ -253,15 +253,12 @@ export function createChatSseMount(
       maxTurns?: number;
     }
 
-    const streamArgs: StreamArgsShape = {
-      intent,
-      store,
-      ...(resume !== undefined ? { resume } : {}),
-      ...(deps.queryFn !== undefined ? { queryFn: deps.queryFn } : {}),
-      ...(deps.runner !== undefined ? { runner: deps.runner } : {}),
-      ...(deps.inspect !== undefined ? { inspect: deps.inspect } : {}),
-      ...(deps.maxTurns !== undefined ? { maxTurns: deps.maxTurns } : {}),
-    };
+    const streamArgs: StreamArgsShape = { intent, store };
+    if (resume !== undefined) streamArgs.resume = resume;
+    if (deps.queryFn !== undefined) streamArgs.queryFn = deps.queryFn;
+    if (deps.runner !== undefined) streamArgs.runner = deps.runner;
+    if (deps.inspect !== undefined) streamArgs.inspect = deps.inspect;
+    if (deps.maxTurns !== undefined) streamArgs.maxTurns = deps.maxTurns;
 
     // Stream each ChatStreamEvent as one SSE frame (data: <json>\n\n) as it arrives.
     // startChatStream never throws — errors and refusals are typed terminal events.

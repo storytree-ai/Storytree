@@ -32,7 +32,7 @@ const hero = (fill: string): SceneGardenHero => ({
 const HERO_TREES: SceneVegHeroTrees = { healthy: hero('#0a0'), unknown: hero('#9a9') };
 
 function mkInput(withHeroTrees = true): SceneInput {
-  return {
+  const input: SceneInput = {
     offset: { x: 0, y: 0 },
     width: 100,
     height: 100,
@@ -70,8 +70,9 @@ function mkInput(withHeroTrees = true): SceneInput {
         },
       },
     ],
-    ...(withHeroTrees ? { vegetation: { heroTrees: HERO_TREES } } : {}),
   };
+  if (withHeroTrees) input.vegetation = { heroTrees: HERO_TREES };
+  return input;
 }
 
 function mkLayer(scene: SceneNode, progress: number): VegetationRenderLayer {
@@ -88,15 +89,17 @@ function renderAt(
 ) {
   const scene = buildScene(mkInput(withHeroTrees));
   const onSelectCap = vi.fn();
-  const ctx: SceneCtx = {
+  // `over` still overrides the layer, so the guarded assignment stays BELOW the base literal and
+  // ABOVE the `...over` spread — the exact position the conditional spread held.
+  const base: SceneCtx = {
     territoryClassById: (_id, status) => `hex-territory st-${status}`,
     reveal: null,
     hidden: new Set(),
     onSelectStory: vi.fn(),
     onSelectCap,
-    ...(progress === null ? {} : { vegetationLayer: mkLayer(scene, progress) }),
-    ...over,
   };
+  if (progress !== null) base.vegetationLayer = mkLayer(scene, progress);
+  const ctx: SceneCtx = { ...base, ...over };
   const { container } = render(
     <svg>
       <SceneView scene={scene} ctx={ctx} />

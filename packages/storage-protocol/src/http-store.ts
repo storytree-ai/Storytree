@@ -1,6 +1,7 @@
 import type { DeleteDocOpts, PatchDocInput, Store, StoredDoc, StoreEvent } from "./store.js";
 import {
   STORE_ROUTES,
+  type PatchDocRequest,
   decodeAppendEventResponse,
   decodeDeleteDocResponse,
   decodeGetDocResponse,
@@ -137,12 +138,12 @@ export class HttpStore implements Store {
           "or have the door's own handler apply the write-boundary validation.",
       );
     }
-    const body = await this.#post(STORE_ROUTES.patchDoc, {
-      id: input.id,
-      fields: input.fields,
-      ...(input.actor !== undefined ? { actor: input.actor } : {}),
-      ...(input.kind !== undefined ? { kind: input.kind } : {}),
-    });
+    // Key insertion order is the WIRE order here (JSON.stringify follows it), so each optional key
+    // is assigned at the exact textual position its conditional spread held.
+    const request: PatchDocRequest = { id: input.id, fields: input.fields };
+    if (input.actor !== undefined) request.actor = input.actor;
+    if (input.kind !== undefined) request.kind = input.kind;
+    const body = await this.#post(STORE_ROUTES.patchDoc, request);
     return decodePatchDocResponse(body).doc;
   }
 

@@ -294,6 +294,16 @@ async function writeStore(file: string, data: unknown): Promise<void> {
   await fs.writeFile(file, JSON.stringify(data, null, 2) + '\n', 'utf8');
 }
 
+/** The file paths (and optional derive-on-first-read seed) the offline {@link JsonBackend} runs on. */
+export interface JsonBackendOptions {
+  assetsFile: string;
+  commentsFile: string;
+  usersFile: string;
+  attestationsFile: string;
+  /** Enables the derive-on-first-read seed (real studio); omit to start empty. */
+  loadSeedUnits?: () => Promise<KnowledgeUnitLike[]>;
+}
+
 export class JsonBackend implements LibraryBackend {
   readonly #assetsFile: string;
   readonly #commentsFile: string;
@@ -313,14 +323,7 @@ export class JsonBackend implements LibraryBackend {
    */
   readonly #loadSeedUnits: (() => Promise<KnowledgeUnitLike[]>) | undefined;
 
-  constructor(opts: {
-    assetsFile: string;
-    commentsFile: string;
-    usersFile: string;
-    attestationsFile: string;
-    /** Enables the derive-on-first-read seed (real studio); omit to start empty. */
-    loadSeedUnits?: () => Promise<KnowledgeUnitLike[]>;
-  }) {
+  constructor(opts: JsonBackendOptions) {
     this.#assetsFile = opts.assetsFile;
     this.#commentsFile = opts.commentsFile;
     this.#usersFile = opts.usersFile;
@@ -695,36 +698,37 @@ function toGuidanceAsset(rendered: {
   createdAt: string;
   updatedAt: string;
 }): GuidanceAsset {
-  return {
+  const asset: GuidanceAsset = {
     id: rendered.id,
     category: rendered.category as AssetCategory,
     title: rendered.title,
     description: rendered.description,
     body: rendered.body,
     references: rendered.references,
-    ...(rendered.provenance ? { provenance: rendered.provenance } : {}),
-    ...(rendered.fields ? { fields: rendered.fields } : {}),
-    ...(rendered.degraded ? { degraded: rendered.degraded } : {}),
-    // The typed navigation edges ride the wire ONLY when the structured doc carries them
-    // (absent-by-default, never an empty array) — the inc-9 overview draws the richer
-    // agent/process/plan lineage with them (ADR-0187 dec 3).
-    ...(rendered.stepRefs ? { stepRefs: rendered.stepRefs } : {}),
-    ...(rendered.branchEdges ? { branchEdges: rendered.branchEdges } : {}),
-    ...(rendered.arcRef ? { arcRef: rendered.arcRef } : {}),
-    // A plan doc's lifecycle status rides the wire like arcRef (ADR-0196 D3, absent-by-default).
-    ...(rendered.status ? { status: rendered.status } : {}),
-    // An arc doc's stored closure flag rides it the same way (ADR-0239 D1) — without this the
-    // shelves' `archived` state is unreachable for arcs, which is the rot ADR-0239 exists to end.
-    ...(rendered.lifecycle ? { lifecycle: rendered.lifecycle } : {}),
-    // The authored dependency edge (ADR-0223) — the substrate buildFocusGraph walks. Array-shaped,
-    // so the guard is `Array.isArray`, matching stepRefs/branchEdges above.
-    ...(Array.isArray(rendered.dependsOn) ? { dependsOn: rendered.dependsOn } : {}),
-    // An increment's work-hierarchy join (ADR-0306 D2) — the signal ADR-0363 D2's read-only
-    // depth-from-work projection joins against. Same array-shaped guard as dependsOn.
-    ...(Array.isArray(rendered.cites) ? { cites: rendered.cites } : {}),
     createdAt: rendered.createdAt,
     updatedAt: rendered.updatedAt,
   };
+  if (rendered.provenance) asset.provenance = rendered.provenance;
+  if (rendered.fields) asset.fields = rendered.fields;
+  if (rendered.degraded) asset.degraded = rendered.degraded;
+  // The typed navigation edges ride the wire ONLY when the structured doc carries them
+  // (absent-by-default, never an empty array) — the inc-9 overview draws the richer
+  // agent/process/plan lineage with them (ADR-0187 dec 3).
+  if (rendered.stepRefs) asset.stepRefs = rendered.stepRefs;
+  if (rendered.branchEdges) asset.branchEdges = rendered.branchEdges;
+  if (rendered.arcRef) asset.arcRef = rendered.arcRef;
+  // A plan doc's lifecycle status rides the wire like arcRef (ADR-0196 D3, absent-by-default).
+  if (rendered.status) asset.status = rendered.status;
+  // An arc doc's stored closure flag rides it the same way (ADR-0239 D1) — without this the
+  // shelves' `archived` state is unreachable for arcs, which is the rot ADR-0239 exists to end.
+  if (rendered.lifecycle) asset.lifecycle = rendered.lifecycle;
+  // The authored dependency edge (ADR-0223) — the substrate buildFocusGraph walks. Array-shaped,
+  // so the guard is `Array.isArray`, matching stepRefs/branchEdges above.
+  if (Array.isArray(rendered.dependsOn)) asset.dependsOn = rendered.dependsOn;
+  // An increment's work-hierarchy join (ADR-0306 D2) — the signal ADR-0363 D2's read-only
+  // depth-from-work projection joins against. Same array-shaped guard as dependsOn.
+  if (Array.isArray(rendered.cites)) asset.cites = rendered.cites;
+  return asset;
 }
 
 export class PgBackend implements LibraryBackend {
@@ -1347,13 +1351,12 @@ export function createBackend(opts: {
     const refusal = blankDbCredentialRefusal();
     if (refusal !== null) throw new Error(refusal);
   }
-  return selectedStore() === 'pg'
-    ? new PgBackend()
-    : new JsonBackend({
-        assetsFile: opts.assetsFile,
-        commentsFile: opts.commentsFile,
-        usersFile: opts.usersFile,
-        attestationsFile: opts.attestationsFile,
-        ...(opts.loadSeedUnits !== undefined ? { loadSeedUnits: opts.loadSeedUnits } : {}),
-      });
+  const jsonOpts: JsonBackendOptions = {
+    assetsFile: opts.assetsFile,
+    commentsFile: opts.commentsFile,
+    usersFile: opts.usersFile,
+    attestationsFile: opts.attestationsFile,
+  };
+  if (opts.loadSeedUnits !== undefined) jsonOpts.loadSeedUnits = opts.loadSeedUnits;
+  return selectedStore() === 'pg' ? new PgBackend() : new JsonBackend(jsonOpts);
 }

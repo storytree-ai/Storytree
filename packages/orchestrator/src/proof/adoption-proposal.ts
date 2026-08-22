@@ -263,15 +263,16 @@ function toProposedGate(capId: string, reading: PocketReading): ProposedGate {
     };
   }
   // `R1` / `R2` → a `build-tests` gate that borrows a `(build:)` node's `real:` arm.
-  return {
+  const gate: ProposedGate = {
     capId,
     kind: "build-tests",
     covers: [capId],
     title: reading.title,
     proofCommand: reading.proofCommand,
     redKind: reading.class,
-    ...(reading.buildNode !== undefined ? { buildNode: reading.buildNode } : {}),
   };
+  if (reading.buildNode !== undefined) gate.buildNode = reading.buildNode;
+  return gate;
 }
 
 /**
@@ -364,21 +365,25 @@ export function parsePocketReadings(raw: unknown) {
   const parsed = PocketReadingsInput.parse(raw);
   const out: Record<string, PocketReading> = {};
   for (const [capId, r] of Object.entries(parsed)) {
-    const forks: DecisionFork[] | undefined = r.forks?.map((f) => ({
-      id: f.id,
-      question: f.question,
-      changesPublicSeam: f.changesPublicSeam,
-      materiallyDifferentStrategies: f.materiallyDifferentStrategies,
-      crossCuttingOrIrreversible: f.crossCuttingOrIrreversible,
-      ...(f.resolution !== undefined ? { resolution: f.resolution } : {}),
-    }));
-    out[capId] = {
+    const forks: DecisionFork[] | undefined = r.forks?.map((f) => {
+      const fork: DecisionFork = {
+        id: f.id,
+        question: f.question,
+        changesPublicSeam: f.changesPublicSeam,
+        materiallyDifferentStrategies: f.materiallyDifferentStrategies,
+        crossCuttingOrIrreversible: f.crossCuttingOrIrreversible,
+      };
+      if (f.resolution !== undefined) fork.resolution = f.resolution;
+      return fork;
+    });
+    const reading: PocketReading = {
       class: r.class,
       title: r.title,
       proofCommand: r.proofCommand,
-      ...(r.buildNode !== undefined ? { buildNode: r.buildNode } : {}),
-      ...(forks !== undefined ? { forks } : {}),
     };
+    if (r.buildNode !== undefined) reading.buildNode = r.buildNode;
+    if (forks !== undefined) reading.forks = forks;
+    out[capId] = reading;
   }
   return out satisfies Readonly<Record<string, PocketReading>>;
 }

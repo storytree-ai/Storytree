@@ -230,11 +230,13 @@ function attribute(
  * routed long before the window still contributes the recurrence that landed inside it, which is
  * exactly the "seventeen days later" shape the calibration case carries.
  */
-export function computeRecurrence(input: {
+export interface RecurrenceInput {
   docs: readonly StoredDoc[];
   events: readonly StoreEvent[];
   window?: { from?: string | undefined; to?: string | undefined } | undefined;
-}): RecurrenceReport {
+}
+
+export function computeRecurrence(input: RecurrenceInput): RecurrenceReport {
   const from = input.window?.from;
   const to = input.window?.to;
 
@@ -255,15 +257,17 @@ export function computeRecurrence(input: {
     );
     const spans = routeSpansOf(eventsById.get(stored.id) ?? []);
     const { spans: filled, preRoute } = attribute(spans, dates);
-    items.push({
+    const currentRoute = str(doc, "route");
+    const item: RecurrenceItem = {
       id: stored.id,
       title: str(doc, "title") ?? stored.id,
-      ...(str(doc, "route") !== undefined ? { currentRoute: str(doc, "route")! } : {}),
       discharged: str(doc, "dischargedBy") !== undefined,
       preRoute,
       spans: filled,
       reinforcements: dates.length,
-    });
+    };
+    if (currentRoute !== undefined) item.currentRoute = currentRoute;
+    items.push(item);
   }
 
   // Aggregate by route. `itemsRouted` / `itemsRecurring` count DISTINCT ITEMS, not spans: an item
@@ -288,13 +292,14 @@ export function computeRecurrence(input: {
       (held.get(span.route) ?? held.set(span.route, new Set()).get(span.route)!).add(item.id);
       if (span.postRoute > 0) {
         (recurred.get(span.route) ?? recurred.set(span.route, new Set()).get(span.route)!).add(item.id);
-        row.offenders.push({
+        const offender: RecurrenceByRoute["offenders"][number] = {
           id: item.id,
           title: item.title,
           postRoute: span.postRoute,
           routedAt: span.from,
-          ...(span.to !== undefined ? { latest: span.to } : {}),
-        });
+        };
+        if (span.to !== undefined) offender.latest = span.to;
+        row.offenders.push(offender);
       }
       routes.set(span.route, row);
     }
@@ -311,8 +316,12 @@ export function computeRecurrence(input: {
       Number(b.tripwire) - Number(a.tripwire) || b.postRoute - a.postRoute || a.route.localeCompare(b.route),
   );
 
+  const window: RecurrenceReport["window"] = {};
+  if (from !== undefined) window.from = from;
+  if (to !== undefined) window.to = to;
+
   return {
-    window: { ...(from !== undefined ? { from } : {}), ...(to !== undefined ? { to } : {}) },
+    window,
     sample: {
       items: items.length,
       routed: items.filter((i) => i.spans.length > 0).length,
@@ -579,21 +588,20 @@ export function floorHealthReading(input: {
       : Object.entries(top.postRouteByRoute)
           .filter(([r]) => TRIPWIRE_ROUTES.includes(r))
           .sort((a, b) => b[1] - a[1])[0]?.[0];
-  return {
+  const reading: FloorHealthReading = {
     window: input.recurrence.window,
     collapsingRule: input.bottlenecks.rule,
     attributionRule: input.recurrence.attributionRule,
-    ...(top !== undefined && route !== undefined
-      ? {
-          loudest: {
-            cause: top.key,
-            members: top.members,
-            route,
-            recurrences: top.tripwireRecurrences,
-          },
-        }
-      : {}),
     distinctCauses: input.bottlenecks.sample.causes,
     unjoined: input.bottlenecks.sample.unjoined,
   };
+  if (top !== undefined && route !== undefined) {
+    reading.loudest = {
+      cause: top.key,
+      members: top.members,
+      route,
+      recurrences: top.tripwireRecurrences,
+    };
+  }
+  return reading;
 }

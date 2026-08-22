@@ -34,13 +34,13 @@
 // z-index, the dragged height) is inline, same as ChatDock; the terminal's look/feel is the story's
 // operator-attested UAT leg 5 — this file signs no visual verdict.
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 // The xterm constructors arrive through the toolkit seam (lib/terminalToolkit.ts) rather than as
 // seven direct imports, so a test substitutes the engine instead of rewriting the module system
 // (anti-slop-adoption-arc inc-06, `no-module-mocking`). The TYPES still come straight from the
 // packages — a type import binds nothing at runtime and there is nothing to substitute.
 import { useTerminalToolkit } from '../lib/terminalToolkit';
-import type { Terminal } from '@xterm/xterm';
+import type { ITerminalOptions, Terminal } from '@xterm/xterm';
 import type { FitAddon } from '@xterm/addon-fit';
 import type { SearchAddon } from '@xterm/addon-search';
 import type { IClipboardProvider } from '@xterm/addon-clipboard';
@@ -414,7 +414,7 @@ export function TerminalDock({
       if (!bridge || !rec || rec.term || !rec.bodyEl) return;
 
       const buildNumber = bridge.windowsBuildNumber;
-      const term = new toolkit.Terminal({
+      const termOptions: ITerminalOptions = {
         cursorBlink: true,
         convertEol: true,
         // The unicode-version surface (`term.unicode`, the Unicode11Addon's registration point) is
@@ -427,15 +427,16 @@ export function TerminalDock({
         // lines than a re-attach can replay. Duplicated literal by design — the thin-client
         // boundary forbids importing desktop code; keep the two aligned.
         scrollback: 5000,
-        // ConPTY heuristics (Windows only — the bridge carries `windowsBuildNumber` ONLY on a
-        // win32 desktop preload): without `windowsPty` a row-increase resize can LOSE data
-        // (ConPTY emits empty rows instead of restoring scrollback) and reflow runs on conpty
-        // builds where it must not (< 21376). The key is OMITTED entirely elsewhere — xterm
-        // treats its presence as "apply ConPTY behaviour".
-        ...(typeof buildNumber === 'number' && buildNumber > 0
-          ? { windowsPty: { backend: 'conpty' as const, buildNumber } }
-          : {}),
-      });
+      };
+      // ConPTY heuristics (Windows only — the bridge carries `windowsBuildNumber` ONLY on a
+      // win32 desktop preload): without `windowsPty` a row-increase resize can LOSE data
+      // (ConPTY emits empty rows instead of restoring scrollback) and reflow runs on conpty
+      // builds where it must not (< 21376). The key is OMITTED entirely elsewhere — xterm
+      // treats its presence as "apply ConPTY behaviour".
+      if (typeof buildNumber === 'number' && buildNumber > 0) {
+        termOptions.windowsPty = { backend: 'conpty' as const, buildNumber };
+      }
+      const term = new toolkit.Terminal(termOptions);
       const fit = new toolkit.FitAddon();
       term.loadAddon(fit);
       fit.activate(term); // wire the addon to this terminal so a later fit()/dispose() has effect
@@ -900,6 +901,18 @@ export function TerminalDock({
     );
   }
 
+  // position:absolute → the dock overlays the MAP FRAME (its positioned offsetParent,
+  // .world-frame), matching ChatDock's overlay geometry. Hosted, the host owns that geometry
+  // (and the dragged height with it), so the dock simply fills the pane it was given.
+  const overlayStyle: CSSProperties = {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 6,
+  };
+  if (expanded) overlayStyle.height = `${height}px`;
+
   return (
     <aside
       ref={asideRef}
@@ -907,21 +920,7 @@ export function TerminalDock({
       // tab. Un-hosted (the default), the class list and the inline geometry are byte-identical to
       // what they have always been.
       className={host ? 'terminal-dock terminal-dock-hosted' : 'terminal-dock'}
-      // position:absolute → the dock overlays the MAP FRAME (its positioned offsetParent,
-      // .world-frame), matching ChatDock's overlay geometry. Hosted, the host owns that geometry
-      // (and the dragged height with it), so the dock simply fills the pane it was given.
-      style={
-        host
-          ? { height: '100%', minHeight: 0 }
-          : {
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              bottom: 0,
-              zIndex: 6,
-              ...(expanded ? { height: `${height}px` } : {}),
-            }
-      }
+      style={host ? { height: '100%', minHeight: 0 } : overlayStyle}
     >
       {/* The fold chevron and the drag handle are the FRAME's, so a host that draws the frame draws
           them too — rendering a second pair inside the pane would give the operator two controls for

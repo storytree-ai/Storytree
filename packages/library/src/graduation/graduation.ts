@@ -205,15 +205,15 @@ export function graduationCandidates(
     const target = classifyMemory(m.type);
     if (target === null) continue; // user-tier: deferred, never graduates
     const duplicateOf = findCover(m, snapshot);
-    out.push({
+    const candidate: Omit<GraduationCandidate, "duplicateOf"> = {
       source: m.name,
       target,
       rationale: `${m.type} memory → ${target}: ${m.description}`,
       provenance: `Graduated from agent-memory '${m.name}' on ${opts.now}.`,
       references: resolveReferences(m.body, snapshot),
       body: m.body,
-      ...(duplicateOf !== undefined ? { duplicateOf } : {}),
-    });
+    };
+    out.push(duplicateOf === undefined ? candidate : { ...candidate, duplicateOf });
   }
   return out;
 }

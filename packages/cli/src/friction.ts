@@ -121,10 +121,10 @@ function provenanceOf(doc: Record<string, unknown>): ProvenanceOfResult {
   const p = doc["provenance"];
   if (p !== null && typeof p === "object") {
     const o = p as Record<string, unknown>;
-    return {
-      ...(typeof o["branch"] === "string" ? { branch: o["branch"] } : {}),
-      ...(typeof o["date"] === "string" ? { date: o["date"] } : {}),
-    };
+    const out: ProvenanceOfResult = {};
+    if (typeof o["branch"] === "string") out.branch = o["branch"];
+    if (typeof o["date"] === "string") out.date = o["date"];
+    return out;
   }
   return {};
 }
@@ -894,9 +894,9 @@ export async function routeFriction(
   const fields: Record<string, unknown> = {
     route,
     routeReason: reason,
-    ...(dischargedBy !== undefined ? { dischargedBy } : {}),
-    updatedAt: ctx.now,
   };
+  if (dischargedBy !== undefined) fields["dischargedBy"] = dischargedBy;
+  fields["updatedAt"] = ctx.now;
   Object.assign(base, fields);
 
   // ---- the ADR-0298 D2 emission fence: `tool` cites an arc that PARKS this item, or it does not land

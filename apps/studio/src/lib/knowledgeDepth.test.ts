@@ -27,7 +27,7 @@ function asset(
   id: string,
   extra: { dependsOn?: string[]; cites?: string[] } = {},
 ): GuidanceAsset {
-  return {
+  const doc: GuidanceAsset = {
     id,
     category: 'principle',
     title: id,
@@ -36,9 +36,10 @@ function asset(
     references: [],
     createdAt: '2026-08-20T00:00:00.000Z',
     updatedAt: '2026-08-20T00:00:00.000Z',
-    ...(extra.dependsOn ? { dependsOn: extra.dependsOn } : {}),
-    ...(extra.cites ? { cites: extra.cites } : {}),
-  } as GuidanceAsset;
+  };
+  if (extra.dependsOn) doc.dependsOn = extra.dependsOn;
+  if (extra.cites) doc.cites = extra.cites;
+  return doc;
 }
 
 function visit(nodeId: string, offsetMs: number): TraversalEventEnvelope {

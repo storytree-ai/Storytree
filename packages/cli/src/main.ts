@@ -20,7 +20,10 @@ import {
   resolveArtifactOffers,
   resolveTraceIdentity,
 } from "@storytree/context-traversal-capture";
-import type { TraceIdentity } from "@storytree/context-traversal-capture";
+import type {
+  CaptureCliInvocationInput,
+  TraceIdentity,
+} from "@storytree/context-traversal-capture";
 import { digestOverlapDeltas, type OverlapDelta } from "@storytree/notice-board";
 import { PgClaimStore } from "@storytree/notice-board/store";
 import { PgWorkStore, PgAttestationStore } from "@storytree/orchestrator/store";
@@ -28,6 +31,7 @@ import { PgWorkStore, PgAttestationStore } from "@storytree/orchestrator/store";
 import type { AdrAllocatorLike } from "./adr.js";
 import type { AttestationStoreLike } from "./attest.js";
 import { isRawEnvelope, run } from "./commands.js";
+import type { RunDeps } from "./commands.js";
 import { formatEnvelope, withDeltaFooter, type Envelope } from "./envelope.js";
 import {
   createClaimUniverseLoader,
@@ -344,18 +348,21 @@ async function captureInvocation(
     // not anything follows it (D2); which offer this read ANSWERED rides in its own argv (D3) and is
     // parsed inside `captureCliInvocation`, from the raw argv passed below.
     const offeredIds = await resolveArtifactOffers(readArgv, store);
-    captureCliInvocation({
+    // Each optional field is added only when it is present — `CaptureCliInvocationInput`'s
+    // properties are readonly, so every addition is a fresh literal rather than an assignment.
+    let capture: CaptureCliInvocationInput = {
       argv,
       ok,
       sessionId: trace?.sessionId ?? null,
-      // Stamped on every line this invocation writes: what the session id NAMES, and the worktree
-      // slot it ran in as a grouping attribute beside it — so a later reader states the trace's
-      // identity grade rather than inferring it from the id's shape.
-      ...(trace !== null ? { grade: trace.grade, slot: trace.slot } : {}),
       agentRefIds,
       offeredIds,
-      ...(offerVisitId !== undefined ? { offerVisitId } : {}),
-    });
+    };
+    // Stamped on every line this invocation writes: what the session id NAMES, and the worktree
+    // slot it ran in as a grouping attribute beside it — so a later reader states the trace's
+    // identity grade rather than inferring it from the id's shape.
+    if (trace !== null) capture = { ...capture, grade: trace.grade, slot: trace.slot };
+    if (offerVisitId !== undefined) capture = { ...capture, offerVisitId };
+    captureCliInvocation(capture);
   } catch {
     // Telemetry never breaks a command — the envelope is the payload, the trace is a courtesy.
   }
@@ -409,33 +416,37 @@ export async function main(): Promise<void> {
   try {
     // Writes only persist against the live --pg store; the offline copy is read-only-by-convention.
     const actor = process.env["STORYTREE_ACTOR"];
-    const env = await run(argv, {
+    // `RunDeps`' optional fields are readonly, so each one that is present is added by rebuilding
+    // the bag rather than by assigning into it. Absent stays ABSENT — never `undefined`.
+    let deps: RunDeps = {
       store,
       writable: usePg,
       presence: { claims, ledger },
-      // The claim NAMESPACE (ADR-0310 D2) — supplied HERE and only here, because this is the one
-      // place that knows the store is the live corpus rather than a test double. A memoised loader,
-      // invoked lazily by the claim-taking verbs alone, so a command that takes no claim never
-      // reads it; and only under --pg, since every one of those verbs already refuses without it.
-      ...(usePg
-        ? {
-            claimUniverse: createClaimUniverseLoader({
-              storiesDir: path.join(repoRoot(), "stories"),
-              library: store,
-              // The declared subtree map (ADR-0317 D2/D3) — the third source. Unreadable here means
-              // the whole check stands down, never that a subtree claim starts being refused.
-              manifestPath: path.join(repoRoot(), "repo-manifest.json"),
-            }),
-          }
-        : {}),
       verdicts,
       workLog,
       uatStore,
       attestations,
       adr,
-      ...(actor !== undefined ? { actor } : {}),
-      ...(offer !== null ? { offerId: offer.candidateSetId } : {}),
-    });
+    };
+    // The claim NAMESPACE (ADR-0310 D2) — supplied HERE and only here, because this is the one
+    // place that knows the store is the live corpus rather than a test double. A memoised loader,
+    // invoked lazily by the claim-taking verbs alone, so a command that takes no claim never
+    // reads it; and only under --pg, since every one of those verbs already refuses without it.
+    if (usePg) {
+      deps = {
+        ...deps,
+        claimUniverse: createClaimUniverseLoader({
+          storiesDir: path.join(repoRoot(), "stories"),
+          library: store,
+          // The declared subtree map (ADR-0317 D2/D3) — the third source. Unreadable here means
+          // the whole check stands down, never that a subtree claim starts being refused.
+          manifestPath: path.join(repoRoot(), "repo-manifest.json"),
+        }),
+      };
+    }
+    if (actor !== undefined) deps = { ...deps, actor };
+    if (offer !== null) deps = { ...deps, offerId: offer.candidateSetId };
+    const env = await run(argv, deps);
     if (isRawEnvelope(env)) {
       // `library artifact <id> --raw <field>` — the ONE deliberate exception to the envelope
       // convention: the field's exact stored bytes ALONE. No `formatEnvelope` (it strips trailing

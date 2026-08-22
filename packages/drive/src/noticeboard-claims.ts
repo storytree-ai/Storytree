@@ -22,7 +22,12 @@
  * {@link ClaimLedgerStoreLike} seam keeps this module offline-testable (the CLI injects
  * `PgClaimStore` when --pg; null offline).
  */
-import type { ClaimDocT, ClaimRequest, ClaimResult } from "@storytree/notice-board";
+import type {
+  ClaimDocT,
+  ClaimRequest,
+  ClaimResult,
+  WaitingClaimArgs,
+} from "@storytree/notice-board";
 import {
   CLAIM_STALE_RECLAIM_MS,
   claimGrade,
@@ -442,16 +447,15 @@ export async function claimLedgerCommand(
       }
       req = exploringClaimRequest({ unitId, sessionId, branch, intent });
     } else if (grade === "waiting") {
-      req = waitingClaimRequest({
-        unitId,
-        sessionId,
-        branch,
-        ...(intent !== undefined ? { intent } : {}),
-      });
+      const waitingArgs: WaitingClaimArgs = { unitId, sessionId, branch };
+      if (intent !== undefined) waitingArgs.intent = intent;
+      req = waitingClaimRequest(waitingArgs);
     } else {
       // A work take carries the CLI's free intent prose, so the enum-kinded workClaimRequest
       // (edit|orchestrate, ADR-0138 §3) doesn't fit — build the request literal instead.
-      req = { unitId, sessionId, branch, grade: "work", ...(intent !== undefined ? { intent } : {}) };
+      const workReq: ClaimRequest = { unitId, sessionId, branch, grade: "work" };
+      if (intent !== undefined) workReq.intent = intent;
+      req = workReq;
     }
 
     // queueOnRefusal for the WORK grade (ADR-0346 D1): a refused work take does not dead-end, it

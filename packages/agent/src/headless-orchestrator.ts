@@ -248,22 +248,50 @@ export async function runHeadlessOrchestrator(
     // (the chat panel). The terminal `orchestrate` command omits onDelta and pays no streaming cost.
     const wantsDeltas = args.onDelta !== undefined;
 
+    // The orientation MCP server is only mounted when a runner is present (§7 scale-down), and the
+    // inspect server only when inspect deps are present. No propose server (ADR-0155 retired the
+    // ADR-0108 d.3 propose/accept surface) and no spawn server (ADR-0175 retired it).
+    const mcpServers: NonNullable<Options["mcpServers"]> = {};
+    if (orientationTools.length > 0) {
+      mcpServers[ORIENTATION_SERVER] = createSdkMcpServer({
+        name: ORIENTATION_SERVER,
+        version: "1.0.0",
+        // Each read surface takes OPTIONAL drill-down args so the agent can follow the
+        // envelopes' `next:` pointers (tree spec <id> / library artifact <id> / agents
+        // <name>) — the surface refuses write verbs fail-closed before the runner.
+        tools: orientationTools.map((ot) =>
+          tool(
+            ot.name,
+            ot.description,
+            {
+              args: z
+                .array(z.string())
+                .optional()
+                .describe(
+                  "Optional subcommand tokens, e.g. ['spec','<node-id>'] or " +
+                    "['artifact','<id>'] — paste a next: pointer's tokens, dropping " +
+                    "the leading 'storytree'.",
+                ),
+            },
+            async ({ args }) => {
+              const text = await ot.call(args ?? []);
+              return { content: [{ type: "text" as const, text }] };
+            },
+          ),
+        ),
+      });
+    }
+    if (inspectTools.length > 0) {
+      mcpServers[INSPECT_SERVER] = createSdkMcpServer({
+        name: INSPECT_SERVER,
+        version: "1.0.0",
+        tools: inspectTools,
+      });
+    }
+
     const options: Options = {
       cwd: args.cwd ?? process.cwd(),
       model: args.model ?? "claude-opus-4-8",
-      // No turn ceiling by default (ADR-0151, re-deciding ADR-0130 for the orchestrator-session path):
-      // the orchestrator session is the human-watched loop, so a fixed cap that false-fails a healthy
-      // long orient/propose costs more than it protects. Pass maxTurns ONLY to RE-impose a cap.
-      ...(args.maxTurns !== undefined ? { maxTurns: args.maxTurns } : {}),
-      // No USD ceiling by default (ADR-0131, completing ADR-0130): subscription-funded (ADR-0030), so a
-      // metered dollar cap is a phantom. Pass maxBudgetUsd ONLY when set.
-      ...(args.maxBudgetUsd !== undefined ? { maxBudgetUsd: args.maxBudgetUsd } : {}),
-      // Resume the prior session when the caller threads one back (ADR-0170 chat continuity) — the
-      // SDK loads its conversation history, so the follow-up send remembers the exchange. Absent →
-      // a fresh session; no `resume` key is handed to the SDK at all.
-      ...(args.resume !== undefined ? { resume: args.resume } : {}),
-      // Surface assistant token deltas as they generate (live chat) — see onDelta/extractTextDelta.
-      ...(wantsDeltas ? { includePartialMessages: true } : {}),
       // No Write/Edit/Bash in tools or allowedTools — the chat session carries no raw write verbs
       // (ADR-0137 d.1). The ADR-0152 merge-ceremony surface and the ADR-0137 spawn surface that used
       // to sit here both retired with the interactive orchestrator (ADR-0175), so this session runs
@@ -272,52 +300,21 @@ export async function runHeadlessOrchestrator(
       allowedTools,
       permissionMode: "bypassPermissions",
       systemPrompt: args.systemPrompt,
-      // The orientation MCP server is only mounted when a runner is present (§7 scale-down), and the
-      // inspect server only when inspect deps are present. No propose server (ADR-0155 retired the
-      // ADR-0108 d.3 propose/accept surface) and no spawn server (ADR-0175 retired it).
-      mcpServers: {
-        ...(orientationTools.length > 0
-          ? {
-              [ORIENTATION_SERVER]: createSdkMcpServer({
-                name: ORIENTATION_SERVER,
-                version: "1.0.0",
-                // Each read surface takes OPTIONAL drill-down args so the agent can follow the
-                // envelopes' `next:` pointers (tree spec <id> / library artifact <id> / agents
-                // <name>) — the surface refuses write verbs fail-closed before the runner.
-                tools: orientationTools.map((ot) =>
-                  tool(
-                    ot.name,
-                    ot.description,
-                    {
-                      args: z
-                        .array(z.string())
-                        .optional()
-                        .describe(
-                          "Optional subcommand tokens, e.g. ['spec','<node-id>'] or " +
-                            "['artifact','<id>'] — paste a next: pointer's tokens, dropping " +
-                            "the leading 'storytree'.",
-                        ),
-                    },
-                    async ({ args }) => {
-                      const text = await ot.call(args ?? []);
-                      return { content: [{ type: "text" as const, text }] };
-                    },
-                  ),
-                ),
-              }),
-            }
-          : {}),
-        ...(inspectTools.length > 0
-          ? {
-              [INSPECT_SERVER]: createSdkMcpServer({
-                name: INSPECT_SERVER,
-                version: "1.0.0",
-                tools: inspectTools,
-              }),
-            }
-          : {}),
-      },
+      mcpServers,
     };
+    // No turn ceiling by default (ADR-0151, re-deciding ADR-0130 for the orchestrator-session path):
+    // the orchestrator session is the human-watched loop, so a fixed cap that false-fails a healthy
+    // long orient/propose costs more than it protects. Pass maxTurns ONLY to RE-impose a cap.
+    if (args.maxTurns !== undefined) options.maxTurns = args.maxTurns;
+    // No USD ceiling by default (ADR-0131, completing ADR-0130): subscription-funded (ADR-0030), so a
+    // metered dollar cap is a phantom. Pass maxBudgetUsd ONLY when set.
+    if (args.maxBudgetUsd !== undefined) options.maxBudgetUsd = args.maxBudgetUsd;
+    // Resume the prior session when the caller threads one back (ADR-0170 chat continuity) — the
+    // SDK loads its conversation history, so the follow-up send remembers the exchange. Absent →
+    // a fresh session; no `resume` key is handed to the SDK at all.
+    if (args.resume !== undefined) options.resume = args.resume;
+    // Surface assistant token deltas as they generate (live chat) — see onDelta/extractTextDelta.
+    if (wantsDeltas) options.includePartialMessages = true;
 
     let result: ResultLike | undefined;
     try {
@@ -368,17 +365,18 @@ export async function runHeadlessOrchestrator(
       };
     }
 
-    return {
+    const success: HeadlessOrchestratorResult = {
       ok: true,
       proposal: result.result ?? "",
       costUsd,
       turns,
-      // Surface the run's session id so the caller can thread it back as `resume` on the next
-      // send (ADR-0170 chat continuity). Only when the SDK reported one (exactOptionalPropertyTypes).
-      ...(typeof result.session_id === "string" && result.session_id.length > 0
-        ? { sessionId: result.session_id }
-        : {}),
     };
+    // Surface the run's session id so the caller can thread it back as `resume` on the next
+    // send (ADR-0170 chat continuity). Only when the SDK reported one (exactOptionalPropertyTypes).
+    if (typeof result.session_id === "string" && result.session_id.length > 0) {
+      success.sessionId = result.session_id;
+    }
+    return success;
   } finally {
     inFlight = false;
   }

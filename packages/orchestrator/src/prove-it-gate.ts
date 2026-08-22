@@ -295,9 +295,9 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
     outputVersion: "v1",
     evidence: [toEvidence(redObs), toEvidence(greenObs)],
     at: spec.now(),
-    ...(spec.binding !== undefined ? { boundHash: spec.binding.boundHash } : {}),
-    ...(coverage !== undefined ? { contractCoverage: coverage } : {}),
   };
+  if (spec.binding !== undefined) verdict.boundHash = spec.binding.boundHash;
+  if (coverage !== undefined) verdict.contractCoverage = coverage;
 
   // The signed promotion event: healthy/proven is reachable ONLY through this append (never authored).
   await spec.store.appendEvent({
@@ -316,11 +316,11 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
       unitId: spec.unitId,
       hashBefore: spec.binding.priorHash ?? spec.binding.boundHash,
       hashAfter: spec.binding.boundHash,
-      ...(spec.binding.description !== undefined ? { description: spec.binding.description } : {}),
       author: signer.signer,
       at: spec.now(),
       commitSha: tree.commitSha,
     };
+    if (spec.binding.description !== undefined) change.description = spec.binding.description;
     await spec.changeStore.appendChangeEvent(change);
   }
 

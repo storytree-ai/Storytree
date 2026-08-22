@@ -8,8 +8,10 @@ import {
   gitAbsorbed,
   gitCommits,
   type BottleneckReport,
+  type ChurnInput,
   type ChurnReport,
   type CommitRec,
+  type RecurrenceInput,
   type RecurrenceReport,
   type ReferenceRate,
 } from "@storytree/drive";
@@ -302,13 +304,11 @@ export async function factoryHealth(store: Store, opts: FactoryHealthOpts): Prom
     // The Store seam's `readEvents` filters by id only, so this reads the whole log and narrows in
     // memory. One query for a report verb; a kind filter belongs on the seam, not in a second reader.
     const events = await store.readEvents();
-    recurrence = computeRecurrence({
-      docs,
-      events,
-      ...(opts.from !== undefined || opts.to !== undefined
-        ? { window: { from: opts.from, to: opts.to } }
-        : {}),
-    });
+    const recurrenceInput: RecurrenceInput = { docs, events };
+    if (opts.from !== undefined || opts.to !== undefined) {
+      recurrenceInput.window = { from: opts.from, to: opts.to };
+    }
+    recurrence = computeRecurrence(recurrenceInput);
     if (wantBottlenecks) {
       const increments = await store.queryDocs({ kind: "increment" });
       bottlenecks = computeBottlenecks({ docs, increments, recurrence });
@@ -330,12 +330,13 @@ export async function factoryHealth(store: Store, opts: FactoryHealthOpts): Prom
         : { label: `caller-supplied (${opts.landingsPerDay} landings/day)`, landingsPerDay: Number(opts.landingsPerDay) };
     try {
       const commits = (opts.commits ?? ((r) => gitCommits(opts.repoRoot, r)))(ref);
-      const report = couplingChurn({
+      const churnInput: ChurnInput = {
         commits,
         absorbedFor: opts.absorbed ?? ((commit) => gitAbsorbed(opts.repoRoot, commit)),
         window,
-        ...(reference !== undefined ? { reference } : {}),
-      });
+      };
+      if (reference !== undefined) churnInput.reference = reference;
+      const report = couplingChurn(churnInput);
       lines.push(...renderChurn(report));
     } catch (err) {
       // A missing ref is the honest answer "I cannot read this history", not a zeroed report — a

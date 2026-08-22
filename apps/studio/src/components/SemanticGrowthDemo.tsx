@@ -63,6 +63,19 @@ import type {
 } from '../types.js';
 import type { SpriteStyleSheet } from '../lib/sprite-sheet.js';
 
+/** A writable draft of a frozen contract shape: build it field-by-field, then hand it over by a
+ *  CHECKED assignment to the readonly type (never a cast).
+ *
+ *  ⚠ Always go through a NON-GENERIC alias hop like `OrganicPoseLayerDraft` below — annotating a
+ *  binding with `Mutable<Something>` DIRECTLY fires `anti-slop/no-known-value-widening`, because
+ *  that rule's classifier resolves a same-file GENERIC alias through `resolvesToDictionary`, which
+ *  any mapped type satisfies. The extra hop routes through `classifyAliasBroadTarget` instead,
+ *  which correctly finds `keyof T` is not a broad key. Measured, not assumed. */
+type Mutable<T> = { -readonly [K in keyof T]: T[K] };
+
+/** The writable draft of {@link SemanticGrowthOrganicPoseLayer} — see the hop note above. */
+type OrganicPoseLayerDraft = Mutable<SemanticGrowthOrganicPoseLayer>;
+
 /** The fixture's one representative story id + its two capability ids — enough for the real
  *  pipeline to grow a multi-tile territory with more than one capability parcel. */
 const DEMO_STORY_ID = 'semantic-growth-demo';
@@ -101,7 +114,7 @@ function demoCapability(id: string, testCount: number, status: WorkStatus): Tree
  *  grows the exact same territory every time it's called. */
 function demoStory(status: WorkStatus, verdict?: TreeVerdict): TreeStory {
   const capStatus: WorkStatus = status === 'healthy' ? 'healthy' : 'proposed';
-  return {
+  const story: TreeStory = {
     id: DEMO_STORY_ID,
     title: 'Semantic growth witness',
     outcome: 'stages the semantic-growth vocabulary through the real Studio world pipeline',
@@ -119,8 +132,9 @@ function demoStory(status: WorkStatus, verdict?: TreeVerdict): TreeStory {
       demoCapability(DEMO_CAP_ALPHA_ID, 6, capStatus),
       demoCapability(DEMO_CAP_BETA_ID, 5, capStatus),
     ],
-    ...(verdict ? { verdict } : {}),
   };
+  if (verdict) story.verdict = verdict;
+  return story;
 }
 
 /** The fixed companion story, identical on every call — never varied by frame (the primary is the
@@ -589,7 +603,7 @@ export function SemanticGrowthDemo({
   // — so a candidate swap can never change the plant, the island or the walk.
   const organicPoseGrowth = useMemo<SemanticGrowthOrganicPoseLayer | null>(() => {
     if (!poseVariant || !sockets) return null;
-    return {
+    const draft: OrganicPoseLayerDraft = {
       registry: candidate ? candidate.registry : CHAPTER2_ORGANIC_POSE_TO_POSE_REGISTRY,
       instances: [
         {
@@ -609,8 +623,10 @@ export function SemanticGrowthDemo({
         ...sockets.island,
         settledAtProgress: 0.18,
       },
-      ...(labVariant ? { projection } : {}),
     };
+    if (labVariant) draft.projection = projection;
+    const layer: SemanticGrowthOrganicPoseLayer = draft;
+    return layer;
   }, [candidate, labVariant, poseVariant, projection, sockets]);
   const svgIslandAccretion = useMemo<SemanticGrowthSvgIslandAccretion | null>(() => {
     if (!accretionVariant || !sockets) return null;

@@ -50,6 +50,7 @@ import {
   judgeSourceOwnership,
   type FormatOptions,
   type OwnershipBaseline,
+  type SourceOwnershipInput,
   type SubtreeDeclaration,
 } from "./source-ownership.js";
 
@@ -211,14 +212,14 @@ export function gatherUnitIds(repoRoot: string): GatherUnitIdsResult {
 export function gatherFromDisk(repoRoot: string): OwnershipFacts {
   const { declarations, baseline } = gatherDeclarations(repoRoot);
   const { knownUnitIds, storyIds, unitsByStory } = gatherUnitIds(repoRoot);
-  return {
+  const facts: Omit<OwnershipFacts, "baseline"> = {
     files: gatherSourceFiles(repoRoot),
     declarations,
     knownUnitIds,
     storyIds,
     unitsByStory,
-    ...(baseline !== undefined ? { baseline } : {}),
   };
+  return baseline !== undefined ? { ...facts, baseline } : facts;
 }
 
 /**
@@ -255,15 +256,20 @@ export function ownershipCommand(deps: OwnershipDeps, options: FormatOptions & {
     };
   }
 
-  const report = judgeSourceOwnership({
+  // `SourceOwnershipInput`'s optional fields are readonly, so each present one is added by
+  // rebuilding the input rather than by assigning into it. Absent stays ABSENT.
+  let input: SourceOwnershipInput = {
     files,
     declarations: facts.declarations,
     knownUnitIds: facts.knownUnitIds,
     storyIds: facts.storyIds,
-    ...(facts.unitsByStory !== undefined ? { unitsByStory: facts.unitsByStory } : {}),
-    // A baseline measured over the WHOLE tree cannot be compared against one package's slice.
-    ...(facts.baseline !== undefined && options.pkg === undefined ? { baseline: facts.baseline } : {}),
-  });
+  };
+  if (facts.unitsByStory !== undefined) input = { ...input, unitsByStory: facts.unitsByStory };
+  // A baseline measured over the WHOLE tree cannot be compared against one package's slice.
+  if (facts.baseline !== undefined && options.pkg === undefined) {
+    input = { ...input, baseline: facts.baseline };
+  }
+  const report = judgeSourceOwnership(input);
 
   const body = formatSourceOwnershipReport(report, options);
   const next = [

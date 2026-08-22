@@ -467,13 +467,14 @@ export function evaluateCoverageDrain(
         ? "warn"
         : "ok";
 
-  return {
+  const verdict: CoverageDrainVerdict = {
     level,
     uncoveredCount,
     unboundCount,
     breaches,
-    ...(suppressed === undefined ? {} : { suppressed }),
-    ...(unverified === undefined ? {} : { unverified }),
     config,
   };
+  if (suppressed !== undefined) verdict.suppressed = suppressed;
+  if (unverified !== undefined) verdict.unverified = unverified;
+  return verdict;
 }

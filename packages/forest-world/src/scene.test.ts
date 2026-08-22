@@ -499,9 +499,12 @@ test('a territory with in-flight builds carries a wisp orbit; none → no wisps'
 
 test('the wisp folds the live gate phase → a red/green band (location ⟂ form: phase is the rotation)', () => {
   const wispFor = (phase?: 'AUTHOR_TEST' | 'CONFIRM_RED' | 'IMPLEMENT' | 'CONFIRM_GREEN' | 'GATE') => {
+    // No phase ⇒ the wisp carries NO `phase` key, which is the unbanded case asserted below.
+    const wisp: SceneTerritoryInput['wisps'][number] = { runId: 'r1', title: 'building' };
+    if (phase) wisp.phase = phase;
     const scene = buildScene(
       mkInput({
-        territories: [mkTerritory({ wisps: [{ runId: 'r1', title: 'building', ...(phase ? { phase } : {}) }] })],
+        territories: [mkTerritory({ wisps: [wisp] })],
       }),
     );
     return mustByKind(scene, 'wisp');
@@ -560,21 +563,23 @@ test('each claim intent → its colour-state on the claim wisp (authoring / prov
 // ---------- the build phase folded onto the ONE work body (ADR-0212) ----------
 
 test('ADR-0212: a work claim with a live build phase folds it to a phaseBand on the SAME body', () => {
-  const claimWith = (phase?: 'CONFIRM_RED' | 'IMPLEMENT' | 'GATE') =>
-    mustByKind(
+  const claimWith = (phase?: 'CONFIRM_RED' | 'IMPLEMENT' | 'GATE') => {
+    // No phase ⇒ the claim carries NO `phase` key, which is the unbanded case asserted below.
+    const claim: NonNullable<SceneTerritoryInput['claims']>[number] = {
+      key: 's1',
+      title: 't',
+      colourState: 'proving',
+    };
+    if (phase) claim.phase = phase;
+    return mustByKind(
       buildScene(
         mkInput({
-          territories: [
-            mkTerritory({
-              claims: [
-                { key: 's1', title: 't', colourState: 'proving', ...(phase ? { phase } : {}) },
-              ],
-            }),
-          ],
+          territories: [mkTerritory({ claims: [claim] })],
         }),
       ),
       'claim-wisp',
     );
+  };
 
   // The build phase rides as the BAND on the one work body — no second orbiting wisp is emitted.
   assert.equal(claimWith('CONFIRM_RED').phaseBand, 'red');
@@ -1389,14 +1394,15 @@ test('ADR-0226 §2: the vocabulary retires the decorative bloom in every biome; 
     // a HEALTHY parcel's ONLY `parcel-flower` source is its decorative bloom (wildflower / anemone /
     // heather-bell); grass (blades) + UAT markers (tall-flower-*) are distinct kinds, so parcel-flower ⇒ bloom.
     const parcels: Parcels = [{ capId: 'cap', status: 'healthy', testCount: 10, theme, seed: SEED_A }];
-    const mk = (veg: boolean): SceneG =>
-      buildScene(
-        mkInput({
-          relaxedCells: CELLS_AB,
-          territories: [mkTerritory({ status: 'proposed', parcels, uatCriteria: [] })],
-          ...(veg ? { vegetation: VEG } : {}),
-        }),
-      );
+    const mk = (veg: boolean): SceneG => {
+      // Flag off ⇒ `vegetation` stays ABSENT, which is what selects the pre-ADR-0226 render.
+      const over: Partial<SceneInput> = {
+        relaxedCells: CELLS_AB,
+        territories: [mkTerritory({ status: 'proposed', parcels, uatCriteria: [] })],
+      };
+      if (veg) over.vegetation = VEG;
+      return buildScene(mkInput(over));
+    };
     const off = mustByKind(mk(false), 'flora-layer');
     const on = mustByKind(mk(true), 'flora-layer');
     assert.ok(allByKind(off, 'parcel-flower').length > 0, `${theme}: the decorative bloom appears with the flag off`);

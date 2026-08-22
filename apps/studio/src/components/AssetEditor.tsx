@@ -137,14 +137,14 @@ export function AssetEditor({ mode, id }: AssetEditorProps): React.JSX.Element {
     setError('');
 
     const provenance = form.provenance.trim();
-    const common = {
+    const common: Omit<AssetInput, 'body' | 'fields'> = {
       id: form.id.trim(),
       category: form.category,
       title: form.title.trim(),
       description: form.description.trim(),
       references: splitList(form.references),
-      ...(provenance ? { provenance } : {}),
     };
+    if (provenance) common.provenance = provenance;
 
     let input: AssetInput;
     if (structured) {

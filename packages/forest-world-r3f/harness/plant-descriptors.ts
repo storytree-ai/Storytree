@@ -194,7 +194,7 @@ function plantOf(
 
   const cx = (minX + maxX) / 2;
   const cy = (minY + maxY) / 2;
-  return {
+  const instance: PlantInstance = {
     kind: 'plant-instance',
     // The plant STANDS at the bottom of its own marks — a mound's ground contact is the
     // box's south edge, not its centre. A live mesh planted at the centroid floats.
@@ -205,8 +205,10 @@ function plantOf(
     form,
     footprint: { cx, cy, w, h },
     marks: acc.marks,
-    ...(node.id !== undefined ? { capability: node.id } : {}),
   };
+  // An unstamped surface carries NO `capability` key, exactly as before.
+  if (node.id !== undefined) instance.capability = node.id;
+  return instance;
 }
 
 /** Recursively collect every `parcel-flora` item under a scene node. */

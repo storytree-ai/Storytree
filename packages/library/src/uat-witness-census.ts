@@ -97,14 +97,18 @@ export function censusUatWitnesses(
     const criteria = parseCriteriaOrRefuse(story);
     if (criteria.length > 0) storiesWithCriteria.add(story.sourcePath);
     for (const criterion of criteria) {
-      rows.push({
+      const row: Omit<UatWitnessCensusRow, "witnessBasis"> = {
         storyId: story.storyId,
         sourcePath: story.sourcePath,
         criterionId: criterion.criterionId,
         witness: criterion.witness,
         wouldBe: criterion.wouldBe,
-        ...(criterion.witnessBasis !== undefined ? { witnessBasis: criterion.witnessBasis } : {}),
-      });
+      };
+      rows.push(
+        criterion.witnessBasis === undefined
+          ? row
+          : { ...row, witnessBasis: criterion.witnessBasis },
+      );
       byWitness[criterion.witness] += 1;
       storyIdsByWitness[criterion.witness].add(story.sourcePath);
       if (criterion.wouldBe) wouldBe += 1;

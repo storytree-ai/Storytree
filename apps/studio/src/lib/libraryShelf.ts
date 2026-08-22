@@ -88,13 +88,16 @@ export function listCategoryResults(
   docs: DocMeta[],
 ): SearchResult[] {
   if (category === 'adr') {
-    return docs.map((doc) => ({
-      id: doc.id,
-      title: doc.title,
-      category: 'adr',
-      source: 'doc',
-      ...(doc.status !== undefined ? { status: doc.status } : {}),
-    }));
+    return docs.map((doc) => {
+      const result: SearchResult = {
+        id: doc.id,
+        title: doc.title,
+        category: 'adr',
+        source: 'doc',
+      };
+      if (doc.status !== undefined) result.status = doc.status;
+      return result;
+    });
   }
 
   return assets

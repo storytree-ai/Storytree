@@ -664,11 +664,10 @@ async function adrList(opts: AdrCommandOpts, deps: AdrCommandDeps): Promise<Enve
       next: ["pnpm db:up", 'storytree adr new --title "..." --pg'],
     };
   }
-  const filter: AdrListFilter = {
-    ...(opts.current === true ? { current: true } : {}),
-    ...(opts.loadBearing === true ? { loadBearing: true } : {}),
-    ...(opts.status !== undefined ? { status: opts.status as AdrStatus } : {}),
-  };
+  const filter: AdrListFilter = {};
+  if (opts.current === true) filter.current = true;
+  if (opts.loadBearing === true) filter.loadBearing = true;
+  if (opts.status !== undefined) filter.status = opts.status as AdrStatus;
   const rows = renderAdrList(listings, filter);
   const cut = opts.loadBearing
     ? "load-bearing current-state"

@@ -31,6 +31,7 @@ import {
   parseParkLedger,
   type GraduationCandidate,
   type LibrarySnapshot,
+  type MakeParkRecordOptions,
   type MemoryFile,
   type ParkLedger,
   type ParkWorklist,
@@ -101,15 +102,15 @@ export function parseMemoryFile(file: string, content: string): MemoryFile {
   const afterFence = content.slice(end + 1); // "---...\n<body>"
   const nl = afterFence.indexOf("\n");
   const body = (nl === -1 ? "" : afterFence.slice(nl + 1)).trim();
-  return {
+  const memory: MemoryFile = {
     name: fm.name,
     description: fm.description,
     type: fm.metadata.type,
     body,
-    // Carried only when present: `exactOptionalPropertyTypes` means an explicit `undefined` and an
-    // absent key are different things, and the ceiling reads absence as UNATTRIBUTED (ADR-0301).
-    ...(fm.metadata.branch === undefined ? {} : { branch: fm.metadata.branch }),
   };
+  // Carried only when present: `exactOptionalPropertyTypes` means an explicit `undefined` and an
+  // absent key are different things, and the ceiling reads absence as UNATTRIBUTED (ADR-0301).
+  return fm.metadata.branch === undefined ? memory : { ...memory, branch: fm.metadata.branch };
 }
 
 // ---- pure: the snapshot builder -------------------------------------------------------------
@@ -443,7 +444,9 @@ function authorshipLines(
   const branchOf = new Map(memories.map((m) => [m.name, m.branch] as const));
   const candidates: DrainCandidate[] = live.map(({ candidate, status }) => {
     const branch = branchOf.get(candidate.source);
-    return { name: candidate.source, status, ...(branch === undefined ? {} : { branch }) };
+    const drain: DrainCandidate = { name: candidate.source, status };
+    if (branch !== undefined) drain.branch = branch;
+    return drain;
   });
   // `ledgerUsable` is irrelevant here: this reads only the authorship columns, never `level` or
   // `breaches`, and this verb has never had an exit code to suppress.
@@ -585,7 +588,7 @@ export function graduateCommand(opts: { review: boolean }, deps: GraduateDeps): 
   const titleById = new Map(snapshot.docs.map((d) => [d.id, d.title] as const));
   const { ledger, problem } = readParkLedger(deps.ledgerPath);
   const fold = foldParkLedger(novelCandidates(candidates), read.memories, ledger, deps.now);
-  const w: Worklist = {
+  const base: Omit<Worklist, "ledgerProblem"> = {
     live: fold.live,
     parked: fold.parked,
     counts: fold.counts,
@@ -594,10 +597,10 @@ export function graduateCommand(opts: { review: boolean }, deps: GraduateDeps): 
     // memories so the worklist can SURFACE the deferral rather than hide it (ADR-0095: no silent caps).
     userTier: read.memories.filter((m) => classifyMemory(m.type) === null),
     unparseable: read.unparseable,
-    ...(problem !== undefined ? { ledgerProblem: problem } : {}),
     authorship: authorshipLines(fold.live, read.memories, deps),
     titleOf: (id) => titleById.get(id) ?? "(missing target)",
   };
+  const w: Worklist = problem !== undefined ? { ...base, ledgerProblem: problem } : base;
 
   const body = opts.review
     ? formatReview(deps, read, snapshot, w)
@@ -757,11 +760,11 @@ export function parkCommand(items: readonly ParkItem[], deps: ParkDeps): Envelop
   for (const item of items) {
     const memory = byName.get(item.name);
     if (memory === undefined) continue; // unreachable — validated above
-    const record = makeParkRecord(memory, {
-      reason: item.reason,
-      now: deps.now,
-      ...(item.leaseDays !== undefined ? { leaseDays: item.leaseDays } : {}),
-    });
+    const parkOpts: MakeParkRecordOptions = { reason: item.reason, now: deps.now };
+    const record = makeParkRecord(
+      memory,
+      item.leaseDays !== undefined ? { ...parkOpts, leaseDays: item.leaseDays } : parkOpts,
+    );
     const refreshed = parks[item.name] !== undefined;
     parks[item.name] = record;
     lines.push(

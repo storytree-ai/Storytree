@@ -701,18 +701,19 @@ export function deriveArcRollup(input: ArcRollupInput): ArcRollup {
 
   const questions = input.questionDocs
     .filter((q) => arcRefOf(q) === id)
-    .map((q) => {
+    .map((q): ArcRollupQuestion => {
       const qd = bagOf(q);
       const verifiedAt = strOpt(qd, "verifiedAt");
       const leaseDays = numOpt(qd, "leaseDays");
-      return {
+      const row: ArcRollupQuestion = {
         id: q.id,
         title: str(qd, "title"),
         description: str(qd, "description"),
         stakes: str(qd, "stakes"),
-        ...(verifiedAt !== undefined ? { verifiedAt } : {}),
-        ...(leaseDays !== undefined ? { leaseDays } : {}),
       };
+      if (verifiedAt !== undefined) row.verifiedAt = verifiedAt;
+      if (leaseDays !== undefined) row.leaseDays = leaseDays;
+      return row;
     })
     .sort((a, b) => a.id.localeCompare(b.id));
 

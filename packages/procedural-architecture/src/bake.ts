@@ -215,6 +215,14 @@ export type BakedNode =
   | { el: 'path'; d: string; fill: string; stroke: string; strokeWidth: number; opacity?: number; fillRule?: 'evenodd' }
   | { el: 'ellipse'; cx: number; cy: number; rx: number; ry: number; fill: string; opacity?: number };
 
+/** A node's OPTIONAL opacity, drafted once per drawable and spread into whichever variants that
+ *  drawable emits. ABSENT ⇒ `render-svg`'s `element` writes no `opacity` attribute at all — the
+ *  omission the conditional spreads used to express. Kept separate because {@link BakedNode} is a
+ *  discriminated union and cannot be accumulated field by field. */
+interface BakedOpacity {
+  opacity?: number;
+}
+
 export interface BakedBuilding {
   /** the model's name, carried through for the tooltip / attribution */
   name: string;
@@ -408,6 +416,8 @@ export function bakeBuilding(model: BuildingModel, opts: BakeOptions = {}): Bake
 
   for (const p of projected) {
     const op = p.paint.opacity;
+    const opacity: BakedOpacity = {};
+    if (op !== undefined) opacity.opacity = op;
 
     if (p.holes.length > 0) {
       // A wall and its openings as ONE even-odd path. Two things fall out of that: the
@@ -421,7 +431,7 @@ export function bakeBuilding(model: BuildingModel, opts: BakeOptions = {}): Bake
         fill: p.paint.fill,
         stroke: p.paint.stroke,
         strokeWidth,
-        ...(op !== undefined ? { opacity: op } : {}),
+        ...opacity,
       });
       continue;
     }
@@ -434,7 +444,7 @@ export function bakeBuilding(model: BuildingModel, opts: BakeOptions = {}): Bake
         fill: p.paint.fill,
         stroke: p.paint.stroke,
         strokeWidth,
-        ...(op !== undefined ? { opacity: op } : {}),
+        ...opacity,
       });
       continue;
     }
@@ -470,7 +480,7 @@ export function bakeBuilding(model: BuildingModel, opts: BakeOptions = {}): Bake
       fill: p.paint.fill,
       stroke: p.paint.fill,
       strokeWidth,
-      ...(op !== undefined ? { opacity: op } : {}),
+      ...opacity,
     });
     if (runs.length > 0) {
       nodes.push({
@@ -479,7 +489,7 @@ export function bakeBuilding(model: BuildingModel, opts: BakeOptions = {}): Bake
         fill: 'none',
         stroke: p.paint.stroke,
         strokeWidth,
-        ...(op !== undefined ? { opacity: op } : {}),
+        ...opacity,
       });
     }
   }

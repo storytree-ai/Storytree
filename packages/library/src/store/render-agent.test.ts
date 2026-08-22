@@ -250,27 +250,37 @@ test("both harness renderers emit the same model tier over the same essentials (
 
 // ── aliases: discovery synonyms, never a second spawn name (ADR-0325 D4) ────────────────────────
 
+/** The minimal `agent` doc {@link seedAliasAgent} stores — the two tail fields are attached only when asked for. */
+interface AliasAgentDoc {
+  kind: string;
+  title: string;
+  description: string;
+  oneLine: string;
+  role: string;
+  outcome: string;
+  context: string[];
+  aliases?: string[];
+  model?: "sonnet" | "opus";
+}
+
 /** Seed `store` with a minimal agent carrying `aliases` (and optionally a `model` tier). */
 async function seedAliasAgent(
   store: InMemoryStore,
   aliases: string[] | undefined,
   model?: "sonnet" | "opus",
 ): Promise<void> {
-  await store.upsertDoc({
-    id: "alias-agent",
+  const doc: AliasAgentDoc = {
     kind: "agent",
-    doc: {
-      kind: "agent",
-      title: "Alias Agent",
-      description: "sweeps and reports",
-      oneLine: "o",
-      role: "Find things and summarise them.",
-      outcome: "o",
-      context: ["asset:test-principle"],
-      ...(aliases ? { aliases } : {}),
-      ...(model ? { model } : {}),
-    },
-  });
+    title: "Alias Agent",
+    description: "sweeps and reports",
+    oneLine: "o",
+    role: "Find things and summarise them.",
+    outcome: "o",
+    context: ["asset:test-principle"],
+  };
+  if (aliases) doc.aliases = aliases;
+  if (model) doc.model = model;
+  await store.upsertDoc({ id: "alias-agent", kind: "agent", doc });
 }
 
 test("aliases render into the harness description as discovery metadata (ADR-0325 D4)", async () => {

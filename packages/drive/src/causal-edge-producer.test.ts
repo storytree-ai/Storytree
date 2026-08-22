@@ -5,6 +5,7 @@ import { InMemoryStore } from "@storytree/storage-protocol";
 import type { NodeSpec } from "@storytree/orchestrator";
 
 import { driveNode } from "./node-build.js";
+import type { DriveNodeArgs } from "./node-build.js";
 
 /**
  * The PRODUCER half of ADR-0350's causal edge, end to end through production code.
@@ -46,13 +47,14 @@ function unresolvableSpec(id: string): NodeSpec {
 
 async function driveWith(claimEventSeq?: number): Promise<InMemoryStore> {
   const store = new InMemoryStore();
-  const result = await driveNode(unresolvableSpec("causal-edge-probe"), {
+  const args: DriveNodeArgs = {
     mode: "dry-run",
     store,
     runId: "run-causal-1",
     signer: "tester@example.com",
-    ...(claimEventSeq !== undefined ? { claimEventSeq } : {}),
-  });
+  };
+  if (claimEventSeq !== undefined) args.claimEventSeq = claimEventSeq;
+  const result = await driveNode(unresolvableSpec("causal-edge-probe"), args);
   // The drive stops at the unresolvable spec — which is the point: the building mark is already in
   // the log, and no build, spend or gate walk happened to get it there.
   assert.equal(result.resolved, false);

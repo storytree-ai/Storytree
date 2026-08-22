@@ -13,6 +13,9 @@ import {
   ContextTraversalCoverage,
   ContextTraversalEvent,
   CoverageFeature,
+  type ModelContextEvent,
+  type ResultReturnEvent,
+  type SpawnHandoffEvent,
 } from "@storytree/context-traversal-telemetry";
 
 /** The four token axes a leaf slice reports; the wire twin of `TokenUsage` (`@storytree/agent`). */
@@ -130,7 +133,7 @@ export function observeLeafSlices(args: ObserveLeafSlicesArgs): ContextTraversal
     // omitted rather than defaulted when the slice does not declare them: `modelIdFor` already
     // refuses an ambiguous `byModel`, and a run carrying no `source` is unobserved, not sdk-leaf.
     const laneModel = modelIdFor(run.byModel);
-    events.push({
+    const handoff: SpawnHandoffEvent = {
       kind: "spawn_handoff",
       eventId: nextId(),
       sessionId: parentSessionId,
@@ -139,29 +142,31 @@ export function observeLeafSlices(args: ObserveLeafSlicesArgs): ContextTraversal
       parentSessionId,
       childSessionId,
       agentType: agentTypeFor(run.phase),
-      ...(laneModel !== undefined ? { model: laneModel } : {}),
-      ...(run.source !== undefined ? { runtime: run.source } : {}),
-    });
+    };
+    if (laneModel !== undefined) handoff.model = laneModel;
+    if (run.source !== undefined) handoff.runtime = run.source;
+    events.push(handoff);
 
     if (run.usage !== undefined) {
       const totalInputTokens =
         run.usage.inputTokens + run.usage.cacheCreationInputTokens + run.usage.cacheReadInputTokens;
       const contextWindowCapacity = contextWindowCapacityFor(run.byModel);
       const modelId = modelIdFor(run.byModel);
-      events.push({
+      const context: ModelContextEvent = {
         kind: "model_context",
         eventId: nextId(),
         sessionId: childSessionId,
         at: now().toISOString(),
         cumulativeInputTokens: totalInputTokens,
         addedInputTokens: totalInputTokens,
-        ...(contextWindowCapacity !== undefined ? { contextWindowCapacity } : {}),
-        ...(modelId !== undefined ? { modelId } : {}),
-      });
+      };
+      if (contextWindowCapacity !== undefined) context.contextWindowCapacity = contextWindowCapacity;
+      if (modelId !== undefined) context.modelId = modelId;
+      events.push(context);
     }
 
     const ok = isSuccess(run.subtype);
-    events.push({
+    const result: ResultReturnEvent = {
       kind: "result_return",
       eventId: nextId(),
       sessionId: parentSessionId,
@@ -169,9 +174,10 @@ export function observeLeafSlices(args: ObserveLeafSlicesArgs): ContextTraversal
       edgeId,
       parentSessionId,
       childSessionId,
-      ...(run.usage !== undefined ? { resultTokenCount: run.usage.outputTokens } : {}),
       ok,
-    });
+    };
+    if (run.usage !== undefined) result.resultTokenCount = run.usage.outputTokens;
+    events.push(result);
   }
 
   return events;

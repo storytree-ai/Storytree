@@ -281,14 +281,17 @@ export function parseCriteria(storyId: string, body: string): Criterion[] {
       );
     }
     const previousRevisionId = itemPreviousRevisionId(item);
-    return Criterion.parse({
+    // An item with no declared predecessor carries NO `previousRevisionId` key — the schema is
+    // `.strict()` and the field is `.optional()`, so absence is the honest first-revision state.
+    const draft: z.input<typeof Criterion> = {
       criterionId,
       revisionId,
-      ...(previousRevisionId !== undefined ? { previousRevisionId } : {}),
       title: itemTitle(item),
       witness: itemWitness(item, criterionId),
       tier: itemTier(item, criterionId),
-    });
+    };
+    if (previousRevisionId !== undefined) draft.previousRevisionId = previousRevisionId;
+    return Criterion.parse(draft);
   });
   const seen = new Set<string>();
   for (const criterion of criteria) {

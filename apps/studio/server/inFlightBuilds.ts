@@ -62,14 +62,15 @@ export function rowsToBuildActivity(rows: readonly BuildRow[], now: Date): Build
     if (now.getTime() - new Date(at).getTime() >= BUILD_IN_FLIGHT_TTL_MS) continue;
     const phase = toPhase(row.phase);
     const colourState = toColourState(row.colour_state);
-    out.push({
+    const activity: BuildActivity = {
       unitId: row.unit_id,
       tier: row.tier,
       runId: row.run_id,
       at,
-      ...(phase !== undefined ? { phase } : {}),
-      ...(colourState !== undefined ? { colourState } : {}),
-    });
+    };
+    if (phase !== undefined) activity.phase = phase;
+    if (colourState !== undefined) activity.colourState = colourState;
+    out.push(activity);
   }
   return out;
 }

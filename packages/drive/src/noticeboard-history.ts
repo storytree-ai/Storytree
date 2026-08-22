@@ -344,13 +344,13 @@ export async function claimHistoryCommand(
   // `--refusals` IS `--type conflict-refused`; an explicit --type wins, so the two never disagree
   // silently (asking for both an explicit type and --refusals reads as the explicit type).
   const type = opts.type ?? (opts.refusals === true ? CLAIM_REFUSED_TYPE : undefined);
-  const query: ClaimAuditQuery = {
-    ...(unitId !== undefined && unitId.trim().length > 0 ? { unitId: unitId.trim() } : {}),
-    ...(opts.session !== undefined ? { sessionId: opts.session } : {}),
-    ...(type !== undefined ? { type } : {}),
-    ...(days.value !== undefined ? { sinceMs: days.value } : {}),
-    ...(limit.value !== undefined ? { limit: limit.value } : {}),
-  };
+  const trimmedUnitId = unitId?.trim();
+  const query: ClaimAuditQuery = {};
+  if (trimmedUnitId !== undefined && trimmedUnitId.length > 0) query.unitId = trimmedUnitId;
+  if (opts.session !== undefined) query.sessionId = opts.session;
+  if (type !== undefined) query.type = type;
+  if (days.value !== undefined) query.sinceMs = days.value;
+  if (limit.value !== undefined) query.limit = limit.value;
 
   const rows = await deps.history.auditHistory(query);
   const header = renderScope(rows.length, query, limit.value, days.value);

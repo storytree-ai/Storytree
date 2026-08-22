@@ -47,20 +47,23 @@ function fakeLedger(rows: ClaimDocT[] = []): FakeLedger {
     rows,
     async take(req): Promise<ClaimResult> {
       self.takes.push(req);
+      const over: Parameters<typeof claimDoc>[0] = {
+        unitId: req.unitId,
+        sessionId: req.sessionId,
+        branch: req.branch,
+        intent: req.intent ?? "",
+      };
+      if (req.grade !== undefined) over.grade = req.grade;
       return {
         acquired: true,
         reclaimed: false,
-        claim: claimDoc({
-          unitId: req.unitId,
-          sessionId: req.sessionId,
-          branch: req.branch,
-          intent: req.intent ?? "",
-          ...(req.grade !== undefined ? { grade: req.grade } : {}),
-        }),
+        claim: claimDoc(over),
       };
     },
     async upgrade(unitId, sessionId, opts): Promise<ClaimResult> {
-      self.upgrades.push({ unitId, sessionId, ...(opts !== undefined ? { opts } : {}) });
+      const call: FakeLedger["upgrades"][number] = { unitId, sessionId };
+      if (opts !== undefined) call.opts = opts;
+      self.upgrades.push(call);
       return {
         acquired: true,
         reclaimed: false,
@@ -79,7 +82,9 @@ function fakeLedger(rows: ClaimDocT[] = []): FakeLedger {
       return self.rows;
     },
     async claimsBySession(sessionId, opts): Promise<ClaimDocT[]> {
-      self.bySession.push({ sessionId, ...(opts !== undefined ? { opts } : {}) });
+      const call: FakeLedger["bySession"][number] = { sessionId };
+      if (opts !== undefined) call.opts = opts;
+      self.bySession.push(call);
       return self.rows.filter((r) => r.sessionId === sessionId);
     },
   };

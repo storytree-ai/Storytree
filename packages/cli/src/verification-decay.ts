@@ -1263,7 +1263,7 @@ export function evaluateDecayCeiling(
     return { instrument: name, count, ceiling, authored, inherited, level };
   });
 
-  return {
+  const verdict: DecayVerdict = {
     findings,
     tallies,
     count: located.length,
@@ -1274,8 +1274,9 @@ export function evaluateDecayCeiling(
         ? "inherited"
         : "ok",
     escalations,
-    ...(attribution === undefined ? {} : { attribution }),
   };
+  if (attribution !== undefined) verdict.attribution = attribution;
+  return verdict;
 }
 
 // ---------------------------------------------------------------------------

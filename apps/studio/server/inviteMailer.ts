@@ -16,7 +16,7 @@
 //   STORYTREE_STUDIO_SMTP_PORT       optional, default 465 (implicit TLS)
 //   STORYTREE_STUDIO_SMTP_FROM_NAME  optional display name, default "storytree studio"
 
-import { connect as tlsConnect } from 'node:tls';
+import { connect as tlsConnect, type ConnectionOptions } from 'node:tls';
 import { randomUUID } from 'node:crypto';
 import type { Duplex } from 'node:stream';
 
@@ -182,10 +182,9 @@ const isIpLiteral = (host: string): boolean => /^[0-9.]+$/.test(host) || host.in
 /** Open an implicit-TLS socket to the SMTP submission port. Rejects on connect error / timeout. */
 function openTlsSocket(host: string, port: number): Promise<Duplex> {
   return new Promise<Duplex>((resolve, reject) => {
-    const socket = tlsConnect(
-      { host, port, ...(isIpLiteral(host) ? {} : { servername: host }) },
-      () => resolve(socket),
-    );
+    const options: ConnectionOptions = { host, port };
+    if (!isIpLiteral(host)) options.servername = host;
+    const socket = tlsConnect(options, () => resolve(socket));
     socket.once('error', reject);
     socket.setTimeout(20_000, () => socket.destroy(new Error('SMTP connection timed out')));
   });

@@ -170,9 +170,6 @@ export async function runSpawnWriteScoped(
     cwd,
     model: args.model ?? "claude-sonnet-5",
     maxTurns: args.maxTurns ?? 16,
-    // No USD ceiling by default (ADR-0130): subscription-funded (ADR-0030), so a metered dollar
-    // cap is a phantom — maxTurns above is the runaway brake. Pass maxBudgetUsd ONLY when set.
-    ...(args.maxBudgetUsd !== undefined ? { maxBudgetUsd: args.maxBudgetUsd } : {}),
     tools: LEAF_TOOLS,
     allowedTools: LEAF_TOOLS,
     permissionMode: "bypassPermissions",
@@ -232,6 +229,9 @@ export async function runSpawnWriteScoped(
       ],
     },
   };
+  // No USD ceiling by default (ADR-0130): subscription-funded (ADR-0030), so a metered dollar
+  // cap is a phantom — maxTurns above is the runaway brake. Pass maxBudgetUsd ONLY when set.
+  if (args.maxBudgetUsd !== undefined) options.maxBudgetUsd = args.maxBudgetUsd;
 
   let result: ResultLike | undefined;
   try {

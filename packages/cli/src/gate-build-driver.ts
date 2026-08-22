@@ -42,6 +42,7 @@ import {
 import type {
   AddDepsGroup,
   BuildWorktree,
+  CreateBuildWorktreeOptions,
   DecisionFork,
   DecisionSweep,
   LeafPhasePrompts,
@@ -63,7 +64,7 @@ import {
   resolveLiveRuntime,
   resolveVerdictStore,
 } from "@storytree/drive";
-import type { BuildProgress } from "@storytree/drive";
+import type { BuildProgress, RealBuildArgs } from "@storytree/drive";
 
 /** Seams a real build-tests-gate drive needs, all injectable so the R2 walk is offline-testable. */
 export interface GateBuildDriverDeps {
@@ -321,18 +322,19 @@ export async function driveBuildTestsGate(
     // The fresh detached worktree of this repo (the referenced node's real source at its real paths).
     const cut = await progress.stage(
       `worktree (fresh detached checkout${realConfig.install === true ? " + pnpm install" : ""})`,
-      () =>
-        createBuildWorktree(deps.repoRoot, {
-          ...(realConfig.install === true ? { install: true } : {}),
-          ...(addDepsGroup !== null ? { addDeps: [addDepsGroup] } : {}),
-        }),
+      () => {
+        const worktreeOptions: CreateBuildWorktreeOptions = {};
+        if (realConfig.install === true) worktreeOptions.install = true;
+        if (addDepsGroup !== null) worktreeOptions.addDeps = [addDepsGroup];
+        return createBuildWorktree(deps.repoRoot, worktreeOptions);
+      },
     );
     worktree = cut;
     const override = deps.authorOverride?.(gateSpec, cut.root);
     const built = await progress.stage(
       "gate (the leaf authors, the spine observes red -> green)",
-      () =>
-        buildNodeReal({
+      () => {
+        const realArgs: RealBuildArgs = {
           spec: gateSpec,
           worktree: cut,
           baseSha: cut.headSha,
@@ -345,13 +347,15 @@ export async function driveBuildTestsGate(
           repoRoot: deps.repoRoot,
           promote: deps.promote ?? true,
           onPhase: (phase) => progress.note(phase),
-          ...(dbProofEnv !== undefined ? { dbProofEnv } : {}),
-          ...(override !== undefined ? { authorOverride: override } : {}),
-          ...(deps.model !== undefined ? { model: deps.model } : {}),
           runtime: runtimeResult.runtime,
-          ...(deps.budgetUsd !== undefined ? { budgetUsd: deps.budgetUsd } : {}),
-          ...(deps.maxTurns !== undefined ? { maxTurns: deps.maxTurns } : {}),
-        }),
+        };
+        if (dbProofEnv !== undefined) realArgs.dbProofEnv = dbProofEnv;
+        if (override !== undefined) realArgs.authorOverride = override;
+        if (deps.model !== undefined) realArgs.model = deps.model;
+        if (deps.budgetUsd !== undefined) realArgs.budgetUsd = deps.budgetUsd;
+        if (deps.maxTurns !== undefined) realArgs.maxTurns = deps.maxTurns;
+        return buildNodeReal(realArgs);
+      },
     );
 
     const events = await store.readEvents();

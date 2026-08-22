@@ -294,12 +294,9 @@ function rank(scored: readonly ScoredSuggestion[]): readonly ClaimSuggestion[] {
     )
     .filter((s) => (seen.has(s.id) ? false : (seen.add(s.id), true)))
     .slice(0, MAX_SUGGESTIONS)
-    .map(({ id, kind, reason, owner }) => ({
-      id,
-      kind,
-      reason,
-      ...(owner !== undefined ? { owner } : {}),
-    }));
+    .map(({ id, kind, reason, owner }) =>
+      owner !== undefined ? { id, kind, reason, owner } : { id, kind, reason },
+    );
 }
 
 // ---------------------------------------------------------------------------

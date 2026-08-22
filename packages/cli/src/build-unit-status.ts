@@ -74,17 +74,20 @@ export function deriveUnitStatuses(events: readonly StatusEvent[]): UnitStatusRo
     if (/^.+#uat-\d+$/.test(id)) continue;
     const status = rollupStatus(id, events);
     if (status === null) continue; // projection abstains → not proven, omit
+    // `approvedBy` stays LAST: these rows are `JSON.stringify`d into a committed file that
+    // `--check` compares byte-for-byte, so key insertion order is load-bearing here.
+    const latestVerdict: Omit<UnitStatusRow["latestVerdict"], "approvedBy"> = {
+      outcome: v.outcome,
+      proofMode: v.proofMode,
+      runId: v.runId,
+      commitSha: v.commitSha,
+      signer: v.signer,
+    };
     rows.push({
       id,
       status,
-      latestVerdict: {
-        outcome: v.outcome,
-        proofMode: v.proofMode,
-        runId: v.runId,
-        commitSha: v.commitSha,
-        signer: v.signer,
-        ...(v.approvedBy !== undefined ? { approvedBy: v.approvedBy } : {}),
-      },
+      latestVerdict:
+        v.approvedBy !== undefined ? { ...latestVerdict, approvedBy: v.approvedBy } : latestVerdict,
     });
   }
   rows.sort((a, b) => a.id.localeCompare(b.id));

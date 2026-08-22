@@ -205,14 +205,16 @@ function isExcluded(path: string): boolean {
  * whole surface is testable without a repository. {@link gitCommits} / {@link gitAbsorbed} are the
  * real adapters.
  */
-export function couplingChurn(input: {
+export interface ChurnInput {
   commits: readonly CommitRec[];
   /** What a re-sync forced its branch to absorb: `git diff --name-only <p1>...<p2>`. */
   absorbedFor: (commit: CommitRec) => readonly string[];
   /** Window bounds as ISO instants. */
   window: { from: string; to: string };
   reference?: ReferenceRate;
-}): ChurnReport {
+}
+
+export function couplingChurn(input: ChurnInput): ChurnReport {
   const reference = input.reference ?? DECOUPLING_REFERENCE;
   const from = Date.parse(input.window.from) / 1000;
   const to = Date.parse(input.window.to) / 1000;
@@ -290,7 +292,7 @@ export function couplingChurn(input: {
     .sort((a, b) => b.resyncs - a.resyncs || a.path.localeCompare(b.path))
     .slice(0, 10);
 
-  return {
+  const report: ChurnReport = {
     window: input.window,
     sample: {
       resyncs: resyncs.length,
@@ -304,10 +306,11 @@ export function couplingChurn(input: {
     perLandingAbsorbedChurn: landings.length === 0 ? 0 : absorbedChanges / landings.length,
     channels,
     hottest,
-    ...(comparable ? { resyncsPerLanding: resyncs.length / Math.max(landings.length, 1) } : {}),
     comparability,
     exclusions: CHURN_EXCLUSIONS,
   };
+  if (comparable) report.resyncsPerLanding = resyncs.length / Math.max(landings.length, 1);
+  return report;
 }
 
 // ---------------------------------------------------------------------------

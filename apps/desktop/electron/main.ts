@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, session, shell } from "electron";
+import type { BrowserWindowConstructorOptions } from "electron";
 import { spawn, execFileSync, type ChildProcess } from "node:child_process";
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
@@ -215,13 +216,14 @@ async function ensureHostedIdentity(): Promise<string> {
 
   const login = new Promise<string>((resolveIdentity, rejectIdentity) => {
     const parent = BrowserWindow.getAllWindows().find((candidate) => !candidate.isDestroyed());
-    const win = new BrowserWindow({
+    const loginWindowOptions: BrowserWindowConstructorOptions = {
       width: 980,
       height: 760,
       title: "Sign in to storytree",
-      ...(parent !== undefined ? { parent } : {}),
       webPreferences: { session: session.defaultSession, contextIsolation: true, nodeIntegration: false },
-    });
+    };
+    if (parent !== undefined) loginWindowOptions.parent = parent;
+    const win = new BrowserWindow(loginWindowOptions);
     let settled = false;
     const finish = (error: Error | null, identity?: string): void => {
       if (settled) return;

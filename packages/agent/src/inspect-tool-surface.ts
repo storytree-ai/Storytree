@@ -51,6 +51,22 @@ export interface InspectResult {
 // InspectSurfaceDeps
 // ---------------------------------------------------------------------------
 
+/** The arguments {@link InspectSurfaceDeps.viewCiRun} takes. */
+export interface ViewCiRunArgs {
+  /** The CI run id (or run URL) to read. */
+  runId: string;
+  /** When true, include the failing-job log (`--log-failed`). Omitted entirely when not requested. */
+  logFailed?: boolean;
+}
+
+/** The arguments {@link InspectSurfaceDeps.gitInspect} takes. */
+export interface GitInspectArgs {
+  /** The read-only git verb: `status` / `log` / `ls-tree` / `rev-parse` / `show`. */
+  verb: string;
+  /** The verb's arguments as separate tokens. Omitted entirely when the caller passes none. */
+  args?: string[];
+}
+
 /**
  * The deps the caller injects to mount the inspect tool surface on a headless-orchestrator session.
  * In production the handlers shell `gh`/`git` behind a time-boxed exec seam (the @storytree/drive
@@ -62,7 +78,7 @@ export interface InspectSurfaceDeps {
    * Read a CI run: `gh run view <runId> [--log-failed]`. `logFailed` requests the failing-job log
    * (the WHY of a red pipeline). Refuses a flag-like `runId` fail-closed. Read-only — never mutates.
    */
-  viewCiRun: (args: { runId: string; logFailed?: boolean }) => Promise<InspectResult>;
+  viewCiRun: (args: ViewCiRunArgs) => Promise<InspectResult>;
   /**
    * Read an ARBITRARY PR's checks: `gh pr checks <pr>` plus `gh pr view <pr> --json ...` — not only
    * a PR the chat opened (that is `poll_pr_checks`). Refuses a flag-like `pr` fail-closed. Read-only.
@@ -73,7 +89,7 @@ export interface InspectSurfaceDeps {
    * extra args. Any verb outside the read-only allowlist (commit, push, merge, checkout, reset, …) is
    * REFUSED fail-closed before any shelling (ADR-0173 invariant 1) — the surface never mutates the tree.
    */
-  gitInspect: (args: { verb: string; args?: string[] }) => Promise<InspectResult>;
+  gitInspect: (args: GitInspectArgs) => Promise<InspectResult>;
 }
 
 // ---------------------------------------------------------------------------
@@ -113,10 +129,9 @@ export function buildInspectTools(deps: InspectSurfaceDeps) {
     },
     async ({ runId, logFailed }) => {
       try {
-        const result = await deps.viewCiRun({
-          runId,
-          ...(logFailed !== undefined ? { logFailed } : {}),
-        });
+        const viewArgs: ViewCiRunArgs = { runId };
+        if (logFailed !== undefined) viewArgs.logFailed = logFailed;
+        const result = await deps.viewCiRun(viewArgs);
         return { content: [{ type: "text" as const, text: result.summary }] };
       } catch (e) {
         // Fail closed: a read that could not even run is a readable failure, never a thrown crash.
@@ -172,7 +187,9 @@ export function buildInspectTools(deps: InspectSurfaceDeps) {
     },
     async ({ verb, args }) => {
       try {
-        const result = await deps.gitInspect({ verb, ...(args !== undefined ? { args } : {}) });
+        const inspectArgs: GitInspectArgs = { verb };
+        if (args !== undefined) inspectArgs.args = args;
+        const result = await deps.gitInspect(inspectArgs);
         return { content: [{ type: "text" as const, text: result.summary }] };
       } catch (e) {
         return {

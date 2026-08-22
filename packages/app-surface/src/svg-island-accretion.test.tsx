@@ -117,14 +117,15 @@ function withoutPrimaryLand(node: SceneNode): SceneNode {
 function sceneContext(
   svgIslandAccretionLayer?: SvgIslandAccretionState,
 ): SceneCtx {
-  return {
+  const ctx: SceneCtx = {
     territoryClassById: (_id, status) => `hex-territory st-${status}`,
     reveal: null,
     hidden: new Set(),
     onSelectStory: vi.fn(),
     onSelectCap: vi.fn(),
-    ...(svgIslandAccretionLayer ? { svgIslandAccretionLayer } : {}),
   };
+  if (svgIslandAccretionLayer) ctx.svgIslandAccretionLayer = svgIslandAccretionLayer;
+  return ctx;
 }
 
 function targetOuterHtml(container: HTMLElement) {

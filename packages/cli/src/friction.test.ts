@@ -9,6 +9,7 @@ import { Friction } from "@storytree/library";
 
 import { cliActorFor } from "./cli-actor.js";
 import { run } from "./commands.js";
+import type { RunDeps } from "./commands.js";
 import { hasConcreteEvidence, lifecycleOf, standingRouteSetter, validateInboxDir } from "./friction.js";
 
 /**
@@ -66,7 +67,11 @@ async function fileNew(
   opts: { writable?: boolean; extra?: string[]; over?: Record<string, unknown> } = {},
 ) {
   const argv = ["friction", "new", "--json", JSON.stringify(doc), ...(opts.extra ?? [])];
-  return run(argv, { store: s, ...(opts.writable ? { writable: true } : {}), friction: frictionDeps(dirs, opts.over ?? {}) });
+  const deps: Omit<RunDeps, "writable"> = {
+    store: s,
+    friction: frictionDeps(dirs, opts.over ?? {}),
+  };
+  return run(argv, opts.writable ? { ...deps, writable: true } : deps);
 }
 
 /** The injected `node:<id>` resolver (ADR-0107 D2) — only `cli` is a real node in these tests. */
