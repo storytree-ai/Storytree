@@ -79,3 +79,15 @@ Thumbs.db
 # an untracked receipt would dirty the lobby, which ADR-0245 D5.2's gate arm reads as a session
 # mutating the shared checkout — so minting one would red the gate it exists to protect.
 .claude/receipts/
+
+# Judge-panel working artifacts (anti-slop-adoption-arc, ADR-0407 D3). The panel procedure has the
+# operator copy `oxlint.config.ts`, run the linter to JSON, and build a packet of judge briefs plus
+# an answer key. None of it is evidence: the report is a ~800KB measurement of one moment, and the
+# packet is byte-reproducible from its committed spec + seed + a fresh report. The KEY in particular
+# must never be committed — it maps each "Rule A/B/C" label back to the rule it hides, so a committed
+# key un-blinds every future re-run of the same spec. What IS committed is the spec and the record
+# under `tools/oxlint/panels/`.
+.oxlint.*.ts
+.oxlint-*.json
+.oxlint-*.err
+.panel/
