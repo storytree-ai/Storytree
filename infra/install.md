@@ -7,6 +7,15 @@ everything else is automatic and idempotent.
 > **Owner:** the full invite ceremony — the two access grants plus this message —
 > is [`explorer-invite.md`](explorer-invite.md).
 
+> ⚠ **This is the EXPLORER persona, and it is probably not what you want if you are provisioning a
+> machine to do WORK on.** An explorer gets a read-only checkout, their own Claude subscription and
+> the desktop app. It has no database access, no `~/.storytree/secrets.json`, no worktree setup and
+> no write-authority wall — so a machine set up this way can read the project and cannot build it.
+> Provisioning a full development box is
+> [`docs/machine-onboarding.md`](../docs/machine-onboarding.md), which uses this installer for its
+> bootstrap step and then keeps going. The distinction has misled at least one reader; if you found
+> this file first, follow that link before running anything.
+
 ## What it does
 
 In dependency order, each step no-ops when already satisfied (see *Idempotency* below):
