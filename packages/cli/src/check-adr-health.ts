@@ -78,10 +78,11 @@ async function main(): Promise<number> {
     if (adrs.length === 0) {
       process.stdout.write(
         "✗ check:adr-health — the store holds NO decisions.\n\n" +
-          "  Zero is never a clean bill of health here: it means this database has not had the\n" +
-          "  decision load run against it (`decision-log-home-arc` inc 03), or the connection is\n" +
-          "  pointed somewhere else.\n\n" +
-          "    npx tsx packages/library/src/store/load-decisions.ts\n",
+          "  Zero is never a clean bill of health here. The store IS the decision log (ADR-0403\n" +
+          "  dec 1) and there is no file tree left to re-load it from, so an empty log means this\n" +
+          "  connection is pointed at the wrong database — check STORYTREE_DB_NAME and the\n" +
+          "  instance this checkout dials, then re-run.\n\n" +
+          "    storytree adr list --current\n",
       );
       return EXIT_FAIL;
     }
