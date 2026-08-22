@@ -172,13 +172,16 @@ down; do not re-open it.**
   This is not a hypothetical: stage 3 signed a PASS while printing `coverage 0/9`, six of its nine
   contracts having no test at all — which is why this contract list is deliberately tight and every
   one of the four is provable from this single file.
-- **Keep the real-build catalog in lockstep.** `packages/cli/src/node-build.test.ts` holds an exact,
-  alphabetical REAL-buildable capability catalog that must name `compositor-pan-transform` (it sorts
-  between `compose-build-command` and `context-traversal-capture`). It is listed in BOTH
-  `scope.testGlobs` and `real.scope.testGlobs`. This companion was declared and skipped on stages 2
-  and 3, and the reason is structural rather than careless: the real build observes only the TARGET
-  package's suite, so nothing in the green it signs can see a `packages/cli` assertion. It is
-  discoverability regression evidence, not another implementation surface.
+- **The real-build catalog needs NO companion edit — this obligation is retired.** *(This read: keep
+  `packages/cli/src/node-build.test.ts`'s exact, alphabetical REAL-buildable capability catalog in
+  lockstep, adding `compositor-pan-transform` between `compose-build-command` and
+  `context-traversal-capture`, and it was declared and skipped on stages 2 and 3. Both halves are now
+  false. ADR-0341 D4 replaced that hardcoded catalogue with one DERIVED from the specs on disk — the test
+  states outright that adding a node must never mean editing that file, so authoring this spec IS the
+  registration and there is no list to append to. And the named neighbour `compose-build-command` was
+  retired by ADR-0404 with the forest-map Build button, so it is no longer in the catalogue to sort
+  against. The file stays in BOTH `scope.testGlobs` and `real.scope.testGlobs`, which is unaffected.
+  Corrected in place per ADR-0139.)*
 
 **Must not regress — name each of these in the proof, do not assume them:**
 

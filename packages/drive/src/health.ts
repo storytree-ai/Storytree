@@ -2,10 +2,12 @@ import type { StoredDoc } from "@storytree/storage-protocol";
 import {
   upcastAndValidate,
   KIND_SPECS,
+  DOC_REF_PREFIX,
   NODE_REF_PREFIX,
   CAPABILITY_REF_PREFIX,
   STORY_REF_PREFIX,
   parseCiteRef,
+  parseDecisionPointer,
 } from "@storytree/library";
 
 import type { WorkTier } from "./work-hierarchy.js";
@@ -201,6 +203,32 @@ function versionFloor(docs: readonly StoredDoc[], current: number): CheckResult 
   };
 }
 
+/**
+ * The `docs/`-RELATIVE path a `doc:` pointer names — what the injected `docExists` resolver is asked.
+ *
+ * A `doc:` pointer's payload is USUALLY already docs-relative (`doc:research/note.md`), and for
+ * anything that is not a decision record that is the whole story: the payload passes through.
+ *
+ * DECISION RECORDS ARE THE EXCEPTION, because the corpus carries TWO LIVE SPELLINGS of the same file
+ * — `doc:decisions/NNNN-slug.md` (371 pointers) and `doc:docs/decisions/NNNN-slug.md` (19), the
+ * second REPO-relative rather than docs-relative. Passing the second through unchanged asks for
+ * `docs/docs/decisions/…`, which never exists, so nineteen pointers at files that are plainly on
+ * disk were reported dangling — and the genuinely dangling refs in the same list hid among them.
+ * That is the third instrument to carry this exact bug (ADR-0403 dec 7: a parser accepting one
+ * spelling and not the other returns a confident, plausible, wrong answer), so the SPELLING IS NOT
+ * RE-PARSED HERE: {@link parseDecisionPointer} is the one resolution point, and this function only
+ * acts on the spelling it reports. A `doc:` pointer it does not claim — a research note, or a
+ * foreign `vendor/decisions/…` tree its anchoring deliberately refuses — is left exactly as authored.
+ */
+function docsRelativeTarget(ref: string): string {
+  const rel = ref.slice(DOC_REF_PREFIX.length);
+  const decision = parseDecisionPointer(ref);
+  if (decision === null || decision.spelling === "decisions") return rel;
+  // The repo-relative spelling, made docs-relative. Backslashes fold first for the same reason the
+  // parser folds them: a pointer authored on Windows names the same file as one authored anywhere.
+  return rel.replace(/\\/g, "/").slice("docs/".length);
+}
+
 // 4. referential-integrity -----------------------------------------------------------------------
 /**
  * All FIVE corpus reference tokens are checked: `asset:<id>` against the live projection (a real
@@ -232,8 +260,8 @@ function referentialIntegrity(
       if (ref.startsWith("asset:")) {
         const id = ref.slice("asset:".length);
         if (!liveIds.has(id)) danglingAsset.push(`${d.id} -> ${ref} (no such artifact)`);
-      } else if (ref.startsWith("doc:") && docExists !== undefined) {
-        const rel = ref.slice("doc:".length);
+      } else if (ref.startsWith(DOC_REF_PREFIX) && docExists !== undefined) {
+        const rel = docsRelativeTarget(ref);
         if (!docExists(rel)) danglingOut.push(`${d.id} -> ${ref} (no such file under docs/)`);
       } else if (ref.startsWith(NODE_REF_PREFIX) && nodeExists !== undefined) {
         const nodeId = ref.slice(NODE_REF_PREFIX.length);
