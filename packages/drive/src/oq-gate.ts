@@ -2,6 +2,7 @@ import type { StoredDoc } from "@storytree/storage-protocol";
 import type { NodeSpec } from "@storytree/orchestrator";
 import type { Comment } from "@storytree/library/store";
 import { PgCommentStore, PgLibraryStore, closePool, createPool } from "@storytree/library/store";
+import { parseDecisionPointer } from "@storytree/library";
 
 import type { Envelope } from "./envelope.js";
 
@@ -30,11 +31,20 @@ export interface OqHygieneRow {
   state: OqState;
 }
 
-/** `doc:decisions/0017-...` → 17; null for any other reference shape. */
+/**
+ * The deciding-ADR number a reference names, or null for any other reference shape.
+ *
+ * BOTH LIVE SPELLINGS, VIA THE ONE PARSER. This used to carry its own
+ * `/^doc:decisions\/(\d{4})-/`, which matched the bare spelling only — and the field it reads is
+ * an open-question's `references`, which is exactly where the repo-relative `doc:docs/decisions/…`
+ * pointers live. An OQ authored in that spelling was silently not pulled into the intersection
+ * below, so this gate FAILED OPEN: it reported a clean story while having checked less than it
+ * claimed, on the LIVE build path. That is ADR-0403 dec 7's confident-plausible-wrong answer, and
+ * the reason resolution lives in exactly one place ({@link parseDecisionPointer}) rather than being
+ * re-derived by each reader that needs it.
+ */
 function adrNumberOfRef(ref: string): number | null {
-  const m = /^doc:decisions\/(\d{4})-/.exec(ref);
-  const captured = m?.[1];
-  return captured === undefined ? null : Number(captured);
+  return parseDecisionPointer(ref)?.number ?? null;
 }
 
 function referencesOf(d: StoredDoc): string[] {
