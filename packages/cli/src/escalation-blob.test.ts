@@ -134,6 +134,7 @@ test("D3: even if a probe detail LEAKED the credentials path/token, the blob and
     warning: 0,
     passing: 0,
     ok: false,
+    scope: "explorer",
   };
   const blob = buildEscalationBlob(poisoned);
   const serialized = JSON.stringify(blob) + "\n" + formatEscalationBlob(blob);

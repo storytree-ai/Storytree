@@ -1657,6 +1657,11 @@ async function topHelp(store: Store): Promise<Envelope> {
       "  agents <name>    assemble an agent's system prompt from the Library (ADR-0051)",
       "  orchestrate      run the session-orchestrator agent headlessly: orient + propose (ADR-0108)",
       "  desktop          launch the Electron desktop client + install its Windows shortcut (ADR-0109/0111)",
+      // Listed because an agent discovering this CLI from its own help never found the one verb that
+      // says whether its machine can do the work — the surfacing half of the dev-persona probe group.
+      "  doctor [--dev]   is this MACHINE set up? probe each setup invariant, one fix hint per failure",
+      "                   (ADR-0207 D6); --dev adds ADC / live store / secrets / gh auth / the write-",
+      "                   authority wall / worktree identity. Read-only; never handles a credential",
       "",
       "the proof primitives relocated UNDER the workflows above (ADR-0118); the old grain verbs keep",
       "working as back-compat aliases (nothing breaks, they just moved):",
@@ -2781,6 +2786,10 @@ export const CLI_OPTIONS = {
   scope: { type: "string" },
   migration: { type: "string" },
   source: { type: "string" },
+  // `storytree doctor --dev` — also run the dev-persona probe group (gcloud ADC, the live store,
+  // the secrets file, GitHub auth, the write-authority wall, worktree identity). Opt-in because
+  // ADR-0207's explorer legitimately has none of those; the bare sweep names the group it skipped.
+  dev: { type: "boolean", default: false },
   // `storytree worktree prune` — destructive, so force+yes are BOTH required to remove.
   force: { type: "boolean", default: false },
   yes: { type: "boolean", default: false },
@@ -4126,11 +4135,16 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
   }
 
   if (area === "doctor") {
-    // The explorer-onboarding setup check (ADR-0207 D6). Read-only, offline-capable: it probes the
-    // setup invariants of THIS checkout and prints a fix hint per failure — no store, no --pg, and it
-    // never handles a Claude credential (detects a logged-in CLI by file existence only, D3).
+    // The onboarding setup check (ADR-0207 D6). Read-only, offline-capable: it probes the setup
+    // invariants of THIS checkout and prints a fix hint per failure — no store, no --pg, and it
+    // never handles a credential (presence and non-blankness only, D3).
+    //
+    // `--dev` adds the second persona group — can this machine do the WORK, not just read? It is
+    // OPT-IN because ADR-0207's explorer legitimately has no ADC, no secrets file and no `--pg`, so
+    // failing them by default would make doctor lie about the persona it was built for; the bare
+    // sweep pays for that by naming the skipped group instead of printing an unqualified green.
     if (help) return doctorHelp();
-    return doctorCommand(positionals.slice(1));
+    return doctorCommand(positionals.slice(1), { dev: values["dev"] === true });
   }
 
   if (area === "dispatch") {
