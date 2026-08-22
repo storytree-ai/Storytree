@@ -5,15 +5,16 @@ title: "The forest-world render core — the shared deterministic geometry both 
 outcome: "The studio and the public website draw the same forest-world look from ONE pure, browser-safe, deterministic geometry core — data-in → geometry-out — so the metaphor can never visually drift and a studio look change flows to the site instead of being hand-ported. A foundational root the whole render rests on, depending on nothing."
 status: proposed
 proof_mode: UAT
-# Machine-judged: a pure GEOMETRY core has no UAT journey. Its existing offline
-# determinism/invariant suite is evidence, not brownfield provenance or a current signed pass
+# Machine-judged: a pure GEOMETRY core has no UAT journey. Its author-declared observe reliability
+# gate runs the offline determinism/invariant suite through the deterministic spine; the suite alone
+# is not a current signed pass
 # (ADR-0395). No DB, no API key, no browser — the geometry is exercised headless.
 uat_witness: machine
 # The capability FLOOR (ADR-0222 D2, option A — the owner's stated preference, executing the live
 # `forest-world-capability-floor` proposal): ONE capability standing for the render core — the geometry
 # KERNEL (mesh / coast / ranking / hex / sizing) plus the deterministic trail router and the
 # framework-agnostic SCENE-GRAPH (`scene.ts`, buildScene over the core's own SceneInput contract), all
-# BUILT in this core — with a separately observed 122-test suite, while its eight declared leaf
+# BUILT in this core — with a separately observed offline suite, while its eight declared leaf
 # contracts drive the map's algorithmically compressed flora density (an empty contract list painted
 # forest-world a bare sapling despite its real suite). The three thin mappers (studio React;
 # website string-SVG, synced; R3F, packages/forest-world-r3f) live with their surfaces/packages, proven
@@ -109,23 +110,24 @@ suspenders over two backstops: it is a bottom root, so any back-edge to a real o
 cycle the gate already rejects (ADR-0058); and the studio browser build catches a node-only import the
 gate cannot see.)
 
-## Existing machine check
+## Reliability Gates
 
 A pure render core is deterministic GEOMETRY — there is no integrated user JOURNEY to walk; a
 geometry kernel is a machine's job, not a human attestation. This core was designed and built inside
 the Storytree initiative, so its passing suite and later capability registration do not make it
 brownfield or Adopt-bound
 ([ADR-0395](../../docs/decisions/0395-brown-records-provenance-missing-proof-stays-on-the-greenfie.md)).
-The check below remains the current executable coverage inventory; it is evidence, not a signed
-verdict. (The scene-graph
+The author-declared observe gate below is the core's machine own-proof: the suite is the evidence
+surface, while only the deterministic spine observing it green at a clean committed HEAD and
+persisting an `adopted` verdict signs `forest-world#gate-1`. Its explicit `(covers:)` greens only the
+`render-core` capability when that verdict is current. (The scene-graph
 ([ADR-0093](../../docs/decisions/0093-shared-forest-world-render-core-for-studio-and-the-public-we.md)
 §1) has since LANDED inside this core — `scene.ts`, covered by the same observed suite — and the
 three mappers (§2–§3, [ADR-0123](../../docs/decisions/0123-webgl-forest-world-renderer-via-react-three-fiber-website-fi.md))
 live with their surfaces/packages, proven there; none of that growth has needed a new gate here yet.)
 
-1. **The core's own geometry suite** `pnpm --filter @storytree/forest-world test`.
-   The 122 offline tests exercise
-   (18 geometry-kernel + 23 trail-router + 81 scene-graph) covering determinism (same input →
+1. **The core's own geometry suite is green** _(gate: observe)_ _(covers: render-core)_
+   `pnpm --filter @storytree/forest-world test`. The offline suite exercises determinism (same input →
    byte-identical mesh, coast, trail network, and scene), longest-path ranking (a dependent ranks
    strictly above every dependency, cycle-safe), the mesh / coast invariants, and the scene-graph's
    drawable / status-folding correctness all pass offline (no DB, no API key, no browser). This is the
@@ -133,14 +135,17 @@ live with their surfaces/packages, proven there; none of that growth has needed 
    / [ADR-0020](../../docs/decisions/0020-red-green-enforcement-on-the-owned-loop.md) /
    [ADR-0057](../../docs/decisions/0057-dogfood-the-inner-loop-as-the-default-node-borne-proof-confi.md)
    current coverage command, but it does not by itself sign or adopt this greenfield story/capability.
+   From a clean committed HEAD, `storytree gate run forest-world#gate-1 --pg` makes the spine observe
+   this exact command and sign only when it exits green.
 
 ## Proof
 
-**Green remains earned, not authored.** `packages/forest-world` has a real, passing offline suite
-(122 tests today — determinism, ranking, mesh/coast invariants, the deterministic trail router, and
-scene-graph correctness), but that evidence neither changes its greenfield provenance nor substitutes
-for a current signed pass. The authored rung remains `proposed`; the world crown derives green only
-from signed proof (ADR-0020 / ADR-0040 / ADR-0395).
+**Green remains earned, not authored.** `packages/forest-world` has a real, passing offline suite and
+now declares that suite as `forest-world#gate-1`; neither the command nor its authored gate is itself
+a pass. The authored rung remains `proposed` until the deterministic spine observes the command green
+at a clean committed HEAD and persists the signed gate verdict. The world crown derives green only
+from that signed proof (ADR-0020 / ADR-0040 / ADR-0085 / ADR-0395). The one-capability floor remains
+expandable: a real defect or separable new layer can still earn a finer proof unit.
 
 ## Open modeling calls (for the owner)
 
@@ -148,7 +153,7 @@ from signed proof (ADR-0020 / ADR-0040 / ADR-0395).
    capability should exist"; the owner took it as the capability-floor decision, option A: ONE
    capability, [`render-core`](render-core.md), standing for the whole core (the geometry kernel + the
    deterministic trail router + the framework-agnostic scene-graph, `scene.ts` — `buildScene` over the
-   core's own `SceneInput` contract → typed drawables), with a separately observed 122-test suite,
+   core's own `SceneInput` contract → typed drawables), with a separately observed offline suite,
    while its eight declared leaf contracts drive the algorithmically compressed flora density. The
    three thin mappers still live OUTSIDE it,
    proven with their surfaces/packages: the **studio** React mapper (`worldToScene`,
