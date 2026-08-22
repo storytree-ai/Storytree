@@ -38,7 +38,6 @@ import type { Attestation, EvidenceRef, StoredAttestation, Verdict } from '@stor
 import type { UatProofCheck, UatProofResult } from '@storytree/orchestrator';
 import type { ResolvedAccess } from '@storytree/studio-members';
 import type {
-  AdrDocStatus,
   AssetCategory,
   Comment,
   CommentAnchor,
@@ -185,8 +184,6 @@ function stripFrontmatter(markdown: string): string {
   return markdown.slice(end + 4).replace(/^\s*\n/, '');
 }
 
-
-const ADR_STATUSES = new Set<AdrDocStatus>(['proposed', 'accepted', 'superseded']);
 
 
 /**

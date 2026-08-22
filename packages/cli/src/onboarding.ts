@@ -76,7 +76,7 @@ function budgetsCommand(): Envelope {
 /** The remediation `next:` pointers for a breach, so the report routes the reader to the fix. */
 function breachNext(): readonly string[] {
   return [
-    "docs/decisions/0162-manage-session-onboarding-cost-optimize-the-cost-centers-the.md",
+    "storytree library artifact adr-0162",
     "storytree adr list --load-bearing",
   ];
 }

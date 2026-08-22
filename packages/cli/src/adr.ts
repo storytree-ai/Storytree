@@ -1,6 +1,3 @@
-import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
-import path from "node:path";
-
 import { extractAdrTitle, loadTitledAdrMetasFromStore, type AdrMeta, type AdrStatus, type TitledAdrMeta } from "@storytree/drive";
 import type { Store } from "@storytree/storage-protocol";
 
@@ -11,16 +8,17 @@ import type { Envelope } from "./envelope.js";
 
 /**
  * `storytree adr new` (ADR-0050): allocate the next ADR number ATOMICALLY from the live store and
- * scaffold `docs/decisions/NNNN-slug.md`, so two parallel sessions can never pick the same number
- * (the recurring collision). The DB allocator is the proactive prevention; a CI dup-number gate
- * (adr-health) is the backstop that makes any slip un-mergeable.
+ * write the decision as the `adr-NNNN` row (ADR-0403 dec 1), so two parallel sessions can never pick
+ * the same number (the recurring collision). The DB allocator is the proactive prevention;
+ * `check:adr-health` is the backstop that makes any slip un-mergeable.
  *
  *   storytree adr new --title "..." [--supersedes 42] [--amends 42,43] --pg
- *   storytree adr next --pg                          reserve a number only (author the file by hand)
+ *   storytree adr next --pg                          reserve a number only (author the decision later)
  *
- * OFFLINE (no --pg): falls back to `max-on-disk + 1` with a LOUD warning that the number was NOT
- * reserved — so an offline/web session is unblocked, and the CI gate catches a rare collision before
- * merge. With --pg the number is reserved transactionally and can't collide with another session.
+ * BOTH VERBS REQUIRE --pg, and there is no offline path left. The old `max-on-disk + 1` fallback read
+ * `docs/decisions/`, which no longer exists; it is deliberately NOT replaced by a store-backed
+ * equivalent, because a session that cannot reach the store cannot write the decision either, and a
+ * number reserved but never written is a number burned for nothing.
  */
 
 /** The store seam — `PgAdrStore.allocate` when --pg; null offline. */
@@ -34,10 +32,8 @@ export interface AdrAllocatorLike {
 }
 
 export interface AdrCommandDeps {
-  /** The live allocator (--pg); null = offline (max+1 fallback). */
+  /** The live allocator; null when this invocation is read-only (no --pg). */
   allocator: AdrAllocatorLike | null;
-  /** The docs/decisions directory to scan + scaffold into (injectable for tests). */
-  decisionsDir: string;
   /** The git branch the allocation is recorded against (audit only); best-effort. */
   branch: string;
   /** Recorded as the allocation `actor`. */
@@ -113,8 +109,8 @@ export function parseEdges(raw: string | undefined): number[] {
 const pad = (n: number): string => String(n).padStart(4, "0");
 
 /**
- * PURE: the ADR numbers the store has already handed out that this checkout carries no file for —
- * every number strictly between the highest ADR on disk and the one just reserved.
+ * PURE: the ADR numbers the store has already handed out that sit below the one just reserved —
+ * every number strictly between the highest decision this run observed and the one just reserved.
  *
  * EXACT, not heuristic. The allocator reserves `GREATEST(localMax, max-ever-handed-out) + 1`
  * (ADR-0050, `PgAdrStore.allocate`), so a number more than one above this checkout's max is PROOF
@@ -306,7 +302,6 @@ async function adrNew(opts: AdrCommandOpts, deps: AdrCommandDeps): Promise<Envel
   const edges = { supersedes: parseEdges(opts.supersedes), amends: parseEdges(opts.amends) };
 
   let n: number;
-  const reserved = true;
   {
     try {
       const r = await deps.allocator.allocate({ localMax, slug, branch: deps.branch, actor: deps.actor });
@@ -736,12 +731,14 @@ export function adrHelp(): Envelope {
       "                   current set) — it still shows as a status-labelled back-edge on its target.",
       "  --status <s>     filter to proposed | accepted | superseded",
       "",
-      "writes need --pg (bring the DB up first: pnpm db:up). Offline new/next fall back to max+1 with a",
-      "loud warning that the number is NOT reserved — the CI dup-number gate is the backstop.",
+      "new/next BOTH need --pg (bring the DB up first: pnpm db:up). There is no offline path: the",
+      "number is reserved transactionally and the decision is a row, so a session that cannot reach the",
+      "store cannot write the decision either — reserving a number it could not use would burn it.",
       "",
-      "A reserved number more than one above this checkout's highest ADR means other sessions allocated",
-      "the numbers in between — `new`/`next` name them, because a decision written in parallel can",
-      "CONTRADICT yours and you cannot read a file you do not have. A heads-up, never a gate.",
+      "A reserved number more than one above the highest decision this run saw means other sessions",
+      "allocated the numbers in between — `new`/`next` name them, because a decision written in",
+      "parallel can CONTRADICT yours. Read it with `storytree library artifact adr-NNNN` (an empty",
+      "answer means reserved, not yet written). A heads-up, never a gate.",
     ].join("\n"),
     next: ["storytree adr list --load-bearing", 'storytree adr new --title "..." --pg'],
   };

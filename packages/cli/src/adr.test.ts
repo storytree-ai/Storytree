@@ -276,7 +276,6 @@ const depsFor = (
   store?: InMemoryStore,
 ): AdrCommandDeps => ({
   allocator,
-  decisionsDir: dir,
   branch: "claude/test",
   actor: "tester",
   today: "2026-06-26",

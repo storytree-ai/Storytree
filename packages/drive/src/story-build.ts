@@ -63,7 +63,7 @@ import type {
 } from "./node-build.js";
 import { PgCommentStore, PgLibraryStore, closePool, createPool } from "@storytree/library/store";
 
-import { loadAdrMetas } from "./adr-metas.js";
+import { loadTitledAdrMetasFromStore } from "./adr-metas.js";
 import {
   CURATOR_ACTOR,
   ScriptedCuratorRunner,
@@ -221,15 +221,23 @@ async function runLiveCuration(
       curatorCostUsd += r.costUsd;
     };
     const runner = new SdkCuratorRunner(curatorArgs);
+    const library = new PgLibraryStore(pool);
+    // The deciding ADRs' CURRENT STATUS, read from the store (ADR-0403 dec 1). This was
+    // `loadAdrMetas(rootDir/docs/decisions)` until that directory was deleted — at which point
+    // `readdirSync` threw ENOENT straight into the catch below and every deciding ADR reached
+    // `serializeCurationContext` as "(not found)". The curator whose job is keeping the decision
+    // log honest would have been told, on every single build, that the log was empty.
+    // A read failure still degrades to `[]` rather than throwing, because curation must never
+    // block the gate — but it is a failure now, not the ordinary path.
     let adrs: AdrMeta[] = [];
     try {
-      adrs = loadAdrMetas(path.join(rootDir, "docs", "decisions")).adrs;
+      adrs = (await loadTitledAdrMetasFromStore(library)).adrs;
     } catch {
       adrs = [];
     }
     const lines = await runCurationPass({
       runner,
-      library: new PgLibraryStore(pool),
+      library,
       comments: new PgCommentStore(pool),
       context: {
         storyId: story.id,
@@ -347,11 +355,10 @@ export interface StoryBuildOpts {
    * slice). `curationStores.library` is what the pass reads OQs/proposals from and enacts against:
    * absent on a `--dry-run` defaults to a fresh in-memory store (the offline GLUE proof); absent on
    * `--live`/`--real` defaults to `null` (deferred — the live runner wires the live stores). Tests
-   * inject both to exercise enactment. `decisionsDir` feeds the ADR context (defaults to the repo's).
+   * inject both to exercise enactment. The ADR context is read from `curationStores.library`.
    */
   curatorRunner?: CuratorRunner;
   curationStores?: { library: Store | null; comments?: CommentSink | null };
-  decisionsDir?: string;
   /**
    * Injectable for tests (ADR-0121): the worktree identity the story-level write-claim is taken
    * under. Default = `deriveIdentity()` (null in a plain checkout → no claim). A build run never
@@ -1014,8 +1021,12 @@ export async function storyBuild(
       );
     } else {
       // Dry-run default exercises the GLUE against a fresh in-memory store; tests inject the stores +
-      // a scripted/SDK runner. Load the ADR context only when there is a library (best-effort: a
-      // fixture repo may have no docs/decisions — a missing dir is no ADR context, never a throw).
+      // a scripted/SDK runner. Load the ADR context only when there is a library — and read it from
+      // THAT library (ADR-0403 dec 1), not off disk. It used to be
+      // `loadAdrMetas(opts.decisionsDir ?? rootDir/docs/decisions)`, which resolved against the REAL
+      // repo root even under a tmp fixture; with the directory deleted that call only ever threw into
+      // the catch. Reading the injected store is both correct and honest about scope: an empty
+      // in-memory store yields no ADR context because it genuinely holds no decisions.
       const curationLibrary: Store | null =
         opts.curationStores?.library !== undefined
           ? opts.curationStores.library
@@ -1025,7 +1036,7 @@ export async function storyBuild(
       let curationAdrs: AdrMeta[] = [];
       if (curationLibrary !== null) {
         try {
-          curationAdrs = loadAdrMetas(opts.decisionsDir ?? path.join(rootDir, "docs", "decisions")).adrs;
+          curationAdrs = (await loadTitledAdrMetasFromStore(curationLibrary)).adrs;
         } catch {
           curationAdrs = [];
         }

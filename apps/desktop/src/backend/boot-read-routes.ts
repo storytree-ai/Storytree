@@ -113,23 +113,6 @@ function deriveTitle(markdown: string, filename: string): string {
   return m !== null && m[1] !== undefined ? m[1] : filename.replace(/\.md$/, "");
 }
 
-
-type AdrDocStatus = "proposed" | "accepted" | "superseded";
-const ADR_STATUSES = new Set<AdrDocStatus>(["proposed", "accepted", "superseded"]);
-
-
-/** Pull the ADR numbers out of a `field: [n, m, ...]` frontmatter array line; `[]` if absent/empty. */
-function extractEdgeNumbers(block: string, field: string): number[] {
-  const re = new RegExp(`^${field}:[ \\t]*\\[([^\\]]*)\\]`, "m");
-  const list = block.match(re)?.[1];
-  if (list === undefined || list === "") return [];
-  return list
-    .split(",")
-    .map((s) => Number(s.trim()))
-    .filter((n) => Number.isFinite(n));
-}
-
-
 /**
  * The first prose sentence after the H1 title — the one-line description shown on docs cards.
  * Reproduces apiRouter.ts deriveExcerpt verbatim. Empty if no sentence found.
@@ -148,10 +131,6 @@ function deriveExcerpt(markdown: string): string {
   return "";
 }
 
-/**
- * Recursively walk `docsDir` and return a `DocMeta[]`. Returns `[]` gracefully when the dir
- * does not exist — the studio boots fine with an empty docs list.
- */
 /**
  * Every `.md` under `docsDir`, as `DocMeta[]`. Returns `[]` when the dir does not exist.
  *
