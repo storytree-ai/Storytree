@@ -238,6 +238,18 @@ kind owes a seed export any more.
   from your environment; PROBE it** (see the Cloud SQL bullet's probe-don't-assume rule). Full detail
   and the settled fork: ADR-0250 / ADR-0089; the closing owner answers: ADR-0254.
 - Install: `corepack enable pnpm` · `pnpm install`
+- **`bun` MUST BE ON PATH, or the gate reds on a package pnpm never installed for you.** Since
+  `bun-runtime-migration-arc` increment 2 (2026-08-23), `packages/proof-protocol`'s own `test` script
+  is `bun test src/` — Bun is now a **test RUNTIME** here, and the arc rules the package-manager axis
+  OUT OF SCOPE, so **pnpm still installs everything and still owns `pnpm-lock.yaml`; never run
+  `bun install`.** Because Bun is a PATH tool rather than a workspace dependency (same class as
+  `gcloud` and `gh`), `pnpm install` cannot supply it and the failure names neither Bun nor the fix —
+  it surfaces as `'bun' is not recognized` inside a test step. On this box the binary is already
+  installed at `C:\Users\mickh\.bun\bin\bun.exe` (Bun 1.4.0, ARM64) but that directory is **not on
+  PATH**; add it once. CI needs no such step — `.github/workflows/ci.yml` has a pinned
+  `oven-sh/setup-bun@v2` step at the same version. Which packages have moved, and the measured
+  reason the rest have not, is `docs/research/bun-runtime-probe-2026-08-22.md` — **read it before
+  converting anything else; do not re-run the sweep.**
 - **Fresh worktree — or a REUSED one that main moved under?** A new git worktree has NO `node_modules`
   of its own — but a `SessionStart` hook now **auto-provisions** it:
   `node packages/cli/provision-worktree.mjs --hook` runs `pnpm install` when the worktree is either

@@ -147,6 +147,27 @@ jobs:
           node-version: 24
           cache: pnpm
 
+      # Bun is a TEST RUNTIME here, not a package manager — `bun-runtime-migration-arc`, whose intent
+      # rules the package-manager axis OUT OF SCOPE. pnpm above still installs, still owns the
+      # lockfile, and still owns the affected-scope classifier (ADR-0195 / ADR-0304 D2). All this
+      # step does is put `bun` on PATH so a package whose own `test` script says `bun test` can run;
+      # `pnpm --filter ...<name> test` is unchanged, because it just runs whatever each package says.
+      #
+      # WHY IT IS HERE AT ALL, AND WHY IT IS UNCONDITIONAL. The first converted package (increment 2,
+      # packages/proof-protocol) would go RED the moment it landed without this — CI has no Bun — so
+      # the CI step and the first conversion had to land together. It is a ONE-TIME cost, not a
+      # per-package one: every later conversion is then a one-line package.json edit.
+      #
+      # The version is PINNED to what the arc measured (docs/research/bun-runtime-probe-2026-08-22.md
+      # — Bun 1.4.0, the same build installed on the dev box). Bun's `node:test` support is PARTIAL
+      # and its test registration is non-deterministic in process-spawning packages, so a floating
+      # version could change which tests even get registered; that has to be a deliberate bump with
+      # a re-measurement behind it, never a silent one.
+      - name: Set up Bun (test runtime for converted packages — pnpm still owns install)
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
