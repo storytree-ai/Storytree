@@ -147,7 +147,7 @@
       "packages/cli/src/*decay*.ts": "verification-decay-instruments",
       "packages/cli/src/definitions-projection.ts": "cli",
       "packages/cli/src/desktop.ts": "cli",
-      "packages/cli/src/doctor.ts": "guided-setup-repair",
+      "packages/cli/src/doctor*.ts": "guided-setup-repair",
       "packages/cli/src/doctrine.ts": "cli",
       "packages/cli/src/escalation-blob.ts": "guided-setup-repair",
       "packages/cli/src/factory.ts": "cli",
