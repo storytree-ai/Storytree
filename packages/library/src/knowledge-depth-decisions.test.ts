@@ -32,7 +32,7 @@ function adr(
   decisionNumber: number,
   amends: readonly number[] = [],
   supersedes: readonly number[] = [],
-): { number: number; amends: readonly number[]; supersedes: readonly number[] } {
+) {
   return { number: decisionNumber, amends, supersedes };
 }
 

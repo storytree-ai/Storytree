@@ -17,7 +17,7 @@ import {
  */
 
 /** Capture log lines instead of writing to the console. */
-function capture(): { log: (m: string) => void; lines: string[] } {
+function capture() {
   const lines: string[] = [];
   return { log: (m: string) => lines.push(m), lines };
 }

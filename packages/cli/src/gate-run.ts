@@ -109,7 +109,7 @@ function rootScriptNames(): Set<string> {
 }
 
 /** Run one read-only git command in the repo root. */
-function git(args: string[]): { ok: boolean; stdout: string; detail: string } {
+function git(args: string[]) {
   const res = spawnSync("git", args, { cwd: repoRoot, encoding: "utf8" });
   if (res.error !== undefined || res.status !== 0) {
     const detail = res.error?.message ?? res.stderr?.trim() ?? `exit ${res.status}`;

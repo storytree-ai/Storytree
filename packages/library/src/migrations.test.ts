@@ -8,14 +8,25 @@ import {
 import { validateLibraryDoc, upcastAndValidate } from "./library-doc.js";
 
 /**
+ * A fixture document, deliberately OPEN and mutable. These tests build a well-formed doc and then
+ * delete or overwrite fields to reach the malformed shapes the migration has to survive, so the
+ * fixture cannot carry a fixed key set: an annotated literal is the widening
+ * `no-known-value-widening` rejects, and `satisfies` would pin exactly the keys the tests break.
+ * Routing the literal through a call keeps it open and says why.
+ */
+function openDoc(fields: Record<string, unknown>): Record<string, unknown> {
+  return fields;
+}
+
+/**
  * Migration-registry + write-boundary upcaster tests (design §5:
  * docs/research/library-schema-migrations-and-health-checks.md). Offline (no DB, no API key).
  */
 
 // A v0 structured definition unit that still carries a stray retired `seeAlso` field — the
 // concurrently-authored old-shape doc from the incident (§1b pain-point #2). No schemaVersion yet.
-function v0DefinitionWithSeeAlso(): Record<string, unknown> {
-  return {
+function v0DefinitionWithSeeAlso() {
+  return openDoc({
     kind: "definition",
     id: "test-term",
     title: "Test term",
@@ -26,13 +37,13 @@ function v0DefinitionWithSeeAlso(): Record<string, unknown> {
     whatItIs: "The exact meaning, stated precisely for the test.",
     createdAt: "2026-06-05T00:00:00.000Z",
     updatedAt: "2026-06-09T00:00:00.000Z",
-  };
+  });
 }
 
 // A rendered LibraryAsset (template) — has `category` + `body`, NO structured `kind`. Its schema is
 // .strict() with no schemaVersion field, so upcast must leave it untouched.
-function templateAsset(): Record<string, unknown> {
-  return {
+function templateAsset() {
+  return openDoc({
     id: "template-definition",
     category: "template",
     title: "Definition template",
@@ -41,7 +52,7 @@ function templateAsset(): Record<string, unknown> {
     references: [],
     createdAt: "2026-06-05T00:00:00.000Z",
     updatedAt: "2026-06-05T00:00:00.000Z",
-  };
+  });
 }
 
 test("upcast: v0 structured unit drops seeAlso, stamps schemaVersion, and validates", () => {
@@ -80,8 +91,8 @@ test("upcastAndValidate: forwards a v0 doc instead of rejecting it", () => {
 // A v1 agent unit in the PRE-RESHAPE shape (PR #48): prose authority walls + requiredReading +
 // prose rules/antiPatterns. Migration #2 must drop the walls, extract the asset: refs into the
 // typed context/rules/antiPatterns lists, and validate against the reshaped schema.
-function v1AgentPreReshape(): Record<string, unknown> {
-  return {
+function v1AgentPreReshape() {
+  return openDoc({
     kind: "agent",
     id: "test-agent",
     title: "Test agent",
@@ -103,7 +114,7 @@ function v1AgentPreReshape(): Record<string, unknown> {
     references: ["doc:decisions/0029-agents-as-library-artifact-category.md", "asset:edit-first-curation"],
     createdAt: "2026-06-11T00:00:00.000Z",
     updatedAt: "2026-06-11T00:00:00.000Z",
-  };
+  });
 }
 
 test("upcast: v1 agent unit is reshaped — walls dropped, refs extracted, validates at v2", () => {
@@ -209,8 +220,8 @@ test("upcast: migration #3 is a no-op on a doc with no glossary projection (idem
 // ---------------------------------------------------------------------------
 
 /** A v3 plan doc in the PRE-COLLAPSE shape: five body headings + a five-value status. */
-function v3PlanPreCollapse(overrides: Record<string, unknown> = {}): Record<string, unknown> {
-  return {
+function v3PlanPreCollapse(overrides: Record<string, unknown> = {}) {
+  return openDoc({
     // The PRE-rename key on purpose: migration #4 is kind-scoped on `plan`, and it runs BEFORE
     // migration #5 (the re-key) on any doc pinned below 4 — so it can only ever see `plan`.
     kind: "plan",
@@ -230,7 +241,7 @@ function v3PlanPreCollapse(overrides: Record<string, unknown> = {}): Record<stri
     createdAt: "2026-07-11T00:00:00.000Z",
     updatedAt: "2026-07-11T00:00:00.000Z",
     ...overrides,
-  };
+  });
 }
 
 test("upcast: migration #4 folds the four dropped headings into `body`, keeping every backtick path", () => {
@@ -261,13 +272,13 @@ test("upcast: migration #4 folds the four dropped headings into `body`, keeping 
 });
 
 test("upcast: migration #4 remaps every retired status, and is idempotent on the new vocabulary", () => {
-  const remap: Record<string, string> = {
+  const remap = {
     draft: "proposal",
     ready: "ready",
     consumed: "active",
     superseded: "closed",
     retired: "closed",
-  };
+  } satisfies Record<string, string>;
   for (const [before, after] of Object.entries(remap)) {
     const out = upcast(v3PlanPreCollapse({ status: before }));
     assert.equal(out["status"], after, `${before} → ${after}`);
@@ -323,9 +334,9 @@ test("upcast: migration #5 re-keys the plan tier and backfills the fields its in
 function v5IncrementWithDuplicatedNote(
   overrides: Record<string, unknown> = {},
   outcomeOverrides: Record<string, unknown> = {},
-): Record<string, unknown> {
+) {
   const prose = "LANDED — the halt is owner-attested. It touches `packages/library/src/knowledge.ts`.";
-  return {
+  return openDoc({
     kind: "increment",
     id: "dup-note-increment",
     title: "LANDED — the halt is owner-attested.",
@@ -340,7 +351,7 @@ function v5IncrementWithDuplicatedNote(
     createdAt: "2026-08-07T00:00:00.000Z",
     updatedAt: "2026-08-07T00:00:00.000Z",
     ...overrides,
-  };
+  });
 }
 
 test("upcast: migration #6 drops an `outcome.note` that is a verbatim copy of `body` (ADR-0322)", () => {
@@ -472,8 +483,8 @@ test("upcast: migration #4 no-ops on every other kind, and synthesises a body fr
 /** A v6 principle carrying the OLD `standsOn` key — the shape every live row was authored in. */
 function v6PrincipleWithStandsOn(
   overrides: Record<string, unknown> = {},
-): Record<string, unknown> {
-  return {
+) {
+  return openDoc({
     kind: "principle",
     id: "red-green",
     title: "Red-green",
@@ -487,7 +498,7 @@ function v6PrincipleWithStandsOn(
     createdAt: "2026-06-01T00:00:00.000Z",
     updatedAt: "2026-06-09T00:00:00.000Z",
     ...overrides,
-  };
+  });
 }
 
 test("upcast: migration #7 renames `standsOn` -> `dependsOn`, keeping an old-shape doc writable (ADR-0402)", () => {

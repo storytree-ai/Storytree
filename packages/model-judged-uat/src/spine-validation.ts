@@ -58,7 +58,7 @@ export interface SpineValidationInput {
   readonly hashFreshness: DetailAnchorFreshness | "missing";
 }
 
-const TIER_RANK: Record<Tier, number> = { advanced: 0, frontier: 1 };
+const TIER_RANK = { advanced: 0, frontier: 1 } satisfies Record<Tier, number>;
 
 /**
  * PURE: admit a structured judge result into a signable model-UAT payload, or

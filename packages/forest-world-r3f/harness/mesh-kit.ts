@@ -293,6 +293,8 @@ export function addLathe(
   }
 }
 
+export interface CubicAtResult { x: number; y: number }
+
 /** A cubic Bezier sampled at `t`, in the plane (x, y). */
 export function cubicAt(
   p0: { x: number; y: number },
@@ -300,7 +302,7 @@ export function cubicAt(
   c2: { x: number; y: number },
   p3: { x: number; y: number },
   t: number,
-): { x: number; y: number } {
+): CubicAtResult {
   const u = 1 - t;
   const a = u * u * u;
   const b = 3 * u * u * t;
@@ -312,14 +314,7 @@ export function cubicAt(
   };
 }
 
-function bounds(raw: Raw): {
-  minX: number;
-  maxX: number;
-  minY: number;
-  maxY: number;
-  minZ: number;
-  maxZ: number;
-} {
+function bounds(raw: Raw) {
   let minX = Infinity;
   let maxX = -Infinity;
   let minY = Infinity;

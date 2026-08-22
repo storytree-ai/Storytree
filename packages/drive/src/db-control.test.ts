@@ -9,23 +9,23 @@ import {
 } from "./db-control.js";
 
 /** A budget that never fires — the default in {@link deps}, so no test holds a real timer. */
-function idleBudget(): { expired: Promise<void>; cancel: () => void } {
+function idleBudget() {
   return { expired: new Promise<void>(() => {}), cancel: () => {} };
 }
 
 /** A budget that has ALREADY expired — the wedged-activation-call harness. */
-function firedBudget(): { expired: Promise<void>; cancel: () => void } {
+function firedBudget() {
   return { expired: Promise.resolve(), cancel: () => {} };
 }
 
 /** A deterministic clock: `sleep` advances `now`, so the timeout loop runs without real waiting. */
-function fakeClock(): { now: () => number; sleep: (ms: number) => Promise<void> } {
+function fakeClock() {
   let t = 0;
   return { now: () => t, sleep: async (ms: number) => void (t += ms) };
 }
 
 /** A probe that yields the given booleans in order, then repeats the last one. */
-function scriptedProbe(values: boolean[]): { probe: () => Promise<boolean>; calls: () => number } {
+function scriptedProbe(values: boolean[]) {
   let i = 0;
   return {
     probe: async () => values[Math.min(i++, values.length - 1)] ?? false,

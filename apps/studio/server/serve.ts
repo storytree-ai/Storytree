@@ -61,20 +61,24 @@ export function parseRepoRootFlag(argv: readonly string[]): string | undefined {
 
 // ---------- static serving (dist/, hash-routed SPA) ----------
 
-const MIME: Record<string, string> = {
-  '.html': 'text/html; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
-  '.map': 'application/json',
-  '.svg': 'image/svg+xml',
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.ico': 'image/x-icon',
-  '.txt': 'text/plain; charset=utf-8',
-  '.woff': 'font/woff',
-  '.woff2': 'font/woff2',
-};
+// A ReadonlyMap rather than an annotated object literal: the lookup key is an arbitrary runtime
+// file extension, so the table has to stay open at the READ, and `Record<string, string>` over a
+// literal is exactly the widening `no-known-value-widening` rejects. `.get()` returns
+// `string | undefined`, which is what the `??` fallback below already assumed.
+const MIME: ReadonlyMap<string, string> = new Map([
+  ['.html', 'text/html; charset=utf-8'],
+  ['.js', 'text/javascript; charset=utf-8'],
+  ['.css', 'text/css; charset=utf-8'],
+  ['.json', 'application/json; charset=utf-8'],
+  ['.map', 'application/json'],
+  ['.svg', 'image/svg+xml'],
+  ['.png', 'image/png'],
+  ['.jpg', 'image/jpeg'],
+  ['.ico', 'image/x-icon'],
+  ['.txt', 'text/plain; charset=utf-8'],
+  ['.woff', 'font/woff'],
+  ['.woff2', 'font/woff2'],
+]);
 
 /**
  * Serve a file from dist/ with a traversal guard; anything that doesn't resolve
@@ -106,7 +110,10 @@ async function serveStatic(res: ServerResponse, distDir: string, rawPathname: st
     return;
   }
   res.statusCode = 200;
-  res.setHeader('Content-Type', MIME[path.extname(file).toLowerCase()] ?? 'application/octet-stream');
+  res.setHeader(
+    'Content-Type',
+    MIME.get(path.extname(file).toLowerCase()) ?? 'application/octet-stream',
+  );
   res.end(await fs.readFile(file));
 }
 

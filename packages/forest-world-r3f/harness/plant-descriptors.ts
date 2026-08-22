@@ -80,7 +80,7 @@ function pathPoints(d: string): { x: number; y: number }[] {
 }
 
 /** A `translate(x y)` term, 0/0 when absent or unrecognised. */
-function parseTranslate(t: string | undefined): { x: number; y: number } {
+function parseTranslate(t: string | undefined) {
   if (!t) return { x: 0, y: 0 };
   const m = /translate\(\s*([-\d.]+)[\s,]+([-\d.]+)/.exec(t);
   if (!m) return { x: 0, y: 0 };

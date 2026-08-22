@@ -17,8 +17,10 @@ import { createAdvisoryReader } from "./advisory.js";
 import { createLocalBackend } from "./local-backend.js";
 import type { LocalBackendDeps } from "./local-backend.js";
 
+interface CaptureLogResult { lines: string[]; log: (line: string) => void }
+
 /** Collects log lines instead of writing to stderr — the injected observability seam. */
-function captureLog(): { lines: string[]; log: (line: string) => void } {
+function captureLog(): CaptureLogResult {
   const lines: string[] = [];
   return { lines, log: (line) => lines.push(line) };
 }
@@ -163,8 +165,10 @@ async function withServer(
 // real wall-clock wait. `flush` drains the microtask queue so the Promise.race settles after a tick.
 // ---------------------------------------------------------------------------
 
+interface DeferredResult<T> { promise: Promise<T>; resolve: (v: T) => void }
+
 /** A promise whose resolution we trigger by hand — the controllable cold-start read. */
-function deferred<T>(): { promise: Promise<T>; resolve: (v: T) => void } {
+function deferred<T>(): DeferredResult<T> {
   let resolve!: (v: T) => void;
   const promise = new Promise<T>((r) => {
     resolve = r;

@@ -85,7 +85,7 @@ function renderAt(
   progress: number | null,
   over: Partial<SceneCtx> = {},
   withHeroTrees = true,
-): { root: HTMLElement; onSelectCap: ReturnType<typeof vi.fn> } {
+) {
   const scene = buildScene(mkInput(withHeroTrees));
   const onSelectCap = vi.fn();
   const ctx: SceneCtx = {

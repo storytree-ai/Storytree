@@ -72,7 +72,7 @@ function textDeltaMessage(text: string): unknown {
  * A manually-resolvable promise — lets a scripted session park mid-flight so the first orchestrate
  * session can be held "in flight" while a second is attempted (the single-session guard test below).
  */
-function deferred(): { promise: Promise<void>; resolve: () => void } {
+function deferred() {
   let resolve: () => void = () => {};
   const promise = new Promise<void>((r) => {
     resolve = r;
@@ -94,7 +94,7 @@ const OK_SDK_RESULT = {
 // `startChatStream` takes no `spawn` dep to double any more; the negative in §4b keeps it that way.
 
 /** Capture the SDK Options the session was launched with (allowedTools is the observable). */
-function capturingQueryFn(): { fn: SdkQueryFn; lastOptions: () => Record<string, unknown> } {
+function capturingQueryFn() {
   let captured: Record<string, unknown> = {};
   const fn: SdkQueryFn = ({ options }) => {
     captured = options as Record<string, unknown>;

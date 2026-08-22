@@ -1099,7 +1099,7 @@ test("fail-closed read: an unknown agent still reports the name the caller typed
 // ---------------------------------------------------------------------------
 
 /** Count the reads reaching a store, whatever wraps it. */
-function countingStore(inner: InMemoryStore): { store: InMemoryStore; reads: () => number } {
+function countingStore(inner: InMemoryStore) {
   let reads = 0;
   const original = { getDoc: inner.getDoc.bind(inner), queryDocs: inner.queryDocs.bind(inner) };
   inner.getDoc = async (id) => {

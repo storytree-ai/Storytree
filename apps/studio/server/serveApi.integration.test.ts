@@ -52,9 +52,9 @@ proof_mode: UAT
 2. ${P2} (criterion-id: ${C2})(revision-id: ${R2})
 `;
 
-const iap = (email: string): Record<string, string> => ({
+const iap = (email: string) => ({
   [IAP_EMAIL_HEADER]: `accounts.google.com:${email}`,
-});
+} satisfies Record<string, string>);
 
 const userRow = (over: Partial<UserDoc> & { email: string }): UserDoc => ({
   role: 'member',
@@ -90,14 +90,16 @@ function comment(id: string, author: string): Comment {
 }
 
 /** What each backend method last received — the stub records instead of persisting. */
-const seen: {
+interface SeenShape {
   createdComment?: Comment;
   updatedCommentId?: string;
   assetCreated?: boolean;
   upserts: UserDoc[];
   recordedAttestation?: Attestation;
   wakeCount: number;
-} = {
+}
+
+const seen: SeenShape = {
   upserts: [],
   wakeCount: 0,
 };

@@ -364,11 +364,13 @@ export function classifyTestTiming(input: {
   };
 }
 
+export interface FormatTestTimingResult { warn: boolean; lines: string[] }
+
 /**
  * PURE: render the sweep as console lines + a `warn` flag. NEVER throws or exits — the caller prints,
  * then applies the drain ceiling (`test-timing-drain.ts`) to decide the exit code.
  */
-export function formatTestTiming(report: TestTimingReport): { warn: boolean; lines: string[] } {
+export function formatTestTiming(report: TestTimingReport): FormatTestTimingResult {
   if (report.clean) {
     return {
       warn: false,
@@ -400,12 +402,14 @@ export interface TestTimingDeps {
   loadInputs: () => { files: ScannedTestFile[]; workspaceCount: number };
 }
 
-/** The injectable gate runner: load → classify → format. Pure-by-injection. */
-export function runTestTimingGate(deps: TestTimingDeps): {
+export interface RunTestTimingGateResult {
   warn: boolean;
   lines: string[];
   report: TestTimingReport;
-} {
+}
+
+/** The injectable gate runner: load → classify → format. Pure-by-injection. */
+export function runTestTimingGate(deps: TestTimingDeps): RunTestTimingGateResult {
   const report = classifyTestTiming(deps.loadInputs());
   return { ...formatTestTiming(report), report };
 }
@@ -459,15 +463,17 @@ function collectTestFiles(dir: string, repoRoot: string, into: string[]): void {
   }
 }
 
+export interface LoadTestTimingInputsResult {
+  files: ScannedTestFile[];
+  workspaceCount: number;
+}
+
 /**
  * Load the sweep inputs off disk: every `*.test.ts(x)` under every workspace that declares a `test`
  * script — i.e. exactly the files `pnpm -r test` can red a gate with. Pure file reads, no DB, so it
  * runs identically local and in CI.
  */
-export function loadTestTimingInputs(opts: { repoRoot: string }): {
-  files: ScannedTestFile[];
-  workspaceCount: number;
-} {
+export function loadTestTimingInputs(opts: { repoRoot: string }): LoadTestTimingInputsResult {
   const roots = parseWorkspaceRoots(readFileSync(path.join(opts.repoRoot, "pnpm-workspace.yaml"), "utf8"));
 
   const files: ScannedTestFile[] = [];

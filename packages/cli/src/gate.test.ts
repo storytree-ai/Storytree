@@ -163,7 +163,9 @@ test("gate run on a build-tests gate WITH --real but no (build:) reference refus
 });
 
 test("gate run on a build-tests gate WITH --real + a (build:) ref routes to the injected build driver", async () => {
-  const seen: { gate?: ReliabilityGate; signer?: string } = {};
+  interface SeenShape { gate?: ReliabilityGate; signer?: string }
+
+  const seen: SeenShape = {};
   const env = await gateCommand(
     { mode: "run", target: "brown#gate-1" },
     { real: true, signer: "builder@example.com" },

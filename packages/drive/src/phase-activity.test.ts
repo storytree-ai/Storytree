@@ -16,11 +16,13 @@ import { subagentColourState } from "./subagent-colour.js";
 // builds that onPhase callback over an injected store, so it is red-green offline
 // with a fake store (no DB, no worktree, no SDK).
 
-/** A fake append-only store recording every event it is handed. */
-function recordingStore(): {
+interface RecordingStoreResult {
   appendEvent: (e: { id: string; kind: string; type: string; doc: unknown; actor?: string }) => Promise<void>;
   events: { id: string; kind: string; type: string; doc: unknown; actor?: string }[];
-} {
+}
+
+/** A fake append-only store recording every event it is handed. */
+function recordingStore(): RecordingStoreResult {
   const events: { id: string; kind: string; type: string; doc: unknown; actor?: string }[] = [];
   return {
     events,

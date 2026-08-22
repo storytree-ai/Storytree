@@ -188,7 +188,9 @@ function scriptedAuthors(
   };
 }
 
-function scopeFor(id: string): { testGlobs: string[]; sourceGlobs: string[] } {
+interface ScopeForResult { testGlobs: string[]; sourceGlobs: string[] }
+
+function scopeFor(id: string): ScopeForResult {
   return { testGlobs: [`${FIXTURE_DIR}/${id}.test.ts`], sourceGlobs: [`${FIXTURE_DIR}/${id}.ts`] };
 }
 

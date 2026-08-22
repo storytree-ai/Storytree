@@ -114,8 +114,10 @@ function routeOf(doc: Record<string, unknown>): string | undefined {
   return typeof doc["route"] === "string" ? (doc["route"] as string) : undefined;
 }
 
+interface ProvenanceOfResult { branch?: string; date?: string }
+
 /** Read `provenance {branch, date}` off a (possibly raw) friction doc; missing parts are undefined. */
-function provenanceOf(doc: Record<string, unknown>): { branch?: string; date?: string } {
+function provenanceOf(doc: Record<string, unknown>): ProvenanceOfResult {
   const p = doc["provenance"];
   if (p !== null && typeof p === "object") {
     const o = p as Record<string, unknown>;

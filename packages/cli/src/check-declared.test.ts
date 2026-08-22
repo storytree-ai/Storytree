@@ -138,7 +138,7 @@ test("lobby: the message counts every dirty path but truncates the list", () => 
 // managed worktree hanging off it, exactly the real shape. Offline, no DB, no network.
 
 /** Build `<tmp>/primary` (one commit, `.claude/worktrees/` present) + a worktree at `…/wt`. */
-function makeFixture(): { root: string; primary: string; worktree: string } {
+function makeFixture() {
   const root = mkdtempSync(path.join(tmpdir(), "storytree-lobby-"));
   const primary = path.join(root, "primary");
   mkdirSync(primary);

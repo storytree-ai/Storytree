@@ -30,9 +30,9 @@ const ADMIN = 'admin@example.com';
 const MEMBER = 'member@example.com';
 const TOPIC = 'slow-growth-principle';
 
-const iap = (email: string): Record<string, string> => ({
+const iap = (email: string) => ({
   [IAP_EMAIL_HEADER]: `accounts.google.com:${email}`,
-});
+} satisfies Record<string, string>);
 
 const userRow = (over: Partial<UserDoc> & { email: string; role: UserDoc['role'] }): UserDoc => ({
   status: 'active',

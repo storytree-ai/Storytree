@@ -167,10 +167,10 @@ export function nextPhase(
 }
 
 /** The observed kind a declared {@link ExpectedRed} demands. */
-const KIND_FOR_EXPECTED: Record<ExpectedRed, "compile" | "runtime"> = {
+const KIND_FOR_EXPECTED = {
   structural: "compile",
   assertion: "runtime",
-};
+} satisfies Record<ExpectedRed, "compile" | "runtime">;
 
 /**
  * The CONFIRM_RED kind check: a fail-closed refusal when the MEASURED red contradicts what the node

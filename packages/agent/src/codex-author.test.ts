@@ -159,10 +159,12 @@ test("production replica stays in the ignored claimed-worktree subtree without n
   }
 });
 
-function captureRunner(results: CodexCommandResult[]): {
+interface CaptureRunnerResult {
   runner: CodexRunner;
   commands: CodexCommand[];
-} {
+}
+
+function captureRunner(results: CodexCommandResult[]): CaptureRunnerResult {
   const commands: CodexCommand[] = [];
   return {
     commands,

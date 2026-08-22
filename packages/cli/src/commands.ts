@@ -823,7 +823,7 @@ async function notWritable(store: Store): Promise<Envelope> {
 }
 
 /** Pull `id` + `kind` off a validated doc (structured units carry `kind`; rendered assets carry `category`). */
-function idKindOf(doc: Record<string, unknown>): { id: string; kind: string } {
+function idKindOf(doc: Record<string, unknown>) {
   const id = typeof doc.id === "string" ? doc.id : "";
   const kind =
     typeof doc.kind === "string"
@@ -3462,7 +3462,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       // once, for every prose flag, before any verb saw the value (cli-write-fidelity-arc). This is
       // now a plain rename from flag names to the write path's field names; `--change` is repeatable
       // and its (expanded) values join into paragraphs.
-      const resolved: {
+      interface ResolvedShape {
         intent?: string;
         endState?: string;
         outcome?: string;
@@ -3470,7 +3470,9 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         objective?: string;
         body?: string;
         note?: string;
-      } = {
+      }
+
+      const resolved: ResolvedShape = {
         ...(values.intent !== undefined ? { intent: values.intent } : {}),
         ...(values["end-state"] !== undefined ? { endState: values["end-state"] } : {}),
         ...(values.outcome !== undefined ? { outcome: values.outcome } : {}),

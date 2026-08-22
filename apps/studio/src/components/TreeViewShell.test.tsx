@@ -983,7 +983,7 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
       }));
     const frameKeyOf = (container: HTMLElement): string | null =>
       container.querySelector('[data-semantic-growth-frame]')?.getAttribute('data-semantic-growth-frame') ?? null;
-    const navOf = (container: HTMLElement): { next: HTMLElement; back: HTMLElement; replay: HTMLElement } => {
+    const navOf = (container: HTMLElement) => {
       const nav = container.querySelector('nav[aria-label="Semantic growth controls"]');
       expect(nav).toBeTruthy();
       const byText = (t: string): HTMLElement => {
@@ -1352,12 +1352,7 @@ const R3_LAB_TRACKS: ReadonlyMap<string, OrganicPoseTrack> = new Map(
 const CONTACT_TOLERANCE_PX = 0.15;
 
 /** Where the asset's registered ground contact actually landed, measured off the rendered box. */
-function measuredGroundContact(image: Element): {
-  readonly x: number;
-  readonly y: number;
-  readonly socketX: number;
-  readonly socketY: number;
-} {
+function measuredGroundContact(image: Element) {
   const trackId = image.getAttribute('data-organic-track') ?? '';
   const track = R3_LAB_TRACKS.get(trackId);
   if (!track) throw new Error(`Rendered an unregistered organic track "${trackId}".`);
@@ -1410,11 +1405,7 @@ describe('Chapter 2 round-3 comparison lab (`?organicGrowth=r3-lab`)', () => {
     };
   }
 
-  function controls(root: HTMLElement): {
-    next: HTMLButtonElement;
-    back: HTMLButtonElement;
-    replay: HTMLButtonElement;
-  } {
+  function controls(root: HTMLElement) {
     const buttons = Array.from(
       root.querySelectorAll<HTMLButtonElement>(
         'nav[aria-label="Semantic growth controls"] button',

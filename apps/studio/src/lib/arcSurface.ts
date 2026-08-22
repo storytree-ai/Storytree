@@ -317,13 +317,13 @@ export interface ArcLane {
   claimants: Array<{ sessionId: string; branch: string; unitId: string }>;
 }
 
-const STATE_RANK: Readonly<Record<DerivableArcState, number>> = {
+const STATE_RANK = {
   waiting: 0,
   claimed: 1,
   quiet: 2,
   parked: 3,
   closed: 4,
-};
+} satisfies Readonly<Record<DerivableArcState, number>>;
 
 /**
  * Which arcs {@link arcLanes} draws — the CLI's `ArcScope` naming (`packages/arc/src/arc.ts`),

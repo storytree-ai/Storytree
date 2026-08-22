@@ -64,6 +64,8 @@ const MD_TOOLS: readonly ToolAction[] = [
   { label: 'H2', title: 'Heading ## …', before: '## ', after: '' },
 ];
 
+export interface ApplyToolResult { next: string; selStart: number; selEnd: number }
+
 /** Apply a toolbar action to `source` given the current selection, returning the new
  *  source and where to place the caret/selection afterwards. Pure — unit-testable. */
 export function applyTool(
@@ -71,7 +73,7 @@ export function applyTool(
   selStart: number,
   selEnd: number,
   tool: ToolAction,
-): { next: string; selStart: number; selEnd: number } {
+): ApplyToolResult {
   const selected = source.slice(selStart, selEnd);
   let wrapped: string;
   if (tool.substitute) {

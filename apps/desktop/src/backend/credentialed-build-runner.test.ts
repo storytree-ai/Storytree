@@ -33,11 +33,17 @@ import { credentialedBuildRunner } from "./credentialed-build-runner.js";
 // Test helpers
 // ---------------------------------------------------------------------------
 
+interface StubRunner {
+  calls: string[];
+  envSnapshots: Array<Record<string, string | undefined>>;
+  runner: BuildRunner;
+}
+
 /** A stub base runner that snapshots the ambient env at invocation time and returns `envelope`. */
 function makeStubRunner(
   env: Record<string, string | undefined>,
   envelope: BuildEnvelope = { ok: true, body: "stub: ok" },
-): { calls: string[]; envSnapshots: Array<Record<string, string | undefined>>; runner: BuildRunner } {
+): StubRunner {
   const calls: string[] = [];
   const envSnapshots: Array<Record<string, string | undefined>> = [];
   return {

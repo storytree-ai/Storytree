@@ -348,14 +348,14 @@ const FLOOR_HEALTH_SPEC: MirrorSpec = {
 };
 
 /** A reading shaped like drive's: the rules, the window, and the ONE number (ADR-0316 D2/D3). */
-const reading = (extra: Record<string, unknown> = {}): Record<string, unknown> => ({
+const reading = (extra: Record<string, unknown> = {}) => ({
   window: {},
   collapsingRule: "two live filings are ONE cause when an AUTHOR joined them…",
   attributionRule: "attributed to the route STANDING WHEN IT LANDED…",
   distinctCauses: 2,
   unjoined: 1,
   ...extra,
-});
+} satisfies Record<string, unknown>);
 
 const loud = { cause: "a-live-guardrail", members: ["a-live-guardrail"], route: "guardrail", recurrences: 4 };
 

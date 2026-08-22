@@ -111,14 +111,7 @@ function signedArea2G(loop: readonly GPoint[]): number {
   return signedArea2(loop.map((p) => ({ x: p.x, y: p.z })));
 }
 
-function boundsOf(points: readonly GPoint[]): {
-  minX: number;
-  maxX: number;
-  minZ: number;
-  maxZ: number;
-  w: number;
-  h: number;
-} {
+function boundsOf(points: readonly GPoint[]) {
   let minX = Infinity;
   let maxX = -Infinity;
   let minZ = Infinity;
@@ -538,6 +531,8 @@ export function pathLength(points: readonly GPoint[], closed = false): number {
   return total;
 }
 
+export interface PointAtResult { point: GPoint; dir: GPoint }
+
 /** The point at arc-length `t` (0..1) along a polyline, plus the unit direction there.
  *  `t` outside 0..1 is CLAMPED rather than wrapped, so a rounding overshoot at the end of a
  *  resample lands on the last vertex instead of teleporting back to the first. */
@@ -545,7 +540,7 @@ export function pointAt(
   points: readonly GPoint[],
   t: number,
   closed = false,
-): { point: GPoint; dir: GPoint } {
+): PointAtResult {
   const n = points.length;
   if (n === 0) return { point: { x: 0, z: 0 }, dir: { x: 1, z: 0 } };
   if (n === 1) return { point: clone(points[0]!), dir: { x: 1, z: 0 } };

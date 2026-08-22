@@ -24,7 +24,7 @@ import {
 
 const ISO = "2026-01-01T00:00:00.000Z";
 
-function oqDoc(id: string, over: Record<string, unknown> = {}): Record<string, unknown> {
+function oqDoc(id: string, over: Record<string, unknown> = {}) {
   return {
     id,
     kind: "open-question",
@@ -38,7 +38,7 @@ function oqDoc(id: string, over: Record<string, unknown> = {}): Record<string, u
     createdAt: ISO,
     updatedAt: ISO,
     ...over,
-  };
+  } satisfies Record<string, unknown>;
 }
 
 class FakeComments implements CommentSink {

@@ -11,7 +11,7 @@ import { growPlant, spriteQuad, type PlantMesh, type PlantSpec } from './plant-g
 
 const BASE: PlantSpec = { seed: 1234, form: 'shrub', width: 6, height: 3, detail: 2 };
 
-function bbox(m: PlantMesh): { w: number; h: number; d: number; minY: number } {
+function bbox(m: PlantMesh) {
   let minX = Infinity;
   let maxX = -Infinity;
   let minY = Infinity;

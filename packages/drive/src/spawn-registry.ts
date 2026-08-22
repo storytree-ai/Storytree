@@ -368,6 +368,8 @@ export function readOwnership(
   return summarizeOwnership(sessionId, classified, unreadable);
 }
 
+export interface ClearExitedRecordsResult { cleared: number; keptLive: number; keptUnknown: number }
+
 /**
  * Remove the records whose process is GONE, and report what was removed.
  *
@@ -380,7 +382,7 @@ export function clearExitedRecords(
   summary: OwnershipSummary,
   io: SpawnRegistryIo,
   root: string = defaultRegistryRoot(),
-): { cleared: number; keptLive: number; keptUnknown: number } {
+): ClearExitedRecordsResult {
   for (const entry of summary.leaked) {
     io.remove(spawnRecordPath(root, entry.record.sessionId, entry.record.pid));
   }

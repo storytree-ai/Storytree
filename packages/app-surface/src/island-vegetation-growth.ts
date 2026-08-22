@@ -241,7 +241,7 @@ function plantVariation(
   storyId: string,
   anchor: VegetationAnchor,
   replacedHeight: number | null,
-): { matureHeight: number; flipped: boolean } {
+) {
   const seed = hash(`${storyId}:veg:plant:${anchor.x.toFixed(1)},${anchor.y.toFixed(1)}`);
   const base = replacedHeight != null && replacedHeight > 0 ? replacedHeight : PLANT_FALLBACK_HEIGHT;
   return {

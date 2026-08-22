@@ -208,7 +208,7 @@ export function formatEscalationBlob(blob: EscalationBlob): string {
   }
 
   lines.push("", "Full setup status:");
-  const glyph: Record<ProbeLevel, string> = { PASS: "ok  ", WARN: "warn", FAIL: "FAIL" };
+  const glyph = { PASS: "ok  ", WARN: "warn", FAIL: "FAIL" } satisfies Record<ProbeLevel, string>;
   for (const e of blob.environment) lines.push(`  [${glyph[e.level]}] ${e.probe.padEnd(22)} ${e.detail}`);
 
   lines.push("", "(No credentials are included — storytree never handles your Claude token, ADR-0207 D3.)");

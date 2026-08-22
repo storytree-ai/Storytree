@@ -749,7 +749,7 @@ function disposeAllTerminals(): void {
 
 // Renderer → main pty IPC. `spawn` streams output back to the REQUESTING webContents (the focused
 // window's terminal); write/resize/dispose forward to the manager.
-ipcMain.handle("terminal:spawn", (e, opts: unknown): { sessionId: string } => {
+ipcMain.handle("terminal:spawn", (e, opts: unknown) => {
   // Fail closed (terminal-repo-gate): no valid repo selected → no pty. The renderer gate already
   // withholds the dock, but main enforces it too (defense in depth) — a stray spawn returns an empty
   // session id instead of a shell in the wrong cwd. When valid, the pty opens in the selected repo.

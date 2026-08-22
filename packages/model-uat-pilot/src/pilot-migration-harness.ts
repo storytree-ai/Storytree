@@ -40,8 +40,8 @@ export interface PilotMigrationReport {
   };
 }
 
-function emptyWitnessCounts(): Record<ClassifiedWitness, number> {
-  return { machine: 0, model: 0, human: 0 };
+function emptyWitnessCounts() {
+  return { machine: 0, model: 0, human: 0 } satisfies Record<ClassifiedWitness, number>;
 }
 
 function storyMdPath(repoRoot: string, storyId: PilotStoryId): string {

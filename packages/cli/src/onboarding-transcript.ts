@@ -156,7 +156,7 @@ function parseCallArgs(raw: unknown): Record<string, unknown> {
 }
 
 /** Normalize one Codex call into the existing harness-neutral budget vocabulary. */
-function codexToolTarget(payload: Record<string, unknown>): { tool: string; target: string } {
+function codexToolTarget(payload: Record<string, unknown>) {
   const name = typeof payload["name"] === "string" ? payload["name"] as string : "";
   const raw = typeof payload["input"] === "string"
     ? payload["input"] as string

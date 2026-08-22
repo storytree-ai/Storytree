@@ -131,8 +131,8 @@ export interface OnboardingMeasurement {
   dominantCostCenter: CostCenter | null;
 }
 
-function emptyByCostCenter(): Record<CostCenter, number> {
-  return { ENV: 0, CLI: 0, BOOT: 0, SOURCE: 0, KNOWLEDGE: 0 };
+function emptyByCostCenter() {
+  return { ENV: 0, CLI: 0, BOOT: 0, SOURCE: 0, KNOWLEDGE: 0 } satisfies Record<CostCenter, number>;
 }
 
 /**

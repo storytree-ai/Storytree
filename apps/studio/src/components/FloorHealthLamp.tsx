@@ -163,13 +163,13 @@ export function floorLampState(band: FloorHealthBand | null): FloorLampState {
 }
 
 /** The one-word state the lamp says out loud, beside the glyph. */
-const STATE_WORD: Readonly<Record<FloorLampState, string>> = {
+const STATE_WORD = {
   unwired: 'not wired',
   reading: 'reading…',
   declined: 'no reading',
   quiet: 'quiet',
   loud: 'recurring',
-};
+} satisfies Readonly<Record<FloorLampState, string>>;
 
 /**
  * The andon glyph — a signal lamp, which is what a factory floor actually uses to say the line is in

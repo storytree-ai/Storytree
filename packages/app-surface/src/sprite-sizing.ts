@@ -312,6 +312,8 @@ export function wrapperContentBounds(
  *  fit falls back to the manifest's native size rather than a zero-height sprite. */
 const MIN_CONTENT_HEIGHT = 2;
 
+export interface FitSpritePlacementResult { x: number; y: number; width: number; height: number }
+
 /**
  * The `<image>` placement that FITS a sprite into the content box it replaces: height matches the
  * box's height, width follows the sprite's own aspect ratio, the bottom edge sits on the box's bottom
@@ -324,7 +326,7 @@ export function fitSpritePlacement(
   def: SpriteDef,
   content: Bounds | null,
   artScale: number,
-): { x: number; y: number; width: number; height: number } {
+): FitSpritePlacementResult {
   const fudge = (def.scale ?? 1) * artScale;
   if (!content || content.maxY - content.minY < MIN_CONTENT_HEIGHT) {
     const width = def.w * fudge;

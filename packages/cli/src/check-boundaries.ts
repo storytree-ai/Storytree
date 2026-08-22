@@ -80,7 +80,7 @@ function readJson(path: string): Record<string, unknown> {
  * not `@storytree/*`, so we key it by its bare package name and classify it in `surfaces`). Every
  * included package must be classified (rule 0), so a new app can't slip in unowned either.
  */
-function readPackageDeps(): Record<string, string[]> {
+function readPackageDeps() {
   const graph: Record<string, string[]> = {};
   for (const baseDir of ["packages", "apps"]) {
     const root = join(repoRoot, baseDir);
@@ -98,19 +98,14 @@ function readPackageDeps(): Record<string, string[]> {
         .sort();
     }
   }
-  return graph;
+  return graph satisfies Record<string, string[]>;
 }
 
 /**
  * Every story's declared cross-story edges (id = the stories/<dir> name, matching the forest):
  * the consumer-side `depends_on` and the provider-side `consumed_by` (ADR-0074 §4).
  */
-function readStoryGraphs(): {
-  storyGraph: Record<string, string[]>;
-  consumedBy: Record<string, string[]>;
-  artifactEdges: Record<string, string[]>;
-  retired: Set<string>;
-} {
+function readStoryGraphs() {
   const storiesDir = join(repoRoot, "stories");
   const storyGraph: Record<string, string[]> = {};
   const consumedBy: Record<string, string[]> = {};
@@ -183,7 +178,7 @@ function readOwnership(): Ownership {
  * each `package.json` `name` projected through the ownership map (organisms + surfaces) — the same
  * mapping the dep-graph rules use, keyed by BUILDING DIR instead of package name.
  */
-function readDirOwners(ownership: Ownership): Record<string, string> {
+function readDirOwners(ownership: Ownership) {
   const owners: Record<string, string> = {};
   for (const baseDir of ["packages", "apps"]) {
     const root = join(repoRoot, baseDir);
@@ -198,7 +193,7 @@ function readDirOwners(ownership: Ownership): Record<string, string> {
       if (story !== undefined) owners[`${baseDir}/${ent.name}`] = story;
     }
   }
-  return owners;
+  return owners satisfies Record<string, string>;
 }
 
 /**
@@ -207,10 +202,10 @@ function readDirOwners(ownership: Ownership): Record<string, string> {
  * island no longer renders — the same exclusion the drift report makes). Best-effort per unit:
  * a malformed spec is skipped, never thrown, so a bad unit spec cannot wedge the gate gather.
  */
-function readUnitSourceFiles(retired: Set<string>): Record<string, string[]> {
+function readUnitSourceFiles(retired: Set<string>) {
   const storiesDir = join(repoRoot, "stories");
   const out: Record<string, string[]> = {};
-  if (!existsSync(storiesDir)) return out;
+  if (!existsSync(storiesDir)) return out satisfies Record<string, string[]>;
   for (const ent of readdirSync(storiesDir, { withFileTypes: true })) {
     if (!ent.isDirectory() || retired.has(ent.name)) continue;
     const storyDir = join(storiesDir, ent.name);
@@ -230,7 +225,7 @@ function readUnitSourceFiles(retired: Set<string>): Record<string, string[]> {
     }
     if (seen.size > 0) out[ent.name] = [...seen].sort();
   }
-  return out;
+  return out satisfies Record<string, string[]>;
 }
 
 /** A module specifier carrying a glob metacharacter — write-scope BREADTH, not a concrete owned file. */

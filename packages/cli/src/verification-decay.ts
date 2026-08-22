@@ -1284,6 +1284,8 @@ export function evaluateDecayCeiling(
 
 const TAG = "[check:verification-decay]";
 
+export interface FormatDecaySweepResult { failed: boolean; lines: string[] }
+
 /**
  * PURE: render the sweep as console lines plus the exit decision. Never throws, never exits — the
  * thin entrypoint prints and sets the exit code, so the whole WARN/RED decision is fixture-testable.
@@ -1294,7 +1296,7 @@ const TAG = "[check:verification-decay]";
 export function formatDecaySweep(
   verdict: DecayVerdict,
   instruments: readonly DecayInstrument[],
-): { failed: boolean; lines: string[] } {
+): FormatDecaySweepResult {
   const lines: string[] = [];
   const registered = instruments.map((i) => i.name);
   const coverage = `${instruments.length} instrument(s): ${registered.join(", ")}`;

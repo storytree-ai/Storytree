@@ -22,7 +22,7 @@ import { CURRENT_SCHEMA_VERSION, upcast } from "./migrations.js";
 const KINDS = Object.keys(KIND_SPECS) as KnowledgeKind[];
 
 /** A minimal valid doc for a kind: common fields + every REQUIRED spec field. */
-function minimalDoc(kind: KnowledgeKind): Record<string, unknown> {
+function minimalDoc(kind: KnowledgeKind) {
   const doc: Record<string, unknown> = {
     kind,
     id: `parity-${kind}`,
@@ -47,7 +47,7 @@ function minimalDoc(kind: KnowledgeKind): Record<string, unknown> {
     doc["anchor"] = { sha: "0123abc", date: "2026-07-11" };
     doc["parked"] = "2026-08-05T00:00:00.000Z";
   }
-  return doc;
+  return doc satisfies Record<string, unknown>;
 }
 
 test("KIND_SPECS and the Knowledge union enumerate the same kinds", () => {

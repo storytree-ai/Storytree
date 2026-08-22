@@ -69,12 +69,14 @@ after(() => {
   rmSync(storiesDir, { recursive: true, force: true });
 });
 
+interface SigningEventResult { kind: string; seq: number; doc: unknown }
+
 /** A full signed Verdict doc (the strict core shape) wrapped as a signing event. */
 function signingEvent(
   seq: number,
   unitId: string,
   outcome: "pass" | "fail",
-): { kind: string; seq: number; doc: unknown } {
+): SigningEventResult {
   return {
     kind: SIGNING_EVENT_KIND,
     seq,

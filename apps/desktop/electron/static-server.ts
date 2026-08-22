@@ -5,22 +5,26 @@ import type { AddressInfo } from "node:net";
 
 import { guardHttpRequest, SIDECAR_TOKEN_HEADER } from "../src/backend/loopback-guard.js";
 
-const CONTENT_TYPES: Record<string, string> = {
-  ".html": "text/html; charset=utf-8",
-  ".js": "text/javascript; charset=utf-8",
-  ".mjs": "text/javascript; charset=utf-8",
-  ".css": "text/css; charset=utf-8",
-  ".json": "application/json; charset=utf-8",
-  ".svg": "image/svg+xml",
-  ".png": "image/png",
-  ".jpg": "image/jpeg",
-  ".webp": "image/webp",
-  ".ico": "image/x-icon",
-  ".woff": "font/woff",
-  ".woff2": "font/woff2",
-  ".ttf": "font/ttf",
-  ".map": "application/json; charset=utf-8",
-};
+// A ReadonlyMap rather than an annotated object literal: the lookup key is an arbitrary runtime
+// file extension, so the table has to stay open at the READ, and `Record<string, string>` over a
+// literal is exactly the widening `no-known-value-widening` rejects. `.get()` returns
+// `string | undefined`, which is what the `??` fallback at the read site already assumed.
+const CONTENT_TYPES: ReadonlyMap<string, string> = new Map([
+  [".html", "text/html; charset=utf-8"],
+  [".js", "text/javascript; charset=utf-8"],
+  [".mjs", "text/javascript; charset=utf-8"],
+  [".css", "text/css; charset=utf-8"],
+  [".json", "application/json; charset=utf-8"],
+  [".svg", "image/svg+xml"],
+  [".png", "image/png"],
+  [".jpg", "image/jpeg"],
+  [".webp", "image/webp"],
+  [".ico", "image/x-icon"],
+  [".woff", "font/woff"],
+  [".woff2", "font/woff2"],
+  [".ttf", "font/ttf"],
+  [".map", "application/json; charset=utf-8"],
+]);
 
 /**
  * Serve the COMPILED studio dist over http://127.0.0.1 so its absolute `/assets/…` paths
@@ -128,7 +132,7 @@ export function serveStudio(
       res.end(`studio bundle missing: ${target}`);
       return;
     }
-    res.writeHead(200, { "content-type": CONTENT_TYPES[extname(target)] ?? "application/octet-stream" });
+    res.writeHead(200, { "content-type": CONTENT_TYPES.get(extname(target)) ?? "application/octet-stream" });
     const stream = createReadStream(target);
     stream.on("error", (err) => {
       if (!res.headersSent) res.writeHead(500, { "content-type": "text/plain; charset=utf-8" });
