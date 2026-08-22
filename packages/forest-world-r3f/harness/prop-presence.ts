@@ -37,6 +37,14 @@
 // it owed, and the run would go green having checked nothing. The tag is already load-bearing
 // (it names the evidence files), and resolving through it keeps the declaration inside the
 // capture's own module graph.
+//
+// COVERAGE IS TOTAL OVER BOTH EVIDENCE PAGES, and mechanically so. Two manifests —
+// {@link DRESSING_MUST_DELIVER} for the dressed islands and `PANEL_MUST_DELIVER` for the
+// flowers-and-tree page — between them declare every tagged canvas the harness draws, and
+// `prop-presence.test.ts` reads the tags off the pages themselves and refuses any that resolves
+// to nothing. Without that, adding a sixth island or renaming a tag would silently shrink what
+// is checked while every test here stayed green, which is this module's own failure arriving one
+// level up. At run time `ST_EXPECT_PROP_CANVASES` covers the same hole from the other side.
 
 import {
   MARKER_TOKENS,
