@@ -10,6 +10,8 @@ import {
   scaffold,
   extractAdrTitle,
   renderAdrList,
+  loadBearingReach,
+  loadAdrListings,
   type AdrListing,
   type AdrAllocatorLike,
   type AdrCommandDeps,
@@ -218,6 +220,129 @@ test("renderAdrList marks curated ★ and edge-reached ☆ so growth in the set 
   assert.match(lines, /★ 0142 {2}accepted/); // hand-curated
   assert.match(lines, /☆ 0271 {2}accepted/); // derived from the edge
   assert.match(lines, /☆ 0275 {2}accepted/);
+});
+
+// ---- support edges must NOT widen that reach (the-load-bearing-view-follows-amends-edges) --------
+//
+// ADR-0419 dec 1 makes a decision's `dependsOn` a SUPPORT edge that the DEPTH WALK traverses, and
+// explicitly leaves this closure alone. The asymmetry IS the decision, so it is worth stating why:
+// an `amends` edge carries the ADR-0139 claim that its target stays current but is no longer wholly
+// self-describing — which is exactly why the amender has to be read ALONGSIDE it, and therefore why
+// it belongs in the calibrate set. A support edge carries no such claim; it says only "this decision
+// rests on that one", which is true of most of the log. Closing over it would inflate the exact
+// surface CLAUDE.md sends every new session to calibrate on (215 of 409 rows, 2026-08-22), and a
+// consumer of that view cannot detect the inflation FROM the view — the same undetectable-from-the-
+// surface failure the closure was built to fix in the first place.
+//
+// TWO guards used to hold, at different levels. ONE DOES NOW, and that is deliberate:
+//
+//   1. `loadBearingReach` follows `amends` only. THE DECIDED GUARD, and now the only one. The
+//      numeric fixture below models a widening that resolves `dependsOn` as decision NUMBERS —
+//      the shape its `amends`/`supersedes` siblings use, and the only shape `reach.has()` can test
+//      directly — so a closure widened that way reds these.
+//   2. ⚠ RETIRED 2026-08-23, ON PURPOSE. `AdrMeta` had no `dependsOn` field, so
+//      `loadTitledAdrMetasFromStore` dropped the row's pointers before the closure could see them.
+//      That also left ADR-0419 dec 1's depth traversal fully unit-tested and INERT over real data,
+//      so the projection was widened to carry the field and this incidental second guard went with
+//      it. It was never the decided fence — dec 1 fences the closure, not the reader.
+//
+// The store-backed test at the end of this section is what that retirement CHANGES rather than
+// breaks, and the distinction is worth stating because it is the reason the test is worth keeping.
+// It drives the real `asset:` / `doc:` pointer forms a decision row carries (`amends` and
+// `supersedes` are numbers; `dependsOn` is pointers — see `knowledge.ts`'s `Adr`) through
+// `loadAdrListings` to `renderAdrList`. While guard 2 stood it could only ever pass, because the
+// pointers never arrived; it pinned the projection, not the closure. Now the pointers DO arrive, so
+// it pins guard 1 over the real reader path — and a widening that learned to resolve pointers reds
+// it, which is a mutation nothing in this file could previously catch.
+//
+// Mutation-verified 2026-08-23, all three stacked against each other: a NUMERIC widening reds the
+// two fixture tests below and leaves the store-backed one green; a POINTER-RESOLVING widening reds
+// all four; and that same pointer widening with the projection ALSO reverted to blind lets the
+// store-backed one pass again — which is the measurement that shows which guard was carrying it.
+
+/**
+ * A {@link listing} whose meta ALSO carries `dependsOn` — the support edge ADR-0419 dec 1 adds.
+ *
+ * NUMBERS, where the real field is POINTERS, and the divergence is the point rather than a slip:
+ * this fixture exists to red a closure widened to call `reach.has()` on the edge directly, which is
+ * only expressible numerically. `Object.assign` rather than a declared property because of that
+ * deliberate type mismatch — `AdrMeta.dependsOn` is `readonly string[]` since the projection was
+ * widened, so a literal would not typecheck. The pointer-shaped mutation is covered instead by the
+ * store-backed test at the end of this section, over the real reader path.
+ */
+function withDependsOn(l: AdrListing, dependsOn: readonly number[]): AdrListing {
+  return { ...l, meta: Object.assign({ ...l.meta }, { dependsOn: [...dependsOn] }) };
+}
+
+const SUPPORT: AdrListing[] = [
+  listing(142, "accepted", "Branch dies on merge", { loadBearing: true }), // ★ the curated seed
+  // Rests on ★0142 and amends nothing. Support only — so it stays OUT.
+  withDependsOn(listing(419, "accepted", "A decision that merely rests on the seed"), [142]),
+  // The transitive amends chain, with support edges hung on every link: reach must be unmoved by them.
+  withDependsOn(listing(271, "accepted", "Sessions end at merge", { amends: [142] }), [419, 500]),
+  withDependsOn(listing(275, "accepted", "Sessions may continue past merge", { amends: [271] }), [142]),
+  // Non-accepted amenders that ALSO rest on the seed — excluded by status, on both edges.
+  withDependsOn(listing(265, "proposed", "An undecided amendment", { amends: [142] }), [142]),
+  withDependsOn(listing(177, "superseded", "A dead amendment", { amends: [142] }), [142]),
+  listing(500, "accepted", "Unrelated to the set"),
+];
+
+test("--load-bearing does NOT reach a decision that only DEPENDS ON the curated set", () => {
+  const reach = loadBearingReach(SUPPORT);
+  assert.equal(reach.has(419), false, "a support edge is not an amendment — 0419 must stay out");
+  const lines = renderAdrList(SUPPORT, { loadBearing: true }).join("\n");
+  assert.doesNotMatch(lines, /0419/, "and it must not render in the view either");
+});
+
+test("--load-bearing reach is EXACTLY the amends closure, unmoved by support edges on the same rows", () => {
+  // The whole-set assertion is the point: any widening that pulls one more row in reds this, whether
+  // the extra row came through `dependsOn` or through some later edge nobody has thought of yet.
+  // ★0142 seeds it; 0271 amends 0142; 0275 amends 0271. Nothing else, even though five of the seven
+  // rows carry a `dependsOn` pointer at something already in the set.
+  const reach = loadBearingReach(SUPPORT);
+  assert.deepEqual([...reach].sort((a, b) => a - b), [142, 271, 275]);
+  const lines = renderAdrList(SUPPORT, { loadBearing: true }).join("\n");
+  assert.match(lines, /★ 0142 {2}accepted/);
+  assert.match(lines, /☆ 0271 {2}accepted/, "the one-hop amender still reaches");
+  assert.match(lines, /☆ 0275 {2}accepted/, "and the transitive one still does too");
+});
+
+test("a support edge never rescues an UNDECIDED or DEAD amender into the set", () => {
+  // The status rule is orthogonal to the edge rule, so it has to hold when both are in play: a
+  // `proposed` amender promoted by its support edge would OVERSTATE the current set, and a
+  // `superseded` one would resurrect a dead decision — the two inverse errors, reachable a second way.
+  const reach = loadBearingReach(SUPPORT);
+  assert.equal(reach.has(265), false, "proposed: undecided, and resting on the seed does not decide it");
+  assert.equal(reach.has(177), false, "superseded: dead, and resting on the seed does not revive it");
+  assert.equal(reach.has(500), false, "no edge of either kind into the set");
+  // …and both are still SHOWN as status-labelled back-edges on ★0142 — excluded from the set,
+  // never hidden from the reader.
+  const lines = renderAdrList(SUPPORT, {}).join("\n");
+  assert.match(lines, /amended by 0177 \(superseded\), 0265 \(proposed\), 0271$/m);
+});
+
+test("a decision ROW's dependsOn pointers never reach the --load-bearing view", async () => {
+  // Guard 1, over the real reader path — `loadAdrListings` -> `renderAdrList` — and with the pointer
+  // form a stored decision actually carries, not the numeric form the fixtures above model. Both
+  // live `doc:` spellings and the `asset:adr-NNNN` row spelling are present, so a widening that
+  // learned to resolve only one of them still reds this.
+  //
+  // These pointers now REACH the closure (the projection carries `dependsOn` since 2026-08-23), so
+  // 0419's absence below is the closure declining to follow a support edge — not, as it was when
+  // this test was written, the reader having dropped the edge before the closure ran.
+  const store = new InMemoryStore();
+  await seedDecision(store, 142, "Branch dies on merge", { loadBearing: true });
+  await seedDecision(store, 271, "Sessions end at merge", { amends: [142] });
+  await seedDecision(store, 419, "A decision that merely rests on the seed", {
+    dependsOn: ["asset:adr-0142", "doc:decisions/0142-branch-dies-on-merge.md"],
+  });
+
+  const { listings } = await loadAdrListings(store);
+  const lines = renderAdrList(listings, { loadBearing: true }).join("\n");
+
+  assert.match(lines, /★ 0142 {2}accepted/, "the curated seed");
+  assert.match(lines, /☆ 0271 {2}accepted/, "reached, because it AMENDS the seed");
+  assert.doesNotMatch(lines, /0419/, "0419 only RESTS ON the seed — that is not a claim on the reader");
 });
 
 test("back-edges label a non-accepted amender with its status (never as a live amendment)", () => {

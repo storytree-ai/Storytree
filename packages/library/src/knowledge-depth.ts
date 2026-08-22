@@ -91,6 +91,36 @@
 //   • THE RESOLVER IS A SEAM (ADR-0403 dec 3), so the storage migration replaces the file-backed
 //     half without touching this walk.
 //
+// ## AND ON A DECISION'S OWN `dependsOn` TOO, SINCE ADR-0419 D1
+//
+// `decision-read-measurement-arc` increment 05. `amends` was carrying two claims that had drifted
+// apart: SUPPORT ("this rests on that") and a READ OBLIGATION ("reading the target alone is now
+// insufficient"). ADR-0403 dec 4 had already given decisions the ordinary `dependsOn` edge, but
+// nothing read it — measured on 2026-08-23, ZERO of 412 decision rows carried the field while every
+// `process`, every `guardrail` and every `agent` did. An author with plain support to record had only
+// `amends` available and writing it overstated the claim, so the edge was usually not written at all
+// and the support graph read shorter than it is.
+//
+// So both edges are support and the walk traverses both, through the SAME seam and with the same
+// fence. `supersedes` is untouched and still unreachable: `decision-amends-seam.ts` gained a second
+// VERB (`dependsOnOf`) rather than an edge-type parameter, precisely because a second support edge is
+// the moment such a parameter would otherwise have been born.
+//
+// Three things bind the new half, and each is a counter on the verdict rather than a promise:
+//
+//   • **ONLY A DECISION POINTER MAKES A DECISION-TO-DECISION EDGE.** A decision's `dependsOn` may
+//     name a Library artifact or a research note as readily as another decision. Those are counted as
+//     {@link DepthFromWorkVerdict.decisionDependsOnUnwalkedTargets} and NOT walked — the decision
+//     half of this graph is decision-to-decision, exactly as `amends` always was, and widening it to
+//     let a decision re-enter the artifact population is a separate question with its own effect on
+//     the artifact denominators. Counted, so it is a declared floor rather than a silent drop.
+//   • **THE TWO EDGE KINDS ARE COUNTED APART AND NEVER SUMMED INTO ONE FIGURE**
+//     ({@link DepthFromWorkVerdict.amendsEdges} / {@link DepthFromWorkVerdict.decisionDependsOnEdges}).
+//     They are the same AXIS and different CLAIMS, and ADR-0419 D5 defers retiring the deprecated
+//     usage until the reach into amended decisions can be measured — which needs the two separable.
+//   • **BOTH POINTER SPELLINGS RESOLVE HERE TOO**, through `parseDecisionPointer` and never a hand
+//     split on `:` — the same rule the artifact half obeys, for the same measured reason.
+//
 // **THE DECISION-AWARE READING IS OPT-IN, AND THAT IS THE FENCE, NOT AN OVERSIGHT.** Passing no
 // resolver reproduces the pre-ADR-0403 behaviour exactly, byte for byte: every `doc:` pointer is
 // bedrock and the ceiling reads 2. The studio's traversal panel takes that path deliberately —
@@ -180,9 +210,42 @@ export interface DepthFromWorkVerdict {
   readonly decisionsScanned: number;
   /** THE JOIN: `doc:` pointers the walk resolved onto a decision and continued through. */
   readonly decisionEdges: number;
-  /** `amends` edges between decisions the walk could resolve. NEVER summed with `supersedes`. */
+  /**
+   * `amends` edges between decisions the walk could resolve. NEVER summed with `supersedes`, and
+   * REPORTED APART from {@link decisionDependsOnEdges} — see the header. `amends` claims support AND
+   * a read obligation on its target; a bare support edge claims only the first, and ADR-0419 D5
+   * cannot be answered by anyone who can no longer tell which of the two produced the depth.
+   */
   readonly amendsEdges: number;
-  /** Decision pointers, and `amends` targets, naming a decision the resolver does not hold. */
+  /**
+   * Decision-to-decision edges from a decision's OWN `dependsOn` (ADR-0419 D1) — plain support.
+   *
+   * The other half of the support graph, kept separate for {@link amendsEdges}' reason. 0 has two
+   * causes and {@link decisionsCarryingDependsOn} is what separates them.
+   */
+  readonly decisionDependsOnEdges: number;
+  /**
+   * `dependsOn` entries ON A DECISION that name something other than a decision — an `asset:`
+   * artifact, a research note, an unparseable scheme.
+   *
+   * COUNTED AND NOT WALKED (see the header): the decision half of this graph is decision-to-decision
+   * by construction. This number is what makes that a declared floor rather than a silent drop, and
+   * it is the figure to read before proposing that the walk should re-enter the artifact population
+   * through a decision.
+   */
+  readonly decisionDependsOnUnwalkedTargets: number;
+  /**
+   * How many decisions arrived with a `dependsOn` FIELD AT ALL — present, even if empty.
+   *
+   * THE DENOMINATOR THAT SAYS WHETHER THE ADR-0419 HALF WAS READ. Zero resolvable support edges is
+   * ambiguous between a blind reader and an unwired decision log, and on 2026-08-23 both were true
+   * at once. Presence, not non-emptiness — see `decision-amends-seam.ts`'s header.
+   */
+  readonly decisionsCarryingDependsOn: number;
+  /**
+   * Decision pointers, `amends` targets, and a decision's own decision-naming `dependsOn` pointers,
+   * naming a decision the resolver does not hold.
+   */
   readonly decisionDanglingTargets: number;
   /** How many decisions have a depth — reachable from the work through some artifact. */
   readonly decisionsReached: number;
@@ -255,6 +318,8 @@ export function evaluateDepthFromWork(
   let danglingTargets = 0;
   let decisionEdges = 0;
   let amendsEdges = 0;
+  let decisionDependsOnEdges = 0;
+  let decisionDependsOnUnwalkedTargets = 0;
   let decisionDanglingTargets = 0;
 
   // The outbound edge set per node, resolved once: `dependsOn` plus the `asset:` half of `cites`
@@ -324,9 +389,10 @@ export function evaluateDepthFromWork(
     }
   }
 
-  // The decision half of the adjacency, added only when a resolver was supplied. `amendsOf` is the
-  // ONLY door — there is no `supersedesOf` to call and no edge-type flag to get wrong, which is how
-  // ADR-0403 dec 6's never-sum rule is held by the shape of the code rather than by a comment.
+  // The decision half of the adjacency, added only when a resolver was supplied. `amendsOf` and
+  // `dependsOnOf` are the ONLY doors — there is no `supersedesOf` to call and no edge-type flag to
+  // get wrong, which is how ADR-0403 dec 6's never-sum rule is held by the shape of the code rather
+  // than by a comment, and why ADR-0419 D1's second support edge arrived as a second VERB.
   const decisionIds: string[] = [];
   for (const decisionNumber of heldDecisions) {
     const id = decisionNodeId(decisionNumber);
@@ -346,6 +412,28 @@ export function evaluateDepthFromWork(
       }
       amendsEdges += 1;
       targets.push(decisionNodeId(target));
+    }
+    // ADR-0419 D1: the decision's OWN `dependsOn` — plain support, walked exactly as `amends` is.
+    // Raw pointers, so all three live spellings go through the single parser rather than a hand
+    // split on `:`; a walk that resolved `doc:decisions/…` and not `doc:docs/decisions/…` would drop
+    // 19 of the corpus's 390 crossing pointers and return a confident, plausible, wrong number.
+    for (const pointer of decisions?.dependsOnOf(decisionNumber) ?? []) {
+      const parsed = parseDecisionPointer(pointer);
+      if (parsed === null) {
+        // An `asset:` artifact, a research note, a scheme nobody parses: NOT a decision-to-decision
+        // edge, so it is counted as a declared floor rather than walked. See the header.
+        decisionDependsOnUnwalkedTargets += 1;
+        continue;
+      }
+      if (!heldDecisions.has(parsed.number)) {
+        decisionDanglingTargets += 1;
+        continue;
+      }
+      // A target named by BOTH `amends` and `dependsOn` counts on both, because two edges really
+      // were authored and ADR-0419's deprecation drain is measured in edges. The BFS below dedupes
+      // by node, so the duplicate cannot move a depth.
+      decisionDependsOnEdges += 1;
+      targets.push(decisionNodeId(parsed.number));
     }
     outbound.set(id, targets);
   }
@@ -427,6 +515,9 @@ export function evaluateDepthFromWork(
     decisionsScanned: heldDecisions.size,
     decisionEdges,
     amendsEdges,
+    decisionDependsOnEdges,
+    decisionDependsOnUnwalkedTargets,
+    decisionsCarryingDependsOn: decisions?.decisionsCarryingDependsOn ?? 0,
     decisionDanglingTargets,
     decisionsReached,
     decisionHistogram: ascending(decisionCounts),
@@ -452,6 +543,16 @@ export const VACUOUS_DECISION_WALK_FLOOR = 100;
  *
  * Returns reasons rather than a boolean because the causes have different remedies. It says nothing
  * about a walk given NO resolver: that is the deliberate pre-ADR-0403 reading, not a blind one.
+ *
+ * ## WHAT IT DELIBERATELY DOES NOT DECLARE, AND WHEN THAT SHOULD CHANGE
+ *
+ * A reader that supplies no `dependsOn` field at all is blind to half the support graph
+ * ({@link DepthFromWorkVerdict.decisionsCarryingDependsOn} reads 0), and that is NOT reported here.
+ * ADR-0419 D3 fixes the migration order as reader-first and explicitly long — no flag day, readers
+ * widened one at a time — so an un-widened reader is the expected state for the whole of the mixed
+ * period, and a diagnostic that declared UNVERIFIED throughout it would be a standing false red
+ * rather than a finding. The denominator is on the verdict so a reader can see the blindness; PROMOTE
+ * IT TO A REASON HERE once every reader supplies the field, at which point 0 can only mean blind.
  */
 export function decisionWalkVacuity(verdict: DepthFromWorkVerdict): readonly string[] {
   if (verdict.decisionsScanned === 0) return [];
@@ -463,10 +564,18 @@ export function decisionWalkVacuity(verdict: DepthFromWorkVerdict): readonly str
         "pre-ADR-0403 sink reading wearing a new name",
     );
   }
-  if (verdict.amendsEdges === 0 && verdict.decisionsScanned >= VACUOUS_DECISION_WALK_FLOOR) {
+  // BOTH SUPPORT EDGES MUST BE ABSENT, and that is not a sum — it is the honest predicate for "the
+  // walk could not move". Testing `amends` alone was correct only while `amends` was the sole way to
+  // record support; ADR-0419 D2 deprecates it for exactly that use, so a corpus part-way through the
+  // drain has FEWER `amends` edges by design and a fully-drained one could have none at all. An
+  // `amends`-only test would then declare a healthy, well-wired decision log vacuous — the mirror of
+  // the failure this function exists to catch, and it would arrive precisely as the work succeeded.
+  const supportEdgeless = verdict.amendsEdges === 0 && verdict.decisionDependsOnEdges === 0;
+  if (supportEdgeless && verdict.decisionsScanned >= VACUOUS_DECISION_WALK_FLOOR) {
     reasons.push(
-      `${verdict.decisionsScanned} decisions carry 0 resolvable \`amends\` edges, so the walk could ` +
-        "not move past the first decision it reached",
+      `${verdict.decisionsScanned} decisions carry 0 resolvable \`amends\` edges and 0 resolvable ` +
+        "`dependsOn` edges (the two support edges, counted apart and never summed — ADR-0419 D1), " +
+        "so the walk could not move past the first decision it reached",
     );
   }
   return reasons;

@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-import { adrNumberOfArtifactId } from "@storytree/library";
+import { adrNumberOfArtifactId, hasDependsOnKey, readDependsOnPointers } from "@storytree/library";
 import type { Store } from "@storytree/storage-protocol";
 
 import { AdrStatus, parseAdrFrontmatter, type AdrMeta } from "./adr-frontmatter.js";
@@ -107,6 +107,33 @@ export function loadTitledAdrMetas(decisionsDir: string): LoadTitledAdrMetasResu
  * touches it. So it carries `adr-NNNN`, the row's id, which is the decision's address now and is what
  * a reader would need in order to go and look at it.
  *
+ * ## IT IS THE ONLY SIGHTED READER OF ADR-0419 D1's SUPPORT EDGE
+ *
+ * `dependsOn` is projected here and NOWHERE ELSE, because this is the only loader with a row to read
+ * it off (see {@link AdrMeta}'s header for why the frontmatter twin deliberately stays blind). That
+ * makes this function the single point at which the depth walk either sees the edge or does not:
+ * every production resolver is built from an {@link AdrMeta}, so a projection that drops the field
+ * leaves ADR-0419 D1's traversal fully unit-tested and completely INERT over real data — which is
+ * exactly the state it was in until 2026-08-23.
+ *
+ * ## ⚠ THIS DELIBERATELY REMOVES ONE OF THE TWO GUARDS ON `--load-bearing`
+ *
+ * ADR-0419 D1 fences the calibrate set explicitly: the depth walk traverses both support edges,
+ * while `loadBearingReach` (`@storytree/cli`'s `adr.ts`) closes over `amends` ALONE. Until now that
+ * fence was held TWICE — once by the closure following `amends` only, and once, incidentally, by
+ * this projection dropping `dependsOn` before the closure could ever see it. Widening the projection
+ * removes the second, incidental guard on purpose: it was never the decided one, and keeping it
+ * would have meant keeping the walk blind.
+ *
+ * The REAL guard is the closure, and it is pinned directly rather than relied upon — `adr.test.ts`
+ * asserts the reach set is EXACTLY the amends closure over a fixture whose rows all carry support
+ * edges into it, so any widening reds whether it arrives through `dependsOn` or through some later
+ * edge nobody has thought of yet, and a second store-backed test drives the real pointer forms
+ * through this loader to `renderAdrList`. Mutation-verified 2026-08-23 in both shapes (numeric and
+ * pointer-resolving) with this widening in place: both go red. `storytree adr list --load-bearing`
+ * is the surface CLAUDE.md sends every new session to calibrate on and 215 of 409 rows would enter
+ * it on a support closure — an inflation no consumer of the view can detect FROM the view.
+ *
  * ## PARSE ERRORS ARE COLLECTED, NOT THROWN — the same fail-soft posture as the fs scan
  *
  * A malformed row becomes a line rather than an exception, because both callers render a VIEW: an
@@ -202,6 +229,18 @@ export async function loadTitledAdrMetasFromStore(store: Store): Promise<StoreAd
       ...(typeof arcRef === "string" && arcRef.startsWith("asset:")
         ? { arc: arcRef.slice("asset:".length) }
         : {}),
+      // ADR-0419 D1's support edge — see the header, including which `--load-bearing` guard this
+      // deliberately removes. PRESENCE is preserved, not just contents: the key is emitted only when
+      // the row actually carries the array, so an absent field stays absent and a row authored with
+      // an empty one still reports as READ. Defaulting to `[]` is the one thing that would break it,
+      // because it makes a blind reader and an empty decision log print the same number.
+      //
+      // The two library helpers rather than a hand-rolled `bag["dependsOn"]`: they are the same
+      // defensive read the acyclicity rung, the depth walk and the studio wire use, and this loader
+      // runs over the LIVE corpus, where a row written by another branch's schema must project as
+      // "no edges" rather than take an orientation listing down. Pointers go through VERBATIM —
+      // resolving which of them name decisions is the walk's job (`decision-pointer.ts`).
+      ...(hasDependsOnKey(bag) ? { dependsOn: readDependsOnPointers(bag) } : {}),
     });
   }
   adrs.sort((a, b) => a.number - b.number);

@@ -170,11 +170,28 @@ async function main(): Promise<void> {
     );
 
     console.log("");
-    console.log(`  and the same walk continued PAST a decision, on \`amends\` only:`);
+    // BOTH support edges, since ADR-0419 D1 — and they are printed APART, never as a total. The
+    // label said "on `amends` only" while the walk had already been widened to traverse the
+    // decision's own `dependsOn`, which is the same confidently-mislabelled reading this probe
+    // exists to catch, one layer further out.
+    console.log(`  and the same walk continued PAST a decision, on BOTH support edges:`);
     console.log(
       `    decisions: ${withDecisions.decisionsScanned} read, ${withDecisions.amendsEdges} ` +
-        `\`amends\` edges resolving (${withDecisions.decisionDanglingTargets} dangling) — ` +
-        `\`supersedes\` is NOT walked and is never summed with this (ADR-0403 dec 6)`,
+        `\`amends\` + ${withDecisions.decisionDependsOnEdges} \`dependsOn\` edges resolving ` +
+        `(${withDecisions.decisionDanglingTargets} dangling, ` +
+        `${withDecisions.decisionDependsOnUnwalkedTargets} pointing off the decision tier) — ` +
+        `counted APART and never summed; \`supersedes\` is NOT walked at all (ADR-0403 dec 6)`,
+    );
+    // THE ADR-0419 D3 DENOMINATOR, and the reason it is printed beside the edge count rather than
+    // left implicit: 0 resolvable `dependsOn` edges has two utterly different causes — a reader that
+    // supplies no such field, and a decision log that genuinely carries none. Until 2026-08-23 BOTH
+    // were true at once and the edge count alone could not tell them apart. This number can: it
+    // counts rows arriving with the FIELD PRESENT, so a 0 here means the reader is blind and the
+    // figure above is not a measurement of the corpus at all.
+    console.log(
+      `    of those, ${withDecisions.decisionsCarryingDependsOn} arrived with a \`dependsOn\` FIELD ` +
+        `at all (presence, not non-emptiness) — 0 here would mean the READER is blind, which is a ` +
+        `different fact from a decision log that carries no support edges (ADR-0419 D3)`,
     );
     console.log(
       `    the join: ${withDecisions.decisionEdges} \`doc:\` pointer(s) walked through onto a ` +
