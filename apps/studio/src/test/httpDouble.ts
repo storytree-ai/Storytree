@@ -224,9 +224,39 @@ export class HttpDouble {
     return this.route('*', path, handler);
   }
 
-  /** Forget every recorded request, keeping the declared routes. */
-  clearRequests(): void {
+  /**
+   * Answer successive requests to `path` from `replies`, in order; the LAST entry repeats once the
+   * list is exhausted. The transport-level equivalent of a `mockResolvedValueOnce` chain, and the
+   * shape a poll or a retry needs — "this read answers differently the second time".
+   */
+  sequence(method: Method, path: string, replies: readonly RouteHandler[]): this {
+    let n = 0;
+    return this.route(method, path, (request) => {
+      const reply = replies[Math.min(n, replies.length - 1)];
+      n += 1;
+      if (reply === undefined) throw new Error(`httpDouble: empty sequence for ${method} ${path}`);
+      return reply(request);
+    });
+  }
+
+  /** {@link sequence} on `GET` — the common case. */
+  getSequence(path: string, replies: readonly RouteHandler[]): this {
+    return this.sequence('GET', path, replies);
+  }
+
+  /**
+   * Forget recorded requests, keeping the declared routes — all of them, or just one path's. The
+   * per-path form is what a test needs when it has finished setting a scenario up and wants the
+   * counts that follow to be about the scenario alone.
+   */
+  clearRequests(path?: string): void {
+    if (path === undefined) {
+      this.seen.length = 0;
+      return;
+    }
+    const kept = this.seen.filter((request) => request.path !== path);
     this.seen.length = 0;
+    this.seen.push(...kept);
   }
 
   /** Swap `globalThis.fetch` for this double. Returns the restore function; also see `uninstall`. */

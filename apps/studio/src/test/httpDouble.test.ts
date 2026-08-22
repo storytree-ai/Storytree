@@ -224,6 +224,19 @@ describe('httpDouble — route declaration', () => {
     await expect(api.deleteComment('c1')).resolves.toEqual([]);
   });
 
+  it('sequence answers each request in turn, then repeats the last', async () => {
+    double = installHttpDouble();
+    double.getSequence('/api/docs', [
+      () => [{ id: 'first' }],
+      () => [{ id: 'second' }],
+    ]);
+
+    await expect(api.listDocs()).resolves.toEqual([{ id: 'first' }]);
+    await expect(api.listDocs()).resolves.toEqual([{ id: 'second' }]);
+    // Exhausted — the last entry stands, rather than falling off into the fail-closed floor.
+    await expect(api.listDocs()).resolves.toEqual([{ id: 'second' }]);
+  });
+
   it('clearRequests forgets history but keeps the routes', async () => {
     double = installHttpDouble();
     double.get('/api/docs', () => []);
