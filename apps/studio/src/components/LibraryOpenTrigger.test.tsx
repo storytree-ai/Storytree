@@ -3,9 +3,15 @@
 // Behaviour test for the Library node-driven OPEN TRIGGER (ADR-0187 dec 2, increment 6 of the
 // library-tech-tree-overlay story). Double-clicking a node on EITHER node surface — the overview
 // constellation (`./LibraryOverview`) or the focus subgraph (`./LibraryFocusGraph`) — must fire an
-// optional `onOpen(result)` prop with the node's finder-parity `SearchResult`: `{ source: 'asset',
-// category }` for an artifact node, `{ source: 'doc', category: 'adr' }` for an ADR node — the SAME
-// discriminant the existing single-click `onSelect`/`onFocus` paths already lift.
+// optional `onOpen(result)` prop with the node's finder-parity `SearchResult` —
+// `{ source: 'asset', category }` — the SAME discriminant the existing single-click
+// `onSelect`/`onFocus` paths already lift.
+//
+// A DECISION IS AN ARTIFACT NODE (ADR-0403 dec 1). This file used to pin a second shape,
+// `{ source: 'doc', category: 'adr' }`, for a node built from a `docs/decisions/*.md` DocMeta.
+// PR #1546 deleted that producer, so the overview's doc fold could only ever have drawn a
+// REFERENCE document wearing a decision's label; the decision case is an `adr` ASSET now, which is
+// how `/api/assets` really serves it.
 //
 // This is ADDITIVE to the signed single-click contracts (`lov-*` in LibraryOverview.test.tsx,
 // `lfg-*` in LibraryFocusGraph.test.tsx) — this file does not touch or re-assert them, only pins
@@ -16,7 +22,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { LibraryOverview } from './LibraryOverview';
 import { LibraryFocusGraph } from './LibraryFocusGraph';
-import type { GuidanceAsset, DocMeta } from '../types';
+import type { GuidanceAsset } from '../types';
 import type { SearchResult } from '../lib/librarySearch';
 
 const NOW = '2026-01-01T00:00:00.000Z';
@@ -34,14 +40,6 @@ function asset(
   };
 }
 
-function doc(overrides: Partial<DocMeta> & Pick<DocMeta, 'id' | 'title'>): DocMeta {
-  return {
-    group: 'Decisions',
-    excerpt: 'unrelated excerpt text',
-    ...overrides,
-  };
-}
-
 function selectionFor(a: GuidanceAsset): SearchResult {
   return { id: a.id, title: a.title, category: a.category, source: 'asset' };
 }
@@ -50,15 +48,19 @@ afterEach(cleanup);
 
 describe('LibraryOverview — node double-click opens', () => {
   // ── lot-overview-dblclick-opens ──────────────────────────────────────────────────
-  it('lot-overview-dblclick-opens: double-clicking a node invokes onOpen with the finder-parity SearchResult — asset source "asset", ADR source "doc" category "adr"', () => {
+  it('lot-overview-dblclick-opens: double-clicking a node invokes onOpen with the finder-parity SearchResult — source "asset" and the artifact\'s own category, a decision included', () => {
     const onOpen = vi.fn();
     const hubAsset = asset({ id: 'trigger-hub-asset', category: 'principle', title: 'Trigger Hub Asset' });
-    const hubAdr = doc({ id: 'decisions/9001-trigger-decision.md', title: 'Trigger Decision Record' });
+    const hubAdr = asset({
+      id: 'adr-9001',
+      category: 'adr',
+      title: 'Trigger Decision Record',
+      status: 'accepted',
+    });
 
     render(
       <LibraryOverview
-        assets={[hubAsset]}
-        docs={[hubAdr]}
+        assets={[hubAsset, hubAdr]}
         onSelect={vi.fn()}
         onOpen={onOpen}
       />,
@@ -80,7 +82,8 @@ describe('LibraryOverview — node double-click opens', () => {
         id: hubAdr.id,
         title: hubAdr.title,
         category: 'adr',
-        source: 'doc',
+        source: 'asset',
+        status: 'accepted',
       }),
     );
   });
@@ -106,7 +109,6 @@ describe('LibraryFocusGraph — node double-click opens', () => {
     render(
       <LibraryFocusGraph
         assets={[centre, neighbour]}
-        docs={[]}
         selection={selectionFor(centre)}
         onFocus={vi.fn()}
         onOpen={onOpen}

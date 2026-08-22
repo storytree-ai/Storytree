@@ -174,10 +174,15 @@ export interface GuidanceAsset {
   /** A `plan` doc's `arcRef` (an `asset:<id>` pointer) — see {@link GuidanceAsset.stepRefs}. */
   arcRef?: string;
   /**
-   * A `plan` doc's `status` wire mirror (ADR-0196 D3 — the plan-lifecycle projection input the
+   * A structured doc's own lifecycle `status` wire mirror (ADR-0196 D3 — the projection input the
    * sibling `library-lifecycle-wire` capability crosses onto the wire). Optional / absent-by-default
    * (the `stepRefs?`/`arcRef?` idiom) so every existing `GuidanceAsset` reader keeps validating with
-   * no migration; present only for a `plan` doc once the wire crosses it.
+   * no migration; present only when the stored doc's own kind carries the field.
+   *
+   * An `adr`'s ADR-0037 lifecycle (`proposed` / `accepted` / `superseded`) rides HERE since
+   * ADR-0403 dec 1 made decisions ordinary artifacts. It is the input `lifecycleOf('adr', …)`
+   * projects onto the shelf triad, and the value the finder / selection card render as the status
+   * chip — the job `DocMeta.status` did while the docs walker still produced decisions.
    */
   status?: string;
   /**
@@ -188,6 +193,19 @@ export interface GuidanceAsset {
    * absent-by-default, so every existing reader is unaffected.
    */
   lifecycle?: string;
+  /**
+   * An `adr` doc's ADR-0086 `load_bearing` tag — the curated current-state set a new session
+   * calibrates to, and the ADR-0139 consolidation pass's worklist marker.
+   *
+   * READER: `resolveSelectionDetail` (`./lib/selectionDetail`) → the Library selection card's
+   * load-bearing badge. It reached that reader on `DocMeta.loadBearing` until PR #1546 deleted the
+   * docs walker's ADR half, at which point the badge had no producer at all; it is sourced from the
+   * store row here instead (ADR-0403 dec 1).
+   *
+   * Present ONLY when the tag is `true` — an absent field and an explicit `false` say the same
+   * thing about a worklist marker — so the badge's `=== true` test is the whole contract.
+   */
+  loadBearing?: boolean;
   /**
    * The authored `dependsOn` dependency edge (ADR-0223) — a prefixed pointer list (`asset:<id>` /
    * `doc:<relpath>`), crossing the wire by the same {@link GuidanceAsset.stepRefs} idiom.
@@ -238,56 +256,38 @@ export interface AssetInput {
 }
 
 /**
- * An ADR's frontmatter lifecycle `status` (ADR-0037 §1): `proposed` (drafted, not yet ratified),
- * `accepted` (the decision stands), `superseded` (replaced by a later ADR). Mirrors the CLI's
- * `AdrStatus` (packages/drive/src/adr-frontmatter.ts) locally — the studio is browser-bundled and
- * must not import the CLI or drive packages. Surfaced as the at-a-glance status chip so a
- * wrong/premature flip is catchable (the observability "catch" ADR-0084 leans on).
+ * An ADR's lifecycle `status` (ADR-0037 §1): `proposed` (drafted, not yet ratified), `accepted`
+ * (the decision stands), `superseded` (replaced by a later ADR). Mirrors the CLI's `AdrStatus`
+ * (packages/drive/src/adr-frontmatter.ts) locally — the studio is browser-bundled and must not
+ * import the CLI or drive packages. Surfaced as the at-a-glance status chip so a wrong/premature
+ * flip is catchable (the observability "catch" ADR-0084 leans on).
+ *
+ * Since ADR-0403 dec 1 the value arrives on {@link GuidanceAsset.status} of an `adr` artifact, not
+ * from markdown frontmatter — the decision log lives in the store and `docs/decisions/` is gone.
  */
 export type AdrDocStatus = 'proposed' | 'accepted' | 'superseded';
 
-/** Lightweight listing entry for a document topic. */
+/**
+ * Lightweight listing entry for a document topic — one `.md` file under `docs/`.
+ *
+ * ★ A DocMeta IS NOT A DECISION, and cannot describe one. Decisions are ordinary Library artifacts
+ * of kind `adr` (ADR-0403 dec 1), served by `/api/assets` as {@link GuidanceAsset}s carrying their
+ * own `status` / `loadBearing` / `references`. This shape once carried an ADR half —
+ * `status`, `decided`, `loadBearing` and resolved lineage `references`, folded in by the docs
+ * file-walker from `docs/decisions/*.md` frontmatter — and those four fields are DELETED rather
+ * than left optional-and-unfilled: PR #1546 removed the only code that could ever set them, and a
+ * field no producer can emit is one a test fixture can still hand-build, which is precisely how the
+ * regression this shape caused stayed green. `group` is retained because the walker still emits it,
+ * but it is now always `'Reference'`.
+ */
 export interface DocMeta {
-  /** Relpath under docs/, e.g. "decisions/0002-...md". */
+  /** Relpath under docs/, e.g. "research/agentic-foundation-survey.md". */
   id: string;
   title: string;
-  /** "Decisions" for ADRs under decisions/, else "Reference". */
+  /** Always `'Reference'` — see the interface note; the `'Decisions'` group has no producer. */
   group: string;
-  /** First prose sentence after the title — the description on Library ADR cards. */
+  /** First prose sentence after the title — the description on document cards. */
   excerpt: string;
-  /**
-   * The ADR's frontmatter `status` (ADR-0037) — present ONLY for `group === 'Decisions'` docs (other
-   * docs carry no frontmatter status). Absent when the frontmatter is missing or unparseable
-   * (tolerant, like the tree's per-node load): the card then simply shows no status chip.
-   */
-  status?: AdrDocStatus;
-  /** The ADR's frontmatter `decided` date (ISO yyyy-mm-dd) when present — shown as the chip tooltip. */
-  decided?: string;
-  /**
-   * The ADR's frontmatter `load_bearing` tag (ADR-0086) — present ONLY for `group === 'Decisions'`
-   * docs, and true only when the tag is explicitly `load_bearing: true`. Optional / absent-by-default
-   * so every existing `DocMeta` reader (and the offline json path) keeps validating.
-   *
-   * READER: `resolveSelectionDetail` (`./lib/selectionDetail`) → the Library selection card's
-   * load-bearing badge. It was introduced for ADR-0187 dec 3's overview size + depth-of-colour
-   * encoding, but ADR-0188 retired that overview design before it was built and redirected these
-   * wire signals to the selection card / hover cards / focus-chain weighting.
-   */
-  loadBearing?: boolean;
-  /**
-   * The ADR's outbound decision-lineage edges (ADR-0037/0086 `supersedes`/`amends`; `supersedes_in_part`
-   * is retired per ADR-0139) resolved to `doc:decisions/NNNN-slug.md` pointers — present ONLY for
-   * `group === 'Decisions'` docs that carry at least one lineage edge. Optional / absent-by-default
-   * (back-compat).
-   *
-   * ⚠ NO READER TODAY, in either surface — the increment-5 out-degree-0 gap is NOT closed (ADR-0251).
-   * The data ships; the consumer never landed. `importanceOf` (`./lib/overviewConstellation`) and
-   * `buildFocusGraph` (`./lib/focusGraph`) both walk `GuidanceAsset.references` only, and
-   * `LibraryOverview.test.tsx` positively pins doc out-degree at 0. Kept on the wire — and held equal
-   * across the studio/desktop mirror by `check:mirror-conformance` — so a future reader is a
-   * studio-side change, not a wire change.
-   */
-  references?: string[];
 }
 
 export interface DocContent {
@@ -425,13 +425,12 @@ export const ASSET_CATEGORY_GLOSS = {
 } satisfies Record<AssetCategory, string>;
 
 /**
- * A unified row in the Library grid. `adr` is a first-class artifact category like
- * any other — you author them in the editor and they persist to the Library store. The
- * Library *also* folds in the canonical ADR docs under docs/decisions/ as
- * read-only `adr` rows, so an item is either an editable artifact
- * (`kind: 'artifact'` → AssetView) or a doc-backed ADR (`kind: 'doc'` → read-only
- * DocView). The glossary / open-questions / research notes stay in
- * the sidebar's "Reference" section, not the Library.
+ * A unified row in the Library grid. `adr` is a first-class artifact category like any other — you
+ * author them in the editor and they persist to the Library store, and since ADR-0403 dec 1 that is
+ * the ONLY place a decision lives. The Library no longer folds in doc-backed ADR rows from
+ * `docs/decisions/`, because that directory does not exist; the research notes and surveys still
+ * under `docs/` are reference material reached by in-corpus cross-link or `#/doc/<id>` deep link
+ * (ADR-0205), not Library rows.
  */
 export interface LibraryItem {
   kind: 'artifact' | 'doc';
@@ -439,7 +438,7 @@ export interface LibraryItem {
   category: AssetCategory;
   title: string;
   description: string;
-  /** ADR lifecycle status (doc-backed `adr` items only) — drives the at-a-glance status chip. */
+  /** ADR lifecycle status — drives the at-a-glance status chip. */
   status?: AdrDocStatus;
 }
 

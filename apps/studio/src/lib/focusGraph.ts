@@ -3,15 +3,13 @@
  * dec 5, the library-dag-canvas capability — the brownfield rework of the inc-3 focus subgraph,
  * ADR-0185 dec 3).
  *
- * `buildFocusGraph({ centre, assets, docs, expanded })` walks the authored `GuidanceAsset.dependsOn`
+ * `buildFocusGraph({ centre, assets, expanded })` walks the authored `GuidanceAsset.dependsOn`
  * DEPENDENCY edge (ADR-0223) BOTH ways over the already-loaded corpus, centred on the finder's
  * lifted selection, to ONE level in each direction only (ADR-0193 dec 3, reversing ADR-0188 dec 5's
  * full transitive walk; no `depth` param — deeper nodes are reached by click-through re-centring,
  * not by this walk):
  *
- *   - **upstream** ("stands on") of a node = that node's OWN `dependsOn` (asset-only — `DocMeta`
- *     carries no `dependsOn`, so an ADR centre's upstream fan is always empty, trap m). ADRs are
- *     tier-0 bedrock and stand on nothing, so that emptiness is now the DESIGN rather than a gap.
+ *   - **upstream** ("stands on") of a node = that node's OWN `dependsOn`.
  *   - **downstream** ("stood on by") of a node = the reverse index — every asset whose `dependsOn`
  *     points AT that node's id.
  *
@@ -27,7 +25,16 @@
  *
  * Each entry is a prefixed pointer (`"asset:<id>"` or `"doc:<relpath>"`); the prefix is stripped
  * before resolving the target id. The walk starts fresh from the centre each time (no fetch — reads
- * only the `assets`/`docs` handed in).
+ * only the `assets` handed in).
+ *
+ * ★ IT NO LONGER RESOLVES NODES OUT OF `docs` (ADR-0403 dec 1). A pointer the walk could not
+ * find among the assets used to fall back to the doc index and render as `category: 'adr'`, because
+ * decisions were the `docs/decisions/` subtree; PR #1546 deleted that subtree, so the fallback
+ * stopped finding decisions and could only ever have drawn a REFERENCE document mislabelled as one.
+ * Decisions are ordinary `adr` artifacts and resolve through `assetById` like every other node —
+ * verified against the live store, where a decision's own lineage rides `asset:adr-NNNN` pointers.
+ * A `doc:` pointer that names a real reference document now simply resolves to no node, exactly as
+ * any other unresolvable pointer does.
  *
  * A node with no authored edge simply has no fan — expected, not a defect: `dependsOn` is optional
  * and never defaulted, the edge-free kinds (`friction` / `open-question` / `definition`) carry none
@@ -48,7 +55,7 @@
  */
 
 import dagre from '@dagrejs/dagre';
-import type { AssetCategory, DocMeta, GuidanceAsset } from '../types';
+import type { AssetCategory, GuidanceAsset } from '../types';
 import type { SearchResult } from './librarySearch';
 
 /** Which side of the centre a node sits on. */
@@ -107,7 +114,6 @@ export interface FocusGraphResult {
 export interface BuildFocusGraphArgs {
   centre: SearchResult;
   assets: GuidanceAsset[];
-  docs: DocMeta[];
   /** Parent node ids whose collapsed fan is fully revealed. Default: none collapsed-revealed. */
   expanded?: ReadonlySet<string>;
 }
@@ -138,11 +144,9 @@ export const RIGHT_GUTTER = 56;
 export function buildFocusGraph({
   centre,
   assets,
-  docs,
   expanded = new Set<string>(),
 }: BuildFocusGraphArgs): FocusGraphResult {
   const assetById = new Map(assets.map((a) => [a.id, a]));
-  const docById = new Map(docs.map((d) => [d.id, d]));
 
   /** What `id` STANDS ON — its own authored edge. Absent (never `[]`) on a doc carrying none. */
   function dependsOnOf(id: string): string[] {
@@ -172,8 +176,6 @@ export function buildFocusGraph({
   function metaFor(id: string): Meta | undefined {
     const asset = assetById.get(id);
     if (asset) return { title: asset.title, category: asset.category, source: 'asset' };
-    const doc = docById.get(id);
-    if (doc) return { title: doc.title, category: 'adr', source: 'doc' };
     return undefined;
   }
 
