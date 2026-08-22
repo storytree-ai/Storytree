@@ -19,6 +19,7 @@
 
 import { NODE_REF_PREFIX } from "./oq-gating.js";
 import { CAPABILITY_REF_PREFIX, STORY_REF_PREFIX, parseCiteRef } from "./knowledge.js";
+import { parseDecisionPointer } from "./decision-pointer.js";
 
 /**
  * The fixed display order of Source groups; empty groups are omitted at render time.
@@ -100,7 +101,18 @@ export function groupSources(
       else add("Other", { ref, label: `${ref} (unknown asset)` });
     } else if (ref.startsWith("doc:")) {
       const rel = ref.slice("doc:".length);
-      add(rel.startsWith("decisions/") ? "Decisions (ADRs)" : "Docs & references", { ref, label: rel });
+      // BOTH LIVE SPELLINGS, VIA THE ONE PARSER (ADR-0403 dec 7). This arm used to ask
+      // `rel.startsWith("decisions/")`, which is the bare spelling only — so a decision cited as
+      // `doc:docs/decisions/…` rendered under "Docs & references" as though it were a research
+      // note. Cosmetic where the health gate's copy of the same bug was not, but it is the same
+      // bug, and the remedy is the same: resolve through `parseDecisionPointer`, never re-derive.
+      // The LABEL stays the relative path as authored — the spelling is the author's, and the
+      // parser reports it rather than normalising it away. The parser is also STRICTER than the
+      // old prefix test (it anchors the `NNNN-….md` shape), which narrows nothing in practice:
+      // measured 2026-08-22 over all 1,774 live artifacts, every one of the 195 distinct
+      // decisions-directory `doc:` pointers is that canonical shape.
+      const group = parseDecisionPointer(ref) === null ? "Docs & references" : "Decisions (ADRs)";
+      add(group, { ref, label: rel });
     } else if (ref.startsWith(NODE_REF_PREFIX)) {
       // ADR-0107 D2's third token: a pointer at the story / capability node being proven. Named
       // in that ADR's own costs as the gap this view had ("will show a `node:` ref ungrouped until

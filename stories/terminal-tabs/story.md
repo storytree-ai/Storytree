@@ -1,10 +1,35 @@
 ---
 id: "terminal-tabs"
 tier: story
-title: "The embedded terminal is multi-session with a VS Code-style session panel — a forest-map Build seed opens a FRESH tab, never the user's active Claude Code session"
-outcome: "The embedded terminal becomes multi-session with a VS Code-style session panel: the dock holds N pty sessions, each its own xterm pane, listed as ROWS in a panel beside the terminal pane (down the right of the dock body) — switchable (click a row) / creatable (a \"+\" in the panel) / closable (a per-row \"×\" that disposes+reaps its pty), and every existing single-session behaviour (spawn, input↔pty, data-in, resize, visibility-toggle, refocus, absent-bridge degrade, the empty-session message) holds PER SESSION — while the dock chrome (collapse/resize, the toggle, the headerRight slot that hosts the repo-gate gear) stays PER-DOCK, wrapping the panel + pane; the per-row \"×\" disposes exactly its session, and dock unmount preserves sessions (app-owned, ADR-0189). The numbered tab-button strip is replaced by this panel (ADR-0190 §3); split panes are OUT of scope. A forest-map Build seed no longer writes into the active session: it opens a FRESH session (a new pty session + row), switches to it, and pre-fills the composed command there (still pre-fill, never auto-run), so a Build click can never corrupt the user's interactive Claude Code session running in another row."
+title: "The embedded terminal is multi-session with a VS Code-style session panel — a seed opens a FRESH tab, never the user's active Claude Code session"
+outcome: "The embedded terminal becomes multi-session with a VS Code-style session panel: the dock holds N pty sessions, each its own xterm pane, listed as ROWS in a panel beside the terminal pane (down the right of the dock body) — switchable (click a row) / creatable (a \"+\" in the panel) / closable (a per-row \"×\" that disposes+reaps its pty), and every existing single-session behaviour (spawn, input↔pty, data-in, resize, visibility-toggle, refocus, absent-bridge degrade, the empty-session message) holds PER SESSION — while the dock chrome (collapse/resize, the toggle, the headerRight slot that hosts the repo-gate gear) stays PER-DOCK, wrapping the panel + pane; the per-row \"×\" disposes exactly its session, and dock unmount preserves sessions (app-owned, ADR-0189). The numbered tab-button strip is replaced by this panel (ADR-0190 §3); split panes are OUT of scope. A seed no longer writes into the active session: it opens a FRESH session (a new pty session + row), switches to it, and pre-fills the seeded command there (still pre-fill, never auto-run), so a seed can never corrupt the user's interactive Claude Code session running in another row. (The forest-map Build click that originally produced that seed was retired by ADR-0404 — the dock's half of the contract is unchanged and still accepts a seed from any producer.)"
 status: proposed
 proof_mode: UAT
+# THE SEED'S PRODUCER IS GONE; THE DOCK'S HALF IS NOT (corrected in place 2026-08-22, ADR-0139, in the
+# arc `retire-ui-build-dispatch-arc`). ADR-0404 retired the forest-map **Build** button, and with it the
+# story `map-terminal-build` and its two capabilities — `compose-build-command` (the composer) and
+# `map-build-seeds-terminal` (the button re-point). Nothing on the map composes a seed any more.
+#
+# What that does NOT touch is this story. `TerminalDock` still declares `seed?: { command; token }`,
+# `TerminalRepoGate` still forwards it, and `seed-opens-new-tab` (ADR-0186) still opens a FRESH tab for
+# one — the behaviour this story owns is the dock's HANDLING of a seed, never its production. So the
+# capability stands, its `real:` arm is unchanged, and the prop is live and consumer-ready; it simply has
+# no caller today. Prose below that described the map click as the live producer is corrected; prose that
+# recounts PR #696 or ADR-0186's reasoning is accurate history and is left as authored.
+#
+# ONE CONSEQUENCE IS NOT A PROSE FIX AND IS NOT TAKEN HERE: UAT legs 4 and 7 are `witness: machine`, are
+# BOUND to `terminal-tabs#gate-1` / `#gate-3` (2026-08-22), and both journeys begin by CLICKING BUILD on
+# the forest map. With the button gone neither can be driven as authored. Re-deciding a bound leg is a
+# work-hierarchy edit and would bump its `revision-id`, re-pointing the binding — so it is parked as an
+# increment on `retire-ui-build-dispatch-arc` for the story-author, not silently rewritten here.
+#
+# AND THE FENCE IS WIDER THAN THE NUMBERED LINE — MEASURED, not assumed. A leg's hashed canonical content
+# runs to the NEXT leg or section heading, so the trailing "End state —" paragraph is INSIDE leg 7's span:
+# deleting one word from it ("a Build seed" → "a seed") made `loadNodeSpec` throw and the whole story load
+# as `(unknown)` with ZERO capabilities. That word was therefore left as authored. Editing any prose
+# between the last numbered leg and `## Reliability Gates` re-hashes leg 7 — treat that whole stretch as
+# leg text, and check with `storytree tree terminal-tabs` (which SWALLOWS the throw and simply renders
+# `(unknown)`, so a silent load failure looks like a rendering quirk).
 # uat_witness ABSENT → human (ADR-0040 fail-closed signpost): the whole-story UAT is not driven as one
 # machine node. RE-ADJUDICATED 2026-07-26 under the ADR-0209 §8 corpus-wide migration — the story's eight
 # legs resolve to FIVE `machine` and THREE `human`. Real-pty, native-shell behaviour is NOT irreducibly
@@ -33,12 +58,16 @@ capabilities: [multi-session-tabs, seed-opens-new-tab]
 #               `desktopTerminal` bridge) as the substrate it makes per-tab, and RE-PROVES its
 #               `terminal-dock-panel` behaviours per-tab. A follow-on rewriting a prior story's co-located
 #               component — NO @storytree/* import → an artifact edge.
-#   - map-terminal-build — this story RE-DECIDES map-terminal-build's `terminal-dock-seed` behaviour and
-#               builds on the seed-delivery machinery it landed (the `seed?: {command; token}` prop, the
-#               `compose-build-command` composer, the `map-build-seeds-terminal` Build button, the TreeView
-#               `seed` glue). Those all stay as-is and FEED the seed; this story only re-points what the
-#               DOCK does with it (open a fresh tab, not write the active session). Co-located component,
-#               NO @storytree/* import → an artifact edge.
+#   - map-terminal-build — this story RE-DECIDES map-terminal-build's `terminal-dock-seed` behaviour. It
+#               was authored against the seed-delivery machinery that story landed (the
+#               `seed?: {command; token}` prop, the `compose-build-command` composer, the
+#               `map-build-seeds-terminal` Build button, the TreeView `seed` glue), and this story only
+#               ever re-pointed what the DOCK does with a seed (open a fresh tab, not write the active
+#               session) — never how one is produced. ADR-0404 has since retired that story and deleted
+#               the composer, the button and the TreeView glue; the `seed` prop ALONE survives, and it is
+#               the only half this story depends on. The edge is KEPT because it records the re-decision
+#               this story is (a retired target is still the thing that was re-decided), not a live feed.
+#               Co-located component, NO @storytree/* import → an artifact edge.
 #   - studio  — the surface the component lives on. The desktop renders the COMPILED studio dist (ADR-0090
 #               d.4), so the multi-session dock is a `studio` frontend change, exactly as app-guide /
 #               map-terminal-build edit apps/studio/src. Thin client — no @storytree/agent / @storytree/drive
@@ -66,7 +95,7 @@ artifact_edges: [embedded-terminal, map-terminal-build, studio]
 decisions: [186, 190, 174, 70, 158, 10, 57, 4]
 ---
 
-# The embedded terminal is multi-session with a VS Code-style session panel — a Build seed opens a fresh tab, never the active session
+# The embedded terminal is multi-session with a VS Code-style session panel — a seed opens a fresh tab, never the active session
 
 **Outcome —** The embedded terminal becomes **multi-session with a VS Code-style session panel**: the dock
 holds **N pty sessions**, each its own xterm pane, listed as **rows in a panel beside the terminal pane**
@@ -77,10 +106,12 @@ message) holds **per session** — while the dock **chrome** (collapse/resize, t
 slot that hosts the repo-gate gear) stays **per-dock**, wrapping the panel + pane; the per-row "×"
 **disposes exactly its session**, and dock unmount **preserves sessions** (app-owned — they re-attach on
 the next mount; ADR-0189, which redefined this story's original dispose-on-unmount wall). The numbered
-tab-button strip is replaced by this panel (ADR-0190 §3; split panes OUT of scope). A forest-map **Build
-seed** no longer writes into the active session: it **opens a FRESH session** (a new pty session + row),
-switches to it, and **pre-fills** the composed command there (still pre-fill, **never auto-run**), so a
-Build click **can never corrupt the user's interactive Claude Code session** running in another row.
+tab-button strip is replaced by this panel (ADR-0190 §3; split panes OUT of scope). A **seed** no longer
+writes into the active session: it **opens a FRESH session** (a new pty session + row), switches to it,
+and **pre-fills** the seeded command there (still pre-fill, **never auto-run**), so a seed **can never
+corrupt the user's interactive Claude Code session** running in another row. (The forest-map Build click
+that originally produced the seed was retired by ADR-0404; the dock's half — accept a seed, open a fresh
+tab — is unchanged and still serves any producer.)
 
 This story is the build follow-on of **[ADR-0186](../../docs/decisions/0186-the-embedded-terminal-is-multi-session-with-tabs-a-map-build.md)**
 (owner-directed 2026-07-11, born accepted per ADR-0110 — design-time alignment IS the ratification), which
@@ -203,10 +234,12 @@ affected signed caps" and "Within-story dependency graph" for how the shared sou
   claim. It now names this design intent instead.
   The `.terminal-dock*` CSS for the panel is glue. If the dock's public props change (they need not — the
   `seed` and `headerRight` prop shapes are unchanged), any `TreeView`/dock-mount delta is un-asserted
-  connective code — machine-observable end-to-end at legs 6–7, not a capability. The existing TreeView `seed` glue
-  (`map-terminal-build` threads `seed`/`onSeedTerminal`) and the `terminal-repo-gate` `headerRight` mount
-  are REUSED AS-IS: the story feeds the SAME `seed?: { command; token }` into the now-multi-session dock;
-  only the dock's HANDLING of it changes (open a fresh tab). No new glue wire is required.
+  connective code — machine-observable end-to-end at legs 6–7, not a capability. The `terminal-repo-gate`
+  `headerRight` mount and its `seed` pass-through are REUSED AS-IS: the SAME `seed?: { command; token }`
+  reaches the now-multi-session dock, and only the dock's HANDLING of it changes (open a fresh tab). No
+  new glue wire is required. *(This also named the TreeView `seed` glue — `map-terminal-build` threading
+  `seed`/`onSeedTerminal` — as a live feed. ADR-0404 deleted that glue with the Build button, so the prop
+  chain now runs gate → dock with no producer at its head; corrected in place per ADR-0139.)*
 
 ## Within-story dependency graph
 
@@ -274,10 +307,12 @@ co-located inside a `studio` component two prior stories authored.
 - **`embedded-terminal`** — the story whose `TerminalDock` this one rewrites (single-session →
   multi-session) and whose `terminal-dock-panel` behaviours it re-proves per-tab. Co-located component, no
   `@storytree/*` import → an **artifact edge** (ADR-0166), declared and annotated.
-- **`map-terminal-build`** — the story whose `terminal-dock-seed` behaviour this one re-decides, building on
-  its seed-delivery machinery (the `seed` prop, `compose-build-command`, `map-build-seeds-terminal`, the
-  TreeView `seed` glue), which stay as-is and FEED the seed. Co-located component, no `@storytree/*` import
-  → an **artifact edge**, declared and annotated.
+- **`map-terminal-build`** — the story whose `terminal-dock-seed` behaviour this one re-decides. It was
+  authored against that story's seed-delivery machinery (the `seed` prop, `compose-build-command`,
+  `map-build-seeds-terminal`, the TreeView `seed` glue); ADR-0404 has since retired the story and deleted
+  everything on that list EXCEPT the `seed` prop, which is the only half this story consumes. The edge
+  records the re-decision, not a live feed. Co-located component, no `@storytree/*` import → an
+  **artifact edge**, declared and annotated.
 - **`studio`** — the surface the component lives on; the desktop renders the compiled studio dist (ADR-0090
   d.4). Thin client — no `@storytree/agent` / `@storytree/drive` / model import (`modelPathBoundary.test.ts`);
   xterm.js is a third-party dep, not a cross-story `@storytree/*` edge → an **artifact edge**, declared and
@@ -584,10 +619,13 @@ Build seed opens a fresh tab; owner-directed, born accepted, no new ADR reserved
    `tds-*` "writes to the active session" contracts were replaced by the `son-*` "opens a fresh tab"
    contracts in the shared test file. Disposition chosen: the librarian **RETIRED `terminal-dock-seed.md`**
    (deleted — its write-to-active behaviour is gone from the code, `storytree coverage` reported 0/5) and
-   re-tensed map-terminal-build to a two-cap story, so the corpus holds ONE seed behaviour. The companion
-   code edit — removing `terminal-dock-seed` from `packages/cli/src/node-build.test.ts`'s REAL-buildable
-   snapshot regex + the map-terminal-build discovery comment (outside the `stories/**` fence) — lands with
-   this story (see item 5). The load-bearing no-newline safety wall is preserved verbatim in
+   re-tensed map-terminal-build to a two-cap story, so the corpus holds ONE seed behaviour. *(This named a
+   companion code edit — removing `terminal-dock-seed` from `packages/cli/src/node-build.test.ts`'s
+   REAL-buildable snapshot regex — as work still to land with this story. There is no such regex to edit:
+   ADR-0341 D4 replaced that hardcoded catalogue with one DERIVED from the specs on disk, and the test now
+   states outright that adding or removing a node must never mean editing that file. Retiring the spec IS
+   the whole edit. Corrected in place per ADR-0139.)* The load-bearing no-newline safety wall is preserved
+   verbatim in
    `son-prefills-without-trailing-newline`.
 4. **The empty / last-tab-closed disposition — the CODE has answered it silently; the owner has not.** The
    question was: when the user closes the last remaining tab, does the dock show an empty "+"-to-open state,
@@ -616,11 +654,16 @@ Build seed opens a fresh tab; owner-directed, born accepted, no new ADR reserved
    currently clicks `[aria-label="new terminal tab"]`, `[aria-label="tab 2"]`, or
    `[aria-label^="close tab"]`, and `session-survival.e2e.mjs` **asserts exactly ONE live session in both
    directions** — so a second session must NOT be introduced into that walk; legs 6–8 need their own spec
-   file(s). Two harness affordances the author should not re-discover: with the bridge present the Build
-   click **seeds instead of POSTing** `/api/build` (so no build-endpoint stub is needed), and
-   `harness.mjs`'s `TREE_FIXTURE` already carries a `proposed` story (`gamma-flow`) whose panel lights a
-   real Build button. Per ADR-0209 §6 these legs are UNSTAMPED until those specs sign them; tagging
-   `machine` with no spec yet is honest, not green.
+   file(s). Per ADR-0209 §6 these legs are UNSTAMPED until those specs sign them; tagging `machine` with no
+   spec yet is honest, not green.
+   *(This listed two harness affordances "the author should not re-discover": that with the bridge present
+   a Build click seeds instead of POSTing `/api/build`, so no build-endpoint stub is needed, and that
+   `harness.mjs`'s `TREE_FIXTURE` carries a `proposed` story (`gamma-flow`) whose panel lights a real Build
+   button. ADR-0404 retired the Build button and deleted the `/api/build` route, so neither affordance
+   exists: `gamma-flow` is still in the fixture but no panel can light a Build control, and nothing in
+   `apps/desktop/e2e/` references one. A spec author needs a DIFFERENT way to originate a seed — see the
+   parked increment on `retire-ui-build-dispatch-arc`, since legs 6-8 inherit the same missing producer as
+   legs 4 and 7. Corrected in place per ADR-0139.)*
 7. **Stale prose OUTSIDE this fence, flagged for the orchestrator.** Two comments describe
    pre-ADR-0189/0190 behaviour while the code itself is current:
    `apps/studio/src/components/TerminalDock.tsx`'s module docstring still calls the chrome "a tab strip

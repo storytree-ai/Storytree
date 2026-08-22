@@ -114,6 +114,19 @@ number (ADR-0269 4(f)).
   harmless today (contract matching is per-capability, and the module is reachable only as a literal
   path, never by a `*.test.ts` walk) but it is a coupling a future reader should see rather than
   rediscover.
+- **Measured 2026-08-22 (`uat-contractless-tested-behaviour-claims`): a capability with contracts and NO
+  `real:`/`proof:` arm at all cannot declare a `coverage` surface, and is invisible to both coverage
+  directions.** `coverage` is a field of the spec-borne `proof:` block
+  (`NodeBuildConfigSchema`, `packages/orchestrator/src/proof-config.ts`), and that block's `command` /
+  `scope` are REQUIRED — a capability cannot open a `proof:` block for the sole purpose of naming
+  `coverage.testGlobs`. `forest-world`'s `render-core` is the live instance: eight declared contracts,
+  no `proof:` block, greenfield without a `--real` arm (ADR-0395), and the sweep therefore never reads
+  it at all — not "reads it and finds nothing," structurally unreachable. Its contracts bind by the
+  `describe("<contract-id>: …")` naming convention alone, cited by a `proven by —` pointer in the
+  capability's own prose rather than by any ADR-0353 surface. This is a residual gap in the mechanism
+  this ADR decided, not a defect this ADR introduced — recorded so a future widening of `coverage` to a
+  standalone declaration independent of `real`/`command`/`scope` is read as closing a known gap, and so
+  a capability hitting this wall cites it rather than re-deriving it.
 
 ## References
 
@@ -127,3 +140,7 @@ number (ADR-0269 4(f)).
 - `packages/orchestrator/src/proof-config.ts` — `CoverageSurfaceConfig` + its schema.
 - `packages/cli/src/coverage-gate.ts`, `packages/cli/src/commands.ts` — the two readers.
 - `stories/library/event-sourced-store-seam.md` — the declared surface and contracts 10–11.
+- [ADR-0294](0294-story-uat-is-a-journey-not-a-spec-criteria-that-duplicate-lo.md) D2 — the citation
+  obligation the `no proof: block` gap (above) leaves unmet for a `real:`-less capability.
+- `stories/forest-world/render-core.md` contract 8 — the live instance of the `no proof: block` gap:
+  its own `note` records the same limit inline.
