@@ -47,6 +47,13 @@ function minimalDoc(kind: KnowledgeKind) {
     doc["anchor"] = { sha: "0123abc", date: "2026-07-11" };
     doc["parked"] = "2026-08-05T00:00:00.000Z";
   }
+  if (kind === "adr") {
+    // The `adr` kind carries two REQUIRED fields outside its KIND_SPECS table (ADR-0403 dec 1):
+    // its `number` — a decision's identity — and its `status`. No decision has ever lacked either,
+    // so they are not optional, and a generic builder driven by KIND_SPECS alone cannot supply them.
+    doc["number"] = 403;
+    doc["status"] = "accepted";
+  }
   return doc satisfies Record<string, unknown>;
 }
 

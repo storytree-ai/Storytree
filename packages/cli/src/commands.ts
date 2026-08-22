@@ -2842,7 +2842,14 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
   // the bare-bytes read and means nothing without one. Dropped in silence it would be actively
   // dangerous — a caller who typed `--out field.txt` and got an empty file back would reasonably read
   // that as "the field is empty", and writing that back is a deletion that reports success.
-  if (values.out !== undefined && values.raw === undefined && !help) {
+  // The ONE exception, and it is the same rule rather than a hole in it: `adr pull` writes a whole
+  // DOCUMENT to `--out`, so the flag is its output channel exactly as it is `--raw`'s (ADR-0403
+  // dec 9). It is named positively — area AND sub — so nothing else acquires the exemption by
+  // accident, and the danger the guard exists to prevent is absent here anyway: `adr pull` refuses
+  // without `--out` rather than falling back to stdout, so there is no path that leaves the named
+  // file untouched.
+  const outIsDocumentPull = area === "adr" && sub === "pull";
+  if (values.out !== undefined && values.raw === undefined && !outIsDocumentPull && !help) {
     return {
       ok: false,
       body: [
@@ -3388,6 +3395,10 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     return adrCommand(
       sub,
       {
+        // The decision NUMBER for the round-trip legs (`adr pull 403`), plus the two file paths.
+        ...(third !== undefined ? { number: third } : {}),
+        ...(values.out !== undefined ? { out: values.out } : {}),
+        ...(values.file !== undefined ? { file: values.file } : {}),
         ...(values.title !== undefined ? { title: values.title } : {}),
         ...(values.arc !== undefined ? { arc: values.arc } : {}),
         ...(values.supersedes !== undefined ? { supersedes: values.supersedes } : {}),
@@ -3407,6 +3418,14 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         // OWNER-LOCAL, not UTC (see {@link ownerLocalDate}), and `--decided-date` overrides it for
         // an ADR whose decision was made earlier in the conversation or on a previous day.
         today: explicitDecided ?? ownerLocalDate(deps.now?.() ?? new Date()),
+        // The store-backed round trip (ADR-0403 dec 9). Wired unconditionally: `adr pull` is a READ,
+        // and a bare library read already dials the live store (ADR-0302 D1), so only the push is
+        // gated — on `writable`, inside the verb, where it can say why.
+        roundTrip: {
+          store: deps.store,
+          writable: deps.writable === true,
+          actor: deps.actor ?? defaultCliActor(),
+        },
       },
     );
   }

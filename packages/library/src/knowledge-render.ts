@@ -45,7 +45,12 @@ export function renderBody(doc: Knowledge): string {
     if (!Array.isArray(value) && typeof value !== "string") continue; // non-prose field -> nothing
     const text = Array.isArray(value) ? value.map((ref) => `- ${String(ref)}`).join("\n") : value;
     if (spec.lead) {
-      blocks.push(`${spec.heading} ${text}`);
+      // An EMPTY lead heading renders the field RAW — no marker, no wrapper, no leading space. This
+      // is how a kind says "this artifact IS one document" rather than a table of sections, and the
+      // `adr` kind is why it exists (ADR-0403): a decision record carries its own `# ADR-NNNN:` H1,
+      // so any heading emitted here would be a second title nobody wrote, and the round trip
+      // ADR-0403 dec 9 requires to be byte-identical would gain a byte on every pass.
+      blocks.push(spec.heading === "" ? text : `${spec.heading} ${text}`);
     } else {
       blocks.push(`## ${spec.heading}\n\n${text}`);
     }
@@ -69,7 +74,9 @@ export function generateTemplate(kind: KnowledgeKind): string {
   for (const spec of specs) {
     const text = spec.refList === true ? `- ${spec.placeholder}` : spec.placeholder;
     if (spec.lead) {
-      blocks.push(`${spec.heading} ${text}`);
+      // Empty lead heading => raw, matching `renderBody` above. The two must agree or a generated
+      // template stops being a blank instance of what the renderer produces.
+      blocks.push(spec.heading === "" ? text : `${spec.heading} ${text}`);
     } else {
       blocks.push(`## ${spec.heading}\n\n${text}`);
     }

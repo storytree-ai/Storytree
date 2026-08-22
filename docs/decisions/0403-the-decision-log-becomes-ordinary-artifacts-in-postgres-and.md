@@ -160,8 +160,10 @@ the union of both edge types walked as one graph, and is not a depth reading).
 - **The write-authority wall stops applying to decisions.** ADR-0255/ADR-0257 deny file writes under
   the primary checkout; a row is not a file, so decisions become editable from the lobby. This is a
   widening, and it is accepted because the store's own validated write path is the guarded one.
-- **391 files to migrate**, and every reader of `docs/decisions/**` on disk has to be found before it
-  breaks rather than after.
+- **Every file in `docs/decisions/` to migrate** — 391 when this was decided, 403 by 2026-08-22, and
+  the log grows most weeks. Like the pointer denominator in item 7, take the count from the directory
+  at run time and never carry it as a constant. Every reader of `docs/decisions/**` on disk has to be
+  found before it breaks rather than after; that census exists (`-inc-02`, PR #1519).
 
 **What is deliberately NOT decided here:** what the public repository contains once the thinking is
 out of it. That is the real design problem behind open-sourcing and it is downstream of a decision
