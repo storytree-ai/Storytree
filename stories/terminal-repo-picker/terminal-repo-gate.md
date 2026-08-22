@@ -220,10 +220,14 @@ the cwd from repo A to repo B, the React `key` changes, React UNMOUNTS the old d
 MOUNTS a fresh one — a new pty in the new repo. This keying is the whole mechanism by which a selection
 change reopens the terminal; it is asserted by `trg-reopens-on-repo-change`.
 
-FORWARD THE `seed` PROP STRAIGHT THROUGH (load-bearing — the map-build-seeds-terminal feature depends on
-it). PR #696 threads a build command into the terminal via TerminalDock's `seed` prop
-(`TerminalDockSeed { command; token }`). The gate is the mount point, so it MUST forward that seed to the
-dock or the seed feature breaks. On the valid-repo render the gate passes the seed AND the `repoControl`
+FORWARD THE `seed` PROP STRAIGHT THROUGH (load-bearing — the dock's seed contract depends on it). PR #696
+threads a build command into the terminal via TerminalDock's `seed` prop (`TerminalDockSeed { command;
+token }`). The gate is the mount point, so it MUST forward that seed to the dock or the seed feature
+breaks. *(This named `map-build-seeds-terminal` as the dependant. ADR-0404 retired that capability with
+the forest-map Build button, so nothing produces a seed today — but the forwarding stays load-bearing and
+is NOT dead code: `TerminalDock` still declares the prop and `terminal-tabs`' `seed-opens-new-tab`
+(ADR-0186) still opens a fresh tab for one, so the gate remains the only path from any future producer to
+the dock. Corrected in place per ADR-0139.)* On the valid-repo render the gate passes the seed AND the `repoControl`
 (as `headerRight`) through: `<TerminalDock key={cwd} {...(repoControl ? { headerRight: repoControl } : {})}
 {...(seed ? { seed } : {})} />` (each spread only when present, honouring `exactOptionalPropertyTypes`).
 Asserted by `trg-forwards-seed-to-terminal` (seed) + `trg-places-repo-control-in-header-when-ready`
@@ -344,8 +348,8 @@ time). None is an APPEARANCE assertion — the look is the story's operator-atte
    - **covers —** `apps/studio/src/components/TerminalRepoGate.tsx` (the ready render branch) *(provisional path)*
 5. **`trg-forwards-seed-to-terminal`** — a `seed` prop is forwarded straight through to TerminalDock
    - **asserts —** with a valid repo ready and a `seed` prop passed to `<TerminalRepoGate seed={…}/>`, the
-     mocked `TerminalDock` receives that EXACT seed object — the map-build-seeds-terminal feed still reaches
-     the dock through the gate.
+     mocked `TerminalDock` receives that EXACT seed object — a seed passed to the gate still reaches the
+     dock through it.
    - **covers —** `apps/studio/src/components/TerminalRepoGate.tsx` (the seed pass-through) *(provisional path)*
 6. **`trg-reopens-on-repo-change`** — an `onChanged` to a new cwd re-keys TerminalDock (a fresh mount / pty)
    - **asserts —** after mounting with repo A ready, firing the scripted `onChanged` with repo B re-renders
