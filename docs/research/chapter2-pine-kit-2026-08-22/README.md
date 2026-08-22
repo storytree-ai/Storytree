@@ -1,6 +1,7 @@
 # Bought 3D assets on a storytree island — the pine-kit trial, 2026-08-22
 
-**Arc:** `chapter2-island-that-looks-good-first-arc`. **Decision:** ADR-0415.
+**Arc:** `chapter2-island-that-looks-good-first-arc`. **Decisions:** ADR-0415 (what this measured),
+then **ADR-0418** (what the owner decided from it, later the same day — the direction flip).
 **Predecessor evidence this builds on and does not re-derive:**
 `docs/research/chapter2-islanders-canopy-2026-08-22/` (the ISLANDERS grounding pass) and
 `docs/research/chapter2-live-render-2026-08-19/` (the live-render experiment).
@@ -214,18 +215,25 @@ target with two sides to it.
 
 ## 6. What is NOT decided here
 
-- **Whether a textured asset may enter the LIVE RENDERER.** It may not, today, and this pass does
-  not change that. **ADR-0406 D3 refuses textures by name, on the experiment island too** — *"Free
+- ~~**Whether a textured asset may enter the LIVE RENDERER.**~~ **ANSWERED THE SAME DAY — it may.
+  See ADR-0418.** This section is kept rather than deleted because the reasoning is still the
+  argument: **ADR-0406 D3 refused textures by name, on the experiment island too** — *"Free
   continuous shading, gradients, textures, a nearest-entry snap, or an 'ignore these pixels'
-  exception in the checker are all still refused"* — and ADR-0380 D6 fence 3 requires a live render
-  to stay banded to an authored palette. No fence reaches a `.blend` file, which is why this trial
-  could be built; the fences bite the moment `packages/forest-world-r3f/` draws a textured asset.
-  Lifting them costs `capture.mjs` its ability to REFUSE an off-palette pixel, which is our main
-  automated art instrument, so it is an owner call. Authored as an open question on the arc —
-  `oq-may-a-textured-3d-asset-be-drawn-by-our-own-forest-render`, which carries four costed options —
-  and settled by ADR-0415 D5 in the meantime: textured assets stay in Blender.
-- **Adoption.** Nothing reaches the app. ADR-0380 D6 and ADR-0406 D2 keep experiment and adoption
-  separate, and this is the first of the two.
+  exception in the checker are all still refused"* — and ADR-0380 D6 fence 3 required a live render
+  to stay banded. No fence reaches a `.blend` file, which is why this trial could be built at all.
+  The owner looked at these renders and directed the flip: *"i think the artwork produced here is
+  good enough to flip the prev ADRs."* **ADR-0418** reverses ADR-0406 D3 and lifts ADR-0380 D6
+  fence 3 on the experiment surface (fences 1, 2 and 4 stand), and — because lifting the fence costs
+  `capture.mjs` its ability to REFUSE an off-palette pixel — **replaces** it with a non-vacuity
+  check, a colour-spread BAND and the hardware floor, gating ADOPTION rather than experiment.
+  ⚠ **The `build_island.py` ground in these renders is CONTINUOUSLY SHADED** (two-octave procedural
+  noise), which is what ruled out the split-by-layer option: authored-colour land is not what the
+  owner approved.
+- **Adoption.** Nothing here reaches the app. ADR-0380 D6 and ADR-0406 D2 keep experiment and
+  adoption separate, and this is the first of the two. ADR-0418 D4 adds the replacement check as an
+  adoption precondition, and its Consequences name the unmeasured cost: **textures move the art back
+  inside ADR-0380 D4's raster-over-the-wire constraint**, whose own carve-out names GPU textures
+  explicitly. The kit's source maps are 546 MB; the delivered payload is not yet measured.
 - **How status is carried once colour is freed.** The owner's direction is to establish the look
   first and layer the meaning on afterwards. Until that layer is designed, ADR-0392 D5 /
   ADR-0398 D7 still hold: an art change does not get to decide what the map asserts.
