@@ -51,6 +51,10 @@ function inputs(partial: Partial<AdrHealthInputs>): AdrHealthInputs {
     numberMismatches: [],
     stories: [],
     guardrails: [],
+    // A single decision with a clean body: the default must be a corpus the blind-read floor
+    // considers READ, so a rung-8 FAIL in any test below is the link it was handed, never the
+    // absence of a view.
+    decisionBodies: [{ number: 1, body: "no links here" }],
     pathExists: () => true,
     ...partial,
   };
@@ -191,4 +195,59 @@ test("every GATE-class rung the checks emit is declared in ADR_GATE_CHECKS, and 
     if (warnOnly.has(name)) continue;
     assert.ok(ADR_GATE_CHECKS.has(name), `${name} is emitted but gates nothing — declare or retire it`);
   }
+});
+
+// --- 8 adr-body-links ----------------------------------------------------------------------------
+
+test("adr-body-links: a clean body PASSes, a body linking a decision FILE FAILs", () => {
+  assert.equal(
+    levelOf(
+      adrHealth(inputs({ decisionBodies: [{ number: 12, body: "ADR-0139 decides this." }] })),
+      "adr-body-links",
+    ),
+    "PASS",
+  );
+  // The mutation: the SAME body with the number wrapped as a link to the deleted file must go RED.
+  // Without this pair the rung could report PASS over any input and nothing would say so.
+  const results = adrHealth(
+    inputs({
+      decisionBodies: [{ number: 12, body: "[ADR-0139](0139-the-accepted-adr-set.md) decides this." }],
+    }),
+  );
+  assert.equal(levelOf(results, "adr-body-links"), "FAIL");
+  const line = results.find((r) => r.name === "adr-body-links")?.lines[0] ?? "";
+  assert.match(line, /ADR-0012 body links to ADR-0139/);
+  assert.match(line, /storytree library artifact adr-0139/);
+});
+
+test("adr-body-links: it GATES — a dead link is a gate failure, not a warning", () => {
+  const results = adrHealth(
+    inputs({
+      adrs: [adr(12, "accepted")],
+      decisionBodies: [{ number: 12, body: "see [ADR-0139](0139-x.md)" }],
+    }),
+  );
+  assert.ok(adrGateFailures(results).some((r) => r.name === "adr-body-links"));
+});
+
+test("adr-body-links: an UNWIRED bodies view FAILs rather than passing vacuously", () => {
+  // Zero bodies alongside loaded decisions means the caller wired no view — the shape that reports
+  // PASS having examined nothing.
+  const results = adrHealth(inputs({ adrs: [adr(12, "accepted")], decisionBodies: [] }));
+  assert.equal(levelOf(results, "adr-body-links"), "FAIL");
+  assert.match(results.find((r) => r.name === "adr-body-links")?.lines[0] ?? "", /verified NOTHING/);
+  // But an empty corpus with no decisions at all is not this rung's complaint to make.
+  assert.equal(levelOf(adrHealth(inputs({ adrs: [], decisionBodies: [] })), "adr-body-links"), "PASS");
+});
+
+test("adr-body-links: every dead link is reported, not just the first", () => {
+  const results = adrHealth(
+    inputs({
+      decisionBodies: [
+        { number: 12, body: "[ADR-0139](0139-a.md) and [0145](0145-b.md)" },
+        { number: 13, body: "[the bar](0097-c.md)" },
+      ],
+    }),
+  );
+  assert.equal(results.find((r) => r.name === "adr-body-links")?.lines.length, 3);
 });
