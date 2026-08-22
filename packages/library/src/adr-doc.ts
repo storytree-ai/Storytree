@@ -87,6 +87,18 @@ export interface AdrDocumentFields {
   readonly arc?: string;
 }
 
+/** The optional half of {@link AdrDocumentFields}, built under guards and spread in whole.
+ *
+ *  Both members of the pair are `readonly` on the contract, so they cannot be assigned onto a draft
+ *  of it; this bag carries them instead and is spread at the position the conditional spreads held,
+ *  which keeps the emitted key order identical. A NAMED interface deliberately, not an inline type
+ *  literal and not a `Mutable<AdrDocumentFields>` — both of those trip
+ *  `anti-slop/no-known-value-widening`, and a cast would trip `no-chained-type-assertions`. */
+interface AdrOptionalFields {
+  decided?: string;
+  arc?: string;
+}
+
 /**
  * The frontmatter key order this module emits, and the only order it emits.
  *
@@ -167,6 +179,9 @@ export function parseAdrDocument(decisionNumber: number, content: string): AdrDo
     throw new Error(`${decisionLabel(decisionNumber)}: frontmatter \`load_bearing\` must be a boolean`);
   }
 
+  const optional: AdrOptionalFields = {};
+  if (decided !== undefined) optional.decided = decided;
+  if (arcRaw !== undefined) optional.arc = arcRaw;
   const fields: AdrDocumentFields = {
     number: decisionNumber,
     title: extractAdrTitle(body),
@@ -175,8 +190,7 @@ export function parseAdrDocument(decisionNumber: number, content: string): AdrDo
     amends: parseNumberList(bag["amends"], "amends"),
     supersedes: parseNumberList(bag["supersedes"], "supersedes"),
     loadBearing: loadBearingRaw === true,
-    ...(decided === undefined ? {} : { decided }),
-    ...(arcRaw === undefined ? {} : { arc: arcRaw }),
+    ...optional,
   };
   return fields;
 }
@@ -252,7 +266,10 @@ export function adrDocumentFieldsOf(row: Record<string, unknown>): AdrDocumentFi
     typeof arcRef === "string" && arcRef.startsWith("asset:") ? arcRef.slice("asset:".length) : undefined;
   const decided = row["decided"];
   const body = typeof row["body"] === "string" ? row["body"] : "";
-  return {
+  const optional: AdrOptionalFields = {};
+  if (typeof decided === "string") optional.decided = decided;
+  if (arc !== undefined) optional.arc = arc;
+  const fields: AdrDocumentFields = {
     number: typeof row["number"] === "number" ? row["number"] : 0,
     title: typeof row["title"] === "string" ? row["title"] : extractAdrTitle(body),
     body,
@@ -262,7 +279,7 @@ export function adrDocumentFieldsOf(row: Record<string, unknown>): AdrDocumentFi
     amends: numbers(row["amends"]),
     supersedes: numbers(row["supersedes"]),
     loadBearing: row["loadBearing"] === true,
-    ...(typeof decided === "string" ? { decided } : {}),
-    ...(arc === undefined ? {} : { arc }),
+    ...optional,
   };
+  return fields;
 }
