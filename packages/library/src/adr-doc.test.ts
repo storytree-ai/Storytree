@@ -280,3 +280,50 @@ test("adr-doc-ignores-a-heading-quoted-in-fenced-code: a cited decision does not
   // Removing a fence never eats the newline in front of a following heading.
   assert.equal(extractAdrTitle("```\nx\n```\n# ADR-0403: Still found\n"), "Still found");
 });
+
+// ---- `depends_on`: the plain support edge at the document surface (ADR-0419 D1/D2) -----------
+
+test("adr-doc-round-trips-depends-on: the plain support edge survives parse -> render byte-for-byte", () => {
+  // ADR-0419 D2 deprecates `amends` for plain support, so `depends_on` has to be AUTHORABLE in the
+  // document — the whole-document round trip is how a decision's prose is edited (ADR-0403 dec 9),
+  // and an edge the document cannot carry is an edge the deprecation cannot move anyone to.
+  const text = CANONICAL.replace("amends: [139, 223]", 'depends_on: ["asset:adr-0403"]\namends: [139]');
+  const fields = parseAdrDocument(419, text);
+  assert.deepEqual(fields.dependsOn, ["asset:adr-0403"]);
+  assert.deepEqual(fields.amends, [139], "the two support edges are read apart, never summed");
+  assert.equal(renderAdrDocument(fields), text, "a no-op round trip is byte-identical (ADR-0403 dec 9)");
+});
+
+test("adr-doc-keeps-depends-on-absence-distinct-from-empty: presence is what the migration counts", () => {
+  // NOT the same collapse `amends` gets. `dependsOn` is optional-not-defaulted (ADR-0223), and
+  // `DecisionAmendsResolver.decisionsCarryingDependsOn` counts KEY PRESENCE precisely because zero
+  // resolvable edges has two causes — a reader blind to the field, and a log that genuinely carries
+  // none. A round trip that folded `[]` into absent would silently decrement that denominator.
+  const absent = parseAdrDocument(419, CANONICAL);
+  assert.equal(absent.dependsOn, undefined, "no key means this document does not carry the edge");
+  assert.doesNotMatch(renderAdrDocument(absent), /depends_on/);
+
+  const emptyText = CANONICAL.replace("amends: [139, 223]", "depends_on: []\namends: [139, 223]");
+  const empty = parseAdrDocument(419, emptyText);
+  assert.deepEqual(empty.dependsOn, [], "an authored empty list is a different fact from no key");
+  assert.equal(renderAdrDocument(empty), emptyText, "and it is emitted, not omitted as a default");
+});
+
+test("adr-doc-refuses-a-malformed-depends-on: a bad entry fails loudly, never degrades to absent", () => {
+  // The parser's stated posture: a mistyped value never becomes a default. Degrading here would make
+  // the push DELETE the row's edge while reporting success.
+  assert.throws(
+    () => parseAdrDocument(419, CANONICAL.replace("amends: [139, 223]", "depends_on: 403")),
+    /`depends_on` must be a list of strings/,
+  );
+  assert.throws(
+    () => parseAdrDocument(419, CANONICAL.replace("amends: [139, 223]", "depends_on: [403]")),
+    /`depends_on` must contain non-empty strings/,
+  );
+  // An explicit null is a malformed list, NOT an absent key — `Object.hasOwn` is what keeps the two
+  // apart, so this must throw rather than read as "carries no edge".
+  assert.throws(
+    () => parseAdrDocument(419, CANONICAL.replace("amends: [139, 223]", "depends_on:")),
+    /`depends_on` must be a list of strings/,
+  );
+});
