@@ -121,7 +121,7 @@ function installFakeFrames(): FakeFrames {
   };
 }
 
-function cameraValues(camera: Element): { tx: number; ty: number; scale: number } {
+function cameraValues(camera: Element) {
   const transform = camera.getAttribute('transform');
   const match = transform?.match(/^translate\(([^ ]+) ([^)]+)\) scale\(([^)]+)\)$/);
   if (!match) throw new Error(`unexpected camera transform: ${transform}`);
@@ -129,7 +129,7 @@ function cameraValues(camera: Element): { tx: number; ty: number; scale: number 
 }
 
 /** The `.world-pan-layer` wrapper's live CSS translate — {x:0,y:0} for an absent/identity transform. */
-function panLayerOffset(panLayer: Element): { x: number; y: number } {
+function panLayerOffset(panLayer: Element) {
   const transform = (panLayer as HTMLElement).style.transform;
   if (!transform || transform === 'none') return { x: 0, y: 0 };
   const match = transform.match(/translate3d\(\s*(-?[\d.]+)px\s*,\s*(-?[\d.]+)px\s*,\s*0(?:px)?\s*\)/);
@@ -147,7 +147,7 @@ function panLayerOffset(panLayer: Element): { x: number; y: number } {
  * this file protects is the frame BOUNDARY — one commit per burst carrying the cumulative latest
  * delta, never a replay of stale intermediates — and that is invariant across where the write lands.
  */
-function composedCamera(camera: Element, panLayer: Element): { tx: number; ty: number; scale: number } {
+function composedCamera(camera: Element, panLayer: Element) {
   const g = cameraValues(camera);
   const layer = panLayerOffset(panLayer);
   return { tx: g.tx + layer.x, ty: g.ty + layer.y, scale: g.scale };

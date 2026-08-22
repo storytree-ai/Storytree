@@ -68,7 +68,7 @@ function writeTranscript(filePath: string, lines: readonly string[]): void {
 
 /** A transcript root holding one parent window and one SUBAGENT window nested three levels down —
  * the depth `collectTranscriptFiles` reaches and a depth-1 walk would miss entirely. */
-function twoWindowFixture(): { transcriptDir: string; traceDir: string } {
+function twoWindowFixture() {
   const transcriptDir = freshDir("transcripts");
   const traceDir = freshDir("trace");
   const cwd = worktreeCwd("agent-alpha");

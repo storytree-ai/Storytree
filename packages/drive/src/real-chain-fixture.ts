@@ -151,8 +151,10 @@ export const NODE_SOURCES: Record<string, { test: string; impl: string }> = {
   },
 };
 
+export interface ScopeForResult { testGlobs: string[]; sourceGlobs: string[] }
+
 /** The declared scope for a fixture node id. */
-export function scopeFor(id: string): { testGlobs: string[]; sourceGlobs: string[] } {
+export function scopeFor(id: string): ScopeForResult {
   return { testGlobs: [`${FIXTURE_DIR}/${id}.test.ts`], sourceGlobs: [`${FIXTURE_DIR}/${id}.ts`] };
 }
 

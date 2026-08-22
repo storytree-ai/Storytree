@@ -41,7 +41,7 @@ export interface WorkUnit {
 }
 
 /** The tier a `story:` / `capability:` scheme demands its target actually be. */
-const SCHEME_TIER: Readonly<Record<string, WorkTier>> = { story: "story", capability: "capability" };
+const SCHEME_TIER = { story: "story", capability: "capability" } satisfies Readonly<Record<string, WorkTier>>;
 
 /** Read one `key: value` line out of a leading `---` frontmatter block; undefined when absent. */
 function frontmatterField(content: string, key: string): string | undefined {

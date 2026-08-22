@@ -182,7 +182,7 @@ export function mergeFields(
       `patchDoc("${id}"): the stored doc is not a JSON object, so there are no fields to patch — use upsertDoc to replace it.`,
     );
   }
-  const merged: Record<string, unknown> = { ...(doc as Record<string, unknown>) };
+  const merged = { ...(doc as Record<string, unknown>) } satisfies Record<string, unknown>;
   for (const [key, value] of Object.entries(fields)) {
     if (value === undefined) delete merged[key];
     else merged[key] = value;

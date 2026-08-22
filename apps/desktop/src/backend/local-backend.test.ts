@@ -158,7 +158,7 @@ function passEvent(
   unitId: string,
   proofMode: "capability" | "story" | "contract",
   revisionId?: string,
-): { kind: string; seq: number; doc: unknown } {
+) {
   return {
     kind: "signing",
     seq,

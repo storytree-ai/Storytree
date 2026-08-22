@@ -74,12 +74,14 @@ export function cameraCompositorTransform(delivery: WorldCameraFrameDelivery): s
     : `translate3d(${tx}px, ${ty}px, 0) scale(${scale})`;
 }
 
+export interface ProjectDeliveredWorldPointResult { x: number; y: number }
+
 /** Test/proof seam for the composed transform, kept pure and DOM-independent. */
 export function projectDeliveredWorldPoint(
   delivery: WorldCameraFrameDelivery,
   worldX: number,
   worldY: number,
-): { x: number; y: number } {
+): ProjectDeliveredWorldPointResult {
   const { svgCamera: base, compositor } = delivery;
   return {
     x: compositor.tx + compositor.scale * (base.tx + base.scale * worldX),

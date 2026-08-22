@@ -554,12 +554,12 @@ function resolveReal(
   // ALLOCATED ONCE HERE and closed over below — the allocator returns a path unique to this call, so no
   // concurrent proof of the same unit can clear the report this build is about to read (see its doc).
   const reportPath = base.accounted ? allocateOracleReportPath(opts.runId, spec.id) : undefined;
-  const proofEnv: Record<string, string> = {
+  const proofEnv = {
     ...(base.command.env ?? {}),
     ...(reportPath !== undefined ? { [PROOF_REPORT_ENV]: reportPath } : {}),
     // ADR-0064 db-backed proof env is merged LAST so it wins (the disposable test DB is forced).
     ...(real.db === true && opts.dbProofEnv !== undefined ? opts.dbProofEnv : {}),
-  };
+  } satisfies Record<string, string>;
   const realProofCmd: ShellCommand =
     Object.keys(proofEnv).length > 0 ? { ...base.command, env: proofEnv } : base.command;
   // ADR-0249: the cross-check is only fail-closed if the report it reads is attributable to the
@@ -807,6 +807,8 @@ function tsxLoaderUrl(): string {
   return import.meta.resolve("tsx");
 }
 
+export interface RealProofCommandResult { command: ShellCommand; display: string; accounted: boolean; route: ProofRoute }
+
 /**
  * The REAL proof command for a node (ADR-0057 §3, expansion B): the node's DECLARED
  * `real.proofCommand` when present, else the default `node --import tsx --test <testFile>`. The
@@ -819,7 +821,7 @@ function tsxLoaderUrl(): string {
 export function realProofCommand(
   real: RealProofConfig,
   workspace: string,
-): { command: ShellCommand; display: string; accounted: boolean; route: ProofRoute } {
+): RealProofCommandResult {
   // ADR-0104: a per-node proof budget. A declared `real.timeoutMs` overrides the spine-wide
   // DEFAULT_PROOF_TIMEOUT_MS on this ONE resolved command — so both the spine's CONFIRM observation
   // and the leaf's run_proof (which spawn the SAME command object) ride it. Spread absent-not-undefined

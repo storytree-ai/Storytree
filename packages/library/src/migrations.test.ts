@@ -261,13 +261,13 @@ test("upcast: migration #4 folds the four dropped headings into `body`, keeping 
 });
 
 test("upcast: migration #4 remaps every retired status, and is idempotent on the new vocabulary", () => {
-  const remap: Record<string, string> = {
+  const remap = {
     draft: "proposal",
     ready: "ready",
     consumed: "active",
     superseded: "closed",
     retired: "closed",
-  };
+  } satisfies Record<string, string>;
   for (const [before, after] of Object.entries(remap)) {
     const out = upcast(v3PlanPreCollapse({ status: before }));
     assert.equal(out["status"], after, `${before} → ${after}`);

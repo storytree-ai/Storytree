@@ -24,7 +24,7 @@ function store(): InMemoryStore {
 }
 
 /** A fresh temp dir pair for the inbox fallback + doc: reference resolution. */
-function tempDirs(): { inboxDir: string; docsDir: string } {
+function tempDirs() {
   const docsDir = mkdtempSync(path.join(os.tmpdir(), "friction-docs-"));
   return { inboxDir: path.join(docsDir, "friction-inbox"), docsDir };
 }

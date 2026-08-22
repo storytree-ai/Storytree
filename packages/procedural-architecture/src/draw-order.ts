@@ -105,7 +105,7 @@ interface Ring {
  * Either side may come back with fewer than 3 points, meaning the polygon did not
  * actually straddle; callers drop those.
  */
-function splitPolygon(pts: readonly Vec3[], edges: readonly boolean[] | undefined, pl: Plane, eps: number): { front: Ring; back: Ring } {
+function splitPolygon(pts: readonly Vec3[], edges: readonly boolean[] | undefined, pl: Plane, eps: number) {
   const front: Ring = { pts: [], edges: [] };
   const back: Ring = { pts: [], edges: [] };
   for (let i = 0; i < pts.length; i++) {

@@ -36,7 +36,7 @@ interface RepoState {
   switchFails?: boolean;
 }
 
-function fakeGit(state: RepoState): { runGit: (args: readonly string[]) => string; calls: string[][] } {
+function fakeGit(state: RepoState) {
   const calls: string[][] = [];
   const branch = state.branch ?? "claude/old-branch-abc123";
   const taken = new Set(state.takenNames ?? []);

@@ -56,7 +56,7 @@ export const HOLD_ORDER: readonly HoldReason[] = [
   "anchor",
 ];
 
-const ZERO_HOLDS: DrainHoldCounts = {
+const ZERO_HOLDS = {
   cooling: 0,
   unmerged: 0,
   dirty: 0,
@@ -64,7 +64,7 @@ const ZERO_HOLDS: DrainHoldCounts = {
   detached: 0,
   live: 0,
   anchor: 0,
-};
+} satisfies DrainHoldCounts;
 
 /** One reaper run, as recorded on the ledger. Counts only — never a path list (this file is durable). */
 export interface DrainRecord {
@@ -90,7 +90,7 @@ export interface DrainRecord {
 
 /** Tally the keeps in a verdict set by bucket. */
 export function tallyHolds(verdicts: readonly WorktreeVerdict[]): DrainHoldCounts {
-  const held: Record<HoldReason, number> = { ...ZERO_HOLDS };
+  const held = { ...ZERO_HOLDS } satisfies Record<HoldReason, number>;
   for (const v of verdicts) {
     if (v.hold !== null) held[v.hold] += 1;
   }
@@ -186,7 +186,7 @@ export function parseDrainHistory(text: string | null): DrainRecord[] {
       string,
       unknown
     >;
-    const held: Record<HoldReason, number> = { ...ZERO_HOLDS };
+    const held = { ...ZERO_HOLDS } satisfies Record<HoldReason, number>;
     for (const k of HOLD_ORDER) held[k] = num(heldRaw[k]);
     out.push({
       at,

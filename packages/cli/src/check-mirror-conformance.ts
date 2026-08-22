@@ -145,7 +145,7 @@ function buildDocsFixture(): string {
  * normalise rather than pass through, a row past the stale window that BOTH folds must drop, and
  * several sessions on one unit (the composite PK the graded ledger allows).
  */
-function buildActivityFixtures(): { dir: string; inputs: { label: string; arg: string }[] } {
+function buildActivityFixtures() {
   const dir = mkdtempSync(join(tmpdir(), "storytree-activity-"));
   const at = (hhmm: string): string => `2026-07-29T${hhmm}:00.000Z`;
   const fixtures: { label: string; file: string; body: unknown }[] = [
@@ -220,7 +220,7 @@ function buildActivityFixtures(): { dir: string; inputs: { label: string; arg: s
  * There is deliberately no "real corpus" arm: arcs are live-canonical (ADR-0183) and CI is DB-free,
  * so the honest input is a fixture rather than a store nobody can reach.
  */
-function buildArcFixtures(): { dir: string; inputs: { label: string; arg: string }[] } {
+function buildArcFixtures() {
   const root = mkdtempSync(join(tmpdir(), "storytree-arcs-"));
 
   // The SAME requests against both arms — the point of the second arm is that identical asks give
@@ -368,7 +368,7 @@ function buildArcFixtures(): { dir: string; inputs: { label: string; arg: string
  * There is deliberately no "real corpus" arm: friction is live-canonical and CI is DB-free, so the
  * honest input is a fixture rather than a store nobody can reach.
  */
-function buildFloorHealthFixtures(): { dir: string; inputs: { label: string; arg: string }[] } {
+function buildFloorHealthFixtures() {
   const dir = mkdtempSync(join(tmpdir(), "storytree-floor-health-"));
 
   // The SAME requests against every arm — the point of the absence arms is that identical asks give
@@ -496,10 +496,7 @@ function buildFloorHealthFixtures(): { dir: string; inputs: { label: string; arg
  * {@link MirrorInputSet} is built ONCE and shared by every row that names it, so two mirrors over
  * the same input are compared over the identical bytes.
  */
-function buildInputSets(): {
-  sets: Record<MirrorInputSet, { label: string; arg: string }[]>;
-  cleanup: () => void;
-} {
+function buildInputSets() {
   const docsFixture = buildDocsFixture();
   const activity = buildActivityFixtures();
   const arcs = buildArcFixtures();

@@ -1,5 +1,7 @@
 import { USAGE_EVENT_KIND, UsageEventDoc } from "@storytree/proof-protocol";
 
+export interface UsageEventResult { id: string; kind: string; type: "created"; doc: UsageEventDoc; actor: string }
+
 /**
  * The usage-event COMPUTE (sibling of {@link workEvent} in rollup.ts): build the appendEvent
  * payload for one per-slice token-usage row. The DATA shape it validates against
@@ -13,7 +15,7 @@ import { USAGE_EVENT_KIND, UsageEventDoc } from "@storytree/proof-protocol";
 export function usageEvent(
   doc: UsageEventDoc,
   actor: string,
-): { id: string; kind: string; type: "created"; doc: UsageEventDoc; actor: string } {
+): UsageEventResult {
   const valid = UsageEventDoc.parse(doc);
   return {
     id: `${valid.runId}:${valid.unitId}:${valid.phase}`,

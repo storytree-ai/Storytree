@@ -426,7 +426,7 @@ test("teardown drops ONLY its own registration — never a repo-global sweep tha
 test("runWorktreeTypecheck / runRegressionSuite observe green/red by exit code only (offline node -e)", async () => {
   // The same honest observation the gate makes — exit 0 is the only green channel. Offline by
   // construction: the command IS the seam (any file+argv), so a `node -e` stands in for tsc/pnpm.
-  const cmd = (script: string): { file: string; args: string[] } => ({
+  const cmd = (script: string) => ({
     file: process.execPath,
     args: ["-e", script],
   });

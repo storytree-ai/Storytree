@@ -144,6 +144,8 @@ export interface IncrementCheckDeps extends IncrementPremiseDeps {
   pg: boolean;
 }
 
+export interface PremiseSignalsResult { vanished: string[]; decisions: { number: number; title: string }[] }
+
 /**
  * PURE: the premise signals the ANCHOR cannot carry.
  *
@@ -156,7 +158,7 @@ export function premiseSignals(
   paths: readonly string[],
   since: string,
   deps: IncrementPremiseDeps,
-): { vanished: string[]; decisions: { number: number; title: string }[] } {
+): PremiseSignalsResult {
   const vanished = deps.pathExists
     ? paths.filter((p) => !p.includes("*") && !deps.pathExists!(p))
     : [];
@@ -165,7 +167,7 @@ export function premiseSignals(
 }
 
 /** An increment's anchor/status read defensively off the untyped stored doc. */
-function incrementMeta(stored: StoredDoc): { sha: string | null; date: string; status: string } {
+function incrementMeta(stored: StoredDoc) {
   const doc = stored.doc as Record<string, unknown>;
   const anchor = doc["anchor"] as Record<string, unknown> | undefined;
   const sha = anchor && typeof anchor["sha"] === "string" ? (anchor["sha"] as string) : null;

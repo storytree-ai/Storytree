@@ -723,7 +723,7 @@ test('waiting claims QUEUE: queue-wisps in INPUT order along a line — index-pl
   // stationary: no orbit phase anywhere on the queue.
   for (const q of queue) assert.equal(q.phase, undefined);
   // strictly ordered positions along ONE line: x advances per queue index, y fixed.
-  const spotOf = (q: SceneNode): { x: number; y: number } => {
+  const spotOf = (q: SceneNode) => {
     const inner = children(q)[0];
     assert.ok(inner && inner.el === 'g');
     const m = /^translate\((-?[\d.]+) (-?[\d.]+)\)$/.exec(inner.transform ?? '');
@@ -1209,7 +1209,7 @@ function markerScene(
 const MARKER_TRANSFORM = /^translate\((-?[\d.]+) (-?[\d.]+)\) scale\(0\.6\)$/;
 
 /** The flower wrapper's base point (the translate part of `translate(x y) scale(s)`). */
-function markerSpot(m: SceneG): { x: number; y: number } {
+function markerSpot(m: SceneG) {
   const [, x, y] = MARKER_TRANSFORM.exec(m.transform ?? '') ?? [];
   return { x: Number(x), y: Number(y) };
 }
@@ -1594,7 +1594,7 @@ test('garden stone-path spacing tracks the GROUND radius, not the SCREEN one (sc
   const garden = mkGarden('library');
   const scene = buildScene(mkInput({ territories, relaxedCells: null, garden }));
   const isle = territoryById(scene, 'library');
-  const xy = (n: SceneNode): { x: number; y: number } => {
+  const xy = (n: SceneNode) => {
     const m = /translate\((-?[\d.]+) (-?[\d.]+)\)/.exec(n.transform ?? '');
     return { x: Number(m?.[1] ?? '0'), y: Number(m?.[2] ?? '0') };
   };
@@ -1632,7 +1632,7 @@ test('garden footpath — no stepping-stone is buried behind the tree crown (gro
   // The refined footpath must not bury a stone under the canopy: a stone NORTH of the tree base and within
   // the fitted crown would be painted over by the tree (the owner's occlusion complaint). Land-free so the
   // heroes settle across a roomy island and the path is laid through a representative layout.
-  const xy = (n: SceneNode): { x: number; y: number } => {
+  const xy = (n: SceneNode) => {
     const m = /translate\((-?[\d.]+) (-?[\d.]+)\)/.exec(n.transform ?? '');
     return { x: Number(m?.[1] ?? '0'), y: Number(m?.[2] ?? '0') };
   };

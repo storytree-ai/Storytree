@@ -51,7 +51,12 @@ const summarizeThroughSink: SummarizeTraversalSession = (dir, sessionId) => {
 };
 
 /** Wraps the real summarizer and records which sessions it actually read. */
-function counting(): { summarize: SummarizeTraversalSession; reads: string[] } {
+interface CountingResult {
+  summarize: SummarizeTraversalSession;
+  reads: string[];
+}
+
+function counting(): CountingResult {
   const reads: string[] = [];
   return {
     reads,

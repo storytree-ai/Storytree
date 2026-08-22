@@ -383,7 +383,7 @@ function foldParkLedger(
   memories: readonly MemoryFile[],
   ledger: ParkLedger,
   now: string,
-): { live: LiveCandidate[]; parked: ParkedCandidate[]; counts: ParkWorklistCounts } {
+) {
   const byName = new Map(memories.map((m) => [m.name, m] as const));
   const novelMemories = novel
     .map((c) => byName.get(c.source))

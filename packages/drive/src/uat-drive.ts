@@ -1769,7 +1769,7 @@ export function driveChildEnv(
   parentEnv: Readonly<Record<string, string | undefined>>,
   iso: DriveIsolation,
 ): Record<string, string | undefined> {
-  const env: Record<string, string | undefined> = { ...parentEnv };
+  const env = { ...parentEnv } satisfies Record<string, string | undefined>;
   delete env["STORYTREE_SESSION_ID"];
   env[UAT_DRIVE_SESSION_ENV] = iso.sessionId;
   env[UAT_DRIVE_SURFACE_PORT_ENV] = String(iso.surfacePort);

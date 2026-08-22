@@ -85,11 +85,11 @@ export function censusUatWitnesses(
 ): UatWitnessCensus {
   const rows: UatWitnessCensusRow[] = [];
   const byWitness = emptyTally();
-  const storyIdsByWitness: Record<UatTestCriterionWitness, Set<string>> = {
+  const storyIdsByWitness = {
     human: new Set(),
     machine: new Set(),
     either: new Set(),
-  };
+  } satisfies Record<UatTestCriterionWitness, Set<string>>;
   const storiesWithCriteria = new Set<string>();
   let wouldBe = 0;
 

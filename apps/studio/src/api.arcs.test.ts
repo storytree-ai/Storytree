@@ -24,7 +24,7 @@ import { api } from './api';
 const PAYLOAD = { arcs: [{ id: 'an-arc' }] };
 
 /** A `fetch` stand-in whose Nth call behaves per `outcomes[N]` — 'fail' rejects, 'ok' answers. */
-function stubFetch(outcomes: readonly ('fail' | 'ok')[]): { calls: () => number } {
+function stubFetch(outcomes: readonly ('fail' | 'ok')[]) {
   let calls = 0;
   vi.stubGlobal('fetch', (_url: string, _init?: RequestInit) => {
     const outcome = outcomes[calls] ?? 'fail';

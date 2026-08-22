@@ -105,13 +105,13 @@ const APP_DATA: AppData = {
   refreshAssets: async () => {},
 };
 
-const cameraValues = (camera: Element): { tx: number; ty: number; scale: number } => {
+const cameraValues = (camera: Element) => {
   const match = camera.getAttribute('transform')?.match(/^translate\(([^ ]+) ([^)]+)\) scale\(([^)]+)\)$/);
   if (!match) throw new Error(`unexpected camera transform: ${camera.getAttribute('transform')}`);
   return { tx: Number(match[1]), ty: Number(match[2]), scale: Number(match[3]) };
 };
 
-const compositorValues = (layer: HTMLElement): { tx: number; ty: number; scale: number } => {
+const compositorValues = (layer: HTMLElement) => {
   if (layer.style.transform === 'none' || layer.style.transform === '') {
     return { tx: 0, ty: 0, scale: 1 };
   }

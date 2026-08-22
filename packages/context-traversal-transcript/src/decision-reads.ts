@@ -56,11 +56,11 @@ export type DecisionReadShape = "read" | "grep" | "shell";
 
 /** The surface id each shape's visit carries. Distinct per shape (see the header): a scraped shell
  * read and an exact `Read` are not the same quality of observation and must stay distinguishable. */
-export const DECISION_READ_SURFACES: Readonly<Record<DecisionReadShape, string>> = {
+export const DECISION_READ_SURFACES = {
   read: "host-transcript-file-read",
   grep: "host-transcript-grep",
   shell: "host-transcript-shell",
-};
+} satisfies Readonly<Record<DecisionReadShape, string>>;
 
 export interface DecisionRead {
   /** The storytree session the read belongs to, derived from the line's own `cwd`. */

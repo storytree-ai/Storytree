@@ -34,7 +34,7 @@ function fakeClient(rowsByTable?: {
   work?: unknown[];
   verdict?: unknown[];
   usage?: unknown[];
-}): { client: WorkStoreClient; queries: Array<{ text: string; values: unknown[] }> } {
+}) {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   let seq = 0;
   const client: WorkStoreClient = {

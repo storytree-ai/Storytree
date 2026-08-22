@@ -394,10 +394,7 @@ export function readIdleSignals(dir: string): IdleSignalReading {
   return { dir, admin, signals, binding: best.binding, mtimeMs: best.mtimeMs, fellBack: true };
 }
 
-function pickBinding(signals: ReadonlyMap<string, number>): {
-  binding: string | null;
-  mtimeMs: number;
-} {
+function pickBinding(signals: ReadonlyMap<string, number>) {
   let binding: string | null = null;
   let mtimeMs = 0;
   for (const [name, ms] of signals) {
@@ -775,7 +772,7 @@ export const DEFAULT_PRUNE_OPTIONS: PruneOptions = {
   liveSessions: new Set(),
 };
 
-function summarise(verdicts: readonly WorktreeVerdict[]): { reg: number; orph: number } {
+function summarise(verdicts: readonly WorktreeVerdict[]) {
   return {
     reg: verdicts.filter((v) => v.kind === "registered").length,
     orph: verdicts.filter((v) => v.kind === "orphan").length,

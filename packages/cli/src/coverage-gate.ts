@@ -88,6 +88,12 @@ export interface GateCoverageReport {
   clean: boolean;
 }
 
+export interface ProjectCoverageGapsResult {
+  uncovered: string[];
+  unbound: string[];
+  scanned: number;
+}
+
 /**
  * The drain-ceiling projection of a sweep ({@link import("./coverage-drain.js").CoverageGaps} plus the
  * substrate observables). PURE: the two axes are split HERE rather than in the ceiling, because which
@@ -97,11 +103,7 @@ export interface GateCoverageReport {
  * `unbound`. That split is what makes the authoring axis immune to a deficient checkout (measured: an
  * absent test-file tree drives `uncovered` to 0 and `unbound` to every scanned capability).
  */
-export function projectCoverageGaps(report: GateCoverageReport): {
-  uncovered: string[];
-  unbound: string[];
-  scanned: number;
-} {
+export function projectCoverageGaps(report: GateCoverageReport): ProjectCoverageGapsResult {
   const uncovered: string[] = [];
   const unbound: string[] = [];
   for (const u of report.underCovered) {
@@ -141,12 +143,14 @@ export function classifyGateCoverage(units: readonly GateCoverageUnit[]): GateCo
   return { scanned, underCovered, clean: underCovered.length === 0 };
 }
 
+export interface FormatCoverageGateResult { warn: boolean; lines: string[] }
+
 /**
  * PURE: render the gate sweep as advisory console lines + a `warn` flag. WARN names each under-covered
  * capability and the contracts it drops; OK reports the clean count. NEVER throws and never exits — the
  * caller prints the lines and always exits 0 (WARN-only, like `check:corpus-sync`).
  */
-export function formatCoverageGate(report: GateCoverageReport): { warn: boolean; lines: string[] } {
+export function formatCoverageGate(report: GateCoverageReport): FormatCoverageGateResult {
   if (report.scanned.length === 0) {
     return {
       warn: false,
@@ -257,6 +261,8 @@ export function loadRealBuildCoverageUnits(storiesDir: string, repoRoot: string)
   return sweepRealBuildCoverage(storiesDir, repoRoot).units;
 }
 
+export interface SweepRealBuildCoverageResult { units: GateCoverageUnit[]; specFilesWalked: number }
+
 /**
  * {@link loadRealBuildCoverageUnits} plus the substrate observable the drain ceiling needs: how many
  * spec files were WALKED. Zero walked and zero scanned are different states that the check's "nothing
@@ -266,7 +272,7 @@ export function loadRealBuildCoverageUnits(storiesDir: string, repoRoot: string)
 export function sweepRealBuildCoverage(
   storiesDir: string,
   repoRoot: string,
-): { units: GateCoverageUnit[]; specFilesWalked: number } {
+): SweepRealBuildCoverageResult {
   const { surfaces, specFilesWalked } = sweepCapabilitySurfaces(storiesDir, repoRoot);
   const units = surfaces.map((surface) => {
     const testNames: string[] = [];
@@ -314,6 +320,8 @@ export interface CapabilitySurface {
   testFilePresent: boolean;
 }
 
+export interface SweepCapabilitySurfacesResult { surfaces: CapabilitySurface[]; specFilesWalked: number }
+
 /**
  * Resolve every capability carrying a registered real-build test surface (`proof.real.testFile`) AND
  * ≥1 declared `## Contracts` to its proof surface. The surface unions that exact signed
@@ -330,7 +338,7 @@ export interface CapabilitySurface {
 export function sweepCapabilitySurfaces(
   storiesDir: string,
   repoRoot: string,
-): { surfaces: CapabilitySurface[]; specFilesWalked: number } {
+): SweepCapabilitySurfacesResult {
   const surfaces: CapabilitySurface[] = [];
   const specFiles = walkSpecFiles(storiesDir);
   for (const file of specFiles) {

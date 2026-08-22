@@ -171,7 +171,7 @@ function countFoliagePixels(png: DecodedPng, bands: readonly Rgb[]): number {
  * here would import a tie-break convention, and this suite exists to check the registered number
  * against the pixels independently of the Python that produced it.
  */
-function measureGroundAnchor(png: DecodedPng): { readonly x: number; readonly y: number } {
+function measureGroundAnchor(png: DecodedPng) {
   const occupiedRows: number[] = [];
   for (let y = 0; y < png.height; y += 1) {
     for (let x = 0; x < png.width; x += 1) {

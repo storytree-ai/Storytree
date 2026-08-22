@@ -823,7 +823,7 @@ async function notWritable(store: Store): Promise<Envelope> {
 }
 
 /** Pull `id` + `kind` off a validated doc (structured units carry `kind`; rendered assets carry `category`). */
-function idKindOf(doc: Record<string, unknown>): { id: string; kind: string } {
+function idKindOf(doc: Record<string, unknown>) {
   const id = typeof doc.id === "string" ? doc.id : "";
   const kind =
     typeof doc.kind === "string"

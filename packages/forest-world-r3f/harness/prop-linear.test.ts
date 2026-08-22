@@ -85,14 +85,7 @@ const EVERY: readonly (readonly [string, () => PropParts])[] = [
   ['water', () => growWaterChannel(BENT, {})],
 ];
 
-function bounds(positions: Float32Array): {
-  minX: number;
-  maxX: number;
-  minY: number;
-  maxY: number;
-  minZ: number;
-  maxZ: number;
-} {
+function bounds(positions: Float32Array) {
   let minX = Infinity;
   let maxX = -Infinity;
   let minY = Infinity;

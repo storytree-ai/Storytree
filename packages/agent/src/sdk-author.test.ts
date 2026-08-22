@@ -188,7 +188,7 @@ test("author => EXHAUSTED on a turn-ceiling result (error_max_turns) — the dis
 // ── The SDK options the leaf runs under: no USD ceiling by default (ADR-0130) ─
 
 /** A query seam that records the `options` it was handed, then yields a bare success result. */
-function capturingQueryFn(): { fn: SdkQueryFn; last: () => Options | undefined } {
+function capturingQueryFn() {
   let captured: Options | undefined;
   const fn: SdkQueryFn = async function* ({ options }) {
     captured = options;
@@ -525,11 +525,7 @@ function preToolUse(toolName: string, toolInput: unknown): PreToolUseHookInput {
 }
 
 /** Read the wall's refusal verdict out of a hook output (the deny shape the SDK acts on). */
-function denyOf(out: HookJSONOutput): {
-  event: string | undefined;
-  decision: string | undefined;
-  reason: string | undefined;
-} {
+function denyOf(out: HookJSONOutput) {
   const hso = (
     out as {
       hookSpecificOutput?: {

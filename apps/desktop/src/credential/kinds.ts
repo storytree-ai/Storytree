@@ -6,9 +6,9 @@
 export type CredentialKind = "oauth" | "api-key";
 
 /** The env var each kind populates for its scoped operation. */
-export const CREDENTIAL_ENV_VAR: Record<CredentialKind, string> = {
+export const CREDENTIAL_ENV_VAR = {
   oauth: "CLAUDE_CODE_OAUTH_TOKEN",
   "api-key": "ANTHROPIC_API_KEY",
-};
+} satisfies Record<CredentialKind, string>;
 
 export const CREDENTIAL_KINDS: readonly CredentialKind[] = ["oauth", "api-key"];

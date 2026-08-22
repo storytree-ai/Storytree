@@ -98,7 +98,7 @@ function phaseAwareModel(implSource: string): ScriptedModel {
 function freshSpec(args: {
   workspace: string;
   implSource: string;
-}): { spec: ProveSpec; store: InMemoryStore } {
+}) {
   const store = new InMemoryStore();
 
   // REAL file tools, rooted at the temp workspace.

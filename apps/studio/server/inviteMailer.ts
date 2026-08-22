@@ -91,13 +91,15 @@ export function createInviteMailer(env: NodeJS.ProcessEnv): InviteMailer {
 
 const article = (role: string): 'an' | 'a' => (role === 'admin' ? 'an' : 'a');
 
+export interface InviteContentResult { subject: string; body: string }
+
 /** The invite email's subject + plain-text body. Pure — exported for the unit test. */
 export function inviteContent(
   to: string,
   role: 'admin' | 'member',
   invitedBy: string | null,
   studioUrl: string,
-): { subject: string; body: string } {
+): InviteContentResult {
   const subject = "You're invited to the storytree studio";
   const opener = invitedBy
     ? `${invitedBy} has invited you to the storytree studio as ${article(role)} ${role}.`
@@ -195,10 +197,7 @@ interface Reply {
 }
 
 /** A minimal request/reply pump over an SMTP socket. Reads multiline replies, fails-fast on close. */
-function smtpIo(socket: Duplex): {
-  expect(ok: number[]): Promise<Reply>;
-  cmd(line: string, ok: number[]): Promise<Reply>;
-} {
+function smtpIo(socket: Duplex) {
   let buffer = '';
   let pending: { resolve: (r: Reply) => void; reject: (e: Error) => void } | null = null;
   let terminal: Error | null = null;

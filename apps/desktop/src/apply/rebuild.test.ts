@@ -16,7 +16,7 @@ import {
 } from "./rebuild.js";
 
 /** A recording runner: returns the queued result per call and logs which step labels it saw. */
-function recordingRunner(results: StepResult[]): { run: StepRunner; seen: string[] } {
+function recordingRunner(results: StepResult[]) {
   const seen: string[] = [];
   let i = 0;
   const run: StepRunner = async (step: RebuildStep) => {

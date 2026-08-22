@@ -37,7 +37,7 @@ interface Reading {
 }
 
 /** Read the GPU identity WITHOUT keeping a context alive — one throwaway canvas. */
-function readRenderer(): { renderer: string; version: string } {
+function readRenderer() {
   const c = document.createElement('canvas');
   const gl = (c.getContext('webgl2') ?? c.getContext('webgl')) as WebGLRenderingContext | null;
   if (!gl) return { renderer: 'NO WEBGL CONTEXT', version: 'none' };

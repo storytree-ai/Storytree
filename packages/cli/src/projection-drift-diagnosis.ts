@@ -181,7 +181,7 @@ export type MainRefReader =
  * remedies differ, so the reader is told what was actually compared rather than left to assume.
  */
 export function openMainRef(repoRoot: string): MainRefReader {
-  const git = (args: string[]): { ok: boolean; stdout: string; detail: string } => {
+  const git = (args: string[]) => {
     const res = spawnSync("git", args, { cwd: repoRoot, encoding: "utf8" });
     if (res.error !== undefined || res.status !== 0) {
       const detail = res.error?.message ?? res.stderr?.trim() ?? `exit ${res.status ?? "unknown"}`;

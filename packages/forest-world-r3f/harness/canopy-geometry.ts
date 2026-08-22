@@ -128,12 +128,12 @@ const CANOPY_RINGS = 11;
  *    narrow but visible footprint, and at these sizes 0.18 of 6 units is one ground unit, which
  *    is exactly the shimmer floor and no less.
  */
-const PROFILES: Record<CanopyShape, { peak: number; rise: number; fall: number; base: number }> = {
+const PROFILES = {
   // A cypress/poplar: flares immediately, carries its width most of the way up, ends in a point.
   spire: { peak: 0.3, rise: 0.55, fall: 0.85, base: 0.18 },
   // A broadleaf: widest at the middle, a rounded top, a fatter foot.
   dome: { peak: 0.46, rise: 0.72, fall: 0.62, base: 0.3 },
-};
+} satisfies Record<CanopyShape, { peak: number; rise: number; fall: number; base: number }>;
 
 /** The radius fraction at height fraction `t`, for one shape. Exported for the test, which
  *  asserts the silhouette's properties (monotone up to the peak, a point at the tip, a non-zero
@@ -208,15 +208,17 @@ export function growCanopy(spec: CanopySpec): CanopyParts {
   return out;
 }
 
-/** The cylinder a canopy tree casts its contact shade as: the footprint's half-width and the
- *  UNPROJECTED height, read the same way every other caster on the island reads them. Taking
- *  the drawn height instead would leave a tree's shadow 6% short of the tree. */
-export function canopyCaster(spec: CanopySpec, at: { x: number; z: number }): {
+export interface CanopyCasterResult {
   x: number;
   z: number;
   radius: number;
   height: number;
-} {
+}
+
+/** The cylinder a canopy tree casts its contact shade as: the footprint's half-width and the
+ *  UNPROJECTED height, read the same way every other caster on the island reads them. Taking
+ *  the drawn height instead would leave a tree's shadow 6% short of the tree. */
+export function canopyCaster(spec: CanopySpec, at: { x: number; z: number }): CanopyCasterResult {
   const halfWidth = Math.max(CANOPY_WIDTH_FLOOR, spec.width) / 2;
   return {
     x: at.x,

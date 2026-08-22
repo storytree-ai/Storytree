@@ -42,7 +42,7 @@ const ownership: Ownership = {
 
 // Consumer-side outbound edges (`depends_on`). The ports are roots; consumers declare the edge to them
 // (ADR-0075). The cli hub's outbound edges are declared provider-side in `consumedBy` below.
-const storyGraph: Record<string, string[]> = {
+const storyGraph = {
   "proof-protocol": [],
   "storage-protocol": ["proof-protocol"],
   library: ["proof-protocol"],
@@ -50,24 +50,24 @@ const storyGraph: Record<string, string[]> = {
   "notice-board": ["library"],
   "studio-members": ["library"],
   cli: [],
-};
+} satisfies Record<string, string[]>;
 
 // Provider-side inbound edges (`consumed_by`): each spoke (incl. the ports) owns its "wired into the
 // cli hub" edge.
-const consumedBy: Record<string, string[]> = {
+const consumedBy = {
   "drive-machinery": ["cli"],
   library: ["cli"],
   "notice-board": ["cli"],
   "storage-protocol": ["cli"],
   "proof-protocol": ["cli"],
-};
+} satisfies Record<string, string[]>;
 
 // The real runtime @storytree/* dependency graph (each package.json `dependencies`; devDeps —
 // e.g. proof-protocol→library parity — excluded by the caller). With the store package dissolved
 // (ADR-0077) its drawers now live with the owning organisms, so the persistence runtime deps it used
 // to carry (storage-protocol / notice-board / studio-members / proof-protocol) belong to those organisms; the
 // cli consumes the new `./store` subpaths but those are the same packages it already depends on.
-const realPackageDeps: Record<string, string[]> = {
+const realPackageDeps = {
   "@storytree/proof-protocol": [],
   "@storytree/storage-protocol": ["@storytree/proof-protocol"], // foundational → foundational ✓
   "@storytree/library": ["@storytree/proof-protocol"], // library depends_on proof-protocol ✓
@@ -90,7 +90,7 @@ const realPackageDeps: Record<string, string[]> = {
     "@storytree/orchestrator", // cli → drive-machinery ✓
     "@storytree/proof-protocol", // covered by proof-protocol.consumed_by ✓
   ],
-};
+} satisfies Record<string, string[]>;
 
 test("classOf treats every package (ports included) as an organism; null when unknown", () => {
   assert.equal(classOf("@storytree/library", ownership), "organism");

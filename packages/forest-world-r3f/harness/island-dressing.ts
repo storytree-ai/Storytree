@@ -284,7 +284,7 @@ function plantCanopy(
     /** Added to the dressing's seed, so two dressings never plant the same stand. */
     seedOffset?: number;
   },
-): { canopy: CanopyPlacement[]; casters: ShadowCaster[] } {
+) {
   const seed = ctx.seed + (opts.seedOffset ?? 0);
   const points = grove({
     loop: insetLoop(ctx.coast, opts.inset),
@@ -1287,13 +1287,13 @@ function meanderBetween(a: GPoint, b: GPoint, seed: number, sway = 8): GPoint[] 
   return out;
 }
 
-const DRESSINGS: Record<DressingName, (ctx: Ctx) => Dressing> = {
+const DRESSINGS = {
   walled,
   hamlet,
   terrace,
   shrine,
   wild,
-};
+} satisfies Record<DressingName, (ctx: Ctx) => Dressing>;
 
 /**
  * Build one named dressing for an island.

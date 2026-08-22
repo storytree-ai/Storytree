@@ -288,7 +288,7 @@ function readJsonObject(req: IncomingMessage): Promise<Record<string, unknown>> 
   });
 }
 
-function currentGitState(): { commitSha: string; clean: boolean } {
+function currentGitState() {
   const commitSha = execFileSync("git", ["rev-parse", "HEAD"], {
     cwd: repoRoot,
     encoding: "utf8",

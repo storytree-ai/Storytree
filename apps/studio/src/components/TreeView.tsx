@@ -1050,13 +1050,13 @@ function claimWispTitle(c: ClaimActivity, now: Date): string {
  *  a resolution rule: **RED WINS**. A green on one run must never mask a red on another — the map
  *  would then read "proving fine" while a sibling run sits failing. Ranked red < building < green,
  *  lowest wins; ties keep input order. Exported for the unit test. */
-const PHASE_BAND_RANK: Record<BuildPhase, number> = {
+const PHASE_BAND_RANK = {
   AUTHOR_TEST: 0,
   CONFIRM_RED: 0,
   IMPLEMENT: 1,
   CONFIRM_GREEN: 2,
   GATE: 2,
-};
+} satisfies Record<BuildPhase, number>;
 
 export function resolveBuildPhase(builds: BuildActivity[]): BuildPhase | undefined {
   if (!builds.length) return undefined;
@@ -2910,7 +2910,7 @@ export function TreeView({
     if (!cameraRasterisationRoute || typeof window === 'undefined') return;
     const bridge = {
       snapshot: () => cameraProbeSnapshotRef.current(),
-      start: (): { ok: boolean; reason?: string } => {
+      start: () => {
         const snapshot = cameraProbeSnapshotRef.current();
         if (!snapshot.ready) {
           return { ok: false, reason: snapshot.rejectionReason ?? 'probe-not-ready' };
@@ -4774,7 +4774,7 @@ function StoryTree({
     bcx: number,
     bcy: number,
     br: number,
-  ): { cx: number; cy: number; r: number } => {
+  ) => {
     const k = hash(`${story.id}:crown:${i}`);
     return {
       cx: bcx + (rand01(k) - 0.5) * 0.12 * R,

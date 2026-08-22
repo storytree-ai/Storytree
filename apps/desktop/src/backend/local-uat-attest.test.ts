@@ -51,8 +51,10 @@ const AGENT_IDENTITY = "sandbox:claude-opus-4-8@run-9";
 const CLEAN_SHA = "ca".repeat(20); // 40 hex chars — a real-shaped commit SHA
 const AT = "2026-07-10T00:00:00.000Z";
 
+interface MakeWriterResult { writer: ForestWriter; calls: ForestWrite[] }
+
 /** A double `ForestWriter` recording every write it receives and returning a fixed result. */
-function makeWriter(result: ForestWriteResult): { writer: ForestWriter; calls: ForestWrite[] } {
+function makeWriter(result: ForestWriteResult): MakeWriterResult {
   const calls: ForestWrite[] = [];
   return {
     calls,

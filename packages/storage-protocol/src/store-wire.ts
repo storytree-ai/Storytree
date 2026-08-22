@@ -75,7 +75,7 @@ export interface StoreRoute {
 }
 
 /** The route table. Reads are GET, writes are POST; each path names its seam method. */
-export const STORE_ROUTES: { readonly [K in StoreRouteName]: StoreRoute } = {
+export const STORE_ROUTES = {
   getDoc: { method: "GET", path: "/get-doc" },
   queryDocs: { method: "GET", path: "/query-docs" },
   readEvents: { method: "GET", path: "/read-events" },
@@ -83,7 +83,7 @@ export const STORE_ROUTES: { readonly [K in StoreRouteName]: StoreRoute } = {
   patchDoc: { method: "POST", path: "/patch-doc" },
   deleteDoc: { method: "POST", path: "/delete-doc" },
   appendEvent: { method: "POST", path: "/append-event" },
-};
+} satisfies { readonly [K in StoreRouteName]: StoreRoute };
 
 // ---------------------------------------------------------------------------
 // Request bodies (POST routes)

@@ -777,6 +777,8 @@ export interface UatWitnessResolver {
 /** A UAT leg with its DECLARED witness replaced by the RESOLVED binary one (ADR-0106 d.5). */
 export type ResolvedUatLeg = Omit<UatTestCriterion, 'witness'> & { witness: ResolvedWitnessKind };
 
+export interface ResolveUatRowWitnessesResult { tests: ResolvedUatLeg[]; unresolvedWitnesses: string[] }
+
 /**
  * PURE (ADR-0106 d.5/d.1): resolve each UAT leg's declared witness into the BINARY one the owner
  * surface reads, and compute the "no `either` at rest" guard. The classifier is INJECTED (the library's
@@ -791,7 +793,7 @@ export function resolveUatRowWitnesses(
   gates: readonly Pick<ReliabilityGate, 'id' | 'kind'>[],
   status: string,
   resolver: UatWitnessResolver,
-): { tests: ResolvedUatLeg[]; unresolvedWitnesses: string[] } {
+): ResolveUatRowWitnessesResult {
   const resolved = tests.map((t) => ({ ...t, witness: resolver.resolvedWitnessOf(t, gates) }));
   const adopted = status !== '' && status !== 'mapped' && status !== 'retired';
   const unresolvedWitnesses = adopted

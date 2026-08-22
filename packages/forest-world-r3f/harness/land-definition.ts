@@ -104,6 +104,8 @@ export function landHeightRange(amplitude = LAND_RELIEF_AMPLITUDE): number {
   return WAVES.reduce((s, [, , weight]) => s + Math.abs(weight), 0) * Math.abs(amplitude);
 }
 
+export interface LandGradientResult { dx: number; dz: number }
+
 /** The field's gradient `[dh/dx, dh/dz]`. Analytic rather than sampled: a finite-difference
  *  normal is a function of the step you happened to pick, and on a banded material a
  *  slightly-wrong normal is not a slightly-wrong colour — it is a different rung. */
@@ -111,7 +113,7 @@ export function landGradient(
   x: number,
   z: number,
   amplitude = LAND_RELIEF_AMPLITUDE,
-): { dx: number; dz: number } {
+): LandGradientResult {
   let dx = 0;
   let dz = 0;
   for (const [kx, kz, weight, phase] of WAVES) {
@@ -121,6 +123,8 @@ export function landGradient(
   }
   return { dx: dx * amplitude, dz: dz * amplitude };
 }
+
+export interface LandNormalResult { x: number; y: number; z: number }
 
 /**
  * The unit surface normal of the relief field at a point.
@@ -137,7 +141,7 @@ export function landNormal(
   x: number,
   z: number,
   amplitude = LAND_RELIEF_AMPLITUDE,
-): { x: number; y: number; z: number } {
+): LandNormalResult {
   const { dx, dz } = landGradient(x, z, amplitude);
   const len = Math.hypot(dx, 1, dz);
   return { x: -dx / len, y: 1 / len, z: -dz / len };
@@ -351,7 +355,7 @@ export function planLandDefinition(
   // Pass 2 — the role of each edge, and (for boundary edges) the inward direction each
   // owning parcel bevels in.
   const roles: EdgeRole[][] = cells.map((c) => c.points.map(() => 'interior' as EdgeRole));
-  const counts: Record<EdgeRole, number> = { interior: 0, parcel: 0, rim: 0 };
+  const counts = { interior: 0, parcel: 0, rim: 0 } satisfies Record<EdgeRole, number>;
   /** parcel -> vertexKey -> accumulated inward direction. */
   const pull = new Map<string, Map<string, { x: number; y: number }>>();
 

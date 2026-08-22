@@ -33,10 +33,7 @@ import type { ClaimLedgerReadLike } from "./noticeboard.js";
 // ---------------------------------------------------------------------------
 
 /** A minimal knowledge store: queryDocs feeds the dashboard; getDoc feeds the artifact view. */
-function fakeKnowledgeStore(): {
-  queryDocs(filter?: { kind?: string }): Promise<unknown[]>;
-  getDoc(id: string): Promise<unknown>;
-} {
+function fakeKnowledgeStore() {
   const doc = {
     id: "live-shaped-artifact",
     kind: "principle",

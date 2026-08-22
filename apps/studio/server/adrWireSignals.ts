@@ -12,7 +12,9 @@ const ADR_FILENAME = /^\d{4}-.*\.md$/;
 
 const EMPTY_RESULT: { loadBearing: boolean; edges: number[] } = { loadBearing: false, edges: [] };
 
-function emptyResult(): { loadBearing: boolean; edges: number[] } {
+interface EmptyResultResult { loadBearing: boolean; edges: number[] }
+
+function emptyResult(): EmptyResultResult {
   return { loadBearing: EMPTY_RESULT.loadBearing, edges: [] };
 }
 
@@ -28,6 +30,8 @@ function extractNumbers(block: string, field: string): number[] {
     .filter((n) => Number.isFinite(n));
 }
 
+export interface ParseAdrWireSignalsResult { loadBearing: boolean; edges: number[] }
+
 /**
  * The studio-wire ADR signals (library-adr-wire-signals): `loadBearing` reads the frontmatter's
  * `load_bearing: true` tag (missing tag or an explicit `false` both read as `false`); `edges` is the
@@ -36,7 +40,7 @@ function extractNumbers(block: string, field: string): number[] {
  * unterminated frontmatter block, or absent fields all yield `{ loadBearing: false, edges: [] }` and
  * this function never throws.
  */
-export function parseAdrWireSignals(filename: string, raw: string): { loadBearing: boolean; edges: number[] } {
+export function parseAdrWireSignals(filename: string, raw: string): ParseAdrWireSignalsResult {
   if (!ADR_FILENAME.test(filename)) return emptyResult();
   if (!raw.startsWith('---\n')) return emptyResult();
   const end = raw.indexOf('\n---', 4);

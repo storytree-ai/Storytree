@@ -95,12 +95,14 @@ export type EnsureDbResult =
  */
 export const START_TIMEOUT_MS = 120_000;
 
+export interface RealBudgetResult { expired: Promise<void>; cancel: () => void }
+
 /**
  * The real cancellable timer both budgets in this module run on. Shared rather than inlined twice so
  * the probe's timeout and the activation call's timeout cannot drift into different cancel
  * semantics — a budget that is not cancelled holds the event loop open past a finished command.
  */
-export function realBudget(ms: number): { expired: Promise<void>; cancel: () => void } {
+export function realBudget(ms: number): RealBudgetResult {
   let timer: NodeJS.Timeout | undefined;
   const expired = new Promise<void>((resolve) => {
     timer = setTimeout(resolve, ms);

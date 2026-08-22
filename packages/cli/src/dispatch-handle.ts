@@ -46,12 +46,14 @@ export interface DispatchHandleReading {
 /** The sentinel suffix `scripts/gate-bg.sh` appends to the log path. */
 const EXIT_SUFFIX = ".exit";
 
+export interface NormalizeHandleResult { logPath: string; exitFile: string }
+
 /**
  * Accept either half of the handle. `gate:bg` prints BOTH paths, so an agent copying the wrong line
  * is the likeliest input error there is — and answering it with "not dispatched" would be a false
  * negative dressed as a fact about the job.
  */
-export function normalizeHandle(handle: string): { logPath: string; exitFile: string } {
+export function normalizeHandle(handle: string): NormalizeHandleResult {
   const trimmed = handle.trim();
   if (trimmed.endsWith(EXIT_SUFFIX)) {
     return { logPath: trimmed.slice(0, -EXIT_SUFFIX.length), exitFile: trimmed };

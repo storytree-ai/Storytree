@@ -85,6 +85,16 @@ export function foldUnitTotals(unit: BehaviourClaimUnit): UnitClaimTotals {
   };
 }
 
+export interface FoldCorpusTotalsResult {
+  units: number;
+  files: number;
+  behaviours: number;
+  claimed: number;
+  contractless: number;
+  unreadable: number;
+  rows: UnitClaimTotals[];
+}
+
 /**
  * PURE: the corpus-wide totals across every scanned unit.
  *
@@ -93,15 +103,7 @@ export function foldUnitTotals(unit: BehaviourClaimUnit): UnitClaimTotals {
  * capability whose contracts might claim it. The number is therefore a count of citation questions,
  * not of distinct tests; the two differ on this corpus and conflating them would misreport both.
  */
-export function foldCorpusTotals(units: readonly BehaviourClaimUnit[]): {
-  units: number;
-  files: number;
-  behaviours: number;
-  claimed: number;
-  contractless: number;
-  unreadable: number;
-  rows: UnitClaimTotals[];
-} {
+export function foldCorpusTotals(units: readonly BehaviourClaimUnit[]): FoldCorpusTotalsResult {
   const rows = units.map(foldUnitTotals);
   const distinctFiles = new Set(units.flatMap((u) => u.files.map((f) => f.file)));
   return {

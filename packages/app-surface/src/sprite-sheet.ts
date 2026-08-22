@@ -62,6 +62,13 @@ export function resolveSprite(
   return sheet.sprites[kind] ?? null;
 }
 
+export interface SpritePlacementResult {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 /**
  * The `<image>` placement that seats a resolved sprite's ground-contact pivot at the wrapper's local
  * `(0, 0)` — so the studio mapper can keep the wrapper's EXISTING `transform` untouched (the object's
@@ -69,12 +76,7 @@ export function resolveSprite(
  * 1) scales the sprite's own box before the pivot offset is computed, so the anchor still lands exactly
  * on the scaled edges/centre.
  */
-export function spritePlacement(def: SpriteDef): {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-} {
+export function spritePlacement(def: SpriteDef): SpritePlacementResult {
   const scale = def.scale ?? 1;
   const width = def.w * scale;
   const height = def.h * scale;

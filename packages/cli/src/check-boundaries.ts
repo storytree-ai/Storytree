@@ -105,12 +105,7 @@ function readPackageDeps(): Record<string, string[]> {
  * Every story's declared cross-story edges (id = the stories/<dir> name, matching the forest):
  * the consumer-side `depends_on` and the provider-side `consumed_by` (ADR-0074 §4).
  */
-function readStoryGraphs(): {
-  storyGraph: Record<string, string[]>;
-  consumedBy: Record<string, string[]>;
-  artifactEdges: Record<string, string[]>;
-  retired: Set<string>;
-} {
+function readStoryGraphs() {
   const storiesDir = join(repoRoot, "stories");
   const storyGraph: Record<string, string[]> = {};
   const consumedBy: Record<string, string[]> = {};

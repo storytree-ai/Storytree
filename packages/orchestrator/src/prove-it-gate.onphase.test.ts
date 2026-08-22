@@ -75,7 +75,7 @@ function phaseAwareModel(): ScriptedModel {
 function freshSpec(args: {
   observations: TestObservation[];
   onPhase: (phase: Phase) => void;
-}): { spec: ProveSpec; store: InMemoryStore } {
+}) {
   const store = new InMemoryStore();
   const spec: ProveSpec = {
     unitId: "unit-1",

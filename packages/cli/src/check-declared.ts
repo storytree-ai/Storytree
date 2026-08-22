@@ -93,6 +93,8 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   });
 }
 
+export interface EvaluateDeclaredResult { verdict: "ok" | "fail"; message: string }
+
 /**
  * PURE: the claim-gate decision (ADR-0200 D3). "ok" while the session holds >= 1 live claim of ANY
  * grade — a `worktree create` exploring claim and a `declare --node` work claim both pass (an
@@ -103,7 +105,7 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 export function evaluateDeclared(input: {
   sessionId: string;
   claims: readonly { unitId: string; grade?: string }[];
-}): { verdict: "ok" | "fail"; message: string } {
+}): EvaluateDeclaredResult {
   if (input.claims.length > 0) {
     const held = input.claims.map((c) => `${c.unitId} (${c.grade ?? "work"})`).join(", ");
     return {
@@ -125,6 +127,8 @@ export function evaluateDeclared(input: {
 
 /** How many dirty paths the FAIL message lists before truncating (the gate output stays readable). */
 const DIRTY_PATHS_SHOWN = 3;
+
+export interface EvaluateLobbyResult { verdict: "skip" | "fail"; message: string }
 
 /**
  * PURE: the lobby decision (ADR-0245 D5.2) — is the shared primary checkout carrying uncommitted
@@ -150,7 +154,7 @@ export function evaluateLobby(input: {
   branch: string | null;
   primaryCheckout: string;
   dirtyPaths: readonly string[];
-}): { verdict: "skip" | "fail"; message: string } {
+}): EvaluateLobbyResult {
   if (!input.hasManagedWorktreesDir || input.dirtyPaths.length === 0) {
     return { verdict: "skip", message: "" };
   }
@@ -199,6 +203,8 @@ function git(args: readonly string[], cwd?: string): string | null {
   }
 }
 
+export interface EvaluateLobbyFromGitResult { verdict: "skip" | "fail"; message: string }
+
 /**
  * Gather the lobby facts from git alone (no DB, no network) and decide. Returns "skip" on ANY git
  * failure — a check that cannot read the repo must never invent a red gate.
@@ -208,7 +214,7 @@ function git(args: readonly string[], cwd?: string): string | null {
  * dirtiness read — identically either way. `cwd` defaults to the process cwd and exists so the
  * tests can point the whole probe at a throwaway fixture repo instead of chdir-ing.
  */
-export function evaluateLobbyFromGit(cwd?: string): { verdict: "skip" | "fail"; message: string } {
+export function evaluateLobbyFromGit(cwd?: string): EvaluateLobbyFromGitResult {
   // Shared across the primary checkout and all its worktrees; its parent IS the primary checkout.
   const commonDir = git(["rev-parse", "--path-format=absolute", "--git-common-dir"], cwd);
   if (commonDir === null) return { verdict: "skip", message: "" };
