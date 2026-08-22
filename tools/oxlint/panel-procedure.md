@@ -181,6 +181,23 @@ five, amortises the controls across all of them, and makes the target harder to 
 has seven rules to settle and should batch rather than convene seven panels — see the cost section of
 `panels/no-unsafe-dictionary-type.md` for the arithmetic.
 
+**`inc-05` did it, and the arithmetic held.** Four target rules against the same two controls, one
+packet, five judges: **551,160 judge tokens for four adjudications**, against ~480k for `inc-04`'s
+single target. That is **1.15x the cost of a one-target panel** and ~29% of four separate panels.
+Doubling the specimens (3 → 6) cost **15% more per seat** (~96k → ~110k), not 100%, because the
+shared context, the seat brief and the controls are paid once either way. And blinding measurably
+did not weaken: the uphold control came back `adopt-narrowed` ×5 with the *same* convergent
+narrowing it produced in `inc-04`, on a different packet with twice the specimens. **Batch by
+default; a single-target rule panel now needs a reason.**
+
+**Reuse a control that has already run, and say so in the record.** A control's value is that its
+answer is held independently — reusing one across panels adds a second, cheaper property: a
+control that returns the *same* answer twice on two different packets calibrates the instrument
+in a way a first-time control cannot. Carry the previous run's measured behaviour into the
+`expected` field (`inc-05` did: "`adopt-narrowed` ×5 here is the instrument REPEATING, and is a
+PASS; a plain `adopt` sweep would be a drift and a `reject` anywhere is a FAIL"), so the next
+operator is scoring against what the control actually does rather than against a prediction.
+
 ### 6. Write the record
 
 `tools/oxlint/panels/<rule>.md`, and it must carry:
@@ -233,6 +250,20 @@ A flaw in the instrument was read as a flaw in the subject, and it pushed the ve
 answer the operator already expected. **If a panel reports something odd about the evidence, treat it
 as a finding about the packet before you treat it as a finding about the rule** — and if the evidence
 was wrong, fix it and re-run rather than keeping a verdict you now know was reached on bad input.
+
+**A rule statement stated more strongly than upstream states it is a leak, and it is the one the
+refusals cannot catch.** `renderPacket` checks for the rule's NAME and for a COUNT; it cannot check
+whether you argued the rule harder — or weaker — than its author did. In `inc-05` the statement for
+`no-shape-in-symbol-names` ended "the rule is deliberately absolute: a term this weak has no position
+in which it is the best available name." That sentence was the operator's gloss; upstream's doc
+comment only says the substring is disallowed. **Three of five judges quoted that sentence back as
+the thing they were refuting.** The gloss was *accurate* — the implementation genuinely has no
+options — but accuracy is not the test: the test is whether the rule is stated in ITS OWN voice or in
+yours. Write the statement from the vendored rule's `docs.description` and `messages` and stop
+there; if the rule's absolutism matters, let the evidence show it. And when you notice afterwards
+that you did this, **record it in the panel record and say whether the verdict rests on it** —
+`inc-05` settled its case by measuring the whole population the sample was drawn from, which is
+cheaper than a re-run and answers a stronger question.
 
 **Do not run the judges inside the repository's own context.** A judge that explores will find
 `oxlint.config.ts`, which names every rule, its status and its lane.

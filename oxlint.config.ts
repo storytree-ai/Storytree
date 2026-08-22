@@ -155,6 +155,151 @@ export default defineConfig({
     // judges said they would support one; it needs its own proposal and its own evidence.
     "anti-slop/no-unsafe-dictionary-type": "off",
 
+    // ═══════════════════════════════════════════════════════════════════════════════════════
+    // THE FOUR BELOW WERE REJECTED BY ONE BATCHED JUDGE PANEL, 2026-08-22 (inc-05). Five blind
+    // judges, six specimens — four targets against the two controls inc-04 proved — in a SINGLE
+    // packet, because the builder takes N specimens and the blinding gets STRONGER with more
+    // rules, not weaker. Full record, every seat's reasoning and the dissent in its own words:
+    // `tools/oxlint/panels/inc-05-contested-type-rules.md`.
+    //
+    // THE INSTRUMENT DISCRIMINATED, which is what makes four rejections a measurement rather
+    // than an agreement. The uphold-control (`no-chained-type-assertions`, ground truth from the
+    // COMPILER — inc-03 reduced its production chains to single assertions and three then failed
+    // to compile) was never rejected by any seat: `adopt-narrowed` 5-0, REPEATING inc-04's result
+    // on the same control exactly, down to the convergent narrowing. The reject-control (a
+    // synthetic rule that `verbatimModuleSyntax` makes uncompliable) was refused 5-0. A panel that
+    // upholds the rule the compiler already convicted, and refuses the one that would break the
+    // build, is adjudicating.
+    //
+    // ⚠ ALL FOUR REJECTIONS LAND ON THE ARC'S CLOSED LIST OF TWO — functionality loss, or a
+    // genuine exceptional set. NOT on volume: the builder refuses a packet that states a count,
+    // and no judge was shown one.
+    // ═══════════════════════════════════════════════════════════════════════════════════════
+
+    // REJECTED 5-0 at high confidence. Re-measured at HEAD 2026-08-22: 748 (606 source / 142 test,
+    // 229 files) — the largest contested rule in the set, and the estimate that was 12x low.
+    //
+    // FUNCTIONALITY LOSS, AND IT IS CIRCULAR. The rule's remedy is "decode at the I/O boundary with
+    // a schema, a parser or a constructor, then branch on the domain value" — but every parser and
+    // every schema is BUILT OUT OF `typeof`. Four judges made the point independently: `stringsOf`,
+    // `isPlainObject`, `docRecord`/`docString`, `finiteCount` ARE the boundary the rule demands, and
+    // flagging the parser for containing a representation check forbids the boundary from existing
+    // in this repo at all. zod's own primitives are `typeof x === "string"` one layer down.
+    //
+    // AND A LARGE CLASS IS NOT A DATA QUESTION AT ALL. `typeof globalThis.fetch !== "function"` and
+    // `typeof window !== 'undefined'` are RUNTIME CAPABILITY PROBES; no schema can answer "does this
+    // runtime have fetch", and the alternative is catching a ReferenceError. ~40 source sites are
+    // this shape. Two more classes the rule cannot see: `typeof inc.outcome?.date === "string"`
+    // exists BECAUSE `exactOptionalPropertyTypes` is on (banning it would force an unguarded
+    // assignment plus a cast to silence EOPT — the rule would manufacture the unsound code its
+    // siblings exist to remove), and `typeof chunk === 'string'` discriminates a genuinely
+    // polymorphic Node overload (`ServerResponse['end']`), where the representation IS the contract.
+    //
+    // ⚠ `allowInTypeGuards` IS NOT THE ANSWER — measured, not assumed. Turning the option on removes
+    // 64 of 748 (748 → 684; source 606 → 543), because it only exempts a `typeof` lexically inside a
+    // function whose return type is a `TSTypePredicate`, and most of this repo's narrowing is in
+    // plain validators, `asserts` functions and inline guards. The increment expected this option to
+    // be the realistic outcome; it is an 8.5% dent. The false-positive seat reached the same place
+    // unaided: the narrowing that would make the rule honest "leaves it with essentially no sites
+    // left to fire on".
+    "anti-slop/no-runtime-typeof": "off",
+
+    // REJECTED 5-0 at high confidence. Re-measured at HEAD: 363 (207 source / 156 test, 56 files).
+    //
+    // GENUINE EXCEPTIONAL SET, AND ONE HARD FUNCTIONALITY LOSS. The rule is a case-insensitive
+    // SUBSTRING ban on "shape" in every `Identifier` / `PrivateIdentifier` / `JSXIdentifier` — it has
+    // no options and no exceptions, so it cannot distinguish the word's structural sense from its
+    // domain sense. Measured across all 207 SOURCE sites, not the panel's twelve:
+    //   - 73 (35%) are in the geometry and rendering packages, where the brief's own words are that
+    //     geometric modelling vocabulary IS the working vocabulary: `CanopyShape = 'spire' | 'dome'`
+    //     names a tree silhouette, `part.shape.faces` is a solid's geometry, `shapeKey(poly)` is a
+    //     translation-invariant polygon identity, and one site picks an SVG mark ('square'|'circle').
+    //     Every judge named these; renaming them destroys meaning to satisfy a word.
+    //   - 21 are closed classification unions whose members already carry the meaning the rule says
+    //     is missing (`StartShape = "healthy" | "slow-but-proceeded" | "allocate-then-die" | …`).
+    //     The rule's remedy yields `…Kind`/`…Outcome` — a synonym swap that teaches a reader nothing.
+    //   - 2 ARE NOT OURS TO RENAME: `z.ZodRawShape` at `packages/library/src/library-doc.ts:139,143`,
+    //     needed to type `z.ZodObject<z.ZodRawShape>`. It is a type ZOD exports. Aliasing the import
+    //     does not help — the rule visits the imported identifier too — so the only compliant move is
+    //     to stop naming zod's type, which loses the type. That is functionality loss in the strict
+    //     sense, and it is the one ground here that is not a matter of taste at all. `commonShape` is
+    //     the same vocabulary problem one step out: `shape` is zod's own published API term for an
+    //     object's field set (`z.object(shape)`, `.shape`).
+    //   - The remaining 111 firings reduce to FIFTEEN distinct identifiers, of which the panel judged
+    //     one to three genuinely weak (`WORKSPACE_SHAPE`, `commonShape`, `isParsedLineShape`).
+    // One-to-three real hits in twelve sampled — and in 207 measured — is the ratio that trains
+    // people to ignore a linter. A narrowing was considered and refused by the panel for the reason
+    // inc-04 refused the dictionary-type narrowing: exempting geometry and classification unions
+    // removes most of the sites and leaves a rule too small to justify. Ban vagueness in review.
+    //
+    // ⚠ ONE HONEST LIMITATION OF THIS RUN, recorded rather than buried: the rule statement put to
+    // the panel said the ban is "deliberately absolute: a term this weak has no position in which it
+    // is the best available name". That sentence is the operator's gloss, not upstream's, and three
+    // judges quoted it back as the thing they were refuting. It is ACCURATE — the implementation
+    // has no options — but it is stronger than the vendored doc comment. The verdict does not rest
+    // on it: the geometry population, the zod identifier and the residue count are all measured
+    // facts that stand without it. See the record's "What this run got wrong" section.
+    "anti-slop/no-shape-in-symbol-names": "off",
+
+    // REJECTED 4-1. Re-measured at HEAD: 323 (236 source / 87 test, 183 files). THE ONE SPLIT
+    // VERDICT ON THIS PANEL — the `codebase-architecture` seat returned `adopt-narrowed` (medium)
+    // and its dissent is recorded in full in the panel record, because a 4-1 and a 5-0 are
+    // different evidence and must not read the same.
+    //
+    // FUNCTIONALITY LOSS — the type predicate becomes inexpressible, which is inc-04's
+    // `no-unsafe-dictionary-type` finding arriving from the other side. `isPlainObject(value:
+    // unknown): value is Record<string, unknown>` cannot narrow anything if its parameter is
+    // already narrowed; a guard whose input is the domain type is a tautology. 37 source sites are
+    // predicates or `asserts` functions.
+    //
+    // AND THE RULE'S OWN EXCEPTION IS DRAWN TOO NARROW TO SURVIVE ITS OWN EVIDENCE, which four
+    // judges found independently. It carves out an error `cause` — but `useUnknownInCatchVariables`
+    // makes TypeScript type every caught value `unknown` BY CONSTRUCTION, so `.catch((error:
+    // unknown) => …)` fires, and so does `teardownAndThrow(label, e: unknown)`, which forwards `e`
+    // straight into `{ cause: e }` and is therefore literally the carved-out case. 45 source sites
+    // are caught errors. A third class is variance, not habit: `OrientationRunner`'s `deps: unknown`
+    // is the widest type that accepts every concrete deps object, and narrowing it breaks every
+    // implementer — the comment at the site says so.
+    //
+    // WHAT THE DISSENT IS RIGHT ABOUT, and it is worth a later look: a residue exists. The clearest
+    // is `injectedStatePath(sessionId: unknown)` in `packages/cli/definition-injection.d.mts:70` —
+    // a value this program owns and named, sitting beside `isOperatorPrompt(prompt: string)` in the
+    // same file. That is defensive drift, not a boundary. The majority position is not that the
+    // residue is imaginary but that the rule as SHIPPED has no option able to express any of the
+    // four permitted positions the dissent would need, so adopting it at error means firing on the
+    // guards, the catch handlers and the wire readers at the same time.
+    "anti-slop/no-unknown-parameters": "off",
+
+    // REJECTED 5-0 at high confidence. Re-measured at HEAD: 41 (16 source / 25 test, 31 files) —
+    // the SMALLEST contested rule in the set, which is why its rejection is worth reading closely:
+    // it was refused on the architecture, not on the cost of complying, and 16 sites is a morning's
+    // work if the rule were right.
+    //
+    // FUNCTIONALITY LOSS AT THE STORE SEAM — the same structural commitment that carried
+    // `no-unsafe-dictionary-type`. `packages/storage-protocol` persists and returns documents
+    // WITHOUT knowing their shapes and readers `.safeParse()` on the far side (ADR-0068 §3), so
+    // `HttpStore`'s `#get`/`#post` returning `Promise<unknown>` is that contract stated honestly.
+    // Naming a domain return type there would require the transport to import every domain schema,
+    // inverting the dependency direction — `storage-protocol` is the root that depends only on
+    // `proof-protocol`. The rule's central claim, that "the producing function is the one place the
+    // value's provenance is actually known", is precisely FALSE for a generic transport: `#get`
+    // knows the route and nothing else, and every caller knows more than it does.
+    //
+    // TWO MORE CLASSES THE RULE CANNOT NAME. `readMember(node: unknown, segment: string): unknown`
+    // (`packages/library/src/query.ts:124`) walks an arbitrary member path for `--where
+    // cites=story:cli`; a path walker over arbitrary names has no nameable return. And
+    // `appendEvent(…): Promise<unknown>` / `select1: (handle) => Promise<unknown>` are injected
+    // seams whose result is DELIBERATELY discarded — `select1` is a `SELECT 1` whose only meaning
+    // is that it resolved. Naming a type there invents a fact and makes every test double carry it.
+    //
+    // THE ONE GENUINE DEFECT THE PANEL FOUND, and it is not this rule's: `type RouteReply = Response
+    // | Promise<Response> | unknown` in the studio's test HTTP double. The `unknown` member absorbs
+    // the union and makes the first two arms decorative, so a reader is misled about what a route
+    // may return. Three judges named it. The rule that catches it is "no `unknown` member in a
+    // union" — a different rule, needing its own proposal and its own evidence, exactly as inc-04
+    // ruled for the `Record<string, any>` ban.
+    "anti-slop/no-unknown-returns": "off",
+
     // ---------------------------------------------------------------------------------------
     // NOT YET ADJUDICATED — off, not "warn", deliberately. A wall of warnings nobody must clear
     // trains sessions to ignore the linter, which is the precise habit this adoption exists to
@@ -172,11 +317,36 @@ export default defineConfig({
     // defined type before it runs. So there is no collision — an annotated local plus one guarded
     // assignment per optional property satisfies both.
     //
-    // The lane is `inc-05`, and it is expected to ADOPT AND REFACTOR rather than adjudicate. Read
-    // `tools/oxlint/panels/no-conditional-empty-object-spread.md` first: the panel named five costs,
-    // two of which would manufacture a `no-chained-type-assertions` violation if the migration takes
-    // the obvious shortcut, and one — the hoisted local MUST carry an explicit type annotation, or
-    // excess-property checking silently disappears — that a mechanical fixer would get wrong.
+    // IT IS NOT CONTESTED AND IT IS NOT REJECTED — it is the arc's one ADOPT-AND-REFACTOR lane, and
+    // under the owner's narrowed bar adopting needs no panel. It is `off` only because the migration
+    // has not been done. Read `tools/oxlint/panels/no-conditional-empty-object-spread.md` first: the
+    // panel named five costs, two of which would manufacture a `no-chained-type-assertions` violation
+    // if the migration takes the obvious shortcut, and one — the hoisted local MUST carry an explicit
+    // type annotation, or excess-property checking silently disappears — that a mechanical fixer
+    // would get wrong.
+    //
+    // inc-05 RE-HOMED THIS TO ITS OWN INCREMENT — `anti-slop-adoption-arc-inc-11` — rather than
+    // folding it into an adjudication diff,
+    // on that increment's own instruction ("batch the adjudication, NOT the migration — migrate one
+    // rule at a time; a mixed diff across three rules cannot be reverted per rule when one turns out
+    // wrong"), and on inc-03's precedent of re-sorting a rule out when the inventory disproves how it
+    // was sized. Re-measured at HEAD 2026-08-22: 663 (581 source / 82 test, 174 files).
+    //
+    // THE INVENTORY THE NEXT LANE NEEDS, and it prices the work far above the count. The panel's
+    // cost 5 predicted that the lane's real expense is anonymous shapes acquiring names; measured
+    // across all 581 SOURCE sites by the typing context of the enclosing object literal:
+    //     299 (51%)  inline ARGUMENT position — typed only contextually by the callee's parameter
+    //     140 (24%)  bare `return {` — the function's return type is INFERRED from the literal
+    //      54 (9%)   already an annotated local/const — the type exists, mechanical
+    //      47 (8%)   un-annotated local
+    //      15 (3%)   annotated function return — the type exists, mechanical
+    //      26 (4%)   unclassified
+    // So ~439 of 581 (76%) need a named type AUTHORED that does not exist today, and only ~69 are
+    // mechanical. That is not a reason to reject — volume and effort are explicitly not grounds
+    // (ADR-0407, the owner's narrowed bar) — it is the reason it is its own lane with its own diff.
+    // 150 of the 581 sit in `packages/cli/src/commands.ts` alone, all of it CLI option forwarding
+    // (`...(values.x !== undefined ? { k: v } : {})`) into functions whose parameter type is the
+    // only name available.
     "anti-slop/no-conditional-empty-object-spread": "off",
     // 513 (312 source / 201 test, 253 files) — RE-SORTED OUT OF inc-03 AND CONTESTED, on that lane's
     // own instruction to remove a rule that turns out not to be cheap rather than let the lane sprawl.
@@ -191,18 +361,6 @@ export default defineConfig({
     // rule is that a disagreement goes to the RULE PANEL and never to one session's preference. Its
     // own lane; see the arc.
     "anti-slop/no-known-value-widening": "off",
-    // 727 (585 / 142, 221 files) — the rules cannot see types, so this flags EVERY `typeof`
-    // expression: environment guards and validator internals fire identically to lazy narrowing.
-    // Ships an `allowInTypeGuards` option (default false). inc-05.
-    "anti-slop/no-runtime-typeof": "off",
-    // 263 (163 / 100, 47 files) — highest violations-per-file ratio in the set, so likely a small
-    // number of naming conventions rather than a broad problem. inc-05.
-    "anti-slop/no-shape-in-symbol-names": "off",
-    // 318 (228 / 90, 179 files) — structural tension: a function that PARSES an unvalidated value
-    // has no honest signature other than `unknown`. inc-05, rule panel.
-    "anti-slop/no-unknown-parameters": "off",
-    // 40 (15 / 25, 31 files) — the smallest contested rule. inc-05.
-    "anti-slop/no-unknown-returns": "off",
   },
   overrides: [
     {
