@@ -495,6 +495,9 @@ export const UAT_DRIVE_TOOLING_CLAUSE = [
   "  - Write screenshots, traces, logs and scratch files OUTSIDE the repository, or under an",
   "    already-ignored path. A drive refuses to run against a dirty tree, so anything you leave",
   "    behind blocks the NEXT drive.",
+  "  - The runner already established this checkout was clean immediately before this session. Do not",
+  "    treat a later untracked path as a preflight failure or delete it yourself: keep your own",
+  "    artifacts out of the repository and let the runner attribute and sweep residue after your report.",
 ].join("\n");
 
 /** Browser tooling, used only when the authored criterion does not require the native shell. */

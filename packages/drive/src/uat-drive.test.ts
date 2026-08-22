@@ -487,6 +487,11 @@ test("uatDriveTaskPrompt: forbids an unbounded wait, an inherited server, and ar
   assert.match(prompt, /recorded\s+as a MISS/, "the driver must know an overrun yields no report at all");
   assert.match(prompt, /do NOT attach to whatever is already listening/);
   assert.match(prompt, /OUTSIDE the repository, or under an\s+already-ignored path/);
+  assert.match(
+    prompt,
+    /runner already established this checkout was clean/i,
+    "a child must not turn a later, self-created untracked artifact into a false preflight failure",
+  );
 });
 
 test("classifyBackgroundToolEnd: a completed exact-tool result outranks a later control-channel loss", () => {
