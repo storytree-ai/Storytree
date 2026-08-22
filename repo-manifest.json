@@ -109,6 +109,7 @@
       "packages/cli/src/*deploy-health*.ts": "deploy-health-signal",
       "packages/cli/src/check-declared.ts": "claim-at-declare",
       "packages/cli/src/check-process-graph.ts": "library-health-gate",
+      "packages/cli/src/check-adr-health.ts": "adr-health-gate",
       "packages/cli/src/*graduat*.ts": "signal-synthesis",
       "packages/cli/src/*friction*.ts": "feedback-graduation",
       "packages/cli/src/drift.ts": "drift-reads-store",

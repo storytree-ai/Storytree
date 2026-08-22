@@ -110,11 +110,26 @@ export interface StoreAdrMetasResult extends LoadTitledAdrMetasResult {
    * returning zero would read as FRESH — a check failing toward the answer that blesses unread work.
    */
   unreadable: boolean;
+  /**
+   * Rows whose stored `number` disagrees with the number in their own id — one FAIL line each.
+   *
+   * This is what replaces `adr-number-unique` after the migration, and it is NOT the same question
+   * wearing a new name. Two FILES sharing a number was the parallel-authoring collision ADR-0050's
+   * allocator exists to prevent; two ROWS cannot share one, because the id is the primary key. That
+   * check therefore becomes VACUOUS — a green that verified nothing, which is worse than no check.
+   *
+   * What IS reachable is a row whose `number` field drifts from its id, since both are ordinary
+   * fields a `library artifact edit --set number=…` can move independently. The loader keys every
+   * downstream reader off the ID (the allocator's own reservation), so a drifted `number` would make
+   * a decision render and cite as one number while being addressed as another.
+   */
+  numberMismatches: string[];
 }
 
 export async function loadTitledAdrMetasFromStore(store: Store): Promise<StoreAdrMetasResult> {
   const adrs: TitledAdrMeta[] = [];
   const parseErrors: string[] = [];
+  const numberMismatches: string[] = [];
   let rows: readonly { id: string; doc: unknown }[];
   try {
     rows = await store.queryDocs({ kind: "adr" });
@@ -126,6 +141,7 @@ export async function loadTitledAdrMetasFromStore(store: Store): Promise<StoreAd
       adrs,
       parseErrors: [`decision rows unreadable: ${err instanceof Error ? err.message : String(err)}`],
       unreadable: true,
+      numberMismatches: [],
     };
   }
   for (const row of rows) {
@@ -139,6 +155,17 @@ export async function loadTitledAdrMetasFromStore(store: Store): Promise<StoreAd
     if (!parsed.success) {
       parseErrors.push(`${row.id}: unreadable status ${JSON.stringify(bag["status"])}`);
       continue;
+    }
+    // The ID is authoritative — it is what the ADR-0050 allocator reserved and what every reader
+    // addresses the decision by. A disagreeing `number` field is REPORTED and the id still wins,
+    // rather than the row being dropped: a decision that renders under the wrong label is a defect
+    // worth a red, and one that vanishes from the corpus entirely is a bigger one.
+    const storedNumber = bag["number"];
+    if (typeof storedNumber === "number" && storedNumber !== number) {
+      numberMismatches.push(
+        `${row.id} stores number ${String(storedNumber)}, which disagrees with its id — the id is ` +
+          "what `adr new` reserved (ADR-0050); correct the field, never the id.",
+      );
     }
     const numbers = (value: unknown): number[] =>
       Array.isArray(value) ? value.filter((n): n is number => typeof n === "number") : [];
@@ -162,5 +189,5 @@ export async function loadTitledAdrMetasFromStore(store: Store): Promise<StoreAd
     });
   }
   adrs.sort((a, b) => a.number - b.number);
-  return { adrs, parseErrors, unreadable: false };
+  return { adrs, parseErrors, unreadable: false, numberMismatches };
 }

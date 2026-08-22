@@ -8,35 +8,23 @@ import type { CheckResult } from "./health.js";
 
 /**
  * The decision-binding health checks (ADR-0037 §3–4) — the module that fires the errors when a
- * claim about a decision drifts. ONE pure core (`adrHealth`) over injected views, with thin
- * fs-backed loaders, mirroring `health.ts`'s shape. Enforced through the ADR-0022 CI gate by
- * `adr-health.test.ts`'s real-repo case: a GATE-class FAIL here is a red `pnpm -r test`.
+ * claim about a decision drifts. ONE pure core (`adrHealth`) over injected views, mirroring
+ * `health.ts`'s shape.
+ *
+ * ★ IT READS ROWS NOW, AND THAT MOVED WHERE IT RUNS (ADR-0403 dec 1). It used to be fired against
+ * the real `docs/decisions` tree by `adr-health.test.ts` inside `pnpm -r test`, which is deliberately
+ * credential-free (ADR-0302 D3) — so the moment its subject became a database, the check could not
+ * stay there. It is a `check:*` rung instead (`check-adr-health.ts`, declared in `gate-order.ts`),
+ * which ADR-0307 D4 permits to hold a store connection. The PURE core is unchanged and its unit
+ * tests stayed exactly where they were; only the real-corpus case moved.
  *
  * Checks:
- *   1 adr-frontmatter      — every docs/decisions file parses with a known status (GATE)
- *   1b adr-number-unique   — no two ADR files share a number (the parallel-authoring collision the
- *                            DB allocator + this gate close, ADR-0050) (GATE)
+ *   1 adr-frontmatter      — every decision row reads with a known status (GATE)
+ *   1b adr-number-identity — a row's stored `number` agrees with the number in its id, which is what
+ *                            the ADR-0050 allocator reserved (GATE). Successor to `adr-number-unique`
+ *                            — see {@link RETIRED_ADR_CHECKS} for why that question dissolved.
  *   2 adr-edge-integrity   — every supersedes / amends target exists (GATE)
  *   3 supersede-consistency — X.supersedes ∋ Y ⇔ Y.status = superseded, both directions (GATE)
- *   3b supersedes-in-part-retired — ADR-0139 retired the `supersedes_in_part` edge ("live in part" is
- *                            no longer a state — edges are binary on the axis of the TARGET'S
- *                            SURVIVAL: `supersedes` = it leaves the current set, `amends` = it stays
- *                            in it. `amends` does NOT mean the target is unchanged — D4).
- *                            The strict frontmatter schema (@storytree/drive) drops the
- *                            field, so a file still carrying it fails to parse (check 1 is the deep,
- *                            un-bypassable floor); this is the friendly, ADR-0139-citing gate —
- *                            `loadRetiredInPartEdges` raw-scans frontmatter and this FAILs on any hit
- *                            (GATE). The former `supersede-in-part-note` incoming-note check (the
- *                            partial-edge analogue of check 3) retired alongside the edge.
- *   3c adr-link-integrity  — every relative `](NNNN-slug.md)` cross-link between decision records
- *                            resolves to a file on disk (GATE). The rot class this closes is the
- *                            RENAME: an ADR's slug changes, and every sibling that linked the old
- *                            filename silently points at nothing (measured 2026-07-29 at 13 dead
- *                            targets / 24 occurrences, ~5.5% of 234 distinct targets). Frontmatter
- *                            edges (check 2) are number-keyed and were never affected — this is the
- *                            PROSE half of the same "a claim about a decision must resolve" rule.
- *                            `loadDeadAdrLinks` raw-scans the bodies and pre-computes the FAIL lines,
- *                            naming the by-number destination so the repair is mechanical.
  *   4 story-decisions      — every story `decisions` entry resolves, and none names a FULLY
  *                            superseded ADR as deciding (GATE)
  *   5 green-flip           — a `healthy` story whose deciding ADR is still `proposed` (GATE;
@@ -48,18 +36,45 @@ import type { CheckResult } from "./health.js";
  *                            dead, so neither may carry the calibrate-to-these tag (GATE)
  *   7 enforced-by-anchors  — backtick path tokens in guardrail `enforcedBy` resolve on disk
  *                            (WARN — enforcedBy stays prose; oq-artifact-code-backing → B)
+ *
+ * Three rungs RETIRED with the files, each with its reason: {@link RETIRED_ADR_CHECKS}.
  */
 
 export const ADR_GATE_CHECKS: ReadonlySet<string> = new Set([
   "adr-frontmatter",
-  "adr-number-unique",
+  "adr-number-identity",
   "adr-edge-integrity",
   "supersede-consistency",
-  "supersedes-in-part-retired",
-  "adr-link-integrity",
   "story-decisions",
   "green-flip",
   "load-bearing-live",
+]);
+
+/**
+ * THREE RUNGS RETIRED WHEN DECISIONS BECAME ROWS (ADR-0403 dec 1), each for a different reason, and
+ * declared here rather than silently dropped — a retired check that leaves no record reads later as
+ * a check nobody thought to write.
+ *
+ * - `adr-number-unique` — REPLACED, not deleted, by `adr-number-identity`. Two FILES could share a
+ *   number; two ROWS cannot, because the id is the primary key, so the old question is now
+ *   structurally unanswerable and a check asking it would be a permanent vacuous green. The
+ *   reachable failure moved: a row's `number` FIELD drifting from its id. See
+ *   `loadTitledAdrMetasFromStore`.
+ * - `supersedes-in-part-retired` — GONE. ADR-0139 retired the `supersedes_in_part` edge and this
+ *   rung caught files still carrying the key in raw frontmatter. A row has no frontmatter, the `adr`
+ *   schema declares no such field, and `parseAdrDocument` REFUSES the key outright — so the state it
+ *   guarded cannot be reached at all, by anyone.
+ * - `adr-link-integrity` — GONE, and this is the only one that was a real loss rather than a
+ *   dissolved question. It guarded `](NNNN-slug.md)` cross-links between decision BODIES against
+ *   rename rot (13 dead targets / 24 occurrences when it was added). A relative file link between
+ *   two rows means nothing. Its ROT CLASS is rehomed rather than dropped: the migration loader lifts
+ *   every body cross-link into `references` as `asset:adr-NNNN`, where `referential-integrity`
+ *   already looks — and a number-based ref has no slug to rot, so the class cannot recur.
+ */
+export const RETIRED_ADR_CHECKS: ReadonlyMap<string, string> = new Map([
+  ["adr-number-unique", "replaced by adr-number-identity — a row id is a primary key (ADR-0403 dec 1)"],
+  ["supersedes-in-part-retired", "unreachable — the `adr` schema refuses the key (ADR-0139 + ADR-0403 dec 1)"],
+  ["adr-link-integrity", "rehomed into `references` as `asset:adr-NNNN`, read by referential-integrity"],
 ]);
 
 /** The story view the checks need — id, declared status, deciding ADR numbers. */
@@ -80,15 +95,11 @@ export interface AdrHealthInputs {
   /** Parse failures from loading the decisions dir (each line one file's error). */
   readonly parseErrors: string[];
   /**
-   * Pre-computed FAIL lines for `supersedes-in-part-retired` — one per decisions file whose raw
-   * frontmatter still carries the ADR-0139-retired `supersedes_in_part` key (`loadRetiredInPartEdges`).
+   * Pre-computed FAIL lines for `adr-number-identity` — one per row whose stored `number` disagrees
+   * with its own id (`loadTitledAdrMetasFromStore`). See {@link RETIRED_ADR_CHECKS} for what this
+   * replaced and why the old question stopped being answerable.
    */
-  readonly retiredInPartEdges: string[];
-  /**
-   * Pre-computed FAIL lines for `adr-link-integrity` — one per (decision file, unresolvable
-   * `](NNNN-slug.md)` cross-link target) pair (`loadDeadAdrLinks`).
-   */
-  readonly deadAdrLinks: string[];
+  readonly numberMismatches: string[];
   readonly stories: StoryDecisionsView[];
   readonly guardrails: GuardrailView[];
   /** Resolve a repo-relative path (file OR directory) on disk. */
@@ -115,8 +126,7 @@ function result(name: string, failLines: string[], cleanNote: string, warn = fal
 }
 
 export function adrHealth(inputs: AdrHealthInputs): CheckResult[] {
-  const { adrs, parseErrors, retiredInPartEdges, deadAdrLinks, stories, guardrails, pathExists } =
-    inputs;
+  const { adrs, parseErrors, numberMismatches, stories, guardrails, pathExists } = inputs;
   const byNumber = new Map(adrs.map((a) => [a.number, a]));
   const results: CheckResult[] = [];
 
@@ -125,26 +135,21 @@ export function adrHealth(inputs: AdrHealthInputs): CheckResult[] {
     result("adr-frontmatter", parseErrors, `${adrs.length} ADRs parsed, statuses known`),
   );
 
-  // 1b adr-number-unique — two files sharing a number is the parallel-authoring collision (ADR-0050).
-  // The DB allocator (`storytree adr new`) prevents it proactively; this makes any slip un-mergeable:
-  // CI runs on the PR's merge-into-main ref, so a number already on main fails the PR, and a
-  // concurrent pair fails the gate on main the moment the second lands (it can never silently stay).
-  const byNumberFiles = new Map<number, string[]>();
-  for (const a of adrs) {
-    const arr = byNumberFiles.get(a.number);
-    if (arr) arr.push(a.file);
-    else byNumberFiles.set(a.number, [a.file]);
-  }
-  const collisions: string[] = [];
-  for (const [num, files] of byNumberFiles) {
-    if (files.length > 1) {
-      collisions.push(
-        `ADR-${pad(num)} is claimed by ${files.length} files: ${[...files].sort().join(", ")} ` +
-          `— renumber all but one (\`storytree adr new\` reserves a free number).`,
-      );
-    }
-  }
-  results.push(result("adr-number-unique", collisions, `${byNumberFiles.size} ADR numbers, all unique`));
+  // 1b adr-number-identity — a row's `number` field must agree with the number in its id.
+  //
+  // This is `adr-number-unique`'s successor, not its rename. Two FILES sharing a number was the
+  // parallel-authoring collision ADR-0050's allocator prevents; two ROWS cannot share one, so that
+  // question is now structurally unanswerable and asking it would be a permanent vacuous green. The
+  // failure that IS reachable is drift between the two places a decision's number is written — the
+  // id (what the allocator reserved, and what every reader addresses it by) and the field. See
+  // {@link RETIRED_ADR_CHECKS}.
+  results.push(
+    result(
+      "adr-number-identity",
+      numberMismatches,
+      `${adrs.length} decisions, every stored number agrees with its id`,
+    ),
+  );
 
   // 2 adr-edge-integrity
   const dangling: string[] = [];
@@ -179,33 +184,6 @@ export function adrHealth(inputs: AdrHealthInputs): CheckResult[] {
     }
   }
   results.push(result("supersede-consistency", inconsistent, "supersedes ⇔ superseded holds"));
-
-  // 3b supersedes-in-part-retired (GATE, ADR-0139) — the `supersedes_in_part` edge is retired: "live in
-  // part" is no longer a state (edges are binary on the axis of the TARGET'S SURVIVAL — `supersedes`
-  // = it leaves the current set, `amends` = it stays in it; `amends` does NOT mean the target is
-  // unchanged, D4). The strict
-  // frontmatter schema (@storytree/drive) drops the field, so a file still carrying it fails to parse —
-  // check 1 `adr-frontmatter` is the deep, un-bypassable floor; this is the friendly, ADR-0139-citing
-  // gate, fed the raw-scan hits `loadRetiredInPartEdges` pre-computes ("correct the target in place or
-  // fully supersede it"). The former `supersede-in-part-note` incoming-note check (the partial-edge
-  // analogue of check 3) retired alongside the edge.
-  results.push(
-    result(
-      "supersedes-in-part-retired",
-      retiredInPartEdges,
-      "no ADR carries a retired supersedes_in_part edge (ADR-0139)",
-    ),
-  );
-
-  // 3c adr-link-integrity (GATE) — the PROSE half of check 2. Frontmatter edges are number-keyed, so a
-  // rename can never break them; a body cross-link names the FILE, so renaming an ADR silently rots
-  // every sibling that linked its old slug. Nothing caught that class before, and it had reached 13
-  // dead targets across 24 occurrences (2026-07-29). Repaired to zero and shipped fail-closed AT zero:
-  // the set is empty as this lands, so the first new dead link reds the gate rather than joining a
-  // backlog. `loadDeadAdrLinks` pre-computes the lines and names the by-number destination.
-  results.push(
-    result("adr-link-integrity", deadAdrLinks, "every relative ADR cross-link resolves on disk"),
-  );
 
   // 4 story-decisions
   const badDecisions: string[] = [];
@@ -283,95 +261,15 @@ function pad(n: number): string {
 // can consume it without pulling cli's `adr-health` (and its `health.ts` `CheckResult` dep). Import
 // it from `@storytree/drive` if you need it here.
 
-/**
- * Raw-scan each `NNNN-*.md` file's FRONTMATTER for the ADR-0139-retired `supersedes_in_part` key,
- * returning one pre-computed FAIL line per offending file — the view the `supersedes-in-part-retired`
- * gate reads. It scans the frontmatter block only (not the body), so a prose mention of the retired
- * term never false-positives; a file with no/unterminated frontmatter contributes nothing (the
- * `adr-frontmatter` check owns that failure), so this stays fail-soft. On the post-consolidation repo
- * it returns []. Note the strict frontmatter schema also rejects the key on parse (the deep floor) —
- * this scan is the dedicated gate that names the offending file with the ADR-0139 fix.
+/*
+ * `loadRetiredInPartEdges` and `loadDeadAdrLinks` stood here. Both were RAW SCANS of the
+ * `docs/decisions` FILES — one hunting the ADR-0139-retired `supersedes_in_part` frontmatter key,
+ * the other resolving `](NNNN-slug.md)` cross-links between decision bodies — and both went with
+ * their checks when decisions became rows (ADR-0403 dec 1). {@link RETIRED_ADR_CHECKS} carries the
+ * per-check reason; what matters here is that neither had a store-backed successor to write: the
+ * first guarded a state the `adr` schema now refuses outright, and the second's rot class is
+ * rehomed into `references`, where `referential-integrity` already reads it.
  */
-export function loadRetiredInPartEdges(decisionsDir: string): string[] {
-  const found: string[] = [];
-  for (const file of readdirSync(decisionsDir).sort()) {
-    const m = /^(\d{4})-.*\.md$/.exec(file);
-    if (m === null) continue;
-    const content = readFileSync(path.join(decisionsDir, file), "utf8");
-    if (!content.startsWith("---\n")) continue;
-    const end = content.indexOf("\n---", 4);
-    if (end === -1) continue;
-    const frontmatter = content.slice(4, end + 1);
-    if (/^supersedes_in_part\s*:/m.test(frontmatter)) {
-      found.push(
-        `ADR-${m[1]} (${file}) carries a retired \`supersedes_in_part\` frontmatter edge — ` +
-          `correct the target in place or fully supersede it (ADR-0139).`,
-      );
-    }
-  }
-  return found;
-}
-
-/**
- * A relative sibling cross-link between decision records: `](0110-slug.md)`. Tolerates a `./` prefix
- * and a `#anchor` suffix so neither shape can slip the gate — only the filename is resolved. Anchored
- * on `](` so a bare filename mentioned in prose is never treated as a link.
- */
-const ADR_CROSS_LINK = /\]\((?:\.\/)?(\d{4}-[A-Za-z0-9._-]*\.md)(?:#[^)\s]*)?\)/g;
-
-/**
- * Raw-scan every decision record's BODY for relative `](NNNN-slug.md)` cross-links that resolve to no
- * file, returning one pre-computed FAIL line per (source file, dead target) — the view the
- * `adr-link-integrity` gate reads.
- *
- * The rot class is the RENAME. `supersedes` / `amends` edges are number-keyed, so check 2 has always
- * held them; a prose cross-link names the FILE, so re-slugging an ADR leaves every sibling that linked
- * the old name pointing at nothing, silently and forever. Because an ADR's NUMBER is the stable
- * identity (the first four digits, kept unique by `adr-number-unique`), the correct destination is
- * always the on-disk file carrying that number — so each line names it, making the repair mechanical
- * rather than a slug guess.
- *
- * Repeats of the same dead target within one file collapse to a single line (the fix is one
- * find/replace in that file). Scans every `NNNN-*.md`; a link out of the directory (`../research/x.md`,
- * `../../stories/y/story.md`) is a different, judgement-bearing class and is deliberately NOT covered.
- */
-export function loadDeadAdrLinks(decisionsDir: string): string[] {
-  const entries = readdirSync(decisionsDir).sort();
-  const onDisk = new Set(entries);
-  const adrFiles = entries.filter((f) => /^\d{4}-.*\.md$/.test(f));
-  const byNumber = new Map<string, string[]>();
-  for (const f of adrFiles) {
-    const num = f.slice(0, 4);
-    const arr = byNumber.get(num);
-    if (arr) arr.push(f);
-    else byNumber.set(num, [f]);
-  }
-
-  const found: string[] = [];
-  for (const file of adrFiles) {
-    const content = readFileSync(path.join(decisionsDir, file), "utf8");
-    const reported = new Set<string>();
-    for (const m of content.matchAll(ADR_CROSS_LINK)) {
-      const target = m[1];
-      if (target === undefined || onDisk.has(target) || reported.has(target)) continue;
-      reported.add(target);
-      const num = target.slice(0, 4);
-      const candidates = byNumber.get(num) ?? [];
-      const first = candidates[0];
-      const fix =
-        candidates.length === 1 && first !== undefined
-          ? `repoint it by NUMBER to \`${first}\``
-          : candidates.length === 0
-            ? `no decision record carries number ${num} — drop the link or name a real record`
-            : `number ${num} is carried by ${candidates.length} files (${candidates.join(", ")}) — resolve adr-number-unique first`;
-      found.push(
-        `ADR-${file.slice(0, 4)} (${file}) links to \`${target}\`, which does not exist — ${fix}. ` +
-          "Change the link TARGET only; the link text and surrounding prose stay untouched (ADR-0139 truth-maintenance).",
-      );
-    }
-  }
-  return found;
-}
 
 /** Load every story's decision view from `stories/<id>/story.md` (the node-spec light loader). */
 export function loadStoryDecisions(storiesDir: string): StoryDecisionsView[] {
