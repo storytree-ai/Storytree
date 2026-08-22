@@ -5,34 +5,80 @@
  *
  * ## WHY THIS EXISTS
  *
- * `observeCliInvocation` is an allowlist over `storytree` argv, and `adr` is not on it — nor could
- * it be, because there is no read verb for a decision record: an agent that wants ADR-0223 opens
- * `docs/decisions/0223-….md` with the ordinary file tool. So ZERO decision reads have ever reached
- * a traversal trace, while roughly a third of every reading list the corpus hands an agent points
- * into the decision log. The harness has nonetheless been writing all of those reads down the whole
- * time, in the same transcript files `correlate-transcripts.ts` already scans for occupancy. This
- * module is the missing extractor, and nothing more.
+ * `observeCliInvocation` is an allowlist over `storytree` argv, and for most of this module's life
+ * `adr` was not on it — nor could it be, because there was no read verb for a decision record: an
+ * agent that wanted ADR-0223 opened `docs/decisions/0223-….md` with the ordinary file tool. So ZERO
+ * decision reads had ever reached a traversal trace, while roughly a third of every reading list the
+ * corpus hands an agent points into the decision log. The harness has nonetheless been writing all
+ * of those reads down the whole time, in the same transcript files `correlate-transcripts.ts`
+ * already scans for occupancy. This module is the missing extractor, and nothing more.
+ *
+ * ## A DECISION IS NOW READ OUT OF THE STORE, AND THIS MODULE HAD TO CATCH UP
+ *
+ * ADR-0403 dec 1 made a decision an ordinary Library row and `docs/decisions/` was deleted whole
+ * (2026-08-22). A file-path matcher is therefore a matcher whose SUBJECT MOVED: from that commit on
+ * it can only ever return zero, and a zero from an extractor reads exactly like a session that
+ * consulted no decision. That is the third instance of one fault class on this migration — the three
+ * ADR probes and the curator's decision context were the first two — and it is why the blindness
+ * counter below exists rather than being left to the next reader to notice.
+ *
+ * Two shapes reach a decision now, and BOTH are recognised by ARGV SHAPE rather than by an id
+ * appearing somewhere in the text:
+ *
+ *   - `storytree library artifact adr-NNNN`  — the row, read the way every artifact is read.
+ *   - `storytree adr pull <n>`               — the whole document, written out for ordinary editing.
+ *
+ * ## WHY NOT SIMPLY MATCH `adr-NNNN` ANYWHERE — IT WAS MEASURED, AND IT IS 66:1 WRONG
+ *
+ * The obvious fix is to match the id token wherever it appears. Measured over 3,346 transcripts on
+ * this disk (2026-08-01 →), a bare `adr-NNNN` / `ADR-NNNN` substring appears in **2,580 commands
+ * that read no decision at all** — `echo "=== ADR-0404 increments ==="`, an `arc increment close
+ * --note "Dropped: ADR-0306 D3 …"`, a commit message, a memory file being appended — against **39**
+ * commands that actually read one. A loose matcher would have recorded sixty-six false reads for
+ * every true one and called the result a recovery. So the id token alone is NEVER a read here: it is
+ * a MENTION, counted as such below, and only the two argv shapes above mint a read.
  *
  * ## THE NODE ID IS THE WHOLE POINT
  *
- * Every read mints `doc:decisions/NNNN-slug.md` — the corpus's OWN pointer form, byte-identical to
- * what `offerIdOf()` prints in an artifact's Sources block. That is load-bearing rather than
- * cosmetic: the caveat this work exists to retire
+ * A file read mints `doc:decisions/NNNN-slug.md` and a store read mints `adr-NNNN` — in both cases
+ * the corpus's OWN pointer form, byte-identical to what `offerIdOf()` prints in an artifact's
+ * Sources block for that spelling (`doc:` refs pass through; `asset:adr-NNNN` is printed with the
+ * scheme stripped). That is load-bearing rather than cosmetic: the caveat this work exists to retire
  * (`doc-refs-are-offered-but-follows-are-unobservable`, `offer-candidate-sets.ts`) says a `doc:`
  * ref is offered and a follow of one can never be seen. A read recorded under ANY other id form —
  * an absolute path, a bare number, a `decisions/` relpath — records a read that still does not join
  * to the offer, and closes nothing.
  *
+ * The two spellings are deliberately NOT unified here. `parseDecisionPointer` (`@storytree/library`)
+ * resolves either to a decision NUMBER for any reader that wants them merged, and rewriting the
+ * historical ids would re-append every already-ingested event under a new key, breaking the
+ * idempotence the whole ingest rests on. Two id spellings of one decision is the honest record of a
+ * corpus that carries three live pointer spellings and rewrites none of them (ADR-0403 dec 7).
+ *
+ * ## IT OVERLAPS THE LIVE OBSERVER, AND THAT IS DECLARED RATHER THAN HIDDEN
+ *
+ * `observeCliInvocation` DOES now see `library artifact adr-NNNN`, because a decision is an ordinary
+ * artifact and that verb is allowlisted — it mints the same `adr-NNNN` node on the `library-artifact`
+ * surface as the command runs. This module reads the same invocation back out of the transcript and
+ * mints its own event on a `host-transcript-*` surface. They are separate events by construction
+ * (different surface, different event id), so a consumer counting DISTINCT reads must discriminate
+ * on surface. The overlap is bounded on one side only: the live observer fires solely when terminal
+ * capture is active, and never for `adr pull`, which is on no allowlist.
+ *
  * ## THIS IS A FLOOR, NEVER A CENSUS
  *
- * Three read shapes are recovered and they are not equally strong evidence, which is why each gets
+ * Four read shapes are recovered and they are not equally strong evidence, which is why each gets
  * its own surface id rather than being flattened into one:
  *
- *   - `Read`  → an EXACT absolute `file_path`. Unambiguous.
+ *   - `Read`  → an EXACT absolute `file_path`. Unambiguous. HISTORICAL only, now that the files are
+ *               gone — a replay of a pre-migration session, which is still legitimate input.
  *   - `Grep`  → an exact `path`, when it names a FILE. A grep over a directory names no file and is
- *               invisible here.
+ *               invisible here. Historical, as above.
  *   - shell   → SCRAPED out of an opaque command string. Recoverable only when the command names
  *               the path literally AND leads with a verb this module recognises as a read.
+ *               Historical, as above.
+ *   - cli     → the STORE route: a `storytree` read verb naming a decision, scraped from the same
+ *               opaque command string. The only shape a post-migration session can produce.
  *
  * The shell scraper is deliberately conservative and every decline is COUNTED BY VERB rather than
  * swallowed, because "we saw 920 shell reads" and "we saw 920 and declined 938 more segments, 479
@@ -49,10 +95,21 @@
  * the decision reads on this disk are sidechain reads, so a scan that dropped them would return
  * roughly half the answer and look complete doing it.
  */
+import { adrDocId, adrNumberOfArtifactId } from "@storytree/library";
 import fs from "node:fs";
 
 /** Which tool shape a read was recovered from — its own surface, because they differ in strength. */
-export type DecisionReadShape = "read" | "grep" | "shell";
+export type DecisionReadShape = "read" | "grep" | "shell" | "cli";
+
+/**
+ * How much of the decision the read actually put in front of the caller.
+ *
+ * MIRRORS the axis `observeCliInvocation` already records for an artifact read, for the same reason
+ * it does: `--raw <field>` hands back ONE stored field, and recording that as a whole-document read
+ * inflates every re-read ratio taken from the trace (`linked-session-context-arc-inc-30`, defect 2).
+ * The file shapes are all whole-document by construction and carry the full strength.
+ */
+export type DecisionReadStrength = "front_matter_read" | "full_payload_read";
 
 /** The surface id each shape's visit carries. Distinct per shape (see the header): a scraped shell
  * read and an exact `Read` are not the same quality of observation and must stay distinguishable. */
@@ -60,6 +117,7 @@ export const DECISION_READ_SURFACES = {
   read: "host-transcript-file-read",
   grep: "host-transcript-grep",
   shell: "host-transcript-shell",
+  cli: "host-transcript-cli-read",
 } satisfies Readonly<Record<DecisionReadShape, string>>;
 
 export interface DecisionRead {
@@ -67,21 +125,27 @@ export interface DecisionRead {
   readonly sessionId: string;
   /** The host tool-call id (`toolu_…`) — stable, and this read's identity seed. */
   readonly toolUseId: string;
-  /** `doc:decisions/NNNN-slug.md`, the corpus's own pointer form. */
+  /** The corpus's own pointer form for the spelling that reached it: `doc:decisions/NNNN-slug.md`
+   * for a file read, `adr-NNNN` for a store read. See the header — they are not unified on purpose. */
   readonly nodeId: string;
   /** The tool call's ISO-8601 timestamp, carried through verbatim. */
   readonly at: string;
   readonly shape: DecisionReadShape;
+  /** How much of the document was read — see {@link DecisionReadStrength}. */
+  readonly strength: DecisionReadStrength;
   /** True when a SUBAGENT made the call. Kept, never dropped — it is most of the answer. */
   readonly sidechain: boolean;
 }
 
-/** One shell verb this module declined to treat as a read, with how many decision-naming segments
- * it declined. The size of a named blind spot, so it can be reported rather than discovered. */
-export interface DeclinedShellVerb {
+/** One verb this module declined to treat as a decision read, with how many segments it declined.
+ * The size of a named blind spot, so it can be reported rather than discovered. */
+export interface DeclinedVerb {
   readonly verb: string;
   readonly segments: number;
 }
+
+/** @deprecated Use {@link DeclinedVerb} — the same shape, named for both routes rather than one. */
+export type DeclinedShellVerb = DeclinedVerb;
 
 export interface DecisionReadScan {
   readonly reads: readonly DecisionRead[];
@@ -95,9 +159,36 @@ export interface DecisionReadScan {
    * ever be keyed on them. Always its own skip — see `readTranscriptWindow`'s identical rule. */
   readonly unidentifiedCalls: number;
   /** Shell segments that NAMED a decision record under a verb this module does not read, by verb. */
-  readonly declinedShellVerbs: readonly DeclinedShellVerb[];
+  readonly declinedShellVerbs: readonly DeclinedVerb[];
+  /**
+   * `storytree` invocations that reached the decision log and minted no read, by verb.
+   *
+   * KEPT SEPARATE from {@link declinedShellVerbs} rather than folded in with it, because the two
+   * declines mean different things and one line covering both would have to overstate one of them.
+   * A declined SHELL segment named a specific decision record and was refused on its verb; most of
+   * these named NO single decision at all — `adr list` is a search over the log, and 559 of them on
+   * this disk have no decision to record. Reporting those under "named a decision record" would be a
+   * false claim of the exact kind this module exists to stop making.
+   */
+  readonly declinedCliVerbs: readonly DeclinedVerb[];
   /** Shell paths dropped because they sat immediately after a `>`/`>>` — a WRITE target, not a read. */
   readonly redirectTargets: number;
+  /**
+   * THE BLINDNESS DENOMINATOR: tool calls that NAMED a decision — by file path, by `adr-NNNN` id, or
+   * by an `adr` verb — and from which this module recovered no read at all.
+   *
+   * It exists because a zero is ambiguous and that ambiguity is what hid this module's own defect for
+   * the whole `docs/decisions/` migration. `reads: []` alone cannot distinguish a session that
+   * consulted no decision from an extractor that can no longer SEE a decision being consulted. Paired
+   * with the read count it can: zero reads against zero mentions is a real, quiet answer, while zero
+   * reads against a large mention count is an instrument reporting on a world it no longer matches.
+   * {@link import("./ingest-decision-reads.js").ingestDecisionReads} turns exactly that pair into a
+   * verdict, and `probe:decision-reads` turns the verdict into a non-zero exit.
+   *
+   * It is a MENTION count and never a missed-read count: most mentions are prose, and the measurement
+   * in the header is what says so. It is not a target to drive to zero.
+   */
+  readonly decisionMentions: number;
 }
 
 const EMPTY_SCAN: DecisionReadScan = {
@@ -105,7 +196,9 @@ const EMPTY_SCAN: DecisionReadScan = {
   uncorrelatedReads: 0,
   unidentifiedCalls: 0,
   declinedShellVerbs: [],
+  declinedCliVerbs: [],
   redirectTargets: 0,
+  decisionMentions: 0,
 };
 
 /**
@@ -118,9 +211,47 @@ const EMPTY_SCAN: DecisionReadScan = {
  */
 const DECISION_PATH = /(?<![A-Za-z0-9._-])decisions[/\\](\d{4})-([A-Za-z0-9_.-]*?)\.md/g;
 
-/** The cheap pre-filter: a decision path is impossible without this substring, so a file (or a
- * command) lacking it can be skipped without reading it more closely. Exact, not heuristic. */
-const DECISION_HINT = /decisions[/\\]/;
+/**
+ * The cheap pre-filter: naming a decision is impossible without one of these, so a file (or a
+ * command) lacking all of them can be skipped without reading it more closely. Exact, not heuristic.
+ *
+ * ⚠ IT MUST COVER EVERY SHAPE THE SCANNER BELOW CAN RECOVER, AND IT IS THE EASIEST PLACE IN THIS
+ * MODULE TO REINTRODUCE THE ORIGINAL DEFECT. While it read `decisions[/\\]` alone it was a second,
+ * invisible copy of the very assumption this module got wrong: a store read
+ * (`storytree library artifact adr-0403`) contains no `decisions/` anywhere, so the whole transcript
+ * was skipped before a single tool call was examined. A pre-filter narrower than the matcher it
+ * guards does not make the scan cheaper, it makes it wrong — and silently, because a skipped file
+ * and a file with nothing in it produce the same empty result.
+ *
+ * It caught this a second time during its own increment: keying the CLI branch on `storytree adr`
+ * skipped `node packages/cli/launch.mjs adr pull 1`, which is the same invocation launched another
+ * way. So the verb alternation is spelled WITHOUT the launcher. WIDEN THIS FREELY — every extra
+ * match costs one cheap scan and at worst inflates a mention count that is explicitly a denominator
+ * and not a target; every missing match is a silent zero.
+ */
+const DECISION_HINT = /decisions[/\\]|adr-\d{4}|\badr\s+(?:pull|push|list|new|next)\b/i;
+
+/**
+ * A decision named by its ARTIFACT ID or its human label — `adr-0403`, `ADR-0403`.
+ *
+ * Used for MENTION detection only, never to mint a read: the header's measurement is that 2,580 of
+ * the 2,619 commands carrying this token read no decision whatever. The boundaries are strict on
+ * both sides so `adr-04031` and `x-adr-0403` are not decisions, matching the collision guard
+ * {@link adrNumberOfArtifactId} applies to a stored id.
+ *
+ * NO `g` FLAG, deliberately: this is only ever `.test()`ed, and a global regex carries `lastIndex`
+ * between calls — so the second call against an identical string answers differently from the first.
+ * A stateful predicate whose answer depends on how often it has been asked is a bug waiting for a
+ * loop to find it.
+ */
+const DECISION_ID_MENTION = /(?<![A-Za-z0-9._-])adr-\d{4}(?![0-9])/i;
+
+/** True when this text names a decision in ANY way this module recognises — path, id, or `adr` verb.
+ * The denominator behind {@link DecisionReadScan.decisionMentions}; deliberately WIDER than what
+ * mints a read, because its whole job is to notice a world the read rules no longer match. */
+function namesADecision(text: string): boolean {
+  return DECISION_HINT.test(text);
+}
 
 interface PathHit {
   readonly nodeId: string;
@@ -288,6 +419,114 @@ export function scrapeShellDecisionReads(command: string): ShellScrape {
   return { nodeIds: [...nodeIds], declinedVerbs, redirectTargets };
 }
 
+/** One recovered store-route read: which decision, and how much of it was put in front of the caller. */
+export interface CliDecisionRead {
+  readonly nodeId: string;
+  readonly strength: DecisionReadStrength;
+}
+
+export interface CliScrape {
+  readonly reads: readonly CliDecisionRead[];
+  /** Segments that named a decision under a `storytree` shape this module does not read, by verb. */
+  readonly declinedVerbs: readonly string[];
+}
+
+/** The token that identifies a storytree CLI invocation, however it was launched. `pnpm storytree`,
+ * a bare `storytree`, and the two in-repo entry points all reduce to one of these. */
+function isStorytreeLauncher(token: string): boolean {
+  const normalised = token.replace(/\\/g, "/").toLowerCase();
+  const base = normalised.split("/").pop() ?? "";
+  return base === "storytree" || normalised.endsWith("cli/src/main.ts") || normalised.endsWith("cli/launch.mjs");
+}
+
+/** A flag token's NAME, so `--raw body` and `--raw=body` classify identically. */
+function flagName(token: string): string {
+  const equals = token.indexOf("=");
+  return equals === -1 ? token : token.slice(0, equals);
+}
+
+/**
+ * Scrape the decisions a shell command read THROUGH THE STORE. Total and non-throwing.
+ *
+ * ## RECOGNISED BY ARGV SHAPE, NEVER BY A LOOSE ID
+ *
+ * A read is minted only for `storytree library artifact adr-NNNN` and `storytree adr pull <n>` —
+ * the two verbs that put a decision document in front of the caller. The id token appearing anywhere
+ * else is a mention, for the measured reason in the header: matching it loosely is 66:1 wrong.
+ *
+ * ## AND DELIBERATELY NOT THESE
+ *
+ *   - `adr list`  — a SEARCH over the log. It names no single decision, and minting a read per
+ *                   invocation would have manufactured 391 phantom reads out of this disk's history.
+ *   - `adr new` / `adr next` / `adr push` — allocations and writes, not reads.
+ *   - `library artifact adr-NNNN --set …`   — a write wearing a read's shape.
+ *   - `library artifact history adr-NNNN`   — a read of the CHANGE LOG, not of the document.
+ *
+ * Each of those is counted in {@link CliScrape.declinedVerbs} rather than swallowed, on the same
+ * rule the shell scraper already follows: an omission is acceptable only while it carries its size.
+ *
+ * ## SHELL NOISE IS NOT A FLAG, WHICH IS WHY THIS DOES NOT REUSE THE LIVE OBSERVER'S ALLOWLIST
+ *
+ * `observeCliInvocation` classifies a tokenised argv and REFUSES any token its flag table does not
+ * name. That is right for argv and wrong here: a transcript command carries `2>&1`, a `| head -30`,
+ * a trailing `;` — shell punctuation that never reaches argv. Six of the eight real store reads
+ * measured on this disk carry exactly that noise, so borrowing the argv allowlist verbatim would
+ * have declined most of the reads it was imported to find. This reads the two shapes positively and
+ * treats an unrecognised trailing token as noise, EXCEPT for the write flags named above.
+ */
+export function scrapeCliDecisionReads(command: string): CliScrape {
+  if (!DECISION_HINT.test(command)) return { reads: [], declinedVerbs: [] };
+
+  const byNode = new Map<string, DecisionReadStrength>();
+  const declinedVerbs: string[] = [];
+
+  for (const segment of shellSegments(command)) {
+    const tokens = segment.split(/\s+/).filter((token) => token.length > 0);
+    const launcher = tokens.findIndex(isStorytreeLauncher);
+    if (launcher === -1) continue;
+    const argv = tokens.slice(launcher + 1);
+    const [area, sub, third] = argv;
+    if (area === undefined) continue;
+
+    // ── the store route: `library artifact adr-NNNN` ──────────────────────────────────────────
+    if (area === "library" && sub === "artifact" && third !== undefined) {
+      if (adrNumberOfArtifactId(third) === null) {
+        // A non-decision artifact, or a sub-verb (`history adr-0403`, `edit`, `new`). Declined only
+        // when a decision was nonetheless named, so an ordinary artifact read stays out of this
+        // record entirely rather than inflating the blind-spot count with unrelated traffic.
+        if (DECISION_ID_MENTION.test(segment)) declinedVerbs.push(`library artifact ${third}`);
+        continue;
+      }
+      const rest = argv.slice(3).map(flagName);
+      if (rest.includes("--set")) {
+        declinedVerbs.push("library artifact --set");
+        continue;
+      }
+      // Weakest strength wins, matching the live observer: `--raw <field>` hands back one field.
+      const strength: DecisionReadStrength = rest.includes("--raw") ? "front_matter_read" : "full_payload_read";
+      const existing = byNode.get(third);
+      if (existing === undefined || existing === "full_payload_read") byNode.set(third, strength);
+      continue;
+    }
+
+    // ── the document route: `adr pull <n>` ────────────────────────────────────────────────────
+    if (area === "adr") {
+      if (sub === "pull" && third !== undefined && /^\d{1,4}$/.test(third)) {
+        const nodeId = adrDocId(Number(third));
+        if (!byNode.has(nodeId)) byNode.set(nodeId, "full_payload_read");
+        continue;
+      }
+      declinedVerbs.push(`adr ${sub ?? "(bare)"}`);
+      continue;
+    }
+  }
+
+  return {
+    reads: [...byNode.entries()].map(([nodeId, strength]) => ({ nodeId, strength })),
+    declinedVerbs,
+  };
+}
+
 /**
  * The storytree session a transcript line belongs to, from its own recorded `cwd`.
  *
@@ -316,29 +555,69 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/** The node ids one `tool_use` block names, and which shape recovered them. */
-function readsFromToolUse(
-  name: string,
-  input: Record<string, unknown>,
-): { shape: DecisionReadShape; nodeIds: readonly string[]; scrape?: ShellScrape } | undefined {
+/** One decision this tool call reached, with the shape that recovered it and how much it read. */
+interface ToolUseHit {
+  readonly shape: DecisionReadShape;
+  readonly nodeId: string;
+  readonly strength: DecisionReadStrength;
+}
+
+/** What one `tool_use` block yielded: the reads, the sized declines, and whether it named a decision
+ * at all — the last of which is recorded EVEN WHEN no read was recovered, because that pair is the
+ * only thing that can tell a quiet answer from a blind instrument. */
+interface ToolUseReads {
+  readonly hits: readonly ToolUseHit[];
+  readonly scrape?: ShellScrape;
+  readonly cliDeclined: readonly string[];
+  readonly mentioned: boolean;
+}
+
+/** A whole-document read of every decision an exact path names — the `Read`/`Grep` route. */
+function fileHits(shape: "read" | "grep", pathish: string): ToolUseHit[] {
+  return decisionNodeIdsInPath(pathish).map((nodeId) => ({
+    shape,
+    nodeId,
+    strength: "full_payload_read" as const,
+  }));
+}
+
+/** The decisions one `tool_use` block reached, by every route this module recognises. */
+function readsFromToolUse(name: string, input: Record<string, unknown>): ToolUseReads | undefined {
   if (name === "Read") {
     const filePath = input.file_path;
     if (typeof filePath !== "string") return undefined;
-    return { shape: "read", nodeIds: decisionNodeIdsInPath(filePath) };
+    return { hits: fileHits("read", filePath), cliDeclined: [], mentioned: namesADecision(filePath) };
   }
   if (name === "Grep") {
     // `path` may name a DIRECTORY, which names no file and therefore yields nothing — the declared
     // `Grep`-over-a-directory omission, which falls out of the id rule rather than needing a branch.
     const target = input.path;
     if (typeof target !== "string") return undefined;
-    return { shape: "grep", nodeIds: decisionNodeIdsInPath(target) };
+    return { hits: fileHits("grep", target), cliDeclined: [], mentioned: namesADecision(target) };
   }
   // Everything else that carries a raw command string: `Bash`, and any sibling shell tool. Matched
   // on the INPUT shape rather than the tool name so a renamed shell tool is not silently dropped.
   const command = input.command;
   if (typeof command !== "string") return undefined;
+
+  // BOTH routes are scraped from the same command, and a command may genuinely carry both — a
+  // session that pulls a decision and then cats the file it pulled it into reads it twice, by two
+  // different means. Taking only the first would drop whichever route happened to lose the race.
   const scrape = scrapeShellDecisionReads(command);
-  return { shape: "shell", nodeIds: scrape.nodeIds, scrape };
+  const cli = scrapeCliDecisionReads(command);
+  return {
+    hits: [
+      ...scrape.nodeIds.map((nodeId) => ({
+        shape: "shell" as const,
+        nodeId,
+        strength: "full_payload_read" as const,
+      })),
+      ...cli.reads.map((read) => ({ shape: "cli" as const, nodeId: read.nodeId, strength: read.strength })),
+    ],
+    scrape,
+    cliDeclined: cli.declinedVerbs,
+    mentioned: namesADecision(command),
+  };
 }
 
 /**
@@ -359,9 +638,11 @@ export function scanTranscriptDecisionReads(filePath: string): DecisionReadScan 
 
   const reads: DecisionRead[] = [];
   const declinedByVerb = new Map<string, number>();
+  const declinedByCliVerb = new Map<string, number>();
   let uncorrelatedReads = 0;
   let unidentifiedCalls = 0;
   let redirectTargets = 0;
+  let decisionMentions = 0;
 
   for (const rawLine of raw.split(/\r?\n/)) {
     if (rawLine.trim() === "") continue;
@@ -399,30 +680,57 @@ export function scanTranscriptDecisionReads(filePath: string): DecisionReadScan 
         }
         redirectTargets += found.scrape.redirectTargets;
       }
-      if (found.nodeIds.length === 0) continue;
+      for (const verb of found.cliDeclined) {
+        declinedByCliVerb.set(verb, (declinedByCliVerb.get(verb) ?? 0) + 1);
+      }
+
+      // Counted BEFORE the early return below, and counted per CALL rather than per match: a tool
+      // call that named a decision and yielded no read is the entire evidence that this extractor
+      // may have stopped matching the world. Losing it to a `continue` is how the defect hid.
+      if (found.hits.length === 0) {
+        if (found.mentioned) decisionMentions++;
+        continue;
+      }
 
       // No usable tool-call id: this read could never be deduped, so appending it would break
       // idempotence on the next run. Always its own skip, never a silent drop.
       const toolUseId = typeof block.id === "string" && block.id.length > 0 ? block.id : undefined;
       if (toolUseId === undefined) {
-        unidentifiedCalls += found.nodeIds.length;
+        unidentifiedCalls += found.hits.length;
         continue;
       }
 
       if (sessionId === undefined) {
-        uncorrelatedReads += found.nodeIds.length;
+        uncorrelatedReads += found.hits.length;
         continue;
       }
 
-      for (const nodeId of found.nodeIds) {
-        reads.push({ sessionId, toolUseId, nodeId, at: timestamp, shape: found.shape, sidechain });
+      for (const hit of found.hits) {
+        reads.push({
+          sessionId,
+          toolUseId,
+          nodeId: hit.nodeId,
+          at: timestamp,
+          shape: hit.shape,
+          strength: hit.strength,
+          sidechain,
+        });
       }
     }
   }
 
-  const declinedShellVerbs = [...declinedByVerb.entries()]
-    .map(([verb, segments]) => ({ verb, segments }))
-    .sort((a, b) => b.segments - a.segments || a.verb.localeCompare(b.verb));
+  const bySize = (counts: Map<string, number>): DeclinedVerb[] =>
+    [...counts.entries()]
+      .map(([verb, segments]) => ({ verb, segments }))
+      .sort((a, b) => b.segments - a.segments || a.verb.localeCompare(b.verb));
 
-  return { reads, uncorrelatedReads, unidentifiedCalls, declinedShellVerbs, redirectTargets };
+  return {
+    reads,
+    uncorrelatedReads,
+    unidentifiedCalls,
+    declinedShellVerbs: bySize(declinedByVerb),
+    declinedCliVerbs: bySize(declinedByCliVerb),
+    redirectTargets,
+    decisionMentions,
+  };
 }

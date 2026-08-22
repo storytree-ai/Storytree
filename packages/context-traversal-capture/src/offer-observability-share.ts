@@ -231,6 +231,20 @@ export const PATHWAY_CAVEAT =
  *
  * Under-reporting is the accepted failure mode for this capture — which is only acceptable while it
  * is declared, and declaring it is this constant's whole job.
+ *
+ * THE EXAMPLE MOVED ON 2026-08-22, AND THE FACT DID NOT (`decision-log-readers-arc-inc-04`). It read
+ * "a decision record opened from `docs/decisions/`" — chosen because decision pointers were the
+ * largest unobserved class. ADR-0403 dec 1 deleted that directory and made a decision an ordinary
+ * Library row, so the sentence became false TWICE OVER: the path no longer exists, and a decision is
+ * now reached by `storytree library artifact adr-NNNN`, which the allowlist DOES observe. A caveat
+ * illustrating its own opposite is worse than none, because a reader trusts the concrete half. The
+ * shared clause it composes — {@link FILE_READS_OBSERVE_NOTHING} — is untouched and still true, so
+ * only the EXAMPLE changed: a story spec opened straight from `stories/` still leaves no trace.
+ *
+ * (Two branches reached that conclusion independently on the same day and collided here in a merge.
+ * The example above is the one that landed on `main` first, kept deliberately over this branch's own
+ * wording — reconcile forward from the sibling's text rather than re-applying your own, or the later
+ * merge silently reverts work that is already live.)
  */
 export const REPLAY_PATHWAY_NOTE =
   "observes: storytree CLI reads only, by an allowlist whose default answer is no event; " +

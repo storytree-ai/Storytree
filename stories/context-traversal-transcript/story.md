@@ -7,7 +7,7 @@ status: proposed
 proof_mode: UAT
 uat_witness: machine
 arc: linked-session-context-arc
-depends_on: [context-traversal-telemetry, context-traversal-capture]
+depends_on: [context-traversal-telemetry, context-traversal-capture, library]
 consumed_by: [cli]
 decisions: [235, 241, 248, 192]
 capabilities:
@@ -97,9 +97,14 @@ each other; the ingest composes both and increment 2's sink.
 
 ## Declared boundaries
 
-- `depends_on: [context-traversal-telemetry, context-traversal-capture]` — real runtime import edges:
-  the ingest builds `ModelContextEvent`s from increment 1's vocabulary and writes them through
-  increment 2's `appendTraversalEvents` / `readTraversalSession` sink.
+- `depends_on: [context-traversal-telemetry, context-traversal-capture, library]` — real runtime
+  import edges: the ingest builds `ModelContextEvent`s from increment 1's vocabulary and writes them
+  through increment 2's `appendTraversalEvents` / `readTraversalSession` sink. The `library` edge is
+  the decision-record extractor's (`decision-log-readers-arc-inc-04`): it resolves an `adr-NNNN`
+  artifact id through `decision-pointer.ts`, which ADR-0403 dec 7 makes the ONE place that rule may
+  live — a second copy of the strict four-digit guard is the drift seam that module exists to
+  prevent, and `adr-health-notes` silently inheriting a decision's edges is what it prevents. The
+  root barrel is pure-zod and browser-safe, so the edge drags no `node:`/`pg` import behind it.
 - `consumed_by: [cli]` — the provider-side declaration for the CLI's runtime import at the
   `storytree traversal ingest` sub-command. Provider-side keeps the `cli` story spec untouched, and
   the edge is code-backed (a real `dependencies` entry), not declaration wallpaper.
