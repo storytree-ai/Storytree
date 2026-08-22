@@ -26,9 +26,17 @@
  * fine: a read is not comprehension, and a model given insufficient context answers confidently
  * rather than abstaining.
  *
- * Usage: `pnpm probe:decision-reads [--dry-run]`. Exit 0 on a completed sweep, 1 when the
- * transcript root could not be walked at all. A sweep that finds nothing is a real answer, not a
- * failure — this box may simply have no history.
+ * ## TWO WAYS TO EXIT 1, AND THE SECOND ONE IS THE POINT
+ *
+ * Usage: `pnpm probe:decision-reads [--dry-run]`. It fails when the transcript root could not be
+ * walked at all, and — since `decision-log-readers-arc-inc-04` — when the walk SUCCEEDED and
+ * recovered zero reads from transcripts that name decisions constantly. That second case is what
+ * this probe reported as a clean zero for the whole `docs/decisions/` migration: the extractor
+ * matched a file path, the files were deleted, and nothing in the output distinguished "nobody read
+ * a decision" from "this instrument can no longer see one being read".
+ *
+ * A sweep that finds nothing AND sees nothing named is still a real answer, not a failure — this box
+ * may simply have no decision traffic.
  */
 
 import { resolveTraversalDir } from "@storytree/context-traversal-capture";
@@ -59,6 +67,26 @@ function main(): void {
       `${TAG} FAIL — no transcript files were found under ${transcriptDir}. That is a walk that ` +
         "read nothing, not a machine with no history; set STORYTREE_TRANSCRIPT_DIR if the host " +
         "writes them elsewhere.",
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  // THE SECOND WAY THIS SWEEP CAN LIE, and the one it actually did. A walk that reads every file and
+  // recovers nothing looks identical, on exit code alone, to a machine that simply consulted no
+  // decision — which is how a path matcher went on reporting a clean zero for the whole
+  // `docs/decisions/` migration. A corpus that names decisions and yields no read is an instrument
+  // out of date with its subject, so it fails here rather than printing an empty table under a
+  // success banner. The narrow zero — nothing read, nothing named — stays a pass, because that one
+  // really is an answer.
+  if (result.blind) {
+    console.error("");
+    console.error(
+      `${TAG} FAIL — swept ${result.scannedFiles} file(s) and recovered ZERO decision reads, while ` +
+        `${result.decisionMentions} tool call(s) named a decision. This is reported as a FAILURE rather ` +
+        "than an empty result because those two facts together describe an extractor whose subject " +
+        "moved, not a quiet machine. Check how a decision is reached today and re-point the read " +
+        "shapes in decision-reads.ts before trusting any zero from this probe.",
     );
     process.exitCode = 1;
     return;

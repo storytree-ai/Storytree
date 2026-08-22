@@ -416,5 +416,16 @@ test("both-pathway-statements-share-one-clause: the offer caveat and the whole-r
   // It says what IS observed and what is NOT — a note that named only the gap would read as a
   // disclaimer rather than a scope.
   assert.match(REPLAY_PATHWAY_NOTE, /storytree/i);
-  assert.match(REPLAY_PATHWAY_NOTE, /docs\/decisions/);
+  assert.match(REPLAY_PATHWAY_NOTE, /file tool/i);
+  // ⚠ THIS ASSERTION USED TO PIN `docs/decisions`, AND THAT IS WHY IT IS WORDED THIS WAY NOW. The
+  // note's example was a decision record opened from that directory; ADR-0403 dec 1 deleted it and
+  // made a decision an ordinary Library row that the allowlist DOES observe, so the sentence ended
+  // up illustrating the opposite of the fact it exists to state — and this test held it there,
+  // green, because it asserted the stale example rather than the durable claim. Assert the CLAIM (a
+  // file-tool read is unobserved), never one era's illustration of it.
+  assert.doesNotMatch(
+    REPLAY_PATHWAY_NOTE,
+    /docs\/decisions/,
+    "the note must not name a directory deleted on 2026-08-22, nor imply decision reads are unobserved",
+  );
 });

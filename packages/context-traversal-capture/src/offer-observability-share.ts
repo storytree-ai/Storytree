@@ -231,11 +231,20 @@ export const PATHWAY_CAVEAT =
  *
  * Under-reporting is the accepted failure mode for this capture — which is only acceptable while it
  * is declared, and declaring it is this constant's whole job.
+ *
+ * THE EXAMPLE MOVED ON 2026-08-22, AND THE FACT DID NOT (`decision-log-readers-arc-inc-04`). It read
+ * "a decision record opened from `docs/decisions/`" — chosen because decision pointers were the
+ * largest unobserved class. ADR-0403 dec 1 deleted that directory and made a decision an ordinary
+ * Library row, so the sentence became false TWICE OVER: the path no longer exists, and a decision is
+ * now reached by `storytree library artifact adr-NNNN`, which the allowlist DOES observe. A caveat
+ * illustrating its own opposite is worse than none, because a reader trusts the concrete half. The
+ * shared clause it composes — {@link FILE_READS_OBSERVE_NOTHING} — is untouched and still true, so
+ * only the example changed: any repository document opened with the file tool still leaves no trace.
  */
 export const REPLAY_PATHWAY_NOTE =
   "observes: storytree CLI reads only, by an allowlist whose default answer is no event; " +
-  `${FILE_READS_OBSERVE_NOTHING}, so a decision record opened from docs/decisions/ leaves no trace ` +
-  "here — this replay covers one pathway, not all of this session's navigation";
+  `${FILE_READS_OBSERVE_NOTHING}, so a repository document opened with the file tool leaves no ` +
+  "trace here — this replay covers one pathway, not all of this session's navigation";
 
 /**
  * Render an `ObservabilityReport` as a plain-text block, or `""` when there are no points — no
