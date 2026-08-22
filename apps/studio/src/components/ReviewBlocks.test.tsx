@@ -19,32 +19,31 @@
 //   • rb-open-suggestion-renders-view: an open suggestion from the feed renders a SuggestionView
 //     under its block (the light inline card the owner liked).
 //
-// The api client + appData are mocked (no fetch, no DB, no socket); Markdown is stubbed to a plain
-// passthrough so the test targets ReviewBlocks' own behaviour, not markdown rendering.
+// The transport is doubled (no fetch, no DB, no socket) and the operator comes through the real
+// AppData context; the test targets ReviewBlocks' own behaviour, not markdown rendering.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act, cleanup, within } from '@testing-library/react';
 
-// ── Api seam mock ─────────────────────────────────────────────────────────────────────────────
-const apiMock = vi.hoisted(() => ({
-  reviewFeed: vi.fn(),
-  createSuggestion: vi.fn(),
-  listComments: vi.fn(),
-  createComment: vi.fn(),
-}));
-vi.mock('../api', () => ({ api: apiMock }));
+import { HttpDouble, installHttpDouble } from '../test/httpDouble';
+import { WithAppData } from '../test/appData';
 
-// useAppData → an admin operator (SuggestionView reads me.role; the value is inert for these tests).
-vi.mock('../lib/appData', () => ({
-  useAppData: () => ({ me: { role: 'admin', email: 'a@b.c', status: 'active', member: true } }),
-}));
+// THE SEAMS ARE REAL, NOT MOCKED MODULES (anti-slop-adoption-arc inc-06, `no-module-mocking`):
+// the TRANSPORT is doubled (src/test/httpDouble.ts), the operator comes through the app's own
+// `AppDataContext`, and `Markdown` is the REAL component. The stub's stated reason — "the real
+// Markdown pulls in mermaid + appData internals" — was removed by this lane: markdown now takes its
+// diagram engine through `DiagramRendererContext` (lib/diagram.ts) and never reaches mermaid at all
+// without a ```mermaid fence, and the doc index arrives with the rest of the context.
+const FEED = '/api/review/feed';
+const SUGGESTIONS = '/api/suggestions';
+const COMMENTS = '/api/comments';
+const ASSETS = '/api/assets';
 
-// Markdown → a plain passthrough. ReviewBlocks' behaviour (click-to-edit, blur-to-suggest) is what
-// is under test, not react-markdown; the real Markdown pulls in mermaid + appData internals the
-// behaviour test has no need for.
-vi.mock('./Markdown', () => ({
-  Markdown: ({ children }: { children: string }) => <div className="md-stub">{children}</div>,
-}));
+let http: HttpDouble;
+
+/** The POST bodies that reached one route, oldest first. */
+const posted = (path: string): unknown[] =>
+  http.requestsTo(path).filter((request) => request.method === 'POST').map((r) => r.body);
 
 import { ReviewBlocks } from './ReviewBlocks';
 import { ReviewModeContext } from './ReviewToggle';
@@ -63,17 +62,20 @@ const flush = (): Promise<void> => act(async () => {});
 
 function renderReview(mode: 'view' | 'review', body = BODY) {
   return render(
-    <ReviewModeContext.Provider value={mode}>
-      <ReviewBlocks topicKind="asset" topicId="topic-1" body={body} />
-    </ReviewModeContext.Provider>,
+    <WithAppData>
+      <ReviewModeContext.Provider value={mode}>
+        <ReviewBlocks topicKind="asset" topicId="topic-1" body={body} />
+      </ReviewModeContext.Provider>
+    </WithAppData>,
   );
 }
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────────────────────────
 
 beforeEach(() => {
-  apiMock.reviewFeed.mockReset().mockResolvedValue(emptyFeed);
-  apiMock.createSuggestion.mockReset().mockResolvedValue({
+  http = installHttpDouble();
+  http.get(FEED, () => emptyFeed);
+  http.post(SUGGESTIONS, () => ({
     id: 's-new',
     topicKind: 'asset',
     topicId: 'topic-1',
@@ -85,13 +87,14 @@ beforeEach(() => {
     createdAt: '2024-01-01T00:00:00.000Z',
     decidedBy: null,
     decidedAt: null,
-  });
-  apiMock.listComments.mockReset().mockResolvedValue([]);
-  apiMock.createComment.mockReset().mockResolvedValue({});
+  }));
+  http.get(COMMENTS, () => []);
+  http.post(COMMENTS, () => ({}));
 });
 
 afterEach(() => {
   cleanup();
+  http.uninstall();
 });
 
 // ── Tests ─────────────────────────────────────────────────────────────────────────────────────
@@ -137,16 +140,15 @@ describe('ReviewBlocks', () => {
     fireEvent.blur(editor);
     await flush();
 
-    expect(apiMock.createSuggestion).toHaveBeenCalledTimes(1);
-    expect(apiMock.createSuggestion).toHaveBeenCalledWith(
-      expect.objectContaining({
-        blockId: expect.any(String),
-        proposedText: 'First paragraph, revised.',
-        topicKind: 'asset',
-        topicId: 'topic-1',
-        originalText: FIRST_BLOCK_TEXT,
-      }),
-    );
+    // The serialised request body, not the argument to a mocked method.
+    expect(posted(SUGGESTIONS)).toHaveLength(1);
+    expect(posted(SUGGESTIONS)[0]).toMatchObject({
+      proposedText: 'First paragraph, revised.',
+      topicKind: 'asset',
+      topicId: 'topic-1',
+      originalText: FIRST_BLOCK_TEXT,
+    });
+    expect(typeof (posted(SUGGESTIONS)[0] as { blockId?: unknown }).blockId).toBe('string');
   });
 
   it('rb-no-op-blur-creates-nothing: blurring with the text unchanged posts nothing', async () => {
@@ -161,7 +163,7 @@ describe('ReviewBlocks', () => {
     fireEvent.blur(editor);
     await flush();
 
-    expect(apiMock.createSuggestion).not.toHaveBeenCalled();
+    expect(posted(SUGGESTIONS)).toHaveLength(0);
   });
 
   it('rb-open-suggestion-renders-view: an open suggestion from the feed renders a SuggestionView under its block', async () => {
@@ -170,7 +172,7 @@ describe('ReviewBlocks', () => {
     const blocks = splitBlocks(BODY);
     const secondId = blocks[1]!.id;
 
-    apiMock.reviewFeed.mockResolvedValue({
+    http.get(FEED, () => ({
       topicId: 'topic-1',
       comments: [],
       suggestions: [
@@ -188,7 +190,7 @@ describe('ReviewBlocks', () => {
           decidedAt: null,
         },
       ],
-    });
+    }));
 
     const { container } = renderReview('review');
     await flush();

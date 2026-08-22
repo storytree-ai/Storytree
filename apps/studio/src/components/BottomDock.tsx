@@ -54,13 +54,48 @@ export interface BottomDockProps {
   /** Which tab opens first. The terminal, unless a caller says otherwise — the traversal is the new
    *  sibling, and an operator who has never opened it should still meet the panel they know. */
   initialTab?: BottomDockTab;
+  /**
+   * The two pane bodies this panel hosts. Both default to the real components; a caller substitutes
+   * one to observe the panel's OWN behaviour — pane retention across tab switches, the host seam,
+   * the meta line — without standing up a real pty or a real trace read.
+   *
+   * INJECTED RATHER THAN MODULE-MOCKED (anti-slop-adoption-arc inc-06, `no-module-mocking`), the
+   * same move `TerminalRepoGate` already makes for its own `repoControl` and `renderDock` slots.
+   */
+  panes?: BottomDockPanes;
 }
+
+/** What the panel hands each pane body. Both slots default to the real component. */
+export interface BottomDockPanes {
+  terminal?: (props: {
+    seed?: TerminalDockSeed;
+    host: { expanded: boolean; onRequestExpand: () => void };
+  }) => React.JSX.Element;
+  traversal?: (props: {
+    active: boolean;
+    onMeta: (meta: string | null) => void;
+    compact: boolean;
+  }) => React.JSX.Element;
+}
+
+const REAL_PANES: Required<BottomDockPanes> = {
+  terminal: (props) => (
+    <TerminalRepoGate {...props} repoControl={<RepoPicker />} />
+  ),
+  traversal: (props) => <TraversalTab {...props} />,
+};
 
 /**
  * The bottom panel: a folded-by-default overlay on the map frame, holding the terminal tab and the
  * context-traversal tab.
  */
-export function BottomDock({ seed, initialTab = 'terminal' }: BottomDockProps = {}): React.JSX.Element {
+export function BottomDock({
+  seed,
+  initialTab = 'terminal',
+  panes,
+}: BottomDockProps = {}): React.JSX.Element {
+  const renderTerminalPane = panes?.terminal ?? REAL_PANES.terminal;
+  const renderTraversalPane = panes?.traversal ?? REAL_PANES.traversal;
   const [expanded, setExpanded] = useState(false);
   const [height, setHeight] = useState(DEFAULT_HEIGHT);
   const [tab, setTab] = useState<BottomDockTab>(initialTab);
@@ -196,11 +231,10 @@ export function BottomDock({ seed, initialTab = 'terminal' }: BottomDockProps = 
         aria-labelledby="bottom-dock-tab-terminal"
         hidden={!expanded || tab !== 'terminal'}
       >
-        <TerminalRepoGate
-          {...(seed ? { seed } : {})}
-          repoControl={<RepoPicker />}
-          host={{ expanded: expanded && tab === 'terminal', onRequestExpand: revealTerminal }}
-        />
+        {renderTerminalPane({
+          ...(seed ? { seed } : {}),
+          host: { expanded: expanded && tab === 'terminal', onRequestExpand: revealTerminal },
+        })}
       </div>
 
       <div
@@ -210,7 +244,11 @@ export function BottomDock({ seed, initialTab = 'terminal' }: BottomDockProps = 
         aria-labelledby="bottom-dock-tab-traversal"
         hidden={!expanded || tab !== 'traversal'}
       >
-        <TraversalTab active={expanded && tab === 'traversal'} onMeta={setMeta} compact={compact} />
+        {renderTraversalPane({
+          active: expanded && tab === 'traversal',
+          onMeta: setMeta,
+          compact,
+        })}
       </div>
     </aside>
   );

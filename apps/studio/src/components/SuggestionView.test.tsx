@@ -52,18 +52,21 @@ interface Suggestion {
 // SuggestionView.tsx can call api.createSuggestion / api.decideSuggestion and the test controls
 // the responses without any real fetch.
 
-const apiMock = vi.hoisted(() => ({
-  createSuggestion: vi.fn<
-    (input: { blockId: string; proposedText: string }) => Promise<{ id: string; status: 'open' }>
-  >(),
-  decideSuggestion: vi.fn<
-    (input: {
-      id: string;
-      decision: 'accept' | 'reject';
-    }) => Promise<{ id: string; status: 'accepted' | 'rejected' }>
-  >(),
-}));
-vi.mock('../api', () => ({ api: apiMock }));
+import { HttpDouble, installHttpDouble } from '../test/httpDouble';
+
+// The `../api` module is NOT replaced (anti-slop-adoption-arc inc-06, `no-module-mocking`), and on
+// the DECIDE route that is not cosmetic: `api.decideSuggestion` TRANSLATES the component's
+// {id, decision} into the route's {suggestionId, action} (api.ts). Asserting on a mocked method
+// checked the component-side shape and could never have caught a translation that stopped matching
+// the route; asserting on the request body checks the contract the server actually receives.
+const SUGGESTIONS = '/api/suggestions';
+const DECISION = '/api/suggestions/decision';
+
+let http: HttpDouble;
+
+/** The POST bodies that reached one route, oldest first. */
+const posted = (path: string): unknown[] =>
+  http.requestsTo(path).filter((request) => request.method === 'POST').map((r) => r.body);
 
 import { SuggestionView } from './SuggestionView';
 
@@ -98,12 +101,12 @@ const adminMe: MeInfo = {
 };
 
 beforeEach(() => {
-  apiMock.createSuggestion.mockReset();
-  apiMock.decideSuggestion.mockReset();
+  http = installHttpDouble();
 });
 
 afterEach(() => {
   cleanup();
+  http.uninstall();
 });
 
 describe('SuggestionView', () => {
@@ -152,7 +155,7 @@ describe('SuggestionView', () => {
   // form POSTs api.createSuggestion with the block id + the typed proposed text.  The returned
   // suggestion has status 'open' — the member proposes, an admin decides.
   it('csv-member-composes-a-proposal: in Review mode a member may compose a suggested edit — submitting POSTs api.createSuggestion with the block id + proposed text, result status is open', async () => {
-    apiMock.createSuggestion.mockResolvedValue({ id: 'sg-new', status: 'open' });
+    http.post(SUGGESTIONS, () => ({ id: 'sg-new', status: 'open' }));
 
     render(
       <ReviewModeContext.Provider value="review">
@@ -167,11 +170,9 @@ describe('SuggestionView', () => {
     await flush();
 
     // The seam was called exactly once with the block id and the member's proposed text.
-    expect(apiMock.createSuggestion).toHaveBeenCalledTimes(1);
-    expect(apiMock.createSuggestion).toHaveBeenCalledWith({
-      blockId: 'block-intro',
-      proposedText: 'A better alternative proposal.',
-    });
+    expect(posted(SUGGESTIONS)).toEqual([
+      { blockId: 'block-intro', proposedText: 'A better alternative proposal.' },
+    ]);
   });
 
   // ── sv-member-no-decision-controls ───────────────────────────────────────────
@@ -202,27 +203,27 @@ describe('SuggestionView', () => {
   // Clicking Accept calls api.decideSuggestion with decision 'accept' and the suggestion id.
   // This drives cap 3's accept route — the seam is the ONLY path to the decision (ADR-0004).
   it('sv-accept-calls-decision-seam: clicking Accept calls api.decideSuggestion with accept for the suggestion id', async () => {
-    apiMock.decideSuggestion.mockResolvedValue({ id: 'sg-1', status: 'accepted' });
+    http.post(DECISION, () => ({ id: 'sg-1', status: 'accepted' }));
     render(<SuggestionView suggestion={openSuggestion} me={adminMe} />);
 
     fireEvent.click(screen.getByRole('button', { name: /accept/i }));
     await flush();
 
-    expect(apiMock.decideSuggestion).toHaveBeenCalledTimes(1);
-    expect(apiMock.decideSuggestion).toHaveBeenCalledWith({ id: 'sg-1', decision: 'accept' });
+    // The WIRE shape cap 3's route reads — {suggestionId, action}, not the component's
+    // {id, decision}. The translation lives in api.ts and is under test only from here.
+    expect(posted(DECISION)).toEqual([{ suggestionId: 'sg-1', action: 'accept' }]);
   });
 
   // ── sv-reject-calls-decision-seam ────────────────────────────────────────────
   //
   // Clicking Reject calls api.decideSuggestion with decision 'reject' and the suggestion id.
   it('sv-reject-calls-decision-seam: clicking Reject calls api.decideSuggestion with reject for the suggestion id', async () => {
-    apiMock.decideSuggestion.mockResolvedValue({ id: 'sg-1', status: 'rejected' });
+    http.post(DECISION, () => ({ id: 'sg-1', status: 'rejected' }));
     render(<SuggestionView suggestion={openSuggestion} me={adminMe} />);
 
     fireEvent.click(screen.getByRole('button', { name: /reject/i }));
     await flush();
 
-    expect(apiMock.decideSuggestion).toHaveBeenCalledTimes(1);
-    expect(apiMock.decideSuggestion).toHaveBeenCalledWith({ id: 'sg-1', decision: 'reject' });
+    expect(posted(DECISION)).toEqual([{ suggestionId: 'sg-1', action: 'reject' }]);
   });
 });

@@ -35,13 +35,14 @@
 // operator-attested UAT leg 5 — this file signs no visual verdict.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Terminal } from '@xterm/xterm';
-import { FitAddon } from '@xterm/addon-fit';
-import { WebglAddon } from '@xterm/addon-webgl';
-import { Unicode11Addon } from '@xterm/addon-unicode11';
-import { WebLinksAddon } from '@xterm/addon-web-links';
-import { SearchAddon } from '@xterm/addon-search';
-import { ClipboardAddon } from '@xterm/addon-clipboard';
+// The xterm constructors arrive through the toolkit seam (lib/terminalToolkit.ts) rather than as
+// seven direct imports, so a test substitutes the engine instead of rewriting the module system
+// (anti-slop-adoption-arc inc-06, `no-module-mocking`). The TYPES still come straight from the
+// packages — a type import binds nothing at runtime and there is nothing to substitute.
+import { useTerminalToolkit } from '../lib/terminalToolkit';
+import type { Terminal } from '@xterm/xterm';
+import type { FitAddon } from '@xterm/addon-fit';
+import type { SearchAddon } from '@xterm/addon-search';
 import type { IClipboardProvider } from '@xterm/addon-clipboard';
 
 /** Drag bounds for the expanded dock height (px) — mirrors ChatDock's MIN/DEFAULT/margin. */
@@ -274,6 +275,8 @@ export function TerminalDock({
   host,
 }: TerminalDockProps = {}): React.JSX.Element {
   const bridge = getDesktopTerminal();
+  /** The xterm engine — the real one unless a caller provided another (lib/terminalToolkit.ts). */
+  const toolkit = useTerminalToolkit();
 
   // Contract 12 — the fold state has ONE owner at a time. Un-hosted (the default) the dock owns it,
   // as it always has. Hosted, the host owns it and this local state is simply never read: two
@@ -411,7 +414,7 @@ export function TerminalDock({
       if (!bridge || !rec || rec.term || !rec.bodyEl) return;
 
       const buildNumber = bridge.windowsBuildNumber;
-      const term = new Terminal({
+      const term = new toolkit.Terminal({
         cursorBlink: true,
         convertEol: true,
         // The unicode-version surface (`term.unicode`, the Unicode11Addon's registration point) is
@@ -433,18 +436,18 @@ export function TerminalDock({
           ? { windowsPty: { backend: 'conpty' as const, buildNumber } }
           : {}),
       });
-      const fit = new FitAddon();
+      const fit = new toolkit.FitAddon();
       term.loadAddon(fit);
       fit.activate(term); // wire the addon to this terminal so a later fit()/dispose() has effect
       // Unicode 11 width tables, in PARITY with the main's headless snapshot terminal
       // (pty-session-manager.ts): xterm's Unicode 6 default mis-measures emoji/spinner/box glyphs
       // (Claude Code's staple output) so the next glyph draws into an overlapping cell — and
       // one-sided tables would make a re-attach replay re-wrap differently than live rendering.
-      term.loadAddon(new Unicode11Addon());
+      term.loadAddon(new toolkit.Unicode11Addon());
       term.unicode.activeVersion = '11';
       // Find-in-scrollback (increment D): a per-tab search addon, stored on the record like
       // `fit` — the panel's search chrome drives the ACTIVE tab's instance.
-      const search = new SearchAddon();
+      const search = new toolkit.SearchAddon();
       term.loadAddon(search);
       // Clickable links (increment D): loaded ONLY when the preload offers `openLink` (an older
       // preload lacks it — a link affordance that could never open would mislead). The handler
@@ -454,7 +457,7 @@ export function TerminalDock({
       // check is only belt.
       if (bridge.openLink) {
         term.loadAddon(
-          new WebLinksAddon((event, uri) => {
+          new toolkit.WebLinksAddon((event, uri) => {
             event.preventDefault();
             if (/^https?:\/\//i.test(uri)) bridge.openLink?.(uri);
           }),
@@ -464,7 +467,7 @@ export function TerminalDock({
       // reads always answer empty (the paste-exfiltration vector stays closed). The provider goes
       // in the SECOND slot (addon-clipboard 0.2.0's typings now declare both slots honestly —
       // the 0.1.0 typings-vs-runtime cast this call used to need is gone).
-      term.loadAddon(new ClipboardAddon(undefined, OSC52_WRITE_ONLY_PROVIDER));
+      term.loadAddon(new toolkit.ClipboardAddon(undefined, OSC52_WRITE_ONLY_PROVIDER));
       term.open(rec.bodyEl);
       rec.term = term;
       rec.fit = fit;
@@ -478,7 +481,7 @@ export function TerminalDock({
       // disposes the addon, which reverts xterm to the DOM renderer rather than leaving a dead
       // canvas. The addon is term-owned after loadAddon — term.dispose() reaps it with the tab.
       try {
-        const webgl = new WebglAddon();
+        const webgl = new toolkit.WebglAddon();
         term.loadAddon(webgl);
         webgl.onContextLoss(() => webgl.dispose());
       } catch {
@@ -625,7 +628,7 @@ export function TerminalDock({
         }
       });
     },
-    [bridge, writePtyData, resizeDebounceMs, titleDebounceMs],
+    [bridge, toolkit, writePtyData, resizeDebounceMs, titleDebounceMs],
   );
 
   /** Dispose ONE tab's session (bridge + xterm/fit) and reap it from the strip; the sibling tabs are

@@ -11,25 +11,26 @@
 //   • re-preview-renders-tracked-change: a {++…++} in the source renders an insertion element
 //     in the preview.
 //
-// api + appData are mocked (no fetch, no DB). Markdown is stubbed to a passthrough so the test
+// The transport is doubled (no fetch, no DB) and appData arrives through the real context. The test
 // targets ReviewEditor's own behaviour, not react-markdown.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act, cleanup } from '@testing-library/react';
 
-const apiMock = vi.hoisted(() => ({ updateAsset: vi.fn(), reviewFeed: vi.fn() }));
-vi.mock('../api', () => ({ api: apiMock }));
+import { HttpDouble, installHttpDouble } from '../test/httpDouble';
+import { WithAppData } from '../test/appData';
 
-vi.mock('../lib/appData', () => ({
-  useAppData: () => ({
-    me: { role: 'admin', email: 'a@b.c', status: 'active', member: true },
-    refreshAssets: vi.fn(),
-  }),
-}));
+// THE SEAMS ARE REAL, NOT MOCKED MODULES (anti-slop-adoption-arc inc-06, `no-module-mocking`): the
+// TRANSPORT is doubled, appData comes through the app's own `AppDataContext`, and `Markdown` is the
+// REAL component — the stub's reason (mermaid + appData internals) was removed by this lane's
+// diagram seam.
+const FEED = '/api/review/feed';
+const ASSETS = '/api/assets';
 
-vi.mock('./Markdown', () => ({
-  Markdown: ({ children }: { children: string }) => <div className="md-stub">{children}</div>,
-}));
+let http: HttpDouble;
+
+/** How many times the editor actually polled the review feed. */
+const feedReads = (): number => http.countTo(FEED);
 
 import { ReviewEditor } from './ReviewEditor';
 import { ReviewModeContext, SetReviewModeContext } from './ReviewToggle';
@@ -45,7 +46,8 @@ function renderEditor(
   setMode: (m: 'view' | 'review') => void = () => {},
 ) {
   return render(
-    <ReviewModeContext.Provider value={mode}>
+    <WithAppData>
+      <ReviewModeContext.Provider value={mode}>
       <SetReviewModeContext.Provider value={setMode}>
         <ReviewEditor
           asset={{
@@ -57,21 +59,20 @@ function renderEditor(
             references: [],
           }}
         />
-      </SetReviewModeContext.Provider>
-    </ReviewModeContext.Provider>,
+        </SetReviewModeContext.Provider>
+      </ReviewModeContext.Provider>
+    </WithAppData>,
   );
 }
 
 beforeEach(() => {
-  apiMock.updateAsset.mockReset().mockResolvedValue({});
-  apiMock.reviewFeed.mockReset().mockResolvedValue({
-    topicId: 'oq-x',
-    comments: [],
-    suggestions: [],
-  });
+  http = installHttpDouble();
+  http.patch(ASSETS, () => ({}));
+  http.get(FEED, () => ({ topicId: 'oq-x', comments: [], suggestions: [] }));
 });
 afterEach(() => {
   cleanup();
+  http.uninstall();
   vi.useRealTimers();
 });
 
@@ -149,20 +150,23 @@ describe('ReviewEditor', () => {
       resolved: false,
       resolvedAt: null,
     };
-    apiMock.reviewFeed
-      .mockResolvedValueOnce({ topicId: 'oq-x', comments: [], suggestions: [] })
-      .mockResolvedValueOnce({ topicId: 'oq-x', comments: [peerComment], suggestions: [] });
+    let poll = 0;
+    http.get(FEED, () =>
+      (poll += 1) === 1
+        ? { topicId: 'oq-x', comments: [], suggestions: [] }
+        : { topicId: 'oq-x', comments: [peerComment], suggestions: [] },
+    );
 
     renderEditor('review');
     await flush();
-    expect(apiMock.reviewFeed).toHaveBeenCalledTimes(1);
+    expect(feedReads()).toBe(1);
     expect(screen.queryByText(peerComment.body)).toBeNull();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(SLOW_POLL_MS);
     });
 
-    expect(apiMock.reviewFeed).toHaveBeenCalledTimes(2);
+    expect(feedReads()).toBe(2);
     expect(screen.getByText(peerComment.body)).toBeTruthy();
   });
 

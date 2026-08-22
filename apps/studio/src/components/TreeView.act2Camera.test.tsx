@@ -4,15 +4,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
 import { AppDataContext, type AppData } from '../lib/appData';
 import type { TreeStory } from '../types';
+import type { ForestRegrowRenderLayer, VegetationRenderLayer } from '@storytree/app-surface';
 
-const act2Harness = vi.hoisted(() => ({
+const act2Harness = {
   now: new Date('2026-08-06T00:00:00.000Z'),
   builds: [] as never[],
   claimActivity: { claims: [] as never[], departures: [] as never[] },
   reducedMotion: false,
   inputs: [] as Array<{ enabled: boolean }>,
-  regrowLayer: null as object | null,
-  vegetationLayer: null as object | null,
+  // Typed against what the REAL hooks return — the module stub was never checked against them, so
+  // a layer shape drifting out from under this harness used to be invisible here. The assertions
+  // only care that the REFERENCE changed, so a minimal empty layer is the honest sentinel.
+  regrowLayer: null as ForestRegrowRenderLayer | null,
+  vegetationLayer: null as VegetationRenderLayer | null,
   player: {
     plan: null,
     state: null,
@@ -26,58 +30,82 @@ const act2Harness = vi.hoisted(() => ({
     back: vi.fn(),
     settle: vi.fn(),
   },
-}));
-
-vi.mock('../api', () => ({ api: { tree: vi.fn(), activity: vi.fn() } }));
-vi.mock('../lib/buildActivity', () => ({
-  useBuildActivity: () => act2Harness.builds,
-  useClaimActivity: () => act2Harness.claimActivity,
-}));
-vi.mock('../lib/poll', () => ({ useNowTick: () => act2Harness.now }));
-vi.mock('../lib/sessionClaims', () => ({ useSessionClaimGroups: () => [] }));
-vi.mock('../lib/factoryBuildings.js', () => ({
-  loadHeroTreeVariants: () => new Promise(() => {}),
-}));
-vi.mock('@storytree/app-surface', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@storytree/app-surface')>();
-  return {
-    ...actual,
-    arrivalGrowPlan: () => null,
-    neighbourHighlightPlan: () => null,
-    laneLayout: () => null,
-    normalizeWorldPresentationModel: () => ({}),
-    deriveForestRegrowAccretionPlans: () => new Map(),
-    deriveIslandVegetationPlans: () => new Map(),
-    WorldSceneView: () => <g data-testid="world-scene" />,
-  };
-});
-vi.mock('./act2Intro.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('./act2Intro.js')>();
-  return {
-    ...actual,
-    useAct2Intro: (input: { enabled: boolean }) => {
-      act2Harness.inputs.push(input);
-      return act2Harness.player;
-    },
-    useReducedMotion: () => act2Harness.reducedMotion,
-    useStableForestRegrowLayer: () => act2Harness.regrowLayer,
-    useStableVegetationLayer: () => act2Harness.vegetationLayer,
-  };
-});
-vi.mock('./WorldLegend.js', () => ({
-  WorldLegend: () => null,
-  LegendDrawerBody: () => null,
-  legendRowLabel: () => '',
-  legendModelFor: () => [],
-}));
-vi.mock('./WorldSettingsPanel.js', () => ({ WorldSettingsPanel: () => null }));
-vi.mock('./LibraryDrawer.js', () => ({ LibraryDrawer: () => null }));
-vi.mock('./TerminalRepoGate.js', () => ({ TerminalRepoGate: () => null }));
-vi.mock('./RepoPicker.js', () => ({ RepoPicker: () => null }));
+};
 
 import { ACT2_INTRO_SESSION_KEY } from './act2Intro.js';
-import { api } from '../api';
-import { TreeView } from './TreeView';
+import {
+  Act2ChoreographyContext,
+  StudioSurfacesContext,
+  TreeView,
+  type Act2Choreography,
+  type StudioSurfaces,
+} from './TreeView';
+import { HttpDouble, installHttpDouble } from '../test/httpDouble';
+
+// THE SEAMS ARE REAL, NOT MOCKED MODULES (anti-slop-adoption-arc inc-06, `no-module-mocking`).
+//
+// This suite drives the Act 2 regrow choreography DIRECTLY — it scripts a player and asserts what
+// the map renders for it, and what the map ASKED the choreography for. That needs the four
+// `act2Intro` hooks substituted as a set, which is what `Act2ChoreographyContext` is for: a slot
+// whose default is the real module, not a rewritten module. The renderer and the heavy overlays
+// come through `StudioSurfacesContext` the same way.
+//
+// TWO WHOLE-MODULE STUBS WENT AWAY ENTIRELY rather than moving. The three live-layer hooks
+// (`useBuildActivity` / `useClaimActivity` / `useSessionClaimGroups`) are polls over the api, so
+// the doubled transport answers them honestly. And `loadHeroTreeVariants` — stubbed to a promise
+// that never settles — now runs for real; its own call site already fails soft and keeps the
+// procedural tree, so nothing depended on the stub except the stub.
+//
+// The four PURE app-surface functions stop being substituted too, for the reason the pan suites
+// give: `vi.mock` replaces a whole module, so stubbing `WorldSceneView` took `laneLayout` and its
+// neighbours down with it. They run for real here now.
+const TREE = '/api/tree';
+const ACTIVITY = '/api/activity';
+const CLAIMS = '/api/claims';
+const ART_SHEET = '/art-sheets/storybook/manifest.json';
+
+let http: HttpDouble;
+
+const SURFACES: Partial<StudioSurfaces> = {
+  WorldSceneView: () => <g data-testid="world-scene" />,
+  WorldLegend: () => null,
+  LegendDrawerBody: () => null,
+  WorldSettingsPanel: () => null,
+  LibraryDrawer: () => null,
+  BottomDock: () => null,
+};
+
+/** A fresh, empty regrow layer — a NEW reference each call, which is what the assertions read. */
+const emptyRegrowLayer = (): ForestRegrowRenderLayer => ({
+  hiddenStoryIds: new Set(),
+  hiddenEmptyStoryIds: new Set(),
+  hiddenSegmentIds: new Set(),
+  accretionByStory: new Map(),
+  cellRevealById: new Map(),
+});
+
+/** A fresh, empty vegetation layer — a NEW reference each call, which is what the assertions read. */
+const emptyVegetationLayer = (): VegetationRenderLayer => ({ byNode: new Map() });
+
+/** The scripted choreography — reads straight off the harness, as the module stub used to. */
+const CHOREOGRAPHY: Act2Choreography = {
+  useAct2Intro: (input) => {
+    act2Harness.inputs.push(input);
+    return act2Harness.player;
+  },
+  useReducedMotion: () => act2Harness.reducedMotion,
+  useStableForestRegrowLayer: () => act2Harness.regrowLayer,
+  useStableVegetationLayer: () => act2Harness.vegetationLayer,
+};
+
+/** Mount the map under both seams — the shape every render in this file uses. */
+const mapUnderSeams = (children: React.ReactNode): React.JSX.Element => (
+  <Act2ChoreographyContext.Provider value={CHOREOGRAPHY}>
+    <StudioSurfacesContext.Provider value={SURFACES}>
+      <AppDataContext.Provider value={APP_DATA}>{children}</AppDataContext.Provider>
+    </StudioSurfacesContext.Provider>
+  </Act2ChoreographyContext.Provider>
+);
 import { ACT2_REGROW_OPENING_SCALE } from '../lib/worldCamera.js';
 
 const STORIES: TreeStory[] = Array.from({ length: 40 }, (_, index) => ({
@@ -134,11 +162,7 @@ const composedCameraValues = (camera: Element, layer: HTMLElement) => {
 
 const mountMap = async (props: { focus?: string | null; active?: boolean } = {}) => {
   const activeProps = props.active === undefined ? {} : { active: props.active };
-  const view = render(
-    <AppDataContext.Provider value={APP_DATA}>
-      <TreeView focus={props.focus ?? null} {...activeProps} />
-    </AppDataContext.Provider>,
-  );
+  const view = render(mapUnderSeams(<TreeView focus={props.focus ?? null} {...activeProps} />));
   const viewport = await screen.findByLabelText('story forest map (pan and zoom)');
   const camera = await waitFor(() => {
     const node = view.container.querySelector('.world-camera');
@@ -155,11 +179,7 @@ const rerenderMap = (
   props: { focus?: string | null; active?: boolean } = {},
 ) => {
   const activeProps = props.active === undefined ? {} : { active: props.active };
-  rerender(
-    <AppDataContext.Provider value={APP_DATA}>
-      <TreeView focus={props.focus ?? null} {...activeProps} />
-    </AppDataContext.Provider>,
-  );
+  rerender(mapUnderSeams(<TreeView focus={props.focus ?? null} {...activeProps} />));
 };
 
 let widthDescriptor: PropertyDescriptor | undefined;
@@ -181,16 +201,26 @@ beforeEach(() => {
   }
   Object.defineProperty(window, 'PointerEvent', { configurable: true, value: PointerEventShim });
   window.sessionStorage.setItem(ACT2_INTRO_SESSION_KEY, '1');
+  http = installHttpDouble();
+  http.get(TREE, () => ({ stories: STORIES, builds: [], claims: [] }));
+  // The advisory live layers answer store-absent — the quiet case this suite wants.
+  http.get(ACTIVITY, () => ({ builds: null, claims: null }));
+  http.get(CLAIMS, () => ({ sessions: null }));
+  http.get(ART_SHEET, () => new Response('', { status: 404 }));
+  // The world's clock. The module stub pinned `useNowTick` to a fixed date; the real hook seeds
+  // itself from the system clock, so pin THAT instead and the real hook runs.
+  vi.setSystemTime(act2Harness.now);
   act2Harness.reducedMotion = false;
   act2Harness.inputs = [];
   act2Harness.regrowLayer = null;
   act2Harness.vegetationLayer = null;
   Object.assign(act2Harness.player, { progress: 0, playing: true, regrowing: true });
-  vi.mocked(api.tree).mockResolvedValue({ stories: STORIES, builds: [], claims: [] });
 });
 
 afterEach(() => {
   cleanup();
+  http.uninstall();
+  vi.useRealTimers();
   if (widthDescriptor) Object.defineProperty(HTMLElement.prototype, 'clientWidth', widthDescriptor);
   if (heightDescriptor) Object.defineProperty(HTMLElement.prototype, 'clientHeight', heightDescriptor);
   if (pointerDescriptor) Object.defineProperty(window, 'PointerEvent', pointerDescriptor);
@@ -252,7 +282,7 @@ describe('act2-regrow-camera-projects-the-existing-cursor', () => {
       ).length;
     });
     observer.observe(view.camera, { attributes: true, attributeFilter: ['transform'] });
-    act2Harness.regrowLayer = { picture: 'changed' };
+    act2Harness.regrowLayer = emptyRegrowLayer();
     rerenderMap(view.rerender);
     await Promise.resolve();
     observer.disconnect();
@@ -413,7 +443,7 @@ describe('act2-regrow-camera-preserves-the-run-and-reports-its-cost', () => {
     rerenderMap(control.rerender);
     expect(cameraValues(control.camera)).toEqual(fitted);
     expect(window.__storytreeCameraRasterisationProbe?.snapshot().pictureRevision).toBe(controlRevision);
-    act2Harness.regrowLayer = { picture: 'growth-only-changed' };
+    act2Harness.regrowLayer = emptyRegrowLayer();
     rerenderMap(control.rerender);
     expect(window.__storytreeCameraRasterisationProbe?.snapshot().pictureRevision).toBe(
       (controlRevision ?? 0) + 1,
@@ -454,7 +484,7 @@ describe('act2-regrow-camera-preserves-the-run-and-reports-its-cost', () => {
     expect(middle.scale).toBeLessThan(opening.scale);
     expect(middle.scale).toBeGreaterThan(0);
     expect(window.__storytreeCameraRasterisationProbe?.snapshot().pictureRevision).toBe(productRevision);
-    act2Harness.vegetationLayer = { picture: 'final-product-changed' };
+    act2Harness.vegetationLayer = emptyVegetationLayer();
     rerenderMap(product.rerender);
     const changedSnapshot = window.__storytreeCameraRasterisationProbe?.snapshot();
     expect(changedSnapshot?.pictureRevision).toBe((productRevision ?? 0) + 1);

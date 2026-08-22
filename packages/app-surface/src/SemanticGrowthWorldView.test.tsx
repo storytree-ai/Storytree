@@ -19,17 +19,6 @@ import { CHAPTER2_ORGANIC_POSE_TO_POSE_REGISTRY } from './organic-pose-to-pose-a
 import * as AppSurfacePackageRoot from './index.js';
 import type { SpriteStyleSheet } from './sprite-sheet.js';
 
-// Guidance: "The public view itself imports/loads its co-located motion stylesheet, so a
-// consumer cannot mount an inert semantic player by forgetting a separate CSS side effect."
-// vi.mock is hoisted above every import in this file, so it intercepts the module graph's
-// resolution of './semantic-growth.css' as loaded by `SemanticGrowthWorldView.tsx` itself
-// (same relative path, same directory) the moment that component module is first imported
-// above — not merely a mock reachable only from this test file's own (absent) import of it.
-const cssSideEffect = vi.hoisted(() => ({ loaded: false }));
-vi.mock('./semantic-growth.css', () => {
-  cssSideEffect.loaded = true;
-  return {};
-});
 
 afterEach(cleanup);
 
@@ -426,10 +415,27 @@ describe('SemanticGrowthWorldView', () => {
   it('loads its co-located motion stylesheet as part of mounting the component, not as a separate opt-in side effect', () => {
     // Guidance: "The public view itself imports/loads its co-located motion stylesheet, so a
     // consumer cannot mount an inert semantic player by forgetting a separate CSS side effect."
-    // A consumer who imports and renders only `SemanticGrowthWorldView` (as every other test in
-    // this file already does) must end up with `./semantic-growth.css` evaluated as part of that
-    // — never left to a caller to remember to `import './semantic-growth.css'` separately.
-    expect(cssSideEffect.loaded).toBe(true);
+    // A consumer who imports and renders only `SemanticGrowthWorldView` must end up with
+    // `./semantic-growth.css` evaluated as part of that — never left to a caller to remember to
+    // `import './semantic-growth.css'` separately.
+    //
+    // ASSERTED ON THE COMPONENT MODULE ITSELF (anti-slop-adoption-arc inc-06,
+    // `no-module-mocking`). The claim is about the module GRAPH — that this component's own source
+    // carries the side-effect import — and this file already reads that stylesheet off disk in a
+    // dozen other cases, so reading the importer beside it is the same idiom rather than a new one.
+    // The old `vi.mock('./semantic-growth.css')` observed the same fact by rewriting the resolver;
+    // it also SUPPRESSED the real stylesheet, so the two halves below (the import exists, and it
+    // points at a stylesheet that is really there) could not both be checked at once.
+    const source = readFileSync(
+      resolve(process.cwd(), 'src', 'SemanticGrowthWorldView.tsx'),
+      'utf8',
+    );
+    // A BARE side-effect import — `import './semantic-growth.css';` — not a named/aliased one a
+    // consumer could tree-shake or forget.
+    expect(source).toMatch(/^\s*import\s+'\.\/semantic-growth\.css';\s*$/m);
+    // …and it points at a stylesheet that actually exists and carries rules.
+    const stylesheet = readFileSync(resolve(process.cwd(), 'src', 'semantic-growth.css'), 'utf8');
+    expect(stylesheet.trim().length).toBeGreaterThan(0);
   });
 
   it("reduced motion never blankets every scene descendant's transform, preserving the mapper's static placement/anchor/nesting transforms", () => {

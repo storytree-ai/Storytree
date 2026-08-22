@@ -36,30 +36,55 @@ type ChatEvent =
   | { type: 'refused'; reason: string }
   | { type: 'spawn'; phase: 'started' | 'finished'; role: string; unitId: string; ok?: boolean };
 
-// The streaming seam: api.chatStream(intent, onEvent) POSTs /api/chat, parses each SSE frame, and
-// calls onEvent per typed event. It resolves when the stream ends. The mock lets each test script
-// the frames (spawn frames interleaved with the terminal frame).
-const apiMock = vi.hoisted(() => ({
-  chatStream: vi.fn<(intent: string, onEvent: (event: ChatEvent) => void) => Promise<void>>(),
-}));
-vi.mock('../api', () => ({ api: apiMock }));
+import { HttpDouble, installHttpDouble, sseChannel, type SseChannel } from '../test/httpDouble';
 
-// The real guard, imported to prove the union WIDENED — a `spawn` frame off the wire is no longer
-// defensively ignored (at HEAD isChatEvent returns false for `t === 'spawn'`). Imported from the
-// same module the mock replaces for the panel; vitest still resolves the real source for a direct
-// import in the test file (the mock only intercepts the module the COMPONENT imports at runtime is
-// insufficient — so we assert the guard behaviour indirectly via the RENDER below, which is the
-// runtime red). To assert the guard directly without fighting the mock, we re-derive its acceptance
-// from the render: a `spawn` frame that reaches the panel renders a line ONLY if the guard let it
-// through the api's own drainFrames. Here in the component test the seam is mocked, so the guard's
-// acceptance is proven by cps-panel-renders-the-spawn-line (the line appears) — the union widening is
-// what makes that possible. We ALSO assert the union shape statically below (a compile-time + textual
-// check) so cps-wire-union-accepts-the-spawn-frame stands on its own.
+// THE SEAM IS THE TRANSPORT, NOT THE MODULE (anti-slop-adoption-arc inc-06, `no-module-mocking`),
+// and on THIS suite that is not a tidy-up — it is what lets the file test the thing it is named for.
+//
+// The point of the unit is that api.ts's `isChatEvent` guard WIDENED to accept `type: 'spawn'`;
+// before, the guard dropped the frame. While `../api` was module-mocked the guard never ran, so the
+// suite could only reach it two indirect ways, and its own header said so at length: a TEXTUAL scan
+// of api.ts for `t === 'spawn'`, plus an inference from the render. Both are proxies. A spawn frame
+// pushed as SSE BYTES now travels through the real `drainFrames` and the real guard, so
+// "the panel rendered the spawn line" means the guard accepted it — which is the actual claim.
+const CHAT = '/api/chat';
+
+let http: HttpDouble;
+let channels: SseChannel[];
+
+/** Marks a send whose stream is HELD OPEN for the test to drive and close. */
+const HOLD = null;
+
+/** Script what each successive `POST /api/chat` streams back; the last entry repeats. */
+const scriptSends = (...sends: Array<readonly ChatEvent[] | typeof HOLD>): void => {
+  let n = 0;
+  http.post(CHAT, () => {
+    const script = sends.length === 0 ? HOLD : sends[Math.min(n, sends.length - 1)];
+    n += 1;
+    const channel = sseChannel();
+    channels.push(channel);
+    if (script !== HOLD && script !== undefined) {
+      for (const frame of script) channel.push(frame);
+      channel.close();
+    }
+    return channel.response;
+  });
+};
+
+/** The nth send's live stream (0-based). */
+const channelFor = (index: number): SseChannel => {
+  const channel = channels[index];
+  if (channel === undefined) throw new Error(`no send #${index} yet (${channels.length} so far)`);
+  return channel;
+};
 
 import { ChatPanel } from './ChatPanel';
 
 /** Flush the async chain a submit/timer kicked off. */
-const flush = (): Promise<void> => act(async () => {});
+const flush = (): Promise<void> =>
+  act(async () => {
+    await vi.advanceTimersByTimeAsync(0);
+  });
 
 /** Type the intent into the panel's input and submit via the Send icon button. */
 function typeAndSubmit(intent: string): void {
@@ -83,11 +108,14 @@ function importsModule(src: string, mod: string): boolean {
 
 beforeEach(() => {
   vi.useFakeTimers();
-  apiMock.chatStream.mockReset();
+  http = installHttpDouble();
+  channels = [];
 });
 
 afterEach(() => {
   cleanup();
+  for (const channel of channels) channel.close();
+  http.uninstall();
   vi.useRealTimers();
 });
 
@@ -108,21 +136,43 @@ describe('ChatPanel — spawn line (chat-panel-spawn-render)', () => {
     expect(importsModule(API_SRC, '@storytree/drive')).toBe(false);
   });
 
+  // ── cps-wire-union-accepts-the-spawn-frame, BEHAVIOURALLY ───────────────────
+  it('cps-wire-union-accepts-the-spawn-frame (behavioural): the REAL isChatEvent guard lets a spawn frame off the wire through, and still drops an unknown type', async () => {
+    // This case could not exist while `../api` was module-mocked: the guard never ran, so the
+    // acceptance above could only be scanned for in the source. Here both frames arrive as SSE
+    // bytes and the guard is the only thing that separates them.
+    scriptSends([
+      { type: 'spawn', phase: 'started', role: 'story-author', unitId: 'accepted-unit' },
+      // A frame the union does NOT carry — it must be dropped, not rendered and not fatal.
+      { type: 'gibberish', role: 'story-author', unitId: 'rejected-unit' } as unknown as ChatEvent,
+      { type: 'done', proposal: 'settled', turns: 1 },
+    ]);
+
+    render(<ChatPanel />);
+    typeAndSubmit('drive it');
+    await flush();
+
+    expect(screen.getByText(/spawning story-author for accepted-unit/i)).toBeTruthy();
+    expect(screen.queryByText(/rejected-unit/)).toBeNull();
+    // And the unknown frame did not kill the stream — the terminal frame still settled it.
+    expect(screen.getByText(/settled/)).toBeTruthy();
+  });
+
   // ── cps-panel-renders-the-spawn-line ────────────────────────────────────────
   it('cps-panel-renders-the-spawn-line: a started frame renders the "🔧 spawning <role> for <unitId>…" line and the matching finished frame resolves it to "✓ <role> finished"', async () => {
     // Hold the stream open between the started and finished spawn frames so we can observe the
     // in-flight "spawning…" line BEFORE the finish resolves it.
-    let release: () => void = () => {};
-    const gate = new Promise<void>((r) => { release = r; });
-    apiMock.chatStream.mockImplementation(async (_intent, onEvent) => {
-      onEvent({ type: 'spawn', phase: 'started', role: 'story-author', unitId: 'my-new-story' });
-      await gate; // hold open — the started line is live here
-      onEvent({ type: 'spawn', phase: 'finished', role: 'story-author', unitId: 'my-new-story' });
-      onEvent({ type: 'done', proposal: 'authored the story', turns: 1 });
-    });
+    scriptSends(HOLD);
+    const release = (): void => {
+      channelFor(0).push({ type: 'spawn', phase: 'finished', role: 'story-author', unitId: 'my-new-story' });
+      channelFor(0).push({ type: 'done', proposal: 'authored the story', turns: 1 });
+      channelFor(0).close();
+    };
 
     render(<ChatPanel />);
     typeAndSubmit('write a story for me');
+    await flush();
+    channelFor(0).push({ type: 'spawn', phase: 'started', role: 'story-author', unitId: 'my-new-story' });
     await flush();
 
     // The started line is rendered (the guard accepted the frame; at HEAD it is rejected → absent → red).
@@ -136,11 +186,11 @@ describe('ChatPanel — spawn line (chat-panel-spawn-render)', () => {
   });
 
   it('cps-panel-renders-the-spawn-line (sibling: an ok:false finish resolves to an honest failed line): a finished frame with ok:false resolves to "✗ <role> failed"', async () => {
-    apiMock.chatStream.mockImplementation(async (_intent, onEvent) => {
-      onEvent({ type: 'spawn', phase: 'started', role: 'builder', unitId: 'some-cap' });
-      onEvent({ type: 'spawn', phase: 'finished', role: 'builder', unitId: 'some-cap', ok: false });
-      onEvent({ type: 'done', proposal: 'done', turns: 1 });
-    });
+    scriptSends([
+      { type: 'spawn', phase: 'started', role: 'builder', unitId: 'some-cap' },
+      { type: 'spawn', phase: 'finished', role: 'builder', unitId: 'some-cap', ok: false },
+      { type: 'done', proposal: 'done', turns: 1 },
+    ]);
 
     render(<ChatPanel />);
     typeAndSubmit('build the cap');
@@ -152,12 +202,12 @@ describe('ChatPanel — spawn line (chat-panel-spawn-render)', () => {
 
   // ── cps-spawn-frame-is-non-terminal ─────────────────────────────────────────
   it('cps-spawn-frame-is-non-terminal: a spawn frame appends a line and does NOT terminate the stream — a done frame after it still renders its proposal; and the panel imports no agent/drive/model', async () => {
-    apiMock.chatStream.mockImplementation(async (_intent, onEvent) => {
-      onEvent({ type: 'spawn', phase: 'started', role: 'story-author', unitId: 'a-story' });
-      onEvent({ type: 'spawn', phase: 'finished', role: 'story-author', unitId: 'a-story' });
+    scriptSends([
+      { type: 'spawn', phase: 'started', role: 'story-author', unitId: 'a-story' },
+      { type: 'spawn', phase: 'finished', role: 'story-author', unitId: 'a-story' },
       // A terminal done frame AFTER the spawn frames — the spawn frame was non-terminal (like a delta).
-      onEvent({ type: 'done', proposal: 'The proposal survived the spawn frames.', turns: 2 });
-    });
+      { type: 'done', proposal: 'The proposal survived the spawn frames.', turns: 2 },
+    ]);
 
     const { container } = render(<ChatPanel />);
     typeAndSubmit('do the work');

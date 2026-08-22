@@ -6,9 +6,10 @@
  * suggested edit (POSTing a proposal through the api seam).  An owner/admin sees
  * Accept/Reject controls that drive the decision; a member does not.
  *
- * The api seam provides createSuggestion + decideSuggestion — both are mocked in
- * the test via vi.mock('../api', …); the cast below bridges the typecheck gap until
- * the suggestion routes are wired server-side.
+ * The api seam provides createSuggestion + decideSuggestion. The test drives both through a
+ * doubled TRANSPORT rather than a replaced module (anti-slop-adoption-arc inc-06), so it asserts
+ * the request bodies the routes will actually receive; the cast below bridges the typecheck gap
+ * until the suggestion routes are wired server-side.
  *
  * The panel imports NO build engine, no agent/drive code (ADR-0004).
  */
@@ -39,8 +40,7 @@ export interface Suggestion {
 // ── Suggestion-seam typing ────────────────────────────────────────────────────
 //
 // The two suggestion api methods this view uses — createSuggestion and decideSuggestion.
-// The full api object is mocked in tests via vi.mock('../api', () => ({ api: apiMock }));
-// the cast below makes the typecheck pass while the server routes are added in cap 3/4.
+// The cast below makes the typecheck pass while the server routes are added in cap 3/4.
 
 interface SuggestionSeam {
   createSuggestion: (input: {

@@ -1,7 +1,11 @@
 // @vitest-environment jsdom
 //
 // The factory-floor health strip's data layer (lib/floorHealth.ts, ADR-0314 D7 / ADR-0316 D5) — the
-// api module is mocked and the poll loop runs on fake timers, so every transition is driven exactly.
+// TRANSPORT is doubled (src/test/httpDouble.ts) and the poll loop runs on fake timers, so every
+// transition is driven exactly. The `../api` module itself is NOT replaced (anti-slop-adoption-arc
+// inc-06, `no-module-mocking`): the real `api.floorHealth()` runs, so the route it reads and the
+// failure branch it takes are under test rather than assumed, and a hook that started reading a
+// different route goes red against the double's fail-closed floor.
 //
 // Two things are worth a red in the wire → band mapping:
 //
@@ -20,10 +24,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, cleanup } from '@testing-library/react';
 import type { FloorHealthPayload, FloorHealthReading } from '../types';
 
-const apiMock = vi.hoisted(() => ({
-  floorHealth: vi.fn<() => Promise<FloorHealthPayload>>(),
-}));
-vi.mock('../api', () => ({ api: apiMock }));
+import { HttpDouble, errorReply, installHttpDouble } from '../test/httpDouble';
 
 import {
   floorHealthBand,
@@ -126,50 +127,73 @@ describe('useFloorHealth — drawer-scoped, on its own slow cadence', () => {
   const renderIt = (open: boolean) =>
     renderHook(({ o }: { o: boolean }) => useFloorHealth(o), { initialProps: { o: open } });
 
+  const FLOOR = '/api/floor-health';
+  let http: HttpDouble;
+
+  /** Declare what `GET /api/floor-health` answers from here on — later declarations win. */
+  const answer = (payload: FloorHealthPayload): void => {
+    http.get(FLOOR, () => payload);
+  };
+  const reads = (): number => http.countTo(FLOOR);
+
   beforeEach(() => {
     vi.useFakeTimers();
-    apiMock.floorHealth.mockReset();
+    http = installHttpDouble();
   });
 
   afterEach(() => {
     cleanup();
+    http.uninstall();
     vi.useRealTimers();
   });
 
   it('fetches nothing while the lens is closed', async () => {
-    apiMock.floorHealth.mockResolvedValue({ reading: READING });
+    answer({ reading: READING });
     renderIt(false);
     await tick(FLOOR_POLL_MS * 2);
-    expect(apiMock.floorHealth).not.toHaveBeenCalled();
+    expect(reads()).toBe(0);
   });
 
   it('fetches immediately on open, then re-polls on the slow cadence', async () => {
-    apiMock.floorHealth.mockResolvedValue({ reading: READING });
+    answer({ reading: READING });
     const { result } = renderIt(true);
     await tick(0);
     expect(result.current).toEqual(READING);
-    expect(apiMock.floorHealth).toHaveBeenCalledTimes(1);
+    expect(reads()).toBe(1);
 
     // Nothing at the shared 30 s cadence — this read scans the whole corpus for a figure that moves
     // on a daily grain, so it deliberately does not ride the world's poll.
     await tick(FLOOR_POLL_MS - 1000);
-    expect(apiMock.floorHealth).toHaveBeenCalledTimes(1);
+    expect(reads()).toBe(1);
     await tick(2000);
-    expect(apiMock.floorHealth).toHaveBeenCalledTimes(2);
+    expect(reads()).toBe(2);
+  });
+
+  it('reads the route the strip actually depends on — /api/floor-health, once', async () => {
+    // The fail-closed double makes this assertable rather than assumed: under module mocking the
+    // route name lived only inside `api.ts` and no suite here ever observed it.
+    answer({ reading: READING });
+    renderIt(true);
+    await tick(0);
+    expect(http.requestsTo(FLOOR).map((request) => request.method)).toEqual(['GET']);
   });
 
   it('a failed read with NOTHING known yet says unreachable — never a silent forever-spinner', async () => {
     // The regression `useArcRollups` paid for in #1191: a swallowed failure left the desktop's arc
     // lens on "Reading arcs…" permanently. Here the same swallow would leave the band pending, which
     // reads as "still looking" on a floor nobody is looking at.
-    apiMock.floorHealth.mockRejectedValue(new Error('no such route'));
+    // A real 404 body, unwrapped by the real `http()` error branch — the desktop-backend shape.
+    http.get(FLOOR, () => errorReply('no such route', 404));
     const { result } = renderIt(true);
     await tick(0);
     expect(result.current).toBe(FLOOR_HEALTH_UNREACHABLE);
   });
 
   it('retries a failure on the SHORT cadence, so one cold-start blip is not five minutes stale', async () => {
-    apiMock.floorHealth.mockRejectedValueOnce(new Error('timed out')).mockResolvedValue({ reading: READING });
+    let attempt = 0;
+    http.get(FLOOR, () =>
+      (attempt += 1) === 1 ? errorReply('timed out', 504) : { reading: READING },
+    );
     const { result } = renderIt(true);
     await tick(0);
     expect(result.current).toBe(FLOOR_HEALTH_UNREACHABLE);
@@ -183,11 +207,13 @@ describe('useFloorHealth — drawer-scoped, on its own slow cadence', () => {
     // live route, the unguarded version made two concurrent whole-corpus reads that contended: the
     // first landed against a torn-down closure and the second aborted, so the band read "no answer"
     // for a minute over a route that was answering 200s throughout.
-    let release: ((p: { reading: FloorHealthReading }) => void) | undefined;
-    apiMock.floorHealth.mockReturnValue(
-      new Promise((resolve) => {
-        release = resolve;
-      }),
+    let release: ((response: Response) => void) | undefined;
+    http.get(
+      FLOOR,
+      () =>
+        new Promise<Response>((resolve) => {
+          release = resolve;
+        }),
     );
     const { rerender } = renderHook(({ o }: { o: boolean }) => useFloorHealth(o), {
       initialProps: { o: true },
@@ -197,12 +223,15 @@ describe('useFloorHealth — drawer-scoped, on its own slow cadence', () => {
     rerender({ o: false });
     rerender({ o: true });
     await tick(0);
-    expect(apiMock.floorHealth).toHaveBeenCalledTimes(1);
-    release?.({ reading: READING });
+    expect(reads()).toBe(1);
+    release?.(new Response(JSON.stringify({ reading: READING })));
   });
 
   it('absorbs a transient failure once something is known — no flapping to unreachable', async () => {
-    apiMock.floorHealth.mockResolvedValueOnce({ reading: READING }).mockRejectedValue(new Error('blip'));
+    let attempt = 0;
+    http.get(FLOOR, () =>
+      (attempt += 1) === 1 ? { reading: READING } : errorReply('blip', 500),
+    );
     const { result } = renderIt(true);
     await tick(0);
     await tick(FLOOR_POLL_MS + 100);
@@ -210,11 +239,11 @@ describe('useFloorHealth — drawer-scoped, on its own slow cadence', () => {
   });
 
   it('stops polling the moment the lens closes', async () => {
-    apiMock.floorHealth.mockResolvedValue({ reading: READING });
+    answer({ reading: READING });
     const { rerender } = renderIt(true);
     await tick(0);
     rerender({ o: false });
     await tick(FLOOR_POLL_MS * 3);
-    expect(apiMock.floorHealth).toHaveBeenCalledTimes(1);
+    expect(reads()).toBe(1);
   });
 });

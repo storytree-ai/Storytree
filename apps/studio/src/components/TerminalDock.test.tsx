@@ -149,7 +149,6 @@ const xtermMock = vi.hoisted(() => {
   }
   return { FakeTerminal };
 });
-vi.mock('@xterm/xterm', () => ({ Terminal: xtermMock.FakeTerminal }));
 
 // ── the fake FitAddon — `fit()` mirrors the real addon's job of resizing the terminal to the
 //    (test-controlled) proposed dimensions, so the resize wiring is driven deterministically without
@@ -180,7 +179,6 @@ const fitMock = vi.hoisted(() => {
   }
   return { FakeFitAddon };
 });
-vi.mock('@xterm/addon-fit', () => ({ FitAddon: fitMock.FakeFitAddon }));
 
 // ── the fake WebglAddon — the GPU renderer seam (tdp-renders-with-webgl-and-falls-back-honestly).
 //    Records construction / the onContextLoss handler / dispose, and can be told to THROW on
@@ -206,7 +204,6 @@ const webglMock = vi.hoisted(() => {
   }
   return { FakeWebglAddon };
 });
-vi.mock('@xterm/addon-webgl', () => ({ WebglAddon: webglMock.FakeWebglAddon }));
 
 // ── the fake Unicode11Addon — the width-table seam (tdp-activates-unicode11-widths). Real xterm
 //    defaults to Unicode 6 width tables (emoji/spinner/box glyphs mis-measured → overlapping
@@ -225,7 +222,6 @@ const unicode11Mock = vi.hoisted(() => {
   }
   return { FakeUnicode11Addon };
 });
-vi.mock('@xterm/addon-unicode11', () => ({ Unicode11Addon: unicode11Mock.FakeUnicode11Addon }));
 
 // ── the fake WebLinksAddon — the clickable-links seam (increment D). Captures the activation
 //    handler the dock constructs it with, so the contract can invoke it with a URI and assert the
@@ -246,7 +242,6 @@ const webLinksMock = vi.hoisted(() => {
   }
   return { FakeWebLinksAddon };
 });
-vi.mock('@xterm/addon-web-links', () => ({ WebLinksAddon: webLinksMock.FakeWebLinksAddon }));
 
 // ── the fake SearchAddon — the find-in-scrollback seam (increment D). Records the queries driven
 //    through findNext/findPrevious so the contracts can assert the panel's search chrome targets
@@ -274,7 +269,6 @@ const searchMock = vi.hoisted(() => {
   }
   return { FakeSearchAddon };
 });
-vi.mock('@xterm/addon-search', () => ({ SearchAddon: searchMock.FakeSearchAddon }));
 
 // ── the fake ClipboardAddon — the OSC 52 seam (increment D). Captures BOTH constructor arguments:
 //    the runtime is `constructor(base64 = new Base64(), provider = new BrowserClipboardProvider())`
@@ -303,7 +297,6 @@ const clipboardMock = vi.hoisted(() => {
   }
   return { FakeClipboardAddon };
 });
-vi.mock('@xterm/addon-clipboard', () => ({ ClipboardAddon: clipboardMock.FakeClipboardAddon }));
 
 // ── the desktopTerminal bridge — installed on `window` per test (deleted for the absent-bridge
 //    case). `spawn` resolves asynchronously (a real IPC round-trip would too), so tests await a
@@ -312,6 +305,33 @@ vi.mock('@xterm/addon-clipboard', () => ({ ClipboardAddon: clipboardMock.FakeCli
 //    (still `sess-1`, matching `SESSION_ID` below unchanged), while the multi-session-tabs tests
 //    open a second/third tab and need genuinely distinct session ids to assert dispose/write/data
 //    routing lands on the RIGHT session. ──────────────────────────────────────────────────────────
+// ── the toolkit the dock is HANDED ───────────────────────────────────────────────────────────
+//
+// THE FAKES ABOVE ARE UNCHANGED — they were never the problem. What changed is how they reach the
+// component (anti-slop-adoption-arc inc-06, `no-module-mocking`): the dock takes its xterm
+// constructors from `TerminalToolkitContext` (lib/terminalToolkit.ts) with the real xterm as the
+// default, so the engine is SUBSTITUTED at a seam instead of the module system being rewritten
+// under it. A real terminal still cannot run here — jsdom has no layout engine and no GPU — which
+// is exactly why the seam, rather than the doubles, was the thing to fix.
+//
+// One assertion, because these fakes implement the SUBSET of xterm the dock uses rather than
+// xterm's declared classes. That is the partial-fake-of-a-real-contract shape
+// `anti-slop-adoption-arc-inc-09` owns; it is confined to this one line.
+const fakeToolkit = {
+  Terminal: xtermMock.FakeTerminal,
+  FitAddon: fitMock.FakeFitAddon,
+  WebglAddon: webglMock.FakeWebglAddon,
+  Unicode11Addon: unicode11Mock.FakeUnicode11Addon,
+  WebLinksAddon: webLinksMock.FakeWebLinksAddon,
+  SearchAddon: searchMock.FakeSearchAddon,
+  ClipboardAddon: clipboardMock.FakeClipboardAddon,
+} as unknown as TerminalToolkit;
+
+/** Wrap a dock element so it is built from the fake engine above. */
+const withToolkit = (ui: React.JSX.Element): React.JSX.Element => (
+  <TerminalToolkitContext.Provider value={fakeToolkit}>{ui}</TerminalToolkitContext.Provider>
+);
+
 const SESSION_ID = 'sess-1';
 const bridgeMock = vi.hoisted(() => {
   let sessionCounter = 0;
@@ -383,6 +403,7 @@ class FakeResizeObserver {
 }
 
 import { TerminalDock } from './TerminalDock';
+import { TerminalToolkitContext, type TerminalToolkit } from '../lib/terminalToolkit';
 
 /** Flush the microtask queue the bridge's `spawn()` promise resolves on. */
 const flush = (): Promise<void> => act(async () => {});
@@ -488,7 +509,7 @@ afterEach(() => {
 describe('TerminalDock', () => {
   // ── tdp-spawns-on-open-and-writes-data ───────────────────────────────────────
   it('tdp-spawns-on-open-and-writes-data: opening the terminal spawns over the bridge and pipes bridge data into xterm', async () => {
-    const { container } = render(<TerminalDock />);
+    const { container } = render(withToolkit(<TerminalDock />));
 
     // Folded by default: no session spawned yet, no terminal instantiated.
     expect(bridgeMock.spawn).not.toHaveBeenCalled();
@@ -515,7 +536,7 @@ describe('TerminalDock', () => {
 
   // ── tdp-forwards-input-to-bridge ─────────────────────────────────────────────
   it('tdp-forwards-input-to-bridge: terminal keystrokes are forwarded to the bridge write', async () => {
-    render(<TerminalDock />);
+    render(withToolkit(<TerminalDock />));
     await expand();
 
     const term = xtermMock.FakeTerminal.instances[0]!;
@@ -526,7 +547,7 @@ describe('TerminalDock', () => {
 
   // ── tdp-resizes-with-the-dock ────────────────────────────────────────────────
   it('tdp-resizes-with-the-dock: dragging the dock resize edge refits the terminal, forwards the new geometry to the bridge, and clamps the dock height', async () => {
-    const { container } = render(<TerminalDock resizeDebounceMs={RESIZE_DEBOUNCE_MS} />);
+    const { container } = render(withToolkit(<TerminalDock resizeDebounceMs={RESIZE_DEBOUNCE_MS} />));
     await expand();
 
     const root = dockRoot(container);
@@ -564,7 +585,7 @@ describe('TerminalDock', () => {
 
   // ── tdp-toggles-visibility-keeping-terminal-mounted ──────────────────────────
   it('tdp-toggles-visibility-keeping-terminal-mounted: collapse/expand keeps the terminal mounted, the session preserved', async () => {
-    const { container } = render(<TerminalDock />);
+    const { container } = render(withToolkit(<TerminalDock />));
     await expand();
 
     expect(bridgeMock.spawn).toHaveBeenCalledTimes(1);
@@ -588,7 +609,7 @@ describe('TerminalDock', () => {
 
   // ── tdp-refocuses-after-window-focus-cycle (contract 6) ─────────────────
   it('tdp-refocuses-after-window-focus-cycle: window focus, a click on the dock body, and visibilitychange-to-visible all re-focus the mounted terminal', async () => {
-    render(<TerminalDock />);
+    render(withToolkit(<TerminalDock />));
 
     // Not yet mounted (folded, no session): none of the refocus triggers should touch a terminal
     // instance or throw — there is nothing mounted to focus yet.
@@ -622,7 +643,7 @@ describe('TerminalDock', () => {
   it('tdp-degrades-when-bridge-absent: an absent desktopTerminal bridge renders an honest disabled state, never spawns/hangs', () => {
     delete (window as unknown as { desktopTerminal?: typeof bridgeMock }).desktopTerminal;
 
-    expect(() => render(<TerminalDock />)).not.toThrow();
+    expect(() => render(withToolkit(<TerminalDock />))).not.toThrow();
 
     expect(screen.getByText(/terminal unavailable/i)).toBeTruthy();
     expect(bridgeMock.spawn).not.toHaveBeenCalled();
@@ -634,14 +655,14 @@ describe('TerminalDock', () => {
   //    own interactive Claude Code). SUPERSEDES map-terminal-build's terminal-dock-seed capability
   //    (was write-to-the-active-session) — the son-* contracts below replace the old tds-* ones. ──
   it('son-seed-opens-a-fresh-tab: a new seed opens a SECOND, independent tab and switches to it, rather than reusing the active session', async () => {
-    const { container, rerender } = render(<TerminalDock />);
+    const { container, rerender } = render(withToolkit(<TerminalDock />));
     await expand(); // tab 1 = sess-1, the pre-existing ACTIVE session (the user's interactive Claude Code)
 
     expect(bridgeMock.spawn).toHaveBeenCalledTimes(1);
     expect(xtermMock.FakeTerminal.instances.length).toBe(1);
 
     const seed = { command: 'ls -la', token: 1 };
-    rerender(<TerminalDock seed={seed} />);
+    rerender(withToolkit(<TerminalDock seed={seed} />));
     await flush();
 
     // A SECOND, independent session/tab was opened for the seed — never a reuse of tab 1.
@@ -657,11 +678,11 @@ describe('TerminalDock', () => {
   });
 
   it("son-seed-never-touches-active-session: the seed command is written to the FRESH tab, never into the previously-active session", async () => {
-    const { rerender } = render(<TerminalDock />);
+    const { rerender } = render(withToolkit(<TerminalDock />));
     await expand(); // tab 1 = sess-1, the pre-existing active session
 
     const seed = { command: 'ls -la', token: 1 };
-    rerender(<TerminalDock seed={seed} />);
+    rerender(withToolkit(<TerminalDock seed={seed} />));
     await flush();
 
     // The load-bearing safety wall: sess-1 (the previously-active session) is NEVER written to for
@@ -672,11 +693,11 @@ describe('TerminalDock', () => {
   });
 
   it("son-pre-spawn-seed-writes-on-resolve: a seed arriving before the fresh tab's spawn resolves is held pending and written exactly once on resolve", async () => {
-    const { rerender } = render(<TerminalDock />);
+    const { rerender } = render(withToolkit(<TerminalDock />));
     await expand(); // tab 1 = sess-1, already resolved
 
     const seed = { command: 'ls -la', token: 1 };
-    rerender(<TerminalDock seed={seed} />);
+    rerender(withToolkit(<TerminalDock seed={seed} />));
 
     // The fresh tab's bridge.spawn() promise has not resolved yet — the seed must be held pending
     // for THAT tab, never written into tab 1's already-resolved session.
@@ -692,17 +713,17 @@ describe('TerminalDock', () => {
   it('son-token-bump-opens-another-fresh-tab: a token bump opens ANOTHER fresh tab even for an unchanged command; the same token is a no-op', async () => {
     const seed1 = { command: 'ls -la', token: 1 };
     const seed2 = { command: 'ls -la', token: 2 };
-    const { rerender } = render(<TerminalDock />);
+    const { rerender } = render(withToolkit(<TerminalDock />));
     await expand(); // tab 1 = sess-1
 
-    rerender(<TerminalDock seed={seed1} />);
+    rerender(withToolkit(<TerminalDock seed={seed1} />));
     await flush(); // tab 2 = sess-2, pre-filled
 
     expect(bridgeMock.spawn).toHaveBeenCalledTimes(2);
     expect(bridgeMock.write).toHaveBeenCalledTimes(1);
 
     // A token bump opens a THIRD tab — a nonce, not a cache key — even for the identical command.
-    rerender(<TerminalDock seed={seed2} />);
+    rerender(withToolkit(<TerminalDock seed={seed2} />));
     await flush();
 
     expect(bridgeMock.spawn).toHaveBeenCalledTimes(3);
@@ -710,7 +731,7 @@ describe('TerminalDock', () => {
     expect(bridgeMock.write).toHaveBeenLastCalledWith('sess-3', 'ls -la');
 
     // Re-rendering with the SAME token is a no-op — keyed on the token, not the command string.
-    rerender(<TerminalDock seed={seed2} />);
+    rerender(withToolkit(<TerminalDock seed={seed2} />));
     await flush();
     expect(bridgeMock.spawn).toHaveBeenCalledTimes(3);
     expect(bridgeMock.write).toHaveBeenCalledTimes(2);
@@ -718,9 +739,9 @@ describe('TerminalDock', () => {
 
   it('son-prefills-without-trailing-newline: the fresh tab is pre-filled with the BARE command — no trailing newline/carriage-return (never auto-run)', async () => {
     const seed = { command: 'pnpm storytree story build x --real --store pg', token: 1 };
-    const { rerender } = render(<TerminalDock />);
+    const { rerender } = render(withToolkit(<TerminalDock />));
     await expand();
-    rerender(<TerminalDock seed={seed} />);
+    rerender(withToolkit(<TerminalDock seed={seed} />));
     await flush();
 
     // The load-bearing safety wall: a --real build is billed + PR-opening (ADR-0136); the command
@@ -733,7 +754,7 @@ describe('TerminalDock', () => {
   });
 
   it('son-absent-seed-is-a-no-op: with NO seed prop the dock is byte-identical to the multi-session dock — no extra tab, no write', async () => {
-    render(<TerminalDock />);
+    render(withToolkit(<TerminalDock />));
     await expand();
 
     expect(bridgeMock.spawn).toHaveBeenCalledTimes(1);
@@ -744,7 +765,7 @@ describe('TerminalDock', () => {
   // ── tdp-renders-header-right-slot (contract 7 — the terminal-repo-picker header affordance) ──
   it('tdp-renders-header-right-slot: an optional headerRight node renders in the dock header, as a sibling of the toggle button (never nested inside it)', async () => {
     const { container } = render(
-      <TerminalDock headerRight={<button type="button">Pick repo</button>} />,
+      withToolkit(<TerminalDock headerRight={<button type="button">Pick repo</button>} />),
     );
     await expand();
 
@@ -757,7 +778,7 @@ describe('TerminalDock', () => {
   });
 
   it('tdp-renders-header-right-slot: absent by default — with no headerRight prop the header renders exactly as before, no header-right container at all', async () => {
-    const { container } = render(<TerminalDock />);
+    const { container } = render(withToolkit(<TerminalDock />));
     await expand();
 
     expect(container.querySelector('.terminal-dock-header-right')).toBeNull();
@@ -766,7 +787,7 @@ describe('TerminalDock', () => {
   // ── tdp-shows-message-on-empty-session (contract 8 — the main-side fail-close feedback) ──────
   it('tdp-shows-message-on-empty-session: spawn() resolving an empty sessionId writes an honest one-line message and wires no live session (input inert, never a blank screen)', async () => {
     bridgeMock.spawn.mockResolvedValueOnce({ sessionId: '' });
-    render(<TerminalDock />);
+    render(withToolkit(<TerminalDock />));
     await expand();
 
     const term = xtermMock.FakeTerminal.instances[0]!;
@@ -784,7 +805,7 @@ describe('TerminalDock', () => {
   //    size, never the 80x24 xterm default under a wide dock. Today `initTab` calls `bridge.spawn()`
   //    with no dims at all, so this must fail against current behaviour.
   it('tdp-fits-before-spawn-and-passes-initial-dims: a fresh tab fits before spawning and passes the fitted cols/rows into bridge.spawn', async () => {
-    render(<TerminalDock />);
+    render(withToolkit(<TerminalDock />));
     await expand();
 
     const fit = fitMock.FakeFitAddon.instances[0]!;
@@ -805,7 +826,7 @@ describe('TerminalDock', () => {
   //    neither the tab-switch handler nor the toggle handler calls fit() at all, so this must fail
   //    against current behaviour.
   it('tdp-refits-on-expand-activation-and-resize: switching tabs and re-expanding the dock re-fits the now-visible terminal and forwards the new dims to the bridge', async () => {
-    render(<TerminalDock resizeDebounceMs={RESIZE_DEBOUNCE_MS} />);
+    render(withToolkit(<TerminalDock resizeDebounceMs={RESIZE_DEBOUNCE_MS} />));
     await expand(); // tab 1 = sess-1, active; fit1 fit-before-spawn already ran once (contract 10)
     await openNewTab(); // tab 2 = sess-2, becomes active; fit2 fit-before-spawn already ran once
 
@@ -850,7 +871,7 @@ describe('TerminalDock', () => {
 
   // ── mst-new-tab-spawns-independent-session ─────────────────────────────────────────────
   it('mst-new-tab-spawns-independent-session: the "+" control spawns an independent second session and mounts its own xterm pane', async () => {
-    render(<TerminalDock />);
+    render(withToolkit(<TerminalDock />));
     await expand(); // tab 1: spawns sess-1, mounts terminal instance 0
 
     expect(bridgeMock.spawn).toHaveBeenCalledTimes(1);
@@ -869,7 +890,7 @@ describe('TerminalDock', () => {
 
   // ── mst-switch-shows-selected-tab-pane ─────────────────────────────────────────────
   it('mst-switch-shows-selected-tab-pane: clicking a tab shows its pane and hides the others', async () => {
-    const { container } = render(<TerminalDock />);
+    const { container } = render(withToolkit(<TerminalDock />));
     await expand(); // tab 1 active
     await openNewTab(); // tab 2 spawned and becomes the active tab
 
@@ -889,7 +910,7 @@ describe('TerminalDock', () => {
 
   // ── mst-scopes-io-per-tab ────────────────────────────────────────────────────
   it('mst-scopes-io-per-tab: a bridge data chunk for one session writes ONLY into that session\'s pane, never a sibling tab\'s', async () => {
-    render(<TerminalDock />);
+    render(withToolkit(<TerminalDock />));
     await expand(); // tab 1 = sess-1
     await openNewTab(); // tab 2 = sess-2
 
@@ -908,7 +929,7 @@ describe('TerminalDock', () => {
   // ── mst-chrome-stays-per-dock ─────────────────────────────────────────────────
   it('mst-chrome-stays-per-dock: the toggle and headerRight slot render ONCE per dock, not once per tab', async () => {
     const { container } = render(
-      <TerminalDock headerRight={<button type="button">Pick repo</button>} />,
+      withToolkit(<TerminalDock headerRight={<button type="button">Pick repo</button>} />),
     );
     await expand();
     await openNewTab();
@@ -930,7 +951,7 @@ describe('TerminalDock', () => {
   //    (a sibling of the toggle, not beside the pane area) — no `.terminal-dock-panel` /
   //    `.terminal-dock-body-row` exist yet, so this must fail against current behaviour. ───────
   it('mst-panel-sits-beside-pane: the session panel renders beside the terminal panes (not a strip above them), with one labeled row per session and the active row marked', async () => {
-    const { container } = render(<TerminalDock />);
+    const { container } = render(withToolkit(<TerminalDock />));
     await expand(); // session 1
     await openNewTab(); // session 2, becomes active
 
@@ -965,7 +986,7 @@ describe('TerminalDock', () => {
 
   // ── mst-close-tab-disposes-its-session ───────────────────────────────────────
   it('mst-close-tab-disposes-its-session: closing a tab disposes ONLY that session (bridge + xterm) and reaps its tab; the sibling is untouched', async () => {
-    const { container } = render(<TerminalDock />);
+    const { container } = render(withToolkit(<TerminalDock />));
     await expand(); // tab 1 = sess-1
     await openNewTab(); // tab 2 = sess-2
 
@@ -994,7 +1015,7 @@ describe('TerminalDock', () => {
   it('tdp-reattaches-live-sessions-on-mount: still-live sessions reported by bridge.list() are adopted as one tab each, with snapshot() replayed and no spawn', async () => {
     bridgeMock.list.mockResolvedValueOnce([{ sessionId: 'sess-9' }, { sessionId: 'sess-8' }]);
 
-    const { container } = render(<TerminalDock />);
+    const { container } = render(withToolkit(<TerminalDock />));
     await flush();
     await flush(); // drain the list() → per-session snapshot() promise chain
 
@@ -1035,7 +1056,7 @@ describe('TerminalDock', () => {
       rows: 40,
     });
 
-    render(<TerminalDock />);
+    render(withToolkit(<TerminalDock />));
     await flush();
     await flush(); // drain the list() → snapshot() promise chain
 
@@ -1054,7 +1075,7 @@ describe('TerminalDock', () => {
 
   // ── mst-unmount-preserves-sessions (ADR-0189 — supersedes ADR-0186's dock-lifetime wall) ────────
   it('mst-unmount-preserves-sessions: unmounting the dock disposes only RENDERER resources (xterm + fit) for every open tab, and NEVER the bridge session — sessions are app-owned and survive dock unmount', async () => {
-    const { unmount } = render(<TerminalDock />);
+    const { unmount } = render(withToolkit(<TerminalDock />));
     await expand(); // tab 1 = sess-1
     await openNewTab(); // tab 2 = sess-2
 
@@ -1088,7 +1109,7 @@ describe('TerminalDock', () => {
   //    container-size change currently leaves the terminal at its stale geometry. This must fail
   //    against current behaviour. ──────────────────────────────────────────────────────────────────
   it('tdp-refits-on-container-resize: a ResizeObserver firing for the dock body refits the active terminal and forwards the new dims to the bridge, with no drag and no tab switch', async () => {
-    render(<TerminalDock resizeDebounceMs={RESIZE_DEBOUNCE_MS} />);
+    render(withToolkit(<TerminalDock resizeDebounceMs={RESIZE_DEBOUNCE_MS} />));
     await expand();
 
     const fit = fitMock.FakeFitAddon.instances[0]!;
@@ -1127,7 +1148,7 @@ describe('TerminalDock', () => {
       configurable: true,
     });
 
-    render(<TerminalDock />);
+    render(withToolkit(<TerminalDock />));
     await expand();
 
     const term = xtermMock.FakeTerminal.instances[0]!;
@@ -1204,7 +1225,7 @@ describe('TerminalDock', () => {
   //    addon at all, so the first assertion must fail against current behaviour. ─────────────────
   it('tdp-renders-with-webgl-and-falls-back-honestly: each tab loads the WebGL renderer after open; a no-WebGL box falls back to a working DOM-rendered session; a context loss disposes the addon with the session still live', async () => {
     // (a) the GPU renderer: expanding wires a WebglAddon onto the fresh terminal, after open().
-    render(<TerminalDock />);
+    render(withToolkit(<TerminalDock />));
     await expand();
 
     const term = xtermMock.FakeTerminal.instances[0]!;
@@ -1231,7 +1252,7 @@ describe('TerminalDock', () => {
     webglMock.FakeWebglAddon.failConstruction = true;
     bridgeMock.resetSessionCounter();
     bridgeMock.write.mockClear();
-    render(<TerminalDock />);
+    render(withToolkit(<TerminalDock />));
     await expand();
 
     const fallbackTerm = xtermMock.FakeTerminal.instances[1]!;
@@ -1249,7 +1270,7 @@ describe('TerminalDock', () => {
   //    the REAL addon) — one-sided width tables make re-attach replays re-wrap differently than
   //    live rendering. Today `initTab` loads no unicode addon, so this must fail. ───────────────
   it('tdp-activates-unicode11-widths: every tab loads the Unicode11Addon and activates Unicode 11 width tables', async () => {
-    render(<TerminalDock />);
+    render(withToolkit(<TerminalDock />));
     await expand(); // tab 1
     await openNewTab(); // tab 2 — the addon is per-terminal, EVERY tab must get its own
 
@@ -1271,7 +1292,7 @@ describe('TerminalDock', () => {
   //    pty-session-manager.ts) — a re-attach can replay more lines than the renderer can hold.
   //    Today the constructor passes no `scrollback` at all, so this must fail. ──────────────────
   it('tdp-constructs-with-aligned-scrollback: the terminal is constructed with scrollback 5000, aligned with the main-held headless screen model', async () => {
-    render(<TerminalDock />);
+    render(withToolkit(<TerminalDock />));
     await expand();
 
     const term = xtermMock.FakeTerminal.instances[0]!;
@@ -1289,7 +1310,7 @@ describe('TerminalDock', () => {
     const bridgeWithBuild = bridgeMock as typeof bridgeMock & { windowsBuildNumber?: number };
     bridgeWithBuild.windowsBuildNumber = 26100;
     try {
-      render(<TerminalDock />);
+      render(withToolkit(<TerminalDock />));
       await expand();
 
       const term = xtermMock.FakeTerminal.instances[0]!;
@@ -1303,7 +1324,7 @@ describe('TerminalDock', () => {
     // The absent-member half: no windowsBuildNumber on the bridge → no windowsPty option at all
     // (never a stub object — xterm treats the key's presence as "apply ConPTY heuristics").
     bridgeMock.resetSessionCounter();
-    render(<TerminalDock />);
+    render(withToolkit(<TerminalDock />));
     await expand();
 
     const plainTerm = xtermMock.FakeTerminal.instances[1]!;
@@ -1318,7 +1339,7 @@ describe('TerminalDock', () => {
   //    grains (VS Code's FlowControlConstants ack grain), never sent per-chunk. Today `onData`
   //    routing calls `term.write(chunk)` with no callback and no ack is ever sent — red. ──────────
   it('tdp-acks-consumed-chars-in-grains: consumed chars are acked back over the bridge in ≥5000-char grains from the write parse-complete callback, never per-chunk', async () => {
-    render(<TerminalDock />);
+    render(withToolkit(<TerminalDock />));
     await expand();
 
     const term = xtermMock.FakeTerminal.instances[0]!;
@@ -1350,7 +1371,7 @@ describe('TerminalDock', () => {
     delete bridgeWithoutAck['ack'];
     (window as unknown as { desktopTerminal?: unknown }).desktopTerminal = bridgeWithoutAck;
 
-    render(<TerminalDock />);
+    render(withToolkit(<TerminalDock />));
     await expand();
 
     const term = xtermMock.FakeTerminal.instances[0]!;
@@ -1370,7 +1391,7 @@ describe('TerminalDock', () => {
   //    LAST dims, while the xterm-side resize stays live so the pane feels responsive. Today the
   //    onResize wiring forwards every resize immediately, so the coalescing assertions must fail. ──
   it('tdp-debounces-pty-resize-forward: a resize storm forwards ONE trailing bridge.resize with the last dims (xterm-side stays live); a quiet later resize forwards again; unmount cancels a pending forward', async () => {
-    const { unmount } = render(<TerminalDock resizeDebounceMs={RESIZE_DEBOUNCE_MS} />);
+    const { unmount } = render(withToolkit(<TerminalDock resizeDebounceMs={RESIZE_DEBOUNCE_MS} />));
     await expand();
 
     const term = xtermMock.FakeTerminal.instances[0]!;
@@ -1416,7 +1437,7 @@ describe('TerminalDock', () => {
   //    lacks it and gets the local xterm clear only, never a throw). Today no clear control exists
   //    and no bridge.clear is ever sent — red. ─────────────────────────────────────────────────
   it('tdp-clear-control-clears-active-tab-and-syncs-pty: the clear control clears the ACTIVE tab\'s xterm and forwards bridge.clear for its session only; an absent bridge.clear member stays inert (local clear, no throw)', async () => {
-    render(<TerminalDock />);
+    render(withToolkit(<TerminalDock />));
     await expand(); // tab 1 = sess-1
     await openNewTab(); // tab 2 = sess-2, active
 
@@ -1448,7 +1469,7 @@ describe('TerminalDock', () => {
     bridgeMock.resetSessionCounter();
     bridgeMock.clear.mockClear();
 
-    render(<TerminalDock />);
+    render(withToolkit(<TerminalDock />));
     await expand();
     const term = xtermMock.FakeTerminal.instances[2]!;
     expect(() =>
@@ -1468,7 +1489,7 @@ describe('TerminalDock', () => {
   //    all — a link affordance that could never open would mislead. Today `initTab` loads no
   //    web-links addon, so this must fail. ────────────────────────────────────────────────────────
   it('tdp-opens-links-via-guarded-bridge: every tab loads the web-links addon routing http/https URIs to bridge.openLink; a non-http scheme never reaches the bridge; an absent openLink member loads no link addon', async () => {
-    render(<TerminalDock />);
+    render(withToolkit(<TerminalDock />));
     await expand(); // tab 1
     await openNewTab(); // tab 2 — the addon is per-terminal, EVERY tab gets its own
 
@@ -1501,7 +1522,7 @@ describe('TerminalDock', () => {
     (window as unknown as { desktopTerminal?: unknown }).desktopTerminal = bridgeWithoutOpenLink;
     bridgeMock.resetSessionCounter();
     webLinksMock.FakeWebLinksAddon.instances.length = 0;
-    render(<TerminalDock />);
+    render(withToolkit(<TerminalDock />));
     await expand();
     expect(webLinksMock.FakeWebLinksAddon.instances.length).toBe(0);
   });
@@ -1514,7 +1535,7 @@ describe('TerminalDock', () => {
   //    discipline as increment C's resize debounce. Today `initTab` never subscribes
   //    `onTitleChange`, so this must fail. ────────────────────────────────────────────────────────
   it('tdp-updates-panel-row-title-debounced: an OSC title burst lands ONCE as the trailing title in the row\'s visible text; aria-labels stay byte-stable; unmount cancels a pending title', async () => {
-    const { unmount } = render(<TerminalDock titleDebounceMs={TITLE_DEBOUNCE_MS} />);
+    const { unmount } = render(withToolkit(<TerminalDock titleDebounceMs={TITLE_DEBOUNCE_MS} />));
     await expand(); // tab 1 = sess-1
 
     const term = xtermMock.FakeTerminal.instances[0]!;
@@ -1551,7 +1572,7 @@ describe('TerminalDock', () => {
   //    keeps its absent-by-default half). Today `initTab` loads no search addon and no search
   //    chrome exists, so this must fail. ──────────────────────────────────────────────────────────
   it('tdp-searches-active-tab-scrollback: the panel search chrome drives the ACTIVE tab\'s per-tab search addon (Enter next, Shift+Enter previous), renders no input until toggled, and closes on Escape', async () => {
-    const { container } = render(<TerminalDock />);
+    const { container } = render(withToolkit(<TerminalDock />));
     await expand(); // tab 1
     await openNewTab(); // tab 2, active
 
@@ -1606,7 +1627,7 @@ describe('TerminalDock', () => {
       configurable: true,
     });
 
-    render(<TerminalDock />);
+    render(withToolkit(<TerminalDock />));
     await expand();
 
     const term = xtermMock.FakeTerminal.instances[0]!;
@@ -1641,7 +1662,7 @@ describe('TerminalDock', () => {
       configurable: true,
     });
 
-    const { container } = render(<TerminalDock />);
+    const { container } = render(withToolkit(<TerminalDock />));
     await expand();
 
     const term = xtermMock.FakeTerminal.instances[0]!;
@@ -1680,7 +1701,7 @@ describe('TerminalDock', () => {
 // the terminal, which is the clause ADR-0354 D1 is explicit about.
 describe('TerminalDock — contract 12, host-owned chrome', () => {
   it('tdp-host-absent-is-unchanged: with no host the dock still draws its own aside, toggle and (when open) resize edge', async () => {
-    const { container } = render(<TerminalDock />);
+    const { container } = render(withToolkit(<TerminalDock />));
     const root = container.querySelector('.terminal-dock');
 
     expect(root?.tagName).toBe('ASIDE');
@@ -1696,7 +1717,7 @@ describe('TerminalDock — contract 12, host-owned chrome', () => {
 
   it('tdp-hosted-draws-no-second-frame: a hosted dock renders no toggle and no resize edge', () => {
     const { container } = render(
-      <TerminalDock host={{ expanded: true, onRequestExpand: () => {} }} />,
+      withToolkit(<TerminalDock host={{ expanded: true, onRequestExpand: () => {} }} />),
     );
     const root = container.querySelector('.terminal-dock');
 
@@ -1710,13 +1731,13 @@ describe('TerminalDock — contract 12, host-owned chrome', () => {
 
   it('tdp-hosted-reads-the-host-fold: the host’s expanded flag drives the terminal, not a second local one', async () => {
     const { rerender } = render(
-      <TerminalDock host={{ expanded: false, onRequestExpand: () => {} }} />,
+      withToolkit(<TerminalDock host={{ expanded: false, onRequestExpand: () => {} }} />),
     );
     // Folded from the host's point of view: nothing spawned, exactly as a folded dock behaves.
     expect(bridgeMock.spawn).not.toHaveBeenCalled();
 
     await act(async () => {
-      rerender(<TerminalDock host={{ expanded: true, onRequestExpand: () => {} }} />);
+      rerender(withToolkit(<TerminalDock host={{ expanded: true, onRequestExpand: () => {} }} />));
       await flush();
     });
 
@@ -1729,11 +1750,11 @@ describe('TerminalDock — contract 12, host-owned chrome', () => {
   it('tdp-hosted-asks-the-host-to-reveal: a map Build seed calls onRequestExpand rather than unfolding itself', async () => {
     const onRequestExpand = vi.fn();
     const host = { expanded: false, onRequestExpand };
-    const { rerender } = render(<TerminalDock host={host} />);
+    const { rerender } = render(withToolkit(<TerminalDock host={host} />));
 
     await act(async () => {
       rerender(
-        <TerminalDock host={host} seed={{ command: 'pnpm storytree node build x', token: 1 }} />,
+        withToolkit(<TerminalDock host={host} seed={{ command: 'pnpm storytree node build x', token: 1 }} />),
       );
       await flush();
     });
@@ -1745,7 +1766,7 @@ describe('TerminalDock — contract 12, host-owned chrome', () => {
 
   it('tdp-hosted-keeps-the-tab-substrate: sessions, tabs and per-tab panes are untouched by hosting', async () => {
     const { container } = render(
-      <TerminalDock host={{ expanded: true, onRequestExpand: () => {} }} />,
+      withToolkit(<TerminalDock host={{ expanded: true, onRequestExpand: () => {} }} />),
     );
     await flush();
 
@@ -1763,7 +1784,7 @@ describe('TerminalDock — contract 12, host-owned chrome', () => {
   it('tdp-hosted-degrades-honestly: with no bridge, a hosted dock still says so — inside the pane', () => {
     delete (window as unknown as { desktopTerminal?: typeof bridgeMock }).desktopTerminal;
     const { container } = render(
-      <TerminalDock host={{ expanded: true, onRequestExpand: () => {} }} />,
+      withToolkit(<TerminalDock host={{ expanded: true, onRequestExpand: () => {} }} />),
     );
     const root = container.querySelector('.terminal-dock');
 

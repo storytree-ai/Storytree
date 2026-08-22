@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 //
-// State-machine tests for the store-health banner. The api module is mocked (no fetch, no
-// dev server) and the poll loop runs on fake timers, so every transition is driven exactly:
+// State-machine tests for the store-health banner. The TRANSPORT is doubled (src/test/httpDouble.ts
+// — no dev server) and the poll loop runs on fake timers, so every transition is driven exactly:
 //   • stopped → Start DB click → starting → (health ok) → healthy, onRecovered fires
 //   • the refine-once path: one /api/db/status call per outage, not per poll tick
 //   • the 2026-06-12 freeze gap: /api/health itself failing repeatedly while 'starting'
@@ -12,13 +12,26 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act, cleanup } from '@testing-library/react';
 import type { StoreHealth, DbStatus } from '../types';
 
-const apiMock = vi.hoisted(() => ({
-  health: vi.fn<() => Promise<StoreHealth>>(),
-  dbStatus: vi.fn<() => Promise<DbStatus>>(),
-  dbStart: vi.fn<() => Promise<{ ok: true }>>(),
-  dbWake: vi.fn<() => Promise<{ ok: true }>>(),
-}));
-vi.mock('../api', () => ({ api: apiMock }));
+import { HttpDouble, errorReply, installHttpDouble } from '../test/httpDouble';
+
+// The `../api` module is NOT replaced (anti-slop-adoption-arc inc-06, `no-module-mocking`): the
+// real client runs, so the four routes the banner drives are asserted by NAME and METHOD here
+// rather than inferred from a mocked method name. The double fails closed, so a banner that
+// started probing a different route goes red.
+const HEALTH = '/api/health';
+const DB_STATUS = '/api/db/status';
+const DB_START = '/api/db/start';
+const DB_WAKE = '/api/db/wake';
+
+let http: HttpDouble;
+
+/** Declare what `GET /api/health` answers from here on — later declarations win. */
+const answerHealth = (payload: StoreHealth): void => {
+  http.get(HEALTH, () => payload);
+};
+const answerDbStatus = (payload: DbStatus): void => {
+  http.get(DB_STATUS, () => payload);
+};
 
 import { StoreBanner, SERVER_LOST_AFTER } from './StoreBanner';
 
@@ -41,15 +54,13 @@ let onRecovered: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   vi.useFakeTimers();
-  apiMock.health.mockReset();
-  apiMock.dbStatus.mockReset();
-  apiMock.dbStart.mockReset();
-  apiMock.dbWake.mockReset();
+  http = installHttpDouble();
   onRecovered = vi.fn();
 });
 
 afterEach(() => {
   cleanup();
+  http.uninstall();
   vi.useRealTimers();
   delete (window as unknown as { desktopApply?: unknown }).desktopApply; // never leak the desktop bridge
 });
@@ -58,21 +69,21 @@ const renderBanner = () => render(<StoreBanner onRecovered={onRecovered} />);
 
 describe('StoreBanner', () => {
   it('renders nothing while healthy, the offline badge for the json store', async () => {
-    apiMock.health.mockResolvedValue(healthy);
+    answerHealth(healthy);
     const { container, unmount } = renderBanner();
     await flush();
     expect(container.innerHTML).toBe('');
     unmount();
 
-    apiMock.health.mockResolvedValue({ store: 'json', db: 'n/a' });
+    answerHealth({ store: 'json', db: 'n/a' });
     renderBanner();
     await flush();
     expect(screen.getByText('offline store (json)')).toBeTruthy();
   });
 
   it('refines an outage into "stopped" via ONE /api/db/status call, not one per tick', async () => {
-    apiMock.health.mockResolvedValue(dbDown);
-    apiMock.dbStatus.mockResolvedValue(stopped);
+    answerHealth(dbDown);
+    answerDbStatus(stopped);
     renderBanner();
     await flush();
     expect(screen.getByText('The live store (Cloud SQL) is stopped.')).toBeTruthy();
@@ -80,28 +91,28 @@ describe('StoreBanner', () => {
 
     await tick(FAST_POLL_MS);
     await tick(FAST_POLL_MS);
-    expect(apiMock.dbStatus).toHaveBeenCalledTimes(1); // refine-once per outage
+    expect(http.countTo(DB_STATUS)).toBe(1); // refine-once per outage
     expect(screen.getByText('The live store (Cloud SQL) is stopped.')).toBeTruthy();
   });
 
   it('shows "unreachable" when the instance is not STOPPED (likely still booting)', async () => {
-    apiMock.health.mockResolvedValue(dbDown);
-    apiMock.dbStatus.mockResolvedValue({ state: 'RUNNABLE', activationPolicy: 'ALWAYS' });
+    answerHealth(dbDown);
+    answerDbStatus({ state: 'RUNNABLE', activationPolicy: 'ALWAYS' });
     renderBanner();
     await flush();
     expect(screen.getByText(/unreachable — it may still be coming up/)).toBeTruthy();
   });
 
   it('stopped → Start DB → starting → health ok → banner gone + onRecovered', async () => {
-    apiMock.health.mockResolvedValue(dbDown);
-    apiMock.dbStatus.mockResolvedValue(stopped);
-    apiMock.dbStart.mockResolvedValue({ ok: true });
+    answerHealth(dbDown);
+    answerDbStatus(stopped);
+    http.post(DB_START, () => ({ ok: true }));
     const { container } = renderBanner();
     await flush();
 
     fireEvent.click(screen.getByRole('button', { name: 'Start DB' }));
     await flush();
-    expect(apiMock.dbStart).toHaveBeenCalledTimes(1);
+    expect(http.countTo(DB_START)).toBe(1);
     expect(screen.getByRole('button', { name: 'Starting…' })).toBeTruthy();
     expect(screen.getByText(/Starting the live store/)).toBeTruthy();
 
@@ -111,16 +122,16 @@ describe('StoreBanner', () => {
     expect(onRecovered).not.toHaveBeenCalled();
 
     // The probe flips ok → banner disappears and the app reloads what the outage cost.
-    apiMock.health.mockResolvedValue(healthy);
+    answerHealth(healthy);
     await tick(FAST_POLL_MS);
     expect(container.innerHTML).toBe('');
     expect(onRecovered).toHaveBeenCalledTimes(1);
   });
 
   it('falls back to stopped (with the error) when /api/db/start itself fails', async () => {
-    apiMock.health.mockResolvedValue(dbDown);
-    apiMock.dbStatus.mockResolvedValue(stopped);
-    apiMock.dbStart.mockRejectedValue(new Error('failed to start gcloud: spawn gcloud ENOENT'));
+    answerHealth(dbDown);
+    answerDbStatus(stopped);
+    http.post(DB_START, () => errorReply('failed to start gcloud: spawn gcloud ENOENT', 500));
     renderBanner();
     await flush();
 
@@ -131,9 +142,9 @@ describe('StoreBanner', () => {
   });
 
   it('the freeze gap: repeated /api/health failures while starting flip to server-lost honesty', async () => {
-    apiMock.health.mockResolvedValue(dbDown);
-    apiMock.dbStatus.mockResolvedValue(stopped);
-    apiMock.dbStart.mockResolvedValue({ ok: true });
+    answerHealth(dbDown);
+    answerDbStatus(stopped);
+    http.post(DB_START, () => ({ ok: true }));
     renderBanner();
     await flush();
     fireEvent.click(screen.getByRole('button', { name: 'Start DB' }));
@@ -141,7 +152,7 @@ describe('StoreBanner', () => {
     expect(screen.getByText(/Starting the live store/)).toBeTruthy();
 
     // The studio dev server dies: /api/health itself now rejects.
-    apiMock.health.mockRejectedValue(new Error('fetch failed'));
+    http.get(HEALTH, () => errorReply('fetch failed', 502));
 
     // Short of the threshold the starting copy holds (a blip must not kill a pending start)…
     for (let i = 1; i < SERVER_LOST_AFTER; i++) {
@@ -155,7 +166,7 @@ describe('StoreBanner', () => {
   });
 
   it('flags a moved checkout even while the DB is healthy (the /api/presence incident)', async () => {
-    apiMock.health.mockResolvedValue({ ...healthy, code: movedStamp });
+    answerHealth({ ...healthy, code: movedStamp });
     renderBanner();
     await flush();
     expect(screen.getByText(/checkout has moved/)).toBeTruthy();
@@ -167,8 +178,8 @@ describe('StoreBanner', () => {
   });
 
   it('the moved-checkout banner outranks a DB outage — stale code makes other signals suspect', async () => {
-    apiMock.health.mockResolvedValue({ ...dbDown, code: movedStamp });
-    apiMock.dbStatus.mockResolvedValue(stopped);
+    answerHealth({ ...dbDown, code: movedStamp });
+    answerDbStatus(stopped);
     renderBanner();
     await flush();
     expect(screen.getByText(/checkout has moved/)).toBeTruthy();
@@ -176,22 +187,22 @@ describe('StoreBanner', () => {
   });
 
   it('clears the moved-checkout banner when a restarted server answers with a fresh stamp', async () => {
-    apiMock.health.mockResolvedValue({ ...healthy, code: movedStamp });
+    answerHealth({ ...healthy, code: movedStamp });
     const { container } = renderBanner();
     await flush();
     expect(screen.getByText(/checkout has moved/)).toBeTruthy();
 
     // pnpm studio:down/up happened: the new process's startedAt matches the disk HEAD.
-    apiMock.health.mockResolvedValue({ ...healthy, code: freshStamp });
+    answerHealth({ ...healthy, code: freshStamp });
     await tick(SLOW_POLL_MS);
     expect(container.innerHTML).toBe('');
   });
 
   // ── hosted DB wake (ADR-0049): canWake swaps the gcloud Start DB for the keyless wake ──
   it('canWake: shows "Wake the database"; click → api.dbWake → starting → health ok → recovered', async () => {
-    apiMock.health.mockResolvedValue(dbDown);
-    apiMock.dbStatus.mockRejectedValue(new Error('403')); // hosted: /api/db/status is structurally off
-    apiMock.dbWake.mockResolvedValue({ ok: true });
+    answerHealth(dbDown);
+    http.get(DB_STATUS, () => errorReply('403', 403)); // hosted: /api/db/status is structurally off
+    http.post(DB_WAKE, () => ({ ok: true }));
     const { container } = render(<StoreBanner onRecovered={onRecovered} canWake />);
     await flush();
     expect(screen.getByRole('button', { name: 'Wake the database' })).toBeTruthy();
@@ -199,20 +210,22 @@ describe('StoreBanner', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Wake the database' }));
     await flush();
-    expect(apiMock.dbWake).toHaveBeenCalledTimes(1);
-    expect(apiMock.dbStart).not.toHaveBeenCalled(); // the gcloud path is NOT used hosted
+    expect(http.countTo(DB_WAKE)).toBe(1);
+    expect(http.countTo(DB_START)).toBe(0); // the gcloud path is NOT used hosted
     expect(screen.getByText(/Starting the live store/)).toBeTruthy();
 
-    apiMock.health.mockResolvedValue(healthy);
+    answerHealth(healthy);
     await tick(FAST_POLL_MS);
     expect(container.innerHTML).toBe('');
     expect(onRecovered).toHaveBeenCalledTimes(1);
   });
 
   it('canWake: a 403 from dbWake (non-seed admin during an outage) surfaces the reason', async () => {
-    apiMock.health.mockResolvedValue(dbDown);
-    apiMock.dbStatus.mockRejectedValue(new Error('403'));
-    apiMock.dbWake.mockRejectedValue(new Error('only an admin can wake the database — ask an admin to bring it up'));
+    answerHealth(dbDown);
+    http.get(DB_STATUS, () => errorReply('403', 403));
+    http.post(DB_WAKE, () =>
+      errorReply('only an admin can wake the database — ask an admin to bring it up', 403),
+    );
     render(<StoreBanner onRecovered={onRecovered} canWake />);
     await flush();
     fireEvent.click(screen.getByRole('button', { name: 'Wake the database' }));
@@ -234,7 +247,7 @@ describe('StoreBanner', () => {
 
   it('desktop: a moved checkout shows "Rebuild & relaunch" instead of the manual pnpm instructions', async () => {
     installDesktopBridge(vi.fn<() => Promise<RebuildResult>>().mockResolvedValue({ ok: true }));
-    apiMock.health.mockResolvedValue({ ...healthy, code: movedStamp });
+    answerHealth({ ...healthy, code: movedStamp });
     renderBanner();
     await flush();
     expect(screen.getByRole('button', { name: 'Rebuild & relaunch' })).toBeTruthy();
@@ -246,7 +259,7 @@ describe('StoreBanner', () => {
   it('desktop: clicking Rebuild & relaunch calls the bridge and shows the rebuilding state', async () => {
     const bridge = vi.fn<() => Promise<RebuildResult>>().mockResolvedValue({ ok: true });
     installDesktopBridge(bridge);
-    apiMock.health.mockResolvedValue({ ...healthy, code: movedStamp });
+    answerHealth({ ...healthy, code: movedStamp });
     renderBanner();
     await flush();
 
@@ -262,7 +275,7 @@ describe('StoreBanner', () => {
       .fn<() => Promise<RebuildResult>>()
       .mockResolvedValue({ ok: false, step: 'build studio bundle', code: 2, output: 'Type error in App.tsx' });
     installDesktopBridge(bridge);
-    apiMock.health.mockResolvedValue({ ...healthy, code: movedStamp });
+    answerHealth({ ...healthy, code: movedStamp });
     renderBanner();
     await flush();
 
@@ -282,7 +295,7 @@ describe('StoreBanner', () => {
 
   it('desktop: pinned runtime behind main shows an "N commits behind main" update banner + Rebuild', async () => {
     installDesktopBridge(vi.fn<() => Promise<RebuildResult>>().mockResolvedValue({ ok: true }));
-    apiMock.health.mockResolvedValue(pinnedBehind);
+    answerHealth(pinnedBehind);
     renderBanner();
     await flush();
     expect(screen.getByText(/3 commits behind main/)).toBeTruthy();
@@ -294,7 +307,7 @@ describe('StoreBanner', () => {
 
   it('desktop: behind-main uses singular "commit" for a single commit', async () => {
     installDesktopBridge(vi.fn<() => Promise<RebuildResult>>().mockResolvedValue({ ok: true }));
-    apiMock.health.mockResolvedValue({ ...healthy, runtime: { branch: 'main', behind: 1, pinned: true } });
+    answerHealth({ ...healthy, runtime: { branch: 'main', behind: 1, pinned: true } });
     renderBanner();
     await flush();
     expect(screen.getByText(/1 commit behind main/)).toBeTruthy();
@@ -302,7 +315,7 @@ describe('StoreBanner', () => {
 
   it('desktop: an up-to-date pinned runtime (behind 0) shows NO update banner', async () => {
     installDesktopBridge(vi.fn<() => Promise<RebuildResult>>().mockResolvedValue({ ok: true }));
-    apiMock.health.mockResolvedValue({ ...healthy, runtime: { branch: 'main', behind: 0, pinned: true } });
+    answerHealth({ ...healthy, runtime: { branch: 'main', behind: 0, pinned: true } });
     const { container } = renderBanner();
     await flush();
     expect(container.innerHTML).toBe('');
@@ -312,7 +325,7 @@ describe('StoreBanner', () => {
     // The dev-convenience fallback is often legitimately behind origin/main; its rebuild does not pull,
     // so an update banner there would be wrong. pinned:false ⇒ no banner.
     installDesktopBridge(vi.fn<() => Promise<RebuildResult>>().mockResolvedValue({ ok: true }));
-    apiMock.health.mockResolvedValue({ ...healthy, runtime: { branch: 'main', behind: 5, pinned: false } });
+    answerHealth({ ...healthy, runtime: { branch: 'main', behind: 5, pinned: false } });
     const { container } = renderBanner();
     await flush();
     expect(container.innerHTML).toBe('');
@@ -320,8 +333,8 @@ describe('StoreBanner', () => {
 
   it('the behind-main update banner outranks a DB outage (stale code makes other signals suspect)', async () => {
     installDesktopBridge(vi.fn<() => Promise<RebuildResult>>().mockResolvedValue({ ok: true }));
-    apiMock.health.mockResolvedValue({ ...dbDown, runtime: { branch: 'main', behind: 2, pinned: true } });
-    apiMock.dbStatus.mockResolvedValue(stopped);
+    answerHealth({ ...dbDown, runtime: { branch: 'main', behind: 2, pinned: true } });
+    answerDbStatus(stopped);
     renderBanner();
     await flush();
     expect(screen.getByText(/2 commits behind main/)).toBeTruthy();
@@ -332,13 +345,13 @@ describe('StoreBanner', () => {
     // Drive straight into server-lost from an initial outage. Before any phase resolves
     // the banner polls on the SLOW cadence (initial probe + ticks = SERVER_LOST_AFTER
     // consecutive failures).
-    apiMock.health.mockRejectedValue(new Error('fetch failed'));
+    http.get(HEALTH, () => errorReply('fetch failed', 502));
     const { container } = renderBanner();
     await flush();
     for (let i = 1; i < SERVER_LOST_AFTER; i++) await tick(SLOW_POLL_MS);
     expect(screen.getByText(/studio server itself is unreachable/)).toBeTruthy();
 
-    apiMock.health.mockResolvedValue(healthy);
+    answerHealth(healthy);
     await tick(FAST_POLL_MS);
     expect(container.innerHTML).toBe('');
     expect(onRecovered).toHaveBeenCalledTimes(1);

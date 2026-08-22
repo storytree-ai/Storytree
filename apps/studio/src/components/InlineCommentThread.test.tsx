@@ -30,11 +30,14 @@ import { SLOW_POLL_MS } from '../lib/poll';
 // ── Api seam mock ─────────────────────────────────────────────────────────────────────────────
 // Intentionally untyped (vi.fn()) so that mockResolvedValue accepts block-anchor comment shapes
 // before the CommentAnchor union is extended by cap 1.
-const apiMock = vi.hoisted(() => ({
-  listComments: vi.fn(),
-  createComment: vi.fn(),
-}));
-vi.mock('../api', () => ({ api: apiMock }));
+import { HttpDouble, installHttpDouble } from '../test/httpDouble';
+
+// The `../api` module is NOT replaced (anti-slop-adoption-arc inc-06, `no-module-mocking`): the
+// real client runs, so the thread's reads and its POST are asserted as the WIRE requests they
+// actually are. The double fails closed on an undeclared route.
+const COMMENTS = '/api/comments';
+
+let http: HttpDouble;
 
 import { InlineCommentThread } from './InlineCommentThread';
 
@@ -69,14 +72,22 @@ const blockComment = (id: string, body: string, blockId = 'intro-block') => ({
 
 beforeEach(() => {
   vi.useFakeTimers();
-  apiMock.listComments.mockReset();
-  apiMock.createComment.mockReset();
+  http = installHttpDouble();
 });
 
 afterEach(() => {
   cleanup();
+  http.uninstall();
   vi.useRealTimers();
 });
+
+/** Declare what `GET /api/comments` answers from here on — later declarations win. */
+const answerComments = (comments: readonly unknown[]): void => {
+  http.get(COMMENTS, () => comments);
+};
+/** The POST bodies the thread actually put on the wire, oldest first. */
+const postedComments = (): unknown[] =>
+  http.requestsTo(COMMENTS).filter((request) => request.method === 'POST').map((r) => r.body);
 
 // ── Tests ─────────────────────────────────────────────────────────────────────────────────────
 
@@ -89,7 +100,7 @@ describe('InlineCommentThread', () => {
   it(
     'ict-renders-in-flow-above-its-block: renders in the document flow — not in an aside or side-panel',
     async () => {
-      apiMock.listComments.mockResolvedValue([blockComment('c-1', 'Hello thread')]);
+      answerComments([blockComment('c-1', 'Hello thread')]);
 
       const { container } = render(
         <InlineCommentThread
@@ -119,8 +130,8 @@ describe('InlineCommentThread', () => {
   it(
     'ict-posts-a-block-anchored-comment: posting sends a block anchor carrying the blockId',
     async () => {
-      apiMock.listComments.mockResolvedValue([]);
-      apiMock.createComment.mockResolvedValue(blockComment('c-new', 'New comment'));
+      answerComments([]);
+      http.post(COMMENTS, () => blockComment('c-new', 'New comment'));
 
       render(
         <InlineCommentThread
@@ -139,16 +150,16 @@ describe('InlineCommentThread', () => {
       await flush();
 
       // Exactly one createComment call, carrying a block anchor for this thread's block.
-      expect(apiMock.createComment).toHaveBeenCalledTimes(1);
-      expect(apiMock.createComment).toHaveBeenCalledWith(
-        expect.objectContaining({
-          topicKind: 'asset',
-          topicId: 'review-topic',
-          body: 'New comment',
-          author: 'alice',
-          anchor: expect.objectContaining({ kind: 'block', blockId: 'intro-block' }),
-        }),
-      );
+      // The REQUEST BODY the client serialised, not the argument handed to a mocked method — so
+      // this now asserts the wire contract rather than the call shape one layer above it.
+      expect(postedComments()).toHaveLength(1);
+      expect(postedComments()[0]).toMatchObject({
+        topicKind: 'asset',
+        topicId: 'review-topic',
+        body: 'New comment',
+        author: 'alice',
+        anchor: { kind: 'block', blockId: 'intro-block' },
+      });
     },
   );
 
@@ -160,12 +171,15 @@ describe('InlineCommentThread', () => {
   it(
     'ict-refreshes-from-the-live-feed: a new comment appears on the next poll without a page reload',
     async () => {
-      apiMock.listComments
-        .mockResolvedValueOnce([blockComment('c-1', 'First comment')])
-        .mockResolvedValueOnce([
-          blockComment('c-1', 'First comment'),
-          blockComment('c-2', 'Posted by someone else'),
-        ]);
+      let poll = 0;
+      http.get(COMMENTS, () =>
+        (poll += 1) === 1
+          ? [blockComment('c-1', 'First comment')]
+          : [
+              blockComment('c-1', 'First comment'),
+              blockComment('c-2', 'Posted by someone else'),
+            ],
+      );
 
       render(
         <InlineCommentThread
@@ -196,7 +210,7 @@ describe('InlineCommentThread', () => {
   it(
     'ict-add-affordance-is-review-only: form absent in view mode, present in review mode; comments always render',
     async () => {
-      apiMock.listComments.mockResolvedValue([blockComment('c-1', 'Existing comment')]);
+      answerComments([blockComment('c-1', 'Existing comment')]);
 
       const { rerender } = render(
         <InlineCommentThread

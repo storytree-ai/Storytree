@@ -32,15 +32,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 
-// ChatDock mounts ChatPanel, which imports the `api` streaming seam. Mock it with a no-op chatStream
-// (a promise that never resolves) so a stray submit can't fetch / stream — the dock chrome is all we
-// exercise. Mirrors ChatPanel.test.tsx's api mock.
-const apiMock = vi.hoisted(() => ({
-  chatStream: vi.fn<(intent: string, onEvent: (event: unknown) => void) => Promise<void>>(
-    () => new Promise<void>(() => {}),
-  ),
-}));
-vi.mock('../api', () => ({ api: apiMock }));
+import { HttpDouble, installHttpDouble } from '../test/httpDouble';
+
+// ChatDock mounts ChatPanel, which streams through the `api` seam. The TRANSPORT is doubled rather
+// than the module (anti-slop-adoption-arc inc-06, `no-module-mocking`) with a `/api/chat` that never
+// answers, so a stray submit can't reach the network and the dock chrome is all we exercise. The
+// double fails closed, so any OTHER route the dock started calling would surface here rather than
+// being silently absorbed.
+const CHAT = '/api/chat';
+
+let http: HttpDouble;
 
 import { ChatDock } from './ChatDock';
 
@@ -61,11 +62,13 @@ function toggle(): HTMLElement {
 }
 
 beforeEach(() => {
-  apiMock.chatStream.mockClear();
+  http = installHttpDouble();
+  http.post(CHAT, () => new Promise<Response>(() => {}));
 });
 
 afterEach(() => {
   cleanup();
+  http.uninstall();
 });
 
 describe('ChatDock', () => {

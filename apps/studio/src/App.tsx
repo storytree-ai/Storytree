@@ -21,7 +21,41 @@ import { MembersPanel } from './components/MembersPanel';
 /** A non-member's MeInfo while it's still loading — never read as a member. */
 const ANON_ME: MeInfo = { email: null, role: null, status: null, member: false };
 
-export function App(): React.JSX.Element {
+/**
+ * The surfaces the shell composes. Every slot defaults to the real component, so no production
+ * caller passes anything and nothing about the app changes.
+ *
+ * WHY IT EXISTS (anti-slop-adoption-arc inc-06, `no-module-mocking`). What the App suites are about
+ * is the SHELL — routing, mount/park retention, the load screen's gating, the boot order of the
+ * map's own fetch. Proving any of that used to mean `vi.mock`-ing seven or eight child modules,
+ * because the shell offered nowhere to substitute at. Two of these children genuinely cannot render
+ * in a test environment at all (`TreeView` wants WebGL, and the terminal beneath it wants a layout
+ * engine), so this is not a mock that could simply have been dropped — it is a seam that was missing.
+ */
+// Each slot is a `ComponentType` over the real component's props rather than `typeof Component`,
+// so a substitute may render NOTHING — a React component returning null is ordinary, and several of
+// the shell's own suites want exactly that for chrome they are not testing.
+export interface AppSurfaces {
+  Hud?: React.ComponentType<React.ComponentProps<typeof Hud>>;
+  StoreBanner?: React.ComponentType<React.ComponentProps<typeof StoreBanner>>;
+  Sidebar?: React.ComponentType<React.ComponentProps<typeof Sidebar>>;
+  DocView?: React.ComponentType<React.ComponentProps<typeof DocView>>;
+  AssetView?: React.ComponentType<React.ComponentProps<typeof AssetView>>;
+  AssetEditor?: React.ComponentType<React.ComponentProps<typeof AssetEditor>>;
+  TreeView?: React.ComponentType<React.ComponentProps<typeof TreeView>>;
+  MembersPanel?: React.ComponentType<React.ComponentProps<typeof MembersPanel>>;
+}
+
+export interface AppProps {
+  surfaces?: AppSurfaces;
+}
+
+export function App({ surfaces }: AppProps = {}): React.JSX.Element {
+  // Resolve every slot once, so the JSX below reads as it always did.
+  const HudSurface = surfaces?.Hud ?? Hud;
+  const StoreBannerSurface = surfaces?.StoreBanner ?? StoreBanner;
+  const SidebarSurface = surfaces?.Sidebar ?? Sidebar;
+  const TreeViewSurface = surfaces?.TreeView ?? TreeView;
   const route = useRoute();
   // ADR-0240 D2: loading the forest is expensive enough that returning from a Studio route should
   // resume the existing world/camera rather than mount a new TreeView and re-fetch /api/tree. Keep
@@ -228,13 +262,13 @@ export function App(): React.JSX.Element {
   return (
     <AppDataContext.Provider value={appData}>
       <div className="app">
-        <Hud me={appData.me} docs={docs} posture={posture} />
+        <HudSurface me={appData.me} docs={docs} posture={posture} />
 
         <LoadScreen
           state={loadState}
           meError={meError}
           banner={
-            <StoreBanner
+            <StoreBannerSurface
               onRecovered={onStoreRecovered}
               canWake={(dev?.me ?? me)?.canWakeDb === true}
               onPhase={onStorePhase}
@@ -247,7 +281,7 @@ export function App(): React.JSX.Element {
               <div className={route.name === 'tree' ? 'body body-full' : 'body'}>
               {/* The forest (#/tree) is its own full-bleed world — the Library asset
                   rail is noise there, so hide it and let the canvas fill the width. */}
-              {route.name !== 'tree' && <Sidebar />}
+              {route.name !== 'tree' && <SidebarSurface />}
               <main className="content">
                 {/* map-boot-independence (ADR-0240 decision 2 stage 4): the map's own /api/tree
                     fetch (inside TreeView) and the Library routes below both mount as soon as
@@ -261,7 +295,7 @@ export function App(): React.JSX.Element {
                     aria-hidden={route.name !== 'tree'}
                     inert={route.name !== 'tree'}
                   >
-                    <TreeView
+                    <TreeViewSurface
                       focus={route.name === 'tree' ? route.focus : null}
                       active={route.name === 'tree'}
                       codeHeadRef={codeHeadRef}
@@ -271,7 +305,7 @@ export function App(): React.JSX.Element {
                 )}
                 {route.name !== 'tree' && (
                   <div className="library-route" data-testid="library-route">
-                    <RouteView route={route} />
+                    <RouteView route={route} surfaces={surfaces} />
                   </div>
                 )}
               </main>
@@ -465,21 +499,31 @@ function RequestAccessWall({ email }: { email: string | null }): React.JSX.Eleme
   );
 }
 
-function RouteView({ route }: { route: ReturnType<typeof useRoute> }): React.JSX.Element | null {
+function RouteView({
+  route,
+  surfaces,
+}: {
+  route: ReturnType<typeof useRoute>;
+  surfaces?: AppSurfaces | undefined;
+}): React.JSX.Element | null {
+  const DocViewSurface = surfaces?.DocView ?? DocView;
+  const AssetViewSurface = surfaces?.AssetView ?? AssetView;
+  const AssetEditorSurface = surfaces?.AssetEditor ?? AssetEditor;
+  const MembersPanelSurface = surfaces?.MembersPanel ?? MembersPanel;
   switch (route.name) {
     case 'doc':
-      return <DocView id={route.id} />;
+      return <DocViewSurface id={route.id} />;
     case 'asset':
-      return <AssetView id={route.id} />;
+      return <AssetViewSurface id={route.id} />;
     case 'asset-edit':
-      return <AssetEditor mode="edit" id={route.id} />;
+      return <AssetEditorSurface mode="edit" id={route.id} />;
     case 'asset-new':
-      return <AssetEditor mode="new" />;
+      return <AssetEditorSurface mode="new" />;
     case 'tree':
       // App keeps the forest mounted outside this route switch so away/back navigation retains its
       // camera, world and terminal state. This case remains defensive for future callers.
       return null;
     case 'members':
-      return <MembersPanel />;
+      return <MembersPanelSurface />;
   }
 }

@@ -67,6 +67,37 @@ export default defineConfig({
     // the same object. See the increment for the full harvest. TESTS ARE ON THE LAXER BAR — see the
     // `overrides` block at the bottom of this file.
     "anti-slop/no-chained-type-assertions": "error",
+    // ADOPTED BY MIGRATION — anti-slop-adoption-arc inc-06 drove 110 sites across 31 files to ZERO.
+    // Every one was a test file; production source never had any.
+    //
+    // THE RULE'S ARGUMENT WAS ALREADY THIS REPO'S ARGUMENT EVERYWHERE ELSE, and the migration bore
+    // that out: `storage-protocol` exists precisely so a caller can be handed `InMemoryStore`
+    // instead of `PgLibraryStore`, and the studio's 110 module mocks were the same problem solved
+    // the other way — by rewriting the module system at runtime instead of admitting a seam. Most
+    // of them turned out to need no new seam at all: `AppDataContext` and the platform `fetch` were
+    // already there, unused by the tests that were mocking around them.
+    //
+    // FOUR SEAMS WERE ADDED, each a narrow value + context + REAL DEFAULT, so no production caller
+    // passes anything: `DiagramRenderer` (lib/diagram.ts), `TerminalToolkit`
+    // (lib/terminalToolkit.ts), and `StudioSurfaces` + `Act2Choreography` (components/TreeView.tsx).
+    // Two components gained ordinary slot props (`App.surfaces`, `BottomDock.panes`,
+    // `TerminalRepoGate.renderDock`) beside the injection those files already used.
+    //
+    // WHAT IT CAUGHT (end-state FOUR evidence, harvested from the migration itself):
+    //   1. ChatPanel.spawn.test.tsx exists to prove `isChatEvent` accepts a `spawn` frame. Under
+    //      the mock the guard NEVER RAN — the file said so in its own header and fell back to
+    //      grepping api.ts for the string. Deleting the clause left every render test GREEN; it now
+    //      turns all five RED.
+    //   2. TreeViewShell's "the tree was read" assertion was VACUOUS after its first test: one
+    //      un-reset `vi.fn()` for the whole file.
+    //   3. `api.arcs()` retries three times with a backoff. Every "the read failed" case in
+    //      arcRollups.test.ts described a one-shot client that does not exist.
+    //   4. Mocking `@storytree/app-surface` for its one un-renderable component took four PURE
+    //      functions down with it, so the map's presentation model was never computed under test.
+    //   5. Partial `useAppData` / `me` mocks let components read fields the tests never supplied.
+    //   6. The real TreeView fetches `/art-sheets/…`, which no suite knew about until a fail-closed
+    //      transport double refused it.
+    "anti-slop/no-module-mocking": "error",
     "anti-slop/no-object-parameters": "error",
     "anti-slop/no-reflect-apply": "error",
     "anti-slop/no-reflect-get": "error",
@@ -160,8 +191,6 @@ export default defineConfig({
     // rule is that a disagreement goes to the RULE PANEL and never to one session's preference. Its
     // own lane; see the arc.
     "anti-slop/no-known-value-widening": "off",
-    // 111 (0 / 111, 32 files) — entirely test files. inc-06, a test-architecture lane.
-    "anti-slop/no-module-mocking": "off",
     // 727 (585 / 142, 221 files) — the rules cannot see types, so this flags EVERY `typeof`
     // expression: environment guards and validator internals fire identically to lazy narrowing.
     // Ships an `allowInTypeGuards` option (default false). inc-05.

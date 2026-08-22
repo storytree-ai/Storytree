@@ -29,40 +29,45 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { AppDataContext, type AppData } from '../lib/appData';
 import type { TreeStory } from '../types';
 
-vi.mock('../api', () => ({ api: { tree: vi.fn(), activity: vi.fn() } }));
-vi.mock('../lib/buildActivity', () => ({
-  useBuildActivity: () => [],
-  useClaimActivity: () => ({ claims: [], departures: [] }),
-}));
-vi.mock('../lib/poll', () => ({ useNowTick: () => new Date('2026-07-27T00:00:00.000Z') }));
-vi.mock('../lib/sessionClaims', () => ({ useSessionClaimGroups: () => [] }));
-vi.mock('@storytree/app-surface', () => ({
-  arrivalGrowPlan: () => null,
-  neighbourHighlightPlan: () => null,
-  laneLayout: () => null,
-  normalizeWorldPresentationModel: () => ({}),
-  // ADR-0292: TreeView derives the per-object vegetation plans on EVERY render (the settled map wears
-  // the shared tree track too, not only a regrow), so this partial mock has to answer for it. An empty
-  // map is the honest stand-in here — these suites measure pan compositing, not vegetation.
-  deriveIslandVegetationPlans: () => new Map(),
-  WorldSceneView: ({ events }: { events: { onSelectStory: (id: string) => void } }) => (
-    <g data-testid="scene-story" data-story-id="map" onClick={() => events.onSelectStory('map')} />
+import { ACT2_INTRO_SESSION_KEY } from './act2Intro.js';
+import { HttpDouble, installHttpDouble } from '../test/httpDouble';
+
+// THE SEAMS ARE REAL, NOT MOCKED MODULES (anti-slop-adoption-arc inc-06, `no-module-mocking`).
+//
+// SIX SUBSTITUTIONS SURVIVE and they are all COMPONENTS — the world renderer (an SVG scene jsdom
+// cannot lay out) and five heavy overlays with nothing to do with panning. They arrive through
+// `StudioSurfacesContext`, whose defaults are the real components.
+//
+// FOUR PURE FUNCTIONS STOPPED BEING SUBSTITUTED, and that is the real gain here. Because `vi.mock`
+// replaces a WHOLE module, stubbing `WorldSceneView` took `laneLayout`,
+// `neighbourHighlightPlan`, `normalizeWorldPresentationModel` and `deriveIslandVegetationPlans`
+// down with it — replaced by `null`/`{}`/an empty Map, so the map's presentation model was never
+// computed under test at all. They now run for real, on the real world, on every render below.
+//
+// The THREE lib hooks (`useBuildActivity`, `useClaimActivity`, `useSessionClaimGroups`) also stopped
+// being mocked: each is a poll over the api, and the doubled transport answers them honestly —
+// `{builds: null}` / `{claims: null}` is the store-absent case they already had to handle.
+const TREE = '/api/tree';
+const ACTIVITY = '/api/activity';
+const CLAIMS = '/api/claims';
+// The map's optional art-style sheet. Declared because the double fails closed; 404 is the studio's
+// tolerated "keeping the current render" case, and this suite is not about art.
+const ART_SHEET = '/art-sheets/storybook/manifest.json';
+
+let http: HttpDouble;
+
+/** The renderer + overlays this suite stands in for. Everything else stays the real component. */
+const SURFACES: Partial<StudioSurfaces> = {
+  WorldSceneView: ({ events }) => (
+    <g data-testid="scene-story" data-story-id="map" onClick={() => events?.onSelectStory?.('map')} />
   ),
-}));
-vi.mock('./WorldLegend.js', () => ({
   WorldLegend: () => null,
   LegendDrawerBody: () => null,
-  legendRowLabel: () => '',
-  legendModelFor: () => [],
-}));
-vi.mock('./WorldSettingsPanel.js', () => ({ WorldSettingsPanel: () => null }));
-vi.mock('./LibraryDrawer.js', () => ({ LibraryDrawer: () => null }));
-vi.mock('./TerminalRepoGate.js', () => ({ TerminalRepoGate: () => null }));
-vi.mock('./RepoPicker.js', () => ({ RepoPicker: () => null }));
-
-import { ACT2_INTRO_SESSION_KEY } from './act2Intro.js';
-import { api } from '../api';
-import { TreeView } from './TreeView';
+  WorldSettingsPanel: () => null,
+  LibraryDrawer: () => null,
+  BottomDock: () => null,
+};
+import { TreeView, StudioSurfacesContext, type StudioSurfaces } from './TreeView';
 
 const STORY: TreeStory = {
   id: 'map',
@@ -165,9 +170,11 @@ async function mountMap(): Promise<{
   unmount: () => void;
 }> {
   const rendered = render(
-    <AppDataContext.Provider value={APP_DATA}>
-      <TreeView focus={null} />
-    </AppDataContext.Provider>,
+    <StudioSurfacesContext.Provider value={SURFACES}>
+      <AppDataContext.Provider value={APP_DATA}>
+        <TreeView focus={null} />
+      </AppDataContext.Provider>
+    </StudioSurfacesContext.Provider>,
   );
   const viewport = await screen.findByLabelText('story forest map (pan and zoom)');
   const camera = await waitFor(() => {
@@ -199,11 +206,17 @@ beforeEach(() => {
   // returning visitor in the same session gets. Without it every test file is a fresh jsdom and
   // therefore a first visit, and the map under the pointer would be mid-regrow.
   window.sessionStorage.setItem(ACT2_INTRO_SESSION_KEY, '1');
-  vi.mocked(api.tree).mockResolvedValue({ stories: [STORY], builds: [], claims: [] });
+  http = installHttpDouble();
+  http.get(TREE, () => ({ stories: [STORY], builds: [], claims: [] }));
+  // The advisory live layers answer store-absent, which is the quiet case these suites want.
+  http.get(ACTIVITY, () => ({ builds: null, claims: null }));
+  http.get(CLAIMS, () => ({ sessions: null }));
+  http.get(ART_SHEET, () => new Response('', { status: 404 }));
 });
 
 afterEach(() => {
   cleanup();
+  http.uninstall();
   restorePointerEvent?.();
   restorePointerEvent = undefined;
   vi.unstubAllGlobals();

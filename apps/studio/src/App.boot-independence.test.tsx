@@ -24,48 +24,70 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 
-const apiMock = vi.hoisted(() => ({
-  me: vi.fn(),
-  listDocs: vi.fn(),
-  listAssets: vi.fn(),
-  listComments: vi.fn(),
-  tree: vi.fn(),
-  health: vi.fn(),
-  activity: vi.fn(),
-  dbStatus: vi.fn(),
-  dbStart: vi.fn(),
-  dbWake: vi.fn(),
-}));
-
-vi.mock('./api', () => ({ api: apiMock }));
-vi.mock('./lib/devStoreOverride', () => ({ useDevStoreOverride: () => null }));
-vi.mock('./lib/desktopAuth', () => ({ getDesktopAuth: () => undefined }));
 // Non-participating global chrome only — never TreeView, never AssetView (both under test here),
 // never StoreBanner (it owns the health poll contract 5 drives), never lib/poll.
-vi.mock('./components/Sidebar', () => ({ Sidebar: () => null }));
-vi.mock('./components/DocView', () => ({ DocView: () => null }));
-vi.mock('./components/MembersPanel', () => ({ MembersPanel: () => null }));
 // The AppData shape probe — see the header. Reads the real context and projects its key set and
 // assets readiness into the DOM, so the context's shape is assertable at runtime rather than only
 // at compile time.
-vi.mock('./components/Hud', async () => {
-  const { useAppData } = await import('./lib/appData');
-  return {
-    Hud: (): React.JSX.Element => {
-      const data = useAppData();
-      return (
-        <div
-          data-testid="appdata-probe"
-          data-keys={Object.keys(data).sort().join(',')}
-          data-assets-status={data.assetsStatus}
-          data-assets-count={String(data.assets.length)}
-        />
-      );
-    },
-  };
-});
 
-import { App } from './App';
+import { App, type AppSurfaces } from './App';
+import { api } from './api';
+import { useAppData } from './lib/appData';
+
+import { HttpDouble, errorReply, installHttpDouble } from './test/httpDouble';
+
+// THE TRANSPORT IS DOUBLED AND THE SURFACES ARE HANDED IN (anti-slop-adoption-arc inc-06,
+// `no-module-mocking`). The real `api` client runs — it builds every URL below and parses every
+// payload — and the child components arrive through `App`'s own `surfaces` slot, whose defaults
+// are the real ones. Two module mocks were dropped outright rather than replaced, because the REAL
+// modules already answer what the mocks asserted: `useDevStoreOverride()` returns null with no
+// `?devLoadState` in the URL, and `getDesktopAuth()` returns undefined with no `window.desktopAuth`.
+const ME = '/api/me';
+const DOCS = '/api/docs';
+const ASSETS = '/api/assets';
+const COMMENTS = '/api/comments';
+const TREE = '/api/tree';
+const HEALTH = '/api/health';
+const ACTIVITY = '/api/activity';
+const DB_STATUS = '/api/db/status';
+const DB_START = '/api/db/start';
+const DB_WAKE = '/api/db/wake';
+
+// The map's optional art-style sheet. NOT an api route, and NOT what any suite here is about — but
+// the real `TreeView` asks for it, and the double fails closed, so it has to be DECLARED rather
+// than left to surface as an unrouted-request refusal. It answers 404, which is the studio's
+// tolerated case: "art-style sheet failed to load; keeping the current render". Under module
+// mocking this fetch went out to jsdom and nothing in the suite ever knew it existed.
+const ART_SHEET = '/art-sheets/storybook/manifest.json';
+
+let http: HttpDouble;
+
+/**
+ * The AppData shape probe — reads the REAL context and projects its key set into the DOM, so the
+ * context's shape is assertable at runtime rather than only at compile time. Handed in as the Hud
+ * surface rather than mocked over the module.
+ */
+function AppDataProbe(): React.JSX.Element {
+  const data = useAppData();
+  return (
+    <div
+      data-testid="appdata-probe"
+      data-keys={Object.keys(data).sort().join(',')}
+      data-assets-status={data.assetsStatus}
+      data-assets-count={String(data.assets.length)}
+    />
+  );
+}
+
+// Non-participating global chrome only — never TreeView, never AssetView (both under test here),
+// never StoreBanner (it owns the health poll contract 5 drives), never lib/poll.
+const SURFACES: AppSurfaces = {
+  Sidebar: () => null,
+  DocView: () => null,
+  MembersPanel: () => null,
+  Hud: AppDataProbe,
+};
+
 import * as appDataModule from './lib/appData';
 import { CLIENT_STAMP, PAYLOAD_CACHE_KEY } from './lib/payloadCache';
 import type {
@@ -154,20 +176,20 @@ function baseHealth(): StoreHealth {
 /** Fast, non-deferred defaults for every Studio API call — a scenario below overrides whichever
  *  call(s) it deliberately holds pending/rejecting to observe ordering or failure handling. */
 function armFastDefaults(): void {
-  apiMock.me.mockResolvedValue(MEMBER);
-  apiMock.listDocs.mockResolvedValue([]);
-  apiMock.listAssets.mockResolvedValue([]);
-  apiMock.listComments.mockResolvedValue([]);
-  apiMock.tree.mockResolvedValue(makeTreePayload([]));
-  apiMock.health.mockResolvedValue(baseHealth());
-  apiMock.activity.mockResolvedValue({
+  http.get(ME, () => MEMBER);
+  http.get(DOCS, () => []);
+  http.get(ASSETS, () => []);
+  http.get(COMMENTS, () => []);
+  http.get(TREE, () => makeTreePayload([]));
+  http.get(HEALTH, () => baseHealth());
+  http.get(ACTIVITY, () => ({
     builds: [],
     claims: [],
     departures: [],
-  } satisfies ActivityPayload);
-  apiMock.dbStatus.mockResolvedValue({ state: 'RUNNABLE', activationPolicy: 'ALWAYS' });
-  apiMock.dbStart.mockResolvedValue({ ok: true });
-  apiMock.dbWake.mockResolvedValue({ ok: true });
+  } satisfies ActivityPayload));
+  http.get(DB_STATUS, () => ({ state: 'RUNNABLE', activationPolicy: 'ALWAYS' }));
+  http.post(DB_START, () => ({ ok: true }));
+  http.post(DB_WAKE, () => ({ ok: true }));
 }
 
 function uniqueTerritoryIds(): string[] {
@@ -204,10 +226,13 @@ function navigate(hash: string): void {
 beforeEach(() => {
   window.localStorage.clear();
   navigate('#/tree');
+  http = installHttpDouble();
+  http.get(ART_SHEET, () => new Response('', { status: 404 }));
 });
 
 afterEach(() => {
   cleanup();
+  http.uninstall();
   vi.clearAllMocks();
   window.localStorage.clear();
 });
@@ -218,15 +243,15 @@ describe('map-boot-independence', () => {
     const meDeferred = deferred<MeInfo>();
     const assetsDeferred = deferred<GuidanceAsset[]>();
     armFastDefaults();
-    apiMock.me.mockImplementation(() => meDeferred.promise);
-    apiMock.listAssets.mockImplementation(() => assetsDeferred.promise);
-    apiMock.tree.mockResolvedValue(makeTreePayload(['alpha']));
-    apiMock.listDocs.mockResolvedValue(makeDocs(['doc-a']));
+    http.get(ME, () => meDeferred.promise);
+    http.get(ASSETS, () => assetsDeferred.promise);
+    http.get(TREE, () => makeTreePayload(['alpha']));
+    http.get(DOCS, () => makeDocs(['doc-a']));
 
-    render(<App />);
+    render(<App surfaces={SURFACES} />);
 
     // Ceiling 1: membership hasn't resolved yet — the map must not have started fetching.
-    expect(apiMock.tree).not.toHaveBeenCalled();
+    expect(http.countTo(TREE)).toBe(0);
 
     await act(async () => {
       meDeferred.resolve(MEMBER);
@@ -235,7 +260,7 @@ describe('map-boot-independence', () => {
 
     // /api/assets is never resolved anywhere in this scenario — the map must proceed regardless.
     await waitFor(() => {
-      expect(apiMock.tree).toHaveBeenCalled();
+      expect(http.countTo(TREE)).toBeGreaterThan(0);
     });
     await waitFor(() => {
       expectTerritories(['alpha']);
@@ -245,53 +270,57 @@ describe('map-boot-independence', () => {
     // ── Ceiling 2: a NON-member never reaches the corpus at all (ADR-0043) ────────────────────
     cleanup();
     vi.clearAllMocks();
+    // The transport double is the call log now — reset it at the same stage boundary.
+    http.clearRequests();
     navigate('#/tree');
     armFastDefaults();
-    apiMock.me.mockResolvedValue(NON_MEMBER);
-    apiMock.tree.mockResolvedValue(makeTreePayload(['alpha']));
+    http.get(ME, () => NON_MEMBER);
+    http.get(TREE, () => makeTreePayload(['alpha']));
 
-    render(<App />);
+    render(<App surfaces={SURFACES} />);
 
     await waitFor(() => {
       expect(screen.getByText(/Request access/i)).toBeTruthy();
     });
-    expect(apiMock.tree).not.toHaveBeenCalled();
-    expect(apiMock.listAssets).not.toHaveBeenCalled();
+    expect(http.countTo(TREE)).toBe(0);
+    expect(http.countTo(ASSETS)).toBe(0);
 
     // ── Ceiling 3: a direct NON-tree route does not mount the map (stage 1's `treeMounted`) ───
     cleanup();
     vi.clearAllMocks();
+    // The transport double is the call log now — reset it at the same stage boundary.
+    http.clearRequests();
     navigate('#/asset/asset-x');
     armFastDefaults();
-    apiMock.tree.mockResolvedValue(makeTreePayload(['alpha']));
+    http.get(TREE, () => makeTreePayload(['alpha']));
 
-    render(<App />);
+    render(<App surfaces={SURFACES} />);
 
     await waitFor(() => {
       expect(screen.getByTestId('library-route')).toBeTruthy();
     });
     expect(screen.queryByTestId('tree-route')).toBeNull();
-    expect(apiMock.tree).not.toHaveBeenCalled();
+    expect(http.countTo(TREE)).toBe(0);
   });
 
   it('map-boot-independence-drops-the-dead-comments-boot-fetch: no boot path calls api.listComments and the app context carries no permanently-empty comment collection or unused refresher, while the per-topic comment surfaces that own their own data are left untouched', async () => {
     armFastDefaults();
-    apiMock.tree.mockResolvedValue(makeTreePayload(['alpha']));
-    apiMock.listDocs.mockResolvedValue(makeDocs(['doc-a']));
+    http.get(TREE, () => makeTreePayload(['alpha']));
+    http.get(DOCS, () => makeDocs(['doc-a']));
 
-    render(<App />);
+    render(<App surfaces={SURFACES} />);
 
     await waitFor(() => {
       expectTerritories(['alpha']);
     });
     // Let every boot-time call have its chance to fire before asserting an absence.
     await waitFor(() => {
-      expect(apiMock.listDocs).toHaveBeenCalled();
+      expect(http.countTo(DOCS)).toBeGreaterThan(0);
     });
     await waitFor(() => {
-      expect(apiMock.listAssets).toHaveBeenCalled();
+      expect(http.countTo(ASSETS)).toBeGreaterThan(0);
     });
-    expect(apiMock.listComments).not.toHaveBeenCalled();
+    expect(http.countTo(COMMENTS)).toBe(0);
 
     // The context itself carries neither the dead collection nor its unused refresher — a
     // permanently-empty `comments: []` would be a field that lies, which is why this unit removes
@@ -308,16 +337,16 @@ describe('map-boot-independence', () => {
     // The per-topic surfaces keep their own data path: the client method the route serves is
     // untouched and still callable (InlineCommentThread / ReviewBlocks fetch through it and are
     // covered by their own suites — this unit removed only the dead BOOT fetch).
-    expect(typeof apiMock.listComments).toBe('function');
+    expect(typeof api.listComments).toBe('function');
   });
 
   it("map-boot-independence-distinguishes-unloaded-assets-from-empty: while /api/assets is in flight no consumer presents an empty Library corpus as the answer and a not-yet-loaded state is observable; a resolved EMPTY corpus IS presented and is distinguishable from that state; and a resolved non-empty corpus reaches the drawer's consumers in full", async () => {
     navigate('#/asset/asset-x');
     const assetsDeferred = deferred<GuidanceAsset[]>();
     armFastDefaults();
-    apiMock.listAssets.mockImplementation(() => assetsDeferred.promise);
+    http.get(ASSETS, () => assetsDeferred.promise);
 
-    render(<App />);
+    render(<App surfaces={SURFACES} />);
 
     const libraryRoute = await screen.findByTestId('library-route');
 
@@ -340,12 +369,14 @@ describe('map-boot-independence', () => {
     // RESOLVED-NON-EMPTY: the deferral is a deferral, not a drop — the corpus arrives in full.
     cleanup();
     vi.clearAllMocks();
+    // The transport double is the call log now — reset it at the same stage boundary.
+    http.clearRequests();
     navigate('#/asset/asset-x');
     const secondAssets = deferred<GuidanceAsset[]>();
     armFastDefaults();
-    apiMock.listAssets.mockImplementation(() => secondAssets.promise);
+    http.get(ASSETS, () => secondAssets.promise);
 
-    render(<App />);
+    render(<App surfaces={SURFACES} />);
     await screen.findByTestId('library-route');
     await act(async () => {
       secondAssets.resolve([makeAsset('asset-x'), makeAsset('asset-y')]);
@@ -361,11 +392,11 @@ describe('map-boot-independence', () => {
 
   it('map-boot-independence-surfaces-an-assets-failure-without-blanking-the-map: a rejected /api/assets leaves the map mounted and painting with its own loadError path untouched and the content area not blanked, and the failure is still reported where assets matter rather than degrading into a silent empty corpus', async () => {
     armFastDefaults();
-    apiMock.tree.mockResolvedValue(makeTreePayload(['alpha']));
-    apiMock.listDocs.mockResolvedValue(makeDocs(['doc-a']));
-    apiMock.listAssets.mockRejectedValue(new Error('assets unavailable'));
+    http.get(TREE, () => makeTreePayload(['alpha']));
+    http.get(DOCS, () => makeDocs(['doc-a']));
+    http.get(ASSETS, () => errorReply('assets unavailable'));
 
-    render(<App />);
+    render(<App surfaces={SURFACES} />);
 
     // The map paints through the assets failure — it reads nothing from that payload.
     await waitFor(() => {
@@ -383,11 +414,13 @@ describe('map-boot-independence', () => {
     // distinguishable from the resolved-genuinely-empty "not found" answer.
     cleanup();
     vi.clearAllMocks();
+    // The transport double is the call log now — reset it at the same stage boundary.
+    http.clearRequests();
     navigate('#/asset/asset-x');
     armFastDefaults();
-    apiMock.listAssets.mockRejectedValue(new Error('assets unavailable'));
+    http.get(ASSETS, () => errorReply('assets unavailable'));
 
-    render(<App />);
+    render(<App surfaces={SURFACES} />);
 
     const libraryRoute = await screen.findByTestId('library-route');
     await waitFor(() => {
@@ -399,26 +432,28 @@ describe('map-boot-independence', () => {
   it('map-boot-independence-leaves-the-store-health-screens-intact: the membership-error, asleep, and faulted screens and the asleep-vs-fault distinction behave exactly as they do today, and the map is never mounted behind a load screen', async () => {
     // ── A genuine membership fault: explicit, never a blank screen or a spinner ───────────────
     armFastDefaults();
-    apiMock.me.mockRejectedValue(new Error('network down'));
+    http.get(ME, () => errorReply('network down'));
 
-    render(<App />);
+    render(<App surfaces={SURFACES} />);
 
     await waitFor(() => {
       expect(screen.getByText(/Couldn.t reach the studio/i)).toBeTruthy();
     });
     expect(screen.queryByTestId('tree-route')).toBeNull();
-    expect(apiMock.tree).not.toHaveBeenCalled();
+    expect(http.countTo(TREE)).toBe(0);
 
     // ── ASLEEP: membership degraded to storeUnreachable AND health agrees the DB is down ──────
     cleanup();
     vi.clearAllMocks();
+    // The transport double is the call log now — reset it at the same stage boundary.
+    http.clearRequests();
     navigate('#/tree');
     armFastDefaults();
-    apiMock.me.mockResolvedValue({ ...MEMBER, storeUnreachable: true, canWakeDb: true });
-    apiMock.health.mockResolvedValue({ ...baseHealth(), db: 'down' });
-    apiMock.dbStatus.mockResolvedValue({ state: 'STOPPED', activationPolicy: 'NEVER' });
+    http.get(ME, () => ({ ...MEMBER, storeUnreachable: true, canWakeDb: true }));
+    http.get(HEALTH, () => ({ ...baseHealth(), db: 'down' }));
+    http.get(DB_STATUS, () => ({ state: 'STOPPED', activationPolicy: 'NEVER' }));
 
-    render(<App />);
+    render(<App surfaces={SURFACES} />);
 
     await waitFor(() => {
       expect(screen.getByText(/The live store is stopped/i)).toBeTruthy();
@@ -429,12 +464,14 @@ describe('map-boot-independence', () => {
     // ── STORE-FAULT: the two signals DISAGREE (health says the DB is reachable) ───────────────
     cleanup();
     vi.clearAllMocks();
+    // The transport double is the call log now — reset it at the same stage boundary.
+    http.clearRequests();
     navigate('#/tree');
     armFastDefaults();
-    apiMock.me.mockResolvedValue({ ...MEMBER, storeUnreachable: true });
-    apiMock.health.mockResolvedValue(baseHealth()); // db: 'ok' → phase 'healthy'
+    http.get(ME, () => ({ ...MEMBER, storeUnreachable: true }));
+    http.get(HEALTH, () => baseHealth()); // db: 'ok' → phase 'healthy'
 
-    render(<App />);
+    render(<App surfaces={SURFACES} />);
 
     await waitFor(() => {
       expect(screen.getByText(/this looks like a fault/i)).toBeTruthy();
@@ -447,14 +484,14 @@ describe('map-boot-independence', () => {
   it("map-boot-independence-preserves-the-prior-stages-guards: stage 1's SPA route retention still keeps a visited map mounted and parked, and stage 2's pre-paint guards still refuse a foreign client stamp and a structurally malformed entry", async () => {
     // ── Stage 1 (map-route-retention): navigating away parks the map, never unmounts it ───────
     armFastDefaults();
-    apiMock.tree.mockResolvedValue(makeTreePayload(['alpha']));
+    http.get(TREE, () => makeTreePayload(['alpha']));
 
-    render(<App />);
+    render(<App surfaces={SURFACES} />);
 
     await waitFor(() => {
       expectTerritories(['alpha']);
     });
-    const callsAfterFirstPaint = apiMock.tree.mock.calls.length;
+    const callsAfterFirstPaint = http.countTo(TREE);
 
     navigate('#/asset/asset-x');
     await waitFor(() => {
@@ -464,11 +501,13 @@ describe('map-boot-independence', () => {
     expect(parked).toBeTruthy();
     expect(parked.getAttribute('data-parked')).toBe('true');
     // Parked, not refetched — the retention guard's whole purpose.
-    expect(apiMock.tree.mock.calls.length).toBe(callsAfterFirstPaint);
+    expect(http.countTo(TREE)).toBe(callsAfterFirstPaint);
 
     // ── Stage 2 guard 1 (client stamp): a FOREIGN stamp is refused before any paint ───────────
     cleanup();
     vi.clearAllMocks();
+    // The transport double is the call log now — reset it at the same stage boundary.
+    http.clearRequests();
     window.localStorage.setItem(
       PAYLOAD_CACHE_KEY,
       JSON.stringify({
@@ -480,9 +519,9 @@ describe('map-boot-independence', () => {
     );
     navigate('#/tree');
     armFastDefaults();
-    apiMock.tree.mockResolvedValue(makeTreePayload(['alpha']));
+    http.get(TREE, () => makeTreePayload(['alpha']));
 
-    render(<App />);
+    render(<App surfaces={SURFACES} />);
 
     // The ghost must never appear — not even for a frame before the network answers.
     expect(uniqueTerritoryIds()).not.toContain('ghost-from-a-foreign-stamp');
@@ -494,6 +533,8 @@ describe('map-boot-independence', () => {
     // ── Stage 2 guard 3 (structural shape): a malformed entry is refused even with a GOOD stamp ─
     cleanup();
     vi.clearAllMocks();
+    // The transport double is the call log now — reset it at the same stage boundary.
+    http.clearRequests();
     window.localStorage.setItem(
       PAYLOAD_CACHE_KEY,
       JSON.stringify({
@@ -505,9 +546,9 @@ describe('map-boot-independence', () => {
     );
     navigate('#/tree');
     armFastDefaults();
-    apiMock.tree.mockResolvedValue(makeTreePayload(['beta']));
+    http.get(TREE, () => makeTreePayload(['beta']));
 
-    render(<App />);
+    render(<App surfaces={SURFACES} />);
 
     await waitFor(() => {
       expectTerritories(['beta']);

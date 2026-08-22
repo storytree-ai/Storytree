@@ -2,34 +2,41 @@
 //
 // ADR-0097 Layer 2 / ADR-0037 §2: the StoryPanel's "Architectural Decision Records" section resolves a
 // story's `decisions:` ADR numbers against the loaded docs and LINKS them to the Decisions-group Library
-// docs. A <details> disclosure collapsed by default (owner steer 2026-06-24). useAppData is mocked to
-// supply the docs index (the section is otherwise presentational).
+// docs. A <details> disclosure collapsed by default (owner steer 2026-06-24). The docs index is supplied
+// through the REAL AppDataContext (anti-slop-adoption-arc inc-06, `no-module-mocking`) — the seam the
+// app itself uses — so the value is a complete, type-checked `AppData` rather than a partial object a
+// mocked hook returned.
 
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import type { DocMeta } from '../types';
 
-const data = vi.hoisted(() => ({
-  docs: [
+const DOCS = [
     { id: 'decisions/0017-the-library-tier.md', title: 'The library tier', group: 'Decisions', excerpt: '', status: 'accepted' },
     { id: 'decisions/0097-brownfield.md', title: 'Brownfield go-green', group: 'Decisions', excerpt: '', status: 'accepted' },
-    { id: 'open-questions.md', title: 'Open questions', group: 'Reference', excerpt: '' },
-  ] as DocMeta[],
-  // The doc-index readiness this section resolves against — driven per-test below, because
-  // "(no doc found)" is only TRUE once the index has resolved.
-  docsStatus: 'ready' as 'loading' | 'ready' | 'error',
-  docsError: '',
-}));
-vi.mock('../lib/appData', () => ({
-  useAppData: () => ({ docs: data.docs, docsStatus: data.docsStatus, docsError: data.docsError }),
-}));
+  { id: 'open-questions.md', title: 'Open questions', group: 'Reference', excerpt: '' },
+] as DocMeta[];
 
 import { RelevantAdrs, adrNumberOf } from './TreeView';
+import { WithAppData } from '../test/appData';
+
+/**
+ * Render the section under the real context. `docsStatus` is driven per-test, because
+ * "(no doc found)" is only TRUE once the index has resolved.
+ */
+function renderAdrs(
+  decisions: number[],
+  index: { docsStatus?: 'loading' | 'ready' | 'error'; docsError?: string } = {},
+) {
+  return render(
+    <WithAppData docs={DOCS} docsStatus={index.docsStatus ?? 'ready'} docsError={index.docsError ?? ''}>
+      <RelevantAdrs decisions={decisions} />
+    </WithAppData>,
+  );
+}
 
 afterEach(() => {
   cleanup();
-  data.docsStatus = 'ready';
-  data.docsError = '';
 });
 
 describe('adrNumberOf', () => {
@@ -42,12 +49,12 @@ describe('adrNumberOf', () => {
 
 describe('RelevantAdrs', () => {
   it('renders nothing when the story declares no decisions', () => {
-    const { container } = render(<RelevantAdrs decisions={[]} />);
+    const { container } = renderAdrs([]);
     expect(container.firstChild).toBeNull();
   });
 
   it('is a collapsed-by-default <details> disclosure (owner steer 2026-06-24)', () => {
-    const { container } = render(<RelevantAdrs decisions={[17, 97]} />);
+    const { container } = renderAdrs([17, 97]);
     const details = container.querySelector('details');
     expect(details).toBeTruthy();
     // closed by default — no `open` attribute, but the rows stay in the DOM for the link tests below
@@ -56,7 +63,7 @@ describe('RelevantAdrs', () => {
   });
 
   it('links each deciding ADR to its Decisions-group doc with the title + status chip', () => {
-    render(<RelevantAdrs decisions={[17, 97]} />);
+    renderAdrs([17, 97]);
     expect(screen.getByText('Architectural Decision Records (2)')).toBeTruthy();
 
     // ADR-0017 resolves to its doc, linked via docHref, with the title and an accepted chip.
@@ -70,7 +77,7 @@ describe('RelevantAdrs', () => {
   });
 
   it('falls back to a plain label for a decision with no matching doc (tolerant, never blank)', () => {
-    render(<RelevantAdrs decisions={[999]} />);
+    renderAdrs([999]);
     expect(screen.getByText('ADR-0999')).toBeTruthy();
     expect(screen.getByText(/no doc found/)).toBeTruthy();
   });
@@ -79,8 +86,7 @@ describe('RelevantAdrs', () => {
   // RESOLVED — said over an index that never loaded, a real ADR reads as a missing one, which is
   // the dishonesty a failed /api/docs used to reach silently (only a console.error stood behind it).
   it('says the index is still loading — not "no doc found" — while /api/docs is in flight', () => {
-    data.docsStatus = 'loading';
-    render(<RelevantAdrs decisions={[999]} />);
+    renderAdrs([999], { docsStatus: 'loading' });
 
     expect(screen.getByText('ADR-0999')).toBeTruthy();
     expect(screen.queryByText(/no doc found/)).toBeNull();
@@ -88,9 +94,7 @@ describe('RelevantAdrs', () => {
   });
 
   it('says the index failed — not "no doc found" — when /api/docs rejected, carrying the reason', () => {
-    data.docsStatus = 'error';
-    data.docsError = 'HTTP 500';
-    const { container } = render(<RelevantAdrs decisions={[999]} />);
+    const { container } = renderAdrs([999], { docsStatus: 'error', docsError: 'HTTP 500' });
 
     expect(screen.getByText('ADR-0999')).toBeTruthy();
     expect(screen.queryByText(/no doc found/)).toBeNull();
@@ -101,8 +105,7 @@ describe('RelevantAdrs', () => {
   it('still LINKS a resolvable ADR while the index is unresolved — the note is only for the gap', () => {
     // A cache-seeded index (map-payload-cache) resolves ids before /api/docs answers; only the
     // ids it CANNOT resolve are in question, so a hit must still render as a working link.
-    data.docsStatus = 'loading';
-    render(<RelevantAdrs decisions={[17, 999]} />);
+    renderAdrs([17, 999], { docsStatus: 'loading' });
 
     expect(screen.getByText('The library tier').closest('a')).toBeTruthy();
     expect(screen.getByText(/the document index is still loading/)).toBeTruthy();
