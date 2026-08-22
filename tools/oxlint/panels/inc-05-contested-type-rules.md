@@ -100,19 +100,19 @@ The operator's own family split of the 606 source sites, for the record: 165 `==
 compared against a non-literal, 86 `=== "object"`, 80 `!== "object"`, 66 `!== "string"`, 40
 `=== / !== "undefined"` (the environment guards), 25 numeric, 18 bare, 6 `"function"`, 2 boolean.
 
-### D — `no-shape-in-symbol-names` · 363 (207 source / 156 test, 56 files) · rejected 5–0
+### D — `no-shape-in-symbol-names` · 391 (225 source / 166 test, 69 files) · rejected 5–0
 
 **A GENUINE EXCEPTIONAL SET, PLUS ONE HARD FUNCTIONALITY LOSS.** The rule is a case-insensitive
 **substring** ban on `"shape"` in every `Identifier`, `PrivateIdentifier` and `JSXIdentifier`. It has
 no options and no exceptions, so it cannot tell the word's structural sense from its domain sense —
 `skeptic` called it *"a substring grep dressed as a design principle."*
 
-The operator classified **all 207 source sites**, not the panel's twelve:
+The operator classified **all 225 source sites**, not the panel's twelve:
 
 | | |
 |---:|---|
-| **73 (35%)** | geometry / rendering packages, where geometric vocabulary IS the working vocabulary |
-| **21** | closed classification unions (`StartShape`, `DecisionReadShape`) |
+| **73 (32%)** | geometry / rendering packages, where geometric vocabulary IS the working vocabulary |
+| **39** | closed classification unions (`StartShape`, `DecisionReadShape`) |
 | **2** | `z.ZodRawShape` — **a type zod exports, which we cannot rename** |
 | **111** | everything else — and it reduces to just **15 distinct identifiers** |
 
@@ -139,7 +139,7 @@ removes most of the sites and leaves a rule too small to justify. `skeptic` adde
 objection — renaming `CanopyShape` to `CanopySilhouette` satisfies the rule while changing zero
 meaning, which is a rule that produces churn instead of quality.
 
-### E — `no-unknown-parameters` · 323 (236 source / 87 test, 183 files) · **rejected 4–1**
+### E — `no-unknown-parameters` · 322 (236 source / 86 test, 183 files) · **rejected 4–1**
 
 **FUNCTIONALITY LOSS — the type predicate becomes inexpressible.** This is `inc-04`'s
 `no-unsafe-dictionary-type` finding arriving from the other side.
@@ -186,7 +186,7 @@ proposal on its own evidence** — a rule about `unknown` on parameters *this pr
 named* — and like `inc-04`'s `Record<string, any>` ban it must carry its own justification rather
 than inherit this panel's.
 
-### C — `no-unknown-returns` · 41 (16 source / 25 test, 31 files) · rejected 5–0
+### C — `no-unknown-returns` · 38 (16 source / 22 test, 29 files) · rejected 5–0
 
 The **smallest** contested rule in the set, which is what makes its rejection worth reading: 16
 source sites is a morning's work, so nothing here was decided on cost.
@@ -236,11 +236,22 @@ instrument exists to prevent.
 
 **The verdict does not rest on it, and the check is a measurement rather than an argument.** Rather
 than re-run a 5-judge panel to settle one sentence (~550k tokens), the operator measured the whole
-population the sample was drawn from: 73/207 source sites in packages whose working vocabulary is
+population the sample was drawn from: 73/225 source sites in packages whose working vocabulary is
 geometry, 2 naming a type zod exports and we cannot rename, and a residue of 111 firings that reduces
 to 15 distinct identifiers. Those facts stand with the sentence removed. **A later lane wanting to
 re-open D should re-state the rule in upstream's own words and re-run it** — and should expect the
 zod sites to survive any rewording, because they are not a matter of how the rule is argued.
+
+**A COUNT IS A READING, NOT A PROPERTY — three of the five moved under a merge taken the same day.**
+The panel ran against a tree at `origin/main`; a sibling lane on this arc landed 233 files while it
+sat, and re-measuring on the merged tree moved `no-shape-in-symbol-names` 363 → 391 (source 207 →
+225), `no-unknown-parameters` 323 → 322 and `no-unknown-returns` 41 → 38. **Every number in this
+record and in `oxlint.config.ts` was re-taken on the tree this increment actually ships**, and the
+classification was re-run with them — which is why the geometry share reads 32% rather than the
+35% measured an hour earlier. It changed no verdict: the shares, the residue's 15 distinct
+identifiers and the zod sites are all stable, and `allowInTypeGuards` still removes exactly 64 of
+748. The lesson for the next lane is not to inherit a count from a record — including this one.
+Re-measure with the documented `-c <copy>` command.
 
 **What was not repeated from `inc-04`:** the byte-offset defect. All 48 sampled target sites were
 mechanically verified against the real source at the stated line before the packet went out — the

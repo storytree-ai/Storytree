@@ -20,11 +20,11 @@ combination silently reports a near-empty run rather than failing.
 | `no-conditional-empty-object-spread` | 663 | 581 | 82 | 174 | **adopt-and-refactor**, own lane — refactor panel says a shape EXISTS |
 | `no-unsafe-dictionary-type` | 612 | 345 | 267 | 157 | **rejected** (panel, inc-04) |
 | `no-known-value-widening` | 497 | 300 | 197 | 248 | inc-08 |
-| `no-shape-in-symbol-names` | 363 | 207 | 156 | 56 | **rejected** (panel, inc-05) |
-| `no-unknown-parameters` | 323 | 236 | 87 | 183 | **rejected** (panel, inc-05 — 4–1) |
+| `no-shape-in-symbol-names` | 391 | 225 | 166 | 69 | **rejected** (panel, inc-05) |
+| `no-unknown-parameters` | 322 | 236 | 86 | 183 | **rejected** (panel, inc-05 — 4–1) |
 | `no-chained-type-assertions` | 162 | 33 | 129 | 71 | **adopted** (source) · inc-09 (tests) |
 | `no-module-mocking` | 111 | 0 | 111 | 32 | **adopted** (inc-06, driven to 0) |
-| `no-unknown-returns` | 41 | 16 | 25 | 31 | **rejected** (panel, inc-05) |
+| `no-unknown-returns` | 38 | 16 | 22 | 29 | **rejected** (panel, inc-05) |
 | `no-object-parameters` | **0** | 0 | 0 | 0 | **adopted** |
 | `no-reflect-apply` | **0** | 0 | 0 | 0 | **adopted** |
 | `no-reflect-get` | **0** | 0 | 0 | 0 | **adopted** |
@@ -33,7 +33,7 @@ combination silently reports a near-empty run rather than failing.
 
 **inc-01 measured 5,383 violations across 10 rules, with five rules already clean.** The five rows
 marked `inc-05` above were **RE-MEASURED at HEAD on 2026-08-22** and have moved (`no-shape-in-symbol-names`
-most, 263 → 363), so this table now mixes two measurement dates and the 5,383 figure is inc-01's,
+most, 263 → 391), so this table now mixes two measurement dates and the 5,383 figure is inc-01's,
 not a current sum. Re-measure with the documented `-c <copy>` command before sizing anything from it;
 do not add the column up.
 
@@ -83,9 +83,9 @@ adjudications, against `inc-04`'s ~480k for one — so 1.15x the cost of a singl
   the shipped option on removes **64 of 748** (748 → 684; source 606 → 543) — 8.5%. It exempts only a
   `typeof` lexically inside a function whose return type is a `TSTypePredicate`, and most of this
   repo's narrowing is in plain validators, `asserts` functions and inline guards.
-- **`no-shape-in-symbol-names` moved most of any rule in this table, 263 → 363**, because inc-01's
-  figure predated files that have landed since. Classified across all 207 SOURCE sites: 73 (35%) in
-  the geometry/rendering packages where the word is the domain term, 21 closed classification unions,
+- **`no-shape-in-symbol-names` moved most of any rule in this table, 263 → 391**, because inc-01's
+  figure predated files that have landed since. Classified across all 225 SOURCE sites: 73 (32%) in
+  the geometry/rendering packages where the word is the domain term, 39 closed classification unions,
   **2 naming `z.ZodRawShape` — a type zod exports and we cannot rename** — and a residue of 111
   firings that reduces to just 15 distinct identifiers.
 

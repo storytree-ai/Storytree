@@ -204,18 +204,19 @@ export default defineConfig({
     // left to fire on".
     "anti-slop/no-runtime-typeof": "off",
 
-    // REJECTED 5-0 at high confidence. Re-measured at HEAD: 363 (207 source / 156 test, 56 files).
+    // REJECTED 5-0 at high confidence. Re-measured on the shipped tree: 391 (225 source / 166 test,
+    // 69 files).
     //
     // GENUINE EXCEPTIONAL SET, AND ONE HARD FUNCTIONALITY LOSS. The rule is a case-insensitive
     // SUBSTRING ban on "shape" in every `Identifier` / `PrivateIdentifier` / `JSXIdentifier` — it has
     // no options and no exceptions, so it cannot distinguish the word's structural sense from its
     // domain sense. Measured across all 207 SOURCE sites, not the panel's twelve:
-    //   - 73 (35%) are in the geometry and rendering packages, where the brief's own words are that
+    //   - 73 (32%) are in the geometry and rendering packages, where the brief's own words are that
     //     geometric modelling vocabulary IS the working vocabulary: `CanopyShape = 'spire' | 'dome'`
     //     names a tree silhouette, `part.shape.faces` is a solid's geometry, `shapeKey(poly)` is a
     //     translation-invariant polygon identity, and one site picks an SVG mark ('square'|'circle').
     //     Every judge named these; renaming them destroys meaning to satisfy a word.
-    //   - 21 are closed classification unions whose members already carry the meaning the rule says
+    //   - 39 are closed classification unions whose members already carry the meaning the rule says
     //     is missing (`StartShape = "healthy" | "slow-but-proceeded" | "allocate-then-die" | …`).
     //     The rule's remedy yields `…Kind`/`…Outcome` — a synonym swap that teaches a reader nothing.
     //   - 2 ARE NOT OURS TO RENAME: `z.ZodRawShape` at `packages/library/src/library-doc.ts:139,143`,
@@ -241,7 +242,7 @@ export default defineConfig({
     // facts that stand without it. See the record's "What this run got wrong" section.
     "anti-slop/no-shape-in-symbol-names": "off",
 
-    // REJECTED 4-1. Re-measured at HEAD: 323 (236 source / 87 test, 183 files). THE ONE SPLIT
+    // REJECTED 4-1. Re-measured on the shipped tree: 322 (236 source / 86 test, 183 files). THE ONE SPLIT
     // VERDICT ON THIS PANEL — the `codebase-architecture` seat returned `adopt-narrowed` (medium)
     // and its dissent is recorded in full in the panel record, because a 4-1 and a 5-0 are
     // different evidence and must not read the same.
@@ -270,7 +271,8 @@ export default defineConfig({
     // guards, the catch handlers and the wire readers at the same time.
     "anti-slop/no-unknown-parameters": "off",
 
-    // REJECTED 5-0 at high confidence. Re-measured at HEAD: 41 (16 source / 25 test, 31 files) —
+    // REJECTED 5-0 at high confidence. Re-measured on the shipped tree: 38 (16 source / 22 test,
+    // 29 files) —
     // the SMALLEST contested rule in the set, which is why its rejection is worth reading closely:
     // it was refused on the architecture, not on the cost of complying, and 16 sites is a morning's
     // work if the rule were right.
