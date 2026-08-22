@@ -282,7 +282,7 @@ function rereadStats(windows: readonly Window[], groupBy: (w: Window) => string)
   return { reads, rereads, totalChars, rereadChars, perWindow, gapMinutes, worst };
 }
 
-function renderStats(label: string, s: RereadStats): string[] {
+function renderStats(label: string, s: RereadStats, unit = "window"): string[] {
   const lines = [`  ${label}`];
   lines.push(
     `    reads ${s.reads}  re-reads ${s.rereads} (${pct(s.rereads, s.reads)})  ` +
@@ -293,7 +293,7 @@ function renderStats(label: string, s: RereadStats): string[] {
       `${pct(s.rereadChars, s.totalChars)} of what reading cost`,
   );
   lines.push(
-    `    reads per window: median ${quantile(s.perWindow, 0.5)}  p90 ${quantile(s.perWindow, 0.9)}  max ${quantile(s.perWindow, 1)}`,
+    `    reads per ${unit}: median ${quantile(s.perWindow, 0.5)}  p90 ${quantile(s.perWindow, 0.9)}  max ${quantile(s.perWindow, 1)}`,
   );
   lines.push(`    worst repeat of ONE document in ONE group: ${s.worst.count} (${s.worst.id} @ ${s.worst.where})`);
   return lines;
@@ -346,7 +346,7 @@ export async function runProbe(root: string): Promise<{ ok: boolean; report: str
   lines.push(...renderStats("subagent windows", subStats));
   lines.push("");
   lines.push("THE SAME READS, POOLED BY WORKTREE SLOT — what the traversal trace's sessionId does");
-  lines.push(...renderStats("by slot", bySlot));
+  lines.push(...renderStats("by slot", bySlot, "slot"));
   const windowShare = byWindow.reads === 0 ? 0 : byWindow.rereads / byWindow.reads;
   const slotShare = bySlot.reads === 0 ? 0 : bySlot.rereads / bySlot.reads;
   lines.push(
