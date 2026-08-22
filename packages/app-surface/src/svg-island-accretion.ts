@@ -217,7 +217,7 @@ function polygonCentroid(
 function collectIslandGeometry(
   scene: SceneNode,
   storyId: string,
-): { readonly cells: readonly SourceCell[]; readonly coastPaths: readonly string[] } {
+) {
   const cells: SourceCell[] = [];
   const coastPaths: string[] = [];
 

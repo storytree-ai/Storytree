@@ -103,13 +103,17 @@ export function clampScale(scale: number, limits: ScaleLimits): number {
   return Math.min(limits.max, Math.max(limits.min, scale));
 }
 
+export interface WorldToScreenResult { x: number; y: number }
+
 /** World point → screen pixel under the camera. */
-export function worldToScreen(cam: Camera, wx: number, wy: number): { x: number; y: number } {
+export function worldToScreen(cam: Camera, wx: number, wy: number): WorldToScreenResult {
   return { x: cam.tx + cam.scale * wx, y: cam.ty + cam.scale * wy };
 }
 
+export interface ScreenToWorldResult { x: number; y: number }
+
 /** Screen pixel → world point (the inverse of worldToScreen). */
-export function screenToWorld(cam: Camera, px: number, py: number): { x: number; y: number } {
+export function screenToWorld(cam: Camera, px: number, py: number): ScreenToWorldResult {
   return { x: (px - cam.tx) / cam.scale, y: (py - cam.ty) / cam.scale };
 }
 

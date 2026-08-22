@@ -96,7 +96,7 @@ async function makeKnowledgeStore(): Promise<InMemoryStore> {
 function makeTelemetry(
   nodeStore: InMemoryStore,
   sessionId: string,
-): { telemetry: OrientationRunnerTelemetry; trace: ContextTraversalTrace } {
+) {
   const trace = createContextTraversalTrace();
   let counter = 0;
   const telemetry: OrientationRunnerTelemetry = {

@@ -209,7 +209,7 @@ export interface WorktreeCreateIo {
  * shell:true carries no injection surface and no DEP0190 warning); POSIX spawns the binary directly.
  * Child stdout/stderr land on OUR stderr so the envelope stays the only stdout payload.
  */
-function defaultInstall(root: string): { ok: boolean; code: number } {
+function defaultInstall(root: string) {
   const win = process.platform === "win32";
   const opts = {
     cwd: root,

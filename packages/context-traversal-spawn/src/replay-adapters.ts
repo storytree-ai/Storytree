@@ -84,7 +84,7 @@ export function showTraversalSessionAllAdapters(
 function composeReplay(
   sessionId: string,
   opts: TraversalQueryOptions | undefined,
-): { readonly replay: ContextTraversalReplay; readonly skipped: number } {
+) {
   const dir = opts?.dir ?? resolveTraversalDir();
   const { replay, skipped } = readTraversalSession({ dir, sessionId });
   return {

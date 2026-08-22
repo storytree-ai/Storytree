@@ -27,14 +27,16 @@ function theTree(): TreeInstance {
   return trees[0]!;
 }
 
-function bounds(positions: Float32Array): {
+interface BoundsResult {
   minX: number;
   maxX: number;
   minY: number;
   maxY: number;
   minZ: number;
   maxZ: number;
-} {
+}
+
+function bounds(positions: Float32Array): BoundsResult {
   let minX = Infinity;
   let maxX = -Infinity;
   let minY = Infinity;

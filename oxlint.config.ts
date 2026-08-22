@@ -348,18 +348,45 @@ export default defineConfig({
     // (`...(values.x !== undefined ? { k: v } : {})`) into functions whose parameter type is the
     // only name available.
     "anti-slop/no-conditional-empty-object-spread": "off",
-    // 513 (312 source / 201 test, 253 files) — RE-SORTED OUT OF inc-03 AND CONTESTED, on that lane's
-    // own instruction to remove a rule that turns out not to be cheap rather than let the lane sprawl.
-    // The arc predicted "pure profit": the `satisfies` idiom, `const x: Record<string, H> = { start }`
-    // throwing away the knowledge that `start` exists. That family is real but is only 110 of the 513
-    // (open dictionary on a binding). The DOMINANT family, 290 of 513 (57%), is something else
-    // entirely — an inline anonymous object RETURN annotation over a returned object literal, e.g.
-    // `function f(): { adrs: AdrMeta[]; parseErrors: string[] }`. Satisfying it means either deleting
-    // the annotation (making a package's public return types inferred) or naming a type per site, at
-    // ~290 sites across 134 source files. That is a house-style position on whether this codebase may
-    // write inline object return types at all — defensible, but a genuine disagreement, and the arc's
-    // rule is that a disagreement goes to the RULE PANEL and never to one session's preference. Its
-    // own lane; see the arc.
+    // ADJUDICATED AND ADOPTED (inc-08) — but still `off`, because it reaches `error` only at ZERO
+    // and 129 firings remain. This is a MIGRATION IN PROGRESS, not an open question: the rule is
+    // agreed correct, and what is left is work rather than doubt. Record:
+    // `tools/oxlint/panels/no-known-value-widening.md`.
+    //
+    // 518 measured; 389 driven out. `anonymous object :: binding` is at zero, and so is every
+    // return-position site OUTSIDE the website-mirrored packages — see the fence below.
+    // No rule panel was needed — a panel justifies a REJECTION, and
+    // the owner's narrowed bar admits only functionality loss or a genuine exceptional set, neither
+    // of which describes "we prefer inline object return types". A REFACTOR panel settled the one
+    // live fork (delete the annotation vs name the type) 3-0: NAME it, because with no build step
+    // and raw TypeScript exported the declaration site is the only API-surface document there is,
+    // and a `return { xs: [] }` branch infers `never[]` once the annotation is gone.
+    //
+    // WHAT REMAINS, and it is a shape rather than a backlog. 68 `open dictionary :: binding` split
+    // almost evenly by the compiler's own verdict:
+    //   - LOOKUP (32) — a table read with a computed key. `ReadonlyMap` is the answer and is proved:
+    //     the rule classifies neither `ReadonlyMap` nor an interface reference as a widening target,
+    //     so the immutability fence the refactor panel thought this shape lost is in fact kept. Two
+    //     MIME tables already moved this way.
+    //   - ACCUMULATOR (33) — a binding that GAINS or LOSES keys after construction (`doc["x"] = y`,
+    //     `delete doc["rules"]`). This is the increment's ground-2 candidate and the one place no
+    //     compliant shape was found: `satisfies` pins the key set so the later write stops
+    //     compiling, naming the type re-states the same widening, and resolving the conditionals
+    //     into one literal requires exactly the idiom `no-conditional-empty-object-spread` bans.
+    //     A NARROWING here needs its own rule panel per the procedure — it is not this lane's to
+    //     take unilaterally, and it must never be taken by quietly exploiting the classifier's
+    //     interface/alias asymmetry.
+    // Plus 34 in the small tail (assertions, `unknown` targets, one property).
+    //
+    // ⚠ A FENCE, NOT A BACKLOG ITEM: 25 of the remaining firings sit in the FIVE files under
+    // `packages/forest-world/src` and `packages/forest-world-r3f/src` that the website mirrors
+    // (ADR-0093). They were migrated, CI's `check:web-engine` correctly refused the drift, and the
+    // change was REVERTED rather than pushed through — because closing that drift means
+    // `pnpm sync:web-engine`, a PR on the separate `storytree-web` repo, and MERGING it, and that
+    // merge republishes the live site through its own `deploy.yml`. Publishing is the owner's call,
+    // not a lane's. Note this is also the one class a local gate cannot see: `check:web-engine`
+    // SKIPs without the `web/` submodule, so the laptop reads GREEN, NARROWED and CI is the first
+    // honest verdict. Whoever takes these does the cross-repo ceremony deliberately and asks first.
     "anti-slop/no-known-value-widening": "off",
   },
   overrides: [

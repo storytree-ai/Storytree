@@ -356,7 +356,7 @@ function isStructuredKnowledge(doc: Record<string, unknown>): boolean {
  * through UNCHANGED (its schema has no `schemaVersion` field). Idempotent: `upcast(upcast(x))` deep-
  * equals `upcast(x)` — re-running applies no further migrations and re-stamps the same version.
  */
-export function upcast(doc: Record<string, unknown>): Record<string, unknown> {
+export function upcast(doc: Record<string, unknown>) {
   if (!isStructuredKnowledge(doc)) return doc;
   let cur = doc;
   let v = typeof doc["schemaVersion"] === "number" ? doc["schemaVersion"] : 0;
@@ -366,5 +366,5 @@ export function upcast(doc: Record<string, unknown>): Record<string, unknown> {
       v = m.version;
     }
   }
-  return { ...cur, schemaVersion: CURRENT_SCHEMA_VERSION };
+  return { ...cur, schemaVersion: CURRENT_SCHEMA_VERSION } satisfies Record<string, unknown>;
 }

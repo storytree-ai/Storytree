@@ -135,6 +135,11 @@ export function parallelAllocations(localMax: number, reserved: number): number[
 /** Enumerate at most this many numbers inline; a very stale checkout gets a count, not a wall. */
 const MAX_LISTED_PARALLEL = 8;
 
+export interface ParallelAllocationNoteResult {
+  lines: string[];
+  next: string[];
+}
+
 /**
  * PURE: render {@link parallelAllocations} as envelope lines + `next:` steps. Empty in, empty out —
  * FAIL QUIET (a session whose checkout is current sees nothing at all, and this never reddens
@@ -146,10 +151,7 @@ const MAX_LISTED_PARALLEL = 8;
  * yet (that is exactly why the ordinary merge missed it), so they look across ALL fetched refs — the
  * sibling session's branch included.
  */
-export function parallelAllocationNote(missing: readonly number[]): {
-  lines: string[];
-  next: string[];
-} {
+export function parallelAllocationNote(missing: readonly number[]): ParallelAllocationNoteResult {
   const first = missing[0];
   if (first === undefined) return { lines: [], next: [] };
   const listed = missing.slice(0, MAX_LISTED_PARALLEL).map(pad).join(", ");
@@ -509,6 +511,11 @@ export function renderAdrList(listings: readonly AdrListing[], filter: AdrListFi
   return rows;
 }
 
+export interface LoadAdrListingsResult {
+  listings: AdrListing[];
+  parseErrors: string[];
+}
+
 /**
  * Read + parse every `NNNN-*.md` in the decisions dir into a listing; parse failures are collected.
  *
@@ -516,10 +523,7 @@ export function renderAdrList(listings: readonly AdrListing[], filter: AdrListFi
  * the arc rollup shares (`@storytree/arc`'s `arc-rollup.ts`). This view keeps its nested
  * `{meta, title}` shape because {@link renderAdrList} is written against it.
  */
-export function loadAdrListings(decisionsDir: string): {
-  listings: AdrListing[];
-  parseErrors: string[];
-} {
+export function loadAdrListings(decisionsDir: string): LoadAdrListingsResult {
   const { adrs, parseErrors } = loadTitledAdrMetas(decisionsDir);
   return { listings: adrs.map(({ title, ...meta }) => ({ meta, title })), parseErrors };
 }

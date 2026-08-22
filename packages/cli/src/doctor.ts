@@ -458,7 +458,7 @@ export function runDoctor(obs: DoctorObservations): DoctorReport {
 
 /** PURE: render a report as stable, greppable machine-readable lines + a fix hint under each non-PASS probe. */
 export function formatDoctorReport(report: DoctorReport): string {
-  const glyph: Record<ProbeLevel, string> = { PASS: "ok  ", WARN: "warn", FAIL: "FAIL" };
+  const glyph = { PASS: "ok  ", WARN: "warn", FAIL: "FAIL" } satisfies Record<ProbeLevel, string>;
   const lines: string[] = ["storytree doctor — explorer setup check (ADR-0207 D6)", ""];
   for (const p of report.probes) {
     lines.push(`  [${glyph[p.level]}] ${p.name.padEnd(22)} ${p.detail}`);

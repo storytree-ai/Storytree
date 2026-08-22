@@ -28,14 +28,7 @@ import { CredentialBridge } from "./credential-bridge.js";
 // ---------------------------------------------------------------------------
 
 /** A stub driver that captures every env it is called with and returns ok:true. */
-function makeStubDriver(): {
-  capturedEnvs: Array<Record<string, string>>;
-  driver: (
-    unitId: string,
-    env: Record<string, string>,
-    sink: (line: string) => void,
-  ) => Promise<{ ok: boolean; body: string }>;
-} {
+function makeStubDriver() {
   const capturedEnvs: Array<Record<string, string>> = [];
   return {
     capturedEnvs,
@@ -204,9 +197,9 @@ test("operation-env-lifetime: credential-bridge: api-key is scoped to ANTHROPIC_
 test("operation-env-lifetime: credential-bridge: restores the target env after a thrown driver", async () => {
   const broker = new CredentialBroker(new InMemoryKeychain());
   await broker.store("api-key", "api-test-value");
-  const env: Record<string, string | undefined> = {
+  const env = {
     ANTHROPIC_API_KEY: "previous-value",
-  };
+  } satisfies Record<string, string | undefined>;
 
   const bridge = new CredentialBridge(
     broker,

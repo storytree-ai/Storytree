@@ -94,10 +94,40 @@ export function legacyUatTestId(storyId: string, ordinal: number): string {
 /** @deprecated ADR-0253: use authored criterionId for current work. */
 export const uatTestCriterionId = legacyUatTestId;
 
+/**
+ * The authored list number of one raw UAT item — the ordinal ADR-0253 froze into the positional key
+ * {@link legacyUatTestId} builds, and the ONE thing about an item that the criterion's own identity
+ * deliberately does not carry: {@link canonicalUatCriterionContent} strips this number before the
+ * `(revision-id:)` is computed, so moving an item up or down the list changes no revision, no
+ * criterion id and no `(proof-gate:)` binding.
+ *
+ * That is exactly why it needs a reader. Because renumbering is free at the CRITERION tier, a
+ * deletion pass can close the gap it just made and silently point a live leg at a `<story>#uat-N`
+ * key the frozen ledger has already burned for a DIFFERENT, deleted criterion — which is invisible
+ * to every rung that reads identity rather than position (see `burned-ordinal-collision.ts`).
+ *
+ * Takes the `source` of a {@link UatTestCriterionSource}, which by construction begins with its
+ * list number. Fail-closed: an item that does not begin with one is a parser invariant violation,
+ * never a silent `NaN` that would make a collision check quietly compare nothing.
+ */
+export function uatItemOrdinal(source: string): number {
+  const match = ITEM_ORDINAL.exec(source);
+  if (match === null) {
+    throw new Error(`UAT item does not begin with a list number: ${JSON.stringify(source.slice(0, 60))}`);
+  }
+  return Number(match[1]!);
+}
+
 const STORY_UAT_HEADING = /^##[^\n\S]+(?:UAT Test Criteria|Story UAT)([^\n]*)$/im;
 const WOULD_BE_QUALIFIER = /\(would-be\)/i;
 const NEXT_H2 = /^## /m;
 const NUMBERED_ITEM = /^\d+\.[^\n\S]+(.*)$/;
+/**
+ * The authored list number of a raw item, captured. Every reader of an item's ordinal — the two
+ * strippers below and {@link uatItemOrdinal} — goes through this one constant, so the number a
+ * caller READS can never disagree with the number the canonical content DROPS.
+ */
+const ITEM_ORDINAL = /^(\d+)\.[^\n\S]+/;
 const BOLD_LEAD = /^\*\*(.+?)\*\*/;
 const WITNESS_TAG = /\(witness:\s*([A-Za-z]+)\)/i;
 // Distinct from WITNESS_TAG by construction: that one matches the literal "(witness:", which
@@ -165,7 +195,7 @@ function splitItems(section: string, offset: number): RawUatItem[] {
 }
 
 function itemTitle(item: string): string {
-  const firstLine = (item.split("\n")[0] ?? "").replace(/^\d+\.[^\n\S]+/, "").trim();
+  const firstLine = (item.split("\n")[0] ?? "").replace(ITEM_ORDINAL, "").trim();
   const bold = BOLD_LEAD.exec(firstLine);
   const raw = bold !== null ? bold[1]! : firstLine;
   return raw.replace(/:$/, "").trim();
@@ -279,7 +309,7 @@ function itemLineage(item: string): CriterionLineage | undefined {
 /** Canonical content excludes list position and identity/history annotations only. */
 export function canonicalUatCriterionContent(item: string): string {
   return item
-    .replace(/^\d+\.[^\n\S]+/, "")
+    .replace(ITEM_ORDINAL, "")
     .replace(IDENTITY_METADATA_TAG, " ")
     .replace(/\r\n?/g, "\n")
     .split("\n")

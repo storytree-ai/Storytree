@@ -34,13 +34,7 @@ function flowers(state: CriterionState): FlowerInstance[] {
   return flowersFrom(islandScene({ criteriaStates: ALL(state) }));
 }
 
-function extent(mesh: GeneratedMesh): {
-  minY: number;
-  maxY: number;
-  w: number;
-  h: number;
-  d: number;
-} {
+function extent(mesh: GeneratedMesh) {
   let minY = Infinity;
   let maxY = -Infinity;
   for (let i = 1; i < mesh.positions.length; i += 3) {

@@ -407,7 +407,7 @@ export const ASSET_CATEGORIES: AssetCategory[] = [
 ];
 
 /** One-line gloss per category (shown in the Library UI). */
-export const ASSET_CATEGORY_GLOSS: Record<AssetCategory, string> = {
+export const ASSET_CATEGORY_GLOSS = {
   definition: 'what something is',
   principle: 'how to judge',
   pattern: 'a reusable approach',
@@ -422,7 +422,7 @@ export const ASSET_CATEGORY_GLOSS: Record<AssetCategory, string> = {
   friction: 'what fought a session, with evidence',
   arc: 'a multi-story initiative tracked to a close',
   increment: 'one unit of arc work, from parked proposal through to closed',
-};
+} satisfies Record<AssetCategory, string>;
 
 /**
  * A unified row in the Library grid. `adr` is a first-class artifact category like

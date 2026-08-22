@@ -116,7 +116,7 @@ describe('panel ground — the one-island world has a substrate to render (tweak
 describe('cityStampSpots — the dependency city seats ON the island land (ADR-0102 §3)', () => {
   // A realistic one-island world (what SharedIslandCard lays out) gives us the real owned-tile set
   // + tree spot the helper snaps against, so the test exercises the same geometry the card does.
-  const island = (capCount: number): { treeSpot: { x: number; y: number }; ownedKeys: Set<string>; crownR: number } => {
+  const island = (capCount: number) => {
     const story: TreeStory = {
       id: 'cli',
       title: 'cli',

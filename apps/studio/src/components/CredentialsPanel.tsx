@@ -17,10 +17,10 @@ import {
   type DesktopAuthBridge,
 } from "../lib/desktopAuth.js";
 
-const ROW_LABELS: Record<CredentialKind, string> = {
+const ROW_LABELS = {
   oauth: "Claude subscription token",
   "api-key": "Anthropic API key",
-};
+} satisfies Record<CredentialKind, string>;
 
 export function CredentialsPanel({
   auth,

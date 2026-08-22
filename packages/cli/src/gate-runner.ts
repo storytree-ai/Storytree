@@ -314,12 +314,12 @@ export function gateExitCode(results: readonly GateStepResult[], partial?: Parti
   return results.every((r) => r.status === "pass" || r.status === "skip") ? 0 : 1;
 }
 
-const GLYPH: Record<GateStepStatus, string> = {
+const GLYPH = {
   pass: "PASS   ",
   fail: "FAIL   ",
   "not-run": "NOT RUN",
   skip: "SKIP   ",
-};
+} satisfies Record<GateStepStatus, string>;
 
 function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`;

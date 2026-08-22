@@ -119,11 +119,7 @@ interface ApplyCall {
   block: string;
 }
 
-function makeStub(storedSuggestion: SuggestionLike | null): {
-  backend: SuggestionDecisionBackend;
-  applyCalls: ApplyCall[];
-  getSaved(): SuggestionLike | null;
-} {
+function makeStub(storedSuggestion: SuggestionLike | null) {
   const applyCalls: ApplyCall[] = [];
   let saved: SuggestionLike | null = null;
 

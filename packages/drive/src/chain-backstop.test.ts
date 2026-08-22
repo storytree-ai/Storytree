@@ -31,7 +31,7 @@ function job(kind: "typecheck" | "regression", i: number): BackstopJob {
 }
 
 /** An externally-resolvable promise, for deterministic control of observation completion order. */
-function deferred<T>(): { promise: Promise<T>; resolve: (v: T) => void; reject: (e: unknown) => void } {
+function deferred<T>() {
   let resolve!: (v: T) => void;
   let reject!: (e: unknown) => void;
   const promise = new Promise<T>((res, rej) => {

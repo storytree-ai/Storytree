@@ -276,10 +276,19 @@ Every assertion above still runs under `pnpm --filter @storytree/agent test` and
 greens on it — the deletion removed a second signature at the story rung, not the evidence.
 
 > **The surviving leg's witness is an OPEN OWNER CALL and was deliberately NOT changed by this pass.**
-> Leg 1 above is the former `agent#uat-5`. Its `witness: human` tag, its `uatc_` identity and its
-> revision are all carried forward untouched; only its list position moved, which under
-> [ADR-0253](../../docs/decisions/0253-criterion-identity-is-immutable-across-uat-revisions.md) is not
-> identity. The record it needs:
+> Leg 5 above is `agent#uat-5`. Its `witness: human` tag, its `uatc_` identity and its revision are
+> all carried forward untouched, and under
+> [ADR-0253](../../docs/decisions/0253-criterion-identity-is-immutable-across-uat-revisions.md) its
+> list position is not its identity. *(Corrected in place 2026-08-22, ADR-0139. This read "Leg 1
+> above is the former `agent#uat-5` … only its list position moved": the 2026-08-03 pass renumbered
+> the survivor from 5 down to 1 to close the gap its four deletions left. Renumbering is genuinely
+> free at the CRITERION tier — id, revision and `(proof-gate:)` all survive it, which is why it
+> looked safe — but not at the LEDGER, where `agent#uat-1` was superseded the same day for the
+> deleted `uatc_022a155228bc9924c4875e84`, so two criteria answered to one frozen key. The ordinal is
+> restored to 5 and the gap is kept. This is the rule gate-2 below already states for gate ids — a
+> spent positional key is only ever left spent — and it is now enforced by
+> `packages/library/src/burned-ordinal-collision.ts` rather than left to reading.)* The record it
+> needs:
 >
 > - **Two signed rows exist against the legacy positional key `agent#uat-5`** — `events.attestation`
 >   seq 7 (`outcome: pass`, `witness: human`, signer `operator`, `relayed_by` NULL, 2026-06-26T13:37:41Z,
@@ -325,7 +334,7 @@ greens on it — the deletion removed a second signature at the story rung, not 
 > because signed rows exist against it.
 
 
-1. **The selected live runtime authors a real slice.** _(witness: machine)_ _(proof-gate: agent#gate-2)_ With Claude as the _(criterion-id: uatc_027e3e8ad2253d327fc15c07)_ _(revision-id: uatr1:380a683e4995990d)_ _(previous-revision-id: uatr1:b7b5052c7e21a3a2)_
+5. **The selected live runtime authors a real slice.** _(witness: machine)_ _(proof-gate: agent#gate-2)_ With Claude as the _(criterion-id: uatc_027e3e8ad2253d327fc15c07)_ _(revision-id: uatr1:380a683e4995990d)_ _(previous-revision-id: uatr1:b7b5052c7e21a3a2)_
    compatibility default or Codex selected explicitly via `--runtime codex`, the leaf runs one
    subscription-funded invocation. **Success —** phase scope is enforced before any write lands,
    out-of-scope writes are recorded violations, and no red/green claim or verdict is accepted from
@@ -360,11 +369,11 @@ the moment observation proves insufficient — a real defect slips through, or a
    (`packages/agent`). The genuinely live SDK/CLI subscription invocations stay need-gated (see
    **Honest status** and Story UAT leg 5), never a standing test in this package; they become a
    `build-tests` gate here if one is ever authored.
-2. **UAT leg 1 — the live runtime authored a real slice, driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts agent uatc_027e3e8ad2253d327fc15c07`.
+2. **UAT leg 5 — the live runtime authored a real slice, driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts agent uatc_027e3e8ad2253d327fc15c07`.
    **APPENDED 2026-08-12 (ADR-0348 D1/D5/D7). Gate-1 above is untouched and keeps its ordinal** — gate
    ids are positional, so a gate is only ever APPENDED; inserting one would silently re-point gate-1's
    already-signed `adopted` verdict and every `(proof-gate:)` binding naming it.
-   This gate is what gave Story UAT leg 1 somewhere to earn green, which is the whole reason the flip
+   This gate is what gave Story UAT leg 5 somewhere to earn green, which is the whole reason the flip
    waited: ADR-0295 D1 admitted a model driver's report as a verdict from 2026-08-03, but no executor
    existed for that sentence until 2026-08-12. It witnesses a persisted `events.uat_drive` record — a
    fresh subscription-funded session that ran `node build <id> --live` for real and watched the leaf

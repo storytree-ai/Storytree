@@ -485,13 +485,15 @@ export function classifySurfaceCoverage(input: {
   };
 }
 
+export interface FormatSurfaceCoverageResult { warn: boolean; lines: string[] }
+
 /**
  * PURE: render the sweep as console lines + a `warn` flag. WARN names both gap lists (the backfill
  * worklist); OK reports the covered counts. NEVER throws or exits — the caller prints, then applies
  * the drain ceiling (`surface-coverage-drain.ts`) to decide the exit code. These two levels are
  * UNCHANGED by that ceiling: RED is layered above them, never a band opened beneath.
  */
-export function formatSurfaceCoverage(report: SurfaceCoverageReport): { warn: boolean; lines: string[] } {
+export function formatSurfaceCoverage(report: SurfaceCoverageReport): FormatSurfaceCoverageResult {
   if (report.clean) {
     return {
       warn: false,

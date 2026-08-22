@@ -336,13 +336,13 @@ function asStringArray(v: unknown): string[] {
 }
 
 /** A flat string→string record (drops non-string values); `{}` for anything that isn't an object. */
-function asStringRecord(v: unknown): Record<string, string> {
+function asStringRecord(v: unknown) {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return {};
   const out: Record<string, string> = {};
   for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
     if (typeof val === 'string') out[k] = val;
   }
-  return out;
+  return out satisfies Record<string, string>;
 }
 
 function asNumberOrNull(v: unknown): number | null {
@@ -445,7 +445,9 @@ export async function handleComments(
   if (method === 'GET') {
     const topicId = url.searchParams.get('topicId');
     const topicKind = url.searchParams.get('topicKind');
-    const filter: { topicId?: string; topicKind?: 'doc' | 'asset' } = {};
+    interface FilterShape { topicId?: string; topicKind?: 'doc' | 'asset' }
+
+    const filter: FilterShape = {};
     if (topicId) filter.topicId = topicId;
     if (topicKind === 'doc' || topicKind === 'asset') filter.topicKind = topicKind;
     return sendJson(res, 200, await backend.listComments(filter));
@@ -777,6 +779,8 @@ export interface UatWitnessResolver {
 /** A UAT leg with its DECLARED witness replaced by the RESOLVED binary one (ADR-0106 d.5). */
 export type ResolvedUatLeg = Omit<UatTestCriterion, 'witness'> & { witness: ResolvedWitnessKind };
 
+export interface ResolveUatRowWitnessesResult { tests: ResolvedUatLeg[]; unresolvedWitnesses: string[] }
+
 /**
  * PURE (ADR-0106 d.5/d.1): resolve each UAT leg's declared witness into the BINARY one the owner
  * surface reads, and compute the "no `either` at rest" guard. The classifier is INJECTED (the library's
@@ -791,7 +795,7 @@ export function resolveUatRowWitnesses(
   gates: readonly Pick<ReliabilityGate, 'id' | 'kind'>[],
   status: string,
   resolver: UatWitnessResolver,
-): { tests: ResolvedUatLeg[]; unresolvedWitnesses: string[] } {
+): ResolveUatRowWitnessesResult {
   const resolved = tests.map((t) => ({ ...t, witness: resolver.resolvedWitnessOf(t, gates) }));
   const adopted = status !== '' && status !== 'mapped' && status !== 'retired';
   const unresolvedWitnesses = adopted

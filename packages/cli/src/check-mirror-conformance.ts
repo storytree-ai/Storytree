@@ -145,7 +145,7 @@ function buildDocsFixture(): string {
  * normalise rather than pass through, a row past the stale window that BOTH folds must drop, and
  * several sessions on one unit (the composite PK the graded ledger allows).
  */
-function buildActivityFixtures(): { dir: string; inputs: { label: string; arg: string }[] } {
+function buildActivityFixtures() {
   const dir = mkdtempSync(join(tmpdir(), "storytree-activity-"));
   const at = (hhmm: string): string => `2026-07-29T${hhmm}:00.000Z`;
   const fixtures: { label: string; file: string; body: unknown }[] = [
@@ -220,7 +220,7 @@ function buildActivityFixtures(): { dir: string; inputs: { label: string; arg: s
  * There is deliberately no "real corpus" arm: arcs are live-canonical (ADR-0183) and CI is DB-free,
  * so the honest input is a fixture rather than a store nobody can reach.
  */
-function buildArcFixtures(): { dir: string; inputs: { label: string; arg: string }[] } {
+function buildArcFixtures() {
   const root = mkdtempSync(join(tmpdir(), "storytree-arcs-"));
 
   // The SAME requests against both arms — the point of the second arm is that identical asks give
@@ -235,13 +235,13 @@ function buildArcFixtures(): { dir: string; inputs: { label: string; arg: string
     { label: "write", method: "POST", path: "/api/arcs/surface-arc" },
   ];
 
-  const doc = (id: string, kind: string, body: Record<string, unknown>): Record<string, unknown> => ({
+  const doc = (id: string, kind: string, body: Record<string, unknown>) => ({
     id,
     kind,
     doc: { kind, id, references: [], createdAt: "2026-07-29", updatedAt: "2026-07-30", ...body },
     createdAt: "2026-07-29",
     updatedAt: "2026-07-30",
-  });
+  } satisfies Record<string, unknown>);
 
   const docs = [
     doc("surface-arc", "arc", {
@@ -368,7 +368,7 @@ function buildArcFixtures(): { dir: string; inputs: { label: string; arg: string
  * There is deliberately no "real corpus" arm: friction is live-canonical and CI is DB-free, so the
  * honest input is a fixture rather than a store nobody can reach.
  */
-function buildFloorHealthFixtures(): { dir: string; inputs: { label: string; arg: string }[] } {
+function buildFloorHealthFixtures() {
   const dir = mkdtempSync(join(tmpdir(), "storytree-floor-health-"));
 
   // The SAME requests against every arm — the point of the absence arms is that identical asks give
@@ -382,16 +382,16 @@ function buildFloorHealthFixtures(): { dir: string; inputs: { label: string; arg
   const friction = (
     id: string,
     body: Record<string, unknown>,
-  ): Record<string, unknown> => ({
+  ) => ({
     id,
     kind: "friction",
     doc: { title: id, ...body },
     createdAt: "2026-07-11T00:00:00.000Z",
     updatedAt: "2026-08-08T00:00:00.000Z",
-  });
+  } satisfies Record<string, unknown>);
 
   /** One route-setting event — the timestamp IS the fixture (see the header). */
-  const routeEvent = (seq: number, id: string, route: string, at: string): Record<string, unknown> => ({
+  const routeEvent = (seq: number, id: string, route: string, at: string) => ({
     seq,
     id,
     kind: "friction",
@@ -399,7 +399,7 @@ function buildFloorHealthFixtures(): { dir: string; inputs: { label: string; arg
     doc: { route },
     actor: "cli",
     at,
-  });
+  } satisfies Record<string, unknown>);
 
   const reinforcedBy = (...dates: string[]): Array<Record<string, unknown>> =>
     dates.map((date) => ({ branch: "claude/x", date, evidence: "`e`" }));
@@ -496,10 +496,7 @@ function buildFloorHealthFixtures(): { dir: string; inputs: { label: string; arg
  * {@link MirrorInputSet} is built ONCE and shared by every row that names it, so two mirrors over
  * the same input are compared over the identical bytes.
  */
-function buildInputSets(): {
-  sets: Record<MirrorInputSet, { label: string; arg: string }[]>;
-  cleanup: () => void;
-} {
+function buildInputSets() {
   const docsFixture = buildDocsFixture();
   const activity = buildActivityFixtures();
   const arcs = buildArcFixtures();
@@ -566,7 +563,7 @@ function decodePayload(probe: Probe, inputs: MirrorInputSet, payload: unknown, a
  * Run one surface's probe over every input, in that surface's own app dir so its bare
  * specifiers resolve through its own `node_modules`. Returns the decoded `{ input: Entry[] }` map.
  */
-function runProbe(probe: Probe, inputs: MirrorInputSet, args: string[]): Record<string, Entry[]> {
+function runProbe(probe: Probe, inputs: MirrorInputSet, args: string[]) {
   const file = join(repoRoot, probe.file);
   if (!existsSync(file)) throw new ProbeError(`probe module not found: ${probe.file}`);
 
@@ -600,7 +597,7 @@ function runProbe(probe: Probe, inputs: MirrorInputSet, args: string[]): Record<
     }
     out[arg] = decodePayload(probe, inputs, (parsed as Record<string, unknown>)[arg], arg);
   }
-  return out;
+  return out satisfies Record<string, Entry[]>;
 }
 
 // ---------- the check ----------

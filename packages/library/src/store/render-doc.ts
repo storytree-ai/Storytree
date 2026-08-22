@@ -243,7 +243,7 @@ function degradeReason(doc: Record<string, unknown>, kind: string): string | nul
  * newline-joined string — the editor edits it as one-ref-per-line text and {@link buildLibraryDoc}
  * splits it back into the array on write.
  */
-function extractFields(doc: Knowledge): Record<string, string> {
+function extractFields(doc: Knowledge) {
   const specs = KIND_SPECS[doc.kind as KnowledgeKind] ?? [];
   const fields: Record<string, string> = {};
   const bag = doc as Record<string, unknown>;
@@ -254,7 +254,7 @@ function extractFields(doc: Knowledge): Record<string, string> {
       fields[spec.field] = value.filter((v): v is string => typeof v === "string").join("\n");
     }
   }
-  return fields;
+  return fields satisfies Record<string, string>;
 }
 
 export function renderStoredDoc(stored: StoredDoc): RenderedAsset {
@@ -395,7 +395,7 @@ export interface AssetWriteInput {
 export function buildLibraryDoc(
   input: AssetWriteInput,
   existing?: StoredDoc | null,
-): Record<string, unknown> {
+) {
   const existingDoc =
     existing && typeof existing.doc === "object" && existing.doc !== null
       ? (existing.doc as Record<string, unknown>)
@@ -431,7 +431,7 @@ export function buildLibraryDoc(
     const now = new Date().toISOString();
     if (typeof doc["createdAt"] !== "string") doc["createdAt"] = now;
     doc["updatedAt"] = now;
-    return doc;
+    return doc satisfies Record<string, unknown>;
   }
 
   // Body-bearing LibraryAsset (template / adr, or a write without structured fields).
@@ -456,5 +456,5 @@ export function buildLibraryDoc(
   // `adrs-into-the-dag-arc-inc-06` drained the corpus, so no stored row can carry it and the
   // fallback is gone. The PRESERVATION above is not part of that removal and is permanent.)
   if (hasDependsOnKey(existingDoc)) doc["dependsOn"] = readDependsOnPointers(existingDoc);
-  return doc;
+  return doc satisfies Record<string, unknown>;
 }

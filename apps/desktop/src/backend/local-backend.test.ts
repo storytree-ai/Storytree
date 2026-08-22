@@ -158,7 +158,7 @@ function passEvent(
   unitId: string,
   proofMode: "capability" | "story" | "contract",
   revisionId?: string,
-): { kind: string; seq: number; doc: unknown } {
+) {
   return {
     kind: "signing",
     seq,
@@ -476,7 +476,7 @@ test("local-backend: GET /api/tree carries no `sessions` block — the presence 
 // A fresh (non-stale) claim row: heartbeat = NOW so `groupClaimsBySession` keeps it (a claim whose
 // heartbeat aged past CLAIM_STALE_RECLAIM_MS = 2h is dropped as a dead holder). Mirrors the ClaimDocT
 // shape (packages/notice-board/src/claim.ts) the pg store's listLiveClaims yields.
-function freshClaim(over: Record<string, unknown> = {}): Record<string, unknown> {
+function freshClaim(over: Record<string, unknown> = {}) {
   const nowIso = new Date().toISOString();
   return {
     unitId: "notice-board",
@@ -487,7 +487,7 @@ function freshClaim(over: Record<string, unknown> = {}): Record<string, unknown>
     claimedAt: nowIso,
     heartbeatAt: nowIso,
     ...over,
-  };
+  } satisfies Record<string, unknown>;
 }
 
 test("local-backend: GET /api/claims folds the backend's live claim rows into session groups", async () => {

@@ -513,7 +513,7 @@ export interface SessionClaimGroup {
 }
 
 /** Within a session, the strongest signal renders first: work > waiting > exploring. */
-const GRADE_RANK: Record<ClaimGradeT, number> = { work: 0, waiting: 1, exploring: 2 };
+const GRADE_RANK = { work: 0, waiting: 1, exploring: 2 } satisfies Record<ClaimGradeT, number>;
 
 /**
  * PURE: fold claim docs into session groups for a ledger view (ADR-0200 D7). Stale claims are

@@ -243,7 +243,7 @@ export function createChatSseMount(
 
     // Build args — forward queryFn/runner/inspect/maxTurns only when present
     // (exactOptionalPropertyTypes).
-    const streamArgs: {
+    interface StreamArgsShape {
       intent: string;
       store: ChatCorpusStore;
       resume?: string;
@@ -251,7 +251,9 @@ export function createChatSseMount(
       runner?: SseOrientationRunner;
       inspect?: InspectSurfaceDeps;
       maxTurns?: number;
-    } = {
+    }
+
+    const streamArgs: StreamArgsShape = {
       intent,
       store,
       ...(resume !== undefined ? { resume } : {}),

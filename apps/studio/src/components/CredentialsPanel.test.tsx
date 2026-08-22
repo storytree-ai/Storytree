@@ -13,11 +13,7 @@ import { DesktopCredentialsDock } from "./DesktopCredentialsDock.js";
 
 const KINDS: CredentialKind[] = ["oauth", "api-key"];
 
-function makeFake(): {
-  store: ReturnType<typeof vi.fn<DesktopAuthBridge["store"]>>;
-  status: ReturnType<typeof vi.fn<DesktopAuthBridge["status"]>>;
-  signOut: ReturnType<typeof vi.fn<DesktopAuthBridge["signOut"]>>;
-} {
+function makeFake() {
   return {
     store: vi.fn<DesktopAuthBridge["store"]>(async () => {}),
     status: vi.fn<DesktopAuthBridge["status"]>(async () => false),

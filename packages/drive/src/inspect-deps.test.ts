@@ -41,10 +41,7 @@ interface ExecCall {
  * A recording exec seam: captures every invocation verbatim and returns a scripted result (default
  * exit 0). `script` may vary the result per call (e.g. fail one read) to prove fail-closed handling.
  */
-function recordingExec(script?: (call: ExecCall, index: number) => ExecResult): {
-  fn: ExecFn;
-  calls: ExecCall[];
-} {
+function recordingExec(script?: (call: ExecCall, index: number) => ExecResult) {
   const calls: ExecCall[] = [];
   const fn: ExecFn = async (cmd, args, opts) => {
     const call: ExecCall = {
@@ -59,7 +56,7 @@ function recordingExec(script?: (call: ExecCall, index: number) => ExecResult): 
 }
 
 /** The SDK Options-capturing query double (allowedTools is the observable). */
-function capturingQuery(): { fn: SdkQueryFn; lastOptions: () => Record<string, unknown> } {
+function capturingQuery() {
   let captured: Record<string, unknown> = {};
   const fn: SdkQueryFn = ({ options }) => {
     captured = options as Record<string, unknown>;

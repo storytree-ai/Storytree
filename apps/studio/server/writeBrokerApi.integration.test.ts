@@ -36,9 +36,9 @@ const MEMBER = 'member@example.com'; // an active member row
 const OTHER = 'other-builder@example.com';
 const COMMIT = 'cafebabecafebabecafebabecafebabecafebabe';
 
-const iap = (email: string): Record<string, string> => ({
+const iap = (email: string) => ({
   [IAP_EMAIL_HEADER]: `accounts.google.com:${email}`,
-});
+} satisfies Record<string, string>);
 
 const userRow = (over: Partial<UserDoc> & { email: string; role: UserDoc['role'] }): UserDoc => ({
   status: 'active',
@@ -54,7 +54,9 @@ const userRow = (over: Partial<UserDoc> & { email: string; role: UserDoc['role']
 // store's fail-closed Verdict.parse so the persisted shape is the real one.
 // ---------------------------------------------------------------------------
 
-const persisted: { verdicts: { verdict: Verdict; actor: string }[] } = {
+interface PersistedShape { verdicts: { verdict: Verdict; actor: string }[] }
+
+const persisted: PersistedShape = {
   verdicts: [],
 };
 
@@ -133,7 +135,7 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 /** A minimal fully-valid Verdict attributed to `signer` (default: BUILDER). */
-function makeVerdict(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+function makeVerdict(overrides: Record<string, unknown> = {}) {
   return {
     unitId: 'write-broker#gate-1',
     proofMode: 'capability',
@@ -145,11 +147,11 @@ function makeVerdict(overrides: Record<string, unknown> = {}): Record<string, un
     evidence: [],
     at: '2026-06-27T10:00:00.000Z',
     ...overrides,
-  };
+  } satisfies Record<string, unknown>;
 }
 
 /** The RETIRED presence-declaration shape (ADR-0200 D7) — posted only to prove the 400 refusal. */
-function makePresence(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+function makePresence(overrides: Record<string, unknown> = {}) {
   const now = '2026-06-27T10:00:00.000Z';
   return {
     sessionId: 'write-broker-worktree',
@@ -160,7 +162,7 @@ function makePresence(overrides: Record<string, unknown> = {}): Record<string, u
     startedAt: now,
     lastSeenAt: now,
     ...overrides,
-  };
+  } satisfies Record<string, unknown>;
 }
 
 /** POST a discriminated-union body to the mounted write-broker path, as `who` (no header = no identity). */

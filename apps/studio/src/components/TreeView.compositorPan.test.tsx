@@ -144,7 +144,7 @@ function installFakeFrames(): FakeFrames {
 }
 
 /** Parses the SVG `<g class="world-camera">`'s `transform` attribute. */
-function cameraValues(camera: Element): { tx: number; ty: number; scale: number } {
+function cameraValues(camera: Element) {
   const transform = camera.getAttribute('transform');
   const match = transform?.match(/^translate\(([^ ]+) ([^)]+)\) scale\(([^)]+)\)$/);
   if (!match) throw new Error(`unexpected camera transform: ${transform}`);
@@ -154,7 +154,7 @@ function cameraValues(camera: Element): { tx: number; ty: number; scale: number 
 /** The `.world-pan-layer` HTML wrapper's live CSS translate offset — {x:0,y:0} for an absent/identity
  *  transform. Never throws on an unexpected format: a mismatch surfaces as an ordinary (NaN)
  *  assertion failure rather than a runtime error. */
-function panLayerOffset(panLayer: Element): { x: number; y: number } {
+function panLayerOffset(panLayer: Element) {
   const transform = (panLayer as HTMLElement).style.transform;
   if (!transform || transform === 'none') return { x: 0, y: 0 };
   const match = transform.match(/translate3d\(\s*(-?[\d.]+)px\s*,\s*(-?[\d.]+)px\s*,\s*0(?:px)?\s*\)/);

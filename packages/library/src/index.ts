@@ -29,6 +29,7 @@ export * from "./witness-resolution.js";
 export * from "./proof-binding-outcome.js";
 // Proof-binding-integrity: a complete read-only projection of parsed machine legs into audit rows.
 export * from "./machine-leg-binding-audit.js";
+export * from "./burned-ordinal-collision.js";
 export * from "./uat-witness-census.js";
 // ADR-0107 (generalising ADR-0106 d4): the proving-process OQ-attachment predicate — an open question
 // carrying a `node:<id>` reference is attached to that node's proving process and WITHHOLDS its green

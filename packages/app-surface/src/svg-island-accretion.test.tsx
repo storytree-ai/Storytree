@@ -127,12 +127,7 @@ function sceneContext(
   };
 }
 
-function targetOuterHtml(container: HTMLElement): {
-  coast: string | undefined;
-  ground: string | undefined;
-  hit: string | undefined;
-  worldTransform: string | null | undefined;
-} {
+function targetOuterHtml(container: HTMLElement) {
   return {
     coast: container.querySelector('.coast-fill-group')?.outerHTML,
     ground: container.querySelector('.relaxed-tile')?.outerHTML,

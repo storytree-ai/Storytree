@@ -24,7 +24,7 @@ import {
 } from "./launch-preconditions.js";
 import type { EnsureDbResult } from "@storytree/drive";
 
-function makeLog(): { log: (m: string) => void; lines: string[] } {
+function makeLog() {
   const lines: string[] = [];
   return { log: (m: string) => lines.push(m), lines };
 }

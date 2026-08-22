@@ -82,8 +82,10 @@ export interface FloorReading extends FloorRunSpec {
   hidden: boolean;
 }
 
+export interface ReadRendererResult { renderer: string; software: boolean }
+
 /** The unmasked renderer string. Read from a throwaway context so no context is retained. */
-export function readRenderer(): { renderer: string; software: boolean } {
+export function readRenderer(): ReadRendererResult {
   const c = document.createElement('canvas');
   const gl = (c.getContext('webgl2') ?? c.getContext('webgl')) as WebGLRenderingContext | null;
   if (!gl) return { renderer: 'NO WEBGL CONTEXT', software: true };
@@ -94,16 +96,18 @@ export function readRenderer(): { renderer: string; software: boolean } {
   return { renderer, software: /swiftshader|llvmpipe|software|basic render/i.test(renderer) };
 }
 
+export interface BuildLandResult {
+  scene: THREE.Scene;
+  camera: THREE.OrthographicCamera;
+}
+
 /**
  * Build the land: a ground plane carrying `plants` seeded shrubs, under the banded material
  * the palette proof binds. This is deliberately the SAME geometry generator and the SAME
  * material the comparison page uses — a benchmark against a different scene would measure a
  * different thing and settle nothing about the experiment it is attached to.
  */
-export function buildLand(plants: number): {
-  scene: THREE.Scene;
-  camera: THREE.OrthographicCamera;
-} {
+export function buildLand(plants: number): BuildLandResult {
   const scene = new THREE.Scene();
   const rand = mulberry32(0x1a2b3c4d);
 

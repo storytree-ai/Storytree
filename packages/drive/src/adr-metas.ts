@@ -10,8 +10,10 @@ import { parseAdrFrontmatter, type AdrMeta } from "./adr-frontmatter.js";
  * moved to drive so `story-build.ts` can consume it without a cli → drive → cli cycle.
  */
 
+export interface LoadAdrMetasResult { adrs: AdrMeta[]; parseErrors: string[] }
+
 /** Parse every `NNNN-*.md` under a decisions dir; parse failures become lines, not throws. */
-export function loadAdrMetas(decisionsDir: string): { adrs: AdrMeta[]; parseErrors: string[] } {
+export function loadAdrMetas(decisionsDir: string): LoadAdrMetasResult {
   const adrs: AdrMeta[] = [];
   const parseErrors: string[] = [];
   for (const file of readdirSync(decisionsDir).sort()) {
@@ -37,6 +39,11 @@ export interface TitledAdrMeta extends AdrMeta {
   title: string;
 }
 
+export interface LoadTitledAdrMetasResult {
+  adrs: TitledAdrMeta[];
+  parseErrors: string[];
+}
+
 /**
  * {@link loadAdrMetas} plus each ADR's H1 title — the ONE fs scan of `docs/decisions` that every
  * ADR view is built on. Both readers of the decision log delegate here rather than each walking the
@@ -45,10 +52,7 @@ export interface TitledAdrMeta extends AdrMeta {
  * the studio server and the desktop backend share. A missing/unreadable dir yields an empty list
  * rather than throwing, so an arc view stays derivable on a partial checkout.
  */
-export function loadTitledAdrMetas(decisionsDir: string): {
-  adrs: TitledAdrMeta[];
-  parseErrors: string[];
-} {
+export function loadTitledAdrMetas(decisionsDir: string): LoadTitledAdrMetasResult {
   const adrs: TitledAdrMeta[] = [];
   const parseErrors: string[] = [];
   let files: string[];

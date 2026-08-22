@@ -223,7 +223,7 @@ function nonNegative(value: unknown): number {
  * two TTLs price differently (1.25× vs 2× input), so folding them together would misweigh a
  * long-lived cache — and this repo's own sessions use the 1-hour TTL.
  */
-function splitCacheWrite(usage: Record<string, unknown>): { w5m: number; w1h: number } {
+function splitCacheWrite(usage: Record<string, unknown>) {
   const total = nonNegative(usage["cache_creation_input_tokens"]);
   const breakdown = usage["cache_creation"];
   if (!isRecord(breakdown)) return { w5m: total, w1h: 0 };

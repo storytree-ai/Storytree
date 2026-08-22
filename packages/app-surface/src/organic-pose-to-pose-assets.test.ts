@@ -4,12 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { CHAPTER2_ORGANIC_POSE_TO_POSE_REGISTRY } from './organic-pose-to-pose-assets.js';
 import { validateOrganicPoseRegistry } from './organic-pose-to-pose-track.js';
 
-function pngHeader(bytes: Uint8Array): {
-  readonly width: number;
-  readonly height: number;
-  readonly bitDepth: number;
-  readonly colourType: number;
-} {
+function pngHeader(bytes: Uint8Array) {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   expect([...bytes.slice(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
   return {

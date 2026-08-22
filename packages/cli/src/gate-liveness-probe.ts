@@ -156,7 +156,7 @@ export function collectTreeCpu(rows: readonly ProcessRow[], rootPid: number): Ma
 }
 
 /** The command that dumps the whole process table, per platform. */
-function probeCommand(): { file: string; args: string[]; parse: (text: string) => ProcessRow[] } {
+function probeCommand() {
   if (process.platform === "win32") {
     return {
       file: "powershell.exe",

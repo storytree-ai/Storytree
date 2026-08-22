@@ -32,7 +32,7 @@ import type { Envelope } from "./envelope.js";
  */
 
 /** Per-state presentation. `stale` and `drifted-undescribed` are DISTINCT from each other and from fresh. */
-const STATE_PRESENTATION: Record<DriftState, { glyph: string; headline: string }> = {
+const STATE_PRESENTATION = {
   fresh: { glyph: "✓", headline: "FRESH — the proved span is unchanged; no re-proof needed." },
   stale: { glyph: "⚠", headline: "STALE — the proved code changed; re-prove THIS unit (and only this one)." },
   "drifted-undescribed": {
@@ -40,7 +40,7 @@ const STATE_PRESENTATION: Record<DriftState, { glyph: string; headline: string }
     headline:
       "DRIFTED (undescribed) — the span changed but no described change explains it; DEMOTED (audit-only), NOT a re-UAT trigger.",
   },
-};
+} satisfies Record<DriftState, { glyph: string; headline: string }>;
 
 /** PURE: render a {@link DriftFlag} as the operator-facing envelope (distinct per state). */
 export function driftEnvelope(label: string, flag: DriftFlag): Envelope {

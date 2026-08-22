@@ -53,11 +53,11 @@ interface FixtureLineOpts {
 }
 
 function assistantLine(opts: FixtureLineOpts): string {
-  const message: Record<string, unknown> = {
+  const message = {
     id: opts.id,
     ...(opts.model !== undefined ? { model: opts.model } : {}),
     ...(opts.omitUsage === true ? {} : { usage: opts.usage ?? {} }),
-  };
+  } satisfies Record<string, unknown>;
   return JSON.stringify({
     type: "assistant",
     ...(opts.cwd !== undefined ? { cwd: opts.cwd } : {}),

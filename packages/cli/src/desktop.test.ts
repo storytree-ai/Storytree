@@ -25,10 +25,12 @@ import { run } from "./commands.js";
  * temp dir (with a bare `apps/desktop` under it) so the test never touches the real checkout.
  */
 
-function fakeSpawn(): {
+interface FakeSpawnResult {
   spawn: DesktopSpawnFn;
   calls: Array<{ command: string; args: string[]; options: { cwd: string | undefined; detached: boolean; windowsHide: boolean } }>;
-} {
+}
+
+function fakeSpawn(): FakeSpawnResult {
   const calls: Array<{ command: string; args: string[]; options: { cwd: string | undefined; detached: boolean; windowsHide: boolean } }> = [];
   const spawn: DesktopSpawnFn = (command, args, options) => {
     calls.push({ command, args: [...args], options: { cwd: options.cwd, detached: options.detached, windowsHide: options.windowsHide } });
@@ -52,8 +54,10 @@ function scratchRepo(): string {
  */
 const noRegister = (): string | null => null;
 
+interface FakeRegisterResult { register: (s: DetachedSpawn) => string | null; calls: DetachedSpawn[] }
+
 /** Records what the launcher asked to register, so the attribution can be asserted on. */
-function fakeRegister(): { register: (s: DetachedSpawn) => string | null; calls: DetachedSpawn[] } {
+function fakeRegister(): FakeRegisterResult {
   const calls: DetachedSpawn[] = [];
   return {
     register: (s) => {
@@ -185,7 +189,9 @@ test("desktopLaunch: a registry that declines is SILENT — instrumentation neve
 // install-shortcut — a fake .lnk writer + Electron resolver keep it offline (no PowerShell, no Electron)
 // ---------------------------------------------------------------------------
 
-function fakeCreateShortcuts(): { createShortcuts: CreateShortcutsFn; calls: ShortcutRequest[] } {
+interface FakeCreateShortcutsResult { createShortcuts: CreateShortcutsFn; calls: ShortcutRequest[] }
+
+function fakeCreateShortcuts(): FakeCreateShortcutsResult {
   const calls: ShortcutRequest[] = [];
   const createShortcuts: CreateShortcutsFn = (requests) => {
     calls.push(...requests);

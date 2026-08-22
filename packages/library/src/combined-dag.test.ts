@@ -10,7 +10,7 @@ import {
 import { decisionNodeId } from "./decision-pointer.js";
 
 /** A stored corpus row, as the store hands it over: an id plus an opaque payload. */
-function artifact(id: string, dependsOn: readonly string[]): { id: string; doc: unknown } {
+function artifact(id: string, dependsOn: readonly string[]) {
   return { id, doc: { dependsOn: [...dependsOn] } };
 }
 

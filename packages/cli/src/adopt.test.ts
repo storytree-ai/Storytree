@@ -16,7 +16,9 @@ import type { AdoptPlanStory } from "./adopt-plan.js";
 
 // ── doubles ────────────────────────────────────────────────────────────────
 
-function recordingStore(): { appended: unknown[]; appendEvent: NonNullable<AdoptDispatchDeps["store"]>["appendEvent"] } {
+interface RecordingStoreResult { appended: unknown[]; appendEvent: NonNullable<AdoptDispatchDeps["store"]>["appendEvent"] }
+
+function recordingStore(): RecordingStoreResult {
   const appended: unknown[] = [];
   return {
     appended,

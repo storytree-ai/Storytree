@@ -49,15 +49,17 @@ export function organicLayerBox(layer: OrganicLayerPlacement): OrganicLayerBox {
   };
 }
 
+export interface OrganicLayerGroundContactResult {
+  readonly x: number;
+  readonly y: number;
+}
+
 /**
  * Where the sprite's registered ground socket actually LANDS on screen, read back out of the box
  * the renderer emits rather than restated from `worldAnchor`. This is the point that has to fall on
  * the land cell the object is anchored to.
  */
-export function organicLayerGroundContact(layer: OrganicLayerPlacement): {
-  readonly x: number;
-  readonly y: number;
-} {
+export function organicLayerGroundContact(layer: OrganicLayerPlacement): OrganicLayerGroundContactResult {
   const box = organicLayerBox(layer);
   const projection = layer.projection ?? 1;
   return {

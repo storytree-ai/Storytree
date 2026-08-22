@@ -20,7 +20,7 @@ import { loadFixtureCorpus } from "@storytree/library/fixture";
 const LAUNCHER = fileURLToPath(new URL("../launch.mjs", import.meta.url));
 const ROOT_PKG = fileURLToPath(new URL("../../../package.json", import.meta.url));
 
-function runLauncher(args: string[]): { status: number | null; stdout: string; stderr: string } {
+function runLauncher(args: string[]) {
   const res = spawnSync(process.execPath, [LAUNCHER, ...args], { encoding: "utf8" });
   // No cwd override — the launcher must work from the default cwd and resolve its own paths from
   // import.meta.url (repoRoot is file-relative, not cwd-relative).

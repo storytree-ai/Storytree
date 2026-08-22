@@ -19,7 +19,7 @@ const renderSection = (
   knownIds: string[],
   onNavigate = vi.fn(),
   open = true,
-): { onNavigate: ReturnType<typeof vi.fn> } => {
+) => {
   render(
     <ConnectionsSection
       connections={connections}

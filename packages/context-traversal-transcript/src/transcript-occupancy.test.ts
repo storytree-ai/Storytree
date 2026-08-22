@@ -40,12 +40,12 @@ interface LineOpts {
 }
 
 function assistantLine(opts: LineOpts): string {
-  const message: Record<string, unknown> = {
+  const message = {
     id: opts.id,
     ...(opts.model !== undefined ? { model: opts.model } : {}),
     ...(opts.omitUsage === true ? {} : { usage: opts.usage ?? {} }),
     ...(opts.messageExtra ?? {}),
-  };
+  } satisfies Record<string, unknown>;
   return JSON.stringify({
     type: opts.type ?? "assistant",
     sessionId: opts.sessionId,

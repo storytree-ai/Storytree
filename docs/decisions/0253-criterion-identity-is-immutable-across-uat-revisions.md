@@ -106,8 +106,24 @@ or intentionally similar criteria. No history is classified automatically.
 
 **Good.** Once implemented, the system can distinguish “the same criterion, revised” from “a
 different criterion now occupying this ordinal,” while retaining historical proof without laundering
-it into current credit. Reordering a story becomes safe because it no longer changes criterion
-identity.
+it into current credit. Reordering a story becomes safe **for criterion identity**, because it no
+longer changes `criterionId` or the content-bound revision.
+
+*(Qualifier added in place 2026-08-22 per [ADR-0139](0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md).
+This sentence read "Reordering a story becomes safe because it no longer changes criterion identity",
+and the unqualified form was read as a general licence: the 2026-08-03 ADR-0294 D2 pass deleted legs
+and renumbered the surviving legs DOWN to close the gaps, on the explicit stated grounds that a list
+position is not identity. That is true of identity and false of the migration LEDGER this same
+decision froze as a positional record. A `superseded` `<story>#uat-N` key denotes the DELETED
+criterion permanently, so a survivor moved onto `N` makes one frozen key denote two criteria at once
+— and because identity really is unchanged, every rung that reads identity stays green while it
+does. Six such collisions were found across five stories and repaired (`studio-cloud` by reading, on
+2026-08-20; `agent`, `cli`, `drive-machinery` ×2 and `proof-binding-integrity` by measurement, on
+2026-08-22). **A deleted criterion's ordinal is spent: leave the gap.**
+`packages/library/src/burned-ordinal-collision.ts` now enforces it, so the rule no longer depends on
+a reader noticing a stale cross-reference. The DECISION is unchanged — authored `criterionId` owns
+identity, and the ledger owns only the reviewed disposition of legacy positional evidence, exactly as
+the Decision section above states.)*
 
 **Cost:** every proof read and write becomes more explicit about criterion identity and revision;
 migration needs a reviewed ledger and an honest unresolved path. Some presently green or attested

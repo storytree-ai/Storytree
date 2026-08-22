@@ -13,8 +13,10 @@ import { ScriptedCuratorRunner, SdkCuratorRunner } from "@storytree/drive";
 import { storyBuild } from "@storytree/drive";
 import type { BuildProgress } from "@storytree/drive";
 
+interface RecordingProgressResult { progress: BuildProgress; stages: string[]; notes: string[] }
+
 /** A recording {@link BuildProgress} — see the twin in `node-build.test.ts` for why it lives here. */
-function recordingProgress(): { progress: BuildProgress; stages: string[]; notes: string[] } {
+function recordingProgress(): RecordingProgressResult {
   const stages: string[] = [];
   const notes: string[] = [];
   return {

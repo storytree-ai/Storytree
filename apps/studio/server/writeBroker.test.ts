@@ -91,7 +91,7 @@ afterAll(async () => {
 // ---------------------------------------------------------------------------
 
 /** A minimal fully-valid Verdict attributed to `signer` (default: BUILDER). */
-function makeVerdict(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+function makeVerdict(overrides: Record<string, unknown> = {}) {
   return {
     unitId: 'write-broker#gate-1',
     proofMode: 'capability',
@@ -103,11 +103,11 @@ function makeVerdict(overrides: Record<string, unknown> = {}): Record<string, un
     evidence: [],
     at: '2026-06-27T10:00:00.000Z',
     ...overrides,
-  };
+  } satisfies Record<string, unknown>;
 }
 
 /** The RETIRED presence-declaration shape (ADR-0200 D7) — posted only to prove the 400 refusal. */
-function makePresence(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+function makePresence(overrides: Record<string, unknown> = {}) {
   const now = '2026-06-27T10:00:00.000Z';
   return {
     sessionId: 'write-broker-worktree',
@@ -118,7 +118,7 @@ function makePresence(overrides: Record<string, unknown> = {}): Record<string, u
     startedAt: now,
     lastSeenAt: now,
     ...overrides,
-  };
+  } satisfies Record<string, unknown>;
 }
 
 /** POST to the write-broker path with a discriminated-union body. */

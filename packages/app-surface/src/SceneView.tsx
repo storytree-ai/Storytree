@@ -482,7 +482,7 @@ function handlersFor(
   node: SceneNode,
   ctx: SceneCtx,
   storyId: string | undefined,
-): Record<string, unknown> {
+) {
   switch (node.kind) {
     case 'territory':
     case 'ground':
@@ -495,7 +495,7 @@ function handlersFor(
       if (!id) return {};
       return {
         onClick: () => ctx.onSelectStory(id),
-      };
+      } satisfies Record<string, unknown>;
     }
     case 'flora':
     // The shipped map's per-capability ground group (forest-parcels inc 1): carries the SAME capId a
@@ -511,7 +511,7 @@ function handlersFor(
           e.stopPropagation();
           ctx.onSelectCap(storyId, capId);
         },
-      };
+      } satisfies Record<string, unknown>;
     }
     default:
       return {};

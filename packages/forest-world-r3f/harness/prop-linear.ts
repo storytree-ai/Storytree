@@ -279,6 +279,8 @@ function sampleAt(m: Measured, s: number): Station {
   return { x: a.x + ex * t, z: a.z + ez * t, dx: ex / l, dz: ez / l, s: want };
 }
 
+interface WalkSpansResult { stations: Station[]; span: number }
+
 /**
  * Divide a run into equal SPANS and sample their centres — the form a wall, a paving course, a
  * hedge or a channel wants, because each unit occupies a stretch of the run rather than sitting at
@@ -293,7 +295,7 @@ function walkSpans(
   points: readonly GPoint[],
   target: number,
   phase = 0,
-): { stations: Station[]; span: number } {
+): WalkSpansResult {
   const m = measure(points);
   if (!m) return { stations: [], span: 0 };
   const want = Math.max(1, Math.round(m.total / Math.max(target, 1e-3)));
@@ -310,13 +312,15 @@ function walkSpans(
   return { stations, span };
 }
 
+interface WalkNodesResult { nodes: Station[]; closed: boolean }
+
 /** Sample the run's NODES — both ends included — the form posts want. On a closed loop the final
  *  node coincides with the first, so it is dropped; `closed` is reported so a caller can put the
  *  closing rail in. */
 function walkNodes(
   points: readonly GPoint[],
   target: number,
-): { nodes: Station[]; closed: boolean } {
+): WalkNodesResult {
   const m = measure(points);
   if (!m) return { nodes: [], closed: false };
   const want = Math.max(1, Math.round(m.total / Math.max(target, 1e-3)));
@@ -340,9 +344,11 @@ function yawAlong(dx: number, dz: number): number {
   return Math.atan2(-dz, dx);
 }
 
+interface AcrossOfResult { x: number; z: number }
+
 /** The left-hand perpendicular of a run direction, in ground space — the ACROSS axis a path's
  *  lanes, a channel's kerbs and a hedge's width are measured on. */
-function acrossOf(st: Station): { x: number; z: number } {
+function acrossOf(st: Station): AcrossOfResult {
   return { x: -st.dz, z: st.dx };
 }
 
@@ -1036,7 +1042,9 @@ export function growWaterChannel(
   // ---- the water surface ---------------------------------------------------------------------
   const water = raw(parts, waterToken);
   const n = Math.max(1, stations.length);
-  const rim = (s: number): { l: Vec3; r: Vec3 } => {
+    interface RimResult { l: Vec3; r: Vec3 }
+
+    const rim = (s: number): RimResult => {
     const st = sampleAt(m, s);
     const a = acrossOf(st);
     const lx = st.x - a.x * (width / 2);

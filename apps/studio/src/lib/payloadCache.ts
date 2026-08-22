@@ -153,7 +153,9 @@ function writeMerged(part: { tree?: CachedTreePart; docs?: DocMeta[] }, codeHead
       ? (existing.tree as CachedTreePart)
       : undefined;
   const priorDocs = existing !== undefined && Array.isArray(existing.docs) ? (existing.docs as DocMeta[]) : undefined;
-  const merged: { clientStamp: string; codeHead: string; tree?: CachedTreePart; docs?: DocMeta[] } = {
+  interface MergedShape { clientStamp: string; codeHead: string; tree?: CachedTreePart; docs?: DocMeta[] }
+
+  const merged: MergedShape = {
     clientStamp: CLIENT_STAMP,
     codeHead,
     ...(part.tree !== undefined ? { tree: part.tree } : priorTree !== undefined ? { tree: priorTree } : {}),

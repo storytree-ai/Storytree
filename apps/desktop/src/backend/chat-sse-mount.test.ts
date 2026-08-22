@@ -197,7 +197,7 @@ function queryThrowing(message: string): QueryFn {
  * A manually-resolvable promise. Lets a scripted session park mid-flight so the first
  * session's `compositionInFlight` flag stays set while a second is attempted.
  */
-function deferred(): { promise: Promise<void>; resolve: () => void } {
+function deferred() {
   let resolve: () => void = () => { /* overwritten by Promise constructor */ };
   const promise = new Promise<void>((r) => {
     resolve = r;

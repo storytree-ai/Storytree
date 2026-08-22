@@ -257,7 +257,7 @@ function assertTuning(tuning: ForestRegrowTuning): void {
 function waveDepths(
   storyIds: readonly string[],
   dependsOn: ReadonlyMap<string, readonly string[]>,
-): { readonly depth: ReadonlyMap<string, number>; readonly cyclic: readonly string[] } {
+) {
   const known = new Set(storyIds);
   const remaining = new Map<string, number>();
   const dependents = new Map<string, string[]>();
