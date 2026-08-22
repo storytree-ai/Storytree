@@ -199,13 +199,6 @@ export const GATE_PLAN: readonly GatePlanStep[] = [
     why: "reds when this diff moves one mirrored surface and not its twin",
   },
   {
-    command: "pnpm check:web-grounding",
-    check: "check:web-grounding",
-    subject: "own-work",
-    cost: "seconds",
-    why: "the web submodule PIN and the ADR corpus are both in this diff",
-  },
-  {
     command: "pnpm check:web-engine",
     check: "check:web-engine",
     subject: "own-work",
@@ -236,6 +229,13 @@ export const GATE_PLAN: readonly GatePlanStep[] = [
   },
 
   // ── C. shared environment ──────────────────────────────────────────────────
+  {
+    command: "pnpm check:web-grounding",
+    check: "check:web-grounding",
+    subject: "shared-environment",
+    cost: "seconds",
+    why: "it validates the public site's ADR citations against the DECISION LOG, which is shared live state since ADR-0403 dec 1 — a sibling's status flip can red it, so it cannot run ahead of this branch's own work. It was `own-work` while the corpus was files in this diff; only its SUBJECT moved. Still skip-capable on an absent web/ submodule, and the skip is decided BEFORE the store is dialled so a DB outage can never read as the submodule skip",
+  },
   {
     command: "pnpm check:adr-health",
     check: "check:adr-health",
@@ -743,7 +743,9 @@ export const PRE_EXPENSIVE_CHECKS: ReadonlySet<string> = new Set([
   "check:boundaries",
   "check:ownership-totality",
   "check:mirror-conformance",
-  "check:web-grounding",
+  // `check:web-grounding` left this set for `SHARED_ENVIRONMENT_CHECKS` (ADR-0403 dec 1): it reads
+  // the DECISION LOG, which is shared live state now, so it can red on a sibling's status flip. Its
+  // two web/ neighbours stay — they compare this diff's submodule pin against this repo's source.
   "check:web-engine",
   "check:web-experience-closure",
 ]);
@@ -753,6 +755,7 @@ export const PRE_EXPENSIVE_CHECKS: ReadonlySet<string> = new Set([
  * did not author, so none of them may precede the session's own answer.
  */
 export const SHARED_ENVIRONMENT_CHECKS: ReadonlySet<string> = new Set([
+  "check:web-grounding",
   "check:adr-health",
   "check:guidance",
   "check:agents",
