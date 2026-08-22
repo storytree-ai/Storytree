@@ -27,8 +27,10 @@ canonical trap: ADR-0011 §5 "DBOS/Postgres durable execution stands" is dead, o
 log:** `storytree adr list --load-bearing` (the calibrate-to-these set, ADR-0139: the curated ★ seed
 PLUS every accepted ADR that ☆ reaches it through an `amends` edge, transitively) and
 `storytree adr list --current` (every accepted, non-superseded ADR, with its reversal edges printed
-inline). The list is derived from `docs/decisions/` on disk, so it can never drift; it is **no longer
-hand-maintained here**.
+inline). The list is derived from the LIVE STORE — decisions are ordinary Library artifacts since
+ADR-0403 — so it can never drift; it is **no longer hand-maintained here**. ⚠ That means `adr list`
+needs the DB up (`pnpm db:up`); the offline read it used to advertise is ADR-0403's named accepted
+cost, and the command REFUSES with that reason rather than reporting an empty decision log.
 
 The headline current-state facts those ADRs encode: pi is gone — we own the agent loop (0011), now
 demoted behind two subscription-funded live leaves — **Claude Agent SDK by default, Codex opt-in**
@@ -574,13 +576,19 @@ foundation was ported *conceptually* from it (see `docs/research/agentic-foundat
 
 ## Load-bearing ADRs
 
-`docs/decisions/` is the append-only decision HISTORY. Every ADR carries **structured YAML
-frontmatter** (`status` proposed/accepted/superseded · `decided` · outgoing
+The decision log is the append-only decision HISTORY, and it lives in the **live store** as ordinary
+`adr` artifacts (ADR-0403 dec 1) — read one with `storytree library artifact adr-NNNN`, or pull the
+whole document out to a file with `storytree adr pull <n> --out <path>`, edit it with ordinary tools,
+and `storytree adr push <n> --file <path> --pg` it back. Every decision carries the same **structured
+state** the markdown frontmatter used to (`status` proposed/accepted/superseded · `decided` · outgoing
 `supersedes`/`amends` edges · the `load_bearing` current-state tag; ADR-0037, and ADR-0086 as
 superseded history — **the live decision is [ADR-0139](docs/decisions/0139-the-accepted-adr-set-carries-no-stale-prose-correct-in-place.md)**;
 `supersedes_in_part` was RETIRED by ADR-0139 — a partial redefinition/reversal is an `amends`
-edge, the schema rejects the old key on new ADRs) — CI validates it (`adr-health` in
-`@storytree/cli`). ADR-0139 also retires the `load_bearing` tag itself at the end of the
+edge, and the `adr` schema has no such field at all now, so the state is unreachable rather than
+merely refused) — the gate validates it as **`pnpm check:adr-health`**, a declared rung that reads
+the rows. It used to be a case inside `pnpm -r test`; that suite is credential-free by ADR-0302 D3,
+so a check whose subject is a database could not stay there (ADR-0307 D4). Its PURE core and every
+unit test over it are unmoved. ADR-0139 also retires the `load_bearing` tag itself at the end of the
 consolidation pass (active ⟺ load-bearing); until then it remains the worklist marker the query below
 filters on.
 
@@ -623,8 +631,17 @@ it as a re-decision (copy-on-write) or surface it — never silently rewrite wha
 **New ADR? Don't hand-pick the number — allocate it: `pnpm storytree adr new --title "..." --pg`**
 (ADR-0050; `pnpm db:up` first). It reserves the next number ATOMICALLY from the store and scaffolds
 `docs/decisions/NNNN-slug.md`, so parallel sessions can't collide. Offline it falls back to `max+1`
-with a loud "not reserved" warning; either way the `adr-number-unique` gate (in `pnpm -r test`) + a
-cross-PR CI check fail any duplicate before it sits on `main`.
+with a loud "not reserved" warning. ⚠ **`adr-number-unique` is GONE, and its absence is not a hole**
+— two rows cannot share a number, because the id is the primary key, so the question it asked is
+structurally unanswerable and a check asking it would be a permanent vacuous green.
+`check:adr-health` asks the reachable one instead (**`adr-number-identity`**: a row's stored `number`
+must agree with its id, which is what the allocator reserved).
+
+**`adr new` DUAL-WRITES while the files are still there** — it scaffolds `docs/decisions/NNNN-slug.md`
+AND writes the row, because `adr list` reads rows: a scaffold that wrote only the file would exist
+and not appear on the surface every session orients on. Without `--pg` it writes the file and WARNS
+loudly that the row is missing, naming the reconcile command. Both halves go when
+`decision-log-home-arc` finishes the move.
 
 ## Your operating discipline — the `session-orchestrator` agent (generated)
 

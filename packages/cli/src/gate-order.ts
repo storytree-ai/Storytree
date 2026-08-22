@@ -237,6 +237,13 @@ export const GATE_PLAN: readonly GatePlanStep[] = [
 
   // ── C. shared environment ──────────────────────────────────────────────────
   {
+    command: "pnpm check:adr-health",
+    check: "check:adr-health",
+    subject: "shared-environment",
+    cost: "seconds",
+    why: "the decision-binding gate (ADR-0037 §3–4), reading the decision ROWS since ADR-0403 dec 1. It sits in block C rather than A because its subject is SHARED live state — another session's `adr new` or status flip can red it, exactly like check:guidance. It was a case inside `pnpm -r test` until the log became a database; that suite is credential-free by ADR-0302 D3, and ADR-0307 D4 puts real-corpus assertions on a rung that may hold a connection",
+  },
+  {
     command: "pnpm check:guidance",
     check: "check:guidance",
     subject: "shared-environment",
@@ -746,6 +753,7 @@ export const PRE_EXPENSIVE_CHECKS: ReadonlySet<string> = new Set([
  * did not author, so none of them may precede the session's own answer.
  */
 export const SHARED_ENVIRONMENT_CHECKS: ReadonlySet<string> = new Set([
+  "check:adr-health",
   "check:guidance",
   "check:agents",
   "check:verification-decay",

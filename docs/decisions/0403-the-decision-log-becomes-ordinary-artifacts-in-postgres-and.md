@@ -2,7 +2,7 @@
 status: accepted
 decided: 2026-08-21
 arc: decision-log-home-arc
-amends: [139, 223]
+amends: [139, 223, 311]
 ---
 # ADR-0403: The decision log becomes ordinary artifacts in Postgres, and open-sourcing is deferred
 

@@ -157,7 +157,7 @@ test("the REAL gate plan still runs both expensive legs (the wall the axes are m
   }
 });
 
-test("the REAL gate plan is exactly the nine ADR-0311 survivors plus the ADR-0336, ADR-0223 and ADR-0317 additions, in order", () => {
+test("the REAL gate plan is exactly the nine ADR-0311 survivors plus the ADR-0336, ADR-0223, ADR-0317 and ADR-0403 additions, in order", () => {
   assert.deepEqual(
     GATE_PLAN.map((step) => step.command),
     [
@@ -169,6 +169,10 @@ test("the REAL gate plan is exactly the nine ADR-0311 survivors plus the ADR-033
       "pnpm check:web-experience-closure",
       "pnpm -r --no-bail typecheck",
       "pnpm -r --no-bail test",
+      // ADR-0403 dec 1 — the decision-binding gate, which was a case inside `pnpm -r test` until the
+      // decision log became a database. It is an ADDITION to the plan and a MOVE overall: the same
+      // checks, run where a store connection is permitted (ADR-0307 D4).
+      "pnpm check:adr-health",
       "pnpm check:guidance",
       "pnpm check:agents",
       "pnpm check:verification-decay",
@@ -177,8 +181,12 @@ test("the REAL gate plan is exactly the nine ADR-0311 survivors plus the ADR-033
   );
 });
 
-test("the four live/shared checks are pinned LATE", () => {
+test("the five live/shared checks are pinned LATE", () => {
   for (const check of [
+    // `check:adr-health` is shared-environment for the same reason as its neighbours: another
+    // session's `adr new` or status flip can red it, so it must never run ahead of this branch's
+    // own work (ADR-0311's ordering axis).
+    "check:adr-health",
     "check:guidance",
     "check:agents",
     "check:verification-decay",
