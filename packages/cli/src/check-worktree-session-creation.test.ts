@@ -20,12 +20,14 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
 import {
   ATTEMPT_MARKER,
   EVIDENCE_LINE_MAX,
   classifySessionStarts,
   formatCheckReport,
+  pickNewestLog,
 } from "../../../scripts/check-worktree-session-creation.mjs";
 import type {
   SessionStartReport,
@@ -462,6 +464,78 @@ test("`census` is retired: it refuses BY NAME and says why", () => {
   assert.match(stderr, /census/);
   assert.match(stderr, /start-timing/, "the refusal must name the flag the mode keyed on");
   assert.match(stderr, /ADR-0389/);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+// WHICH main.log — the resolution the classifier above is fed from.
+//
+// The classifier tests are all downstream of one unasserted assumption: that the lines came from
+// the log the running app is WRITING. On 2026-08-22 that assumption broke. A desktop reinstall
+// moved `main.log` to %LOCALAPPDATA% while leaving the %APPDATA% copy in place, frozen at the last
+// pre-reinstall `willQuit`. The script read %APPDATA% by construction, so it would have fed this
+// classifier a dead file — and since the primary tell is "did `Starting local session` appear AT
+// ALL", a frozen log makes every start read BROKEN with full confidence.
+//
+// Nothing here caught it, because path resolution had no test at all. These four do, and the first
+// one FAILS against a hard-coded %APPDATA% — which is the only reason it is worth writing.
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+const APPDATA_LOGS = join("C:", "Users", "dev", "AppData", "Roaming", "Claude", "logs");
+const LOCAL_LOGS = join("C:", "Users", "dev", "AppData", "Local", "Claude", "logs");
+const WINDOWS_CANDIDATES = [LOCAL_LOGS, APPDATA_LOGS] as const;
+
+/** An mtime oracle over a fake filesystem: absent paths answer null, exactly as `statSync` cannot. */
+function mtimes(table: Readonly<Record<string, number>>): (p: string) => number | null {
+  return (p) => (p in table ? (table[p] as number) : null);
+}
+
+test("the 2026-08-22 shape: a FROZEN %APPDATA% log never wins over a live %LOCALAPPDATA% one", () => {
+  // The measured state, in the direction that actually occurred: the abandoned copy still exists
+  // and still parses — it is merely older. Picking it is the defect.
+  const chosen = pickNewestLog(
+    WINDOWS_CANDIDATES,
+    mtimes({
+      [join(APPDATA_LOGS, "main.log")]: Date.parse("2026-08-22T08:03:39Z"), // last willQuit
+      [join(LOCAL_LOGS, "main.log")]: Date.parse("2026-08-22T08:26:24Z"), // being written now
+    }),
+  );
+  assert.equal(chosen?.path, join(LOCAL_LOGS, "main.log"));
+  assert.deepEqual(
+    chosen?.shadowed,
+    [join(APPDATA_LOGS, "main.log")],
+    "the report must NAME the live-looking copy it declined, or the operator cannot tell it was skipped",
+  );
+});
+
+test("it is newest-wins, not a re-pointed constant — %APPDATA% wins when %APPDATA% is fresher", () => {
+  // The counterpart that stops this fix from being the same bug facing the other way. If the app
+  // moves the file back, or a machine never took the move, resolution must follow the evidence.
+  const chosen = pickNewestLog(
+    WINDOWS_CANDIDATES,
+    mtimes({
+      [join(APPDATA_LOGS, "main.log")]: Date.parse("2026-08-22T09:00:00Z"),
+      [join(LOCAL_LOGS, "main.log")]: Date.parse("2026-08-22T08:26:24Z"),
+    }),
+  );
+  assert.equal(chosen?.path, join(APPDATA_LOGS, "main.log"));
+  assert.deepEqual(chosen?.shadowed, [join(LOCAL_LOGS, "main.log")]);
+});
+
+test("a candidate directory with no main.log is skipped, not treated as an empty log", () => {
+  // The commonest real shape before the move: only one of the two directories exists. Returning it
+  // with `shadowed: []` is right; returning null here would strand every pre-move machine.
+  const chosen = pickNewestLog(
+    WINDOWS_CANDIDATES,
+    mtimes({ [join(APPDATA_LOGS, "main.log")]: Date.parse("2026-08-20T10:00:00Z") }),
+  );
+  assert.equal(chosen?.path, join(APPDATA_LOGS, "main.log"));
+  assert.deepEqual(chosen?.shadowed, []);
+});
+
+test("no candidate at all resolves to null rather than a path that cannot be read", () => {
+  // The caller prints "NONE FOUND" and reads zero lines. Handing back a plausible-but-absent path
+  // would make an empty read look like an empty log, which is the vacuous-green shape again.
+  assert.equal(pickNewestLog(WINDOWS_CANDIDATES, mtimes({})), null);
 });
 
 test("importing the module does not run the CLI", () => {
