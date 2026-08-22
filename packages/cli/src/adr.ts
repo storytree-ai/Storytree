@@ -41,9 +41,11 @@ export interface AdrCommandDeps {
   /** Today as `YYYY-MM-DD` — the `decided:` date of an owner-directed scaffold (injected; ADR-0110). */
   today: string;
   /**
-   * The store-backed half (ADR-0403 dec 9): what `adr pull` / `adr push` need. OPTIONAL, because
-   * every other subcommand here reads `docs/decisions` off disk and must keep working with no
-   * connection at all — `adr list` / `next` are on the session-start orientation path.
+   * The store-backed half (ADR-0403 dec 9): what `adr pull` / `adr push` need. OPTIONAL only as a
+   * TYPE — every subcommand here now needs it, because the decisions are rows and nothing is left
+   * on disk to read. Absent, each verb REFUSES with the reason rather than degrading: `list` says
+   * the offline read it used to advertise is ADR-0403's named accepted cost, and `new` / `next`
+   * refuse to reserve a number they could not then write.
    */
   roundTrip?: AdrRoundTripDeps | undefined;
 }
@@ -135,9 +137,11 @@ const pad = (n: number): string => String(n).padStart(4, "0");
  * elsewhere, not in this checkout" — stays true either way, and the reader decides.
  */
 export function parallelAllocations(localMax: number, reserved: number): number[] {
-  // No ADRs on disk at all means the decisions dir is missing or unreadable (`maxAdrNumber` returns 0
-  // for both) — a broken checkout, not a parallel-allocation signal. Reporting every number below the
-  // reservation there would be loud and wrong, so stay silent and let the real problem surface.
+  // A `localMax` of 0 means the run READ NO DECISIONS — `storeMaxAdrNumber` found an empty or
+  // unreadable log — not that the store is genuinely at zero. That is a broken connection, not a
+  // parallel-allocation signal, and reporting every number below the reservation would be loud and
+  // wrong. Stay silent and let the real problem surface (the allocating verbs refuse outright on an
+  // unreadable log, so this branch is the belt to that pair of braces).
   if (localMax <= 0) return [];
   const out: number[] = [];
   for (let n = localMax + 1; n < reserved; n++) out.push(n);
@@ -391,6 +395,13 @@ async function adrNext(deps: AdrCommandDeps): Promise<Envelope> {
   if (!deps.allocator) return needsPg("next");
   const localMax = await storeMaxAdrNumber(deps);
   if (localMax === null) return unreadableLog("next");
+
+  // THE TRY COVERS `allocate` AND NOTHING ELSE, matching `adrNew`. It used to wrap the note-building
+  // and the success return as well, while the catch said flatly "couldn't reserve an ADR number" — so
+  // a throw from anything AFTER a successful reservation would have reported a number that WAS
+  // reserved as not reserved, and the reader would take the next one and burn this one for nothing.
+  // No input is known that reaches it; this is the two sibling verbs agreeing, not a demonstrated bug.
+  let reserved: number;
   try {
     const r = await deps.allocator.allocate({
       localMax,
@@ -398,18 +409,7 @@ async function adrNext(deps: AdrCommandDeps): Promise<Envelope> {
       branch: deps.branch,
       actor: deps.actor,
     });
-    // Same heads-up as `adr new` — `adr next` reserves for a hand-authored file, so its author is in
-    // exactly the position the note is for: about to write prose against numbers it cannot see.
-    const parallel = parallelAllocationNote(parallelAllocations(localMax, r.number));
-    return {
-      ok: true,
-      body: [
-        `ADR-${pad(r.number)} reserved — nothing is written yet. \`adr new --title\` scaffolds the ` +
-          `decision at ${adrDocId(r.number)}; this verb only holds the number.`,
-        ...parallel.lines,
-      ].join("\n"),
-      next: ['storytree adr new --title "..." --pg', ...parallel.next],
-    };
+    reserved = r.number;
   } catch (e) {
     return {
       ok: false,
@@ -417,6 +417,19 @@ async function adrNext(deps: AdrCommandDeps): Promise<Envelope> {
       next: ["pnpm db:up", "storytree adr next --pg"],
     };
   }
+
+  // Same heads-up as `adr new` — `adr next` reserves for a hand-authored file, so its author is in
+  // exactly the position the note is for: about to write prose against numbers it cannot see.
+  const parallel = parallelAllocationNote(parallelAllocations(localMax, reserved));
+  return {
+    ok: true,
+    body: [
+      `ADR-${pad(reserved)} reserved — nothing is written yet. \`adr new --title\` scaffolds the ` +
+        `decision at ${adrDocId(reserved)}; this verb only holds the number.`,
+      ...parallel.lines,
+    ].join("\n"),
+    next: ['storytree adr new --title "..." --pg', ...parallel.next],
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -424,16 +437,17 @@ async function adrNext(deps: AdrCommandDeps): Promise<Envelope> {
 // ---------------------------------------------------------------------------
 //
 // Replaces the hand-maintained `CLAUDE.md` "Load-bearing ADRs" + "reversals" sections with a query
-// derived from the live frontmatter, so the list can never drift from the files. Two cuts:
+// derived from the live decision ROWS, so the list can never drift from the log. Two cuts:
 //   --current        every accepted, non-superseded ADR (the derived backbone — honest by construction)
 //   --load-bearing   the calibrate-to-these set: the curated `load_bearing: true` seed, CLOSED over
 //                    accepted `amends` edges (see `loadBearingReach`)
 // Outgoing edges (supersedes / amends — binary since ADR-0139 retired supersedes-in-part) and BOTH
 // derived back-edges (`superseded by` / `amended by`) are shown inline so the reversal story reads off
-// the graph, not off prose. Both directions matter on `--load-bearing`: ADR-0139 frames `amends` as
+// the graph, not off rows. Both directions matter on `--load-bearing`: ADR-0139 frames `amends` as
 // strictly additive, but in practice an amending ADR can retire a clause of its target (ADR-0271 does,
 // to ADR-0142 §3) — without the back-edge a session calibrating on this view reads the retired leg
-// unqualified. Read-only + offline (it reads docs/decisions on disk) — no DB, no API key.
+// unqualified. Read-only, but NOT offline: it reads the decision rows from the store (ADR-0403
+// dec 1), so it needs the DB up. See {@link loadAdrListings} for why that cost was accepted.
 //
 // A back-edge to a non-accepted ADR is LABELLED with that status. Rendered bare, an undecided or a
 // dead amendment reads exactly like a live one: ★0020 listed `amended by 0080, …, 0265` with 0265

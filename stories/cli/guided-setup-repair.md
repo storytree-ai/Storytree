@@ -106,7 +106,7 @@ delivered outcome — the suite below drives `guideCommand`/`doctorCommand` dire
 **WHY THIS IS ONE ORGAN AND NOT FIVE** (the splitting-rule, ADR-0010). The tempting cut is by
 module — probes, planner, loop, blob, shell — which is exactly how the four `repo-manifest.json`
 declarations that preceded this file were shaped. It is the wrong cut, and
-[ADR-0207](../../docs/decisions/0207-explorer-onboarding-v1-desktop-entrypoint-dev-owned-claude-a.md)
+ADR-0207
 D6 says so in the decision itself: it charters ONE thing, in one sentence — *"run doctor → explain
 the failure plainly → propose the fix → dev confirms → re-run the corresponding idempotent installer
 step from D1 → re-doctor"* — with the escalation blob as its other terminal. The modules are that

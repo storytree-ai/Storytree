@@ -278,7 +278,7 @@ greens on it — the deletion removed a second signature at the story rung, not 
 > **The surviving leg's witness is an OPEN OWNER CALL and was deliberately NOT changed by this pass.**
 > Leg 5 above is `agent#uat-5`. Its `witness: human` tag, its `uatc_` identity and its revision are
 > all carried forward untouched, and under
-> [ADR-0253](../../docs/decisions/0253-criterion-identity-is-immutable-across-uat-revisions.md) its
+> ADR-0253 its
 > list position is not its identity. *(Corrected in place 2026-08-22, ADR-0139. This read "Leg 1
 > above is the former `agent#uat-5` … only its list position moved": the 2026-08-03 pass renumbered
 > the survivor from 5 down to 1 to close the gap its four deletions left. Renumbering is genuinely
@@ -307,7 +307,7 @@ greens on it — the deletion removed a second signature at the story rung, not 
 >   was Claude-only; the ADR-0232 Codex leaf widened it on 2026-07-24. Same claim, widened — not the
 >   `embedded-terminal#uat-5` renumbering failure (PR #916).
 >
-> **THE OWNER HAS PICKED, AND OPTION (iii) IS TAKEN — [ADR-0348](../../docs/decisions/0348-human-uat-witness-narrows-to-taste-live-spend-and-outward-fa.md)
+> **THE OWNER HAS PICKED, AND OPTION (iii) IS TAKEN — ADR-0348
 > D7 (2026-08-11), executed here 2026-08-12.** This note previously read *"the remedy remains the
 > owner's, and no agent may pick it"*, and listed three standing options without preference. It is
 > corrected in place (ADR-0139) because the call has been made, not because the reasoning changed.
@@ -322,7 +322,7 @@ greens on it — the deletion removed a second signature at the story rung, not 
 > The merits were never in dispute and are unchanged: every clause of the success condition compiles,
 > both leaves are subscription-funded rather than metered, and under
 > `human-witness-is-a-judgment-gap-not-cost` a harness/cost statement is not a judgment gap — a reading
-> [ADR-0295](../../docs/decisions/0295-the-uat-driver-s-own-verdict-is-the-witness-model-driven-uat.md)
+> ADR-0295
 > D1/D5 strengthens. What blocked the flip was never the merits; it was that ADR-0295 D1's model-driven
 > executor was **decided but unbuilt**, so a flipped leg would have had nowhere to earn green. That
 > executor landed 2026-08-12 (`packages/drive/src/uat-drive*.ts`, PR #1291), and the leg is flipped in
@@ -395,9 +395,9 @@ observed the suite green at a clean HEAD and signed `adopted` verdicts for `agen
 `machine` legs (1–4, 6), each `approvedBy: hua.mick@gmail.com`, and flipped the frontmatter `status:`
 to `proposed` in commit `e21ee4d4`. ADR-0395 now makes `proposed` the correct greenfield baseline
 regardless of that ceremony. `healthy` stays non-authorable
-([ADR-0020](../../docs/decisions/0020-red-green-enforcement-on-the-owned-loop.md)) — it is never
+(ADR-0020) — it is never
 written into the frontmatter; the world's crown DERIVES green from the signed verdicts
-([ADR-0040](../../docs/decisions/0040-verdict-derived-green-and-the-human-witness-signpost.md)) and only
+(ADR-0040) and only
 when every capability is `healthy` AND this reliability gate is signed AND the `## UAT Test Criteria`
 above is
 attested — per-leg now (ADR-0106): the five `machine` legs (1–4, 6) explicitly bind to
@@ -407,7 +407,7 @@ signed `operator` — **read the blockquote under `## UAT Test Criteria` before 
 (ADR-0082).
 The story-level `uat_witness` is absent → human (the ADR-0040 fail-closed signpost), so the machine-
 driven whole-story UAT node stays withheld; the crown derives from the per-leg roll-up
-([ADR-0082](../../docs/decisions/0082-per-test-uat-test-criteria-earn-green-by-declared-witness-story-uat.md) /
+(ADR-0082 /
 ADR-0083 Fork A + ADR-0085). No single gate greens the story.
 
 ## Proof

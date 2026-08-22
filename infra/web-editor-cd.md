@@ -1,6 +1,6 @@
 # Hosted website editor CD — keyless deploy-on-merge (ADR-0101)
 
-Closes the merge→deploy gap [ADR-0101](../docs/decisions/0101-hosted-web-content-editor.md) left
+Closes the merge→deploy gap ADR-0101 left
 open ([web-editor-cloud.md](web-editor-cloud.md) "Follow-up: CD on merge"): an **editor-affecting**
 change merged to storytree-web `main` now redeploys the Cloud Run editor (`storytree-web-editor`)
 automatically, instead of an owner re-running `bash infra/deploy-web-editor.sh`. Mirrors the studio

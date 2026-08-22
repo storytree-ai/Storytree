@@ -179,8 +179,9 @@ export interface ArcRollup {
   /**
    * Stories reachable through the STORE — the `story:` citations on this arc's increments
    * (ADR-0306 D2/D4). Identical for every session, id-sorted. The half of the arc's
-   * branch-dependence that IS removable; the ADR stamp above is the half that is not, because an ADR
-   * is a file in `docs/decisions/` and no citation edge changes that.
+   * branch-dependence that IS removable. The ADR stamp above no longer differs on that axis: since
+   * ADR-0403 dec 1 a decision is a ROW too, and its `arc:` stamp is the row field `arcRef` read
+   * through this same store — see {@link ArcRollupDeps.store}.
    */
   citedStories: ArcRollupCitedStory[];
   questions: ArcRollupQuestion[];

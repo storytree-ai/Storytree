@@ -48,7 +48,7 @@ a **LOUD multi-line gate-tail WARN** naming the stale-image consequence and the 
 all-in-flight page is honestly **UNVERIFIED**, never claimed healthy — and the classifier **never throws**
 on empty or odd input.
 
-The deciding ADR is [ADR-0194](../../docs/decisions/0194-a-red-hosted-studio-deploy-must-be-loud-the-check-deploy-hea.md)
+The deciding ADR is ADR-0194
 (born accepted 2026-07-14, owner-directed): a red hosted-studio deploy must be **loud**. It records the
 incident behind Library friction item `friction-deploy-studio-red-is-silent` — `deploy-studio.yml` (the
 post-merge CD of the member-facing hosted studio, ADR-0042/0046/0061) **failed 11+ consecutive runs over

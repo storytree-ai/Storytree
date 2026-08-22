@@ -234,7 +234,7 @@ export const PATHWAY_CAVEAT =
  */
 export const REPLAY_PATHWAY_NOTE =
   "observes: storytree CLI reads only, by an allowlist whose default answer is no event; " +
-  `${FILE_READS_OBSERVE_NOTHING}, so a decision record opened from docs/decisions/ leaves no trace ` +
+  `${FILE_READS_OBSERVE_NOTHING}, so a story spec opened straight from stories/ leaves no trace ` +
   "here — this replay covers one pathway, not all of this session's navigation";
 
 /**

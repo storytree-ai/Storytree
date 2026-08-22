@@ -3,13 +3,13 @@
 **Status:** research + open questions (analysis only — no build started, no `--real`/`--live` build run,
 no settled ADR re-decided). **Date:** 2026-06-29.
 **Owns the owner question:** *"if we build the in-app session-orchestrator that spawns the inner loop
-([ADR-0137](../decisions/0137-chat-is-the-full-session-orchestrator-it-spawns-the-inner-lo.md)), will we
+(ADR-0137), will we
 now reliably get wisps on nodes for ALL edits?"*
 **Builds on** (does **not** re-decide):
-[ADR-0048](../decisions/0048-in-flight-build-is-the-primary-wisp.md) (the build is the wisp),
-[ADR-0128](../decisions/0128-the-bare-forest-map-is-honest-by-absence-inner-loop-adoption.md)
+ADR-0048 (the build is the wisp),
+ADR-0128
 (the bare map is honest by absence),
-[ADR-0129](../decisions/0129-inner-loop-adoption-target-ratio-and-goal-open-question.md) (the open
+ADR-0129 (the open
 ratio/goal fork), and [`inner-loop-adoption-gap.md`](inner-loop-adoption-gap.md) (the ~17% / ~83% split).
 
 ## TL;DR — the honest answer
@@ -179,7 +179,7 @@ picture.
    TTL. A story's caps drive in `depends_on` order, so you see **one per-cap wisp at a time, hopping
    cap→cap**, with **dark gaps** while the orchestrator decides, spawns the next leaf, or supplements
    glue. There is no continuous "this session is working on node X" glow — that is precisely the
-   *planning presence* [ADR-0124](../decisions/0124-honest-session-presence-machine-emitted-by-the-outer-loop-ru.md)
+   *planning presence* ADR-0124
    proposed and the owner **withdrew** (ADR-0128: *don't render planning*). The new wrinkle worth
    *flagging* (not reopening): ADR-0124 was decided before an in-app orchestrator that is itself
    **anchored to the node it is building**, so a machine-emitted "orchestration active here" marker is
@@ -220,7 +220,7 @@ owner — not decided here.
   signal (this is ADR-0129 OQ3). Feeds, and does not duplicate, ADR-0129's ratio/goal fork.
 
 **Pointers (already tracked — no new artifact):**
-- *Target ratio / goal* → [ADR-0129](../decisions/0129-inner-loop-adoption-target-ratio-and-goal-open-question.md)
+- *Target ratio / goal* → ADR-0129
   (proposed). The new model raises its ceiling; answer it with that in mind.
 - *Node-anchored planning presence* → ADR-0124 (superseded) / ADR-0128 (settled: don't render
   planning). Flagged above as a possible revisit, **not reopened here**.

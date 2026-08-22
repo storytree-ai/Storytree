@@ -636,7 +636,7 @@ export const MEASURED_PHANTOM_CLAIMS: readonly PhantomClaim[] = [
     id: "adr-decision-log",
     events: 6,
     likelyMeant: null,
-    note: "the decision log is `docs/decisions/`, governed but never a claimable node",
+    note: "the decision log is the `adr` rows, governed but never a claimable node",
   },
   {
     id: "session-claim-ledger",

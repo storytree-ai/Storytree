@@ -127,7 +127,8 @@ jobs:
       # merged branch's claim-ledger state (node_claim, ADR-0200) keyed on the head ref, so
       # re-landing the same branch name would erase live sessions from the map and feed the
       # stale-PR trap family. Refuse a PR whose head branch already has a merged PR. Fail-open on
-      # gh errors, like the ADR collision check above.
+      # gh errors (as the deleted ADR collision step above also did — a flaky API must never block
+      # every merge).
       - name: Merged-branch guard (a branch dies on merge)
         if: github.event_name == 'pull_request'
         env:
@@ -215,9 +216,11 @@ jobs:
       # behind the local `pnpm gate`): classify the PR's changed files and,
       # when every one maps cleanly into the workspace graph, narrow typecheck+test to the changed
       # projects PLUS their dependents (pnpm's `--filter "...<name>"`). Conservative by
-      # construction — any root-path file (stories/**, docs/decisions/**, scripts/**, lockfile, …),
+      # construction — an unmapped root-path file (scripts/**, tsconfig.base.json, lockfile, …),
       # any package.json, or the cross-boundary corpus seed (apps/studio/data/**) forces the full
-      # `-r` run, because those inputs are read by tests the dependency graph can't see. The
+      # `-r` run, because those inputs are read by tests the dependency graph can't see. Only the
+      # root paths whose readers were MEASURED (ADR-0394/ADR-0399's ROOT_PATH_READERS) narrow
+      # instead. The
       # push-to-main run below never narrows (`|| '-r'` when this step is skipped) — the backstop
       # that keeps main green if a PR gate ever under-selects; fix forward from there. A MERGE-QUEUE
       # run never narrows either (this step is PR-only): the queue's whole job is proving the

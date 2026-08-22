@@ -2,7 +2,7 @@
 // The `session-cutting-outage-arc` mechanical check — answers "did worktree-backed desktop session
 // creation work on this machine just now, and if not, WHICH FAULT SHAPE was it?" without
 // re-deriving the 2026-08-13/19 investigation by hand. The live decision is **ADR-0389** (accepted
-// 2026-08-19): `docs/decisions/0389-session-cutting-is-restored-and-permitted-the-outage-was-our.md`.
+// 2026-08-19): read it with `storytree library artifact adr-0389`.
 //
 // ── WHAT THIS FILE USED TO SAY, AND WHY IT HAD TO BE RE-POINTED ─────────────────────────────────
 // Until 2026-08-19 this script attributed the outage to a VENDOR bug (anthropics/claude-code#86574)

@@ -285,7 +285,7 @@ permanent regression case, never speculative breadth).
 > (`app-guide#gate-1`) is an `observe` gate over the studio vitest suite, which does not touch the
 > desktop sidecar or the drive guard. Binding leg 5 to it would be a false binding; minting a second
 > observe gate over source that does not exist at HEAD would be precisely the rubber-stamp
-> [ADR-0097](../../docs/decisions/0097-brownfield-go-green-is-a-proving-process-adopt-enters-brown.md) §2
+> ADR-0097 §2
 > bans. So the leg is `machine` and UNBOUND: `resolveWitness` reports it `refused` — *a binding gap the
 > author must close when the stretch capability is built*, which is the honest state, not a defect to
 > paper over. It still blocks the crown.
@@ -407,13 +407,13 @@ proofs red→green — the caps landed **built-but-unregistered** (a passing rea
 verdict). So the honest path off `mapped` is **not** a fail-closed `--real` Build over mature, already-green
 source (that HALTS on the green base) — it is the author-declared **reliability gate** below,
 observe-and-signed to an `adopted` verdict
-([ADR-0085](../../docs/decisions/0085-resolve-adr-0083-fork-b-brownfield-reliability-gates-author.md)):
+(ADR-0085):
 the `mapped → healthy` **Adopt** transition
-([ADR-0094](../../docs/decisions/0094-go-green-is-a-status-transition-proposed-builds-mapped-adopt.md) /
-[ADR-0097](../../docs/decisions/0097-brownfield-go-green-is-a-proving-process-adopt-enters-brown.md)).
+(ADR-0094 /
+ADR-0097).
 Distinct from `## UAT Test Criteria` above (the integrated continuous-conversation journey): this gate is the
 machine-observable reliability floor — the two-stage frontend-builder split
-([ADR-0070](../../docs/decisions/0070-frontend-as-an-inner-loop-role-the-two-stage-proof-for-visua.md)):
+(ADR-0070):
 the gate covers the caps' machine GEOMETRY; the "reads like one continuous conversation" FEEL is carried
 by no leg at all since ADR-0348 D6 deleted it (2026-08-11) — it is design intent under "The
 conversational feel", answered by the owner using the app, and is still never machine-asserted here.
@@ -451,10 +451,10 @@ unit, not a defect to paper over with a fabricated gate.)* The OPTIONAL / STRETC
 either normal obligation: until the capability is healthy and leg 5 is discharged, the crown remains
 blocked. Adopting
 this one gate flips the story off `mapped`; `healthy` stays non-authorable
-([ADR-0020](../../docs/decisions/0020-red-green-enforcement-on-the-owned-loop.md)) — the world's crown
+(ADR-0020) — the world's crown
 DERIVES green from the signed verdicts and only when every capability is healthy AND every own-proof
 obligation is signed
-([ADR-0083](../../docs/decisions/0083-author-defined-story-green-declared-obligations-machine-per.md)
+(ADR-0083
 Fork A + ADR-0085), so the crown honestly reads `unproven` until the owner takes up the backend-wedge
 stretch (its cap + leg 5).
 

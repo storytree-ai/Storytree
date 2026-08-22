@@ -27,9 +27,9 @@ justified Library work or owner escalation.
 > ADR-0033) — the legacy-lineage meaning of the term (sessions seeing each other in flight). This
 > story is the *feedback* organ that legacy called the forum: cites, archival, and graduation.
 
-This is the cite / graduation mechanism that [ADR-0027](../../docs/decisions/0027-supersede-adr-0014-notice-board.md)
+This is the cite / graduation mechanism that ADR-0027
 carried forward from the superseded ADR-0014, and that
-[ADR-0032](../../docs/decisions/0032-cite-graduation-mechanism.md) now **decides**. The
+ADR-0032 now **decides**. The
 **post substrate is already built and is NOT re-scoped here**: posts/comments persist as typed
 events (`events.comment` projection + append-only `events.comment_event`; `PgCommentStore` in
 `packages/library/src/store/pg-comment-store.ts`), and the studio reads/writes them against the

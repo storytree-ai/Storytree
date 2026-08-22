@@ -93,7 +93,7 @@ proof:
 the arc alone.
 
 **Depends on —** nothing. This is an independent root within [`arc`](story.md), and it became one in
-the extraction ([ADR-0369](../../docs/decisions/0369-the-arc-domain-owns-its-own-package-and-the-arrow-runs-arc-t.md)).
+the extraction (ADR-0369).
 It used to declare `unified-command-dispatch`, on the ground that the verbs are reached through the
 one dispatcher and return that capability's `Envelope`. Both halves are now wrong, and they fail
 differently, so both are worth stating:
@@ -244,7 +244,7 @@ a reader deserves the answer beside the question.** It read:
 **The code move was taken.** The owner directed it on 2026-08-09, answering the since-retired open
 question `oq-where-should-the-arc-tier-live-the-cli-shim-its-own-packa` with its option (b);
 `arc-tier-extraction-arc` increment 1 delivered it and
-[ADR-0369](../../docs/decisions/0369-the-arc-domain-owns-its-own-package-and-the-arrow-runs-arc-t.md)
+ADR-0369
 records the decision. `packages/arc` is the building, [`arc`](story.md) is the story, and this
 capability moved into it with `increment-freshness-check` and with every one of its source files.
 

@@ -553,3 +553,66 @@ test("story build --dry-run --emit-wisp drives the smoke for the STORY unit: bui
   assert.equal(deleted[0]![0], "library", "the wisp anchors to the STORY unit");
   assert.match(deleted[0]![1]!, /^wisp-smoke-/);
 });
+
+/**
+ * THE CURATOR'S DECISION CONTEXT REACHES IT FROM THE STORE — `decision-log-readers-arc` inc-06 item 8.
+ *
+ * This is the wiring PR #1546 repaired without a test, and the gap is why it broke silently in the
+ * first place. `storyBuild` reads the deciding ADRs' current status for the librarian-curator; that
+ * read was `loadAdrMetas(rootDir/docs/decisions)` until ADR-0403 dec 1 deleted the directory, at
+ * which point `readdirSync` threw ENOENT straight into a `catch { adrs = [] }` and EVERY build told
+ * the curator — the agent whose one job is keeping the decision log honest — that the log held
+ * nothing. Nothing went red, because no test ever injected the old `decisionsDir` either.
+ *
+ * So this asserts the WIRING and not the shape: a decision that exists in the store must arrive in
+ * the curator's prompt carrying its REAL status. `SdkCuratorRunner` with an injected `runSdk` is the
+ * capture point — `serializeCurationContext(ctx)` is what it sends as `userPrompt`.
+ *
+ * MUTATION-TESTED: restoring `curationAdrs = []` in place of the store read fails it on the
+ * `(not found)` assertion.
+ */
+test("storyBuild feeds the curator the deciding ADRs' REAL status, read from the injected store (ADR-0403 dec 1)", async () => {
+  const library = new InMemoryStore();
+  // `stories/library/story.md` declares `decisions: [17, 18, 19, 23, 26]`. Seed ONE of them, so the
+  // test proves both directions at once: the seeded number renders its stored status, and the
+  // unseeded ones still render the honest miss.
+  await library.upsertDoc({
+    id: "adr-0023",
+    kind: "adr",
+    doc: { id: "adr-0023", kind: "adr", number: 23, status: "accepted", title: "seeded decision" },
+  });
+
+  let userPrompt = "";
+  const runner = new SdkCuratorRunner({
+    systemPrompt: "rendered librarian-curator",
+    runSdk: async (args): Promise<SdkCuratorResult> => {
+      userPrompt = args.userPrompt;
+      return { ok: true, text: "[]", costUsd: 0, turns: 1 };
+    },
+  });
+
+  const env = await storyBuild("library", {
+    dryRun: true,
+    actor: "tester@example.com",
+    curatorRunner: runner,
+    curationStores: { library },
+  });
+  assert.equal(env.ok, true, env.body);
+
+  assert.notEqual(userPrompt, "", "the curator ran, so the serialized context was captured");
+  assert.match(
+    userPrompt,
+    /ADR-0023: accepted/,
+    `the seeded decision must carry its STORED status, not a miss:\n${userPrompt}`,
+  );
+  assert.doesNotMatch(
+    userPrompt,
+    /ADR-0023: \(not found\)/,
+    "a store holding the decision must never report it missing — the silent-empty-log regression",
+  );
+  // The store genuinely holds no ADR-0017, so the miss is the honest answer and must still be said.
+  assert.match(userPrompt, /ADR-0017: \(not found\)/, "an absent decision is reported as absent");
+  // ...and never as absent FROM DISK: decisions are rows, and the curator is the reader most likely
+  // to act on a location claim.
+  assert.doesNotMatch(userPrompt, /not found on disk/);
+});

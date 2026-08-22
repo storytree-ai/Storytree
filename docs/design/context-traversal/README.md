@@ -41,7 +41,7 @@ does cross 500k should show the red on the bar and drop the legend example.
 
 This is **not a dashboard**.
 
-> **PLACEMENT SUPERSEDED 2026-08-12 by [ADR-0354](../../decisions/0354-the-context-traversal-replay-lives-in-a-bottom-panel-tab-bes.md)
+> **PLACEMENT SUPERSEDED 2026-08-12 by ADR-0354
 > — owner-directed.** Steps 1–3 below, and acceptance clause 1, no longer describe where the replay
 > lives: it moves to a **tab in the bottom panel beside the terminal** (which stays), and the session
 > list becomes this machine's **whole local trace index, newest first**, with the claim-join withdrawn.
@@ -64,7 +64,7 @@ This is **not a dashboard**.
 > crowding onto the bottom panel's scarce vertical. Until the LOOK lands, no wide layout may be built —
 > against that proposal or any other.
 
-> **TRIMMED 2026-08-20 by [ADR-0393](../../decisions/0393-the-replay-draws-the-orchestrator-s-own-walk-only-no-prose-n.md)
+> **TRIMMED 2026-08-20 by ADR-0393
 > — owner-directed, at the LOOK.** Three things this file describes are no longer drawn, and the
 > paragraph above's "still binds exactly as signed" must be read through them:
 >
@@ -164,7 +164,7 @@ field.
 A visual implementation is conformant only when:
 
 - ~~it is reached through story island → claimed session → narrow details panel~~ — **SUPERSEDED by
-  [ADR-0354](../../decisions/0354-the-context-traversal-replay-lives-in-a-bottom-panel-tab-bes.md) D1/D2.**
+  ADR-0354 D1/D2.**
   Replace with: it is reached through a **tab in the bottom panel beside the terminal**, whose session
   list is this machine's whole local trace index newest-first — no claim, no story selection, and
   nothing caught in flight; a session with no readable local trace is still offered-and-explained

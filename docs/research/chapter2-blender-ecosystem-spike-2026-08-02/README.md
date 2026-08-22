@@ -3,7 +3,7 @@
 **Date:** 2026-08-02 · **Blender:** 5.2.0 LTS · **Cost:** $0 · **Vendor calls:** 0 · **Owner-raised**
 
 The owner saw Sapling Tree Gen on YouTube and asked whether we hand-rolled a space-colonisation
-skeleton for [ADR-0280](../../decisions/0280-chapter-2-organic-art-is-code-generated-code-owns-skeleton-c.md)
+skeleton for ADR-0280
 D1 without looking at what Blender's ecosystem already offers. **The challenge was fair and is
 partly upheld.** This is the test, not an argument.
 

@@ -25,7 +25,7 @@ decisions: [213, 215]
 **Outcome —** Act 2 replays **Act 1's request, done right** — the SAME prompt (Act 1's terminal now
 leads with **"build me a shopping website"**, reused across both acts; one prompt, two ways — the
 gripe, then the answer), handled the storytree way
-([ADR-0148](../../docs/decisions/0148-act-2-is-a-website-first-walk-that-grows-into-an-orchestrato.md)).
+(ADR-0148).
 Three framing moves wrap the walk that was already built and witnessed:
 
 1. **It opens from the reused prompt.** The calm land arrives from Act 1 carrying the same
@@ -41,7 +41,7 @@ Three framing moves wrap the walk that was already built and witnessed:
    walkthrough (one Next-tap per beat, **plain language** — the tonal inverse of Act 1's jargon)
    grows the fictional forest through the five approved beats **on the real 2.5D map** — the synced
    `buildScene` scene graph rendered as the site's SVG
-   ([ADR-0145](../../docs/decisions/0145-act-2-walks-the-real-2-5d-map-the-r3f-forest-retreats-to-far.md)),
+   (ADR-0145),
    representative of the actual product — narrated by **callout boxes anchored to the exact map
    element each beat teaches**.
 
@@ -52,7 +52,7 @@ ADR-0150): the upstream forest of a database and a proper backend that increment
 ([`act2-guided-forest`](act2-guided-forest.md)) reveals. A stylized teaching diorama over fictional
 data, never the operable studio.
 
-**RESHAPED by [ADR-0153](../../docs/decisions/0153-act-2-uses-the-real-app-ui-hides-the-unwalked-and-grows-a-co.md)
+**RESHAPED by ADR-0153
 (owner-directed at the H attestation gate, 2026-07-04).** The first walk above was built + attested +
 LIVE; refining H, the owner reshaped G's surface (this RE-OPENS the capability toward `building`; the
 "As built" record is kept as true history). Five changes: the walk and orchestrator use the **REAL
@@ -98,7 +98,7 @@ on; [`act2-beat-director`](act2-beat-director.md) — the script it walks;
 > orchestrator mock-website proposal + the "what's next" CTA, on top of the already-built 2.5D walk);
 > a NEW capability, [`act2-guided-forest`](act2-guided-forest.md) (increment H), captures the
 > upstream forest the CTA hands off to. The 2.5D map render, pacing, callout, and beat engine
-> ([ADR-0145](../../docs/decisions/0145-act-2-walks-the-real-2-5d-map-the-r3f-forest-retreats-to-far.md))
+> (ADR-0145)
 > all carry FORWARD — they are the foundation, not discarded.
 >
 > **Attestation history (kept — honest record).** A first build (the five beats over the R3F 3D
@@ -106,7 +106,7 @@ on; [`act2-beat-director`](act2-beat-director.md) — the script it walks;
 > floor green (61-check Playwright witness; storytree-web draft PR #20, closed superseded) and was
 > **refused at stage 2** — the owner re-decided the substrate onto the real 2.5D map with
 > anchored-callout narration
-> ([ADR-0145](../../docs/decisions/0145-act-2-walks-the-real-2-5d-map-the-r3f-forest-retreats-to-far.md)).
+> (ADR-0145).
 > That 2.5D build in turn reached its gate 2026-07-03, was judged good progress, and was
 > **re-directed to the website-first framing above** (ADR-0148) — the walk stands, the narrative
 > grew. The closed PR's renderer-agnostic pieces (narration copy, the `act2-validate` build-time

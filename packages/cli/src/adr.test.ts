@@ -75,9 +75,20 @@ test("scaffold owner-directed (decided date) is born accepted with decided front
 
 // ---- adr list (the searchable current-state view, ADR-0086) --------------------------------
 
-test("extractAdrTitle pulls the text after `# ADR-NNNN:`; '' when absent", () => {
+test("extractAdrTitle pulls the text after `# ADR-NNNN:`; '' when absent, and ignores fenced code", () => {
   assert.equal(extractAdrTitle("---\nstatus: accepted\n---\n# ADR-0019: Library tier & defer DBOS\n"), "Library tier & defer DBOS");
   assert.equal(extractAdrTitle("no heading here"), "");
+
+  // THE TWIN of `extractAdrTitle` in `@storytree/library/adr-doc` — the two are kept trivially
+  // identical rather than shared, so the fence-stripping behaviour is asserted on BOTH or they drift.
+  // Decisions cite decisions, so a fenced block quoting another decision's heading is ordinary
+  // content; the title regex is line-anchored, so without the strip a quoted heading at column 0
+  // matched exactly like a real H1.
+  assert.equal(
+    extractAdrTitle(["```", "# ADR-0050: Some other decision", "```", "", "# ADR-0019: The real one"].join("\n")),
+    "The real one",
+  );
+  assert.equal(extractAdrTitle(["```", "# ADR-0050: Some other decision", "```"].join("\n")), "");
 });
 
 function listing(
@@ -633,4 +644,39 @@ test("adr new REFUSES when the decision log could not be READ, rather than alloc
   assert.equal(env.ok, false, "an unreadable log must refuse");
   assert.match(env.body, /the decision log could not be READ/);
   assert.equal(seen.length, 0, "and must not reserve a number before refusing");
+});
+
+test("adr new --arc is validated BEFORE the number is reserved — a typo must not burn a decision number", async () => {
+  // The ordering IS the defect. `--arc` went into the scaffold's frontmatter as a bare `arc: <id>`
+  // scalar and the first thing that validated it was the YAML parse inside `scaffoldRow` — by which
+  // point `allocate` had already run. The old output was accurate and too late:
+  //   "ADR-0404 was RESERVED but the decision was not written: Nested mappings are not allowed…"
+  // Reservation is transactional and does not roll back, so that number is spent on a typo forever.
+  // `--decided-date` has always been checked in `commands.ts` before dispatch, for this reason.
+  const { allocator, seen } = fakeAllocator(404);
+  const env = await run(
+    ["adr", "new", "--title", "A thing", "--arc", "oops: not a scalar", "--pg"],
+    { store: new InMemoryStore(), adr: allocator, writable: true },
+  );
+
+  assert.equal(env.ok, false);
+  assert.match(env.body, /--arc must be a bare arc id/);
+  assert.match(env.body, /BEFORE any ADR number was reserved/);
+  // THE ASSERTION THAT MATTERS: the allocator was never asked, so no number was spent.
+  assert.equal(seen.length, 0, "no number may be reserved for an invocation that cannot be written");
+  assert.doesNotMatch(env.body, /RESERVED/, "and the refusal must not claim one was");
+});
+
+test("adr new --arc accepts a real arc id: the pre-flight guard is a guard, not a wall", async () => {
+  const { allocator, seen } = fakeAllocator(405);
+  const store = new InMemoryStore();
+  const env = await run(
+    ["adr", "new", "--title", "A thing", "--arc", "decision-log-readers-arc", "--pg"],
+    { store, adr: allocator, writable: true },
+  );
+
+  assert.equal(env.ok, true, env.body);
+  assert.equal(seen.length, 1, "a valid arc id still reserves");
+  const row = (await store.getDoc("adr-0405"))?.doc as Record<string, unknown>;
+  assert.equal(row["arcRef"], "asset:decision-log-readers-arc", "and the stamp lands on the row");
 });

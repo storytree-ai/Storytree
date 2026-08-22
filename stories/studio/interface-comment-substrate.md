@@ -1,6 +1,6 @@
 # Cross-story interface: `comment-substrate`
 
-A declared cross-story interface per [ADR-0010 §4](../../docs/decisions/0010-organism-model-story-bounded-context.md)
+A declared cross-story interface per ADR-0010 §4
 (declared 2026-06-11, resolving `feedback-graduation` owner call #3). ADR-0010 leaves the schema
 term provisional (`boundary` / `port`) and names no canonical location, so this one-pager lives
 with the owning story; ratify shape and home when `packages/core` formalises the entity.

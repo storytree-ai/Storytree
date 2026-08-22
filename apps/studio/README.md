@@ -2,8 +2,7 @@
 
 The web surface for storytree: a forum-style interface over the project's record,
 plus the **story world** at `#/tree` — an SVG hex-island map of the work hierarchy
-([ADR-0036](../../docs/decisions/0036-story-world-studio-visualisation.md); the
-ADR-0001 PixiJS plan is superseded).
+(ADR-0036; the ADR-0001 PixiJS plan is superseded).
 
 Think of the whole thing as a **forum**: documents and Library artifacts are
 *topics*; comments are *posts*. It does three things:
@@ -138,21 +137,25 @@ required-section map lives in [`src/lib/templates.ts`](src/lib/templates.ts). Th
 `adr` category has a `template-adr` scaffold too (the canonical ADR section
 shape), and authoring an `adr` works exactly like the other categories.
 
-**`adr` is a first-class artifact category.** You author ADRs in the editor like
-any other artifact — start from the `template-adr` scaffold; they persist to
-the Library store and open in `AssetView`. The Library *also* folds in the canonical
-ADRs under `docs/decisions/` as read-only `adr` rows (opening in the same
-`DocView` — rendered markdown with comments + annotation), so the `adr` category
-spans both authored artifacts and the doc-backed decision records. The glossary /
-open-questions / adjudication / v1 registers stay in the sidebar's **Reference**
-section, not the Library.
+**`adr` is a first-class artifact category, and since ADR-0403 it is the ONLY kind there is.**
+You author ADRs in the editor like any other artifact — start from the `template-adr` scaffold;
+they persist to the Library store and open in `AssetView`. The `adr` category used to span two
+populations — artifacts authored here, plus the canonical decision records folded in read-only
+from `docs/decisions/*.md` — but that directory was deleted when all 403 decisions became rows,
+so there is one population now and no doc-backed half. ⚠ The studio's docs walker was not moved
+with them: its `Decisions` group is served by a walk of `docs/`, which can no longer produce a
+decision, so the shelf is EMPTY in the UI until that read is re-pointed at the store
+(`decision-log-readers-arc`, increment 1). The CLI is unaffected —
+`storytree library artifact adr-NNNN`. The open-questions / adjudication / v1 registers stay in
+the sidebar's **Reference** section, not the Library.
 
 The Library is the structured corpus in the live Postgres store — curated guidance synthesised from
 the ADRs (each `references` its source ADR), one `definition` per term, and a few v1 imports — plus
 the per-kind `template` scaffolds from `libraryTemplates()` (`@storytree/library`). The default
 studio reads it live; the offline sandbox backend derives its much smaller view from the committed
-fixture corpus (ADR-0210, ADR-0302 D1). The canonical ADRs under `docs/decisions/` additionally fold
-in read-only as `adr` cards at runtime (served live by the dev API).
+fixture corpus (ADR-0210, ADR-0302 D1). The decisions are in that same store as ordinary `adr` rows
+(ADR-0403) — there is no separate read-only fold from `docs/decisions/` any more, because the
+directory is gone.
 
 ### API (dev only)
 
@@ -166,12 +169,12 @@ in read-only as `adr` cards at runtime (served live by the dev API).
 ## Design choices (for owner review)
 
 - **`adr` is a first-class artifact category.** ADRs are authored in the editor
-  like any other artifact and persist to the Library store. The **existing** decision
-  records stay canonical markdown under `docs/decisions/` and fold into the same
-  `adr` category read-only (opening in `DocView`), so authored ADRs and the
-  doc-backed record browse together. The historical docs are *not* auto-migrated
-  into the Library store — they remain the source of truth for the originals, while
-  new decisions can be authored as `adr` artifacts. Durable guidance is still
+  like any other artifact and persist to the Library store. ⚠ **This entry recorded a
+  two-population design that ADR-0403 ended.** The plan here was that existing decision
+  records would stay canonical markdown under `docs/decisions/`, fold into the same `adr`
+  category read-only, and NOT be auto-migrated — the files remaining the source of truth for
+  the originals. They were migrated: all 403 became rows, the directory was deleted, and the
+  store is now the only source of truth for every decision. Durable guidance is still
   **synthesised out of** the ADRs into principles/patterns/guardrails, each citing
   its source ADR via `references`.
 - **Definitions are the term authority.** Each term is a `definition` artifact in the

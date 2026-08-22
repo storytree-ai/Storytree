@@ -31,7 +31,7 @@ That correction is useful for judging the art in motion, but it is a transformat
 Nano Banana obeyed the fixed-root prompt. The unmodified model output and an unaligned transparent
 sheet are retained beside it.
 
-Per [ADR-0264](../../decisions/0264-chapter-2-tree-growth-uses-one-deterministic-topology-rig-wi.md),
+Per ADR-0264,
 neither this sheet nor the [PixelLab sheet](../pixellab-tree-growth-spike-2026-07-30/tree-growth-spritesheet.png)
 may become Chapter 2's semantic state model. This spike is author-time art direction only. The most
 useful Nano Banana residue is branch timing, readable negative space, and separable canopy slots for a

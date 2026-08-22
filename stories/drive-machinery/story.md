@@ -528,15 +528,15 @@ Adopting the existing green is not available merely because the tests predate re
 These seven gates record the story's evidence floor, but ADR-0395 withdraws their former use as an
 Adopt route for this greenfield story. This audit runs none of them and manufactures no verdict.
 `healthy` stays non-authorable
-([ADR-0020](../../docs/decisions/0020-red-green-enforcement-on-the-owned-loop.md)) — the authored
+(ADR-0020) — the authored
 frontmatter `status:` stays `proposed`; the world's crown DERIVES green from valid signed verdicts
-([ADR-0040](../../docs/decisions/0040-verdict-derived-green-and-the-human-witness-signpost.md)) and only
+(ADR-0040) and only
 when every capability is `healthy` AND every own-proof obligation (these reliability gates) is signed
 AND every Story UAT leg above is green. That Story UAT is now FULLY machine-witnessed (ADR-0184): each
 leg derives green from its bound gate's valid signed verdict, NOT from a human "I saw it work"
 attestation or a provenance-invalid Adopt shortcut (the story node stays withheld until
 then, ADR-0040;
-[ADR-0082](../../docs/decisions/0082-per-test-uat-test-criteria-earn-green-by-declared-witness-story-uat.md) /
+ADR-0082 /
 ADR-0083 Fork A + ADR-0085 still govern how each machine UAT leg derives green). No single gate greens
 the story.
 

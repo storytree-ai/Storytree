@@ -7,12 +7,12 @@ protocol* (read / edit / curate / reference / staleness) and lists the decisions
 must make. Informs the Phase-2 migration of the corpus into the GCP Postgres store: each
 section calls out the **store operations** the schema must support.
 
-Builds on [ADR-0011](../decisions/0011-own-the-agent-loop-and-context-engineering.md)
+Builds on ADR-0011
 (own the agent loop; pull-based just-in-time context),
-[ADR-0013](../decisions/0013-structured-corpus-markdown-as-view.md) (structured corpus,
+ADR-0013 (structured corpus,
 markdown as a generated view),
-[ADR-0016](../decisions/0016-knowledge-code-binding-and-staleness.md) (binding + staleness),
-and [ADR-0017](../decisions/0017-cross-cutting-knowledge-tier.md) (the cross-cutting tier).
+ADR-0016 (binding + staleness),
+and ADR-0017 (the cross-cutting tier).
 It proposes mechanisms ADR-0017 **consciously deferred**: the citing / reciprocity mechanism
 and the comments layer.
 
@@ -23,7 +23,7 @@ knowledge-graph engineering (iText2KG, Graphiti, provenance semirings); framewor
 §6's Sources block.
 
 > **Decided since (2026-06-08):** the interaction *model* is settled in
-> [ADR-0023](../decisions/0023-library-cli-choose-your-own-adventure.md) — agents reach the Library
+> ADR-0023 — agents reach the Library
 > through an exploratory **choose-your-own-adventure CLI**, not a `pull` step. §1's pull/doctrine-floor
 > read model is **superseded** by that ADR (context is *explored* via tooling, surface #2; the boot
 > baseline is map-only). §2–§6 (edit/curation/references/staleness/DAG analysis) still stand as the
@@ -783,11 +783,11 @@ These are the calls this research surfaces but does not make. Recommend parking 
 
 ## References
 
-- [ADR-0011](../decisions/0011-own-the-agent-loop-and-context-engineering.md) (own the loop;
-  pull-based context), [ADR-0013](../decisions/0013-structured-corpus-markdown-as-view.md)
+- ADR-0011 (own the loop;
+  pull-based context), ADR-0013
   (structured corpus / markdown as view),
-  [ADR-0016](../decisions/0016-knowledge-code-binding-and-staleness.md) (binding + staleness),
-  [ADR-0017](../decisions/0017-cross-cutting-knowledge-tier.md) (the tier; defers citing/reciprocity
+  ADR-0016 (binding + staleness),
+  ADR-0017 (the tier; defers citing/reciprocity
   + comments).
 - [`pull-based-context-architecture`](../guidelines/pull-based-context-architecture.md).
 - Source shapes: [`knowledge.ts`](../../packages/core/src/knowledge.ts),

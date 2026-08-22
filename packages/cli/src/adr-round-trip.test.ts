@@ -247,3 +247,90 @@ test("adr-round-trip-push-accepts-a-document-whose-heading-matches: the guard is
   const row = (await store.getDoc("adr-0403"))?.doc as Record<string, unknown>;
   assert.match(String(row["body"]), /A new closing paragraph\./);
 });
+
+test("adr-round-trip-push-refuses-a-schema-skewed-row-instead-of-crashing", async () => {
+  // The `adr` schema is `.strict()`, so ANY key on the STORED row outside it makes the push's
+  // validation throw. Until this guard the throw went straight past the envelope to `main().catch`
+  // and the verb died printing a raw zod issue array.
+  //
+  // The vector is SCHEMA SKEW, a state this repo already names: the library tier is live-canonical
+  // (ADR-0023), so a `--pg` write can add a field BEFORE the schema that validates it reaches this
+  // checkout — and then every session on main-derived code is hard-refused on a decision it never
+  // touched. Measured precedent: ADR-0298's sweep wrote `proposals` onto four arcs ~1h40m before the
+  // schema half landed.
+  const { store, deps } = await seeded();
+  const row = (await store.getDoc("adr-0403"))?.doc as Record<string, unknown>;
+  await store.upsertDoc({
+    id: "adr-0403",
+    kind: "adr",
+    doc: { ...row, aFieldThisCheckoutDoesNotKnow: "written by a newer branch" },
+  });
+
+  const out = await tmpFile("adr-0403.md");
+  await adrPull("403", out, deps);
+  const edited = (await readFile(out, "utf8")).replace("## Status", "## Status\n\nedited\n");
+  await writeFile(out, edited, "utf8");
+
+  const env = await adrPush("403", out, deps);
+
+  assert.equal(env.ok, false, "a refusal, not a crash");
+  assert.match(env.body, /was NOT written/);
+  // Charged BY AUTHORSHIP: the key was already on the stored row, so it is not the caller's typo.
+  assert.match(env.body, /aFieldThisCheckoutDoesNotKnow/);
+  assert.match(env.body, /exactly as it was/, "the refusal says the decision survived");
+  // And it did survive — unwritten, with the pre-existing body.
+  const after = (await store.getDoc("adr-0403"))?.doc as Record<string, unknown>;
+  assert.equal(after["body"], row["body"], "nothing was written");
+});
+
+test("adr-round-trip-push-reports-title-description-and-number: the fields it rewrites are never silent", async () => {
+  // The silent-reversion path this closes: `library artifact edit adr-0403 --set title=…` sets the
+  // row's title, then ANY later body-only push re-derives `title` from the document's H1 and puts it
+  // back — and the change report named only `body`. A field the report omits is a field that can
+  // change without anyone being told.
+  const { store, deps } = await seeded();
+  const row = (await store.getDoc("adr-0403"))?.doc as Record<string, unknown>;
+  await store.upsertDoc({
+    id: "adr-0403",
+    kind: "adr",
+    // The state a `--set title=` edit leaves behind: title/description moved, body's H1 did not.
+    // `number` is skewed too, which is the `adr-number-identity` shape the push silently corrects.
+    doc: { ...row, title: "A hand-edited title", description: "ADR-0403 — A hand-edited title", number: 999 },
+  });
+
+  const out = await tmpFile("adr-0403.md");
+  await adrPull("403", out, deps);
+  const env = await adrPush("403", out, deps);
+
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /title: "A hand-edited title" -> "A decision under test"/);
+  assert.match(env.body, /description: .*A hand-edited title.* -> .*A decision under test/);
+  assert.match(env.body, /number: 999 -> 403/);
+});
+
+test("adr-round-trip-push-does-not-take-a-quoted-heading-as-the-title", async () => {
+  // Decisions cite decisions constantly, so a fenced block quoting another decision's `# ADR-NNNN:`
+  // heading is ordinary content — and the title regex is line-anchored, so a fenced line at column 0
+  // matched exactly like a real H1. The wrong title then lands on the row, reported only as
+  // `body: +N characters`.
+  const { store, deps } = await seeded();
+  const out = await tmpFile("adr-0403.md");
+  await adrPull("403", out, deps);
+
+  const quoted = [
+    "```",
+    "# ADR-0050: Allocate decision numbers atomically",
+    "```",
+    "",
+  ].join("\n");
+  const text = await readFile(out, "utf8");
+  await writeFile(out, text.replace("## Status", `${quoted}## Status`), "utf8");
+
+  const env = await adrPush("403", out, deps);
+  assert.equal(env.ok, true, env.body);
+  assert.doesNotMatch(env.body, /title:/, "the real H1 still wins, so no title change is reported");
+
+  const after = (await store.getDoc("adr-0403"))?.doc as Record<string, unknown>;
+  assert.equal(after["title"], "A decision under test", "the decision keeps its OWN name");
+  assert.notEqual(after["title"], "Allocate decision numbers atomically");
+});
