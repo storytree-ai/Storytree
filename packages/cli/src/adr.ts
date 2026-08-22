@@ -2,6 +2,7 @@ import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import { extractAdrTitle, loadTitledAdrMetas, type AdrMeta, type AdrStatus } from "@storytree/drive";
+import { adrPull, adrPush, type AdrRoundTripDeps } from "./adr-round-trip.js";
 import type { Envelope } from "./envelope.js";
 
 /**
@@ -39,9 +40,24 @@ export interface AdrCommandDeps {
   actor: string;
   /** Today as `YYYY-MM-DD` — the `decided:` date of an owner-directed scaffold (injected; ADR-0110). */
   today: string;
+  /**
+   * The store-backed half (ADR-0403 dec 9): what `adr pull` / `adr push` need. OPTIONAL, because
+   * every other subcommand here reads `docs/decisions` off disk and must keep working with no
+   * connection at all — `adr list` / `next` are on the session-start orientation path.
+   */
+  roundTrip?: AdrRoundTripDeps | undefined;
 }
 
 export interface AdrCommandOpts {
+  /**
+   * The decision NUMBER a round-trip subcommand names (`adr pull 403`) — the third positional,
+   * threaded through opts rather than added as a parameter so every existing caller is untouched.
+   */
+  number?: string | undefined;
+  /** `--out <path>`: where `adr pull` writes the document. REQUIRED there; there is no stdout form. */
+  out?: string | undefined;
+  /** `--file <path>`: the edited document `adr push` reads back. */
+  file?: string | undefined;
   title?: string | undefined;
   supersedes?: string | undefined;
   amends?: string | undefined;
@@ -598,6 +614,19 @@ export function adrHelp(): Envelope {
       '  storytree adr new --title "..." [--decided] [--supersedes 42] [--amends 42,43] [--arc <id>] --pg   reserve + scaffold',
       "  storytree adr next --pg                                                  reserve a number only",
       "",
+      "  storytree adr pull <n> --out <path>                the decision as an ordinary markdown document",
+      "  storytree adr push <n> --file <path> --pg          the edited document, written back",
+      "",
+      "`pull` / `push` are the round trip for the tier with the longest prose (ADR-0403 dec 9). Edit the",
+      "whole document with ordinary tools: the `## Status` prose and the `status` field are one text, so",
+      "they cannot drift apart inside a single edit. A no-op round trip is byte-identical.",
+      "  Both legs are CLI-owned writes — `--out` on the pull, `--file` on the push, never a `>` redirect,",
+      "  which captures pnpm's run banner as the document's first bytes (ADR-0361).",
+      "  A push is a REPLACE of the whole document, so two sessions pushing the SAME decision are",
+      "  last-write-wins with no detector. For a targeted change prefer the field-scoped",
+      "  `storytree library artifact adr-NNNN --set <field>=<value> --pg` (ADR-0352); reach for the round",
+      "  trip when you are genuinely rewriting the prose.",
+      "",
       "  --decided   the owner DIRECTED this in conversation → scaffold born `accepted` + `decided: <today>`",
       "              (design-time alignment IS ratification, no second end-of-flow ask; ADR-0110). Omit it",
       "              for the born-`proposed` default of a still-thinking ADR.",
@@ -638,6 +667,21 @@ export async function adrCommand(
   if (sub === "list") return adrList(opts, deps);
   if (sub === "new") return adrNew(opts, deps);
   if (sub === "next") return adrNext(deps);
+  // The round trip (ADR-0403 dec 9). Both legs need the STORE, which the file-reading subcommands
+  // above do not — so they are refused with the reason rather than crashing on an absent dep, which
+  // is what a partially-wired composition root would otherwise produce.
+  if (sub === "pull" || sub === "push") {
+    if (deps.roundTrip === undefined) {
+      return {
+        ok: false,
+        body: "adr pull/push need the live store, which this invocation was not given.",
+        next: ["pnpm db:up", "storytree adr list --current"],
+      };
+    }
+    return sub === "pull"
+      ? adrPull(opts.number, opts.out, deps.roundTrip)
+      : adrPush(opts.number, opts.file, deps.roundTrip);
+  }
   return {
     ok: false,
     body: `unknown adr command "${sub}". try: storytree adr list  |  storytree adr new --title "..." --pg`,

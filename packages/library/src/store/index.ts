@@ -29,6 +29,11 @@ export { applySchema, SCHEMA_SQL_PATH } from "./migrate.js";
 export { createTestPool, assertTestDatabase, TEST_DB_ENV } from "./test-db.js";
 export { PgLibraryStore } from "./pg-store.js";
 export { loadComments } from "./load-corpus.js";
+// ADR-0403 dec 1 (`decision-log-home-arc` inc 03): the one-shot decision load. A BACKFILL, not a
+// registered migration — a per-doc transform cannot create documents — and it runs while the files
+// still exist, so the readers named by the `-inc-02` census move one at a time against two sources.
+export { loadDecisions, decisionsDir, crossLinkedDecisionRefs } from "./load-decisions.js";
+export type { LoadDecisionsResult } from "./load-decisions.js";
 // The seed↔live reconcilers are GONE (ADR-0302 D4, ADR-0307 D3): `sync-agents`, `sync-corpus` and
 // `export-corpus` existed only to keep a committed mirror in step with the live store, and the
 // live store is now the only source of truth (ADR-0302 D1). Deleted, not left inert — a reconciler
