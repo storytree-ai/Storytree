@@ -58,15 +58,17 @@ function decisionRow(number: number, extra: Record<string, unknown> = {}): Recor
 /**
  * An ordinary artifact anchored to work, so the walk has somewhere to start from.
  *
- * ⚠ ITS POINTER AT THE DECISION IS SPELLED `doc:decisions/…`, DELIBERATELY, and swapping it to
- * `asset:adr-NNNN` will make these tests fail for a reason that has nothing to do with what they
- * assert. Measured 2026-08-23: an artifact whose `dependsOn` names a decision as `asset:adr-0419`
- * reaches ZERO decisions, where the same edge spelled `doc:decisions/0419-….md` reaches one — the
- * artifact-side loop tries `parseCiteRef` first, so the `asset:` form resolves to the ORDINARY
- * `adr-0419` artifact node, which is a different node from `decision:0419` and never enters the
- * decision half of the walk. That is a KNOWN, separately-owned defect
- * (`decision-read-measurement-arc-inc-08`), not this test's subject, and it is left to that
- * increment rather than worked around here.
+ * Its pointer at the decision is spelled `doc:decisions/…`. BOTH spellings work: an artifact whose
+ * `dependsOn` names a decision as `asset:adr-0419` reaches it too, since
+ * `decision-read-measurement-arc-inc-08` (commit 4a7e9345) taught the artifact half of the walk to
+ * try `parseDecisionPointer` before `parseCiteRef`.
+ *
+ * ⚠ THE HISTORY IS KEPT BECAUSE THE FAILURE MODE IS NOT: until that fix landed, the `asset:` form
+ * resolved to the ORDINARY `adr-0419` artifact node — a different node from `decision:0419` — so the
+ * edge hung off a node the decision half of the walk never reaches, and the depth silently did not
+ * move. If a future change to pointer PRECEDENCE ever reintroduces that, these tests keep passing on
+ * the `doc:` spelling alone, so the `asset:` half is covered by inc-08's own tests rather than
+ * inferred from a green here.
  */
 function anchorRow(dependsOn: readonly string[]): Record<string, unknown> {
   return {
