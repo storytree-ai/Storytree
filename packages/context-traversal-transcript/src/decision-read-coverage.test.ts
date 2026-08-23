@@ -195,6 +195,37 @@ test("the render states the refusal, so the denominator cannot be mistaken for a
   assert.match(rendered, /over the OBSERVABLE branches/);
 });
 
+test("the render names BOTH offer-to-follow routes, so the narrowing cannot be read as the whole picture", () => {
+  // `-inc-01`'s rule is CORRECT about the `followed_edge` route — the one `classifyOfferObservability`
+  // scopes — and read as the whole picture it is a 65x self-inflicted wound: `-inc-02` measured the
+  // READ-RECORD route over the same 3,351 decision offers and found 3,351 observable rather than 51,
+  // 156 follows rather than 2. A render that stated only the narrowing would steer the next
+  // measurement onto 1.5% of its own evidence, so the qualification is pinned here rather than left
+  // to survive on good intentions.
+  const coverage = summariseDecisionReadCoverage(
+    [offers("doc:decisions/0022-ci-green.md"), visit("adr-0022", LIVE_SURFACE)],
+    1,
+  );
+  const rendered = renderDecisionReadCoverage(coverage);
+  // The narrowing is QUALIFIED, not deleted: the ADR-0312 rule and its route are both still named.
+  assert.match(rendered, /over the OBSERVABLE branches/);
+  assert.match(rendered, /computed FROM `followed_edge`/);
+  // ...and the wider route is named beside it, with both figures and the working.
+  assert.match(rendered, /READ RECORD/);
+  assert.match(rendered, /51 of 3,351 observable \(1\.5%\), 2 followed \(3\.9%\)/);
+  assert.match(rendered, /3,351 of 3,351 \(100%\), 156 followed \(4\.7%\)/);
+  assert.match(rendered, /decision-read-baseline-2026-08-23\.md/);
+  // The two settled points the qualification must not disturb. The join clause is matched together
+  // with the sentence that CARRIES it, because `resolveDecisionId` is already named in the join
+  // verdict further up — matched alone it would be satisfied by text this test does not guard, which
+  // is the vacuous-green fault class this whole arc keeps finding.
+  assert.match(rendered, /NOT A WORKLIST ITEM/);
+  assert.match(
+    rendered,
+    /Neither route changes what the figure above IS.+resolve both sides through `resolveDecisionId`/,
+  );
+});
+
 test("a followed edge is attributed to a decision only when its ANSWERING visit read one", () => {
   const events = [
     offers("doc:decisions/0022-ci-green.md", "trunk"),
