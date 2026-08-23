@@ -18,13 +18,18 @@ import type { AssetCategory } from '../types';
  * from this map enforces nothing — its template still suggests a shape, but save is
  * not blocked.
  */
-const REQUIRED_SECTIONS: Partial<Record<AssetCategory, string[]>> = {
-  guardrail: ['Enforced by'],
-};
+// A `ReadonlyMap` rather than a `Partial<Record<AssetCategory, string[]>>`: this is a PARTIAL table
+// read by the FULL union, which is the one shape `as const satisfies` cannot express — it narrows
+// the readable keys to the ones present, so every other category stops compiling. The Map states the
+// same partiality without the widening annotation `anti-slop/no-known-value-widening` objects to,
+// and adds an immutability fence the object literal never had.
+const REQUIRED_SECTIONS: ReadonlyMap<AssetCategory, readonly string[]> = new Map([
+  ['guardrail', ['Enforced by']],
+]);
 
 /** The section headings the given category's body must contain before saving. */
 export function requiredSections(category: AssetCategory): string[] {
-  return REQUIRED_SECTIONS[category] ?? [];
+  return [...(REQUIRED_SECTIONS.get(category) ?? [])];
 }
 
 /** Which of `required` are absent from `body` (case-insensitive substring check). */

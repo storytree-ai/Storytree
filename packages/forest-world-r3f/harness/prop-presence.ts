@@ -86,7 +86,7 @@ export type PropTokenName = keyof typeof PROP_TOKENS;
  * nothing declares an empty list and says why, which is a decision on the record rather than an
  * omission.
  */
-export const DRESSING_MUST_DELIVER: Readonly<Record<DressingName, readonly PropTokenName[]>> = {
+export const DRESSING_MUST_DELIVER = {
   /** An enclosed plot: the containing wall and its coping, the paved ring, timber and pots, and
    *  the orchard quarters' trees.
    *  Delivered: stone 6270 · stoneLight 12765 · paving 12359 · wood 60 · woodLight 643 ·
@@ -115,7 +115,7 @@ export const DRESSING_MUST_DELIVER: Readonly<Record<DressingName, readonly PropT
    *  Delivered: stone 2529 · stoneLight 471 · stoneDark 122 · sand 17275 · water 445 · wood 75 ·
    *  woodLight 213 · canopyRust 14147. */
   wild: ['stone', 'stoneLight', 'stoneDark', 'sand', 'water', 'wood', 'woodLight', 'canopyRust'],
-};
+} as const satisfies Record<DressingName, readonly PropTokenName[]>;
 
 /**
  * The evidence page draws each dressing twice — once small in the choice row, once whole in its

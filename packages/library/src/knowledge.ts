@@ -1458,6 +1458,29 @@ export type Adr = z.infer<typeof Adr>;
  * inference, which would retire this type and give the other thirteen kinds the same check. That is
  * a schema-wide change and is deliberately not folded into a lint repair.
  */
+/**
+ * An `arc` document as a CONSTRUCTOR must write it — the schema's INPUT shape plus the two
+ * KIND_SPECS body fields `z.input` erases. See {@link AdrDraft} for WHY they are erased and why
+ * these are interfaces; the mechanism is identical and the general fix retires all three.
+ */
+export interface ArcDraft extends z.input<typeof Arc> {
+  /** Why this arc exists — required by `KIND_SPECS.arc`, invisible to `z.input`. */
+  intent: string;
+  /** What "done" looks like — required by `KIND_SPECS.arc`, invisible to `z.input`. */
+  endState: string;
+}
+
+/**
+ * An `increment` document as a CONSTRUCTOR must write it — the schema's INPUT shape plus the two
+ * KIND_SPECS body fields `z.input` erases. See {@link AdrDraft} for the mechanism.
+ */
+export interface IncrementDraft extends z.input<typeof Increment> {
+  /** What this increment is for — required by `KIND_SPECS.increment`, invisible to `z.input`. */
+  objective: string;
+  /** The increment's own prose — required by `KIND_SPECS.increment`, invisible to `z.input`. */
+  body: string;
+}
+
 export interface AdrDraft extends z.input<typeof Adr> {
   /** The decision document itself — required by `KIND_SPECS.adr`, invisible to `z.input`. */
   body: string;

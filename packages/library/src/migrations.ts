@@ -86,6 +86,13 @@ export const MIGRATIONS: readonly Migration[] = [
         ? assetRefsOf(rest["context"])
         : assetRefsOf(requiredReading);
       if (context.length === 0) context = assetRefsOf(rest["references"]);
+      // ⚠ GENUINE RESIDUE for `anti-slop/no-known-value-widening`, and it stays annotated. This is a
+      // MIGRATION output over a legacy row: `rest` is whatever keys that row carried, so there is no
+      // narrower type to name — and dropping the annotation is not "keeping inference" either: the
+      // compiler narrows the spread to `{ context: string[] }` and the two conditional backfills
+      // below stop compiling. Both of the rule's remedies fail here for the reason the panel
+      // rejected `no-unsafe-dictionary-type`: a parse/migration boundary genuinely has no narrower
+      // type. Measured, not assumed — the drop was applied and the compiler refused it.
       const out: Record<string, unknown> = { ...rest, context };
       const rulesRefs = assetRefsOf(rules);
       if (rulesRefs.length > 0) out["rules"] = rulesRefs;
@@ -190,6 +197,7 @@ export const MIGRATIONS: readonly Migration[] = [
         // re-key has to happen here or all 55 of them hard-refuse at their next write. Note the
         // migration-4 above still tests `kind === "plan"`: version 4 runs BEFORE this one on any doc
         // pinned below 4, so it sees the pre-rename key by construction. Leave it alone.
+        // ⚠ GENUINE RESIDUE, same class as the migration-5 output above — see the note there.
         const out: Record<string, unknown> = { ...doc, kind: "increment" };
 
         // The two CONDITIONAL fields D5/D6 introduce have to be BACKFILLED, not merely declared, or
