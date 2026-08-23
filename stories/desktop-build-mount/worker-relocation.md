@@ -4,29 +4,31 @@ tier: capability
 story: desktop-build-mount
 title: "The worker relocation — the build worker machinery moves into @storytree/drive/build-worker, importing nothing from apps/*, the studio importers re-pointed and green"
 outcome: "The build worker machinery (`BuildRegistry`, the `runBuildJob`/`routedBuildRunner`/runner family, the `BuildContext` type) lives in a new `@storytree/drive/build-worker` subpath, importing nothing from `apps/*`; the studio importers (`apiRouter.ts`, `devApi.ts`, the server suites) re-point at the package and stay green. (The relocation also carried `dispatchAcceptedBuild` + its `DispatchResult` type; ADR-0404 d.5 DELETED both — caller-less since ADR-0175 removed `spawn-builder.ts` — so the subpath no longer holds them. The engine it moved is untouched.)"
-status: proposed
+status: retired
 proof_mode: integration-test
 depends_on: []
-# Node-borne proof config (ADR-0057 keystone): authoring THIS block is what makes the capability
-# inner-loop buildable — no NODE_BUILD_REGISTRY edit. THE MODELING CALL (see §"Proof posture" below): a
-# pure cut-and-paste relocation is REFACTOR-PARITY, not an isolatable red→green — so the net-new,
-# spine-observable assertion is the PACKAGE-BOUNDARY CONTRACT. NET-NEW (no editsExisting): the leaf authors
-# a NEW node:test (build-worker-relocation.test.ts) in packages/drive/src that imports the worker trio
-# (BuildRegistry, runBuildJob, routedBuildRunner, the BuildContext type) from a NOT-YET-EXISTING module
-# "./build-worker.js" — RED at HEAD because that module does not exist (module-not-found, the right-kind
-# red) — then writes packages/drive/src/build-worker.ts (moving the machinery in from apps/studio/server)
-# + adds the "./build-worker" subpath to packages/drive/package.json exports (GREEN). The test asserts (a)
-# the trio is exported and behaves (the REAL relocated registry mints a run and runBuildJob drives a
-# scripted runner to a terminal passed), and (b) build-worker.ts imports NOTHING from apps/* (the ADR-0100 wall — a structural source read,
-# mirroring the modelPathBoundary precedent). RUNNER: @storytree/drive is node:test (node --import tsx
-# --test "src/**/*.test.ts") — the SAME runner proposal-id-threading.test.ts uses in this package; the new
-# test is a node:test file. A SINGLE LITERAL test file (no `*`), so the default node:test proof on the one
-# test file is legal — no proofCommand needed for the test scope; BUT the SOURCE scope is broad (the
-# relocation moves several files + re-points the studio importers), so the real arm declares a suite
-# proofCommand running BOTH the drive suite AND the studio server suite, so the spine observes the parity
-# (the studio importers stay green) as well as the new home. `install: true` + a typecheck wall because the
-# relocated module is imported across the drive package AND the studio re-point crosses the server tree
-# (the proof runs in a fresh worktree — tsx + tsc need the lockfile-only install, ADR-0031 §2).
+# RETIRED by ADR-0422 (2026-08-23). The relocation this capability performed was real and it landed;
+# what retires is the SUBJECT, not the work. ADR-0404 withdrew every UI surface that dispatched a
+# build, and the machinery the relocation moved was then measured to have ZERO production consumers —
+# BuildRegistry / runBuildJob / routedBuildRunner / adoptRunnerFromAdoptStory were reached by nothing
+# but their own definitions and their own tests, and the CLI's `build <id>` classifier is an
+# independent implementation, never a caller. ADR-0422 D1 deleted them, together with
+# packages/drive/src/build-worker.ts, the "./build-worker" subpath in packages/drive/package.json, and
+# the four test files that were their only readers. The two type shapes that DID have a reader
+# (BuildEnvelope / BuildRunner, plus BuildRuntime) re-homed into
+# apps/desktop/src/backend/credentialed-build-runner.ts beside it.
+#
+# The `real:` arm is dropped with the code: it bound packages/drive/src/build-worker.ts and
+# packages/drive/src/build-worker-relocation.test.ts, both now deleted, so this capability is no
+# longer REAL-buildable and nothing implements it. Dropping the arm is REQUIRED, not tidiness —
+# `sweepRealBuildCoverage` filters on `real === undefined` and never on status, so a retired
+# capability that kept its arm would still breach `contract-binding-drift` at a ceiling of zero.
+# RETIRE is the only sanctioned drain once the code is gone for good (ADR-0252 D3).
+#
+# This retirement takes the STORY with it: `routed-node-real-dispatch` retires in the same landing on
+# the same grounds, and they were desktop-build-mount's last two live capabilities. Body kept as
+# history — the ADR-0100 wall the relocation proved (a package importing nothing from apps/*) remains
+# a live property of packages/drive, held now by check:boundaries rather than by this test.
 proof:
   command:
     file: pnpm
@@ -34,32 +36,6 @@ proof:
   scope:
     testGlobs: ["packages/drive/src/**/*.test.ts"]
     sourceGlobs: ["packages/drive/src/**/*.ts"]
-  real:
-    testFile: "packages/drive/src/build-worker-relocation.test.ts"
-    sourceFile: "packages/drive/src/build-worker.ts"
-    scope:
-      # The net-new test is one literal file; the OWNED source is the relocated drive module itself.
-      # The re-pointed studio importers (apiRouter.ts / devApi.ts / chat-build-dispatch's old home) were
-      # named here only while the relocation was IN FLIGHT, to fence the studio re-point as part of this
-      # capability's write scope — that relocation landed (7ac4d84b) and the importers are the studio's
-      # own files, not this capability's. The parity is still observed by the suite proofCommand below
-      # (it runs the studio server suite too); it does not need a spent write-scope glob to do so, and
-      # leaving those two files declared here was producing false ADR-0115 drift edges (arc, notice-board,
-      # uat-criterion-detail) on desktop-build-mount, which consumes none of them —
-      # spent-write-fence-globs-fake-three-drift-edges.
-      testGlobs: ["packages/drive/src/build-worker-relocation.test.ts"]
-      sourceGlobs: ["packages/drive/src/build-worker.ts"]
-    install: true
-    # A broad (multi-file, cross-package) relocation REQUIRES a suite proofCommand — the default node:test
-    # on the single test file cannot observe the studio importers' parity (the re-point must stay green).
-    # Run the drive suite (the new home + the relocated worker's behaviour) AND the studio server suite (the
-    # re-pointed importers + the 5 existing worker suites) — both green is the relocation's honest verdict.
-    proofCommand:
-      file: pnpm
-      args: ["-r", "--filter", "@storytree/drive", "--filter", "studio", "test"]
-    typecheck:
-      file: pnpm
-      args: ["-r", "--filter", "@storytree/drive", "--filter", "studio", "typecheck"]
 ---
 
 # The worker relocation — the build worker machinery moves into @storytree/drive/build-worker
