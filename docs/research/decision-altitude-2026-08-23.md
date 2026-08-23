@@ -399,9 +399,10 @@ and walk chains straight through the boundaries. Sorting the log by altitude wou
 editorial expense buying a partition the reading behaviour does not respect. Whatever the remedy is,
 this is not it.
 
-**And it is the second partition to fail, which is the more useful shape of the result.** `-inc-04`,
-run in parallel with this increment, found the support graph is **one giant component** — 310 of 416
-decisions, carrying 85% of observed walks — so there are no separable topic clusters to slice either.
+**And it is the second partition to fail, which is the more useful shape of the result.** `-inc-04`
+(`decision-composition-control-set-2026-08-23.md`), run in parallel with this increment, found the
+support graph is **one giant component** — 310 of 416 decisions, carrying 85% of observed walks — so
+there are no separable topic clusters to slice either.
 Two independent attempts to find a seam in this log, on two unrelated axes, both came back empty.
 Neither increment set out to say that jointly, and it is worth more than either alone: the composable
 unit is looking like the **chain frontier** rather than any grouping of whole documents.
