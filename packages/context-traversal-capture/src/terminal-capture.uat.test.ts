@@ -34,6 +34,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test, before, after } from "node:test";
 
+import { nodeExecutable } from "./node-executable.test-helpers.js";
+
 import { isContextVisitEvent } from "@storytree/context-traversal-telemetry";
 import type { ContextTraversalEvent, ContextVisitEvent } from "@storytree/context-traversal-telemetry";
 
@@ -61,7 +63,7 @@ function runCli(args: readonly string[], env: NodeJS.ProcessEnv, cwd?: string): 
   // the unresolved-identity leg depends on.
   const options: SpawnSyncOptionsWithStringEncoding = { encoding: "utf8", env };
   if (cwd !== undefined) options.cwd = cwd;
-  const res = spawnSync(process.execPath, [LAUNCHER, ...args], options);
+  const res = spawnSync(nodeExecutable(), [LAUNCHER, ...args], options);
   return { status: res.status, stdout: res.stdout ?? "", stderr: res.stderr ?? "" };
 }
 
@@ -84,7 +86,7 @@ let doorUrl: string | undefined;
 const DOOR = fileURLToPath(new URL("../../cli/fixture-door.mjs", import.meta.url));
 
 before(async () => {
-  doorProc = spawn(process.execPath, [DOOR], { stdio: ["ignore", "pipe", "pipe"] });
+  doorProc = spawn(nodeExecutable(), [DOOR], { stdio: ["ignore", "pipe", "pipe"] });
   const port = await new Promise<string>((resolve, reject) => {
     let buf = "";
     const timer = setTimeout(() => reject(new Error(`fixture door did not start: ${buf}`)), 30_000);

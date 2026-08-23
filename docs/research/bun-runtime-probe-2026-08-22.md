@@ -360,7 +360,7 @@ lines pass `-e`?), so read it as a map rather than a ledger:
 |---|---|---|---|
 | `packages/cli` | 21 | 3 | Class 2 blocked — latent |
 | `packages/orchestrator` | 8 | 28 | Class 2 blocked — latent |
-| `packages/context-traversal-capture` | 4 | 0 | Class 2 blocked — latent |
+| `packages/context-traversal-capture` | 0 (4 sites now NAME node) | 0 | **fixed, inc-10** |
 | `packages/agent` | 0 | 3 + 1 stand-in | **fixed, inc-06** |
 | `packages/context-traversal-transcript` | 0 (1 site now NAMES node) | 0 | **fixed, inc-06** |
 | `apps/studio` | 1 | 1 | vitest — outside this arc |
@@ -371,9 +371,16 @@ and that is what was fixed. One of `orchestrator`'s eight (`shell-test-executor.
 agnostic in substance — it re-splits a `-e` command string the classifier cannot see through — so
 treat 8 as an upper bound.
 
-**`packages/context-traversal-capture` is the one to look at first when Class 2 lifts**: its four
+~~**`packages/context-traversal-capture` is the one to look at first when Class 2 lifts**: its four
 sites are the same `LAUNCHER` / spawned-door shape as `transcript`'s, so it will go SILENT rather
-than red in exactly the way `transcript` did, and its two `*.uat.test.ts` files are story UAT legs.
+than red in exactly the way `transcript` did, and its two `*.uat.test.ts` files are story UAT legs.~~
+**DONE, inc-10 (2026-08-23) — and the warning was exactly right.** All four sites (two `LAUNCHER`
+`spawnSync`es, two fixture-`DOOR` `spawn`s, across `terminal-capture.uat.test.ts` and
+`offer-set-render-agreement.test.ts`) now call a shared `nodeExecutable()` helper that names node and
+THROWS rather than falling back to the runner. The fix was landed BEFORE the conversion, and it is
+live rather than decorative: with a bogus `npm_node_execpath`, the bun arm goes **0 pass / 13 fail,
+exit 1**, while the node arm short-circuits to `process.execPath` and stays **13/13** — so the
+committed gate path is byte-identical and the bun path provably spawns the named binary.
 
 ## What this means for the arc
 
@@ -400,7 +407,17 @@ cleanly separated from the expensive set.**
   are derived from a timing table that does not reproduce: `cli`'s node arm is recorded below at
   347 s and measures **113 s** today on a package that has since *grown*. Same-day, both runtimes:
   `capture` 73 s → 26 s, `drive` 99 s → 26 s, **`cli` 113 s → ~110 s (a wash)**, `orchestrator`
-  29 s → 57 s (*worse*). **The conclusion that the reason is not speed SURVIVES** — but the owner's
+  29 s → 57 s (*worse*).
+  ⚠ **inc-10: DO NOT QUOTE THE `capture` AND `drive` BUN FIGURES EITHER — both measured a suite that
+  was not doing the work.** `capture`'s 26 s was measured while its four `LAUNCHER`/`DOOR` sites still
+  spawned `bun packages/cli/launch.mjs`; once inc-10 made them spawn NODE, the same suite measures
+  **~76 s against a ~78 s node arm — a wash**. `drive`'s 26 s was measured while 8 of its `--real`
+  build legs FAILED EARLY and skipped their expensive spawns; with all 778 green the arms overlap
+  completely (node 208 / 235 s, bun 121 / 244 s across interleaved reps). This is the same shape
+  inc-06 recorded for `transcript` — *a runtime "win" that is really a suite doing less work* — and it
+  is the third time this arc has been caught by it. **Wall clock on this box is not measurable at any
+  rep count this work can afford** (ADR-0401's own header says the same), so treat every per-package
+  timing here as indicative only. **The conclusion that the reason is not speed SURVIVES** — but the owner's
   standing direction (2026-08-23) is that the migration continues anyway, on the forward-looking
   ground that a tsx-free test path scales better as the system grows. That is the reason to record,
   not any of these percentages.
@@ -444,15 +461,34 @@ but a prerequisite for increment 2, not an afterthought.
    count in all four. What remains is a fixed list of 38 failures — `capture` **0**, `drive` 8,
    `cli` 12, `orchestrator` 18 — of which 25 of the 26 in `drive`+`orchestrator` are the single
    `process.execPath`/`PACKAGE_MANAGERS` bug in our own code. The work is parked as inc-10:
-   - `context-traversal-capture` — zero failures, convertible first. ⚠ **Fix its four `LAUNCHER`
-     sites BEFORE converting**, or the two `*.uat.test.ts` story legs go SILENT rather than red,
-     exactly as `context-traversal-transcript` did (see the inc-06 correction in Class 1).
-   - `drive` — 8 failures, all `--real` build legs, all the one bug. The biggest real speed win
-     (node 99 s → bun 26 s).
-   - `cli` — 12 failures, same bug. **Not a speed play: node 113 s vs bun ~110 s is a wash.** It
-     buys `tsx` removal from the largest package and nothing else.
+   - `context-traversal-capture` — **CONVERTED, inc-10.** Its four `LAUNCHER`/`DOOR` sites were
+     fixed FIRST, which is what kept the two story UAT legs honest; `tsx` dropped from its manifest.
+   - `drive` — **CONVERTED, inc-10.** All 8 failures were the one bug and all 8 went with it
+     (778/778). ⚠ `tsx` is **KEPT** here: `pnpm --filter @storytree/drive exec node --import tsx …`
+     runs with drive as cwd in four of its own entrypoints AND in two committed story UAT legs
+     (`stories/agent/story.md`, `stories/ci-cd/story.md`), which is the real rule
+     ("nothing runs tsx with this package as cwd"), not "no other script in this manifest uses tsx".
+     ~~The biggest real speed win (node 99 s → bun 26 s).~~ **That figure is withdrawn — see the
+     timing correction above; with all 778 green the two arms overlap.**
+   - `cli` — 12 failures, same bug. **Not a speed play: node 113 s vs bun ~110 s is a wash.**
+     ~~It buys `tsx` removal from the largest package and nothing else.~~ **inc-10 corrects the
+     BENEFIT, not the verdict: `cli` cannot drop the `tsx` DEPENDENCY.** Its own `storytree`
+     (`tsx src/main.ts`) and `db` (`tsx src/db-cli.ts`) scripts run tsx with cli as cwd, and
+     `packages/cli/launch.mjs` + `fixture-door.mjs` both `await import("tsx/esm/api")` resolved from
+     cli's own `node_modules` — `launch.mjs` being the production CLI entry that every other
+     package's UAT spawns. What conversion *would* still buy is the arc's actual goal: the largest
+     TEST path off `tsx` (the same thing `drive`'s conversion buys, since `drive` keeps the
+     dependency too). The cost is the part that makes it its own increment — its 12 failures are all
+     the `LAUNCHER` class, spread over ~7 test files that spawn `.mjs` entrypoints under node, so
+     each one goes SILENT rather than red if converted before it is fixed; and
+     `check-mirror-conformance.ts:570` spawns `node --import tsx` with an app dir as cwd and would
+     become `bun`. **DEFERRED by inc-10** to its own increment on that basis — not on wall clock.
    - `orchestrator` — **stays on Node**, now on two real reasons: Bun makes it slower (29 s → 57 s)
-     and it owns the assert-oracle, which cannot run under Bun.
+     and it owns the assert-oracle, which cannot run under Bun. inc-10 confirms: after the root fix
+     its residual is exactly ONE test, `ENV HONESTY: the spawned observer never inherits NODE_TEST*`,
+     whose PRECONDITION asserts the suite itself runs under `node --test`. That precondition is
+     unestablishable under Bun, so the leg could only be greened by making it vacuous — which is why
+     it is left failing-under-bun and the package stays on Node.
 
 ## Bun and our two native N-API addons, on Windows (added by inc-07, 2026-08-23)
 

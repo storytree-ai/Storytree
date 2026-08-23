@@ -128,7 +128,9 @@ module.exports = { label };
 `;
 
 export function codexMultifileRuntimeSeamSpec(): NodeSpec {
-  const proofCommand = { file: process.execPath, args: ["--test", MULTIFILE_TEST_REL] };
+  // NODE, named — `--test` is node's own test runner, so this must not inherit whatever runtime
+  // runs the suite that builds this spec (see `PACKAGE_MANAGERS` in orchestrator's `proof-route.ts`).
+  const proofCommand = { file: "node", args: ["--test", MULTIFILE_TEST_REL] };
   const scope = {
     testGlobs: [MULTIFILE_TEST_REL],
     sourceGlobs: [MULTIFILE_SUM_REL, MULTIFILE_FORMAT_REL],

@@ -1157,7 +1157,10 @@ test("B — realProofCommand defaults to node --import tsx --test when no proofC
   assert.ok(real !== undefined);
   const ws = path.join(os.tmpdir(), "ws-default");
   const { command, display } = realProofCommand(real, ws);
-  assert.equal(command.file, process.execPath);
+  // A LITERAL, deliberately not the production `NODE_BINARY`: an expectation derived from its own
+  // subject cannot fail. This is stricter than the old `process.execPath` check, which accepted
+  // whatever runtime happened to run the suite — including `bun.exe`.
+  assert.equal(command.file, "node");
   assert.ok(command.args.includes("--import") && command.args.includes("--test"));
   assert.equal(command.args[command.args.length - 1], path.join(ws, real.testFile));
   assert.equal(command.cwd, ws);
@@ -1301,7 +1304,9 @@ async function ownFileProofSpec(
   const real = {
     ...bc.real,
     testFile: "unit.test.cjs",
-    proofCommand: { file: process.execPath, args: ["--test", "unit.test.cjs"] },
+    // NODE, named (literal): `--test` is node's own runner and this leg asserts the command reaches
+    // the oracle-ACCOUNTED node branch — see `NODE_BINARY` in `proof/proof-route.ts`.
+    proofCommand: { file: "node", args: ["--test", "unit.test.cjs"] },
   };
   return { ws, spec: { ...base, id: "own-file-proof", buildConfig: { ...bc, real } } };
 }
@@ -1425,7 +1430,10 @@ test("an unaccounted route stamps the CLASSIFIER's own sentence on its green, no
     assert.ok(bc?.real !== undefined);
     const real = {
       ...bc.real,
-      proofCommand: { file: process.execPath, args: ["-e", "process.exit(0)"] },
+      // NODE, named (literal): this leg pins the disclosure for a NODE command the classifier cannot
+      // read. `process.execPath` is `bun.exe` under `bun test`, which takes the package-manager
+      // branch instead and stamps a different sentence — see `NODE_BINARY` in `proof/proof-route.ts`.
+      proofCommand: { file: "node", args: ["-e", "process.exit(0)"] },
     };
     const resolved = resolveProveSpec(
       { ...base, id: "unaccounted-note", buildConfig: { ...bc, real } },
@@ -1789,7 +1797,8 @@ function refactorForTestsSpec(fix: { testFile: string; sourceFile: string }, id:
         scope,
         refactorForTests: true,
         // The whole-suite oracle (cwd forced to the worktree): node --test runs ALL *.test.mjs.
-        proofCommand: { file: process.execPath, args: ["--test"] },
+        // NODE, named (literal) — see `NODE_BINARY` in `proof/proof-route.ts`.
+        proofCommand: { file: "node", args: ["--test"] },
       },
     },
   };
