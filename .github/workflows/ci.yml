@@ -171,6 +171,18 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # The anti-slop ratchet (anti-slop-adoption-arc inc-07 / inc-17). Every vendored rule is
+      # either `error` at zero violations or `off` with a written reason (oxlint.config.ts,
+      # docs/typescript-standard.md) — but until this step, that zero was enforced ONLY by the
+      # local `pnpm gate`, on the honour of each session running one before landing. Measured
+      # 2026-08-24: `origin/main` went exit 1 on `pnpm lint` within hours of the rung's own PR,
+      # twice, and a later PR had to spend a separate commit clearing debt it did not create —
+      # because CI, the thing that actually gates the merge, never ran it. Same command as the
+      # gate's first step (`gate-order.ts`), unconditional and un-narrowed like every rung above:
+      # the ratchet needs the whole repo checked every time, not just this PR's affected slice.
+      - name: Lint (the anti-slop ratchet)
+        run: pnpm lint
+
       # Organism boundary (ADR-0074): the real cross-organism code-dependency graph must be a
       # subgraph of the declared cross-story `depends_on` graph (substrate/ports excepted). Refuses
       # an undeclared cross-story coupling or a dependency cycle — so coupling can't be added without

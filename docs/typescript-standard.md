@@ -228,6 +228,12 @@ run on the JS-plugin path, which is Node and not the Rust fast path. It is the c
 gate by an order of magnitude, and it deliberately does not narrow to the affected scope: a ratchet
 has to look at everything.
 
+**`ci.yml` runs it too, unconditionally (inc-17, 2026-08-24).** The local gate rung above enforces
+the zero only on the honour of each session running one before landing — and `origin/main` went
+exit 1 on `pnpm lint` twice within hours of the rung's own PR, because nothing on the merge path
+ever ran it. CI now runs the same `pnpm lint` command as its own step, unnarrowed like every other
+gate rung it mirrors, so a fresh violation can no longer merge on a green `verify` alone.
+
 ---
 
 ## Changing this standard
