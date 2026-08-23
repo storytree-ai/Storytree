@@ -310,6 +310,7 @@
       "packages/library/src/adr-doc.ts": "library",
       "packages/library/src/decision-amends-seam.ts": "library",
       "packages/library/src/composed-statement.ts": "library",
+      "packages/library/src/decision-sources.ts": "library",
       "packages/library/src/search.ts": "library",
       "packages/library/src/combined-dag.ts": "library",
       "packages/library/src/lifecycle.ts": "library-lifecycle-wire",

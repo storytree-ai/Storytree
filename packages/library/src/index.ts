@@ -90,6 +90,12 @@ export * from "./decision-amends-seam.js";
 // lies (the legislation.gov.uk "Changes to Legislation" precedent). What is STORED is the basis; the
 // marker is DERIVED from it, so it cannot go stale the way a stored flag would. Pure, browser-safe.
 export * from "./composed-statement.js";
+// ADR-0424: the GROUNDED CLAIM — the code spans a decision's claims rest on, plus the content hash
+// each carried at the green flip, so a decision whose supporting code moved becomes discoverable
+// without a human remembering to look. The shape EXTENDS ADR-0016's published `Anchor` rather than
+// restating it, so a bound entry is structurally an anchor and the drift compute needs no adapter.
+// Pure, browser-safe — hashing a span needs a checkout and therefore happens nowhere near here.
+export * from "./decision-sources.js";
 // ADR-0427 (2026-08-23) RETIRED the two `amends` annotation modules that were exported here — the
 // presence judge (`amends-annotation.js`, ADR-0419 D4) and the drain worklist that consumed it
 // (`amends-drain.js`, ADR-0419 D3). The judge asked only whether a target's body mentioned its

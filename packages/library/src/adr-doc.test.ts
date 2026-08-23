@@ -7,6 +7,7 @@ import {
   parseDecisionPointer,
 } from "./decision-pointer.js";
 import {
+  adrDocumentFieldsOf,
   extractAdrTitle,
   parseAdrDocument,
   renderAdrDocument,
@@ -326,4 +327,48 @@ test("adr-doc-refuses-a-malformed-depends-on: a bad entry fails loudly, never de
     () => parseAdrDocument(419, CANONICAL.replace("amends: [139, 223]", "depends_on:")),
     /`depends_on` must be a list of strings/,
   );
+});
+
+test("adr-doc-refuses-sources-in-frontmatter: a content hash is not hand-editable (ADR-0424 D6)", () => {
+  // ADR-0424 D6 keeps the grounded-claim anchors OFF the document. A hash inside a file a human
+  // hand-edits is not evidence of anything — it is editable to whatever value makes the drift flag
+  // go away, which is the *halted is never a pass* shape wearing a different hat.
+  //
+  // The refusal is the enforcement. `FRONTMATTER_ORDER` is also the known-key set, so a `sources:`
+  // key in a pulled document fails loudly here rather than being silently dropped on the way into a
+  // row — the same posture that retired `supersedes_in_part` gets, and for the same reason: a key
+  // quietly discarded erases the very fact somebody was trying to record.
+  assert.throws(
+    () => parseAdrDocument(424, CANONICAL.replace("amends: [139, 223]", 'sources: ["packages/cli/src/adr.ts"]')),
+    /unknown frontmatter key `sources`/,
+  );
+});
+
+test("adr-doc-never-emits-sources: the row's anchors stay off the document it renders", () => {
+  // The other direction of the same rule. `AdrDocumentFields` carries no `sources`, so a row that
+  // has been grounded renders EXACTLY the document an ungrounded one does — which is what lets
+  // `adrPush`'s `{...row, <named fields>}` spread carry the anchors across a round trip untouched
+  // (ADR-0424 D7). If this ever emitted the key, the very next push would parse it back and a
+  // corrected document would become evidence that somebody re-checked the code. It is not.
+  const fields = parseAdrDocument(424, CANONICAL);
+  const rendered = renderAdrDocument(fields);
+  assert.doesNotMatch(rendered, /sources/);
+  assert.equal(Object.hasOwn(fields, "sources"), false);
+});
+
+test("adr-doc-renders-a-grounded-row-identically: anchors change no byte of the document", () => {
+  // The row -> document direction, which is the one `adr pull` runs. A decision that HAS been
+  // grounded must pull as exactly the document an ungrounded one pulls, or the anchors would
+  // round-trip through a file and become hand-editable after all.
+  const base = {
+    number: 424,
+    title: "Grounded claims",
+    body: "# ADR-0424: Grounded claims\n\n## Decision\n\nBind at the flip.\n",
+    status: "accepted",
+  };
+  const ungrounded = renderAdrDocument(adrDocumentFieldsOf(base));
+  const grounded = renderAdrDocument(
+    adrDocumentFieldsOf({ ...base, sources: [{ claim: "D7", file: "packages/cli/src/adr.ts", boundHash: "a1b2" }] }),
+  );
+  assert.equal(grounded, ungrounded);
 });

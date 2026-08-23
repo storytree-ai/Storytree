@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { ComposedStatements } from "./composed-statement.js";
+import { DecisionSources } from "./decision-sources.js";
 import { Markdown } from "./schema.js";
 
 /**
@@ -1438,6 +1439,31 @@ export const Adr = buildKindSchema("adr").extend({
    * able to clear or rewrite the statement. `adr-round-trip.test.ts` pins that.
    */
   composed: ComposedStatements.optional(),
+  /**
+   * ADR-0424's GROUNDED CLAIMS — the code spans this decision's claims rest on, and the content hash
+   * each carried when the decision was accepted. See `decision-sources.ts` for the whole design;
+   * what matters here is the storage shape and why it is the one chosen.
+   *
+   * OPTIONAL, never `.default([])` (ADR-0223's optional-not-defaulted rule): absent means nobody has
+   * ever grounded this decision, `[]` means somebody looked and it grounds nothing, and a reader
+   * counting its own coverage needs those to stay different facts. `hasSourcesKey` is the shared
+   * reader for that question — never a length test.
+   *
+   * NOT A DECISION-DOCUMENT FRONTMATTER KEY, and the asymmetry is deliberate — ADR-0424 D6. A
+   * decision body is one raw prose field with a byte-identical round trip (ADR-0403 dec 9), and a
+   * content hash inside a document a human hand-edits is not evidence of anything: it would be
+   * editable to whatever value makes the drift flag go away. So `FRONTMATTER_ORDER` in `adr-doc.ts`
+   * does not carry it, `renderAdrDocument` does not emit it, and `adrPush`'s `{...row, <named
+   * fields>}` spread is what carries it across a round trip untouched. That spread reads like an
+   * oversight and is load-bearing (ADR-0424 D7): a corrected decision document is not evidence that
+   * anyone re-checked the CODE, so a push must not be able to launder drift into freshness.
+   * `adr-round-trip.test.ts` pins it.
+   *
+   * The same shape and the same reasoning as `composed` above, one field up — both are DERIVED
+   * metadata about a record rather than part of what the record decided, and both are therefore
+   * written by their own verb and ride the row.
+   */
+  sources: DecisionSources.optional(),
 });
 
 /** A knowledge unit at any kind. The discriminator is `kind` (ADR-0017). */
