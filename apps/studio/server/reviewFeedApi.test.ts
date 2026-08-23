@@ -13,7 +13,8 @@
 
 import { describe, it, expect } from 'vitest';
 import { Readable } from 'node:stream';
-import type { IncomingMessage, ServerResponse } from 'node:http';
+import { IncomingMessage, ServerResponse } from 'node:http';
+import { Socket } from 'node:net';
 import { handleReviewFeed } from './reviewFeedApi.js';
 import type { ReviewFeedCommentStore, ReviewFeedSuggestionStore } from './reviewFeedApi.js';
 
@@ -64,9 +65,17 @@ interface FeedSuggestion {
 // Minimal HTTP mock helpers — no node:http server, no leaked handles.
 // ---------------------------------------------------------------------------
 
+// REAL `IncomingMessage` / `ServerResponse` objects, not literals asserted into them (anti-slop
+// `no-chained-type-assertions`, inc-09). `IncomingMessage` takes a socket and is a `Readable`, so
+// the handler's own `req.on('data'/'end')` body read runs against the real class; the response is a
+// real `ServerResponse` with `end`/`write` shadowed to capture, so `statusCode` and `setHeader`
+// behave exactly as they do in production instead of being re-implemented here.
+
 function makeGetRequest(): IncomingMessage {
-  const r = Readable.from([]);
-  return Object.assign(r, { method: 'GET' }) as unknown as IncomingMessage;
+  const req = new IncomingMessage(new Socket());
+  req.method = 'GET';
+  req.push(null);
+  return req;
 }
 
 interface MockResponse {
@@ -76,21 +85,17 @@ interface MockResponse {
 
 function makeResponse(): MockResponse {
   const captured = { status: 200, body: '' };
-  const res = {
-    get statusCode(): number {
-      return captured.status;
+  const res = new ServerResponse(new IncomingMessage(new Socket()));
+  Object.assign(res, {
+    end(data?: unknown): ServerResponse {
+      captured.status = res.statusCode;
+      captured.body = typeof data === 'string' ? data : String(data ?? '');
+      return res;
     },
-    set statusCode(v: number) {
-      captured.status = v;
-    },
-    setHeader(_n: string, _v: string): void {},
-    end(data: string): void {
-      captured.body = data;
-    },
-    write(_data: unknown): boolean {
+    write(): boolean {
       return true;
     },
-  } as unknown as ServerResponse;
+  });
   return { res, captured };
 }
 
@@ -103,25 +108,25 @@ function parseBody(captured: { body: string }): Record<string, unknown> {
 // ---------------------------------------------------------------------------
 
 function makeCommentStore(comments: FeedComment[]): ReviewFeedCommentStore {
+  // The seam's own return is `Promise<unknown[]>`, so the double satisfies it directly — no
+  // assertion, and no `as never` on the rows either.
   return {
-    async listComments(filter: { topicId?: string }) {
-      if (filter.topicId !== undefined) {
-        return comments.filter((c) => c.topicId === filter.topicId) as never;
-      }
-      return comments as never;
+    async listComments(filter: { topicId?: string }): Promise<unknown[]> {
+      return filter.topicId === undefined
+        ? comments
+        : comments.filter((c) => c.topicId === filter.topicId);
     },
-  } as unknown as ReviewFeedCommentStore;
+  };
 }
 
 function makeSuggestionStore(suggestions: FeedSuggestion[]): ReviewFeedSuggestionStore {
   return {
-    async list(filter: { topicId?: string }) {
-      if (filter.topicId !== undefined) {
-        return suggestions.filter((s) => s.topicId === filter.topicId) as never;
-      }
-      return suggestions as never;
+    async list(filter: { topicId?: string }): Promise<unknown[]> {
+      return filter.topicId === undefined
+        ? suggestions
+        : suggestions.filter((s) => s.topicId === filter.topicId);
     },
-  } as unknown as ReviewFeedSuggestionStore;
+  };
 }
 
 // ---------------------------------------------------------------------------

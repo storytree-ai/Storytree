@@ -221,7 +221,7 @@ test("end-to-end: a story with no UAT section resolves to no witnesses (backward
 // re-exports the composed facade.
 
 test("UAT leg 7: the package root exports resolveStoryWitnesses as a callable function", () => {
-  const facade = ModelUatPackageRoot as unknown as Record<string, unknown>;
+  const facade: Record<string, unknown> = { ...ModelUatPackageRoot };
   assert.equal(
     typeof facade.resolveStoryWitnesses,
     "function",
@@ -230,10 +230,10 @@ test("UAT leg 7: the package root exports resolveStoryWitnesses as a callable fu
 });
 
 test("UAT leg 7: resolveStoryWitnesses from the package root resolves a full journey identically to the internal facade", () => {
-  const facade = ModelUatPackageRoot as unknown as {
+  const facade: {
     resolveStoryWitnesses?: (storyId: string, body: string, registry: ModelRegistry) => WitnessResolution[];
     SEED_MODEL_REGISTRY?: ModelRegistry;
-  };
+  } = { ...ModelUatPackageRoot };
   assert.equal(typeof facade.resolveStoryWitnesses, "function", "resolveStoryWitnesses must be exported from the package root");
   assert.equal(typeof facade.SEED_MODEL_REGISTRY, "object", "SEED_MODEL_REGISTRY must be exported from the package root");
 

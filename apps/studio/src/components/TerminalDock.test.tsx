@@ -389,7 +389,7 @@ const bridgeMock = vi.hoisted(() => {
 //    the constructor available to the component under test and records the callback + observed
 //    elements so a test can simulate a container-size-change (a window/layout resize with no drag
 //    and no tab switch) deterministically, with no real layout engine involved. ───────────────────
-class FakeResizeObserver {
+class FakeResizeObserver implements ResizeObserver {
   static instances: FakeResizeObserver[] = [];
   observed: Element[] = [];
   disconnected = false;
@@ -409,7 +409,7 @@ class FakeResizeObserver {
   }
   /** test-only: simulate the observer firing for its observed container. */
   fire(): void {
-    this.callback([] as unknown as ResizeObserverEntry[], this as unknown as ResizeObserver);
+    this.callback([], this);
   }
 }
 
@@ -508,8 +508,7 @@ beforeEach(() => {
   bridgeMock.clear.mockClear();
   bridgeMock.openLink.mockClear();
   window.desktopTerminal = bridgeMock;
-  (globalThis as unknown as { ResizeObserver: typeof ResizeObserver }).ResizeObserver =
-    FakeResizeObserver as unknown as typeof ResizeObserver;
+  globalThis.ResizeObserver = FakeResizeObserver;
 });
 
 afterEach(() => {
@@ -1166,22 +1165,11 @@ describe('TerminalDock', () => {
     const handler = term.customKeyEventHandler;
     expect(typeof handler).toBe('function');
 
-    const ctrlC = {
-      type: 'keydown',
-      ctrlKey: true,
-      shiftKey: false,
-      altKey: false,
-      metaKey: false,
-      key: 'c',
-    } as unknown as KeyboardEvent;
-    const ctrlV = {
-      type: 'keydown',
-      ctrlKey: true,
-      shiftKey: false,
-      altKey: false,
-      metaKey: false,
-      key: 'v',
-    } as unknown as KeyboardEvent;
+    // REAL events, not literals asserted into `KeyboardEvent`: jsdom constructs them, so the
+    // handler reads the fields it would read in a browser rather than the six this file remembered
+    // to write (anti-slop `no-chained-type-assertions`, inc-09).
+    const ctrlC = new KeyboardEvent('keydown', { ctrlKey: true, key: 'c' });
+    const ctrlV = new KeyboardEvent('keydown', { ctrlKey: true, key: 'v' });
 
     // (a) Ctrl+C WITH a selection copies it to the clipboard and suppresses the interrupt — no
     // '\x03' reaches the bridge.
@@ -1205,16 +1193,9 @@ describe('TerminalDock', () => {
     expect(term.pasted).toEqual(['pasted text']);
 
     // (d) a non-keydown event, and an unrelated key, are both left untouched.
-    const ctrlCKeyUp = { ...ctrlC, type: 'keyup' } as unknown as KeyboardEvent;
+    const ctrlCKeyUp = new KeyboardEvent('keyup', { ctrlKey: true, key: 'c' });
     expect(handler!(ctrlCKeyUp)).toBe(true);
-    const plainA = {
-      type: 'keydown',
-      ctrlKey: false,
-      shiftKey: false,
-      altKey: false,
-      metaKey: false,
-      key: 'a',
-    } as unknown as KeyboardEvent;
+    const plainA = new KeyboardEvent('keydown', { key: 'a' });
     expect(handler!(plainA)).toBe(true);
 
     // (e) an absent navigator.clipboard never throws, and leaves xterm's default handling intact.
@@ -1509,8 +1490,10 @@ describe('TerminalDock', () => {
     expect(term2!.addons).toContain(webLinksMock.FakeWebLinksAddon.instances[1]);
 
     // The handler routes the clicked URI over the bridge, suppressing the default (window.open).
-    const preventDefault = vi.fn();
-    const clickEvent = { preventDefault } as unknown as MouseEvent;
+    // A REAL MouseEvent with its own `preventDefault` spied on, rather than an object claiming to
+    // be one: the handler's suppression is then observed on the event it was actually given.
+    const clickEvent = new MouseEvent('click', { cancelable: true });
+    const preventDefault = vi.spyOn(clickEvent, 'preventDefault');
     expect(links1.handler).toBeDefined();
     links1.handler!(clickEvent, 'https://github.com/HuaMick/storytree/pull/772');
     expect(bridgeMock.openLink).toHaveBeenCalledWith('https://github.com/HuaMick/storytree/pull/772');

@@ -83,7 +83,7 @@ function leg(n: number, witness: UatTestCriterionWitness, over: Partial<UatTestC
  * `recordingStore()` checked nothing at all.
  */
 interface RecordingStore extends NonNullable<AdoptDeps["store"]> {
-  appended: { doc: { signer: string; approvedBy?: string; proofMode: string } }[];
+  appended: { doc: { unitId: string; signer: string; approvedBy?: string; proofMode: string } }[];
 }
 function recordingStore(): RecordingStore {
   const appended: RecordingStore["appended"] = [];
@@ -252,7 +252,7 @@ test("adopt: a red observe gate is not signed, ok:false, but the story still ent
 
 /** Read the appended verdicts' unit ids (the recording store keeps the full event at runtime). */
 function appendedUnitIds(store: RecordingStore): string[] {
-  return store.appended.map((e) => (e.doc as unknown as { unitId: string }).unitId);
+  return store.appended.map((e) => e.doc.unitId);
 }
 
 test("ADR-0106: adopt observe-signs a machine leg, leaves human + either legs for the operator", async () => {
@@ -406,7 +406,7 @@ test("ADR-0408: one adopt run — the observe GATE carries approvedBy, the machi
   assert.equal(store.appended.length, 2);
 
   const byId = new Map(
-    store.appended.map((e) => [(e.doc as unknown as { unitId: string }).unitId, e.doc] as const),
+    store.appended.map((e) => [e.doc.unitId, e.doc] as const),
   );
   const gateVerdict = byId.get("library#gate-1");
   const legVerdict = byId.get(leg(1, "machine").criterionId);

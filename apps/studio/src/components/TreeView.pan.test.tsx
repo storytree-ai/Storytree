@@ -215,6 +215,9 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+// The story rows carry the WHOLE `TreeStory` (anti-slop `no-chained-type-assertions`, inc-09): the
+// `as unknown as HexWorld` chain hid five missing fields — `outcome`, `proofMode`, `uatWitness`,
+// `dependsOn`, `consumedBy` — so the chrome under test was reading a world no server would send.
 function chromeProbeWorld(): HexWorld {
   return {
     width: 200,
@@ -225,10 +228,21 @@ function chromeProbeWorld(): HexWorld {
     trails: { segments: [], edges: [], caves: [], dropped: [] },
     territories: [
       {
-        story: { id: 'studio', title: 'Studio', status: 'healthy', capabilities: [] },
+        story: {
+          id: 'studio',
+          title: 'Studio',
+          outcome: '',
+          status: 'healthy',
+          proofMode: 'red-green',
+          uatWitness: 'human',
+          dependsOn: [],
+          consumedBy: [],
+          capabilities: [],
+        },
         tiles: [],
         centroid: { x: 50, y: 50 },
         radius: 30,
+        groundRadius: 30,
         treeSpot: { x: 50, y: 45 },
         caps: [],
         decor: [],
@@ -240,7 +254,7 @@ function chromeProbeWorld(): HexWorld {
         buildingGlyph: false,
       },
     ],
-  } as unknown as HexWorld;
+  } satisfies Partial<HexWorld> as HexWorld;
 }
 
 function CameraChromeProbe({

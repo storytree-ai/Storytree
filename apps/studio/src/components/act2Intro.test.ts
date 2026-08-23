@@ -136,7 +136,16 @@ function hostileStorage(): Storage {
   const boom = (): never => {
     throw new Error('storage blocked');
   };
-  return { getItem: boom, setItem: boom, removeItem: boom, clear: boom, key: boom, length: 0 } as unknown as Storage;
+  // One assertion, not a chain: `satisfies Partial<Storage>` checks every member's signature
+  // against the real interface first (anti-slop `no-chained-type-assertions`, inc-09).
+  return {
+    getItem: boom,
+    setItem: boom,
+    removeItem: boom,
+    clear: boom,
+    key: boom,
+    length: 0,
+  } satisfies Partial<Storage> as Storage;
 }
 
 describe('the first-arrival session flag', () => {

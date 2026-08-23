@@ -47,18 +47,30 @@ const usersDb: UserDoc[] = [
   userRow({ email: MEMBER, role: 'member' }),
 ];
 
-const comment = (id: string, topicId: string): Comment =>
-  ({
-    id,
-    topicKind: 'asset',
-    topicId,
-    anchor: { kind: 'block', blockId: 'b-why', headingSlug: null, headingText: null, color: null },
-    body: 'needs clarification',
-    author: MEMBER,
-    createdAt: '2026-07-03T00:00:00.000Z',
-    resolved: false,
-    resolvedAt: null,
-  }) as unknown as Comment;
+const comment = (id: string, topicId: string): Comment => ({
+  id,
+  topicKind: 'asset',
+  topicId,
+  // The WHOLE `CommentAnchor`: the assertion chain was hiding four missing fields — `quote`,
+  // `prefix`, `suffix`, `startOffset` — so this integration test was posting an anchor the real
+  // store would never hold (anti-slop `no-chained-type-assertions`, inc-09).
+  anchor: {
+    kind: 'block',
+    blockId: 'b-why',
+    headingSlug: null,
+    headingText: null,
+    color: null,
+    quote: null,
+    prefix: null,
+    suffix: null,
+    startOffset: null,
+  },
+  body: 'needs clarification',
+  author: MEMBER,
+  createdAt: '2026-07-03T00:00:00.000Z',
+  resolved: false,
+  resolvedAt: null,
+});
 
 const suggestion = (id: string, topicId: string): Suggestion => ({
   id,

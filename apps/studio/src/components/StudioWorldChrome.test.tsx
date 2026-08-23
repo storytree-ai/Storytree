@@ -18,6 +18,9 @@ import { StudioWorldChrome, type HexWorld } from './TreeView';
 
 afterEach(cleanup);
 
+// The story rows carry the WHOLE `TreeStory` (anti-slop `no-chained-type-assertions`, inc-09): the
+// `as unknown as HexWorld` chain hid five missing fields — `outcome`, `proofMode`, `uatWitness`,
+// `dependsOn`, `consumedBy` — so the chrome under test was reading a world no server would send.
 /** A minimal world with two territories (one carrying stamps). */
 function mkWorld(): HexWorld {
   const base = {
@@ -29,10 +32,21 @@ function mkWorld(): HexWorld {
     trails: { segments: [], edges: [], caves: [], dropped: [] },
     territories: [
       {
-        story: { id: 'studio', title: 'Studio', status: 'healthy', capabilities: [] },
+        story: {
+          id: 'studio',
+          title: 'Studio',
+          outcome: '',
+          status: 'healthy',
+          proofMode: 'red-green',
+          uatWitness: 'human',
+          dependsOn: [],
+          consumedBy: [],
+          capabilities: [],
+        },
         tiles: [],
         centroid: { x: 50, y: 50 },
         radius: 30,
+        groundRadius: 30,
         treeSpot: { x: 50, y: 45 },
         caps: [],
         decor: [],
@@ -48,10 +62,21 @@ function mkWorld(): HexWorld {
         buildingGlyph: false,
       },
       {
-        story: { id: 'cli', title: 'Cli', status: 'healthy', capabilities: [] },
+        story: {
+          id: 'cli',
+          title: 'Cli',
+          outcome: '',
+          status: 'healthy',
+          proofMode: 'red-green',
+          uatWitness: 'human',
+          dependsOn: [],
+          consumedBy: [],
+          capabilities: [],
+        },
         tiles: [],
         centroid: { x: 150, y: 50 },
         radius: 30,
+        groundRadius: 30,
         treeSpot: { x: 150, y: 45 },
         caps: [],
         decor: [],
@@ -63,7 +88,7 @@ function mkWorld(): HexWorld {
         buildingGlyph: false,
       },
     ],
-  } as unknown as HexWorld;
+  } satisfies Partial<HexWorld> as HexWorld;
   return base;
 }
 

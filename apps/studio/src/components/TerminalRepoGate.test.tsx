@@ -195,10 +195,11 @@ describe('TerminalRepoGate', () => {
   it('trg-offers-repo-control-in-gate: renders the injected repoControl as the select affordance inside the gated chrome', async () => {
     bridgeMock.ready.mockResolvedValue(null);
     const repoControl = <button data-testid="repo-control-marker">Choose a repository</button>;
-    // Cast to `TerminalRepoGateProps` itself (the interface gains `repoControl` in the IMPLEMENT
-    // phase) so this compiles ahead of that — the runtime object still carries the extra key,
-    // which is what this test pins: the CURRENT implementation ignores it.
-    const props = { repoControl } as unknown as TerminalRepoGateProps;
+    // The interface gains `repoControl` in the IMPLEMENT phase; until then the runtime object
+    // carries the extra key and the CURRENT implementation ignoring it is what this test pins.
+    // Widened at the binding, narrowed in ONE step (anti-slop `no-chained-type-assertions`).
+    const extraProps: Record<string, unknown> = { repoControl };
+    const props = extraProps as TerminalRepoGateProps;
     const { container } = render(<TerminalRepoGate {...props} renderDock={renderDock} />);
 
     await flush();
@@ -215,7 +216,8 @@ describe('TerminalRepoGate', () => {
   it('trg-places-repo-control-in-header-when-ready: forwards the same repoControl into TerminalDock as headerRight once ready', async () => {
     bridgeMock.ready.mockResolvedValue('/Users/dev/repos/storytree');
     const repoControl = <button data-testid="repo-control-marker">Choose a repository</button>;
-    const props = { repoControl } as unknown as TerminalRepoGateProps;
+    const extraProps: Record<string, unknown> = { repoControl };
+    const props = extraProps as TerminalRepoGateProps;
     render(<TerminalRepoGate {...props} renderDock={renderDock} />);
 
     await flush();
