@@ -398,16 +398,18 @@ function fakeAllocator(number: number): FakeAllocatorResult {
  * halves read the store now (ADR-0403 dec 1): `adr new` writes the decision as a row and `adr list`
  * reads rows, so the suite asserts what each does with no store wired rather than always wiring it.
  */
-const depsFor = (
-  allocator: AdrAllocatorLike | null,
-  store?: InMemoryStore,
-): AdrCommandDeps => ({
-  allocator,
-  branch: "claude/test",
-  actor: "tester",
-  today: "2026-06-26",
-  ...(store === undefined ? {} : { roundTrip: { store, writable: true, actor: "tester" } }),
-});
+const depsFor = (allocator: AdrAllocatorLike | null, store?: InMemoryStore): AdrCommandDeps => {
+  // ANNOTATED local, then one guarded assignment — the shape
+  // `anti-slop/no-conditional-empty-object-spread` requires.
+  const deps: AdrCommandDeps = {
+    allocator,
+    branch: "claude/test",
+    actor: "tester",
+    today: "2026-06-26",
+  };
+  if (store !== undefined) deps.roundTrip = { store, writable: true, actor: "tester" };
+  return deps;
+};
 
 /** One decision ROW, as the store carries it since ADR-0403 dec 1. */
 async function seedDecision(

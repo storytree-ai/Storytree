@@ -93,7 +93,7 @@ export interface AdrCommandOpts {
 // `question new` derive their ids with the same function `adr new` derives a filename slug with, and
 // they no longer share a building. Re-exported here so every existing `./adr.js` importer is
 // unchanged.
-import { adrDocId, ASSET_REF_PREFIX, kebabSlug } from "@storytree/library";
+import { adrDocId, ASSET_REF_PREFIX, kebabSlug, type AdrDraft } from "@storytree/library";
 export { kebabSlug };
 
 /*
@@ -668,7 +668,12 @@ async function scaffoldRow(
     const fields = parseAdrDocument(n, scaffolded);
     const id = adrDocId(n);
     const now = new Date().toISOString();
-    const doc = upcastAndValidate({
+    // ANNOTATED local, then one guarded assignment per optional — the shape
+    // `anti-slop/no-conditional-empty-object-spread` requires. The annotation is doing real work
+    // beyond satisfying the rule: `upcastAndValidate` takes `unknown`, so no excess-property check
+    // has ever run on this literal. Naming the type restores one at the construction site, which is
+    // the only place a typo in a key could be caught before zod turns it into a runtime refusal.
+    const draft: AdrDraft = {
       kind: "adr",
       id,
       title: fields.title === "" ? id : fields.title,
@@ -682,15 +687,17 @@ async function scaffoldRow(
       references: [],
       createdAt: fields.decided === undefined ? now : `${fields.decided}T00:00:00.000Z`,
       updatedAt: now,
-      ...(fields.decided === undefined ? {} : { decided: fields.decided }),
-      ...(fields.arc === undefined ? {} : { arcRef: `asset:${fields.arc}` }),
-      // ADR-0419 D1's plain support edge. This row is built FIELD BY FIELD rather than spread from
-      // the parsed document, so a field not named here is a field the scaffold silently drops — the
-      // command reports `ok: true` and the edge exists nowhere. Absent stays absent (the scaffold
-      // emits no key without `--depends-on`), which is what keeps "carries no authored edge"
-      // distinct from "authored, and rests on nothing" (ADR-0223).
-      ...(fields.dependsOn === undefined ? {} : { dependsOn: [...fields.dependsOn] }),
-    });
+    };
+    if (fields.decided !== undefined) draft.decided = fields.decided;
+    if (fields.arc !== undefined) draft.arcRef = `asset:${fields.arc}`;
+    // ADR-0419 D1's plain support edge. This row is built FIELD BY FIELD rather than spread from
+    // the parsed document, so a field not named here is a field the scaffold silently drops — the
+    // command reports `ok: true` and the edge exists nowhere. Absent stays absent (the scaffold
+    // emits no key without `--depends-on`), which is what keeps "carries no authored edge"
+    // distinct from "authored, and rests on nothing" (ADR-0223) — and the guarded assignment
+    // preserves that distinction exactly as the conditional spread did.
+    if (fields.dependsOn !== undefined) draft.dependsOn = [...fields.dependsOn];
+    const doc = upcastAndValidate(draft);
     // REFUSE rather than upsert over an occupied id. `newArtifact` (the generic verb) has always
     // done this; `adr new` used to get it from `existsSync(file)`, and that guard went with the
     // files. Without it the write is an UPSERT onto a number the allocator believes is free — and
