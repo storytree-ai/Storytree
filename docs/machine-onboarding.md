@@ -58,10 +58,39 @@ git --version                      # install via your package manager if absent
 node --version                     # must satisfy engines: ">=24"
 corepack enable pnpm               # Node 24 ships corepack; no global pnpm install
 gh --version                       # the GitHub CLI — you cannot land work without it
+bun --version                      # the TEST RUNTIME for 21 packages — see the warning below
 ```
 
 `packageManager` in the root `package.json` pins **pnpm@9.15.0**; corepack activates exactly that,
 so do not install pnpm globally and do not pick a version yourself.
+
+> ### ⚠ Bun is a test RUNTIME here. **Never run `bun install`.**
+>
+> pnpm installs everything and owns `pnpm-lock.yaml`; Bun's only job is running tests — 21 packages'
+> `test` scripts are literally `bun test`. `bun-runtime-migration-arc` ruled the package-manager axis
+> out of scope deliberately, so reaching for `bun install` because "Bun is required" makes things
+> worse rather than better.
+>
+> **`pnpm install` cannot supply Bun**, which is the whole reason it is listed here beside `git` and
+> `gh` rather than left to the workspace. It is a *machine* dependency (ADR-0433 D1): onboarding owns
+> it being installed **and resolvable on `PATH`** — both halves.
+>
+> **The half that actually bites is `PATH`.** Measured on the owner's Windows box on 2026-08-24: Bun
+> had been installed for four days, was not on `PATH`, and the gate reported **seven packages**
+> `test: Failed` — a message naming neither Bun nor `PATH`. The same gap now reads as *19 packages
+> failing*, so it looks more catastrophic the more of the stack migrates, and it is never a real red.
+> If you see a broad, unexplained band of test failures, check `bun --version` before you debug
+> anything else.
+>
+> Install from [bun.sh](https://bun.sh); CI pins **1.4.0** (`oven-sh/setup-bun@v2` in
+> `.github/workflows/ci.yml`). `pnpm storytree doctor --dev` has a `bun` probe — ask it rather than
+> guessing.
+
+**`[UNVERIFIED]`** On Linux, Bun's own installer (`curl -fsSL https://bun.sh/install | bash`) drops
+the binary at `~/.bun/bin` and appends that directory to your shell profile — which means it is on
+`PATH` in *new* shells and not in the one you are standing in. Expect to re-source the profile or
+open a new shell before `bun --version` answers. This whole paragraph was written from a Windows box
+and is a prediction; report what actually happened.
 
 **`[UNVERIFIED]`** On Debian/Ubuntu/Mint, `git` comes from apt, but the distro `nodejs` package is
 usually far below the Node 24 floor — expect to need NodeSource or `nvm`. The GitHub CLI likewise
@@ -280,11 +309,12 @@ pnpm storytree doctor --dev      # the machine-level verdict
 ```
 
 **Pass `--dev`; a bare `doctor` is not the dev verdict.** The dev-persona probes — application-default
-credentials, database reachability, the secrets file, GitHub auth, write-authority, worktree identity
-— are an **opt-in group**, because an explorer legitimately has none of them. Bare, `doctor` runs the
-eleven explorer probes and prints `DEV_SCOPE_NOT_RUN`: a green that names what it did not check, not a
-stopping condition. Three of the six can only ever WARN by decision (`db-reachable`, `write-authority`,
-`worktree-identity`), so green-with-those-warning is the expected shape rather than a defect.
+credentials, database reachability, the secrets file, GitHub auth, **Bun**, write-authority, worktree
+identity — are an **opt-in group**, because an explorer legitimately has none of them. Bare, `doctor`
+runs the eleven explorer probes and prints `DEV_SCOPE_NOT_RUN`: a green that names what it did not
+check, not a stopping condition. Three of the seven can only ever WARN by decision (`db-reachable`,
+`write-authority`, `worktree-identity`), so green-with-those-warning is the expected shape rather than
+a defect.
 
 A green doctor is still one signal and not a provisioned box. Run the rest of this list regardless.
 
@@ -366,6 +396,7 @@ falsified. Report which, with what you actually saw.
 | ~~6~~ | ~~`storytree doctor` still reports healthy on an unprovisioned machine~~ — **ANSWERED**: the dev probes landed, and a bare sweep now says `DEV_SCOPE_NOT_RUN` instead of an unqualified green. | [§6](#6-prove-it) |
 | 7 | A fresh Linux clone produces no CRLF churn | [§7](#7-gotchas) |
 | 8 | `pnpm gate` passes on Linux, hooks and `check:*` rungs included | [§7](#7-gotchas) |
+| 9 | Bun's Linux installer puts it on `PATH` only for NEW shells, so `bun --version` fails in the one you are in | [§1](#1-bootstrap-the-machine) |
 
 **One claim that is NOT tagged, because it was measured rather than guessed:** the database grant is
 per-identity ([§3](#3-the-secrets-file)). Signing in as the same Google account is sufficient. If

@@ -58,6 +58,8 @@ const DEV_HEALTHY: DevObservations = {
     keysMissing: [],
   },
   ghAuth: "authenticated",
+  bun: "present",
+  bunVersion: "1.4.0",
   writeAuthority: "installed",
   worktreeIdentity: "linked",
 };
@@ -86,14 +88,18 @@ const probeNamed = (obs: DevObservations, name: string) =>
 
 test("GREEN: a fully provisioned dev machine passes every dev probe, with no fix hints", () => {
   const probes = devProbes(DEV_HEALTHY);
-  assert.ok(probes.length >= 6, "the group is six probes");
+  assert.ok(probes.length >= 7, "the group is seven probes");
   for (const p of probes) {
     assert.equal(p.level, "PASS", `${p.name} should pass on a healthy dev machine`);
     assert.equal(p.fixHint, undefined, `${p.name} must carry no fix hint while it passes`);
   }
 });
 
-test("the group covers exactly the six invariants the explorer set says nothing about", () => {
+test("the group covers exactly the seven invariants the explorer set says nothing about", () => {
+  // ORDER IS ASSERTED, not just membership, because these read as a report and a reader scans them
+  // top to bottom. `bun` sits after `gh-auth` and before the two advisory probes: it is the last of
+  // the four hard invariants — the things whose absence stops the machine doing work — and the two
+  // below it are WARNs about isolation and about where you are standing.
   assert.deepEqual(
     devProbes(DEV_HEALTHY).map((p) => p.name),
     [
@@ -101,6 +107,7 @@ test("the group covers exactly the six invariants the explorer set says nothing 
       "db-reachable",
       "secrets-file",
       "gh-auth",
+      "bun",
       "write-authority",
       "worktree-identity",
     ],
@@ -114,7 +121,7 @@ test("the group covers exactly the six invariants the explorer set says nothing 
 /**
  * One row per dev probe: the observation to break, the level that break must reach, and a pattern
  * the resulting detail must match. `expected` is deliberately per-probe rather than uniformly FAIL —
- * three of these six can never FAIL for stated reasons (doctor's offline invariant, a guardrail
+ * three of these seven can never FAIL for stated reasons (doctor's offline invariant, a guardrail
  * whose absence costs isolation rather than capability, and a probe about where you are standing) —
  * and encoding that here is what stops a later edit quietly promoting or demoting one.
  */
@@ -159,6 +166,13 @@ const MUTATIONS: ReadonlyArray<{
     broken: { ghAuth: "unauthenticated" },
     expected: "FAIL",
     detail: /not authenticated/,
+  },
+  {
+    probe: "bun",
+    why: "21 packages run their tests through it, so without it the gate cannot be trusted",
+    broken: { bun: "absent", bunVersion: null },
+    expected: "FAIL",
+    detail: /not resolvable on PATH/,
   },
   {
     probe: "write-authority",
@@ -342,11 +356,13 @@ test("every non-PASS dev probe points at a REAL guide anchor (no drift, no dead 
       keysMissing: ["CLAUDE_CODE_OAUTH_TOKEN", "STORYTREE_DB_USER"],
     },
     ghAuth: "absent",
+    bun: "absent",
+    bunVersion: null,
     writeAuthority: "absent",
     worktreeIdentity: "no-identity",
   };
   const probes = devProbes(broken);
-  assert.equal(probes.filter((p) => p.level === "PASS").length, 0, "the fixture must break all six");
+  assert.equal(probes.filter((p) => p.level === "PASS").length, 0, "the fixture must break all seven");
   for (const p of probes) {
     const hint = p.fixHint ?? "";
     const m = new RegExp(`${MACHINE_GUIDE.replace(/[.]/g, "\\.")}(#[a-z0-9-]+)`).exec(hint);
@@ -364,6 +380,8 @@ test("only the two probes an installer step genuinely repairs carry a fixStep", 
     gcloudAdc: "absent",
     dbReachable: "unreachable",
     ghAuth: "absent",
+    bun: "absent",
+    bunVersion: null,
     writeAuthority: "absent",
     worktreeIdentity: "primary-checkout",
   });
@@ -541,7 +559,7 @@ test("scope: a bare sweep is byte-for-byte the explorer set — the dev group is
 test("scope: supplying dev observations IS asking for the group — no second flag to drift", () => {
   const dev = runDoctor(EXPLORER_HEALTHY, DEV_HEALTHY);
   assert.equal(dev.scope, "dev");
-  assert.equal(dev.probes.length, runDoctor(EXPLORER_HEALTHY).probes.length + 6);
+  assert.equal(dev.probes.length, runDoctor(EXPLORER_HEALTHY).probes.length + 7);
   assert.equal(dev.ok, true);
 });
 
@@ -582,10 +600,17 @@ test("a fully-broken dev machine with a green explorer half is REPORTED broken, 
       keysMissing: ["CLAUDE_CODE_OAUTH_TOKEN", "STORYTREE_DB_USER"],
     },
     ghAuth: "absent",
+    bun: "absent",
+    bunVersion: null,
     writeAuthority: "absent",
     worktreeIdentity: "primary-checkout",
   });
   assert.equal(report.ok, false);
-  assert.equal(report.failing, 3, "ADC, the secrets file and gh auth are genuinely unmet invariants");
+  assert.equal(
+    report.failing,
+    4,
+    "ADC, the secrets file, gh auth and bun are genuinely unmet invariants — bun joined them when " +
+      "21 packages moved their tests onto it, and a machine that cannot run the suite cannot work",
+  );
   assert.doesNotMatch(formatDoctorReport(report), /setup is healthy/);
 });
