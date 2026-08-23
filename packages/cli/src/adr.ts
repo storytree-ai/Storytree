@@ -115,7 +115,13 @@ export interface AdrCommandOpts {
 // `question new` derive their ids with the same function `adr new` derives a filename slug with, and
 // they no longer share a building. Re-exported here so every existing `./adr.js` importer is
 // unchanged.
-import { adrDocId, ASSET_REF_PREFIX, kebabSlug, type AdrDraft } from "@storytree/library";
+import {
+  adrDocId,
+  ASSET_REF_PREFIX,
+  kebabSlug,
+  parseDecisionPointer,
+  type AdrDraft,
+} from "@storytree/library";
 export { kebabSlug };
 
 /*
@@ -562,6 +568,25 @@ export { extractAdrTitle };
  * Invert one outgoing edge kind into `target -> [sources]`, deduped and ascending. Computed from the
  * FULL listing set by every caller (see {@link renderAdrList}) — never from the filtered view.
  */
+/**
+ * The decisions one row's `dependsOn` names, as NUMBERS — the shape the edge lines and
+ * {@link backEdges} both want.
+ *
+ * `dependsOn` is stored as POINTERS and may name a Library artifact or a repository file as readily
+ * as a decision, so this resolves through the single parser in `decision-pointer.ts` and DROPS what
+ * is not a decision. Never split on `:` here: all three live spellings of a decision must resolve, and
+ * a reader that handled only `asset:adr-NNNN` would report a decision's own support edges as absent —
+ * which after ADR-0431 moved 517 edges onto this field is every support edge in the log.
+ */
+function decisionDependsOn(m: AdrMeta): number[] {
+  const out: number[] = [];
+  for (const pointer of m.dependsOn ?? []) {
+    const parsed = parseDecisionPointer(pointer);
+    if (parsed !== null) out.push(parsed.number);
+  }
+  return out;
+}
+
 function backEdges(
   listings: readonly AdrListing[],
   edge: (m: AdrMeta) => readonly number[],
@@ -578,42 +603,43 @@ function backEdges(
 }
 
 /**
- * PURE: the set `--load-bearing` renders — the curated `load_bearing: true` seed, closed transitively
- * over ACCEPTED `amends` edges pointing into it.
+ * PURE: the set `--load-bearing` renders — the curated `load_bearing: true` tag, AND NOTHING ELSE
+ * (ADR-0431 D4).
  *
- * The curated tag alone made this view CONFIDENTLY INCOMPLETE. `storytree adr list --load-bearing` is
- * the exact surface CLAUDE.md sends every new session to calibrate on, yet an accepted ADR that amends
- * a load-bearing one — which under ADR-0139 means the target STAYS current but is no longer wholly
- * self-describing — appeared nowhere in it unless someone remembered a second, hand-maintained tag.
- * ADR-0271 landed exactly that way (accepted, `amends: [142]`, untagged) and was caught a day later by
- * a librarian pass, by accident. A consumer of the view cannot detect the omission from the view.
+ * ## THIS USED TO CLOSE OVER `amends`, AND THE REMOVAL WAS A MEASURED NO-OP RATHER THAN A PROMISE
  *
- * So reach is DERIVED from the edge that already exists in the frontmatter (ADR-0037) rather than from
- * a parallel tag. That is what makes it tractable, what keeps it honest by construction, and what
- * keeps it working when ADR-0139 retires the `load_bearing` tag (at which point the seed shrinks and
- * this closure carries the view).
+ * The tag alone once made this view CONFIDENTLY INCOMPLETE: `storytree adr list --load-bearing` is
+ * the exact surface CLAUDE.md sends every new session to calibrate on, and an accepted ADR that
+ * amended a load-bearing one — which under ADR-0139 means the target STAYS current but is no longer
+ * wholly self-describing — appeared nowhere in it unless somebody remembered a second tag. ADR-0271
+ * landed exactly that way and was caught a day later, by accident. So reach was DERIVED from the
+ * `amends` edge instead.
  *
- * TRANSITIVE, not one hop: 0288 amends 0275 amends 0271 amends ★0142, and each link overtakes part of
- * the one below. Stopping at one hop would re-create the reported gap one level out — the same
- * undetectable-from-the-surface omission, just further along the chain.
+ * ADR-0431 retires that edge. Rather than let its removal silently drop 96 decisions out of the set,
+ * the derived reach was FROZEN INTO THE TAG first: on 2026-08-23 every ☆ row was written
+ * `load_bearing: true`, and the membership was diffed either side — **221 before, 221 after,
+ * byte-identical, now 221 ★ and 0 ☆.** The closure was therefore removed against a set it could no
+ * longer change. The freeze is what makes this honest; without it this function would be the
+ * silent-shrink failure the closure was built to fix, wearing the opposite sign.
  *
- * Only `accepted` edges propagate. A `proposed` amender is undecided, so promoting it would OVERSTATE
- * the current set (the inverse error); a `superseded` one is dead. Both are still SHOWN as labelled
- * back-edges on their target — excluded from the set, never hidden from the reader.
+ * ## WHAT MUST NOT BE DONE TO THIS FUNCTION, AND WHY IT IS THE ONLY GUARD LEFT
+ *
+ * **Never close over `dependsOn`.** That is ADR-0419 D1's rule and it SURVIVES its own decision's
+ * supersession (ADR-0431 D6). A support edge says only "this decision rests on that one", which is
+ * true of most of the log; closing over it would reproduce today's set almost exactly and then grow
+ * without bound as new support edges accumulate — inflating the calibration surface in a way a
+ * consumer of the view cannot detect FROM the view. That is the same undetectable-from-the-surface
+ * failure as the original gap, with the sign flipped, and it is why `adr.test.ts` pins the reach set
+ * to EXACTLY the tagged rows rather than to a bound.
+ *
+ * The cost accepted knowingly: a new decision resting on a load-bearing one no longer joins the set
+ * automatically and must be tagged. To find a decision nothing in the set points at, the verb is
+ * `storytree library related <id> --unlinked` (ADR-0431 D5), not a wider closure.
  */
 export function loadBearingReach(listings: readonly AdrListing[]): Set<number> {
   const reach = new Set<number>();
   for (const l of listings) if (l.meta.loadBearing) reach.add(l.meta.number);
-  // Fixpoint over the amends graph. Each pass either grows the set or terminates, and the set is
-  // bounded by the corpus, so this converges (2 passes on the real corpus as of 2026-08-03).
-  for (;;) {
-    const before = reach.size;
-    for (const l of listings) {
-      if (l.meta.status !== "accepted" || reach.has(l.meta.number)) continue;
-      if (l.meta.amends.some((t) => reach.has(t))) reach.add(l.meta.number);
-    }
-    if (reach.size === before) return reach;
-  }
+  return reach;
 }
 
 /**
@@ -632,6 +658,8 @@ export function loadBearingReach(listings: readonly AdrListing[]): Set<number> {
 export function renderAdrList(listings: readonly AdrListing[], filter: AdrListFilter): string[] {
   const supersededBy = backEdges(listings, (m) => m.supersedes);
   const amendedBy = backEdges(listings, (m) => m.amends);
+  // ADR-0431: support edges live on `dependsOn` now, so the view must read them or show nothing.
+  const dependedOnBy = backEdges(listings, decisionDependsOn);
   const reach = loadBearingReach(listings);
   const statusOf = new Map(listings.map((l) => [l.meta.number, l.meta.status]));
   /** `0271` for an accepted ADR, `0265 (proposed)` for anything else — never a bare live-looking ref. */
@@ -651,11 +679,17 @@ export function renderAdrList(listings: readonly AdrListing[], filter: AdrListFi
     const edges: string[] = [];
     if (m.supersedes.length > 0) edges.push(`supersedes ${m.supersedes.map(pad).join(", ")}`);
     if (m.amends.length > 0) edges.push(`amends ${m.amends.map(pad).join(", ")}`);
+    const dependsOn = decisionDependsOn(m);
+    if (dependsOn.length > 0) edges.push(`depends on ${dependsOn.map(pad).join(", ")}`);
     if (m.arc !== undefined) edges.push(`arc ${m.arc}`);
     const back = supersededBy.get(m.number);
     if (back !== undefined && back.length > 0) edges.push(`superseded by ${back.map(label).join(", ")}`);
     const amended = amendedBy.get(m.number);
     if (amended !== undefined && amended.length > 0) edges.push(`amended by ${amended.map(label).join(", ")}`);
+    const dependedOn = dependedOnBy.get(m.number);
+    if (dependedOn !== undefined && dependedOn.length > 0) {
+      edges.push(`depended on by ${dependedOn.map(label).join(", ")}`);
+    }
     for (const e of edges) rows.push(`            ${e}`);
   }
   return rows;
