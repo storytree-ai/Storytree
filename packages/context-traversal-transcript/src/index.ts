@@ -57,3 +57,16 @@ export {
   type IngestTranscriptOccupancyArgs,
   type TranscriptIngestResult,
 } from "./ingest-occupancy.js";
+
+export {
+  collectDecisionReadCoverage,
+  renderDecisionReadCoverage,
+  resolveDecisionId,
+  routeOfSurface,
+  summariseDecisionReadCoverage,
+  type CountsBy,
+  type DecisionIdSpelling,
+  type DecisionReadCoverage,
+  type DecisionReadRoute,
+  type ResolvedDecisionId,
+} from "./decision-read-coverage.js";

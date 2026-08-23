@@ -34,6 +34,7 @@ export {
   defaultClassifyKind,
   nodeEvalExecutor,
   runShellCommand,
+  shellObserveCommand,
   scrubbedChildEnv,
   isScrubbedEnvKey,
 } from "./shell-test-executor.js";
