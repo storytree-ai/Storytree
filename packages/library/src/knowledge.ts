@@ -298,6 +298,20 @@ export const KIND_SPECS = {
         "_What breaks, or what job is blocked, if this stays unsettled — one sentence a newcomer (or an agent without the repo loaded) understands, before any identifier or ADR number._",
     },
     {
+      // ADR-0434 D2 — the answer a settlement RECORDS. Absent on every open question and on every
+      // question authored before that decision, so it renders only once there is one; `question
+      // settle` is what writes it, and refuses to settle without it. It sits directly under `stakes`
+      // rather than at the end because the reading order of a SETTLED question is what-was-at-stake
+      // then what-was-decided — the options and the recommendation below become the archaeology of
+      // how it got there, which is exactly the demotion an answered question wants.
+      field: "answer",
+      lead: false,
+      heading: "The answer",
+      required: false,
+      placeholder:
+        "_Written by `storytree question settle` when the owner answers — not authored here. What was decided and why, in the owner's own terms where they gave them._",
+    },
+    {
       field: "statement",
       lead: false,
       heading: "The question",
@@ -1119,6 +1133,23 @@ export const OpenQuestion = buildKindSchema("open-question").extend({
   // shape as `arcRef` above and `Agent.model` below.
   verifiedAt: z.string().optional(),
   leaseDays: z.number().int().positive().optional(),
+  // ADR-0434 D1 — the stored lifecycle, and the ONLY thing that makes "this question was answered" a
+  // fact a surface can read rather than prose a reader must interpret. Before it, a question's sole
+  // ending was DELETION, which forced every answered question to choose between reporting a false
+  // wait forever (leave the row) and destroying its own answer (retire it).
+  //
+  // TWO VALUES, NOT THREE. ADR-0196 D1's row for this kind leaves the triad's middle column empty: a
+  // question is not work in flight, so there is no `active` to have. Inventing a third state here is
+  // the wide-enum over-engineering ADR-0196 D2 refused.
+  //
+  // OPTIONAL, ABSENT MEANS `open` — the same zero-migration shape `arcRef` and the two park-lease
+  // fields above already use, so every question authored before ADR-0434 validates unchanged and
+  // there is NO `CURRENT_SCHEMA_VERSION` bump. `lifecycleOf` and `arcRollup` both read absence as
+  // open rather than inventing a state they cannot see, which is ADR-0196 D2's rule for a projection
+  // reading a field that may not be there.
+  lifecycle: z.enum(["open", "settled"]).optional(),
+  /** When the settlement was recorded. Absent while open; stamped by `question settle`. */
+  settledAt: z.string().optional(),
 });
 // The `agent` kind carries one structured field OUTSIDE its KIND_SPECS body table: `stepRefs`, the
 // workflow-step → refs association (ADR-0156 §4 / ADR-0161). It is metadata, not a rendered body

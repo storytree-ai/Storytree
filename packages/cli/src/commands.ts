@@ -2850,6 +2850,12 @@ export const CLI_OPTIONS = {
   analogy: { type: "string" },
   diagram: { type: "string" },
   recommendation: { type: "string" },
+  // `storytree question settle` (ADR-0434 D2) — what the settlement RECORDS, and the decision that
+  // carries it. `--answer` is prose (the settle verb refuses without it, so it is the one field that
+  // makes the state flip worth anything); `--adr <n>` is a bare decision number, resolved to an
+  // `asset:adr-NNNN` reference on the question.
+  answer: { type: "string" },
+  adr: { type: "string" },
   scope: { type: "string" },
   migration: { type: "string" },
   source: { type: "string" },
@@ -3830,8 +3836,10 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
 
   if (area === "question") {
     // The open-question authoring surface (ADR-0314 D5): the verb an escalating session uses to put
-    // a decision in front of the owner. WRITE-only by design — reading is `library artifact list
-    // open-question --pg`, and answering is out of scope this round (ADR-0314 D9 keeps it read-only).
+    // a decision in front of the owner, and since ADR-0434 D2 the verb that ENDS one by recording
+    // the answer (`settle`). WRITE-only by design — reading is `library artifact list
+    // open-question --pg`. ADR-0314 D9's read-only fence is about the STUDIO surface (no answering
+    // in place); an agent writing down the answer the owner gave in chat is the flow D9 describes.
     // Every prose flag arrives already `@path`-expanded from the boundary at the top of `run`, which
     // is what lets a mermaid `--diagram` or a multi-paragraph `--context` survive the shell.
     if (help) return questionHelp();
@@ -3854,6 +3862,9 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     if (values.recommendation !== undefined) questionOpts.recommendation = values.recommendation;
     if (values.description !== undefined) questionOpts.description = values.description;
     if (values["lease-days"] !== undefined) questionOpts.leaseDays = values["lease-days"];
+    // ADR-0434 D2 — `question settle`'s two fields.
+    if (values.answer !== undefined) questionOpts.answer = values.answer;
+    if (values.adr !== undefined) questionOpts.adr = values.adr;
     return questionCommand(sub, third, writeDeps, questionOpts);
   }
 
