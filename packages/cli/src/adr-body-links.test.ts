@@ -3,8 +3,12 @@ import test from "node:test";
 
 import {
   delinkDecisionFileLinks,
+  delinkRepoPathLinks,
+  delinkedRepoPathText,
   delinkedText,
   findDecisionFileLinks,
+  findRepoPathLinks,
+  rootedRepoPath,
 } from "./adr-body-links.js";
 
 /**
@@ -125,4 +129,132 @@ test("adr-body-links: a clean body yields no findings and is returned unchanged"
   const body = "ADR-0139 is the rule; open it with `storytree library artifact adr-0139`.";
   assert.deepEqual(findDecisionFileLinks(body), []);
   assert.equal(delinkDecisionFileLinks(body), body);
+});
+
+// ---------------------------------------------------------------------------------------------
+// The REPO-PATH class (increment 09). Same pairing discipline: every de-link case is paired with a
+// find case on the same input, because the gate rung and the fixer share one regex and a finder
+// that missed a link would let the fixer's own leftovers pass as clean.
+// ---------------------------------------------------------------------------------------------
+
+test("repo-path links: one `../` roots at docs/, two roots at the repo — the measured depth rule", () => {
+  // Not a guess. Across all 230 occurrences the depths are perfectly separated: 46 at one `../` land
+  // in docs' own children (research / guidelines / design / open-questions.md) and 184 at two land in
+  // repo-root children (packages / stories / apps / web / .gitmodules). A decision file lived at
+  // `docs/decisions/NNNN-slug.md`, which is exactly what makes that separation the base rule.
+  assert.equal(rootedRepoPath("../research/x.md"), "docs/research/x.md");
+  assert.equal(rootedRepoPath("../../packages/orchestrator/src/prove-it-gate.ts"), "packages/orchestrator/src/prove-it-gate.ts");
+  assert.equal(rootedRepoPath("../../.gitmodules"), ".gitmodules");
+  assert.equal(rootedRepoPath("../guidelines/"), "docs/guidelines/", "a directory target keeps its slash");
+  // Depth 3+ does not occur; it roots rather than walking out of the repo, which has no meaning.
+  assert.equal(rootedRepoPath("../../../packages/x.ts"), "packages/x.ts");
+});
+
+test("repo-path links: text that already IS the address de-links to the text alone", () => {
+  const body = "see [`docs/research/agentic-foundation-survey.md`](../research/agentic-foundation-survey.md) for it";
+  assert.equal(findRepoPathLinks(body).length, 1);
+  assert.equal(
+    delinkRepoPathLinks(body),
+    "see `docs/research/agentic-foundation-survey.md` for it",
+    "the address is already in the words, so de-linking loses nothing",
+  );
+});
+
+test("repo-path links: text that names the target another way keeps the words AND gains the path", () => {
+  // The case that separates de-linking from deleting. Dropping the target here would erase a
+  // pointer: `agent-library-interaction` alone does not say where to look.
+  const cases: [string, string][] = [
+    [
+      "[`agent-library-interaction`](../research/agent-library-interaction.md)",
+      "`agent-library-interaction` (`docs/research/agent-library-interaction.md`)",
+    ],
+    ["[§5](../open-questions.md)", "§5 (`docs/open-questions.md`)"],
+    [
+      "[test-command-registry.ts](../../packages/orchestrator/src/test-command-registry.ts)",
+      "test-command-registry.ts (`packages/orchestrator/src/test-command-registry.ts`)",
+    ],
+    ["[`web/`](../../.gitmodules)", "`web/` (`.gitmodules`)"],
+  ];
+  for (const [body, expected] of cases) {
+    assert.equal(findRepoPathLinks(body).length, 1, body);
+    assert.equal(delinkRepoPathLinks(body), expected, body);
+  }
+});
+
+test("repo-path links: a DEAD target is de-linked exactly like a live one", () => {
+  // The whole finding of increment 09. `apps/studio/data/knowledge.json` was deleted by ADR-0302 D1
+  // and `packages/orchestrator/src/prove-it-gate.ts` exists — and it makes NO difference, because
+  // both links resolved from `docs/decisions/`, which is gone. Whether the target survives has no
+  // bearing on whether the LINK works; none of them work. That is what collapses what looked like 96
+  // per-target judgments into one rule.
+  //
+  // The dead PATH is left standing as prose deliberately: a body sentence naming a since-deleted
+  // file is describing what was true when the decision was made, and whether it has been overtaken
+  // is a per-body judgment for the librarian, not something a bulk rewrite may decide.
+  assert.equal(
+    delinkRepoPathLinks("[`edit-first-curation`](../../apps/studio/data/knowledge.json)"),
+    "`edit-first-curation` (`apps/studio/data/knowledge.json`)",
+  );
+});
+
+test("repo-path links: a DECISION-file link is NOT this finder's, in either direction", () => {
+  // The two classes share one body and must not both claim a link: `../0139-x.md` gets the number
+  // promoted, not a path appended. They are mutually exclusive BY CONSTRUCTION rather than by call
+  // order, so neither depends on running first and a body may be scanned by either alone.
+  const body = "see [ADR-0139](../0139-the-rule.md) and [`SceneView`](../../packages/app-surface/src/SceneView.tsx)";
+  assert.equal(findRepoPathLinks(body).length, 1, "only the repo path is this finder's");
+  assert.equal(findRepoPathLinks(body)[0]?.target, "../../packages/app-surface/src/SceneView.tsx");
+  assert.equal(findDecisionFileLinks(body).length, 1, "only the decision file is that finder's");
+
+  // Either order, same result — which is what "by construction" has to mean.
+  assert.equal(
+    delinkDecisionFileLinks(delinkRepoPathLinks(body)),
+    delinkRepoPathLinks(delinkDecisionFileLinks(body)),
+  );
+  assert.equal(
+    delinkRepoPathLinks(delinkDecisionFileLinks(body)),
+    "see ADR-0139 and `SceneView` (`packages/app-surface/src/SceneView.tsx`)",
+  );
+});
+
+test("repo-path links: an ABSOLUTE url is untouched, and always was", () => {
+  // 28 of these sit in decision bodies. A URL resolves the same from a row as from a file, so it is
+  // not this class and must not be swept up by a pattern that only meant to catch `../`.
+  const body = "see [the PR](https://github.com/storytree-ai/Storytree/pull/1022) and [redblobgames](https://www.redblobgames.com/blog/x/)";
+  assert.equal(findRepoPathLinks(body).length, 0);
+  assert.equal(delinkRepoPathLinks(body), body);
+});
+
+test("repo-path links: the rewrite is IDEMPOTENT, which is what makes the migration re-runnable", () => {
+  const body = "a [`SceneView`](../../packages/app-surface/src/SceneView.tsx) b [x](../research/y.md) c";
+  const once = delinkRepoPathLinks(body);
+  assert.equal(findRepoPathLinks(once).length, 0, "the output contains no match");
+  assert.equal(delinkRepoPathLinks(once), once, "so a second pass is a no-op");
+});
+
+test("repo-path links: NO WORDS ARE LOST — every link's text survives verbatim", () => {
+  // The one failure a bulk body rewrite could cause that a reader would not spot. Length proves
+  // nothing here (a body legitimately SHRINKS when the text already is the address), so the
+  // invariant is stated on the words themselves — the same guard the one-shot migration ran per row.
+  const bodies = [
+    "[`docs/guidelines/`](../guidelines/)",
+    "[§9](../open-questions.md)",
+    "[`SemanticGrowthWorldView`](../../packages/app-surface/src/SemanticGrowthWorldView.tsx)",
+    "[TreeView.tsx:4891](../../apps/studio/src/components/TreeView.tsx)",
+  ];
+  for (const body of bodies) {
+    const links = findRepoPathLinks(body);
+    assert.equal(links.length, 1, body);
+    const out = delinkRepoPathLinks(body);
+    assert.ok(out.includes(links[0]?.text.trim() ?? ""), `text lost from ${body}`);
+    assert.ok(!out.includes("]("), `${body} still carries a link`);
+  }
+});
+
+test("repo-path links: delinkedRepoPathText is the same function the body rewrite uses", () => {
+  // The finder/fixer pairing this file exists to hold, one level down: the per-link function and the
+  // whole-body replace must not be able to disagree, or a link the body pass rendered one way would
+  // be reported another way by the rung.
+  const link = { text: "`x`", target: "../research/y.md", raw: "[`x`](../research/y.md)" };
+  assert.equal(delinkedRepoPathText(link), delinkRepoPathLinks(link.raw));
 });

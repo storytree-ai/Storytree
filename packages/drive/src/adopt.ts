@@ -35,6 +35,7 @@ import type { ReliabilityGate, UatTestCriterion } from "@storytree/library";
 import {
   findNodeSpecFile,
   loadNodeSpec,
+  memoizeObserve,
   observeAndSign,
   signMachineCriteria,
   shellObserveCommand,
@@ -232,7 +233,9 @@ export async function runAdopt(
 
   // Observe-and-sign each obligation (the tree stays clean — we edit nothing until after). One CLEAN
   // observation per DISTINCT command (memoized): the observe gate's suite is shared by the machine UAT
-  // legs it covers, so it runs ONCE, not once per obligation.
+  // legs it covers, so it runs ONCE, not once per obligation. The wrapper is `@storytree/orchestrator`'s
+  // — `signMachineCriteria` applies it to its own runner too, so `storytree uat run` gets it without
+  // asking; wrapping HERE is what additionally shares one cache across the gate loop and the leg pass.
   const store = deps.store;
   const runId = `studio-adopt:${deps.now().toISOString()}`;
   const observe = memoizeObserve(deps.observe);
@@ -337,25 +340,6 @@ export async function runAdopt(
     ok: allSigned && flip.ok,
     body,
     next: [`storytree tree ${id} --pg`, `storytree gate list ${id} --pg`],
-  };
-}
-
-/**
- * Wrap an `observe` runner so each DISTINCT command runs at most ONCE per adopt (the promise is cached).
- * A story's machine UAT legs are observed against the SAME suite their covering observe gate runs, so
- * without this the agent suite would re-run per leg; with it, one clean observation greens the gate AND
- * every leg it covers. Sound because adopt observes a single clean HEAD — the command is deterministic.
- */
-function memoizeObserve(
-  observe: (command: string) => Promise<{ code: number | null }>,
-): (command: string) => Promise<{ code: number | null }> {
-  const cache = new Map<string, Promise<{ code: number | null }>>();
-  return (command) => {
-    const hit = cache.get(command);
-    if (hit !== undefined) return hit;
-    const pending = observe(command);
-    cache.set(command, pending);
-    return pending;
   };
 }
 

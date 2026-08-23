@@ -22,13 +22,23 @@ import { defineConfig } from "oxlint";
  * tree with no type information, so a firing is evidence to be adjudicated, not a verdict. False
  * positives are expected and are what the arc's judge panels exist to settle.
  *
- * TESTS GET A LAXER BAR than production source (owner-decided 2026-08-21, ADR-0407 D4) — roughly
- * 60% of the total violation volume sits in test files, and a test faking a dependency is doing
- * something categorically different from production code lying about a type. The `overrides` block
- * at the bottom of this file is where that bar lives; `no-chained-type-assertions` is its first
- * entry. A laxer bar is still a DECIDED bar, so each entry carries its reason like any "off" does.
+ * A LAXER TEST BAR IS PERMITTED AND CURRENTLY UNUSED (owner-decided 2026-08-21, ADR-0407 D4). The
+ * authority stands — a test faking a dependency is doing something categorically different from
+ * production code lying about a type — and the `overrides` block at the bottom of this file is
+ * where such a bar would live, with its reason like any "off". It had exactly one entry,
+ * `no-chained-type-assertions`, and inc-09 drove those 122 test sites to zero, so the block is now
+ * EMPTY rather than carrying a dead carve-out. A future rule may still earn one.
  * Do not write test globs literally in a block comment — the star-slash inside one terminates the
  * comment early.
+ *
+ * THE READABLE STANDARD IS `docs/typescript-standard.md` — every rule, its terminal state and the
+ * reason, in one document (ADR-0407 end-state FIVE). THIS FILE IS THE SOURCE OF TRUTH for severity
+ * and reason; when the two disagree, correct the document.
+ *
+ * `pnpm lint` IS A GATE RUNG since 2026-08-24 — the first step of `pnpm gate`, at a measured 2.7 s
+ * over the whole repo. It is what stops the ratchet slipping back: twenty fresh violations of rules
+ * already driven to zero reached `main` in the two days before it existed. The rung's full
+ * justification is in `gate-order.ts`'s survival audit.
  */
 export default defineConfig({
   ignorePatterns: [

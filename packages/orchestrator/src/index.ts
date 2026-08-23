@@ -211,6 +211,7 @@ export type {
   SignMachineCriteriaResult,
 } from "./proof/sign-machine-criteria.js";
 export {
+  memoizeObserve,
   resolveMachineLeg,
   resolveMachineLegs,
   signMachineCriteria,

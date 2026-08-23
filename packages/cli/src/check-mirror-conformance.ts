@@ -18,8 +18,8 @@
  *
  *   `docs-trees` — `GET /api/docs`, compared over two things:
  *     1. a synthetic FIXTURE built here, exercising the branches a corpus may not currently contain
- *        (an unresolvable lineage edge, `load_bearing: false`, an unterminated frontmatter block, a
- *        doc with no H1, an over-long first sentence, a nested Decisions doc, a non-`.md` file);
+ *        (an unterminated frontmatter block, a doc with no H1, an over-long first sentence, a
+ *        nested doc, a doc with no frontmatter at all, a non-`.md` file);
  *     2. the repo's REAL `docs/` tree, which catches whatever the corpus actually exercises and the
  *        fixture author didn't think of. Content changes can't destabilise it — the assertion is
  *        equality between two implementations over the same input, not against a recorded value.
@@ -87,51 +87,79 @@ const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
 // ---------- the fixtures ----------
 
 /**
- * Build the synthetic docs tree both probes walk. Deliberately covers the branches the real corpus
- * may not: an ADR whose lineage edge names no ADR on disk, an explicit `load_bearing: false`, an
- * unterminated frontmatter block, a doc with no H1, a first sentence past the excerpt cap, a
- * Decisions doc in a nested dir, a Reference doc in a nested dir, and a non-`.md` file that must
- * be skipped by both walks.
+ * Build the synthetic docs tree both probes walk — one file per branch the two walks actually have.
+ *
+ * ## THE ADR HALF OF THIS FIXTURE IS GONE, AND THE DOCBLOCK THAT ADVERTISED IT WAS THE DEFECT
+ *
+ * It used to stage `status` / `load_bearing` / `supersedes` / `amends` — and `supersedes_in_part`,
+ * a field ADR-0139 retired outright — across seven `decisions/NNNN-*.md` files, and to claim
+ * coverage of two ADR-specific branches: a lineage edge naming no ADR on disk, and an explicit
+ * `load_bearing: false`. NO WALKER HAS READ ANY OF IT since PR #1546 deleted the docs walk's ADR
+ * half, and `decision-log-readers-arc` increment 01 then removed the four matching fields from
+ * `DocMeta` in both the studio type and its desktop mirror — so neither probe could surface them
+ * even if it wanted to. `DocMeta` is `{ id, title, group, excerpt }`, and `group` is the constant
+ * `'Reference'`: the `Decisions` group has no producer at all now (ADR-0403 dec 1).
+ *
+ * That was NOT an instrument reporting a false zero, and NOT a fixture hiding a defect — both
+ * probes ignored the dead frontmatter IDENTICALLY, so the comparison they perform stayed sound. The
+ * damage was to a reader, who was told this harness covered two branches that no longer exist
+ * anywhere. Two files existed only to carry them (`0002-explicitly-not-load-bearing`,
+ * `0003-edge-to-nowhere`) and are deleted; the rest are renamed off the ADR vocabulary, because a
+ * file called `0007-nested-decision.md` makes the same claim the docblock did. What was a
+ * `decisions/` directory is now `guides/` — still NESTED, which is the live axis it was carrying.
+ *
+ * ## THE BRANCHES IT COVERS, EACH THE REASON ONE FILE IS HERE
+ *
+ *   - a terminated frontmatter block, an H1, and a short first sentence — `stripFrontmatter`,
+ *     `deriveTitle` and `deriveExcerpt` on their ordinary path;
+ *   - an UNTERMINATED frontmatter block, which the strip must leave alone rather than swallowing
+ *     the whole document;
+ *   - a doc with NO H1, where `deriveTitle` falls back to the filename;
+ *   - a first sentence past the excerpt cap, which `deriveExcerpt` truncates at 200;
+ *   - NESTING, in two depths — both walks recurse, and a doc's id is its relpath under the root;
+ *   - a doc at the ROOT carrying no frontmatter at all;
+ *   - a non-`.md` file both walks must skip.
+ *
+ * Adding a branch here means adding it to that list. A file staged for a branch nothing reads is
+ * how this fixture drifted the first time.
  */
 function buildDocsFixture(): string {
   const dir = mkdtempSync(join(tmpdir(), "storytree-mirror-"));
-  mkdirSync(join(dir, "decisions", "nested"), { recursive: true });
+  mkdirSync(join(dir, "guides", "nested"), { recursive: true });
   mkdirSync(join(dir, "notes", "deep"), { recursive: true });
 
   const write = (rel: string, body: string): void => writeFileSync(join(dir, rel), body, "utf8");
 
+  // The ordinary path: a frontmatter block that closes, an H1, one short sentence.
   write(
-    "decisions/0001-load-bearing-with-edges.md",
-    "---\nstatus: accepted\ndecided: 2026-01-02\nload_bearing: true\nsupersedes: [2]\namends: [3]\n---\n" +
-      "# ADR-0001: Load bearing with edges\n\nA decision that stands and reaches back.\n",
+    "guides/0001-frontmatter-and-heading.md",
+    "---\nupdated: 2026-01-02\n---\n" +
+      "# Frontmatter and heading\n\nThe ordinary path both walks take.\n",
   );
+  // The strip's other branch: a block that never closes must not swallow the document.
   write(
-    "decisions/0002-explicitly-not-load-bearing.md",
-    "---\nstatus: superseded\nload_bearing: false\nsupersedes_in_part: [1]\n---\n" +
-      "# ADR-0002: Explicitly not load bearing\n\nAn explicit false must read the same as an absent tag.\n",
+    "guides/0002-unterminated-frontmatter.md",
+    "---\nupdated: 2026-01-02\n# Unterminated\n\nThe block never closes.\n",
   );
+  // `deriveTitle`'s fallback: no H1, so the title is the filename minus `.md`.
+  write("guides/0003-no-heading.md", "---\nupdated: 2026-01-02\n---\nNo H1 at all; the filename is the title.\n");
+  // `deriveExcerpt`'s cap: a first sentence well past 200 characters.
   write(
-    "decisions/0003-edge-to-nowhere.md",
-    "---\nstatus: accepted\namends: [9999]\n---\n" +
-      "# ADR-0003: Edge to nowhere\n\nA lineage edge naming no ADR on disk is dropped, not rendered broken.\n",
-  );
-  write(
-    "decisions/0004-unterminated-frontmatter.md",
-    "---\nstatus: accepted\nload_bearing: true\n# ADR-0004: Unterminated\n\nThe block never closes.\n",
-  );
-  write("decisions/0005-no-heading.md", "---\nstatus: proposed\n---\nNo H1 at all; the filename is the title.\n");
-  write(
-    "decisions/0006-long-first-sentence.md",
-    "---\nstatus: accepted\n---\n# ADR-0006: Long\n\n" +
+    "guides/0004-long-first-sentence.md",
+    "---\nupdated: 2026-01-02\n---\n# Long\n\n" +
       `${"A very long opening clause that keeps going and going ".repeat(8)}and finally stops.\n`,
   );
+  // Recursion, depth 1 — the id is the relpath, so a walk that flattened would diverge here.
   write(
-    "decisions/nested/0007-nested-decision.md",
-    "---\nstatus: accepted\nload_bearing: true\n---\n# ADR-0007: Nested\n\nA Decisions doc below a subdirectory.\n",
+    "guides/nested/0005-nested-doc.md",
+    "---\nupdated: 2026-01-02\n---\n# Nested\n\nA doc below a subdirectory.\n",
   );
-  write("open-questions.md", "# Open questions\n\nA reference doc with no frontmatter at all.\n");
-  write("notes/deep/handbook.md", "# Handbook\n\nA nested reference doc; groups as Reference, not Decisions.\n");
-  write("decisions/not-markdown.txt", "Both walks must skip a non-.md file.\n");
+  // A doc at the ROOT carrying no frontmatter at all — the strip must be a no-op, not a truncation.
+  write("overview.md", "# Overview\n\nA doc with no frontmatter at all.\n");
+  // Recursion, depth 2.
+  write("notes/deep/handbook.md", "# Handbook\n\nA doc two directories down.\n");
+  // Both walks must skip a non-`.md` file, including one sitting beside real docs.
+  write("guides/not-markdown.txt", "Both walks must skip a non-.md file.\n");
   return dir;
 }
 

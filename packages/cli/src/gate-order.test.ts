@@ -157,10 +157,15 @@ test("the REAL gate plan still runs both expensive legs (the wall the axes are m
   }
 });
 
-test("the REAL gate plan is exactly the nine ADR-0311 survivors plus the ADR-0336, ADR-0223, ADR-0317 and ADR-0403 additions, in order", () => {
+test("the REAL gate plan is exactly the nine ADR-0311 survivors plus the ADR-0336, ADR-0223, ADR-0317, ADR-0403 and anti-slop additions, in order", () => {
   assert.deepEqual(
     GATE_PLAN.map((step) => step.command),
     [
+      // `pnpm lint` leads block A: it is the cheapest step in the gate (2.7 s over the whole repo,
+      // measured) and it is what stops the anti-slop ratchet slipping back — twenty fresh
+      // violations of already-adopted rules reached `main` in the two days before it existed
+      // (anti-slop-adoption-arc inc-07).
+      "pnpm lint",
       "pnpm check:boundaries",
       "pnpm check:ownership-totality",
       "pnpm check:mirror-conformance",

@@ -741,6 +741,13 @@ Never self-exempt from the gate or the ceremony.
 - `verbatimModuleSyntax` (use `import type`), `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`,
   `strict`. No build step — packages export raw TS consumed via `tsx`.
 - Tests: `node:test` + `node:assert/strict`, `*.test.ts` under `src/`.
+- **The house TypeScript standard is `docs/typescript-standard.md`** — the fifteen vendored
+  anti-slop rules, each at `error` with zero violations or `off` with a written reason, and the
+  remedies to reach for when one fires. `oxlint.config.ts` is the executable copy and wins on any
+  disagreement. **`pnpm lint` is the FIRST step of `pnpm gate`** (2.7 s over the whole repo,
+  measured): the rules are enforced at the moment each landed, and the rung is what stops the
+  ratchet slipping back — twenty fresh violations of already-adopted rules reached `main` in the two
+  days before it existed. There is **no test exception**: `overrides` is empty.
 - **The PRIMARY CHECKOUT is unwritable by your file tools** (ADR-0255 D1 / ADR-0257 D1, in force since
   2026-08-02). On this dev machine a generated `permissions.deny` block in the USER-level
   `~/.claude/settings.json` refuses `Write`/`Edit`/`NotebookEdit` anywhere under `C:\code\storytree`

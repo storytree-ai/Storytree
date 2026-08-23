@@ -30,6 +30,16 @@
  *  - **aspirational legs are skipped** — a `wouldBe` leg is not an obligation (ADR-0097), mirroring
  *    the crown roll-up's own `!wouldBe` filter.
  *
+ * ONE OBSERVATION PER DISTINCT COMMAND, held HERE rather than by each caller ({@link memoizeObserve}).
+ * A story's machine legs routinely all bind the SAME covering observe gate, so an unmemoized runner
+ * pays that suite once per LEG: signing `studio` (13 legs, one gate, a ~5.3-minute Playwright suite)
+ * cost ~80 minutes of serial browser time instead of ~6. `runAdopt` had wrapped its own runner since
+ * the loop lived inline there, but `storytree uat run` — which ADR-0417 D2 made the LIVE route for
+ * machine legs — passed its runner through raw, so the surface that inherited the loop did not
+ * inherit the fix. Wrapping inside the shared primitive is what makes that class of drift
+ * unreachable: neither caller can forget what it does not do. Sound for exactly adopt's reason —
+ * every verdict in one pass pins ONE clean committed HEAD, so the command is deterministic across it.
+ *
  * Pure-by-injection: the store, the git state, the observation and the clock are all seams, so the
  * whole compute is offline-testable with no subprocess, no repo and no DB.
  */
@@ -38,6 +48,29 @@ import type { ReliabilityGate, UatTestCriterion } from "@storytree/library";
 import { resolveWitness } from "@storytree/library";
 
 import { observeAndSign, type AdoptedVerdictStore, type ObserveGitState, type ObserveOutcome } from "./observe-and-sign.js";
+
+/**
+ * Wrap an `observe` runner so each DISTINCT command runs at most ONCE (the promise is cached, so
+ * concurrent callers share the in-flight run rather than racing a second one).
+ *
+ * {@link signMachineCriteria} applies this to its own runner, so every caller gets it for free.
+ * `runAdopt` ALSO wraps at its level, deliberately: adopt observes the story's reliability GATES
+ * before the leg pass, and those are the very commands the legs bind to — one shared cache across
+ * both loops is what makes a gate and every leg it covers cost a single observation. Wrapping an
+ * already-wrapped runner is harmless (the outer cache answers first).
+ */
+export function memoizeObserve(
+  observe: (command: string) => Promise<ObserveOutcome>,
+): (command: string) => Promise<ObserveOutcome> {
+  const cache = new Map<string, Promise<ObserveOutcome>>();
+  return (command) => {
+    const hit = cache.get(command);
+    if (hit !== undefined) return hit;
+    const pending = observe(command);
+    cache.set(command, pending);
+    return pending;
+  };
+}
 
 /** What proving ONE leg resolved to, before anything is observed or signed. */
 export type MachineLegOutcome =
@@ -176,6 +209,9 @@ export async function signMachineCriteria(
   args: SignMachineCriteriaArgs,
 ): Promise<SignMachineCriteriaResult> {
   const { resolutions, anyRefused } = resolveMachineLegs(args.legs, args.gates);
+  // One observation per DISTINCT command for the whole pass: N legs sharing a covering gate pay that
+  // gate's suite ONCE, not N times. Held here so no caller can pass a runner that lacks it.
+  const observe = memoizeObserve(args.observe);
   const wanted = args.onlyCriterionIds;
   const known = new Set(resolutions.map((r) => r.leg.criterionId));
   const unknownCriterionIds = wanted === undefined ? [] : wanted.filter((id) => !known.has(id));
@@ -236,7 +272,7 @@ export async function signMachineCriteria(
         proofCommand: outcome.proofCommand,
       },
       gitState: args.gitState,
-      observe: args.observe,
+      observe,
       store: args.store,
       runId: args.runId,
       now: args.now,

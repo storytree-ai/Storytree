@@ -344,6 +344,9 @@ async function uatRun(
     gates: deps.loadReliabilityGates(id),
     store,
     gitState: async () => ({ commitSha: git.commitSha, clean: git.clean }),
+    // Passed RAW on purpose: `signMachineCriteria` memoizes its own runner, so a story whose N legs
+    // all bind one covering gate observes that command ONCE. Wrapping again here would be inert —
+    // and this line lacking a wrapper is precisely what used to make `uat run` pay the suite per leg.
     observe: deps.observe,
     runId,
     now: () => deps.now().toISOString(),
