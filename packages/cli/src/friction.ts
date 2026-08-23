@@ -1050,7 +1050,7 @@ export async function listFriction(
     doc: typeof d.doc === "object" && d.doc !== null ? (d.doc as Record<string, unknown>) : {},
   }));
 
-  const order: Record<FrictionLifecycle, number> = { open: 0, archived: 1 };
+  const order = { open: 0, archived: 1 } as const satisfies Record<FrictionLifecycle, number>;
   const rows = docs
     .map(({ id, doc }) => {
       const route = routeOf(doc);

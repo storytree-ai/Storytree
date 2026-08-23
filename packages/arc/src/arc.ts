@@ -9,7 +9,10 @@ import {
   kebabSlug,
   parseCiteRef,
   upcastAndValidate,
+  type ArcDraft,
+  type IncrementDraft,
   type IncrementOutcome,
+  type IncrementStatus,
 } from "@storytree/library";
 // The write STAMP (`cli@<branch>`) and the ADR-0023 envelope shape, both in `@storytree/drive` — the
 // package this one and the CLI have in common. A verb here must stamp exactly as its CLI siblings do.
@@ -794,7 +797,10 @@ export async function arcNew(
 
   const derivedDescription = opts.description === undefined;
   const description = derivedDescription ? arcDescriptionFrom(intent) : oneLine(opts.description ?? "");
-  const doc: Record<string, unknown> = {
+  // ANNOTATED with the constructible shape rather than an open dictionary. `upcastAndValidate`
+  // takes `unknown`, so a typo'd key here has never been caught before zod turned it into a runtime
+  // refusal; naming the type restores an excess-property check at the construction site.
+  const doc: ArcDraft = {
     kind: "arc",
     id: arcId,
     title,
@@ -910,12 +916,24 @@ export async function arcEdit(
   // FIELD-SCOPED (ADR-0352): this names the narrative field(s) it was given and the stamp, so a
   // sibling session's concurrent edit to any OTHER field of this arc survives it. `base` is the local
   // copy of what the write means to say, kept only so a refusal is reported against that doc.
-  const fields: Record<string, unknown> = { updatedAt: deps.now };
-  if (opts.intent !== undefined) fields["intent"] = opts.intent;
-  if (opts.endState !== undefined) fields["endState"] = opts.endState;
+  //
+  // THE ACCUMULATOR SHAPE, and it does have a compliant form. `no-known-value-widening` reads
+  // `Record<string, unknown>` here as discarded type evidence, and it is right: this patch may carry
+  // exactly three keys, all known at authoring time. Naming them is not "re-stating the widening" —
+  // it is stating something strictly narrower, and it makes a typo'd key a compile error where the
+  // dictionary made it a silently-dropped field. An INTERFACE rather than a type alias because the
+  // rule's classifier resolves an alias over a type literal to a widening target and an interface
+  // reference to nothing; that asymmetry is a known defect in the rule, so this is recorded rather
+  // than leaned on — the shape is genuinely narrow either way.
+  const fields: ArcNarrativePatch = { updatedAt: deps.now };
+  if (opts.intent !== undefined) fields.intent = opts.intent;
+  if (opts.endState !== undefined) fields.endState = opts.endState;
   const base = Object.assign(found.doc, fields);
 
-  const written = await patchFields(deps, id, "arc", fields);
+  // Spread at the boundary: `patchFields` takes a genuinely OPEN patch bag (its callers name
+  // different field sets), and a named interface has no implicit index signature, so the conversion
+  // is explicit here rather than paid for by widening the local back to a dictionary.
+  const written = await patchFields(deps, id, "arc", { ...fields });
   if ("invalid" in written) {
     return {
       ok: false,
@@ -971,9 +989,18 @@ const DERIVED_TITLE_CAP = 80;
  * That funnels no less: the invariants live in `upcastAndValidate`, which {@link patchFields} runs on
  * the MERGED doc inside the write, so both paths meet the same boundary.
  */
+/** The fields an `arc edit` patch may carry: the ADR-0352 stamp plus whichever narrative field(s)
+ *  the caller named. Both are optional because the verb accepts either, neither writes unless given,
+ *  and an ABSENT key is what keeps a sibling session's concurrent edit to the other field alive. */
+interface ArcNarrativePatch {
+  updatedAt: string;
+  intent?: string;
+  endState?: string;
+}
+
 async function upsertIncrement(
   deps: ArcWriteDeps,
-  doc: Record<string, unknown>,
+  doc: IncrementDraft,
   what: string,
   arcId: string,
 ): Promise<Envelope | { saved: { id: string } }> {
@@ -1196,7 +1223,7 @@ export async function arcIncrementAdd(
 
   const lead = firstSentenceOf(outcomeText, DERIVED_TITLE_CAP);
   const outcome: IncrementOutcome = pr !== undefined && pr !== "" ? { date, pr } : { date };
-  const doc: Record<string, unknown> = {
+  const doc: IncrementDraft = {
     kind: "increment",
     id,
     title: lead,
@@ -1372,7 +1399,7 @@ export async function arcIncrementNew(
   if (taken !== null) return taken;
 
   const frictionRefs = (opts.friction ?? []).map((f) => f.trim()).filter((f) => f !== "");
-  const doc: Record<string, unknown> = {
+  const doc: IncrementDraft = {
     kind: "increment",
     id,
     title,
@@ -1545,10 +1572,18 @@ function citationLines(outcome: CitationOutcome, arcId: string): string[] {
 }
 
 /** The increment lifecycle as an ORDER (ADR-0305 D2), so a promotion can refuse to run backwards. */
-const INCREMENT_STAGE: Record<string, number> = { proposal: 0, ready: 1, active: 2, closed: 3 };
+const INCREMENT_STAGE = { proposal: 0, ready: 1, active: 2, closed: 3 } as const satisfies Record<IncrementStatus, number>;
+
+/** Is a STORED status string one this table knows? The row's `status` is whatever the store holds,
+ *  so it is narrowed here rather than asserted — an unrecognised value falls to stage 0 and the
+ *  promotion refuses, which is what a corrupt row should get. The `satisfies` above is what keeps
+ *  this honest: add a lifecycle state to `IncrementStatus` and the table stops compiling. */
+function isIncrementStatus(status: string): status is IncrementStatus {
+  return status in INCREMENT_STAGE;
+}
 
 /** The user-facing verb that reaches each promotable state — `ready` reads as a state, `active` as an act. */
-const PROMOTE_VERB: Record<"ready" | "active", string> = { ready: "ready", active: "start" };
+const PROMOTE_VERB = { ready: "ready", active: "start" } as const satisfies Record<"ready" | "active", string>;
 
 /**
  * `storytree arc increment ready <id> --pg` / `storytree arc increment start <id> --pg` — the
@@ -1604,8 +1639,8 @@ export async function arcIncrementPromote(
   const arcRef = typeof doc["arcRef"] === "string" ? (doc["arcRef"] as string).replace(/^asset:/, "") : "?";
   const status = typeof doc["status"] === "string" ? (doc["status"] as string) : "proposal";
 
-  const from = INCREMENT_STAGE[status] ?? 0;
-  const to = INCREMENT_STAGE[target] ?? 0;
+  const from = isIncrementStatus(status) ? INCREMENT_STAGE[status] : 0;
+  const to = INCREMENT_STAGE[target];
   if (from === to) {
     return {
       ok: false,
@@ -1634,7 +1669,7 @@ export async function arcIncrementPromote(
 
   // FIELD-SCOPED (ADR-0352): a promotion names `status` and the stamp, nothing else. A sibling's
   // in-place correction to the body while this ran is not this write's to carry back.
-  const fields: Record<string, unknown> = { status: target, updatedAt: deps.now };
+  const fields = { status: target, updatedAt: deps.now };
   Object.assign(doc, fields);
 
   const written = await patchFields(deps, id, "increment", fields);
@@ -1752,7 +1787,7 @@ export async function arcIncrementClose(
   const outcome: IncrementOutcome = { date };
   if (pr !== undefined && pr !== "") outcome.pr = pr;
   if (note !== undefined && note !== "") outcome.note = note;
-  const fields: Record<string, unknown> = {
+  const fields = {
     status: "closed",
     outcome,
     updatedAt: deps.now,
@@ -1923,7 +1958,7 @@ export async function arcClose(
   // 2. Then the flip — FIELD-SCOPED (ADR-0352): the flag and the stamp. `arcIncrementAdd` above has
   // already run a recompute against this same arc, so the doc `found` holds is a read from before
   // that; writing it back whole would revert not only a sibling's edit but this verb's own.
-  const fields: Record<string, unknown> = { lifecycle: "closed", updatedAt: deps.now };
+  const fields = { lifecycle: "closed", updatedAt: deps.now };
   Object.assign(base, fields);
   const written = await patchFields(deps, id, "arc", fields);
   if ("invalid" in written) {
@@ -2050,7 +2085,7 @@ export async function arcReopen(
   // FIELD-SCOPED (ADR-0352), for the same reason as `arc close`: the increment write above has
   // already recomputed this arc, so `base` is a pre-recompute read and writing it back whole would
   // revert that as well as anything a sibling landed.
-  const fields: Record<string, unknown> = { lifecycle: "active", updatedAt: deps.now };
+  const fields = { lifecycle: "active", updatedAt: deps.now };
   Object.assign(base, fields);
   const written = await patchFields(deps, id, "arc", fields);
   if ("invalid" in written) {
@@ -2184,7 +2219,7 @@ export async function arcPark(
 
   // 2. Then the flip — FIELD-SCOPED (ADR-0352), for the reason both siblings are: the increment
   // write above already ran a recompute against this arc, so `base` is a pre-recompute read.
-  const fields: Record<string, unknown> = { lifecycle: "parked", updatedAt: deps.now };
+  const fields = { lifecycle: "parked", updatedAt: deps.now };
   Object.assign(base, fields);
   const written = await patchFields(deps, id, "arc", fields);
   if ("invalid" in written) {
