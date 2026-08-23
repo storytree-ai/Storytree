@@ -89,7 +89,7 @@ export const NARRATIVE_FIELDS = ["intent", "endState"] as const;
 export type NarrativeField = (typeof NARRATIVE_FIELDS)[number];
 
 /** How each field is spelled to a reader (`endState` is the schema key, not the English). */
-const FIELD_LABEL: Record<NarrativeField, string> = { intent: "intent", endState: "end state" };
+const FIELD_LABEL = { intent: "intent", endState: "end state" } as const satisfies Record<NarrativeField, string>;
 
 /** One landing recorded after the narrative was last written — a candidate the prose has not seen. */
 export interface UnseenLanding {

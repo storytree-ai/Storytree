@@ -77,7 +77,7 @@ test("every kind: required fields validate, a missing required field fails close
     assert.doesNotThrow(() => validateLibraryDoc(doc), `${kind}: minimal doc should validate`);
     for (const spec of KIND_SPECS[kind]) {
       if (!spec.required) continue;
-      const rest: Record<string, unknown> = { ...doc };
+      const rest = { ...doc };
       delete rest[spec.field];
       assert.throws(
         () => validateLibraryDoc(rest),
@@ -258,7 +258,7 @@ test("friction kind (ADR-0168 D2/D3): evidence is required, fail-closed", () => 
   assert.doesNotThrow(() => validateLibraryDoc(minimalDoc("friction")), "minimal friction doc validates");
 
   // An evidence-free doc is refused strict-parse — the structural anti-slop floor (D3).
-  const noEvidence: Record<string, unknown> = { ...minimalDoc("friction") };
+  const noEvidence = { ...minimalDoc("friction") };
   delete noEvidence["evidence"];
   assert.throws(() => validateLibraryDoc(noEvidence), "an evidence-free friction doc must be rejected");
 

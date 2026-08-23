@@ -177,7 +177,7 @@ export interface SceneCtx {
 /** Role → the studio's base class(es). Composed kinds (status / variant / focus) are
  *  handled in {@link composeClass}; a kind absent here (or mapped to '') renders an
  *  unclassed element (a structural `<g>`, or a child the studio styles via its group). */
-const BASE: Partial<Record<SceneKind, string>> = {
+const BASE = {
   world: '',
   'empties-layer': 'hex-coast',
   'coast-layer': 'hex-coastland',
@@ -291,7 +291,7 @@ const BASE: Partial<Record<SceneKind, string>> = {
   // of its own — the paint is inside the referenced def).
   'baked-defs': '',
   'baked-art': 'baked-art',
-};
+} as const satisfies Partial<Record<SceneKind, string>>;
 
 /**
  * One baked paint node (ADR-0218) as a native SVG element with RESOLVED paint inline. This is the one

@@ -61,7 +61,9 @@ export type FlipResult =
 /**
  * PURE: flip a story.md's frontmatter `status: <from>` line to `status: <to>`, returning the new file
  * content. Idempotent: if it is already `<to>` it returns `changed: false` (no error — re-adopting an
- * already-`proposed` story is fine). Fail-closed: a missing frontmatter block, a missing `status:`
+ * flip is only ever reached once, at adoption ENTRY — since ADR-0423 `runAdopt` refuses an already-
+ * `proposed` story outright, so the idempotent branch is a property of this pure function rather than
+ * a live re-adoption path). Fail-closed: a missing frontmatter block, a missing `status:`
  * line, or a status that is neither `<from>` nor `<to>` REFUSES (never flips e.g. a `healthy` status).
  * Only the `status:` line is touched — the rest of the file is byte-preserved.
  */
@@ -128,8 +130,9 @@ export interface AdoptOpts {
 
 /**
  * PURE-by-injection: adopt a brownfield story (ADR-0097). Observe-and-signs each `observe` gate to an
- * `adopted` verdict, then flips `mapped → proposed`. Fail-closed BEFORE any signing: a non-brownfield
- * status, no observe gates, no resolved approver, no live store, an unreadable or DIRTY tree all refuse
+ * `adopted` verdict, then flips `mapped → proposed`. Fail-closed BEFORE any signing: ANY status but
+ * `mapped` (ADR-0417 D4 / ADR-0423 — authored `proposed` is not evidence of adoption entry), no observe
+ * gates, no resolved approver, no live store, an unreadable or DIRTY tree all refuse
  * (an adopted verdict pins the clean commit it observed). The signings happen FIRST (the tree is clean
  * throughout — nothing is edited until after), THEN the status flip dirties the tree with just that one
  * line for the operator to commit.
@@ -147,9 +150,38 @@ export async function runAdopt(
   if (story === null) {
     return { ok: false, body: `no story "${id}" (looked for stories/${id}/story.md, or its spec did not load).`, next: ["storytree tree"] };
   }
-  // Only a brownfield story is adopted. `proposed` is allowed (re-running an in-progress adoption);
-  // `healthy`/`unhealthy`/etc. are not — adoption is the `mapped → proposed` entry (ADR-0097).
-  if (story.status !== "mapped" && story.status !== "proposed") {
+  // ADOPTION ENTRY ACCEPTS ONLY `mapped` (ADR-0417 D4, built by ADR-0423 D1). The guard used to accept
+  // `proposed` too, reasoning that it was re-running an in-progress adoption — but ADR-0395 makes
+  // `proposed` the GREENFIELD status, so authored `proposed` is not evidence that a story ever entered
+  // adoption, and accepting it treated every greenfield story as resumable brownfield. It did, in
+  // practice: this arc's own backlog sweep walked nine never-brownfield stories through an ownership
+  // ceremony purely to reach machine acceptance.
+  //
+  // No adoption-entry marker is built to buy the resume back, and none should be (ADR-0423 D2): every
+  // obligation this command signs is independently signable through a verb that carries NO status guard
+  // — `adopt gate <story>#gate-<n>` for one observe reliability gate (ADR-0118, same `observeAndSign`
+  // primitive, same human approver) and `uat run <story>` for the machine UAT legs (ADR-0417 D2). The
+  // flip below is idempotent and only ever matters once, at entry. So narrowing costs the BULK re-run
+  // convenience and no capability — which is why the refusal NAMES those routes instead of restating
+  // the status back at the reader (ADR-0423 D3).
+  if (story.status !== "mapped") {
+    // `proposed` is the case worth explaining: it is the status a completed adoption LEAVES BEHIND and
+    // the status greenfield work is BORN with, and the reader cannot tell which they are looking at
+    // either. Send them at the two verbs that sign without claiming an adoption decision.
+    if (story.status === "proposed") {
+      return {
+        ok: false,
+        body:
+          `story "${id}" is "proposed", and adoption ENTRY accepts only "mapped" (ADR-0417 D4).\n` +
+          "Authored `proposed` is not evidence that a story entered brownfield adoption — it is also the\n" +
+          "status greenfield work is born with (ADR-0395), so adopting on it would claim an ownership\n" +
+          "decision that was never made. Nothing is lost: both obligation classes sign without it —\n" +
+          `  machine UAT legs      storytree uat run ${id} --pg\n` +
+          `  one reliability gate  storytree adopt gate ${id}#gate-<n> --pg\n` +
+          "If this story genuinely stalled mid-adoption, finish it per gate with the second command.",
+        next: [`storytree uat run ${id} --pg`, `storytree gate list ${id} --pg`, `storytree tree ${id}`],
+      };
+    }
     return {
       ok: false,
       body: `story "${id}" is "${story.status}", not a brownfield (mapped) story to adopt (ADR-0097 — Adopt is the mapped→proposed entry).`,

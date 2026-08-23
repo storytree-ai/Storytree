@@ -225,13 +225,13 @@ export function budgetForAgentType(agentType: string): number {
  * ENV / CLI / BOOT point at the Phase-1 fix that owns them; SOURCE / KNOWLEDGE are correct behaviour,
  * so the signal is that the agent-type's BUDGET wants re-tuning, not that a center regressed.
  */
-export const REMEDIATION: Readonly<Record<CostCenter, string>> = {
+export const REMEDIATION = {
   ENV: "ENV probes regressed — retighten the offline skip-license guidance (ADR-0162 item 1: offline sessions need no DB/SDK/git-fetch probe; a build self-starts the DB).",
   CLI: "CLI startup tax regressed — verify the direct launcher + compile-cache still apply (ADR-0162 item 2, packages/cli/launch.mjs).",
   BOOT: "Fresh-worktree install landed on the onboarding path — verify SessionStart pre-provisioning still runs (ADR-0162 item 3, packages/cli/provision-worktree.mjs).",
   SOURCE: "Dominated by SOURCE reads (correct just-in-time behaviour, ADR-0162 item 4) — re-tune this agent-type's budget rather than chase a cost center.",
   KNOWLEDGE: "Dominated by orientation reads — check for over-eager knowledge pulling (ADR-0023 is pull-based/just-in-time); consider re-tuning this agent-type's budget.",
-};
+} as const satisfies Record<CostCenter, string>;
 
 /**
  * The breach signal — a "this needs attention" signal in the ADR-0032 sense (a signal that an
