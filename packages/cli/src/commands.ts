@@ -2542,6 +2542,9 @@ function makeUatDeps(deps: RunDeps, identity: SessionIdentity | null, storiesDir
     loadUatTestCriteria: (storyId) => loadStoryUatTestCriteria(storiesDir, storyId),
     loadReliabilityGates: (storyId) => loadStoryReliabilityGates(storiesDir, storyId),
     gitState: readGitState,
+    // The SAME observe runner `adopt` and `gate run` wire (ADR-0417 D2/D3, ADR-0421) — one oracle,
+    // so a criterion proved through `uat run` watches the identical process `adopt` would have.
+    observe: observeCommand,
     identity,
     resolveSigner: (flag?: string) => resolveSignerFromEnv(flag !== undefined ? { flag } : undefined),
     now: () => new Date(),
@@ -2920,6 +2923,11 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
   }
 
   const [area, sub, third, fourth] = positionals;
+  // Everything after the third positional. Nearly every verb here takes a fixed arity and ignores
+  // these (the stray-positional guard above is what stops that being silent for a PROSE write), but
+  // `uat run <story> [criterion-id…]` genuinely takes a LIST — ADR-0417 D2's "one criterion or the
+  // story's eligible machine criteria" — so it reads them rather than dropping them.
+  const rest = positionals.slice(3);
 
   if (area === undefined) return topHelp(deps.store);
 
@@ -3389,6 +3397,11 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       return uatCommand({ mode: "rerevision", target: third }, uatOpts, uatDeps);
     }
     if (sub === "census") return uatCommand({ mode: "census", target: undefined }, uatOpts, uatDeps);
+    // ADR-0417 D2 — the UAT surface OWNS machine-acceptance signing. Trailing positionals after the
+    // story id are criterion ids: `uat run <story> [uatc_… …]`, all of them when none is named.
+    if (sub === "run") {
+      return uatCommand({ mode: "run", target: third, criterionIds: rest }, uatOpts, uatDeps);
+    }
     // bare: `storytree uat <story-id>` lists that story's tests.
     return uatCommand({ mode: "list", target: sub }, uatOpts, uatDeps);
   }
@@ -3424,6 +3437,11 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       return uatCommand({ mode: "rerevision", target: third }, uatOpts, uatDeps);
     }
     if (sub === "census") return uatCommand({ mode: "census", target: undefined }, uatOpts, uatDeps);
+    // ADR-0417 D2 — the UAT surface OWNS machine-acceptance signing. Trailing positionals after the
+    // story id are criterion ids: `uat run <story> [uatc_… …]`, all of them when none is named.
+    if (sub === "run") {
+      return uatCommand({ mode: "run", target: third, criterionIds: rest }, uatOpts, uatDeps);
+    }
     // bare `witness <story-id>` lists that story's UAT test criteria (mirrors bare `uat <story>`).
     return uatCommand({ mode: "list", target: sub }, uatOpts, uatDeps);
   }

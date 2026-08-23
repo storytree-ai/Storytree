@@ -198,6 +198,23 @@ export type {
   AdoptedVerdictStore,
 } from "./proof/observe-and-sign.js";
 export { observeAndSign } from "./proof/observe-and-sign.js";
+// ADR-0417 D2/D3: the shared CRITERION-SIGNING PRIMITIVE both `storytree uat run` and `storytree
+// adopt` call, so machine acceptance proof is reachable without invoking a command named *adopt*.
+// One implementation, so the honesty fences (exact binding, no partial verdict set, no approver)
+// cannot drift between the two surfaces.
+export type {
+  MachineLegOutcome,
+  MachineLegResolution,
+  MachineLegReport,
+  SignMachineCriteriaArgs,
+  SignMachineCriteriaDeps,
+  SignMachineCriteriaResult,
+} from "./proof/sign-machine-criteria.js";
+export {
+  resolveMachineLeg,
+  resolveMachineLegs,
+  signMachineCriteria,
+} from "./proof/sign-machine-criteria.js";
 // ADR-0097: the named spine principal that SIGNS an `adopted` verdict (the machine witness; the human
 // who pressed Adopt is the verdict's `approvedBy`).
 export { SPINE_PRINCIPAL } from "./proof/spine-principal.js";

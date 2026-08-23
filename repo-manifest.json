@@ -243,6 +243,7 @@
       "packages/orchestrator/src/proof/signer*.ts": "prove-it-gate",
       "packages/orchestrator/src/proof/spine-principal.ts": "prove-it-gate",
       "packages/orchestrator/src/proof/observe-and-sign.ts": "prove-it-gate",
+      "packages/orchestrator/src/proof/sign-machine-criteria*.ts": "prove-it-gate",
       "packages/orchestrator/src/proof/rollup*.ts": "work-verdict-event-log",
       "packages/orchestrator/src/proof/proof-status.ts": "work-verdict-event-log",
       "packages/orchestrator/src/proof/usage-event.ts": "work-verdict-event-log",
