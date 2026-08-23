@@ -20,14 +20,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import type { BuildEnvelope, BuildRunner } from "@storytree/drive/build-worker";
-
 import { CredentialBroker } from "../credential/broker.js";
 import { InMemoryKeychain } from "../credential/in-memory-keychain.js";
 import { CREDENTIAL_ENV_VAR } from "../credential/kinds.js";
 
-// The module under test — the composition glue this capability's wiring leg adds.
+// The module under test — the composition glue this capability's wiring leg adds. The two runner
+// types come from here too since ADR-0422 deleted `@storytree/drive/build-worker` and re-homed them
+// beside their only reader.
 import { credentialedBuildRunner } from "./credentialed-build-runner.js";
+import type { BuildEnvelope, BuildRunner } from "./credentialed-build-runner.js";
 
 // ---------------------------------------------------------------------------
 // Test helpers

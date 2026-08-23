@@ -3,8 +3,31 @@ id: "desktop-build-mount"
 tier: story
 title: "The desktop build mount — relocate the build worker into @storytree/drive, mount build + accept→dispatch on the desktop, so the thick-local app drives a build (ADR-0133 / ADR-0108 Phase 3+4)"
 outcome: "The build worker machinery (BuildRegistry / runBuildJob / routedBuildRunner + the BuildContext type) moves out of apps/studio/server into the shared @storytree/drive package, where the desktop local backend may legally reuse it; the desktop sidecar then mounts POST /api/build (202 + runId, fire-and-forget) over a BuildContext wired from the relocated worker — so the desktop becomes a build-capable surface on the shared forest, with the worker's coarse progress streamed back. (Two clauses were corrected: the machinery list also named dispatchAcceptedBuild, and a third clause promised the chat accept click reaching it on that same backend. The accept-click front RETIRED with desktop-accept-dispatch under ADR-0155, and ADR-0404 d.5 then DELETED the function itself — caller-less since ADR-0175 removed spawn-builder.ts. The relocation and the desktop mount both stand; the engine is untouched.)"
-status: proposed
+status: retired
 proof_mode: UAT
+# RETIRED by ADR-0422 (2026-08-23). This story's journey is "the desktop becomes a build-capable
+# surface … mounts POST /api/build", and ADR-0404 reversed it: dispatching a build is a CLI verb and
+# no UI dispatches one. The mount went first (desktop-build-route, retired by ADR-0404); ADR-0422 then
+# deleted the ENGINE the mount had been built over, after measuring that BuildRegistry / runBuildJob /
+# routedBuildRunner / adoptRunnerFromAdoptStory had zero production consumers left. That took the
+# story's last two live capabilities — `worker-relocation` and `routed-node-real-dispatch` — and with
+# them every proof-bound source this story owned.
+#
+# So the retirement is BOTH mechanical and honest. Mechanically: with the code gone for good, RETIRE
+# is the only sanctioned coverage drain (ADR-0252 D3), and all four capabilities are now retired with
+# their `real:` arms dropped. Honestly: a `proposed` story tells every reader of the tree that this
+# work is live and that the desktop dispatches builds, and neither is true.
+#
+# What LANDED here and is NOT withdrawn: the relocation proved packages/drive imports nothing from
+# apps/* (the ADR-0100 wall), a property check:boundaries still holds over the package; and ADR-0144's
+# persist semantics for a real node build stand, reached now via `storytree node build <id> --real
+# --store pg`. repo-manifest.json drops this story's per-file binding and its hostedStories register
+# entry in the same landing — with no proof-bound source left in a foreign building, the register
+# entry would otherwise be a `packages-forward stale-register` violation (ADR-0192 D3).
+#
+# The UAT legs and gates below are KEPT and left unclaimed rather than renumbered: gate and criterion
+# ordinals are positional, so removing one silently re-points the surviving legs' (proof-gate:)
+# bindings and any signed verdict that named them. Body kept as history.
 # Per-leg witness (ADR-0106): the offline mechanics legs (the worker exports from its new drive home with
 # the studio importers still green; the desktop build route over a scripted runner; the desktop accept→
 # dispatch over a scripted runner) are machine-witnessed by the package + desktop suites. The LIVE driven
@@ -19,13 +42,14 @@ proof_mode: UAT
 # desktop's POST/GET /api/build mount was removed: createBuildRouteMount + build-route.ts +
 # build-route.test.ts DELETED, with the wiring in electron/backend-entry.ts. Its `real:` arm bound those
 # exact paths and is dropped, so it is no longer REAL-buildable and nothing implements it; it leaves this
-# list and gate 2's (covers:). The relocated worker it mounted over is UNTOUCHED (ADR-0404 D6) — only the
-# HTTP transport is gone — so `worker-relocation` stands, as does routed-node-real-dispatch (its own
-# --real verdict). See desktop-build-route.md (retired).
+# list and gate 2's (covers:). Its closing sentence read "the relocated worker it mounted over is
+# UNTOUCHED (ADR-0404 D6) … so `worker-relocation` stands, as does routed-node-real-dispatch" — true
+# when written, overtaken by ADR-0422, which deleted that worker and retired both. See
+# desktop-build-route.md (retired).
 # desktop-accept-dispatch RETIRED by ADR-0155 (2026-07-04) — the chat /api/chat/accept route it built was
-# removed (PR #587); dropped from this list so the crown rolls over the live caps only. Since ADR-0404
-# the story keeps TWO: worker-relocation (green via gate 1) and routed-node-real-dispatch (green via its
-# own --real verdict). See desktop-accept-dispatch.md and desktop-build-route.md (both retired).
+# removed (PR #587). It too recorded that the story kept TWO live capabilities after ADR-0404; ADR-0422
+# retired both, so all four are now retired and the story with them. See desktop-accept-dispatch.md and
+# desktop-build-route.md (both retired).
 capabilities: [worker-relocation, routed-node-real-dispatch]
 # WHY A NEW STORY, NOT AN EDIT TO chat-drive-bridge OR desktop OR studio-build:
 #   - chat-drive-bridge is ADR-0108 Phase 3+4's BRIDGE (the proposed-unit signal, the id threading, the

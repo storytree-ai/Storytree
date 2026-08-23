@@ -49,9 +49,12 @@ the backend up; `local-credential-wiring` and `shared-forest-connection` build o
 > layer is authored before implementation (ADR-0113). The seam it replaces already exists:
 > `apps/desktop/electron/static-server.ts` boots a `127.0.0.1` server serving the compiled studio dist
 > and STUBS `/api/*` with `503 {"error":"no backend in the desktop shell (Step 1; worker wiring is
-> Step 2)"}`. The drivers it composes already exist and are real: `@storytree/drive`'s `routedBuildRunner`
-> /`nodeBuild`/`storyBuild`/`orchestrate` + `@storytree/orchestrator`'s `findNodeSpecFile`/`loadNodeSpec`/
-> `isStoryBuildable` — the EXACT composition `apps/studio/server/devApi.ts` already wires for the studio.
+> Step 2)"}`. The drivers it composes already exist and are real: `@storytree/drive`'s `nodeBuild`/
+> `storyBuild`/`orchestrate` + `@storytree/orchestrator`'s `findNodeSpecFile`/`loadNodeSpec`/
+> `isStoryBuildable`. *(This sentence also named `routedBuildRunner`, and the composition it pointed at
+> — `apps/studio/server/devApi.ts` — as the exact precedent. Both are gone: ADR-0404 retired the
+> studio's build routes and ADR-0422 deleted the router itself, which had no production consumer left.
+> The remaining drivers are unaffected and are what a build dispatch composes now.)*
 
 ## Guidance
 
@@ -71,16 +74,19 @@ call, see the story's "Local-backend boundary call"). It does NOT import `apps/s
 forbidden surface→surface coupling (`static-server.ts` says so; `studio` is `private` with no server
 export). Instead it composes the SAME organism drivers the studio server is built from, exactly as
 `apps/studio/server/devApi.ts` does:
-- **build/orchestrate** — `@storytree/drive` (`routedBuildRunner` over `nodeBuild`/`storyBuild`/
-  `adoptStory`, and `orchestrate` for the chat surface), `loadLocalSecrets` from `@storytree/drive/secrets`,
+- **build/orchestrate** — `@storytree/drive` (`nodeBuild`/`storyBuild`/`adoptStory` reached directly —
+  the `routedBuildRunner` that used to sit over them was deleted by ADR-0422 as consumer-less, so a
+  dispatch classifies its target and calls the entry it wants; and `orchestrate` for the chat surface),
+  `loadLocalSecrets` from `@storytree/drive/secrets`,
   lazily imported inside the route closures (the raw-TS `.js` re-export trap `devApi.ts` already navigates);
 - **discovery** — `@storytree/orchestrator` (`findNodeSpecFile`/`loadNodeSpec`/`isStoryBuildable`/
   `resolveBuildConfig`) to classify a unit id by tier the SAME way the CLI prechecks;
 - **reads** — `@storytree/library/store` (`loadFixtureCorpus` + an in-memory store) for the library/tree routes.
 
 THE ROUTE TABLE IS MINIMAL-TO-JOURNEY (slow growth, ADR-0113's "minimal first"): mount only what the
-thick-client journey needs — the library/tree/activity reads, the build trigger (`routedBuildRunner`),
-and the chat SSE (the consumed headless-orchestrator Phase-2 route). Do NOT port the hosted concerns the
+thick-client journey needs — the library/tree/activity reads, the build trigger (the injected `build`
+seam; it named `routedBuildRunner` until ADR-0422 deleted that router), and the chat SSE (the consumed
+headless-orchestrator Phase-2 route). Do NOT port the hosted concerns the
 desktop has no use for: NO IAP / `guestPolicy` / members / invites / `db-control` / hosted db-wake. (If
 the studio's full route table later proves worth sharing verbatim, extracting it into a shared organism
 is a clean follow-on — out of scope here.)

@@ -11,7 +11,6 @@
     "./adr-frontmatter": "./src/adr-frontmatter.ts",
     "./adr-metas": "./src/adr-metas.ts",
     "./work-hierarchy": "./src/work-hierarchy.ts",
-    "./build-worker": "./src/build-worker.ts",
     "./secrets": "./src/secrets.ts"
   },
   "scripts": {
