@@ -145,6 +145,8 @@
       "packages/cli/src/decision-control-set.ts": "cli",
       "packages/cli/src/probe-decision-control-set.ts": "cli",
       "packages/cli/src/render-decision-baseline.ts": "cli",
+      "packages/cli/src/amends-reach.ts": "cli",
+      "packages/cli/src/probe-amends-reach.ts": "cli",
       "packages/cli/src/decision-altitude.ts": "cli",
       "packages/cli/src/probe-decision-altitude.ts": "cli",
       "packages/cli/src/decision-composition-trial.ts": "cli",
