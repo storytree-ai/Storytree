@@ -378,6 +378,41 @@ but a prerequisite for increment 2, not an afterthought.
    until Class 2 is gone. Re-test with `bun test src/`, uninstrumented, three times, and compare test
    counts before spending any effort on the failures.
 
+## Bun and our two native N-API addons, on Windows (added by inc-07, 2026-08-23)
+
+Measured while deciding ADR-0426 (whether `apps/desktop` moves to Electrobun). It is recorded here
+rather than only on that ADR because it is a fact about **Bun on this box**, not about Electrobun,
+and it binds any future proposal to run a Bun main process. Box: Windows 11 26200 **ARM64**, Bun
+1.4.0, node 24.15.0. Each addon was exercised through the API surface `apps/desktop` actually
+drives — `require()` succeeding proves only that a JS wrapper resolved, which is exactly the
+`a-green-check-that-verified-nothing` shape this arc has already been bitten by twice.
+
+- **`@napi-rs/keyring` 1.3.0 — WORKS under Bun.** `NapiKeychain`'s whole contract round-trips:
+  `AsyncEntry.setPassword` → `getPassword` returns the stored secret → `deleteCredential` returns
+  `true` → the entry reads back empty. No divergence from the node arm.
+- **`node-pty` 1.1.0 — BROKEN under Bun.** It loads and it spawns — a pid is assigned — and then the
+  ConPTY child **dies at ~1.09 s having emitted only node-pty's own 16-byte input-mode enable
+  sequence** (`[?9001h[?1004h`). `cmd.exe` never prints its banner. Exit `0xC000013A`
+  (STATUS_CONTROL_C_EXIT). Reproduced **3/3** (1090 / 1094 / 1104 ms) against a node control that
+  echoes correctly 3/3 on the same box and shell. Not configuration-specific: `powershell.exe` fails
+  identically, and the app's own escape hatch (`useConptyDll: true`) fails differently but still
+  fails — exit `0xC0000142`, no banner — while the node control with that same flag works.
+- **`Bun.Terminal` — WORKS, so the pty is a rewrite and not a wall.** Bun's own pty API, on the
+  identical box, shell and ConPTY: banner, echo round-trip and `resize` all succeed, **3/3
+  identical**. Anyone concluding "a Bun main process cannot host our terminal" from node-pty alone
+  would be overstating it.
+- ⚠ **The rewrite is not free, and the gap is measured from the live object rather than from docs.**
+  `Bun.Terminal`'s prototype is `close, closed, controlFlags, inputFlags, localFlags, outputFlags,
+  ref, resize, setRawMode, unref, write`. There is **no `pause`, no `resume`, no `clear`** — and all
+  three are load-bearing in shipped behaviour: `PtySessionManager` pauses the pty past 100,000
+  unacknowledged chars and resumes below 5,000, and calls `clear()` to keep ConPTY's buffer in sync
+  so it does not reprint a stale screen on the next resize.
+
+**The generalisable correction:** "native addons are Bun's single weakest area on Windows" — this
+arc's own working assumption — is **too coarse to act on**. It was true of one of our two addons and
+false of the other, and the one it was true of has a working Bun-native replacement. Measure the
+specific addon through its real API; never infer from the class.
+
 ## Method, so this is reproducible
 
 Both arms ran the same package's own test files, back to back, on a quiet box (`storytree own --all`
