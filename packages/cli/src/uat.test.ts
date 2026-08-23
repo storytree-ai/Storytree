@@ -737,6 +737,74 @@ test("run: an aspirational (wouldBe) leg is not an obligation and is never signe
   assert.equal(r.ok, false, "nothing signable is not a success");
 });
 
+test("run: N legs sharing ONE covering gate observe that command ONCE, and all N still sign", async () => {
+  // The friction `uat-run-re-observes-the-same-command-once-per-leg`: this path passed its runner
+  // through unmemoized, so `studio` — 13 legs, one gate, a ~5.3-minute Playwright suite — paid that
+  // suite 13 times (~80 minutes of serial browser time for what one clean observation settles).
+  // The COUNT is the assertion: a signed-count check passes either way and would not have caught it.
+  const legs: UatTestCriterion[] = [1, 2, 3, 4, 5].map((n) => ({
+    criterionId: `uatc_00000000000000000000001${n}`,
+    revisionId: `uatr1:000000000000001${n}`,
+    title: `Leg ${n}`,
+    witness: "machine" as const,
+    wouldBe: false,
+    proofGateId: "demo#gate-1",
+  }));
+  const seen: string[] = [];
+  const f = fakeStore();
+  const r = await uatCommand(
+    { mode: "run", target: "demo" },
+    {},
+    baseDeps({
+      store: f.store,
+      loadUatTestCriteria: () => legs,
+      observe: async (cmd) => {
+        seen.push(cmd);
+        return { code: 0 };
+      },
+    }),
+  );
+  assert.equal(r.ok, true);
+  assert.deepEqual(seen, ["pnpm --filter demo test"], `one observation for the whole pass; got ${seen.length}`);
+  assert.equal(f.verdicts.length, legs.length, "every leg the one observation covers is still signed");
+  assert.deepEqual(
+    f.verdicts.map((v) => v.criterionId),
+    legs.map((l) => l.criterionId),
+  );
+});
+
+test("run: legs bound to DIFFERENT gates each observe their own command exactly once", async () => {
+  // The memoization must not collapse distinct commands — one observation per DISTINCT command, and
+  // a leg is only ever signed over the command its own `(proof-gate:)` names.
+  const gates = [
+    { id: "demo#gate-1", title: "Suite A", kind: "observe" as const, proofCommand: "pnpm --filter a test", covers: [] },
+    { id: "demo#gate-3", title: "Suite B", kind: "observe" as const, proofCommand: "pnpm --filter b test", covers: [] },
+  ];
+  const legs: UatTestCriterion[] = [
+    { criterionId: C1, revisionId: R1, title: "A1", witness: "machine", wouldBe: false, proofGateId: "demo#gate-1" },
+    { criterionId: C2, revisionId: R2, title: "A2", witness: "machine", wouldBe: false, proofGateId: "demo#gate-1" },
+    { criterionId: C3, revisionId: R3, title: "B1", witness: "machine", wouldBe: false, proofGateId: "demo#gate-3" },
+  ];
+  const seen: string[] = [];
+  const f = fakeStore();
+  const r = await uatCommand(
+    { mode: "run", target: "demo" },
+    {},
+    baseDeps({
+      store: f.store,
+      loadUatTestCriteria: () => legs,
+      loadReliabilityGates: () => gates,
+      observe: async (cmd) => {
+        seen.push(cmd);
+        return { code: 0 };
+      },
+    }),
+  );
+  assert.equal(r.ok, true);
+  assert.deepEqual(seen.slice().sort(), ["pnpm --filter a test", "pnpm --filter b test"]);
+  assert.equal(f.verdicts.length, 3, "all three legs sign off two observations");
+});
+
 test("run: observes ONLY the leg's own bound command — never a re-derived one", async () => {
   const seen: string[] = [];
   const f = fakeStore();
