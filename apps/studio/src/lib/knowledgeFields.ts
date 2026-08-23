@@ -45,7 +45,10 @@ export function renderFieldsPreview(
   fields: Record<string, string>,
 ): string {
   if (!isStructuredCategory(category)) return '';
-  const doc: Record<string, unknown> = { kind: category };
+  // Declared as the accumulator it is (the key set comes from `fieldSpecsFor`, so it is not
+  // statically known) rather than a known literal asserted wide.
+  const doc: Record<string, unknown> = {};
+  doc['kind'] = category;
   for (const spec of fieldSpecsFor(category)) {
     const value = fields[spec.field];
     if (typeof value === 'string' && value.trim() !== '') {

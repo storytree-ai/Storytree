@@ -127,29 +127,29 @@ export async function fixtureStories(
 }
 
 /** The scripted red→green pair each fixture node authors (cap-b imports cap-a's source). */
-export const NODE_SOURCES: Record<string, { test: string; impl: string }> = {
-  "cap-a": {
+export const NODE_SOURCES: ReadonlyMap<string, { test: string; impl: string }> = new Map([
+  ["cap-a", {
     test:
       'import test from "node:test";\nimport assert from "node:assert/strict";\n' +
       'import { a } from "./cap-a.js";\ntest("a", () => assert.equal(a(), 1));\n',
     impl: "export function a(): number {\n  return 1;\n}\n",
-  },
-  "cap-b": {
+  }],
+  ["cap-b", {
     // cap-b's TEST imports cap-a's spine-committed source — proving the shared/stacked worktree.
     test:
       'import test from "node:test";\nimport assert from "node:assert/strict";\n' +
       'import { a } from "./cap-a.js";\nimport { b } from "./cap-b.js";\n' +
       'test("b builds on a", () => assert.equal(b(), a() + 1));\n',
     impl: 'import { a } from "./cap-a.js";\nexport function b(): number {\n  return a() + 1;\n}\n',
-  },
+  }],
   // A node that fails closed: its impl does NOT satisfy its test (green is never observed).
-  "cap-bad": {
+  ["cap-bad", {
     test:
       'import test from "node:test";\nimport assert from "node:assert/strict";\n' +
       'import { bad } from "./cap-bad.js";\ntest("bad", () => assert.equal(bad(), 42));\n',
     impl: "export function bad(): number {\n  return 0;\n}\n",
-  },
-};
+  }],
+]);
 
 export interface ScopeForResult { testGlobs: string[]; sourceGlobs: string[] }
 
@@ -163,7 +163,7 @@ export function scriptedAuthors(
   scopes: Record<string, { testGlobs: string[]; sourceGlobs: string[] }>,
 ): (spec: NodeSpec, worktreeRoot: string) => PhaseAuthor | undefined {
   return (spec, worktreeRoot) => {
-    const src = NODE_SOURCES[spec.id];
+    const src = NODE_SOURCES.get(spec.id);
     const scope = scopes[spec.id];
     if (src === undefined || scope === undefined) return undefined;
     return new OwnedLoopAuthor({

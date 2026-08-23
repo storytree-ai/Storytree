@@ -113,9 +113,16 @@ export const THEMES = {
 /** The themes that ship. A `style` outside this set falls back to `timber`. */
 export type ThemeName = keyof typeof THEMES;
 
+/** True when a stored style string names one of the themes that ship. */
+function isThemeName(name: string): name is ThemeName {
+  return Object.hasOwn(THEMES, name);
+}
+
 /** Resolve a style name to a palette, falling back to `timber` for anything else. */
 export function themeFor(name: string): Palette {
-  return (THEMES as Record<string, Palette | undefined>)[name] ?? THEMES.timber;
+  // A narrowing GUARD rather than an assertion widening `THEMES` back to an open dictionary: the
+  // table's key knowledge is the whole reason `ThemeName` exists, and the assertion discarded it.
+  return isThemeName(name) ? THEMES[name] : THEMES.timber;
 }
 
 // ---------------------------------------------------------------------------

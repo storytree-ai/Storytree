@@ -129,7 +129,10 @@ function pointsBounds(points: string): Bounds | null {
 }
 
 /** Per-command coordinate counts for the path scanner (endpoint/control points bound the curve). */
-const PARAM_COUNTS: Record<string, number> = { M: 2, L: 2, T: 2, C: 6, S: 4, Q: 4, A: 7, H: 1, V: 1, Z: 0 };
+const PARAM_COUNTS: ReadonlyMap<string, number> = new Map([
+  ['M', 2], ['L', 2], ['T', 2], ['C', 6], ['S', 4],
+  ['Q', 4], ['A', 7], ['H', 1], ['V', 1], ['Z', 0],
+]);
 
 /**
  * Bounds of a path `d` via its anchor + control points (the control polygon bounds the curve — a
@@ -163,7 +166,7 @@ export function pathBounds(d: string): Bounds | null {
     if (cmd === '') return null;
     const upper = cmd.toUpperCase();
     const rel = cmd !== upper;
-    const count = PARAM_COUNTS[upper];
+    const count = PARAM_COUNTS.get(upper);
     if (count === undefined || count === 0) return null;
     const args: number[] = [];
     for (let k = 0; k < count; k++) {

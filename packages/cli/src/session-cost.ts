@@ -73,16 +73,16 @@ export interface ModelPrice {
   readonly cacheRead: number;
 }
 
-export const MODEL_PRICES: Readonly<Record<string, ModelPrice>> = {
+export const MODEL_PRICES: ReadonlyMap<string, ModelPrice> = new Map([
   // in / out / cw-5m / cw-1h / cache-read
-  opus: { input: 5, output: 25, cacheWrite5m: 6.25, cacheWrite1h: 10, cacheRead: 0.5 },
-  sonnet: { input: 3, output: 15, cacheWrite5m: 3.75, cacheWrite1h: 6, cacheRead: 0.3 },
-  haiku: { input: 1, output: 5, cacheWrite5m: 1.25, cacheWrite1h: 2, cacheRead: 0.1 },
+  ["opus", { input: 5, output: 25, cacheWrite5m: 6.25, cacheWrite1h: 10, cacheRead: 0.5 }],
+  ["sonnet", { input: 3, output: 15, cacheWrite5m: 3.75, cacheWrite1h: 6, cacheRead: 0.3 }],
+  ["haiku", { input: 1, output: 5, cacheWrite5m: 1.25, cacheWrite1h: 2, cacheRead: 0.1 }],
   // Not in ADR-0323's original window, but present in this machine's transcripts today — an
   // unpriced tier would silently understate the bill, which is exactly the class of error the ADR
   // warns about. Same multipliers as every other row.
-  fable: { input: 10, output: 50, cacheWrite5m: 12.5, cacheWrite1h: 20, cacheRead: 1 },
-};
+  ["fable", { input: 10, output: 50, cacheWrite5m: 12.5, cacheWrite1h: 20, cacheRead: 1 }],
+]);
 
 /** Substring → tier. Ordered longest-first so a future `claude-opus-fable-x` cannot mis-resolve. */
 const TIER_MATCHERS: ReadonlyArray<readonly [needle: string, tier: string]> = [
@@ -145,7 +145,7 @@ export function contextTokens(axes: TokenAxes): number {
 
 /** Weighs one turn's axes at one tier's rates. Returns 0 for an unpriced model. */
 export function priceAxes(axes: TokenAxes, tier: string | undefined): number {
-  const price = tier === undefined ? undefined : MODEL_PRICES[tier];
+  const price = tier === undefined ? undefined : MODEL_PRICES.get(tier);
   if (price === undefined) return 0;
   return (
     (axes.input * price.input +
@@ -1637,7 +1637,7 @@ export function collectSessionCost(opts: CollectOpts): SessionCostReport {
     reasoningOutputTokens += turn.reasoningOutputTokens ?? 0;
     totalCost += turnCost;
     const tier = turn.tier;
-    const price = tier === undefined ? undefined : MODEL_PRICES[tier];
+    const price = tier === undefined ? undefined : MODEL_PRICES.get(tier);
     if (price === undefined) {
       const row = unpriced.get(turn.model) ?? { turns: 0, tokens: 0 };
       unpriced.set(turn.model, {
@@ -1832,7 +1832,7 @@ export function collectSessionCost(opts: CollectOpts): SessionCostReport {
   const priceCarried = (carried: number, over: typeof shapes): number => {
     let total = 0;
     for (const shape of over) {
-      const price = shape.tier === undefined ? undefined : MODEL_PRICES[shape.tier];
+      const price = shape.tier === undefined ? undefined : MODEL_PRICES.get(shape.tier);
       if (price === undefined) continue;
       total += (carried * price.cacheWrite1h) / 1_000_000;
       total += (carried * Math.max(0, shape.turns - 1) * price.cacheRead) / 1_000_000;

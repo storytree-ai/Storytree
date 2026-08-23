@@ -55,17 +55,14 @@ export interface Rgb255 {
  *  blocks via chapter2-land-interior-fork-2026-08-15/compose.py `STATUS_TOKENS`. `top` is
  *  the three-variant ground family (`substrate.ts:237` hash-picks one per cell), `wheat`
  *  the override, `side` the wall/side-face family. */
-export const STATUS_TOKENS: Record<
-  string,
-  { top: readonly string[]; wheat: string; side: string }
-> = {
-  proposed: { top: ['#d8c069', '#ccb258', '#e2cf7e'], wheat: '#d6b271', side: '#a8914a' },
-  building: { top: ['#dcab52', '#d09a42', '#e6bc68'], wheat: '#d6b271', side: '#aa7d33' },
-  healthy: { top: ['#8cb85e', '#7dab50', '#9ac570'], wheat: '#d6b271', side: '#648244' },
-  mapped: { top: ['#b3946a', '#a68557', '#bda278'], wheat: '#d6b271', side: '#85683f' },
-  unhealthy: { top: ['#57544a', '#4a473e', '#635f52'], wheat: '#6f6852', side: '#37352c' },
-  unknown: { top: ['#a9c87f', '#9fc174', '#b2cf8b'], wheat: '#d6b271', side: '#87985f' },
-};
+export const STATUS_TOKENS: ReadonlyMap<string, { top: readonly string[]; wheat: string; side: string }> = new Map([
+  ["proposed", { top: ['#d8c069', '#ccb258', '#e2cf7e'], wheat: '#d6b271', side: '#a8914a' }],
+  ["building", { top: ['#dcab52', '#d09a42', '#e6bc68'], wheat: '#d6b271', side: '#aa7d33' }],
+  ["healthy", { top: ['#8cb85e', '#7dab50', '#9ac570'], wheat: '#d6b271', side: '#648244' }],
+  ["mapped", { top: ['#b3946a', '#a68557', '#bda278'], wheat: '#d6b271', side: '#85683f' }],
+  ["unhealthy", { top: ['#57544a', '#4a473e', '#635f52'], wheat: '#6f6852', side: '#37352c' }],
+  ["unknown", { top: ['#a9c87f', '#9fc174', '#b2cf8b'], wheat: '#d6b271', side: '#87985f' }],
+]);
 
 /** The STORY TREE's authored crown token, per status. Verbatim from the app's
  *  `.story-tree .crown-lo circle` rules — `--crown-<status>-lo` — with `--story-trunk` as the
@@ -83,19 +80,19 @@ export const STATUS_TOKENS: Record<
  *  The consequence for the palette is the reason this is written down rather than just done: an
  *  authored token the renderer can never emit would enlarge the closed palette with an entry
  *  nothing delivers, and a fence with unreachable entries reads as more coverage than it has. */
-export const TREE_TOKENS: Record<string, { crown: string }> = {
-  proposed: { crown: '#b06a24' },
+export const TREE_TOKENS: ReadonlyMap<string, { crown: string }> = new Map([
+  ["proposed", { crown: '#b06a24' }],
   // `building` has NO `.story-tree.st-building` rule and no `--crown-building-*` pair in the
   // app, so a building story's tree falls through to the unset default, which is `unknown`.
   // Transcribed as what the app DELIVERS rather than as the amber the ground family would
   // suggest — inventing the missing pair here would put a colour on an island that the shipped
   // renderer never draws.
-  building: { crown: '#6b7280' },
-  healthy: { crown: '#2f6b3f' },
-  mapped: { crown: '#7d5f3b' },
-  unhealthy: { crown: '#9f2d22' },
-  unknown: { crown: '#6b7280' },
-};
+  ["building", { crown: '#6b7280' }],
+  ["healthy", { crown: '#2f6b3f' }],
+  ["mapped", { crown: '#7d5f3b' }],
+  ["unhealthy", { crown: '#9f2d22' }],
+  ["unknown", { crown: '#6b7280' }],
+]);
 
 /** The UAT FLOWERS' authored tokens. Verbatim from the app's `--flower-*` custom properties,
  *  which `.tall-flower-stem/-leaf/-bud/-petal/-center` resolve against.
@@ -267,13 +264,13 @@ export const PROP_TOKENS = {
  * tokens (ADR-0406 D4), which assert nothing. Pricing the status half is the research artefact's
  * job, not this constant's.
  */
-export const SHADE_KEYS: Readonly<Record<string, string>> = {
+export const SHADE_KEYS: ReadonlyMap<string, string> = new Map([
   // A cool deep teal. Delivers rung 0 at H141 S45 V37 against the token's H103 S51 V57 —
   // dH +38, V x0.65, which sits between the reference's two green trees (+22 and +61, x0.59
   // and x0.61) rather than chasing either one exactly.
-  [PROP_TOKENS.canopy]: '#143440',
+  [PROP_TOKENS.canopy, '#143440'],
   // The same rotation on an already-deep green: rung 0 lands H158 S51 V29, V x0.69.
-  [PROP_TOKENS.canopyDark]: '#12303c',
+  [PROP_TOKENS.canopyDark, '#12303c'],
   // ⚠ A WARM KEY, AND IT IS A CORRECTION MADE BY MEASURING RATHER THAN A DEFAULT. The first
   // version pointed this token at the same cool teal as the greens, on the reasoning that the
   // reference's ochre island has TEAL cliffs. That is true of its cliffs and false of its
@@ -282,8 +279,8 @@ export const SHADE_KEYS: Readonly<Record<string, string>> = {
   // delivered rung 0 at S29 against the token's S72, a muddy brown that read as a dead tree.
   // A dark warm brown holds the hue (dH -0.5) and the saturation (S65) while still dropping
   // the value to x0.65.
-  [PROP_TOKENS.canopyRust]: '#3d2a1e',
-};
+  [PROP_TOKENS.canopyRust, '#3d2a1e'],
+]);
 
 /** The level a shade-keyed token delivers its KEY at, unmixed.
  *
@@ -395,7 +392,7 @@ export function bandedColour(token: string, lambert: number): Rgb255 {
 export function deliveredForLevel(token: string, level: number): Rgb255 {
   const t = parseHex(token);
   const q = (v: number) => Math.min(255, Math.max(0, Math.round(v)));
-  const key = SHADE_KEYS[token];
+  const key = SHADE_KEYS.get(token);
   if (key === undefined) return { r: q(t.r * level), g: q(t.g * level), b: q(t.b * level) };
   const k = parseHex(key);
   // Clamped so a level outside [floor, 1] cannot extrapolate past either end into a colour
@@ -462,11 +459,11 @@ export function landTokens(): string[] {
   const push = (t: string): void => {
     if (!out.includes(t)) out.push(t);
   };
-  for (const st of Object.keys(STATUS_TOKENS).sort()) {
-    const fam = STATUS_TOKENS[st]!;
+  for (const st of [...STATUS_TOKENS.keys()].sort()) {
+    const fam = STATUS_TOKENS.get(st)!;
     for (const t of [...fam.top, fam.wheat, fam.side]) push(t);
   }
-  for (const st of Object.keys(TREE_TOKENS).sort()) push(TREE_TOKENS[st]!.crown);
+  for (const st of [...TREE_TOKENS.keys()].sort()) push(TREE_TOKENS.get(st)!.crown);
   for (const t of Object.values(SHARED_TOKENS)) push(t);
   for (const t of Object.values(MARKER_TOKENS)) push(t);
   // The prop materials close over the same ladder as everything else (ADR-0406 D3). They are
@@ -520,9 +517,9 @@ export function landPalette(): string[] {
  *  it would make the instrument report a collision on every island and read as a defect. */
 export function statusFamilyOf(colour: Rgb255): string | null {
   const hex = toHex(colour);
-  for (const st of Object.keys(STATUS_TOKENS)) {
-    const fam = STATUS_TOKENS[st]!;
-    const tree = TREE_TOKENS[st];
+  for (const st of [...STATUS_TOKENS.keys()]) {
+    const fam = STATUS_TOKENS.get(st)!;
+    const tree = TREE_TOKENS.get(st);
     // The tree's crown IS status-bearing — `--crown-healthy-lo` says healthy as surely as the
     // ground does — so it joins the family test rather than sitting outside it. The BOLE does
     // not: `--story-trunk` is one shared brown every status wears, so it is family-less with the

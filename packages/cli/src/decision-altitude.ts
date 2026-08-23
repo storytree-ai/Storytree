@@ -281,11 +281,11 @@ export function classifyAltitudeLexically(input: {
 }): LexicalVerdict {
   const title = input.title;
   const body = input.decisionText;
-  const scores: Record<AltitudeClass, number> = {
+  const scores = {
     executive: densityScore(EXECUTIVE_PATTERNS, title, body),
     property: densityScore(PROPERTY_PATTERNS, title, body),
     existence: densityScore(EXISTENCE_PATTERNS, title, body),
-  };
+  } satisfies Record<AltitudeClass, number>;
   const precedence: readonly AltitudeClass[] = ["existence", "property", "executive"];
   let best: AltitudeClass = "existence";
   for (const candidate of precedence) {

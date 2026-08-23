@@ -42,12 +42,12 @@ import {
   shadowRamp,
 } from './shadow-ladder.js';
 
-const ALL_SIX = Object.keys(STATUS_TOKENS).sort();
+const ALL_SIX = [...STATUS_TOKENS.keys()].sort();
 
 /** `safe_depth` of a status's ground token against a given reader table, rounded the way the
  *  recorded numbers are printed. */
 function ceiling(status: string, table: Record<string, { r: number; g: number; b: number }[]>) {
-  return safeDepth(parseHex(STATUS_TOKENS[status]!.top[0]!), table).deepest;
+  return safeDepth(parseHex(STATUS_TOKENS.get(status)!.top[0]!), table).deepest;
 }
 
 test('THE PORT — reproduces PR #1385s ceilings: all six statuses, top faces, full light', () => {
@@ -86,7 +86,7 @@ test('NON-VACUITY: the reader really can report a foreign status', () => {
   // and a WALL colour, at FULL LIGHT, already reads foreign against the guard's own
   // top-face table — the pre-existing condition `reader_status_table` records as 21 of 78
   // colours, with no shadow anywhere near it.
-  assert.equal(nearestStatus(parseHex(STATUS_TOKENS['proposed']!.side), table), 'mapped');
+  assert.equal(nearestStatus(parseHex(STATUS_TOKENS.get('proposed')!.side), table), 'mapped');
 });
 
 test('FLAT GROUND IS DELIVERED AT 0.90, and that is derived from the light, not typed', () => {
@@ -139,7 +139,7 @@ test('THE SHADOW RUNG is DERIVED, is the deepest admissible level, and is a boun
   const table = liveReaderTable();
   for (const st of RENDERED_STATUSES) {
     assert.equal(
-      nearestStatus(deliveredColour(STATUS_TOKENS[st]!.top[0]!, SHADOW_RUNG), table),
+      nearestStatus(deliveredColour(STATUS_TOKENS.get(st)!.top[0]!, SHADOW_RUNG), table),
       st,
       `${st} does not survive the shadow rung`,
     );
@@ -149,7 +149,7 @@ test('THE SHADOW RUNG is DERIVED, is the deepest admissible level, and is a boun
   // deepest a shadow may go", which is the claim the increment owes.
   const deeper = Math.round((SHADOW_RUNG - 0.01) * 10000) / 10000;
   const fails = RENDERED_STATUSES.filter(
-    (st) => nearestStatus(deliveredColour(STATUS_TOKENS[st]!.top[0]!, deeper), table) !== st,
+    (st) => nearestStatus(deliveredColour(STATUS_TOKENS.get(st)!.top[0]!, deeper), table) !== st,
   );
   assert.ok(fails.length > 0, `${deeper} is also admissible — the ceiling is not where it says`);
   assert.deepEqual(fails, ['unknown'], 'unknown is the binding status');
@@ -169,12 +169,12 @@ test('the ladder SPAN is wider than the gaps between statuses — the structural
   // Reported for the intuition, never as the verdict (see `luma`). Ordinal and unтunable:
   // the four rendered statuses are ordered along luminance, and the ladder steps further
   // than they are apart.
-  const lums = RENDERED_STATUSES.map((st) => luma(parseHex(STATUS_TOKENS[st]!.top[0]!))).sort(
+  const lums = RENDERED_STATUSES.map((st) => luma(parseHex(STATUS_TOKENS.get(st)!.top[0]!))).sort(
     (a, b) => a - b,
   );
   const gaps = lums.slice(1).map((l, i) => l - lums[i]!);
   const smallestGap = Math.min(...gaps);
-  const healthyLuma = luma(parseHex(STATUS_TOKENS['healthy']!.top[0]!));
+  const healthyLuma = luma(parseHex(STATUS_TOKENS.get('healthy')!.top[0]!));
   const span = healthyLuma * (1 - SHADE_LEVELS[0]!);
   const oneStep = healthyLuma * (FLAT_GROUND_LEVEL - 0.8);
   assert.ok(span > smallestGap * 4, `span ${span} vs smallest gap ${smallestGap}`);
@@ -220,8 +220,8 @@ test('THE PALETTE COST, as a number: one rung, one entry per land token, nothing
 });
 
 test('the shadow ramp is still (authored token x authored level) — the closure is untouched', () => {
-  for (const st of Object.keys(STATUS_TOKENS)) {
-    const fam = STATUS_TOKENS[st]!;
+  for (const st of [...STATUS_TOKENS.keys()]) {
+    const fam = STATUS_TOKENS.get(st)!;
     for (const token of [...fam.top, fam.wheat, fam.side]) {
       const ramp = shadowRamp(token);
       assert.equal(ramp.length, SHADOW_LADDER.length);
@@ -251,7 +251,7 @@ test('WHY THE SHIPPED INSTRUMENT CANNOT ANSWER THIS — statusFamilyOf is vacuou
   // the two rungs the reader model calls foreign.
   let mismatches = 0;
   for (const st of RENDERED_STATUSES) {
-    const fam = STATUS_TOKENS[st]!;
+    const fam = STATUS_TOKENS.get(st)!;
     for (const token of [...fam.top, fam.side]) {
       for (const level of SHADE_LEVELS) {
         if (statusFamilyOf(deliveredColour(token, level)) !== st) mismatches++;
@@ -268,7 +268,7 @@ test('the shadow rung needs a shadow-AWARE family test, or the capture would cry
   // `statusFamilyOf` searches `SHADE_LEVELS` only, so it finds a shadowed pixel in no token's
   // image and reports `null` — which `capture.mjs` counts as a foreign-status read. All 26
   // shadow entries would report foreign the moment a shadow was drawn.
-  const shadowed = deliveredColour(STATUS_TOKENS['healthy']!.top[0]!, SHADOW_RUNG);
+  const shadowed = deliveredColour(STATUS_TOKENS.get('healthy')!.top[0]!, SHADOW_RUNG);
   assert.equal(statusFamilyOf(shadowed), null, 'the OLD instrument cannot see the shadow rung');
   assert.equal(familyOnShadowLadder(shadowed), 'healthy', 'the shadow-aware one can');
   // and it is not simply permissive: a colour on no ladder at all is still nobody's.
@@ -276,7 +276,7 @@ test('the shadow rung needs a shadow-AWARE family test, or the capture would cry
   // every entry of the shadowed palette belongs to somebody or is the shared wheat override
   let orphans = 0;
   for (const st of RENDERED_STATUSES) {
-    const fam = STATUS_TOKENS[st]!;
+    const fam = STATUS_TOKENS.get(st)!;
     for (const token of [...fam.top, fam.side]) {
       for (const level of SHADOW_LADDER) {
         if (familyOnShadowLadder(deliveredColour(token, level)) !== st) orphans++;
@@ -291,7 +291,7 @@ test('THE OVERCLAIM THIS SPLIT CAUGHT: healthy@1.00 is the reader talking, not t
   // `unknown` — and the island delivers two million pixels of exactly that colour, so
   // reporting it as a foreign read would have been this pass's headline number.
   const narrow = liveReaderTable();
-  const healthyLit = deliveredColour(STATUS_TOKENS['healthy']!.top[0]!, 1.0);
+  const healthyLit = deliveredColour(STATUS_TOKENS.get('healthy')!.top[0]!, 1.0);
   assert.equal(nearestStatus(healthyLit, narrow), 'unknown');
   // It disappears the moment the reader's table carries the three authored ground variants,
   // so it is a property of the REFERENCE SET, not of the colours the island draws.

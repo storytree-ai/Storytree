@@ -228,7 +228,10 @@ export async function expandAtPathFlags<V extends Record<string, unknown>>(
   values: V,
   readTextFile: (p: string) => Promise<string> = (p) => readFile(p, "utf8"),
 ): Promise<{ ok: true; values: V } | { ok: false; refusal: AtPathRefusal }> {
-  const out: Record<string, unknown> = { ...values };
+  // The open dictionary declared as the accumulator it is: `out[flag]` is written below, and `V`
+  // is generic, so TypeScript can only index it for reading (TS2862).
+  const out: Record<string, unknown> = {};
+  Object.assign(out, values);
   for (const flag of Object.keys(out)) {
     if (!PROSE_FLAGS.has(flag)) continue;
     const raw = out[flag];

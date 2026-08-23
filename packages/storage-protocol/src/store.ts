@@ -162,7 +162,17 @@ interface RetiredEventDocBody {
 export function retiredEventDoc(doc: unknown, opts?: DeleteDocOpts): unknown {
   if (opts?.reason === undefined && opts?.supersededBy === undefined) return doc;
   if (typeof doc !== "object" || doc === null) return doc;
-  const retired: RetiredEventDocBody = { ...(doc as Record<string, unknown>) };
+  return foldRetireRationale(doc as Record<string, unknown>, opts);
+}
+
+/**
+ * The fold itself, with the OWNER CONTRACT named on the declaration rather than widened to
+ * `unknown` at the boundary (anti-slop `no-known-value-widening`): `retiredEventDoc` genuinely
+ * returns `unknown` because two of its three branches pass the caller's own opaque doc straight
+ * back, but this half always produces a `RetiredEventDocBody` and now says so.
+ */
+function foldRetireRationale(doc: Record<string, unknown>, opts: DeleteDocOpts): RetiredEventDocBody {
+  const retired: RetiredEventDocBody = { ...doc };
   if (opts.reason !== undefined) retired.retiredReason = opts.reason;
   if (opts.supersededBy !== undefined) retired.supersededBy = opts.supersededBy;
   return retired;

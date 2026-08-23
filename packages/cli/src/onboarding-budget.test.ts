@@ -89,9 +89,9 @@ test("measureOnboarding: only per-tool latency is summed (idle/thinking between 
 });
 
 test("budgetForAgentType: known types are tiered; unknown falls back to the default", () => {
-  assert.equal(budgetForAgentType("Explore"), AGENT_BUDGETS["Explore"]);
-  assert.equal(budgetForAgentType("explorer"), AGENT_BUDGETS["Explore"]);
-  assert.equal(budgetForAgentType("planner"), AGENT_BUDGETS["Plan"]);
+  assert.equal(budgetForAgentType("Explore"), AGENT_BUDGETS.get("Explore"));
+  assert.equal(budgetForAgentType("explorer"), AGENT_BUDGETS.get("Explore"));
+  assert.equal(budgetForAgentType("planner"), AGENT_BUDGETS.get("Plan"));
   assert.ok(budgetForAgentType("Explore") < budgetForAgentType("session-orchestrator"), "analysis budget < orchestrator");
   assert.ok(budgetForAgentType("frontend-builder") > budgetForAgentType("Explore"), "build budget > analysis");
   assert.equal(budgetForAgentType("no-such-agent"), DEFAULT_BUDGET_MS);

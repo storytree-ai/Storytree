@@ -592,7 +592,7 @@ export async function reinforceFriction(
   // FIELD-SCOPED (ADR-0352): a reinforcement names `reinforcedBy` and the stamp. It is a bystander's
   // write — recurrence is recorded by whoever hit the friction again, not by the adjudicator who owns
   // the row — so a whole-doc write here reverted their `route` / `routeReason` for a testimony append.
-  const fields: Record<string, unknown> = {
+  const fields = {
     reinforcedBy: [...priorReinforcements, { branch: ctx.branch, date, evidence }],
     updatedAt: ctx.now,
   };
@@ -787,6 +787,27 @@ function sameAdjudicator(a: string | null, b: string | null): boolean {
  * carries the identical gap against the same contract and is untouched here — this is the beachhead,
  * not the whole answer.
  */
+/**
+ * The fields `friction route` writes, and only those (ADR-0352 field-scoped).
+ *
+ * Named rather than `Record<string, unknown>` (anti-slop `no-known-value-widening`): the whole point
+ * of the field-scoped write is that this verb names ITS four (five with the citation) fields and
+ * nothing else, so a typo'd key silently widening the write is exactly the failure the scoping
+ * exists to prevent. Here it is a compile error instead.
+ */
+interface FrictionRouteFields {
+  route: string;
+  routeReason: string;
+  updatedAt: string;
+  dischargedBy?: string;
+  /**
+   * `unknown[]`, not `string[]`: this is the stored row's own list carried forward with one ref
+   * appended. Narrowing it here would mean either dropping a non-conforming entry silently or
+   * asserting a shape the read cannot establish — `upcastAndValidate` is what judges it.
+   */
+  references?: unknown[];
+}
+
 export async function routeFriction(
   deps: FrictionDeps,
   id: string | undefined,
@@ -891,12 +912,12 @@ export async function routeFriction(
   // `reinforcedBy` belong to whoever filed and re-hit the item, and a `friction reinforce` landing
   // between the read above and this write is exactly the concurrent case the whole-doc path reverted.
   // `base` is kept in step so a refusal is still explained against the doc this verb meant to write.
-  const fields: Record<string, unknown> = {
+  const fields: FrictionRouteFields = {
     route,
     routeReason: reason,
+    updatedAt: ctx.now,
   };
-  if (dischargedBy !== undefined) fields["dischargedBy"] = dischargedBy;
-  fields["updatedAt"] = ctx.now;
+  if (dischargedBy !== undefined) fields.dischargedBy = dischargedBy;
   Object.assign(base, fields);
 
   // ---- the ADR-0298 D2 emission fence: `tool` cites an arc that PARKS this item, or it does not land
@@ -945,8 +966,8 @@ export async function routeFriction(
       const refs = Array.isArray(base["references"]) ? [...(base["references"] as unknown[])] : [];
       // The one conditional field: named only when there is a citation to append, so a routing that
       // appends nothing does not carry a stale `references` list back over a sibling's edit to it.
-      fields["references"] = [...refs, `${ASSET_REF_PREFIX}${target.id}`];
-      base["references"] = fields["references"];
+      fields.references = [...refs, `${ASSET_REF_PREFIX}${target.id}`];
+      base["references"] = fields.references;
       cited = [...cited, target.id];
     }
   }
@@ -986,7 +1007,9 @@ export async function routeFriction(
     // The SAME `actor` the guard compared against — the stamp and the check cannot drift apart.
     saved = await deps.store.patchDoc({
       id,
-      fields,
+      // Spread: `FrictionRouteFields` is an interface, so it carries no implicit index signature and
+      // the store seam's open `Readonly<Record<string, unknown>>` cannot take it directly.
+      fields: { ...fields },
       kind: "friction",
       actor,
       validate: (merged) => upcastAndValidate(merged),
@@ -1069,7 +1092,9 @@ export async function listFriction(
     })
     .sort((a, b) => order[a.life] - order[b.life] || a.id.localeCompare(b.id));
 
-  const counts = { open: 0, archived: 0 } as Record<FrictionLifecycle, number>;
+  // `satisfies`, not `as`: the assertion threw away the two literal keys it had just written,
+  // where this keeps them AND still checks the table is total over `FrictionLifecycle`.
+  const counts = { open: 0, archived: 0 } satisfies Record<FrictionLifecycle, number>;
   for (const r of rows) counts[r.life] += 1;
 
   const width = Math.max(1, ...rows.map((r) => r.id.length));

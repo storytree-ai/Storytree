@@ -272,9 +272,9 @@ async function buildTreePayload(deps: LocalBackendDeps): Promise<Record<string, 
     },
     uatCriteriaByStory,
   );
-  const payload: Record<string, unknown> = { stories };
-  if (builds && builds.length > 0) payload["builds"] = builds;
-  return payload;
+  // One expression rather than an accumulator: `builds` is either present or the key is absent,
+  // which is what the two literals say directly.
+  return builds && builds.length > 0 ? { stories, builds } : { stories };
 }
 
 // ---------- factory ----------
@@ -539,6 +539,20 @@ async function parseForestWrite(input: Record<string, unknown>): Promise<ForestW
  * HTTP edge only (ADR-0117 d.1 / ADR-0100). Returns the broker's status + parsed JSON body so the
  * write client can map it to a persisted / not-persisted result.
  */
+/**
+ * A broker response body: the parsed JSON when it parses, the RAW TEXT when it does not.
+ *
+ * No return annotation, deliberately (anti-slop `no-known-value-widening`): inference reproduces
+ * `unknown` here exactly. The `as unknown` keeps `any` from leaking out of `JSON.parse`.
+ */
+function parseJsonOrText(text: string) {
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return text;
+  }
+}
+
 export function createFetchBrokerPost(brokerBaseUrl: string): BrokerPostFn {
   const base = brokerBaseUrl.replace(/\/+$/, "");
   return async (apiPath, body) => {
@@ -548,14 +562,7 @@ export function createFetchBrokerPost(brokerBaseUrl: string): BrokerPostFn {
       body: JSON.stringify(body),
     });
     const text = await res.text();
-    let parsed: unknown = null;
-    if (text) {
-      try {
-        parsed = JSON.parse(text);
-      } catch {
-        parsed = text;
-      }
-    }
+    const parsed: unknown = text === "" ? null : parseJsonOrText(text);
     return { status: res.status, body: parsed };
   };
 }

@@ -84,10 +84,17 @@ export function resolveMachineLeg(
  * The `anyRefused` flag is the no-partial-verdict rule's whole mechanism: it is computed across the
  * story's full leg set BEFORE a single verdict is written, so a refusal anywhere withholds the set.
  */
+/** Every real leg's resolution, plus the story-wide refusal flag the no-partial-verdict rule reads. */
+export interface MachineLegResolutions {
+  readonly resolutions: MachineLegResolution[];
+  /** True when ANY real leg was refused — computed across the full set before a verdict is written. */
+  readonly anyRefused: boolean;
+}
+
 export function resolveMachineLegs(
   legs: readonly UatTestCriterion[],
   gates: readonly ReliabilityGate[],
-): { resolutions: MachineLegResolution[]; anyRefused: boolean } {
+): MachineLegResolutions {
   const real = legs.filter((t) => !t.wouldBe);
   const resolutions = real.map((leg) => ({ leg, outcome: resolveMachineLeg(leg, gates) }));
   return { resolutions, anyRefused: resolutions.some((r) => r.outcome.kind === "refused") };

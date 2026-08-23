@@ -165,7 +165,7 @@ const PANEL_MUST_DELIVER: Readonly<Record<string, readonly string[]>> = (() => {
     MARKER_TOKENS.leaf,
     MARKER_TOKENS.petalProven,
     MARKER_TOKENS.centreProven,
-    TREE_TOKENS['healthy']!.crown,
+    TREE_TOKENS.get('healthy')!.crown,
     SHARED_TOKENS.storyTrunk,
   ];
   const tags = [
@@ -206,7 +206,7 @@ function tokenNames(): Map<string, string> {
   for (const [k, v] of Object.entries(PROP_TOKENS)) out.set(v, k);
   for (const [k, v] of Object.entries(MARKER_TOKENS)) out.set(v, k);
   for (const [k, v] of Object.entries(SHARED_TOKENS)) out.set(v, k);
-  for (const [status, fam] of Object.entries(TREE_TOKENS)) {
+  for (const [status, fam] of [...TREE_TOKENS]) {
     // Several statuses share a crown colour (`building` falls through to `unknown`'s grey), so
     // the first name wins rather than the last — a stable label instead of an accident of order.
     if (!out.has(fam.crown)) out.set(fam.crown, `crown:${status}`);

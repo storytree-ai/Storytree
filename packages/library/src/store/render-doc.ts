@@ -423,7 +423,7 @@ export function buildLibraryDoc(
   if (input.fields && isStructuredKind(input.category)) {
     // Preserve existing metadata, then strip anything that does not belong on a structured doc
     // (a prior rendered edit, or a not-yet-restructured unit, may have left a `body`/`category`).
-    const doc: Record<string, unknown> = { ...existingDoc };
+    const doc = { ...existingDoc };
     delete doc["body"];
     delete doc["category"];
 
@@ -454,14 +454,13 @@ export function buildLibraryDoc(
   }
 
   // Body-bearing LibraryAsset (template / adr, or a write without structured fields).
-  const doc: Record<string, unknown> = {
-    id: input.id,
-    category: input.category,
-    title: input.title,
-    description: input.description,
-    body: input.body,
-    references: input.references,
-  };
+  const doc: Record<string, unknown> = {};
+  doc["id"] = input.id;
+  doc["category"] = input.category;
+  doc["title"] = input.title;
+  doc["description"] = input.description;
+  doc["body"] = input.body;
+  doc["references"] = input.references;
   if (input.provenance && input.provenance.trim() !== "") doc["provenance"] = input.provenance;
   if (typeof existingDoc["createdAt"] === "string") doc["createdAt"] = existingDoc["createdAt"];
   // Carry the authored dependency edge across a body-bearing write (ADR-0223). Unlike the

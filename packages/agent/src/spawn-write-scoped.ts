@@ -158,6 +158,21 @@ function extractFilePath(input: unknown): string | null {
  *
  * Every caller injects its own caller-declared write-scope predicate against this ONE core.
  */
+/**
+ * The SDK hook payload that REFUSES a tool call — the fail-closed write fence's one output shape.
+ *
+ * Named rather than `object` (anti-slop `no-known-value-widening`): the fence is only a fence
+ * because these four bytes are exactly right, and under `object` a misspelt `permissionDecision`
+ * would have compiled into a hook that silently allowed the write.
+ */
+interface PreToolUseDenial {
+  readonly hookSpecificOutput: {
+    readonly hookEventName: "PreToolUse";
+    readonly permissionDecision: "deny";
+    readonly permissionDecisionReason: string;
+  };
+}
+
 export async function runSpawnWriteScoped(
   args: SpawnWriteScopedArgs,
 ): Promise<SpawnWriteScopedResult> {
@@ -184,7 +199,7 @@ export async function runSpawnWriteScoped(
 
               // Record the denial on the result AND return the deny decision — the write
               // never lands, and the caller can see the fence held (the typed violation).
-              const deny = (violationPath: string, reason: string): object => {
+              const deny = (violationPath: string, reason: string): PreToolUseDenial => {
                 violations.push({ tool: input.tool_name, path: violationPath, reason });
                 return {
                   hookSpecificOutput: {
