@@ -142,7 +142,31 @@ export type ProofRoute =
       reason: string;
     };
 
-/** Package managers whose bare `<script>` invocation runs a package's own script (a suite). */
+/**
+ * The node binary, NAMED — what a command that means NODE must carry as its `file`.
+ *
+ * ⚠ `process.execPath` does NOT mean node; it means "whatever runtime is running this process". That
+ * was node for as long as every package's test script was `node --test`, but under `bun test` it is
+ * `bun.exe` — whose basename is in {@link PACKAGE_MANAGERS} below, so a proof command the spine
+ * BUILT ITSELF got classified as an opaque package-manager invocation and routed away from the
+ * oracle-accounted node-runner branch. That single substitution accounted for 25 of the 26 residual
+ * `bun test` failures across `orchestrator` and `drive` (`bun-runtime-migration-arc` inc-09/inc-10),
+ * and it is the same fault class inc-06 fixed for `agent` and `context-traversal-transcript`.
+ *
+ * The rule is NOT "never use `process.execPath`". A `-e` eval, or a stand-in for "some absolute
+ * executable an administrator pinned", is correctly runtime-agnostic and must stay as it is. Only a
+ * command whose flags are node's own (`--test`, `--import`) or whose child is a node program means
+ * node, and only those name it here.
+ */
+export const NODE_BINARY = "node";
+
+/**
+ * Package managers whose bare `<script>` invocation runs a package's own script (a suite).
+ *
+ * `bun` belongs here — `bun test <pkg>` really is an opaque suite invocation — and its presence is
+ * exactly why a command the spine builds must name {@link NODE_BINARY} rather than inherit its own
+ * runtime; see that constant for the failure it caused.
+ */
 const PACKAGE_MANAGERS = new Set(["pnpm", "npm", "yarn", "npx", "bun"]);
 
 /** Runners that assert through APIs the `node:assert` guard does not count. */

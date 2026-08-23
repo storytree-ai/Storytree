@@ -62,6 +62,12 @@ import { composedBannerFor, decisionRowsOf } from "./adr-composed.js";
 import { FROZEN_ARMS_PATH, parseFrozenArms } from "./decision-composition-trial.js";
 import { expandAtPathFlags, formatAtPathRefusal, PROSE_FLAGS } from "./at-path.js";
 import { libraryQuery, libraryQueryHelp } from "./library-query.js";
+import {
+  libraryRelated,
+  libraryRelatedHelp,
+  librarySearch,
+  librarySearchHelp,
+} from "./library-search.js";
 // The arc domain owns its own package (`arc-tier-extraction-arc`): the arc / increment / question
 // verbs and the derived arc → children join live in `@storytree/arc`, which this shim dispatches to
 // exactly as it dispatches to `@storytree/drive`'s build verbs. It is a CONSUMER of the domain here,
@@ -1862,6 +1868,8 @@ async function libraryHelp(store: Store): Promise<Envelope> {
       "  storytree library artifact new|edit <id>   create / edit (writes need --pg)",
       "  storytree library artifact history <id>    what each write did to its fields (the append-only log)",
       "  storytree library query --kind <k>         ad-hoc predicate read (--where, --count, --field)",
+      "  storytree library search \"<terms>\"          ranked search across every title, description and body",
+      "  storytree library related <id> --unlinked  what else is about this that nothing links to it",
       "  storytree library tree focus <id>          the local DAG of one artifact",
       "  storytree library artifact retire <id>     retire it (needs --pg) — where a lifecycle-tier row goes to die",
       "  storytree library graduate [--review]      agent-memory → Library worklist (ADR-0095)",
@@ -2886,6 +2894,9 @@ export const CLI_OPTIONS = {
   where: { type: "string", multiple: true },
   count: { type: "boolean", default: false },
   kind: { type: "string" },
+  // `storytree library related <id> --unlinked` (`decision-read-measurement-arc` inc 16) — restrict
+  // the ranking to neighbours NO authored edge reaches, which is the set every traversal is blind to.
+  unlinked: { type: "boolean", default: false },
   // `storytree dispatch <handle> --wait [--timeout <seconds>]` — the BOUNDED block on a
   // backgrounded job's sentinel (`the-gate-costs-what-the-change-risks-arc` inc 6). Without it a
   // session that must not proceed until a gate lands hand-rolls a poll loop, or scrapes the log
@@ -4397,6 +4408,21 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       field: values.field,
       count: values.count,
       limit: values.limit,
+    });
+  }
+
+  // `library search "<terms>"` and `library related <id>` (`decision-read-measurement-arc` inc 16) —
+  // the discovery route that does NOT follow an authored edge. Both are READS.
+  if (sub === "search") {
+    if (help) return librarySearchHelp();
+    return librarySearch(deps.store, third, { kind: values.kind, limit: values.limit });
+  }
+  if (sub === "related") {
+    if (third === undefined || help) return libraryRelatedHelp();
+    return libraryRelated(deps.store, third, {
+      kind: values.kind,
+      limit: values.limit,
+      unlinked: values.unlinked === true,
     });
   }
 

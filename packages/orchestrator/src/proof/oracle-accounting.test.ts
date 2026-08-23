@@ -100,7 +100,11 @@ async function workspace(
 function unguarded(dir: string, testRel: string): ShellTestExecutor {
   return new ShellTestExecutor({
     command: (): ShellCommand => ({
-      file: process.execPath,
+      // NODE, named: `--test` is node's own runner. `process.execPath` would be `bun.exe` under
+      // `bun test`, and these legs must spawn the binary production spawns — see `NODE_BINARY`
+      // in `proof-route.ts`. A LITERAL, not the production constant: these tests prove the guard
+      // defeats a forged green, so their fixtures must not be derived from what they verify.
+      file: "node",
       args: ["--test", path.join(dir, testRel)],
       cwd: dir,
     }),
@@ -127,7 +131,8 @@ function guarded(dir: string, testRel: string, reportPath: string): ShellTestExe
  */
 function guardedCommand(dir: string, testRel: string, reportPath: string): ShellCommand {
   return {
-    file: process.execPath,
+    // NODE, named — `--import` and `--test` are node's own flags (see `unguarded` above).
+    file: "node",
     args: ["--import", assertOracleGuardUrl(), "--test", path.join(dir, testRel)],
     cwd: dir,
     env: { [PROOF_REPORT_ENV]: reportPath },
@@ -276,7 +281,8 @@ test("tsx fidelity: the guard defeats the monkeypatch under `node --import tsx -
     const report = path.join(dir, "report.json");
     const exec = new ShellTestExecutor({
       command: (): ShellCommand => ({
-        file: process.execPath,
+        // NODE, named — see `unguarded` above.
+        file: "node",
         args: [
           "--import",
           tsxLoaderUrl(),

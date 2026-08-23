@@ -38,7 +38,7 @@ import {
   resetOracleReport,
   verifyOracleExercised,
 } from "./proof/oracle-accounting.js";
-import { classifyProofRoute, withOracleGuard, withOracleGuardEnv } from "./proof/proof-route.js";
+import { NODE_BINARY, classifyProofRoute, withOracleGuard, withOracleGuardEnv } from "./proof/proof-route.js";
 import type { ProofRoute } from "./proof/proof-route.js";
 import { gitTreeState } from "./prove-it-gate.js";
 import type { PhasePrompts, ProveSpec, TreeState } from "./prove-it-gate.js";
@@ -375,7 +375,9 @@ export function resolveProveSpec(
   // workspace's planted/authored pair, and the per-phase write walls. The registry's real
   // command/scope are NOT spawned in these modes — that is what `mode: "real"` is for.
   const syntheticProofCmd: ShellCommand = {
-    file: process.execPath,
+    // NODE, named — not `process.execPath` ("the runtime running the spine"); see the note on
+    // `PACKAGE_MANAGERS` in `proof/proof-route.ts`.
+    file: NODE_BINARY,
     args: [path.join(opts.workspace, DRY_RUN_TEST_REL)],
     cwd: opts.workspace,
   };
@@ -869,7 +871,10 @@ export function realProofCommand(
   // never a worktree file. `display` stays the human-facing command (the guard is spine plumbing).
   return {
     command: {
-      file: process.execPath,
+      // NODE, named: `--import` and `--test` are node's own flags and `display` below has always
+      // said `node`, so the command must not inherit whatever runtime happens to run the spine —
+      // see the note on `PACKAGE_MANAGERS` in `proof/proof-route.ts`.
+      file: NODE_BINARY,
       args: [
         "--import",
         tsxLoaderUrl(),
