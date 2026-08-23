@@ -35,6 +35,7 @@
     "probe:decision-baseline": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/probe-decision-baseline.ts",
     "probe:decision-altitude": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/probe-decision-altitude.ts",
     "probe:decision-control-set": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/probe-decision-control-set.ts",
+    "probe:decision-composition-trial": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/probe-decision-composition-trial.ts",
     "probe:re-reads": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/probe-re-reads.ts",
     "standson:bootstrap": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/standson-bootstrap.ts",
     "check:web-grounding": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-web-grounding.ts",

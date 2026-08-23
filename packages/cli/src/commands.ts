@@ -58,6 +58,8 @@ import { renderStoredDoc, renderProcessNode } from "@storytree/library/store";
 import { execFileSync } from "node:child_process";
 
 import { adrCommand, adrHelp, type AdrAllocatorLike, type AdrCommandOpts } from "./adr.js";
+import { composedBannerFor, decisionRowsOf } from "./adr-composed.js";
+import { FROZEN_ARMS_PATH, parseFrozenArms } from "./decision-composition-trial.js";
 import { expandAtPathFlags, formatAtPathRefusal, PROSE_FLAGS } from "./at-path.js";
 import { libraryQuery, libraryQueryHelp } from "./library-query.js";
 // The arc domain owns its own package (`arc-tier-extraction-arc`): the arc / increment / question
@@ -449,6 +451,31 @@ function repoRoot(): string {
 }
 
 /**
+ * ADR-0428 D6's frozen CONTROL arm, read from the committed write-up — `undefined` when the file
+ * cannot be read or does not parse to the freeze's own 54 pairs.
+ *
+ * `undefined` IS THE HONEST ANSWER, never an empty set. An empty set would let `adr compose` write
+ * on a control-arm frontier while reporting that the fence ran, which is worse than not having the
+ * fence: the trial would be destroyed and the record would say it was protected. The verb reports
+ * the absence instead.
+ *
+ * Memoised because the fence is consulted per invocation and the file never changes under a run.
+ */
+let frozenControlArmCache: ReadonlySet<number> | null | undefined;
+function frozenControlArm(): ReadonlySet<number> | undefined {
+  if (frozenControlArmCache === undefined) {
+    try {
+      frozenControlArmCache = new Set(
+        parseFrozenArms(readFileSync(path.join(repoRoot(), FROZEN_ARMS_PATH), "utf8")).control,
+      );
+    } catch {
+      frozenControlArmCache = null;
+    }
+  }
+  return frozenControlArmCache ?? undefined;
+}
+
+/**
  * `storytree library --check` (design §4 surface b) — the FULL per-id health report (all four checks).
  * Provides the fs-backed `docExists` resolver (under <repoRoot>/docs) so {@link libraryHealth} stays
  * pure. Envelope `ok` is false IFF a GATE-class check FAILs (non-zero exit, ADR-0026 §6); a WARN
@@ -545,9 +572,21 @@ export async function viewArtifact(store: Store, id: string, offerId?: string): 
   const a = renderStoredDoc(stored);
   const lines: string[] = [`# ${a.title}    [${a.category}]`, `id: ${a.id}`, ""];
   if (a.description) lines.push(a.description, "");
+  // The whole corpus, read ONCE and used twice: the Sources block resolves refs against it below,
+  // and a decision's composed-statement banner needs the chain beneath this record to compute its
+  // outstanding-effects marker. Hoisted above the body for the SECOND reason — the banner is a cover
+  // note and belongs over the text it covers, which is where the statute precedent puts it too.
+  const allDocs = await store.queryDocs();
+  // ADR-0428: a decision carrying a composed statement leads with it, and with a machine-derived
+  // statement of whether it is still current with respect to the records beneath. Every other kind,
+  // and every decision that carries none, renders exactly as before — the banner never announces its
+  // own absence. ADR-0428 D4: the statement is ADDITIVE, so the record's own text follows in full
+  // and every edge stays walkable.
+  const banner = stored.kind === "adr" ? composedBannerFor(stored.doc, decisionRowsOf(allDocs)) : [];
+  if (banner.length > 0) lines.push(...banner);
   lines.push(a.body);
   // "Sources": references grouped by target type, resolved against the corpus (asset:<id> -> kind).
-  const byId = new Map((await store.queryDocs()).map((d) => [d.id, d] as const));
+  const byId = new Map(allDocs.map((d) => [d.id, d] as const));
   const sources = groupSources(a.references, (refId) => {
     const t = byId.get(refId);
     return t ? { kind: t.kind, title: fieldOf(t, "title") } : null;
@@ -2719,6 +2758,13 @@ export const CLI_OPTIONS = {
   // "this decision rests on that one". Its sibling `--amends` is reserved for the narrower claim
   // that something in the target moved.
   "depends-on": { type: "string" },
+  // `storytree adr compose <n> --clause D4` (ADR-0428 D3): the clause a composed statement covers.
+  // Absent composes over the WHOLE record, which is D1's build — the flag exists so the shape does
+  // not have to change on the day clause identity is minted.
+  clause: { type: "string" },
+  // `storytree adr compose --allow-control-arm` (ADR-0428 D6): the explicit escape from the frozen
+  // composition-trial fence. Not a `--force`: a session ending the trial says so in words.
+  "allow-control-arm": { type: "boolean", default: false },
   arc: { type: "string" },
   // `storytree arc new` / `arc edit` / `arc increment add` / `arc close` — the first-class arc
   // write verbs (long prose via @path).
@@ -3524,6 +3570,12 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     if (values.current === true) adrOpts.current = true;
     if (values["load-bearing"] === true) adrOpts.loadBearing = true;
     if (values.status !== undefined) adrOpts.status = values.status;
+    // ADR-0428's `adr compose`. `--statement` is already a declared PROSE flag (`question new`), so
+    // `@path` carries a statement too long for a shell argument with no new classification.
+    if (values.statement !== undefined) adrOpts.statement = values.statement;
+    if (values.clause !== undefined) adrOpts.clause = values.clause;
+    if (values["allow-control-arm"] === true) adrOpts.allowControlArm = true;
+    const controlArm = frozenControlArm();
     return adrCommand(
       sub,
       adrOpts,
@@ -3544,6 +3596,10 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
           writable: deps.writable === true,
           actor: deps.actor ?? defaultCliActor(),
         },
+        // ADR-0428 D6's frozen held-out set, read from the committed write-up. Resolved HERE rather
+        // than inside the verb so the verb stays pure of the filesystem — and left ABSENT when the
+        // file cannot be read, which the write then reports rather than implying the fence passed.
+        ...(controlArm === undefined ? {} : { controlArm }),
       },
     );
   }

@@ -1,4 +1,6 @@
 import { z } from "zod";
+
+import { ComposedStatements } from "./composed-statement.js";
 import { Markdown } from "./schema.js";
 
 /**
@@ -1413,6 +1415,29 @@ export const Adr = buildKindSchema("adr").extend({
    * decisions stay unstamped.
    */
   arcRef: AssetRef.optional(),
+  /**
+   * ADR-0428's COMPOSED STATEMENT — the maintained position at a chain frontier, with the basis its
+   * outstanding-effects marker is derived from. See `composed-statement.ts` for the whole design;
+   * what matters here is the storage shape and why it is the one chosen.
+   *
+   * OPTIONAL, never `.default([])` (ADR-0223's optional-not-defaulted rule): absent means no
+   * statement was ever composed on this record, which is the state of most of the log and must stay
+   * distinguishable from a list somebody emptied.
+   *
+   * AN ARRAY FROM DAY ONE, carrying at most one entry per `scope`, and that is ADR-0428 D3 landing
+   * rather than speculative generality: per-record is the FIRST build, roughly half our own guidance
+   * already references a CLAUSE, and an object-valued field would have to become an array on the day
+   * clause identity is minted — breaking every reader at once. Today every entry is `scope`-less and
+   * therefore whole-record, which is exactly D1.
+   *
+   * It is NOT a decision-document frontmatter key, and that asymmetry is deliberate. A composed
+   * statement is DERIVED metadata about the chain beneath a record, not part of what the record
+   * decided, so it is authored by its own verb (`storytree adr compose`) and rides the row.
+   * `adrPush`'s `{...row, <named fields>}` spread is what carries it across a round trip untouched —
+   * a corrected decision document is not evidence anyone re-checked the chain, so a push must not be
+   * able to clear or rewrite the statement. `adr-round-trip.test.ts` pins that.
+   */
+  composed: ComposedStatements.optional(),
 });
 
 /** A knowledge unit at any kind. The discriminator is `kind` (ADR-0017). */
