@@ -374,10 +374,18 @@ export class SupportGraphCycleError extends Error {
  * Three-colour marking, and a cycle THROWS naming the loop rather than truncating — `probe:adr-graph`'s
  * discipline, reused. A truncated walk returns a plausible smaller number and nothing says so.
  */
+/** The longest chain of READ decisions a session actually walked, and the chain itself. */
+export interface ReadChain {
+  /** Edges crossed, both ends read. `0` when nothing was read. */
+  readonly depth: number;
+  /** The decision numbers along that chain, in walk order. */
+  readonly path: readonly number[];
+}
+
 export function longestReadChain(
   readSet: ReadonlySet<number>,
   adjacency: ReadonlyMap<number, readonly number[]>,
-): { readonly depth: number; readonly path: readonly number[] } {
+): ReadChain {
   if (readSet.size === 0) return { depth: 0, path: [] };
 
   const WHITE = 0;

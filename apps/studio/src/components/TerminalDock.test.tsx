@@ -39,6 +39,17 @@ import { render, screen, fireEvent, act, cleanup } from '@testing-library/react'
 //    ANY resize() call (including one driven by the fake FitAddon's `fit()`) — mirroring real
 //    xterm's onResize-fires-on-resize behaviour, so the resize→bridge wiring is genuinely exercised,
 //    not just a shape the test hands itself. ─────────────────────────────────────────────────────
+/** Real xterm's Unicode-version surface, as the fake mirrors it. */
+interface UnicodeSurface {
+  activeVersion: string;
+}
+
+/** A terminal's measured grid, as the fit addon reports it. */
+interface TerminalDims {
+  cols: number;
+  rows: number;
+}
+
 const xtermMock = vi.hoisted(() => {
   class FakeTerminal {
     static instances: FakeTerminal[] = [];
@@ -70,7 +81,7 @@ const xtermMock = vi.hoisted(() => {
     options: Record<string, unknown>;
     /** test-only: mirrors real xterm's `unicode` handling surface — starts at xterm's Unicode 6
      *  default so the unicode11 contract genuinely observes the source flipping it to '11'. */
-    unicode: { activeVersion: string } = { activeVersion: '6' };
+    unicode: UnicodeSurface = { activeVersion: '6' };
     /** test-only: counts `term.clear()` calls — pins the ConPTY state-sync clear contract
      *  (frontend clear → xterm buffer cleared + bridge.clear forwarded) without a real buffer. */
     clearCalls = 0;
@@ -156,7 +167,7 @@ const xtermMock = vi.hoisted(() => {
 const fitMock = vi.hoisted(() => {
   class FakeFitAddon {
     static instances: FakeFitAddon[] = [];
-    nextDims: { cols: number; rows: number } = { cols: 80, rows: 24 };
+    nextDims: TerminalDims = { cols: 80, rows: 24 };
     fitCalls = 0;
     disposed = false;
     private terminal: InstanceType<typeof xtermMock.FakeTerminal> | null = null;
@@ -1367,8 +1378,7 @@ describe('TerminalDock', () => {
   //    older preload lacks it): without it the dock renders data exactly as before, never throws,
   //    never tries to ack. ─────────────────────────────────────────────────────────────────────
   it('tdp-ack-absent-bridge-member-is-inert: a bridge without ack (older preload) renders data normally — no throw, no ack attempt', async () => {
-    const bridgeWithoutAck = { ...bridgeMock } as Record<string, unknown>;
-    delete bridgeWithoutAck['ack'];
+    const { ack: _ack, ...bridgeWithoutAck } = bridgeMock;
     (window as unknown as { desktopTerminal?: unknown }).desktopTerminal = bridgeWithoutAck;
 
     render(withToolkit(<TerminalDock />));
@@ -1463,8 +1473,7 @@ describe('TerminalDock', () => {
 
     // An older preload without `clear` (feature-guarded like `ack?`): the local xterm clear
     // still happens, nothing is forwarded, nothing throws.
-    const bridgeWithoutClear = { ...bridgeMock } as Record<string, unknown>;
-    delete bridgeWithoutClear['clear'];
+    const { clear: _clear, ...bridgeWithoutClear } = bridgeMock;
     (window as unknown as { desktopTerminal?: unknown }).desktopTerminal = bridgeWithoutClear;
     bridgeMock.resetSessionCounter();
     bridgeMock.clear.mockClear();
@@ -1517,8 +1526,7 @@ describe('TerminalDock', () => {
 
     // An older preload without `openLink` (feature-guarded like `ack?`/`clear?`): no link addon
     // is loaded at all, and nothing throws.
-    const bridgeWithoutOpenLink = { ...bridgeMock } as Record<string, unknown>;
-    delete bridgeWithoutOpenLink['openLink'];
+    const { openLink: _openLink, ...bridgeWithoutOpenLink } = bridgeMock;
     (window as unknown as { desktopTerminal?: unknown }).desktopTerminal = bridgeWithoutOpenLink;
     bridgeMock.resetSessionCounter();
     webLinksMock.FakeWebLinksAddon.instances.length = 0;

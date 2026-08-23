@@ -25,15 +25,16 @@ const KINDS = Object.keys(KIND_SPECS) as KnowledgeKind[];
 
 /** A minimal valid doc for a kind: common fields + every REQUIRED spec field. */
 function minimalDoc(kind: KnowledgeKind) {
-  const doc: Record<string, unknown> = {
-    kind,
-    id: `standson-${kind}`,
-    title: `dependsOn ${kind}`,
-    description: "dependsOn admission fixture",
-    references: [],
-    createdAt: "2026-08-14T00:00:00.000Z",
-    updatedAt: "2026-08-14T00:00:00.000Z",
-  };
+  // Declared as the accumulator it is — the per-kind key set below comes from `KIND_SPECS`,
+  // so there is no statically known shape for the annotation to be discarding.
+  const doc: Record<string, unknown> = {};
+  doc["kind"] = kind;
+  doc["id"] = `standson-${kind}`;
+  doc["title"] = `dependsOn ${kind}`;
+  doc["description"] = "dependsOn admission fixture";
+  doc["references"] = [];
+  doc["createdAt"] = "2026-08-14T00:00:00.000Z";
+  doc["updatedAt"] = "2026-08-14T00:00:00.000Z";
   for (const spec of KIND_SPECS[kind]) {
     if (spec.required) {
       doc[spec.field] =

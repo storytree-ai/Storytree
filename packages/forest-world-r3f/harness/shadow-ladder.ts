@@ -123,11 +123,11 @@ export function deliveredColour(token: string, level: number): Rgb255 {
  *  statuses share the identical wheat hex, so a wheat cell reports no status by colour at
  *  all, and including it would make every status equidistant from every shadowed pixel. */
 export function readerStatusTable(opts: ReaderTableOptions = {}) {
-  const statuses = opts.statuses ?? Object.keys(STATUS_TOKENS).sort();
+  const statuses = opts.statuses ?? [...STATUS_TOKENS.keys()].sort();
   const rung = opts.rung ?? 1.0;
   const table: Record<string, Rgb255[]> = {};
   for (const st of statuses) {
-    const fam = STATUS_TOKENS[st];
+    const fam = STATUS_TOKENS.get(st);
     if (!fam) throw new Error(`shadow-ladder: no token family for status ${JSON.stringify(st)}`);
     const tokens = opts.oneToken ? [fam.top[0]!] : [...fam.top];
     if (opts.faces === 'all') tokens.push(fam.side);
@@ -207,7 +207,7 @@ export function liveCeilings(
 ): { status: string; relative: number; absolute: number; readsAs: string }[] {
   const table = liveReaderTable(statuses);
   return statuses.map((st) => {
-    const base = deliveredColour(STATUS_TOKENS[st]!.top[0]!, FLAT_GROUND_LEVEL);
+    const base = deliveredColour(STATUS_TOKENS.get(st)!.top[0]!, FLAT_GROUND_LEVEL);
     const { deepest, readsAs } = safeDepth(base, table);
     return { status: st, relative: deepest, absolute: FLAT_GROUND_LEVEL * deepest, readsAs };
   });
@@ -237,7 +237,7 @@ export function deepestAdmissibleRung(
   for (let level = FLAT_GROUND_LEVEL - step; level > 0.3; level -= step) {
     const rounded = Math.round(level * 10000) / 10000;
     const ok = statuses.every(
-      (st) => nearestStatus(deliveredColour(STATUS_TOKENS[st]!.top[0]!, rounded), table) === st,
+      (st) => nearestStatus(deliveredColour(STATUS_TOKENS.get(st)!.top[0]!, rounded), table) === st,
     );
     if (!ok) break;
     admissible = rounded;
@@ -345,7 +345,7 @@ export function ladderAdmissibility(
   const out: RungVerdict[] = [];
   for (const status of statuses) {
     for (const level of levels) {
-      const colour = deliveredColour(STATUS_TOKENS[status]!.top[0]!, level);
+      const colour = deliveredColour(STATUS_TOKENS.get(status)!.top[0]!, level);
       const readsAs = nearestStatus(colour, table);
       out.push({ status, level, hex: toHex(colour), readsAs, admissible: readsAs === status });
     }
@@ -367,9 +367,9 @@ export function ladderAdmissibility(
  */
 export function familyOnShadowLadder(colour: Rgb255): string | null {
   const hex = toHex(colour);
-  for (const st of Object.keys(STATUS_TOKENS)) {
-    const fam = STATUS_TOKENS[st]!;
-    const tree = TREE_TOKENS[st];
+  for (const st of [...STATUS_TOKENS.keys()]) {
+    const fam = STATUS_TOKENS.get(st)!;
+    const tree = TREE_TOKENS.get(st);
     const tokens = tree ? [...fam.top, fam.side, tree.crown] : [...fam.top, fam.side];
     for (const token of tokens) {
       for (const level of SHADOW_LADDER) {
@@ -413,7 +413,7 @@ export function robustlyInadmissible(
   const wide = readerStatusTable({ statuses, rung: FLAT_GROUND_LEVEL, oneToken: false });
   return ladderAdmissibility(levels, statuses).filter((v) => {
     if (v.admissible) return false;
-    const colour = deliveredColour(STATUS_TOKENS[v.status]!.top[0]!, v.level);
+    const colour = deliveredColour(STATUS_TOKENS.get(v.status)!.top[0]!, v.level);
     return nearestStatus(colour, wide) !== v.status;
   });
 }
@@ -437,7 +437,7 @@ export interface LuminanceOverlapResult {
  */
 export function luminanceOverlap(statuses: readonly string[] = RENDERED_STATUSES): LuminanceOverlapResult {
   const ranges = statuses.map((status) => {
-    const ls = SHADE_LEVELS.map((l) => luma(deliveredColour(STATUS_TOKENS[status]!.top[0]!, l)));
+    const ls = SHADE_LEVELS.map((l) => luma(deliveredColour(STATUS_TOKENS.get(status)!.top[0]!, l)));
     return { status, min: Math.min(...ls), max: Math.max(...ls) };
   });
   const overlaps: { a: string; b: string; luma: number }[] = [];
@@ -464,8 +464,8 @@ export function luminanceOverlap(statuses: readonly string[] = RENDERED_STATUSES
  *  about the shadow. */
 export function groundPaletteWithShadow(): string[] {
   const set = new Set<string>();
-  for (const st of Object.keys(STATUS_TOKENS)) {
-    for (const token of STATUS_TOKENS[st]!.top) {
+  for (const st of [...STATUS_TOKENS.keys()]) {
+    for (const token of STATUS_TOKENS.get(st)!.top) {
       for (const c of shadowRamp(token)) set.add(toHex(c));
     }
   }

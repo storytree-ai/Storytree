@@ -663,7 +663,7 @@ test("deriveArcRollup is PURE — the same inputs join identically with no store
 // ---------------------------------------------------------------------------
 
 /** One increment doc citing `refs`, minimal but shaped like the real thing. */
-function citingIncrement(id: string, refs: string[]): unknown {
+function citingIncrement(id: string, refs: string[]) {
   return {
     id,
     kind: "increment",

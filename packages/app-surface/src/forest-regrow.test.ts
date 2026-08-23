@@ -235,7 +235,7 @@ describe('deriveForestRegrowPlan', () => {
   it('regrows the same graph identically, whatever order the stories arrive in', () => {
     const forward = deriveForestRegrowPlan(GRAPH, EDGES);
     const shuffled = deriveForestRegrowPlan([...GRAPH].reverse(), [...EDGES].reverse());
-    const shape = (p: ForestRegrowPlan): unknown => ({
+    const shape = (p: ForestRegrowPlan) => ({
       steps: p.steps,
       base: p.baseStoryIds,
       waves: p.waveCount,

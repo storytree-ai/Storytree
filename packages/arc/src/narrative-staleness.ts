@@ -176,11 +176,19 @@ function day(iso: string): string {
   return iso.slice(0, 10);
 }
 
-/** The closed increments, newest first, as landing rows. */
-function landingsOf(increments: readonly ArcRollupIncrement[]): {
+/**
+ * The closed increments split by whether a landing DATE could be read off them — the two halves
+ * every staleness verdict below is computed from.
+ */
+interface ArcLandings {
+  /** Landings carrying a readable date, newest first. */
   dated: UnseenLanding[];
+  /** Increment ids that closed with no datable field at all — the honest third answer. */
   undated: string[];
-} {
+}
+
+/** The closed increments, newest first, as landing rows. */
+function landingsOf(increments: readonly ArcRollupIncrement[]): ArcLandings {
   const dated: UnseenLanding[] = [];
   const undated: string[] = [];
   for (const i of increments) {

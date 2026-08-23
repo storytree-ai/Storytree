@@ -7,7 +7,7 @@ import { describe, it, expect } from 'vitest';
 import { mermaidSource } from './markdown';
 
 /** A hast `<pre><code class="language-<lang>">…</code></pre>` node, as react-markdown passes it. */
-function preNode(lang: string | undefined, text: string): unknown {
+function preNode(lang: string | undefined, text: string) {
   return {
     tagName: 'pre',
     children: [

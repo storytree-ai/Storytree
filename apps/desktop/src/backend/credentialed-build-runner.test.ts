@@ -100,7 +100,8 @@ test("operation-env-lifetime: credentialed-build-runner: an explicitly-set env c
   const broker = new CredentialBroker(keychain);
   await broker.store("oauth", "kc-token-must-not-win");
 
-  const env: Record<string, string | undefined> = { [OAUTH_VAR]: "explicit-env-token" };
+  const env: Record<string, string | undefined> = {};
+  env[OAUTH_VAR] = "explicit-env-token";
   const { envSnapshots, runner: base } = makeStubRunner(env);
   const runner = credentialedBuildRunner({
     broker,
@@ -167,7 +168,8 @@ test("operation-env-lifetime: credentialed-build-runner: falls through to a file
   const keychain = new InMemoryKeychain();
   const broker = new CredentialBroker(keychain); // nothing stored
 
-  const env: Record<string, string | undefined> = { [OAUTH_VAR]: "file-hydrated-token" };
+  const env: Record<string, string | undefined> = {};
+  env[OAUTH_VAR] = "file-hydrated-token";
   const { calls, envSnapshots, runner: base } = makeStubRunner(env);
   const runner = credentialedBuildRunner({ broker, runner: base, env });
 
@@ -226,9 +228,8 @@ test("runtime-credential-partition: Codex uses saved ChatGPT auth without requir
 
 test("runtime-credential-partition: credentialed-build-runner: a stray CURSOR_API_KEY env does not count as Claude auth", async () => {
   const broker = new CredentialBroker(new InMemoryKeychain());
-  const env: Record<string, string | undefined> = {
-    CURSOR_API_KEY: "cursor-env-test-value",
-  };
+  const env: Record<string, string | undefined> = {};
+  env["CURSOR_API_KEY"] = "cursor-env-test-value";
   const { calls, runner: base } = makeStubRunner(env);
   const runner = credentialedBuildRunner({
     broker,

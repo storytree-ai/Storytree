@@ -55,9 +55,9 @@ import {
  *  discriminates none, so a prop matching it asserts nothing. */
 function statusDeliveredColours(): Map<string, string> {
   const out = new Map<string, string>();
-  for (const st of Object.keys(STATUS_TOKENS)) {
-    const fam = STATUS_TOKENS[st]!;
-    const tree = TREE_TOKENS[st];
+  for (const st of [...STATUS_TOKENS.keys()]) {
+    const fam = STATUS_TOKENS.get(st)!;
+    const tree = TREE_TOKENS.get(st);
     const tokens = [...fam.top, fam.side, ...(tree ? [tree.crown] : [])];
     for (const token of tokens) {
       for (const c of shadowRamp(token)) out.set(toHex(c), `${st} (${token})`);
@@ -113,14 +113,14 @@ test('D3: the palette GREW rather than moved — every pre-prop entry survives',
   // token had displaced a status entry rather than adding to the set, the closure would be the
   // same SIZE while meaning something different — which is the failure a bare count cannot see.
   const before = new Set<string>();
-  for (const st of Object.keys(STATUS_TOKENS)) {
-    const fam = STATUS_TOKENS[st]!;
+  for (const st of [...STATUS_TOKENS.keys()]) {
+    const fam = STATUS_TOKENS.get(st)!;
     for (const t of [...fam.top, fam.wheat, fam.side]) {
       for (const c of paletteImageOfToken(t)) before.add(toHex(c));
     }
   }
-  for (const st of Object.keys(TREE_TOKENS)) {
-    for (const c of paletteImageOfToken(TREE_TOKENS[st]!.crown)) before.add(toHex(c));
+  for (const st of [...TREE_TOKENS.keys()]) {
+    for (const c of paletteImageOfToken(TREE_TOKENS.get(st)!.crown)) before.add(toHex(c));
   }
   for (const t of [...Object.values(SHARED_TOKENS), ...Object.values(MARKER_TOKENS)]) {
     for (const c of paletteImageOfToken(t)) before.add(toHex(c));
@@ -132,7 +132,7 @@ test('D3: the palette GREW rather than moved — every pre-prop entry survives',
 
 test('an UNKEYED prop material is still (authored token x authored level) — nothing is free-shaded', () => {
   for (const [name, token] of Object.entries(PROP_TOKENS)) {
-    if (SHADE_KEYS[token]) continue; // the keyed ones are the next test's subject
+    if (SHADE_KEYS.get(token)) continue; // the keyed ones are the next test's subject
     const base = parseHex(token);
     const ramp = shadowRamp(token);
     assert.equal(ramp.length, SHADOW_LADDER.length, `${name} does not wear the whole ladder`);
@@ -154,13 +154,13 @@ test('an UNKEYED prop material is still (authored token x authored level) — no
 });
 
 test('a SHADE-KEYED material is a mix of exactly TWO authored colours — still not free-shaded', () => {
-  const keyed = Object.entries(PROP_TOKENS).filter(([, t]) => SHADE_KEYS[t]);
+  const keyed = Object.entries(PROP_TOKENS).filter(([, t]) => SHADE_KEYS.get(t));
   // A guard rather than a formality: if the keys are ever emptied, every assertion below would
   // pass vacuously over an empty list and this file would go green having checked nothing.
   assert.ok(keyed.length >= 3, 'no shade-keyed tokens to check');
   for (const [name, token] of keyed) {
     const base = parseHex(token);
-    const key = parseHex(SHADE_KEYS[token]!);
+    const key = parseHex(SHADE_KEYS.get(token)!);
     const ramp = shadowRamp(token);
     assert.equal(ramp.length, SHADOW_LADDER.length, `${name} does not wear the whole ladder`);
     ramp.forEach((c, i) => {
@@ -225,7 +225,7 @@ test('SHADE KEYS ARE OPT-IN — every pre-canopy token delivers exactly what it 
   // touched the ONE function every palette entry on this island goes through, so the cheapest
   // way for this change to have gone wrong is silently, somewhere else.
   for (const token of landTokens()) {
-    if (SHADE_KEYS[token]) continue;
+    if (SHADE_KEYS.get(token)) continue;
     const base = parseHex(token);
     for (const level of SHADOW_LADDER) {
       assert.deepEqual(deliveredColour(token, level), {
@@ -238,9 +238,9 @@ test('SHADE KEYS ARE OPT-IN — every pre-canopy token delivers exactly what it 
   // And no STATUS family may ever be keyed: a rotated shadowed ground would change what the
   // land's colour asserts, and ADR-0392 D5 / ADR-0398 D7 put that beyond an art call. The
   // question is priced in `docs/research/chapter2-islanders-canopy-2026-08-22/`, not decided.
-  for (const fam of Object.values(STATUS_TOKENS)) {
+  for (const fam of [...STATUS_TOKENS.values()]) {
     for (const t of [...fam.top, fam.wheat, fam.side]) {
-      assert.equal(SHADE_KEYS[t], undefined, `${t} is a status token and must not be shade-keyed`);
+      assert.equal(SHADE_KEYS.get(t), undefined, `${t} is a status token and must not be shade-keyed`);
     }
   }
 });

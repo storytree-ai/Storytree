@@ -560,7 +560,10 @@ export function resolveDbProofEnv():
       },
     };
   }
-  const env: Record<string, string> = { [TEST_DB_ENV]: dbName };
+  // Declared as the accumulator it is: the key is computed, so there is no statically known
+  // shape for the annotation to be discarding.
+  const env: Record<string, string> = {};
+  env[TEST_DB_ENV] = dbName;
   const dbUser = process.env["STORYTREE_DB_USER"]?.trim();
   if (dbUser !== undefined && dbUser !== "") env["STORYTREE_DB_USER"] = dbUser;
   return { ok: true, env, dbName };

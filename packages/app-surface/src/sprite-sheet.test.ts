@@ -110,7 +110,7 @@ describe('sprite-sheet', () => {
   });
 
   test('parseStyleSheet — throws on a malformed sprite def (missing/invalid fields)', () => {
-    const bad = (sprite: unknown): unknown => ({ name: 'test-sheet', label: 'Stub A', sprites: { tree: sprite } });
+    const bad = (sprite: unknown) => ({ name: 'test-sheet', label: 'Stub A', sprites: { tree: sprite } });
     expect(() => parseStyleSheet(bad({}))).toThrow(/"href"/); // missing href
     expect(() => parseStyleSheet(bad({ href: '' }))).toThrow(/"href"/); // empty href
     expect(() => parseStyleSheet(bad({ href: '/x.svg', w: 0, h: 10, anchorX: 0, anchorY: 0 }))).toThrow(/"w"/); // w<=0

@@ -180,7 +180,7 @@ test("operation-env-lifetime: credential-bridge: api-key is scoped to ANTHROPIC_
   const bridge = new CredentialBridge(
     broker,
     async () => {
-      during = { ...env };
+      during = Object.assign({}, env);
       return { ok: true, body: "stub: ok" };
     },
     env,

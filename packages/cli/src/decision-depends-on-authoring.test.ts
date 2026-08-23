@@ -34,7 +34,7 @@ import { editArtifact } from "./commands.js";
 
 const NOW = "2026-08-23T00:00:00.000Z";
 
-function decisionRow(number: number, extra: Record<string, unknown> = {}): Record<string, unknown> {
+function decisionRow(number: number, extra: Record<string, unknown> = {}) {
   const id = `adr-${String(number).padStart(4, "0")}`;
   return {
     kind: "adr",
@@ -70,7 +70,7 @@ function decisionRow(number: number, extra: Record<string, unknown> = {}): Recor
  * the `doc:` spelling alone, so the `asset:` half is covered by inc-08's own tests rather than
  * inferred from a green here.
  */
-function anchorRow(dependsOn: readonly string[]): Record<string, unknown> {
+function anchorRow(dependsOn: readonly string[]) {
   return {
     kind: "pattern",
     id: "an-anchor",

@@ -189,35 +189,35 @@ export function measureOnboarding(trace: readonly TraceToolCall[]): OnboardingMe
  * The baseline (pre-Phase-1) was ~107 s p50 / ~478 s p90 of active onboarding; these budgets guard
  * the IMPROVED baseline, so a well-behaved session sits comfortably under its type's budget.
  */
-export const AGENT_BUDGETS: Readonly<Record<string, number>> = {
+export const AGENT_BUDGETS: ReadonlyMap<string, number> = new Map([
   // Low tier — analysis / read-mostly.
-  Explore: 45_000,
-  explorer: 45_000,
-  Plan: 60_000,
-  planner: 60_000,
-  "corpus-investigator": 45_000,
-  "friction-analyst": 60_000,
-  "claude-code-guide": 45_000,
-  "statusline-setup": 30_000,
+  ["Explore", 45_000],
+  ["explorer", 45_000],
+  ["Plan", 60_000],
+  ["planner", 60_000],
+  ["corpus-investigator", 45_000],
+  ["friction-analyst", 60_000],
+  ["claude-code-guide", 45_000],
+  ["statusline-setup", 30_000],
   // Higher tier — build / verify (ENV + SOURCE).
-  "frontend-builder": 120_000,
-  "glue-worker": 90_000,
-  "story-author": 90_000,
-  "guidance-curator": 90_000,
-  "librarian-curator": 90_000,
-  "graduation-synthesist": 90_000,
-  "general-purpose": 120_000,
-  claude: 120_000,
+  ["frontend-builder", 120_000],
+  ["glue-worker", 90_000],
+  ["story-author", 90_000],
+  ["guidance-curator", 90_000],
+  ["librarian-curator", 90_000],
+  ["graduation-synthesist", 90_000],
+  ["general-purpose", 120_000],
+  ["claude", 120_000],
   // The interactive outer loop.
-  "session-orchestrator": 150_000,
-};
+  ["session-orchestrator", 150_000],
+]);
 
 /** Fallback budget for an agent-type not in {@link AGENT_BUDGETS} (ms). */
 export const DEFAULT_BUDGET_MS = 120_000;
 
 /** PURE: the budget for an agent-type, or {@link DEFAULT_BUDGET_MS} if unknown. */
 export function budgetForAgentType(agentType: string): number {
-  return AGENT_BUDGETS[agentType] ?? DEFAULT_BUDGET_MS;
+  return AGENT_BUDGETS.get(agentType) ?? DEFAULT_BUDGET_MS;
 }
 
 /**

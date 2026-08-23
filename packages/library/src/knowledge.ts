@@ -83,8 +83,20 @@ export type KnowledgeKind =
  * templates (the `template-*` units in the runtime store) verbatim, so `generateTemplate`
  * reproduces them byte-for-byte.
  */
-export const KIND_SPECS: Readonly<Record<KnowledgeKind, readonly KindFieldSpec[]>> = {
-  definition: [
+/**
+ * Identity, but it PINS the element type to `KindFieldSpec`.
+ *
+ * `KIND_SPECS` is validated with `satisfies` rather than an annotation (anti-slop
+ * `no-known-value-widening` — the annotation was `Readonly<Record<KnowledgeKind, ...>>`, an open
+ * dictionary that discarded every key it had just written). `satisfies` keeps the totality check
+ * over `KnowledgeKind` AND the literal keys, but it also keeps each array's inferred element type,
+ * which is a union of the shapes actually written — so `spec.refList` would be missing on the
+ * entries that omit it. This restores the one thing the annotation was doing usefully.
+ */
+const specs = (items: readonly KindFieldSpec[]): readonly KindFieldSpec[] => items;
+
+export const KIND_SPECS = {
+  definition: specs([
     {
       field: "oneLine",
       lead: true,
@@ -108,8 +120,8 @@ export const KIND_SPECS: Readonly<Record<KnowledgeKind, readonly KindFieldSpec[]
       placeholder:
         "_The nearest neighbours it must not be confused with, and the distinction. Omit this section if the term has no easily-confused neighbour._",
     },
-  ],
-  principle: [
+  ]),
+  principle: specs([
     {
       field: "statement",
       lead: true,
@@ -132,8 +144,8 @@ export const KIND_SPECS: Readonly<Record<KnowledgeKind, readonly KindFieldSpec[]
       placeholder:
         "_What following it looks like in practice: the test you run, the question you ask._",
     },
-  ],
-  pattern: [
+  ]),
+  pattern: specs([
     {
       field: "statement",
       lead: true,
@@ -162,8 +174,8 @@ export const KIND_SPECS: Readonly<Record<KnowledgeKind, readonly KindFieldSpec[]
       required: false,
       placeholder: "_What you trade — A vs B — in concrete, user-facing terms._",
     },
-  ],
-  guardrail: [
+  ]),
+  guardrail: specs([
     {
       field: "statement",
       lead: true,
@@ -193,8 +205,8 @@ export const KIND_SPECS: Readonly<Record<KnowledgeKind, readonly KindFieldSpec[]
       required: true,
       placeholder: "_What breaks if the boundary is crossed._",
     },
-  ],
-  techstack: [
+  ]),
+  techstack: specs([
     {
       field: "statement",
       lead: true,
@@ -223,8 +235,8 @@ export const KIND_SPECS: Readonly<Record<KnowledgeKind, readonly KindFieldSpec[]
       required: false,
       placeholder: "_Version pins, boundaries, and what it must not be used for._",
     },
-  ],
-  process: [
+  ]),
+  process: specs([
     {
       field: "statement",
       lead: true,
@@ -272,8 +284,8 @@ export const KIND_SPECS: Readonly<Record<KnowledgeKind, readonly KindFieldSpec[]
       placeholder:
         "_What deterministically checks the ceremony was followed — a gate, a CI job, a test. If nothing checks it, say so explicitly._",
     },
-  ],
-  "open-question": [
+  ]),
+  "open-question": specs([
     {
       field: "stakes",
       lead: true,
@@ -329,13 +341,13 @@ export const KIND_SPECS: Readonly<Record<KnowledgeKind, readonly KindFieldSpec[]
       placeholder:
         "_The proposed answer and why — explicitly non-binding until the owner decides._",
     },
-  ],
+  ]),
   // The `agent` unit is the SOURCE of `storytree agents <name>` context assembly (ADR-0029 owner
   // reshape, 2026-06-11): fields are either per-role PROSE (role/outcome/tools/workflow/escalation)
   // or typed `asset:` REF-LISTS the renderer injects (context/rules/antiPatterns). Scope/authority
   // walls (the old owns/doesNotTouch/authority) are enforced by code and guardrails, never
   // described in guidance — they were dropped in schemaVersion 2 (migrations.ts #2).
-  agent: [
+  agent: specs([
     {
       field: "oneLine",
       lead: true,
@@ -410,7 +422,7 @@ export const KIND_SPECS: Readonly<Record<KnowledgeKind, readonly KindFieldSpec[]
       placeholder:
         "_What it surfaces rather than deciding — the boundary where it stops and routes to the human outer loop or the owning surface. Omit if it never escalates._",
     },
-  ],
+  ]),
   // NOTE: there is no `proposal` entry here. ADR-0298 retired the kind — deferred, decided-but-
   // unbuilt work is an entry ON the arc that owns it ({@link ArcProposal} / `Arc.proposals`), which
   // carries this table's fields verbatim as schema-level metadata rather than a rendered body.
@@ -425,7 +437,7 @@ export const KIND_SPECS: Readonly<Record<KnowledgeKind, readonly KindFieldSpec[]
   // taxonomy field; `route` is set only at adjudication (see FrictionRoute below, enum-fenced via
   // `.extend()`). The structured lifecycle fields (`provenance` / `reinforcedBy`) live OUTSIDE this
   // body table, on the schema — see the Friction schema below.
-  friction: [
+  friction: specs([
     {
       field: "statement",
       lead: true,
@@ -466,7 +478,7 @@ export const KIND_SPECS: Readonly<Record<KnowledgeKind, readonly KindFieldSpec[]
       placeholder:
         "_The justification-gate answers behind the route — or the archive-with-reason when the route is `nothing`._",
     },
-  ],
+  ]),
   // An `arc` (ADR-0183 D1) is the initiative OVERLAY: a named multi-story intent tracked to a
   // closed end-state — the fourth grouping tier ADR-0002 parked, returned as an overlay, not a
   // tier: it references stories/ADRs/plans (every containment edge lives on the CHILD; the upward
@@ -476,7 +488,7 @@ export const KIND_SPECS: Readonly<Record<KnowledgeKind, readonly KindFieldSpec[]
   // below — the reinforcedBy precedent); the body stays minimal: an arc holds state and pointers
   // only. Lessons still graduate out through ADR-0095/0168, and implementation surface is banned
   // here (D4: surface lives only in anchored, disposable plans).
-  arc: [
+  arc: specs([
     {
       field: "intent",
       lead: true,
@@ -492,7 +504,7 @@ export const KIND_SPECS: Readonly<Record<KnowledgeKind, readonly KindFieldSpec[]
       placeholder:
         "_What closed looks like — the observable condition under which the arc is delivered and its increment log stops. Intent and outcomes only: a file list here is a staleness bug (ADR-0183 D4 — implementation surface lives in plans)._",
     },
-  ],
+  ]),
   // A `plan` (ADR-0183 D2) is the git-anchored choreography for ONE increment of an arc — an
   // EPHEMERAL kind (see EPHEMERAL_KINDS below): Postgres-only, never in any seed ceremony.
   // Its structured lifecycle fields (`arcRef` / `anchor` / `status`) live OUTSIDE this body table,
@@ -510,7 +522,7 @@ export const KIND_SPECS: Readonly<Record<KnowledgeKind, readonly KindFieldSpec[]
   // ONE convention survives the collapse and is now load-bearing on `body` ALONE (D4): the freshness
   // check mines BACKTICK-QUOTED paths, and reports a plan naming none as VACUOUS — explicitly not a
   // green. File surfaces must still be named in backticks, which is why the placeholder says so.
-  increment: [
+  increment: specs([
     {
       field: "objective",
       lead: true,
@@ -526,13 +538,13 @@ export const KIND_SPECS: Readonly<Record<KnowledgeKind, readonly KindFieldSpec[]
       placeholder:
         "_The choreography, in prose: the provable units in dependency order with each one's proof route (`--real` red→green, glue per ADR-0158, or operator-attested), which units are independent and where they contend, expected spend in turn-cap vocabulary (ADR-0130), and the known traps + escalation points. **Name every file surface in `backticks`** — the freshness check mines backtick-quoted paths, and an increment naming none gets a VACUOUS verdict, not a green._",
     },
-  ],
+  ]),
   // A `uat-criterion` (ADR-0209 D5/D6) is the seed-canonical detailed UAT acceptance contract:
   // action / success / evidence (+ optional principle/process refs). The story criterion keeps the
   // one-line display title — this kind deliberately has NO title-shaped lead field (action is the
   // lead). Port authority for the narrow detail body is `@storytree/uat-criterion`; this KIND_SPECS
   // entry is the Library recognition surface so Studio/CLI can resolve detail pointers.
-  "uat-criterion": [
+  "uat-criterion": specs([
     {
       field: "action",
       lead: true,
@@ -562,7 +574,7 @@ export const KIND_SPECS: Readonly<Record<KnowledgeKind, readonly KindFieldSpec[]
       refList: true,
       placeholder: "_Optional `asset:<id>` refs to reusable Library principles/processes._",
     },
-  ],
+  ]),
   // A decision record (ADR-0403 dec 1) is ONE PROSE FIELD, and that is a measurement rather than a
   // shortcut. Counted across the 403 committed decisions on 2026-08-22, only 311 (77%) carry the
   // canonical `Status / Context / Decision / Consequences / References` five; the other 92 carry
@@ -581,7 +593,7 @@ export const KIND_SPECS: Readonly<Record<KnowledgeKind, readonly KindFieldSpec[]
   // own `# ADR-NNNN:` H1 as its first line, so any wrapper heading this table emitted would be a
   // second title the author never wrote, and would break the byte-identical round trip
   // (ADR-0403 dec 9) that makes the tier authorable at all.
-  adr: [
+  adr: specs([
     {
       field: "body",
       lead: true,
@@ -590,8 +602,8 @@ export const KIND_SPECS: Readonly<Record<KnowledgeKind, readonly KindFieldSpec[]
       placeholder:
         "_The decision record, whole: its `# ADR-NNNN:` H1 and every section beneath it. Keep `## Status` — the `status` field is a projection of that prose (ADR-0139), never an independent write._",
     },
-  ],
-} as const;
+  ]),
+} satisfies Readonly<Record<KnowledgeKind, readonly KindFieldSpec[]>>;
 
 /**
  * The EPHEMERAL kind class (ADR-0183 D2): kinds that live ONLY in the live Postgres store. They

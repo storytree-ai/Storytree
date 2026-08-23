@@ -150,7 +150,9 @@ export async function attestLocalUat(input: AttestLocalUatInput): Promise<Attest
   // 4. Build the real verdict and validate it as a genuine proof-protocol Verdict before any effect.
   const runId = `local-uat-attest:${input.at}`;
   const note = input.note?.trim();
-  const candidate: unknown = {
+  // No `: unknown` annotation: the fence is the `Verdict.safeParse` below, which takes `unknown`
+  // regardless, and annotating discarded everything this literal already knows about itself.
+  const candidate = {
     unitId: test.criterionId,
     criterionId: test.criterionId,
     revisionId: test.revisionId,

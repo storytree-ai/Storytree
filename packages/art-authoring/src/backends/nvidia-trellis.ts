@@ -129,17 +129,35 @@ export function nvidiaTrellisBackend(opts: NvidiaTrellisOptions = {}): Generativ
       const glb = Buffer.from(artifact.base64, 'base64');
       const outPath = join(opts.outDir ?? tmpdir(), `trellis-${tuning.seed}-${glb.length}.glb`);
       await writeFile(outPath, glb);
-      const meta: Record<string, string> = { bytes: String(glb.length), model: 'microsoft/trellis' };
-      if (artifact.finishReason) meta['finishReason'] = artifact.finishReason;
+      const meta: TrellisMeta = { bytes: String(glb.length), model: 'microsoft/trellis' };
+      if (artifact.finishReason) meta.finishReason = artifact.finishReason;
       return {
         backend: NVIDIA_TRELLIS_BACKEND_ID,
         prompt: req.prompt,
         meshFormat: 'glb',
         meshRef: outPath,
-        meta,
+        // Spread: `TrellisMeta` is an interface, so it carries no implicit index signature and the
+        // adapter's open `Readonly<Record<string, string>>` cannot take it directly.
+        meta: { ...meta },
       };
     },
   };
+}
+
+/**
+ * What the TRELLIS backend records about a generated mesh.
+ *
+ * Named rather than `Record<string, string>` (anti-slop `no-known-value-widening`): these are three
+ * specific facts a caller reads back, and under an open dictionary a typo'd key was a silently
+ * missing field rather than a compile error.
+ */
+interface TrellisMeta {
+  /** Byte length of the returned GLB. */
+  bytes: string;
+  /** The generating model id. */
+  model: string;
+  /** The provider's own stop reason, when it gave one. */
+  finishReason?: string;
 }
 
 /** Read a local image file into a `data:` URL (author-time; the concept image informs, is never parsed). */

@@ -672,15 +672,15 @@ export function terminalVerbFor(kind: string, id: string): string | undefined {
  * artifact surface. Pointing is strictly better than moving: the reach succeeds and the surface stays
  * whole.
  */
-const VERB_HOMES: Readonly<Record<string, string>> = {
-  retire: 'storytree library artifact retire <id> --reason "<why>" --pg',
-  delete: 'storytree library artifact retire <id> --reason "<why>" --pg',
-  drain: 'storytree library artifact retire <id> --reason "<why>" --pg',
-};
+const VERB_HOMES: ReadonlyMap<string, string> = new Map([
+  ["retire", 'storytree library artifact retire <id> --reason "<why>" --pg'],
+  ["delete", 'storytree library artifact retire <id> --reason "<why>" --pg'],
+  ["drain", 'storytree library artifact retire <id> --reason "<why>" --pg'],
+]);
 
 /** PURE: the guidance for an area that does not exist — with a pointer when it is a misfiled VERB. */
 export function unknownAreaEnvelope(area: string): Envelope {
-  const home = VERB_HOMES[area];
+  const home = VERB_HOMES.get(area);
   return {
     ok: false,
     body:
