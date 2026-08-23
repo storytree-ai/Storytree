@@ -79,6 +79,21 @@ apps/studio is a hand-built, single-process Vite dev app (run with `pnpm --filte
 > comments likewise moved to the store in the live posture. The Story UAT below is current: its offline
 > proof seam exercises `comments.json` plus derived `assets.runtime.json`, never the retired `assets.json`.
 
+> **Historical note (ADR-0425, 2026-08-23):** two more spans of the retrospective prose above and
+> below now describe surfaces the product has moved off. **Commenting**: "anchor comments onto exact
+> text spans / sections / whole topics and resolve them" describes what was built, and ADR-0146
+> replaced the surface that did it without re-wiring the replacement — so the studio could show a
+> comment but never file one. ADR-0425 dec 1 **retires studio commenting deliberately**, naming
+> MULTIPLAYER as the revival trigger: the owner never adopted it and grounds his conversations
+> against the Library from Claude Code or Codex, so a collaboration surface has, for now, nobody to
+> collaborate with. The studio-side half-promise is removed; the SERVER-side comment store, its
+> routes, and the proven `InlineCommentThread` component are deliberately KEPT (dec 5) as the
+> revival's foundation, which is why the capabilities describing them are not retired here.
+> **Decisions**: "read rendered ADRs" no longer means reading a file — ADR-0403 dec 1 made decisions
+> ordinary Library artifacts and deleted `docs/decisions/`, so a decision is browsed, cited and
+> opened exactly like any other artifact. The UAT below is rewritten onto both (dec 3/dec 4); no leg
+> is cut, and the step count is unchanged.
+
 ## What this is
 
 This is storytree's **first story** — the seed of the self-building tree, authored by
@@ -337,16 +352,17 @@ this capability. (Full reasoning: chat-panel.md "No new cross-story edge".)
 
 The integrated **acceptance walkthrough** proves the whole `studio` organism end-to-end against the
 real running app in Chromium (ADR-0010 §2). It is one coherent deterministic journey over the current
-product: forest → Library lens → document → review → Library artifact → author/edit/delete → cold
-restart → byte-identical cleanup. `pnpm --filter studio uat` owns the server/browser lifecycle and pins
-the cross-story live-store seam to the permitted offline JSON backend; every in-story collaborator is
-real. Under ADR-0106 every criterion below is therefore `witness: machine`, bound to the exact
-command-bearing `studio#gate-1`.
+product: forest → Library lens → decision → grounding round trip → Library artifact →
+author/edit/delete → cold restart → byte-identical cleanup. `pnpm --filter studio uat` owns the
+server/browser lifecycle and pins the cross-story live-store seam to the permitted offline JSON
+backend; every in-story collaborator is real. Under ADR-0106 every criterion below is therefore
+`witness: machine`, bound to the exact command-bearing `studio#gate-1`.
 
-**Goal —** One scripted operator reviews the project record through the current studio: opens the
-Library from the forest, reads a rendered ADR, anchors and resolves a verified-attribution comment,
-browses a knowledge-derived artifact and follows its source back to the corpus, authors a structured
-artifact, proves durability across a cold process, and restores both offline stores byte-for-byte.
+**Goal —** One scripted operator grounds a question against the project record through the current
+studio: opens the Library from the forest, reads a decision, hops a citation between decisions,
+finds the artifact that grounds the question and follows its source into the decision behind it,
+comes back, authors a structured artifact, proves durability across a cold process, and leaves both
+offline stores byte-for-byte as found.
 
 **ADR-0294 disposition (2026-08-08): all thirteen criteria KEPT, unchanged.** ADR-0294 D1 names this
 story as the corpus's REFERENCE SHAPE, and re-reading it under the surgery confirms why: the thirteen
@@ -358,19 +374,35 @@ capability tier re-signed at the story tier. Recorded so a later reader can see 
 adjudicated rather than skipped, and so the ~60 corpus target (D5) is not mistaken for a quota that
 this story should be cut to meet — D5 says explicitly that it is not.
 
+**ADR-0425 rewrite (2026-08-23): eight criteria RE-POINTED, still thirteen, none cut.** The
+walkthrough had come to describe a studio we no longer have, and it described it in two places.
+Criteria 2, 3 and 9 read a decision record as a FILE on disk, which ADR-0403 dec 1 ended by making
+decisions rows in the store and deleting `docs/decisions/`; they are rewritten onto decisions as
+they now are — artifacts surfaced through the Library — following that decision rather than working
+around it (ADR-0425 dec 4). Criteria 4, 5, 6, 12 and 13 posted, recovered, resolved and deleted a
+COMMENT; ADR-0425 dec 1 retires studio commenting deliberately, with MULTIPLAYER named as the
+revival trigger, because the owner never adopted it and grounds his conversations against the
+Library from elsewhere. Those five are re-pointed at the journey he actually performs — open the
+Library, find the artifact that grounds a question, follow its source into the decision behind it,
+read it, come back — at equal weight (dec 3). The step COUNT does not move and no ordinal is
+reused: ADR-0294 D1's reference shape is what dec 3 exists to protect, so a leg whose subject
+retired is REWRITTEN onto something real, never deleted to reach a greener number. Criterion 13 now
+carries the retirement's own proof: `comments.json` must come back byte-identical, which is the
+assertion that no studio surface wrote a comment anywhere.
+
 1. **Boot the current offline studio on the forest.** _(witness: machine)_ _(proof-gate: studio#gate-1)_ Let the UAT-managed Vite process start with `STORYTREE_STUDIO_STORE=json`, then open `/`. **Success —** the `/api/*` backbone answers, the app lands on the forest map, and the offline-store status is visible; no retired Overview page or pre-fold sidebar is required. _(criterion-id: uatc_b5d90e0780e17d4a53e11260)_ _(revision-id: uatr1:c160d418fa617c2d)_
-2. **Open an ADR through the forest's Library-and-document chrome.** _(witness: machine)_ _(proof-gate: studio#gate-1)_ From the forest, expand the persistent Library drawer, find ADR-0002 in the Library lens, and open it in the full-detail document overlay. **Success —** the real `docs/` markdown renders with its heading and slugged sections while the only global HUD chrome remains the verified-identity account avatar; no retired brand chip or avatar-menu Documents shortcut is used. _(criterion-id: uatc_eeaf4e098276044a6cc7e0c8)_ _(revision-id: uatr1:97f0d87c97b486db)_
-3. **Follow an in-corpus cross-link.** _(witness: machine)_ _(proof-gate: studio#gate-1)_ From a rendered document that cites ADR-0002, follow the source link and then return. **Success —** `resolveDocHref` produces the internal document target, the sibling markdown renders from disk in the document surface, and returning restores the prior document context. _(criterion-id: uatc_7b1437b0d3e80ded20966d08)_ _(revision-id: uatr1:a7b8af0550d269df)_
-4. **Anchor a comment with verified attribution.** _(witness: machine)_ _(proof-gate: studio#gate-1)_ Open the document's review affordance, target the declared prose span/block, and post the probe comment. **Success —** the review surface shows the anchored comment and the offline comment record carries the resolved `/api/me` identity (or the conventional `operator` fallback in open offline dev); there is no editable operator-identity input and the server, not the request body, stamps attribution. _(criterion-id: uatc_7c6ecbc6de6af9f9a059e508)_ _(revision-id: uatr1:699eff46ec71c0a4)_
-5. **Reload and recover the anchored comment.** _(witness: machine)_ _(proof-gate: studio#gate-1)_ Reload and reopen the same document through the Library lens. **Success —** the comment is re-fetched and rendered at the same declared target, proving the anchor survived a fresh browser render and the real offline-store read-back. _(criterion-id: uatc_30ad1e76fb65b01061a00868)_ _(revision-id: uatr1:a7517685d52f683d)_
-6. **Resolve the comment across its surfaces.** _(witness: machine)_ _(proof-gate: studio#gate-1)_ Resolve the probe comment. **Success —** the thread and all current comment-status surfaces update without a manual reload, and `comments.json` records `resolved: true` with a non-null `resolvedAt`. _(criterion-id: uatc_a0ac6978b43fc0eae856fcb1)_ _(revision-id: uatr1:032f9c241753afa2)_
+2. **Open a decision through the forest's Library chrome.** _(witness: machine)_ _(proof-gate: studio#gate-1)_ From the forest, expand the persistent Library drawer, pick the Library lens, scope it to Decisions, and open ADR-0002 in the full-detail overlay. **Success —** the decision renders from its store row — its own `# ADR-0002` heading and `## Status` prose, carrying the decision-record chip — and it is filed under the `active` lifecycle because the row says `accepted`, while the only global HUD chrome remains the verified-identity account avatar; no retired brand chip, avatar-menu Documents shortcut, or `docs/decisions/` file read is involved (ADR-0403 dec 1 deleted that subtree; ADR-0425 dec 4 re-points this leg rather than reviving it). _(criterion-id: uatc_eeaf4e098276044a6cc7e0c8)_ _(revision-id: uatr1:119efa54d11d4786)_ _(previous-revision-id: uatr1:97f0d87c97b486db)_
+3. **Follow an in-corpus cross-link between decisions.** _(witness: machine)_ _(proof-gate: studio#gate-1)_ From ADR-0013, which cites ADR-0002, follow the source and then return. **Success —** the citation renders as a live link into the sibling decision rather than an unresolved reference, the sibling's own body renders in the same surface, and returning restores the prior decision's context — the decision tier is a connected graph the operator can walk, not a set of isolated rows. _(criterion-id: uatc_7b1437b0d3e80ded20966d08)_ _(revision-id: uatr1:06eeb2f58d06ad9c)_ _(previous-revision-id: uatr1:a7b8af0550d269df)_
+4. **Find the artifact that grounds the question.** _(witness: machine)_ _(proof-gate: studio#gate-1)_ Arrive with a question from a conversation held elsewhere, open the artifact that grounds it, and enter the review affordance the way an operator reading closely would. **Success —** the artifact's own statement renders, its Sources block names the decision it stands on as a resolvable link, and the surface offers nothing it cannot honour: no editable operator-identity input (attribution is server-stamped, ADR-0204 D4) and no comment box, thread or peer-comment list, because ADR-0425 dec 1 retires studio commenting rather than leaving a control that accepts a remark and files it nowhere. _(criterion-id: uatc_7c6ecbc6de6af9f9a059e508)_ _(revision-id: uatr1:30f998640a497ce5)_ _(previous-revision-id: uatr1:699eff46ec71c0a4)_
+5. **Reload and recover the same grounding.** _(witness: machine)_ _(proof-gate: studio#gate-1)_ Reload and reopen the same artifact through the Library lens. **Success —** the artifact and its resolved Sources are re-fetched and rendered identically, proving the grounding was reconstructed from the real offline-store read-back rather than surviving in the first render's memory. _(criterion-id: uatc_30ad1e76fb65b01061a00868)_ _(revision-id: uatr1:206d335dcc1ed284)_ _(previous-revision-id: uatr1:a7517685d52f683d)_
+6. **Read the decision behind it, then come back.** _(witness: machine)_ _(proof-gate: studio#gate-1)_ Follow the artifact's decision source, read the decision, and return to where the question started. **Success —** the decision opens without a manual reload and its substance renders from the store row — its `## Status` and `## Decision` sections, not a stub or a title alone — and returning lands back on the grounding artifact with its Sources intact, closing the round trip the owner actually performs when grounding a conversation held in Claude Code or Codex. _(criterion-id: uatc_a0ac6978b43fc0eae856fcb1)_ _(revision-id: uatr1:f1938c1e88ff4901)_ _(previous-revision-id: uatr1:032f9c241753afa2)_
 7. **Browse the knowledge-derived Library.** _(witness: machine)_ _(proof-gate: studio#gate-1)_ Return to the forest Library lens and inspect its lifecycle/category surface. **Success —** categories are non-empty and their live counts equal what the offline derivation seam yields — `deriveOfflineAssets(loadFixtureSeedUnits())`: the library's committed FIXTURE corpus (`@storytree/library/fixture`) rendered, plus `@storytree/library` templates — as served through the seeded `assets.runtime.json`. The expected counts are read from that seam and never pinned, because the fixture is a small offline sandbox seed that drifts from the live Library by design (ADR-0302 D1); this proves the derivation is wired, not that the offline Library mirrors the corpus, and no retired hard-coded 88-record `assets.json` corpus is assumed. _(criterion-id: uatc_bc8b96d7284d1fb608628c07)_ _(revision-id: uatr1:13e190a12c573291)_ _(previous-revision-id: uatr1:155c01cbc82e6de9)_
 8. **Narrow the Library deterministically.** _(witness: machine)_ _(proof-gate: studio#gate-1)_ Choose the declared lifecycle/category scope and search for `deep`. **Success —** the Library finder narrows to the matching current-corpus items using its real searchable fields, while the forest remains the underlying surface. _(criterion-id: uatc_087ce84cb1d97ca9a44d1449)_ _(revision-id: uatr1:35b81f8288075971)_
-9. **Follow an artifact source back to the corpus.** _(witness: machine)_ _(proof-gate: studio#gate-1)_ Open `deep-modules` in the Library's full-detail overlay and follow its ADR-0002 source. **Success —** the artifact's derived body and Sources render, then the cited ADR opens as real document markdown — the Library→corpus seam works through the current overlay. _(criterion-id: uatc_7400d218244cc813266ec95d)_ _(revision-id: uatr1:019c6b1cb8110ebe)_
+9. **Follow an artifact source back to the decision tier.** _(witness: machine)_ _(proof-gate: studio#gate-1)_ Open `deep-modules` through the Library's selection card into the full-detail overlay and follow its ADR-0002 source from there. **Success —** the artifact's derived body and Sources render, and the cited decision opens as its own artifact — so the Library→decision seam works through the OVERLAY mount specifically, and the citation is a live link rather than the greyed-out "(unknown doc)" a pointer at the retired `docs/decisions/` path renders as. _(criterion-id: uatc_7400d218244cc813266ec95d)_ _(revision-id: uatr1:894379e065695225)_ _(previous-revision-id: uatr1:019c6b1cb8110ebe)_
 10. **Author a structured Library artifact.** _(witness: machine)_ _(proof-gate: studio#gate-1)_ Open the new-artifact editor, let the title slug the id, keep the `pattern` kind, fill its required structured fields, verify the derived live preview, and create it. **Success —** `POST /api/assets` returns 201, the detail renders with `createdAt === updatedAt`, and the probe record exists in `assets.runtime.json` with its structured fields. _(criterion-id: uatc_b79eb0edf3c8bcde0184737c)_ _(revision-id: uatr1:2067be7645c2fec6)_
 11. **Edit, relock, and delete the artifact.** _(witness: machine)_ _(proof-gate: studio#gate-1)_ Edit the probe through its structured fields, save, then delete it through the UI. **Success —** the id stays locked, `createdAt` is preserved, `updatedAt` advances, the edited field persists, and deletion removes the probe from `assets.runtime.json` before returning to the forest Library. _(criterion-id: uatc_de3fbde6018e06eaf8898b2f)_ _(revision-id: uatr1:f5a06e3375a73207)_
-12. **Survive a cold process restart.** _(witness: machine)_ _(proof-gate: studio#gate-1)_ Start a second fresh Vite process over the same offline stores, reopen the reviewed document through the current forest/Library path, and inspect the deleted artifact id. **Success —** the resolved comment is reconstructed from storage and the deleted artifact remains absent, proving durability without relying on the first process's memory. _(criterion-id: uatc_2fbd323c9f6adfe167fdcbe5)_ _(revision-id: uatr1:484b9cf2571d7541)_
-13. **Restore both offline stores byte-for-byte.** _(witness: machine)_ _(proof-gate: studio#gate-1)_ Delete the probe comment through the UI and compare the stores with their snapshots from before the journey. **Success —** both `comments.json` and the knowledge-derived `assets.runtime.json` are byte-identical to their baselines; the UAT leaves no persistent residue. _(criterion-id: uatc_cfeb76b5de7e939b62a81dca)_ _(revision-id: uatr1:9dc90d354cedb62c)_
+12. **Survive a cold process restart.** _(witness: machine)_ _(proof-gate: studio#gate-1)_ Start a second fresh Vite process over the same offline stores, walk the grounding hop again on that process, and inspect the deleted artifact id. **Success —** the deleted artifact remains absent and the grounding is reconstructed from storage — the artifact, its resolved decision source, and the decision's own body all render on a process that has never served them before — proving durability without relying on the first process's memory. _(criterion-id: uatc_2fbd323c9f6adfe167fdcbe5)_ _(revision-id: uatr1:1b870b18b28d55e0)_ _(previous-revision-id: uatr1:484b9cf2571d7541)_
+13. **Leave both offline stores byte-for-byte as found.** _(witness: machine)_ _(proof-gate: studio#gate-1)_ Return to the forest where the journey began and compare the stores with their snapshots from before it. **Success —** both `comments.json` and the knowledge-derived `assets.runtime.json` are byte-identical to their baselines: the authored probe artifact was created, edited and deleted back out, everything else was READ, and `comments.json` in particular is untouched — which is the standing proof that no studio surface writes a comment anywhere since ADR-0425 dec 1 retired the affordance. The walkthrough leaves no persistent residue. _(criterion-id: uatc_cfeb76b5de7e939b62a81dca)_ _(revision-id: uatr1:b1d5af0054373097)_ _(previous-revision-id: uatr1:9dc90d354cedb62c)_
 
 ## Reliability Gates
 

@@ -3,9 +3,43 @@ id: "studio-build"
 tier: story
 title: "UI-driven build (the local loop)"
 outcome: "An operator triggers a real node build from the studio UI and watches it run live to a signed verdict on their own machine."
-status: proposed
+status: retired
 proof_mode: UAT
 capabilities: [build-run-registry, build-intent-api, ui-build-trigger]
+# RETIRED by ADR-0429 (2026-08-23), closing `retire-orphaned-build-engine-arc`. This story's whole
+# journey is the studio's island-panel **Build** control — "an operator triggers a scope-routed build
+# … and watches it run live to a verdict" — and ADR-0404 reversed it: dispatching a build is a CLI
+# verb (`storytree node build` / `storytree story build`) and no UI dispatches one. Every surface the
+# journey names is gone. The front end: `apps/studio/src/components/BuildSection.tsx` deleted by
+# ADR-0404 D2/D3. The transport: `POST`/`GET /api/build` and the `api.build` / `api.buildStatus`
+# client pair deleted with it (see the comment left in their place at `apps/studio/src/api.ts:356`).
+# The engine: `BuildRegistry` / `runBuildJob` / `routedBuildRunner` / `adoptRunnerFromAdoptStory`
+# deleted by ADR-0422 D1, along with `packages/drive/src/build-worker.ts` and the four test files
+# that were their only readers. So all three capabilities below describe code that was deleted, over
+# an API that was deleted, behind a button that was deleted.
+#
+# THIS RETIREMENT IS HONEST, NOT FORCED — and the difference is worth knowing, because a reader who
+# assumes a rung compelled it will look for the rung and find nothing. Its two sibling retirements
+# WERE compelled: `map-terminal-build` (ADR-0404 D4) and `desktop-build-mount` (ADR-0422 D4) each had
+# capabilities whose `real:` arms bound deleted files, so ADR-0252 D3 left RETIRE as the only
+# sanctioned drain. This story has no `real:` arm on any capability and appears nowhere in
+# `repo-manifest.json`, so it binds no file, breaches no ceiling, and reds no rung —
+# `contract-binding-drift`, the coverage drain and `check:boundaries` were all silent on it before
+# ADR-0422 and after. That invisibility is exactly why it outlived two decisions that retired its
+# siblings, and exactly why it had to be retired deliberately: it misinforms readers and nothing else.
+#
+# THE UAT CRITERIA AND RELIABILITY GATES BELOW ARE KEPT, UNRENUMBERED AND UNCLAIMED, and the body is
+# kept as history. Criterion and gate ordinals are positional, so removing one silently re-points the
+# surviving legs' `(proof-gate:)` bindings and any signed verdict that named them. Note that leg 5
+# ("a second build while one is running is refused", `uatc_e561d5c581c5ea3374ec5e07`) still reads
+# `proven=✓`: it was genuinely driven, over a `/api/build` that no longer exists, so it can never be
+# re-earned. That is dormant history on a retired story rather than a live claim — a retired story
+# asserts nothing about the current product — and it is the same disposition `desktop-build-mount`
+# landed with in PR #1578. Gate 1's command still names `buildApi.integration.test.ts`, also deleted.
+#
+# NOT RETIRED WITH IT: `studio-build-uat-seed` (in `stories/drive-machinery/`), the repeatable
+# real-build target leg 9 used to click. It survives on its own merits, reachable as
+# `storytree node build studio-build-uat-seed --real`; its doc-comment is corrected in place there.
 # Story-level edges (ADR-0010 §4 — consumed cross-story seams, encoded as frontmatter
 # depends_on; see "Cross-story boundary" below for the import-evidence at file:line):
 #   - studio          — the UI/server organism this extends: the build button + transcript live

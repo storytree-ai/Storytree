@@ -4,9 +4,27 @@ tier: capability
 story: studio-build
 title: "UI build trigger + live transcript"
 outcome: "An operator triggers a scope-routed build (a node smoke, or a story chain that lands) from the island panel and watches it run live to a verdict."
-status: "proposed"
+status: "retired"
 proof_mode: "integration-test"
 depends_on: [build-intent-api]
+# RETIRED by ADR-0429 (2026-08-23), with its story `studio-build`. This capability IS the studio's
+# Build button — "an operator triggers a scope-routed build … from the island panel and watches it run
+# live to a verdict" — and ADR-0404 deleted it: `apps/studio/src/components/BuildSection.tsx` no longer
+# exists, nor does the runtime picker beside it, nor the `POST`/`GET /api/build` route the click used.
+# ADR-0422 D1 then deleted `routedBuildRunner`, the scope-router this capability's whole "one control,
+# two scopes" design was built around. Dispatching a build is a CLI verb now.
+#
+# THE "Proof status (honest) — mechanics LANDED, still `proposed`" NOTE BELOW IS OVERTAKEN, and this
+# is the sharpest reason the retirement is worth stating rather than leaving to inference. That note
+# says the capability landed on `main` (PRs #297 / #299 / #300) and stayed `proposed` only pending an
+# operator's appearance attestation. It is now `retired` for the opposite reason: the code that landed
+# has since been deleted, so there is nothing left to attest. The four suites it names as green —
+# `BuildSection.test.tsx`, `buildWorker.test.ts`, `treeBuildable.test.ts`, `story-buildable.test.ts` —
+# went with their subjects.
+#
+# No `real:` arm is dropped: this capability never declared one, which is why no rung ever reported
+# any of the above (`contract-binding-drift`, the coverage drain and `check:boundaries` are all silent
+# on a capability that binds no file). Body kept as history.
 ---
 
 # UI build trigger + live transcript

@@ -137,8 +137,11 @@ describe('ReviewEditor', () => {
     expect(del?.textContent).toBe('gone');
   });
 
-  it('re-live-refreshes-peer-comments: the open Review document shows a peer comment on the next poll without reload', async () => {
+  it('re-no-comment-surface: the open Review document neither reads the comment feed nor renders a peer comment (ADR-0425 dec 1)', async () => {
     vi.useFakeTimers();
+    // The feed is ROUTED and answers a comment, so this proves a CHOICE not to read rather than a
+    // route that would have thrown: `installHttpDouble` is fail-closed, and a served payload the
+    // editor never asks for is the sharpest available evidence that the surface is gone.
     const peerComment = {
       id: 'comment-from-peer',
       topicKind: 'asset',
@@ -150,24 +153,28 @@ describe('ReviewEditor', () => {
       resolved: false,
       resolvedAt: null,
     };
-    let poll = 0;
-    http.get(FEED, () =>
-      (poll += 1) === 1
-        ? { topicId: 'oq-x', comments: [], suggestions: [] }
-        : { topicId: 'oq-x', comments: [peerComment], suggestions: [] },
-    );
+    http.get(FEED, () => ({ topicId: 'oq-x', comments: [peerComment], suggestions: [] }));
 
     renderEditor('review');
     await flush();
-    expect(feedReads()).toBe(1);
+
+    // POSITIVE ANCHOR FIRST: the editor really mounted. Without it every absence below would also
+    // "hold" on a surface that failed to render at all — the green-that-verified-nothing shape.
+    expect(screen.getByLabelText('Markdown source')).toBeTruthy();
+
+    // ADR-0425 dec 1 retires studio commenting: the editor used to poll this feed and render its
+    // comments read-only, which showed a remark on a surface that could never produce one. Neither
+    // happens now — on mount, or ever, since the interval went with the poll.
+    expect(feedReads()).toBe(0);
     expect(screen.queryByText(peerComment.body)).toBeNull();
+    expect(screen.queryByLabelText('Peer comments')).toBeNull();
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(SLOW_POLL_MS);
+      await vi.advanceTimersByTimeAsync(SLOW_POLL_MS * 3);
     });
 
-    expect(feedReads()).toBe(2);
-    expect(screen.getByText(peerComment.body)).toBeTruthy();
+    expect(feedReads()).toBe(0);
+    expect(screen.queryByText(peerComment.body)).toBeNull();
   });
 
   it('re-toolbar-preserves-caret: a toolbar insert restores focus + selection to the wrapped text (the same path that restores scroll)', async () => {

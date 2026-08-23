@@ -4,9 +4,22 @@ tier: capability
 story: studio-build
 title: "Build-run registry"
 outcome: "A server-side build run accumulates its coarse transcript and reaches a terminal verdict, with one build at a time."
-status: "proposed"
+status: "retired"
 proof_mode: "integration-test"
 depends_on: []
+# RETIRED by ADR-0429 (2026-08-23), with its story `studio-build`. This capability is the server-side
+# `BuildRegistry` — "a server-side build run accumulates its coarse transcript and reaches a terminal
+# verdict, with one build at a time" — and there is no such organ any more. ADR-0404 retired every UI
+# surface that dispatched a build, and ADR-0422 D1 then deleted `BuildRegistry` itself (with
+# `runBuildJob`, `routedBuildRunner`, `adoptRunnerFromAdoptStory`, `packages/drive/src/build-worker.ts`
+# and the four test files that were their only readers) after measuring it had zero production
+# consumers left. Nothing spawns a build in-process, so nothing holds run state for one.
+#
+# The six contracts below never existed — the "Proof status (honest) — NOT BUILT" note above was
+# accurate throughout, and their `covers —` lines name `apps/studio/server/buildRegistry.ts` as a
+# provisional path that was never authored under this capability. So no `real:` arm is dropped here
+# and no proof binding is repaired: unlike `desktop-build-mount`'s capabilities (ADR-0422 D4), this
+# one bound no file and breached no ceiling either way. Body kept as history.
 ---
 
 # Build-run registry
