@@ -7,7 +7,17 @@
  * `CLAUDE_CODE_OAUTH_TOKEN` / `ANTHROPIC_API_KEY` from the process environment — so "feed the
  * brokered credential to the build drivers" means: make the keychain token ambient for exactly
  * the duration of one build, then scrub it back out. The bridge's DriverFn seam does the
- * application; this module composes it around the routed {@link BuildRunner}.
+ * application; this module composes it around an injected {@link BuildRunner}.
+ *
+ * NOTHING COMPOSES IT TODAY, and that is worth saying rather than leaving to a grep. The runner it
+ * was written to wrap was the studio/desktop dispatch worker, retired as a surface by ADR-0404 and
+ * deleted as code by ADR-0422 — which is also why the {@link BuildRunner} shape below is declared
+ * here now instead of imported from `@storytree/drive/build-worker`. The module survives because
+ * `stories/desktop/credential-broker.md` declares `credentialed-build-runner.test.ts` in the
+ * `coverage.testGlobs` of the live capability `credential-broker`: the credential precedence this
+ * encodes is proven behaviour, held for whatever next drives a build from inside the app. ADR-0422
+ * deliberately did NOT adjudicate that — it is a `credential-broker` question, not a consequence of
+ * deleting the worker.
  *
  * Precedence (the drive secrets.ts posture): an env var the operator EXPLICITLY set wins and
  * is never overridden; then the keychain via the bridge (oauth preferred — the subscription
@@ -20,12 +30,47 @@
  * surface (the /api/* HTTP routes, the run transcript) ever carries it.
  */
 
-import type { BuildEnvelope, BuildRunner } from "@storytree/drive/build-worker";
-
 import type { CredentialBroker } from "../credential/broker.js";
 import type { CredentialKind } from "../credential/kinds.js";
 import { CREDENTIAL_ENV_VAR } from "../credential/kinds.js";
 import { CredentialBridge } from "./credential-bridge.js";
+
+// ── The runner shape this module wraps ───────────────────────────────────────────────────────────
+//
+// These three declarations used to live in `@storytree/drive/build-worker` and were imported from
+// there. ADR-0422 deleted that module: the dispatch machinery it held (`BuildRegistry`,
+// `runBuildJob`, `routedBuildRunner`, `adoptRunnerFromAdoptStory`) served the in-app Build/Adopt
+// surfaces ADR-0404 retired, and had no production consumer left. These types were the only part of
+// it anything still read, so they re-home beside their one reader rather than keeping a package
+// subpath, a manifest binding and a capability alive to host fifteen lines.
+//
+// They stay STRUCTURAL, exactly as they were: a runner is a plain function, not a class to
+// implement, so the caller composing one (today: nobody — see the module header) needs no import
+// from here either.
+
+/** Which leaf runtime a build runs on — the Claude Agent SDK by default, Codex opt-in (ADR-0232). */
+export type BuildRuntime = "claude" | "codex";
+
+/**
+ * A build's terminal result. Structurally the CLI's `Envelope` narrowed to what a runner returns,
+ * declared locally so this module needs no import of the build entry's full module.
+ */
+export interface BuildEnvelope {
+  ok: boolean;
+  body: string;
+  /** `readonly` to match the CLI's `Envelope.next` so the real envelope is assignable without a cast. */
+  next?: readonly string[];
+}
+
+/**
+ * Drives one build. `sink` receives COARSE progress lines as the build emits them. Resolves with the
+ * final {@link BuildEnvelope}; a thrown error is treated as a failed build.
+ */
+export type BuildRunner = (
+  unitId: string,
+  sink: (line: string) => void,
+  runtime?: BuildRuntime,
+) => Promise<BuildEnvelope>;
 
 type ClaudeCredentialKind = Extract<CredentialKind, "oauth" | "api-key">;
 const CLAUDE_CREDENTIAL_KINDS: readonly ClaudeCredentialKind[] = ["oauth", "api-key"];
@@ -33,7 +78,7 @@ const CLAUDE_CREDENTIAL_KINDS: readonly ClaudeCredentialKind[] = ["oauth", "api-
 export interface CredentialedBuildRunnerOpts {
   /** The keychain-backed broker (the ADR-0109 Step-1 core). */
   broker: CredentialBroker;
-  /** The base runner the credential is fed to (the routed nodeBuild/storyBuild worker). */
+  /** The base runner the credential is fed to (a nodeBuild/storyBuild-backed driver). */
   runner: BuildRunner;
   /** The ambient env the SDK leaf reads. Injected for offline tests; defaults to process.env. */
   env?: Record<string, string | undefined>;
@@ -60,8 +105,8 @@ export function credentialedBuildRunner(opts: CredentialedBuildRunnerOpts): Buil
 
   return async (unitId, sink, runtime = "claude") => {
     // Codex authenticates through the official CLI's saved ChatGPT login. It neither needs nor may
-    // be rejected by the Claude keychain bridge; the routed runner passes `runtime: codex` to the
-    // existing node/story build entries, whose Codex author invokes that supported path.
+    // be rejected by the Claude keychain bridge; the caller passes `runtime: codex` straight through
+    // to the node/story build entries, whose Codex author invokes that supported path.
     if (runtime === "codex") {
       return opts.runner(unitId, sink, runtime);
     }

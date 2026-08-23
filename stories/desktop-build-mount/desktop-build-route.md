@@ -12,12 +12,17 @@ depends_on: [worker-relocation]
 # (apps/desktop/src/backend/build-route.ts and build-route.test.ts) are DELETED, along with the
 # production wiring in electron/backend-entry.ts. The `real:` arm is dropped with them — it bound
 # those two exact paths, so this capability is no longer REAL-buildable and nothing implements it.
-# `storytree node build` / `storytree story build` are the surviving dispatch surface, and the build
-# ENGINE the route drove (BuildRegistry / runBuildJob / routedBuildRunner in @storytree/drive) is
-# UNTOUCHED (ADR-0404 D6) — what was withdrawn is one HTTP transport over it, not the worker.
-# This retirement is scoped to desktop-build-route ONLY: the desktop-build-mount story keeps
-# `worker-relocation` (the relocation itself stands, and the CLI still drives that worker) and
-# `routed-node-real-dispatch` (green via its own --real verdict). Body kept as history.
+# `storytree node build` / `storytree story build` are the surviving dispatch surface.
+#
+# TWO CLAUSES HERE WERE OVERTAKEN, corrected in place (ADR-0422). This note said the build ENGINE the
+# route drove (BuildRegistry / runBuildJob / routedBuildRunner in @storytree/drive) was UNTOUCHED per
+# ADR-0404 D6 and that "the CLI still drives that worker", and that the retirement was scoped to
+# desktop-build-route ONLY. Both were true when written and are not now. The CLI never drove that
+# worker — it classifies a `build <id>` target with its own independent implementation — and once the
+# routes were gone the whole worker had zero production consumers, a finding ADR-0404 D6 itself
+# records. ADR-0422 (2026-08-23) deleted it and retired `worker-relocation` and
+# `routed-node-real-dispatch` with it, which retires the desktop-build-mount story. Body kept as
+# history.
 proof:
   command:
     file: pnpm

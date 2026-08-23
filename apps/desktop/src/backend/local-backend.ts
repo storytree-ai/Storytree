@@ -176,10 +176,15 @@ export interface LocalBackendBackend {
  * that was never true of this seam: `electron/backend-entry.ts` composes the local backend without a
  * `build` key, so `/api/build` here has always answered 404 outside its own test. ADR-0404 then retired
  * the desktop's REAL build mount (`createBuildRouteMount`, deleted 2026-08-22) — a different seam from
- * this one, which the ADR does not name. This branch is therefore inert rather than a live dispatch
- * surface, and it is left in place because the capability `local-backend-boot` declares a contract over
- * it (`lb-build-route-reaches-the-injected-runner`); removing it is a work-hierarchy edit, not a
- * mechanical consequence of ADR-0404.
+ * this one, which the ADR does not name — and ADR-0422 deleted `routedBuildRunner` itself, so the
+ * runner this was once said to be wired over no longer exists at all.
+ *
+ * KEEPING IT IS A DECISION, NOT AN OVERSIGHT (ADR-0422 D3, taken explicitly so nobody has to infer it
+ * from silence). The branch is inert rather than a live dispatch surface, and it stays because the
+ * capability `local-backend-boot` declares a contract over it
+ * (`lb-build-route-reaches-the-injected-runner`): removing it would edit a healthy story's contract set
+ * for no functional gain. If it is ever removed, that is a `local-backend-boot` work-hierarchy decision
+ * on its own merits — never a mechanical consequence of ADR-0404 or ADR-0422.
  */
 export interface LocalBackendBuild {
   isBuildable: (unitId: string) => Promise<boolean>;
@@ -193,8 +198,17 @@ export interface LocalBackendBuild {
 export interface LocalBackendDeps {
   /** Absolute path to the repo's `stories/` dir — passed to orchestrator discovery. */
   storiesDir: string;
-  /** Absolute path to the repo's `docs/` dir — `<docsDir>/decisions` is what `/api/arcs` scans for
-   * the frontmatter `arc:` stamps that join ADRs to their arc (ADR-0183 D3). */
+  /**
+   * Absolute path to the repo's `docs/` dir, passed through from `electron/backend-entry.ts`.
+   *
+   * NOT read on any route in THIS module — the consumer is `boot-read-routes.ts`, which walks it for
+   * `GET /api/docs` / `GET /api/docs/<id>`. This comment used to say `<docsDir>/decisions` was what
+   * `/api/arcs` scanned for the frontmatter `arc:` stamps joining ADRs to their arc, and that was
+   * wrong twice over (corrected in place, ADR-0422 D5): `/api/arcs` reads `backend.docStore` and has
+   * never touched `docsDir`, and ADR-0403 then moved decisions into the live store, so
+   * `docs/decisions/` does not exist at all. The route itself is unaffected — it was only the comment
+   * that described a scan nothing performs.
+   */
   docsDir: string;
   /** The read backend (in-memory seed for CI, pg-backed for production). */
   backend: LocalBackendBackend;
