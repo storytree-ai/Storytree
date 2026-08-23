@@ -102,6 +102,10 @@ export const LITERAL_FLAGS: ReadonlySet<string> = new Set([
   "file",
   "set",
   "raw",
+  // `storytree adr compose <n> --clause D4` (ADR-0428 D3): a clause LOCATOR, not prose. It names a
+  // position inside a decision the way `--raw <field>` names a field, and it is stored as an opaque
+  // key rather than as a durable record, so a literal `@` in it could corrupt nothing.
+  "clause",
   // `--raw <field> --out <path>` / `library artifact history --field <f>` (ADR-0361): a path and a
   // field NAME. Both are already the kind of value `@` would be part of, and neither is ever stored
   // into an artifact, so neither can corrupt a durable record.

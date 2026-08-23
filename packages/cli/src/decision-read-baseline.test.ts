@@ -158,6 +158,25 @@ test("decision-read-baseline: chain depth counts only edges whose BOTH ends were
   assert.deepEqual(longestReadChain(new Set([10, 11, 12]), adjacency).path, [10, 11, 12]);
 });
 
+test("decision-read-baseline: the OPTIONAL root leaves the unrooted answer exactly as it was", () => {
+  // ADR-0428's trial needs a chain ROOTED at a frontier; the frozen baseline needs the unrooted
+  // answer it already froze. This pins that adding the parameter changed neither number — the
+  // frozen figures are a published record, so "no existing caller passes it" is not enough on its own.
+  const adjacency = supportAdjacency(ladder());
+  const readSet = new Set([10, 11, 12]);
+  assert.deepEqual(longestReadChain(readSet, adjacency), longestReadChain(readSet, adjacency, undefined));
+  assert.equal(longestReadChain(readSet, adjacency).depth, 3);
+});
+
+test("decision-read-baseline: a ROOTED chain starts where it is asked to, not at the deepest node", () => {
+  const adjacency = supportAdjacency(ladder());
+  const readSet = new Set([10, 11, 12]);
+  assert.deepEqual(longestReadChain(readSet, adjacency, 11).path, [11, 12]);
+  assert.equal(longestReadChain(readSet, adjacency, 12).depth, 1);
+  // A root the session never read is not a walk it took — 0, never the unrooted longest.
+  assert.equal(longestReadChain(new Set([11, 12]), adjacency, 10).depth, 0);
+});
+
 test("decision-read-baseline: an empty read set is depth 0, and one unrelated read is depth 1", () => {
   const adjacency = supportAdjacency(ladder());
   assert.equal(longestReadChain(new Set(), adjacency).depth, 0);
