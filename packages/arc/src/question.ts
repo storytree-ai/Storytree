@@ -192,12 +192,19 @@ export function questionDescriptionFrom(statement: string): string {
   return `${(lastSpace > 0 ? cut.slice(0, lastSpace) : cut).replace(/[,;:]+$/, "")}…`;
 }
 
-/** Guidance when a question WRITE is attempted offline — questions live only in the shared store. */
-function questionNotWritable(verb: string): Envelope {
+/**
+ * Guidance when a question WRITE is attempted offline — questions live only in the shared store.
+ *
+ * The usage line is PASSED IN rather than built from the verb name. It used to be interpolated as
+ * `question ${verb} --arc … --title …`, which is `new`'s shape and only `new`'s: the moment a second
+ * write verb existed, the refusal for it printed a command that would itself refuse. A pointer a
+ * reader cannot follow is worse than none, because they spend the round-trip finding that out.
+ */
+function questionNotWritable(verb: string, usage: string): Envelope {
   return {
     ok: false,
     body: `question ${verb} writes to the shared store — run with --pg (and bring the DB up first: pnpm db:up).`,
-    next: ["pnpm db:up", `storytree question ${verb} --arc <arc-id> --title "…" --pg`],
+    next: ["pnpm db:up", usage],
   };
 }
 
@@ -247,7 +254,7 @@ export async function questionNew(
   id: string | undefined,
   opts: QuestionNewOpts,
 ): Promise<Envelope> {
-  if (!deps.writable) return questionNotWritable("new");
+  if (!deps.writable) return questionNotWritable("new", USAGE);
 
   const arc = opts.arc?.trim().replace(/^asset:/, "") ?? "";
   const title = opts.title?.trim() ?? "";
@@ -538,7 +545,7 @@ export async function questionSettle(
   id: string | undefined,
   opts: QuestionSettleOpts,
 ): Promise<Envelope> {
-  if (!deps.writable) return questionNotWritable("settle");
+  if (!deps.writable) return questionNotWritable("settle", SETTLE_USAGE);
 
   const questionId = id?.trim().replace(/^asset:/, "") ?? "";
   if (questionId === "") {

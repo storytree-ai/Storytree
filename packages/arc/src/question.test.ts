@@ -402,6 +402,13 @@ test("question settle refuses offline — a settlement is a write, and questions
   const env = await questionSettle(writeDeps(store, false), id, { answer: ANSWER });
   assert.equal(env.ok, false);
   assert.match(env.body, /--pg/);
+  // The offered command is SETTLE's, not `new`'s. The refusal template used to interpolate the verb
+  // into `question <verb> --arc … --title …`, which is `new`'s shape and only `new`'s — so the moment
+  // a second write verb existed it pointed at a command that would itself refuse. A pointer a reader
+  // cannot follow costs them the round-trip it takes to find that out.
+  const offers = (env.next ?? []).join("\n");
+  assert.match(offers, /question settle <id> --answer/);
+  assert.doesNotMatch(offers, /--arc <arc-id> --title/);
 });
 
 test("question settle REFUSES without an answer — the answer is the point, not a formality", async () => {
