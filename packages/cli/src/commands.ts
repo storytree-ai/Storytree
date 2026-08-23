@@ -3576,31 +3576,34 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     if (values.clause !== undefined) adrOpts.clause = values.clause;
     if (values["allow-control-arm"] === true) adrOpts.allowControlArm = true;
     const controlArm = frozenControlArm();
+    // ONE unconditional spread over a base, chosen by a ternary — not a conditional spread of `{}`
+    // (`no-conditional-empty-object-spread`) and not an annotated accumulator (`no-known-value-
+    // widening` refuses a known literal flowing into a generic container). The optional field is
+    // ABSENT rather than present-and-undefined, which is what `exactOptionalPropertyTypes` wants.
+    // `controlArm` is ABSENT when the write-up cannot be read, which the write then reports rather
+    // than implying the fence passed.
+    const adrDepsBase = {
+      allocator: deps.adr ?? null,
+      // Branch is audit-only and only used on the live (--pg) path; skip the git spawn offline.
+      branch: deps.adr ? currentBranch() : "offline",
+      actor: deps.actor ?? defaultCliActor(),
+      // The `decided:` date for an owner-directed scaffold (ADR-0110); composition-root clock.
+      // OWNER-LOCAL, not UTC (see {@link ownerLocalDate}), and `--decided-date` overrides it for
+      // an ADR whose decision was made earlier in the conversation or on a previous day.
+      today: explicitDecided ?? ownerLocalDate(deps.now?.() ?? new Date()),
+      // The store-backed round trip (ADR-0403 dec 9). Wired unconditionally: `adr pull` is a READ,
+      // and a bare library read already dials the live store (ADR-0302 D1), so only the push is
+      // gated — on `writable`, inside the verb, where it can say why.
+      roundTrip: {
+        store: deps.store,
+        writable: deps.writable === true,
+        actor: deps.actor ?? defaultCliActor(),
+      },
+    };
     return adrCommand(
       sub,
       adrOpts,
-      {
-        allocator: deps.adr ?? null,
-        // Branch is audit-only and only used on the live (--pg) path; skip the git spawn offline.
-        branch: deps.adr ? currentBranch() : "offline",
-        actor: deps.actor ?? defaultCliActor(),
-        // The `decided:` date for an owner-directed scaffold (ADR-0110); composition-root clock.
-        // OWNER-LOCAL, not UTC (see {@link ownerLocalDate}), and `--decided-date` overrides it for
-        // an ADR whose decision was made earlier in the conversation or on a previous day.
-        today: explicitDecided ?? ownerLocalDate(deps.now?.() ?? new Date()),
-        // The store-backed round trip (ADR-0403 dec 9). Wired unconditionally: `adr pull` is a READ,
-        // and a bare library read already dials the live store (ADR-0302 D1), so only the push is
-        // gated — on `writable`, inside the verb, where it can say why.
-        roundTrip: {
-          store: deps.store,
-          writable: deps.writable === true,
-          actor: deps.actor ?? defaultCliActor(),
-        },
-        // ADR-0428 D6's frozen held-out set, read from the committed write-up. Resolved HERE rather
-        // than inside the verb so the verb stays pure of the filesystem — and left ABSENT when the
-        // file cannot be read, which the write then reports rather than implying the fence passed.
-        ...(controlArm === undefined ? {} : { controlArm }),
-      },
+      controlArm === undefined ? adrDepsBase : { ...adrDepsBase, controlArm },
     );
   }
 

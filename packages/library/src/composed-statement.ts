@@ -286,11 +286,11 @@ export function readComposedStatements(
 }
 
 /** How an effect reads in the banner — the reader is told what moved, never merely that something did. */
-const EFFECT_PROSE: Record<OutstandingEffectKind, string> = {
+const EFFECT_PROSE = {
   changed: "changed since this was composed",
   added: "is beneath this record now and was not composed over",
   removed: "is no longer beneath this record",
-};
+} satisfies Record<OutstandingEffectKind, string>;
 
 /**
  * PURE: the reader-facing banner for a record's composed statements — the "Changes to Legislation"
