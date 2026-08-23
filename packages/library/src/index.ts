@@ -93,6 +93,11 @@ export * from "./decision-amends-seam.js";
 // here is never compliance. Pure, browser-safe, and `supersedes` is absent from its input type for
 // the same shape-of-the-code reason its `decision-amends-seam.js` sibling gives.
 export * from "./amends-annotation.js";
+// ADR-0419 Decision 3's drain worklist: the SOURCE-partitioned rehoming view and the source's own
+// prose about each edge, so a batch carries the evidence its editorial verdict needs. It classifies
+// nothing — D3 rules that call editorial and no registry transform can exist. Pure and browser-safe;
+// the TARGET-partitioned annotation half is `amends-annotation.js`, and the two must never be mixed.
+export * from "./amends-drain.js";
 // ADR-0223 dec 5's one-time seed, as a pure function: the tier order (dec 3, amended by ADR-0363 D1)
 // and the down-tier citation projection the migration applies. Pure and browser-safe apart from the
 // zod pointer check it borrows from the schema.
