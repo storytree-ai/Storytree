@@ -360,9 +360,20 @@ but a prerequisite for increment 2, not an afterthought.
    best speedups.
 4. ~~**Blocked on us:** `agent` and `context-traversal-transcript` — fix the Class 1
    `process.execPath` assumptions first; they are stable failures with a known cause.~~
-   **UNBLOCKED, inc-06 (2026-08-23).** Both assumptions are fixed and both packages measure green
-   under Bun at exact file-level parity. What is left for them is the conversion itself, with the
-   one proof leg inc-06 did not run: the executed-assertion count.
+   **CONVERTED, inc-08 (2026-08-23)** — inc-06 fixed both assumptions; inc-08 ran the one proof leg
+   inc-06 did not (the executed-assertion count) and moved both scripts to
+   `bun test --timeout 300000 src/`, dropping `tsx` from each manifest. Parity was exact on every
+   column, node arm re-measured: `agent` 161 tests / 18 files / 160 pass / 1 skip / 0 fail and
+   **629 executed assertions** under each runtime; `context-traversal-transcript` 74 / 7 / 74 pass /
+   0 fail and **458 executed assertions** under each. Three uninstrumented Bun runs per package gave
+   identical counts, and so did the instrumented run — so the `--preload` perturbation warning is
+   discharged for both rather than ignored. Note `transcript`'s node arm is **74**, not inc-06's 73
+   and not the 40 in the table above: it grew again overnight, which is the fourth increment that
+   rule has caught. ⚠ `--timeout 300000` is **load-bearing here, not convention**:
+   `transcript`'s slowest test is 6.4 s (it spawns node as a child, which is inc-06's fix), so on
+   bun's default 5000 ms per-test deadline the package fails on a QUIET box — measured, leg 5 times
+   out at 5052 ms. Every earlier conversion crossed that line only under `pnpm -r` contention; this
+   is the first that crosses it at rest.
 5. **Blocked on Bun:** `context-traversal-capture`, `orchestrator`, `drive`, `cli`. Do not attempt
    until Class 2 is gone. Re-test with `bun test src/`, uninstrumented, three times, and compare test
    counts before spending any effort on the failures.
