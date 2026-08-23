@@ -64,8 +64,33 @@
  * did, and the whole value of this figure is that it can disagree.
  *
  * What a baseline must take from it: a near-zero decision follow COUNT is a property of the
- * instrument, not evidence about agent behaviour, and offer-to-follow for decisions must be reported
- * over the OBSERVABLE branches rather than the offered ones (ADR-0312's own rule).
+ * instrument, not evidence about agent behaviour, and an offer-to-follow rate computed FROM
+ * `followed_edge` must be reported over the OBSERVABLE branches rather than the offered ones
+ * (ADR-0312's own rule).
+ *
+ * ⚠ THAT RULE SCOPES THE `followed_edge` ROUTE ONLY — READ LITERALLY IT SHRINKS A MEASUREMENT ~65x.
+ * There are TWO routes to offer-to-follow and they cover very different slices of the SAME offer
+ * population. `followed_edge` is the narrow one, and {@link classifyOfferObservability} above is
+ * exactly what scopes it: a rate resting on it alone rests on the observable slice. The other is the
+ * READ RECORD — a recorded READ of the offered decision, in the same context window, at or after the
+ * offer — which needs no `--from-offer` and therefore works for EVERY pointer spelling now that
+ * decision reads are captured at all. `-inc-02` measured both over the same 3,351 decision offers
+ * (`docs/research/decision-read-baseline-2026-08-23.md`, reproducible with
+ * `pnpm probe:decision-baseline`):
+ *
+ *   - `followed_edge`:     51 of 3,351 offers observable (1.5%)  —   2 followed, 3.9%
+ *   - the READ RECORD:  3,351 of 3,351 offers          (100%)    — 156 followed, 4.7%
+ *
+ * So for THIS question the read-record route SUPERSEDES the narrowing. Reporting only the observable
+ * rate would rest the arc's third number on 51 offers; reporting only the read-record rate would
+ * ignore the `followed_edge` finding. `-inc-02` prints both side by side, and the useful part is that
+ * they AGREE on shape (3.9% vs 4.7%) — stronger evidence that offers are noise than either figure
+ * alone.
+ *
+ * What that qualification does NOT touch: the refusal above STANDS — `offeredDecisionsUnobservable`
+ * remains a DENOMINATOR and never a defect count, and neither route makes the `doc:` gap a worklist
+ * item — and the join rule is untouched either way, since both sides of both routes still resolve
+ * through {@link resolveDecisionId} before any comparison.
  *
  * ## EVERY FIGURE IS A FLOOR, AND THE LOCAL RECORD IS ONE BOX'S HISTORY
  *
@@ -485,9 +510,25 @@ export function renderDecisionReadCoverage(coverage: DecisionReadCoverage): stri
       "UNOBSERVABLE — no CLI read shape records a follow for them, so no edge could ever land",
   );
   lines.push(
-    "  So a decision offer-to-follow RATE must be taken over the OBSERVABLE branches, never over the " +
-      "offered ones (ADR-0312's own rule), and a near-zero follow COUNT here is a property of the " +
-      "instrument rather than evidence about what agents do.",
+    "  So an offer-to-follow RATE computed FROM `followed_edge` must be taken over the OBSERVABLE " +
+      "branches, never over the offered ones (ADR-0312's own rule), and a near-zero follow COUNT " +
+      "here is a property of the instrument rather than evidence about what agents do.",
+  );
+  lines.push(
+    "  ⚠ THAT RULE SCOPES THE `followed_edge` ROUTE ONLY, AND READ LITERALLY IT SHRINKS A " +
+      "MEASUREMENT ~65x. There are TWO routes to offer-to-follow over the same offer population. " +
+      "The second is THE READ RECORD — a recorded READ of the offered decision, in the same context " +
+      "window, at or after the offer — which needs no `--from-offer` and so works for EVERY pointer " +
+      "spelling. Measured by `-inc-02` over the same 3,351 decision offers: `followed_edge` sees 51 " +
+      "of 3,351 observable (1.5%), 2 followed (3.9%); the read record sees 3,351 of 3,351 (100%), " +
+      "156 followed (4.7%). For THIS question the read-record route SUPERSEDES the narrowing — " +
+      "resting the figure on 51 offers is the larger error — so report BOTH: the useful part is " +
+      "that they AGREE on shape. Full working: " +
+      "`docs/research/decision-read-baseline-2026-08-23.md` (`pnpm probe:decision-baseline`).",
+  );
+  lines.push(
+    "  Neither route changes what the figure above IS: it stays a DENOMINATOR, and both routes still " +
+      "resolve both sides through `resolveDecisionId` before any comparison.",
   );
   lines.push(
     "  ⚠ NOT A WORKLIST ITEM. Making these offers followable is REFUSED, owner-directed since " +
