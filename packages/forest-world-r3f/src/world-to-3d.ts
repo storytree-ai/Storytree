@@ -17,7 +17,7 @@
 // All other SceneKinds yield { kind: 'skipped', sceneKind } — explicit, never a
 // throw, never a silent drop. Total coverage is the invariant.
 
-import { trailFillWidth, type SceneG, type SceneNode, type ScenePath } from '@storytree/forest-world';
+import { trailFillWidth, type Pt, type SceneG, type SceneNode, type ScenePath } from '@storytree/forest-world';
 
 // ---------------------------------------------------------------------------
 // Descriptor types — the provability-firewall output contract
@@ -95,7 +95,7 @@ export type Descriptor3D = InstanceDescriptor | SkippedDescriptor;
 
 /** Parse a `translate(x y)` string (the format buildScene emits for transforms).
  *  Returns { x: 0, y: 0 } when the string is absent or unrecognised. */
-function parseTranslate(t: string): { x: number; y: number } {
+function parseTranslate(t: string): Pt {
   const m = /translate\(\s*([-\d.]+)\s+([-\d.]+)/.exec(t);
   if (!m) return { x: 0, y: 0 };
   return { x: parseFloat(m[1]!), y: parseFloat(m[2]!) };
@@ -105,10 +105,10 @@ function parseTranslate(t: string): { x: number; y: number } {
  *  polylines (`hexPath` / `polyPath`) and M+C trail splines (`routeTrails` `d`s), so
  *  pairing the numeric stream recovers the vertices. On a curve command the control
  *  points join the polyline — spike-fidelity approximation, deterministic and total. */
-function pathPoints(d: string): { x: number; y: number }[] {
+function pathPoints(d: string): Pt[] {
   const nums = d.match(/-?\d+(?:\.\d+)?/g);
   if (!nums) return [];
-  const pts: { x: number; y: number }[] = [];
+  const pts: Pt[] = [];
   for (let i = 0; i + 1 < nums.length; i += 2) {
     pts.push({ x: parseFloat(nums[i]!), y: parseFloat(nums[i + 1]!) });
   }
@@ -117,7 +117,7 @@ function pathPoints(d: string): { x: number; y: number }[] {
 
 /** The mean of a point set — the exact centre of a regular polygon's vertices
  *  (the hex tile centre), the midpoint-ish anchor of a trail polyline. */
-function centroidOf(pts: { x: number; y: number }[]): { x: number; y: number } {
+function centroidOf(pts: Pt[]): Pt {
   if (pts.length === 0) return { x: 0, y: 0 };
   let sx = 0;
   let sy = 0;
@@ -159,7 +159,7 @@ function edgeKeys(edges: string | undefined): string[] {
 function walkNode(
   node: SceneNode,
   out: Descriptor3D[],
-  parentXY: { x: number; y: number },
+  parentXY: Pt,
 ): void {
   const kind = node.kind;
 
@@ -174,7 +174,9 @@ function walkNode(
       const mid = centroidOf(pts);
       const usage = node.usage ?? 1;
       const stripKind = kind === 'trail-fill' ? 'trail-strip' : 'trail-ghost-strip';
-      out.push({
+      // ANNOTATED local, then one guarded assignment — the shape
+      // `anti-slop/no-conditional-empty-object-spread` requires.
+      const strip: InstanceDescriptor = {
         kind: stripKind,
         transform: { x: parentXY.x + mid.x, y: 0, z: parentXY.y + mid.y },
         group: stripKind,
@@ -183,8 +185,9 @@ function walkNode(
         usage,
         hidden: kind === 'trail-ghost',
         edges: edgeKeys(node.edges),
-        ...(node.id !== undefined ? { segment: node.id } : {}),
-      });
+      };
+      if (node.id !== undefined) strip.segment = node.id;
+      out.push(strip);
       return;
     }
     if (kind) out.push({ kind: 'skipped', sceneKind: kind });
@@ -236,7 +239,9 @@ function walkNode(
       const arch = childPath(node, 'cave-arch');
       const nums = arch ? arch.d.match(/-?\d+(?:\.\d+)?/g) : null;
       const hw = nums && nums[1] !== undefined ? Math.abs(parseFloat(nums[1])) : 0;
-      out.push({
+      // ANNOTATED local, then one guarded assignment — the shape
+      // `anti-slop/no-conditional-empty-object-spread` requires.
+      const archDescriptor: InstanceDescriptor = {
         kind: 'cave-arch',
         transform: { x: childXY.x, y: 0, z: childXY.y },
         group: 'cave-arch',
@@ -244,8 +249,9 @@ function walkNode(
         bearing,
         width: (hw * 2) / 1.6,
         edges: edgeKeys(node.edges),
-        ...(node.island !== undefined ? { island: node.island } : {}),
-      });
+      };
+      if (node.island !== undefined) archDescriptor.island = node.island;
+      out.push(archDescriptor);
       break;
     }
 

@@ -191,7 +191,16 @@ export function smoothLoopPath(loop: Pt[]): string {
  * Returns the smoothed point loop(s) (for river docking / panel use) alongside
  * the paths.
  */
-export function smoothCoast(segs: BoundarySeg[], storyId: string): { loops: Pt[][]; paths: string[] } {
+/** A story island's smoothed coastline: the outset, Chaikin-smoothed boundary loops and the SVG
+ *  path `d` for each. Named because `anti-slop/no-known-value-widening` reads an anonymous object
+ *  return annotation as discarded type evidence — and deleting the annotation instead would let
+ *  an empty-island `loops: []` infer as `never[][]`. */
+export interface SmoothedCoast {
+  loops: Pt[][];
+  paths: string[];
+}
+
+export function smoothCoast(segs: BoundarySeg[], storyId: string): SmoothedCoast {
   const loops = boundaryRingLoops(segs).map((l) =>
     chaikinClosed(
       outsetLoop(l, (i) => jitteredOutset(storyId, i, l.length)),

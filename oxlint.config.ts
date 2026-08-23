@@ -99,10 +99,12 @@ export default defineConfig({
     //      transport double refused it.
     "anti-slop/no-module-mocking": "error",
     // ADOPTED BY MIGRATION — anti-slop-adoption-arc inc-11 drove 666 findings (584 source / 82 test,
-    // across 175 files) to EIGHT, and those eight are a declared fence, not a residue: see the
-    // `overrides` block at the bottom of this file. Every production-source site outside that fence
-    // is gone, and so is every test site — the ADR-0407 D4 laxer bar was MEASURED and turned out not
-    // to be needed here, which is inc-03's precedent applied rather than assumed.
+    // across 175 files) to EIGHT, and `land-the-33-fenced-sites-and-republish` then drove those
+    // eight to ZERO. The rule now fires nowhere, under NO exception: every production-source site is
+    // gone, every test site is gone (the ADR-0407 D4 laxer bar was MEASURED and turned out not to be
+    // needed here, which is inc-03's precedent applied rather than assumed), and the WEBSITE-MIRROR
+    // FENCE that carried the last eight is DELETED rather than narrowed — see the note on
+    // `no-known-value-widening` below for why that became ordinary work.
     //
     // THE RULE WAS NEVER CONTESTED. inc-04's three-judge REFACTOR panel returned `refactor-found`
     // 3-0 and named two shapes; under the owner's narrowed bar adopting needs no panel, so this
@@ -393,12 +395,14 @@ export default defineConfig({
     // count or a panel-backed reason. Counts below are from this increment's inventory.
     // ---------------------------------------------------------------------------------------
     // ADJUDICATED AND ADOPTED (inc-08) — but still `off`, because it reaches `error` only at ZERO
-    // and 129 firings remain. This is a MIGRATION IN PROGRESS, not an open question: the rule is
-    // agreed correct, and what is left is work rather than doubt. Record:
-    // `tools/oxlint/panels/no-known-value-widening.md`.
+    // and 109 firings remain (65 source / 44 test across 61 files, re-measured 2026-08-23 at the
+    // tree this landed on — a count is a READING, never a property: inherit none of the numbers in
+    // this comment, re-run the inventory). This is a MIGRATION IN PROGRESS, not an open question:
+    // the rule is agreed correct, and what is left is work rather than doubt. Record:
+    // `tools/oxlint/panels/no-known-value-widening.md`; remaining lane: inc-10.
     //
-    // 518 measured; 389 driven out. `anonymous object :: binding` is at zero, and so is every
-    // return-position site OUTSIDE the website-mirrored packages — see the fence below.
+    // 518 measured; 409 driven out. `anonymous object :: binding` is at zero, and so is EVERY site
+    // in the website-mirrored packages — the fence those 24 sat behind is deleted, not narrowed.
     // No rule panel was needed — a panel justifies a REJECTION, and
     // the owner's narrowed bar admits only functionality loss or a genuine exceptional set, neither
     // of which describes "we prefer inline object return types". A REFACTOR panel settled the one
@@ -422,15 +426,23 @@ export default defineConfig({
     //     interface/alias asymmetry.
     // Plus 34 in the small tail (assertions, `unknown` targets, one property).
     //
-    // ⚠ A FENCE, NOT A BACKLOG ITEM: 25 of the remaining firings sit in the FIVE files under
-    // `packages/forest-world/src` and `packages/forest-world-r3f/src` that the website mirrors
-    // (ADR-0093). They were migrated, CI's `check:web-engine` correctly refused the drift, and the
-    // change was REVERTED rather than pushed through — because closing that drift means
-    // `pnpm sync:web-engine`, a PR on the separate `storytree-web` repo, and MERGING it, and that
-    // merge republishes the live site through its own `deploy.yml`. Publishing is the owner's call,
-    // not a lane's. Note this is also the one class a local gate cannot see: `check:web-engine`
-    // SKIPs without the `web/` submodule, so the laptop reads GREEN, NARROWED and CI is the first
-    // honest verdict. Whoever takes these does the cross-repo ceremony deliberately and asks first.
+    // ✓ THE WEBSITE-MIRROR FENCE IS GONE, AND SO IS EVERY FIRING BEHIND IT. What blocked those
+    // sites was never the code: editing the three files the website vendors wholesale (ADR-0093)
+    // welded a one-line lint fix to a live site publish, and publishing was read as the owner's
+    // call. ADR-0412 settled that — the site is in STEALTH MODE and publishing is NOT owner-gated
+    // (D2), with only reach/access, live data and third-party scripts still gated (D3). So
+    // `land-the-33-fenced-sites-and-republish` did the cross-repo ceremony as ordinary work and
+    // cleared BOTH rules in ONE republish rather than each lane doing half of one.
+    //
+    // It went WIDER than the three fenced files on purpose: `pnpm sync:web-engine` mirrors ALL of
+    // `forest-world/src` and `forest-world-r3f/src`, so `coast.ts` and `ForestWorldCanvas.tsx` were
+    // migrated in the same pass. Leaving them would have made the NEXT touch of either file a second
+    // republish for no extra benefit. Both mirrored package sources are now at zero for both rules.
+    //
+    // ⚠ THE LOCAL-GATE BLIND SPOT IS UNCHANGED and still bites: `check:web-engine` declares SKIP
+    // without the `web/` submodule, so a laptop reads GREEN, NARROWED and CI is the first honest
+    // verdict. Run `git submodule update --init web` before touching these packages — that is what
+    // makes the drift check answer, and inc-08's revert is what it costs not to.
     "anti-slop/no-known-value-widening": "off",
   },
   overrides: [
@@ -450,37 +462,6 @@ export default defineConfig({
       files: ["**/*.test.ts", "**/*.test.tsx", "**/*.test.mts", "**/e2e/**"],
       rules: {
         "anti-slop/no-chained-type-assertions": "off",
-      },
-    },
-    {
-      // THE WEBSITE-MIRROR FENCE (ADR-0093). These three files are vendored WHOLESALE into the
-      // separate `storytree-web` repository by `pnpm sync:web-engine`, and CI's `check:web-engine`
-      // refuses any drift between the parent copy and the synced one. Editing them is therefore not
-      // a local change: closing the drift means a PR on that repo, and MERGING it republishes the
-      // live site through its own `deploy.yml`. Publishing is the owner's call, not a lane's.
-      //
-      // So this is a DECIDED SCOPE carrying its reason, like the test bar above — not a `warn`, and
-      // not the rule being weakened. The eight sites behind it are uniform one-liners already
-      // written out in full on `anti-slop-adoption-arc-inc-11`; they are work that is READY and
-      // GATED, not work that is unknown.
-      //
-      // ⚠ Note this is the one class a LOCAL gate cannot see: `check:web-engine` declares SKIP
-      // without the `web/` submodule checked out, so a laptop reads GREEN, NARROWED and CI is the
-      // first honest verdict. inc-08 migrated the same two packages, read its local gate as green,
-      // and had CI refuse the drift — the gate was honest, and proceeding past its named narrowing
-      // was the error.
-      //
-      // `no-known-value-widening` (inc-10) has 25 more sites behind this same fence, in these same
-      // files. Whoever clears the republish should clear BOTH rules in one deliberate cross-repo
-      // increment rather than each lane doing half a republish, and should delete this entry when
-      // they do.
-      files: [
-        "packages/forest-world/src/scene.ts",
-        "packages/forest-world/src/routing.ts",
-        "packages/forest-world-r3f/src/world-to-3d.ts",
-      ],
-      rules: {
-        "anti-slop/no-conditional-empty-object-spread": "off",
       },
     },
   ],

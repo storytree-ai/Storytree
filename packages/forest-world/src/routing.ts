@@ -625,6 +625,15 @@ function distToOtherTrails(px: number, py: number, others: readonly ResampledSeg
  * full amplitude on open solo stretches — and its amplitude stays below the
  * clearance margin, so it can never push a trail inside an island.
  */
+/** A meandered trail segment: the moved points plus the Catmull-Rom path `d` drawn through them.
+ *  Named because `anti-slop/no-known-value-widening` reads an anonymous object return annotation as
+ *  discarded type evidence, and inc-08's refactor panel settled the fork 3-0 toward NAMING rather
+ *  than deleting: with no build step, the declaration site is the only API-surface document. */
+interface MeanderedSegment {
+  points: Pt[];
+  d: string;
+}
+
 function meanderSpline(
   base: ResampledSeg,
   hidden: boolean,
@@ -633,7 +642,7 @@ function meanderSpline(
   others: readonly ResampledSeg[],
   seed: string,
   t: TrailTuning,
-): { points: Pt[]; d: string } {
+): MeanderedSegment {
   const pts: Pt[] = base.pts.map((p) => ({ x: p.x, y: p.y }));
   if (!hidden && pts.length > 2) {
     const s = base.cum;
@@ -1276,12 +1285,11 @@ export function routeTrails(
       }
     }
     emitRun(runStart, linkCount);
-    outEdges.push({
-      from: re.from,
-      to: re.to,
-      ...(re.title !== undefined ? { title: re.title } : {}),
-      segments: chain,
-    });
+    // ANNOTATED local, then one guarded assignment — the shape
+    // `anti-slop/no-conditional-empty-object-spread` requires.
+    const outEdge: TrailEdgeOut = { from: re.from, to: re.to, segments: chain };
+    if (re.title !== undefined) outEdge.title = re.title;
+    outEdges.push(outEdge);
   }
 
   // ---------- cave portals: rim crossings of the hidden runs ----------
