@@ -1,24 +1,54 @@
-// The scripted shadow of the studio Story UAT
-// (stories/studio/story.md § "UAT Test Criteria") — one coherent operator journey
-// against the REAL running studio (real dev server, real browser, real /api/* middleware,
-// real seeded corpus). The only stub is the cross-story live-store seam: the server is
-// pinned to the offline json backend (playwright.config.ts, STORYTREE_STUDIO_STORE=json) —
-// ADR-0010 §5's mock-UAT allowance; in-story collaborators stay real. No Cloud SQL, no
-// network, no API keys.
+// The scripted shadow of the studio Story UAT (stories/studio/story.md § "UAT Test Criteria") —
+// one coherent operator journey against the REAL running studio (real dev server, real browser,
+// real /api/* middleware, real seeded corpus). The only stub is the cross-story live-store seam:
+// the server is pinned to the offline json backend (playwright.config.ts,
+// STORYTREE_STUDIO_STORE=json) — ADR-0010 §5's mock-UAT allowance; in-story collaborators stay
+// real. No Cloud SQL, no network, no API keys.
 //
-// Coverage: ALL steps — the read slice (steps 1-3, 7-9: backbone, read-corpus, the
-// in-corpus cross-link hop, Library browse, citation hop) and the mutating journey
-// (steps 4-6 annotate → reload → resolve; steps 10-11 author → edit → delete; steps 12-13
-// cold-restart durability + cleanup back to the git-tracked baseline). Where the prose
-// describes the pre-fold UI (a sidebar doc index, an 'all' chip, a body-only editor), this
-// script shadows the SAME journey through the current surfaces: the corpus index lives in
-// the Library, and a structured kind is authored through its per-kind fields (option C of
-// oq-library-doc-shape).
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// RE-POINTED AT THE APP'S OWN AFFORDANCES (2026-08-23). This file had drifted behind six accepted
+// decisions and asserted retired chrome — `.brand-name` (a HUD brand chip ADR-0205 deleted) and
+// `getByLabel('operator identity')` (an editable identity input ADR-0204 D4 deleted). It failed on
+// the FIRST assertion of the first test, so the story's ONE reliability gate
+// (`pnpm --filter studio uat`, studio#gate-1) was red and all thirteen machine legs stayed
+// unsigned. What moved under it:
+//   • ADR-0204      — the standalone Overview/Home page is retired; `/` lands on the FOREST map.
+//   • ADR-0204 D4   — attribution is server-stamped; there is no editable operator input.
+//   • ADR-0205      — the HUD brand chip is gone; the account avatar is the only floating control.
+//   • ADR-0185 dec6 — the standalone `#/library` page is retired; the Library is a LENS in the
+//                     forest's top drawer (`?overlay=library`), reached via its handle.
+//   • ADR-0187 dec2 — an artifact opens in a full-detail OVERLAY over the map, not a route away.
+//   • ADR-0267 D1 / ADR-0314 D6 — that drawer now has TWO lenses (Arcs | Library), arcs default.
+//
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// WHAT IS STILL RED, AND WHY IT IS LEFT RED (ADR-0405 D4 — fix the cause, never weaken the
+// assertion to chase a pass). Re-pointing the selectors does NOT make this gate green, because
+// eight of the thirteen criteria describe surfaces the product no longer has. Each blocked leg
+// below is written as the journey ITS CRITERION claims, so it fails at the missing affordance and
+// will go green on its own the day that affordance lands — it is never skipped, never narrowed:
+//
+//   • Criteria 2, 3, 9 (the ADR document journey) — ADR-0403 dec 1 made decisions ROWS in the live
+//     store and DELETED `docs/decisions/`. `#/doc/decisions/0002-…` answers "doc not found", and
+//     the offline fixture corpus (`@storytree/library/fixture`, 20 artifacts) contains no `adr`
+//     artifact at all, so ADR-0002 cannot be reached through the Library lens either. The app says
+//     so itself: `deep-modules` renders its own ADR-0002 source as "(unknown doc)".
+//   • Criteria 4, 5, 6, 12, 13 (the comment journey) — ADR-0146 replaced the block-anchored
+//     comment surface with the CriticMarkup split-pane editor, and the replacement was never wired
+//     to the comment store. `ReviewBlocks` (the only mounter of `InlineCommentThread`) is mounted
+//     nowhere; nothing calls `api.createComment`, `api.updateComment` or `api.deleteComment` from
+//     any mounted component. So the studio today has no way, through the UI, to post, resolve or
+//     delete a comment. `stories/library-review/inline-comment-thread.md` already records this
+//     reconciliation as an unfinished story-author follow-on, and
+//     `remove-text-selection-anchoring.md` predicted exactly this failure mode ("or the surface is
+//     left unable to comment").
+//
+// Both are product/corpus facts, not selector drift, and both are escalated rather than papered
+// over. The five criteria the product CAN satisfy today (1, 7, 8, 10, 11) are driven in their own
+// tests so their green is visible instead of being hidden behind an earlier red.
 //
 // The mutating tests write through the real handlers into the offline stores (git-tracked
-// apps/studio/data/comments.json; the gitignored, first-run-seeded apps/studio/data/assets.runtime.json
-// — ADR-0210, derived from knowledge.json + the library templates) and MUST leave them at their
-// seeded baseline: step 13 cleans up through the UI and the suite asserts byte-equality; a
+// apps/studio/data/comments.json; the gitignored, first-run-seeded
+// apps/studio/data/assets.runtime.json — ADR-0210) and MUST leave them at their seeded baseline: a
 // beforeAll/afterAll snapshot-restore guard puts the baseline back if a test dies midway.
 
 import { test, expect, type Page } from '@playwright/test';
@@ -34,141 +64,275 @@ const DOC_URL = `/#/doc/${encodeURIComponent(ADR_0002)}`;
 
 const studioDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const COMMENTS_FILE = path.join(studioDir, 'data', 'comments.json');
-// ADR-0210: the offline backend serves a gitignored runtime store, seeded from knowledge.json on
-// first read — not the retired committed assets.json.
+// ADR-0210: the offline backend serves a gitignored runtime store, seeded from the library fixture
+// on first read — not the retired committed assets.json.
 const ASSETS_FILE = path.join(studioDir, 'data', 'assets.runtime.json');
 
-test('story UAT (steps 1-3, 7-9): backbone up → read an ADR → cross-link hop → browse the Library → follow a citation back to the corpus', async ({ page }) => {
-  // —— Step 1: the persistence backbone is live. The app boots, the /api/* middleware
-  // answers (the corpus loads), and the store badge confirms the offline json backend.
-  await page.goto('/');
-  await expect(page.locator('.brand-name')).toHaveText('storytree');
-  await expect(page.locator('.store-badge')).toHaveText('offline store (json)');
-  await expect(page.locator('.sidebar .side-head-link')).toHaveText('Library');
+// The forest is a real Pixi world over a real /api/tree fetch; give the first paint room on a cold
+// vite process without making a slow box look like a failure.
+const WORLD_MS = 60_000;
 
-  // —— Step 2: read-corpus end-to-end. Open ADR-0002 (a doc-backed card in the Library's
-  // adr category) and see it rendered as markdown from the real docs/ tree.
-  await page.goto('/#/library/adr');
-  await page.locator(`a.asset-card[href="#/doc/${encodeURIComponent(ADR_0002)}"]`).click();
-  await expect(page.locator('article.doc h1').first()).toBeVisible();
-  expect(page.url()).toContain('#/doc/decisions%2F0002');
+// An assertion that is RED because the affordance does not exist should say so quickly rather than
+// burn the whole test timeout waiting for something that can never appear.
+const ABSENT_MS = 15_000;
 
-  // —— Step 3: the in-corpus cross-link hop. ADR-0013 cites ADR-0002 with a docs-root-relative
-  // markdown link; resolveDocHref turns it into an internal #/doc/<relpath> nav, the sibling
-  // renders from disk, and the browser's Back returns to ADR-0013 — the corpus is genuinely
-  // navigable, not a single page. (Formerly demonstrated via docs/glossary.md, retired by ADR-0135.)
-  await page.goto(`/#/doc/${encodeURIComponent(ADR_0013)}`);
-  await expect(page.locator('article.doc h1').first()).toBeVisible();
-  await page
-    .locator(`article.doc a[href="#/doc/${encodeURIComponent(ADR_0002)}"]`)
-    .first()
-    .click();
-  await expect(page).toHaveURL(/#\/doc\/decisions%2F0002/);
-  await expect(page.locator('article.doc h1').first()).toContainText('ADR-0002');
-  await page.goBack();
-  await expect(page).toHaveURL(/#\/doc\/decisions%2F0013/);
-  await expect(page.locator('article.doc h1').first()).toBeVisible();
-
-  // —— Step 7: the Library landing renders the seeded corpus — one live-count type card
-  // per non-empty category, derived from knowledge.json into the offline runtime store (ADR-0210).
-  await page.goto('/#/library');
-  const principleCard = page.locator('a.asset-card.type-card', { hasText: 'Principles' });
-  await expect(principleCard).toBeVisible();
-  const principleCount = Number(await principleCard.locator('.badge').textContent());
-  expect(principleCount).toBeGreaterThan(0);
-
-  // —— Step 8: narrow by category, then by search — browse-library's filter end-to-end.
-  await principleCard.click();
-  await expect(page).toHaveURL(/#\/library\/principle$/);
-  await expect(page.locator('.cat-gloss')).toContainText('principle');
-  await expect(page.locator('ul.asset-grid a.asset-card')).toHaveCount(principleCount);
-  await page.locator('input.search').fill('deep');
-  const deepCard = page.locator('a.asset-card', { hasText: 'Deep modules' });
-  await expect(deepCard).toBeVisible();
-  expect(await page.locator('ul.asset-grid a.asset-card').count()).toBeLessThan(principleCount);
-
-  // —— Step 9: open the artifact and follow its doc: citation back into the corpus —
-  // the Library → corpus seam (browse-library riding read-corpus).
-  await deepCard.click();
-  await expect(page).toHaveURL(/#\/asset\/deep-modules$/);
-  await expect(page.locator('article.asset-detail h1')).toHaveText('Deep modules');
-  await expect(page.locator('.asset-refs h4')).toHaveText('Sources');
-  await page.locator(`.asset-refs a[href="#/doc/${encodeURIComponent(ADR_0002)}"]`).click();
-  await expect(page.locator('article.doc h1').first()).toBeVisible();
-  expect(page.url()).toContain('#/doc/decisions');
-});
-
-// ---------------------------------------------------------------------------------------
-// The mutating journey (steps 4-6, 10-13). Serial: each test consumes the durable state
-// the previous one wrote (that chaining IS the durability claim under test), so a failure
-// skips the rest and the snapshot guard restores the baseline.
-// ---------------------------------------------------------------------------------------
-
-const OPERATOR = 'uat-operator';
-// An exact span of ADR-0002's rendered body — one source line, no inline markup, unique.
-const PHRASE = 'instead of a legible map';
-const PROBE_ID = 'uat-probe-pattern';
-const GREEN = '#34c759';
-
-// The browser-side selection helper runs via page.evaluate; this file typechecks under
-// tsconfig.node.json (no DOM lib), so the few browser globals it touches are declared
-// untyped here instead of dragging lib.dom into the server/uat typecheck.
-declare const document: any;
-declare const window: any;
-declare const NodeFilter: any;
-declare const MouseEvent: any;
+/** Land on the forest and wait for the map route and its persistent drawer (criterion 1's surface). */
+async function landOnForest(page: Page, at = '/'): Promise<void> {
+  await page.goto(at);
+  await expect(page.locator('[data-testid="tree-route"]')).toBeAttached({ timeout: WORLD_MS });
+  await expect(page.locator('[data-testid="library-drawer"]')).toBeAttached({ timeout: WORLD_MS });
+}
 
 /**
- * Select an exact phrase of the rendered article and fire the (real, bubbling) mouseup the
- * annotate layer listens for — the same code path a hand drag takes (onMouseUp →
- * window.getSelection → computeTextAnchor); only the drag gesture itself is programmatic.
+ * Open the Library LENS the way an operator does: expand the forest's persistent top drawer from
+ * its handle, then pick the Library lens (the drawer opens on Arcs, its primary slot since
+ * ADR-0267 D1). Deliberately NOT a `?overlay=library` deep link — criterion 2 says "expand the
+ * persistent Library drawer", so the handle is the affordance under test.
  */
-async function selectPhrase(page: Page, phrase: string): Promise<void> {
-  const found = await page.evaluate((quote: string) => {
-    const root = document.querySelector('article.doc');
-    if (!root) return false;
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-    let node: any;
-    while ((node = walker.nextNode())) {
-      const idx = node.data.indexOf(quote);
-      if (idx === -1) continue;
-      const range = document.createRange();
-      range.setStart(node, idx);
-      range.setEnd(node, idx + quote.length);
-      const sel = window.getSelection();
-      sel.removeAllRanges();
-      sel.addRange(range);
-      root.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
-      return true;
-    }
-    return false;
-  }, phrase);
-  expect(found, `the phrase "${phrase}" should exist in one rendered text node`).toBe(true);
+async function openLibraryLens(page: Page): Promise<void> {
+  const expand = page.locator('[data-testid="library-drawer-toggle"]');
+  await expect(expand).toHaveAttribute('aria-label', 'expand library', { timeout: WORLD_MS });
+  await expand.click();
+  await page.locator('[data-testid="library-drawer-lens:library"]').click();
+  await expect(page.locator('[data-testid="library-finder"]')).toBeVisible();
+}
+
+/** The lifecycle state the offline fixture's artifacts project onto (ADR-0196 D1 / ADR-0197 D2). */
+async function selectLifecycle(page: Page, state: 'open' | 'active' | 'archived'): Promise<void> {
+  await page.locator(`[data-testid="library-lifecycle-selector-${state}"]`).click();
+  await expect(page.locator(`[data-testid="library-lifecycle-selector-${state}"]`)).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
 }
 
 async function readJson<T>(file: string): Promise<T> {
   return JSON.parse(await fs.readFile(file, 'utf8')) as T;
 }
 
-const probeComment = (comments: Comment[]): Comment | undefined =>
-  comments.find((c) => c.topicId === ADR_0002 && c.author === OPERATOR);
+// =============================================================================================
+// Criteria 1, 7, 8 — the read slice the current product fully supports.
+// =============================================================================================
+
+test('story UAT (criteria 1, 7, 8): boot on the forest → browse the knowledge-derived Library lens → narrow it deterministically', async ({
+  page,
+  baseURL,
+}) => {
+  test.setTimeout(180_000);
+
+  // —— Criterion 1: the persistence backbone is live and the app lands on the FOREST map.
+  // The /api/* middleware answers (the world draws from /api/tree) and the offline-store status is
+  // visible. The retired Overview page and pre-fold sidebar are asserted ABSENT rather than merely
+  // unused — that absence is what the criterion claims ("no retired Overview page or pre-fold
+  // sidebar is required"), and ADR-0205's brand chip is gone with them.
+  await landOnForest(page);
+  await expect(page.locator('.store-badge')).toHaveText('offline store (json)');
+  await expect(page.locator('[data-testid="hud-avatar"]')).toBeVisible();
+  await expect(page.locator('.brand-name, .hud-brand')).toHaveCount(0);
+  await expect(page.locator('.sidebar')).toHaveCount(0);
+  // The persistent Library drawer is the corpus entry point on the landing surface (ADR-0191) —
+  // collapsed it is the top handle, so assert the handle's control rather than the panel's box.
+  await expect(page.locator('[data-testid="library-drawer-toggle"]')).toBeVisible();
+
+  // —— Criterion 7: the Library lens renders the knowledge-derived corpus, one row per non-empty
+  // category with live counts. The expected counts are READ FROM THE DERIVATION SEAM as actually
+  // served (`/api/assets` — the offline backend seeds it from
+  // `deriveOfflineAssets(loadFixtureSeedUnits())`, ADR-0210) and never pinned: the fixture is a
+  // small offline sandbox that drifts from the live Library by design (ADR-0302 D1), so this
+  // proves the derivation is WIRED, not that the offline Library mirrors the corpus.
+  await openLibraryLens(page);
+
+  const served = (await (await fetch(`${baseURL}/api/assets`)).json()) as GuidanceAsset[];
+  expect(served.length).toBeGreaterThan(0);
+
+  // Every derived asset projects onto exactly ONE lifecycle state, so the three shelves partition
+  // the served corpus. Reading all three also proves the selector governs the whole panel
+  // (ADR-0197 D2/D3) rather than one category's rail.
+  let shelfTotal = 0;
+  for (const state of ['open', 'active', 'archived'] as const) {
+    await selectLifecycle(page, state);
+    const rows = page.locator('[data-testid="library-shelf"] .library-shelf-row');
+    for (const text of await rows.locator('.library-shelf-row-count').allTextContents()) {
+      const n = Number(text);
+      expect(n).toBeGreaterThan(0); // a rendered row is a NON-EMPTY category
+      shelfTotal += n;
+    }
+  }
+  expect(shelfTotal).toBe(served.length);
+
+  // —— Criterion 8: narrow by the declared lifecycle/category scope, then by search — the finder
+  // end-to-end, with the forest still the underlying surface.
+  await selectLifecycle(page, 'active');
+  const shelfRows = page.locator('[data-testid="library-shelf"] .library-shelf-row');
+  await expect(shelfRows.first()).toBeVisible();
+  const principleRow = page.locator('[data-testid="library-shelf-row-principle"]');
+  const principleCount = Number(await principleRow.locator('.library-shelf-row-count').textContent());
+  expect(principleCount).toBeGreaterThan(0);
+
+  await principleRow.click();
+  await expect(page.locator('[data-testid="library-scope-chip"]')).toContainText('principle');
+  await expect(page.locator('[data-testid="library-finder-results"] .library-finder-row')).toHaveCount(
+    principleCount,
+  );
+
+  await page.locator('.library-finder-input').fill('deep');
+  await expect(page.locator('[data-testid="library-finder-row-deep-modules"]')).toBeVisible();
+  expect(
+    await page.locator('[data-testid="library-finder-results"] .library-finder-row').count(),
+  ).toBeLessThan(principleCount);
+
+  // The lens is an overlay within the world frame, never a route away (ADR-0185 dec 6).
+  await expect(page.locator('[data-testid="tree-route"]')).toBeAttached();
+});
+
+// =============================================================================================
+// Criterion 9 — RED. The overlay half works; the citation hop has no target since ADR-0403 dec 1.
+// =============================================================================================
+
+test('story UAT (criterion 9): open deep-modules in the full-detail overlay → follow its ADR-0002 source back to the corpus', async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+
+  await landOnForest(page);
+  await openLibraryLens(page);
+  await selectLifecycle(page, 'active');
+  await page.locator('.library-finder-input').fill('deep');
+  await page.locator('[data-testid="library-finder-row-deep-modules"]').click();
+
+  // The selection card's Open control raises the SEPARATE full-detail overlay over the map
+  // (ADR-0187 dec 2) — the artifact's derived body and its Sources, rendered by the byte-locked
+  // LibraryDiveBody → AssetView router.
+  await page.locator('[data-testid="library-selection-card"]').getByLabel('Open').click();
+  const overlay = page.locator('[data-testid="library-open-overlay"]');
+  await expect(overlay).toBeVisible();
+  await expect(overlay.locator('article.asset-detail h1')).toHaveText('Deep modules');
+  await expect(overlay.locator('.asset-refs h4')).toHaveText('Sources');
+
+  // …and the Library → corpus seam: the cited ADR opens as real document markdown.
+  //
+  // RED, and left red (ADR-0405 D4). ADR-0403 dec 1 made decisions rows in the live store and
+  // deleted `docs/decisions/`, so this citation resolves to nothing — AssetView renders it as the
+  // literal text "(unknown doc)" rather than a link. The criterion claims a working citation hop;
+  // satisfying it needs the story's ADR journey re-authored onto the store-backed decision tier
+  // (story-author work), not a weaker assertion here.
+  await overlay
+    .locator(`.asset-refs a[href="#/doc/${encodeURIComponent(ADR_0002)}"]`)
+    .click({ timeout: ABSENT_MS });
+  await expect(page.locator('article.doc h1').first()).toBeVisible();
+});
+
+// =============================================================================================
+// Criteria 2, 3 — RED. The ADR document journey has no subject since ADR-0403 dec 1.
+// =============================================================================================
+
+test('story UAT (criteria 2, 3): open ADR-0002 through the Library-and-document chrome → follow an in-corpus cross-link', async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+
+  await landOnForest(page);
+  await openLibraryLens(page);
+
+  // —— Criterion 2: find ADR-0002 in the Library lens and open it in the full-detail overlay,
+  // while the only global HUD chrome remains the verified-identity avatar (ADR-0205).
+  await expect(page.locator('[data-testid="hud-avatar"]')).toBeVisible();
+  await expect(page.locator('.hud-brand, .brand-name')).toHaveCount(0);
+
+  // RED, and left red (ADR-0405 D4). The offline fixture corpus holds no `adr` artifact, so the
+  // Decisions scope is empty in every lifecycle state and ADR-0002 cannot be reached through the
+  // lens; `#/doc/decisions/…` answers "doc not found" for the same reason (ADR-0403 dec 1 deleted
+  // `docs/decisions/`). The criterion's success condition — "the real docs/ markdown renders" —
+  // names a source of truth the corpus retired.
+  await selectLifecycle(page, 'active');
+  // The Decisions scope is where an ADR lives in the lens (the `adr` category's shelf row). It
+  // renders in no lifecycle state offline, because the fixture holds no `adr` artifact.
+  await expect(page.locator('[data-testid="library-shelf-decisions-row"]')).toBeVisible({
+    timeout: ABSENT_MS,
+  });
+  await page.locator('[data-testid="library-shelf-decisions-row"]').click();
+  await page.locator('.library-finder-input').fill('0002');
+  await page.locator('[data-testid="library-finder-results"] .library-finder-row').first().click();
+  await page.locator('[data-testid="library-selection-card"]').getByLabel('Open').click();
+  await expect(
+    page.locator('[data-testid="library-open-overlay"] article.doc h1').first(),
+  ).toContainText('ADR-0002');
+
+  // —— Criterion 3: the in-corpus cross-link hop — ADR-0013 cites ADR-0002, resolveDocHref turns
+  // the docs-root-relative link into an internal nav, and Back restores the prior document.
+  await page.goto(`/#/doc/${encodeURIComponent(ADR_0013)}`);
+  await expect(page.locator('article.doc h1').first()).toBeVisible();
+  await page.locator(`article.doc a[href="#/doc/${encodeURIComponent(ADR_0002)}"]`).first().click();
+  await expect(page.locator('article.doc h1').first()).toContainText('ADR-0002');
+  await page.goBack();
+  await expect(page.locator('article.doc h1').first()).toBeVisible();
+});
+
+// =============================================================================================
+// Criteria 4, 5, 6 — RED. The studio has no mounted comment post/resolve surface (ADR-0146 swap).
+// =============================================================================================
+
+test('story UAT (criteria 4, 5, 6): anchor a comment with verified attribution → reload recovers it → resolve fans out', async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+
+  // —— Criterion 4: open the document's review affordance, target the declared block, and post the
+  // probe comment. The criterion is explicit that attribution is SERVER-stamped and that there is
+  // no editable operator-identity input (ADR-0204 D4) — so the journey opens Review and posts,
+  // it never types an identity.
+  await page.goto('/#/asset/deep-modules');
+  await expect(page.locator('article.asset-detail h1')).toHaveText('Deep modules');
+  await page.getByRole('button', { name: /switch to Edit/i }).click();
+  await expect(page.locator('[aria-label="operator identity"]')).toHaveCount(0); // ADR-0204 D4
+
+  // RED, and left red (ADR-0405 D4). ADR-0146 replaced the block-anchored comment surface with the
+  // CriticMarkup split-pane editor and the replacement was never wired to the comment store:
+  // `ReviewBlocks` — the only mounter of `InlineCommentThread` — is mounted nowhere, and no
+  // mounted component calls `api.createComment`. The editor's own "Peer comments" section is
+  // READ-ONLY, and its Save writes the whole body through `api.updateAsset` (and is LOCAL-only for
+  // a structured artifact), so nothing reaches `comments.json` at all. There is therefore no Post
+  // affordance to click. Wiring one back is story-author + product work, not a spec edit.
+  await page.getByRole('button', { name: 'Post' }).click({ timeout: ABSENT_MS });
+
+  const posted = (await readJson<Comment[]>(COMMENTS_FILE)).find((c) => c.topicId === 'deep-modules');
+  expect(posted, 'a posted comment should reach the offline comment store').toBeDefined();
+  expect(posted!.anchor.kind).toBe('block'); // ADR-0140 — block placement, the text span is retired
+  expect(posted!.resolved).toBe(false);
+
+  // —— Criterion 5: reload; the comment is re-fetched and rendered at the same declared target.
+  await page.reload();
+  await expect(page.locator('.inline-comment-thread')).toContainText('UAT probe');
+
+  // —— Criterion 6: resolve, and every current comment-status surface flips without a reload.
+  await page.getByRole('button', { name: 'Resolve' }).click();
+  const resolved = (await readJson<Comment[]>(COMMENTS_FILE)).find((c) => c.topicId === 'deep-modules');
+  expect(resolved!.resolved).toBe(true);
+  expect(resolved!.resolvedAt).not.toBeNull();
+});
+
+// =============================================================================================
+// Criteria 10, 11 (green) and 12, 13 (red) — the mutating journey. Serial: each test consumes the
+// durable state the previous one wrote; that chaining IS the durability claim under test.
+// =============================================================================================
+
+const PROBE_ID = 'uat-probe-pattern';
+
 const probeAsset = (assets: GuidanceAsset[]): GuidanceAsset | undefined =>
   assets.find((a) => a.id === PROBE_ID);
 
-test.describe('story UAT (steps 4-6, 10-13): the mutating journey', () => {
+test.describe('story UAT (criteria 10-13): the mutating journey', () => {
   test.describe.configure({ mode: 'serial' });
 
   // Snapshot the comment store (git-tracked) and the offline runtime assets store (gitignored,
-  // ADR-0210); restore them if any test dies before step 13's UI cleanup runs. On a green run the
-  // restore is a no-op (writes round-trip byte-identically through the backend's serializer —
-  // verified by step 13's assertion).
+  // ADR-0210); restore them if any test dies before its cleanup runs. On a green run the restore
+  // is a no-op (writes round-trip byte-identically through the backend's serializer).
   let commentsBaseline = '';
   let assetsBaseline = '';
 
   test.beforeAll(async ({ baseURL }) => {
-    // Force the offline backend to SEED its runtime assets store (ADR-0210 — derived from
-    // knowledge.json on first read) before snapshotting, so the baseline exists even if this block
-    // runs before any page has listed assets.
+    // Force the offline backend to SEED its runtime assets store before snapshotting, so the
+    // baseline exists even if this block runs before any page has listed assets.
     if (baseURL) await fetch(`${baseURL}/api/assets`).catch(() => undefined);
     commentsBaseline = await fs.readFile(COMMENTS_FILE, 'utf8');
     assetsBaseline = await fs.readFile(ASSETS_FILE, 'utf8');
@@ -186,90 +350,30 @@ test.describe('story UAT (steps 4-6, 10-13): the mutating journey', () => {
     }
   });
 
-  test('steps 4-6: set the operator → anchor a text-span comment → reload re-finds it → resolve fans out', async ({ page }) => {
-    test.setTimeout(120_000);
+  test('criteria 10, 11: author a structured Library artifact → edit it (id relocked) → delete it', async ({
+    page,
+  }) => {
+    test.setTimeout(180_000);
 
-    // —— Step 4: set an operator name once (the header identity, persisted in localStorage)…
-    await page.goto('/');
-    await page.getByLabel('operator identity').fill(OPERATOR);
-
-    // …then select an exact span of the rendered ADR body and post a comment on it.
-    await page.goto(DOC_URL);
-    await expect(page.locator('article.doc h1').first()).toBeVisible({ timeout: 30_000 });
-    await selectPhrase(page, PHRASE);
-    await expect(page.locator('.sel-popover')).toBeVisible();
-    await page.getByRole('button', { name: 'Highlight Green' }).click();
-    await page.locator('.sel-comment-btn').click();
-    await expect(page.locator('.text-target-quote')).toContainText(PHRASE);
-    await expect(page.locator('.composer-foot')).toContainText(OPERATOR);
-    await page.locator('.composer-body').fill('UAT probe: anchored on an exact text span.');
-    const [created] = await Promise.all([
-      page.waitForResponse((r) => r.url().includes('/api/comments') && r.request().method() === 'POST'),
-      page.getByRole('button', { name: 'Post' }).click(),
-    ]);
-    expect(created.status()).toBe(201);
-
-    // Success: the span is wrapped in a coloured mark with a gutter tick, the thread shows
-    // the comment, and a text-anchored record (quote/prefix/suffix, author = the operator)
-    // was appended to data/comments.json.
-    const mark = page.locator('mark.st-hl');
-    await expect(mark).toHaveText(PHRASE);
-    await expect(page.locator('.gutter-tick')).toHaveCount(1);
-    const row = page.locator('li.comment');
-    await expect(row).toContainText(OPERATOR);
-    await expect(row.locator('.quote-tag')).toContainText(PHRASE);
-    await expect(page.locator('.comments-head .badge')).toHaveText('1');
-
-    const posted = probeComment(await readJson<Comment[]>(COMMENTS_FILE));
-    expect(posted).toBeDefined();
-    expect(posted!.topicKind).toBe('doc');
-    expect(posted!.anchor.kind).toBe('text');
-    expect(posted!.anchor.quote).toBe(PHRASE);
-    expect(posted!.anchor.prefix ?? '').not.toBe('');
-    expect(posted!.anchor.suffix ?? '').not.toBe('');
-    expect(posted!.anchor.color).toBe(GREEN);
-    expect(posted!.resolved).toBe(false);
-
-    // —— Step 5: reload; the anchor durably survives a fresh render — the comment is
-    // re-fetched and the highlight re-found at the same span (findQuoteRange).
-    await page.reload();
-    await expect(page.locator('mark.st-hl')).toHaveText(PHRASE, { timeout: 30_000 });
-    await expect(page.locator('.gutter-tick')).toHaveCount(1);
-
-    // —— Step 6: resolve. Without a manual reload every surface flips off the single
-    // resolved flag (the prose's sidebar-count surface predates the Library fold-in;
-    // the current fan-out is header count, row pill, hide-resolved toggle, gutter, mark).
-    const [patched] = await Promise.all([
-      page.waitForResponse((r) => r.url().includes('/api/comments') && r.request().method() === 'PATCH'),
-      page.locator('li.comment').getByRole('button', { name: 'Resolve' }).click(),
-    ]);
-    expect(patched.status()).toBe(200);
-    await expect(row).toHaveClass(/resolved/);
-    await expect(row.locator('.resolved-pill')).toBeVisible();
-    await expect(page.locator('.comments-head .badge')).toBeHidden(); // open count 1 → 0
-    await expect(page.locator('label.toggle')).toBeVisible(); // 'hide resolved' appears
-    await expect(page.locator('.gutter-tick.resolved')).toHaveCount(1);
-    await expect(page.locator('mark.st-hl')).toHaveAttribute('data-resolved', 'true');
-
-    const resolved = probeComment(await readJson<Comment[]>(COMMENTS_FILE));
-    expect(resolved!.resolved).toBe(true);
-    expect(resolved!.resolvedAt).not.toBeNull();
-  });
-
-  test('steps 10-11: author a Library artifact → edit it (id locked) → delete it', async ({ page }) => {
-    test.setTimeout(120_000);
-
-    // —— Step 10: author a fresh artifact at #/asset/new. The default category (pattern)
-    // is a structured kind, so it is authored through its per-kind fields (option C);
-    // the live preview renders the derived body.
+    // —— Criterion 10: author a fresh artifact. The default category (pattern) is a structured
+    // kind, so it is authored through its per-kind fields and the live preview renders the derived
+    // body.
     await page.goto('/#/asset/new');
     await page.getByLabel(/^Title/).fill('UAT probe pattern');
     await expect(page.getByLabel(/^Id /)).toHaveValue(PROBE_ID); // the title auto-slugs the id
     await expect(page.getByLabel(/^Category/)).toHaveValue('pattern');
-    await page.getByLabel(/^Description/).fill('A throwaway probe the scripted story UAT authors, edits and deletes.');
-    await page.getByLabel(/^The pattern/).fill('Drive every mutation through the real UI and assert on the durable store.');
-    await page.getByLabel(/^Problem/).fill('A scripted UAT must prove durability without leaving residue in git-tracked stores.');
-    await page.getByLabel(/^Approach/).fill('Author through the editor, assert the JSON store on disk, then delete the probe.');
+    await page
+      .getByLabel(/^Description/)
+      .fill('A throwaway probe the scripted story UAT authors, edits and deletes.');
+    await page
+      .getByLabel(/^The pattern/)
+      .fill('Drive every mutation through the real UI and assert on the durable store.');
+    await page
+      .getByLabel(/^Problem/)
+      .fill('A scripted UAT must prove durability without leaving residue in git-tracked stores.');
+    await page
+      .getByLabel(/^Approach/)
+      .fill('Author through the editor, assert the JSON store on disk, then delete the probe.');
     await expect(page.locator('.editor-preview')).toContainText('Drive every mutation through the real UI');
     await expect(page.locator('.editor-preview h2', { hasText: 'Problem' })).toBeVisible();
 
@@ -285,13 +389,15 @@ test.describe('story UAT (steps 4-6, 10-13): the mutating journey', () => {
     expect(createdAsset).toBeDefined();
     expect(createdAsset!.createdAt).toBe(createdAsset!.updatedAt);
 
-    // —— Step 11: edit (the id input is re-locked), save, then delete.
+    // —— Criterion 11: edit (the id input is re-locked), save, then delete through the UI.
     await page.getByRole('link', { name: 'Edit' }).click();
     await expect(page).toHaveURL(new RegExp(`#/asset/${PROBE_ID}/edit$`));
     await expect(page.getByLabel(/^Id /)).toBeDisabled();
     await page
       .getByLabel(/^Approach/)
-      .fill('Author through the editor, assert the JSON store on disk, then delete the probe. Edited once to prove the update path.');
+      .fill(
+        'Author through the editor, assert the JSON store on disk, then delete the probe. Edited once to prove the update path.',
+      );
     const [patchedRes] = await Promise.all([
       page.waitForResponse((r) => r.url().includes('/api/assets') && r.request().method() === 'PATCH'),
       page.getByRole('button', { name: 'Save changes' }).click(),
@@ -301,7 +407,7 @@ test.describe('story UAT (steps 4-6, 10-13): the mutating journey', () => {
 
     const editedAsset = probeAsset(await readJson<GuidanceAsset[]>(ASSETS_FILE));
     expect(editedAsset!.createdAt).toBe(createdAsset!.createdAt); // preserved
-    expect(editedAsset!.updatedAt > editedAsset!.createdAt).toBe(true); // 'updated' later than 'created'
+    expect(editedAsset!.updatedAt > editedAsset!.createdAt).toBe(true);
     expect(editedAsset!.fields?.approach).toContain('Edited once to prove the update path.');
 
     page.once('dialog', (d) => void d.accept());
@@ -310,43 +416,40 @@ test.describe('story UAT (steps 4-6, 10-13): the mutating journey', () => {
       page.locator('.asset-actions').getByRole('button', { name: 'Delete' }).click(),
     ]);
     expect(deletedRes.status()).toBe(200);
-    await expect(page).toHaveURL(/#\/library$/);
+    // Deleting returns to the forest's Library lens — the standalone `#/library` page is retired
+    // (ADR-0185 dec 6), so the landing surface is the map.
+    await expect(page.locator('[data-testid="tree-route"]')).toBeAttached({ timeout: WORLD_MS });
     expect(probeAsset(await readJson<GuidanceAsset[]>(ASSETS_FILE))).toBeUndefined();
   });
 
-  test('steps 12-13: a cold dev-server restart serves the durable state → cleanup back to baseline', async ({ page }) => {
-    test.setTimeout(240_000);
+  test('criteria 12, 13: a cold dev-server restart serves the durable state → cleanup back to baseline', async ({
+    page,
+  }) => {
+    test.setTimeout(300_000);
 
-    // —— Step 12: restart durability. Playwright's managed webServer cannot be bounced
-    // mid-run, so the shadow spawns a SECOND, cold dev-server process on its own port —
-    // the same proof: a fresh process reconstructs the whole state from the JSON stores
-    // alone (the json backend holds nothing in memory).
+    // —— Criterion 12: restart durability. Playwright's managed webServer cannot be bounced
+    // mid-run, so the shadow spawns a SECOND, cold dev-server process on its own port — the same
+    // proof: a fresh process reconstructs the whole state from the JSON stores alone.
     const cold = await startColdServer();
     try {
-      await page.goto(`${cold.url}${DOC_URL}`);
-      const mark = page.locator('mark.st-hl');
-      await expect(mark).toHaveText(PHRASE, { timeout: 60_000 });
-      await expect(mark).toHaveAttribute('data-resolved', 'true');
-      const row = page.locator('li.comment');
-      await expect(row).toHaveClass(/resolved/);
-      await expect(row.locator('.resolved-pill')).toBeVisible();
-      await expect(row).toContainText(OPERATOR);
-
-      // …and the authored artifact is correctly absent (it was deleted in step 11).
+      // The deleted artifact is correctly absent after a cold restart (criterion 11's delete,
+      // reconstructed from storage rather than from the first process's memory).
       await page.goto(`${cold.url}/#/asset/${PROBE_ID}`);
       await expect(page.locator('.error-box h2')).toHaveText('Artifact not found');
 
-      // —— Step 13: clean up THROUGH THE UI — delete the probe comment, then prove the
-      // git-tracked stores are byte-identical to their pre-test baseline (no residue).
+      // …and the reviewed document's resolved comment is reconstructed from storage.
+      //
+      // RED, and left red (ADR-0405 D4). This half of criterion 12 rests on the comment journey
+      // that criteria 4-6 cannot drive: with no mounted post/resolve affordance, no comment was
+      // ever written, so there is nothing for a cold process to reconstruct. Criterion 13's own
+      // "delete the probe comment THROUGH THE UI" is blocked by the same missing affordance —
+      // nothing mounted calls `api.deleteComment`.
       await page.goto(`${cold.url}${DOC_URL}`);
+      await expect(page.locator('.inline-comment-thread')).toContainText('UAT probe');
       page.once('dialog', (d) => void d.accept());
-      const [deletedRes] = await Promise.all([
-        page.waitForResponse((r) => r.url().includes('/api/comments') && r.request().method() === 'DELETE'),
-        page.locator('li.comment').getByRole('button', { name: 'Delete' }).click(),
-      ]);
-      expect(deletedRes.status()).toBe(200);
-      await expect(page.locator('.comment-list')).toContainText('No comments yet.');
+      await page.getByRole('button', { name: 'Delete' }).click();
 
+      // —— Criterion 13: the git-tracked stores are byte-identical to their pre-test baseline.
       expect(await fs.readFile(COMMENTS_FILE, 'utf8')).toBe(commentsBaseline);
       expect(await fs.readFile(ASSETS_FILE, 'utf8')).toBe(assetsBaseline);
     } finally {
@@ -356,7 +459,7 @@ test.describe('story UAT (steps 4-6, 10-13): the mutating journey', () => {
 });
 
 // ---------------------------------------------------------------------------------------
-// The step-12 cold server: the same command as playwright.config.ts's webServer (and the
+// The criterion-12 cold server: the same command as playwright.config.ts's webServer (and the
 // package's own dev script), on port 5175 so neither the managed 5174 instance nor a live
 // 5173 session is disturbed. --host 127.0.0.1 because vite's default `localhost` can bind
 // IPv6-only on Windows, which the readiness poll would never see.
