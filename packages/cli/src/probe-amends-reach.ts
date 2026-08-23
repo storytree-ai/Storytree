@@ -35,6 +35,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { resolveTranscriptDir } from "@storytree/context-traversal-transcript";
 
@@ -45,11 +46,22 @@ import {
   type AmendsReachComparison,
   type AmendsReachReading,
 } from "./amends-reach.js";
-import type { SessionGrain } from "./decision-read-baseline.js";
+import { frozenEdgesWithinCorpus, parseAmendsSnapshot } from "./amends-snapshot.js";
+import type { DecisionSupportGraph, SessionGrain } from "./decision-read-baseline.js";
 import { buildSupportGraph, gatherReads } from "./probe-decision-gather.js";
 import { loadProbeDecisions } from "./probe-decisions.js";
 
 const TAG = "probe:amends-reach";
+
+/**
+ * The frozen edge set's home. ADR-0431 D2: never regenerated, never edited.
+ *
+ * Module-relative rather than cwd-relative, because a probe is run from the repo root, from
+ * `packages/cli`, and from a worktree, and the file it must read is the same one every time.
+ */
+const SNAPSHOT_PATH = fileURLToPath(
+  new URL("../../../docs/research/amends-edge-snapshot-2026-08-23.md", import.meta.url),
+);
 
 /**
  * The frozen baseline's declared window — `docs/research/decision-read-baseline-2026-08-23.md` §1.
@@ -190,7 +202,30 @@ async function main(): Promise<void> {
     return;
   }
 
-  const support = buildSupportGraph(adrs);
+  // THE `amends` ARM IS JOINED AGAINST THE FROZEN EDGE SET, NOT THE LIVE CORPUS.
+  //
+  // `-inc-18` migrated all 517 edges onto `dependsOn` in place, so the live rows can no longer
+  // supply the join key this comparison is built on: measured 2026-08-24, a live-sourced run read
+  // ONE edge and reported the frozen window's 203 chain-walkers as 0. That is a deleted join key,
+  // not a corpus that stopped being read, and the two are indistinguishable in the output.
+  //
+  // Both arms now read the SAME edge set, which is what a before/after comparison required all
+  // along — an edge set that moves between the arms is a confound, not a measurement. `dependsOn`
+  // stays LIVE: it is a live reading, is no part of the frozen comparison, and is counted apart and
+  // never summed (ADR-0419 D1).
+  const live = buildSupportGraph(adrs);
+  const snapshot = parseAmendsSnapshot(fs.readFileSync(SNAPSHOT_PATH, "utf8"));
+  if (snapshot.problems.length > 0) {
+    // A frozen record that no longer matches its own declaration is evidence of an edit ADR-0431 D2
+    // forbids. Refusing beats measuring a different experiment and calling it this one.
+    console.error(`${TAG} FAIL — the frozen snapshot could not be read as authoritative:`);
+    for (const problem of snapshot.problems) console.error(`  - ${problem}`);
+    console.error(`  ${SNAPSHOT_PATH}`);
+    process.exitCode = 1;
+    return;
+  }
+  const frozenAmends = frozenEdgesWithinCorpus(snapshot.edges, live.decisions);
+  const support: DecisionSupportGraph = { ...live, amends: frozenAmends.edges };
   const shape = amendsCorpusShape(support);
   const gathered = gatherReads(transcriptDir);
 
@@ -207,6 +242,15 @@ async function main(): Promise<void> {
   console.log(`  ${shape.decisions} decisions`);
   console.log(
     `  ${shape.amendsEdges} \`amends\` edge(s) over ${shape.amendedDecisions} amended decision(s) from ${shape.amenderDecisions} amender(s)`,
+  );
+  console.log(
+    `  — the \`amends\` edges are the FROZEN set (${snapshot.declaredEdgeCount ?? "?"} declared), read from` +
+      `\n    docs/research/amends-edge-snapshot-2026-08-23.md, NOT from the live rows. The live rows carry` +
+      `\n    none: \`-inc-18\` migrated them onto \`dependsOn\` in place, and this comparison needs both arms` +
+      `\n    joined against the same edge set (ADR-0431 D2 froze the file for exactly this).` +
+      (frozenAmends.dropped > 0
+        ? `\n    ⚠ ${frozenAmends.dropped} frozen edge(s) name a decision the log no longer holds and were dropped.`
+        : ""),
   );
   console.log(
     `  ${shape.dependsOnEdges} \`dependsOn\` edge(s) on ${shape.decisionsCarryingDependsOn} decision row(s) carrying the field`,
@@ -233,10 +277,16 @@ async function main(): Promise<void> {
   );
   if (!readsAgree || !chainAgrees) {
     console.log(
-      "  ⚠ a disagreement is NOT automatically a defect: the frozen figures are over a fixed window of an\n" +
-        "    append-only transcript store, so they should reproduce — but `amends` edges added to the log SINCE\n" +
-        "    the freeze can make a session retrospectively cross an edge that did not exist when it read. Read\n" +
-        "    the corpus line above before concluding the instrument drifted.",
+      "  ⚠ a disagreement is NOT automatically a defect, and it has TWO causes that read identically —\n" +
+        "    check the corpus line above before concluding anything about readers:\n" +
+        "      · the edge set GREW — `amends` edges added since the freeze make a session retrospectively\n" +
+        "        cross an edge that did not exist when it read; or\n" +
+        "      · the edge set SHRANK — the join key was removed underneath the comparison. This is what\n" +
+        "        happened on 2026-08-24, when a live-sourced run read 1 edge and reported 203 chain-walkers\n" +
+        "        as 0. It looks exactly like a collapse in reading and is not one. The `amends` arm is now\n" +
+        "        sourced from the frozen snapshot precisely so this cause cannot recur.\n" +
+        "    The read population itself is the line above it: if THAT agrees, the transcripts reproduced and\n" +
+        "    only the edge set moved.",
     );
   }
   console.log("");

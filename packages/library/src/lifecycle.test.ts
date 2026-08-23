@@ -280,3 +280,32 @@ test("llw-passthrough-and-degraded-carry-no-status — a body-bearing pass-throu
   assert.equal(renderedDegraded?.status, undefined, "a degraded doc never carries status");
   assert.ok(renderedDegraded?.degraded, "the degraded doc is flagged, but still carries no status");
 });
+
+test("an open-question's stored lifecycle projects onto the triad (ADR-0434 D1/D4), through this one projection", () => {
+  // The DELIBERATE TWIN of the arc test above, and it reads that way on purpose: this branch was a
+  // hardcoded `return "open"` for exactly the reason the arc branch was once a hardcoded `"active"`
+  // — ADR-0196 D2 deferred the stored field until a surface needed to WRITE the transition. The arc
+  // surface's `waiting` derivation is that surface, so `question settle` now writes it and `settled`
+  // is finally witnessable here.
+  assert.equal(lifecycleOf("open-question", { lifecycle: "settled" }), "archived");
+  assert.equal(lifecycleOf("open-question", { lifecycle: "open" }), "open");
+
+  // ABSENT IS OPEN — every question authored before ADR-0434 has no such field, which is what makes
+  // it a zero-migration change. The projection never invents a settlement it cannot read.
+  assert.equal(lifecycleOf("open-question", {}), "open");
+  assert.equal(lifecycleOf("open-question", { lifecycle: undefined }), "open");
+  assert.equal(lifecycleOf("open-question", { lifecycle: null }), "open");
+
+  // Anything unrecognised fails toward OPEN, not toward settled. Under-reporting a settlement is
+  // recoverable by settling again; inventing one drops a live question off the shelf that exists to
+  // surface it, and under ADR-0197 the selector DEFAULTS to `open`, so that is where it would vanish
+  // from.
+  assert.equal(lifecycleOf("open-question", { lifecycle: "resolved" }), "open");
+  assert.equal(lifecycleOf("open-question", { lifecycle: "closed" }), "open");
+
+  // There is no `active` arm to reach: ADR-0196 D1's row for this kind leaves the middle column
+  // empty, because a question is not work in flight.
+  for (const value of ["settled", "open", "resolved", undefined]) {
+    assert.notEqual(lifecycleOf("open-question", { lifecycle: value }), "active");
+  }
+});

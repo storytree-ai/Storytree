@@ -129,6 +129,25 @@ export interface ArcRollupQuestion {
    */
   verifiedAt?: string;
   leaseDays?: number;
+  /**
+   * ADR-0434 D1/D3 — whether this question is still waiting on the owner.
+   *
+   * NORMALISED here, never carried through raw: the stored field is optional and absent means `open`
+   * (D1's zero-migration shape), so resolving that once at this boundary is what lets every consumer
+   * branch on a definite state instead of re-deriving "absent counts as open" and getting it wrong in
+   * one of them. This is the field `waiting` is computed from — before it, `waiting` was
+   * `questions.length > 0`, a pure presence count that structurally could not tell an answered
+   * question from an unanswered one.
+   */
+  lifecycle: "open" | "settled";
+  /**
+   * What the settlement RECORDED. Present only on a settled question, and required to settle one at
+   * all (D2) — a state flip carrying no answer would stop the arc lying about who it waits on while
+   * still losing why, which is the outcome deletion already produced.
+   */
+  answer?: string;
+  /** When the settlement was recorded. Present only on a settled question. */
+  settledAt?: string;
 }
 
 /**
@@ -286,7 +305,9 @@ export function summariseArcRollup(rollup: ArcRollup): ArcRollupSummary {
     title: rollup.title,
     lifecycle: rollup.lifecycle,
     waiting: rollup.waiting,
-    openQuestions: rollup.questions.length,
+    // ADR-0434 D3 — OPEN ones, matching both this field's name and `waiting` beside it. Counting the
+    // whole array here would put a lane strip reading `waiting: false, openQuestions: 3` on the wire.
+    openQuestions: rollup.questions.filter((q) => q.lifecycle === "open").length,
     increments: rollup.increments.map((inc) => {
       const row: ArcRollupSummaryIncrement = {
         id: inc.id,
@@ -706,14 +727,23 @@ export function deriveArcRollup(input: ArcRollupInput): ArcRollup {
       const qd = bagOf(q);
       const verifiedAt = strOpt(qd, "verifiedAt");
       const leaseDays = numOpt(qd, "leaseDays");
+      const answer = strOpt(qd, "answer");
+      const settledAt = strOpt(qd, "settledAt");
       const row: ArcRollupQuestion = {
         id: q.id,
         title: str(qd, "title"),
         description: str(qd, "description"),
         stakes: str(qd, "stakes"),
+        // ADR-0434 D1 — absent means open, resolved ONCE here. Anything that is not the literal
+        // `settled` is open, so an unreadable or unexpected value fails toward "still waiting on the
+        // owner": under-reporting a settlement is recoverable by settling again, whereas inventing
+        // one silently drops a live question off the surface built to surface it.
+        lifecycle: strOpt(qd, "lifecycle") === "settled" ? "settled" : "open",
       };
       if (verifiedAt !== undefined) row.verifiedAt = verifiedAt;
       if (leaseDays !== undefined) row.leaseDays = leaseDays;
+      if (answer !== undefined) row.answer = answer;
+      if (settledAt !== undefined) row.settledAt = settledAt;
       return row;
     })
     .sort((a, b) => a.id.localeCompare(b.id));
@@ -762,7 +792,11 @@ export function deriveArcRollup(input: ArcRollupInput): ArcRollup {
     stories,
     citedStories,
     questions,
-    waiting: questions.length > 0,
+    // ADR-0434 D3 — waiting reads the questions' STATE, not their existence. This was
+    // `questions.length > 0`, which meant an answered question reported a wait forever and the only
+    // way to clear it was to delete the question along with its answer. Settled questions stay in
+    // `questions` on purpose (D3): they still render on the arc, under what they decided.
+    waiting: questions.some((q) => q.lifecycle === "open"),
   };
 }
 

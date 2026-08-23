@@ -411,15 +411,23 @@ export function renderArcRollup(
 
   // The questions the arc is waiting on (ADR-0267 D4): an `arcRef` on the QUESTION, derived by
   // query here — never an authored question-list on the arc (ADR-0183 D3's containment rule).
+  // ADR-0434 D3 — SPLIT BY LIFECYCLE. Both halves render, and they are different sections because
+  // they make different demands of the reader: one is a list of things the owner still owes an
+  // answer to, the other is a list of answers. Before that decision this was one undifferentiated
+  // loop over every question the arc had ever carried, which is why an answered one went on reading
+  // as a wait until somebody deleted it.
+  const openQuestions = rollup.questions.filter((q) => q.lifecycle === "open");
+  const settledQuestions = rollup.questions.filter((q) => q.lifecycle === "settled");
+
   lines.push("", `## Open questions  (derived: open-question.arcRef → ${rollup.id})`);
-  if (rollup.questions.length === 0) {
+  if (openQuestions.length === 0) {
     lines.push(
       pg
         ? "  (none — this arc is not waiting on the owner)"
         : "  (none visible OFFLINE — questions are live-canonical; try --pg)",
     );
   }
-  for (const q of rollup.questions) {
+  for (const q of openQuestions) {
     lines.push(`  - ${q.id}  — ${q.title}`);
     // The stakes line is why the question rides here at all (ADR-0267: questions are "part of the
     // payload", so the reader can answer without a re-onboarding round-trip).
@@ -427,6 +435,23 @@ export function renderArcRollup(
     // ADR-0358 Option 2D — advisory, zero-agent-cost: a session about to rely on this claim sees its
     // age before it does, without a `question check` round-trip.
     lines.push(`      ${questionStalenessLine(q, nowIso)}`);
+  }
+
+  // Rendered only when there ARE settled questions: an arc that has answered nothing owes the reader
+  // no empty section, whereas the open block above prints its own absence because "nothing waits on
+  // the owner" is itself the answer to the question that section exists to ask.
+  if (settledQuestions.length > 0) {
+    lines.push("", `## Settled questions  (${settledQuestions.length} — answered; no longer waiting)`);
+    for (const q of settledQuestions) {
+      const when = q.settledAt !== undefined ? `  [settled ${q.settledAt.slice(0, 10)}]` : "";
+      lines.push(`  - ${q.id}${when}  — ${q.title}`);
+      // The ANSWER, in full and in the same shape the increment log prints a closure note. It is the
+      // whole reason a settled question stays on the arc rather than being deleted: the settlement
+      // has to be legible where the question was asked, or clearing the wait would once again cost
+      // the record of what cleared it. No staleness line — the park lease governs an unverified
+      // OPEN claim, and a settled question has stopped making one.
+      if (q.answer !== undefined && q.answer !== "") lines.push(`      ${q.answer}`);
+    }
   }
 
   lines.push("", `## ADRs  (derived: frontmatter arc: ${rollup.id})`);
