@@ -7,10 +7,19 @@ outcome: "A pure function normalizes a unit label into one stable human-readable
 status: proposed
 proof_mode: contract-test
 depends_on: []
-# This contract is the repeatable REAL-mode target for studio-build UAT criterion 9. Both paths are
-# deliberately net-new on main and the function has no dependencies, so AUTHOR_TEST imports the
-# missing implementation and produces an honest missing-module red. A successful node --real run
-# parks its proven branch without landing these files, leaving the same red premise on fresh main.
+# This contract is the repo's repeatable REAL-mode build target. Both paths are deliberately net-new
+# on main and the function has no dependencies, so AUTHOR_TEST imports the missing implementation and
+# produces an honest missing-module red. A successful node --real run parks its proven branch without
+# landing these files, leaving the same red premise on fresh main.
+#
+# ITS ORIGINAL CONSUMER IS GONE; THIS CONTRACT IS NOT (corrected in place 2026-08-23, ADR-0429 D5).
+# This comment used to say the contract existed "so studio-build UAT criterion 9 can click one known
+# real-buildable node". ADR-0404 deleted the Build control that criterion clicks, and ADR-0429
+# retired `stories/studio-build` with it, so that sentence named a consumer that no longer exists.
+# What the contract IS did not change: a dependency-free, always-red-on-main target that any real
+# build can be pointed at, now reached from the CLI as `storytree node build studio-build-uat-seed
+# --real`. It keeps its id — renaming a contract re-points its `real:` proof arm and its proof
+# bindings for no gain, and the id is a name, not a claim about a live studio journey.
 proof:
   command:
     file: pnpm

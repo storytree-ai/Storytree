@@ -4,9 +4,24 @@ tier: capability
 story: studio-build
 title: "Build intent + status API"
 outcome: "An operator dispatches a build intent and reads its live status over the studio API."
-status: "proposed"
+status: "retired"
 proof_mode: "integration-test"
 depends_on: [build-run-registry]
+# RETIRED by ADR-0429 (2026-08-23), with its story `studio-build`. This capability is the HTTP
+# transport over the build registry — "an operator dispatches a build intent and reads its live status
+# over the studio API" — and both ends of that sentence are gone. ADR-0404 D2/D3 removed `POST /api/build`
+# and `GET /api/build` from the studio route table along with the `api.build` / `api.buildStatus`
+# client pair; `apps/studio/src/api.ts:356` now carries a comment recording their absence in as many
+# words. ADR-0422 D1 then deleted the registry this capability was the thin transport over, so there
+# is no longer any state for the endpoints to expose even if they came back.
+#
+# The endpoints were never authored under this capability (the "Proof status (honest) — NOT BUILT"
+# note above was accurate throughout), so nothing here bound a file: no `real:` arm is dropped and no
+# ceiling was ever in play. Body kept as history.
+#
+# ONE CLAUSE BELOW IS STILL WORTH READING AND IS NOT WITHDRAWN: "there is NO endpoint that takes a
+# verdict as input — that is the forge pathway ADR-0091 forbids by construction. Do not add one."
+# That is ADR-0091's rule, not this capability's, and it survives this retirement untouched.
 ---
 
 # Build intent + status API
