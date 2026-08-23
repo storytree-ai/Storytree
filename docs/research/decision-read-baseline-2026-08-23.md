@@ -40,13 +40,21 @@ measurement, and the write-up of the fork belongs to `-inc-04`.
 The window's upper bound is the start of the day the baseline was taken, deliberately.
 
 **The READ figures are reproducible; the OFFER figures are reproducible only against a fixed trace
-store, and this one is live.** Reads come from host transcripts, which are append-only, so a re-run
-with these bounds returns the same reads — verified, not assumed: the probe was run twice and the
-machine-readable output was **byte-identical**. Offers come from the traversal trace store, which
-concurrent sessions on this machine are writing to continuously. Between two runs twenty minutes
-apart the offer count moved 10,953 → 10,951, because two more trace sessions acquired a shape with no
-single slot to join an offer on. The offer figures are therefore a reading of that store **as of
-2026-08-23**, and a later re-run should expect them to drift while the read figures do not.
+store, and this one is live.** That distinction was verified rather than assumed, and the two halves
+were checked separately because they behave differently.
+
+Reads come from host transcripts, which are append-only. Two consecutive runs of the same code
+produced **byte-identical** machine-readable output. A third run, taken after the code changed to
+reconcile with `-inc-01`, still agreed with them on **every read-side field**: the read counts, the
+window-id coverage, `decisionsReachedByWindow` / `BySlot`, `decisionsNeverRead`, the pooling factor,
+the observed window bounds, and both chain-depth readings and both reach rankings **element for
+element**. So the read half survives both a re-run and a code change.
+
+Offers come from the traversal trace store, which concurrent sessions on this machine write to
+continuously. Across those same runs the offer count moved 10,953 → 10,951, because two more trace
+sessions acquired a shape with no single slot to join an offer on. The offer figures are therefore a
+reading of that store **as of 2026-08-23**, and a later re-run should expect them to drift while the
+read figures do not. Nothing in §2 or §3 depends on the offer half.
 
 One further figure is deliberately NOT windowed and moves on every run: `tool calls that NAMED a
 decision and yielded no read` (7,476 → 7,489 across three runs). It is the extractor's own blindness
