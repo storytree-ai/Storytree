@@ -1,7 +1,15 @@
 /**
  * WHAT THE TRAVERSAL RECORD CAN AND CANNOT SEE OF A DECISION READ — story
- * `context-traversal-transcript`, capability `transcript-decision-read-ingest`
+ * `context-traversal-transcript`, declared at STORY GRAIN
  * (ADR-0419 / `decision-read-measurement-arc-inc-01`).
+ *
+ * This header named `transcript-decision-read-ingest` until that capability was actually minted
+ * (`linked-session-context-arc-inc-28`). Minting it made the claim checkable, and it turned out to be
+ * wrong: this module WRITES NOTHING, so filing a measurement instrument under a write organ would make
+ * that capability's stated outcome untrue. The owner of record is `repo-manifest.json` →
+ * `sourceOwnership.subtrees`; its `$comment_decision_read_coverage` note carries the full reasoning and
+ * names what is still owed — a third capability over the read-back/observability report, which needs
+ * its own increment rather than being smuggled into that one.
  *
  * An EXTENSION to `probe:decision-reads`, never a second instrument. The sibling modules here
  * RECOVER reads out of host transcripts and append them; this one reads the traversal record BACK
