@@ -427,7 +427,16 @@ export function longestReadChain(
 /** How many DISTINCT sessions must be missing before an empty reading is called vacuous. */
 const VACUOUS_FLOOR = 1;
 
-function withinWindow(at: string, from: string | undefined, to: string | undefined): boolean {
+/**
+ * PURE: is this instant inside the declared window, both bounds INCLUSIVE.
+ *
+ * Exported so `amends-reach.ts` filters its BEFORE and AFTER arms by the same rule this baseline
+ * filtered by, rather than growing a second copy. That is the same reason `probe-decision-gather.ts`
+ * exists one file over: these instruments are COMPARED AGAINST EACH OTHER across sessions, and an
+ * arm that windowed even slightly differently from the frozen baseline would be compared to a number
+ * nobody ever measured.
+ */
+export function withinWindow(at: string, from: string | undefined, to: string | undefined): boolean {
   if (from !== undefined && at < from) return false;
   if (to !== undefined && at > to) return false;
   return true;
