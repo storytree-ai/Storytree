@@ -1,20 +1,22 @@
-# Onboarding — the one-liner installers (ADR-0207 D1)
+# Onboarding — the one-liner installer (ADR-0207 D1)
 
-Two scripts, one contract. Both take a machine that has nothing to a cloned, provisioned checkout in
-eight idempotent steps, and both expose the same `# @step:` names so a repair means the same thing
-on either platform:
+One script. It takes a Windows machine that has nothing to a cloned, provisioned checkout in eight
+idempotent steps, each carrying a `# @step:` name so a repair can be asked for by name:
 
 | Script | Platform | Persona | Ends with |
 | --- | --- | --- | --- |
 | [`install.ps1`](install.ps1) | Windows (PowerShell 5.1+) | **explorer** (read-only) | `storytree doctor`, then launches the desktop app |
-| [`install.sh`](install.sh) | Linux — Debian / Ubuntu / Mint | **dev box** | `storytree doctor` |
 
 `infra/install.ps1` is the single re-runnable command an owner sends a trusted dev to onboard them
 as an **explorer** (read-only) on Windows. The dev pastes it and enters one GitHub device code;
 everything else is automatic and idempotent.
 
-`infra/install.sh` is its POSIX-sh parity sibling — see [Linux](#linux-installsh) below. macOS is
-covered by neither.
+**There is no Linux installer, and that is a decision rather than a gap (ADR-0432).**
+`infra/install.sh` existed for two days and was deleted: it was never executed, never published, and
+was aimed at the wrong reader. A Linux dev box is provisioned by following
+[`docs/machine-onboarding.md`](../docs/machine-onboarding.md), whose by-hand steps ARE the mechanism
+there — the Linux consumer is an agent with the owner at the keyboard, which needs telling what to
+install and how to prove it, not a script to invoke. macOS is covered by nothing.
 
 > **Owner:** the full invite ceremony — the two access grants plus this message —
 > is [`explorer-invite.md`](explorer-invite.md).
@@ -24,8 +26,8 @@ covered by neither.
 > app. It has no database access, no `~/.storytree/secrets.json`, no worktree setup and no
 > write-authority wall — so a machine set up this way can read the project and cannot build it.
 > Provisioning a full development box is
-> [`docs/machine-onboarding.md`](../docs/machine-onboarding.md), which uses one of these installers
-> for its bootstrap step and then keeps going. The distinction has misled at least one reader; if
+> [`docs/machine-onboarding.md`](../docs/machine-onboarding.md), which does its own bootstrap and
+> then keeps going. The distinction has misled at least one reader; if
 > you found this file first, follow that link before running anything.
 
 ## What `install.ps1` does (Windows)
@@ -134,86 +136,10 @@ Running from a checkout is still valid for local testing or if the bucket is eve
 powershell -ExecutionPolicy Bypass -File infra/install.ps1
 ```
 
-## Linux (`install.sh`)
-
-`infra/install.sh` is the POSIX-sh parity of `install.ps1`, built for the second dev box (Linux
-Mint). It reaches the same end-state — a cloned, provisioned checkout — through the **same eight
-step names**, so `storytree doctor`'s repair vocabulary is identical on both platforms.
-
-```sh
-sh infra/install.sh                        # full sequence
-sh infra/install.sh --checkout-dir /opt/storytree
-sh infra/install.sh --step node            # targeted repair: re-run ONE idempotent step
-sh infra/install.sh --help                 # options + the step inventory
-```
-
-It shares every invariant described above — [idempotency](#idempotency-load-bearing--adr-0207-d1--d6),
-[`--step` targeted repair](#enacting-one-repair--step), and the
-[trust boundary](#the-trust-invariant-adr-0207-d3) (it installs the Claude Code CLI and *detects* a
-logged-in state; it never reads or captures a credential).
-`packages/cli/src/install-sh-script.test.ts` asserts all three structurally, and additionally holds
-the two scripts' `@step` inventories **equal** — a step renamed on one side only would silently
-break the repair loop on the other.
-
-### What it stops at
-
-A **cloned, provisioned checkout**, and no further. It does *not* provision dev credentials —
-`gcloud` ADC, `~/.storytree/secrets.json`, or database access. Those have a different persona and
-their own guide: [`docs/machine-onboarding.md`](../docs/machine-onboarding.md), which uses this
-script as its bootstrap step and then keeps going. It installs no Blender, no GPU backend, and no
-herdr.
-
-### Four decisions taken here rather than copied from Windows
-
-1. **Node 24 from NodeSource, not nvm.** The installer already needs root for apt, so root is not a
-   new cost; NodeSource puts `node` on the system PATH *immediately*, so the runner's post-install
-   re-check converges inside the same process. nvm is a shell function sourced from a profile — a
-   non-interactive `sh` script cannot make it stick, so `command -v node` would keep failing after a
-   "successful" install and trip the convergence guard. Bringing your own Node 24 works: every other
-   step's check is version-agnostic, so `@step:node` simply reports *already satisfied*.
-2. **The GitHub CLI comes from GitHub's own apt repo**, not the distro archive, which lags badly.
-3. **ASCII-only is kept — but not for install.ps1's reason.** PowerShell 5.1 mis-decodes non-ASCII in
-   a BOM-less UTF-8 file fetched through `irm | iex`; that does not apply to `sh`, which never
-   decodes the script. The reason that *does* apply is narrower: diagnostics may be printed on a box
-   running under `LC_ALL=C`, where non-ASCII renders as mojibake. Strictly only printed strings need
-   it; whole-file ASCII is the mechanically checkable proxy.
-4. **No trailing desktop-app launch.** `install.ps1` ends with `pnpm desktop:start` because the app
-   *is* an explorer's product. This provisions a dev box, where launching it uninvited is noise.
-
-### Delivery — and why the one-liner cannot bootstrap itself
-
-`install.sh` lives in the repository it clones, so "run the script from the checkout" is circular for
-a genuinely bare machine. Two non-circular routes:
-
-- **Paste it into a shell.** Copy the file's contents into a terminal heredoc, or scp it across. This
-  is the route for the blind-onboarding run, and it needs no infrastructure.
-- **Fetch it from the distribution bucket** — `curl -fsSL https://storage.googleapis.com/storytree-dist/install.sh | sh`.
-  ⚠️ **This does not work yet.** Only `install.ps1` is published to `storytree-dist`
-  ([`dist-bucket.md`](dist-bucket.md)); publishing `install.sh` beside it is an open follow-on. When
-  it is published, the same staleness trap applies — the bucket copy does not update itself, so
-  editing `infra/install.sh` does not reach it.
-
-### Verified vs assumed — read this before trusting it
-
-`install.sh` was authored on a Windows box, so **most of it has never been executed**. The split is
-recorded in the script's own header and marked `UNVERIFIED` at each unexecuted branch. In summary:
-
-- **Verified** (actually executed): it parses as POSIX sh under `dash -n` (dash is `/bin/sh` on
-  Debian/Ubuntu/Mint); `--help` exits 0; an unknown `--step` exits non-zero, lists the valid steps
-  and runs no step at all; and `--step git` on a machine that already has git reports *already
-  satisfied* without running its install action. The last three run as real subprocesses in
-  `install-sh-script.test.ts`, so Linux CI re-proves them on every commit.
-- **Unverified** (never executed): every install action — apt-get, the NodeSource setup script,
-  GitHub's apt repo and keyring, `corepack enable pnpm`, `gh auth login`, `git clone`,
-  `pnpm install`, and the Claude CLI installer — plus every check except `check_git`, the `sudo`
-  path, and both trailing actions.
-
-The first real run on a Linux machine is what verifies the rest. Until then, treat a failure there as
-"the installer is wrong", not "the box is".
-
 ## Scope (v1)
 
-Deferred to follow-on increments: **macOS** (neither script covers it), publishing `install.sh` to
-the public GCS bucket, the auto-update feed (D5), and the packaged-binary desktop install (until then
-the app launches from the provisioned checkout in dev mode). The fresh-machine walk is
+Deferred to follow-on increments: **macOS** (no script covers it), the auto-update feed (D5), and the
+packaged-binary desktop install (until then the app launches from the provisioned checkout in dev
+mode). Publishing a Linux installer to the public GCS bucket is **not** deferred — it closed as
+WON'T DO with the script itself (ADR-0432 D4), so it is not outstanding work. The fresh-machine walk is
 **owner-attested** — only a real run on a clean machine proves the one command onboards end-to-end.

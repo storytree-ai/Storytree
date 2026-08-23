@@ -39,27 +39,19 @@ Untagged claims were read from this repository's own source and are as reliable 
 
 The end state of this section is a **cloned, installed checkout** — nothing about credentials yet.
 
-### If there is an installer for your platform, use it
+### There is no installer for Linux — the steps below ARE the mechanism
 
 | Platform | Script | State |
 |---|---|---|
-| Windows | `infra/install.ps1` | Built. Eight idempotent steps, `-Step <name>` repairs one. |
-| Linux | `infra/install.sh` | Built — same eight steps, `--step <name>` repairs one. Its install actions are **`[UNVERIFIED]`** (see below). |
+| Windows | `infra/install.ps1` | Built. Eight idempotent steps, `-Step <name>` repairs one. Serves the read-only *explorer* persona, not a dev box. |
+| Linux | none | Deliberate, not a gap (ADR-0432). Follow the steps below. |
 
-Both are **idempotent per step**: a step no-ops when its check already passes, so re-running the
-whole installer is both the retry story and the repair story.
+If you are on Linux you are not missing a tool. `infra/install.sh` existed for two days and was
+deleted: it was never executed, never published, and was written for a human at a terminal rather
+than for you. Running the steps yourself and reporting what each one did is the better outcome
+anyway — a script would have hidden exactly the findings this run exists to produce.
 
-**`[UNVERIFIED]`** `infra/install.sh` EXISTS, but it was authored on the Windows box and its install
-actions have never been executed — apt-get, the NodeSource setup script, GitHub's apt repo,
-`corepack enable pnpm`, `gh auth login`, `git clone`, `pnpm install` and the Claude CLI installer are
-all unrun, and every one is marked `UNVERIFIED` inline in the script. What IS verified is that it
-parses as POSIX sh, that `--help` works, that an unknown `--step` fails loudly without running
-anything, and that a satisfied `--step` is a genuine no-op. **So run it, and report what happens** —
-you are the first execution. If it fails, prefer the by-hand steps below over debugging it in place,
-and say which step broke and how; that is the finding, not a detour. `infra/install.md` carries the
-full verified-vs-assumed split.
-
-### The steps, if you are doing it by hand
+### The steps
 
 ```bash
 git --version                      # install via your package manager if absent
@@ -115,8 +107,14 @@ avoidable. Each has its own proof; do not treat one passing as evidence for anot
 ### 2.1 Google — application-default credentials
 
 ```bash
-gcloud auth application-default login --no-launch-browser
+gcloud auth login --no-launch-browser                    # authenticates the gcloud CLI itself
+gcloud auth application-default login --no-launch-browser # writes ADC, which the connector reads
 ```
+
+**These are two different credentials and you need both.** The first authenticates the `gcloud`
+command — without it you cannot read a secret in §2.2. The second writes application-default
+credentials, which is what the Cloud SQL connector uses. Running only one leaves the other half
+failing in a way that reads as a permissions problem rather than a missing login.
 
 `--no-launch-browser` prints a URL and waits for a code, which is what keeps your human to a single
 click on a machine you may not be sitting at. Then:
@@ -142,16 +140,26 @@ installer) and is not covered by anything in this repo. You may also need
 
 ### 2.2 Claude — the OAuth token
 
+⚠ **Do NOT run `claude setup-token` here.** The token already exists in Google Secret Manager, and
+the §2.1 sign-in is enough to read it:
+
 ```bash
-claude setup-token
+gcloud secrets versions access latest --secret=claude-code-oauth-token --project storytree-498613
 ```
 
-This is **owner-interactive** and produces the value that goes into `CLAUDE_CODE_OAUTH_TOKEN`
-([§3](#3-the-secrets-file)). It is a subscription-funded credential, not an API key.
+Put that value in `CLAUDE_CODE_OAUTH_TOKEN` ([§3](#3-the-secrets-file)). It is a subscription-funded
+credential, not an API key.
 
-**The trust boundary here is absolute (ADR-0207 D3): storytree never handles Claude credentials.**
-No script in this repository may capture, print, log, or hash this value. The human runs the command
-and places the value. You may confirm that a credential is *present*; you may never read it.
+**Minting a fresh one is the hazard.** `setup-token` produces a one-year token, and whether a new one
+invalidates existing ones is **undocumented in both directions** — the feature requests to list and
+revoke them imply several coexist, but the revoke request was closed as not planned. Another machine
+depends on the current value, so minting a second could take that box down for a credential you did
+not need. `setup-token` remains the way to CREATE one where none exists; that is not this case.
+
+**The trust boundary moved, and the half that moved is worth knowing (ADR-0430).** ADR-0207 D3's
+"storytree never handles Claude credentials" invariant is retired — credentials live in the vault and
+storytree code may hold one. What did NOT change is disclosure: nothing here may print, log or hash
+the value, and you can confirm a credential is present without ever reading it.
 
 ### 2.3 GitHub
 
@@ -174,10 +182,15 @@ it. Creating it is a step in this guide and nowhere else.
 
 ```json
 {
-  "CLAUDE_CODE_OAUTH_TOKEN": "<from `claude setup-token`>",
+  "CLAUDE_CODE_OAUTH_TOKEN": "<read from Secret Manager in §2.2 — do NOT mint a new one>",
   "STORYTREE_DB_USER": "<the Google account you signed in as in §2.1>"
 }
 ```
+
+**The vault is the source of truth for that first value, not this file (ADR-0430).** You are copying
+it here because nothing in the code reads Secret Manager yet; when that lands, this file becomes an
+override and an offline fallback rather than the place the credential lives. Which means: if the two
+ever disagree, the vault is right and this file is stale.
 
 **Exactly two keys are read. Nothing else in the file is honoured**, so it cannot be used to inject
 arbitrary environment.
@@ -263,14 +276,17 @@ run on Linux. Report what actually happens, including the exact paths it writes 
 Run these in order. Each proves a different thing, and a pass on one is not evidence for another.
 
 ```bash
-pnpm storytree doctor      # the machine-level verdict
+pnpm storytree doctor --dev      # the machine-level verdict
 ```
 
-**`[UNVERIFIED]`** Doctor is being taught the dev-persona checks — application-default credentials,
-database reachability, the secrets file, GitHub auth, write-authority, worktree identity — each with
-a fix hint pointing back at the section of this guide that repairs it. Until that lands, **doctor's
-checks are explorer-shaped and it will report "setup is healthy" on a machine that cannot do the
-work.** Do not read a green doctor as a provisioned box; run the rest of this list regardless.
+**Pass `--dev`; a bare `doctor` is not the dev verdict.** The dev-persona probes — application-default
+credentials, database reachability, the secrets file, GitHub auth, write-authority, worktree identity
+— are an **opt-in group**, because an explorer legitimately has none of them. Bare, `doctor` runs the
+eleven explorer probes and prints `DEV_SCOPE_NOT_RUN`: a green that names what it did not check, not a
+stopping condition. Three of the six can only ever WARN by decision (`db-reachable`, `write-authority`,
+`worktree-identity`), so green-with-those-warning is the expected shape rather than a defect.
+
+A green doctor is still one signal and not a provisioned box. Run the rest of this list regardless.
 
 ```bash
 pnpm -r typecheck                                             # hermetic — no DB, no token
@@ -342,12 +358,12 @@ falsified. Report which, with what you actually saw.
 
 | # | Claim | Section |
 |---|---|---|
-| 1 | `infra/install.sh` exists and provisions a bare machine idempotently | [§1](#1-bootstrap-the-machine) |
+| ~~1~~ | ~~`infra/install.sh` provisions a bare machine idempotently~~ — **RETIRED**, not answered: the script was deleted (ADR-0432). Never executed, and now never will be. | — |
 | 2 | Node 24 needs NodeSource or nvm; distro `nodejs` is too old | [§1](#1-bootstrap-the-machine) |
 | 3 | The GitHub CLI needs GitHub's apt repo, not the distro package | [§1](#1-bootstrap-the-machine) |
 | 4 | Installing the Google Cloud SDK is an extra step, possibly needing a quota project | [§2.1](#2-the-three-sign-ins) |
 | 5 | `write-authority install --write` works on Linux and writes sane paths | [§5](#5-install-the-write-authority-wall) |
-| 6 | `storytree doctor` still reports healthy on an unprovisioned machine | [§6](#6-prove-it) |
+| ~~6~~ | ~~`storytree doctor` still reports healthy on an unprovisioned machine~~ — **ANSWERED**: the dev probes landed, and a bare sweep now says `DEV_SCOPE_NOT_RUN` instead of an unqualified green. | [§6](#6-prove-it) |
 | 7 | A fresh Linux clone produces no CRLF churn | [§7](#7-gotchas) |
 | 8 | `pnpm gate` passes on Linux, hooks and `check:*` rungs included | [§7](#7-gotchas) |
 
