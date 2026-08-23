@@ -12,6 +12,16 @@ re-litigated cold.
 
 **The answer is YES for most of the repo, and a hard NO for one specific class of package.**
 
+> **THE "HARD NO" WAS WITHDRAWN ON 2026-08-23 (inc-09), AND SO WAS THE 2.4% CEILING BELOW.** Both
+> rest on this document's Class 2 finding and its timing table, and **neither reproduces** — see the
+> correction box on [Class 2](#class-2--bun-registers-a-non-deterministic-number-of-tests-in-process-spawning-packages).
+> On the byte-identical Bun build, Bun registers exactly node's test count in all four "blocked"
+> packages under six conditions, and the residual failures trace to a bug in *our* code. The
+> paragraphs immediately below are the original 2026-08-22 reading; the numbers in them —
+> "6 fail", "not convertible at any price", "7.1% of the test work", "2.4%", "93%" — are all
+> downstream of the withdrawn finding. **Do not quote any of them.** Read this document from here
+> as history plus its correction boxes, never as current state.
+
 Bun resolves pnpm's symlinked `node_modules`, honours `workspace:*` links and `exports` subpath
 maps, and runs our `node:test` + `node:assert/strict` suites with **no source change, no config
 file, and no `tsx`**. **17 of 23 packages reproduce node's results exactly** — same tests, same
@@ -238,6 +248,50 @@ That is the same fault class as a check that passes for the wrong reason.
 
 ### Class 2 — Bun registers a non-deterministic number of tests in process-spawning packages
 
+> **WITHDRAWN, 2026-08-23 (`bun-runtime-migration-arc` inc-09). THIS FINDING DOES NOT REPRODUCE.**
+> It is corrected here rather than deleted, because it blocked 93% of the repo's test work for a
+> day and the way it failed is the reusable lesson. Read the section below as the original claim;
+> read this box as the current state.
+>
+> Re-measured on the **byte-identical Bun build** — `1.4.0+34cbb9a40`, the same hash this document
+> records — Bun does not merely produce a STABLE count, it produces **exactly node's count**:
+> `capture` 97 = 97, `orchestrator` 558 = 558 *including the same two skips*, `drive` 778 = 778,
+> `cli` 2325 = 2325. That is correctness, not stable-wrongness.
+>
+> Six conditions, all identical, so this is not an under-sampling artifact: repeated quiet-box runs
+> (capture ×6, orchestrator ×8, drive ×5, cli ×3); **the exact command this document's Method
+> section records**, `bun test --preload <counter> src/` (instrumented, no `--timeout`); bun's
+> default 5000 ms per-test timeout **and** `--timeout 300000`; all four packages run concurrently;
+> and a **cumulative 21-package back-to-back sweep** with the four deep in the sequence, which
+> reproduces this document's own sequencing and was the settling experiment an adversarial reviewer
+> specifically demanded. `Cannot call test() after the test run has completed` fired **zero** times
+> in any of it.
+>
+> Two escape hatches were checked and closed. Bun is the same build, so no upstream fix explains
+> it. The rotted tsx tmpdir is still present and **larger** than at probe time (263,928 entries
+> against the 232,254 recorded here), so no environmental improvement explains it either. **What
+> changed is unexplained, and that is stated rather than dressed up** — the instrument this
+> document used was never committed, so it cannot be audited or re-run.
+>
+> **THE MECHANISM BEHIND THE RESIDUAL FAILURES IS OURS, and it needs no measurement to see:**
+> `packages/orchestrator/src/proof/proof-route.ts:146` declares
+> `PACKAGE_MANAGERS = new Set(["pnpm","npm","yarn","npx","bun"])`. A proof command built as
+> `{ file: process.execPath }` becomes `bun.exe` under `bun test`, matches that set, and is routed
+> away from the node-runner branch. **25 of the 26 `orchestrator`+`drive` failures are that one
+> bug**, and `proof-route.test.ts:324` fails it with **no process execution at all** — it exercises
+> a pure function — which is conclusive that this is a test-authoring assumption and not a runtime
+> limitation. It is the same fault class inc-06 fixed for `agent` and `context-traversal-transcript`.
+>
+> **The one part of the old reading that SURVIVES** is Class 3 below, and only for `orchestrator`:
+> its `NODE_TEST_CONTEXT` precondition genuinely fails under Bun by design. `orchestrator` stays on
+> Node for two NEW reasons — Bun makes it *slower* (node 29 s vs bun 57 s) and it owns the ADR-0211
+> assert-oracle, which genuinely cannot run under Bun.
+>
+> ⚠ **The TIMING table in this document does not reproduce either.** `cli`'s node arm is recorded
+> below at 347 s and measures **113 s** today on a package that has since *grown*. So the "`cli` is
+> 44% of test time" figure — the load-bearing number behind **both** the 1.51x headline and the 2.4%
+> ceiling — is unreliable in both directions. Re-measure; do not quote either.
+
 This is the finding that decides the arc's sequencing, and it is the one that must not be softened.
 
 In `context-traversal-capture`, `orchestrator`, `drive` and `cli`, **Bun does not run the same set of
@@ -333,14 +387,23 @@ cleanly separated from the expensive set.**
 - **The 6 breaks are one coherent group, not a scattering**: the packages that spawn real processes —
   the leaf/spine/driver layer (`agent`, `orchestrator`, `drive`, `cli`) and the traversal-capture
   pair. That is a good boundary to sequence against.
-- **Four of those six are blocked on Bun, not on us.** Class 1 is ours to fix; Class 2 is not, and it
-  gates `capture`, `orchestrator`, `drive` and `cli` until Bun's `node:test` registration is
-  deterministic.
-- **The convertible set is 74% of the packages and 7.1% of the work.** `cli` alone is 44% of measured
-  test time and is in the blocked set. Converting everything that *can* convert saves 2.4% of the
-  test leg. **So the honest reason to do increments 2+ is not speed** — it is removing `tsx`, and
-  positioning for the day Class 2 is fixed. If the arc is sold internally on wall-clock, it will
-  under-deliver by an order of magnitude.
+- ~~**Four of those six are blocked on Bun, not on us.** Class 1 is ours to fix; Class 2 is not, and
+  it gates `capture`, `orchestrator`, `drive` and `cli` until Bun's `node:test` registration is
+  deterministic.~~ **WITHDRAWN, inc-09 (2026-08-23) — the exact inversion of the truth.** Class 2
+  does not reproduce, and 25 of the 26 residual `orchestrator`+`drive` failures are ONE bug in OUR
+  code (`proof-route.ts:146` puts `bun` in `PACKAGE_MANAGERS`). All six breaks were ours. Only
+  `orchestrator` stays on Node, and for two different reasons: Bun makes it slower, and it owns the
+  assert-oracle. See the correction box on Class 2.
+- ~~**The convertible set is 74% of the packages and 7.1% of the work.** `cli` alone is 44% of
+  measured test time and is in the blocked set. Converting everything that *can* convert saves 2.4%
+  of the test leg.~~ **EVERY FIGURE IN THAT BULLET IS WITHDRAWN, inc-09 — do not quote them.** They
+  are derived from a timing table that does not reproduce: `cli`'s node arm is recorded below at
+  347 s and measures **113 s** today on a package that has since *grown*. Same-day, both runtimes:
+  `capture` 73 s → 26 s, `drive` 99 s → 26 s, **`cli` 113 s → ~110 s (a wash)**, `orchestrator`
+  29 s → 57 s (*worse*). **The conclusion that the reason is not speed SURVIVES** — but the owner's
+  standing direction (2026-08-23) is that the migration continues anyway, on the forward-looking
+  ground that a tsx-free test path scales better as the system grows. That is the reason to record,
+  not any of these percentages.
 - **`pnpm gate`'s scope machinery is unaffected.** `pnpm --filter ...<name> test` runs whatever each
   package's own `test` script says, so a converted package keeps working with the ADR-0304 affected
   classifier and the gate keeps predicting CI. Nothing about ADR-0195 / ADR-0304 D2's
@@ -374,9 +437,22 @@ but a prerequisite for increment 2, not an afterthought.
    bun's default 5000 ms per-test deadline the package fails on a QUIET box — measured, leg 5 times
    out at 5052 ms. Every earlier conversion crossed that line only under `pnpm -r` contention; this
    is the first that crosses it at rest.
-5. **Blocked on Bun:** `context-traversal-capture`, `orchestrator`, `drive`, `cli`. Do not attempt
-   until Class 2 is gone. Re-test with `bun test src/`, uninstrumented, three times, and compare test
-   counts before spending any effort on the failures.
+5. ~~**Blocked on Bun:** `context-traversal-capture`, `orchestrator`, `drive`, `cli`. Do not attempt
+   until Class 2 is gone.~~ **UNBLOCKED, inc-09 (2026-08-23) — the Class 2 block is WITHDRAWN; see
+   the correction box on that section.** The re-test this line asked for was run (uninstrumented,
+   repeated, plus a cumulative sweep and full concurrency) and Bun registers exactly node's test
+   count in all four. What remains is a fixed list of 38 failures — `capture` **0**, `drive` 8,
+   `cli` 12, `orchestrator` 18 — of which 25 of the 26 in `drive`+`orchestrator` are the single
+   `process.execPath`/`PACKAGE_MANAGERS` bug in our own code. The work is parked as inc-10:
+   - `context-traversal-capture` — zero failures, convertible first. ⚠ **Fix its four `LAUNCHER`
+     sites BEFORE converting**, or the two `*.uat.test.ts` story legs go SILENT rather than red,
+     exactly as `context-traversal-transcript` did (see the inc-06 correction in Class 1).
+   - `drive` — 8 failures, all `--real` build legs, all the one bug. The biggest real speed win
+     (node 99 s → bun 26 s).
+   - `cli` — 12 failures, same bug. **Not a speed play: node 113 s vs bun ~110 s is a wash.** It
+     buys `tsx` removal from the largest package and nothing else.
+   - `orchestrator` — **stays on Node**, now on two real reasons: Bun makes it slower (29 s → 57 s)
+     and it owns the assert-oracle, which cannot run under Bun.
 
 ## Bun and our two native N-API addons, on Windows (added by inc-07, 2026-08-23)
 
