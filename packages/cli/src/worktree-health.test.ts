@@ -27,6 +27,7 @@ import {
   exitCode,
   checkWorktree,
 } from "../worktree-health.mjs";
+import { nodeExecutable } from "./node-executable.js";
 
 const SCRIPT = fileURLToPath(new URL("../worktree-health.mjs", import.meta.url));
 const MAIN = "/repo/storytree";
@@ -151,7 +152,7 @@ test("checkWorktree: composes an injected probe + node_modules check into a verd
 test("entry --hook: a healthy cwd exits 0 with a SILENT agent channel (nothing on stdout)", () => {
   // MAIN of THIS repo: the package root's grandparent is the repo root (a non-slot cwd → healthy).
   const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
-  const res = spawnSync(process.execPath, [SCRIPT, "--hook", "--cwd", repoRoot], { encoding: "utf8" });
+  const res = spawnSync(nodeExecutable(), [SCRIPT, "--hook", "--cwd", repoRoot], { encoding: "utf8" });
   assert.equal(res.status, 0, `--hook must exit 0; stderr: ${res.stderr}`);
   assert.equal(res.stdout.trim(), "", "hook mode: a healthy session writes NO additionalContext to stdout (the agent channel)");
   assert.match(res.stderr, /\[worktree-health\] OK/, "the human summary goes to stderr in hook mode");
@@ -159,7 +160,7 @@ test("entry --hook: a healthy cwd exits 0 with a SILENT agent channel (nothing o
 
 test("entry (doctor): a healthy cwd exits 0 and prints the OK summary to stdout", () => {
   const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
-  const res = spawnSync(process.execPath, [SCRIPT, "--cwd", repoRoot], { encoding: "utf8" });
+  const res = spawnSync(nodeExecutable(), [SCRIPT, "--cwd", repoRoot], { encoding: "utf8" });
   assert.equal(res.status, 0, `a healthy cwd must exit 0; stderr: ${res.stderr}`);
   assert.match(res.stdout, /\[worktree-health\] OK/, "doctor mode prints the verdict to stdout");
 });
@@ -180,7 +181,7 @@ test("entry --hook END-TO-END: a REAL unregistered slot (git resolves to main) i
     const slot = join(main, ".claude", "worktrees", "phantom-slot");
     mkdirSync(slot, { recursive: true }); // an empty, unregistered slot — the bug
 
-    const res = spawnSync(process.execPath, [SCRIPT, "--hook", "--cwd", slot], { encoding: "utf8" });
+    const res = spawnSync(nodeExecutable(), [SCRIPT, "--hook", "--cwd", slot], { encoding: "utf8" });
     assert.equal(res.status, 0, `--hook must never break the session (exit 0); stderr: ${res.stderr}`);
     assert.notEqual(res.stdout.trim(), "", "a broken slot MUST emit the agent-visible additionalContext");
     const parsed = JSON.parse(res.stdout.trim());
@@ -342,7 +343,7 @@ test("entry --hook END-TO-END: THE BUG — an empty husk with a claude/* branch 
     const slot = join(main, ".claude", "worktrees", "phantom-session-slot");
     mkdirSync(slot, { recursive: true }); // empty, unregistered — the husk
 
-    const res = spawnSync(process.execPath, [SCRIPT, "--hook", "--cwd", slot], { encoding: "utf8" });
+    const res = spawnSync(nodeExecutable(), [SCRIPT, "--hook", "--cwd", slot], { encoding: "utf8" });
     assert.equal(res.status, 0, `--hook must exit 0; stderr: ${res.stderr}`);
     const parsed = JSON.parse(res.stdout.trim());
     assert.equal(parsed.hookSpecificOutput.hookEventName, "SessionStart");
@@ -375,7 +376,7 @@ test("entry --hook END-TO-END: a POPULATED husk is NOT repaired — the loud ann
     const slot = join(main, ".claude", "worktrees", "phantom-populated");
     mkdirSync(join(slot, "node_modules"), { recursive: true }); // leftover content — the half-removed husk
 
-    const res = spawnSync(process.execPath, [SCRIPT, "--hook", "--cwd", slot], { encoding: "utf8" });
+    const res = spawnSync(nodeExecutable(), [SCRIPT, "--hook", "--cwd", slot], { encoding: "utf8" });
     assert.equal(res.status, 0);
     const parsed = JSON.parse(res.stdout.trim());
     assert.match(parsed.hookSpecificOutput.additionalContext, /BROKEN WORKTREE/, "still the loud announce");

@@ -44,6 +44,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 
 import { resolveRepoBash } from "../../../scripts/resolve-bash.mjs";
+import { nodeExecutable } from "./node-executable.js";
 
 const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
 const launcher = path.join(repoRoot, "scripts", "gate-bg.mjs");
@@ -126,7 +127,7 @@ test("the launcher returns WHILE THE JOB IS STILL RUNNING, and the job survives 
     const log = path.join(dir, "run.log");
     const release = path.join(dir, "release");
     const started = Date.now();
-    const res = spawnSync(process.execPath, [launcher, ...releaseGatedJob(release, 7)], {
+    const res = spawnSync(nodeExecutable(), [launcher, ...releaseGatedJob(release, 7)], {
       encoding: "utf8",
       env: { ...process.env, GATE_BG_LOG: log },
       cwd: repoRoot,
@@ -160,7 +161,7 @@ test("the launcher's exit code reports the LAUNCH, never the job's verdict", asy
   // in `<log>.exit`, and the assertion above shows a job that exits 7 still leaves a 7 there.
   await withTempDir((dir) => {
     const log = path.join(dir, "run.log");
-    const res = spawnSync(process.execPath, [launcher, "sh", "-c", "exit 7"], {
+    const res = spawnSync(nodeExecutable(), [launcher, "sh", "-c", "exit 7"], {
       encoding: "utf8",
       env: { ...process.env, GATE_BG_LOG: log },
       cwd: repoRoot,
@@ -184,7 +185,7 @@ test("a PIPE on the launcher's stdout no longer holds the run — the measured r
     const started = Date.now();
     const res = spawnSync(
       bash,
-      ["-c", `"${process.execPath}" "${launcher}" sh -c '${String(jobScript)}' 2>&1 | tail -2`],
+      ["-c", `"${nodeExecutable()}" "${launcher}" sh -c '${String(jobScript)}' 2>&1 | tail -2`],
       { encoding: "utf8", env: { ...process.env, GATE_BG_LOG: log }, cwd: repoRoot },
     );
     const elapsed = Date.now() - started;

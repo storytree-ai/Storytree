@@ -14,7 +14,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "node --import ../../scripts/tsx-cache-off.mjs --import tsx scripts/validate-corpus.ts && node --import ../../scripts/tsx-cache-off.mjs --import tsx --test \"src/**/*.test.ts\"",
+    "test": "node --import ../../scripts/tsx-cache-off.mjs --import tsx scripts/validate-corpus.ts && bun test --preload ../../scripts/tsx-cache-off.mjs --timeout 300000 src/",
     "storytree": "tsx src/main.ts",
     "db": "tsx src/db-cli.ts"
   },

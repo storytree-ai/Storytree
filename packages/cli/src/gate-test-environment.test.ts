@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { resolveStoreDoor } from "@storytree/drive";
-import { HttpStore } from "@storytree/storage-protocol";
+import { HttpStore, HttpStoreError } from "@storytree/storage-protocol";
 
 import {
   CREDENTIAL_FREE_STORE_DOOR_URL,
@@ -30,7 +30,22 @@ test("the standard test leg replaces an ambient store door with a fail-closed lo
   assert.ok(door, "the store-door precedence wins over the direct connector path");
   await assert.rejects(
     () => new HttpStore(door).getDoc("an-implicit-live-read"),
-    /fetch failed|ECONNREFUSED|bad port/i,
+    // The MECHANISM, not the runtime's wording. This used to match
+    // `/fetch failed|ECONNREFUSED|bad port/i`, which pins undici's phrasing: bun's fetch says "Was
+    // there a typo in the url or port?" instead and the leg went red under `bun test` for a reason
+    // that had nothing to do with the claim (`bun-runtime-migration-arc` inc-11). A transport
+    // failure against the SENTINEL door is what the test is actually about, and asserting it
+    // structurally is stricter than the wording was — it pins WHICH door was dialed, which no
+    // message regex ever did.
+    (err: unknown) => {
+      assert.ok(err instanceof HttpStoreError, `expected an HttpStoreError, got ${String(err)}`);
+      assert.equal(err.status, 0, "a transport failure — nothing answered, so there is no HTTP status");
+      assert.ok(
+        err.url.startsWith(CREDENTIAL_FREE_STORE_DOOR_URL),
+        `the read must dial the credential-free sentinel, not a hydrated door — got ${err.url}`,
+      );
+      return true;
+    },
     "an implicit live Library read fails locally instead of falling through to hydrated direct credentials",
   );
 });

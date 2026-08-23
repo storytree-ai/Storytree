@@ -28,6 +28,7 @@ import {
   unprovisionedContext,
   hookStdout,
 } from "../provision-worktree.mjs";
+import { nodeExecutable } from "./node-executable.js";
 
 const SCRIPT = fileURLToPath(new URL("../provision-worktree.mjs", import.meta.url));
 
@@ -447,7 +448,7 @@ test("exitCode: --hook swallows failure (never breaks the session); standalone p
 test("entry: `node provision-worktree.mjs --root <provisioned>` fast-paths to exit 0 without installing", () => {
   const root = makeTmpRoot(true);
   try {
-    const res = spawnSync(process.execPath, [SCRIPT, "--root", root], { encoding: "utf8" });
+    const res = spawnSync(nodeExecutable(), [SCRIPT, "--root", root], { encoding: "utf8" });
     assert.equal(res.status, 0, `a provisioned root must exit 0; stderr: ${res.stderr}`);
     assert.doesNotMatch(res.stderr ?? "", /running pnpm install/, "must not attempt install on a provisioned root");
   } finally {
@@ -462,7 +463,7 @@ test("entry: `node provision-worktree.mjs --root <provisioned>` fast-paths to ex
 test("entry: a provisioned root on the CURRENT lockfile still fast-paths, silently", () => {
   const root = makeTmpRoot(true, { wanted: LOCK_NEW, current: LOCK_NEW });
   try {
-    const res = spawnSync(process.execPath, [SCRIPT, "--root", root, "--hook"], { encoding: "utf8" });
+    const res = spawnSync(nodeExecutable(), [SCRIPT, "--root", root, "--hook"], { encoding: "utf8" });
     assert.equal(res.status, 0, `a current root must exit 0; stderr: ${res.stderr}`);
     assert.doesNotMatch(res.stderr ?? "", /running pnpm install/, "no install on an up-to-date worktree");
     assert.equal(res.stdout ?? "", "", "a healthy worktree emits NO agent context");

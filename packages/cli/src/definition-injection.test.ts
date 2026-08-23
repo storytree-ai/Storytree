@@ -29,6 +29,7 @@ import {
   injectedStatePath,
   type DefinitionDoc,
 } from "../definition-injection.mjs";
+import { nodeExecutable } from "./node-executable.js";
 
 const SCRIPT = fileURLToPath(new URL("../definition-injection.mjs", import.meta.url));
 
@@ -137,7 +138,7 @@ test("buildInjection: only kind=definition docs participate", () => {
 });
 
 test("entry: real prompt on stdin ⇒ matched oneLine on stdout, exit 0 (real seed corpus)", () => {
-  const res = spawnSync(process.execPath, [SCRIPT], {
+  const res = spawnSync(nodeExecutable(), [SCRIPT], {
     input: JSON.stringify({ prompt: "what does a verdict prove?" }),
     encoding: "utf8",
     timeout: 30_000,
@@ -148,7 +149,7 @@ test("entry: real prompt on stdin ⇒ matched oneLine on stdout, exit 0 (real se
 });
 
 test("entry: malformed stdin ⇒ exit 0, empty stdout (fail-safe hook contract)", () => {
-  const res = spawnSync(process.execPath, [SCRIPT], {
+  const res = spawnSync(nodeExecutable(), [SCRIPT], {
     input: "not json {{{",
     encoding: "utf8",
     timeout: 30_000,
@@ -158,7 +159,7 @@ test("entry: malformed stdin ⇒ exit 0, empty stdout (fail-safe hook contract)"
 });
 
 test("entry: no-match prompt ⇒ exit 0, empty stdout (most prompts pay zero)", () => {
-  const res = spawnSync(process.execPath, [SCRIPT], {
+  const res = spawnSync(nodeExecutable(), [SCRIPT], {
     input: JSON.stringify({ prompt: "zzz qqq nothing matches here" }),
     encoding: "utf8",
     timeout: 30_000,
@@ -224,7 +225,7 @@ test("injectedStatePath: absent or unsafe session ids disable dedup instead of s
 });
 
 test("entry: a task notification injects nothing (it is not a prompt the operator wrote)", () => {
-  const res = spawnSync(process.execPath, [SCRIPT], {
+  const res = spawnSync(nodeExecutable(), [SCRIPT], {
     input: JSON.stringify({
       session_id: "notif-guard-test",
       prompt: "[SYSTEM NOTIFICATION - NOT USER INPUT]\nthe verdict and the story are ready",
@@ -242,7 +243,7 @@ test("entry: the same term is injected once per session, and state survives the 
   // `check:test-timing` reds on `process.hrtime` even when it is only being used for uniqueness.
   const sessionId = `dedup-test-${randomUUID()}`;
   const run = (prompt: string) =>
-    spawnSync(process.execPath, [SCRIPT], {
+    spawnSync(nodeExecutable(), [SCRIPT], {
       input: JSON.stringify({ session_id: sessionId, prompt }),
       encoding: "utf8",
       timeout: 30_000,
@@ -257,7 +258,7 @@ test("entry: the same term is injected once per session, and state survives the 
   assert.equal(second.stdout, "", "second mention injects nothing — the memo persisted");
 
   // A DIFFERENT session must still be told: the memo is per-session, never global.
-  const other = spawnSync(process.execPath, [SCRIPT], {
+  const other = spawnSync(nodeExecutable(), [SCRIPT], {
     input: JSON.stringify({ session_id: `${sessionId}-other`, prompt: "what does a verdict prove?" }),
     encoding: "utf8",
     timeout: 30_000,
@@ -267,7 +268,7 @@ test("entry: the same term is injected once per session, and state survives the 
 
 test("entry: no session id ⇒ dedup disabled, injection still happens every time", () => {
   const run = () =>
-    spawnSync(process.execPath, [SCRIPT], {
+    spawnSync(nodeExecutable(), [SCRIPT], {
       input: JSON.stringify({ prompt: "what does a verdict prove?" }),
       encoding: "utf8",
       timeout: 30_000,
