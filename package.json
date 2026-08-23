@@ -31,6 +31,7 @@
     "probe:adr-graph": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/probe-adr-graph.ts",
     "probe:combined-dag": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/probe-combined-dag.ts",
     "probe:decision-reads": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/probe-decision-reads.ts",
+    "probe:decision-baseline": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/probe-decision-baseline.ts",
     "probe:re-reads": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/probe-re-reads.ts",
     "standson:bootstrap": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/standson-bootstrap.ts",
     "check:web-grounding": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-web-grounding.ts",

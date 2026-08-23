@@ -123,6 +123,34 @@ export const DECISION_READ_SURFACES = {
 export interface DecisionRead {
   /** The storytree session the read belongs to, derived from the line's own `cwd`. */
   readonly sessionId: string;
+  /**
+   * THE HOST CONTEXT WINDOW this read happened in — the line's own `sessionId`, carried through
+   * verbatim — or undefined when the line did not record one.
+   *
+   * IT IS A SECOND, FINER IDENTITY BESIDE {@link sessionId}, NOT A REPLACEMENT FOR IT, and the two
+   * answer different questions. {@link sessionId} is the pooled WORKTREE SLOT
+   * ({@link sessionIdFromCwd} mirrors `deriveIdentity()` rule 1), which is the right key for
+   * `ingestDecisionReads` because it is the key the trace sink and the live CLI observer already
+   * share — an ingest that keyed by window would write into traces no offer could ever join to.
+   *
+   * But a slot is not a sitting. Slots are POOLED, and `session-identity.ts` measured what that
+   * costs a per-session ratio taken over one: the median slot holds 2 windows, the p90 holds 8, and
+   * one holds 137 — enough to move the re-read share x2.39 and the re-read COST share x5.7, and
+   * enough to have published "one document pulled 28 times in one session" for what was eleven-plus
+   * sessions over 15 days. Any measurement phrased as "what ONE SESSION did in one sitting" — which
+   * is exactly `decision-read-measurement-arc`'s chain-depth number — is inflated by that pooling in
+   * a direction nothing downstream can correct for, because the trace store does not record which
+   * window wrote which line and it is not retrofittable.
+   *
+   * The transcript line does record it, on the same line every other field here already comes from,
+   * so it is carried rather than derived. It is the id `readCorrelatingLines` already treats as
+   * window identity for occupancy, so the two halves of this package agree on what a window is.
+   *
+   * A SUBAGENT LINE STAMPS ITS PARENT'S ID, and that is the answer we want here for the same reason
+   * the header gives for reading sidechain lines at all: the subagent read that decision on the
+   * parent window's behalf, inside the parent window's sitting.
+   */
+  readonly windowId: string | undefined;
   /** The host tool-call id (`toolu_…`) — stable, and this read's identity seed. */
   readonly toolUseId: string;
   /** The corpus's own pointer form for the spelling that reached it: `doc:decisions/NNNN-slug.md`
@@ -663,6 +691,12 @@ export function scanTranscriptDecisionReads(filePath: string): DecisionReadScan 
     const timestamp = parsed.timestamp;
     if (typeof cwd !== "string" || typeof timestamp !== "string") continue;
     const sessionId = sessionIdFromCwd(cwd);
+    // The line's OWN id is the host context window ({@link DecisionRead.windowId}) — the same field
+    // `readCorrelatingLines` reads as window identity. A blank one is undefined rather than "", so a
+    // caller grouping by window cannot silently collect every unlabelled read into one giant sitting.
+    const rawWindowId = parsed.sessionId;
+    const windowId =
+      typeof rawWindowId === "string" && rawWindowId.trim().length > 0 ? rawWindowId : undefined;
     const sidechain = parsed.isSidechain === true;
 
     for (const block of content) {
@@ -708,6 +742,7 @@ export function scanTranscriptDecisionReads(filePath: string): DecisionReadScan 
       for (const hit of found.hits) {
         reads.push({
           sessionId,
+          windowId,
           toolUseId,
           nodeId: hit.nodeId,
           at: timestamp,
