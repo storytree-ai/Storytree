@@ -395,12 +395,14 @@ export default defineConfig({
     // count or a panel-backed reason. Counts below are from this increment's inventory.
     // ---------------------------------------------------------------------------------------
     // ADJUDICATED AND ADOPTED (inc-08) — but still `off`, because it reaches `error` only at ZERO
-    // and 129 firings remain. This is a MIGRATION IN PROGRESS, not an open question: the rule is
-    // agreed correct, and what is left is work rather than doubt. Record:
-    // `tools/oxlint/panels/no-known-value-widening.md`.
+    // and 109 firings remain (65 source / 44 test across 61 files, re-measured 2026-08-23 at the
+    // tree this landed on — a count is a READING, never a property: inherit none of the numbers in
+    // this comment, re-run the inventory). This is a MIGRATION IN PROGRESS, not an open question:
+    // the rule is agreed correct, and what is left is work rather than doubt. Record:
+    // `tools/oxlint/panels/no-known-value-widening.md`; remaining lane: inc-10.
     //
-    // 518 measured; 389 driven out. `anonymous object :: binding` is at zero, and so is every
-    // return-position site OUTSIDE the website-mirrored packages — see the fence below.
+    // 518 measured; 409 driven out. `anonymous object :: binding` is at zero, and so is EVERY site
+    // in the website-mirrored packages — the fence those 24 sat behind is deleted, not narrowed.
     // No rule panel was needed — a panel justifies a REJECTION, and
     // the owner's narrowed bar admits only functionality loss or a genuine exceptional set, neither
     // of which describes "we prefer inline object return types". A REFACTOR panel settled the one
