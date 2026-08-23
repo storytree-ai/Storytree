@@ -4,28 +4,27 @@ tier: capability
 story: desktop-build-mount
 title: "The routed node dispatch drives the real proof — a chat-accepted NODE unit runs node build --real with persist semantics, never the synthetic --live smoke (ADR-0144)"
 outcome: "A NODE-classified unit dispatched through `routedBuildRunner` drives the node's REAL proof with persist semantics — `nodeBuild(unitId, { real: true, dryRun: false, verdictStore: 'pg' })`, never the synthetic non-persisting `--live` smoke — with a mode line that honestly names the real red→green, the persisted signed verdict, and the parked `claude/real/<unit>-<run>` branch the human lands (the story branch unchanged)."
-status: proposed
+status: retired
 proof_mode: integration-test
 depends_on: [worker-relocation]
-# Node-borne proof config (ADR-0057 keystone): authoring THIS block is what makes the capability
-# inner-loop buildable — no NODE_BUILD_REGISTRY edit. EDIT-EXISTING (editsExisting: true):
-# packages/drive/src/build-worker.ts exists at HEAD (worker-relocation landed it); the leaf authors a
-# NEW node:test file (routed-node-real-dispatch.test.ts) that drives the EXISTING routedBuildRunner
-# with injected fakes (classify → 'node', scripted nodeBuild/storyBuild capturing opts — exactly the
-# pattern build-worker-relocation.test.ts lines 95–110 already uses in this package) and asserts the
-# node branch dispatches { real: true, dryRun: false, verdictStore: 'pg' } — RED at HEAD because the
-# node branch passes { live: true, dryRun: false, real: false } and omits verdictStore today (a RUNTIME
-# opts assertion, not a type-only red — the spine observes a genuine failing assertion). GREEN = the
-# single-file edit to build-worker.ts (the ADR-0144 flip). RUNNER: @storytree/drive is node:test
-# (node --import tsx --test "src/**/*.test.ts") — NOT vitest; the new test is a node:test file, the
-# SAME runner build-worker-relocation.test.ts uses. A SINGLE LITERAL test file + a SINGLE literal
-# source file, so the default node:test proof on the one test file is legal — no proofCommand needed,
-# and the proof deliberately stays on the DRIVE side only (see §"Standing-test realignment" below:
-# the studio suite's stale `{ live: true }` assertion is the ORCHESTRATOR's supplement, outside this
-# leaf's write scope — do NOT widen the proof or the scope to apps/studio). `install: true` + a
-# typecheck wall because the edit touches the NodeBuildLikeOpts interface consumed across the drive
-# package and by the studio/desktop adapters (the proof runs in a fresh worktree — tsx + tsc need the
-# lockfile-only install, ADR-0031 §2).
+# RETIRED by ADR-0422 (2026-08-23), on the same grounds and in the same landing as its dependency
+# `worker-relocation`. This capability's whole subject is the NODE ARM of `routedBuildRunner` — what a
+# chat-accepted node unit dispatches — and ADR-0404 retired the dispatch surfaces that reached it,
+# after which the function was measured to have zero production consumers. ADR-0422 D1 deleted
+# `routedBuildRunner` along with packages/drive/src/build-worker.ts and this capability's own test,
+# packages/drive/src/routed-node-real-dispatch.test.ts.
+#
+# ADR-0144's DECISION is NOT reversed by this and must not be read as reversed: a build that runs a
+# node's real proof still persists a signed verdict, and `storytree node build <id> --real --store pg`
+# is the surviving surface for it. What retires is the claim about one deleted dispatcher's node
+# branch, not the persist semantics it was asserting.
+#
+# The `real:` arm is dropped with the code — it bound the deleted source and test, so this capability
+# is no longer REAL-buildable and nothing implements it. Dropping the arm is required rather than
+# tidy: `sweepRealBuildCoverage` filters on `real === undefined` and never on status, so a retired
+# capability keeping its arm would still breach `contract-binding-drift` at a ceiling of zero. RETIRE
+# is the only sanctioned drain once the code is gone for good (ADR-0252 D3). With `worker-relocation`,
+# this was the story's last live capability, so desktop-build-mount retires too. Body kept as history.
 proof:
   command:
     file: pnpm
@@ -33,17 +32,6 @@ proof:
   scope:
     testGlobs: ["packages/drive/src/**/*.test.ts"]
     sourceGlobs: ["packages/drive/src/**/*.ts"]
-  real:
-    editsExisting: true
-    testFile: "packages/drive/src/routed-node-real-dispatch.test.ts"
-    sourceFile: "packages/drive/src/build-worker.ts"
-    scope:
-      testGlobs: ["packages/drive/src/routed-node-real-dispatch.test.ts"]
-      sourceGlobs: ["packages/drive/src/build-worker.ts"]
-    install: true
-    typecheck:
-      file: pnpm
-      args: ["--filter", "@storytree/drive", "typecheck"]
 ---
 
 # The routed node dispatch drives the real proof — never the synthetic smoke (ADR-0144)

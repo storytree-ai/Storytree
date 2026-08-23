@@ -2430,11 +2430,16 @@ function captureBuildLeafSlices(args: {
 }
 
 /**
- * Classify a bare `build <id>` target by tier — the CLI mirror of the studio's `routedBuildRunner`
- * (ADR-0118 / ADR-0090): a unit whose spec is a `story` routes to the whole-story chain, anything else
- * (a capability/leaf node — or an unknown id, which `nodeBuild` then guides on) to a single-node build.
- * Pure over the stories dir; the auto-route forwards the operator's explicit flags (the CLI is a
- * superset of the UI — it does not pin `--real`/openPr the way the single studio Build button does).
+ * Classify a bare `build <id>` target by tier (ADR-0118 / ADR-0090): a unit whose spec is a `story`
+ * routes to the whole-story chain, anything else (a capability/leaf node — or an unknown id, which
+ * `nodeBuild` then guides on) to a single-node build. Pure over the stories dir; the auto-route
+ * forwards the operator's explicit flags rather than pinning `--real`/`openPr`.
+ *
+ * This used to describe itself as "the CLI mirror of the studio's `routedBuildRunner`", and that
+ * attribution is now history in both halves: ADR-0404 retired the studio Build button this was a
+ * superset of, and ADR-0422 deleted `routedBuildRunner` — the two classifiers were always
+ * independent implementations, which is precisely the evidence ADR-0422 D1 rests on. Since ADR-0404
+ * the CLI is the ONLY dispatch surface, so this is the classifier, not a mirror of one.
  */
 export function classifyBuildTarget(id: string, storiesDir: string): "node" | "story" {
   const file = findNodeSpecFile(storiesDir, id);

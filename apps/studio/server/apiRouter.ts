@@ -1096,8 +1096,10 @@ function loadNoticeBoard(): Promise<NoticeBoardModule> {
 
 // @storytree/drive's ROOT barrel re-exports the build drivers, which import @storytree/library — so
 // it hits the SAME vite config-load trap as the two above and is loaded lazily on first use, past
-// config-load. (The `@storytree/drive/build-worker` SUBPATH imported statically at the top of this
-// file is a different, leaf-shaped entry and is safe.)
+// config-load. (This note used to add that a `@storytree/drive/build-worker` SUBPATH was imported
+// statically at the top of this file and was safe as a leaf-shaped entry. There is no such import:
+// ADR-0404 removed the studio's build routes and ADR-0422 deleted the subpath itself. Corrected in
+// place, ADR-0422 D5 — the lazy-load rule for the root barrel is what survives and is unchanged.)
 type DriveModule = typeof import('@storytree/drive');
 let driveModulePromise: Promise<DriveModule> | null = null;
 function loadDrive(): Promise<DriveModule> {
