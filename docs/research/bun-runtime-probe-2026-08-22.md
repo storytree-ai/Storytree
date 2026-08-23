@@ -387,14 +387,23 @@ cleanly separated from the expensive set.**
 - **The 6 breaks are one coherent group, not a scattering**: the packages that spawn real processes —
   the leaf/spine/driver layer (`agent`, `orchestrator`, `drive`, `cli`) and the traversal-capture
   pair. That is a good boundary to sequence against.
-- **Four of those six are blocked on Bun, not on us.** Class 1 is ours to fix; Class 2 is not, and it
-  gates `capture`, `orchestrator`, `drive` and `cli` until Bun's `node:test` registration is
-  deterministic.
-- **The convertible set is 74% of the packages and 7.1% of the work.** `cli` alone is 44% of measured
-  test time and is in the blocked set. Converting everything that *can* convert saves 2.4% of the
-  test leg. **So the honest reason to do increments 2+ is not speed** — it is removing `tsx`, and
-  positioning for the day Class 2 is fixed. If the arc is sold internally on wall-clock, it will
-  under-deliver by an order of magnitude.
+- ~~**Four of those six are blocked on Bun, not on us.** Class 1 is ours to fix; Class 2 is not, and
+  it gates `capture`, `orchestrator`, `drive` and `cli` until Bun's `node:test` registration is
+  deterministic.~~ **WITHDRAWN, inc-09 (2026-08-23) — the exact inversion of the truth.** Class 2
+  does not reproduce, and 25 of the 26 residual `orchestrator`+`drive` failures are ONE bug in OUR
+  code (`proof-route.ts:146` puts `bun` in `PACKAGE_MANAGERS`). All six breaks were ours. Only
+  `orchestrator` stays on Node, and for two different reasons: Bun makes it slower, and it owns the
+  assert-oracle. See the correction box on Class 2.
+- ~~**The convertible set is 74% of the packages and 7.1% of the work.** `cli` alone is 44% of
+  measured test time and is in the blocked set. Converting everything that *can* convert saves 2.4%
+  of the test leg.~~ **EVERY FIGURE IN THAT BULLET IS WITHDRAWN, inc-09 — do not quote them.** They
+  are derived from a timing table that does not reproduce: `cli`'s node arm is recorded below at
+  347 s and measures **113 s** today on a package that has since *grown*. Same-day, both runtimes:
+  `capture` 73 s → 26 s, `drive` 99 s → 26 s, **`cli` 113 s → ~110 s (a wash)**, `orchestrator`
+  29 s → 57 s (*worse*). **The conclusion that the reason is not speed SURVIVES** — but the owner's
+  standing direction (2026-08-23) is that the migration continues anyway, on the forward-looking
+  ground that a tsx-free test path scales better as the system grows. That is the reason to record,
+  not any of these percentages.
 - **`pnpm gate`'s scope machinery is unaffected.** `pnpm --filter ...<name> test` runs whatever each
   package's own `test` script says, so a converted package keeps working with the ADR-0304 affected
   classifier and the gate keeps predicting CI. Nothing about ADR-0195 / ADR-0304 D2's
