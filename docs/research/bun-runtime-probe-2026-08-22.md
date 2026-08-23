@@ -203,6 +203,39 @@ These tests spawn a child using `process.execPath` as "the current runtime". Und
 "the node binary" should name it rather than infer it from whatever runtime happens to be executing.
 That is the same fault class as a check that passes for the wrong reason.
 
+> **Correction and answer, 2026-08-23 (`bun-runtime-migration-arc` inc-06).** Both forks are now
+> ANSWERED, and one of them turned out to have changed shape underneath this section — the failure
+> count above is stale in a way that matters, so do not plan against it.
+>
+> **`context-traversal-transcript` no longer fails under Bun. That is a WORSE state than failing,
+> not a better one.** `bun packages/cli/launch.mjs` now runs the CLI successfully end to end
+> (verified directly: `bun packages/cli/launch.mjs traversal --help` exits 0), so the five UAT legs
+> that used to report `ingest exited null` now PASS — while spawning a program production never
+> executes, with tsx's ESM loader and node's compile cache bypassed. The suite's own docblock says
+> its whole point is spawning "the REAL storytree CLI entry (`node packages/cli/launch.mjs …`)", and
+> under a converted runner it would silently stop doing that. A loud red became a quiet false green.
+> **The lesson generalises past this package: a Class 1 site that stops failing has not been fixed,
+> it has gone silent** — re-check the assumption, never the exit code.
+>
+> **`agent`'s single failure was exactly what this section says**, and re-measured on 2026-08-23 it
+> is deterministic: three uninstrumented Bun runs each gave 161 tests / 18 files / 159 pass / 1 skip
+> / 1 fail, and junit file-level attribution against node was EXACT (same files, same per-file
+> counts, same test-name multisets). So `agent` is not in Class 2 and never was.
+>
+> **Both assumptions are now fixed**, each in the way its own subject required:
+> `codex-author.test.ts` uses `process.execPath` as a stand-in for "some absolute executable an
+> administrator pinned" — legitimate — and it was only the *assertion* (`/^v\d+\./`, node's output
+> shape) that assumed node; it now pins the executing runtime's own version, which is a stricter
+> claim and runtime-agnostic. `transcript-ingest.uat.test.ts` genuinely means the node binary, so it
+> now NAMES node and throws rather than falling back to the runner. Measured after the fix: `agent`
+> 161 / 160 pass / 0 fail under Bun on three runs (node unchanged at 161 / 160 / 0 / 1 skip);
+> `transcript` 73 / 73 / 0 on three runs under each runtime. Note the node arm is **73 tests, not
+> the 40 in the table above** — the package grew; re-measure the node arm, never diff against this
+> document's table.
+>
+> Neither package was converted here: the conversion is its own increment with its own parity proof,
+> and the one proof leg not run above is the executed-assertion count.
+
 ### Class 2 — Bun registers a non-deterministic number of tests in process-spawning packages
 
 This is the finding that decides the arc's sequencing, and it is the one that must not be softened.
@@ -252,6 +285,42 @@ The remaining `orchestrator`, `drive` and `cli` failures are the real red→gree
 `git push origin main` and `git worktree add --detach`, plus one spawn of `bash.exe`. These inherit
 Class 1 and were not diagnosed further, because these packages are excluded by Class 2 anyway.
 
+## The `process.execPath` inventory, swept once so nobody sweeps it again
+
+Added by inc-06 (2026-08-23). `process.execPath` means **"the runtime currently executing"**, which
+is only node while a package's test script is `node --test`. Two uses hide behind that one
+expression, and only one of them is a defect:
+
+- **MEANS-NODE** — the site spawns a `.mjs`/`.cjs` entrypoint, or passes a node-only flag
+  (`--test`, `--import`). Converting that package's runner silently changes which program is
+  observed. **This is the defect class**, and after inc-06 it is latent everywhere it remains,
+  because every package still holding one is Class 2 blocked.
+- **RUNTIME-AGNOSTIC** — the site is `-e <script>`, or an arbitrary absolute executable used as a
+  stand-in. The ambient runtime is the *correct* choice and nothing needs doing. The rule is not
+  "never use `process.execPath`".
+
+Counted over `*.test.ts`, comments excluded, by a mechanical classifier (does the call's first four
+lines pass `-e`?), so read it as a map rather than a ledger:
+
+| package | means node | runtime-agnostic | status |
+|---|---|---|---|
+| `packages/cli` | 21 | 3 | Class 2 blocked — latent |
+| `packages/orchestrator` | 8 | 28 | Class 2 blocked — latent |
+| `packages/context-traversal-capture` | 4 | 0 | Class 2 blocked — latent |
+| `packages/agent` | 0 | 3 + 1 stand-in | **fixed, inc-06** |
+| `packages/context-traversal-transcript` | 0 (1 site now NAMES node) | 0 | **fixed, inc-06** |
+| `apps/studio` | 1 | 1 | vitest — outside this arc |
+
+Two rows need reading precisely. `packages/agent`'s remaining site (`codex-author.test.ts`, the
+`CODEX_EXECUTABLE` stand-in) deliberately *is* the ambient runtime; only its assertion assumed node,
+and that is what was fixed. One of `orchestrator`'s eight (`shell-test-executor.test.ts:425`) is
+agnostic in substance — it re-splits a `-e` command string the classifier cannot see through — so
+treat 8 as an upper bound.
+
+**`packages/context-traversal-capture` is the one to look at first when Class 2 lifts**: its four
+sites are the same `LAUNCHER` / spawned-door shape as `transcript`'s, so it will go SILENT rather
+than red in exactly the way `transcript` did, and its two `*.uat.test.ts` files are story UAT legs.
+
 ## What this means for the arc
 
 **The migration is cheap where it is cheap, and the cheap set is large, identifiable in advance, and
@@ -289,8 +358,11 @@ but a prerequisite for increment 2, not an afterthought.
    `uat-criterion`, `model-uat*`, `arc`, `forest-world`, `procedural-architecture`).
 3. `library`, `apps/desktop`, `forest-world-r3f` — larger, exact parity; `library` shows one of the
    best speedups.
-4. **Blocked on us:** `agent` and `context-traversal-transcript` — fix the Class 1 `process.execPath`
-   assumptions first; they are stable failures with a known cause.
+4. ~~**Blocked on us:** `agent` and `context-traversal-transcript` — fix the Class 1
+   `process.execPath` assumptions first; they are stable failures with a known cause.~~
+   **UNBLOCKED, inc-06 (2026-08-23).** Both assumptions are fixed and both packages measure green
+   under Bun at exact file-level parity. What is left for them is the conversion itself, with the
+   one proof leg inc-06 did not run: the executed-assertion count.
 5. **Blocked on Bun:** `context-traversal-capture`, `orchestrator`, `drive`, `cli`. Do not attempt
    until Class 2 is gone. Re-test with `bun test src/`, uninstrumented, three times, and compare test
    counts before spending any effort on the failures.
