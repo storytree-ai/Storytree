@@ -115,3 +115,127 @@ export function delinkDecisionFileLinks(body: string): string {
     delinkedText({ text, number: Number(num), raw }),
   );
 }
+
+// ---------------------------------------------------------------------------------------------
+// The SECOND link class in the same bodies: markdown links to REPO PATHS.
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * A markdown link whose target is a REPO PATH reached by `../` — the class increment 07 measured
+ * and deliberately left, and which increment 09 found needs no per-target judgment after all.
+ *
+ * ## WHY THIS LOOKED LIKE 96 LOOKUPS AND IS ACTUALLY ONE RULE
+ *
+ * The worry was that unlike the decision cross-links, these are NOT uniformly dead: some name live
+ * source (`packages/orchestrator/src/prove-it-gate.ts` exists), some name files ADR-0302 deleted
+ * (`apps/studio/data/knowledge.json`), some name paths that MOVED — so keep / re-point / de-link
+ * looked like a per-target call across 96 targets.
+ *
+ * MEASURED OVER ALL 230 OCCURRENCES, AND THE FORM SETTLES IT: every single one is `../`-relative,
+ * and NONE is root-relative. They were all written to resolve from `docs/decisions/`, the directory
+ * PR #1546 deleted. A row has no location, so there is no base to resolve them from — which means
+ * whether the TARGET still exists has no bearing on whether the LINK works. None of them work. The
+ * live ones are not a different case; they are the same broken link pointing at a file that happens
+ * to survive.
+ *
+ * The depth confirms the base rather than assuming it: 46 occurrences at one `../` land in
+ * `research` / `guidelines` / `design` / `open-questions.md` (all `docs/` children), and 184 at two
+ * land in `packages` / `stories` / `apps` / `web` / `.gitmodules` (all repo-ROOT children). Not one
+ * exception, which is what makes {@link rootedRepoPath} a mechanical rewrite rather than a guess.
+ *
+ * ## WHAT REPLACES THEM, AND WHAT IS DELIBERATELY NOT DECIDED HERE
+ *
+ * A backticked ROOTED path — strictly more useful than what it replaces, since it resolves from the
+ * repo root a reader actually has, where the original resolved from nowhere.
+ *
+ * A path naming a DELETED file is left standing as prose, and that is not an oversight. A body
+ * sentence about `packages/core/src/anchor.ts` is describing what was true when the decision was
+ * made, and ADR-0139's true-in-full rule is about claims, not about history. Whether a given
+ * sentence has been overtaken is a per-body judgment for the librarian; the LINK is the mechanical
+ * defect, because it is a false affordance no reader can follow.
+ *
+ * ## THE ONE THING THIS PATTERN MUST NOT SWALLOW
+ *
+ * `../0139-slug.md` is a DECISION-file link and belongs to {@link findDecisionFileLinks} — it gets a
+ * different replacement, one that promotes the number rather than a path. The two finders are
+ * mutually exclusive by construction ({@link isDecisionFileTarget}) rather than by call order, so
+ * neither depends on running first and a body can be scanned by either alone.
+ *
+ * Absolute `https://` links are untouched and always were: 28 of them sit in these bodies, and a URL
+ * resolves the same from a row as from a file.
+ */
+const REPO_PATH_LINK = /\[([^[\]]*)\]\(((?:\.\.\/)+[^)\s]+)\)/g;
+
+/** The decision-FILE shape, once the `../` prefix is off — {@link findDecisionFileLinks}'s domain. */
+function isDecisionFileTarget(target: string): boolean {
+  const rest = target.replace(/^(?:\.\.\/)+/, "").replace(/^docs\//, "").replace(/^decisions\//, "");
+  return /^\d{4}-[^/]*\.md$/.test(rest);
+}
+
+/**
+ * PURE: `../research/x.md` → `docs/research/x.md`; `../../packages/y.ts` → `packages/y.ts`.
+ *
+ * A decision file lived at `docs/decisions/NNNN-slug.md`, so one `../` is `docs/` and two is the
+ * repo root. Depth 3+ does not occur in the corpus and is treated as the root rather than invented
+ * above it — a path that walks out of the repo has no meaning to a reader, and the root is the
+ * nearest honest answer.
+ */
+export function rootedRepoPath(target: string): string {
+  const depth = (target.match(/\.\.\//g) ?? []).length;
+  const rest = target.replace(/^(?:\.\.\/)+/, "");
+  return depth === 1 ? `docs/${rest}` : rest;
+}
+
+/** One repo-path link found in a decision body. */
+export interface RepoPathLink {
+  /** The link text, verbatim — what survives de-linking. */
+  readonly text: string;
+  /** The link target as authored, `../` prefix and all. */
+  readonly target: string;
+  /** The whole `[text](target)` span, for a diagnostic that quotes what it found. */
+  readonly raw: string;
+}
+
+/** PURE: every repo-path link in one body, in source order. Decision-file links are NOT included. */
+export function findRepoPathLinks(body: string): RepoPathLink[] {
+  const found: RepoPathLink[] = [];
+  for (const m of body.matchAll(REPO_PATH_LINK)) {
+    const text = m[1];
+    const target = m[2];
+    if (text === undefined || target === undefined) continue;
+    if (isDecisionFileTarget(target)) continue;
+    found.push({ text, target, raw: m[0] });
+  }
+  return found;
+}
+
+/**
+ * PURE: the replacement for one repo-path link — the words, with the address guaranteed to survive.
+ *
+ * The same three-shape rule {@link delinkedText} applies to the decision class, because the corpus
+ * has the same three shapes here:
+ *
+ * 1. **The text already IS the address** — `` [`docs/research/agentic-foundation-survey.md`](../research/…) ``
+ *    → kept verbatim, backticks and all. De-linking loses nothing.
+ * 2. **The text CONTAINS the rooted path** → kept verbatim, same reason.
+ * 3. **The text names the target some other way** — `` [`agent-library-interaction`](../research/…) ``,
+ *    `[§5](../open-questions.md)`, `[test-command-registry.ts](../../packages/…)` → the words, then
+ *    the rooted path in backticks. Dropping the target for these would erase a pointer rather than
+ *    tidy one, which is the whole difference between de-linking and deleting.
+ */
+export function delinkedRepoPathText(link: RepoPathLink): string {
+  const rooted = rootedRepoPath(link.target);
+  const bare = link.text.trim().replace(/^`+/, "").replace(/`+$/, "");
+  if (bare === rooted || bare === link.target || link.text.includes(rooted)) return link.text;
+  return `${link.text} (\`${rooted}\`)`;
+}
+
+/**
+ * PURE: one decision body with every repo-path link de-linked. Idempotent — the replacement carries
+ * no `](`, so a second pass matches nothing and re-running the migration is safe.
+ */
+export function delinkRepoPathLinks(body: string): string {
+  return body.replace(REPO_PATH_LINK, (raw: string, text: string, target: string) =>
+    isDecisionFileTarget(target) ? raw : delinkedRepoPathText({ text, target, raw }),
+  );
+}

@@ -4,7 +4,7 @@ import path from "node:path";
 import { type AdrMeta } from "@storytree/drive";
 import { loadNodeSpec } from "@storytree/orchestrator";
 
-import { findDecisionFileLinks } from "./adr-body-links.js";
+import { findDecisionFileLinks, findRepoPathLinks, rootedRepoPath } from "./adr-body-links.js";
 import type { CheckResult } from "./health.js";
 
 /**
@@ -24,6 +24,10 @@ import type { CheckResult } from "./health.js";
  *   1b adr-number-identity — a row's stored `number` agrees with the number in its id, which is what
  *                            the ADR-0050 allocator reserved (GATE). Successor to `adr-number-unique`
  *                            — see {@link RETIRED_ADR_CHECKS} for why that question dissolved.
+ *   1c adr-description-identity — a row's stored `description` agrees with what the write path
+ *                            derives from its title (GATE). Same shape of question as 1b: a field
+ *                            the push DERIVES and a field-scoped `--set title=` can move out from
+ *                            under it (ADR-0352), with nothing comparing the two.
  *   2 adr-edge-integrity   — every supersedes / amends target exists (GATE)
  *   3 supersede-consistency — X.supersedes ∋ Y ⇔ Y.status = superseded, both directions (GATE)
  *   4 story-decisions      — every story `decisions` entry resolves, and none names a FULLY
@@ -37,8 +41,10 @@ import type { CheckResult } from "./health.js";
  *                            dead, so neither may carry the calibrate-to-these tag (GATE)
  *   7 enforced-by-anchors  — backtick path tokens in guardrail `enforcedBy` resolve on disk
  *                            (WARN — enforcedBy stays prose; oq-artifact-code-backing → B)
- *   8 adr-body-links       — no decision body addresses a sibling by a `](NNNN-slug.md)` markdown
- *                            link, since PR #1546 deleted every one of those files (GATE)
+ *   8 adr-body-links       — no decision body addresses anything by a markdown link that only
+ *                            resolved from `docs/decisions/`: a sibling decision FILE
+ *                            (`](NNNN-slug.md)`, deleted by PR #1546) or a REPO PATH reached by
+ *                            `../`. A row has no location, so neither has a base (GATE)
  *
  * Two rungs RETIRED with the files, each with its reason, and one REPLACED by rung 8:
  * {@link RETIRED_ADR_CHECKS}.
@@ -47,6 +53,7 @@ import type { CheckResult } from "./health.js";
 export const ADR_GATE_CHECKS: ReadonlySet<string> = new Set([
   "adr-frontmatter",
   "adr-number-identity",
+  "adr-description-identity",
   "adr-edge-integrity",
   "supersede-consistency",
   "story-decisions",
@@ -133,6 +140,15 @@ export interface AdrHealthInputs {
    * replaced and why the old question stopped being answerable.
    */
   readonly numberMismatches: string[];
+  /**
+   * Pre-computed FAIL lines for `adr-description-identity` — one per row whose stored `description`
+   * disagrees with what `adr push` derives from its title (`loadTitledAdrMetasFromStore`).
+   *
+   * REQUIRED rather than optional-and-defaulted, for the same reason `decisionBodies` is: a rung
+   * whose input silently defaults to `[]` reports PASS on a caller that forgot to wire it, which is
+   * the vacuous green {@link RETIRED_ADR_CHECKS} exists to prevent.
+   */
+  readonly descriptionMismatches: string[];
   readonly stories: StoryDecisionsView[];
   readonly guardrails: GuardrailView[];
   /**
@@ -166,8 +182,16 @@ function result(name: string, failLines: string[], cleanNote: string, warn = fal
 }
 
 export function adrHealth(inputs: AdrHealthInputs): CheckResult[] {
-  const { adrs, parseErrors, numberMismatches, stories, guardrails, decisionBodies, pathExists } =
-    inputs;
+  const {
+    adrs,
+    parseErrors,
+    numberMismatches,
+    descriptionMismatches,
+    stories,
+    guardrails,
+    decisionBodies,
+    pathExists,
+  } = inputs;
   const byNumber = new Map(adrs.map((a) => [a.number, a]));
   const results: CheckResult[] = [];
 
@@ -189,6 +213,25 @@ export function adrHealth(inputs: AdrHealthInputs): CheckResult[] {
       "adr-number-identity",
       numberMismatches,
       `${adrs.length} decisions, every stored number agrees with its id`,
+    ),
+  );
+
+  // 1c adr-description-identity — a row's `description` must be the title carrying its label.
+  //
+  // The sibling of 1b, and reachable for the same structural reason: `description` is DERIVED by the
+  // write path (`adr push` writes `adrDescriptionOf(number, <H1>)`) but is an ordinary field a
+  // field-scoped `--set title=` can move independently since ADR-0352. Three rows were found drifted
+  // this way, and what repaired them was an unrelated body push that happened to pass through — so
+  // the population being clean today is luck, not a mechanism.
+  //
+  // It GATES rather than warning because `description` is what `adr list` and every artifact card
+  // show: a row describing itself by a superseded title reads as a different decision than it is,
+  // and there is no honest reading of that as cosmetic.
+  results.push(
+    result(
+      "adr-description-identity",
+      descriptionMismatches,
+      `${adrs.length} decisions, every description agrees with its title`,
     ),
   );
 
@@ -283,7 +326,9 @@ export function adrHealth(inputs: AdrHealthInputs): CheckResult[] {
     result("enforced-by-anchors", rotted, "every enforcedBy path anchor resolves", true),
   );
 
-  // 8 adr-body-links — no decision body addresses a sibling by a markdown link to a decision FILE.
+  // 8 adr-body-links — no decision body carries a markdown link that only ever resolved from
+  // `docs/decisions/`. TWO classes, ONE rung, because they are one defect: a row has no location,
+  // so a relative link in a body has no base to resolve from.
   //
   // The successor to `adr-link-integrity` (see {@link RETIRED_ADR_CHECKS} for what its retirement
   // note got right and what it did not). The old rung asked whether a link's TARGET FILE existed;
@@ -300,6 +345,16 @@ export function adrHealth(inputs: AdrHealthInputs): CheckResult[] {
           `the address now, and "storytree library artifact adr-${pad(link.number)}" opens it.`,
       );
     }
+    // The REPO-PATH class. Whether the target still exists is deliberately NOT asked: all 230 were
+    // `../`-relative to a directory that no longer exists, so a live target is the same broken link
+    // as a dead one. `findRepoPathLinks` is the SAME finder `delinkRepoPathLinks` is built on.
+    for (const link of findRepoPathLinks(d.body)) {
+      deadLinks.push(
+        `ADR-${pad(d.number)} body links to a repo path as ${link.raw} — that \`../\` resolved from ` +
+          "docs/decisions/, which PR #1546 deleted, and a row has no location to resolve it from. " +
+          `De-link it to the rooted path: \`${rootedRepoPath(link.target)}\`.`,
+      );
+    }
   }
   // A BLIND READ IS NOT A CLEAN ONE. Decisions always have bodies, so zero of them alongside a
   // non-empty `adrs` means the caller wired no view — the shape that reports PASS having examined
@@ -314,7 +369,7 @@ export function adrHealth(inputs: AdrHealthInputs): CheckResult[] {
     result(
       "adr-body-links",
       deadLinks,
-      `${decisionBodies.length} decision bodies carry no link to a deleted decision file`,
+      `${decisionBodies.length} decision bodies carry no link that resolved only from docs/decisions/`,
     ),
   );
 

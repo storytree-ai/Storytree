@@ -49,6 +49,7 @@ function inputs(partial: Partial<AdrHealthInputs>): AdrHealthInputs {
     adrs: [],
     parseErrors: [],
     numberMismatches: [],
+    descriptionMismatches: [],
     stories: [],
     guardrails: [],
     // A single decision with a clean body: the default must be a corpus the blind-read floor
@@ -164,6 +165,32 @@ test("adr-number-identity: a row whose stored number disagrees with its id FAILs
   assert.ok(
     adrGateFailures(drifted).some((r) => r.name === "adr-number-identity"),
     "it GATES — a decision addressed as one number and rendering as another is not a warning",
+  );
+});
+
+test("adr-description-identity: a row whose description disagrees with its title FAILs and GATES", () => {
+  // 1b's sibling, and reachable for the same reason: `description` is DERIVED by `adr push` from the
+  // document H1, but is an ordinary field a field-scoped `--set title=` writes right past (ADR-0352).
+  //
+  // THE RED CASE COMES FROM A LITERAL, AND IT HAS TO. Measured against the live corpus while this
+  // rung was written: 424 decision rows, 0 disagreeing. So a red sourced from real data would be
+  // unreachable, and a rung that can only ever pass is the vacuous green this file is organised
+  // against — the disagreement must be injectable, which is why the mismatch lines are an INPUT.
+  assert.equal(levelOf(adrHealth(inputs({})), "adr-description-identity"), "PASS");
+
+  const drifted = adrHealth(
+    inputs({
+      descriptionMismatches: [
+        'adr-0296 describes itself as "ADR-0296 — An old title", but its title makes that ' +
+          '"ADR-0296 — The title it has now"',
+      ],
+    }),
+  );
+  assert.equal(levelOf(drifted, "adr-description-identity"), "FAIL");
+  assert.ok(
+    adrGateFailures(drifted).some((r) => r.name === "adr-description-identity"),
+    "it GATES — `description` is the line `adr list` and every artifact card render, so a row " +
+      "describing itself by a superseded title reads as a different decision than it is",
   );
 });
 
