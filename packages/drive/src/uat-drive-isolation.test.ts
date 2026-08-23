@@ -38,6 +38,7 @@ import {
   assertDriveIsolated,
   auditDrivePrompt,
   classifyDriveEnd,
+  NO_START_FLOOR_MIN,
   createDriveTiming,
   classifyDriveResidue,
   driveChildEnv,
@@ -548,6 +549,47 @@ test("LIFETIME: a session that ran out BEFORE the walk did is a distinct harness
   assert.match(end.reason, /11\.3m/);
   assert.match(end.reason, /ceiling it never reached/);
   assert.match(end.reason, /Shorten the walk, or split the journey/);
+});
+
+test("LIFETIME: a drive that DIED on launch is not a session that ran out of budget", () => {
+  // The measured shape: on 2026-08-24 the drive inherited `model = "gpt-5.6-sol"` from the machine's
+  // ~/.codex/config.toml, the API answered 400 (not supported on a ChatGPT account), and the session
+  // was gone at 0.4m of a 60-min ceiling. Classified as `no-report` it was told to "shorten the walk,
+  // or split the journey" — an instruction that cannot possibly help, aimed at a journey that never
+  // started. The discriminator is elapsed time against a floor no real walk has ever come near.
+  const end = classifyDriveEnd({ timedOut: false, reportReadable: false, ceilingMinutes: 60, elapsedMinutes: 0.4 });
+  assert.equal(end.kind, "no-start");
+  assert.equal(end.harness, true, "a launch that never happened says nothing about the product either");
+  assert.match(end.reason, /0\.4m/);
+  assert.match(end.reason, /SHORTENING THE JOURNEY WOULD NOT HELP/);
+  assert.doesNotMatch(end.reason, /split the journey/, "the repair it must NOT offer");
+});
+
+test("LIFETIME: the no-start floor is a floor, not a re-labelling of every unreported end", () => {
+  // The control: one minute above the floor, the same inputs still classify as the budget end. A
+  // discriminator that swallowed `no-report` would make the split vacuous.
+  const below = classifyDriveEnd({
+    timedOut: false,
+    reportReadable: false,
+    ceilingMinutes: 30,
+    elapsedMinutes: NO_START_FLOOR_MIN - 0.1,
+  });
+  const above = classifyDriveEnd({
+    timedOut: false,
+    reportReadable: false,
+    ceilingMinutes: 30,
+    elapsedMinutes: NO_START_FLOOR_MIN,
+  });
+  assert.equal(below.kind, "no-start");
+  assert.equal(above.kind, "no-report", "at the floor exactly, the budget reading still wins");
+  assert.ok(NO_START_FLOOR_MIN < 6, "the floor sits under the shortest drive ever completed (6.0m)");
+});
+
+test("LIFETIME: a cut-off is judged by the harness's own kill, never by elapsed time", () => {
+  // A drive the runner killed reports `cut-off` even at 0.1m — `timedOut` is observed, the floor is
+  // inferred, and the observed signal must keep winning or a short ceiling would be misread.
+  const end = classifyDriveEnd({ timedOut: true, reportReadable: false, ceilingMinutes: 1, elapsedMinutes: 0.1 });
+  assert.equal(end.kind, "cut-off");
 });
 
 test("LIFETIME: a drive that reported is the ONLY end that says anything about the product", () => {

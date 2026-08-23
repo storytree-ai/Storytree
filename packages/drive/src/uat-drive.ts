@@ -76,6 +76,23 @@ export function resolveUatDriveProvider(raw: string | undefined):
   };
 }
 
+/**
+ * The model a UAT drive runs, named EXPLICITLY on every invocation.
+ *
+ * A drive deliberately inherits the machine's Codex install — its tool surface is a property of the
+ * box, not of this harness (see `uat-drive.run.ts`'s header). What it must NOT inherit is the model
+ * SELECTION, because `~/.codex/config.toml`'s `model = …` is a global belonging to whoever last used
+ * the CLI interactively. Measured 2026-08-24: that key held `gpt-5.6-sol`, which a ChatGPT-account
+ * session cannot run, so the API answered `400 … not supported when using Codex with a ChatGPT
+ * account` and the drive died at 0.4m of a 60-min ceiling having observed nothing — a spend with no
+ * finding, and a red that says nothing about the product.
+ *
+ * Kept EQUAL to the leaf's `DEFAULT_CODEX_MODEL` (one rotation point, pinned by a test) rather than
+ * imported from it: this module is pure and sits on `uat-drive-witness.check.ts`'s load path, so
+ * importing `@storytree/agent` would drag the Anthropic SDK onto a cheap standing gate command.
+ */
+export const UAT_DRIVE_CODEX_MODEL = "gpt-5.6-terra";
+
 /** The Codex final message is the report contract, not a provider-specific event stream. */
 export function codexExecArguments(finalMessagePath: string): string[] {
   return [
@@ -84,6 +101,8 @@ export function codexExecArguments(finalMessagePath: string): string[] {
     "--ask-for-approval",
     "never",
     "exec",
+    "--model",
+    UAT_DRIVE_CODEX_MODEL,
     "--output-last-message",
     finalMessagePath,
     "-",
@@ -1622,7 +1641,15 @@ export function driveScratchDir(tmpRoot: string, runId: string): string {
  * (`no-report`). Both are HARNESS outcomes — a red that tells nobody anything about the product —
  * and ADR-0348's flip increment says to keep those distinct from a real red.
  */
-export type DriveEndKind = "reported" | "cut-off" | "no-report";
+export type DriveEndKind = "reported" | "cut-off" | "no-report" | "no-start";
+
+/**
+ * Below this many minutes a drive cannot have WALKED anything, so its end is a session that never
+ * got going rather than a budget that ran out. The floor is read off the record, not chosen: the
+ * shortest end-to-end drive this harness has ever completed is 6.0m (`desktop` leg 3, 2026-08-13),
+ * and the cheapest journeys still have to build the studio dist and launch Electron first.
+ */
+export const NO_START_FLOOR_MIN = 2;
 
 export interface DriveEnd {
   readonly kind: DriveEndKind;
@@ -1635,13 +1662,16 @@ export interface DriveEnd {
  * PURE: classify how a drive ended, from what the harness OBSERVED rather than from what it hoped.
  *
  * `timedOut` is the runner's own ETIMEDOUT — the harness killed the walk, so whatever the journey
- * would have concluded is unknown and unknowable from here. Everything else with no readable report
- * is a session that ENDED without saying anything: the measured shape is a driver that started a
- * 40-minute poll inside an 11-minute session, so the WALK outlived its own driver.
+ * would have concluded is unknown and unknowable from here. A session with no readable report that
+ * ended before {@link NO_START_FLOOR_MIN} never got going at all (`no-start`); one that ran longer
+ * than that and still said nothing is the measured shape of a driver that started a 40-minute poll
+ * inside an 11-minute session, so the WALK outlived its own driver (`no-report`).
  *
- * Neither is ever a pass. What changes is that neither is reported as a product FAIL either, so the
- * repair a reader reaches for ("raise the ceiling" / "bound the wait" / "split the journey") is the
- * one that actually fixes it.
+ * None is ever a pass. What changes is that none is reported as a product FAIL either, so the repair
+ * a reader reaches for ("raise the ceiling" / "bound the wait" / "split the journey" / "read the
+ * echoed driver output and fix the launch") is the one that actually fixes it. Splitting `no-start`
+ * out of `no-report` is what stops the LAST of those being answered with the third: a drive killed
+ * at 0.4m by a model the subscription cannot run was told to shorten its journey.
  */
 export function classifyDriveEnd(args: {
   readonly timedOut: boolean;
@@ -1661,6 +1691,18 @@ export function classifyDriveEnd(args: {
         "running and never got to report. This is NOT a finding about the product: nothing was observed " +
         `to be wrong. Re-run with STORYTREE_UAT_DRIVE_TIMEOUT_MIN=${Math.ceil(args.ceilingMinutes * 2)} ` +
         "if the journey is genuinely this long, or bound the step that is eating the clock.",
+    };
+  }
+  if (args.elapsedMinutes < NO_START_FLOOR_MIN) {
+    return {
+      kind: "no-start",
+      harness: true,
+      reason:
+        `the drive session DIED after ${args.elapsedMinutes.toFixed(1)}m — under the ${NO_START_FLOOR_MIN}-min ` +
+        "floor below which no journey here has ever been walked, so it never got going rather than running " +
+        "out of budget. This is NOT a finding about the product, and SHORTENING THE JOURNEY WOULD NOT HELP: " +
+        "the cause is in the driver's own output echoed below — an auth, model, config or startup refusal. " +
+        "Read that, fix the launch, re-run the same journey unchanged.",
     };
   }
   return {
@@ -1722,12 +1764,18 @@ export function classifyDriveResidue(
   before: readonly TreeEntry[],
   after: readonly TreeEntry[],
 ): DriveResidue {
-  const seen = new Set(before.map((e) => `${e.code} ${e.path}`));
+  // THE COMPOSITE-KEY SEPARATOR BELOW IS AN ESCAPE, NEVER THE RAW BYTE — the same fault PR #1609
+  // fixed in `packages/library`. A NUL between the status code and the path is deliberate (it stops
+  // the two halves colliding across the join), but written as a literal control character it made
+  // this whole FILE read as BINARY to `grep` / `rg`, which then skip it in SILENCE — so a search for
+  // anything in this module returned nothing, and an empty grep reads as "this does not exist"
+  // rather than "this was never searched". Identical at runtime; the source stays greppable.
+  const seen = new Set(before.map((e) => `${e.code}\u0000${e.path}`));
   const priorPaths = new Set(before.map((e) => e.path));
   const sweep: string[] = [];
   const blocking: string[] = [];
   for (const e of after) {
-    if (seen.has(`${e.code} ${e.path}`)) continue;
+    if (seen.has(`${e.code}\u0000${e.path}`)) continue;
     if (e.code === "??" && !priorPaths.has(e.path)) sweep.push(e.path);
     else blocking.push(e.path);
   }
