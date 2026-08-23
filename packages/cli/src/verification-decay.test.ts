@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import { extractVouchingTestNames } from "@storytree/orchestrator";
 
 import { attributeDecayFindings } from "./decay-attribution.js";
+import { DECISION_SOURCE_DRIFT } from "./decision-source-decay.js";
 import {
   CHARTERED_INSTRUMENTS,
   CONTRACT_BINDING_DRIFT,
@@ -1034,31 +1035,36 @@ describe("chartered coverage: an unswept instrument is a machine fact, not a sou
     const { failed, lines } = formatDecaySweep(runDecaySweep(instruments), instruments);
     const text = lines.join("\n");
     assert.equal(failed, false, "an unbuilt instrument is an absence, not a signal — it must not red");
-    assert.match(text, /chartered coverage: 1\/5/);
+    assert.match(text, /chartered coverage: 1\/6/);
     assert.match(text, /mirror-pair-drift/);
     assert.match(text, /vacuous-proof/);
     assert.match(text, /warn-list-hygiene/);
     assert.match(text, /unproven-seam-default/);
+    assert.match(text, /decision-source-drift/);
     assert.match(text, /Silence over an unswept instrument is not evidence/);
   });
 
   it("reports full coverage once every chartered instrument is registered", () => {
     const instruments = CHARTERED_INSTRUMENTS.map(inst);
     const text = formatDecaySweep(runDecaySweep(instruments), instruments).lines.join("\n");
-    assert.match(text, /chartered coverage: 5\/5/);
+    assert.match(text, /chartered coverage: 6\/6/);
     assert.doesNotMatch(text, /NOT swept/);
   });
 
-  it("the roster is ADR-0252 D1's four cheap instruments plus ADR-0278's fifth", () => {
-    assert.equal(CHARTERED_INSTRUMENTS.length, 5);
+  it("the roster is ADR-0252 D1's four, plus ADR-0278's fifth and ADR-0424's sixth", () => {
+    assert.equal(CHARTERED_INSTRUMENTS.length, 6);
     // The exported slugs must stay JOINED to the roster: an instrument registered under a name the
-    // roster does not carry would sweep while still being reported as NOT swept.
+    // roster does not carry would sweep while still being reported as NOT swept. `DECISION_SOURCE_DRIFT`
+    // is imported from its own module rather than declared here for exactly that reason — the roster
+    // carries the literal (importing the const would cycle, since that module imports `DecayFinding`
+    // from this one), so this assertion is the only thing joining the two spellings.
     for (const slug of [
       CONTRACT_BINDING_DRIFT,
       MIRROR_PAIR_DRIFT,
       VACUOUS_PROOF,
       WARN_LIST_HYGIENE,
       UNPROVEN_SEAM_DEFAULT,
+      DECISION_SOURCE_DRIFT,
     ]) {
       assert.ok(CHARTERED_INSTRUMENTS.includes(slug), `roster is missing ${slug}`);
     }

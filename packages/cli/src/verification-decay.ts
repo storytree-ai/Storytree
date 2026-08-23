@@ -218,6 +218,11 @@ export const CHARTERED_INSTRUMENTS: readonly string[] = [
   // because "a fifth instrument would make it reachable again". The denominator is read from THIS
   // list, so adding a member is the whole change — no prose anywhere states the number.
   "unproven-seam-default",
+  // The SIXTH, chartered by ADR-0424 D5, which puts grounded-claim drift into this family rather
+  // than behind a rung of its own. It is the first member whose subject is the LIBRARY tier instead
+  // of the repo's source — an accepted decision whose anchored code moved — and therefore the first
+  // that dials the store; see `check-verification-decay.ts`'s header for what that changed.
+  "decision-source-drift",
 ];
 
 // ---------------------------------------------------------------------------
