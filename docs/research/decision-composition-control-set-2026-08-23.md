@@ -248,14 +248,18 @@ into the selection rather than testing it.
 
 ### Frontiers deliberately in NEITHER arm
 
-Twenty-four frontiers were read by no window in the declared period and are therefore ineligible — an
-arm could learn nothing from them. Recorded so a later trial cannot quietly recruit one:
+Twenty-four frontiers are in neither arm, for two different reasons, and the reasons are recorded
+apart so a later trial cannot quietly recruit one.
+
+**Twenty-three were read by no window** in the declared period — an arm could learn nothing from them:
 
 ADR-0104, ADR-0111, ADR-0119, ADR-0124, ADR-0132, ADR-0141, ADR-0149, ADR-0151, ADR-0172, ADR-0190,
 ADR-0193, ADR-0197, ADR-0206, ADR-0208, ADR-0224, ADR-0231, ADR-0385, ADR-0399, ADR-0401, ADR-0409,
-ADR-0413, ADR-0416, ADR-0422, ADR-0423.
+ADR-0416, ADR-0422, ADR-0423.
 
-One informative frontier is the unpaired tail and is likewise ineligible.
+**One is the unpaired tail: ADR-0413** (reach 1, walks 0). It IS informative, and it is held out only
+because 109 is odd — assigning it unpaired would silently unbalance the arms. If a later trial widens
+the window and a 110th informative frontier appears, this is the one already waiting to be matched.
 
 ---
 
