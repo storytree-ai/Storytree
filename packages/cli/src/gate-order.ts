@@ -136,6 +136,32 @@ export interface GatePlanStep extends GateStep {
 /*
  * SURVIVAL AUDIT (bounded, authoritative; gate-machinery-audit-arc).
  * Each retained standalone rung has demonstrated a concrete catch and names the escape it blocks:
+ * - pnpm lint — RATCHET MAINTENANCE (anti-slop-adoption-arc inc-07, added 2026-08-24). The rung
+ *   the arc's end-state FOUR held to `gate-machinery-audit-arc`'s inverted burden, and it arrives
+ *   carrying catches rather than a promise.
+ *
+ *   WHAT IT CAUGHT, WHEN, AND WHAT SHIPPED WITHOUT IT. Nine rules reached `error` at zero across
+ *   inc-03/06/11 and inc-08/09/10. Each was enforced only at the moment it landed, because nothing
+ *   ran `pnpm lint` afterwards — not the gate, not CI. The ratchet slipped back every time:
+ *     · 2026-08-23, within 24 h of `no-conditional-empty-object-spread` reaching `error` (inc-11),
+ *       EIGHT fresh violations landed on `main` and `pnpm lint` was exit 1 on `main` with nobody
+ *       aware. That is the finding that motivated this rung and it was found by hand.
+ *     · 2026-08-23/24, across ONE session's three merges from `main`, TWELVE more arrived: one
+ *       `no-known-value-widening` during inc-10, then six `no-conditional-empty-object-spread`
+ *       plus one widening with inc-09's first merge, then two inline anonymous-object return
+ *       annotations and an assertion chain with its second (arriving alongside `library search`).
+ *   Twenty fresh violations of already-adopted rules, all hours old, all on `main`. "What would
+ *   ship without it" is not hypothetical here: it already had, twenty times, in two days.
+ *
+ *   MEASURED COST, not assumed. 2.7 s on a full run over the whole repo (three runs: 2755 / 2671 /
+ *   2682 ms, this box, warm). The arc was explicit that oxlint being written in Rust proves
+ *   nothing, because the JS-plugin path these rules run on is Node and not the Rust fast path —
+ *   so it was measured. It is the CHEAPEST step in the gate, an order of magnitude under the next
+ *   one, and it does not narrow: it lints the whole repo every time, which is what a ratchet needs.
+ *
+ *   WHY A RUNG AND NOT A LOCAL COMMAND. The arc reserved the right to say no, and the honest test
+ *   was whether anything had regressed. Everything had. A rule at `error` in a config nothing runs
+ *   is not a standard, it is a comment.
  * - check:boundaries — FACTORY BOOKKEEPING. Commit 8b588085 caught a real dependency cycle, and
  *   04939391 / PR425 caught undeclared imports; without it invisible cycles and cross-story
  *   coupling ship.
@@ -192,6 +218,13 @@ export interface GatePlanStep extends GateStep {
  */
 export const GATE_PLAN: readonly GatePlanStep[] = [
   // ── A. own-work, seconds ───────────────────────────────────────────────────
+  {
+    command: "pnpm lint",
+    check: undefined,
+    subject: "own-work",
+    cost: "seconds",
+    why: "reds on a fresh violation of any anti-slop rule this repo has already driven to ZERO; the rules are enforced at the moment each landed and this is what stops the ratchet slipping back (anti-slop-adoption-arc inc-07)",
+  },
   {
     command: "pnpm check:boundaries",
     check: "check:boundaries",
