@@ -8,7 +8,7 @@
 //
 // This is that corpus, and the three properties that make it safe are all deliberate:
 //
-//   SMALL     — 20 artifacts, one per shape a suite actually names, rather than a mirror of the
+//   SMALL     — 22 artifacts, one per shape a suite actually names, rather than a mirror of the
 //               219-unit seed it replaces. Nothing here is load-bearing for production.
 //   FROZEN    — it is NOT regenerated from live and NOT reconciled against it. Drift is the intended
 //               state, not a defect: a fixture that tracked live would re-create exactly the
@@ -27,7 +27,13 @@
 // OUTBOUND test needs; `trunk` → `approval-gated-trunk` is the INBOUND back-edge pair;
 // `live-store-is-the-edit-surface` is the doctrine pointer a write-without---pg refusal prints;
 // `merge-ceremony` is kept for its genuinely multi-KB `steps` field (the `--raw` byte-exactness
-// test) and its real `surfaces` prose; `deep-modules` is what the studio UAT searches for. The four
+// test) and its real `surfaces` prose; `deep-modules` is what the studio UAT searches for. The two
+// `adr` rows are the studio UAT's DECISION tier (ADR-0425 dec 4): its walkthrough opens a decision
+// through the Library lens, hops `adr-0013` → `adr-0002` as an in-corpus cross-link, and follows
+// `deep-modules`'s own `asset:adr-0002` source into the decision behind it. They are here because
+// ADR-0403 dec 1 made decisions ordinary artifacts and deleted `docs/decisions/`, so the offline
+// sandbox had NO decision to open at all and that leg of the journey had no subject. Their bodies
+// are deliberately abridged: this is a sandbox seed, not an archive. The four
 // AGENTS are here because `drive` RENDERS them into prompts and its suites must do so without a
 // credential: `session-orchestrator` (orchestrate / chat-stream), `red-builder` + `green-builder`
 // (the leaf's per-phase system prompts, ADR-0051 §4) and `librarian-curator` (the post-build
@@ -110,7 +116,7 @@ export const FIXTURE_CORPUS_UNITS: readonly FixtureUnit[] = [
     "title": "Deep modules",
     "description": "How to judge where a boundary belongs: a module's interface is a cost paid by every caller; its hidden functionality is the benefit. Pay the interface cost only when the hidden work justifies it.",
     "references": [
-      "doc:decisions/0002-work-hierarchy-story-capability-contract.md"
+      "asset:adr-0002"
     ],
     "createdAt": "2026-06-05T00:00:00.000Z",
     "updatedAt": "2026-06-08T00:00:00.000Z",
@@ -480,5 +486,37 @@ export const FIXTURE_CORPUS_UNITS: readonly FixtureUnit[] = [
     "description": "The leaf prove-it-gate is one tool the orchestrator wields, not the whole job: decompose work into provable units, route those to the inner loop in dependency order, and supplement the non-leaf glue with the orchestrator's own subagents.",
     "schemaVersion": 7,
     "provenance": "Frozen fixture subset (ADR-0302 D1) — NOT a mirror of the live store."
+  },
+  {
+    "id": "adr-0002",
+    "kind": "adr",
+    "title": "The work hierarchy — story, capability, contract",
+    "description": "Three tiers — story, capability, contract — with the PROOF MODE as the boundary between them.",
+    "number": 2,
+    "status": "accepted",
+    "decided": "2026-06-03",
+    "body": "# ADR-0002: The work hierarchy — story, capability, contract\n\n## Status\n\naccepted (2026-06-03) — the three tiers and the proof-mode boundary stand. ADR-0010 later moved\nthe integrated UAT up to the story tier; the ladder below already reflects that.\n\n## Context\n\nv1 had a single provable grain, and it was too FINE to double as a system map: the tree fragmented\nto behaviour-sized nodes and the top-level view became a wall of serde-sized cards. The map wants a\ncoarser top unit; prove-it rigor wants a finer one. v1 collapsed both onto one word. storytree\nsplits them into three tiers, and the boundary between tiers is the PROOF MODE.\n\n## Decision\n\nThree tiers, top to bottom:\n\n- **story** — the top-level unit you watch grow, and a node on the DAG the studio renders. A\n  coherent, independently meaningful body of work, composed of capabilities. The map grain: the\n  thing a newcomer points at. Proven as a whole by the integrated UAT walkthrough.\n- **capability** — a component within a story: independently viable, integration-proven against\n  real in-story collaborators, and composed of contracts.\n- **contract** — a single test-proven behaviour within a capability: one automated, isolated test\n  with its collaborators stubbed. The leaf.\n\n## Consequences\n\nBecause the tier boundary IS the proof mode, \"what grain is this?\" and \"how is this proven?\" stop\nbeing two questions. A unit that cannot name its proof mode has not been placed on the hierarchy\nyet.\n",
+    "createdAt": "2026-06-03T00:00:00.000Z",
+    "updatedAt": "2026-06-08T00:00:00.000Z",
+    "references": [],
+    "provenance": "Frozen fixture subset (ADR-0302 D1) — an ABRIDGED stand-in for the live decision, NOT a mirror of it.",
+    "schemaVersion": 7
+  },
+  {
+    "id": "adr-0013",
+    "kind": "adr",
+    "title": "A structured, schema-validated corpus; markdown as a generated view",
+    "description": "The corpus is structured and schema-validated at the write boundary; markdown is a generated view of it, never the source.",
+    "number": 13,
+    "status": "accepted",
+    "decided": "2026-06-06",
+    "body": "# ADR-0013: A structured, schema-validated corpus; markdown as a generated view\n\n## Status\n\naccepted (2026-06-06) — extends ADR-0002's work hierarchy toward its schema encoding. The FORMAT\ncall here was later flipped from YAML to JSON by ADR-0039; the structured-source principle below is\nunchanged and carried by JSON.\n\n## Context\n\nA corpus kept as prose in document containers cannot be validated, queried, or migrated. Every\nreader re-parses the same paragraphs by hand and every writer is free to invent a shape, so drift\nis invisible until something downstream reads the wrong field.\n\nMarkdown is still what a human wants to read. The mistake is treating the readable form as the\nSOURCE.\n\n## Decision\n\nThe corpus is STRUCTURED and schema-validated at the write boundary. Narrative lives in typed\nprose FIELDS, decomposed only where decomposition pays. Markdown is a GENERATED VIEW rendered from\nthose fields — never the thing edited, and never the thing stored.\n\nThe principle is corpus-wide. Decisions convert like anything else: a decision record is one\nraw-rendered `body` field plus the typed state a reader queries (its number, its status, its\nedges).\n\n## Consequences\n\nValidation has one place to happen and one place to fail loudly. A rendered document can always be\nrebuilt from the store, so no generated view is ever the thing to repair — the row is.\n",
+    "createdAt": "2026-06-06T00:00:00.000Z",
+    "updatedAt": "2026-06-08T00:00:00.000Z",
+    "references": [
+      "asset:adr-0002"
+    ],
+    "provenance": "Frozen fixture subset (ADR-0302 D1) — an ABRIDGED stand-in for the live decision, NOT a mirror of it.",
+    "schemaVersion": 7
   }
 ];
