@@ -245,9 +245,16 @@ kind owes a seed export any more.
   OUT OF SCOPE, so **pnpm still installs everything and still owns `pnpm-lock.yaml`; never run
   `bun install`.** Because Bun is a PATH tool rather than a workspace dependency (same class as
   `gcloud` and `gh`), `pnpm install` cannot supply it and the failure names neither Bun nor the fix —
-  it surfaces as `'bun' is not recognized` inside a test step. On this box the binary is already
-  installed at `C:\Users\mickh\.bun\bin\bun.exe` (Bun 1.4.0, ARM64) but that directory is **not on
-  PATH**; add it once. CI needs no such step — `.github/workflows/ci.yml` has a pinned
+  it surfaces as `'bun' is not recognized` inside a test step. **On this box it is WIRED as of
+  2026-08-24** — `C:\Users\mickh\.bun\bin` (Bun 1.4.0, ARM64) is on the persistent Windows USER PATH,
+  so a newly started shell is fine and the old per-command `export` is no longer routine. Two ways
+  you can still meet the old symptom: a process that STARTED BEFORE that change keeps its stale
+  environment (Windows broadcasts PATH to new processes only, so the remedy is a NEW shell — never a
+  re-install and never a second PATH edit), and any OTHER machine, since nothing about this travels.
+  **Ask rather than guess:** `pnpm storytree doctor --dev` carries a `bun` probe (ADR-0433 D3) that
+  INVOKES it rather than stat-ing a path, so it reports the installed-but-unreachable case correctly
+  — which is the case that actually bites. Wiring a machine dependency is ONBOARDING's job now rather
+  than a note's (ADR-0433), and `docs/machine-onboarding.md` §1 lists Bun. CI needs no such step — `.github/workflows/ci.yml` has a pinned
   `oven-sh/setup-bun@v2` step at the same version. Which packages have moved, and the measured
   reason the rest have not, is `docs/research/bun-runtime-probe-2026-08-22.md` — **read it before
   converting anything else; do not re-run the sweep.**
