@@ -120,7 +120,8 @@ function lane(over: Partial<ArcRollup> & { id: string }): ArcRollupSummary {
 }
 
 function question(id: string): ArcRollupQuestion {
-  return { id, title: `Q ${id}`, description: `description ${id}`, stakes: `stakes ${id}` };
+  // ADR-0434 D1 — OPEN by default; a settled fixture states it, so nothing waits by omission.
+  return { id, title: `Q ${id}`, description: `description ${id}`, stakes: `stakes ${id}`, lifecycle: 'open' };
 }
 
 describe('laneBars — bars are UNITS, green landed / grey queued (ADR-0314 D2)', () => {

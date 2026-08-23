@@ -15,6 +15,7 @@ import {
   questionHelp,
   questionIdFromTitle,
   questionNew,
+  questionSettle,
   questionStalenessLine,
   type QuestionWriteDeps,
 } from "./question.js";
@@ -370,4 +371,208 @@ test("questionCommand routes check", async () => {
   const res = await questionCommand("check", "oq-routed-check", writeDeps(store), {});
   assert.equal(res.ok, true, res.body);
   assert.match(res.body, /oq-routed-check — verified 0 days ago/);
+});
+
+// ── ADR-0434 — settling a question ────────────────────────────────────────────────────────────────
+//
+// The defect these pin, measured 2026-08-24: a question had exactly ONE ending, deletion, so an
+// answered one either reported a false wait forever or had its answer destroyed to clear it.
+// `oq-retire-the-amends-edge` sat in the first state for a day carrying "ANSWERED AND EXECUTED" as
+// the first line of its own stakes, and could not be retired because a friction item held an
+// `asset:` edge to it — both endings unavailable at once.
+//
+// What is asserted, in order: the refusals that stop the defect being rebuilt (a settlement with no
+// answer, a second settlement, a decision that does not exist), then the end-to-end pair — a settled
+// question stops the arc waiting AND stays visible on it under its answer. That pair is deliberately
+// ONE test: either half alone is a defect, one being the false wait and the other being exactly the
+// erasure that deleting an answered question already caused.
+
+const ANSWER = "Option A. Every escalation the session ENDS on authors a briefing; an inline approval it acts on in the same turn does not, because that closes with the turn.";
+
+/** Raise the standard briefing question and hand back its derived id. */
+async function raiseQuestion(store: InMemoryStore): Promise<string> {
+  const raised = await questionNew(writeDeps(store), undefined, { arc: ARC_ID, ...BRIEFING });
+  assert.equal(raised.ok, true, raised.body);
+  return "oq-does-escalation-bind-every-ask";
+}
+
+test("question settle refuses offline — a settlement is a write, and questions are live-canonical", async () => {
+  const store = await storeWithArc();
+  const id = await raiseQuestion(store);
+  const env = await questionSettle(writeDeps(store, false), id, { answer: ANSWER });
+  assert.equal(env.ok, false);
+  assert.match(env.body, /--pg/);
+});
+
+test("question settle REFUSES without an answer — the answer is the point, not a formality", async () => {
+  // The whole reason the verb exists rather than a bare `--set lifecycle=settled`: a state flip
+  // carrying no answer stops the arc reporting a false wait and STILL loses why, which is the loss
+  // that retiring an answered question already caused, arrived at more politely.
+  const store = await storeWithArc();
+  const id = await raiseQuestion(store);
+
+  const env = await questionSettle(writeDeps(store), id, {});
+  assert.equal(env.ok, false);
+  assert.match(env.body, /--answer/);
+  assert.match(env.body, /still lose WHY/i);
+
+  // AND NOTHING WAS WRITTEN. A refusal that had already flipped the state would be the defect with
+  // an error message attached.
+  const stored = await store.getDoc(id);
+  assert.equal(docOf(stored!)["lifecycle"], undefined);
+});
+
+test("question settle refuses an id that is not an open-question, and one that is nothing at all", async () => {
+  const store = await storeWithArc();
+  const missing = await questionSettle(writeDeps(store), "oq-nope", { answer: ANSWER });
+  assert.equal(missing.ok, false);
+  assert.match(missing.body, /no open-question "oq-nope"/);
+
+  const wrongKind = await questionSettle(writeDeps(store), ARC_ID, { answer: ANSWER });
+  assert.equal(wrongKind.ok, false);
+  assert.match(wrongKind.body, /is a arc, not an open-question/);
+});
+
+test("question settle is FORWARD-ONLY — a settled question refuses a second settlement", async () => {
+  // Correcting a recorded answer is an ordinary field edit, which leaves the change in the
+  // append-only history. Letting this verb overwrite would make a correction and a fresh settlement
+  // indistinguishable in that log.
+  const store = await storeWithArc();
+  const id = await raiseQuestion(store);
+  const first = await questionSettle(writeDeps(store), id, { answer: ANSWER });
+  assert.equal(first.ok, true, first.body);
+
+  const second = await questionSettle(writeDeps(store), id, { answer: "something else" });
+  assert.equal(second.ok, false);
+  assert.match(second.body, /already settled on 2026-08-06/);
+  assert.ok(
+    second.next?.some((n) => n.includes("--set answer=")),
+    "the refusal points at the edit that DOES correct an answer, not just at the wall",
+  );
+  // The first answer stands — the refusal did not half-apply the second.
+  assert.equal(docOf((await store.getDoc(id))!)["answer"], ANSWER);
+});
+
+test("question settle refuses an --adr that names no decision — a dangling pointer records nothing", async () => {
+  // `question new`'s fence-2 discipline, applied to the settlement: an `asset:` ref that resolves to
+  // nothing passes the regex and satisfies nobody.
+  const store = await storeWithArc();
+  const id = await raiseQuestion(store);
+
+  const env = await questionSettle(writeDeps(store), id, { answer: ANSWER, adr: "9999" });
+  assert.equal(env.ok, false);
+  assert.match(env.body, /no decision adr-9999/);
+  assert.equal(docOf((await store.getDoc(id))!)["lifecycle"], undefined, "refused before the write");
+
+  const notANumber = await questionSettle(writeDeps(store), id, { answer: ANSWER, adr: "soon" });
+  assert.equal(notANumber.ok, false);
+  assert.match(notANumber.body, /decision NUMBER/);
+});
+
+test("question settle records the deciding ADR as a reference, without dropping the ones already there", async () => {
+  const store = await storeWithArc();
+  const id = await raiseQuestion(store);
+  await store.upsertDoc({
+    id: "adr-0434",
+    kind: "adr",
+    doc: {
+      kind: "adr",
+      id: "adr-0434",
+      number: 434,
+      title: "Questions end by recording their answer, not by deletion",
+      description: "ADR-0434 — Questions end by recording their answer, not by deletion",
+      status: "accepted",
+      body: "# ADR-0434\n\n## Status\n\naccepted\n",
+      references: [],
+      createdAt: "2026-08-24",
+      updatedAt: "2026-08-24",
+    },
+  });
+  // A reference that landed BEFORE the settlement — the merge happens inside the write, so this
+  // survives rather than being reverted by an array computed from an earlier read.
+  await store.patchDoc({ id, fields: { references: ["asset:adr-0314"] } });
+
+  const env = await questionSettle(writeDeps(store), id, { answer: ANSWER, adr: "434" });
+  assert.equal(env.ok, true, env.body);
+  assert.deepEqual(docOf((await store.getDoc(id))!)["references"], ["asset:adr-0314", "asset:adr-0434"]);
+});
+
+test("a settled question stops the arc WAITING and stays on it under its answer", async () => {
+  // THE END-TO-END PROOF, and the one that would have caught the 2026-08-24 incident. Both halves
+  // matter and they fail in opposite directions: without the first the arc reports a wait nobody
+  // owes, and without the second clearing the wait would once again cost the record of what cleared
+  // it — which is exactly what retiring an answered question did.
+  const root = mkdtempSync(path.join(tmpdir(), "question-settle-"));
+  const storiesDir = path.join(root, "stories");
+  mkdirSync(storiesDir);
+  try {
+    const store = await storeWithArc();
+    const viewDeps: ArcViewDeps = { store, storiesDir, pg: true, now: "2026-08-06T00:00:00.000Z" };
+    const id = await raiseQuestion(store);
+
+    const waiting = await arcCommand("show", ARC_ID, viewDeps);
+    assert.doesNotMatch(waiting.body, /not waiting on the owner/);
+
+    const settled = await questionSettle(writeDeps(store), id, { answer: ANSWER });
+    assert.equal(settled.ok, true, settled.body);
+
+    const after = await arcCommand("show", ARC_ID, viewDeps);
+    // (a) the arc is no longer waiting — the false-wait half.
+    assert.match(after.body, /\(none — this arc is not waiting on the owner\)/);
+    // (b) and the question did NOT vanish with the wait — the erasure half.
+    assert.match(after.body, /## Settled questions {2}\(1 — answered; no longer waiting\)/);
+    assert.match(after.body, /\[settled 2026-08-06\]/);
+    assert.match(after.body, /Option A\. Every escalation the session ENDS on authors a briefing/);
+    // The park-lease line belongs to an unverified OPEN claim; a settled question makes none.
+    assert.doesNotMatch(after.body, /verified 0 days ago/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("question settle stamps the lifecycle, the answer and the settlement time — and nothing else", async () => {
+  const store = await storeWithArc();
+  const id = await raiseQuestion(store);
+  const before = docOf((await store.getDoc(id))!);
+
+  const env = await questionSettle(writeDeps(store), id, { answer: ANSWER });
+  assert.equal(env.ok, true, env.body);
+
+  const after = docOf((await store.getDoc(id))!);
+  assert.equal(after["lifecycle"], "settled");
+  assert.equal(after["answer"], ANSWER);
+  assert.equal(after["settledAt"], "2026-08-06T00:00:00.000Z");
+  // The briefing the question was authored with is untouched — a settlement RECORDS, it never
+  // rewrites what was asked. `patchDoc` is what makes that structural rather than careful.
+  for (const field of ["stakes", "statement", "context", "options", "arcRef", "createdAt"]) {
+    assert.equal(after[field], before[field], `settling must not touch ${field}`);
+  }
+});
+
+test("question check offers SETTLE and RETIRE as different acts, not one 'moot / answered' door", async () => {
+  // ADR-0434 D5. Collapsing the two is how an answered question ended up disposed of by a delete
+  // that took its answer with it: the two verbs answer different questions about the same row.
+  const store = await storeWithArc();
+  const id = await raiseQuestion(store);
+  // Expire the lease so `question check` renders its full offer set.
+  const expired = await questionCheck({ store, writable: true, now: "2027-01-01T00:00:00.000Z", pg: true }, id);
+  assert.equal(expired.ok, true, expired.body);
+  const offers = (expired.next ?? []).join("\n");
+  assert.match(offers, /question settle .+ANSWERED/);
+  assert.match(offers, /artifact retire .+MOOT/);
+});
+
+test("question help names settle, and says which of the two endings applies", () => {
+  const env = questionHelp();
+  assert.match(env.body, /storytree question settle <id> --answer/);
+  assert.match(env.body, /--answer is REQUIRED/);
+  // The distinction a reader most needs, said where they are already looking.
+  assert.match(env.body, /Retiring an ANSWERED question destroys the answer with it/);
+});
+
+test("an unknown question verb lists settle among the ways out", async () => {
+  const store = await storeWithArc();
+  const env = await questionCommand("frobnicate", undefined, writeDeps(store), {});
+  assert.equal(env.ok, false);
+  assert.match(env.body, /`settle <id>`/);
 });

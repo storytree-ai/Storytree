@@ -61,9 +61,17 @@ import { defaultCliActor, type Envelope } from "@storytree/drive";
  *     [--analogy <text|@file>] [--diagram <text|@file>] [--recommendation <text|@file>]
  *     [--description <text|@file>] --pg
  *
- * Reading stays where it already is (`library artifact list open-question --pg`), and answering is
- * out of scope by decision, not omission: ADR-0267 D6 / ADR-0314 D9 keep this round READ-ONLY, so the
- * owner answers by prompting an agent, and this verb only ever opens a question.
+ *   storytree question settle <id> --answer <text|@file> [--adr <n>] --pg
+ *
+ * Reading stays where it already is (`library artifact list open-question --pg`).
+ *
+ * ADR-0434 ADDED THE TERMINAL VERB, AND IT DOES NOT DISTURB ADR-0314 D9. That decision keeps the
+ * STUDIO ARC SURFACE read-only — "no comment affordance, no answering in place, no write path" — and
+ * says the owner answers by prompting an agent. `settle` is the agent writing that answer down, which
+ * is the flow D9 describes rather than an exception to it: the owner still does not answer through a
+ * surface. What is no longer true is the sentence this header used to carry, that the verb "only ever
+ * opens a question" — it now also closes one, because leaving no way to close one is what made every
+ * answered question either a permanent false wait or a delete that destroyed its own answer.
  */
 
 /** The `oq-` prefix the open-question ids carry (`oq-diff-view-altitude`, `oq-studio-store-default`). */
@@ -460,9 +468,221 @@ export async function questionCheck(deps: QuestionWriteDeps, id: string | undefi
           `storytree library artifact ${questionId} --pg   (read the claim, re-check it)`,
           `storytree library artifact edit ${questionId} --set verifiedAt=<iso-now> --pg   (re-lease, unchanged)`,
           `storytree library artifact edit ${questionId} --set <field>=<value> --pg   (correct in place, drifted)`,
-          `storytree library artifact retire ${questionId} --reason "<why>" --pg   (moot / answered)`,
+          // ADR-0434 D5 split what used to be one offer reading "(moot / answered)". Those are
+          // different acts with different terminal verbs, and collapsing them is how an answered
+          // question ended up being disposed of by a delete that took its answer with it.
+          `storytree question settle ${questionId} --answer <text|@file> --pg   (ANSWERED — record what it decided)`,
+          `storytree library artifact retire ${questionId} --reason "<why>" --pg   (MOOT — no answer to record)`,
         ]
       : [`storytree library artifact ${questionId} --pg`],
+  };
+}
+
+/** The fields `question settle` takes (ADR-0434 D2). */
+export interface QuestionSettleOpts {
+  /** What the settlement RECORDS. `@path`-expandable; the verb refuses without it. */
+  answer?: string | undefined;
+  /** The decision that carries the answer, as a bare number — `--adr 434`. */
+  adr?: string | undefined;
+}
+
+const SETTLE_USAGE = "storytree question settle <id> --answer <text|@file> [--adr <n>] --pg";
+
+/** `adr-0434` from `434` — the id shape the decision rows carry. */
+function adrIdFromNumber(n: number): string {
+  return `adr-${String(n).padStart(4, "0")}`;
+}
+
+/**
+ * `storytree question settle <id> --answer <text|@file> [--adr <n>]` — ADR-0434's terminal verb: the
+ * one that ENDS a question by recording what it was answered with.
+ *
+ * ## Why this exists at all
+ *
+ * Before it, a question had exactly one ending — deletion — and both available outcomes were wrong.
+ * Leaving the row standing meant the owning arc reported `waiting` forever, because that flag was a
+ * presence count (`questions.length > 0`) that structurally could not tell an answered question from
+ * an unanswered one. Retiring the row cleared the wait by destroying the answer with it: measured in
+ * `retiring-an-answered-question-orphans-the-prose-that-raised-it`, the arc afterwards showed no
+ * trace of either the question or what it decided, while prose elsewhere still pointed at the deleted
+ * id. On 2026-08-24 `oq-retire-the-amends-edge` had been answered and executed for a day, could not
+ * be retired (a friction item holds an `asset:` edge to it, and the retire gate rightly refuses over
+ * live dependents), and so sat reporting a false wait with "ANSWERED AND EXECUTED" as the first line
+ * of its own stakes field. That is the incident this verb closes.
+ *
+ * ## The one fence, and why it is not negotiable
+ *
+ * **`--answer` is REQUIRED.** A bare state flip would stop the arc lying about who it is waiting on
+ * while still losing WHY — the same loss retirement already caused, arrived at more politely. The
+ * answer is the entire content of the settlement; the lifecycle bit is just what makes it queryable.
+ * `arc increment close` holds the identical line for the identical reason (ADR-0305 D2: a closure
+ * that is not a landing must not be able to read as one).
+ *
+ * `--adr` is optional and resolved before the write, on `question new`'s fence-2 discipline: a
+ * dangling `asset:` pointer passes the ref regex and satisfies nothing, so a decision that does not
+ * exist is refused rather than recorded. It is appended to `references` INSIDE the patch's validate
+ * callback, against the merged doc — so a reference some other session added between this read and
+ * this write survives, which computing the array out here would silently drop.
+ *
+ * FORWARD-ONLY: a settled question refuses to be re-settled. Correcting an answer is an ordinary
+ * field edit (`library artifact edit <id> --set answer=@path --pg`), which leaves the append-only
+ * history a reader can follow; letting this verb overwrite would make a correction and a fresh
+ * settlement indistinguishable in the log.
+ *
+ * DELETION SURVIVES, narrowed (ADR-0434 D5): `library artifact retire` remains right for a question
+ * that was WRONG, misconceived or withdrawn — the case with no answer to record. It is no longer the
+ * way to dispose of one that was answered.
+ */
+export async function questionSettle(
+  deps: QuestionWriteDeps,
+  id: string | undefined,
+  opts: QuestionSettleOpts,
+): Promise<Envelope> {
+  if (!deps.writable) return questionNotWritable("settle");
+
+  const questionId = id?.trim().replace(/^asset:/, "") ?? "";
+  if (questionId === "") {
+    return {
+      ok: false,
+      body: "storytree question settle <id> --answer <text|@file> --pg — which question?",
+      next: [SETTLE_USAGE, "storytree library artifact list open-question --pg"],
+    };
+  }
+
+  const doc = await deps.store.getDoc(questionId);
+  if (!doc || doc.kind !== "open-question") {
+    return {
+      ok: false,
+      body: doc
+        ? `"${questionId}" is a ${doc.kind}, not an open-question.`
+        : `no open-question "${questionId}"${deps.pg ? "" : " in the OFFLINE seed — questions are live-canonical; try --pg"}.`,
+      next: ["storytree library artifact list open-question --pg"],
+    };
+  }
+
+  const current = doc.doc as { lifecycle?: string; settledAt?: string; arcRef?: string };
+  if (current.lifecycle === "settled") {
+    const when = current.settledAt !== undefined ? ` on ${current.settledAt.slice(0, 10)}` : "";
+    return {
+      ok: false,
+      body: [
+        `${questionId} is already settled${when} — settling is forward-only, so this refuses rather than overwriting the answer on record.`,
+        "",
+        "Correcting what it recorded is an ordinary field edit, which leaves the change in the",
+        "append-only history where a later reader can follow it.",
+      ].join("\n"),
+      next: [
+        `storytree library artifact ${questionId} --pg   (read the answer on record)`,
+        `storytree library artifact edit ${questionId} --set answer=@answer.txt --pg   (correct it in place)`,
+        `storytree library artifact history ${questionId} --pg`,
+      ],
+    };
+  }
+
+  const answer = opts.answer?.trim() ?? "";
+  if (answer === "") {
+    return {
+      ok: false,
+      body: [
+        "question settle needs the answer it is recording:",
+        "  --answer <what was decided, and why>",
+        "",
+        "This is the whole point of the verb, not a formality. Flipping the state without recording",
+        "the answer would stop the arc reporting a false wait and still lose WHY — which is the loss",
+        "that retiring an answered question already caused. Long prose: @path reads the value from a",
+        "file, so newlines survive the shell.",
+      ].join("\n"),
+      next: [SETTLE_USAGE, `storytree library artifact ${questionId} --pg   (read what was asked)`],
+    };
+  }
+
+  // Resolve `--adr` BEFORE the write (the `question new` fence): a dangling decision pointer passes
+  // the ref regex and surfaces nothing, so refuse rather than record one.
+  let adrRef: string | undefined;
+  const adrRaw = opts.adr?.trim().replace(/^adr-?/i, "") ?? "";
+  if (adrRaw !== "") {
+    const parsed = Number.parseInt(adrRaw, 10);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      return {
+        ok: false,
+        body: `--adr takes a decision NUMBER (e.g. --adr 434); got "${opts.adr ?? ""}".`,
+        next: [SETTLE_USAGE],
+      };
+    }
+    const adrId = adrIdFromNumber(parsed);
+    const adrDoc = await deps.store.getDoc(adrId);
+    if (!adrDoc || adrDoc.kind !== "adr") {
+      return {
+        ok: false,
+        body: adrDoc
+          ? `"${adrId}" is a ${adrDoc.kind}, not a decision.`
+          : `no decision ${adrId}${deps.pg ? "" : " in the OFFLINE seed — decisions are live-canonical; try --pg"}. A settlement pointing at a decision that does not exist records nothing, so this refuses.`,
+        next: ["storytree adr list --current --pg", SETTLE_USAGE],
+      };
+    }
+    adrRef = `asset:${adrId}`;
+  }
+
+  let saved: Awaited<ReturnType<typeof deps.store.patchDoc>>;
+  try {
+    saved = await deps.store.patchDoc({
+      id: questionId,
+      kind: "open-question",
+      fields: {
+        lifecycle: "settled",
+        settledAt: deps.now,
+        answer,
+        updatedAt: deps.now,
+      },
+      actor: deps.actor ?? defaultCliActor(),
+      // The reference is appended against the MERGED doc, inside the write — see the header. Reading
+      // `references` from our own copy above and passing the whole array as a field would revert any
+      // reference landed in between, which is the lost update `patchDoc` exists to prevent.
+      validate: (merged) => {
+        if (adrRef === undefined) return upcastAndValidate(merged);
+        const bag = merged as Record<string, unknown>;
+        const existing = Array.isArray(bag.references)
+          ? bag.references.filter((r): r is string => typeof r === "string")
+          : [];
+        if (existing.includes(adrRef)) return upcastAndValidate(merged);
+        return upcastAndValidate({ ...bag, references: [...existing, adrRef] });
+      },
+    });
+  } catch (e) {
+    return {
+      ok: false,
+      body: `that would not be a valid settled question:\n${(e as Error).message}`,
+      next: [SETTLE_USAGE],
+    };
+  }
+  if (saved === null) {
+    return {
+      ok: false,
+      body: `open-question "${questionId}" was retired while it was being settled — nothing was written.`,
+      next: ["storytree library artifact list open-question --pg"],
+    };
+  }
+
+  const arc = current.arcRef?.replace(/^asset:/, "") ?? "";
+  return {
+    ok: true,
+    body: [
+      `settled ${questionId}${adrRef !== undefined ? ` (recorded by ${adrRef.replace(/^asset:/, "")})` : ""}`,
+      "",
+      "## The answer",
+      answer,
+      "",
+      arc === ""
+        ? "This question is homed on no arc, so no arc's waiting state changes — which is its own"
+        : `${arc} no longer counts this question as waiting on the owner. The question STAYS on the`,
+      arc === ""
+        ? "problem (ADR-0314 D5): an unhomed question surfaces nowhere."
+        : "arc, rendered under the answer above — settling records a decision, it does not erase one.",
+    ].join("\n"),
+    next: [
+      ...(arc === "" ? [] : [`storytree arc show ${arc} --pg`]),
+      `storytree library artifact ${questionId} --pg`,
+    ],
   };
 }
 
@@ -480,6 +700,17 @@ export function questionHelp(): Envelope {
       "",
       "  storytree question check <id> --pg   — ADR-0358: is this question's claim still fresh, or",
       "         has its lease expired? Read-only; re-verify via `library artifact edit --set` / `retire`.",
+      "",
+      "  " + SETTLE_USAGE,
+      "         — ADR-0434: END a question by RECORDING what it was answered with. The arc stops",
+      "         counting it as waiting, and the question STAYS on the arc under its answer.",
+      "         --answer is REQUIRED: a bare state flip would stop the arc lying about who it waits",
+      "         on and still lose why, which is what deleting an answered question already did.",
+      "         Forward-only — correct a recorded answer with `library artifact edit --set answer=`.",
+      "",
+      "  Answered vs. WRONG. `settle` is for a question that got an answer; `library artifact retire",
+      "  <id> --reason \"…\" --pg` remains right for one that was misconceived or withdrawn, where",
+      "  there is no answer to record. Retiring an ANSWERED question destroys the answer with it.",
       "",
       "An orchestrator that escalates MUST author one of these: escalating in chat alone is not",
       "sufficient, because the arc surface derives what is WAITING ON THE OWNER by querying these",
@@ -512,14 +743,15 @@ export async function questionCommand(
   sub: string | undefined,
   third: string | undefined,
   deps: QuestionWriteDeps,
-  opts: QuestionNewOpts,
+  opts: QuestionNewOpts & QuestionSettleOpts,
 ): Promise<Envelope> {
   if (sub === undefined || sub === "help") return questionHelp();
   if (sub === "new") return questionNew(deps, third, opts);
   if (sub === "check") return questionCheck(deps, third);
+  if (sub === "settle") return questionSettle(deps, third, opts);
   return {
     ok: false,
-    body: `unknown question command "${sub}". Verbs: \`new\`, \`check <id>\`; reading is \`storytree library artifact list open-question --pg\`.`,
-    next: [USAGE, "storytree library artifact list open-question --pg"],
+    body: `unknown question command "${sub}". Verbs: \`new\`, \`check <id>\`, \`settle <id>\`; reading is \`storytree library artifact list open-question --pg\`.`,
+    next: [USAGE, SETTLE_USAGE, "storytree library artifact list open-question --pg"],
   };
 }

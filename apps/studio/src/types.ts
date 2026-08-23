@@ -1216,6 +1216,20 @@ export interface ArcRollupQuestion {
   title: string;
   description: string;
   stakes: string;
+  /**
+   * Whether this question is still waiting on the owner (ADR-0434 D1/D3).
+   *
+   * NORMALISED SERVER-SIDE — the stored field is optional and absent means `open`, and the rollup
+   * resolves that once before the row reaches the wire, so this is always one of the two values.
+   * The panel filters on it: before ADR-0434 the arc's `waiting` was a presence count over this
+   * array, so a question that had been answered still read as something the owner owed an answer to,
+   * and the only way to clear it was to delete the question along with its answer.
+   */
+  lifecycle: 'open' | 'settled';
+  /** What the settlement recorded. Present only on a settled question (ADR-0434 D2). */
+  answer?: string;
+  /** When the settlement was recorded. Present only on a settled question. */
+  settledAt?: string;
 }
 
 /** One arc plus everything derived from its children — the wire mirror of drive's `ArcRollup`. */

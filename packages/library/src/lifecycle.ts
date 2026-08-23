@@ -16,7 +16,14 @@ export type Lifecycle = "open" | "active" | "archived";
 export interface LifecycleDoc {
   route?: string | null | undefined;
   status?: string | null | undefined;
-  /** An `arc`'s stored closure flag (ADR-0239 D1): absent/`active` → active, `closed` → archived. */
+  /**
+   * A stored lifecycle flag, shared by the two kinds that have one and read per-kind below:
+   * an `arc`'s closure flag (ADR-0239 D1: absent/`active` → active, `closed`/`parked` → archived),
+   * and an `open-question`'s settlement flag (ADR-0434 D1: absent/`open` → open, `settled` →
+   * archived). One field, because the two vocabularies never meet — the `kind` selects the branch
+   * before the value is read, so widening this to a per-kind union would buy no safety here and
+   * would push a cast onto every caller.
+   */
   lifecycle?: string | null | undefined;
 }
 
@@ -70,7 +77,21 @@ export function lifecycleOf(kind: string, doc: LifecycleDoc): Lifecycle {
     // an arc, whose open/closed state is the entry's own `realized` field and is read there — an
     // ArcProposal is not a doc, so it never reaches this projection.
     case "open-question":
-      return "open";
+      // ADR-0434 D4 — the stored settlement flag, read through THIS projection and no other
+      // (ADR-0196 D4). Until it existed this branch was a hardcoded `return "open"`: the identical
+      // placeholder the `arc` branch below carried before ADR-0239 gave it a field, one case-arm
+      // apart. A question could therefore project to nothing but `open`, so under ADR-0197's
+      // three-state selector (which DEFAULTS to `open`) an answered question was not merely
+      // mislabelled on its arc — it was unfilterable everywhere and sat permanently on the default
+      // shelf.
+      //
+      // `settled` => `archived` because the triad answers ONE question — is this on the worklist —
+      // and an answered question is off it, exactly as a closed arc is. There is no `active` arm:
+      // ADR-0196 D1's row for this kind leaves the middle column empty, since a question is not work
+      // in flight. Absent degrades to `open`, so the projection never invents a settlement it cannot
+      // read — the same rule the `arc` branch applies to a missing closure flag, and what keeps
+      // ADR-0434 D1's zero-migration promise honest for every pre-decision question.
+      return doc.lifecycle === "settled" ? "archived" : "open";
 
     case "arc":
       // ADR-0239 D1 — the stored closure flag, read through THIS projection and no other (D4 of
