@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import { adrNumberOfArtifactId, hasDependsOnKey, readDependsOnPointers } from "@storytree/library";
+import { adrDescriptionOf } from "@storytree/library/adr-doc";
 import type { Store } from "@storytree/storage-protocol";
 
 import { AdrStatus, parseAdrFrontmatter, type AdrMeta } from "./adr-frontmatter.js";
@@ -167,12 +168,37 @@ export interface StoreAdrMetasResult extends LoadTitledAdrMetasResult {
    * a decision render and cite as one number while being addressed as another.
    */
   numberMismatches: string[];
+  /**
+   * Rows whose stored `description` disagrees with what the write path derives from their title —
+   * one FAIL line each. `adr-description-identity`'s input, the same shape as
+   * {@link numberMismatches} and for the same reason: the raw row is the only place the field is
+   * legible, and {@link TitledAdrMeta} deliberately does not carry it.
+   *
+   * ## WHY IT IS REACHABLE AT ALL
+   *
+   * `adr push` DERIVES the description — it writes `adrDescriptionOf(number, <H1 title>)` and never
+   * parses a stored one (`adr-round-trip.ts`). The FIELD-SCOPED path does not: since ADR-0352 a
+   * `library artifact edit adr-NNNN --set title=... --pg` writes exactly the field it names, merged
+   * onto current state, so it moves the title and leaves the description naming the old one.
+   *
+   * FOUND BY ACCIDENT, WHICH IS THE POINT. `decision-log-readers-arc` increment 07 pushed 318
+   * decision bodies through the round trip asserting per row that only `body` changed; three rows —
+   * adr-0296, adr-0395, adr-0405 — tripped it, because the push silently CORRECTED a description
+   * that had been stale since an earlier `--set title=`. Nothing was watching, and the only thing
+   * that repaired them was a body edit that happened to pass through.
+   *
+   * The drift matters because `description` is not decoration: it is the line `adr list`, the
+   * Library's Decisions shelf and every artifact card render. A row whose description names a
+   * superseded title reads as a DIFFERENT decision than it is.
+   */
+  descriptionMismatches: string[];
 }
 
 export async function loadTitledAdrMetasFromStore(store: Store): Promise<StoreAdrMetasResult> {
   const adrs: TitledAdrMeta[] = [];
   const parseErrors: string[] = [];
   const numberMismatches: string[] = [];
+  const descriptionMismatches: string[] = [];
   let rows: readonly { id: string; doc: unknown }[];
   try {
     rows = await store.queryDocs({ kind: "adr" });
@@ -185,6 +211,7 @@ export async function loadTitledAdrMetasFromStore(store: Store): Promise<StoreAd
       parseErrors: [`decision rows unreadable: ${err instanceof Error ? err.message : String(err)}`],
       unreadable: true,
       numberMismatches: [],
+      descriptionMismatches: [],
     };
   }
   for (const row of rows) {
@@ -215,6 +242,28 @@ export async function loadTitledAdrMetasFromStore(store: Store): Promise<StoreAd
     const arcRef = bag["arcRef"];
     const decided = bag["decided"];
     const title = typeof bag["title"] === "string" ? bag["title"] : row.id;
+    // `description` must be the title carrying its label — see {@link StoreAdrMetasResult}. Compared
+    // against the SAME `title` local the meta is built from, so the rung can never disagree with the
+    // view a reader is looking at.
+    //
+    // A NON-STRING description is reported rather than skipped. The `adr` schema types it
+    // `z.string()`, so absence is unreachable through a validated write and a row carrying anything
+    // else got there some other way — and skipping it is the vacuous-green shape this whole file is
+    // organised against: the one row nobody can render would be the one row nothing checks.
+    const storedDescription = bag["description"];
+    const expectedDescription = adrDescriptionOf(number, title);
+    if (typeof storedDescription !== "string") {
+      descriptionMismatches.push(
+        `${row.id} has no string description (found ${JSON.stringify(storedDescription)}); ` +
+          `it must read ${JSON.stringify(expectedDescription)}.`,
+      );
+    } else if (storedDescription !== expectedDescription) {
+      descriptionMismatches.push(
+        `${row.id} describes itself as ${JSON.stringify(storedDescription)}, but its title makes ` +
+          `that ${JSON.stringify(expectedDescription)} — a \`--set title=\` moved one and not the ` +
+          "other (ADR-0352). Re-push the document, or correct `description` to match.",
+      );
+    }
     // ANNOTATED local, then one guarded assignment per optional — the shape
     // `anti-slop/no-conditional-empty-object-spread` requires. The annotation is LOAD-BEARING: an
     // un-annotated literal would infer a type without the three optionals, and the excess-property
@@ -249,5 +298,5 @@ export async function loadTitledAdrMetasFromStore(store: Store): Promise<StoreAd
     adrs.push(meta);
   }
   adrs.sort((a, b) => a.number - b.number);
-  return { adrs, parseErrors, unreadable: false, numberMismatches };
+  return { adrs, parseErrors, unreadable: false, numberMismatches, descriptionMismatches };
 }

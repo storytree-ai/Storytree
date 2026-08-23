@@ -240,3 +240,54 @@ test("END TO END: a decision pointer at a NON-decision is a declared floor, not 
   assert.equal(verdict.decisionDependsOnEdges, 0, "none of the three is a walkable decision edge");
   assert.equal(verdict.maxDepth, 2, "so the depth stops at 0419, and says why");
 });
+
+// ---- description identity (`adr-description-identity`'s input) --------------------------------
+
+test("a row whose description disagrees with its title is REPORTED, and a clean corpus reports none", async () => {
+  // The loader is where this is legible at all: `TitledAdrMeta` carries the title but deliberately
+  // not the description, so the raw row is the only place the two can be compared. Same shape as
+  // `numberMismatches` — pre-computed FAIL lines, because the rung one layer up has no row to read.
+  const store = new InMemoryStore();
+  await seedDecision(store, 100);
+  await seedDecision(store, 101, { title: "The title it has now" });
+
+  const res = await loadTitledAdrMetasFromStore(store);
+  assert.equal(res.descriptionMismatches.length, 1, "only the row whose title moved is reported");
+  assert.match(res.descriptionMismatches[0] ?? "", /adr-0101/);
+  assert.match(
+    res.descriptionMismatches[0] ?? "",
+    /ADR-0101 — The title it has now/,
+    "the line says what the description SHOULD read, so the fix needs no second lookup",
+  );
+
+  // The row still loads, and under its real title. A drifted description is a defect worth a red;
+  // a decision that vanishes from the corpus is a bigger one.
+  assert.equal(res.adrs.length, 2);
+  assert.equal(res.adrs.find((a) => a.number === 101)?.title, "The title it has now");
+});
+
+test("a row carrying no string description is reported rather than skipped", async () => {
+  // The `adr` schema types `description` as `z.string()`, so absence is unreachable through a
+  // validated write — which is exactly why skipping it would be the vacuous green: the one row
+  // nobody can render would be the one row nothing checks.
+  const store = new InMemoryStore();
+  await seedDecision(store, 102, { description: undefined });
+
+  const res = await loadTitledAdrMetasFromStore(store);
+  assert.equal(res.descriptionMismatches.length, 1);
+  assert.match(res.descriptionMismatches[0] ?? "", /no string description/);
+});
+
+test("an UNREADABLE store reports no description mismatches, and says so as unreadable", async () => {
+  // The fail-soft that must not read as clean. Zero mismatches from a store nobody could read is
+  // the same confident-wrong answer `unreadable` exists to separate from an honest zero.
+  const store = new InMemoryStore();
+  const broken = {
+    ...store,
+    queryDocs: () => Promise.reject(new Error("connection refused")),
+  } as unknown as InMemoryStore;
+
+  const res = await loadTitledAdrMetasFromStore(broken);
+  assert.equal(res.unreadable, true);
+  assert.deepEqual(res.descriptionMismatches, []);
+});

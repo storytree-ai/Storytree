@@ -65,7 +65,7 @@ async function main(): Promise<number> {
 
   try {
     const store = new PgLibraryStore(handle.pool);
-    const { adrs, parseErrors, unreadable, numberMismatches } =
+    const { adrs, parseErrors, unreadable, numberMismatches, descriptionMismatches } =
       await loadTitledAdrMetasFromStore(store);
     if (unreadable) {
       process.stdout.write(
@@ -140,6 +140,7 @@ async function main(): Promise<number> {
       adrs,
       parseErrors,
       numberMismatches,
+      descriptionMismatches,
       stories,
       guardrails,
       decisionBodies,
