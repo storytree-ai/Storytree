@@ -88,3 +88,8 @@ No per-step map yet — pull these context ceremonies just-in-time, at the step 
 - `storytree library artifact prove-it-gate`
 - `storytree library artifact render-and-witness-a-flag-guarded-surface`
 - `storytree library artifact art-asset-designer-swarm`
+- `storytree library artifact never-chain-type-assertions`
+- `storytree library artifact never-mock-a-module-name-the-seam`
+- `storytree library artifact never-hide-omission-in-an-empty-spread`
+- `storytree library artifact never-widen-a-value-you-already-know`
+- `storytree library artifact five-typescript-constructs-this-house-never-writes`
