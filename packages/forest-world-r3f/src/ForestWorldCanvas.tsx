@@ -20,18 +20,26 @@ import { Canvas } from '@react-three/fiber';
 import { Instance, Instances, Line, MapControls } from '@react-three/drei';
 import type { InstanceDescriptor, Descriptor3D } from './world-to-3d.js';
 
-/** Status-variant → placeholder colour (spike palette, not art direction). */
-const STATUS_COLOUR: Record<string, string> = {
-  healthy: '#4f9d5d',
-  mapped: '#5d8fa8',
-  building: '#7f8fd1',
-  proposed: '#c2b280',
-  unhealthy: '#8a5a44',
-  unknown: '#9a9a9a',
-};
+/** Status-variant → placeholder colour (spike palette, not art direction).
+ *
+ *  A `ReadonlyMap` rather than a `Record<string, string>`: `InstanceDescriptor.material` is an open
+ *  `string`, so this is a LOOKUP with a computed key and the key type carries no knowledge to
+ *  discard — which is what `anti-slop/no-known-value-widening` fires on. The Map states the same
+ *  thing without the widening annotation AND adds an immutability fence the object literal never
+ *  had; the rule's classifier does not treat `ReadonlyMap` as a widening target. */
+const STATUS_COLOUR: ReadonlyMap<string, string> = new Map([
+  ['healthy', '#4f9d5d'],
+  ['mapped', '#5d8fa8'],
+  ['building', '#7f8fd1'],
+  ['proposed', '#c2b280'],
+  ['unhealthy', '#8a5a44'],
+  ['unknown', '#9a9a9a'],
+]);
+
+const UNKNOWN_COLOUR = '#9a9a9a';
 
 const colourOf = (material: string | undefined): string =>
-  STATUS_COLOUR[material ?? 'unknown'] ?? STATUS_COLOUR['unknown']!;
+  STATUS_COLOUR.get(material ?? 'unknown') ?? UNKNOWN_COLOUR;
 
 const byKind = (descriptors: readonly Descriptor3D[], kind: InstanceDescriptor['kind']) =>
   descriptors.filter((d): d is InstanceDescriptor => d.kind === kind);
@@ -124,12 +132,19 @@ export interface ForestWorldCanvasProps {
   showTrails?: boolean;
 }
 
-/** Frame the whole world on load: the instance centroid is the MapControls target
- *  and the camera backs off proportionally to the world's spread. */
-function frameWorld(instances: InstanceDescriptor[]): {
+/** Where the camera sits and what it looks at — a `[x, y, z]` pair the drei `MapControls` reads.
+ *  Named rather than written inline on {@link frameWorld}'s return, because
+ *  `anti-slop/no-known-value-widening` reads an anonymous object return annotation as discarded
+ *  type evidence and inc-08's refactor panel settled the fork toward NAMING rather than deleting
+ *  (deleting it would infer the tuples as `number[]` and break the drei props). */
+interface CameraFraming {
   target: [number, number, number];
   position: [number, number, number];
-} {
+}
+
+/** Frame the whole world on load: the instance centroid is the MapControls target
+ *  and the camera backs off proportionally to the world's spread. */
+function frameWorld(instances: InstanceDescriptor[]): CameraFraming {
   if (instances.length === 0) return { target: [0, 0, 0], position: [0, 260, 260] };
   let sx = 0;
   let sz = 0;
