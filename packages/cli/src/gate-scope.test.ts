@@ -58,7 +58,7 @@ test("the LOCAL gate honours CI's FULL triggers — one classifier, or a local p
   // ever stopped delegating, these are the cases a hand-rolled local rule would get wrong.
   for (const [file, why] of [
     ["pnpm-lock.yaml", "the lockfile is a repo-wide input"],
-    ["scripts/check-manifest.mjs", "scripts/** is read by all 25 projects (the tsx preload)"],
+    ["scripts/check-manifest.mjs", "scripts/** has no re-measured reader set, so it fails wide"],
     ["README.md", "a root file with no measured reader stays wide"],
     ["package.json", "a manifest is an input of the selection graph itself"],
     ["packages/cli/package.json", "a workspace manifest, likewise"],
