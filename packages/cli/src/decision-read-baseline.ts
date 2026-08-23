@@ -25,14 +25,17 @@
  *
  * ## THE JOIN KEY IS THE DECISION NUMBER, AND NOTHING ELSE WOULD WORK
  *
- * The corpus names one decision in several spellings and rewrites none of them (ADR-0403 dec 7).
- * Measured on this machine's trace store on 2026-08-23, BOTH sides of the offer-to-follow join carry
- * two of them at once: reads arrive as 2,641 `doc:decisions/…` and 154 bare `adr-NNNN`, offers as
- * 3,302 and 94. A join on the raw id string would silently drop every crossing pair and report a
- * confident, low follow rate — the precise failure mode `decision-pointer.ts` exists to prevent, and
- * the one `decision-read-measurement-arc-inc-01` names as "the numbers would compute and be wrong".
- * So every id on both sides is resolved to a NUMBER first, through {@link DecisionIdResolver}, and
- * the SPELLING CENSUS is reported beside the join so the resolution is auditable rather than assumed.
+ * The corpus names one decision in several spellings and rewrites none of them (ADR-0403 dec 7), and
+ * BOTH sides of the offer-to-follow join carry more than one of them at once. `-inc-01` (PR #1570)
+ * measured what a raw-string join costs on the live population: **31 of 3,391 (0.9%)** against
+ * **1,098 of 3,391 (32.4%)** once both sides resolve to a decision number — a ~35x under-count that
+ * reports no error and prints as a confident, low follow rate. That is the precise failure
+ * `decision-pointer.ts` exists to prevent, and the one `-inc-01` names as "the numbers would compute
+ * and be wrong".
+ *
+ * So every id on both sides is resolved to a NUMBER first, through the corpus's own single resolution
+ * point ({@link decisionNumberOfObservedId} delegates to `resolveDecisionId`), and the SPELLING CENSUS
+ * is reported beside the join so the resolution is auditable rather than assumed.
  *
  * ## TWO GRAINS OF "A SESSION", REPORTED SIDE BY SIDE BECAUSE THEY DISAGREE
  *
@@ -65,7 +68,7 @@
  * pooling pushes the slot-grained figure UP. The two biases run in opposite directions, which is
  * exactly why reporting a single blended number would be dishonest and why both grains are printed.
  */
-import { adrNumberOfArtifactId, parseDecisionPointer } from "@storytree/library";
+import { resolveDecisionId, type DecisionIdSpelling } from "@storytree/context-traversal-transcript";
 
 // ---------------------------------------------------------------------------
 // Inputs — every one injected, so this module has no world of its own
@@ -102,6 +105,25 @@ export interface DecisionOfferObservation {
   readonly nodeId: string;
   /** ISO-8601, verbatim. A follow can only be a read at or after this instant. */
   readonly at: string;
+  /**
+   * Whether the CLI FOLLOW MACHINERY could ever have recorded a `followed_edge` for this offer —
+   * `classifyOfferObservability`'s verdict, computed by the caller from the REAL allowlist and
+   * injected, never restated here.
+   *
+   * IT IS A DENOMINATOR, NOT A DEFECT COUNT, and ADR-0312 settled that on 2026-08-05: a `doc:`-spelled
+   * decision offer is never printed as a followable line, and making it one would render every
+   * unanswered one `not-followed` — a declined branch nobody declined. ADR-0260's body records its own
+   * "closing it is a candidate increment" expectation as WITHDRAWN. So it is measured, never fixed.
+   *
+   * THIS BASELINE'S FOLLOW IS NOT A `followed_edge`, WHICH IS WHY BOTH RATES ARE REPORTED. A follow
+   * here is a READ of the offered decision in the same slot at or after the offer, recovered from the
+   * read record — a route that exists for every spelling now that decision reads are captured at all,
+   * and which therefore CAN see a follow of an offer the CLI machinery calls unobservable. Reporting
+   * only the all-offers rate would ignore `decision-read-measurement-arc-inc-01`'s finding; reporting
+   * only the observable-branch rate would discard most of what this instrument can genuinely see. Both
+   * are printed, with the population each is over.
+   */
+  readonly observable: boolean;
 }
 
 /**
@@ -146,35 +168,21 @@ export interface DecisionReadBaselineInput {
 /**
  * PURE and TOTAL: the decision number an OBSERVED id names, or null when it names something else.
  *
- * Routes every spelling through `decision-pointer.ts` rather than restating any of them, and adds the
- * one form that module cannot see because it is not a POINTER: the BARE artifact id `adr-NNNN`, which
- * is what `offerIdOf()` prints after stripping `asset:` and what the live CLI observer mints for a
- * store read. A resolver that handled only the pointer spellings would drop every bare-id read and
- * every bare-id offer — 154 and 94 of them respectively on this machine — silently and on both sides
- * of the same join.
+ * DELEGATES to `resolveDecisionId` (`@storytree/context-traversal-transcript`) rather than restating
+ * any spelling, and that is not tidiness. `decision-read-measurement-arc-inc-01` (PR #1570) measured
+ * what a RAW-STRING join costs on the live population: **31 of 3,391 (0.9%) against 1,098 of 3,391
+ * (32.4%)** once both sides resolve to a decision number — a ~35x under-count that reports no error
+ * and prints as a confident, low follow rate. The corpus therefore keeps ONE resolution point
+ * (ADR-0403 dec 7), and a baseline that grew a second copy would agree with itself whatever the
+ * corpus did.
  */
 export function decisionNumberOfObservedId(id: string): number | null {
-  const bare = adrNumberOfArtifactId(id);
-  if (bare !== null) return bare;
-  return parseDecisionPointer(id)?.number ?? null;
+  return resolveDecisionId(id)?.number ?? null;
 }
 
-/** How an observed id resolved — for the census, so the join can be audited rather than believed. */
-export type ObservedIdSpelling = "bare-adr-id" | "asset-pointer" | "doc-decisions" | "doc-docs-decisions";
-
 /** PURE: which spelling an observed id used, or null when it names no decision. */
-export function observedIdSpelling(id: string): ObservedIdSpelling | null {
-  if (adrNumberOfArtifactId(id) !== null) return "bare-adr-id";
-  const pointer = parseDecisionPointer(id);
-  if (pointer === null) return null;
-  switch (pointer.spelling) {
-    case "asset":
-      return "asset-pointer";
-    case "decisions":
-      return "doc-decisions";
-    case "docs/decisions":
-      return "doc-docs-decisions";
-  }
+export function observedIdSpelling(id: string): DecisionIdSpelling | null {
+  return resolveDecisionId(id)?.spelling ?? null;
 }
 
 /** A resolver a caller may substitute in a test. The production one is {@link decisionNumberOfObservedId}. */
@@ -287,6 +295,15 @@ export interface DecisionReadBaseline {
   readonly decisionsOffered: number;
   /** Resolved offers followed by a read in the same slot at or after the offer. */
   readonly offersFollowed: number;
+  /**
+   * The SAME two figures restricted to the offers the CLI follow machinery could ever have recorded a
+   * follow for — ADR-0312's rule, which `decision-read-measurement-arc-inc-01` states as: a decision
+   * offer-to-follow rate must be reported over the OBSERVABLE branches, never over the offered ones.
+   * Reported ALONGSIDE the all-offers pair rather than instead of it — see
+   * {@link DecisionOfferObservation.observable} for why neither alone is honest here.
+   */
+  readonly offersObservable: number;
+  readonly offersObservableFollowed: number;
   /** Decisions offered at least once and never read by any session — NOISE, not heat. */
   readonly decisionsOfferedNeverFollowed: number;
   readonly offerFollowRows: readonly OfferFollowRow[];
@@ -296,7 +313,7 @@ export interface DecisionReadBaseline {
 }
 
 export interface SpellingCount {
-  readonly spelling: ObservedIdSpelling;
+  readonly spelling: DecisionIdSpelling;
   readonly reads: number;
 }
 
@@ -569,7 +586,7 @@ export function computeDecisionReadBaseline(
   // silently drop every crossing pair and report a follow rate far below the truth.
   const readsBySlotDecision = new Map<string, string[]>();
   for (const read of resolvedReads) {
-    const key = `${read.slotId} ${read.decision}`;
+    const key = `${read.slotId}::${read.decision}`;
     const list = readsBySlotDecision.get(key) ?? [];
     list.push(read.at);
     readsBySlotDecision.set(key, list);
@@ -577,12 +594,16 @@ export function computeDecisionReadBaseline(
   const offeredPer = new Map<number, number>();
   const followedPer = new Map<number, number>();
   let offersFollowed = 0;
+  let offersObservable = 0;
+  let offersObservableFollowed = 0;
   for (const offer of resolvedOffers) {
     offeredPer.set(offer.decision, (offeredPer.get(offer.decision) ?? 0) + 1);
-    const reads_ = readsBySlotDecision.get(`${offer.slotId} ${offer.decision}`) ?? [];
+    if (offer.observable) offersObservable += 1;
+    const reads_ = readsBySlotDecision.get(`${offer.slotId}::${offer.decision}`) ?? [];
     if (reads_.some((at) => at >= offer.at)) {
       followedPer.set(offer.decision, (followedPer.get(offer.decision) ?? 0) + 1);
       offersFollowed += 1;
+      if (offer.observable) offersObservableFollowed += 1;
     }
   }
   const offerFollowRows: OfferFollowRow[] = [...offeredPer.entries()]
@@ -593,7 +614,7 @@ export function computeDecisionReadBaseline(
   // --- censuses ---
   const spellings = (ids: readonly string[]): SpellingCount[] => {
     const counts = countBy(
-      ids.map((id) => observedIdSpelling(id)).filter((s): s is ObservedIdSpelling => s !== null),
+      ids.map((id) => observedIdSpelling(id)).filter((s): s is DecisionIdSpelling => s !== null),
       (s) => s,
     );
     return [...counts.entries()]
@@ -644,6 +665,8 @@ export function computeDecisionReadBaseline(
     offerSpellings: spellings(offers.map((offer) => offer.nodeId)),
     decisionsOffered: offeredPer.size,
     offersFollowed,
+    offersObservable,
+    offersObservableFollowed,
     decisionsOfferedNeverFollowed,
     offerFollowRows,
 

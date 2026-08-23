@@ -21,8 +21,8 @@ measurement, and the write-up of the fork belongs to `-inc-04`.
    most-read decision reached only **31 of 401** windows (7.7%) and the median decision reached **3**.
    There is no small hot core to compose first.
 3. **Offers are overwhelmingly NOISE.** Only **4.7%** of decision pointers offered to an agent were
-   followed, and **112 of 152** offered decisions were never followed once. The single most-offered
-   decision is 32.2% of all decision offers and is followed 2.7% of the time.
+   followed, and **111 of 151** offered decisions were never followed once. The single most-offered
+   decision is 32.3% of all decision offers and is followed 2.7% of the time.
 
 ---
 
@@ -33,24 +33,32 @@ measurement, and the write-up of the fork belongs to `-inc-04`.
 | Declared window | `2026-06-08T00:00:00.000Z` .. `2026-08-23T00:00:00.000Z` |
 | Observed inside it | `2026-06-08T01:20:23.863Z` .. `2026-08-22T23:59:44.456Z` |
 | Reads | 2,782, all resolved to a decision, 0 unresolved |
-| Offers | 10,953 recorded, 3,353 resolving to a decision |
+| Offers | 10,951 recorded, 3,351 resolving to a decision |
 | Transcript files swept | 4,330 |
 | Trace sessions holding the offer record | 624 |
 
-The window's upper bound is the start of the day the baseline was taken, deliberately: transcripts
-are append-only, so a re-run with these same bounds on this machine returns the same numbers. That
-was **verified, not assumed** — the probe was run twice and the machine-readable output was
-**byte-identical** across the two runs.
+The window's upper bound is the start of the day the baseline was taken, deliberately.
 
-One figure in the probe's output is deliberately NOT windowed and moved between those two runs:
-`tool calls that NAMED a decision and yielded no read` (7,476 then 7,480). It is the extractor's own
-blindness denominator, counted per tool call at scan time, and it grows as this disk does. It is not
-one of the three numbers and nothing below rests on it.
+**The READ figures are reproducible; the OFFER figures are reproducible only against a fixed trace
+store, and this one is live.** Reads come from host transcripts, which are append-only, so a re-run
+with these bounds returns the same reads — verified, not assumed: the probe was run twice and the
+machine-readable output was **byte-identical**. Offers come from the traversal trace store, which
+concurrent sessions on this machine are writing to continuously. Between two runs twenty minutes
+apart the offer count moved 10,953 → 10,951, because two more trace sessions acquired a shape with no
+single slot to join an offer on. The offer figures are therefore a reading of that store **as of
+2026-08-23**, and a later re-run should expect them to drift while the read figures do not.
+
+One further figure is deliberately NOT windowed and moves on every run: `tool calls that NAMED a
+decision and yielded no read` (7,476 → 7,489 across three runs). It is the extractor's own blindness
+denominator, counted per tool call at scan time, and it grows as this disk does. It is not one of the
+three numbers and nothing below rests on it.
 
 **The subject, as of the freeze:** 414 decisions; **513 `amends` edges** and **0 `dependsOn` edges**,
 counted apart and never summed (ADR-0419 D1). Zero of 414 decision rows carry the `dependsOn` field
-at all — which is the expected state part-way through ADR-0419 D3's deliberately long, reader-first
-migration, and is reported as a denominator so a zero cannot be mistaken for a blind reader.
+at all — the expected state part-way through ADR-0419 D3's deliberately long, reader-first migration,
+and reported as a denominator so a zero cannot be mistaken for a blind reader. `-inc-07`'s drain will
+move edges from the first column to the second; **that is neutral for everything below**, because the
+chain walk unions both support edges and a rehome changes neither endpoint (pinned by a test).
 
 ---
 
@@ -152,28 +160,58 @@ Top ten by distinct windows:
 **The shape matters more than the ranking.** Reach is broad and flat: nearly nine decisions in ten
 have been consulted by someone, no decision is consulted by more than one window in thirteen, and the
 top twenty hold under a fifth of all reach. A design that composes "the hot ones first" has no small
-hot set to start from — which is a constraint on the intervention, and is exactly the kind of thing a
-prior is supposed to surface before anything is built.
+hot set to start from — a constraint on the intervention, and exactly the kind of thing a prior is
+supposed to surface before anything is built.
 
 ---
 
 ## 4. OFFER-TO-FOLLOW — separating heat from noise
 
-An offer is one decision pointer inside one rendered candidate set. A FOLLOW is a read of that
-decision, in the same worktree slot, at or after the offer.
+An offer is one decision pointer inside one rendered candidate set. A FOLLOW here is a **read** of
+that decision, in the same worktree slot, at or after the offer.
 
-**The join is deliberately generous and the number is still small.** "At or after, ever, in the same
-slot" counts a read three weeks later in a different sitting as a follow of an offer it almost
-certainly had nothing to do with. That inflates the follow rate, so the figure below is an upper
-bound on any tighter definition.
+### The follow definition, and why two rates are reported
+
+`-inc-01` (PR #1570) established that a decision offer-to-follow rate must be taken over the
+**OBSERVABLE** branches rather than the offered ones, because a `followed_edge` is recorded only when
+the answering invocation carries `--from-offer`, and `renderOfferFollowUps` never prints a followable
+line for a `doc:`-spelled offer. ADR-0312 settled on 2026-08-05 that this gap is **measured, never
+closed** — making those offers followable would render every unanswered one `not-followed`, a declined
+branch nobody declined, and ADR-0260's body records its own "closing it is a candidate increment"
+expectation as WITHDRAWN.
+
+That rule is honoured below and it is also why this baseline does not use `followed_edge` at all.
+**A follow here is recovered from the READ RECORD**, a route that exists for every spelling now that
+decision reads are captured, so it can see a follow of an offer the CLI follow machinery calls
+unobservable. The difference in what that makes measurable is the point:
 
 | | |
 |---|---:|
-| offers recorded | 10,953 |
-| offers resolving to a decision | 3,353 (30.6%) |
-| offers followed | **156 of 3,353 (4.7%)** |
-| distinct decisions offered | 152 |
-| offered and never once followed | **112 of 152 (73.7%)** |
+| offers resolving to a decision | 3,351 |
+| of those, OBSERVABLE by the CLI follow machinery | **51 (1.5%)** |
+| followed, over the observable branches alone | 2 of 51 (3.9%) |
+| followed, over the read record | **156 of 3,351 (4.7%)** |
+
+The observable-branch rate is computed over **1.5%** of the population — 51 offers. The read-record
+route makes the other 98.5% measurable and finds 156 follows rather than 2. Both are reported: the
+first because ADR-0312's rule is right about what `followed_edge` can support, the second because
+discarding 98.5% of the evidence would be the larger error. **They agree on the shape** — 3.9% and
+4.7% — which is the useful part.
+
+**The read-record join is deliberately generous, and the number is still small.** "At or after, ever,
+in the same slot" counts a read three weeks later in a different sitting as a follow of an offer it
+almost certainly had nothing to do with. That inflates the rate, so 4.7% is an upper bound on any
+tighter definition.
+
+### Result
+
+| | |
+|---|---:|
+| offers recorded | 10,951 |
+| offers resolving to a decision | 3,351 (30.6%) |
+| offers followed | **156 of 3,351 (4.7%)** |
+| distinct decisions offered | 151 |
+| offered and never once followed | **111 of 151 (73.5%)** |
 
 The 30.6% decision share of all offers independently reproduces the previously measured "roughly 29%
 of everything offered to an agent is a decision pointer", from a different instrument and a different
@@ -194,7 +232,7 @@ population — a useful cross-check that the offer side of the join is not mis-p
 | ADR-0023 | 62 | #131 |
 | ADR-0031 | 61 | #68 |
 
-ADR-0183 alone is **32.2% of every decision pointer this project has ever offered an agent** and is
+ADR-0183 alone is **32.3% of every decision pointer this project has ever offered an agent** and is
 followed 2.7% of the time; ADR-0032 is offered 95 times, followed 0. A rank built on offers — or on
 any "what does the corpus point at" proxy — would put these at the top of a composition worklist and
 be wrong about most of them.
@@ -211,21 +249,24 @@ be wrong about most of them.
 | reads whose id failed to resolve to a decision | 0 |
 | reads onto a decision number the log does not hold | 6 |
 | reads reached but attributable to no storytree session | 218 |
-| trace sessions with no single slot to join an offer on | 6 of 624 |
+| trace sessions with no single slot to join an offer on | 8 of 624 |
 | trace sessions of mixed identity grade | 0 |
 
-**The join, censused on both sides.** Both live spellings appear on both sides at once, so a join on
-the raw id string would have silently dropped every crossing pair and reported a confident, low
-follow rate:
+**The join, censused on both sides.** More than one live spelling appears on each side, so a join on
+the raw id string would silently drop every crossing pair. `-inc-01` measured what that costs against
+the live reads: **31 of 3,391 (0.9%) on the raw string against 1,098 of 3,391 (32.4%)** once both
+sides resolve to a decision number — a ~35× under-count that reports no error.
 
 | spelling | reads | offers |
 |---|---:|---:|
 | `doc:decisions/NNNN-slug.md` | 2,672 | 3,300 |
-| bare `adr-NNNN` | 110 | 53 |
+| bare `adr-NNNN` (the row id) | 110 | 51 |
 
-Every id on both sides is resolved to a decision NUMBER through the single parser in
-`decision-pointer.ts` before anything is joined, and `readsUnresolved: 0` is the evidence that the
-resolution is not silently dropping a spelling.
+Every id on both sides resolves through `resolveDecisionId`
+(`packages/context-traversal-transcript/src/decision-read-coverage.ts`), which is itself built on the
+corpus's own `parseDecisionPointer` / `adrNumberOfArtifactId` — one resolution point, per ADR-0403
+dec 7, so this baseline invents no rule of its own and cannot drift from what the rest of the corpus
+considers a decision. `readsUnresolved: 0` is the evidence that no spelling is being dropped.
 
 **Which instrument shape saw each read** — kept apart because a scraped shell command and an exact
 `Read` are not the same quality of observation:
@@ -237,12 +278,18 @@ resolution is not silently dropping a spelling.
 | `host-transcript-grep` | 202 |
 | `host-transcript-cli-read` | 110 |
 
+Reads are taken from the transcripts alone, never unioned with the trace store's own copies: the live
+CLI observer and the transcript sweep record the SAME underlying read as two separate events by
+construction, so summing them would double every read both routes reached.
+
 **What this instrument cannot see, named rather than implied:** Codex runs (outside the Claude
 harness entirely); the primary checkout, which `deriveIdentity()` rule 3 refuses by design — 218
 reads were reached and declined on exactly this ground; shell reads that do not name the path
 literally (heredocs, `$VAR`, globs, `git show HEAD:…`); `Grep` over a directory rather than a file;
-and non-tool reads (auto-loaded guidance, `@file` mentions, Skill-loaded files), which are untested
-and therefore declared unknown rather than absent.
+`adr pull`, which is invisible to the live observer though the transcript sweep does recover it; the
+studio, which has no reader-side telemetry at all and is unsized; and non-tool reads (auto-loaded
+guidance, `@file` mentions, Skill-loaded files), untested and therefore declared unknown rather than
+absent.
 
 **Every figure here is a FLOOR, and the bias is two-sided.** Capture blind spots REMOVE reads, and
 removing a decision from a session's read set can only shorten the longest chain that set contains —
@@ -256,33 +303,32 @@ and getting on fine.
 
 ---
 
-## 6. Why this was frozen without `-inc-01` finishing, and what `-inc-01` still owes
+## 6. The relationship to `-inc-01`, which landed the same day
 
-`-inc-01` — establish what the traversal instrument can and cannot see for decision reads — is `active`
-and parked on the same arc. Freezing a baseline on an instrument with unmeasured blind spots is the
-one failure this arc cannot afford, so the question was settled explicitly rather than assumed away.
+`-inc-01` — establish what the traversal instrument can and cannot see for decision reads — landed as
+PR #1570 while this baseline was being built. Freezing a prior on an instrument with unmeasured blind
+spots is the one failure this arc cannot afford, so the two were reconciled rather than left to agree
+by luck. What that changed here:
 
-**Two of `-inc-01`'s three questions are answered by this measurement itself**, by evidence rather
-than by reading the source:
+- **The id resolver is `-inc-01`'s**, not a second copy. Its raw-vs-resolved measurement (§5) is the
+  evidence that the join key had to be the decision number.
+- **The observable-branch denominator is reported** (§4), which is `-inc-01`'s stated requirement, and
+  the read-record rate is reported beside it with the 1.5%/98.5% split that makes the pair legible.
+- `-inc-01`'s second half — does the depth walk traverse a decision's own `dependsOn`? — was already
+  answered by `-inc-05` (PR #1563) and `-inc-08` (PR #1564), both of which landed before this freeze,
+  which is what ADR-0419's Consequences require: a chain-depth figure taken before the walk read both
+  fields is not the same series as one taken after.
 
-- *Does a live `library artifact adr-NNNN` read reach the record, and under an id form that joins to
-  the offers?* Yes. 110 reads arrived on the `host-transcript-cli-read` surface, and the id-form
-  census above shows both live spellings present on BOTH sides with zero unresolved reads. The join
-  is not silently dropping a spelling — which is precisely the failure `-inc-01` names as "the numbers
-  would compute and be wrong".
-- *Its second half* — does the depth walk traverse a decision's own `dependsOn`? — was overtaken and
-  answered by `-inc-05` (PR #1563) and `-inc-08` (PR #1564), which landed before this freeze.
-
-**What `-inc-01` still owes is the SIZE of the unobserved paths**, listed in §5 and unsized. That
-bounds one specific reading, and only one:
+**What remains unsized is the SIZE of the blind spots listed in §5**, and it bounds one specific
+reading and only one:
 
 - The **falsification** reading. Every unobserved path removes reads, and removing reads can only
   shorten chains. So **50.6% is a floor**, and closing the blind spots can only raise it. A POSITIVE
-  result is therefore robust without `-inc-01`; had this come back near zero it would NOT have been,
-  because an unmeasured blind spot would have been an equally good explanation. The measurement
-  decided its own admissibility, in the direction that makes it admissible.
-- The **absolute** reading — "half of all sittings walk a chain" — is a floor on a population this
-  instrument can see, not a claim about all sessions. `-inc-01` is what would make it the latter.
+  result is therefore robust; had this come back near zero it would NOT have been, because an
+  unmeasured blind spot would have been an equally good explanation. The measurement decided its own
+  admissibility, in the direction that makes it admissible.
+- The **absolute** reading — "half of all sittings walk a chain" — is a floor over a population this
+  instrument can see, not a claim about all sessions.
 
 Nothing else in this document depends on the unsized blind spots.
 
@@ -295,8 +341,8 @@ Nothing else in this document depends on the unsized blind spots.
   up and leaves open, and ADR-0419 D5 gates on it.
 - It does not name a held-out CONTROL set. `-inc-04` owns that, and a later trial without one measures
   the week rather than the change.
-- It says nothing about ALTITUDE — whether reads cluster on strategic or operational decisions.
-  That is `-inc-03`, and the reach data above is its input.
+- It says nothing about ALTITUDE — whether reads cluster on strategic or operational decisions. That
+  is `-inc-03`, and the reach data above is its input.
 - It is not a comprehension measure, and it is not evidence that the current arrangement is working.
 
 ## Reproducing and extending

@@ -47,6 +47,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import {
+  classifyOfferObservability,
   listTraversalSessions,
   readTraversalSession,
   resolveTraversalDir,
@@ -211,7 +212,16 @@ function gatherOffers(traceDir: string): GatheredOffers {
     for (const event of replay.events) {
       if (event.kind !== "candidate_set") continue;
       for (const nodeId of event.candidateNodeIds) {
-        offers.push({ slotId, candidateSetId: event.candidateSetId, nodeId, at: event.at });
+        offers.push({
+          slotId,
+          candidateSetId: event.candidateSetId,
+          nodeId,
+          at: event.at,
+          // The REAL machinery — it builds the argv a follow would use and runs it through the actual
+          // allowlist. A second copy of the rule here would agree with the renderer whatever the
+          // renderer did, and the whole value of the figure is that it can disagree.
+          observable: classifyOfferObservability(nodeId).observable,
+        });
       }
     }
   }

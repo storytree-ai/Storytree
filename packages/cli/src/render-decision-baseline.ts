@@ -198,6 +198,21 @@ export function renderDecisionReadBaseline(
       `offers followed by a read in the same slot: ${baseline.offersFollowed} of ${baseline.offersResolved} ` +
       `(${pct(baseline.offersFollowed, baseline.offersResolved)})`,
   );
+  // ADR-0312's rule, restated by `decision-read-measurement-arc-inc-01`: a decision offer-to-follow
+  // rate must be reported over the OBSERVABLE branches, never over the offered ones. Printed BESIDE
+  // the all-offers rate rather than instead of it, because a follow here is a READ recovered from the
+  // read record and not a `followed_edge` — a route that exists for every spelling, and can therefore
+  // see a follow of an offer the CLI follow machinery calls unobservable.
+  lines.push(
+    `  of those, offers the CLI follow machinery could ever record a follow_edge for: ` +
+      `${baseline.offersObservable} of ${baseline.offersResolved} ` +
+      `(${pct(baseline.offersObservable, baseline.offersResolved)}) — a DENOMINATOR, never a defect ` +
+      "count (ADR-0312 settled that this gap is measured, not closed)",
+  );
+  lines.push(
+    `  followed, over the OBSERVABLE branches alone: ${baseline.offersObservableFollowed} of ` +
+      `${baseline.offersObservable} (${pct(baseline.offersObservableFollowed, baseline.offersObservable)})`,
+  );
   lines.push(
     `  decisions offered and NEVER followed: ${baseline.decisionsOfferedNeverFollowed} of ` +
       `${baseline.decisionsOffered} (${pct(baseline.decisionsOfferedNeverFollowed, baseline.decisionsOffered)})`,

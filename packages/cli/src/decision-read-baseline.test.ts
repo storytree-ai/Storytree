@@ -52,6 +52,9 @@ function offer(
     slotId: "slot-a",
     candidateSetId: "candidate-set:v1",
     at: "2026-08-01T00:00:00.000Z",
+    // Defaults to UNOBSERVABLE, which is the live majority: a `doc:`-spelled decision offer is never
+    // printed as a followable line, and ADR-0312 settled that the gap is measured rather than closed.
+    observable: false,
     ...partial,
   };
 }
@@ -94,10 +97,12 @@ test("decision-read-baseline: an id naming something else resolves to null, neve
 });
 
 test("decision-read-baseline: the spelling census names each live form apart", () => {
-  assert.equal(observedIdSpelling("adr-0419"), "bare-adr-id");
-  assert.equal(observedIdSpelling("asset:adr-0419"), "asset-pointer");
-  assert.equal(observedIdSpelling("doc:decisions/0419-x.md"), "doc-decisions");
-  assert.equal(observedIdSpelling("doc:docs/decisions/0419-x.md"), "doc-docs-decisions");
+  // The spelling names are the CORPUS'S OWN (`DecisionIdSpelling`), not this module's — it delegates
+  // to `resolveDecisionId` rather than keeping a second table that could drift from it.
+  assert.equal(observedIdSpelling("adr-0419"), "row");
+  assert.equal(observedIdSpelling("asset:adr-0419"), "asset");
+  assert.equal(observedIdSpelling("doc:decisions/0419-x.md"), "decisions");
+  assert.equal(observedIdSpelling("doc:docs/decisions/0419-x.md"), "docs/decisions");
   assert.equal(observedIdSpelling("merge-ceremony"), null);
 });
 
@@ -380,4 +385,46 @@ test("decision-read-baseline: the vacuity function is total over its own output"
   // Recomputing over the returned baseline must agree with what the baseline already carries —
   // otherwise the reported reasons and the computed ones could drift apart silently.
   assert.deepEqual(decisionReadBaselineVacuity(result), result.vacuity);
+});
+
+// ---------------------------------------------------------------------------
+// The observable-branch denominator — ADR-0312's rule, honoured without discarding the rest
+// ---------------------------------------------------------------------------
+
+test("decision-read-baseline: the follow rate is reported over BOTH populations, never only the offered one", () => {
+  // `decision-read-measurement-arc-inc-01` (PR #1570) requires the OBSERVABLE-branch rate, because a
+  // near-zero `followed_edge` count is a property of the CLI follow machinery rather than evidence
+  // about agents. But this baseline's follow is a READ recovered from the read record, which exists
+  // for every spelling — so it can see a follow of an offer that machinery calls unobservable, and
+  // discarding those would throw away most of what the instrument genuinely saw. Both, with their
+  // own denominators.
+  const result = baseline(
+    [read({ nodeId: "adr-0010", at: "2026-08-01T05:00:00.000Z" })],
+    [
+      // Followed, and UNOBSERVABLE — the case a rate over observable branches alone cannot see.
+      offer({ nodeId: "doc:decisions/0010-a.md", at: "2026-08-01T01:00:00.000Z", observable: false }),
+      // Followed, and observable.
+      offer({ nodeId: "adr-0010", at: "2026-08-01T02:00:00.000Z", observable: true }),
+      // Observable and NOT followed.
+      offer({ nodeId: "adr-0020", at: "2026-08-01T02:00:00.000Z", observable: true }),
+    ],
+  );
+  assert.equal(result.offersResolved, 3);
+  assert.equal(result.offersFollowed, 2);
+  assert.equal(result.offersObservable, 2);
+  assert.equal(result.offersObservableFollowed, 1);
+});
+
+test("decision-read-baseline: zero observable offers is a denominator, never a vacuity reason", () => {
+  // WHAT WOULD MAKE THIS RED: promoting the observable-branch emptiness to a vacuity reason. ADR-0312
+  // settled that the `doc:` gap is measured and NOT closed, and ADR-0419 D3 makes the mixed period
+  // deliberately long — so a probe that failed on it would be a standing false red rather than a
+  // finding, which is exactly the call `decisionWalkVacuity` already made about reader-blindness.
+  const result = baseline(
+    [read({ windowId: "w1", nodeId: "adr-0010", at: "2026-08-01T05:00:00.000Z" })],
+    [offer({ nodeId: "doc:decisions/0010-a.md", at: "2026-08-01T01:00:00.000Z", observable: false })],
+  );
+  assert.equal(result.offersObservable, 0);
+  assert.equal(result.offersFollowed, 1, "the read record still saw the follow");
+  assert.deepEqual(result.vacuity, []);
 });

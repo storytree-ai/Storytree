@@ -64,7 +64,7 @@ test("render-decision-baseline: 'nobody walked a chain' prints with the populati
       { slotId: "s", windowId: "w1", nodeId: "adr-0010", at: "2026-08-01T00:00:00.000Z", surface: "x" },
       { slotId: "s", windowId: "w2", nodeId: "adr-0020", at: "2026-08-01T00:00:00.000Z", surface: "x" },
     ],
-    [{ slotId: "s", candidateSetId: "c", nodeId: "adr-0010", at: "2026-08-01T00:00:00.000Z" }],
+    [{ slotId: "s", candidateSetId: "c", nodeId: "adr-0010", at: "2026-08-01T00:00:00.000Z", observable: true }],
   );
   assert.match(measured, /sessions that walked a chain \(depth >= 2\): 0 of 2 \(0\.0%\)/);
 
@@ -80,7 +80,7 @@ test("render-decision-baseline: a healthy run says so explicitly instead of prin
       { slotId: "s", windowId: "w1", nodeId: "adr-0010", at: "2026-08-01T00:00:00.000Z", surface: "x" },
       { slotId: "s", windowId: "w1", nodeId: "adr-0011", at: "2026-08-01T00:00:00.000Z", surface: "x" },
     ],
-    [{ slotId: "s", candidateSetId: "c", nodeId: "adr-0010", at: "2026-08-01T00:00:00.000Z" }],
+    [{ slotId: "s", candidateSetId: "c", nodeId: "adr-0010", at: "2026-08-01T00:00:00.000Z", observable: true }],
   );
   assert.match(text, /VACUITY — none\. Every figure above saw its subject\./);
 });
@@ -91,7 +91,7 @@ test("render-decision-baseline: both grains are printed, so the pooling gap cann
       { slotId: "s", windowId: "w1", nodeId: "adr-0010", at: "2026-08-01T00:00:00.000Z", surface: "x" },
       { slotId: "s", windowId: "w2", nodeId: "adr-0011", at: "2026-08-01T00:00:00.000Z", surface: "x" },
     ],
-    [{ slotId: "s", candidateSetId: "c", nodeId: "adr-0010", at: "2026-08-01T00:00:00.000Z" }],
+    [{ slotId: "s", candidateSetId: "c", nodeId: "adr-0010", at: "2026-08-01T00:00:00.000Z", observable: true }],
   );
   assert.match(text, /WINDOW grain — one host context window, i\.e\. one sitting/);
   assert.match(text, /SLOT grain — the pooled worktree slot, which unions several sittings/);
@@ -142,6 +142,7 @@ test("render-decision-baseline: an offered-and-never-followed decision is report
       candidateSetId: `c${i}`,
       nodeId: "adr-0020",
       at: "2026-08-01T00:00:00.000Z",
+      observable: true,
     })),
   );
   assert.match(text, /decisions offered and NEVER followed: 1 of 1 \(100\.0%\)/);
