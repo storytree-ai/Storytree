@@ -52,23 +52,15 @@ import {
   readTraversalSession,
   resolveTraversalDir,
 } from "@storytree/context-traversal-capture";
-import {
-  collectTranscriptFiles,
-  resolveTranscriptDir,
-  scanTranscriptDecisionReads,
-  DECISION_READ_SURFACES,
-} from "@storytree/context-traversal-transcript";
-import { decisionAmendsResolver, parseDecisionPointer } from "@storytree/library";
+import { resolveTranscriptDir } from "@storytree/context-traversal-transcript";
 
 import {
   computeDecisionReadBaseline,
   SupportGraphCycleError,
-  type DecisionEdge,
   type DecisionOfferObservation,
   type DecisionReadBaseline,
-  type DecisionReadObservation,
-  type DecisionSupportGraph,
 } from "./decision-read-baseline.js";
+import { buildSupportGraph, gatherReads } from "./probe-decision-gather.js";
 import { loadProbeDecisions } from "./probe-decisions.js";
 import { renderDecisionReadBaseline } from "./render-decision-baseline.js";
 
@@ -95,86 +87,6 @@ function parseArgs(argv: readonly string[]): Args {
     json: value("--json-out"),
     top: Number.isFinite(top) && top > 0 ? Math.floor(top) : 20,
   };
-}
-
-/**
- * The SUPPORT graph as the pure half needs it: both edge populations, kept apart.
- *
- * `dependsOn` arrives as POINTERS, because a decision's own `dependsOn` may name a Library artifact
- * or a repository file as readily as another decision — the seam reports where edges came from and
- * never learns what they mean. Resolving which is which is this caller's job and it goes through the
- * ONE parser (`parseDecisionPointer`); a pointer that names something else is COUNTED, never dropped
- * silently and never rounded to the nearest decision.
- */
-function buildSupportGraph(rows: readonly { number: number; amends: readonly number[]; dependsOn?: readonly string[] }[]): DecisionSupportGraph {
-  const resolver = decisionAmendsResolver(rows);
-  const known = new Set(resolver.decisions);
-  const amends: DecisionEdge[] = [];
-  const dependsOn: DecisionEdge[] = [];
-  let dependsOnNonDecisionTargets = 0;
-
-  for (const from of resolver.decisions) {
-    for (const to of resolver.amendsOf(from)) {
-      // A target the log does not hold is not walkable — counted nowhere as an edge rather than
-      // creating a phantom node the chain walk could descend into.
-      if (known.has(to)) amends.push({ from, to });
-    }
-    for (const pointer of resolver.dependsOnOf(from)) {
-      const target = parseDecisionPointer(pointer);
-      if (target === null) {
-        dependsOnNonDecisionTargets += 1;
-        continue;
-      }
-      if (known.has(target.number)) dependsOn.push({ from, to: target.number });
-    }
-  }
-
-  return {
-    decisions: resolver.decisions,
-    amends,
-    dependsOn,
-    decisionsCarryingDependsOn: resolver.decisionsCarryingDependsOn,
-    dependsOnNonDecisionTargets,
-  };
-}
-
-interface GatheredReads {
-  readonly reads: readonly DecisionReadObservation[];
-  readonly scannedFiles: number;
-  /** Tool calls that named a decision and yielded no read — the blindness denominator, carried up. */
-  readonly decisionMentions: number;
-  /** Reads reached but not attributable to any storytree session (the primary checkout, mostly). */
-  readonly uncorrelatedReads: number;
-}
-
-function gatherReads(transcriptDir: string): GatheredReads {
-  const files = collectTranscriptFiles(transcriptDir);
-  const reads: DecisionReadObservation[] = [];
-  const seen = new Set<string>();
-  let decisionMentions = 0;
-  let uncorrelatedReads = 0;
-
-  for (const file of files) {
-    const scan = scanTranscriptDecisionReads(file);
-    decisionMentions += scan.decisionMentions;
-    uncorrelatedReads += scan.uncorrelatedReads;
-    for (const read of scan.reads) {
-      // The SAME dedup key `ingestDecisionReads` uses, for the same reason: one tool call that named
-      // a decision twice is one read of it, and the transcript walk can reach one file more than once.
-      const key = `${read.toolUseId} ${read.nodeId}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      reads.push({
-        slotId: read.sessionId,
-        windowId: read.windowId,
-        nodeId: read.nodeId,
-        at: read.at,
-        surface: DECISION_READ_SURFACES[read.shape],
-      });
-    }
-  }
-
-  return { reads, scannedFiles: files.length, decisionMentions, uncorrelatedReads };
 }
 
 interface GatheredOffers {
