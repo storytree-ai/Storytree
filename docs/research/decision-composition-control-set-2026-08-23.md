@@ -384,7 +384,9 @@ becomes "feasible", and it would still be a one-unit experiment.
 ## 6. Fences honoured
 
 - `loadBearingReach` (`packages/cli/src/adr.ts`) untouched and still `amends`-only (ADR-0419 D1).
-- `packages/library/src/amends-annotation.ts` still UNWIRED from the gate.
+- `packages/library/src/amends-annotation.ts` still UNWIRED from the gate. *[Later: ADR-0427
+  (2026-08-23) retired that check and deleted the module, so the fence is now moot rather than
+  honoured. This line records what was true when the increment ran; the file no longer exists.]*
 - No figure anywhere sums `amends` and `dependsOn`; the chain walk unions them as one adjacency while
   counting them apart, and a test asserts no blended figure is exported.
 - The `amends` field is neither deleted nor schema-deprecated; no edge was moved and no decision body

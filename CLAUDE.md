@@ -662,9 +662,14 @@ extended, so that **reading the target alone is now insufficient** — which is 
 pulls its target into `adr list --load-bearing`. Writing `amends` OWES each target an in-place
 annotation naming the clause that moved, in the SAME landing (ADR-0139 D4); the CLI prints the
 obligation and the `adr pull` command for each target when you write the edge. ⚠ That obligation is
-**discipline, not a gate** at this phase: the presence check exists
-(`packages/library/src/amends-annotation.ts`) and is deliberately UNWIRED, because switching it on
-today reds on 174 pre-existing edges and would punish the honest new case hardest. Equally, this is
+**discipline, not a gate — and now permanently so (ADR-0427, 2026-08-23).** A mechanical presence
+check existed briefly, unwired; it asked only whether a target's body mentioned its amender's number
+anywhere, which is the one string `adr list` already derives and prints, so it would have certified
+the cheapest compliance. It is DELETED, along with its `probe:amends-drain` burndown — don't look for
+either, and don't rebuild a presence check (an instrument measuring THINNESS would be a different
+thing). Nothing was abandoned: the backlog was drained to zero first (453/453 edges annotated). The
+obligation itself is untouched and still binds, held by the librarian's judgment on review and by the
+note the CLI prints at authoring time. Equally, this is
 deprecation and **not a flag day** — the `amends` field is not deleted (deleting it blinds
 `loadBearingReach`, the depth walk's only decision-edge door, and ADR-0402 D2's deliberate
 asymmetry, all at once), no existing edge is rewritten for consistency's sake, and every reader has
