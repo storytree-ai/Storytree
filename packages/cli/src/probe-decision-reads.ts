@@ -37,11 +37,31 @@
  *
  * A sweep that finds nothing AND sees nothing named is still a real answer, not a failure — this box
  * may simply have no decision traffic.
+ *
+ * ## AND SINCE ADR-0419 IT ALSO READS THE RECORD BACK — the coverage section
+ *
+ * `decision-read-measurement-arc-inc-01` added a second half, printed beneath the ingest and NOT a
+ * second instrument: it reads the traversal record and reports what a baseline consumer would
+ * actually find there — which recorder saw each read, under which id form, and whether the offers
+ * and the reads can be JOINED at all.
+ *
+ * That last one is the reason it exists. Offers record a decision as `doc:decisions/NNNN-slug.md`
+ * and a live CLI read records it as `adr-NNNN`, so a join on the raw id string drops the pairs that
+ * span the two spellings — silently, computing a plausible wrong ratio rather than failing. The
+ * section reports the join twice, raw and resolved, so the gap is visible instead of inferred, and
+ * separately against the LIVE reads alone because the whole-record figure is flattered by a
+ * historical population that can never grow again.
+ *
+ * It changes no verdict: the two exit-1 branches below are the ingest's and stay the ingest's. A
+ * coverage report is a description of an instrument, not a repo invariant, and reddening on one
+ * would be exactly the "this box has a short history" failure the `probe:` naming already refuses.
  */
 
 import { resolveTraversalDir } from "@storytree/context-traversal-capture";
 import {
+  collectDecisionReadCoverage,
   ingestDecisionReads,
+  renderDecisionReadCoverage,
   renderDecisionReadIngest,
   resolveTranscriptDir,
 } from "@storytree/context-traversal-transcript";
@@ -90,6 +110,28 @@ function main(): void {
     );
     process.exitCode = 1;
     return;
+  }
+
+  // THE COVERAGE SECTION (ADR-0419, `decision-read-measurement-arc-inc-01`) — an extension to this
+  // probe, never a second instrument.
+  //
+  // It reads the traversal record BACK, after the ingest above has written into it, so the picture
+  // it prints is the one a baseline consumer would actually query. Ordered after the ingest for that
+  // reason and not by taste: run before it, it would report the record as it was one sweep ago and a
+  // reader would take a stale join for the current one.
+  //
+  // On a DRY RUN it still reports, and honestly — the ingest wrote nothing, so what it describes is
+  // the record as it stands WITHOUT this sweep's reads. That is a real state to be able to inspect
+  // (it is what every consumer sees until the sweep is run for real), so the render says which mode
+  // produced it rather than being suppressed.
+  console.log("");
+  console.log(renderDecisionReadCoverage(collectDecisionReadCoverage({ traceDir })));
+  if (dryRun) {
+    console.log("");
+    console.log(
+      `${TAG} — the section above describes the record WITHOUT this sweep's ${result.extracted} ` +
+        "read(s): a dry run appended nothing. Re-run without --dry-run to fold them in.",
+    );
   }
 
   console.log("");
