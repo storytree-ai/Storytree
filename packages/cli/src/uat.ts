@@ -599,9 +599,10 @@ async function uatList(storyId: string | undefined, deps: UatDeps): Promise<Enve
     "",
     "PROVEN (✓/✗/–) is the SIGNED verdict (events.verdict), distinct from the ADR-0044 attestation",
     "marks (◉/▣, a relayed vouch). A human-witness leg is proven via `storytree uat attest`; a",
-    "machine-witness leg bound to an `observe` gate by the ADOPT run (`storytree adopt <story> --pg`,",
-    "the only path that signs a criterion verdict), and one bound to a `build-tests` gate by a real",
-    "red→green through that gate. `uat attest` REFUSES a machine leg (ADR-0082 d.2).",
+    "machine-witness leg bound to an `observe` gate by `storytree uat run <story> --pg` (ADR-0417 D2 —",
+    "`storytree adopt` composes the same primitive while entering a brownfield adoption), and one",
+    "bound to a `build-tests` gate by a real red→green through that gate. `uat attest` REFUSES a",
+    "machine leg (ADR-0082 d.2).",
   );
   // Offer one next step per distinct route the story actually has — never a command its own guard
   // would refuse, and nothing at all for a leg that cannot be proven until it is re-authored.
