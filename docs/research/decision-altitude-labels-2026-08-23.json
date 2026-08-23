@@ -1,0 +1,2297 @@
+{
+  "$comment": "decision-read-measurement-arc-inc-03 — altitude labels. Kruchten existence/property/executive. Classified BLIND to the read data; the rubric is docs/research/decision-altitude-2026-08-23.md section 2. Read by pnpm probe:decision-altitude. This is a REPORT INPUT, not a stored classification: no altitude field is written onto any live artifact (the increment forbids it).",
+  "passA": {
+    "method": "editorial — one reading of each decision title plus its `## Decision` prose, blind to reach, chain depth and the offer record. Basis codes: element/remove -> existence, rule -> property, vendor/process/role/money -> executive.",
+    "labels": [
+      {
+        "id": "adr-0001",
+        "altitude": "executive",
+        "basis": "vendor"
+      },
+      {
+        "id": "adr-0002",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0003",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0004",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0005",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0006",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0007",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0008",
+        "altitude": "executive",
+        "basis": "role"
+      },
+      {
+        "id": "adr-0009",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0010",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0011",
+        "altitude": "executive",
+        "basis": "vendor"
+      },
+      {
+        "id": "adr-0012",
+        "altitude": "executive",
+        "basis": "vendor"
+      },
+      {
+        "id": "adr-0013",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0014",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0015",
+        "altitude": "executive",
+        "basis": "vendor"
+      },
+      {
+        "id": "adr-0016",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0017",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0018",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0019",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0020",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0021",
+        "altitude": "executive",
+        "basis": "vendor"
+      },
+      {
+        "id": "adr-0022",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0023",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0024",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0025",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0026",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0027",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0028",
+        "altitude": "existence",
+        "basis": "remove"
+      },
+      {
+        "id": "adr-0029",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0030",
+        "altitude": "executive",
+        "basis": "vendor"
+      },
+      {
+        "id": "adr-0031",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0032",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0033",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0034",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0035",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0036",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0037",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0038",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0039",
+        "altitude": "executive",
+        "basis": "vendor"
+      },
+      {
+        "id": "adr-0040",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0041",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0042",
+        "altitude": "executive",
+        "basis": "vendor"
+      },
+      {
+        "id": "adr-0043",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0044",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0045",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0046",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0048",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0049",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0050",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0051",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0052",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0053",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0054",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0055",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0056",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0057",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0058",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0059",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0060",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0061",
+        "altitude": "executive",
+        "basis": "vendor"
+      },
+      {
+        "id": "adr-0062",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0063",
+        "altitude": "executive",
+        "basis": "vendor"
+      },
+      {
+        "id": "adr-0064",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0066",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0067",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0068",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0069",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0070",
+        "altitude": "executive",
+        "basis": "role"
+      },
+      {
+        "id": "adr-0071",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0072",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0073",
+        "altitude": "existence",
+        "basis": "remove"
+      },
+      {
+        "id": "adr-0074",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0075",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0076",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0077",
+        "altitude": "existence",
+        "basis": "remove"
+      },
+      {
+        "id": "adr-0078",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0079",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0080",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0081",
+        "altitude": "existence",
+        "basis": "remove"
+      },
+      {
+        "id": "adr-0082",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0083",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0084",
+        "altitude": "executive",
+        "basis": "role"
+      },
+      {
+        "id": "adr-0085",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0086",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0087",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0088",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0089",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0090",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0091",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0092",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0093",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0094",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0095",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0096",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0097",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0098",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0099",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0100",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0101",
+        "altitude": "executive",
+        "basis": "vendor"
+      },
+      {
+        "id": "adr-0102",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0103",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0104",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0105",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0106",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0107",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0108",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0109",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0110",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0111",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0112",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0113",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0114",
+        "altitude": "executive",
+        "basis": "money"
+      },
+      {
+        "id": "adr-0115",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0116",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0117",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0118",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0119",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0120",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0121",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0122",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0123",
+        "altitude": "executive",
+        "basis": "vendor"
+      },
+      {
+        "id": "adr-0124",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0125",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0126",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0127",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0128",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0129",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0130",
+        "altitude": "executive",
+        "basis": "money"
+      },
+      {
+        "id": "adr-0131",
+        "altitude": "executive",
+        "basis": "money"
+      },
+      {
+        "id": "adr-0132",
+        "altitude": "executive",
+        "basis": "role"
+      },
+      {
+        "id": "adr-0133",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0134",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0135",
+        "altitude": "existence",
+        "basis": "remove"
+      },
+      {
+        "id": "adr-0136",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0137",
+        "altitude": "executive",
+        "basis": "role"
+      },
+      {
+        "id": "adr-0138",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0139",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0140",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0141",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0142",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0143",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0144",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0145",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0146",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0148",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0149",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0150",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0151",
+        "altitude": "executive",
+        "basis": "money"
+      },
+      {
+        "id": "adr-0152",
+        "altitude": "executive",
+        "basis": "role"
+      },
+      {
+        "id": "adr-0153",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0154",
+        "altitude": "executive",
+        "basis": "role"
+      },
+      {
+        "id": "adr-0155",
+        "altitude": "executive",
+        "basis": "role"
+      },
+      {
+        "id": "adr-0156",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0157",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0158",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0159",
+        "altitude": "executive",
+        "basis": "role"
+      },
+      {
+        "id": "adr-0160",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0161",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0162",
+        "altitude": "executive",
+        "basis": "money"
+      },
+      {
+        "id": "adr-0163",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0164",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0165",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0166",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0167",
+        "altitude": "existence",
+        "basis": "remove"
+      },
+      {
+        "id": "adr-0168",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0169",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0170",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0171",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0172",
+        "altitude": "existence",
+        "basis": "remove"
+      },
+      {
+        "id": "adr-0173",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0174",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0175",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0176",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0177",
+        "altitude": "executive",
+        "basis": "vendor"
+      },
+      {
+        "id": "adr-0178",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0179",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0180",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0181",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0182",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0183",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0184",
+        "altitude": "executive",
+        "basis": "role"
+      },
+      {
+        "id": "adr-0185",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0186",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0187",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0188",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0189",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0190",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0191",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0192",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0193",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0194",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0195",
+        "altitude": "executive",
+        "basis": "money"
+      },
+      {
+        "id": "adr-0196",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0197",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0198",
+        "altitude": "executive",
+        "basis": "vendor"
+      },
+      {
+        "id": "adr-0199",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0200",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0201",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0202",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0203",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0204",
+        "altitude": "existence",
+        "basis": "remove"
+      },
+      {
+        "id": "adr-0205",
+        "altitude": "existence",
+        "basis": "remove"
+      },
+      {
+        "id": "adr-0206",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0207",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0208",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0209",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0210",
+        "altitude": "existence",
+        "basis": "remove"
+      },
+      {
+        "id": "adr-0211",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0212",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0213",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0214",
+        "altitude": "executive",
+        "basis": "vendor"
+      },
+      {
+        "id": "adr-0215",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0216",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0217",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0218",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0219",
+        "altitude": "executive",
+        "basis": "vendor"
+      },
+      {
+        "id": "adr-0220",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0221",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0222",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0223",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0224",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0225",
+        "altitude": "executive",
+        "basis": "vendor"
+      },
+      {
+        "id": "adr-0226",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0227",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0228",
+        "altitude": "existence",
+        "basis": "remove"
+      },
+      {
+        "id": "adr-0229",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0230",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0231",
+        "altitude": "existence",
+        "basis": "remove"
+      },
+      {
+        "id": "adr-0232",
+        "altitude": "executive",
+        "basis": "vendor"
+      },
+      {
+        "id": "adr-0233",
+        "altitude": "existence",
+        "basis": "remove"
+      },
+      {
+        "id": "adr-0234",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0235",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0236",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0237",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0238",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0239",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0240",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0241",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0242",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0243",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0244",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0245",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0246",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0247",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0248",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0249",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0250",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0251",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0252",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0253",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0254",
+        "altitude": "executive",
+        "basis": "role"
+      },
+      {
+        "id": "adr-0255",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0256",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0257",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0258",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0259",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0260",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0261",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0262",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0263",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0264",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0265",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0266",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0267",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0269",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0270",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0271",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0272",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0273",
+        "altitude": "executive",
+        "basis": "vendor"
+      },
+      {
+        "id": "adr-0274",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0275",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0276",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0277",
+        "altitude": "executive",
+        "basis": "vendor"
+      },
+      {
+        "id": "adr-0278",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0279",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0280",
+        "altitude": "executive",
+        "basis": "vendor"
+      },
+      {
+        "id": "adr-0282",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0283",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0284",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0285",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0286",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0287",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0288",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0289",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0290",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0291",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0292",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0293",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0294",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0295",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0296",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0297",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0298",
+        "altitude": "existence",
+        "basis": "remove"
+      },
+      {
+        "id": "adr-0299",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0300",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0301",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0302",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0303",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0304",
+        "altitude": "executive",
+        "basis": "money"
+      },
+      {
+        "id": "adr-0305",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0306",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0307",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0308",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0309",
+        "altitude": "executive",
+        "basis": "role"
+      },
+      {
+        "id": "adr-0310",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0311",
+        "altitude": "existence",
+        "basis": "remove"
+      },
+      {
+        "id": "adr-0312",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0313",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0314",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0315",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0316",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0317",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0318",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0319",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0320",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0321",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0322",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0323",
+        "altitude": "executive",
+        "basis": "money"
+      },
+      {
+        "id": "adr-0324",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0325",
+        "altitude": "executive",
+        "basis": "role"
+      },
+      {
+        "id": "adr-0326",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0328",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0329",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0330",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0331",
+        "altitude": "existence",
+        "basis": "remove"
+      },
+      {
+        "id": "adr-0332",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0333",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0334",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0335",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0336",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0337",
+        "altitude": "executive",
+        "basis": "role"
+      },
+      {
+        "id": "adr-0338",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0339",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0340",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0341",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0342",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0343",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0344",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0345",
+        "altitude": "executive",
+        "basis": "money"
+      },
+      {
+        "id": "adr-0346",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0347",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0348",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0349",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0350",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0351",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0352",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0353",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0354",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0355",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0356",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0357",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0358",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0359",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0360",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0361",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0362",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0363",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0364",
+        "altitude": "executive",
+        "basis": "role"
+      },
+      {
+        "id": "adr-0365",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0366",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0367",
+        "altitude": "executive",
+        "basis": "vendor"
+      },
+      {
+        "id": "adr-0368",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0369",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0370",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0371",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0372",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0373",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0374",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0375",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0376",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0377",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0378",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0379",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0380",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0381",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0382",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0383",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0384",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0385",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0386",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0387",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0388",
+        "altitude": "existence",
+        "basis": "remove"
+      },
+      {
+        "id": "adr-0389",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0390",
+        "altitude": "executive",
+        "basis": "vendor"
+      },
+      {
+        "id": "adr-0391",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0392",
+        "altitude": "executive",
+        "basis": "role"
+      },
+      {
+        "id": "adr-0393",
+        "altitude": "existence",
+        "basis": "remove"
+      },
+      {
+        "id": "adr-0394",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0395",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0396",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0397",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0398",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0399",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0400",
+        "altitude": "executive",
+        "basis": "vendor"
+      },
+      {
+        "id": "adr-0401",
+        "altitude": "executive",
+        "basis": "vendor"
+      },
+      {
+        "id": "adr-0402",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0403",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0404",
+        "altitude": "existence",
+        "basis": "remove"
+      },
+      {
+        "id": "adr-0405",
+        "altitude": "existence",
+        "basis": "element"
+      },
+      {
+        "id": "adr-0406",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0407",
+        "altitude": "executive",
+        "basis": "vendor"
+      },
+      {
+        "id": "adr-0408",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0409",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0410",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0411",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0412",
+        "altitude": "executive",
+        "basis": "process"
+      },
+      {
+        "id": "adr-0413",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0414",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0415",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0416",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0417",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0418",
+        "altitude": "executive",
+        "basis": "vendor"
+      },
+      {
+        "id": "adr-0419",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0421",
+        "altitude": "property",
+        "basis": "rule"
+      },
+      {
+        "id": "adr-0422",
+        "altitude": "existence",
+        "basis": "remove"
+      },
+      {
+        "id": "adr-0423",
+        "altitude": "property",
+        "basis": "rule"
+      }
+    ]
+  },
+  "heldOut": {
+    "seed": 20260823,
+    "size": 48,
+    "drawnFrom": "passA",
+    "passC": {
+      "method": "BLIND RE-TEST, same rater. The decision's own `## Decision` prose only — no number, no title, no status, presentation order scrambled by a key uncorrelated with the draw. A REPLICATION under a reduced presentation, NOT a second independent rater; the report says so and reports it as such.",
+      "labels": [
+        {
+          "id": "adr-0009",
+          "altitude": "executive"
+        },
+        {
+          "id": "adr-0011",
+          "altitude": "executive"
+        },
+        {
+          "id": "adr-0012",
+          "altitude": "executive"
+        },
+        {
+          "id": "adr-0019",
+          "altitude": "existence"
+        },
+        {
+          "id": "adr-0030",
+          "altitude": "executive"
+        },
+        {
+          "id": "adr-0043",
+          "altitude": "existence"
+        },
+        {
+          "id": "adr-0053",
+          "altitude": "existence"
+        },
+        {
+          "id": "adr-0082",
+          "altitude": "property"
+        },
+        {
+          "id": "adr-0108",
+          "altitude": "existence"
+        },
+        {
+          "id": "adr-0110",
+          "altitude": "executive"
+        },
+        {
+          "id": "adr-0114",
+          "altitude": "executive"
+        },
+        {
+          "id": "adr-0116",
+          "altitude": "existence"
+        },
+        {
+          "id": "adr-0117",
+          "altitude": "existence"
+        },
+        {
+          "id": "adr-0120",
+          "altitude": "existence"
+        },
+        {
+          "id": "adr-0122",
+          "altitude": "property"
+        },
+        {
+          "id": "adr-0138",
+          "altitude": "existence"
+        },
+        {
+          "id": "adr-0143",
+          "altitude": "existence"
+        },
+        {
+          "id": "adr-0163",
+          "altitude": "executive"
+        },
+        {
+          "id": "adr-0188",
+          "altitude": "existence"
+        },
+        {
+          "id": "adr-0191",
+          "altitude": "existence"
+        },
+        {
+          "id": "adr-0195",
+          "altitude": "executive"
+        },
+        {
+          "id": "adr-0201",
+          "altitude": "existence"
+        },
+        {
+          "id": "adr-0212",
+          "altitude": "property"
+        },
+        {
+          "id": "adr-0226",
+          "altitude": "existence"
+        },
+        {
+          "id": "adr-0229",
+          "altitude": "existence"
+        },
+        {
+          "id": "adr-0240",
+          "altitude": "property"
+        },
+        {
+          "id": "adr-0270",
+          "altitude": "executive"
+        },
+        {
+          "id": "adr-0273",
+          "altitude": "executive"
+        },
+        {
+          "id": "adr-0276",
+          "altitude": "property"
+        },
+        {
+          "id": "adr-0277",
+          "altitude": "executive"
+        },
+        {
+          "id": "adr-0300",
+          "altitude": "property"
+        },
+        {
+          "id": "adr-0311",
+          "altitude": "existence"
+        },
+        {
+          "id": "adr-0329",
+          "altitude": "executive"
+        },
+        {
+          "id": "adr-0332",
+          "altitude": "property"
+        },
+        {
+          "id": "adr-0342",
+          "altitude": "existence"
+        },
+        {
+          "id": "adr-0350",
+          "altitude": "existence"
+        },
+        {
+          "id": "adr-0351",
+          "altitude": "existence"
+        },
+        {
+          "id": "adr-0363",
+          "altitude": "property"
+        },
+        {
+          "id": "adr-0367",
+          "altitude": "existence"
+        },
+        {
+          "id": "adr-0371",
+          "altitude": "property"
+        },
+        {
+          "id": "adr-0379",
+          "altitude": "property"
+        },
+        {
+          "id": "adr-0382",
+          "altitude": "executive"
+        },
+        {
+          "id": "adr-0385",
+          "altitude": "existence"
+        },
+        {
+          "id": "adr-0403",
+          "altitude": "existence"
+        },
+        {
+          "id": "adr-0408",
+          "altitude": "property"
+        },
+        {
+          "id": "adr-0411",
+          "altitude": "executive"
+        },
+        {
+          "id": "adr-0414",
+          "altitude": "property"
+        },
+        {
+          "id": "adr-0417",
+          "altitude": "property"
+        }
+      ]
+    },
+    "contaminated": [
+      12,
+      43,
+      240,
+      329
+    ],
+    "contaminationNote": "These four had their titles re-exposed between the draw and the pass, during the review of the 34 decisions whose prose the `Z` extractor defect had truncated. Agreement is reported with and without them."
+  }
+}
