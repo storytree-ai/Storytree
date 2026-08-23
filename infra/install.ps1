@@ -17,11 +17,14 @@
   browser with their own subscription; the credential lands in their own ~/.claude and never
   passes through storytree code. This script only DETECTS a logged-in CLI; never captures a token.
 
-  SCOPE (v1, Windows-first): the packaged-binary desktop install is still a follow-on. The sh
-  variant NO LONGER IS - infra/install.sh is the Linux (Debian/Ubuntu/Mint) parity sibling, sharing
-  this script's step names so the D6 repair vocabulary is the same on both platforms; the structural
-  test packages/cli/src/install-sh-script.test.ts holds the two inventories equal. macOS is still
-  uncovered by either script.
+  SCOPE (v1, Windows-only): the packaged-binary desktop install is still a follow-on. There is NO
+  sh variant and deliberately never will be - infra/install.sh existed briefly and was deleted by
+  ADR-0432, because it was never executed, never published, and aimed at an explorer at a terminal
+  rather than at the agent-with-owner-present model a Linux box actually uses. A Linux dev box is
+  provisioned by following docs/machine-onboarding.md, whose by-hand steps are the mechanism there.
+  Do not re-create this script for Linux without re-opening ADR-0432; the one condition that would
+  justify it is a genuinely UNATTENDED bootstrap, with no human and no agent able to ask one.
+  macOS is uncovered.
   Until D5 ships public binaries from the distribution bucket, the desktop app is launched from the
   provisioned checkout (dev launch), not a packaged install. See infra/install.md.
 
