@@ -85,7 +85,16 @@ test("ADR-0106 instance: each machine leg resolves through the EXACT gate it nam
 test("ADR-0106 instance: adopting `agent` observe-signs gate-1 + every machine leg, leaving each human leg for the operator", async () => {
   const spec = agentSpec();
   const story: AdoptStory = {
-    status: spec.status,
+    // `mapped`, NOT `spec.status` — and for the reason this file's header already gives. ADR-0423
+    // narrowed adoption ENTRY to `mapped` only (authored `proposed` is the greenfield status, so it
+    // is not evidence a story entered adoption), and `agent` is `proposed` like every other story in
+    // the corpus. Reading the live status here would pin the STORY'S CURRENT PROVENANCE, which is the
+    // incidental state this file exists not to pin — the property under test is the adopt pass's
+    // ROUTING (which obligations earn a verdict and which are left for the operator), and that is
+    // unchanged. The gate and leg SETS still come from the real spec, so appending a gate to the
+    // story still flows through. The entry guard itself is pinned in `@storytree/drive`'s
+    // `adopt.test.ts`, where a `proposed` story is asserted REFUSED before any spend.
+    status: "mapped",
     reliabilityGates: spec.reliabilityGates,
     uatTestCriteria: spec.uatTestCriteria,
   };
