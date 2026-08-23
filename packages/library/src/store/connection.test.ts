@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import path from "node:path";
+import { EventEmitter } from "node:events";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import type { Connector } from "@google-cloud/cloud-sql-connector";
+import type { ConnectionOptions, Connector, DriverOptions } from "@google-cloud/cloud-sql-connector";
 import type { Pool, PoolConfig } from "pg";
 // The PARSER, not the compiler — `typescript@7`'s entry point exports only a version stub and its
 // AST surface moved to explicitly unstable subpaths, so this assertion pins TypeScript 5.7's stable
@@ -34,20 +35,34 @@ type Event =
   | { type: "pool"; config: PoolConfig };
 
 function recordingConstruction(events: Event[]) {
+  // `Connector` and `Pool` are external classes a unit test cannot construct — one opens sockets,
+  // the other a TLS session. So the doubles declare WHICH members they stand in for:
+  // `satisfies Partial<X>` checks every one of them against the real contract, where the old
+  // `as unknown as X` chain checked nothing at all and a renamed method would have compiled
+  // (anti-slop `no-chained-type-assertions`, inc-09).
+  // `Connector` and `Pool` are external classes a unit test cannot construct — one opens sockets,
+  // the other a TLS session. So each double declares WHICH members it stands in for and is checked
+  // against them: `satisfies Partial<X>` verifies every member's SIGNATURE against the real
+  // contract, and the remaining single `as X` is then a legal downcast rather than the
+  // `as unknown as X` chain, which checked nothing. Caught immediately: `getOptions` was declared
+  // here as `() => Promise<{}>` where the real one is
+  // `(opts: ConnectionOptions) => Promise<DriverOptions>` — the chain compiled that for as long as
+  // it existed (anti-slop `no-chained-type-assertions`, inc-09).
   const connector = {
-    async getOptions() {
+    async getOptions(_opts: ConnectionOptions): Promise<DriverOptions> {
       events.push({ type: "getOptions" });
-      return {};
+      return {} as DriverOptions;
     },
-    close() {},
-  } as unknown as Connector;
+    close(): void {},
+  } satisfies Partial<Connector> as Connector;
 
-  const pool = {
-    on() {
-      return pool;
-    },
-    async end() {},
-  } as unknown as Pool;
+  // `createPool` uses exactly two members of the pool — `on("error", …)` and `end()`. `on` comes
+  // from the REAL `EventEmitter` `pg.Pool` extends, so the error handler genuinely registers; only
+  // `end` is stubbed. One assertion, and it is a legal DOWNCAST from a supertype rather than the
+  // `as unknown as Pool` chain, which asserted over nothing.
+  const pool = Object.assign(new EventEmitter(), {
+    async end(): Promise<void> {},
+  }) as Pool;
 
   return {
     createConnector(): Connector {

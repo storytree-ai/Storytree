@@ -434,11 +434,13 @@ test("classifyHostedReadStatus: only a real identity rejection reads as 'refused
 test("probeHostedRead: builds the /api/health URL, sends redirect:manual, and maps the status", async () => {
   let seenUrl = "";
   let seenRedirect: string | undefined;
-  const fakeFetch = (async (url: string | URL | Request, init?: RequestInit) => {
+  // Annotated, not asserted into: the annotation contextually types both parameters against the
+  // real `fetch`, where the chain checked nothing (anti-slop `no-chained-type-assertions`, inc-09).
+  const fakeFetch: typeof fetch = async (url, init) => {
     seenUrl = String(url);
     seenRedirect = init?.redirect;
     return new Response(null, { status: 302 });
-  }) as unknown as typeof fetch;
+  };
 
   // A trailing slash must not double up in the path.
   const state = await probeHostedRead("https://studio.example.com/", fakeFetch);

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { InMemoryStore } from "@storytree/storage-protocol";
-import type { Store } from "@storytree/storage-protocol";
+import type { Store, StoredDoc } from "@storytree/storage-protocol";
 import type { SdkCuratorArgs, SdkCuratorResult } from "@storytree/agent";
 import type { Comment } from "@storytree/library/store";
 import { loadFixtureCorpus } from "@storytree/library/fixture";
@@ -286,11 +286,13 @@ test("runCurationPass loads the OQ neighbourhood, runs the curator, and enacts",
 });
 
 test("runCurationPass never throws — a failing store yields a best-effort skipped line", async () => {
-  const broken = {
-    queryDocs: async () => {
+  // A REAL `Store` whose one relevant method throws — see `doctrine.test.ts` for the same shape.
+  class BrokenStore extends InMemoryStore {
+    override async queryDocs(): Promise<StoredDoc[]> {
       throw new Error("db down");
-    },
-  } as unknown as Store;
+    }
+  }
+  const broken = new BrokenStore();
   const lines = await runCurationPass({
     runner: new ScriptedCuratorRunner(),
     library: broken,

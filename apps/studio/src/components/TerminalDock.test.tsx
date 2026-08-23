@@ -90,8 +90,8 @@ const xtermMock = vi.hoisted(() => {
     titleHandler: ((title: string) => void) | null = null;
     private dataHandler: ((data: string) => void) | null = null;
     private resizeHandler: ((dims: { cols: number; rows: number }) => void) | null = null;
-    constructor(options?: Record<string, unknown>) {
-      this.options = options ?? {};
+    constructor(options?: ConstructorParameters<TerminalToolkit['Terminal']>[0]) {
+      this.options = { ...options };
       FakeTerminal.instances.push(this);
     }
     open(el: HTMLElement): void {
@@ -170,11 +170,11 @@ const fitMock = vi.hoisted(() => {
     nextDims: TerminalDims = { cols: 80, rows: 24 };
     fitCalls = 0;
     disposed = false;
-    private terminal: InstanceType<typeof xtermMock.FakeTerminal> | null = null;
+    private terminal: TerminalLike | null = null;
     constructor() {
       FakeFitAddon.instances.push(this);
     }
-    activate(terminal: InstanceType<typeof xtermMock.FakeTerminal>): void {
+    activate(terminal: TerminalLike): void {
       this.terminal = terminal;
     }
     fit(): void {
@@ -325,10 +325,10 @@ const clipboardMock = vi.hoisted(() => {
 // under it. A real terminal still cannot run here — jsdom has no layout engine and no GPU — which
 // is exactly why the seam, rather than the doubles, was the thing to fix.
 //
-// One assertion, because these fakes implement the SUBSET of xterm the dock uses rather than
-// xterm's declared classes. That is the partial-fake-of-a-real-contract shape
-// `anti-slop-adoption-arc-inc-09` owns; it is confined to this one line.
-const fakeToolkit = {
+// NO assertion: `TerminalToolkit` now declares the SURFACE the dock uses rather than xterm's
+// classes (inc-09 narrowed the seam), so these fakes are ordinary values of the seam's type and
+// every member is checked against it.
+const fakeToolkit: TerminalToolkit = {
   Terminal: xtermMock.FakeTerminal,
   FitAddon: fitMock.FakeFitAddon,
   WebglAddon: webglMock.FakeWebglAddon,
@@ -336,7 +336,7 @@ const fakeToolkit = {
   WebLinksAddon: webLinksMock.FakeWebLinksAddon,
   SearchAddon: searchMock.FakeSearchAddon,
   ClipboardAddon: clipboardMock.FakeClipboardAddon,
-} as unknown as TerminalToolkit;
+};
 
 /** Wrap a dock element so it is built from the fake engine above. */
 const withToolkit = (ui: React.JSX.Element): React.JSX.Element => (
@@ -389,7 +389,7 @@ const bridgeMock = vi.hoisted(() => {
 //    the constructor available to the component under test and records the callback + observed
 //    elements so a test can simulate a container-size-change (a window/layout resize with no drag
 //    and no tab switch) deterministically, with no real layout engine involved. ───────────────────
-class FakeResizeObserver {
+class FakeResizeObserver implements ResizeObserver {
   static instances: FakeResizeObserver[] = [];
   observed: Element[] = [];
   disconnected = false;
@@ -409,12 +409,13 @@ class FakeResizeObserver {
   }
   /** test-only: simulate the observer firing for its observed container. */
   fire(): void {
-    this.callback([] as unknown as ResizeObserverEntry[], this as unknown as ResizeObserver);
+    this.callback([], this);
   }
 }
 
 import { TerminalDock } from './TerminalDock';
 import { TerminalToolkitContext, type TerminalToolkit } from '../lib/terminalToolkit';
+import type { TerminalLike } from '../lib/terminalToolkit';
 
 /** Flush the microtask queue the bridge's `spawn()` promise resolves on. */
 const flush = (): Promise<void> => act(async () => {});
@@ -507,14 +508,13 @@ beforeEach(() => {
   bridgeMock.ack.mockClear();
   bridgeMock.clear.mockClear();
   bridgeMock.openLink.mockClear();
-  (window as unknown as { desktopTerminal?: typeof bridgeMock }).desktopTerminal = bridgeMock;
-  (globalThis as unknown as { ResizeObserver: typeof ResizeObserver }).ResizeObserver =
-    FakeResizeObserver as unknown as typeof ResizeObserver;
+  window.desktopTerminal = bridgeMock;
+  globalThis.ResizeObserver = FakeResizeObserver;
 });
 
 afterEach(() => {
   cleanup();
-  delete (window as unknown as { desktopTerminal?: typeof bridgeMock }).desktopTerminal;
+  delete window.desktopTerminal;
 });
 
 describe('TerminalDock', () => {
@@ -652,7 +652,7 @@ describe('TerminalDock', () => {
 
   // ── tdp-degrades-when-bridge-absent ──────────────────────────────────────────
   it('tdp-degrades-when-bridge-absent: an absent desktopTerminal bridge renders an honest disabled state, never spawns/hangs', () => {
-    delete (window as unknown as { desktopTerminal?: typeof bridgeMock }).desktopTerminal;
+    delete window.desktopTerminal;
 
     expect(() => render(withToolkit(<TerminalDock />))).not.toThrow();
 
@@ -1166,22 +1166,11 @@ describe('TerminalDock', () => {
     const handler = term.customKeyEventHandler;
     expect(typeof handler).toBe('function');
 
-    const ctrlC = {
-      type: 'keydown',
-      ctrlKey: true,
-      shiftKey: false,
-      altKey: false,
-      metaKey: false,
-      key: 'c',
-    } as unknown as KeyboardEvent;
-    const ctrlV = {
-      type: 'keydown',
-      ctrlKey: true,
-      shiftKey: false,
-      altKey: false,
-      metaKey: false,
-      key: 'v',
-    } as unknown as KeyboardEvent;
+    // REAL events, not literals asserted into `KeyboardEvent`: jsdom constructs them, so the
+    // handler reads the fields it would read in a browser rather than the six this file remembered
+    // to write (anti-slop `no-chained-type-assertions`, inc-09).
+    const ctrlC = new KeyboardEvent('keydown', { ctrlKey: true, key: 'c' });
+    const ctrlV = new KeyboardEvent('keydown', { ctrlKey: true, key: 'v' });
 
     // (a) Ctrl+C WITH a selection copies it to the clipboard and suppresses the interrupt — no
     // '\x03' reaches the bridge.
@@ -1205,16 +1194,9 @@ describe('TerminalDock', () => {
     expect(term.pasted).toEqual(['pasted text']);
 
     // (d) a non-keydown event, and an unrelated key, are both left untouched.
-    const ctrlCKeyUp = { ...ctrlC, type: 'keyup' } as unknown as KeyboardEvent;
+    const ctrlCKeyUp = new KeyboardEvent('keyup', { ctrlKey: true, key: 'c' });
     expect(handler!(ctrlCKeyUp)).toBe(true);
-    const plainA = {
-      type: 'keydown',
-      ctrlKey: false,
-      shiftKey: false,
-      altKey: false,
-      metaKey: false,
-      key: 'a',
-    } as unknown as KeyboardEvent;
+    const plainA = new KeyboardEvent('keydown', { key: 'a' });
     expect(handler!(plainA)).toBe(true);
 
     // (e) an absent navigator.clipboard never throws, and leaves xterm's default handling intact.
@@ -1379,7 +1361,7 @@ describe('TerminalDock', () => {
   //    never tries to ack. ─────────────────────────────────────────────────────────────────────
   it('tdp-ack-absent-bridge-member-is-inert: a bridge without ack (older preload) renders data normally — no throw, no ack attempt', async () => {
     const { ack: _ack, ...bridgeWithoutAck } = bridgeMock;
-    (window as unknown as { desktopTerminal?: unknown }).desktopTerminal = bridgeWithoutAck;
+    window.desktopTerminal = bridgeWithoutAck;
 
     render(withToolkit(<TerminalDock />));
     await expand();
@@ -1474,7 +1456,7 @@ describe('TerminalDock', () => {
     // An older preload without `clear` (feature-guarded like `ack?`): the local xterm clear
     // still happens, nothing is forwarded, nothing throws.
     const { clear: _clear, ...bridgeWithoutClear } = bridgeMock;
-    (window as unknown as { desktopTerminal?: unknown }).desktopTerminal = bridgeWithoutClear;
+    window.desktopTerminal = bridgeWithoutClear;
     bridgeMock.resetSessionCounter();
     bridgeMock.clear.mockClear();
 
@@ -1509,8 +1491,10 @@ describe('TerminalDock', () => {
     expect(term2!.addons).toContain(webLinksMock.FakeWebLinksAddon.instances[1]);
 
     // The handler routes the clicked URI over the bridge, suppressing the default (window.open).
-    const preventDefault = vi.fn();
-    const clickEvent = { preventDefault } as unknown as MouseEvent;
+    // A REAL MouseEvent with its own `preventDefault` spied on, rather than an object claiming to
+    // be one: the handler's suppression is then observed on the event it was actually given.
+    const clickEvent = new MouseEvent('click', { cancelable: true });
+    const preventDefault = vi.spyOn(clickEvent, 'preventDefault');
     expect(links1.handler).toBeDefined();
     links1.handler!(clickEvent, 'https://github.com/HuaMick/storytree/pull/772');
     expect(bridgeMock.openLink).toHaveBeenCalledWith('https://github.com/HuaMick/storytree/pull/772');
@@ -1527,7 +1511,7 @@ describe('TerminalDock', () => {
     // An older preload without `openLink` (feature-guarded like `ack?`/`clear?`): no link addon
     // is loaded at all, and nothing throws.
     const { openLink: _openLink, ...bridgeWithoutOpenLink } = bridgeMock;
-    (window as unknown as { desktopTerminal?: unknown }).desktopTerminal = bridgeWithoutOpenLink;
+    window.desktopTerminal = bridgeWithoutOpenLink;
     bridgeMock.resetSessionCounter();
     webLinksMock.FakeWebLinksAddon.instances.length = 0;
     render(withToolkit(<TerminalDock />));
@@ -1790,7 +1774,7 @@ describe('TerminalDock — contract 12, host-owned chrome', () => {
   });
 
   it('tdp-hosted-degrades-honestly: with no bridge, a hosted dock still says so — inside the pane', () => {
-    delete (window as unknown as { desktopTerminal?: typeof bridgeMock }).desktopTerminal;
+    delete window.desktopTerminal;
     const { container } = render(
       withToolkit(<TerminalDock host={{ expanded: true, onRequestExpand: () => {} }} />),
     );

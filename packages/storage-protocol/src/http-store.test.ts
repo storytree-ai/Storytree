@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { InMemoryStore } from "./store.js";
-import type { Store } from "./store.js";
+import type { Store, StoredDoc } from "./store.js";
 import { HttpStore, HttpStoreError, type FetchLike, type FetchResponse } from "./http-store.js";
 import { handleStoreRequest, type StoreRequest } from "./http-store-server.js";
 import { StoreWireError } from "./store-wire.js";
@@ -213,11 +213,14 @@ test("handleStoreRequest: get-doc without ?id= is 400", async () => {
 });
 
 test("handleStoreRequest: a store fault is 500, not a silent success", async () => {
-  const exploding = {
-    queryDocs: async () => {
+  // A REAL `Store` whose read throws: the route's 500 is then observed against the same class
+  // every other case in this file uses.
+  class ExplodingStore extends InMemoryStore {
+    override async queryDocs(): Promise<StoredDoc[]> {
       throw new Error("connection terminated");
-    },
-  } as unknown as Store;
+    }
+  }
+  const exploding = new ExplodingStore();
 
   const res = await handleStoreRequest(exploding, { method: "GET", path: "/query-docs" });
   assert.equal(res.status, 500);

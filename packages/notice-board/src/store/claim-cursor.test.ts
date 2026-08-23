@@ -37,8 +37,12 @@ class FakeCursorClient {
   cursorRow?: { last_seq: number | string };
   /** What COALESCE(MAX(seq), 0) returns. */
   maxSeq: number | string = 0;
-  /** The rows the bounded delta SELECT returns. */
-  deltaRows: DeltaRow[] = [];
+  /**
+   * The rows the bounded delta SELECT returns. `seq` is `number | string` because the pg driver
+   * really does hand a bigint back as a STRING — modelling that here is what lets the coercion be
+   * asserted without an assertion chain (anti-slop `no-chained-type-assertions`, inc-09).
+   */
+  deltaRows: (Omit<DeltaRow, "seq"> & { seq: number | string })[] = [];
   /** When set, any query whose text includes this fragment throws. */
   failOnPattern?: string;
 
@@ -196,7 +200,7 @@ test("pullOverlapDeltas: bigint-as-string seq/cursor/max (the pg driver's bigint
   client.cursorRow = { last_seq: "10" };
   client.maxSeq = "15";
   client.deltaRows = [
-    { seq: "12" as unknown as number, unit_id: "story-a", type: "released", session_id: "sess-b", doc: {}, at: AT },
+    { seq: "12", unit_id: "story-a", type: "released", session_id: "sess-b", doc: {}, at: AT },
   ];
   const store = storeWith(client);
 

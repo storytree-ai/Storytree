@@ -253,7 +253,7 @@ const ARCS_SPEC: MirrorSpec = {
   referenceOnlyFields: [],
 };
 
-const answer = (status: number, body: unknown): Entry => ({ status, body }) as unknown as Entry;
+const answer = (status: number, body: unknown): Entry => ({ status, body });
 
 test("the arcs projection emits a response marker per label, plus one entry per arc", () => {
   const entries = projectArcsPayload({

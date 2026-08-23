@@ -15,13 +15,18 @@ import { libraryRelated, librarySearch, toSearchDoc } from "./library-search.js"
  * storage shapes meet — and the refusals.
  */
 
-function row(id: string, kind: string, doc: Record<string, unknown>): {
+/** A stored row as the search adapter reads one. */
+interface FixtureRow {
   id: string;
   kind: string;
   doc: unknown;
   createdAt: string;
   updatedAt: string;
-} {
+}
+
+// `doc: unknown` — the field it lands in IS `unknown`, and the malformed-payload case below
+// then needs no assertion at all (anti-slop `no-chained-type-assertions`, inc-09).
+function row(id: string, kind: string, doc: unknown): FixtureRow {
   return { id, kind, doc, createdAt: "2026-08-23T00:00:00.000Z", updatedAt: "2026-08-23T00:00:00.000Z" };
 }
 
@@ -82,7 +87,7 @@ test("a row with no pointers and no body adapts without inventing fields", () =>
 });
 
 test("a malformed doc payload adapts to an empty artifact rather than throwing", () => {
-  const doc = toSearchDoc(row("weird", "note", null as unknown as Record<string, unknown>));
+  const doc = toSearchDoc(row("weird", "note", null));
   assert.equal(doc.id, "weird");
   assert.deepEqual(doc.refs, []);
 });

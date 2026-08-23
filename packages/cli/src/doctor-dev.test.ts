@@ -435,7 +435,7 @@ test("classifySecretsFile: blank on BOTH sides is missing — the hydrator would
 /** A manifest slice the rule generator yields real rules for. */
 const MANIFEST_DOC: ManifestRootSlice = {
   root: { dirs: { packages: {}, docs: {} }, files: { "README.md": {} } },
-} as unknown as ManifestRootSlice;
+};
 const MANIFEST = JSON.stringify(MANIFEST_DOC);
 
 /**

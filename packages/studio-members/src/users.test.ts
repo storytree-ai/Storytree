@@ -16,6 +16,10 @@ import {
   type UserRole,
 } from "./users.js";
 
+/** A role the `UserRole` union does not name — `string` so the narrowing below is one step. */
+const UNKNOWN_ROLE: string = "builder";
+
+
 const user = (over: Partial<UserDoc> = {}): UserDoc =>
   User.parse({
     email: "a@example.com",
@@ -152,7 +156,9 @@ test("builder role: User schema accepts 'builder', resolveAccess resolves it, la
   // 4. Downgrading the sole admin TO builder orphans (builder ≠ admin);
   //    re-roling a builder to member never orphans (builder is not an admin).
   assert.equal(
-    wouldOrphanAdminsOnRole(mixed, "admin@x.com", "builder" as unknown as UserRole),
+    // A role the union does not name — widened at the binding so the guard's RUNTIME behaviour is
+    // what is being proved, not the compiler's.
+    wouldOrphanAdminsOnRole(mixed, "admin@x.com", UNKNOWN_ROLE as UserRole),
     true,
   );
   assert.equal(wouldOrphanAdminsOnRole(mixed, "builder@x.com", "member"), false);

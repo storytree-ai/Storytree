@@ -437,24 +437,17 @@ export default defineConfig({
     // does not reach this one.
     "anti-slop/no-known-value-widening": "error",
   },
-  overrides: [
-    {
-      // THE LAXER TEST BAR (ADR-0407 D4, owner-decided 2026-08-21). Not a weakening of the ratchet
-      // and not a `warn`: a decided scope, recorded with its reason like every other "off".
-      //
-      // `no-chained-type-assertions` is at "error" in production source, where inc-03 drove it to
-      // zero. The 126 remaining sites are all in tests, and they are a different kind of thing. The
-      // compiler was asked, not guessed at: reducing each chain to a single assertion left ~71 of
-      // them compiling — pure noise — but ~55 genuinely rejected, because they are PARTIAL FAKES of
-      // real contracts. A `FixtureStore` standing in for `Store` (20 sites in one file), object
-      // literals standing in for `ServerResponse`, `Pool`, `Connector`, `HexWorld`, and the desktop
-      // preload's `window` bridges. Each one wants a real double, which is a test-architecture
-      // change rather than a type change — the same class of work the arc already gave its own lane
-      // for `no-module-mocking`, and parked as its own increment here rather than folded into inc-03.
-      files: ["**/*.test.ts", "**/*.test.tsx", "**/*.test.mts", "**/e2e/**"],
-      rules: {
-        "anti-slop/no-chained-type-assertions": "off",
-      },
-    },
-  ],
+  // NO OVERRIDES. The laxer test bar ADR-0407 D4 authorised was used by exactly one entry —
+  // `no-chained-type-assertions` on test files — and `anti-slop-adoption-arc` inc-09 drove those
+  // 122 sites to zero, so the entry has nothing left to except and the block is empty rather than
+  // carrying a dead carve-out. The AUTHORITY is untouched: D4 still permits a laxer bar, and a
+  // future rule may earn one. What is gone is this rule's use of it.
+  //
+  // What the drain found, and it is the argument for having done it rather than kept the bar: the
+  // chains were not noise. They hid a cloud-sql `getOptions` double declared with the wrong
+  // signature, a `FixtureStore` missing `patchDoc` entirely, two `DesktopRepoBridge` doubles each
+  // missing half the bridge the preload exposes on ONE object, two `HexWorld` fixtures missing five
+  // `TreeStory` fields, and an integration test posting a `CommentAnchor` missing four of its own.
+  // Each was a test asserting against a contract it did not hold.
+  overrides: [],
 });

@@ -489,11 +489,11 @@ test("create: a ledger WITHOUT baselineCursor (the optional seam absent) still c
   const bare = fakeLedger();
   // Omitted by destructuring rather than asserted into an open dictionary and deleted through:
   // the ABSENCE is then a fact about the value's type, which is what the test is about.
-  const { baselineCursor: _baselineCursor, ...ledger } = bare;
+  const { baselineCursor: _baselineCursor, ...bareLedger } = bare;
   const io = fakeIo();
   const env = await createWorktree(
     { nodes: ["story-a"], intent: "reading" },
-    { ledger: ledger as unknown as WorktreeCreateLedgerLike, io, stamps: NO_STAMPS, generateSuffix: suffixSequence(), checkpoint: QUIET },
+    { ledger: bareLedger, io, stamps: NO_STAMPS, generateSuffix: suffixSequence(), checkpoint: QUIET },
   );
   assert.equal(env.ok, true);
 });

@@ -119,6 +119,13 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+/** A frame the `ChatEvent` union does NOT carry — widened here so the ONE narrowing below is a
+ *  legal downcast, and the guard's RUNTIME rejection is still what is being proved. */
+const UNKNOWN_FRAME: Record<string, unknown> = {};
+UNKNOWN_FRAME['type'] = 'gibberish';
+UNKNOWN_FRAME['role'] = 'story-author';
+UNKNOWN_FRAME['unitId'] = 'rejected-unit';
+
 describe('ChatPanel — spawn line (chat-panel-spawn-render)', () => {
   // ── cps-wire-union-accepts-the-spawn-frame ──────────────────────────────────
   it('cps-wire-union-accepts-the-spawn-frame: the ChatEvent union carries a ChatSpawnEvent and isChatEvent accepts a spawn frame — locally declared plain JSON, NOT a @storytree/drive import', () => {
@@ -144,7 +151,7 @@ describe('ChatPanel — spawn line (chat-panel-spawn-render)', () => {
     scriptSends([
       { type: 'spawn', phase: 'started', role: 'story-author', unitId: 'accepted-unit' },
       // A frame the union does NOT carry — it must be dropped, not rendered and not fatal.
-      { type: 'gibberish', role: 'story-author', unitId: 'rejected-unit' } as unknown as ChatEvent,
+      UNKNOWN_FRAME as ChatEvent,
       { type: 'done', proposal: 'settled', turns: 1 },
     ]);
 

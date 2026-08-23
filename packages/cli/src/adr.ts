@@ -122,6 +122,11 @@ import {
   parseDecisionPointer,
   type AdrDraft,
 } from "@storytree/library";
+
+/** The same shape with `readonly` lifted, so an options object can be built in STATEMENTS rather
+ *  than with a conditional spread (anti-slop `no-conditional-empty-object-spread`) — the same
+ *  helper `commands.ts` already uses for exactly this. */
+type Mutable<T> = { -readonly [K in keyof T]: T[K] };
 export { kebabSlug };
 
 /*
@@ -1007,18 +1012,31 @@ export async function adrCommand(
         next: ["pnpm db:up", "storytree adr list --current"],
       };
     }
-    const composeOpts: AdrComposeOpts = {
-      ...(opts.statement === undefined ? {} : { statement: opts.statement }),
-      ...(opts.clause === undefined ? {} : { clause: opts.clause }),
-      ...(opts.allowControlArm === true ? { allowControlArm: true } : {}),
-    };
-    return await adrCompose(opts.number, composeOpts, {
+    // Built in statements rather than with conditional spreads: under
+    // `exactOptionalPropertyTypes` an optional field must be ABSENT, never present-and-undefined,
+    // and that is what these `if`s say directly (anti-slop `no-conditional-empty-object-spread`).
+    const composeOpts: Mutable<AdrComposeOpts> = {};
+    if (opts.statement !== undefined) composeOpts.statement = opts.statement;
+    if (opts.clause !== undefined) composeOpts.clause = opts.clause;
+    if (opts.allowControlArm === true) composeOpts.allowControlArm = true;
+
+    // ONE unconditional spread over a base, chosen by a ternary — not a conditional spread of `{}`
+    // (`no-conditional-empty-object-spread`) and not an annotated accumulator (`no-known-value-
+    // widening` refuses a known literal flowing into a generic container). The optional field is
+    // ABSENT rather than present-and-undefined, which is what `exactOptionalPropertyTypes` wants.
+    const composeDepsBase = {
       store: deps.roundTrip.store,
       writable: deps.roundTrip.writable,
       actor: deps.roundTrip.actor,
       today: deps.today,
-      ...(deps.controlArm === undefined ? {} : { controlArm: deps.controlArm }),
-    });
+    };
+    return await adrCompose(
+      opts.number,
+      composeOpts,
+      deps.controlArm === undefined
+        ? composeDepsBase
+        : { ...composeDepsBase, controlArm: deps.controlArm },
+    );
   }
   return {
     ok: false,

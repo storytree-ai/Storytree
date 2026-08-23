@@ -32,9 +32,15 @@ import type { ClaimLedgerReadLike } from "./noticeboard.js";
 // Fakes
 // ---------------------------------------------------------------------------
 
-/** A minimal knowledge store: queryDocs feeds the dashboard; getDoc feeds the artifact view. */
-function fakeKnowledgeStore() {
-  const doc = {
+/**
+ * A REAL `InMemoryStore` holding one artifact — the dashboard reads it through the same class
+ * production does, rather than through a two-method fake asserted into the seam (anti-slop
+ * `no-chained-type-assertions`, inc-09). `agentIds` queries `{kind:"agent"}`, which this store
+ * holds none of, so the agents view still lists empty.
+ */
+async function fakeKnowledgeStore(): Promise<Store> {
+  const store = new InMemoryStore();
+  await store.upsertDoc({
     id: "live-shaped-artifact",
     kind: "principle",
     doc: {
@@ -43,18 +49,8 @@ function fakeKnowledgeStore() {
       body: "THE PRINCIPLE BODY TEXT",
       references: ["asset:another-artifact"],
     },
-    createdAt: "2026-07-01T00:00:00.000Z",
-    updatedAt: "2026-07-01T00:00:00.000Z",
-  };
-  return {
-    async queryDocs(filter?: { kind?: string }) {
-      // agentIds queries {kind:"agent"} — this store holds none, so the agents view lists empty.
-      return filter?.kind !== undefined && filter.kind !== doc.kind ? [] : [doc];
-    },
-    async getDoc(id: string) {
-      return id === doc.id ? doc : null;
-    },
-  };
+  });
+  return store;
 }
 
 function fakeLedger(): ClaimLedgerReadLike {
@@ -76,10 +72,10 @@ function fakeLedger(): ClaimLedgerReadLike {
   };
 }
 
-function makeRunner(overrides: Partial<Parameters<typeof createOrientationRunner>[0]> = {}) {
+async function makeRunner(overrides: Partial<Parameters<typeof createOrientationRunner>[0]> = {}) {
   return createOrientationRunner({
     // The dashboard only reads queryDocs/getDoc — the fake satisfies that slice structurally.
-    store: fakeKnowledgeStore() as unknown as Store,
+    store: await fakeKnowledgeStore(),
     storiesDir: mkdtempSync(path.join(tmpdir(), "orientation-runner-")),
     lookupConfig: () => null,
     ledger: fakeLedger(),
@@ -92,7 +88,7 @@ function makeRunner(overrides: Partial<Parameters<typeof createOrientationRunner
 // ---------------------------------------------------------------------------
 
 test("orientation runner: [tree] renders the story-tree view", async () => {
-  const runner = makeRunner();
+  const runner = await makeRunner();
   const env = await runner(["tree"], { store: null, writable: false });
   assert.equal(env.ok, true);
   assert.match(env.body, /^Stories:/, "the tree view opens with the Stories: header");
@@ -104,7 +100,7 @@ test("orientation runner: [tree] renders the story-tree view", async () => {
 // ---------------------------------------------------------------------------
 
 test("orientation runner: [library] renders the dashboard over the injected store", async () => {
-  const runner = makeRunner();
+  const runner = await makeRunner();
   const env = await runner(["library"], { store: null, writable: false });
   assert.equal(env.ok, true);
   assert.match(env.body, /^Library: /, "the dashboard opens with the health banner");
@@ -116,7 +112,7 @@ test("orientation runner: [library] renders the dashboard over the injected stor
 // ---------------------------------------------------------------------------
 
 test("orientation runner: [noticeboard] renders the claim-ledger board over the injected ledger", async () => {
-  const runner = makeRunner();
+  const runner = await makeRunner();
   const env = await runner(["noticeboard"], { store: null, writable: false });
   assert.equal(env.ok, true);
   assert.match(env.body, /Claim ledger \(ADR-0200\)/, "the board IS the claim ledger");
@@ -125,7 +121,7 @@ test("orientation runner: [noticeboard] renders the claim-ledger board over the 
 });
 
 test("orientation runner: [noticeboard] with no ledger degrades to the UNREAD offline render", async () => {
-  const runner = makeRunner({ ledger: null });
+  const runner = await makeRunner({ ledger: null });
   const env = await runner(["noticeboard"], { store: null, writable: false });
   assert.equal(env.ok, true, "no ledger → the offline render, never a throw");
   // Unknown, not empty: an offline board that reports "no claims" asserts something about a store
@@ -138,7 +134,7 @@ test("orientation runner: [noticeboard] with no ledger degrades to the UNREAD of
 // ---------------------------------------------------------------------------
 
 test("orientation runner: any non-read argv is refused with an ok:false envelope", async () => {
-  const runner = makeRunner();
+  const runner = await makeRunner();
   for (const argv of [
     ["noticeboard", "declare"],
     ["library", "edit"],
@@ -175,7 +171,7 @@ function makeStoriesDir(): string {
 }
 
 test("orientation runner: [tree spec <id>] returns the node's full spec markdown", async () => {
-  const runner = makeRunner({ storiesDir: makeStoriesDir() });
+  const runner = await makeRunner({ storiesDir: makeStoriesDir() });
   const env = await runner(["tree", "spec", "demo-cap"], { store: null, writable: false });
   assert.equal(env.ok, true);
   assert.match(env.body, /THE DEMO CAP SPEC BODY/, "the capability's spec markdown is the body");
@@ -186,7 +182,7 @@ test("orientation runner: [tree spec <id>] returns the node's full spec markdown
 });
 
 test("orientation runner: [tree spec <unknown>] misses with guidance, never a throw", async () => {
-  const runner = makeRunner({ storiesDir: makeStoriesDir() });
+  const runner = await makeRunner({ storiesDir: makeStoriesDir() });
   const env = await runner(["tree", "spec", "no-such-node"], { store: null, writable: false });
   assert.equal(env.ok, false);
   assert.match(env.body, /no spec found/);
@@ -194,7 +190,7 @@ test("orientation runner: [tree spec <unknown>] misses with guidance, never a th
 });
 
 test("orientation runner: [library artifact <id>] renders the artifact body with references", async () => {
-  const runner = makeRunner();
+  const runner = await makeRunner();
   const env = await runner(["library", "artifact", "live-shaped-artifact"], {
     store: null,
     writable: false,
@@ -208,7 +204,7 @@ test("orientation runner: [library artifact <id>] renders the artifact body with
 });
 
 test("orientation runner: [library artifact list <category>] lists ids; unknown category lists categories", async () => {
-  const runner = makeRunner();
+  const runner = await makeRunner();
   const hit = await runner(["library", "artifact", "list", "principle"], {
     store: null,
     writable: false,
@@ -253,7 +249,7 @@ test("orientation runner: [library artifact list <schema kind with ZERO rows>] r
   // A new kind starts empty by definition, and a lifecycle tier draining to zero is the SUCCESS
   // state — both must read as a fact about the population, never as "the kind does not exist".
   assert.ok(SOME_EMPTY_SCHEMA_KIND, "the schema defines a kind other than the one staged below");
-  const runner = makeRunner({ store: await storeWithOneDefinition() });
+  const runner = await makeRunner({ store: await storeWithOneDefinition() });
   const env = await runner(["library", "artifact", "list", SOME_EMPTY_SCHEMA_KIND], {
     store: null,
     writable: false,
@@ -263,7 +259,7 @@ test("orientation runner: [library artifact list <schema kind with ZERO rows>] r
 });
 
 test("orientation runner: [library artifact list] advertises every SCHEMA kind, including the ones at zero", async () => {
-  const runner = makeRunner({ store: await storeWithOneDefinition() });
+  const runner = await makeRunner({ store: await storeWithOneDefinition() });
   const env = await runner(["library", "artifact", "list", "not-a-real-kind"], {
     store: null,
     writable: false,
@@ -286,7 +282,7 @@ test("orientation runner: [library artifact list] still lists a kind the store h
     kind: "template",
     doc: { kind: "template", id: "template-thing", title: "Template — thing" },
   });
-  const runner = makeRunner({ store });
+  const runner = await makeRunner({ store });
   const env = await runner(["library", "artifact", "list", "template"], {
     store: null,
     writable: false,
@@ -297,7 +293,7 @@ test("orientation runner: [library artifact list] still lists a kind the store h
 });
 
 test("orientation runner: [agents] lists available agents (self-onboarding entry), fail-soft when none", async () => {
-  const runner = makeRunner();
+  const runner = await makeRunner();
   const env = await runner(["agents"], { store: null, writable: false });
   assert.equal(env.ok, false, "no name given → the needs-a-name guidance, never a throw");
   assert.match(env.body, /agents needs a name|no agent/i);

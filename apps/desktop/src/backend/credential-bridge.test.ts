@@ -112,14 +112,13 @@ test("credential-bridge: no renderer-reachable path returns the raw token", asyn
 
   // The build() return value must not carry the raw token.
   const buildResult = await bridge.build("some-unit-id", "oauth", () => undefined);
-  const resultMap = buildResult as unknown as Record<string, unknown>;
   assert.equal(
-    resultMap["token"],
-    undefined,
+    Object.hasOwn(buildResult, "token"),
+    false,
     "build result must NOT carry a 'token' field — the renderer must never receive the raw token",
   );
   assert.ok(
-    !Object.values(resultMap).includes(secret),
+    !Object.values(buildResult).includes(secret),
     "build result must NOT contain the raw token value in any field",
   );
 

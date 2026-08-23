@@ -226,15 +226,20 @@ async function main(): Promise<void> {
 
   let reading: CompositionTrialReading;
   try {
-    reading = computeCompositionTrial({
+    // Unconditional spreads over a base, chosen by ternaries — the window bounds must be ABSENT
+    // under `exactOptionalPropertyTypes`, and this says so without a conditional `{}` spread
+    // (`no-conditional-empty-object-spread`) or an annotated accumulator (`no-known-value-widening`).
+    const trialBase = {
       arms,
       support,
       altitude: resolved.byDecision,
       reads: gathered.reads,
       resolve: decisionNumberOfObservedId,
-      ...(args.from === undefined ? {} : { from: args.from }),
-      ...(args.to === undefined ? {} : { to: args.to }),
-    });
+    };
+    const withFrom = args.from === undefined ? trialBase : { ...trialBase, from: args.from };
+    reading = computeCompositionTrial(
+      args.to === undefined ? withFrom : { ...withFrom, to: args.to },
+    );
   } catch (e) {
     if (e instanceof SupportGraphCycleError) {
       out(`${TAG}: ${e.message}`);
