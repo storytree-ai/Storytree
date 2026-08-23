@@ -152,7 +152,13 @@ export interface FingerprintableDecision {
  * exists to prevent, and 32 more bits cost one extra pass over a string we are already walking.
  */
 export function fingerprintDecision(decision: FingerprintableDecision): string {
-  const input = `${decision.status} ${decision.body}`;
+  // THE SEPARATOR IS AN ESCAPE, NEVER THE RAW BYTE. A NUL between the two halves is deliberate --
+  // it stops a status and a body colliding across the join -- but written as a literal control
+  // character it makes this whole FILE read as BINARY to `grep` / `rg`, which then silently SKIP
+  // it. Every source search for anything in this module returns nothing, and an empty grep reads
+  // as "this does not exist" rather than "this was not searched". Identical at runtime -- same
+  // character, same fingerprints -- and the source stays greppable. `nul-byte-scan` pins it.
+  const input = `${decision.status}\u0000${decision.body}`;
   return `${fnv1a(input, 0x811c9dc5)}${fnv1a(input, 0x01000193)}`;
 }
 
