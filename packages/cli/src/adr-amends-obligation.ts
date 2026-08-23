@@ -18,13 +18,21 @@ import { adrDocId } from "@storytree/library";
  * ## Why a note and not a refusal
  *
  * ADR-0139 D4 has required an in-place annotation on an amended decision since it was decided, and
- * the floor is not holding: measured against the live store on 2026-08-22, of 446 accepted `amends`
- * edges 174 have a target whose body does not so much as mention the amender, and 58 amended
- * decisions name none of theirs. ADR-0419 D4 adds a mechanical presence check beneath the editorial
- * judgment — `packages/library/src/amends-annotation.ts` — and it is deliberately UNWIRED at this
- * phase, because enabling it today reds the gate on those 174 pre-existing edges and so punishes the
- * honest new case hardest. The obligation is therefore DISCIPLINE here, and the remedy for a rule
- * that is not being retrieved is to put it where the author already is.
+ * the floor was not holding: measured against the live store on 2026-08-22, of 446 accepted `amends`
+ * edges 174 had a target whose body did not so much as mention the amender, and 58 amended decisions
+ * named none of theirs. That backlog was drained to zero on 2026-08-23 (453/453 edges annotated).
+ *
+ * ADR-0419 D4 added a mechanical presence check beneath the editorial judgment; **ADR-0427 retired
+ * it** and deleted the code. The check asked only whether a target's body mentioned its amender's
+ * number ANYWHERE, while the obligation asks which CLAUSE moved — and since `adr list` already
+ * derives and prints `amended by NNNN`, the bare mention it accepted was precisely the string that
+ * adds nothing (ADR-0037 §1). It was never wired to a gate.
+ *
+ * So there is no mechanical floor, by decision rather than by omission, and this note is now the
+ * only thing that puts the rule in front of an author at the moment they write the edge. The
+ * obligation is DISCIPLINE, held by the librarian's judgment on review, and the remedy for a rule
+ * that is not being retrieved is to put it where the author already is. Do not replace this note
+ * with a refusal, and do not rebuild the presence check — see ADR-0427.
  *
  * The note also names the alternative, which is more than half of what makes it act. Until
  * 2026-08-23 the authoring surface offered `--amends` and nothing else for support, so an author

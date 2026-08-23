@@ -85,19 +85,15 @@ export * from "./knowledge-depth.js";
 // are still files — and it must not learn that. One verb, `amendsOf`; no `supersedesOf` and no
 // edge-type parameter, so ADR-0403 dec 6's never-sum rule is held by the shape of the interface.
 export * from "./decision-amends-seam.js";
-// ADR-0419 Decision 4 (`decision-read-measurement-arc` inc 05): the IN-PLACE ANNOTATION floor — an
-// accepted `amends` edge obliges its TARGET's body to say which clause moved, so a reader never has
-// to follow the edge to learn what changed. The pure judge only: ⚠ NOTHING WIRES IT TO THE GATE, and
-// nothing should until the backlog is drained (174 live edges would red it on day one). It catches
-// ABSENCE, never THINNESS — a bare number mention passes and still fails ADR-0139 D4, so a green
-// here is never compliance. Pure, browser-safe, and `supersedes` is absent from its input type for
-// the same shape-of-the-code reason its `decision-amends-seam.js` sibling gives.
-export * from "./amends-annotation.js";
-// ADR-0419 Decision 3's drain worklist: the SOURCE-partitioned rehoming view and the source's own
-// prose about each edge, so a batch carries the evidence its editorial verdict needs. It classifies
-// nothing — D3 rules that call editorial and no registry transform can exist. Pure and browser-safe;
-// the TARGET-partitioned annotation half is `amends-annotation.js`, and the two must never be mixed.
-export * from "./amends-drain.js";
+// ADR-0427 (2026-08-23) RETIRED the two `amends` annotation modules that were exported here — the
+// presence judge (`amends-annotation.js`, ADR-0419 D4) and the drain worklist that consumed it
+// (`amends-drain.js`, ADR-0419 D3). The judge asked only whether a target's body mentioned its
+// amender's number anywhere, while the obligation asks WHICH CLAUSE moved; since `adr list` already
+// derives and prints `amended by NNNN`, the string it accepted was the one that adds nothing
+// (ADR-0037 §1). It was never wired to the gate, and the backlog it was built for was drained to
+// zero (453/453) before it went. THE OBLIGATION STANDS — ADR-0139 D4, held by the librarian's
+// judgment and by the authoring-time note in `packages/cli/src/adr-amends-obligation.ts`. Do not
+// rebuild a presence check here; an instrument that measured THINNESS would be a different thing.
 // ADR-0223 dec 5's one-time seed, as a pure function: the tier order (dec 3, amended by ADR-0363 D1)
 // and the down-tier citation projection the migration applies. Pure and browser-safe apart from the
 // zod pointer check it borrows from the schema.
