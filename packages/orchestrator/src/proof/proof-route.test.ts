@@ -328,7 +328,10 @@ test("a command this spine cannot READ is DISCLOSED, not refused — unverified 
   // stays exit-code-only and stamps its green unvetted either way.
   for (const cmd of [
     { file: "make", args: ["proof"] },
-    { file: process.execPath, args: ["-e", "process.exit(0)"] },
+    // The `node -e` probe the comment above names, spelled as a LITERAL: `process.execPath` is
+    // `bun.exe` under `bun test`, which classifies as a package manager rather than the
+    // unreadable-node-command this leg exists to pin (see `NODE_BINARY` in `proof-route.ts`).
+    { file: "node", args: ["-e", "process.exit(0)"] },
   ]) {
     const route = classifyProofRoute(real({ proofCommand: cmd }));
     assert.equal(route.accounting, "none", `${cmd.file} must stay buildable`);
