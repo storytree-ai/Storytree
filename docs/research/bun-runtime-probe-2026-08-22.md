@@ -152,7 +152,7 @@ column identical and Bun exited 0.
 | `packages/art-authoring` | 52 / 52 | 51 / 51 | 230 / 230 | 1.5 / 1.0 | MATCH |
 | `packages/procedural-architecture` | 177 / 177 | 177 / 177 | 3735 / 3735 | 6.9 / 11.9 | MATCH (slower) |
 | `packages/forest-world` | 151 / 151 | 151 / 151 | 7194 / 7194 | 2.3 / 1.8 | MATCH |
-| `packages/forest-world-r3f` | 20 / 20 | 20 / 20 | 307 / 307 | 2.1 / 1.0 | MATCH (`src/` only) |
+| `packages/forest-world-r3f` | 20 / 20 | 20 / 20 | 307 / 307 | 2.1 / 1.0 | MATCH (`src/` only — 5.5% of the package; see note) |
 | `packages/context-traversal-telemetry` | 15 / 15 | 15 / 15 | 172 / 172 | 2.7 / 1.0 | MATCH |
 | `packages/context-traversal-spawn` | 28 / 28 | 28 / 28 | 238 / 238 | 0.9 / 0.6 | MATCH |
 | `packages/library` | 475 / 475 | 472 / 472 | 2396 / 2396 | 16.6 / 4.6 | MATCH |
@@ -169,6 +169,17 @@ N-API addons (`node-pty`, `@napi-rs/keyring`) — its unit suite does not load t
 end-state expectation that desktop stays on Node is untouched by this result. **`forest-world-r3f`
 was compared on `src/` only**; its committed script also runs a `harness/**` glob, excluded from
 both arms equally.
+
+> **Correction, 2026-08-23 (`bun-runtime-migration-arc` inc-05).** That `src/`-only row is a far
+> narrower claim than its width suggests, and a later reader must not read it as a parity claim
+> about the package. `src/` holds **2 of the package's 26 test files and 20 of its 363 tests** — the
+> row above measured **5.5%** of it, and `harness/**` is where essentially all the work is (343
+> tests, and 782,441 of 782,748 executed assertions). The wider measurement has since been made and
+> the package **converted**: both roots, `bun test --timeout 300000 src/ harness/`, at exact parity —
+> identical file set (26, cross-checked against `find src harness -name '*.test.ts'`), identical
+> per-file test counts, identical test-name multisets keyed by file, and **782,748 executed
+> assertions under each runtime**. Nothing here was wrong; it was narrow, and the width is the part
+> that did not travel.
 
 ## The six breaks, classified
 
