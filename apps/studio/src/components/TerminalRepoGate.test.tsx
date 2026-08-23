@@ -65,9 +65,14 @@ const renderDock = (props: TerminalSurfaceProps): React.JSX.Element => <DockProb
 // ── the desktopRepo bridge's `ready`/`onChanged` slice — installed on `window` per test (deleted
 //    for the absent-bridge case). `onChanged` captures its callback so a test can fire a simulated
 //    repo change. ──────────────────────────────────────────────────────────────────────────────
+// The WHOLE `DesktopRepoBridge` plus this suite's own capture slot. The gate consumes the
+// `ready`/`onChanged` slice, but the preload exposes all four members on ONE object, so the double
+// carries all four (anti-slop `no-chained-type-assertions`, inc-09).
 const bridgeMock = vi.hoisted(() => ({
   ready: vi.fn<() => Promise<string | null>>(),
   onChanged: vi.fn<(cb: (cwd: string | null) => void) => void>(),
+  pick: vi.fn<() => Promise<string | null>>(),
+  get: vi.fn<() => Promise<string | null>>(),
   changeHandler: undefined as ((cwd: string | null) => void) | undefined,
 }));
 
@@ -88,12 +93,12 @@ beforeEach(() => {
   bridgeMock.onChanged.mockImplementation((cb) => {
     bridgeMock.changeHandler = cb;
   });
-  (window as unknown as { desktopRepo?: typeof bridgeMock }).desktopRepo = bridgeMock;
+  window.desktopRepo = bridgeMock;
 });
 
 afterEach(() => {
   cleanup();
-  delete (window as unknown as { desktopRepo?: typeof bridgeMock }).desktopRepo;
+  delete window.desktopRepo;
 });
 
 describe('TerminalRepoGate', () => {
@@ -175,7 +180,7 @@ describe('TerminalRepoGate', () => {
 
   // ── trg-degrades-when-bridge-absent ──────────────────────────────────────────
   it('trg-degrades-when-bridge-absent: with no desktopRepo bridge renders the terminal directly, never touching ready/onChanged', async () => {
-    delete (window as unknown as { desktopRepo?: typeof bridgeMock }).desktopRepo;
+    delete window.desktopRepo;
 
     expect(() => render(<TerminalRepoGate renderDock={renderDock} />)).not.toThrow();
     await flush();

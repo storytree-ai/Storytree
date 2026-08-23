@@ -62,7 +62,7 @@ afterEach(() => {
   cleanup();
   http.uninstall();
   vi.useRealTimers();
-  delete (window as unknown as { desktopApply?: unknown }).desktopApply; // never leak the desktop bridge
+  delete window.desktopApply; // never leak the desktop bridge
 });
 
 const renderBanner = () => render(<StoreBanner onRecovered={onRecovered} />);

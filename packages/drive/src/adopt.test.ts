@@ -76,9 +76,14 @@ function leg(n: number, witness: UatTestCriterionWitness, over: Partial<UatTestC
   };
 }
 
-interface RecordingStore {
+/**
+ * The recording double, EXTENDING the real seam rather than being asserted into it (anti-slop
+ * `no-chained-type-assertions`, inc-09). `NonNullable<AdoptDeps["store"]>` is `AdoptedVerdictStore`,
+ * so the compiler now checks this double against the contract `adopt` actually calls — the chain
+ * `recordingStore()` checked nothing at all.
+ */
+interface RecordingStore extends NonNullable<AdoptDeps["store"]> {
   appended: { doc: { signer: string; approvedBy?: string; proofMode: string } }[];
-  appendEvent(e: { doc: unknown }): Promise<unknown>;
 }
 function recordingStore(): RecordingStore {
   const appended: RecordingStore["appended"] = [];
@@ -99,7 +104,7 @@ const TWO_OBSERVE: AdoptStory = {
 
 function deps(over: Partial<AdoptDeps> = {}): AdoptDeps {
   return {
-    store: recordingStore() as unknown as AdoptDeps["store"],
+    store: recordingStore(),
     loadStory: () => TWO_OBSERVE,
     gitState: () => ({ commitSha: "abc1234", clean: true }),
     observe: async () => ({ code: 0 }),
@@ -112,7 +117,7 @@ function deps(over: Partial<AdoptDeps> = {}): AdoptDeps {
 
 test("adopt GREEN: signs each observe gate (spine signer + approvedBy) and flips mapped→proposed", async () => {
   const store = recordingStore();
-  const env = await runAdopt("library", {}, deps({ store: store as unknown as AdoptDeps["store"] }));
+  const env = await runAdopt("library", {}, deps({ store: store }));
   assert.equal(env.ok, true);
   // both observe gates signed
   assert.equal(store.appended.length, 2);
@@ -133,7 +138,7 @@ test("adopt: a non-observe gate is skipped (only observe gates are observe-and-s
     reliabilityGates: [gate(1), gate(2, { kind: "build-tests", proofCommand: undefined })],
     uatTestCriteria: [],
   };
-  const env = await runAdopt("library", {}, deps({ store: store as unknown as AdoptDeps["store"], loadStory: () => story }));
+  const env = await runAdopt("library", {}, deps({ store: store, loadStory: () => story }));
   assert.equal(env.ok, true);
   assert.equal(store.appended.length, 1); // only the observe gate signed
   assert.match(env.body, /1\/1 observe gate/);
@@ -141,7 +146,7 @@ test("adopt: a non-observe gate is skipped (only observe gates are observe-and-s
 
 test("adopt REFUSE: a non-brownfield status (healthy) is never adopted", async () => {
   const store = recordingStore();
-  const env = await runAdopt("library", {}, deps({ store: store as unknown as AdoptDeps["store"], loadStory: () => ({ status: "healthy", reliabilityGates: [gate(1)], uatTestCriteria: [] }) }));
+  const env = await runAdopt("library", {}, deps({ store: store, loadStory: () => ({ status: "healthy", reliabilityGates: [gate(1)], uatTestCriteria: [] }) }));
   assert.equal(env.ok, false);
   assert.match(env.body, /is "healthy", not a brownfield/);
   assert.equal(store.appended.length, 0);
@@ -159,7 +164,7 @@ test("adopt REFUSE: authored `proposed` is refused — it is not evidence of ado
     "library",
     {},
     deps({
-      store: store as unknown as AdoptDeps["store"],
+      store: store,
       // Everything ELSE about this story is adoptable: real observe gates, a resolvable approver, a
       // live store, a clean tree. Only the status differs, so the refusal can come from nothing else.
       loadStory: () => ({ status: "proposed", reliabilityGates: [gate(1), gate(2)], uatTestCriteria: [] }),
@@ -204,7 +209,7 @@ test("adopt REFUSE: a story with no observe gates", async () => {
 
 test("adopt REFUSE: no approver resolved (the adoption decision is a human act, ADR-0097)", async () => {
   const store = recordingStore();
-  const env = await runAdopt("library", {}, deps({ store: store as unknown as AdoptDeps["store"], resolveApprover: () => ({ ok: false, error: "no signer" }) }));
+  const env = await runAdopt("library", {}, deps({ store: store, resolveApprover: () => ({ ok: false, error: "no signer" }) }));
   assert.equal(env.ok, false);
   assert.match(env.body, /no signer/);
   assert.equal(store.appended.length, 0);
@@ -218,7 +223,7 @@ test("adopt REFUSE: no live store (a verdict that evaporates greens nothing)", a
 
 test("adopt REFUSE: a dirty tree (an adopted verdict pins the clean commit it observed)", async () => {
   const store = recordingStore();
-  const env = await runAdopt("library", {}, deps({ store: store as unknown as AdoptDeps["store"], gitState: () => ({ commitSha: "dirty99", clean: false }) }));
+  const env = await runAdopt("library", {}, deps({ store: store, gitState: () => ({ commitSha: "dirty99", clean: false }) }));
   assert.equal(env.ok, false);
   assert.match(env.body, /clean committed HEAD/);
   assert.equal(store.appended.length, 0);
@@ -228,7 +233,7 @@ test("adopt: a red observe gate is not signed, ok:false, but the story still ent
   const store = recordingStore();
   let flipped = false;
   const env = await runAdopt("library", {}, deps({
-    store: store as unknown as AdoptDeps["store"],
+    store: store,
     observe: async (cmd) => ({ code: cmd.includes("pkg-2") ? 1 : 0 }), // gate-2 fails
     flipStatusToProposed: () => {
       flipped = true;
@@ -258,7 +263,7 @@ test("ADR-0106: adopt observe-signs a machine leg, leaves human + either legs fo
     // the machine leg names its binding explicitly (uat-bound-command-adoption: no sole-gate fallback)
     uatTestCriteria: [leg(1, "machine", { proofGateId: "library#gate-1" }), leg(2, "human"), leg(3, "either")],
   };
-  const env = await runAdopt("library", {}, deps({ store: store as unknown as AdoptDeps["store"], loadStory: () => story }));
+  const env = await runAdopt("library", {}, deps({ store: store, loadStory: () => story }));
   assert.equal(env.ok, true);
   // gate-1 + the ONE machine leg are signed; the human and the (undecided→human) `either` legs are NOT.
   const ids = appendedUnitIds(store);
@@ -287,7 +292,7 @@ test("ADR-0106: the shared observe suite runs ONCE for the gate + the machine le
     ],
   };
   const env = await runAdopt("library", {}, deps({
-    store: store as unknown as AdoptDeps["store"],
+    store: store,
     loadStory: () => story,
     observe: async (cmd) => {
       calls.push(cmd);
@@ -309,7 +314,7 @@ test("ADR-0106: a machine leg whose covering observe gate declares no command is
     reliabilityGates: [gate(1, { proofCommand: undefined })], // observe gate, but no command to observe
     uatTestCriteria: [leg(1, "machine", { proofGateId: "library#gate-1" })], // explicitly bound to it
   };
-  const env = await runAdopt("library", {}, deps({ store: store as unknown as AdoptDeps["store"], loadStory: () => story }));
+  const env = await runAdopt("library", {}, deps({ store: store, loadStory: () => story }));
   assert.equal(env.ok, false);
   assert.equal(store.appended.length, 0); // nothing observable → nothing signed
   assert.match(env.body, /uatc_000000000000000000000001 \(machine\) — covering gate library#gate-1 declares no command/);
@@ -322,7 +327,7 @@ test("ADR-0106: an aspirational (wouldBe) leg is not an obligation — never cla
     reliabilityGates: [gate(1)],
     uatTestCriteria: [leg(1, "machine", { wouldBe: true })],
   };
-  const env = await runAdopt("library", {}, deps({ store: store as unknown as AdoptDeps["store"], loadStory: () => story }));
+  const env = await runAdopt("library", {}, deps({ store: store, loadStory: () => story }));
   assert.equal(env.ok, true);
   assert.deepEqual(appendedUnitIds(store), ["library#gate-1"]); // only the gate; the wouldBe leg is skipped
   assert.doesNotMatch(env.body, /UAT legs \(ADR-0106\)/); // no real legs → no UAT-legs section rendered
@@ -343,7 +348,7 @@ test("uat-bound-command-adoption: an unbound machine leg fails the whole UAT-sig
       leg(2, "machine"), // no proof-gate binding — refused (uat-machine-gate-resolution)
     ],
   };
-  const env = await runAdopt("library", {}, deps({ store: store as unknown as AdoptDeps["store"], loadStory: () => story }));
+  const env = await runAdopt("library", {}, deps({ store: store, loadStory: () => story }));
   // The whole envelope fails: an invalid/unbound machine leg is never a partial-credit situation.
   assert.equal(env.ok, false);
   const ids = appendedUnitIds(store);
@@ -363,7 +368,7 @@ test("uat-bound-command-adoption: a machine leg with NO explicit proof-gate bind
     reliabilityGates: [gate(1)], // exactly one observe gate — must NOT be used as an implicit fallback
     uatTestCriteria: [leg(1, "machine")], // no proofGateId: an unbound machine leg
   };
-  const env = await runAdopt("library", {}, deps({ store: store as unknown as AdoptDeps["store"], loadStory: () => story }));
+  const env = await runAdopt("library", {}, deps({ store: store, loadStory: () => story }));
   // the envelope fails — an unbound machine leg is never signed via a fallback to "the story's only gate"
   assert.equal(env.ok, false);
   const ids = appendedUnitIds(store);
@@ -392,7 +397,7 @@ test("ADR-0408: one adopt run — the observe GATE carries approvedBy, the machi
     "library",
     {},
     deps({
-      store: store as unknown as AdoptDeps["store"],
+      store: store,
       loadStory: () => story,
       resolveApprover: () => ({ ok: true, signer: "hua.mick@gmail.com" }),
     }),
@@ -434,7 +439,7 @@ test("ADR-0408: a story with only machine legs still needs an approver to RUN ad
     "library",
     {},
     deps({
-      store: store as unknown as AdoptDeps["store"],
+      store: store,
       loadStory: () => story,
       observe: async () => {
         observed += 1;

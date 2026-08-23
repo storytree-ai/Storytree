@@ -28,7 +28,7 @@ import { Hud } from './Hud';
 afterEach(() => {
   cleanup();
   // never leak the desktop bridge between tests
-  delete (window as unknown as { desktopAuth?: unknown }).desktopAuth;
+  delete window.desktopAuth;
 });
 
 // ── 1. the landing route retirement ─────────────────────────────────────────────────────────
@@ -133,7 +133,7 @@ describe('Hud — avatar menu composition', () => {
   });
 
   it('hud-menu-credentials-present-with-desktop-bridge: Credentials appears when window.desktopAuth exists', () => {
-    (window as unknown as { desktopAuth: unknown }).desktopAuth = {
+    window.desktopAuth = {
       store: async () => {},
       status: async () => false,
       signOut: async () => true,

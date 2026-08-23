@@ -24,12 +24,12 @@ function makeFake() {
 const flush = (): Promise<void> => act(async () => {});
 
 beforeEach(() => {
-  delete (window as unknown as { desktopAuth?: unknown }).desktopAuth;
+  delete window.desktopAuth;
 });
 
 afterEach(() => {
   cleanup();
-  delete (window as unknown as { desktopAuth?: unknown }).desktopAuth;
+  delete window.desktopAuth;
 });
 
 describe("CredentialsPanel — credentials-ui-feature-gated", () => {
@@ -160,7 +160,7 @@ describe("CredentialsPanel — credentials-ui-per-kind-sign-out", () => {
 describe("DesktopCredentialsDock — feature detection with global", () => {
   it("opens the panel when desktopAuth is present on window", async () => {
     const fake = makeFake();
-    (window as unknown as { desktopAuth: DesktopAuthBridge }).desktopAuth = fake;
+    window.desktopAuth = fake;
 
     render(<DesktopCredentialsDock />);
     fireEvent.click(screen.getByRole("button", { name: "Open credentials" }));

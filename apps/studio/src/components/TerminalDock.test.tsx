@@ -507,14 +507,14 @@ beforeEach(() => {
   bridgeMock.ack.mockClear();
   bridgeMock.clear.mockClear();
   bridgeMock.openLink.mockClear();
-  (window as unknown as { desktopTerminal?: typeof bridgeMock }).desktopTerminal = bridgeMock;
+  window.desktopTerminal = bridgeMock;
   (globalThis as unknown as { ResizeObserver: typeof ResizeObserver }).ResizeObserver =
     FakeResizeObserver as unknown as typeof ResizeObserver;
 });
 
 afterEach(() => {
   cleanup();
-  delete (window as unknown as { desktopTerminal?: typeof bridgeMock }).desktopTerminal;
+  delete window.desktopTerminal;
 });
 
 describe('TerminalDock', () => {
@@ -652,7 +652,7 @@ describe('TerminalDock', () => {
 
   // ── tdp-degrades-when-bridge-absent ──────────────────────────────────────────
   it('tdp-degrades-when-bridge-absent: an absent desktopTerminal bridge renders an honest disabled state, never spawns/hangs', () => {
-    delete (window as unknown as { desktopTerminal?: typeof bridgeMock }).desktopTerminal;
+    delete window.desktopTerminal;
 
     expect(() => render(withToolkit(<TerminalDock />))).not.toThrow();
 
@@ -1379,7 +1379,7 @@ describe('TerminalDock', () => {
   //    never tries to ack. ─────────────────────────────────────────────────────────────────────
   it('tdp-ack-absent-bridge-member-is-inert: a bridge without ack (older preload) renders data normally — no throw, no ack attempt', async () => {
     const { ack: _ack, ...bridgeWithoutAck } = bridgeMock;
-    (window as unknown as { desktopTerminal?: unknown }).desktopTerminal = bridgeWithoutAck;
+    window.desktopTerminal = bridgeWithoutAck;
 
     render(withToolkit(<TerminalDock />));
     await expand();
@@ -1474,7 +1474,7 @@ describe('TerminalDock', () => {
     // An older preload without `clear` (feature-guarded like `ack?`): the local xterm clear
     // still happens, nothing is forwarded, nothing throws.
     const { clear: _clear, ...bridgeWithoutClear } = bridgeMock;
-    (window as unknown as { desktopTerminal?: unknown }).desktopTerminal = bridgeWithoutClear;
+    window.desktopTerminal = bridgeWithoutClear;
     bridgeMock.resetSessionCounter();
     bridgeMock.clear.mockClear();
 
@@ -1527,7 +1527,7 @@ describe('TerminalDock', () => {
     // An older preload without `openLink` (feature-guarded like `ack?`/`clear?`): no link addon
     // is loaded at all, and nothing throws.
     const { openLink: _openLink, ...bridgeWithoutOpenLink } = bridgeMock;
-    (window as unknown as { desktopTerminal?: unknown }).desktopTerminal = bridgeWithoutOpenLink;
+    window.desktopTerminal = bridgeWithoutOpenLink;
     bridgeMock.resetSessionCounter();
     webLinksMock.FakeWebLinksAddon.instances.length = 0;
     render(withToolkit(<TerminalDock />));
@@ -1790,7 +1790,7 @@ describe('TerminalDock — contract 12, host-owned chrome', () => {
   });
 
   it('tdp-hosted-degrades-honestly: with no bridge, a hosted dock still says so — inside the pane', () => {
-    delete (window as unknown as { desktopTerminal?: typeof bridgeMock }).desktopTerminal;
+    delete window.desktopTerminal;
     const { container } = render(
       withToolkit(<TerminalDock host={{ expanded: true, onRequestExpand: () => {} }} />),
     );

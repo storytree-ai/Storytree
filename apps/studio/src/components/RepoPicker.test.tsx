@@ -22,9 +22,15 @@ import { render, screen, fireEvent, act, cleanup } from '@testing-library/react'
 // ── the desktopRepo bridge — installed on `window` per test (deleted for the absent-bridge case).
 //    Both calls resolve asynchronously (a real IPC round-trip would too), so tests await a flush
 //    before asserting the reflected/updated selection. ─────────────────────────────────────────
+// The WHOLE `DesktopRepoBridge`, not the two members this file exercises: the preload exposes all
+// four together, and a partial fake let this suite pass while the picker reached for a member the
+// double did not have (anti-slop `no-chained-type-assertions`, inc-09 — the chain that used to sit
+// on `window.desktopRepo` is what hid the gap).
 const bridgeMock = vi.hoisted(() => ({
   pick: vi.fn<() => Promise<string | null>>(),
   get: vi.fn<() => Promise<string | null>>(),
+  ready: vi.fn<() => Promise<string | null>>(),
+  onChanged: vi.fn<(cb: (cwd: string | null) => void) => void>(),
 }));
 
 import { RepoPicker } from './RepoPicker';
@@ -42,12 +48,12 @@ function pickerRoot(container: HTMLElement): HTMLElement {
 beforeEach(() => {
   bridgeMock.pick.mockReset();
   bridgeMock.get.mockReset();
-  (window as unknown as { desktopRepo?: typeof bridgeMock }).desktopRepo = bridgeMock;
+  window.desktopRepo = bridgeMock;
 });
 
 afterEach(() => {
   cleanup();
-  delete (window as unknown as { desktopRepo?: typeof bridgeMock }).desktopRepo;
+  delete window.desktopRepo;
 });
 
 describe('RepoPicker', () => {
@@ -108,7 +114,7 @@ describe('RepoPicker', () => {
 
   // ── rpp-degrades-when-bridge-absent ──────────────────────────────────────────
   it('rpp-degrades-when-bridge-absent: an absent desktopRepo bridge renders an honest disabled state, never calls pick/get', async () => {
-    delete (window as unknown as { desktopRepo?: typeof bridgeMock }).desktopRepo;
+    delete window.desktopRepo;
 
     expect(() => render(<RepoPicker />)).not.toThrow();
     await flush();

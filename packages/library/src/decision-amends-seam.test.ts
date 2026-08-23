@@ -32,9 +32,11 @@ test("decision-amends-seam-has-no-edge-type-parameter: two verbs, each naming on
 
   assert.equal(resolver.amendsOf.length, 1, "the decision number, and nothing else");
   assert.equal(resolver.dependsOnOf.length, 1, "the decision number, and nothing else");
-  const bag = resolver as unknown as Record<string, unknown>;
   assert.deepEqual(
-    Object.keys(resolver).filter((key) => typeof bag[key] === "function").sort(),
+    Object.entries(resolver)
+      .filter(([, value]) => typeof value === "function")
+      .map(([key]) => key)
+      .sort(),
     ["amendsOf", "dependsOnOf"],
     "exactly two edge verbs, each named for the one edge it answers",
   );
