@@ -9,7 +9,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "node --import ../../scripts/tsx-cache-off.mjs --import tsx --test \"src/**/*.test.ts\""
+    "test": "bun test --timeout 300000 src/"
   },
   "dependencies": {
     "@storytree/context-traversal-capture": "workspace:*",
@@ -19,7 +19,6 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.7",
-    "tsx": "^4.19.2",
     "typescript": "~7.0.2"
   }
 }
