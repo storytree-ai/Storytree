@@ -426,6 +426,42 @@ export default defineConfig({
     //     interface/alias asymmetry.
     // Plus 34 in the small tail (assertions, `unknown` targets, one property).
     //
+    // ★ THE ACCUMULATOR CLASS IS NOT GROUND-2 AFTER ALL — it has a compliant shape, and the
+    // "no compliant shape was found" reading above is CORRECTED here rather than carried forward.
+    // The shape is a NAMED NARROW INTERFACE listing the keys the accumulator may gain. `arc edit`'s
+    // patch bag was the canonical example (`const fields: Record<string, unknown> = { updatedAt }`
+    // then two guarded writes); it may carry exactly three keys, all known at authoring time, so
+    // `interface ArcNarrativePatch { updatedAt: string; intent?: string; endState?: string }` is
+    // STRICTLY NARROWER than the dictionary rather than a re-statement of it — and it turns a
+    // typo'd key from a silently-dropped field into a compile error. `satisfies` fails there for the
+    // reason recorded above (it pins the key set and the later write stops compiling); naming the
+    // keys does not. NO RULE PANEL IS NEEDED for this class. One boundary cost, paid explicitly: a
+    // named interface has no implicit index signature, so handing it to a genuinely open sink
+    // (`patchFields(… fields: Readonly<Record<string, unknown>>)`) needs a `{ ...fields }` spread at
+    // the call. `interface` rather than a type alias is forced by the classifier's known
+    // interface/alias asymmetry — recorded, not leaned on, since the shape is narrow either way.
+    //
+    // ★ THE RULE'S OWN FIRST REMEDY — "keep inference" — IS MEASURED-WRONG AT SCALE HERE. DO NOT
+    // re-run the sweep. Applied mechanically to all 32 remaining BINDING sites (delete the
+    // annotation, keep the literal) it produced **525 typecheck errors** across 12 packages, because
+    // the annotation is load-bearing in three distinct ways: it supplies the index signature a later
+    // computed write needs (`props['data-cap-id'] = …` in `SceneView.tsx`), it keeps a spread of an
+    // already-open record OPEN (a destructured `…rest` narrows to its known keys the moment the
+    // annotation goes), and it is what lets a closed-union table be READ by a wider key. The
+    // remedies that DO work, in the order to try them: `as const satisfies Record<Union, V>` for a
+    // TOTAL closed-union table (free, and adds exhaustiveness); `ReadonlyMap` for a PARTIAL table or
+    // one read by an open key (the one shape `as const satisfies` cannot express — it narrows the
+    // readable keys to those present); a NAMED INTERFACE for an accumulator; and only then a bare
+    // drop, which is right just for a spread of an already-open record.
+    //
+    // ★ A GENUINE RESIDUE EXISTS, and it is the same ground the `no-unsafe-dictionary-type` panel
+    // found. `packages/library/src/migrations.ts` builds a MIGRATION output over a legacy row whose
+    // keys are whatever that row carried: there is no narrower type to name, and dropping the
+    // annotation does not keep inference either — measured, the compiler narrows the spread and the
+    // conditional backfills stop compiling. Those two sites stay annotated with the reason written
+    // at each. Whether that class is large enough to need a NARROWING is inc-10's call, and it is
+    // the only part of this rule that might still want a panel.
+    //
     // ✓ THE WEBSITE-MIRROR FENCE IS GONE, AND SO IS EVERY FIRING BEHIND IT. What blocked those
     // sites was never the code: editing the three files the website vendors wholesale (ADR-0093)
     // welded a one-line lint fix to a live site publish, and publishing was read as the owner's

@@ -147,6 +147,55 @@ test("adopt REFUSE: a non-brownfield status (healthy) is never adopted", async (
   assert.equal(store.appended.length, 0);
 });
 
+// ADR-0417 D4 / ADR-0423 D1: adoption ENTRY accepts only `mapped`. Authored `proposed` is the
+// GREENFIELD status (ADR-0395), so accepting it treated every greenfield story as resumable
+// brownfield. These pin the narrowing itself — reverting the guard turns both red on `env.ok`, not
+// merely on the wording.
+test("adopt REFUSE: authored `proposed` is refused — it is not evidence of adoption entry (ADR-0417 D4)", async () => {
+  const store = recordingStore();
+  let observed = 0;
+  let flipped = 0;
+  const env = await runAdopt(
+    "library",
+    {},
+    deps({
+      store: store as unknown as AdoptDeps["store"],
+      // Everything ELSE about this story is adoptable: real observe gates, a resolvable approver, a
+      // live store, a clean tree. Only the status differs, so the refusal can come from nothing else.
+      loadStory: () => ({ status: "proposed", reliabilityGates: [gate(1), gate(2)], uatTestCriteria: [] }),
+      observe: async () => {
+        observed += 1;
+        return { code: 0 };
+      },
+      flipStatusToProposed: () => {
+        flipped += 1;
+        return { ok: true, changed: false, content: "..." };
+      },
+    }),
+  );
+  assert.equal(env.ok, false);
+  assert.match(env.body, /is "proposed", and adoption ENTRY accepts only "mapped"/);
+  // Refused BEFORE any spend or any write — the guard sits ahead of the approver/store/git walls.
+  assert.equal(store.appended.length, 0);
+  assert.equal(observed, 0);
+  assert.equal(flipped, 0);
+});
+
+test("adopt REFUSE on `proposed`: the refusal NAMES the two status-blind signing routes (ADR-0423 D3)", async () => {
+  // Fail-closed is only honest if the reader can see what to do instead. Both obligation classes are
+  // signable without claiming an adoption decision: `uat run` for machine UAT legs (ADR-0417 D2) and
+  // `adopt gate` for one observe reliability gate (ADR-0118). Neither carries a status guard.
+  const env = await runAdopt(
+    "library",
+    {},
+    deps({ loadStory: () => ({ status: "proposed", reliabilityGates: [gate(1)], uatTestCriteria: [] }) }),
+  );
+  assert.equal(env.ok, false);
+  assert.match(env.body, /storytree uat run library --pg/);
+  assert.match(env.body, /storytree adopt gate library#gate-<n> --pg/);
+  assert.ok((env.next ?? []).some((n) => n.includes("uat run library")), "next: offers the uat run route");
+});
+
 test("adopt REFUSE: a story with no observe gates", async () => {
   const env = await runAdopt("library", {}, deps({ loadStory: () => ({ status: "mapped", reliabilityGates: [gate(1, { kind: "build-tests", proofCommand: undefined })], uatTestCriteria: [] }) }));
   assert.equal(env.ok, false);
