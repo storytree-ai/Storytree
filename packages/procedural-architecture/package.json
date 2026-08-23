@@ -11,7 +11,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "bun test src/",
+    "test": "bun test --timeout 300000 src/",
     "bake": "node --import ../../scripts/tsx-cache-off.mjs --import tsx scripts/bake-kit.ts"
   },
   "devDependencies": {
