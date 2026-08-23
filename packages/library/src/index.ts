@@ -142,3 +142,8 @@ export {
 // predicate P", the question that had no CLI surface and cost every asker a throwaway tsx script.
 // Pure over already-fetched documents, so the CLI supplies the rows and this holds no connection.
 export * from "./query.js";
+
+// `decision-read-measurement-arc` inc 16 — whole-corpus ranked search and the unlinked-neighbour
+// verb: the discovery route that replaces edge-following when the `amends` edge retires. Pure and
+// browser-safe; the CLI supplies the rows from `Store.queryDocs()`.
+export * from "./search.js";
