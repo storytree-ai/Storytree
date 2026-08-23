@@ -512,3 +512,146 @@ test("a-zero-is-reported-with-the-mentions-that-qualify-it: reads and mentions a
   assert.deepEqual(quietScan.reads, []);
   assert.equal(quietScan.decisionMentions, 0, "an ordinary source read names no decision at all");
 });
+
+// ---------------------------------------------------------------------------------------------
+// THE HOST WINDOW ID — a slot is not a sitting, and the two must stay separable
+// ---------------------------------------------------------------------------------------------
+
+/** A transcript line whose own `sessionId` (the host CONTEXT WINDOW) the caller chooses. */
+function windowedLine(opts: ToolUseOpts & { readonly windowId: unknown }): string {
+  return JSON.stringify({
+    type: "assistant",
+    cwd: opts.cwd,
+    sessionId: opts.windowId,
+    timestamp: opts.timestamp,
+    isSidechain: opts.isSidechain ?? false,
+    message: {
+      id: `msg_${opts.toolUseId}`,
+      content: [{ type: "tool_use", id: opts.toolUseId, name: opts.name, input: opts.input }],
+    },
+  });
+}
+
+test("window-id-separates-sittings-inside-one-pooled-slot: two context windows sharing one worktree slot are two windows, so a per-sitting measure cannot union them", () => {
+  // WHAT WOULD MAKE THIS RED: carrying only `sessionId` (the pooled slot). Both reads would then be
+  // indistinguishable, and any "what one session did in one sitting" figure over them is the
+  // measured x2.39-x5.7 inflation `session-identity.ts` documents — the same defect that published
+  // "one document pulled 28 times in one session" for eleven-plus sessions over 15 days.
+  const dir = freshDir("window-id");
+  const file = path.join(dir, "pooled.jsonl");
+  writeTranscript(file, [
+    windowedLine({
+      cwd: worktreeCwd("pooled-slot"),
+      windowId: "window-first",
+      timestamp: "2026-08-22T10:00:00.000Z",
+      toolUseId: "toolu_w1",
+      name: "Bash",
+      input: { command: "pnpm storytree library artifact adr-0139" },
+    }),
+    windowedLine({
+      cwd: worktreeCwd("pooled-slot"),
+      windowId: "window-second",
+      timestamp: "2026-08-23T10:00:00.000Z",
+      toolUseId: "toolu_w2",
+      name: "Bash",
+      input: { command: "pnpm storytree library artifact adr-0402" },
+    }),
+  ]);
+
+  const scan = scanTranscriptDecisionReads(file);
+  assert.equal(scan.reads.length, 2);
+  // The SLOT is shared — which is exactly why it cannot be the identity for a per-sitting figure.
+  assert.deepEqual(
+    scan.reads.map((read) => read.sessionId),
+    ["pooled-slot", "pooled-slot"],
+  );
+  assert.deepEqual(
+    scan.reads.map((read) => read.windowId),
+    ["window-first", "window-second"],
+  );
+});
+
+test("window-id-is-the-parents-on-a-subagent-line: a subagent read is attributed to the window whose sitting it happened in, never to a window of its own", () => {
+  // The parent id is the answer we WANT here, for the same reason the header gives for reading
+  // sidechain lines at all: the subagent read that decision on the parent window's behalf. A test
+  // asserting a distinct id would be asserting the wrong thing.
+  const dir = freshDir("window-id-sidechain");
+  const file = path.join(dir, "sidechain.jsonl");
+  writeTranscript(file, [
+    windowedLine({
+      cwd: worktreeCwd("slot-x"),
+      windowId: "parent-window",
+      timestamp: "2026-08-22T10:00:00.000Z",
+      toolUseId: "toolu_p1",
+      name: "Bash",
+      input: { command: "pnpm storytree library artifact adr-0139" },
+    }),
+    windowedLine({
+      cwd: worktreeCwd("slot-x"),
+      windowId: "parent-window",
+      isSidechain: true,
+      timestamp: "2026-08-22T10:05:00.000Z",
+      toolUseId: "toolu_s1",
+      name: "Bash",
+      input: { command: "pnpm storytree library artifact adr-0402" },
+    }),
+  ]);
+
+  const scan = scanTranscriptDecisionReads(file);
+  assert.equal(scan.reads.length, 2);
+  assert.deepEqual(
+    scan.reads.map((read) => read.windowId),
+    ["parent-window", "parent-window"],
+  );
+  assert.deepEqual(
+    scan.reads.map((read) => read.sidechain),
+    [false, true],
+    "the sidechain flag still distinguishes who made the call",
+  );
+});
+
+test("window-id-absent-is-undefined-not-blank: a line recording no usable window id yields undefined, so a caller grouping by window cannot collect them all into one giant sitting", () => {
+  // WHAT WOULD MAKE THIS RED: defaulting a missing or blank id to "" or to the slot. Every
+  // unlabelled read across every worktree would then share one key and report as a single session
+  // that walked the entire decision log — the most flattering possible wrong answer.
+  const dir = freshDir("window-id-absent");
+  const file = path.join(dir, "absent.jsonl");
+  writeTranscript(file, [
+    windowedLine({
+      cwd: worktreeCwd("slot-y"),
+      windowId: undefined,
+      timestamp: "2026-08-22T10:00:00.000Z",
+      toolUseId: "toolu_a1",
+      name: "Bash",
+      input: { command: "pnpm storytree library artifact adr-0139" },
+    }),
+    windowedLine({
+      cwd: worktreeCwd("slot-y"),
+      windowId: "   ",
+      timestamp: "2026-08-22T10:01:00.000Z",
+      toolUseId: "toolu_a2",
+      name: "Bash",
+      input: { command: "pnpm storytree library artifact adr-0402" },
+    }),
+    windowedLine({
+      cwd: worktreeCwd("slot-y"),
+      windowId: 12345,
+      timestamp: "2026-08-22T10:02:00.000Z",
+      toolUseId: "toolu_a3",
+      name: "Bash",
+      input: { command: "pnpm storytree library artifact adr-0403" },
+    }),
+  ]);
+
+  const scan = scanTranscriptDecisionReads(file);
+  assert.equal(scan.reads.length, 3);
+  assert.deepEqual(
+    scan.reads.map((read) => read.windowId),
+    [undefined, undefined, undefined],
+  );
+  // ...and the slot is still there, so nothing is lost by refusing to invent a window.
+  assert.deepEqual(
+    scan.reads.map((read) => read.sessionId),
+    ["slot-y", "slot-y", "slot-y"],
+  );
+});

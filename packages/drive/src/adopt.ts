@@ -31,11 +31,12 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import type { ReliabilityGate, UatTestCriterion } from "@storytree/library";
-import { resolveWitness } from "@storytree/library";
+
 import {
   findNodeSpecFile,
   loadNodeSpec,
   observeAndSign,
+  signMachineCriteria,
   shellObserveCommand,
   resolveSignerFromEnv,
   runShellCommand,
@@ -238,83 +239,30 @@ export async function runAdopt(
   // the WHOLE UAT-signing pass — no fallback to another gate, and no partial UAT verdict set, even for
   // a sibling leg that would otherwise resolve fine on its own. Reliability-gate signing (above) and
   // the mapped→proposed adoption decision (below) stay separate behaviours, unaffected by this.
-  const reliabilityGates = story.reliabilityGates;
-  const realLegs = story.uatTestCriteria.filter((t) => !t.wouldBe);
-  const realMachineLegs = realLegs.filter((t) => t.witness === "machine");
-
-  type LegOutcome =
-    | { kind: "human" }
-    | { kind: "observe"; observedBy: string; proofCommand: string }
-    | { kind: "refused"; reason: string };
-
-  function resolveLeg(t: UatTestCriterion, gates: ReliabilityGate[]): LegOutcome {
-    if (t.witness !== "machine") return { kind: "human" };
-    // Consume ONLY the leg's own resolved binding — never the first/sole observe gate found, and
-    // never an independently re-derived binding.
-    const r = resolveWitness(t, gates);
-    if (r.witness === "machine" && r.coverage === "observe") {
-      return { kind: "observe", observedBy: r.observedBy, proofCommand: r.proofCommand };
-    }
-    const bound = t.proofGateId !== undefined ? gates.find((g) => g.id === t.proofGateId) : undefined;
-    const reason =
-      bound !== undefined && bound.kind === "observe" && bound.proofCommand === undefined
-        ? `covering gate ${t.proofGateId} declares no command to observe`
-        : r.witness === "machine"
-          ? r.reason
-          : "no proof-gate binding resolved";
-    return { kind: "refused", reason };
-  }
-
-  const legResolutions = realLegs.map((t) => ({ leg: t, outcome: resolveLeg(t, reliabilityGates) }));
-  const anyMachineRefused = legResolutions.some((lr) => lr.outcome.kind === "refused");
-
-  const legLines: string[] = [];
-  let signedLegs = 0;
-  let humanLegs = 0;
+  // ADR-0417 D3: adopt COMPOSES proof, it does not own it. The leg loop that used to live inline
+  // here is now {@link signMachineCriteria} in `@storytree/orchestrator` — the same primitive
+  // `storytree uat run` calls — so the fences below are asserted in ONE place and cannot drift
+  // between the two surfaces. Behaviour is unchanged: the exact `(proof-gate:)` binding with no
+  // fallback, no partial verdict set, and no `approvedBy` on a machine leg.
+  const legPass = await signMachineCriteria({
+    legs: story.uatTestCriteria,
+    gates: story.reliabilityGates,
+    store,
+    gitState,
+    observe,
+    runId,
+    now,
+  });
+  const realMachineLegs = { length: legPass.machineLegs };  // shaped so the render below reads unchanged
+  const signedLegs = legPass.signed;
+  const humanLegs = legPass.humanLegs;
   const buildTestsLegs = 0; // resolveWitness no longer routes to a `build-tests` coverage (retired)
-
-  for (const { leg, outcome } of legResolutions) {
-    if (outcome.kind === "human") {
-      humanLegs += 1;
-      legLines.push(`  ◻ ${leg.criterionId} (human) — awaits your "I saw it work" verdict (ADR-0082)`);
-      continue;
-    }
-    if (outcome.kind === "refused") {
-      legLines.push(`  ✗ ${leg.criterionId} (machine) — ${outcome.reason}`);
-      continue;
-    }
-    // outcome.kind === "observe": would resolve fine on its own — but ANY invalid/unbound sibling
-    // machine leg refuses the WHOLE UAT-signing pass (uat-bound-command-adoption: no partial verdict).
-    if (anyMachineRefused) {
-      legLines.push(
-        `  ✗ ${leg.criterionId} (machine) — not signed: an invalid/unbound sibling machine leg refuses the whole UAT-signing pass (no partial verdict)`,
-      );
-      continue;
-    }
-    // ADR-0408: a MACHINE UAT LEG signs with NO `approvedBy`. The criterion binding below is what
-    // selects that class inside `observeAndSign` — `approverInputs` is not passed (and cannot be:
-    // the leg spec types it `never`), so the signer chain is never consulted on this path.
-    const res = await observeAndSign({
-      gate: {
-        id: leg.criterionId,
-        criterionId: leg.criterionId,
-        revisionId: leg.revisionId,
-        kind: "observe",
-        proofCommand: outcome.proofCommand,
-      },
-      gitState,
-      observe,
-      store,
-      runId,
-      now,
-    });
-    if (res.ok) {
-      signedLegs += 1;
-      legLines.push(`  ✓ ${leg.criterionId} (machine) adopted — observed via ${outcome.observedBy} (\`${outcome.proofCommand}\`)`);
-    } else {
-      legLines.push(`  ✗ ${leg.criterionId} (machine) — ${res.reason}`);
-    }
-  }
+  const legLines = legPass.reports.map((r) => {
+    if (r.state === "human") return `  ◻ ${r.criterionId} (human) — awaits your "I saw it work" verdict (ADR-0082)`;
+    if (r.state === "signed") return `  ✓ ${r.criterionId} (machine) adopted — observed via ${r.observedBy} (\`${r.proofCommand}\`)`;
+    if (r.state === "withheld") return `  ✗ ${r.criterionId} (machine) — not signed: ${r.reason}`;
+    return `  ✗ ${r.criterionId} (machine) — ${r.reason}`;
+  });
 
   // The adoption DECISION: flip mapped → proposed ("adoption underway"). After signing, so the tree was
   // clean during signing; this edit dirties it with just the status line for the operator to commit.
@@ -333,7 +281,7 @@ export async function runAdopt(
     `  commit:     ${git.commitSha.slice(0, 7)}`,
     "",
     ...gateLines,
-    ...(realLegs.length > 0
+    ...(legPass.reports.length > 0
       ? [
           "",
           `UAT legs (ADR-0106): ${signedLegs}/${realMachineLegs.length} machine observe-signed · ${humanLegs} await your witness · ${buildTestsLegs} deferred to Build.`,
