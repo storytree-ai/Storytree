@@ -57,6 +57,10 @@ import {
  * - Set the CURRENT hash to the anchor's own `boundHash` — the vacuous shape this suite exists to
  *   fence, an expectation derived from its own subject → **8 of 22 fail**, including both halves of
  *   the moved/unmoved pair, the literal-hash case, and the ceiling-enforcement pin.
+ * - Drop the one-entry-per-key guard → **1 of 24 fails**, the duplicate-claim case. That defect was
+ *   found by re-reading this file's own subject rather than by a test, and the test was written
+ *   after the fix — recorded plainly, because a probe run after the repair proves the test bites and
+ *   proves nothing about when it was written.
  */
 
 /** The declaration as it stood when the anchor was frozen. */
@@ -155,6 +159,25 @@ test("a finding's id is stable across runs, so the ceiling counts one thing and 
 // ---------------------------------------------------------------------------
 // ADR-0424 D3 — superseded is excluded, and that is the load-bearing half
 // ---------------------------------------------------------------------------
+
+test("two claims resting on ONE span produce ONE finding, not two under the same id", () => {
+  // `sourceKey` excludes `claim` deliberately, so two anchors differing only by their label are one
+  // key. Admitting both would mint two findings under a single id — double-counting against the
+  // ceiling, and making the count depend on how many claims an author happened to label rather than
+  // on how much code moved. The span is what moved, once.
+  const decision = row("adr-0018", ACCEPTED, {
+    sources: [boundAnchor, { ...boundAnchor, claim: "D7" }],
+  });
+  const findings = findDecisionSourceDrift(factsFor(decision, MOVED), []);
+  assert.equal(findings.length, 1);
+  assert.equal(new Set(findings.map((f) => f.id)).size, 1, "and the ids are unique by construction");
+  // The aperture still counts both — two anchors DO exist and both were bound; what is deduped is
+  // the FINDING, never the fact that an author grounded two claims here.
+  assert.deepEqual(measureDecisionSweep(factsFor(decision, MOVED)), {
+    comparedAnchors: 2,
+    groundedDecisions: 1,
+  });
+});
 
 test("a SUPERSEDED decision is excluded even when its anchor plainly drifted (ADR-0424 D3)", () => {
   // 37 decisions carry prose that is DELIBERATELY false about the current world. Grounding them

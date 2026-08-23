@@ -426,18 +426,25 @@ export function findDecisionSourceDrift(
 
     const refs: SourceRef[] = [];
     const currentHashes = new Map<string, string>();
-    const byKey = new Map<string, DecisionSource>();
+    /** The anchor and the grain that located it, per key — what the report reads back. */
+    const byKey = new Map<string, { source: DecisionSource; grain: SpanGrain }>();
 
     for (const source of decision.sources) {
       const ref = boundRef(source);
       if (ref === undefined) continue;
       const key = ref.id;
-      byKey.set(key, source);
+      // ONE ENTRY PER KEY. A claim routinely rests on several spans and several claims routinely
+      // rest on ONE — `sourceKey` excludes `claim` deliberately, so two anchors differing only by
+      // their label collapse to one key. Admitting both would put the key in `changedSources` twice
+      // and mint two findings under ONE id, which double-counts against the ceiling and makes the
+      // count depend on how many claims an author happened to label. The span is what moved, once.
+      if (byKey.has(key)) continue;
       const location = decision.locations.get(key) ?? {
         kind: "unlocatable" as const,
         why: "the sweep recorded no location for it, so nothing was compared",
       };
       if (location.kind === "unlocatable") {
+        byKey.set(key, { source, grain: "file" });
         findings.push({
           instrument: DECISION_SOURCE_DRIFT,
           id: `${DECISION_SOURCE_DRIFT}:${decision.id}:${key}`,
@@ -448,6 +455,7 @@ export function findDecisionSourceDrift(
         });
         continue;
       }
+      byKey.set(key, { source, grain: location.grain });
       refs.push(ref);
       currentHashes.set(key, hashSpan(location.span));
     }
@@ -456,10 +464,9 @@ export function findDecisionSourceDrift(
 
     const flag = classifySourceDrift(refs, currentHashes, changes);
     for (const key of flag.changedSources) {
-      const source = byKey.get(key);
-      if (source === undefined) continue;
-      const location = decision.locations.get(key);
-      const grain = location?.kind === "located" ? location.grain : "file";
+      const entry = byKey.get(key);
+      if (entry === undefined) continue;
+      const { source, grain } = entry;
       const why =
         flag.description === undefined
           ? "no change event describes why"
