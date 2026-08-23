@@ -8,7 +8,21 @@ outcome: "Every decision-record read a host transcript recorded is recovered by 
 status: mapped
 proof_mode: integration-test
 depends_on: []
-decisions: [235, 403]
+decisions: [235, 248, 403]
+# WHY THESE THREE — AND WHY 248 IS HERE WHILE THE SIBLING INGEST OMITS IT. THE RULE: a decision is
+# cited when a contract below ASSERTS A CLAUSE OF IT — reverse the decision and a contract here has to
+# change — never because this unit imports machinery that decision happened to build. ADR-0235 supplies
+# the read-shape/surface vocabulary contract 9 asserts and the `front_matter_read` / `full_payload_read`
+# strengths contract 15 asserts. ADR-0403 dec 1 (a decision became a row, which is what broke the
+# file-path matcher) and dec 7 (ONE resolution point for the four-digit id guard) are asserted by
+# contracts 12-15. ADR-0248 earns its place on contracts 19-21: its D1 records — as a finding that ADR
+# did not anticipate — that a worktree-derived storytree `sessionId` OUTLIVES any single runtime
+# window, so a per-sitting measure must never union two sittings; those three contracts assert exactly
+# that rule for decision reads, and `decision-reads.ts:694` says outright that its `windowId` is "the
+# same field `readCorrelatingLines` reads as window identity". THE ASYMMETRY IS DELIBERATE:
+# `transcript-decision-read-ingest` drops `windowId` entirely, so no contract there can go red on 248
+# and it does not cite it. Do not "repair" that to match the three occupancy siblings.
+#
 # DELIVERED AND GREEN, BUT NOT SPINE-PROVEN — read this before treating the unit as adoptable.
 # `packages/context-traversal-transcript/src/decision-reads.ts` and its 21-case companion suite exist
 # at HEAD and pass under `pnpm --filter @storytree/context-traversal-transcript test`. They were landed

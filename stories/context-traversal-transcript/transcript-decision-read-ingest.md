@@ -14,6 +14,19 @@ depends_on:
     transcript-occupancy-ingest,
   ]
 decisions: [235, 241, 403]
+# WHY 248 IS ABSENT HERE THOUGH ALL THREE OCCUPANCY SIBLINGS CITE IT — deliberate, not an oversight.
+# THE RULE: a decision is cited when a contract below ASSERTS A CLAUSE OF IT — reverse the decision and
+# a contract here has to change — never because this unit imports machinery that decision happened to
+# build. ADR-0235's event vocabulary and its clause-6 no-content rule, and ADR-0241's D3 (never fail a
+# caller closed) and D4 (validate before write, which holds here because every byte goes through the
+# sink), are each asserted by contracts below. ADR-0248 is not. Its one clause live for this package is
+# the window-identity finding in D1, and THIS MODULE NEVER READS OR WRITES `windowId` — it is dropped
+# between the extractor and the event, so no contract here could go red on it. Reusing
+# `collectTranscriptFiles`, a function built under 248, is ancestry rather than obligation, and citing
+# an ADR for the ancestry of code you import is what makes a `decisions:` list stop meaning anything.
+# The sibling `transcript-decision-read-extraction` DOES cite 248, on its contracts 19-21, because it
+# carries `windowId` and asserts that rule. Do not add 248 here to make the five specs look uniform.
+#
 # DELIVERED AND GREEN, BUT NOT SPINE-PROVEN — read this before treating the unit as adoptable.
 # `packages/context-traversal-transcript/src/ingest-decision-reads.ts` and its 13-case companion suite
 # exist at HEAD and pass under `pnpm --filter @storytree/context-traversal-transcript test`. They were
