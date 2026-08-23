@@ -68,6 +68,16 @@ and reported as a denominator so a zero cannot be mistaken for a blind reader. `
 move edges from the first column to the second; **that is neutral for everything below**, because the
 chain walk unions both support edges and a rehome changes neither endpoint (pinned by a test).
 
+**The split is not expected to move much, and this sentence over-implied that it would.** Measured by
+the `-inc-07` session (PR #1576) across all 451 accepted `amends` edges, exactly ONE has a source whose
+body never names its target — so the backlog is ANNOTATION debt (targets never updated), not a
+mislabelled-support population waiting to be rehomed, and batch 1 rehomed nothing. Corroborated
+independently by `pnpm probe:depth-from-work` hours later: 415 decisions / 514 `amends` / 2 `dependsOn`
+/ 1 row carrying the field, against the 414 / 513 / 0 / 0 frozen here — one new decision, two new
+support edges, ZERO rehomed, i.e. the first plain-support edges came from `-inc-06`'s
+`adr new --depends-on` authoring surface rather than from the backlog. Read ADR-0419 D2 as
+FORWARD-LOOKING. The neutrality claim above is unaffected either way.
+
 ---
 
 ## 2. CHAIN DEPTH — the arc's load-bearing number
