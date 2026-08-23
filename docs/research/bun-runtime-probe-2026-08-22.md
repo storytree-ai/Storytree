@@ -566,6 +566,15 @@ multisets keyed by file**, and 8344 executed assertions under each runtime. All 
 flat in `src/`, and no `*.spec.ts` / `*_test.ts` sibling exists, so `bun test src/` selects exactly
 what node's `"src/**/*.test.ts"` glob does — the `forest-world-r3f` two-roots trap does not apply.
 
+⚠ **THOSE FIGURES ARE STAMPED TO THE COMMIT THEY WERE TAKEN AT, and this package moved twice inside
+one session.** `main` then deleted `packages/cli/src/install-sh-script.test.ts` and changed
+`uat.test.ts`, so at the LANDING commit the package is **2389 tests / 151 files**. Both arms were
+re-run there and still agree exactly — node 2389 / 2389 pass / 0 fail, bun 2389 / 151 / 0 fail, exit
+0 under each. The heavy instruments (junit attribution, executed-assertion parity, the negative
+control) were established at the earlier commit and NOT re-run at the landing commit; the count
+parity was. **Quote a parity number with the commit it was taken at, or not at all** — an
+increment-sized measurement outlives its tree by hours at most.
+
 - ★★★★ **THE `--preload` PERTURBATION WARNING IS DISCHARGED FOR `cli`, THE ONE PACKAGE IT WAS
   MEASURED ON.** The probe recorded the assertion counter CHANGING Bun's registration here (2042
   with it, 2050 without) and inc-11's brief said to report the tally as UNTRUSTWORTHY if the
