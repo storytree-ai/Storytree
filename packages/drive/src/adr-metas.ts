@@ -215,7 +215,11 @@ export async function loadTitledAdrMetasFromStore(store: Store): Promise<StoreAd
     const arcRef = bag["arcRef"];
     const decided = bag["decided"];
     const title = typeof bag["title"] === "string" ? bag["title"] : row.id;
-    adrs.push({
+    // ANNOTATED local, then one guarded assignment per optional — the shape
+    // `anti-slop/no-conditional-empty-object-spread` requires. The annotation is LOAD-BEARING: an
+    // un-annotated literal would infer a type without the three optionals, and the excess-property
+    // check on this push would silently disappear.
+    const meta: TitledAdrMeta = {
       number,
       file: row.id,
       status: parsed.data,
@@ -223,25 +227,26 @@ export async function loadTitledAdrMetasFromStore(store: Store): Promise<StoreAd
       amends: numbers(bag["amends"]),
       loadBearing: bag["loadBearing"] === true,
       title,
-      ...(typeof decided === "string" ? { decided } : {}),
-      // The row carries an `asset:` pointer where the frontmatter carried a bare id; this view is the
-      // frontmatter's, so it hands back the bare id its consumers already join on.
-      ...(typeof arcRef === "string" && arcRef.startsWith("asset:")
-        ? { arc: arcRef.slice("asset:".length) }
-        : {}),
-      // ADR-0419 D1's support edge — see the header, including which `--load-bearing` guard this
-      // deliberately removes. PRESENCE is preserved, not just contents: the key is emitted only when
-      // the row actually carries the array, so an absent field stays absent and a row authored with
-      // an empty one still reports as READ. Defaulting to `[]` is the one thing that would break it,
-      // because it makes a blind reader and an empty decision log print the same number.
-      //
-      // The two library helpers rather than a hand-rolled `bag["dependsOn"]`: they are the same
-      // defensive read the acyclicity rung, the depth walk and the studio wire use, and this loader
-      // runs over the LIVE corpus, where a row written by another branch's schema must project as
-      // "no edges" rather than take an orientation listing down. Pointers go through VERBATIM —
-      // resolving which of them name decisions is the walk's job (`decision-pointer.ts`).
-      ...(hasDependsOnKey(bag) ? { dependsOn: readDependsOnPointers(bag) } : {}),
-    });
+    };
+    if (typeof decided === "string") meta.decided = decided;
+    // The row carries an `asset:` pointer where the frontmatter carried a bare id; this view is the
+    // frontmatter's, so it hands back the bare id its consumers already join on.
+    if (typeof arcRef === "string" && arcRef.startsWith("asset:")) {
+      meta.arc = arcRef.slice("asset:".length);
+    }
+    // ADR-0419 D1's support edge — see the header, including which `--load-bearing` guard this
+    // deliberately removes. PRESENCE is preserved, not just contents: the key is assigned only when
+    // the row actually carries the array, so an absent field stays absent and a row authored with
+    // an empty one still reports as READ. Defaulting to `[]` is the one thing that would break it,
+    // because it makes a blind reader and an empty decision log print the same number.
+    //
+    // The two library helpers rather than a hand-rolled `bag["dependsOn"]`: they are the same
+    // defensive read the acyclicity rung, the depth walk and the studio wire use, and this loader
+    // runs over the LIVE corpus, where a row written by another branch's schema must project as
+    // "no edges" rather than take an orientation listing down. Pointers go through VERBATIM —
+    // resolving which of them name decisions is the walk's job (`decision-pointer.ts`).
+    if (hasDependsOnKey(bag)) meta.dependsOn = readDependsOnPointers(bag);
+    adrs.push(meta);
   }
   adrs.sort((a, b) => a.number - b.number);
   return { adrs, parseErrors, unreadable: false, numberMismatches };

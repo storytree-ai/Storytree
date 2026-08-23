@@ -13,9 +13,15 @@
 //    have been established MECHANICALLY narrows to those readers plus their dependents instead of
 //    to everything. It is an exception to the ANSWER, never to the burden of proof — a root path
 //    with no measured reader set is not in the map and still fails wide. `scripts/**` and
-//    `tsconfig.base.json` are the instructive non-entries: both WERE measured, and both are read by
-//    every project at test time (`scripts/tsx-cache-off.mjs` is preloaded by all 25 test scripts),
-//    so mapping them would express the full run in a longer form.
+//    `tsconfig.base.json` are the instructive non-entries: both WERE measured, and both were read by
+//    every project at test time when that measurement was taken — `scripts/tsx-cache-off.mjs` was
+//    then preloaded by all 25 test scripts — so mapping them would express the full run in a longer
+//    form. ⚠ THE PRELOAD HALF OF THAT REASON IS NOW PARTLY SPENT and will keep eroding:
+//    `bun-runtime-migration-arc` is converting packages to `bun test src/`, which preloads nothing,
+//    so 14 projects no longer read the shim at test time. `scripts/**` stays OUT of the map anyway —
+//    it holds far more than that one shim, its reader set has not been re-measured since the
+//    conversions began, and an unmeasured root path fails wide BY THE RULE ABOVE. Re-measure before
+//    ever mapping it; do not infer a narrower reader set from the conversion count.
 //  - `apps/studio/data/**` (the studio's shared data dir) → FULL, even though it sits inside an app:
 //    its files are read across package boundaries by no declared dependency edge — `comments.json` by
 //    library's `loadComments`, `unit-status.json` by the studio off a cli generator. It held the
@@ -105,9 +111,15 @@ interface RootPathReaders {
  * than over one guessed prefix: all 25 projects ran green (both vitest suites included — a suite that
  * short-circuits reads zero and is UNOBSERVED, not clean), and every read outside `packages/`/`apps/`
  * was attributed to its owning project. The entries below are that measurement. Two root paths were
- * measured and deliberately NOT added, which is the more instructive half: `scripts/**` is read by 25
- * of 25 projects (every test script preloads `scripts/tsx-cache-off.mjs`) and `tsconfig.base.json` by
- * 26 of 26, so an entry would express the full run in a longer form.
+ * measured and deliberately NOT added, which is the more instructive half: `scripts/**` was read by
+ * 25 of 25 projects AS MEASURED (every test script then preloaded `scripts/tsx-cache-off.mjs`) and
+ * `tsconfig.base.json` by 26 of 26, so an entry would express the full run in a longer form.
+ * ⚠ `scripts/**`'s 25-of-25 is a 2026-08-21 READING, not a standing fact — 14 projects have since
+ * moved to `bun test src/`, which preloads nothing (`bun-runtime-migration-arc`). The CONCLUSION is
+ * unchanged and is not merely being grandfathered: `scripts/**` holds much more than that one shim,
+ * its reader set has NOT been re-measured since, and an unmeasured root path fails wide by the rule
+ * this map is an exception to. The tsx count is now the weaker half of the argument, not the whole
+ * of it. `tsconfig.base.json`'s 26-of-26 is untouched by the conversion (it is a typecheck input).
  *
  * COUNT WORK, NEVER PROJECTS — the correction inc-01 had to make to itself, and it decides which of
  * these entries is worth anything. Summed per-project test durations from the same instrumented run

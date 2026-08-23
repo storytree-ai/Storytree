@@ -1,3 +1,4 @@
+import type { AdrDraft } from "@storytree/library";
 import type { Store } from "@storytree/storage-protocol";
 
 /**
@@ -29,26 +30,27 @@ export const UNSTAMPED_DECISION = 202;
 
 function decisionRow(number: number, title: string, arcRef: string | undefined) {
   const id = `adr-${String(number).padStart(4, "0")}`;
-  return {
-    id,
+  // ANNOTATED local, then one guarded assignment for the optional — the shape
+  // `anti-slop/no-conditional-empty-object-spread` requires. `Adr` rather than an inferred literal
+  // so a drifted fixture fails HERE, at the construction site, instead of at the validated write
+  // this helper's own doc comment says it deliberately goes through.
+  const doc: AdrDraft = {
     kind: "adr",
-    doc: {
-      kind: "adr",
-      id,
-      title,
-      description: `ADR-${String(number).padStart(4, "0")} — ${title}`,
-      body: `# ADR-${String(number).padStart(4, "0")}: ${title}\n`,
-      number,
-      status: "accepted",
-      amends: [],
-      supersedes: [],
-      loadBearing: false,
-      references: [],
-      ...(arcRef === undefined ? {} : { arcRef }),
-      createdAt: "2026-07-20T00:00:00.000Z",
-      updatedAt: "2026-07-20T00:00:00.000Z",
-    },
+    id,
+    title,
+    description: `ADR-${String(number).padStart(4, "0")} — ${title}`,
+    body: `# ADR-${String(number).padStart(4, "0")}: ${title}\n`,
+    number,
+    status: "accepted",
+    amends: [],
+    supersedes: [],
+    loadBearing: false,
+    references: [],
+    createdAt: "2026-07-20T00:00:00.000Z",
+    updatedAt: "2026-07-20T00:00:00.000Z",
   };
+  if (arcRef !== undefined) doc.arcRef = arcRef;
+  return { id, kind: "adr", doc };
 }
 
 /**

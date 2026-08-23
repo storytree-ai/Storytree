@@ -36,7 +36,7 @@ import {
   findNodeSpecFile,
   loadNodeSpec,
   observeAndSign,
-  platformShellCommand,
+  shellObserveCommand,
   resolveSignerFromEnv,
   runShellCommand,
   SPINE_PRINCIPAL,
@@ -416,12 +416,11 @@ function readGitState(): { commitSha: string; clean: boolean } | null {
 
 /** The spine's out-of-band observation of a gate's declared command (exit code only; mirrors `gate`). */
 async function observeCommand(command: string): Promise<{ code: number | null }> {
-  const parts = command.trim().split(/\s+/);
-  const file = parts[0];
-  if (file === undefined) return { code: null };
-  const cmd = platformShellCommand({ file, args: parts.slice(1), cwd: repoRoot() });
+  // ADR-0421 D1: the AUTHORED command line, run through the platform shell exactly as written — so a
+  // gate declared as `node -e "…"` or joined with `&&` is observable at all. Mirrors the `cli` copy.
+  if (command.trim().length === 0) return { code: null };
   try {
-    return { code: (await runShellCommand(cmd)).code };
+    return { code: (await runShellCommand(shellObserveCommand(command.trim(), repoRoot()))).code };
   } catch {
     return { code: null }; // a genuine spawn failure (ENOENT) — did not run, so did not pass (fail-closed)
   }

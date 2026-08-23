@@ -17,19 +17,26 @@ proof_mode: UAT
 # no caller today. Prose below that described the map click as the live producer is corrected; prose that
 # recounts PR #696 or ADR-0186's reasoning is accurate history and is left as authored.
 #
-# ONE CONSEQUENCE IS NOT A PROSE FIX AND IS NOT TAKEN HERE: UAT legs 4 and 7 are `witness: machine`, are
-# BOUND to `terminal-tabs#gate-1` / `#gate-3` (2026-08-22), and both journeys begin by CLICKING BUILD on
-# the forest map. With the button gone neither can be driven as authored. Re-deciding a bound leg is a
-# work-hierarchy edit and would bump its `revision-id`, re-pointing the binding — so it is parked as an
-# increment on `retire-ui-build-dispatch-arc` for the story-author, not silently rewritten here.
+# THAT PARKED CONSEQUENCE IS NOW DISCHARGED (2026-08-23, `retire-ui-build-dispatch-arc-inc-07`): UAT legs
+# 4 and 7 are DELETED. This comment read "ONE CONSEQUENCE IS NOT A PROSE FIX AND IS NOT TAKEN HERE … so it
+# is parked as an increment on `retire-ui-build-dispatch-arc` for the story-author, not silently rewritten
+# here." Both legs OPENED by clicking a Build control ADR-0404 removed from the product, and there is no
+# seed PRODUCER left anywhere to re-point them at, so neither states a journey a user can walk. Ordinals 4
+# and 7 are BURNED, not renumbered; gates 1 and 3 are RETAINED but unclaimed (gate ids are positional).
+# The full basis, including the signed green knowingly retired with leg 4, is recorded in the pass note
+# above the numbered list. Corrected in place per ADR-0139.
 #
 # AND THE FENCE IS WIDER THAN THE NUMBERED LINE — MEASURED, not assumed. A leg's hashed canonical content
-# runs to the NEXT leg or section heading, so the trailing "End state —" paragraph is INSIDE leg 7's span:
-# deleting one word from it ("a Build seed" → "a seed") made `loadNodeSpec` throw and the whole story load
-# as `(unknown)` with ZERO capabilities. That word was therefore left as authored. Editing any prose
-# between the last numbered leg and `## Reliability Gates` re-hashes leg 7 — treat that whole stretch as
-# leg text, and check with `storytree tree terminal-tabs` (which SWALLOWS the throw and simply renders
-# `(unknown)`, so a silent load failure looks like a rendering quirk).
+# runs to the NEXT leg or section heading, so the trailing "End state —" paragraph is INSIDE THE LAST
+# LEG'S span — leg 8's, both before this pass and after it. *(This read "INSIDE leg 7's span", which was
+# never true while leg 8 existed below it: leg 8 has been the last numbered item throughout. The MEASURED
+# behaviour it records is unaffected — only the leg it named was wrong. Corrected in place per ADR-0139,
+# 2026-08-23.)* Deleting one word from that paragraph ("a Build seed" → "a seed") made `loadNodeSpec`
+# throw and the whole story load as `(unknown)` with ZERO capabilities. Editing any prose between the last
+# numbered leg and `## Reliability Gates` re-hashes THAT leg, so treat the whole stretch as leg text and
+# recompute with `storytree uat rerevision terminal-tabs --write`; check with `storytree tree
+# terminal-tabs` (which SWALLOWS the throw and simply renders `(unknown)`, so a silent load failure looks
+# like a rendering quirk).
 # uat_witness ABSENT → human (ADR-0040 fail-closed signpost): the whole-story UAT is not driven as one
 # machine node. RE-ADJUDICATED 2026-07-26 under the ADR-0209 §8 corpus-wide migration — the story's eight
 # legs resolve to FIVE `machine` and THREE `human`. Real-pty, native-shell behaviour is NOT irreducibly
@@ -41,6 +48,13 @@ proof_mode: UAT
 # FEEL, and the one walk that spends the paid subscription and fires an outward-facing PR-opening build
 # stay `human` (ADR-0070 / ADR-0209). The machine-driven story UAT node stays WITHHELD; the crown derives
 # from the two capabilities' signed verdicts, the three e2e-signed legs, and those three attestations.
+# THAT PARAGRAPH IS A RECORD OF THE 2026-07-26 PASS and is left as authored history, but two of its
+# present-tense clauses no longer hold and are corrected here (ADR-0139): the SEED'S FRESH TAB is no
+# longer machine-observable end-to-end — ADR-0404 removed the only producer, so no harness can originate
+# a seed (the dock's HANDLING of one is still signed by `seed-opens-new-tab` over a mocked bridge) — and
+# the paid-subscription / PR-opening walk it calls the last `human` leg was flipped `machine` by ADR-0357
+# and then DELETED outright on 2026-08-23 with leg 7. After that pass the story carries TWO legs, both
+# `machine` (6 and 8), and no `human` leg at all.
 # Capabilities, roots-first (a capability appears after everything it depends on). TWO machine-provable
 # caps, BOTH editsExisting studio vitest jsdom over the SAME source (TerminalDock.tsx / .test.tsx) that
 # embedded-terminal + map-terminal-build signed: multi-session-tabs (the tab substrate — the ROOT) and
@@ -225,7 +239,7 @@ affected signed caps" and "Within-story dependency graph" for how the shared sou
   per-tab scrollback, colours, resize reflow and focus adding up to one surface inside the native shell,
   not N docks bolted together; nothing jarring, nothing reading as borrowed. Only the LOOK is glue: the
   panel's STRUCTURE and wiring are contracted (`mst-chrome-stays-per-dock`, `mst-panel-sits-beside-pane`)
-  and re-observed over real ptys at **legs 6–8** — glue-ness is a TIERING call and says nothing about
+  and re-observed over real ptys at **legs 6 and 8** — glue-ness is a TIERING call and says nothing about
   which witness is right (`human-witness-is-a-judgment-gap-not-cost`).
   **Outside the story fence — FIXED 2026-08-12, in the ADR-0348 flip increment:**
   `apps/studio/src/index.css`'s terminal-dock comment named *"terminal-tabs story UAT leg 1"* as the
@@ -234,7 +248,8 @@ affected signed caps" and "Within-story dependency graph" for how the shared sou
   claim. It now names this design intent instead.
   The `.terminal-dock*` CSS for the panel is glue. If the dock's public props change (they need not — the
   `seed` and `headerRight` prop shapes are unchanged), any `TreeView`/dock-mount delta is un-asserted
-  connective code — machine-observable end-to-end at legs 6–7, not a capability. The `terminal-repo-gate`
+  connective code — machine-observable end-to-end at legs 6 and 8, not a capability. *(This read "at legs
+  6–7"; leg 7 was deleted on 2026-08-23, corrected in place per ADR-0139.)* The `terminal-repo-gate`
   `headerRight` mount and its `seed` pass-through are REUSED AS-IS: the SAME `seed?: { command; token }`
   reaches the now-multi-session dock, and only the dock's HANDLING of it changes (open a fresh tab). No
   new glue wire is required. *(This also named the TreeView `seed` glue — `map-terminal-build` threading
@@ -325,9 +340,13 @@ consumes the already-per-session `window.desktopTerminal` bridge, a `window` glo
 ## UAT Test Criteria
 
 The integrated acceptance walkthrough that proves the whole multi-session terminal meets its outcome
-end-to-end. Minimal-first (one coherent journey: open the app → the terminal has a session panel → run Claude
-Code in one tab → click Build → a fresh tab opens pre-filled, the Claude Code tab untouched), defect-driven
-thereafter (each real failure earns a permanent regression case, never speculative breadth).
+end-to-end. Minimal-first (one coherent journey: open the app → the terminal has a session panel → create a
+second real session and switch between them → each session's screen, colour, resize and focus stay its
+own), defect-driven thereafter (each real failure earns a permanent regression case, never speculative
+breadth). *(This read "… → run Claude Code in one tab → click Build → a fresh tab opens pre-filled, the
+Claude Code tab untouched". ADR-0404 removed the Build control, so that journey has no first step a user
+can take; the two legs that walked it were deleted on 2026-08-23 and the journey is restated here as the
+one the product still offers. Corrected in place per ADR-0139.)*
 
 > **Per-leg witness (ADR-0209 §1 / ADR-0106 / ADR-0070).** **RE-ADJUDICATED 2026-07-26** under the
 > ADR-0209 §8 corpus-wide migration. Three classified kinds are available: `machine` (deterministic,
@@ -389,73 +408,133 @@ thereafter (each real failure earns a permanent regression case, never speculati
 > `parseUatTestCriteria` fell back to the undecided `either` and the leg was invisible to every
 > machine-leg census. Nothing about the leg's authored claim changed; only the tag was rejoined.
 >
-> Legs 6, 7 and 8 are `machine` through the **existing** Electron `_electron` Playwright harness
+> Legs 6 and 8 are `machine` through the **existing** Electron `_electron` Playwright harness
 > (`apps/desktop/e2e/`, the `session-survival.e2e.mjs` precedent), which already launches the app offline
 > with `/api/*` Playwright-routed to fixtures, **satisfies the repo gate by pre-writing
 > `userData/repo-selection.json`**, drives a **REAL node-pty**, and reads the main-held screen through
 > `desktopTerminal.snapshot` (the dock paints on xterm's WebGL renderer, so DOM `textContent` is not a
-> readable observable — the snapshot relay is). Nothing about the panel's create/switch/close, the seed's
-> fresh tab, or the per-tab screen state is an owner judgment; these were tagged `human` because **no e2e
+> readable observable — the snapshot relay is). Nothing about the panel's create/switch/close or the
+> per-tab screen state is an owner judgment; these were tagged `human` because **no e2e
 > spec drives them yet**, which is a HARNESS statement, not a judgment gap
 > (`human-witness-is-a-judgment-gap-not-cost` — a machine-observable success that is merely unharnessed is
 > never labelled `human`). The prior preamble's claim that "an automated CI run cannot spawn real native
 > ptys" was already false when written: `session-survival.e2e.mjs` spawns one and types into it.
+> *(This read "Legs 6, 7 and 8 are `machine` …" and listed "the seed's fresh tab" among the
+> machine-observable behaviours. Leg 7 was deleted on 2026-08-23 and the seed's fresh tab is no longer
+> reachable end-to-end at all — ADR-0404 removed the only producer — so both references are corrected in
+> place per ADR-0139. The harness capability described here is otherwise unchanged and still carries legs
+> 6 and 8.)*
 >
-> Exactly **ONE** leg stays `human`: the walk that runs a **live paid-subscription Claude Code session**
-> and, on Enter, fires an **outward-facing PR-opening build** (leg 4). *(Two more stayed `human` after
-> the 2026-07-26 pass — the session panel's **look** (old leg 1) and the whole surface's **feel** (old
-> leg 5). Neither had a compiler either, but ADR-0348 D6 deleted them because neither was an ACCEPTANCE
-> claim, which is the question that now comes first.)* The story-level `uat_witness` is absent → human
+> **NO leg is `human`** — legs 6 and 8 are both `machine`. *(This read "Exactly **ONE** leg stays
+> `human`: the walk that runs a live paid-subscription Claude Code session and, on Enter, fires an
+> outward-facing PR-opening build (leg 4)." That was already overtaken by the 2026-08-13 ADR-0357
+> re-triage recorded above, which flipped leg 4 to `machine`, and leg 4 was then deleted outright on
+> 2026-08-23. Two OTHER legs stayed `human` after the 2026-07-26 pass — the session panel's **look** (old
+> leg 1) and the whole surface's **feel** (old leg 5); neither had a compiler either, but ADR-0348 D6
+> deleted them because neither was an ACCEPTANCE claim, which is the question that now comes first.
+> Corrected in place per ADR-0139.)* The story-level `uat_witness` is absent → human
 > (the ADR-0040 fail-closed signpost), so the machine-driven whole-story UAT node stays WITHHELD.
 >
 > **Ordering note (leg ids are POSITIONAL, `terminal-tabs#uat-N`).** The three re-adjudicated legs were
 > **narrowed in place** and their machine halves **appended as legs 6–8** rather than interleaved, so legs
 > 2 and 3 stayed byte-identical where they were for as long as they existed. The same rule governs both
-> deletions since: ordinals 1 and 5 (ADR-0348 D6, 2026-08-11) and ordinals 2 and 3 (ADR-0294 D2,
-> 2026-08-20) are BURNED, never reassigned, so no surviving leg moved and nothing already signed against a
-> position now denotes a different claim.
+> deletions since: ordinals 1 and 5 (ADR-0348 D6, 2026-08-11), ordinals 2 and 3 (ADR-0294 D2,
+> 2026-08-20) and ordinals 4 and 7 (ADR-0404, 2026-08-23) are BURNED, never reassigned, so no surviving
+> leg moved and nothing already signed against a position now denotes a different claim. The story's live
+> ordinals are therefore **6 and 8**, with the gap left open deliberately —
+> `findBurnedOrdinalCollisions` reds if a survivor is ever renumbered onto a spent key.
 > `apps/studio/src/index.css`'s terminal-dock comment names "terminal-tabs story UAT leg 1" as the
 > appearance attestation — a reference outside the story-author fence that is now DANGLING (the leg is
 > gone) rather than wrong (no other leg has taken position 1), and that should be re-pointed at the
 > design intent under "Operator-attested glue".
 >
 > **Nothing here is green.** Per ADR-0209 §6 a substantive criterion change invalidates the old green, so
-> every leg below is UNSTAMPED and earns green only under its newly-declared witness. Legs 6, 7 and 8 carry
+> every leg below is UNSTAMPED and earns green only under its newly-declared witness. Legs 6 and 8 carry
 > seed-canonical `uat-criterion` detail artifacts (ADR-0209 §5) because their one-line titles cannot convey
-> the harness precondition, the stub boundary, or what would make a PASSING run a false pass; leg 4 is
-> fully specified by its own prose and its model-driven gate, so per the owner's narrower bar it gets no
-> artifact. *(This read "the remaining legs are fully specified by their capability contracts…". The
-> capability-specified legs were 2 and 3, which the ADR-0294 D2 pass deleted on 2026-08-20; corrected in
-> place per ADR-0139. No detail artifact was orphaned — neither deleted leg carried a `(detail:` pointer.)*
+> the harness precondition, the stub boundary, or what would make a PASSING run a false pass. *(This read
+> "Legs 6, 7 and 8 carry … detail artifacts … leg 4 is fully specified by its own prose and its
+> model-driven gate, so per the owner's narrower bar it gets no artifact." Legs 4 and 7 were deleted on
+> 2026-08-23; leg 7's artifact `terminal-tabs#uat-7` was retired in the live store in the same pass, and
+> leg 4 carried no `(detail:` pointer to retire. An earlier version of this paragraph also read "the
+> remaining legs are fully specified by their capability contracts…", where the capability-specified legs
+> were 2 and 3, deleted by the ADR-0294 D2 pass on 2026-08-20. Corrected in place per ADR-0139.)*
+>
+> **DELETED 2026-08-23 (ADR-0404, `retire-ui-build-dispatch-arc-inc-07`): legs 4 and 7 are GONE, and the
+> story now carries TWO `machine` legs — 6 and 8.** Both deleted legs OPENED by clicking a **Build**
+> control on the forest map that ADR-0404 removed from the product (inc-02 deleted `BuildSection.tsx`;
+> inc-03 deleted `POST/GET /api/build`). The deleted pair was `uatc_79f9db93ca0e89aaaec2d522` (leg 4, "A
+> Build lands in a fresh tab while REAL Claude Code runs in another, and Enter fires the real build") and
+> `uatc_abc366dff450e75d3ab91e60` (leg 7, "A Build click opens a FRESH tab pre-filled and leaves the
+> running session's screen untouched").
+>
+> **There is no seed PRODUCER left to re-point them at.** `apps/studio/src/components/TreeView.tsx` states
+> it in its own voice: the map's only seed producer was the Build button, and while `TerminalDock` still
+> accepts a `seed` prop and opens a fresh tab for one, "it simply has no caller here". `onSeedTerminal` has
+> zero occurrences in SOURCE (it survives only in `stories/**` prose). The `window.desktopTerminal` preload
+> bridge exposes only `spawn/write/resize/dispose/onData/onExit/list/snapshot/ack/clear/openLink` —
+> pty-level methods that bypass the dock's React `seed` prop entirely, so no harness can make a seed ARRIVE
+> at the dock. Restoring a producer would mean writing new product code purely to serve a test, which is
+> what ADR-0404 removed.
+>
+> **NARROWING was not a third option.** What remains of leg 7 after dropping the click is exactly what the
+> capability [`seed-opens-new-tab`](seed-opens-new-tab.md) already signs at
+> `apps/studio/src/components/TerminalDock.test.tsx` (`son-seed-opens-a-fresh-tab`,
+> `son-seed-never-touches-active-session`, `son-pre-spawn-seed-writes-on-resolve`,
+> `son-token-bump-opens-another-fresh-tab`, `son-prefills-without-trailing-newline`,
+> `son-absent-seed-is-a-no-op`) — so narrowing lands on ADR-0294 D2's delete-a-restatement rule anyway. And
+> narrowing is not free: any prose change recomputes the `revision-id`, and a drive record binds the
+> revision it drove, so narrowing leg 4 would have forfeited its green IMMEDIATELY while leaving a leg
+> still framed on a deleted click.
+>
+> **Nothing real is lost, and this is the load-bearing point.** Leg 7's only value BEYOND the capability's
+> mocked-bridge verdict was proving isolation over REAL ptys — a corruption reaching a pty by a route a
+> mock cannot see. **Surviving leg 8 already proves exactly that** over two real ptys: each session's
+> snapshot contains ONLY its own marker across every switch, never the sibling's, and the ANSI colour bytes
+> appear only in the emitting session's snapshot. Leg 7's residue beyond leg 8 was specifically the SEED
+> path, which has no producer. Leg 4's residue beyond leg 7 was a REAL Claude Code session in tab 1 plus
+> pressing Enter — both reachable only through the deleted click.
+>
+> **LEG 4 WAS GREEN, AND THAT IS WHY IT HAD TO GO — state this precisely, because the tempting summary is
+> the wrong one.** Leg 4 was genuinely DRIVEN end to end on 2026-08-13 at commit `d9a6e59` (driver
+> `claude-code`, 8/8 steps `pass`, revision `uatr1:b4c8260d034f13d9`), one of its passing steps being
+> literally *"Click Build on a proposed story node"*. ADR-0404 deleted that control **eight days later**,
+> and the verdict was nonetheless re-signed at HEAD on 2026-08-23. So the green was a CURRENT claim about a
+> journey no user can walk — a live false green, not dormant history — and ADR-0348 rule 1 asks first
+> whether a leg is an ACCEPTANCE claim at all: an acceptance claim is about the product AS IT STANDS, and
+> this one no longer was. It also could never be re-earned: with no Build control no future drive is
+> possible, and `FRESHNESS_DAYS = 90` (`packages/drive/src/uat-drive-witness.check.ts`) would have turned
+> gate 1 red around **2026-11-11** with no available remedy — a landmine for whoever found it three months
+> on with none of this context. Retiring the leg retires the claim deliberately, now, in writing.
+>
+> **Nothing at the STORY level is lost.** `storytree uat list terminal-tabs --pg` already reported *"story
+> UAT: unproven — not every UAT test has a signed pass yet"* before this pass and still does after it. What
+> is deliberately retired is ONE LEG's green, not a story crown.
+>
+> **The orphaned proof rows are SAFE — recorded here so they are not rediscovered as a fault.**
+> `rollupCriterionStatus(criterion, events)` (`packages/cli/src/uat.ts`, `packages/drive/src/tree.ts`)
+> takes a criterion FROM THE CORPUS and looks up its events — corpus→verdict, never verdict→corpus. So the
+> `events.verdict` rows naming `uatc_79f9db93ca0e89aaaec2d522` and the `events.uat_drive` record simply
+> stop being looked up. No rung reds; `contract-binding-drift` is about capability proof bindings, not
+> criteria. They are retained history, deliberately orphaned.
+>
+> **Ordinals 4 and 7 are BURNED, not renumbered.** Legs 6 and 8 keep the numbers they have always had, so
+> no surviving leg moved onto a spent key and nothing already signed against a position now denotes a
+> different claim. Burned for this story is now 1, 2, 3, 4, 5, 7; live is 6 and 8. **Gates 1 and 3 are
+> RETAINED but UNCLAIMED** — see "Reliability Gates", where the reason is stated on each.
 
 **Goal —** A desktop user opens the app with their repo already chosen (since
 [`terminal-repo-picker`](../terminal-repo-picker/story.md) the terminal is **gated** behind a valid repo
-selection — a bare launch shows the gate, not the dock), finds a terminal with a **session panel**, runs
-real Claude Code in one tab, clicks **Build** on the forest map, and watches a **fresh tab** open pre-filled
-with the composed `pnpm storytree … build <id> --real --store pg` command — the Claude Code tab
-**untouched** — reviews it, and presses Enter to run the build as their own Claude Code in that new tab.
+selection — a bare launch shows the gate, not the dock), finds a terminal with a **session panel**, and
+works in **several real shell sessions at once**: creating a second session from the panel's "+", running
+something long-lived in one while switching to another, and closing a row when done — each session keeping
+its own screen, scrollback, colour and focus, and the dock's chrome staying put throughout. *(This read
+"… runs real Claude Code in one tab, clicks **Build** on the forest map, and watches a **fresh tab** open
+pre-filled with the composed `pnpm storytree … build <id> --real --store pg` command — the Claude Code tab
+**untouched** — reviews it, and presses Enter to run the build …". ADR-0404 removed the Build control, so
+no user can start that walk; the two legs asserting it were deleted on 2026-08-23. The dock's own seed
+HANDLING is untouched and still signed by [`seed-opens-new-tab`](seed-opens-new-tab.md) — it simply has no
+producer to be driven from. Corrected in place per ADR-0139.)*
 
-4. **A Build lands in a fresh tab while REAL Claude Code runs in another, and Enter fires the real build.** _(criterion-id: uatc_79f9db93ca0e89aaaec2d522)_ _(revision-id: uatr1:b4c8260d034f13d9)_ _(previous-revision-id: uatr1:44d9c8569b23aae5)_
-   _(witness: machine)_ _(proof-gate: terminal-tabs#gate-1)_ With the member's own interactive **Claude Code** session live in tab 1 — a paid
-   subscription session, not a plain shell — they click Build on a node/story; a new tab opens pre-filled,
-   and **tab 1's Claude Code is exactly as it was**: no injected text, no interrupted input, nothing sent
-   as a *message to Claude*. The member then presses Enter in the new tab and a real `--real --store pg`
-   build runs. **Success —** the exact failure ADR-0186 fixes is observed NOT to happen against a LIVE
-   Claude Code session, and the seeded command runs when Enter is pressed.
-   *(FLIPPED `human` → `machine` 2026-08-13 under ADR-0348 D2/D3, by the source-reading triage ADR-0357
-   mandates. The old note gave exactly two bases and BOTH are withdrawn: real paid-subscription spend
-   (ADR-0348 D2) and an outward-facing auto-merging PR (ADR-0348 D3, which observes that the merge
-   ceremony performs these unattended every day). What the note got RIGHT is retained and is now the
-   whole story: the mechanical half — a fresh tab opens, is pre-filled and un-run, and the
-   previously-active REAL pty's screen is unchanged — is machine-proven at leg 7 over a plain shell,
-   and the only difference here is that tab 1 holds a REAL Claude Code session rather than a plain
-   one. That difference is observable through the very same instrument: the main-held serialized screen
-   read via `desktopTerminal.snapshot` in the `_electron` harness, which legs 6, 7 and 8 already use.
-   ADR-0348 D4 governs the drive: it proceeds through the spend and through the PR on its own judgment,
-   raising an `open-question` only if IT is unsure. **The drive is long:** pressing Enter starts a real
-   `--real --store pg` build, so the driver needs `STORYTREE_UAT_DRIVE_TIMEOUT_MIN` raised well past its
-   30-minute default or the run is cut off mid-walk and recorded as a MISS — a harness red, not a
-   finding about the product.)*
 6. **The session panel creates, switches and closes REAL sessions in the native shell.** _(witness: machine)(detail: terminal-tabs#uat-6)_ _(proof-gate: terminal-tabs#gate-2)_ _(criterion-id: uatc_d79072069efa32c40f89ee29)_ _(revision-id: uatr1:60bacffaf38753df)_ _(previous-revision-id: uatr1:bad0dae27929a76e)_
    In the Electron `_electron` harness with `userData/repo-selection.json` pre-written to a real
    checkout (the `session-survival.e2e.mjs` precedent) and `/api/*` Playwright-routed to fixtures,
@@ -477,25 +556,7 @@ with the composed `pnpm storytree … build <id> --real --store pg` command — 
    `pass` drive for the criterion's CURRENT revision. That is the line between it and the minted rubber
    stamp ADR-0097 §2 bans: this gate is honestly RED, not passing. **Binding is not driving** — no drive
    has been run for this leg and ADR-0405 D4 leaves a red check red. Corrected in place (ADR-0139).
-7. **A Build click opens a FRESH tab pre-filled and leaves the running session's screen untouched.** _(criterion-id: uatc_abc366dff450e75d3ab91e60)_ _(revision-id: uatr1:c42afbbd5c4adc37)_ _(previous-revision-id: uatr1:75dd43647be8960b)_
-   _(witness: machine)(detail: terminal-tabs#uat-7)_ _(proof-gate: terminal-tabs#gate-3)_ In the same harness, with a real pty in tab 1 carrying typed, un-submitted input,
-   open the fixture's `proposed` story panel and click Build — with the bridge present the dock **seeds
-   instead of POSTing** `/api/build` (the desktop re-point). **Success —** a SECOND session appears, its
-   `desktopTerminal.snapshot` shows the composed `storytree … build … --real --store pg` sitting at a
-   prompt with **no trailing newline and no execution**, and tab 1's snapshot is **identical** to the one
-   taken before the click — the load-bearing ADR-0186 safety wall proven over REAL ptys end-to-end, not
-   over the mocked bridge the capability [`seed-opens-new-tab`](seed-opens-new-tab.md) signs. *(That clause
-   read "not over the mocked bridge leg 3 signs"; the ADR-0294 D2 pass deleted leg 3 on 2026-08-20 as a
-   restatement of that same capability, so the citation now names the capability directly — corrected in
-   place per ADR-0139.)* **BOUND to `terminal-tabs#gate-3` (2026-08-22) — RED until driven.** This read *"**UNBOUND — fails
-   closed (ADR-0294 D4, 2026-08-20)** … No gate is minted to host it (ADR-0097 §2)"*, and the `_electron`
-   walk it named still has no spec at HEAD. What gate 3 binds is the OTHER real instrument this story
-   already uses — ADR-0295 D1's model-driven executor, the shape of gate 1 — which hands a model this
-   leg's authored journey VERBATIM against the real packaged app and cannot exit 0 without a recorded
-   `pass` drive for the criterion's CURRENT revision. That is the line between it and the minted rubber
-   stamp ADR-0097 §2 bans: this gate is honestly RED, not passing. **Binding is not driving** — no drive
-   has been run for this leg and ADR-0405 D4 leaves a red check red. Corrected in place (ADR-0139).
-8. **Per-tab scrollback, colour, resize and focus survive switching and closing.** _(witness: machine)(detail: terminal-tabs#uat-8)_ _(proof-gate: terminal-tabs#gate-4)_ _(criterion-id: uatc_811ce13a1c65a2644a7f2a2b)_ _(revision-id: uatr1:4f1302e1fba7ca4f)_ _(previous-revision-id: uatr1:ce250b2eef349f7e)_
+8. **Per-tab scrollback, colour, resize and focus survive switching and closing.** _(witness: machine)(detail: terminal-tabs#uat-8)_ _(proof-gate: terminal-tabs#gate-4)_ _(criterion-id: uatc_811ce13a1c65a2644a7f2a2b)_ _(revision-id: uatr1:94ff1a0cdca9ede0)_ _(previous-revision-id: uatr1:4f1302e1fba7ca4f)_
    Over two real ptys in the same harness: write a distinct marker into each, switch rows and read both
    back; emit ANSI colour into one; resize the dock; type after a switch; close one row. **Success —** each
    session's `desktopTerminal.snapshot` retains only its OWN marker across switches, the colour bytes
@@ -513,15 +574,19 @@ with the composed `pnpm storytree … build <id> --real --store pg` command — 
 
 End state — the embedded terminal is a tabbed multi-session terminal: N pty sessions in a session panel,
 per-session behaviours signed under the studio suite, the chrome per-dock, each session killed only by its
-row's "×" or the app closing (unmount preserves them — app-owned, ADR-0189); a Build seed opens a fresh tab
-pre-filled (un-run) and never disturbs the user's active session — the panel's create/switch/close, the
-seed's fresh tab, and the per-tab screen state additionally signed over REAL ptys under the Electron
-`_electron` harness, and the live-Claude-Code / real-build walk model-driven under gate 1 below, the
-prove-it-gate leaf and the spine untouched. *(This clause read "and only the live-Claude-Code /
-real-spend walk operator-attested"; corrected in place per ADR-0139 when ADR-0348 D2/D3's triage flipped
-leg 4 on 2026-08-13. This story now carries NO human leg.)* The panel's LOOK and the surface's FEEL are
-no longer acceptance obligations (ADR-0348 D6); that intent is recorded under "Operator-attested glue"
-and answered by the owner using the app.
+row's "×" or the app closing (unmount preserves them — app-owned, ADR-0189); a seed opens a fresh tab
+pre-filled (un-run) and never disturbs the user's active session, a contract the capability
+`seed-opens-new-tab` still signs over the mocked bridge even though ADR-0404 left it with no producer to
+be driven from — with the panel's create/switch/close and the per-tab screen state additionally signed
+over REAL ptys under the Electron `_electron` harness, the prove-it-gate leaf and the spine untouched.
+*(This clause read "… a Build seed opens a fresh tab … the panel's create/switch/close, the seed's fresh
+tab, and the per-tab screen state additionally signed over REAL ptys …, and the live-Claude-Code /
+real-build walk model-driven under gate 1 below". The seed's fresh tab is no longer reachable end-to-end
+and the live-Claude-Code walk was leg 4, deleted on 2026-08-23 with leg 7; an earlier version read "and
+only the live-Claude-Code / real-spend walk operator-attested", corrected when ADR-0348 D2/D3's triage
+flipped leg 4 on 2026-08-13. Corrected in place per ADR-0139.)* This story carries NO human leg. The
+panel's LOOK and the surface's FEEL are no longer acceptance obligations (ADR-0348 D6); that intent is
+recorded under "Operator-attested glue" and answered by the owner using the app.
 
 ## Reliability Gates
 
@@ -543,11 +608,19 @@ unchanged. It goes red — honestly — when no `pass` record exists for the cri
 90 days (the ADR-0016 ageing floor).
 
 1. **UAT leg 4 — "a Build lands in a fresh tab while REAL Claude Code runs in another, and Enter fires the real build" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts terminal-tabs uatc_79f9db93ca0e89aaaec2d522`.
-   Witnesses that a model held a REAL interactive Claude Code session in tab 1, clicked Build, saw a
-   fresh pre-filled tab open with tab 1's screen untouched (no injected text, no interrupted input,
-   nothing sent as a message to Claude), and pressed Enter to run a real `--real --store pg` build.
-   **The walk contains a real build**, so the driver needs `STORYTREE_UAT_DRIVE_TIMEOUT_MIN` raised well
-   past its 30-minute default; a cut-off run emits no report and is recorded as a MISS.
+   **UNCLAIMED as of 2026-08-23 — the criterion this gate was minted for was DELETED, and the gate is
+   RETAINED anyway.** Gate ids are positional (`asset:edit-story-uat-criteria` step 2), so removing this
+   item would renumber gates 2–4 down one and silently re-point every already-signed verdict and every
+   surviving `(proof-gate:)` binding — including legs 6 and 8's — onto gates they were never about.
+   Nothing would error. So it stays exactly where it is, claimed by nothing, and no leg may ever be bound
+   to it again. It originally witnessed that a model held a REAL interactive Claude Code session in tab 1,
+   clicked Build, saw a fresh pre-filled tab open with tab 1's screen untouched (no injected text, no
+   interrupted input, nothing sent as a message to Claude), and pressed Enter to run a real
+   `--real --store pg` build. That drive DID happen — 2026-08-13 at `d9a6e59`, 8/8 steps `pass` — and the
+   verdict was re-signed at HEAD as recently as 2026-08-23; the leg was retired because ADR-0404 removed
+   the Build control eight days after the drive, so the green had become a current claim about a journey
+   no user can walk, and no future drive could ever re-earn it. See the pass note under "UAT Test
+   Criteria" for the full basis and for why the orphaned proof rows are safe.
 
 **Gates 2–4 are NEW (2026-08-22, `machine-uat-signing-gap-arc-inc-02`) and were APPENDED — gate 1 kept
 its ordinal.** Gate ids are positional (`asset:edit-story-uat-criteria` step 2), so inserting or
@@ -560,6 +633,12 @@ so three unbound legs refused this story's whole UAT-signing pass and stranded b
 gate and could otherwise be signed. Binding them exits that trap without weakening anything: a drive
 witness cannot pass a leg nobody walked.
 
+**Read that paragraph as the 2026-08-22 record it is. As of 2026-08-23 only gates 2 and 4 CLAIM a leg**
+(6 and 8 respectively), and both are still honestly RED — no drive has been run for either. Gates 1 and
+3 are retained-but-unclaimed after legs 4 and 7 were deleted; the reason each is kept rather than removed
+is stated on the gate itself. All four ordinals are therefore frozen at 1, 2, 3, 4 forever, and a gate
+added later APPENDS as gate 5.
+
 2. **UAT leg 6 — "the session panel creates, switches and closes REAL sessions in the native shell" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts terminal-tabs uatc_d79072069efa32c40f89ee29`.
    Witnesses that a model expanded the dock in the REAL packaged app and observed `desktopTerminal.list()`
    go 1 → 2 → 1 across the walk — one real pty and one panel row on expand, a second real pty and row from
@@ -568,11 +647,18 @@ witness cannot pass a leg nobody walked.
    exactly once throughout. The mocked-bridge jsdom half is [`multi-session-tabs`](multi-session-tabs.md)'s
    own verdict and is not re-witnessed here.
 3. **UAT leg 7 — "a Build click opens a FRESH tab pre-filled and leaves the running session's screen untouched" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts terminal-tabs uatc_abc366dff450e75d3ab91e60`.
-   Witnesses that a model held a real pty in tab 1 carrying typed, UN-SUBMITTED input, clicked Build on a
-   `proposed` story, and observed the dock SEED instead of POSTing `/api/build`: a second session appears
-   whose `desktopTerminal.snapshot` shows the composed `storytree … build … --real --store pg` at a prompt
-   with no trailing newline and no execution, while tab 1's snapshot is IDENTICAL to the one taken before
-   the click — the load-bearing ADR-0186 safety wall over REAL ptys end to end.
+   **UNCLAIMED as of 2026-08-23 — the criterion this gate was minted for was DELETED, and the gate is
+   RETAINED anyway**, for the same positional reason as gate 1 above: deleting it would renumber gate 4
+   to 3 and silently re-point leg 8's `(proof-gate: terminal-tabs#gate-4)` binding onto a different
+   claim, with nothing erroring. It stays where it is, claimed by nothing, and no leg may be bound to it
+   again. Unlike gate 1 it was never satisfied: no drive record for `uatc_abc366dff450e75d3ab91e60` has
+   ever existed, so it was honestly RED throughout its life. It originally witnessed that a model held a
+   real pty in tab 1 carrying typed, UN-SUBMITTED input, clicked Build on a `proposed` story, and observed
+   the dock SEED instead of POSTing `/api/build`. ADR-0404 removed both halves of that walk — the Build
+   control and the `/api/build` route — leaving no way to originate a seed at all, which is why the leg
+   was retired rather than narrowed. The mocked-bridge half of the contract survives as
+   [`seed-opens-new-tab`](seed-opens-new-tab.md)'s own signed verdict, and the real-pty isolation it
+   uniquely added is carried by surviving leg 8 over two real ptys.
 4. **UAT leg 8 — "per-tab scrollback, colour, resize and focus survive switching and closing" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts terminal-tabs uatc_811ce13a1c65a2644a7f2a2b`.
    Witnesses that a model, over two real ptys, observed each session's `desktopTerminal.snapshot` retain
    only its OWN marker across switches, ANSI colour bytes appear only in the emitting session, a dock
@@ -581,19 +667,20 @@ witness cannot pass a leg nobody walked.
 
 ## Proof
 
-The story is proven when that walkthrough passes — the wiring legs (2, 3) green under the two capabilities'
-signed `--real` verdicts (with each cap's contracts green underneath), the real-pty legs (6, 7, 8) green
-under the Electron `_electron` harness, and leg 4 green under the model-driven gate 1 above. *(This read
-"and the three irreducible legs (1, 4, 5) operator-attested" — legs 1 and 5 were DELETED by ADR-0348 D6
-and leg 4 flipped to `machine` on 2026-08-13; corrected in place per ADR-0139.)* Per
+The story is proven when that walkthrough passes — the two surviving real-pty legs (6 and 8) green under
+the Electron `_electron` harness, on top of the two capabilities' signed `--real` verdicts with each cap's
+contracts green underneath. *(This read "the wiring legs (2, 3) green under the two capabilities' signed
+`--real` verdicts …, the real-pty legs (6, 7, 8) green …, and leg 4 green under the model-driven gate 1
+above", and before that "the three irreducible legs (1, 4, 5) operator-attested". Legs 1 and 5 were
+deleted by ADR-0348 D6, legs 2 and 3 by ADR-0294 D2, and legs 4 and 7 by ADR-0404 on 2026-08-23;
+corrected in place per ADR-0139.)* Per
 ADR-0020, `healthy` is only ever DERIVED from signed verdicts; nothing here is authored healthy. Both
 capabilities are proof-wired (each carries a `proof:` block with an `editsExisting` `real:` arm — a
 behaviour-assertion red→green over the existing `TerminalDock.tsx` + its vitest suite) so the spine can
 drive their studio vitest suites red→green under its own gate; the story's machine-driven UAT node is
 WITHHELD (its `uat_witness` is absent → human, ADR-0040), so driving those capabilities to signed verdicts
-plus writing the three e2e specs (see "Open modeling calls" item 6) is what makes the multi-session
-terminal buildable, and the crown additionally awaits leg 4's model-driven witness under gate 1 — this
-story awaits NO operator attestation since the 2026-08-13 ADR-0357 triage.
+plus writing the two e2e specs (see "Open modeling calls" item 6) is what makes the multi-session
+terminal buildable — this story awaits NO operator attestation since the 2026-08-13 ADR-0357 triage.
 
 ## Open modeling calls (for the owner / orchestrator)
 
@@ -647,23 +734,23 @@ Build seed opens a fresh tab; owner-directed, born accepted, no new ADR reserved
    — plus a per-story discovery comment for `terminal-tabs`, or `pnpm -r test` goes red. This is a
    `packages/cli` test edit — outside the story-author's `stories/**` fence — flagged here so it lands with
    the caps.
-6. **The three real-pty legs (6, 7, 8) have NO spec yet — new files, NOT an edit of `session-survival`.**
+6. **The two real-pty legs (6 and 8) have NO spec yet — new files, NOT an edit of `session-survival`.**
    The 2026-07-26 re-adjudication tags them `machine` because the Electron `_electron` harness demonstrably
    CAN drive them (a real node-pty, the repo gate satisfied by a pre-written `repo-selection.json`, screens
    read via `desktopTerminal.snapshot`), not because a spec exists. Nothing in `apps/desktop/e2e/`
    currently clicks `[aria-label="new terminal tab"]`, `[aria-label="tab 2"]`, or
    `[aria-label^="close tab"]`, and `session-survival.e2e.mjs` **asserts exactly ONE live session in both
-   directions** — so a second session must NOT be introduced into that walk; legs 6–8 need their own spec
-   file(s). Per ADR-0209 §6 these legs are UNSTAMPED until those specs sign them; tagging `machine` with no
-   spec yet is honest, not green.
-   *(This listed two harness affordances "the author should not re-discover": that with the bridge present
-   a Build click seeds instead of POSTing `/api/build`, so no build-endpoint stub is needed, and that
-   `harness.mjs`'s `TREE_FIXTURE` carries a `proposed` story (`gamma-flow`) whose panel lights a real Build
-   button. ADR-0404 retired the Build button and deleted the `/api/build` route, so neither affordance
-   exists: `gamma-flow` is still in the fixture but no panel can light a Build control, and nothing in
-   `apps/desktop/e2e/` references one. A spec author needs a DIFFERENT way to originate a seed — see the
-   parked increment on `retire-ui-build-dispatch-arc`, since legs 6-8 inherit the same missing producer as
-   legs 4 and 7. Corrected in place per ADR-0139.)*
+   directions** — so a second session must NOT be introduced into that walk; legs 6 and 8 need their own
+   spec file(s). Per ADR-0209 §6 these legs are UNSTAMPED until those specs sign them; tagging `machine`
+   with no spec yet is honest, not green.
+   *(This read "The three real-pty legs (6, 7, 8)". Leg 7 was DELETED on 2026-08-23 — it was the one of
+   the three that needed a seed to be originated, and ADR-0404 left no producer to originate one, so the
+   missing-producer blocker this item used to carry is GONE rather than outstanding. Legs 6 and 8 never
+   needed a Build click: both drive the session panel and real ptys directly. An earlier version also
+   listed two harness affordances "the author should not re-discover" — that with the bridge present a
+   Build click seeds instead of POSTing `/api/build`, and that `harness.mjs`'s `TREE_FIXTURE` carries a
+   `proposed` story (`gamma-flow`) whose panel lights a real Build button; neither exists any more.
+   Corrected in place per ADR-0139.)*
 7. **Stale prose OUTSIDE this fence, flagged for the orchestrator.** Two comments describe
    pre-ADR-0189/0190 behaviour while the code itself is current:
    `apps/studio/src/components/TerminalDock.tsx`'s module docstring still calls the chrome "a tab strip
