@@ -143,6 +143,8 @@
       "packages/cli/src/decision-read-baseline.ts": "cli",
       "packages/cli/src/probe-decision-baseline.ts": "cli",
       "packages/cli/src/render-decision-baseline.ts": "cli",
+      "packages/cli/src/decision-altitude.ts": "cli",
+      "packages/cli/src/probe-decision-altitude.ts": "cli",
       "packages/cli/src/probe-decision-reads.ts": "cli",
       "packages/cli/src/probe-re-reads.ts": "cli",
       "packages/cli/src/claude-region.ts": "cli",
